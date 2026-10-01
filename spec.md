@@ -1,0 +1,3832 @@
+# BCS Full-suite Procurement Platform — spec.md (PRD + Technical Specification)
+
+> เอกสารนี้คือ **แหล่งความจริงเดียว** สำหรับสร้างระบบด้วย vibe coding / agentic engineering
+> ทุก requirement มี ID อ้างอิงได้ · ทุกกฎที่แตะเงินและอำนาจอนุมัติมีตัวอย่างทดสอบ (golden cases)
+> · ทุกเรื่องที่ยังไม่รู้ถูกระบุเป็น OQ พร้อมค่าเริ่มต้นที่ใช้ระหว่างรอคำตอบ
+
+| รายการ | ค่า |
+| --- | --- |
+| เวอร์ชันเอกสาร | 0.2 — Draft for build (เพิ่มส่วนเริ่มที่นี่ checklist เส้นชัย และแนวทางออกแบบ) |
+| วันที่ | 1 ต.ค. 2026 |
+| สถานะ | ใช้เริ่มสร้างชั้น 1 (S1–S5) ได้ทันที · ชั้น 2–4 เป็นกรอบ ต้องขยายเป็น sub-spec ก่อนเริ่มแต่ละขั้น |
+| เอกสารต้นทาง | "BCS Full-suite Procurement Platform — แนวคิดฟีเจอร์และลำดับการพัฒนา" (28 ก.ย. 2026) และ BCS Project Proposal v1.2 (8 เม.ย. 2026) |
+| ลูกค้ารายแรก | LK-RICH (ใช้งาน tenant เดียว บนระบบที่ออกแบบเป็น multi-tenant) |
+| ผู้อ่านหลัก | ทีมพัฒนา ผู้ตรวจโค้ด และ AI coding agent (Claude Code, Cursor, Codex ฯลฯ) |
+
+## เริ่มที่นี่ — สำหรับ AI coding agent (อ่านส่วนนี้ก่อนทุกครั้ง)
+
+ถ้าผู้ใช้สั่งแค่ "ทำตาม spec.md" หรือคำสั่งคล้ายกัน งานทั้งหมดของคุณอยู่ในส่วนนี้ ไม่ต้องรอคำอธิบายเพิ่ม
+
+### ก่อนเริ่ม (คนทำครั้งเดียว)
+
+วางไฟล์ 5 ไฟล์ในโฟลเดอร์โปรเจกต์ใหม่ รวม `CLAUDE.md` ที่ root ซึ่ง Claude Code อ่านอัตโนมัติทุกครั้งที่เปิดในโฟลเดอร์นั้น (ไม่ต้องรัน `/init`) แล้วเปิด Claude Code ในโฟลเดอร์นั้น ถ้าชื่อไฟล์ที่ดาวน์โหลดมาไม่ตรง ให้แก้ชื่อในคำสั่งก่อนรัน
+
+macOS · Linux · WSL · Git Bash:
+
+```bash
+mkdir -p bcs/docs/inputs bcs/scripts && mv ~/Downloads/spec.md ~/Downloads/CLAUDE.md bcs/ && mv ~/Downloads/BCS_inputs_v1_demo.xlsx bcs/docs/inputs/ && mv ~/Downloads/spec_check.py ~/Downloads/validate_inputs.py bcs/scripts/ && cd bcs && git init
+```
+
+Windows PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force bcs\docs\inputs, bcs\scripts | Out-Null; Move-Item $HOME\Downloads\spec.md, $HOME\Downloads\CLAUDE.md bcs\; Move-Item $HOME\Downloads\BCS_inputs_v1_demo.xlsx bcs\docs\inputs\; Move-Item $HOME\Downloads\spec_check.py, $HOME\Downloads\validate_inputs.py bcs\scripts\; Set-Location bcs; git init
+```
+
+### คำสั่งที่ผู้ใช้พิมพ์
+
+| เมื่อไร | พิมพ์ |
+| --- | --- |
+| ครั้งแรก | `ทำตาม spec.md จนถึงเส้นชัย A` |
+| ครั้งต่อไป | `ทำ checklist ใน spec.md ต่อ` |
+| ดูความคืบหน้า | `สรุปความคืบหน้าจาก checklist ใน spec.md เป็นตาราง` |
+
+### งานรอบนี้และเส้นชัย
+
+งานรอบนี้คือ **เส้นชัย A — Demo พร้อม** ถือว่าเสร็จเมื่อครบทุกข้อด้านล่าง ติ๊กแต่ละข้อเมื่อตรวจแล้วจริง
+
+- [ ] ทุกข้อใน §16 ที่มีแท็ก `[demo]` และไม่มีแท็ก `[คน]` เป็น `[x]`
+- [ ] `pnpm verify` ผ่านทุกด่าน (0 FAIL)
+- [ ] `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y ในชีต `Demo_Script`
+- [ ] staging เปิดจาก URL จริงได้ และ `/api/health` ตอบ 200
+- [ ] มีรายงาน `docs/reports/demo-ready.md` ที่ใช้ 3 หัวข้อตาม §17.8 พร้อมตารางข้อที่เสร็จ ผลของคำสั่งข้างบน และข้อ `[คน]` ที่เหลือให้ผู้ใช้ทำ
+
+ถึงเส้นชัย A แล้วให้หยุด รายงาน และรอคำสั่ง ห้ามเริ่มข้อ `[go-live]` เอง
+
+| เส้นชัย | ถือว่าเสร็จเมื่อ | เริ่มเมื่อ |
+| --- | --- | --- |
+| A — Demo พร้อม | ครบรายการข้างบน | งานรอบนี้ |
+| B — Spec version 2 | ผู้ใช้ส่งไฟล์ input จริงและคำตอบในชีต `Questions` แล้ว spec ถูกปรับตามข้อมูลจริง | ผู้ใช้สั่งหลัง demo |
+| C — Go-live ชั้น 1 | ทุกข้อ `[go-live]` ใน §16 เป็น `[x]` และรายการตรวจ §16.9 ครบ | ผู้ใช้สั่งหลังเส้นชัย B |
+
+### วิธีทำงาน (ทำต่อเองจนถึงเส้นชัย ไม่ต้องขออนุญาตระหว่างข้อ)
+
+1. อ่านส่วนนี้ §0.4 และ §17 แล้วเปิด checklist ใน §16
+2. เลือกข้อแรกที่ยังเป็น `[ ]` ตามลำดับ ข้ามข้อ `[go-live]` และข้อ `[คน]`
+3. อ่าน FR GC และหัวข้อที่ข้อนั้นอ้าง งานหน้าจออ่าน §9.9 ก่อนเขียนโค้ด
+4. ทำจน "เสร็จเมื่อ" ของข้อนั้นผ่านจริง โดยรันคำสั่งตรวจเอง ห้ามติ๊กจากการคาดเดา
+5. รัน `pnpm verify` แล้ว commit
+6. ติ๊ก `[x]` และต่อท้ายบรรทัดด้วย `— เสร็จ YYYY-MM-DD · <commit>` แล้วอัปเดต `docs/feature-status.yaml`
+7. เจองานใหม่ระหว่างทำ เช่น บั๊ก เทสต์ที่ขาด หรือสิ่งที่ spec ไม่ได้เขียน ให้เพิ่มเป็นข้อใหม่ใน §16.11 แล้วทำต่อ ถ้างานใหม่เปลี่ยนกฎเงิน อำนาจ หรือขอบเขต ให้เพิ่มเป็น `[ ]` แล้วหยุดถาม
+8. ข้อที่ติดอยู่ให้คงเป็น `[ ]` ต่อท้ายด้วย `— ติดอยู่: <เหตุผล>` แล้วไปข้อถัดไปที่ทำได้
+9. วนกลับไปข้อ 2 จนถึงเส้นชัย
+
+### หยุดและถามเมื่อ
+
+ขั้นที่ไม่ต้องใช้ผู้ใช้ให้ทำต่อ และเขียนสถานะสั้น ๆ ในข้อความเดียวกับการลงมือทำขั้นถัดไป หยุดถามเฉพาะเมื่อทำต่อไม่ได้ถ้าไม่มีผู้ใช้ หรือก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้
+
+- ต้องใช้บัญชี secret หรือบริการภายนอกที่ยังไม่มี (hosting Neon LINE อีเมล) หรือต้องจ่ายเงิน
+- ก่อนลบข้อมูลที่ไม่ได้มาจาก seed แก้ข้อมูลบน staging หรือ production ใช้ `git push --force` หรือแก้อะไรนอกโฟลเดอร์ repo
+- spec ขัดกันเอง golden case ขัดกับกฎ หรือ library ทำงานต่างจาก spec จนต้องเปลี่ยนการออกแบบ
+- งานที่พบเพิ่มเปลี่ยนกฎเงิน อำนาจ หรือขอบเขต
+- ถึงเส้นชัยแล้ว
+
+รายการเต็มอยู่ใน §17.4 นอกจากนี้ให้ตัดสินเองตาม spec และทำงานต่อ จบทุกรอบด้วยสรุป 3 หัวข้อตาม §17.8
+
+### งานใหญ่: แยกให้ subagent แล้วตรวจหลักฐาน
+
+งานที่กวาดทั้งโค้ดเบส เช่น audit migration review หรือเขียนเทสต์ให้ทุก model ให้แบ่งงานให้ subagent ทีละส่วน เมื่อ subagent รายงานกลับ ให้ตรวจหลักฐาน (ไฟล์ บรรทัด และผลของคำสั่ง) ก่อนรับ แล้วปิดท้ายด้วยตารางสรุปเดียว งานเล็กหรืองานที่ตรรกะต้องต่อเนื่องให้ทำเอง ทุกข้อของ agent ใน §16 มีบรรทัด "แยกงาน" เตือนว่าข้อนั้นแยกได้หรือไม่ ไม่ต้องแบ่งล่วงหน้า ให้ตัดสินตอนลงมือทำ
+
+ตัวอย่างคำสั่งให้ subagent:
+
+```text
+ตรวจทุก service ใน src/server/services ว่าเปลี่ยนสถานะผ่าน runCommand() เท่านั้น (§4.3)
+ให้แต่ละ service กับ subagent ของตัวเอง เมื่อ subagent รายงานกลับ ให้ตรวจหลักฐาน (ไฟล์และบรรทัด) ก่อนรับ
+ปิดท้ายด้วยตารางเดียว: service, ผ่านหรือไม่, หลักฐาน
+```
+
+### รูปแบบ checklist
+
+- `[ ]` ยังไม่เสร็จ · `[x]` เสร็จแล้ว ต่อท้ายด้วย `— เสร็จ YYYY-MM-DD · <commit>`
+- แท็ก `[demo]` ต้องเสร็จก่อนเส้นชัย A · `[go-live]` ต้องเสร็จก่อนใช้งานจริง · `[คน]` คนต้องทำหรือยืนยัน agent ห้ามติ๊กเอง
+- ทุกข้อมี "เสร็จเมื่อ" ซึ่งเป็นเส้นชัยของข้อนั้น และข้อของ agent มี "แยกงาน"
+- ข้อใหม่ใช้รหัส `NEW-nn` ใน §16.11 · `scripts/spec_check.py` ตรวจรูปแบบนี้ทุกครั้งที่รัน `pnpm verify`
+
+## สารบัญ
+
+- เริ่มที่นี่ — คำสั่ง เส้นชัย และวิธีทำงานของ AI agent
+
+0. วิธีใช้เอกสารนี้
+1. Goal — ปัญหา เป้าหมาย ขอบเขต และสิ่งที่ไม่ทำ
+2. ผู้ใช้ บทบาท และสิทธิ์
+3. หลักการออกแบบ → กฎวิศวกรรมที่บังคับใช้ได้
+4. สถาปัตยกรรม
+5. Tech stack และเงื่อนไขทางเทคนิค
+6. โมเดลข้อมูลและ state machine
+7. Engine แกนกลางที่ต้องแม่น 100% (พร้อม golden cases)
+8. Functional requirements (ชั้น 1 ละเอียด · ชั้น 2–4 เป็นกรอบ)
+9. ช่องทางใช้งาน: Workspace · LINE · LIFF · PWA · Email · Supplier Portal
+10. การแจ้งเตือนและแคตตาล็อกเหตุการณ์
+11. รายงาน dashboard และ KPI
+12. AI (ชั้น 4): กติกาและสเปก
+13. Non-functional requirements
+14. API และ convention ของโค้ด
+15. การทดสอบ quality gates และ `pnpm verify`
+16. แผนงาน: Phase 0 และขั้น S1–S15
+17. กติกาสำหรับ AI coding agent (คัดไปใส่ CLAUDE.md / AGENTS.md ได้ทันที)
+18. การตัดสินใจ (ADR) สมมติฐาน และคำถามค้าง (OQ)
+19. อภิธานศัพท์ ไทย–อังกฤษ–ชื่อในโค้ด
+- ภาคผนวก A ข้อมูลตัวอย่าง (seed) · B `.env.example` · C แผนผังเอกสารต้นทาง → spec
+
+---
+
+## 0. วิธีใช้เอกสารนี้
+
+### 0.1 ลำดับความสำคัญของเอกสาร
+
+`spec.md` > `docs/decisions/ADR-*.md` > `docs/sub-specs/S*.md` > comment ในโค้ด
+ถ้าโค้ดขัดกับ spec ให้ถือว่าโค้ดผิด ถ้า spec ผิด ให้แก้ spec ผ่าน PR พร้อมบันทึก ADR ห้ามแก้พฤติกรรมเงียบ ๆ ในโค้ด
+
+### 0.2 คำบังคับ
+
+ใช้ **MUST / MUST NOT / SHOULD / MAY** ตาม RFC 2119 = ต้อง / ห้าม / ควร / เลือกได้
+
+### 0.3 ระบบ ID
+
+| Prefix | ความหมาย | ตัวอย่าง |
+| --- | --- | --- |
+| `G-n` | เป้าหมายธุรกิจ | G-3 |
+| `EG-n` | เป้าหมายวิศวกรรม | EG-2 |
+| `NG-n` | สิ่งที่ไม่ทำ (non-goal) | NG-5 |
+| `P-n` | หลักการออกแบบ | P-2 |
+| `FR-<MOD>-nnn` | functional requirement | FR-DOA-003 |
+| `NFR-<CAT>-nn` | non-functional requirement | NFR-SEC-04 |
+| `BR-<MOD>-nn` | กฎธุรกิจ | BR-BUD-02 |
+| `INV-<MOD>-nn` | invariant ที่ต้องจริงเสมอ และต้องมีเทสต์ | INV-BUD-01 |
+| `GC-<MOD>-nn` | golden test case | GC-DOA-05 |
+| `ADR-nnn` | การตัดสินใจ | ADR-012 |
+| `OQ-nn` | คำถามค้าง (มีค่าเริ่มต้นเสมอ) | OQ-01 |
+| `A-nn` | สมมติฐาน | A-03 |
+| `T1–T4` | ชั้นการพัฒนา (ชั้น 1–4) | T1 |
+| `S1–S15` | ขั้นการพัฒนา (ขั้น 1–15) | S5 |
+| `S<n>-<nn>` | งานย่อยในแต่ละขั้น (§16) | S2-04 |
+| `P0-nn` | รายการเตรียมการ Phase 0 | P0-03 |
+| `R-nn` | รายงานตาม proposal เดิม | R-03 |
+
+รหัสโมดูล: `PLT` แพลตฟอร์ม · `AUTH` ยืนยันตัวตน · `DOA` อำนาจอนุมัติ · `INT` ประตูหน้า · `WF` workflow · `BUD` งบ · `P2P` จัดซื้อถึงตรวจรับ · `AP` ใบแจ้งหนี้ · `PAY` จ่ายเงิน · `SUP` ผู้ขาย · `SRC` จัดหา · `RSK` ความเสี่ยง · `CON` สัญญา · `INTG` เชื่อมระบบ · `VIS` การมองเห็น · `LINE` · `NOTI` แจ้งเตือน · `AI` · `ADM` ผู้ดูแล
+
+รหัสย่อยที่ใช้กับ BR / INV / GC เพิ่มจากรหัสโมดูล: `MONEY` เงิน · `VAT` ภาษีมูลค่าเพิ่ม · `THAI` คำอ่านจำนวนเงิน · `DATE` วันที่และปี พ.ศ. · `TAXID` เลขผู้เสียภาษี · `NUM` เลขเอกสาร · `SOD` แบ่งแยกหน้าที่ · `DLG` รักษาการ · `SLA` เวลาทำการ · `FORM` ฟอร์ม · `CONS` รวม PR · `GR` ตรวจรับ · `IVC` ยืนยันใบกำกับ · `EXP` ส่งออก Express · `EVT` เหตุการณ์ · `TEN` แยก tenant · `TOK` action token · `RPT` รายงาน · `MATCH` จับคู่ · `WHT` ภาษีหัก ณ ที่จ่าย · `BANK` ไฟล์ธนาคาร
+
+### 0.4 ลำดับการอ่านสำหรับ AI agent (ประหยัด context)
+
+| งาน | อ่าน |
+| --- | --- |
+| ทุก session | ส่วน "เริ่มที่นี่" · §0 · §1.5–1.6 · §3 · §4 · §17 · checklist ใน §16 |
+| แตะโมเดลข้อมูล / migration | + §6 |
+| แตะเงิน งบ DOA SoD ภาษี เลขเอกสาร | + §7 ทั้งหมด (ห้ามข้าม) |
+| ทำงานตามขั้น | + §16 ของขั้นนั้น + FR ที่ขั้นนั้นอ้างถึงใน §8 |
+| งาน LINE / LIFF | + §9.2–9.4, §10 |
+| งานหน้าจอ | + §9.9 |
+| งาน AI (ชั้น 4 เท่านั้น) | + §12 |
+
+ไม่ต้องโหลดทั้งไฟล์ถ้าไม่จำเป็น ข้อความภาษาไทยใช้ token มาก ให้อ่านเฉพาะส่วนตามตารางนี้
+
+### 0.5 สถานะฟีเจอร์
+
+ทุกอย่างในเอกสารนี้หมายถึง **"อยู่ในแผน"** ไม่ใช่ **"ใช้ได้แล้ว"** สถานะจริงเก็บที่ `docs/feature-status.yaml` (§15.6) ซึ่งเป็นแหล่งเดียวที่ใช้ตอบลูกค้าว่าอะไรใช้ได้แล้ว เพื่อไม่พูดเกินจริงว่า "มีเหมือน Zip"
+
+### 0.6 เมื่อเจอสิ่งที่เอกสารไม่ได้ระบุ
+
+1. ถ้ามี OQ ที่เกี่ยวข้อง → ใช้ค่าเริ่มต้นของ OQ นั้น และใส่ `// TODO(OQ-xx)` ตรงจุดที่ใช้
+2. ถ้าไม่มี OQ และเรื่องนั้นแตะเงิน สิทธิ์ อำนาจอนุมัติ ภาษี หรือข้อมูลส่วนบุคคล → **หยุดและถาม** (§17.4)
+3. ถ้าเป็นรายละเอียด UI ทั่วไป → เลือกทางที่ง่ายและสอดคล้องกับ shadcn/ui แล้วบันทึกใน PR
+
+---
+
+## 1. Goal — ปัญหา เป้าหมาย ขอบเขต และสิ่งที่ไม่ทำ
+
+### 1.1 ปัญหา
+
+ปัญหาหลักไม่ใช่การไม่มีระบบ แต่คือ (1) คำขอกระจายหลายช่องทาง (2) ผู้อนุมัติไม่อยู่หน้าคอม ถูกตามทาง LINE และโทรศัพท์ (3) ไม่มีใครตอบได้ทันทีว่าเอกสารค้างที่ใคร และ (4) งบประมาณ อำนาจอนุมัติ และหลักฐานการตรวจสอบไม่ผูกกับเอกสารจริง ทำให้ตรวจย้อนหลังไม่ได้ว่าอนุมัติภายใต้ DOA ฉบับใด
+
+### 1.2 วิสัยทัศน์และจุดยืน
+
+**วิสัยทัศน์:** ทุกคำขอเข้าทางเดียว วิ่งไปหาคนที่มีอำนาจถูกต้อง ระบบตามงานเอง และทุกคนเห็นสถานะชุดเดียวกัน
+
+**จุดยืน:** แพลตฟอร์มจัดซื้อจัดจ้างครบวงจรสำหรับองค์กรไทยที่มีหลายฝ่ายและต้องคุมงบ ตั้งแต่คำขอ อนุมัติข้ามแผนก จัดซื้อ จ่ายเงิน ผู้ขาย ไปจนถึงประเมินความเสี่ยง โดยมี DOA และงบเป็นแกนกลาง ทำงานบน LINE ได้ และรองรับภาษี ธนาคาร และระบบบัญชีไทย (Express) ต้นแบบหลักคือ Zip แต่ไม่ขายว่า "เหมือน Zip"
+
+**5 เสาหลักบนแกนกลางเดียว:** (1) Intake-to-Procure (2) Procure-to-Pay (3) Supplier Onboarding (4) Sourcing RFP/RFQ/RFI (5) Risk Orchestration (TPRM) + โมดูลเสริม Contracts
+**แกนกลางร่วม:** DOA ที่มีเวอร์ชัน · งบ จอง–ถือ–ตัด · workflow + SLA · เอกสารและ audit trail · AI Employees ที่ทำงานใต้ DOA (ชั้น 4)
+**ชุดผลิตภัณฑ์:** BCS Workspace (เว็บ ทำงานหลัก) · BCS on LINE (LINE OA + LIFF) · BCS Go (PWA → Capacitor) · BCS Supplier Portal
+
+**ใครเป็นเจ้าของอะไร:** ลูกค้าเป็นเจ้าของนโยบาย ได้แก่ DOA ผู้ดำรงตำแหน่ง และผังองค์กร และเปลี่ยนได้เองภายใต้การควบคุม 4 ตา โดยไม่ต้องพึ่ง BCS · BCS เป็นเจ้าของกลไกและกติกาความปลอดภัยที่ลูกค้าแก้ไม่ได้ (ADR-035)
+
+| เสาหลัก | โมดูล | เลือกได้ไหม |
+| --- | --- | --- |
+| (1) Intake-to-Procure | `CORE` | ปิดไม่ได้ |
+| (2) Procure-to-Pay ส่วนต้น: PO ตรวจรับ ยืนยันใบกำกับแบบง่าย ไฟล์ Express | `CORE` | ปิดไม่ได้ |
+| (2) Procure-to-Pay ส่วนเต็ม: ใบแจ้งหนี้ จับคู่ 3 ทาง ภาษีหัก ณ ที่จ่าย รอบจ่าย ไฟล์ธนาคาร | `PAY` | เลือกได้ |
+| (3) Supplier Onboarding | `SUPPLIER` | เลือกได้ |
+| (4) Sourcing RFP/RFQ/RFI | `SOURCING` (ต้องมี `SUPPLIER`) | เลือกได้ |
+| (5) Risk Orchestration | `RISK` (ต้องมี `SUPPLIER`) | เลือกได้ |
+| โมดูลเสริม | `CONTRACTS` · `AI` · `INTEGRATION` · `DOA_EVERYWHERE` · `BCS_GO` | เลือกได้ |
+
+PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส่วน ORG_ADMIN ดูสถานะได้อย่างเดียว (§4.11 ADR-034)
+
+### 1.3 เป้าหมายธุรกิจ (วัดผลได้)
+
+ค่าเป้าเป็นข้อเสนอ ต้องปรับหลังวัด baseline จริงใน Phase 0 ตัวชี้วัดชั้น 1 ต้องวัดได้ตั้งแต่วันแรกที่ go-live เพื่อใช้ในรอบรีวิว 60 วัน สูตรคำนวณอยู่ใน §11.4
+
+| ID | เป้าหมาย | ตัวชี้วัด | เป้าที่เสนอ | เริ่มวัด |
+| --- | --- | --- | --- | --- |
+| G-1 | ประตูเดียว | PO จาก BCS ÷ เอกสารซื้อทั้งหมดในระบบบัญชี (§11.4) | ≥ 90% | T1 |
+| G-2 | อนุมัติถูกคน | การอนุมัติที่ผิด DOA · การอนุมัติที่อ้างอิง DOA ฉบับและข้อครบ | 0 รายการ · 100% | T1 |
+| G-3 | เร็วขึ้น | มัธยฐานเวลาส่งคำขอ→ออก PO · มัธยฐานเวลาอนุมัติต่อขั้น · ขั้นที่เกิน SLA | ลดลง ≥ 50% · ≤ 1 วันทำการ · < 10% | T1 |
+| G-4 | คุมงบ | คำขอเกินงบที่หลุดถึงผู้อนุมัติ | 0 รายการ | T1 |
+| G-5 | อนุมัติบนมือถือ | การตัดสินใจผ่าน LINE/LIFF ÷ การตัดสินใจทั้งหมด | ≥ 60% | T1 |
+| G-6 | จ่ายเงินถูกต้อง | ไฟล์ที่ธนาคารตีกลับ · จ่ายตรงเวลา · อัตราจับคู่ 3 ทางอัตโนมัติ | 0 ไฟล์ · ≥ 95% · ตั้งเป้าหลังวัด 1 เดือน | T2 |
+| G-7 | ผู้ขายเข้าเร็ว | มัธยฐานวันจากส่งคำเชิญถึงอนุมัติผู้ขาย | ลดลง ≥ 50% | T2 |
+| G-8 | จัดหาโปร่งใส | ยอดประหยัดจาก RFQ · มัธยฐานเวลาเปิด RFx ถึงอนุมัติผล | รายงานรายไตรมาส · ตั้งเป้าหลัง baseline | T3 |
+| G-9 | คุมความเสี่ยงคู่ค้า | ผู้ขายความเสี่ยงสูงที่ประเมินครบก่อนทำสัญญา | 100% | T3 |
+| G-10 | ขายรายต่อไปได้ | จำนวนจุดในโค้ดที่เขียนเฉพาะลูกค้า | 0 (ลูกค้ารายที่ 2 ใช้การตั้งค่าอย่างเดียว) | ตลอด |
+| G-11 | ลูกค้าดูแลอำนาจอนุมัติเอง | ฉบับ DOA และการเปลี่ยนโครงสร้างอำนาจที่ลูกค้าทำเองครบวงจร (ไม่มี deploy และไม่มีการกระทำของ PLATFORM_ADMIN) · มัธยฐานเวลาจากร่างถึงเผยแพร่ | 100% · ไม่เกิน 3 วันทำการ (ปรับหลังวัดจริง) | T1 |
+
+### 1.4 เป้าหมายวิศวกรรม
+
+| ID | เป้าหมาย |
+| --- | --- |
+| EG-1 | ชั้น 1–3 ทำงานได้ครบโดย **ไม่เรียก AI เลย** |
+| EG-2 | ตรรกะเงินและอำนาจ (DOA, SoD, งบ, VAT, ภาษีหัก ณ ที่จ่าย, จับคู่, ไฟล์ธนาคาร, เลขเอกสาร) เป็น pure function, deterministic, มี golden tests ครบ และ branch coverage 100% |
+| EG-3 | deploy ได้ตั้งแต่ S1 และทุก merge เข้า `main` deploy ไป staging อัตโนมัติ |
+| EG-4 | Headless: ทุกช่องทางเรียก application service ชุดเดียวกัน การเพิ่มช่องทาง = เขียน adapter ไม่แตะ core |
+| EG-5 | Multi-tenant ready: มี `organizationId` ในทุกตาราง tenant ตั้งแต่ migration แรก |
+| EG-6 | ทุกการเปลี่ยนสถานะสร้าง Event ที่บอกว่าใคร ทำอะไร ผ่านช่องทางไหน ภายใต้ DOA ฉบับใดและข้อใด |
+| EG-7 | ตรวจทุกอย่างด้วยคำสั่งเดียว `pnpm verify` ที่รายงาน PASS/FAIL ทีละข้อ พร้อมผลกระทบและวิธีแก้ |
+| EG-8 | การเปลี่ยน DOA โครงสร้างอำนาจ และโมดูล ทำผ่าน service และหน้าจอเท่านั้น ไม่ต้อง deploy หรือ migration (มีเทสต์ยืนยันใน §15.3) |
+
+### 1.5 ขอบเขต Release 1 = ชั้น 1 (S1–S5) สำหรับ LK-RICH
+
+| กลุ่ม | อยู่ในขอบเขต |
+| --- | --- |
+| ขอบเขตเดิมใน proposal v1.2 | PR · งบประมาณ · รวม PR · PO · ตรวจรับและ variance · รายงาน 7 ฉบับ |
+| DOA Core | matrix ที่มีเวอร์ชัน · อ้างอิง DOA ทุกการอนุมัติ · รักษาการ · SoD · ทะเบียนเลขเอกสาร |
+| DOA self-service | แก้ DOA ผ่านหน้าจอหรือไฟล์ · lint อัตโนมัติ · diff เทียบฉบับที่มีผล · ตารางผลที่ขอบ · ทดลองส่ง · 4-eyes + step-up · อนุมัติการเปลี่ยนโครงสร้างอำนาจ (`ORG_AUTHORITY_CHANGE`) |
+| BCS on LINE | การ์ดอนุมัติ · LIFF · แจ้งเตือน · ทวงงานตาม SLA · สรุปรายวัน |
+| ประตูหน้า | แคตตาล็อก 4–6 ประเภทคำขอ · ฟอร์มไดนามิก · ไทม์ไลน์สถานะ · กระดานเอกสารค้าง |
+| ไม่มี AI | ใช้งานได้ครบด้วยโค้ดปกติ |
+
+**ห้ามตัด:** เส้นทางอนุมัติตาม DOA · การคุมงบ · การอนุมัติผ่าน LINE · audit trail · DOA self-service ขั้นต่ำ (นำเข้าไฟล์ → lint → diff → ทดลองส่ง → 4-eyes + step-up) และการอนุมัติการเปลี่ยนโครงสร้างอำนาจ
+**ถ้าต้องลดขอบเขต ให้ตัดตามลำดับ:** (1) สรุปรายวันผ่าน LINE (2) หน้าจอแก้ DOA แบบตาราง (ใช้แม่แบบไฟล์นำเข้าแทน โดย lint diff ทดลองส่ง และ 4-eyes ต้องอยู่ครบ) (3) ลดประเภทคำขอเหลือ 3 ประเภท (ซื้อของ จ้างบริการ จ้างเหมา) (4) แม่แบบเอกสารแบบเต็ม (ใช้แม่แบบ PO ไปก่อน)
+
+### 1.6 สิ่งที่ไม่ทำ (Non-goals)
+
+| ID | ไม่ทำ | เหตุผล / จะทำเมื่อไร |
+| --- | --- | --- |
+| NG-1 | ไม่เป็นระบบบัญชีหรือ ERP ไม่ลงบัญชีแยกประเภท | หลัก "ประสาน ไม่แทนที่" Express ยังเป็นระบบบัญชีหลัก |
+| NG-2 | ไม่โอนเงินเอง ไม่เชื่อม API ธนาคารเพื่อจ่าย | ทำแค่ไฟล์ Batch Payment (ชั้น 2) · Global Payments/Vendor Cards ต้องมีพาร์ทเนอร์ ไม่อยู่ใน 4 ชั้นแรก |
+| NG-3 | ไม่มีแอป native และไม่ใช้ React Native | PWA ก่อน แล้ว Capacitor ห่อเว็บเดิมใน S15 (ADR-017) |
+| NG-4 | ไม่มีตัวสร้าง workflow แบบลากวางก่อน S15 | ใช้ฟอร์มตั้งค่าใน S6 |
+| NG-5 | ไม่มี AI ในชั้น 1–3 · AI ไม่อนุมัติแทนคน · AI ไม่เขียนลงตารางเงินโดยตรง | หลัก "คนตัดสินใจ AI เตรียมงาน" |
+| NG-6 | ไม่เทรนหรือ fine-tune โมเดล | ใช้ Claude API + schema + ชุดทดสอบ + คนยืนยัน |
+| NG-7 | ไม่เขียนโค้ดเฉพาะลูกค้า (เช่น `if (org === 'LK-RICH')`) | ทุกความต้องการต้องเป็นการตั้งค่า |
+| NG-8 | ไม่แข่งจำนวน integration กับ Zip | เริ่มจาก Express, ธนาคาร, LINE, อีเมล, SSO, BI แล้วเปิด API |
+| NG-9 | ไม่แปลงสกุลเงินในชั้น 1–3 | THB เท่านั้น แต่มีฟิลด์ `currency` สำรองไว้ |
+| NG-10 | ไม่ออกแบบให้รองรับระเบียบจัดซื้อภาครัฐ (e-GP) | กลุ่มเป้าหมายคือองค์กรเอกชน (A-05) |
+| NG-11 | ไม่มีทีมลงพื้นที่แบบ Enterprise Transformation Office | ชดเชยด้วยค่าตั้งต้นที่ใช้ได้เลย คู่มือ และพาร์ทเนอร์ |
+| NG-12 | PLATFORM_ADMIN และทีม BCS ไม่ร่าง ไม่แก้ และไม่อนุมัติเนื้อหา DOA หรือโครงสร้างอำนาจของลูกค้าในระบบ | ลูกค้าเป็นเจ้าของนโยบาย (ADR-035) · ทีม BCS ช่วยอธิบายหรือรีวิวแม่แบบนอกระบบได้ แต่ผู้ส่งและผู้อนุมัติต้องเป็นคนของลูกค้า |
+
+---
+
+## 2. ผู้ใช้ บทบาท และสิทธิ์
+
+### 2.1 Personas
+
+| ผู้ใช้ | ปัญหาวันนี้ | ระบบต้องให้ | ช่องทางหลัก |
+| --- | --- | --- | --- |
+| ผู้ขอ (แอดมินฝ่าย, พนักงาน) | ไม่รู้ว่าใช้ฟอร์มไหน แนบอะไร และคำขอไปถึงไหน | ประตูเดียว ฟอร์มถามเท่าที่จำเป็น ติดตามสถานะแบบพัสดุ | Web, LIFF |
+| ผู้อนุมัติ (ผู้จัดการ, VP, COO, CEO) | ถูกตามทาง LINE/โทรศัพท์ ข้อมูลไม่ครบ ต้องเปิดคอม | อนุมัติใน LINE พร้อมสรุปสั้น ประวัติราคา งบคงเหลือ | LINE, LIFF |
+| ผู้ตรวจข้ามแผนก (IT, Legal, Finance, InfoSec) | ได้อีเมลหลายรอบ ไม่มีแบบตรวจมาตรฐาน รอกันเป็นทอด | รับเฉพาะเรื่องของฝ่ายตน ตอบพร้อมกันแบบคู่ขนาน (ชั้น 2) | Web, LIFF |
+| จัดซื้อ | รวม PR เอง เรียกใบเสนอราคาทางอีเมล/LINE ทำตารางเทียบเอง | รวม PR อัตโนมัติ ร่าง PO พร้อมประวัติราคา RFx ในระบบ (ชั้น 3) | Web |
+| บัญชีและการเงิน | งบไม่เป็นปัจจุบัน คีย์ซ้ำเข้า Express จับคู่ด้วยมือ | งบเรียลไทม์ ไฟล์ส่งออก Express จับคู่อัตโนมัติ (ชั้น 2) | Web |
+| ผู้ตรวจรับหน้างาน | ใบส่งของหาย ของขาด/เกินไม่มีบันทึก | ตรวจรับบนมือถือ พร้อมรูปถ่าย และบันทึก variance | LIFF, PWA |
+| ผู้บริหาร | ไม่เห็นงบและคอขวด | สรุปรายวันผ่าน LINE และ dashboard | LINE, Web |
+| ผู้ตรวจสอบ (Audit) | หาหลักฐานยาก ไม่รู้ว่าอนุมัติภายใต้ DOA ใด | audit trail ที่อ้างอิง DOA ทุกการอนุมัติ ส่งออกได้ | Web |
+| ผู้ขาย (ชั้น 2+) | ส่งเอกสารซ้ำทุกครั้ง ไม่รู้สถานะ PO | ลงทะเบียนครั้งเดียว ยื่น RFx ส่งใบแจ้งหนี้ ดูสถานะผ่านลิงก์ | Supplier Portal |
+
+### 2.2 บทบาทในระบบ (RBAC)
+
+**สำคัญ:** "ผู้อนุมัติ" **ไม่ใช่ role** อำนาจอนุมัติมาจาก DOA + ตำแหน่ง (`PositionAssignment`) + การรักษาการ (`Delegation`) เท่านั้น การให้ role ใด ๆ ต้องไม่ทำให้ใครอนุมัติเอกสารได้
+
+| Role code | ชื่อ | หน้าที่หลักในชั้น 1 |
+| --- | --- | --- |
+| `REQUESTER` | ผู้ขอ | ทุก member ที่ active ได้โดยปริยาย สร้าง/ส่ง/ติดตาม/ยกเลิกคำขอของตน |
+| `PROCUREMENT` | จัดซื้อ | กอง PR รวม PR ออก PO ส่ง PO จัดการผู้ขายขั้นต้น ยกเลิก/ปิด PO |
+| `FINANCE` | บัญชีและการเงิน | ยืนยันใบกำกับ (แบบง่าย) ส่งออกไฟล์ Express ดูงบทั้งองค์กร รายงาน |
+| `BUDGET_ADMIN` | ผู้ดูแลงบ | นำเข้างบ จัดการสิทธิ์ใช้งบข้ามฝ่าย |
+| `RECEIVER` | ผู้ตรวจรับ | บันทึกตรวจรับ (GR) และ variance ในฝ่ายหรือ PO ที่ได้รับมอบหมาย |
+| `EXECUTIVE` | ผู้บริหาร | dashboard รายงาน สรุปรายวัน (ดูอย่างเดียว) |
+| `AUDITOR` | ผู้ตรวจสอบ | อ่านอย่างเดียวทั้งองค์กร ส่งออก audit trail |
+| `ORG_ADMIN` | ผู้ดูแลองค์กร | ผู้ใช้ ชื่อแผนก cost center ประเภทคำขอ ปฏิทิน เลขเอกสาร · ร่าง DOA และเสนอการเปลี่ยนโครงสร้างอำนาจ ซึ่งมีผลหลังผ่าน 4-eyes · ดูสถานะโมดูล · ควรมีอย่างน้อย 2 คนต่อองค์กร |
+| `PLATFORM_ADMIN` | ทีม BCS | สร้าง tenant · เปิดปิดโมดูลตามสัญญา (BR-AUTH-08) · ยืนยันตัวตนผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19) · สองเรื่องหลังไม่ต้อง break-glass เพราะไม่อ่านข้อมูลธุรกิจ · ไม่มีสิทธิ์ทางธุรกิจ และไม่ร่าง แก้ หรืออนุมัติ DOA ของลูกค้า (NG-12) · เข้าข้อมูล tenant ได้เฉพาะ break-glass (BR-AUTH-03) |
+| `REVIEWER_IT` / `_LEGAL` / `_FINANCE` / `_INFOSEC` | ผู้ตรวจข้ามแผนก | ชั้น 2 (อนุมัติคู่ขนาน) และชั้น 3 (ความเสี่ยง) |
+| `SUPPLIER_CONTACT` | ผู้ติดต่อของผู้ขาย | ชั้น 2 ใช้ session แยกจากผู้ใช้ภายในโดยสิ้นเชิง |
+| `SYSTEM` · `AI_AGENT:<name>` | ผู้กระทำที่ไม่ใช่คน | งานตามเวลา (ชั้น 1) · AI (ชั้น 4) บันทึก `actorType` แยกเสมอ |
+
+**หัวหน้าฝ่าย (DEPT_HEAD)** ไม่ใช่ role แต่เป็นคุณสมบัติที่ได้จากการดำรงตำแหน่ง DM หรือ VP ของฝ่าย ให้สิทธิ์มองเห็นข้อมูลของฝ่ายนั้นและฝ่ายย่อย (subtree)
+
+### 2.3 ขอบเขตข้อมูล (scope)
+
+| Scope | ความหมาย |
+| --- | --- |
+| `OWN` | เอกสารที่ตนเป็นผู้สร้าง ผู้ขอ หรือผู้ติดตาม |
+| `ASSIGNED` | เอกสารที่ตนเคยหรือกำลังได้รับงาน (อนุมัติ ตรวจรับ ให้ความเห็น) |
+| `DEPT` | เอกสารของฝ่ายตนและฝ่ายย่อยทั้งหมด |
+| `ORG` | ทั้งองค์กร |
+
+### 2.4 ตารางสิทธิ์ชั้น 1 (ข้อกำหนด → ใช้สร้างเทสต์อัตโนมัติ)
+
+ในโค้ดเก็บเป็น `src/server/authz/permissions.ts` รูปแบบ `Record<Capability, Grant[]>` และเทสต์สิทธิ์ต้อง **สร้างจากตารางนี้อัตโนมัติ** (นับจำนวน role × capability เอง ไม่ hardcode)
+
+| Capability | ผู้ได้รับ (scope) |
+| --- | --- |
+| `request.create` · `request.submit` | ทุก member (OWN) |
+| `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
+| `request.cancel` | ผู้ขอ (OWN, ก่อนมี PO) · PROCUREMENT (ORG, สถานะ APPROVED ที่ยังไม่สั่ง, ต้องระบุเหตุผล) |
+| `approval.decide` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ |
+| `approval.reassign` | ORG_ADMIN (ORG) · ระบบยอมรับเฉพาะผู้รับใหม่ที่ DOA ฉบับเดิมให้อำนาจในข้อเดิมหรือช่วงวงเงินที่สูงกว่าและไม่ขัด SoD · ต้องระบุเหตุผล |
+| `delegation.manage` | ผู้มอบ (OWN) · ORG_ADMIN ตั้งแทนผู้อื่นได้ผ่าน `admin.orgAuthority.propose` ชนิด `DELEGATION_ON_BEHALF` เท่านั้น |
+| `procurement.pool.view` · `po.create` · `po.edit` · `po.submit` · `po.send` · `po.cancel` · `po.close` | PROCUREMENT (ORG) |
+| `po.view` | PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) · ผู้ขอของ PR ต้นทาง (OWN) · ผู้ตรวจรับที่ได้รับมอบหมาย (ASSIGNED) |
+| `gr.post` | RECEIVER (DEPT หรือ ASSIGNED) · ผู้ขอของ PR ต้นทาง ถ้า `sodPolicy.requesterMayReceive` ของ DOA ฉบับที่มีผลเป็น true (OQ-04) |
+| `gr.reverse` | PROCUREMENT (ORG, ต้องระบุเหตุผล, ก่อนยืนยันใบกำกับ) |
+| `variance.decide` | ตาม DOA ข้อ `GR_VARIANCE` เท่านั้น |
+| `invoiceConfirmation.record` | FINANCE (ORG) |
+| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
+| `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
+| `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
+| `supplier.manage` | PROCUREMENT (ORG) |
+| `export.express` | FINANCE (ORG) |
+| `report.view` | FINANCE, PROCUREMENT, EXECUTIVE, AUDITOR (ORG) · DEPT_HEAD (DEPT) |
+| `report.schedule` | FINANCE, EXECUTIVE |
+| `board.pending.view` | ทุก member (OWN + ASSIGNED) · DEPT_HEAD (DEPT) · EXECUTIVE, PROCUREMENT, FINANCE, AUDITOR (ORG) |
+| `audit.view` | AUDITOR, ORG_ADMIN (ORG) |
+| `audit.export` | AUDITOR (ORG) |
+| `admin.members` · `admin.orgStructure.editBasic` · `admin.calendar` · `admin.numbering` · `admin.requestTypes` · `admin.channels` | ORG_ADMIN (ORG) — `editBasic` คือสร้างแผนก ชื่อแผนก cost center และตำแหน่งที่ DOA ไม่อ้าง ไม่ต้องอนุมัติแต่มี event |
+| `admin.modules.view` | ORG_ADMIN (ORG) |
+| `platform.modules.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass (BR-AUTH-08) |
+| `admin.orgAuthority.propose` | ORG_ADMIN (ORG) — แต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น รีเซ็ตตัวตนของผู้มีอำนาจ · อนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` (BR-DOA-17) |
+| `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
+| `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
+| `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
+
+### 2.5 กฎสิทธิ์
+
+| ID | กฎ |
+| --- | --- |
+| BR-AUTH-01 | Deny by default: capability ที่ไม่มีในตาราง = ปฏิเสธ |
+| BR-AUTH-02 | ORG_ADMIN ไม่ได้สิทธิ์อนุมัติเอกสารธุรกิจจาก role · คนเดียวเผยแพร่ DOA ไม่ได้ และคนเดียวเปลี่ยนตัวผู้มีอำนาจจริงไม่ได้ ทั้งการแต่งตั้งตำแหน่งที่ DOA อ้าง การย้ายแผนก การตั้งรักษาการแทนผู้อื่น และการรีเซ็ตตัวตนของผู้มีอำนาจ (BR-DOA-17 BR-AUTH-07) |
+| BR-AUTH-03 | PLATFORM_ADMIN เข้าข้อมูล tenant ได้เฉพาะ break-glass: ระบุเหตุผล จำกัดเวลา ≤ 4 ชม. บันทึก event และแจ้ง ORG_ADMIN ของ tenant นั้นทันที |
+| BR-AUTH-04 | AUDITOR อ่านอย่างเดียว ข้อมูลอ่อนไหว (เลขบัญชีธนาคารเต็ม เลขบัตรประชาชน) แสดงแบบ mask เว้นแต่ได้สิทธิ์เพิ่มแยก |
+| BR-AUTH-05 | Server Action และ Route Handler ทุกตัวคือ public endpoint ต้องตรวจตัวตนและสิทธิ์ใน service layer ทุกครั้ง ห้ามพึ่งการซ่อนปุ่มใน UI |
+| BR-AUTH-06 | member ที่ถูกปิดใช้งาน: session, LINE link, ActionToken, delegation ทั้งหมดถูกเพิกถอนในธุรกรรมเดียวกัน และงานที่ค้างถูกแจ้ง ORG_ADMIN ให้ reassign |
+| BR-AUTH-07 | รีเซ็ต 2FA หรือเปลี่ยนอีเมล login ของ member ที่ดำรงตำแหน่งที่ DOA อ้างหรือมีงานอนุมัติค้าง ต้องผ่าน `ORG_AUTHORITY_CHANGE` ชนิด `IDENTITY_RESET` · ลิงก์รีเซ็ตส่งไปอีเมลเดิมที่ยืนยันแล้วเท่านั้น · การเปลี่ยนอีเมลมีผลเมื่อยืนยันจากอีเมลเดิม หรือ 24 ชั่วโมงหลังอนุมัติ พร้อมแจ้งทั้งอีเมลเดิมและใหม่ · member อื่น ORG_ADMIN ทำได้เองพร้อมเหตุผลและแจ้งเจ้าของบัญชี |
+| BR-AUTH-08 | PLATFORM_ADMIN เปิดปิดโมดูลได้โดยไม่ใช้ break-glass ต้องระบุ `contractRef` และเหตุผล ทุกครั้งมี event (actorType `PLATFORM_ADMIN`) และแจ้ง ORG_ADMIN ทันที (§4.11) |
+
+---
+
+## 3. หลักการออกแบบ → กฎวิศวกรรมที่บังคับใช้ได้
+
+หลัก 9 ข้อนี้ใช้ตัดสินทุกฟีเจอร์ ฟีเจอร์ที่ขัดให้เลื่อนหรือตัด แต่ละข้อมีกฎที่ตรวจได้ด้วยเครื่องมือหรือเทสต์
+
+| ID | หลัก | กฎวิศวกรรม | ตรวจด้วย |
+| --- | --- | --- | --- |
+| P-1 | หนึ่งแกนกลาง หลายประตูหน้า (Headless) | ตรรกะอยู่ใน `src/core` (pure) และ `src/server/services` เท่านั้น · `src/app` และ `src/channels` เป็น adapter บาง ๆ | ESLint import boundaries (§4.10) |
+| P-2 | DOA คือแหล่งความจริง (Policy as data) | ห้าม hardcode วงเงิน ชื่อตำแหน่งผู้อนุมัติ หรือเส้นทางอนุมัติในโค้ด · อ่านจาก `DoaVersion` เสมอ | lint rule ห้ามตัวเลขวงเงินใน `src/**` นอก fixtures · golden tests อ่านจาก YAML |
+| P-3 | คนตัดสินใจ AI เตรียมงาน | ผลของ AI เป็นร่าง (`AgentAction`) เสมอ ห้ามเปลี่ยนสถานะที่ DOA กำหนดให้คนตัดสิน | ไม่มี import `src/integrations/ai` จาก service ที่แตะเงิน/อนุมัติ |
+| P-4 | ประสาน ไม่แทนที่ | BCS ไม่ลงบัญชี ส่งข้อมูลไป Express ผ่าน adapter (ไฟล์ก่อน API ทีหลัง) | ไม่มีตาราง GL/journal ใน schema |
+| P-5 | เว็บไว้ทำงาน มือถือไว้ตัดสินใจ | ทุกฟีเจอร์ต้องทำได้บนเว็บ · LINE/LIFF ทำเฉพาะงานในตารางช่องทาง (§9.1) | review checklist |
+| P-6 | ถามให้น้อยที่สุด | ฟอร์มเติมค่าจากบริบทก่อนเสมอ · ฟิลด์บังคับเฉพาะเมื่อกฎกำหนด | form engine tests |
+| P-7 | ตั้งค่า ไม่เขียนโค้ดเฉพาะลูกค้า | พฤติกรรมเฉพาะองค์กรอยู่ใน `Organization.settings` (Zod schema) หรือตาราง config เท่านั้น | lint ห้าม literal รหัสองค์กรใน `src/**` |
+| P-8 | วัดผลได้ตั้งแต่วันแรก | ทุกการเปลี่ยนสถานะมี event พร้อมเวลา · KPI คำนวณจาก event ได้โดยไม่ต้องเก็บเพิ่ม | KPI views tests (§11.4) |
+| P-9 | ครบวงจร แต่เปิดใช้ทีละเสา | ทุก service ของโมดูลเสริมเรียก `requireModule(ctx, '<MODULE>')` · ข้อมูลผู้ขาย งบ สัญญา เอกสารใช้ชุดเดียวกันทุกเสา | module gating tests |
+
+---
+
+## 4. สถาปัตยกรรม
+
+### 4.1 ภาพรวม
+
+BCS เป็น modular monolith บน Next.js โปรเจกต์เดียว (ADR-017) แยก **functional core** ที่ไม่มี I/O ออกจาก **imperative shell** ที่คุมธุรกรรม (ADR-019) ทุกช่องทางเป็น adapter บาง ๆ ที่เรียก application service ชุดเดียวกัน (P-1, ADR-022) ฐานข้อมูลของเราเป็นแหล่งความจริงของสถานะ กฎ DOA และงบ ส่วน Inngest เป็นแค่ตัวจับเวลาและคิวงาน (ADR-006)
+
+```mermaid
+flowchart LR
+  subgraph CH["ประตูหน้า (adapter บาง ๆ)"]
+    WEB["BCS Workspace (เว็บ)"]
+    LIFF["LIFF / LINE MINI App"]
+    CHAT["LINE OA webhook + Flex postback"]
+    PWA["BCS Go (PWA)"]
+    MAIL["ลิงก์ในอีเมล"]
+    PORTAL["Supplier Portal (ชั้น 2)"]
+    API["REST /api/v1 และ MCP (ชั้น 4)"]
+  end
+  subgraph SV["Application layer: src/server"]
+    CTX["Context: tenant, actor, channel"]
+    AZ["AuthZ + SoD"]
+    CMD["Services (command)"]
+    QRY["Queries (read)"]
+  end
+  subgraph CORE["Functional core: src/core (pure)"]
+    ENG["DOA · งบ · เงินและ VAT · SLA · เลขเอกสาร · state machine"]
+  end
+  DB[("Postgres บน Neon สิงคโปร์: state, ledger, Event, Outbox")]
+  JOBS["Inngest: SLA, digest, outbox relay"]
+  NOTI["Notification service"]
+  EXT["LINE API · Email · S3 · ไฟล์ Express · Claude API (ชั้น 4)"]
+  CH --> CTX --> AZ --> CMD --> ENG
+  CMD --> DB
+  QRY --> DB
+  DB -->|outbox| JOBS
+  JOBS --> CMD
+  JOBS --> NOTI --> EXT
+```
+
+### 4.2 ชั้นของโค้ดและหน้าที่
+
+| ชั้น | โฟลเดอร์ | ทำอะไร | ห้าม |
+| --- | --- | --- | --- |
+| Functional core | `src/core` | คำนวณและตัดสินตามกฎ รับ state + command + policy + เวลา แล้วคืนผลลัพธ์พร้อมคำอธิบาย | I/O ทุกชนิด · `Date.now()` · `new Date()` แบบไม่มีอาร์กิวเมนต์ · `Math.random()` · `process.env` · Prisma · Next.js |
+| Services (command) | `src/server/services` | เปิดธุรกรรม ล็อกแถว ตรวจสิทธิ์และ SoD เรียก core แล้วบันทึก state + ledger + Event + Outbox | ตรรกะธุรกิจที่ควรอยู่ใน core · เรียก AI ใน service ที่แตะเงินหรืออนุมัติ |
+| Queries | `src/server/queries` | อ่านข้อมูลตาม scope สิทธิ์ คืน DTO | เขียนข้อมูล |
+| Jobs | `src/server/jobs` | Inngest functions: ตัวจับเวลา งานตามรอบ relay | เก็บสถานะธุรกิจไว้ใน Inngest |
+| Channels | `src/channels/{line,email}` | แปลงข้อความ postback และลิงก์เป็น command สร้างข้อความขาออก | เข้าถึงฐานข้อมูลตรง |
+| App | `src/app` | หน้าจอ server actions และ route handlers แบบบาง | เข้าถึงฐานข้อมูลตรง · ตรรกะธุรกิจ |
+| Integrations | `src/integrations` | S3 · ผู้ให้บริการอีเมล · ไฟล์ Express · สรรพากรและ DBD · ไฟล์ e-Tax · ธนาคาร (ชั้น 2) · Claude (ชั้น 4) | เรียก services |
+
+### 4.3 Command pipeline (เส้นทางของทุกการเปลี่ยนสถานะ)
+
+ทุกการเปลี่ยนสถานะ MUST ผ่าน `runCommand()` ใน `src/server/services/_pipeline.ts` ตามลำดับนี้ ห้ามเขียนทางลัด
+
+1. Adapter สร้าง command พร้อม `idempotencyKey` — ฟอร์มเว็บใช้ UUID ที่ client สร้างตอนเปิดฟอร์ม · LINE postback ใช้ `tokenId` · webhook ใช้ `webhookEventId` · job ใช้ `<functionId>:<stepId>:<subjectId>`
+2. ตรวจ input ด้วย Zod ไม่ผ่าน → `VALIDATION_FAILED`
+3. สร้าง `ctx` = { organizationId, actor (member / system / agent), channel, requestId, now } โดย `now` มาจาก clock ที่ inject ได้ เทสต์จึงกำหนดเวลาได้
+4. เปิด interactive transaction (Read Committed) แล้วทำตามลำดับ
+   - ตรวจ `CommandLog` ด้วย (organizationId, idempotencyKey) ถ้ามีและ `inputHash` ตรง → คืนผลเดิม ถ้า `inputHash` ต่าง → `IDEMPOTENCY_CONFLICT`
+   - โหลด aggregate ด้วย `SELECT … FOR UPDATE` โดยเรียงตาม id เสมอเพื่อกัน deadlock และตรวจ `version` ที่ client ส่งมา ไม่ตรง → `CONFLICT_VERSION`
+   - ตรวจสิทธิ์ `authorize(ctx, capability, resource)` และ SoD → `FORBIDDEN` / `SOD_VIOLATION`
+   - เรียก core `decide(state, command, policy, now)` ได้ `{ next, ledger[], events[], notifications[] }` หรือ `DomainError`
+   - เขียน aggregate (`version + 1`) · ledger · `Event` · `Outbox` · `Notification` · `CommandLog`
+5. Commit แล้วส่ง outbox ไป Inngest ทันทีแบบ best-effort โดยใช้ `Outbox.id` เป็น event id เพื่อกันส่งซ้ำ รายการที่ส่งไม่สำเร็จ job `outbox-sweeper` ส่งซ้ำทุกนาที
+6. เจอ serialization หรือ deadlock error (Prisma `P2034`) → retry ทั้งธุรกรรมไม่เกิน 3 ครั้ง แบบ jitter
+
+```mermaid
+sequenceDiagram
+  participant A as Adapter
+  participant S as runCommand
+  participant C as core.decide
+  participant D as Postgres
+  participant I as Inngest
+  A->>S: command + idempotencyKey
+  S->>D: BEGIN, ตรวจ CommandLog, SELECT FOR UPDATE
+  S->>S: authorize + SoD
+  S->>C: state, command, policy, now
+  C-->>S: next state, ledger, events, notifications
+  S->>D: UPDATE state, INSERT ledger Event Outbox CommandLog
+  S->>D: COMMIT
+  S-->>I: ส่ง outbox (event id = Outbox.id)
+  S-->>A: result DTO
+```
+
+### 4.4 Idempotency และ concurrency
+
+| ID | Invariant | ทดสอบด้วย |
+| --- | --- | --- |
+| INV-PLT-01 | command ที่มี idempotencyKey เดียวกันเกิดผลครั้งเดียว ไม่ว่าส่งมากี่ครั้งหรือพร้อมกันกี่ครั้ง | integration test ยิง command เดิม 2 ครั้งพร้อมกัน ต้องได้ Event ชุดเดียว |
+| INV-PLT-02 | การแก้ aggregate ที่ `version` ไม่ตรงถูกปฏิเสธเสมอ (`CONFLICT_VERSION`) | integration test เปิดสองแท็บแก้เอกสารเดียวกัน |
+| INV-PLT-03 | ธุรกรรมที่ล็อกหลายแถวล็อกตามลำดับ id จากน้อยไปมาก | code review + concurrency test ของงบ (INV-BUD-05) |
+
+### 4.5 Event และ audit trail
+
+ตาราง `Event` เป็น audit trail ที่แก้ย้อนหลังไม่ได้ และเป็นแหล่งคำนวณ KPI (P-8)
+
+| ฟิลด์ | ชนิด | หมายเหตุ |
+| --- | --- | --- |
+| `id` | uuid v7 | |
+| `seq` | bigint identity | ลำดับรวมทั้งระบบ ใช้เรียงและ seal |
+| `organizationId` | uuid (null ได้) | null เฉพาะ event ระดับแพลตฟอร์ม |
+| `type` | text | รูปแบบ `<aggregate>.<past_verb>` เช่น `request.submitted` (แคตตาล็อก §10.2) |
+| `aggregateType` · `aggregateId` | text · uuid | |
+| `occurredAt` | timestamptz | เวลาจาก `ctx.now` |
+| `actorType` | enum | `USER` `SYSTEM` `AI_AGENT` `SUPPLIER` `PLATFORM_ADMIN` |
+| `actorMemberId` · `actorPlatformAdminId` | uuid (null ได้) | ใช้ตาม `actorType` เพราะ PLATFORM_ADMIN ไม่ใช่ Member |
+| `onBehalfOfMemberId` | uuid (null ได้) | ผู้มอบอำนาจ เมื่อทำแทนตาม Delegation |
+| `agentId` | text (null ได้) | ชั้น 4 |
+| `channel` | enum | `WEB` `LIFF` `LINE_CHAT` `PWA` `EMAIL` `PORTAL` `SYSTEM` `API` `MCP` |
+| `doaVersionId` · `doaRuleCode` | uuid · text | บังคับสำหรับ event การตัดสินอนุมัติ (INV-DOA-01) |
+| `correlationId` · `causationId` | uuid · uuid | ผูก event ที่มาจากคำสั่งเดียวกัน · event ที่เป็นเหตุ |
+| `requestId` | text | HTTP request id สำหรับไล่ log |
+| `data` | jsonb | ค่าก่อนและหลังของฟิลด์สำคัญ รหัส ตัวเลข สถานะ ห้ามข้อความอิสระที่อาจมีข้อมูลส่วนบุคคล (ข้อความคอมเมนต์อยู่ในตาราง `Comment` แล้วอ้างด้วย id) |
+| `schemaVersion` | int | เวอร์ชันรูปแบบ `data` ของ type นั้น |
+
+| ID | Invariant | บังคับด้วย |
+| --- | --- | --- |
+| INV-EVT-01 | `Event` `BudgetLedgerEntry` และ `EventSeal` ห้าม UPDATE และ DELETE | trigger `bcs_forbid_mutation` + สิทธิ์ของ DB role `bcs_app` (§6.3) · `pnpm verify` ตรวจว่ามี trigger และ grant ถูกต้อง |
+| INV-EVT-02 | ทุกการเปลี่ยนสถานะของ aggregate สร้าง Event อย่างน้อย 1 รายการในธุรกรรมเดียวกัน | เทสต์ของทุก command ตรวจจำนวน Event |
+| INV-EVT-03 | hash chain รายวันตรวจซ้ำแล้วตรง (`EventSeal`) ถ้าไม่ตรงถือเป็นเหตุการณ์ความปลอดภัย แจ้ง PLATFORM_ADMIN และ ORG_ADMIN | job `audit-verify` + เทสต์ที่จงใจแก้ข้อมูลด้วย role migrator แล้วต้องตรวจเจอ |
+
+การ seal: `hash_n = sha256(prevHash ‖ canonicalJson(events ของวันนั้นเรียงตาม seq))` ทำทุกวัน 00:15 เวลาไทย และต้องทำงานก่อน go-live (S5)
+
+### 4.6 งานเบื้องหลัง (Inngest)
+
+หลักการ: (1) ฐานข้อมูลเป็นแหล่งความจริง ทุก function อ่านสถานะล่าสุดก่อนทำ และจบทันทีถ้างานนั้นไม่เกี่ยวแล้ว (2) ทุก step idempotent (3) คำนวณเวลาเป้าหมายด้วย SLA engine ของ core แล้วใช้ `step.sleepUntil` · `step.waitForEvent` · `cancelOn` ของ Inngest เป็นตัวรอ (ตรวจ API กับเอกสารของ SDK เวอร์ชันที่ติดตั้ง) (4) ชื่อ event ขึ้นต้น `bcs/`
+
+| Function | Trigger | ทำอะไร | ขั้น |
+| --- | --- | --- | --- |
+| `approval-task-sla` | `bcs/approval_task.assigned` · ยกเลิกเมื่อ `bcs/approval_task.closed` หรือ `bcs/approval_task.paused` ที่ taskId ตรงกัน | sleepUntil(remindAt) → เตือน · sleepUntil(dueAt) → ทำเครื่องหมายเกินกำหนดและแจ้ง · sleepUntil(escalateAt) → ส่งต่อตาม `escalationPolicy` (BR-SLA-04) | S5 |
+| `approval-task-resume` | `bcs/approval_task.info_provided` | คำนวณ dueAt ใหม่จากเวลาที่เหลือ แล้วส่ง `assigned` ใหม่ | S5 |
+| `delegation-window` | `bcs/delegation.created` | sleepUntil(startsAt) → ย้ายงานค้างไปผู้รักษาการ · sleepUntil(endsAt) → ย้ายงานที่ยังค้างกลับ | S5 (การมอบงานใหม่ให้ผู้รักษาการทำตั้งแต่ S2) |
+| `daily-digest` | cron `TZ=Asia/Bangkok 0 8 * * 1-5` | ข้ามวันหยุดขององค์กร ส่งสรุปรายคน | S5 |
+| `po-idle-reminder` | cron `TZ=Asia/Bangkok 0 9 * * 1-5` | หา PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO (FR-P2P-010 AC4) | S5 |
+| `supplier-registry-recheck` | cron `TZ=Asia/Bangkok 0 6 1 * *` | ตรวจสถานะผู้ขายกับสรรพากรและ DBD ซ้ำ แจ้งจัดซื้อเมื่อสถานะเปลี่ยน (BR-SUP-04) | S4 |
+| `consolidation-cycle` | cron ตาม `settings.consolidation.cron` (OQ-13) | รวม PR เป็นร่าง PO | S4 |
+| `outbox-sweeper` | cron ทุก 1 นาที | ส่ง outbox ที่ค้างเกิน 30 วินาที | S1 |
+| `notification-deliver` | `bcs/notification.requested` | ส่งตามช่องทาง retry แบบ backoff แล้ว fallback อีเมล | S2 ในระบบ · S4 อีเมล · S5 LINE |
+| `report-schedule` | cron ตาม `ReportSchedule` | สร้าง Excel แล้วส่งอีเมล | S4 |
+| `line-quota-check` | cron รายวัน 09:00 | ตรวจโควตา push ของเดือน เตือนเมื่อถึง 80% | S5 |
+| `audit-seal-daily` · `audit-verify` | cron รายวัน 00:15 · รายสัปดาห์ | seal และตรวจ hash chain | S5 |
+| `doa-version-activate` | `bcs/doa_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับก่อนหน้าเป็น `SUPERSEDED` และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16) | S2 |
+| `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
+| `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
+
+### 4.7 Notification service
+
+`notify(ctx, { recipientMemberId, templateKey, data, urgency, dedupeKey })` เขียน `Notification` และ outbox ในธุรกรรมเดียวกับ command เสมอ การแจ้งเตือนจึงไม่หลุดจากสถานะจริง
+
+1. แสดงในระบบเสมอ (กระดิ่งและกล่องข้อความ)
+2. `urgency = IMMEDIATE`: ส่ง LINE ถ้าผู้รับผูกบัญชีแล้วและองค์กรเปิดช่องทาง LINE ไม่เช่นนั้นส่งอีเมล ถ้า LINE ตอบกลับแบบล้มเหลวถาวร (เช่น ผู้ใช้บล็อก OA) → ส่งอีเมลแทนและตั้ง `lineReachable = false`
+3. `urgency = DIGEST`: รวมเข้าสรุปรายวัน
+4. `dedupeKey` ไม่ซ้ำภายในองค์กร กันส่งซ้ำเมื่อ job retry
+5. แม่แบบข้อความอยู่ในโค้ด (`src/server/notifications/templates`) มีทั้งไทยและอังกฤษ การ์ด LINE สร้างด้วย builder ใน `src/channels/line/flex` และต้องมีเทสต์ขนาดข้อความตามข้อจำกัดใน LINE docs ณ วันที่สร้าง (ค่าเก็บเป็น constant เดียว)
+
+### 4.8 Multi-tenancy
+
+| ID | Invariant / กฎ | บังคับด้วย |
+| --- | --- | --- |
+| INV-TEN-01 | query ผ่าน client ของ tenant A ไม่มีวันคืนแถวของ tenant B | เทสต์ที่สร้างอัตโนมัติ: อ่าน Prisma DMMF หาทุก model ที่มี `organizationId` (นับเอง ไม่ hardcode) สร้าง 2 องค์กร แล้วตรวจทุก model |
+| INV-TEN-02 | ทุกตาราง tenant มี `organizationId` NOT NULL มี index และ unique constraint ทางธุรกิจรวม `organizationId` เสมอ | เทสต์อ่าน DMMF + review migration |
+
+การเข้าถึงข้อมูลผ่าน `db.forTenant(ctx.organizationId)` (Prisma client extension ที่เติม `where` และ `data`) เท่านั้น raw SQL อยู่ได้เฉพาะ `src/server/db/sql/*.ts` ซึ่งรับ `organizationId` เป็นพารามิเตอร์ชัดเจน ESLint ห้าม `$queryRawUnsafe` ทุกที่ และห้าม `$queryRaw` นอกโฟลเดอร์นี้ ตารางที่ไม่ผูก tenant มีเท่านั้น: ตารางของ Better Auth, `TaxRate`, `PlatformAdmin`, `BreakGlassSession` Postgres RLS ทำเมื่อเปิด multi-tenant เต็มรูปแบบ (ADR-029)
+
+### 4.9 ActionToken (ปุ่มและลิงก์อนุมัตินอก Workspace)
+
+| ID | กฎ |
+| --- | --- |
+| BR-TOK-01 | สร้างต่อ (งานอนุมัติ × ผู้รับ × ช่องทาง) ตอนมอบงาน เพิกถอนทันทีเมื่องานปิดหรือถูกย้ายผู้รับ อายุ 72 ชั่วโมงหรือจนงานปิด แล้วแต่อะไรถึงก่อน |
+| BR-TOK-02 | LINE postback มีแค่ `v=1&a=<action>&k=<tokenId>` ความปลอดภัยมาจาก signature ของ webhook และ `source.userId` → `ChannelIdentity` → member ต้องตรงกับ `token.memberId` ถ้าไม่ตรง → ปฏิเสธและบันทึก `security.token_misuse` |
+| BR-TOK-03 | ลิงก์อีเมลรูปแบบ `/a/<tokenId>.<secret>` เก็บเฉพาะ sha256 ของ secret การเปิดลิงก์ (GET) แสดงหน้าอย่างเดียว **ห้ามเปลี่ยนสถานะ** เพราะตัวสแกนอีเมลเปิดลิงก์เองได้ การตัดสินทำด้วย POST ที่มี CSRF token และค่าเริ่มต้นต้อง login ก่อน (`email.actionLinksRequireLogin = true`) |
+| BR-TOK-04 | ใช้ token ด้วยคำสั่งเดียว `UPDATE "ActionToken" SET "usedAt" = now() WHERE id = $1 AND "usedAt" IS NULL AND "revokedAt" IS NULL AND "expiresAt" > now()` ถ้าไม่ได้ 1 แถว → แยกเป็น `TOKEN_USED` / `TOKEN_EXPIRED` / `TOKEN_INVALID` |
+| BR-TOK-05 | งานที่ยอดตามฐาน DOA ≥ `stepUpThreshold` และงาน `DOA_CHANGE` `ORG_AUTHORITY_CHANGE` ทุกงาน (BR-DOA-15) ห้ามอนุมัติจากปุ่มในแชท ปุ่มจะเปิด LIFF เพื่อยืนยันด้วย PIN (FR-AUTH-005) |
+| INV-TOK-01 | token หนึ่งใบทำให้เกิดการตัดสินได้ไม่เกิน 1 ครั้ง |
+
+### 4.10 โครงสร้างโฟลเดอร์และกฎ import
+
+```text
+.
+├── CLAUDE.md                 # = §17 (AGENTS.md เป็น symlink)
+├── spec.md
+├── docs/
+│   ├── decisions/ADR-*.md
+│   ├── sub-specs/S*.md
+│   ├── feature-status.yaml   # §15.6
+│   ├── inputs/               # BCS_inputs_v1_demo.xlsx (§16.10)
+│   └── runbooks/
+├── prisma/
+│   ├── schema.prisma
+│   ├── migrations/           # รวม SQL trigger/CHECK ที่เขียนเอง (§6.3)
+│   └── seed.ts
+├── prisma.config.ts
+├── src/
+│   ├── app/                  # Next.js routes (บาง)
+│   │   ├── (workspace)/…
+│   │   ├── liff/…
+│   │   ├── a/[token]/
+│   │   ├── portal/           # ชั้น 2
+│   │   └── api/{auth,inngest,liff,webhooks/line/[channelKey],v1,health}/
+│   ├── core/                 # pure เท่านั้น
+│   │   ├── money/ vat/ thai/ numbering/
+│   │   ├── doa/ sod/ delegation/ budget/ sla/
+│   │   ├── forms/ consolidation/ receiving/ invoice/ grni/
+│   │   ├── state-machines/
+│   │   └── matching/ wht/ bankfile/        # ชั้น 2
+│   ├── server/
+│   │   ├── context.ts  authz/  services/  queries/
+│   │   ├── events/ (append, outbox, seal)  notifications/
+│   │   ├── db/ (client, tenant extension, sql/, generated/)
+│   │   └── jobs/             # Inngest functions
+│   ├── channels/
+│   │   ├── line/             # webhook, flex builders, rich menu, liff auth
+│   │   └── email/            # templates, action links
+│   ├── integrations/
+│   │   ├── storage/ email-provider/ express/ registry/ etax/
+│   │   ├── bank/             # ชั้น 2
+│   │   └── ai/               # ชั้น 4
+│   ├── ui/                   # shadcn components และ component ร่วม
+│   └── lib/                  # env (Zod), logger, errors, ids, clock
+├── tests/
+│   ├── golden/               # *.yaml ตาม §7 (ถูกค้นหาอัตโนมัติ)
+│   ├── unit/ integration/ property/ e2e/
+│   └── generated/            # เทสต์สิทธิ์และ tenant ที่สร้างตอนรัน
+├── scripts/{verify.ts,spec_check.py,validate_inputs.py,line-simulate.ts}
+└── docker-compose.yml
+```
+
+| จาก | import ได้ | ห้าม import |
+| --- | --- | --- |
+| `src/core/**` | `src/core/**` และ library บริสุทธิ์ที่อนุญาต: `zod` `decimal.js` `date-fns` `@date-fns/tz` | `@prisma/*` `next/*` `react` `node:*` `src/server/**` `src/channels/**` `src/integrations/**` |
+| `src/server/services/**` | core · `src/server/**` · `src/integrations/{storage,email-provider,express,bank,registry,etax}` · `src/lib/**` | `src/app/**` `src/channels/**` · `src/integrations/ai` ใน service ที่แตะเงินหรืออนุมัติ |
+| `src/server/queries/**` | core · `src/server/db/**` · `src/lib/**` | services · channels · app |
+| `src/channels/**` | services · queries · `src/core/{thai,money}` (จัดรูปแบบ) · `src/lib/**` | `src/server/db/**` |
+| `src/app/**` | services · queries · channels · `src/ui/**` · `src/lib/**` · `src/core/{thai,money}` | `src/server/db/**` |
+| `src/integrations/**` | `src/lib/**` | services · queries · app · channels |
+| ทุกที่ยกเว้น `src/server/db/**` | — | Prisma client ที่ generate และ `@prisma/*` |
+
+บังคับด้วย `eslint-plugin-boundaries` (หรือ `no-restricted-imports`) + `no-restricted-syntax` ใน core (ห้าม `Date.now()`, `new Date()` แบบไม่มีอาร์กิวเมนต์, `Math.random()`, `process.env`) + กฎ `bcs/no-money-literal` ที่ห้ามตัวเลขวงเงิน (literal ≥ 1000 หรือสตริงรูปแบบจำนวนเงิน) ใน `src/**` นอก `tests/**` `prisma/seed*` และไฟล์ fixtures (P-2)
+
+### 4.11 โมดูลและการเปิดปิด (`OrgModule`)
+
+ทุก service ของโมดูลเสริมเรียก `requireModule(ctx, '<MODULE>')` ก่อนทำงาน ถ้าปิดอยู่ → `MODULE_DISABLED` · เปิดปิดได้เฉพาะ PLATFORM_ADMIN ที่ `/platform/tenants/[orgId]/modules` (BR-AUTH-08) ส่วน ORG_ADMIN ดูได้อย่างเดียวที่ `/admin/modules` (ADR-034) · กติกา: (1) ทุกครั้งต้องมี `contractRef` และเหตุผล (2) เปิด → โมดูลที่ต้องมีต้องเปิดอยู่แล้ว (3) ปิด → ต้องไม่มีโมดูลที่เปิดอยู่พึ่งพา เช่น ปิด `SUPPLIER` ขณะ `SOURCING` เปิด → ปฏิเสธ (4) ปิดขณะมีเอกสารค้างในโมดูล → ปฏิเสธด้วย `MODULE_IN_USE` พร้อมรายการเอกสารที่ต้องปิดก่อน (OQ-33) (5) ทุกการเปลี่ยนสร้าง event `organization.module_enabled` หรือ `organization.module_disabled` และแจ้ง ORG_ADMIN ทันที (6) การปิดไม่ลบข้อมูล แค่ซ่อนเมนูและปฏิเสธ command
+
+| Module | ประกอบด้วย | ต้องมี | เปิดได้ตั้งแต่ |
+| --- | --- | --- | --- |
+| `CORE` | Workspace, DOA Core, งบ, PR → PO → GR, รายงาน, BCS on LINE, SSO | — (เปิดเสมอ) | S1 |
+| `PAY` | ใบแจ้งหนี้ 3-way match ภาษีหัก ณ ที่จ่าย รอบจ่าย ไฟล์ธนาคาร | CORE | S8 |
+| `SUPPLIER` | Supplier Portal ลงทะเบียน ตรวจเอกสาร อนุมัติผู้ขาย | CORE | S7 |
+| `SOURCING` | RFQ RFP RFI ให้คะแนน วิเคราะห์ราคา e-Auction | SUPPLIER | S10 |
+| `RISK` | แบบประเมิน ตรวจคู่ขนาน ด่านก่อนทำสัญญา | SUPPLIER | S11 |
+| `CONTRACTS` | คลังสัญญา เตือนต่ออายุ Legal review | CORE | S12 |
+| `AI` | agents ตาม credits | CORE | S13 |
+| `INTEGRATION` | Express API, e-Tax Invoice, BI | CORE | S14 |
+| `DOA_EVERYWHERE` | e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | CORE | S15 |
+| `BCS_GO` | แอป Capacitor | CORE | S15 |
+
+ถ้าองค์กรเปิด `PAY` โดยไม่เปิด `SUPPLIER` บัญชีธนาคารผู้ขายจัดการโดยผู้ใช้ภายในผ่านทะเบียนผู้ขายของ CORE และยังต้องผ่านกฎการเปลี่ยนบัญชี (BR-SOD-05)
+
+### 4.12 สภาพแวดล้อม
+
+| Env | ใช้ทำ | ฐานข้อมูล | ข้อมูลที่อนุญาต |
+| --- | --- | --- | --- |
+| `local` | พัฒนา | Postgres 17 ใน docker | seed (ภาคผนวก A) |
+| `preview` | ต่อ PR (ถ้า hosting รองรับ) | Neon branch | seed |
+| `staging` | ทดสอบกับผู้ใช้และ UAT | Neon project staging (สิงคโปร์) | seed และข้อมูลสังเคราะห์เท่านั้น จนกว่า OQ-19 ปิด |
+| `production` | ใช้งานจริง | Neon project production (สิงคโปร์) | ข้อมูลจริง หลัง OQ-19 ปิดและเอกสาร PDPA พร้อม (§16.9) |
+
+---
+
+## 5. Tech stack และเงื่อนไขทางเทคนิค
+
+### 5.1 Stack ที่ใช้และเงื่อนไขบังคับ
+
+| ส่วน | ใช้ | เงื่อนไขบังคับ |
+| --- | --- | --- |
+| Runtime | Node.js 24 LTS · pnpm (ล็อกด้วย `packageManager` ใน package.json) | route ที่แตะฐานข้อมูลใช้ Node runtime ห้าม Edge |
+| Framework | Next.js 16.x App Router · React 19.2 · TypeScript `strict` | ใช้ `proxy.ts` (แทน `middleware.ts` ที่ deprecated) ทำได้แค่ redirect และ header ห้ามตรวจสิทธิ์ธุรกิจที่นี่ · `params` และ `searchParams` เป็น async · ไม่เปิด Cache Components (`"use cache"`) กับข้อมูลของ tenant ในชั้น 1–2 · server action ทุกตัวคือ public endpoint (BR-AUTH-05) |
+| UI | Tailwind CSS v4 · shadcn/ui · TanStack Table · lucide | ฟอนต์ไทย (เช่น IBM Plex Sans Thai หรือ Noto Sans Thai) · ตัวเลขเงินใช้ `tabular-nums` |
+| ฟอร์มและ validation | React Hook Form · Zod v4 | schema เดียวใช้ทั้ง client, server, API และ (ชั้น 4) JSON schema ให้ AI ผ่าน `z.toJSONSchema` (ADR-023) |
+| ORM และฐานข้อมูล | Prisma 7 · PostgreSQL 17 บน Neon สิงคโปร์ | generator `prisma-client` ต้องระบุ `output` · URL สำหรับ CLI อยู่ใน `prisma.config.ts` (`DIRECT_URL`) · runtime ใช้ driver adapter กับ `DATABASE_URL` (pooled) · ต้องใช้ adapter ที่รองรับ interactive transaction และ `SELECT … FOR UPDATE` (ค่าเริ่มต้น `@prisma/adapter-pg`) · ห้ามใช้โหมด HTTP ของ Neon กับงานที่แตะเงิน |
+| Authentication | Better Auth ≥ 1.7 | email + password, TOTP 2FA, Google และ Microsoft SSO (S5), LINE (S5) · ใช้เป็น identity อย่างเดียว สมาชิกองค์กรและสิทธิ์อยู่ในตารางของเรา ไม่ใช้ organization plugin |
+| Background jobs | Inngest TypeScript SDK | endpoint `/api/inngest` · local ใช้ Inngest Dev Server · ตั้ง signing key ทุก env ที่ไม่ใช่ local |
+| ไฟล์ | S3 API (`@aws-sdk/client-s3` + presigner) | bucket private · local ใช้ MinIO · ผู้ให้บริการจริงตาม ADR-033 |
+| อีเมล | adapter `EmailProvider` | local ใช้ Mailpit (SMTP) · ผู้ให้บริการจริงตาม ADR-031 |
+| i18n | next-intl | ไทยเป็นค่าเริ่มต้น อังกฤษรอง (ADR-026) |
+| วันที่และเวลา | date-fns · `@date-fns/tz` | เก็บ UTC (`timestamptz`) แสดงผล Asia/Bangkok · ปี พ.ศ. ผ่าน `src/core/thai` |
+| ตัวเลข | BigInt สำหรับเงิน · decimal.js สำหรับจำนวน | ห้ามใช้ `number` กับเงิน (ADR-018) |
+| Log และ monitoring | pino (JSON) · Sentry (SHOULD) | ห้าม log token, รหัสผ่าน, PIN, เลขบัญชีเต็ม, เลขบัตรประชาชน |
+| Testing | Vitest · fast-check · Playwright · Postgres จริงผ่าน docker compose | ห้าม mock ฐานข้อมูลในเทสต์ที่ตรวจธุรกรรม (ADR-027) |
+| PDF | ตัดสินหลัง spike ใน S4 (OQ-18): headless Chromium หรือ `@react-pdf/renderer` + ฟอนต์ไทย | ตัดคำไทย สระ และวรรณยุกต์ถูกต้อง ตรวจด้วย snapshot ภาพ |
+| Excel | ExcelJS | รายงานและไฟล์ Express |
+| LINE | `@line/bot-sdk` · `@line/liff` | ตรวจ signature กับ raw body ก่อน parse JSON |
+| CI/CD | GitHub Actions | `pnpm verify` ทุก PR · merge `main` → deploy staging อัตโนมัติ (EG-3) |
+| Hosting | ตาม ADR-032 (ยังไม่ตัดสิน) | ภูมิภาคเดียวกับฐานข้อมูล · เปิด `/api/inngest` ให้ Inngest เรียกได้ · ระหว่างรอใช้ staging ชั่วคราวได้เฉพาะข้อมูลสังเคราะห์ |
+
+### 5.2 ตัวอย่างการตั้งค่า Prisma 7
+
+```prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../src/server/db/generated"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+```
+
+```ts
+// prisma.config.ts
+import 'dotenv/config'
+import { defineConfig, env } from 'prisma/config'
+
+export default defineConfig({
+  schema: 'prisma/schema.prisma',
+  migrations: { path: 'prisma/migrations', seed: 'tsx prisma/seed.ts' },
+  datasource: { url: env('DIRECT_URL') }, // role bcs_migrator
+})
+```
+
+```ts
+// src/server/db/client.ts
+import { PrismaClient } from './generated/client' // path ตาม output ที่ generate จริง
+import { PrismaPg } from '@prisma/adapter-pg'
+
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! }) // role bcs_app
+export const prisma = new PrismaClient({ adapter })
+```
+
+API ของ Prisma เปลี่ยนเร็ว ถ้าตัวอย่างนี้ไม่ตรงกับ `prisma init` ของเวอร์ชันที่ติดตั้ง ให้ยึดเวอร์ชันที่ติดตั้งแล้วบันทึกใน ADR
+
+### 5.3 การพัฒนาบนเครื่อง (ไม่ต้องรอบริการภายนอก — ADR-025)
+
+`docker-compose.yml` มี `postgres:17` (สคริปต์ init สร้าง role `bcs_migrator` และ `bcs_app`), `minio` (สร้าง bucket `bcs-local`), `mailpit` (SMTP 1025, UI 8025) และ Inngest Dev Server การทดสอบ LINE บนเครื่องใช้ `pnpm line:simulate` ส่ง webhook ปลอมที่เซ็นด้วย channel secret ใน `.env` ใช้ tunnel สาธารณะเฉพาะตอนทดสอบกับ LINE จริง
+
+เริ่มโปรเจกต์ด้วยคำสั่งเดียว:
+
+```bash
+cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate && pnpm db:seed && pnpm dev
+```
+
+### 5.4 คำสั่งใน package.json
+
+| script | ทำอะไร |
+| --- | --- |
+| `dev` | Next.js dev (Turbopack) + Inngest Dev Server พร้อมกัน |
+| `db:migrate` | local ใช้ `prisma migrate dev` · CI และ production ใช้ `prisma migrate deploy` |
+| `db:seed` | ใส่ข้อมูลตามภาคผนวก A รันซ้ำได้ |
+| `db:reset` | ล้าง + migrate + seed ปฏิเสธถ้า `APP_ENV` ไม่ใช่ `local` |
+| `test` · `test:int` · `test:golden` · `test:e2e` | unit · integration กับ Postgres จริง · golden · Playwright |
+| `lint` · `typecheck` | ESLint (รวมกฎ boundaries) · `tsc --noEmit` |
+| `verify` | รวมทุกด่านและรายงาน PASS/FAIL ทีละข้อ (§15.5) |
+| `line:simulate` | ส่ง webhook ปลอมที่เซ็นถูกต้องเข้า local |
+| `spec:check` | `python3 scripts/spec_check.py spec.md` ตรวจโครงสร้างของ spec และคำนวณ golden cases ซ้ำ |
+| `inputs:check` | `python3 scripts/validate_inputs.py docs/inputs/BCS_inputs_v1_demo.xlsx --spec spec.md` ตรวจไฟล์ input ก่อน seed (§16.10) |
+
+---
+
+## 6. โมเดลข้อมูลและ state machine
+
+### 6.1 กติการ่วมของทุกตาราง
+
+| เรื่อง | กติกา |
+| --- | --- |
+| Primary key | `id String @id @default(uuid(7)) @db.Uuid` (ADR-028) |
+| Tenant | ทุกตาราง tenant มี `organizationId` (INV-TEN-02) |
+| เวลา | `@db.Timestamptz(6)` เก็บ UTC · `createdAt` `updatedAt` ทุกตาราง · วันที่ล้วน (วันหยุด วันครบกำหนด) ใช้ `@db.Date` |
+| Optimistic lock | `version Int @default(0)` ใน aggregate ที่แก้พร้อมกันได้: Request, PurchaseOrder, GoodsReceipt, DoaVersion, ApprovalTask, BudgetLineBalance, Supplier |
+| เงิน | `BigInt` หน่วยสตางค์ ชื่อฟิลด์ลงท้าย `Satang` (`netSatang` `vatSatang` `grossSatang`) · CHECK ≥ 0 (ADR-018) |
+| อัตรา | `Int` หน่วย basis point ลงท้าย `Bp` (7% = 700) |
+| จำนวน | `Decimal @db.Decimal(18,4)` + หน่วยนับ `uom` |
+| อ้างถึงคน | FK ไป `Member.id` เสมอ ยกเว้น `Member.userId` ที่อ้าง Better Auth และการกระทำของทีม BCS ที่อ้าง `PlatformAdmin.id` (PLATFORM_ADMIN ไม่ใช่ Member) |
+| การลบ | เอกสารธุรกิจไม่ลบ ใช้สถานะแทน · ลบได้เฉพาะ DRAFT โดยมี event |
+| enum และรหัส | Prisma enum · รหัสเป็น `UPPER_SNAKE` |
+| ชื่อ | model เป็น PascalCase เอกพจน์ · คอลัมน์ camelCase (ใน SQL ต้องใส่ double quote) |
+
+### 6.2 Entities ชั้น 1
+
+**องค์กร คน และสิทธิ์**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `Organization` | code, legalNameTh, legalNameEn, taxId, branchCode (`00000` = สำนักงานใหญ่), timezone, locale, settings (jsonb), status, dataRegion, contractSignatoryMemberId, contractSignatoryVerifiedAt | เป็นราก ไม่มี organizationId · `settings` ต้องผ่าน `OrgSettingsSchema` (Zod) ทุกครั้งที่บันทึก · ผู้มีอำนาจลงนามตั้งโดย PLATFORM_ADMIN หลังยืนยันตัวตนกับสัญญา ใช้อนุมัติชุดตั้งต้นเท่านั้น (BR-DOA-19) | S1 |
+| `OrgModule` | module, enabled, enabledAt, disabledAt, changedByPlatformAdminId, contractRef, reason | unique (org, module) · กติกาตาม §4.11 · ประวัติการเปลี่ยนอยู่ใน Event | S1 |
+| `Member` | userId, displayNameTh, displayNameEn, email, phone, employeeCode, primaryDepartmentId, status (`INVITED` `ACTIVE` `DEACTIVATED`), transactionPinHash, pinFailedCount, pinLockedUntil, lineReachable, notificationPrefs | unique (org, userId) และ (org, email) · ปิดใช้งานตาม BR-AUTH-06 | S1 |
+| `RoleAssignment` | memberId, role, scopeDepartmentId, grantedById, grantedAt, revokedAt | role ตาม §2.2 · `REQUESTER` ได้โดยปริยาย ไม่ต้องบันทึก | S1 |
+| `Department` | code, nameTh, nameEn, parentId, kind (`COMPANY` `DIVISION` `DEPARTMENT` `SECTION`), active | ต้นไม้เดียวต่อองค์กร ห้ามวนรอบ · unique (org, code) | S2 |
+| `CostCenter` | code, nameTh, departmentId, active | unique (org, code) | S2 |
+| `Position` | code (`DM` `VP` `COO` `CEO` `PROC_MGR` …), nameTh, scope (`DEPARTMENT` `ORG`) | ตำแหน่งไม่ใช่อำนาจ อำนาจมาจาก DOA เท่านั้น | S2 |
+| `PositionAssignment` | positionId, departmentId, memberId, validFrom, validTo | ตำแหน่งระดับองค์กรผูกกับแผนกราก · ผู้ดำรงตำแหน่งปัจจุบันได้คนเดียวต่อ (ตำแหน่ง, แผนก) (§6.3) | S2 |
+| `Delegation` | delegatorMemberId, delegateMemberId, startsAt, endsAt, documentTypes, maxAmountSatang, reason, status (`SCHEDULED` `ACTIVE` `ENDED` `REVOKED`), createdVia (`SELF` `ORG_AUTHORITY_CHANGE`) | BR-DLG-01 ถึง BR-DLG-05 · ตั้งแทนผู้อื่นต้องมาจาก `OrgAuthorityChange` ที่อนุมัติแล้ว | S2 |
+| `ChannelIdentity` | memberId, channel (`LINE`), providerKey, externalUserId, linkedAt, unlinkedAt | unique ของบัญชีที่ยังผูกอยู่ (org, channel, providerKey, externalUserId) · หนึ่ง member ผูก LINE ได้ 1 บัญชี | S5 |
+| `Holiday` | date, nameTh | เวลาทำการอยู่ใน `settings.businessCalendar` | S2 |
+| `BreakGlassSession` (global) | platformAdminId, organizationId, reason, startsAt, endsAt, endedAt | BR-AUTH-03 | S1 |
+| `PlatformAdmin` (global) | userId, displayName, active | ทีม BCS ไม่ใช่ Member ขององค์กรใด (§6.1) | S1 |
+
+**คำขอ**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `RequestType` | code, nameTh, nameEn, icon, documentType (`PURCHASE_REQUEST` `SUPPLIER_REQUEST`), currentFormVersionId, active, sortOrder | seed 5 ประเภท (ภาคผนวก A) | S2 |
+| `FormVersion` | requestTypeId, version, schema (jsonb: FieldDef, conditions, attachmentRules), status (`DRAFT` `PUBLISHED` `RETIRED`), publishedAt, publishedById | เผยแพร่แล้วแก้ไม่ได้ · คำขอผูกกับฉบับที่ใช้ตอนสร้าง | S2 |
+| `Request` | number, requestTypeId, formVersionId, documentType, status, title, requesterMemberId, requesterDepartmentId, chargedDepartmentId, costCenterId, budgetLineId, urgency (`NORMAL` `URGENT`), neededBy, deliverySiteId, suggestedSupplierId, nonLowestQuoteReason, priceIncludesVat, netSatang, vatSatang, grossSatang, vatRateBp, taxPointDate, formData, submittedAt, approvedAt, completedAt, cancelledAt, cancelReason, currentRouteId, version | `number` เป็น null ตอน DRAFT และออกตอนส่ง (BR-NUM-01) · ยอดเงินคำนวณด้วย core เท่านั้น ห้ามรับยอดรวมจาก client · คำขอประเภทจัดซื้อคือ PR | S2 |
+| `RequestLine` | lineNo, description, categoryCode, quantity, uom, unitPriceSatang, netSatang, vatable, orderedQuantity, cancelledQuantity, serviceEndDate | CHECK `orderedQuantity + cancelledQuantity ≤ quantity` · serviceEndDate ใช้กับบริการและไลเซนส์ (BR-FORM-05) | S2 |
+| `RequestQuotation` | requestId, supplierId (null ได้), supplierName, amountSatang, includesVat, vatRateBp, netSatang, fileId, isSelected | เลือกได้หนึ่งใบต่อคำขอ · netSatang คำนวณโดย core (BR-FORM-06) | S2 |
+| `RequestFollower` | requestId, memberId | ได้รับแจ้งเมื่อสถานะเปลี่ยน | S2 |
+| `Comment` | subjectType, subjectId, authorMemberId, body | แก้และลบไม่ได้ ถอนได้ด้วย event `comment.retracted` ซึ่งซ่อนเนื้อหา | S2 |
+| `InfoRequest` | requestId, taskId, askedById, question, answeredById, answer, askedAt, answeredAt | ระหว่างรอคำตอบ SLA หยุดนับ (BR-SLA-03) | S2 |
+| `DeliverySite` | code, nameTh, address, active | ใช้จัดกลุ่มรวม PR เช่น ไซต์ก่อสร้าง | S4 |
+
+**DOA และการอนุมัติ**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `DoaVersion` | code, version, status (`DRAFT` `PENDING_APPROVAL` `PUBLISHED` `SUPERSEDED` `REJECTED` `WITHDRAWN`), effectiveFrom, effectiveTo, amountBasis (`GROSS` `NET`), selfApprovalPolicy (`ESCALATE_NEXT_BAND` `BLOCK`), collapseDuplicateApprovers, stepUpThresholdSatang, escalationPolicy (jsonb), sodPolicy (jsonb: approverMayReceive, requesterMayReceive), changeReason, diffSummary (jsonb), sourceYaml, checksum, submittedById, approvedById, publishedAt, withdrawnAt, version | ฉบับที่เผยแพร่แล้วแก้ไม่ได้ แก้ด้วยการสร้างฉบับใหม่ · ช่วงเวลามีผลห้ามทับกัน (§6.3) · การผ่อน SoD อยู่ใน `sodPolicy` จึงเปลี่ยนได้ผ่าน 4-eyes เท่านั้น · `WITHDRAWN` ใช้ใน S6 (BR-DOA-18) | S2 |
+| `DoaRule` | doaVersionId, code, documentType (`PURCHASE_REQUEST` `PURCHASE_ORDER` `GR_VARIANCE` `DOA_CHANGE` `ORG_AUTHORITY_CHANGE`), priority, when (jsonb), steps (jsonb), descriptionTh | unique (doaVersionId, code) · ชั้น 1 ทุก step เป็น `SEQUENTIAL` ผู้อนุมัติ 1 คน โหมดคู่ขนานมีในโครงข้อมูลแต่ lint ปฏิเสธจนถึง S6 | S2 |
+| `DoaTestCase` | doaVersionId, name, input, expected | ต้องผ่านทั้งหมดก่อนส่งเผยแพร่ (BR-DOA-08) | S2 |
+| `ApprovalRoute` | subjectType (`REQUEST` `PURCHASE_ORDER` `VARIANCE` `DOA_VERSION` `ORG_AUTHORITY_CHANGE`), subjectId, routeNo, doaVersionId, ruleCode, escalatedFromRuleCode, amountBasis, amountSatang, explanationTh, status (`ACTIVE` `COMPLETED` `CANCELLED`) | สร้างใหม่ทุกครั้งที่ส่งหรือส่งซ้ำ ไม่แก้ของเดิม | S2 |
+| `ApprovalStep` | routeId, stepNo, mode (`SEQUENTIAL` `PARALLEL`), quorum (`ALL` `ANY` `COUNT`), quorumCount, slaBusinessMinutes, status | | S2 |
+| `ApprovalTask` | stepId, assigneeMemberId, principalMemberId, resolvedFrom, status (`OPEN` `INFO_REQUESTED` `APPROVED` `REJECTED` `RETURNED` `CANCELLED` `REASSIGNED`), assignedAt, dueAt, remindAt, escalateAt, remainingBusinessMinutes, overdueAt, escalatedAt, decidedAt, decidedByMemberId, decision, reason, channel, version | `resolvedFrom` เก็บที่มา เช่น `POSITION:VP@OPS` · ตัดสินแล้วแก้ไม่ได้ | S2 |
+| `OrgAuthorityChange` | kind (`POSITION_ASSIGN` `POSITION_END` `DEPARTMENT_REPARENT` `DELEGATION_ON_BEHALF` `IDENTITY_RESET`), payload (jsonb), reason, effectiveFrom, submittedById, routeId, status (`DRAFT` `PENDING_APPROVAL` `SCHEDULED` `APPLIED` `REJECTED` `CANCELLED`), impactSummary (jsonb), appliedAt | BR-DOA-17 BR-SOD-08 BR-AUTH-07 · ห้ามย้อนหลัง · `IDENTITY_RESET` มีผลทันทีที่อนุมัติ | S2 |
+
+**งบประมาณ**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `FiscalYear` | code (เช่น `FY2569`), startsOn, endsOn, status (`OPEN` `CLOSED`) | นิยามปีงบตาม OQ-11 | S3 |
+| `BudgetLine` | fiscalYearId, departmentId, costCenterId, code, nameTh, accountCode, plannedSatang, status (`OPEN` `FROZEN` `CLOSED`) | unique (org, fiscalYearId, code) · `FROZEN` = จองใหม่ไม่ได้ | S3 |
+| `BudgetLedgerEntry` | budgetLineId, seq, fromBucket, toBucket, amountSatang, sourceType, sourceId, eventId | append-only (INV-EVT-01) · amount > 0 · bucket: `OUTSIDE` `AVAILABLE` `RESERVED` `COMMITTED` `ACTUAL` | S3 |
+| `BudgetLineBalance` | budgetLineId (PK), availableSatang, reservedSatang, committedSatang, actualSatang, lastSeq, version | projection ที่อัปเดตในธุรกรรมเดียวกับ ledger · CHECK ทุกช่อง ≥ 0 | S3 |
+| `BudgetAllocation` | budgetLineId, sourceType (`REQUEST_LINE` `PO_LINE`), sourceId, reservedSatang, committedSatang, actualSatang | projection ต่อเอกสาร ใช้ตรวจ INV-BUD-03 | S3 |
+| `BudgetGrant` | budgetLineId, granteeDepartmentId, granteeMemberId, validFrom, validTo, grantedById, revokedAt | สิทธิ์ใช้งบข้ามฝ่าย | S3 |
+
+**ผู้ขาย (ขั้นต้นในชั้น 1)**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `Supplier` | code, nameTh, nameEn, taxId, branchCode, isVatRegistered, isForeign, email, phone, address, status (`ACTIVE` `INACTIVE`), expressVendorCode, registryStatus, registrySource (`RD` `DBD` `MANUAL` `STUB`), registryCheckedAt, registryData (jsonb), createdById | taxId ต้องผ่าน mod-11 ยกเว้นผู้ขายต่างประเทศ · unique (org, taxId, branchCode) · BR-SUP-01 ถึง BR-SUP-05 · expressVendorCode ตาม BR-EXP-04 | S4 |
+
+**จัดซื้อถึงตรวจรับ**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `PurchaseOrder` | number, status, supplierId, deliverySiteId, kind (`GOODS` `SERVICE`), urgency, currency (`THB`), priceIncludesVat, netSatang, vatSatang, grossSatang, vatRateBp, taxPointDate, paymentTermDays, notesToSupplier, createdById, submittedAt, approvedAt, sentAt, sentToEmail, closedAt, cancelledAt, cancelReason, cancelDisposition, pdfFileId, version | ชั้น 1 ห้ามมี PO ที่ไม่มีคำขอต้นทาง (OQ-24) | S4 |
+| `PoLine` | poId, lineNo, description, quantity, uom, unitPriceSatang, netSatang, vatable, budgetLineId, receivedQuantity, acceptedExtraQuantity, cancelledQuantity, serviceEndDate | budgetLineId และ serviceEndDate มาจากคำขอต้นทาง | S4 |
+| `PoLineSource` | poLineId, requestLineId, quantity, releasableSatang | ส่วนของบรรทัดคำขอที่ PO บรรทัดนี้สั่ง ใช้คืนการจองงบ (BR-BUD-05) | S4 |
+| `ConsolidationRun` | scheduledFor, ranAt, status, createdPoIds | บันทึกรอบรวม PR | S4 |
+| `GoodsReceipt` | number, poId, status (`DRAFT` `POSTED` `REVERSED`), receivedAt, receiverMemberId, deliveryNoteNo, notes, postedAt, reversedAt, reverseReason | | S4 |
+| `GrLine` | grId, poLineId, receivedQuantity, acceptedQuantity, rejectedQuantity, remark | รูปถ่ายแนบผ่าน `FileLink` | S4 |
+| `Variance` | poId, poLineId, grId, type (`SHORT` `OVER` `DAMAGED`), quantity, amountSatang, disposition, status (`RECORDED` `PENDING_APPROVAL` `APPROVED` `REJECTED`), routeId | BR-GR-01 ถึง BR-GR-05 | S4 |
+| `InvoiceConfirmation` | poId, supplierId, invoiceNo, invoiceNoNormalized, invoiceDate, netSatang, vatSatang, grossSatang, isFinal, sourceFileId, parsedFrom (`MANUAL` `ETAX_XML`), recordedById, recordedAt, exportedAt, exportJobId | unique (org, supplierId, invoiceNoNormalized) · BR-IVC-01 ถึง BR-IVC-04 · ชั้น 2 แทนด้วย `Invoice` เต็มรูปแบบ | S4 |
+| `ExportJob` | kind (`EXPRESS_AP` `REPORT` `AUDIT`), params, status, fileId, rowCount, checksum, requestedById, completedAt | | S4 |
+| `ReportSchedule` | reportCode, cron, recipients, format, active, createdById | | S4 |
+
+**แพลตฟอร์มและช่องทาง**
+
+| Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
+| --- | --- | --- | --- |
+| `DocumentSequence` | documentType, scopeKey, pattern, nextValue | unique (org, documentType, scopeKey) · ล็อกแถวตอนออกเลข (INV-NUM-01) | S2 |
+| `Event` | ตาม §4.5 | append-only | S1 |
+| `EventSeal` | day, firstSeq, lastSeq, count, hash, prevHash | append-only | S5 |
+| `Outbox` | eventName, payload, createdAt, sentAt, attempts, lastError | | S1 |
+| `CommandLog` | idempotencyKey, commandName, inputHash, result, createdAt | unique (org, idempotencyKey) · เก็บ 90 วันแล้วลบด้วย role migrator | S1 |
+| `Notification` | recipientMemberId, templateKey, data, urgency, status (`PENDING` `SENT` `FAILED` `READ`), dedupeKey, sentChannel, sentAt, readAt, error, subjectType, subjectId | unique (org, dedupeKey) | S2 |
+| `ActionToken` | memberId, taskId, allowedActions, channel (`LINE` `EMAIL`), secretHash, expiresAt, usedAt, revokedAt | §4.9 | S4 อีเมล · S5 LINE |
+| `FileObject` | storageKey, fileName, mimeType, sizeBytes, sha256, uploadedById, scanStatus | อยู่ใน bucket private เท่านั้น | S1 |
+| `FileLink` | fileId, subjectType, subjectId, kind (`QUOTATION` `DELIVERY_NOTE` `PHOTO` `JUSTIFICATION` `INVOICE` `PO_PDF` `DPA` `ETAX` `REGISTRY_PROOF` `OTHER`) | | S1 |
+| `SensitiveAccessLog` | memberId, subjectType, subjectId, fields, purpose, at | บันทึกการเปิดดูข้อมูลอ่อนไหว (NFR-PRIV-03) | S5 |
+| `TaxRate` (global) | code (`VAT_STANDARD`), rateBp, effectiveFrom, effectiveTo, sourceUrl, note, confirmedById, confirmedAt | ช่วงวันห้ามทับกัน (BR-VAT-01) | S2 |
+| `LineChannelConfig` | channelKey (สุ่ม เปิดเผยได้), providerId, messagingChannelId, channelSecretEnc, channelAccessTokenEnc, liffId, liffChannelId, richMenuLinkedId, richMenuUnlinkedId, active | secret เข้ารหัส AES-256-GCM ด้วย `ENCRYPTION_KEY` · แยกต่อองค์กรหรือใช้ OA กลางตาม OQ-15 | S5 |
+| `LineWebhookEvent` | webhookEventId (unique), channelKey, type, receivedAt, processedAt, status | กันประมวลผลซ้ำ (BR-LINE-04) | S5 |
+| `ChannelLinkCode` | memberId, codeHash, expiresAt, usedAt | รหัสผูกบัญชีใช้ครั้งเดียว อายุ 10 นาที | S5 |
+
+ตัวอย่าง Prisma ของตารางที่แตะเงินและ audit (ใช้เป็นแบบของตารางอื่น):
+
+```prisma
+model BudgetLedgerEntry {
+  id             String      @id @default(uuid(7)) @db.Uuid
+  organizationId String      @db.Uuid
+  budgetLineId   String      @db.Uuid
+  seq            BigInt
+  fromBucket     BudgetBucket
+  toBucket       BudgetBucket
+  amountSatang   BigInt
+  sourceType     String
+  sourceId       String      @db.Uuid
+  eventId        String      @db.Uuid
+  createdAt      DateTime    @default(now()) @db.Timestamptz(6)
+
+  @@unique([budgetLineId, seq])
+  @@index([organizationId, sourceType, sourceId])
+}
+
+enum BudgetBucket {
+  OUTSIDE
+  AVAILABLE
+  RESERVED
+  COMMITTED
+  ACTUAL
+}
+```
+
+### 6.3 SQL ที่ต้องเขียนเพิ่มจาก Prisma schema
+
+สร้าง migration ด้วย `prisma migrate dev --create-only` แล้วเพิ่ม SQL ต่อท้ายไฟล์ `migration.sql` ก่อน apply ห้ามแก้ migration ที่ apply ไปแล้ว
+
+```sql
+-- 1) ตาราง append-only (INV-EVT-01)
+CREATE OR REPLACE FUNCTION bcs_forbid_mutation() RETURNS trigger AS $$
+BEGIN
+  RAISE EXCEPTION 'append-only table %: % is not allowed', TG_TABLE_NAME, TG_OP
+    USING ERRCODE = 'restrict_violation';
+END; $$ LANGUAGE plpgsql;
+
+CREATE TRIGGER event_append_only BEFORE UPDATE OR DELETE ON "Event"
+  FOR EACH ROW EXECUTE FUNCTION bcs_forbid_mutation();
+CREATE TRIGGER ledger_append_only BEFORE UPDATE OR DELETE ON "BudgetLedgerEntry"
+  FOR EACH ROW EXECUTE FUNCTION bcs_forbid_mutation();
+CREATE TRIGGER seal_append_only BEFORE UPDATE OR DELETE ON "EventSeal"
+  FOR EACH ROW EXECUTE FUNCTION bcs_forbid_mutation();
+-- TRUNCATE ไม่ผ่าน row trigger: อนุญาตเฉพาะ role migrator ใน local/test เท่านั้น
+
+-- 2) สิทธิ์ของ role แอป
+REVOKE UPDATE, DELETE, TRUNCATE ON "Event", "BudgetLedgerEntry", "EventSeal" FROM bcs_app;
+GRANT SELECT, INSERT ON "Event", "BudgetLedgerEntry", "EventSeal" TO bcs_app;
+
+-- 3) เงินห้ามติดลบ
+ALTER TABLE "BudgetLedgerEntry" ADD CONSTRAINT ledger_amount_positive CHECK ("amountSatang" > 0);
+ALTER TABLE "BudgetLedgerEntry" ADD CONSTRAINT ledger_buckets_differ CHECK ("fromBucket" <> "toBucket");
+ALTER TABLE "BudgetLineBalance" ADD CONSTRAINT balance_non_negative CHECK (
+  "availableSatang" >= 0 AND "reservedSatang" >= 0 AND "committedSatang" >= 0 AND "actualSatang" >= 0);
+ALTER TABLE "RequestLine" ADD CONSTRAINT request_line_qty CHECK (
+  "orderedQuantity" + "cancelledQuantity" <= "quantity");
+
+-- 4) ผู้ดำรงตำแหน่งปัจจุบันได้คนเดียวต่อ (ตำแหน่ง, แผนก)
+CREATE UNIQUE INDEX position_single_holder ON "PositionAssignment" ("positionId", "departmentId")
+  WHERE "validTo" IS NULL;
+
+-- 5) DOA ที่เผยแพร่แล้วห้ามมีช่วงเวลามีผลทับกัน
+CREATE EXTENSION IF NOT EXISTS btree_gist;
+ALTER TABLE "DoaVersion" ADD CONSTRAINT doa_no_overlap EXCLUDE USING gist (
+  "organizationId" WITH =,
+  "code" WITH =,
+  tstzrange("effectiveFrom", COALESCE("effectiveTo", 'infinity'::timestamptz)) WITH &&
+) WHERE ("status" IN ('PUBLISHED', 'SUPERSEDED'));
+```
+
+`pnpm verify` ต้องตรวจจากฐานข้อมูลจริงว่า trigger ทั้ง 3 ตัวมีอยู่ และ `has_table_privilege('bcs_app', '"Event"', 'UPDATE')` เป็น false
+
+### 6.4 State machines
+
+ทุก state machine เขียนเป็นตาราง transition ใน `src/core/state-machines/*.ts` (ข้อมูล ไม่ใช่ if-else กระจาย) และมีเทสต์ที่วนทุกคู่ (สถานะ, command) เพื่อยืนยันว่าคู่ที่ไม่มีในตารางได้ `INVALID_STATE_TRANSITION`
+
+**คำขอประเภทจัดซื้อ (PR)**
+
+```mermaid
+stateDiagram-v2
+  [*] --> DRAFT
+  DRAFT --> PENDING_APPROVAL: submit
+  PENDING_APPROVAL --> APPROVED: ขั้นสุดท้ายอนุมัติ
+  PENDING_APPROVAL --> REJECTED: reject
+  PENDING_APPROVAL --> RETURNED: return
+  RETURNED --> PENDING_APPROVAL: resubmit
+  DRAFT --> CANCELLED: cancel
+  RETURNED --> CANCELLED: cancel
+  PENDING_APPROVAL --> CANCELLED: cancel
+  APPROVED --> CANCELLED: จัดซื้อยกเลิก
+  APPROVED --> PARTIALLY_ORDERED: PO อนุมัติบางส่วน
+  APPROVED --> ORDERED: PO อนุมัติครบ
+  PARTIALLY_ORDERED --> ORDERED: สั่งครบหรือยกเลิกส่วนที่เหลือ
+  ORDERED --> COMPLETED: PO ที่เกี่ยวข้องปิดครบ
+  REJECTED --> [*]
+  CANCELLED --> [*]
+  COMPLETED --> [*]
+```
+
+| จาก | Command / เหตุ | ไป | เงื่อนไข | ผลข้างเคียง |
+| --- | --- | --- | --- | --- |
+| DRAFT | `request.submit` | PENDING_APPROVAL | ฟอร์มผ่าน (BR-FORM-01) · มีอัตรา VAT (BR-VAT-01) · งบพอ (BR-BUD-02) · หาผู้อนุมัติได้ | ออกเลข · จองงบ · สร้าง route และงานขั้นแรก · event `request.submitted` และ `approval_task.assigned` |
+| PENDING_APPROVAL | ขั้นสุดท้ายอนุมัติ | APPROVED | — | บรรทัดเข้ากองรอจัดซื้อ · `request.approved` |
+| PENDING_APPROVAL | `approval.reject` | REJECTED | ต้องมีเหตุผล | คืนงบที่จองทั้งหมด · ปิดงานที่เหลือ |
+| PENDING_APPROVAL | `approval.return` | RETURNED | ต้องมีเหตุผล | route เป็น `CANCELLED` · **คงการจองงบไว้** |
+| RETURNED | `request.resubmit` | PENDING_APPROVAL | ตรวจเหมือนตอนส่ง | ปรับการจองตามส่วนต่าง · route ใหม่ตาม DOA ที่มีผล ณ เวลาส่งซ้ำ (BR-DOA-09) |
+| DRAFT · RETURNED · PENDING_APPROVAL | `request.cancel` โดยผู้ขอ | CANCELLED | — | คืนงบที่จอง · ยกเลิกงานค้าง |
+| APPROVED | `request.cancel` โดยจัดซื้อ | CANCELLED | ต้องมีเหตุผล · ยังไม่มีบรรทัดใดอยู่ใน PO | คืนงบที่จอง |
+| APPROVED | PO อนุมัติบางส่วน | PARTIALLY_ORDERED | — | ตาม BR-BUD-05 |
+| APPROVED · PARTIALLY_ORDERED | PO อนุมัติครบ หรือยกเลิกจำนวนที่เหลือ | ORDERED | ทุกบรรทัด `ordered + cancelled = quantity` | คืนงบของจำนวนที่ยกเลิก |
+| ORDERED | PO ที่เกี่ยวข้องปิดครบ | COMPLETED | — | `request.completed` |
+
+การขอข้อมูลเพิ่มไม่เปลี่ยนสถานะคำขอ (ยังเป็น PENDING_APPROVAL) แต่งานอนุมัติเป็น `INFO_REQUESTED` และ SLA หยุดนับ
+
+**คำขอผู้ขายรายใหม่ (ชั้น 1)**: `DRAFT → SUBMITTED → DONE | REJECTED` และยกเลิกได้ก่อน DONE เข้าคิวจัดซื้อโดยไม่ผ่าน DOA (OQ-23) และได้เลขเอกสารตอนส่ง
+
+**งานอนุมัติ (`ApprovalTask`)**
+
+| จาก | Command / เหตุ | ไป | หมายเหตุ |
+| --- | --- | --- | --- |
+| OPEN | `approval.approve` · `approval.reject` · `approval.return` | APPROVED · REJECTED · RETURNED | ตรวจ SoD ที่ runtime ทุกครั้ง (BR-SOD-01) · reject/return ต้องมีเหตุผล |
+| OPEN | `approval.requestInfo` | INFO_REQUESTED | SLA หยุดนับ |
+| INFO_REQUESTED | `request.provideInfo` | OPEN | คำนวณ dueAt ใหม่จากเวลาที่เหลือ |
+| OPEN · INFO_REQUESTED | delegation เริ่มหรือจบ · ORG_ADMIN reassign | REASSIGNED | สร้างงานใหม่ให้ผู้รับใหม่ · เพิกถอน ActionToken เดิม |
+| OPEN · INFO_REQUESTED | route ถูกยกเลิก หรือผู้รับร่วมอีกคนตัดสินแล้ว | CANCELLED | |
+
+**ใบสั่งซื้อ (PO)**
+
+| จาก | Command / เหตุ | ไป | เงื่อนไข | ผลข้างเคียง |
+| --- | --- | --- | --- | --- |
+| DRAFT | `po.submit` | PENDING_APPROVAL | ผู้ขาย ACTIVE · ทุกบรรทัดมีคำขอต้นทาง · มีอัตรา VAT | จองส่วนต่าง (BR-BUD-05) · route ตาม DOA ประเภท `PURCHASE_ORDER` |
+| PENDING_APPROVAL | ขั้นสุดท้ายอนุมัติ | APPROVED | — | คืนการจองและถืองบ (BR-BUD-05) · อัปเดต `orderedQuantity` ของคำขอ |
+| PENDING_APPROVAL | `approval.reject` | REJECTED | ต้องมีเหตุผล | คืนส่วนต่างที่จอง · บรรทัดคำขอกลับเข้ากอง |
+| PENDING_APPROVAL | `approval.return` | DRAFT | ต้องมีเหตุผล | คืนส่วนต่างที่จอง |
+| APPROVED | `po.send` | SENT | ผู้ขายมีอีเมล | ส่งอีเมลพร้อม PDF · บันทึก `sentAt` `sentToEmail` |
+| SENT · PARTIALLY_RECEIVED | GR ถูก post | PARTIALLY_RECEIVED หรือ RECEIVED | — | ตามจำนวนรับสะสม |
+| APPROVED · SENT | `po.cancel` | CANCELLED | ยังไม่มี GR ที่ POSTED · ต้องเลือก disposition | BR-BUD-06 |
+| SENT · PARTIALLY_RECEIVED · RECEIVED | `po.close` | CLOSED | ถ้ารับไม่ครบต้องมี variance `SHORT` ที่อนุมัติแล้ว | คืนงบที่ถือเหลือ (BR-BUD-06) |
+
+**ตรวจรับ (GR)**: `DRAFT → POSTED → REVERSED` การ post ไม่ต้องรอ variance เพราะ variance แยกเป็นเอกสารของตัวเอง การกลับรายการทำได้โดย PROCUREMENT พร้อมเหตุผลและก่อนมีการยืนยันใบกำกับของ PO นั้น
+
+**Variance**: `RECORDED` (disposition ที่ไม่ต้องอนุมัติ) หรือ `PENDING_APPROVAL → APPROVED | REJECTED` ตาม BR-GR-03
+
+**DOA version**: `DRAFT → PENDING_APPROVAL → PUBLISHED → SUPERSEDED` หรือ `PENDING_APPROVAL → REJECTED` การส่งต้องผ่าน lint และ test case (BR-DOA-08) การอนุมัติใช้ DOA ข้อ `DOA_CHANGE` และผู้ส่งห้ามเป็นผู้อนุมัติ (BR-SOD-06) · ฉบับที่อนุมัติแล้วแต่ยังไม่ถึงวันมีผลถอนได้ `PUBLISHED → WITHDRAWN` (S6 BR-DOA-18) · ชุดตั้งต้นขององค์กรใช้ BR-DOA-19
+
+**Delegation**: `SCHEDULED → ACTIVE → ENDED` และ `SCHEDULED | ACTIVE → REVOKED`
+
+**การเปลี่ยนโครงสร้างอำนาจ (`OrgAuthorityChange`)**: `DRAFT → PENDING_APPROVAL → SCHEDULED → APPLIED` · `PENDING_APPROVAL → REJECTED` · `DRAFT | PENDING_APPROVAL → CANCELLED` โดยผู้เสนอ · อนุมัติตาม DOA ข้อ `ORG_AUTHORITY_CHANGE` · job `org-authority-apply` ใช้ sleepUntil(effectiveFrom) แบบเดียวกับ `doa-version-activate` · `IDENTITY_RESET` ไป `APPLIED` ทันทีที่อนุมัติ
+
+### 6.5 Entities ชั้น 2–4 (โครงล่วงหน้า ให้ขยายใน sub-spec)
+
+| ชั้น | Entities |
+| --- | --- |
+| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `WithholdingTax` `WhtCertificate` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `MilestoneReceipt` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
+| 3 | `RfxEvent` `RfxInvite` `RfxQuestion` `Bid` `BidLine` `Scorecard` `ScoreCriterion` `AwardDecision` `RiskQuestionnaire` `RiskAssessment` `RiskTier` `ReviewTask` `Contract` `ContractVersion` `Obligation` `RenewalReminder` `PreferredSupplier` `RiskReview` |
+| 4 | `AgentAction` `PromptVersion` `AiEvalRun` `AiCreditLedger` `ApiClient` `WebhookSubscription` `WebhookDelivery` `McpSession` `ConnectorConfig` |
+
+รายละเอียดล่วงหน้าที่ sub-spec ต้องใช้ (เงื่อนไขอยู่ใน §8.12):
+
+| Entity | ฟิลด์ขั้นต่ำ | หมายเหตุ |
+| --- | --- | --- |
+| `SupplierDocument` (S7) | supplierId, documentTypeCode, docNumber, issuer, scope, issuedOn, expiresOn, fileId, verifiedById, verifiedAt, status (`PENDING` `VERIFIED` `EXPIRED` `REJECTED`) | ใบรับรองต้องมีคนยืนยันหนึ่งครั้ง |
+| `SupplierDocumentType` (S7) | code, nameTh, validityDays (ว่าง = ใช้วันหมดอายุบนเอกสาร), reminderDaysBefore, linkedRiskQuestionCodes | องค์กรตั้งอายุเอกสารที่นับจากวันออกได้ เช่น หนังสือรับรองบริษัท |
+| `PreferredSupplier` (S10) | categoryCode, supplierId, validFrom, validTo, source (`SOURCING` `MANUAL`), awardDecisionId | ใช้เติมผู้ขายตาม BR-FORM-02 |
+| `RiskReview` (S11) | supplierId, tier, dueAt, completedAt, reason (`SCHEDULED` `STATUS_CHANGED` `OVERRIDE_EXPIRED`) | FR-RSK-205 |
+
+---
+
+## 7. Engine แกนกลางที่ต้องแม่น 100% (พร้อม golden cases)
+
+### 7.0 หลักการของทุก engine
+
+1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
+2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
+3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}`
+5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
+6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
+
+### 7.1 เงินและ VAT
+
+| ID | กฎ |
+| --- | --- |
+| BR-MONEY-01 | เงินทุกจำนวนเป็นจำนวนเต็มหน่วยสตางค์ (`bigint`) ห้ามใช้ float · รับและส่งออกนอกระบบเป็นสตริง `"12345.50"` |
+| BR-MONEY-02 | ปัดเศษแบบ half-up เฉพาะจุดที่กำหนด: (1) ยอดต่อบรรทัด = จำนวน × ราคาต่อหน่วย (2) VAT ระดับเอกสาร (3) ภาษีหัก ณ ที่จ่าย (4) การปันส่วนแบบ largest remainder ห้ามปัดที่อื่น |
+| BR-MONEY-03 | แสดงผลคั่นหลักพันและทศนิยม 2 ตำแหน่ง เช่น 12,345.50 · ในตารางชิดขวา |
+| BR-VAT-01 | อัตรา VAT อ่านจากตาราง `TaxRate` ตามวันที่ภาษีเวลาไทย ห้ามเขียนตัวเลขอัตราในโค้ด ถ้าไม่มีอัตราที่ครอบวันนั้น → `TAX_RATE_NOT_CONFIGURED` และบล็อกการส่งเอกสาร (ดัง แต่ไม่ผิดเงียบ) · job `tax-rate-expiry-alert` เตือนล่วงหน้า |
+| BR-VAT-02 | VAT คำนวณระดับเอกสารจากผลรวมของบรรทัดที่ `vatable` (OQ-17) |
+| BR-VAT-03 | ราคารวม VAT: VAT = round(gross × rate ÷ (10000 + rate)) และ net = gross − VAT |
+| BR-VAT-04 | ผู้ขายที่ไม่ได้จดทะเบียน VAT → อัตรา 0 บน PO · คำขอใช้อัตราขององค์กรเป็นค่าประมาณ |
+
+ข้อมูลตั้งต้นของ `TaxRate` (ต้องให้ PLATFORM_ADMIN ยืนยันก่อน go-live):
+
+| ช่วงวันที่ | อัตรา | ที่มาและสถานะ |
+| --- | --- | --- |
+| 1 ต.ค. 2025 – 30 ก.ย. 2026 | 700 bp | พระราชกฤษฎีกาคง VAT 7% รอบก่อน |
+| 1 ต.ค. 2026 – 30 ก.ย. 2027 | 700 bp | ครม. อนุมัติในหลักการร่างพระราชกฤษฎีกาเมื่อ 27 ก.ค. 2026 ต้องยืนยันการประกาศในราชกิจจานุเบกษา (OQ-29) |
+| ตั้งแต่ 1 ต.ค. 2027 | ยังไม่ใส่ | ถ้าไม่มีการต่ออายุ อัตราตามประมวลรัษฎากรคือ 10% ให้ PLATFORM_ADMIN ใส่เองหลังตรวจประกาศ |
+
+```ts
+// src/core/money (ทุกฟังก์ชัน pure)
+export type Satang = bigint
+export function roundHalfUpDiv(numerator: bigint, denominator: bigint): bigint
+export function lineNet(quantity: string, unitPriceSatang: Satang): Satang          // จำนวนทศนิยมไม่เกิน 4 ตำแหน่ง
+export function vatFromNet(netSatang: Satang, rateBp: number): { vat: Satang; gross: Satang }
+export function vatFromGross(grossSatang: Satang, rateBp: number): { vat: Satang; net: Satang }
+export function documentTotals(lines: LineInput[], rateBp: number, priceIncludesVat: boolean):
+  { net: Satang; vat: Satang; gross: Satang }
+export function allocateLargestRemainder(total: Satang, weights: Satang[]): Satang[]
+```
+
+```yaml
+# tests/golden/money.yaml
+suite: money
+cases:
+  - id: GC-MONEY-01
+    title: VAT จากราคาก่อน VAT ปัด half-up (248.5 สตางค์ → 249)
+    fn: vatFromNet
+    input: { net: "35.50", rateBp: 700 }
+    expect: { vat: "2.49", gross: "37.99" }
+  - id: GC-MONEY-02
+    fn: vatFromGross
+    input: { gross: "107.00", rateBp: 700 }
+    expect: { vat: "7.00", net: "100.00" }
+  - id: GC-MONEY-03
+    fn: vatFromGross
+    input: { gross: "100.00", rateBp: 700 }
+    expect: { vat: "6.54", net: "93.46" }
+  - id: GC-MONEY-04
+    title: 0.49 สตางค์ ปัดลง
+    fn: vatFromNet
+    input: { net: "0.07", rateBp: 700 }
+    expect: { vat: "0.00", gross: "0.07" }
+  - id: GC-MONEY-05
+    title: 0.56 สตางค์ ปัดขึ้น
+    fn: vatFromNet
+    input: { net: "0.08", rateBp: 700 }
+    expect: { vat: "0.01", gross: "0.09" }
+  - id: GC-MONEY-06
+    title: VAT ระดับเอกสาร 10 บรรทัด บรรทัดละ 0.07 (ถ้าคิดรายบรรทัดจะได้ 0.00)
+    fn: documentTotals
+    input:
+      rateBp: 700
+      lines:
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+    expect: { net: "0.70", vat: "0.05", gross: "0.75" }
+  - id: GC-MONEY-07
+    title: จำนวนทศนิยม × ราคา ปัด half-up (2502.5 สตางค์ → 2503)
+    fn: lineNet
+    input: { qty: "2.5", unitPrice: "10.01" }
+    expect: { net: "25.03" }
+  - id: GC-MONEY-08
+    title: บรรทัดที่ไม่มี VAT ไม่อยู่ในฐานภาษี
+    fn: documentTotals
+    input:
+      rateBp: 700
+      lines:
+        - { qty: "1", unitPrice: "1000.00", vatable: true }
+        - { qty: "1", unitPrice: "500.00", vatable: false }
+    expect: { net: "1500.00", vat: "70.00", gross: "1570.00" }
+  - id: GC-MONEY-09
+    title: เอกสารราคารวม VAT
+    fn: documentTotals
+    input:
+      rateBp: 700
+      priceIncludesVat: true
+      lines:
+        - { qty: "3", unitPrice: "107.00" }
+    expect: { net: "300.00", vat: "21.00", gross: "321.00" }
+```
+
+```yaml
+# tests/golden/vat-rate.yaml
+suite: vat-rate
+fixture:
+  rates:
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2025-10-01", effectiveTo: "2026-09-30" }
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2026-10-01", effectiveTo: "2027-09-30" }
+cases:
+  - { id: GC-VAT-01, input: { date: "2026-09-30" }, expect: { rateBp: 700 } }
+  - { id: GC-VAT-02, input: { date: "2026-10-01" }, expect: { rateBp: 700 } }
+  - { id: GC-VAT-03, input: { date: "2027-10-01" }, expect: { error: TAX_RATE_NOT_CONFIGURED } }
+  - id: GC-VAT-04
+    title: วันที่ภาษีคิดตามเวลาไทย (17:00Z = 00:00 ของวันถัดไป)
+    input: { at: "2027-09-30T17:00:00Z" }
+    expect: { date: "2027-10-01", error: TAX_RATE_NOT_CONFIGURED }
+```
+
+### 7.2 ภาษาไทย: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และปี พ.ศ.
+
+| ID | กฎ |
+| --- | --- |
+| BR-THAI-01 | `bahtText` ต้องให้ผลเหมือน `BAHTTEXT` ของ LibreOffice Calc (ตรวจด้วยการรันจริงกับเวอร์ชัน 24.2 ตอนเขียน spec) คำว่า "เอ็ด" ใช้เฉพาะเมื่อหลักสิบในกลุ่มหกหลักเดียวกันไม่เป็นศูนย์ เช่น 11 21 111 แต่ 101 = "หนึ่งร้อยหนึ่ง" และ 1,000,001 = "หนึ่งล้านหนึ่ง" (OQ-28) · 0 = "ศูนย์บาทถ้วน" · มีแต่สตางค์ให้ขึ้นต้นด้วยจำนวนสตางค์เลย · ยอดติดลบ → error |
+| BR-TAXID-01 | เลขผู้เสียภาษี 13 หลัก ตัดช่องว่างและขีดก่อนตรวจ · check digit = (11 − (Σ หลักที่ 1–12 × น้ำหนัก 13 ถึง 2) mod 11) mod 10 |
+| BR-DATE-01 | ปี พ.ศ. = ปี ค.ศ. ตามเวลาไทย + 543 · วันที่แบบย่อ "2 ต.ค. 2569" · เวลา "16:30 น." · เก็บ UTC เสมอ แปลงตอนแสดงผลเท่านั้น |
+
+```yaml
+# tests/golden/thai.yaml
+suite: thai
+fn: bahtText
+cases:
+  - { id: GC-THAI-01, input: "0.00", expect: "ศูนย์บาทถ้วน" }
+  - { id: GC-THAI-02, input: "1.00", expect: "หนึ่งบาทถ้วน" }
+  - { id: GC-THAI-03, input: "11.00", expect: "สิบเอ็ดบาทถ้วน" }
+  - { id: GC-THAI-04, input: "21.00", expect: "ยี่สิบเอ็ดบาทถ้วน" }
+  - { id: GC-THAI-05, input: "101.00", expect: "หนึ่งร้อยหนึ่งบาทถ้วน" }
+  - { id: GC-THAI-06, input: "111.00", expect: "หนึ่งร้อยสิบเอ็ดบาทถ้วน" }
+  - { id: GC-THAI-07, input: "1000001.00", expect: "หนึ่งล้านหนึ่งบาทถ้วน" }
+  - { id: GC-THAI-08, input: "12345.50", expect: "หนึ่งหมื่นสองพันสามร้อยสี่สิบห้าบาทห้าสิบสตางค์" }
+  - { id: GC-THAI-09, input: "0.25", expect: "ยี่สิบห้าสตางค์" }
+  - { id: GC-THAI-10, input: "20000.01", expect: "สองหมื่นบาทหนึ่งสตางค์" }
+  - { id: GC-THAI-11, input: "21000000.00", expect: "ยี่สิบเอ็ดล้านบาทถ้วน" }
+  - { id: GC-THAI-12, input: "11000011.00", expect: "สิบเอ็ดล้านสิบเอ็ดบาทถ้วน" }
+  - { id: GC-THAI-13, input: "1011.11", expect: "หนึ่งพันสิบเอ็ดบาทสิบเอ็ดสตางค์" }
+  - { id: GC-THAI-14, input: "1000000000000.00", expect: "หนึ่งล้านล้านบาทถ้วน" }
+  - { id: GC-THAI-15, input: "99999999.99", expect: "เก้าสิบเก้าล้านเก้าแสนเก้าหมื่นเก้าพันเก้าร้อยเก้าสิบเก้าบาทเก้าสิบเก้าสตางค์" }
+```
+
+```yaml
+# tests/golden/taxid.yaml
+suite: taxid
+fn: isValidThaiTaxId
+cases:
+  - { id: GC-TAXID-01, input: "1234567890121", expect: true }
+  - { id: GC-TAXID-02, input: "1234567890122", expect: false }
+  - { id: GC-TAXID-03, input: "0999999999991", expect: true }
+  - { id: GC-TAXID-04, input: "0999999999990", expect: false }
+  - { id: GC-TAXID-05, input: "1-2345-67890-12-1", expect: true }
+  - { id: GC-TAXID-06, input: "123456789012", expect: false }
+  - { id: GC-TAXID-07, input: "12345678901ab", expect: false }
+```
+
+```yaml
+# tests/golden/dates.yaml
+suite: dates
+cases:
+  - { id: GC-DATE-01, fn: buddhistYear, input: "2026-12-31T16:59:59Z", expect: 2569 }
+  - { id: GC-DATE-02, fn: buddhistYear, input: "2026-12-31T17:00:00Z", expect: 2570 }
+  - { id: GC-DATE-03, fn: formatThaiDate, input: "2026-10-02T09:30:00Z", expect: "2 ต.ค. 2569" }
+  - { id: GC-DATE-04, fn: formatThaiDateTime, input: "2026-10-02T09:30:00Z", expect: "2 ต.ค. 2569 16:30 น." }
+```
+
+### 7.3 ทะเบียนเลขเอกสาร
+
+| ID | กฎ |
+| --- | --- |
+| BR-NUM-01 | ออกเลขในธุรกรรมเดียวกับการส่งเอกสาร โดยล็อกแถว `DocumentSequence` ของ scope นั้น (`INSERT … ON CONFLICT DO UPDATE … RETURNING`) ธุรกรรมล้ม = เลขไม่ถูกใช้ จึงไม่มีเลขกระโดด · เอกสารที่ยกเลิกเก็บเลขเดิม ห้ามนำเลขกลับมาใช้ |
+| BR-NUM-02 | token ใน pattern: `{BE}` พ.ศ. 4 หลัก · `{YY}` 2 หลักท้ายของ พ.ศ. · `{CE}` ค.ศ. · `{MM}` เดือน 2 หลัก · `{DEPT}` รหัสแผนกที่ถูกตั้งเบิก · `{SEQn}` เลขลำดับเติมศูนย์ให้ครบ n หลัก เกินแล้วขยายหลักเอง · ทุกค่าคิดตามเวลาไทย ณ เวลาออกเลข |
+| BR-NUM-03 | `scopeKey` = `<ประเภท>:<ช่วงรีเซ็ต>[:<แผนก>]` โดยช่วงรีเซ็ตเป็น `YEARLY` (พ.ศ.) `MONTHLY` (พ.ศ.-เดือน) หรือ `NEVER` และต่อท้ายรหัสแผนกเมื่อ pattern มี `{DEPT}` |
+| INV-NUM-01 | เลขเอกสารไม่ซ้ำภายใน (องค์กร, ประเภท) และไม่มีช่องว่างภายใน scope เดียวกัน — ทดสอบด้วยการออกเลข 50 ใบพร้อมกันต้องได้ 1 ถึง 50 ครบไม่ซ้ำ |
+
+รูปแบบเริ่มต้น (OQ-12): `PR-{BE}-{SEQ5}` · `PO-{BE}-{SEQ5}` · `GR-{BE}-{SEQ5}` · `RQ-{BE}-{SEQ5}` (คำขอผู้ขายรายใหม่) รีเซ็ตรายปี
+
+```yaml
+# tests/golden/numbering.yaml
+suite: numbering
+cases:
+  - id: GC-NUM-01
+    input: { pattern: "PR-{BE}-{SEQ5}", reset: YEARLY, documentType: PR, at: "2026-10-02T03:00:00Z", seq: 1 }
+    expect: { number: "PR-2569-00001", scopeKey: "PR:2569" }
+  - id: GC-NUM-02
+    title: ข้ามปีตามเวลาไทย
+    input: { pattern: "PO-{BE}{MM}-{SEQ4}", reset: MONTHLY, documentType: PO, at: "2026-12-31T17:30:00Z", seq: 12 }
+    expect: { number: "PO-257001-0012", scopeKey: "PO:2570-01" }
+  - id: GC-NUM-03
+    input: { pattern: "GR-{DEPT}-{YY}-{SEQ3}", reset: YEARLY, documentType: GR, department: CON, at: "2026-10-02T03:00:00Z", seq: 7 }
+    expect: { number: "GR-CON-69-007", scopeKey: "GR:2569:CON" }
+  - id: GC-NUM-04
+    title: เลขเกินความกว้างที่กำหนดให้ขยายหลัก
+    input: { pattern: "GR-{DEPT}-{YY}-{SEQ3}", reset: YEARLY, documentType: GR, department: CON, at: "2026-10-02T03:00:00Z", seq: 1000 }
+    expect: { number: "GR-CON-69-1000", scopeKey: "GR:2569:CON" }
+```
+
+### 7.4 DOA engine
+
+```ts
+// src/core/doa/resolve-route.ts
+export function resolveRoute(
+  input: {
+    documentType: 'PURCHASE_REQUEST' | 'PURCHASE_ORDER' | 'GR_VARIANCE' | 'DOA_CHANGE' | 'ORG_AUTHORITY_CHANGE'
+    amount?: { netSatang: bigint; vatSatang: bigint } // เอกสารที่ไม่มีวงเงินไม่ต้องส่ง
+    requesterMemberId: string
+    chargedDepartmentId: string
+    conflictMemberIds: string[] // ผู้ขอ + ผู้ขอของ PR ต้นทาง + ผู้สร้าง PO + ผู้ส่ง DOA
+    at: Date                    // เวลาส่งเอกสาร
+  },
+  policy: { versions: DoaVersionSnapshot[]; org: OrgSnapshot; delegations: DelegationSnapshot[] },
+): RouteResult | DomainError
+// RouteResult = { doaVersionId, ruleCode, escalatedFromRuleCode?, steps: [{ assigneeMemberId,
+//   principalMemberId?, resolvedFrom, slaBusinessMinutes }], explanationTh }
+```
+
+| ID | กฎ |
+| --- | --- |
+| BR-DOA-01 | ฉบับที่ใช้คือฉบับ `PUBLISHED` หรือ `SUPERSEDED` ที่ `effectiveFrom ≤ at < effectiveTo` ไม่มี → `DOA_NOT_CONFIGURED` |
+| BR-DOA-02 | เงื่อนไขวงเงินเป็นช่วง `(gt, lte]` หน่วยสตางค์ (ใช้ `gte` ได้เมื่อต้องรวมศูนย์) "ไม่เกิน 20,000" จึงเป็น `lte "20000.00"` และ 20,000.01 อยู่ช่วงถัดไป ต่างจาก proposal ที่เขียน "20,001" ซึ่งจะทำให้ยอด 20,000.01–20,000.99 ไม่มีผู้อนุมัติ · เอกสารจัดซื้อต้องมียอด > 0 ไม่เช่นนั้น `VALIDATION_FAILED` |
+| BR-DOA-03 | เลือกข้อ: กรองตาม documentType และทุกเงื่อนไขใน `when` → เรียง priority น้อยก่อน แล้วจำนวนเงื่อนไขมากก่อน → ถ้าอันดับแรกเสมอกันเกิน 1 ข้อ → `DOA_AMBIGUOUS` · ไม่มีข้อใดตรง → `DOA_NOT_CONFIGURED` |
+| BR-DOA-04 | หาผู้อนุมัติ: `POSITION_OF_DEPARTMENT` ไล่จากแผนกที่ถูกตั้งเบิกขึ้นไปจนถึงราก ใช้ผู้ดำรงตำแหน่งคนแรกที่เจอ · `POSITION_OF_ORG` ดูเฉพาะแผนกราก · `MEMBER` ระบุตัวบุคคล (ไม่แนะนำ) · หาไม่ได้ → `APPROVER_NOT_FOUND` พร้อมตำแหน่งและแผนกที่ไล่ดูแล้ว และแจ้ง ORG_ADMIN |
+| BR-DOA-05 | แผนกที่ใช้หาผู้อนุมัติคือแผนกเจ้าของงบที่ถูกตั้งเบิก (`chargedDepartmentId`) ไม่ใช่แผนกของผู้ขอ (OQ-27) |
+| BR-DOA-06 | ถ้าผู้อนุมัติที่หาได้อยู่ใน `conflictMemberIds`: policy `ESCALATE_NEXT_BAND` ไล่ไปข้อของช่วงวงเงินถัดไปของ documentType เดียวกัน (เรียงตามขอบล่างของวงเงิน) จนเจอผู้อนุมัติที่ไม่ขัดแย้ง หมดช่วงแล้ว → `NO_HIGHER_AUTHORITY` · policy `BLOCK` → `SOD_VIOLATION` ทันที · บันทึก `escalatedFromRuleCode` และเหตุผลในคำอธิบาย วิธีนี้ไม่ให้อำนาจแก่ตำแหน่งที่ DOA ไม่ได้ให้ไว้ |
+| BR-DOA-07 | เมื่อ route มีหลาย step และคนเดียวกันปรากฏใน step ติดกัน เก็บเฉพาะ step หลัง (OQ-05) |
+| BR-DOA-08 | lint ก่อนส่งเผยแพร่ ผลเป็นรายการ error และ warning ที่มีรหัส: (ก) documentType ที่มีข้อแบบวงเงินล้วนต้องครอบคลุมช่วง (0, ∞) ไม่มีช่องว่าง (`DOA_LINT_GAP`) และไม่ทับกัน (`DOA_LINT_OVERLAP`) (ข) ตำแหน่งที่อ้างต้องมีอยู่ ตำแหน่งที่ไม่มีผู้ดำรงเป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_VACANT_POSITION`) (ค) ไม่มี step แบบ `PARALLEL` ก่อน S6 (ง) `DoaTestCase` ของฉบับนั้นผ่านทั้งหมด (จ) ทุกฉบับต้องมีข้อ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` (`DOA_LINT_MISSING_DOCTYPE`) ที่หาผู้อนุมัติได้ ณ วันมีผล (`DOA_LINT_UNRESOLVABLE_GOVERNANCE`) กันลูกค้าล็อกตัวเองออกจากระบบ (ฉ) ผู้อนุมัติแบบ `MEMBER` ใช้ได้แต่เป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_MEMBER_APPROVER`) (ช) ระบบสร้างตารางผลที่ขอบของทุกช่วง (ขอบบน และขอบบน + 0.01) ให้ผู้ร่างและผู้อนุมัติเห็นและติ๊กยืนยัน · มี error ใด → `DOA_LINT_FAILED` |
+| BR-DOA-09 | ส่งซ้ำหลังตีกลับ → คำนวณเส้นทางใหม่ทั้งหมดด้วยฉบับที่มีผล ณ เวลาส่งซ้ำ การอนุมัติเดิมไม่นับ |
+| BR-DOA-10 | ทุกการตัดสินบันทึก doaVersionId และ ruleCode · route เก็บคำอธิบายภาษาไทย เช่น "DOA-DEMO ฉบับ 1 ข้อ PR-02: คำขอซื้อยอด 45,000.00 บาท (รวม VAT) อยู่ในช่วงมากกว่า 20,000.00 ถึงไม่เกิน 100,000.00 → VP ของสายปฏิบัติการ" |
+| BR-DOA-11 | ฐานวงเงิน (`GROSS` หรือ `NET`) กำหนดต่อฉบับ (OQ-02) |
+| BR-DOA-12 | วันมีผลห้ามย้อนหลัง ถ้าอนุมัติเผยแพร่หลัง `effectiveFrom` ที่ตั้งไว้ ให้ใช้เวลาที่อนุมัติเป็น `effectiveFrom` |
+| BR-DOA-13 | เอกสารที่ส่งแล้วใช้เส้นทางตามฉบับ ณ เวลาส่งจนจบ ฉบับใหม่ไม่คำนวณเส้นทางเดิมใหม่ ยกเว้นส่งซ้ำ (BR-DOA-09) · หน้าอนุมัติเผยแพร่แสดงจำนวนงานที่ค้างภายใต้ฉบับเดิม |
+| BR-DOA-14 | ก่อนส่ง ระบบแสดง diff เทียบฉบับที่มีผล (ช่วงวงเงินที่เปลี่ยน ตำแหน่งที่ได้หรือเสียอำนาจ และนโยบายของฉบับ) และหน้า "ทดลองส่ง" ที่ใส่ประเภทเอกสาร ยอด แผนก และผู้ขอ แล้วเห็นเส้นทางของทั้งสองฉบับ · การย้อนทดสอบกับเอกสารจริง 90 วันทำใน S6 (FR-DOA-103) |
+| BR-DOA-15 | การอนุมัติ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` ต้อง step-up ทุกครั้งไม่ขึ้นกับยอด ทำได้บนเว็บหรือ LIFF เท่านั้น ไม่มีปุ่มในแชท · ก่อน S5 ใช้การใส่ TOTP ซ้ำแทน PIN |
+| BR-DOA-16 | เมื่อ DOA ฉบับใหม่หรือการเปลี่ยนโครงสร้างอำนาจมีผล แจ้งผู้ดำรงตำแหน่งที่ได้หรือเสียอำนาจ และแจ้ง ORG_ADMIN |
+| BR-DOA-17 | การแต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA ฉบับที่มีผลหรือรอมีผลอ้างถึง การย้าย parent ของแผนก และการตั้งรักษาการแทนผู้อื่น ต้องอนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` มีวันมีผลและห้ามย้อนหลัง · ทำให้ตำแหน่งที่ DOA อ้างว่าง → warning ที่ต้องยืนยัน · ทำให้ผู้อนุมัติของข้อ `DOA_CHANGE` หรือ `ORG_AUTHORITY_CHANGE` หาไม่ได้ → ปฏิเสธ เว้นแต่แต่งตั้งผู้แทนในคำขอเดียวกัน (OQ-32) · เมื่อมีผล งานค้างที่ `resolvedFrom` ตรงตำแหน่งนั้นย้ายไปผู้ดำรงคนใหม่ (`REASSIGNED`) โดยใช้ DOA ref เดิม ถ้าตำแหน่งว่างแจ้ง ORG_ADMIN |
+| BR-DOA-18 | (S6) ฉบับที่อนุมัติแล้วแต่ยังไม่ถึงวันมีผลถอนได้ด้วยการอนุมัติตามข้อ `DOA_CHANGE` → `WITHDRAWN` (FR-DOA-104) |
+| BR-DOA-19 | ชุดตั้งต้นขององค์กร (ผู้ดำรงตำแหน่งที่ DOA อ้าง + DOA ฉบับแรก) ส่งเป็นแพ็กเกจเดียวให้ผู้มีอำนาจลงนามตามสัญญา (`Organization.contractSignatoryMemberId`) อนุมัติพร้อม step-up · PLATFORM_ADMIN ยืนยันแค่ว่าบัญชีนั้นเป็นคนในสัญญา ไม่เห็นและไม่ตรวจเนื้อหา · ผู้ส่ง ≠ ผู้ลงนาม (OQ-31) |
+| INV-DOA-01 | ทุก event `approval_task.decided` มี `doaVersionId` และ `doaRuleCode` |
+| INV-DOA-02 | `resolveRoute` ด้วย input และ snapshot เดิมให้ผลเดิมทุกครั้ง (property test) |
+
+DOA ฉบับ 1 ด้านล่างคือวงเงินใน proposal แบบตรงตัว (ผู้อนุมัติคนเดียวต่อช่วง OQ-01) ใช้ทั้งเป็น fixture ของเทสต์และเป็น seed ขององค์กรตัวอย่าง ฉบับ 2 มีไว้ทดสอบการเปลี่ยนฉบับตามเวลาเท่านั้น · ทุกฉบับมีข้อกำกับการเปลี่ยนนโยบาย `DOA-CHG-01` และ `ORG-CHG-01` ตามที่ BR-DOA-08 (จ) บังคับ และมี `sodPolicy` ของฉบับ
+
+```yaml
+# tests/golden/fixtures/org-demo.yaml
+departments:
+  - { code: HQ, nameTh: สำนักงานใหญ่, parent: null }
+  - { code: OPS, nameTh: สายปฏิบัติการ, parent: HQ }
+  - { code: CON, nameTh: ฝ่ายก่อสร้าง, parent: OPS }
+  - { code: PROC, nameTh: ฝ่ายจัดซื้อ, parent: OPS }
+  - { code: SUP, nameTh: สายสนับสนุน, parent: HQ }
+  - { code: FIN, nameTh: ฝ่ายบัญชีและการเงิน, parent: SUP }
+  - { code: IT, nameTh: ฝ่ายไอที, parent: SUP }
+positions:
+  - { position: DM, department: CON, member: dm_con }
+  - { position: DM, department: PROC, member: dm_proc }
+  - { position: DM, department: FIN, member: dm_fin }
+  - { position: DM, department: IT, member: dm_it }
+  - { position: VP, department: OPS, member: vp_ops }
+  - { position: VP, department: SUP, member: vp_sup }
+  - { position: PROC_MGR, department: HQ, member: dm_proc }
+  - { position: COO, department: HQ, member: coo }
+  - { position: CEO, department: HQ, member: ceo }
+members:
+  req_con: CON
+  asst_con: CON
+  receiver_con: CON
+  dm_con: CON
+  proc_officer: PROC
+  dm_proc: PROC
+  fin_officer: FIN
+  dm_fin: FIN
+  auditor: FIN
+  dm_it: IT
+  admin: IT
+  admin2: FIN
+  vp_ops: OPS
+  vp_sup: SUP
+  coo: HQ
+  ceo: HQ
+```
+
+```yaml
+# tests/golden/fixtures/doa-versions.yaml
+versions:
+  - code: DOA-DEMO
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+  - code: DOA-DEMO
+    version: 2
+    effectiveFrom: "2026-11-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "30000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "30000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+```
+
+```yaml
+# tests/golden/doa.yaml
+suite: doa
+fixtures: [fixtures/org-demo.yaml, fixtures/doa-versions.yaml]
+defaults: { documentType: PURCHASE_REQUEST, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+cases:
+  - { id: GC-DOA-01, title: ขอบบนของช่วง DM, input: { amount: "20000.00" }, expect: { version: 1, rule: PR-01, approvers: [dm_con] } }
+  - { id: GC-DOA-02, title: เกินขอบ 1 สตางค์, input: { amount: "20000.01" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-03, input: { amount: "100000.00" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-04, input: { amount: "100000.01" }, expect: { version: 1, rule: PR-03, approvers: [ceo] } }
+  - { id: GC-DOA-05, input: { documentType: PURCHASE_ORDER, amount: "1000000.00", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PO-01, approvers: [coo] } }
+  - { id: GC-DOA-06, input: { documentType: PURCHASE_ORDER, amount: "1000000.01", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PO-02, approvers: [ceo] } }
+  - { id: GC-DOA-07, title: DM ขอเอง ยกไปช่วงถัดไป, input: { amount: "15000.00", requester: dm_con }, expect: { version: 1, rule: PR-01, escalatedTo: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-08, title: VP ขอเอง ยกไป CEO, input: { amount: "50000.00", requester: vp_ops, department: OPS }, expect: { version: 1, rule: PR-02, escalatedTo: PR-03, approvers: [ceo] } }
+  - { id: GC-DOA-09, title: ยอดศูนย์, input: { amount: "0.00" }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-DOA-10, title: ตำแหน่ง VP ว่าง, input: { amount: "50000.00", vacate: ["VP@OPS"] }, expect: { error: APPROVER_NOT_FOUND } }
+  - { id: GC-DOA-11, title: CEO ขอเองเกินช่วงสุดท้าย, input: { amount: "150000.00", requester: ceo, department: HQ }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-12, title: ฐาน GROSS, input: { net: "19000.00", vat: "1330.00" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-13, title: ฐาน NET ยอดเดียวกัน, input: { net: "19000.00", vat: "1330.00", amountBasis: NET }, expect: { version: 1, rule: PR-01, approvers: [dm_con] } }
+  - { id: GC-DOA-14, title: ผู้ขอ PR ต้นทางเป็น COO, input: { documentType: PURCHASE_ORDER, amount: "500000.00", requester: proc_officer, alsoConflicting: [coo] }, expect: { version: 1, rule: PO-01, escalatedTo: PO-02, approvers: [ceo] } }
+  - { id: GC-DOA-15, title: วินาทีสุดท้ายของฉบับ 1 (เวลาไทย), input: { amount: "25000.00", at: "2026-10-31T16:59:59Z" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-16, title: วินาทีแรกของฉบับ 2, input: { amount: "25000.00", at: "2026-10-31T17:00:00Z" }, expect: { version: 2, rule: PR-01, approvers: [dm_con] } }
+  - { id: GC-DOA-17, title: ก่อนมี DOA ฉบับแรก, input: { amount: "1000.00", at: "2026-09-30T16:59:59Z" }, expect: { error: DOA_NOT_CONFIGURED } }
+  - { id: GC-DOA-18, input: { documentType: GR_VARIANCE, amount: "2000.00", requester: receiver_con }, expect: { version: 1, rule: GRV-01, approvers: [dm_con] } }
+  - { id: GC-DOA-19, input: { documentType: DOA_CHANGE, requester: admin, department: IT }, expect: { version: 1, rule: DOA-CHG-01, approvers: [ceo] } }
+  - { id: GC-DOA-27, title: เส้นทางของการเปลี่ยนโครงสร้างอำนาจ, input: { documentType: ORG_AUTHORITY_CHANGE, requester: admin, department: IT }, expect: { version: 1, rule: ORG-CHG-01, approvers: [ceo] } }
+```
+
+**lint และตารางผลที่ขอบ:** `lintDoaVersion(version, org, at)` คืน `{ errors[], warnings[] }` โดยเรียง error เป็น ช่องว่างหรือทับกันของแต่ละ documentType → ขาดข้อกำกับ → หาผู้อนุมัติข้อกำกับไม่ได้ (ตามลำดับข้อ) และเรียง warning ตามลำดับข้อในฉบับ · `boundaryTable(version, documentType)` คืนแถวที่ยอดเท่าขอบบนและขอบบน + 0.01 ของทุกช่วงพร้อมข้อที่ใช้ · เคสด้านล่างเริ่มจากฉบับ 1 ใน fixture แล้วแก้ทีละจุด จึงมีผลผิดเพียงจุดเดียวต่อเคส
+
+```yaml
+# tests/golden/doa-lint.yaml
+suite: doa-lint
+fixtures: [fixtures/org-demo.yaml, fixtures/doa-versions.yaml]
+# input.base = ฉบับใน fixture · replaceRules แทนข้อที่ code ตรงกัน · removeRules ลบข้อ · vacate ทำตำแหน่งว่าง
+cases:
+  - id: GC-DOA-20
+    title: ช่วงวงเงินมีช่องว่างแบบที่ proposal เขียน 20,001
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20001.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_GAP, documentType: PURCHASE_REQUEST, gt: "20000.00", lte: "20001.00" }], warnings: [] }
+  - id: GC-DOA-21
+    title: ลบข้อ DOA_CHANGE
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [DOA-CHG-01] }
+    expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: DOA_CHANGE }], warnings: [] }
+  - id: GC-DOA-22
+    title: ตารางผลที่ขอบของ DOA ฉบับ 1
+    fn: boundaryTable
+    input: { base: 1, documentType: PURCHASE_REQUEST }
+    expect: { rows: [{ amount: "20000.00", rule: PR-01 }, { amount: "20000.01", rule: PR-02 }, { amount: "100000.00", rule: PR-02 }, { amount: "100000.01", rule: PR-03 }] }
+  - id: GC-DOA-23
+    title: ช่วงวงเงินทับกัน
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "15000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_OVERLAP, documentType: PURCHASE_REQUEST, gt: "15000.00", lte: "20000.00" }], warnings: [] }
+  - id: GC-DOA-24
+    title: ลบข้อ ORG_AUTHORITY_CHANGE
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [ORG-CHG-01] }
+    expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: ORG_AUTHORITY_CHANGE }], warnings: [] }
+  - id: GC-DOA-25
+    title: CEO ว่าง ทำให้ไม่มีใครอนุมัติการเปลี่ยนนโยบายได้
+    fn: lintDoaVersion
+    input: { base: 1, vacate: ["CEO@HQ"] }
+    expect:
+      errors: [{ code: DOA_LINT_UNRESOLVABLE_GOVERNANCE, rule: DOA-CHG-01 }, { code: DOA_LINT_UNRESOLVABLE_GOVERNANCE, rule: ORG-CHG-01 }]
+      warnings: [{ code: DOA_LINT_VACANT_POSITION, rule: PR-03 }, { code: DOA_LINT_VACANT_POSITION, rule: PO-02 }]
+  - id: GC-DOA-26
+    title: ผู้อนุมัติระบุตัวบุคคล
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: MEMBER, member: dm_con }, slaBusinessHours: 8 }] }
+    expect: { errors: [], warnings: [{ code: DOA_LINT_MEMBER_APPROVER, rule: GRV-01 }] }
+```
+
+### 7.5 แบ่งแยกหน้าที่ (SoD)
+
+| ID | กฎ |
+| --- | --- |
+| BR-SOD-01 | ผู้ขอ และผู้ขอของ PR ต้นทางทุกใบใน PO ห้ามเป็นผู้อนุมัติเอกสารนั้น ป้องกัน 2 ชั้น: ตอนคำนวณเส้นทาง (BR-DOA-06) และตอนกดตัดสิน |
+| BR-SOD-02 | ผู้อนุมัติ PR หรือ PO ห้ามเป็นผู้ตรวจรับ GR ของ PO นั้น (`sodPolicy.approverMayReceive = false` ใน DOA ฉบับที่มีผลเป็นค่าเริ่มต้น เปลี่ยนได้ผ่าน DOA ฉบับใหม่เท่านั้น) |
+| BR-SOD-03 | ผู้สร้าง PO ห้ามเป็นผู้อนุมัติ PO นั้น |
+| BR-SOD-04 | (ชั้น 2) ผู้บันทึกใบแจ้งหนี้ห้ามเป็นผู้อนุมัติรอบจ่ายที่มีใบนั้น |
+| BR-SOD-05 | (ชั้น 2) ผู้แก้บัญชีธนาคารของผู้ขายห้ามเป็นผู้อนุมัติการแก้ และบัญชีใหม่มีผลหลังอนุมัติเท่านั้น |
+| BR-SOD-06 | ผู้ส่ง DOA ฉบับใหม่ห้ามเป็นผู้อนุมัติเผยแพร่ (4-eyes) |
+| BR-SOD-07 | ผู้ขอรับของเองได้เมื่อ `sodPolicy.requesterMayReceive = true` (OQ-04) และไม่ได้เป็นผู้อนุมัติของเอกสารนั้น |
+| BR-SOD-08 | ผู้เสนอการเปลี่ยนโครงสร้างอำนาจห้ามเป็นผู้อนุมัติ และห้ามเป็นผู้ได้ประโยชน์ คือห้ามเสนอแต่งตั้งตัวเองเข้าตำแหน่งที่ DOA อ้าง ห้ามเสนอตัวเองเป็นผู้รักษาการแทนผู้อื่น และห้ามเสนอรีเซ็ตตัวตนของตัวเอง |
+
+```yaml
+# tests/golden/sod.yaml
+suite: sod
+sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+cases:
+  - { id: GC-SOD-01, title: ผู้ขอกดอนุมัติเอง (กันที่ runtime), input: { action: DECIDE_APPROVAL, actor: req_con, requester: req_con }, expect: { error: SOD_VIOLATION, rule: BR-SOD-01 } }
+  - { id: GC-SOD-02, title: ผู้อนุมัติ PR ตรวจรับเอง, input: { action: POST_GR, actor: vp_ops, requester: req_con, approvers: [vp_ops, coo] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-02 } }
+  - { id: GC-SOD-03, title: ผู้สร้าง PO อนุมัติ PO, input: { action: DECIDE_APPROVAL, subject: PURCHASE_ORDER, actor: proc_officer, requester: req_con, poCreator: proc_officer }, expect: { error: SOD_VIOLATION, rule: BR-SOD-03 } }
+  - { id: GC-SOD-04, title: ผู้ส่ง DOA อนุมัติเอง, input: { action: DECIDE_APPROVAL, subject: DOA_VERSION, actor: admin, requester: admin }, expect: { error: SOD_VIOLATION, rule: BR-SOD-06 } }
+  - { id: GC-SOD-05, title: ผู้ขอตรวจรับของตัวเอง, input: { action: POST_GR, actor: req_con, requester: req_con, approvers: [dm_con, coo] }, expect: { ok: true } }
+  - { id: GC-SOD-06, title: ORG_ADMIN เสนอตั้งตัวเองเป็น DM, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: POSITION_ASSIGN, actor: admin, beneficiary: admin, position: "DM@IT" }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
+  - { id: GC-SOD-07, title: ผู้เสนออนุมัติการเปลี่ยนของตัวเอง, input: { action: DECIDE_APPROVAL, subject: ORG_AUTHORITY_CHANGE, actor: admin, requester: admin }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
+  - { id: GC-SOD-08, title: ORG_ADMIN เสนอตัวเองเป็นผู้รักษาการแทน CEO, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: DELEGATION_ON_BEHALF, actor: admin, beneficiary: admin, delegator: ceo }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
+  - { id: GC-SOD-09, title: ORG_ADMIN เสนอแต่งตั้งคนอื่น, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: POSITION_ASSIGN, actor: admin, beneficiary: dm_it, position: "DM@IT" }, expect: { ok: true } }
+```
+
+### 7.6 รักษาการ (Delegation)
+
+| ID | กฎ |
+| --- | --- |
+| BR-DLG-01 | มอบได้เฉพาะอำนาจจากตำแหน่งที่ผู้มอบดำรงอยู่ จำกัดด้วย `documentTypes` และ `maxAmountSatang` ได้ ผู้ไม่มีตำแหน่งมอบไม่ได้ (`VALIDATION_FAILED`, reason `NOTHING_TO_DELEGATE`) |
+| BR-DLG-02 | ห้ามมอบต่อ: งานที่ได้มาจากการรักษาการไม่ถูกส่งต่อตาม delegation ของผู้รักษาการ |
+| BR-DLG-03 | ช่วง `[startsAt, endsAt)` ของผู้มอบคนเดียวกันห้ามทับกัน (`OVERLAPPING_DELEGATION`) · ผู้รักษาการต้อง ACTIVE และไม่ใช่ตัวผู้มอบ |
+| BR-DLG-04 | งานที่เกิดในช่วงนั้นมอบให้ผู้รักษาการ โดย `principal` = ผู้มอบ ทั้งสองคนตัดสินได้ ใครก่อนได้ก่อน event บันทึก `onBehalfOf` · ตอนเริ่มช่วงงานค้างย้ายไปผู้รักษาการ ตอนจบช่วงงานที่ยังค้างย้ายกลับ (S5) |
+| BR-DLG-05 | ถ้าผู้รักษาการขัด SoD กับเอกสารนั้น งานอยู่กับผู้มอบ และแจ้ง ORG_ADMIN |
+
+```yaml
+# tests/golden/delegation.yaml
+suite: delegation
+fixtures: [fixtures/org-demo.yaml, fixtures/doa-versions.yaml]
+defaults: { documentType: PURCHASE_REQUEST, requester: req_con, department: CON }
+delegations:
+  D1: { delegator: dm_con, delegate: asst_con, startsAt: "2026-10-05T00:00:00+07:00", endsAt: "2026-10-10T00:00:00+07:00" }
+  D2: { delegator: dm_con, delegate: asst_con, startsAt: "2026-10-05T00:00:00+07:00", endsAt: "2026-10-10T00:00:00+07:00", maxAmount: "10000.00" }
+cases:
+  - { id: GC-DLG-01, input: { amount: "10000.00", at: "2026-10-06T03:00:00Z", active: [D1] }, expect: { assignee: asst_con, principal: dm_con } }
+  - { id: GC-DLG-02, title: หลังหมดช่วง, input: { amount: "10000.00", at: "2026-10-12T03:00:00Z", active: [D1] }, expect: { assignee: dm_con, principal: null } }
+  - { id: GC-DLG-03, title: เกินวงเงินที่มอบ, input: { amount: "15000.00", at: "2026-10-06T03:00:00Z", active: [D2] }, expect: { assignee: dm_con, principal: null } }
+  - { id: GC-DLG-04, title: ผู้รักษาการเป็นผู้ขอเอง, input: { amount: "5000.00", requester: asst_con, at: "2026-10-06T03:00:00Z", active: [D1] }, expect: { assignee: dm_con, principal: null, notifyOrgAdmin: true } }
+  - { id: GC-DLG-05, title: ผู้ไม่มีตำแหน่งมอบอำนาจ, create: { delegator: asst_con, delegate: req_con, startsAt: "2026-10-05T00:00:00+07:00", endsAt: "2026-10-06T00:00:00+07:00" }, existing: [], expect: { error: VALIDATION_FAILED, reason: NOTHING_TO_DELEGATE } }
+  - { id: GC-DLG-06, title: ช่วงทับกัน, create: { delegator: dm_con, delegate: dm_proc, startsAt: "2026-10-08T00:00:00+07:00", endsAt: "2026-10-12T00:00:00+07:00" }, existing: [D1], expect: { error: VALIDATION_FAILED, reason: OVERLAPPING_DELEGATION } }
+```
+
+### 7.7 งบประมาณแบบ ledger (จอง – ถือ – ตัด – คืน)
+
+งบของแต่ละบรรทัดแบ่งเป็น bucket และทุกการเคลื่อนไหวคือการย้ายยอดระหว่าง bucket ด้วยรายการใน `BudgetLedgerEntry` (ADR-021) ยอดคงเหลือใน `BudgetLineBalance` เป็นเพียง projection
+
+| การกระทำ | การย้าย | เกิดเมื่อ |
+| --- | --- | --- |
+| นำเข้าหรือเพิ่มงบ | OUTSIDE → AVAILABLE | BUDGET_ADMIN นำเข้า |
+| จอง | AVAILABLE → RESERVED | ส่ง PR · ส่ง PO ที่แพงกว่าส่วนที่จะคืน (จองเฉพาะส่วนต่าง) |
+| คืนจอง | RESERVED → AVAILABLE | PR ถูกปฏิเสธหรือยกเลิก · PO อนุมัติ (คืนส่วนของ PR) · PO ถูกปฏิเสธหรือตีกลับ (คืนส่วนต่าง) |
+| ถือ | AVAILABLE → COMMITTED | PO อนุมัติ · รับเกินที่อนุมัติแล้ว |
+| คืนถือ | COMMITTED → AVAILABLE | ยกเลิก PO · ปิด PO ที่รับไม่ครบหรือใบกำกับน้อยกว่า PO |
+| ตัด | COMMITTED → ACTUAL | ยืนยันใบกำกับ (ชั้น 1) · ใบแจ้งหนี้ผ่านการจับคู่ (ชั้น 2) |
+
+| ID | กฎ |
+| --- | --- |
+| BR-BUD-01 | ledger เป็นแหล่งความจริง ห้ามแก้ยอดใน `BudgetLineBalance` โดยไม่มีรายการ ledger คู่กัน |
+| BR-BUD-02 | PR ที่งบไม่พอถูกบล็อกตอนส่ง ก่อนถึงผู้อนุมัติคนใด (`BUDGET_INSUFFICIENT` พร้อมยอดที่ขาด) ชั้น 1 ไม่มีการอนุมัติเกินงบ (ชั้น 2 ดู FR-BUD-101) |
+| BR-BUD-03 | ฐานของงบคือยอดก่อน VAT (OQ-03) เพราะ VAT ซื้อขอคืนได้ (A-03) |
+| BR-BUD-04 | ชั้น 1 คำขอหนึ่งใบตัดบรรทัดงบเดียว ผู้ขอใช้บรรทัดงบของแผนกตนหรือที่ได้ `BudgetGrant` เท่านั้น (แบ่งหลาย cost center อยู่ชั้น 2) |
+| BR-BUD-05 | PO: ส่วนที่คืนได้ (`releasable`) ของแต่ละ `PoLineSource` = จำนวนที่สั่ง × ราคาต่อหน่วยของคำขอ (ปัด half-up) · ตอนส่ง PO คำนวณ `delta = ยอด PO บรรทัด − Σ releasable` ถ้า delta > 0 ให้จองเพิ่มในนาม PO บรรทัดนั้น ไม่พอ → `BUDGET_INSUFFICIENT` · ตอนอนุมัติ คืน releasable และ delta ที่จองไว้ แล้วถือยอด PO บรรทัด · ส่วนของคำขอที่ยังไม่ถูกสั่งยังจองอยู่ |
+| BR-BUD-06 | ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition: `RETURN_TO_POOL` = คืนถือทั้งหมดแล้วจองคืนให้บรรทัดคำขอด้วย releasable เดิม (ไม่พอ → ทั้งคำสั่งล้มด้วย `BUDGET_INSUFFICIENT`) หรือ `CANCEL_REQUEST_LINES` = คืนถือและยกเลิกจำนวนนั้นในคำขอ · ปิด PO คืนถือที่เหลือทั้งหมด |
+| BR-BUD-07 | ปิดปีงบไม่ยกยอดอัตโนมัติ (OQ-26) รายการจองและถือที่ค้างถูกรายงานให้ FINANCE ตัดสินก่อนปิด |
+| BR-BUD-08 | บรรทัดงบ `FROZEN` หรือ `CLOSED` จองใหม่ไม่ได้ แต่ถือและตัดจากรายการเดิมได้ |
+| INV-BUD-01 | ต่อบรรทัดงบ available + reserved + committed + actual = ยอดที่นำเข้าสุทธิเสมอ |
+| INV-BUD-02 | ไม่มี bucket ใดติดลบ (CHECK ในฐานข้อมูล + ตรวจใน core) |
+| INV-BUD-03 | ต่อเอกสาร: ยอดจองของบรรทัดคำขอ ≤ ยอดบรรทัดคำขอ · ยอดถือของ PO บรรทัด ≤ ยอด PO บรรทัด + ส่วนเกินที่อนุมัติ · ยอดตัด ≤ ยอดถือที่เคยมี |
+| INV-BUD-04 | ledger ทุกแถวอ้าง Event ที่สร้างในธุรกรรมเดียวกัน |
+| INV-BUD-05 | การจองพร้อมกันไม่ทำให้เกินงบ: ล็อก `BudgetLineBalance` ด้วย `SELECT … FOR UPDATE` ตามลำดับ id |
+| INV-BUD-06 | ledger แก้หรือลบไม่ได้ (INV-EVT-01) การแก้ไขทำด้วยรายการย้อนกลับเท่านั้น |
+
+นอกจาก golden cases ต้องมี property test (fast-check) ที่สุ่มลำดับ operation หลายพันชุดแล้วตรวจ INV-BUD-01 ถึง INV-BUD-03 หลังทุก operation
+
+```yaml
+# tests/golden/budget.yaml
+suite: budget
+# ทุกเคสใช้บรรทัดงบเดียว · expect คือยอดของบรรทัดงบหลัง step นั้น
+# op: fund | reserve | release | submitPo | approvePo | rejectPo | cancelPo | actualize | closePo | parallelReserve
+cases:
+  - id: GC-BUD-01
+    title: วงจรเต็ม PR → PO → ใบกำกับ พร้อมกรณีงบไม่พอและการคืนงบ
+    steps:
+      - { op: fund, amount: "500000.00", expect: { available: "500000.00", reserved: "0.00", committed: "0.00", actual: "0.00" } }
+      - { op: reserve, source: PR-1, amount: "120000.00", expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+      - { op: reserve, source: PR-2, amount: "400000.00", expectError: BUDGET_INSUFFICIENT, expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+      - { op: submitPo, po: PO-1, need: "115000.00", sources: [{ source: PR-1, releasable: "120000.00" }], expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+      - { op: approvePo, po: PO-1, expect: { available: "385000.00", reserved: "0.00", committed: "115000.00", actual: "0.00" } }
+      - { op: actualize, po: PO-1, amount: "115000.00", expect: { available: "385000.00", reserved: "0.00", committed: "0.00", actual: "115000.00" } }
+      - { op: reserve, source: PR-3, amount: "50000.00", expect: { available: "335000.00", reserved: "50000.00", committed: "0.00", actual: "115000.00" } }
+      - { op: release, source: PR-3, expect: { available: "385000.00", reserved: "0.00", committed: "0.00", actual: "115000.00" } }
+  - id: GC-BUD-02
+    title: PO สั่งบางส่วนในราคาสูงกว่าคำขอ (PR 10 × 1,000 → PO 6 × 1,100)
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-4, amount: "10000.00", expect: { available: "90000.00", reserved: "10000.00", committed: "0.00", actual: "0.00" } }
+      - { op: submitPo, po: PO-2, need: "6600.00", sources: [{ source: PR-4, releasable: "6000.00" }], expect: { available: "89400.00", reserved: "10600.00", committed: "0.00", actual: "0.00" } }
+      - { op: approvePo, po: PO-2, expect: { available: "89400.00", reserved: "4000.00", committed: "6600.00", actual: "0.00" } }
+  - id: GC-BUD-03
+    title: PO ถูกปฏิเสธ คืนเฉพาะส่วนต่างที่จอง
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-5, amount: "10000.00" }
+      - { op: submitPo, po: PO-3, need: "6600.00", sources: [{ source: PR-5, releasable: "6000.00" }], expect: { available: "89400.00", reserved: "10600.00", committed: "0.00", actual: "0.00" } }
+      - { op: rejectPo, po: PO-3, expect: { available: "90000.00", reserved: "10000.00", committed: "0.00", actual: "0.00" } }
+  - id: GC-BUD-04
+    title: ยกเลิก PO ที่อนุมัติแล้วแบบคืนเข้ากอง
+    steps:
+      - { op: fund, amount: "500000.00" }
+      - { op: reserve, source: PR-6, amount: "120000.00" }
+      - { op: submitPo, po: PO-4, need: "115000.00", sources: [{ source: PR-6, releasable: "120000.00" }] }
+      - { op: approvePo, po: PO-4, expect: { available: "385000.00", reserved: "0.00", committed: "115000.00", actual: "0.00" } }
+      - { op: cancelPo, po: PO-4, disposition: RETURN_TO_POOL, expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+  - id: GC-BUD-05
+    title: ใบกำกับน้อยกว่า PO แล้วปิด PO
+    steps:
+      - { op: fund, amount: "500000.00" }
+      - { op: reserve, source: PR-7, amount: "120000.00" }
+      - { op: submitPo, po: PO-5, need: "115000.00", sources: [{ source: PR-7, releasable: "120000.00" }] }
+      - { op: approvePo, po: PO-5 }
+      - { op: actualize, po: PO-5, amount: "110000.00", expect: { available: "385000.00", reserved: "0.00", committed: "5000.00", actual: "110000.00" } }
+      - { op: closePo, po: PO-5, expect: { available: "390000.00", reserved: "0.00", committed: "0.00", actual: "110000.00" } }
+  - id: GC-BUD-06
+    title: ตัดเกินยอดถือ
+    steps:
+      - { op: fund, amount: "200000.00" }
+      - { op: reserve, source: PR-8, amount: "100000.00" }
+      - { op: submitPo, po: PO-6, need: "100000.00", sources: [{ source: PR-8, releasable: "100000.00" }] }
+      - { op: approvePo, po: PO-6 }
+      - { op: actualize, po: PO-6, amount: "100000.01", expectError: INVOICE_EXCEEDS_COMMITTED, expect: { available: "100000.00", reserved: "0.00", committed: "100000.00", actual: "0.00" } }
+  - id: GC-BUD-07
+    kind: concurrency
+    title: จองพร้อมกัน 2 รายการ รายการละ 300,000 บนงบ 500,000 ต้องสำเร็จรายการเดียว (integration test กับ Postgres จริง)
+    steps:
+      - { op: fund, amount: "500000.00" }
+      - { op: parallelReserve, amounts: ["300000.00", "300000.00"], expectSuccesses: 1, expect: { available: "200000.00", reserved: "300000.00", committed: "0.00", actual: "0.00" } }
+```
+
+### 7.8 เวลาทำการและ SLA
+
+| ID | กฎ |
+| --- | --- |
+| BR-SLA-01 | เวลาทำการมาจาก `settings.businessCalendar` (ค่าเริ่มต้น จันทร์–ศุกร์ 08:30–17:30 Asia/Bangkok ไม่หักพักเที่ยง A-07) ร่วมกับตาราง `Holiday` |
+| BR-SLA-02 | `dueAt = addBusinessMinutes(assignedAt, slaBusinessMinutes)` · `remindAt` = ครบ 50% ของ SLA · `escalateAt = addBusinessMinutes(dueAt, escalateAfterBusinessMinutes)` ค่าเริ่มต้น 480 นาที |
+| BR-SLA-03 | ระหว่าง `INFO_REQUESTED` หยุดนับ: เวลาที่เหลือ = SLA − เวลาทำการที่ใช้ไปแล้วทั้งหมด · เมื่อได้คำตอบ `dueAt = addBusinessMinutes(resumedAt, เวลาที่เหลือ)` |
+| BR-SLA-04 | escalationPolicy ค่าเริ่มต้น (OQ-06): เตือนเมื่อครบ 50% → ครบกำหนดแจ้งผู้รับงาน และแจ้งผู้อนุมัติของช่วงวงเงินถัดไปแบบรับทราบ → เลย `escalateAt` เพิ่มผู้อนุมัติของช่วงถัดไปเป็นผู้รับร่วม ใครตัดสินก่อนได้ก่อน DOA ref เดิมพร้อมธง escalated ถ้าไม่มีช่วงถัดไปให้แจ้ง ORG_ADMIN และผู้ขอ · ห้ามส่งงานไปผู้ที่อำนาจต่ำกว่า |
+
+```yaml
+# tests/golden/sla.yaml
+suite: sla
+calendar:
+  timezone: Asia/Bangkok
+  workdays: [MON, TUE, WED, THU, FRI]
+  start: "08:30"
+  end: "17:30"
+  holidays: ["2026-10-13", "2026-10-23"]
+cases:
+  - { id: GC-SLA-01, title: ศุกร์ 16:30 + 8 ชม. ทำการ → จันทร์ 15:30, fn: addBusinessMinutes, input: { from: "2026-10-02T09:30:00Z", minutes: 480 }, expect: "2026-10-05T08:30:00Z" }
+  - { id: GC-SLA-02, title: จันทร์ 17:00 ข้ามวันหยุดอังคาร → พุธ 16:00, fn: addBusinessMinutes, input: { from: "2026-10-12T10:00:00Z", minutes: 480 }, expect: "2026-10-14T09:00:00Z" }
+  - { id: GC-SLA-03, title: เริ่มวันเสาร์ → เริ่มนับจันทร์ 08:30, fn: addBusinessMinutes, input: { from: "2026-10-03T03:00:00Z", minutes: 60 }, expect: "2026-10-05T02:30:00Z" }
+  - { id: GC-SLA-04, title: เริ่มตรงเวลาเลิกงาน, fn: addBusinessMinutes, input: { from: "2026-10-02T10:30:00Z", minutes: 60 }, expect: "2026-10-05T02:30:00Z" }
+  - { id: GC-SLA-05, fn: businessMinutesBetween, input: { from: "2026-10-02T09:30:00Z", to: "2026-10-05T02:30:00Z" }, expect: 120 }
+  - { id: GC-SLA-06, title: หยุดนับระหว่างขอข้อมูลเพิ่ม, fn: resumeDue, input: { assignedAt: "2026-10-05T01:30:00Z", slaMinutes: 480, pausedAt: "2026-10-05T04:30:00Z", resumedAt: "2026-10-07T03:00:00Z" }, expect: "2026-10-07T08:00:00Z" }
+  - { id: GC-SLA-07, fn: remindAt, input: { assignedAt: "2026-10-05T01:30:00Z", slaMinutes: 480, remindPct: 50 }, expect: "2026-10-05T05:30:00Z" }
+  - { id: GC-SLA-08, title: ข้ามวันหยุดวันศุกร์และเสาร์อาทิตย์, fn: addBusinessMinutes, input: { from: "2026-10-22T09:00:00Z", minutes: 180 }, expect: "2026-10-26T03:00:00Z" }
+```
+
+### 7.9 ฟอร์มไดนามิกและกฎเอกสารแนบ
+
+ฟอร์มของแต่ละประเภทคำขอเป็นข้อมูล (`FormVersion.schema`) ประกอบด้วย FieldDef, เงื่อนไขการแสดงฟิลด์ และกฎเอกสารแนบ
+
+- FieldDef ชนิด: `text` `textarea` `number` `money` `date` `select` `multiselect` `checkbox` `member` `department` `costCenter` `budgetLine` `supplier` `deliverySite` `lineItems` `attachment`
+- เงื่อนไข: `{ all: [...] }` · `{ any: [...] }` · `{ field, op, value }` โดย op เป็น `eq` `ne` `in` `gt` `gte` `lt` `lte` `empty` `notEmpty` และมีตัวแปรพิเศษ `$amountGross` `$amountNet` `$requestType`
+
+| ID | กฎ |
+| --- | --- |
+| BR-FORM-01 | server ตรวจฟอร์มด้วย Zod schema ที่สร้างจาก FormVersion ทุกครั้ง ฟิลด์ที่ถูกซ่อนตามเงื่อนไขถูกตัดทิ้งก่อนบันทึก และไม่ถูกตรวจ |
+| BR-FORM-02 | เติมค่าจากบริบทก่อนเสมอ (P-6): แผนกที่ตั้งเบิก = แผนกหลักของผู้ขอ · cost center ค่าเริ่มต้นของแผนก · บรรทัดงบที่ผู้ขอใช้ล่าสุดกับประเภทคำขอเดียวกันในปีงบนั้น · ผู้ขายที่แนะนำของหมวด (`PreferredSupplier` ที่ยังไม่หมดอายุ มีตั้งแต่ S10) แล้วจึงผู้ขายล่าสุดของหมวดเดียวกัน · สถานที่ส่งล่าสุด |
+| BR-FORM-03 | กฎเอกสารแนบตรวจตอนส่ง ไม่ผ่าน → `ATTACHMENT_RULE_FAILED` พร้อมรหัสกฎและสิ่งที่ขาดเป็นภาษาไทย |
+| BR-FORM-04 | กฎตั้งต้นของคำขอจัดซื้อ `ATT-QUOTES`: ยอดรวม VAT เกิน 100,000.00 (OQ-08) ต้องมีใบเสนอราคา 3 ราย หรือเหตุผลกรณีผู้ขายรายเดียวพร้อมใบเสนอราคาอย่างน้อย 1 ราย |
+| BR-FORM-05 | คำขอซื้อไอทีและจ้างบริการ (`IT_PURCHASE` `HIRE_SERVICE`) มีคำถามคัดกรอง 3 ข้อ: ผู้ขายจะประมวลผลข้อมูลส่วนบุคคลแทนบริษัทหรือไม่ (`processesPersonalData`) เข้าถึงระบบหรือข้อมูลภายในหรือไม่ (`accessesSystems`) และเข้าพื้นที่ทำงานหรือไซต์หรือไม่ (`accessesPremises`) · ตอบว่าประมวลผลข้อมูลส่วนบุคคล → กฎ `ATT-DPA` บังคับแนบข้อตกลงการประมวลผลข้อมูล (DPA) อย่างน้อย 1 ไฟล์ · คำตอบทั้ง 3 ข้อใช้เลือกชุดคำถามและผู้ตรวจในชั้น 3 (§8.12) · บรรทัดบริการและไลเซนส์มีวันสิ้นสุดบริการ (`serviceEndDate`) |
+| BR-FORM-06 | ใบเสนอราคาเป็นข้อมูล (`RequestQuotation`): แต่ละใบมีผู้ขาย ยอด ธงรวม VAT และไฟล์ · core คำนวณยอดก่อน VAT ทุกใบด้วยอัตราที่มีผล (ใบที่รวม VAT ใช้สูตร BR-VAT) แล้วเทียบ · ต้องเลือกหนึ่งใบ · ใบที่เลือกไม่ใช่ยอดก่อน VAT ต่ำสุด → ต้องกรอก `nonLowestQuoteReason` ไม่เช่นนั้น `VALIDATION_FAILED` (กฎ `QUOTE-LOWEST`) · ยอดก่อน VAT เท่ากันถือว่าต่ำสุดร่วม · ข้อมูลนี้เป็นฐานของ FR-DOA-101 และยอดประหยัดของ G-8 |
+
+```yaml
+# tests/golden/forms.yaml
+suite: forms
+rules:
+  - id: ATT-QUOTES
+    when: { field: $amountGross, op: gt, value: "100000.00" }
+    require:
+      any:
+        - { attachments: QUOTATION, min: 3 }
+        - all:
+            - { attachments: QUOTATION, min: 1 }
+            - { field: singleSourceJustification, op: notEmpty }
+  - id: ATT-DPA
+    when: { field: processesPersonalData, op: eq, value: "Y" }
+    require: { attachments: DPA, min: 1 }
+visibility:
+  - { field: assetTag, when: { field: category, op: eq, value: HARDWARE } }
+cases:
+  - { id: GC-FORM-01, input: { amountGross: "100000.00", attachments: { QUOTATION: 0 } }, expect: { ok: true } }
+  - { id: GC-FORM-02, input: { amountGross: "100000.01", attachments: { QUOTATION: 2 }, fields: { singleSourceJustification: "" } }, expect: { error: ATTACHMENT_RULE_FAILED, rule: ATT-QUOTES } }
+  - { id: GC-FORM-03, input: { amountGross: "100000.01", attachments: { QUOTATION: 1 }, fields: { singleSourceJustification: "เป็นตัวแทนจำหน่ายรายเดียวในประเทศ" } }, expect: { ok: true } }
+  - { id: GC-FORM-04, input: { amountGross: "150000.00", attachments: { QUOTATION: 3 } }, expect: { ok: true } }
+  - { id: GC-FORM-05, title: ฟิลด์ที่ถูกซ่อนถูกตัดทิ้ง, input: { amountGross: "5000.00", attachments: {}, fields: { category: SOFTWARE, assetTag: "X-1" } }, expect: { ok: true, droppedFields: [assetTag] } }
+  - { id: GC-FORM-06, title: ผู้ขายประมวลผลข้อมูลส่วนบุคคลแต่ไม่แนบ DPA, input: { amountGross: "50000.00", attachments: {}, fields: { processesPersonalData: "Y" } }, expect: { error: ATTACHMENT_RULE_FAILED, rule: ATT-DPA } }
+  - { id: GC-FORM-07, title: แนบ DPA แล้ว, input: { amountGross: "50000.00", attachments: { DPA: 1 }, fields: { processesPersonalData: "Y" } }, expect: { ok: true } }
+  - { id: GC-FORM-08, title: ผู้ขายไม่ประมวลผลข้อมูลส่วนบุคคล, input: { amountGross: "50000.00", attachments: {}, fields: { processesPersonalData: "N" } }, expect: { ok: true } }
+```
+
+**ใบเสนอราคาแบบข้อมูล (BR-FORM-06):** ยอดก่อน VAT ของใบที่รวม VAT = ยอด − VAT โดย VAT = ปัด half-up ของ ยอด × อัตรา ÷ (1 + อัตรา) · ตัวอย่างข้างล่างใช้ 700 bp
+
+```yaml
+# tests/golden/quotations.yaml
+suite: quotations
+vatRateBp: 700
+cases:
+  - id: GC-FORM-09
+    title: เลือกใบที่ยอดก่อน VAT ต่ำสุด เทียบข้ามใบที่รวมและไม่รวม VAT
+    input: { quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: C }
+    expect: { ok: true, nets: { A: "100000.00", B: "101000.00", C: "98130.84" }, lowest: [C] }
+  - id: GC-FORM-10
+    title: ไม่เลือกรายถูกสุดและไม่กรอกเหตุผล
+    input: { quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: A }
+    expect: { error: VALIDATION_FAILED, rule: QUOTE-LOWEST, lowest: [C] }
+  - id: GC-FORM-11
+    title: ไม่เลือกรายถูกสุดแต่กรอกเหตุผล
+    input: { quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: A, nonLowestQuoteReason: "ส่งของได้เร็วกว่า 2 สัปดาห์" }
+    expect: { ok: true, lowest: [C] }
+```
+
+### 7.10 รวม PR เป็น PO (Consolidation)
+
+| ID | กฎ |
+| --- | --- |
+| BR-CONS-01 | รอบรวมตาม cron (OQ-13 ค่าเริ่มต้น 10:00 และ 15:00 วันทำการ) บรรทัดคำขอที่ APPROVED และจัดซื้อเลือกผู้ขายแล้วถูกจัดกลุ่มตาม (ผู้ขาย, สถานที่ส่ง, ชนิดสินค้าหรือบริการ) ได้ร่าง PO หนึ่งใบต่อกลุ่ม |
+| BR-CONS-02 | คำขอด่วน (`URGENT`) ไม่รอรอบ สร้างร่าง PO ของตัวเองทันทีเมื่ออนุมัติและมีผู้ขาย |
+| BR-CONS-03 | บรรทัดที่ยังไม่มีผู้ขายอยู่ในกองพร้อมป้าย "ต้องเลือกผู้ขาย" ไม่ถูกรวม |
+| BR-CONS-04 | จัดซื้อแก้ร่าง PO ได้ (ย้าย แยก รวมบรรทัด) ก่อนส่ง `PoLineSource` ต้องอ้างบรรทัดคำขอต้นทางเสมอ |
+| BR-CONS-05 | ลำดับกลุ่มและบรรทัดเรียงตามเลขคำขอแล้วเลขบรรทัด ผลจึงเหมือนเดิมทุกครั้ง |
+
+```yaml
+# tests/golden/consolidation.yaml
+suite: consolidation
+cases:
+  - id: GC-CONS-01
+    input:
+      lines:
+        - { ref: PR-10/1, supplier: S1, site: SITE-A, kind: GOODS }
+        - { ref: PR-11/1, supplier: S1, site: SITE-A, kind: GOODS }
+        - { ref: PR-12/1, supplier: S1, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [[PR-10/1, PR-11/1, PR-12/1]], immediate: [], unassigned: [] }
+  - id: GC-CONS-02
+    title: คนละสถานที่ส่งแยกใบ
+    input:
+      lines:
+        - { ref: PR-13/1, supplier: S1, site: SITE-A, kind: GOODS }
+        - { ref: PR-14/1, supplier: S1, site: SITE-B, kind: GOODS }
+    expect: { cycleGroups: [[PR-13/1], [PR-14/1]], immediate: [], unassigned: [] }
+  - id: GC-CONS-03
+    title: คำขอด่วนไม่รอรอบ
+    input:
+      lines:
+        - { ref: PR-15/1, supplier: S2, site: SITE-A, kind: GOODS, urgent: true }
+        - { ref: PR-16/1, supplier: S2, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [[PR-16/1]], immediate: [[PR-15/1]], unassigned: [] }
+  - id: GC-CONS-04
+    title: ยังไม่มีผู้ขาย
+    input:
+      lines:
+        - { ref: PR-17/1, supplier: null, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [], immediate: [], unassigned: [PR-17/1] }
+  - id: GC-CONS-05
+    title: สินค้ากับบริการแยกใบ
+    input:
+      lines:
+        - { ref: PR-18/1, supplier: S1, site: SITE-A, kind: SERVICE }
+        - { ref: PR-18/2, supplier: S1, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [[PR-18/1], [PR-18/2]], immediate: [], unassigned: [] }
+```
+
+### 7.11 ตรวจรับและ variance
+
+| ID | กฎ |
+| --- | --- |
+| BR-GR-01 | GR บันทึกจำนวนรับ ยอมรับ และปฏิเสธต่อบรรทัด รับบางส่วนได้เสมอ |
+| BR-GR-02 | รับเกินภายใน `settings.receiving.overTolerancePct` (ค่าเริ่มต้น 0 OQ-20) ยอมรับได้ทันทีและถือเพิ่มตามราคา PO ถ้างบไม่พอ → `BUDGET_INSUFFICIENT` |
+| BR-GR-03 | variance ที่ต้องอนุมัติตาม DOA ข้อ `GR_VARIANCE`: `ACCEPT_EXCESS` (รับส่วนเกินที่เกิน tolerance) · `ACCEPT_DAMAGED` · `CLOSE_SHORT` (ปิด PO ทั้งที่รับไม่ครบ) · ไม่ต้องอนุมัติ: `RETURN_EXCESS` · `RETURN_REPLACE` |
+| BR-GR-04 | ผลต่องบเมื่ออนุมัติแล้ว: `ACCEPT_EXCESS` ถือเพิ่ม จำนวน × ราคา PO · `CLOSE_SHORT` คืนถือ จำนวนที่ไม่ได้รับ × ราคา PO |
+| BR-GR-05 | ผู้บันทึก GR ต้องผ่าน BR-SOD-02 และ BR-SOD-07 · variance ชนิด `DAMAGED` ต้องแนบรูปอย่างน้อย 1 รูป |
+
+```yaml
+# tests/golden/receiving.yaml
+suite: receiving
+# ผลหลังการอนุมัติ variance ที่ต้องอนุมัติ (สมมติว่าอนุมัติ)
+cases:
+  - { id: GC-GR-01, title: รับบางส่วน, input: { ordered: "10", unitPrice: "1100.00", received: "6", tolerancePct: 0 }, expect: { poStatus: PARTIALLY_RECEIVED, accepted: "6", variances: [], commitDelta: "0.00" } }
+  - { id: GC-GR-02, title: รับเกินแล้วคืนส่วนเกิน, input: { ordered: "10", unitPrice: "1100.00", received: "11", tolerancePct: 0, disposition: RETURN_EXCESS }, expect: { poStatus: RECEIVED, accepted: "10", variances: [{ type: OVER, quantity: "1", amount: "1100.00", needsApproval: false }], commitDelta: "0.00" } }
+  - { id: GC-GR-03, title: รับเกินและขอเก็บไว้, input: { ordered: "10", unitPrice: "1100.00", received: "11", tolerancePct: 0, disposition: ACCEPT_EXCESS }, expect: { poStatus: RECEIVED, accepted: "11", variances: [{ type: OVER, quantity: "1", amount: "1100.00", needsApproval: true }], commitDelta: "1100.00" } }
+  - { id: GC-GR-04, title: ปิด PO ทั้งที่รับไม่ครบ, input: { ordered: "10", unitPrice: "1100.00", received: "6", tolerancePct: 0, closeShort: true }, expect: { poStatus: CLOSED, accepted: "6", variances: [{ type: SHORT, quantity: "4", amount: "4400.00", needsApproval: true }], commitDelta: "-4400.00" } }
+  - { id: GC-GR-05, title: รับเกินภายใน tolerance, input: { ordered: "100", unitPrice: "10.00", received: "104", tolerancePct: 5 }, expect: { poStatus: RECEIVED, accepted: "104", variances: [], commitDelta: "40.00" } }
+```
+
+### 7.12 ยืนยันใบกำกับแบบง่าย (ชั้น 1)
+
+| ID | กฎ |
+| --- | --- |
+| BR-IVC-01 | FINANCE บันทึกใบกำกับที่ได้รับกับ PO: เลขที่ วันที่ ยอดก่อน VAT VAT ยอดรวม และธงใบสุดท้าย · VAT ในใบต่างจากที่คำนวณเกิน 1.00 บาท → เตือนแต่ไม่บล็อก |
+| BR-IVC-02 | ยอดก่อน VAT สะสมต้องไม่เกินยอดถือที่เหลือของ PO ไม่เช่นนั้น `INVOICE_EXCEEDS_COMMITTED` (ชั้น 1 แก้ด้วยคำขอใหม่ ชั้น 2 ใช้ใบแก้ไข PO) |
+| BR-IVC-03 | เลขใบกำกับซ้ำกับของผู้ขายรายเดิม → `DUPLICATE_INVOICE` โดยเทียบหลังตัดช่องว่างทั้งหมดและแปลงเป็นตัวพิมพ์ใหญ่ |
+| BR-IVC-04 | ปันยอดลงบรรทัด PO ตามสัดส่วนยอดถือที่เหลือ ปัดลงเป็นสตางค์ แล้วแจกเศษที่เหลือทีละสตางค์ให้บรรทัดที่เศษมากที่สุด (เสมอกันให้เลขบรรทัดน้อยก่อน) แล้วย้าย COMMITTED → ACTUAL ของแต่ละบรรทัดงบ · ใบสุดท้ายทำให้ PO พร้อมปิดและคืนถือที่เหลือ (BR-BUD-06) |
+| BR-IVC-05 | อ่านไฟล์ e-Tax โดยไม่ใช้ AI: ไฟล์ของระบบ e-Tax Invoice by Email เป็น PDF/A-3 ที่ฝัง XML ตามมาตรฐาน ขมธอ. 3-2560 ส่วนระบบ e-Tax Invoice & e-Receipt เต็มรูปแบบส่งเป็น XML หรือรูปแบบอื่นที่ตกลงกัน · ระบบหา XML จากรายการไฟล์แนบใน PDF โดยไม่ยึดชื่อไฟล์ แล้วอ่านเลขที่ วันที่ เลขผู้เสียภาษีและสาขาของผู้ขาย ยอดก่อน VAT VAT และยอดรวม มาเติมฟอร์มให้ FINANCE ยืนยัน · เลขผู้เสียภาษีไม่ตรงผู้ขายของ PO หรืออ่าน XML ไม่ได้ → แจ้งเหตุผลและให้กรอกเอง · ค่าที่อ่านได้ผ่าน BR-IVC-01 ถึง BR-IVC-04 เหมือนกรอกมือ · เก็บไฟล์ต้นฉบับเป็น FileLink kind `ETAX` |
+
+```yaml
+# tests/golden/invoice-confirmation.yaml
+suite: invoice-confirmation
+cases:
+  - { id: GC-IVC-01, input: { committed: ["115000.00"], invoices: [{ invoiceNo: "INV-001", net: "115000.00" }] }, expect: { results: [ok], actualByLine: ["115000.00"], remaining: ["0.00"] } }
+  - { id: GC-IVC-02, input: { committed: ["115000.00"], invoices: [{ invoiceNo: "INV-002", net: "116000.00" }] }, expect: { results: [INVOICE_EXCEEDS_COMMITTED], actualByLine: ["0.00"], remaining: ["115000.00"] } }
+  - { id: GC-IVC-03, input: { committed: ["115000.00"], invoices: [{ invoiceNo: "A1", net: "60000.00" }, { invoiceNo: "A2", net: "55000.00" }, { invoiceNo: "A3", net: "0.01" }] }, expect: { results: [ok, ok, INVOICE_EXCEEDS_COMMITTED], actualByLine: ["115000.00"], remaining: ["0.00"] } }
+  - { id: GC-IVC-04, title: เลขซ้ำหลัง normalize, input: { committed: ["50000.00"], existingInvoiceNos: ["INV001"], invoices: [{ invoiceNo: " inv 001", net: "1000.00" }] }, expect: { results: [DUPLICATE_INVOICE], actualByLine: ["0.00"], remaining: ["50000.00"] } }
+  - { id: GC-IVC-05, title: ปันส่วนแบบ largest remainder, input: { committed: ["3333.33", "6666.67"], invoices: [{ invoiceNo: "B1", net: "1000.00" }] }, expect: { results: [ok], actualByLine: ["333.33", "666.67"], remaining: ["3000.00", "6000.00"] } }
+```
+
+### 7.13 ไฟล์ส่งออกให้ Express
+
+| ID | กฎ |
+| --- | --- |
+| BR-EXP-01 | รูปแบบไฟล์ตั้งค่าได้ต่อองค์กร (`settings.express.mapping`: คอลัมน์ รูปแบบวันที่ พ.ศ. หรือ ค.ศ. encoding `UTF-8-BOM` หรือ `WINDOWS-874` ชนิดไฟล์ xlsx หรือ csv) จนกว่าจะได้ไฟล์ตัวอย่างที่ Express นำเข้าได้จริง (OQ-10) |
+| BR-EXP-02 | ส่งออกเฉพาะใบกำกับที่ยังไม่เคยส่งออก แล้วบันทึก `exportedAt` และ `exportJobId` · ส่งออกซ้ำต้องระบุเหตุผลและสร้าง ExportJob ใหม่พร้อม event |
+| BR-EXP-03 | ทุกไฟล์มี checksum (sha256) และจำนวนแถวแสดงให้ผู้ใช้เห็น ยอดรวมในไฟล์ต้องเท่าผลรวมของรายการ (มีเทสต์) |
+| BR-EXP-04 | ถ้า mapping ของ Express มีคอลัมน์รหัสเจ้าหนี้ ใบกำกับของผู้ขายที่ยังไม่มี `expressVendorCode` ถูกกันออกจากไฟล์ และแสดงรายการให้ FINANCE เติมรหัสก่อนส่งออกรอบถัดไป (OQ-10) |
+
+golden case ของไฟล์ Express (`GC-EXP-*`) จะเพิ่มเมื่อได้ไฟล์ตัวอย่างจากลูกค้า ห้ามเดารูปแบบไฟล์
+
+### 7.14 ตัวอย่างล่วงหน้าของชั้น 2 (ให้ขยายใน sub-spec S8 และ S9)
+
+| ID | กฎ |
+| --- | --- |
+| BR-MATCH-01 | สินค้าจับคู่ 3 ทาง (บรรทัดใบแจ้งหนี้ ↔ บรรทัด PO ↔ จำนวนที่ GR ยอมรับ) งานบริการจับคู่ 2 ทาง (ใบแจ้งหนี้ ↔ PO) พร้อมการยืนยันรับงาน |
+| BR-MATCH-02 | เกณฑ์ความคลาดเคลื่อนตั้งได้ต่อองค์กร ทั้งราคา (% และจำนวนเงิน) และจำนวน นอกเกณฑ์ → exception ส่งให้จัดซื้อหรือผู้ตรวจรับ |
+| BR-MATCH-03 | ใบแจ้งหนี้ซ้ำตรวจจาก (ผู้ขาย, เลขที่หลัง normalize) และเตือนเมื่อยอดเท่ากันและวันที่ห่างกันไม่เกิน 3 วัน |
+| BR-MATCH-04 | ตัดงบจริงเมื่อผ่านการจับคู่หรือ exception ได้รับอนุมัติ |
+| BR-WHT-01 | ฐานภาษีหัก ณ ที่จ่าย = ยอดก่อน VAT · อัตราตามประเภทเงินได้เป็นข้อมูลที่ผู้ทำบัญชีของลูกค้ายืนยัน · ปัด half-up |
+| BR-WHT-02 | หนังสือรับรองการหักภาษี (50 ทวิ) และไฟล์ ภ.ง.ด.3 / ภ.ง.ด.53 ทำตามรูปแบบของกรมสรรพากรใน sub-spec |
+| BR-BANK-01 | ตัวสร้างไฟล์แยกต่อธนาคาร golden test เป็นแบบ byte-exact + sha256 เทียบกับไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคารแล้ว |
+| BR-BANK-02 | ก่อนส่งออกตรวจว่า บัญชีผู้รับตรงกับบัญชีที่อนุมัติในทะเบียนผู้ขาย ยอดรวมตรงรอบจ่าย และไม่มีรายการซ้ำ |
+| BR-BANK-03 | ไฟล์ที่สร้างแล้วแก้ไม่ได้ สร้างใหม่ต้องระบุเหตุผลและเป็นเวอร์ชันใหม่ |
+
+```yaml
+# tests/golden/wht.yaml
+suite: wht
+status: preview-T2
+cases:
+  - { id: GC-WHT-01, title: ค่าบริการ 10,000 VAT 7% หัก 3%, input: { net: "10000.00", vatRateBp: 700, whtRateBp: 300 }, expect: { vat: "700.00", wht: "300.00", payable: "10400.00" } }
+```
+
+### 7.15 ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
+
+| ID | กฎ |
+| --- | --- |
+| BR-SUP-01 | พิมพ์เลข 13 หลักที่ผ่าน BR-TAXID-01 แล้วระบบค้นสองแหล่ง: บริการ VAT Service ของกรมสรรพากร (ค้นด้วยเลขและสาขา user และ password เป็น `anonymous`) และ Open API ข้อมูลทะเบียนนิติบุคคลของ DBD (ได้สถานะนิติบุคคล ไม่มีเงื่อนไขการเข้าถึง) แล้วเติมชื่อ ที่อยู่ สาขา สถานะ VAT และสถานะนิติบุคคลให้ผู้ใช้ยืนยัน · ค่าที่เติมแก้ได้ แต่ระบบเก็บค่าจากแหล่งไว้ใน `registryData` เพื่อเทียบ |
+| BR-SUP-02 | ผู้ขายบุคคลธรรมดาไม่มีใน DBD ตรวจได้เฉพาะฝั่งสรรพากร · ผู้ขายต่างประเทศข้ามการตรวจ |
+| BR-SUP-03 | บริการล่มหรือหาไม่พบ → ไม่บล็อก PROCUREMENT ยืนยันด้วยมือพร้อมแนบหนังสือรับรองบริษัทหรือ ภ.พ.20 (FileLink kind `REGISTRY_PROOF`) และบันทึก `registrySource = MANUAL` |
+| BR-SUP-04 | job รายเดือนตรวจสถานะซ้ำ ถ้าเปลี่ยนเป็นเลิกกิจการหรือไม่อยู่ในทะเบียน VAT แจ้ง PROCUREMENT และการสร้าง PO ใหม่กับผู้ขายรายนั้นแสดงคำเตือนที่ต้องกรอกเหตุผล ชั้น 3 เปลี่ยนเป็นบล็อกตาม FR-RSK-205 |
+| BR-SUP-05 | adapter มีสองโหมดตาม ADR-025: `stub` คืนข้อมูลจาก fixture สำหรับเลขสังเคราะห์ใน seed และ `live` เรียกบริการจริง · เทสต์ใช้ stub เสมอ และมี contract test กับคำตอบที่บันทึกจากบริการจริง · ต้องตรวจว่าบริการยังเปิดและเรียกจาก hosting ได้ก่อนใช้ `live` (OQ-37) |
+
+### 7.16 รายงานรับของแล้วยังไม่มีใบกำกับ
+
+| ID | กฎ |
+| --- | --- |
+| BR-RPT-01 | ต่อบรรทัด PO ณ วันที่ตัดยอด: มูลค่ารับแล้ว = จำนวนที่ยอมรับจาก GR ที่ POSTED ถึงวันนั้น × ราคาต่อหน่วยก่อน VAT ปัด half-up เป็นสตางค์ · มูลค่าใบกำกับ = ยอดก่อน VAT ที่ปันลงบรรทัดนั้น (BR-IVC-04) ที่บันทึกถึงวันนั้น · รับของแล้วยังไม่มีใบกำกับ = max(มูลค่ารับแล้ว − มูลค่าใบกำกับ, 0) · ใบกำกับมาก่อนของ = max(มูลค่าใบกำกับ − มูลค่ารับแล้ว, 0) แสดงแยกคอลัมน์ · รวมตาม cost center และบรรทัดงบ |
+| BR-RPT-02 | รายงานนี้ไม่ลงบัญชีเอง (NG-1) เป็นข้อมูลให้ฝ่ายบัญชีใช้ตั้งค้างจ่าย |
+
+```yaml
+# tests/golden/grni.yaml
+suite: grni
+cases:
+  - { id: GC-RPT-01, title: รับแล้วยังไม่มีใบกำกับ, input: { lines: [{ costCenter: CC-CON, accepted: "6", unitPrice: "1100.00", invoiced: "0.00" }] }, expect: { lines: [{ grni: "6600.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "6600.00" } } }
+  - { id: GC-RPT-02, title: มีใบกำกับบางส่วน, input: { lines: [{ costCenter: CC-CON, accepted: "10", unitPrice: "1100.00", invoiced: "6600.00" }] }, expect: { lines: [{ grni: "4400.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "4400.00" } } }
+  - { id: GC-RPT-03, title: ใบกำกับมาก่อนของ, input: { lines: [{ costCenter: CC-CON, accepted: "4", unitPrice: "1100.00", invoiced: "6600.00" }] }, expect: { lines: [{ grni: "0.00", invoicedNotReceived: "2200.00" }], byCostCenter: { CC-CON: "0.00" } } }
+  - { id: GC-RPT-04, title: จำนวนทศนิยมปัด half-up, input: { lines: [{ costCenter: CC-IT, accepted: "2.5", unitPrice: "10.01", invoiced: "0.00" }] }, expect: { lines: [{ grni: "25.03", invoicedNotReceived: "0.00" }], byCostCenter: { CC-IT: "25.03" } } }
+  - { id: GC-RPT-05, title: รวมตาม cost center, input: { lines: [{ costCenter: CC-CON, accepted: "6", unitPrice: "1100.00", invoiced: "0.00" }, { costCenter: CC-CON, accepted: "1", unitPrice: "500.00", invoiced: "500.00" }, { costCenter: CC-IT, accepted: "2", unitPrice: "1000.00", invoiced: "500.00" }] }, expect: { lines: [{ grni: "6600.00", invoicedNotReceived: "0.00" }, { grni: "0.00", invoicedNotReceived: "0.00" }, { grni: "1500.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "6600.00", CC-IT: "1500.00" } } }
+```
+
+---
+
+## 8. Functional requirements
+
+รูปแบบ: หัวข้อคือ FR และชื่อ บรรทัดถัดมาคือขั้นที่ทำ ช่องทาง และสิ่งที่อ้างถึง แต่ละ AC เขียนเป็น "เงื่อนไข → ผลที่ต้องได้" และต้องมีเทสต์ที่ชื่อมีแท็ก `[FR-xxx-nnn/ACn]` (§15.7) ชั้น 1 ละเอียดพร้อมสร้าง ชั้น 2–4 เป็นกรอบใน §8.11
+
+### 8.1 แพลตฟอร์ม (PLT)
+
+#### FR-PLT-001 — ตั้งค่า tenant และองค์กร
+ขั้น S1 · Web · §4.8 §6.2
+- AC1 — รัน `pnpm db:seed` → ได้องค์กร DEMO ตามภาคผนวก A และรันซ้ำแล้วข้อมูลไม่ซ้ำ
+- AC2 — บันทึก `Organization.settings` ที่ไม่ผ่าน `OrgSettingsSchema` → `VALIDATION_FAILED` และค่าเดิมไม่เปลี่ยน
+- AC3 — เทสต์ INV-TEN-01 และ INV-TEN-02 ผ่าน โดยนับ model ที่ต้องตรวจจาก DMMF เอง
+
+#### FR-PLT-002 — โครงหน้าจอ เมนู ภาษา และวันที่ไทย
+ขั้น S1 · Web · LIFF · §2.4 §7.2
+- AC1 — เมนูแสดงเฉพาะที่ผู้ใช้มีสิทธิ์ตาม §2.4 และซ่อนเมนูของโมดูลที่ปิด
+- AC2 — สลับไทยและอังกฤษได้ ค่าเริ่มต้นไทย ข้อความทั้งหมดมาจากไฟล์แปล (lint ห้ามข้อความฝังในคอมโพเนนต์)
+- AC3 — วันที่แสดงเป็น พ.ศ. ตามเวลาไทย (GC-DATE-01 ถึง GC-DATE-04) และเงินคั่นหลักพันทศนิยม 2 ตำแหน่ง
+
+#### FR-PLT-003 — Event log และไทม์ไลน์
+ขั้น S1 · ทุกช่องทาง · §4.5
+- AC1 — ทุก command สร้าง Event ในธุรกรรมเดียวกัน (INV-EVT-02) ตรวจในเทสต์ของทุก service
+- AC2 — UPDATE หรือ DELETE ตาราง Event ด้วย role แอป → ฐานข้อมูลปฏิเสธ (INV-EVT-01)
+- AC3 — หน้ารายละเอียดเอกสารแสดงไทม์ไลน์จาก Event ว่าใคร ทำอะไร ช่องทางไหน เมื่อไร และ DOA ฉบับกับข้อ (ถ้าเป็นการอนุมัติ)
+
+#### FR-PLT-004 — อัปโหลดและดาวน์โหลดไฟล์
+ขั้น S1 · Web · LIFF · NFR-SEC-08
+- AC1 — ไฟล์ชนิดที่อนุญาต (pdf jpg png heic xlsx docx) ขนาดไม่เกิน 20 MB → สำเร็จและบันทึก sha256 · ชนิดอื่นหรือใหญ่เกิน → ปฏิเสธพร้อมข้อความไทย
+- AC2 — ดาวน์โหลดผ่าน presigned URL อายุไม่เกิน 5 นาที หลังตรวจสิทธิ์ของเอกสารที่ไฟล์ผูกอยู่ · เข้า bucket ตรงไม่ได้
+- AC3 — รูปจากกล้องมือถือถูกย่อฝั่ง client ก่อนอัปโหลด (ด้านยาวไม่เกิน 2,000 px) และลบ EXIF ที่มีพิกัด
+
+#### FR-PLT-005 — PWA ติดตั้งได้
+ขั้น S1 · PWA · §9.7
+- AC1 — เปิดบนมือถือผ่าน URL จริงแล้วเพิ่มไปยังหน้าจอหลักได้ ชื่อและไอคอน BCS ถูกต้อง เปิดแบบ standalone
+- AC2 — ออฟไลน์ → แสดงหน้าแจ้งออฟไลน์ภาษาไทย ชั้น 1 ไม่ cache ข้อมูลธุรกิจ
+- AC3 — เทสต์ Playwright ตรวจ manifest และ service worker ผ่านใน CI
+
+#### FR-PLT-006 — CI/CD และ environment
+ขั้น S1 · §4.12 §15.5
+- AC1 — ทุก PR รัน `pnpm verify` และ merge ไม่ได้ถ้ามี FAIL
+- AC2 — merge เข้า `main` → deploy staging อัตโนมัติ และ `/api/health` ตอบ 200 พร้อม commit sha
+- AC3 — migration รันใน pipeline ด้วย role migrator เท่านั้น runtime ใช้ role app
+
+#### FR-PLT-007 — ข้อมูลตัวอย่างและการ reset
+ขั้น S1 · ภาคผนวก A
+- AC1 — seed สร้างผู้ใช้ทุกบทบาทที่ใช้ในชั้น 1 พร้อมรหัสผ่านสำหรับ dev และ login ได้
+- AC2 — `pnpm db:reset` เมื่อ `APP_ENV` ไม่ใช่ `local` → ปฏิเสธ
+- AC3 — seed ใช้ DOA ฉบับ 1 และโครงองค์กรเดียวกับ fixture ใน §7.4 (มีเทสต์ยืนยัน)
+
+#### FR-PLT-008 — Health และ observability
+ขั้น S1 · NFR-OBS-01 NFR-SEC-09
+- AC1 — `/api/health` ตรวจฐานข้อมูล storage และ Inngest แล้วคืนสถานะรายตัว
+- AC2 — log เป็น JSON มี requestId และ correlationId และไม่มีข้อมูลต้องห้าม (มีเทสต์ redaction)
+- AC3 — error ที่ไม่คาดคิดส่งไปตัวเก็บ error พร้อม organizationId แต่ไม่มีข้อมูลส่วนบุคคล
+
+#### FR-PLT-009 — เอกสารพิมพ์ PR และ PO พร้อมคำอ่านจำนวนเงิน
+ขั้น S4 · Web · §7.2 OQ-18 OQ-25
+- AC1 — ดาวน์โหลด PDF ของ PR และ PO ได้ มีหัวบริษัท เลขเอกสาร วันที่ พ.ศ. รายการ ยอดก่อน VAT VAT ยอดรวม และคำอ่านจำนวนเงินตรงกับ GC-THAI
+- AC2 — ส่วนการอนุมัติแสดงชื่อ ตำแหน่ง วันเวลา ช่องทาง และ DOA ฉบับกับข้อ ของทุกผู้อนุมัติ
+- AC3 — อักษรไทยไม่แตก สระและวรรณยุกต์ไม่ซ้อน ตรวจด้วย snapshot ภาพ
+
+#### FR-PLT-010 — PDPA พื้นฐาน
+ขั้น S5 · NFR-PRIV-01 ถึง NFR-PRIV-06 · OQ-30
+- AC1 — ORG_ADMIN ตั้งระยะเก็บข้อมูลได้ และ job ลบหรือทำให้ไม่ระบุตัวตนตามนโยบาย (เอกสารบัญชีเก็บตามกฎหมาย)
+- AC2 — การเปิดดูข้อมูลอ่อนไหว (เลขบัญชีเต็ม เลขบัตรประชาชน) บันทึกใน `SensitiveAccessLog`
+- AC3 — ผู้ใช้ส่งออกข้อมูลส่วนบุคคลของตนเป็น JSON ได้ และคำขอลบถูกส่งให้ ORG_ADMIN ดำเนินการตามนโยบาย
+
+#### FR-PLT-011 — โมดูลและการเปิดปิด
+ขั้น S1 · §4.11
+- AC1 — เรียก service ของโมดูลที่ปิดอยู่ → `MODULE_DISABLED`
+- AC2 — เปิดโมดูลที่ dependency ยังปิดอยู่ → ปฏิเสธพร้อมบอก dependency ที่ขาด
+- AC3 — เทสต์ gating วนทุกโมดูลที่มี service โดยนับเอง
+
+#### FR-PLT-012 — Command pipeline, idempotency และ outbox
+ขั้น S1 · §4.3 §4.4
+- AC1 — ส่ง command เดิม (idempotencyKey เดิม) 2 ครั้งพร้อมกัน → ผลเดียวและ Event ชุดเดียว (INV-PLT-01)
+- AC2 — idempotencyKey เดิมแต่ input ต่าง → `IDEMPOTENCY_CONFLICT`
+- AC3 — Inngest ไม่พร้อมตอน commit → outbox ยังอยู่ และถูกส่งภายใน 2 นาทีหลัง Inngest กลับมา
+
+### 8.2 ยืนยันตัวตน (AUTH)
+
+#### FR-AUTH-001 — เข้าระบบด้วยอีเมลและรหัสผ่าน
+ขั้น S1 · Web · LIFF · NFR-SEC-05
+- AC1 — ORG_ADMIN เชิญด้วยอีเมล → ผู้รับตั้งรหัสผ่านผ่านลิงก์ใช้ครั้งเดียวอายุ 72 ชั่วโมง → Member เป็น ACTIVE
+- AC2 — รหัสผ่านยาวอย่างน้อย 12 ตัวอักษร · ลืมรหัสผ่านรีเซ็ตทางอีเมลได้
+- AC3 — ใส่ผิด 5 ครั้งใน 15 นาที → หน่วงหรือล็อกชั่วคราว และบันทึก event ความปลอดภัย
+
+#### FR-AUTH-002 — ยืนยันตัวตนสองชั้น (TOTP)
+ขั้น S1 · Web · NFR-SEC-03
+- AC1 — ผู้ที่มี role นอกจาก REQUESTER หรือดำรงตำแหน่งที่ DOA อ้างถึง ต้องตั้ง TOTP ก่อนใช้งาน
+- AC2 — มีรหัสสำรองใช้ครั้งเดียว 10 รหัส
+- AC3 — ORG_ADMIN รีเซ็ต 2FA ของผู้อื่นได้พร้อมเหตุผลและ event ยกเว้นผู้ดำรงตำแหน่งที่ DOA อ้างหรือมีงานอนุมัติค้าง ซึ่งต้องผ่าน `IDENTITY_RESET` (BR-AUTH-07)
+
+#### FR-AUTH-003 — Session และการเพิกถอน
+ขั้น S1 · ทุกช่องทาง · BR-AUTH-06 NFR-SEC-04
+- AC1 — เว็บ idle 30 นาที อายุสูงสุด 12 ชั่วโมง · LIFF idle 15 นาที
+- AC2 — ปิดใช้งาน member → session, LINE link, ActionToken และ delegation ถูกเพิกถอนในธุรกรรมเดียว และงานค้างแจ้ง ORG_ADMIN
+- AC3 — ผู้ใช้ดูอุปกรณ์ที่ login อยู่และออกจากระบบรายอุปกรณ์ได้
+
+#### FR-AUTH-004 — SSO ด้วย Google Workspace และ Microsoft 365
+ขั้น S5 · Web
+- AC1 — login ด้วย SSO ได้เฉพาะอีเมลที่ตรงกับ Member ที่ ACTIVE ขององค์กร ไม่สร้างผู้ใช้ใหม่เอง
+- AC2 — ORG_ADMIN จำกัดโดเมนอีเมลที่อนุญาต และบังคับใช้ SSO แทนรหัสผ่านได้
+- AC3 — ค่าเริ่มต้นยังต้องใช้ TOTP ของ BCS เว้นแต่ตั้ง `sso.trustIdpMfa = true` พร้อมเหตุผล
+
+#### FR-AUTH-005 — PIN ยืนยันธุรกรรม (step-up)
+ขั้น S5 · LIFF · Web · BR-TOK-05 OQ-07
+- AC1 — ผู้ใช้ตั้ง PIN 6 หลัก เก็บด้วย argon2id และห้าม PIN ที่เดาง่าย (เช่น 123456 000000)
+- AC2 — ตัดสินงานที่ยอดตามฐาน DOA ≥ `stepUpThreshold` ต้องยืนยันด้วย PIN (หรือ passkey ถ้าอุปกรณ์รองรับ) และงาน `DOA_CHANGE` `ORG_AUTHORITY_CHANGE` ทุกงาน (BR-DOA-15) ไม่ยืนยัน → `STEP_UP_REQUIRED`
+- AC3 — ผิด 5 ครั้ง → ล็อก 15 นาที (`STEP_UP_LOCKED`) แจ้งผู้ใช้ทางอีเมลและบันทึก event
+
+### 8.3 ผู้ดูแลองค์กร (ADM)
+
+#### FR-ADM-001 — จัดการสมาชิกและบทบาท
+ขั้น S1 · Web · §2.2
+- AC1 — ORG_ADMIN เชิญ ปิดใช้งาน มอบและถอน role ได้ ทุกการเปลี่ยนมี event
+- AC2 — ผู้ดูแลมอบ role ให้ตัวเองไม่ได้
+- AC3 — นำเข้าผู้ใช้จาก Excel ตามแม่แบบ พร้อมรายงานแถวที่ผิดทีละแถวโดยไม่บันทึกบางส่วน
+
+#### FR-ADM-002 — ผังองค์กร ตำแหน่ง และ cost center
+ขั้น S2 · Web · §6.2 BR-DOA-17
+- AC1 — สร้างแผนก แก้ชื่อ และจัดการ cost center ได้ทันที (`admin.orgStructure.editBasic`) ระบบกันการวนรอบ · การย้าย parent ของแผนกต้องเสนอผ่าน `ORG_AUTHORITY_CHANGE`
+- AC2 — ตำแหน่งที่ DOA ไม่อ้างกำหนดผู้ดำรงได้ทันที · ตำแหน่งที่ DOA ฉบับที่มีผลหรือรอมีผลอ้าง (เช่น DM VP COO CEO) ต้องเสนอผ่าน `ORG_AUTHORITY_CHANGE` · ตำแหน่งเดียวกันในแผนกเดียวกันมีผู้ดำรงปัจจุบันได้คนเดียว
+- AC3 — เมื่อการเปลี่ยนผู้ดำรงตำแหน่งมีผล งานค้างของตำแหน่งนั้นย้ายไปผู้ดำรงคนใหม่อัตโนมัติ ถ้าตำแหน่งว่างแจ้ง ORG_ADMIN
+
+#### FR-ADM-003 — ปฏิทินทำการและวันหยุด
+ขั้น S2 · Web · BR-SLA-01
+- AC1 — ตั้งวันทำงานและเวลาทำการได้ ค่าเริ่มต้นตาม A-07
+- AC2 — นำเข้าวันหยุดประจำปีจาก Excel ได้
+- AC3 — ปฏิทินที่เปลี่ยนมีผลกับงานที่มอบใหม่ งานเดิมคง dueAt เดิม
+
+#### FR-ADM-004 — รูปแบบเลขเอกสาร
+ขั้น S2 · Web · BR-NUM-02
+- AC1 — ตั้ง pattern ได้พร้อมแสดงตัวอย่างเลขถัดไปก่อนบันทึก
+- AC2 — pattern ที่ไม่มี `{SEQn}` หรือมี token ที่ไม่รู้จัก → `VALIDATION_FAILED`
+- AC3 — เปลี่ยน pattern กลางปี → เลขใหม่ใช้ scope ใหม่ ไม่ชนเลขเดิม (INV-NUM-01)
+
+#### FR-ADM-005 — ประเภทคำขอและฟอร์ม
+ขั้น S2 · Web · §7.9
+- AC1 — ชั้น 1 แก้ฟอร์มด้วยการนำเข้า JSON ที่ตรวจด้วย schema แล้วเผยแพร่เป็นเวอร์ชันใหม่ (ตัวสร้างแบบ no-code อยู่ FR-INT-104)
+- AC2 — เปิดปิดและเรียงลำดับประเภทคำขอในแคตตาล็อกได้
+- AC3 — คำขอเดิมยังแสดงด้วย FormVersion เดิม
+
+#### FR-ADM-006 — ตั้งค่าโมดูลและช่องทาง
+ขั้น S1 (โมดูล) · S5 (LINE) · Web · §4.11
+- AC1 — PLATFORM_ADMIN เปิดปิดโมดูลที่ `/platform/tenants/[orgId]/modules` พร้อม `contractRef` และเหตุผลตามกติกา §4.11 (ปิดขณะมีโมดูลที่พึ่งพาหรือเอกสารค้าง → ปฏิเสธ) · ORG_ADMIN เห็นสถานะที่ `/admin/modules` และได้แจ้งทันทีทุกครั้ง
+- AC2 — ORG_ADMIN ใส่ค่า LINE channel ได้ secret ถูกเข้ารหัสและแสดงแบบ mask หลังบันทึก
+- AC3 — ปุ่มทดสอบการเชื่อมต่อตรวจ token และ webhook แล้วรายงานผล PASS/FAIL ทีละข้อ
+
+#### FR-ADM-007 — รายงานการใช้งานสำหรับคิดราคา (SHOULD)
+ขั้น S5 · Web · ADR-009
+- AC1 — นับผู้ใช้หลัก (PROCUREMENT FINANCE BUDGET_ADMIN ORG_ADMIN) แยกจากผู้ใช้ผ่าน LINE รายเดือน
+- AC2 — แสดงจำนวนข้อความ push ของ LINE รายเดือน (ชั้น 4 เพิ่ม AI credits)
+- AC3 — PLATFORM_ADMIN ส่งออกรายงานของทุก tenant ได้
+
+### 8.4 DOA และการอนุมัติ (DOA)
+
+#### FR-DOA-001 — จัดการ DOA แบบมีเวอร์ชัน
+ขั้น S2 (นำเข้า ส่งออก และประวัติ) · S3 (หน้าจอแก้แบบตาราง) · Web · §7.4
+- AC1 — หน้าจอแก้แบบตารางต่อ documentType: ช่วงวงเงิน ตำแหน่งผู้อนุมัติจาก dropdown SLA และนโยบายของฉบับ (ฐานวงเงิน เกณฑ์ step-up `sodPolicy`) · ฉบับร่างเริ่มจากการคัดลอกฉบับล่าสุด
+- AC2 — นำเข้าและส่งออก YAML รูปแบบเดียวกับ fixture ใน §7.4 ได้ และนำเข้าแล้วส่งออกกลับได้ข้อมูลชุดเดียวกัน (round-trip test)
+- AC3 — ฉบับที่เผยแพร่แล้วแก้ไม่ได้ ดูย้อนหลังได้ทุกฉบับพร้อมช่วงเวลามีผล เหตุผลการเปลี่ยน และ diff กับฉบับก่อนหน้า
+
+#### FR-DOA-002 — ส่งเผยแพร่ DOA ผ่าน lint, test case และ 4-eyes
+ขั้น S2 · Web · LIFF (อนุมัติ) · BR-DOA-08 BR-DOA-12 BR-DOA-15 BR-DOA-19 BR-SOD-06
+- AC1 — ผล lint ตรงกับ GC-DOA-20 ถึง GC-DOA-26 · มี error → `DOA_LINT_FAILED` พร้อมรหัสและช่วงที่ผิด · warning ต้องติ๊กยืนยันทีละข้อก่อนส่ง
+- AC2 — ฉบับที่ผ่านถูกส่งให้ผู้อนุมัติตามข้อ `DOA_CHANGE` ของฉบับที่มีผลอยู่ ผู้ส่งอนุมัติเองไม่ได้ (GC-SOD-04) และผู้อนุมัติต้อง step-up ทุกครั้ง (BR-DOA-15)
+- AC3 — ชุดตั้งต้นขององค์กร (ผู้ดำรงตำแหน่งที่ DOA อ้าง + ฉบับแรก) อนุมัติโดยผู้มีอำนาจลงนามตามสัญญาตาม BR-DOA-19 (OQ-31) PLATFORM_ADMIN ไม่เห็นเนื้อหา
+- AC4 — วันมีผลไม่ย้อนหลัง (BR-DOA-12) และฉบับก่อนหน้าเป็น SUPERSEDED เมื่อฉบับใหม่มีผล
+
+#### FR-DOA-003 — คำนวณเส้นทางอนุมัติ
+ขั้น S2 · ระบบ · BR-DOA-01 ถึง BR-DOA-11
+- AC1 — ผลของ engine ตรงกับ GC-DOA-01 ถึง GC-DOA-19 และ GC-DOA-27 ทุกเคส
+- AC2 — ผู้ขอเห็นเส้นทางที่คาดไว้พร้อมคำอธิบายภาษาไทยก่อนกดส่ง และเห็นเส้นทางจริงหลังส่ง
+- AC3 — `DOA_NOT_CONFIGURED` `APPROVER_NOT_FOUND` `NO_HIGHER_AUTHORITY` แสดงข้อความไทยที่บอกว่าต้องติดต่อใคร และแจ้ง ORG_ADMIN
+
+#### FR-DOA-004 — ตัดสินงานอนุมัติ
+ขั้น S2 · Web (S5 เพิ่ม LINE และ LIFF) · §6.4
+- AC1 — ผู้รับงานเลือก อนุมัติ · ตีกลับ · ไม่อนุมัติ · ขอข้อมูลเพิ่ม ได้ ตีกลับและไม่อนุมัติต้องมีเหตุผล
+- AC2 — ตอนตัดสินตรวจสิทธิ์และ SoD ซ้ำ (GC-SOD-01 GC-SOD-03) และตรวจว่างานยัง OPEN กดซ้ำ → `INVALID_STATE_TRANSITION` พร้อมข้อความ "ดำเนินการแล้วโดย … เมื่อ …"
+- AC3 — ขั้นสุดท้ายอนุมัติ → เอกสารเปลี่ยนสถานะตาม §6.4 และผู้ขอได้แจ้งภายใน 1 นาที
+
+#### FR-DOA-005 — อ้างอิง DOA ทุกการตัดสิน
+ขั้น S2 · ทุกช่องทาง · INV-DOA-01
+- AC1 — event `approval_task.decided` ทุกตัวมี doaVersionId doaRuleCode channel ผู้กระทำ และ onBehalfOf (ถ้ามี)
+- AC2 — หน้ารายละเอียดแสดง "อนุมัติภายใต้ DOA-DEMO ฉบับ 1 ข้อ PR-02" พร้อมลิงก์ไปฉบับนั้น
+- AC3 — การส่งออก audit มีฟิลด์เหล่านี้ครบ (FR-VIS-004)
+
+#### FR-DOA-006 — รักษาการ
+ขั้น S2 (มอบงานใหม่ให้ผู้รักษาการ) · S5 (ย้ายงานค้างตามเวลา) · Web · LIFF · BR-DLG-01 ถึง BR-DLG-05
+- AC1 — ผลตรงกับ GC-DLG-01 ถึง GC-DLG-06
+- AC2 — ผู้มอบตั้งเองได้ทั้งบนเว็บและ LIFF · ORG_ADMIN ตั้งแทนผู้อื่นได้ผ่าน `ORG_AUTHORITY_CHANGE` ชนิด `DELEGATION_ON_BEHALF` เท่านั้น (GC-SOD-08)
+- AC3 — เริ่มและจบช่วง → งานค้างย้ายอัตโนมัติ และทั้งสองฝ่ายได้แจ้ง
+
+#### FR-DOA-007 — แบ่งแยกหน้าที่ (SoD)
+ขั้น S2 · ระบบ · BR-SOD-01 ถึง BR-SOD-07
+- AC1 — ผลตรงกับ GC-SOD-01 ถึง GC-SOD-09
+- AC2 — การละเมิดทุกครั้งถูกบล็อกและบันทึก event `security.sod_blocked` พร้อมรหัสกฎ
+- AC3 — การผ่อนกฎ (`sodPolicy` เช่น `approverMayReceive`) ทำได้ผ่าน DOA ฉบับใหม่เท่านั้น จึงผ่าน 4-eyes และอยู่ในรายงานประวัติ (FR-DOA-011)
+
+#### FR-DOA-008 — ทะเบียนเลขเอกสาร
+ขั้น S2 · ระบบ · BR-NUM-01 ถึง BR-NUM-03
+- AC1 — ผลตรงกับ GC-NUM-01 ถึง GC-NUM-04
+- AC2 — ออกเลข 50 ใบพร้อมกันได้ 1 ถึง 50 ครบไม่ซ้ำ (INV-NUM-01)
+- AC3 — เลขของเอกสารที่ยกเลิกไม่ถูกนำกลับมาใช้
+
+#### FR-DOA-009 — ทดลองส่ง diff และตารางผลที่ขอบ
+ขั้น S3 · Web · BR-DOA-08 BR-DOA-14
+- AC1 — ก่อนส่งเผยแพร่แสดง diff เทียบฉบับที่มีผล: ช่วงวงเงินที่เปลี่ยน ตำแหน่งที่ได้หรือเสียอำนาจ และนโยบายที่เปลี่ยน
+- AC2 — หน้าทดลองส่ง: ใส่ประเภทเอกสาร ยอด แผนก และผู้ขอ แล้วเห็นเส้นทางและคำอธิบายของทั้งฉบับที่มีผลและฉบับร่าง โดยใช้ engine ตัวเดียวกับของจริง
+- AC3 — ตารางผลที่ขอบตรงกับ GC-DOA-22 และผู้ร่างกับผู้อนุมัติต้องติ๊กยืนยันก่อนส่งและก่อนอนุมัติ
+
+#### FR-DOA-010 — เสนอและอนุมัติการเปลี่ยนโครงสร้างอำนาจ
+ขั้น S2 · Web · LIFF (อนุมัติ) · BR-DOA-15 BR-DOA-17 BR-SOD-08 BR-AUTH-07
+- AC1 — ORG_ADMIN เสนอได้ 5 ชนิด: แต่งตั้งและสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น และรีเซ็ตตัวตนของผู้มีอำนาจ พร้อมวันมีผลที่ไม่ย้อนหลังและเหตุผล · ก่อนส่งระบบแสดงผลกระทบ (ผู้ที่ได้หรือเสียอำนาจ และจำนวนงานค้างที่จะย้าย)
+- AC2 — เส้นทางอนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` (GC-DOA-27) ผู้อนุมัติต้อง step-up และผล SoD ตรงกับ GC-SOD-06 ถึง GC-SOD-09
+- AC3 — การเปลี่ยนที่ทำให้ผู้อนุมัติของข้อ `DOA_CHANGE` หรือ `ORG_AUTHORITY_CHANGE` หาไม่ได้ → ปฏิเสธ เว้นแต่แต่งตั้งผู้แทนในคำขอเดียวกัน
+- AC4 — เมื่อมีผล ระบบใช้การเปลี่ยน ย้ายงานค้าง และแจ้งผู้เกี่ยวข้อง (BR-DOA-16 BR-DOA-17) โดยไม่ต้อง deploy (EG-8)
+
+#### FR-DOA-011 — ประวัติการเปลี่ยนนโยบายสำหรับผู้ตรวจสอบ
+ขั้น S4 · Web · §4.5
+- AC1 — AUDITOR และ ORG_ADMIN เห็นประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบของฟอร์ม พร้อมผู้เสนอ ผู้อนุมัติ วันมีผล และ diff
+- AC2 — ส่งออก Excel หรือ CSV พร้อม checksum และการส่งออกเป็น event `audit.exported`
+- AC3 — การเผยแพร่ FormVersion ที่เปลี่ยนกฎเอกสารแนบแจ้ง AUDITOR ทันที
+
+### 8.5 ประตูหน้าและคำขอ (INT)
+
+#### FR-INT-001 — แคตตาล็อกประเภทคำขอ
+ขั้น S2 · Web · LIFF
+- AC1 — หน้าเริ่มคำขอแสดงการ์ด 4–6 ประเภทที่เปิดใช้ (seed 5 ประเภท) พร้อมคำอธิบายว่าใช้เมื่อไร
+- AC2 — ช่องค้นหาช่วยเลือกประเภทด้วยคำสำคัญ (ไม่มี AI ในชั้น 1)
+- AC3 — เริ่มคำขอจาก rich menu ของ LINE ได้ (FR-LINE-004)
+
+#### FR-INT-002 — ฟอร์มไดนามิก
+ขั้น S2 · Web · LIFF · §7.9
+- AC1 — ฟิลด์แสดงหรือซ่อนตามเงื่อนไขทันทีบน client และ server ตรวจซ้ำ (BR-FORM-01)
+- AC2 — ผลตรงกับ GC-FORM-01 ถึง GC-FORM-08
+- AC3 — ฟอร์มใช้งานได้บนจอกว้าง 360 px โดยไม่ต้องเลื่อนแนวนอน
+
+#### FR-INT-003 — เติมข้อมูลจากบริบท
+ขั้น S2 · Web · LIFF · BR-FORM-02
+- AC1 — เปิดฟอร์มใหม่ → แผนก cost center บรรทัดงบ และสถานที่ส่งถูกเติมตาม BR-FORM-02 และผู้ขอแก้ได้
+- AC2 — บรรทัดงบให้เลือกเฉพาะที่ผู้ขอมีสิทธิ์ (ของแผนกตนหรือได้ grant)
+- AC3 — คำขอซื้อของทั่วไปมีฟิลด์ที่ผู้ขอต้องกรอกเองไม่เกิน 6 ฟิลด์ (วัดใน e2e)
+
+#### FR-INT-004 — แสดงงบคงเหลือก่อนส่ง
+ขั้น S3 · Web · LIFF · BR-BUD-02
+- AC1 — ฟอร์มแสดงยอดคงเหลือของบรรทัดงบที่เลือกและผล "พอ" หรือ "ไม่พอ" ตามยอดก่อน VAT แบบทันที
+- AC2 — งบไม่พอ → ปุ่มส่งแสดงเหตุผลและยอดที่ขาด และส่งไม่ได้
+- AC3 — ตอนส่งตรวจซ้ำภายใต้ล็อก เพราะงบอาจเปลี่ยนระหว่างกรอก
+
+#### FR-INT-005 — กฎเอกสารแนบ
+ขั้น S2 · Web · LIFF · BR-FORM-03 BR-FORM-04 BR-FORM-05 BR-FORM-06
+- AC1 — ก่อนส่งแสดงรายการเอกสารที่ต้องแนบตามยอดปัจจุบัน
+- AC2 — ส่งโดยแนบไม่ครบ → `ATTACHMENT_RULE_FAILED` พร้อมรหัสกฎ
+- AC3 — แนบรูปจากกล้องมือถือใน LIFF ได้
+- AC4 — ใบเสนอราคากรอกเป็นข้อมูล (ผู้ขาย ยอด ธงรวม VAT ไฟล์) ผลการเทียบตรงกับ GC-FORM-09 ถึง GC-FORM-11
+- AC5 — คำขอซื้อไอทีและจ้างบริการแสดงคำถามคัดกรอง 3 ข้อ ตอบว่าผู้ขายประมวลผลข้อมูลส่วนบุคคล → ต้องแนบ DPA (BR-FORM-05)
+
+#### FR-INT-006 — บันทึกร่างและทำต่อข้ามอุปกรณ์
+ขั้น S2 · ทุกช่องทาง
+- AC1 — ร่างถูกบันทึกอัตโนมัติหลังหยุดแก้ 10 วินาทีและเมื่อออกจากหน้า
+- AC2 — เปิดร่างเดียวกันบนอีกอุปกรณ์ได้ แก้พร้อมกัน 2 ที่ → อีกฝั่งได้ `CONFLICT_VERSION` พร้อมให้โหลดใหม่
+- AC3 — ร่างที่ไม่ได้แก้ 90 วันได้รับแจ้งก่อนถูกลบ
+
+#### FR-INT-007 — ส่งคำขอ
+ขั้น S2 (เส้นทาง DOA) · S3 (งบ) · ทุกช่องทาง · §6.4
+- AC1 — การส่งเป็นธุรกรรมเดียว: ตรวจฟอร์ม → คำนวณยอดด้วย core → ตรวจและจองงบ → คำนวณเส้นทาง → ออกเลข → สร้างงานแรก → event ถ้าขั้นใดล้มจะไม่มีอะไรเกิดขึ้นเลย
+- AC2 — ไม่มีคำขอเกินงบใดไปถึงผู้อนุมัติ (G-4) ตรวจด้วยเทสต์และ KPI
+- AC3 — คำขอผู้ขายรายใหม่เข้าคิวจัดซื้อโดยไม่ผ่าน DOA (OQ-23)
+
+#### FR-INT-008 — ติดตามสถานะแบบพัสดุ
+ขั้น S2 · Web · LIFF
+- AC1 — ไทม์ไลน์แสดงขั้นปัจจุบัน รอใคร (ชื่อและตำแหน่ง) ค้างมากี่ชั่วโมงทำการ และขั้นที่เหลือ
+- AC2 — ผู้ขอและผู้ติดตามเห็นสถานะเดียวกันทุกช่องทาง
+- AC3 — หน้า "คำขอของฉัน" กรองตามสถานะและค้นด้วยเลขเอกสารได้
+
+#### FR-INT-009 — ยกเลิก ส่งซ้ำ ขอข้อมูลเพิ่ม และความเห็น
+ขั้น S2 · ทุกช่องทาง · §6.4
+- AC1 — ผู้ขอยกเลิกได้ตาม §6.4 และงบคืนทันที
+- AC2 — คำขอที่ถูกตีกลับแก้แล้วส่งซ้ำได้ เส้นทางคำนวณใหม่ (BR-DOA-09) และการจองงบปรับตามส่วนต่าง
+- AC3 — ผู้อนุมัติขอข้อมูลเพิ่ม → ผู้ขอได้แจ้ง ตอบแล้วงานกลับไปผู้อนุมัติคนเดิม และ SLA นับต่อจากเวลาที่เหลือ (GC-SLA-06)
+
+### 8.6 งบประมาณ (BUD)
+
+#### FR-BUD-001 — ปีงบและนำเข้างบ
+ขั้น S3 · Web
+- AC1 — BUDGET_ADMIN นำเข้างบจาก Excel ตามแม่แบบ (ปีงบ แผนก cost center รหัส ชื่อ ยอด) ถ้ามีแถวผิดจะไม่บันทึกเลย และรายงานทีละแถว
+- AC2 — แต่ละแถวสร้าง ledger OUTSIDE → AVAILABLE และ event
+- AC3 — นำเข้าไฟล์เดิมซ้ำ → ตรวจพบด้วย checksum และต้องยืนยันก่อนเพิ่มยอด
+
+#### FR-BUD-002 — Engine ledger
+ขั้น S3 · ระบบ · §7.7
+- AC1 — ผลตรงกับ GC-BUD-01 ถึง GC-BUD-07
+- AC2 — property test ของ INV-BUD-01 ถึง INV-BUD-03 ผ่านอย่างน้อย 1,000 ลำดับสุ่ม
+- AC3 — concurrency test ของ INV-BUD-05 ผ่านกับ Postgres จริง
+
+#### FR-BUD-003 — บล็อกคำขอเกินงบ
+ขั้น S3 · ระบบ · BR-BUD-02
+- AC1 — คำขอเกินงบส่งไม่ได้ ข้อความบอกยอดคงเหลือและยอดที่ขาด
+- AC2 — ไม่มีทางใด (เว็บ LIFF API) ข้ามการตรวจนี้ได้ ตรวจด้วยเทสต์ที่เรียก service ตรง
+- AC3 — event `request.submitted` บันทึกผลตรวจงบ (`budgetCheck`) สำหรับ KPI ของ G-4
+
+#### FR-BUD-004 — สิทธิ์ใช้งบข้ามฝ่าย
+ขั้น S3 · Web · BR-BUD-04
+- AC1 — BUDGET_ADMIN ให้ grant ต่อแผนกหรือรายบุคคลพร้อมวันเริ่มและสิ้นสุด
+- AC2 — ผู้ขอที่ไม่มี grant เลือกบรรทัดงบของแผนกอื่นไม่ได้ ทั้ง UI และ service
+- AC3 — คำขอที่ใช้งบข้ามฝ่ายหาผู้อนุมัติจากแผนกเจ้าของงบ (BR-DOA-05)
+
+#### FR-BUD-005 — Dashboard งบ
+ขั้น S3 · Web · §11.2
+- AC1 — แสดงงบตั้งต้น available reserved committed actual ต่อบรรทัดงบ แผนก และทั้งองค์กร ตรงกับ ledger ทุกสตางค์
+- AC2 — คลิกยอดใดเห็นเอกสารที่ประกอบเป็นยอดนั้น (drill-down จาก `BudgetAllocation`)
+- AC3 — ข้อมูลช้ากว่าจริงไม่เกิน 60 วินาที
+
+### 8.7 จัดซื้อถึงตรวจรับ (P2P)
+
+#### FR-P2P-001 — กองคำขอรอจัดซื้อ
+ขั้น S4 · Web
+- AC1 — PROCUREMENT เห็นบรรทัดคำขอที่อนุมัติแล้วแต่ยังไม่ถูกสั่ง กรองตามผู้ขาย สถานที่ส่ง ความด่วน และอายุได้
+- AC2 — เลือกผู้ขายให้หลายบรรทัดพร้อมกันได้
+- AC3 — บรรทัดที่ยังไม่มีผู้ขายมีป้าย "ต้องเลือกผู้ขาย" (BR-CONS-03)
+
+#### FR-P2P-002 — รอบรวม PR อัตโนมัติ
+ขั้น S4 · ระบบ · §7.10
+- AC1 — ผลตรงกับ GC-CONS-01 ถึง GC-CONS-05
+- AC2 — รอบรวมรันตาม cron ขององค์กรและบันทึก `ConsolidationRun`
+- AC3 — PROCUREMENT กด "รวมตอนนี้" ได้
+
+#### FR-P2P-003 — ร่าง PO พร้อมประวัติราคา
+ขั้น S4 · Web
+- AC1 — ร่าง PO แสดงราคาต่อหน่วย 3 ครั้งล่าสุดของรายการเดียวกัน (หมวดและคำอธิบายหลัง normalize จาก PO ที่อนุมัติแล้ว) และเตือนเมื่อราคาใหม่สูงกว่าเกิน `settings.priceAlertPct` (ค่าเริ่มต้น 10%)
+- AC2 — แก้ราคา จำนวน (ไม่เกินจำนวนคงเหลือของคำขอ) เงื่อนไข และหมายเหตุถึงผู้ขายได้
+- AC3 — ยอดรวมและ VAT คำนวณด้วย core (GC-MONEY) ไม่รับจาก client
+
+#### FR-P2P-004 — อนุมัติ PO ตาม DOA และถืองบ
+ขั้น S4 · ทุกช่องทาง · BR-BUD-05
+- AC1 — ส่ง PO → เส้นทางตาม DOA ประเภท `PURCHASE_ORDER` (GC-DOA-05 GC-DOA-06 GC-DOA-14)
+- AC2 — การจอง คืน และถือเป็นไปตาม GC-BUD-01 ถึง GC-BUD-04
+- AC3 — สร้าง PO ที่ไม่มีคำขอต้นทางไม่ได้ (OQ-24)
+
+#### FR-P2P-005 — ส่ง PO ให้ผู้ขายทางอีเมล
+ขั้น S4 · ระบบ · OQ-22
+- AC1 — กด "ส่ง" บน PO ที่อนุมัติแล้ว → อีเมลถึงผู้ขายพร้อม PDF (FR-PLT-009) และบันทึก `sentAt` `sentToEmail`
+- AC2 — อีเมลตีกลับ → สถานะคงเป็น APPROVED และแจ้ง PROCUREMENT
+- AC3 — ส่งซ้ำได้พร้อมเหตุผล และมี event ทุกครั้ง
+
+#### FR-P2P-006 — ตรวจรับ (GR)
+ขั้น S4 · Web · LIFF · BR-GR-01 BR-GR-05
+- AC1 — ผู้ตรวจรับบันทึกจำนวนรับต่อบรรทัด เลขใบส่งของ และรูปถ่ายบนมือถือได้
+- AC2 — รับบางส่วนได้ และสถานะ PO เปลี่ยนตาม §6.4 (GC-GR-01)
+- AC3 — ผู้ที่ขัด SoD บันทึกไม่ได้ (GC-SOD-02) ผู้ขอบันทึกได้เมื่อ settings อนุญาต (GC-SOD-05)
+
+#### FR-P2P-007 — Variance และการอนุมัติ
+ขั้น S4 · Web · LIFF · BR-GR-02 ถึง BR-GR-04
+- AC1 — ผลตรงกับ GC-GR-02 ถึง GC-GR-05
+- AC2 — variance ที่ต้องอนุมัติเดินตาม DOA ข้อ `GR_VARIANCE` (GC-DOA-18)
+- AC3 — ผลต่องบเมื่ออนุมัติ (ถือเพิ่มหรือคืนถือ) บันทึกเป็น ledger
+
+#### FR-P2P-008 — ยืนยันใบกำกับแบบง่าย
+ขั้น S4 · Web · §7.12
+- AC1 — ผลตรงกับ GC-IVC-01 ถึง GC-IVC-05
+- AC2 — ยืนยันแล้วงบย้ายจาก committed เป็น actual ต่อบรรทัดงบ
+- AC3 — ใบสุดท้ายทำให้ PO ปิดได้และคืนถือที่เหลือ (GC-BUD-05)
+- AC4 — อัปโหลดไฟล์ e-Tax (PDF/A-3 ที่ฝัง XML หรือไฟล์ XML) → ระบบเติมเลขที่ วันที่ ยอดก่อน VAT VAT และยอดรวมให้คนยืนยันก่อนบันทึก ไฟล์ที่อ่านไม่ได้หรือผู้ขายไม่ตรง → แจ้งเหตุผลและให้กรอกเอง (BR-IVC-05)
+
+#### FR-P2P-009 — ส่งออกไฟล์ให้ Express
+ขั้น S4 · Web · §7.13
+- AC1 — FINANCE ส่งออกใบกำกับที่ยังไม่เคยส่งออกเป็นไฟล์ตาม mapping ขององค์กร
+- AC2 — ไฟล์แสดงจำนวนแถว ยอดรวม และ checksum และถูกเก็บใน `ExportJob`
+- AC3 — ไฟล์ตัวอย่างนำเข้า Express ของลูกค้าได้จริง ทดสอบร่วมกับฝ่ายบัญชีของลูกค้าก่อนจบ S4
+- AC4 — mapping ที่มีคอลัมน์รหัสเจ้าหนี้ → ใบกำกับของผู้ขายที่ยังไม่มีรหัสถูกกันออกพร้อมรายการให้เติมรหัส (BR-EXP-04)
+
+#### FR-P2P-010 — ยกเลิกและปิด PO
+ขั้น S4 · Web · BR-BUD-06
+- AC1 — ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition และเหตุผล ผลต่องบตรง GC-BUD-04
+- AC2 — ปิด PO ที่รับไม่ครบต้องมี variance SHORT ที่อนุมัติแล้ว (GC-GR-04)
+- AC3 — ปิด PO คืนถือที่เหลือทั้งหมด และคำขอที่เกี่ยวข้องเป็น COMPLETED เมื่อ PO ปิดครบ
+- AC4 — PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` วัน (OQ-36) → แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO หรือยืนยันว่ายังรออยู่ ปิดแล้วคืนยอดถือตาม BR-BUD-06
+
+#### FR-SUP-001 — ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
+ขั้น S4 · Web · §7.15
+- AC1 — พิมพ์เลขผู้เสียภาษี 13 หลัก → ระบบเติมชื่อ ที่อยู่ สาขา สถานะ VAT และสถานะนิติบุคคลให้ยืนยันก่อนบันทึก (BR-SUP-01)
+- AC2 — บริการล่มหรือหาไม่พบ → บันทึกได้ด้วยการยืนยันมือพร้อมแนบหลักฐาน (BR-SUP-03) · ผู้ขายบุคคลธรรมดาตรวจเฉพาะสรรพากร (BR-SUP-02)
+- AC3 — โหมด `stub` ใช้ในเครื่อง เทสต์ และ demo และเทสต์ทุกตัวไม่เรียกบริการจริง (BR-SUP-05)
+- AC4 — job รายเดือนตรวจสถานะซ้ำ และการสร้าง PO กับผู้ขายที่สถานะผิดปกติต้องกรอกเหตุผล (BR-SUP-04)
+
+### 8.8 การมองเห็นและรายงาน (VIS)
+
+#### FR-VIS-001 — กระดาน "เอกสารค้างที่ใคร"
+ขั้น S4 · Web · §11.1
+- AC1 — แสดงงานค้างรายคน จำนวน อายุเป็นชั่วโมงทำการ และจำนวนที่เกิน SLA ตาม scope สิทธิ์
+- AC2 — คลิกชื่อเห็นรายการเอกสาร และส่งเตือนด้วยมือได้ไม่เกิน 1 ครั้งต่อเอกสารต่อชั่วโมง
+- AC3 — ตัวเลขตรงกับข้อมูล `ApprovalTask` (เทสต์ query กับ seed)
+
+#### FR-VIS-002 — รายงาน 7 ฉบับ
+ขั้น S4 · Web · §11.3 OQ-09
+- AC1 — มี framework รายงาน: SQL view ตัวกรอง ส่งออก Excel และตั้งส่งอีเมลตามรอบ พร้อมเทสต์ตัวเลขด้วย seed
+- AC2 — R-01 ถึง R-07 สร้างตามรายการใน proposal v1.2 เมื่อ OQ-09 ปิด ห้ามเดาชื่อหรือเนื้อหา
+- AC3 — รายงานทุกฉบับเคารพ scope สิทธิ์ของผู้เรียก
+
+#### FR-VIS-003 — KPI ตั้งแต่วันแรก
+ขั้น S4 (view) · S5 (หน้าจอ) · Web · §11.4
+- AC1 — view ของ G-1 ถึง G-5 คำนวณจาก Event ได้ และมีเทสต์ด้วยข้อมูลสังเคราะห์ที่รู้คำตอบ
+- AC2 — หน้า KPI ของ EXECUTIVE แสดงค่าปัจจุบันเทียบ baseline ที่บันทึกใน Phase 0
+- AC3 — ส่งออก CSV สำหรับรอบรีวิว 60 วันได้
+
+#### FR-VIS-004 — Audit trail และการส่งออก
+ขั้น S4 · Web · §4.5
+- AC1 — AUDITOR ค้น event ตามเอกสาร ผู้กระทำ ช่วงเวลา ประเภท และช่องทางได้
+- AC2 — ส่งออก Excel หรือ CSV พร้อม doaVersionId ruleCode channel onBehalfOf และ checksum ของไฟล์
+- AC3 — การส่งออกถูกบันทึกเป็น event `audit.exported`
+
+#### FR-VIS-005 — รายงานรับของแล้วยังไม่มีใบกำกับ
+ขั้น S4 · Web · §7.16
+- AC1 — ผลตรงกับ GC-RPT-01 ถึง GC-RPT-05
+- AC2 — FINANCE และ AUDITOR เลือกวันที่ตัดยอด cost center และบรรทัดงบ แล้วส่งออก Excel พร้อม checksum
+- AC3 — ยอดรวมในรายงานเท่าผลรวมรายบรรทัด (เทสต์ด้วยข้อมูลที่รู้คำตอบ)
+
+### 8.9 LINE และ LIFF (LINE)
+
+#### FR-LINE-001 — ผูกบัญชี LINE
+ขั้น S5 · Workspace · LIFF · §9.2
+- AC1 — ผู้ใช้ที่ login Workspace ขอรหัสผูก (QR หรือลิงก์ ใช้ครั้งเดียว อายุ 10 นาที) → เปิดใน LINE → ผูกสำเร็จ → rich menu เปลี่ยนเป็นแบบผูกแล้ว
+- AC2 — เริ่มจาก LINE ขณะยังไม่ผูก → LIFF ให้ login ด้วยอีเมล รหัสผ่าน และ 2FA แล้วผูก
+- AC3 — LINE userId หนึ่งผูกได้กับ member เดียวในองค์กร ยกเลิกผูกได้ทั้งสองฝั่ง และการปิดใช้งาน member ยกเลิกผูกอัตโนมัติ
+
+#### FR-LINE-002 — การ์ดอนุมัติ (Flex Message)
+ขั้น S5 · LINE · §9.3
+- AC1 — งานใหม่ → การ์ดแสดงเฉพาะสรุป: เลขเอกสาร ประเภท ผู้ขอ ยอด สถานะงบ กำหนดเวลา DOA ฉบับกับข้อ ไม่มีรายการสินค้าหรือไฟล์แนบ
+- AC2 — กด "อนุมัติ" ในงานที่ยอดต่ำกว่า `stepUpThreshold` → ตัดสินสำเร็จ ได้การ์ดยืนยัน และ event มี channel = `LINE_CHAT`
+- AC3 — กดซ้ำ กดหลังหมดอายุ หรือบัญชีไม่ตรง → ได้ข้อความที่ถูกต้อง (`TOKEN_USED` `TOKEN_EXPIRED` `FORBIDDEN`) และไม่มีการตัดสินซ้ำ (INV-TOK-01)
+
+#### FR-LINE-003 — LIFF app
+ขั้น S5 · LIFF · §9.4
+- AC1 — หน้า tasks, tasks/[id], requests/new, requests/[id], track, delegation, gr/[poId], help ทำงานในแอป LINE บน iOS และ Android
+- AC2 — ตัดสินงานที่ยอด ≥ `stepUpThreshold` ใน LIFF ต้องยืนยันด้วย PIN (FR-AUTH-005)
+- AC3 — ถ่ายรูปตรวจรับด้วยกล้องใน LIFF แล้วแนบกับ GR ได้
+
+#### FR-LINE-004 — Rich menu
+ขั้น S5 · LINE · §9.5
+- AC1 — ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็น 4 ปุ่ม: ขอซื้อ · งานรออนุมัติ · ติดตามสถานะ · ช่วยเหลือ
+- AC2 — ทุกปุ่มเปิดหน้า LIFF ที่ถูกต้อง
+- AC3 — เมนูสลับภายใน 1 นาทีหลังผูกหรือยกเลิกผูก
+
+#### FR-LINE-005 — ประมวลผล webhook
+ขั้น S5 · ระบบ · BR-LINE-01 ถึง BR-LINE-05
+- AC1 — signature ไม่ถูกต้อง → 401 และไม่ประมวลผล
+- AC2 — webhook ที่ส่งซ้ำ (webhookEventId เดิม หรือ isRedelivery) → ไม่ประมวลผลซ้ำ
+- AC3 — ตอบ 200 ภายใน 2 วินาทีเสมอ งานที่นานกว่านั้นเข้าคิว
+
+#### FR-LINE-006 — สรุปรายวันทาง LINE
+ขั้น S5 · LINE · §10.3
+- AC1 — วันทำการ 08:00 ผู้บริหารและหัวหน้าฝ่ายได้สรุปงานรออนุมัติ งานเกิน SLA และบรรทัดงบที่เหลือต่ำกว่า `digest.budgetLowPct` (ค่าเริ่มต้น 10%)
+- AC2 — ไม่ส่งในวันหยุดขององค์กร และไม่ส่งถ้าไม่มีอะไรต้องรายงาน
+- AC3 — ผู้ใช้ปิดสรุปรายวันของตนได้
+
+#### FR-LINE-007 — โควตาข้อความและช่องทางสำรอง
+ขั้น S5 · ระบบ · §9.3
+- AC1 — นับข้อความ push รายเดือน และเตือน ORG_ADMIN เมื่อถึง 80% ของโควตาที่ตั้งไว้
+- AC2 — ใช้ reply แทน push ทุกครั้งที่ตอบได้ภายในเวลาที่ reply token ยังใช้ได้
+- AC3 — ส่ง LINE ไม่ได้ (โควตาหมด ถูกบล็อก หรือ LINE ล่ม) → งานอนุมัติส่งถึงผู้รับทางอีเมลภายใน 5 นาที
+
+### 8.10 การแจ้งเตือน (NOTI)
+
+#### FR-NOTI-001 — กล่องแจ้งเตือนในระบบ
+ขั้น S2 · Web · LIFF · §4.7
+- AC1 — ทุกการแจ้งเตือนอยู่ในกระดิ่งพร้อมลิงก์ไปเอกสาร และทำเครื่องหมายอ่านแล้วได้
+- AC2 — `dedupeKey` กันแจ้งซ้ำเมื่อ job retry
+- AC3 — ผู้รับเห็นเฉพาะการแจ้งเตือนของตน
+
+#### FR-NOTI-002 — อีเมลและลิงก์ตัดสิน
+ขั้น S4 · Email · BR-TOK-03
+- AC1 — งานอนุมัติส่งอีเมลเมื่อผู้รับยังไม่ผูก LINE หรือ LINE ส่งไม่ได้ พร้อมลิงก์ `/a/<token>`
+- AC2 — การเปิดลิงก์ (GET) ไม่เปลี่ยนสถานะ การตัดสินต้องกดยืนยันและ login ตามค่าเริ่มต้น
+- AC3 — โดเมนผู้ส่งมี SPF และ DKIM ถูกต้อง (ตรวจใน S4)
+
+#### FR-NOTI-003 — เตือนตาม SLA และส่งต่อ
+ขั้น S5 · LINE · Email · BR-SLA-02 ถึง BR-SLA-04
+- AC1 — เตือนเมื่อครบ 50% ของ SLA (GC-SLA-07) และเมื่อครบกำหนด
+- AC2 — เลย `escalateAt` → เพิ่มผู้อนุมัติของช่วงถัดไปเป็นผู้รับร่วมตาม BR-SLA-04 และบันทึก event `approval_task.escalated`
+- AC3 — งานที่ปิดแล้วไม่ถูกเตือน เพราะ job ตรวจสถานะล่าสุดก่อนส่ง
+
+#### FR-NOTI-004 — ตั้งค่าการแจ้งเตือนส่วนตัว
+ขั้น S5 · Web · LIFF
+- AC1 — ผู้ใช้เลือกช่องทางหลัก (LINE หรืออีเมล) และรวมการแจ้งทั่วไปเป็นสรุปได้
+- AC2 — งานอนุมัติและงานเกิน SLA แจ้งทันทีเสมอ ปิดไม่ได้
+- AC3 — ตั้งช่วงเงียบ (เช่น 20:00–07:00) สำหรับการแจ้งที่ไม่ด่วนได้
+
+### 8.11 ชั้น 2–4 (กรอบ ต้องขยายเป็น sub-spec ก่อนเริ่มแต่ละขั้น)
+
+เลข FR ชั้น 2 ขึ้นต้น 1xx ชั้น 3 ขึ้นต้น 2xx ชั้น 4 ขึ้นต้น 3xx คอลัมน์ต้นฉบับอ้างหัวข้อในเอกสารต้นทาง
+
+| ID | ความต้องการ | ขั้น | ต้นฉบับ |
+| --- | --- | --- | --- |
+| FR-WF-101 | อนุมัติคู่ขนาน IT Legal Finance แบบครบทุกคน คนใดคนหนึ่ง หรือตามจำนวน แต่ละฝ่ายเห็นเฉพาะส่วนของตน | S6 | 6.4 |
+| FR-WF-102 | อนุมัติแบบคณะกรรมการ (องค์ประชุมหรือเสียงข้างมาก) | S6 | 6.4 |
+| FR-WF-103 | ฟอร์มตั้งค่า workflow + dry-run ก่อนเผยแพร่ + workflow มีเวอร์ชัน | S6 | 6.4 |
+| FR-WF-104 | สายอนุมัติตามผังองค์กร อัปเดตผู้อนุมัติเองเมื่อผังเปลี่ยน | S6 | 6.1 |
+| FR-INT-101 | ขอซ้ำจากครั้งก่อนในคลิกเดียว | S6 | 6.2 |
+| FR-INT-102 | แคตตาล็อกสินค้าราคาตกลง (guided buying) | S6 | 6.2 |
+| FR-INT-103 | ตรวจคำขอซ้ำ และตรวจการแตกคำขอเพื่อหลบวงเงิน | S6 | 6.1 6.2 |
+| FR-INT-104 | ตัวสร้างฟอร์มแบบ no-code พร้อมเวอร์ชัน | S6 | 6.3 |
+| FR-DOA-101 | ราคาอ้างอิงและช่วงราคาจากประวัติบนการ์ดอนุมัติ | S6 | 6.4 |
+| FR-DOA-102 | QR ตรวจสอบเอกสารจริงและสถานะล่าสุด | S6 | 6.1 |
+| FR-DOA-103 | ย้อนทดสอบ DOA ฉบับร่างกับเอกสารจริง 90 วันที่ผ่านมา (BR-DOA-14) | S6 | 6.1 |
+| FR-DOA-104 | ถอนฉบับที่อนุมัติแล้วแต่ยังไม่ถึงวันมีผล (BR-DOA-18) | S6 | 6.1 |
+| FR-ADM-101 | role แยกสำหรับผู้ดูแล DOA (OQ-34) | S6 | 6.14 |
+| FR-BUD-101 | ขออนุมัติเกินงบแบบมีเงื่อนไขตาม DOA | S6 | 6.5 |
+| FR-BUD-102 | แบ่งค่าใช้จ่ายหลาย cost center | S6 | 6.5 |
+| FR-BUD-103 | ตั้ง โอน และปรับงบ พร้อมอนุมัติ | S6 | 6.5 |
+| FR-BUD-104 | เตือนอัตราการใช้งบและพยากรณ์ | S6 | 6.5 6.13 |
+| FR-VIS-101 | รายงาน cycle time คอขวด รายการผิด DOA และ heatmap | S6 | 6.12 |
+| FR-PLT-101 | สภาพแวดล้อม UAT แยกสำหรับทดสอบการตั้งค่า | S6 | 6.14 |
+| FR-SUP-101 | ทะเบียนผู้ขายเต็มรูปแบบ ผู้ขายสมัครเองผ่านลิงก์ + OTP | S7 | 6.7 |
+| FR-SUP-102 | ผู้ขายกรอกภาษี บัญชีธนาคาร และเอกสารเอง ตรวจเลขผู้เสียภาษีและผู้ขายซ้ำ | S7 | 6.7 |
+| FR-SUP-103 | เปลี่ยนบัญชีธนาคารต้องยืนยัน (BR-SOD-05) | S7 | 6.7 |
+| FR-SUP-104 | อนุมัติผู้ขายใหม่ผ่าน DOA | S7 | 6.7 |
+| FR-SUP-105 | ผู้ขายรับทราบ PO และแจ้งวันส่งผ่านพอร์ทัล | S7 | 6.6 |
+| FR-AP-101 | รับใบแจ้งหนี้หลายช่องทาง (กล่องอีเมล พอร์ทัล อัปโหลด) | S8 | 6.6 |
+| FR-AP-102 | จับคู่ 3 ทางและ 2 ทางพร้อมเกณฑ์ความคลาดเคลื่อน (BR-MATCH-01 ถึง BR-MATCH-04) | S8 | 6.6 |
+| FR-AP-103 | จัดการรายการที่ไม่ตรงกัน และผู้ขายเห็นสถานะ | S8 | 6.6 |
+| FR-AP-104 | ภาษีหัก ณ ที่จ่าย VAT 50 ทวิ ภ.ง.ด.3 และ ภ.ง.ด.53 (BR-WHT-01 BR-WHT-02) | S8 | 6.6 |
+| FR-AP-105 | ตรวจใบแจ้งหนี้ซ้ำและราคาผิดปกติ และอนุมัติใบแจ้งหนี้ตาม DOA | S8 | 6.6 |
+| FR-AP-106 | ตรวจรับงานจ้างเป็นงวดและเงินประกันผลงาน | S8 | 6.6 |
+| FR-AP-107 | ใบแก้ไข PO ตาม DOA พร้อมเวอร์ชัน | S8 | 6.6 |
+| FR-AP-108 | เสนอรหัสบัญชีและ cost center จากประวัติให้คนยืนยัน | S8 | 6.6 |
+| FR-PAY-101 | รอบจ่ายเงิน รวมยอดผู้ขาย อนุมัติตาม DOA (BR-SOD-04) | S9 | 6.6 |
+| FR-PAY-102 | ไฟล์ Batch Payment 1–2 ธนาคาร พร้อมตรวจก่อนส่งออก (BR-BANK-01 ถึง BR-BANK-03) | S9 | 6.6 |
+| FR-PAY-103 | บันทึกผลการจ่ายและแจ้งผู้ขาย | S9 | 6.6 |
+| FR-SRC-201 | RFQ เทียบราคา 3 ราย แล้วขยายเป็น RFP และ RFI | S10 | 6.8 |
+| FR-SRC-202 | ผู้ขายยื่นข้อเสนอในพอร์ทัล และตารางเทียบ | S10 | 6.8 |
+| FR-SRC-203 | ให้คะแนนถ่วงน้ำหนักและวิเคราะห์โครงสร้างราคา | S10 | 6.8 |
+| FR-SRC-204 | อนุมัติผลแล้วสร้าง PO จากผู้ชนะ | S10 | 6.8 |
+| FR-INT-201 | ฟอร์มสองภาษาไทยและอังกฤษสำหรับผู้ขายต่างชาติ | S10 | 6.3 |
+| FR-RSK-201 | แบบประเมินตามประเภทผู้ขาย และจัดระดับความเสี่ยงด้วยกฎ | S11 | 6.9 |
+| FR-RSK-202 | ตรวจคู่ขนานโดย InfoSec Legal Finance | S11 | 6.9 |
+| FR-RSK-203 | ผู้ขายความเสี่ยงสูงออก PO ไม่ได้จนกว่าประเมินครบหรือมีผู้อนุมัติข้ามตาม DOA | S11 | 6.9 |
+| FR-RSK-204 | หลักฐานและรายงานความเสี่ยง | S11 | 6.9 |
+| FR-RSK-205 | ประเมินซ้ำตามรอบของระดับความเสี่ยง และตรวจสถานะสรรพากรกับ DBD ซ้ำรายเดือน | S11 | 6.9 |
+| FR-CON-201 | คลังสัญญาผูกกับผู้ขายและ PO | S12 | 6.10 |
+| FR-CON-202 | เตือนต่ออายุและภาระผูกพัน | S12 | 6.10 |
+| FR-CON-203 | ขอให้ Legal ตรวจ และแม่แบบสัญญา | S12 | 6.10 |
+| FR-AI-301 | Approval Brief บนการ์ดอนุมัติ (ตัวเลขมาจากโค้ด) | S13 | 6.13 |
+| FR-AI-302 | Intake Agent: จัดประเภท เติมฟอร์ม แนะนำช่องทางซื้อ | S13 | 6.2 6.13 |
+| FR-AI-303 | Document Agent: อ่านใบเสนอราคา ใบส่งของ ใบแจ้งหนี้ (ข้อแรกของ S13) | S13 | 6.3 6.6 |
+| FR-AI-304 | Supplier Onboarding Agent | S13 | 6.13 |
+| FR-AI-305 | Sourcing และ Negotiation Agent | S13 | 6.13 |
+| FR-AI-306 | Risk และ Contract Agent | S13 | 6.13 |
+| FR-AI-307 | Insight Agent ตอบคำถามข้อมูลภาษาไทยผ่านฟังก์ชันที่เขียนไว้ | S13 | 6.13 |
+| FR-AI-308 | ร่างกฎ DOA จากเอกสารระเบียบให้คนตรวจ | S13 | 6.1 |
+| FR-LINE-301 | ขอผ่านแชทด้วยการพิมพ์หรือถ่ายรูป | S13 | 5 |
+| FR-INTG-301 | Express API และ webhook | S14 | 6.11 |
+| FR-INTG-302 | รับ e-Tax Invoice จากกล่องอีเมลอัตโนมัติและจับคู่ (การอ่านไฟล์ที่อัปโหลดอยู่ใน FR-P2P-008 AC4) | S14 | 6.6 |
+| FR-INTG-303 | ตรวจความเสี่ยงกับแหล่งข้อมูลภายนอกที่ต้องเสียเงิน (ตัวตนผู้ขายจากสรรพากรและ DBD อยู่ใน FR-SUP-001) | S14 | 6.7 6.9 |
+| FR-INTG-304 | Master data sync กับระบบบัญชี | S14 | 6.11 |
+| FR-INTG-305 | e-Signature ภายนอก | S14 | 6.11 |
+| FR-INTG-306 | ส่งข้อมูลเข้า BI | S14 | 6.11 |
+| FR-INTG-307 | Public API และ webhook สำหรับระบบอื่น | S14 | 6.11 |
+| FR-INTG-308 | Connector ERP อื่น | S15 | 6.11 |
+| FR-PLT-301 | BCS Go ด้วย Capacitor: ตรวจรับออฟไลน์ สแกน barcode biometric push | S15 | 5 |
+| FR-PLT-302 | BCS MCP Server ภายใต้สิทธิ์ของผู้ใช้ | S15 | 6.13 |
+| FR-PLT-303 | Multi-tenant เต็มรูปแบบและ white-label | S15 | 6.14 |
+| FR-SRC-301 | e-Auction | S15 | 6.8 |
+| FR-WF-301 | ตัวสร้าง workflow แบบลากวาง | S15 | 6.4 |
+| FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | S15 | 6.1 |
+| FR-NOTI-301 | adapter Microsoft Teams และ LINE WORKS | S15 | 5 |
+
+### 8.12 เงื่อนไขล่วงหน้าที่ sub-spec ของชั้น 2–4 ต้องรวม
+
+เมื่อเขียน sub-spec ของแต่ละขั้น ให้แปลงแต่ละแถวเป็น AC ของ FR นั้น
+
+| รายการ | เงื่อนไขที่ต้องมี |
+| --- | --- |
+| FR-INT-101 | บรรทัดที่มีวันสิ้นสุดบริการเตือนผู้ขอและจัดซื้อก่อนหมด 60 และ 30 วัน พร้อมปุ่มสร้างคำขอต่ออายุจากคำขอเดิม · ใช้ได้โดยไม่ต้องเปิดโมดูล `CONTRACTS` |
+| FR-DOA-101 | ช่วงราคาบนการ์ดอนุมัติใช้ใบเสนอราคาแบบข้อมูล (BR-FORM-06) ร่วมกับประวัติราคา |
+| FR-SUP-101 | ผู้ขายที่สมัครค้างได้รับการเตือนพร้อมรายการที่ยังขาด และส่งต่อจัดซื้อเมื่อเกินจำนวนวันทำการที่ตั้งไว้ ใช้ engine SLA (§7.8) กับ Inngest เดิม · sub-spec S7 มีแถวแจ้งเตือนของเรื่องนี้ |
+| FR-SUP-102 | เอกสารผู้ขายเก็บเป็น `SupplierDocument` (§6.5) มีประเภท เลขที่ ผู้ออก ขอบเขต วันออก และวันหมดอายุหรือคำนวณจากอายุที่องค์กรตั้งต่อประเภท · ใบรับรองต้องมีคนยืนยันหนึ่งครั้ง · ระบบขอเอกสารใหม่จากผู้ขายก่อนหมดอายุ |
+| FR-PAY-101 | ผู้ขายที่สถานะทะเบียนเปลี่ยน (BR-SUP-04) หรือการอนุมัติข้ามหมดอายุ ถูกติดธงในรอบจ่าย ผู้อนุมัติรอบจ่ายเห็นก่อนอนุมัติ |
+| FR-SRC-204 | ผลการจัดหาตั้งผู้ขายที่แนะนำต่อหมวด (`PreferredSupplier`) พร้อมวันหมดอายุ · ผู้ขอเลือกรายอื่น → เตือนและขอเหตุผล |
+| FR-RSK-201 | เลือกชุดคำถามจากคำตอบคัดกรองในคำขอ (BR-FORM-05) ไม่ใช่จากประเภทผู้ขายอย่างเดียว · คำถามที่ผูกกับใบรับรองบันทึกเป็น "ตอบด้วยหลักฐาน" ไม่ลบทิ้ง ใช้ได้เมื่อใบยังไม่หมดอายุและขอบเขตครอบคลุมงานที่จ้าง · ผู้ขายระดับ HIGH ต้องตอบทุกข้อ ข้อที่ตอบด้วยหลักฐานจึงไม่นับแทนใน G-9 |
+| FR-RSK-202 | เลือกผู้ตรวจจากคำตอบคัดกรอง: ประมวลผลข้อมูลส่วนบุคคล → DPO หรือฝ่ายกฎหมาย · เข้าถึงระบบ → InfoSec · เข้าพื้นที่ → ความปลอดภัยของสถานที่ |
+| FR-RSK-203 | การอนุมัติข้ามมีวันหมดอายุ · เลยกำหนดหรือสถานะผู้ขายเปลี่ยนเป็นเลิกกิจการ → ห้ามออก PO ใหม่จนกว่าประเมินซ้ำ |
+| FR-RSK-205 | รอบประเมินซ้ำตามระดับความเสี่ยงที่องค์กรตั้ง และตรวจสถานะกับสรรพากรและ DBD ซ้ำรายเดือนต่อจาก BR-SUP-04 |
+| FR-AI-303 | ทำเป็นข้อแรกของ S13 · เติมฟิลด์ใบเสนอราคา (BR-FORM-06) และใบแจ้งหนี้จากไฟล์ให้คนยืนยัน · วัดเกณฑ์ใน §12.4 ด้วยเอกสารจริงจาก P0-02 · ไม่มี AI ใน demo หรือชั้น 1 (NG-5) |
+| FR-INTG-302 | รับ e-Tax จากกล่องอีเมลอัตโนมัติ ใช้ตัวอ่านเดียวกับ BR-IVC-05 |
+| FR-INTG-303 | เฉพาะแหล่งข้อมูลความเสี่ยงที่ต้องเสียเงิน |
+| G-8 | ยอดประหยัดใช้ใบเสนอราคาแบบข้อมูล (BR-FORM-06) เป็นฐานเทียบ |
+
+---
+
+## 9. ช่องทางใช้งาน: Workspace · LINE · LIFF · PWA · Email · Supplier Portal
+
+### 9.1 แผนที่หน้าจอและตารางช่องทาง
+
+| Path | ผู้ใช้ | ทำอะไร | ขั้น |
+| --- | --- | --- | --- |
+| `/` | ทุกคน | หน้าแรก: งานของฉัน คำขอของฉัน และสรุปงบตามสิทธิ์ | S1 |
+| `/requests/new` · `/requests/new/[type]` | ทุก member | แคตตาล็อกและฟอร์มคำขอ | S2 |
+| `/requests` · `/requests/[id]` | ตามสิทธิ์ | รายการ รายละเอียด ไทม์ไลน์ | S2 |
+| `/tasks` · `/tasks/[id]` | ผู้รับงาน | กล่องงานอนุมัติ | S2 |
+| `/procurement/pool` | PROCUREMENT | กองคำขอรอจัดซื้อ | S4 |
+| `/procurement/pos` · `/procurement/pos/[id]` | PROCUREMENT | ใบสั่งซื้อ | S4 |
+| `/receiving` · `/receiving/[poId]` | RECEIVER และผู้ขอที่ได้รับอนุญาต | ตรวจรับ | S4 |
+| `/finance/invoices` · `/finance/exports` | FINANCE | ยืนยันใบกำกับ ส่งออก Express | S4 |
+| `/budgets` · `/budgets/[lineId]` | ตามสิทธิ์ | dashboard งบ | S3 |
+| `/suppliers` | ตามสิทธิ์ | ทะเบียนผู้ขายขั้นต้น | S4 |
+| `/board/pending` | ตามสิทธิ์ | กระดานเอกสารค้าง | S4 |
+| `/reports` · `/kpi` | ตามสิทธิ์ | รายงานและ KPI | S4 · S5 |
+| `/audit` | AUDITOR · ORG_ADMIN | ค้นและส่งออก audit | S4 |
+| `/settings/*` | ตนเอง | โปรไฟล์ 2FA PIN LINE การแจ้งเตือน รักษาการ | S1 · S5 |
+| `/admin/*` | ORG_ADMIN | สมาชิก ผังองค์กร ตำแหน่ง ปฏิทิน เลขเอกสาร ประเภทคำขอ ช่องทาง การใช้งาน · `/admin/modules` ดูอย่างเดียว | S1–S5 |
+| `/admin/doa` · `/admin/doa/[id]` · `/admin/doa/[id]/simulate` | ORG_ADMIN · ผู้อนุมัติข้อ `DOA_CHANGE` | ร่าง นำเข้า ส่งออก diff ตารางผลที่ขอบ ทดลองส่ง | S2 · S3 |
+| `/admin/org-authority` | ORG_ADMIN · ผู้อนุมัติข้อ `ORG_AUTHORITY_CHANGE` | เสนอและติดตามการเปลี่ยนโครงสร้างอำนาจ | S2 |
+| `/admin/policy-history` | AUDITOR · ORG_ADMIN | ประวัติการเปลี่ยนนโยบาย (FR-DOA-011) | S4 |
+| `/platform/tenants` · `/platform/tenants/[orgId]/modules` | PLATFORM_ADMIN | สร้าง tenant เปิดปิดโมดูล ยืนยันผู้มีอำนาจลงนาม (ไม่มีข้อมูลธุรกิจ) | S1 |
+| `/liff/*` | ผู้ใช้ในแอป LINE | ดู §9.4 | S5 |
+| `/a/[token]` | ผู้รับอีเมล | หน้าตัดสินจากลิงก์ | S4 |
+| `/api/auth/*` · `/api/inngest` · `/api/health` | ระบบ | Better Auth · Inngest · health | S1 |
+| `/api/liff/session` · `/api/liff/link` | LIFF | ตรวจ ID token สร้าง session และผูกบัญชี | S5 |
+| `/api/webhooks/line/[channelKey]` | LINE | webhook | S5 |
+| `/api/v1/*` | ระบบภายนอก | ชั้น 4 | S14 |
+
+ตารางช่องทาง (P-5): เว็บทำได้ทุกอย่าง LINE รับงานสั้นที่ต้องเร็ว
+
+| งาน | Workspace (เว็บและ PWA) | LINE แชท | LIFF | อีเมล |
+| --- | --- | --- | --- | --- |
+| สร้างคำขอแบบเต็ม | ✓ | — | ✓ | — |
+| อนุมัติ ตีกลับ ไม่อนุมัติ ขอข้อมูลเพิ่ม | ✓ | ปุ่มอนุมัติเมื่อยอดต่ำกว่า step-up · ที่เหลือเปิด LIFF | ✓ | ✓ ผ่านลิงก์และ login |
+| ติดตามสถานะ | ✓ | สรุปในข้อความ | ✓ | ลิงก์ |
+| แจ้งเตือนและทวงงาน | ในระบบ | ✓ ช่องทางหลัก | — | ✓ สำรอง |
+| ตรวจรับพร้อมรูป | ✓ | — | ✓ กล้อง | — |
+| งานจัดซื้อ (กอง PR รวม PR ออก PO) | ✓ | ดูอย่างเดียว | ดูอย่างเดียว | — |
+| ตั้งรักษาการ | ✓ | — | ✓ | — |
+| ตั้งค่า DOA workflow ฟอร์ม | ✓ | — | — | — |
+| อนุมัติการเปลี่ยน DOA และโครงสร้างอำนาจ | ✓ พร้อม step-up | เปิด LIFF เท่านั้น | ✓ พร้อม PIN | ลิงก์เข้าเว็บแล้ว step-up |
+| รายงานและ dashboard | ✓ | สรุปรายวัน | สรุปย่อ | ตามรอบ |
+| (ชั้น 2) อนุมัติรอบจ่ายเงิน | ✓ และส่งออกไฟล์ที่นี่เท่านั้น | อนุมัติ | อนุมัติ | — |
+
+### 9.2 BCS on LINE: การตั้งค่า ตัวตน และการผูกบัญชี
+
+**การตั้งค่า (Phase 0, P0-04):** สร้าง provider เดียว แล้วสร้างใต้ provider นั้น (1) Messaging API channel สำหรับ OA (2) LINE MINI App channel สำหรับหน้า LIFF (LINE แนะนำให้สร้าง LIFF app ใหม่เป็น LINE MINI App) และ (3) LINE Login channel ถ้าต้องการ login ด้วย LINE บนเว็บ ต้องอยู่ provider เดียวกันเพราะ user ID ต่างกันตาม provider และย้าย channel ข้าม provider ไม่ได้ · MINI App channel มี 3 internal channel (Developing · Review · Published) แต่ละตัวมี LIFF ID ของตัวเอง จึงใช้ LIFF app เดียวต่อ internal channel โดย endpoint คือ `/liff` และหน้าย่อยเป็น path ต่อท้าย (ADR-024) กำหนด LIFF ID ต่อ environment ผ่าน `NEXT_PUBLIC_LIFF_ID` (local/staging = Developing · UAT = Review · production = Published) และตรวจเงื่อนไขการเผยแพร่ MINI App ในไทยตั้งแต่ Phase 0 (OQ-16)
+
+| ID | กฎ |
+| --- | --- |
+| BR-LINE-01 | ตัวตนใน LIFF มาจาก ID token (`liff.getIDToken()`) ที่ส่งไปตรวจที่เซิร์ฟเวอร์เท่านั้น ห้ามเชื่อ userId หรือ profile ที่ client ส่งมา |
+| BR-LINE-02 | เซิร์ฟเวอร์ตรวจ ID token กับ endpoint verify ของ LINE โดยส่ง channel ID ที่ออก LIFF ID นั้น (`LINE_LIFF_CHANNEL_ID`) ตรวจ `aud` และ `exp` แล้วใช้ `sub` เป็น LINE userId · ห้ามพึ่งการตรวจ `aud` ของ LINE provider ใน Better Auth สำหรับ LIFF เพราะ token จาก MINI App channel มี `aud` ไม่ตรงกับ LINE Login channel ให้เขียน plugin `liffIdToken` ที่ตรวจเองแล้วสร้าง session ผ่าน API ภายในของ Better Auth (ถ้า API ในเวอร์ชันที่ติดตั้งไม่รองรับ ให้หยุดและถาม) |
+| BR-LINE-03 | webhook ตรวจ `x-line-signature` = base64(HMAC-SHA256(channel secret, raw body)) แบบ constant-time ก่อน parse JSON ไม่ผ่าน → 401 |
+| BR-LINE-04 | กันประมวลผลซ้ำด้วย `webhookEventId` (unique) และข้าม `isRedelivery` ที่เคยทำแล้ว |
+| BR-LINE-05 | ตอบ 200 ภายใน 2 วินาที: ตรวจ signature → บันทึก `LineWebhookEvent` → ประมวลผล postback การตัดสินแบบ inline ภายในงบเวลา ถ้าไม่ทันส่งเข้าคิวแล้วแจ้งผลด้วย push ภายหลัง |
+| BR-LINE-06 | ข้อความในแชทแสดงเฉพาะสรุป รายละเอียดอยู่ใน LIFF หลังยืนยันตัวตน (PDPA) |
+| BR-LINE-07 | ใช้ reply ก่อน push เสมอเมื่อทำได้ เพราะ push นับโควตาของแพ็กเกจ OA |
+| BR-LINE-08 | ผู้ใช้ที่ยังไม่เพิ่ม OA เป็นเพื่อนรับ push ไม่ได้ LIFF ตรวจสถานะเพื่อนแล้วแสดงปุ่มเพิ่มเพื่อน ถ้ายังส่งไม่ได้ใช้อีเมลแทน |
+| BR-LINE-09 | ใช้ Messaging API เท่านั้น (LINE Notify ปิดบริการแล้ว) |
+
+**การผูกบัญชี (FR-LINE-001):**
+
+1. เริ่มจาก Workspace: `/settings/line` สร้าง `ChannelLinkCode` (ใช้ครั้งเดียว อายุ 10 นาที เก็บ hash) แล้วแสดง QR และลิงก์ LIFF `/liff/link?code=…`
+2. ผู้ใช้เปิดใน LINE → LIFF ส่ง `{ code, idToken }` ไป `/api/liff/link` → เซิร์ฟเวอร์ตรวจ ID token (BR-LINE-02) และ code → สร้าง `ChannelIdentity` → ผูก rich menu แบบผูกแล้ว → ส่งข้อความต้อนรับ
+3. เริ่มจาก LINE ขณะยังไม่ผูก: rich menu แบบยังไม่ผูก → `/liff/link` ไม่มี code → ให้ login ด้วยอีเมล รหัสผ่าน และ 2FA ใน LIFF แล้วผูก
+4. LINE userId หนึ่งผูกได้กับ member เดียวต่อองค์กร การยกเลิกผูกทำได้ทั้งสองฝั่งและมี event
+
+### 9.3 การ์ดอนุมัติ postback และ step-up
+
+**เนื้อหาการ์ด (สรุปเท่านั้น):** เลขเอกสาร · ประเภท · ผู้ขอและแผนก · ยอด (ตามฐาน DOA) · สถานะงบ (พอ / จองแล้ว) · กำหนดเวลา · "DOA-DEMO ฉบับ 1 ข้อ PR-02" · ป้ายถ้าเป็นงานรักษาการหรือถูกส่งต่อ
+
+**ปุ่ม:**
+
+| ปุ่ม | action | เงื่อนไข |
+| --- | --- | --- |
+| อนุมัติ | postback `v=1&a=approve&k=<tokenId>` พร้อม displayText "อนุมัติ PR-2569-00012" | ยอดต่ำกว่า `stepUpThreshold` |
+| อนุมัติ (ยืนยัน PIN) | เปิด LIFF `/liff/tasks/<taskId>?action=approve` | ยอด ≥ `stepUpThreshold` หรืองานเชิงนโยบาย (BR-TOK-05) |
+| ตีกลับ / ไม่อนุมัติ | เปิด LIFF เพื่อกรอกเหตุผล | เสมอ |
+| ดูรายละเอียด | เปิด LIFF `/liff/tasks/<taskId>` | เสมอ |
+
+ข้อมูล postback ยาวไม่เกิน 300 ตัวอักษร ข้อความที่ส่งไปแล้วแก้ไม่ได้ การ์ดเก่าจึงยังมีปุ่ม การกดซ้ำจะได้คำตอบ "ดำเนินการแล้วโดย … เมื่อ …" จาก `TOKEN_USED` ผลสำเร็จตอบด้วยการ์ดยืนยันที่มี DOA ref · หลักฐาน step-up (PIN หรือ passkey) ใช้ได้กับการตัดสิน 1 รายการภายใน 5 นาที
+
+**โควตาและค่าใช้จ่าย:** push นับต่อผู้รับตามแพ็กเกจ OA ส่วน reply ไม่นับ จึงรวมการแจ้งทั่วไปเป็นสรุปรายรอบ นับยอดใช้ทุกวัน (FR-LINE-007) และตรวจราคาแพ็กเกจ LINE ประเทศไทยล่าสุดก่อนตั้งราคาขาย · OA แยกต่อองค์กร (ลูกค้าเป็นเจ้าของ) เป็นค่าเริ่มต้น OA กลางของ BCS สำหรับลูกค้าเล็กเป็นทางเลือกภายหลัง (OQ-15)
+
+### 9.4 LIFF app
+
+| Path | ทำอะไร |
+| --- | --- |
+| `/liff/link` | ผูกบัญชี |
+| `/liff/tasks` | งานรออนุมัติของฉัน เรียงตามกำหนดเวลา |
+| `/liff/tasks/[id]` | รายละเอียดและตัดสิน (พร้อม PIN เมื่อจำเป็น) |
+| `/liff/requests/new` | แคตตาล็อกและฟอร์มแบบย่อ |
+| `/liff/requests/[id]` | รายละเอียดคำขอ |
+| `/liff/track` | คำขอของฉันและไทม์ไลน์ |
+| `/liff/delegation` | ตั้งรักษาการ |
+| `/liff/gr/[poId]` | ตรวจรับพร้อมกล้อง |
+| `/liff/help` | วิธีใช้และช่องทางติดต่อผู้ดูแล |
+
+เงื่อนไข: `liff.init({ liffId })` ก่อนทุกอย่าง · session แยกช่องทาง `LIFF` idle 15 นาที ต่ออายุเงียบ ๆ ด้วย ID token ใหม่ · ออกแบบ mobile-first: ตัวอักษร 16 px ปุ่มสูงอย่างน้อย 44 px แถบปุ่มตัดสินติดล่างจอ · JavaScript เริ่มต้นไม่เกิน 200 KB (gzip) · กล้องใช้ `<input type="file" accept="image/*" capture="environment">` แล้วย่อรูปฝั่ง client · ลิงก์ลึกสร้างผ่าน helper เดียวที่อ่านรูปแบบ URL ตามชนิด channel (MINI App หรือ LIFF บน Login channel) · เปิดนอกแอป LINE → ใช้การ login ของเว็บตามปกติ
+
+### 9.5 Rich menu
+
+สองชุด สร้างด้วยสคริปต์ `pnpm line:richmenu` จากไฟล์ภาพใน repo (2500 × 843 px)
+
+| ชุด | ปุ่ม | ใช้กับ |
+| --- | --- | --- |
+| UNLINKED | ผูกบัญชี → `/liff/link` · ช่วยเหลือ → `/liff/help` | ค่าเริ่มต้นของ OA |
+| LINKED | ขอซื้อ → `/liff/requests/new` · งานรออนุมัติ → `/liff/tasks` · ติดตามสถานะ → `/liff/track` · ช่วยเหลือ → `/liff/help` | ผูกรายผู้ใช้หลังผูกบัญชี |
+
+### 9.6 อีเมล
+
+อีเมลเป็นช่องทางสำรองของ LINE เสมอ (P-1) ส่งผ่าน adapter จาก `settings.email.fromAddress` ที่ตั้ง SPF DKIM DMARC ถูกต้อง (OQ-22) มีทั้ง HTML และ plain text · แม่แบบ: งานอนุมัติ (สำรอง) · ผลการอนุมัติ · PO ถึงผู้ขาย (แนบ PDF, reply-to เป็นจัดซื้อผู้รับผิดชอบ) · รายงานตามรอบ · ความปลอดภัย (PIN ล็อก รีเซ็ต 2FA) · ลิงก์ตัดสินทำตาม BR-TOK-03 · อีเมลตีกลับรับผ่าน webhook ของผู้ให้บริการแล้วตั้ง Notification เป็น `FAILED` และแจ้งผู้เกี่ยวข้อง
+
+### 9.7 PWA
+
+manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=pwa" · `display` standalone · ไอคอน 192 และ 512 px (มี maskable) · service worker precache เฉพาะ app shell และหน้าออฟไลน์ ไม่ cache ข้อมูลธุรกิจในชั้น 1 · แจ้งให้โหลดใหม่เมื่อมีเวอร์ชันใหม่ · หน้าอธิบายวิธีเพิ่มลงหน้าจอหลักบน iOS · ไม่มี web push ในชั้น 1 เพราะ LINE เป็นช่องทางหลัก · ออฟไลน์จริงและสแกน barcode รอ BCS Go (FR-PLT-301)
+
+### 9.8 Supplier Portal (ชั้น 2 — ตัวอย่างล่วงหน้า)
+
+`/portal/*` ใช้ session แยกจากผู้ใช้ภายในโดยสิ้นเชิง (ADR-007): ลิงก์ใช้ครั้งเดียว + OTP 6 หลัก อายุ 10 นาที ผิดได้ 5 ครั้ง · ผู้ขายเห็นเฉพาะข้อมูลของตน มีเทสต์แยกข้อมูลผู้ขายแบบเดียวกับ INV-TEN-01 · ไฟล์ที่ผู้ขายอัปโหลดต้องผ่านการสแกนไวรัส (`scanStatus = CLEAN`) ก่อนผู้ใช้ภายในดาวน์โหลด · ตั้ง rate limit ต่อ IP และต่อผู้ขาย
+
+### 9.9 แนวทางออกแบบหน้าจอ
+
+**ทิศทาง:** ใช้ง่ายระดับเดียวกับ Zip (ziphq.com) แพลตฟอร์มจัดซื้อที่เป็นต้นแบบของ BCS แต่หน้าตาเป็นของ BCS เอง ทันสมัยกว่า และเหมาะกับคนไทยที่อนุมัติบนมือถือผ่าน LINE ยืมหลักการใช้งาน ไม่ลอกหน้าตา
+
+**หลักการที่ต้องเห็นในทุกหน้า**
+
+1. งานของฉันก่อน: หน้าแรกเริ่มจากงานที่รอฉันตัดสินและคำขอของฉัน กราฟมาทีหลัง
+2. ประตูเดียว: ปุ่ม "ขอซื้อ / ขอจ้าง" เป็นปุ่มหลักที่เห็นจากทุกหน้า เริ่มจากเลือกประเภทคำขอแล้วถามทีละขั้นเท่าที่จำเป็น
+3. บอกล่วงหน้า: ก่อนกดส่ง ผู้ขอเห็นงบคงเหลือ เส้นทางอนุมัติ และเอกสารที่ต้องแนบ
+4. สถานะแบบติดตามพัสดุ: ไทม์ไลน์แนวตั้ง ขั้นปัจจุบันเด่นที่สุด บอกชื่อคนที่รอและค้างมากี่ชั่วโมงทำการ
+5. ตัดสินได้ในจอเดียว: หน้าอนุมัติมียอด สถานะงบ DOA ref และไฟล์แนบ ปุ่มตัดสินติดล่างจอบนมือถือ
+6. ตัวเลขเงินอ่านง่าย: ชิดขวา ใช้ `tabular-nums` คั่นหลักพัน ทศนิยม 2 ตำแหน่ง
+7. คำบนปุ่มบอกผลที่จะเกิด เช่น "ส่งขออนุมัติ" และข้อความยืนยันใช้คำเดียวกัน "ส่งขออนุมัติแล้ว" ข้อความ error บอกว่าเกิดอะไรและแก้อย่างไร ไม่ขอโทษและไม่คลุมเครือ
+8. หน้าว่างบอกขั้นต่อไป เช่น "ยังไม่มีงานรออนุมัติ" พร้อมปุ่มไปหน้าคำขอของฉัน
+
+**จุดเด่นเพียงจุดเดียว:** ไทม์ไลน์การอนุมัติที่แสดงแต่ละขั้นเหมือนตราประทับ ระบุชื่อ ตำแหน่ง เวลา ช่องทาง และ DOA ข้อที่ใช้ ทำให้หน้าเอกสารจำง่ายและตรวจสอบได้ ส่วนอื่นให้เรียบและเงียบ
+
+**ชุด token เริ่มต้น** (ใส่ใน theme ของ Tailwind และ shadcn/ui ห้ามใช้ค่า default ทั้งชุด · `spec_check.py` ตรวจ contrast ของตารางนี้)
+
+| token | ค่า | ใช้กับ |
+| --- | --- | --- |
+| `--bg` | `#FFFFFF` | พื้นหลัก |
+| `--surface` | `#F5F7F8` | แถบเมนูและพื้นส่วนรอง |
+| `--line` | `#DDE3E7` | เส้นแบ่งและขอบ |
+| `--ink` | `#1C2B33` | ตัวอักษรหลัก |
+| `--ink-muted` | `#4A5A63` | ตัวอักษรรอง |
+| `--primary` | `#0B6E5F` | ปุ่มหลัก ลิงก์ และสถานะอนุมัติแล้ว |
+| `--warn` | `#9A5B00` | รอดำเนินการและใกล้ครบกำหนด |
+| `--danger` | `#B42318` | เกินกำหนด ไม่อนุมัติ และงบไม่พอ |
+| `--info` | `#1F5FAD` | ข้อมูลประกอบ |
+
+**ตัวอักษรและโครงหน้า:** IBM Plex Sans Thai ทั้งเว็บและ LIFF (เอกสาร PDF ใช้ Sarabun) · เนื้อหา 15 px บนเว็บและ 16 px บนมือถือ · line-height 1.6 เพื่อไม่ให้สระและวรรณยุกต์ชนกัน · แยกลำดับหัวข้อด้วยขนาดและน้ำหนัก ไม่เปลี่ยนฟอนต์ · Workspace มีเมนูด้านซ้าย เนื้อหากว้างไม่เกิน 1280 px หน้าเอกสารแบ่งเป็นเนื้อหาด้านซ้ายกับแถบไทม์ไลน์และปุ่มตัดสินด้านขวา · LIFF เป็นคอลัมน์เดียว ปุ่มหลักติดล่างจอ · ใช้การ์ดเฉพาะกับของที่เป็นหน่วยเดียวกันจริง เช่น ประเภทคำขอ
+
+**สิ่งที่ห้ามใช้** (นิสัยการออกแบบที่ต้องตัดออกจากทุกหน้า)
+
+- ห้ามไล่สี (gradient) บนพื้นหลัง ปุ่ม หรือการ์ด และห้ามใช้สีม่วงเป็นสีหลัก
+- ห้ามหั่นทุกอย่างเป็นการ์ดมุมมนเท่ากันที่มีเงาเทาแบบเดียวกันใต้ทุกใบ
+- ห้าม glassmorphism neumorphism เงาหนา และขอบเรืองแสง
+- ห้ามป้ายตัวพิมพ์ใหญ่ภาษาอังกฤษเหนือหัวข้อ และป้ายกำกับที่ไม่จำเป็นเหนือเนื้อหา
+- ห้ามเน้นคำเดียวในหัวข้อด้วยสีหรือตัวเอียง
+- ห้ามตัวเลขลำดับ 01 / 02 / 03 กับเนื้อหาที่ไม่ใช่ขั้นตอนจริง
+- ห้ามต่อท้ายปุ่มหรือลิงก์ด้วยลูกศร → และห้ามใช้ฟอนต์ monospace กับป้ายข้อมูล
+- ห้าม animation ตกแต่ง เช่น ทุก section เลื่อนขึ้นตอนโหลด การ์ดยกตัวเมื่อเอาเมาส์ชี้ เด้ง parallax confetti ใช้ transition ไม่เกิน 200 ms เฉพาะเพื่อบอกผลของสิ่งที่ผู้ใช้ทำ
+- ห้าม hero section ภาพประกอบ stock 3D blob มาสคอต และ emoji เป็นไอคอนในแอปทำงาน
+- ห้าม dashboard ที่เป็นตัวเลขใหญ่กับป้ายเล็กเรียงเต็มจอโดยไม่พาไปทำงานต่อ ทุกตัวเลขต้องคลิกไปที่รายการได้
+- ห้ามกราฟวงกลม 3D กราฟที่ไม่มีหน่วย และกราฟที่ใช้เกิน 6 สี
+- ห้ามบอกสถานะด้วยสีอย่างเดียว ต้องมีไอคอนหรือข้อความคู่กัน (NFR-A11Y-03)
+- ห้ามตัวอักษรที่ contrast ต่ำกว่า 4.5:1 และตัวอักษรเล็กกว่า 14 px บนเว็บหรือ 16 px บนมือถือ
+- ห้าม modal ซ้อน modal ห้ามฟอร์มยาวหน้าเดียวเกิน 8 ฟิลด์โดยไม่แบ่งขั้น และห้ามบอก error ใน toast อย่างเดียว
+- ห้ามปุ่มอนุมัติกับปุ่มไม่อนุมัติหน้าตาเหมือนกันหรือวางชิดจนกดผิด และห้ามการกระทำที่ย้อนไม่ได้โดยไม่ยืนยัน
+- ห้ามตารางที่ทำให้ทั้งหน้าเลื่อนแนวนอนบนมือถือ ให้เปลี่ยนเป็นมุมมองรายการ
+- ห้ามไอคอนเปล่าที่ไม่มีข้อความสำหรับคำสั่งสำคัญ
+- ห้ามหน้าว่างที่มีแค่คำว่า "ไม่มีข้อมูล" และห้ามปุ่มที่เขียนว่า "ตกลง" หรือ "ส่ง" โดยไม่บอกผล
+- ห้ามปนภาษาอังกฤษในข้อความผู้ใช้ ยกเว้นคำที่บริษัทใช้จริง เช่น PR PO GR VAT
+- ห้ามหน้าตาแบบที่ AI มักสร้าง: พื้นครีมกับตัวหนังสือมีเชิงและสีส้มอิฐ หรือพื้นดำกับสีเขียวสะท้อนแสง
+- ห้ามลอกโลโก้ สี ชื่อ ภาพหน้าจอ หรือข้อความของ Zip และแบรนด์อื่น
+
+**ขั้นตอนของงานหน้าจอทุกงาน:** (1) ร่างแผนสั้น ๆ ว่าหน้านี้ต้องบอกอะไร ลำดับความสำคัญ และโครงหน้า (2) ตรวจแผนกับรายการ "สิ่งที่ห้ามใช้" ก่อนเขียนโค้ด (3) เขียนโค้ดด้วย token ข้างบน (4) ถ่าย screenshot ที่ 375 px และ 1440 px แล้วตรวจกับรายการอีกรอบ (5) รัน axe ต้องไม่มี violation ระดับ serious หรือ critical · ถ้าเครื่องมือของคุณมี skill ด้านออกแบบหน้าจอ ให้อ่านก่อน แต่ token และรายการห้ามในหัวข้อนี้มาก่อนเสมอ
+
+---
+
+## 10. การแจ้งเตือนและแคตตาล็อกเหตุการณ์
+
+### 10.1 ตารางการแจ้งเตือน (ชั้น 1)
+
+| เหตุ | ผู้รับ | ช่องทาง | ความด่วน | แม่แบบ |
+| --- | --- | --- | --- | --- |
+| `approval_task.assigned` | ผู้รับงาน · ผู้มอบ (รับทราบ เมื่อเป็นงานรักษาการ) | การ์ด LINE → อีเมล | IMMEDIATE | `task.assigned` |
+| `approval_task.reminded` | ผู้รับงาน | LINE → อีเมล | IMMEDIATE | `task.reminder` |
+| `approval_task.overdue` | ผู้รับงาน · ผู้อนุมัติช่วงถัดไป (รับทราบ) | LINE → อีเมล | IMMEDIATE | `task.overdue` |
+| `approval_task.escalated` | ผู้รับร่วมคนใหม่ · ผู้รับเดิม · ผู้ขอ | LINE → อีเมล | IMMEDIATE | `task.escalated` |
+| `request.approved` | ผู้ขอ · ผู้ติดตาม | LINE → อีเมล | IMMEDIATE | `request.approved` |
+| `request.rejected` · `request.returned` | ผู้ขอ · ผู้ติดตาม | LINE → อีเมล | IMMEDIATE | `request.decided` |
+| `request.info_requested` | ผู้ขอ | LINE → อีเมล | IMMEDIATE | `request.info_requested` |
+| `request.info_provided` | ผู้อนุมัติที่ถาม | LINE → อีเมล | IMMEDIATE | `request.info_provided` |
+| `po.approved` | PROCUREMENT ผู้สร้าง PO | ในระบบ · LINE | IMMEDIATE | `po.approved` |
+| `po.sent` | ผู้ขอของ PR ต้นทาง · ผู้ตรวจรับที่ได้รับมอบหมาย | LINE → อีเมล | DIGEST | `po.sent` |
+| `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
+| `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
+| ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
+| เกิด `APPROVER_NOT_FOUND` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
+| โควตา LINE ถึง 80% | ORG_ADMIN · PLATFORM_ADMIN | อีเมล | IMMEDIATE | `admin.line_quota` |
+| `export.generated` | ผู้สั่งส่งออก | ในระบบ | IMMEDIATE | `export.ready` |
+| `organization.module_enabled` · `organization.module_disabled` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.module_changed` |
+| DOA ฉบับใหม่หรือการเปลี่ยนโครงสร้างอำนาจมีผล | ผู้ที่ได้หรือเสียอำนาจ · ORG_ADMIN | LINE → อีเมล | IMMEDIATE | `doa.authority_changed` |
+| `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
+| `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
+| `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
+| สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
+| `security.pin_locked` · `auth.2fa_reset` | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
+
+| ID | กฎ |
+| --- | --- |
+| BR-NOTI-01 | ข้อความ LINE ห้ามมีรายการสินค้า ราคาต่อหน่วย ไฟล์แนบ หรือข้อมูลส่วนบุคคลนอกจากชื่อผู้ขอ |
+| BR-NOTI-02 | ทุกข้อความมีลิงก์กลับไปเอกสาร (LIFF หรือเว็บ) |
+| BR-NOTI-03 | ภาษาตาม locale ของผู้รับ น้ำเสียงสุภาพและสั้น |
+| BR-NOTI-04 | งานอนุมัติและงานเกิน SLA ปิดการแจ้งไม่ได้ (FR-NOTI-004) |
+
+### 10.2 แคตตาล็อก event (ชั้น 1)
+
+ชื่อ event รูปแบบ `<aggregate>.<past_verb>` · ทุก type มี Zod schema ของ `data` ใน `src/server/events/schemas.ts` พร้อม `schemaVersion` และมีเทสต์ที่หา type ทุกตัวที่โค้ดใช้แล้วตรวจว่ามี schema (นับเอง) · ชื่อ event ใน Inngest คือ `bcs/` + type
+
+| Aggregate | Event types |
+| --- | --- |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` |
+| โครงองค์กร | `department.created` `department.updated` `position.assigned` `position.unassigned` `holiday.imported` |
+| doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
+| org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
+| form_version | `form_version.published` |
+| delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `comment.added` `comment.retracted` |
+| supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
+| approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
+| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
+| po | `po.drafted` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
+| gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
+| ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
+| ช่องทาง | `line.linked` `line.unlinked` |
+| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.2fa_enabled` `auth.2fa_reset` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
+| ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
+
+### 10.3 สรุปรายวันและข้อความ
+
+สรุปรายวันส่ง 08:00 วันทำการ เฉพาะคนที่มีเรื่องต้องรายงาน · ผู้มีงานค้าง: จำนวนงานรออนุมัติ 5 รายการที่ค้างนานที่สุดพร้อมอายุ และจำนวนที่เกิน SLA · DEPT_HEAD และ EXECUTIVE: งานค้างในขอบเขต งานเกิน SLA บรรทัดงบที่เหลือต่ำกว่า `digest.budgetLowPct` และลิงก์ไปกระดาน `/board/pending` · ข้อความสั้น สุภาพ ใช้คำกลาง เช่น "โปรดพิจารณา" และไม่มีข้อมูลต้องห้ามตาม BR-NOTI-01
+
+---
+
+## 11. รายงาน dashboard และ KPI
+
+### 11.1 กระดาน "เอกสารค้างที่ใคร"
+
+แถวคือผู้รับงาน คอลัมน์คือจำนวนงานเปิด อายุงานที่เก่าที่สุด (ชั่วโมงทำการ) จำนวนที่เกิน SLA และอายุเฉลี่ย · งาน `INFO_REQUESTED` แยกเป็นกลุ่ม "รอผู้ขอ" · กรองตามแผนกและประเภทเอกสาร · scope ตาม `board.pending.view` (§2.4) · ดึงจาก `ApprovalTask` ที่สถานะ `OPEN` หรือ `INFO_REQUESTED` และคำนวณอายุด้วย SLA engine เดียวกับ §7.8
+
+### 11.2 Dashboard งบ
+
+ต่อบรรทัดงบ แผนก และทั้งองค์กร: งบตั้งต้น · available · reserved · committed · actual · % ใช้แล้ว = (committed + actual) ÷ งบตั้งต้น · % รวมที่จองแล้ว = (reserved + committed + actual) ÷ งบตั้งต้น · สีเตือนเมื่อเหลือต่ำกว่า `digest.budgetLowPct` · drill-down ถึงเอกสาร · ส่งออก Excel
+
+### 11.3 รายงานตาม proposal เดิม
+
+framework: รายงานแต่ละฉบับเป็น query ใน `src/server/queries/reports/<code>.ts` พร้อมนิยามพารามิเตอร์ คอลัมน์ กฎ scope การส่งออก Excel และการตั้งรอบส่งอีเมล มีเทสต์ตัวเลขด้วย seed · รายชื่อและนิยามของรายงาน 7 ฉบับไม่อยู่ในเอกสารต้นทาง ห้าม agent เดา
+
+| ID | ชื่อรายงาน | สถานะ |
+| --- | --- | --- |
+| R-01 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+| R-02 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+| R-03 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+| R-04 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+| R-05 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+| R-06 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+| R-07 | ตามรายการใน proposal v1.2 | รอ OQ-09 |
+
+รายงานที่ BCS นิยามเพิ่มเอง: FR-VIS-005 รับของแล้วยังไม่มีใบกำกับ (§7.16) ถ้าลูกค้ามีรายงานนี้อยู่ใน R-01 ถึง R-07 ให้รวมเป็นฉบับเดียว
+
+### 11.4 สูตร KPI
+
+ทุกสูตรคำนวณจาก `Event` และตารางธุรกรรม ไม่เก็บข้อมูลเพิ่ม (P-8) เวลาเป็นชั่วโมงทำการด้วย engine ใน §7.8 และมีเทสต์ด้วยข้อมูลสังเคราะห์ที่รู้คำตอบ (FR-VIS-003) ค่า baseline วัดด้วยมือใน Phase 0 (P0-09)
+
+| เป้าหมาย | สูตร | หมายเหตุ |
+| --- | --- | --- |
+| G-1 | จำนวน PO ที่อนุมัติในช่วง ÷ จำนวนเอกสารซื้อทั้งหมดในช่วงจากข้อมูลที่นำเข้าจาก Express รายเดือน | ใน BCS ทุก PO มีคำขอต้นทาง (OQ-24) ตัวหารจึงต้องมาจากระบบบัญชีเพื่อจับการซื้อนอกระบบ |
+| G-2 | (ก) จำนวนการตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ DOA engine คำนวณได้ ณ เวลานั้น (ตรวจย้อนด้วย engine) (ข) การตัดสินที่มี doaVersionId และ ruleCode ÷ การตัดสินทั้งหมด | (ก) ต้องเป็น 0 · (ข) ต้องเป็น 100% |
+| G-3 | มัธยฐานของ (เวลาอนุมัติ PO แรก − เวลาส่งคำขอ) · มัธยฐานของ (decidedAt − assignedAt) · งานที่ตัดสินหลัง dueAt หรือยังเปิดอยู่และเลย dueAt ÷ งานทั้งหมด | |
+| G-4 | จำนวน `approval_task.assigned` ของคำขอที่ `budgetCheck` ไม่ใช่ PASS | ต้องเป็น 0 |
+| G-5 | การตัดสินที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินทั้งหมด | |
+| G-6 ถึง G-9 | นิยามใน sub-spec ของ S7 ถึง S11 | |
+| G-10 | จำนวนจุดในโค้ดที่ lint พบว่าอ้างรหัสองค์กรหรือเงื่อนไขเฉพาะลูกค้า | ต้องเป็น 0 |
+| G-11 | (ก) ฉบับ DOA และ `OrgAuthorityChange` ที่มีผลแล้วโดยไม่มี event ที่ actorType เป็น `PLATFORM_ADMIN` ในวงจรนั้น ÷ ทั้งหมด (ข) มัธยฐานเวลาทำการจาก `doa_version.drafted` ถึง `doa_version.published` | (ก) ต้องเป็น 100% |
+
+---
+
+## 12. AI (ชั้น 4): กติกาและสเปก
+
+ชั้น 1–3 ต้องทำงานครบโดยไม่เรียก AI (EG-1) หัวข้อนี้กำหนดกรอบไว้ล่วงหน้าเพื่อให้โครงข้อมูลรองรับ และห้ามเริ่มเขียนก่อน S13
+
+### 12.1 กติกาที่ใช้กับทุก agent
+
+| ID | กฎ |
+| --- | --- |
+| BR-AI-01 | AI ไม่อนุมัติแทนคนในเรื่องที่ DOA กำหนดให้คนตัดสิน และไม่เรียก command ที่เปลี่ยนสถานะเงินหรือการอนุมัติ (P-3) |
+| BR-AI-02 | ผลของ AI เป็นร่างใน `AgentAction` เสมอ ผู้ใช้เห็นค่าที่อ่านได้ข้างเอกสารต้นฉบับแล้วยืนยันหรือแก้ ค่าที่ความมั่นใจต่ำกว่าเกณฑ์ถูกไฮไลต์และต้องให้คนตรวจทุกครั้ง |
+| BR-AI-03 | ตัวเลขบนการ์ดและในสรุปดึงจากฐานข้อมูลด้วยโค้ด AI เขียนเฉพาะข้อความ |
+| BR-AI-04 | ทุกการเรียกบันทึก agent, promptVersion, model, ข้อมูลที่ใช้ (อ้างอิง ไม่เก็บเอกสารซ้ำ), ผลลัพธ์, ความมั่นใจ, สิ่งที่คนแก้, เวลา และ credits |
+| BR-AI-05 | ORG_ADMIN ปิด agent รายตัวได้ทันที และ PLATFORM_ADMIN ปิดทั้งระบบด้วย `AI_ENABLED=false` |
+| BR-AI-06 | ระดับความอิสระเปิดทีละขั้นตาม §12.3 และต้องผ่านชุดประเมินก่อนเปิดทุกครั้ง |
+| BR-AI-07 | Insight Agent เรียกได้เฉพาะฟังก์ชันค้นข้อมูลที่เขียนไว้ (whitelist) ภายใต้สิทธิ์ของผู้ถาม ห้ามให้ AI เขียน SQL เอง |
+| BR-AI-08 | ส่งข้อมูลให้ AI เท่าที่จำเป็น ปิดบังเลขบัญชีและเลขบัตรประชาชน ใช้ API ที่ไม่นำข้อมูลไปเทรน ไม่ fine-tune (NG-6) และบันทึกใน ROPA |
+| BR-AI-09 | รุ่นโมเดลเลือกผ่าน config (`AI_MODEL_DEFAULT` และค่าต่อ agent) การเปลี่ยนรุ่นหรือ prompt ต้องรันชุดประเมินใหม่และผ่านเกณฑ์เดิม |
+| BR-AI-10 | ใช้ structured outputs ของ Claude API กับ JSON schema ที่สร้างจาก Zod schema ชุดเดียวกับฟอร์ม schema รับประกันรูปแบบแต่ไม่รับประกันว่าค่าถูก |
+
+### 12.2 AgentAction
+
+| ฟิลด์ | หมายเหตุ |
+| --- | --- |
+| `agent` · `level` | ชื่อ agent และระดับ L0–L3 ที่ใช้ตอนเรียก |
+| `subjectType` · `subjectId` | เอกสารที่เกี่ยวข้อง |
+| `promptVersionId` · `model` | ใช้ทำชุดประเมินและย้อนตรวจ |
+| `inputRefs` · `output` · `fieldConfidence` | output เป็น JSON ตาม schema · ความมั่นใจต่อฟิลด์ |
+| `status` | `DRAFT` `ACCEPTED` `EDITED` `REJECTED` `AUTO_APPLIED` (เฉพาะ L2 ขึ้นไป) |
+| `acceptedById` · `diff` | ผู้ยืนยันและสิ่งที่แก้ ใช้เพิ่มชุดประเมิน |
+| `costCredits` · `latencyMs` | คิดค่าใช้และติดตามประสิทธิภาพ |
+
+### 12.3 ระดับความอิสระ
+
+| ระดับ | AI ทำอะไร | เปิดได้เมื่อ |
+| --- | --- | --- |
+| L0 แนะนำ | เสนอข้อมูล คนตัดสินทั้งหมด | S13 |
+| L1 ร่างให้ | ร่างแล้วคนกดยืนยัน | S13 |
+| L2 ทำแล้วแจ้ง | ทำงานความเสี่ยงต่ำเองแล้วแจ้ง | หลังชุดประเมินผ่านเกณฑ์ |
+| L3 ทำภายในกรอบ | ทำงานที่มีผลทางธุรกิจเองภายในเกณฑ์ที่ DOA อนุญาต | หลังใช้ L2 จนผลจริงผ่านเกณฑ์ และได้รับอนุมัติก่อนเปิด |
+
+ตอนเปิดใช้ครั้งแรกใช้ได้เฉพาะ L0–L1 (ADR-004)
+
+### 12.4 ชุดประเมิน
+
+สร้างจากเอกสารจริงของลูกค้าที่ลบข้อมูลอ่อนไหวแล้ว (P0-02) พร้อมคำตอบที่คนตรวจ วัดความถูกต้องต่อฟิลด์ สัดส่วนเอกสารที่คนต้องแก้ และความสอดคล้องของค่าความมั่นใจ ตั้งเกณฑ์ร่วมกับลูกค้าก่อนเปิดแต่ละ agent (ตัวอย่างตั้งต้นสำหรับการอ่านใบแจ้งหนี้: ยอดรวม VAT เลขผู้เสียภาษี และเลขที่เอกสาร ถูกต้องอย่างน้อย 98% ต่อฟิลด์) รันทุกคืนเมื่อมี key และทุกครั้งที่เปลี่ยน prompt หรือรุ่นโมเดล ตัวอย่างค่า `AI_MODEL_DEFAULT` ในภาคผนวก B เป็นเพียงตัวอย่าง รุ่นจริงเลือกจากผลประเมิน
+
+---
+
+## 13. Non-functional requirements
+
+| ID | หมวด | ความต้องการ |
+| --- | --- | --- |
+| NFR-SEC-01 | ความปลอดภัย | ใช้ OWASP ASVS ระดับ 2 เป็นเกณฑ์ตรวจก่อน go-live |
+| NFR-SEC-02 | ความปลอดภัย | HTTPS ทุกที่ พร้อม HSTS · cookie `Secure` `HttpOnly` `SameSite=Lax` |
+| NFR-SEC-03 | ความปลอดภัย | บังคับ TOTP 2FA กับทุกคนที่ไม่ใช่ผู้ขออย่างเดียว (FR-AUTH-002) |
+| NFR-SEC-04 | ความปลอดภัย | session เว็บ idle 30 นาที อายุสูงสุด 12 ชั่วโมง · LIFF idle 15 นาที · เปลี่ยน session id หลัง login และหลัง step-up |
+| NFR-SEC-05 | ความปลอดภัย | rate limit: login 5 ครั้งต่อ 15 นาทีต่อบัญชีและต่อ IP · API 60 ครั้งต่อนาทีต่อผู้ใช้ · OTP ผิดได้ 5 ครั้ง |
+| NFR-SEC-06 | ความปลอดภัย | CSP เข้มงวด อนุญาตเฉพาะโดเมน LIFF SDK และ LINE ที่จำเป็น · ป้องกัน CSRF ใน route handler ที่รับ POST จากฟอร์ม |
+| NFR-SEC-07 | ความปลอดภัย | secret ของ tenant เข้ารหัส AES-256-GCM ด้วย `ENCRYPTION_KEY` พร้อม key id เพื่อหมุนคีย์ได้ · secret ของระบบอยู่ใน secret manager ไม่อยู่ใน repo |
+| NFR-SEC-08 | ความปลอดภัย | ไฟล์: allowlist ชนิดและตรวจ magic bytes ขนาดไม่เกิน 20 MB bucket private presigned ไม่เกิน 5 นาที ไฟล์จากภายนอกต้องสแกนไวรัส |
+| NFR-SEC-09 | ความปลอดภัย | log ห้ามมีรหัสผ่าน PIN token secret เลขบัญชีเต็ม และเลขบัตรประชาชน มี redaction ที่ logger พร้อมเทสต์ |
+| NFR-SEC-10 | ความปลอดภัย | สแกน dependency และ secret ใน CI · แก้ช่องโหว่ critical ภายใน 72 ชั่วโมง อื่น ๆ ภายใน 14 วัน |
+| NFR-SEC-11 | ความปลอดภัย | การเข้าข้อมูล tenant ของทีม BCS ทำได้เฉพาะ break-glass ตาม BR-AUTH-03 |
+| NFR-PRIV-01 | PDPA | ไม่เก็บข้อมูลจริงจนกว่า OQ-19 ปิดและมี ROPA |
+| NFR-PRIV-02 | PDPA | เก็บเท่าที่จำเป็น เลขบัตรประชาชนเก็บเฉพาะผู้ขายบุคคลธรรมดา สำเนาบัตรต้องปิดข้อมูลศาสนาก่อนอัปโหลด |
+| NFR-PRIV-03 | PDPA | ข้อมูลอ่อนไหวแสดงแบบ mask โดยค่าเริ่มต้น และการเปิดดูบันทึกใน `SensitiveAccessLog` |
+| NFR-PRIV-04 | PDPA | ระยะเก็บตั้งได้ต่อองค์กร ค่าเริ่มต้นเอกสาร 5 ปีหลังปิด (OQ-30) log การเข้าถึง 1 ปี CommandLog 90 วัน |
+| NFR-PRIV-05 | PDPA | รองรับสิทธิ์เจ้าของข้อมูล (ขอสำเนา แก้ไข ลบหรือทำให้ไม่ระบุตัวตน) ภายใต้หน้าที่เก็บเอกสารตามกฎหมายบัญชีและภาษี |
+| NFR-PRIV-06 | PDPA | ผู้ประมวลผลภายนอก (Neon, hosting, storage, อีเมล, LINE, Anthropic) อยู่ในรายการ sub-processor พร้อมสัญญา DPA |
+| NFR-PERF-01 | ประสิทธิภาพ | LCP ไม่เกิน 2.5 วินาที INP ไม่เกิน 200 ms บนมือถือระดับกลางผ่าน 4G (หน้า LIFF และหน้าแรก) |
+| NFR-PERF-02 | ประสิทธิภาพ | อ่านข้อมูล p95 ไม่เกิน 300 ms · ส่งคำขอและตัดสิน p95 ไม่เกิน 1 วินาที (ไม่รวมอัปโหลดไฟล์) |
+| NFR-PERF-03 | ประสิทธิภาพ | ออกแบบรองรับ 500 ผู้ใช้ 20,000 คำขอต่อปี และ 50 ผู้ใช้พร้อมกันต่อ tenant (A-04) · load test ที่ 2 เท่าก่อน go-live |
+| NFR-AVL-01 | ความพร้อมใช้ | เป้า 99.5% ต่อเดือน ไม่รวมช่วงบำรุงรักษาที่แจ้งล่วงหน้า |
+| NFR-AVL-02 | ความพร้อมใช้ | RPO ไม่เกิน 5 นาที (point-in-time restore) RTO ไม่เกิน 4 ชั่วโมง ซ้อมกู้คืนก่อน go-live และทุกไตรมาส |
+| NFR-AVL-03 | ความพร้อมใช้ | LINE หรืออีเมลล่ม ระบบหลักยังทำงาน และงานอนุมัติไปถึงผู้รับทางช่องทางสำรอง |
+| NFR-A11Y-01 | การเข้าถึง | WCAG 2.1 AA สำหรับหน้าหลัก ตรวจด้วย axe ใน e2e |
+| NFR-A11Y-02 | การเข้าถึง | ตัวอักษรบนมือถืออย่างน้อย 16 px ปุ่มแตะอย่างน้อย 44 px contrast อย่างน้อย 4.5:1 |
+| NFR-A11Y-03 | การเข้าถึง | สถานะไม่สื่อด้วยสีอย่างเดียว ต้องมีไอคอนหรือข้อความ |
+| NFR-I18N-01 | ภาษา | ไทยเป็นหลัก อังกฤษรอง ทุกข้อความผ่าน next-intl |
+| NFR-I18N-02 | ภาษา | วันที่ พ.ศ. เวลาไทย รูปแบบเงินไทย · เรียงชื่อไทยด้วย `Intl.Collator('th')` |
+| NFR-OBS-01 | การติดตาม | log JSON มี requestId correlationId organizationId และมี health endpoint |
+| NFR-OBS-02 | การติดตาม | metric: เวลา command อัตรา error outbox ค้าง งาน Inngest ล้ม โควตา LINE อีเมลตีกลับ พร้อมแจ้งเตือนเมื่อเกินเกณฑ์ |
+| NFR-OBS-03 | การติดตาม | ตรวจ audit chain ทุกสัปดาห์ (INV-EVT-03) |
+| NFR-MNT-01 | ดูแลรักษา | TypeScript strict ห้าม `any` เว้นแต่มีคอมเมนต์เหตุผล · ESLint boundaries ผ่าน |
+| NFR-MNT-02 | ดูแลรักษา | coverage: engine เงินและอำนาจ 100% branch · services อย่างน้อย 80% line |
+| NFR-MNT-03 | ดูแลรักษา | การตัดสินใจเชิงสถาปัตยกรรมทุกเรื่องมี ADR และทุกขั้นมี sub-spec |
+| NFR-MNT-04 | ดูแลรักษา | migration ใช้แบบ expand–contract ให้โค้ดรุ่นก่อนหน้า 1 รุ่นยังทำงานได้ |
+
+---
+
+## 14. API และ convention ของโค้ด
+
+### 14.1 Service และ DTO
+
+```ts
+// รูปแบบของทุก service (command)
+export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promise<Result<RequestDto>>
+// Result<T> = { ok: true; data: T } | { ok: false; error: { code: ErrorCode; message: string; details?: unknown } }
+```
+
+- server action เป็นแค่ตัวแปลง: อ่าน FormData → สร้าง `ctx` จาก session → เรียก service → แปลงผลเป็น state ของ UI ห้ามมีตรรกะธุรกิจ
+- ห้ามคืน model ของ Prisma ตรง ๆ ต้องแปลงเป็น DTO ทุกครั้ง
+- เงินใน DTO และ API เป็น `{ "amount": "12345.50", "currency": "THB" }` เวลาเป็น ISO 8601 UTC · แปลง BigInt ด้วย helper เดียว (`toMoneyDto`) เพราะ JSON serialize BigInt ไม่ได้
+- query รายการใช้ cursor pagination
+- domain error คืนเป็น `Result` · `throw` ใช้กับ programming error เท่านั้น
+
+### 14.2 รหัสข้อผิดพลาด
+
+| Code | HTTP | ข้อความภาษาไทย (แม่แบบ) |
+| --- | --- | --- |
+| `VALIDATION_FAILED` | 400 | ข้อมูลไม่ถูกต้อง: {field} |
+| `ATTACHMENT_RULE_FAILED` | 400 | เอกสารแนบไม่ครบตามกฎ {rule}: {missing} |
+| `TOKEN_INVALID` | 400 | ลิงก์ไม่ถูกต้อง |
+| `UNAUTHENTICATED` | 401 | กรุณาเข้าสู่ระบบ |
+| `FORBIDDEN` | 403 | คุณไม่มีสิทธิ์ทำรายการนี้ |
+| `SOD_VIOLATION` | 403 | ทำรายการนี้ไม่ได้เพราะขัดหลักการแบ่งแยกหน้าที่ ({rule}) |
+| `MODULE_DISABLED` | 403 | องค์กรยังไม่ได้เปิดใช้โมดูล {module} |
+| `NOT_FOUND` | 404 | ไม่พบข้อมูล |
+| `CONFLICT_VERSION` | 409 | เอกสารถูกแก้ไขโดยผู้อื่น กรุณาโหลดใหม่ |
+| `IDEMPOTENCY_CONFLICT` | 409 | คำสั่งนี้ถูกส่งแล้วด้วยข้อมูลที่ต่างกัน |
+| `INVALID_STATE_TRANSITION` | 409 | เอกสารอยู่ในสถานะที่ทำรายการนี้ไม่ได้ |
+| `MODULE_IN_USE` | 409 | ปิดโมดูลไม่ได้: {reason} |
+| `TOKEN_USED` | 409 | รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time} |
+| `DUPLICATE_INVOICE` | 409 | เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้ |
+| `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
+| `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
+| `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
+| `DOA_LINT_FAILED` | 422 | DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes} |
+| `APPROVER_NOT_FOUND` | 422 | ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ |
+| `NO_HIGHER_AUTHORITY` | 422 | DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้ |
+| `BUDGET_INSUFFICIENT` | 422 | งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท |
+| `BUDGET_LINE_CLOSED` | 422 | บรรทัดงบนี้ถูกระงับหรือปิดแล้ว |
+| `TAX_RATE_NOT_CONFIGURED` | 422 | ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม |
+| `INVOICE_EXCEEDS_COMMITTED` | 422 | ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท) |
+| `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
+| `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
+| `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
+| `EXTERNAL_SERVICE_ERROR` | 502 | ระบบภายนอกไม่ตอบสนอง ({service}) |
+| `INTERNAL` | 500 | เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId}) |
+
+### 14.3 REST `/api/v1` (เปิดในชั้น 4 แต่ใช้ convention นี้ตั้งแต่ต้น)
+
+ชื่อ resource เป็นพหูพจน์แบบ kebab-case · error เป็น `application/problem+json` (RFC 9457) พร้อม `code` จาก §14.2 · pagination `?cursor=&limit=` (limit ไม่เกิน 100) · POST ต้องมี header `Idempotency-Key` · PATCH ต้องมี `If-Match` เป็น version · ยืนยันตัวตนด้วย OAuth2 client credentials ผูกกับองค์กร · สร้าง OpenAPI จาก Zod schema ชุดเดียวกับ service · webhook ขาออกเซ็นด้วย HMAC และ retry แบบ backoff โดยใช้ชื่อ event ตาม §10.2
+
+### 14.4 Convention อื่น
+
+ชื่อไฟล์ kebab-case · component เป็น PascalCase · ไม่มี default export ยกเว้นไฟล์ที่ Next.js บังคับ · เวลาใช้ `ctx.now` · id ใช้ `newId()` (uuid v7) · ข้อความ UI อยู่ใน `messages/th.json` และ `messages/en.json` · commit ใช้ Conventional Commits เช่น `feat(doa): resolve route with next-band escalation` · branch ตั้งชื่อตามขั้น เช่น `s2/doa-engine`
+
+---
+
+## 15. การทดสอบ quality gates และ `pnpm verify`
+
+### 15.1 ชั้นของเทสต์
+
+| ชนิด | เครื่องมือ | ครอบคลุม | รันเมื่อ |
+| --- | --- | --- | --- |
+| unit | Vitest | core ทั้งหมด | ทุก push |
+| golden | Vitest + YAML | ทุกไฟล์ใน `tests/golden` ยกเว้น fixtures (ค้นหาเอง) | ทุก push |
+| property | fast-check | invariant ของงบ เงิน การปันส่วน และความ deterministic ของ DOA | ทุก push (nightly รันจำนวนเต็ม) |
+| integration | Vitest + Postgres จริง | services ธุรกรรม trigger grant และ concurrency | ทุก push |
+| generated | Vitest | สิทธิ์ tenant state machine และ schema ของ event | ทุก push |
+| e2e | Playwright | demo script ของแต่ละขั้นบนจอ desktop และมือถือ | ทุก PR เข้า `main` |
+| a11y | axe + Playwright | หน้าหลัก | ทุก PR เข้า `main` |
+| AI eval | สคริปต์ | agent ชั้น 4 | nightly |
+
+### 15.2 Golden test runner
+
+อ่านทุกไฟล์ YAML ใน `tests/golden` (ไม่รวม `fixtures/`) จับคู่ `suite` และ `fn` กับฟังก์ชันใน core แปลงสตริงเงินเป็นสตางค์ แล้วสร้างเทสต์หนึ่งตัวต่อเคสโดยชื่อขึ้นต้นด้วย id ของเคส ห้ามแก้ค่า expect เพื่อให้เทสต์ผ่าน ถ้าผลต่างให้หยุดและถาม (§17.4)
+
+### 15.3 เทสต์ที่สร้างอัตโนมัติ
+
+- สิทธิ์: อ่าน `src/server/authz/permissions.ts` แล้วสร้างเทสต์ทุก capability × role × scope ทั้งกรณีอนุญาตและปฏิเสธ นับจำนวนเอง
+- tenant: อ่าน Prisma DMMF หาทุก model ที่มี `organizationId` แล้วตรวจ INV-TEN-01
+- state machine: ทุกคู่ (สถานะ, command) ที่ไม่มีในตารางต้องได้ `INVALID_STATE_TRANSITION`
+- event: ทุก event type ที่โค้ดสร้างต้องมี schema ใน `src/server/events/schemas.ts`
+- นโยบาย: สแกนโค้ดหาทุกจุดที่เขียน `PositionAssignment` `Department.parentId` และ `Delegation` ที่ตั้งแทนผู้อื่น (นับเอง) แล้วตรวจว่ามาจาก `org-authority-apply` เท่านั้น สำหรับตำแหน่งที่ DOA อ้าง (BR-DOA-17 EG-8)
+
+### 15.4 Property และ concurrency
+
+property: ลำดับ operation งบแบบสุ่ม (INV-BUD-01 ถึง INV-BUD-03) · `net + vat = gross` ทุกกรณี · ผลการปันส่วนรวมเท่ายอดเดิมเสมอ · `resolveRoute` deterministic (INV-DOA-02) · concurrency กับ Postgres จริง: GC-BUD-07 · INV-NUM-01 · INV-PLT-01 · INV-TOK-01
+
+### 15.5 `pnpm verify`
+
+รันทุกด่านตามลำดับ รายงาน PASS หรือ FAIL ทีละข้อ ข้อที่ FAIL ต้องบอกผลกระทบตอนใช้งานจริงและวิธีแก้ที่ระบุไฟล์หรือค่า และคืน exit code ไม่เป็นศูนย์ถ้ามี FAIL
+
+1. `.env` ผ่าน Zod schema
+2. typecheck
+3. lint รวมกฎ boundaries `bcs/no-money-literal` และห้ามอ้างรหัสองค์กร
+4. `prisma validate` และไม่มี schema drift
+5. ตรวจฐานข้อมูล: trigger append-only ครบ grant ของ `bcs_app` ถูกต้อง CHECK constraint ครบ และ DOA ทุกฉบับที่ seed หรือเผยแพร่แล้วผ่าน lint ชุดเต็มของ BR-DOA-08
+6. unit และ golden (รายงานจำนวนไฟล์และเคสที่นับได้)
+7. property
+8. integration และ generated
+9. `spec:check` รวมรูปแบบ checklist ใน §16 และรายการห้ามใช้กับ contrast ของ token ใน §9.9
+10. `docs/feature-status.yaml` อ้าง FR ที่มีอยู่จริงและสถานะถูกต้อง
+11. e2e (เฉพาะ PR เข้า `main`)
+
+ตัวอย่างผลลัพธ์:
+
+```text
+BCS verify — commit a1b2c3d
+PASS  env          .env ผ่าน schema
+PASS  typecheck    0 errors
+FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
+      ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
+      วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
+PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
+FAIL  golden       19 ไฟล์ · 132 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+      ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
+      วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
+สรุป: 2 FAIL · 3 PASS → ห้าม merge
+```
+
+### 15.6 `docs/feature-status.yaml`
+
+ไฟล์เดียวที่ใช้บอกลูกค้าว่าอะไรใช้ได้แล้ว (§0.5) เอกสารขายอ้างได้เฉพาะสถานะ `verified` และ `live`
+
+```yaml
+# docs/feature-status.yaml
+updatedAt: 2026-10-06
+features:
+  FR-DOA-003:
+    status: done            # planned | in_progress | done | verified | live
+    step: S2
+    evidence: [tests/golden/doa.yaml, tests/e2e/s2-demo.spec.ts]
+    verifiedBy: null        # ผู้ใช้จริงที่ลองแล้ว (เกณฑ์ผ่านขั้น §16.2)
+    notes: ""
+```
+
+### 15.7 Traceability
+
+ชื่อเทสต์ต้องมีแท็ก `[FR-xxx-nnn/ACn]` หรือ `[GC-…]` สคริปต์สร้างตาราง FR → เทสต์ทุกครั้งที่รัน verify · ก่อนปิดขั้นใด AC ทุกข้อของ FR ในขั้นนั้นต้องมีเทสต์อย่างน้อย 1 ตัว
+
+### 15.8 การตรวจโค้ดโดยคน
+
+`CODEOWNERS` บังคับให้คนที่ระบุชื่ออนุมัติ PR ที่แตะ `src/core/**` `src/server/authz/**` `src/server/services/budget/**` `prisma/migrations/**` และ `tests/golden/**` ห้าม auto-merge เส้นทางเหล่านี้ ตามกติกา "ให้คนอ่านโค้ดส่วนเงินและสิทธิ์เอง" ของเอกสารต้นทาง
+
+---
+
+## 16. แผนงาน: Phase 0 และขั้น S1–S15
+
+### 16.1 Phase 0 — งานที่คนต้องทำ (agent ห้ามติ๊กเอง)
+
+ข้อ P0-05 ถึง P0-08 เป็นของฝั่ง BCS ที่ต้องมีก่อน deploy staging สำหรับ demo ข้ออื่นทำหลัง demo (เส้นชัย B และ C) เมื่อ agent ต้องใช้ข้อที่ยังไม่เสร็จ ให้หยุดถามแล้วทำข้ออื่นต่อ
+
+- [ ] **P0-01** `[คน]` `[go-live]` เอกสาร DOA ผังองค์กร และรายชื่อผู้ใช้ตามบทบาท (ใช้ตอบ OQ-01 OQ-02 OQ-27) · ลูกค้า + BCS
+  - เสร็จเมื่อ: ข้อมูลอยู่ในชีต Departments Positions Users DOA ของไฟล์ input และ `pnpm inputs:check` ผ่าน
+- [ ] **P0-02** `[คน]` `[go-live]` ตัวอย่างใบเสนอราคา ใบส่งของ ใบแจ้งหนี้จริงที่ลบข้อมูลอ่อนไหวแล้ว · ลูกค้า · ก่อน S13
+  - เสร็จเมื่อ: ได้ไฟล์ตามจำนวนที่ตกลงในที่เก็บที่ปลอดภัย (ใช้ทำชุดประเมิน §12.4)
+- [ ] **P0-03** `[คน]` `[go-live]` สเปกไฟล์จ่ายเงินของธนาคาร 1–2 แห่ง · ลูกค้า + ธนาคาร · ก่อน S9
+  - เสร็จเมื่อ: ได้สเปกและไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคาร
+- [ ] **P0-04** `[คน]` `[go-live]` LINE ของลูกค้า: provider เดียว + Messaging API + MINI App + Login channel และแพ็กเกจ OA (OQ-15 OQ-16) · ลูกค้า + BCS · ก่อนใช้ LINE ในระบบจริง
+  - เสร็จเมื่อ: ปุ่มทดสอบการเชื่อมต่อด้วยค่าของลูกค้าผ่านทุกข้อ (demo ใช้ channel ของ BCS ตาม D-03)
+- [ ] **P0-05** `[คน]` `[demo]` Neon project ภูมิภาคสิงคโปร์สำหรับ staging (production รอ OQ-19) · BCS
+  - เสร็จเมื่อ: ใส่ `DATABASE_URL` และ `DIRECT_URL` ของ staging ใน secret ของ hosting แล้ว
+- [ ] **P0-06** `[คน]` `[demo]` ที่เก็บไฟล์: ทดสอบ Neon Object Storage ถ้าไม่ผ่านใช้ R2 หรือ S3 (ADR-033) · BCS
+  - เสร็จเมื่อ: อัปโหลดและดาวน์โหลดผ่าน presigned URL บน staging ได้
+- [ ] **P0-07** `[คน]` `[demo]` บัญชี Inngest และ signing key · BCS
+  - เสร็จเมื่อ: ใส่ `INNGEST_EVENT_KEY` และ `INNGEST_SIGNING_KEY` ใน staging แล้ว Inngest เห็นฟังก์ชันของแอป
+- [ ] **P0-08** `[คน]` `[demo]` เลือก hosting (ADR-032) และ inbox อีเมลสำหรับ demo (ADR-031) · BCS
+  - เสร็จเมื่อ: agent deploy staging ได้ด้วย token ที่ให้ไว้
+- [ ] **P0-09** `[คน]` `[go-live]` วัด baseline ของ KPI 8 ตัวแรก (§11.4) · ลูกค้า + BCS · ก่อน go-live
+  - เสร็จเมื่อ: ตัวเลขบันทึกใน `docs/kpi-baseline.md`
+- [ ] **P0-10** `[คน]` `[go-live]` ไฟล์ตัวอย่างที่ Express นำเข้าได้ และช่องทางเชื่อมต่อของ Express (OQ-10) · ลูกค้า (บัญชี)
+  - เสร็จเมื่อ: ไฟล์อยู่ใน `docs/inputs/` และ mapping ในชีต Settings ถูกแก้ตาม
+- [ ] **P0-11** `[คน]` `[go-live]` รายชื่อและนิยามรายงาน 7 ฉบับจาก proposal v1.2 (OQ-09) · BCS · ส่งก่อน demo ได้ถ้าอยากโชว์
+  - เสร็จเมื่อ: รายชื่ออยู่ใน §11.3 แทนแถว "รอ OQ-09"
+- [ ] **P0-12** `[คน]` `[go-live]` ปฏิทินวันหยุดและเวลาทำการของบริษัท (OQ-14) · ลูกค้า
+  - เสร็จเมื่อ: ชีต Holidays และ Settings ถูกแก้ และ `pnpm inputs:check` ผ่าน
+- [ ] **P0-13** `[คน]` `[go-live]` Claude API key · BCS · ก่อน S13
+  - เสร็จเมื่อ: key อยู่ใน secret manager และ `AI_ENABLED` ยังเป็น false จนถึง S13
+- [ ] **P0-14** `[คน]` `[go-live]` ผู้ใช้จริงอย่างน้อยฝ่ายละ 1 คนที่จะลองใช้ทุกขั้น · ลูกค้า
+  - เสร็จเมื่อ: รายชื่ออยู่ในชีต Users พร้อมหมายเหตุ
+- [ ] **P0-15** `[คน]` `[go-live]` ตอบ OQ-31 และ OQ-32 ร่วมกับฝ่ายตรวจสอบภายในของลูกค้า และระบุผู้มีอำนาจลงนามในสัญญา · ลูกค้า + BCS
+  - เสร็จเมื่อ: คำตอบอยู่ในชีต Questions และ Org
+
+### 16.2 กติกาการผ่านขั้น
+
+1. โครงและข้อมูลก่อน: `organizationId` อยู่ในทุกตารางตั้งแต่ migration แรก
+2. โค้ดปกติก่อน AI: S1–S12 ต้องใช้งานได้ครบโดยไม่เรียก AI
+3. ส่วนที่ไม่ต้องรอใครทำก่อน ยกเว้นเรื่องที่ต้องยื่นขอล่วงหน้า (Phase 0)
+4. DOA งบ การจับคู่ และไฟล์ธนาคาร ต้องมีเทสต์ก่อนหรือพร้อมโค้ด และมีคนอ่านโค้ดส่วนเงินและสิทธิ์ (§15.8)
+5. ไม่เริ่มขั้นถัดไปจนกว่าผ่านเกณฑ์ "เสร็จเมื่อ" และมีผู้ใช้จริงอย่างน้อยฝ่ายละ 1 คนลองใช้แล้ว (บันทึก `verifiedBy` ใน §15.6) · ยกเว้น demo build ตาม §16.10
+6. หลัง S7 สลับลำดับ S8–S9, S10, S11 และ S12 ได้ ถ้าลูกค้ายังไม่ตกลงขอบเขตการเงิน
+7. ทุกขั้นเริ่มด้วย `docs/sub-specs/S<n>.md` สำหรับ S1–S5 ให้สรุปงานและการตัดสินใจเพิ่มเติมจากเอกสารนี้ สำหรับ S6 ขึ้นไปต้องเขียนละเอียดระดับ §7–§8 ก่อนเริ่ม
+
+### 16.3 S1 · โครง
+
+**เสร็จเมื่อ (ต้นฉบับ):** ล็อกอินและเปิดผ่านมือถือบน URL จริงได้ ติดตั้งเป็นไอคอนบนหน้าจอได้ เขียนและอ่านเหตุการณ์ได้ อัปโหลดไฟล์ได้ และชุดทดสอบรันผ่านทุกครั้งที่ push
+
+**FR ที่ครอบคลุม:** FR-PLT-001 FR-PLT-002 FR-PLT-003 FR-PLT-004 FR-PLT-005 FR-PLT-006 FR-PLT-007 FR-PLT-008 FR-PLT-011 FR-PLT-012 FR-AUTH-001 FR-AUTH-002 FR-AUTH-003 FR-ADM-001 FR-ADM-006
+
+- [ ] **S1-01** `[demo]` สร้างโปรเจกต์ Next.js 16 + TypeScript strict + pnpm + ESLint (boundaries และ `bcs/no-money-literal`) + Vitest + Playwright โดยใช้ `CLAUDE.md` ที่ผู้ใช้วางไว้ที่ root (ถ้าไม่มีจึงสร้างจาก §17 และห้ามเขียนทับของเดิม)
+  - เสร็จเมื่อ: `pnpm lint` `pnpm typecheck` และ `pnpm spec:check` ผ่าน · มีไฟล์ `CLAUDE.md`
+  - แยกงาน: ทำเองได้
+- [ ] **S1-02** `[demo]` docker compose (Postgres 17 พร้อม role, MinIO, Mailpit, Inngest dev) + `.env.example` ตามภาคผนวก B + `src/lib/env.ts`
+  - เสร็จเมื่อ: `docker compose up -d` แล้ว `pnpm verify` ด่าน env ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S1-03** `[demo]` Prisma 7 และ migration แรก: Organization OrgModule Member RoleAssignment PlatformAdmin Event Outbox CommandLog FileObject FileLink BreakGlassSession + SQL §6.3 ข้อ 1–2
+  - เสร็จเมื่อ: `pnpm verify` ด่าน db ยืนยันว่ามี trigger append-only ครบ และ `bcs_app` UPDATE ตาราง Event ไม่ได้
+  - แยกงาน: ทำเองได้
+- [ ] **S1-04** `[demo]` `clock` `newId()` `Result` รหัส error §14.2 และ logger ที่ redact
+  - เสร็จเมื่อ: unit test ผ่าน รวมเทสต์ว่า log ไม่มีรหัสผ่าน token และเลขบัญชี (NFR-SEC-09)
+  - แยกงาน: ทำเองได้
+- [ ] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-003 และ FR-PLT-012 ผ่าน รวมการยิง command เดิมพร้อมกันแล้วได้ Event ชุดเดียว
+  - แยกงาน: ทำเอง เพราะเป็นแกนที่ทุกส่วนใช้
+- [ ] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF
+  - เสร็จเมื่อ: เทสต์ INV-TEN-01 ผ่านทุก model ที่มี organizationId โดยนับ model เอง
+  - แยกงาน: ทำเองได้ · ถ้าภายหลังต้องตรวจย้อนทุก model ให้แยก subagent ต่อกลุ่ม model แล้วตรวจหลักฐานก่อนรับ
+- [ ] **S1-07** `[demo]` Better Auth: อีเมลและรหัสผ่าน เชิญ รีเซ็ต TOTP และนโยบาย session
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-AUTH-001 FR-AUTH-002 FR-AUTH-003 ผ่าน และ login ผู้ใช้ seed พร้อม TOTP บนเครื่องได้
+  - แยกงาน: ทำเองได้
+- [ ] **S1-08** `[demo]` `permissions.ts` ตาม §2.4 + เทสต์สิทธิ์ที่สร้างอัตโนมัติ
+  - เสร็จเมื่อ: ทุก capability ใน §2.4 มีเทสต์ทั้งกรณีอนุญาตและปฏิเสธ โดยนับจากไฟล์เอง
+  - แยกงาน: ตารางยาว แยก subagent ต่อกลุ่ม capability (คำขอ PO งบ ผู้ดูแล) ได้ แล้วตรวจว่าผลของแต่ละกลุ่มตรงกับ §2.4 ก่อนรับ
+- [ ] **S1-09** `[demo]` app shell เมนูตามสิทธิ์ next-intl และวันที่ พ.ศ.
+  - เสร็จเมื่อ: GC-DATE-01 ถึง GC-DATE-04 และเทสต์ AC ของ FR-PLT-002 ผ่าน · หน้าแรกผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: ทำเองได้
+- [ ] **S1-10** `[demo]` อัปโหลดและดาวน์โหลดไฟล์ผ่าน presigned URL
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-004 ผ่านกับ MinIO
+  - แยกงาน: ทำเองได้
+- [ ] **S1-11** `[demo]` PWA manifest service worker และหน้าออฟไลน์
+  - เสร็จเมื่อ: เทสต์ Playwright ของ FR-PLT-005 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S1-12** `[demo]` หน้าผู้ดูแลสมาชิกและบทบาท · หน้า PLATFORM_ADMIN เปิดปิดโมดูลพร้อม contractRef event และแจ้ง ORG_ADMIN · `requireModule`
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-ADM-001 FR-ADM-006 FR-PLT-011 ผ่าน
+  - แยกงาน: แยกต่อหน้าจอได้ (สมาชิก · โมดูล)
+- [ ] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset`
+  - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · `pnpm db:reset && pnpm db:seed` สร้างองค์กรและผู้ใช้เท่าจำนวนแถวในชีต (เทสต์นับเอง) รันซ้ำแล้วไม่ซ้ำ · เทสต์ AC ของ FR-PLT-001 FR-PLT-007 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check`
+  - เสร็จเมื่อ: PR ทดสอบรัน `pnpm verify` ใน CI · merge แล้ว staging ตอบ `/api/health` 200 พร้อม commit sha · เทสต์ AC ของ FR-PLT-006 FR-PLT-008 ผ่าน · ถ้ายังไม่มีบัญชี hosting ให้ติดไว้ที่ P0-08 แล้วทำข้ออื่นต่อ
+  - แยกงาน: ทำเองได้
+
+**Demo:** เปิด URL staging บนมือถือ → login ด้วยผู้ใช้ seed และ TOTP → ติดตั้งเป็นไอคอน → อัปโหลดรูป → หน้า audit แสดง event การ login และการอัปโหลด → แสดง CI ที่ผ่าน
+
+### 16.4 S2 · DOA และคำขอ
+
+**เสร็จเมื่อ (ต้นฉบับ):** ชุดทดสอบ DOA ผ่านทุกช่วงวงเงินใน proposal (PR ไม่เกิน 20,000 → DM · 20,001–100,000 → VP · เกิน 100,000 → CEO · PO ไม่เกิน 1,000,000 → COO · เกิน 1,000,000 → CEO) ซึ่งคือ GC-DOA-01 ถึง GC-DOA-06 และเคสอื่นใน §7.4
+
+**FR ที่ครอบคลุม:** FR-DOA-001 FR-DOA-002 FR-DOA-003 FR-DOA-004 FR-DOA-005 FR-DOA-006 FR-DOA-007 FR-DOA-008 FR-DOA-010 FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 FR-INT-006 FR-INT-007 FR-INT-008 FR-INT-009 FR-ADM-002 FR-ADM-003 FR-ADM-004 FR-ADM-005 FR-NOTI-001 FR-PLT-007
+
+- [ ] **S2-01** `[demo]` migration โครงองค์กร คำขอ DOA การอนุมัติ OrgAuthorityChange Notification DocumentSequence TaxRate + SQL §6.3 ข้อ 4–5
+  - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate`
+  - เสร็จเมื่อ: ทุกเคสใน money.yaml และ vat-rate.yaml ผ่าน
+  - แยกงาน: golden suite แต่ละไฟล์อิสระต่อกัน งาน S2-02 ถึง S2-08 แยก subagent ต่อ suite ได้ ห้าม subagent แก้ค่า expect และต้องตรวจว่าเทสต์อ่านไฟล์ YAML จริงก่อนรับ
+- [ ] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ.
+  - เสร็จเมื่อ: ทุกเคสใน thai.yaml taxid.yaml dates.yaml ผ่าน
+  - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
+- [ ] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก
+  - เสร็จเมื่อ: ทุกเคสใน numbering.yaml ผ่าน และเทสต์ออกเลข 50 ใบพร้อมกันได้ 1 ถึง 50 ครบ (INV-NUM-01)
+  - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
+- [ ] **S2-05** `[demo]` `core/doa`: resolveRoute lint ตารางผลที่ขอบ และนำเข้า YAML
+  - เสร็จเมื่อ: ทุกเคสใน doa.yaml และ doa-lint.yaml ผ่าน (GC-DOA-01 ถึง GC-DOA-27)
+  - แยกงาน: ทำเอง เพราะกฎต้องสอดคล้องกันทั้งก้อน
+- [ ] **S2-06** `[demo]` `core/sod` และ `core/delegation`
+  - เสร็จเมื่อ: ทุกเคสใน sod.yaml และ delegation.yaml ผ่าน
+  - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
+- [ ] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5)
+  - เสร็จเมื่อ: ทุกเคสใน sla.yaml ผ่าน
+  - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
+- [ ] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef
+  - เสร็จเมื่อ: ทุกเคสใน forms.yaml ผ่าน
+  - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
+- [ ] **S2-09** `[demo]` state machine ของ Request ApprovalTask DoaVersion OrgAuthorityChange + เทสต์ทุกคู่สถานะ
+  - เสร็จเมื่อ: เทสต์ที่สร้างจากตาราง transition ผ่านทุกคู่ โดยนับคู่เอง (§15.3)
+  - แยกงาน: แยก subagent ต่อ state machine ได้ แล้วตรวจว่าตารางตรงกับ §6.4 ก่อนรับ
+- [ ] **S2-10** `[demo]` services: ร่าง ส่ง ส่งซ้ำ ยกเลิก ขอข้อมูล ตัดสิน รักษาการ และ DOA version (ขั้นตรวจงบเป็น stub จนถึง S3-05)
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-007 FR-INT-009 FR-DOA-002 FR-DOA-004 FR-DOA-006 ผ่าน
+  - แยกงาน: ทำเองได้ · ถ้าแยก ให้แยกต่อ service และตรวจว่าทุก service ผ่าน runCommand()
+- [ ] **S2-11** `[demo]` หน้าจอแคตตาล็อก ฟอร์มไดนามิก เติมข้อมูล แนบไฟล์ และบันทึกร่าง
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 FR-INT-006 ผ่าน · ทุกหน้าผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: แยก subagent ต่อหน้าจอได้ แล้วตรวจ screenshot ของแต่ละหน้าก่อนรับ
+- [ ] **S2-12** `[demo]` หน้าจอกล่องงาน หน้าตัดสิน และไทม์ไลน์ติดตามสถานะ
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-004 FR-INT-008 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: แยกต่อหน้าจอได้
+- [ ] **S2-13** `[demo]` หน้าผู้ดูแล: ผังองค์กร ตำแหน่ง ปฏิทิน เลขเอกสาร ประเภทคำขอ และ DOA (นำเข้าและส่งออก YAML)
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-ADM-002 FR-ADM-003 FR-ADM-004 FR-ADM-005 และ FR-DOA-001 AC2–AC3 ผ่าน
+  - แยกงาน: แยกต่อหน้าจอได้
+- [ ] **S2-14** `[demo]` การแจ้งเตือนในระบบ
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-NOTI-001 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S2-15** `[demo]` ขยาย seed loader: ชีต Departments Positions DOA DOA_Policy RequestTypes Holidays Settings
+  - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · seed แล้วเทสต์ยืนยันว่าโครงองค์กรและ DOA ตรง fixture ใน §7.4 (FR-PLT-007 AC3)
+  - แยกงาน: ทำเองได้
+- [ ] **S2-16** `[demo]` lint ชุดเต็ม ข้อกำกับ `ORG-CHG-01` service `OrgAuthorityChange` job `org-authority-apply` BR-SOD-08 BR-DOA-13 ชุดตั้งต้น (BR-DOA-19) และ step-up ด้วย TOTP สำหรับการอนุมัติเชิงนโยบาย
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-010 และ GC-SOD-06 ถึง GC-SOD-09 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S2-17** `[demo]` คำถามคัดกรองและกฎ ATT-DPA ใบเสนอราคาเป็นข้อมูลพร้อมกฎเลือกรายถูกสุด และวันสิ้นสุดบริการในบรรทัดคำขอ (BR-FORM-05 BR-FORM-06)
+  - เสร็จเมื่อ: ทุกเคสใน forms.yaml และ quotations.yaml ผ่าน และเทสต์ AC4–AC5 ของ FR-INT-005 ผ่าน
+  - แยกงาน: ทำเองได้ · ถ้าแยก ให้แยกส่วน core กับหน้าจอ แล้วตรวจว่าหน้าจอเรียก core ตัวเดียวกัน
+
+ใน S2 ขั้นตรวจงบของการส่งคำขอเป็น stub ที่ต้องถูกแทนใน S3 และต้องมีเทสต์ที่ FAIL เมื่อ stub ยังอยู่และ `APP_ENV=production`
+
+**Demo:** req_con สร้างคำขอ 45,000 บาท → เห็นเส้นทางไป VP พร้อมคำอธิบาย → ส่ง → vp_ops อนุมัติบนเว็บ → ไทม์ไลน์แสดง "DOA-DEMO ฉบับ 1 ข้อ PR-02" · dm_con ขอเอง 15,000 บาท → ถูกยกไป VP · ตั้งรักษาการ dm_con → asst_con แล้วส่งคำขอ 10,000 บาท → งานไป asst_con · golden DOA ผ่านทั้งหมด · ORG_ADMIN เสนอแต่งตั้ง VP คนใหม่ของ OPS → CEO อนุมัติด้วย TOTP → เมื่อมีผล งานค้างของ VP ย้ายไปคนใหม่
+
+### 16.5 S3 · งบประมาณ
+
+**เสร็จเมื่อ (ต้นฉบับ):** ชุดทดสอบงบผ่าน คือยอดจอง ถือ ตัด และคืน รวมกันเท่างบตั้งต้นเสมอ (INV-BUD-01)
+
+**FR ที่ครอบคลุม:** FR-BUD-001 FR-BUD-002 FR-BUD-003 FR-BUD-004 FR-BUD-005 FR-INT-004 FR-INT-007 FR-DOA-001 FR-DOA-009
+
+- [ ] **S3-01** `[demo]` migration ของงบ + CHECK §6.3 ข้อ 3
+  - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S3-02** `[demo]` `core/budget` + property test
+  - เสร็จเมื่อ: ทุกเคสใน budget.yaml (GC-BUD-01 ถึง GC-BUD-06) และ property test อย่างน้อย 1,000 ลำดับผ่าน
+  - แยกงาน: ทำเอง เพราะ invariant ต้องคิดรวมทั้งก้อน
+- [ ] **S3-03** `[demo]` service งบพร้อมล็อกแถว
+  - เสร็จเมื่อ: GC-BUD-07 และเทสต์ INV-BUD-05 ผ่านกับ Postgres จริง
+  - แยกงาน: ทำเองได้
+- [ ] **S3-04** `[demo]` นำเข้างบจาก Excel (ตรวจรายแถว กันนำเข้าซ้ำ) และ seed ชีต Budget
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-BUD-001 ผ่าน · ยอดงบหลัง seed เท่าผลรวมในชีต โดยเทสต์รวมเอง
+  - แยกงาน: ทำเองได้
+- [ ] **S3-05** `[demo]` ต่อการตรวจและจองงบเข้ากับการส่ง ปฏิเสธ ยกเลิก และส่งซ้ำคำขอ แทน stub
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-007 FR-BUD-003 ผ่าน และเทสต์ที่กัน stub ใน production ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S3-06** `[demo]` แสดงงบคงเหลือในฟอร์ม
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-004 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S3-07** `[demo]` จัดการสิทธิ์ใช้งบข้ามฝ่าย
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-BUD-004 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S3-08** `[demo]` dashboard งบพร้อม drill-down
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-BUD-005 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: ทำเองได้
+- [ ] **S3-09** `[demo]` หน้าจอแก้ DOA แบบตาราง diff ตารางผลที่ขอบ และทดลองส่ง
+  - เสร็จเมื่อ: GC-DOA-22 และเทสต์ AC ของ FR-DOA-001 AC1 และ FR-DOA-009 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: แยกต่อหน้าจอได้ (แก้ไข · diff · ทดลองส่ง)
+
+**Demo:** นำเข้างบ → คำขอ 120,000 บาทจองงบ → คำขอ 400,000 บาทถูกบล็อกพร้อมยอดที่ขาด → ปฏิเสธคำขอแล้วงบคืน → ตัวเลขใน dashboard ตรง ledger · property test ผ่าน · ORG_ADMIN ปรับช่วง DM จาก 20,000 เป็น 30,000 บาทบนหน้าจอ → เห็น diff และตารางผลที่ขอบ → CEO อนุมัติด้วย step-up → มีผล 1 พ.ย. → คำขอ 25,000 บาทไปหา DM (ตรงกับ GC-DOA-16)
+
+### 16.6 S4 · PO และตรวจรับ
+
+**เสร็จเมื่อ (ต้นฉบับ):** คำขอหนึ่งใบไหลถึงตรวจรับได้ งบถูกตัด และไฟล์ที่ส่งออกเปิดใน Express ได้
+
+**FR ที่ครอบคลุม:** FR-P2P-001 FR-P2P-002 FR-P2P-003 FR-P2P-004 FR-P2P-005 FR-P2P-006 FR-P2P-007 FR-P2P-008 FR-P2P-009 FR-P2P-010 FR-PLT-009 FR-VIS-001 FR-VIS-002 FR-VIS-003 FR-VIS-004 FR-NOTI-002 FR-DOA-011 FR-SUP-001 FR-VIS-005
+
+- [ ] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken
+  - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S4-02** `[demo]` ทะเบียนผู้ขายขั้นต้น (ตรวจเลขผู้เสียภาษี และรหัสเจ้าหนี้ Express) และ seed ชีต Suppliers กับ Sites
+  - เสร็จเมื่อ: ทุกเคสใน taxid.yaml ผ่าน · จำนวนผู้ขายและสถานที่หลัง seed เท่าจำนวนแถวในชีต
+  - แยกงาน: ทำเองได้
+- [ ] **S4-03** `[demo]` กองรอจัดซื้อ + engine รวม PR + job รอบรวม
+  - เสร็จเมื่อ: ทุกเคสใน consolidation.yaml และเทสต์ AC ของ FR-P2P-001 FR-P2P-002 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S4-04** `[demo]` ร่าง PO ประวัติราคา state machine เส้นทาง DOA และงบตาม BR-BUD-05 BR-BUD-06
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-003 FR-P2P-004 FR-P2P-010 ผ่าน และ GC-BUD-01 ถึง GC-BUD-05 ผ่านเมื่อรันผ่าน service จริง
+  - แยกงาน: ทำเองได้
+- [ ] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน
+  - เสร็จเมื่อ: มี ADR ของวิธีที่เลือก · เทสต์ AC ของ FR-PLT-009 และ snapshot ภาษาไทยผ่าน
+  - แยกงาน: spike สองวิธีแยกให้ subagent วิธีละตัวได้ แล้วตรวจ snapshot ของทั้งสองเองก่อนเลือก
+- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS)
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-005 FR-NOTI-002 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S4-07** `[demo]` ตรวจรับบนเว็บและจอมือถือ + engine variance + เส้นทาง GRV
+  - เสร็จเมื่อ: ทุกเคสใน receiving.yaml และเทสต์ AC ของ FR-P2P-006 FR-P2P-007 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S4-08** `[demo]` ยืนยันใบกำกับและการปันส่วน
+  - เสร็จเมื่อ: ทุกเคสใน invoice-confirmation.yaml และเทสต์ AC ของ FR-P2P-008 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S4-09** `[demo]` ส่งออกไฟล์ Express ด้วย mapping จากชีต Settings (demo ใช้รูปแบบสมมติ) และกันแถวที่ไม่มีรหัสเจ้าหนี้ตาม BR-EXP-04
+  - เสร็จเมื่อ: เทสต์ AC1 AC2 และ AC4 ของ FR-P2P-009 ผ่าน (AC3 อยู่ใน S4-14)
+  - แยกงาน: ทำเองได้
+- [ ] **S4-10** `[demo]` กระดานเอกสารค้าง และค้นหาพร้อมส่งออก audit
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-VIS-001 FR-VIS-004 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: แยกต่อหน้าจอได้
+- [ ] **S4-11** `[demo]` framework รายงาน + KPI view ของ G-1 ถึง G-5
+  - เสร็จเมื่อ: เทสต์ FR-VIS-002 AC1 AC3 และ FR-VIS-003 AC1 ผ่านด้วยข้อมูลที่รู้คำตอบ
+  - แยกงาน: แยก subagent ต่อ KPI ได้ แล้วตรวจสูตรกับ §11.4 ก่อนรับ
+- [ ] **S4-12** `[go-live]` job เตือนอัตรา VAT ใกล้หมดช่วง
+  - เสร็จเมื่อ: เทสต์ BR-VAT-01 ผ่าน (เตือน 30 7 และ 1 วันก่อนหมด)
+  - แยกงาน: ทำเองได้
+- [ ] **S4-13** `[go-live]` รายงานประวัติการเปลี่ยนนโยบายและการแจ้ง AUDITOR
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-011 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S4-14** `[go-live]` `[คน]` นำเข้าไฟล์ Express จริงร่วมกับฝ่ายบัญชีของลูกค้า
+  - เสร็จเมื่อ: ฝ่ายบัญชียืนยันว่าไฟล์นำเข้า Express ได้ (FR-P2P-009 AC3)
+- [ ] **S4-15** `[demo]` ตรวจตัวตนผู้ขายกับสรรพากรและ DBD ผ่าน adapter โหมด stub พร้อมเติมข้อมูลบนหน้าจอและการยืนยันมือ (FR-SUP-001)
+  - เสร็จเมื่อ: เทสต์ AC1–AC3 ของ FR-SUP-001 ผ่านด้วยโหมด stub และพิมพ์เลขผู้ขายใน seed แล้วข้อมูลถูกเติม
+  - แยกงาน: ทำเองได้ · adapter ของสรรพากรกับ DBD แยกให้ subagent ละตัวได้ แล้วตรวจว่าทั้งคู่คืนรูปแบบเดียวกัน
+- [ ] **S4-16** `[go-live]` เชื่อมบริการจริงของสรรพากรและ DBD (`REGISTRY_MODE=live`) พร้อม contract test และ job ตรวจสถานะรายเดือน
+  - เสร็จเมื่อ: contract test ผ่านกับคำตอบที่บันทึกจากบริการจริง เทสต์ AC4 ของ FR-SUP-001 ผ่าน และ OQ-37 ได้คำตอบแล้ว
+  - แยกงาน: ทำเองได้
+- [ ] **S4-17** `[demo]` อ่านไฟล์ e-Tax (PDF/A-3 ที่ฝัง XML หรือไฟล์ XML) มาเติมฟอร์มยืนยันใบกำกับ (BR-IVC-05)
+  - เสร็จเมื่อ: เทสต์ AC4 ของ FR-P2P-008 ผ่านด้วยไฟล์ที่เทสต์สร้างเอง ครบทั้งไฟล์ถูกต้อง เลขผู้เสียภาษีไม่ตรง และ XML เสีย
+  - แยกงาน: ทำเองได้
+- [ ] **S4-18** `[go-live]` รายงานรับของแล้วยังไม่มีใบกำกับ (FR-VIS-005)
+  - เสร็จเมื่อ: ทุกเคสใน grni.yaml และเทสต์ AC ของ FR-VIS-005 ผ่าน
+  - แยกงาน: ทำเองได้
+
+**Demo:** คำขอที่อนุมัติแล้ว → รวมเป็นร่าง PO → COO อนุมัติ → PO ส่งอีเมลพร้อม PDF → ผู้ตรวจรับบันทึก GR บางส่วนพร้อมรูป → อนุมัติ variance → การเงินยืนยันใบกำกับ → ส่งออกไฟล์ → นำเข้า Express ร่วมกับลูกค้า → dashboard แสดงยอดตัดจริง
+
+### 16.7 S5 · LINE และการเตือน
+
+**เสร็จเมื่อ (ต้นฉบับ):** อนุมัติผ่าน LINE ได้และบันทึกช่องทางใน audit trail ขั้นที่เกิน SLA ถูกเตือนและส่งต่อเอง
+
+**FR ที่ครอบคลุม:** FR-LINE-001 FR-LINE-002 FR-LINE-003 FR-LINE-004 FR-LINE-005 FR-LINE-006 FR-LINE-007 FR-AUTH-004 FR-AUTH-005 FR-NOTI-003 FR-NOTI-004 FR-DOA-006 FR-PLT-010 FR-VIS-003 FR-ADM-006 FR-ADM-007
+
+- [ ] **S5-01** `[demo]` ตั้งค่า LINE channel แบบเข้ารหัส + ปุ่มทดสอบการเชื่อมต่อ
+  - เสร็จเมื่อ: เทสต์ AC2–AC3 ของ FR-ADM-006 ผ่าน (ใช้ค่าจาก D-03 หรือค่าจำลองบนเครื่อง)
+  - แยกงาน: ทำเองได้
+- [ ] **S5-02** `[demo]` webhook (ตรวจ signature กันซ้ำ inline หรือคิว) + `pnpm line:simulate`
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-005 ผ่านด้วย webhook ที่เซ็นจริงจาก `line:simulate`
+  - แยกงาน: ทำเองได้
+- [ ] **S5-03** `[demo]` plugin ตรวจ LIFF ID token + `/api/liff/session` + นโยบาย session ของ LIFF
+  - เสร็จเมื่อ: เทสต์ BR-LINE-01 BR-LINE-02 ผ่าน: token ปลอม aud ผิด และหมดอายุถูกปฏิเสธ
+  - แยกงาน: ทำเองได้
+- [ ] **S5-04** `[demo]` ผูกบัญชีและ rich menu สองชุด
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-001 FR-LINE-004 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-05** `[demo]` การ์ด Flex + postback + ActionToken ของ LINE + PIN
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-002 FR-AUTH-005 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-06** `[demo]` หน้า LIFF ทั้งหมดใน §9.4
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-003 ผ่านบนจอ 375 px · ทุกหน้าผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: แยก subagent ต่อหน้า LIFF ได้ แล้วตรวจ screenshot และเทสต์ของแต่ละหน้าก่อนรับ
+- [ ] **S5-07** `[demo]` Inngest functions: เตือนตาม SLA resume ย้ายงานตามช่วงรักษาการ และสรุปรายวัน
+  - เสร็จเมื่อ: เทสต์ FR-NOTI-003 AC1 AC3 · FR-DOA-006 AC3 · FR-LINE-006 ผ่านด้วย clock ปลอม
+  - แยกงาน: แยกต่อ function ได้
+- [ ] **S5-08** `[demo]` การส่งต่อตาม BR-SLA-04 และช่องทางสำรองเมื่อส่ง LINE ไม่ได้
+  - เสร็จเมื่อ: เทสต์ FR-NOTI-003 AC2 และ FR-LINE-007 AC3 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-09** `[go-live]` SSO Google และ Microsoft
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-AUTH-004 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-10** `[go-live]` ตั้งค่าการแจ้งเตือนและช่วงเงียบ
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-NOTI-004 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-11** `[go-live]` PDPA พื้นฐาน `SensitiveAccessLog` และ job ระยะเก็บข้อมูล
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-010 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-12** `[demo]` หน้า KPI สำหรับผู้บริหาร
+  - เสร็จเมื่อ: เทสต์ FR-VIS-003 AC2–AC3 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: ทำเองได้
+- [ ] **S5-13** `[go-live]` `[คน]` รายการตรวจก่อน go-live §16.9
+  - เสร็จเมื่อ: ทุกข้อใน §16.9 เป็น `[x]`
+- [ ] **S5-14** `[go-live]` ตรวจโควตา LINE และ seal audit รายวัน
+  - เสร็จเมื่อ: เทสต์ FR-LINE-007 AC1 และ INV-EVT-03 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-15** `[go-live]` รายงานการใช้งานสำหรับคิดราคา
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-ADM-007 ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S5-16** `[go-live]` job เตือน PO ที่ไม่มีความเคลื่อนไหว
+  - เสร็จเมื่อ: เทสต์ AC4 ของ FR-P2P-010 ผ่านด้วย clock ปลอม
+  - แยกงาน: ทำเองได้
+
+**Demo:** ผูก LINE → ได้การ์ด → อนุมัติคำขอ 15,000 บาทในแชท → audit แสดง `LINE_CHAT` → คำขอ 150,000 บาทต้องใส่ PIN ใน LIFF → ปล่อยงานค้าง (ใช้ clock ปลอมใน local/e2e) → เตือนที่ 50% → ครบกำหนด → เพิ่มผู้รับร่วมจากช่วงถัดไป → สรุปรายวัน 08:00
+
+### 16.8 S6–S15 (ต้องเขียน sub-spec ก่อนเริ่ม)
+
+| ขั้น | FR | เสร็จเมื่อ (ต้นฉบับ) |
+| --- | --- | --- |
+| S6 · อนุมัติคู่ขนานและตัวตั้งค่า | FR-WF-101 ถึง FR-WF-104 · FR-INT-101 ถึง FR-INT-104 · FR-DOA-101 ถึง FR-DOA-104 · FR-ADM-101 · FR-BUD-101 ถึง FR-BUD-104 · FR-VIS-101 · FR-PLT-101 | คำขอเดียวกระจายไป 3 ฝ่ายพร้อมกันและรอครบ dry-run แสดงเส้นทางก่อนเผยแพร่ workflow ใหม่ |
+| S7 · ผู้ขายและพอร์ทัล | FR-SUP-101 ถึง FR-SUP-105 | ผู้ขายสมัครเองบนมือถือได้ และได้รับอนุมัติผ่าน DOA |
+| S8 · ใบแจ้งหนี้และจับคู่ 3 ทาง | FR-AP-101 ถึง FR-AP-108 | ชุดทดสอบ 3-way ผ่านทั้งกรณีตรง เกิน ขาด ซ้ำ และงานบริการ |
+| S9 · รอบจ่ายเงินและไฟล์ธนาคาร | FR-PAY-101 ถึง FR-PAY-103 | การเงินอัปโหลดไฟล์ทดสอบกับธนาคารได้ และยอดรวมตรงกับรอบจ่าย |
+| S10 · จัดหา | FR-SRC-201 ถึง FR-SRC-204 · FR-INT-201 | เปิด RFx ผู้ขายยื่นราคา ให้คะแนน และได้ PO จากผู้ชนะ |
+| S11 · ความเสี่ยงคู่ค้า | FR-RSK-201 ถึง FR-RSK-205 | ผู้ขายความเสี่ยงสูงถูกกันไม่ให้ออก PO จนกว่าประเมินครบหรือมีผู้อนุมัติข้ามตาม DOA |
+| S12 · สัญญา | FR-CON-201 ถึง FR-CON-203 | สัญญาผูกกับผู้ขายและ PO ได้ และเตือนต่ออายุตามกำหนด |
+| S13 · Claude ช่วยเตรียมงาน | FR-AI-301 ถึง FR-AI-308 · FR-LINE-301 · เริ่มจาก FR-AI-303 (อ่านเอกสาร) ต่อจากใบเสนอราคาแบบข้อมูลของ BR-FORM-06 | แต่ละฟีเจอร์ผ่านชุดทดสอบความแม่นตามเกณฑ์ที่ตั้งไว้ก่อนเปิดใช้ |
+| S14 · เชื่อมระบบภายนอก | FR-INTG-301 ถึง FR-INTG-307 | ข้อมูลที่ส่งผ่าน API ตรงกับไฟล์ที่ใช้แทนมาก่อน |
+| S15 · ขยาย | FR-PLT-301 ถึง FR-PLT-303 · FR-SRC-301 · FR-WF-301 · FR-INTG-308 · FR-DOA-301 · FR-NOTI-301 | ตามความต้องการของลูกค้ารายนั้น |
+
+### 16.9 รายการตรวจก่อน go-live ของชั้น 1
+
+- [ ] OQ-19 ปิดแล้ว (อนุมัติที่ตั้งข้อมูล) มี ROPA และประกาศความเป็นส่วนตัว
+- [ ] อัตรา VAT ได้รับการยืนยัน (OQ-29) และมีข้อมูลครอบวันที่ใช้งาน
+- [ ] DOA ฉบับจริงของลูกค้า (จาก P0-01) เผยแพร่แล้ว และ `DoaTestCase` ของลูกค้าผ่านทั้งหมด
+- [ ] ตรวจตาม ASVS ระดับ 2 และทดสอบเจาะระบบเบื้องต้น
+- [ ] ซ้อมกู้คืนข้อมูล (NFR-AVL-02) และ load test (NFR-PERF-03)
+- [ ] LINE production (LIFF ของ channel Published) rich menu และแผนโควตาพร้อม
+- [ ] โดเมนอีเมลผ่าน SPF และ DKIM
+- [ ] job seal audit ทำงานแล้ว
+- [ ] บันทึก baseline KPI แล้ว (P0-09)
+- [ ] ORG_ADMIN อย่างน้อย 2 คน และชุดตั้งต้นได้รับอนุมัติจากผู้มีอำนาจลงนามแล้ว (BR-DOA-19)
+- [ ] DOA ที่มีผลผ่าน lint ชุดเต็ม รวมข้อกำกับ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE`
+- [ ] ผู้ใช้จริงทุกฝ่ายผ่านการลองใช้ และ `docs/feature-status.yaml` เป็นปัจจุบัน เอกสารขายอ้างเฉพาะสถานะ `verified` และ `live`
+
+### 16.10 Demo build สำหรับ Phase 0 (ก่อนได้ข้อมูลจริง)
+
+เป้าหมายคือมีแอปที่ทำงานจริงไป demo กับ LK-RICH ก่อนได้ข้อมูลใด ๆ จากลูกค้า แล้วใช้ผลการคุยหลัง demo ทำ spec version 2 ข้อมูลทั้งหมดอยู่ใน `docs/inputs/BCS_inputs_v1_demo.xlsx` และต้องผ่าน `pnpm inputs:check` ก่อน seed ทุกครั้ง
+
+| เรื่อง | กติกาของ demo build |
+| --- | --- |
+| ขอบเขต | ฉากในชีต `Demo_Script`: ขอซื้อผ่าน LINE · เส้นทาง DOA · อนุมัติในแชทและใน LIFF ด้วย PIN · บล็อกงบ · ยอดก่อนและหลัง VAT · ผู้มีอำนาจขอเอง · รวม PR เป็น PO · ตรวจรับบนมือถือ · กระดานค้าง dashboard KPI audit · ลูกค้าแก้ DOA เอง · รักษาการ |
+| ข้อมูล | ชีตในไฟล์ input ซึ่งโครงองค์กรและ DOA ตรงกับ fixture ใน §7.4 · คำขอย้อนหลังในชีต `Demo_History` สร้างตอน seed โดยนับวันย้อนจากวันที่รัน (`daysAgo`) พร้อม PO ตรวจรับ และใบกำกับตามสถานะ ข้อมูลจึงดูใหม่ทุกครั้ง |
+| การตัดสินใจ | ใช้ค่าเริ่มต้นของ OQ ทุกข้อ (§18.3) โดยไม่ต้องรอคำตอบ |
+| LINE | ใช้ provider และ channel ของ BCS เอง ไม่ใช่ OA ของลูกค้า · ทดสอบกับมือถือของคนนอกทีมก่อนวัน demo เพราะ channel ที่ยังไม่เผยแพร่อาจจำกัดผู้ใช้ |
+| อีเมล | ส่งเข้า inbox demo ที่ BCS ควบคุม |
+| ข้ามได้ใน demo | SSO · เครื่องมือ PDPA · ตรวจโควตา LINE · seal audit · ไฟล์ Express รูปแบบจริง · รายงานที่ยังไม่มีนิยาม |
+| กติกาที่ยกเว้น | §16.2 ข้อ 5 ไม่ใช้กับ demo build · กติกาเรื่องเงิน DOA SoD audit และ golden tests ยังบังคับครบ |
+| ห้าม | ข้อมูลจริงของ LK-RICH (ชื่อพนักงาน อีเมล งบ ผู้ขาย) จนกว่า OQ-19 ปิด · ชื่อและโลโก้บริษัทใส่ได้เมื่อได้รับอนุญาต |
+| หลัง demo | นำคำตอบในชีต `Questions` และข้อมูลตามชีต `Inputs` มาทำ spec version 2: ปิด OQ แทนข้อมูลสมมติด้วยข้อมูลจริง แล้วรัน `pnpm inputs:check` และ `pnpm spec:check` |
+
+เส้นชัยของ demo build คือเส้นชัย A ในส่วน "เริ่มที่นี่" งานเฉพาะ demo มีดังนี้
+
+- [ ] **D-01** `[demo]` สร้างคำขอย้อนหลังจากชีต `Demo_History` ผ่าน service จริงด้วย clock ที่ย้อนเวลาตาม `daysAgo` พร้อม PO ตรวจรับ และใบกำกับตามสถานะ
+  - เสร็จเมื่อ: เทสต์ยืนยันว่ากระดานค้าง dashboard งบ และ KPI ได้ค่าตรงกับบรรทัด "ข้อมูลพอสำหรับฉาก dashboard" ของ `pnpm inputs:check` (งานค้างเกิน SLA งบใกล้หมด และสัดส่วนอนุมัติผ่าน LINE)
+  - แยกงาน: ทำเอง เพราะต้องสร้างตามลำดับเวลา
+- [ ] **D-02** `[demo]` คู่มือตั้ง LINE ของ BCS สำหรับ demo ใน `docs/runbooks/line-demo-setup.md` และสคริปต์ `pnpm line:richmenu`
+  - เสร็จเมื่อ: คู่มือบอกทีละขั้นว่าต้องสร้างอะไรใน LINE Developers และใส่ค่าใดใน `.env` · สคริปต์รันกับค่าจำลองได้
+  - แยกงาน: ทำเองได้
+- [ ] **D-03** `[demo]` `[คน]` สร้าง provider และ channel ของ BCS ตามคู่มือ D-02 แล้วใส่ค่าใน secret ของ staging
+  - เสร็จเมื่อ: ปุ่มทดสอบการเชื่อมต่อบน staging ผ่านทุกข้อ
+- [ ] **D-04** `[demo]` e2e ของฉากหลักในชีต `Demo_Script` (Playwright, clock ปลอม, LINE ผ่าน `line:simulate`)
+  - เสร็จเมื่อ: `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y โดยเทสต์อ่านจำนวนฉาก ผู้ใช้ และยอดจากชีตเอง
+  - แยกงาน: แยก subagent ต่อฉากได้ แล้วตรวจว่าแต่ละฉากใช้ผู้ใช้และยอดตามชีตก่อนรับ
+- [ ] **D-05** `[demo]` ตรวจดีไซน์ทุกหน้าที่อยู่ในฉาก demo ตาม §9.9
+  - เสร็จเมื่อ: มี screenshot 375 px และ 1440 px ของทุกหน้าใน `docs/design-review/` · ตารางเดียว (หน้า, สิ่งที่ห้ามใช้ที่พบ, แก้แล้วหรือยัง) ไม่มีข้อค้าง · axe ไม่มี violation ระดับ serious หรือ critical
+  - แยกงาน: แยก subagent ต่อหน้าจอ ให้แต่ละตัวส่ง screenshot และรายการที่พบ แล้วตรวจภาพเองก่อนรับ
+- [ ] **D-06** `[demo]` audit ทั้งโค้ดเบสก่อน demo ตามรายการห้ามทำใน §17.3
+  - เสร็จเมื่อ: ตารางเดียว (โฟลเดอร์, กฎ, ผ่านหรือไม่, หลักฐาน) ไม่มีข้อไม่ผ่าน
+  - แยกงาน: แยก subagent ต่อโฟลเดอร์ใน `src/` เมื่อรายงานกลับให้ตรวจหลักฐาน (ไฟล์และบรรทัด) ก่อนรับ
+- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง
+  - เสร็จเมื่อ: คำสั่ง reset ใน runbook รันบน staging แล้วข้อมูลกลับเป็นสถานะก่อน demo และ `pnpm inputs:check` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **D-08** `[demo]` `[คน]` ซ้อม demo บนมือถือจริงตาม runbook 1 รอบ รวม LINE และอัดวิดีโอสำรองฉาก 1–3
+  - เสร็จเมื่อ: ผู้ใช้ติ๊กเองหลังซ้อม
+
+### 16.11 งานที่พบเพิ่มระหว่างทำ
+
+agent เพิ่มงานที่พบระหว่างทำต่อท้ายส่วนนี้ ใช้รหัส `NEW-nn` เรียงต่อกัน รูปแบบเดียวกับข้ออื่น และบอกว่าพบระหว่างข้อไหน งานที่เปลี่ยนกฎเงิน อำนาจ หรือขอบเขต ให้เพิ่มเป็น `[ ]` ต่อท้ายด้วย `— รอยืนยัน` แล้วหยุดถามก่อนทำ
+
+```text
+- [ ] **NEW-nn** `[demo]` <งานที่พบ> · พบระหว่าง <รหัสข้อ>
+  - เสร็จเมื่อ: <คำสั่งหรือผลที่ตรวจได้>
+  - แยกงาน: <ทำเองได้ หรือแยก subagent ต่ออะไร>
+```
+
+ยังไม่มีงานที่พบเพิ่ม
+
+---
+
+## 17. กติกาสำหรับ AI coding agent (คัดไปใส่ CLAUDE.md / AGENTS.md ได้ทันที)
+
+### 17.1 โปรเจกต์นี้คืออะไร
+
+ไฟล์ `CLAUDE.md` ที่ root ของ repo คือฉบับที่ใช้จริงของหัวข้อนี้ (Claude Code อ่าน CLAUDE.md ไม่ใช่ AGENTS.md) ถ้าแก้หัวข้อนี้ต้องแก้ CLAUDE.md ให้ตรงกัน และ `pnpm spec:check` ตรวจว่ารายการห้ามทำกับรูปแบบสรุปตรงกัน
+
+BCS คือแพลตฟอร์มจัดซื้อจัดจ้างสำหรับองค์กรไทย เป็น Next.js โปรเจกต์เดียว มี functional core ที่ไม่มี I/O DOA และงบเป็นแกนกลาง LINE เป็นช่องทางหลักบนมือถือ UI เป็นภาษาไทย `spec.md` คือแหล่งความจริง อ่านตามลำดับใน §0.4 ก่อนเริ่มทุกงาน
+
+### 17.2 ขั้นตอนต่อหนึ่งงาน
+
+ทำตาม "วิธีทำงาน" ในส่วน "เริ่มที่นี่" ทุกครั้ง โดยมีกติกาเพิ่มดังนี้
+
+1. งานแรกของแต่ละขั้น: เขียนหรืออัปเดต `docs/sub-specs/S<n>.md` สั้น ๆ ก่อน
+2. เงิน อำนาจ และงบ: เขียนเทสต์ (golden และ property) ก่อนหรือพร้อมโค้ด
+3. เขียนโค้ดตามกฎของแต่ละชั้น (§4.2 และ §4.10) งานหน้าจอทำตาม §9.9
+4. ติ๊ก `[x]` ได้เมื่อ "เสร็จเมื่อ" ของข้อนั้นผ่านจริง และ `pnpm verify` ผ่านทุกด่าน
+5. อัปเดต `docs/feature-status.yaml` และเขียน ADR ถ้ามีการตัดสินใจใหม่
+6. งานใหญ่ให้แบ่งเป็นหลาย commit เอง ข้อความ commit ตาม §14.4 และใส่รหัสข้อ เช่น `feat(doa): S2-05 resolve route` · ถ้าทำงานผ่าน PR ใช้แม่แบบ §17.6
+
+### 17.3 ห้ามทำ
+
+- ห้ามใช้ `number` หรือ float กับเงิน และห้ามปัดเศษนอกจุดที่ BR-MONEY-02 กำหนด
+- ห้ามเขียนวงเงิน ชื่อตำแหน่งผู้อนุมัติ หรือเส้นทางอนุมัติในโค้ด
+- ห้ามเขียนเงื่อนไขหรือรหัสเฉพาะองค์กร เช่น `if (org === 'LK-RICH')`
+- ห้ามแก้ค่า expect ใน golden case เพื่อให้เทสต์ผ่าน
+- ห้าม UPDATE หรือ DELETE `Event` และ ledger และห้ามแก้ migration ที่ apply แล้ว
+- ห้ามเข้าถึงฐานข้อมูลจาก `src/app` หรือ `src/channels` และห้าม raw SQL นอก `src/server/db/sql`
+- ห้าม mock ฐานข้อมูลในเทสต์ที่ตรวจธุรกรรม
+- ห้ามตรวจสิทธิ์ใน `proxy.ts` หรือพึ่งการซ่อนปุ่มแทนการตรวจสิทธิ์
+- ห้ามใช้ `Date.now()` หรือ `new Date()` แบบไม่มีอาร์กิวเมนต์ใน `src/core`
+- ห้ามเรียก AI ในชั้น 1–3 และห้ามให้ AI เปลี่ยนสถานะเงินหรือการอนุมัติ
+- ห้ามทำ GET ที่เปลี่ยนสถานะ
+- ห้าม log ข้อมูลต้องห้ามตาม NFR-SEC-09
+- ห้ามใช้ข้อมูลจริงของลูกค้าใน local หรือ staging จนกว่า OQ-19 ปิด
+- ห้ามเพิ่ม dependency ใน `src/core` นอก allowlist (§4.10)
+- ห้ามเดาเนื้อหาที่ติด OQ เช่น รายงาน 7 ฉบับ หรือรูปแบบไฟล์ Express
+- ห้ามให้ PLATFORM_ADMIN สคริปต์ หรือ migration ของ BCS สร้าง แก้ หรือเผยแพร่ DOA หรือโครงสร้างอำนาจของลูกค้า (NG-12) ยกเว้น seed ขององค์กรตัวอย่างใน local และ staging
+- ห้ามเขียนโค้ดที่เปลี่ยนผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก หรือตั้งรักษาการแทนผู้อื่น นอกเส้นทาง `OrgAuthorityChange`
+
+### 17.4 หยุดและถามเมื่อ
+
+- golden case ขัดกับผลที่ engine ควรให้ หรือ spec ขัดกันเอง
+- ต้องตัดสินเรื่องที่แตะเงิน ภาษี สิทธิ์ อำนาจอนุมัติ หรือข้อมูลส่วนบุคคล และไม่มี OQ รองรับ
+- ต้องเพิ่ม dependency ที่เกี่ยวกับ auth, crypto หรือเงิน หรือเปลี่ยน stack ใน §5
+- API ของ Prisma, Better Auth, Inngest หรือ LINE ต่างจากที่ spec เขียนจนต้องเปลี่ยนการออกแบบ
+- migration ต้องลบหรือแก้ข้อมูลเดิม
+- ก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้: ลบข้อมูลที่ไม่ได้มาจาก seed · ลบหรือแก้ข้อมูลบน staging หรือ production · `git push --force` หรือเขียนประวัติ git ใหม่ · แก้อะไรก็ตามนอกโฟลเดอร์ repo (การล้างข้อมูล seed บนเครื่องด้วย `pnpm db:reset` และการติดตั้งตามปกติทำได้โดยไม่ต้องถาม)
+- ต้องใช้บัญชี secret หรือบริการภายนอกที่ยังไม่มี หรือต้องจ่ายเงิน
+- งานที่พบเพิ่มเปลี่ยนกฎเงิน อำนาจ หรือขอบเขต
+- ถึงเส้นชัยที่ได้รับมอบหมายแล้ว: หยุด เขียนรายงาน และรอคำสั่ง
+
+นอกจากรายการนี้ให้ตัดสินเองตาม spec และทำงานต่อโดยไม่ต้องถามระหว่างข้อ เขียนสถานะสั้น ๆ ในข้อความเดียวกับการลงมือทำขั้นถัดไป ไม่หยุดเพื่อรายงานหรือถามว่าให้ทำต่อไหม
+
+### 17.5 Definition of Done ของทุกงาน
+
+- [ ] AC ที่เกี่ยวข้องมีเทสต์ที่มีแท็ก `[FR-xxx-nnn/ACn]` และผ่าน
+- [ ] golden และ property test ที่เกี่ยวข้องผ่าน
+- [ ] `pnpm verify` ผ่านทุกด่าน
+- [ ] ไม่มี TODO ที่ไม่อ้าง OQ
+- [ ] ทุกการเปลี่ยนสถานะมี Event (INV-EVT-02)
+- [ ] สิทธิ์ตรวจใน service และมีเทสต์กรณีปฏิเสธ
+- [ ] ข้อความ UI มีทั้งไทยและอังกฤษ
+- [ ] `docs/feature-status.yaml` อัปเดตแล้ว
+- [ ] มี ADR ถ้ามีการตัดสินใจใหม่
+- [ ] งานหน้าจอผ่านขั้นตอนงานหน้าจอ §9.9
+- [ ] ติ๊ก `[x]` ข้อนั้นใน §16 พร้อมวันที่และ commit แล้ว และเพิ่มงานที่พบใหม่ใน §16.11
+
+### 17.6 แม่แบบ PR
+
+```markdown
+## งาน
+S?-?? · FR-???-??? (AC?) · GC-???-??
+## เปลี่ยนอะไร
+## ทดสอบอย่างไร
+## ผลต่อเงิน สิทธิ์ หรือ DOA (ถ้ามี ต้องมีผู้ตรวจตาม CODEOWNERS)
+## OQ และ ADR ที่เกี่ยวข้อง
+## ผล pnpm verify
+```
+
+### 17.7 คำสั่งที่ใช้บ่อย
+
+```bash
+# เริ่มครั้งแรก (คัดลอกทั้งบรรทัด)
+cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate && pnpm db:seed && pnpm dev
+# ตรวจทุกอย่างก่อนเปิด PR
+pnpm verify
+# ล้างข้อมูลบนเครื่อง
+pnpm db:reset
+```
+
+### 17.8 สรุปตอนจบทุกรอบ
+
+จบทุกรอบการทำงาน (ถึงเส้นชัย หยุดถาม หรือจบ session) ด้วย 3 หัวข้อนี้ตามลำดับ ผู้ใช้จะอ่านหัวข้อแรกก่อนเสมอ
+
+1. **รอคุณ (Blocked on me)** — สิ่งที่รอให้ผู้ใช้ทำหรือตัดสิน พร้อมขั้นตอนที่ทำได้ทันที ถ้าไม่มีให้เขียนว่า "ไม่มี"
+2. **เปลี่ยนแปลง (Changed)** — ข้อใน checklist ที่ติ๊กในรอบนี้ สิ่งที่เปลี่ยน ผลของ `pnpm verify` และบรรทัดความคืบหน้าสู่เส้นชัย A จาก `pnpm spec:check`
+3. **สิ่งที่พบ (Found)** — บั๊ก ความเสี่ยง งานใหม่ที่เพิ่มใน §16.11 และสิ่งที่ผู้ใช้ควรรู้ ใช้ภาษาง่าย
+
+---
+
+## 18. การตัดสินใจ (ADR) สมมติฐาน คำถามค้าง และความเสี่ยง
+
+### 18.1 ADR
+
+ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 ถึง ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
+
+| ID | การตัดสินใจ | สถานะ |
+| --- | --- | --- |
+| ADR-001 | ชื่อ Companion App คือ BCS Go | ตัดสินแล้ว |
+| ADR-002 | ช่องทางมือถือแรกคือ PWA แล้วค่อยเป็น Capacitor ส่วนหน้า LIFF ใช้ในแอป LINE | ตัดสินแล้ว |
+| ADR-003 | ใช้ LINE OA ก่อน และออกแบบ adapter ให้รองรับ LINE WORKS | ตัดสินแล้ว |
+| ADR-004 | AI เปิดใช้ครั้งแรกได้เฉพาะ L0–L1 | ตัดสินแล้ว |
+| ADR-005 | ตั้งค่า workflow ด้วยฟอร์มใน S6 และทำแบบลากวางใน S15 | ตัดสินแล้ว |
+| ADR-006 | ใช้ Inngest สำหรับเตือนและส่งต่อ กฎ DOA และสถานะคำขอเก็บในฐานข้อมูลของเราเอง | ตัดสินแล้ว |
+| ADR-007 | Supplier Portal เข้าด้วยลิงก์ + OTP | ตัดสินแล้ว |
+| ADR-008 | DOA เริ่มเฉพาะงานจัดซื้อ แต่โครงข้อมูลรองรับทุกเอกสาร | ตัดสินแล้ว |
+| ADR-009 | คิดราคาตามขนาดองค์กรและโมดูล ผู้ใช้ผ่าน LINE ไม่นับ seat | ตัดสินแล้ว |
+| ADR-010 | ฐานข้อมูล Neon สิงคโปร์ แต่ตรวจ PDPA และข้อกำหนดลูกค้าก่อนเก็บข้อมูลจริง | ตัดสินแล้ว |
+| ADR-011 | BCS รับและจับคู่ใบแจ้งหนี้ใน S8 โดย Finance ยังลงบัญชีใน Express เอง | ตัดสินแล้ว |
+| ADR-012 | ไฟล์จ่ายเงินเริ่ม 1–2 ธนาคารที่ LK-RICH ใช้จริง และถามธนาคารเรื่องรูปแบบไฟล์ที่กำหนดเอง | ตัดสินแล้ว |
+| ADR-013 | อ่านเอกสารด้วย Claude API พร้อม schema ชุดทดสอบ และคนยืนยัน ไม่เทรนโมเดล | ตัดสินแล้ว |
+| ADR-014 | ตัวตนผู้ขายตรวจกับสรรพากรและ DBD ตั้งแต่ S4 (FR-SUP-001) · ข้อมูลความเสี่ยงเริ่มจากแบบประเมินและเอกสารที่ผู้ขายส่ง · แหล่งข้อมูลความเสี่ยงที่ต้องเสียเงินประเมินก่อน S11 และเชื่อมใน S14 (FR-INTG-303) | ตัดสินแล้ว |
+| ADR-015 | เริ่มกระบวนการ ISO 27001 ก่อน S11 | ตัดสินแล้ว |
+| ADR-016 | นำเสนอความสามารถเทียบ Zip เป็นลำดับการพัฒนา แยกจากสิ่งที่ใช้ได้จริง และผูกสัญญากับขอบเขตที่ตกลง | ตัดสินแล้ว |
+| ADR-017 | Next.js codebase เดียวสำหรับเว็บ LIFF PWA และ Portal ไม่ใช้ React Native | ตัดสินแล้ว |
+| ADR-018 | เงินเป็น BigInt หน่วยสตางค์ อัตราเป็น basis point | เสนอ |
+| ADR-019 | Functional core / imperative shell | เสนอ |
+| ADR-020 | Event และ ledger แบบ append-only บังคับด้วย trigger และแยก DB role | เสนอ |
+| ADR-021 | งบเป็น bucket ledger ที่มี projection | เสนอ |
+| ADR-022 | service layer เป็นทางเขียนข้อมูลทางเดียวของทุกช่องทาง | เสนอ |
+| ADR-023 | Zod เป็น schema เดียวของฟอร์ม API และ AI | เสนอ |
+| ADR-024 | LIFF app เดียวต่อ environment ที่ `/liff` และตรวจ ID token เองที่เซิร์ฟเวอร์ | เสนอ |
+| ADR-025 | ใช้ตัวแทนบนเครื่อง (Postgres MinIO Mailpit Inngest dev) เพื่อไม่ต้องรอบริการภายนอก | เสนอ |
+| ADR-026 | next-intl โดยภาษาไทยเป็นค่าเริ่มต้น | เสนอ |
+| ADR-027 | Vitest fast-check Playwright และทดสอบกับ Postgres จริง | เสนอ |
+| ADR-028 | id เป็น UUID v7 | เสนอ |
+| ADR-029 | แยก tenant ด้วย Prisma extension และเทสต์ที่สร้างอัตโนมัติ (RLS ภายหลัง) | เสนอ |
+| ADR-030 | Transactional outbox ส่งต่อ Inngest | เสนอ |
+| ADR-031 | ผู้ให้บริการอีเมล (Resend · Amazon SES · SMTP ของลูกค้า) — ชั่วคราวใช้ adapter SMTP และ Mailpit บนเครื่อง ต้องเลือกก่อน S4 | ยังไม่ตัดสิน |
+| ADR-032 | Hosting เว็บ (Vercel · AWS · ผู้ให้บริการในไทย) ต้องอยู่ภูมิภาคเดียวกับฐานข้อมูลและเปิด endpoint ให้ Inngest — ชั่วคราวใช้ staging ที่ภูมิภาคสิงคโปร์กับข้อมูลสังเคราะห์เท่านั้น | ยังไม่ตัดสิน |
+| ADR-033 | ที่เก็บไฟล์ (Cloudflare R2 · S3 · Neon Object Storage) — ชั่วคราวใช้ MinIO ผ่าน S3 API | ยังไม่ตัดสิน |
+| ADR-034 | PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ต้องมี contractRef และเหตุผล และแจ้ง ORG_ADMIN ส่วน ORG_ADMIN ดูอย่างเดียว | ตัดสินแล้ว |
+| ADR-035 | ลูกค้าเป็นเจ้าของ DOA และโครงสร้างอำนาจ แก้ได้เองผ่าน 4-eyes + step-up ส่วน BCS คุมเฉพาะกลไกและกติกาความปลอดภัย | ตัดสินแล้ว |
+
+### 18.2 สมมติฐาน
+
+| ID | สมมติฐาน |
+| --- | --- |
+| A-01 | 1 tenant = 1 นิติบุคคล (เลขผู้เสียภาษีเดียว) กลุ่มบริษัทใช้หลาย tenant |
+| A-02 | ใช้สกุลเงินบาทเท่านั้น |
+| A-03 | ลูกค้าจดทะเบียน VAT และการซื้อส่วนใหญ่มี VAT ที่ขอคืนได้ |
+| A-04 | ขนาดต่อ tenant ไม่เกิน 500 ผู้ใช้ 20,000 คำขอต่อปี และ 50 ผู้ใช้พร้อมกัน |
+| A-05 | ลูกค้าเป็นองค์กรเอกชน ไม่ใช้ระเบียบจัดซื้อภาครัฐ |
+| A-06 | Express ยังเป็นระบบบัญชีหลัก |
+| A-07 | เวลาทำการจันทร์–ศุกร์ 08:30–17:30 ต่อเนื่อง ไม่หักพักเที่ยง |
+| A-08 | ผู้ใช้หลักใช้ภาษาไทย ภาษาอังกฤษเป็นรอง |
+
+### 18.3 คำถามค้าง (OQ)
+
+ระหว่างรอคำตอบให้ใช้ค่าเริ่มต้น และใส่ `// TODO(OQ-xx)` ตรงจุดที่ใช้ (§0.6)
+
+| ID | คำถาม | ค่าเริ่มต้นระหว่างรอ | ผู้ตอบ | ต้องได้คำตอบก่อน |
+| --- | --- | --- | --- | --- |
+| OQ-01 | DOA แต่ละช่วงวงเงินหมายถึงผู้อนุมัติคนเดียว หรือสายต่อเนื่อง (เช่น DM → VP → CEO) | คนเดียวต่อช่วงตาม proposal แบบตรงตัว | ลูกค้า | S2 |
+| OQ-02 | ฐานวงเงิน DOA รวม VAT หรือไม่ | รวม VAT (GROSS) | ลูกค้า | S2 |
+| OQ-03 | ฐานงบรวม VAT หรือไม่ | ไม่รวม VAT (NET) | ลูกค้า (บัญชี) | S3 |
+| OQ-04 | ผู้ขอตรวจรับของเองได้หรือไม่ | ได้ ถ้าไม่ได้เป็นผู้อนุมัติเอกสารนั้น | ลูกค้า | S4 |
+| OQ-05 | รวม step ที่มีผู้อนุมัติซ้ำกันหรือไม่ | รวม | ลูกค้า | S6 |
+| OQ-06 | วิธีส่งต่อเมื่อเกิน SLA | เตือนที่ 50% → แจ้งเมื่อครบกำหนด → เพิ่มผู้อนุมัติช่วงถัดไปหลังเกิน 8 ชั่วโมงทำการ | ลูกค้า | S5 |
+| OQ-07 | เกณฑ์ยืนยัน PIN (step-up) | ตั้งแต่ 100,000.00 บาทตามฐาน DOA | ลูกค้า | S5 |
+| OQ-08 | เกณฑ์ใบเสนอราคา 3 ราย | เกิน 100,000.00 บาทรวม VAT | ลูกค้า | S2 |
+| OQ-09 | รายชื่อและนิยามรายงาน 7 ฉบับ | ทำ framework ก่อน ไม่สร้างรายงานที่เดา | BCS (proposal v1.2) | S4 |
+| OQ-10 | รูปแบบไฟล์นำเข้า Express · ต้องอ้างรหัสเจ้าหนี้ไหม และนำเข้าทะเบียนเจ้าหนี้เป็นไฟล์ได้ไหม | mapping ตั้งค่าได้ รอไฟล์ตัวอย่าง · ถ้าต้องใช้รหัสเจ้าหนี้ใช้ `expressVendorCode` (BR-EXP-04) | ลูกค้า (บัญชี) | S4 |
+| OQ-11 | ปีงบประมาณเริ่มเดือนใด และเลขเอกสารรีเซ็ตตามปีปฏิทินหรือปีงบ | ปีงบ ม.ค.–ธ.ค. เลขเอกสารรีเซ็ตตามปี พ.ศ. ปฏิทิน | ลูกค้า | S2 |
+| OQ-12 | รูปแบบเลขเอกสาร | `PR-{BE}-{SEQ5}` และแบบเดียวกันสำหรับ PO GR RQ | ลูกค้า | S2 |
+| OQ-13 | รอบรวม PR | 10:00 และ 15:00 ของวันทำการ | ลูกค้า (จัดซื้อ) | S4 |
+| OQ-14 | SLA ต่อขั้นและปฏิทินทำการ | DM VP COO 8 ชั่วโมง · CEO 16 ชั่วโมง · จันทร์–ศุกร์ 08:30–17:30 | ลูกค้า | S2 |
+| OQ-15 | ใครเป็นเจ้าของ LINE OA | OA ของลูกค้า แยกต่อองค์กร | ลูกค้า + BCS | Phase 0 |
+| OQ-16 | หน้า LIFF อยู่บน LINE MINI App channel หรือ LINE Login channel และเงื่อนไขเผยแพร่ในไทย | MINI App channel พร้อมตรวจ ID token เอง | BCS | S5 |
+| OQ-17 | คิด VAT ระดับเอกสารหรือรายบรรทัด | ระดับเอกสาร | ลูกค้า (บัญชี) | S2 |
+| OQ-18 | วิธีสร้าง PDF | ตัดสินหลัง spike ใน S4 | BCS | S4 |
+| OQ-19 | อนุมัติที่ตั้งข้อมูล (Neon สิงคโปร์) ตาม PDPA และข้อกำหนดลูกค้า | ห้ามใช้ข้อมูลจริงจนกว่าจะอนุมัติ | ลูกค้า (DPO / กฎหมาย) | go-live |
+| OQ-20 | tolerance ของการรับเกิน | 0% | ลูกค้า | S4 |
+| OQ-21 | ใครอนุมัติ variance | DM ของแผนกเจ้าของงบ | ลูกค้า | S4 |
+| OQ-22 | อีเมล PO ส่งจากโดเมนลูกค้าหรือ BCS | โดเมน BCS พร้อม reply-to จัดซื้อ จนกว่าจะตั้งโดเมนลูกค้า | ลูกค้า | S4 |
+| OQ-23 | คำขอผู้ขายรายใหม่ในชั้น 1 ต้องผ่าน DOA หรือไม่ | เข้าคิวจัดซื้อ ไม่ผ่าน DOA | ลูกค้า | S2 |
+| OQ-24 | อนุญาต PO ที่ไม่มีคำขอหรือไม่ | ไม่อนุญาต | ลูกค้า | S4 |
+| OQ-25 | เอกสารพิมพ์ต้องมีลายเซ็นหรือไม่ | ส่วนการอนุมัติแบบข้อมูล (ชื่อ ตำแหน่ง เวลา ช่องทาง DOA ref) | ลูกค้า | S4 |
+| OQ-26 | ยกยอดงบข้ามปีหรือไม่ | ไม่ยกอัตโนมัติ | ลูกค้า (บัญชี) | ก่อนปิดปีงบแรก |
+| OQ-27 | ใช้งบข้ามฝ่ายแล้วหาผู้อนุมัติจากฝ่ายไหน | ฝ่ายเจ้าของงบ | ลูกค้า | S3 |
+| OQ-28 | คำอ่านจำนวนเงิน 101 ใช้ "หนึ่งร้อยหนึ่ง" แบบ LibreOffice/Excel หรือ "หนึ่งร้อยเอ็ด" แบบราชบัณฑิต | แบบ LibreOffice (GC-THAI-05) | ลูกค้า (บัญชี) | S4 |
+| OQ-29 | ยืนยันการประกาศพระราชกฤษฎีกาคง VAT 7% ช่วง 1 ต.ค. 2026 – 30 ก.ย. 2027 ในราชกิจจานุเบกษา | ใช้ 7% ตามข้อมูลตั้งต้นและให้ PLATFORM_ADMIN ยืนยัน | BCS | S4 |
+| OQ-30 | ระยะเวลาเก็บข้อมูล | เอกสาร 5 ปีหลังปิด · log การเข้าถึง 1 ปี | ลูกค้า (DPO / บัญชี) | S5 |
+| OQ-31 | ใครอนุมัติชุดตั้งต้น (ผู้ดำรงตำแหน่งที่ DOA อ้าง + DOA ฉบับแรก) ในเมื่อยังไม่มี DOA ให้อ้าง | ผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19) · PLATFORM_ADMIN ยืนยันแค่ว่าบัญชีเป็นคนในสัญญา ไม่ตรวจเนื้อหา | ลูกค้า (ตรวจสอบภายใน) | S2 |
+| OQ-32 | ใครอนุมัติเมื่อเปลี่ยนตัวผู้อนุมัติของข้อ `ORG_AUTHORITY_CHANGE` เอง (เช่น เปลี่ยน CEO) หรือเมื่อผู้อนุมัตินั้นเป็นผู้ถูกเปลี่ยน | ผู้ดำรงตำแหน่งคนเดิมอนุมัติ ถ้าว่างหรือเป็นผู้ถูกเปลี่ยนเอง ให้ ORG_ADMIN อีกคนที่ไม่ใช่ผู้เสนออนุมัติพร้อม step-up และแจ้ง EXECUTIVE กับ AUDITOR ทุกคนทันที | ลูกค้า (ตรวจสอบภายใน) | S2 |
+| OQ-33 | ปิดโมดูลขณะมีเอกสารค้างในโมดูลนั้น | ปฏิเสธด้วย `MODULE_IN_USE` และแสดงรายการเอกสารที่ต้องปิดก่อน | BCS + ลูกค้า | S1 |
+| OQ-34 | แยกผู้ดูแล DOA ออกจาก ORG_ADMIN หรือไม่ (เช่น ให้ฝ่ายการเงินหรือเลขานุการบริษัทดูแล) | ใช้ ORG_ADMIN ไปก่อน capability แยกไว้แล้ว (§2.4) และทำ role แยกใน S6 (FR-ADM-101) | ลูกค้า | S6 |
+| OQ-35 | ผู้ขายของลูกค้าออก e-Tax Invoice กี่ราย และแบบไหน (by Email หรือระบบเต็มรูปแบบ) | รองรับทั้ง PDF/A-3 ที่ฝัง XML และไฟล์ XML (BR-IVC-05) | ลูกค้า (บัญชี) | S4 |
+| OQ-36 | PO ไม่มีความเคลื่อนไหวกี่วันจึงเตือนให้ปิด | 30 วัน | ลูกค้า (จัดซื้อ) | S5 |
+| OQ-37 | บริการตรวจผู้ขายของสรรพากรและ DBD ยังเปิด และเรียกจาก hosting ได้หรือไม่ | ใช้โหมด stub จนกว่าจะทดสอบผ่าน (BR-SUP-05) | BCS | S4 |
+
+### 18.4 ความเสี่ยงหลักและการควบคุมใน spec
+
+| ความเสี่ยง (จากเอกสารต้นทาง) | การควบคุมในเอกสารนี้ |
+| --- | --- |
+| พึ่ง LINE มากเกินไป | core แบบ headless (P-1) · อีเมลสำรองเสมอ (FR-LINE-007 NFR-AVL-03) · adapter รองรับช่องทางอื่น (FR-NOTI-301) |
+| ข้อมูลองค์กรอยู่บน LINE ส่วนตัว | การ์ดแสดงแค่สรุป (BR-LINE-06 BR-NOTI-01) · รายละเอียดอยู่ใน LIFF หลังยืนยันตัวตน · PIN สำหรับยอดสูง (FR-AUTH-005) |
+| AI อ่านหรือจัดประเภทผิด | คนยืนยันทุกครั้ง ชุดประเมิน และบันทึกทุก action (§12) |
+| ผู้ใช้ยังขอกันนอกระบบ | ไม่มี PO ที่ไม่มีคำขอ (OQ-24) · ฟอร์มถามน้อย (FR-INT-003) · วัดด้วย G-1 |
+| scope บวมจากลูกค้ารายแรก | ลำดับการตัดขอบเขต (§1.5) · กติกาการผ่านขั้น (§16.2) |
+| ข้อมูลตั้งต้นไม่พร้อม | แม่แบบนำเข้าผู้ใช้ งบ วันหยุด (FR-ADM-001 FR-BUD-001 FR-ADM-003) · DOA จาก YAML (FR-DOA-001) |
+| Express เชื่อมได้จำกัด | ไฟล์เป็นสะพานก่อน (§7.13) · API ในชั้น 4 (FR-INTG-301) |
+| ทำของเฉพาะลูกค้าจนขายต่อไม่ได้ | NG-7 · P-7 · lint ห้ามรหัสองค์กร · G-10 |
+| พูดเกินจริงว่ามีเหมือน Zip | `docs/feature-status.yaml` (§15.6) · ADR-016 |
+| รูปแบบไฟล์ธนาคารต่างกันและเปลี่ยนได้ | template ต่อธนาคาร golden แบบ byte-exact และตรวจก่อนส่งออก (BR-BANK-01 ถึง BR-BANK-03) |
+| Claude อ่านใบแจ้งหนี้ไทยไม่แม่น | ชุดประเมินกับเอกสารจริงก่อนเปิดใช้ (§12.4) |
+| ผู้ขายไม่ใช้พอร์ทัล | ลิงก์ + OTP บนมือถือ และจัดซื้อกรอกแทนได้ (ชั้น 2) |
+| ข้อมูลความเสี่ยงภายนอกในไทยหายากหรือแพง | เริ่มจากแบบประเมิน (ADR-014) |
+| ยังไม่มีใบรับรองความปลอดภัย | ASVS L2 ตั้งแต่ชั้น 1 (NFR-SEC-01) · เริ่ม ISO 27001 ก่อน S11 (ADR-015) |
+| โค้ดที่ AI เขียนมีบั๊กเงียบในส่วนเงินและสิทธิ์ | golden และ property test · trigger และ CHECK ในฐานข้อมูล · CODEOWNERS · `pnpm verify` (§7 §15) |
+| ข้อมูลอยู่นอกประเทศ | ไม่ใช้ข้อมูลจริงจนกว่า OQ-19 ปิด · Postgres มาตรฐานย้ายไปโฮสต์ในไทยได้ (ADR-010) |
+| ORG_ADMIN คนเดียวเปลี่ยนตัวผู้มีอำนาจจริง (แต่งตั้งตำแหน่ง ย้ายแผนก ตั้งรักษาการแทน รีเซ็ตตัวตน) | `OrgAuthorityChange` + 4-eyes + step-up (BR-DOA-17 BR-SOD-08 BR-AUTH-07) · เทสต์สแกนเส้นทางเขียนข้อมูล (§15.3) |
+| BUDGET_ADMIN คนเดียวนำเข้าหรือเพิ่มงบได้ในชั้น 1 | event และ checksum กันนำเข้าซ้ำ (FR-BUD-001) · การปรับงบพร้อมอนุมัติทำใน FR-BUD-103 (S6) |
+
+---
+
+## 19. อภิธานศัพท์ ไทย – อังกฤษ – ชื่อในโค้ด
+
+| ไทย | อังกฤษ | ชื่อในโค้ด |
+| --- | --- | --- |
+| คำขอ / ใบขอซื้อ | Request / Purchase Request (PR) | `Request` (`PURCHASE_REQUEST`) |
+| ใบสั่งซื้อ | Purchase Order (PO) | `PurchaseOrder` |
+| ตรวจรับ | Goods Receipt (GR) | `GoodsReceipt` |
+| ผลต่างการรับ | Variance | `Variance` |
+| อำนาจอนุมัติ | Delegation of Authority (DOA) | `DoaVersion` · `DoaRule` |
+| ผู้รักษาการ | Delegate / Acting approver | `Delegation` |
+| แบ่งแยกหน้าที่ | Segregation of Duties (SoD) | `core/sod` |
+| เส้นทาง · ขั้น · งานอนุมัติ | Approval route · step · task | `ApprovalRoute` · `ApprovalStep` · `ApprovalTask` |
+| บรรทัดงบ | Budget line | `BudgetLine` |
+| งบคงเหลือ · จอง · ถือ · ตัด · คืน | Available · Reserve · Commit · Actual · Release | bucket `AVAILABLE` `RESERVED` `COMMITTED` `ACTUAL` |
+| แผนกเจ้าของงบ | Charged department | `chargedDepartmentId` |
+| รวม PR | Consolidation | `core/consolidation` |
+| ยืนยันใบกำกับ | Invoice confirmation | `InvoiceConfirmation` |
+| ภาษีมูลค่าเพิ่ม | VAT | `vatSatang` · `vatRateBp` |
+| ภาษีหัก ณ ที่จ่าย | Withholding tax (WHT) | `WithholdingTax` |
+| คำอ่านจำนวนเงิน | Baht text | `bahtText()` |
+| เลขประจำตัวผู้เสียภาษี | Tax ID | `taxId` |
+| ปี พ.ศ. | Buddhist Era year | `buddhistYear()` |
+| ชั่วโมงทำการ | Business hours | `core/sla` |
+| ส่งต่อเมื่อเกินเวลา | Escalation | `escalationPolicy` |
+| ยืนยันเพิ่มด้วย PIN | Step-up authentication | `stepUpThresholdSatang` |
+| ผูกบัญชี LINE | Account linking | `ChannelIdentity` |
+| การ์ดอนุมัติ | Flex approval card | `src/channels/line/flex` |
+| สรุปรายวัน | Daily digest | `daily-digest` |
+| ร่องรอยการตรวจสอบ | Audit trail | `Event` |
+| ผู้ขาย | Supplier / Vendor | `Supplier` |
+| ใบเสนอราคา · ใบส่งของ | Quotation · Delivery note | `QUOTATION` · `deliveryNoteNo` |
+| สถานที่ส่ง / ไซต์งาน | Delivery site | `DeliverySite` |
+| ชั้น · ขั้น | Tier · Step | T1–T4 · S1–S15 |
+| การเปลี่ยนโครงสร้างอำนาจ | Org authority change | `OrgAuthorityChange` · `ORG_AUTHORITY_CHANGE` |
+| ผู้มีอำนาจลงนามตามสัญญา | Contract signatory | `contractSignatoryMemberId` |
+| ใบเสนอราคาแบบข้อมูล | Structured quotation | `RequestQuotation` |
+| รับของแล้วยังไม่มีใบกำกับ | Goods received not invoiced | `grni` |
+| ข้อตกลงการประมวลผลข้อมูลส่วนบุคคล | Data processing agreement | `ATT-DPA` |
+| ใบกำกับภาษีอิเล็กทรอนิกส์ | e-Tax Invoice | `ETAX` |
+
+---
+
+## ภาคผนวก A — ข้อมูลตัวอย่าง (seed)
+
+ข้อมูลทั้งหมดเป็นของสมมติ ห้ามใช้ข้อมูลจริงของลูกค้าจนกว่า OQ-19 ปิด · ชุดเดียวกันนี้พร้อมผู้ใช้เพิ่มสำหรับ demo คำขอย้อนหลัง และสคริปต์ demo อยู่ใน `docs/inputs/BCS_inputs_v1_demo.xlsx` (§16.10)
+
+**องค์กร:** รหัส `DEMO` · "บริษัท เดโม่ ก่อสร้าง จำกัด" (สมมติ) · เลขผู้เสียภาษี 0999999000055 (สังเคราะห์ ผ่าน mod-11) · สาขา 00000 · โมดูล CORE
+
+**โครงองค์กรและ DOA:** ใช้ `tests/golden/fixtures/org-demo.yaml` และ DOA ฉบับ 1 ใน `tests/golden/fixtures/doa-versions.yaml` (§7.4) ไฟล์เดียวกันทั้ง seed และเทสต์ (FR-PLT-007 AC3) · ผู้มีอำนาจลงนามของ tenant ตัวอย่างคือ `ceo` · ใน production ห้าม seed DOA หรือผู้ดำรงตำแหน่งของลูกค้า ต้องผ่านชุดตั้งต้นตาม BR-DOA-19
+
+**ผู้ใช้:** อีเมล `<code>@demo.bcs.local` รหัสผ่านอ่านจาก `SEED_DEV_PASSWORD` ใน `.env` และสร้างเฉพาะเมื่อ `APP_ENV=local` หรือ `staging`
+
+| code | ชื่อ (สมมติ) | แผนกหลัก | role | ตำแหน่ง |
+| --- | --- | --- | --- | --- |
+| req_con | สมชาย ใจดี | CON | REQUESTER | — |
+| asst_con | สมหญิง รักงาน | CON | REQUESTER | — (ผู้รักษาการในเทสต์) |
+| receiver_con | ประเสริฐ ตรวจดี | CON | RECEIVER | — |
+| dm_con | ดำรง ก่อสร้างไทย | CON | — | DM ของ CON |
+| proc_officer | พิมพ์ใจ จัดหา | PROC | PROCUREMENT | — |
+| dm_proc | ปรีชา จัดซื้อ | PROC | PROCUREMENT | DM ของ PROC · PROC_MGR |
+| fin_officer | ฟ้าใส บัญชี | FIN | FINANCE · BUDGET_ADMIN | — |
+| dm_fin | ธนา การเงิน | FIN | FINANCE | DM ของ FIN |
+| auditor | อรุณ ตรวจสอบ | FIN | AUDITOR | — |
+| dm_it | ไอศูรย์ ระบบดี | IT | — | DM ของ IT |
+| admin | แอดมิน ดูแลระบบ | IT | ORG_ADMIN | — |
+| admin2 | สมศักดิ์ ดูแลร่วม | FIN | ORG_ADMIN | — |
+| vp_ops | วีระ ปฏิบัติการ | OPS | — | VP ของ OPS |
+| vp_sup | วิไล สนับสนุน | SUP | — | VP ของ SUP |
+| coo | ชัยวัฒน์ ปฏิบัติการใหญ่ | HQ | EXECUTIVE | COO |
+| ceo | ศักดิ์ชัย ผู้นำ | HQ | EXECUTIVE | CEO |
+
+**ปีงบและบรรทัดงบ (FY2569 = ม.ค.–ธ.ค. 2026 ตาม OQ-11):**
+
+| code | แผนก | ยอด (บาท) |
+| --- | --- | --- |
+| CON-OPEX-2569 | CON | 500,000.00 |
+| CON-CAPEX-2569 | CON | 2,000,000.00 |
+| PROC-OPEX-2569 | PROC | 50,000.00 |
+| FIN-OPEX-2569 | FIN | 100,000.00 |
+| IT-OPEX-2569 | IT | 300,000.00 |
+
+**ผู้ขาย (เลขผู้เสียภาษีสังเคราะห์ที่ผ่าน mod-11):**
+
+| code | ชื่อ (สมมติ) | เลขผู้เสียภาษี | จด VAT |
+| --- | --- | --- | --- |
+| S1 | บริษัท วัสดุก่อสร้างทดสอบ จำกัด | 0999999000012 | ใช่ |
+| S2 | บริษัท ไอทีทดสอบ จำกัด | 0999999000021 | ใช่ |
+| S3 | บริษัท บริการทำความสะอาดทดสอบ จำกัด | 0999999000039 | ใช่ |
+| S4 | ห้างหุ้นส่วนจำกัด รับเหมาเล็กทดสอบ | 0999999000047 | ไม่ |
+
+**สถานที่ส่ง:** SITE-A ไซต์งานตัวอย่าง A · SITE-B ไซต์งานตัวอย่าง B · HQ-STORE คลังสำนักงานใหญ่
+
+**ประเภทคำขอ:** BUY_GOODS ซื้อของ · HIRE_SERVICE จ้างบริการ · CONTRACT_WORK จ้างเหมา · IT_PURCHASE ซื้ออุปกรณ์และซอฟต์แวร์ไอที · NEW_SUPPLIER ขอเพิ่มผู้ขายรายใหม่ (สี่ประเภทแรกเป็น `PURCHASE_REQUEST` ใช้กฎ ATT-QUOTES · ประเภทสุดท้ายเป็น `SUPPLIER_REQUEST`)
+
+**วันหยุด:** 2026-10-13 และ 2026-10-23 (ใช้ในเทสต์ SLA) ปฏิทินจริงมาจากลูกค้า (P0-12)
+
+**อัตรา VAT:** ตามตาราง `TaxRate` ใน §7.1
+
+**ค่าตั้งต้นขององค์กร:**
+
+```yaml
+# prisma/seed/org-settings.demo.yaml (ต้องผ่าน OrgSettingsSchema)
+locale: th
+timezone: Asia/Bangkok
+businessCalendar: { workdays: [MON, TUE, WED, THU, FRI], start: "08:30", end: "17:30" }
+budgetBasis: NET                    # OQ-03
+# sodPolicy (OQ-04) อยู่ใน DoaVersion จึงเปลี่ยนได้ผ่าน 4-eyes เท่านั้น
+receiving: { overTolerancePct: 0 }  # OQ-20
+consolidation: { cron: "TZ=Asia/Bangkok 0 10,15 * * 1-5" }  # OQ-13
+priceAlertPct: 10
+digest: { enabled: true, budgetLowPct: 10 }
+email: { fromAddress: "no-reply@bcs.local", actionLinksRequireLogin: true }  # OQ-22
+sso: { trustIdpMfa: false, allowedDomains: [] }
+numbering:
+  PR: { pattern: "PR-{BE}-{SEQ5}", reset: YEARLY }
+  PO: { pattern: "PO-{BE}-{SEQ5}", reset: YEARLY }
+  GR: { pattern: "GR-{BE}-{SEQ5}", reset: YEARLY }
+  RQ: { pattern: "RQ-{BE}-{SEQ5}", reset: YEARLY }
+express: { fileType: xlsx, encoding: UTF-8-BOM, dateFormat: BE, mapping: [] }  # OQ-10
+retention: { documentYears: 5, accessLogYears: 1 }  # OQ-30
+features: { parallelApproval: false, lineChannel: true }
+```
+
+## ภาคผนวก B — `.env.example`
+
+ตรวจด้วย Zod ใน `src/lib/env.ts` ตอนเริ่มแอป ค่าที่ขาดหรือผิดรูปแบบ → หยุดทำงานพร้อมบอกชื่อตัวแปร
+
+```bash
+# --- แอป ---
+APP_ENV=local                     # local | preview | staging | production
+APP_URL=http://localhost:3000
+SEED_DEV_PASSWORD=change-me-dev-only
+
+# --- ฐานข้อมูล (Neon: DATABASE_URL = pooled, DIRECT_URL = direct) ---
+DATABASE_URL=postgresql://bcs_app:bcs_app@localhost:5432/bcs
+DIRECT_URL=postgresql://bcs_migrator:bcs_migrator@localhost:5432/bcs
+
+# --- Auth และการเข้ารหัส ---
+BETTER_AUTH_SECRET=change-me-at-least-32-characters
+BETTER_AUTH_URL=http://localhost:3000
+ENCRYPTION_KEY=base64:REPLACE_WITH_32_RANDOM_BYTES_BASE64
+
+# --- ที่เก็บไฟล์ (S3 API) ---
+S3_ENDPOINT=http://localhost:9000
+S3_REGION=ap-southeast-1
+S3_BUCKET=bcs-local
+S3_ACCESS_KEY_ID=minio
+S3_SECRET_ACCESS_KEY=minio12345
+S3_FORCE_PATH_STYLE=true
+
+# --- อีเมล ---
+EMAIL_PROVIDER=smtp               # smtp | resend | ses (ADR-031)
+EMAIL_SMTP_URL=smtp://localhost:1025
+EMAIL_FROM="BCS <no-reply@bcs.local>"
+
+# ตรวจตัวตนผู้ขาย (FR-SUP-001 · OQ-37): stub = ข้อมูลจำลอง · live = เรียกบริการจริง
+REGISTRY_MODE=stub
+RD_VAT_SERVICE_URL=https://rdws.rd.go.th/serviceRD3/vatserviceRD3.asmx
+DBD_JURISTIC_API_URL=https://openapi.dbd.go.th/api/v1/juristic_person
+
+# --- Inngest ---
+INNGEST_DEV=1
+INNGEST_EVENT_KEY=
+INNGEST_SIGNING_KEY=
+
+# --- LINE (ค่าต่อองค์กรเก็บใน LineChannelConfig ค่านี้ใช้กับ local และ OA กลาง) ---
+LINE_PROVIDER_ID=
+LINE_MESSAGING_CHANNEL_ID=
+LINE_MESSAGING_CHANNEL_SECRET=
+LINE_MESSAGING_CHANNEL_ACCESS_TOKEN=
+LINE_LOGIN_CHANNEL_ID=
+LINE_LOGIN_CHANNEL_SECRET=
+LINE_LIFF_CHANNEL_ID=
+NEXT_PUBLIC_LIFF_ID=
+
+# --- SSO (S5) ---
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+MICROSOFT_CLIENT_ID=
+MICROSOFT_CLIENT_SECRET=
+MICROSOFT_TENANT_ID=common
+
+# --- Observability ---
+LOG_LEVEL=info
+SENTRY_DSN=
+
+# --- AI (ชั้น 4 เท่านั้น) ---
+AI_ENABLED=false
+ANTHROPIC_API_KEY=
+AI_MODEL_DEFAULT=claude-sonnet-5-5   # ตัวอย่าง รุ่นจริงเลือกจากผลชุดประเมิน (§12.4)
+```
+
+## ภาคผนวก C — แผนผังเอกสารต้นทาง → spec
+
+| ส่วนในเอกสารต้นทาง | อยู่ใน spec |
+| --- | --- |
+| 1 สรุปภาพรวม · 2 ปัญหา | §1.1 §1.2 |
+| 3 หลักการออกแบบ | §3 |
+| 4 สถาปัตยกรรม 5 เสาหลัก | §1.2 §4 |
+| 5 ช่องทางใช้งาน | §9 |
+| 6.1 DOA และการควบคุมเอกสาร | §7.3 ถึง §7.6 · §8.4 |
+| 6.2–6.3 ประตูเดียวและฟอร์ม | §7.9 · §8.5 |
+| 6.4 อนุมัติคู่ขนานและ workflow | §8.4 · §8.11 |
+| 6.5 งบประมาณ | §7.7 · §8.6 |
+| 6.6 Procure-to-Pay | §7.10 ถึง §7.14 · §8.7 · §8.11 |
+| 6.7 Supplier Onboarding | §8.11 · §9.8 |
+| 6.8–6.10 จัดหา ความเสี่ยง สัญญา | §8.11 |
+| 6.11 เชื่อมระบบเดิม | §7.13 · §8.11 |
+| 6.12 ความโปร่งใส | §11 |
+| 6.13 ผู้ช่วยอัตโนมัติ | §12 · §8.11 |
+| 6.14 แพลตฟอร์มและความปลอดภัย | §2 · §13 |
+| 7 เทียบกับ Zip | §0.5 · ADR-016 |
+| 8 ขอบเขตชั้น 1 | §1.5 |
+| 9 ลำดับการพัฒนาและ Phase 0 | §16 |
+| 10 Stack และแนวทางใช้ AI | §5 · §12 |
+| 11 แรงบันดาลใจ | ไม่ได้นำมาเป็นข้อกำหนด |
+| 12 การตลาดและแพ็กเกจ | §4.11 · ADR-009 |
+| 13 ตัวชี้วัดและความเสี่ยง | §1.3 · §11.4 · §18.4 |
+| 14 เรื่องที่ต้องตัดสินใจ | §18.1 |
+| 15 อภิธานศัพท์ | §19 |

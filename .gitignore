@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+scratch/
+node_modules/
+__pycache__/

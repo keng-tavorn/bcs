@@ -3047,7 +3047,7 @@ features:
 - [x] **S1-03** `[demo]` Prisma 7 และ migration แรก: Organization OrgModule Member RoleAssignment PlatformAdmin Event Outbox CommandLog FileObject FileLink BreakGlassSession + SQL §6.3 ข้อ 1–2 — เสร็จ 2026-10-02 · 39ad110
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ยืนยันว่ามี trigger append-only ครบ และ `bcs_app` UPDATE ตาราง Event ไม่ได้
   - แยกงาน: ทำเองได้
-- [ ] **S1-04** `[demo]` `clock` `newId()` `Result` รหัส error §14.2 และ logger ที่ redact
+- [x] **S1-04** `[demo]` `clock` `newId()` `Result` รหัส error §14.2 และ logger ที่ redact — เสร็จ 2026-10-02 · ae61b1d
   - เสร็จเมื่อ: unit test ผ่าน รวมเทสต์ว่า log ไม่มีรหัสผ่าน token และเลขบัญชี (NFR-SEC-09)
   - แยกงาน: ทำเองได้
 - [ ] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์

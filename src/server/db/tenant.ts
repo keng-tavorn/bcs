@@ -42,19 +42,30 @@ function ensureSameTenant(model: string, data: unknown, organizationId: string):
   }
 }
 
+/**
+ * Adds a condition to the caller's filter without replacing anything the caller asked for: a query for
+ * another organization's row must find nothing, not silently return this tenant's row instead.
+ * AND is valid in unique filters too (findUnique/update/delete/upsert), so the shape works everywhere.
+ */
+function andWhere(where: unknown, condition: Row): Row {
+  const base = (where ?? {}) as Row
+  const existing = base.AND === undefined ? [] : Array.isArray(base.AND) ? base.AND : [base.AND]
+  return { ...base, AND: [...existing, condition] }
+}
+
 export function scopeTenantArgs(model: string, operation: string, args: Row, organizationId: string): Row {
   if (model === 'Organization') {
     // A tenant can see and change only its own organization row; creation belongs to the platform.
     if (operation.startsWith('create') || operation === 'upsert') {
       throw new TenantViolationError('Organization rows are created by PLATFORM_ADMIN only')
     }
-    if (WHERE_OPERATIONS.has(operation)) return { ...args, where: { ...(args.where as Row), id: organizationId } }
+    if (WHERE_OPERATIONS.has(operation)) return { ...args, where: andWhere(args.where, { id: organizationId }) }
     return args
   }
   if (!TENANT_MODELS.has(model)) return args
 
   const next: Row = { ...args }
-  if (WHERE_OPERATIONS.has(operation)) next.where = { ...(args.where as Row), organizationId }
+  if (WHERE_OPERATIONS.has(operation)) next.where = andWhere(args.where, { organizationId })
   if (operation === 'create') {
     ensureSameTenant(model, args.data, organizationId)
     next.data = { ...(args.data as Row), organizationId }

@@ -23,8 +23,9 @@ const ELEMENTS = [
 ]
 
 const to = (...types) => ({ to: { element: { types: { anyOf: types } } } })
-// Formatting-only parts of core that adapters may use (§4.10: core/{thai,money})
-const coreFormatting = { to: { element: { type: 'core', captured: { module: '{thai,money}' } } } }
+// Parts of core that adapters may use: formatting (§4.10: core/{thai,money}) plus core/result (error codes and
+// the Result type, pure data) so screens and LINE replies can map codes to messages (docs/sub-specs/S1.md)
+const coreFormatting = { to: { element: { type: 'core', captured: { module: '{thai,money,result}' } } } }
 
 const POLICIES = [
   // External packages and Node built-ins: allowed everywhere except core (core has its own allowlist below
@@ -79,6 +80,12 @@ export default defineConfig([
   {
     settings: {
       'import/resolver': { typescript: { alwaysTryTypes: true, project: './tsconfig.json' } },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', destructuredArrayIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
     },
   },
   // Layer boundaries (§4.10)

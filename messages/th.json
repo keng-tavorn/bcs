@@ -7,5 +7,36 @@
       "th": "ไทย"
     },
     "name": "BCS"
+  },
+  "errors": {
+    "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
+    "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",
+    "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
+    "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
+    "CONFLICT_VERSION": "เอกสารถูกแก้ไขโดยผู้อื่น กรุณาโหลดใหม่",
+    "DOA_AMBIGUOUS": "DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ",
+    "DOA_LINT_FAILED": "DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",
+    "DOA_NOT_CONFIGURED": "ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ",
+    "DUPLICATE_INVOICE": "เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้",
+    "EXTERNAL_SERVICE_ERROR": "ระบบภายนอกไม่ตอบสนอง ({service})",
+    "FORBIDDEN": "คุณไม่มีสิทธิ์ทำรายการนี้",
+    "IDEMPOTENCY_CONFLICT": "คำสั่งนี้ถูกส่งแล้วด้วยข้อมูลที่ต่างกัน",
+    "INTERNAL": "เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId})",
+    "INVALID_STATE_TRANSITION": "เอกสารอยู่ในสถานะที่ทำรายการนี้ไม่ได้",
+    "INVOICE_EXCEEDS_COMMITTED": "ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท)",
+    "MODULE_DISABLED": "องค์กรยังไม่ได้เปิดใช้โมดูล {module}",
+    "MODULE_IN_USE": "ปิดโมดูลไม่ได้: {reason}",
+    "NOT_FOUND": "ไม่พบข้อมูล",
+    "NO_HIGHER_AUTHORITY": "DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้",
+    "RATE_LIMITED": "ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง",
+    "SOD_VIOLATION": "ทำรายการนี้ไม่ได้เพราะขัดหลักการแบ่งแยกหน้าที่ ({rule})",
+    "STEP_UP_LOCKED": "ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time}",
+    "STEP_UP_REQUIRED": "รายการนี้ต้องยืนยันด้วย PIN",
+    "TAX_RATE_NOT_CONFIGURED": "ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม",
+    "TOKEN_EXPIRED": "ลิงก์หมดอายุ กรุณาเปิดจากระบบ",
+    "TOKEN_INVALID": "ลิงก์ไม่ถูกต้อง",
+    "TOKEN_USED": "รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time}",
+    "UNAUTHENTICATED": "กรุณาเข้าสู่ระบบ",
+    "VALIDATION_FAILED": "ข้อมูลไม่ถูกต้อง: {field}"
   }
 }

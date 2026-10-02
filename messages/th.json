@@ -38,5 +38,30 @@
     "TOKEN_USED": "รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time}",
     "UNAUTHENTICATED": "กรุณาเข้าสู่ระบบ",
     "VALIDATION_FAILED": "ข้อมูลไม่ถูกต้อง: {field}"
+  },
+  "timeline": {
+    "channel": {
+      "API": "API",
+      "EMAIL": "อีเมล",
+      "LIFF": "LINE (LIFF)",
+      "LINE_CHAT": "แชท LINE",
+      "MCP": "MCP",
+      "PORTAL": "พอร์ทัลผู้ขาย",
+      "PWA": "แอป BCS Go",
+      "SYSTEM": "ระบบอัตโนมัติ",
+      "WEB": "เว็บ"
+    },
+    "doaRef": "{code} ฉบับ {version} ข้อ {rule}",
+    "label": "ไทม์ไลน์ของเอกสาร",
+    "onBehalfOf": "ทำแทน {name}",
+    "status": {
+      "approved": "อนุมัติแล้ว",
+      "current": "รอดำเนินการ",
+      "done": "เสร็จแล้ว",
+      "rejected": "ไม่อนุมัติ",
+      "upcoming": "ขั้นถัดไป"
+    },
+    "system": "ระบบ",
+    "waitingHours": "รอมา {hours} ชั่วโมงทำการ"
   }
 }

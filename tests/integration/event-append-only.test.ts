@@ -32,7 +32,7 @@ afterAll(async () => {
   await Promise.all([app.end(), migrator.end()])
 })
 
-describe('[INV-EVT-01] Event is append-only', () => {
+describe('[INV-EVT-01] [FR-PLT-003/AC2] Event is append-only', () => {
   it('lets the app role insert and read events', async () => {
     const r = await app.query('select type from "Event" where id = $1', [eventId])
     expect(r.rows[0]?.type).toBe('test.probe')

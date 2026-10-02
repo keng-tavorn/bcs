@@ -8,6 +8,8 @@ import bcs from './eslint/bcs-plugin.mjs'
 const ELEMENTS = [
   { type: 'core', pattern: 'src/core/*/**', partialMatch: false, capture: ['module'] },
   { type: 'core', pattern: 'src/core/*', partialMatch: false },
+  // Request context type shared by every server layer and adapter (spec §4.3 step 3)
+  { type: 'context', pattern: 'src/server/context/**', partialMatch: false },
   { type: 'db', pattern: 'src/server/db/**', partialMatch: false },
   { type: 'services', pattern: 'src/server/services/**', partialMatch: false },
   { type: 'queries', pattern: 'src/server/queries/**', partialMatch: false },
@@ -35,14 +37,14 @@ const POLICIES = [
   { from: { element: { type: 'core' } }, allow: { to: { module: { origin: 'external', source: ['zod', 'zod/**', 'decimal.js', 'date-fns', 'date-fns/**', '@date-fns/tz'] } } } },
 
   { from: { element: { type: 'core' } }, allow: to('core') },
-  { from: { element: { type: 'services' } }, allow: to('core', 'services', 'server', 'db', 'queries', 'integrations', 'lib') },
-  { from: { element: { type: 'queries' } }, allow: to('core', 'db', 'queries', 'lib') },
+  { from: { element: { type: 'services' } }, allow: to('core', 'services', 'server', 'db', 'queries', 'integrations', 'lib', 'context') },
+  { from: { element: { type: 'queries' } }, allow: to('core', 'db', 'queries', 'lib', 'context') },
   { from: { element: { type: 'db' } }, allow: to('db', 'core', 'lib') },
-  { from: { element: { type: 'jobs' } }, allow: to('jobs', 'services', 'queries', 'server', 'core', 'integrations', 'channels', 'lib') },
-  { from: { element: { type: 'server' } }, allow: to('server', 'db', 'core', 'queries', 'integrations', 'channels', 'lib', 'i18n') },
-  { from: { element: { type: 'channels' } }, allow: to('channels', 'services', 'queries', 'lib', 'i18n') },
+  { from: { element: { type: 'jobs' } }, allow: to('jobs', 'services', 'queries', 'server', 'core', 'integrations', 'channels', 'lib', 'context') },
+  { from: { element: { type: 'server' } }, allow: to('server', 'db', 'core', 'queries', 'integrations', 'channels', 'lib', 'i18n', 'context') },
+  { from: { element: { type: 'channels' } }, allow: to('channels', 'services', 'queries', 'lib', 'i18n', 'context') },
   { from: { element: { type: 'channels' } }, allow: coreFormatting },
-  { from: { element: { type: 'app' } }, allow: to('app', 'services', 'queries', 'channels', 'ui', 'lib', 'i18n', 'server', 'jobs') },
+  { from: { element: { type: 'app' } }, allow: to('app', 'services', 'queries', 'channels', 'ui', 'lib', 'i18n', 'server', 'jobs', 'context') },
   { from: { element: { type: 'app' } }, allow: coreFormatting },
   { from: { element: { type: 'ui' } }, allow: to('ui', 'lib', 'i18n') },
   { from: { element: { type: 'ui' } }, allow: coreFormatting },
@@ -50,6 +52,7 @@ const POLICIES = [
   { from: { element: { type: 'ai' } }, allow: to('ai', 'integrations', 'lib') },
   { from: { element: { type: 'i18n' } }, allow: to('i18n', 'lib') },
   { from: { element: { type: 'lib' } }, allow: to('lib') },
+  { from: { element: { type: 'context' } }, allow: to('lib') },
 ]
 
 // Files Next.js or next-intl load by default export (spec §14.4: no default exports otherwise)

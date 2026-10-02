@@ -75,7 +75,7 @@ function runVitest(project: string): { ok: boolean; report: VitestJson | null; o
 }
 
 function vitestGate(project: string, dir: string, label: string, impact: string): GateResult {
-  const files = filesUnder(dir, /\.test\.ts$/)
+  const files = filesUnder(dir, /\.test\.tsx?$/)
   if (files.length === 0) return { status: 'SKIP', detail: `ยังไม่มีเทสต์${label}ใน ${dir}/` }
   const { ok, report, out } = runVitest(project)
   if (!report) return { status: 'FAIL', detail: `vitest ไม่สร้างรายงาน: ${lastLines(out)}`, impact, fix: `รัน pnpm exec vitest run --project ${project} แล้วแก้ตามข้อความ` }

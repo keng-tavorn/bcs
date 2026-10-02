@@ -38,5 +38,30 @@
     "TOKEN_USED": "Already done by {name} at {time}",
     "UNAUTHENTICATED": "Please sign in",
     "VALIDATION_FAILED": "Invalid data: {field}"
+  },
+  "timeline": {
+    "channel": {
+      "API": "API",
+      "EMAIL": "Email",
+      "LIFF": "LINE (LIFF)",
+      "LINE_CHAT": "LINE chat",
+      "MCP": "MCP",
+      "PORTAL": "Supplier portal",
+      "PWA": "BCS Go app",
+      "SYSTEM": "Automated",
+      "WEB": "Web"
+    },
+    "doaRef": "{code} version {version} rule {rule}",
+    "label": "Document timeline",
+    "onBehalfOf": "On behalf of {name}",
+    "status": {
+      "approved": "Approved",
+      "current": "Waiting",
+      "done": "Done",
+      "rejected": "Rejected",
+      "upcoming": "Next"
+    },
+    "system": "System",
+    "waitingHours": "Waiting {hours} business hours"
   }
 }

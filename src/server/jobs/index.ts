@@ -1,0 +1,4 @@
+import { outboxSweeper } from './outbox-sweeper'
+
+// Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
+export const functions = [outboxSweeper]

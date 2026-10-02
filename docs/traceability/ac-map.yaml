@@ -1,0 +1,480 @@
+# docs/traceability/ac-map.yaml — แผนที่เจ้าของ AC ของ FR ชั้น 1 (spec §8 · §15.7 · §16)
+# ทุก AC ของ FR-<MOD>-0nn มีเจ้าของเป็นข้อเดียวใน checklist §16 เมื่อข้อนั้นถูกติ๊ก verify ต้องเจอเทสต์ที่ผ่าน
+# และชื่อมีแท็ก [FR-xxx-nnn/ACn] อย่างน้อย 1 ตัวต่อ AC · กฎ ความหมายของฟิลด์ และข้อจำกัด อ่านใน README.md ข้างไฟล์นี้
+# owner: รหัสข้อใน §16 (null = ยังไม่มีข้อใดทำได้) · demo: true ถ้าต้องเสร็จก่อนเส้นชัย A
+# basis: named = ข้อนั้นระบุ FR หรือ AC นี้ใน "เสร็จเมื่อ" · later = ข้อก่อนหน้าระบุ แต่ AC ต้องใช้ของที่ข้อหลังสร้าง
+#        builder = ไม่มีข้อใดระบุ เจ้าของคือข้อที่สร้างสิ่งนั้น · none = ไม่มีข้อใดระบุหรือสร้าง
+# spec.md เป็นแหล่งความจริง ถ้าไฟล์นี้ขัดกับ spec ให้ยึด spec แล้วแก้ไฟล์นี้
+version: 1
+generatedFrom: spec.md (2026-10-02)
+frs:
+  FR-PLT-001:
+    title: "ตั้งค่า tenant และองค์กร"
+    acs:
+      AC1: { owner: S1-13, demo: true, basis: named, text: "รัน pnpm db:seed ได้องค์กร DEMO ตามภาคผนวก A และรันซ้ำแล้วข้อมูลไม่ซ้ำ", note: "S1-13 seed ชีต Org และ Users · S1-13 เป็นเจ้าของเมื่ออ่าน 'องค์กร DEMO' แบบแคบ = แถวองค์กรกับโมดูล CORE (ภาคผนวก A) · ถ้าอ่านแบบกว้างว่า db:seed ใส่ภาคผนวก A ทั้งหมด (§5.4) เจ้าของจะเป็นข้อสุดท้ายที่ seed (S4-02 ถ้านับเฉพาะภาคผนวก A · D-01 ถ้านับ Demo_History ด้วย) · ข้อที่ seed เพิ่มและรันซ้ำแล้วต้องไม่ซ้ำเช่นกัน: S2-02 (TaxRate) S2-15 S3-04 S4-02 และ D-01 (Demo_History สร้างตอน seed)" }
+      AC2: { owner: S1-13, demo: true, basis: named, text: "บันทึก Organization.settings ที่ไม่ผ่าน OrgSettingsSchema ได้ VALIDATION_FAILED และค่าเดิมไม่เปลี่ยน", note: "spec ไม่ได้ระบุว่า S1 บันทึก settings ผ่าน service หรือหน้าจอใด · ชีต Settings seed ใน S2-15" }
+      AC3: { owner: S1-13, demo: true, basis: named, text: "เทสต์ INV-TEN-01 และ INV-TEN-02 ผ่าน โดยนับ model จาก DMMF เอง", note: "เทสต์ INV-TEN-01 สร้างตั้งแต่ S1-06" }
+  FR-PLT-002:
+    title: "โครงหน้าจอ เมนู ภาษา และวันที่ไทย"
+    acs:
+      AC1: { owner: S1-09, demo: true, basis: named, text: "เมนูแสดงเฉพาะที่ผู้ใช้มีสิทธิ์ตาม §2.4 และซ่อนเมนูของโมดูลที่ปิด", note: "การเปิดปิดโมดูลสร้างใน S1-12 แต่ตาราง OrgModule มีตั้งแต่ S1-03 · ชั้น 1 มีเฉพาะ CORE ที่เปิดเสมอ (§4.11) spec ไม่ได้ระบุเมนูของโมดูลเสริมที่ใช้ทดสอบ" }
+      AC2: { owner: S1-09, demo: true, basis: named, text: "สลับไทยและอังกฤษได้ ค่าเริ่มต้นไทย ข้อความทั้งหมดมาจากไฟล์แปล และ lint ห้ามข้อความฝังในคอมโพเนนต์" }
+      AC3: { owner: S1-09, demo: true, basis: named, text: "วันที่แสดงเป็น พ.ศ. ตามเวลาไทย (GC-DATE-01 ถึง GC-DATE-04) และเงินคั่นหลักพันทศนิยม 2 ตำแหน่ง", note: "S1-09 ต้องผ่าน GC-DATE ตั้งแต่ S1 แม้ dates.yaml อยู่ในเสร็จเมื่อของ S2-03 ด้วย · core/money มาใน S2-02" }
+  FR-PLT-003:
+    title: "Event log และไทม์ไลน์"
+    acs:
+      AC1: { owner: S1-05, demo: true, basis: named, text: "ทุก command สร้าง Event ในธุรกรรมเดียวกัน (INV-EVT-02) ตรวจในเทสต์ของทุก service", note: "AC ครอบทุกส่วน: ทุกข้อหลังที่เพิ่ม service ต้องเพิ่มเทสต์จำนวน Event ที่มีแท็กนี้ด้วย" }
+      AC2: { owner: S1-05, demo: true, basis: named, text: "UPDATE หรือ DELETE ตาราง Event ด้วย role แอปถูกฐานข้อมูลปฏิเสธ (INV-EVT-01)", note: "trigger append-only สร้างใน S1-03" }
+      AC3: { owner: S2-12, demo: true, basis: later, text: "หน้ารายละเอียดเอกสารแสดงไทม์ไลน์จาก Event ว่าใคร ทำอะไร ช่องทางไหน เมื่อไร และ DOA ฉบับกับข้อถ้าเป็นการอนุมัติ", note: "S1-05 ระบุ FR นี้และสร้างคอมโพเนนต์ไทม์ไลน์ (ทดสอบส่วนใคร ทำอะไร ช่องทาง เมื่อไร ได้ใน S1-05) แต่หน้ารายละเอียดเอกสารและ event การอนุมัติที่มี DOA ฉบับกับข้อ มีตั้งแต่ S2-10 และ S2-12" }
+  FR-PLT-004:
+    title: "อัปโหลดและดาวน์โหลดไฟล์"
+    acs:
+      AC1: { owner: S1-10, demo: true, basis: named, text: "ไฟล์ pdf jpg png heic xlsx docx ไม่เกิน 20 MB อัปโหลดสำเร็จพร้อมบันทึก sha256 · ชนิดอื่นหรือใหญ่เกินถูกปฏิเสธพร้อมข้อความไทย", note: "เสร็จเมื่อของ S1-10 ทดสอบกับที่เก็บไฟล์บนเครื่อง (RustFS · ADR-036 · สำรองเป็น MinIO รุ่นแช่แข็ง) เพราะ image ทางการของ MinIO ถูกลบ" }
+      AC2: { owner: S2-11, demo: true, basis: later, text: "ดาวน์โหลดผ่าน presigned URL อายุไม่เกิน 5 นาทีหลังตรวจสิทธิ์ของเอกสารที่ไฟล์ผูกอยู่ · เข้า bucket ตรงไม่ได้", note: "S1-10 ทดสอบ presigned URL อายุไม่เกิน 5 นาที และเข้า bucket ตรงไม่ได้ · S1 ยังไม่มีเอกสารธุรกิจให้ไฟล์ผูก (demo ของ S1 อัปโหลดรูปโดยไม่ผูกเอกสาร) เทสต์ของ S1-10 จึงตรวจสิทธิ์ได้แค่กับ subject ที่เทสต์สร้างแทน · การตรวจสิทธิ์ตามเอกสารจริงต้องมีคำขอที่แนบไฟล์ (สิทธิ์ S2-10 · แนบไฟล์ S2-11)" }
+      AC3: { owner: S1-10, demo: true, basis: named, text: "รูปจากกล้องมือถือถูกย่อฝั่ง client ก่อนอัปโหลด (ด้านยาวไม่เกิน 2,000 px) และลบ EXIF ที่มีพิกัด" }
+  FR-PLT-005:
+    title: "PWA ติดตั้งได้"
+    acs:
+      AC1: { owner: S1-14, demo: true, basis: later, text: "เปิดบนมือถือผ่าน URL จริงแล้วเพิ่มไปหน้าจอหลักได้ ชื่อและไอคอน BCS ถูกต้อง เปิดแบบ standalone", note: "S1-11 ทดสอบ manifest ชื่อ ไอคอน และ standalone บนเครื่อง · URL จริงมาจาก deploy staging ของ S1-14 (รอ P0-05 ถึง P0-08) · ลองบนมือถือจริงใน D-08 [คน]" }
+      AC2: { owner: S1-11, demo: true, basis: named, text: "ออฟไลน์แสดงหน้าแจ้งออฟไลน์ภาษาไทย และชั้น 1 ไม่ cache ข้อมูลธุรกิจ" }
+      AC3: { owner: S1-14, demo: true, basis: later, text: "เทสต์ Playwright ตรวจ manifest และ service worker ผ่านใน CI", note: "เทสต์ manifest และ service worker รันบนเครื่องได้ตั้งแต่ S1-11 · 'ผ่านใน CI' ต้องมี GitHub Actions ที่ S1-14 สร้าง (รอ GitHub repo · ผู้ใช้ตัดสิน 2026-10-02 ให้ commit บนเครื่องก่อน)" }
+  FR-PLT-006:
+    title: "CI/CD และ environment"
+    acs:
+      AC1: { owner: S1-14, demo: true, basis: named, text: "ทุก PR รัน pnpm verify และ merge ไม่ได้ถ้ามี FAIL", note: "ต้องมี GitHub repo และ branch protection ซึ่งยังไม่มี (ผู้ใช้ตัดสิน 2026-10-02) · S1-14 อาจต้องติดไว้จนกว่าจะมี" }
+      AC2: { owner: S1-14, demo: true, basis: named, text: "merge เข้า main แล้ว deploy staging อัตโนมัติ และ /api/health ตอบ 200 พร้อม commit sha", note: "staging คือ Vercel ภูมิภาค sin1 (ผู้ใช้ตัดสิน 2026-10-02) · ต้องมี P0-05 ถึง P0-08 และ GitHub repo สำหรับ deploy อัตโนมัติ" }
+      AC3: { owner: S1-14, demo: true, basis: named, text: "migration รันใน pipeline ด้วย role migrator เท่านั้น ส่วน runtime ใช้ role app", note: "migrate และ seed ครั้งแรกบน staging ผู้ใช้อนุญาตแล้ว · การ reset หรือแก้ข้อมูล staging ครั้งต่อไปต้องขออนุญาตก่อน (ผู้ใช้ตัดสิน 2026-10-02)" }
+  FR-PLT-007:
+    title: "ข้อมูลตัวอย่างและการ reset"
+    acs:
+      AC1: { owner: S1-13, demo: true, basis: named, text: "seed สร้างผู้ใช้ทุกบทบาทที่ใช้ในชั้น 1 พร้อมรหัสผ่านสำหรับ dev และ login ได้" }
+      AC2: { owner: S1-13, demo: true, basis: named, text: "pnpm db:reset เมื่อ APP_ENV ไม่ใช่ local ถูกปฏิเสธ", note: "D-07 ต้องมีคำสั่ง reset ที่รันบน staging ได้ แต่ AC นี้ห้าม db:reset นอก local — spec ไม่ได้ระบุว่า D-07 ใช้คำสั่งใด · การ reset ข้อมูล staging ต้องขออนุญาตผู้ใช้ก่อน (ตัดสิน 2026-10-02)" }
+      AC3: { owner: S2-15, demo: true, basis: named, text: "seed ใช้ DOA ฉบับ 1 และโครงองค์กรเดียวกับ fixture ใน §7.4 (มีเทสต์ยืนยัน เทียบทุกค่ายกเว้น effectiveFrom ของ DOA ฉบับ 1 และผู้ใช้ที่มีเฉพาะใน demo ซึ่งไม่ได้ดำรงตำแหน่ง)", note: "S1-13 ระบุ FR นี้ทั้งข้อ แต่ S2-15 ระบุ AC3 ตรง ๆ และเป็นข้อที่ seed โครงองค์กรกับ DOA" }
+  FR-PLT-008:
+    title: "Health และ observability"
+    acs:
+      AC1: { owner: S1-14, demo: true, basis: named, text: "/api/health ตรวจฐานข้อมูล storage และ Inngest แล้วคืนสถานะรายตัว" }
+      AC2: { owner: S1-14, demo: true, basis: named, text: "log เป็น JSON มี requestId และ correlationId และไม่มีข้อมูลต้องห้าม (มีเทสต์ redaction)", note: "logger ที่ redact สร้างตั้งแต่ S1-04" }
+      AC3: { owner: S1-14, demo: true, basis: named, text: "error ที่ไม่คาดคิดส่งไปตัวเก็บ error พร้อม organizationId แต่ไม่มีข้อมูลส่วนบุคคล" }
+  FR-PLT-009:
+    title: "เอกสารพิมพ์ PR และ PO พร้อมคำอ่านจำนวนเงิน"
+    acs:
+      AC1: { owner: S4-05, demo: true, basis: named, text: "ดาวน์โหลด PDF ของ PR และ PO ได้ มีหัวบริษัท เลขเอกสาร วันที่ พ.ศ. รายการ ยอดก่อน VAT VAT ยอดรวม และคำอ่านจำนวนเงินตรง GC-THAI" }
+      AC2: { owner: S4-05, demo: true, basis: named, text: "ส่วนการอนุมัติแสดงชื่อ ตำแหน่ง วันเวลา ช่องทาง และ DOA ฉบับกับข้อ ของทุกผู้อนุมัติ" }
+      AC3: { owner: S4-05, demo: true, basis: named, text: "อักษรไทยไม่แตก สระและวรรณยุกต์ไม่ซ้อน ตรวจด้วย snapshot ภาพ" }
+  FR-PLT-010:
+    title: "PDPA พื้นฐาน"
+    acs:
+      AC1: { owner: S5-11, demo: false, basis: named, text: "ORG_ADMIN ตั้งระยะเก็บข้อมูลได้ และ job ลบหรือทำให้ไม่ระบุตัวตนตามนโยบาย (เอกสารบัญชีเก็บตามกฎหมาย)", note: "§16.10 ให้ข้ามเครื่องมือ PDPA ใน demo" }
+      AC2: { owner: S5-11, demo: false, basis: named, text: "การเปิดดูข้อมูลอ่อนไหว (เลขบัญชีเต็ม เลขบัตรประชาชน) บันทึกใน SensitiveAccessLog" }
+      AC3: { owner: S5-11, demo: false, basis: named, text: "ผู้ใช้ส่งออกข้อมูลส่วนบุคคลของตนเป็น JSON ได้ และคำขอลบถูกส่งให้ ORG_ADMIN ดำเนินการตามนโยบาย" }
+  FR-PLT-011:
+    title: "โมดูลและการเปิดปิด"
+    acs:
+      AC1: { owner: S1-12, demo: true, basis: named, text: "เรียก service ของโมดูลที่ปิดอยู่ได้ MODULE_DISABLED", note: "ชั้น 1 มีเฉพาะ CORE ที่เปิดเสมอ โมดูลเสริมเปิดได้ตั้งแต่ S7 (§4.11) · spec ไม่ได้ระบุว่าเทสต์ใช้ service ใดเป็นตัวอย่าง" }
+      AC2: { owner: S1-12, demo: true, basis: named, text: "เปิดโมดูลที่ dependency ยังปิดอยู่ถูกปฏิเสธพร้อมบอก dependency ที่ขาด", note: "§14.2 ไม่มีรหัส error เฉพาะของกรณีนี้" }
+      AC3: { owner: S1-12, demo: true, basis: named, text: "เทสต์ gating วนทุกโมดูลที่มี service โดยนับเอง", note: "ชั้น 1 ยังไม่มีโมดูลเสริมที่มี service ระวังเทสต์ที่ผ่านเพราะวนศูนย์รอบ" }
+  FR-PLT-012:
+    title: "Command pipeline, idempotency และ outbox"
+    acs:
+      AC1: { owner: S1-05, demo: true, basis: named, text: "ส่ง command เดิม (idempotencyKey เดิม) 2 ครั้งพร้อมกันได้ผลเดียวและ Event ชุดเดียว (INV-PLT-01)" }
+      AC2: { owner: S1-05, demo: true, basis: named, text: "idempotencyKey เดิมแต่ input ต่างได้ IDEMPOTENCY_CONFLICT" }
+      AC3: { owner: S1-05, demo: true, basis: named, text: "Inngest ไม่พร้อมตอน commit แล้ว outbox ยังอยู่ และถูกส่งภายใน 2 นาทีหลัง Inngest กลับมา" }
+  FR-AUTH-001:
+    title: "เข้าระบบด้วยอีเมลและรหัสผ่าน"
+    acs:
+      AC1: { owner: S1-07, demo: true, basis: named, text: "ORG_ADMIN เชิญด้วยอีเมล ผู้รับตั้งรหัสผ่านผ่านลิงก์ใช้ครั้งเดียวอายุ 72 ชั่วโมง แล้ว Member เป็น ACTIVE", note: "อีเมลบนเครื่องไป Mailpit (sub-spec S1 ให้ S1-07 สร้างอีเมลขั้นต่ำ) · ผู้ให้บริการอีเมลของ staging ยังไม่ตัดสิน (ADR-031)" }
+      AC2: { owner: S1-07, demo: true, basis: named, text: "รหัสผ่านยาวอย่างน้อย 12 ตัวอักษร และลืมรหัสผ่านรีเซ็ตทางอีเมลได้", note: "อีเมลรีเซ็ตบนเครื่องไป Mailpit" }
+      AC3: { owner: S1-07, demo: true, basis: named, text: "ใส่รหัสผิด 5 ครั้งใน 15 นาทีแล้วหน่วงหรือล็อกชั่วคราว และบันทึก event ความปลอดภัย" }
+  FR-AUTH-002:
+    title: "ยืนยันตัวตนสองชั้น (TOTP)"
+    acs:
+      AC1: { owner: S2-13, demo: true, basis: later, text: "ผู้มี role นอกจาก REQUESTER หรือดำรงตำแหน่งที่ DOA อ้างถึง ต้องตั้ง TOTP ก่อนใช้งาน", note: "ส่วน role ทดสอบได้ใน S1-07 · ส่วนตำแหน่งที่ DOA อ้างต้องมีตำแหน่งและ DOA ซึ่งจัดการได้ตั้งแต่ S2-13 (ผังองค์กร ตำแหน่ง และนำเข้า DOA)" }
+      AC2: { owner: S1-07, demo: true, basis: named, text: "มีรหัสสำรองใช้ครั้งเดียว 10 รหัส" }
+      AC3: { owner: S2-16, demo: true, basis: later, text: "ORG_ADMIN รีเซ็ต 2FA ของผู้อื่นได้พร้อมเหตุผลและ event ยกเว้นผู้ดำรงตำแหน่งที่ DOA อ้างหรือมีงานอนุมัติค้าง ซึ่งต้องผ่าน IDENTITY_RESET (BR-AUTH-07)", note: "การรีเซ็ตกรณีทั่วไปทดสอบได้ใน S1-07 · ข้อยกเว้นต้องใช้ OrgAuthorityChange ชนิด IDENTITY_RESET ซึ่งสร้างใน S2-16" }
+  FR-AUTH-003:
+    title: "Session และการเพิกถอน"
+    acs:
+      AC1: { owner: S5-03, demo: true, basis: later, text: "เว็บ idle 30 นาที อายุสูงสุด 12 ชั่วโมง · LIFF idle 15 นาที", note: "ส่วนเว็บทดสอบได้ใน S1-07 · session ของ LIFF และนโยบาย idle 15 นาทีสร้างใน S5-03" }
+      AC2: { owner: S5-04, demo: true, basis: later, text: "ปิดใช้งาน member แล้ว session, LINE link, ActionToken และ delegation ถูกเพิกถอนในธุรกรรมเดียว และงานค้างแจ้ง ORG_ADMIN", note: "session (S1-07) delegation และงานค้าง (S2-10) ActionToken ของอีเมล (S4-06) ทดสอบได้ก่อน · LINE link (ChannelIdentity) มากับการผูกบัญชีใน S5-04" }
+      AC3: { owner: S1-07, demo: true, basis: named, text: "ผู้ใช้ดูอุปกรณ์ที่ login อยู่และออกจากระบบรายอุปกรณ์ได้" }
+  FR-AUTH-004:
+    title: "SSO ด้วย Google Workspace และ Microsoft 365"
+    acs:
+      AC1: { owner: S5-09, demo: false, basis: named, text: "login ด้วย SSO ได้เฉพาะอีเมลที่ตรงกับ Member ที่ ACTIVE ขององค์กร ไม่สร้างผู้ใช้ใหม่เอง", note: "§16.10 ให้ข้าม SSO ใน demo" }
+      AC2: { owner: S5-09, demo: false, basis: named, text: "ORG_ADMIN จำกัดโดเมนอีเมลที่อนุญาต และบังคับใช้ SSO แทนรหัสผ่านได้" }
+      AC3: { owner: S5-09, demo: false, basis: named, text: "ค่าเริ่มต้นยังต้องใช้ TOTP ของ BCS เว้นแต่ตั้ง sso.trustIdpMfa = true พร้อมเหตุผล" }
+  FR-AUTH-005:
+    title: "PIN ยืนยันธุรกรรม (step-up)"
+    acs:
+      AC1: { owner: S5-05, demo: true, basis: named, text: "ผู้ใช้ตั้ง PIN 6 หลัก เก็บด้วย argon2id และห้าม PIN ที่เดาง่าย (เช่น 123456 000000)" }
+      AC2: { owner: S5-05, demo: true, basis: named, text: "ตัดสินงานที่ยอดตามฐาน DOA ≥ stepUpThreshold และงาน DOA_CHANGE ORG_AUTHORITY_CHANGE ทุกงาน ต้องยืนยันด้วย PIN (หรือ passkey) ไม่ยืนยันได้ STEP_UP_REQUIRED", note: "การใส่ PIN ใน LIFF ทดสอบใน FR-LINE-003 AC2 (S5-06) · spec ไม่ได้ระบุรายละเอียดของ passkey ('ถ้าอุปกรณ์รองรับ') · ก่อน S5 step-up ของงานเชิงนโยบายใช้ TOTP (BR-DOA-15)" }
+      AC3: { owner: S5-05, demo: true, basis: named, text: "ใส่ PIN ผิด 5 ครั้งล็อก 15 นาที (STEP_UP_LOCKED) แจ้งผู้ใช้ทางอีเมล และบันทึก event" }
+  FR-ADM-001:
+    title: "จัดการสมาชิกและบทบาท"
+    acs:
+      AC1: { owner: S1-12, demo: true, basis: named, text: "ORG_ADMIN เชิญ ปิดใช้งาน มอบและถอน role ได้ และทุกการเปลี่ยนมี event" }
+      AC2: { owner: S1-12, demo: true, basis: named, text: "ผู้ดูแลมอบ role ให้ตัวเองไม่ได้" }
+      AC3: { owner: S1-12, demo: true, basis: named, text: "นำเข้าผู้ใช้จาก Excel ตามแม่แบบ รายงานแถวที่ผิดทีละแถวโดยไม่บันทึกบางส่วน" }
+  FR-ADM-002:
+    title: "ผังองค์กร ตำแหน่ง และ cost center"
+    acs:
+      AC1: { owner: S2-16, demo: true, basis: later, text: "สร้างแผนก แก้ชื่อ และจัดการ cost center ได้ทันที ระบบกันการวนรอบ · การย้าย parent ของแผนกต้องเสนอผ่าน ORG_AUTHORITY_CHANGE", note: "S2-13 ระบุ FR นี้ · สร้าง แก้ชื่อ cost center และการปฏิเสธการย้าย parent โดยตรงทดสอบได้ใน S2-13 · การวนรอบเกิดได้จากการย้าย parent ซึ่งต้องผ่าน ORG_AUTHORITY_CHANGE ที่สร้างใน S2-16" }
+      AC2: { owner: S2-16, demo: true, basis: later, text: "ตำแหน่งที่ DOA ไม่อ้างกำหนดผู้ดำรงได้ทันที · ตำแหน่งที่ DOA ฉบับที่มีผลหรือรอมีผลอ้างต้องเสนอผ่าน ORG_AUTHORITY_CHANGE · ตำแหน่งเดียวกันในแผนกเดียวกันมีผู้ดำรงปัจจุบันได้คนเดียว", note: "ตำแหน่งที่ DOA ไม่อ้างและกติกาผู้ดำรงคนเดียวทดสอบได้ใน S2-13 · เส้นทาง ORG_AUTHORITY_CHANGE สร้างใน S2-16" }
+      AC3: { owner: S2-16, demo: true, basis: later, text: "การเปลี่ยนผู้ดำรงตำแหน่งมีผลแล้วงานค้างของตำแหน่งนั้นย้ายไปผู้ดำรงคนใหม่อัตโนมัติ ถ้าตำแหน่งว่างแจ้ง ORG_ADMIN", note: "การมีผลทำโดย job org-authority-apply ซึ่งสร้างใน S2-16" }
+  FR-ADM-003:
+    title: "ปฏิทินทำการและวันหยุด"
+    acs:
+      AC1: { owner: S2-13, demo: true, basis: named, text: "ตั้งวันทำงานและเวลาทำการได้ ค่าเริ่มต้นตาม A-07" }
+      AC2: { owner: S2-13, demo: true, basis: named, text: "นำเข้าวันหยุดประจำปีจาก Excel ได้" }
+      AC3: { owner: S2-13, demo: true, basis: named, text: "ปฏิทินที่เปลี่ยนมีผลกับงานที่มอบใหม่ งานเดิมคง dueAt เดิม" }
+  FR-ADM-004:
+    title: "รูปแบบเลขเอกสาร"
+    acs:
+      AC1: { owner: S2-13, demo: true, basis: named, text: "ตั้ง pattern ได้พร้อมแสดงตัวอย่างเลขถัดไปก่อนบันทึก" }
+      AC2: { owner: S2-13, demo: true, basis: named, text: "pattern ที่ไม่มี {SEQn} หรือมี token ที่ไม่รู้จักได้ VALIDATION_FAILED" }
+      AC3: { owner: S2-13, demo: true, basis: named, text: "เปลี่ยน pattern กลางปีแล้วเลขใหม่ใช้ scope ใหม่ ไม่ชนเลขเดิม (INV-NUM-01)" }
+  FR-ADM-005:
+    title: "ประเภทคำขอและฟอร์ม"
+    acs:
+      AC1: { owner: S2-13, demo: true, basis: named, text: "ชั้น 1 แก้ฟอร์มด้วยการนำเข้า JSON ที่ตรวจด้วย schema แล้วเผยแพร่เป็นเวอร์ชันใหม่" }
+      AC2: { owner: S2-13, demo: true, basis: named, text: "เปิดปิดและเรียงลำดับประเภทคำขอในแคตตาล็อกได้" }
+      AC3: { owner: S2-13, demo: true, basis: named, text: "คำขอเดิมยังแสดงด้วย FormVersion เดิม" }
+  FR-ADM-006:
+    title: "ตั้งค่าโมดูลและช่องทาง"
+    acs:
+      AC1: { owner: S1-12, demo: true, basis: named, text: "PLATFORM_ADMIN เปิดปิดโมดูลพร้อม contractRef และเหตุผลตาม §4.11 (ปิดขณะมีโมดูลที่พึ่งพาหรือเอกสารค้างถูกปฏิเสธ) · ORG_ADMIN เห็นสถานะที่ /admin/modules และได้แจ้งทันทีทุกครั้ง", note: "S5-01 ระบุ AC2–AC3 จึงเหลือ AC1 ที่ S1-12 · spec วางตาราง Notification ไว้ใน S2-01 แต่ sub-spec S1 ย้ายมา S1-03 · ชั้น 1 ยังไม่มีเอกสารของโมดูลเสริม (เริ่ม S7) spec ไม่ได้ระบุวิธีทดสอบกรณีปิดขณะมีเอกสารค้าง" }
+      AC2: { owner: S5-01, demo: true, basis: named, text: "ORG_ADMIN ใส่ค่า LINE channel ได้ secret ถูกเข้ารหัสและแสดงแบบ mask หลังบันทึก" }
+      AC3: { owner: S5-01, demo: true, basis: named, text: "ปุ่มทดสอบการเชื่อมต่อตรวจ token และ webhook แล้วรายงานผล PASS หรือ FAIL ทีละข้อ", note: "บนเครื่องใช้ค่าจำลองตามเสร็จเมื่อของ S5-01 · การทดสอบกับ channel จริงบน staging อยู่ใน D-03 [คน]" }
+  FR-ADM-007:
+    title: "รายงานการใช้งานสำหรับคิดราคา (SHOULD)"
+    acs:
+      AC1: { owner: S5-15, demo: false, basis: named, text: "นับผู้ใช้หลัก (PROCUREMENT FINANCE BUDGET_ADMIN ORG_ADMIN) แยกจากผู้ใช้ผ่าน LINE รายเดือน" }
+      AC2: { owner: S5-15, demo: false, basis: named, text: "แสดงจำนวนข้อความ push ของ LINE รายเดือน" }
+      AC3: { owner: S5-15, demo: false, basis: named, text: "PLATFORM_ADMIN ส่งออกรายงานของทุก tenant ได้" }
+  FR-DOA-001:
+    title: "จัดการ DOA แบบมีเวอร์ชัน"
+    acs:
+      AC1: { owner: S3-09, demo: true, basis: named, text: "หน้าจอแก้แบบตารางต่อ documentType: ช่วงวงเงิน ตำแหน่งผู้อนุมัติจาก dropdown SLA และนโยบายของฉบับ (ฐานวงเงิน เกณฑ์ step-up sodPolicy) · ฉบับร่างเริ่มจากการคัดลอกฉบับล่าสุด" }
+      AC2: { owner: S2-13, demo: true, basis: named, text: "นำเข้าและส่งออก YAML รูปแบบเดียวกับ fixture ใน §7.4 และนำเข้าแล้วส่งออกกลับได้ข้อมูลชุดเดียวกัน (round-trip)" }
+      AC3: { owner: S2-13, demo: true, basis: named, text: "ฉบับที่เผยแพร่แล้วแก้ไม่ได้ ดูย้อนหลังได้ทุกฉบับพร้อมช่วงเวลามีผล เหตุผลการเปลี่ยน และ diff กับฉบับก่อนหน้า", note: "diff เทียบฉบับที่มีผลก่อนส่งเผยแพร่เป็นของ FR-DOA-009 (S3-09)" }
+  FR-DOA-002:
+    title: "ส่งเผยแพร่ DOA ผ่าน lint, test case และ 4-eyes"
+    acs:
+      AC1: { owner: S2-10, demo: true, basis: named, text: "ผล lint ตรง GC-DOA-20 ถึง GC-DOA-26 · มี error ได้ DOA_LINT_FAILED พร้อมรหัสและช่วงที่ผิด · warning ต้องติ๊กยืนยันทีละข้อก่อนส่ง", note: "golden ของ lint ผ่านตั้งแต่ S2-05 (doa-lint.yaml ทั้งชุด รวม GC-DOA-24 และ GC-DOA-25 ที่ตรวจข้อ ORG-CHG-01) · แต่ชื่อข้อ S2-16 คือ 'lint ชุดเต็ม ข้อกำกับ ORG-CHG-01' และ spec ไม่ได้ระบุว่า lint ชุดเต็มของ S2-16 ต่างจาก lint ของ S2-05 อย่างไร · ถ้า service ส่งเผยแพร่ของ S2-10 ยังไม่ตรวจข้อกำกับ ORG-CHG-01 เจ้าของต้องเป็น S2-16 (basis later) · หน้าจอติ๊ก warning อยู่บนหน้า DOA ของ S2-13 และ S3-09" }
+      AC2: { owner: S2-16, demo: true, basis: later, text: "ฉบับที่ผ่านถูกส่งให้ผู้อนุมัติตามข้อ DOA_CHANGE ของฉบับที่มีผล ผู้ส่งอนุมัติเองไม่ได้ (GC-SOD-04) และผู้อนุมัติต้อง step-up ทุกครั้ง (BR-DOA-15)", note: "การส่งตามข้อ DOA_CHANGE และ GC-SOD-04 ทดสอบได้ใน S2-10 · step-up ของการอนุมัติเชิงนโยบาย (TOTP ก่อน S5) สร้างใน S2-16" }
+      AC3: { owner: S2-16, demo: true, basis: later, text: "ชุดตั้งต้นขององค์กร (ผู้ดำรงตำแหน่งที่ DOA อ้าง + ฉบับแรก) อนุมัติโดยผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19 OQ-31) และ PLATFORM_ADMIN ไม่เห็นเนื้อหา", note: "ชุดตั้งต้น (BR-DOA-19) สร้างใน S2-16 · ใช้ค่าเริ่มต้นของ OQ-31 จนกว่าจะได้คำตอบ" }
+      AC4: { owner: S2-10, demo: true, basis: named, text: "วันมีผลไม่ย้อนหลัง (BR-DOA-12) และฉบับก่อนหน้าเป็น SUPERSEDED เมื่อฉบับใหม่มีผล", note: "job doa-version-activate อยู่ในขั้น S2 (§4.6) ทดสอบด้วย clock ปลอม" }
+  FR-DOA-003:
+    title: "คำนวณเส้นทางอนุมัติ"
+    acs:
+      AC1: { owner: S2-05, demo: true, basis: builder, text: "ผลของ engine ตรงกับ GC-DOA-01 ถึง GC-DOA-19 และ GC-DOA-27 ทุกเคส", note: "ไม่มีข้อใดระบุ FR-DOA-003 ในเสร็จเมื่อ · S2-05 สร้าง resolveRoute และต้องผ่าน doa.yaml" }
+      AC2: { owner: S2-12, demo: true, basis: builder, text: "ผู้ขอเห็นเส้นทางที่คาดไว้พร้อมคำอธิบายภาษาไทยก่อนกดส่ง และเห็นเส้นทางจริงหลังส่ง", note: "ไม่มีข้อใดระบุ · เส้นทางก่อนส่งอยู่ในฟอร์ม (S2-11) เส้นทางจริงหลังส่งอยู่ในหน้ารายละเอียดและไทม์ไลน์ (S2-12)" }
+      AC3: { owner: S2-11, demo: true, basis: builder, text: "DOA_NOT_CONFIGURED APPROVER_NOT_FOUND NO_HIGHER_AUTHORITY แสดงข้อความไทยที่บอกว่าต้องติดต่อใคร และแจ้ง ORG_ADMIN", note: "ไม่มีข้อใดระบุ · service ส่งคำขอ (S2-10) คืน error และหน้าฟอร์ม (S2-11) แสดงข้อความ · §10.1 มีแม่แบบ admin.doa_gap เฉพาะ APPROVER_NOT_FOUND" }
+  FR-DOA-004:
+    title: "ตัดสินงานอนุมัติ"
+    acs:
+      AC1: { owner: S2-10, demo: true, basis: named, text: "ผู้รับงานเลือก อนุมัติ ตีกลับ ไม่อนุมัติ หรือขอข้อมูลเพิ่มได้ ตีกลับและไม่อนุมัติต้องมีเหตุผล", note: "S2-10 และ S2-12 ระบุ FR นี้ทั้งคู่ · AC นี้ทดสอบได้ครบที่ service ใน S2-10 หน้าตัดสินอยู่ใน S2-12" }
+      AC2: { owner: S4-04, demo: true, basis: later, text: "ตอนตัดสินตรวจสิทธิ์และ SoD ซ้ำ (GC-SOD-01 GC-SOD-03) และตรวจว่างานยัง OPEN · กดซ้ำได้ INVALID_STATE_TRANSITION พร้อมข้อความ 'ดำเนินการแล้วโดย … เมื่อ …'", note: "GC-SOD-01 และการกดซ้ำทดสอบได้ใน S2-10 · GC-SOD-03 (ผู้สร้าง PO อนุมัติ PO) ต้องมีงานอนุมัติ PO ซึ่งสร้างใน S4-04" }
+      AC3: { owner: S2-10, demo: true, basis: named, text: "ขั้นสุดท้ายอนุมัติแล้วเอกสารเปลี่ยนสถานะตาม §6.4 และผู้ขอได้แจ้งภายใน 1 นาที", note: "ตรวจว่ามี Notification ของผู้ขอในธุรกรรมเดียวกัน · การส่งทางอีเมลและ LINE ทดสอบใน FR-NOTI-002 (S4-06) และ FR-LINE-002 (S5-05)" }
+  FR-DOA-005:
+    title: "อ้างอิง DOA ทุกการตัดสิน"
+    acs:
+      AC1: { owner: S2-10, demo: true, basis: builder, text: "event approval_task.decided ทุกตัวมี doaVersionId doaRuleCode channel ผู้กระทำ และ onBehalfOf (ถ้ามี)", note: "ไม่มีข้อใดระบุ FR-DOA-005 · S2-10 สร้าง service ตัดสิน · AC ครอบทุกช่องทาง: การตัดสินทาง LINE และ LIFF ใน S5 ต้องมีเทสต์แท็กนี้เพิ่ม" }
+      AC2: { owner: S2-12, demo: true, basis: builder, text: "หน้ารายละเอียดแสดง 'อนุมัติภายใต้ DOA-DEMO ฉบับ 1 ข้อ PR-02' พร้อมลิงก์ไปฉบับนั้น", note: "ไม่มีข้อใดระบุ · หน้ารายละเอียดและไทม์ไลน์สร้างใน S2-12" }
+      AC3: { owner: S4-10, demo: true, basis: builder, text: "การส่งออก audit มีฟิลด์ doaVersionId doaRuleCode channel ผู้กระทำ และ onBehalfOf ครบ (FR-VIS-004)", note: "ไม่มีข้อใดระบุ · การค้นและส่งออก audit สร้างใน S4-10" }
+  FR-DOA-006:
+    title: "รักษาการ"
+    acs:
+      AC1: { owner: S2-10, demo: true, basis: named, text: "ผลตรงกับ GC-DLG-01 ถึง GC-DLG-06", note: "core/delegation ผ่าน golden ตั้งแต่ S2-06" }
+      AC2: { owner: S5-06, demo: true, basis: later, text: "ผู้มอบตั้งรักษาการเองได้ทั้งบนเว็บและ LIFF · ORG_ADMIN ตั้งแทนผู้อื่นได้ผ่าน ORG_AUTHORITY_CHANGE ชนิด DELEGATION_ON_BEHALF เท่านั้น (GC-SOD-08)", note: "service ทดสอบได้ใน S2-10 และชนิด DELEGATION_ON_BEHALF ใน S2-16 · หน้าเว็บใน /settings/* สร้างใน NEW-06 (ทำต่อจาก S2-10 ก่อน S5-06) · หน้า /liff/delegation สร้างใน S5-06 ซึ่งเป็นชิ้นสุดท้ายที่ AC ต้องใช้ จึงเป็นเจ้าของ" }
+      AC3: { owner: S5-07, demo: true, basis: named, text: "เริ่มและจบช่วงรักษาการแล้วงานค้างย้ายอัตโนมัติ และทั้งสองฝ่ายได้แจ้ง", note: "S2-10 ระบุ FR นี้ทั้งข้อ แต่ S5-07 ระบุ AC3 ตรง ๆ (function delegation-window ขั้น S5)" }
+  FR-DOA-007:
+    title: "แบ่งแยกหน้าที่ (SoD)"
+    acs:
+      AC1: { owner: S2-06, demo: true, basis: builder, text: "ผลตรงกับ GC-SOD-01 ถึง GC-SOD-09", note: "ไม่มีข้อใดระบุ FR-DOA-007 · S2-06 ต้องผ่าน sod.yaml ซึ่งมีครบ 9 เคส (S2-16 ทดสอบ GC-SOD-06 ถึง 09 ซ้ำที่ service)" }
+      AC2: { owner: S2-10, demo: true, basis: builder, text: "การละเมิดทุกครั้งถูกบล็อกและบันทึก event security.sod_blocked พร้อมรหัสกฎ", note: "ไม่มีข้อใดระบุ · S2-10 สร้างการตรวจ SoD ตอนตัดสิน · AC ครอบทุกส่วน: S2-16 (BR-SOD-08) S4-04 (BR-SOD-03) และ S4-07 (BR-SOD-02 BR-SOD-07) ต้องเพิ่มเทสต์แท็กนี้" }
+      AC3: { owner: S2-10, demo: true, basis: builder, text: "การผ่อนกฎ (sodPolicy เช่น approverMayReceive) ทำได้ผ่าน DOA ฉบับใหม่เท่านั้น จึงผ่าน 4-eyes และอยู่ในรายงานประวัติ (FR-DOA-011)", note: "ไม่มีข้อใดระบุ · S2-10 สร้าง service ของ DOA version (4-eyes) · ส่วนรายงานประวัติทดสอบใน FR-DOA-011 ซึ่งเป็น [go-live] S4-13" }
+  FR-DOA-008:
+    title: "ทะเบียนเลขเอกสาร"
+    acs:
+      AC1: { owner: S2-04, demo: true, basis: builder, text: "ผลตรงกับ GC-NUM-01 ถึง GC-NUM-04", note: "ไม่มีข้อใดระบุ FR-DOA-008 · เสร็จเมื่อของ S2-04 คือ numbering.yaml และเทสต์ออกเลข 50 ใบ" }
+      AC2: { owner: S2-04, demo: true, basis: builder, text: "ออกเลข 50 ใบพร้อมกันได้ 1 ถึง 50 ครบไม่ซ้ำ (INV-NUM-01)", note: "ไม่มีข้อใดระบุ · ตรงกับเสร็จเมื่อของ S2-04" }
+      AC3: { owner: S2-10, demo: true, basis: builder, text: "เลขของเอกสารที่ยกเลิกไม่ถูกนำกลับมาใช้", note: "ไม่มีข้อใดระบุ · ต้องมีการส่งและยกเลิกคำขอซึ่งสร้างใน S2-10" }
+  FR-DOA-009:
+    title: "ทดลองส่ง diff และตารางผลที่ขอบ"
+    acs:
+      AC1: { owner: S3-09, demo: true, basis: named, text: "ก่อนส่งเผยแพร่แสดง diff เทียบฉบับที่มีผล: ช่วงวงเงินที่เปลี่ยน ตำแหน่งที่ได้หรือเสียอำนาจ และนโยบายที่เปลี่ยน" }
+      AC2: { owner: S3-09, demo: true, basis: named, text: "หน้าทดลองส่ง: ใส่ประเภทเอกสาร ยอด แผนก และผู้ขอ แล้วเห็นเส้นทางและคำอธิบายของฉบับที่มีผลและฉบับร่าง ด้วย engine ตัวเดียวกับของจริง" }
+      AC3: { owner: S3-09, demo: true, basis: named, text: "ตารางผลที่ขอบตรงกับ GC-DOA-22 และผู้ร่างกับผู้อนุมัติต้องติ๊กยืนยันก่อนส่งและก่อนอนุมัติ" }
+  FR-DOA-010:
+    title: "เสนอและอนุมัติการเปลี่ยนโครงสร้างอำนาจ"
+    acs:
+      AC1: { owner: S2-16, demo: true, basis: named, text: "ORG_ADMIN เสนอได้ 5 ชนิด (แต่งตั้งและสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น รีเซ็ตตัวตนของผู้มีอำนาจ) พร้อมวันมีผลไม่ย้อนหลังและเหตุผล และเห็นผลกระทบก่อนส่ง (ผู้ที่ได้หรือเสียอำนาจ และจำนวนงานค้างที่จะย้าย)" }
+      AC2: { owner: S2-16, demo: true, basis: named, text: "เส้นทางอนุมัติตามข้อ ORG_AUTHORITY_CHANGE (GC-DOA-27) ผู้อนุมัติต้อง step-up และผล SoD ตรงกับ GC-SOD-06 ถึง GC-SOD-09", note: "ก่อน S5 step-up ใช้ TOTP (BR-DOA-15) หลัง S5-05 ใช้ PIN" }
+      AC3: { owner: S2-16, demo: true, basis: named, text: "การเปลี่ยนที่ทำให้หาผู้อนุมัติข้อ DOA_CHANGE หรือ ORG_AUTHORITY_CHANGE ไม่ได้ถูกปฏิเสธ เว้นแต่แต่งตั้งผู้แทนในคำขอเดียวกัน", note: "ใช้ค่าเริ่มต้นของ OQ-32 จนกว่าจะได้คำตอบ" }
+      AC4: { owner: S2-16, demo: true, basis: named, text: "เมื่อมีผล ระบบใช้การเปลี่ยน ย้ายงานค้าง และแจ้งผู้เกี่ยวข้อง (BR-DOA-16 BR-DOA-17) โดยไม่ต้อง deploy" }
+  FR-DOA-011:
+    title: "ประวัติการเปลี่ยนนโยบายสำหรับผู้ตรวจสอบ"
+    acs:
+      AC1: { owner: S4-13, demo: false, basis: named, text: "AUDITOR และ ORG_ADMIN เห็นประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบของฟอร์ม พร้อมผู้เสนอ ผู้อนุมัติ วันมีผล และ diff" }
+      AC2: { owner: S4-13, demo: false, basis: named, text: "ส่งออก Excel หรือ CSV พร้อม checksum และการส่งออกเป็น event audit.exported" }
+      AC3: { owner: S4-13, demo: false, basis: named, text: "การเผยแพร่ FormVersion ที่เปลี่ยนกฎเอกสารแนบแจ้ง AUDITOR ทันที" }
+  FR-INT-001:
+    title: "แคตตาล็อกประเภทคำขอ"
+    acs:
+      AC1: { owner: S2-11, demo: true, basis: named, text: "หน้าเริ่มคำขอแสดงการ์ด 4–6 ประเภทที่เปิดใช้ (seed 5 ประเภท) พร้อมคำอธิบายว่าใช้เมื่อไร", note: "ประเภทคำขอ 5 ประเภทจากชีต RequestTypes seed ใน S2-15" }
+      AC2: { owner: S2-11, demo: true, basis: named, text: "ช่องค้นหาช่วยเลือกประเภทด้วยคำสำคัญ (ไม่มี AI ในชั้น 1)" }
+      AC3: { owner: S5-06, demo: true, basis: later, text: "เริ่มคำขอจาก rich menu ของ LINE ได้ (FR-LINE-004)", note: "rich menu สร้างใน S5-04 และหน้า /liff/requests/new สร้างใน S5-06" }
+  FR-INT-002:
+    title: "ฟอร์มไดนามิก"
+    acs:
+      AC1: { owner: S2-11, demo: true, basis: named, text: "ฟิลด์แสดงหรือซ่อนตามเงื่อนไขทันทีบน client และ server ตรวจซ้ำ (BR-FORM-01)" }
+      AC2: { owner: S2-11, demo: true, basis: named, text: "ผลตรงกับ GC-FORM-01 ถึง GC-FORM-08", note: "core/forms ผ่าน forms.yaml ตั้งแต่ S2-08" }
+      AC3: { owner: S2-11, demo: true, basis: named, text: "ฟอร์มใช้งานได้บนจอกว้าง 360 px โดยไม่ต้องเลื่อนแนวนอน" }
+  FR-INT-003:
+    title: "เติมข้อมูลจากบริบท"
+    acs:
+      AC1: { owner: S4-02, demo: true, basis: later, text: "เปิดฟอร์มใหม่แล้วแผนก cost center บรรทัดงบ และสถานที่ส่งถูกเติมตาม BR-FORM-02 และผู้ขอแก้ได้", note: "แผนกและ cost center ทดสอบได้ใน S2-11 · บรรทัดงบมีตั้งแต่ S3 (seed งบใน S3-04) · สถานที่ส่ง (DeliverySite) มีตั้งแต่ S4-01 และ seed ชีต Sites ใน S4-02" }
+      AC2: { owner: S3-07, demo: true, basis: later, text: "บรรทัดงบให้เลือกเฉพาะที่ผู้ขอมีสิทธิ์ (ของแผนกตนหรือได้ grant)", note: "BudgetLine และ BudgetGrant มีตั้งแต่ S3 · S3-07 สร้างการให้ grant (เรื่องเดียวกับ FR-BUD-004 AC2)" }
+      AC3: { owner: S4-02, demo: true, basis: later, text: "คำขอซื้อของทั่วไปมีฟิลด์ที่ผู้ขอต้องกรอกเองไม่เกิน 6 ฟิลด์ (วัดใน e2e)", note: "จำนวนฟิลด์ขึ้นกับการเติมบรรทัดงบและสถานที่ส่ง (AC1) ซึ่งครบเมื่อมีบรรทัดงบ (S3) และสถานที่ส่ง (S4-01 S4-02) · S2-11 วัดฟอร์มของขั้น S2 ได้ก่อน · S4-02 วัดซ้ำใน e2e หลังเติมได้ครบ (เหตุผลเดียวกับ AC1)" }
+  FR-INT-004:
+    title: "แสดงงบคงเหลือก่อนส่ง"
+    acs:
+      AC1: { owner: S3-06, demo: true, basis: named, text: "ฟอร์มแสดงยอดคงเหลือของบรรทัดงบที่เลือกและผล 'พอ' หรือ 'ไม่พอ' ตามยอดก่อน VAT แบบทันที" }
+      AC2: { owner: S3-06, demo: true, basis: named, text: "งบไม่พอแล้วปุ่มส่งแสดงเหตุผลและยอดที่ขาด และส่งไม่ได้" }
+      AC3: { owner: S3-06, demo: true, basis: named, text: "ตอนส่งตรวจงบซ้ำภายใต้ล็อก เพราะงบอาจเปลี่ยนระหว่างกรอก" }
+  FR-INT-005:
+    title: "กฎเอกสารแนบ"
+    acs:
+      AC1: { owner: S2-11, demo: true, basis: named, text: "ก่อนส่งแสดงรายการเอกสารที่ต้องแนบตามยอดปัจจุบัน" }
+      AC2: { owner: S2-11, demo: true, basis: named, text: "ส่งโดยแนบไม่ครบได้ ATTACHMENT_RULE_FAILED พร้อมรหัสกฎ" }
+      AC3: { owner: S5-06, demo: true, basis: later, text: "แนบรูปจากกล้องมือถือใน LIFF ได้", note: "หน้า LIFF สร้างใน S5-06 · การย่อรูปฝั่ง client มีตั้งแต่ FR-PLT-004 AC3 (S1-10)" }
+      AC4: { owner: S2-17, demo: true, basis: named, text: "ใบเสนอราคากรอกเป็นข้อมูล (ผู้ขาย ยอด ธงรวม VAT ไฟล์) และผลการเทียบตรงกับ GC-FORM-09 ถึง GC-FORM-11" }
+      AC5: { owner: S2-17, demo: true, basis: named, text: "คำขอซื้อไอทีและจ้างบริการแสดงคำถามคัดกรอง 3 ข้อ ตอบว่าผู้ขายประมวลผลข้อมูลส่วนบุคคลแล้วต้องแนบ DPA (BR-FORM-05)" }
+  FR-INT-006:
+    title: "บันทึกร่างและทำต่อข้ามอุปกรณ์"
+    acs:
+      AC1: { owner: S2-11, demo: true, basis: named, text: "ร่างถูกบันทึกอัตโนมัติหลังหยุดแก้ 10 วินาทีและเมื่อออกจากหน้า" }
+      AC2: { owner: S2-11, demo: true, basis: named, text: "เปิดร่างเดียวกันบนอีกอุปกรณ์ได้ แก้พร้อมกัน 2 ที่แล้วอีกฝั่งได้ CONFLICT_VERSION พร้อมให้โหลดใหม่" }
+      AC3: { owner: NEW-07, demo: true, basis: named, text: "ร่างที่ไม่ได้แก้ 90 วันได้รับแจ้งก่อนถูกลบ", note: "NEW-07 ระบุ AC นี้ในเสร็จเมื่อ และ S2-11 ระบุเฉพาะ AC1–AC2 · spec ไม่ได้ระบุว่าแจ้งล่วงหน้ากี่วัน ทางช่องทางใด และลบแบบใด · spec ไม่ได้ระบุ job ที่แจ้งและลบร่าง (ไม่มีในตาราง §4.6)" }
+  FR-INT-007:
+    title: "ส่งคำขอ"
+    acs:
+      AC1: { owner: S3-05, demo: true, basis: named, text: "การส่งเป็นธุรกรรมเดียว: ตรวจฟอร์ม คำนวณยอดด้วย core ตรวจและจองงบ คำนวณเส้นทาง ออกเลข สร้างงานแรก และ event ถ้าขั้นใดล้มจะไม่มีอะไรเกิดขึ้นเลย", note: "S2-10 และ S3-05 ระบุ FR นี้ทั้งคู่ · S2-10 ทดสอบขั้นอื่นได้โดยขั้นงบเป็น stub · การจองงบจริงต่อใน S3-05" }
+      AC2: { owner: S3-05, demo: true, basis: named, text: "ไม่มีคำขอเกินงบใดไปถึงผู้อนุมัติ (G-4) ตรวจด้วยเทสต์และ KPI", note: "ส่วน KPI G-4 ทดสอบใน FR-VIS-003 AC1 (S4-11)" }
+      AC3: { owner: S2-10, demo: true, basis: named, text: "คำขอผู้ขายรายใหม่เข้าคิวจัดซื้อโดยไม่ผ่าน DOA (OQ-23)", note: "ไม่ขึ้นกับงบจึงปิดได้ใน S2-10 · spec ไม่ได้ระบุหน้าจอคิวจัดซื้อของคำขอผู้ขายรายใหม่" }
+  FR-INT-008:
+    title: "ติดตามสถานะแบบพัสดุ"
+    acs:
+      AC1: { owner: S2-12, demo: true, basis: named, text: "ไทม์ไลน์แสดงขั้นปัจจุบัน รอใคร (ชื่อและตำแหน่ง) ค้างมากี่ชั่วโมงทำการ และขั้นที่เหลือ" }
+      AC2: { owner: S5-06, demo: true, basis: later, text: "ผู้ขอและผู้ติดตามเห็นสถานะเดียวกันทุกช่องทาง", note: "ช่องทางของ FR นี้คือเว็บและ LIFF · เว็บทดสอบได้ใน S2-12 · หน้า LIFF (requests/[id] และ track) สร้างใน S5-06" }
+      AC3: { owner: S2-12, demo: true, basis: named, text: "หน้า 'คำขอของฉัน' กรองตามสถานะและค้นด้วยเลขเอกสารได้" }
+  FR-INT-009:
+    title: "ยกเลิก ส่งซ้ำ ขอข้อมูลเพิ่ม และความเห็น"
+    acs:
+      AC1: { owner: S3-05, demo: true, basis: later, text: "ผู้ขอยกเลิกได้ตาม §6.4 และงบคืนทันที", note: "การยกเลิกทดสอบได้ใน S2-10 · การคืนงบต่อใน S3-05 (ต่องบเข้ากับการยกเลิกแทน stub)" }
+      AC2: { owner: S3-05, demo: true, basis: later, text: "คำขอที่ถูกตีกลับแก้แล้วส่งซ้ำได้ เส้นทางคำนวณใหม่ (BR-DOA-09) และการจองงบปรับตามส่วนต่าง", note: "การส่งซ้ำและคำนวณเส้นทางใหม่ทดสอบได้ใน S2-10 · การปรับการจองงบต่อใน S3-05" }
+      AC3: { owner: S5-07, demo: true, basis: later, text: "ผู้อนุมัติขอข้อมูลเพิ่มแล้วผู้ขอได้แจ้ง ตอบแล้วงานกลับไปผู้อนุมัติคนเดิม และ SLA นับต่อจากเวลาที่เหลือ (GC-SLA-06)", note: "การขอและตอบข้อมูลทดสอบได้ใน S2-10 · การคำนวณ dueAt ใหม่หลังได้คำตอบเป็นงานของ function approval-task-resume ซึ่ง §4.6 จัดไว้ขั้น S5 และ S5-07 สร้าง · แต่ §6.4 วางการคำนวณนี้ไว้ใน transition request.provideInfo (ดูตารางเรื่องที่ขัดกันใน README)" }
+  FR-BUD-001:
+    title: "ปีงบและนำเข้างบ"
+    acs:
+      AC1: { owner: S3-04, demo: true, basis: named, text: "BUDGET_ADMIN นำเข้างบจาก Excel ตามแม่แบบ (ปีงบ แผนก cost center รหัส ชื่อ ยอด) ถ้ามีแถวผิดจะไม่บันทึกเลย และรายงานทีละแถว" }
+      AC2: { owner: S3-04, demo: true, basis: named, text: "แต่ละแถวสร้าง ledger OUTSIDE → AVAILABLE และ event" }
+      AC3: { owner: S3-04, demo: true, basis: named, text: "นำเข้าไฟล์เดิมซ้ำตรวจพบด้วย checksum และต้องยืนยันก่อนเพิ่มยอด" }
+  FR-BUD-002:
+    title: "Engine ledger"
+    acs:
+      AC1: { owner: S3-03, demo: true, basis: builder, text: "ผลตรงกับ GC-BUD-01 ถึง GC-BUD-07", note: "ไม่มีข้อใดระบุ FR-BUD-002 · S3-02 ผ่าน GC-BUD-01 ถึง 06 และ S3-03 ผ่าน GC-BUD-07 กับ Postgres จริง" }
+      AC2: { owner: S3-02, demo: true, basis: builder, text: "property test ของ INV-BUD-01 ถึง INV-BUD-03 ผ่านอย่างน้อย 1,000 ลำดับสุ่ม", note: "ไม่มีข้อใดระบุ · ตรงกับเสร็จเมื่อของ S3-02" }
+      AC3: { owner: S3-03, demo: true, basis: builder, text: "concurrency test ของ INV-BUD-05 ผ่านกับ Postgres จริง", note: "ไม่มีข้อใดระบุ · ตรงกับเสร็จเมื่อของ S3-03" }
+  FR-BUD-003:
+    title: "บล็อกคำขอเกินงบ"
+    acs:
+      AC1: { owner: S3-05, demo: true, basis: named, text: "คำขอเกินงบส่งไม่ได้ ข้อความบอกยอดคงเหลือและยอดที่ขาด" }
+      AC2: { owner: S3-05, demo: true, basis: named, text: "ไม่มีทางใด (เว็บ LIFF API) ข้ามการตรวจงบได้ ตรวจด้วยเทสต์ที่เรียก service ตรง" }
+      AC3: { owner: S3-05, demo: true, basis: named, text: "event request.submitted บันทึกผลตรวจงบ (budgetCheck) สำหรับ KPI ของ G-4" }
+  FR-BUD-004:
+    title: "สิทธิ์ใช้งบข้ามฝ่าย"
+    acs:
+      AC1: { owner: S3-07, demo: true, basis: named, text: "BUDGET_ADMIN ให้ grant ต่อแผนกหรือรายบุคคลพร้อมวันเริ่มและสิ้นสุด" }
+      AC2: { owner: S3-07, demo: true, basis: named, text: "ผู้ขอที่ไม่มี grant เลือกบรรทัดงบของแผนกอื่นไม่ได้ ทั้ง UI และ service" }
+      AC3: { owner: S3-07, demo: true, basis: named, text: "คำขอที่ใช้งบข้ามฝ่ายหาผู้อนุมัติจากแผนกเจ้าของงบ (BR-DOA-05)" }
+  FR-BUD-005:
+    title: "Dashboard งบ"
+    acs:
+      AC1: { owner: S3-08, demo: true, basis: named, text: "แสดงงบตั้งต้น available reserved committed actual ต่อบรรทัดงบ แผนก และทั้งองค์กร ตรงกับ ledger ทุกสตางค์", note: "committed และ actual จากการไหลจริงเริ่มใน S4-04 และ S4-08 · D-01 ตรวจ dashboard กับข้อมูลย้อนหลังอีกครั้ง" }
+      AC2: { owner: S4-08, demo: true, basis: later, text: "คลิกยอดใดเห็นเอกสารที่ประกอบเป็นยอดนั้น (drill-down จาก BudgetAllocation)", note: "drill-down ของยอด reserved ทดสอบได้ใน S3-08 · ยอด committed มาจาก PO ที่อนุมัติ (S4-04) และ actual มาจากการยืนยันใบกำกับ (S4-08)" }
+      AC3: { owner: S3-08, demo: true, basis: named, text: "ข้อมูลช้ากว่าจริงไม่เกิน 60 วินาที" }
+  FR-P2P-001:
+    title: "กองคำขอรอจัดซื้อ"
+    acs:
+      AC1: { owner: S4-03, demo: true, basis: named, text: "PROCUREMENT เห็นบรรทัดคำขอที่อนุมัติแล้วแต่ยังไม่ถูกสั่ง กรองตามผู้ขาย สถานที่ส่ง ความด่วน และอายุได้" }
+      AC2: { owner: S4-03, demo: true, basis: named, text: "เลือกผู้ขายให้หลายบรรทัดพร้อมกันได้" }
+      AC3: { owner: S4-03, demo: true, basis: named, text: "บรรทัดที่ยังไม่มีผู้ขายมีป้าย 'ต้องเลือกผู้ขาย' (BR-CONS-03)" }
+  FR-P2P-002:
+    title: "รอบรวม PR อัตโนมัติ"
+    acs:
+      AC1: { owner: S4-03, demo: true, basis: named, text: "ผลตรงกับ GC-CONS-01 ถึง GC-CONS-05" }
+      AC2: { owner: S4-03, demo: true, basis: named, text: "รอบรวมรันตาม cron ขององค์กรและบันทึก ConsolidationRun" }
+      AC3: { owner: S4-03, demo: true, basis: named, text: "PROCUREMENT กด 'รวมตอนนี้' ได้" }
+  FR-P2P-003:
+    title: "ร่าง PO พร้อมประวัติราคา"
+    acs:
+      AC1: { owner: S4-04, demo: true, basis: named, text: "ร่าง PO แสดงราคาต่อหน่วย 3 ครั้งล่าสุดของรายการเดียวกัน (หมวดและคำอธิบายหลัง normalize) จาก PO ที่อนุมัติแล้ว และเตือนเมื่อราคาใหม่สูงกว่าเกิน settings.priceAlertPct (ค่าเริ่มต้น 10%)" }
+      AC2: { owner: S4-04, demo: true, basis: named, text: "แก้ราคา จำนวน (ไม่เกินจำนวนคงเหลือของคำขอ) เงื่อนไข และหมายเหตุถึงผู้ขายได้" }
+      AC3: { owner: S4-04, demo: true, basis: named, text: "ยอดรวมและ VAT คำนวณด้วย core (GC-MONEY) ไม่รับจาก client" }
+  FR-P2P-004:
+    title: "อนุมัติ PO ตาม DOA และถืองบ"
+    acs:
+      AC1: { owner: S4-04, demo: true, basis: named, text: "ส่ง PO แล้วเส้นทางตาม DOA ประเภท PURCHASE_ORDER (GC-DOA-05 GC-DOA-06 GC-DOA-14)" }
+      AC2: { owner: S4-04, demo: true, basis: named, text: "การจอง คืน และถือเป็นไปตาม GC-BUD-01 ถึง GC-BUD-04" }
+      AC3: { owner: S4-04, demo: true, basis: named, text: "สร้าง PO ที่ไม่มีคำขอต้นทางไม่ได้ (OQ-24)" }
+  FR-P2P-005:
+    title: "ส่ง PO ให้ผู้ขายทางอีเมล"
+    acs:
+      AC1: { owner: S4-06, demo: true, basis: named, text: "กด 'ส่ง' บน PO ที่อนุมัติแล้วได้อีเมลถึงผู้ขายพร้อม PDF (FR-PLT-009) และบันทึก sentAt sentToEmail" }
+      AC2: { owner: S4-06, demo: true, basis: named, text: "อีเมลตีกลับแล้วสถานะคงเป็น APPROVED และแจ้ง PROCUREMENT", note: "Mailpit ไม่มีอีเมลตีกลับ และผู้ให้บริการอีเมลยังไม่ตัดสิน (ADR-031) · §9.6 ให้รับการตีกลับผ่าน webhook ของผู้ให้บริการ" }
+      AC3: { owner: S4-06, demo: true, basis: named, text: "ส่งซ้ำได้พร้อมเหตุผล และมี event ทุกครั้ง" }
+  FR-P2P-006:
+    title: "ตรวจรับ (GR)"
+    acs:
+      AC1: { owner: S4-07, demo: true, basis: named, text: "ผู้ตรวจรับบันทึกจำนวนรับต่อบรรทัด เลขใบส่งของ และรูปถ่ายบนมือถือได้", note: "การถ่ายรูปใน LIFF ทดสอบใน FR-LINE-003 AC3 (S5-06)" }
+      AC2: { owner: S4-07, demo: true, basis: named, text: "รับบางส่วนได้ และสถานะ PO เปลี่ยนตาม §6.4 (GC-GR-01)" }
+      AC3: { owner: S4-07, demo: true, basis: named, text: "ผู้ที่ขัด SoD บันทึกไม่ได้ (GC-SOD-02) ผู้ขอบันทึกได้เมื่อ settings อนุญาต (GC-SOD-05)" }
+  FR-P2P-007:
+    title: "Variance และการอนุมัติ"
+    acs:
+      AC1: { owner: S4-07, demo: true, basis: named, text: "ผลตรงกับ GC-GR-02 ถึง GC-GR-05" }
+      AC2: { owner: S4-07, demo: true, basis: named, text: "variance ที่ต้องอนุมัติเดินตาม DOA ข้อ GR_VARIANCE (GC-DOA-18)" }
+      AC3: { owner: S4-07, demo: true, basis: named, text: "ผลต่องบเมื่ออนุมัติ (ถือเพิ่มหรือคืนถือ) บันทึกเป็น ledger" }
+  FR-P2P-008:
+    title: "ยืนยันใบกำกับแบบง่าย"
+    acs:
+      AC1: { owner: S4-08, demo: true, basis: named, text: "ผลตรงกับ GC-IVC-01 ถึง GC-IVC-05" }
+      AC2: { owner: S4-08, demo: true, basis: named, text: "ยืนยันแล้วงบย้ายจาก committed เป็น actual ต่อบรรทัดงบ" }
+      AC3: { owner: S4-08, demo: true, basis: named, text: "ใบสุดท้ายทำให้ PO ปิดได้และคืนถือที่เหลือ (GC-BUD-05)" }
+      AC4: { owner: S4-17, demo: true, basis: named, text: "อัปโหลดไฟล์ e-Tax (PDF/A-3 ที่ฝัง XML หรือไฟล์ XML) แล้วระบบเติมเลขที่ วันที่ ยอดก่อน VAT VAT ยอดรวมให้คนยืนยัน · ไฟล์อ่านไม่ได้หรือผู้ขายไม่ตรงแจ้งเหตุผลและให้กรอกเอง (BR-IVC-05)", note: "S4-08 ระบุ FR นี้ทั้งข้อ แต่ S4-17 ระบุ AC4 ตรง ๆ" }
+  FR-P2P-009:
+    title: "ส่งออกไฟล์ให้ Express"
+    acs:
+      AC1: { owner: S4-09, demo: true, basis: named, text: "FINANCE ส่งออกใบกำกับที่ยังไม่เคยส่งออกเป็นไฟล์ตาม mapping ขององค์กร", note: "demo ใช้รูปแบบสมมติ (S4-09) · รูปแบบจริงรอ OQ-10 และ P0-10" }
+      AC2: { owner: S4-09, demo: true, basis: named, text: "ไฟล์แสดงจำนวนแถว ยอดรวม และ checksum และถูกเก็บใน ExportJob" }
+      AC3: { owner: S4-14, demo: false, basis: named, text: "ไฟล์ตัวอย่างนำเข้า Express ของลูกค้าได้จริง ทดสอบร่วมกับฝ่ายบัญชีของลูกค้าก่อนจบ S4", note: "S4-14 เป็นข้อ [คน] ฝ่ายบัญชีของลูกค้ายืนยันเอง ไม่มีเทสต์อัตโนมัติ · §16.10 ให้ข้ามไฟล์ Express รูปแบบจริงใน demo" }
+      AC4: { owner: S4-09, demo: true, basis: named, text: "mapping ที่มีคอลัมน์รหัสเจ้าหนี้: ใบกำกับของผู้ขายที่ยังไม่มีรหัสถูกกันออกพร้อมรายการให้เติมรหัส (BR-EXP-04)" }
+  FR-P2P-010:
+    title: "ยกเลิกและปิด PO"
+    acs:
+      AC1: { owner: S4-04, demo: true, basis: named, text: "ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition และเหตุผล ผลต่องบตรงกับ GC-BUD-04" }
+      AC2: { owner: S4-07, demo: true, basis: later, text: "ปิด PO ที่รับไม่ครบต้องมี variance SHORT ที่อนุมัติแล้ว (GC-GR-04)", note: "variance และ GC-GR-04 (receiving.yaml) สร้างใน S4-07" }
+      AC3: { owner: S4-07, demo: true, basis: later, text: "ปิด PO คืนถือตาม BR-BUD-06 (หลังใบกำกับใบสุดท้ายคืนที่เหลือทั้งหมด · ปิดที่รับไม่ครบก่อนมีใบกำกับถือส่วนที่รับแล้วไว้รอใบกำกับ) และคำขอที่เกี่ยวข้องเป็น COMPLETED เมื่อ PO ปิดครบ", note: "po.close ทำได้จาก SENT PARTIALLY_RECEIVED RECEIVED (§6.4) จึงต้องมีการส่ง PO (S4-06) และการตรวจรับหรือ variance SHORT (S4-07)" }
+      AC4: { owner: S5-16, demo: false, basis: named, text: "PO ที่ไม่มีความเคลื่อนไหวเกิน poIdleDays วัน (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO หรือยืนยันว่ายังรอ และปิดแล้วคืนยอดถือตาม BR-BUD-06", note: "S4-04 ระบุ FR นี้ทั้งข้อ แต่ S5-16 ระบุ AC4 ตรง ๆ" }
+  FR-SUP-001:
+    title: "ตรวจตัวตนผู้ขายกับสรรพากรและ DBD"
+    acs:
+      AC1: { owner: S4-15, demo: true, basis: named, text: "พิมพ์เลขผู้เสียภาษี 13 หลักแล้วระบบเติมชื่อ ที่อยู่ สาขา สถานะ VAT และสถานะนิติบุคคลให้ยืนยันก่อนบันทึก (BR-SUP-01)", note: "demo ใช้ adapter โหมด stub" }
+      AC2: { owner: S4-15, demo: true, basis: named, text: "บริการล่มหรือหาไม่พบบันทึกได้ด้วยการยืนยันมือพร้อมแนบหลักฐาน (BR-SUP-03) · ผู้ขายบุคคลธรรมดาตรวจเฉพาะสรรพากร (BR-SUP-02)" }
+      AC3: { owner: S4-15, demo: true, basis: named, text: "โหมด stub ใช้ในเครื่อง เทสต์ และ demo และเทสต์ทุกตัวไม่เรียกบริการจริง (BR-SUP-05)" }
+      AC4: { owner: S4-16, demo: false, basis: named, text: "job รายเดือนตรวจสถานะซ้ำ และการสร้าง PO กับผู้ขายที่สถานะผิดปกติต้องกรอกเหตุผล (BR-SUP-04)", note: "S4-16 ต้องได้คำตอบ OQ-37 ก่อน" }
+  FR-VIS-001:
+    title: 'กระดาน "เอกสารค้างที่ใคร"'
+    acs:
+      AC1: { owner: S4-10, demo: true, basis: named, text: "แสดงงานค้างรายคน จำนวน อายุเป็นชั่วโมงทำการ และจำนวนที่เกิน SLA ตาม scope สิทธิ์" }
+      AC2: { owner: S4-10, demo: true, basis: named, text: "คลิกชื่อเห็นรายการเอกสาร และส่งเตือนด้วยมือได้ไม่เกิน 1 ครั้งต่อเอกสารต่อชั่วโมง" }
+      AC3: { owner: D-01, demo: true, basis: later, text: "ตัวเลขตรงกับข้อมูล ApprovalTask (เทสต์ query กับ seed)", note: "S4-10 ระบุ FR นี้และทดสอบ query กับงานที่เทสต์สร้างเองได้ · seed ไม่มี ApprovalTask จนกว่า D-01 สร้างคำขอย้อนหลังจาก Demo_History ตอน seed และเสร็จเมื่อของ D-01 คือเทสต์กระดานค้างกับ seed" }
+  FR-VIS-002:
+    title: "รายงาน 7 ฉบับ"
+    acs:
+      AC1: { owner: S4-11, demo: true, basis: named, text: "มี framework รายงาน: SQL view ตัวกรอง ส่งออก Excel และตั้งส่งอีเมลตามรอบ พร้อมเทสต์ตัวเลขด้วย seed", note: "R-01 ถึง R-07 รอ OQ-09 และ FR-VIS-005 เป็น [go-live] · spec ไม่ได้ระบุว่าใช้รายงานใดทดสอบ framework ใน demo (ห้ามเดารายงาน)" }
+      AC2: { owner: NEW-08, demo: false, basis: named, text: "R-01 ถึง R-07 สร้างตามรายการใน proposal v1.2 เมื่อ OQ-09 ปิด ห้ามเดาชื่อหรือเนื้อหา", note: "NEW-08 [go-live] ระบุ AC นี้ในเสร็จเมื่อ · ทำได้หลัง OQ-09 ปิด (P0-11 [คน][go-live]) · §16.10 ให้ข้ามรายงานที่ยังไม่มีนิยามใน demo" }
+      AC3: { owner: S4-11, demo: true, basis: named, text: "รายงานทุกฉบับเคารพ scope สิทธิ์ของผู้เรียก" }
+  FR-VIS-003:
+    title: "KPI ตั้งแต่วันแรก"
+    acs:
+      AC1: { owner: S4-11, demo: true, basis: named, text: "view ของ G-1 ถึง G-5 คำนวณจาก Event ได้ และมีเทสต์ด้วยข้อมูลสังเคราะห์ที่รู้คำตอบ", note: "ตัวหารของ G-1 มาจากข้อมูล Express รายเดือน (§11.4) ซึ่ง spec ไม่ได้ระบุ FR หรือหน้าจอนำเข้า" }
+      AC2: { owner: S5-12, demo: true, basis: named, text: "หน้า KPI ของ EXECUTIVE แสดงค่าปัจจุบันเทียบ baseline ที่บันทึกใน Phase 0", note: "baseline มาจาก P0-09 [คน][go-live] ซึ่งยังไม่มีก่อน demo และ spec ไม่ได้ระบุที่เก็บ baseline ในระบบ" }
+      AC3: { owner: S5-12, demo: true, basis: named, text: "ส่งออก CSV สำหรับรอบรีวิว 60 วันได้" }
+  FR-VIS-004:
+    title: "Audit trail และการส่งออก"
+    acs:
+      AC1: { owner: S4-10, demo: true, basis: named, text: "AUDITOR ค้น event ตามเอกสาร ผู้กระทำ ช่วงเวลา ประเภท และช่องทางได้" }
+      AC2: { owner: S4-10, demo: true, basis: named, text: "ส่งออก Excel หรือ CSV พร้อม doaVersionId ruleCode channel onBehalfOf และ checksum ของไฟล์" }
+      AC3: { owner: S4-10, demo: true, basis: named, text: "การส่งออกถูกบันทึกเป็น event audit.exported" }
+  FR-VIS-005:
+    title: "รายงานรับของแล้วยังไม่มีใบกำกับ"
+    acs:
+      AC1: { owner: S4-18, demo: false, basis: named, text: "ผลตรงกับ GC-RPT-01 ถึง GC-RPT-05" }
+      AC2: { owner: S4-18, demo: false, basis: named, text: "FINANCE และ AUDITOR เลือกวันที่ตัดยอด cost center และบรรทัดงบ แล้วส่งออก Excel พร้อม checksum" }
+      AC3: { owner: S4-18, demo: false, basis: named, text: "ยอดรวมในรายงานเท่าผลรวมรายบรรทัด (เทสต์ด้วยข้อมูลที่รู้คำตอบ)" }
+  FR-LINE-001:
+    title: "ผูกบัญชี LINE"
+    acs:
+      AC1: { owner: S5-04, demo: true, basis: named, text: "ผู้ใช้ที่ login Workspace ขอรหัสผูก (QR หรือลิงก์ ใช้ครั้งเดียว อายุ 10 นาที) เปิดใน LINE แล้วผูกสำเร็จ และ rich menu เปลี่ยนเป็นแบบผูกแล้ว", note: "เทสต์อัตโนมัติใช้ LINE จำลอง · การลองกับแอป LINE จริงอยู่ใน D-03 และ D-08 [คน]" }
+      AC2: { owner: S5-04, demo: true, basis: named, text: "เริ่มจาก LINE ขณะยังไม่ผูก LIFF ให้ login ด้วยอีเมล รหัสผ่าน และ 2FA แล้วผูก" }
+      AC3: { owner: S5-04, demo: true, basis: named, text: "LINE userId หนึ่งผูกได้กับ member เดียวในองค์กร ยกเลิกผูกได้ทั้งสองฝั่ง และการปิดใช้งาน member ยกเลิกผูกอัตโนมัติ" }
+  FR-LINE-002:
+    title: "การ์ดอนุมัติ (Flex Message)"
+    acs:
+      AC1: { owner: S5-05, demo: true, basis: named, text: "งานใหม่ได้การ์ดที่แสดงเฉพาะสรุป: เลขเอกสาร ประเภท ผู้ขอ ยอด สถานะงบ กำหนดเวลา DOA ฉบับกับข้อ ไม่มีรายการสินค้าหรือไฟล์แนบ" }
+      AC2: { owner: S5-05, demo: true, basis: named, text: "กด 'อนุมัติ' ในงานที่ยอดต่ำกว่า stepUpThreshold แล้วตัดสินสำเร็จ ได้การ์ดยืนยัน และ event มี channel = LINE_CHAT" }
+      AC3: { owner: S5-05, demo: true, basis: named, text: "กดซ้ำ กดหลังหมดอายุ หรือบัญชีไม่ตรง ได้ TOKEN_USED TOKEN_EXPIRED หรือ FORBIDDEN และไม่มีการตัดสินซ้ำ (INV-TOK-01)" }
+  FR-LINE-003:
+    title: "LIFF app"
+    acs:
+      AC1: { owner: S5-06, demo: true, basis: named, text: "หน้า tasks tasks/[id] requests/new requests/[id] track delegation gr/[poId] help ทำงานในแอป LINE บน iOS และ Android", note: "เทสต์อัตโนมัติที่จอ 375 px ตามเสร็จเมื่อของ S5-06 · การลองบน iOS และ Android จริงอยู่ใน D-08 [คน]" }
+      AC2: { owner: S5-06, demo: true, basis: named, text: "ตัดสินงานที่ยอด ≥ stepUpThreshold ใน LIFF ต้องยืนยันด้วย PIN (FR-AUTH-005)" }
+      AC3: { owner: S5-06, demo: true, basis: named, text: "ถ่ายรูปตรวจรับด้วยกล้องใน LIFF แล้วแนบกับ GR ได้" }
+  FR-LINE-004:
+    title: "Rich menu"
+    acs:
+      AC1: { owner: S5-04, demo: true, basis: named, text: "ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็น 4 ปุ่ม: ขอซื้อ งานรออนุมัติ ติดตามสถานะ ช่วยเหลือ", note: "สคริปต์ pnpm line:richmenu อยู่ใน D-02" }
+      AC2: { owner: S5-06, demo: true, basis: later, text: "ทุกปุ่มเปิดหน้า LIFF ที่ถูกต้อง", note: "URI ของปุ่มตรวจได้ใน S5-04 · หน้า LIFF ปลายทาง (requests/new tasks track help) สร้างใน S5-06" }
+      AC3: { owner: S5-04, demo: true, basis: named, text: "เมนูสลับภายใน 1 นาทีหลังผูกหรือยกเลิกผูก" }
+  FR-LINE-005:
+    title: "ประมวลผล webhook"
+    acs:
+      AC1: { owner: S5-02, demo: true, basis: named, text: "signature ไม่ถูกต้องได้ 401 และไม่ประมวลผล" }
+      AC2: { owner: S5-02, demo: true, basis: named, text: "webhook ที่ส่งซ้ำ (webhookEventId เดิมหรือ isRedelivery) ไม่ประมวลผลซ้ำ" }
+      AC3: { owner: S5-02, demo: true, basis: named, text: "ตอบ 200 ภายใน 2 วินาทีเสมอ งานที่นานกว่านั้นเข้าคิว" }
+  FR-LINE-006:
+    title: "สรุปรายวันทาง LINE"
+    acs:
+      AC1: { owner: S5-07, demo: true, basis: named, text: "วันทำการ 08:00 ผู้บริหารและหัวหน้าฝ่ายได้สรุปงานรออนุมัติ งานเกิน SLA และบรรทัดงบที่เหลือต่ำกว่า digest.budgetLowPct (ค่าเริ่มต้น 10%)" }
+      AC2: { owner: S5-07, demo: true, basis: named, text: "ไม่ส่งในวันหยุดขององค์กร และไม่ส่งถ้าไม่มีอะไรต้องรายงาน" }
+      AC3: { owner: S5-07, demo: true, basis: named, text: "ผู้ใช้ปิดสรุปรายวันของตนได้", note: "หน้าตั้งค่าการแจ้งเตือนเต็มรูปแบบ (FR-NOTI-004) เป็น [go-live] S5-10 แต่ S5-07 ระบุ FR นี้ทั้งข้อ จึงต้องมีทางปิดสรุปรายวันใน S5-07" }
+  FR-LINE-007:
+    title: "โควตาข้อความและช่องทางสำรอง"
+    acs:
+      AC1: { owner: S5-14, demo: false, basis: named, text: "นับข้อความ push รายเดือน และเตือน ORG_ADMIN เมื่อถึง 80% ของโควตาที่ตั้งไว้", note: "§16.10 ให้ข้ามการตรวจโควตา LINE ใน demo" }
+      AC2: { owner: S5-05, demo: true, basis: builder, text: "ใช้ reply แทน push ทุกครั้งที่ตอบได้ภายในเวลาที่ reply token ยังใช้ได้", note: "ไม่มีข้อใดระบุ AC นี้ (S5-08 ระบุ AC3 S5-14 ระบุ AC1) · S5-05 สร้าง postback และการ์ดยืนยันซึ่งตอบผ่าน reply token (BR-LINE-05 BR-LINE-07)" }
+      AC3: { owner: S5-08, demo: true, basis: named, text: "ส่ง LINE ไม่ได้ (โควตาหมด ถูกบล็อก หรือ LINE ล่ม) งานอนุมัติส่งถึงผู้รับทางอีเมลภายใน 5 นาที" }
+  FR-NOTI-001:
+    title: "กล่องแจ้งเตือนในระบบ"
+    acs:
+      AC1: { owner: S2-14, demo: true, basis: named, text: "ทุกการแจ้งเตือนอยู่ในกระดิ่งพร้อมลิงก์ไปเอกสาร และทำเครื่องหมายอ่านแล้วได้" }
+      AC2: { owner: S2-14, demo: true, basis: named, text: "dedupeKey กันแจ้งซ้ำเมื่อ job retry" }
+      AC3: { owner: S2-14, demo: true, basis: named, text: "ผู้รับเห็นเฉพาะการแจ้งเตือนของตน" }
+  FR-NOTI-002:
+    title: "อีเมลและลิงก์ตัดสิน"
+    acs:
+      AC1: { owner: S5-08, demo: true, basis: later, text: "งานอนุมัติส่งอีเมลเมื่อผู้รับยังไม่ผูก LINE หรือ LINE ส่งไม่ได้ พร้อมลิงก์ /a/<token>", note: "กรณียังไม่ผูก LINE ทดสอบได้ใน S4-06 · กรณี LINE ส่งไม่ได้ต้องใช้ช่องทางสำรองที่ S5-08 สร้าง (เรื่องเดียวกับ FR-LINE-007 AC3)" }
+      AC2: { owner: S4-06, demo: true, basis: named, text: "การเปิดลิงก์ (GET) ไม่เปลี่ยนสถานะ การตัดสินต้องกดยืนยันและ login ตามค่าเริ่มต้น" }
+      AC3: { owner: S4-06, demo: true, basis: named, text: "โดเมนผู้ส่งมี SPF และ DKIM ถูกต้อง (ตรวจใน S4)", note: "ต้องมีโดเมนจริงและผู้ให้บริการอีเมลซึ่งยังไม่ตัดสิน (ADR-031) · §16.9 มี SPF และ DKIM เป็นรายการตรวจก่อน go-live ด้วย — ผู้ใช้ต้องตัดสินว่า demo ต้องผ่าน AC นี้หรือไม่" }
+  FR-NOTI-003:
+    title: "เตือนตาม SLA และส่งต่อ"
+    acs:
+      AC1: { owner: S5-07, demo: true, basis: named, text: "เตือนเมื่อครบ 50% ของ SLA (GC-SLA-07) และเมื่อครบกำหนด" }
+      AC2: { owner: S5-08, demo: true, basis: named, text: "เลย escalateAt แล้วเพิ่มผู้อนุมัติของช่วงถัดไปเป็นผู้รับร่วมตาม BR-SLA-04 และบันทึก event approval_task.escalated" }
+      AC3: { owner: S5-07, demo: true, basis: named, text: "งานที่ปิดแล้วไม่ถูกเตือน เพราะ job ตรวจสถานะล่าสุดก่อนส่ง" }
+  FR-NOTI-004:
+    title: "ตั้งค่าการแจ้งเตือนส่วนตัว"
+    acs:
+      AC1: { owner: S5-10, demo: false, basis: named, text: "ผู้ใช้เลือกช่องทางหลัก (LINE หรืออีเมล) และรวมการแจ้งทั่วไปเป็นสรุปได้" }
+      AC2: { owner: S5-10, demo: false, basis: named, text: "งานอนุมัติและงานเกิน SLA แจ้งทันทีเสมอ ปิดไม่ได้" }
+      AC3: { owner: S5-10, demo: false, basis: named, text: "ตั้งช่วงเงียบ (เช่น 20:00–07:00) สำหรับการแจ้งที่ไม่ด่วนได้" }
+# AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
+unowned: []
+# demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
+counts: { frs: 76, acs: 236, demo: 213, goLive: 23, unowned: 0 }
+# จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
+basisCounts: { named: 190, later: 30, builder: 16, none: 0 }

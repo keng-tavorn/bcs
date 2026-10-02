@@ -3050,7 +3050,7 @@ features:
 - [x] **S1-04** `[demo]` `clock` `newId()` `Result` รหัส error §14.2 และ logger ที่ redact — เสร็จ 2026-10-02 · ae61b1d
   - เสร็จเมื่อ: unit test ผ่าน รวมเทสต์ว่า log ไม่มีรหัสผ่าน token และเลขบัญชี (NFR-SEC-09)
   - แยกงาน: ทำเองได้
-- [ ] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์
+- [x] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์ — เสร็จ 2026-10-02 · ad4cf13
   - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-003 และ FR-PLT-012 ผ่าน รวมการยิง command เดิมพร้อมกันแล้วได้ Event ชุดเดียว
   - แยกงาน: ทำเอง เพราะเป็นแกนที่ทุกส่วนใช้
 - [ ] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF

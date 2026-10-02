@@ -3041,7 +3041,7 @@ features:
 - [x] **S1-01** `[demo]` สร้างโปรเจกต์ Next.js 16 + TypeScript strict + pnpm + ESLint (boundaries และ `bcs/no-money-literal`) + Vitest + Playwright โดยใช้ `CLAUDE.md` ที่ผู้ใช้วางไว้ที่ root (ถ้าไม่มีจึงสร้างจาก §17 และห้ามเขียนทับของเดิม) — เสร็จ 2026-10-02 · 200d159
   - เสร็จเมื่อ: `pnpm lint` `pnpm typecheck` และ `pnpm spec:check` ผ่าน · มีไฟล์ `CLAUDE.md`
   - แยกงาน: ทำเองได้
-- [ ] **S1-02** `[demo]` docker compose (Postgres 17 พร้อม role, MinIO, Mailpit, Inngest dev) + `.env.example` ตามภาคผนวก B + `src/lib/env.ts`
+- [x] **S1-02** `[demo]` docker compose (Postgres 17 พร้อม role, MinIO, Mailpit, Inngest dev) + `.env.example` ตามภาคผนวก B + `src/lib/env.ts` — เสร็จ 2026-10-02 · a323dca
   - เสร็จเมื่อ: `docker compose up -d` แล้ว `pnpm verify` ด่าน env ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S1-03** `[demo]` Prisma 7 และ migration แรก: Organization OrgModule Member RoleAssignment PlatformAdmin Event Outbox CommandLog FileObject FileLink BreakGlassSession + SQL §6.3 ข้อ 1–2

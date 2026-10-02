@@ -3053,7 +3053,7 @@ features:
 - [x] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์ — เสร็จ 2026-10-02 · ad4cf13
   - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-003 และ FR-PLT-012 ผ่าน รวมการยิง command เดิมพร้อมกันแล้วได้ Event ชุดเดียว
   - แยกงาน: ทำเอง เพราะเป็นแกนที่ทุกส่วนใช้
-- [ ] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF
+- [x] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF — เสร็จ 2026-10-02 · a5e5683
   - เสร็จเมื่อ: เทสต์ INV-TEN-01 ผ่านทุก model ที่มี organizationId โดยนับ model เอง
   - แยกงาน: ทำเองได้ · ถ้าภายหลังต้องตรวจย้อนทุก model ให้แยก subagent ต่อกลุ่ม model แล้วตรวจหลักฐานก่อนรับ
 - [ ] **S1-07** `[demo]` Better Auth: อีเมลและรหัสผ่าน เชิญ รีเซ็ต TOTP และนโยบาย session

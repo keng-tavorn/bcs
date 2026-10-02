@@ -1,0 +1,17 @@
+# Single-package repo. This file only carries pnpm 12 settings.
+# pnpm 12 refuses unreviewed dependency build scripts (strictDepBuilds); approve the ones we need.
+allowBuilds:
+  prisma: true
+  '@prisma/engines': true
+  esbuild: true
+  '@swc/core': true
+  '@parcel/watcher': true
+  unrs-resolver: true
+  sharp: true
+  # pulled in by inngest's OpenTelemetry tree; its postinstall is only a version check
+  protobufjs: false
+# Added by pnpm when installing versions younger than minimumReleaseAge (24 h).
+minimumReleaseAgeExclude:
+  - vite@8.3.2
+# Run package scripts with pnpm's shell emulator so `&&` and env syntax behave the same on Windows and Linux CI.
+shellEmulator: true

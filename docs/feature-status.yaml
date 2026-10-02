@@ -1,0 +1,460 @@
+# docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
+# Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
+updatedAt: 2026-10-02
+features:
+  FR-PLT-001:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-002:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-003:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-004:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-005:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-006:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-007:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-008:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-009:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-010:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-011:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-012:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-AUTH-001:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-AUTH-002:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-AUTH-003:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-AUTH-004:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-AUTH-005:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-001:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-002:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-003:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-004:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-005:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-006:
+    status: planned
+    step: S1
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-ADM-007:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-001:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-002:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-003:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-004:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-005:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-006:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-007:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-008:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-009:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-010:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-DOA-011:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-001:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-002:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-003:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-004:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-005:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-006:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-007:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-008:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-009:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-BUD-001:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-BUD-002:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-BUD-003:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-BUD-004:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-BUD-005:
+    status: planned
+    step: S3
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-001:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-002:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-003:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-004:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-005:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-006:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-007:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-008:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-009:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-P2P-010:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-SUP-001:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-001:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-002:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-003:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-004:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-005:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-001:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-002:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-003:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-004:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-005:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-006:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-LINE-007:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-NOTI-001:
+    status: planned
+    step: S2
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-NOTI-002:
+    status: planned
+    step: S4
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-NOTI-003:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-NOTI-004:
+    status: planned
+    step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""

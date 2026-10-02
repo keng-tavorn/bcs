@@ -1,0 +1,11 @@
+{
+  "app": {
+    "comingSoon": "The system is being built. This page will become your work home page.",
+    "description": "Procurement platform with delegation-of-authority approvals and live budget control",
+    "language": {
+      "en": "English",
+      "th": "ไทย"
+    },
+    "name": "BCS"
+  }
+}

@@ -4,3 +4,26 @@
 scratch/
 node_modules/
 __pycache__/
+
+# Next.js
+.next/
+.next-e2e/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# Prisma generated client
+src/server/db/generated/
+
+# Test output
+coverage/
+.vitest/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Local tooling
+.vercel/
+.worktrees/
+.DS_Store

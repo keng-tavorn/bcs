@@ -1,0 +1,15 @@
+# Keep text files LF everywhere (core.autocrlf=true on this machine; Linux containers need LF)
+* text=auto eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.xlsx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.ttf binary
+*.woff binary
+*.woff2 binary

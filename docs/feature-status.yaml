@@ -241,10 +241,16 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-004:
-    status: in_progress
+    status: done
     step: S2
     evidence:
+      - tests/e2e/tasks-po.spec.ts
+      - tests/e2e/tasks.spec.ts
+      - tests/integration/procurement-screens.test.ts
       - tests/integration/requests.test.ts
+      - tests/integration/tasks-view-actions.test.ts
+      - tests/integration/tasks-view.test.ts
+      - tests/unit/tasks-outcome.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-005:
@@ -326,11 +332,18 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-003:
-    status: in_progress
+    status: done
     step: S2
     evidence:
+      - tests/e2e/budgets-grants.spec.ts
+      - tests/e2e/request-form-site.spec.ts
+      - tests/e2e/request-form.spec.ts
       - tests/golden/forms.test.ts
+      - tests/integration/request-form-site.test.ts
+      - tests/integration/request-form.test.ts
+      - tests/integration/request-site-supplier.test.ts
       - tests/unit/engines.test.ts
+      - tests/unit/request-form-site.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-004:
@@ -387,13 +400,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-BUD-001:
-    status: in_progress
+    status: done
     step: S3
     evidence:
+      - tests/e2e/budgets-import.spec.ts
       - tests/integration/budget-import.test.ts
       - tests/integration/seed.test.ts
     verifiedBy: null
-    notes: "service นำเข้าและ seed ชีต Budget เสร็จ (S3-04) · หน้านำเข้าสำหรับ BUDGET_ADMIN มาพร้อมหน้างบ (S3-08)"
+    notes: ""
   FR-BUD-002:
     status: done
     step: S3
@@ -413,13 +427,15 @@ features:
     verifiedBy: null
     notes: ""
   FR-BUD-004:
-    status: in_progress
+    status: done
     step: S3
     evidence:
+      - tests/e2e/budgets-grants.spec.ts
       - tests/integration/budget-grants.test.ts
       - tests/integration/request-budget.test.ts
+      - tests/integration/request-form.test.ts
     verifiedBy: null
-    notes: "บริการให้และเพิกถอน grant และรายการบรรทัดงบที่ผู้ขอเลือกได้ (S3-07) · หน้าจัดการ grant และช่องเลือกบรรทัดงบในฟอร์มมากับหน้างบและฟอร์มคำขอ"
+    notes: ""
   FR-BUD-005:
     status: in_progress
     step: S3
@@ -428,32 +444,41 @@ features:
     verifiedBy: null
     notes: "AC1 ตัวเลขของ service dashboard ตรงกับ ledger ทุกสตางค์ด้วยข้อมูล demo (D-01) · หน้า drill-down และส่งออกมากับ S3-08"
   FR-P2P-001:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/procurement.spec.ts
       - tests/integration/procurement-pool.test.ts
+      - tests/integration/procurement-screens.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-002:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/procurement.spec.ts
       - tests/golden/consolidation.test.ts
       - tests/integration/procurement-pool.test.ts
+      - tests/integration/procurement-screens.test.ts
       - tests/unit/schedule.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-003:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/purchase-order.spec.ts
+      - tests/integration/procurement-screens.test.ts
       - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-004:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/procurement.spec.ts
+      - tests/e2e/purchase-order.spec.ts
+      - tests/integration/procurement-screens.test.ts
       - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
@@ -465,18 +490,25 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-006:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/receiving.spec.ts
+      - tests/integration/receiving-screens.test.ts
       - tests/integration/receiving.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-007:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/receiving.spec.ts
+      - tests/e2e/tasks-po.spec.ts
       - tests/golden/receiving.test.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/integration/receiving-screens.test.ts
       - tests/integration/receiving.test.ts
+      - tests/unit/budget.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-008:
@@ -497,21 +529,27 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-010:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/purchase-order.spec.ts
+      - tests/e2e/receiving.spec.ts
+      - tests/integration/procurement-screens.test.ts
       - tests/integration/purchase-orders.test.ts
+      - tests/integration/receiving-screens.test.ts
       - tests/integration/receiving.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC4 (เตือน PO ที่ไม่มีความเคลื่อนไหว) เป็นของ S5-16 [go-live]"
   FR-SUP-001:
-    status: in_progress
+    status: done
     step: S4
     evidence:
+      - tests/e2e/suppliers.spec.ts
       - tests/integration/supplier-registry.test.ts
+      - tests/integration/suppliers-screens.test.ts
       - tests/integration/suppliers.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC4 (ตรวจสถานะรายเดือนและเหตุผลตอนสร้าง PO) เป็นของ S4-16 [go-live]"
   FR-VIS-001:
     status: in_progress
     step: S4

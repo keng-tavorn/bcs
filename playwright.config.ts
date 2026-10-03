@@ -1,6 +1,6 @@
 import 'dotenv/config'
 import { defineConfig, devices } from '@playwright/test'
-import { E2E_BASE_URL as BASE_URL, E2E_PORT as PORT, e2eEnv } from './tests/support/e2e-env'
+import { E2E_BASE_URL as BASE_URL, E2E_FAKE_LINE_URL, E2E_PORT as PORT, e2eEnv, fakeLineEnv } from './tests/support/e2e-env'
 
 // e2e runs against a production build on its own port, build folder and database (bcs_e2e, reset and seeded by
 // tests/e2e/prepare-db.ts before the server starts) so it never clashes with the shared `next dev` on :3000.
@@ -30,11 +30,21 @@ export default defineConfig({
       use: { ...devices['Pixel 7'], viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true },
     },
   ],
-  webServer: {
-    command: `pnpm exec tsx --env-file-if-exists=.env tests/e2e/prepare-db.ts && pnpm build && pnpm start -p ${PORT}`,
-    url: BASE_URL,
-    reuseExistingServer: false,
-    timeout: 600_000,
-    env: e2eEnv(),
-  },
+  webServer: [
+    // The fake LINE server of the run (Messaging API, LIFF verify, rich menus): the app's LINE client points at it
+    {
+      command: 'pnpm exec tsx scripts/fake-line.ts',
+      url: `${E2E_FAKE_LINE_URL}/__fake/state`,
+      reuseExistingServer: false,
+      timeout: 60_000,
+      env: fakeLineEnv(),
+    },
+    {
+      command: `pnpm exec tsx --env-file-if-exists=.env tests/e2e/prepare-db.ts && pnpm build && pnpm start -p ${PORT}`,
+      url: BASE_URL,
+      reuseExistingServer: false,
+      timeout: 600_000,
+      env: e2eEnv(),
+    },
+  ],
 })

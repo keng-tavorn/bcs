@@ -54,8 +54,8 @@ interface Asked {
   requested: Map<string, bigint>
   /** Per PO line: its amount while it is submitted or approved */
   poNeed: Map<string, bigint>
-  /** Per PO line: the most it ever held */
-  maxCommitted: Map<string, bigint>
+  /** Per PO line: everything it was ever given to hold (each AVAILABLE → COMMITTED movement) */
+  everCommitted: Map<string, bigint>
 }
 
 function checkInvariants(state: LineState, asked: Asked) {
@@ -76,7 +76,7 @@ function checkInvariants(state: LineState, asked: Asked) {
     if (type === 'REQUEST_LINE') expect(a.reserved <= (asked.requested.get(id) ?? 0n)).toBe(true)
     else {
       if (a.committed > 0n) expect(a.committed <= (asked.poNeed.get(id) ?? 0n)).toBe(true)
-      expect(a.actual <= (asked.maxCommitted.get(id) ?? 0n)).toBe(true)
+      expect(a.actual <= (asked.everCommitted.get(id) ?? 0n)).toBe(true)
     }
   }
 }
@@ -157,7 +157,7 @@ describe('[FR-BUD-002/AC2] budget invariants hold after every operation of a ran
         let state = emptyLine()
         const pos = new Map<string, PoLine>()
         const phase = new Map<string, PoPhase>()
-        const asked: Asked = { requested: new Map(), poNeed: new Map(), maxCommitted: new Map() }
+        const asked: Asked = { requested: new Map(), poNeed: new Map(), everCommitted: new Map() }
         for (const op of ops) {
           const before = structuredClone(state)
           const result = step(state, op, pos, phase, asked)
@@ -171,11 +171,8 @@ describe('[FR-BUD-002/AC2] budget invariants hold after every operation of a ran
             expect(m.amount > 0n).toBe(true)
             expect(m.from).not.toBe(m.to)
           }
-          for (const [key, a] of Object.entries(state.allocations)) {
-            if (key.startsWith('PO_LINE:')) {
-              const id = key.slice('PO_LINE:'.length)
-              if (a.committed > (asked.maxCommitted.get(id) ?? 0n)) asked.maxCommitted.set(id, a.committed + a.actual)
-            }
+          for (const m of result.movements) {
+            if (m.to === 'COMMITTED' && m.sourceType === 'PO_LINE') asked.everCommitted.set(m.sourceId, (asked.everCommitted.get(m.sourceId) ?? 0n) + m.amount)
           }
           checkInvariants(state, asked)
         }

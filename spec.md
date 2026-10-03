@@ -3188,7 +3188,7 @@ features:
 
 **FR ที่ครอบคลุม:** FR-P2P-001 FR-P2P-002 FR-P2P-003 FR-P2P-004 FR-P2P-005 FR-P2P-006 FR-P2P-007 FR-P2P-008 FR-P2P-009 FR-P2P-010 FR-PLT-009 FR-VIS-001 FR-VIS-002 FR-VIS-003 FR-VIS-004 FR-NOTI-002 FR-DOA-011 FR-SUP-001 FR-VIS-005
 
-- [ ] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken
+- [x] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken — เสร็จ 2026-10-03 · 450829c
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S4-02** `[demo]` ทะเบียนผู้ขายขั้นต้น (ตรวจเลขผู้เสียภาษี และรหัสเจ้าหนี้ Express) และ seed ชีต Suppliers กับ Sites

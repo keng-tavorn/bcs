@@ -3152,7 +3152,7 @@ features:
 
 **FR ที่ครอบคลุม:** FR-BUD-001 FR-BUD-002 FR-BUD-003 FR-BUD-004 FR-BUD-005 FR-INT-004 FR-INT-007 FR-DOA-001 FR-DOA-009
 
-- [ ] **S3-01** `[demo]` migration ของงบ + CHECK §6.3 ข้อ 3
+- [x] **S3-01** `[demo]` migration ของงบ + CHECK §6.3 ข้อ 3 — เสร็จ 2026-10-03 · c3c54f7
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S3-02** `[demo]` `core/budget` + property test
@@ -3391,7 +3391,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-03** `[demo]` เพิ่ม event `auth.login_locked` และ `member.session_revoked` ในแคตตาล็อก §10.2 · พบระหว่าง S1-07 — เสร็จ 2026-10-03 · 43d8ad4
   - เสร็จเมื่อ: §10.2 มีทั้งสองชนิดและเทสต์ schema ของ event ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **NEW-04** `[demo]` trigger append-only และ REVOKE UPDATE/DELETE ของ `BudgetLedgerEntry` ตาม §6.3 ข้อ 1–2 ใน migration ของ S3-01 · พบระหว่าง NEW-01 (เขียน ADR-020)
+- [x] **NEW-04** `[demo]` trigger append-only และ REVOKE UPDATE/DELETE ของ `BudgetLedgerEntry` ตาม §6.3 ข้อ 1–2 ใน migration ของ S3-01 · พบระหว่าง NEW-01 (เขียน ADR-020) — เสร็จ 2026-10-03 · c3c54f7
   - เสร็จเมื่อ: ด่าน db ของ `pnpm verify` ยืนยันว่า `bcs_app` UPDATE และ DELETE `BudgetLedgerEntry` ไม่ได้
   - แยกงาน: ทำเองได้ (ทำพร้อม S3-01)
 - [ ] **NEW-05** `[go-live]` trigger append-only และ REVOKE UPDATE/DELETE ของ `EventSeal` ตาม §6.3 ข้อ 1–2 ใน migration ของ S5-14 · พบระหว่าง NEW-01 (เขียน ADR-020)

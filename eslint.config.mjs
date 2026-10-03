@@ -42,6 +42,9 @@ const to = (...types) => ({ to: { element: { types: { anyOf: types } } } })
 // Parts of core that screens may use: formatting (§4.10: core/{thai,money}) plus core/result (error codes and
 // the Result type, pure data) so screens can map codes to messages (docs/sub-specs/S1.md)
 const coreFormatting = { to: { element: { type: 'core', captured: { module: '{thai,money,result}' } } } }
+// Shared screen components (src/ui, not in the §4.10 table) also run the form rules the server runs: fields shown or
+// hidden as the requester types (FR-INT-002 AC1) and quotations compared (BR-FORM-06) with the same core/forms
+const coreForUi = { to: { element: { type: 'core', captured: { module: '{thai,money,result,forms}' } } } }
 // Channels get exactly the §4.10 row: core/{thai,money} for formatting, nothing else of core
 const coreFormattingForChannels = { to: { element: { type: 'core', captured: { module: '{thai,money}' } } } }
 
@@ -66,7 +69,7 @@ const POLICIES = [
   { from: { element: { type: 'app' } }, allow: inngestClient },
   { from: { element: { type: 'app' } }, allow: coreFormatting },
   { from: { element: { type: 'ui' } }, allow: to('ui', 'lib', 'i18n') },
-  { from: { element: { type: 'ui' } }, allow: coreFormatting },
+  { from: { element: { type: 'ui' } }, allow: coreForUi },
   { from: { element: { type: 'integrations' } }, allow: to('integrations', 'lib') },
   { from: { element: { type: 'ai' } }, allow: to('ai', 'integrations', 'lib') },
   { from: { element: { type: 'i18n' } }, allow: to('i18n', 'lib') },

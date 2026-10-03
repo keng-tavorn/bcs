@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
+import { isValidThaiTaxId } from '@/core/thai/taxid'
 import type { DoaRuleSnapshot, DoaVersionSnapshot } from '@/core/doa'
 import type { InputWorkbook } from './workbook'
 
@@ -175,4 +176,32 @@ export function parseBudget(workbook: InputWorkbook): z.infer<typeof BudgetRow>[
   const lines = rows(workbook, 'Budget', BudgetRow)
   if (new Set(lines.map((l) => `${l.fiscalYear}|${l.code}`)).size !== lines.length) throw new Error('Budget: duplicate code in a fiscal year')
   return lines
+}
+
+const SupplierRow = z.object({
+  code: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,39}$/),
+  nameTh: text,
+  taxId: z.string().regex(/^\d{13}$/).refine(isValidThaiTaxId, 'tax id fails the mod-11 check (BR-TAXID-01)'),
+  branchCode: z.string().regex(/^\d{5}$/),
+  vatRegistered: yesNo,
+  email: z.email().nullable(),
+  phone: z.string().nullable(),
+  category: z.string().nullable(),
+  expressVendorCode: z.string().nullable(),
+})
+const SiteRow = z.object({ code: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,39}$/), nameTh: text, address: z.string().nullable() })
+
+/** Sheet Suppliers (S4-02): one supplier per row; tax ids pass mod-11 and (tax id, branch) is unique */
+export function parseSuppliers(workbook: InputWorkbook): z.infer<typeof SupplierRow>[] {
+  const suppliers = rows(workbook, 'Suppliers', SupplierRow)
+  if (new Set(suppliers.map((s) => s.code)).size !== suppliers.length) throw new Error('Suppliers: duplicate code')
+  if (new Set(suppliers.map((s) => `${s.taxId}|${s.branchCode}`)).size !== suppliers.length) throw new Error('Suppliers: duplicate tax id and branch')
+  return suppliers
+}
+
+/** Sheet Sites (S4-02): the delivery sites consolidation groups by (BR-CONS-01) */
+export function parseSites(workbook: InputWorkbook): z.infer<typeof SiteRow>[] {
+  const sites = rows(workbook, 'Sites', SiteRow)
+  if (new Set(sites.map((s) => s.code)).size !== sites.length) throw new Error('Sites: duplicate code')
+  return sites
 }

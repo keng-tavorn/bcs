@@ -116,9 +116,42 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
       href: code === 'APPROVER_NOT_FOUND' ? '/admin/org-authority' : '/admin/doa',
     }
   },
+  // FR-AUTH-003 AC2: a deactivated member still had approval tasks
+  'admin.reassign_needed': (d) => ({
+    title: { th: `${str(d.name)} ถูกปิดใช้งานและมีงานอนุมัติค้าง ${str(d.openTasks)} งาน`, en: `${str(d.name)} was deactivated with ${str(d.openTasks)} approval tasks open` },
+    body: { th: 'ย้ายงานให้ผู้อื่นหรือแต่งตั้งผู้ดำรงตำแหน่งแทน', en: 'Move the tasks to someone else or appoint a new holder of the position' },
+    href: '/admin/members',
+  }),
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
     href: '/admin/modules',
+  }),
+  'task.reminder': (d) => ({
+    title: { th: `เตือน: ${ref(d)} รอคุณตัดสิน`, en: `Reminder: ${ref(d)} is waiting for your decision` },
+    href: d.taskId ? `/tasks/${str(d.taskId)}` : null,
+  }),
+  'po.approved': (d) => ({
+    title: { th: `ใบสั่งซื้อ ${ref(d)} อนุมัติแล้ว พร้อมส่งให้ผู้ขาย`, en: `Purchase order ${ref(d)} is approved and ready to send` },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
+  'po.sent': (d) => ({
+    title: { th: `ใบสั่งซื้อ ${ref(d)} ส่งถึงผู้ขายแล้ว`, en: `Purchase order ${ref(d)} was sent to the supplier` },
+    // A RECEIVER opens the receiving page; the requester the PO (§16.10: receivers see PO lines through gr.post)
+    href: d.forReceiver ? `/receiving/${str(d.poId)}` : `/procurement/pos/${str(d.poId)}`,
+  }),
+  'po.send_bounced': (d) => ({
+    title: { th: `ส่งใบสั่งซื้อ ${ref(d)} ไม่ถึงผู้ขาย อีเมลถูกตีกลับ`, en: `Purchase order ${ref(d)} did not reach the supplier: the e-mail bounced` },
+    body: { th: 'ตรวจอีเมลของผู้ขายแล้วส่งอีกครั้งพร้อมเหตุผล', en: 'Check the supplier e-mail address, then send again with a reason' },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
+  'gr.posted': (d) => ({
+    title: { th: `ตรวจรับของตามใบสั่งซื้อ ${str(d.poNumber)} แล้ว (${str(d.number)})`, en: `Goods received for purchase order ${str(d.poNumber)} (${str(d.number)})` },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
+  'export.ready': (d) => ({
+    title: { th: `ไฟล์ส่งออกพร้อมแล้ว (${str(d.rowCount)} รายการ)`, en: `Your export is ready (${str(d.rowCount)} rows)` },
+    // §9.1: Express files under finance, audit exports under /audit, report files under /reports
+    href: d.kind === 'AUDIT' ? '/audit' : d.kind === 'REPORT' ? '/reports' : '/finance/exports',
   }),
   'security.notice': (d) => ({
     title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },

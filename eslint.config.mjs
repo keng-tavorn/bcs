@@ -218,7 +218,8 @@ export default defineConfig([
     files: SRC,
     plugins: { bcs },
     rules: {
-      'bcs/no-money-literal': ['error', { allowFiles: ['src/lib/constants.ts', 'src/core/money/constants.ts'] }],
+      // src/lib/encoding.ts is a character table (Windows-874 code points), not amounts
+      'bcs/no-money-literal': ['error', { allowFiles: ['src/lib/constants.ts', 'src/core/money/constants.ts', 'src/lib/encoding.ts'] }],
       'bcs/no-org-code': 'error',
       'bcs/no-raw-sql': ['error', { allowFiles: ['src/server/db/sql/**'] }],
       'no-console': 'error',

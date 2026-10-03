@@ -87,3 +87,59 @@ export function receive(input: ReceiptInput): ReceiptResult {
     commitDeltaSatang: heldWithin,
   }
 }
+
+export interface IncrementInput {
+  /** Ordered on the PO line, ×10⁴ */
+  readonly ordered: bigint
+  readonly unitPriceSatang: Satang
+  /** Accepted on earlier GRs (with the excess already kept), ×10⁴ */
+  readonly acceptedBefore: bigint
+  /** What this GR takes after its rejected part, ×10⁴ */
+  readonly received: bigint
+  readonly tolerancePct: number
+  /** For an excess beyond the tolerance (BR-GR-03) */
+  readonly disposition?: ExcessDisposition
+}
+
+export interface IncrementResult {
+  /** Accepted by this GR now: the excess waiting for approval or going back is not in it, ×10⁴ */
+  readonly accepted: bigint
+  /** Of that, kept beyond the ordered quantity within the tolerance, ×10⁴ (BR-GR-02) */
+  readonly withinTolerance: bigint
+  /** Held more at once for it, at the PO price (BR-GR-02) */
+  readonly holdSatang: Satang
+  /** The excess beyond the tolerance, if any: returned (RETURN_EXCESS) or kept once approved (ACCEPT_EXCESS) */
+  readonly over: { readonly quantity: bigint; readonly amountSatang: Satang; readonly needsApproval: boolean } | null
+}
+
+/**
+ * One more GR on a PO line (BR-GR-01 to BR-GR-03): what lies beyond the ordered quantity is first accepted within
+ * the tolerance left (`ordered × tolerancePct`, for all GRs of the line together) and held at once; the rest is an OVER
+ * variance that goes back or waits for approval. The same result as `receive` for a single GR (GC-GR-02, 03, 05).
+ */
+export function receiveIncrement(input: IncrementInput): IncrementResult {
+  if (!Number.isInteger(input.tolerancePct) || input.tolerancePct < 0) throw new RangeError(`invalid tolerance: ${input.tolerancePct}`)
+  if (input.received < 0n || input.acceptedBefore < 0n || input.ordered <= 0n) throw new RangeError('quantities of zero or more and an ordered quantity above zero are needed')
+  const extraBefore = input.acceptedBefore > input.ordered ? input.acceptedBefore - input.ordered : 0n
+  const after = input.acceptedBefore + input.received
+  const extraAfter = after > input.ordered ? after - input.ordered : 0n
+  const newExtra = extraAfter - extraBefore
+  const tolerated = (input.ordered * BigInt(input.tolerancePct)) / 100n
+  const toleranceLeft = tolerated > extraBefore ? tolerated - extraBefore : 0n
+  const within = newExtra < toleranceLeft ? newExtra : toleranceLeft
+  const beyond = newExtra - within
+  const holdSatang = within > 0n ? amountOf(within, input.unitPriceSatang) : 0n
+  if (beyond === 0n) return { accepted: input.received, withinTolerance: within, holdSatang, over: null }
+  return {
+    accepted: input.received - beyond,
+    withinTolerance: within,
+    holdSatang,
+    over: { quantity: beyond, amountSatang: amountOf(beyond, input.unitPriceSatang), needsApproval: input.disposition === 'ACCEPT_EXCESS' },
+  }
+}
+
+/** BR-GR-04: what a CLOSE_SHORT gives back for a line — what never came, at the PO price */
+export function shortOf(ordered: bigint, accepted: bigint, cancelled: bigint, unitPriceSatang: Satang): { readonly quantity: bigint; readonly amountSatang: Satang } {
+  const short = ordered - cancelled - accepted
+  return short > 0n ? { quantity: short, amountSatang: amountOf(short, unitPriceSatang) } : { quantity: 0n, amountSatang: 0n }
+}

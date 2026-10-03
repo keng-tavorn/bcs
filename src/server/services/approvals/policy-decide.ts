@@ -87,6 +87,9 @@ export async function decidePolicyTask(
       type: 'approval_task.decided',
       aggregateType: 'ApprovalTask',
       aggregateId: task.id,
+      doaVersionId: route.doaVersionId,
+      doaRuleCode: route.ruleCode,
+      ...(task.principalMemberId && actor !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
       data: {
         decision: input.decision,
         subjectType,
@@ -95,7 +98,7 @@ export async function decidePolicyTask(
         doaRuleCode: route.ruleCode,
         channel: ctx.channel,
         actorMemberId: actor,
-        onBehalfOfMemberId: task.principalMemberId,
+        onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null,
         reasonCommentId,
         stepUpGrantId,
       },

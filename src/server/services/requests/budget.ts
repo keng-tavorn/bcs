@@ -56,7 +56,7 @@ async function releaseOperations(tx: TenantTx, requestId: string, requestLineIds
   const held = await tx.budgetAllocation.findMany({ where: { sourceType: 'REQUEST_LINE', sourceId: { in: [...requestLineIds] }, reservedSatang: { gt: 0n } }, select: { budgetLineId: true, sourceId: true } })
   const byLine = new Map<string, string[]>()
   for (const h of held) byLine.set(h.budgetLineId, [...(byLine.get(h.budgetLineId) ?? []), h.sourceId])
-  return [...byLine].map(([budgetLineId, ids]) => ({ budgetLineId, event: 'budget.reservation_released' as const, document: { type: 'REQUEST' as const, id: requestId }, run: (s) => release(s, ids) }))
+  return [...byLine].map(([budgetLineId, ids]) => ({ budgetLineId, document: { type: 'REQUEST' as const, id: requestId }, run: (s) => release(s, ids) }))
 }
 
 export interface BudgetCheck {
@@ -81,7 +81,7 @@ export async function reserveForRequest(
   const reserving = lines.filter((l) => l.netSatang > 0n)
   const result = await applyBudget(tx, ctx, [
     ...releases,
-    { budgetLineId, event: 'budget.reserved', document: { type: 'REQUEST', id: requestId }, run: (s) => reserve(s, reserving.map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang }))) },
+    { budgetLineId, document: { type: 'REQUEST', id: requestId }, run: (s) => reserve(s, reserving.map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang }))) },
   ])
   if (!result.ok) return result
   const total = reserving.reduce((sum, l) => sum + l.netSatang, 0n)

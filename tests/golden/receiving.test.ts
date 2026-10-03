@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { formatQuantity, receive, type ExcessDisposition } from '@/core/receiving'
+import { parseQuantity } from '@/core/money/math'
+import { formatQuantity, receive, receiveIncrement, shortOf, type ExcessDisposition } from '@/core/receiving'
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/receiving.yaml (spec §7.11): GC-GR-01 to GC-GR-05, the result once the variances that need approval are
@@ -54,5 +55,31 @@ describe('receiving beyond the golden cases', () => {
     expect(() => receive({ ordered: '1', unitPriceSatang: 1n, received: '1', tolerancePct: -1 })).toThrow(RangeError)
     expect(formatQuantity(10_000n)).toBe('1')
     expect(formatQuantity(12_500n)).toBe('1.25')
+  })
+})
+
+describe('[FR-P2P-007/AC1] receiving GR by GR gives the same as receiving once (GC-GR-02, GC-GR-03, GC-GR-05)', () => {
+  const q = (v: string) => parseQuantity(v)
+
+  it('agrees with the golden cases for a single GR', () => {
+    expect(receiveIncrement({ ordered: q('10'), unitPriceSatang: 110_000n, acceptedBefore: 0n, received: q('11'), tolerancePct: 0, disposition: 'RETURN_EXCESS' })).toEqual({ accepted: q('10'), withinTolerance: 0n, holdSatang: 0n, over: { quantity: q('1'), amountSatang: 110_000n, needsApproval: false } })
+    expect(receiveIncrement({ ordered: q('10'), unitPriceSatang: 110_000n, acceptedBefore: 0n, received: q('11'), tolerancePct: 0, disposition: 'ACCEPT_EXCESS' })).toMatchObject({ accepted: q('10'), over: { quantity: q('1'), needsApproval: true } })
+    expect(receiveIncrement({ ordered: q('100'), unitPriceSatang: 1_000n, acceptedBefore: 0n, received: q('104'), tolerancePct: 5 })).toEqual({ accepted: q('104'), withinTolerance: q('4'), holdSatang: 4_000n, over: null })
+    expect(receiveIncrement({ ordered: q('10'), unitPriceSatang: 110_000n, acceptedBefore: 0n, received: q('6'), tolerancePct: 0 })).toEqual({ accepted: q('6'), withinTolerance: 0n, holdSatang: 0n, over: null })
+  })
+
+  it('shares the tolerance between GRs and only charges what is new', () => {
+    // 100 ordered, 5 % tolerance: 98 then 4 → 2 within; then 4 more → 3 within, 1 beyond
+    const first = receiveIncrement({ ordered: q('100'), unitPriceSatang: 1_000n, acceptedBefore: q('98'), received: q('4'), tolerancePct: 5 })
+    expect(first).toEqual({ accepted: q('4'), withinTolerance: q('2'), holdSatang: 2_000n, over: null })
+    const second = receiveIncrement({ ordered: q('100'), unitPriceSatang: 1_000n, acceptedBefore: q('102'), received: q('4'), tolerancePct: 5, disposition: 'RETURN_EXCESS' })
+    expect(second).toEqual({ accepted: q('3'), withinTolerance: q('3'), holdSatang: 3_000n, over: { quantity: q('1'), amountSatang: 1_000n, needsApproval: false } })
+    expect(() => receiveIncrement({ ordered: q('1'), unitPriceSatang: 1n, acceptedBefore: 0n, received: q('1'), tolerancePct: 1.5 })).toThrow(RangeError)
+    expect(() => receiveIncrement({ ordered: 0n, unitPriceSatang: 1n, acceptedBefore: 0n, received: q('1'), tolerancePct: 0 })).toThrow(RangeError)
+  })
+
+  it('gives back what never came when a line is closed short (GC-GR-04)', () => {
+    expect(shortOf(q('10'), q('6'), 0n, 110_000n)).toEqual({ quantity: q('4'), amountSatang: 440_000n })
+    expect(shortOf(q('10'), q('10'), 0n, 110_000n)).toEqual({ quantity: 0n, amountSatang: 0n })
   })
 })

@@ -56,14 +56,16 @@ export function chooseRule(
   return top.length === 1 ? { kind: 'rule', rule: top[0]! } : { kind: 'ambiguous', rules: top }
 }
 
-/** Distinct lower bounds of the document type's amount bands above `from`, nearest first (BR-DOA-06 escalation). */
-export function higherBandLowers(version: DoaVersionSnapshot, documentType: DoaDocumentType, from: bigint | null): bigint[] {
+/**
+ * Distinct lower bounds of the document type's amount bands that lie wholly above an upper end `from` (a band starting
+ * at or after it), nearest first: where BR-DOA-06 escalates to. A band below or around the current one is never "next".
+ */
+export function higherBandLowers(version: DoaVersionSnapshot, documentType: DoaDocumentType, from: bigint): bigint[] {
   const lowers = new Set<bigint>()
   for (const rule of version.rules) {
     if (rule.documentType !== documentType || !rule.when.amount) continue
     const lower = bandOf(rule.when.amount).lower
-    if (lower === null) continue
-    if (from === null || lower > from) lowers.add(lower)
+    if (lower !== null && lower >= from) lowers.add(lower)
   }
   // The values are distinct (a Set), so no two compare equal
   return [...lowers].sort((a, b) => (a < b ? -1 : 1))

@@ -39,7 +39,11 @@ export interface FormInput {
   readonly variables: { readonly $amountGross: Satang; readonly $amountNet: Satang; readonly $requestType: string }
 }
 
-export type Missing = { readonly kind: 'ATTACHMENT'; readonly attachment: string; readonly need: number; readonly have: number } | { readonly kind: 'FIELD'; readonly field: string; readonly op: Op }
+export type Missing =
+  | { readonly kind: 'ATTACHMENT'; readonly attachment: string; readonly need: number; readonly have: number }
+  | { readonly kind: 'FIELD'; readonly field: string; readonly op: Op }
+  /** An `any` requirement with no option: nothing can meet it */
+  | { readonly kind: 'NO_OPTION' }
 
 export type FormResult =
   | { readonly ok: true; readonly fields: Readonly<Record<string, unknown>>; readonly droppedFields: readonly string[] }
@@ -76,13 +80,27 @@ function valueOf(field: string, input: FormInput): unknown {
   return input.fields[field]
 }
 
-/** Money variables are satang; the condition writes baht ("100000.00"), so compare in satang. */
+const MONEY_VARIABLES = ['$amountGross', '$amountNet']
+const BAHT = /^\d+(\.\d{1,2})?$/
+
+/**
+ * Money variables are satang; a condition writes baht ("100000.00", or 100000), so the value is compared in satang.
+ * A value that is not baht with at most two decimals compares with nothing (§7.0 (3)).
+ */
 function comparable(field: string, value: unknown): unknown {
-  if ((field === '$amountGross' || field === '$amountNet') && typeof value === 'string' && /^\d+(\.\d{1,2})?$/.test(value)) {
-    const [whole, fraction = ''] = value.split('.')
-    return BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))
-  }
-  return value
+  if (!MONEY_VARIABLES.includes(field) || typeof value === 'bigint') return value
+  const text = typeof value === 'number' || typeof value === 'string' ? String(value).trim() : ''
+  if (!BAHT.test(text)) return null
+  const [whole, fraction = ''] = text.split('.')
+  return BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))
+}
+
+/** A missing or null answer is "no value": it equals only another missing value, never the text "undefined" or "null" */
+function same(actual: unknown, expected: unknown): boolean {
+  const a = actual ?? null
+  const e = expected ?? null
+  if (a === null || e === null) return a === e
+  return String(a) === String(e)
 }
 
 export function evaluateCondition(condition: Condition, input: FormInput): boolean {
@@ -96,11 +114,12 @@ export function evaluateCondition(condition: Condition, input: FormInput): boole
     case 'notEmpty':
       return !isEmpty(actual)
     case 'eq':
-      return String(actual) === String(expected)
+      return same(actual, expected)
     case 'ne':
-      return String(actual) !== String(expected)
+      return !same(actual, expected)
     case 'in':
-      return Array.isArray(expected) && expected.map(String).includes(String(actual))
+      // each listed value is read like the value of eq (baht for money variables)
+      return Array.isArray(condition.value) && condition.value.some((v) => same(actual, comparable(condition.field, v)))
     default: {
       const order = compareNumbers(actual, expected)
       if (order === null) return false
@@ -120,7 +139,7 @@ function unmet(requirement: Requirement, input: FormInput): Missing[] {
   if ('all' in requirement) return requirement.all.flatMap((r) => unmet(r, input))
   if ('any' in requirement) {
     const options = requirement.any.map((r) => unmet(r, input))
-    return options.some((m) => m.length === 0) ? [] : (options[0] ?? [])
+    return options.some((m) => m.length === 0) ? [] : (options[0] ?? [{ kind: 'NO_OPTION' }])
   }
   return evaluateCondition(requirement, input) ? [] : [{ kind: 'FIELD', field: requirement.field, op: requirement.op }]
 }

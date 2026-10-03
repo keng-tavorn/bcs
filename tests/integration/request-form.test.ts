@@ -75,7 +75,7 @@ async function fundedLine(departmentCode: string, code: string, satang: bigint):
   const ctx = systemCtx(org.organizationId, NOW, 'test')
   const importId = randomUUID()
   await forTenant(org.organizationId).$transaction(async (tx) => {
-    const funded = await applyBudget(tx, ctx, [{ budgetLineId: created.id, event: 'budget.imported', document: { type: 'IMPORT', id: importId }, run: (s) => fund(s, satang, importId) }])
+    const funded = await applyBudget(tx, ctx, [{ budgetLineId: created.id, document: { type: 'IMPORT', id: importId }, run: (s) => fund(s, satang, importId) }])
     if (!funded.ok) throw new Error('funding failed')
     await appendEvents(tx, ctx, funded.events)
   })
@@ -638,15 +638,18 @@ describe('[FR-PLT-004/AC2] files attached to a request: by its requester, downlo
     const own = await url('req_con')
     expect(own).toMatchObject({ ok: true })
     if (own.ok) expect(Number(new URL(own.data.url).searchParams.get('X-Amz-Expires'))).toBeLessThanOrEqual(300)
-    // Deny: a colleague of the same department with no part in the request, and the approver before the task exists
+    // Deny: a colleague of the same department with no part in the request, and the head of another line of departments
     expect(await url('asst_con')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
-    expect(await url('vp_ops')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await url('vp_sup')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // The VP of OPS heads the line CON belongs to (request.view DEPT_HEAD, §2.4) before any task is theirs
+    expect(await url('vp_ops')).toMatchObject({ ok: true })
     // PROCUREMENT reads every request of the organization (request.view ORG)
     expect(await url('proc_officer')).toMatchObject({ ok: true })
     await submitRequest(org.ctxOf('req_con', NOW), { requestId: id }, key())
-    // The VP of OPS now has the task (ASSIGNED)
+    // The VP of OPS now also has the task (ASSIGNED); the colleague and the other VP still do not
     expect(await url('vp_ops')).toMatchObject({ ok: true })
     expect(await url('asst_con')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await url('vp_sup')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     const stranger = await createDoaOrg()
     expect(await getDownloadUrl(stranger.ctxOf('req_con', NOW), { fileId: file })).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
   })

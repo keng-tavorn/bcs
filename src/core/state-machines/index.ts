@@ -36,11 +36,12 @@ export const REQUEST_COMMANDS = [
   'approval.return',
   'request.resubmit',
   'request.cancel',
-  'request.cancel_by_procurement',
   'po.approved_partially',
   'po.approved_fully',
   'request.cancel_remaining',
   'po.all_closed',
+  'po.cancelled_to_pool_partially',
+  'po.cancelled_to_pool_fully',
 ] as const
 export type RequestCommand = (typeof REQUEST_COMMANDS)[number]
 
@@ -50,12 +51,17 @@ export const REQUEST_MACHINE = machine<RequestState, RequestCommand>('Request', 
   { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
   { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
   { from: ['RETURNED'], command: 'request.resubmit', to: 'PENDING_APPROVAL' },
-  { from: ['DRAFT', 'RETURNED', 'PENDING_APPROVAL'], command: 'request.cancel', to: 'CANCELLED' },
-  { from: ['APPROVED'], command: 'request.cancel_by_procurement', to: 'CANCELLED' },
+  // §6.4: by the requester before approval; by PROCUREMENT once APPROVED, with a reason and no line on a PO yet (the
+  // service checks who and when)
+  { from: ['DRAFT', 'RETURNED', 'PENDING_APPROVAL', 'APPROVED'], command: 'request.cancel', to: 'CANCELLED' },
   { from: ['APPROVED'], command: 'po.approved_partially', to: 'PARTIALLY_ORDERED' },
   { from: ['APPROVED', 'PARTIALLY_ORDERED'], command: 'po.approved_fully', to: 'ORDERED' },
   { from: ['APPROVED', 'PARTIALLY_ORDERED'], command: 'request.cancel_remaining', to: 'ORDERED' },
   { from: ['ORDERED'], command: 'po.all_closed', to: 'COMPLETED' },
+  // NEW-23: an approved PO cancelled with RETURN_TO_POOL (BR-BUD-06) gives its lines back to the pool, so the request
+  // is ordered again only in part, or not at all
+  { from: ['ORDERED'], command: 'po.cancelled_to_pool_partially', to: 'PARTIALLY_ORDERED' },
+  { from: ['ORDERED', 'PARTIALLY_ORDERED'], command: 'po.cancelled_to_pool_fully', to: 'APPROVED' },
 ])
 
 // ---------- new-supplier request (tier 1: no DOA, OQ-23) ----------
@@ -76,15 +82,15 @@ export const SUPPLIER_REQUEST_MACHINE = machine<SupplierRequestState, SupplierRe
 
 export const TASK_STATES = ['OPEN', 'INFO_REQUESTED', 'APPROVED', 'REJECTED', 'RETURNED', 'CANCELLED', 'REASSIGNED'] as const
 export type TaskState = (typeof TASK_STATES)[number]
-export const TASK_COMMANDS = ['approval.approve', 'approval.reject', 'approval.return', 'approval.request_info', 'request.provide_info', 'task.reassign', 'task.cancel'] as const
+export const TASK_COMMANDS = ['approval.approve', 'approval.reject', 'approval.return', 'approval.requestInfo', 'request.provideInfo', 'task.reassign', 'task.cancel'] as const
 export type TaskCommand = (typeof TASK_COMMANDS)[number]
 
 export const TASK_MACHINE = machine<TaskState, TaskCommand>('ApprovalTask', TASK_STATES, TASK_COMMANDS, [
   { from: ['OPEN'], command: 'approval.approve', to: 'APPROVED' },
   { from: ['OPEN'], command: 'approval.reject', to: 'REJECTED' },
   { from: ['OPEN'], command: 'approval.return', to: 'RETURNED' },
-  { from: ['OPEN'], command: 'approval.request_info', to: 'INFO_REQUESTED' },
-  { from: ['INFO_REQUESTED'], command: 'request.provide_info', to: 'OPEN' },
+  { from: ['OPEN'], command: 'approval.requestInfo', to: 'INFO_REQUESTED' },
+  { from: ['INFO_REQUESTED'], command: 'request.provideInfo', to: 'OPEN' },
   // delegation starts or ends, or ORG_ADMIN reassigns
   { from: ['OPEN', 'INFO_REQUESTED'], command: 'task.reassign', to: 'REASSIGNED' },
   // the route is cancelled, or another assignee of the step decided first
@@ -138,4 +144,53 @@ export const DELEGATION_MACHINE = machine<DelegationState, DelegationCommand>('D
   { from: ['SCHEDULED', 'ACTIVE'], command: 'delegation.revoke', to: 'REVOKED' },
 ])
 
-export const MACHINES = [REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, TASK_MACHINE, DOA_VERSION_MACHINE, ORG_CHANGE_MACHINE, DELEGATION_MACHINE] as const
+// ---------- purchase order (PO) ----------
+
+export const PO_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'CANCELLED', 'REJECTED'] as const
+export type PoState = (typeof PO_STATES)[number]
+export const PO_COMMANDS = ['po.submit', 'po.final_approval', 'approval.reject', 'approval.return', 'po.send', 'gr.posted_partially', 'gr.posted_fully', 'gr.reversed_partially', 'gr.reversed_fully', 'po.cancel', 'po.close'] as const
+export type PoCommand = (typeof PO_COMMANDS)[number]
+
+export const PO_MACHINE = machine<PoState, PoCommand>('PurchaseOrder', PO_STATES, PO_COMMANDS, [
+  { from: ['DRAFT'], command: 'po.submit', to: 'PENDING_APPROVAL' },
+  { from: ['PENDING_APPROVAL'], command: 'po.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'DRAFT' },
+  { from: ['APPROVED'], command: 'po.send', to: 'SENT' },
+  // a GR is posted: what was accepted so far decides between partly and fully received
+  { from: ['SENT', 'PARTIALLY_RECEIVED'], command: 'gr.posted_partially', to: 'PARTIALLY_RECEIVED' },
+  { from: ['SENT', 'PARTIALLY_RECEIVED'], command: 'gr.posted_fully', to: 'RECEIVED' },
+  // a GR is reversed before any invoice (§6.4 GR): back to what the GRs still posted say
+  { from: ['PARTIALLY_RECEIVED', 'RECEIVED'], command: 'gr.reversed_partially', to: 'PARTIALLY_RECEIVED' },
+  { from: ['PARTIALLY_RECEIVED', 'RECEIVED'], command: 'gr.reversed_fully', to: 'SENT' },
+  { from: ['APPROVED', 'SENT'], command: 'po.cancel', to: 'CANCELLED' },
+  { from: ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED'], command: 'po.close', to: 'CLOSED' },
+])
+
+// ---------- goods receipt (GR) ----------
+
+export const GR_STATES = ['DRAFT', 'POSTED', 'REVERSED'] as const
+export type GrState = (typeof GR_STATES)[number]
+export const GR_COMMANDS = ['gr.post', 'gr.reverse'] as const
+export type GrCommand = (typeof GR_COMMANDS)[number]
+
+export const GR_MACHINE = machine<GrState, GrCommand>('GoodsReceipt', GR_STATES, GR_COMMANDS, [
+  { from: ['DRAFT'], command: 'gr.post', to: 'POSTED' },
+  // PROCUREMENT with a reason, before any invoice of the PO is confirmed
+  { from: ['POSTED'], command: 'gr.reverse', to: 'REVERSED' },
+])
+
+// ---------- variance (BR-GR-03) ----------
+
+export const VARIANCE_STATES = ['RECORDED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'] as const
+export type VarianceState = (typeof VARIANCE_STATES)[number]
+export const VARIANCE_COMMANDS = ['variance.final_approval', 'approval.reject'] as const
+export type VarianceCommand = (typeof VARIANCE_COMMANDS)[number]
+
+// A variance is created RECORDED (no approval needed) or PENDING_APPROVAL (GR_VARIANCE route)
+export const VARIANCE_MACHINE = machine<VarianceState, VarianceCommand>('Variance', VARIANCE_STATES, VARIANCE_COMMANDS, [
+  { from: ['PENDING_APPROVAL'], command: 'variance.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+])
+
+export const MACHINES = [REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, TASK_MACHINE, DOA_VERSION_MACHINE, ORG_CHANGE_MACHINE, DELEGATION_MACHINE, PO_MACHINE, GR_MACHINE, VARIANCE_MACHINE] as const

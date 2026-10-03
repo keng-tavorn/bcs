@@ -10,6 +10,9 @@ export const OUTBOX_SWEEP_AFTER_MS = 30 * MS_PER_SECOND
 /** Interactive transaction limits for runCommand (Prisma). */
 export const COMMAND_TX_MAX_WAIT_MS = 10 * MS_PER_SECOND
 export const COMMAND_TX_TIMEOUT_MS = 20 * MS_PER_SECOND
+/** SMTP waits, kept well inside COMMAND_TX_TIMEOUT_MS because a PO is e-mailed inside its command (FR-P2P-005) */
+export const EMAIL_CONNECT_TIMEOUT_MS = 5 * MS_PER_SECOND
+export const EMAIL_SOCKET_TIMEOUT_MS = 10 * MS_PER_SECOND
 
 /** Transaction errors that are safe to retry (spec §4.3 step 6): Prisma write conflict, Postgres
  *  serialization_failure and deadlock_detected. */
@@ -36,11 +39,25 @@ export const TOTP_ACCEPTED_DRIFT_STEPS = 1
 export const BUDGET_IMPORT_MAX_ROWS = 1000
 /** Invitation links are single-use and valid for 72 hours (FR-AUTH-001 AC1) */
 export const INVITATION_TTL_MS = 72 * MS_PER_HOUR
+/** An ActionToken lives 72 hours or until its task closes, whichever comes first (BR-TOK-01) */
+export const ACTION_TOKEN_TTL_MS = 72 * MS_PER_HOUR
 /** Password reset links */
 export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
 /** Longest free-text reason accepted by admin commands (stored in Comment) */
 export const REASON_MAX_LENGTH = 1000
+/** A share as tenths of a percent: 13 of 17 → 765 → "76.5" (KPI reports, §11.4) */
+export const PERCENT_TENTHS_SCALE = 1000n
+/** Events on one page of the audit search (FR-VIS-004 AC1) */
+export const AUDIT_PAGE_MAX = 100
+/** Events one audit export file takes: a wider search is narrowed first (FR-VIS-004 AC2) */
+export const AUDIT_EXPORT_MAX_ROWS = 50_000
+/** Most invoices one Express file takes when exporting again by hand (BR-EXP-02) */
+export const EXPORT_MAX_INVOICES = 5000
+/** Longest note to a supplier on a PO (FR-P2P-003 AC2) */
+export const PO_NOTE_MAX_LENGTH = 2000
+/** Longest payment term a PO takes, in days */
+export const PAYMENT_TERM_MAX_DAYS = 3650
 /** The language cookie is remembered for a year (FR-PLT-002 AC2) */
 export const LOCALE_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
 /** A LINE ID token is a JWT of a few hundred bytes; anything far longer is refused before it is sent to LINE */
@@ -56,6 +73,11 @@ export const MAX_UPLOAD_BYTES = 20 * BYTES_PER_MIB
 export const MEMBER_IMPORT_MAX_BYTES = 900 * BYTES_PER_KIB
 /** Largest DOA YAML file the import reads (FR-DOA-001 AC2); a DOA of any real organization is a few kilobytes */
 export const DOA_YAML_MAX_CHARS = 500_000
+/** Largest file read out of a PDF (an e-Tax invoice's XML, BR-IVC-05, is tens of kilobytes); a stream that inflates
+ *  past this is skipped, so a small hostile PDF cannot fill the server's memory */
+export const MAX_EMBEDDED_FILE_BYTES = 5 * BYTES_PER_MIB
+/** react-pdf minPresenceAhead (points) larger than any page: the last line row always moves with the totals block */
+export const PDF_KEEP_WITH_TOTALS_PT = 2000
 /** Longest file name accepted from the browser before it is cleaned (cleanFileName shortens what is stored) */
 export const FILE_NAME_INPUT_MAX = 1000
 /** Photos are scaled so the long side is at most this many pixels before upload (FR-PLT-004 AC3) */

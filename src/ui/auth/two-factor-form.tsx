@@ -13,7 +13,7 @@ import { useLockMessage } from './lock-message'
 const LOCKED_STATUS = 429
 
 // Second sign-in step (FR-AUTH-002): a code from the authenticator app, or one of the 10 single-use backup codes.
-export function TwoFactorForm() {
+export function TwoFactorForm({ next = null }: { next?: string | null }) {
   const t = useTranslations('auth.twoFactor')
   const tAuth = useTranslations('auth')
   const router = useRouter()
@@ -40,7 +40,7 @@ export function TwoFactorForm() {
       setError(mode === 'app' ? t('invalid') : t('invalidBackup'))
       return
     }
-    router.replace('/')
+    router.replace(next ?? '/')
     router.refresh()
   }
 

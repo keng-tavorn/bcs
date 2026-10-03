@@ -15,6 +15,22 @@ numbering:
   PO: { pattern: "PO-{BE}-{SEQ5}", reset: YEARLY }
   GR: { pattern: "GR-{BE}-{SEQ5}", reset: YEARLY }
   RQ: { pattern: "RQ-{BE}-{SEQ5}", reset: YEARLY }
-express: { fileType: xlsx, encoding: UTF-8-BOM, dateFormat: BE, mapping: [] }  # OQ-10
+# OQ-10: an assumed layout for the demo (S4-09) until the customer's real Express import file arrives
+express:
+  fileType: xlsx
+  encoding: UTF-8-BOM
+  dateFormat: BE
+  mapping:
+    - { header: รหัสเจ้าหนี้, field: expressVendorCode }
+    - { header: ชื่อผู้ขาย, field: supplierName }
+    - { header: เลขประจำตัวผู้เสียภาษี, field: supplierTaxId }
+    - { header: สาขา, field: supplierBranch }
+    - { header: เลขที่ใบกำกับ, field: invoiceNo }
+    - { header: วันที่ใบกำกับ, field: invoiceDate }
+    - { header: เลขที่ใบสั่งซื้อ, field: poNumber }
+    - { header: ยอดก่อนภาษี, field: net }
+    - { header: ภาษีมูลค่าเพิ่ม, field: vat }
+    - { header: ยอดรวม, field: gross }
+    - { header: รหัสบัญชี, field: accountCode }
 retention: { documentYears: 5, accessLogYears: 1 }  # OQ-30
 features: { parallelApproval: false, lineChannel: true }

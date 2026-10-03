@@ -47,6 +47,12 @@ export function vatFromGross(grossSatang: Satang, rateBp: number): { vat: Satang
   return { vat, net: grossSatang - vat }
 }
 
+/** `value` is above `reference` by more than `bp` basis points of it (FR-P2P-003 AC1: 10 % = 1000 bp) */
+export function exceedsByMoreThan(value: Satang, reference: Satang, bp: number): boolean {
+  if (!Number.isInteger(bp) || bp < 0) throw new RangeError(`invalid share: ${bp} bp`)
+  return value * BP_PER_WHOLE > reference * (BP_PER_WHOLE + BigInt(bp))
+}
+
 export interface LineInput {
   readonly quantity: string
   readonly unitPriceSatang: Satang

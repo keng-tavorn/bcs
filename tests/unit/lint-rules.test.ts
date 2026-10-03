@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { ESLint } from 'eslint'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { GOLDEN_STRICT_OPTIONAL, goldenDriftProblems } from '../../scripts/golden-drift'
 import {
   appendOnlyTriggerProblems,
@@ -39,6 +39,9 @@ let eslint: ESLint
 beforeAll(() => {
   eslint = new ESLint({ cwd: ROOT })
 }, 60_000)
+
+// The first lint of a run loads the whole config and its plugins; on a busy machine that alone takes seconds
+vi.setConfig({ testTimeout: 60_000 })
 
 async function messages(file: string, code: string) {
   const [result] = await eslint.lintText(code, { filePath: path.join(ROOT, file), warnIgnored: true })

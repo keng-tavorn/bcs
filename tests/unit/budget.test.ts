@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { actualize, approvePo, cancelPo, closePo, emptyLine, fund, rejectPo, release, reserve, submitPo, type BudgetResult, type LineState } from '@/core/budget'
+import { actualize, approvePo, cancelPo, closePo, emptyLine, fund, holdMore, rejectPo, release, releaseHold, reserve, submitPo, type BudgetResult, type LineState } from '@/core/budget'
 
 // The ledger engine's refusals and edges beyond the golden cases (spec §7.7, BR-BUD-02, BR-BUD-05, BR-BUD-06,
 // BR-BUD-08): every refusal names its reason and leaves the line untouched. Amounts in satang.
@@ -95,5 +95,30 @@ describe('[FR-BUD-002/AC1] the ledger engine refuses what would break the budget
     expect(bucketsOf(state(closePo(s, 'p', 200n)))).toEqual([800n, 0n, 200n, 0n])
     expect(bucketsOf(state(closePo(s, 'p', -5n)))).toEqual([1_000n, 0n, 0n, 0n])
     expect(closePo(s, 'p', 800n)).toMatchObject({ ok: true, movements: [] })
+  })
+})
+
+describe('[FR-P2P-007/AC3] receiving more or less than ordered moves what a PO line holds (BR-GR-02, BR-GR-04)', () => {
+  const approved = () => {
+    const s = state(reserve(funded(10_000n), [{ requestLineId: 'r', amount: 1_000n }]))
+    return state(approvePo(state(submitPo(s, { poLineId: 'p', need: 1_000n, sources: [{ requestLineId: 'r', releasable: 1_000n }] })), { poLineId: 'p', need: 1_000n, sources: [{ requestLineId: 'r', releasable: 1_000n }] }))
+  }
+
+  it('holds more for an excess kept, even on a frozen line, but not beyond what is available', () => {
+    const s = approved()
+    const more = state(holdMore(s, 'p', 500n))
+    expect(bucketsOf(more)).toEqual([8_500n, 0n, 1_500n, 0n])
+    expect(more.allocations['PO_LINE:p']).toEqual({ reserved: 0n, committed: 1_500n, actual: 0n })
+    expect(holdMore({ ...s, status: 'FROZEN' }, 'p', 1n)).toMatchObject({ ok: true })
+    expect(holdMore(s, 'p', 9_001n)).toEqual({ ok: false, error: { code: 'BUDGET_INSUFFICIENT', available: 9_000n, shortfall: 1n } })
+    expect(holdMore(s, 'p', 0n)).toMatchObject({ ok: false, error: { reason: 'AMOUNT_NOT_POSITIVE' } })
+  })
+
+  it('gives back what never comes, at most what the line holds', () => {
+    const s = approved()
+    expect(bucketsOf(state(releaseHold(s, 'p', 400n)))).toEqual([9_400n, 0n, 600n, 0n])
+    expect(bucketsOf(state(releaseHold(s, 'p', 5_000n)))).toEqual([10_000n, 0n, 0n, 0n])
+    expect(releaseHold(s, 'other', 1n)).toEqual({ ok: true, state: s, movements: [] })
+    expect(releaseHold(s, 'p', 0n)).toMatchObject({ ok: false, error: { reason: 'AMOUNT_NOT_POSITIVE' } })
   })
 })

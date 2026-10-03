@@ -11,7 +11,8 @@ import { orgSnapshotFromRows, versionSnapshotFromRows } from '@/server/doa/snaps
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization, type SeedReport } from '@/server/seed/demo-org'
 import { seedBudget } from '@/server/seed/budget'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
-import { parseBudget } from '@/server/seed/sheets'
+import { parseBudget, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { seedSuppliers } from '@/server/seed/suppliers'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook } from '@/server/seed/workbook'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 
@@ -264,5 +265,47 @@ describe('[FR-BUD-001/AC2] the seed funds the budget lines of the Budget sheet t
     expect(await seedBudget(first.organizationId, parseBudget(workbook), new Date('2026-10-01T09:00:00+07:00'))).toEqual({ fiscalYears: 0, costCenters: 0, lines: 0 })
     const fy = await prisma.fiscalYear.findFirstOrThrow({ where: { organizationId: first.organizationId, code: 'FY2569' } })
     expect([fy.startsOn.toISOString().slice(0, 10), fy.endsOn.toISOString().slice(0, 10)]).toEqual(['2026-01-01', '2026-12-31'])
+  })
+})
+
+describe('[S4-02] the seed registers the suppliers and delivery sites of the Suppliers and Sites sheets', () => {
+  /** Data rows of a table sheet (keys on row 1, Thai labels on row 2, data from row 3 to the first empty code) */
+  async function sheetRows(name: string): Promise<Array<Record<string, string>>> {
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.readFile(INPUT_WORKBOOK_PATH)
+    const sheet = workbook.getWorksheet(name)!
+    const header = (sheet.getRow(1).values as unknown[]).map((v) => String(v ?? '').trim())
+    const out: Array<Record<string, string>> = []
+    for (let r = 3; r <= sheet.rowCount; r++) {
+      const row = sheet.getRow(r)
+      if (!String(row.getCell(1).value ?? '').trim()) break
+      out.push(Object.fromEntries(header.map((k, i) => [k, String(row.getCell(i).value ?? '').trim()]).filter(([k]) => k)))
+    }
+    return out
+  }
+
+  it('has one supplier per Suppliers row and one site per Sites row, with their tax ids and vendor codes; a second run adds nothing', async () => {
+    const workbook = await loadInputWorkbook()
+    const now = new Date('2026-10-01T09:00:00+07:00')
+    await seedSuppliers(first.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, now)
+    const [supplierRows, siteRows] = [await sheetRows('Suppliers'), await sheetRows('Sites')]
+    const suppliers = await prisma.supplier.findMany({ where: { organizationId: first.organizationId }, orderBy: { code: 'asc' } })
+    expect(suppliers).toHaveLength(supplierRows.length)
+    for (const row of supplierRows) {
+      expect(suppliers.find((s) => s.code === row.code)).toMatchObject({
+        nameTh: row.nameTh,
+        taxId: row.taxId,
+        branchCode: row.branchCode,
+        isVatRegistered: row.vatRegistered === 'Y',
+        expressVendorCode: row.expressVendorCode || null,
+        registrySource: 'STUB',
+        status: 'ACTIVE',
+      })
+    }
+    const sites = await prisma.deliverySite.findMany({ where: { organizationId: first.organizationId } })
+    expect(sites.map((s) => s.code).sort()).toEqual(siteRows.map((r) => r.code).sort())
+    const events = await prisma.event.count({ where: { organizationId: first.organizationId, type: 'supplier.created' } })
+    expect(events).toBe(supplierRows.length)
+    expect(await seedSuppliers(first.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, now)).toEqual({ suppliers: 0, sites: 0 })
   })
 })

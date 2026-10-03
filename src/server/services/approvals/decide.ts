@@ -14,6 +14,8 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decidePolicyTask } from './policy-decide'
+import { decidePoTask } from '../purchase-orders/decide'
+import { decideVarianceTask } from '../receiving/variance-decide'
 import { releaseForRequest } from '../requests/budget'
 import { closeRoute, taskTimes } from './route'
 
@@ -96,6 +98,8 @@ export const decideCommand = defineCommand({
     if (input.decision !== 'APPROVE' && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason' })
     const route = task.step.route
     if (route.subjectType === 'DOA_VERSION' || route.subjectType === 'ORG_AUTHORITY_CHANGE') return decidePolicyTask(tx, ctx, task, input, taskTo)
+    if (route.subjectType === 'PURCHASE_ORDER') return decidePoTask(tx, ctx, task, input, taskTo)
+    if (route.subjectType === 'VARIANCE') return decideVarianceTask(tx, ctx, task, input, taskTo)
     if (route.subjectType !== 'REQUEST') return fail('VALIDATION_FAILED', `${route.subjectType} tasks are decided by their own flow`, { reason: 'SUBJECT' })
 
     const [lockedRequest] = await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [route.subjectId])
@@ -130,6 +134,9 @@ export const decideCommand = defineCommand({
         type: 'approval_task.decided',
         aggregateType: 'ApprovalTask',
         aggregateId: task.id,
+        doaVersionId: route.doaVersionId,
+        doaRuleCode: route.ruleCode,
+        ...(task.principalMemberId && actorMemberId !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
         data: {
           decision: input.decision,
           subjectType: 'REQUEST',
@@ -138,7 +145,7 @@ export const decideCommand = defineCommand({
           doaRuleCode: route.ruleCode,
           channel: ctx.channel,
           actorMemberId,
-          onBehalfOfMemberId: task.principalMemberId,
+          onBehalfOfMemberId: task.principalMemberId && actorMemberId !== task.principalMemberId ? task.principalMemberId : null,
           reasonCommentId,
         },
       },
@@ -225,7 +232,7 @@ export function decideTask(ctx: Ctx, input: z.input<typeof DecideInput>, options
 const AskInput = z.strictObject({ taskId: z.uuid(), question: z.string().trim().min(MIN_REASON_LENGTH).max(REASON_MAX_LENGTH) })
 
 export const requestInfoCommand = defineCommand({
-  name: 'approval.request_info',
+  name: 'approval.requestInfo',
   capability: 'approval.decide',
   input: AskInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ infoRequestId: string }>> {
@@ -233,8 +240,8 @@ export const requestInfoCommand = defineCommand({
     if (!task) return fail('NOT_FOUND', 'task not found')
     const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: deciders(task) })
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    const to = moveTask(task, 'approval.request_info')
-    if (!to) return alreadyDecided(tx, task, 'approval.request_info')
+    const to = moveTask(task, 'approval.requestInfo')
+    if (!to) return alreadyDecided(tx, task, 'approval.requestInfo')
     const request = await tx.request.findUniqueOrThrow({ where: { id: task.step.route.subjectId } })
     const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
     // The SLA pauses: what is left is kept and counted again from the answer (GC-SLA-06)
@@ -259,7 +266,7 @@ export function requestInfo(ctx: Ctx, input: z.input<typeof AskInput>, options: 
 const AnswerInput = z.strictObject({ infoRequestId: z.uuid(), answer: z.string().trim().min(1).max(REASON_MAX_LENGTH) })
 
 export const provideInfoCommand = defineCommand({
-  name: 'request.provide_info',
+  name: 'request.provideInfo',
   capability: 'request.submit',
   input: AnswerInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ taskId: string }>> {
@@ -270,9 +277,9 @@ export const provideInfoCommand = defineCommand({
     const request = await tx.request.findUniqueOrThrow({ where: { id: info.requestId } })
     const allowed = await authorize(tx, ctx, 'request.submit', { ownerMemberIds: [request.requesterMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    if (info.answeredAt) return fail('INVALID_STATE_TRANSITION', 'already answered', { from: 'ANSWERED', command: 'request.provide_info' })
-    const to = moveTask(task, 'request.provide_info')
-    if (!to) return alreadyDecided(tx, task, 'request.provide_info')
+    if (info.answeredAt) return fail('INVALID_STATE_TRANSITION', 'already answered', { from: 'ANSWERED', command: 'request.provideInfo' })
+    const to = moveTask(task, 'request.provideInfo')
+    if (!to) return alreadyDecided(tx, task, 'request.provideInfo')
     const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
     // GC-SLA-06: the task is due after the business time that was left when it paused
     const dueAt = addBusinessMinutes(ctx.now, task.remainingBusinessMinutes ?? task.step.slaBusinessMinutes, calendar)

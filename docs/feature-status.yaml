@@ -70,13 +70,16 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-009:
-    status: in_progress
+    status: done
     step: S4
     evidence:
       - tests/golden/thai.test.ts
       - tests/unit/engines.test.ts
+      - tests/integration/printed-documents.test.ts
+      - tests/integration/pdf-snapshot.test.ts
+      - tests/unit/pdf-thai-breaks.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "react-pdf กับ Sarabun (ADR-044) · ปุ่มดาวน์โหลดบนหน้า PR และ PO มากับหน้าจอของ S4"
   FR-PLT-010:
     status: planned
     step: S5
@@ -123,6 +126,7 @@ features:
     step: S1
     evidence:
       - tests/integration/auth.test.ts
+      - tests/integration/member-deactivation.test.ts
     verifiedBy: null
     notes: ""
   FR-AUTH-004:
@@ -386,9 +390,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-001:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/procurement-pool.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-002:
@@ -396,30 +401,36 @@ features:
     step: S4
     evidence:
       - tests/golden/consolidation.test.ts
+      - tests/integration/procurement-pool.test.ts
+      - tests/unit/schedule.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-003:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-004:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-005:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/po-send.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-006:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/receiving.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-007:
@@ -427,6 +438,7 @@ features:
     step: S4
     evidence:
       - tests/golden/receiving.test.ts
+      - tests/integration/receiving.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-008:
@@ -434,48 +446,60 @@ features:
     step: S4
     evidence:
       - tests/golden/invoice-confirmation.test.ts
+      - tests/integration/invoices.test.ts
+      - tests/unit/etax-files.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-009:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/express-export.test.ts
+      - tests/unit/encoding.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-010:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/purchase-orders.test.ts
+      - tests/integration/receiving.test.ts
     verifiedBy: null
     notes: ""
   FR-SUP-001:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/supplier-registry.test.ts
+      - tests/integration/suppliers.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-001:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/board-audit.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-002:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/reports.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-003:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/reports.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-004:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/board-audit.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-005:
@@ -538,9 +562,12 @@ features:
     verifiedBy: null
     notes: "กระดิ่งในระบบ (S2-14) · LINE และอีเมลใช้แม่แบบเดียวกันเมื่อมาถึงใน S4 และ S5"
   FR-NOTI-002:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/action-links.test.ts
+      - tests/unit/action-link-shapes.test.ts
+      - tests/e2e/action-link.spec.ts
     verifiedBy: null
     notes: ""
   FR-NOTI-003:

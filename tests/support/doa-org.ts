@@ -152,7 +152,7 @@ async function fundEveryDepartment(organizationId: string, department: Record<st
   const ctx = systemCtx(organizationId, new Date('2026-01-01T00:00:00Z'), 'seed')
   const importId = randomUUID()
   await forTenant(organizationId).$transaction(async (tx) => {
-    const funded = await applyBudget(tx, ctx, lines.map((id) => ({ budgetLineId: id, event: 'budget.imported' as const, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, 1_000_000_000n, importId) })))
+    const funded = await applyBudget(tx, ctx, lines.map((id) => ({ budgetLineId: id, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, 1_000_000_000n, importId) })))
     if (!funded.ok) throw new Error(`funding failed: ${funded.error.code}`)
     await appendEvents(tx, ctx, funded.events)
   })

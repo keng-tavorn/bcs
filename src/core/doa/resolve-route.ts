@@ -66,7 +66,8 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
 
   let rule = first.rule
   let resolved = resolveRule(rule, input, policy.org)
-  let escalatedFrom: { rule: DoaRuleSnapshot; conflicting: ExplainedStep[] } | null = null
+  // Every band skipped, in order: the explanation names each (BR-DOA-06, BR-DOA-10)
+  const escalations: { rule: DoaRuleSnapshot; conflicting: ExplainedStep[] }[] = []
   // BR-DOA-06: an approver who conflicts with the document moves the route to the next band, never to lower authority
   for (;;) {
     if (resolved.kind === 'missing') {
@@ -77,11 +78,12 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
     if (version.selfApprovalPolicy === 'BLOCK') {
       return err('SOD_VIOLATION', 'the approver conflicts with the document', { rule: 'BR-DOA-06', ruleCode: rule.code })
     }
-    escalatedFrom ??= { rule, conflicting: conflicting.map((a) => ({ resolvedFrom: a.resolvedFrom, assigneeMemberId: a.memberId, principalMemberId: null })) }
-    const currentLower = rule.when.amount ? bandOf(rule.when.amount).lower : null
-    const nextLower = rule.when.amount ? higherBandLowers(version, input.documentType, currentLower)[0] : undefined
+    escalations.push({ rule, conflicting: conflicting.map((a) => ({ resolvedFrom: a.resolvedFrom, assigneeMemberId: a.memberId, principalMemberId: null })) })
+    // The next band starts where this one ends; a band with no upper end has nothing above it
+    const currentUpper = rule.when.amount ? bandOf(rule.when.amount).upper : null
+    const nextLower = currentUpper !== null ? higherBandLowers(version, input.documentType, currentUpper)[0] : undefined
     if (nextLower === undefined) {
-      return err('NO_HIGHER_AUTHORITY', 'no higher band has an approver without a conflict', { ruleCode: rule.code, escalatedFromRuleCode: escalatedFrom.rule.code })
+      return err('NO_HIGHER_AUTHORITY', 'no higher band has an approver without a conflict', { ruleCode: rule.code, escalatedFromRuleCode: escalations[0]!.rule.code })
     }
     // The next band's rule is chosen as if the amount were the band's first satang
     const next = chooseRule(version, input.documentType, nextLower + 1n, (r) => r.when.amount !== undefined && bandOf(r.when.amount).lower === nextLower)
@@ -92,8 +94,10 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
 
   // BR-DLG-04/05: delegation of each approver's position authority; then BR-DOA-07 keeps the later of repeated approvers
   const context = { documentType: input.documentType, basisAmountSatang: basisAmount, at: input.at, conflictMemberIds: input.conflictMemberIds }
+  // BR-DLG-03: a delegate who is no longer ACTIVE holds nothing
+  const active = (memberId: string) => policy.org.members.find((m) => m.id === memberId)?.active === true
   let steps: Omit<RouteStep, 'stepNo'>[] = resolved.approvers.map((a) => {
-    const holder = delegateFor({ memberId: a.memberId, viaPosition: a.viaPosition }, context, policy.delegations)
+    const holder = delegateFor({ memberId: a.memberId, viaPosition: a.viaPosition }, context, policy.delegations, active)
     return { ...holder, resolvedFrom: a.resolvedFrom, slaBusinessMinutes: a.slaBusinessMinutes }
   })
   if (version.collapseDuplicateApprovers) steps = steps.filter((s, i) => steps[i + 1]?.assigneeMemberId !== s.assigneeMemberId)
@@ -104,7 +108,7 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
     doaCode: version.code,
     versionNo: version.versionNo,
     ruleCode: rule.code,
-    escalatedFromRuleCode: escalatedFrom?.rule.code ?? null,
+    escalatedFromRuleCode: escalations[0]?.rule.code ?? null,
     amountBasis: version.amountBasis,
     basisAmountSatang: basisAmount,
     steps: numbered,
@@ -114,7 +118,7 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
       basisAmount,
       amountBasis: version.amountBasis,
       rule,
-      escalatedFrom,
+      escalations,
       steps: numbered,
       org: policy.org,
     }),

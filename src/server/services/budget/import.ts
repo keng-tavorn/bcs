@@ -225,7 +225,6 @@ export const importBudgetCommand = defineCommand({
       ctx,
       input.rows.map((r, i) => ({
         budgetLineId: lineIds[i]!,
-        event: 'budget.imported' as const,
         document: { type: 'IMPORT' as const, id: importId },
         run: (s) => fund(s, amountToSatang(r.amount), importId),
       })),

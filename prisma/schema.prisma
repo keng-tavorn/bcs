@@ -41,48 +41,62 @@ model Organization {
   updatedAt                   DateTime           @updatedAt @db.Timestamptz(6)
 
   /// Same-organization rule enforced by trigger Organization_signatory_same_org (a composite key would stop Prisma generating ids)
-  contractSignatory   Member?              @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  members             Member[]             @relation("OrganizationMembers")
-  modules             OrgModule[]
-  roleAssignments     RoleAssignment[]
-  events              Event[]
-  outbox              Outbox[]
-  commandLogs         CommandLog[]
-  files               FileObject[]
-  fileLinks           FileLink[]
-  notifications       Notification[]
-  invitations         MemberInvitation[]
-  comments            Comment[]
-  breakGlassSessions  BreakGlassSession[]
-  departments         Department[]
-  costCenters         CostCenter[]
-  positions           Position[]
-  positionAssignments PositionAssignment[]
-  delegations         Delegation[]
-  holidays            Holiday[]
-  requestTypes        RequestType[]
-  formVersions        FormVersion[]
-  requests            Request[]
-  requestLines        RequestLine[]
-  requestQuotations   RequestQuotation[]
-  requestFollowers    RequestFollower[]
-  infoRequests        InfoRequest[]
-  doaVersions         DoaVersion[]
-  doaRules            DoaRule[]
-  doaTestCases        DoaTestCase[]
-  approvalRoutes      ApprovalRoute[]
-  approvalSteps       ApprovalStep[]
-  approvalTasks       ApprovalTask[]
-  orgAuthorityChanges OrgAuthorityChange[]
-  documentSequences   DocumentSequence[]
-  stepUpGrants        StepUpGrant[]
-  fiscalYears         FiscalYear[]
-  budgetLines         BudgetLine[]
-  budgetLedger        BudgetLedgerEntry[]
-  budgetBalances      BudgetLineBalance[]
-  budgetAllocations   BudgetAllocation[]
-  budgetGrants        BudgetGrant[]
-  budgetImports       BudgetImport[]
+  contractSignatory      Member?                 @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  members                Member[]                @relation("OrganizationMembers")
+  modules                OrgModule[]
+  roleAssignments        RoleAssignment[]
+  events                 Event[]
+  outbox                 Outbox[]
+  commandLogs            CommandLog[]
+  files                  FileObject[]
+  fileLinks              FileLink[]
+  notifications          Notification[]
+  invitations            MemberInvitation[]
+  comments               Comment[]
+  breakGlassSessions     BreakGlassSession[]
+  departments            Department[]
+  costCenters            CostCenter[]
+  positions              Position[]
+  positionAssignments    PositionAssignment[]
+  delegations            Delegation[]
+  holidays               Holiday[]
+  requestTypes           RequestType[]
+  formVersions           FormVersion[]
+  requests               Request[]
+  requestLines           RequestLine[]
+  requestQuotations      RequestQuotation[]
+  requestFollowers       RequestFollower[]
+  infoRequests           InfoRequest[]
+  doaVersions            DoaVersion[]
+  doaRules               DoaRule[]
+  doaTestCases           DoaTestCase[]
+  approvalRoutes         ApprovalRoute[]
+  approvalSteps          ApprovalStep[]
+  approvalTasks          ApprovalTask[]
+  orgAuthorityChanges    OrgAuthorityChange[]
+  documentSequences      DocumentSequence[]
+  stepUpGrants           StepUpGrant[]
+  fiscalYears            FiscalYear[]
+  budgetLines            BudgetLine[]
+  budgetLedger           BudgetLedgerEntry[]
+  budgetBalances         BudgetLineBalance[]
+  budgetAllocations      BudgetAllocation[]
+  budgetGrants           BudgetGrant[]
+  budgetImports          BudgetImport[]
+  suppliers              Supplier[]
+  deliverySites          DeliverySite[]
+  purchaseOrders         PurchaseOrder[]
+  poLines                PoLine[]
+  poLineSources          PoLineSource[]
+  consolidationRuns      ConsolidationRun[]
+  goodsReceipts          GoodsReceipt[]
+  grLines                GrLine[]
+  variances              Variance[]
+  invoiceConfirmations   InvoiceConfirmation[]
+  invoiceLineAllocations InvoiceLineAllocation[]
+  exportJobs             ExportJob[]
+  reportSchedules        ReportSchedule[]
+  actionTokens           ActionToken[]
 }
 
 enum ModuleKey {
@@ -176,6 +190,16 @@ model Member {
   budgetGrantsReceived  BudgetGrant[]        @relation("BudgetGrantMember")
   budgetGrantsGiven     BudgetGrant[]        @relation("BudgetGrantGrantedBy")
   budgetImports         BudgetImport[]       @relation("BudgetImportedBy")
+
+  suppliersCreated      Supplier[]            @relation("SupplierCreatedBy")
+  purchaseOrdersCreated PurchaseOrder[]       @relation("PurchaseOrderCreatedBy")
+  consolidationRuns     ConsolidationRun[]    @relation("ConsolidationRunTriggeredBy")
+  goodsReceipts         GoodsReceipt[]        @relation("GoodsReceiptReceiver")
+  variancesCreated      Variance[]            @relation("VarianceCreatedBy")
+  invoicesRecorded      InvoiceConfirmation[] @relation("InvoiceRecordedBy")
+  exportJobs            ExportJob[]           @relation("ExportJobRequestedBy")
+  reportSchedules       ReportSchedule[]      @relation("ReportScheduleCreatedBy")
+  actionTokens          ActionToken[]         @relation("ActionTokenMember")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -392,6 +416,10 @@ model FileObject {
 
   /// Target of same-tenant foreign keys (organizationId, fileId)
   requestQuotations RequestQuotation[]
+
+  purchaseOrderPdfs PurchaseOrder[]       @relation("PurchaseOrderPdf")
+  invoiceSources    InvoiceConfirmation[] @relation("InvoiceSourceFile")
+  exportJobs        ExportJob[]           @relation("ExportJobFile")
 
   @@unique([organizationId, id])
   @@index([organizationId])
@@ -868,7 +896,6 @@ enum Urgency {
   URGENT
 }
 
-/// budgetLineId (S3-01) and deliverySiteId / suggestedSupplierId (S4-01) are added with their tables (sub-spec S2)
 model Request {
   id                    String              @id @default(uuid(7)) @db.Uuid
   organizationId        String              @db.Uuid
@@ -887,6 +914,10 @@ model Request {
   budgetLineId          String?             @db.Uuid
   urgency               Urgency             @default(NORMAL)
   neededBy              DateTime?           @db.Date
+  /// Where the goods go; consolidation groups by it (BR-CONS-01)
+  deliverySiteId        String?             @db.Uuid
+  /// The supplier the requester suggests; procurement chooses per line in the pool (FR-P2P-001)
+  suggestedSupplierId   String?             @db.Uuid
   nonLowestQuoteReason  String?
   priceIncludesVat      Boolean             @default(false)
   /// Totals come from core/money only, never from the client (§6.2)
@@ -920,6 +951,9 @@ model Request {
   followers           RequestFollower[]
   infoRequests        InfoRequest[]
 
+  deliverySite      DeliverySite? @relation(fields: [organizationId, deliverySiteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  suggestedSupplier Supplier?     @relation("RequestSuggestedSupplier", fields: [organizationId, suggestedSupplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
   @@unique([organizationId, id])
   @@unique([organizationId, number])
   @@index([organizationId, status])
@@ -942,21 +976,30 @@ model RequestLine {
   cancelledQuantity Decimal   @default(0) @db.Decimal(18, 4)
   /// Services and licences (BR-FORM-05)
   serviceEndDate    DateTime? @db.Date
+  /// Goods or a service: lines of different kinds never share a PO (BR-CONS-01)
+  kind              LineKind  @default(GOODS)
+  /// Chosen by procurement in the pool (FR-P2P-001 AC2); a line without one waits (BR-CONS-03)
+  supplierId        String?   @db.Uuid
   createdAt         DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   request      Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
+  supplier  Supplier?      @relation("RequestLineSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poSources PoLineSource[]
+
   @@unique([organizationId, id])
   @@unique([organizationId, requestId, lineNo])
 }
 
-/// Quotations as data (BR-FORM-06); supplierId is added in S4-01 with the Supplier table
+/// Quotations as data (BR-FORM-06)
 model RequestQuotation {
   id             String   @id @default(uuid(7)) @db.Uuid
   organizationId String   @db.Uuid
   requestId      String   @db.Uuid
+  /// null when the supplier is not in the register yet
+  supplierId     String?  @db.Uuid
   supplierName   String
   amountSatang   BigInt
   includesVat    Boolean
@@ -970,6 +1013,8 @@ model RequestQuotation {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   request      Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   file         FileObject?  @relation(fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  supplier Supplier? @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, requestId], map: "request_quotation_one_selected", where: raw("\"isSelected\""))
   @@unique([organizationId, id])
@@ -1162,6 +1207,9 @@ model ApprovalRoute {
   currentForRequests  Request[]            @relation("RequestCurrentRoute")
   orgAuthorityChanges OrgAuthorityChange[]
 
+  currentForPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCurrentRoute")
+  currentForVariances      Variance[]      @relation("VarianceCurrentRoute")
+
   @@unique([organizationId, id])
   @@unique([organizationId, subjectType, subjectId, routeNo])
 }
@@ -1257,6 +1305,8 @@ model ApprovalTask {
   reassignedFrom ApprovalTask?  @relation("TaskReassigned", fields: [organizationId, reassignedFromTaskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   reassignedTo   ApprovalTask[] @relation("TaskReassigned")
   infoRequests   InfoRequest[]
+
+  actionTokens ActionToken[]
 
   @@unique([organizationId, id])
   @@index([organizationId, assigneeMemberId, status])
@@ -1441,6 +1491,8 @@ model BudgetLine {
   grants       BudgetGrant[]
   requests     Request[]
 
+  poLines PoLine[]
+
   @@unique([organizationId, id])
   @@unique([organizationId, fiscalYearId, code])
   @@index([organizationId, departmentId])
@@ -1570,4 +1622,532 @@ model BudgetImport {
 
   @@unique([organizationId, id])
   @@index([organizationId, checksum])
+}
+
+// ===== S4 · suppliers, delivery sites, purchase orders, receiving, invoices, exports, action tokens (S4-01) =====
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Where the supplier data came from (BR-SUP-01, BR-SUP-03, BR-SUP-05)
+enum RegistrySource {
+  RD
+  DBD
+  MANUAL
+  STUB
+}
+
+/// Supplier register, tier 1 (§6.2): taxId passes mod-11 unless the supplier is foreign (BR-TAXID-01); expressVendorCode
+/// per BR-EXP-04; the registry fields per BR-SUP-01 to BR-SUP-05
+model Supplier {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  organizationId    String          @db.Uuid
+  code              String
+  nameTh            String
+  nameEn            String?
+  /// 13 digits; null only for a foreign supplier without a Thai tax id
+  taxId             String?
+  /// "00000" = head office
+  branchCode        String          @default("00000")
+  isVatRegistered   Boolean         @default(true)
+  isForeign         Boolean         @default(false)
+  email             String?
+  phone             String?
+  address           String?
+  /// What the supplier sells, as the Suppliers sheet says
+  category          String?
+  status            SupplierStatus  @default(ACTIVE)
+  expressVendorCode String?
+  /// The status the registry reported (BR-SUP-04)
+  registryStatus    String?
+  registrySource    RegistrySource?
+  registryCheckedAt DateTime?       @db.Timestamptz(6)
+  /// The values as the registry gave them, kept to compare with what the user confirmed (BR-SUP-01)
+  registryData      Json?
+  createdById       String?         @db.Uuid
+  version           Int             @default(0)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy            Member?               @relation("SupplierCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  suggestedFor         Request[]             @relation("RequestSuggestedSupplier")
+  requestLines         RequestLine[]         @relation("RequestLineSupplier")
+  quotations           RequestQuotation[]
+  purchaseOrders       PurchaseOrder[]
+  invoiceConfirmations InvoiceConfirmation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+  @@unique([organizationId, taxId, branchCode])
+}
+
+/// Where goods are delivered, e.g. a construction site; consolidation groups by it (BR-CONS-01)
+model DeliverySite {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  code           String
+  nameTh         String
+  address        String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requests       Request[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// Goods or a service: lines of different kinds never share a PO (BR-CONS-01)
+enum LineKind {
+  GOODS
+  SERVICE
+}
+
+enum PoStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+  REJECTED
+}
+
+/// BR-BUD-06: what happens to the request lines when an approved PO is cancelled
+enum PoCancelDisposition {
+  RETURN_TO_POOL
+  CANCEL_REQUEST_LINES
+}
+
+/// Tier 1: every PO line comes from request lines (OQ-24, FR-P2P-004 AC3)
+model PurchaseOrder {
+  id                 String               @id @default(uuid(7)) @db.Uuid
+  organizationId     String               @db.Uuid
+  /// null while DRAFT; issued at submit (BR-NUM-01)
+  number             String?
+  status             PoStatus             @default(DRAFT)
+  supplierId         String               @db.Uuid
+  deliverySiteId     String?              @db.Uuid
+  kind               LineKind             @default(GOODS)
+  urgency            Urgency              @default(NORMAL)
+  currency           String               @default("THB")
+  priceIncludesVat   Boolean              @default(false)
+  /// Totals come from core/money only (FR-P2P-003 AC3)
+  netSatang          BigInt               @default(0)
+  vatSatang          BigInt               @default(0)
+  grossSatang        BigInt               @default(0)
+  vatRateBp          Int?
+  taxPointDate       DateTime?            @db.Date
+  paymentTermDays    Int?
+  notesToSupplier    String?
+  /// null when the consolidation round made the draft
+  createdById        String?              @db.Uuid
+  consolidationRunId String?              @db.Uuid
+  submittedAt        DateTime?            @db.Timestamptz(6)
+  approvedAt         DateTime?            @db.Timestamptz(6)
+  sentAt             DateTime?            @db.Timestamptz(6)
+  sentToEmail        String?
+  /// The last sending bounced (FR-P2P-005 AC2): the PO stays APPROVED and procurement is told
+  sendBouncedAt      DateTime?            @db.Timestamptz(6)
+  sendBounceReason   String?
+  closedAt           DateTime?            @db.Timestamptz(6)
+  cancelledAt        DateTime?            @db.Timestamptz(6)
+  cancelReason       String?
+  cancelDisposition  PoCancelDisposition?
+  pdfFileId          String?              @db.Uuid
+  currentRouteId     String?              @db.Uuid
+  version            Int                  @default(0)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier              @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  deliverySite     DeliverySite?         @relation(fields: [organizationId, deliverySiteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy        Member?               @relation("PurchaseOrderCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  consolidationRun ConsolidationRun?     @relation(fields: [organizationId, consolidationRunId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  pdfFile          FileObject?           @relation("PurchaseOrderPdf", fields: [organizationId, pdfFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute     ApprovalRoute?        @relation("PurchaseOrderCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines            PoLine[]
+  goodsReceipts    GoodsReceipt[]
+  variances        Variance[]
+  invoices         InvoiceConfirmation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([organizationId, supplierId])
+}
+
+model PoLine {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  organizationId        String    @db.Uuid
+  poId                  String    @db.Uuid
+  lineNo                Int
+  description           String
+  categoryCode          String?
+  quantity              Decimal   @db.Decimal(18, 4)
+  uom                   String
+  unitPriceSatang       BigInt
+  netSatang             BigInt
+  vatable               Boolean   @default(true)
+  /// From the source request (BR-BUD-04)
+  budgetLineId          String    @db.Uuid
+  /// Accepted on POSTED GRs (BR-GR-01)
+  receivedQuantity      Decimal   @default(0) @db.Decimal(18, 4)
+  /// Kept beyond the ordered quantity: within the tolerance or by an approved ACCEPT_EXCESS (BR-GR-02, BR-GR-04)
+  acceptedExtraQuantity Decimal   @default(0) @db.Decimal(18, 4)
+  /// Never coming: closed short or cancelled
+  cancelledQuantity     Decimal   @default(0) @db.Decimal(18, 4)
+  serviceEndDate        DateTime? @db.Date
+  createdAt             DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder           @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine              @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sources      PoLineSource[]
+  grLines      GrLine[]
+  variances    Variance[]
+  invoiceParts InvoiceLineAllocation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, poId, lineNo])
+}
+
+/// The part of a request line a PO line orders; its releasable amount is given back to the request when the PO is
+/// approved (BR-BUD-05). BR-CONS-04: every PO line keeps its source request lines.
+model PoLineSource {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @db.Uuid
+  poLineId         String   @db.Uuid
+  requestLineId    String   @db.Uuid
+  quantity         Decimal  @db.Decimal(18, 4)
+  releasableSatang BigInt
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine       @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestLine  RequestLine  @relation(fields: [organizationId, requestLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, poLineId, requestLineId])
+  @@index([organizationId, requestLineId])
+}
+
+enum ConsolidationTrigger {
+  /// The organization's cron (BR-CONS-01)
+  SCHEDULED
+  /// "รวมตอนนี้" (FR-P2P-002 AC3)
+  MANUAL
+  /// An urgent request approved with a supplier (BR-CONS-02)
+  URGENT
+}
+
+enum ConsolidationRunStatus {
+  COMPLETED
+  FAILED
+}
+
+/// One consolidation round (FR-P2P-002 AC2)
+model ConsolidationRun {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  organizationId String                 @db.Uuid
+  trigger        ConsolidationTrigger
+  /// The cron slot the round belongs to; null when run by hand
+  scheduledFor   DateTime?              @db.Timestamptz(6)
+  ranAt          DateTime               @db.Timestamptz(6)
+  status         ConsolidationRunStatus
+  createdPoIds   String[]               @db.Uuid
+  triggeredById  String?                @db.Uuid
+  error          String?
+  createdAt      DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  triggeredBy    Member?         @relation("ConsolidationRunTriggeredBy", fields: [organizationId, triggeredById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([organizationId, id])
+  /// A scheduled round runs once per slot of the cron (FR-P2P-002 AC2)
+  @@unique([organizationId, scheduledFor], map: "consolidation_run_one_per_slot", where: raw("\"trigger\" = 'SCHEDULED'"))
+  @@index([organizationId, ranAt])
+}
+
+enum GrStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+model GoodsReceipt {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @db.Uuid
+  /// null while DRAFT; issued when posted (BR-NUM-01)
+  number           String?
+  poId             String    @db.Uuid
+  status           GrStatus  @default(DRAFT)
+  receivedAt       DateTime  @db.Timestamptz(6)
+  receiverMemberId String    @db.Uuid
+  deliveryNoteNo   String?
+  notes            String?
+  postedAt         DateTime? @db.Timestamptz(6)
+  reversedAt       DateTime? @db.Timestamptz(6)
+  reverseReason    String?
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  receiver     Member        @relation("GoodsReceiptReceiver", fields: [organizationId, receiverMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines        GrLine[]
+  variances    Variance[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, poId])
+}
+
+/// BR-GR-01: received = accepted + rejected; photos are FileLinks of kind PHOTO
+model GrLine {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @db.Uuid
+  grId             String   @db.Uuid
+  poLineId         String   @db.Uuid
+  receivedQuantity Decimal  @db.Decimal(18, 4)
+  acceptedQuantity Decimal  @db.Decimal(18, 4)
+  rejectedQuantity Decimal  @default(0) @db.Decimal(18, 4)
+  remark           String?
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  gr           GoodsReceipt @relation(fields: [organizationId, grId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine       @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, grId, poLineId])
+}
+
+enum VarianceType {
+  SHORT
+  OVER
+  DAMAGED
+}
+
+/// BR-GR-03: ACCEPT_EXCESS, ACCEPT_DAMAGED and CLOSE_SHORT need approval; RETURN_EXCESS and RETURN_REPLACE do not
+enum VarianceDisposition {
+  ACCEPT_EXCESS
+  RETURN_EXCESS
+  ACCEPT_DAMAGED
+  RETURN_REPLACE
+  CLOSE_SHORT
+}
+
+enum VarianceStatus {
+  RECORDED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+/// A difference between what was ordered and what came (BR-GR-01 to BR-GR-05); CLOSE_SHORT has no GR
+model Variance {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  organizationId String              @db.Uuid
+  poId           String              @db.Uuid
+  poLineId       String              @db.Uuid
+  grId           String?             @db.Uuid
+  type           VarianceType
+  quantity       Decimal             @db.Decimal(18, 4)
+  /// quantity × PO unit price, rounded once (BR-GR-04)
+  amountSatang   BigInt
+  disposition    VarianceDisposition
+  status         VarianceStatus
+  reason         String?
+  createdById    String              @db.Uuid
+  currentRouteId String?             @db.Uuid
+  decidedAt      DateTime?           @db.Timestamptz(6)
+  version        Int                 @default(0)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder  @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine         @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  gr           GoodsReceipt?  @relation(fields: [organizationId, grId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member         @relation("VarianceCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute ApprovalRoute? @relation("VarianceCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, poId])
+  @@index([organizationId, status])
+}
+
+enum InvoiceSource {
+  MANUAL
+  ETAX_XML
+}
+
+/// Simple invoice confirmation, tier 1 (§7.12, BR-IVC-01 to BR-IVC-04); tier 2 replaces it with Invoice
+model InvoiceConfirmation {
+  id                  String        @id @default(uuid(7)) @db.Uuid
+  organizationId      String        @db.Uuid
+  poId                String        @db.Uuid
+  supplierId          String        @db.Uuid
+  invoiceNo           String
+  /// Spaces removed, upper case (BR-IVC-03)
+  invoiceNoNormalized String
+  invoiceDate         DateTime      @db.Date
+  netSatang           BigInt
+  vatSatang           BigInt
+  grossSatang         BigInt
+  isFinal             Boolean       @default(false)
+  sourceFileId        String?       @db.Uuid
+  parsedFrom          InvoiceSource @default(MANUAL)
+  recordedById        String        @db.Uuid
+  recordedAt          DateTime      @db.Timestamptz(6)
+  exportedAt          DateTime?     @db.Timestamptz(6)
+  exportJobId         String?       @db.Uuid
+  createdAt           DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder           @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier                @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceFile   FileObject?             @relation("InvoiceSourceFile", fields: [organizationId, sourceFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy   Member                  @relation("InvoiceRecordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  exportJob    ExportJob?              @relation(fields: [organizationId, exportJobId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines        InvoiceLineAllocation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, supplierId, invoiceNoNormalized])
+  @@index([organizationId, poId])
+}
+
+/// The share of an invoice's amount before VAT on one PO line (BR-IVC-04); the GRNI report reads it (BR-RPT-01)
+model InvoiceLineAllocation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  invoiceId      String   @db.Uuid
+  poLineId       String   @db.Uuid
+  netSatang      BigInt
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice      InvoiceConfirmation @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine              @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceId, poLineId])
+  @@index([organizationId, poLineId])
+}
+
+enum ExportKind {
+  EXPRESS_AP
+  REPORT
+  AUDIT
+}
+
+enum ExportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+/// A file made for download (BR-EXP-02, BR-EXP-03, FR-VIS-004 AC2): row count, total and sha256 shown to the user
+model ExportJob {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  kind           ExportKind
+  params         Json         @default("{}")
+  status         ExportStatus @default(PENDING)
+  fileId         String?      @db.Uuid
+  rowCount       Int?
+  totalSatang    BigInt?
+  /// sha256 of the file
+  checksum       String?
+  /// Required when the same invoices are exported again (BR-EXP-02)
+  reason         String?
+  requestedById  String       @db.Uuid
+  completedAt    DateTime?    @db.Timestamptz(6)
+  error          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject?           @relation("ExportJobFile", fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy  Member                @relation("ExportJobRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  invoices     InvoiceConfirmation[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, kind, createdAt])
+}
+
+enum ReportFormat {
+  XLSX
+  CSV
+}
+
+/// A report sent by email on a schedule (FR-VIS-002 AC1)
+model ReportSchedule {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  reportCode     String
+  /// e.g. "TZ=Asia/Bangkok 0 8 * * 1"
+  cron           String
+  /// Member ids
+  recipients     String[]     @db.Uuid
+  format         ReportFormat @default(XLSX)
+  active         Boolean      @default(true)
+  createdById    String       @db.Uuid
+  lastRunAt      DateTime?    @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member       @relation("ReportScheduleCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+}
+
+enum ActionTokenChannel {
+  LINE
+  EMAIL
+}
+
+/// Buttons and links that decide a task outside the workspace (§4.9): one per (task, member, channel), 72 hours or until
+/// the task closes; used once with a single UPDATE (BR-TOK-04, INV-TOK-01). Email links keep only the sha256 of the
+/// secret (BR-TOK-03); LINE postbacks carry no secret (BR-TOK-02).
+model ActionToken {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @db.Uuid
+  memberId       String             @db.Uuid
+  taskId         String             @db.Uuid
+  /// e.g. ["APPROVE", "REJECT"]
+  allowedActions String[]
+  channel        ActionTokenChannel
+  secretHash     String?
+  expiresAt      DateTime           @db.Timestamptz(6)
+  usedAt         DateTime?          @db.Timestamptz(6)
+  revokedAt      DateTime?          @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("ActionTokenMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  task         ApprovalTask @relation(fields: [organizationId, taskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, taskId])
 }

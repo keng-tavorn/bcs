@@ -990,6 +990,7 @@ stateDiagram-v2
 | APPROVED | PO อนุมัติบางส่วน | PARTIALLY_ORDERED | — | ตาม BR-BUD-05 |
 | APPROVED · PARTIALLY_ORDERED | PO อนุมัติครบ หรือยกเลิกจำนวนที่เหลือ | ORDERED | ทุกบรรทัด `ordered + cancelled = quantity` | คืนงบของจำนวนที่ยกเลิก |
 | ORDERED | PO ที่เกี่ยวข้องปิดครบ | COMPLETED | — | `request.completed` |
+| ORDERED · PARTIALLY_ORDERED | PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (NEW-23) | PARTIALLY_ORDERED หรือ APPROVED | ตามจำนวนที่ยังสั่งอยู่ | บรรทัดคำขอกลับเข้ากองรอจัดซื้อ |
 
 การขอข้อมูลเพิ่มไม่เปลี่ยนสถานะคำขอ (ยังเป็น PENDING_APPROVAL) แต่งานอนุมัติเป็น `INFO_REQUESTED` และ SLA หยุดนับ
 
@@ -1015,6 +1016,7 @@ stateDiagram-v2
 | PENDING_APPROVAL | `approval.return` | DRAFT | ต้องมีเหตุผล | คืนส่วนต่างที่จอง |
 | APPROVED | `po.send` | SENT | ผู้ขายมีอีเมล | ส่งอีเมลพร้อม PDF · บันทึก `sentAt` `sentToEmail` |
 | SENT · PARTIALLY_RECEIVED | GR ถูก post | PARTIALLY_RECEIVED หรือ RECEIVED | — | ตามจำนวนรับสะสม |
+| PARTIALLY_RECEIVED · RECEIVED | GR ถูกกลับรายการ (NEW-23) | PARTIALLY_RECEIVED หรือ SENT | ก่อนยืนยันใบกำกับของ PO นั้น | ตามจำนวนที่ GR ที่ยัง POSTED รับไว้ |
 | APPROVED · SENT | `po.cancel` | CANCELLED | ยังไม่มี GR ที่ POSTED · ต้องเลือก disposition | BR-BUD-06 |
 | SENT · PARTIALLY_RECEIVED · RECEIVED | `po.close` | CLOSED | ถ้ารับไม่ครบต้องมี variance `SHORT` ที่อนุมัติแล้ว | คืนงบตาม BR-BUD-06 (ปิดที่รับไม่ครบก่อนมีใบกำกับ: ส่วนที่ไม่ได้รับคืนครั้งเดียวตอนอนุมัติ variance `CLOSE_SHORT` ตาม BR-GR-04 · ถือส่วนที่รับแล้วไว้รอใบกำกับ) |
 
@@ -2653,6 +2655,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | `request.info_provided` | ผู้อนุมัติที่ถาม | LINE → อีเมล | IMMEDIATE | `request.info_provided` |
 | `po.approved` | PROCUREMENT ผู้สร้าง PO | ในระบบ · LINE | IMMEDIATE | `po.approved` |
 | `po.sent` | ผู้ขอของ PR ต้นทาง · ผู้ตรวจรับที่ได้รับมอบหมาย | LINE → อีเมล | DIGEST | `po.sent` |
+| `po.send_bounced` (NEW-25) | PROCUREMENT | LINE → อีเมล | IMMEDIATE | `po.send_bounced` |
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
 | ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
@@ -2686,11 +2689,13 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `comment.added` `comment.retracted` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
-| po | `po.drafted` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
+| po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
+| consolidation_run | `consolidation_run.completed` |
+| report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
@@ -3093,7 +3098,7 @@ features:
 - [x] **S2-01** `[demo]` migration โครงองค์กร คำขอ DOA การอนุมัติ OrgAuthorityChange Notification DocumentSequence TaxRate + SQL §6.3 ข้อ 4–5 — เสร็จ 2026-10-03 · 70db684
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate`
+- [x] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate` — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: ทุกเคสใน money.yaml และ vat-rate.yaml ผ่าน
   - แยกงาน: golden suite แต่ละไฟล์อิสระต่อกัน งาน S2-02 ถึง S2-08 แยก subagent ต่อ suite ได้ ห้าม subagent แก้ค่า expect และต้องตรวจว่าเทสต์อ่านไฟล์ YAML จริงก่อนรับ
 - [x] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ. — เสร็จ 2026-10-03 · d82ac37
@@ -3102,10 +3107,10 @@ features:
 - [x] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก — เสร็จ 2026-10-03 · af0fa4b
   - เสร็จเมื่อ: ทุกเคสใน numbering.yaml ผ่าน และเทสต์ออกเลข 50 ใบพร้อมกันได้ 1 ถึง 50 ครบ (INV-NUM-01)
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-05** `[demo]` `core/doa`: resolveRoute lint ตารางผลที่ขอบ และนำเข้า YAML
+- [x] **S2-05** `[demo]` `core/doa`: resolveRoute lint ตารางผลที่ขอบ และนำเข้า YAML — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: ทุกเคสใน doa.yaml และ doa-lint.yaml ผ่าน (GC-DOA-01 ถึง GC-DOA-27)
   - แยกงาน: ทำเอง เพราะกฎต้องสอดคล้องกันทั้งก้อน
-- [ ] **S2-06** `[demo]` `core/sod` และ `core/delegation`
+- [x] **S2-06** `[demo]` `core/sod` และ `core/delegation` — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: ทุกเคสใน sod.yaml และ delegation.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
 - [x] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5) — เสร็จ 2026-10-03 · d82ac37
@@ -3114,7 +3119,7 @@ features:
 - [x] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef — เสร็จ 2026-10-03 · af0fa4b
   - เสร็จเมื่อ: ทุกเคสใน forms.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-09** `[demo]` state machine ของ Request ApprovalTask DoaVersion OrgAuthorityChange + เทสต์ทุกคู่สถานะ
+- [x] **S2-09** `[demo]` state machine ของ Request ApprovalTask DoaVersion OrgAuthorityChange + เทสต์ทุกคู่สถานะ — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: เทสต์ที่สร้างจากตาราง transition ผ่านทุกคู่ โดยนับคู่เอง (§15.3)
   - แยกงาน: แยก subagent ต่อ state machine ได้ แล้วตรวจว่าตารางตรงกับ §6.4 ก่อนรับ
 - [x] **S2-10** `[demo]` services: ร่าง ส่ง ส่งซ้ำ ยกเลิก ขอข้อมูล ตัดสิน รักษาการ และ DOA version (ขั้นตรวจงบเป็น stub จนถึง S3-05) — เสร็จ 2026-10-03 · 53f435f
@@ -3188,7 +3193,7 @@ features:
 
 **FR ที่ครอบคลุม:** FR-P2P-001 FR-P2P-002 FR-P2P-003 FR-P2P-004 FR-P2P-005 FR-P2P-006 FR-P2P-007 FR-P2P-008 FR-P2P-009 FR-P2P-010 FR-PLT-009 FR-VIS-001 FR-VIS-002 FR-VIS-003 FR-VIS-004 FR-NOTI-002 FR-DOA-011 FR-SUP-001 FR-VIS-005
 
-- [ ] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken
+- [x] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken — เสร็จ 2026-10-03 · 450829c
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S4-02** `[demo]` ทะเบียนผู้ขายขั้นต้น (ตรวจเลขผู้เสียภาษี และรหัสเจ้าหนี้ Express) และ seed ชีต Suppliers กับ Sites
@@ -3200,10 +3205,10 @@ features:
 - [ ] **S4-04** `[demo]` ร่าง PO ประวัติราคา state machine เส้นทาง DOA และงบตาม BR-BUD-05 BR-BUD-06
   - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-003 FR-P2P-004 FR-P2P-010 ผ่าน และ GC-BUD-01 ถึง GC-BUD-05 ผ่านเมื่อรันผ่าน service จริง
   - แยกงาน: ทำเองได้
-- [ ] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน
+- [x] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน — เสร็จ 2026-10-03 · 0e99907
   - เสร็จเมื่อ: มี ADR ของวิธีที่เลือก · เทสต์ AC ของ FR-PLT-009 และ snapshot ภาษาไทยผ่าน
   - แยกงาน: spike สองวิธีแยกให้ subagent วิธีละตัวได้ แล้วตรวจ snapshot ของทั้งสองเองก่อนเลือก
-- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS)
+- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS) — ติดอยู่: FR-NOTI-002 AC3 (SPF และ DKIM ของโดเมนผู้ส่ง) ต้องมีโดเมนและผู้ให้บริการอีเมลตาม ADR-031 ที่ยังไม่ตัดสิน · ส่วนอื่นทำแล้ว (fc57a66) รอ e2e ของหน้า /a/[token] หลังรวม branch
   - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-005 FR-NOTI-002 ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S4-07** `[demo]` ตรวจรับบนเว็บและจอมือถือ + engine variance + เส้นทาง GRV
@@ -3439,6 +3444,24 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-19** `[demo]` ด่าน `coverage` ใน `pnpm verify` ตรวจ branch coverage 100% ของ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}` ตาม §7.0 ข้อ 4 และ NFR-MNT-02 · พบระหว่าง NEW-18 — เสร็จ 2026-10-03 · e59c8e5
   - เสร็จเมื่อ: ด่าน coverage ของ `pnpm verify` ผ่านที่ 100% branch และ FAIL เมื่อมี branch ที่ไม่มีเทสต์ (ตัวอย่างผิดที่ต้องจับได้)
   - แยกงาน: ทำเองได้
+- [ ] **NEW-20** `[demo]` เพิ่ม event `request.supplier_assigned` ในแคตตาล็อก §10.2 เพราะการที่ PROCUREMENT เลือกผู้ขายให้บรรทัดคำขอในกอง (FR-P2P-001 AC2) เป็น command ที่ต้องมี Event · หนึ่ง event ต่อคำขอที่บรรทัดเปลี่ยน · พบระหว่าง S4-03
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/procurement.ts` · เทสต์ AC2 ของ FR-P2P-001 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
+- [ ] **NEW-21** `[demo]` เพิ่ม event `consolidation_run.completed` ในแคตตาล็อก §10.2 เพราะรอบรวม PR ทุกรอบบันทึก `ConsolidationRun` (FR-P2P-002 AC2) รวมรอบที่ไม่มีร่าง PO จึงต้องมี Event ของตัวเอง · พบระหว่าง S4-03
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 และ AC3 ของ FR-P2P-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
+- [ ] **NEW-22** `[demo]` เพิ่ม event `po.updated` ในแคตตาล็อก §10.2 เพราะการแก้ร่าง PO (ราคา จำนวน เงื่อนไข หมายเหตุ เอาบรรทัดออก FR-P2P-003 AC2) เป็น command ที่ต้องมี Event · พบระหว่าง S4-04
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-003 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-04)
+- [ ] **NEW-23** `[demo]` เพิ่มการเปลี่ยนสถานะที่ §6.4 ยังไม่มี: คำขอที่ PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (BR-BUD-06) กลับเป็น PARTIALLY_ORDERED หรือ APPROVED ตามจำนวนที่ยังสั่งอยู่ เพื่อให้บรรทัดกลับเข้ากองได้จริง · PO ที่ GR ถูกกลับรายการกลับเป็น PARTIALLY_RECEIVED หรือ SENT ตามจำนวนที่ยังรับไว้ · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-04
+  - เสร็จเมื่อ: ตาราง §6.4 มีแถวเหล่านี้ · `src/core/state-machines` มี transition ตรงกัน · เทสต์ที่วนทุกคู่ (สถานะ, command) และเทสต์ AC1 ของ FR-P2P-010 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-04 และ S4-07)
+- [ ] **NEW-24** `[demo]` เพิ่ม event `report_schedule.created` ในแคตตาล็อก §10.2 เพราะการตั้งรอบส่งรายงานทางอีเมล (FR-VIS-002 AC1 · `report.schedule`) เป็น command ที่ต้องมี Event · การส่งแต่ละรอบบันทึกเป็น `export.generated` ของไฟล์รายงาน · พบระหว่าง S4-11
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/report-schedule.ts` · เทสต์ AC1 ของ FR-VIS-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-11)
+- [ ] **NEW-25** `[demo]` เพิ่ม event `po.send_bounced` ในแคตตาล็อก §10.2 และแถวการแจ้งเตือน `po.send_bounced` ถึง PROCUREMENT ใน §10.1 เพราะอีเมล PO ที่ตีกลับ (FR-P2P-005 AC2) บันทึกการตีกลับบน PO แต่สถานะคงเดิม จึงต้องมี Event ของตัวเอง · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-06 (ADR-043)
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-06)
 
 ---
 
@@ -3592,6 +3615,8 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-040 | ใช้ Better Auth: ล็อกการเข้าระบบนับเฉพาะครั้งที่ผิด · บังคับ 2FA ตามบทบาทและตำแหน่ง · TOTP ของผู้ใช้ตัวอย่างจาก `SEED_TOTP_KEY` (ไม่บังคับ · ตัวแปรที่เพิ่มต่อจากภาคผนวก B ในส่วนที่เพิ่มของ `.env.example`) · plugin `liffIdToken` | เสนอ |
 | ADR-041 | นโยบายของ command pipeline และ outbox: key กันส่งซ้ำแยกตามผู้ส่ง · ส่งหลัง commit ครั้งเดียวไม่เกิน 2 วินาที · นับเฉพาะการปฏิเสธของ Inngest ครบ 10 ครั้งเป็นข้อความตายพร้อมแจ้งเตือน | เสนอ |
 | ADR-042 | ชุดตั้งต้นส่งเป็นฉบับ DOA หนึ่งฉบับกับการเปลี่ยนชนิด `POSITION_ASSIGN` บนเส้นทางเดียวกันที่อ้างฉบับนั้นเองกับข้อ `BR-DOA-19` · ตำแหน่งที่มีงานค้างนับว่ามีอำนาจ · การทำให้ตำแหน่งว่างต้องยืนยันรายตำแหน่ง · ย้ายแผนกได้ครั้งละหนึ่งรายการ · cost center ไม่ย้ายแผนกด้วยการแก้พื้นฐาน · DOA ฉบับใหม่เริ่มก่อนหรือพร้อมฉบับที่อนุมัติล่วงหน้าไว้แล้วไม่ได้ | เสนอ |
+| ADR-043 | ลิงก์ตัดสินทางอีเมล: token เกิดและถูกเพิกถอนตาม event ของงานใน `runCommand` · secret ของลิงก์คำนวณจาก key ของเซิร์ฟเวอร์ เก็บเฉพาะ sha256 · งานนโยบายและงานที่ยอด ≥ `stepUpThreshold` ตัดสินในระบบเท่านั้น · ส่งการแจ้งเตือน IMMEDIATE ทางอีเมลจนกว่าจะมี LINE · ส่ง PO ภายในคำสั่ง `po.send` หลังล็อกแถวและไม่ลองซ้ำ ผู้ให้บริการปฏิเสธถาวร = ตีกลับ | เสนอ |
+| ADR-044 | สร้าง PDF ของ PR และ PO ด้วย `@react-pdf/renderer` 4.9.0 กับ Sarabun (ผล spike ของ OQ-18): แก้การวางวรรณยุกต์ด้วย `pnpm patch` ของ `@react-pdf/render` และแปลงสระอำกับจุดตัดคำไทยก่อนจัดบรรทัด · ล็อกเวอร์ชันของ library ที่การแก้พึ่ง · เทสต์ภาพทุกหน้าด้วย poppler ใน Docker | เสนอ |
 
 ### 18.2 สมมติฐาน
 

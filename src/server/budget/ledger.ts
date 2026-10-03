@@ -10,14 +10,30 @@ import type { EventDraft } from '@/server/events/append'
 // Running the ledger engine on stored budget lines (spec §7.7, S3-03), inside the calling command's transaction. The
 // balance row of the line is locked FOR UPDATE first (INV-BUD-05, ids in ascending order across lines, INV-PLT-03), the
 // engine works on the locked state, and the movements are written as ledger rows next to the new balance and the
-// allocations of the document lines (BR-BUD-01: never one without the other). Every ledger row names the event of
-// the operation, whose id is made here (INV-BUD-04). A refusal writes nothing.
+// allocations of the document lines (BR-BUD-01: never one without the other). Each kind of movement of an operation
+// is one event (an approved PO line gives back reservations and then holds: two events), whose id is made here and
+// named by its ledger rows (INV-BUD-04). A refusal writes nothing.
 
 export type BudgetEventType = 'budget.imported' | 'budget.reserved' | 'budget.reservation_released' | 'budget.committed' | 'budget.commitment_released' | 'budget.actualized'
 
+/** §7.7: the event of each movement between buckets */
+const EVENT_OF_MOVEMENT: Readonly<Record<string, BudgetEventType>> = {
+  'OUTSIDE>AVAILABLE': 'budget.imported',
+  'AVAILABLE>RESERVED': 'budget.reserved',
+  'RESERVED>AVAILABLE': 'budget.reservation_released',
+  'AVAILABLE>COMMITTED': 'budget.committed',
+  'COMMITTED>AVAILABLE': 'budget.commitment_released',
+  'COMMITTED>ACTUAL': 'budget.actualized',
+}
+
+function eventOf(m: Movement): BudgetEventType {
+  const type = EVENT_OF_MOVEMENT[`${m.from}>${m.to}`]
+  if (!type) throw new Error(`no budget event for a movement ${m.from} → ${m.to}`)
+  return type
+}
+
 export interface BudgetOperation {
   readonly budgetLineId: string
-  readonly event: BudgetEventType
   /** The document whose action moves the money (event data) */
   readonly document: { readonly type: 'IMPORT' | 'REQUEST' | 'PURCHASE_ORDER'; readonly id: string }
   readonly run: (state: LineState) => BudgetResult
@@ -84,22 +100,30 @@ export async function applyBudget(
   for (const { op, before, after, movements } of planned) {
     if (movements.length === 0) continue
     const balance = await tx.budgetLineBalance.findUniqueOrThrow({ where: { budgetLineId: op.budgetLineId }, select: { lastSeq: true } })
-    const eventId = newId()
-    const seqFrom = balance.lastSeq + 1
-    await tx.budgetLedgerEntry.createMany({
-      data: movements.map((m, i) => ({
-        organizationId: ctx.organizationId,
-        budgetLineId: op.budgetLineId,
-        seq: seqFrom + i,
-        fromBucket: m.from,
-        toBucket: m.to,
-        amountSatang: m.amount,
-        sourceType: m.sourceType,
-        sourceId: m.sourceId,
-        eventId,
-      })),
+    // Consecutive movements of one kind make one event; every ledger row names its event
+    const groups: Array<{ type: BudgetEventType; id: string; seqFrom: number; movements: Movement[] }> = []
+    movements.forEach((m, i) => {
+      const type = eventOf(m)
+      const last = groups.at(-1)
+      if (last && last.type === type) last.movements.push(m)
+      else groups.push({ type, id: newId(), seqFrom: balance.lastSeq + 1 + i, movements: [m] })
     })
-    const seqTo = seqFrom + movements.length - 1
+    await tx.budgetLedgerEntry.createMany({
+      data: groups.flatMap((g) =>
+        g.movements.map((m, i) => ({
+          organizationId: ctx.organizationId,
+          budgetLineId: op.budgetLineId,
+          seq: g.seqFrom + i,
+          fromBucket: m.from,
+          toBucket: m.to,
+          amountSatang: m.amount,
+          sourceType: m.sourceType,
+          sourceId: m.sourceId,
+          eventId: g.id,
+        })),
+      ),
+    })
+    const seqTo = balance.lastSeq + movements.length
     await tx.budgetLineBalance.update({
       where: { budgetLineId: op.budgetLineId },
       data: {
@@ -123,14 +147,21 @@ export async function applyBudget(
         update: { reservedSatang: a.reserved, committedSatang: a.committed, actualSatang: a.actual, version: { increment: 1 } },
       })
     }
-    const moved = movements.reduce((sum, m) => sum + m.amount, 0n)
-    events.push({
-      id: eventId,
-      type: op.event,
-      aggregateType: 'BudgetLine',
-      aggregateId: op.budgetLineId,
-      data: { documentType: op.document.type, documentId: op.document.id, amountSatang: moved.toString(), seqFrom, seqTo },
-    })
+    for (const g of groups) {
+      events.push({
+        id: g.id,
+        type: g.type,
+        aggregateType: 'BudgetLine',
+        aggregateId: op.budgetLineId,
+        data: {
+          documentType: op.document.type,
+          documentId: op.document.id,
+          amountSatang: g.movements.reduce((sum, m) => sum + m.amount, 0n).toString(),
+          seqFrom: g.seqFrom,
+          seqTo: g.seqFrom + g.movements.length - 1,
+        },
+      })
+    }
   }
   return { ok: true, events, lines: planned.map((p) => ({ budgetLineId: p.op.budgetLineId, before: p.before.buckets, after: p.after.buckets })) }
 }

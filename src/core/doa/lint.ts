@@ -29,19 +29,28 @@ export interface LintResult {
   readonly warnings: readonly LintIssue[]
 }
 
-/** BR-DOA-08 (ก): amount-only rules of one document type must cover (0, ∞) once. */
+/**
+ * BR-DOA-08 (ก): amount-only rules of one document type must cover (0, ∞) once. Bands are cut to (0, ∞) first: a band
+ * empty there covers no amount, so it can neither leave a gap nor overlap; they are then taken by lower end, then upper
+ * end (no end last), so the result never depends on the order of the rules.
+ */
 function coverageIssues(documentType: DoaDocumentType, rules: readonly DoaRuleSnapshot[]): LintIssue[] {
-  const bands = rules.map((r) => bandOf(r.when.amount!)).sort((a, b) => {
-    const la = a.lower ?? -1n
-    const lb = b.lower ?? -1n
-    return la < lb ? -1 : la > lb ? 1 : 0
-  })
+  const bands = rules
+    .map((r) => bandOf(r.when.amount!))
+    .map((b) => ({ lower: b.lower === null || b.lower < 0n ? 0n : b.lower, upper: b.upper }))
+    .filter((b) => b.upper === null || b.upper > b.lower)
+    .sort((a, b) => {
+      if (a.lower !== b.lower) return a.lower < b.lower ? -1 : 1
+      if (a.upper === b.upper) return 0
+      if (a.upper === null) return 1
+      if (b.upper === null) return -1
+      return a.upper < b.upper ? -1 : 1
+    })
   const issues: LintIssue[] = []
   // `covered` = everything up to and including this amount has a rule; amounts are above zero, so start at 0
   let covered: bigint | null = 0n
   for (const band of bands) {
-    // Amounts are above zero, so a band reaching below zero starts at zero
-    const lower = band.lower === null || band.lower < 0n ? 0n : band.lower
+    const lower = band.lower
     if (covered === null) {
       issues.push({ code: 'DOA_LINT_OVERLAP', documentType, gt: lower, lte: band.upper })
       continue
@@ -80,14 +89,22 @@ function vacant(rule: DoaRuleSnapshot, org: OrgSnapshot, at: Date): boolean {
 export function lintDoaVersion(version: DoaVersionSnapshot, org: OrgSnapshot, at: Date): LintResult {
   const errors: LintIssue[] = []
   for (const documentType of DOA_DOCUMENT_TYPES) {
-    const rules = version.rules.filter((r) => r.documentType === documentType)
-    if (rules.length > 0 && rules.every(isAmountOnly)) errors.push(...coverageIssues(documentType, rules))
+    // The amount-only rules of a type cover (0, ∞) whatever other rules the type has (as spec_check.py lint_version)
+    const rules = version.rules.filter((r) => r.documentType === documentType && isAmountOnly(r))
+    if (rules.length > 0) errors.push(...coverageIssues(documentType, rules))
   }
   for (const documentType of GOVERNANCE_DOCUMENT_TYPES) {
     if (!version.rules.some((r) => r.documentType === documentType)) errors.push({ code: 'DOA_LINT_MISSING_DOCTYPE', documentType })
   }
+  // A governance document has no amount: it routes to the rule chooseRule picks without one. If none can be picked
+  // (every rule needs an amount) or two tie, no change of DOA or authority could ever be approved
+  const unroutable = new Set<string>()
+  for (const documentType of GOVERNANCE_DOCUMENT_TYPES) {
+    const ofType = version.rules.filter((r) => r.documentType === documentType)
+    if (ofType.length > 0 && chooseRule(version, documentType, null).kind !== 'rule') for (const r of ofType) unroutable.add(r.code)
+  }
   for (const rule of version.rules) {
-    if (GOVERNANCE_DOCUMENT_TYPES.includes(rule.documentType) && !governanceResolvable(rule, org, at)) {
+    if (GOVERNANCE_DOCUMENT_TYPES.includes(rule.documentType) && (unroutable.has(rule.code) || !governanceResolvable(rule, org, at))) {
       errors.push({ code: 'DOA_LINT_UNRESOLVABLE_GOVERNANCE', rule: rule.code })
     }
   }

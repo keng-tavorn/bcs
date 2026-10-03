@@ -16,7 +16,7 @@ beforeAll(async () => {
 })
 
 const proc = () => org.ctxOf('proc_officer', NOW)
-const events = (aggregateId: string) => prisma.event.findMany({ where: { aggregateId }, orderBy: { occurredAt: 'asc' }, select: { type: true, data: true } })
+const events = (aggregateId: string) => prisma.event.findMany({ where: { aggregateId }, orderBy: { seq: 'asc' }, select: { type: true, data: true } })
 const code = () => `S-${randomUUID().slice(0, 8).toUpperCase()}`
 /** A company certificate PROCUREMENT uploaded, for a supplier the registries cannot confirm (BR-SUP-03) */
 const proof = async () =>

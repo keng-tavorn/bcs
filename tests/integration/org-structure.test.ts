@@ -30,7 +30,7 @@ beforeAll(async () => {
 })
 
 const admin = () => org.ctxOf('admin', NOW)
-const events = (aggregateId: string) => prisma.event.findMany({ where: { aggregateId }, orderBy: { occurredAt: 'asc' }, select: { type: true, data: true } })
+const events = (aggregateId: string) => prisma.event.findMany({ where: { aggregateId }, orderBy: { seq: 'asc' }, select: { type: true, data: true } })
 
 /** The CEO approves the change's task with a step-up, as the governance approver */
 async function ceoApproves(changeId: string) {

@@ -30,7 +30,8 @@ export function s3FromEnv(): S3Client {
   })
 }
 
-async function main() {
+/** Makes the bucket when it is missing and sets its CORS rule; returns whether it was made. Idempotent. */
+export async function ensureBucket(): Promise<{ created: boolean; allowed: string[] }> {
   const s3 = s3FromEnv()
   let created = false
   try {
@@ -61,6 +62,11 @@ async function main() {
       },
     }),
   )
+  return { created, allowed }
+}
+
+async function main() {
+  const { created, allowed } = await ensureBucket()
   console.log(`bucket ${bucket}: ${created ? 'สร้างใหม่' : 'มีอยู่แล้ว'} · ตั้ง CORS ให้ ${allowed.join(', ')}`)
 }
 

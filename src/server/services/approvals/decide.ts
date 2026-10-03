@@ -17,7 +17,7 @@ import { decidePolicyTask } from './policy-decide'
 import { decidePoTask } from '../purchase-orders/decide'
 import { decideVarianceTask } from '../receiving/variance-decide'
 import { releaseForRequest } from '../requests/budget'
-import { closeRoute, taskTimes } from './route'
+import { closeRoute, remindShareOf, taskTimes } from './route'
 
 // Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). The task's assignee decides, or the
 // delegator when a delegate holds it (BR-DLG-04); the task must still be OPEN; separation of duties is checked again at the moment of deciding (GC-SOD-01, GC-SOD-03).
@@ -172,7 +172,8 @@ export const decideCommand = defineCommand({
         const step = again.ok ? again.data.steps.find((s) => s.stepNo === next.stepNo) : undefined
         if (!step) return { ok: false, error: { code: 'APPROVER_NOT_FOUND', message: 'the next step has no approver', details: { stepNo: next.stepNo } } }
         const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
-        const times = taskTimes(ctx.now, next.slaBusinessMinutes, 0.5, calendar)
+        const doaVersion = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { escalationPolicy: true } })
+        const times = taskTimes(ctx.now, next.slaBusinessMinutes, remindShareOf(doaVersion.escalationPolicy), calendar)
         const created = await tx.approvalTask.create({
           data: { organizationId: ctx.organizationId, stepId: next.id, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, resolvedFrom: step.resolvedFrom, assignedAt: ctx.now, dueAt: times.dueAt, remindAt: times.remindAt },
           select: { id: true },
@@ -242,6 +243,8 @@ export const requestInfoCommand = defineCommand({
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const to = moveTask(task, 'approval.requestInfo')
     if (!to) return alreadyDecided(tx, task, 'approval.requestInfo')
+    // FR-INT-009 AC3: questions go to the requester of a purchase request; other tasks have no one to answer
+    if (task.step.route.subjectType !== 'REQUEST') return fail('VALIDATION_FAILED', `${task.step.route.subjectType} tasks take no questions`, { reason: 'SUBJECT' })
     const request = await tx.request.findUniqueOrThrow({ where: { id: task.step.route.subjectId } })
     const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
     // The SLA pauses: what is left is kept and counted again from the answer (GC-SLA-06)

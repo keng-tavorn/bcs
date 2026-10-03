@@ -13,8 +13,19 @@ import type { NotificationDraft } from '@/server/notifications/create'
 
 export type ApprovalSubject = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'
 
-/** How soon before the due time the assignee is reminded, as a share of the SLA (DoaVersion.escalationPolicy, OQ-35) */
-const DEFAULT_REMIND_PCT = 0.5
+/** When the assignee is reminded, as a share of the SLA (BR-SLA-02, OQ-06: half way) */
+const DEFAULT_REMIND_SHARE = 0.5
+const PERCENT = 100
+
+/**
+ * The reminder share of a DOA version (DoaVersion.escalationPolicy.remindPct): the DOA_Policy sheet and the seed
+ * keep it as a share of the SLA (0.5), while core remindAt takes a percent (GC-SLA-07: 50). Anything outside 0..1
+ * falls back to the default.
+ */
+export function remindShareOf(escalationPolicy: unknown): number {
+  const value = Number((escalationPolicy as { remindPct?: unknown } | null)?.remindPct ?? DEFAULT_REMIND_SHARE)
+  return Number.isFinite(value) && value >= 0 && value <= 1 ? value : DEFAULT_REMIND_SHARE
+}
 
 export interface StartedRoute {
   readonly route: RouteResult
@@ -24,9 +35,9 @@ export interface StartedRoute {
   readonly notifications: NotificationDraft[]
 }
 
-/** Times of a newly assigned task (BR-SLA-01..03): due after its SLA in business time, reminded part-way. */
-export function taskTimes(assignedAt: Date, slaMinutes: number, remindPct: number, calendar: BusinessCalendar): { dueAt: Date; remindAt: Date } {
-  return { dueAt: addBusinessMinutes(assignedAt, slaMinutes, calendar), remindAt: remindAt({ assignedAt, slaMinutes, remindPct }, calendar) }
+/** Times of a newly assigned task (BR-SLA-01..03): due after its SLA in business time, reminded part-way (a share). */
+export function taskTimes(assignedAt: Date, slaMinutes: number, remindShare: number, calendar: BusinessCalendar): { dueAt: Date; remindAt: Date } {
+  return { dueAt: addBusinessMinutes(assignedAt, slaMinutes, calendar), remindAt: remindAt({ assignedAt, slaMinutes, remindPct: Math.round(remindShare * PERCENT) }, calendar) }
 }
 
 /**
@@ -59,7 +70,7 @@ export async function storeRoute(
   if (route.steps.length === 0) return err('APPROVER_NOT_FOUND', 'the route has no approver', { ruleCode: route.ruleCode })
 
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { escalationPolicy: true } })
-  const remindPct = Number((version.escalationPolicy as { remindPct?: unknown } | null)?.remindPct ?? DEFAULT_REMIND_PCT)
+  const remindShare = remindShareOf(version.escalationPolicy)
   const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
 
   // Replaced routes of the same document are cancelled with their open tasks (BR-DOA-09)
@@ -90,7 +101,7 @@ export async function storeRoute(
       select: { id: true },
     })
     if (!isFirst) continue
-    const times = taskTimes(ctx.now, step.slaBusinessMinutes, remindPct, calendar)
+    const times = taskTimes(ctx.now, step.slaBusinessMinutes, remindShare, calendar)
     const task: { id: string } = await tx.approvalTask.create({
       data: {
         organizationId: ctx.organizationId,

@@ -6,7 +6,7 @@ import { systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
-import { decideTask } from '@/server/services/approvals/decide'
+import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow, listPool } from '@/server/services/procurement'
 import { cancelPurchaseOrder, editDraftPo, priceHistory, submitPo } from '@/server/services/purchase-orders'
 import { createDraft, submitRequest } from '@/server/services/requests'
@@ -262,6 +262,16 @@ describe('[FR-P2P-004/AC1] a PO goes to the approver of the PURCHASE_ORDER rule 
     await prisma.approvalTask.update({ where: { id: task.id }, data: { assigneeMemberId: org.member.proc_officer! } })
     expect(await decideTask(proc(), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'SOD_VIOLATION', details: { rule: 'BR-SOD-03' } } })
     expect(await prisma.event.findFirstOrThrow({ where: { type: 'security.sod_blocked', aggregateId: poId } })).toMatchObject({ data: { rule: 'BR-SOD-03' } })
+  })
+
+  it('[FR-INT-009/AC3] a PO approval task takes no question: only a purchase request has a requester to answer', async () => {
+    const line = await fundedLine(100_000n)
+    const pr = await approvedRequest(line, '1', '1000.00')
+    const poId = await draftPo([pr.lineId])
+    ok(await submitPo(proc(), { poId }, key()))
+    const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: poId } } } })
+    expect(await requestInfo(org.ctxOf(codeOf(task.assigneeMemberId), NOW), { taskId: task.id, question: 'ราคานี้รวมค่าส่งหรือไม่' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT' } } })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'OPEN' })
   })
 
   it('only PROCUREMENT sends a PO, only a draft, and the approver is told when it is approved', async () => {

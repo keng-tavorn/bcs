@@ -19,6 +19,7 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     DIRECT_URL: withDatabase(env.DIRECT_URL, E2E_DB),
     APP_URL: E2E_BASE_URL,
     BETTER_AUTH_URL: E2E_BASE_URL,
-    NEXT_DIST_DIR: '.next-e2e',
+    // A parallel run (one per agent) builds into its own folder under .e2e-runs/ (E2E_DIST_DIR)
+    NEXT_DIST_DIR: env.E2E_DIST_DIR ?? '.next-e2e',
   }
 }

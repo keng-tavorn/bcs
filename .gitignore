@@ -8,6 +8,7 @@ __pycache__/
 # Next.js
 .next/
 .next-e2e/
+.e2e-runs/
 out/
 next-env.d.ts
 *.tsbuildinfo

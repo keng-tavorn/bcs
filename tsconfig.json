@@ -47,6 +47,7 @@
     "scratch",
     ".worktrees",
     ".next-e2e",
+    ".e2e-runs",
     "src/server/db/generated"
   ]
 }

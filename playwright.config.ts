@@ -5,13 +5,17 @@ import { E2E_BASE_URL as BASE_URL, E2E_PORT as PORT, e2eEnv } from './tests/supp
 // e2e runs against a production build on its own port, build folder and database (bcs_e2e, reset and seeded by
 // tests/e2e/prepare-db.ts before the server starts) so it never clashes with the shared `next dev` on :3000.
 
+/** A parallel run keeps its screenshots and report apart (E2E_OUTPUT_DIR under .e2e-runs/); verify reads test-results/ */
+const OUTPUT_DIR = process.env.E2E_OUTPUT_DIR ?? 'test-results'
+
 export default defineConfig({
   testDir: 'tests/e2e',
+  outputDir: OUTPUT_DIR,
   fullyParallel: false,
   forbidOnly: true,
   retries: 0,
   workers: 1,
-  reporter: [['list'], ['json', { outputFile: 'test-results/e2e-results.json' }]],
+  reporter: [['list'], ['json', { outputFile: `${OUTPUT_DIR}/e2e-results.json` }]],
   use: {
     baseURL: BASE_URL,
     locale: 'th-TH',

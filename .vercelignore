@@ -1,0 +1,12 @@
+# Never upload local secrets or local-only folders with `vercel deploy` (Vercel ignores only .env.local by default).
+.env
+.env.*
+!.env.example
+scratch/
+test-results/
+playwright-report/
+.next/
+.next-e2e/
+.vitest/
+.worktrees/
+docs/inputs/*.xlsx~

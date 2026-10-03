@@ -1,0 +1,111 @@
+# CI (spec §4.12, §15.5, FR-PLT-006): every pull request runs `pnpm verify --strict --e2e` against the same local
+# services as a developer machine (docker-compose.yml), and a merge into main deploys staging (Vercel sin1, ADR-032)
+# and checks /api/health. Branch protection must require the "verify" job (docs/runbooks/github-setup.md).
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # The checks run like a developer machine: local services only, never a shared database (§4.12)
+      APP_ENV: local
+      CI: "true"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # verify compares migrations and ticks with git history
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Local services (Postgres, S3 storage, Mailpit, Inngest dev)
+        run: docker compose up -d --wait
+
+      - name: .env for this run (example values with fresh random secrets; nothing is stored)
+        run: |
+          cp .env.example .env
+          sed -i "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=base64:$(openssl rand -base64 32)|" .env
+          sed -i "s|^BETTER_AUTH_SECRET=.*|BETTER_AUTH_SECRET=$(openssl rand -hex 32)|" .env
+          sed -i "s|^SEED_DEV_PASSWORD=.*|SEED_DEV_PASSWORD=ci-$(openssl rand -hex 12)|" .env
+          sed -i "s|^SEED_TOTP_KEY=.*|SEED_TOTP_KEY=$(openssl rand -hex 32)|" .env
+
+      - run: pnpm install --frozen-lockfile
+
+      - run: pnpm exec playwright install --with-deps chromium
+
+      - name: Storage bucket and database
+        run: |
+          pnpm exec tsx --env-file=.env scripts/storage-init.ts
+          pnpm db:migrate
+
+      - name: pnpm verify --strict --e2e
+        run: pnpm verify --strict --e2e
+
+      - name: Test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            test-results/
+            .vitest/
+          retention-days: 14
+
+  deploy-staging:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Vercel's build (vercel.json buildCommand) applies pending migrations with DIRECT_URL, the migrator role, before
+      # building; the running app uses DATABASE_URL, the app role (FR-PLT-006 AC3)
+      - name: Deploy the staging project (APP_ENV=staging; --prod is the staging project's main URL, ADR-032)
+        id: deploy
+        run: |
+          url=$(pnpm dlx vercel@62.2.0 deploy --prod --yes --token "$VERCEL_TOKEN" \
+            --build-env APP_COMMIT_SHA=${{ github.sha }} --env APP_COMMIT_SHA=${{ github.sha }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: /api/health answers 200 with this commit (FR-PLT-006 AC2)
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: |
+          base="${STAGING_URL:-${{ steps.deploy.outputs.url }}}"
+          for attempt in 1 2 3 4 5 6; do
+            body=$(curl -fsS "$base/api/health") && break
+            sleep 10
+          done
+          echo "$body"
+          echo "$body" | grep -q '"status":"ok"'
+          echo "$body" | grep -q '"commit":"${{ github.sha }}"'

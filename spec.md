@@ -3098,7 +3098,7 @@ features:
 - [x] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ. — เสร็จ 2026-10-03 · d82ac37
   - เสร็จเมื่อ: ทุกเคสใน thai.yaml taxid.yaml dates.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก
+- [x] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก — เสร็จ 2026-10-03 · af0fa4b
   - เสร็จเมื่อ: ทุกเคสใน numbering.yaml ผ่าน และเทสต์ออกเลข 50 ใบพร้อมกันได้ 1 ถึง 50 ครบ (INV-NUM-01)
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
 - [ ] **S2-05** `[demo]` `core/doa`: resolveRoute lint ตารางผลที่ขอบ และนำเข้า YAML
@@ -3110,7 +3110,7 @@ features:
 - [x] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5) — เสร็จ 2026-10-03 · d82ac37
   - เสร็จเมื่อ: ทุกเคสใน sla.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef
+- [x] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef — เสร็จ 2026-10-03 · af0fa4b
   - เสร็จเมื่อ: ทุกเคสใน forms.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
 - [ ] **S2-09** `[demo]` state machine ของ Request ApprovalTask DoaVersion OrgAuthorityChange + เทสต์ทุกคู่สถานะ

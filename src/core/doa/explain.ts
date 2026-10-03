@@ -53,21 +53,23 @@ export function explainRouteTh(input: {
   basisAmount: bigint | null
   amountBasis: AmountBasis
   rule: DoaRuleSnapshot
-  escalatedFrom: { rule: DoaRuleSnapshot; conflicting: ExplainedStep[] } | null
+  /** The bands skipped because their approvers conflict, in order (BR-DOA-06) */
+  escalations: readonly { rule: DoaRuleSnapshot; conflicting: ExplainedStep[] }[]
   steps: readonly ExplainedStep[]
   org: OrgSnapshot
 }): string {
-  const { version, documentType, basisAmount, amountBasis, rule, escalatedFrom, steps, org } = input
-  const amountRule = escalatedFrom?.rule ?? rule
+  const { version, documentType, basisAmount, amountBasis, rule, escalations, steps, org } = input
+  const amountRule = escalations[0]?.rule ?? rule
   // Thai joins the document name and its amount without a space: "คำขอซื้อยอด 45,000.00 บาท (รวม VAT)"
   const subject = basisAmount !== null ? `${DOCUMENT_TH[documentType]}ยอด ${formatSatang(basisAmount)} บาท (${BASIS_TH[amountBasis]})` : DOCUMENT_TH[documentType]
   const parts = [`${version.code} ฉบับ ${version.versionNo} ข้อ ${rule.code}:`, subject]
   const band = bandTextTh(amountRule)
-  if (band) parts.push(escalatedFrom ? `${band} ของข้อ ${amountRule.code}` : band)
-  if (escalatedFrom) {
-    const first = escalatedFrom.conflicting.map((s) => approverTh(s, org)).join(' และ ')
-    parts.push(`→ ${first} มีส่วนเกี่ยวข้องกับเอกสารนี้ จึงยกไปข้อ ${rule.code} ของช่วงวงเงินถัดไป`)
-  }
+  if (band) parts.push(escalations.length ? `${band} ของข้อ ${amountRule.code}` : band)
+  escalations.forEach((skipped, i) => {
+    const who = skipped.conflicting.map((s) => approverTh(s, org)).join(' และ ')
+    const to = escalations[i + 1]?.rule ?? rule
+    parts.push(`→ ${who} มีส่วนเกี่ยวข้องกับเอกสารนี้ จึงยกไปข้อ ${to.code} ของช่วงวงเงินถัดไป`)
+  })
   parts.push(`→ ${steps.map((s) => approverTh(s, org)).join(' → ')}`)
   return parts.join(' ')
 }

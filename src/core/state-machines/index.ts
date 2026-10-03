@@ -36,7 +36,6 @@ export const REQUEST_COMMANDS = [
   'approval.return',
   'request.resubmit',
   'request.cancel',
-  'request.cancel_by_procurement',
   'po.approved_partially',
   'po.approved_fully',
   'request.cancel_remaining',
@@ -52,8 +51,9 @@ export const REQUEST_MACHINE = machine<RequestState, RequestCommand>('Request', 
   { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
   { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
   { from: ['RETURNED'], command: 'request.resubmit', to: 'PENDING_APPROVAL' },
-  { from: ['DRAFT', 'RETURNED', 'PENDING_APPROVAL'], command: 'request.cancel', to: 'CANCELLED' },
-  { from: ['APPROVED'], command: 'request.cancel_by_procurement', to: 'CANCELLED' },
+  // §6.4: by the requester before approval; by PROCUREMENT once APPROVED, with a reason and no line on a PO yet (the
+  // service checks who and when)
+  { from: ['DRAFT', 'RETURNED', 'PENDING_APPROVAL', 'APPROVED'], command: 'request.cancel', to: 'CANCELLED' },
   { from: ['APPROVED'], command: 'po.approved_partially', to: 'PARTIALLY_ORDERED' },
   { from: ['APPROVED', 'PARTIALLY_ORDERED'], command: 'po.approved_fully', to: 'ORDERED' },
   { from: ['APPROVED', 'PARTIALLY_ORDERED'], command: 'request.cancel_remaining', to: 'ORDERED' },
@@ -82,15 +82,15 @@ export const SUPPLIER_REQUEST_MACHINE = machine<SupplierRequestState, SupplierRe
 
 export const TASK_STATES = ['OPEN', 'INFO_REQUESTED', 'APPROVED', 'REJECTED', 'RETURNED', 'CANCELLED', 'REASSIGNED'] as const
 export type TaskState = (typeof TASK_STATES)[number]
-export const TASK_COMMANDS = ['approval.approve', 'approval.reject', 'approval.return', 'approval.request_info', 'request.provide_info', 'task.reassign', 'task.cancel'] as const
+export const TASK_COMMANDS = ['approval.approve', 'approval.reject', 'approval.return', 'approval.requestInfo', 'request.provideInfo', 'task.reassign', 'task.cancel'] as const
 export type TaskCommand = (typeof TASK_COMMANDS)[number]
 
 export const TASK_MACHINE = machine<TaskState, TaskCommand>('ApprovalTask', TASK_STATES, TASK_COMMANDS, [
   { from: ['OPEN'], command: 'approval.approve', to: 'APPROVED' },
   { from: ['OPEN'], command: 'approval.reject', to: 'REJECTED' },
   { from: ['OPEN'], command: 'approval.return', to: 'RETURNED' },
-  { from: ['OPEN'], command: 'approval.request_info', to: 'INFO_REQUESTED' },
-  { from: ['INFO_REQUESTED'], command: 'request.provide_info', to: 'OPEN' },
+  { from: ['OPEN'], command: 'approval.requestInfo', to: 'INFO_REQUESTED' },
+  { from: ['INFO_REQUESTED'], command: 'request.provideInfo', to: 'OPEN' },
   // delegation starts or ends, or ORG_ADMIN reassigns
   { from: ['OPEN', 'INFO_REQUESTED'], command: 'task.reassign', to: 'REASSIGNED' },
   // the route is cancelled, or another assignee of the step decided first

@@ -37,17 +37,19 @@ export function inEffect(delegation: DelegationSnapshot, at: Date): boolean {
 
 /**
  * Who holds a task whose approver came from a position (BR-DLG-04). Only the approver's own delegations count, one hop:
- * a task a delegate received is never passed on by the delegate's delegations (BR-DLG-02).
+ * a task a delegate received is never passed on by the delegate's delegations (BR-DLG-02). A delegate who is not ACTIVE
+ * holds nothing (BR-DLG-03): the delegation is skipped as if revoked.
  */
 export function delegateFor(
   approver: { readonly memberId: string; readonly viaPosition: boolean },
   context: DelegationContext,
   delegations: readonly DelegationSnapshot[],
+  isActive: (memberId: string) => boolean = () => true,
 ): DelegatedAssignee {
   const keep: DelegatedAssignee = { assigneeMemberId: approver.memberId, principalMemberId: null, notifyOrgAdmin: false }
   if (!approver.viaPosition) return keep
   const candidates = delegations
-    .filter((d) => d.delegatorMemberId === approver.memberId && d.delegateMemberId !== approver.memberId && inEffect(d, context.at) && covers(d, context))
+    .filter((d) => d.delegatorMemberId === approver.memberId && d.delegateMemberId !== approver.memberId && isActive(d.delegateMemberId) && inEffect(d, context.at) && covers(d, context))
     // Periods of one delegator never overlap (BR-DLG-03); if data ever did, the latest start wins, then the smaller id
     // (ids are unique, so no two compare equal)
     .sort((a, b) => b.startsAt.getTime() - a.startsAt.getTime() || (a.id < b.id ? -1 : 1))

@@ -7,7 +7,7 @@ import type { AppError } from '@/core/result'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
-import { authorize } from '@/server/authz'
+import { authorize, loadPrincipal, matchingGrants } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -454,9 +454,10 @@ export function editRequest(ctx: Ctx, input: z.input<typeof EditInput>, options:
   return runCommand(ctx, editCommand, input, options)
 }
 
-// ---------- cancel by the requester (§6.4, FR-INT-009 AC1) ----------
+// ---------- cancel (§6.4, §2.4 request.cancel, FR-INT-009 AC1) ----------
 
 const CancelInput = z.strictObject({ requestId: z.uuid(), reason: z.string().trim().max(REASON_MAX_LENGTH).optional() })
+const MIN_CANCEL_REASON_LENGTH = 3
 
 export const cancelCommand = defineCommand({
   name: 'request.cancel',
@@ -465,10 +466,22 @@ export const cancelCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string }>> {
     const request = await lockedRequest(tx, ctx, input.requestId)
     if (!request) return fail('NOT_FOUND', 'request not found')
-    const allowed = await authorize(tx, ctx, 'request.cancel', { ownerMemberIds: [request.requesterMemberId] })
-    if (!allowed.ok) return { ok: false, error: allowed.error }
-    const moved = move(request.status as RequestState, 'request.cancel')
-    if (!moved.ok) return moved
+    // §2.4: the requester before any PO (NO_PO_YET); PROCUREMENT for an APPROVED request not yet ordered, with a reason
+    const grants = matchingGrants(await loadPrincipal(tx, ctx), 'request.cancel', { ownerMemberIds: [request.requesterMemberId] })
+    const asOwner = grants.some((g) => g.condition === 'NO_PO_YET')
+    const asProcurement = grants.some((g) => g.condition === 'APPROVED_NOT_ORDERED_WITH_REASON')
+    if (!asOwner && !(asProcurement && request.status === 'APPROVED')) return { ok: false, error: { code: 'FORBIDDEN', message: 'missing capability request.cancel', details: { capability: 'request.cancel' } } }
+    if (!asOwner && (input.reason ?? '').length < MIN_CANCEL_REASON_LENGTH) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason' })
+    // A new-supplier request has its own states (§6.4)
+    const transitioned =
+      request.documentType === 'SUPPLIER_REQUEST'
+        ? transition(SUPPLIER_REQUEST_MACHINE, request.status as SupplierRequestState, 'request.cancel')
+        : transition(REQUEST_MACHINE, request.status as RequestState, 'request.cancel')
+    if (!transitioned.ok) return fail('INVALID_STATE_TRANSITION', `request.cancel is not allowed from ${request.status}`, { from: request.status, command: 'request.cancel' })
+    const moved = { ok: true as const, to: transitioned.to }
+    if (request.status === 'APPROVED' && (await tx.poLineSource.count({ where: { requestLine: { requestId: request.id }, poLine: { po: { status: { notIn: ['REJECTED', 'CANCELLED'] } } } } }))) {
+      return fail('INVALID_STATE_TRANSITION', 'a line of the request is on a purchase order', { from: request.status, command: 'request.cancel', reason: 'ON_PO' })
+    }
     const closed = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'REQUEST_CANCELLED')
     // FR-INT-009 AC1: the budget the request reserved goes back at once (§6.4)
     const released = await releaseForRequest(tx, ctx, request.id, request.lines.map((l) => l.id))

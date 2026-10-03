@@ -84,14 +84,15 @@ describe('[FR-DOA-003/AC1] amount bands and rule choice (BR-DOA-02, BR-DOA-03)',
     expect(chooseRule(withRules([narrow, general]), 'PURCHASE_REQUEST', B(5), (r) => r.code === 'B')).toEqual({ kind: 'rule', rule: general })
   })
 
-  it('lists the higher bands above a lower bound, skipping bands without one', () => {
+  it('lists the bands that start at or above an upper end, nearest first, skipping bands without a lower end', () => {
     const version = withRules([rule('A', { when: { amount: { lte: B(10) } } }), rule('B', { when: { amount: { gt: B(10), lte: B(20) } } }), rule('C', { when: { amount: { gt: B(20) } } })])
-    expect(higherBandLowers(version, 'PURCHASE_REQUEST', null)).toEqual([B(10), B(20)])
-    expect(higherBandLowers(version, 'PURCHASE_REQUEST', B(10))).toEqual([B(20)])
-    expect(higherBandLowers(version, 'PURCHASE_ORDER', null)).toEqual([])
+    expect(higherBandLowers(version, 'PURCHASE_REQUEST', B(10))).toEqual([B(10), B(20)])
+    expect(higherBandLowers(version, 'PURCHASE_REQUEST', B(20))).toEqual([B(20)])
+    expect(higherBandLowers(version, 'PURCHASE_REQUEST', B(21))).toEqual([])
+    expect(higherBandLowers(version, 'PURCHASE_ORDER', 0n)).toEqual([])
     // Bands listed from the top down come out in order as well
     const reversed = withRules([...version.rules].reverse())
-    expect(higherBandLowers(reversed, 'PURCHASE_REQUEST', null)).toEqual([B(10), B(20)])
+    expect(higherBandLowers(reversed, 'PURCHASE_REQUEST', 0n)).toEqual([B(10), B(20)])
     expect(boundaryTable(reversed, 'PURCHASE_REQUEST').map((r) => r.ruleCode)).toEqual(['A', 'B', 'B', 'C'])
   })
 })
@@ -226,7 +227,7 @@ describe('[FR-DOA-003/AC1] resolveRoute paths beyond the golden cases', () => {
       basisAmount: B(1),
       amountBasis: 'GROSS',
       rule: rule('X'),
-      escalatedFrom: null,
+      escalations: [],
       steps: [
         { resolvedFrom: 'POSITION:DM@GONE', assigneeMemberId: 'a', principalMemberId: null },
         { resolvedFrom: 'MEMBER:b', assigneeMemberId: 'b', principalMemberId: 'c' },
@@ -358,5 +359,66 @@ describe('[INV-DOA-02] resolveRoute gives the same result for the same input and
       ),
       { numRuns: 1000 },
     )
+  })
+})
+
+// Defects the independent verification of S2 found and a judge confirmed (scratch/s2v): each case is the input it reported
+describe('[FR-DOA-003/AC1] [FR-DOA-002/AC1] [FR-DOA-006/AC1] the DOA engine after the S2 verification', () => {
+  it('escalates only to a band wholly above the one whose approver conflicts (BR-DOA-06, D-AUTH-02)', () => {
+    const clerk = rule('PR-Z', { when: { amount: { gte: 0n, lte: 0n } }, steps: [{ approver: { kind: 'POSITION_OF_DEPARTMENT', position: 'DM' }, slaBusinessMinutes: 60, mode: 'SEQUENTIAL' }] })
+    const version = withRules([clerk, ...v1().rules])
+    const r = resolveRoute(input({ amount: { netSatang: B(15000), vatSatang: 0n }, requesterMemberId: 'dm_con', conflictMemberIds: ['dm_con'] }), policy({ versions: [version] }))
+    expect(r).toMatchObject({ ok: true, data: { ruleCode: 'PR-02', escalatedFromRuleCode: 'PR-01', steps: [{ assigneeMemberId: 'vp_ops' }] } })
+  })
+
+  it('names every band it skips in the explanation (BR-DOA-10, D-AUTH-05)', () => {
+    const r = resolveRoute(input({ amount: { netSatang: B(15000), vatSatang: 0n }, requesterMemberId: 'dm_con', conflictMemberIds: ['dm_con', 'vp_ops'] }), policy())
+    expect(r).toMatchObject({ ok: true, data: { ruleCode: 'PR-03', escalatedFromRuleCode: 'PR-01' } })
+    const text = r.ok ? r.data.explanationTh : ''
+    expect(text).toContain('จึงยกไปข้อ PR-02 ของช่วงวงเงินถัดไป')
+    expect(text).toContain('จึงยกไปข้อ PR-03 ของช่วงวงเงินถัดไป')
+  })
+
+  it('never gives a task to a delegate who is not ACTIVE (BR-DLG-03, D-AUTH-03)', () => {
+    const org = orgSnapshot()
+    const inactive = { ...org, members: org.members.map((m) => (m.id === 'asst_con' ? { ...m, active: false } : m)) }
+    const d = { id: 'D1', delegatorMemberId: 'dm_con', delegateMemberId: 'asst_con', startsAt: new Date('2026-10-05T00:00:00+07:00'), endsAt: new Date('2026-10-10T00:00:00+07:00'), documentTypes: null, maxAmountSatang: null, status: 'ACTIVE' as const }
+    const amount = { netSatang: B(10000), vatSatang: 0n }
+    expect(resolveRoute(input({ amount }), policy({ org, delegations: [d] }))).toMatchObject({ ok: true, data: { steps: [{ assigneeMemberId: 'asst_con', principalMemberId: 'dm_con' }] } })
+    expect(resolveRoute(input({ amount }), policy({ org: inactive, delegations: [d] }))).toMatchObject({ ok: true, data: { steps: [{ assigneeMemberId: 'dm_con', principalMemberId: null }] } })
+  })
+
+  it('checks the amount bands of a type even when it also has rules without an amount (BR-DOA-08 (ก), D-AUTH-01)', () => {
+    const anyAmount = rule('PR-X', { when: {}, steps: [{ approver: { kind: 'POSITION_OF_ORG', position: 'COO' }, slaBusinessMinutes: 60, mode: 'SEQUENTIAL' }] })
+    const overlapping = withRules([...v1().rules.map((r) => (r.code === 'PR-02' ? { ...r, when: { amount: { gt: B(15000), lte: B(100000) } } } : r)), anyAmount])
+    expect(lintDoaVersion(overlapping, orgSnapshot(), overlapping.effectiveFrom).errors).toEqual([{ code: 'DOA_LINT_OVERLAP', documentType: 'PURCHASE_REQUEST', gt: B(15000), lte: B(20000) }])
+  })
+
+  it('reads bands empty above zero as covering nothing, whatever their order (D-AUTH-06)', () => {
+    const empty = rule('PR-Z', { when: { amount: { gte: 0n, lte: 0n } } })
+    for (const rules of [[...v1().rules, empty], [empty, ...v1().rules]]) {
+      const version = withRules(rules)
+      expect(lintDoaVersion(version, orgSnapshot(), version.effectiveFrom).errors).toEqual([])
+    }
+  })
+
+  it('finds the same overlaps whatever the order of bands sharing a lower end, nested or open-ended', () => {
+    const band = (code: string, gt: number, lte: number | null) => rule(code, { when: { amount: { gt: B(gt), ...(lte === null ? {} : { lte: B(lte) }) } } })
+    const bands = [band('C', 0, null), band('A', 0, 100), band('E', 20, 30), band('B', 0, 50), band('D', 0, 100)]
+    const expected = [
+      { code: 'DOA_LINT_OVERLAP', documentType: 'PURCHASE_REQUEST', gt: 0n, lte: B(50) },
+      { code: 'DOA_LINT_OVERLAP', documentType: 'PURCHASE_REQUEST', gt: 0n, lte: B(100) },
+      { code: 'DOA_LINT_OVERLAP', documentType: 'PURCHASE_REQUEST', gt: 0n, lte: B(100) },
+      { code: 'DOA_LINT_OVERLAP', documentType: 'PURCHASE_REQUEST', gt: B(20), lte: B(30) },
+    ]
+    for (const order of [bands, [...bands].reverse(), [bands[3]!, bands[0]!, bands[4]!, bands[2]!, bands[1]!]]) {
+      const version = withRules([...order, ...v1().rules.filter((r) => r.documentType !== 'PURCHASE_REQUEST')])
+      expect(lintDoaVersion(version, orgSnapshot(), version.effectiveFrom).errors).toEqual(expected)
+    }
+  })
+
+  it('refuses a governance rule that no change can ever be routed to (BR-DOA-08 (จ), D-AUTH-04)', () => {
+    const version = withRules(v1().rules.map((r) => (r.code === 'DOA-CHG-01' ? { ...r, when: { amount: { gt: 0n } } } : r)))
+    expect(lintDoaVersion(version, orgSnapshot(), version.effectiveFrom).errors).toEqual(expect.arrayContaining([{ code: 'DOA_LINT_UNRESOLVABLE_GOVERNANCE', rule: 'DOA-CHG-01' }]))
   })
 })

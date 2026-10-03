@@ -62,8 +62,24 @@ describe('[FR-INT-002/AC1] form conditions (§7.9)', () => {
             { kind: 'FIELD', field: 'why', op: 'notEmpty' },
           ],
         },
+        // an `any` with no option can never be met (§7.9, as the reference run_forms)
+        { rule: 'R3', missing: [{ kind: 'NO_OPTION' }] },
       ],
     })
+  })
+
+  it('compares money conditions in satang whether written as baht text or a number, and never a missing answer with text', () => {
+    const money = input({}, {}, 500_000n)
+    // 5,000.00 is not above 100,000 (written as a number) nor above "100000.00"
+    expect(evaluateCondition({ field: '$amountGross', op: 'gt', value: 100000 }, money)).toBe(false)
+    expect(evaluateCondition({ field: '$amountGross', op: 'lte', value: 5000 }, money)).toBe(true)
+    expect(evaluateCondition({ field: '$amountGross', op: 'in', value: ['5000.00', '1.00'] }, money)).toBe(true)
+    expect(evaluateCondition({ field: '$amountGross', op: 'gt', value: '1.005' }, money)).toBe(false)
+    expect(evaluateCondition({ field: 'processesPersonalData', op: 'eq', value: 'undefined' }, input({}))).toBe(false)
+    expect(evaluateCondition({ field: 'processesPersonalData', op: 'eq', value: 'null' }, input({ processesPersonalData: null }))).toBe(false)
+    expect(evaluateCondition({ field: 'processesPersonalData', op: 'ne', value: 'Y' }, input({}))).toBe(true)
+    expect(evaluateCondition({ field: 'kind', op: 'in', value: ['A', 'B'] }, input({ kind: 'B' }))).toBe(true)
+    expect(evaluateCondition({ field: 'kind', op: 'in', value: 'A' }, input({ kind: 'A' }))).toBe(false)
   })
 
   it('needs exactly one existing quote, and treats equal prices before VAT as lowest together', () => {

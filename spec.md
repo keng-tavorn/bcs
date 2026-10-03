@@ -2686,7 +2686,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `comment.added` `comment.retracted` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
@@ -3430,6 +3430,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-16** `[demo]` เพิ่ม event `notification.read` ในแคตตาล็อก §10.2 เพราะการทำเครื่องหมายว่าอ่านแล้วในกระดิ่ง (FR-NOTI-001 AC1) เป็น command ที่ต้องมี Event · สมาชิกทำได้กับการแจ้งเตือนของตนเองเท่านั้น (`self.notificationPrefs` · ตนเอง) · พบระหว่าง S2-14 — เสร็จ 2026-10-03 · 33cc2e8
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/notification.ts` · เทสต์ AC1 และ AC3 ของ FR-NOTI-001 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม S2-14)
+- [ ] **NEW-17** `[demo]` เพิ่ม event `request.draft_expiry_notified` ในแคตตาล็อก §10.2 เพราะการแจ้งผู้ขอว่าร่างที่ไม่ได้แก้จะถูกลบ (FR-INT-006 AC3) เป็น command ที่ต้องมี Event · การลบร่างใช้การยกเลิกโดยระบบตาม §6.4 (`request.cancelled` เหตุผล `STALE_DRAFT`) จึงเก็บประวัติไว้ · แจ้งเมื่อไม่ได้แก้ 83 วัน ลบเมื่อครบ 90 วันและหลังแจ้งอย่างน้อย 7 วัน · พบระหว่าง NEW-07
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/request.ts` · เทสต์ AC3 ของ FR-INT-006 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม NEW-07)
 
 ---
 

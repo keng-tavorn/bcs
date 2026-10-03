@@ -17,6 +17,7 @@ export const RETRYABLE_TX_ERROR_CODES: ReadonlySet<string> = new Set(['P2034', '
 
 // ---------- Authentication (FR-AUTH-001..003, NFR-SEC-03..05) ----------
 export const MS_PER_HOUR = 60 * MS_PER_MINUTE
+export const MS_PER_DAY = 24 * MS_PER_HOUR
 export const PASSWORD_MIN_LENGTH = 12
 /** Web session: absolute lifetime 12 h, idle 30 min; LIFF: idle 15 min (FR-AUTH-003 AC1) */
 export const SESSION_ABSOLUTE_MS = 12 * MS_PER_HOUR

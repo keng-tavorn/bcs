@@ -35,6 +35,8 @@ defineEvents('Request', {
   'request.approved': { schema: z.object({ routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1) }) },
   'request.rejected': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
   'request.cancelled': { schema: z.object({ from: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
+  // FR-INT-006 AC3 (NEW-07, NEW-17): the requester of an idle draft is told when it will be removed
+  'request.draft_expiry_notified': { schema: z.object({ deleteOn: z.iso.datetime({ offset: true }) }) },
   'request.info_requested': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
   'request.info_provided': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
 })

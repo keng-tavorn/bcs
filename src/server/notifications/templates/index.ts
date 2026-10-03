@@ -55,6 +55,11 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `ผู้ขอตอบข้อมูลของคำขอ ${ref(d)} แล้ว`, en: `The requester answered on request ${ref(d)}` },
     href: d.taskId ? `/tasks/${str(d.taskId)}` : `/requests/${str(d.requestId)}`,
   }),
+  'request.draft_expiring': (d) => ({
+    title: { th: `ร่างคำขอ ${ref(d)} จะถูกลบเพราะไม่ได้แก้ไขนาน`, en: `Your draft ${ref(d)} will be removed because it has not been edited` },
+    body: { th: 'เปิดร่างแล้วบันทึกอีกครั้งเพื่อเก็บไว้ หรือปล่อยไว้ถ้าไม่ใช้แล้ว', en: 'Open and save it again to keep it, or leave it if you no longer need it' },
+    href: `/requests/${str(d.requestId)}`,
+  }),
   'supplier_request.submitted': (d) => ({
     title: { th: `มีคำขอเพิ่มผู้ขายรายใหม่ ${ref(d)}`, en: `New supplier request ${ref(d)}` },
     href: `/requests/${str(d.requestId)}`,

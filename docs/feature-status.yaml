@@ -315,11 +315,12 @@ features:
     verifiedBy: null
     notes: "service และฟอร์มของ S2-17 เสร็จ · หน้ากรอกใบเสนอราคา คำถามคัดกรอง และรายการไฟล์ที่ต้องแนบ (AC1 AC2) มากับฟอร์มคำขอของ S2-11"
   FR-INT-006:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/stale-drafts.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 ร่างที่ไม่ได้แก้ (NEW-07) · AC1–AC2 บันทึกอัตโนมัติและแก้ข้ามอุปกรณ์มากับฟอร์มคำขอของ S2-11"
   FR-INT-007:
     status: done
     step: S2

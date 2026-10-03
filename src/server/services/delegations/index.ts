@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES } from '@/core/doa'
 import { validateNewDelegation } from '@/core/delegation'
+import { DELEGATION_MACHINE, transition, type DelegationState } from '@/core/state-machines'
 import { amountToSatang } from '@/core/money/dto'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -154,4 +155,19 @@ export async function revokeDelegationsOf(tx: TenantTx, ctx: Ctx, memberId: stri
     notifications.push({ recipientMemberId: other, templateKey: 'delegation.revoked', data: { delegationId: id }, urgency: 'IMMEDIATE', dedupeKey: `delegation.revoked:${id}`, subjectType: 'DELEGATION', subjectId: id })
   }
   return { count: events.length, events, notifications }
+}
+
+/**
+ * The stored status follows the period (§6.4 Delegation: SCHEDULED → ACTIVE at startsAt, ACTIVE → ENDED at endsAt),
+ * written by the delegation-window job's commands in their transaction, which holds the delegation's row lock and
+ * records delegation.started or delegation.ended (S5-07, src/server/services/sla/delegation-window.ts). An ended
+ * delegation can no longer be revoked, and deactivating either side leaves it alone. Returns the new status, or null
+ * when the move does not apply (ACTIVE already at its start — it was set while running — revoked, or ended).
+ */
+export async function markDelegationWindow(tx: TenantTx, delegationId: string, command: 'delegation.start' | 'delegation.end'): Promise<DelegationState | null> {
+  const d = await tx.delegation.findUniqueOrThrow({ where: { id: delegationId }, select: { status: true } })
+  const moved = transition(DELEGATION_MACHINE, d.status as DelegationState, command)
+  if (!moved.ok) return null
+  await tx.delegation.update({ where: { id: delegationId }, data: { status: moved.to } })
+  return moved.to
 }

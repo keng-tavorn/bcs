@@ -18,4 +18,7 @@ defineEvents('Member', {
   'member.role_revoked': { schema: z.object({ role }) },
   // Not in the §10.2 catalog (added, see §16.11)
   'member.session_revoked': { schema: z.object({ sessionId: z.uuid(), self: z.boolean() }) },
+  // NEW-31 (FR-LINE-006 AC3): a member turns their own daily summary off or on. Approval and SLA notices cannot be
+  // turned off (BR-NOTI-04), so the summary is the only preference this event carries.
+  'member.notification_prefs_updated': { schema: z.object({ digest: z.boolean() }) },
 })

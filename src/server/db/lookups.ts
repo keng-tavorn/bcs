@@ -29,6 +29,24 @@ export async function findInvitationByTokenHash(tokenHash: string): Promise<Invi
   })
 }
 
+/**
+ * The organization whose LINE channel answers at /api/webhooks/line/<channelKey> (§9.1, S5-02). channelKey is public
+ * (it is the webhook path), so finding the organization proves nothing: the webhook still checks x-line-signature with
+ * that organization's channel secret before it reads anything (BR-LINE-03). null when no channel has this key.
+ */
+export async function findLineChannelOrganization(channelKey: string): Promise<{ readonly organizationId: string } | null> {
+  return systemDb.lineChannelConfig.findUnique({ where: { channelKey }, select: { organizationId: true } })
+}
+
+/**
+ * Every organization that has a LINE channel, switched on or not: the line-webhook sweep looks at the webhook events of
+ * each (S5-02, BR-LINE-05). Ids only.
+ */
+export async function listLineChannelOrganizationIds(): Promise<string[]> {
+  const rows = await systemDb.lineChannelConfig.findMany({ select: { organizationId: true }, orderBy: { organizationId: 'asc' } })
+  return rows.map((r) => r.organizationId)
+}
+
 /** True when the id belongs to an active member of the BCS team (PLATFORM_ADMIN, §2.2). */
 export async function isActivePlatformAdmin(platformAdminId: string): Promise<boolean> {
   const admin = await systemDb.platformAdmin.findUnique({ where: { id: platformAdminId }, select: { active: true } })

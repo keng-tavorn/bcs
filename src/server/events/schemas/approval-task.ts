@@ -48,4 +48,34 @@ defineEvents('ApprovalTask', {
     schema: z.object({ fromTaskId: z.uuid(), fromMemberId: z.uuid(), toMemberId: z.uuid(), why: z.enum(['ORG_AUTHORITY_CHANGE', 'DELEGATION', 'ADMIN']), changeId: z.uuid().nullable() }),
   },
   'approval_task.cancelled': { schema: z.object({ subjectId: z.uuid(), why: z.enum(['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED']) }) },
+  // BR-SLA-02, BR-SLA-04, FR-NOTI-003 AC1 (S5-07): the SLA job marks an open task past its due time; the assignee and,
+  // for acknowledgement, the approver of the next amount band are told (nextBandMemberId, null when there is none)
+  'approval_task.overdue': {
+    schema: z.object({
+      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectId: z.uuid(),
+      dueAt: z.iso.datetime({ offset: true }),
+      escalateAt: z.iso.datetime({ offset: true }),
+      nextBandMemberId: z.uuid().nullable(),
+    }),
+  },
+  // BR-SLA-04, FR-NOTI-003 AC2 (S5-08): past escalateAt the approver of the next band joins the step as co-assignee
+  // (whoever decides first decides) — the event keeps the route's own DOA reference (doaVersionId, doaRuleCode, also
+  // on the Event columns) and both tasks carry escalatedAt; with no next band, ORG_ADMIN and the requester are told
+  'approval_task.escalated': {
+    schema: z.object({
+      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectId: z.uuid(),
+      stepId: z.uuid(),
+      outcome: z.enum(['CO_ASSIGNED', 'NO_NEXT_BAND']),
+      reason: z.enum(['NO_HIGHER_BAND', 'APPROVER_NOT_FOUND', 'DOA_AMBIGUOUS', 'NOT_LAST_STEP']).nullable(),
+      coAssigneeTaskId: z.uuid().nullable(),
+      coAssigneeMemberId: z.uuid().nullable(),
+      coAssigneePrincipalMemberId: z.uuid().nullable(),
+      resolvedFrom: z.string().min(1).nullable(),
+      doaVersionId: z.uuid(),
+      doaRuleCode: z.string().min(1),
+      nextRuleCode: z.string().min(1).nullable(),
+    }),
+  },
 })

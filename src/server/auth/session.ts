@@ -5,6 +5,7 @@ import { systemDb } from '@/server/db/system'
 import { forTenant } from '@/server/db/tenant'
 import { STORED_ROLES, type StoredRole } from '@/server/authz/permissions'
 import { auth } from './auth'
+import { isLiffSessionToken, liffSessionMemberIds } from './liff'
 
 // Resolves the signed-in member from the request (spec §4.3 step 3). Session limits run on real time — the
 // "security clock" — so e2e time travel of business time never signs anybody out (FR-AUTH-003 AC1):
@@ -77,13 +78,17 @@ export async function holdsDoaReferencedPosition(organizationId: string, memberI
 type ValidatedSession =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'expired' }
-  | { readonly kind: 'valid'; readonly userId: string; readonly sessionId: string; readonly twoFactorEnabled: boolean }
+  | { readonly kind: 'valid'; readonly userId: string; readonly sessionId: string; readonly twoFactorEnabled: boolean; readonly liff: boolean }
 
 /** Session limits on real time (FR-AUTH-003 AC1): expired sessions are deleted; activity is recorded at most every few minutes. */
 async function validateSession(headers: Headers, opts: { channel?: SessionChannel; now?: Date }): Promise<ValidatedSession> {
   const result = await auth.api.getSession({ headers })
   if (!result) return { kind: 'anonymous' }
   const { session, user } = result
+  // A session opened from a LIFF ID token is for LIFF pages only (§9.4, liff.ts): elsewhere it is no session, so a LINE
+  // login never stands in for the password and TOTP the workspace asks for (FR-AUTH-002 AC1). It is kept for LIFF.
+  const liff = isLiffSessionToken(session.token)
+  if (liff && opts.channel !== 'LIFF') return { kind: 'anonymous' }
   const now = (opts.now ?? systemClock.now()).getTime()
   const createdAt = new Date(session.createdAt).getTime()
   const lastActive = session.lastActiveAt ? new Date(session.lastActiveAt).getTime() : createdAt
@@ -95,18 +100,27 @@ async function validateSession(headers: Headers, opts: { channel?: SessionChanne
   if (now - lastActive >= SESSION_TOUCH_AFTER_MS) {
     await systemDb.session.update({ where: { id: session.id }, data: { lastActiveAt: new Date(now) } })
   }
-  return { kind: 'valid', userId: user.id, sessionId: session.id, twoFactorEnabled: Boolean(user.twoFactorEnabled) }
+  return { kind: 'valid', userId: user.id, sessionId: session.id, twoFactorEnabled: Boolean(user.twoFactorEnabled), liff }
 }
 
 export async function resolveSession(headers: Headers, opts: { channel?: SessionChannel; now?: Date } = {}): Promise<SessionState> {
   const validated = await validateSession(headers, opts)
   if (validated.kind !== 'valid') return validated
   const { userId, sessionId } = validated
-  const members = await systemDb.member.findMany({
+  let members = await systemDb.member.findMany({
     where: { userId, status: 'ACTIVE', organization: { status: 'ACTIVE' } },
     include: { organization: { select: { legalNameTh: true, displayName: true } } },
     orderBy: { createdAt: 'asc' },
   })
+  if (validated.liff) {
+    // A LIFF session acts only as a member whose LINE link still stands where LINE is on (liff.ts); with none left, it ends
+    const linked = await liffSessionMemberIds(userId)
+    members = members.filter((m) => linked.has(m.id))
+    if (members.length === 0) {
+      await systemDb.session.deleteMany({ where: { id: sessionId } })
+      return { kind: 'anonymous' }
+    }
+  }
   if (members.length === 0) return { kind: 'no-membership', userId }
   const preferred = readCookie(headers, ORG_COOKIE)
   const member = members.find((m) => m.organizationId === preferred) ?? members[0]!

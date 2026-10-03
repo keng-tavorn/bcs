@@ -1,3 +1,5 @@
+import { SLA_TEMPLATES } from './sla'
+
 // Notification templates (spec §4.7 rule 5, §10.1): each template turns a notification's data into a short text in
 // Thai and English and the page it links to (BR-NOTI-02). The in-app list (FR-NOTI-001) uses them now; LINE and e-mail
 // use the same text when they arrive (S4, S5). Data holds ids, numbers and titles only (BR-NOTI-01).
@@ -158,6 +160,8 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },
     href: '/settings/security',
   }),
+  // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
+  ...SLA_TEMPLATES,
 }
 
 const FALLBACK: Template = () => ({ title: { th: 'มีการแจ้งเตือนใหม่', en: 'New notification' }, href: null })

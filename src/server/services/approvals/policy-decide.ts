@@ -3,7 +3,7 @@ import type { TaskState } from '@/core/state-machines'
 import { systemClock } from '@/lib/clock'
 import { newId } from '@/lib/ids'
 import type { Ctx } from '@/server/context'
-import { consumeStepUp } from '@/server/auth/step-up'
+import { consumeStepUp, policyStepUpMethods } from '@/server/auth/step-up'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
@@ -68,9 +68,10 @@ export async function decidePolicyTask(
     if (later) return later
   }
 
-  // BR-DOA-15: a step-up for this document, given in the last 5 minutes (security clock), used once
-  const stepUpGrantId = await consumeStepUp(tx, { memberId: actor, subjectType, subjectId: route.subjectId }, systemClock.now())
-  if (!stepUpGrantId) return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'enter your authenticator code again to approve policy', details: { subjectType, subjectId: route.subjectId } } }
+  // BR-DOA-15: a step-up for this document, given in the last 5 minutes (security clock), used once. The PIN (S5-05); on
+  // the web also the authenticator code until its page switches (SWITCH POINT, src/server/auth/step-up.ts)
+  const stepUpGrantId = await consumeStepUp(tx, { memberId: actor, subjectType, subjectId: route.subjectId, methods: policyStepUpMethods(ctx.channel) }, systemClock.now())
+  if (!stepUpGrantId) return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'confirm with your PIN again (on the web, still the authenticator code) to decide policy', details: { subjectType, subjectId: route.subjectId } } }
 
   let reasonCommentId: string | null = null
   if (input.decision === 'REJECT') {

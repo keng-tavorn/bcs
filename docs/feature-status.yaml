@@ -290,11 +290,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-009:
-    status: planned
+    status: in_progress
     step: S3
-    evidence: []
+    evidence:
+      - tests/e2e/admin-doa-editor.spec.ts
+      - tests/integration/doa-editor-simulate.test.ts
+      - tests/integration/doa-editor.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 AC2 ผ่านแล้ว · AC3 ฝั่งผู้ร่างผ่านแล้ว ฝั่งผู้อนุมัติกำลังทำ"
   FR-DOA-010:
     status: done
     step: S2
@@ -529,7 +532,7 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-010:
-    status: done
+    status: in_progress
     step: S4
     evidence:
       - tests/e2e/purchase-order.spec.ts
@@ -539,9 +542,9 @@ features:
       - tests/integration/receiving-screens.test.ts
       - tests/integration/receiving.test.ts
     verifiedBy: null
-    notes: "AC4 (เตือน PO ที่ไม่มีความเคลื่อนไหว) เป็นของ S5-16 [go-live]"
+    notes: "AC1 ถึง AC3 ผ่านแล้ว · AC4 (เตือน PO ที่ไม่มีความเคลื่อนไหว) เป็นของ S5-16 [go-live]"
   FR-SUP-001:
-    status: done
+    status: in_progress
     step: S4
     evidence:
       - tests/e2e/suppliers.spec.ts
@@ -549,7 +552,7 @@ features:
       - tests/integration/suppliers-screens.test.ts
       - tests/integration/suppliers.test.ts
     verifiedBy: null
-    notes: "AC4 (ตรวจสถานะรายเดือนและเหตุผลตอนสร้าง PO) เป็นของ S4-16 [go-live]"
+    notes: "AC1 ถึง AC3 ผ่านแล้วด้วยโหมด stub · AC4 (ตรวจสถานะรายเดือนและเหตุผลตอนสร้าง PO) เป็นของ S4-16 [go-live]"
   FR-VIS-001:
     status: in_progress
     step: S4

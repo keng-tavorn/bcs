@@ -9,17 +9,19 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
 import { decideTask } from '@/server/services/approvals/decide'
-import { recordInvoice } from '@/server/services/invoices'
+import { readEtaxFile, recordInvoice } from '@/server/services/invoices'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { closePurchaseOrder, editDraftPo, submitPo } from '@/server/services/purchase-orders'
 import { postGoodsReceipt } from '@/server/services/receiving'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { etaxXml, pdfWithEmbedded } from '../support/etax-files'
 
 // S4-08 (spec §7.12, BR-IVC-01 to BR-IVC-04, FR-P2P-008 AC1–AC3): FINANCE records the supplier's invoices against the
 // PO; the amount before VAT is shared over the PO lines by what each still holds and moves from committed to actual;
 // it never exceeds what the PO holds, the same number twice is refused, and the last invoice lets the PO give back what
-// it still held (GC-IVC-01 to GC-IVC-05 and GC-BUD-05 through the services).
+// it still held (GC-IVC-01 to GC-IVC-05 and GC-BUD-05 through the services). S4-17 (BR-IVC-05, FR-P2P-008 AC4): an
+// e-Tax file the tests make themselves fills the form, or says why it cannot.
 
 const NOW = new Date('2026-10-05T03:00:00Z')
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
@@ -205,5 +207,83 @@ describe('[FR-P2P-008/AC3] the last invoice lets the PO give back what it still 
     expect(await balance(line)).toMatchObject({ committed: '1000.00', actual: '0.00' })
     ok(await invoice(po.id, 'LATE-1', '900.00', { isFinal: true }))
     expect(await balance(line)).toEqual({ available: '99100.00', reserved: '0.00', committed: '0.00', actual: '900.00' })
+  })
+})
+
+describe('[FR-P2P-008/AC4] an e-Tax file fills the invoice form for FINANCE to confirm (BR-IVC-05)', () => {
+  const bytes = (text: string) => new TextEncoder().encode(text)
+  const read = (poId: string, fileName: string, content: string | Uint8Array, who = fin()) => readEtaxFile(who, { poId, fileName, content: typeof content === 'string' ? bytes(content) : content })
+  const sentPoOf = async (unitPrice: string) => sentPo([(await approvedRequest(await fundedLine(100_000n), [{ quantity: '1', unitPrice }])).lines[0]!.id])
+
+  let sharedPoId: string
+  beforeAll(async () => {
+    sharedPoId = (await sentPoOf('20000.00')).id
+  })
+
+  it('a PDF/A-3 with its XML: the values fill the form, the file is kept, and the confirmation links it as ETAX', async () => {
+    const po = await sentPoOf('20000.00')
+    // the XML among other embedded files, under a name that says nothing about it
+    const pdf = pdfWithEmbedded([
+      { name: 'logo.txt', content: 'not xml' },
+      { name: 'attachment-1', content: etaxXml({ invoiceNo: 'ET-PDF-1', sellerRegistration: '099999900001200001' }) },
+    ])
+    const reading = ok(await read(po.id, 'ใบกำกับ ET-PDF-1.pdf', pdf))
+    expect(reading).toEqual({
+      fileId: expect.any(String),
+      problems: [],
+      prefill: { invoiceNo: 'ET-PDF-1', invoiceDate: '2026-10-05', net: '10000.00', vat: '700.00', gross: '10700.00', sellerTaxId: '0999999000012', sellerBranch: '00001' },
+    })
+    expect(await prisma.fileObject.findUniqueOrThrow({ where: { id: reading.fileId } })).toMatchObject({ fileName: 'ใบกำกับ ET-PDF-1.pdf', mimeType: 'application/pdf', sizeBytes: pdf.length, uploadedById: org.member.fin_officer, status: 'AVAILABLE' })
+    expect(await prisma.event.count({ where: { type: 'file.uploaded', aggregateId: reading.fileId } })).toBe(1)
+
+    // FINANCE confirms what was read; it goes through BR-IVC-01 to BR-IVC-04 like a typed invoice
+    const p = reading.prefill!
+    const recorded = ok(await recordInvoice(fin(), { poId: po.id, invoiceNo: p.invoiceNo, invoiceDate: p.invoiceDate, net: p.net, vat: p.vat, sourceFileId: reading.fileId, parsedFrom: 'ETAX_XML' }, key()))
+    expect(await prisma.fileLink.findMany({ where: { subjectId: recorded.invoiceId }, select: { fileId: true, kind: true, subjectType: true } })).toEqual([{ fileId: reading.fileId, kind: 'ETAX', subjectType: 'InvoiceConfirmation' }])
+    expect(await prisma.invoiceConfirmation.findUniqueOrThrow({ where: { id: recorded.invoiceId } })).toMatchObject({ parsedFrom: 'ETAX_XML', sourceFileId: reading.fileId, netSatang: 1_000_000n, vatSatang: 70_000n })
+    expect(await read(po.id, 'again.pdf', pdf).then(async (r) => recordInvoice(fin(), { poId: po.id, invoiceNo: p.invoiceNo, invoiceDate: p.invoiceDate, net: p.net, vat: p.vat, sourceFileId: ok(r).fileId, parsedFrom: 'ETAX_XML' }, key()))).toMatchObject({
+      ok: false,
+      error: { code: 'DUPLICATE_INVOICE' },
+    })
+  })
+
+  it('a plain XML file from the full e-Tax system fills the form the same way', async () => {
+    const xml = etaxXml({ invoiceNo: 'ET-XML-1', typeCode: 'T02', issueDate: '20261006', sellerRegistration: '0-9999-99000-01-2', net: '1500.5', vat: '105.0400', gross: '1605.54' })
+    const reading = ok(await read(sharedPoId, 'ET-XML-1.xml', xml))
+    expect(reading).toEqual({
+      fileId: expect.any(String),
+      problems: [],
+      prefill: { invoiceNo: 'ET-XML-1', invoiceDate: '2026-10-06', net: '1500.50', vat: '105.04', gross: '1605.54', sellerTaxId: '0999999000012', sellerBranch: null },
+    })
+    expect(await prisma.fileObject.findUniqueOrThrow({ where: { id: reading.fileId }, select: { mimeType: true } })).toEqual({ mimeType: 'application/xml' })
+  })
+
+  it('a seller tax id that is not the PO supplier: the reason, no values, and the file is still kept', async () => {
+    const reading = ok(await read(sharedPoId, 'other-seller.pdf', pdfWithEmbedded([{ name: 'x.xml', content: etaxXml({ sellerRegistration: '010555512345600000' }) }])))
+    expect(reading).toEqual({ fileId: expect.any(String), prefill: null, problems: ['TAX_ID_MISMATCH'] })
+    expect(await prisma.fileObject.count({ where: { id: reading.fileId, status: 'AVAILABLE' } })).toBe(1)
+  })
+
+  it.each([
+    ['a broken XML file', 'broken.xml', () => bytes(etaxXml().replace('</ram:ID>', '')), 'XML_UNREADABLE'],
+    ['a PDF whose XML is cut short', 'broken.pdf', () => pdfWithEmbedded([{ name: 'x.xml', content: etaxXml().slice(0, 300) }]), 'XML_UNREADABLE'],
+    ['a PDF with no embedded file (a scan)', 'scan.pdf', () => pdfWithEmbedded([]), 'NOT_AN_ETAX_INVOICE'],
+    ['an XML file that is not an invoice', 'order.xml', () => bytes('<Order><ID>1</ID></Order>'), 'NOT_AN_ETAX_INVOICE'],
+    ['a credit note', 'credit-note.xml', () => bytes(etaxXml({ typeCode: '81' })), 'NOT_AN_ETAX_INVOICE'],
+    ['an invoice without its VAT', 'no-vat.xml', () => bytes(etaxXml({ vat: '' })), 'VALUE_MISSING'],
+    ['an invoice dated on a day that does not exist', 'bad-date.xml', () => bytes(etaxXml({ issueDate: '2026-02-30T00:00:00' })), 'VALUE_MISSING'],
+    ['an amount finer than a satang', 'satang.xml', () => bytes(etaxXml({ net: '10000.005' })), 'VALUE_MISSING'],
+    ['a seller registration of the wrong length', 'short-id.xml', () => bytes(etaxXml({ sellerRegistration: '099999900001234' })), 'VALUE_MISSING'],
+  ])('%s: the reason, so FINANCE fills the form by hand', async (_, fileName, content, problem) => {
+    expect(ok(await read(sharedPoId, fileName, content()))).toEqual({ fileId: expect.any(String), prefill: null, problems: [problem] })
+  })
+
+  it('only FINANCE reads e-Tax files, for a PO that exists, and only PDF or XML', async () => {
+    for (const who of ['proc_officer', 'req_con']) {
+      expect(await read(sharedPoId, 'a.xml', etaxXml(), org.ctxOf(who, NOW)), who).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    }
+    expect(await read(randomUUID(), 'a.xml', etaxXml())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    expect(await read(sharedPoId, 'a.png', new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a]))).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'TYPE_NOT_ALLOWED' } } })
+    expect(await read(sharedPoId, 'a.xml', new Uint8Array())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'EMPTY' } } })
   })
 })

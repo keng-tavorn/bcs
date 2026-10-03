@@ -15,9 +15,13 @@ export const ALLOWED_FILE_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { extensions: ['docx'], inline: false },
 } as const
 
-/** Files the system makes and members download but never upload (BR-EXP-01: an Express file as CSV) */
+/**
+ * Files the server writes itself and members download but never upload through a presigned URL: an Express file as
+ * CSV (BR-EXP-01), an e-Tax XML the server read for an invoice (BR-IVC-05)
+ */
 export const GENERATED_FILE_TYPES = {
   'text/csv': { extensions: ['csv'], inline: false },
+  'application/xml': { extensions: ['xml'], inline: false },
 } as const
 export type GeneratedMimeType = keyof typeof GENERATED_FILE_TYPES
 

@@ -8,3 +8,6 @@ registerFileSubjectPolicy('ExportJob', async (tx, _ctx, principal, subjectId) =>
   if (!job) return false
   return isAllowed(principal, job.kind === 'AUDIT' ? 'audit.export' : job.kind === 'EXPRESS_AP' ? 'export.express' : 'report.view')
 })
+
+// The invoice file of a confirmation (BR-IVC-05): FINANCE who records invoices, and the AUDITOR
+registerFileSubjectPolicy('InvoiceConfirmation', async (_tx, _ctx, principal) => isAllowed(principal, 'invoiceConfirmation.record') || isAllowed(principal, 'audit.view'))

@@ -68,6 +68,9 @@ export const MAX_UPLOAD_BYTES = 20 * BYTES_PER_MIB
 export const MEMBER_IMPORT_MAX_BYTES = 900 * BYTES_PER_KIB
 /** Largest DOA YAML file the import reads (FR-DOA-001 AC2); a DOA of any real organization is a few kilobytes */
 export const DOA_YAML_MAX_CHARS = 500_000
+/** Largest file read out of a PDF (an e-Tax invoice's XML, BR-IVC-05, is tens of kilobytes); a stream that inflates
+ *  past this is skipped, so a small hostile PDF cannot fill the server's memory */
+export const MAX_EMBEDDED_FILE_BYTES = 5 * BYTES_PER_MIB
 /** Longest file name accepted from the browser before it is cleaned (cleanFileName shortens what is stored) */
 export const FILE_NAME_INPUT_MAX = 1000
 /** Photos are scaled so the long side is at most this many pixels before upload (FR-PLT-004 AC3) */

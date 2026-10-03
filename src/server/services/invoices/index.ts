@@ -11,6 +11,8 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 
+export { readEtaxFile, readEtaxXml, type EtaxPrefill, type EtaxProblem, type EtaxReading } from './etax'
+
 // Simple invoice confirmation, tier 1 (spec §7.12, BR-IVC-01 to BR-IVC-04, FR-P2P-008): FINANCE records an invoice the
 // supplier sent against its PO — number, date, amount before VAT, VAT and whether it is the last. The amount before VAT
 // never exceeds what the PO still holds (INVOICE_EXCEEDS_COMMITTED); the number is compared with the supplier's earlier

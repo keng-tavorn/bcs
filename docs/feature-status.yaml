@@ -21,21 +21,29 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-003:
-    status: in_progress
+    status: done
     step: S1
     evidence:
+      - tests/e2e/request-view.spec.ts
+      - tests/e2e/tasks.spec.ts
       - tests/integration/event-append-only.test.ts
       - tests/integration/pipeline.test.ts
+      - tests/integration/tasks-view-actions.test.ts
+      - tests/integration/tasks-view.test.ts
       - tests/unit/json.test.ts
+      - tests/unit/tasks-present.test.ts
+      - tests/unit/tasks-timeline-stamp.test.tsx
       - tests/unit/timeline-ui.test.tsx
     verifiedBy: null
     notes: ""
   FR-PLT-004:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/e2e/files.spec.ts
+      - tests/e2e/request-form.spec.ts
       - tests/integration/files.test.ts
+      - tests/integration/request-form.test.ts
       - tests/unit/file-types.test.ts
     verifiedBy: null
     notes: ""
@@ -113,14 +121,15 @@ features:
     verifiedBy: null
     notes: ""
   FR-AUTH-002:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/e2e/auth.spec.ts
+      - tests/integration/admin-org-screens.test.ts
       - tests/integration/auth.test.ts
       - tests/integration/org-authority.test.ts
     verifiedBy: null
-    notes: "AC3 รวมข้อยกเว้นของผู้ที่ DOA พึ่งพา (S2-16 · ADR-042) · AC1 ส่วนหน้าจอเป็นของ S2-13"
+    notes: "AC3 รวมข้อยกเว้นของผู้ที่ DOA พึ่งพา (S2-16 · ADR-042)"
   FR-AUTH-003:
     status: in_progress
     step: S1
@@ -216,12 +225,18 @@ features:
     verifiedBy: null
     notes: "AC3 ชุดตั้งต้นตาม ADR-042 · การยืนยันผู้ลงนามโดย PLATFORM_ADMIN อยู่ใน NEW-15"
   FR-DOA-003:
-    status: in_progress
+    status: done
     step: S2
     evidence:
+      - tests/e2e/request-form.spec.ts
+      - tests/e2e/request-view.spec.ts
       - tests/golden/doa.test.ts
+      - tests/integration/request-form.test.ts
       - tests/integration/requests.test.ts
+      - tests/integration/tasks-view.test.ts
       - tests/unit/doa.test.ts
+      - tests/unit/request-form.test.ts
+      - tests/unit/tasks-present.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-004:
@@ -249,16 +264,17 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-007:
-    status: in_progress
+    status: done
     step: S2
     evidence:
       - tests/generated/authority-writes.test.ts
       - tests/golden/sod.test.ts
+      - tests/integration/admin-org-screens.test.ts
       - tests/integration/org-authority.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-008:
-    status: in_progress
+    status: done
     step: S2
     evidence:
       - tests/golden/numbering.test.ts
@@ -296,12 +312,16 @@ features:
     verifiedBy: null
     notes: "AC3 (rich menu ใน LINE) มากับ S5-06"
   FR-INT-002:
-    status: in_progress
+    status: done
     step: S2
     evidence:
+      - tests/e2e/request-form.spec.ts
       - tests/golden/forms.test.ts
+      - tests/integration/request-form.test.ts
       - tests/unit/engines.test.ts
       - tests/unit/forms-fields.test.ts
+      - tests/unit/request-form-fields.test.tsx
+      - tests/unit/request-form.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-003:
@@ -329,12 +349,16 @@ features:
     verifiedBy: null
     notes: "service และฟอร์มของ S2-17 เสร็จ · หน้ากรอกใบเสนอราคา คำถามคัดกรอง และรายการไฟล์ที่ต้องแนบ (AC1 AC2) มากับฟอร์มคำขอของ S2-11"
   FR-INT-006:
-    status: in_progress
+    status: done
     step: S2
     evidence:
+      - tests/e2e/request-form.spec.ts
+      - tests/integration/request-form.test.ts
       - tests/integration/stale-drafts.test.ts
+      - tests/unit/request-form-fields.test.tsx
+      - tests/unit/request-form.test.ts
     verifiedBy: null
-    notes: "AC3 ร่างที่ไม่ได้แก้ (NEW-07) · AC1–AC2 บันทึกอัตโนมัติและแก้ข้ามอุปกรณ์มากับฟอร์มคำขอของ S2-11"
+    notes: ""
   FR-INT-007:
     status: done
     step: S2

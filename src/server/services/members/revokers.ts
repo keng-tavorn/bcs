@@ -4,11 +4,12 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { revokeMemberTokens } from '@/server/tokens/action-tokens'
 import { revokeDelegationsOf } from '../delegations'
+import { unlinkLineOnDeactivation } from '../line-link/unlink'
 
 // Deactivating a member revokes everything that lets them act, in the same transaction (BR-AUTH-06,
 // FR-AUTH-003 AC2). Sessions and pending invitations are revoked by the deactivate command itself; the other
-// things register a revoker here, with the events and notifications their revocation needs: action tokens and
-// delegations now, the LINE link in S5.
+// things register a revoker here, with the events and notifications their revocation needs: action tokens,
+// delegations and the LINE link.
 
 export interface DeactivationTarget {
   readonly memberId: string
@@ -33,6 +34,8 @@ export function registerDeactivationRevoker(name: string, revoker: DeactivationR
 registerDeactivationRevoker('actionTokens', async (tx, ctx, target) => ({ count: await revokeMemberTokens(tx, ctx, target.memberId) }))
 // Delegations they gave or hold, scheduled or running (BR-DLG-01)
 registerDeactivationRevoker('delegations', (tx, ctx, target) => revokeDelegationsOf(tx, ctx, target.memberId))
+// Their LINE link, with line.unlinked (FR-LINE-001 AC3, S5-04); the rich menu follows in job line-rich-menu
+registerDeactivationRevoker('lineLink', (tx, ctx, target) => unlinkLineOnDeactivation(tx, ctx, target.memberId))
 
 export async function runDeactivationRevokers(
   tx: TenantTx,

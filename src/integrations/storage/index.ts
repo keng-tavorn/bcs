@@ -78,6 +78,11 @@ export async function sha256Of(key: string): Promise<string> {
   return hash.digest('hex')
 }
 
+/** A file the server made itself (an export, a PDF): written straight to the bucket */
+export async function putObject(key: string, body: Uint8Array, contentType: string): Promise<void> {
+  await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: body, ContentType: contentType, ContentLength: body.length }))
+}
+
 export async function deleteObject(key: string): Promise<void> {
   await s3().send(new DeleteObjectCommand({ Bucket: bucket(), Key: key }))
 }

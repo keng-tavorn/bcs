@@ -41,6 +41,8 @@ export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
 /** Longest free-text reason accepted by admin commands (stored in Comment) */
 export const REASON_MAX_LENGTH = 1000
+/** Most invoices one Express file takes when exporting again by hand (BR-EXP-02) */
+export const EXPORT_MAX_INVOICES = 5000
 /** Longest note to a supplier on a PO (FR-P2P-003 AC2) */
 export const PO_NOTE_MAX_LENGTH = 2000
 /** Longest payment term a PO takes, in days */

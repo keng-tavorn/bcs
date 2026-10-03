@@ -15,6 +15,16 @@ export const ALLOWED_FILE_TYPES = {
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': { extensions: ['docx'], inline: false },
 } as const
 
+/** Files the system makes and members download but never upload (BR-EXP-01: an Express file as CSV) */
+export const GENERATED_FILE_TYPES = {
+  'text/csv': { extensions: ['csv'], inline: false },
+} as const
+export type GeneratedMimeType = keyof typeof GENERATED_FILE_TYPES
+
+export function isGeneratedMimeType(value: string): value is GeneratedMimeType {
+  return Object.hasOwn(GENERATED_FILE_TYPES, value)
+}
+
 export type AllowedMimeType = keyof typeof ALLOWED_FILE_TYPES
 export const ALLOWED_MIME_TYPES = Object.keys(ALLOWED_FILE_TYPES) as AllowedMimeType[]
 /** For <input accept>: types and extensions (some phones report HEIC with an empty type). */

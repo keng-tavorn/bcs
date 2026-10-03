@@ -1,0 +1,253 @@
+import { spawnSync } from 'node:child_process'
+import path from 'node:path'
+import { TZDate } from '@date-fns/tz'
+import { beforeAll, describe, expect, it } from 'vitest'
+import { amountToSatang } from '@/core/money/dto'
+import { addBusinessMinutes, businessMinutesBetween, type BusinessCalendar } from '@/core/sla'
+import { MS_PER_DAY } from '@/lib/constants'
+import { makeCtx, type Ctx } from '@/server/context'
+import { prisma } from '@/server/db/client'
+import { forTenant } from '@/server/db/tenant'
+import { loadBusinessCalendar } from '@/server/doa/policy'
+import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization, type DemoOrgInput } from '@/server/seed/demo-org'
+import { seedBudget } from '@/server/seed/budget'
+import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
+import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { seedSuppliers } from '@/server/seed/suppliers'
+import { seedTaxRates } from '@/server/seed/tax-rates'
+import { INPUT_WORKBOOK_PATH, loadInputWorkbook, type InputWorkbook } from '@/server/seed/workbook'
+import { pendingBoard } from '@/server/services/board'
+import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
+import { seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { computeKpis } from '@/server/services/reports/kpi'
+
+// D-01: the requests of sheet Demo_History are made through the real services with the business clock set back by
+// `daysAgo`, and end in their status with POs, receipts and invoices. The board of pending work, the budget dashboard
+// and the KPIs then show what the line "ข้อมูลพอสำหรับฉาก dashboard" of `pnpm inputs:check` promises the demo: the
+// requests waiting past their SLA, the budget lines running low, and the share of purchase-request decisions made on
+// LINE (G-5). The expected values are read from that line itself (scripts/validate_inputs.py) and from the sheets,
+// never from the code under test. The demo organization is seeded under its own code and e-mail addresses so it
+// never meets the one tests/integration/seed.test.ts seeds at the same time.
+
+const ROOT = path.resolve(import.meta.dirname, '..', '..')
+/** A Monday 10:00 in Bangkok, before today's date so no step of the history lies ahead of the real clock */
+const NOW = new Date('2026-09-28T03:00:00Z')
+const ORG_CODE = 'DEMO-HISTORY'
+const PASSWORD = 'history-test-password-0001'
+const TOTP_KEY = 'history-test-totp-key-000000000001'
+const MINUTES_PER_HOUR = 60
+const PERCENT = 100
+/** The KPI period: long enough to hold every row of the sheet */
+const KPI_DAYS = 365
+const DECIDED = new Set(['COMPLETED', 'ORDERED', 'APPROVED', 'RETURNED', 'REJECTED'])
+
+interface DashboardLine {
+  readonly overdue: string[]
+  readonly low: string[]
+  readonly linePercent: number
+}
+
+/** The dashboard line of `pnpm inputs:check`, e.g. ค้างเกิน SLA: ['H12 ค้าง 18 ชม. ที่ vp_ops (SLA 8)'] · งบใกล้หมด: [...] · อนุมัติผ่าน LINE 76% */
+function inputsCheckDashboardLine(): DashboardLine {
+  const run = spawnSync(process.execPath, ['scripts/py.mjs', 'scripts/validate_inputs.py', INPUT_WORKBOOK_PATH, '--spec', 'spec.md'], { cwd: ROOT, encoding: 'utf8' })
+  const line = run.stdout.split(/\r?\n/).find((l) => l.includes('ข้อมูลพอสำหรับฉาก dashboard'))
+  if (run.status !== 0 || !line) throw new Error(`pnpm inputs:check did not pass:\n${run.stdout}\n${run.stderr}`)
+  const match = /^PASS\s+ข้อมูลพอสำหรับฉาก dashboard — ค้างเกิน SLA: \[(.*)\] · งบใกล้หมด: \[(.*)\] · อนุมัติผ่าน LINE (\d+)%$/.exec(line.trim())
+  if (!match) throw new Error(`unexpected dashboard line: ${line}`)
+  const items = (list: string) => [...list.matchAll(/'([^']*)'/g)].map((m) => m[1]!)
+  return { overdue: items(match[1]!), low: items(match[2]!), linePercent: Number(match[3]) }
+}
+
+/** The demo organization of the sheets under another code, its users under other addresses */
+function historyOrgInput(workbook: InputWorkbook): DemoOrgInput {
+  const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
+  return { ...input, org: { ...input.org, code: ORG_CODE }, users: input.users.map((u) => ({ ...u, email: `history.${u.email}` })) }
+}
+
+interface Seeded {
+  readonly organizationId: string
+  readonly report: DemoHistoryReport
+  readonly sheet: ReadonlyArray<Readonly<Record<string, string | null>>>
+  readonly budgetSheet: ReadonlyArray<Readonly<Record<string, string | null>>>
+  readonly calendar: BusinessCalendar
+  readonly memberOf: ReadonlyMap<string, string>
+  readonly codeOf: ReadonlyMap<string, string>
+  readonly requestOf: ReadonlyMap<string, { id: string; status: string; submittedAt: Date | null }>
+  readonly refOf: ReadonlyMap<string, string>
+}
+
+let expected: DashboardLine
+let seeded: Seeded
+let workbook: InputWorkbook
+
+async function seedHistory(): Promise<DemoHistoryReport> {
+  return seedDemoHistory(seeded.organizationId, parseDemoHistory(workbook), NOW)
+}
+
+beforeAll(async () => {
+  expected = inputsCheckDashboardLine()
+  workbook = await loadInputWorkbook()
+  await seedTaxRates()
+  const input = historyOrgInput(workbook)
+  const org = await seedDemoOrganization(input, { password: PASSWORD, totpKey: TOTP_KEY, now: NOW })
+  await seedOrgStructure(org.organizationId, input.users, parseOrgStructureInput(workbook), NOW)
+  await seedBudget(org.organizationId, parseBudget(workbook), NOW)
+  await seedSuppliers(org.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, NOW)
+  const report = await seedDemoHistory(org.organizationId, parseDemoHistory(workbook), NOW)
+
+  const db = forTenant(org.organizationId)
+  const members = await db.member.findMany({ select: { id: true, employeeCode: true } })
+  const sheet = workbook.table('Demo_History').map((r) => r.values)
+  const requests = await db.request.findMany({ select: { id: true, title: true, status: true, submittedAt: true } })
+  const byTitle = new Map(requests.map((r) => [r.title, r]))
+  seeded = {
+    organizationId: org.organizationId,
+    report,
+    sheet,
+    budgetSheet: workbook.table('Budget').map((r) => r.values),
+    calendar: await db.$transaction((tx) => loadBusinessCalendar(tx, org.organizationId)),
+    memberOf: new Map(members.map((m) => [m.employeeCode ?? '', m.id])),
+    codeOf: new Map(members.map((m) => [m.id, m.employeeCode ?? ''])),
+    requestOf: new Map(sheet.map((row) => [row.ref!, byTitle.get(row.title!)!])),
+    refOf: new Map(sheet.map((row) => [byTitle.get(row.title!)?.id ?? '', row.ref!])),
+  }
+}, 900_000)
+
+const ctxOf = (code: string): Ctx => makeCtx({ organizationId: seeded.organizationId, actor: { type: 'USER', memberId: seeded.memberOf.get(code)! }, channel: 'WEB', now: NOW })
+
+/** A member who holds `role` in the seeded organization (who that is comes from the Users sheet) */
+async function holderOf(role: 'EXECUTIVE' | 'FINANCE' | 'BUDGET_ADMIN'): Promise<string> {
+  const held = await prisma.roleAssignment.findFirstOrThrow({ where: { organizationId: seeded.organizationId, role, revokedAt: null }, select: { memberId: true }, orderBy: { memberId: 'asc' } })
+  return seeded.codeOf.get(held.memberId)!
+}
+
+/** The calendar day of an instant in the organization's time zone */
+function localDay(at: Date, calendar: BusinessCalendar): string {
+  const local = new TZDate(at.getTime(), calendar.timezone)
+  return `${local.getFullYear()}-${String(local.getMonth() + 1).padStart(2, '0')}-${String(local.getDate()).padStart(2, '0')}`
+}
+
+describe('[FR-PLT-001/AC1] D-01 the demo history: every row of Demo_History ends in its status through the real services, once', () => {
+  it('makes one request per row in the status the sheet gives, with its PO, receipt and invoice', async () => {
+    expect(seeded.report.seeded).toBe(true)
+    const db = forTenant(seeded.organizationId)
+    for (const row of seeded.sheet) {
+      const request = seeded.requestOf.get(row.ref!)
+      expect(request, row.ref!).toBeDefined()
+      expect(request!.status, row.ref!).toBe(row.status)
+      const pos = await db.purchaseOrder.findMany({ where: { lines: { some: { sources: { some: { requestLine: { requestId: request!.id } } } } } }, select: { id: true, status: true } })
+      const receipts = await db.goodsReceipt.count({ where: { poId: { in: pos.map((p) => p.id) }, status: 'POSTED' } })
+      const invoices = await db.invoiceConfirmation.count({ where: { poId: { in: pos.map((p) => p.id) }, isFinal: true } })
+      const want = { ORDERED: ['SENT', 0, 0], COMPLETED: ['CLOSED', 1, 1] }[row.status as 'ORDERED' | 'COMPLETED'] ?? null
+      expect({ pos: pos.map((p) => p.status), receipts, invoices }, row.ref!).toEqual(want ? { pos: [want[0]], receipts: want[1], invoices: want[2] } : { pos: [], receipts: 0, invoices: 0 })
+    }
+    expect(Object.values(seeded.report.byStatus).reduce((a, b) => a + b, 0)).toBe(seeded.sheet.length)
+  })
+
+  it('sends each decided request on the business day `daysAgo` days back and decides it `hours` business hours later on its channel', async () => {
+    const db = forTenant(seeded.organizationId)
+    for (const row of seeded.sheet.filter((r) => DECIDED.has(r.status!))) {
+      const request = seeded.requestOf.get(row.ref!)!
+      const back = new TZDate(NOW.getTime() - Number(row.daysAgo) * MS_PER_DAY, seeded.calendar.timezone)
+      const midnight = new Date(new TZDate(back.getFullYear(), back.getMonth(), back.getDate(), 0, 0, seeded.calendar.timezone).getTime())
+      expect(localDay(request.submittedAt!, seeded.calendar), row.ref!).toBe(localDay(addBusinessMinutes(midnight, 1, seeded.calendar), seeded.calendar))
+      const decided = await db.event.findFirstOrThrow({ where: { type: 'approval_task.decided', data: { path: ['subjectId'], equals: request.id } }, select: { occurredAt: true, channel: true } })
+      expect(businessMinutesBetween(request.submittedAt!, decided.occurredAt, seeded.calendar), row.ref!).toBe(Number(row.hours) * MINUTES_PER_HOUR)
+      expect(decided.channel, row.ref!).toBe(row.channel)
+    }
+  })
+
+  it('a second run finds the history made and adds nothing', async () => {
+    const count = () => Promise.all([prisma.request.count({ where: { organizationId: seeded.organizationId } }), prisma.event.count({ where: { organizationId: seeded.organizationId } })])
+    const before = await count()
+    expect(await seedHistory()).toEqual({ seeded: false, byStatus: {} })
+    expect(await count()).toEqual(before)
+  })
+})
+
+describe('[FR-VIS-001/AC3] D-01 the board shows the requests waiting past their SLA as pnpm inputs:check expects', () => {
+  it('lists exactly the overdue tasks of the dashboard line, with their approver, business hours waited and SLA', async () => {
+    expect(expected.overdue.length).toBeGreaterThan(0)
+    const board = await pendingBoard(ctxOf(await holderOf('EXECUTIVE')))
+    if (!board.ok) throw new Error(JSON.stringify(board.error))
+    const overdue = board.data.flatMap((row) =>
+      row.tasks
+        .filter((t) => t.overdue)
+        .map((t) => {
+          const hours = t.ageMinutes / MINUTES_PER_HOUR
+          const sla = businessMinutesBetween(new Date(t.assignedAt), new Date(t.dueAt!), seeded.calendar) / MINUTES_PER_HOUR
+          return `${seeded.refOf.get(t.subjectId)} ค้าง ${hours} ชม. ที่ ${seeded.codeOf.get(row.memberId)} (SLA ${sla})`
+        }),
+    )
+    expect(overdue.sort()).toEqual([...expected.overdue].sort())
+    // The requests still waiting have waited the hours of the sheet; only the ones past their SLA are flagged
+    const waiting = board.data.flatMap((row) => row.tasks.filter((t) => t.subjectType === 'REQUEST').map((t) => [seeded.refOf.get(t.subjectId), t.ageMinutes] as const))
+    const pending = seeded.sheet.filter((r) => r.status === 'PENDING_APPROVAL').map((r) => [r.ref, Number(r.hours) * MINUTES_PER_HOUR] as const)
+    expect(waiting.sort()).toEqual([...pending].sort())
+  })
+})
+
+describe('[FR-BUD-005/AC1] D-01 the budget dashboard shows the demo budget as pnpm inputs:check expects', () => {
+  let dashboard: BudgetDashboardDto
+  beforeAll(async () => {
+    const result = await budgetDashboard(ctxOf(await holderOf('FINANCE')))
+    if (!result.ok) throw new Error(JSON.stringify(result.error))
+    dashboard = result.data
+  })
+
+  it('flags exactly the budget lines of the dashboard line as low, at the same share left', () => {
+    expect(expected.low.length).toBeGreaterThan(0)
+    const low = dashboard.lines.filter((l) => l.low).map((l) => `${l.code} เหลือ ${((Number(amountToSatang(l.available.amount)) / Number(amountToSatang(l.planned.amount))) * PERCENT).toFixed(1)}%`)
+    expect(low.sort()).toEqual([...expected.low].sort())
+  })
+
+  it('shows on every line the amount the Budget sheet says is used and remains', () => {
+    expect(dashboard.scope).toBe('ORG')
+    expect(dashboard.lines.map((l) => l.code).sort()).toEqual(seeded.budgetSheet.map((b) => b.code).sort())
+    for (const sheetLine of seeded.budgetSheet) {
+      const line = dashboard.lines.find((l) => l.code === sheetLine.code)!
+      const used = amountToSatang(line.reserved.amount) + amountToSatang(line.committed.amount) + amountToSatang(line.actual.amount)
+      expect({ planned: amountToSatang(line.planned.amount), used, available: amountToSatang(line.available.amount) }, sheetLine.code!).toEqual({
+        planned: amountToSatang(sheetLine.planned!),
+        used: amountToSatang(sheetLine.usedDemo!),
+        available: amountToSatang(sheetLine.remaining!),
+      })
+    }
+  })
+
+  it('matches the ledger to the satang on every line, every department and in all', async () => {
+    const entries = await prisma.budgetLedgerEntry.findMany({ where: { organizationId: seeded.organizationId }, select: { budgetLineId: true, fromBucket: true, toBucket: true, amountSatang: true } })
+    const buckets = ['AVAILABLE', 'RESERVED', 'COMMITTED', 'ACTUAL'] as const
+    const fromLedger = (lineIds: ReadonlySet<string>) =>
+      Object.fromEntries(
+        buckets.map((b) => [
+          b,
+          entries.filter((e) => lineIds.has(e.budgetLineId)).reduce((sum, e) => sum + (e.toBucket === b ? e.amountSatang : 0n) - (e.fromBucket === b ? e.amountSatang : 0n), 0n),
+        ]),
+      )
+    const shown = (f: BudgetDashboardDto['total']) => ({ AVAILABLE: amountToSatang(f.available.amount), RESERVED: amountToSatang(f.reserved.amount), COMMITTED: amountToSatang(f.committed.amount), ACTUAL: amountToSatang(f.actual.amount) })
+    for (const line of dashboard.lines) expect(shown(line), line.code).toEqual(fromLedger(new Set([line.id])))
+    for (const department of dashboard.departments) expect(shown(department), department.code).toEqual(fromLedger(new Set(dashboard.lines.filter((l) => l.departmentId === department.id).map((l) => l.id))))
+    expect(shown(dashboard.total)).toEqual(fromLedger(new Set(dashboard.lines.map((l) => l.id))))
+  })
+
+  it('shows a department head the lines of their departments only, and a requester nothing', async () => {
+    const head = await budgetDashboard(ctxOf('dm_con'))
+    if (!head.ok) throw new Error(JSON.stringify(head.error))
+    const con = await prisma.department.findFirstOrThrow({ where: { organizationId: seeded.organizationId, code: 'CON' }, select: { id: true } })
+    expect(head.data.scope).toBe('DEPT')
+    expect(head.data.lines.length).toBeGreaterThan(0)
+    expect(head.data.lines.every((l) => l.departmentId === con.id)).toBe(true)
+    expect(await budgetDashboard(ctxOf('req_con'))).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+})
+
+describe('[FR-VIS-003/AC1] D-01 the KPIs give the share of purchase-request decisions on LINE that pnpm inputs:check expects', () => {
+  it('G-5 for purchase requests: decisions in LINE chat or LIFF out of every decision of the sheet', async () => {
+    const from = new Date(NOW.getTime() - KPI_DAYS * MS_PER_DAY)
+    const kpi = await forTenant(seeded.organizationId).$transaction((tx) => computeKpis(tx, seeded.organizationId, { from, to: NOW, now: NOW }, null))
+    const requests = kpi.g5.bySubject.PURCHASE_REQUEST!
+    expect(requests.denominator).toBe(seeded.sheet.filter((r) => DECIDED.has(r.status!)).length)
+    expect(Math.round((requests.numerator * PERCENT) / requests.denominator!)).toBe(expected.linePercent)
+  })
+})

@@ -112,6 +112,8 @@ export const FAILURE_KEYS = [
   'TOO_LARGE',
   'NO_FORM',
   'LINE_ID',
+  'SITE_UNKNOWN',
+  'SUPPLIER_UNKNOWN',
   'FAILED',
 ] as const
 export type FailureKey = (typeof FAILURE_KEYS)[number]
@@ -152,6 +154,9 @@ function validationKey(f: FormFailure): FailureKey {
   if (reason === 'TOO_LARGE') return 'TOO_LARGE'
   if (reason === 'NO_PUBLISHED_FORM') return 'NO_FORM'
   if (reason === 'LINE_ID') return 'LINE_ID'
+  // A delivery site closed or a supplier deactivated since the form opened (S4-02)
+  if (f.field === 'deliverySiteId') return 'SITE_UNKNOWN'
+  if (f.field === 'suggestedSupplierId') return 'SUPPLIER_UNKNOWN'
   const byReason = [...BUDGET_LINE_REASONS, ...FILE_REASONS].find((k) => k === reason)
   if (byReason) return byReason
   if (reason === 'FILE' || f.field === 'fileId') return 'FILE'
@@ -173,8 +178,8 @@ export function failureStep(f: FormFailure): StepId | null {
   const field = f.field ?? ''
   if (key === 'FORM_FIELD' || field.startsWith('formData.') || field === 'title') return 'details'
   if (BUDGET_LINE_REASONS.includes(key) || key === 'BUDGET_LINE_CLOSED') return 'details'
-  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || field.startsWith('lines')) return 'items'
-  if (key === 'ATTACHMENT_RULE_FAILED' || key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return 'documents'
+  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || key === 'SITE_UNKNOWN' || field.startsWith('lines')) return 'items'
+  if (key === 'ATTACHMENT_RULE_FAILED' || key === 'SUPPLIER_UNKNOWN' || key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return 'documents'
   return null
 }
 

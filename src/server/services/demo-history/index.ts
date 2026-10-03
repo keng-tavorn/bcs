@@ -5,6 +5,7 @@ import type { Result } from '@/core/result'
 import { addBusinessMinutes, subtractBusinessMinutes, type BusinessCalendar } from '@/core/sla'
 import { MS_PER_DAY } from '@/lib/constants'
 import { setEmailProvider } from '@/integrations/email-provider'
+import { checkBucket } from '@/integrations/storage'
 import { makeCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { effectiveSodPolicy, loadBusinessCalendar } from '@/server/doa/policy'
@@ -79,6 +80,14 @@ function lastSteps(row: DemoHistoryRow): readonly string[] {
   return ['decide']
 }
 
+/** The file storage did not answer: the history stores quotations and the PDFs of POs, so it does not start */
+export class DemoHistoryStorageError extends Error {
+  constructor(readonly cause_: string) {
+    super(`the file storage did not answer (${cause_}): the demo history needs it for quotations and the PDFs of purchase orders`)
+    this.name = 'DemoHistoryStorageError'
+  }
+}
+
 /** An earlier seed stopped half way through the history: only a fresh database gives the demo its numbers again */
 export class DemoHistoryIncompleteError extends Error {
   constructor(readonly lastRef: string) {
@@ -87,10 +96,11 @@ export class DemoHistoryIncompleteError extends Error {
   }
 }
 
-function memberCtx(c: Context, code: string, now: Date, channel: Ctx['channel'] = 'WEB'): Ctx {
+/** A member's context for one step; `step` names the events the step writes (Event.requestId), which are kept for good */
+function memberCtx(c: Context, code: string, now: Date, channel: Ctx['channel'] = 'WEB', step?: string): Ctx {
   const memberId = c.members.get(code)
   if (!memberId) throw new Error(`Demo_History: no member ${code}`)
-  return makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId }, channel, now })
+  return makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId }, channel, now, ...(step ? { requestId: step } : {}) })
 }
 
 /** Local date "YYYY-MM-DD" of an instant in the organization's time zone */
@@ -224,7 +234,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   if (!pending && decideAt > c.now) throw new Error(`Demo_History ${row.ref}: decided ${row.hours} business hours after ${row.daysAgo} days ago is in the future`)
 
   const { formData, needsEndDate } = formOf(row)
-  const requester = (at: Date) => memberCtx(c, row.requester, at)
+  const requester = (at: Date, step: string) => memberCtx(c, row.requester, at, 'WEB', keyOf(row, step))
   const site = row.site ? c.sites.get(row.site) : undefined
   const supplier = row.supplier ? c.suppliers.get(row.supplier) : undefined
   const budgetLineId = c.budgetLines.get(row.budgetLine)
@@ -233,7 +243,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     row,
     'draft',
     await createDraft(
-      requester(draftAt),
+      requester(draftAt, 'draft'),
       {
         requestTypeCode: row.requestType,
         title: row.title,
@@ -250,7 +260,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   const requestId = draft.requestId
 
   // Send; when the form's attachment rule asks for quotations (ATT-QUOTES above its amount), add three and send again
-  let sent = await submitRequest(requester(submitAt), { requestId }, optionsOf(row, 'submit'))
+  let sent = await submitRequest(requester(submitAt, 'submit'), { requestId }, optionsOf(row, 'submit'))
   if (!sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED') {
     const net = amountToSatang(row.net)
     const names = [row.supplier ?? 'S0', 'ALT-1', 'ALT-2']
@@ -258,11 +268,11 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     const amounts = [net, ...OTHER_QUOTES_FACTOR.map((factor) => lineNet(factor, net))]
     const quotations = []
     for (const [i, amount] of amounts.entries()) {
-      const fileId = await upload(row, requester(draftAt), `quote-${i + 1}`, `quotation-${row.ref}-${i + 1}.pdf`, quotationPdf(['BCS demo quotation', `${row.ref} ${names[i]}`, `THB ${satangToAmount(amount)} before VAT`]))
+      const fileId = await upload(row, requester(draftAt, `quote-${i + 1}`), `quote-${i + 1}`, `quotation-${row.ref}-${i + 1}.pdf`, quotationPdf(['BCS demo quotation', `${row.ref} ${names[i]}`, `THB ${satangToAmount(amount)} before VAT`]))
       quotations.push({ supplierName: i === 0 ? names[0]! : `ผู้เสนอราคาเปรียบเทียบ ${i}`, amount: satangToAmount(amount), includesVat: false, fileId, selected: i === 0 })
     }
-    must(row, 'quotations', await editRequest(requester(draftAt), { requestId, quotations }, optionsOf(row, 'quotations')))
-    sent = await submitRequest(requester(submitAt), { requestId }, optionsOf(row, 'submit-with-quotations'))
+    must(row, 'quotations', await editRequest(requester(draftAt, 'quotations'), { requestId, quotations }, optionsOf(row, 'quotations')))
+    sent = await submitRequest(requester(submitAt, 'submit-with-quotations'), { requestId }, optionsOf(row, 'submit-with-quotations'))
   }
   must(row, 'submit', sent)
 
@@ -274,7 +284,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   if (pending) return
   if (row.status === 'CANCELLED') {
     // The requester takes the request back `hours` business hours after sending it, before anyone decides (§2.4 NO_PO_YET)
-    must(row, 'cancel', await cancelRequest(requester(decideAt), { requestId, ...(row.note ? { reason: row.note } : {}) }, optionsOf(row, 'cancel')))
+    must(row, 'cancel', await cancelRequest(requester(decideAt, 'cancel'), { requestId, ...(row.note ? { reason: row.note } : {}) }, optionsOf(row, 'cancel')))
     return
   }
 
@@ -283,7 +293,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   if (refusal) throw new Error(refusal)
   const decision = row.status === 'REJECTED' ? 'REJECT' : row.status === 'RETURNED' ? 'RETURN' : 'APPROVE'
   const reason = row.note ?? (decision === 'APPROVE' ? undefined : 'ตามหมายเหตุของผู้อนุมัติ')
-  must(row, 'decide', await decideTask(memberCtx(c, route.approver, decideAt, row.channel!), { taskId: route.taskId, decision, ...(decision !== 'APPROVE' ? { reason } : {}) }, optionsOf(row, 'decide')))
+  must(row, 'decide', await decideTask(memberCtx(c, route.approver, decideAt, row.channel!, keyOf(row, 'decide')), { taskId: route.taskId, decision, ...(decision !== 'APPROVE' ? { reason } : {}) }, optionsOf(row, 'decide')))
   if (row.status !== 'ORDERED' && row.status !== 'COMPLETED') return
 
   // Purchase to pay (§6.4): supplier chosen in the pool, a PO of this request alone, approved, sent; then received,
@@ -296,32 +306,32 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     chain.push({ key, at: t })
     return t
   }
-  const proc = (at: Date) => memberCtx(c, 'proc_officer', at)
+  const proc = (at: Date, step: string) => memberCtx(c, 'proc_officer', at, 'WEB', keyOf(row, step))
   const lines = await db.requestLine.findMany({ where: { requestId }, select: { id: true } })
   if (!supplier) throw new Error(`Demo_History ${row.ref}: an ordered request needs its supplier`)
-  must(row, 'assign supplier', await assignSupplier(proc(next('assign', MINUTES_PER_HOUR)), { requestLineIds: lines.map((l) => l.id), supplierId: supplier }, optionsOf(row, 'assign')))
-  const round = must(row, 'consolidate', await consolidateNow(proc(next('consolidate', STEP_MINUTES)), optionsOf(row, 'consolidate')))
+  must(row, 'assign supplier', await assignSupplier(proc(next('assign', MINUTES_PER_HOUR), 'assign'), { requestLineIds: lines.map((l) => l.id), supplierId: supplier }, optionsOf(row, 'assign')))
+  const round = must(row, 'consolidate', await consolidateNow(proc(next('consolidate', STEP_MINUTES), 'consolidate'), optionsOf(row, 'consolidate')))
   const pos = await db.purchaseOrder.findMany({ where: { id: { in: [...round.purchaseOrderIds] } }, select: { id: true, lines: { select: { id: true, quantity: true, sources: { select: { requestLine: { select: { requestId: true } } } } } } } })
   const po = pos.find((p) => p.lines.some((l) => l.sources.some((s) => s.requestLine.requestId === requestId)))
   if (!po || pos.length !== 1) throw new Error(`Demo_History ${row.ref}: the round made ${pos.length} POs`)
-  must(row, 'submit PO', await submitPo(proc(next('po-submit', STEP_MINUTES)), { poId: po.id }, optionsOf(row, 'po-submit')))
+  must(row, 'submit PO', await submitPo(proc(next('po-submit', STEP_MINUTES), 'po-submit'), { poId: po.id }, optionsOf(row, 'po-submit')))
   const poTask = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'PURCHASE_ORDER', subjectId: po.id } } }, select: { id: true, assignee: { select: { employeeCode: true } } } })
-  must(row, 'approve PO', await decideTask(memberCtx(c, poTask.assignee.employeeCode!, next('po-approve', PO_DECISION_MINUTES)), { taskId: poTask.id, decision: 'APPROVE' }, optionsOf(row, 'po-approve')))
-  must(row, 'send PO', await sendPurchaseOrder(proc(next('po-send', STEP_MINUTES)), { poId: po.id }, optionsOf(row, 'po-send')))
+  must(row, 'approve PO', await decideTask(memberCtx(c, poTask.assignee.employeeCode!, next('po-approve', PO_DECISION_MINUTES), 'WEB', keyOf(row, 'po-approve')), { taskId: poTask.id, decision: 'APPROVE' }, optionsOf(row, 'po-approve')))
+  must(row, 'send PO', await sendPurchaseOrder(proc(next('po-send', STEP_MINUTES), 'po-send'), { poId: po.id }, optionsOf(row, 'po-send')))
   if (row.status === 'ORDERED') return
 
   const grAt = next('gr', DELIVERY_DAYS * c.businessDayMinutes)
   const receiverId = await receiverOf(c, requestId, po.id, grAt)
-  const receiver = makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId: receiverId }, channel: 'WEB', now: grAt })
+  const receiver = makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId: receiverId }, channel: 'WEB', now: grAt, requestId: keyOf(row, 'gr') })
   must(row, 'receive', await postGoodsReceipt(receiver, { poId: po.id, deliveryNoteNo: `DN-${row.ref}`, lines: po.lines.map((l) => ({ poLineId: l.id, received: l.quantity.toString() })) }, optionsOf(row, 'gr')))
   const invoiceAt = next('invoice', c.businessDayMinutes)
   const totals = await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, select: { netSatang: true, vatSatang: true } })
   must(
     row,
     'invoice',
-    await recordInvoice(memberCtx(c, 'fin_officer', invoiceAt), { poId: po.id, invoiceNo: `INV-${row.ref}`, invoiceDate: localDate(invoiceAt, c.calendar.timezone), net: satangToAmount(totals.netSatang), vat: satangToAmount(totals.vatSatang), isFinal: true }, optionsOf(row, 'invoice')),
+    await recordInvoice(memberCtx(c, 'fin_officer', invoiceAt, 'WEB', keyOf(row, 'invoice')), { poId: po.id, invoiceNo: `INV-${row.ref}`, invoiceDate: localDate(invoiceAt, c.calendar.timezone), net: satangToAmount(totals.netSatang), vat: satangToAmount(totals.vatSatang), isFinal: true }, optionsOf(row, 'invoice')),
   )
-  must(row, 'close PO', await closePurchaseOrder(proc(next('po-close', MINUTES_PER_HOUR)), { poId: po.id }, optionsOf(row, 'po-close')))
+  must(row, 'close PO', await closePurchaseOrder(proc(next('po-close', MINUTES_PER_HOUR), 'po-close'), { poId: po.id }, optionsOf(row, 'po-close')))
 }
 
 /**
@@ -338,9 +348,11 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   const waiting = ordered.filter((r) => r.status === 'PENDING_APPROVAL')
   const last = [...done, ...waiting].at(-1)
   if (!last) return { seeded: false, byStatus: {} }
-  if (await db.commandLog.count({ where: { idempotencyKey: { contains: HISTORY_KEY } } })) {
-    const ends = await db.commandLog.findMany({ where: { OR: lastSteps(last).map((step) => ({ idempotencyKey: { endsWith: keyOf(last, step) } })) }, select: { result: true } })
-    if (ends.some((e) => (e.result as { ok?: unknown } | null)?.ok === true)) return { seeded: false, byStatus: {} }
+  // What the history made is read from its events, which are kept for good (CommandLog only for 90 days, §6.2): every
+  // step's events carry the step's key as their requestId. The last row's last step made → the history is whole.
+  const started = (await db.event.count({ where: { requestId: { startsWith: HISTORY_KEY } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: HISTORY_KEY } } }))
+  if (started) {
+    if (await db.event.count({ where: { requestId: { in: lastSteps(last).map((step) => keyOf(last, step)) } } })) return { seeded: false, byStatus: {} }
     throw new DemoHistoryIncompleteError(last.ref)
   }
 
@@ -376,6 +388,13 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     }
   }
 
+  // Quotations and the PDFs of POs are files: the bucket has to answer before anything is written
+  try {
+    await checkBucket()
+  } catch (error) {
+    throw new DemoHistoryStorageError(error instanceof Error ? error.name : String(error))
+  }
+
   // POs of the past go nowhere
   setEmailProvider({ send: async () => ({ messageId: 'demo-history' }) })
   const byStatus: Record<string, number> = {}
@@ -385,7 +404,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
       byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
     }
     for (const [code] of c.members) {
-      const marked = await markNotificationsRead(memberCtx(c, code, now), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
+      const marked = await markNotificationsRead(memberCtx(c, code, now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
       if (!marked.ok && marked.error.code !== 'NOT_FOUND') throw new Error(`Demo_History: marking ${code}'s notifications read: ${marked.error.code}`)
     }
     for (const row of waiting) {

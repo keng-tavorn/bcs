@@ -18,6 +18,9 @@ export async function generateMetadata() {
 }
 
 const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
+/** The page's main action is a link that looks like the primary button (it opens the editor, it changes nothing) */
+const primaryLinkClass =
+  'inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
 /** What the admin looks for first: the version in effect, one approved for later, one waiting, drafts, then history */
 const ORDER: Readonly<Record<VersionLook, number>> = { IN_EFFECT: 0, UPCOMING: 1, PUBLISHED: 1, PENDING_APPROVAL: 2, DRAFT: 3, SUPERSEDED: 4, REJECTED: 5, WITHDRAWN: 6 }
 /** The import reads at most DOA_YAML_MAX_CHARS characters; a file of at most that many bytes never has more (UTF-8), so
@@ -25,9 +28,11 @@ const ORDER: Readonly<Record<VersionLook, number>> = { IN_EFFECT: 0, UPCOMING: 1
  *  action. A DOA of any real organization is a few kilobytes. */
 const MAX_FILE_BYTES = DOA_YAML_MAX_CHARS
 
-// DOA versions (FR-DOA-001 AC2–AC3, §9.1 /admin/doa): every version with its status and effective period, and the
-// import of a new draft from YAML. Wide screens: the versions on the left, the import on the right; phones: versions
-// first. Published versions never change: a change is a new version, approved under the DOA_CHANGE rule.
+// DOA versions (FR-DOA-001 AC1–AC3, §9.1 /admin/doa): the way into the editor — a copy of the latest version, edited as
+// a table and saved as a new draft — every version with its status and effective period, and the import of a new draft
+// from YAML. Wide screens: the versions on the left, editing and import on the right; phones: editing first (the page's
+// main task), then the versions, then the import. Published versions never change: a change is a new version,
+// approved under the DOA_CHANGE rule.
 export default async function DoaPage() {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   const [t, locale] = await Promise.all([getTranslations('adminDoa'), getLocale()])
@@ -44,7 +49,7 @@ export default async function DoaPage() {
       </div>
     )
   }
-  const { initial } = overview.data
+  const { initial, copySources } = overview.data
   const versions = [...overview.data.versions].sort((a, b) => ORDER[versionLook(a)] - ORDER[versionLook(b)] || a.code.localeCompare(b.code) || b.versionNo - a.versionNo)
   const when = (iso: string) => formatDateTime(locale, iso)
   const versionName = (v: DoaVersionSummaryView) => t('versionName', { code: v.code, version: v.versionNo })
@@ -62,7 +67,24 @@ export default async function DoaPage() {
       {initial ? <Notice tone="info">{t('initialNotice')}</Notice> : null}
 
       <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-x-12">
-        <section aria-labelledby="versions" className="flex min-w-0 flex-col gap-4">
+        {copySources.length ? (
+          <section aria-labelledby="edit" className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
+            <h2 id="edit" className="text-xl font-semibold">
+              {t('start.title')}
+            </h2>
+            <p className="text-ink-muted">{t('start.intro')}</p>
+            {copySources.map((source) => (
+              <div key={source.id} className="flex flex-col gap-3 border-t border-line pt-3">
+                <p>{t('start.source', { code: source.code, name: versionName(source), status: t(`status.${versionLook(source)}`) })}</p>
+                <Link href={`/admin/doa/${source.id}/edit`} className={`${primaryLinkClass} self-start`}>
+                  {t('start.link', { name: versionName(source) })}
+                </Link>
+              </div>
+            ))}
+          </section>
+        ) : null}
+
+        <section aria-labelledby="versions" className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">
           <h2 id="versions" className="text-xl font-semibold">
             {t('listTitle', { count: versions.length })}
           </h2>
@@ -104,7 +126,7 @@ export default async function DoaPage() {
           )}
         </section>
 
-        <section aria-labelledby="import" className="flex flex-col gap-4">
+        <section aria-labelledby="import" className={`flex flex-col gap-4 lg:col-start-2 ${copySources.length ? 'lg:row-start-2' : 'lg:row-start-1'}`}>
           <h2 id="import" className="text-xl font-semibold">
             {t('import.title')}
           </h2>

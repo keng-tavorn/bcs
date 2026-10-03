@@ -34,6 +34,8 @@ const base: InitialPackageFormProps = {
     { positionCode: 'DM', departmentId: CON, memberId: 'm-dm' },
   ],
   signatory: { id: 'm-ceo', nameTh: 'ศักดิ์ชัย ผู้นำ', nameEn: null },
+  // The page's boundary table, which step 2 asks to tick as checked (FR-DOA-009 AC3)
+  boundaryTableId: 'boundaries',
   submit: async () => ({ ok: true, assigneeMemberId: 'm-ceo' }),
 }
 
@@ -71,6 +73,15 @@ describe('[FR-DOA-002/AC3] the initial package form', () => {
   it('without a verified contract signatory it does not name one', () => {
     const html = render({ ...base, signatory: null })
     expect(html).not.toContain('ชุดตั้งต้นจะส่งให้')
+  })
+
+  it('a first version without a band edge has no boundary table: the form takes no table to tick and starts the same', () => {
+    // The tick sits in step 2 and only when the page shows a table (src/ui/admin-doa/boundary-tick.ts, unit-tested in
+    // admin-doa-editor.test.tsx); the service sends such a version without one (tests/integration/doa-editor-boundary.test.ts)
+    const html = render({ ...base, boundaryTableId: null })
+    expect(html).toMatch(/<li aria-current="step"[^>]*>ขั้นที่ 1 ตรวจรายชื่อผู้ดำรงตำแหน่ง<\/li>/)
+    expect(html).toContain('ถัดไป: ใส่เหตุผลและส่ง')
+    expect(html).not.toContain('ฉันตรวจตารางผลที่ขอบแล้ว')
   })
 })
 

@@ -3,6 +3,8 @@
 import { useTranslations } from 'next-intl'
 import { useId, useState, type FormEvent } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
+import { BoundaryConfirm } from '../admin-doa/boundary-confirm'
+import { boundaryRefusalAt, boundaryTickMissing, boundaryTickValue } from '../admin-doa/boundary-tick'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { Notice } from '../form/notice'
@@ -14,20 +16,57 @@ import type { ActionOutcome } from './outcome'
 
 // Deciding a DOA version or an authority change (BR-DOA-15, FR-DOA-010 AC2, FR-DOA-002 AC2): approve or reject only,
 // and both need the 6-digit code of the authenticator app again — the step-up is granted for this one document and
-// used once by the decision. Approve sticks to the bottom on phones; reject is a separate form with a reason and a
-// tick, outlined in danger.
+// used once by the decision. A DOA version whose page shows a boundary table is approved only once the approver ticks
+// it as checked, above the code (FR-DOA-009 AC3): the form refuses to send without the tick, and sends it with the
+// version the table compared with, so the service approves only the table that was ticked; it asks for the tick again.
+// A refusal the page cannot point at its tick for — the table appeared, or changed, after the page was opened — is said
+// in the form, with what to do. Rejecting needs no tick. Approve sticks to the bottom on phones; reject is a separate
+// form with a reason and a tick, outlined in danger.
 
 const CODE = /^\d{6}$/
 const REASON_MIN = 3
+
+/**
+ * What the forms send. Approving a DOA version: the approver's tick of the boundary table, or null when the page showed
+ * none, and the version that table compared it with (null: the version's own table, an organization's first).
+ */
+export interface PolicyDecisionInput {
+  readonly taskId: string
+  readonly decision: 'APPROVE' | 'REJECT'
+  readonly reason?: string
+  readonly code: string
+  readonly boundaryTableConfirmed?: boolean | null
+  readonly boundaryBaselineId?: string | null
+}
+
+/** The boundary table on the decision page of a DOA version (FR-DOA-009 AC3) */
+export interface BoundaryTick {
+  /** The id of the section that holds the table, which the tick links to */
+  readonly tableId: string
+  /** The version the table compares this one with; null when it is the version's own table */
+  readonly baselineId: string | null
+}
 
 export interface PolicyDecisionProps {
   readonly taskId: string
   readonly open: boolean
   readonly locale: string
-  readonly decide: (input: { taskId: string; decision: 'APPROVE' | 'REJECT'; reason?: string; code: string }, idempotencyKey: string) => Promise<ActionOutcome>
+  /** A DOA version whose page shows a boundary table: the table the approver ticks; null otherwise */
+  readonly boundary?: BoundaryTick | null
+  readonly decide: (input: PolicyDecisionInput, idempotencyKey: string) => Promise<ActionOutcome>
 }
 
-export function PolicyDecision({ taskId, open, locale, decide }: PolicyDecisionProps) {
+/**
+ * The service refused an approval for the boundary table (FR-DOA-009 AC3): MISSING without the tick, CHANGED when the
+ * table ticked is no longer the one the version is compared with
+ */
+function boundaryRefusal(outcome: ActionOutcome | null): 'MISSING' | 'CHANGED' | null {
+  if (!outcome || outcome.ok || outcome.code !== 'VALIDATION_FAILED') return null
+  return outcome.reason === 'BOUNDARY_NOT_CONFIRMED' ? 'MISSING' : outcome.reason === 'BOUNDARY_TABLE_CHANGED' ? 'CHANGED' : null
+}
+
+export function PolicyDecision({ taskId, open, locale, boundary = null, decide }: PolicyDecisionProps) {
+  const boundaryTableId = boundary?.tableId ?? null
   const t = useTranslations('tasks.policy')
   const tErrors = useTranslations('tasks.errors')
   const failureText = useTaskFailureText(locale)
@@ -38,6 +77,8 @@ export function PolicyDecision({ taskId, open, locale, decide }: PolicyDecisionP
   const [done, setDone] = useState<string | null>(null)
   const [approveCode, setApproveCode] = useState('')
   const [approveError, setApproveError] = useState<string>()
+  const [boundaryTicked, setBoundaryTicked] = useState(false)
+  const [boundaryError, setBoundaryError] = useState<string>()
   const [reason, setReason] = useState('')
   const [rejectCode, setRejectCode] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -51,11 +92,20 @@ export function PolicyDecision({ taskId, open, locale, decide }: PolicyDecisionP
   async function onApprove(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const code = approveCode.trim()
-    if (!CODE.test(code)) return setApproveError(tErrors('CODE'))
-    setApproveError(undefined)
-    const outcome = await approving.run((key) => decide({ taskId, decision: 'APPROVE', code }, key))
+    const codeError = CODE.test(code) ? undefined : tErrors('CODE')
+    const tickMissing = boundaryTickMissing(boundaryTableId, boundaryTicked)
+    setApproveError(codeError)
+    setBoundaryError(tickMissing ? tErrors('BOUNDARY_NOT_CONFIRMED') : undefined)
+    if (codeError || tickMissing) return
+    const tick = { boundaryTableConfirmed: boundaryTickValue(boundaryTableId, boundaryTicked), ...(boundary ? { boundaryBaselineId: boundary.baselineId } : {}) }
+    const outcome = await approving.run((key) => decide({ taskId, decision: 'APPROVE', code, ...tick }, key))
     setApproveCode('')
+    const refused = boundaryRefusal(outcome)
     if (outcome.ok) finished(t('approved'))
+    // A missing tick is said at the tick, or in the form when the page shows no table; a table that changed since the
+    // page was opened is said in the form (approveFailure), and its tick is taken back: it was for the table before
+    else if (refused === 'MISSING') setBoundaryError(boundaryRefusalAt(boundaryTableId) === 'TICK' ? tErrors('BOUNDARY_NOT_CONFIRMED') : undefined)
+    else if (refused === 'CHANGED') setBoundaryTicked(false)
     else stale.check(outcome)
   }
 
@@ -76,6 +126,13 @@ export function PolicyDecision({ taskId, open, locale, decide }: PolicyDecisionP
 
   /** A failure that belongs next to its form; a closed task is told once, above */
   const failureOf = (outcome: ActionOutcome | null) => (outcome && !outcome.ok && !taskClosed(outcome) ? <Notice tone="danger">{failureText(outcome)}</Notice> : null)
+  const refusal = boundaryRefusal(approving.outcome)
+  const approveFailure =
+    refusal === 'CHANGED' || (refusal === 'MISSING' && boundaryRefusalAt(boundaryTableId) === 'FORM') ? (
+      <Notice tone="danger">{tErrors('BOUNDARY_TABLE_CHANGED')}</Notice>
+    ) : refusal === 'MISSING' ? null : (
+      failureOf(approving.outcome)
+    )
 
   if (!open && !done && !stale.closed) return null
   return (
@@ -93,7 +150,20 @@ export function PolicyDecision({ taskId, open, locale, decide }: PolicyDecisionP
             noValidate
             className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-line bg-bg px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0"
           >
-            {failureOf(approving.outcome)}
+            {approveFailure}
+            {boundaryTableId !== null ? (
+              <BoundaryConfirm
+                tableId={boundaryTableId}
+                checked={boundaryTicked}
+                onChange={(checked) => {
+                  setBoundaryTicked(checked)
+                  if (checked) setBoundaryError(undefined)
+                }}
+                error={boundaryError}
+                texts={{ title: t('boundaryTitle'), link: t('boundaryLink'), label: t('boundaryConfirm') }}
+                compact
+              />
+            ) : null}
             <div className="flex items-end gap-2 lg:flex-col lg:items-stretch">
               <div className="min-w-0 flex-1">
                 <Field

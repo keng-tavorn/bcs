@@ -103,13 +103,25 @@ test('[FR-DOA-002/AC3] with no DOA yet, the first version goes with its position
   await expect(added.getByRole('alert')).toContainText('ตำแหน่งเดียวกันในแผนกเดียวกันมีผู้ดำรงได้คนเดียว')
   await added.getByRole('button', { name: 'ยกเลิก' }).click()
 
+  // A row taken out by mistake comes back with one press (the button is outlined in danger, away from save)
+  await pkg.getByRole('button', { name: 'แก้ ผู้จัดการฝ่าย (DM) ของ ฝ่ายก่อสร้าง' }).click()
+  await pkg.getByRole('group', { name: 'แก้ ผู้จัดการฝ่าย (DM) ของ ฝ่ายก่อสร้าง' }).getByRole('button', { name: 'นำแถวนี้ออก: ผู้จัดการฝ่าย (DM) ของ ฝ่ายก่อสร้าง' }).click()
+  await expect(holders.getByRole('listitem')).toHaveCount(5)
+  await expect(pkg.getByRole('status').filter({ hasText: 'นำ ผู้จัดการฝ่าย (DM) ของ ฝ่ายก่อสร้าง ออกจากชุดตั้งต้นแล้ว' })).toBeVisible()
+  await pkg.getByRole('button', { name: 'นำ ผู้จัดการฝ่าย (DM) ของ ฝ่ายก่อสร้าง กลับมา' }).click()
+  await expect(holders.getByRole('listitem')).toHaveCount(6)
+  await expect(pkg.getByRole('status').filter({ hasText: 'นำ ผู้จัดการฝ่าย (DM) ของ ฝ่ายก่อสร้าง กลับมาแล้ว' })).toBeVisible()
+
   // Step 2: the reason and the send, with words that say what happens
   await pkg.getByRole('button', { name: 'ถัดไป: ใส่เหตุผลและส่ง' }).click()
   await expect(pkg.getByRole('heading', { name: 'เหตุผลและการส่ง' })).toBeFocused()
   await expect(pkg).toContainText('ชุดตั้งต้นนี้มีผู้ดำรงตำแหน่ง 6 คน พร้อม DOA ฉบับนี้')
   await pkg.getByRole('button', { name: 'ส่งชุดตั้งต้นให้ผู้มีอำนาจลงนามอนุมัติ' }).click()
   await expect(pkg.getByText('ใส่เหตุผลอย่างน้อย 3 ตัวอักษร')).toBeVisible()
+  // FR-DOA-009 AC3: the boundary table of the version is ticked as checked before sending
+  await expect(pkg.getByText('ติ๊กยืนยันว่าตรวจตารางผลที่ขอบแล้วก่อนส่ง')).toBeVisible()
   await pkg.getByLabel('เหตุผล (บันทึกในประวัติ)').fill('ชุดตั้งต้นตามสัญญาบริการ')
+  await pkg.getByRole('checkbox', { name: 'ฉันตรวจตารางผลที่ขอบแล้ว ทุกยอดที่ขอบของช่วงไปหาผู้อนุมัติตามที่ตั้งใจ' }).check()
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await shot(page, testInfo, 'doa-initial-send')

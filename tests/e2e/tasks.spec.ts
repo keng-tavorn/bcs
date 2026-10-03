@@ -243,7 +243,7 @@ test('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy change shows what is approved a
   await shot(page, testInfo, 'policy-approved')
 })
 
-test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version shows every rule and what differs from the version in effect, and is decided with the authenticator code (BR-DOA-15)', async ({ page }, testInfo) => {
+test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] [FR-DOA-009/AC3] a DOA version shows every rule and what differs from the version in effect, and is decided with the authenticator code (BR-DOA-15)', async ({ page }, testInfo) => {
   const cast = castOf(testInfo)
   const created = fixture<{ versionId: string; taskId: string; effectiveFrom: string }>('doa', cast.proposer, String(cast.doaVersionNo))
   const name = `DOA-DEMO ฉบับ ${cast.doaVersionNo}`
@@ -264,6 +264,12 @@ test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version shows every rule and what 
   const diff = page.getByRole('region', { name: 'เปลี่ยนจาก DOA-DEMO ฉบับ 1 ที่มีผลอยู่' })
   await expect(diff.getByRole('listitem').filter({ hasText: 'แก้ข้อ PR-01' })).toContainText('ช่วงวงเงิน: เดิม ไม่เกิน 20,000.00 บาท · ใหม่ ไม่เกิน 30,000.00 บาท')
   await expect(diff.getByRole('listitem').filter({ hasText: 'แก้ข้อ PR-02' })).toContainText('ช่วงวงเงิน: เดิม มากกว่า 20,000.00 ถึงไม่เกิน 100,000.00 บาท · ใหม่ มากกว่า 30,000.00 ถึงไม่เกิน 100,000.00 บาท')
+  // Who gains or loses authority, and the boundary table the approver ticks before approving (FR-DOA-009 AC3)
+  await expect(page.getByRole('region', { name: 'ตำแหน่งที่ได้หรือเสียอำนาจ' }).getByRole('listitem').filter({ hasText: 'มากกว่า 20,000.00 ถึงไม่เกิน 30,000.00 บาท' })).toHaveCount(2)
+  const edges = page.getByRole('region', { name: 'ตารางผลที่ขอบของช่วงวงเงิน' }).getByRole('list', { name: 'คำขอซื้อ (PR)' }).getByRole('listitem')
+  await expect(edges.filter({ hasText: '30,000.00 บาท' })).toContainText('ผู้อนุมัติเปลี่ยน')
+  const approveForm = page.locator('form').filter({ has: page.getByRole('button', { name: 'อนุมัติการเปลี่ยนนี้', exact: true }) })
+  await expect(approveForm.getByRole('checkbox', { name: 'ฉันตรวจตารางผลที่ขอบแล้ว ทุกยอดที่ขอบของช่วงไปหาผู้อนุมัติที่ถูกต้อง' })).not.toBeChecked()
   // Every rule the version publishes: band, approver and SLA, the changed ones marked in words
   const rules = page.getByRole('list', { name: `ข้อของ ${name}` })
   await expect(rules.getByRole('listitem')).toHaveCount(8)
@@ -278,7 +284,8 @@ test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version shows every rule and what 
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'doa-policy')
 
-  // Rejected with a reason, the code from the app and a tick (nothing is published for the other tests)
+  // Rejected with a reason, the code from the app and a tick (nothing is published for the other tests); rejecting asks
+  // for no tick of the boundary table
   const rejectForm = page.locator('form#reject-policy')
   const reject = rejectForm.getByRole('button', { name: 'ไม่อนุมัติการเปลี่ยนนี้', exact: true })
   await reject.click()

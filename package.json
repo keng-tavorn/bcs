@@ -30,7 +30,8 @@
     "db:reset": "tsx --env-file-if-exists=.env scripts/db-reset.ts",
     "line:fake": "tsx --env-file-if-exists=.env scripts/fake-line.ts",
     "line:simulate": "tsx --env-file-if-exists=.env scripts/line-simulate.ts",
-    "line:richmenu": "tsx --env-file-if-exists=.env scripts/line-richmenu.ts"
+    "line:richmenu": "tsx --env-file-if-exists=.env scripts/line-richmenu.ts",
+    "demo:reset": "tsx scripts/demo-reset.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1144.0",

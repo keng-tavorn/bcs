@@ -1,14 +1,13 @@
 import { z } from 'zod'
 import { holdMore } from '@/core/budget'
 import { lineNet, parseQuantity, vatFromNet, type Satang } from '@/core/money/math'
-import { formatQuantity, receiveIncrement, shortOf } from '@/core/receiving'
+import { formatQuantity } from '@/core/receiving'
 import type { AppError } from '@/core/result'
-import { checkSod } from '@/core/sod'
 import { PO_MACHINE, transition, type PoState } from '@/core/state-machines'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { OrgSettingsSchema } from '@/lib/org-settings'
-import { authorize, loadPrincipal, matchingGrants } from '@/server/authz'
+import { authorize, isAllowed, loadPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { applyBudget } from '@/server/budget/ledger'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -20,15 +19,21 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { unsettledLines } from '../purchase-orders/close'
+import { receivingDecision } from './access'
+import { photosUsable } from './photos'
+import { keepPendingByLine, receiveOnLine, shortNow, standingOf, stillToCome } from './standing'
 
 // Receiving (spec §6.4 GR, §7.11, BR-GR-01 to BR-GR-05, FR-P2P-006, FR-P2P-007): the RECEIVER of the requesting
 // department — or the requester when the DOA in effect lets requesters receive (OQ-04) — posts what came per PO line,
-// with what was rejected; nobody who approved the PRs or the PO receives (BR-SOD-02). What lies beyond the ordered
-// quantity is accepted at once within settings.receiving.overTolerancePct and held at the PO price (BR-GR-02); the
-// rest is an OVER variance that goes back (RETURN_EXCESS) or waits for the GR_VARIANCE approver (ACCEPT_EXCESS).
-// Rejected goods that are damaged are a DAMAGED variance with at least one photo (BR-GR-05): replaced (RETURN_REPLACE)
-// or, once approved, kept (ACCEPT_DAMAGED). A PO that will not come in full is closed short through a CLOSE_SHORT
-// variance per line (GC-GR-04). Quantities are decimal text ×10⁴; amounts satang before VAT.
+// with what was rejected; nobody who approved the PRs or the PO receives (BR-SOD-02). What lies beyond what is still on
+// order (the ordered quantity less what a close-short gave up, ./standing.ts) is accepted at once within
+// settings.receiving.overTolerancePct and held at the PO price (BR-GR-02); the rest is an OVER variance that goes back
+// (RETURN_EXCESS) or waits for the GR_VARIANCE approver (ACCEPT_EXCESS). Rejected goods that are damaged are a DAMAGED
+// variance with at least one photo (BR-GR-05): replaced (RETURN_REPLACE) or, once approved, kept (ACCEPT_DAMAGED) — kept
+// only up to what is still to come, since damaged goods beyond the order would be an excess nobody approved or held. A
+// PO that will not come in full is closed short through a CLOSE_SHORT variance per line (GC-GR-04) for what is still to
+// come; the approval counts again what is missing then (NEW-32). Quantities are decimal text ×10⁴; amounts satang
+// before VAT.
 
 type Fail = { ok: false; error: AppError }
 type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION'
@@ -50,7 +55,9 @@ async function loadPo(tx: TenantTx, ctx: Ctx, poId: string) {
   })
   // ADR-038 ข้อ 8: a delegate who approved and the delegator they acted for both count as approvers
   const approvers = [...new Set(decided.flatMap((t) => [t.decidedByMemberId, t.principalMemberId]).filter((m): m is string => Boolean(m)))]
-  return { po, requests, approvers }
+  // Damaged goods waiting to be kept count as taken until they are decided (./standing.ts)
+  const keepPending = await keepPendingByLine(tx, po.lines.map((l) => l.id))
+  return { po, requests, approvers, keepPending }
 }
 
 type LoadedPo = NonNullable<Awaited<ReturnType<typeof loadPo>>>
@@ -59,23 +66,35 @@ type LoadedPo = NonNullable<Awaited<ReturnType<typeof loadPo>>>
  * §2.4 gr.post: RECEIVER of a requesting department, or a requester of the PO's PRs when the DOA in effect lets
  * requesters receive; then BR-SOD-02 and BR-SOD-07 (GC-SOD-02, GC-SOD-05).
  */
-async function mayReceive(tx: TenantTx, ctx: Ctx, loaded: LoadedPo, actor: string): Promise<{ ok: true } | (Fail & { auditEvents?: EventDraft[] })> {
+async function mayReceive(
+  tx: TenantTx,
+  ctx: Ctx,
+  loaded: LoadedPo,
+  actor: string,
+  action: 'gr.post' | 'gr.preview' = 'gr.post',
+): Promise<{ ok: true; principal: Principal } | (Fail & { auditEvents?: EventDraft[] })> {
   const principal = await loadPrincipal(tx, ctx)
   const sodPolicy = await effectiveSodPolicy(tx, ctx.now)
-  const requesters = loaded.requests.map((r) => r.requesterMemberId)
-  const departments = [...new Set(loaded.requests.map((r) => r.requesterDepartmentId))]
-  const grants = departments.flatMap((departmentId) => matchingGrants(principal, 'gr.post', { departmentId, ownerMemberIds: requesters }))
-  const allowed = grants.some((g) => g.condition !== 'REQUESTER_MAY_RECEIVE' || sodPolicy.requesterMayReceive)
-  if (!allowed) return { ok: false, error: { code: 'FORBIDDEN', message: 'missing capability gr.post', details: { capability: 'gr.post' } } }
-  const sod = checkSod({ kind: 'POST_GR', actorMemberId: actor, requesterMemberIds: requesters, approverMemberIds: loaded.approvers }, sodPolicy)
-  if (!sod.ok) {
+  const decision = receivingDecision(principal, sodPolicy, loaded)
+  if (decision.kind === 'NONE') return { ok: false, error: { code: 'FORBIDDEN', message: 'missing capability gr.post', details: { capability: 'gr.post' } } }
+  if (decision.kind === 'SOD') {
     return {
       ok: false,
-      error: { code: 'SOD_VIOLATION', message: 'separation of duties', details: { rule: sod.rule } },
-      auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: loaded.po.id, data: { rule: sod.rule, action: 'gr.post', subjectType: 'PURCHASE_ORDER', subjectId: loaded.po.id, actorMemberId: actor } }],
+      error: { code: 'SOD_VIOLATION', message: 'separation of duties', details: { rule: decision.rule } },
+      auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: loaded.po.id, data: { rule: decision.rule, action, subjectType: 'PURCHASE_ORDER', subjectId: loaded.po.id, actorMemberId: actor } }],
     }
   }
-  return { ok: true }
+  return { ok: true, principal }
+}
+
+/**
+ * Whether the actor may read the balances of these budget lines (§2.4 budget.view): the head of the line's department
+ * or an organization-wide budget role. A requester's own-line grant (SELECTED_LINE_ONLY) is for the request form only,
+ * and a RECEIVER has none — a refusal for lack of budget then says so without figures.
+ */
+async function seesBudgetOf(tx: TenantTx, principal: Principal, budgetLineIds: readonly string[]): Promise<boolean> {
+  const lines = await tx.budgetLine.findMany({ where: { id: { in: [...new Set(budgetLineIds)] } }, select: { departmentId: true } })
+  return lines.length > 0 && lines.every((l) => isAllowed(principal, 'budget.view', { departmentId: l.departmentId }))
 }
 
 /** A variance that needs approval goes to the GR_VARIANCE rule, on its own amount (ADR-038 ข้อ 7) */
@@ -120,7 +139,7 @@ const PostInput = z.strictObject({
         rejected: Quantity.default('0'),
         /** The rejected goods are damaged: replaced by the supplier, or kept once approved */
         damagedDisposition: z.enum(['RETURN_REPLACE', 'ACCEPT_DAMAGED']).optional(),
-        /** For what lies beyond the ordered quantity and the tolerance */
+        /** For what lies beyond what is still on order and the tolerance */
         excessDisposition: z.enum(['RETURN_EXCESS', 'ACCEPT_EXCESS']).optional(),
         remark: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
       }),
@@ -133,7 +152,7 @@ export const postGrCommand = defineCommand({
   name: 'gr.post',
   capability: 'gr.post',
   input: PostInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ grId: string; number: string; poStatus: string; varianceIds: string[] }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ grId: string; number: string; poStatus: string; varianceIds: string[]; pendingApproval: number }>> {
     const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member receives goods' } }
     const loaded = await loadPo(tx, ctx, input.poId)
@@ -147,10 +166,8 @@ export const postGrCommand = defineCommand({
     const tolerancePct = OrgSettingsSchema.shape.receiving.parse((org.settings as { receiving?: unknown } | null)?.receiving).overTolerancePct
     if (!Number.isInteger(tolerancePct)) return fail('VALIDATION_FAILED', 'the receiving tolerance must be a whole percent', { reason: 'TOLERANCE' })
     if (new Set(input.lines.map((l) => l.poLineId)).size !== input.lines.length) return fail('VALIDATION_FAILED', 'a PO line appears twice', { field: 'lines', reason: 'DUPLICATE_LINE' })
-    if (input.photoFileIds.length) {
-      const own = await tx.fileObject.count({ where: { id: { in: input.photoFileIds }, uploadedById: actor, status: 'AVAILABLE' } })
-      if (own !== new Set(input.photoFileIds).size) return fail('VALIDATION_FAILED', 'photos must be files you uploaded', { field: 'photoFileIds', reason: 'FILE' })
-    }
+    const photoIds = [...new Set(input.photoFileIds)]
+    if (!(await photosUsable(tx, actor, photoIds))) return fail('VALIDATION_FAILED', 'photos must be new pictures you uploaded', { field: 'photoFileIds', reason: 'FILE' })
 
     const grId = newId()
     const planned: Array<{ line: (typeof po.lines)[number]; received: bigint; rejected: bigint; accepted: bigint; within: bigint; hold: Satang; variances: Array<{ id: string; type: 'OVER' | 'DAMAGED'; disposition: 'RETURN_EXCESS' | 'ACCEPT_EXCESS' | 'RETURN_REPLACE' | 'ACCEPT_DAMAGED'; quantity: bigint; amountSatang: Satang; needsApproval: boolean }> }> = []
@@ -160,14 +177,20 @@ export const postGrCommand = defineCommand({
       const received = parseQuantity(l.received)
       const rejected = parseQuantity(l.rejected)
       if (received <= 0n || rejected > received) return fail('VALIDATION_FAILED', 'what came must be above zero and include what was rejected', { field: `lines.${i}.received`, reason: 'QUANTITY' })
-      const increment = receiveIncrement({ ordered: scaled(line.quantity), unitPriceSatang: line.unitPriceSatang, acceptedBefore: scaled(line.receivedQuantity), received: received - rejected, tolerancePct, ...(l.excessDisposition ? { disposition: l.excessDisposition } : {}) })
+      const standing = standingOf(line, loaded.keepPending.get(line.id) ?? 0n)
+      const increment = receiveOnLine(standing, { unitPriceSatang: line.unitPriceSatang, received: received - rejected, tolerancePct, disposition: l.excessDisposition })
       const variances: (typeof planned)[number]['variances'] = []
       if (increment.over) {
         if (!l.excessDisposition) return fail('VALIDATION_FAILED', 'say whether the excess goes back or is kept', { field: `lines.${i}.excessDisposition`, reason: 'EXCESS_DISPOSITION_REQUIRED', excess: formatQuantity(increment.over.quantity) })
         variances.push({ id: newId(), type: 'OVER', disposition: l.excessDisposition, quantity: increment.over.quantity, amountSatang: increment.over.amountSatang, needsApproval: increment.over.needsApproval })
       }
       if (rejected > 0n && l.damagedDisposition) {
-        if (input.photoFileIds.length === 0) return fail('VALIDATION_FAILED', 'damaged goods need a photo', { field: 'photoFileIds', reason: 'PHOTO_REQUIRED' })
+        if (photoIds.length === 0) return fail('VALIDATION_FAILED', 'damaged goods need a photo', { field: 'photoFileIds', reason: 'PHOTO_REQUIRED' })
+        // Kept damaged goods fill what is still to come; beyond it they would be an excess nobody approved or held
+        const keepable = stillToCome({ ...standing, received: standing.received + increment.accepted })
+        if (l.damagedDisposition === 'ACCEPT_DAMAGED' && rejected > keepable) {
+          return fail('VALIDATION_FAILED', 'damaged goods beyond what is still to come go back', { field: `lines.${i}.damagedDisposition`, reason: 'DAMAGED_BEYOND_ORDER', keepable: formatQuantity(keepable) })
+        }
         const amountSatang = lineNet(formatQuantity(rejected), line.unitPriceSatang)
         variances.push({ id: newId(), type: 'DAMAGED', disposition: l.damagedDisposition, quantity: rejected, amountSatang, needsApproval: l.damagedDisposition === 'ACCEPT_DAMAGED' })
       }
@@ -183,7 +206,12 @@ export const postGrCommand = defineCommand({
           holding.map((p) => ({ budgetLineId: p.line.budgetLineId, document: { type: 'PURCHASE_ORDER' as const, id: po.id }, run: (s) => holdMore(s, p.line.id, p.hold) })),
         )
       : { ok: true as const, events: [] as EventDraft[] }
-    if (!budget.ok) return budget
+    if (!budget.ok) {
+      // The balance and the shortfall are budget figures: only for those who may view the budget line (§2.4 budget.view)
+      const lineIds = holding.map((p) => p.line.budgetLineId)
+      if (budget.error.code === 'BUDGET_INSUFFICIENT' && !(await seesBudgetOf(tx, may.principal, lineIds))) return { ok: false, error: { code: 'BUDGET_INSUFFICIENT', message: budget.error.message } }
+      return budget
+    }
 
     const number = await issueDocumentNumber(tx, ctx, { document: 'GR' })
     await tx.goodsReceipt.create({
@@ -203,7 +231,7 @@ export const postGrCommand = defineCommand({
     for (const p of planned) {
       await tx.poLine.update({ where: { id: p.line.id }, data: { receivedQuantity: formatQuantity(scaled(p.line.receivedQuantity) + p.accepted), acceptedExtraQuantity: formatQuantity(scaled(p.line.acceptedExtraQuantity) + p.within) } })
     }
-    if (input.photoFileIds.length) await tx.fileLink.createMany({ data: [...new Set(input.photoFileIds)].map((fileId) => ({ organizationId: ctx.organizationId, fileId, subjectType: 'GoodsReceipt', subjectId: grId, kind: 'PHOTO' as const })) })
+    if (photoIds.length) await tx.fileLink.createMany({ data: photoIds.map((fileId) => ({ organizationId: ctx.organizationId, fileId, subjectType: 'GoodsReceipt', subjectId: grId, kind: 'PHOTO' as const })) })
 
     const events: EventDraft[] = []
     const notifications: NotificationDraft[] = []
@@ -258,12 +286,40 @@ export const postGrCommand = defineCommand({
       if (recipient === actor) continue
       notifications.push({ recipientMemberId: recipient, templateKey: 'gr.posted', data: { grId, number, poId: po.id, poNumber: po.number }, urgency: 'DIGEST', dedupeKey: `gr.posted:${grId}:${recipient}`, subjectType: 'PURCHASE_ORDER', subjectId: po.id })
     }
-    return { ok: true, result: { grId, number, poStatus: moved.to, varianceIds }, events, notifications }
+    // pendingApproval: the variances of this receipt that wait for the GR_VARIANCE approver, for the screen's confirmation
+    const pendingApproval = planned.reduce((n, p) => n + p.variances.filter((v) => v.needsApproval).length, 0)
+    return { ok: true, result: { grId, number, poStatus: moved.to, varianceIds, pendingApproval }, events, notifications }
   },
 })
 
 export function postGoodsReceipt(ctx: Ctx, input: z.input<typeof PostInput>, options: RunOptions) {
   return runCommand(ctx, postGrCommand, input, options)
+}
+
+// ---------- a preview refused by separation of duties (FR-DOA-007 AC2) ----------
+
+/**
+ * FR-DOA-007 AC2: every violation is blocked and recorded — a preview of a receipt too (src/server/services/receiving/
+ * view.ts), the way ADR-042 records a refused preview of an authority change. The rule is checked again here; the
+ * command never changes anything and never succeeds: it leaves the security.sod_blocked event (action gr.preview), once
+ * per idempotency key (a resend of the same attempt replays it).
+ */
+export const recordPreviewSodBlockCommand = defineCommand({
+  name: 'gr.preview_sod_blocked',
+  capability: 'gr.post',
+  input: z.strictObject({ poId: z.uuid() }),
+  async execute(tx, input, ctx): Promise<CommandOutcome<never>> {
+    const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+    if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member receives goods' } }
+    const loaded = await loadPo(tx, ctx, input.poId)
+    if (!loaded) return fail('NOT_FOUND', 'purchase order not found')
+    const may = await mayReceive(tx, ctx, loaded, actor, 'gr.preview')
+    return may.ok ? fail('VALIDATION_FAILED', 'no separation-of-duties refusal to record', { reason: 'NO_SOD_VIOLATION' }) : may
+  },
+})
+
+export function recordGrPreviewSodBlock(ctx: Ctx, poId: string, options: RunOptions) {
+  return runCommand(ctx, recordPreviewSodBlockCommand, { poId }, options)
 }
 
 // ---------- close short (GC-GR-04, FR-P2P-010 AC2) ----------
@@ -284,8 +340,12 @@ export const closeShortCommand = defineCommand({
     const { po } = loaded
     if (po.status !== 'SENT' && po.status !== 'PARTIALLY_RECEIVED') return fail('INVALID_STATE_TRANSITION', `closing short is not allowed when the purchase order is ${po.status}`, { from: po.status, command: 'po.close_short' })
     if (await tx.variance.count({ where: { poId: po.id, disposition: 'CLOSE_SHORT', status: 'PENDING_APPROVAL' } })) return fail('INVALID_STATE_TRANSITION', 'a close-short is waiting for approval', { from: po.status, command: 'po.close_short', reason: 'CLOSE_SHORT_PENDING' })
-    const short = (await unsettledLines(tx, po.id)).map((line) => ({ line, ...shortOf(scaled(line.quantity), scaled(line.receivedQuantity), scaled(line.cancelledQuantity), line.unitPriceSatang) }))
-    if (short.length === 0) return fail('VALIDATION_FAILED', 'every line came in full', { reason: 'NOTHING_SHORT' })
+    // What is still to come per line; damaged goods waiting to be kept are not given up (they may still be kept)
+    const lines = po.lines.map((line) => ({ line, standing: standingOf(line, loaded.keepPending.get(line.id) ?? 0n) }))
+    const unsettled = lines.filter((l) => l.standing.received + l.standing.cancelled < l.standing.ordered)
+    if (unsettled.length === 0) return fail('VALIDATION_FAILED', 'every line came in full', { reason: 'NOTHING_SHORT' })
+    const short = unsettled.map((l) => ({ line: l.line, ...shortNow(l.standing, l.line.unitPriceSatang) })).filter((s) => s.quantity > 0n)
+    if (short.length === 0) return fail('INVALID_STATE_TRANSITION', 'what is still to come waits for a decision on damaged goods', { from: po.status, command: 'po.close_short', reason: 'DAMAGED_PENDING' })
     const events: EventDraft[] = []
     const notifications: NotificationDraft[] = []
     const varianceIds: string[] = []

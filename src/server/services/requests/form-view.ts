@@ -3,12 +3,22 @@ import type { FieldDef } from '@/core/forms/fields'
 import { satangToAmount, toMoneyDto, type MoneyDto } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { rateFor, taxDateOf } from '@/core/vat'
-import { authorize } from '@/server/authz'
+import { authorize, isAllowed, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { formDefinition } from '@/server/forms/schema'
-import { defaultBudgetLineId, listFormBudgetLines, type FormBudgetLineDto, type ScreenLocale } from '@/server/queries/request-form'
+import {
+  defaultBudgetLineId,
+  defaultDeliverySiteId,
+  listFormBudgetLines,
+  listFormDeliverySites,
+  listFormSuppliers,
+  type FormBudgetLineDto,
+  type FormDeliverySiteDto,
+  type FormSupplierDto,
+  type ScreenLocale,
+} from '@/server/queries/request-form'
 import { attachableKinds, type FileLinkKind } from './attachments'
 
 // What the request form shows (S2-11, spec §7.9, FR-INT-002, FR-INT-003, BR-FORM-02): the form of the request type as
@@ -70,6 +80,10 @@ export interface RequestDraftDto {
   readonly attachments: readonly AttachmentDto[]
   /** Why the approver returned it, for a RETURNED request */
   readonly returnReason: string | null
+  /** Where the goods go (S4-02, BR-CONS-01); null: not chosen yet */
+  readonly deliverySiteId: string | null
+  /** The supplier the requester suggests (FR-P2P-001 AC2) */
+  readonly suggestedSupplierId: string | null
 }
 
 export interface RequestFormDto {
@@ -83,6 +97,11 @@ export interface RequestFormDto {
   readonly vatRateBp: number | null
   /** Kinds the requester may attach one by one (not QUOTATION: quotation files come with their quotation) */
   readonly attachmentKinds: readonly FileLinkKind[]
+  /** A purchase request's delivery sites (the active ones) and the one the form starts with (BR-FORM-02) */
+  readonly deliverySites: readonly FormDeliverySiteDto[]
+  readonly defaultDeliverySiteId: string | null
+  /** Active suppliers of the register a requester may suggest, basic details only (§2.4 supplier.view) */
+  readonly suppliers: readonly FormSupplierDto[]
   readonly draft: RequestDraftDto | null
 }
 
@@ -105,14 +124,29 @@ async function departmentName(tx: TenantTx, memberId: string, locale: ScreenLoca
 }
 
 /**
- * The context every form of a type is filled from (BR-FORM-02): budget lines, the default one, today's VAT rate. A
- * requester without a usable line is told to ask the budget administrators by their role, not by name: whose names
- * a requester may see is a personal-data decision the spec leaves open (unit a's needs).
+ * The context every form of a type is filled from (BR-FORM-02): budget lines, the default one, today's VAT rate, the
+ * delivery sites with the one the requester used last, and the suppliers they may suggest. A requester without a usable
+ * line is told to ask the budget administrators by their role, not by name: whose names a requester may see is a
+ * personal-data decision the spec leaves open (unit a's needs). Supplier names are read only when the reader holds
+ * supplier.view (§2.4: every member, basic details).
+ * TODO(S10): BR-FORM-02 also prefills the category's preferred supplier (PreferredSupplier, S10) and then the latest
+ * supplier of the same category; tier-1 forms have no category, so the suggested supplier starts empty.
  */
-async function formContext(ctx: Ctx, type: { code: string; documentType: 'PURCHASE_REQUEST' | 'SUPPLIER_REQUEST' }, locale: ScreenLocale) {
-  if (type.documentType === 'SUPPLIER_REQUEST') return { budgetLines: [], defaultBudgetLineId: null, vatRateBp: null }
-  const budgetLines = await listFormBudgetLines(ctx, taxDateOf(ctx.now), locale)
-  return { budgetLines, defaultBudgetLineId: await defaultBudgetLineId(ctx, type.code, budgetLines), vatRateBp: await todaysRate(ctx) }
+async function formContext(ctx: Ctx, principal: Principal, type: { code: string; documentType: 'PURCHASE_REQUEST' | 'SUPPLIER_REQUEST' }, locale: ScreenLocale) {
+  if (type.documentType === 'SUPPLIER_REQUEST') return { budgetLines: [], defaultBudgetLineId: null, vatRateBp: null, deliverySites: [], defaultDeliverySiteId: null, suppliers: [] }
+  const [budgetLines, deliverySites, suppliers] = await Promise.all([
+    listFormBudgetLines(ctx, taxDateOf(ctx.now), locale),
+    listFormDeliverySites(ctx),
+    isAllowed(principal, 'supplier.view') ? listFormSuppliers(ctx, locale) : Promise.resolve([]),
+  ])
+  return {
+    budgetLines,
+    defaultBudgetLineId: await defaultBudgetLineId(ctx, type.code, budgetLines),
+    vatRateBp: await todaysRate(ctx),
+    deliverySites,
+    defaultDeliverySiteId: await defaultDeliverySiteId(ctx, deliverySites),
+    suppliers,
+  }
 }
 
 /** The form for a new request of one type (FR-INT-002, FR-INT-003): NOT_FOUND for a type that is off or has no form */
@@ -122,7 +156,7 @@ export async function getNewRequestForm(ctx: Ctx, typeCode: string, locale: Scre
     if (!allowed.ok || allowed.data.kind !== 'member') return { kind: 'forbidden' as const }
     const type = await tx.requestType.findFirst({ where: { code: typeCode, active: true }, include: { currentFormVersion: { select: { schema: true, status: true } } } })
     if (!type?.currentFormVersion || type.currentFormVersion.status !== 'PUBLISHED') return { kind: 'missing' as const }
-    return { kind: 'ok' as const, type, requesterDepartmentName: await departmentName(tx, allowed.data.memberId, locale) }
+    return { kind: 'ok' as const, type, principal: allowed.data, requesterDepartmentName: await departmentName(tx, allowed.data.memberId, locale) }
   })
   if (loaded.kind === 'forbidden') return err('FORBIDDEN', 'members only')
   if (loaded.kind === 'missing') return err('NOT_FOUND', 'unknown request type')
@@ -132,7 +166,7 @@ export async function getNewRequestForm(ctx: Ctx, typeCode: string, locale: Scre
     type: { code: type.code, name: (locale === 'en' ? type.nameEn : null) ?? type.nameTh, description: type.descriptionTh, documentType: type.documentType },
     form,
     requesterDepartmentName: loaded.requesterDepartmentName,
-    ...(await formContext(ctx, type, locale)),
+    ...(await formContext(ctx, loaded.principal, type, locale)),
     attachmentKinds: attachableKinds(form.rules),
     draft: null,
   })
@@ -167,7 +201,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       const held = await tx.budgetAllocation.findMany({ where: { sourceType: 'REQUEST_LINE', sourceId: { in: request.lines.map((l) => l.id) }, reservedSatang: { gt: 0n } }, select: { sourceId: true, reservedSatang: true } })
       for (const h of held) reserved.set(h.sourceId, (reserved.get(h.sourceId) ?? 0n) + h.reservedSatang)
     }
-    return { kind: 'ok' as const, request, links, nameOf, returnReason, reserved, requesterDepartmentName: await departmentName(tx, request.requesterMemberId, locale) }
+    return { kind: 'ok' as const, request, links, nameOf, returnReason, reserved, principal: allowed.data, requesterDepartmentName: await departmentName(tx, request.requesterMemberId, locale) }
   })
   if (loaded.kind === 'missing') return err('NOT_FOUND', 'request not found')
   if (loaded.kind === 'forbidden') return err('FORBIDDEN', 'only the requester edits a request')
@@ -179,7 +213,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
     type: { code: type.code, name: (locale === 'en' ? type.nameEn : null) ?? type.nameTh, description: type.descriptionTh, documentType: type.documentType },
     form,
     requesterDepartmentName: loaded.requesterDepartmentName,
-    ...(await formContext(ctx, type, locale)),
+    ...(await formContext(ctx, loaded.principal, type, locale)),
     attachmentKinds: attachableKinds(form.rules),
     draft: {
       requestId: request.id,
@@ -210,6 +244,8 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       nonLowestQuoteReason: request.nonLowestQuoteReason ?? '',
       attachments: links.filter((l) => l.kind !== 'QUOTATION').map((l) => ({ fileId: l.fileId, fileName: nameOf.get(l.fileId) ?? '', kind: l.kind as FileLinkKind })),
       returnReason: loaded.returnReason,
+      deliverySiteId: request.deliverySiteId,
+      suggestedSupplierId: request.suggestedSupplierId,
     },
   })
 }

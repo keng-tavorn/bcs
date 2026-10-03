@@ -1,5 +1,5 @@
 import { holdMore, releaseHold } from '@/core/budget'
-import { parseQuantity, vatFromNet } from '@/core/money/math'
+import { lineNet, parseQuantity, vatFromNet } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { checkSod, type SodPolicy } from '@/core/sod'
 import { PO_MACHINE, VARIANCE_MACHINE, transition, type PoState, type TaskState, type VarianceState } from '@/core/state-machines'
@@ -14,12 +14,14 @@ import { assignNextStep } from '../approvals/next-step'
 import { closeRoute } from '../approvals/route'
 import { closePoInTx, unsettledLines } from '../purchase-orders/close'
 import type { DocumentTask } from '../purchase-orders/decide'
+import { keepPendingByLine, shortNow, standingOf } from './standing'
 
 // Deciding a variance (spec BR-GR-03, BR-GR-04, FR-P2P-007 AC2 AC3, GC-DOA-18): the approver of the GR_VARIANCE rule
 // approves or rejects — a variance is not returned. Who recorded it does not decide it (BR-SOD-01). Approved:
 // ACCEPT_EXCESS keeps the excess and holds more at the PO price; ACCEPT_DAMAGED keeps the damaged goods; CLOSE_SHORT
-// gives back what never came (BR-GR-04), counts it as cancelled on the line, and once nothing on the PO is short or
-// waiting, closes the PO (GC-GR-04). Rejected: the excess or the damaged goods go back; a close-short is not done.
+// gives back what still has not come when it is approved (BR-GR-04, NEW-32: goods received while it waited are not
+// given up), counts it as cancelled on the line, and once nothing on the PO is short or waiting, closes the PO
+// (GC-GR-04). Rejected: the excess or the damaged goods go back; a close-short is not done.
 
 const scaled = (d: { toString(): string }) => parseQuantity(d.toString())
 const COMMAND = { APPROVE: 'variance.final_approval', REJECT: 'approval.reject' } as const
@@ -110,11 +112,20 @@ export async function decideVarianceTask(
   } else if (variance.disposition === 'ACCEPT_DAMAGED') {
     await tx.poLine.update({ where: { id: line.id }, data: { receivedQuantity: formatQuantity(scaled(line.receivedQuantity) + quantity) } })
   } else if (variance.disposition === 'CLOSE_SHORT') {
-    // BR-GR-04: what never came goes back and counts as cancelled on the line
-    const budget = await applyBudget(tx, ctx, [{ budgetLineId: line.budgetLineId, document, run: (s) => releaseHold(s, line.id, variance.amountSatang) }])
-    if (!budget.ok) return budget
-    events.push(...budget.events)
-    await tx.poLine.update({ where: { id: line.id }, data: { cancelledQuantity: formatQuantity(scaled(line.cancelledQuantity) + quantity) } })
+    // BR-GR-04, BR-BUD-06, NEW-32: what never came goes back and counts as cancelled on the line — counted again now,
+    // because goods may have been received while the request waited, and damaged goods waiting to be kept may still be
+    // kept. Never more than the approver approved; nothing at all when everything came.
+    const keepPending = (await keepPendingByLine(tx, [line.id])).get(line.id) ?? 0n
+    const missing = shortNow(standingOf(line, keepPending), line.unitPriceSatang)
+    const giveUp = missing.quantity < quantity ? missing.quantity : quantity
+    if (giveUp > 0n) {
+      // the same rounding as the request (quantity × PO price, once): the approved amount when nothing came meanwhile
+      const amount = giveUp === quantity ? variance.amountSatang : lineNet(formatQuantity(giveUp), line.unitPriceSatang)
+      const budget = await applyBudget(tx, ctx, [{ budgetLineId: line.budgetLineId, document, run: (s) => releaseHold(s, line.id, amount) }])
+      if (!budget.ok) return budget
+      events.push(...budget.events)
+      await tx.poLine.update({ where: { id: line.id }, data: { cancelledQuantity: formatQuantity(scaled(line.cancelledQuantity) + giveUp) } })
+    }
   }
 
   // The PO moves on: received in full by an accepted variance, or closed once nothing is short or waiting (GC-GR-04)

@@ -49,7 +49,7 @@ describe('[FR-DOA-002/AC1] a version is submitted only when the lint passes and 
     const id = await imported(version2(11, (t) => t.replace('approver: { kind: POSITION_OF_ORG, position: COO }', 'approver: { kind: POSITION_OF_ORG, position: CFO }')))
     const silent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: id }, key())
     expect(silent).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: ['DOA_LINT_VACANT_POSITION:PO-01'] } } })
-    const submitted = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: id, acknowledgedWarnings: ['DOA_LINT_VACANT_POSITION:PO-01'] }, key())
+    const submitted = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: id, acknowledgedWarnings: ['DOA_LINT_VACANT_POSITION:PO-01'], boundaryTableConfirmed: true }, key())
     expect(submitted).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: 'PENDING_APPROVAL', submittedById: org.member.admin })
     expect(await prisma.approvalRoute.findFirstOrThrow({ where: { subjectType: 'DOA_VERSION', subjectId: id } })).toMatchObject({ ruleCode: 'DOA-CHG-01' })
@@ -68,7 +68,7 @@ describe('[FR-DOA-002/AC4] the effective time is never in the past, and the new 
 
   it('publishing after the planned time starts it at the approval and supersedes version 1', async () => {
     const id = await imported(version2(14))
-    expect(await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: id }, key())).toMatchObject({ ok: true })
+    expect(await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: id, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true })
     // The CEO approves on 2 Nov, after the planned 1 Nov start (the approval flow with step-up is S2-16)
     const approvedAt = new Date('2026-11-02T03:00:00Z')
     const ctx = makeCtx({ organizationId: org.organizationId, actor: { type: 'USER', memberId: org.member.ceo! }, channel: 'WEB', now: approvedAt })
@@ -89,7 +89,7 @@ describe('[NEW-13] a version approved for a later date supersedes its predecesso
     const draft = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: version2(30) }, key())
     if (!draft.ok) throw new Error('import failed')
     const id = draft.data.versionIds[0]!
-    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: id }, key())
+    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: id, boundaryTableConfirmed: true }, key())
     // Approved on 6 Oct for 1 Nov
     const approver = makeCtx({ organizationId: solo.organizationId, actor: { type: 'USER', memberId: solo.member.ceo! }, channel: 'WEB', now: new Date('2026-10-06T03:00:00Z') })
     const published = await forTenant(solo.organizationId).$transaction((tx) => publishApprovedDoaVersion(tx, approver, id, solo.member.ceo!))
@@ -118,7 +118,7 @@ describe('[FR-DOA-002/AC4] a submitted document keeps the route of the version i
     const imported = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: version2(40) }, key())
     if (!imported.ok) throw new Error('import failed')
     const v2 = imported.data.versionIds[0]!
-    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: v2 }, key())
+    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: v2, boundaryTableConfirmed: true }, key())
     const later = new Date('2026-11-02T03:00:00Z')
     const approver = makeCtx({ organizationId: solo.organizationId, actor: { type: 'USER', memberId: solo.member.ceo! }, channel: 'WEB', now: later })
     await forTenant(solo.organizationId).$transaction((tx) => publishApprovedDoaVersion(tx, approver, v2, solo.member.ceo!))

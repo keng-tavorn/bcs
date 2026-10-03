@@ -11,32 +11,46 @@ import { newId } from '@/lib/ids'
 import { logger } from '@/lib/logger'
 import { getEmailProvider } from '@/integrations/email-provider'
 import { putObject, readObject } from '@/integrations/storage'
-import { authorize, loadPrincipal, scopesFor, type Principal } from '@/server/authz'
+import { authorize, loadPrincipal } from '@/server/authz'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import '../exports/file-policy'
+import { reportScope, scopeCovers } from './access'
 import { computeKpis, type Ratio } from './kpi'
+
+export { reportScope } from './access'
 
 // The report framework (spec §11.3, FR-VIS-002 AC1 AC3): a report has parameters, columns, a scope rule, an Excel or CSV
 // export with its sha256 (ExportJob REPORT) and schedules that email the file to members on a cron. Each report reads
 // within the caller's report.view scope: the whole organization (FINANCE, PROCUREMENT, EXECUTIVE, AUDITOR) or the
-// departments a department head heads. The seven reports of the proposal wait for OQ-09 (NEW-08); the first report of
-// the framework is the KPI view of §11.4 (FR-VIS-003), which BCS defines itself. Reports live here rather than in
-// src/server/queries/reports because the KPI re-runs the DOA engine with the organization's policy (§4.10 boundaries).
+// departments a department head heads; a scheduled file goes only to recipients whose own report.view covers the scope
+// it is made for. The seven reports of the proposal wait for OQ-09 (NEW-08); the first report of the framework is the
+// KPI view of §11.4 (FR-VIS-003), which BCS defines itself. Reports live here rather than in src/server/queries/reports
+// because the KPI re-runs the DOA engine with the organization's policy (§4.10 boundaries).
 
 const DateParam = z.iso.date()
 const KpiParams = z.strictObject({ from: DateParam, to: DateParam })
 export type KpiParams = z.infer<typeof KpiParams>
 
-interface Column {
+export interface Column {
   readonly key: string
   readonly header: { readonly th: string; readonly en: string }
+  /** In the file only (a unit, a code for machines): the screen says the same in its own words */
+  readonly fileOnly?: boolean
+}
+
+/** A parameter as the report screen asks for it: a calendar day (YYYY-MM-DD) for now */
+export interface ReportParamField {
+  readonly key: string
+  readonly kind: 'date'
 }
 
 interface ReportDefinition<P> {
   readonly code: string
   readonly params: z.ZodType<P>
+  /** The filters of the report screen, in order (FR-VIS-002 AC1 "ตัวกรอง") */
+  readonly paramFields: readonly ReportParamField[]
   readonly columns: readonly Column[]
   rows(tx: TenantTx, ctx: Ctx, params: P, departmentIds: readonly string[] | null): Promise<Array<Record<string, string>>>
 }
@@ -47,25 +61,68 @@ const percentText = (r: Ratio): string => {
   const tenths = roundHalfUpDiv(BigInt(r.numerator) * PERCENT_TENTHS_SCALE, BigInt(r.denominator))
   return `${tenths / 10n}.${tenths % 10n}`
 }
-const hoursText = (minutes: number | null) => (minutes === null ? '' : `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`)
+const MINUTES_PER_HOUR = 60n
+/** Business minutes as hours with one decimal, half up ("1.5"), the way the KPI page and the report page show them */
+const hoursText = (minutes: number | null) => {
+  if (minutes === null) return ''
+  const tenths = roundHalfUpDiv(BigInt(minutes) * 10n, MINUTES_PER_HOUR)
+  return `${tenths / 10n}.${tenths % 10n}`
+}
 /** [from, to) of whole Thai days: from 00:00 of `from` to 00:00 after `to` */
-const periodOf = (p: KpiParams) => ({ from: new Date(`${p.from}T00:00:00+07:00`), to: new Date(new Date(`${p.to}T00:00:00+07:00`).getTime() + MS_PER_DAY) })
+export const periodOf = (p: KpiParams) => ({ from: new Date(`${p.from}T00:00:00+07:00`), to: new Date(new Date(`${p.to}T00:00:00+07:00`).getTime() + MS_PER_DAY) })
+
+/**
+ * What each KPI measure is, in Thai, as the file says it for the 60-day review (FR-VIS-003 AC3) — the same words as the
+ * screens' messages (reports.measures, reports.kinds; a test compares them). The code stays in its own column.
+ */
+const MEASURE_TH: Readonly<Record<string, string>> = {
+  PO_APPROVED_OVER_ACCOUNTING_PURCHASES: 'PO ที่อนุมัติ ÷ เอกสารซื้อในระบบบัญชี',
+  DECISIONS_NOT_BY_DOA: 'การอนุมัติที่ผิด DOA',
+  DECISIONS_WITH_DOA_REFERENCE: 'การตัดสินที่อ้าง DOA ฉบับและข้อครบ',
+  MEDIAN_SUBMIT_TO_FIRST_PO_HOURS: 'มัธยฐานเวลาส่งคำขอถึงอนุมัติ PO แรก',
+  MEDIAN_DECISION_HOURS: 'มัธยฐานเวลาตัดสินต่อขั้น',
+  TASKS_PAST_DUE: 'ขั้นที่เกินกำหนด (SLA)',
+  TASKS_ON_FAILED_BUDGET_CHECK: 'งานอนุมัติของคำขอที่ตรวจงบไม่ผ่าน',
+  DECISIONS_ON_LINE_ALL: 'การตัดสินผ่าน LINE หรือ LIFF ทุกชนิดเอกสาร',
+}
+const KIND_TH: Readonly<Record<string, string>> = {
+  PURCHASE_REQUEST: 'คำขอซื้อ',
+  PURCHASE_ORDER: 'ใบสั่งซื้อ',
+  VARIANCE: 'ผลต่างจากการตรวจรับ',
+  DOA_VERSION: 'ฉบับ DOA',
+  ORG_AUTHORITY_CHANGE: 'การเปลี่ยนโครงสร้างอำนาจ',
+}
+const LINE_PREFIX = 'DECISIONS_ON_LINE_'
+/** A KPI measure code in Thai; a code without words stays the code */
+export function kpiMeasureTh(code: string): string {
+  if (MEASURE_TH[code]) return MEASURE_TH[code]
+  const kind = code.startsWith(LINE_PREFIX) ? code.slice(LINE_PREFIX.length) : null
+  return kind ? `การตัดสินผ่าน LINE หรือ LIFF ของ${KIND_TH[kind] ?? kind}` : code
+}
+const UNIT_TH = { percent: '%', hours: 'ชั่วโมงทำการ', count: 'รายการ' } as const
 
 const KPI: ReportDefinition<KpiParams> = {
   code: 'KPI',
   params: KpiParams,
+  paramFields: [
+    { key: 'from', kind: 'date' },
+    { key: 'to', kind: 'date' },
+  ],
   columns: [
     { key: 'kpi', header: { th: 'ตัวชี้วัด', en: 'KPI' } },
-    { key: 'measure', header: { th: 'สิ่งที่วัด', en: 'Measure' } },
+    { key: 'name', header: { th: 'สิ่งที่วัด', en: 'Measure' } },
     { key: 'value', header: { th: 'ค่า', en: 'Value' } },
+    { key: 'unit', header: { th: 'หน่วย', en: 'Unit' }, fileOnly: true },
     { key: 'numerator', header: { th: 'ตัวตั้ง', en: 'Numerator' } },
     { key: 'denominator', header: { th: 'ตัวหาร', en: 'Denominator' } },
+    { key: 'measure', header: { th: 'รหัส', en: 'Code' }, fileOnly: true },
   ],
   async rows(tx, ctx, params, departmentIds) {
     const k = await computeKpis(tx, ctx.organizationId, { ...periodOf(params), now: ctx.now }, departmentIds)
-    const ratio = (kpi: string, measure: string, r: Ratio) => ({ kpi, measure, value: percentText(r), numerator: String(r.numerator), denominator: r.denominator === null ? '' : String(r.denominator) })
-    const count = (kpi: string, measure: string, n: number) => ({ kpi, measure, value: String(n), numerator: '', denominator: '' })
-    const time = (kpi: string, measure: string, minutes: number | null) => ({ kpi, measure, value: hoursText(minutes), numerator: '', denominator: '' })
+    const named = (kpi: string, measure: string) => ({ kpi, measure, name: kpiMeasureTh(measure) })
+    const ratio = (kpi: string, measure: string, r: Ratio) => ({ ...named(kpi, measure), value: percentText(r), unit: UNIT_TH.percent, numerator: String(r.numerator), denominator: r.denominator === null ? '' : String(r.denominator) })
+    const count = (kpi: string, measure: string, n: number) => ({ ...named(kpi, measure), value: String(n), unit: UNIT_TH.count, numerator: '', denominator: '' })
+    const time = (kpi: string, measure: string, minutes: number | null) => ({ ...named(kpi, measure), value: hoursText(minutes), unit: UNIT_TH.hours, numerator: '', denominator: '' })
     return [
       ratio('G-1', 'PO_APPROVED_OVER_ACCOUNTING_PURCHASES', k.g1),
       count('G-2', 'DECISIONS_NOT_BY_DOA', k.g2.misrouted),
@@ -82,13 +139,14 @@ const KPI: ReportDefinition<KpiParams> = {
 
 export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { KPI }
 
-/** FR-VIS-002 AC3: the departments a report may read for this principal, null for the whole organization */
-function reportScope(principal: Principal): readonly string[] | null | 'NONE' {
-  if (principal.kind !== 'member') return 'NONE'
-  const scopes = scopesFor(principal, 'report.view')
-  if (scopes.has('ORG')) return null
-  if (scopes.has('DEPT') && principal.headOfDepartmentIds.size > 0) return [...principal.headOfDepartmentIds]
-  return 'NONE'
+/** Of these members, the ones whose own report.view covers `scope` (null: the whole organization), each counted once */
+async function readersAmong(tx: TenantTx, ctx: Ctx, memberIds: readonly string[], scope: readonly string[] | null): Promise<string[]> {
+  const readers: string[] = []
+  for (const memberId of new Set(memberIds)) {
+    const principal = await loadPrincipal(tx, makeCtx({ organizationId: ctx.organizationId, actor: { type: 'USER', memberId }, channel: 'SYSTEM', now: ctx.now }))
+    if (scopeCovers(reportScope(principal), scope)) readers.push(memberId)
+  }
+  return readers
 }
 
 export async function runReport(ctx: Ctx, code: string, rawParams: unknown): Promise<Result<{ columns: readonly Column[]; rows: Array<Record<string, string>>; scope: 'ORG' | 'DEPT' }>> {
@@ -188,6 +246,14 @@ export const createScheduleCommand = defineCommand({
     if (!parseCron(input.cron)) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the schedule is not a cron this system reads', details: { field: 'cron', reason: 'CRON' } } }
     const members = await tx.member.count({ where: { id: { in: input.recipientMemberIds }, status: 'ACTIVE' } })
     if (members !== new Set(input.recipientMemberIds).size) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'recipients must be active members', details: { field: 'recipientMemberIds', reason: 'RECIPIENT' } } }
+    // FR-VIS-002 AC3: the file is made in the creator's scope, so each recipient must be able to read that scope themselves
+    const scope = reportScope(allowed.data)
+    if (scope === 'NONE') return { ok: false, error: { code: 'FORBIDDEN', message: 'missing capability report.view', details: { capability: 'report.view' } } }
+    const readers = await readersAmong(tx, ctx, input.recipientMemberIds, scope)
+    const refused = new Set(input.recipientMemberIds).size - readers.length
+    if (refused > 0) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'every recipient must be able to read this report themselves', details: { field: 'recipientMemberIds', reason: 'RECIPIENT_SCOPE', count: refused } } }
+    }
     const row = await tx.reportSchedule.create({ data: { organizationId: ctx.organizationId, reportCode: input.reportCode, cron: input.cron, recipients: [...new Set(input.recipientMemberIds)], format: input.format === 'csv' ? 'CSV' : 'XLSX', createdById: allowed.data.memberId, lastRunAt: ctx.now }, select: { id: true } })
     return { ok: true, result: { scheduleId: row.id }, events: [{ type: 'report_schedule.created', aggregateType: 'ReportSchedule', aggregateId: row.id, data: { reportCode: input.reportCode, cron: input.cron, recipientCount: new Set(input.recipientMemberIds).size, format: input.format } }] }
   },
@@ -219,7 +285,9 @@ export const scheduledReportCommand = defineCommand({
     const params = { from: taxDateOf(new Date(slot.getTime() - REPORT_PERIOD_DAYS * MS_PER_DAY)), to: taxDateOf(new Date(slot.getTime() - MS_PER_DAY)) }
     const file = await writeReport(tx, ctx, report, params, scope, schedule.format === 'CSV' ? 'csv' : 'xlsx', schedule.createdById)
     await tx.reportSchedule.update({ where: { id: schedule.id }, data: { lastRunAt: slot } })
-    const recipients = await tx.member.findMany({ where: { id: { in: schedule.recipients }, status: 'ACTIVE' }, select: { email: true } })
+    // only the recipients who may still read what the file holds (a revoked role or a deactivated member gets nothing)
+    const readers = await readersAmong(tx, ctx, schedule.recipients, scope)
+    const recipients = await tx.member.findMany({ where: { id: { in: readers }, status: 'ACTIVE' }, select: { email: true } })
     return {
       ok: true,
       result: { exportJobId: file.exportJobId, fileId: file.fileId, recipients: recipients.map((r) => r.email), fileName: file.fileName, reportCode: report.code },

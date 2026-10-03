@@ -1,5 +1,6 @@
 'use client'
 
+import { Trash2, Undo2 } from 'lucide-react'
 import { useLocale, useTranslations } from 'next-intl'
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
@@ -11,6 +12,8 @@ import { WarningText } from '../admin-org/warning-text'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { Notice } from '../form/notice'
+import { BoundaryConfirm } from './boundary-confirm'
+import { boundaryRefusalAt, boundaryTickMissing, boundaryTickValue } from './boundary-tick'
 import { DOA_REASONS } from './import-form'
 import { LintIssueText } from './lint-issue'
 import type { SubmitDoaResult } from './submit-panel'
@@ -21,7 +24,8 @@ import type { SubmitDoaResult } from './submit-panel'
 // department, and never the submitter. The service checks all of this again and answers with what to fix.
 // Two real steps (§9.9: no single page of more than 8 fields): (1) the holders as a short list, prefilled with the
 // current holders, where one row at a time is edited, added or removed (3 fields); (2) the reason, any warning to tick
-// on its own, and the send. A refusal goes back to the step and the row it is about.
+// on its own, the tick that the boundary table was checked when the page shows one (FR-DOA-009 AC3), and the send. A
+// refusal goes back to the step and the row it is about.
 
 export interface PackageHolder {
   readonly positionCode: string
@@ -29,7 +33,15 @@ export interface PackageHolder {
   readonly memberId: string
 }
 
-export type SubmitInitialPackageAction = (versionId: string, holders: readonly PackageHolder[], reason: string, acknowledged: readonly string[], idempotencyKey: string) => Promise<SubmitDoaResult>
+/** boundaryTableConfirmed: the drafter's tick, or null when the page showed no boundary table */
+export type SubmitInitialPackageAction = (
+  versionId: string,
+  holders: readonly PackageHolder[],
+  reason: string,
+  acknowledged: readonly string[],
+  boundaryTableConfirmed: boolean | null,
+  idempotencyKey: string,
+) => Promise<SubmitDoaResult>
 
 export interface InitialPackageFormProps {
   readonly versionId: string
@@ -38,6 +50,8 @@ export interface InitialPackageFormProps {
   readonly members: ReadonlyArray<Named & { readonly id: string; readonly employeeCode: string | null }>
   readonly holders: readonly PackageHolder[]
   readonly signatory: (Named & { readonly id: string }) | null
+  /** The page shows a boundary table the drafter must tick as checked before sending (FR-DOA-009 AC3); its section id */
+  readonly boundaryTableId: string | null
   readonly submit: SubmitInitialPackageAction
 }
 
@@ -48,7 +62,7 @@ type Editing = { readonly key: number | 'new'; readonly draft: PackageHolder; re
 const slotOf = (h: Pick<PackageHolder, 'positionCode' | 'departmentId'>) => `${h.positionCode}@${h.departmentId}`
 const without = (errors: Readonly<Record<number, string>>, key: number) => Object.fromEntries(Object.entries(errors).filter(([k]) => Number(k) !== key))
 
-export function InitialPackageForm({ versionId, positions, departments, members, holders, signatory, submit }: InitialPackageFormProps) {
+export function InitialPackageForm({ versionId, positions, departments, members, holders, signatory, boundaryTableId, submit }: InitialPackageFormProps) {
   const t = useTranslations('adminDoa.detail.initial')
   const tDoa = useTranslations('adminDoa')
   const locale = useLocale()
@@ -62,10 +76,14 @@ export function InitialPackageForm({ versionId, positions, departments, members,
   const [editing, setEditing] = useState<Editing | null>(null)
   const [rowErrors, setRowErrors] = useState<Readonly<Record<number, string>>>({})
   const [listFailure, setListFailure] = useState<string | null>(null)
+  /** The row taken out last, where it stood, so one press brings it back (taking a row out is undone, not confirmed) */
+  const [removed, setRemoved] = useState<{ readonly kind: 'removed'; readonly row: Row; readonly index: number } | { readonly kind: 'restored'; readonly row: Row } | null>(null)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string | undefined>()
   const [warnings, setWarnings] = useState<readonly string[]>([])
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
+  const [boundaryTicked, setBoundaryTicked] = useState(false)
+  const [boundaryError, setBoundaryError] = useState<string | undefined>()
   const [errors, setErrors] = useState<readonly IssueView[]>([])
   const [failure, setFailure] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
@@ -98,6 +116,7 @@ export function InitialPackageForm({ versionId, positions, departments, members,
 
   function startEdit(row: Row | null) {
     setListFailure(null)
+    setRemoved(null)
     setEditing(row ? { key: row.key, draft: { positionCode: row.positionCode, departmentId: row.departmentId, memberId: row.memberId }, error: null } : { key: 'new', draft: { positionCode: '', departmentId: '', memberId: '' }, error: null })
   }
 
@@ -128,9 +147,19 @@ export function InitialPackageForm({ versionId, positions, departments, members,
   }
 
   function removeRow(key: number) {
+    const index = rows.findIndex((r) => r.key === key)
+    if (index >= 0) setRemoved({ kind: 'removed', row: rows[index]!, index })
     setRows((list) => list.filter((r) => r.key !== key))
     setRowErrors((e) => without(e, key))
     setEditing(null)
+  }
+
+  /** Puts the row taken out last back where it stood, unless its slot is in the list again */
+  function restoreRow() {
+    if (removed?.kind !== 'removed') return
+    const { row, index } = removed
+    setRows((list) => (list.some((r) => r.key === row.key || slotOf(r) === slotOf(row)) ? list : [...list.slice(0, index), row, ...list.slice(index)]))
+    setRemoved({ kind: 'restored', row })
   }
 
   function toSend() {
@@ -147,10 +176,13 @@ export function InitialPackageForm({ versionId, positions, departments, members,
     const trimmed = reason.trim()
     const reasonProblem = trimmed.length < 3 ? tDoa('errors.REASON') : trimmed.length > REASON_MAX_LENGTH ? tDoa('errors.REASON_TOO_LONG', { max: REASON_MAX_LENGTH }) : undefined
     setReasonError(reasonProblem)
+    const missingBoundary = boundaryTickMissing(boundaryTableId, boundaryTicked)
+    setBoundaryError(missingBoundary ? tDoa('errors.BOUNDARY_NOT_CONFIRMED') : undefined)
     if (reasonProblem) return
     if (warnings.some((w) => !ticked.has(w))) return setFailure(tDoa('errors.WARNINGS_NOT_ACKNOWLEDGED'))
+    if (missingBoundary) return
     const list = rows.map(({ positionCode, departmentId, memberId }) => ({ positionCode, departmentId, memberId }))
-    const outcome = await action.run((key) => submit(versionId, list, trimmed, [...ticked], key))
+    const outcome = await action.run((key) => submit(versionId, list, trimmed, [...ticked], boundaryTickValue(boundaryTableId, boundaryTicked), key))
     if (outcome.ok) {
       setSent(true)
       action.done()
@@ -164,6 +196,10 @@ export function InitialPackageForm({ versionId, positions, departments, members,
       setWarnings(outcome.warnings)
       setTicked(new Set([...ticked].filter((w) => outcome.warnings!.includes(w))))
       return setFailure(tDoa('errors.WARNINGS_NOT_ACKNOWLEDGED'))
+    }
+    if (outcome.reason === 'BOUNDARY_NOT_CONFIRMED') {
+      if (boundaryRefusalAt(boundaryTableId) === 'FORM') return setFailure(tDoa('errors.BOUNDARY_TABLE_CHANGED'))
+      return setBoundaryError(tDoa('errors.BOUNDARY_NOT_CONFIRMED'))
     }
     if (outcome.field === 'reason') return setReasonError(trimmed.length > REASON_MAX_LENGTH ? tDoa('errors.REASON_TOO_LONG', { max: REASON_MAX_LENGTH }) : tDoa('errors.REASON'))
     const message = tDoa(`errors.${failureKey(outcome, DOA_REASONS)}`, errorValues(outcome))
@@ -232,17 +268,19 @@ export function InitialPackageForm({ versionId, positions, departments, members,
             options={members.map((m) => ({ value: m.id, label: memberLabel(locale, m) }))}
           />
         </div>
-        <div className="flex flex-wrap gap-3">
+        {/* Save and cancel together; taking the row out is outlined in danger at the far end, away from save, and undone with one press */}
+        <div className="flex flex-wrap items-center gap-3">
           <Button onClick={saveRow}>{e.key === 'new' ? t('addSave') : t('editSave')}</Button>
-          {e.key !== 'new' ? (
-            // A short word on the button; its accessible name starts with it and says which row (WCAG 2.5.3)
-            <Button variant="secondary" aria-label={t('removeThis', { what: what(e.draft) })} onClick={() => removeRow(e.key as number)}>
-              {t('removeRow')}
-            </Button>
-          ) : null}
           <Button variant="secondary" onClick={() => setEditing(null)}>
             {t('cancelEdit')}
           </Button>
+          {e.key !== 'new' ? (
+            // A short word on the button; its accessible name starts with it and says which row (WCAG 2.5.3)
+            <Button variant="danger" className="ml-auto" aria-label={t('removeThis', { what: what(e.draft) })} onClick={() => removeRow(e.key as number)}>
+              <Trash2 className="size-4 shrink-0" aria-hidden="true" />
+              {t('removeRow')}
+            </Button>
+          ) : null}
         </div>
       </fieldset>
     )
@@ -285,6 +323,20 @@ export function InitialPackageForm({ versionId, positions, departments, members,
             ))}
           </ol>
         )}
+        {/* Always there, so what is said in it is announced */}
+        <div aria-live="polite">
+          {removed?.kind === 'removed' ? (
+            <Notice tone="info">
+              <p>{t('removedRow', { what: what(removed.row) })}</p>
+              <Button variant="secondary" className="mt-2" onClick={restoreRow}>
+                <Undo2 className="size-4 shrink-0" aria-hidden="true" />
+                {t('restoreRow', { what: what(removed.row) })}
+              </Button>
+            </Notice>
+          ) : removed?.kind === 'restored' ? (
+            <Notice tone="info">{t('restoredRow', { what: what(removed.row) })}</Notice>
+          ) : null}
+        </div>
         {missing.length ? <p className="text-base text-ink-muted md:text-sm">{t('missing', { positions: missing.join(', ') })}</p> : null}
         {editing?.key === 'new' ? (
           editor(editing)
@@ -360,6 +412,17 @@ export function InitialPackageForm({ versionId, positions, departments, members,
             </label>
           ))}
         </fieldset>
+      ) : null}
+      {boundaryTableId !== null ? (
+        <BoundaryConfirm
+          tableId={boundaryTableId}
+          checked={boundaryTicked}
+          onChange={(checked) => {
+            setBoundaryTicked(checked)
+            if (checked) setBoundaryError(undefined)
+          }}
+          error={boundaryError}
+        />
       ) : null}
       <Button type="submit" disabled={action.pending || !signatory} className="self-start">
         {action.pending ? tDoa('detail.submitting') : t('submit')}

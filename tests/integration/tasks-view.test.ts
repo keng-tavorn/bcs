@@ -333,7 +333,7 @@ describe('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy task shows what is being ap
     const imported = await importDoaDraft(org.ctxOf('admin', NOW), { yaml }, key())
     if (!imported.ok) throw new Error(`import failed: ${imported.error.code}`)
     const versionId = imported.data.versionIds[0]!
-    const sent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId }, key())
+    const sent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
     if (!sent.ok) throw new Error(`submit failed: ${sent.error.code}`)
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'DOA_VERSION', subjectId: versionId } } } })
     const view = await getTaskView(org.ctxOf('ceo', MON_1300), task.id)

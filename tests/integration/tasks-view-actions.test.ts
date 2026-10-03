@@ -249,7 +249,7 @@ describe('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version waiting for approval s
     const imported = await importDoaDraft(org.ctxOf('admin', NOW), { yaml, changeReason: 'ขยายวงเงิน DM เป็น 30,000 บาท' }, key())
     if (!imported.ok) throw new Error(`import failed: ${imported.error.code}`)
     const versionId = imported.data.versionIds[0]!
-    const sent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId }, key())
+    const sent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
     if (!sent.ok) throw new Error(`submit failed: ${sent.error.code}`)
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'DOA_VERSION', subjectId: versionId } } } })
     // Only the approver of DOA-CHG-01 reads it from the decision page; the admin who sent it may not decide it (GC-SOD-04)
@@ -269,9 +269,11 @@ describe('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version waiting for approval s
       when: { amount: { gt: 0n, lte: 3_000_000n } },
       steps: [{ approver: { kind: 'POSITION_OF_DEPARTMENT', position: 'DM' }, slaBusinessMinutes: 480, mode: 'SEQUENTIAL' }],
     })
-    expect(policy.currentContent).toMatchObject({ code: 'DOA-DEMO', versionNo: 1 })
+    // Compared with the version in effect, which it would replace
+    expect(policy.baseline).toMatchObject({ code: 'DOA-DEMO', versionNo: 1, relation: 'IN_EFFECT' })
+    expect(policy.baselineContent).toMatchObject({ code: 'DOA-DEMO', versionNo: 1 })
     expect([...policy.positionNames.keys()].sort()).toEqual(['CEO', 'COO', 'DM', 'VP'])
-    const diff = diffVersions(policy.currentContent!, policy.content!)
+    const diff = diffVersions(policy.baselineContent!, policy.content!)
     expect(diff).toEqual({ policy: [], added: [], removed: [], changed: [{ code: 'PR-01', fields: ['band'] }, { code: 'PR-02', fields: ['band'] }] })
     expect(policy.changeReason).toBe('ขยายวงเงิน DM เป็น 30,000 บาท')
   })

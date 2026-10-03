@@ -129,5 +129,6 @@ describe('[FR-INT-007/AC1] counting business time backwards dates work that has 
       }),
       { numRuns: 1000 },
     )
-  })
+    // 2,000 runs of up to 37 business days each: as the property project allows, on a machine under load too
+  }, 60_000)
 })

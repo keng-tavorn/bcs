@@ -94,7 +94,13 @@
     "neededBy": "Needed by",
     "urgency": "Urgency",
     "urgent": "Urgent",
-    "normal": "Normal"
+    "normal": "Normal",
+    "deliverySite": "Delivery site",
+    "deliverySiteValue": "{code} · {name}",
+    "deliverySiteNone": "Not chosen yet",
+    "suggestedSupplier": "Suggested supplier",
+    "suggestedSupplierValue": "{code} · {name}",
+    "suggestedSupplierNone": "None: procurement chooses"
   },
   "amounts": {
     "title": "Amounts",

@@ -40,6 +40,8 @@ defineEvents('ApprovalTask', {
       reasonCommentId: z.uuid().nullable(),
       // BR-DOA-15: the step-up the approver gave for a DOA version or an authority change
       stepUpGrantId: z.uuid().nullable().optional(),
+      // FR-DOA-009 AC3: the approver of a DOA version ticked its boundary table before approving
+      boundaryTableConfirmed: z.boolean().optional(),
     }),
     // INV-DOA-01: the Event columns name the DOA version and rule of every decision
     requiresDoaRef: true,

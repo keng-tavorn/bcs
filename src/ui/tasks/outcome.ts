@@ -49,6 +49,8 @@ export const TASK_ERROR_KEYS = [
   'FORBIDDEN',
   'SOD',
   'APPROVER_NOT_FOUND',
+  'BUDGET',
+  'BUDGET_LINE_CLOSED',
   'LATER_VERSION',
   'SUBJECT',
   'CHANNEL',
@@ -80,6 +82,9 @@ export function taskErrorKey(failure: ActionFailure): TaskErrorKey {
   if (code === 'FORBIDDEN') return reason === 'CHANNEL' ? 'CHANNEL' : 'FORBIDDEN'
   if (code === 'SOD_VIOLATION') return 'SOD'
   if (code === 'APPROVER_NOT_FOUND') return 'APPROVER_NOT_FOUND'
+  // Approving a PO holds its budget, and approving an excess holds more: told without amounts (budget.view, §2.4)
+  if (code === 'BUDGET_INSUFFICIENT') return 'BUDGET'
+  if (code === 'BUDGET_LINE_CLOSED') return 'BUDGET_LINE_CLOSED'
   if (code === 'NOT_FOUND') return 'NOT_FOUND'
   if (code === 'RATE_LIMITED') return 'BUSY'
   if (code === 'IDEMPOTENCY_CONFLICT') return 'CONFLICT'

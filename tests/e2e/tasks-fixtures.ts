@@ -146,7 +146,7 @@ switch (scenario) {
     const imported = await importDoaDraft(ctxOf(by), { yaml, changeReason: 'ขยายวงเงินผู้จัดการฝ่ายเป็น 30,000 บาท' }, key())
     if (!imported.ok) throw new Error(`import failed: ${JSON.stringify(imported.error)}`)
     const versionId = imported.data.versionIds[0]!
-    const sent = await submitDoaVersion(ctxOf(by), { versionId }, key())
+    const sent = await submitDoaVersion(ctxOf(by), { versionId, boundaryTableConfirmed: true }, key())
     if (!sent.ok) throw new Error(`submit failed: ${JSON.stringify(sent.error)}`)
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'DOA_VERSION', subjectId: versionId } } }, select: { id: true } })
     out = { versionId, taskId: task.id, effectiveFrom: from }

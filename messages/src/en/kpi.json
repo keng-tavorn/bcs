@@ -1,0 +1,148 @@
+{
+  "title": "KPI",
+  "intro": "The organization's measures for goals G-1 to G-5, computed from the event log and the documents in the system. Each shows its formula in words, its value for the chosen period, the baseline and the proposed target. Press a value to see what it counts.",
+  "forbidden": "The KPI page is for executives, finance, procurement and auditors. If you need it, contact your organization admin.",
+  "forbiddenHead": "The KPI page shows the whole organization's figures. Department heads read the KPI report of the departments they head on the reports page.",
+  "toReports": "Go to reports",
+  "home": "Back to home",
+  "periodLine": "{from} to {to} ({days, plural, one {# day} other {# days}})",
+  "asOf": "Figures read at {time} · times count business hours",
+  "from": "From",
+  "to": "To",
+  "show": "Show this period",
+  "periodInvalid": "The chosen period cannot be used (it must start on or before its last day), so the last {days} days are shown instead.",
+  "baseline": {
+    "noneTitle": "No baseline to compare with yet",
+    "noneHint": "The baseline is measured by hand by the customer's team and BCS during preparation, before go-live. Once it is recorded, the baseline column shows it next to this period's values. Until then, use the proposed targets as a guide.",
+    "notRecorded": "Not recorded yet",
+    "value": "{value} (measured {date})"
+  },
+  "figuresTitle": "Measures for this period",
+  "figuresHint": "Press a value to see the documents it counts.",
+  "table": {
+    "caption": "KPI G-1 to G-5: value for this period, baseline and proposed target",
+    "measure": "Measure and formula",
+    "value": "This period",
+    "baseline": "Baseline",
+    "target": "Proposed target"
+  },
+  "export": {
+    "title": "Export for the 60-day review",
+    "hint": "A CSV file of the measures for the chosen period, each with its name, value, unit, numerator and denominator. It opens in Excel, and the export is recorded."
+  },
+  "goals": {
+    "G-1": "One front door",
+    "G-2": "The right approver",
+    "G-3": "Faster",
+    "G-4": "Budget control",
+    "G-5": "Approval on mobile"
+  },
+  "measures": {
+    "g1": {
+      "name": "POs approved through BCS",
+      "formula": "POs approved in the period ÷ all purchase documents in the accounting system, imported from Express every month",
+      "target": "At least 90% of all purchase documents"
+    },
+    "g2a": {
+      "name": "Approvals not by the DOA",
+      "formula": "Decisions made by someone the DOA did not give the step to at the time, checked again with the DOA version's rules",
+      "target": "0"
+    },
+    "g2b": {
+      "name": "Decisions citing the DOA version and rule",
+      "formula": "Decisions that record the DOA version and rule they used ÷ all decisions in the period",
+      "target": "100%"
+    },
+    "g3a": {
+      "name": "Median time from request to first approved PO",
+      "formula": "Half of the requests took no longer than this, in business hours from sending the request to the approval of its first PO",
+      "target": "At least 50% less than the baseline"
+    },
+    "g3b": {
+      "name": "Median decision time per step",
+      "formula": "Half of the approval steps were decided within this, in business hours from assignment to decision",
+      "target": "At most 1 business day"
+    },
+    "g3c": {
+      "name": "Steps past due (SLA)",
+      "formula": "Steps decided after their due time, or still open past it ÷ steps assigned in the period",
+      "target": "Under 10%"
+    },
+    "g4": {
+      "name": "Over-budget requests that reached an approver",
+      "formula": "Approval tasks of requests whose budget check failed when they were sent",
+      "target": "0"
+    },
+    "g5": {
+      "name": "Decisions on LINE or LIFF",
+      "formula": "Decisions made in LINE chat or in LIFF ÷ all decisions in the period, in all and per kind of document",
+      "target": "At least 60%",
+      "byKind": "Decisions on LINE or LIFF: {kind}",
+      "byKindFormula": "Decisions on {kind} made in LINE chat or in LIFF ÷ all decisions on {kind} in the period"
+    }
+  },
+  "kinds": {
+    "PURCHASE_REQUEST": "purchase requests",
+    "PURCHASE_ORDER": "purchase orders",
+    "VARIANCE": "receiving variances",
+    "DOA_VERSION": "DOA versions",
+    "ORG_AUTHORITY_CHANGE": "authority changes"
+  },
+  "values": {
+    "noneYet": "No data in this period",
+    "percent": "{value}%",
+    "hours": "{value} business hours",
+    "count": "{count}",
+    "of": {
+      "decisions": "{numerator} of {denominator} decisions",
+      "tasks": "{numerator} of {denominator} steps"
+    },
+    "noDenominator": "Not a share yet: it needs the number of purchase documents from the accounting system",
+    "checked": "{count, plural, one {# decision checked} other {# decisions checked}}"
+  },
+  "linkLabel": "See what is counted: {name} {value}",
+  "items": {
+    "metaTitle": "What a measure counts",
+    "back": "Back to the KPI page",
+    "unknown": "There is no such measure",
+    "unknownHint": "Go back to the KPI page and press the value of the measure you want.",
+    "none": "Nothing in this period",
+    "noneHint": "Choose a wider period on the KPI page.",
+    "listLabel": "What is counted in {name}",
+    "countedOf": "{counted} of {total} counted",
+    "capped": "Showing the latest {shown} of {total}",
+    "count": "{count, plural, one {# item} other {# items}}",
+    "document": {
+      "REQUEST": "Request {label}",
+      "PURCHASE_ORDER": "Purchase order {label}",
+      "VARIANCE": "Receiving variance of {label}",
+      "DOA_VERSION": "DOA version {label}",
+      "ORG_AUTHORITY_CHANGE": "Authority change",
+      "unknown": "Document not found"
+    },
+    "decision": {
+      "APPROVE": "Approved",
+      "RETURN": "Returned for changes",
+      "REJECT": "Rejected"
+    },
+    "decidedBy": "{decision} by {name}",
+    "onBehalfOf": "on behalf of {name}",
+    "atVia": "at {time} · channel {channel}",
+    "at": "at {time}",
+    "poApprovedAt": "PO approved at {time}",
+    "firstPoAt": "First PO approved at {time}, {hours} business hours after the request was sent",
+    "heldBy": "Held by {name}",
+    "decidedAfter": "Decided at {time}, {hours} business hours after assignment",
+    "assignedAt": "Assigned at {time}, not decided yet",
+    "dueAt": "Due {time}",
+    "mark": {
+      "MOBILE": "Counted: decided through {channel}",
+      "NOT_MOBILE": "Not counted: decided through {channel}",
+      "WITH_DOA": "Counted: cites the DOA version and rule",
+      "WITHOUT_DOA": "Not counted: does not cite the DOA version and rule",
+      "MISROUTED": "The decider is not who the DOA names",
+      "PAST_DUE_DECIDED": "Decided after its due time",
+      "PAST_DUE_OPEN": "Still open past its due time"
+    }
+  }
+}

@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { comparisonBaselineId } from './doa'
 import {
   approverRoles,
   businessCalendarOf,
@@ -48,6 +49,25 @@ export type InboxSubjectDto =
     }
   | { readonly kind: 'DOA_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
   | { readonly kind: 'ORG_AUTHORITY_CHANGE'; readonly changeKind: OrgChangeKind; readonly effectiveFrom: Date }
+  /** A purchase order sent for approval (FR-P2P-004): its number, supplier, who sent it and its total with VAT */
+  | {
+      readonly kind: 'PURCHASE_ORDER'
+      readonly poId: string
+      readonly number: string | null
+      readonly supplierName: string
+      /** The member of its latest sending for approval (po.submitted), who may not be the one who made the draft */
+      readonly submittedBy: MemberRefDto | null
+      readonly grossSatang: bigint
+    }
+  /** A variance of a goods receipt waiting for the GR_VARIANCE approver (FR-P2P-007 AC2): before VAT, as recorded */
+  | {
+      readonly kind: 'VARIANCE'
+      readonly varianceId: string
+      readonly poNumber: string | null
+      readonly description: string
+      readonly varianceType: 'SHORT' | 'OVER' | 'DAMAGED'
+      readonly amountSatang: bigint
+    }
   | { readonly kind: 'OTHER' }
 
 export interface InboxTaskDto {
@@ -76,7 +96,7 @@ const INBOX_LIMIT = 200
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -86,11 +106,43 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     ids('DOA_VERSION').length ? db.doaVersion.findMany({ where: { id: { in: ids('DOA_VERSION') } }, select: { id: true, code: true, versionNo: true, effectiveFrom: true } }) : Promise.resolve([]),
     ids('ORG_AUTHORITY_CHANGE').length ? db.orgAuthorityChange.findMany({ where: { id: { in: ids('ORG_AUTHORITY_CHANGE') } }, select: { id: true, kind: true, effectiveFrom: true } }) : Promise.resolve([]),
     departmentsOf(db),
+    ids('PURCHASE_ORDER').length
+      ? db.purchaseOrder.findMany({
+          where: { id: { in: ids('PURCHASE_ORDER') } },
+          select: { id: true, number: true, grossSatang: true, supplier: { select: { nameTh: true } } },
+        })
+      : Promise.resolve([]),
+    ids('VARIANCE').length
+      ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
+      : Promise.resolve([]),
   ])
   const request = new Map(requests.map((r) => [r.id, r]))
   const version = new Map(versions.map((v) => [v.id, v]))
   const change = new Map(changes.map((c) => [c.id, c]))
+  const po = new Map(pos.map((p) => [p.id, p]))
+  const variance = new Map(variances.map((v) => [v.id, v]))
+  // Who sent each PO for approval: the actor of its latest po.submitted Event
+  const submitted = pos.length
+    ? await db.event.findMany({ where: { type: 'po.submitted', aggregateType: 'PurchaseOrder', aggregateId: { in: pos.map((p) => p.id) }, actorType: 'USER' }, orderBy: { seq: 'asc' }, select: { aggregateId: true, actorMemberId: true } })
+    : []
+  const submitterOf = new Map(submitted.map((e) => [e.aggregateId, e.actorMemberId]))
+  const submitters = await membersById(db, submitterOf.values())
   return (type, id) => {
+    if (type === 'PURCHASE_ORDER' && po.has(id)) {
+      const p = po.get(id)!
+      return {
+        kind: 'PURCHASE_ORDER',
+        poId: p.id,
+        number: p.number,
+        supplierName: p.supplier.nameTh,
+        submittedBy: submitters.get(submitterOf.get(p.id) ?? '') ?? null,
+        grossSatang: p.grossSatang,
+      }
+    }
+    if (type === 'VARIANCE' && variance.has(id)) {
+      const v = variance.get(id)!
+      return { kind: 'VARIANCE', varianceId: v.id, poNumber: v.po.number, description: v.poLine.description, varianceType: v.type, amountSatang: v.amountSatang }
+    }
     if (type === 'REQUEST' && request.has(id)) {
       const r = request.get(id)!
       return {
@@ -240,6 +292,18 @@ export interface DoaVersionContentDto {
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
+/**
+ * The version a DOA version is compared with (FR-DOA-009 AC1, AC3), and how it stands now: IN_EFFECT now; NEXT,
+ * approved for later and in effect just before this version starts; REPLACED, in effect before this version and ended.
+ */
+export interface DoaBaselineDto {
+  readonly versionId: string
+  readonly code: string
+  readonly versionNo: number
+  readonly effectiveFrom: Date
+  readonly relation: 'IN_EFFECT' | 'NEXT' | 'REPLACED'
+}
+
 /** What a policy task asks the approver to approve (BR-DOA-15) */
 export type PolicySubjectDto =
   | {
@@ -260,8 +324,14 @@ export type PolicySubjectDto =
       readonly holders: ReadonlyArray<{ readonly position: PositionNameDto; readonly department: DepartmentRefDto | null; readonly member: MemberRefDto | null }>
       /** The rules and policy the approver is asked to publish; null when a stored rule cannot be read */
       readonly content: DoaVersionContentDto | null
-      /** The same of the version in effect now, to compare with (FR-DOA-009 AC1); null without one */
-      readonly currentContent: DoaVersionContentDto | null
+      /**
+       * The version it is compared with — the diff, the authority gained or lost and the boundary table the approver
+       * ticks (FR-DOA-009 AC1, AC3): the one the drafter's page, the send and the approval compare it with; null without
+       * one (an organization's first version)
+       */
+      readonly baseline: DoaBaselineDto | null
+      /** The rules and policy of the baseline; null without one, or when one of its stored rules cannot be read */
+      readonly baselineContent: DoaVersionContentDto | null
       /** Names of the positions and members the rules of both versions name as approvers */
       readonly positionNames: ReadonlyMap<string, NameDto>
       readonly memberNames: ReadonlyMap<string, MemberRefDto>
@@ -451,6 +521,26 @@ async function doaContentOf(db: TenantDb, versionId: string): Promise<DoaVersion
   }
 }
 
+/** Statuses of a version that was approved: in effect, approved for later, or replaced since */
+const ONCE_IN_EFFECT: readonly string[] = ['PUBLISHED', 'SUPERSEDED']
+
+/**
+ * The version a DOA version is compared with (FR-DOA-009 AC1, AC3). While it waits, comparisonBaselineId at this
+ * moment: the version in effect just before it starts — the drafter's page, the send and the approval read the same
+ * one, so the approver ticks the table the approval asks for. Once published, the version it replaced: in effect just
+ * before it started (its start may have moved to the approval, BR-DOA-12).
+ */
+async function baselineOf(db: TenantDb, version: { readonly id: string; readonly status: string; readonly effectiveFrom: Date }, now: Date): Promise<DoaBaselineDto | null> {
+  const at = ONCE_IN_EFFECT.includes(version.status) ? new Date(version.effectiveFrom.getTime() - 1) : now
+  const id = await comparisonBaselineId(db, version, at)
+  if (!id) return null
+  const row = await db.doaVersion.findUniqueOrThrow({ where: { id }, select: { id: true, code: true, versionNo: true, status: true, effectiveFrom: true, effectiveTo: true } })
+  const started = row.effectiveFrom.getTime() <= now.getTime()
+  const ended = row.effectiveTo !== null && row.effectiveTo.getTime() <= now.getTime()
+  const relation = row.status === 'PUBLISHED' && started && !ended ? 'IN_EFFECT' : started ? 'REPLACED' : 'NEXT'
+  return { versionId: row.id, code: row.code, versionNo: row.versionNo, effectiveFrom: row.effectiveFrom, relation }
+}
+
 async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: string, departments: { byId: Map<string, DepartmentRefDto> }): Promise<PolicySubjectDto | null> {
   const version = await db.doaVersion.findUnique({ where: { id: versionId }, include: { _count: { select: { rules: true } } } })
   if (!version) return null
@@ -460,9 +550,10 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
     orderBy: { effectiveFrom: 'desc' },
     select: { id: true, code: true, versionNo: true },
   })
-  // What the approver publishes, and what is in effect now to compare it with (FR-DOA-002 AC2, FR-DOA-009 AC1)
-  const [content, currentContent] = await Promise.all([doaContentOf(db, version.id), current && current.id !== version.id ? doaContentOf(db, current.id) : Promise.resolve(null)])
-  const approvers = [...(content?.rules ?? []), ...(currentContent?.rules ?? [])].flatMap((r) => r.steps.map((s) => s.approver))
+  // What the approver publishes, and the version it is compared with (FR-DOA-002 AC2, FR-DOA-009 AC1, AC3)
+  const baseline = await baselineOf(db, version, now)
+  const [content, baselineContent] = await Promise.all([doaContentOf(db, version.id), baseline ? doaContentOf(db, baseline.versionId) : Promise.resolve(null)])
+  const approvers = [...(content?.rules ?? []), ...(baselineContent?.rules ?? [])].flatMap((r) => r.steps.map((s) => s.approver))
   const positionCodes = [...new Set(approvers.flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position])))]
   const [positionRows, memberNames] = await Promise.all([
     positionCodes.length ? db.position.findMany({ where: { code: { in: positionCodes } }, select: { code: true, nameTh: true, nameEn: true } }) : Promise.resolve([]),
@@ -501,7 +592,8 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
       }
     }),
     content,
-    currentContent,
+    baseline,
+    baselineContent,
     positionNames: new Map(positionRows.map((p) => [p.code, { th: p.nameTh, en: p.nameEn }])),
     memberNames,
   }

@@ -8,8 +8,10 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
+import { comparisonBaselineId } from '@/server/queries/doa'
 import type { CommandOutcome } from '../_pipeline'
 import { laterVersionScheduled, publishApprovedDoaVersion } from '../doa'
+import { boundaryTableRequiredFor } from '../doa/boundary'
 import { isInitialPackageRoute } from '../doa/initial-package'
 import { approveOrgChange, rejectOrgChange } from '../org-authority'
 import { closeRoute } from './route'
@@ -18,7 +20,10 @@ import { closeRoute } from './route'
 // decided by the approver of its DOA_CHANGE or ORG_AUTHORITY_CHANGE rule — or, for the initial package, by the contract
 // signatory (BR-DOA-19) — with a step-up every time, on the web or LIFF only; the submitter never approves their own
 // (BR-SOD-06, BR-SOD-08). A policy route is approved or rejected, not returned. The holders of an initial package are
-// authority changes on the same route and follow its decision.
+// authority changes on the same route and follow its decision. A DOA version is approved only with its boundary table
+// ticked as checked whenever it has one — the table the drafter ticked to send it (FR-DOA-009 AC3) — and a tick given
+// for a table compared with another version than the one compared now (another version approved in between) is
+// refused; rejecting needs no tick, and authority changes have no table.
 
 export interface PolicyTask {
   readonly id: string
@@ -31,7 +36,12 @@ export async function decidePolicyTask(
   tx: TenantTx,
   ctx: Ctx,
   task: PolicyTask,
-  input: { readonly decision: 'APPROVE' | 'RETURN' | 'REJECT'; readonly reason?: string | undefined },
+  input: {
+    readonly decision: 'APPROVE' | 'RETURN' | 'REJECT'
+    readonly reason?: string | undefined
+    readonly boundaryTableConfirmed?: boolean | undefined
+    readonly boundaryBaselineId?: string | null | undefined
+  },
   taskTo: TaskState,
 ): Promise<CommandOutcome<{ taskId: string; documentStatus: string }>> {
   const route = task.step.route
@@ -61,11 +71,27 @@ export async function decidePolicyTask(
     }
   }
 
+  // FR-DOA-009 AC3: the approver's tick of the boundary table, read only when approving a DOA version; recorded on the
+  // decision when the version has a table to tick
+  let boundaryTicked = false
   if (subjectType === 'DOA_VERSION' && input.decision === 'APPROVE') {
     const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.subjectId }, select: { id: true, code: true, effectiveFrom: true } })
     const startsAt = version.effectiveFrom.getTime() < ctx.now.getTime() ? ctx.now : version.effectiveFrom
     const later = await laterVersionScheduled(tx, version, startsAt)
     if (later) return later
+    // The table of the version beside the one it replaces, as the decision page shows it and the send asked the drafter
+    // to tick (src/server/services/doa/boundary.ts). A tick that names the version its table compared with is a tick of
+    // that table only: once another version is compared — one approved in between moved the baseline — the table
+    // approved is not the one ticked. Both refusals come before the step-up is used, so the grant stays for the
+    // approval that follows with the tick of the table as it is now.
+    const ticked = input.boundaryTableConfirmed === true
+    if (ticked && input.boundaryBaselineId !== undefined && input.boundaryBaselineId !== (await comparisonBaselineId(tx, version, ctx.now))) {
+      return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the boundary table changed after it was ticked', details: { field: 'boundaryTableConfirmed', reason: 'BOUNDARY_TABLE_CHANGED' } } }
+    }
+    if (await boundaryTableRequiredFor(tx, version.id, ctx.now)) {
+      if (!ticked) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the boundary table must be confirmed', details: { field: 'boundaryTableConfirmed', reason: 'BOUNDARY_NOT_CONFIRMED' } } }
+      boundaryTicked = true
+    }
   }
 
   // BR-DOA-15: a step-up for this document, given in the last 5 minutes (security clock), used once. The PIN (S5-05); on
@@ -102,6 +128,7 @@ export async function decidePolicyTask(
         onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null,
         reasonCommentId,
         stepUpGrantId,
+        ...(boundaryTicked ? { boundaryTableConfirmed: true } : {}),
       },
     },
   ]

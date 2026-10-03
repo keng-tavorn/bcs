@@ -28,7 +28,7 @@ const Body = z.object({
 })
 
 /** The parts of a draft a save may carry; anything else is not passed on */
-const DRAFT_KEYS = ['title', 'budgetLineId', 'priceIncludesVat', 'formData', 'lines', 'quotations', 'nonLowestQuoteReason'] as const
+const DRAFT_KEYS = ['title', 'budgetLineId', 'deliverySiteId', 'suggestedSupplierId', 'priceIncludesVat', 'formData', 'lines', 'quotations', 'nonLowestQuoteReason'] as const
 
 function sameOrigin(request: Request): boolean {
   // Browsers say where a request comes from; a fetch of another site is refused even when it carries the cookie

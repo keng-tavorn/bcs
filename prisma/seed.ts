@@ -15,8 +15,9 @@ import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/ser
 import { seedDevPins } from '@/server/seed/pins'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
-import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, seedDemoHistory } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, DemoHistoryStorageError, seedDemoHistory } from '@/server/services/demo-history'
 import { describeLineSeed, seedLineChannel } from '@/server/services/line-channel'
+import { ensureBucket } from '../scripts/storage-init'
 import { loadInputWorkbook } from '@/server/seed/workbook'
 
 const SEED_ENVS = new Set(['local', 'staging'])
@@ -45,6 +46,8 @@ try {
   const lineChannel = await seedLineChannel(report.organizationId, env, systemClock.now())
   // Transaction PINs of the demo approvers from SEED_DEV_PIN (S5-05); without it nobody has a PIN
   const pins = env.SEED_DEV_PIN ? await seedDevPins(report.organizationId, env.SEED_DEV_PIN, systemClock.now()) : null
+  // On this machine the seed makes the local bucket itself (scripts/storage-init.ts); elsewhere the bucket is set up by people (P0-06)
+  if (process.env.SEED_DEMO_HISTORY !== '0' && env.APP_ENV === 'local') await ensureBucket()
   const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistory(report.organizationId, parseDemoHistory(workbook), systemClock.now())
   console.log(
     `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
@@ -62,7 +65,13 @@ try {
   if (error instanceof DemoHistoryOutOfYearError) {
     stop(
       `ข้อมูลตัวอย่างใช้ปีงบ ${error.fiscalYear} (${error.startsOn} ถึง ${error.endsOn}) แต่ประวัติ demo แถว ${error.ref} ต้องใช้วันที่ ${error.day} ซึ่งอยู่นอกปีงบนั้น จึงไม่ได้สร้างประวัติ demo · ` +
-        `แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน แล้วรัน pnpm inputs:check และ pnpm db:reset · หรือ seed โดยไม่มีประวัติด้วย SEED_DEMO_HISTORY=0`,
+        `แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน (ช่วงต้นปีงบให้ daysAgo ของทุกแถวไม่ย้อนไปก่อนวันเริ่มปีงบ) แล้วรัน pnpm inputs:check และ pnpm db:reset · หรือ seed โดยไม่มีประวัติด้วย SEED_DEMO_HISTORY=0`,
+    )
+  }
+  if (error instanceof DemoHistoryStorageError) {
+    stop(
+      `ที่เก็บไฟล์ (bucket ${process.env.S3_BUCKET ?? ''}) ยังไม่ตอบ ประวัติ demo ต้องเก็บใบเสนอราคาและ PDF ของ PO จึงยังไม่ได้สร้าง · ` +
+        `บนเครื่องเปิด Docker Desktop แล้วรัน docker compose up -d และ seed ใหม่ · บน staging ตั้งที่เก็บไฟล์ตามคู่มือ docs/runbooks/p0-06-storage-staging.md ก่อน`,
     )
   }
   if (error instanceof DemoHistoryIncompleteError) {

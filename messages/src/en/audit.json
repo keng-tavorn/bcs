@@ -1,0 +1,293 @@
+{
+  "title": "Audit trail",
+  "intro": "Every change in the system: who did it, on whose behalf, when, through which channel, and which DOA version and rule each decision cites. Search by document, actor, period, type and channel.",
+  "forbidden": "The audit trail is open to auditors and organization admins only. If you need something from it, contact your organization's auditor.",
+  "home": "Back to home",
+  "seq": "No. {seq}",
+  "onBehalfOf": "on behalf of {name}",
+  "eventWithDecision": "{event}: {decision}",
+  "decision": {
+    "APPROVE": "approved",
+    "RETURN": "returned for changes",
+    "REJECT": "rejected"
+  },
+  "actor": {
+    "SYSTEM": "System",
+    "PLATFORM_ADMIN": "BCS team",
+    "other": "Outside party",
+    "unknown": "Member without a name"
+  },
+  "document": {
+    "REQUEST": "Request {label}",
+    "PURCHASE_ORDER": "Purchase order {label}",
+    "GOODS_RECEIPT": "Goods receipt {label}",
+    "VARIANCE": "Receiving variance of {label}",
+    "INVOICE": "Invoice {label}",
+    "EXPORT": "Export file: {label}",
+    "DOA_VERSION": "{label} version {version}",
+    "ORG_AUTHORITY_CHANGE": "Authority change",
+    "BUDGET_LINE": "Budget line {label}",
+    "MEMBER": "Member {label}",
+    "SUPPLIER": "Supplier {label}"
+  },
+  "exportKind": {
+    "AUDIT": "audit trail",
+    "REPORT": "report",
+    "EXPRESS_AP": "for Express"
+  },
+  "search": {
+    "title": "Search the trail",
+    "document": "Document number",
+    "documentHint": "For example PR-2569-00012 or PO-2569-00003: the document's events, its decisions and the budget it reserved, held or released.",
+    "actor": "Actor",
+    "anyone": "Anyone",
+    "type": "Event type",
+    "anyType": "Any type",
+    "channel": "Channel",
+    "anyChannel": "Any channel",
+    "from": "From",
+    "to": "To",
+    "submit": "Search the trail",
+    "clear": "Clear the search",
+    "period": {
+      "both": "{from} to {to}",
+      "from": "From {from}",
+      "to": "Up to {to}"
+    }
+  },
+  "export": {
+    "title": "Export this search",
+    "hint": "The file holds every event matching the search above, not only this page (up to 50,000). Every row has the DOA version and rule, the channel, the actor and on whose behalf. The export itself is recorded in the audit trail.",
+    "auditorOnly": "Only the organization's auditors may export files. Organization admins may search and read the trail."
+  },
+  "results": {
+    "title": "Results",
+    "caption": "Events matching the search, newest first",
+    "count": "{count, plural, one {# latest event} other {# latest events}}, newest first (up to 100 a page)",
+    "countOlder": "{count, plural, one {# older event} other {# older events}}, newest first",
+    "when": "When",
+    "event": "Event",
+    "document": "Document",
+    "actor": "Actor",
+    "channel": "Channel",
+    "doa": "DOA cited",
+    "noneCell": "none",
+    "none": "No events match this search",
+    "noDocument": "No events found for document {document}",
+    "noneHint": "Check the document number, widen the dates, or clear some conditions.",
+    "empty": "This organization has no events yet",
+    "emptyHint": "As soon as documents are created, sent or decided, their events show here.",
+    "pages": "Pages of results",
+    "older": "See older events",
+    "newest": "Back to the latest events"
+  },
+  "groups": {
+    "approval_task": "Approval tasks",
+    "audit": "Audit trail",
+    "auth": "Sign-in",
+    "budget": "Budget",
+    "budget_grant": "Cross-department budget grants",
+    "consolidation_run": "Consolidation rounds",
+    "cost_center": "Cost centers",
+    "delegation": "Delegations",
+    "department": "Departments",
+    "doa_version": "DOA",
+    "export": "Export files",
+    "file": "Files",
+    "form_version": "Forms",
+    "gr": "Receiving",
+    "holiday": "Holidays",
+    "invoice_confirmation": "Invoices",
+    "member": "Members",
+    "notification": "Notifications",
+    "org_authority_change": "Authority structure",
+    "organization": "Organization",
+    "po": "Purchase orders",
+    "position": "Positions",
+    "report_schedule": "Reports",
+    "request": "Requests",
+    "request_type": "Request types",
+    "security": "Security",
+    "supplier": "Suppliers",
+    "variance": "Receiving variances"
+  },
+  "aggregate": {
+    "ApprovalTask": "Approval task",
+    "Auth": "Sign-in",
+    "BudgetGrant": "Cross-department budget grant",
+    "BudgetLine": "Budget line",
+    "ConsolidationRun": "Consolidation round",
+    "CostCenter": "Cost center",
+    "Delegation": "Delegation",
+    "Department": "Department",
+    "DoaVersion": "DOA",
+    "ExportJob": "Export file",
+    "File": "File",
+    "FormVersion": "Request type form",
+    "GoodsReceipt": "Goods receipt",
+    "InvoiceConfirmation": "Invoice",
+    "Member": "Member",
+    "Notification": "Notification",
+    "OrgAuthorityChange": "Authority change",
+    "Organization": "Organization",
+    "PositionAssignment": "Position holding",
+    "PurchaseOrder": "Purchase order",
+    "ReportSchedule": "Report schedule",
+    "Request": "Request",
+    "RequestType": "Request type",
+    "Security": "Security",
+    "Supplier": "Supplier",
+    "Variance": "Receiving variance"
+  },
+  "events": {
+    "approval_task": {
+      "assigned": "Approval task assigned",
+      "cancelled": "Approval task cancelled",
+      "decided": "Approval task decided",
+      "reassigned": "Approval task reassigned",
+      "reminded": "Approval task reminded"
+    },
+    "audit": {
+      "exported": "Audit trail exported"
+    },
+    "auth": {
+      "2fa_enabled": "Two-step sign-in turned on",
+      "2fa_reset": "Two-step sign-in reset",
+      "login_failed": "Sign-in failed",
+      "login_locked": "Sign-in locked for a while",
+      "login_succeeded": "Signed in"
+    },
+    "budget": {
+      "actualized": "Budget moved to actual",
+      "commitment_released": "Committed budget released",
+      "committed": "Budget committed to a PO",
+      "imported": "Budget imported",
+      "reservation_released": "Reserved budget released",
+      "reserved": "Budget reserved"
+    },
+    "budget_grant": {
+      "created": "Cross-department budget granted",
+      "revoked": "Cross-department budget grant revoked"
+    },
+    "consolidation_run": {
+      "completed": "Requests consolidated into draft POs"
+    },
+    "cost_center": {
+      "created": "Cost center created",
+      "updated": "Cost center updated"
+    },
+    "delegation": {
+      "created": "Delegation set",
+      "ended": "Delegation ended",
+      "revoked": "Delegation revoked",
+      "started": "Delegation started"
+    },
+    "department": {
+      "created": "Department created",
+      "updated": "Department updated"
+    },
+    "doa_version": {
+      "drafted": "New DOA version drafted",
+      "published": "DOA published",
+      "rejected": "DOA version rejected",
+      "submitted": "DOA sent for approval",
+      "superseded": "DOA version superseded"
+    },
+    "export": {
+      "generated": "Export file generated"
+    },
+    "file": {
+      "downloaded": "File downloaded",
+      "uploaded": "File uploaded"
+    },
+    "form_version": {
+      "published": "Request type form published"
+    },
+    "gr": {
+      "posted": "Goods receipt posted",
+      "reversed": "Goods receipt reversed"
+    },
+    "holiday": {
+      "imported": "Holidays imported"
+    },
+    "invoice_confirmation": {
+      "recorded": "Invoice confirmation recorded"
+    },
+    "member": {
+      "activated": "Member activated",
+      "deactivated": "Member deactivated",
+      "invited": "Member invited",
+      "role_granted": "Role granted",
+      "role_revoked": "Role revoked",
+      "session_revoked": "Open sign-ins ended"
+    },
+    "notification": {
+      "read": "Notification read"
+    },
+    "org_authority_change": {
+      "applied": "Authority change took effect",
+      "approved": "Authority change approved",
+      "cancelled": "Authority change cancelled",
+      "rejected": "Authority change rejected",
+      "submitted": "Authority change proposed"
+    },
+    "organization": {
+      "created": "Organization created",
+      "module_disabled": "Module switched off",
+      "module_enabled": "Module switched on",
+      "settings_updated": "Organization settings updated"
+    },
+    "po": {
+      "approved": "Purchase order approved",
+      "cancelled": "Purchase order cancelled",
+      "closed": "Purchase order closed",
+      "drafted": "Purchase order drafted",
+      "rejected": "Purchase order rejected",
+      "returned": "Purchase order returned",
+      "send_bounced": "Purchase order e-mail bounced",
+      "sent": "Purchase order sent to the supplier",
+      "submitted": "Purchase order sent for approval",
+      "updated": "Draft purchase order changed"
+    },
+    "position": {
+      "assigned": "Position holder appointed",
+      "unassigned": "Position holding ended"
+    },
+    "report_schedule": {
+      "created": "Report e-mail schedule set"
+    },
+    "request": {
+      "approved": "Request approved",
+      "cancelled": "Request cancelled",
+      "completed": "Request completed",
+      "doa_gap_reported": "DOA has no rule for this request",
+      "draft_expiry_notified": "Expiring draft notified",
+      "drafted": "Request drafted",
+      "info_provided": "Requester answered",
+      "info_requested": "More information asked of the requester",
+      "rejected": "Request rejected",
+      "resubmitted": "Request sent again",
+      "returned": "Request returned for changes",
+      "submitted": "Request sent",
+      "supplier_assigned": "Supplier chosen for the request"
+    },
+    "request_type": {
+      "updated": "Request type changed"
+    },
+    "security": {
+      "sod_blocked": "Separation of duties blocked an action",
+      "token_misuse": "Decision link misused"
+    },
+    "supplier": {
+      "created": "Supplier added",
+      "registry_checked": "Supplier checked with the government registers",
+      "registry_status_changed": "Supplier's register status changed",
+      "updated": "Supplier details changed"
+    },
+    "variance": {
+      "approved": "Receiving variance approved",
+      "recorded": "Receiving variance recorded",
+      "rejected": "Receiving variance rejected"
+    }
+  }
+}

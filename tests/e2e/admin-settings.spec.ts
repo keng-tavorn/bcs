@@ -181,7 +181,9 @@ test('[FR-ADM-004/AC1] [FR-ADM-004/AC2] [FR-ADM-004/AC3] the next number shows b
   await expect(page.getByRole('heading', { level: 1, name: 'รูปแบบเลขเอกสาร' })).toBeVisible()
   const doc = mobile ? { code: 'GR', name: 'ใบตรวจรับ (GR)' } : { code: 'PO', name: 'ใบสั่งซื้อ (PO)' }
   const section = page.getByRole('region', { name: doc.name })
-  await expect(section.getByText(`เลขถัดไปตอนนี้ ${doc.code}-${be}-00001`)).toBeVisible()
+  // Other tests of the run may have issued numbers of this year already: the next one is any number of the pattern
+  const yearly = new RegExp(`^เลขถัดไปตอนนี้ ${doc.code}-${be}-\\d{5}$`)
+  await expect(section.getByText(yearly)).toBeVisible()
   await expectNoBlockingAxe(page)
   await expectNoHorizontalScroll(page)
   await shot(page, testInfo, 'numbering')
@@ -201,7 +203,7 @@ test('[FR-ADM-004/AC1] [FR-ADM-004/AC2] [FR-ADM-004/AC3] the next number shows b
   // Nothing was stored: the page read again still has the pattern of before
   await page.reload()
   await expect(section.getByLabel('รูปแบบเลข')).toHaveValue(`${doc.code}-{BE}-{SEQ5}`)
-  await expect(section.getByText(`เลขถัดไปตอนนี้ ${doc.code}-${be}-00001`)).toBeVisible()
+  await expect(section.getByText(yearly)).toBeVisible()
   await pattern.fill(`${doc.code}-{BE}`)
   await expect(section.getByText('รูปแบบต้องมีเลขลำดับหนึ่งตัว เช่น {SEQ5}')).toBeVisible()
 
@@ -235,6 +237,16 @@ test('[FR-ADM-004/AC1] [FR-ADM-004/AC2] [FR-ADM-004/AC3] the next number shows b
   await shot(page, testInfo, 'numbering-refused')
   await page.reload()
   await expect(page.getByRole('region', { name: 'ใบขอซื้อ (PR)' }).getByLabel('เริ่มนับใหม่')).toHaveValue('YEARLY')
+
+  // Put the yearly pattern back for the tests that follow (they read PO and GR numbers of the seeded pattern); the
+  // yearly series goes on where it stopped, so no number is issued twice (INV-NUM-01)
+  const restore = page.getByRole('region', { name: doc.name })
+  await restore.getByLabel('เริ่มนับใหม่').selectOption({ label: 'ทุกปี พ.ศ.' })
+  await restore.getByLabel('รูปแบบเลข').fill(`${doc.code}-{BE}-{SEQ5}`)
+  await restore.getByRole('button', { name: `บันทึกรูปแบบเลข ${doc.code}` }).click()
+  await expect(success(page, `บันทึกรูปแบบเลข ${doc.code} แล้ว`)).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('region', { name: doc.name }).getByLabel('รูปแบบเลข')).toHaveValue(`${doc.code}-{BE}-{SEQ5}`)
 })
 
 test('[FR-ADM-005/AC2] the admin orders the catalog and switches request types off and on', async ({ page }, testInfo) => {

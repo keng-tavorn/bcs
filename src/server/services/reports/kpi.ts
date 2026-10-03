@@ -78,7 +78,69 @@ async function routeInput(tx: TenantTx, subjectType: string, subjectId: string, 
   return null
 }
 
+// ---------- the documents behind each figure (the KPI page's lists: every number leads to its items, §9.9) ----------
+
+/** One decision counted by G-2 and G-5 */
+export interface KpiDecisionItem {
+  readonly taskId: string
+  readonly subjectType: string
+  readonly subjectId: string
+  readonly decision: string
+  readonly channel: string
+  readonly decidedAt: string
+  readonly actorMemberId: string
+  readonly onBehalfOfMemberId: string | null
+  readonly doaVersionId: string | null
+  readonly doaRuleCode: string | null
+  /** G-2 (a): the decider is not who the DOA engine gives for the step; null when the document could not be re-run */
+  readonly misrouted: boolean | null
+}
+
+/** One approval task counted by G-3 (its decision time, or because it went past its due time) or by G-4 */
+export interface KpiTaskItem {
+  readonly taskId: string
+  readonly subjectType: string
+  readonly subjectId: string
+  readonly assigneeMemberId: string
+  readonly assignedAt: string
+  readonly dueAt: string | null
+  readonly decidedAt: string | null
+  /** Business minutes from assignment to decision; null while open */
+  readonly minutes: number | null
+}
+
+/** One request counted by G-3 (from its submit to its first approved PO) */
+export interface KpiRequestItem {
+  readonly requestId: string
+  readonly submittedAt: string
+  readonly firstPoApprovedAt: string
+  readonly minutes: number
+}
+
+export interface KpiItems {
+  /** G-1: the POs approved in the period */
+  readonly g1: ReadonlyArray<{ readonly poId: string; readonly approvedAt: string }>
+  /** G-2 and G-5: every decision in the period, oldest first */
+  readonly decisions: readonly KpiDecisionItem[]
+  readonly g3SubmitToPo: readonly KpiRequestItem[]
+  readonly g3Decisions: readonly KpiTaskItem[]
+  /** G-3: the tasks assigned in the period that were decided after their due time, or are open past it */
+  readonly g3PastDue: readonly KpiTaskItem[]
+  /** G-4: the tasks of requests whose budget check did not pass */
+  readonly g4: readonly KpiTaskItem[]
+}
+
 export async function computeKpis(tx: TenantTx, organizationId: string, period: { from: Date; to: Date; now: Date }, departmentIds: readonly string[] | null): Promise<KpiResult> {
+  return (await collectKpis(tx, organizationId, period, departmentIds)).result
+}
+
+/** The KPIs and the documents each figure counts, in the same pass (the counts are the lengths of the lists) */
+export async function collectKpis(
+  tx: TenantTx,
+  organizationId: string,
+  period: { from: Date; to: Date; now: Date },
+  departmentIds: readonly string[] | null,
+): Promise<{ result: KpiResult; items: KpiItems }> {
   const occurredAt = { gte: period.from, lt: period.to }
   // Documents inside the scope: requests charged to the departments, POs and variances on their budget lines
   const inScope = async (subjectType: string, subjectId: string): Promise<boolean> => {
@@ -90,31 +152,48 @@ export async function computeKpis(tx: TenantTx, organizationId: string, period: 
   }
 
   // ----- G-1 -----
-  const approvedPos = await tx.event.findMany({ where: { type: 'po.approved', occurredAt }, select: { aggregateId: true } })
-  let g1 = 0
-  for (const e of approvedPos) if (await inScope('PURCHASE_ORDER', e.aggregateId)) g1++
+  const approvedPos = await tx.event.findMany({ where: { type: 'po.approved', occurredAt }, select: { aggregateId: true, occurredAt: true }, orderBy: { seq: 'asc' } })
+  const g1Items: Array<{ poId: string; approvedAt: string }> = []
+  for (const e of approvedPos) if (await inScope('PURCHASE_ORDER', e.aggregateId)) g1Items.push({ poId: e.aggregateId, approvedAt: e.occurredAt.toISOString() })
+  const g1 = g1Items.length
 
   // ----- decisions (G-2, G-5) -----
   const decisionEvents = await tx.event.findMany({ where: { type: 'approval_task.decided', occurredAt }, orderBy: { seq: 'asc' } })
-  const decisions: Array<{ data: DecisionData; channel: string; doaVersionId: string | null; doaRuleCode: string | null; taskId: string }> = []
+  const decisions: Array<{ data: DecisionData; channel: string; doaVersionId: string | null; doaRuleCode: string | null; taskId: string; occurredAt: Date }> = []
   for (const e of decisionEvents) {
     const data = e.data as unknown as DecisionData
-    if (await inScope(data.subjectType, data.subjectId)) decisions.push({ data, channel: e.channel, doaVersionId: e.doaVersionId, doaRuleCode: e.doaRuleCode, taskId: e.aggregateId })
+    if (await inScope(data.subjectType, data.subjectId)) decisions.push({ data, channel: e.channel, doaVersionId: e.doaVersionId, doaRuleCode: e.doaRuleCode, taskId: e.aggregateId, occurredAt: e.occurredAt })
   }
   const policy = await loadRoutePolicy(tx)
   let misrouted = 0
   let checked = 0
+  const decisionItems: KpiDecisionItem[] = []
   for (const d of decisions) {
+    let wrong: boolean | null = null
     const task = await tx.approvalTask.findUnique({ where: { id: d.taskId }, include: { step: { include: { route: true } } } })
-    if (!task) continue
-    const input = await routeInput(tx, d.data.subjectType, d.data.subjectId, task.step.route.createdAt)
-    if (!input) continue
-    checked++
-    const again = resolveRoute(input, policy)
-    const step = again.ok ? again.data.steps.find((s) => s.stepNo === task.step.stepNo) : undefined
-    const allowed = new Set([step?.assigneeMemberId, step?.principalMemberId].filter((m): m is string => Boolean(m)))
-    // the decider: the delegate who acted, or the approver themself; a delegator acting on their own task counts
-    if (!allowed.has(d.data.actorMemberId)) misrouted++
+    const input = task ? await routeInput(tx, d.data.subjectType, d.data.subjectId, task.step.route.createdAt) : null
+    if (task && input) {
+      checked++
+      const again = resolveRoute(input, policy)
+      const step = again.ok ? again.data.steps.find((s) => s.stepNo === task.step.stepNo) : undefined
+      const allowed = new Set([step?.assigneeMemberId, step?.principalMemberId].filter((m): m is string => Boolean(m)))
+      // the decider: the delegate who acted, or the approver themself; a delegator acting on their own task counts
+      wrong = !allowed.has(d.data.actorMemberId)
+      if (wrong) misrouted++
+    }
+    decisionItems.push({
+      taskId: d.taskId,
+      subjectType: d.data.subjectType,
+      subjectId: d.data.subjectId,
+      decision: d.data.decision,
+      channel: d.channel,
+      decidedAt: d.occurredAt.toISOString(),
+      actorMemberId: d.data.actorMemberId,
+      onBehalfOfMemberId: d.data.onBehalfOfMemberId ?? null,
+      doaVersionId: d.doaVersionId,
+      doaRuleCode: d.doaRuleCode,
+      misrouted: wrong,
+    })
   }
   const withReference = decisions.filter((d) => d.doaVersionId !== null && d.doaRuleCode !== null).length
 
@@ -130,37 +209,59 @@ export async function computeKpis(tx: TenantTx, organizationId: string, period: 
     }
   }
   const submitToPo: number[] = []
+  const submitToPoItems: KpiRequestItem[] = []
   for (const [requestId, approvedAt] of firstPoOf) {
     const r = await tx.request.findUnique({ where: { id: requestId }, select: { submittedAt: true, chargedDepartmentId: true } })
     if (!r?.submittedAt) continue
     if (departmentIds !== null && !departmentIds.includes(r.chargedDepartmentId)) continue
-    submitToPo.push(businessMinutesBetween(r.submittedAt, approvedAt, calendar))
+    const minutes = businessMinutesBetween(r.submittedAt, approvedAt, calendar)
+    submitToPo.push(minutes)
+    submitToPoItems.push({ requestId, submittedAt: r.submittedAt.toISOString(), firstPoApprovedAt: approvedAt.toISOString(), minutes })
   }
+  const taskItem = (t: { id: string; assigneeMemberId: string; assignedAt: Date; dueAt: Date | null; decidedAt: Date | null; step: { route: { subjectType: string; subjectId: string } } }): KpiTaskItem => ({
+    taskId: t.id,
+    subjectType: t.step.route.subjectType,
+    subjectId: t.step.route.subjectId,
+    assigneeMemberId: t.assigneeMemberId,
+    assignedAt: t.assignedAt.toISOString(),
+    dueAt: t.dueAt?.toISOString() ?? null,
+    decidedAt: t.decidedAt?.toISOString() ?? null,
+    minutes: t.decidedAt ? businessMinutesBetween(t.assignedAt, t.decidedAt, calendar) : null,
+  })
   const decidedTasks = await tx.approvalTask.findMany({ where: { decidedAt: occurredAt }, include: { step: { include: { route: true } } } })
   const decisionMinutes: number[] = []
+  const decidedItems: KpiTaskItem[] = []
   for (const t of decidedTasks) {
     if (!(await inScope(t.step.route.subjectType, t.step.route.subjectId))) continue
     decisionMinutes.push(businessMinutesBetween(t.assignedAt, t.decidedAt!, calendar))
+    decidedItems.push(taskItem(t))
   }
   const assigned = await tx.approvalTask.findMany({ where: { assignedAt: occurredAt }, include: { step: { include: { route: true } } } })
   let pastDue = 0
   let assignedInScope = 0
+  const pastDueItems: KpiTaskItem[] = []
   const end = period.to < period.now ? period.to : period.now
   for (const t of assigned) {
     if (!(await inScope(t.step.route.subjectType, t.step.route.subjectId))) continue
     assignedInScope++
     if (!t.dueAt) continue
-    if (t.decidedAt ? t.decidedAt > t.dueAt : (t.status === 'OPEN' || t.status === 'INFO_REQUESTED') && end > t.dueAt) pastDue++
+    if (t.decidedAt ? t.decidedAt > t.dueAt : (t.status === 'OPEN' || t.status === 'INFO_REQUESTED') && end > t.dueAt) {
+      pastDue++
+      pastDueItems.push(taskItem(t))
+    }
   }
 
   // ----- G-4 -----
   const submits = await tx.event.findMany({ where: { type: { in: ['request.submitted', 'request.resubmitted'] }, occurredAt }, select: { aggregateId: true, data: true } })
   let g4 = 0
+  const g4Items: KpiTaskItem[] = []
   for (const s of submits) {
     const check = (s.data as { budgetCheck?: { availableSatang?: string; reservedSatang?: string } }).budgetCheck
     const failed = !check || BigInt(check.reservedSatang ?? '0') > BigInt(check.availableSatang ?? '0')
     if (!failed || !(await inScope('REQUEST', s.aggregateId))) continue
-    g4 += await tx.approvalTask.count({ where: { step: { route: { subjectType: 'REQUEST', subjectId: s.aggregateId } } } })
+    const tasks = await tx.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: s.aggregateId } } }, include: { step: { include: { route: true } } } })
+    g4 += tasks.length
+    g4Items.push(...tasks.map(taskItem))
   }
 
   // ----- G-5 -----
@@ -173,12 +274,21 @@ export async function computeKpis(tx: TenantTx, organizationId: string, period: 
   }
 
   return {
-    from: period.from.toISOString(),
-    to: period.to.toISOString(),
-    g1: { numerator: g1, denominator: null },
-    g2: { misrouted, checked, withDoaReference: { numerator: withReference, denominator: decisions.length } },
-    g3: { submitToPoMedianMinutes: median(submitToPo), decisionMedianMinutes: median(decisionMinutes), pastDue: { numerator: pastDue, denominator: assignedInScope } },
-    g4: { tasksOnFailedBudgetCheck: g4 },
-    g5: { total: { numerator: decisions.filter((d) => MOBILE.has(d.channel)).length, denominator: decisions.length }, bySubject },
+    result: {
+      from: period.from.toISOString(),
+      to: period.to.toISOString(),
+      g1: { numerator: g1, denominator: null },
+      g2: { misrouted, checked, withDoaReference: { numerator: withReference, denominator: decisions.length } },
+      g3: { submitToPoMedianMinutes: median(submitToPo), decisionMedianMinutes: median(decisionMinutes), pastDue: { numerator: pastDue, denominator: assignedInScope } },
+      g4: { tasksOnFailedBudgetCheck: g4 },
+      g5: { total: { numerator: decisions.filter((d) => MOBILE.has(d.channel)).length, denominator: decisions.length }, bySubject },
+    },
+    items: { g1: g1Items, decisions: decisionItems, g3SubmitToPo: submitToPoItems, g3Decisions: decidedItems, g3PastDue: pastDueItems, g4: g4Items },
   }
 }
+
+/** The kind of document of a decision as G-5 groups it (the DOA's document types) */
+export const kpiDocumentKind = (subjectType: string): string => (subjectType === 'REQUEST' ? ('PURCHASE_REQUEST' satisfies DoaDocumentType) : subjectType)
+
+/** Decisions made on LINE count as mobile (G-5) */
+export const isMobileChannel = (channel: string): boolean => MOBILE.has(channel)

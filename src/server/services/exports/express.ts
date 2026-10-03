@@ -20,18 +20,42 @@ import './file-policy'
 // shows its rows, its total (the sum of the invoices with VAT, as the file's rows add up) and its sha256; exporting the
 // same invoices again needs a reason and makes a new ExportJob. Amounts are written as baht text with two decimals,
 // never as floating-point numbers. The demo layout is assumed until the customer's real file arrives (OQ-10, S4-14).
+// A first export claims its invoices (exportedAt still empty) before it writes anything, so two exports at the same
+// moment never put one invoice into two files: the second finds them taken and is refused (BR-EXP-02). The screen sends
+// the fingerprint of the list it showed; a list that changed since (an invoice recorded or exported meanwhile) is
+// refused too, so nothing goes into a file that nobody saw.
 
-type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND'
+type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'CONFLICT_VERSION'
 const fail = (code: FailCode, message: string, details?: Record<string, unknown>) => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
 const MIN_REASON_LENGTH = 3
 const MIME = { xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', csv: 'text/csv' } as const
 const BUDDHIST_ERA_OFFSET = 543
+const SHA256_HEX = /^[0-9a-f]{64}$/
+
+/**
+ * The fingerprint of the invoices a first export takes: sha256 of their ids, sorted. The export screen shows the list
+ * with this value and sends it back with the confirmation; the command compares it with what it is about to take.
+ */
+export function pendingFingerprint(invoiceIds: readonly string[]): string {
+  return createHash('sha256')
+    .update([...invoiceIds].sort().join(','))
+    .digest('hex')
+}
 
 interface Row {
   readonly invoiceId: string
   readonly gross: bigint
   readonly values: Readonly<Record<ExpressField, string>>
+}
+
+/** YYYY-MM-DD of the instant in the organization's time zone */
+function localDay(at: Date, timeZone: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
+  } catch {
+    return at.toISOString().slice(0, 10)
+  }
 }
 
 function dateText(day: Date, format: 'BE' | 'CE'): string {
@@ -92,6 +116,8 @@ const ExportInput = z.strictObject({
   /** Invoices to export again (BR-EXP-02); left out: every invoice not exported yet */
   invoiceIds: z.array(z.uuid()).min(1).max(EXPORT_MAX_INVOICES).optional(),
   reason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
+  /** A first export only: pendingFingerprint() of the list the person confirmed; another list is refused */
+  pendingFingerprint: z.string().regex(SHA256_HEX).optional(),
 })
 
 export const exportExpressCommand = defineCommand({
@@ -103,7 +129,7 @@ export const exportExpressCommand = defineCommand({
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member exports' } }
-    const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+    const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true, timezone: true } })
     const settings = OrgSettingsSchema.shape.express.parse((org.settings as { express?: unknown } | null)?.express)
     if (settings.mapping.length === 0) return fail('VALIDATION_FAILED', 'the Express layout is not set', { reason: 'MAPPING_NOT_SET' })
 
@@ -116,6 +142,18 @@ export const exportExpressCommand = defineCommand({
     const excluded = needsVendorCode ? rows.filter((r) => r.values.expressVendorCode === '') : []
     const included = rows.filter((r) => !excluded.includes(r))
     if (included.length === 0) return fail('VALIDATION_FAILED', 'no invoice to export', { reason: 'NOTHING_TO_EXPORT', excluded: excluded.length })
+    const includedIds = included.map((r) => r.invoiceId)
+
+    if (!again) {
+      // The list the person confirmed must be the one exported: nothing recorded or exported by someone else since
+      if (input.pendingFingerprint !== undefined && pendingFingerprint(includedIds) !== input.pendingFingerprint) {
+        return fail('CONFLICT_VERSION', 'the invoices waiting for export changed since the list was shown', { reason: 'PENDING_CHANGED' })
+      }
+      // BR-EXP-02: claim the invoices while they are still not exported. An export running at the same moment holds
+      // their rows until it ends; once it commits, they no longer match and this export is refused (rolled back).
+      const claimed = await tx.invoiceConfirmation.updateMany({ where: { id: { in: includedIds }, exportedAt: null }, data: { exportedAt: ctx.now } })
+      if (claimed.count !== includedIds.length) return fail('CONFLICT_VERSION', 'some invoices were exported by another file meanwhile', { reason: 'PENDING_CHANGED' })
+    }
 
     const header = settings.mapping.map((c) => c.header)
     const body = included.map((r) => settings.mapping.map((c) => r.values[c.field]))
@@ -132,14 +170,15 @@ export const exportExpressCommand = defineCommand({
     const exportJobId = newId()
     const key = `org/${ctx.organizationId}/exports/${exportJobId}.${settings.fileType}`
     await putObject(key, bytes, MIME[settings.fileType])
-    const fileName = `express-${ctx.now.toISOString().slice(0, 10)}-${exportJobId.slice(-6)}.${settings.fileType}`
+    // Named by the organization's own date (a file made at 01:00 in Bangkok is not named after the day before in UTC)
+    const fileName = `express-${localDay(ctx.now, org.timezone)}-${exportJobId.slice(-6)}.${settings.fileType}`
     await tx.fileObject.create({ data: { id: fileId, organizationId: ctx.organizationId, storageKey: key, fileName, mimeType: MIME[settings.fileType], sizeBytes: bytes.length, sha256: checksum, status: 'AVAILABLE', uploadedById: actor } })
     await tx.exportJob.create({
       data: {
         id: exportJobId,
         organizationId: ctx.organizationId,
         kind: 'EXPRESS_AP',
-        params: { invoiceIds: included.map((r) => r.invoiceId), fileType: settings.fileType, encoding: settings.encoding, dateFormat: settings.dateFormat, again },
+        params: { invoiceIds: includedIds, fileType: settings.fileType, encoding: settings.encoding, dateFormat: settings.dateFormat, again },
         status: 'COMPLETED',
         fileId,
         rowCount: included.length,
@@ -151,7 +190,7 @@ export const exportExpressCommand = defineCommand({
       },
     })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'ExportJob', subjectId: exportJobId, kind: 'OTHER' } })
-    await tx.invoiceConfirmation.updateMany({ where: { id: { in: included.map((r) => r.invoiceId) } }, data: { exportedAt: ctx.now, exportJobId } })
+    await tx.invoiceConfirmation.updateMany({ where: { id: { in: includedIds } }, data: { exportedAt: ctx.now, exportJobId } })
     const excludedList = excluded.map((r) => ({ invoiceId: r.invoiceId, supplierCode: r.values.supplierCode }))
     return {
       ok: true,
@@ -161,7 +200,7 @@ export const exportExpressCommand = defineCommand({
           type: 'export.generated',
           aggregateType: 'ExportJob',
           aggregateId: exportJobId,
-          data: { kind: 'EXPRESS_AP', rowCount: included.length, totalSatang: total.toString(), checksum, fileId, invoiceIds: included.map((r) => r.invoiceId), excludedInvoiceIds: excluded.map((r) => r.invoiceId), again },
+          data: { kind: 'EXPRESS_AP', rowCount: included.length, totalSatang: total.toString(), checksum, fileId, invoiceIds: includedIds, excludedInvoiceIds: excluded.map((r) => r.invoiceId), again },
         },
       ],
       notifications: [

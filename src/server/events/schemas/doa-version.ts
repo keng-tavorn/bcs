@@ -7,10 +7,27 @@ import { defineEvents } from '../registry'
 const version = { code: z.string().min(1), versionNo: z.number().int().positive() }
 
 defineEvents('DoaVersion', {
-  'doa_version.drafted': { schema: z.object({ ...version, via: z.enum(['YAML', 'COPY']), rules: z.number().int().positive() }) },
-  // initialPackageHolders: the holders sent with the first version to the contract signatory (BR-DOA-19)
+  // via YAML: imported (FR-DOA-001 AC2); via COPY: saved from the editor's table as a copy of the version fromVersionId,
+  // edition fromVersionNo (FR-DOA-001 AC1), which the history names as where the draft started
+  'doa_version.drafted': {
+    schema: z.object({
+      ...version,
+      via: z.enum(['YAML', 'COPY']),
+      rules: z.number().int().positive(),
+      fromVersionId: z.uuid().optional(),
+      fromVersionNo: z.number().int().positive().optional(),
+    }),
+  },
+  // initialPackageHolders: the holders sent with the first version to the contract signatory (BR-DOA-19);
+  // boundaryTableConfirmed: the drafter ticked the boundary table the version was sent with (FR-DOA-009 AC3)
   'doa_version.submitted': {
-    schema: z.object({ ...version, warningsAcknowledged: z.number().int().nonnegative(), routeId: z.uuid(), initialPackageHolders: z.number().int().positive().optional() }),
+    schema: z.object({
+      ...version,
+      warningsAcknowledged: z.number().int().nonnegative(),
+      routeId: z.uuid(),
+      initialPackageHolders: z.number().int().positive().optional(),
+      boundaryTableConfirmed: z.boolean().optional(),
+    }),
   },
   'doa_version.superseded': { schema: z.object({ ...version, supersededBy: z.uuid() }) },
   'doa_version.rejected': { schema: z.object({ ...version, reasonCommentId: z.uuid() }) },

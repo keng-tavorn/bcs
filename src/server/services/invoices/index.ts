@@ -10,6 +10,7 @@ import { applyBudget, type BudgetOperation } from '@/server/budget/ledger'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { invoiceFileInUse, loadInvoiceFile, sourceOf, type InvoiceFileRefusal, type InvoiceSource } from './source'
 
 export { readEtaxFile, readEtaxXml, type EtaxPrefill, type EtaxProblem, type EtaxReading } from './etax'
 
@@ -19,16 +20,19 @@ export { readEtaxFile, readEtaxXml, type EtaxPrefill, type EtaxProblem, type Eta
 // ones without spaces, upper case (DUPLICATE_INVOICE); it is shared over the PO lines by what each still holds (largest
 // remainder, core/invoice) and moves COMMITTED → ACTUAL per line. A VAT more than 1.00 baht away from the PO's rate is
 // a warning, not a refusal. The last invoice on a closed PO gives back what the PO still held (BR-BUD-06); on an open
-// PO it lets the PO close without keeping anything.
+// PO it lets the PO close without keeping anything. The invoice's file and where its values came from (ETAX_XML or
+// MANUAL) are decided from the stored file (./source.ts, BR-IVC-05), never taken from the caller. The answer says what
+// the invoice did — its share per line, what the PO still holds, what a last invoice gives back per budget line — and
+// is stored with the command, so a resend of the same submission answers exactly the same.
 
 type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'DUPLICATE_INVOICE' | 'INVOICE_EXCEEDS_COMMITTED'
 const fail = (code: FailCode, message: string, details?: Record<string, unknown>) => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 type Fail = { ok: false; error: AppError }
 
-/** BR-IVC-01: a VAT further than this from the PO's rate is shown as a warning */
-const VAT_TOLERANCE_SATANG = 100n
+/** BR-IVC-01: a VAT further than this from the PO's rate is shown as a warning (the screen's preview uses it too) */
+export const VAT_TOLERANCE_SATANG = 100n
 /** POs an invoice can be recorded on: sent onwards, closed included while the PO still holds something */
-const INVOICEABLE = ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED']
+export const INVOICEABLE: readonly string[] = ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED']
 
 const Amount = z.string().trim().regex(/^\d{1,13}(\.\d{1,2})?$/)
 
@@ -39,29 +43,65 @@ const RecordInput = z.strictObject({
   net: Amount,
   vat: Amount,
   isFinal: z.boolean().default(false),
-  /** The invoice file the user uploaded (FileLink kind INVOICE, or ETAX when read from an e-Tax file) */
+  /** The invoice's file: one the member uploaded through the e-Tax reader for this PO (FileLink ETAX or INVOICE) */
   sourceFileId: z.uuid().nullable().optional(),
-  parsedFrom: z.enum(['MANUAL', 'ETAX_XML']).default('MANUAL'),
+  /**
+   * What the caller believes the values came from. The command decides it from the stored file itself; a claim of
+   * ETAX_XML that the file does not bear out is refused, never recorded (BR-IVC-05)
+   */
+  parsedFrom: z.enum(['MANUAL', 'ETAX_XML']).optional(),
 })
+
+const FILE_REFUSALS: Readonly<Record<InvoiceFileRefusal, string>> = {
+  FILE: 'the invoice file must be one you uploaded for this purchase order, unchanged',
+  FILE_OTHER_PO: 'the invoice file was uploaded for another purchase order',
+  FILE_IN_USE: 'the invoice file is already the file of another invoice',
+  TAX_ID_MISMATCH: 'the seller in the file is not the supplier of the purchase order',
+}
+const fileRefused = (reason: InvoiceFileRefusal) => fail('VALIDATION_FAILED', FILE_REFUSALS[reason], { field: 'sourceFileId', reason })
+
+export interface RecordedInvoice {
+  readonly invoiceId: string
+  /** BR-IVC-04: the amount before VAT each PO line took */
+  readonly allocation: Array<{ poLineId: string; net: string }>
+  readonly vatWarning: { expected: string; given: string } | null
+  /** Decided from the stored file (BR-IVC-05) */
+  readonly parsedFrom: 'MANUAL' | 'ETAX_XML'
+  /** What the PO's lines still hold after this invoice, before anything a last invoice gives back */
+  readonly heldAfter: string
+  /**
+   * AC3, BR-BUD-06: a last invoice's give-back per budget line — given back now on a closed PO, or to be given back
+   * when procurement closes an open one; null for other invoices
+   */
+  readonly giveBack: { when: 'NOW' | 'ON_CLOSE'; amount: string; budgetLines: Array<{ budgetLineId: string; amount: string }> } | null
+}
 
 export const recordInvoiceCommand = defineCommand({
   name: 'invoice_confirmation.record',
   capability: 'invoiceConfirmation.record',
   input: RecordInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ invoiceId: string; allocation: Array<{ poLineId: string; net: string }>; vatWarning: { expected: string; given: string } | null }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<RecordedInvoice>> {
     const allowed = await authorize(tx, ctx, 'invoiceConfirmation.record')
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member records an invoice' } }
+    // The file is read again from storage before anything is locked (it can take a moment)
+    const file = input.sourceFileId ? await loadInvoiceFile(tx, { organizationId: ctx.organizationId, memberId: actor, fileId: input.sourceFileId, poId: input.poId }) : null
+    if (file && !file.ok) return fileRefused(file.reason)
     const [locked] = await lockRowsForUpdate(tx, 'PurchaseOrder', ctx.organizationId, [input.poId])
     if (!locked) return fail('NOT_FOUND', 'purchase order not found')
-    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: input.poId }, include: { lines: { orderBy: { lineNo: 'asc' } } } })
+    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: input.poId }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true } } } })
     if (!INVOICEABLE.includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not recorded on a ${po.status} purchase order`, { from: po.status, command: 'invoice_confirmation.record' })
     if (await tx.invoiceConfirmation.count({ where: { poId: po.id, isFinal: true } })) return fail('INVALID_STATE_TRANSITION', 'the last invoice of this purchase order is in', { from: po.status, command: 'invoice_confirmation.record', reason: 'FINAL_RECORDED' })
-    if (input.sourceFileId) {
-      const own = await tx.fileObject.count({ where: { id: input.sourceFileId, uploadedById: actor, status: 'AVAILABLE' } })
-      if (own !== 1) return fail('VALIDATION_FAILED', 'the invoice file must be one you uploaded', { field: 'sourceFileId', reason: 'FILE' })
+    // BR-IVC-05: where the values came from, from the file itself; under the PO's lock no other invoice takes the file
+    let source: InvoiceSource = { parsedFrom: 'MANUAL', kind: 'INVOICE' }
+    if (file) {
+      if (await invoiceFileInUse(tx, file.file.fileId)) return fileRefused('FILE_IN_USE')
+      const decided = sourceOf(file.file, po.supplier.taxId, input)
+      if (!decided.ok) return fileRefused(decided.reason)
+      source = decided.source
     }
+    if (input.parsedFrom === 'ETAX_XML' && source.parsedFrom !== 'ETAX_XML') return fail('VALIDATION_FAILED', 'the values are not the ones read from an e-Tax file of this purchase order', { field: 'parsedFrom', reason: 'NOT_AS_READ' })
 
     const net = amountToSatang(input.net)
     const vat = amountToSatang(input.vat)
@@ -102,8 +142,8 @@ export const recordInvoiceCommand = defineCommand({
           vatSatang: vat,
           grossSatang: net + vat,
           isFinal: input.isFinal,
-          sourceFileId: input.sourceFileId ?? null,
-          parsedFrom: input.parsedFrom,
+          sourceFileId: file ? file.file.fileId : null,
+          parsedFrom: source.parsedFrom,
           recordedById: actor,
           recordedAt: ctx.now,
         },
@@ -112,8 +152,8 @@ export const recordInvoiceCommand = defineCommand({
       .then((r) => r.id)
     const parts = po.lines.map((line, i) => ({ poLineId: line.id, netSatang: confirmed.allocation[i]! })).filter((p) => p.netSatang > 0n)
     await tx.invoiceLineAllocation.createMany({ data: parts.map((p) => ({ organizationId: ctx.organizationId, invoiceId, poLineId: p.poLineId, netSatang: p.netSatang })) })
-    if (input.sourceFileId) {
-      await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: input.sourceFileId, subjectType: 'InvoiceConfirmation', subjectId: invoiceId, kind: input.parsedFrom === 'ETAX_XML' ? 'ETAX' : 'INVOICE' } })
+    if (file) {
+      await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: file.file.fileId, subjectType: 'InvoiceConfirmation', subjectId: invoiceId, kind: source.kind } })
     }
 
     // BR-IVC-01: the VAT on the invoice against the PO's rate, as a warning
@@ -132,14 +172,29 @@ export const recordInvoiceCommand = defineCommand({
           netSatang: net.toString(),
           vatSatang: vat.toString(),
           isFinal: input.isFinal,
-          parsedFrom: input.parsedFrom,
+          parsedFrom: source.parsedFrom,
           allocation: parts.map((p) => ({ poLineId: p.poLineId, netSatang: p.netSatang.toString() })),
           vatWarning: vatWarning !== null,
         },
       },
       ...budget.events,
     ]
-    return { ok: true, result: { invoiceId, allocation: parts.map((p) => ({ poLineId: p.poLineId, net: satangToAmount(p.netSatang) })), vatWarning }, events }
+    // What each budget line of the PO still holds after this invoice: a last invoice gives it back (BR-BUD-06)
+    const heldAfter = new Map<string, Satang>()
+    po.lines.forEach((line, i) => heldAfter.set(line.budgetLineId, (heldAfter.get(line.budgetLineId) ?? 0n) + confirmed.remaining[i]!))
+    const heldTotal = confirmed.remaining.reduce((a, b) => a + b, 0n)
+    const giveBack: RecordedInvoice['giveBack'] = input.isFinal
+      ? {
+          when: po.status === 'CLOSED' ? 'NOW' : 'ON_CLOSE',
+          amount: satangToAmount(heldTotal),
+          budgetLines: [...heldAfter].filter(([, amount]) => amount > 0n).map(([budgetLineId, amount]) => ({ budgetLineId, amount: satangToAmount(amount) })),
+        }
+      : null
+    return {
+      ok: true,
+      result: { invoiceId, allocation: parts.map((p) => ({ poLineId: p.poLineId, net: satangToAmount(p.netSatang) })), vatWarning, parsedFrom: source.parsedFrom, heldAfter: satangToAmount(heldTotal), giveBack },
+      events,
+    }
   },
 })
 

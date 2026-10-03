@@ -32,13 +32,16 @@ test('[FR-NOTI-001/AC1] the bell lists the approver’s new tasks, opens one and
   const code = testInfo.project.name === 'mobile' ? 'vp_sup' : 'vp_ops'
   await signIn(page, code)
 
+  // seed-activity.ts gave this approver two tasks; other specs of the same run may have added more
   const summary = bell(page).locator('summary')
-  await expect(summary).toHaveAttribute('aria-label', 'แจ้งเตือน · ยังไม่อ่าน 2 รายการ')
+  await expect(summary).toHaveAttribute('aria-label', /^แจ้งเตือน · ยังไม่อ่าน \d+ รายการ$/)
+  const unread = Number(/ยังไม่อ่าน (\d+) รายการ/.exec((await summary.getAttribute('aria-label')) ?? '')![1])
+  expect(unread).toBeGreaterThanOrEqual(2)
   await summary.click()
   const panel = bell(page)
   await expect(panel.getByRole('heading', { name: 'การแจ้งเตือน' })).toBeVisible()
   const items = panel.getByRole('button', { name: /มีงานรออนุมัติ: PR-2569-\d{5}/ })
-  await expect(items).toHaveCount(2)
+  expect(await items.count()).toBeGreaterThanOrEqual(2)
   await expect(items.first()).toContainText('ใหม่')
   await expectNoBlockingAxe(page)
   await page.screenshot({ path: testInfo.outputPath('bell-open.png'), fullPage: true })
@@ -47,7 +50,7 @@ test('[FR-NOTI-001/AC1] the bell lists the approver’s new tasks, opens one and
   await items.first().click()
   await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/)
   await page.goto('/')
-  await expect(bell(page).locator('summary')).toHaveAttribute('aria-label', 'แจ้งเตือน · ยังไม่อ่าน 1 รายการ')
+  await expect(bell(page).locator('summary')).toHaveAttribute('aria-label', unread === 1 ? 'แจ้งเตือน' : `แจ้งเตือน · ยังไม่อ่าน ${unread - 1} รายการ`)
 
   // Mark all as read clears the count
   await bell(page).locator('summary').click()

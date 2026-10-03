@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+import { execSync, spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { TZDate } from '@date-fns/tz'
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -98,6 +98,8 @@ async function seedHistory(): Promise<DemoHistoryReport> {
 }
 
 beforeAll(async () => {
+  // The history stores quotations and PO PDFs: the bucket must exist (as tests/integration/files.test.ts does)
+  execSync('pnpm exec tsx scripts/storage-init.ts', { stdio: 'ignore' })
   expected = inputsCheckDashboardLine()
   workbook = await loadInputWorkbook()
   await seedTaxRates()

@@ -13,13 +13,15 @@ import { checkboxClass, describedBy, inputClass, Labelled, textareaClass } from 
 import type { StepProps } from './details-items'
 import { savableQuotation, validMoney, visibleInput, type FormQuotation, type RuleStatus } from './model'
 import { showSatang } from './money'
+import { SuggestedSupplierField } from './place-supplier'
 import { conditionText, RequirementList } from './rule-text'
 import type { Attachment } from './types'
 import { UploadButton, type UploadActions } from './upload-button'
 
 // Step 3 (FR-INT-005, BR-FORM-03 to BR-FORM-06): the attachments the rules ask for at the current amount and answers,
-// the quotations as data — supplier, amount, whether it includes VAT, its file — compared before VAT as they are typed,
-// with a reason when the chosen one is not the lowest, and the other files of the request, each of a kind.
+// the supplier the requester suggests from the register (optional, S4-02), the quotations as data — supplier, amount,
+// whether it includes VAT, its file — compared before VAT as they are typed, with a reason when the chosen one is not
+// the lowest, and the other files of the request, each of a kind.
 
 /** A request carries at most this many quotations (the service's limit) */
 const MAX_QUOTATIONS = 20
@@ -96,7 +98,13 @@ export function DocumentsStep(props: DocumentsProps) {
           </ul>
         )}
       </section>
-      {data.type.documentType === 'PURCHASE_REQUEST' ? <Quotations {...props} /> : null}
+      {data.type.documentType === 'PURCHASE_REQUEST' ? (
+        <>
+          {/* Optional: the requester's suggestion; PROCUREMENT chooses the supplier of each line (FR-P2P-001 AC2) */}
+          <SuggestedSupplierField {...props} />
+          <Quotations {...props} />
+        </>
+      ) : null}
       <OtherFiles {...props} kindLabel={kindLabel} />
     </div>
   )

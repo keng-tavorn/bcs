@@ -82,8 +82,11 @@ test('[FR-DOA-001/AC3] every version shows its status and effective period; a pu
 
   await v1.getByRole('link', { name: 'ดูรายละเอียด DOA-DEMO ฉบับ 1' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'DOA-DEMO ฉบับ 1' })).toBeVisible()
-  await expect(page.getByText('ฉบับที่ส่งแล้วหรือเผยแพร่แล้วแก้ไม่ได้ ถ้าต้องการเปลี่ยน ให้นำเข้าฉบับใหม่แล้วส่งขออนุมัติ')).toBeVisible()
+  await expect(page.getByText('ฉบับที่ส่งแล้วหรือเผยแพร่แล้วแก้ไม่ได้ ถ้าต้องการเปลี่ยน ให้แก้เป็นฉบับร่างใหม่จากฉบับนี้ หรือนำเข้าฉบับใหม่ แล้วส่งขออนุมัติ')).toBeVisible()
   await expect(page.getByRole('button', { name: 'ส่งขออนุมัติเผยแพร่' })).toHaveCount(0)
+  // Nothing on the page edits it: the way to change it is a new draft, from a copy (S3-09) or an import
+  await expect(page.getByRole('textbox')).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'แก้เป็นฉบับร่างใหม่จากฉบับนี้' })).toHaveAttribute('href', /\/admin\/doa\/[0-9a-f-]+\/edit$/)
   await expect(page.getByText('นี่คือฉบับแรกของ DOA-DEMO จึงไม่มีฉบับก่อนหน้าให้เทียบ')).toBeVisible()
   const pr02 = page.getByRole('region', { name: /ข้อของฉบับนี้/ }).getByRole('listitem').filter({ hasText: 'PR-02' })
   await expect(pr02).toContainText('20,000.00')
@@ -156,6 +159,12 @@ test('[FR-DOA-002/AC1] a draft shows lint errors by code and band; each warning 
   const errors = page.getByRole('alert').filter({ hasText: 'ฉบับนี้ยังไม่ผ่านการตรวจ ส่งไม่ได้' })
   await expect(errors).toContainText('คำขอซื้อ (PR): ยอดมากกว่า 30,000.00 ถึงไม่เกิน 40,000.00 บาท ไม่มีข้อใดครอบคลุม (รหัส DOA_LINT_GAP)')
   await expect(page.getByRole('button', { name: 'ส่งขออนุมัติเผยแพร่' })).toHaveCount(0)
+  // Phones: a draft that cannot be sent says why with its status, before the content (S3-09 moved the send after it)
+  if (mobile) {
+    const alertBox = (await errors.boundingBox())!
+    const diffBox = (await page.getByRole('region', { name: /เปลี่ยนจาก DOA-DEMO ฉบับ 1/ }).boundingBox())!
+    expect(alertBox.y).toBeLessThan(diffBox.y)
+  }
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await shot(page, testInfo, 'doa-lint-errors')
@@ -176,6 +185,10 @@ test('[FR-DOA-002/AC1] a draft shows lint errors by code and band; each warning 
   await send.getByRole('button', { name: 'ส่งขออนุมัติเผยแพร่' }).click()
   await expect(failure(send, 'ติ๊กยืนยันคำเตือนทุกข้อก่อนส่ง')).toBeVisible()
   await warning.check()
+  // FR-DOA-009 AC3: the boundary table is ticked as checked too
+  await send.getByRole('button', { name: 'ส่งขออนุมัติเผยแพร่' }).click()
+  await expect(send.getByText('ติ๊กยืนยันว่าตรวจตารางผลที่ขอบแล้วก่อนส่ง')).toBeVisible()
+  await send.getByRole('checkbox', { name: 'ฉันตรวจตารางผลที่ขอบแล้ว ทุกยอดที่ขอบของช่วงไปหาผู้อนุมัติตามที่ตั้งใจ' }).check()
   await send.getByRole('button', { name: 'ส่งขออนุมัติเผยแพร่' }).click()
   await expect(success(page, 'ส่งขออนุมัติเผยแพร่แล้ว รอ ศักดิ์ชัย ผู้นำ อนุมัติ').first()).toBeVisible()
   await page.reload()

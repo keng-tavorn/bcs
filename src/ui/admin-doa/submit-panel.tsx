@@ -8,31 +8,39 @@ import { errorValues, useAction } from '../admin-org/use-action'
 import { WarningText } from '../admin-org/warning-text'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
+import { BoundaryConfirm } from './boundary-confirm'
+import { boundaryRefusalAt, boundaryTickMissing, boundaryTickValue } from './boundary-tick'
 import { DOA_REASONS } from './import-form'
 import { LintIssueText } from './lint-issue'
 
-// Sending a draft for publishing (FR-DOA-002 AC1–AC2): every lint warning is ticked on its own before sending; the
-// service runs the full lint again and answers with what it still finds (DOA_LINT_FAILED, WARNINGS_NOT_ACKNOWLEDGED),
-// which this form shows. The approver of the DOA_CHANGE rule decides, with a step-up, never the submitter.
+// Sending a draft for publishing (FR-DOA-002 AC1–AC2, FR-DOA-009 AC3): every lint warning is ticked on its own, and
+// the boundary table — when the page shows one — is ticked as checked, before sending; the service runs the full lint
+// again and answers with what it still finds (DOA_LINT_FAILED, WARNINGS_NOT_ACKNOWLEDGED, BOUNDARY_NOT_CONFIRMED), which
+// this form shows. The approver of the DOA_CHANGE rule decides, with a step-up, never the submitter.
 
 export type SubmitDoaResult = { readonly ok: true; readonly assigneeMemberId: string } | ActionFailure
-export type SubmitDoaAction = (versionId: string, acknowledged: readonly string[], idempotencyKey: string) => Promise<SubmitDoaResult>
+/** boundaryTableConfirmed: the drafter's tick, or null when the page showed no boundary table */
+export type SubmitDoaAction = (versionId: string, acknowledged: readonly string[], boundaryTableConfirmed: boolean | null, idempotencyKey: string) => Promise<SubmitDoaResult>
 
 export interface SubmitDoaPanelProps {
   readonly versionId: string
   readonly warnings: readonly string[]
   /** Who the page expects to approve, to name them once it is sent */
   readonly approvers: ReadonlyArray<Named & { readonly id: string }>
+  /** The page shows a boundary table the drafter must tick as checked (FR-DOA-009 AC3); its section id to link to */
+  readonly boundaryTableId: string | null
   readonly submit: SubmitDoaAction
 }
 
-export function SubmitDoaPanel({ versionId, warnings: initialWarnings, approvers, submit }: SubmitDoaPanelProps) {
+export function SubmitDoaPanel({ versionId, warnings: initialWarnings, approvers, boundaryTableId, submit }: SubmitDoaPanelProps) {
   const t = useTranslations('adminDoa.detail')
   const tErrors = useTranslations('adminDoa')
   const locale = useLocale()
   const action = useAction()
   const [warnings, setWarnings] = useState<readonly string[]>(initialWarnings)
   const [ticked, setTicked] = useState<ReadonlySet<string>>(new Set())
+  const [boundaryTicked, setBoundaryTicked] = useState(false)
+  const [boundaryError, setBoundaryError] = useState<string | undefined>()
   const [errors, setErrors] = useState<readonly IssueView[]>([])
   const [failure, setFailure] = useState<string | null>(null)
   const [sent, setSent] = useState<string | null>(null)
@@ -41,8 +49,11 @@ export function SubmitDoaPanel({ versionId, warnings: initialWarnings, approvers
     event.preventDefault()
     setFailure(null)
     setErrors([])
+    const missingBoundary = boundaryTickMissing(boundaryTableId, boundaryTicked)
+    setBoundaryError(missingBoundary ? tErrors('errors.BOUNDARY_NOT_CONFIRMED') : undefined)
     if (warnings.some((w) => !ticked.has(w))) return setFailure(tErrors('errors.WARNINGS_NOT_ACKNOWLEDGED'))
-    const outcome = await action.run((key) => submit(versionId, [...ticked], key))
+    if (missingBoundary) return
+    const outcome = await action.run((key) => submit(versionId, [...ticked], boundaryTickValue(boundaryTableId, boundaryTicked), key))
     if (outcome.ok) {
       const approver = approvers.find((a) => a.id === outcome.assigneeMemberId)
       setSent(approver ? t('submitted', { name: nameIn(locale, approver) }) : t('submittedNoName'))
@@ -56,6 +67,11 @@ export function SubmitDoaPanel({ versionId, warnings: initialWarnings, approvers
     if (outcome.reason === 'WARNINGS_NOT_ACKNOWLEDGED' && outcome.warnings?.length) {
       setWarnings(outcome.warnings)
       setTicked(new Set([...ticked].filter((w) => outcome.warnings!.includes(w))))
+    }
+    if (outcome.reason === 'BOUNDARY_NOT_CONFIRMED') {
+      // No table on this page to tick: the version has one now (a version was approved since the page was opened)
+      if (boundaryRefusalAt(boundaryTableId) === 'FORM') return setFailure(tErrors('errors.BOUNDARY_TABLE_CHANGED'))
+      return setBoundaryError(tErrors('errors.BOUNDARY_NOT_CONFIRMED'))
     }
     setFailure(tErrors(`errors.${failureKey(outcome, DOA_REASONS)}`, errorValues(outcome)))
   }
@@ -102,6 +118,17 @@ export function SubmitDoaPanel({ versionId, warnings: initialWarnings, approvers
             </label>
           ))}
         </fieldset>
+      ) : null}
+      {boundaryTableId !== null ? (
+        <BoundaryConfirm
+          tableId={boundaryTableId}
+          checked={boundaryTicked}
+          onChange={(checked) => {
+            setBoundaryTicked(checked)
+            if (checked) setBoundaryError(undefined)
+          }}
+          error={boundaryError}
+        />
       ) : null}
       <Button type="submit" disabled={action.pending} className="self-start">
         {action.pending ? t('submitting') : t('submit')}

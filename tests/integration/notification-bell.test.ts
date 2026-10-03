@@ -74,7 +74,7 @@ describe('[FR-NOTI-001/AC2] the dedupeKey keeps a retried job from notifying twi
     const imported = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml }, key())
     if (!imported.ok) throw new Error('import failed')
     const versionId = imported.data.versionIds[0]!
-    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId }, key())
+    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
     const approver = makeCtx({ organizationId: solo.organizationId, actor: { type: 'USER', memberId: solo.member.ceo! }, channel: 'WEB', now: new Date('2026-10-06T03:00:00Z') })
     await forTenant(solo.organizationId).$transaction((tx) => publishApprovedDoaVersion(tx, approver, versionId, solo.member.ceo!))
     const at = new Date('2026-10-31T17:00:00Z')

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, boundaryTable, lintDoaVersion, resolveRoute, versionAt, type DoaDocumentType, type DoaRuleSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, boundaryTable, lintDoaVersion, resolveRoute, versionAt, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot } from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { logger } from '@/lib/logger'
 import { authorize } from '@/server/authz'
@@ -10,6 +10,7 @@ import { versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { doaVersionDataFromRows, doaYaml, type DoaVersionData } from '@/server/doa/yaml'
 import { describeError } from '@/server/errors/describe'
 import {
+  comparisonBaselineId,
   doaVersionDrafted,
   getDoaVersionRow,
   hasDoaBeyondDrafts,
@@ -22,14 +23,18 @@ import {
 } from '@/server/queries/doa'
 import { listCurrentHolders, listDepartments, listMembers, listPositions, type MemberOptionRow, type RouteRow } from '@/server/queries/org'
 import { treeOrder } from '../org-structure/tree'
+import { amountBasisChange, authorityChanges, boundaryComparison, type AuthorityChangeKind, type BoundaryCompareTable, type BoundarySide } from './compare'
 import { diffVersions, policyValues, type PolicyField, type PolicyValue, type VersionDiff } from './diff'
 import { INITIAL_PACKAGE_RULE } from './initial-package'
 import { issueView, warningKey } from './lint-view'
 
-// The DOA pages of ORG_ADMIN (spec §9.1 /admin/doa, FR-DOA-001 AC2–AC3, FR-DOA-002 AC1, BR-DOA-19): every version with
-// its status and effective period, one version with its rules, policy, history (reason, who imported, submitted and
-// approved, diff with the previous version), the lint a draft must pass, and the version as YAML. Reading needs
-// admin.doa.draft (BR-AUTH-05); nothing here writes. Money leaves as satang text, times as ISO strings.
+// The DOA pages of ORG_ADMIN (spec §9.1 /admin/doa, FR-DOA-001 AC1–AC3, FR-DOA-002 AC1, FR-DOA-009 AC1 and AC3,
+// BR-DOA-19): every version with its status and effective period and where the editor starts, one version with its
+// rules, policy, history (reason, who drafted, submitted and approved, diff with the previous version), a draft or a
+// version waiting for approval beside the version it replaces — the one in effect just before it starts, which is the
+// version in effect now unless one is approved for later (comparisonBaselineId) — with the diff, authority gained or
+// lost and both boundary tables, the lint a draft must pass, and the version as YAML. Reading needs admin.doa.draft
+// (BR-AUTH-05); nothing here writes. Money leaves as satang text, times as ISO strings.
 
 export interface PersonView {
   readonly id: string
@@ -62,6 +67,11 @@ export interface DoaOverviewView {
   readonly versions: readonly DoaVersionSummaryView[]
   /** No version is or was in effect or waits for approval: the first one goes as the initial package (BR-DOA-19) */
   readonly initial: boolean
+  /**
+   * Where the editor starts for each DOA code (FR-DOA-001 AC1 "ฉบับร่างเริ่มจากการคัดลอกฉบับล่าสุด"): the latest
+   * published version — the one in effect, or one approved for later — else the latest that was ever in effect
+   */
+  readonly copySources: readonly DoaVersionSummaryView[]
 }
 
 export type ApproverView =
@@ -134,16 +144,73 @@ export type SubmitView =
       readonly members: ReadonlyArray<PersonView & { readonly employeeCode: string | null }>
     }
 
+/** The rule and approvers at one amount of a boundary table */
+export interface BoundarySideView {
+  readonly ruleCode: string | null
+  readonly approvers: readonly ApproverView[]
+}
+
+/** One amount at a band edge: this version's rule and approvers, beside the compared version's (null without one) */
+export interface BoundaryRowView {
+  /** satang text */
+  readonly amount: string
+  readonly before: BoundarySideView | null
+  readonly after: BoundarySideView
+  /** The approvers at this amount differ between the two versions (on each version's own amount basis) */
+  readonly changed: boolean
+}
+
+/** The boundary table of one document type; only types whose bands have an upper end get one */
+export interface BoundaryTableView {
+  readonly documentType: DoaDocumentType
+  readonly rows: readonly BoundaryRowView[]
+}
+
+export interface AuthorityChangeView {
+  readonly change: AuthorityChangeKind
+  readonly approver: ApproverView
+  readonly documentType: DoaDocumentType
+  /** Satang text, lower end exclusive; null for documents without an amount */
+  readonly band: { readonly gt: string; readonly lte: string | null } | null
+}
+
+/**
+ * A draft or a version waiting for approval beside the version it replaces (FR-DOA-009 AC1, AC3; BR-DOA-14): what
+ * changed rule by rule and in the policies, who gains or loses authority, and the boundary table of both versions.
+ */
+export interface CompareView {
+  readonly baseline: {
+    readonly id: string
+    readonly code: string
+    readonly versionNo: number
+    /** In effect now; false = approved for later, and in effect just before this version starts */
+    readonly inEffectNow: boolean
+    /** ISO time */
+    readonly effectiveFrom: string
+    readonly policy: PolicyView
+    readonly rules: readonly RuleView[]
+  }
+  readonly diff: VersionDiff
+  readonly authority: readonly AuthorityChangeView[]
+  readonly boundaries: readonly BoundaryTableView[]
+  /** The two versions read amounts on different bases: the same amount is then a different document in each */
+  readonly basis: { readonly before: 'GROSS' | 'NET'; readonly after: 'GROSS' | 'NET' } | null
+}
+
 export interface DoaVersionDetailView {
   readonly version: DoaVersionSummaryView
   readonly importedBy: PersonView | null
   readonly importedAt: string | null
   readonly policy: PolicyView
   readonly rules: readonly RuleView[]
-  /** Amounts at every band's upper end and one satang above, with the rule that applies (BR-DOA-08 (ช)) */
+  /** Amounts at every band's upper end and one satang above, with the rule that applies (BR-DOA-08 (ช)); types without an upper end have none */
   readonly boundaries: ReadonlyArray<{ readonly documentType: DoaDocumentType; readonly rows: ReadonlyArray<{ readonly amount: string; readonly ruleCode: string | null }> }>
+  /** The same table with the approvers each rule names, as the page shows it when there is no version to compare with */
+  readonly ownBoundaries: readonly BoundaryTableView[]
   readonly previous: { readonly id: string; readonly versionNo: number; readonly policy: PolicyView; readonly rules: readonly RuleView[] } | null
   readonly diff: VersionDiff | null
+  /** A draft or a version waiting for approval, beside the version it replaces when there is one */
+  readonly compare: CompareView | null
   readonly route: RouteView | null
   /** Only for a draft */
   readonly submit: SubmitView | null
@@ -165,7 +232,7 @@ export function personOf(members: readonly MemberOptionRow[]) {
   }
 }
 
-function summaryOf(v: DoaVersionListRow, person: ReturnType<typeof personOf>, now: Date): DoaVersionSummaryView {
+export function summaryOf(v: DoaVersionListRow, person: ReturnType<typeof personOf>, now: Date): DoaVersionSummaryView {
   const started = v.effectiveFrom.getTime() <= now.getTime()
   const ended = v.effectiveTo !== null && v.effectiveTo.getTime() <= now.getTime()
   return {
@@ -192,14 +259,36 @@ export async function getDoaOverviewForAdmin(ctx: Ctx): Promise<Result<DoaOvervi
   if (!allowed.ok) return allowed
   const [versions, members, beyondDrafts] = await Promise.all([listDoaVersions(ctx), listMembers(ctx), hasDoaBeyondDrafts(ctx)])
   const person = personOf(members)
-  return ok({ versions: versions.map((v) => summaryOf(v, person, ctx.now)), initial: !beyondDrafts })
+  const summaries = versions.map((v) => summaryOf(v, person, ctx.now))
+  return ok({ versions: summaries, initial: !beyondDrafts, copySources: copySourcesOf(summaries) })
+}
+
+/** The latest published version of each code (in effect, or approved for later), else the latest ever in effect. */
+export function copySourcesOf(versions: readonly DoaVersionSummaryView[]): DoaVersionSummaryView[] {
+  const codes = [...new Set(versions.map((v) => v.code))].sort()
+  return codes.flatMap((code) => {
+    const ofCode = versions.filter((v) => v.code === code)
+    const published = ofCode.filter((v) => v.status === 'PUBLISHED').sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom) || b.versionNo - a.versionNo)
+    const superseded = ofCode.filter((v) => v.status === 'SUPERSEDED').sort((a, b) => b.versionNo - a.versionNo)
+    const latest = published[0] ?? superseded[0]
+    return latest ? [latest] : []
+  })
 }
 
 function dataOf(row: DoaVersionFullRow): DoaVersionData {
   return doaVersionDataFromRows(row, row.ruleRows)
 }
 
-function ruleViews(rules: readonly DoaRuleSnapshot[], positions: ReadonlyMap<string, { nameTh: string; nameEn: string | null }>, person: ReturnType<typeof personOf>): RuleView[] {
+type PositionNames = ReadonlyMap<string, { nameTh: string; nameEn: string | null }>
+
+/** An approver of a rule with the names a screen shows: the position's, or the person's */
+function approverView(a: ApproverSpec, positions: PositionNames, person: ReturnType<typeof personOf>): ApproverView {
+  return a.kind === 'MEMBER'
+    ? { kind: 'MEMBER', member: person(a.memberId)! }
+    : { kind: a.kind, position: a.position, positionNameTh: positions.get(a.position)?.nameTh ?? null, positionNameEn: positions.get(a.position)?.nameEn ?? null }
+}
+
+function ruleViews(rules: readonly DoaRuleSnapshot[], positions: PositionNames, person: ReturnType<typeof personOf>): RuleView[] {
   const text = (v: bigint | undefined) => (v === undefined ? undefined : v.toString())
   return rules.map((r) => ({
     code: r.code,
@@ -208,14 +297,37 @@ function ruleViews(rules: readonly DoaRuleSnapshot[], positions: ReadonlyMap<str
     band: r.when.amount
       ? Object.fromEntries(Object.entries({ gt: text(r.when.amount.gt), gte: text(r.when.amount.gte), lte: text(r.when.amount.lte) }).filter(([, v]) => v !== undefined))
       : null,
-    steps: r.steps.map((s) => ({
-      slaMinutes: s.slaBusinessMinutes,
-      approver:
-        s.approver.kind === 'MEMBER'
-          ? { kind: 'MEMBER' as const, member: person(s.approver.memberId)! }
-          : { kind: s.approver.kind, position: s.approver.position, positionNameTh: positions.get(s.approver.position)?.nameTh ?? null, positionNameEn: positions.get(s.approver.position)?.nameEn ?? null },
-    })),
+    steps: r.steps.map((s) => ({ slaMinutes: s.slaBusinessMinutes, approver: approverView(s.approver, positions, person) })),
   }))
+}
+
+/** Boundary tables with the names a screen shows */
+function boundaryViews(tables: readonly BoundaryCompareTable[], positions: PositionNames, person: ReturnType<typeof personOf>): BoundaryTableView[] {
+  const side = (s: BoundarySide): BoundarySideView => ({ ruleCode: s.ruleCode, approvers: s.approvers.map((a) => approverView(a, positions, person)) })
+  return tables.map((t) => ({
+    documentType: t.documentType,
+    rows: t.rows.map((r) => ({ amount: r.amount, before: r.before ? side(r.before) : null, after: side(r.after), changed: r.changed })),
+  }))
+}
+
+/** A version beside the version it replaces: diff, authority gained or lost, both boundary tables and the amount bases (FR-DOA-009). */
+function compareView(baseline: DoaVersionFullRow, data: DoaVersionData, positions: PositionNames, person: ReturnType<typeof personOf>, now: Date): CompareView {
+  const before = dataOf(baseline)
+  return {
+    baseline: {
+      id: baseline.id,
+      code: baseline.code,
+      versionNo: baseline.versionNo,
+      inEffectNow: summaryOf(baseline, person, now).inEffect,
+      effectiveFrom: baseline.effectiveFrom.toISOString(),
+      policy: policyValues(before),
+      rules: ruleViews(before.rules, positions, person),
+    },
+    diff: diffVersions(before, data),
+    authority: authorityChanges(before, data).map((c) => ({ change: c.change, approver: approverView(c.approver, positions, person), documentType: c.documentType, band: c.band })),
+    boundaries: boundaryViews(boundaryComparison(before, data), positions, person),
+    basis: amountBasisChange(before, data),
+  }
 }
 
 /** An approval route as the admin screens show it: the rule, its version and each task with its outcome. */
@@ -245,12 +357,16 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
   const row = await getDoaVersionRow(ctx, versionId)
   if (!row) return err('NOT_FOUND', 'DOA version not found')
 
-  const [members, positionRows, drafted, previousId, route] = await Promise.all([
+  // Before it is sent and while it waits, a version is read beside the one it replaces (FR-DOA-009 AC1): the version
+  // in effect just before it starts — the one in effect now, unless a version is approved for later
+  const comparable = row.status === 'DRAFT' || row.status === 'PENDING_APPROVAL'
+  const [members, positionRows, drafted, previousId, route, baselineId] = await Promise.all([
     listMembers(ctx),
     listPositions(ctx),
     doaVersionDrafted(ctx, versionId),
     previousDoaVersionId(ctx, row.code, row.versionNo),
     latestDoaVersionRoute(ctx, versionId),
+    comparable ? comparisonBaselineId(forTenant(ctx.organizationId), row, ctx.now) : Promise.resolve(null),
   ])
   const person = personOf(members)
   const positions = new Map(positionRows.map((p) => [p.code, { nameTh: p.nameTh, nameEn: p.nameEn }]))
@@ -258,7 +374,9 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
   const snapshot = versionSnapshotFromRows(row, row.ruleRows)
   const previousRow = previousId ? await getDoaVersionRow(ctx, previousId) : null
   const previousData = previousRow ? dataOf(previousRow) : null
-  const amountTypes = DOA_DOCUMENT_TYPES.filter((t) => snapshot.rules.some((r) => r.documentType === t && r.when.amount))
+  const baselineRow = baselineId ? (baselineId === previousRow?.id ? previousRow : await getDoaVersionRow(ctx, baselineId)) : null
+  // A document type gets a boundary table only when one of its bands has an upper end (BR-DOA-08 (ช))
+  const own = DOA_DOCUMENT_TYPES.map((documentType) => ({ documentType, rows: boundaryTable(snapshot, documentType) })).filter((t) => t.rows.length > 0)
 
   return ok({
     version: summaryOf(row, person, ctx.now),
@@ -266,9 +384,11 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
     importedAt: drafted ? drafted.at.toISOString() : null,
     policy: policyValues(data),
     rules: ruleViews(data.rules, positions, person),
-    boundaries: amountTypes.map((documentType) => ({ documentType, rows: boundaryTable(snapshot, documentType).map((b) => ({ amount: b.amountSatang.toString(), ruleCode: b.ruleCode })) })),
+    boundaries: own.map((t) => ({ documentType: t.documentType, rows: t.rows.map((b) => ({ amount: b.amountSatang.toString(), ruleCode: b.ruleCode })) })),
+    ownBoundaries: boundaryViews(boundaryComparison(null, data), positions, person),
     previous: previousRow && previousData ? { id: previousRow.id, versionNo: previousRow.versionNo, policy: policyValues(previousData), rules: ruleViews(previousData.rules, positions, person) } : null,
     diff: previousData ? diffVersions(previousData, data) : null,
+    compare: baselineRow ? compareView(baselineRow, data, positions, person, ctx.now) : null,
     route: route ? routeView(route, person) : null,
     submit: row.status === 'DRAFT' ? await submitView(ctx, row, members, positionRows) : null,
   })

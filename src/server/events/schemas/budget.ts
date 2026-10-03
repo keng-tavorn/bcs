@@ -24,3 +24,17 @@ defineEvents('BudgetLine', {
   'budget.commitment_released': { schema: z.object(movement) },
   'budget.actualized': { schema: z.object(movement) },
 })
+
+// Use of another department's budget line (FR-BUD-004 AC1): to one department or one member, for a period
+defineEvents('BudgetGrant', {
+  'budget_grant.created': {
+    schema: z.object({
+      budgetLineId: z.uuid(),
+      granteeDepartmentId: z.uuid().nullable(),
+      granteeMemberId: z.uuid().nullable(),
+      validFrom: z.iso.datetime({ offset: true }),
+      validTo: z.iso.datetime({ offset: true }).nullable(),
+    }),
+  },
+  'budget_grant.revoked': { schema: z.object({ budgetLineId: z.uuid() }) },
+})

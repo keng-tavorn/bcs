@@ -374,9 +374,10 @@ features:
     status: in_progress
     step: S3
     evidence:
+      - tests/integration/budget-grants.test.ts
       - tests/integration/request-budget.test.ts
     verifiedBy: null
-    notes: "การตรวจ grant ตอนส่งและผู้อนุมัติจากแผนกเจ้าของงบ (S3-05) · บริการและหน้าจัดการ grant ของ BUDGET_ADMIN อยู่ใน S3-07"
+    notes: "บริการให้และเพิกถอน grant และรายการบรรทัดงบที่ผู้ขอเลือกได้ (S3-07) · หน้าจัดการ grant และช่องเลือกบรรทัดงบในฟอร์มมากับหน้างบและฟอร์มคำขอ"
   FR-BUD-005:
     status: planned
     step: S3

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { fund, reserve } from '@/core/budget'
 import { prisma } from '@/server/db/client'
 import { defineCommand, runCommand } from '@/server/services/_pipeline'
-import { applyBudget } from '@/server/services/budget/ledger'
+import { applyBudget } from '@/server/budget/ledger'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S3-03 (spec §7.7, FR-BUD-002 AC3): budget operations on real Postgres. The balance row is locked FOR UPDATE, so

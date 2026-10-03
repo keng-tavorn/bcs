@@ -159,3 +159,20 @@ export function parseHolidays(workbook: InputWorkbook): z.infer<typeof HolidayRo
   if (new Set(holidays.map((h) => h.date)).size !== holidays.length) throw new Error('Holidays: duplicate date')
   return holidays
 }
+
+const BudgetRow = z.object({
+  fiscalYear: z.string().regex(/^FY\d{4}$/),
+  code: z.string().regex(/^[A-Z0-9_-]{2,50}$/),
+  nameTh: text,
+  department: z.string().regex(/^[A-Z0-9_]{2,20}$/),
+  costCenter: z.string().regex(/^[A-Z0-9_-]{2,50}$/),
+  accountCode: z.string().nullable(),
+  planned: z.string().regex(/^\d{1,13}(\.\d{1,2})?$/),
+})
+
+/** Sheet Budget (S3-04): one budget line per row with its planned amount; usedDemo is reached by the demo history (D-01) */
+export function parseBudget(workbook: InputWorkbook): z.infer<typeof BudgetRow>[] {
+  const lines = rows(workbook, 'Budget', BudgetRow)
+  if (new Set(lines.map((l) => `${l.fiscalYear}|${l.code}`)).size !== lines.length) throw new Error('Budget: duplicate code in a fiscal year')
+  return lines
+}

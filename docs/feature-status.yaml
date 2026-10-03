@@ -343,11 +343,13 @@ features:
     verifiedBy: null
     notes: ""
   FR-BUD-001:
-    status: planned
+    status: in_progress
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/budget-import.test.ts
+      - tests/integration/seed.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "service นำเข้าและ seed ชีต Budget เสร็จ (S3-04) · หน้านำเข้าสำหรับ BUDGET_ADMIN มาพร้อมหน้างบ (S3-08)"
   FR-BUD-002:
     status: done
     step: S3

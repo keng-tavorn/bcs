@@ -31,6 +31,8 @@ export const LOGIN_FAILURE_WINDOW_MS = 15 * MS_PER_MINUTE
 export const STEP_UP_TTL_MS = 5 * MS_PER_MINUTE
 /** TOTP codes of the step before and after are accepted too, for clocks that drift (RFC 6238 §5.2) */
 export const TOTP_ACCEPTED_DRIFT_STEPS = 1
+/** Rows one budget import may hold (FR-BUD-001) */
+export const BUDGET_IMPORT_MAX_ROWS = 1000
 /** Invitation links are single-use and valid for 72 hours (FR-AUTH-001 AC1) */
 export const INVITATION_TTL_MS = 72 * MS_PER_HOUR
 /** Password reset links */

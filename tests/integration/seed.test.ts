@@ -9,7 +9,9 @@ import { prisma } from '@/server/db/client'
 import { lintDoaVersion } from '@/core/doa'
 import { orgSnapshotFromRows, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization, type SeedReport } from '@/server/seed/demo-org'
+import { seedBudget } from '@/server/seed/budget'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
+import { parseBudget } from '@/server/seed/sheets'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook } from '@/server/seed/workbook'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 
@@ -223,5 +225,44 @@ describe('[FR-PLT-007/AC3] the seed builds the organization structure and DOA ve
     expect(await prisma.event.count({ where: { organizationId: first.organizationId, type: 'form_version.published' } })).toBe(types.length)
     const holidays = await prisma.holiday.findMany({ where: { organizationId: first.organizationId } })
     expect(holidays.map((h) => h.date.toISOString().slice(0, 10))).toEqual(expect.arrayContaining(['2026-10-13', '2026-10-23']))
+  })
+})
+
+describe('[FR-BUD-001/AC2] the seed funds the budget lines of the Budget sheet through the ledger', () => {
+  /** planned of every row of the Budget sheet, summed here from the cells (baht text → satang) */
+  async function sheetTotal(): Promise<{ lines: number; satang: bigint }> {
+    const workbook = new ExcelJS.Workbook()
+    await workbook.xlsx.readFile(INPUT_WORKBOOK_PATH)
+    const sheet = workbook.getWorksheet('Budget')!
+    const header = (sheet.getRow(1).values as unknown[]).map((v) => String(v ?? '').trim())
+    let lines = 0
+    let satang = 0n
+    for (let r = 3; r <= sheet.rowCount; r++) {
+      const row = sheet.getRow(r)
+      if (!String(row.getCell(1).value ?? '').trim()) break
+      const [whole, fraction = ''] = String(row.getCell(header.indexOf('planned')).value).split('.')
+      satang += BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))
+      lines++
+    }
+    return { lines, satang }
+  }
+
+  it('adds up to the sheet, line by line and in all, and a second run adds nothing', async () => {
+    const workbook = await loadInputWorkbook()
+    const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
+    await seedOrgStructure(first.organizationId, input.users, parseOrgStructureInput(workbook), new Date('2026-10-01T09:00:00+07:00'))
+    const report = await seedBudget(first.organizationId, parseBudget(workbook), new Date('2026-10-01T09:00:00+07:00'))
+    const expected = await sheetTotal()
+    const lines = await prisma.budgetLine.findMany({ where: { organizationId: first.organizationId }, include: { balance: true } })
+    expect(lines).toHaveLength(expected.lines)
+    expect(lines.reduce((s, l) => s + l.plannedSatang, 0n)).toBe(expected.satang)
+    expect(lines.reduce((s, l) => s + (l.balance?.availableSatang ?? 0n), 0n)).toBe(expected.satang)
+    const ledger = await prisma.budgetLedgerEntry.findMany({ where: { organizationId: first.organizationId } })
+    expect(ledger.every((e) => e.fromBucket === 'OUTSIDE' && e.toBucket === 'AVAILABLE')).toBe(true)
+    expect(ledger.reduce((s, e) => s + e.amountSatang, 0n)).toBe(expected.satang)
+    expect(report.lines === expected.lines || report.lines === 0).toBe(true)
+    expect(await seedBudget(first.organizationId, parseBudget(workbook), new Date('2026-10-01T09:00:00+07:00'))).toEqual({ fiscalYears: 0, costCenters: 0, lines: 0 })
+    const fy = await prisma.fiscalYear.findFirstOrThrow({ where: { organizationId: first.organizationId, code: 'FY2569' } })
+    expect([fy.startsOn.toISOString().slice(0, 10), fy.endsOn.toISOString().slice(0, 10)]).toEqual(['2026-01-01', '2026-12-31'])
   })
 })

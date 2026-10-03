@@ -213,8 +213,8 @@ describe('[FR-INT-008/AC1] a new-supplier request waits in the procurement queue
       ['done', 'SUBMITTED'],
       ['current', 'WAIT_QUEUE'],
     ])
-    // The shared cancel command follows the purchase-request machine, so a submitted supplier request offers no cancel
-    expect(view!.actions).toEqual({ canEdit: false, canResubmit: false, canCancel: false })
+    // The cancel command moves a supplier request on its own machine (§6.4: SUBMITTED → CANCELLED), so it is offered
+    expect(view!.actions).toEqual({ canEdit: false, canResubmit: false, canCancel: true })
     const row = (await listMyRequests(org.ctxOf('req_con', MON_1300))).rows.find((r) => r.id === id)
     expect(row).toMatchObject({ grossSatang: null, stage: { kind: 'QUEUE' } })
   })

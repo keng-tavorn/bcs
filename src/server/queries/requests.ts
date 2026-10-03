@@ -620,10 +620,9 @@ const DONE_STATUSES = ['APPROVED', 'PARTIALLY_ORDERED', 'ORDERED', 'COMPLETED'] 
 /** What the requester may do now, by the state machines of §6.4 (the services check again) */
 function requesterActions(status: string, documentType: string): RequesterActionsDto {
   const allows = (command: RequestCommand) => {
-    const pr = transition(REQUEST_MACHINE, status as RequestState, command).ok
-    // A supplier request follows its own machine; the cancel command is shared, so both must allow it
-    if (documentType !== 'SUPPLIER_REQUEST') return pr
-    return pr && command === 'request.cancel' && transition(SUPPLIER_REQUEST_MACHINE, status as SupplierRequestState, 'request.cancel').ok
+    // A new-supplier request follows its own machine (§6.4), as the cancel command does; it is never resubmitted
+    if (documentType === 'SUPPLIER_REQUEST') return command === 'request.cancel' && transition(SUPPLIER_REQUEST_MACHINE, status as SupplierRequestState, 'request.cancel').ok
+    return transition(REQUEST_MACHINE, status as RequestState, command).ok
   }
   return { canEdit: status === 'DRAFT' || status === 'RETURNED', canResubmit: allows('request.resubmit'), canCancel: allows('request.cancel') }
 }

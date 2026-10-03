@@ -51,7 +51,11 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
 
   it('the screen renders only menus whose pages exist', () => {
     // S1-12: /admin/members and /admin/modules · S2-11 to S2-13 and NEW-06: requests, tasks, the admin pages and acting approvers
-    expect(visibleMenu(member('ORG_ADMIN'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'modules', 'delegation', 'security'])
-    expect(visibleMenu(member(), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'delegation', 'security'])
+    // · S3-08 S4-02 S4-03 S4-04 S4-07: budgets, suppliers (every member reads basic fields), the pool, POs and receiving
+    expect(visibleMenu(member('ORG_ADMIN'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'modules', 'delegation', 'security'])
+    expect(visibleMenu(member(), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'delegation', 'security'])
+    expect(visibleMenu(member('PROCUREMENT'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'pool', 'pos', 'suppliers', 'delegation', 'security'])
+    expect(visibleMenu(member('RECEIVER'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'receiving', 'suppliers', 'delegation', 'security'])
+    expect(visibleMenu(member('FINANCE'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'delegation', 'security'])
   })
 })

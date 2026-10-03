@@ -30,6 +30,10 @@ export function loadTaxRates(file: string = TAX_RATES_PATH): TaxRateSeed[] {
   return TaxRatesFile.parse(parseYaml(readFileSync(file, 'utf8'))).rates
 }
 
+/** Tries of one rate when another seeder adds it at the same moment, and the wait between them (× the try) */
+const SEED_RACE_ATTEMPTS = 4
+const SEED_RACE_WAIT_MS = 50
+
 /** A calendar date stored in a DATE column: midnight UTC of that day carries exactly the day. */
 const dateOnly = (text: string) => new Date(`${text}T00:00:00Z`)
 
@@ -38,23 +42,27 @@ export async function seedTaxRates(rates: readonly TaxRateSeed[] = loadTaxRates(
   let added = 0
   for (const rate of rates) {
     const exists = async () => Boolean(await systemDb.taxRate.findFirst({ where: { code: rate.code, effectiveFrom: dateOnly(rate.effectiveFrom) }, select: { id: true } }))
-    if (await exists()) continue
-    try {
-      await systemDb.taxRate.create({
-        data: {
-          code: rate.code,
-          rateBp: rate.rateBp,
-          effectiveFrom: dateOnly(rate.effectiveFrom),
-          effectiveTo: rate.effectiveTo ? dateOnly(rate.effectiveTo) : null,
-          ...(rate.note ? { note: rate.note } : {}),
-          ...(rate.sourceUrl ? { sourceUrl: rate.sourceUrl } : {}),
-        },
-      })
-      added++
-    } catch (error) {
-      // Another seeder (a parallel test file) added the same rate at the same moment: the constraint refused ours
-      if (await exists()) continue
-      throw error
+    // Another seeder (a parallel test file) may add the same rate at the same moment: the constraint refuses one insert,
+    // or the two deadlock. Wait for the other to finish, look again, and try once more.
+    for (let attempt = 1; ; attempt++) {
+      if (await exists()) break
+      try {
+        await systemDb.taxRate.create({
+          data: {
+            code: rate.code,
+            rateBp: rate.rateBp,
+            effectiveFrom: dateOnly(rate.effectiveFrom),
+            effectiveTo: rate.effectiveTo ? dateOnly(rate.effectiveTo) : null,
+            ...(rate.note ? { note: rate.note } : {}),
+            ...(rate.sourceUrl ? { sourceUrl: rate.sourceUrl } : {}),
+          },
+        })
+        added++
+        break
+      } catch (error) {
+        if (attempt >= SEED_RACE_ATTEMPTS) throw error
+        await new Promise((resolve) => setTimeout(resolve, SEED_RACE_WAIT_MS * attempt))
+      }
     }
   }
   return added

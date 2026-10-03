@@ -1,53 +1,72 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-02
+updatedAt: 2026-10-03
 features:
   FR-PLT-001:
-    status: planned
+    status: done
     step: S1
-    evidence: []
+    evidence:
+      - tests/generated/tenant-isolation.test.ts
+      - tests/integration/org-settings.test.ts
+      - tests/integration/seed.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-002:
-    status: planned
+    status: done
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/shell.spec.ts
+      - tests/unit/menu.test.ts
+      - tests/unit/thai-format.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-003:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/integration/event-append-only.test.ts
+      - tests/integration/pipeline.test.ts
+      - tests/unit/json.test.ts
+      - tests/unit/timeline-ui.test.tsx
     verifiedBy: null
     notes: ""
   FR-PLT-004:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/files.spec.ts
+      - tests/integration/files.test.ts
+      - tests/unit/file-types.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-005:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/pwa.spec.ts
     verifiedBy: null
     notes: ""
   FR-PLT-006:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/unit/env.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-007:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/integration/seed.test.ts
+      - tests/unit/db-reset.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-008:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/integration/pipeline.test.ts
+      - tests/unit/logger.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-009:
@@ -63,33 +82,44 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-011:
-    status: planned
+    status: done
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/admin.spec.ts
+      - tests/integration/modules.test.ts
+      - tests/unit/modules.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-012:
-    status: planned
+    status: done
     step: S1
-    evidence: []
+    evidence:
+      - tests/integration/outbox.test.ts
+      - tests/integration/pipeline.test.ts
+      - tests/unit/json.test.ts
     verifiedBy: null
     notes: ""
   FR-AUTH-001:
-    status: planned
+    status: done
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/auth.spec.ts
+      - tests/integration/auth.test.ts
     verifiedBy: null
     notes: ""
   FR-AUTH-002:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/auth.spec.ts
+      - tests/integration/auth.test.ts
     verifiedBy: null
     notes: ""
   FR-AUTH-003:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/integration/auth.test.ts
     verifiedBy: null
     notes: ""
   FR-AUTH-004:
@@ -105,9 +135,11 @@ features:
     verifiedBy: null
     notes: ""
   FR-ADM-001:
-    status: planned
+    status: done
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/admin.spec.ts
+      - tests/integration/admin-members.test.ts
     verifiedBy: null
     notes: ""
   FR-ADM-002:
@@ -135,9 +167,11 @@ features:
     verifiedBy: null
     notes: ""
   FR-ADM-006:
-    status: planned
+    status: in_progress
     step: S1
-    evidence: []
+    evidence:
+      - tests/e2e/admin.spec.ts
+      - tests/integration/modules.test.ts
     verifiedBy: null
     notes: ""
   FR-ADM-007:
@@ -435,9 +469,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-NOTI-001:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/notifications.test.ts
     verifiedBy: null
     notes: ""
   FR-NOTI-002:

@@ -2680,7 +2680,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 
 | Aggregate | Event types |
 | --- | --- |
-| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` |
 | โครงองค์กร | `department.created` `department.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
@@ -3056,28 +3056,28 @@ features:
 - [x] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF — เสร็จ 2026-10-02 · a5e5683
   - เสร็จเมื่อ: เทสต์ INV-TEN-01 ผ่านทุก model ที่มี organizationId โดยนับ model เอง
   - แยกงาน: ทำเองได้ · ถ้าภายหลังต้องตรวจย้อนทุก model ให้แยก subagent ต่อกลุ่ม model แล้วตรวจหลักฐานก่อนรับ
-- [ ] **S1-07** `[demo]` Better Auth: อีเมลและรหัสผ่าน เชิญ รีเซ็ต TOTP และนโยบาย session
+- [x] **S1-07** `[demo]` Better Auth: อีเมลและรหัสผ่าน เชิญ รีเซ็ต TOTP และนโยบาย session — เสร็จ 2026-10-03 · 7620ffe
   - เสร็จเมื่อ: เทสต์ AC ของ FR-AUTH-001 FR-AUTH-002 FR-AUTH-003 ผ่าน และ login ผู้ใช้ seed พร้อม TOTP บนเครื่องได้
   - แยกงาน: ทำเองได้
-- [ ] **S1-08** `[demo]` `permissions.ts` ตาม §2.4 + เทสต์สิทธิ์ที่สร้างอัตโนมัติ
+- [x] **S1-08** `[demo]` `permissions.ts` ตาม §2.4 + เทสต์สิทธิ์ที่สร้างอัตโนมัติ — เสร็จ 2026-10-03 · 9c4de75
   - เสร็จเมื่อ: ทุก capability ใน §2.4 มีเทสต์ทั้งกรณีอนุญาตและปฏิเสธ โดยนับจากไฟล์เอง
   - แยกงาน: ตารางยาว แยก subagent ต่อกลุ่ม capability (คำขอ PO งบ ผู้ดูแล) ได้ แล้วตรวจว่าผลของแต่ละกลุ่มตรงกับ §2.4 ก่อนรับ
-- [ ] **S1-09** `[demo]` app shell เมนูตามสิทธิ์ next-intl และวันที่ พ.ศ.
+- [x] **S1-09** `[demo]` app shell เมนูตามสิทธิ์ next-intl และวันที่ พ.ศ. — เสร็จ 2026-10-03 · 091f0bd
   - เสร็จเมื่อ: GC-DATE-01 ถึง GC-DATE-04 และเทสต์ AC ของ FR-PLT-002 ผ่าน · หน้าแรกผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: ทำเองได้
-- [ ] **S1-10** `[demo]` อัปโหลดและดาวน์โหลดไฟล์ผ่าน presigned URL
+- [x] **S1-10** `[demo]` อัปโหลดและดาวน์โหลดไฟล์ผ่าน presigned URL — เสร็จ 2026-10-03 · 49353d7
   - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-004 ผ่านกับที่เก็บไฟล์บนเครื่อง (RustFS · ADR-036)
   - แยกงาน: ทำเองได้
-- [ ] **S1-11** `[demo]` PWA manifest service worker และหน้าออฟไลน์
+- [x] **S1-11** `[demo]` PWA manifest service worker และหน้าออฟไลน์ — เสร็จ 2026-10-03 · ce59425
   - เสร็จเมื่อ: เทสต์ Playwright ของ FR-PLT-005 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-12** `[demo]` หน้าผู้ดูแลสมาชิกและบทบาท · หน้า PLATFORM_ADMIN เปิดปิดโมดูลพร้อม contractRef event และแจ้ง ORG_ADMIN · `requireModule`
+- [x] **S1-12** `[demo]` หน้าผู้ดูแลสมาชิกและบทบาท · หน้า PLATFORM_ADMIN เปิดปิดโมดูลพร้อม contractRef event และแจ้ง ORG_ADMIN · `requireModule` — เสร็จ 2026-10-03 · c2f28bf
   - เสร็จเมื่อ: เทสต์ AC ของ FR-ADM-001 FR-ADM-006 FR-PLT-011 ผ่าน
   - แยกงาน: แยกต่อหน้าจอได้ (สมาชิก · โมดูล)
-- [ ] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset`
+- [x] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset` — เสร็จ 2026-10-03 · 594ac37
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · `pnpm db:reset && pnpm db:seed` สร้างองค์กรและผู้ใช้เท่าจำนวนแถวในชีต (เทสต์นับเอง) รันซ้ำแล้วไม่ซ้ำ · เทสต์ AC ของ FR-PLT-001 FR-PLT-007 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check`
+- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check` — ติดอยู่: ส่วน CI รอ GitHub repo (ADR-038 ข้อ 2) และส่วน staging รอบัญชี P0-05 ถึง P0-08 · ส่วนที่ทำบนเครื่องเสร็จแล้ว (`/api/health` `.github/workflows/ci.yml` `vercel.json` และ `pnpm verify` ที่รวม `spec:check` กับ `inputs:check`)
   - เสร็จเมื่อ: PR ทดสอบรัน `pnpm verify` ใน CI · merge แล้ว staging ตอบ `/api/health` 200 พร้อม commit sha · เทสต์ AC ของ FR-PLT-006 FR-PLT-008 ผ่าน · ถ้ายังไม่มีบัญชี hosting ให้ติดไว้ที่ P0-08 · ส่วน CI (PR และ merge) ติดไว้จนกว่าผู้ใช้จะเปิดใช้ GitHub (ADR-038 ข้อ 2) แล้วทำข้ออื่นต่อ
   - แยกงาน: ทำเองได้
 
@@ -3381,13 +3381,13 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: <ทำเองได้ หรือแยก subagent ต่ออะไร>
 ```
 
-- [ ] **NEW-01** `[demo]` เขียนการตัดสินใจของผู้ใช้ 14 ข้อ (รอบวางแผน 2026-10-02) ลงกฎใน spec โดยคง ID · เพิ่ม ADR-036 ถึง ADR-040 · เปลี่ยนตัวแทนที่เก็บไฟล์บนเครื่องจาก MinIO เป็น RustFS ใน spec และ CLAUDE.md · พบระหว่าง S1-01
+- [x] **NEW-01** `[demo]` เขียนการตัดสินใจของผู้ใช้ 14 ข้อ (รอบวางแผน 2026-10-02) ลงกฎใน spec โดยคง ID · เพิ่ม ADR-036 ถึง ADR-040 · เปลี่ยนตัวแทนที่เก็บไฟล์บนเครื่องจาก MinIO เป็น RustFS ใน spec และ CLAUDE.md · พบระหว่าง S1-01 — เสร็จ 2026-10-03 · 00b1e84
   - เสร็จเมื่อ: `pnpm spec:check` ผ่าน · ทุกแถวใน §18.1 มีไฟล์ `docs/decisions/ADR-nnn.md` · ทุกการแก้กฎตรงกับคำตอบใน ADR-038 · การแก้อื่นในรอบเดียวกันมีเจ้าของ (แถวใน §10.2 ของ NEW-03 · แถว ADR-037 ADR-039 ADR-040 ใน §18.1 · ข้อ NEW-02 ถึง NEW-11)
   - แยกงาน: ทำเองได้ แล้วให้ subagent ตรวจแต่ละการแก้กับคำตอบของผู้ใช้ก่อน commit
-- [ ] **NEW-02** `[demo]` คู่มือทีละขั้นสำหรับงานที่ผู้ใช้ต้องทำเอง (P0-05 ถึง P0-08 · GitHub · ส่วนของ LINE ที่ผู้ใช้ทำ ซึ่งเขียนล่วงหน้าใน `docs/runbooks/line-demo-setup.md` ของ D-02 และติ๊กที่ D-02 พร้อมสคริปต์ `line:richmenu`) ใน `docs/runbooks/` · พบระหว่าง S1-01
+- [x] **NEW-02** `[demo]` คู่มือทีละขั้นสำหรับงานที่ผู้ใช้ต้องทำเอง (P0-05 ถึง P0-08 · GitHub · ส่วนของ LINE ที่ผู้ใช้ทำ ซึ่งเขียนล่วงหน้าใน `docs/runbooks/line-demo-setup.md` ของ D-02 และติ๊กที่ D-02 พร้อมสคริปต์ `line:richmenu`) ใน `docs/runbooks/` · พบระหว่าง S1-01 — เสร็จ 2026-10-03 · a26e175
   - เสร็จเมื่อ: ทุกคู่มือบอกว่าค่าไหนใส่ตัวแปรอะไรใน `.env` หรือ Environment Variables ของ hosting ไม่ขอ key ในแชท และผ่านการตรวจกับเอกสารทางการของผู้ให้บริการ
   - แยกงาน: แยก subagent ต่อคู่มือ แล้วให้อีกตัวตรวจกับ spec และเอกสารทางการก่อนรับ
-- [ ] **NEW-03** `[demo]` เพิ่ม event `auth.login_locked` และ `member.session_revoked` ในแคตตาล็อก §10.2 · พบระหว่าง S1-07
+- [x] **NEW-03** `[demo]` เพิ่ม event `auth.login_locked` และ `member.session_revoked` ในแคตตาล็อก §10.2 · พบระหว่าง S1-07 — เสร็จ 2026-10-03 · 43d8ad4
   - เสร็จเมื่อ: §10.2 มีทั้งสองชนิดและเทสต์ schema ของ event ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **NEW-04** `[demo]` trigger append-only และ REVOKE UPDATE/DELETE ของ `BudgetLedgerEntry` ตาม §6.3 ข้อ 1–2 ใน migration ของ S3-01 · พบระหว่าง NEW-01 (เขียน ADR-020)
@@ -3413,6 +3413,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้
 - [ ] **NEW-11** `[demo]` ผลต่องบเมื่อปิด PO ก่อนใบกำกับใบสุดท้ายในกรณีที่ BR-BUD-06 ยังไม่ระบุ: PO ที่รับครบแล้ว (RECEIVED) และ PO ที่มีใบกำกับบางใบแล้วจึงปิดด้วย `CLOSE_SHORT` (§6.4 `po.close`) · พบระหว่าง NEW-01 — รอยืนยัน
   - เสร็จเมื่อ: ผู้ใช้ยืนยันกติกา แล้ว BR-BUD-06 §6.4 และ FR-P2P-010 AC3 เขียนกรณีนี้ตรงกัน และเทสต์ของ `core/budget` กับ service ปิด PO (S4-04) ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-12** `[demo]` เพิ่ม event `organization.settings_updated` ในแคตตาล็อก §10.2 เพราะการบันทึก `Organization.settings` (FR-PLT-001 AC2) เป็น command ที่ต้องมี Event · บันทึกได้เฉพาะส่วนที่ §2.4 มีสิทธิ์รองรับ (`businessCalendar` ด้วย `admin.calendar` · `numbering` ด้วย `admin.numbering`) · พบระหว่าง S1-13 — เสร็จ 2026-10-03 · 594ac37
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/organization.ts` · เทสต์ AC2 ของ FR-PLT-001 ผ่าน
   - แยกงาน: ทำเองได้
 
 ---
@@ -3521,7 +3524,7 @@ pnpm db:reset
 
 ### 18.1 ADR
 
-ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-040 บันทึกระหว่าง demo build (2026-10-02): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วน ADR-037 ADR-039 และ ADR-040 agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
+ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-041 บันทึกระหว่าง demo build (2026-10-02 ถึง 2026-10-03): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วน ADR-037 ADR-039 ADR-040 และ ADR-041 agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
 
 | ID | การตัดสินใจ | สถานะ |
 | --- | --- | --- |
@@ -3565,6 +3568,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-038 | การตัดสินใจของผู้ใช้ในรอบวางแผน demo build 14 ข้อ (2026-10-02) | ตัดสินแล้ว |
 | ADR-039 | แยก tenant ในฐานข้อมูลเพิ่ม: foreign key ระหว่างตาราง tenant รวม `organizationId` · `db.forTenant()` ห้ามเข้าตาราง identity และ platform และห้าม nested write · `Event.seq` เป็น identity | เสนอ |
 | ADR-040 | ใช้ Better Auth: ล็อกการเข้าระบบนับเฉพาะครั้งที่ผิด · บังคับ 2FA ตามบทบาทและตำแหน่ง · TOTP ของผู้ใช้ตัวอย่างจาก `SEED_TOTP_KEY` (ไม่บังคับ · ตัวแปรที่เพิ่มต่อจากภาคผนวก B ในส่วนที่เพิ่มของ `.env.example`) · plugin `liffIdToken` | เสนอ |
+| ADR-041 | นโยบายของ command pipeline และ outbox: key กันส่งซ้ำแยกตามผู้ส่ง · ส่งหลัง commit ครั้งเดียวไม่เกิน 2 วินาที · นับเฉพาะการปฏิเสธของ Inngest ครบ 10 ครั้งเป็นข้อความตายพร้อมแจ้งเตือน | เสนอ |
 
 ### 18.2 สมมติฐาน
 

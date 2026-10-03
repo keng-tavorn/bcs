@@ -125,7 +125,7 @@ const sameTenantKeys = models
       .map((f) => ({ model: m.name, field: f, from: f.relationFromFields!, to: f.relationToFields! })),
   )
 
-describe('[INV-TEN-02] tenant tables in the schema', () => {
+describe('[FR-PLT-001/AC3] [INV-TEN-02] tenant tables in the schema', () => {
   it('finds the tenant models itself and they match src/server/db/tenant-models.ts', () => {
     expect(tenantModels.length).toBeGreaterThan(0)
     expect(tenantModels).toEqual([...TENANT_MODELS].sort())
@@ -149,7 +149,7 @@ describe('[INV-TEN-02] tenant tables in the schema', () => {
   })
 })
 
-describe('[INV-TEN-01] db.forTenant() never crosses organizations', () => {
+describe('[FR-PLT-001/AC3] [INV-TEN-01] db.forTenant() never crosses organizations', () => {
   const rows = new Map<string, { a: Record<string, unknown>; b: Record<string, unknown> }>()
   let orgA: string
   let orgB: string
@@ -297,7 +297,7 @@ describe('[INV-TEN-01] Postgres refuses references into another organization', (
   })
 })
 
-describe('[INV-EVT-03] Postgres assigns Event.seq and Event.createdAt', () => {
+describe('[INV-EVT-01] Postgres assigns Event.seq and Event.createdAt (§4.5: the audit order cannot be chosen by the caller)', () => {
   it('refuses a caller-chosen seq and overrides a backdated createdAt', async () => {
     const org = await prisma.organization.create({
       data: { code: `E-${randomUUID().slice(0, 8)}`, legalNameTh: 'seq test', taxId: '0999999000055', settings: {} },

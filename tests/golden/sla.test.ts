@@ -89,7 +89,7 @@ describe('[FR-INT-007/AC1] business time beyond the golden cases (BR-SLA-01 to B
   })
 })
 
-describe('[FR-VIS-001/AC3] counting business time backwards dates work that has waited (D-01 demo history)', () => {
+describe('[FR-INT-007/AC1] counting business time backwards dates work that has waited (D-01 demo history)', () => {
   it('goes back over closing hours, weekends and holidays, and has exactly that much business time to the end', () => {
     // Monday 5 Oct 2026 10:30 Thai time back 18 business hours: Monday 2 h, Friday 9 h, Thursday 7 h → Thursday 1 Oct 10:30
     expect(iso(subtractBusinessMinutes(d('2026-10-05T03:30:00Z'), 18 * 60, calendar))).toBe('2026-10-01T03:30:00Z')

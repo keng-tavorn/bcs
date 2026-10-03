@@ -191,13 +191,36 @@ export function lineChatRefusal(row: Pick<DemoHistoryRow, 'ref' | 'channel' | 's
   return null
 }
 
+/** When a row is drafted, sent and decided (business time); a request still waiting has waited `hours` until now */
+function timesOf(c: Context, row: DemoHistoryRow): { draftAt: Date; submitAt: Date; decideAt: Date } {
+  const pending = row.status === 'PENDING_APPROVAL'
+  const submitAt = pending ? subtractBusinessMinutes(c.now, row.hours * MINUTES_PER_HOUR, c.calendar) : addBusinessMinutes(dayStart(c, row.daysAgo), STEP_MINUTES, c.calendar)
+  const draftAt = new Date(Math.min(dayStart(c, row.daysAgo).getTime(), subtractBusinessMinutes(submitAt, STEP_MINUTES, c.calendar).getTime()))
+  return { draftAt, submitAt, decideAt: addBusinessMinutes(submitAt, row.hours * MINUTES_PER_HOUR, c.calendar) }
+}
+
+/**
+ * The demo data names its fiscal year (sheet Budget): a row whose first day, or today, falls outside the fiscal year of
+ * its budget line cannot be made — requests are refused outside the year of their line — so the history stops before
+ * it writes anything and says which year the sheets need.
+ */
+export class DemoHistoryOutOfYearError extends Error {
+  constructor(
+    readonly ref: string,
+    readonly day: string,
+    readonly fiscalYear: string,
+    readonly startsOn: string,
+    readonly endsOn: string,
+  ) {
+    super(`Demo_History ${ref}: ${day} is outside fiscal year ${fiscalYear} (${startsOn} to ${endsOn}) of its budget line`)
+    this.name = 'DemoHistoryOutOfYearError'
+  }
+}
+
 async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   const db = forTenant(c.organizationId)
   const pending = row.status === 'PENDING_APPROVAL'
-  // When it was sent and when it was decided (business time); a pending one has waited `hours` until now
-  const submitAt = pending ? subtractBusinessMinutes(c.now, row.hours * MINUTES_PER_HOUR, c.calendar) : addBusinessMinutes(dayStart(c, row.daysAgo), STEP_MINUTES, c.calendar)
-  const draftAt = new Date(Math.min(dayStart(c, row.daysAgo).getTime(), subtractBusinessMinutes(submitAt, STEP_MINUTES, c.calendar).getTime()))
-  const decideAt = addBusinessMinutes(submitAt, row.hours * MINUTES_PER_HOUR, c.calendar)
+  const { draftAt, submitAt, decideAt } = timesOf(c, row)
   if (!pending && decideAt > c.now) throw new Error(`Demo_History ${row.ref}: decided ${row.hours} business hours after ${row.daysAgo} days ago is in the future`)
 
   const { formData, needsEndDate } = formOf(row)
@@ -326,7 +349,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     db.member.findMany({ where: { status: 'ACTIVE', employeeCode: { not: null } }, select: { id: true, employeeCode: true } }),
     db.supplier.findMany({ select: { id: true, code: true } }),
     db.deliverySite.findMany({ select: { id: true, code: true } }),
-    db.budgetLine.findMany({ select: { id: true, code: true } }),
+    db.budgetLine.findMany({ select: { id: true, code: true, fiscalYear: { select: { code: true, startsOn: true, endsOn: true } } } }),
   ])
   const [startH, startM] = calendar.start.split(':').map(Number)
   const [endH, endM] = calendar.end.split(':').map(Number)
@@ -339,6 +362,18 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     suppliers: new Map(suppliers.map((s) => [s.code, s.id])),
     sites: new Map(sites.map((s) => [s.code, s.id])),
     budgetLines: new Map(fiscal.map((b) => [b.code, b.id])),
+  }
+
+  // Every row lies inside the fiscal year of its budget line, from its first day to today
+  const yearOf = new Map(fiscal.map((b) => [b.code, b.fiscalYear]))
+  const dateText = (day: Date) => day.toISOString().slice(0, 10)
+  for (const row of rows) {
+    const year = yearOf.get(row.budgetLine)
+    if (!year) continue
+    for (const at of [timesOf(c, row).draftAt, now]) {
+      const day = localDate(at, calendar.timezone)
+      if (day < dateText(year.startsOn) || day > dateText(year.endsOn)) throw new DemoHistoryOutOfYearError(row.ref, day, year.code, dateText(year.startsOn), dateText(year.endsOn))
+    }
   }
 
   // POs of the past go nowhere

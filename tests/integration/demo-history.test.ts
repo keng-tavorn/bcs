@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { TZDate } from '@date-fns/tz'
 import { beforeAll, describe, expect, it } from 'vitest'
+import { BP_PER_WHOLE } from '@/core/money/constants'
 import { amountToSatang } from '@/core/money/dto'
 import { addBusinessMinutes, businessMinutesBetween, type BusinessCalendar } from '@/core/sla'
 import { MS_PER_DAY } from '@/lib/constants'
@@ -18,7 +19,7 @@ import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook, type InputWorkbook } from '@/server/seed/workbook'
 import { pendingBoard } from '@/server/services/board'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
-import { DemoHistoryIncompleteError, lineChatRefusal, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, lineChatRefusal, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { computeKpis } from '@/server/services/reports/kpi'
 
 // D-01: the requests of sheet Demo_History are made through the real services with the business clock set back by
@@ -30,7 +31,7 @@ import { computeKpis } from '@/server/services/reports/kpi'
 // never meets the one tests/integration/seed.test.ts seeds at the same time.
 
 const ROOT = path.resolve(import.meta.dirname, '..', '..')
-/** A Monday 10:00 in Bangkok, before today's date so no step of the history lies ahead of the real clock */
+/** A Monday 10:00 in Bangkok inside the sheets' fiscal year, before today's date so no step lies ahead of the real clock */
 const NOW = new Date('2026-09-28T03:00:00Z')
 const ORG_CODE = 'DEMO-HISTORY'
 const PASSWORD = 'history-test-password-0001'
@@ -39,6 +40,8 @@ const MINUTES_PER_HOUR = 60
 const PERCENT = 100
 /** The KPI period: long enough to hold every row of the sheet */
 const KPI_DAYS = 365
+/** Tenths of a percent in a whole */
+const TENTHS_OF_PERCENT = 1000n
 const DECIDED = new Set(['COMPLETED', 'ORDERED', 'APPROVED', 'RETURNED', 'REJECTED'])
 
 interface DashboardLine {
@@ -216,6 +219,24 @@ describe('[FR-VIS-001/AC3] D-01 the board shows the requests waiting past their 
     const pending = seeded.sheet.filter((r) => r.status === 'PENDING_APPROVAL').map((r) => [r.ref, Number(r.hours) * MINUTES_PER_HOUR] as const)
     expect(waiting.sort()).toEqual([...pending].sort())
   })
+
+  it('shows per approver the open tasks, those past their SLA, and the oldest and average waits of the tasks and the sheet', async () => {
+    const board = await pendingBoard(ctxOf(await holderOf('EXECUTIVE')))
+    if (!board.ok) throw new Error(JSON.stringify(board.error))
+    const open = await prisma.approvalTask.findMany({ where: { organizationId: seeded.organizationId, status: 'OPEN' }, select: { assigneeMemberId: true, dueAt: true } })
+    expect(board.data.map((r) => r.memberId).sort()).toEqual([...new Set(open.map((t) => t.assigneeMemberId))].sort())
+    for (const row of board.data) {
+      const code = seeded.codeOf.get(row.memberId)!
+      const mine = open.filter((t) => t.assigneeMemberId === row.memberId)
+      const waits = seeded.sheet.filter((r) => r.status === 'PENDING_APPROVAL' && r.expectedApprover === code).map((r) => Number(r.hours) * MINUTES_PER_HOUR)
+      expect({ open: row.open, overdue: row.overdue, oldest: row.oldestMinutes, average: row.averageMinutes }, code).toEqual({
+        open: mine.length,
+        overdue: mine.filter((t) => t.dueAt !== null && t.dueAt < NOW).length,
+        oldest: Math.max(...waits),
+        average: Math.round(waits.reduce((a, b) => a + b, 0) / waits.length),
+      })
+    }
+  })
 })
 
 describe('[FR-BUD-005/AC1] D-01 the budget dashboard shows the demo budget as pnpm inputs:check expects', () => {
@@ -226,10 +247,23 @@ describe('[FR-BUD-005/AC1] D-01 the budget dashboard shows the demo budget as pn
     dashboard = result.data
   })
 
-  it('flags exactly the budget lines of the dashboard line as low, at the same share left', () => {
+  it('flags exactly the budget lines of the dashboard line as low, at the share left it prints', () => {
     expect(expected.low.length).toBeGreaterThan(0)
-    const low = dashboard.lines.filter((l) => l.low).map((l) => `${l.code} เหลือ ${((Number(amountToSatang(l.available.amount)) / Number(amountToSatang(l.planned.amount))) * PERCENT).toFixed(1)}%`)
-    expect(low.sort()).toEqual([...expected.low].sort())
+    const printed = new Map(
+      expected.low.map((text) => {
+        const m = /^(\S+) เหลือ (\d+)\.(\d)%$/.exec(text)
+        if (!m) throw new Error(`unexpected low line: ${text}`)
+        return [m[1]!, BigInt(`${m[2]}${m[3]}`)] as const
+      }),
+    )
+    expect(dashboard.lines.filter((l) => l.low).map((l) => l.code).sort()).toEqual([...printed.keys()].sort())
+    for (const line of dashboard.lines.filter((l) => l.low)) {
+      // The printed share left (tenths of a percent) is the exact share, rounded: within half a tenth of it
+      const available = amountToSatang(line.available.amount)
+      const planned = amountToSatang(line.planned.amount)
+      const gap = printed.get(line.code)! * planned - available * TENTHS_OF_PERCENT
+      expect((gap < 0n ? -gap : gap) * 2n <= planned, line.code).toBe(true)
+    }
   })
 
   it('shows on every line the amount the Budget sheet says is used and remains', () => {
@@ -243,6 +277,21 @@ describe('[FR-BUD-005/AC1] D-01 the budget dashboard shows the demo budget as pn
         used: amountToSatang(sheetLine.usedDemo!),
         available: amountToSatang(sheetLine.remaining!),
       })
+    }
+  })
+
+  it('adds the lines up per department and in all, and gives each line the shares used and held the sheets give', () => {
+    const plannedOf = (lines: typeof seeded.budgetSheet) => lines.reduce((sum, b) => sum + amountToSatang(b.planned!), 0n)
+    expect(dashboard.departments.map((d) => d.code).sort()).toEqual([...new Set(seeded.budgetSheet.map((b) => b.department!))].sort())
+    for (const d of dashboard.departments) expect(amountToSatang(d.planned.amount), d.code).toBe(plannedOf(seeded.budgetSheet.filter((b) => b.department === d.code)))
+    expect(amountToSatang(dashboard.total.planned.amount)).toBe(plannedOf(seeded.budgetSheet))
+    // held = what the sheet counts against the budget; used = what was ordered or invoiced (one PO per request, at its price)
+    const halfUpBp = (part: bigint, whole: bigint) => Number((part * BP_PER_WHOLE * 2n + whole) / (whole * 2n))
+    for (const sheetLine of seeded.budgetSheet) {
+      const line = dashboard.lines.find((l) => l.code === sheetLine.code)!
+      const planned = amountToSatang(sheetLine.planned!)
+      const ordered = seeded.sheet.filter((r) => r.budgetLine === sheetLine.code && (r.status === 'ORDERED' || r.status === 'COMPLETED')).reduce((sum, r) => sum + amountToSatang(r.net!), 0n)
+      expect({ heldBp: line.heldBp, usedBp: line.usedBp }, sheetLine.code!).toEqual({ heldBp: halfUpBp(amountToSatang(sheetLine.usedDemo!), planned), usedBp: halfUpBp(ordered, planned) })
     }
   })
 
@@ -278,12 +327,23 @@ describe('[FR-VIS-003/AC1] D-01 the KPIs give the share of purchase-request deci
     const from = new Date(NOW.getTime() - KPI_DAYS * MS_PER_DAY)
     const kpi = await forTenant(seeded.organizationId).$transaction((tx) => computeKpis(tx, seeded.organizationId, { from, to: NOW, now: NOW }, null))
     const requests = kpi.g5.bySubject.PURCHASE_REQUEST!
-    expect(requests.denominator).toBe(seeded.sheet.filter((r) => DECIDED.has(r.status!)).length)
-    expect(Math.round((requests.numerator * PERCENT) / requests.denominator!)).toBe(expected.linePercent)
+    const decided = seeded.sheet.filter((r) => DECIDED.has(r.status!))
+    expect(requests).toEqual({ numerator: decided.filter((r) => r.channel === 'LINE_CHAT' || r.channel === 'LIFF').length, denominator: decided.length })
+    // The printed percent is the exact share, rounded: within half a percent of it
+    expect(Math.abs(expected.linePercent * decided.length - requests.numerator * PERCENT) * 2 <= decided.length).toBe(true)
   })
 })
 
 describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is refused; a row CANCELLED is taken back by its requester', () => {
+  it('refuses, before it makes anything, a history that would leave the fiscal year of its budget lines', async () => {
+    const organizationId = await seedOrganization(workbook, `${ORG_CODE}-2`, 'history2.')
+    const year = await prisma.fiscalYear.findFirstOrThrow({ where: { organizationId }, orderBy: { endsOn: 'desc' }, select: { endsOn: true } })
+    const afterTheYear = new Date(year.endsOn.getTime() + 4 * MS_PER_DAY)
+    await expect(seedDemoHistory(organizationId, parseDemoHistory(workbook), afterTheYear)).rejects.toBeInstanceOf(DemoHistoryOutOfYearError)
+    expect(await prisma.request.count({ where: { organizationId } })).toBe(0)
+    expect(await prisma.commandLog.count({ where: { organizationId, idempotencyKey: { contains: 'demo-history:' } } })).toBe(0)
+  })
+
   it('stops at a row it cannot make, keeps what was made before it, and the next seed refuses to go on', async () => {
     const organizationId = await seedOrganization(workbook, `${ORG_CODE}-2`, 'history2.')
     const rows = parseDemoHistory(workbook)

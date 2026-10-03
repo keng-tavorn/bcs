@@ -12,4 +12,6 @@ defineEvents('Request', {
       supplierId: z.uuid().nullable(),
     }),
   },
+  // §6.4: the POs that ordered the request are all closed or cancelled
+  'request.completed': { schema: z.object({ purchaseOrderIds: z.array(z.uuid()).min(1) }) },
 })

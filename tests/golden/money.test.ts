@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { allocateLargestRemainder, documentTotals, lineNet, parseQuantity, roundHalfUpDiv, vatFromGross, vatFromNet } from '@/core/money/math'
+import { allocateLargestRemainder, documentTotals, exceedsByMoreThan, lineNet, parseQuantity, roundHalfUpDiv, vatFromGross, vatFromNet } from '@/core/money/math'
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/money.yaml (spec §7.1, BR-MONEY-01/02, BR-VAT-02..04): the runner reads the file, makes one test per case
@@ -35,6 +35,14 @@ describe('money arithmetic beyond the golden cases', () => {
     expect(() => roundHalfUpDiv(1n, 0n)).toThrow(RangeError)
     for (const bad of ['-1', 'abc', '1.23456', '']) expect(() => parseQuantity(bad), bad).toThrow(RangeError)
     for (const bad of [-1, 1.5]) expect(() => vatFromNet(100n, bad), String(bad)).toThrow(RangeError)
+  })
+
+  it('tells a price above another by more than a share of it, and refuses a bad share (FR-P2P-003 AC1)', () => {
+    expect(exceedsByMoreThan(11_001n, 10_000n, 1_000)).toBe(true)
+    expect(exceedsByMoreThan(11_000n, 10_000n, 1_000)).toBe(false)
+    expect(exceedsByMoreThan(9_000n, 10_000n, 0)).toBe(false)
+    expect(() => exceedsByMoreThan(1n, 1n, -1)).toThrow(RangeError)
+    expect(() => exceedsByMoreThan(1n, 1n, 2.5)).toThrow(RangeError)
   })
 
   it('allocates zero over zero weights, and refuses negatives or a total over zero weights', () => {

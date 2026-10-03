@@ -41,6 +41,10 @@ export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
 /** Longest free-text reason accepted by admin commands (stored in Comment) */
 export const REASON_MAX_LENGTH = 1000
+/** Longest note to a supplier on a PO (FR-P2P-003 AC2) */
+export const PO_NOTE_MAX_LENGTH = 2000
+/** Longest payment term a PO takes, in days */
+export const PAYMENT_TERM_MAX_DAYS = 3650
 /** The language cookie is remembered for a year (FR-PLT-002 AC2) */
 export const LOCALE_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
 /** A LINE ID token is a JWT of a few hundred bytes; anything far longer is refused before it is sent to LINE */

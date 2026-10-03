@@ -78,7 +78,7 @@ export async function seedBudget(organizationId: string, sheet: BudgetSheet, now
       const funded = await applyBudget(
         tx,
         ctx,
-        created.map((c) => ({ budgetLineId: c.id, event: 'budget.imported' as const, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, c.amount, importId) })),
+        created.map((c) => ({ budgetLineId: c.id, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, c.amount, importId) })),
       )
       if (!funded.ok) throw new Error(`Budget: funding failed: ${funded.error.code}`)
       await appendEvents(tx, ctx, funded.events)

@@ -125,3 +125,49 @@ export async function freeLines(tx: TenantTx, filter: { requestIds?: readonly st
   }
   return out
 }
+
+export interface LineBasis {
+  readonly requestId: string
+  /** ×10⁴ */
+  readonly quantity: bigint
+  readonly cancelled: bigint
+  readonly netBeforeVat: Satang
+  /** What each source of a PO that still orders the line orders, ×10⁴ (by PoLineSource id) */
+  readonly ordering: ReadonlyMap<string, bigint>
+}
+
+/** The quantity and amount before VAT of request lines, with what POs still order of them (BR-BUD-05, FR-P2P-003 AC2) */
+export async function requestLineBasis(tx: TenantTx, requestLineIds: readonly string[]): Promise<Map<string, LineBasis>> {
+  const requestIds = [...new Set((await tx.requestLine.findMany({ where: { id: { in: [...requestLineIds] } }, select: { requestId: true } })).map((l) => l.requestId))]
+  const requests = await tx.request.findMany({
+    where: { id: { in: requestIds } },
+    select: {
+      id: true,
+      priceIncludesVat: true,
+      vatRateBp: true,
+      lines: {
+        orderBy: { lineNo: 'asc' },
+        select: {
+          id: true,
+          quantity: true,
+          cancelledQuantity: true,
+          unitPriceSatang: true,
+          vatable: true,
+          poSources: { where: { poLine: { po: { status: { in: [...ORDERING_PO_STATUSES] } } } }, select: { id: true, quantity: true } },
+        },
+      },
+    },
+  })
+  const out = new Map<string, LineBasis>()
+  for (const r of requests) {
+    const nets = lineNetsBeforeVat(
+      r.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
+      r.vatRateBp ?? 0,
+      r.priceIncludesVat,
+    )
+    r.lines.forEach((l, i) =>
+      out.set(l.id, { requestId: r.id, quantity: scaled(l.quantity), cancelled: scaled(l.cancelledQuantity), netBeforeVat: nets[i]!, ordering: new Map(l.poSources.map((s) => [s.id, scaled(s.quantity)])) }),
+    )
+  }
+  return out
+}

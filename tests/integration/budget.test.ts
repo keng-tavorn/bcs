@@ -45,7 +45,7 @@ const fundCommand = defineCommand({
   input: z.strictObject({ budgetLineId: z.uuid(), amountSatang: z.string() }),
   async execute(tx, input, ctx) {
     const importId = randomUUID()
-    const r = await applyBudget(tx, ctx, [{ budgetLineId: input.budgetLineId, event: 'budget.imported', document: { type: 'IMPORT', id: importId }, run: (s) => fund(s, BigInt(input.amountSatang), importId) }])
+    const r = await applyBudget(tx, ctx, [{ budgetLineId: input.budgetLineId, document: { type: 'IMPORT', id: importId }, run: (s) => fund(s, BigInt(input.amountSatang), importId) }])
     return r.ok ? { ok: true, result: null, events: r.events } : { ok: false, error: r.error }
   },
 })
@@ -55,7 +55,7 @@ const reserveCommand = defineCommand({
   input: z.strictObject({ budgetLineId: z.uuid(), requestId: z.uuid(), amountSatang: z.string() }),
   async execute(tx, input, ctx) {
     const r = await applyBudget(tx, ctx, [
-      { budgetLineId: input.budgetLineId, event: 'budget.reserved', document: { type: 'REQUEST', id: input.requestId }, run: (s) => reserve(s, [{ requestLineId: input.requestId, amount: BigInt(input.amountSatang) }]) },
+      { budgetLineId: input.budgetLineId, document: { type: 'REQUEST', id: input.requestId }, run: (s) => reserve(s, [{ requestLineId: input.requestId, amount: BigInt(input.amountSatang) }]) },
     ])
     return r.ok ? { ok: true, result: null, events: r.events } : { ok: false, error: r.error }
   },

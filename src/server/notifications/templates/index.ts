@@ -102,6 +102,10 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
     href: '/admin/modules',
   }),
+  'po.approved': (d) => ({
+    title: { th: `ใบสั่งซื้อ ${ref(d)} อนุมัติแล้ว พร้อมส่งให้ผู้ขาย`, en: `Purchase order ${ref(d)} is approved and ready to send` },
+    href: `/purchase-orders/${str(d.poId)}`,
+  }),
   'security.notice': (d) => ({
     title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
     body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },

@@ -14,6 +14,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decidePolicyTask } from './policy-decide'
+import { decidePoTask } from '../purchase-orders/decide'
 import { releaseForRequest } from '../requests/budget'
 import { closeRoute, taskTimes } from './route'
 
@@ -96,6 +97,7 @@ export const decideCommand = defineCommand({
     if (input.decision !== 'APPROVE' && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason' })
     const route = task.step.route
     if (route.subjectType === 'DOA_VERSION' || route.subjectType === 'ORG_AUTHORITY_CHANGE') return decidePolicyTask(tx, ctx, task, input, taskTo)
+    if (route.subjectType === 'PURCHASE_ORDER') return decidePoTask(tx, ctx, task, input, taskTo)
     if (route.subjectType !== 'REQUEST') return fail('VALIDATION_FAILED', `${route.subjectType} tasks are decided by their own flow`, { reason: 'SUBJECT' })
 
     const [lockedRequest] = await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [route.subjectId])

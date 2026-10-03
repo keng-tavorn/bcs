@@ -32,7 +32,7 @@ beforeAll(async () => {
   const ctx = systemCtx(org.organizationId, NOW, 'seed')
   const importId = randomUUID()
   await forTenant(org.organizationId).$transaction(async (tx) => {
-    const r = await applyBudget(tx, ctx, [{ budgetLineId: small.id, event: 'budget.imported', document: { type: 'IMPORT', id: importId }, run: (s) => fund(s, 50_000_000n, importId) }])
+    const r = await applyBudget(tx, ctx, [{ budgetLineId: small.id, document: { type: 'IMPORT', id: importId }, run: (s) => fund(s, 50_000_000n, importId) }])
     if (!r.ok) throw new Error('fund failed')
     await appendEvents(tx, ctx, r.events)
   })

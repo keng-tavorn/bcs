@@ -1,5 +1,6 @@
 import { TZDate } from '@date-fns/tz'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
+import { lineNet } from '@/core/money/math'
 import type { Result } from '@/core/result'
 import { addBusinessMinutes, subtractBusinessMinutes, type BusinessCalendar } from '@/core/sla'
 import { MS_PER_DAY } from '@/lib/constants'
@@ -17,6 +18,7 @@ import { assignSupplier, consolidateNow } from '../procurement'
 import { closePurchaseOrder, submitPo } from '../purchase-orders'
 import { sendPurchaseOrder } from '../purchase-orders/send'
 import { postGoodsReceipt } from '../receiving'
+import { departmentReceivers } from '../receiving/receivers'
 import { cancelRequest, createDraft, editRequest, submitRequest } from '../requests'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
@@ -37,9 +39,8 @@ const PO_DECISION_MINUTES = 120
 /** A delivery comes this many business days after the PO is sent, the invoice one business day after the delivery */
 const DELIVERY_DAYS = 2
 const MINUTES_PER_HOUR = 60
-/** The quotations of a request above the ATT-QUOTES threshold: the chosen one, and two higher by these percents */
-const OTHER_QUOTES_PERCENT = [104n, 107n]
-const HUNDRED = 100n
+/** The quotations of a request above the ATT-QUOTES threshold: the chosen one, and two higher by these factors */
+const OTHER_QUOTES_FACTOR = ['1.04', '1.07']
 
 export interface DemoHistoryReport {
   readonly seeded: boolean
@@ -157,15 +158,37 @@ async function routeOf(c: Context, requestId: string) {
   return { rule: route.escalatedFromRuleCode ?? route.ruleCode, escalated: route.escalatedFromRuleCode !== null, taskId: task.id, approver: task.assignee.employeeCode ?? '' }
 }
 
-/** The member who receives the goods (§2.4 gr.post, BR-SOD-02, BR-SOD-07): a RECEIVER of the requester's department, else the requester */
-async function receiverOf(c: Context, requestId: string, at: Date): Promise<string> {
+/**
+ * The member who receives the goods (§2.4 gr.post, BR-SOD-02, BR-SOD-07, ADR-038 item 13): a RECEIVER of the requester's
+ * department who approved neither the PR nor the PO, else the requester when the DOA in effect lets requesters receive.
+ */
+async function receiverOf(c: Context, requestId: string, poId: string, at: Date): Promise<string> {
   const db = forTenant(c.organizationId)
-  const request = await db.request.findUniqueOrThrow({ where: { id: requestId }, select: { requesterMemberId: true, requesterDepartmentId: true } })
-  const receivers = await db.roleAssignment.findMany({ where: { role: 'RECEIVER', revokedAt: null, scopeDepartmentId: request.requesterDepartmentId, member: { status: 'ACTIVE' } }, select: { memberId: true }, orderBy: { memberId: 'asc' } })
-  if (receivers[0]) return receivers[0].memberId
-  const policy = await db.$transaction((tx) => effectiveSodPolicy(tx, at))
-  if (!policy.requesterMayReceive) throw new Error('nobody may receive: no RECEIVER of the department and requesters may not receive')
-  return request.requesterMemberId
+  return db.$transaction(async (tx) => {
+    const request = await tx.request.findUniqueOrThrow({ where: { id: requestId }, select: { requesterMemberId: true, requesterDepartmentId: true } })
+    // ADR-038 item 8: a delegate who approved and the delegator they acted for both count as approvers
+    const decided = await tx.approvalTask.findMany({
+      where: { status: 'APPROVED', step: { route: { OR: [{ subjectType: 'REQUEST', subjectId: requestId }, { subjectType: 'PURCHASE_ORDER', subjectId: poId }] } } },
+      select: { decidedByMemberId: true, principalMemberId: true },
+    })
+    const approvers = new Set(decided.flatMap((t) => [t.decidedByMemberId, t.principalMemberId]))
+    const receiver = (await departmentReceivers(tx, c.organizationId, [request.requesterDepartmentId], at)).find((m) => !approvers.has(m))
+    if (receiver) return receiver
+    const policy = await effectiveSodPolicy(tx, at)
+    if (!policy.requesterMayReceive || approvers.has(request.requesterMemberId)) throw new Error('nobody may receive: no RECEIVER of the department and the requester may not')
+    return request.requesterMemberId
+  })
+}
+
+/**
+ * The chat button approves only (§9.3): a row decided in LINE chat must be an approval below the version's step-up
+ * threshold (BR-TOK-05) — a rejection or a return needs its reason in LIFF or on the web.
+ */
+export function lineChatRefusal(row: Pick<DemoHistoryRow, 'ref' | 'channel' | 'status'>, amountSatang: bigint | null, stepUpThresholdSatang: bigint | null): string | null {
+  if (row.channel !== 'LINE_CHAT') return null
+  if (row.status === 'REJECTED' || row.status === 'RETURNED') return `Demo_History ${row.ref}: a ${row.status.toLowerCase()} request needs its reason in LIFF or on the web, not the chat button`
+  if (stepUpThresholdSatang !== null && amountSatang !== null && amountSatang >= stepUpThresholdSatang) return `Demo_History ${row.ref}: the amount needs the PIN (BR-TOK-05), so it cannot be approved from the chat button`
+  return null
 }
 
 async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
@@ -208,7 +231,8 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   if (!sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED') {
     const net = amountToSatang(row.net)
     const names = [row.supplier ?? 'S0', 'ALT-1', 'ALT-2']
-    const amounts = [net, ...OTHER_QUOTES_PERCENT.map((p) => (net * p) / HUNDRED)]
+    // A comparison quote is the chosen one times 1.04 or 1.07, rounded as a line amount is (BR-MONEY-02)
+    const amounts = [net, ...OTHER_QUOTES_FACTOR.map((factor) => lineNet(factor, net))]
     const quotations = []
     for (const [i, amount] of amounts.entries()) {
       const fileId = await upload(row, requester(draftAt), `quote-${i + 1}`, `quotation-${row.ref}-${i + 1}.pdf`, quotationPdf(['BCS demo quotation', `${row.ref} ${names[i]}`, `THB ${satangToAmount(amount)} before VAT`]))
@@ -231,6 +255,9 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     return
   }
 
+  const routed = await db.approvalRoute.findFirstOrThrow({ where: { subjectType: 'REQUEST', subjectId: requestId, status: 'ACTIVE' }, select: { amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } })
+  const refusal = lineChatRefusal(row, routed.amountSatang, routed.doaVersion.stepUpThresholdSatang)
+  if (refusal) throw new Error(refusal)
   const decision = row.status === 'REJECTED' ? 'REJECT' : row.status === 'RETURNED' ? 'RETURN' : 'APPROVE'
   const reason = row.note ?? (decision === 'APPROVE' ? undefined : 'ตามหมายเหตุของผู้อนุมัติ')
   must(row, 'decide', await decideTask(memberCtx(c, route.approver, decideAt, row.channel!), { taskId: route.taskId, decision, ...(decision !== 'APPROVE' ? { reason } : {}) }, optionsOf(row, 'decide')))
@@ -261,7 +288,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   if (row.status === 'ORDERED') return
 
   const grAt = next('gr', DELIVERY_DAYS * c.businessDayMinutes)
-  const receiverId = await receiverOf(c, requestId, grAt)
+  const receiverId = await receiverOf(c, requestId, po.id, grAt)
   const receiver = makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId: receiverId }, channel: 'WEB', now: grAt })
   must(row, 'receive', await postGoodsReceipt(receiver, { poId: po.id, deliveryNoteNo: `DN-${row.ref}`, lines: po.lines.map((l) => ({ poLineId: l.id, received: l.quantity.toString() })) }, optionsOf(row, 'gr')))
   const invoiceAt = next('invoice', c.businessDayMinutes)

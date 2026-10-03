@@ -18,7 +18,7 @@ import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook, type InputWorkbook } from '@/server/seed/workbook'
 import { pendingBoard } from '@/server/services/board'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
-import { DemoHistoryIncompleteError, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, lineChatRefusal, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { computeKpis } from '@/server/services/reports/kpi'
 
 // D-01: the requests of sheet Demo_History are made through the real services with the business clock set back by
@@ -137,6 +137,10 @@ describe('[FR-PLT-001/AC1] D-01 the demo history: every row of Demo_History ends
   it('makes one request per row in the status the sheet gives, with its PO, receipt and invoice', async () => {
     expect(seeded.report.seeded).toBe(true)
     const db = forTenant(seeded.organizationId)
+    // Who receives (ADR-038 item 13): the RECEIVER of the requester's department in the Users sheet, else the requester
+    const users = workbook.table('Users').map((r) => r.values)
+    const departmentOf = new Map(users.map((u) => [u.code!, u.department!]))
+    const receiversIn = (department: string) => users.filter((u) => u.department === department && (u.roles ?? '').split(/[,;\s]+/).includes('RECEIVER')).map((u) => u.code!)
     for (const row of seeded.sheet) {
       const request = seeded.requestOf.get(row.ref!)
       expect(request, row.ref!).toBeDefined()
@@ -146,6 +150,13 @@ describe('[FR-PLT-001/AC1] D-01 the demo history: every row of Demo_History ends
       const invoices = await db.invoiceConfirmation.count({ where: { poId: { in: pos.map((p) => p.id) }, isFinal: true } })
       const want = { ORDERED: ['SENT', 0, 0], COMPLETED: ['CLOSED', 1, 1] }[row.status as 'ORDERED' | 'COMPLETED'] ?? null
       expect({ pos: pos.map((p) => p.status), receipts, invoices }, row.ref!).toEqual(want ? { pos: [want[0]], receipts: want[1], invoices: want[2] } : { pos: [], receipts: 0, invoices: 0 })
+      if (row.status === 'COMPLETED') {
+        const gr = await db.goodsReceipt.findFirstOrThrow({ where: { poId: { in: pos.map((p) => p.id) }, status: 'POSTED' }, select: { receiverMemberId: true } })
+        const receivers = receiversIn(departmentOf.get(row.requester!)!)
+        const receivedBy = seeded.codeOf.get(gr.receiverMemberId)
+        if (receivers.length) expect(receivers, row.ref!).toContain(receivedBy)
+        else expect(receivedBy, row.ref!).toBe(row.requester)
+      }
     }
     expect(Object.values(seeded.report.byStatus).reduce((a, b) => a + b, 0)).toBe(seeded.sheet.length)
   })
@@ -161,6 +172,20 @@ describe('[FR-PLT-001/AC1] D-01 the demo history: every row of Demo_History ends
       expect(businessMinutesBetween(request.submittedAt!, decided.occurredAt, seeded.calendar), row.ref!).toBe(Number(row.hours) * MINUTES_PER_HOUR)
       expect(decided.channel, row.ref!).toBe(row.channel)
     }
+  })
+
+  it('refuses a row decided in the chat that the chat button cannot decide (§9.3, BR-TOK-05)', () => {
+    const chat = { ref: 'H99', channel: 'LINE_CHAT' as const }
+    expect(lineChatRefusal({ ...chat, status: 'APPROVED' }, 99_999_00n, 100_000_00n)).toBeNull()
+    expect(lineChatRefusal({ ...chat, status: 'APPROVED' }, 100_000_00n, 100_000_00n)).toContain('PIN')
+    expect(lineChatRefusal({ ...chat, status: 'REJECTED' }, 1_000_00n, 100_000_00n)).toContain('LIFF')
+    expect(lineChatRefusal({ ...chat, status: 'APPROVED' }, 1_000_000_00n, null)).toBeNull()
+    expect(lineChatRefusal({ ref: 'H99', channel: 'LIFF', status: 'APPROVED' }, 1_000_000_00n, 100_000_00n)).toBeNull()
+    // The sheet itself is refused before anything is made
+    const rows = workbook.table('Demo_History')
+    const returned = rows.find((r) => r.values.status === 'RETURNED')!
+    const edited: InputWorkbook = { ...workbook, table: (sheet) => (sheet === 'Demo_History' ? rows.map((r) => (r === returned ? { ...r, values: { ...r.values, channel: 'LINE_CHAT' } } : r)) : workbook.table(sheet)) }
+    expect(() => parseDemoHistory(edited)).toThrow(`Demo_History ${returned.values.ref}: a returned request is decided in LIFF or on the web`)
   })
 
   it('a second run finds the history made and adds nothing', async () => {

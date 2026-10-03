@@ -237,6 +237,8 @@ export function parseDemoHistory(workbook: InputWorkbook): DemoHistoryRow[] {
     // Only a decision has a channel: a request still waiting or taken back by its requester has none
     const decided = h.status !== 'PENDING_APPROVAL' && h.status !== 'CANCELLED'
     if (decided !== (h.channel !== null)) throw new Error(`Demo_History ${h.ref}: a decided request needs its channel, a pending or cancelled one has none`)
+    // §9.3: the chat button only approves; a rejection or a return is decided in LIFF or on the web with its reason
+    if (h.channel === 'LINE_CHAT' && (h.status === 'REJECTED' || h.status === 'RETURNED')) throw new Error(`Demo_History ${h.ref}: a ${h.status.toLowerCase()} request is decided in LIFF or on the web, not in the chat`)
     if (!h.expectedRule || !h.expectedApprover) throw new Error(`Demo_History ${h.ref}: the expected rule and approver are needed`)
   }
   return history

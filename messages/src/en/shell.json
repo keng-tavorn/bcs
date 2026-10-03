@@ -31,11 +31,16 @@
     "kpi": "KPI",
     "audit": "Audit trail",
     "members": "Members and roles",
+    "org": "Organization structure",
+    "calendar": "Business calendar",
+    "numbering": "Document numbers",
+    "requestTypes": "Request types",
     "doa": "Approval authority (DOA)",
     "orgAuthority": "Authority changes",
     "policyHistory": "Policy history",
     "modules": "Enabled modules",
     "tenants": "Customer organizations",
+    "delegation": "Acting approver",
     "security": "Account security"
   },
   "notifications": {

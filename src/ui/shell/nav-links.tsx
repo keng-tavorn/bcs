@@ -24,6 +24,11 @@ import {
   Users,
   Wallet,
   type LucideIcon,
+  CalendarDays,
+  Hash,
+  LayoutList,
+  ListTree,
+  UserCheck,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -49,11 +54,16 @@ const ICONS: Record<string, LucideIcon> = {
   kpi: Gauge,
   audit: ShieldCheck,
   members: Users,
+  org: ListTree,
+  calendar: CalendarDays,
+  numbering: Hash,
+  requestTypes: LayoutList,
   doa: GitBranch,
   orgAuthority: Network,
   policyHistory: History,
   modules: Blocks,
   tenants: Building,
+  delegation: UserCheck,
   security: KeyRound,
 }
 

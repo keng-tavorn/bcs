@@ -9,7 +9,7 @@ import type { StoredRole } from '@/server/authz/permissions'
 const CORE = ['CORE'] as const
 const keys = (p: Principal, modules: readonly ('CORE' | 'PAY')[] = CORE) => visibleMenu(p, modules).map((i) => i.key)
 const member = (...roles: StoredRole[]) => memberPrincipal('m1', roles)
-const EVERY_MEMBER: MenuKey[] = ['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'security']
+const EVERY_MEMBER: MenuKey[] = ['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'delegation', 'security']
 const withExtra = (extra: MenuKey[]) => EVERY_MEMBER.concat(extra)
 
 describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
@@ -24,7 +24,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     ['RECEIVER', ['receiving']],
     ['EXECUTIVE', ['budgets', 'reports', 'kpi']],
     ['AUDITOR', ['budgets', 'reports', 'kpi', 'audit', 'policyHistory']],
-    ['ORG_ADMIN', ['audit', 'members', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
+    ['ORG_ADMIN', ['audit', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
     const order = visibleMenu(member(...['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'] as StoredRole[]), CORE).map((i) => i.key)
@@ -33,7 +33,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
 
   it('a department head (DM/VP) sees the budgets and reports of their department', () => {
     const head: Principal = { kind: 'member', memberId: 'm1', roles: new Set(), headOfDepartmentIds: new Set(['d1']), departmentIds: new Set() }
-    expect(keys(head)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'security'])
+    expect(keys(head)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'delegation', 'security'])
   })
 
   it('the BCS team (PLATFORM_ADMIN) sees only customer organizations, no business menus', () => {
@@ -50,8 +50,8 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
   })
 
   it('the screen renders only menus whose pages exist', () => {
-    // S1-12 added /admin/members and /admin/modules
-    expect(visibleMenu(member('ORG_ADMIN'), CORE, true).map((i) => i.key)).toEqual(['home', 'members', 'modules', 'security'])
-    expect(visibleMenu(member(), CORE, true).map((i) => i.key)).toEqual(['home', 'security'])
+    // S1-12: /admin/members and /admin/modules · S2-11 to S2-13 and NEW-06: requests, tasks, the admin pages and acting approvers
+    expect(visibleMenu(member('ORG_ADMIN'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'modules', 'delegation', 'security'])
+    expect(visibleMenu(member(), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'delegation', 'security'])
   })
 })

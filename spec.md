@@ -3095,7 +3095,7 @@ features:
 - [ ] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate`
   - เสร็จเมื่อ: ทุกเคสใน money.yaml และ vat-rate.yaml ผ่าน
   - แยกงาน: golden suite แต่ละไฟล์อิสระต่อกัน งาน S2-02 ถึง S2-08 แยก subagent ต่อ suite ได้ ห้าม subagent แก้ค่า expect และต้องตรวจว่าเทสต์อ่านไฟล์ YAML จริงก่อนรับ
-- [ ] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ.
+- [x] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ. — เสร็จ 2026-10-03 · d82ac37
   - เสร็จเมื่อ: ทุกเคสใน thai.yaml taxid.yaml dates.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
 - [ ] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก
@@ -3107,7 +3107,7 @@ features:
 - [ ] **S2-06** `[demo]` `core/sod` และ `core/delegation`
   - เสร็จเมื่อ: ทุกเคสใน sod.yaml และ delegation.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5)
+- [x] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5) — เสร็จ 2026-10-03 · d82ac37
   - เสร็จเมื่อ: ทุกเคสใน sla.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
 - [ ] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef

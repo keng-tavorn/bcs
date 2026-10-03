@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, type ApproverSpec, type DoaRuleSnapshot } from '@/core/doa'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
+import { versionSnapshotFromRows, type DoaRuleRow, type DoaVersionRow } from './snapshot'
 
 // DOA as YAML (spec §7.4, FR-DOA-001 AC2): the same shape as tests/golden/fixtures/doa-versions.yaml, so a customer's
 // DOA can be imported and exported, and an import exported again gives the same data (round trip). Money is a baht
@@ -58,10 +59,17 @@ export interface DoaVersionData {
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
+/** What kind of problem: NOT_YAML, UNKNOWN_MEMBER, DUPLICATE_RULE, MISSING (a required key), or the Zod issue code */
+export type YamlIssue = 'NOT_YAML' | 'UNKNOWN_MEMBER' | 'DUPLICATE_RULE' | 'MISSING' | (string & {})
+
 export interface YamlProblem {
   /** Where in the file, e.g. versions.0.rules.2.approver.member */
   readonly path: string
   readonly message: string
+  /** Lets a screen say what to fix in the reader's language; `message` stays a developer text */
+  readonly issue: YamlIssue
+  /** Keys that do not belong at `path` (issue unrecognized_keys) */
+  readonly keys?: readonly string[]
 }
 
 /**
@@ -73,23 +81,29 @@ export function parseDoaYaml(text: string, memberIds: ReadonlyMap<string, string
   try {
     raw = parseYaml(text)
   } catch (error) {
-    return err('VALIDATION_FAILED', 'not a YAML file', { problems: [{ path: '', message: (error as Error).message.split('\n')[0] }] })
+    return err('VALIDATION_FAILED', 'not a YAML file', { problems: [{ path: '', message: (error as Error).message.split('\n')[0], issue: 'NOT_YAML' }] })
   }
   const parsed = DoaYamlFile.safeParse(raw)
   if (!parsed.success) {
-    const problems: YamlProblem[] = parsed.error.issues.map((i) => ({ path: i.path.join('.'), message: i.message }))
+    const problems: YamlProblem[] = parsed.error.issues.map((i) => ({
+      path: i.path.join('.'),
+      message: i.message,
+      // A required key that is not there is said as such; any other issue keeps Zod's code
+      issue: i.code === 'invalid_type' && /received undefined$/.test(i.message) ? 'MISSING' : i.code,
+      ...(i.code === 'unrecognized_keys' ? { keys: i.keys } : {}),
+    }))
     return err('VALIDATION_FAILED', 'the DOA file does not have the expected shape', { problems })
   }
   const problems: YamlProblem[] = []
   const versions = parsed.data.versions.map((v, vi): DoaVersionData => {
     const codes = new Set<string>()
     const rules = v.rules.map((r, ri): DoaRuleSnapshot => {
-      if (codes.has(r.code)) problems.push({ path: `versions.${vi}.rules.${ri}.code`, message: `rule code ${r.code} is used twice` })
+      if (codes.has(r.code)) problems.push({ path: `versions.${vi}.rules.${ri}.code`, message: `rule code ${r.code} is used twice`, issue: 'DUPLICATE_RULE' })
       codes.add(r.code)
       let approver: ApproverSpec
       if (r.approver.kind === 'MEMBER') {
         const memberId = memberIds.get(r.approver.member)
-        if (!memberId) problems.push({ path: `versions.${vi}.rules.${ri}.approver.member`, message: `no member with code ${r.approver.member}` })
+        if (!memberId) problems.push({ path: `versions.${vi}.rules.${ri}.approver.member`, message: `no member with code ${r.approver.member}`, issue: 'UNKNOWN_MEMBER' })
         approver = { kind: 'MEMBER', memberId: memberId ?? '' }
       } else {
         approver = { kind: r.approver.kind, position: r.approver.position }
@@ -168,4 +182,26 @@ export function doaYaml(versions: readonly DoaVersionData[], memberCodes: Readon
     })),
   }
   return stringify(doc, { lineWidth: 0 })
+}
+
+const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() })
+
+/** A stored version (DoaVersion row with its policy columns, and its DoaRule rows) as YAML data, for export. */
+export function doaVersionDataFromRows(
+  version: DoaVersionRow & { readonly stepUpThresholdSatang: bigint | null; readonly sodPolicy: unknown },
+  rules: readonly DoaRuleRow[],
+): DoaVersionData {
+  const snapshot = versionSnapshotFromRows(version, rules)
+  const sod = StoredSodPolicy.parse(version.sodPolicy)
+  return {
+    code: snapshot.code,
+    versionNo: snapshot.versionNo,
+    effectiveFrom: snapshot.effectiveFrom,
+    amountBasis: snapshot.amountBasis,
+    selfApprovalPolicy: snapshot.selfApprovalPolicy,
+    collapseDuplicateApprovers: snapshot.collapseDuplicateApprovers,
+    stepUpThresholdSatang: version.stepUpThresholdSatang,
+    sodPolicy: { approverMayReceive: sod.approverMayReceive, requesterMayReceive: sod.requesterMayReceive },
+    rules: snapshot.rules,
+  }
 }

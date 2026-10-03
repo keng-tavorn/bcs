@@ -1,20 +1,24 @@
 import { z } from 'zod'
 import { validateNewDelegation } from '@/core/delegation'
-import { DOA_DOCUMENT_TYPES, lintDoaVersion, versionAt, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, lintDoaVersion, resolveRoute, versionAt, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
+import { err, ok, type Result } from '@/core/result'
 import { checkSod, type OrgAuthorityChangeKind } from '@/core/sod'
-import { ORG_CHANGE_MACHINE, transition, type OrgChangeCommand, type OrgChangeState } from '@/core/state-machines'
-import { REASON_MAX_LENGTH } from '@/lib/constants'
+import { ORG_CHANGE_MACHINE, TASK_MACHINE, transition, type OrgChangeCommand, type OrgChangeState, type TaskState } from '@/core/state-machines'
+import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
+import { logger } from '@/lib/logger'
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
 import { deleteMemberSessions, removeMemberTwoFactor } from '@/server/db/sql/identity'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
-import type { TenantTx } from '@/server/db/tenant'
+import { setTransactionTimeouts } from '@/server/db/sql/timeouts'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { loadDelegations, loadOrgSnapshot, loadRoutePolicy } from '@/server/doa/policy'
+import { describeError } from '@/server/errors/describe'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
-import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { defineCommand, isBusyTxError, runCommand, type CommandFailure, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { startRoute } from '../approvals/route'
 import { warningKey } from '../doa/lint-view'
 
@@ -82,6 +86,35 @@ function beneficiaryOf(p: Proposal): string | null {
 const namesPosition = (version: DoaVersionSnapshot, positionCode: string) =>
   version.rules.some((r) => r.steps.some((s) => s.approver.kind !== 'MEMBER' && s.approver.position === positionCode))
 
+/**
+ * The pending approval tasks of one position slot (BR-DOA-17): open, or waiting for the requester's answer, whoever
+ * holds them now — the holder, a delegate acting for the holder, or a former holder who kept them when the slot became
+ * vacant. When a new holder takes the slot they all follow.
+ */
+const slotTasks = (positionCode: string, departmentCode: string) => ({
+  status: { in: ['OPEN', 'INFO_REQUESTED'] as Array<'OPEN' | 'INFO_REQUESTED'> },
+  resolvedFrom: `POSITION:${positionCode}@${departmentCode}`,
+})
+
+type SodAction = 'org_authority.propose' | 'org_authority.preview'
+
+/**
+ * BR-SOD-08: the proposer never gains from their own proposal. The refusal carries its security.sod_blocked event, so
+ * every refused attempt is recorded with the rule (FR-DOA-007 AC2) — when it is sent, and when it is previewed.
+ */
+function sodRefusal(input: Proposal, proposer: string, action: SodAction): CommandFailure | null {
+  const sod = checkSod(
+    { kind: 'PROPOSE_ORG_AUTHORITY_CHANGE', changeKind: input.kind as OrgAuthorityChangeKind, actorMemberId: proposer, beneficiaryMemberId: beneficiaryOf(input) },
+    { approverMayReceive: false, requesterMayReceive: true },
+  )
+  if (sod.ok) return null
+  return {
+    ok: false,
+    error: { code: 'SOD_VIOLATION', message: 'separation of duties', details: { rule: sod.rule } },
+    auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: proposer, data: { rule: sod.rule, action, subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: proposer, actorMemberId: proposer } }],
+  }
+}
+
 /** The organization as it would be after the change, at its effective time (for the governance check of AC3). */
 function orgAfter(org: OrgSnapshot, p: Proposal, at: Date): OrgSnapshot {
   const ending = (positionCode: string, departmentId: string) => (h: OrgSnapshot['holders'][number]) =>
@@ -108,6 +141,96 @@ function orgAfter(org: OrgSnapshot, p: Proposal, at: Date): OrgSnapshot {
 
 // ---------- propose and submit (FR-DOA-010 AC1–AC3) ----------
 
+/**
+ * What a change does to authority (AC1), as stored in OrgAuthorityChange.impactSummary: who gains, who loses, the
+ * pending tasks of the slot that move to the new holder, and those that stay where they are because the slot becomes
+ * vacant (the organization admins are told when it applies, ADR-042 item 3).
+ */
+type Impact = { gains: string[]; loses: string[]; openTasks: number; openTasksStay: number }
+
+interface Assessment {
+  readonly effectiveFrom: Date
+  readonly beneficiary: string | null
+  readonly org: OrgSnapshot
+  /** Warnings the proposer must acknowledge one by one, by key (BR-DOA-17) */
+  readonly warnings: readonly string[]
+  readonly impact: Impact
+}
+
+type Assessed = { readonly ok: true; readonly data: Assessment } | { readonly ok: false; readonly error: CommandFailure['error']; readonly auditEvents?: CommandFailure['auditEvents'] }
+
+/**
+ * Every rule a proposal must pass, and what it would do (AC1–AC3, BR-SOD-08, BR-DOA-17). The proposal runs it before it
+ * writes anything; the preview a screen shows before sending runs the same and writes nothing — only a refusal by
+ * separation of duties is recorded, as for a proposal (previewOrgChange).
+ */
+async function assess(tx: TenantTx, ctx: Ctx, input: Proposal, proposer: string, action: SodAction): Promise<Assessed> {
+  const effectiveFrom = input.effectiveFrom ? new Date(input.effectiveFrom) : ctx.now
+  if (effectiveFrom.getTime() < ctx.now.getTime()) return fail('VALIDATION_FAILED', 'the effective time is in the past', { field: 'effectiveFrom', reason: 'EFFECTIVE_IN_PAST' })
+
+  // BR-SOD-08: never the proposer's own gain
+  const beneficiary = beneficiaryOf(input)
+  const refused = sodRefusal(input, proposer, action)
+  if (refused) return refused
+
+  // The things the payload names exist in this organization
+  const org = await loadOrgSnapshot(tx)
+  const known = (memberId: string | undefined) => memberId === undefined || org.members.some((m) => m.id === memberId && m.active)
+  const department = (id: string) => org.departments.some((d) => d.id === id)
+  const p = input.payload as Record<string, string | undefined>
+  if (!known(p.memberId) || !known(p.replacementMemberId) || !known(p.delegatorMemberId) || !known(p.delegateMemberId)) return fail('VALIDATION_FAILED', 'unknown or inactive member', { field: 'payload', reason: 'MEMBER' })
+  if ((p.departmentId && !department(p.departmentId)) || (p.newParentId && !department(p.newParentId))) return fail('VALIDATION_FAILED', 'unknown department', { field: 'payload', reason: 'DEPARTMENT' })
+  if (input.kind === 'POSITION_ASSIGN' || input.kind === 'POSITION_END') {
+    if (!(await tx.position.findFirst({ where: { code: input.payload.positionCode }, select: { id: true } }))) return fail('VALIDATION_FAILED', 'unknown position', { field: 'payload.positionCode', reason: 'POSITION' })
+  }
+  if (input.kind === 'DEPARTMENT_REPARENT') {
+    const { departmentId, newParentId } = input.payload
+    const parentOf = (id: string) => org.departments.find((d) => d.id === id)?.parentId ?? null
+    if (parentOf(departmentId) === newParentId) return fail('VALIDATION_FAILED', 'the department is under this parent already', { field: 'payload.newParentId', reason: 'NO_CHANGE' })
+    // FR-ADM-002 AC1: the new parent is neither the department nor one of the departments under it
+    for (let at: string | null = newParentId; at; at = parentOf(at)) {
+      if (at === departmentId) return fail('VALIDATION_FAILED', 'the move would make a cycle', { field: 'payload.newParentId', reason: 'CYCLE' })
+    }
+    // One move waits at a time: two moves approved for later could close a cycle between them when both apply (the
+    // proposal holds the organization lock while it checks, so two proposals never both pass)
+    const waiting = await tx.orgAuthorityChange.count({ where: { kind: 'DEPARTMENT_REPARENT', status: { in: ['PENDING_APPROVAL', 'SCHEDULED'] } } })
+    if (waiting > 0) return fail('VALIDATION_FAILED', 'another department move is waiting', { reason: 'REPARENT_WAITING' })
+  }
+  if (input.kind === 'DELEGATION_ON_BEHALF') {
+    const d = input.payload
+    const refusal = validateNewDelegation(
+      { delegatorMemberId: d.delegatorMemberId, delegateMemberId: d.delegateMemberId, startsAt: new Date(d.startsAt), endsAt: new Date(d.endsAt), documentTypes: d.documentTypes.length ? d.documentTypes : null, maxAmountSatang: d.maxAmount ? amountToSatang(d.maxAmount) : null },
+      await loadDelegations(tx),
+      org,
+    )
+    if (refusal) return fail('VALIDATION_FAILED', `delegation refused: ${refusal}`, { field: 'payload', reason: refusal })
+  }
+
+  // AC3: whoever approves DOA_CHANGE and ORG_AUTHORITY_CHANGE must still be found after the change
+  const policy = await loadRoutePolicy(tx)
+  const version = versionAt(policy.versions, effectiveFrom)
+  const warnings: string[] = []
+  if (version) {
+    const lintBefore = lintDoaVersion(version, org, effectiveFrom)
+    const lintAfter = lintDoaVersion(version, orgAfter(org, input, effectiveFrom), effectiveFrom)
+    const before = new Set(lintBefore.errors.map((e) => e.rule))
+    const broken = lintAfter.errors.filter((e) => e.code === 'DOA_LINT_UNRESOLVABLE_GOVERNANCE' && !before.has(e.rule))
+    if (broken.length) return fail('VALIDATION_FAILED', 'nobody could approve policy changes after this change', { reason: 'GOVERNANCE_UNRESOLVABLE', rules: broken.map((e) => e.rule) })
+    // BR-DOA-17: a position the DOA names left without a holder is a warning the proposer acknowledges one by one —
+    // the slot itself (POSITION_VACANT:<position>@<department>), and any rule left with nobody at all (lint)
+    const known = new Set(lintBefore.warnings.map(warningKey))
+    warnings.push(...lintAfter.warnings.filter((w) => w.code === 'DOA_LINT_VACANT_POSITION' && !known.has(warningKey(w))).map(warningKey))
+    if (input.kind === 'POSITION_END' && !input.payload.replacementMemberId && namesPosition(version, input.payload.positionCode)) {
+      const department = org.departments.find((d) => d.id === input.payload.departmentId)!
+      warnings.unshift(`POSITION_VACANT:${input.payload.positionCode}@${department.code}`)
+    }
+  }
+
+  // AC1: the impact shown before submitting — who gains or loses authority, open tasks that follow the change
+  const impact = await impactOf(tx, org, input)
+  return { ok: true, data: { effectiveFrom, beneficiary, org, warnings, impact } }
+}
+
 export const proposeOrgChangeCommand = defineCommand({
   name: 'org_authority.propose',
   capability: 'admin.orgAuthority.propose',
@@ -117,76 +240,14 @@ export const proposeOrgChangeCommand = defineCommand({
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const proposer = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     if (!proposer) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member proposes' } }
-    const effectiveFrom = input.effectiveFrom ? new Date(input.effectiveFrom) : ctx.now
-    if (effectiveFrom.getTime() < ctx.now.getTime()) return fail('VALIDATION_FAILED', 'the effective time is in the past', { field: 'effectiveFrom', reason: 'EFFECTIVE_IN_PAST' })
+    // Department moves are serialized on the organization row: the check for a waiting move and the new row are atomic
+    if (input.kind === 'DEPARTMENT_REPARENT') await lockRowsForUpdate(tx, 'Organization', ctx.organizationId, [ctx.organizationId])
+    const assessed = await assess(tx, ctx, input, proposer, 'org_authority.propose')
+    if (!assessed.ok) return assessed
+    const { effectiveFrom, beneficiary, org, warnings, impact } = assessed.data
+    const unacknowledged = warnings.filter((k) => !input.acknowledgedWarnings.includes(k))
+    if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })
 
-    // BR-SOD-08: never the proposer's own gain
-    const beneficiary = beneficiaryOf(input)
-    const sod = checkSod({ kind: 'PROPOSE_ORG_AUTHORITY_CHANGE', changeKind: input.kind as OrgAuthorityChangeKind, actorMemberId: proposer, beneficiaryMemberId: beneficiary }, { approverMayReceive: false, requesterMayReceive: true })
-    if (!sod.ok) {
-      return {
-        ok: false,
-        error: { code: 'SOD_VIOLATION', message: 'separation of duties', details: { rule: sod.rule } },
-        auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: proposer, data: { rule: sod.rule, action: 'org_authority.propose', subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: proposer, actorMemberId: proposer } }],
-      }
-    }
-
-    // The things the payload names exist in this organization
-    const org = await loadOrgSnapshot(tx)
-    const known = (memberId: string | undefined) => memberId === undefined || org.members.some((m) => m.id === memberId && m.active)
-    const department = (id: string) => org.departments.some((d) => d.id === id)
-    const p = input.payload as Record<string, string | undefined>
-    if (!known(p.memberId) || !known(p.replacementMemberId) || !known(p.delegatorMemberId) || !known(p.delegateMemberId)) return fail('VALIDATION_FAILED', 'unknown or inactive member', { field: 'payload', reason: 'MEMBER' })
-    if ((p.departmentId && !department(p.departmentId)) || (p.newParentId && !department(p.newParentId))) return fail('VALIDATION_FAILED', 'unknown department', { field: 'payload', reason: 'DEPARTMENT' })
-    if (input.kind === 'POSITION_ASSIGN' || input.kind === 'POSITION_END') {
-      if (!(await tx.position.findFirst({ where: { code: input.payload.positionCode }, select: { id: true } }))) return fail('VALIDATION_FAILED', 'unknown position', { field: 'payload.positionCode', reason: 'POSITION' })
-    }
-    if (input.kind === 'DEPARTMENT_REPARENT') {
-      const { departmentId, newParentId } = input.payload
-      const parentOf = (id: string) => org.departments.find((d) => d.id === id)?.parentId ?? null
-      if (parentOf(departmentId) === newParentId) return fail('VALIDATION_FAILED', 'the department is under this parent already', { field: 'payload.newParentId', reason: 'NO_CHANGE' })
-      // FR-ADM-002 AC1: the new parent is neither the department nor one of the departments under it
-      for (let at: string | null = newParentId; at; at = parentOf(at)) {
-        if (at === departmentId) return fail('VALIDATION_FAILED', 'the move would make a cycle', { field: 'payload.newParentId', reason: 'CYCLE' })
-      }
-      // One move waits at a time: two moves approved for later could close a cycle between them when both apply
-      await lockRowsForUpdate(tx, 'Organization', ctx.organizationId, [ctx.organizationId])
-      const waiting = await tx.orgAuthorityChange.count({ where: { kind: 'DEPARTMENT_REPARENT', status: { in: ['PENDING_APPROVAL', 'SCHEDULED'] } } })
-      if (waiting > 0) return fail('VALIDATION_FAILED', 'another department move is waiting', { reason: 'REPARENT_WAITING' })
-    }
-    if (input.kind === 'DELEGATION_ON_BEHALF') {
-      const d = input.payload
-      const refusal = validateNewDelegation(
-        { delegatorMemberId: d.delegatorMemberId, delegateMemberId: d.delegateMemberId, startsAt: new Date(d.startsAt), endsAt: new Date(d.endsAt), documentTypes: d.documentTypes.length ? d.documentTypes : null, maxAmountSatang: d.maxAmount ? amountToSatang(d.maxAmount) : null },
-        await loadDelegations(tx),
-        org,
-      )
-      if (refusal) return fail('VALIDATION_FAILED', `delegation refused: ${refusal}`, { field: 'payload', reason: refusal })
-    }
-
-    // AC3: whoever approves DOA_CHANGE and ORG_AUTHORITY_CHANGE must still be found after the change
-    const policy = await loadRoutePolicy(tx)
-    const version = versionAt(policy.versions, effectiveFrom)
-    if (version) {
-      const lintBefore = lintDoaVersion(version, org, effectiveFrom)
-      const lintAfter = lintDoaVersion(version, orgAfter(org, input, effectiveFrom), effectiveFrom)
-      const before = new Set(lintBefore.errors.map((e) => e.rule))
-      const broken = lintAfter.errors.filter((e) => e.code === 'DOA_LINT_UNRESOLVABLE_GOVERNANCE' && !before.has(e.rule))
-      if (broken.length) return fail('VALIDATION_FAILED', 'nobody could approve policy changes after this change', { reason: 'GOVERNANCE_UNRESOLVABLE', rules: broken.map((e) => e.rule) })
-      // BR-DOA-17: a position the DOA names left without a holder is a warning the proposer acknowledges one by one —
-      // the slot itself (POSITION_VACANT:<position>@<department>), and any rule left with nobody at all (lint)
-      const known = new Set(lintBefore.warnings.map(warningKey))
-      const vacated = lintAfter.warnings.filter((w) => w.code === 'DOA_LINT_VACANT_POSITION' && !known.has(warningKey(w))).map(warningKey)
-      if (input.kind === 'POSITION_END' && !input.payload.replacementMemberId && namesPosition(version, input.payload.positionCode)) {
-        const department = org.departments.find((d) => d.id === input.payload.departmentId)!
-        vacated.unshift(`POSITION_VACANT:${input.payload.positionCode}@${department.code}`)
-      }
-      const unacknowledged = vacated.filter((k) => !input.acknowledgedWarnings.includes(k))
-      if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })
-    }
-
-    // AC1: the impact shown before submitting — open tasks that follow the change
-    const impact = await impactOf(tx, org, input)
     const id = newId()
     const root = org.departments.find((d) => d.parentId === null)
     const proposerMember = await tx.member.findUniqueOrThrow({ where: { id: proposer }, select: { primaryDepartmentId: true } })
@@ -228,14 +289,134 @@ export function proposeOrgChange(ctx: Ctx, input: z.input<typeof ProposeInput>, 
   return runCommand(ctx, proposeOrgChangeCommand, input, options)
 }
 
-/** Who holds the position now and how many of their open tasks came from it (they move with the change). */
-async function impactOf(tx: TenantTx, org: OrgSnapshot, p: Proposal): Promise<{ gains: string[]; loses: string[]; openTasks: number }> {
-  if (p.kind !== 'POSITION_ASSIGN' && p.kind !== 'POSITION_END') return { gains: p.kind === 'DELEGATION_ON_BEHALF' ? [p.payload.delegateMemberId] : [], loses: [], openTasks: 0 }
+// ---------- the preview before sending (FR-DOA-010 AC1) ----------
+
+export interface PreviewPerson {
+  readonly id: string
+  readonly nameTh: string
+  readonly nameEn: string | null
+}
+
+export interface OrgChangePreview {
+  readonly effectiveFrom: string
+  /** Keys the proposer must acknowledge one by one before sending (POSITION_VACANT:…, DOA_LINT_VACANT_POSITION:…) */
+  readonly warnings: readonly string[]
+  readonly gains: readonly PreviewPerson[]
+  readonly loses: readonly PreviewPerson[]
+  /** Pending approval tasks of the slot that move to the new holder when the change applies */
+  readonly openTasks: number
+  /** Pending approval tasks that stay with whoever holds them now, because the slot becomes vacant (ADR-042 item 3) */
+  readonly openTasksStay: number
+  /** Who will decide: the approver of the ORG_AUTHORITY_CHANGE rule in effect now (GC-DOA-27) */
+  readonly route: {
+    readonly doaCode: string
+    readonly versionNo: number
+    readonly ruleCode: string
+    readonly approvers: ReadonlyArray<PreviewPerson & { readonly onBehalfOf: PreviewPerson | null }>
+  }
+}
+
+/**
+ * FR-DOA-007 AC2: a preview refused by separation of duties is recorded like a refused proposal. The rule is checked
+ * again here; the command never changes anything and never succeeds — it leaves the security.sod_blocked event, once
+ * per idempotency key (a resend of the same attempt replays it).
+ */
+export const recordPreviewSodBlockCommand = defineCommand({
+  name: 'org_authority.preview_sod_blocked',
+  capability: 'admin.orgAuthority.propose',
+  input: ProposeInput,
+  async execute(tx, input, ctx): Promise<CommandOutcome<never>> {
+    const allowed = await authorize(tx, ctx, 'admin.orgAuthority.propose')
+    if (!allowed.ok) return { ok: false, error: allowed.error }
+    const proposer = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+    if (!proposer) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member proposes' } }
+    return sodRefusal(input, proposer, 'org_authority.preview') ?? fail('VALIDATION_FAILED', 'no separation-of-duties refusal to record', { reason: 'NO_SOD_VIOLATION' })
+  },
+})
+
+const SOD_BLOCKED = Symbol('SOD_BLOCKED')
+
+/**
+ * What a proposal would do, before it is sent (AC1): the same checks as the proposal itself (SoD, the things it names,
+ * the governance rules, the vacancies to acknowledge) and the route it would take. It writes nothing, except that a
+ * refusal by separation of duties is recorded through recordPreviewSodBlockCommand with the form's idempotency key.
+ * Needs admin.orgAuthority.propose like the proposal. An unexpected failure is answered INTERNAL with the requestId
+ * only, and a busy database RATE_LIMITED, as runCommand answers them (§14.2).
+ */
+export async function previewOrgChange(ctx: Ctx, rawInput: z.input<typeof ProposeInput>, options: RunOptions): Promise<Result<OrgChangePreview>> {
+  const parsed = ProposeInput.safeParse(rawInput)
+  if (!parsed.success) {
+    const first = parsed.error.issues[0]
+    return err('VALIDATION_FAILED', 'invalid input', { field: first?.path.length ? first.path.join('.') : '(input)' })
+  }
+  const input = parsed.data
+  let outcome: Result<OrgChangePreview> | typeof SOD_BLOCKED
+  try {
+    outcome = await forTenant(ctx.organizationId).$transaction(
+      async (tx): Promise<Result<OrgChangePreview> | typeof SOD_BLOCKED> => {
+        await setTransactionTimeouts(tx)
+        const allowed = await authorize(tx, ctx, 'admin.orgAuthority.propose')
+        if (!allowed.ok) return allowed
+        const proposer = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+        if (!proposer) return err('FORBIDDEN', 'only a member proposes')
+        const assessed = await assess(tx, ctx, input, proposer, 'org_authority.preview')
+        if (!assessed.ok) return assessed.auditEvents?.length ? SOD_BLOCKED : { ok: false, error: assessed.error }
+        const { effectiveFrom, beneficiary, org, warnings, impact } = assessed.data
+        const proposerMember = await tx.member.findUniqueOrThrow({ where: { id: proposer }, select: { primaryDepartmentId: true } })
+        const root = org.departments.find((d) => d.parentId === null)
+        const route = resolveRoute(
+          { documentType: 'ORG_AUTHORITY_CHANGE', requesterMemberId: proposer, chargedDepartmentId: proposerMember.primaryDepartmentId ?? root?.id ?? '', conflictMemberIds: [proposer, ...(beneficiary ? [beneficiary] : [])], at: ctx.now },
+          await loadRoutePolicy(tx),
+        )
+        if (!route.ok) return route
+        const ids = [...impact.gains, ...impact.loses, ...route.data.steps.flatMap((s) => [s.assigneeMemberId, ...(s.principalMemberId ? [s.principalMemberId] : [])])]
+        const members = await tx.member.findMany({ where: { id: { in: [...new Set(ids)] } }, select: { id: true, displayNameTh: true, displayNameEn: true } })
+        const person = (id: string): PreviewPerson => {
+          const m = members.find((x) => x.id === id)
+          return { id, nameTh: m?.displayNameTh ?? id, nameEn: m?.displayNameEn ?? null }
+        }
+        return ok({
+          effectiveFrom: effectiveFrom.toISOString(),
+          warnings,
+          gains: impact.gains.map(person),
+          loses: impact.loses.map(person),
+          openTasks: impact.openTasks,
+          openTasksStay: impact.openTasksStay,
+          route: {
+            doaCode: route.data.doaCode,
+            versionNo: route.data.versionNo,
+            ruleCode: route.data.ruleCode,
+            approvers: route.data.steps.map((s) => ({ ...person(s.assigneeMemberId), onBehalfOf: s.principalMemberId ? person(s.principalMemberId) : null })),
+          },
+        })
+      },
+      { isolationLevel: 'ReadCommitted', maxWait: COMMAND_TX_MAX_WAIT_MS, timeout: COMMAND_TX_TIMEOUT_MS },
+    )
+  } catch (error) {
+    if (isBusyTxError(error)) return err('RATE_LIMITED', 'busy: try again shortly', { requestId: ctx.requestId })
+    // The caller gets a reference only; the log gets codes and stack frames, never the error text (FR-PLT-008 AC3)
+    logger.child({ requestId: ctx.requestId, correlationId: ctx.correlationId, organizationId: ctx.organizationId, command: 'org_authority.preview' }).error({ error: describeError(error) }, 'preview failed unexpectedly')
+    return err('INTERNAL', 'unexpected error', { requestId: ctx.requestId })
+  }
+  if (outcome !== SOD_BLOCKED) return outcome
+  // The refusal is recorded once per attempt, and answered as the proposal would answer it
+  const recorded = await runCommand(ctx, recordPreviewSodBlockCommand, input, options)
+  return recorded.ok ? err('INTERNAL', 'the separation-of-duties refusal was not recorded', { requestId: ctx.requestId }) : { ok: false, error: recorded.error }
+}
+
+/**
+ * Who holds the slot now, and its pending tasks (BR-DOA-17): they move to the new holder when the change applies, or
+ * stay where they are when the slot becomes vacant. Tasks the newcomer holds already, in their own name, stay with them.
+ */
+async function impactOf(tx: TenantTx, org: OrgSnapshot, p: Proposal): Promise<Impact> {
+  if (p.kind !== 'POSITION_ASSIGN' && p.kind !== 'POSITION_END') return { gains: p.kind === 'DELEGATION_ON_BEHALF' ? [p.payload.delegateMemberId] : [], loses: [], openTasks: 0, openTasksStay: 0 }
   const current = org.holders.filter((h) => h.positionCode === p.payload.positionCode && h.departmentId === p.payload.departmentId && h.validTo === null).map((h) => h.memberId)
   const departmentCode = org.departments.find((d) => d.id === p.payload.departmentId)?.code ?? ''
-  const openTasks = await tx.approvalTask.count({ where: { assigneeMemberId: { in: current }, status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: `POSITION:${p.payload.positionCode}@${departmentCode}` } })
   const newcomer = p.kind === 'POSITION_ASSIGN' ? p.payload.memberId : (p.payload.replacementMemberId ?? null)
-  return { gains: newcomer ? [newcomer] : [], loses: current, openTasks }
+  const pending = await tx.approvalTask.count({
+    where: { ...slotTasks(p.payload.positionCode, departmentCode), ...(newcomer ? { NOT: { assigneeMemberId: newcomer, principalMemberId: null } } : {}) },
+  })
+  return { gains: newcomer ? [newcomer] : [], loses: current, openTasks: newcomer ? pending : 0, openTasksStay: newcomer ? 0 : pending }
 }
 
 // ---------- approve, reject and apply (called by the approval decision, and by the job at the effective time) ----------
@@ -300,15 +481,40 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
     }
     return current.map((h) => h.memberId)
   }
-  const moveTasks = async (fromMembers: string[], positionCode: string, departmentId: string, toMember: string) => {
+  /**
+   * BR-DOA-17 / FR-ADM-002 AC3: every pending task of the slot follows the new holder, with the same DOA reference —
+   * open ones, and ones waiting for the requester's answer, which keep waiting (with the business time they had left)
+   * and whose open question now reopens the new holder's task. The tasks are locked first (INV-PLT-03): a decision
+   * running at this moment either finishes before (the task is no longer pending and stays as decided) or waits and
+   * finds it reassigned. The former holder can decide none of them any more.
+   */
+  const moveTasks = async (positionCode: string, departmentId: string, toMember: string) => {
     const department = await tx.department.findUniqueOrThrow({ where: { id: departmentId }, select: { code: true } })
-    const open = await tx.approvalTask.findMany({ where: { assigneeMemberId: { in: fromMembers }, status: 'OPEN', resolvedFrom: `POSITION:${positionCode}@${department.code}` } })
-    for (const task of open) {
-      await tx.approvalTask.update({ where: { id: task.id }, data: { status: 'REASSIGNED' } })
+    const candidates = await tx.approvalTask.findMany({ where: slotTasks(positionCode, department.code), select: { id: true } })
+    const locked = await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, candidates.map((c) => c.id))
+    const pending = await tx.approvalTask.findMany({ where: { id: { in: locked }, ...slotTasks(positionCode, department.code) }, orderBy: { id: 'asc' } })
+    for (const task of pending) {
+      if (task.assigneeMemberId === toMember && task.principalMemberId === null) continue
+      const reassigned = transition(TASK_MACHINE, task.status as TaskState, 'task.reassign')
+      if (!reassigned.ok) continue
+      await tx.approvalTask.update({ where: { id: task.id }, data: { status: reassigned.to, version: { increment: 1 } } })
       const moved = await tx.approvalTask.create({
-        data: { organizationId: ctx.organizationId, stepId: task.stepId, assigneeMemberId: toMember, resolvedFrom: task.resolvedFrom, assignedAt: at, dueAt: task.dueAt, remindAt: task.remindAt, reassignedFromTaskId: task.id },
+        data: {
+          organizationId: ctx.organizationId,
+          stepId: task.stepId,
+          assigneeMemberId: toMember,
+          resolvedFrom: task.resolvedFrom,
+          status: task.status,
+          assignedAt: at,
+          dueAt: task.dueAt,
+          remindAt: task.remindAt,
+          escalateAt: task.escalateAt,
+          remainingBusinessMinutes: task.remainingBusinessMinutes,
+          reassignedFromTaskId: task.id,
+        },
         select: { id: true },
       })
+      if (task.status === 'INFO_REQUESTED') await tx.infoRequest.updateMany({ where: { taskId: task.id, answeredAt: null }, data: { taskId: moved.id } })
       events.push({ type: 'approval_task.reassigned', aggregateType: 'ApprovalTask', aggregateId: moved.id, data: { fromTaskId: task.id, fromMemberId: task.assigneeMemberId, toMemberId: toMember, why: 'ORG_AUTHORITY_CHANGE', changeId: change.id } })
     }
   }
@@ -316,25 +522,21 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
   switch (change.kind) {
     case 'POSITION_ASSIGN': {
       const p = payload as { positionCode: string; departmentId: string; memberId: string }
-      const previous = await end(p.positionCode, p.departmentId)
+      await end(p.positionCode, p.departmentId)
       await assign(p.positionCode, p.departmentId, p.memberId)
-      await moveTasks(previous, p.positionCode, p.departmentId, p.memberId)
+      await moveTasks(p.positionCode, p.departmentId, p.memberId)
       break
     }
     case 'POSITION_END': {
       const p = payload as { positionCode: string; departmentId: string; replacementMemberId?: string }
-      const previous = await end(p.positionCode, p.departmentId)
+      await end(p.positionCode, p.departmentId)
       if (p.replacementMemberId) {
         await assign(p.positionCode, p.departmentId, p.replacementMemberId)
-        await moveTasks(previous, p.positionCode, p.departmentId, p.replacementMemberId)
+        await moveTasks(p.positionCode, p.departmentId, p.replacementMemberId)
       } else {
-        // FR-ADM-002 AC3: the position is vacant; the admins are told how many open tasks stay with the former holder
+        // FR-ADM-002 AC3: the position is vacant; the admins are told how many pending tasks stay where they are
         const department = await tx.department.findUniqueOrThrow({ where: { id: p.departmentId }, select: { code: true } })
-        vacant = {
-          positionCode: p.positionCode,
-          departmentId: p.departmentId,
-          openTasks: await tx.approvalTask.count({ where: { assigneeMemberId: { in: previous }, status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: `POSITION:${p.positionCode}@${department.code}` } }),
-        }
+        vacant = { positionCode: p.positionCode, departmentId: p.departmentId, openTasks: await tx.approvalTask.count({ where: slotTasks(p.positionCode, department.code) }) }
       }
       break
     }

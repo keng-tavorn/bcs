@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { lintDoaVersion } from '@/core/doa'
 import { DOA_VERSION_MACHINE, transition, type DoaVersionState } from '@/core/state-machines'
-import { DOA_YAML_MAX_CHARS } from '@/lib/constants'
+import { DOA_YAML_MAX_CHARS, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
@@ -32,7 +32,8 @@ const actorOf = (ctx: Ctx) => (ctx.actor.type === 'USER' ? ctx.actor.memberId : 
 
 // ---------- import a draft (FR-DOA-001 AC2) ----------
 
-const ImportInput = z.strictObject({ yaml: z.string().min(1).max(DOA_YAML_MAX_CHARS) })
+// changeReason: why the organization changes its DOA, kept on the version for its history (FR-DOA-001 AC3)
+const ImportInput = z.strictObject({ yaml: z.string().min(1).max(DOA_YAML_MAX_CHARS), changeReason: z.string().trim().min(3).max(REASON_MAX_LENGTH).optional() })
 
 export const importDoaDraftCommand = defineCommand({
   name: 'doa.import_draft',
@@ -49,7 +50,7 @@ export const importDoaDraftCommand = defineCommand({
     const checksum = createHash('sha256').update(input.yaml).digest('hex')
     for (const v of parsed.data) {
       if (await tx.doaVersion.findFirst({ where: { code: v.code, versionNo: v.versionNo }, select: { id: true } })) {
-        return fail('VALIDATION_FAILED', `${v.code} version ${v.versionNo} exists already`, { field: 'versions.version', reason: 'VERSION_EXISTS' })
+        return fail('VALIDATION_FAILED', `${v.code} version ${v.versionNo} exists already`, { field: 'versions.version', reason: 'VERSION_EXISTS', doaCode: v.code, versionNo: v.versionNo })
       }
       const id = newId()
       await tx.doaVersion.create({
@@ -65,6 +66,7 @@ export const importDoaDraftCommand = defineCommand({
           collapseDuplicateApprovers: v.collapseDuplicateApprovers,
           stepUpThresholdSatang: v.stepUpThresholdSatang,
           sodPolicy: { ...v.sodPolicy },
+          changeReason: input.changeReason ?? null,
           sourceYaml: input.yaml,
           checksum,
         },

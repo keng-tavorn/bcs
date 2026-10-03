@@ -2,6 +2,7 @@ import { systemClock } from '@/lib/clock'
 import { SESSION_ABSOLUTE_MS, SESSION_IDLE_LIFF_MS, SESSION_IDLE_WEB_MS, SESSION_TOUCH_AFTER_MS } from '@/lib/constants'
 import { makeCtx, type Ctx } from '@/server/context'
 import { systemDb } from '@/server/db/system'
+import { forTenant } from '@/server/db/tenant'
 import { STORED_ROLES, type StoredRole } from '@/server/authz/permissions'
 import { auth } from './auth'
 
@@ -43,9 +44,34 @@ function readCookie(headers: Headers, name: string): string | undefined {
   return undefined
 }
 
-/** FR-AUTH-002 AC1: anyone with a role besides REQUESTER (or, from S2, a DOA-referenced position) needs TOTP. */
+/** FR-AUTH-002 AC1: anyone with a role besides REQUESTER, or holding a position a DOA refers to, needs TOTP. */
 export function requiresTwoFactor(roles: readonly StoredRole[], holdsDoaPosition: boolean): boolean {
   return roles.length > 0 || holdsDoaPosition
+}
+
+/**
+ * FR-AUTH-002 AC1 (NFR-SEC-03): the member holds now a position that a rule of a DOA version in effect, to come or
+ * awaiting approval names as approver — or such a rule names the member directly (the versions doaNamedApprovers of
+ * src/server/doa/policy.ts reads, and tests compare the two). They can approve, so they set up TOTP before any work,
+ * like members with roles. It runs on every request of a
+ * member without a role and without TOTP, so it is two small indexed reads in the member's own organization: the
+ * positions the member holds now, then whether one rule of those versions names one of them or the member
+ * (DoaRule.steps holds [{ approver: { kind, position | memberId }, … }]; JSON containment finds the approver).
+ */
+export async function holdsDoaReferencedPosition(organizationId: string, memberId: string, now: Date): Promise<boolean> {
+  const db = forTenant(organizationId)
+  const held = await db.positionAssignment.findMany({
+    where: { memberId, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gt: now } }] },
+    select: { position: { select: { code: true } } },
+  })
+  const approvers = [{ kind: 'MEMBER', memberId }, ...[...new Set(held.map((h) => h.position.code))].map((position) => ({ position }))]
+  const naming = await db.doaRule.count({
+    where: {
+      doaVersion: { is: { OR: [{ status: 'PENDING_APPROVAL' }, { status: 'PUBLISHED', OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] }] } },
+      OR: approvers.map((approver) => ({ steps: { array_contains: [{ approver }] } })),
+    },
+  })
+  return naming > 0
 }
 
 type ValidatedSession =
@@ -89,8 +115,10 @@ export async function resolveSession(headers: Headers, opts: { channel?: Session
   )
     .map((r) => r.role)
     .filter((r): r is StoredRole => (STORED_ROLES as readonly string[]).includes(r))
-  // TODO(S2-15): include holders of DOA-referenced positions (FR-AUTH-002 AC1) once positions are loaded.
-  const needsSetup = requiresTwoFactor(roles, false) && !validated.twoFactorEnabled
+  // FR-AUTH-002 AC1: a role, or a position a DOA refers to (looked up only when it can change the answer)
+  const needsSetup =
+    !validated.twoFactorEnabled &&
+    requiresTwoFactor(roles, roles.length === 0 && (await holdsDoaReferencedPosition(member.organizationId, member.id, opts.now ?? systemClock.now())))
   return {
     kind: needsSetup ? 'needs-2fa-setup' : 'member',
     userId,

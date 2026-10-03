@@ -461,9 +461,11 @@ features:
     verifiedBy: null
     notes: ""
   FR-SUP-001:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/supplier-registry.test.ts
+      - tests/integration/suppliers.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-001:

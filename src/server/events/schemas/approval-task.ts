@@ -7,6 +7,14 @@ import { defineEvents } from '../registry'
 const channel = z.enum(['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'])
 
 defineEvents('ApprovalTask', {
+  // FR-VIS-001 AC2 (MANUAL, from the board) and BR-SLA-02 (SLA, the reminder job of S5)
+  'approval_task.reminded': {
+    schema: z.object({
+      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectId: z.uuid(),
+      via: z.enum(['MANUAL', 'SLA']),
+    }),
+  },
   'approval_task.assigned': {
     schema: z.object({
       subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
@@ -33,6 +41,8 @@ defineEvents('ApprovalTask', {
       // BR-DOA-15: the step-up the approver gave for a DOA version or an authority change
       stepUpGrantId: z.uuid().nullable().optional(),
     }),
+    // INV-DOA-01: the Event columns name the DOA version and rule of every decision
+    requiresDoaRef: true,
   },
   'approval_task.reassigned': {
     schema: z.object({ fromTaskId: z.uuid(), fromMemberId: z.uuid(), toMemberId: z.uuid(), why: z.enum(['ORG_AUTHORITY_CHANGE', 'DELEGATION', 'ADMIN']), changeId: z.uuid().nullable() }),

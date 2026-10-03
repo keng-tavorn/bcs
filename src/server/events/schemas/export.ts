@@ -21,4 +21,14 @@ defineEvents('ExportJob', {
       again: z.boolean(),
     }),
   },
+  // FR-VIS-004 AC3: who exported which events (the filter) and the file's sha256
+  'audit.exported': {
+    schema: z.object({
+      rowCount: z.number().int().min(0),
+      checksum: z.string().regex(/^[0-9a-f]{64}$/),
+      fileId: z.uuid(),
+      format: z.enum(['xlsx', 'csv']),
+      filter: z.record(z.string(), z.unknown()),
+    }),
+  },
 })

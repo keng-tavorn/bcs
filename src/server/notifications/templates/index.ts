@@ -102,6 +102,10 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
     href: '/admin/modules',
   }),
+  'task.reminder': (d) => ({
+    title: { th: `เตือน: ${ref(d)} รอคุณตัดสิน`, en: `Reminder: ${ref(d)} is waiting for your decision` },
+    href: d.taskId ? `/tasks/${str(d.taskId)}` : null,
+  }),
   'po.approved': (d) => ({
     title: { th: `ใบสั่งซื้อ ${ref(d)} อนุมัติแล้ว พร้อมส่งให้ผู้ขาย`, en: `Purchase order ${ref(d)} is approved and ready to send` },
     href: `/purchase-orders/${str(d.poId)}`,

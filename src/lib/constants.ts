@@ -41,6 +41,10 @@ export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
 /** Longest free-text reason accepted by admin commands (stored in Comment) */
 export const REASON_MAX_LENGTH = 1000
+/** Events on one page of the audit search (FR-VIS-004 AC1) */
+export const AUDIT_PAGE_MAX = 100
+/** Events one audit export file takes: a wider search is narrowed first (FR-VIS-004 AC2) */
+export const AUDIT_EXPORT_MAX_ROWS = 50_000
 /** Most invoices one Express file takes when exporting again by hand (BR-EXP-02) */
 export const EXPORT_MAX_INVOICES = 5000
 /** Longest note to a supplier on a PO (FR-P2P-003 AC2) */

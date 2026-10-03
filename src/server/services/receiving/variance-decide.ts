@@ -67,7 +67,10 @@ export async function decideVarianceTask(
       type: 'approval_task.decided',
       aggregateType: 'ApprovalTask',
       aggregateId: task.id,
-      data: { decision: input.decision, subjectType: 'VARIANCE', subjectId: variance.id, doaVersionId: route.doaVersionId, doaRuleCode: route.ruleCode, channel: ctx.channel, actorMemberId: actor, onBehalfOfMemberId: task.principalMemberId, reasonCommentId },
+      doaVersionId: route.doaVersionId,
+      doaRuleCode: route.ruleCode,
+      ...(task.principalMemberId && actor !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
+      data: { decision: input.decision, subjectType: 'VARIANCE', subjectId: variance.id, doaVersionId: route.doaVersionId, doaRuleCode: route.ruleCode, channel: ctx.channel, actorMemberId: actor, onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null, reasonCommentId },
     },
   ]
   const line = await tx.poLine.findUniqueOrThrow({ where: { id: variance.poLineId } })

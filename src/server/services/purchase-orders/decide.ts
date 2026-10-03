@@ -74,6 +74,9 @@ export async function decidePoTask(
       type: 'approval_task.decided',
       aggregateType: 'ApprovalTask',
       aggregateId: task.id,
+      doaVersionId: route.doaVersionId,
+      doaRuleCode: route.ruleCode,
+      ...(task.principalMemberId && actor !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
       data: {
         decision: input.decision,
         subjectType: 'PURCHASE_ORDER',
@@ -82,7 +85,7 @@ export async function decidePoTask(
         doaRuleCode: route.ruleCode,
         channel: ctx.channel,
         actorMemberId: actor,
-        onBehalfOfMemberId: task.principalMemberId,
+        onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null,
         reasonCommentId,
       },
     },

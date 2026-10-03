@@ -134,6 +134,9 @@ export const decideCommand = defineCommand({
         type: 'approval_task.decided',
         aggregateType: 'ApprovalTask',
         aggregateId: task.id,
+        doaVersionId: route.doaVersionId,
+        doaRuleCode: route.ruleCode,
+        ...(task.principalMemberId && actorMemberId !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
         data: {
           decision: input.decision,
           subjectType: 'REQUEST',
@@ -142,7 +145,7 @@ export const decideCommand = defineCommand({
           doaRuleCode: route.ruleCode,
           channel: ctx.channel,
           actorMemberId,
-          onBehalfOfMemberId: task.principalMemberId,
+          onBehalfOfMemberId: task.principalMemberId && actorMemberId !== task.principalMemberId ? task.principalMemberId : null,
           reasonCommentId,
         },
       },

@@ -1,0 +1,8 @@
+# tests/golden/grni.yaml
+suite: grni
+cases:
+  - { id: GC-RPT-01, title: รับแล้วยังไม่มีใบกำกับ, input: { lines: [{ costCenter: CC-CON, accepted: "6", unitPrice: "1100.00", invoiced: "0.00" }] }, expect: { lines: [{ grni: "6600.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "6600.00" } } }
+  - { id: GC-RPT-02, title: มีใบกำกับบางส่วน, input: { lines: [{ costCenter: CC-CON, accepted: "10", unitPrice: "1100.00", invoiced: "6600.00" }] }, expect: { lines: [{ grni: "4400.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "4400.00" } } }
+  - { id: GC-RPT-03, title: ใบกำกับมาก่อนของ, input: { lines: [{ costCenter: CC-CON, accepted: "4", unitPrice: "1100.00", invoiced: "6600.00" }] }, expect: { lines: [{ grni: "0.00", invoicedNotReceived: "2200.00" }], byCostCenter: { CC-CON: "0.00" } } }
+  - { id: GC-RPT-04, title: จำนวนทศนิยมปัด half-up, input: { lines: [{ costCenter: CC-IT, accepted: "2.5", unitPrice: "10.01", invoiced: "0.00" }] }, expect: { lines: [{ grni: "25.03", invoicedNotReceived: "0.00" }], byCostCenter: { CC-IT: "25.03" } } }
+  - { id: GC-RPT-05, title: รวมตาม cost center, input: { lines: [{ costCenter: CC-CON, accepted: "6", unitPrice: "1100.00", invoiced: "0.00" }, { costCenter: CC-CON, accepted: "1", unitPrice: "500.00", invoiced: "500.00" }, { costCenter: CC-IT, accepted: "2", unitPrice: "1000.00", invoiced: "500.00" }] }, expect: { lines: [{ grni: "6600.00", invoicedNotReceived: "0.00" }, { grni: "0.00", invoicedNotReceived: "0.00" }, { grni: "1500.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "6600.00", CC-IT: "1500.00" } } }

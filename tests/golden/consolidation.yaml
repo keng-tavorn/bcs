@@ -1,0 +1,37 @@
+# tests/golden/consolidation.yaml
+suite: consolidation
+cases:
+  - id: GC-CONS-01
+    input:
+      lines:
+        - { ref: PR-10/1, supplier: S1, site: SITE-A, kind: GOODS }
+        - { ref: PR-11/1, supplier: S1, site: SITE-A, kind: GOODS }
+        - { ref: PR-12/1, supplier: S1, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [[PR-10/1, PR-11/1, PR-12/1]], immediate: [], unassigned: [] }
+  - id: GC-CONS-02
+    title: คนละสถานที่ส่งแยกใบ
+    input:
+      lines:
+        - { ref: PR-13/1, supplier: S1, site: SITE-A, kind: GOODS }
+        - { ref: PR-14/1, supplier: S1, site: SITE-B, kind: GOODS }
+    expect: { cycleGroups: [[PR-13/1], [PR-14/1]], immediate: [], unassigned: [] }
+  - id: GC-CONS-03
+    title: คำขอด่วนไม่รอรอบ
+    input:
+      lines:
+        - { ref: PR-15/1, supplier: S2, site: SITE-A, kind: GOODS, urgent: true }
+        - { ref: PR-16/1, supplier: S2, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [[PR-16/1]], immediate: [[PR-15/1]], unassigned: [] }
+  - id: GC-CONS-04
+    title: ยังไม่มีผู้ขาย
+    input:
+      lines:
+        - { ref: PR-17/1, supplier: null, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [], immediate: [], unassigned: [PR-17/1] }
+  - id: GC-CONS-05
+    title: สินค้ากับบริการแยกใบ
+    input:
+      lines:
+        - { ref: PR-18/1, supplier: S1, site: SITE-A, kind: SERVICE }
+        - { ref: PR-18/2, supplier: S1, site: SITE-A, kind: GOODS }
+    expect: { cycleGroups: [[PR-18/1], [PR-18/2]], immediate: [], unassigned: [] }

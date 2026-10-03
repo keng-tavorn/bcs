@@ -1,11 +1,13 @@
-// pnpm db:seed (spec §5.4, Appendix A): the demo organization and its users from
-// docs/inputs/BCS_inputs_v1_demo.xlsx (run pnpm inputs:check first). Safe to run again: nothing is duplicated.
+// pnpm db:seed (spec §5.4, Appendix A): the VAT rates of §7.1 (prisma/seed/tax-rates.yaml), then the demo organization
+// and its users from docs/inputs/BCS_inputs_v1_demo.xlsx (run pnpm inputs:check first). Safe to run again: nothing is
+// duplicated.
 // Demo users with passwords exist only in local and staging (Appendix A); production is refused.
 import { systemClock } from '@/lib/clock'
 import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { prisma } from '@/server/db/client'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
+import { seedTaxRates } from '@/server/seed/tax-rates'
 import { loadInputWorkbook } from '@/server/seed/workbook'
 
 const SEED_ENVS = new Set(['local', 'staging'])
@@ -23,10 +25,11 @@ if (!password || password.length < PASSWORD_MIN_LENGTH) stop(`ใส่ SEED_DEV
 const totpKey = env.SEED_TOTP_KEY
 
 try {
+  const taxRates = await seedTaxRates()
   const input = parseDemoOrgInput(await loadInputWorkbook(), loadOrgSettingsYaml())
   const report = await seedDemoOrganization(input, { password, ...(totpKey ? { totpKey } : {}), now: systemClock.now() })
   console.log(
-    `db:seed เสร็จ: องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
+    `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
       `สมาชิกใหม่ ${report.members.created} มีอยู่แล้ว ${report.members.existing} · บทบาทใหม่ ${report.rolesGranted} · ` +
       (totpKey ? `ตั้ง 2FA ใหม่ ${report.twoFactorEnabled}` : 'ไม่มี SEED_TOTP_KEY: ผู้ใช้ที่ต้องใช้ 2FA จะตั้งแอปยืนยันตัวตนตอนเข้าระบบครั้งแรก'),
   )

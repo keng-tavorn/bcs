@@ -1,5 +1,6 @@
 import type { DelegationSnapshot, DelegationStatus, DoaDocumentType, OrgSnapshot, RoutePolicy } from '@/core/doa'
 import type { BusinessCalendar, Weekday } from '@/core/sla'
+import type { SodPolicy } from '@/core/sod'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { TenantTx } from '@/server/db/tenant'
 import { orgSnapshotFromRows, versionSnapshotFromRows } from './snapshot'
@@ -114,4 +115,17 @@ export async function openTasksUnderVersion(tx: TenantTx, versionId: string): Pr
   return tx.approvalTask.count({
     where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, step: { route: { doaVersionId: versionId, status: 'ACTIVE', subjectType: { not: 'DOA_VERSION' } } } },
   })
+}
+
+/**
+ * The separation-of-duties policy of the DOA version in effect at `now` (BR-SOD-02, BR-SOD-07, OQ-04): who may receive
+ * goods. Without a version in effect the defaults of the spec apply (approvers may not, requesters may).
+ */
+export async function effectiveSodPolicy(tx: TenantTx, now: Date): Promise<SodPolicy> {
+  const version = await tx.doaVersion.findFirst({
+    where: { status: { in: ['PUBLISHED', 'SUPERSEDED'] }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
+    orderBy: { effectiveFrom: 'desc' },
+    select: { sodPolicy: true },
+  })
+  return (version?.sodPolicy as unknown as SodPolicy | undefined) ?? { approverMayReceive: false, requesterMayReceive: true }
 }

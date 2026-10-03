@@ -42,6 +42,43 @@ defineEvents('PurchaseOrder', {
   'po.returned': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
   // BR-BUD-06: what happens to the request lines, and the requests whose status moved
   'po.cancelled': { schema: z.object({ from: z.string().min(1), disposition: z.enum(['RETURN_TO_POOL', 'CANCEL_REQUEST_LINES']), reasonCommentId: z.uuid(), requests: z.array(requestStatus) }) },
+  // BR-BUD-06: what the PO still holds for goods received and not yet invoiced, and what went back
+  'po.closed': { schema: z.object({ from: z.string().min(1), keptSatang: satang, releasedSatang: satang, via: z.enum(['PROCUREMENT', 'CLOSE_SHORT']), requests: z.array(requestStatus) }) },
+})
+
+const quantity = z.string().regex(/^\d+(\.\d{1,4})?$/)
+
+// Goods receipts (spec §6.4 GR, BR-GR-01): what came, what was accepted and what was not, per PO line
+defineEvents('GoodsReceipt', {
+  'gr.posted': {
+    schema: z.object({
+      number: z.string().min(1),
+      poId: z.uuid(),
+      lines: z.array(z.object({ poLineId: z.uuid(), received: quantity, accepted: quantity, rejected: quantity })).min(1),
+      varianceIds: z.array(z.uuid()),
+      poStatus: z.string().min(1),
+    }),
+  },
+  'gr.reversed': { schema: z.object({ poId: z.uuid(), reasonCommentId: z.uuid() }) },
+})
+
+// Variances (BR-GR-02 to BR-GR-05): recorded with their disposition; those that need approval go to GR_VARIANCE
+defineEvents('Variance', {
+  'variance.recorded': {
+    schema: z.object({
+      poId: z.uuid(),
+      poLineId: z.uuid(),
+      grId: z.uuid().nullable(),
+      type: z.enum(['SHORT', 'OVER', 'DAMAGED']),
+      disposition: z.enum(['ACCEPT_EXCESS', 'RETURN_EXCESS', 'ACCEPT_DAMAGED', 'RETURN_REPLACE', 'CLOSE_SHORT']),
+      status: z.enum(['RECORDED', 'PENDING_APPROVAL']),
+      quantity,
+      amountSatang: satang,
+      routeId: z.uuid().nullable(),
+    }),
+  },
+  'variance.approved': { schema: z.object({ routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1), disposition: z.string().min(1) }) },
+  'variance.rejected': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
 })
 
 // One consolidation round (FR-P2P-002 AC2, AC3, BR-CONS-02), with the drafts it made — none is a result too

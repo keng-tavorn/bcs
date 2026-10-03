@@ -106,6 +106,10 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `ใบสั่งซื้อ ${ref(d)} อนุมัติแล้ว พร้อมส่งให้ผู้ขาย`, en: `Purchase order ${ref(d)} is approved and ready to send` },
     href: `/purchase-orders/${str(d.poId)}`,
   }),
+  'gr.posted': (d) => ({
+    title: { th: `ตรวจรับของตามใบสั่งซื้อ ${str(d.poNumber)} แล้ว (${str(d.number)})`, en: `Goods received for purchase order ${str(d.poNumber)} (${str(d.number)})` },
+    href: `/purchase-orders/${str(d.poId)}`,
+  }),
   'security.notice': (d) => ({
     title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
     body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },

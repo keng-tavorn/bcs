@@ -21,6 +21,8 @@ import { releasableFor, requestLineBasis } from '../procurement/pool'
 import { poBudgetLines, releaseCancelledPo, reserveForPo } from './budget'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
 
+export { closePurchaseOrder } from './close'
+
 // Purchase orders, tier 1 (spec §6.4 PO table, FR-P2P-003, FR-P2P-004, FR-P2P-010 AC1, BR-BUD-05, BR-BUD-06): PROCUREMENT
 // edits a draft — prices, quantities up to what is left of the request lines, payment terms and notes — and the
 // totals come from core/money only (AC3); a draft is sent for approval on the DOA rule of PURCHASE_ORDER with its

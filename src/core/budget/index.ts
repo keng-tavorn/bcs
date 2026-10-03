@@ -201,6 +201,25 @@ export function cancelPo(state: LineState, po: PoLine, disposition: 'RETURN_TO_P
   return ok(state, movements)
 }
 
+/**
+ * BR-GR-02, BR-GR-04: a PO line holds more for goods kept beyond its quantity — at once within the tolerance, or once
+ * an ACCEPT_EXCESS variance is approved (AVAILABLE → COMMITTED at the PO price). It is held for an existing document,
+ * so a FROZEN or CLOSED budget line still takes it (BR-BUD-08); not enough left is BUDGET_INSUFFICIENT.
+ */
+export function holdMore(state: LineState, poLineId: string, amount: Satang): BudgetResult {
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  if (amount > state.buckets.available) return insufficient(state.buckets.available, amount)
+  return ok(state, [{ from: 'AVAILABLE', to: 'COMMITTED', amount, sourceType: 'PO_LINE', sourceId: poLineId }])
+}
+
+/** BR-GR-04: a CLOSE_SHORT variance approved gives back what never comes (COMMITTED → AVAILABLE), at most what the line holds */
+export function releaseHold(state: LineState, poLineId: string, amount: Satang): BudgetResult {
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  const held = allocationOf(state, 'PO_LINE', poLineId).committed
+  const back = amount < held ? amount : held
+  return ok(state, back > 0n ? [{ from: 'COMMITTED', to: 'AVAILABLE', amount: back, sourceType: 'PO_LINE', sourceId: poLineId }] : [])
+}
+
 /** An invoice confirmed for a PO line (COMMITTED → ACTUAL): never more than the line still holds (GC-BUD-06) */
 export function actualize(state: LineState, poLineId: string, amount: Satang): BudgetResult {
   if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })

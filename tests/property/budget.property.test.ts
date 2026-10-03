@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { actualize, approvePo, cancelPo, closePo, emptyLine, fund, rejectPo, release, reserve, submitPo, type BudgetResult, type LineState, type PoLine } from '@/core/budget'
+import { actualize, approvePo, cancelPo, closePo, emptyLine, fund, holdMore, rejectPo, release, releaseHold, reserve, submitPo, type BudgetResult, type LineState, type PoLine } from '@/core/budget'
 
 // FR-BUD-002 AC2 (spec §7.7): thousands of random sequences of budget operations on one line; after every operation
 // INV-BUD-01 (the four buckets add up to what was funded), INV-BUD-02 (no bucket and no allocation below zero) and
@@ -23,6 +23,8 @@ type Op =
   | { op: 'cancelPo'; po: string; disposition: 'RETURN_TO_POOL' | 'CANCEL_REQUEST_LINES' }
   | { op: 'actualize'; po: string; share: number }
   | { op: 'closePo'; po: string; keepPct: number }
+  | { op: 'holdMore'; po: string; pct: number }
+  | { op: 'releaseHold'; po: string; pct: number }
   | { op: 'status'; status: 'OPEN' | 'FROZEN' }
 
 const opArb: fc.Arbitrary<Op> = fc.oneof(
@@ -46,6 +48,10 @@ const opArb: fc.Arbitrary<Op> = fc.oneof(
   // Closing keeps nothing, or a share of what the PO line holds (received but not yet invoiced, BR-BUD-06)
   fc.record({ op: fc.constant('closePo' as const), po: fc.constantFrom(...PO_LINES), keepPct: fc.oneof(fc.constant(0), fc.integer({ min: 0, max: 100 })) }),
   fc.record({ op: fc.constant('status' as const), status: fc.constantFrom('OPEN' as const, 'FROZEN' as const) }),
+  // An excess kept (BR-GR-02, BR-GR-04): a share of the PO line's amount, sometimes more than is available (refused)
+  fc.record({ op: fc.constant('holdMore' as const), po: fc.constantFrom(...PO_LINES), pct: fc.integer({ min: 1, max: 60 }) }),
+  // A CLOSE_SHORT approved: a share of what the line holds, sometimes more (only what it holds goes back)
+  fc.record({ op: fc.constant('releaseHold' as const), po: fc.constantFrom(...PO_LINES), pct: fc.integer({ min: 1, max: 120 }) }),
 )
 
 /** What the documents asked for, to check INV-BUD-03 against */
@@ -145,6 +151,19 @@ function step(state: LineState, op: Op, pos: Map<string, PoLine>, phase: Map<str
     }
     case 'status':
       return { ok: true, state: { ...state, status: op.status }, movements: [] }
+    case 'holdMore': {
+      if (phase.get(op.po) !== 'APPROVED') return skip
+      const extra = ((asked.poNeed.get(op.po) ?? 0n) * BigInt(op.pct)) / 100n || 1n
+      const result = holdMore(state, op.po, extra)
+      // INV-BUD-03: a PO line may hold its amount plus the excess approved
+      if (result.ok) asked.poNeed.set(op.po, (asked.poNeed.get(op.po) ?? 0n) + extra)
+      return result
+    }
+    case 'releaseHold': {
+      if (phase.get(op.po) !== 'APPROVED') return skip
+      const held = state.allocations[`PO_LINE:${op.po}`]?.committed ?? 0n
+      return releaseHold(state, op.po, (held * BigInt(op.pct)) / 100n || 1n)
+    }
   }
 }
 
@@ -179,6 +198,6 @@ describe('[FR-BUD-002/AC2] budget invariants hold after every operation of a ran
       }),
       { numRuns: 1000 },
     )
-    for (const op of ['fund', 'reserve', 'release', 'submitPo', 'approvePo', 'rejectPo', 'cancelPo', 'actualize', 'closePo']) expect(moved.get(op) ?? 0, op).toBeGreaterThan(0)
+    for (const op of ['fund', 'reserve', 'release', 'submitPo', 'approvePo', 'rejectPo', 'cancelPo', 'actualize', 'closePo', 'holdMore', 'releaseHold']) expect(moved.get(op) ?? 0, op).toBeGreaterThan(0)
   })
 })

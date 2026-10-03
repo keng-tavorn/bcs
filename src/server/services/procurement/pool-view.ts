@@ -25,7 +25,9 @@ export interface PoolLineDto {
   readonly requestId: string
   readonly requestNo: string
   readonly requestTitle: string
+  /** The requester's display name in Thai, and in English when the member has one (the English page shows it) */
   readonly requesterName: string
+  readonly requesterNameEn: string | null
   readonly lineNo: number
   readonly description: string
   readonly kind: 'GOODS' | 'SERVICE'
@@ -52,7 +54,7 @@ export async function listPool(ctx: Ctx, filter: PoolFilter = {}): Promise<Resul
   const lines = await db.$transaction((tx) => freeLines(tx))
   const requestIds = [...new Set(lines.map((l) => l.requestId))]
   const [requests, suppliers, sites] = await Promise.all([
-    db.request.findMany({ where: { id: { in: requestIds } }, select: { id: true, title: true, approvedAt: true, suggestedSupplierId: true, requester: { select: { displayNameTh: true } } } }),
+    db.request.findMany({ where: { id: { in: requestIds } }, select: { id: true, title: true, approvedAt: true, suggestedSupplierId: true, requester: { select: { displayNameTh: true, displayNameEn: true } } } }),
     db.supplier.findMany({ where: { id: { in: [...new Set(lines.flatMap((l) => (l.supplierId ? [l.supplierId] : [])))] } }, select: { id: true, code: true, nameTh: true } }),
     db.deliverySite.findMany({ where: { id: { in: [...new Set(lines.flatMap((l) => (l.deliverySiteId ? [l.deliverySiteId] : [])))] } }, select: { id: true, code: true, nameTh: true } }),
   ])
@@ -69,6 +71,7 @@ export async function listPool(ctx: Ctx, filter: PoolFilter = {}): Promise<Resul
       requestNo: l.requestNo,
       requestTitle: r.title,
       requesterName: r.requester.displayNameTh,
+      requesterNameEn: r.requester.displayNameEn,
       lineNo: l.lineNo,
       description: l.description,
       kind: l.kind,

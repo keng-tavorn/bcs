@@ -1,27 +1,28 @@
 import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
-import { documentTotals, exceedsByMoreThan, lineNet, parseQuantity, type Satang } from '@/core/money/math'
+import { documentTotals, lineNet, parseQuantity, type Satang } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { err, ok, type Result } from '@/core/result'
 import { PO_MACHINE, transition, type PoState } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { PAYMENT_TERM_MAX_DAYS, PO_NOTE_MAX_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
-import { OrgSettingsSchema } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import { itemKey, priceHistoryOf } from '@/server/queries/purchase-orders'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
-import { poBudgetLines, releaseCancelledPo, reserveForPo } from './budget'
+import { budgetRefusalFor, poBudgetLines, releaseCancelledPo, reserveForPo } from './budget'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
 
 export { closePurchaseOrder } from './close'
+export { previewPoSubmit, type PoRoutePreviewDto, type PoSubmitPreviewDto } from './preview'
 
 // Purchase orders, tier 1 (spec §6.4 PO table, FR-P2P-003, FR-P2P-004, FR-P2P-010 AC1, BR-BUD-05, BR-BUD-06): PROCUREMENT
 // edits a draft — prices, quantities up to what is left of the request lines, payment terms and notes — and the
@@ -207,8 +208,19 @@ export const submitPoCommand = defineCommand({
     // A PO returned for changes keeps the number it was given (BR-NUM-01: a number is never used twice)
     const number = po.number ?? (await issueDocumentNumber(tx, ctx, { document: 'PO' }))
 
-    const budget = await reserveForPo(tx, ctx, po.id, await poBudgetLines(tx, po.id))
-    if (!budget.ok) return budget
+    const budgetLines = await poBudgetLines(tx, po.id)
+    const budget = await reserveForPo(tx, ctx, po.id, budgetLines)
+    // How much is missing is told only to whoever may view the budget line (§2.4 budget.view)
+    if (!budget.ok)
+      return {
+        ok: false,
+        error: await budgetRefusalFor(
+          tx,
+          allowed.data,
+          budget.error,
+          budgetLines.map((l) => l.budgetLineId),
+        ),
+      }
     const chargedDepartmentId = (await tx.budgetLine.findUniqueOrThrow({ where: { id: po.lines[0]!.budgetLineId }, select: { departmentId: true } })).departmentId
     const route = await startRoute(
       tx,
@@ -291,8 +303,19 @@ export const cancelPoCommand = defineCommand({
     // §6.4: nothing received yet
     if (await tx.goodsReceipt.count({ where: { poId: po.id, status: 'POSTED' } })) return fail('INVALID_STATE_TRANSITION', 'goods were received on this purchase order', { from: po.status, command: 'po.cancel', reason: 'GR_POSTED' })
     const requestIds = await lockSourceRequests(tx, ctx, po)
-    const budget = await releaseCancelledPo(tx, ctx, po.id, await poBudgetLines(tx, po.id), input.disposition)
-    if (!budget.ok) return budget
+    const budgetLines = await poBudgetLines(tx, po.id)
+    const budget = await releaseCancelledPo(tx, ctx, po.id, budgetLines, input.disposition)
+    // RETURN_TO_POOL reserves for the requests again: how much is missing only for whoever may view the budget line
+    if (!budget.ok)
+      return {
+        ok: false,
+        error: await budgetRefusalFor(
+          tx,
+          allowed.data,
+          budget.error,
+          budgetLines.map((l) => l.budgetLineId),
+        ),
+      }
     const requests = await unorderSourceLines(tx, po.id, input.disposition)
     await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, cancelledAt: ctx.now, cancelReason: input.reason, cancelDisposition: input.disposition, version: { increment: 1 } } })
     const completed = await completeFinishedRequests(tx, requestIds)
@@ -326,34 +349,23 @@ export interface PriceHistoryDto {
 }
 
 /** "the same item": the category and the description with spaces collapsed and case folded */
-export const itemKey = (categoryCode: string | null, description: string) => `${categoryCode ?? ''}|${description.trim().replace(/\s+/g, ' ').toLowerCase()}`
+export { itemKey }
 
-const APPROVED_PO_STATUSES = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED'] as const
-const PRICE_HISTORY_SIZE = 3
-const PERCENT_TO_BP = 100
-
+/**
+ * The price history of a draft for PROCUREMENT (po.edit). The reading itself is the query priceHistoryOf, which the
+ * decision page of a PO task also uses for its approver (the page checks the task's deciders first).
+ */
 export async function priceHistory(ctx: Ctx, poId: string): Promise<Result<PriceHistoryDto[]>> {
   const db = forTenant(ctx.organizationId)
   const allowed = await db.$transaction((tx) => authorize(tx, ctx, 'po.edit'))
   if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
-  const po = await db.purchaseOrder.findFirst({ where: { id: poId }, select: { lines: { select: { id: true, categoryCode: true, description: true, unitPriceSatang: true } } } })
-  if (!po) return err('NOT_FOUND', 'purchase order not found')
-  const org = await db.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
-  // settings.priceAlertPct (percent, OQ default 10) in basis points
-  const alertBp = Math.round(OrgSettingsSchema.shape.priceAlertPct.parse((org.settings as { priceAlertPct?: unknown } | null)?.priceAlertPct) * PERCENT_TO_BP)
-  const earlier = await db.poLine.findMany({
-    where: { poId: { not: poId }, po: { status: { in: [...APPROVED_PO_STATUSES] } }, OR: po.lines.map((l) => ({ categoryCode: l.categoryCode })) },
-    select: { categoryCode: true, description: true, unitPriceSatang: true, po: { select: { number: true, approvedAt: true } } },
-  })
+  const history = await priceHistoryOf(db, ctx.organizationId, poId)
+  if (!history) return err('NOT_FOUND', 'purchase order not found')
   return ok(
-    po.lines.map((line) => {
-      const key = itemKey(line.categoryCode, line.description)
-      const previous = earlier
-        .filter((e) => itemKey(e.categoryCode, e.description) === key && e.po.approvedAt)
-        .sort((a, b) => b.po.approvedAt!.getTime() - a.po.approvedAt!.getTime() || (b.po.number ?? '').localeCompare(a.po.number ?? '', 'en', { numeric: true }))
-        .slice(0, PRICE_HISTORY_SIZE)
-        .map((e) => ({ poNumber: e.po.number ?? '', approvedAt: e.po.approvedAt!.toISOString(), unitPriceSatang: e.unitPriceSatang }))
-      return { poLineId: line.id, previous, alert: previous.length > 0 && exceedsByMoreThan(line.unitPriceSatang, previous[0]!.unitPriceSatang, alertBp) }
-    }),
+    history.lines.map((line) => ({
+      poLineId: line.poLineId,
+      previous: line.previous.map((p) => ({ poNumber: p.poNumber, approvedAt: p.approvedAt.toISOString(), unitPriceSatang: p.unitPriceSatang })),
+      alert: line.alert,
+    })),
   )
 }

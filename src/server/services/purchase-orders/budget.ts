@@ -1,6 +1,7 @@
 import { allocationKey, approvePo, cancelPo, closePo, rejectPo, submitPo, type LineState, type PoLine as EnginePoLine } from '@/core/budget'
 import type { Satang } from '@/core/money/math'
 import type { AppError } from '@/core/result'
+import { isAllowed, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
 import { applyBudget, type BudgetOperation } from '@/server/budget/ledger'
@@ -25,6 +26,19 @@ export interface PoBudgetLine {
   /** The PO line's amount before VAT (BR-BUD-03) */
   readonly need: Satang
   readonly sources: readonly { readonly requestLineId: string; readonly releasable: Satang }[]
+}
+
+/**
+ * A refusal for lack of budget as the actor may read it. What is left on a budget line and how much is missing are
+ * budget figures (§2.4 budget.view: the head of the line's department or an organization-wide budget role); PROCUREMENT
+ * sends and cancels POs without that right, so its refusal says only that the budget is short — the same rule the
+ * receiving service applies to a receipt (services/receiving seesBudgetOf). Any other error passes unchanged.
+ */
+export async function budgetRefusalFor(tx: TenantTx, principal: Principal, error: AppError, budgetLineIds: readonly string[]): Promise<AppError> {
+  if (error.code !== 'BUDGET_INSUFFICIENT') return error
+  const lines = await tx.budgetLine.findMany({ where: { id: { in: [...new Set(budgetLineIds)] } }, select: { departmentId: true } })
+  const sees = lines.length > 0 && lines.every((l) => isAllowed(principal, 'budget.view', { departmentId: l.departmentId }))
+  return sees ? error : { code: error.code, message: error.message }
 }
 
 /** The PO's lines as the budget engine sees them */

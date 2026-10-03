@@ -11,16 +11,22 @@ import { ConfirmBox, TextArea } from '../request-view/text-area'
 import { useAction } from '../request-view/use-action'
 import { taskErrorKey, type ActionFailure, type ActionOutcome } from './outcome'
 
-// Deciding a request task (FR-DOA-004 AC1, §9.9 principles 5 and 7): approve is the one primary button — on phones it
-// sticks to the bottom of the screen — and asks for a second press that names the document and the amount, because a
-// decision cannot be changed. Return and reject live apart from it, under their own heading, with a reason the
-// requester will read and a tick; reject is outlined in danger so it never looks like approve. Asking for more
-// information is a third, separate form. A field's error goes as soon as the field changes. The service checks the
-// assignee, the state and separation of duties again.
+// Deciding a request, purchase-order or variance task (FR-DOA-004 AC1, §9.9 principles 5 and 7): approve is the one
+// primary button — on phones it sticks to the bottom of the screen — and asks for a second press that names the document
+// and the amount, because a decision cannot be changed. Return and reject live apart from it, under their own heading,
+// with a reason the other side will read and a tick; reject is outlined in danger so it never looks like approve. A
+// request can also be asked about, in a third, separate form (FR-INT-009 AC3); a PO is approved, returned to procurement
+// or rejected; a variance is approved or rejected, never returned (BR-GR-03). A field's error goes as soon as the field
+// changes. The service checks the assignee, the state and separation of duties again.
 
 const REASON_MIN = 3
 
 export type Decision = 'APPROVE' | 'RETURN' | 'REJECT'
+
+/** What the task decides; each has its own choices and words */
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE'
+type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
+const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
 export interface DecisionPanelProps {
   readonly taskId: string
@@ -30,9 +36,14 @@ export interface DecisionPanelProps {
   readonly label: string
   readonly amount: string
   readonly locale: string
+  /** REQUEST by default */
+  readonly kind?: DecisionKind
+  /** VARIANCE: what approving does (CLOSE_SHORT, ACCEPT_EXCESS, ACCEPT_DAMAGED), for the hint of rejecting */
+  readonly disposition?: string
   readonly actions: {
     readonly decide: (input: { taskId: string; decision: Decision; reason?: string }, idempotencyKey: string) => Promise<ActionOutcome>
-    readonly ask: (input: { taskId: string; question: string }, idempotencyKey: string) => Promise<ActionOutcome>
+    /** Asking the requester: request tasks only */
+    readonly ask?: (input: { taskId: string; question: string }, idempotencyKey: string) => Promise<ActionOutcome>
   }
 }
 
@@ -64,9 +75,30 @@ export function useClosedTask(locale: string) {
   return { closed, check }
 }
 
-export function DecisionPanel({ taskId, open, label, amount, locale, actions }: DecisionPanelProps) {
+export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQUEST', disposition, actions }: DecisionPanelProps) {
   const t = useTranslations('tasks.decide')
+  const po = kind === 'PURCHASE_ORDER'
+  const variance = kind === 'VARIANCE'
+  const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
+  const ask = kind === 'REQUEST' ? actions.ask : undefined
+  // The words of each kind; a request keeps the words it always had
+  const copy = {
+    confirmText: variance ? t('variance.confirmText', { label, amount }) : t('confirmText', { label, amount }),
+    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : t('otherLink'),
+    otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : t('otherTitle'),
+    returnOption: po ? t('po.returnOption') : t('returnOption'),
+    returnHint: po ? t('po.returnHint') : t('returnHint'),
+    rejectOption: po ? t('po.rejectOption') : t('rejectOption'),
+    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : t('rejectHint'),
+    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : t('reasonHint'),
+    submitReturn: po ? t('po.submitReturn') : t('submitReturn'),
+    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : t('submitReject'),
+    returned: po ? t('po.returned') : t('returned'),
+    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : t('rejected'),
+  }
+  const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : ['RETURN', 'REJECT']
   const tErrors = useTranslations('tasks.errors')
+  const reasonError = po ? t('po.reasonError') : variance ? t('variance.reasonError') : tErrors('REASON')
   const failureText = useTaskFailureText(locale)
   const stale = useClosedTask(locale)
   const id = useId()
@@ -75,7 +107,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, actions }: 
   const asking = useAction()
   const [confirming, setConfirming] = useState(false)
   const [done, setDone] = useState<string | null>(null)
-  const [choice, setChoice] = useState<'RETURN' | 'REJECT'>('RETURN')
+  const [choice, setChoice] = useState<'RETURN' | 'REJECT'>(variance ? 'REJECT' : 'RETURN')
   const [reason, setReason] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [errors, setErrors] = useState<{ reason?: string; confirm?: string }>({})
@@ -97,20 +129,21 @@ export function DecisionPanel({ taskId, open, label, amount, locale, actions }: 
   async function onDecide(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const next: typeof errors = {}
-    if (reason.trim().length < REASON_MIN) next.reason = tErrors('REASON')
+    if (reason.trim().length < REASON_MIN) next.reason = reasonError
     if (!confirmed) next.confirm = tErrors('CONFIRM')
     setErrors(next)
     if (next.reason || next.confirm) return
     const outcome = await deciding.run((key) => actions.decide({ taskId, decision: choice, reason: reason.trim() }, key))
-    if (outcome.ok) finished(choice === 'RETURN' ? t('returned') : t('rejected'))
+    if (outcome.ok) finished(choice === 'RETURN' ? copy.returned : copy.rejected)
     else stale.check(outcome)
   }
 
   async function onAsk(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (!ask) return
     if (question.trim().length < REASON_MIN) return setQuestionError(tErrors('QUESTION'))
     setQuestionError(undefined)
-    const outcome = await asking.run((key) => actions.ask({ taskId, question: question.trim() }, key))
+    const outcome = await asking.run((key) => ask({ taskId, question: question.trim() }, key))
     if (outcome.ok) {
       setQuestion('')
       finished(t('asked'))
@@ -136,7 +169,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, actions }: 
             {confirming ? (
               <div role="group" aria-labelledby={`${id}-confirm-text`} className="flex flex-col gap-2">
                 <p id={`${id}-confirm-text`} className="font-medium text-ink">
-                  {t('confirmText', { label, amount })}
+                  {copy.confirmText}
                 </p>
                 <div className="flex gap-3">
                   <Button onClick={() => void approve()} disabled={approving.pending} className="flex-1">
@@ -159,43 +192,52 @@ export function DecisionPanel({ taskId, open, label, amount, locale, actions }: 
               </Button>
             )}
             <a href="#other-decisions" className="inline-flex min-h-11 items-center justify-center font-medium text-primary underline underline-offset-4 hover:no-underline lg:hidden">
-              {t('otherLink')}
+              {copy.otherLink}
             </a>
           </div>
 
           <div id="other-decisions" className="flex scroll-mt-4 flex-col gap-6 border-t border-line pt-4">
             <form onSubmit={onDecide} noValidate className="flex flex-col gap-4" aria-labelledby={`${id}-other`}>
               <h3 id={`${id}-other`} className="font-semibold text-ink">
-                {t('otherTitle')}
+                {copy.otherTitle}
               </h3>
               {failureOf(deciding.outcome)}
-              <fieldset className="flex flex-col gap-1">
-                <legend className="mb-1 font-medium text-ink">{t('choice')}</legend>
-                {(['RETURN', 'REJECT'] as const).map((value) => (
-                  <label key={value} className="flex min-h-11 items-start gap-3 py-1">
-                    <input
-                      type="radio"
-                      name="decision"
-                      value={value}
-                      checked={choice === value}
-                      onChange={() => setChoice(value)}
-                      aria-describedby={`${id}-${value}-hint`}
-                      className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
-                    />
-                    <span className="flex flex-col">
-                      <span className="font-medium text-ink">{value === 'RETURN' ? t('returnOption') : t('rejectOption')}</span>
-                      <span id={`${id}-${value}-hint`} className="text-base text-ink-muted md:text-sm">
-                        {value === 'RETURN' ? t('returnHint') : t('rejectHint')}
+              {variance ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-base text-ink-muted md:text-sm">{copy.rejectHint}</p>
+                  <p className="text-base text-ink-muted md:text-sm">{t('variance.noReturn')}</p>
+                </div>
+              ) : null}
+              {/* A variance has one way out besides approving: no choice to make */}
+              {choices.length > 1 ? (
+                <fieldset className="flex flex-col gap-1">
+                  <legend className="mb-1 font-medium text-ink">{t('choice')}</legend>
+                  {choices.map((value) => (
+                    <label key={value} className="flex min-h-11 items-start gap-3 py-1">
+                      <input
+                        type="radio"
+                        name="decision"
+                        value={value}
+                        checked={choice === value}
+                        onChange={() => setChoice(value)}
+                        aria-describedby={`${id}-${value}-hint`}
+                        className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
+                      />
+                      <span className="flex flex-col">
+                        <span className="font-medium text-ink">{value === 'RETURN' ? copy.returnOption : copy.rejectOption}</span>
+                        <span id={`${id}-${value}-hint`} className="text-base text-ink-muted md:text-sm">
+                          {value === 'RETURN' ? copy.returnHint : copy.rejectHint}
+                        </span>
                       </span>
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
+                    </label>
+                  ))}
+                </fieldset>
+              ) : null}
               <TextArea
                 id={`${id}-reason`}
                 name="reason"
                 label={t('reason')}
-                hint={t('reasonHint')}
+                hint={copy.reasonHint}
                 value={reason}
                 onChange={(event) => {
                   setReason(event.currentTarget.value)
@@ -216,33 +258,35 @@ export function DecisionPanel({ taskId, open, label, amount, locale, actions }: 
                 error={errors.confirm}
               />
               <Button type="submit" variant={choice === 'REJECT' ? 'danger' : 'secondary'} disabled={deciding.pending} className="self-start">
-                {deciding.pending ? t('working') : choice === 'REJECT' ? t('submitReject') : t('submitReturn')}
+                {deciding.pending ? t('working') : choice === 'REJECT' ? copy.submitReject : copy.submitReturn}
               </Button>
             </form>
 
-            <form onSubmit={onAsk} noValidate className="flex flex-col gap-4 border-t border-line pt-4" aria-labelledby={`${id}-ask`}>
-              <h3 id={`${id}-ask`} className="font-semibold text-ink">
-                {t('askTitle')}
-              </h3>
-              {failureOf(asking.outcome)}
-              <TextArea
-                id={`${id}-question`}
-                name="question"
-                label={t('question')}
-                hint={t('askHint')}
-                value={question}
-                onChange={(event) => {
-                  setQuestion(event.currentTarget.value)
-                  setQuestionError(undefined)
-                }}
-                error={questionError}
-                maxLength={REASON_MAX_LENGTH}
-                required
-              />
-              <Button type="submit" variant="secondary" disabled={asking.pending} className="self-start">
-                {asking.pending ? t('working') : t('askSubmit')}
-              </Button>
-            </form>
+            {ask ? (
+              <form onSubmit={onAsk} noValidate className="flex flex-col gap-4 border-t border-line pt-4" aria-labelledby={`${id}-ask`}>
+                <h3 id={`${id}-ask`} className="font-semibold text-ink">
+                  {t('askTitle')}
+                </h3>
+                {failureOf(asking.outcome)}
+                <TextArea
+                  id={`${id}-question`}
+                  name="question"
+                  label={t('question')}
+                  hint={t('askHint')}
+                  value={question}
+                  onChange={(event) => {
+                    setQuestion(event.currentTarget.value)
+                    setQuestionError(undefined)
+                  }}
+                  error={questionError}
+                  maxLength={REASON_MAX_LENGTH}
+                  required
+                />
+                <Button type="submit" variant="secondary" disabled={asking.pending} className="self-start">
+                  {asking.pending ? t('working') : t('askSubmit')}
+                </Button>
+              </form>
+            ) : null}
           </div>
         </>
       ) : null}

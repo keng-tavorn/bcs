@@ -20,6 +20,10 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return t('item.doa', { code: s.code, version: s.versionNo })
     case 'ORG_AUTHORITY_CHANGE':
       return t('item.change', { kind: t(`changeKind.${s.changeKind}`) })
+    case 'PURCHASE_ORDER':
+      return t('item.po', { number: s.number ?? '-', supplier: s.supplierName })
+    case 'VARIANCE':
+      return t('item.variance', { type: t(`varianceType.${s.varianceType}`), description: s.description })
     default:
       return t('item.untitled')
   }
@@ -48,13 +52,22 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
           : memberName(locale, s.requester)
         : s.kind === 'DOA_VERSION' || s.kind === 'ORG_AUTHORITY_CHANGE'
           ? t('item.effective', { date: day(locale, s.effectiveFrom) })
-          : undefined
+          : s.kind === 'PURCHASE_ORDER'
+            ? s.submittedBy
+              ? t('item.poMeta', { name: memberName(locale, s.submittedBy) })
+              : undefined
+            : s.kind === 'VARIANCE'
+              ? t('item.varianceMeta', { number: s.poNumber ?? '-' })
+              : undefined
     return {
       id: task.id,
       href: `/tasks/${task.id}`,
       title: taskTitle(t, task),
       ...(meta ? { meta } : {}),
       ...(s.kind === 'REQUEST' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      // A PO is decided on its total with VAT; a variance on its amount before VAT, as recorded
+      ...(s.kind === 'PURCHASE_ORDER' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      ...(s.kind === 'VARIANCE' ? { amount: money(s.amountSatang), amountLabel: t('item.varianceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
       states,
       tags,
     }

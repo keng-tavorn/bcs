@@ -48,6 +48,25 @@ export type InboxSubjectDto =
     }
   | { readonly kind: 'DOA_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
   | { readonly kind: 'ORG_AUTHORITY_CHANGE'; readonly changeKind: OrgChangeKind; readonly effectiveFrom: Date }
+  /** A purchase order sent for approval (FR-P2P-004): its number, supplier, who sent it and its total with VAT */
+  | {
+      readonly kind: 'PURCHASE_ORDER'
+      readonly poId: string
+      readonly number: string | null
+      readonly supplierName: string
+      /** The member of its latest sending for approval (po.submitted), who may not be the one who made the draft */
+      readonly submittedBy: MemberRefDto | null
+      readonly grossSatang: bigint
+    }
+  /** A variance of a goods receipt waiting for the GR_VARIANCE approver (FR-P2P-007 AC2): before VAT, as recorded */
+  | {
+      readonly kind: 'VARIANCE'
+      readonly varianceId: string
+      readonly poNumber: string | null
+      readonly description: string
+      readonly varianceType: 'SHORT' | 'OVER' | 'DAMAGED'
+      readonly amountSatang: bigint
+    }
   | { readonly kind: 'OTHER' }
 
 export interface InboxTaskDto {
@@ -76,7 +95,7 @@ const INBOX_LIMIT = 200
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -86,11 +105,43 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     ids('DOA_VERSION').length ? db.doaVersion.findMany({ where: { id: { in: ids('DOA_VERSION') } }, select: { id: true, code: true, versionNo: true, effectiveFrom: true } }) : Promise.resolve([]),
     ids('ORG_AUTHORITY_CHANGE').length ? db.orgAuthorityChange.findMany({ where: { id: { in: ids('ORG_AUTHORITY_CHANGE') } }, select: { id: true, kind: true, effectiveFrom: true } }) : Promise.resolve([]),
     departmentsOf(db),
+    ids('PURCHASE_ORDER').length
+      ? db.purchaseOrder.findMany({
+          where: { id: { in: ids('PURCHASE_ORDER') } },
+          select: { id: true, number: true, grossSatang: true, supplier: { select: { nameTh: true } } },
+        })
+      : Promise.resolve([]),
+    ids('VARIANCE').length
+      ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
+      : Promise.resolve([]),
   ])
   const request = new Map(requests.map((r) => [r.id, r]))
   const version = new Map(versions.map((v) => [v.id, v]))
   const change = new Map(changes.map((c) => [c.id, c]))
+  const po = new Map(pos.map((p) => [p.id, p]))
+  const variance = new Map(variances.map((v) => [v.id, v]))
+  // Who sent each PO for approval: the actor of its latest po.submitted Event
+  const submitted = pos.length
+    ? await db.event.findMany({ where: { type: 'po.submitted', aggregateType: 'PurchaseOrder', aggregateId: { in: pos.map((p) => p.id) }, actorType: 'USER' }, orderBy: { seq: 'asc' }, select: { aggregateId: true, actorMemberId: true } })
+    : []
+  const submitterOf = new Map(submitted.map((e) => [e.aggregateId, e.actorMemberId]))
+  const submitters = await membersById(db, submitterOf.values())
   return (type, id) => {
+    if (type === 'PURCHASE_ORDER' && po.has(id)) {
+      const p = po.get(id)!
+      return {
+        kind: 'PURCHASE_ORDER',
+        poId: p.id,
+        number: p.number,
+        supplierName: p.supplier.nameTh,
+        submittedBy: submitters.get(submitterOf.get(p.id) ?? '') ?? null,
+        grossSatang: p.grossSatang,
+      }
+    }
+    if (type === 'VARIANCE' && variance.has(id)) {
+      const v = variance.get(id)!
+      return { kind: 'VARIANCE', varianceId: v.id, poNumber: v.po.number, description: v.poLine.description, varianceType: v.type, amountSatang: v.amountSatang }
+    }
     if (type === 'REQUEST' && request.has(id)) {
       const r = request.get(id)!
       return {

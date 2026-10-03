@@ -310,6 +310,26 @@ export interface PlaywrightJson {
 }
 
 /**
+ * One report of several `playwright test` runs (the screens, then the demo scenes on their own database): suites and
+ * errors side by side, the counts added up, so the traceability gate reads every e2e test of this verify in one file
+ */
+export function mergePlaywrightReports(reports: ReadonlyArray<PlaywrightJson & Record<string, unknown>>): PlaywrightJson & Record<string, unknown> {
+  const stats = { expected: 0, skipped: 0, unexpected: 0, flaky: 0 }
+  const suites: unknown[] = []
+  const errors: unknown[] = []
+  for (const report of reports) {
+    stats.expected += report.stats?.expected ?? 0
+    stats.skipped += report.stats?.skipped ?? 0
+    stats.unexpected += report.stats?.unexpected ?? 0
+    stats.flaky += report.stats?.flaky ?? 0
+    if (Array.isArray(report.suites)) suites.push(...(report.suites as unknown[]))
+    if (Array.isArray(report.errors)) errors.push(...(report.errors as unknown[]))
+  }
+  const first = reports[0] ?? {}
+  return { ...first, suites, errors, stats: { ...(first.stats ?? {}), ...stats } }
+}
+
+/**
  * Judges one `playwright test` run by the JSON report it wrote in this run (verify deletes the old one first).
  * A missing report, no test that ran, or a skipped, failed or flaky test is a FAIL.
  */

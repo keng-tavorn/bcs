@@ -1,6 +1,12 @@
 // Environment for end-to-end runs (plan: runtime partitioning): its own database (bcs_e2e), its own port (3100)
 // and build folder, so it never touches the developer database or the `next dev` server on :3000.
-export const E2E_DB = process.env.BCS_E2E_DB ?? 'bcs_e2e'
+
+// The demo scenes (D-04, tests/e2e/demo) run alone against a database seeded with the demo history (D-01):
+// `pnpm test:e2e --grep @demo` or E2E_DEMO=1. The flag goes into the environment so Playwright's workers and the
+// web server's setup (tests/e2e/prepare-db.ts), which do not see the command line, agree with the main process.
+if (process.argv.some((arg) => arg.includes('@demo'))) process.env.E2E_DEMO = '1'
+export const E2E_DEMO = process.env.E2E_DEMO === '1'
+export const E2E_DB = process.env.BCS_E2E_DB ?? (E2E_DEMO ? 'bcs_e2e_demo' : 'bcs_e2e')
 export const E2E_PORT = Number(process.env.E2E_PORT ?? 3100)
 export const E2E_BASE_URL = `http://localhost:${E2E_PORT}`
 /** The transaction PIN the e2e seed gives every demo approver (SEED_DEV_PIN; passes the PIN rules of FR-AUTH-005 AC1) */
@@ -62,5 +68,6 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     LINE_API_BASE_URL: E2E_FAKE_LINE_URL,
     LINE_DATA_API_BASE_URL: E2E_FAKE_LINE_URL,
     LIFF_MOCK: '1',
+    E2E_DEMO: E2E_DEMO ? '1' : '0',
   }
 }

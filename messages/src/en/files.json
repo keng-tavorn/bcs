@@ -1,0 +1,15 @@
+{
+  "chooseFile": "Choose a file",
+  "choosePhoto": "Take or choose a photo",
+  "rule": "PDF, JPG, PNG and HEIC images, Excel and Word (xlsx, docx) up to 20 MB",
+  "uploading": "Uploading {name}",
+  "uploaded": "{name} attached",
+  "typeNotAllowed": "This kind of file cannot be attached. Use PDF, JPG, PNG, HEIC, or Excel and Word files (xlsx, docx).",
+  "tooLarge": "The file is larger than 20 MB. Make it smaller or split it, then try again.",
+  "empty": "This file is empty. Choose another file.",
+  "contentMismatch": "The file content does not match its type; it may have been renamed. Send the original file.",
+  "failed": "The upload did not work. Check your connection and try again.",
+  "harnessTitle": "Attachment test",
+  "harnessIntro": "This page exists only on developer machines, to test attachments before the request forms exist.",
+  "download": "Open {name}"
+}

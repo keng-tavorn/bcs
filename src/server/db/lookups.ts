@@ -55,3 +55,13 @@ export async function findOrganizationForPlatform(organizationId: string): Promi
   const r = await systemDb.organization.findUnique({ where: { id: organizationId }, select: PLATFORM_ORG_SELECT })
   return r ? { id: r.id, code: r.code, name: r.displayName ?? r.legalNameTh, status: r.status } : null
 }
+
+/**
+ * The VAT rates (BR-VAT-01, spec §7.1). TaxRate belongs to no organization, so services read it here; the dates come
+ * back as the calendar days they hold ("YYYY-MM-DD").
+ */
+export async function listTaxRates(): Promise<Array<{ code: string; rateBp: number; effectiveFrom: string; effectiveTo: string | null }>> {
+  const rows = await systemDb.taxRate.findMany({ select: { code: true, rateBp: true, effectiveFrom: true, effectiveTo: true }, orderBy: { effectiveFrom: 'asc' } })
+  const day = (d: Date) => d.toISOString().slice(0, 10)
+  return rows.map((r) => ({ code: r.code, rateBp: r.rateBp, effectiveFrom: day(r.effectiveFrom), effectiveTo: r.effectiveTo ? day(r.effectiveTo) : null }))
+}

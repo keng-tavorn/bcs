@@ -1,0 +1,108 @@
+import { randomUUID } from 'node:crypto'
+import { parse as parseYaml } from 'yaml'
+import { toJsonSafe } from '@/lib/json'
+import { OrgSettingsSchema } from '@/lib/org-settings'
+import { makeCtx, type Ctx } from '@/server/context'
+import { prisma } from '@/server/db/client'
+import { ruleJson } from '@/server/doa/snapshot'
+import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
+import { seedTaxRates } from '@/server/seed/tax-rates'
+import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
+
+// An organization built from the §7.4 fixtures for service tests: the departments and position holders of
+// org-demo.yaml, DOA version 1 of doa-versions.yaml as PUBLISHED, the demo settings (calendar, numbering), the VAT
+// rates and a BUY_GOODS request type with a published form that carries the ATT-QUOTES rule of forms.yaml.
+
+interface OrgFixture {
+  departments: Array<{ code: string; nameTh: string; parent: string | null }>
+  positions: Array<{ position: string; department: string; member: string }>
+  members: Record<string, string>
+}
+
+export interface DoaOrg {
+  readonly organizationId: string
+  readonly member: Readonly<Record<string, string>>
+  readonly department: Readonly<Record<string, string>>
+  readonly ctxOf: (code: string, now: Date, channel?: Ctx['channel']) => Ctx
+}
+
+const FORM_SCHEMA = {
+  fields: [{ id: 'singleSourceJustification', type: 'textarea' }],
+  visibility: [],
+  rules: [
+    {
+      id: 'ATT-QUOTES',
+      when: { field: '$amountGross', op: 'gt', value: '100000.00' },
+      require: { any: [{ attachments: 'QUOTATION', min: 3 }, { all: [{ attachments: 'QUOTATION', min: 1 }, { field: 'singleSourceJustification', op: 'notEmpty' }] }] },
+    },
+  ],
+}
+
+export async function createDoaOrg(): Promise<DoaOrg> {
+  await seedTaxRates()
+  const fixture = loadYaml<OrgFixture>('fixtures/org-demo.yaml')
+  const settings = OrgSettingsSchema.parse(parseYaml(loadOrgSettingsYaml()))
+  const org = await prisma.organization.create({
+    data: { code: `D-${randomUUID().slice(0, 8)}`, legalNameTh: 'องค์กรทดสอบ DOA', taxId: '0999999000055', timezone: 'Asia/Bangkok', settings: toJsonSafe(settings) as object },
+  })
+  const organizationId = org.id
+
+  const department: Record<string, string> = {}
+  const pending = [...fixture.departments]
+  while (pending.length) {
+    const next = pending.findIndex((d) => d.parent === null || department[d.parent])
+    const d = pending.splice(next, 1)[0]!
+    department[d.code] = (await prisma.department.create({ data: { organizationId, code: d.code, nameTh: d.nameTh, parentId: d.parent ? department[d.parent]! : null, kind: d.parent ? 'DEPARTMENT' : 'COMPANY' } })).id
+  }
+
+  const member: Record<string, string> = {}
+  for (const [code, dept] of Object.entries(fixture.members)) {
+    member[code] = (
+      await prisma.member.create({
+        data: { organizationId, displayNameTh: `ผู้ใช้ ${code}`, email: `${code}-${randomUUID()}@test.bcs.local`, employeeCode: code, status: 'ACTIVE', primaryDepartmentId: department[dept]! },
+      })
+    ).id
+  }
+
+  const position: Record<string, string> = {}
+  for (const p of fixture.positions) {
+    position[p.position] ??= (await prisma.position.create({ data: { organizationId, code: p.position, nameTh: p.position, scope: p.department === 'HQ' ? 'ORG' : 'DEPARTMENT' } })).id
+    await prisma.positionAssignment.create({
+      data: { organizationId, positionId: position[p.position]!, departmentId: department[p.department]!, memberId: member[p.member]!, validFrom: new Date('2026-01-01T00:00:00+07:00') },
+    })
+  }
+
+  const v1 = versionSnapshots().find((v) => v.versionNo === 1)!
+  const version = await prisma.doaVersion.create({
+    data: {
+      organizationId,
+      code: v1.code,
+      versionNo: 1,
+      status: 'PUBLISHED',
+      effectiveFrom: v1.effectiveFrom,
+      amountBasis: v1.amountBasis,
+      selfApprovalPolicy: v1.selfApprovalPolicy,
+      collapseDuplicateApprovers: v1.collapseDuplicateApprovers,
+      stepUpThresholdSatang: 10_000_000n,
+      escalationPolicy: { remindPct: 0.5, escalateAfterBusinessHours: 8 },
+      sodPolicy: { approverMayReceive: false, requesterMayReceive: true },
+      publishedAt: v1.effectiveFrom,
+    },
+  })
+  for (const rule of v1.rules) {
+    const json = ruleJson(rule)
+    await prisma.doaRule.create({ data: { organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
+  }
+
+  const type = await prisma.requestType.create({ data: { organizationId, code: 'BUY_GOODS', nameTh: 'ซื้อของ', documentType: 'PURCHASE_REQUEST' } })
+  const form = await prisma.formVersion.create({ data: { organizationId, requestTypeId: type.id, versionNo: 1, schema: FORM_SCHEMA, status: 'PUBLISHED', publishedAt: v1.effectiveFrom } })
+  await prisma.requestType.update({ where: { id: type.id }, data: { currentFormVersionId: form.id } })
+  await prisma.holiday.createMany({ data: ['2026-10-13', '2026-10-23'].map((d) => ({ organizationId, date: new Date(`${d}T00:00:00Z`), nameTh: 'วันหยุด' })) })
+
+  return {
+    organizationId,
+    member,
+    department,
+    ctxOf: (code, now, channel = 'WEB') => makeCtx({ organizationId, actor: { type: 'USER', memberId: member[code]! }, channel, now }),
+  }
+}

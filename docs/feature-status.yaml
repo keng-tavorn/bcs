@@ -203,19 +203,22 @@ features:
     step: S2
     evidence:
       - tests/golden/doa.test.ts
+      - tests/integration/requests.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-004:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/requests.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-005:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/requests.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-006:
@@ -223,6 +226,7 @@ features:
     step: S2
     evidence:
       - tests/golden/delegation.test.ts
+      - tests/integration/requests.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null
     notes: ""
@@ -306,6 +310,7 @@ features:
     step: S2
     evidence:
       - tests/golden/sla.test.ts
+      - tests/integration/requests.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-008:
@@ -319,6 +324,7 @@ features:
     step: S2
     evidence:
       - tests/generated/state-machines.test.ts
+      - tests/integration/requests.test.ts
     verifiedBy: null
     notes: ""
   FR-BUD-001:

@@ -60,9 +60,11 @@ describe('[FR-VIS-001/AC1] the board counts open tasks per person, their age in 
     expect(dm.oldestMinutes).toBe(11 * 60)
     const vp = board.find((r) => r.memberId === org.member.vp_ops)!
     expect(vp).toMatchObject({ open: 1, waitingForRequester: 0 })
-    // dm_con sees their own tasks; another member's documents stay hidden from the requester of others
-    const mine = ok(await pendingBoard(org.ctxOf('dm_con', now)))
-    expect(mine.map((r) => r.memberId)).toEqual([org.member.dm_con])
+    // dm_con holds the DM of CON: as its department head (§2.2) they see the tasks on CON's documents, the VP's too
+    const head = ok(await pendingBoard(org.ctxOf('dm_con', now)))
+    expect(head.map((r) => r.memberId).sort()).toEqual([org.member.dm_con, org.member.vp_ops].sort())
+    // a member who heads nothing and asked for nothing sees no row
+    expect(ok(await pendingBoard(org.ctxOf('fin_officer', now)))).toEqual([])
     const other = await submitted('500.00', MONDAY, 'asst_con')
     const requesterView = ok(await pendingBoard(org.ctxOf('req_con', now)))
     expect(requesterView.flatMap((r) => r.tasks.map((t) => t.subjectId))).not.toContain(other.requestId)

@@ -82,6 +82,24 @@ export interface RequestDraft {
   readonly nonLowestQuoteReason: string
   readonly attachments: readonly Attachment[]
   readonly returnReason: string | null
+  /** Where the goods go (S4-02); absent or null: not chosen */
+  readonly deliverySiteId?: string | null
+  /** The supplier the requester suggests (FR-P2P-001 AC2) */
+  readonly suggestedSupplierId?: string | null
+}
+
+export interface DeliverySiteOption {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly address: string | null
+}
+
+/** A supplier of the register a requester may suggest: the basic details every member sees (§2.4 supplier.view) */
+export interface SupplierOption {
+  readonly id: string
+  readonly code: string
+  readonly name: string
 }
 
 export interface RequestFormData {
@@ -92,6 +110,12 @@ export interface RequestFormData {
   readonly defaultBudgetLineId: string | null
   readonly vatRateBp: number | null
   readonly attachmentKinds: readonly string[]
+  /** A purchase request's active delivery sites (absent: none offered) */
+  readonly deliverySites?: readonly DeliverySiteOption[]
+  /** BR-FORM-02: the site of the requester's latest request, or the organization's only site */
+  readonly defaultDeliverySiteId?: string | null
+  /** Active suppliers of the register a requester may suggest (absent: none offered) */
+  readonly suppliers?: readonly SupplierOption[]
   readonly draft: RequestDraft | null
 }
 

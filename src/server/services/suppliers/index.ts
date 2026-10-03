@@ -1,17 +1,22 @@
 import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
 import { isValidThaiTaxId, normalizeTaxId } from '@/core/thai/taxid'
-import { getRegistryProvider, isJuristicTaxId, type RegistryAnswer } from '@/integrations/registry'
+import { getRegistryProvider, isJuristicTaxId, type RegistryAnswer, type RegistryProvider } from '@/integrations/registry'
+import { getEnv } from '@/lib/env'
+import { logger } from '@/lib/logger'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { describeError } from '@/server/errors/describe'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 
 // The supplier register, tier 1 (spec §6.2 Supplier, §2.4 supplier.manage = PROCUREMENT): a Thai supplier's tax id
 // passes mod-11 (BR-TAXID-01, written with or without dashes and spaces) and (tax id, branch) is unique; a foreign
-// supplier may have no Thai tax id. The Express vendor code is kept for the AP file (BR-EXP-04). Changes are checked
-// against the version the user saw (§6.1 optimistic lock).
+// supplier may have no Thai tax id. A Thai supplier's identity — its tax id and branch — is checked against the
+// registries, or confirmed by a person with proof, when it is added and again whenever it changes (BR-SUP-01 to
+// BR-SUP-03). The Express vendor code is kept for the AP file (BR-EXP-04). Changes are checked against the version the
+// user saw (§6.1 optimistic lock).
 
 type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'CONFLICT_VERSION'
 const fail = (code: FailCode, message: string, details?: Record<string, unknown>) => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
@@ -61,13 +66,28 @@ export interface RegistryProposal {
   readonly individual: boolean
 }
 
-/** What the registries say about a tax id and branch, read by the server (never taken from the browser) */
+/**
+ * What the registries say about a tax id and branch, read by the server (never taken from the browser). Registries that
+ * cannot be reached — the service is down, or REGISTRY_MODE=live before S4-16 builds it (OQ-37) — answer UNAVAILABLE:
+ * BR-SUP-03 does not block, a person confirms the supplier with proof. The failure is logged without the number (an
+ * individual's tax id is their national id number, NFR-SEC-09) and without the error's text (FR-PLT-008 AC3).
+ */
 async function checkRegistry(taxId: string, branchCode: string): Promise<{ proposal: RegistryProposal; data: Record<string, unknown> }> {
-  const provider = getRegistryProvider()
-  const { rd, dbd } = await provider.lookup({ taxId, branchCode })
+  let mode: RegistryProvider['mode'] = getEnv().REGISTRY_MODE
+  let answers: { readonly rd: RegistryAnswer; readonly dbd: RegistryAnswer }
+  try {
+    const provider = getRegistryProvider()
+    mode = provider.mode
+    answers = await provider.lookup({ taxId, branchCode })
+  } catch (error) {
+    logger.warn({ registryMode: mode, error: describeError(error) }, 'the supplier registries could not be reached: a person confirms the supplier with proof (BR-SUP-03)')
+    // BR-SUP-02: DBD is not asked about an individual
+    answers = { rd: { status: 'UNAVAILABLE' }, dbd: isJuristicTaxId(taxId) ? { status: 'UNAVAILABLE' } : { status: 'SKIPPED' } }
+  }
+  const { rd, dbd } = answers
   const found = [rd, dbd].filter((a): a is Extract<RegistryAnswer, { status: 'FOUND' }> => a.status === 'FOUND')
   const outcome = found.length ? 'FOUND' : [rd, dbd].some((a) => a.status === 'UNAVAILABLE') ? 'UNAVAILABLE' : 'NOT_FOUND'
-  const sourceOf = (which: 'RD' | 'DBD'): 'RD' | 'DBD' | 'STUB' => (provider.mode === 'stub' ? 'STUB' : which)
+  const sourceOf = (which: 'RD' | 'DBD'): 'RD' | 'DBD' | 'STUB' => (mode === 'stub' ? 'STUB' : which)
   const sources = [...new Set([...(rd.status === 'FOUND' ? [sourceOf('RD')] : []), ...(dbd.status === 'FOUND' ? [sourceOf('DBD')] : [])])]
   const first = found[0]?.record
   return {
@@ -82,9 +102,63 @@ async function checkRegistry(taxId: string, branchCode: string): Promise<{ propo
       juristicStatus: dbd.status === 'FOUND' ? (dbd.record.juristicStatus ?? null) : null,
       individual: !isJuristicTaxId(taxId),
     },
-    data: { mode: provider.mode, rd, dbd },
+    data: { mode, rd, dbd },
   }
 }
+
+/** BR-SUP-01 to BR-SUP-03: LOOKUP — the server asks the registries again; MANUAL — they could not confirm, a person does with proof */
+const RegistryCheck = z.discriminatedUnion('check', [z.strictObject({ check: z.literal('LOOKUP') }), z.strictObject({ check: z.literal('MANUAL'), proofFileId: z.uuid() })])
+
+/** How a Thai supplier's identity was confirmed, as the register keeps it */
+interface ConfirmedIdentity {
+  readonly source: 'RD' | 'DBD' | 'MANUAL' | 'STUB'
+  readonly status: string | null
+  readonly data: Record<string, unknown>
+  readonly outcome: 'FOUND' | 'NOT_FOUND' | 'UNAVAILABLE'
+  readonly sources: ReadonlyArray<'RD' | 'DBD' | 'MANUAL' | 'STUB'>
+  readonly proofFileId: string | null
+}
+
+/**
+ * §7.15 for a Thai supplier's tax id and branch, when it is added and whenever they change: LOOKUP needs the registries,
+ * asked again here, to find it (BR-SUP-01); MANUAL is for when they cannot, with a proof file the user uploaded
+ * (BR-SUP-03, FileLink REGISTRY_PROOF). Nothing is written here.
+ */
+async function confirmIdentity(
+  tx: TenantTx,
+  ctx: Ctx,
+  identity: { taxId: string; branchCode: string },
+  check: z.infer<typeof RegistryCheck> | undefined,
+): Promise<{ readonly ok: true; readonly identity: ConfirmedIdentity } | ReturnType<typeof fail>> {
+  if (!check) return fail('VALIDATION_FAILED', 'check the registries or confirm with proof', { field: 'registry', reason: 'REGISTRY_CHECK_REQUIRED' })
+  const checked = await checkRegistry(identity.taxId, identity.branchCode)
+  if (check.check === 'LOOKUP') {
+    if (checked.proposal.outcome !== 'FOUND') return fail('VALIDATION_FAILED', 'the registries could not confirm the supplier: attach proof', { field: 'registry', reason: 'REGISTRY_PROOF_REQUIRED', outcome: checked.proposal.outcome })
+    return {
+      ok: true,
+      identity: { source: checked.proposal.sources[0] as 'RD' | 'DBD' | 'STUB', status: checked.proposal.juristicStatus, data: checked.data, outcome: 'FOUND', sources: [...checked.proposal.sources], proofFileId: null },
+    }
+  }
+  const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+  const own = actor ? await tx.fileObject.count({ where: { id: check.proofFileId, uploadedById: actor, status: 'AVAILABLE' } }) : 0
+  if (own !== 1) return fail('VALIDATION_FAILED', 'the proof must be a file you uploaded', { field: 'registry.proofFileId', reason: 'FILE' })
+  return { ok: true, identity: { source: 'MANUAL', status: checked.proposal.juristicStatus, data: checked.data, outcome: checked.proposal.outcome, sources: ['MANUAL'], proofFileId: check.proofFileId } }
+}
+
+/** Supplier columns that keep the confirmed identity (§6.2) */
+const identityColumns = (identity: ConfirmedIdentity, now: Date) => ({ registrySource: identity.source, registryStatus: identity.status, registryCheckedAt: now, registryData: identity.data as object })
+
+/** The proof a person confirmed the supplier with, linked to it (BR-SUP-03) */
+async function linkProof(tx: TenantTx, ctx: Ctx, supplierId: string, identity: ConfirmedIdentity) {
+  if (identity.proofFileId) await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: identity.proofFileId, subjectType: 'Supplier', subjectId: supplierId, kind: 'REGISTRY_PROOF' } })
+}
+
+const registryChecked = (supplierId: string, taxId: string, branchCode: string, identity: ConfirmedIdentity): EventDraft => ({
+  type: 'supplier.registry_checked',
+  aggregateType: 'Supplier',
+  aggregateId: supplierId,
+  data: { taxId, branchCode, sources: [...identity.sources], outcome: identity.outcome },
+})
 
 /** FR-SUP-001 AC1: type a tax id and get the registry's values to confirm; PROCUREMENT only */
 export async function lookupRegistry(ctx: Ctx, input: { taxId: string; branchCode?: string }): Promise<Result<RegistryProposal>> {
@@ -116,7 +190,7 @@ const CreateSupplierInput = z.strictObject({
    * BR-SUP-01 to BR-SUP-03: LOOKUP checks the registries again on the server and keeps what they said; MANUAL is for
    * when they cannot confirm the supplier and needs a proof file (FileLink REGISTRY_PROOF). A foreign supplier skips it.
    */
-  registry: z.discriminatedUnion('check', [z.strictObject({ check: z.literal('LOOKUP') }), z.strictObject({ check: z.literal('MANUAL'), proofFileId: z.uuid() })]).optional(),
+  registry: RegistryCheck.optional(),
 })
 
 export const createSupplierCommand = defineCommand({
@@ -132,19 +206,11 @@ export const createSupplierCommand = defineCommand({
     const same = await duplicateOf(tx, taxId.taxId, input.branchCode)
     if (same) return fail('VALIDATION_FAILED', 'a supplier with this tax id and branch exists', { field: 'taxId', reason: 'SUPPLIER_EXISTS', supplierId: same.id, code: same.code })
     // §7.15: a Thai supplier is checked against the registries, or confirmed by a person with proof
-    let registry: { source: 'RD' | 'DBD' | 'MANUAL' | 'STUB'; status: string | null; data: Record<string, unknown>; outcome: 'FOUND' | 'NOT_FOUND' | 'UNAVAILABLE'; sources: Array<'RD' | 'DBD' | 'MANUAL' | 'STUB'>; proofFileId: string | null } | null = null
+    let registry: ConfirmedIdentity | null = null
     if (!input.isForeign && taxId.taxId) {
-      if (!input.registry) return fail('VALIDATION_FAILED', 'check the registries or confirm with proof', { field: 'registry', reason: 'REGISTRY_CHECK_REQUIRED' })
-      const checked = await checkRegistry(taxId.taxId, input.branchCode)
-      if (input.registry.check === 'LOOKUP') {
-        if (checked.proposal.outcome !== 'FOUND') return fail('VALIDATION_FAILED', 'the registries could not confirm the supplier: attach proof', { field: 'registry', reason: 'REGISTRY_PROOF_REQUIRED', outcome: checked.proposal.outcome })
-        registry = { source: checked.proposal.sources[0] as 'RD' | 'DBD' | 'STUB', status: checked.proposal.juristicStatus, data: checked.data, outcome: 'FOUND', sources: [...checked.proposal.sources], proofFileId: null }
-      } else {
-        const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
-        const own = await tx.fileObject.count({ where: { id: input.registry.proofFileId, uploadedById: actor ?? undefined, status: 'AVAILABLE' } })
-        if (own !== 1) return fail('VALIDATION_FAILED', 'the proof must be a file you uploaded', { field: 'registry.proofFileId', reason: 'FILE' })
-        registry = { source: 'MANUAL', status: checked.proposal.juristicStatus, data: checked.data, outcome: checked.proposal.outcome, sources: ['MANUAL'], proofFileId: input.registry.proofFileId }
-      }
+      const confirmed = await confirmIdentity(tx, ctx, { taxId: taxId.taxId, branchCode: input.branchCode }, input.registry)
+      if (!confirmed.ok) return confirmed
+      registry = confirmed.identity
     }
     const row = await tx.supplier.create({
       data: {
@@ -162,11 +228,11 @@ export const createSupplierCommand = defineCommand({
         category: input.category ?? null,
         expressVendorCode: input.expressVendorCode ?? null,
         createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
-        ...(registry ? { registrySource: registry.source, registryStatus: registry.status, registryCheckedAt: ctx.now, registryData: registry.data as object } : {}),
+        ...(registry ? identityColumns(registry, ctx.now) : {}),
       },
       select: { id: true },
     })
-    if (registry?.proofFileId) await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: registry.proofFileId, subjectType: 'Supplier', subjectId: row.id, kind: 'REGISTRY_PROOF' } })
+    if (registry) await linkProof(tx, ctx, row.id, registry)
     const events: EventDraft[] = [
       {
         type: 'supplier.created',
@@ -175,7 +241,7 @@ export const createSupplierCommand = defineCommand({
         data: { code: input.code, taxId: taxId.taxId, branchCode: input.branchCode, isForeign: input.isForeign, registrySource: registry?.source ?? null, via: 'PROCUREMENT' },
       },
     ]
-    if (registry) events.push({ type: 'supplier.registry_checked', aggregateType: 'Supplier', aggregateId: row.id, data: { taxId: taxId.taxId!, branchCode: input.branchCode, sources: registry.sources, outcome: registry.outcome } })
+    if (registry && taxId.taxId) events.push(registryChecked(row.id, taxId.taxId, input.branchCode, registry))
     return { ok: true, result: { supplierId: row.id }, events }
   },
 })
@@ -201,6 +267,8 @@ const UpdateSupplierInput = z.strictObject({
   category: Fields.category.optional(),
   expressVendorCode: Fields.expressVendorCode.optional(),
   status: Fields.status.optional(),
+  /** Needed when a Thai supplier's tax id or branch changes (BR-SUP-01 to BR-SUP-03), refused otherwise */
+  registry: RegistryCheck.optional(),
 })
 
 const EDITABLE = ['nameTh', 'nameEn', 'taxId', 'branchCode', 'isVatRegistered', 'email', 'phone', 'address', 'category', 'expressVendorCode', 'status'] as const
@@ -224,19 +292,33 @@ export const updateSupplierCommand = defineCommand({
     for (const key of EDITABLE) if (key !== 'taxId' && input[key] !== undefined) next[key] = input[key]
     const changed = EDITABLE.filter((key) => key in next && next[key] !== supplier[key])
     if (changed.length === 0) return fail('VALIDATION_FAILED', 'nothing to change', { reason: 'NO_CHANGE' })
+    // A new tax id or branch is a new identity: unique, and for a Thai supplier checked against the registries or
+    // confirmed with proof, as when it was added (BR-SUP-01 to BR-SUP-03)
+    let identity: { taxId: string; branchCode: string; confirmed: ConfirmedIdentity } | null = null
     if (changed.includes('taxId') || changed.includes('branchCode')) {
-      const same = await duplicateOf(tx, (next.taxId as string | null | undefined) ?? supplier.taxId, (next.branchCode as string | undefined) ?? supplier.branchCode, supplier.id)
+      const taxId = (changed.includes('taxId') ? next.taxId : supplier.taxId) as string | null
+      const branchCode = (changed.includes('branchCode') ? next.branchCode : supplier.branchCode) as string
+      const same = await duplicateOf(tx, taxId, branchCode, supplier.id)
       if (same) return fail('VALIDATION_FAILED', 'a supplier with this tax id and branch exists', { field: 'taxId', reason: 'SUPPLIER_EXISTS', supplierId: same.id, code: same.code })
+      if (!supplier.isForeign && taxId) {
+        const confirmed = await confirmIdentity(tx, ctx, { taxId, branchCode }, input.registry)
+        if (!confirmed.ok) return confirmed
+        identity = { taxId, branchCode, confirmed: confirmed.identity }
+      }
     }
+    // A check or proof belongs to a new identity of a Thai supplier; sent with anything else it would be dropped unseen
+    if (input.registry && !identity) return fail('VALIDATION_FAILED', 'a registry check goes with a new tax id or branch of a Thai supplier', { field: 'registry', reason: 'REGISTRY_NOT_NEEDED' })
     const data = Object.fromEntries(changed.map((key) => [key, next[key]]))
     // The version moves only if nobody saved in between (the row is not locked while the user edits)
-    const saved = await tx.supplier.updateMany({ where: { id: supplier.id, version: supplier.version }, data: { ...data, version: { increment: 1 } } })
+    const saved = await tx.supplier.updateMany({
+      where: { id: supplier.id, version: supplier.version },
+      data: { ...data, ...(identity ? identityColumns(identity.confirmed, ctx.now) : {}), version: { increment: 1 } },
+    })
     if (saved.count !== 1) return fail('CONFLICT_VERSION', 'the supplier changed since it was opened')
-    return {
-      ok: true,
-      result: { supplierId: supplier.id, version: supplier.version + 1 },
-      events: [{ type: 'supplier.updated', aggregateType: 'Supplier', aggregateId: supplier.id, data: { code: supplier.code, changed: [...changed] } }],
-    }
+    if (identity) await linkProof(tx, ctx, supplier.id, identity.confirmed)
+    const events: EventDraft[] = [{ type: 'supplier.updated', aggregateType: 'Supplier', aggregateId: supplier.id, data: { code: supplier.code, changed: [...changed] } }]
+    if (identity) events.push(registryChecked(supplier.id, identity.taxId, identity.branchCode, identity.confirmed))
+    return { ok: true, result: { supplierId: supplier.id, version: supplier.version + 1 }, events }
   },
 })
 

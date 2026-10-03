@@ -246,6 +246,10 @@
     "budgetLine": "Budget line",
     "noBudgetLine": "Not chosen yet",
     "department": "Paying department",
+    "site": "Delivery site",
+    "noSite": "Not chosen yet",
+    "supplier": "Suggested supplier",
+    "noSupplier": "None: procurement chooses",
     "lines": "Items",
     "lineCount": "{count, plural, one {# item} other {# items}}",
     "files": "Attached files",
@@ -323,7 +327,27 @@
     "NO_DEPARTMENT": "Your account is not in any department yet. Ask your organization's administrator to set your department first",
     "TOO_LARGE": "This draft is too large to save. Remove some items or shorten very long texts, then try again",
     "NO_FORM": "This request type no longer has a form in use. Choose another type on the Buy or hire page",
-    "LINE_ID": "Some items were removed or changed elsewhere. Load the latest version and continue from it"
+    "LINE_ID": "Some items were removed or changed elsewhere. Load the latest version and continue from it",
+    "SITE_UNKNOWN": "The delivery site you chose is no longer in use. Choose another one in Items",
+    "SUPPLIER_UNKNOWN": "The suggested supplier is no longer in use. Choose another supplier or none in Quotations and documents"
+  },
+  "site": {
+    "label": "Delivery site",
+    "none": "Not chosen yet",
+    "option": "{code} · {name}",
+    "prefilled": "Filled in for you. Change it if this request goes elsewhere. It applies to every item of this request",
+    "hint": "It applies to every item of this request. Procurement groups purchase orders by delivery site",
+    "address": "Address: {address}",
+    "dropped": "The delivery site saved with this draft is no longer in use. Choose another one"
+  },
+  "supplier": {
+    "title": "Suggested supplier",
+    "label": "Supplier from the register (optional)",
+    "none": "None",
+    "option": "{code} · {name}",
+    "hint": "If you know a suitable supplier, suggest it here. Procurement chooses the actual supplier of each item",
+    "noneInRegister": "There are no suppliers in the register to choose from yet. Procurement will choose one",
+    "dropped": "The suggested supplier is no longer in use. Choose another supplier or none"
   },
   "sent": {
     "send": "Sent for approval",

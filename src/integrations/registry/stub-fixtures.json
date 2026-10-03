@@ -1,5 +1,5 @@
 {
-  "_comment": "Fixtures of the registry stub (BR-SUP-05, ADR-025): the synthetic suppliers of the seed (sheet Suppliers) and cases for tests and the demo. null = not in that registry; \"UNAVAILABLE\" = the service does not answer.",
+  "_comment": "Fixtures of the registry stub (BR-SUP-05, ADR-025): the synthetic suppliers of the seed (sheet Suppliers) and cases for tests and the demo — 0999999000098 and 0999999000101 are companies not in the seed, for adding a new supplier (demo scene 12); a valid tax id that is not here is not found. null = not in that registry; \"UNAVAILABLE\" = the service does not answer.",
   "0999999000012": {
     "rd": {
       "nameTh": "บริษัท วัสดุก่อสร้างทดสอบ จำกัด",
@@ -82,6 +82,34 @@
   "0999999000080": {
     "rd": "UNAVAILABLE",
     "dbd": "UNAVAILABLE"
+  },
+  "0999999000098": {
+    "rd": {
+      "nameTh": "บริษัท เครื่องมือช่างทดสอบ จำกัด",
+      "address": "9 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": true
+    },
+    "dbd": {
+      "nameTh": "บริษัท เครื่องมือช่างทดสอบ จำกัด",
+      "address": "9 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000101": {
+    "rd": {
+      "nameTh": "บริษัท ขนส่งทดสอบ จำกัด",
+      "address": "10 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": false
+    },
+    "dbd": {
+      "nameTh": "บริษัท ขนส่งทดสอบ จำกัด",
+      "address": "10 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
   },
   "1234567890121": {
     "rd": {

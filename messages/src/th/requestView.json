@@ -94,7 +94,13 @@
     "neededBy": "ต้องการใช้ภายใน",
     "urgency": "ความเร่งด่วน",
     "urgent": "ด่วน",
-    "normal": "ปกติ"
+    "normal": "ปกติ",
+    "deliverySite": "สถานที่ส่ง",
+    "deliverySiteValue": "{code} · {name}",
+    "deliverySiteNone": "ยังไม่ระบุ",
+    "suggestedSupplier": "ผู้ขายที่แนะนำ",
+    "suggestedSupplierValue": "{code} · {name}",
+    "suggestedSupplierNone": "ไม่ระบุ ฝ่ายจัดซื้อเป็นผู้เลือก"
   },
   "amounts": {
     "title": "ยอดเงิน",

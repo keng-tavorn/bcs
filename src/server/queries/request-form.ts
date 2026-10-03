@@ -3,8 +3,9 @@ import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { listUsableBudgetLines } from './budget'
 
-// What the request catalog and form read (spec FR-INT-001, FR-INT-003, FR-INT-004, BR-FORM-02, BR-BUD-04). Read only;
-// the services check everything again when the request is saved and submitted.
+// What the request catalog and form read (spec FR-INT-001, FR-INT-003, FR-INT-004, BR-FORM-02, BR-BUD-04): the budget
+// lines, the delivery sites and the suppliers a requester may choose, and what the form starts with. Read only; the
+// services check everything again when the request is saved and submitted.
 
 export type ScreenLocale = 'th' | 'en'
 
@@ -113,6 +114,55 @@ export async function defaultBudgetLineId(ctx: Ctx, requestTypeCode: string, usa
   if (recent[0]?.budgetLineId) return recent[0].budgetLineId
   const own = usable.filter((l) => !l.granted)
   return own.length === 1 ? own[0]!.id : null
+}
+
+export interface FormDeliverySiteDto {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+  readonly address: string | null
+}
+
+/** Where goods may go: the organization's active delivery sites (sheet Sites), by code (BR-CONS-01 groups POs by site) */
+export async function listFormDeliverySites(ctx: Ctx): Promise<FormDeliverySiteDto[]> {
+  const sites = await forTenant(ctx.organizationId).deliverySite.findMany({ where: { active: true }, select: { id: true, code: true, nameTh: true, address: true }, orderBy: { code: 'asc' } })
+  return sites.map((s) => ({ id: s.id, code: s.code, name: s.nameTh, address: s.address }))
+}
+
+/**
+ * BR-FORM-02 "สถานที่ส่งล่าสุด": the delivery site of the requester's latest request — the one they started last — that
+ * names one still in use (any request type, a draft included: the latest place they chose); otherwise the organization's
+ * only site. null when the requester has to choose. The requester may change it (FR-INT-003 AC1). Ordered by when the
+ * request was created, never by its last update: an approver's decision or a cancel on an older request must not bring
+ * its site back.
+ */
+export async function defaultDeliverySiteId(ctx: Ctx, sites: readonly FormDeliverySiteDto[]): Promise<string | null> {
+  if (ctx.actor.type !== 'USER' || sites.length === 0) return null
+  const latest = await forTenant(ctx.organizationId).request.findFirst({
+    where: { requesterMemberId: ctx.actor.memberId, deliverySiteId: { in: sites.map((s) => s.id) } },
+    select: { deliverySiteId: true },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+  })
+  if (latest?.deliverySiteId) return latest.deliverySiteId
+  return sites.length === 1 ? sites[0]!.id : null
+}
+
+export interface FormSupplierDto {
+  readonly id: string
+  readonly code: string
+  readonly name: string
+}
+
+/**
+ * The suppliers a requester may suggest (FR-P2P-001 AC2: PROCUREMENT chooses the supplier of each line; the requester's
+ * choice is a suggestion): the active ones of the register, with the basic details every member may see (§2.4
+ * supplier.view BASIC_FIELDS_ONLY).
+ */
+export async function listFormSuppliers(ctx: Ctx, locale: ScreenLocale): Promise<FormSupplierDto[]> {
+  const suppliers = await forTenant(ctx.organizationId).supplier.findMany({ where: { status: 'ACTIVE' }, select: { id: true, code: true, nameTh: true, nameEn: true }, orderBy: { code: 'asc' } })
+  return suppliers
+    .map((s) => ({ id: s.id, code: s.code, name: (locale === 'en' ? s.nameEn : null) ?? s.nameTh }))
+    .sort((a, b) => a.name.localeCompare(b.name, locale === 'en' ? 'en' : 'th') || a.code.localeCompare(b.code))
 }
 
 export interface BudgetAvailabilityDto {

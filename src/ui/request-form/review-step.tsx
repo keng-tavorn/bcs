@@ -12,6 +12,7 @@ import { fieldLabel } from './field-input'
 import { problemStep, savableLine, type Problem, type RuleStatus } from './model'
 import { showMoney, showSatang } from './money'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type FormFailure, type StepId } from './outcome'
+import { placeAndSupplierText } from './place-supplier'
 import { BudgetStatus, RoutePreview, TotalsList } from './summary'
 import type { RouteView } from './types'
 
@@ -47,6 +48,7 @@ export function ReviewStep(props: ReviewProps) {
   const { data, values, totals, budget, previewLoading, rules, problems, route, onGoTo, locale, submitError } = props
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   const line = data.budgetLines.find((l) => l.id === values.budgetLineId) ?? null
+  const place = placeAndSupplierText(data, values)
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
   const stepName = (s: StepId) => t(`steps.${s}`)
   const blocking = problems.filter((p) => BLOCKING.has(p.kind))
@@ -81,6 +83,10 @@ export function ReviewStep(props: ReviewProps) {
               <dd className="mb-2 sm:mb-0">{line ? t('budget.option', { code: line.code, name: line.name }) : t('review.noBudgetLine')}</dd>
               <dt className="text-ink-muted">{t('review.department')}</dt>
               <dd className="mb-2 sm:mb-0">{line?.departmentName ?? data.requesterDepartmentName ?? t('budget.dash')}</dd>
+              <dt className="text-ink-muted">{t('review.site')}</dt>
+              <dd className="mb-2 break-words sm:mb-0">{place.site ? t('site.option', place.site) : t('review.noSite')}</dd>
+              <dt className="text-ink-muted">{t('review.supplier')}</dt>
+              <dd className="mb-2 break-words sm:mb-0">{place.supplier ? t('supplier.option', place.supplier) : t('review.noSupplier')}</dd>
               <dt className="text-ink-muted">{t('review.lines')}</dt>
               <dd className="mb-2 sm:mb-0">{t('review.lineCount', { count: values.lines.filter(savableLine).length })}</dd>
             </>

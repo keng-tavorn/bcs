@@ -54,6 +54,12 @@ async function emptyRequired(page: Page): Promise<number> {
   return page.locator('main [aria-required="true"]').evaluateAll((els) => els.filter((e) => (e as HTMLInputElement).value === '').length)
 }
 
+/** The requester's latest request names this delivery site (a draft made through the services, suppliers-scene.ts) */
+function latestSite(requester: string, site: string): void {
+  const r = spawnSync(`pnpm exec tsx tests/e2e/suppliers-scene.ts site-draft ${requester} ${site}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
+  if (r.status !== 0) throw new Error(`supplier scene failed:\n${r.stdout}\n${r.stderr}`)
+}
+
 /** A request req_con2 sent and its approver returned, made through the services in the e2e database (request-form-scene.ts) */
 function returnedRequest(): { requestId: string } {
   const r = spawnSync('pnpm exec tsx tests/e2e/request-form-scene.ts', { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
@@ -103,6 +109,8 @@ test('[FR-INT-001/AC1] [FR-INT-001/AC2] @demo the catalog shows each request typ
 test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo req_con asks for 45,000 baht on CON-OPEX-2569 and sees the route to the VP of OPS before sending', async ({
   page,
 }, testInfo) => {
+  // Demo scene 1: req_con's requests go to SITE-A, so the form fills the department, the budget and the site
+  latestSite('req_con', 'SITE-A')
   await signIn(page, 'req_con')
   await page.goto('/requests/new/BUY_GOODS')
   await expect(page.getByRole('heading', { level: 1, name: 'คำขอใหม่: ซื้อของ' })).toBeVisible()
@@ -123,6 +131,8 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
 
   await nextStep(page, 'รายการที่ขอ')
   await stepHeading(page, 2, 'รายการที่ขอ')
+  // BR-FORM-02 "สถานที่ส่งล่าสุด": the delivery site of req_con's latest request, which they may change (S4-02)
+  await expect(page.getByLabel('สถานที่ส่ง').locator('option:checked')).toHaveText('SITE-A · ไซต์งานตัวอย่าง A')
   await page.getByLabel('ราคาที่กรอกรวม VAT แล้ว').check()
   await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'ปูนซีเมนต์', quantity: '1', uom: 'งาน', price: '45000' })
   // VAT inside a price that includes it = round(45,000 × 700 / 10,700) = 2,943.93 (BR-VAT-03)

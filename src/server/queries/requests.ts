@@ -610,6 +610,10 @@ export interface RequestViewDto {
   /** The reason of the last return, while the request waits for the requester */
   readonly returnReason: string | null
   readonly cancelReason: string | null
+  /** Where the goods go (S4-02, BR-CONS-01); null: not chosen */
+  readonly deliverySite: { readonly code: string; readonly name: string; readonly address: string | null } | null
+  /** The supplier the requester suggested, with the basic details every member may see (§2.4 supplier.view) */
+  readonly suggestedSupplier: { readonly code: string; readonly name: NameDto } | null
   readonly stage: StageDto
   readonly track: readonly TrackEntryDto[]
   readonly actions: RequesterActionsDto
@@ -668,7 +672,7 @@ function fieldValue(def: FieldDef, raw: unknown, refs: Map<string, NameDto>): Fi
   if (raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && raw.length === 0)) return null
   const option = (value: string) => ({ value, label: def.optionLabels?.[value] ?? null })
   if (REFERENCE_FIELDS.has(def.type)) {
-    // An id nobody can read is not shown (suppliers and delivery sites get their tables in S4)
+    // An id that names no row of the organization is not shown
     const name = typeof raw === 'string' ? refs.get(raw) : undefined
     return name ? { kind: 'NAME', name } : null
   }
@@ -691,20 +695,26 @@ function fieldValue(def: FieldDef, raw: unknown, refs: Map<string, NameDto>): Fi
   }
 }
 
-/** Names of the rows the form's reference fields point at (members, departments, cost centers, budget lines) */
+/**
+ * Names of the rows the form's reference fields point at (members, departments, cost centers, budget lines, suppliers
+ * by their basic details, delivery sites)
+ */
 async function referenceNames(db: TenantDb, data: unknown, members: Map<string, MemberRefDto>, departments: Map<string, DepartmentRefDto>): Promise<Map<string, NameDto>> {
   const ids = Object.values((data && typeof data === 'object' ? data : {}) as Record<string, unknown>).filter((v): v is string => typeof v === 'string' && isUuid(v))
   const refs = new Map<string, NameDto>()
   if (ids.length === 0) return refs
-  const [costCenters, budgetLines] = await Promise.all([
+  const [costCenters, budgetLines, suppliers, sites] = await Promise.all([
     db.costCenter.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameTh: true } }),
     db.budgetLine.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameTh: true } }),
+    db.supplier.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameTh: true, nameEn: true } }),
+    db.deliverySite.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameTh: true } }),
   ])
   for (const id of ids) {
     const name = members.get(id)?.name ?? departments.get(id)?.name
     if (name) refs.set(id, name)
   }
-  for (const row of [...costCenters, ...budgetLines]) refs.set(row.id, { th: `${row.code} · ${row.nameTh}`, en: null })
+  for (const row of [...costCenters, ...budgetLines, ...sites]) refs.set(row.id, { th: `${row.code} · ${row.nameTh}`, en: null })
+  for (const s of suppliers) refs.set(s.id, { th: `${s.code} · ${s.nameTh}`, en: s.nameEn ? `${s.code} · ${s.nameEn}` : null })
   return refs
 }
 
@@ -977,6 +987,8 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
       budgetLine: { select: { id: true, code: true, nameTh: true, status: true } },
       quotations: { orderBy: { createdAt: 'asc' }, select: { supplierName: true, amountSatang: true, includesVat: true, netSatang: true, isSelected: true } },
       infoRequests: { orderBy: { askedAt: 'asc' } },
+      deliverySite: { select: { code: true, nameTh: true, address: true } },
+      suggestedSupplier: { select: { code: true, nameTh: true, nameEn: true } },
     },
   })
   if (!request) return null
@@ -1068,6 +1080,8 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
     approvedUnder,
     returnReason: request.status === 'RETURNED' ? (lastReturn?.reason ?? null) : null,
     cancelReason: request.status === 'CANCELLED' ? request.cancelReason : null,
+    deliverySite: request.deliverySite ? { code: request.deliverySite.code, name: request.deliverySite.nameTh, address: request.deliverySite.address } : null,
+    suggestedSupplier: request.suggestedSupplier ? { code: request.suggestedSupplier.code, name: { th: request.suggestedSupplier.nameTh, en: request.suggestedSupplier.nameEn } } : null,
     stage,
     track: [...history, ...liveSteps({ status: request.status, requester: memberRef(request.requester) }, stage, route, openInfoRequest?.question ?? null)],
     actions: requesterActions(request.status, request.documentType),

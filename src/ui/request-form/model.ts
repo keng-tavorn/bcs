@@ -36,6 +36,10 @@ export interface FormQuotation {
 export interface FormValues {
   readonly title: string
   readonly budgetLineId: string
+  /** Where the goods go (S4-02, BR-FORM-02 prefill); '' while none is chosen */
+  readonly deliverySiteId: string
+  /** The supplier the requester suggests (optional); '' for none */
+  readonly suggestedSupplierId: string
   readonly priceIncludesVat: boolean
   readonly fields: Readonly<Record<string, unknown>>
   readonly lines: readonly FormLine[]
@@ -46,6 +50,8 @@ export interface FormValues {
 export type FormAction =
   | { readonly type: 'title'; readonly value: string }
   | { readonly type: 'budgetLine'; readonly value: string }
+  | { readonly type: 'deliverySite'; readonly value: string }
+  | { readonly type: 'suggestedSupplier'; readonly value: string }
   | { readonly type: 'priceIncludesVat'; readonly value: boolean }
   | { readonly type: 'field'; readonly id: string; readonly value: unknown }
   | { readonly type: 'line'; readonly key: string; readonly patch: Partial<Omit<FormLine, 'key'>> }
@@ -62,7 +68,20 @@ export type FormAction =
 export const emptyLine = (key: string): FormLine => ({ key, id: null, reserved: null, description: '', quantity: '', uom: '', unitPrice: '', vatable: true, serviceEndDate: '' })
 export const emptyQuotation = (key: string): FormQuotation => ({ key, supplierName: '', amount: '', includesVat: false, fileId: null, fileName: null, selected: false, saved: false })
 
-/** The values a form opens with: the saved draft, or a new purchase form with one empty line and its budget line prefilled */
+/** The saved choice when the form still offers it (a site or supplier closed since is chosen again), '' otherwise */
+function offered(id: string | null | undefined, options: ReadonlyArray<{ readonly id: string }> | undefined): string {
+  return id && (options ?? []).some((o) => o.id === id) ? id : ''
+}
+
+/** A draft names a delivery site or supplier the form no longer offers (closed or deactivated since it was saved) */
+export function droppedChoice(saved: string | null | undefined, options: ReadonlyArray<{ readonly id: string }> | undefined): boolean {
+  return Boolean(saved) && offered(saved, options) === ''
+}
+
+/**
+ * The values a form opens with: the saved draft, or a new purchase form with one empty line, its budget line and its
+ * delivery site prefilled (BR-FORM-02)
+ */
 export function initialValues(data: RequestFormData): FormValues {
   const d = data.draft
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
@@ -70,6 +89,8 @@ export function initialValues(data: RequestFormData): FormValues {
     return {
       title: '',
       budgetLineId: data.defaultBudgetLineId ?? '',
+      deliverySiteId: purchase ? offered(data.defaultDeliverySiteId, data.deliverySites) : '',
+      suggestedSupplierId: '',
       priceIncludesVat: false,
       fields: {},
       lines: purchase ? [emptyLine('line-0')] : [],
@@ -80,6 +101,9 @@ export function initialValues(data: RequestFormData): FormValues {
   return {
     title: d.title,
     budgetLineId: d.budgetLineId ?? data.defaultBudgetLineId ?? '',
+    // A draft keeps what it saved, also "not chosen yet"
+    deliverySiteId: offered(d.deliverySiteId, data.deliverySites),
+    suggestedSupplierId: offered(d.suggestedSupplierId, data.suppliers),
     priceIncludesVat: d.priceIncludesVat,
     fields: { ...d.formData },
     lines:
@@ -97,6 +121,10 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
       return { ...state, title: action.value }
     case 'budgetLine':
       return { ...state, budgetLineId: action.value }
+    case 'deliverySite':
+      return { ...state, deliverySiteId: action.value }
+    case 'suggestedSupplier':
+      return { ...state, suggestedSupplierId: action.value }
     case 'priceIncludesVat':
       return { ...state, priceIncludesVat: action.value }
     case 'field':
@@ -166,6 +194,8 @@ export function savableQuotation(q: FormQuotation): boolean {
 export interface DraftPayload {
   readonly title?: string
   readonly budgetLineId?: string | null
+  readonly deliverySiteId?: string | null
+  readonly suggestedSupplierId?: string | null
   readonly priceIncludesVat: boolean
   readonly formData: Record<string, unknown>
   readonly lines?: Array<{ id: string | null; description: string; quantity: string; uom: string; unitPrice: string; vatable: boolean; serviceEndDate?: string }>
@@ -204,6 +234,9 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
   const draft: DraftPayload = {
     ...(title ? { title } : isNew ? { title: typeName.slice(0, TITLE_MAX) } : {}),
     ...(values.budgetLineId ? { budgetLineId: values.budgetLineId } : isNew ? {} : { budgetLineId: null }),
+    // The site and the suggested supplier: chosen ones go; one taken away is cleared (null) on a saved draft
+    ...(values.deliverySiteId ? { deliverySiteId: values.deliverySiteId } : isNew ? {} : { deliverySiteId: null }),
+    ...(values.suggestedSupplierId ? { suggestedSupplierId: values.suggestedSupplierId } : isNew ? {} : { suggestedSupplierId: null }),
     priceIncludesVat: values.priceIncludesVat,
     formData: { ...values.fields },
     ...(sentLines

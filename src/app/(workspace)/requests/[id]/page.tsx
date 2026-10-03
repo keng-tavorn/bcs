@@ -4,16 +4,17 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
-import { getRequestAccess, getRequestView } from '@/server/queries/requests'
+import { getRequestAccess, getRequestView, type RequestViewDto } from '@/server/queries/requests'
 import { Notice } from '@/ui/form/notice'
 import { DoaRef } from '@/ui/request-view/doa-ref'
+import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
 import { CancelRequest, RequesterActions } from '@/ui/request-view/requester-actions'
 import { RequestStatus, StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canViewRequest } from '../../_tracking/access'
-import { doaHref, doaRefText, dueText, localeOf, memberName, stageText, timelineItems, waitingText, when } from '../../_tracking/present'
+import { doaHref, doaRefText, dueText, localeOf, memberName, nameIn, stageText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { answerInfoAction, cancelRequestAction, resubmitRequestAction } from './actions'
 
@@ -29,6 +30,26 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+
+/** The delivery site (with its address) and the suggested supplier, or what stands in for them when there is none */
+function placeFacts(tv: ViewT, locale: Locale, view: RequestViewDto): PlaceFact[] {
+  const site = view.deliverySite
+  const supplier = view.suggestedSupplier
+  return [
+    {
+      label: tv('facts.deliverySite'),
+      value: site ? tv('facts.deliverySiteValue', { code: site.code, name: site.name }) : tv('facts.deliverySiteNone'),
+      detail: site?.address ?? null,
+      set: site !== null,
+    },
+    {
+      label: tv('facts.suggestedSupplier'),
+      value: supplier ? tv('facts.suggestedSupplierValue', { code: supplier.code, name: nameIn(locale, supplier.name) }) : tv('facts.suggestedSupplierNone'),
+      detail: null,
+      set: supplier !== null,
+    },
+  ]
+}
 
 // One request (spec §9.1 /requests/[id], FR-INT-008 AC1, FR-DOA-003 AC2, FR-DOA-005 AC2, FR-PLT-003 AC3, FR-INT-009):
 // where it is now and for how long, what the requester has to do, the totals and the budget it holds, the route the DOA
@@ -113,7 +134,11 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
         <div className="flex min-w-0 flex-col gap-6">
-          <RequestFacts view={view} locale={locale} />
+          <div className="flex flex-col gap-3">
+            <RequestFacts view={view} locale={locale} />
+            {/* Where the goods go and the supplier the requester suggested (S4-02), with the facts above */}
+            {view.documentType === 'PURCHASE_REQUEST' ? <PlaceFacts items={placeFacts(tv, locale, view)} /> : null}
+          </div>
           <RequestSections view={view} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
           {mine ? <CancelRequest requestId={view.id} canCancel={view.actions.canCancel} cancel={cancelRequestAction} /> : null}
         </div>

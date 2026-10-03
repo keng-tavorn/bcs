@@ -11,13 +11,14 @@ import { checkboxClass, describedBy, inputClass, Labelled } from './controls'
 import { FieldInput, showDay } from './field-input'
 import { lineAmount, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
 import { showMoney, showSatang } from './money'
+import { DeliverySiteField } from './place-supplier'
 import { BudgetStatus, TotalsList } from './summary'
 import type { BudgetView, RequestFormData, ScreenLocale } from './types'
 
 // Steps 1 and 2 of the request form (FR-INT-002, FR-INT-003, FR-INT-004): the title, the budget line (prefilled,
 // BR-FORM-02; only the requester's own or granted lines, BR-BUD-04) with what is left on it, the questions of the
-// request type shown or hidden as the requester answers (BR-FORM-01); then the lines with their amounts, the totals and
-// the budget check as the amounts change.
+// request type shown or hidden as the requester answers (BR-FORM-01); then where the goods go (prefilled, S4-02), the
+// lines with their amounts, the totals and the budget check as the amounts change.
 
 export interface StepProps {
   readonly data: RequestFormData
@@ -127,6 +128,8 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
   const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
   return (
     <div className="flex flex-col gap-6">
+      {/* Where every line of the request goes (S4-02): prefilled, changeable */}
+      <DeliverySiteField {...props} />
       <label className="flex min-h-11 items-center gap-3">
         <input type="checkbox" name="priceIncludesVat" className={checkboxClass} checked={values.priceIncludesVat} onChange={(e) => update({ type: 'priceIncludesVat', value: e.currentTarget.checked })} />
         <span>{t('lines.pricesIncludeVat')}</span>

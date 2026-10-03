@@ -47,7 +47,7 @@ describe('[FR-INT-007/AC1] submitting is one transaction: form, totals, route, n
     expect(task).toMatchObject({ assigneeMemberId: org.member.vp_ops, resolvedFrom: 'POSITION:VP@OPS', dueAt: new Date('2026-10-06T02:00:00Z') })
     const events = await prisma.event.findMany({ where: { organizationId: org.organizationId, aggregateId: { in: [id, task.id] } }, orderBy: { seq: 'asc' } })
     expect(events.map((e) => e.type)).toEqual(['request.drafted', 'request.submitted', 'approval_task.assigned'])
-    expect(await prisma.notification.count({ where: { recipientMemberId: org.member.vp_ops, templateKey: 'approval_task.assigned', subjectId: id } })).toBe(1)
+    expect(await prisma.notification.count({ where: { recipientMemberId: org.member.vp_ops, templateKey: 'task.assigned', subjectId: id } })).toBe(1)
   })
 
   it('writes nothing when a step fails: no number is used, no route, the request stays a draft', async () => {

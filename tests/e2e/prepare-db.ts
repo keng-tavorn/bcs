@@ -25,7 +25,8 @@ async function prepareE2eDatabase(): Promise<void> {
   }
   // storage-init: the private bucket and its CORS rule for the e2e origin (browser uploads, FR-PLT-004)
   // seed-platform-admin: a BCS-team account for the /platform pages (the demo seed has none)
-  for (const command of ['pnpm exec prisma migrate deploy', 'pnpm exec tsx prisma/seed.ts', 'pnpm exec tsx tests/e2e/seed-platform-admin.ts', 'pnpm exec tsx scripts/storage-init.ts']) {
+  // seed-activity: requests submitted through the services, so approvers have tasks and notifications
+  for (const command of ['pnpm exec prisma migrate deploy', 'pnpm exec tsx prisma/seed.ts', 'pnpm exec tsx tests/e2e/seed-platform-admin.ts', 'pnpm exec tsx tests/e2e/seed-activity.ts', 'pnpm exec tsx scripts/storage-init.ts']) {
     const r = spawnSync(command, { shell: true, env, encoding: 'utf8' })
     if (r.status !== 0) throw new Error(`${command} failed:\n${r.stdout}\n${r.stderr}`)
   }

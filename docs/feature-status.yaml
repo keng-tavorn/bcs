@@ -511,12 +511,15 @@ features:
     verifiedBy: null
     notes: ""
   FR-NOTI-001:
-    status: in_progress
+    status: done
     step: S2
     evidence:
+      - tests/e2e/notifications.spec.ts
+      - tests/integration/notification-bell.test.ts
       - tests/integration/notifications.test.ts
+      - tests/unit/notification-templates.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "กระดิ่งในระบบ (S2-14) · LINE และอีเมลใช้แม่แบบเดียวกันเมื่อมาถึงใน S4 และ S5"
   FR-NOTI-002:
     status: planned
     step: S4

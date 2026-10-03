@@ -12,6 +12,8 @@ export interface WorkspaceShellProps {
   readonly labels: { readonly skipToContent: string; readonly menu: string; readonly mainNav: string }
   readonly nav: readonly NavEntry[]
   readonly account: ReactNode
+  /** The notification bell, shown in the phone header and in the bar above the content on wide screens */
+  readonly bell?: ReactNode
   readonly children: ReactNode
 }
 
@@ -24,7 +26,7 @@ function Brand({ brand, orgName }: { brand: string; orgName: string }) {
   )
 }
 
-export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account, bell, children }: WorkspaceShellProps) {
   return (
     <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[17rem_1fr]">
       <a
@@ -48,8 +50,8 @@ export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account,
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <header className="relative border-b border-line bg-surface lg:hidden">
-          <details className="group">
+        <header className="relative flex items-center gap-2 border-b border-line bg-surface pr-4 lg:hidden">
+          <details className="group min-w-0 flex-1">
             <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 [&::-webkit-details-marker]:hidden">
               <Brand brand={brand} orgName={orgName} />
               <span className="inline-flex min-h-11 items-center gap-1 rounded-md border border-input bg-bg px-3 font-medium text-ink">
@@ -67,7 +69,9 @@ export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account,
               </div>
             </div>
           </details>
+          {bell}
         </header>
+        {bell ? <div className="hidden justify-end border-b border-line px-8 py-3 lg:flex">{bell}</div> : null}
 
         <main id="content" className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-8 lg:py-8">
           {children}

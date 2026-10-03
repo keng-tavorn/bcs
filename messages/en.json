@@ -436,6 +436,15 @@
     "language": "Language",
     "mainNav": "Main menu",
     "menu": "Menu",
+    "notifications": {
+      "button": "Notifications",
+      "empty": "No notifications yet",
+      "emptyHint": "Tasks waiting for your approval and news about your requests will show here",
+      "markAllRead": "Mark all as read",
+      "newItem": "New",
+      "panelTitle": "Notifications",
+      "unreadCount": "{count} unread"
+    },
     "signedInAs": "Signed in as {name}",
     "skipToContent": "Skip to content"
   },

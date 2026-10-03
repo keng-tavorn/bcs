@@ -159,7 +159,7 @@ describe('[FR-DOA-010/AC4] at the effective time the change applies, open tasks 
     const moved = await taskOf(draft.data.requestId)
     expect(moved).toMatchObject({ assigneeMemberId: org.member.dm_proc, reassignedFromTaskId: waiting.id })
     for (const who of ['vp_ops', 'dm_proc', 'admin']) {
-      expect(await prisma.notification.count({ where: { recipientMemberId: org.member[who], templateKey: 'org_authority_change.applied', subjectId: proposed.data.changeId } }), who).toBe(1)
+      expect(await prisma.notification.count({ where: { recipientMemberId: org.member[who], templateKey: 'doa.authority_changed', subjectId: proposed.data.changeId } }), who).toBe(1)
     }
   })
 })

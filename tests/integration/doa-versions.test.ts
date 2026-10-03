@@ -100,7 +100,7 @@ describe('[NEW-13] a version approved for a later date supersedes its predecesso
     expect(await activateDoaVersion(solo.organizationId, id, new Date('2026-10-31T17:00:00Z'))).toMatchObject({ ok: true, data: { superseded: 1 } })
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: v1.id } })).toMatchObject({ status: 'SUPERSEDED' })
     expect(await prisma.event.count({ where: { aggregateId: v1.id, type: 'doa_version.superseded' } })).toBe(1)
-    expect(await prisma.notification.count({ where: { recipientMemberId: solo.member.admin, templateKey: 'doa_version.in_effect' } })).toBe(1)
+    expect(await prisma.notification.count({ where: { recipientMemberId: solo.member.admin, templateKey: 'doa.authority_changed' } })).toBe(1)
   })
 })
 

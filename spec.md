@@ -2694,6 +2694,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
+| การแจ้งเตือน | `notification.read` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 
@@ -3426,6 +3427,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-15** `[go-live]` capability และหน้าจอให้ PLATFORM_ADMIN ยืนยันผู้มีอำนาจลงนามตามสัญญา (§2.2 · BR-DOA-19 · `/platform/tenants` ใน §9.1) เพราะ §2.4 ยังไม่มี capability ของเรื่องนี้ ระหว่างรอ seed ตั้งผู้ลงนามขององค์กรตัวอย่าง (ภาคผนวก A) · พบระหว่าง S2-16 (ADR-042) — รอยืนยัน
   - เสร็จเมื่อ: ผู้ใช้ยืนยันชื่อ capability และกติกา (PLATFORM_ADMIN ใส่อีเมลตามสัญญาโดยไม่เห็นรายชื่อสมาชิก) แล้ว §2.4 มี capability นี้ และเทสต์ที่ PLATFORM_ADMIN ตั้งผู้ลงนามได้โดยไม่เห็นข้อมูลธุรกิจผ่าน
   - แยกงาน: ทำเองได้
+- [ ] **NEW-16** `[demo]` เพิ่ม event `notification.read` ในแคตตาล็อก §10.2 เพราะการทำเครื่องหมายว่าอ่านแล้วในกระดิ่ง (FR-NOTI-001 AC1) เป็น command ที่ต้องมี Event · สมาชิกทำได้กับการแจ้งเตือนของตนเองเท่านั้น (`self.notificationPrefs` · ตนเอง) · พบระหว่าง S2-14
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/notification.ts` · เทสต์ AC1 และ AC3 ของ FR-NOTI-001 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-14)
 
 ---
 

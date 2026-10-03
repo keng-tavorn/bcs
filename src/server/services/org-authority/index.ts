@@ -402,10 +402,10 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
   for (const a of admins) told.add(a.memberId)
   const notifications: NotificationDraft[] = [...told].map((memberId) => ({
     recipientMemberId: memberId,
-    templateKey: 'org_authority_change.applied',
-    data: { changeId: change.id, kind: change.kind },
+    templateKey: 'doa.authority_changed',
+    data: { kind: 'ORG_AUTHORITY_CHANGE', changeId: change.id, changeKind: change.kind },
     urgency: 'IMMEDIATE',
-    dedupeKey: `org_authority_change.applied:${change.id}:${memberId}`,
+    dedupeKey: `doa.authority_changed:${change.id}:${memberId}`,
     subjectType: 'ORG_AUTHORITY_CHANGE',
     subjectId: change.id,
   }))

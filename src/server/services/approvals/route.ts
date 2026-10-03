@@ -122,10 +122,10 @@ export async function storeRoute(
     })
     notifications.push({
       recipientMemberId: step.assigneeMemberId,
-      templateKey: 'approval_task.assigned',
+      templateKey: 'task.assigned',
       data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: task.id, dueAt: times.dueAt.toISOString() },
       urgency: 'IMMEDIATE',
-      dedupeKey: `approval_task.assigned:${task.id}`,
+      dedupeKey: `task.assigned:${task.id}`,
       subjectType: subject.type,
       subjectId: subject.id,
     })

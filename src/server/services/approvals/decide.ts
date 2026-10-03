@@ -178,10 +178,10 @@ export const decideCommand = defineCommand({
         })
         notifications.push({
           recipientMemberId: step.assigneeMemberId,
-          templateKey: 'approval_task.assigned',
+          templateKey: 'task.assigned',
           data: { subjectType: 'REQUEST', subjectId: request.id, label: request.number ?? request.title, taskId: created.id, dueAt: times.dueAt.toISOString() },
           urgency: 'IMMEDIATE',
-          dedupeKey: `approval_task.assigned:${created.id}`,
+          dedupeKey: `task.assigned:${created.id}`,
           subjectType: 'REQUEST',
           subjectId: request.id,
         })
@@ -201,7 +201,8 @@ export const decideCommand = defineCommand({
     } else {
       const type = input.decision === 'RETURN' ? 'request.returned' : 'request.rejected'
       events.push({ type, aggregateType: 'Request', aggregateId: request.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } })
-      notifications.push(notifyRequester(request.requesterMemberId, type, request, { taskId: task.id }))
+      // §10.1: a return and a rejection share the template request.decided
+      notifications.push(notifyRequester(request.requesterMemberId, 'request.decided', request, { taskId: task.id, decision: input.decision }))
     }
     return { ok: true, result: { taskId: task.id, documentStatus: moved.to }, events, notifications }
   },

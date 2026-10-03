@@ -234,10 +234,11 @@ export const submitCommand = defineCommand({
     if (request.documentType === 'SUPPLIER_REQUEST') return submitSupplierRequest(tx, ctx, request)
     const moved = move(request.status as RequestState, 'request.submit')
     if (!moved.ok) return moved
-    const prepared = await prepareRoute(tx, ctx, request)
-    if (!prepared.ok) return prepared
+    // The number comes first so the approver's task names it; a refusal below rolls it back with everything else
     const department = await tx.department.findUniqueOrThrow({ where: { id: request.chargedDepartmentId }, select: { code: true } })
     const number = await issueDocumentNumber(tx, ctx, { document: 'PR', department: department.code })
+    const prepared = await prepareRoute(tx, ctx, { ...request, number })
+    if (!prepared.ok) return prepared
     const { totals, route } = prepared
     await tx.request.update({
       where: { id: request.id },

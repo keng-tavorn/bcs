@@ -37,5 +37,14 @@
     "modules": "Enabled modules",
     "tenants": "Customer organizations",
     "security": "Account security"
+  },
+  "notifications": {
+    "button": "Notifications",
+    "unreadCount": "{count} unread",
+    "panelTitle": "Notifications",
+    "newItem": "New",
+    "markAllRead": "Mark all as read",
+    "empty": "No notifications yet",
+    "emptyHint": "Tasks waiting for your approval and news about your requests will show here"
   }
 }

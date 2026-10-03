@@ -218,10 +218,10 @@ export const activateDoaVersionCommand = defineCommand({
       events,
       notifications: [...new Set(admins.map((a) => a.memberId))].map((memberId) => ({
         recipientMemberId: memberId,
-        templateKey: 'doa_version.in_effect',
-        data: { versionId: input.versionId, code: version.code, versionNo: version.versionNo },
+        templateKey: 'doa.authority_changed',
+        data: { kind: 'DOA_VERSION', versionId: input.versionId, code: version.code, versionNo: version.versionNo },
         urgency: 'IMMEDIATE' as const,
-        dedupeKey: `doa_version.in_effect:${input.versionId}:${memberId}`,
+        dedupeKey: `doa.authority_changed:${input.versionId}:${memberId}`,
         subjectType: 'DOA_VERSION',
         subjectId: input.versionId,
       })),

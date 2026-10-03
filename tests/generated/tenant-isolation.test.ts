@@ -44,6 +44,7 @@ const GLOBAL_UNIQUE_ALLOWED: Record<string, string[]> = {
   Event: ['seq'], // global ordering used for the audit seal (§4.5)
   FileObject: ['storageKey'], // object key is unique in the whole bucket
   MemberInvitation: ['tokenHash'], // sha256 of a random 32-byte token, unique by construction
+  LineChannelConfig: ['channelKey'], // random and public: the LINE webhook path names it, and it finds the organization (§6.2)
 }
 // Unique indexes whose exact columns the spec writes out; each leads with a key of one organization's row
 const SPEC_UNIQUE_ALLOWED: Record<string, string[][]> = {

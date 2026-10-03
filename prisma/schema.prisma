@@ -97,6 +97,10 @@ model Organization {
   exportJobs             ExportJob[]
   reportSchedules        ReportSchedule[]
   actionTokens           ActionToken[]
+  channelIdentities      ChannelIdentity[]
+  channelLinkCodes       ChannelLinkCode[]
+  lineChannelConfig      LineChannelConfig?
+  lineWebhookEvents      LineWebhookEvent[]
 }
 
 enum ModuleKey {
@@ -200,6 +204,8 @@ model Member {
   exportJobs            ExportJob[]           @relation("ExportJobRequestedBy")
   reportSchedules       ReportSchedule[]      @relation("ReportScheduleCreatedBy")
   actionTokens          ActionToken[]         @relation("ActionTokenMember")
+  channelIdentities     ChannelIdentity[]     @relation("ChannelIdentityMember")
+  channelLinkCodes      ChannelLinkCode[]     @relation("ChannelLinkCodeMember")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -2150,4 +2156,109 @@ model ActionToken {
 
   @@unique([organizationId, id])
   @@index([organizationId, taskId])
+}
+
+// ---------- LINE (S5) ----------
+
+enum IdentityChannel {
+  LINE
+}
+
+/// A member's account on an outside channel (spec §6.2, FR-LINE-001): LINE user ids differ per provider, so the provider
+/// is part of the key. One live link per account and one live LINE account per member in an organization; unlinking
+/// keeps the row with unlinkedAt (line.unlinked).
+model ChannelIdentity {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  memberId       String          @db.Uuid
+  channel        IdentityChannel
+  /// The LINE provider that issued the user id (§9.2)
+  providerKey    String
+  externalUserId String
+  linkedAt       DateTime        @db.Timestamptz(6)
+  unlinkedAt     DateTime?       @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("ChannelIdentityMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, channel, providerKey, externalUserId], map: "channel_identity_live_account", where: raw("\"unlinkedAt\" IS NULL"))
+  @@unique([organizationId, memberId, channel], map: "channel_identity_live_member", where: raw("\"unlinkedAt\" IS NULL"))
+  @@index([organizationId, memberId])
+}
+
+/// A one-time code that links LINE to a member (FR-LINE-001 AC1, §9.2): the code is signed and handed out without a
+/// write; the link records the sha256 of the code here with usedAt, so a code links once. Lives 10 minutes.
+model ChannelLinkCode {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  memberId       String   @db.Uuid
+  codeHash       String
+  expiresAt      DateTime @db.Timestamptz(6)
+  usedAt         DateTime @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("ChannelLinkCodeMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, codeHash])
+}
+
+/// The LINE channels of an organization (spec §6.2, FR-ADM-006 AC2, OQ-15): the secret and the access token are
+/// encrypted with AES-256-GCM under ENCRYPTION_KEY; channelKey is random and public (it names the webhook path).
+model LineChannelConfig {
+  id                    String   @id @default(uuid(7)) @db.Uuid
+  organizationId        String   @db.Uuid
+  channelKey            String
+  providerId            String
+  messagingChannelId    String
+  channelSecretEnc      String
+  channelAccessTokenEnc String
+  liffId                String?
+  liffChannelId         String?
+  richMenuLinkedId      String?
+  richMenuUnlinkedId    String?
+  active                Boolean  @default(false)
+  version               Int      @default(0)
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId])
+  @@unique([channelKey])
+}
+
+enum LineWebhookStatus {
+  RECEIVED
+  QUEUED
+  PROCESSED
+  SKIPPED
+  FAILED
+}
+
+/// Each LINE webhook event once (BR-LINE-04, BR-LINE-05): the row is written before anything is processed; a delivery
+/// with a webhookEventId seen before is not processed again. Message text is never kept (PDPA): payload holds what
+/// processing needs — the kind, the source user id, the postback data and the reply token.
+model LineWebhookEvent {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
+  webhookEventId String
+  channelKey     String
+  type           String
+  payload        Json              @default("{}")
+  receivedAt     DateTime          @db.Timestamptz(6)
+  processedAt    DateTime?         @db.Timestamptz(6)
+  status         LineWebhookStatus @default(RECEIVED)
+  error          String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, webhookEventId])
+  @@index([organizationId, status, receivedAt])
 }

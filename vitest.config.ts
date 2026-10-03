@@ -13,7 +13,8 @@ export default defineConfig({
         test: { name: 'unit', include: ['tests/unit/**/*.test.{ts,tsx}', 'src/**/*.test.{ts,tsx}'], environment: 'node' },
       },
       { extends: true, test: { name: 'golden', include: ['tests/golden/**/*.test.ts'], environment: 'node' } },
-      { extends: true, test: { name: 'property', include: ['tests/property/**/*.test.ts'], environment: 'node' } },
+      // Property runs make thousands of operations per test; under coverage they take longer than the 5 s default
+      { extends: true, test: { name: 'property', include: ['tests/property/**/*.test.ts'], environment: 'node', testTimeout: 60_000 } },
       {
         extends: true,
         test: {

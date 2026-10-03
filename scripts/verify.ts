@@ -12,14 +12,17 @@ import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import vitestConfig from '../vitest.config'
 import {
+  COVERAGE_ENGINES,
   GATE_REQUIRES,
   casesWithoutPassingTest,
+  evaluateCoverage,
   evaluateEslintRun,
   evaluatePlaywrightRun,
   evaluateVitestRun,
   lastLines,
   orphanTestFiles,
   parseVerifyArgs,
+  type CoverageSummary,
   type GateResult,
   type PlaywrightJson,
   type Status,
@@ -232,6 +235,22 @@ const gates: Gate[] = [
   {
     name: 'property',
     run: () => vitestGate('property', ['tests/property'], ' property ', 'invariant ของงบหรือเงินอาจพังในบางลำดับการทำงาน').result,
+  },
+  {
+    name: 'coverage',
+    run: () => {
+      // spec §7.0 item 4: every branch of the money and authority engines has a test (unit, golden or property)
+      const engines = COVERAGE_ENGINES.filter((e) => exists(`src/core/${e}`))
+      if (engines.length === 0) return { status: 'SKIP', detail: 'ยังไม่มี engine เงินหรืออำนาจใน src/core' }
+      const files = engines.flatMap((e) => filesUnder(`src/core/${e}`, CODE_FILE).filter((f) => !TEST_FILE.test(f)).map((f) => `src/core/${e}/${f}`))
+      const dir = path.join(RUN_DIR, 'coverage')
+      const r = sh(
+        `pnpm exec vitest run --project unit --project golden --project property --passWithNoTests --coverage.enabled --coverage.provider=v8 "--coverage.include=src/core/{${engines.join(',')}}/**" --coverage.reporter=json-summary "--coverage.reportsDirectory=${dir}"`,
+      )
+      const summaryFile = path.join(dir, 'coverage-summary.json')
+      const summary = existsSync(summaryFile) ? (JSON.parse(readFileSync(summaryFile, 'utf8')) as CoverageSummary) : null
+      return evaluateCoverage({ code: r.code, out: r.out, summary }, { root: ROOT, files: files.map((p) => ({ path: p, source: read(p) })) })
+    },
   },
   {
     name: 'integration',

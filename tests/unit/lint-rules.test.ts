@@ -23,11 +23,13 @@ import { committedState, migrationChecksums, migrationLockProblems, nextLock } f
 import {
   GATE_REQUIRES,
   casesWithoutPassingTest,
+  evaluateCoverage,
   evaluateEslintRun,
   evaluatePlaywrightRun,
   evaluateVitestRun,
   orphanTestFiles,
   parseVerifyArgs,
+  type CoverageSummary,
   type VitestJson,
 } from '../../scripts/lib/verify-gates'
 
@@ -681,6 +683,33 @@ describe('pnpm verify vitest gates', () => {
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 1, unexpected: 0, flaky: 0 } } }).status).toBe('FAIL')
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 1 } } }).status).toBe('FAIL')
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 0 } } }).status).toBe('PASS')
+  })
+})
+
+describe('pnpm verify coverage gate', () => {
+  const root = 'C:/repo'
+  const files = [
+    { path: 'src/core/money/math.ts', source: 'export const a = 1' },
+    { path: 'src/core/doa/types.ts', source: 'export type T = 1' },
+  ]
+  const summary = (covered: number): CoverageSummary => ({
+    total: { branches: { total: 10, covered } },
+    [`${root}/src/core/money/math.ts`]: { branches: { total: 10, covered } },
+    [`${root}/src/core/doa/types.ts`]: { branches: { total: 0, covered: 0 } },
+  })
+  it('[NFR-MNT-02] every branch of every engine file needs a test', () => {
+    expect(evaluateCoverage({ code: 0, out: '', summary: summary(10) }, { root, files }).status).toBe('PASS')
+    const short = evaluateCoverage({ code: 0, out: '', summary: summary(9) }, { root, files })
+    expect(short.status).toBe('FAIL')
+    expect(short.detail).toContain('src/core/money/math.ts 9/10 branch')
+  })
+  it('[NFR-MNT-02] a file no test loads, an ignore comment, a failed run or a missing report is a FAIL', () => {
+    const extra = [...files, { path: 'src/core/grni/index.ts', source: 'export const b = 2' }]
+    expect(evaluateCoverage({ code: 0, out: '', summary: summary(10) }, { root, files: extra }).detail).toContain('src/core/grni/index.ts ไม่มีเทสต์ที่โหลดไฟล์นี้')
+    const ignored = [{ path: 'src/core/money/math.ts', source: '/* v8 ignore next */\nexport const a = 1' }]
+    expect(evaluateCoverage({ code: 0, out: '', summary: summary(10) }, { root, files: ignored }).status).toBe('FAIL')
+    expect(evaluateCoverage({ code: 1, out: 'boom', summary: summary(10) }, { root, files }).status).toBe('FAIL')
+    expect(evaluateCoverage({ code: 0, out: '', summary: null }, { root, files }).status).toBe('FAIL')
   })
 })
 

@@ -15,3 +15,12 @@ minimumReleaseAgeExclude:
   - vite@8.3.2
 # Run package scripts with pnpm's shell emulator so `&&` and env syntax behave the same on Windows and Linux CI.
 shellEmulator: true
+# Printed PR and PO (ADR-044): react-pdf draws Thai right only with the mark-offset fix below and the sara am handling
+# of src/server/pdf/thai-breaks.ts, which both lean on these exact versions. Upgrade them together, on purpose, and
+# look at the snapshots of tests/integration/pdf-snapshot.test.ts before committing.
+patchedDependencies:
+  '@react-pdf/render@4.7.0': patches/@react-pdf__render@4.7.0.patch
+overrides:
+  '@react-pdf/render': 4.7.0
+  '@react-pdf/textkit': 7.0.1
+  fontkit: 2.0.4

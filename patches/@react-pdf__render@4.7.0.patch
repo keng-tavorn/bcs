@@ -1,0 +1,17 @@
+diff --git a/lib/index.js b/lib/index.js
+index 98aca2bf88d4833832d0c9561eba1c4c6a9846dc..67792d901a82fe51c58307cf77b6e28a83ff7a10 100644
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -243,8 +243,10 @@ const renderGlyphs = (ctx, glyphs, positions, x, y) => {
+     const encodedPositions = positions.map((pos, i) => ({
+         xAdvance: pos.xAdvance * scale,
+         yAdvance: pos.yAdvance * scale,
+-        xOffset: pos.xOffset,
+-        yOffset: pos.yOffset,
++        // BCS (spec FR-PLT-009 AC3, ADR-044): mark offsets are points like the advances, so they need the same
++        // scale; without it every GPOS mark/mkmk shift is lost and Thai tone marks sit inside tall consonants
++        xOffset: pos.xOffset * scale,
++        yOffset: pos.yOffset * scale,
+         advanceWidth: glyphs[i].advanceWidth * advanceWidthScale,
+     }));
+     return _renderGlyphs(ctx, encodedGlyphs, encodedPositions, x, y);

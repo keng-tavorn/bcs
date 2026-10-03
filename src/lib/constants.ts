@@ -10,6 +10,9 @@ export const OUTBOX_SWEEP_AFTER_MS = 30 * MS_PER_SECOND
 /** Interactive transaction limits for runCommand (Prisma). */
 export const COMMAND_TX_MAX_WAIT_MS = 10 * MS_PER_SECOND
 export const COMMAND_TX_TIMEOUT_MS = 20 * MS_PER_SECOND
+/** SMTP waits, kept well inside COMMAND_TX_TIMEOUT_MS because a PO is e-mailed inside its command (FR-P2P-005) */
+export const EMAIL_CONNECT_TIMEOUT_MS = 5 * MS_PER_SECOND
+export const EMAIL_SOCKET_TIMEOUT_MS = 10 * MS_PER_SECOND
 
 /** Transaction errors that are safe to retry (spec §4.3 step 6): Prisma write conflict, Postgres
  *  serialization_failure and deadlock_detected. */
@@ -36,6 +39,8 @@ export const TOTP_ACCEPTED_DRIFT_STEPS = 1
 export const BUDGET_IMPORT_MAX_ROWS = 1000
 /** Invitation links are single-use and valid for 72 hours (FR-AUTH-001 AC1) */
 export const INVITATION_TTL_MS = 72 * MS_PER_HOUR
+/** An ActionToken lives 72 hours or until its task closes, whichever comes first (BR-TOK-01) */
+export const ACTION_TOKEN_TTL_MS = 72 * MS_PER_HOUR
 /** Password reset links */
 export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
@@ -71,6 +76,8 @@ export const DOA_YAML_MAX_CHARS = 500_000
 /** Largest file read out of a PDF (an e-Tax invoice's XML, BR-IVC-05, is tens of kilobytes); a stream that inflates
  *  past this is skipped, so a small hostile PDF cannot fill the server's memory */
 export const MAX_EMBEDDED_FILE_BYTES = 5 * BYTES_PER_MIB
+/** react-pdf minPresenceAhead (points) larger than any page: the last line row always moves with the totals block */
+export const PDF_KEEP_WITH_TOTALS_PT = 2000
 /** Longest file name accepted from the browser before it is cleaned (cleanFileName shortens what is stored) */
 export const FILE_NAME_INPUT_MAX = 1000
 /** Photos are scaled so the long side is at most this many pixels before upload (FR-PLT-004 AC3) */

@@ -43,6 +43,13 @@ services:
     ports: ["8288:8288", "8289:8289"]
     extra_hosts: ["host.docker.internal:host-gateway"]
 
+  # Test-only tool, never started by `up` (profile): rasterizes printed PR and PO pages for the Thai rendering
+  # snapshots (FR-PLT-009 AC3). tests/support/pdf-raster.ts builds it on first use and pipes the PDF through stdin.
+  pdf-raster:
+    build: ./docker/poppler
+    image: bcs-pdf-raster:bookworm
+    profiles: ["tools"]
+
 volumes:
   pg-data: {}
   storage-data: {}

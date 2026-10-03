@@ -2686,11 +2686,12 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `comment.added` `comment.retracted` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
 | po | `po.drafted` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
+| consolidation_run | `consolidation_run.completed` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
@@ -3439,6 +3440,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-19** `[demo]` ด่าน `coverage` ใน `pnpm verify` ตรวจ branch coverage 100% ของ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}` ตาม §7.0 ข้อ 4 และ NFR-MNT-02 · พบระหว่าง NEW-18 — เสร็จ 2026-10-03 · e59c8e5
   - เสร็จเมื่อ: ด่าน coverage ของ `pnpm verify` ผ่านที่ 100% branch และ FAIL เมื่อมี branch ที่ไม่มีเทสต์ (ตัวอย่างผิดที่ต้องจับได้)
   - แยกงาน: ทำเองได้
+- [ ] **NEW-20** `[demo]` เพิ่ม event `request.supplier_assigned` ในแคตตาล็อก §10.2 เพราะการที่ PROCUREMENT เลือกผู้ขายให้บรรทัดคำขอในกอง (FR-P2P-001 AC2) เป็น command ที่ต้องมี Event · หนึ่ง event ต่อคำขอที่บรรทัดเปลี่ยน · พบระหว่าง S4-03
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/procurement.ts` · เทสต์ AC2 ของ FR-P2P-001 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
+- [ ] **NEW-21** `[demo]` เพิ่ม event `consolidation_run.completed` ในแคตตาล็อก §10.2 เพราะรอบรวม PR ทุกรอบบันทึก `ConsolidationRun` (FR-P2P-002 AC2) รวมรอบที่ไม่มีร่าง PO จึงต้องมี Event ของตัวเอง · พบระหว่าง S4-03
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 และ AC3 ของ FR-P2P-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
 
 ---
 

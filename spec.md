@@ -2655,6 +2655,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | `request.info_provided` | ผู้อนุมัติที่ถาม | LINE → อีเมล | IMMEDIATE | `request.info_provided` |
 | `po.approved` | PROCUREMENT ผู้สร้าง PO | ในระบบ · LINE | IMMEDIATE | `po.approved` |
 | `po.sent` | ผู้ขอของ PR ต้นทาง · ผู้ตรวจรับที่ได้รับมอบหมาย | LINE → อีเมล | DIGEST | `po.sent` |
+| `po.send_bounced` (NEW-25) | PROCUREMENT | LINE → อีเมล | IMMEDIATE | `po.send_bounced` |
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
 | ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
@@ -2692,7 +2693,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
-| po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
+| po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
@@ -3458,6 +3459,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-24** `[demo]` เพิ่ม event `report_schedule.created` ในแคตตาล็อก §10.2 เพราะการตั้งรอบส่งรายงานทางอีเมล (FR-VIS-002 AC1 · `report.schedule`) เป็น command ที่ต้องมี Event · การส่งแต่ละรอบบันทึกเป็น `export.generated` ของไฟล์รายงาน · พบระหว่าง S4-11
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/report-schedule.ts` · เทสต์ AC1 ของ FR-VIS-002 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม S4-11)
+- [ ] **NEW-25** `[demo]` เพิ่ม event `po.send_bounced` ในแคตตาล็อก §10.2 และแถวการแจ้งเตือน `po.send_bounced` ถึง PROCUREMENT ใน §10.1 เพราะอีเมล PO ที่ตีกลับ (FR-P2P-005 AC2) บันทึกการตีกลับบน PO แต่สถานะคงเดิม จึงต้องมี Event ของตัวเอง · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-06 (ADR-043)
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-06)
 
 ---
 
@@ -3611,6 +3615,8 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-040 | ใช้ Better Auth: ล็อกการเข้าระบบนับเฉพาะครั้งที่ผิด · บังคับ 2FA ตามบทบาทและตำแหน่ง · TOTP ของผู้ใช้ตัวอย่างจาก `SEED_TOTP_KEY` (ไม่บังคับ · ตัวแปรที่เพิ่มต่อจากภาคผนวก B ในส่วนที่เพิ่มของ `.env.example`) · plugin `liffIdToken` | เสนอ |
 | ADR-041 | นโยบายของ command pipeline และ outbox: key กันส่งซ้ำแยกตามผู้ส่ง · ส่งหลัง commit ครั้งเดียวไม่เกิน 2 วินาที · นับเฉพาะการปฏิเสธของ Inngest ครบ 10 ครั้งเป็นข้อความตายพร้อมแจ้งเตือน | เสนอ |
 | ADR-042 | ชุดตั้งต้นส่งเป็นฉบับ DOA หนึ่งฉบับกับการเปลี่ยนชนิด `POSITION_ASSIGN` บนเส้นทางเดียวกันที่อ้างฉบับนั้นเองกับข้อ `BR-DOA-19` · ตำแหน่งที่มีงานค้างนับว่ามีอำนาจ · การทำให้ตำแหน่งว่างต้องยืนยันรายตำแหน่ง · ย้ายแผนกได้ครั้งละหนึ่งรายการ · cost center ไม่ย้ายแผนกด้วยการแก้พื้นฐาน · DOA ฉบับใหม่เริ่มก่อนหรือพร้อมฉบับที่อนุมัติล่วงหน้าไว้แล้วไม่ได้ | เสนอ |
+| ADR-043 | ลิงก์ตัดสินทางอีเมล: token เกิดและถูกเพิกถอนตาม event ของงานใน `runCommand` · secret ของลิงก์คำนวณจาก key ของเซิร์ฟเวอร์ เก็บเฉพาะ sha256 · งานนโยบายและงานที่ยอด ≥ `stepUpThreshold` ตัดสินในระบบเท่านั้น · ส่งการแจ้งเตือน IMMEDIATE ทางอีเมลจนกว่าจะมี LINE · ส่ง PO ภายในคำสั่ง `po.send` หลังล็อกแถวและไม่ลองซ้ำ ผู้ให้บริการปฏิเสธถาวร = ตีกลับ | เสนอ |
+| ADR-044 | สร้าง PDF ของ PR และ PO ด้วย `@react-pdf/renderer` 4.9.0 กับ Sarabun (ผล spike ของ OQ-18): แก้การวางวรรณยุกต์ด้วย `pnpm patch` ของ `@react-pdf/render` และแปลงสระอำกับจุดตัดคำไทยก่อนจัดบรรทัด · ล็อกเวอร์ชันของ library ที่การแก้พึ่ง · เทสต์ภาพทุกหน้าด้วย poppler ใน Docker | เสนอ |
 
 ### 18.2 สมมติฐาน
 

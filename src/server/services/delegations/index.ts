@@ -7,6 +7,9 @@ import { newId } from '@/lib/ids'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import type { TenantTx } from '@/server/db/tenant'
+import type { EventDraft } from '@/server/events/append'
+import type { NotificationDraft } from '@/server/notifications/create'
 import { loadDelegations, loadOrgSnapshot } from '@/server/doa/policy'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 
@@ -122,4 +125,33 @@ export const revokeDelegationCommand = defineCommand({
 
 export function revokeDelegation(ctx: Ctx, input: z.input<typeof RevokeInput>, options: RunOptions) {
   return runCommand(ctx, revokeDelegationCommand, input, options)
+}
+
+/**
+ * FR-AUTH-003 AC2: a deactivated member's delegations — given or held, scheduled or running — are revoked in the
+ * deactivation's transaction, each with its event, and the other side is told.
+ */
+export async function revokeDelegationsOf(tx: TenantTx, ctx: Ctx, memberId: string): Promise<{ count: number; events: EventDraft[]; notifications: NotificationDraft[] }> {
+  const running = await tx.delegation.findMany({
+    where: { OR: [{ delegatorMemberId: memberId }, { delegateMemberId: memberId }], status: { in: ['SCHEDULED', 'ACTIVE'] } },
+    orderBy: { id: 'asc' },
+    select: { id: true },
+  })
+  const locked = await lockRowsForUpdate(
+    tx,
+    'Delegation',
+    ctx.organizationId,
+    running.map((d) => d.id),
+  )
+  const events: EventDraft[] = []
+  const notifications: NotificationDraft[] = []
+  for (const id of locked) {
+    const d = await tx.delegation.findUniqueOrThrow({ where: { id } })
+    if (d.status !== 'SCHEDULED' && d.status !== 'ACTIVE') continue
+    await tx.delegation.update({ where: { id }, data: { status: 'REVOKED', revokedAt: ctx.now } })
+    events.push({ type: 'delegation.revoked', aggregateType: 'Delegation', aggregateId: id, data: { from: d.status } })
+    const other = d.delegatorMemberId === memberId ? d.delegateMemberId : d.delegatorMemberId
+    notifications.push({ recipientMemberId: other, templateKey: 'delegation.revoked', data: { delegationId: id }, urgency: 'IMMEDIATE', dedupeKey: `delegation.revoked:${id}`, subjectType: 'DELEGATION', subjectId: id })
+  }
+  return { count: events.length, events, notifications }
 }

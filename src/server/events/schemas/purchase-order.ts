@@ -40,6 +40,10 @@ defineEvents('PurchaseOrder', {
   'po.approved': { schema: z.object({ routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1), requests: z.array(requestStatus) }) },
   'po.rejected': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
   'po.returned': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
+  // FR-P2P-005 AC1, AC3: e-mailed to the supplier with its PDF; every send after the first carries a reason
+  'po.sent': { schema: z.object({ from: z.string().min(1), resend: z.boolean(), reasonCommentId: z.uuid().nullable(), pdfFileId: z.uuid() }) },
+  // FR-P2P-005 AC2 (NEW-25): the supplier's mail server refused the e-mail; the PO keeps its status
+  'po.send_bounced': { schema: z.object({ status: z.string().min(1), code: z.string().min(1), resend: z.boolean(), reasonCommentId: z.uuid().nullable(), pdfFileId: z.uuid() }) },
   // BR-BUD-06: what happens to the request lines, and the requests whose status moved
   'po.cancelled': { schema: z.object({ from: z.string().min(1), disposition: z.enum(['RETURN_TO_POOL', 'CANCEL_REQUEST_LINES']), reasonCommentId: z.uuid(), requests: z.array(requestStatus) }) },
   // BR-BUD-06: what the PO still holds for goods received and not yet invoiced, and what went back

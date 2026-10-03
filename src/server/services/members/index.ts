@@ -185,7 +185,7 @@ export const deactivateMemberCommand = defineCommand({
   name: 'member.deactivate',
   capability: 'admin.members',
   input: DeactivateInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ memberId: string; revoked: Record<string, number> }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ memberId: string; revoked: Record<string, number>; openTasks: number }>> {
     const allowed = await authorize(tx, ctx, 'admin.members')
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (ctx.actor.type === 'USER' && ctx.actor.memberId === input.memberId) {
@@ -204,12 +204,26 @@ export const deactivateMemberCommand = defineCommand({
     const sessions = await deleteMemberSessions(tx, ctx.organizationId, member.id)
     const invitations = (await tx.memberInvitation.updateMany({ where: { memberId: member.id, usedAt: null, revokedAt: null }, data: { revokedAt: ctx.now } })).count
     const extra = await runDeactivationRevokers(tx, ctx, { memberId: member.id, userId: member.userId })
-    const revoked = { sessions, invitations, ...extra }
-    // TODO(S2-10): notify ORG_ADMIN of the member's pending approval tasks so they can be reassigned (FR-AUTH-003 AC2).
+    const revoked = { sessions, invitations, ...extra.counts }
+    // FR-AUTH-003 AC2 (§10.1 admin.reassign_needed): approval tasks still waiting on the member need someone else
+    const openTasks = await tx.approvalTask.count({ where: { OR: [{ assigneeMemberId: member.id }, { principalMemberId: member.id }], status: { in: ['OPEN', 'INFO_REQUESTED'] } } })
+    const told = openTasks ? admins.filter((id) => id !== member.id) : []
     return {
       ok: true,
-      result: { memberId: member.id, revoked },
-      events: [{ type: 'member.deactivated', aggregateType: 'Member', aggregateId: member.id, data: { reasonCommentId, revoked } }],
+      result: { memberId: member.id, revoked, openTasks },
+      events: [{ type: 'member.deactivated', aggregateType: 'Member', aggregateId: member.id, data: { reasonCommentId, revoked } }, ...extra.events],
+      notifications: [
+        ...extra.notifications,
+        ...told.map((adminId) => ({
+          recipientMemberId: adminId,
+          templateKey: 'admin.reassign_needed',
+          data: { memberId: member.id, name: member.displayNameTh, openTasks },
+          urgency: 'IMMEDIATE' as const,
+          dedupeKey: `admin.reassign_needed:${reasonCommentId}:${adminId}`,
+          subjectType: 'MEMBER',
+          subjectId: member.id,
+        })),
+      ],
     }
   },
 })

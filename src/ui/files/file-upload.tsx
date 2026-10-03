@@ -19,12 +19,14 @@ export interface FileUploadProps {
   readonly completeUpload: (ticket: string) => Promise<CompleteUploadResult>
   /** 'photo' opens the camera on phones */
   readonly mode?: 'any' | 'photo'
+  /** What may be attached, in place of the general rule — e.g. pictures only, where only a picture is evidence */
+  readonly rule?: string
   readonly onUploaded?: (file: { fileId: string; fileName: string }) => void
 }
 
 type Status = { kind: 'idle' } | { kind: 'busy'; name: string } | { kind: 'done'; name: string } | { kind: 'error'; reason: FileRefusal }
 
-export function FileUpload({ requestUpload, completeUpload, mode = 'any', onUploaded }: FileUploadProps) {
+export function FileUpload({ requestUpload, completeUpload, mode = 'any', rule, onUploaded }: FileUploadProps) {
   const t = useTranslations('files')
   const id = useId()
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
@@ -77,7 +79,7 @@ export function FileUpload({ requestUpload, completeUpload, mode = 'any', onUplo
           disabled={status.kind === 'busy'}
         />
       </label>
-      <p className="text-base text-ink-muted md:text-sm">{t('rule')}</p>
+      <p className="text-base text-ink-muted md:text-sm">{rule ?? t('rule')}</p>
       {status.kind === 'busy' ? <p role="status">{t('uploading', { name: status.name })}</p> : null}
       {status.kind === 'done' ? <Notice tone="success">{t('uploaded', { name: status.name })}</Notice> : null}
       {status.kind === 'error' ? <Notice tone="danger">{messages[status.reason]}</Notice> : null}

@@ -392,9 +392,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-002:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/consolidation.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-003:
@@ -422,15 +423,17 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-007:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/receiving.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-008:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/invoice-confirmation.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-009:
@@ -476,9 +479,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-VIS-005:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/grni.test.ts
     verifiedBy: null
     notes: ""
   FR-LINE-001:

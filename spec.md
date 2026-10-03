@@ -3433,6 +3433,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-17** `[demo]` เพิ่ม event `request.draft_expiry_notified` ในแคตตาล็อก §10.2 เพราะการแจ้งผู้ขอว่าร่างที่ไม่ได้แก้จะถูกลบ (FR-INT-006 AC3) เป็น command ที่ต้องมี Event · การลบร่างใช้การยกเลิกโดยระบบตาม §6.4 (`request.cancelled` เหตุผล `STALE_DRAFT`) จึงเก็บประวัติไว้ · แจ้งเมื่อไม่ได้แก้ 83 วัน ลบเมื่อครบ 90 วันและหลังแจ้งอย่างน้อย 7 วัน · พบระหว่าง NEW-07 — เสร็จ 2026-10-03 · ed6af8e
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/request.ts` · เทสต์ AC3 ของ FR-INT-006 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม NEW-07)
+- [x] **NEW-18** `[demo]` ฟังก์ชันคำนวณภาษีหัก ณ ที่จ่าย (`src/core/wht` · BR-WHT-01) และรับของแล้วยังไม่มีใบกำกับ (`src/core/grni` · BR-RPT-01) พร้อม runner ของ `tests/golden/wht.yaml` และ `tests/golden/grni.yaml` เพื่อให้ golden ครบ 19 ไฟล์ที่ด่าน golden ของ `pnpm verify --strict` ต้องการ · ไม่รวมหน้ารายงานและการส่งออกของ S4-18 ซึ่งยังเป็น `[go-live]` · พบระหว่าง S4-08 — เสร็จ 2026-10-03 · bb81f96
+  - เสร็จเมื่อ: ด่าน golden ของ `pnpm verify --strict` ผ่านครบ 19 ไฟล์ · GC-WHT-01 และ GC-RPT-01 ถึง GC-RPT-05 ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-19** `[demo]` ด่าน `coverage` ใน `pnpm verify` ตรวจ branch coverage 100% ของ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}` ตาม §7.0 ข้อ 4 และ NFR-MNT-02 · พบระหว่าง NEW-18 — เสร็จ 2026-10-03 · e59c8e5
+  - เสร็จเมื่อ: ด่าน coverage ของ `pnpm verify` ผ่านที่ 100% branch และ FAIL เมื่อมี branch ที่ไม่มีเทสต์ (ตัวอย่างผิดที่ต้องจับได้)
+  - แยกงาน: ทำเองได้
 
 ---
 

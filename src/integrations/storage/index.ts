@@ -78,6 +78,12 @@ export async function sha256Of(key: string): Promise<string> {
   return hash.digest('hex')
 }
 
+/** The whole object, for a file the server sends on (a scheduled report, a PO's PDF); files are at most 20 MB */
+export async function readObject(key: string): Promise<Uint8Array> {
+  const r = await s3().send(new GetObjectCommand({ Bucket: bucket(), Key: key }))
+  return r.Body ? new Uint8Array(await r.Body.transformToByteArray()) : new Uint8Array()
+}
+
 /** A file the server made itself (an export, a PDF): written straight to the bucket */
 export async function putObject(key: string, body: Uint8Array, contentType: string): Promise<void> {
   await s3().send(new PutObjectCommand({ Bucket: bucket(), Key: key, Body: body, ContentType: contentType, ContentLength: body.length }))

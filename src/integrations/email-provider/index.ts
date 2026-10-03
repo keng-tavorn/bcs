@@ -12,6 +12,8 @@ export interface EmailMessage {
   readonly replyTo?: string
   readonly from?: string
   readonly headers?: Readonly<Record<string, string>>
+  /** Files sent with the message: a PO's PDF (FR-P2P-005), a scheduled report (FR-VIS-002) */
+  readonly attachments?: ReadonlyArray<{ readonly filename: string; readonly content: Uint8Array; readonly contentType: string }>
 }
 
 export interface EmailProvider {
@@ -30,6 +32,7 @@ export function createSmtpProvider(url: string, defaultFrom: string): EmailProvi
         ...(message.html ? { html: message.html } : {}),
         ...(message.replyTo ? { replyTo: message.replyTo } : {}),
         ...(message.headers ? { headers: { ...message.headers } } : {}),
+        ...(message.attachments?.length ? { attachments: message.attachments.map((a) => ({ filename: a.filename, content: Buffer.from(a.content), contentType: a.contentType })) } : {}),
       })
       return { messageId: info.messageId }
     },

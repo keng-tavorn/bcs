@@ -1,5 +1,5 @@
 import { holdMore, releaseHold } from '@/core/budget'
-import { parseQuantity } from '@/core/money/math'
+import { parseQuantity, vatFromNet } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { checkSod, type SodPolicy } from '@/core/sod'
 import { PO_MACHINE, VARIANCE_MACHINE, transition, type PoState, type TaskState, type VarianceState } from '@/core/state-machines'
@@ -82,7 +82,8 @@ export async function decideVarianceTask(
       ctx,
       route,
       { type: 'VARIANCE', id: variance.id, label: line.description },
-      { documentType: 'GR_VARIANCE', amount: { netSatang: variance.amountSatang, vatSatang: 0n }, requesterMemberId: variance.createdById, chargedDepartmentId: departmentId, conflictMemberIds: [variance.createdById], at: route.createdAt },
+      // the amount the route was made with (routeVariance): before VAT plus its VAT at the PO's rate
+      { documentType: 'GR_VARIANCE', amount: { netSatang: variance.amountSatang, vatSatang: vatFromNet(variance.amountSatang, (await tx.purchaseOrder.findUniqueOrThrow({ where: { id: variance.poId }, select: { vatRateBp: true } })).vatRateBp ?? 0).vat }, requesterMemberId: variance.createdById, chargedDepartmentId: departmentId, conflictMemberIds: [variance.createdById], at: route.createdAt },
     )
     if (!next.ok) return { ok: false, error: next.error }
     if (next.assigned) return { ok: true, result: { taskId: task.id, documentStatus: variance.status }, events: [...events, ...next.events], notifications: next.notifications }

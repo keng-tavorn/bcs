@@ -41,6 +41,8 @@ export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
 /** Longest free-text reason accepted by admin commands (stored in Comment) */
 export const REASON_MAX_LENGTH = 1000
+/** A share as tenths of a percent: 13 of 17 → 765 → "76.5" (KPI reports, §11.4) */
+export const PERCENT_TENTHS_SCALE = 1000n
 /** Events on one page of the audit search (FR-VIS-004 AC1) */
 export const AUDIT_PAGE_MAX = 100
 /** Events one audit export file takes: a wider search is narrowed first (FR-VIS-004 AC2) */

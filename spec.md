@@ -2694,6 +2694,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
+| report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
@@ -3454,6 +3455,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-23** `[demo]` เพิ่มการเปลี่ยนสถานะที่ §6.4 ยังไม่มี: คำขอที่ PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (BR-BUD-06) กลับเป็น PARTIALLY_ORDERED หรือ APPROVED ตามจำนวนที่ยังสั่งอยู่ เพื่อให้บรรทัดกลับเข้ากองได้จริง · PO ที่ GR ถูกกลับรายการกลับเป็น PARTIALLY_RECEIVED หรือ SENT ตามจำนวนที่ยังรับไว้ · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-04
   - เสร็จเมื่อ: ตาราง §6.4 มีแถวเหล่านี้ · `src/core/state-machines` มี transition ตรงกัน · เทสต์ที่วนทุกคู่ (สถานะ, command) และเทสต์ AC1 ของ FR-P2P-010 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม S4-04 และ S4-07)
+- [ ] **NEW-24** `[demo]` เพิ่ม event `report_schedule.created` ในแคตตาล็อก §10.2 เพราะการตั้งรอบส่งรายงานทางอีเมล (FR-VIS-002 AC1 · `report.schedule`) เป็น command ที่ต้องมี Event · การส่งแต่ละรอบบันทึกเป็น `export.generated` ของไฟล์รายงาน · พบระหว่าง S4-11
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/report-schedule.ts` · เทสต์ AC1 ของ FR-VIS-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-11)
 
 ---
 

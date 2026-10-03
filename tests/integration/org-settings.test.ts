@@ -44,6 +44,15 @@ describe('[FR-PLT-001/AC2] settings that fail OrgSettingsSchema are VALIDATION_F
     expect(await stored(org.id)).toEqual(settings)
   })
 
+  it('refuses a number pattern with an unknown token or without exactly one {SEQn} (BR-NUM-02)', async () => {
+    const { org, settings, ctx } = await orgWithSettings()
+    const typo = await saveOrgSettings(ctx, { section: 'numbering', value: { ...settings.numbering, PO: { pattern: 'PO-{BEE}-{SEQ5}', reset: 'YEARLY' } } }, key())
+    expect(typo).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'settings.numbering.PO.pattern' } } })
+    const noSeq = await saveOrgSettings(ctx, { section: 'numbering', value: { ...settings.numbering, PR: { pattern: 'PR-{BE}', reset: 'YEARLY' } } }, key())
+    expect(noSeq).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'settings.numbering.PR.pattern' } } })
+    expect(await stored(org.id)).toEqual(settings)
+  })
+
   it('refuses a section that has no admin capability in §2.4', async () => {
     const { org, settings, ctx } = await orgWithSettings()
     const result = await saveOrgSettings(ctx, { section: 'budgetBasis' as 'numbering', value: 'GROSS' }, key())

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { patternProblems } from '@/core/numbering'
 import { OrgSettingsSchema, type OrgSettings } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
 import type { Capability } from '@/server/authz/permissions'
@@ -37,6 +38,15 @@ export const saveOrgSettingsCommand = defineCommand({
       const issue = parsed.error.issues[0]
       const field = ['settings', ...(issue?.path ?? [input.section]).map(String)].join('.')
       return { ok: false, error: { code: 'VALIDATION_FAILED', message: `invalid settings at ${field}`, details: { field } } }
+    }
+    // BR-NUM-02: a number pattern uses known tokens and exactly one {SEQn}, so a typo never prints into a document number
+    if (input.section === 'numbering') {
+      for (const [document, rule] of Object.entries(parsed.data.numbering)) {
+        if (patternProblems(rule.pattern).length) {
+          const field = `settings.numbering.${document}.pattern`
+          return { ok: false, error: { code: 'VALIDATION_FAILED', message: `invalid number pattern at ${field}`, details: { field } } }
+        }
+      }
     }
     await tx.organization.update({ where: { id: ctx.organizationId }, data: { settings: toJsonSafe(parsed.data) as object } })
     return {

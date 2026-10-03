@@ -237,6 +237,7 @@ features:
     step: S2
     evidence:
       - tests/golden/numbering.test.ts
+      - tests/integration/numbering.test.ts
       - tests/unit/engines.test.ts
     verifiedBy: null
     notes: ""
@@ -270,6 +271,7 @@ features:
     evidence:
       - tests/golden/forms.test.ts
       - tests/unit/engines.test.ts
+      - tests/unit/forms-fields.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-003:

@@ -12,3 +12,7 @@ export const THAI_NUMBER_GROUP = 1_000_000n
 export const MS_PER_MINUTE = 60_000
 /** A business calendar with no working day within ten years is unusable: stop searching instead of looping forever */
 export const MAX_CALENDAR_SEARCH_DAYS = 3660
+/** Longest text a one-line form field takes (BR-FORM-01) */
+export const FORM_TEXT_MAX_LENGTH = 2_000
+/** Longest text a multi-line form field takes (BR-FORM-01) */
+export const FORM_TEXTAREA_MAX_LENGTH = 10_000

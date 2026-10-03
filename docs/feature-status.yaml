@@ -70,9 +70,11 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-009:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/thai.test.ts
+      - tests/unit/engines.test.ts
     verifiedBy: null
     notes: ""
   FR-PLT-010:
@@ -224,15 +226,18 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-007:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/sod.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-008:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/numbering.test.ts
+      - tests/unit/engines.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-009:
@@ -260,15 +265,19 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-002:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/forms.test.ts
+      - tests/unit/engines.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-003:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/forms.test.ts
+      - tests/unit/engines.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-004:
@@ -290,9 +299,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-007:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/sla.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-008:
@@ -302,9 +312,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-009:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/generated/state-machines.test.ts
     verifiedBy: null
     notes: ""
   FR-BUD-001:

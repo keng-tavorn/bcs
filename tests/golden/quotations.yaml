@@ -1,0 +1,16 @@
+# tests/golden/quotations.yaml
+suite: quotations
+vatRateBp: 700
+cases:
+  - id: GC-FORM-09
+    title: เลือกใบที่ยอดก่อน VAT ต่ำสุด เทียบข้ามใบที่รวมและไม่รวม VAT
+    input: { quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: C }
+    expect: { ok: true, nets: { A: "100000.00", B: "101000.00", C: "98130.84" }, lowest: [C] }
+  - id: GC-FORM-10
+    title: ไม่เลือกรายถูกสุดและไม่กรอกเหตุผล
+    input: { quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: A }
+    expect: { error: VALIDATION_FAILED, rule: QUOTE-LOWEST, lowest: [C] }
+  - id: GC-FORM-11
+    title: ไม่เลือกรายถูกสุดแต่กรอกเหตุผล
+    input: { quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: A, nonLowestQuoteReason: "ส่งของได้เร็วกว่า 2 สัปดาห์" }
+    expect: { ok: true, lowest: [C] }

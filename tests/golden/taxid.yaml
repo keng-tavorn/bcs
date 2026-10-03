@@ -1,0 +1,11 @@
+# tests/golden/taxid.yaml
+suite: taxid
+fn: isValidThaiTaxId
+cases:
+  - { id: GC-TAXID-01, input: "1234567890121", expect: true }
+  - { id: GC-TAXID-02, input: "1234567890122", expect: false }
+  - { id: GC-TAXID-03, input: "0999999999991", expect: true }
+  - { id: GC-TAXID-04, input: "0999999999990", expect: false }
+  - { id: GC-TAXID-05, input: "1-2345-67890-12-1", expect: true }
+  - { id: GC-TAXID-06, input: "123456789012", expect: false }
+  - { id: GC-TAXID-07, input: "12345678901ab", expect: false }

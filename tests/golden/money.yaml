@@ -1,0 +1,66 @@
+# tests/golden/money.yaml
+suite: money
+cases:
+  - id: GC-MONEY-01
+    title: VAT จากราคาก่อน VAT ปัด half-up (248.5 สตางค์ → 249)
+    fn: vatFromNet
+    input: { net: "35.50", rateBp: 700 }
+    expect: { vat: "2.49", gross: "37.99" }
+  - id: GC-MONEY-02
+    fn: vatFromGross
+    input: { gross: "107.00", rateBp: 700 }
+    expect: { vat: "7.00", net: "100.00" }
+  - id: GC-MONEY-03
+    fn: vatFromGross
+    input: { gross: "100.00", rateBp: 700 }
+    expect: { vat: "6.54", net: "93.46" }
+  - id: GC-MONEY-04
+    title: 0.49 สตางค์ ปัดลง
+    fn: vatFromNet
+    input: { net: "0.07", rateBp: 700 }
+    expect: { vat: "0.00", gross: "0.07" }
+  - id: GC-MONEY-05
+    title: 0.56 สตางค์ ปัดขึ้น
+    fn: vatFromNet
+    input: { net: "0.08", rateBp: 700 }
+    expect: { vat: "0.01", gross: "0.09" }
+  - id: GC-MONEY-06
+    title: VAT ระดับเอกสาร 10 บรรทัด บรรทัดละ 0.07 (ถ้าคิดรายบรรทัดจะได้ 0.00)
+    fn: documentTotals
+    input:
+      rateBp: 700
+      lines:
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+        - { qty: "1", unitPrice: "0.07" }
+    expect: { net: "0.70", vat: "0.05", gross: "0.75" }
+  - id: GC-MONEY-07
+    title: จำนวนทศนิยม × ราคา ปัด half-up (2502.5 สตางค์ → 2503)
+    fn: lineNet
+    input: { qty: "2.5", unitPrice: "10.01" }
+    expect: { net: "25.03" }
+  - id: GC-MONEY-08
+    title: บรรทัดที่ไม่มี VAT ไม่อยู่ในฐานภาษี
+    fn: documentTotals
+    input:
+      rateBp: 700
+      lines:
+        - { qty: "1", unitPrice: "1000.00", vatable: true }
+        - { qty: "1", unitPrice: "500.00", vatable: false }
+    expect: { net: "1500.00", vat: "70.00", gross: "1570.00" }
+  - id: GC-MONEY-09
+    title: เอกสารราคารวม VAT
+    fn: documentTotals
+    input:
+      rateBp: 700
+      priceIncludesVat: true
+      lines:
+        - { qty: "3", unitPrice: "107.00" }
+    expect: { net: "300.00", vat: "21.00", gross: "321.00" }

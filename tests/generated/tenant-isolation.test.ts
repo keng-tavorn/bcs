@@ -57,10 +57,19 @@ const delegate = (client: unknown, model: string): any => (client as Record<stri
 // Sample values that CHECK constraints of the migrations require (the generic sample would break them)
 const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   Delegation: { endsAt: new Date('2026-10-06T03:00:00Z') }, // delegation_period: startsAt < endsAt
+  BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
   Delegation: new Set(['delegate']),
+}
+// Optional relations a CHECK requires one of: budget_grant_one_grantee (a department or a member)
+const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
+  BudgetGrant: new Set(['granteeDepartment']),
+}
+// Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
+const EXISTING_ROWS: Record<string, Record<string, string>> = {
+  BudgetLedgerEntry: { eventId: 'Event' },
 }
 
 function sample(field: Field): unknown {
@@ -97,7 +106,7 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
     // A composite key (organizationId, xId) is required when its own column is: organizationId is always required
     const own = fkFields.filter((fk) => fk !== 'organizationId')
     const required = (own.length ? own : fkFields).every((fk) => model.fields.find((x) => x.name === fk)?.isRequired)
-    if (!required) continue
+    if (!required && !OPTIONAL_PARENTS[modelName]?.has(f.name)) continue
     if (f.type === 'Organization') {
       data[fkFields[0]!] = organizationId
       continue
@@ -112,7 +121,8 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
       continue
     }
     if (f.isId || f.hasDefaultValue || f.isUpdatedAt || !f.isRequired) continue
-    data[f.name] = SAMPLE_OVERRIDES[modelName]?.[f.name] ?? sample(f)
+    const existing = EXISTING_ROWS[modelName]?.[f.name]
+    data[f.name] = existing ? (await parentRow(existing, organizationId)).id : (SAMPLE_OVERRIDES[modelName]?.[f.name] ?? sample(f))
   }
   return data
 }
@@ -198,43 +208,48 @@ describe('[FR-PLT-001/AC3] [INV-TEN-01] db.forTenant() never crosses organizatio
   it.each(tenantModels)('%s: reads, updates, deletes and creates stay inside the tenant', async (name) => {
     const { a, b } = rows.get(name)!
     const db = delegate(forTenant(orgA), name)
+    const model = models.find((m) => m.name === name)!
+    // The row key: "id", or the column a projection is keyed by (BudgetLineBalance.budgetLineId)
+    const idKey = model.fields.find((f) => f.isId)!.name
+    const byKey = (row: Record<string, unknown>) => ({ [idKey]: row[idKey] })
 
-    const visible = (await db.findMany({ where: { id: { in: [a.id, b.id] } } })) as Array<Record<string, unknown>>
-    expect(visible.map((r) => r.id)).toEqual([a.id])
+    const visible = (await db.findMany({ where: { [idKey]: { in: [a[idKey], b[idKey]] } } })) as Array<Record<string, unknown>>
+    expect(visible.map((r) => r[idKey])).toEqual([a[idKey]])
     expect(visible.every((r) => r.organizationId === orgA)).toBe(true)
-    expect(await db.findFirst({ where: { id: b.id } })).toBeNull()
-    expect(await db.findUnique({ where: { id: b.id } })).toBeNull()
-    expect(await db.count({ where: { id: b.id } })).toBe(0)
+    expect(await db.findFirst({ where: byKey(b) })).toBeNull()
+    expect(await db.findUnique({ where: byKey(b) })).toBeNull()
+    expect(await db.count({ where: byKey(b) })).toBe(0)
 
     // Asking for the other tenant's rows explicitly finds nothing (it is not rewritten to this tenant's rows).
     expect(await db.findMany({ where: { organizationId: orgB } })).toEqual([])
 
     // A harmless "update" (set a column to its current value) must not reach the other tenant's row.
     // Append-only/insert-only tables (Event, CommandLog) refuse UPDATE/DELETE for the app role entirely.
-    const model = models.find((m) => m.name === name)!
     // a plain column (not the id, the tenant key, or a database-assigned value such as Event.seq)
-    const column = model.fields.find((f) => f.kind !== 'object' && !f.isId && f.name !== 'organizationId' && !f.isUpdatedAt && !f.hasDefaultValue)!
+    const plain = (f: Field) => f.kind !== 'object' && !f.isId && f.name !== 'organizationId' && !f.isUpdatedAt
+    // a projection whose columns all start from a default (BudgetLineBalance) uses one of those
+    const column = model.fields.find((f) => plain(f) && !f.hasDefaultValue) ?? model.fields.find((f) => plain(f) && f.kind === 'scalar' && f.name !== 'seq')!
     const [privileges] = await prisma.$queryRawUnsafe<Array<{ upd: boolean; del: boolean }>>(
       `select has_table_privilege('bcs_app', '"${name}"', 'UPDATE') as upd, has_table_privilege('bcs_app', '"${name}"', 'DELETE') as del`,
     )
     if (privileges!.upd) {
-      expect((await db.updateMany({ where: { id: b.id }, data: { [column.name]: b[column.name] } })).count).toBe(0)
-      await expect(db.update({ where: { id: b.id }, data: { [column.name]: b[column.name] } })).rejects.toThrow()
+      expect((await db.updateMany({ where: byKey(b), data: { [column.name]: b[column.name] } })).count).toBe(0)
+      await expect(db.update({ where: byKey(b), data: { [column.name]: b[column.name] } })).rejects.toThrow()
     } else {
-      await expect(db.updateMany({ where: { id: b.id }, data: { [column.name]: b[column.name] } })).rejects.toThrow(/permission denied/)
+      await expect(db.updateMany({ where: byKey(b), data: { [column.name]: b[column.name] } })).rejects.toThrow(/permission denied/)
     }
     if (privileges!.del) {
-      expect((await db.deleteMany({ where: { id: b.id } })).count).toBe(0)
+      expect((await db.deleteMany({ where: byKey(b) })).count).toBe(0)
     } else {
-      await expect(db.deleteMany({ where: { id: b.id } })).rejects.toThrow(/permission denied/)
+      await expect(db.deleteMany({ where: byKey(b) })).rejects.toThrow(/permission denied/)
     }
 
     // Writing a row for another organization is refused before it reaches the database.
     await expect(db.create({ data: { organizationId: orgB } })).rejects.toBeInstanceOf(TenantViolationError)
-    await expect(db.updateMany({ where: { id: a.id }, data: { organizationId: orgB } })).rejects.toBeInstanceOf(TenantViolationError)
+    await expect(db.updateMany({ where: byKey(a), data: { organizationId: orgB } })).rejects.toBeInstanceOf(TenantViolationError)
 
     // The other tenant's row is untouched.
-    expect(await delegate(prisma, name).findUnique({ where: { id: b.id } })).not.toBeNull()
+    expect(await delegate(prisma, name).findUnique({ where: byKey(b) })).not.toBeNull()
   })
 })
 

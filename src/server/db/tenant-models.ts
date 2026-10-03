@@ -36,6 +36,14 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'DocumentSequence',
   // S2-16
   'StepUpGrant',
+  // S3-01
+  'FiscalYear',
+  'BudgetLine',
+  'BudgetLedgerEntry',
+  'BudgetLineBalance',
+  'BudgetAllocation',
+  'BudgetGrant',
+  'BudgetImport',
 ])
 
 // Have an organizationId column but are platform tables reached only through platform code (spec §4.8).

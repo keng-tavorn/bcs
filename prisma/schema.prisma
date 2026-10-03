@@ -41,19 +41,19 @@ model Organization {
   updatedAt                   DateTime           @updatedAt @db.Timestamptz(6)
 
   /// Same-organization rule enforced by trigger Organization_signatory_same_org (a composite key would stop Prisma generating ids)
-  contractSignatory  Member?             @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  members            Member[]            @relation("OrganizationMembers")
-  modules            OrgModule[]
-  roleAssignments    RoleAssignment[]
-  events             Event[]
-  outbox             Outbox[]
-  commandLogs        CommandLog[]
-  files              FileObject[]
-  fileLinks          FileLink[]
-  notifications      Notification[]
-  invitations        MemberInvitation[]
-  comments           Comment[]
-  breakGlassSessions BreakGlassSession[]
+  contractSignatory   Member?              @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  members             Member[]             @relation("OrganizationMembers")
+  modules             OrgModule[]
+  roleAssignments     RoleAssignment[]
+  events              Event[]
+  outbox              Outbox[]
+  commandLogs         CommandLog[]
+  files               FileObject[]
+  fileLinks           FileLink[]
+  notifications       Notification[]
+  invitations         MemberInvitation[]
+  comments            Comment[]
+  breakGlassSessions  BreakGlassSession[]
   departments         Department[]
   costCenters         CostCenter[]
   positions           Position[]
@@ -76,6 +76,13 @@ model Organization {
   orgAuthorityChanges OrgAuthorityChange[]
   documentSequences   DocumentSequence[]
   stepUpGrants        StepUpGrant[]
+  fiscalYears         FiscalYear[]
+  budgetLines         BudgetLine[]
+  budgetLedger        BudgetLedgerEntry[]
+  budgetBalances      BudgetLineBalance[]
+  budgetAllocations   BudgetAllocation[]
+  budgetGrants        BudgetGrant[]
+  budgetImports       BudgetImport[]
 }
 
 enum ModuleKey {
@@ -104,7 +111,7 @@ model OrgModule {
   createdAt                DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime  @updatedAt @db.Timestamptz(6)
 
-  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization           Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   changedByPlatformAdmin PlatformAdmin? @relation(fields: [changedByPlatformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, module])
@@ -137,35 +144,39 @@ model Member {
   createdAt           DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt           DateTime     @updatedAt @db.Timestamptz(6)
 
-  organization         Organization     @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  user                 User?            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  signatoryFor         Organization[]   @relation("OrganizationContractSignatory")
-  invitations          MemberInvitation[] @relation("InvitationMember")
-  invitationsSent      MemberInvitation[] @relation("InvitationSender")
-  roleAssignments      RoleAssignment[] @relation("MemberRoles")
-  rolesGranted         RoleAssignment[] @relation("RoleGrantedBy")
-  notifications        Notification[]
-  uploadedFiles        FileObject[]
-  comments             Comment[]          @relation("CommentAuthor")
-  commentsRetracted    Comment[]          @relation("CommentRetractedBy")
+  organization      Organization       @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  signatoryFor      Organization[]     @relation("OrganizationContractSignatory")
+  invitations       MemberInvitation[] @relation("InvitationMember")
+  invitationsSent   MemberInvitation[] @relation("InvitationSender")
+  roleAssignments   RoleAssignment[]   @relation("MemberRoles")
+  rolesGranted      RoleAssignment[]   @relation("RoleGrantedBy")
+  notifications     Notification[]
+  uploadedFiles     FileObject[]
+  comments          Comment[]          @relation("CommentAuthor")
+  commentsRetracted Comment[]          @relation("CommentRetractedBy")
 
   /// Target of same-tenant foreign keys (organizationId, memberId): Postgres refuses links across organizations
-  primaryDepartment       Department?          @relation("MemberPrimaryDepartment", fields: [organizationId, primaryDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  positionAssignments     PositionAssignment[] @relation("MemberPositions")
-  delegationsGiven        Delegation[]         @relation("DelegationDelegator")
-  delegationsReceived     Delegation[]         @relation("DelegationDelegate")
-  formVersionsPublished   FormVersion[]        @relation("FormVersionPublishedBy")
-  requests                Request[]            @relation("RequestRequester")
-  requestFollows          RequestFollower[]    @relation("RequestFollows")
-  infoRequestsAsked       InfoRequest[]        @relation("InfoRequestAskedBy")
-  infoRequestsAnswered    InfoRequest[]        @relation("InfoRequestAnsweredBy")
-  doaVersionsSubmitted    DoaVersion[]         @relation("DoaVersionSubmittedBy")
-  doaVersionsApproved     DoaVersion[]         @relation("DoaVersionApprovedBy")
-  tasksAssigned           ApprovalTask[]       @relation("TaskAssignee")
-  tasksAsPrincipal        ApprovalTask[]       @relation("TaskPrincipal")
-  tasksDecided            ApprovalTask[]       @relation("TaskDecidedBy")
-  orgAuthorityChanges     OrgAuthorityChange[] @relation("OrgAuthorityChangeSubmittedBy")
-  stepUpGrants            StepUpGrant[]        @relation("MemberStepUps")
+  primaryDepartment     Department?          @relation("MemberPrimaryDepartment", fields: [organizationId, primaryDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  positionAssignments   PositionAssignment[] @relation("MemberPositions")
+  delegationsGiven      Delegation[]         @relation("DelegationDelegator")
+  delegationsReceived   Delegation[]         @relation("DelegationDelegate")
+  formVersionsPublished FormVersion[]        @relation("FormVersionPublishedBy")
+  requests              Request[]            @relation("RequestRequester")
+  requestFollows        RequestFollower[]    @relation("RequestFollows")
+  infoRequestsAsked     InfoRequest[]        @relation("InfoRequestAskedBy")
+  infoRequestsAnswered  InfoRequest[]        @relation("InfoRequestAnsweredBy")
+  doaVersionsSubmitted  DoaVersion[]         @relation("DoaVersionSubmittedBy")
+  doaVersionsApproved   DoaVersion[]         @relation("DoaVersionApprovedBy")
+  tasksAssigned         ApprovalTask[]       @relation("TaskAssignee")
+  tasksAsPrincipal      ApprovalTask[]       @relation("TaskPrincipal")
+  tasksDecided          ApprovalTask[]       @relation("TaskDecidedBy")
+  orgAuthorityChanges   OrgAuthorityChange[] @relation("OrgAuthorityChangeSubmittedBy")
+  stepUpGrants          StepUpGrant[]        @relation("MemberStepUps")
+  budgetGrantsReceived  BudgetGrant[]        @relation("BudgetGrantMember")
+  budgetGrantsGiven     BudgetGrant[]        @relation("BudgetGrantGrantedBy")
+  budgetImports         BudgetImport[]       @relation("BudgetImportedBy")
+
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
   @@unique([organizationId, email])
@@ -208,7 +219,8 @@ model RoleAssignment {
   grantedBy              Member?        @relation("RoleGrantedBy", fields: [organizationId, grantedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   grantedByPlatformAdmin PlatformAdmin? @relation(fields: [grantedByPlatformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
-  scopeDepartment        Department?    @relation("RoleScopeDepartment", fields: [organizationId, scopeDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  scopeDepartment Department? @relation("RoleScopeDepartment", fields: [organizationId, scopeDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
   @@unique([organizationId, memberId, role], map: "role_assignment_active_unique", where: raw("\"revokedAt\" IS NULL"))
   @@index([organizationId, memberId])
 }
@@ -227,7 +239,7 @@ model PlatformAdmin {
   moduleChanges      OrgModule[]
   rolesGranted       RoleAssignment[]
   breakGlassSessions BreakGlassSession[]
-  taxRatesConfirmed TaxRate[]
+  taxRatesConfirmed  TaxRate[]
 }
 
 /// Global table (spec §4.8) even though it records the tenant it opens (BR-AUTH-03)
@@ -380,6 +392,7 @@ model FileObject {
 
   /// Target of same-tenant foreign keys (organizationId, fileId)
   requestQuotations RequestQuotation[]
+
   @@unique([organizationId, id])
   @@index([organizationId])
 }
@@ -464,14 +477,14 @@ model Notification {
 // (uuid v7 ids via advanced.database.generateId, timestamptz).
 
 model User {
-  id               String      @id @db.Uuid
+  id               String   @id @db.Uuid
   name             String
-  email            String      @unique
-  emailVerified    Boolean     @default(false)
+  email            String   @unique
+  emailVerified    Boolean  @default(false)
   image            String?
-  twoFactorEnabled Boolean?    @default(false)
-  createdAt        DateTime    @default(now()) @db.Timestamptz(6)
-  updatedAt        DateTime    @updatedAt @db.Timestamptz(6)
+  twoFactorEnabled Boolean? @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
 
   sessions       Session[]
   accounts       Account[]
@@ -644,6 +657,8 @@ model Department {
   roleScopes          RoleAssignment[]     @relation("RoleScopeDepartment")
   requestsOfRequester Request[]            @relation("RequestRequesterDepartment")
   requestsCharged     Request[]            @relation("RequestChargedDepartment")
+  budgetLines         BudgetLine[]
+  budgetGrants        BudgetGrant[]        @relation("BudgetGrantDepartment")
 
   @@unique([organizationId, id])
   @@unique([organizationId, code])
@@ -664,6 +679,7 @@ model CostCenter {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   department   Department   @relation(fields: [organizationId, departmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   requests     Request[]
+  budgetLines  BudgetLine[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, code])
@@ -867,6 +883,8 @@ model Request {
   requesterDepartmentId String              @db.Uuid
   chargedDepartmentId   String              @db.Uuid
   costCenterId          String?             @db.Uuid
+  /// The budget line the request reserves (BR-BUD-04: one line per request in tier 1)
+  budgetLineId          String?             @db.Uuid
   urgency               Urgency             @default(NORMAL)
   neededBy              DateTime?           @db.Date
   nonLowestQuoteReason  String?
@@ -895,6 +913,7 @@ model Request {
   requesterDepartment Department         @relation("RequestRequesterDepartment", fields: [organizationId, requesterDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   chargedDepartment   Department         @relation("RequestChargedDepartment", fields: [organizationId, chargedDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   costCenter          CostCenter?        @relation(fields: [organizationId, costCenterId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine          BudgetLine?        @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   currentRoute        ApprovalRoute?     @relation("RequestCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   lines               RequestLine[]
   quotations          RequestQuotation[]
@@ -1230,14 +1249,14 @@ model ApprovalTask {
   createdAt                DateTime           @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime           @updatedAt @db.Timestamptz(6)
 
-  organization     Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  step             ApprovalStep   @relation(fields: [organizationId, stepId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  assignee         Member         @relation("TaskAssignee", fields: [organizationId, assigneeMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  principal        Member?        @relation("TaskPrincipal", fields: [organizationId, principalMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  decidedBy        Member?        @relation("TaskDecidedBy", fields: [organizationId, decidedByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  reassignedFrom   ApprovalTask?  @relation("TaskReassigned", fields: [organizationId, reassignedFromTaskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  reassignedTo     ApprovalTask[] @relation("TaskReassigned")
-  infoRequests     InfoRequest[]
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  step           ApprovalStep   @relation(fields: [organizationId, stepId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  assignee       Member         @relation("TaskAssignee", fields: [organizationId, assigneeMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  principal      Member?        @relation("TaskPrincipal", fields: [organizationId, principalMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  decidedBy      Member?        @relation("TaskDecidedBy", fields: [organizationId, decidedByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  reassignedFrom ApprovalTask?  @relation("TaskReassigned", fields: [organizationId, reassignedFromTaskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  reassignedTo   ApprovalTask[] @relation("TaskReassigned")
+  infoRequests   InfoRequest[]
 
   @@unique([organizationId, id])
   @@index([organizationId, assigneeMemberId, status])
@@ -1358,4 +1377,197 @@ model StepUpGrant {
 
   @@unique([organizationId, id])
   @@index([organizationId, memberId, subjectType, subjectId])
+}
+
+// ---------- budget (§6.2, §7.7, S3) ----------
+// The ledger is the truth (BR-BUD-01, ADR-021): every movement is an append-only BudgetLedgerEntry between buckets;
+// BudgetLineBalance and BudgetAllocation are projections written in the same transaction. Money is satang (BigInt).
+
+enum FiscalYearStatus {
+  OPEN
+  CLOSED
+}
+
+model FiscalYear {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  /// e.g. FY2569 (OQ-11)
+  code           String
+  startsOn       DateTime         @db.Date
+  /// The last day, inclusive
+  endsOn         DateTime         @db.Date
+  status         FiscalYearStatus @default(OPEN)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLines   BudgetLine[]
+  budgetImports BudgetImport[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+enum BudgetLineStatus {
+  OPEN
+  /// No new reservations; holds and actuals on existing ones go on (BR-BUD-08)
+  FROZEN
+  CLOSED
+}
+
+model BudgetLine {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  fiscalYearId   String           @db.Uuid
+  departmentId   String           @db.Uuid
+  costCenterId   String           @db.Uuid
+  code           String
+  nameTh         String
+  accountCode    String?
+  /// The amount imported in all (the ledger has it as OUTSIDE → AVAILABLE)
+  plannedSatang  BigInt
+  status         BudgetLineStatus @default(OPEN)
+  version        Int              @default(0)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fiscalYear   FiscalYear          @relation(fields: [organizationId, fiscalYearId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  department   Department          @relation(fields: [organizationId, departmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  costCenter   CostCenter          @relation(fields: [organizationId, costCenterId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  balance      BudgetLineBalance?
+  ledger       BudgetLedgerEntry[]
+  allocations  BudgetAllocation[]
+  grants       BudgetGrant[]
+  requests     Request[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, fiscalYearId, code])
+  @@index([organizationId, departmentId])
+}
+
+enum BudgetBucket {
+  OUTSIDE
+  AVAILABLE
+  RESERVED
+  COMMITTED
+  ACTUAL
+}
+
+/// Append-only (INV-BUD-06, INV-EVT-01): trigger ledger_append_only and no UPDATE/DELETE for bcs_app (§6.3)
+model BudgetLedgerEntry {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  budgetLineId   String       @db.Uuid
+  /// 1, 2, 3 … per budget line, in the order the movements happened
+  seq            Int
+  fromBucket     BudgetBucket
+  toBucket       BudgetBucket
+  amountSatang   BigInt
+  /// What moved the money: REQUEST_LINE, PO_LINE, IMPORT, …
+  sourceType     String
+  sourceId       String       @db.Uuid
+  /// The Event of the same transaction (INV-BUD-04, checked by a deferred trigger)
+  eventId        String       @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, budgetLineId, seq])
+  @@index([organizationId, sourceType, sourceId])
+}
+
+/// Projection of the ledger per budget line, updated in the same transaction (§7.7); locked FOR UPDATE (INV-BUD-05)
+model BudgetLineBalance {
+  budgetLineId    String   @id @db.Uuid
+  organizationId  String   @db.Uuid
+  availableSatang BigInt   @default(0)
+  reservedSatang  BigInt   @default(0)
+  committedSatang BigInt   @default(0)
+  actualSatang    BigInt   @default(0)
+  lastSeq         Int      @default(0)
+  version         Int      @default(0)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, budgetLineId])
+}
+
+enum BudgetSourceType {
+  REQUEST_LINE
+  PO_LINE
+}
+
+/// Projection per document line (INV-BUD-03); the dashboard drills down through it (FR-BUD-005 AC2)
+model BudgetAllocation {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  organizationId  String           @db.Uuid
+  budgetLineId    String           @db.Uuid
+  sourceType      BudgetSourceType
+  sourceId        String           @db.Uuid
+  reservedSatang  BigInt           @default(0)
+  committedSatang BigInt           @default(0)
+  actualSatang    BigInt           @default(0)
+  version         Int              @default(0)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, budgetLineId, sourceType, sourceId])
+}
+
+/// Use of another department's budget line (FR-BUD-004): to one department or to one member, for a period
+model BudgetGrant {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @db.Uuid
+  budgetLineId        String    @db.Uuid
+  granteeDepartmentId String?   @db.Uuid
+  granteeMemberId     String?   @db.Uuid
+  validFrom           DateTime  @db.Timestamptz(6)
+  /// null = open-ended
+  validTo             DateTime? @db.Timestamptz(6)
+  grantedById         String    @db.Uuid
+  revokedAt           DateTime? @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine        BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  granteeDepartment Department?  @relation("BudgetGrantDepartment", fields: [organizationId, granteeDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  granteeMember     Member?      @relation("BudgetGrantMember", fields: [organizationId, granteeMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy         Member       @relation("BudgetGrantGrantedBy", fields: [organizationId, grantedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, budgetLineId])
+}
+
+/// One import of a budget file (FR-BUD-001): the same file again is found by its checksum and needs confirming (AC3)
+model BudgetImport {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  organizationId     String   @db.Uuid
+  fiscalYearId       String   @db.Uuid
+  /// sha256 of the file
+  checksum           String
+  fileName           String
+  rows               Int
+  totalSatang        BigInt
+  importedById       String?  @db.Uuid
+  /// The same file was imported before and the importer confirmed adding it again
+  confirmedDuplicate Boolean  @default(false)
+  importedAt         DateTime @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fiscalYear   FiscalYear   @relation(fields: [organizationId, fiscalYearId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  importedBy   Member?      @relation("BudgetImportedBy", fields: [organizationId, importedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, checksum])
 }

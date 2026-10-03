@@ -29,6 +29,8 @@ const LOCKABLE = [
   'Delegation',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
+/** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */
+const KEY_COLUMN: Partial<Record<LockableTable, string>> = { BudgetLineBalance: 'budgetLineId' }
 
 /**
  * Locks rows in ascending id order (INV-PLT-03) and returns the ids that exist for this organization.
@@ -45,9 +47,10 @@ export async function lockRowsForUpdate(
   const sorted = [...new Set(ids)].sort()
   const tableSql = Prisma.raw('"' + table + '"')
   const orgColumn = Prisma.raw(table === 'Organization' ? '"id"' : '"organizationId"')
+  const keyColumn = Prisma.raw('"' + (KEY_COLUMN[table] ?? 'id') + '"')
   const rows = await tx.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"::text AS id FROM ${tableSql}
-    WHERE ${orgColumn} = ${organizationId}::uuid AND "id" = ANY(${sorted}::uuid[])
-    ORDER BY "id" FOR UPDATE`
+    SELECT ${keyColumn}::text AS id FROM ${tableSql}
+    WHERE ${orgColumn} = ${organizationId}::uuid AND ${keyColumn} = ANY(${sorted}::uuid[])
+    ORDER BY ${keyColumn} FOR UPDATE`
   return rows.map((r) => r.id)
 }

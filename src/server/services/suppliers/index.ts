@@ -1,8 +1,11 @@
 import { z } from 'zod'
+import { err, ok, type Result } from '@/core/result'
 import { isValidThaiTaxId, normalizeTaxId } from '@/core/thai/taxid'
+import { getRegistryProvider, isJuristicTaxId, type RegistryAnswer } from '@/integrations/registry'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
-import type { TenantTx } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
+import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 
 // The supplier register, tier 1 (spec §6.2 Supplier, §2.4 supplier.manage = PROCUREMENT): a Thai supplier's tax id
@@ -42,6 +45,58 @@ async function duplicateOf(tx: TenantTx, taxId: string | null, branchCode: strin
   return tx.supplier.findFirst({ where: { taxId, branchCode, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { id: true, code: true } })
 }
 
+// ---------- registry (§7.15, FR-SUP-001 AC1–AC3) ----------
+
+export interface RegistryProposal {
+  readonly taxId: string
+  readonly branchCode: string
+  /** FOUND: filled from a registry; NOT_FOUND or UNAVAILABLE: a person confirms with proof (BR-SUP-03) */
+  readonly outcome: 'FOUND' | 'NOT_FOUND' | 'UNAVAILABLE'
+  readonly sources: ReadonlyArray<'RD' | 'DBD' | 'STUB'>
+  readonly nameTh: string | null
+  readonly address: string | null
+  readonly isVatRegistered: boolean | null
+  readonly juristicStatus: string | null
+  /** BR-SUP-02: an individual is checked at RD only */
+  readonly individual: boolean
+}
+
+/** What the registries say about a tax id and branch, read by the server (never taken from the browser) */
+async function checkRegistry(taxId: string, branchCode: string): Promise<{ proposal: RegistryProposal; data: Record<string, unknown> }> {
+  const provider = getRegistryProvider()
+  const { rd, dbd } = await provider.lookup({ taxId, branchCode })
+  const found = [rd, dbd].filter((a): a is Extract<RegistryAnswer, { status: 'FOUND' }> => a.status === 'FOUND')
+  const outcome = found.length ? 'FOUND' : [rd, dbd].some((a) => a.status === 'UNAVAILABLE') ? 'UNAVAILABLE' : 'NOT_FOUND'
+  const sourceOf = (which: 'RD' | 'DBD'): 'RD' | 'DBD' | 'STUB' => (provider.mode === 'stub' ? 'STUB' : which)
+  const sources = [...new Set([...(rd.status === 'FOUND' ? [sourceOf('RD')] : []), ...(dbd.status === 'FOUND' ? [sourceOf('DBD')] : [])])]
+  const first = found[0]?.record
+  return {
+    proposal: {
+      taxId,
+      branchCode,
+      outcome,
+      sources,
+      nameTh: first?.nameTh ?? null,
+      address: first?.address ?? null,
+      isVatRegistered: rd.status === 'FOUND' ? (rd.record.vatRegistered ?? null) : null,
+      juristicStatus: dbd.status === 'FOUND' ? (dbd.record.juristicStatus ?? null) : null,
+      individual: !isJuristicTaxId(taxId),
+    },
+    data: { mode: provider.mode, rd, dbd },
+  }
+}
+
+/** FR-SUP-001 AC1: type a tax id and get the registry's values to confirm; PROCUREMENT only */
+export async function lookupRegistry(ctx: Ctx, input: { taxId: string; branchCode?: string }): Promise<Result<RegistryProposal>> {
+  const allowed = await forTenant(ctx.organizationId).$transaction((tx) => authorize(tx, ctx, 'supplier.manage'))
+  if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
+  const taxId = normalizeTaxId(input.taxId)
+  if (!isValidThaiTaxId(taxId)) return err('VALIDATION_FAILED', 'the tax id is not a valid Thai tax id', { field: 'taxId', reason: 'TAX_ID_INVALID' })
+  const branchCode = input.branchCode ?? '00000'
+  if (!/^\d{5}$/.test(branchCode)) return err('VALIDATION_FAILED', 'the branch is five digits', { field: 'branchCode', reason: 'BRANCH' })
+  return ok((await checkRegistry(taxId, branchCode)).proposal)
+}
+
 // ---------- create ----------
 
 const CreateSupplierInput = z.strictObject({
@@ -57,6 +112,11 @@ const CreateSupplierInput = z.strictObject({
   address: Fields.address.optional(),
   category: Fields.category.optional(),
   expressVendorCode: Fields.expressVendorCode.optional(),
+  /**
+   * BR-SUP-01 to BR-SUP-03: LOOKUP checks the registries again on the server and keeps what they said; MANUAL is for
+   * when they cannot confirm the supplier and needs a proof file (FileLink REGISTRY_PROOF). A foreign supplier skips it.
+   */
+  registry: z.discriminatedUnion('check', [z.strictObject({ check: z.literal('LOOKUP') }), z.strictObject({ check: z.literal('MANUAL'), proofFileId: z.uuid() })]).optional(),
 })
 
 export const createSupplierCommand = defineCommand({
@@ -71,6 +131,21 @@ export const createSupplierCommand = defineCommand({
     if (await tx.supplier.findFirst({ where: { code: input.code }, select: { id: true } })) return fail('VALIDATION_FAILED', 'the code is in use', { field: 'code', reason: 'CODE_EXISTS' })
     const same = await duplicateOf(tx, taxId.taxId, input.branchCode)
     if (same) return fail('VALIDATION_FAILED', 'a supplier with this tax id and branch exists', { field: 'taxId', reason: 'SUPPLIER_EXISTS', supplierId: same.id, code: same.code })
+    // §7.15: a Thai supplier is checked against the registries, or confirmed by a person with proof
+    let registry: { source: 'RD' | 'DBD' | 'MANUAL' | 'STUB'; status: string | null; data: Record<string, unknown>; outcome: 'FOUND' | 'NOT_FOUND' | 'UNAVAILABLE'; sources: Array<'RD' | 'DBD' | 'MANUAL' | 'STUB'>; proofFileId: string | null } | null = null
+    if (!input.isForeign && taxId.taxId) {
+      if (!input.registry) return fail('VALIDATION_FAILED', 'check the registries or confirm with proof', { field: 'registry', reason: 'REGISTRY_CHECK_REQUIRED' })
+      const checked = await checkRegistry(taxId.taxId, input.branchCode)
+      if (input.registry.check === 'LOOKUP') {
+        if (checked.proposal.outcome !== 'FOUND') return fail('VALIDATION_FAILED', 'the registries could not confirm the supplier: attach proof', { field: 'registry', reason: 'REGISTRY_PROOF_REQUIRED', outcome: checked.proposal.outcome })
+        registry = { source: checked.proposal.sources[0] as 'RD' | 'DBD' | 'STUB', status: checked.proposal.juristicStatus, data: checked.data, outcome: 'FOUND', sources: [...checked.proposal.sources], proofFileId: null }
+      } else {
+        const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+        const own = await tx.fileObject.count({ where: { id: input.registry.proofFileId, uploadedById: actor ?? undefined, status: 'AVAILABLE' } })
+        if (own !== 1) return fail('VALIDATION_FAILED', 'the proof must be a file you uploaded', { field: 'registry.proofFileId', reason: 'FILE' })
+        registry = { source: 'MANUAL', status: checked.proposal.juristicStatus, data: checked.data, outcome: checked.proposal.outcome, sources: ['MANUAL'], proofFileId: input.registry.proofFileId }
+      }
+    }
     const row = await tx.supplier.create({
       data: {
         organizationId: ctx.organizationId,
@@ -87,21 +162,21 @@ export const createSupplierCommand = defineCommand({
         category: input.category ?? null,
         expressVendorCode: input.expressVendorCode ?? null,
         createdById: ctx.actor.type === 'USER' ? ctx.actor.memberId : null,
+        ...(registry ? { registrySource: registry.source, registryStatus: registry.status, registryCheckedAt: ctx.now, registryData: registry.data as object } : {}),
       },
       select: { id: true },
     })
-    return {
-      ok: true,
-      result: { supplierId: row.id },
-      events: [
-        {
-          type: 'supplier.created',
-          aggregateType: 'Supplier',
-          aggregateId: row.id,
-          data: { code: input.code, taxId: taxId.taxId, branchCode: input.branchCode, isForeign: input.isForeign, registrySource: null, via: 'PROCUREMENT' },
-        },
-      ],
-    }
+    if (registry?.proofFileId) await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: registry.proofFileId, subjectType: 'Supplier', subjectId: row.id, kind: 'REGISTRY_PROOF' } })
+    const events: EventDraft[] = [
+      {
+        type: 'supplier.created',
+        aggregateType: 'Supplier',
+        aggregateId: row.id,
+        data: { code: input.code, taxId: taxId.taxId, branchCode: input.branchCode, isForeign: input.isForeign, registrySource: registry?.source ?? null, via: 'PROCUREMENT' },
+      },
+    ]
+    if (registry) events.push({ type: 'supplier.registry_checked', aggregateType: 'Supplier', aggregateId: row.id, data: { taxId: taxId.taxId!, branchCode: input.branchCode, sources: registry.sources, outcome: registry.outcome } })
+    return { ok: true, result: { supplierId: row.id }, events }
   },
 })
 

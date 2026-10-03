@@ -18,15 +18,19 @@ beforeAll(async () => {
 const proc = () => org.ctxOf('proc_officer', NOW)
 const events = (aggregateId: string) => prisma.event.findMany({ where: { aggregateId }, orderBy: { occurredAt: 'asc' }, select: { type: true, data: true } })
 const code = () => `S-${randomUUID().slice(0, 8).toUpperCase()}`
+/** A company certificate PROCUREMENT uploaded, for a supplier the registries cannot confirm (BR-SUP-03) */
+const proof = async () =>
+  (await prisma.fileObject.create({ data: { organizationId: org.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: 'หนังสือรับรอง.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: org.member.proc_officer! } })).id
 
 describe('[GC-TAXID-01] [GC-TAXID-02] [GC-TAXID-05] the register checks Thai tax ids with mod-11 (BR-TAXID-01)', () => {
   it('stores a valid tax id without its dashes, with an event', async () => {
-    const created = await createSupplier(proc(), { code: code(), nameTh: 'บริษัท ทดสอบ จำกัด', taxId: '1-2345-67890-12-1', expressVendorCode: 'V9001' }, key())
+    const created = await createSupplier(proc(), { code: code(), nameTh: 'บริษัท ทดสอบ จำกัด', taxId: '1-2345-67890-12-1', expressVendorCode: 'V9001', registry: { check: 'LOOKUP' } }, key())
     if (!created.ok) throw new Error(JSON.stringify(created.error))
     const row = await prisma.supplier.findUniqueOrThrow({ where: { id: created.data.supplierId } })
-    expect(row).toMatchObject({ taxId: '1234567890121', branchCode: '00000', isForeign: false, status: 'ACTIVE', expressVendorCode: 'V9001', createdById: org.member.proc_officer, version: 0 })
+    expect(row).toMatchObject({ taxId: '1234567890121', branchCode: '00000', isForeign: false, status: 'ACTIVE', expressVendorCode: 'V9001', createdById: org.member.proc_officer, version: 0, registrySource: 'STUB' })
     expect(await events(row.id)).toEqual([
-      { type: 'supplier.created', data: { code: row.code, taxId: '1234567890121', branchCode: '00000', isForeign: false, registrySource: null, via: 'PROCUREMENT' } },
+      { type: 'supplier.created', data: { code: row.code, taxId: '1234567890121', branchCode: '00000', isForeign: false, registrySource: 'STUB', via: 'PROCUREMENT' } },
+      { type: 'supplier.registry_checked', data: { taxId: '1234567890121', branchCode: '00000', sources: ['STUB'], outcome: 'FOUND' } },
     ])
   })
 
@@ -47,30 +51,30 @@ describe('[S4-02] the supplier register', () => {
   })
 
   it('refuses a second supplier with the same tax id and branch, or the same code; another branch is a supplier of its own', async () => {
-    const first = await createSupplier(proc(), { code: code(), nameTh: 'สาขาใหญ่', taxId: '0999999999991' }, key())
+    const first = await createSupplier(proc(), { code: code(), nameTh: 'สาขาใหญ่', taxId: '0999999999991', registry: { check: 'MANUAL', proofFileId: await proof() } }, key())
     if (!first.ok) throw new Error(JSON.stringify(first.error))
-    expect(await createSupplier(proc(), { code: code(), nameTh: 'ซ้ำ', taxId: '0999999999991' }, key())).toMatchObject({
+    expect(await createSupplier(proc(), { code: code(), nameTh: 'ซ้ำ', taxId: '0999999999991', registry: { check: 'MANUAL', proofFileId: await proof() } }, key())).toMatchObject({
       ok: false,
       error: { code: 'VALIDATION_FAILED', details: { reason: 'SUPPLIER_EXISTS', supplierId: first.data.supplierId } },
     })
-    expect(await createSupplier(proc(), { code: code(), nameTh: 'สาขา 1', taxId: '0999999999991', branchCode: '00001' }, key())).toMatchObject({ ok: true })
+    expect(await createSupplier(proc(), { code: code(), nameTh: 'สาขา 1', taxId: '0999999999991', branchCode: '00001', registry: { check: 'MANUAL', proofFileId: await proof() } }, key())).toMatchObject({ ok: true })
     const taken = (await prisma.supplier.findUniqueOrThrow({ where: { id: first.data.supplierId } })).code
-    expect(await createSupplier(proc(), { code: taken, nameTh: 'รหัสซ้ำ', taxId: '1234567890121', branchCode: '00009' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'CODE_EXISTS' } } })
+    expect(await createSupplier(proc(), { code: taken, nameTh: 'รหัสซ้ำ', taxId: '1234567890121', branchCode: '00009', registry: { check: 'LOOKUP' } }, key())).toMatchObject({ ok: false, error: { details: { reason: 'CODE_EXISTS' } } })
   })
 
   it('only PROCUREMENT manages the register (supplier.manage)', async () => {
     const c = code()
     for (const who of ['req_con', 'dm_con', 'ceo']) {
-      expect(await createSupplier(org.ctxOf(who, NOW), { code: c, nameTh: 'ไม่มีสิทธิ์', taxId: '1234567890121', branchCode: '00008' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+      expect(await createSupplier(org.ctxOf(who, NOW), { code: c, nameTh: 'ไม่มีสิทธิ์', taxId: '1234567890121', branchCode: '00008', registry: { check: 'LOOKUP' } }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     }
     expect(await prisma.supplier.count({ where: { code: c } })).toBe(0)
-    const created = await createSupplier(proc(), { code: c, nameTh: 'มีสิทธิ์', taxId: '1234567890121', branchCode: '00008' }, key())
+    const created = await createSupplier(proc(), { code: c, nameTh: 'มีสิทธิ์', taxId: '1234567890121', branchCode: '00008', registry: { check: 'LOOKUP' } }, key())
     if (!created.ok) throw new Error(JSON.stringify(created.error))
     expect(await updateSupplier(org.ctxOf('req_con', NOW), { supplierId: created.data.supplierId, expectedVersion: 0, nameTh: 'แก้' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
   })
 
   it('updates against the version seen, records what changed, and refuses a stale or empty change', async () => {
-    const created = await createSupplier(proc(), { code: code(), nameTh: 'ก่อนแก้', taxId: '1234567890121', branchCode: '00002' }, key())
+    const created = await createSupplier(proc(), { code: code(), nameTh: 'ก่อนแก้', taxId: '1234567890121', branchCode: '00002', registry: { check: 'LOOKUP' } }, key())
     if (!created.ok) throw new Error(JSON.stringify(created.error))
     const supplierId = created.data.supplierId
     expect(await updateSupplier(proc(), { supplierId, expectedVersion: 0, nameTh: 'หลังแก้', expressVendorCode: 'V7777', status: 'INACTIVE' }, key())).toMatchObject({ ok: true, data: { version: 1 } })

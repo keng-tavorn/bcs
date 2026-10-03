@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { evaluateForm } from '@/core/forms'
+import { evaluateCondition, evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
 import { documentTotals, lineNet } from '@/core/money/math'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
@@ -15,7 +15,8 @@ import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
-import { formDefinition } from './form'
+import { formDefinition } from '@/server/forms/schema'
+import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 
 // Purchase requests (spec §6.4, FR-INT-007, FR-INT-009): a draft with lines, then submit as one transaction — form
 // check (BR-FORM-01/03), totals from core/money with the VAT rate of the tax date (BR-VAT-01..03), budget check (stub
@@ -48,7 +49,16 @@ const DraftInput = z.strictObject({
   priceIncludesVat: z.boolean().default(false),
   formData: z.record(z.string(), z.unknown()).default({}),
   lines: z.array(LineInput).max(200).default([]),
+  /** BR-FORM-06: quotations as data, one chosen; a reason when the chosen one is not the lowest */
+  quotations: z.array(QuotationInput).max(MAX_QUOTATIONS).default([]),
+  nonLowestQuoteReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
 })
+
+/** Today's VAT rate for the prices before VAT of draft quotations; submit computes them again (BR-FORM-06) */
+async function todaysRate(ctx: Ctx): Promise<number | null> {
+  const rate = rateFor(taxDateOf(ctx.now), await listTaxRates())
+  return rate.ok ? rate.rateBp : null
+}
 
 const amountToSatang = (baht: string) => {
   const [whole, fraction = ''] = baht.split('.')
@@ -123,9 +133,12 @@ export const createDraftCommand = defineCommand({
         ...(input.neededBy ? { neededBy: new Date(`${input.neededBy}T00:00:00Z`) } : {}),
         priceIncludesVat: input.priceIncludesVat,
         formData: input.formData as object,
+        nonLowestQuoteReason: input.nonLowestQuoteReason ?? null,
       },
     })
     await writeLines(tx, ctx, id, input.lines)
+    const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, await todaysRate(ctx))
+    if (quotes) return quotes
     return {
       ok: true,
       result: { requestId: id },
@@ -181,6 +194,15 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
     const issue = checked.error.issues[0]
     return fail('VALIDATION_FAILED', 'the form is not complete', { field: `formData.${issue?.path.join('.') ?? ''}`, reason: 'FORM' })
   }
+  // BR-FORM-05: service and licence lines carry the day the service ends, when the form asks for it
+  const endDate = form.lines.serviceEndDate
+  if (endDate && evaluateCondition(endDate.when, { fields: evaluated.fields, attachments, variables: { $amountGross: totals.gross, $amountNet: totals.net, $requestType: request.requestType.code } })) {
+    const missing = request.lines.findIndex((l) => !l.serviceEndDate)
+    if (missing >= 0) return fail('VALIDATION_FAILED', 'the line needs the day the service ends', { field: `lines.${missing}.serviceEndDate`, reason: 'SERVICE_END_DATE' })
+  }
+  // BR-FORM-06: quotations compared before VAT with the rate of the tax date
+  const quotes = await checkQuotations(tx, request, rate.rateBp)
+  if (quotes) return quotes
   // The budget check and reservation of §6.4 ("ตรวจและจองงบ") arrive with S3-05; until then no request is refused for
   // budget, which the demo data respects
   const route = await startRoute(
@@ -377,10 +399,13 @@ export const editCommand = defineCommand({
         neededBy: input.neededBy ? new Date(`${input.neededBy}T00:00:00Z`) : null,
         priceIncludesVat: input.priceIncludesVat,
         formData: input.formData as object,
+        nonLowestQuoteReason: input.nonLowestQuoteReason ?? null,
         version: { increment: 1 },
       },
     })
     await writeLines(tx, ctx, request.id, input.lines)
+    const quotes = await writeQuotations(tx, ctx, request, input.quotations, await todaysRate(ctx))
+    if (quotes) return quotes
     return { ok: true, result: { requestId: request.id }, events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: request.id, data: { requestTypeCode: request.requestType.code, lines: input.lines.length } }] }
   },
 })

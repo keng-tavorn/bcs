@@ -1,0 +1,92 @@
+# Forms of the demo request types (spec §7.9, BR-FORM-04 to BR-FORM-06), in the JSON shape ORG_ADMIN imports
+# (FR-ADM-005 AC1). Seeded as version 1 of each type of the RequestTypes sheet; local and staging only.
+# The lines of a request (item, quantity, unit, price) are part of every purchase form and are not fields here.
+shared:
+  screening: &screening
+    - id: processesPersonalData
+      type: select
+      required: true
+      options: [Y, N]
+      label: { th: ผู้ขายจะประมวลผลข้อมูลส่วนบุคคลแทนบริษัทหรือไม่, en: Will the supplier process personal data on the company's behalf? }
+      help: { th: "ถ้าใช่ ต้องแนบข้อตกลงการประมวลผลข้อมูล (DPA)", en: "If yes, attach a data processing agreement (DPA)" }
+      optionLabels: { Y: { th: ใช่, en: "Yes" }, N: { th: ไม่ใช่, en: "No" } }
+    - id: accessesSystems
+      type: select
+      required: true
+      options: [Y, N]
+      label: { th: ผู้ขายจะเข้าถึงระบบหรือข้อมูลภายในหรือไม่, en: Will the supplier access internal systems or data? }
+      optionLabels: { Y: { th: ใช่, en: "Yes" }, N: { th: ไม่ใช่, en: "No" } }
+    - id: accessesPremises
+      type: select
+      required: true
+      options: [Y, N]
+      label: { th: ผู้ขายจะเข้าพื้นที่ทำงานหรือไซต์งานหรือไม่, en: Will the supplier enter offices or work sites? }
+      optionLabels: { Y: { th: ใช่, en: "Yes" }, N: { th: ไม่ใช่, en: "No" } }
+  singleSource: &singleSource
+    id: singleSourceJustification
+    type: textarea
+    label: { th: เหตุผลกรณีมีผู้ขายรายเดียว, en: Single-source justification }
+    help: { th: "ใช้เมื่อยอดรวมเกิน 100,000 บาทและมีใบเสนอราคาไม่ครบ 3 ราย", en: "Needed above 100,000 baht with fewer than 3 quotations" }
+  quotes: &quotes
+    id: ATT-QUOTES
+    when: { field: $amountGross, op: gt, value: "100000.00" }
+    require:
+      any:
+        - { attachments: QUOTATION, min: 3 }
+        - all:
+            - { attachments: QUOTATION, min: 1 }
+            - { field: singleSourceJustification, op: notEmpty }
+  dpa: &dpa
+    id: ATT-DPA
+    when: { field: processesPersonalData, op: eq, value: "Y" }
+    require: { attachments: DPA, min: 1 }
+forms:
+  BUY_GOODS:
+    fields:
+      - *singleSource
+    rules:
+      - *quotes
+  HIRE_SERVICE:
+    fields:
+      - { id: scopeOfWork, type: textarea, required: true, label: { th: ขอบเขตงาน, en: Scope of work } }
+      - { id: servicePeriod, type: text, required: true, label: { th: ระยะเวลาบริการ, en: Service period }, help: { th: เช่น 12 เดือน, en: e.g. 12 months } }
+      - *singleSource
+      - *screening
+    rules:
+      - *quotes
+      - *dpa
+    lines:
+      serviceEndDate: { when: { all: [] } }
+  CONTRACT_WORK:
+    fields:
+      - { id: scopeOfWork, type: textarea, required: true, label: { th: ขอบเขตงาน, en: Scope of work } }
+      - { id: milestones, type: textarea, required: true, label: { th: งวดงาน, en: Milestones }, help: { th: งานที่ต้องส่งและยอดของแต่ละงวด, en: The work due and the amount of each milestone } }
+      - { id: site, type: text, required: true, label: { th: ไซต์งาน, en: Work site } }
+      - *singleSource
+    rules:
+      - *quotes
+  IT_PURCHASE:
+    fields:
+      - id: category
+        type: select
+        required: true
+        options: [HARDWARE, SOFTWARE]
+        label: { th: หมวด, en: Category }
+        optionLabels: { HARDWARE: { th: ฮาร์ดแวร์, en: Hardware }, SOFTWARE: { th: ซอฟต์แวร์และไลเซนส์, en: Software and licences } }
+      - { id: assetTag, type: text, label: { th: เลขทะเบียนทรัพย์สิน, en: Asset tag }, help: { th: ถ้าทราบแล้ว, en: If known } }
+      - *singleSource
+      - *screening
+    visibility:
+      - { field: assetTag, when: { field: category, op: eq, value: HARDWARE } }
+    rules:
+      - *quotes
+      - *dpa
+    lines:
+      serviceEndDate: { when: { field: category, op: eq, value: SOFTWARE } }
+  NEW_SUPPLIER:
+    fields:
+      - { id: supplierName, type: text, required: true, label: { th: ชื่อผู้ขาย, en: Supplier name } }
+      - { id: taxId, type: text, required: true, label: { th: เลขประจำตัวผู้เสียภาษี, en: Tax ID } }
+      - { id: branchCode, type: text, label: { th: รหัสสาขา, en: Branch code }, help: { th: 00000 คือสำนักงานใหญ่, en: 00000 is the head office } }
+      - { id: email, type: text, label: { th: อีเมลของผู้ขาย, en: Supplier e-mail } }
+      - { id: reason, type: textarea, required: true, label: { th: เหตุผลที่ต้องการผู้ขายรายนี้, en: Why this supplier is needed } }

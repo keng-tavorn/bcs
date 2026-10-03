@@ -179,7 +179,7 @@ describe('[FR-PLT-007/AC3] the seed builds the organization structure and DOA ve
     for (const [code, department] of Object.entries(fixture.members)) {
       expect(codeOf.get(members.find((m) => m.employeeCode === code)!.primaryDepartmentId!), code).toBe(department)
     }
-    expect(await seedStructure()).toEqual({ departments: 0, positions: 0, assignments: 0, doaVersions: 0, requestTypes: 0, holidays: 0 })
+    expect(await seedStructure()).toEqual({ departments: 0, positions: 0, assignments: 0, doaVersions: 0, requestTypes: 0, forms: 0, holidays: 0 })
   })
 
   it('publishes DOA version 1 with the fixture rules and policy; only effectiveFrom differs (2026-01-01, ADR-038), and it passes the full lint', async () => {
@@ -216,6 +216,11 @@ describe('[FR-PLT-007/AC3] the seed builds the organization structure and DOA ve
       ['IT_PURCHASE', 'PURCHASE_REQUEST'],
       ['NEW_SUPPLIER', 'SUPPLIER_REQUEST'],
     ])
+    // Each type has version 1 of its form (prisma/seed/forms.yaml) published and in use
+    const forms = await prisma.formVersion.findMany({ where: { organizationId: first.organizationId }, include: { requestType: true } })
+    expect(forms.map((f) => [f.requestType.code, f.versionNo, f.status]).sort()).toEqual(types.map((t) => [t.code, 1, 'PUBLISHED']).sort())
+    expect(types.every((t) => forms.some((f) => f.id === t.currentFormVersionId))).toBe(true)
+    expect(await prisma.event.count({ where: { organizationId: first.organizationId, type: 'form_version.published' } })).toBe(types.length)
     const holidays = await prisma.holiday.findMany({ where: { organizationId: first.organizationId } })
     expect(holidays.map((h) => h.date.toISOString().slice(0, 10))).toEqual(expect.arrayContaining(['2026-10-13', '2026-10-23']))
   })

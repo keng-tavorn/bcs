@@ -25,6 +25,12 @@ export const FIELD_TYPES = [
 ] as const
 export type FieldType = (typeof FIELD_TYPES)[number]
 
+/** Screen text of a form in both languages: forms are data the organization imports (FR-ADM-005), not messages */
+export interface FormText {
+  readonly th: string
+  readonly en: string
+}
+
 export interface FieldDef {
   /** Key in Request.formData */
   readonly id: string
@@ -34,7 +40,15 @@ export interface FieldDef {
   readonly options?: readonly string[]
   /** text and textarea; capped at the FORM_*_MAX_LENGTH limits */
   readonly maxLength?: number
+  /** The label or question shown with the field */
+  readonly label?: FormText
+  /** A short hint under the field */
+  readonly help?: FormText
+  /** The text of each option of a select or multiselect */
+  readonly optionLabels?: Readonly<Record<string, FormText>>
 }
+
+const FormTextSchema = z.strictObject({ th: z.string().trim().min(1).max(FORM_TEXT_MAX_LENGTH), en: z.string().trim().min(1).max(FORM_TEXT_MAX_LENGTH) })
 
 /** A field definition as stored in FormVersion.schema; checked when a form version is saved. */
 export const FieldDefSchema = z
@@ -44,11 +58,15 @@ export const FieldDefSchema = z
     required: z.boolean().optional(),
     options: z.array(z.string().min(1)).min(1).optional(),
     maxLength: z.number().int().positive().optional(),
+    label: FormTextSchema.optional(),
+    help: FormTextSchema.optional(),
+    optionLabels: z.record(z.string(), FormTextSchema).optional(),
   })
   .refine((f) => (f.type === 'select' || f.type === 'multiselect') === (f.options !== undefined), {
     message: 'options are given exactly for select and multiselect',
     path: ['options'],
   })
+  .refine((f) => Object.keys(f.optionLabels ?? {}).every((k) => f.options?.includes(k)), { message: 'optionLabels name options of the field', path: ['optionLabels'] })
 
 const DECIMAL_TEXT = /^-?\d{1,14}(\.\d{1,4})?$/
 const MONEY_TEXT = /^\d{1,13}(\.\d{1,2})?$/

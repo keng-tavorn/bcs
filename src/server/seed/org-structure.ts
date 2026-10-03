@@ -3,6 +3,7 @@ import { forTenant } from '@/server/db/tenant'
 import { ruleJson } from '@/server/doa/snapshot'
 import { appendEvents, type EventDraft } from '@/server/events/append'
 import type { DemoUser } from './demo-org'
+import { loadSeedForms, type SeedForm } from './forms'
 import { doaSnapshot, parseDoa, parseHolidays, parseOrgStructure, parseRequestTypes } from './sheets'
 import type { InputWorkbook } from './workbook'
 
@@ -17,10 +18,16 @@ export interface OrgStructureInput {
   readonly doa: ReturnType<typeof parseDoa>
   readonly requestTypes: ReturnType<typeof parseRequestTypes>
   readonly holidays: ReturnType<typeof parseHolidays>
+  /** The form of each request type (prisma/seed/forms.yaml) */
+  readonly forms: ReadonlyMap<string, SeedForm>
 }
 
 export function parseOrgStructureInput(workbook: InputWorkbook): OrgStructureInput {
-  return { structure: parseOrgStructure(workbook), doa: parseDoa(workbook), requestTypes: parseRequestTypes(workbook), holidays: parseHolidays(workbook) }
+  const requestTypes = parseRequestTypes(workbook)
+  const forms = loadSeedForms()
+  const missing = requestTypes.filter((t) => !forms.has(t.code)).map((t) => t.code)
+  if (missing.length) throw new Error(`RequestTypes: no form in prisma/seed/forms.yaml for ${missing.join(', ')}`)
+  return { structure: parseOrgStructure(workbook), doa: parseDoa(workbook), requestTypes, holidays: parseHolidays(workbook), forms }
 }
 
 export interface OrgStructureReport {
@@ -29,6 +36,7 @@ export interface OrgStructureReport {
   readonly assignments: number
   readonly doaVersions: number
   readonly requestTypes: number
+  readonly forms: number
   readonly holidays: number
 }
 
@@ -55,7 +63,7 @@ export async function seedOrgStructure(organizationId: string, users: readonly D
 
   return forTenant(organizationId).$transaction(async (tx) => {
     const events: EventDraft[] = []
-    const report = { departments: 0, positions: 0, assignments: 0, doaVersions: 0, requestTypes: 0, holidays: 0 }
+    const report = { departments: 0, positions: 0, assignments: 0, doaVersions: 0, requestTypes: 0, forms: 0, holidays: 0 }
 
     // 1. Departments (one tree, root first)
     const departmentIds = new Map<string, string>()
@@ -151,13 +159,24 @@ export async function seedOrgStructure(organizationId: string, users: readonly D
       report.doaVersions++
     }
 
-    // 5. Request types of the catalog (their forms come with the catalog screens, S2-11)
+    // 5. Request types of the catalog, each with version 1 of its form published
     for (const [i, t] of input.requestTypes.entries()) {
-      if (await tx.requestType.findFirst({ where: { code: t.code }, select: { id: true } })) continue
-      await tx.requestType.create({
-        data: { organizationId, code: t.code, nameTh: t.nameTh, descriptionTh: t.descriptionTh, documentType: t.documentType, active: t.active, sortOrder: i + 1 },
+      let type = await tx.requestType.findFirst({ where: { code: t.code }, select: { id: true, currentFormVersionId: true } })
+      if (!type) {
+        type = await tx.requestType.create({
+          data: { organizationId, code: t.code, nameTh: t.nameTh, descriptionTh: t.descriptionTh, documentType: t.documentType, active: t.active, sortOrder: i + 1 },
+          select: { id: true, currentFormVersionId: true },
+        })
+        report.requestTypes++
+      }
+      if (type.currentFormVersionId) continue
+      const form = await tx.formVersion.create({
+        data: { organizationId, requestTypeId: type.id, versionNo: 1, schema: input.forms.get(t.code)! as object, status: 'PUBLISHED', publishedAt: now },
+        select: { id: true },
       })
-      report.requestTypes++
+      await tx.requestType.update({ where: { id: type.id }, data: { currentFormVersionId: form.id } })
+      events.push({ type: 'form_version.published', aggregateType: 'FormVersion', aggregateId: form.id, data: { requestTypeCode: t.code, versionNo: 1, via: 'SEED' } })
+      report.forms++
     }
 
     // 6. Holidays of the business calendar (BR-SLA, P0-12: the real calendar comes from the customer)

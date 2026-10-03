@@ -6,12 +6,14 @@ import { makeCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
+import { loadSeedForms } from '@/server/seed/forms'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 
 // An organization built from the §7.4 fixtures for service tests: the departments and position holders of
 // org-demo.yaml, DOA version 1 of doa-versions.yaml as PUBLISHED, the demo settings (calendar, numbering), the VAT
-// rates and a BUY_GOODS request type with a published form that carries the ATT-QUOTES rule of forms.yaml.
+// rates, a BUY_GOODS request type with a published form that carries the ATT-QUOTES rule of forms.yaml, and the
+// HIRE_SERVICE and IT_PURCHASE types with the forms of prisma/seed/forms.yaml.
 
 interface OrgFixture {
   departments: Array<{ code: string; nameTh: string; parent: string | null }>
@@ -91,6 +93,13 @@ export async function createDoaOrg(options: { doa?: boolean } = {}): Promise<Doa
     },
   })
   await prisma.requestType.update({ where: { id: supplierType.id }, data: { currentFormVersionId: supplierForm.id } })
+  // The service and IT types with the forms the demo seeds (prisma/seed/forms.yaml): screening questions and ATT-DPA
+  const seedForms = loadSeedForms()
+  for (const [code, nameTh] of [['HIRE_SERVICE', 'จ้างบริการ'], ['IT_PURCHASE', 'ซื้ออุปกรณ์/ซอฟต์แวร์ไอที']] as const) {
+    const t = await prisma.requestType.create({ data: { organizationId, code, nameTh, documentType: 'PURCHASE_REQUEST' } })
+    const f = await prisma.formVersion.create({ data: { organizationId, requestTypeId: t.id, versionNo: 1, schema: seedForms.get(code)! as object, status: 'PUBLISHED', publishedAt: v1.effectiveFrom } })
+    await prisma.requestType.update({ where: { id: t.id }, data: { currentFormVersionId: f.id } })
+  }
   await prisma.roleAssignment.create({ data: { organizationId, memberId: member.proc_officer!, role: 'PROCUREMENT', grantedAt: v1.effectiveFrom } })
   await prisma.holiday.createMany({ data: ['2026-10-13', '2026-10-23'].map((d) => ({ organizationId, date: new Date(`${d}T00:00:00Z`), nameTh: 'วันหยุด' })) })
 

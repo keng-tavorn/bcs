@@ -26,12 +26,15 @@ export const FormSchemaJson = z.strictObject({
   fields: z.array(FieldDefSchema),
   visibility: z.array(z.strictObject({ field: z.string().min(1), when: ConditionJson })).default([]),
   rules: z.array(z.strictObject({ id: z.string().min(1), when: ConditionJson, require: RequirementJson })).default([]),
+  /** What the lines carry besides the item: serviceEndDate is required when its condition holds (BR-FORM-05) */
+  lines: z.strictObject({ serviceEndDate: z.strictObject({ when: ConditionJson }).optional() }).default({}),
 })
 
 export interface FormDefinition {
   readonly fields: readonly FieldDef[]
   readonly visibility: readonly VisibilityRule[]
   readonly rules: readonly AttachmentRule[]
+  readonly lines: { readonly serviceEndDate?: { readonly when: Condition } }
 }
 
 export function formDefinition(schema: unknown): FormDefinition {

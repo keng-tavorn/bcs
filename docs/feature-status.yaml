@@ -159,21 +159,27 @@ features:
     verifiedBy: null
     notes: "service ของ S2-16 (ADR-042) · หน้าผู้ดูแลอยู่ใน S2-13"
   FR-ADM-003:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/admin-settings-calendar.test.ts
+      - tests/e2e/admin-settings.spec.ts
     verifiedBy: null
     notes: ""
   FR-ADM-004:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/admin-settings-numbering.test.ts
+      - tests/e2e/admin-settings.spec.ts
     verifiedBy: null
     notes: ""
   FR-ADM-005:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/admin-settings-request-types.test.ts
+      - tests/e2e/admin-settings.spec.ts
     verifiedBy: null
     notes: ""
   FR-ADM-006:
@@ -282,11 +288,13 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-001:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/request-form.test.ts
+      - tests/e2e/request-form.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 (rich menu ใน LINE) มากับ S5-06"
   FR-INT-002:
     status: in_progress
     step: S2
@@ -305,9 +313,11 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-004:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/request-form.test.ts
+      - tests/e2e/request-form.spec.ts
     verifiedBy: null
     notes: ""
   FR-INT-005:
@@ -335,11 +345,13 @@ features:
     verifiedBy: null
     notes: "เส้นทาง DOA (S2-10) และการตรวจและจองงบตอนส่ง (S3-05)"
   FR-INT-008:
-    status: planned
+    status: in_progress
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/tasks-view.test.ts
+      - tests/e2e/request-view.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC2 ส่วน LIFF มากับ S5-06 · การเพิ่มผู้ติดตามอยู่ใน NEW-29"
   FR-INT-009:
     status: in_progress
     step: S2
@@ -571,11 +583,12 @@ features:
     verifiedBy: null
     notes: ""
   FR-NOTI-003:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/task-times.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "เวลาเตือนตั้งถูกที่ครึ่ง SLA แล้ว · การส่งเตือนและส่งต่อมากับ S5-07 S5-08"
   FR-NOTI-004:
     status: planned
     step: S5

@@ -1,6 +1,8 @@
+import { spawnSync } from 'node:child_process'
 import AxeBuilder from '@axe-core/playwright'
 import { type Page } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
+import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 
 // S2-14 (FR-NOTI-001 AC1): the bell shows an approver's new tasks with a link to each, opening one marks it read, and
@@ -56,9 +58,18 @@ test('[FR-NOTI-001/AC1] the bell lists the approver’s new tasks, opens one and
   await page.screenshot({ path: testInfo.outputPath('bell-read.png'), fullPage: true })
 })
 
+/** A plain member nobody else has touched (tests/e2e/fresh-member-scene.ts): the demo users carry what other specs did */
+function freshMember(project: string): string {
+  const code = `e2e-bell-${project}-${Date.now().toString(36)}`
+  const r = spawnSync('pnpm exec tsx tests/e2e/fresh-member-scene.ts', { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), SCENE_MEMBER_CODE: code } })
+  if (r.status !== 0) throw new Error(`fresh member scene failed:\n${r.stdout}\n${r.stderr}`)
+  return (JSON.parse(r.stdout.trim().split('\n').at(-1)!) as { email: string }).email
+}
+
 test('[FR-NOTI-001/AC1] a member with no notifications sees what will show there', async ({ page }, testInfo) => {
+  const email = freshMember(testInfo.project.name)
   await page.goto('/login')
-  await page.getByLabel('อีเมลบริษัท').fill(testInfo.project.name === 'mobile' ? 'asst_con@demo.bcs.local' : 'req_con@demo.bcs.local')
+  await page.getByLabel('อีเมลบริษัท').fill(email)
   await page.getByLabel('รหัสผ่าน').fill(process.env.SEED_DEV_PASSWORD!)
   await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()

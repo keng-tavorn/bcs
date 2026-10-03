@@ -12,6 +12,8 @@ import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { fileSubjectPolicy } from './policies'
+// Document types register who may download their files when the service loads (FR-PLT-004 AC2)
+import './request-policy'
 
 // Upload and download through presigned URLs (FR-PLT-004, NFR-SEC-08).
 // 1. requestUpload checks the declared type and size and returns a PUT URL bound to that type and exact length,

@@ -1,10 +1,12 @@
 import { z } from 'zod'
 import { evaluateCondition, evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
+import { FORM_TEXTAREA_MAX_LENGTH, FORM_TEXT_MAX_LENGTH } from '@/core/money/constants'
 import { documentTotals, lineNet, lineNetsBeforeVat } from '@/core/money/math'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
-import type { AppError } from '@/core/result'
+import type { AppError, Result } from '@/core/result'
 import { rateFor, taxDateOf } from '@/core/vat'
+import type { Jsonified } from '@/lib/json'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { authorize } from '@/server/authz'
@@ -16,9 +18,10 @@ import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
-import { formDefinition } from '@/server/forms/schema'
+import { formDefinition, type FormDefinition } from '@/server/forms/schema'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
+import { reportDoaGap } from './doa-gap'
 
 // Purchase requests (spec §6.4, FR-INT-007, FR-INT-009): a draft with lines, then submit as one transaction — form
 // check (BR-FORM-01/03), totals from core/money with the VAT rate of the tax date (BR-VAT-01..03), budget check and
@@ -26,13 +29,34 @@ import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budge
 // written.
 // Amounts arrive as baht text and are kept as satang; totals never come from the client.
 
-const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'TAX_RATE_NOT_CONFIGURED', message: string, details?: Record<string, unknown>) =>
+const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'TAX_RATE_NOT_CONFIGURED' | 'CONFLICT_VERSION', message: string, details?: Record<string, unknown>) =>
   ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
+/** Request.version the client last saw (INV-PLT-02, FR-INT-006 AC2); optional, so callers that do not track it still work */
+const ExpectedVersion = z.number().int().nonnegative()
+
+/** INV-PLT-02: the same draft changed in two places — what was based on an older version is refused */
+function versionConflict(expected: number | undefined, actual: number) {
+  return expected !== undefined && expected !== actual ? fail('CONFLICT_VERSION', 'the request changed since it was opened', { expectedVersion: expected, version: actual }) : null
+}
+
 const Baht = z.string().regex(/^\d{1,13}(\.\d{1,2})?$/)
-const Quantity = z.string().regex(/^\d{1,14}(\.\d{1,4})?$/)
+// Above zero, as the CHECK request_line_qty_values of §6.3 requires: refused here as VALIDATION_FAILED, not by the database
+const Quantity = z
+  .string()
+  .regex(/^\d{1,14}(\.\d{1,4})?$/)
+  .refine((q) => /[1-9]/.test(q), 'the quantity must be above zero')
+
+/** A request carries at most this many lines */
+const MAX_LINES = 200
 
 const LineInput = z.strictObject({
+  /**
+   * The line's own id from an earlier save, or null for a new line. A save that names ids changes each line by its id
+   * (the web form always does, so a line keeps its content and the budget it holds whatever is added or taken away
+   * around it); a save that names none changes them by their order, as callers before S2-11 did.
+   */
+  id: z.uuid().nullable().optional(),
   description: z.string().trim().min(1).max(500),
   quantity: Quantity,
   uom: z.string().trim().min(1).max(30),
@@ -41,6 +65,21 @@ const LineInput = z.strictObject({
   categoryCode: z.string().trim().max(50).optional(),
   serviceEndDate: z.iso.date().optional(),
 })
+type LineRow = z.output<typeof LineInput>
+
+// The answers a draft keeps (BR-FORM-01 is applied on every save, see answersToKeep): field ids of the form only, as
+// text, yes/no or lists of text no longer than the form's longest field, so a draft cannot be used to store anything else
+const FIELD_ID = /^[A-Za-z][A-Za-z0-9_]{0,63}$/
+const DRAFT_ANSWERS_MAX = 100
+const DRAFT_LIST_MAX = 200
+const DraftAnswer = z.union([
+  z.string().max(FORM_TEXTAREA_MAX_LENGTH),
+  z.boolean(),
+  z.null(),
+  z.array(z.string().max(FORM_TEXT_MAX_LENGTH)).max(DRAFT_LIST_MAX),
+  z.array(z.record(z.string().regex(FIELD_ID), z.string().max(FORM_TEXT_MAX_LENGTH))).max(DRAFT_LIST_MAX),
+])
+const DraftAnswers = z.record(z.string().regex(FIELD_ID), DraftAnswer).refine((answers) => Object.keys(answers).length <= DRAFT_ANSWERS_MAX, 'too many answers')
 
 const DraftInput = z.strictObject({
   requestTypeCode: z.string().min(1),
@@ -50,8 +89,8 @@ const DraftInput = z.strictObject({
   urgency: z.enum(['NORMAL', 'URGENT']).default('NORMAL'),
   neededBy: z.iso.date().optional(),
   priceIncludesVat: z.boolean().default(false),
-  formData: z.record(z.string(), z.unknown()).default({}),
-  lines: z.array(LineInput).max(200).default([]),
+  formData: DraftAnswers.default({}),
+  lines: z.array(LineInput).max(MAX_LINES).default([]),
   /** BR-BUD-04: the budget line the request uses; left out, submit takes the department's only open line */
   budgetLineId: z.uuid().optional(),
   /** BR-FORM-06: quotations as data, one chosen; a reason when the chosen one is not the lowest */
@@ -80,18 +119,40 @@ function move(from: RequestState, command: RequestCommand) {
 }
 
 /**
- * Writes the lines by their number: line n keeps its id, so a returned request keeps the budget its lines reserved
- * until it is sent again (§6.4); lines no longer there give back what they reserved and go.
+ * Writes the lines of a draft or a returned request. Each saved line keeps its id, and with it the budget it reserved
+ * when the request was sent: a returned request keeps its reservation until it is sent again, when the resubmit moves
+ * only the difference (§6.4, FR-INT-009 AC2). A line that is no longer there gives back what it reserved at once and
+ * goes (docs/sub-specs/S3.md). Lines are matched by the ids the save names; a save that names no id matches them by
+ * their order. Returns the id of every line, in the order given.
  */
-async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: z.output<typeof LineInput>[]): Promise<{ ok: true; events: EventDraft[] } | { ok: false; error: AppError }> {
+async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: readonly LineRow[]): Promise<{ ok: true; events: EventDraft[]; lineIds: string[] } | { ok: false; error: AppError }> {
   const existing = await tx.requestLine.findMany({ where: { requestId }, orderBy: { lineNo: 'asc' }, select: { id: true, lineNo: true } })
-  const removed = existing.filter((l) => l.lineNo > lines.length)
+  let targets: Array<string | null>
+  if (lines.some((l) => l.id !== undefined)) {
+    const known = new Set(existing.map((l) => l.id))
+    const named = new Set<string>()
+    for (const [i, line] of lines.entries()) {
+      if (!line.id) continue
+      if (!known.has(line.id) || named.has(line.id)) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${i}.id`, reason: 'LINE_ID' })
+      named.add(line.id)
+    }
+    targets = lines.map((l) => l.id ?? null)
+  } else {
+    targets = lines.map((_, i) => existing[i]?.id ?? null)
+  }
+  const kept = new Set(targets.filter((t): t is string => t !== null))
+  const removed = existing.filter((l) => !kept.has(l.id))
   const released = await releaseForRequest(tx, ctx, requestId, removed.map((l) => l.id))
   if (!released.ok) return released
   if (removed.length) await tx.requestLine.deleteMany({ where: { id: { in: removed.map((l) => l.id) } } })
+  // A kept line that changes its number steps aside first, so numbering them again never meets (request, lineNo) twice
+  const moving = existing.filter((l) => kept.has(l.id) && targets.indexOf(l.id) + 1 !== l.lineNo)
+  for (const [i, l] of moving.entries()) await tx.requestLine.update({ where: { id: l.id }, data: { lineNo: -(i + 1) } })
+  const lineIds: string[] = []
   for (const [i, line] of lines.entries()) {
     const unitPriceSatang = amountToSatang(line.unitPrice)
     const data = {
+      lineNo: i + 1,
       description: line.description,
       quantity: line.quantity,
       uom: line.uom,
@@ -102,12 +163,40 @@ async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: z.ou
       categoryCode: line.categoryCode ?? null,
       serviceEndDate: line.serviceEndDate ? new Date(`${line.serviceEndDate}T00:00:00Z`) : null,
     }
-    const same = existing.find((l) => l.lineNo === i + 1)
-    if (same) await tx.requestLine.update({ where: { id: same.id }, data })
-    else await tx.requestLine.create({ data: { organizationId: ctx.organizationId, requestId, lineNo: i + 1, ...data } })
+    const target = targets[i]
+    if (target) {
+      await tx.requestLine.update({ where: { id: target }, data })
+      lineIds.push(target)
+    } else {
+      const id = newId()
+      await tx.requestLine.create({ data: { id, organizationId: ctx.organizationId, requestId, ...data } })
+      lineIds.push(id)
+    }
   }
-  return { ok: true, events: released.events }
+  return { ok: true, events: released.events, lineIds }
 }
+
+/**
+ * BR-FORM-01 on every save of a draft: only the fields of the request's own form are kept, and the answers of fields
+ * its conditions hide for the request as it is now (answers, amounts with today's VAT rate) are dropped. The submit
+ * checks the visible ones in full.
+ */
+function answersToKeep(
+  form: FormDefinition,
+  answers: Readonly<Record<string, unknown>>,
+  context: { readonly lines: ReadonlyArray<{ readonly quantity: string; readonly unitPriceSatang: bigint; readonly vatable: boolean }>; readonly priceIncludesVat: boolean; readonly rateBp: number | null; readonly requestTypeCode: string },
+): { ok: true; fields: Record<string, unknown> } | { ok: false; field: string } {
+  const ids = new Set(form.fields.map((f) => f.id))
+  const unknown = Object.keys(answers).find((key) => !ids.has(key))
+  if (unknown !== undefined) return { ok: false, field: unknown }
+  const totals = context.rateBp === null ? { net: 0n, gross: 0n } : documentTotals(context.lines, context.rateBp, context.priceIncludesVat)
+  const shown = evaluateForm({ visibility: form.visibility, rules: [] }, { fields: answers, attachments: {}, variables: { $amountGross: totals.gross, $amountNet: totals.net, $requestType: context.requestTypeCode } })
+  return { ok: true, fields: shown.ok ? { ...shown.fields } : { ...answers } }
+}
+
+const unknownField = (field: string) => fail('VALIDATION_FAILED', 'the answer is not a field of this form', { field: `formData.${field}`, reason: 'FORM_FIELD_UNKNOWN' })
+
+const amountsOf = (lines: readonly LineRow[]) => lines.map((l) => ({ quantity: l.quantity, unitPriceSatang: amountToSatang(l.unitPrice), vatable: l.vatable }))
 
 // ---------- draft ----------
 
@@ -115,27 +204,35 @@ export const createDraftCommand = defineCommand({
   name: 'request.create_draft',
   capability: 'request.create',
   input: DraftInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string; version: number; lineIds: string[] }>> {
     const allowed = await authorize(tx, ctx, 'request.create')
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const requesterId = requesterOf(ctx)
     if (!requesterId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member can request' } }
-    const type = await tx.requestType.findFirst({ where: { code: input.requestTypeCode, active: true } })
+    // The catalog, the form and this command agree: an active type whose current form version is published (FR-INT-001)
+    const type = await tx.requestType.findFirst({ where: { code: input.requestTypeCode, active: true }, include: { currentFormVersion: { select: { id: true, status: true, schema: true } } } })
     if (!type) return fail('VALIDATION_FAILED', 'unknown request type', { field: 'requestTypeCode' })
-    if (!type.currentFormVersionId) return fail('VALIDATION_FAILED', 'the request type has no published form', { field: 'requestTypeCode', reason: 'NO_PUBLISHED_FORM' })
+    const form = type.currentFormVersion
+    if (!form || form.status !== 'PUBLISHED') return fail('VALIDATION_FAILED', 'the request type has no published form', { field: 'requestTypeCode', reason: 'NO_PUBLISHED_FORM' })
     const member = await tx.member.findUniqueOrThrow({ where: { id: requesterId }, select: { primaryDepartmentId: true } })
     if (!member.primaryDepartmentId) return fail('VALIDATION_FAILED', 'the requester has no main department', { field: 'chargedDepartmentId', reason: 'NO_DEPARTMENT' })
     const chargedDepartmentId = input.chargedDepartmentId ?? member.primaryDepartmentId
     if (!(await tx.department.findFirst({ where: { id: chargedDepartmentId, active: true }, select: { id: true } }))) {
       return fail('VALIDATION_FAILED', 'unknown department', { field: 'chargedDepartmentId' })
     }
+    // A new draft has no saved lines yet: a line naming an id belongs to another request
+    const named = input.lines.findIndex((l) => l.id)
+    if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
+    const rateBp = await todaysRate(ctx)
+    const answers = answersToKeep(formDefinition(form.schema), input.formData, { lines: amountsOf(input.lines), priceIncludesVat: input.priceIncludesVat, rateBp, requestTypeCode: type.code })
+    if (!answers.ok) return unknownField(answers.field)
     const id = newId()
     await tx.request.create({
       data: {
         id,
         organizationId: ctx.organizationId,
         requestTypeId: type.id,
-        formVersionId: type.currentFormVersionId,
+        formVersionId: form.id,
         documentType: type.documentType,
         title: input.title,
         requesterMemberId: requesterId,
@@ -144,18 +241,19 @@ export const createDraftCommand = defineCommand({
         urgency: input.urgency,
         ...(input.neededBy ? { neededBy: new Date(`${input.neededBy}T00:00:00Z`) } : {}),
         priceIncludesVat: input.priceIncludesVat,
-        formData: input.formData as object,
-        nonLowestQuoteReason: input.nonLowestQuoteReason ?? null,
+        formData: answers.fields as object,
+        nonLowestQuoteReason: input.nonLowestQuoteReason || null,
         ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
       },
     })
     const written = await writeLines(tx, ctx, id, input.lines)
     if (!written.ok) return written
-    const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, await todaysRate(ctx))
+    const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
     if (quotes) return quotes
     return {
       ok: true,
-      result: { requestId: id },
+      // A new request starts at version 0 (§6.1); every later save names the version it was based on and the lines' ids
+      result: { requestId: id, version: 0, lineIds: written.lineIds },
       events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: id, data: { requestTypeCode: type.code, lines: input.lines.length } }],
     }
   },
@@ -167,7 +265,7 @@ export function createDraft(ctx: Ctx, input: z.input<typeof DraftInput>, options
 
 // ---------- submit and resubmit ----------
 
-const SubmitInput = z.strictObject({ requestId: z.uuid() })
+const SubmitInput = z.strictObject({ requestId: z.uuid(), expectedVersion: ExpectedVersion.optional() })
 
 /** Loads the request locked, with what the requester (OWN) owns, for submit, resubmit and cancel. */
 async function lockedRequest(tx: TenantTx, ctx: Ctx, requestId: string) {
@@ -255,6 +353,9 @@ export const submitCommand = defineCommand({
     if (!request) return fail('NOT_FOUND', 'request not found')
     const allowed = await authorize(tx, ctx, 'request.submit', { ownerMemberIds: [request.requesterMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
+    // The requester sends what they reviewed: a save from another device since then is refused (FR-INT-006 AC2)
+    const conflict = versionConflict(input.expectedVersion, request.version)
+    if (conflict) return conflict
     if (request.documentType === 'SUPPLIER_REQUEST') return submitSupplierRequest(tx, ctx, request)
     const moved = move(request.status as RequestState, 'request.submit')
     if (!moved.ok) return moved
@@ -342,8 +443,20 @@ async function submitSupplierRequest(tx: TenantTx, ctx: Ctx, request: LoadedRequ
   }
 }
 
-export function submitRequest(ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) {
-  return runCommand(ctx, submitCommand, input, options)
+/**
+ * FR-DOA-003 AC3: a submit refused because the DOA names nobody who can approve is reported to ORG_ADMIN by a command
+ * that outlives the rolled-back submit (doa-gap.ts). The refusal then says how many administrators were told
+ * (details.adminsNotified), so the screen says they were only when it is true.
+ */
+async function withDoaGapReport<T>(ctx: Ctx, requestId: unknown, result: Result<T>, options: RunOptions): Promise<Result<T>> {
+  if (result.ok) return result
+  const notified = await reportDoaGap(ctx, requestId, result.error, options)
+  if (notified === null) return result
+  return { ok: false, error: { ...result.error, details: { ...result.error.details, adminsNotified: notified } } }
+}
+
+export async function submitRequest(ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions): Promise<Result<Jsonified<{ number: string; routeId: string; assigneeMemberId: string }>>> {
+  return withDoaGapReport(ctx, input.requestId, await runCommand(ctx, submitCommand, input, options), options)
 }
 
 export const resubmitCommand = defineCommand({
@@ -355,6 +468,8 @@ export const resubmitCommand = defineCommand({
     if (!request) return fail('NOT_FOUND', 'request not found')
     const allowed = await authorize(tx, ctx, 'request.submit', { ownerMemberIds: [request.requesterMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
+    const conflict = versionConflict(input.expectedVersion, request.version)
+    if (conflict) return conflict
     const moved = move(request.status as RequestState, 'request.resubmit')
     if (!moved.ok) return moved
     // BR-DOA-09: a new route with the version in effect now; earlier approvals do not count
@@ -406,46 +521,84 @@ export const resubmitCommand = defineCommand({
   },
 })
 
-export function resubmitRequest(ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) {
-  return runCommand(ctx, resubmitCommand, input, options)
+export async function resubmitRequest(ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions): Promise<Result<Jsonified<{ routeId: string; assigneeMemberId: string }>>> {
+  return withDoaGapReport(ctx, input.requestId, await runCommand(ctx, resubmitCommand, input, options), options)
 }
 
 // ---------- edit a draft or a returned request ----------
 
-const EditInput = DraftInput.omit({ requestTypeCode: true }).extend({ requestId: z.uuid() })
+/**
+ * A save changes only what it names (FR-INT-006): a part left out stays as it was. So a save sent while a line or a
+ * quotation is still being typed leaves the saved ones alone, a blank title never replaces the stored one, and fields the
+ * form does not show (urgency, needed-by) keep their values. null clears what may be cleared.
+ */
+const EditInput = z.strictObject({
+  requestId: z.uuid(),
+  expectedVersion: ExpectedVersion.optional(),
+  title: z.string().trim().min(1).max(200).optional(),
+  chargedDepartmentId: z.uuid().optional(),
+  urgency: z.enum(['NORMAL', 'URGENT']).optional(),
+  neededBy: z.iso.date().nullable().optional(),
+  priceIncludesVat: z.boolean().optional(),
+  formData: DraftAnswers.optional(),
+  lines: z.array(LineInput).max(MAX_LINES).optional(),
+  budgetLineId: z.uuid().nullable().optional(),
+  quotations: z.array(QuotationInput).max(MAX_QUOTATIONS).optional(),
+  nonLowestQuoteReason: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
+})
 
 export const editCommand = defineCommand({
   name: 'request.edit',
   capability: 'request.create',
   input: EditInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string; version: number; lineIds: string[] }>> {
     const request = await lockedRequest(tx, ctx, input.requestId)
     if (!request) return fail('NOT_FOUND', 'request not found')
     const allowed = await authorize(tx, ctx, 'request.create', { ownerMemberIds: [request.requesterMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
+    // FR-INT-006 AC2: the same draft open on two devices — the save based on an older version gets CONFLICT_VERSION
+    const conflict = versionConflict(input.expectedVersion, request.version)
+    if (conflict) return conflict
     if (request.status !== 'DRAFT' && request.status !== 'RETURNED') return fail('INVALID_STATE_TRANSITION', 'only a draft or a returned request can be edited', { from: request.status })
+    const rateBp = await todaysRate(ctx)
+    const form = formDefinition(request.formVersion.schema)
+    const priceIncludesVat = input.priceIncludesVat ?? request.priceIncludesVat
+    const lines = input.lines ? amountsOf(input.lines) : request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
+    // Answers sent now must be fields of the form; answers kept from an earlier save are only checked again
+    const fieldIds = new Set(form.fields.map((f) => f.id))
+    const stored = Object.fromEntries(Object.entries((request.formData ?? {}) as Record<string, unknown>).filter(([key]) => fieldIds.has(key)))
+    const answers = answersToKeep(form, input.formData ?? stored, { lines, priceIncludesVat, rateBp, requestTypeCode: request.requestType.code })
+    if (!answers.ok) return unknownField(answers.field)
     await tx.request.update({
       where: { id: request.id },
       data: {
-        title: input.title,
+        ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.chargedDepartmentId ? { chargedDepartmentId: input.chargedDepartmentId } : {}),
-        urgency: input.urgency,
-        neededBy: input.neededBy ? new Date(`${input.neededBy}T00:00:00Z`) : null,
-        priceIncludesVat: input.priceIncludesVat,
-        formData: input.formData as object,
-        nonLowestQuoteReason: input.nonLowestQuoteReason ?? null,
-        budgetLineId: input.budgetLineId ?? null,
+        ...(input.urgency !== undefined ? { urgency: input.urgency } : {}),
+        ...(input.neededBy !== undefined ? { neededBy: input.neededBy ? new Date(`${input.neededBy}T00:00:00Z`) : null } : {}),
+        priceIncludesVat,
+        formData: answers.fields as object,
+        ...(input.nonLowestQuoteReason !== undefined ? { nonLowestQuoteReason: input.nonLowestQuoteReason || null } : {}),
+        ...(input.budgetLineId !== undefined ? { budgetLineId: input.budgetLineId } : {}),
         version: { increment: 1 },
       },
     })
-    const written = await writeLines(tx, ctx, request.id, input.lines)
-    if (!written.ok) return written
-    const quotes = await writeQuotations(tx, ctx, request, input.quotations, await todaysRate(ctx))
-    if (quotes) return quotes
+    let lineIds = request.lines.map((l) => l.id)
+    const events: EventDraft[] = []
+    if (input.lines) {
+      const written = await writeLines(tx, ctx, request.id, input.lines)
+      if (!written.ok) return written
+      lineIds = written.lineIds
+      events.push(...written.events)
+    }
+    if (input.quotations) {
+      const quotes = await writeQuotations(tx, ctx, request, input.quotations, rateBp)
+      if (quotes) return quotes
+    }
     return {
       ok: true,
-      result: { requestId: request.id },
-      events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: request.id, data: { requestTypeCode: request.requestType.code, lines: input.lines.length } }, ...written.events],
+      result: { requestId: request.id, version: request.version + 1, lineIds },
+      events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: request.id, data: { requestTypeCode: request.requestType.code, lines: lineIds.length } }, ...events],
     }
   },
 })

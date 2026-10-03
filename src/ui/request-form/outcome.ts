@@ -1,0 +1,189 @@
+// What a request form action returns to the screen: success, or the error code with the parts of `details` the screen
+// needs to say what happened and how to fix it (§9.9 rule 7, §14.2) — never the raw message. Pure, so the mapping is
+// tested on its own (tests/unit/request-form.test.ts).
+
+export type MissingView = { readonly kind: 'ATTACHMENT'; readonly attachment: string; readonly need: number; readonly have: number } | { readonly kind: 'FIELD'; readonly field: string; readonly op: string }
+
+export interface FormFailure {
+  readonly ok: false
+  readonly code: string
+  readonly field?: string
+  readonly reason?: string
+  readonly rule?: string
+  /** BUDGET_INSUFFICIENT: baht text */
+  readonly available?: string
+  readonly shortfall?: string
+  /** ATTACHMENT_RULE_FAILED: every rule that is not met and what it misses */
+  readonly failures?: ReadonlyArray<{ readonly rule: string; readonly missing: readonly MissingView[] }>
+  /** QUOTE-LOWEST: positions of the lowest quotations */
+  readonly lowest?: readonly number[]
+  /** APPROVER_NOT_FOUND / NO_HIGHER_AUTHORITY */
+  readonly position?: string
+  readonly ruleCode?: string
+  readonly departments?: readonly string[]
+  /** INVALID_STATE_TRANSITION */
+  readonly status?: string
+  /** TAX_RATE_NOT_CONFIGURED */
+  readonly date?: string
+  /** INTERNAL: the reference support finds in the logs */
+  readonly requestId?: string
+  /** DOA gaps (FR-DOA-003 AC3): how many of the organization's administrators were told; absent when the report failed */
+  readonly adminsNotified?: number
+}
+
+export type FormSuccess<T> = { readonly ok: true } & T
+export type FormOutcome<T = object> = FormSuccess<T> | FormFailure
+
+const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
+const strings = (v: unknown): string[] | undefined => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined)
+const numbers = (v: unknown): number[] | undefined => (Array.isArray(v) && v.every((x) => typeof x === 'number') ? (v as number[]) : undefined)
+
+function missingOf(value: unknown): MissingView[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((m): MissingView[] => {
+    const x = m as Record<string, unknown>
+    if (x.kind === 'ATTACHMENT' && typeof x.attachment === 'string') return [{ kind: 'ATTACHMENT', attachment: x.attachment, need: Number(x.need) || 0, have: Number(x.have) || 0 }]
+    if (x.kind === 'FIELD' && typeof x.field === 'string') return [{ kind: 'FIELD', field: x.field, op: str(x.op) ?? '' }]
+    return []
+  })
+}
+
+/** Picks the screen-safe parts of a service error. */
+export function toFormFailure(error: { code: string; details?: Readonly<Record<string, unknown>> }): FormFailure {
+  const d = error.details ?? {}
+  const failures = Array.isArray(d.failures)
+    ? (d.failures as Array<Record<string, unknown>>).filter((f) => typeof f.rule === 'string').map((f) => ({ rule: f.rule as string, missing: missingOf(f.missing) }))
+    : undefined
+  const out: Record<string, unknown> = { ok: false, code: error.code }
+  const copy = { field: str(d.field), reason: str(d.reason), rule: str(d.rule), available: str(d.available), shortfall: str(d.shortfall), position: str(d.position), ruleCode: str(d.ruleCode), status: str(d.status) ?? str(d.from), date: str(d.date), requestId: str(d.requestId) }
+  for (const [k, v] of Object.entries(copy)) if (v !== undefined) out[k] = v
+  if (failures) out.failures = failures
+  const lowest = numbers(d.lowest)
+  if (lowest) out.lowest = lowest
+  const departments = strings(d.departments)
+  if (departments) out.departments = departments
+  if (typeof d.adminsNotified === 'number') out.adminsNotified = d.adminsNotified
+  return out as unknown as FormFailure
+}
+
+/** A DOA gap that the organization's administrators were told about (the screen says so only then) */
+export const adminsWereTold = (f: FormFailure): boolean => (f.adminsNotified ?? 0) > 0
+
+/** The steps of the form (real steps of filling it in, §9.9) */
+export const STEP_IDS = ['details', 'items', 'documents', 'review'] as const
+export type StepId = (typeof STEP_IDS)[number]
+
+/** Message keys under requestForm.errors */
+export const FAILURE_KEYS = [
+  'BUDGET_INSUFFICIENT',
+  'BUDGET_LINE_CLOSED',
+  'ATTACHMENT_RULE_FAILED',
+  'QUOTE_LOWEST',
+  'QUOTE_SELECTED',
+  'QUOTE_FILE',
+  'QUOTE_MORE_THAN_ONE',
+  'FORM_FIELD',
+  'NO_LINES',
+  'SERVICE_END_DATE',
+  'CHOOSE_BUDGET_LINE',
+  'NO_BUDGET_LINE',
+  'BUDGET_LINE_YEAR',
+  'BUDGET_LINE_NOT_ALLOWED',
+  'DOA_NOT_CONFIGURED',
+  'APPROVER_NOT_FOUND',
+  'NO_HIGHER_AUTHORITY',
+  'DOA_AMBIGUOUS',
+  'SOD_VIOLATION',
+  'TAX_RATE_NOT_CONFIGURED',
+  'CONFLICT_VERSION',
+  'STATE',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHENTICATED',
+  'BUSY',
+  'FILE',
+  'KIND',
+  'ALREADY_ATTACHED',
+  'TOO_MANY',
+  'INPUT',
+  'INTERNAL',
+  'DRAFT_NOT_SAVED',
+  'NO_DEPARTMENT',
+  'TOO_LARGE',
+  'NO_FORM',
+  'LINE_ID',
+  'FAILED',
+] as const
+export type FailureKey = (typeof FAILURE_KEYS)[number]
+
+const BUDGET_LINE_REASONS: readonly FailureKey[] = ['CHOOSE_BUDGET_LINE', 'NO_BUDGET_LINE', 'BUDGET_LINE_YEAR', 'BUDGET_LINE_NOT_ALLOWED']
+const FILE_REASONS: readonly FailureKey[] = ['ALREADY_ATTACHED', 'TOO_MANY', 'KIND']
+/** Codes whose message key is the code itself */
+const BY_CODE: readonly FailureKey[] = [
+  'BUDGET_INSUFFICIENT',
+  'BUDGET_LINE_CLOSED',
+  'ATTACHMENT_RULE_FAILED',
+  'DOA_NOT_CONFIGURED',
+  'APPROVER_NOT_FOUND',
+  'NO_HIGHER_AUTHORITY',
+  'DOA_AMBIGUOUS',
+  'SOD_VIOLATION',
+  'TAX_RATE_NOT_CONFIGURED',
+  'CONFLICT_VERSION',
+  'FORBIDDEN',
+  'NOT_FOUND',
+  'UNAUTHENTICATED',
+  'INTERNAL',
+  // The screen's own: the latest edits could not be saved, so nothing was sent
+  'DRAFT_NOT_SAVED',
+]
+
+function validationKey(f: FormFailure): FailureKey {
+  const reason = f.reason ?? ''
+  if (f.rule === 'QUOTE-LOWEST' || reason === 'QUOTE-LOWEST') return 'QUOTE_LOWEST'
+  if (f.rule === 'QUOTE-SELECTED' || reason === 'QUOTE-SELECTED') return 'QUOTE_SELECTED'
+  if (reason === 'FILE_REQUIRED') return 'QUOTE_FILE'
+  if (reason === 'MORE_THAN_ONE_SELECTED') return 'QUOTE_MORE_THAN_ONE'
+  if (reason === 'FORM') return 'FORM_FIELD'
+  if (reason === 'NO_LINES') return 'NO_LINES'
+  if (reason === 'SERVICE_END_DATE') return 'SERVICE_END_DATE'
+  if (reason === 'BUDGET_LINE') return 'NO_BUDGET_LINE'
+  if (reason === 'NO_DEPARTMENT') return 'NO_DEPARTMENT'
+  if (reason === 'TOO_LARGE') return 'TOO_LARGE'
+  if (reason === 'NO_PUBLISHED_FORM') return 'NO_FORM'
+  if (reason === 'LINE_ID') return 'LINE_ID'
+  const byReason = [...BUDGET_LINE_REASONS, ...FILE_REASONS].find((k) => k === reason)
+  if (byReason) return byReason
+  if (reason === 'FILE' || f.field === 'fileId') return 'FILE'
+  return 'INPUT'
+}
+
+/** Message key under requestForm.errors for a failed request form action. */
+export function failureKey(f: FormFailure): FailureKey {
+  if (f.code === 'FORBIDDEN' && f.reason === 'BUDGET_LINE_NOT_ALLOWED') return 'BUDGET_LINE_NOT_ALLOWED'
+  if (f.code === 'VALIDATION_FAILED') return validationKey(f)
+  if (f.code === 'INVALID_STATE_TRANSITION') return 'STATE'
+  if (f.code === 'RATE_LIMITED') return 'BUSY'
+  return BY_CODE.find((k) => k === f.code) ?? 'FAILED'
+}
+
+/** The step where the requester fixes what a failure is about; null when nothing in the form can fix it. */
+export function failureStep(f: FormFailure): StepId | null {
+  const key = failureKey(f)
+  const field = f.field ?? ''
+  if (key === 'FORM_FIELD' || field.startsWith('formData.') || field === 'title') return 'details'
+  if (BUDGET_LINE_REASONS.includes(key) || key === 'BUDGET_LINE_CLOSED') return 'details'
+  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || field.startsWith('lines')) return 'items'
+  if (key === 'ATTACHMENT_RULE_FAILED' || key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return 'documents'
+  return null
+}
+
+/** The visible field a FORM_FIELD failure names ("formData.scopeOfWork" → "scopeOfWork"), or the line number of a lines failure */
+export function failureTarget(f: FormFailure): { readonly fieldId?: string; readonly lineNo?: number } {
+  const field = f.field ?? ''
+  const form = /^formData\.([A-Za-z][A-Za-z0-9_]*)/.exec(field)
+  if (form) return { fieldId: form[1]! }
+  const line = /^lines\.(\d+)/.exec(field)
+  if (line) return { lineNo: Number(line[1]) + 1 }
+  return {}
+}

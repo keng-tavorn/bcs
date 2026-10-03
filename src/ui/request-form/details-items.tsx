@@ -1,0 +1,230 @@
+'use client'
+
+import { Plus } from 'lucide-react'
+import { useTranslations } from 'next-intl'
+import { v4 as uuidv4 } from 'uuid'
+import type { FormInput } from '@/core/forms'
+import { Button } from '../form/button'
+import { Notice } from '../form/notice'
+import { ConfirmRemove } from './confirm-remove'
+import { checkboxClass, describedBy, inputClass, Labelled } from './controls'
+import { FieldInput, showDay } from './field-input'
+import { lineAmount, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
+import { showMoney, showSatang } from './money'
+import { BudgetStatus, TotalsList } from './summary'
+import type { BudgetView, RequestFormData, ScreenLocale } from './types'
+
+// Steps 1 and 2 of the request form (FR-INT-002, FR-INT-003, FR-INT-004): the title, the budget line (prefilled,
+// BR-FORM-02; only the requester's own or granted lines, BR-BUD-04) with what is left on it, the questions of the
+// request type shown or hidden as the requester answers (BR-FORM-01); then the lines with their amounts, the totals and
+// the budget check as the amounts change.
+
+export interface StepProps {
+  readonly data: RequestFormData
+  readonly values: FormValues
+  readonly update: (action: FormAction) => void
+  readonly locale: ScreenLocale
+  readonly input: FormInput
+  readonly visible: ReadonlySet<string>
+  readonly totals: Totals | null
+  /** Show what is still missing (after the requester reached the last step or tried to send) */
+  readonly showErrors: boolean
+  /** The selected line's balance as the server last sent it */
+  readonly budget: BudgetView | null
+  readonly previewLoading: boolean
+  /** Errors the server reported for fields of the form (by field id) */
+  readonly fieldErrors: Readonly<Record<string, string>>
+}
+
+const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
+
+export function DetailsStep(props: StepProps) {
+  const t = useTranslations('requestForm')
+  const { data, values, update, locale, visible, showErrors, fieldErrors } = props
+  const purchase = data.type.documentType === 'PURCHASE_REQUEST'
+  const titleError = showErrors && !values.title.trim() ? t('details.titleMissing') : undefined
+  return (
+    <div className="flex flex-col gap-6">
+      <Labelled id="request-title" label={t('details.title')} requiredText={t('fields.required')} hint={t('details.titleHint')} error={titleError}>
+        <input
+          id="request-title"
+          name="title"
+          className={inputClass}
+          value={values.title}
+          maxLength={TITLE_MAX}
+          required
+          aria-required
+          aria-invalid={titleError ? true : undefined}
+          aria-describedby={describedBy('request-title', true, Boolean(titleError))}
+          onChange={(e) => update({ type: 'title', value: e.currentTarget.value })}
+        />
+      </Labelled>
+      {purchase ? <BudgetLineField {...props} /> : null}
+      {data.form.fields
+        .filter((f) => visible.has(f.id))
+        .map((def) => (
+          <FieldInput
+            key={def.id}
+            def={def}
+            locale={locale}
+            value={values.fields[def.id]}
+            onChange={(value) => update({ type: 'field', id: def.id, value })}
+            error={fieldErrors[def.id] ?? (showErrors && def.required && blank(values.fields[def.id]) ? t('fields.missing') : undefined)}
+          />
+        ))}
+    </div>
+  )
+}
+
+function BudgetLineField({ data, values, update, showErrors, budget, previewLoading }: StepProps) {
+  const t = useTranslations('requestForm.budget')
+  const tf = useTranslations('requestForm.fields')
+  if (data.budgetLines.length === 0) return <Notice tone="warning">{t('noLines')}</Notice>
+  const line = data.budgetLines.find((l) => l.id === values.budgetLineId) ?? null
+  const error = showErrors && !line ? t('chooseMissing') : undefined
+  const balance = line && budget?.kind === 'LINE' && budget.budgetLineId === line.id ? budget : null
+  return (
+    <div className="flex flex-col gap-3">
+      <Labelled id="budget-line" label={t('line')} requiredText={tf('required')} hint={t('lineHint')} error={error}>
+        <select
+          id="budget-line"
+          name="budgetLineId"
+          className={inputClass}
+          value={values.budgetLineId}
+          required
+          aria-required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy('budget-line', true, Boolean(error))}
+          onChange={(e) => update({ type: 'budgetLine', value: e.currentTarget.value })}
+        >
+          <option value="">{t('choose')}</option>
+          {data.budgetLines.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.granted ? t('optionGranted', { code: l.code, name: l.name, department: l.departmentName }) : t('option', { code: l.code, name: l.name })}
+            </option>
+          ))}
+        </select>
+      </Labelled>
+      <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
+        <dt className="text-ink-muted">{t('department')}</dt>
+        <dd>{line?.departmentName ?? data.requesterDepartmentName ?? t('dash')}</dd>
+        <dt className="text-ink-muted">{t('costCenter')}</dt>
+        <dd>{line ? t('costCenterValue', { code: line.costCenterCode, name: line.costCenterName }) : t('dash')}</dd>
+      </dl>
+      {line ? (
+        <div aria-live="polite" className="grid max-w-xl grid-cols-[minmax(0,1fr)_auto] gap-x-6 border-l-4 border-info bg-surface px-3 py-2">
+          <span>{t('remaining')}</span>
+          {balance ? <span className="money font-semibold">{t('baht', { amount: showMoney(balance.available) })}</span> : <span className="text-ink-muted">{budget?.kind === 'NOT_USABLE' ? t('notUsableShort') : previewLoading ? t('loading') : t('unknown')}</span>}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean }) {
+  const t = useTranslations('requestForm')
+  const { data, values, update, totals, budget, previewLoading } = props
+  const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
+  return (
+    <div className="flex flex-col gap-6">
+      <label className="flex min-h-11 items-center gap-3">
+        <input type="checkbox" name="priceIncludesVat" className={checkboxClass} checked={values.priceIncludesVat} onChange={(e) => update({ type: 'priceIncludesVat', value: e.currentTarget.checked })} />
+        <span>{t('lines.pricesIncludeVat')}</span>
+      </label>
+      <ol className="flex flex-col divide-y divide-line border-y border-line">
+        {values.lines.map((line, i) => (
+          <li key={line.key} className="py-5">
+            <LineFields {...props} line={line} n={i + 1} canRemove={values.lines.length > 1} />
+          </li>
+        ))}
+      </ol>
+      <Button variant="secondary" className="self-start" onClick={() => update({ type: 'addLine', key: uuidv4() })}>
+        <Plus className="size-4" aria-hidden="true" />
+        {t('lines.add')}
+      </Button>
+      <section aria-labelledby="totals-heading" className="flex flex-col gap-2">
+        <h3 id="totals-heading" className="text-lg font-semibold">
+          {t('totals.title')}
+        </h3>
+        <div aria-live="polite">
+          <TotalsList totals={totals} rateBp={data.vatRateBp} />
+        </div>
+        {pending ? <p className="text-base text-ink-muted md:text-sm">{t('totals.pending', { count: pending })}</p> : null}
+      </section>
+      <section aria-labelledby="budget-heading" className="flex flex-col gap-2">
+        <h3 id="budget-heading" className="text-lg font-semibold">
+          {t('budget.title')}
+        </h3>
+        <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
+      </section>
+    </div>
+  )
+}
+
+function LineFields({ line, n, canRemove, update, values, showErrors, endDateRequired, locale }: StepProps & { line: FormLine; n: number; canRemove: boolean; endDateRequired: boolean }) {
+  const t = useTranslations('requestForm.lines')
+  const tf = useTranslations('requestForm.fields')
+  const p = `line-${n}`
+  const set = (patch: Partial<Omit<FormLine, 'key'>>) => update({ type: 'line', key: line.key, patch })
+  // A number that is not a number shows at once; a missing part once the requester reached the last step, so the line
+  // they are typing is not red
+  const must = showErrors
+  const shown = {
+    description: must && !line.description.trim() ? t('descriptionMissing') : undefined,
+    quantity: line.quantity.trim() && !validQuantity(line.quantity) ? t('quantityInvalid') : must && !line.quantity.trim() ? t('quantityMissing') : undefined,
+    uom: must && !line.uom.trim() ? t('uomMissing') : undefined,
+    unitPrice: line.unitPrice.trim() && !validMoney(line.unitPrice) ? t('priceInvalid') : must && !line.unitPrice.trim() ? t('priceMissing') : undefined,
+    end: endDateRequired && (showErrors || savableLine(line)) && !validDate(line.serviceEndDate) ? t('serviceEndDateMissing') : undefined,
+  }
+  const amount = lineAmount(line)
+  const control = (id: string, error: string | undefined, hint = false) => ({ 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy(id, hint, Boolean(error)) })
+  return (
+    <fieldset className="flex min-w-0 flex-col gap-4">
+      <legend className="mb-1 text-lg font-semibold">{t('line', { n })}</legend>
+      <Labelled id={`${p}-description`} label={t('description')} requiredText={tf('required')} error={shown.description}>
+        <input id={`${p}-description`} className={inputClass} value={line.description} maxLength={500} required aria-required onChange={(e) => set({ description: e.currentTarget.value })} {...control(`${p}-description`, shown.description)} />
+      </Labelled>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
+        <Labelled id={`${p}-quantity`} label={t('quantity')} requiredText={tf('required')} error={shown.quantity}>
+          <input id={`${p}-quantity`} className={`${inputClass} tabular text-right`} inputMode="decimal" value={line.quantity} required aria-required onChange={(e) => set({ quantity: e.currentTarget.value })} {...control(`${p}-quantity`, shown.quantity)} />
+        </Labelled>
+        <Labelled id={`${p}-uom`} label={t('uom')} requiredText={tf('required')} hint={t('uomHint')} error={shown.uom}>
+          <input id={`${p}-uom`} className={inputClass} value={line.uom} maxLength={30} required aria-required onChange={(e) => set({ uom: e.currentTarget.value })} {...control(`${p}-uom`, shown.uom, true)} />
+        </Labelled>
+        <Labelled id={`${p}-price`} className="col-span-2 sm:col-span-1" label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')} requiredText={tf('required')} error={shown.unitPrice}>
+          <input id={`${p}-price`} className={`${inputClass} tabular text-right`} inputMode="decimal" value={line.unitPrice} required aria-required onChange={(e) => set({ unitPrice: e.currentTarget.value })} {...control(`${p}-price`, shown.unitPrice)} />
+        </Labelled>
+      </div>
+      <label className="flex min-h-11 items-center gap-3">
+        <input type="checkbox" className={checkboxClass} checked={line.vatable} onChange={(e) => set({ vatable: e.currentTarget.checked })} />
+        <span>{t('vatable')}</span>
+      </label>
+      {endDateRequired ? (
+        <Labelled
+          id={`${p}-end`}
+          label={t('serviceEndDate')}
+          requiredText={tf('required')}
+          // FR-PLT-002 AC3: the date picker follows the device; the date is also said with its Buddhist-era year
+          hint={validDate(line.serviceEndDate) ? t('serviceEndDateChosen', { date: showDay(line.serviceEndDate, locale) }) : t('serviceEndDateHint')}
+          error={shown.end}
+        >
+          <input id={`${p}-end`} type="date" className={inputClass} value={line.serviceEndDate} required aria-required onChange={(e) => set({ serviceEndDate: e.currentTarget.value })} {...control(`${p}-end`, shown.end, true)} />
+        </Labelled>
+      ) : null}
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        {canRemove ? (
+          <ConfirmRemove
+            label={t('remove', { n })}
+            question={t('removeQuestion', { n })}
+            // A returned request keeps what its lines reserved (§6.4); a line taken away gives its share back once saved
+            detail={line.reserved ? t('removeReserved', { amount: showMoney(line.reserved) }) : undefined}
+            confirmLabel={t('removeConfirm')}
+            keepLabel={t('removeKeep')}
+            onConfirm={() => update({ type: 'removeLine', key: line.key })}
+          />
+        ) : null}
+        <p className="money ml-auto">{amount !== null ? t('amount', { amount: showSatang(amount) }) : t('amountPending')}</p>
+      </div>
+    </fieldset>
+  )
+}

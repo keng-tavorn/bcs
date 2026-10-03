@@ -1,0 +1,23 @@
+{
+  "catalog": {
+    "title": "Buy or hire",
+    "intro": "Choose the type of request that fits what you need; the form then asks only what that type needs",
+    "typesHeading": "Request types",
+    "search": "Search request types",
+    "searchHint": "Type a keyword, for example IT, rent or milestone",
+    "found": "{count, plural, one {# type matches} other {# types match}} your search",
+    "all": "{count, plural, one {# request type} other {# request types}} in use",
+    "noMatch": "No request type matches “{query}”. Try another word, or see every type",
+    "clear": "Clear the search and see every type",
+    "whenToUse": "Use it for: {description}",
+    "noDescription": "This type has no description of when to use it yet",
+    "start": "Start a request: {name}",
+    "noTypes": "Your organization has not switched on any request type yet. Ask your organization's administrator to switch one on",
+    "draftsTitle": "Your drafts and returned requests",
+    "draftsEmpty": "No drafts yet. Once you start a request it is saved as a draft by itself, and you can go on with it here from any device",
+    "draftLine": "{type} · {status} · last changed {time}",
+    "statusDraft": "Draft",
+    "statusReturned": "Returned for changes",
+    "continue": "Continue: {title}"
+  }
+}

@@ -98,6 +98,24 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   'doa_version.rejected': (d) => ({ title: { th: 'DOA ฉบับที่คุณส่งไม่ได้รับอนุมัติ', en: 'The DOA version you submitted was not approved' }, href: policyHref('DOA_VERSION', d.subjectId) }),
   'org_authority_change.approved': () => ({ title: { th: 'การเปลี่ยนโครงสร้างอำนาจที่คุณเสนอได้รับอนุมัติแล้ว', en: 'The authority change you proposed was approved' }, href: '/admin/org-authority' }),
   'org_authority_change.rejected': () => ({ title: { th: 'การเปลี่ยนโครงสร้างอำนาจที่คุณเสนอไม่ได้รับอนุมัติ', en: 'The authority change you proposed was not approved' }, href: '/admin/org-authority' }),
+  // FR-DOA-003 AC3 (§10.1): a requester could not submit because the DOA names nobody who can approve the request
+  'admin.doa_gap': (d) => {
+    const code = str(d.code)
+    const title: Text =
+      code === 'APPROVER_NOT_FOUND'
+        ? { th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะไม่มีผู้ดำรงตำแหน่ง ${str(d.position)} ตาม DOA ข้อ ${str(d.ruleCode)}`, en: `Request ${ref(d)} cannot be sent: nobody holds ${str(d.position)} for DOA rule ${str(d.ruleCode)}` }
+        : code === 'NO_HIGHER_AUTHORITY'
+          ? { th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะ DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้`, en: `Request ${ref(d)} cannot be sent: the DOA has no authority above the requester for this amount` }
+          : { th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะยังไม่มี DOA ที่มีผลสำหรับคำขอซื้อ`, en: `Request ${ref(d)} cannot be sent: no DOA is in effect for purchase requests` }
+    return {
+      title,
+      body:
+        code === 'APPROVER_NOT_FOUND'
+          ? { th: 'เสนอแต่งตั้งผู้ดำรงตำแหน่งนี้ แล้วแจ้งผู้ขอให้ส่งอีกครั้ง', en: 'Propose a holder for this position, then ask the requester to send it again' }
+          : { th: 'ตรวจ DOA ที่มีผล แล้วแจ้งผู้ขอให้ส่งอีกครั้ง', en: 'Check the DOA in effect, then ask the requester to send it again' },
+      href: code === 'APPROVER_NOT_FOUND' ? '/admin/org-authority' : '/admin/doa',
+    }
+  },
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
     href: '/admin/modules',

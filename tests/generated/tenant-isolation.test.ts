@@ -58,6 +58,8 @@ const delegate = (client: unknown, model: string): any => (client as Record<stri
 const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   Delegation: { endsAt: new Date('2026-10-06T03:00:00Z') }, // delegation_period: startsAt < endsAt
   BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
+  Supplier: { isForeign: true }, // supplier_tax_id_shape: a Thai supplier needs a 13-digit tax id, a foreign one may have none
+  InvoiceConfirmation: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n }, // invoice_money_non_negative: gross = net + VAT
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
@@ -120,9 +122,14 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
       data[f.name] = organizationId
       continue
     }
+    const override = SAMPLE_OVERRIDES[modelName]?.[f.name]
+    if (override !== undefined) {
+      data[f.name] = override
+      continue
+    }
     if (f.isId || f.hasDefaultValue || f.isUpdatedAt || !f.isRequired) continue
     const existing = EXISTING_ROWS[modelName]?.[f.name]
-    data[f.name] = existing ? (await parentRow(existing, organizationId)).id : (SAMPLE_OVERRIDES[modelName]?.[f.name] ?? sample(f))
+    data[f.name] = existing ? (await parentRow(existing, organizationId)).id : sample(f)
   }
   return data
 }

@@ -20,6 +20,9 @@ const urlSchema = () => z.url('ต้องเป็น URL เต็ม เช�
 // liff.ts sends LIFF ID tokens here and trusts the claims that come back, so outside local only LINE itself may
 // answer (BR-LINE-02); the fake LINE server is local-only (docs/runbooks/p0-08-vercel.md).
 const LINE_API_ORIGIN = 'https://api.line.me'
+// src/integrations/line uploads rich menu images here with the channel access token (§9.5), so outside local the token
+// goes to LINE's data API only; locally both LINE values may point at the fake LINE server (pnpm line:fake).
+const LINE_DATA_API_ORIGIN = 'https://api-data.line.me'
 
 const ENCRYPTION_KEY = z
   .string()
@@ -148,10 +151,11 @@ function isPublicHttps(value: string): boolean {
 }
 
 /**
- * The base src/server/auth/liff.ts appends `/oauth2/v2.1/verify` to: the URL as the parser reads it (lower case, no
- * default port) without trailing slashes, so every spelling of one address gives one verify URL. Undefined when the
- * value cannot be such a base: not http(s), or with user:password, a query or a fragment, which would swallow or
- * break the appended path.
+ * The base src/server/auth/liff.ts appends `/oauth2/v2.1/verify` to, and src/integrations/line appends the Messaging
+ * API paths to (LINE_API_BASE_URL, LINE_DATA_API_BASE_URL): the URL as the parser reads it (lower case, no default
+ * port) without trailing slashes, so every spelling of one address gives one URL. Undefined when the value cannot be
+ * such a base: not http(s), or with user:password, a query or a fragment, which would swallow or break the appended
+ * path.
  */
 function lineApiBase(value: string): string | undefined {
   const url = parseUrl(value)
@@ -254,6 +258,8 @@ const schema = z
     NEXT_PUBLIC_LIFF_ID: optional(z.string()),
     // As written here (checked below); the parsed environment carries lineApiBase() of it.
     LINE_API_BASE_URL: optional(urlSchema()).transform((v) => v ?? LINE_API_ORIGIN),
+    // The same rules as LINE_API_BASE_URL, for the host of LINE's content API (rich menu images)
+    LINE_DATA_API_BASE_URL: optional(urlSchema()).transform((v) => v ?? LINE_DATA_API_ORIGIN),
 
     GOOGLE_CLIENT_ID: optional(z.string()),
     GOOGLE_CLIENT_SECRET: optional(z.string()),
@@ -269,6 +275,9 @@ const schema = z
     AI_MODEL_DEFAULT: optional(z.string()),
 
     SEED_TOTP_KEY: optional(z.string().min(32, 'ต้องยาวอย่างน้อย 32 ตัวอักษร')),
+    // The transaction PIN of every demo approver (S5-05, src/server/seed/pins.ts), local and staging only (below); the
+    // seed refuses an easy one with the rule of src/core/pin, which this file cannot import.
+    SEED_DEV_PIN: optional(z.string().regex(/^[0-9]{6}$/, 'ต้องเป็นตัวเลข 6 หลัก — PIN ยืนยันธุรกรรมของผู้ใช้ตัวอย่างที่ดำรงตำแหน่งใน DOA')),
     APP_COMMIT_SHA: optional(z.string()),
     E2E_TEST_CLOCK: flag,
     LIFF_MOCK: flag,
@@ -286,6 +295,9 @@ const schema = z
     // liff.ts appends the verify path to this value, locally too (the fake LINE server).
     if (parseUrl(e.LINE_API_BASE_URL) && lineApiBase(e.LINE_API_BASE_URL) === undefined) {
       issue('LINE_API_BASE_URL', 'ต้องเป็น URL ฐานแบบ http(s) เช่น https://api.line.me ไม่มี user:password, ? หรือ # — ระบบต่อ /oauth2/v2.1/verify ท้ายค่านี้ (BR-LINE-02)')
+    }
+    if (parseUrl(e.LINE_DATA_API_BASE_URL) && lineApiBase(e.LINE_DATA_API_BASE_URL) === undefined) {
+      issue('LINE_DATA_API_BASE_URL', 'ต้องเป็น URL ฐานแบบ http(s) เช่น https://api-data.line.me ไม่มี user:password, ? หรือ # — ระบบต่อ /v2/bot/richmenu/… ท้ายค่านี้')
     }
 
     // APP_ENV=local is the .env.example default; on a deployment it would switch off every check below.
@@ -354,6 +366,10 @@ const schema = z
       if (parseUrl(e.LINE_API_BASE_URL) && e.LINE_API_BASE_URL !== LINE_API_ORIGIN) {
         issue('LINE_API_BASE_URL', `ต้องเป็น ${LINE_API_ORIGIN} นอก local — ลบตัวแปรนี้เพื่อใช้ค่าเริ่มต้น ระบบส่ง ID token ของ LIFF ไปตรวจที่นี่ (BR-LINE-02) fake LINE server ใช้ได้เฉพาะ local`)
       }
+      // The channel access token goes with every upload, so only LINE's own data API may receive it (FR-ADM-006 AC2)
+      if (parseUrl(e.LINE_DATA_API_BASE_URL) && e.LINE_DATA_API_BASE_URL !== LINE_DATA_API_ORIGIN) {
+        issue('LINE_DATA_API_BASE_URL', `ต้องเป็น ${LINE_DATA_API_ORIGIN} นอก local — ลบตัวแปรนี้เพื่อใช้ค่าเริ่มต้น ระบบส่ง channel access token ไปกับการอัปโหลดภาพ rich menu ที่นี่ fake LINE server ใช้ได้เฉพาะ local`)
+      }
 
       // Better Auth and the Inngest SDK read these from the environment themselves.
       for (const key of INNGEST_URLS) {
@@ -397,9 +413,14 @@ const schema = z
     if (e.APP_ENV === 'production' && (e.SEED_DEV_PASSWORD || e.SEED_TOTP_KEY)) {
       issue('SEED_DEV_PASSWORD', 'production ห้ามมีค่าของ seed (ผู้ใช้ตัวอย่างสร้างได้เฉพาะ local/staging)')
     }
+    if (e.SEED_DEV_PIN && e.APP_ENV !== 'local' && e.APP_ENV !== 'staging') issue('SEED_DEV_PIN', 'ใช้ได้เฉพาะ APP_ENV=local หรือ staging (PIN ของผู้ใช้ตัวอย่าง)')
   })
   // Runs only when every check passed, so lineApiBase() reads a value the checks above accepted.
-  .transform((e) => ({ ...e, LINE_API_BASE_URL: lineApiBase(e.LINE_API_BASE_URL) ?? LINE_API_ORIGIN }))
+  .transform((e) => ({
+    ...e,
+    LINE_API_BASE_URL: lineApiBase(e.LINE_API_BASE_URL) ?? LINE_API_ORIGIN,
+    LINE_DATA_API_BASE_URL: lineApiBase(e.LINE_DATA_API_BASE_URL) ?? LINE_DATA_API_ORIGIN,
+  }))
 
 export type Env = z.infer<typeof schema>
 

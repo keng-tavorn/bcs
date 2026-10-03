@@ -1,0 +1,90 @@
+{
+  "title": "ตั้งค่า LINE",
+  "intro": "เชื่อม BCS กับ LINE Official Account ขององค์กร ค่าทุกช่องคัดลอกได้จาก LINE Developers Console ของ provider เดียวกัน",
+  "fields": {
+    "providerId": "Provider ID",
+    "messagingChannelId": "Channel ID ของ Messaging API channel",
+    "channelSecret": "Channel secret",
+    "channelAccessToken": "Channel access token (long-lived)",
+    "liffId": "LIFF ID",
+    "liffChannelId": "Channel ID ของ LINE MINI App channel (LIFF)",
+    "active": "ใช้ LINE กับองค์กรนี้",
+    "webhookUrl": "Webhook URL"
+  },
+  "secret": {
+    "saved": "บันทึกแล้ว ({masked})",
+    "notSet": "ยังไม่ได้ใส่",
+    "unreadable": "อ่านค่าที่บันทึกไว้ไม่ได้ ใส่ค่าใหม่แล้วบันทึก",
+    "keep": "เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน ระบบจะใช้ค่าเดิม"
+  },
+  "webhookUrlHint": "คัดลอกไปวางที่ LINE Developers Console → Messaging API → Webhook settings แล้วเปิด Use webhook",
+  "save": "บันทึก",
+  "saved": "บันทึกค่า LINE แล้ว",
+  "refused": {
+    "REQUIRED": "ต้องใส่ {field} ในการบันทึกครั้งแรก",
+    "NO_CHANGE": "ไม่มีค่าที่เปลี่ยนจากเดิม",
+    "PROVIDER_IN_USE": "เปลี่ยน Provider ID ไม่ได้ขณะยังมีสมาชิกผูก LINE อยู่ {linked} คน เพราะ LINE ให้ userId คนละชุดในแต่ละ provider ให้สมาชิกยกเลิกผูกก่อนแล้วจึงเปลี่ยน"
+  },
+  "test": {
+    "button": "ทดสอบการเชื่อมต่อ",
+    "running": "กำลังทดสอบ…",
+    "passed": "ผ่านทุกข้อ LINE พร้อมใช้งาน",
+    "failed": "ยังไม่ผ่าน {count} ข้อ แก้ตามคำแนะนำของแต่ละข้อแล้วทดสอบอีกครั้ง",
+    "notConfigured": "บันทึกค่า LINE ก่อนแล้วจึงทดสอบ"
+  },
+  "status": {
+    "PASS": "ผ่าน",
+    "FAIL": "ไม่ผ่าน"
+  },
+  "checks": {
+    "accessToken": {
+      "title": "Channel access token",
+      "ok": "LINE รับ token นี้ (บัญชี {botName} {basicId})",
+      "tokenUnreadable": "อ่าน access token ที่บันทึกไว้ไม่ได้ เพราะกุญแจเข้ารหัสของระบบเปลี่ยน ใส่ token ใหม่แล้วบันทึก",
+      "unauthorized": "LINE ไม่รับ token นี้ อาจพิมพ์ผิด หมดอายุ หรือมีการออก token ใหม่แล้ว ไปที่ LINE Developers Console → Messaging API → Channel access token กด Issue แล้วนำ token มาวางในช่อง Channel access token แล้วบันทึก",
+      "forbidden": "LINE ไม่ให้ token นี้ใช้ Messaging API ตรวจว่าเป็น token ของ Messaging API channel ของ OA นี้ และแพ็กเกจของ OA ใช้ API ได้",
+      "unreachable": "ติดต่อ LINE ไม่ได้ตอนนี้ ({cause}) รอสักครู่แล้วทดสอบอีกครั้ง",
+      "rejected": "LINE ปฏิเสธคำขอ (HTTP {status}) {detail}"
+    },
+    "webhookUrl": {
+      "title": "Webhook URL ที่ตั้งไว้ใน LINE",
+      "ok": "LINE ส่ง webhook มาที่ {expected} และเปิด Use webhook แล้ว",
+      "needsAccessToken": "ตรวจข้อนี้ได้เมื่อ access token ผ่านแล้ว",
+      "notSet": "ยังไม่ได้ตั้ง Webhook URL ใน LINE ไปที่ LINE Developers Console → Messaging API → Webhook settings วาง {expected} กด Update แล้วเปิด Use webhook",
+      "mismatch": "Webhook URL ใน LINE คือ {registered} แต่ต้องเป็น {expected} แก้ที่ LINE Developers Console → Messaging API → Webhook settings",
+      "inactive": "Webhook URL ถูกต้องแต่ Use webhook ยังปิดอยู่ เปิดที่ LINE Developers Console → Messaging API → Webhook settings",
+      "unreachable": "ติดต่อ LINE ไม่ได้ตอนนี้ ({cause}) รอสักครู่แล้วทดสอบอีกครั้ง",
+      "rejected": "LINE ปฏิเสธคำขอ (HTTP {status}) {detail}"
+    },
+    "webhookReachable": {
+      "title": "LINE ส่ง webhook ถึง BCS ได้",
+      "ok": "LINE ส่ง webhook ทดสอบถึง BCS และลายเซ็นถูกต้อง",
+      "needsAccessToken": "ตรวจข้อนี้ได้เมื่อ access token ผ่านแล้ว",
+      "couldNotConnect": "LINE เชื่อมต่อ {expected} ไม่ได้ เว็บ BCS ต้องเปิดจากอินเทอร์เน็ตได้ด้วย https และที่อยู่เว็บ (APP_URL) ต้องถูกต้อง แจ้งทีม BCS ถ้าไม่แน่ใจ",
+      "timeout": "BCS ตอบ LINE ไม่ทันเวลา ทดสอบอีกครั้ง ถ้ายังไม่ผ่านแจ้งทีม BCS",
+      "signatureRefused": "LINE ส่งถึง BCS แล้วแต่ลายเซ็นไม่ตรง แปลว่า channel secret ที่บันทึกไว้ไม่ใช่ของ channel นี้ คัดลอก Channel secret จาก LINE Developers Console → Basic settings มาวางแล้วบันทึก",
+      "errorStatus": "BCS ตอบ LINE ด้วย HTTP {statusCode} ตรวจว่าที่อยู่เว็บ (APP_URL) ชี้มาที่ระบบนี้ ถ้ายังไม่ผ่านแจ้งทีม BCS",
+      "unclassified": "LINE ทดสอบ webhook ไม่สำเร็จ ({detail}) ทดสอบอีกครั้ง ถ้ายังไม่ผ่านแจ้งทีม BCS",
+      "unreachable": "ติดต่อ LINE ไม่ได้ตอนนี้ ({cause}) รอสักครู่แล้วทดสอบอีกครั้ง",
+      "rejected": "LINE ปฏิเสธการทดสอบ (HTTP {status}) {detail} LINE รับเฉพาะ Webhook URL ที่ขึ้นต้นด้วย https"
+    },
+    "liffId": {
+      "title": "LIFF ID",
+      "ok": "ตั้ง LIFF ID {liffId} แล้ว",
+      "notSet": "ยังไม่ได้ใส่ LIFF ID คัดลอกจาก LINE Developers Console → LINE MINI App channel แล้วบันทึก",
+      "channelNotSet": "ใส่ Channel ID ของ LINE MINI App channel ที่ออก LIFF ID {liffId} ด้วย ระบบใช้ค่านี้ตรวจตัวตนผู้ใช้ในหน้า LIFF",
+      "channelMismatch": "LIFF ID {liffId} ไม่ได้มาจาก channel {liffChannelId} คัดลอก LIFF ID และ Channel ID จาก LINE MINI App channel เดียวกัน",
+      "envNotSet": "ระบบ BCS ชุดนี้ยังไม่ได้ตั้ง LIFF app จึงเปิดหน้า LIFF ไม่ได้ แจ้งทีม BCS ว่ายังไม่มีค่า NEXT_PUBLIC_LIFF_ID และ LINE_LIFF_CHANNEL_ID",
+      "envMismatch": "LIFF ID {liffId} (channel {liffChannelId}) ไม่ใช่ LIFF app ที่ระบบ BCS ชุดนี้ใช้ ซึ่งคือ {envLiffId} (channel {envLiffChannelId}) บันทึกสองค่านี้แทน หรือแจ้งทีม BCS ถ้าองค์กรต้องใช้ LIFF app ของตนเอง"
+    },
+    "richMenus": {
+      "title": "Rich menu ทั้งสองชุด",
+      "ok": "LINE มี rich menu ทั้งชุดสำหรับคนที่ยังไม่ผูกบัญชีและชุดสำหรับคนที่ผูกแล้ว",
+      "notCreated": "ยังไม่ได้สร้าง rich menu ให้ทีม BCS รันคำสั่ง pnpm line:richmenu",
+      "needsAccessToken": "ตรวจข้อนี้ได้เมื่อ access token ผ่านแล้ว",
+      "missingAtLine": "LINE ไม่มี rich menu ชุด {missing} แล้ว ให้ทีม BCS รันคำสั่ง pnpm line:richmenu อีกครั้ง",
+      "unreachable": "ติดต่อ LINE ไม่ได้ตอนนี้ ({cause}) รอสักครู่แล้วทดสอบอีกครั้ง",
+      "rejected": "LINE ปฏิเสธคำขอ (HTTP {status}) {detail}"
+    }
+  }
+}

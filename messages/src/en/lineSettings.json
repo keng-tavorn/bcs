@@ -1,0 +1,90 @@
+{
+  "title": "LINE settings",
+  "intro": "Connect BCS to the LINE Official Account of your organization. Copy every value from LINE Developers Console, all from the same provider.",
+  "fields": {
+    "providerId": "Provider ID",
+    "messagingChannelId": "Channel ID of the Messaging API channel",
+    "channelSecret": "Channel secret",
+    "channelAccessToken": "Channel access token (long-lived)",
+    "liffId": "LIFF ID",
+    "liffChannelId": "Channel ID of the LINE MINI App channel (LIFF)",
+    "active": "Use LINE in this organization",
+    "webhookUrl": "Webhook URL"
+  },
+  "secret": {
+    "saved": "Saved ({masked})",
+    "notSet": "Not entered yet",
+    "unreadable": "The saved value cannot be read. Enter it again and save.",
+    "keep": "Leave empty to keep the saved value."
+  },
+  "webhookUrlHint": "Paste it in LINE Developers Console → Messaging API → Webhook settings, then turn on Use webhook.",
+  "save": "Save",
+  "saved": "LINE settings saved.",
+  "refused": {
+    "REQUIRED": "Enter {field} the first time you save.",
+    "NO_CHANGE": "Nothing was changed.",
+    "PROVIDER_IN_USE": "The provider ID cannot change while {linked} members are linked to LINE, because LINE gives every provider its own user IDs. Ask them to unlink first, then change it."
+  },
+  "test": {
+    "button": "Test connection",
+    "running": "Testing…",
+    "passed": "Every check passed. LINE is ready.",
+    "failed": "{count} checks did not pass. Fix them as each one says, then test again.",
+    "notConfigured": "Save the LINE settings first, then test."
+  },
+  "status": {
+    "PASS": "Pass",
+    "FAIL": "Fail"
+  },
+  "checks": {
+    "accessToken": {
+      "title": "Channel access token",
+      "ok": "LINE accepts this token (account {botName} {basicId}).",
+      "tokenUnreadable": "The saved access token cannot be read because the system encryption key changed. Enter the token again and save.",
+      "unauthorized": "LINE does not accept this token: it may be mistyped, expired or replaced by a newer one. In LINE Developers Console → Messaging API → Channel access token, click Issue, paste the token in the Channel access token field and save.",
+      "forbidden": "LINE does not let this token use the Messaging API. Check that it is the token of this account's Messaging API channel and that the account's plan allows the API.",
+      "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again.",
+      "rejected": "LINE refused the request (HTTP {status}) {detail}"
+    },
+    "webhookUrl": {
+      "title": "Webhook URL set in LINE",
+      "ok": "LINE sends webhooks to {expected} and Use webhook is on.",
+      "needsAccessToken": "This check runs once the access token passes.",
+      "notSet": "No webhook URL is set in LINE. In LINE Developers Console → Messaging API → Webhook settings, paste {expected}, click Update and turn on Use webhook.",
+      "mismatch": "The webhook URL in LINE is {registered} but it must be {expected}. Change it in LINE Developers Console → Messaging API → Webhook settings.",
+      "inactive": "The webhook URL is right but Use webhook is off. Turn it on in LINE Developers Console → Messaging API → Webhook settings.",
+      "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again.",
+      "rejected": "LINE refused the request (HTTP {status}) {detail}"
+    },
+    "webhookReachable": {
+      "title": "LINE can reach BCS",
+      "ok": "LINE delivered a test webhook to BCS and the signature is right.",
+      "needsAccessToken": "This check runs once the access token passes.",
+      "couldNotConnect": "LINE cannot connect to {expected}. BCS must be reachable from the internet over https and its address (APP_URL) must be right. Ask the BCS team if you are not sure.",
+      "timeout": "BCS did not answer LINE in time. Test again; if it still fails, tell the BCS team.",
+      "signatureRefused": "LINE reached BCS but the signature did not match, so the saved channel secret is not this channel's. Copy the Channel secret from LINE Developers Console → Basic settings, paste it and save.",
+      "errorStatus": "BCS answered LINE with HTTP {statusCode}. Check that the address (APP_URL) points to this system; if it still fails, tell the BCS team.",
+      "unclassified": "LINE could not test the webhook ({detail}). Test again; if it still fails, tell the BCS team.",
+      "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again.",
+      "rejected": "LINE refused the test (HTTP {status}) {detail} LINE accepts webhook URLs that start with https only."
+    },
+    "liffId": {
+      "title": "LIFF ID",
+      "ok": "LIFF ID {liffId} is set.",
+      "notSet": "No LIFF ID yet. Copy it from LINE Developers Console → your LINE MINI App channel and save.",
+      "channelNotSet": "Also enter the Channel ID of the LINE MINI App channel that issued LIFF ID {liffId}. It is used to verify who opens the LIFF pages.",
+      "channelMismatch": "LIFF ID {liffId} does not belong to channel {liffChannelId}. Copy the LIFF ID and the Channel ID from the same LINE MINI App channel.",
+      "envNotSet": "This BCS system has no LIFF app set up yet, so LIFF pages cannot open. Tell the BCS team: NEXT_PUBLIC_LIFF_ID and LINE_LIFF_CHANNEL_ID are missing.",
+      "envMismatch": "LIFF ID {liffId} (channel {liffChannelId}) is not the LIFF app this BCS system runs, which is {envLiffId} (channel {envLiffChannelId}). Save those two values, or tell the BCS team if your organization needs a LIFF app of its own."
+    },
+    "richMenus": {
+      "title": "Both rich menus",
+      "ok": "LINE has the rich menu for people who have not linked their account and the one for linked people.",
+      "notCreated": "The rich menus are not created yet. Ask the BCS team to run pnpm line:richmenu.",
+      "needsAccessToken": "This check runs once the access token passes.",
+      "missingAtLine": "LINE no longer has the {missing} rich menu. Ask the BCS team to run pnpm line:richmenu again.",
+      "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again.",
+      "rejected": "LINE refused the request (HTTP {status}) {detail}"
+    }
+  }
+}

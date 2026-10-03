@@ -15,6 +15,7 @@ import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/ser
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, seedDemoHistory } from '@/server/services/demo-history'
+import { describeLineSeed, seedLineChannel } from '@/server/services/line-channel'
 import { loadInputWorkbook } from '@/server/seed/workbook'
 
 const SEED_ENVS = new Set(['local', 'staging'])
@@ -39,6 +40,8 @@ try {
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), systemClock.now())
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), systemClock.now())
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, systemClock.now())
+  // The LINE channel from the LINE_* values of .env, when they are set (S5-01)
+  const lineChannel = await seedLineChannel(report.organizationId, env, systemClock.now())
   const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistory(report.organizationId, parseDemoHistory(workbook), systemClock.now())
   console.log(
     `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
@@ -50,6 +53,7 @@ try {
       ` · ผู้ขายใหม่ ${suppliers.suppliers} · สถานที่ส่งใหม่ ${suppliers.sites}` +
       (history === null ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)' : history.seeded ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}` : ' · ประวัติ demo มีอยู่แล้ว'),
   )
+  console.log(`db:seed LINE: ${describeLineSeed(lineChannel)}`)
 } catch (error) {
   if (error instanceof DemoHistoryOutOfYearError) {
     stop(

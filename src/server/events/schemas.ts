@@ -2,6 +2,7 @@
 // Add one line per new file in src/server/events/schemas/ (one file per aggregate keeps parallel work apart).
 import './schemas/approval-task'
 import './schemas/auth'
+import './schemas/delegation'
 import './schemas/doa-version'
 import './schemas/file'
 import './schemas/member'

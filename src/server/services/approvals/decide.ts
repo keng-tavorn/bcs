@@ -15,8 +15,8 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { closeRoute, taskTimes } from './route'
 
-// Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). Only the task's assignee decides; the
-// task must still be OPEN; separation of duties is checked again at the moment of deciding (GC-SOD-01, GC-SOD-03).
+// Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). The task's assignee decides, or the
+// delegator when a delegate holds it (BR-DLG-04); the task must still be OPEN; separation of duties is checked again at the moment of deciding (GC-SOD-01, GC-SOD-03).
 // Return and reject need a reason (kept in Comment). The last approval moves the document on; a return or a rejection
 // ends the route. Every decision event names the DOA version and rule, the channel, the actor and whom they act for.
 
@@ -32,6 +32,9 @@ async function lockedTask(tx: TenantTx, ctx: Ctx, taskId: string) {
 }
 
 type LoadedTask = NonNullable<Awaited<ReturnType<typeof lockedTask>>>
+
+/** Who may act on a task: its assignee and, when a delegate holds it, the delegator (BR-DLG-04). */
+const deciders = (task: LoadedTask) => [task.assigneeMemberId, task.principalMemberId].filter((m): m is string => Boolean(m))
 
 /** FR-DOA-004 AC2: a task decided already is refused with who decided it and when. */
 async function alreadyDecided(tx: TenantTx, task: LoadedTask, command: TaskCommand) {
@@ -82,7 +85,8 @@ export const decideCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ taskId: string; documentStatus: string }>> {
     const task = await lockedTask(tx, ctx, input.taskId)
     if (!task) return fail('NOT_FOUND', 'task not found')
-    const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: [task.assigneeMemberId] })
+    // BR-DLG-04: the delegate and the delegator both may decide; whoever acts first decides
+    const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: deciders(task) })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const command = COMMAND_OF[input.decision]
     const taskTo = moveTask(task, command)
@@ -216,7 +220,7 @@ export const requestInfoCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ infoRequestId: string }>> {
     const task = await lockedTask(tx, ctx, input.taskId)
     if (!task) return fail('NOT_FOUND', 'task not found')
-    const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: [task.assigneeMemberId] })
+    const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: deciders(task) })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const to = moveTask(task, 'approval.request_info')
     if (!to) return alreadyDecided(tx, task, 'approval.request_info')

@@ -97,6 +97,19 @@ export async function createDoaOrg(): Promise<DoaOrg> {
   const type = await prisma.requestType.create({ data: { organizationId, code: 'BUY_GOODS', nameTh: 'ซื้อของ', documentType: 'PURCHASE_REQUEST' } })
   const form = await prisma.formVersion.create({ data: { organizationId, requestTypeId: type.id, versionNo: 1, schema: FORM_SCHEMA, status: 'PUBLISHED', publishedAt: v1.effectiveFrom } })
   await prisma.requestType.update({ where: { id: type.id }, data: { currentFormVersionId: form.id } })
+  const supplierType = await prisma.requestType.create({ data: { organizationId, code: 'NEW_SUPPLIER', nameTh: 'ขอเพิ่มผู้ขายรายใหม่', documentType: 'SUPPLIER_REQUEST' } })
+  const supplierForm = await prisma.formVersion.create({
+    data: {
+      organizationId,
+      requestTypeId: supplierType.id,
+      versionNo: 1,
+      schema: { fields: [{ id: 'supplierName', type: 'text', required: true }], visibility: [], rules: [] },
+      status: 'PUBLISHED',
+      publishedAt: v1.effectiveFrom,
+    },
+  })
+  await prisma.requestType.update({ where: { id: supplierType.id }, data: { currentFormVersionId: supplierForm.id } })
+  await prisma.roleAssignment.create({ data: { organizationId, memberId: member.proc_officer!, role: 'PROCUREMENT', grantedAt: v1.effectiveFrom } })
   await prisma.holiday.createMany({ data: ['2026-10-13', '2026-10-23'].map((d) => ({ organizationId, date: new Date(`${d}T00:00:00Z`), nameTh: 'วันหยุด' })) })
 
   return {

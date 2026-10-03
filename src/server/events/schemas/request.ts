@@ -9,7 +9,10 @@ const satang = z.string().regex(/^\d+$/)
 defineEvents('Request', {
   'request.drafted': { schema: z.object({ requestTypeCode: z.string().min(1), lines: z.number().int().nonnegative() }) },
   'request.submitted': {
-    schema: z.object({
+    // A new-supplier request goes to the procurement queue without a DOA route (OQ-23, FR-INT-007 AC3)
+    schema: z.union([
+      z.object({ number: z.string().min(1), queue: z.literal('PROCUREMENT') }).strict(),
+      z.object({
       number: z.string().min(1),
       netSatang: satang,
       vatSatang: satang,
@@ -19,7 +22,8 @@ defineEvents('Request', {
       doaVersionId: z.uuid(),
       doaRuleCode: z.string().min(1),
       escalatedFromRuleCode: z.string().min(1).nullable(),
-    }),
+      }),
+    ]),
   },
   'request.resubmitted': {
     schema: z.object({ netSatang: satang, vatSatang: satang, grossSatang: satang, routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1) }),

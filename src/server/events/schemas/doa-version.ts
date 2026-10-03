@@ -7,6 +7,9 @@ import { defineEvents } from '../registry'
 const version = { code: z.string().min(1), versionNo: z.number().int().positive() }
 
 defineEvents('DoaVersion', {
+  'doa_version.drafted': { schema: z.object({ ...version, via: z.enum(['YAML', 'COPY']), rules: z.number().int().positive() }) },
+  'doa_version.submitted': { schema: z.object({ ...version, warningsAcknowledged: z.number().int().nonnegative(), routeId: z.uuid() }) },
+  'doa_version.superseded': { schema: z.object({ ...version, supersededBy: z.uuid() }) },
   'doa_version.published': {
     schema: z.object({ ...version, effectiveFrom: z.iso.datetime({ offset: true }), via: z.enum(['SEED', 'APPROVAL']), rules: z.number().int().positive() }),
   },

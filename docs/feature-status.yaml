@@ -195,6 +195,7 @@ features:
     evidence:
       - tests/golden/doa.test.ts
       - tests/integration/doa-lint-gate.test.ts
+      - tests/integration/doa-versions.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null
     notes: ""
@@ -226,6 +227,7 @@ features:
     step: S2
     evidence:
       - tests/golden/delegation.test.ts
+      - tests/integration/delegations.test.ts
       - tests/integration/requests.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null

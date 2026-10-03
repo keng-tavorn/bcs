@@ -69,6 +69,22 @@ describe('[FR-INT-007/AC1] submitting is one transaction: form, totals, route, n
     expect(numbers).toEqual(numbers.map((_, i) => `PR-2569-${String(i + 1).padStart(5, '0')}`))
   })
 
+  it('[FR-INT-007/AC3] a new-supplier request goes to the procurement queue without a DOA route (OQ-23)', async () => {
+    const created = await createDraft(org.ctxOf('req_con', NOW), { requestTypeCode: 'NEW_SUPPLIER', title: 'เพิ่มผู้ขายวัสดุ', formData: { supplierName: 'บริษัท ตัวอย่าง จำกัด' } }, key())
+    if (!created.ok) throw new Error('draft failed')
+    const id = created.data.requestId
+    expect(await submitRequest(org.ctxOf('req_con', NOW), { requestId: id }, key())).toMatchObject({ ok: true, data: { number: 'RQ-2569-00001' } })
+    expect(await prisma.request.findUniqueOrThrow({ where: { id } })).toMatchObject({ status: 'SUBMITTED', number: 'RQ-2569-00001' })
+    expect(await prisma.approvalRoute.count({ where: { subjectId: id } })).toBe(0)
+    expect(await prisma.notification.count({ where: { recipientMemberId: org.member.proc_officer, templateKey: 'supplier_request.submitted', subjectId: id } })).toBe(1)
+    const missing = await createDraft(org.ctxOf('req_con', NOW), { requestTypeCode: 'NEW_SUPPLIER', title: 'ไม่ระบุชื่อ' }, key())
+    if (!missing.ok) throw new Error('draft failed')
+    expect(await submitRequest(org.ctxOf('req_con', NOW), { requestId: missing.data.requestId }, key())).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_FAILED', details: { field: 'formData.supplierName' } },
+    })
+  })
+
   it('only the requester submits their request (OWN)', async () => {
     const id = await draft('req_con', '1000.00')
     expect(await submitRequest(org.ctxOf('proc_officer', NOW), { requestId: id }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
@@ -215,5 +231,14 @@ describe('[FR-DOA-006/AC1] a delegate gets new tasks of the delegator while the 
     await decideTask(org.ctxOf('asst_con', NOW), { taskId: task.id, decision: 'APPROVE' }, key())
     const decided = await prisma.event.findFirstOrThrow({ where: { aggregateId: task.id, type: 'approval_task.decided' } })
     expect(decided.data).toMatchObject({ actorMemberId: org.member.asst_con, onBehalfOfMemberId: org.member.dm_con, doaRuleCode: 'PR-01' })
+  })
+
+  it('the delegator may still decide a task their delegate holds; whoever acts first decides (BR-DLG-04)', async () => {
+    const id = await draft('req_con', '9000.00')
+    await submitRequest(org.ctxOf('req_con', NOW), { requestId: id }, key())
+    const task = await openTask(id)
+    expect(task).toMatchObject({ assigneeMemberId: org.member.asst_con, principalMemberId: org.member.dm_con })
+    expect(await decideTask(org.ctxOf('dm_con', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'APPROVED' } })
+    expect(await decideTask(org.ctxOf('asst_con', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
   })
 })

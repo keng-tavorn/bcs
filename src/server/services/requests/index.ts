@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
 import { documentTotals, lineNet } from '@/core/money/math'
-import { REQUEST_MACHINE, transition, type RequestCommand, type RequestState } from '@/core/state-machines'
+import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -181,8 +181,8 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
     const issue = checked.error.issues[0]
     return fail('VALIDATION_FAILED', 'the form is not complete', { field: `formData.${issue?.path.join('.') ?? ''}`, reason: 'FORM' })
   }
-  // TODO(OQ-03): budget check and reservation arrive with S3-05 (§6.4 step "ตรวจและจองงบ"); until then no request is
-  // refused for budget, which the demo data respects
+  // The budget check and reservation of §6.4 ("ตรวจและจองงบ") arrive with S3-05; until then no request is refused for
+  // budget, which the demo data respects
   const route = await startRoute(
     tx,
     ctx,
@@ -209,7 +209,7 @@ export const submitCommand = defineCommand({
     if (!request) return fail('NOT_FOUND', 'request not found')
     const allowed = await authorize(tx, ctx, 'request.submit', { ownerMemberIds: [request.requesterMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    if (request.documentType !== 'PURCHASE_REQUEST') return fail('VALIDATION_FAILED', 'supplier requests go to procurement (OQ-23)', { reason: 'NOT_A_PURCHASE_REQUEST' })
+    if (request.documentType === 'SUPPLIER_REQUEST') return submitSupplierRequest(tx, ctx, request)
     const moved = move(request.status as RequestState, 'request.submit')
     if (!moved.ok) return moved
     const prepared = await prepareRoute(tx, ctx, request)
@@ -255,6 +255,40 @@ export const submitCommand = defineCommand({
     return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: route.notifications }
   },
 })
+
+/**
+ * A new-supplier request (OQ-23, FR-INT-007 AC3): no amount and no DOA route; its form is checked, it gets an RQ number
+ * and goes to the procurement queue, whose members are told.
+ */
+async function submitSupplierRequest(tx: TenantTx, ctx: Ctx, request: LoadedRequest): Promise<CommandOutcome<{ number: string; routeId: string; assigneeMemberId: string }>> {
+  const t = transition(SUPPLIER_REQUEST_MACHINE, request.status as SupplierRequestState, 'request.submit')
+  if (!t.ok) return fail('INVALID_STATE_TRANSITION', `request.submit is not allowed from ${request.status}`, { from: request.status, command: 'request.submit' })
+  const form = formDefinition(request.formVersion.schema)
+  const evaluated = evaluateForm(form, { fields: request.formData as Record<string, unknown>, attachments: {}, variables: { $amountGross: 0n, $amountNet: 0n, $requestType: request.requestType.code } })
+  if (!evaluated.ok) return { ok: false, error: { code: 'ATTACHMENT_RULE_FAILED', message: 'attachment rule failed', details: { rule: evaluated.rule, failures: evaluated.failures } } }
+  const checked = formDataSchema(form.fields.filter((f) => !evaluated.droppedFields.includes(f.id))).safeParse(evaluated.fields)
+  if (!checked.success) {
+    const issue = checked.error.issues[0]
+    return fail('VALIDATION_FAILED', 'the form is not complete', { field: `formData.${issue?.path.join('.') ?? ''}`, reason: 'FORM' })
+  }
+  const number = await issueDocumentNumber(tx, ctx, { document: 'RQ' })
+  await tx.request.update({ where: { id: request.id }, data: { status: t.to, number, formData: checked.data as object, submittedAt: ctx.now, version: { increment: 1 } } })
+  const procurement = await tx.roleAssignment.findMany({ where: { role: 'PROCUREMENT', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true } })
+  return {
+    ok: true,
+    result: { number, routeId: '', assigneeMemberId: '' },
+    events: [{ type: 'request.submitted', aggregateType: 'Request', aggregateId: request.id, data: { number, queue: 'PROCUREMENT' } }],
+    notifications: [...new Set(procurement.map((p) => p.memberId))].map((memberId) => ({
+      recipientMemberId: memberId,
+      templateKey: 'supplier_request.submitted',
+      data: { requestId: request.id, number, title: request.title },
+      urgency: 'IMMEDIATE' as const,
+      dedupeKey: `supplier_request.submitted:${request.id}:${memberId}`,
+      subjectType: 'REQUEST',
+      subjectId: request.id,
+    })),
+  }
+}
 
 export function submitRequest(ctx: Ctx, input: z.input<typeof SubmitInput>, options: RunOptions) {
   return runCommand(ctx, submitCommand, input, options)
@@ -376,7 +410,7 @@ export const cancelCommand = defineCommand({
       reasonCommentId = newId()
       await tx.comment.create({ data: { id: reasonCommentId, organizationId: ctx.organizationId, subjectType: 'Request', subjectId: request.id, authorMemberId: requesterOf(ctx), body: input.reason } })
     }
-    // TODO(OQ-03): the budget reservation is released here once S3-05 reserves it (FR-INT-009 AC1 "งบคืนทันที")
+    // The budget reservation is released here once S3-05 reserves it (FR-INT-009 AC1 "งบคืนทันที")
     await tx.request.update({ where: { id: request.id }, data: { status: moved.to, cancelledAt: ctx.now, cancelReason: input.reason ?? null, version: { increment: 1 } } })
     return {
       ok: true,

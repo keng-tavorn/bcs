@@ -7,10 +7,11 @@ features:
     step: S1
     evidence:
       - tests/generated/tenant-isolation.test.ts
+      - tests/integration/demo-history.test.ts
       - tests/integration/org-settings.test.ts
       - tests/integration/seed.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01)"
   FR-PLT-002:
     status: done
     step: S1
@@ -420,11 +421,12 @@ features:
     verifiedBy: null
     notes: "บริการให้และเพิกถอน grant และรายการบรรทัดงบที่ผู้ขอเลือกได้ (S3-07) · หน้าจัดการ grant และช่องเลือกบรรทัดงบในฟอร์มมากับหน้างบและฟอร์มคำขอ"
   FR-BUD-005:
-    status: planned
+    status: in_progress
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/demo-history.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 ตัวเลขของ service dashboard ตรงกับ ledger ทุกสตางค์ด้วยข้อมูล demo (D-01) · หน้า drill-down และส่งออกมากับ S3-08"
   FR-P2P-001:
     status: in_progress
     step: S4
@@ -515,8 +517,9 @@ features:
     step: S4
     evidence:
       - tests/integration/board-audit.test.ts
+      - tests/integration/demo-history.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 ตรงกับ ApprovalTask ของข้อมูล demo (D-01) · AC1 AC2 หน้ากระดานมากับ S4-10"
   FR-VIS-002:
     status: in_progress
     step: S4
@@ -528,9 +531,10 @@ features:
     status: in_progress
     step: S4
     evidence:
+      - tests/integration/demo-history.test.ts
       - tests/integration/reports.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 G-5 ของคำขอซื้อตรงกับ pnpm inputs:check ด้วยข้อมูล demo (D-01) · หน้า KPI มากับ S5-12"
   FR-VIS-004:
     status: in_progress
     step: S4

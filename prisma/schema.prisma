@@ -1877,6 +1877,8 @@ model ConsolidationRun {
   purchaseOrders PurchaseOrder[]
 
   @@unique([organizationId, id])
+  /// A scheduled round runs once per slot of the cron (FR-P2P-002 AC2)
+  @@unique([organizationId, scheduledFor], map: "consolidation_run_one_per_slot", where: raw("\"trigger\" = 'SCHEDULED'"))
   @@index([organizationId, ranAt])
 }
 

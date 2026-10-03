@@ -10,6 +10,8 @@ export const DECIMAL_COMPARE_SCALE = 10n ** 18n
 /** Thai number words repeat every six digits (ล้าน) */
 export const THAI_NUMBER_GROUP = 1_000_000n
 export const MS_PER_MINUTE = 60_000
+/** How far back a schedule looks for a round it missed: one day, so a missed round runs once (core/schedule) */
+export const SCHEDULE_LOOK_BACK_MINUTES = 1_440
 /** A business calendar with no working day within ten years is unusable: stop searching instead of looping forever */
 export const MAX_CALENDAR_SEARCH_DAYS = 3660
 /** Longest text a one-line form field takes (BR-FORM-01) */

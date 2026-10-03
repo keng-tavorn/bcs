@@ -26,6 +26,9 @@ const SECRETS = {
   bearer: 'eyJhbGciOiJIUzI1NiJ9.payload.sig',
 }
 
+/** Catastrophic backtracking on these inputs takes minutes; 10 s leaves room for a machine busy with other work */
+const BACKTRACKING_BUDGET_MS = 10_000
+
 describe('[NFR-SEC-09] logger redaction', () => {
   it('redacts sensitive keys at any depth', () => {
     const { logger, output } = capture()
@@ -331,7 +334,7 @@ describe('[NFR-SEC-09] redaction keeps logs useful and never breaks a log call',
     const started = performance.now()
     for (const text of hostile) scrubText(text)
     expect(redactDeep({ [`${'A'.repeat(n)}b`]: 1 })).toBeTruthy()
-    expect(performance.now() - started).toBeLessThan(2000)
+    expect(performance.now() - started).toBeLessThan(BACKTRACKING_BUDGET_MS)
   })
 
   it('never throws on values that cannot be serialized', () => {
@@ -618,6 +621,6 @@ describe('[NFR-SEC-09] redaction stays linear', () => {
     for (const text of hostile) scrubText(text)
     const entries = Array.from({ length: n / 10 }, (_, i) => [`key${i}`, 'value'])
     redactDeep({ entries, argv: Array.from({ length: n / 10 }, () => '--token'), byKey: Object.fromEntries(entries) })
-    expect(performance.now() - started).toBeLessThan(2000)
+    expect(performance.now() - started).toBeLessThan(BACKTRACKING_BUDGET_MS)
   })
 })

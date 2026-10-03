@@ -51,11 +51,15 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
 
   it('the screen renders only menus whose pages exist', () => {
     // S1-12: /admin/members and /admin/modules · S2-11 to S2-13 and NEW-06: requests, tasks, the admin pages and acting approvers
-    // · S3-08 S4-02 S4-03 S4-04 S4-07: budgets, suppliers (every member reads basic fields), the pool, POs and receiving
-    expect(visibleMenu(member('ORG_ADMIN'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'modules', 'delegation', 'security'])
-    expect(visibleMenu(member(), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'delegation', 'security'])
-    expect(visibleMenu(member('PROCUREMENT'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'pool', 'pos', 'suppliers', 'delegation', 'security'])
-    expect(visibleMenu(member('RECEIVER'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'receiving', 'suppliers', 'delegation', 'security'])
-    expect(visibleMenu(member('FINANCE'), CORE, true).map((i) => i.key)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'delegation', 'security'])
+    // · S3-08 S4-02 to S4-11 S5-12: budgets, suppliers (every member reads basic fields), the pool, POs, receiving, finance,
+    // the board (every member sees their own documents), reports, KPI and the audit
+    const ready = (...roles: StoredRole[]) => visibleMenu(member(...roles), CORE, true).map((i) => i.key)
+    expect(ready('ORG_ADMIN')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'audit', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'modules', 'delegation', 'security'])
+    expect(ready()).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'delegation', 'security'])
+    expect(ready('PROCUREMENT')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'pool', 'pos', 'suppliers', 'board', 'reports', 'kpi', 'delegation', 'security'])
+    expect(ready('RECEIVER')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'receiving', 'suppliers', 'board', 'delegation', 'security'])
+    expect(ready('FINANCE')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'invoices', 'exports', 'budgets', 'board', 'reports', 'kpi', 'delegation', 'security'])
+    expect(ready('EXECUTIVE')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'kpi', 'delegation', 'security'])
+    expect(ready('AUDITOR')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'kpi', 'audit', 'delegation', 'security'])
   })
 })

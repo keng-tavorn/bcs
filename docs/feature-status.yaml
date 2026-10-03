@@ -441,12 +441,15 @@ features:
     step: S4
     evidence:
       - tests/golden/invoice-confirmation.test.ts
+      - tests/integration/invoices.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-009:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/express-export.test.ts
+      - tests/unit/encoding.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-010:

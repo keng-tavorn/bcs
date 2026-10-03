@@ -1,0 +1,21 @@
+{
+  "name": "BCS",
+  "description": "Procurement platform with delegation-of-authority approvals and live budget control",
+  "comingSoon": "The system is being built. This page will become your work home page.",
+  "language": {
+    "th": "ไทย",
+    "en": "English"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "The link may be wrong, or this page is not open to your account. Go back to the home page and choose from the menu again.",
+    "home": "Back to the home page"
+  },
+  "error": {
+    "title": "Something went wrong",
+    "body": "The system failed while opening this page. Everything you saved is still there. Try again; if it keeps failing, tell the BCS team the reference code.",
+    "reference": "Reference {reference}",
+    "retry": "Try again",
+    "home": "Back to the home page"
+  }
+}

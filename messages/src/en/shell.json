@@ -1,0 +1,41 @@
+{
+  "skipToContent": "Skip to content",
+  "menu": "Menu",
+  "mainNav": "Main menu",
+  "account": "My account",
+  "language": "Language",
+  "signedInAs": "Signed in as {name}",
+  "groups": {
+    "work": "My work",
+    "procurement": "Procurement",
+    "finance": "Finance",
+    "insight": "Tracking and reports",
+    "admin": "Organization admin",
+    "platform": "BCS team",
+    "account": "My account"
+  },
+  "items": {
+    "home": "Home",
+    "newRequest": "New purchase request",
+    "requests": "Requests",
+    "tasks": "Approvals",
+    "receiving": "Receiving",
+    "pool": "Requests to purchase",
+    "pos": "Purchase orders (PO)",
+    "suppliers": "Suppliers",
+    "invoices": "Confirm invoices",
+    "exports": "Express export",
+    "budgets": "Budgets",
+    "board": "Who is holding what",
+    "reports": "Reports",
+    "kpi": "KPI",
+    "audit": "Audit trail",
+    "members": "Members and roles",
+    "doa": "Approval authority (DOA)",
+    "orgAuthority": "Authority changes",
+    "policyHistory": "Policy history",
+    "modules": "Enabled modules",
+    "tenants": "Customer organizations",
+    "security": "Account security"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "label": "Document timeline",
+  "status": { "done": "Done", "current": "Waiting", "upcoming": "Next", "approved": "Approved", "rejected": "Rejected" },
+  "onBehalfOf": "On behalf of {name}",
+  "waitingHours": "Waiting {hours} business hours",
+  "doaRef": "{code} version {version} rule {rule}",
+  "system": "System",
+  "channel": {
+    "WEB": "Web",
+    "LIFF": "LINE (LIFF)",
+    "LINE_CHAT": "LINE chat",
+    "PWA": "BCS Go app",
+    "EMAIL": "Email",
+    "PORTAL": "Supplier portal",
+    "SYSTEM": "Automated",
+    "API": "API",
+    "MCP": "MCP"
+  }
+}

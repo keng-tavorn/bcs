@@ -76,7 +76,7 @@ New-Item -ItemType Directory -Force bcs\docs\inputs, bcs\scripts | Out-Null; Mov
 ขั้นที่ไม่ต้องใช้ผู้ใช้ให้ทำต่อ และเขียนสถานะสั้น ๆ ในข้อความเดียวกับการลงมือทำขั้นถัดไป หยุดถามเฉพาะเมื่อทำต่อไม่ได้ถ้าไม่มีผู้ใช้ หรือก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้
 
 - ต้องใช้บัญชี secret หรือบริการภายนอกที่ยังไม่มี (hosting Neon LINE อีเมล) หรือต้องจ่ายเงิน
-- ก่อนลบข้อมูลที่ไม่ได้มาจาก seed แก้ข้อมูลบน staging หรือ production ใช้ `git push --force` หรือแก้อะไรนอกโฟลเดอร์ repo
+- ก่อนลบข้อมูลที่ไม่ได้มาจาก seed แก้ข้อมูลบน staging (ยกเว้น migrate และ seed ครั้งแรก · ADR-038 ข้อ 14) หรือ production ใช้ `git push --force` หรือแก้อะไรนอกโฟลเดอร์ repo
 - spec ขัดกันเอง golden case ขัดกับกฎ หรือ library ทำงานต่างจาก spec จนต้องเปลี่ยนการออกแบบ
 - งานที่พบเพิ่มเปลี่ยนกฎเงิน อำนาจ หรือขอบเขต
 - ถึงเส้นชัยแล้ว
@@ -684,7 +684,7 @@ sequenceDiagram
 | ORM และฐานข้อมูล | Prisma 7 · PostgreSQL 17 บน Neon สิงคโปร์ | generator `prisma-client` ต้องระบุ `output` · URL สำหรับ CLI อยู่ใน `prisma.config.ts` (`DIRECT_URL`) · runtime ใช้ driver adapter กับ `DATABASE_URL` (pooled) · ต้องใช้ adapter ที่รองรับ interactive transaction และ `SELECT … FOR UPDATE` (ค่าเริ่มต้น `@prisma/adapter-pg`) · ห้ามใช้โหมด HTTP ของ Neon กับงานที่แตะเงิน |
 | Authentication | Better Auth ≥ 1.7 | email + password, TOTP 2FA, Google และ Microsoft SSO (S5), LINE (S5) · ใช้เป็น identity อย่างเดียว สมาชิกองค์กรและสิทธิ์อยู่ในตารางของเรา ไม่ใช้ organization plugin |
 | Background jobs | Inngest TypeScript SDK | endpoint `/api/inngest` · local ใช้ Inngest Dev Server · ตั้ง signing key ทุก env ที่ไม่ใช่ local |
-| ไฟล์ | S3 API (`@aws-sdk/client-s3` + presigner) | bucket private · local ใช้ MinIO · ผู้ให้บริการจริงตาม ADR-033 |
+| ไฟล์ | S3 API (`@aws-sdk/client-s3` + presigner) | bucket private · local ใช้ RustFS แทน MinIO (ADR-036) · ผู้ให้บริการจริงตาม ADR-033 |
 | อีเมล | adapter `EmailProvider` | local ใช้ Mailpit (SMTP) · ผู้ให้บริการจริงตาม ADR-031 |
 | i18n | next-intl | ไทยเป็นค่าเริ่มต้น อังกฤษรอง (ADR-026) |
 | วันที่และเวลา | date-fns · `@date-fns/tz` | เก็บ UTC (`timestamptz`) แสดงผล Asia/Bangkok · ปี พ.ศ. ผ่าน `src/core/thai` |
@@ -695,7 +695,7 @@ sequenceDiagram
 | Excel | ExcelJS | รายงานและไฟล์ Express |
 | LINE | `@line/bot-sdk` · `@line/liff` | ตรวจ signature กับ raw body ก่อน parse JSON |
 | CI/CD | GitHub Actions | `pnpm verify` ทุก PR · merge `main` → deploy staging อัตโนมัติ (EG-3) |
-| Hosting | ตาม ADR-032 (ยังไม่ตัดสิน) | ภูมิภาคเดียวกับฐานข้อมูล · เปิด `/api/inngest` ให้ Inngest เรียกได้ · ระหว่างรอใช้ staging ชั่วคราวได้เฉพาะข้อมูลสังเคราะห์ |
+| Hosting | staging ใช้ Vercel ภูมิภาคสิงคโปร์ (sin1) ตาม ADR-032 · production ยังไม่ตัดสิน | ภูมิภาคเดียวกับฐานข้อมูล · เปิด `/api/inngest` ให้ Inngest เรียกได้ · staging ใช้ได้เฉพาะ seed และข้อมูลสังเคราะห์จนกว่า OQ-19 ปิด (§4.12) |
 
 ### 5.2 ตัวอย่างการตั้งค่า Prisma 7
 
@@ -735,7 +735,7 @@ API ของ Prisma เปลี่ยนเร็ว ถ้าตัวอย�
 
 ### 5.3 การพัฒนาบนเครื่อง (ไม่ต้องรอบริการภายนอก — ADR-025)
 
-`docker-compose.yml` มี `postgres:17` (สคริปต์ init สร้าง role `bcs_migrator` และ `bcs_app`), `minio` (สร้าง bucket `bcs-local`), `mailpit` (SMTP 1025, UI 8025) และ Inngest Dev Server การทดสอบ LINE บนเครื่องใช้ `pnpm line:simulate` ส่ง webhook ปลอมที่เซ็นด้วย channel secret ใน `.env` ใช้ tunnel สาธารณะเฉพาะตอนทดสอบกับ LINE จริง
+`docker-compose.yml` มี `postgres:17` (สคริปต์ init สร้าง role `bcs_migrator` และ `bcs_app`), `storage` (image `rustfs/rustfs:1.0.0` ตัวแทน S3 แทน MinIO · ADR-036 · สร้าง bucket `bcs-local` ด้วย `scripts/storage-init.ts`), `mailpit` (SMTP 1025, UI 8025) และ Inngest Dev Server การทดสอบ LINE บนเครื่องใช้ `pnpm line:simulate` ส่ง webhook ปลอมที่เซ็นด้วย channel secret ใน `.env` ใช้ tunnel สาธารณะเฉพาะตอนทดสอบกับ LINE จริง
 
 เริ่มโปรเจกต์ด้วยคำสั่งเดียว:
 
@@ -1016,7 +1016,7 @@ stateDiagram-v2
 | APPROVED | `po.send` | SENT | ผู้ขายมีอีเมล | ส่งอีเมลพร้อม PDF · บันทึก `sentAt` `sentToEmail` |
 | SENT · PARTIALLY_RECEIVED | GR ถูก post | PARTIALLY_RECEIVED หรือ RECEIVED | — | ตามจำนวนรับสะสม |
 | APPROVED · SENT | `po.cancel` | CANCELLED | ยังไม่มี GR ที่ POSTED · ต้องเลือก disposition | BR-BUD-06 |
-| SENT · PARTIALLY_RECEIVED · RECEIVED | `po.close` | CLOSED | ถ้ารับไม่ครบต้องมี variance `SHORT` ที่อนุมัติแล้ว | คืนงบที่ถือเหลือ (BR-BUD-06) |
+| SENT · PARTIALLY_RECEIVED · RECEIVED | `po.close` | CLOSED | ถ้ารับไม่ครบต้องมี variance `SHORT` ที่อนุมัติแล้ว | คืนงบตาม BR-BUD-06 (ปิดที่รับไม่ครบก่อนมีใบกำกับ: ส่วนที่ไม่ได้รับคืนครั้งเดียวตอนอนุมัติ variance `CLOSE_SHORT` ตาม BR-GR-04 · ถือส่วนที่รับแล้วไว้รอใบกำกับ) |
 
 **ตรวจรับ (GR)**: `DRAFT → POSTED → REVERSED` การ post ไม่ต้องรอ variance เพราะ variance แยกเป็นเอกสารของตัวเอง การกลับรายการทำได้โดย PROCUREMENT พร้อมเหตุผลและก่อนมีการยืนยันใบกำกับของ PO นั้น
 
@@ -1304,7 +1304,7 @@ export function resolveRoute(
 | INV-DOA-01 | ทุก event `approval_task.decided` มี `doaVersionId` และ `doaRuleCode` |
 | INV-DOA-02 | `resolveRoute` ด้วย input และ snapshot เดิมให้ผลเดิมทุกครั้ง (property test) |
 
-DOA ฉบับ 1 ด้านล่างคือวงเงินใน proposal แบบตรงตัว (ผู้อนุมัติคนเดียวต่อช่วง OQ-01) ใช้ทั้งเป็น fixture ของเทสต์และเป็น seed ขององค์กรตัวอย่าง ฉบับ 2 มีไว้ทดสอบการเปลี่ยนฉบับตามเวลาเท่านั้น · ทุกฉบับมีข้อกำกับการเปลี่ยนนโยบาย `DOA-CHG-01` และ `ORG-CHG-01` ตามที่ BR-DOA-08 (จ) บังคับ และมี `sodPolicy` ของฉบับ
+DOA ฉบับ 1 ด้านล่างคือวงเงินใน proposal แบบตรงตัว (ผู้อนุมัติคนเดียวต่อช่วง OQ-01) ใช้ทั้งเป็น fixture ของเทสต์และเป็น seed ขององค์กรตัวอย่าง (seed ใช้ `effectiveFrom` 2026-01-01 จากชีต `DOA_Policy` เพื่อให้คำขอย้อนหลังของ demo อยู่ใต้ฉบับนี้ ส่วน golden ใช้วันของ fixture · ADR-038) ฉบับ 2 มีไว้ทดสอบการเปลี่ยนฉบับตามเวลาเท่านั้น · ทุกฉบับมีข้อกำกับการเปลี่ยนนโยบาย `DOA-CHG-01` และ `ORG-CHG-01` ตามที่ BR-DOA-08 (จ) บังคับ และมี `sodPolicy` ของฉบับ
 
 ```yaml
 # tests/golden/fixtures/org-demo.yaml
@@ -1464,7 +1464,7 @@ cases:
 | ID | กฎ |
 | --- | --- |
 | BR-SOD-01 | ผู้ขอ และผู้ขอของ PR ต้นทางทุกใบใน PO ห้ามเป็นผู้อนุมัติเอกสารนั้น ป้องกัน 2 ชั้น: ตอนคำนวณเส้นทาง (BR-DOA-06) และตอนกดตัดสิน |
-| BR-SOD-02 | ผู้อนุมัติ PR หรือ PO ห้ามเป็นผู้ตรวจรับ GR ของ PO นั้น (`sodPolicy.approverMayReceive = false` ใน DOA ฉบับที่มีผลเป็นค่าเริ่มต้น เปลี่ยนได้ผ่าน DOA ฉบับใหม่เท่านั้น) |
+| BR-SOD-02 | ผู้อนุมัติ PR หรือ PO ห้ามเป็นผู้ตรวจรับ GR ของ PO นั้น (`sodPolicy.approverMayReceive = false` ใน DOA ฉบับที่มีผลเป็นค่าเริ่มต้น เปลี่ยนได้ผ่าน DOA ฉบับใหม่เท่านั้น) · งานที่ผู้รักษาการตัดสิน นับทั้งผู้รักษาการและผู้มอบเป็นผู้อนุมัติ (ADR-038) |
 | BR-SOD-03 | ผู้สร้าง PO ห้ามเป็นผู้อนุมัติ PO นั้น |
 | BR-SOD-04 | (ชั้น 2) ผู้บันทึกใบแจ้งหนี้ห้ามเป็นผู้อนุมัติรอบจ่ายที่มีใบนั้น |
 | BR-SOD-05 | (ชั้น 2) ผู้แก้บัญชีธนาคารของผู้ขายห้ามเป็นผู้อนุมัติการแก้ และบัญชีใหม่มีผลหลังอนุมัติเท่านั้น |
@@ -1492,7 +1492,7 @@ cases:
 
 | ID | กฎ |
 | --- | --- |
-| BR-DLG-01 | มอบได้เฉพาะอำนาจจากตำแหน่งที่ผู้มอบดำรงอยู่ จำกัดด้วย `documentTypes` และ `maxAmountSatang` ได้ ผู้ไม่มีตำแหน่งมอบไม่ได้ (`VALIDATION_FAILED`, reason `NOTHING_TO_DELEGATE`) |
+| BR-DLG-01 | มอบได้เฉพาะอำนาจจากตำแหน่งที่ผู้มอบดำรงอยู่ จำกัดด้วย `documentTypes` และ `maxAmountSatang` ได้ ผู้ไม่มีตำแหน่งมอบไม่ได้ (`VALIDATION_FAILED`, reason `NOTHING_TO_DELEGATE`) · ถ้าไม่จำกัด `documentTypes` การรักษาการครอบคลุมงานอนุมัติทุกประเภทของตำแหน่งนั้น รวม `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` โดย SoD ยังบังคับ · การรักษาการที่ตั้ง `maxAmountSatang` ไม่ครอบคลุมเอกสารที่ไม่มียอดตามฐาน DOA (เช่น `DOA_CHANGE` `ORG_AUTHORITY_CHANGE`) · ส่วนงาน variance ให้เทียบยอดของ variance กับวงเงินนั้น (ADR-038) |
 | BR-DLG-02 | ห้ามมอบต่อ: งานที่ได้มาจากการรักษาการไม่ถูกส่งต่อตาม delegation ของผู้รักษาการ |
 | BR-DLG-03 | ช่วง `[startsAt, endsAt)` ของผู้มอบคนเดียวกันห้ามทับกัน (`OVERLAPPING_DELEGATION`) · ผู้รักษาการต้อง ACTIVE และไม่ใช่ตัวผู้มอบ |
 | BR-DLG-04 | งานที่เกิดในช่วงนั้นมอบให้ผู้รักษาการ โดย `principal` = ผู้มอบ ทั้งสองคนตัดสินได้ ใครก่อนได้ก่อน event บันทึก `onBehalfOf` · ตอนเริ่มช่วงงานค้างย้ายไปผู้รักษาการ ตอนจบช่วงงานที่ยังค้างย้ายกลับ (S5) |
@@ -1525,7 +1525,7 @@ cases:
 | จอง | AVAILABLE → RESERVED | ส่ง PR · ส่ง PO ที่แพงกว่าส่วนที่จะคืน (จองเฉพาะส่วนต่าง) |
 | คืนจอง | RESERVED → AVAILABLE | PR ถูกปฏิเสธหรือยกเลิก · PO อนุมัติ (คืนส่วนของ PR) · PO ถูกปฏิเสธหรือตีกลับ (คืนส่วนต่าง) |
 | ถือ | AVAILABLE → COMMITTED | PO อนุมัติ · รับเกินที่อนุมัติแล้ว |
-| คืนถือ | COMMITTED → AVAILABLE | ยกเลิก PO · ปิด PO ที่รับไม่ครบหรือใบกำกับน้อยกว่า PO |
+| คืนถือ | COMMITTED → AVAILABLE | ยกเลิก PO · ปิด PO ที่รับไม่ครบ (เฉพาะส่วนที่ไม่ได้รับ) หรือใบกำกับน้อยกว่า PO · ใบกำกับใบสุดท้ายของ PO ที่ปิดแล้ว (BR-BUD-06) |
 | ตัด | COMMITTED → ACTUAL | ยืนยันใบกำกับ (ชั้น 1) · ใบแจ้งหนี้ผ่านการจับคู่ (ชั้น 2) |
 
 | ID | กฎ |
@@ -1534,8 +1534,8 @@ cases:
 | BR-BUD-02 | PR ที่งบไม่พอถูกบล็อกตอนส่ง ก่อนถึงผู้อนุมัติคนใด (`BUDGET_INSUFFICIENT` พร้อมยอดที่ขาด) ชั้น 1 ไม่มีการอนุมัติเกินงบ (ชั้น 2 ดู FR-BUD-101) |
 | BR-BUD-03 | ฐานของงบคือยอดก่อน VAT (OQ-03) เพราะ VAT ซื้อขอคืนได้ (A-03) |
 | BR-BUD-04 | ชั้น 1 คำขอหนึ่งใบตัดบรรทัดงบเดียว ผู้ขอใช้บรรทัดงบของแผนกตนหรือที่ได้ `BudgetGrant` เท่านั้น (แบ่งหลาย cost center อยู่ชั้น 2) |
-| BR-BUD-05 | PO: ส่วนที่คืนได้ (`releasable`) ของแต่ละ `PoLineSource` = จำนวนที่สั่ง × ราคาต่อหน่วยของคำขอ (ปัด half-up) · ตอนส่ง PO คำนวณ `delta = ยอด PO บรรทัด − Σ releasable` ถ้า delta > 0 ให้จองเพิ่มในนาม PO บรรทัดนั้น ไม่พอ → `BUDGET_INSUFFICIENT` · ตอนอนุมัติ คืน releasable และ delta ที่จองไว้ แล้วถือยอด PO บรรทัด · ส่วนของคำขอที่ยังไม่ถูกสั่งยังจองอยู่ |
-| BR-BUD-06 | ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition: `RETURN_TO_POOL` = คืนถือทั้งหมดแล้วจองคืนให้บรรทัดคำขอด้วย releasable เดิม (ไม่พอ → ทั้งคำสั่งล้มด้วย `BUDGET_INSUFFICIENT`) หรือ `CANCEL_REQUEST_LINES` = คืนถือและยกเลิกจำนวนนั้นในคำขอ · ปิด PO คืนถือที่เหลือทั้งหมด |
+| BR-BUD-05 | PO: ส่วนที่คืนได้ (`releasable`) ของแต่ละ `PoLineSource` = จำนวนที่สั่ง × ราคาต่อหน่วยของคำขอ (ปัด half-up) · ตอนส่ง PO คำนวณ `delta = ยอด PO บรรทัด − Σ releasable` ถ้า delta > 0 ให้จองเพิ่มในนาม PO บรรทัดนั้น ไม่พอ → `BUDGET_INSUFFICIENT` · ตอนอนุมัติ คืน releasable และ delta ที่จองไว้ แล้วถือยอด PO บรรทัด · ส่วนของคำขอที่ยังไม่ถูกสั่งยังจองอยู่ · เอกสารที่ราคารวม VAT (คำขอหรือ PO): ยอดก่อน VAT ของแต่ละบรรทัดได้จากการปันยอดก่อน VAT ของเอกสารลงบรรทัดแบบเศษมากสุด · "ยอด PO บรรทัด" ที่ใช้คิด delta และถือของ PO ที่ราคารวม VAT คือยอดก่อน VAT ของบรรทัดนั้น · releasable = จำนวนที่สั่ง × ยอดก่อน VAT ของบรรทัด ÷ จำนวนของบรรทัด (ปัด half-up) ตาม BR-BUD-03 (ADR-038) |
+| BR-BUD-06 | ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition: `RETURN_TO_POOL` = คืนถือทั้งหมดแล้วจองคืนให้บรรทัดคำขอด้วย releasable เดิม (ไม่พอ → ทั้งคำสั่งล้มด้วย `BUDGET_INSUFFICIENT`) หรือ `CANCEL_REQUEST_LINES` = คืนถือและยกเลิกจำนวนนั้นในคำขอ · ปิด PO หลังใบกำกับใบสุดท้ายคืนถือที่เหลือทั้งหมด · ปิด PO ที่รับไม่ครบด้วย variance `CLOSE_SHORT` ก่อนมีใบกำกับ คืนเฉพาะส่วนที่ไม่ได้รับ (BR-GR-04) และถือส่วนที่รับแล้วไว้จนบันทึกใบกำกับ ซึ่งบันทึกกับ PO ที่ปิดแล้วได้ ใบสุดท้ายคืนส่วนที่เหลือ (ADR-038) |
 | BR-BUD-07 | ปิดปีงบไม่ยกยอดอัตโนมัติ (OQ-26) รายการจองและถือที่ค้างถูกรายงานให้ FINANCE ตัดสินก่อนปิด |
 | BR-BUD-08 | บรรทัดงบ `FROZEN` หรือ `CLOSED` จองใหม่ไม่ได้ แต่ถือและตัดจากรายการเดิมได้ |
 | INV-BUD-01 | ต่อบรรทัดงบ available + reserved + committed + actual = ยอดที่นำเข้าสุทธิเสมอ |
@@ -1781,7 +1781,7 @@ cases:
 
 | ID | กฎ |
 | --- | --- |
-| BR-IVC-01 | FINANCE บันทึกใบกำกับที่ได้รับกับ PO: เลขที่ วันที่ ยอดก่อน VAT VAT ยอดรวม และธงใบสุดท้าย · VAT ในใบต่างจากที่คำนวณเกิน 1.00 บาท → เตือนแต่ไม่บล็อก |
+| BR-IVC-01 | FINANCE บันทึกใบกำกับที่ได้รับกับ PO: เลขที่ วันที่ ยอดก่อน VAT VAT ยอดรวม และธงใบสุดท้าย · VAT ในใบต่างจากที่คำนวณเกิน 1.00 บาท → เตือนแต่ไม่บล็อก · บันทึกกับ PO ที่ปิดแล้วได้ถ้ายังมียอดถือเหลือ (BR-BUD-06) |
 | BR-IVC-02 | ยอดก่อน VAT สะสมต้องไม่เกินยอดถือที่เหลือของ PO ไม่เช่นนั้น `INVOICE_EXCEEDS_COMMITTED` (ชั้น 1 แก้ด้วยคำขอใหม่ ชั้น 2 ใช้ใบแก้ไข PO) |
 | BR-IVC-03 | เลขใบกำกับซ้ำกับของผู้ขายรายเดิม → `DUPLICATE_INVOICE` โดยเทียบหลังตัดช่องว่างทั้งหมดและแปลงเป็นตัวพิมพ์ใหญ่ |
 | BR-IVC-04 | ปันยอดลงบรรทัด PO ตามสัดส่วนยอดถือที่เหลือ ปัดลงเป็นสตางค์ แล้วแจกเศษที่เหลือทีละสตางค์ให้บรรทัดที่เศษมากที่สุด (เสมอกันให้เลขบรรทัดน้อยก่อน) แล้วย้าย COMMITTED → ACTUAL ของแต่ละบรรทัดงบ · ใบสุดท้ายทำให้ PO พร้อมปิดและคืนถือที่เหลือ (BR-BUD-06) |
@@ -1907,7 +1907,7 @@ cases:
 ขั้น S1 · ภาคผนวก A
 - AC1 — seed สร้างผู้ใช้ทุกบทบาทที่ใช้ในชั้น 1 พร้อมรหัสผ่านสำหรับ dev และ login ได้
 - AC2 — `pnpm db:reset` เมื่อ `APP_ENV` ไม่ใช่ `local` → ปฏิเสธ
-- AC3 — seed ใช้ DOA ฉบับ 1 และโครงองค์กรเดียวกับ fixture ใน §7.4 (มีเทสต์ยืนยัน)
+- AC3 — seed ใช้ DOA ฉบับ 1 และโครงองค์กรเดียวกับ fixture ใน §7.4 (มีเทสต์ยืนยัน โดยเทียบทุกค่ายกเว้น `effectiveFrom` ของ DOA ฉบับ 1 (ADR-038) และผู้ใช้ที่มีเฉพาะใน demo ซึ่งไม่ได้ดำรงตำแหน่ง (ภาคผนวก A))
 
 #### FR-PLT-008 — Health และ observability
 ขั้น S1 · NFR-OBS-01 NFR-SEC-09
@@ -2237,7 +2237,7 @@ cases:
 ขั้น S4 · Web · BR-BUD-06
 - AC1 — ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition และเหตุผล ผลต่องบตรง GC-BUD-04
 - AC2 — ปิด PO ที่รับไม่ครบต้องมี variance SHORT ที่อนุมัติแล้ว (GC-GR-04)
-- AC3 — ปิด PO คืนถือที่เหลือทั้งหมด และคำขอที่เกี่ยวข้องเป็น COMPLETED เมื่อ PO ปิดครบ
+- AC3 — ปิด PO คืนถือตาม BR-BUD-06: ปิดหลังใบกำกับใบสุดท้ายคืนถือที่เหลือทั้งหมด · ปิดที่รับไม่ครบก่อนมีใบกำกับคืนเฉพาะส่วนที่ไม่ได้รับ (GC-GR-04) และถือส่วนที่รับแล้วไว้ ใบกำกับบันทึกกับ PO ที่ปิดแล้วได้และใบสุดท้ายคืนส่วนที่เหลือ · คำขอที่เกี่ยวข้องเป็น COMPLETED เมื่อ PO ปิดครบ
 - AC4 — PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` วัน (OQ-36) → แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO หรือยืนยันว่ายังรออยู่ ปิดแล้วคืนยอดถือตาม BR-BUD-06
 
 #### FR-SUP-001 — ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
@@ -2469,7 +2469,7 @@ cases:
 | `/suppliers` | ตามสิทธิ์ | ทะเบียนผู้ขายขั้นต้น | S4 |
 | `/board/pending` | ตามสิทธิ์ | กระดานเอกสารค้าง | S4 |
 | `/reports` · `/kpi` | ตามสิทธิ์ | รายงานและ KPI | S4 · S5 |
-| `/audit` | AUDITOR · ORG_ADMIN | ค้นและส่งออก audit | S4 |
+| `/audit` | AUDITOR · ORG_ADMIN | ค้น audit · ส่งออกเฉพาะ AUDITOR (`audit.export` §2.4) | S4 |
 | `/settings/*` | ตนเอง | โปรไฟล์ 2FA PIN LINE การแจ้งเตือน รักษาการ | S1 · S5 |
 | `/admin/*` | ORG_ADMIN | สมาชิก ผังองค์กร ตำแหน่ง ปฏิทิน เลขเอกสาร ประเภทคำขอ ช่องทาง การใช้งาน · `/admin/modules` ดูอย่างเดียว | S1–S5 |
 | `/admin/doa` · `/admin/doa/[id]` · `/admin/doa/[id]/simulate` | ORG_ADMIN · ผู้อนุมัติข้อ `DOA_CHANGE` | ร่าง นำเข้า ส่งออก diff ตารางผลที่ขอบ ทดลองส่ง | S2 · S3 |
@@ -2680,7 +2680,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 
 | Aggregate | Event types |
 | --- | --- |
-| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` |
 | โครงองค์กร | `department.created` `department.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
@@ -2694,7 +2694,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
-| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.2fa_enabled` `auth.2fa_reset` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
+| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 
 ### 10.3 สรุปรายวันและข้อความ
@@ -2739,7 +2739,7 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | G-2 | (ก) จำนวนการตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ DOA engine คำนวณได้ ณ เวลานั้น (ตรวจย้อนด้วย engine) (ข) การตัดสินที่มี doaVersionId และ ruleCode ÷ การตัดสินทั้งหมด | (ก) ต้องเป็น 0 · (ข) ต้องเป็น 100% |
 | G-3 | มัธยฐานของ (เวลาอนุมัติ PO แรก − เวลาส่งคำขอ) · มัธยฐานของ (decidedAt − assignedAt) · งานที่ตัดสินหลัง dueAt หรือยังเปิดอยู่และเลย dueAt ÷ งานทั้งหมด | |
 | G-4 | จำนวน `approval_task.assigned` ของคำขอที่ `budgetCheck` ไม่ใช่ PASS | ต้องเป็น 0 |
-| G-5 | การตัดสินที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินทั้งหมด | |
+| G-5 | การตัดสินที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินทั้งหมด | แสดงทั้งรวมและแยกตามประเภทเอกสาร · ฉาก 9 ของ demo และ D-01 ใช้ตัวเลขของคำขอซื้อ (`PURCHASE_REQUEST`) ซึ่งตรงกับบรรทัดของ `pnpm inputs:check` (ADR-038) |
 | G-6 ถึง G-9 | นิยามใน sub-spec ของ S7 ถึง S11 | |
 | G-10 | จำนวนจุดในโค้ดที่ lint พบว่าอ้างรหัสองค์กรหรือเงื่อนไขเฉพาะลูกค้า | ต้องเป็น 0 |
 | G-11 | (ก) ฉบับ DOA และ `OrgAuthorityChange` ที่มีผลแล้วโดยไม่มี event ที่ actorType เป็น `PLATFORM_ADMIN` ในวงจรนั้น ÷ ทั้งหมด (ข) มัธยฐานเวลาทำการจาก `doa_version.drafted` ถึง `doa_version.published` | (ก) ต้องเป็น 100% |
@@ -3005,7 +3005,7 @@ features:
   - เสร็จเมื่อ: อัปโหลดและดาวน์โหลดผ่าน presigned URL บน staging ได้
 - [ ] **P0-07** `[คน]` `[demo]` บัญชี Inngest และ signing key · BCS
   - เสร็จเมื่อ: ใส่ `INNGEST_EVENT_KEY` และ `INNGEST_SIGNING_KEY` ใน staging แล้ว Inngest เห็นฟังก์ชันของแอป
-- [ ] **P0-08** `[คน]` `[demo]` เลือก hosting (ADR-032) และ inbox อีเมลสำหรับ demo (ADR-031) · BCS
+- [ ] **P0-08** `[คน]` `[demo]` บัญชี Vercel สำหรับ staging (ภูมิภาคสิงคโปร์ sin1 ตาม ADR-032) พร้อม token ให้ agent deploy และ inbox อีเมลสำหรับ demo (ADR-031) · BCS
   - เสร็จเมื่อ: agent deploy staging ได้ด้วย token ที่ให้ไว้
 - [ ] **P0-09** `[คน]` `[go-live]` วัด baseline ของ KPI 8 ตัวแรก (§11.4) · ลูกค้า + BCS · ก่อน go-live
   - เสร็จเมื่อ: ตัวเลขบันทึกใน `docs/kpi-baseline.md`
@@ -3038,47 +3038,47 @@ features:
 
 **FR ที่ครอบคลุม:** FR-PLT-001 FR-PLT-002 FR-PLT-003 FR-PLT-004 FR-PLT-005 FR-PLT-006 FR-PLT-007 FR-PLT-008 FR-PLT-011 FR-PLT-012 FR-AUTH-001 FR-AUTH-002 FR-AUTH-003 FR-ADM-001 FR-ADM-006
 
-- [ ] **S1-01** `[demo]` สร้างโปรเจกต์ Next.js 16 + TypeScript strict + pnpm + ESLint (boundaries และ `bcs/no-money-literal`) + Vitest + Playwright โดยใช้ `CLAUDE.md` ที่ผู้ใช้วางไว้ที่ root (ถ้าไม่มีจึงสร้างจาก §17 และห้ามเขียนทับของเดิม)
+- [x] **S1-01** `[demo]` สร้างโปรเจกต์ Next.js 16 + TypeScript strict + pnpm + ESLint (boundaries และ `bcs/no-money-literal`) + Vitest + Playwright โดยใช้ `CLAUDE.md` ที่ผู้ใช้วางไว้ที่ root (ถ้าไม่มีจึงสร้างจาก §17 และห้ามเขียนทับของเดิม) — เสร็จ 2026-10-02 · 200d159
   - เสร็จเมื่อ: `pnpm lint` `pnpm typecheck` และ `pnpm spec:check` ผ่าน · มีไฟล์ `CLAUDE.md`
   - แยกงาน: ทำเองได้
-- [ ] **S1-02** `[demo]` docker compose (Postgres 17 พร้อม role, MinIO, Mailpit, Inngest dev) + `.env.example` ตามภาคผนวก B + `src/lib/env.ts`
+- [x] **S1-02** `[demo]` docker compose (Postgres 17 พร้อม role, ที่เก็บไฟล์ S3 บนเครื่อง (RustFS แทน MinIO · ADR-036), Mailpit, Inngest dev) + `.env.example` ตามภาคผนวก B + `src/lib/env.ts` — เสร็จ 2026-10-02 · a323dca
   - เสร็จเมื่อ: `docker compose up -d` แล้ว `pnpm verify` ด่าน env ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-03** `[demo]` Prisma 7 และ migration แรก: Organization OrgModule Member RoleAssignment PlatformAdmin Event Outbox CommandLog FileObject FileLink BreakGlassSession + SQL §6.3 ข้อ 1–2
+- [x] **S1-03** `[demo]` Prisma 7 และ migration แรก: Organization OrgModule Member RoleAssignment PlatformAdmin Event Outbox CommandLog FileObject FileLink BreakGlassSession + SQL §6.3 ข้อ 1–2 — เสร็จ 2026-10-02 · 39ad110
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ยืนยันว่ามี trigger append-only ครบ และ `bcs_app` UPDATE ตาราง Event ไม่ได้
   - แยกงาน: ทำเองได้
-- [ ] **S1-04** `[demo]` `clock` `newId()` `Result` รหัส error §14.2 และ logger ที่ redact
+- [x] **S1-04** `[demo]` `clock` `newId()` `Result` รหัส error §14.2 และ logger ที่ redact — เสร็จ 2026-10-02 · ae61b1d
   - เสร็จเมื่อ: unit test ผ่าน รวมเทสต์ว่า log ไม่มีรหัสผ่าน token และเลขบัญชี (NFR-SEC-09)
   - แยกงาน: ทำเองได้
-- [ ] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์
+- [x] **S1-05** `[demo]` `runCommand()` + CommandLog + Outbox + Event + คอมโพเนนต์ไทม์ไลน์ — เสร็จ 2026-10-02 · ad4cf13
   - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-003 และ FR-PLT-012 ผ่าน รวมการยิง command เดิมพร้อมกันแล้วได้ Event ชุดเดียว
   - แยกงาน: ทำเอง เพราะเป็นแกนที่ทุกส่วนใช้
-- [ ] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF
+- [x] **S1-06** `[demo]` `db.forTenant()` + เทสต์แยก tenant ที่สร้างจาก DMMF — เสร็จ 2026-10-02 · a5e5683
   - เสร็จเมื่อ: เทสต์ INV-TEN-01 ผ่านทุก model ที่มี organizationId โดยนับ model เอง
   - แยกงาน: ทำเองได้ · ถ้าภายหลังต้องตรวจย้อนทุก model ให้แยก subagent ต่อกลุ่ม model แล้วตรวจหลักฐานก่อนรับ
-- [ ] **S1-07** `[demo]` Better Auth: อีเมลและรหัสผ่าน เชิญ รีเซ็ต TOTP และนโยบาย session
+- [x] **S1-07** `[demo]` Better Auth: อีเมลและรหัสผ่าน เชิญ รีเซ็ต TOTP และนโยบาย session — เสร็จ 2026-10-03 · 7620ffe
   - เสร็จเมื่อ: เทสต์ AC ของ FR-AUTH-001 FR-AUTH-002 FR-AUTH-003 ผ่าน และ login ผู้ใช้ seed พร้อม TOTP บนเครื่องได้
   - แยกงาน: ทำเองได้
-- [ ] **S1-08** `[demo]` `permissions.ts` ตาม §2.4 + เทสต์สิทธิ์ที่สร้างอัตโนมัติ
+- [x] **S1-08** `[demo]` `permissions.ts` ตาม §2.4 + เทสต์สิทธิ์ที่สร้างอัตโนมัติ — เสร็จ 2026-10-03 · 9c4de75
   - เสร็จเมื่อ: ทุก capability ใน §2.4 มีเทสต์ทั้งกรณีอนุญาตและปฏิเสธ โดยนับจากไฟล์เอง
   - แยกงาน: ตารางยาว แยก subagent ต่อกลุ่ม capability (คำขอ PO งบ ผู้ดูแล) ได้ แล้วตรวจว่าผลของแต่ละกลุ่มตรงกับ §2.4 ก่อนรับ
-- [ ] **S1-09** `[demo]` app shell เมนูตามสิทธิ์ next-intl และวันที่ พ.ศ.
+- [x] **S1-09** `[demo]` app shell เมนูตามสิทธิ์ next-intl และวันที่ พ.ศ. — เสร็จ 2026-10-03 · 091f0bd
   - เสร็จเมื่อ: GC-DATE-01 ถึง GC-DATE-04 และเทสต์ AC ของ FR-PLT-002 ผ่าน · หน้าแรกผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: ทำเองได้
-- [ ] **S1-10** `[demo]` อัปโหลดและดาวน์โหลดไฟล์ผ่าน presigned URL
-  - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-004 ผ่านกับ MinIO
+- [x] **S1-10** `[demo]` อัปโหลดและดาวน์โหลดไฟล์ผ่าน presigned URL — เสร็จ 2026-10-03 · 49353d7
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-004 ผ่านกับที่เก็บไฟล์บนเครื่อง (RustFS · ADR-036)
   - แยกงาน: ทำเองได้
-- [ ] **S1-11** `[demo]` PWA manifest service worker และหน้าออฟไลน์
+- [x] **S1-11** `[demo]` PWA manifest service worker และหน้าออฟไลน์ — เสร็จ 2026-10-03 · ce59425
   - เสร็จเมื่อ: เทสต์ Playwright ของ FR-PLT-005 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-12** `[demo]` หน้าผู้ดูแลสมาชิกและบทบาท · หน้า PLATFORM_ADMIN เปิดปิดโมดูลพร้อม contractRef event และแจ้ง ORG_ADMIN · `requireModule`
+- [x] **S1-12** `[demo]` หน้าผู้ดูแลสมาชิกและบทบาท · หน้า PLATFORM_ADMIN เปิดปิดโมดูลพร้อม contractRef event และแจ้ง ORG_ADMIN · `requireModule` — เสร็จ 2026-10-03 · c2f28bf
   - เสร็จเมื่อ: เทสต์ AC ของ FR-ADM-001 FR-ADM-006 FR-PLT-011 ผ่าน
   - แยกงาน: แยกต่อหน้าจอได้ (สมาชิก · โมดูล)
-- [ ] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset`
+- [x] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset` — เสร็จ 2026-10-03 · 594ac37
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · `pnpm db:reset && pnpm db:seed` สร้างองค์กรและผู้ใช้เท่าจำนวนแถวในชีต (เทสต์นับเอง) รันซ้ำแล้วไม่ซ้ำ · เทสต์ AC ของ FR-PLT-001 FR-PLT-007 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check`
-  - เสร็จเมื่อ: PR ทดสอบรัน `pnpm verify` ใน CI · merge แล้ว staging ตอบ `/api/health` 200 พร้อม commit sha · เทสต์ AC ของ FR-PLT-006 FR-PLT-008 ผ่าน · ถ้ายังไม่มีบัญชี hosting ให้ติดไว้ที่ P0-08 แล้วทำข้ออื่นต่อ
+- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check` — ติดอยู่: ส่วน CI รอ GitHub repo (ADR-038 ข้อ 2) และส่วน staging รอบัญชี P0-05 ถึง P0-08 · ส่วนที่ทำบนเครื่องเสร็จแล้ว (`/api/health` `.github/workflows/ci.yml` `vercel.json` และ `pnpm verify` ที่รวม `spec:check` กับ `inputs:check`)
+  - เสร็จเมื่อ: PR ทดสอบรัน `pnpm verify` ใน CI · merge แล้ว staging ตอบ `/api/health` 200 พร้อม commit sha · เทสต์ AC ของ FR-PLT-006 FR-PLT-008 ผ่าน · ถ้ายังไม่มีบัญชี hosting ให้ติดไว้ที่ P0-08 · ส่วน CI (PR และ merge) ติดไว้จนกว่าผู้ใช้จะเปิดใช้ GitHub (ADR-038 ข้อ 2) แล้วทำข้ออื่นต่อ
   - แยกงาน: ทำเองได้
 
 **Demo:** เปิด URL staging บนมือถือ → login ด้วยผู้ใช้ seed และ TOTP → ติดตั้งเป็นไอคอน → อัปโหลดรูป → หน้า audit แสดง event การ login และการอัปโหลด → แสดง CI ที่ผ่าน
@@ -3120,7 +3120,7 @@ features:
   - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-007 FR-INT-009 FR-DOA-002 FR-DOA-004 FR-DOA-006 ผ่าน
   - แยกงาน: ทำเองได้ · ถ้าแยก ให้แยกต่อ service และตรวจว่าทุก service ผ่าน runCommand()
 - [ ] **S2-11** `[demo]` หน้าจอแคตตาล็อก ฟอร์มไดนามิก เติมข้อมูล แนบไฟล์ และบันทึกร่าง
-  - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 FR-INT-006 ผ่าน · ทุกหน้าผ่านขั้นตอนงานหน้าจอ §9.9
+  - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 และ FR-INT-006 AC1–AC2 ผ่าน (AC3 อยู่ใน NEW-07) · ทุกหน้าผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: แยก subagent ต่อหน้าจอได้ แล้วตรวจ screenshot ของแต่ละหน้าก่อนรับ
 - [ ] **S2-12** `[demo]` หน้าจอกล่องงาน หน้าตัดสิน และไทม์ไลน์ติดตามสถานะ
   - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-004 FR-INT-008 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
@@ -3336,8 +3336,9 @@ features:
 | เรื่อง | กติกาของ demo build |
 | --- | --- |
 | ขอบเขต | ฉากในชีต `Demo_Script`: ขอซื้อผ่าน LINE · เส้นทาง DOA · อนุมัติในแชทและใน LIFF ด้วย PIN · บล็อกงบ · ยอดก่อนและหลัง VAT · ผู้มีอำนาจขอเอง · รวม PR เป็น PO · ตรวจรับบนมือถือ · กระดานค้าง dashboard KPI audit · ลูกค้าแก้ DOA เอง · รักษาการ |
-| ข้อมูล | ชีตในไฟล์ input ซึ่งโครงองค์กรและ DOA ตรงกับ fixture ใน §7.4 · คำขอย้อนหลังในชีต `Demo_History` สร้างตอน seed โดยนับวันย้อนจากวันที่รัน (`daysAgo`) พร้อม PO ตรวจรับ และใบกำกับตามสถานะ ข้อมูลจึงดูใหม่ทุกครั้ง |
-| การตัดสินใจ | ใช้ค่าเริ่มต้นของ OQ ทุกข้อ (§18.3) โดยไม่ต้องรอคำตอบ |
+| ข้อมูล | ชีตในไฟล์ input ซึ่งโครงองค์กรและ DOA ตรงกับ fixture ใน §7.4 ยกเว้น `effectiveFrom` ของ DOA ฉบับ 1 (2026-01-01 · ADR-038) · คำขอย้อนหลังในชีต `Demo_History` สร้างตอน seed โดยนับวันย้อนจากวันที่รัน (`daysAgo`) พร้อม PO ตรวจรับ และใบกำกับตามสถานะ ข้อมูลจึงดูใหม่ทุกครั้ง |
+| การตัดสินใจ | ใช้ค่าเริ่มต้นของ OQ ทุกข้อ (§18.3) โดยไม่ต้องรอคำตอบ · การตัดสินใจของผู้ใช้ 14 ข้อในรอบวางแผน (2026-10-02) อยู่ใน ADR-038 |
+| ฉากที่ปรับ | ฉาก 2 ดูช่องทางและ DOA ref จากไทม์ไลน์ในหน้าคำขอ (`request.view` แบบ ASSIGNED) · ฉาก 9 ขั้นส่งออก audit ใช้ผู้ใช้ `auditor` เพราะ `audit.export` เป็นของ AUDITOR (§2.4) และ e2e ยืนยันว่า CEO ส่งออกแล้วได้ `FORBIDDEN` · ตัวเลข KPI อนุมัติผ่าน LINE ในฉาก 9 ใช้ของคำขอซื้อ · ผู้ตรวจรับใน demo คือ RECEIVER ของแผนกและผู้ขอตาม `sodPolicy` ใช้แทน "ผู้ตรวจรับที่ได้รับมอบหมาย" ในผู้รับ `po.sent` (§10.1) · RECEIVER ของแผนกเปิดงานตรวจรับจาก `/receiving` หรือลิงก์ใน `po.sent` และเห็นบรรทัด PO ที่ต้องตรวจรับผ่านสิทธิ์ `gr.post` (DEPT) โดยไม่เพิ่ม `po.view` · การมอบหมายผู้ตรวจรับรายคนอยู่ใน NEW-09 (ADR-038) |
 | LINE | ใช้ provider และ channel ของ BCS เอง ไม่ใช่ OA ของลูกค้า · ทดสอบกับมือถือของคนนอกทีมก่อนวัน demo เพราะ channel ที่ยังไม่เผยแพร่อาจจำกัดผู้ใช้ |
 | อีเมล | ส่งเข้า inbox demo ที่ BCS ควบคุม |
 | ข้ามได้ใน demo | SSO · เครื่องมือ PDPA · ตรวจโควตา LINE · seal audit · ไฟล์ Express รูปแบบจริง · รายงานที่ยังไม่มีนิยาม |
@@ -3348,7 +3349,7 @@ features:
 เส้นชัยของ demo build คือเส้นชัย A ในส่วน "เริ่มที่นี่" งานเฉพาะ demo มีดังนี้
 
 - [ ] **D-01** `[demo]` สร้างคำขอย้อนหลังจากชีต `Demo_History` ผ่าน service จริงด้วย clock ที่ย้อนเวลาตาม `daysAgo` พร้อม PO ตรวจรับ และใบกำกับตามสถานะ
-  - เสร็จเมื่อ: เทสต์ยืนยันว่ากระดานค้าง dashboard งบ และ KPI ได้ค่าตรงกับบรรทัด "ข้อมูลพอสำหรับฉาก dashboard" ของ `pnpm inputs:check` (งานค้างเกิน SLA งบใกล้หมด และสัดส่วนอนุมัติผ่าน LINE)
+  - เสร็จเมื่อ: เทสต์ยืนยันว่ากระดานค้าง dashboard งบ และ KPI ได้ค่าตรงกับบรรทัด "ข้อมูลพอสำหรับฉาก dashboard" ของ `pnpm inputs:check` (งานค้างเกิน SLA งบใกล้หมด และสัดส่วนอนุมัติผ่าน LINE ของคำขอซื้อตาม G-5)
   - แยกงาน: ทำเอง เพราะต้องสร้างตามลำดับเวลา
 - [ ] **D-02** `[demo]` คู่มือตั้ง LINE ของ BCS สำหรับ demo ใน `docs/runbooks/line-demo-setup.md` และสคริปต์ `pnpm line:richmenu`
   - เสร็จเมื่อ: คู่มือบอกทีละขั้นว่าต้องสร้างอะไรใน LINE Developers และใส่ค่าใดใน `.env` · สคริปต์รันกับค่าจำลองได้
@@ -3356,7 +3357,7 @@ features:
 - [ ] **D-03** `[demo]` `[คน]` สร้าง provider และ channel ของ BCS ตามคู่มือ D-02 แล้วใส่ค่าใน secret ของ staging
   - เสร็จเมื่อ: ปุ่มทดสอบการเชื่อมต่อบน staging ผ่านทุกข้อ
 - [ ] **D-04** `[demo]` e2e ของฉากหลักในชีต `Demo_Script` (Playwright, clock ปลอม, LINE ผ่าน `line:simulate`)
-  - เสร็จเมื่อ: `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y โดยเทสต์อ่านจำนวนฉาก ผู้ใช้ และยอดจากชีตเอง
+  - เสร็จเมื่อ: `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y โดยเทสต์อ่านจำนวนฉาก ผู้ใช้ และยอดจากชีตเอง ยกเว้นขั้นที่ปรับตามแถว "ฉากที่ปรับ" ข้างบน (ฉาก 9 ขั้นส่งออก audit ใช้ `auditor`)
   - แยกงาน: แยก subagent ต่อฉากได้ แล้วตรวจว่าแต่ละฉากใช้ผู้ใช้และยอดตามชีตก่อนรับ
 - [ ] **D-05** `[demo]` ตรวจดีไซน์ทุกหน้าที่อยู่ในฉาก demo ตาม §9.9
   - เสร็จเมื่อ: มี screenshot 375 px และ 1440 px ของทุกหน้าใน `docs/design-review/` · ตารางเดียว (หน้า, สิ่งที่ห้ามใช้ที่พบ, แก้แล้วหรือยัง) ไม่มีข้อค้าง · axe ไม่มี violation ระดับ serious หรือ critical
@@ -3380,7 +3381,42 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: <ทำเองได้ หรือแยก subagent ต่ออะไร>
 ```
 
-ยังไม่มีงานที่พบเพิ่ม
+- [x] **NEW-01** `[demo]` เขียนการตัดสินใจของผู้ใช้ 14 ข้อ (รอบวางแผน 2026-10-02) ลงกฎใน spec โดยคง ID · เพิ่ม ADR-036 ถึง ADR-040 · เปลี่ยนตัวแทนที่เก็บไฟล์บนเครื่องจาก MinIO เป็น RustFS ใน spec และ CLAUDE.md · พบระหว่าง S1-01 — เสร็จ 2026-10-03 · 00b1e84
+  - เสร็จเมื่อ: `pnpm spec:check` ผ่าน · ทุกแถวใน §18.1 มีไฟล์ `docs/decisions/ADR-nnn.md` · ทุกการแก้กฎตรงกับคำตอบใน ADR-038 · การแก้อื่นในรอบเดียวกันมีเจ้าของ (แถวใน §10.2 ของ NEW-03 · แถว ADR-037 ADR-039 ADR-040 ใน §18.1 · ข้อ NEW-02 ถึง NEW-11)
+  - แยกงาน: ทำเองได้ แล้วให้ subagent ตรวจแต่ละการแก้กับคำตอบของผู้ใช้ก่อน commit
+- [x] **NEW-02** `[demo]` คู่มือทีละขั้นสำหรับงานที่ผู้ใช้ต้องทำเอง (P0-05 ถึง P0-08 · GitHub · ส่วนของ LINE ที่ผู้ใช้ทำ ซึ่งเขียนล่วงหน้าใน `docs/runbooks/line-demo-setup.md` ของ D-02 และติ๊กที่ D-02 พร้อมสคริปต์ `line:richmenu`) ใน `docs/runbooks/` · พบระหว่าง S1-01 — เสร็จ 2026-10-03 · a26e175
+  - เสร็จเมื่อ: ทุกคู่มือบอกว่าค่าไหนใส่ตัวแปรอะไรใน `.env` หรือ Environment Variables ของ hosting ไม่ขอ key ในแชท และผ่านการตรวจกับเอกสารทางการของผู้ให้บริการ
+  - แยกงาน: แยก subagent ต่อคู่มือ แล้วให้อีกตัวตรวจกับ spec และเอกสารทางการก่อนรับ
+- [x] **NEW-03** `[demo]` เพิ่ม event `auth.login_locked` และ `member.session_revoked` ในแคตตาล็อก §10.2 · พบระหว่าง S1-07 — เสร็จ 2026-10-03 · 43d8ad4
+  - เสร็จเมื่อ: §10.2 มีทั้งสองชนิดและเทสต์ schema ของ event ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-04** `[demo]` trigger append-only และ REVOKE UPDATE/DELETE ของ `BudgetLedgerEntry` ตาม §6.3 ข้อ 1–2 ใน migration ของ S3-01 · พบระหว่าง NEW-01 (เขียน ADR-020)
+  - เสร็จเมื่อ: ด่าน db ของ `pnpm verify` ยืนยันว่า `bcs_app` UPDATE และ DELETE `BudgetLedgerEntry` ไม่ได้
+  - แยกงาน: ทำเองได้ (ทำพร้อม S3-01)
+- [ ] **NEW-05** `[go-live]` trigger append-only และ REVOKE UPDATE/DELETE ของ `EventSeal` ตาม §6.3 ข้อ 1–2 ใน migration ของ S5-14 · พบระหว่าง NEW-01 (เขียน ADR-020)
+  - เสร็จเมื่อ: ด่าน db ของ `pnpm verify` ยืนยันว่า `bcs_app` UPDATE และ DELETE `EventSeal` ไม่ได้
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-14)
+- [ ] **NEW-06** `[demo]` หน้าเว็บตั้งรักษาการของตัวเองใน `/settings/*` (§9.1 · ส่วนเว็บของ FR-DOA-006 AC2 · หน้า LIFF `/liff/delegation` สร้างใน S5-06) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01
+  - เสร็จเมื่อ: เทสต์ AC2 ของ FR-DOA-006 ส่วนหน้าเว็บผ่าน และหน้าผ่านขั้นตอนงานหน้าจอ §9.9
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-07** `[demo]` job แจ้งเตือนแล้วลบร่างคำขอที่ไม่ได้แก้ 90 วัน (FR-INT-006 AC3) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01
+  - เสร็จเมื่อ: เทสต์ AC3 ของ FR-INT-006 ผ่านด้วย clock ปลอม
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-08** `[go-live]` รายงาน R-01 ถึง R-07 หลัง OQ-09 ปิด (FR-VIS-002 AC2) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01
+  - เสร็จเมื่อ: เทสต์ AC2 ของ FR-VIS-002 ผ่านตามนิยามที่ได้จาก OQ-09
+  - แยกงาน: แยก subagent ต่อรายงาน แล้วตรวจตัวเลขกับข้อมูลที่รู้คำตอบก่อนรับ
+- [ ] **NEW-09** `[go-live]` มอบหมายผู้ตรวจรับรายคนต่อ PO ("ผู้ตรวจรับที่ได้รับมอบหมาย" ใน §2.4) หลังผู้ใช้ยืนยันรูปแบบหลัง demo · พบระหว่าง S1-01 (รอบวางแผน · ADR-038 ข้อ 13) — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันรูปแบบหลัง demo แล้วเทสต์สิทธิ์ `gr.post` และ `po.view` แบบ ASSIGNED ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-10** `[go-live]` กติกาของบัญชีเข้าระบบเดียวที่เป็นสมาชิกหลายองค์กร: ORG_ADMIN รีเซ็ต 2FA ไม่ได้ (`SHARED_IDENTITY`) และการรับลิงก์เชิญแทนรหัสผ่านเดิม (ระหว่างรอ โค้ดของ S1-07 ใช้กติกานี้อยู่แล้วและต้องแจ้งในหัวข้อ รอคุณ) · พบระหว่าง S1-07 (ADR-039 ADR-040) — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันกติกา แล้วเทสต์ของ FR-AUTH-001 AC1 และ FR-AUTH-002 AC3 กรณีสมาชิกหลายองค์กรผ่านตามกติกานั้น
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-11** `[demo]` ผลต่องบเมื่อปิด PO ก่อนใบกำกับใบสุดท้ายในกรณีที่ BR-BUD-06 ยังไม่ระบุ: PO ที่รับครบแล้ว (RECEIVED) และ PO ที่มีใบกำกับบางใบแล้วจึงปิดด้วย `CLOSE_SHORT` (§6.4 `po.close`) · พบระหว่าง NEW-01 — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันกติกา แล้ว BR-BUD-06 §6.4 และ FR-P2P-010 AC3 เขียนกรณีนี้ตรงกัน และเทสต์ของ `core/budget` กับ service ปิด PO (S4-04) ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-12** `[demo]` เพิ่ม event `organization.settings_updated` ในแคตตาล็อก §10.2 เพราะการบันทึก `Organization.settings` (FR-PLT-001 AC2) เป็น command ที่ต้องมี Event · บันทึกได้เฉพาะส่วนที่ §2.4 มีสิทธิ์รองรับ (`businessCalendar` ด้วย `admin.calendar` · `numbering` ด้วย `admin.numbering`) · พบระหว่าง S1-13 — เสร็จ 2026-10-03 · 594ac37
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/organization.ts` · เทสต์ AC2 ของ FR-PLT-001 ผ่าน
+  - แยกงาน: ทำเองได้
 
 ---
 
@@ -3430,7 +3466,7 @@ BCS คือแพลตฟอร์มจัดซื้อจัดจ้า�
 - ต้องเพิ่ม dependency ที่เกี่ยวกับ auth, crypto หรือเงิน หรือเปลี่ยน stack ใน §5
 - API ของ Prisma, Better Auth, Inngest หรือ LINE ต่างจากที่ spec เขียนจนต้องเปลี่ยนการออกแบบ
 - migration ต้องลบหรือแก้ข้อมูลเดิม
-- ก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้: ลบข้อมูลที่ไม่ได้มาจาก seed · ลบหรือแก้ข้อมูลบน staging หรือ production · `git push --force` หรือเขียนประวัติ git ใหม่ · แก้อะไรก็ตามนอกโฟลเดอร์ repo (การล้างข้อมูล seed บนเครื่องด้วย `pnpm db:reset` และการติดตั้งตามปกติทำได้โดยไม่ต้องถาม)
+- ก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้: ลบข้อมูลที่ไม่ได้มาจาก seed · ลบหรือแก้ข้อมูลบน staging หรือ production · `git push --force` หรือเขียนประวัติ git ใหม่ · แก้อะไรก็ตามนอกโฟลเดอร์ repo (การล้างข้อมูล seed บนเครื่องด้วย `pnpm db:reset` การติดตั้งตามปกติ และ migrate กับ seed ครั้งแรกบน staging (ADR-038 ข้อ 14) ทำได้โดยไม่ต้องถาม · reset หรือแก้ข้อมูลบน staging ครั้งต่อไปต้องถามทุกครั้ง)
 - ต้องใช้บัญชี secret หรือบริการภายนอกที่ยังไม่มี หรือต้องจ่ายเงิน
 - งานที่พบเพิ่มเปลี่ยนกฎเงิน อำนาจ หรือขอบเขต
 - ถึงเส้นชัยที่ได้รับมอบหมายแล้ว: หยุด เขียนรายงาน และรอคำสั่ง
@@ -3488,7 +3524,7 @@ pnpm db:reset
 
 ### 18.1 ADR
 
-ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 ถึง ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
+ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-041 บันทึกระหว่าง demo build (2026-10-02 ถึง 2026-10-03): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วน ADR-037 ADR-039 ADR-040 และ ADR-041 agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
 
 | ID | การตัดสินใจ | สถานะ |
 | --- | --- | --- |
@@ -3516,17 +3552,23 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-022 | service layer เป็นทางเขียนข้อมูลทางเดียวของทุกช่องทาง | เสนอ |
 | ADR-023 | Zod เป็น schema เดียวของฟอร์ม API และ AI | เสนอ |
 | ADR-024 | LIFF app เดียวต่อ environment ที่ `/liff` และตรวจ ID token เองที่เซิร์ฟเวอร์ | เสนอ |
-| ADR-025 | ใช้ตัวแทนบนเครื่อง (Postgres MinIO Mailpit Inngest dev) เพื่อไม่ต้องรอบริการภายนอก | เสนอ |
+| ADR-025 | ใช้ตัวแทนบนเครื่อง (Postgres RustFS Mailpit Inngest dev) เพื่อไม่ต้องรอบริการภายนอก — RustFS แทน MinIO ตาม ADR-036 | เสนอ |
 | ADR-026 | next-intl โดยภาษาไทยเป็นค่าเริ่มต้น | เสนอ |
 | ADR-027 | Vitest fast-check Playwright และทดสอบกับ Postgres จริง | เสนอ |
 | ADR-028 | id เป็น UUID v7 | เสนอ |
 | ADR-029 | แยก tenant ด้วย Prisma extension และเทสต์ที่สร้างอัตโนมัติ (RLS ภายหลัง) | เสนอ |
 | ADR-030 | Transactional outbox ส่งต่อ Inngest | เสนอ |
 | ADR-031 | ผู้ให้บริการอีเมล (Resend · Amazon SES · SMTP ของลูกค้า) — ชั่วคราวใช้ adapter SMTP และ Mailpit บนเครื่อง ต้องเลือกก่อน S4 | ยังไม่ตัดสิน |
-| ADR-032 | Hosting เว็บ (Vercel · AWS · ผู้ให้บริการในไทย) ต้องอยู่ภูมิภาคเดียวกับฐานข้อมูลและเปิด endpoint ให้ Inngest — ชั่วคราวใช้ staging ที่ภูมิภาคสิงคโปร์กับข้อมูลสังเคราะห์เท่านั้น | ยังไม่ตัดสิน |
-| ADR-033 | ที่เก็บไฟล์ (Cloudflare R2 · S3 · Neon Object Storage) — ชั่วคราวใช้ MinIO ผ่าน S3 API | ยังไม่ตัดสิน |
+| ADR-032 | Hosting เว็บ ต้องอยู่ภูมิภาคเดียวกับฐานข้อมูลและเปิด endpoint ให้ Inngest — staging ใช้ Vercel ภูมิภาคสิงคโปร์ (sin1) กับ seed และข้อมูลสังเคราะห์เท่านั้นจนกว่า OQ-19 ปิด · production ยังไม่ตัดสิน (Vercel · AWS · ผู้ให้บริการในไทย) | ตัดสินแล้วเฉพาะ staging |
+| ADR-033 | ที่เก็บไฟล์ (Cloudflare R2 · S3 · Neon Object Storage) — ชั่วคราวบนเครื่องใช้ RustFS ผ่าน S3 API (ADR-036) | ยังไม่ตัดสิน |
 | ADR-034 | PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ต้องมี contractRef และเหตุผล และแจ้ง ORG_ADMIN ส่วน ORG_ADMIN ดูอย่างเดียว | ตัดสินแล้ว |
 | ADR-035 | ลูกค้าเป็นเจ้าของ DOA และโครงสร้างอำนาจ แก้ได้เองผ่าน 4-eyes + step-up ส่วน BCS คุมเฉพาะกลไกและกติกาความปลอดภัย | ตัดสินแล้ว |
+| ADR-036 | ที่เก็บไฟล์บนเครื่องใช้ RustFS แทน MinIO เพราะ image ทางการของ MinIO ถูกลบ · ถ้าเทสต์อัปโหลดจาก browser ผ่าน presigned URL ไม่ผ่านให้ถอยไป `bitnamilegacy/minio` โดยไม่ต้องถามซ้ำ | ตัดสินแล้ว |
+| ADR-037 | ข้อความหน้าจอแยกไฟล์ตาม namespace ใน `messages/src/{th,en}/` แล้วสร้าง `messages/th.json` และ `messages/en.json` ด้วยสคริปต์ | เสนอ |
+| ADR-038 | การตัดสินใจของผู้ใช้ในรอบวางแผน demo build 14 ข้อ (2026-10-02) | ตัดสินแล้ว |
+| ADR-039 | แยก tenant ในฐานข้อมูลเพิ่ม: foreign key ระหว่างตาราง tenant รวม `organizationId` · `db.forTenant()` ห้ามเข้าตาราง identity และ platform และห้าม nested write · `Event.seq` เป็น identity | เสนอ |
+| ADR-040 | ใช้ Better Auth: ล็อกการเข้าระบบนับเฉพาะครั้งที่ผิด · บังคับ 2FA ตามบทบาทและตำแหน่ง · TOTP ของผู้ใช้ตัวอย่างจาก `SEED_TOTP_KEY` (ไม่บังคับ · ตัวแปรที่เพิ่มต่อจากภาคผนวก B ในส่วนที่เพิ่มของ `.env.example`) · plugin `liffIdToken` | เสนอ |
+| ADR-041 | นโยบายของ command pipeline และ outbox: key กันส่งซ้ำแยกตามผู้ส่ง · ส่งหลัง commit ครั้งเดียวไม่เกิน 2 วินาที · นับเฉพาะการปฏิเสธของ Inngest ครบ 10 ครั้งเป็นข้อความตายพร้อมแจ้งเตือน | เสนอ |
 
 ### 18.2 สมมติฐาน
 
@@ -3658,7 +3700,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 
 **องค์กร:** รหัส `DEMO` · "บริษัท เดโม่ ก่อสร้าง จำกัด" (สมมติ) · เลขผู้เสียภาษี 0999999000055 (สังเคราะห์ ผ่าน mod-11) · สาขา 00000 · โมดูล CORE
 
-**โครงองค์กรและ DOA:** ใช้ `tests/golden/fixtures/org-demo.yaml` และ DOA ฉบับ 1 ใน `tests/golden/fixtures/doa-versions.yaml` (§7.4) ไฟล์เดียวกันทั้ง seed และเทสต์ (FR-PLT-007 AC3) · ผู้มีอำนาจลงนามของ tenant ตัวอย่างคือ `ceo` · ใน production ห้าม seed DOA หรือผู้ดำรงตำแหน่งของลูกค้า ต้องผ่านชุดตั้งต้นตาม BR-DOA-19
+**โครงองค์กรและ DOA:** seed อ่านจากชีตในไฟล์ input ซึ่งมีโครงองค์กรและ DOA ฉบับ 1 ตรงกับ `tests/golden/fixtures/org-demo.yaml` และ `tests/golden/fixtures/doa-versions.yaml` ที่เทสต์ใช้ (§7.4 · `pnpm inputs:check` ตรวจ · FR-PLT-007 AC3) ยกเว้น `effectiveFrom` ของ DOA ฉบับ 1 ที่ seed ใช้ 2026-01-01 ตามชีต `DOA_Policy` ส่วน golden ใช้วันของ fixture (ADR-038) · ผู้มีอำนาจลงนามของ tenant ตัวอย่างคือ `ceo` · ใน production ห้าม seed DOA หรือผู้ดำรงตำแหน่งของลูกค้า ต้องผ่านชุดตั้งต้นตาม BR-DOA-19
 
 **ผู้ใช้:** อีเมล `<code>@demo.bcs.local` รหัสผ่านอ่านจาก `SEED_DEV_PASSWORD` ใน `.env` และสร้างเฉพาะเมื่อ `APP_ENV=local` หรือ `staging`
 

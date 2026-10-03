@@ -1,0 +1,19 @@
+{
+  "offlineTitle": "No internet connection",
+  "offlineBody": "BCS needs a connection to show your work. Document data is never kept on this device. Connect to the internet and try again.",
+  "retry": "Try again",
+  "updateReady": "A new version of BCS is ready. Save what you are typing before you load it.",
+  "updateNow": "Load the new version",
+  "updateLater": "Later",
+  "installTitle": "Install BCS on your phone",
+  "installIntro": "Once installed, BCS has an icon on your home screen and opens like an app.",
+  "iosTitle": "iPhone and iPad (Safari)",
+  "iosStep1": "Open BCS in Safari",
+  "iosStep2": "Tap the Share button at the bottom of the screen",
+  "iosStep3": "Choose Add to Home Screen, then tap Add",
+  "androidTitle": "Android (Chrome)",
+  "androidStep1": "Open BCS in Chrome",
+  "androidStep2": "Tap the three-dot menu at the top right",
+  "androidStep3": "Choose Install app or Add to Home screen",
+  "installLink": "How to install on a phone"
+}

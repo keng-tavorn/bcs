@@ -31,7 +31,7 @@
 **หยุดและถามเฉพาะเมื่อ**
 
 - ทำต่อไม่ได้ถ้าไม่มีผู้ใช้: ต้องใช้บัญชี key secret หรือบริการภายนอกที่ยังไม่มี ต้องจ่ายเงิน หรือเหลือแต่ข้อ `[คน]`
-- ก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้: ลบข้อมูลที่ไม่ได้มาจาก seed · ลบหรือแก้ข้อมูลบน staging หรือ production · `git push --force` หรือเขียนประวัติ git ใหม่ · ลบ branch · migration ที่ลบหรือแก้ข้อมูลเดิม · แก้อะไรก็ตามนอกโฟลเดอร์ repo นี้ นอกจากการติดตั้งตามปกติข้างบน
+- ก่อนทำสิ่งที่ลบหรือย้อนกลับไม่ได้: ลบข้อมูลที่ไม่ได้มาจาก seed · ลบหรือแก้ข้อมูลบน staging หรือ production (ยกเว้น migrate และ seed ครั้งแรกบน staging ที่ผู้ใช้อนุมัติแล้ว · ADR-038) · `git push --force` หรือเขียนประวัติ git ใหม่ · ลบ branch · migration ที่ลบหรือแก้ข้อมูลเดิม · แก้อะไรก็ตามนอกโฟลเดอร์ repo นี้ นอกจากการติดตั้งตามปกติข้างบน
 - spec ขัดกันเอง golden case ขัดกับกฎ หรือ library ทำงานต่างจาก spec จนต้องเปลี่ยนการออกแบบ
 - ต้องตัดสินเรื่องเงิน ภาษี สิทธิ์ อำนาจอนุมัติ หรือข้อมูลส่วนบุคคล ที่ spec และ OQ ไม่มีคำตอบ
 - งานที่พบเพิ่มเปลี่ยนกฎเงิน อำนาจ หรือขอบเขต
@@ -66,7 +66,7 @@ BCS คือแพลตฟอร์มจัดซื้อจัดจ้า�
 - Tailwind CSS v4 + shadcn/ui ที่ปรับ token ตาม spec §9.9
 - Prisma 7 + PostgreSQL: บนเครื่องใช้ Postgres ใน Docker · staging ใช้ Neon สิงคโปร์
 - Better Auth · Inngest · next-intl (ไทยเป็นค่าเริ่มต้น)
-- ไฟล์เก็บผ่าน S3 API: บนเครื่องใช้ MinIO · staging ตาม ADR-033 · ไม่ใช้ Vercel Blob และไม่เก็บไฟล์ลงดิสก์ของเซิร์ฟเวอร์
+- ไฟล์เก็บผ่าน S3 API: บนเครื่องใช้ RustFS แทน MinIO (ADR-036) · staging ตาม ADR-033 · ไม่ใช้ Vercel Blob และไม่เก็บไฟล์ลงดิสก์ของเซิร์ฟเวอร์
 - อีเมลบนเครื่องไปที่ Mailpit · AI (Claude API) ปิดไว้จนถึงขั้น S13 (`AI_ENABLED=false`)
 - เทสต์: Vitest · fast-check · Playwright · Postgres จริง
 
@@ -87,7 +87,7 @@ pnpm db:reset       # ล้างและ seed ใหม่ (บนเคร�
 
 - ตรวจว่าเว็บเปิดอยู่ไหม: `node -e "fetch('http://localhost:3000').then(()=>console.log('up')).catch(()=>console.log('down'))"`
 - `docker compose up -d` ล้มเพราะ Docker ไม่ทำงาน → บอกผู้ใช้ให้เปิด Docker Desktop (เป็นการหยุดถามแบบที่ทำต่อไม่ได้)
-- พอร์ตของโปรเจกต์: 3000 เว็บ · 5432 Postgres · 9000 และ 9001 MinIO · 1025 และ 8025 Mailpit · 8288 Inngest dev
+- พอร์ตของโปรเจกต์: 3000 เว็บ · 5432 Postgres · 9000 และ 9001 RustFS · 1025 และ 8025 Mailpit · 8288 Inngest dev
 - พอร์ตชน (EADDRINUSE): ตรวจ OS ด้วย `node -e "console.log(process.platform)"` แล้วดูว่าโปรเซสที่ใช้พอร์ตเป็น dev server ของโฟลเดอร์นี้ไหม ถ้าใช่ปิดได้เลยแล้วบอกในสถานะ ถ้าไม่ใช่ให้ถามก่อน
   - macOS / Linux: `lsof -ti:3000 | xargs kill -9`
   - Windows PowerShell: `Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess | Stop-Process -Force`

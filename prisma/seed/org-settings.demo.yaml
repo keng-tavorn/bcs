@@ -1,0 +1,20 @@
+# prisma/seed/org-settings.demo.yaml (ต้องผ่าน OrgSettingsSchema)
+locale: th
+timezone: Asia/Bangkok
+businessCalendar: { workdays: [MON, TUE, WED, THU, FRI], start: "08:30", end: "17:30" }
+budgetBasis: NET                    # OQ-03
+# sodPolicy (OQ-04) อยู่ใน DoaVersion จึงเปลี่ยนได้ผ่าน 4-eyes เท่านั้น
+receiving: { overTolerancePct: 0 }  # OQ-20
+consolidation: { cron: "TZ=Asia/Bangkok 0 10,15 * * 1-5" }  # OQ-13
+priceAlertPct: 10
+digest: { enabled: true, budgetLowPct: 10 }
+email: { fromAddress: "no-reply@bcs.local", actionLinksRequireLogin: true }  # OQ-22
+sso: { trustIdpMfa: false, allowedDomains: [] }
+numbering:
+  PR: { pattern: "PR-{BE}-{SEQ5}", reset: YEARLY }
+  PO: { pattern: "PO-{BE}-{SEQ5}", reset: YEARLY }
+  GR: { pattern: "GR-{BE}-{SEQ5}", reset: YEARLY }
+  RQ: { pattern: "RQ-{BE}-{SEQ5}", reset: YEARLY }
+express: { fileType: xlsx, encoding: UTF-8-BOM, dateFormat: BE, mapping: [] }  # OQ-10
+retention: { documentYears: 5, accessLogYears: 1 }  # OQ-30
+features: { parallelApproval: false, lineChannel: true }

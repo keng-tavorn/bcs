@@ -1,0 +1,19 @@
+{
+  "label": "ไทม์ไลน์ของเอกสาร",
+  "status": { "done": "เสร็จแล้ว", "current": "รอดำเนินการ", "upcoming": "ขั้นถัดไป", "approved": "อนุมัติแล้ว", "rejected": "ไม่อนุมัติ" },
+  "onBehalfOf": "ทำแทน {name}",
+  "waitingHours": "รอมา {hours} ชั่วโมงทำการ",
+  "doaRef": "{code} ฉบับ {version} ข้อ {rule}",
+  "system": "ระบบ",
+  "channel": {
+    "WEB": "เว็บ",
+    "LIFF": "LINE (LIFF)",
+    "LINE_CHAT": "แชท LINE",
+    "PWA": "แอป BCS Go",
+    "EMAIL": "อีเมล",
+    "PORTAL": "พอร์ทัลผู้ขาย",
+    "SYSTEM": "ระบบอัตโนมัติ",
+    "API": "API",
+    "MCP": "MCP"
+  }
+}

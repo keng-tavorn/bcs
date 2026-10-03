@@ -1,0 +1,7 @@
+# tests/golden/dates.yaml
+suite: dates
+cases:
+  - { id: GC-DATE-01, fn: buddhistYear, input: "2026-12-31T16:59:59Z", expect: 2569 }
+  - { id: GC-DATE-02, fn: buddhistYear, input: "2026-12-31T17:00:00Z", expect: 2570 }
+  - { id: GC-DATE-03, fn: formatThaiDate, input: "2026-10-02T09:30:00Z", expect: "2 ต.ค. 2569" }
+  - { id: GC-DATE-04, fn: formatThaiDateTime, input: "2026-10-02T09:30:00Z", expect: "2 ต.ค. 2569 16:30 น." }

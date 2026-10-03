@@ -1,0 +1,9 @@
+{
+  "title": "Home",
+  "greeting": "Hello {name}",
+  "organization": "Organization {name}",
+  "myTasks": "Waiting for your decision",
+  "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in LINE.",
+  "myRequests": "My requests",
+  "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status."
+}

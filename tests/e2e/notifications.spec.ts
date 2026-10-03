@@ -42,12 +42,14 @@ test('[FR-NOTI-001/AC1] the bell lists the approver’s new tasks, opens one and
   await expect(panel.getByRole('heading', { name: 'การแจ้งเตือน' })).toBeVisible()
   const items = panel.getByRole('button', { name: /มีงานรออนุมัติ: PR-2569-\d{5}/ })
   expect(await items.count()).toBeGreaterThanOrEqual(2)
-  await expect(items.first()).toContainText('ใหม่')
+  // Other specs may have read some of this approver's notices already: the unread ones are marked new
+  const fresh = items.filter({ hasText: 'ใหม่' })
+  await expect(fresh.first()).toBeVisible()
   await expectNoBlockingAxe(page)
   await page.screenshot({ path: testInfo.outputPath('bell-open.png'), fullPage: true })
 
   // Opening one goes to its task and marks it read
-  await items.first().click()
+  await fresh.first().click()
   await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/)
   await page.goto('/')
   await expect(bell(page).locator('summary')).toHaveAttribute('aria-label', unread === 1 ? 'แจ้งเตือน' : `แจ้งเตือน · ยังไม่อ่าน ${unread - 1} รายการ`)

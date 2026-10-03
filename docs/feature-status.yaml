@@ -402,15 +402,17 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-003:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-004:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-005:
@@ -446,9 +448,10 @@ features:
     verifiedBy: null
     notes: ""
   FR-P2P-010:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-SUP-001:

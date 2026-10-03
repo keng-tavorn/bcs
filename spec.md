@@ -990,6 +990,7 @@ stateDiagram-v2
 | APPROVED | PO อนุมัติบางส่วน | PARTIALLY_ORDERED | — | ตาม BR-BUD-05 |
 | APPROVED · PARTIALLY_ORDERED | PO อนุมัติครบ หรือยกเลิกจำนวนที่เหลือ | ORDERED | ทุกบรรทัด `ordered + cancelled = quantity` | คืนงบของจำนวนที่ยกเลิก |
 | ORDERED | PO ที่เกี่ยวข้องปิดครบ | COMPLETED | — | `request.completed` |
+| ORDERED · PARTIALLY_ORDERED | PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (NEW-23) | PARTIALLY_ORDERED หรือ APPROVED | ตามจำนวนที่ยังสั่งอยู่ | บรรทัดคำขอกลับเข้ากองรอจัดซื้อ |
 
 การขอข้อมูลเพิ่มไม่เปลี่ยนสถานะคำขอ (ยังเป็น PENDING_APPROVAL) แต่งานอนุมัติเป็น `INFO_REQUESTED` และ SLA หยุดนับ
 
@@ -1015,6 +1016,7 @@ stateDiagram-v2
 | PENDING_APPROVAL | `approval.return` | DRAFT | ต้องมีเหตุผล | คืนส่วนต่างที่จอง |
 | APPROVED | `po.send` | SENT | ผู้ขายมีอีเมล | ส่งอีเมลพร้อม PDF · บันทึก `sentAt` `sentToEmail` |
 | SENT · PARTIALLY_RECEIVED | GR ถูก post | PARTIALLY_RECEIVED หรือ RECEIVED | — | ตามจำนวนรับสะสม |
+| PARTIALLY_RECEIVED · RECEIVED | GR ถูกกลับรายการ (NEW-23) | PARTIALLY_RECEIVED หรือ SENT | ก่อนยืนยันใบกำกับของ PO นั้น | ตามจำนวนที่ GR ที่ยัง POSTED รับไว้ |
 | APPROVED · SENT | `po.cancel` | CANCELLED | ยังไม่มี GR ที่ POSTED · ต้องเลือก disposition | BR-BUD-06 |
 | SENT · PARTIALLY_RECEIVED · RECEIVED | `po.close` | CLOSED | ถ้ารับไม่ครบต้องมี variance `SHORT` ที่อนุมัติแล้ว | คืนงบตาม BR-BUD-06 (ปิดที่รับไม่ครบก่อนมีใบกำกับ: ส่วนที่ไม่ได้รับคืนครั้งเดียวตอนอนุมัติ variance `CLOSE_SHORT` ตาม BR-GR-04 · ถือส่วนที่รับแล้วไว้รอใบกำกับ) |
 
@@ -2690,7 +2692,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
-| po | `po.drafted` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
+| po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
@@ -3446,6 +3448,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-21** `[demo]` เพิ่ม event `consolidation_run.completed` ในแคตตาล็อก §10.2 เพราะรอบรวม PR ทุกรอบบันทึก `ConsolidationRun` (FR-P2P-002 AC2) รวมรอบที่ไม่มีร่าง PO จึงต้องมี Event ของตัวเอง · พบระหว่าง S4-03
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 และ AC3 ของ FR-P2P-002 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
+- [ ] **NEW-22** `[demo]` เพิ่ม event `po.updated` ในแคตตาล็อก §10.2 เพราะการแก้ร่าง PO (ราคา จำนวน เงื่อนไข หมายเหตุ เอาบรรทัดออก FR-P2P-003 AC2) เป็น command ที่ต้องมี Event · พบระหว่าง S4-04
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-003 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-04)
+- [ ] **NEW-23** `[demo]` เพิ่มการเปลี่ยนสถานะที่ §6.4 ยังไม่มี: คำขอที่ PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (BR-BUD-06) กลับเป็น PARTIALLY_ORDERED หรือ APPROVED ตามจำนวนที่ยังสั่งอยู่ เพื่อให้บรรทัดกลับเข้ากองได้จริง · PO ที่ GR ถูกกลับรายการกลับเป็น PARTIALLY_RECEIVED หรือ SENT ตามจำนวนที่ยังรับไว้ · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-04
+  - เสร็จเมื่อ: ตาราง §6.4 มีแถวเหล่านี้ · `src/core/state-machines` มี transition ตรงกัน · เทสต์ที่วนทุกคู่ (สถานะ, command) และเทสต์ AC1 ของ FR-P2P-010 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-04 และ S4-07)
 
 ---
 

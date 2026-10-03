@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { parse as parseYaml } from 'yaml'
 import { toJsonSafe } from '@/lib/json'
 import { OrgSettingsSchema } from '@/lib/org-settings'
-import { makeCtx, type Ctx } from '@/server/context'
+import { fund } from '@/core/budget'
+import { makeCtx, systemCtx, type Ctx } from '@/server/context'
+import { applyBudget } from '@/server/budget/ledger'
+import { forTenant } from '@/server/db/tenant'
+import { appendEvents } from '@/server/events/append'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
@@ -102,6 +106,7 @@ export async function createDoaOrg(options: { doa?: boolean } = {}): Promise<Doa
   }
   await prisma.roleAssignment.create({ data: { organizationId, memberId: member.proc_officer!, role: 'PROCUREMENT', grantedAt: v1.effectiveFrom } })
   await prisma.holiday.createMany({ data: ['2026-10-13', '2026-10-23'].map((d) => ({ organizationId, date: new Date(`${d}T00:00:00Z`), nameTh: 'วันหยุด' })) })
+  await fundEveryDepartment(organizationId, department)
 
   return {
     organizationId,
@@ -132,4 +137,23 @@ async function publishVersion1(organizationId: string, v1: ReturnType<typeof ver
     const json = ruleJson(rule)
     await prisma.doaRule.create({ data: { organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
   }
+}
+
+/** FY2569 with one open budget line of 10,000,000.00 baht per department, so a request finds its line (S3-05) */
+async function fundEveryDepartment(organizationId: string, department: Record<string, string>) {
+  const fiscalYear = await prisma.fiscalYear.create({ data: { organizationId, code: 'FY2569', startsOn: new Date('2026-01-01T00:00:00Z'), endsOn: new Date('2026-12-31T00:00:00Z') } })
+  const lines: string[] = []
+  for (const [code, departmentId] of Object.entries(department)) {
+    const costCenter = await prisma.costCenter.create({ data: { organizationId, code: `CC-${code}`, nameTh: `ศูนย์ต้นทุน ${code}`, departmentId } })
+    const line = await prisma.budgetLine.create({ data: { organizationId, fiscalYearId: fiscalYear.id, departmentId, costCenterId: costCenter.id, code: `${code}-OPEX-2569`, nameTh: `ค่าใช้จ่ายดำเนินงาน ${code}`, plannedSatang: 0n } })
+    await prisma.budgetLineBalance.create({ data: { organizationId, budgetLineId: line.id } })
+    lines.push(line.id)
+  }
+  const ctx = systemCtx(organizationId, new Date('2026-01-01T00:00:00Z'), 'seed')
+  const importId = randomUUID()
+  await forTenant(organizationId).$transaction(async (tx) => {
+    const funded = await applyBudget(tx, ctx, lines.map((id) => ({ budgetLineId: id, event: 'budget.imported' as const, document: { type: 'IMPORT' as const, id: importId }, run: (s) => fund(s, 1_000_000_000n, importId) })))
+    if (!funded.ok) throw new Error(`funding failed: ${funded.error.code}`)
+    await appendEvents(tx, ctx, funded.events)
+  })
 }

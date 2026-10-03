@@ -14,6 +14,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decidePolicyTask } from './policy-decide'
+import { releaseForRequest } from '../requests/budget'
 import { closeRoute, taskTimes } from './route'
 
 // Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). The task's assignee decides, or the
@@ -201,6 +202,13 @@ export const decideCommand = defineCommand({
     } else {
       const type = input.decision === 'RETURN' ? 'request.returned' : 'request.rejected'
       events.push({ type, aggregateType: 'Request', aggregateId: request.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } })
+      // §6.4: a rejection gives back all the budget the request reserved; a return keeps it for the resubmit
+      if (input.decision === 'REJECT') {
+        const lines = await tx.requestLine.findMany({ where: { requestId: request.id }, select: { id: true } })
+        const released = await releaseForRequest(tx, ctx, request.id, lines.map((l) => l.id))
+        if (!released.ok) return released
+        events.push(...released.events)
+      }
       // §10.1: a return and a rejection share the template request.decided
       notifications.push(notifyRequester(request.requesterMemberId, 'request.decided', request, { taskId: task.id, decision: input.decision }))
     }

@@ -321,13 +321,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-007:
-    status: in_progress
+    status: done
     step: S2
     evidence:
       - tests/golden/sla.test.ts
+      - tests/integration/request-budget.test.ts
       - tests/integration/requests.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "เส้นทาง DOA (S2-10) และการตรวจและจองงบตอนส่ง (S3-05)"
   FR-INT-008:
     status: planned
     step: S2
@@ -339,6 +340,7 @@ features:
     step: S2
     evidence:
       - tests/generated/state-machines.test.ts
+      - tests/integration/request-budget.test.ts
       - tests/integration/requests.test.ts
     verifiedBy: null
     notes: ""
@@ -361,17 +363,20 @@ features:
     verifiedBy: null
     notes: "core/budget (S3-02) และ service ที่ล็อกแถว (S3-03) · การจองจากคำขอจริงมาใน S3-05"
   FR-BUD-003:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/request-budget.test.ts
+      - tests/unit/budget-stub-guard.test.ts
     verifiedBy: null
     notes: ""
   FR-BUD-004:
-    status: planned
+    status: in_progress
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/request-budget.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "การตรวจ grant ตอนส่งและผู้อนุมัติจากแผนกเจ้าของงบ (S3-05) · บริการและหน้าจัดการ grant ของ BUDGET_ADMIN อยู่ใน S3-07"
   FR-BUD-005:
     status: planned
     step: S3

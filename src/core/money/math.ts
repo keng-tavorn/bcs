@@ -96,3 +96,17 @@ export function allocateLargestRemainder(total: Satang, weights: readonly Satang
   }
   return parts
 }
+
+/**
+ * The amount before VAT of each line (BR-BUD-03, BR-BUD-05, ADR-038 ข้อ 11): the line amount itself when prices are
+ * before VAT; when prices include VAT, the document's VAT comes off the VAT-able lines only, shared out over them by
+ * largest remainder, so the lines add up exactly to the document's amount before VAT.
+ */
+export function lineNetsBeforeVat(lines: readonly LineInput[], rateBp: number, priceIncludesVat = false): Satang[] {
+  const amounts = lines.map((l) => lineNet(l.quantity, l.unitPriceSatang))
+  if (!priceIncludesVat) return amounts
+  const vatable = lines.map((l, i) => (l.vatable !== false ? amounts[i]! : 0n))
+  const { net } = vatFromGross(vatable.reduce((a, b) => a + b, 0n), rateBp)
+  const nets = allocateLargestRemainder(net, vatable)
+  return amounts.map((amount, i) => (lines[i]!.vatable !== false ? nets[i]! : amount))
+}

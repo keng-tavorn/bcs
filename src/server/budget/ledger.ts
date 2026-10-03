@@ -1,4 +1,4 @@
-import { allocationKey, type BudgetError, type BudgetResult, type LineState, type Movement, type SourceType } from '@/core/budget'
+import { allocationKey, type BudgetError, type BudgetResult, type Buckets, type LineState, type Movement, type SourceType } from '@/core/budget'
 import { satangToAmount } from '@/core/money/dto'
 import type { AppError } from '@/core/result'
 import { newId } from '@/lib/ids'
@@ -64,7 +64,11 @@ export async function lockBudgetLines(tx: TenantTx, ctx: Ctx, budgetLineIds: rea
  * Runs operations on locked lines in order and writes what they moved. All lines are locked before the first
  * operation runs. The first refusal stops everything and is returned; the caller's command then writes nothing.
  */
-export async function applyBudget(tx: TenantTx, ctx: Ctx, operations: readonly BudgetOperation[]): Promise<{ ok: true; events: EventDraft[] } | { ok: false; error: AppError }> {
+export async function applyBudget(
+  tx: TenantTx,
+  ctx: Ctx,
+  operations: readonly BudgetOperation[],
+): Promise<{ ok: true; events: EventDraft[]; lines: Array<{ budgetLineId: string; before: Buckets; after: Buckets }> } | { ok: false; error: AppError }> {
   const states = await lockBudgetLines(tx, ctx, operations.map((o) => o.budgetLineId))
   const planned: Array<{ op: BudgetOperation; before: LineState; after: LineState; movements: readonly Movement[] }> = []
   for (const op of operations) {
@@ -128,5 +132,5 @@ export async function applyBudget(tx: TenantTx, ctx: Ctx, operations: readonly B
       data: { documentType: op.document.type, documentId: op.document.id, amountSatang: moved.toString(), seqFrom, seqTo },
     })
   }
-  return { ok: true, events }
+  return { ok: true, events, lines: planned.map((p) => ({ budgetLineId: p.op.budgetLineId, before: p.before.buckets, after: p.after.buckets })) }
 }

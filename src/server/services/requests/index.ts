@@ -1,8 +1,9 @@
 import { z } from 'zod'
 import { evaluateCondition, evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
-import { documentTotals, lineNet } from '@/core/money/math'
+import { documentTotals, lineNet, lineNetsBeforeVat } from '@/core/money/math'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
+import type { AppError } from '@/core/result'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -17,10 +18,12 @@ import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { formDefinition } from '@/server/forms/schema'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
+import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
 
 // Purchase requests (spec §6.4, FR-INT-007, FR-INT-009): a draft with lines, then submit as one transaction — form
-// check (BR-FORM-01/03), totals from core/money with the VAT rate of the tax date (BR-VAT-01..03), budget check (stub
-// until S3-05), DOA route (§7.4), number (BR-NUM-01), first task and events. If any step fails nothing is written.
+// check (BR-FORM-01/03), totals from core/money with the VAT rate of the tax date (BR-VAT-01..03), budget check and
+// reservation (BR-BUD-02), DOA route (§7.4), number (BR-NUM-01), first task and events. If any step fails nothing is
+// written.
 // Amounts arrive as baht text and are kept as satang; totals never come from the client.
 
 const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'TAX_RATE_NOT_CONFIGURED', message: string, details?: Record<string, unknown>) =>
@@ -49,6 +52,8 @@ const DraftInput = z.strictObject({
   priceIncludesVat: z.boolean().default(false),
   formData: z.record(z.string(), z.unknown()).default({}),
   lines: z.array(LineInput).max(200).default([]),
+  /** BR-BUD-04: the budget line the request uses; left out, submit takes the department's only open line */
+  budgetLineId: z.uuid().optional(),
   /** BR-FORM-06: quotations as data, one chosen; a reason when the chosen one is not the lowest */
   quotations: z.array(QuotationInput).max(MAX_QUOTATIONS).default([]),
   nonLowestQuoteReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
@@ -74,27 +79,34 @@ function move(from: RequestState, command: RequestCommand) {
   return t.ok ? { ok: true as const, to: t.to } : fail('INVALID_STATE_TRANSITION', `${command} is not allowed from ${from}`, { from, command })
 }
 
-async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: z.output<typeof LineInput>[]): Promise<void> {
-  await tx.requestLine.deleteMany({ where: { requestId } })
+/**
+ * Writes the lines by their number: line n keeps its id, so a returned request keeps the budget its lines reserved
+ * until it is sent again (§6.4); lines no longer there give back what they reserved and go.
+ */
+async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: z.output<typeof LineInput>[]): Promise<{ ok: true; events: EventDraft[] } | { ok: false; error: AppError }> {
+  const existing = await tx.requestLine.findMany({ where: { requestId }, orderBy: { lineNo: 'asc' }, select: { id: true, lineNo: true } })
+  const removed = existing.filter((l) => l.lineNo > lines.length)
+  const released = await releaseForRequest(tx, ctx, requestId, removed.map((l) => l.id))
+  if (!released.ok) return released
+  if (removed.length) await tx.requestLine.deleteMany({ where: { id: { in: removed.map((l) => l.id) } } })
   for (const [i, line] of lines.entries()) {
     const unitPriceSatang = amountToSatang(line.unitPrice)
-    await tx.requestLine.create({
-      data: {
-        organizationId: ctx.organizationId,
-        requestId,
-        lineNo: i + 1,
-        description: line.description,
-        quantity: line.quantity,
-        uom: line.uom,
-        unitPriceSatang,
-        // BR-MONEY-02 (1): a line amount is rounded once, here
-        netSatang: lineNet(line.quantity, unitPriceSatang),
-        vatable: line.vatable,
-        ...(line.categoryCode ? { categoryCode: line.categoryCode } : {}),
-        ...(line.serviceEndDate ? { serviceEndDate: new Date(`${line.serviceEndDate}T00:00:00Z`) } : {}),
-      },
-    })
+    const data = {
+      description: line.description,
+      quantity: line.quantity,
+      uom: line.uom,
+      unitPriceSatang,
+      // BR-MONEY-02 (1): a line amount is rounded once, here
+      netSatang: lineNet(line.quantity, unitPriceSatang),
+      vatable: line.vatable,
+      categoryCode: line.categoryCode ?? null,
+      serviceEndDate: line.serviceEndDate ? new Date(`${line.serviceEndDate}T00:00:00Z`) : null,
+    }
+    const same = existing.find((l) => l.lineNo === i + 1)
+    if (same) await tx.requestLine.update({ where: { id: same.id }, data })
+    else await tx.requestLine.create({ data: { organizationId: ctx.organizationId, requestId, lineNo: i + 1, ...data } })
   }
+  return { ok: true, events: released.events }
 }
 
 // ---------- draft ----------
@@ -134,9 +146,11 @@ export const createDraftCommand = defineCommand({
         priceIncludesVat: input.priceIncludesVat,
         formData: input.formData as object,
         nonLowestQuoteReason: input.nonLowestQuoteReason ?? null,
+        ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
       },
     })
-    await writeLines(tx, ctx, id, input.lines)
+    const written = await writeLines(tx, ctx, id, input.lines)
+    if (!written.ok) return written
     const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, await todaysRate(ctx))
     if (quotes) return quotes
     return {
@@ -203,8 +217,18 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
   // BR-FORM-06: quotations compared before VAT with the rate of the tax date
   const quotes = await checkQuotations(tx, request, rate.rateBp)
   if (quotes) return quotes
-  // The budget check and reservation of §6.4 ("ตรวจและจองงบ") arrive with S3-05; until then no request is refused for
-  // budget, which the demo data respects
+  // BR-BUD-02 to BR-BUD-04: the budget line, then all lines reserved before VAT against its total, or nothing at all.
+  // The department that owns the budget pays, so its approvers decide (BR-DOA-05, FR-BUD-004 AC3)
+  const budgetLine = await resolveBudgetLine(tx, ctx, request, taxDate)
+  if (!budgetLine.ok) return budgetLine
+  const nets = lineNetsBeforeVat(
+    request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
+    rate.rateBp,
+    request.priceIncludesVat,
+  )
+  const reserved = await reserveForRequest(tx, ctx, request.id, budgetLine.line.id, request.lines.map((l, i) => ({ requestLineId: l.id, netSatang: nets[i]! })))
+  if (!reserved.ok) return reserved
+  const chargedDepartmentId = budgetLine.line.departmentId
   const route = await startRoute(
     tx,
     ctx,
@@ -213,13 +237,13 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
       documentType: 'PURCHASE_REQUEST',
       amount: { netSatang: totals.net, vatSatang: totals.vat },
       requesterMemberId: request.requesterMemberId,
-      chargedDepartmentId: request.chargedDepartmentId,
+      chargedDepartmentId,
       conflictMemberIds: [request.requesterMemberId],
       at: ctx.now,
     },
   )
   if (!route.ok) return { ok: false as const, error: route.error }
-  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data }
+  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget: reserved, budgetLineId: budgetLine.line.id, chargedDepartmentId }
 }
 
 export const submitCommand = defineCommand({
@@ -251,6 +275,8 @@ export const submitCommand = defineCommand({
         grossSatang: totals.gross,
         vatRateBp: prepared.rateBp,
         taxPointDate: new Date(`${prepared.taxDate}T00:00:00Z`),
+        budgetLineId: prepared.budgetLineId,
+        chargedDepartmentId: prepared.chargedDepartmentId,
         submittedAt: ctx.now,
         currentRouteId: route.routeId,
         version: { increment: 1 },
@@ -271,8 +297,11 @@ export const submitCommand = defineCommand({
           doaVersionId: route.route.doaVersionId,
           doaRuleCode: route.route.ruleCode,
           escalatedFromRuleCode: route.route.escalatedFromRuleCode,
+          // FR-BUD-003 AC3: the budget check of this submit, for the KPI of G-4
+          budgetCheck: prepared.budget.check,
         },
       },
+      ...prepared.budget.events,
       ...route.events,
     ]
     return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: route.notifications }
@@ -343,6 +372,8 @@ export const resubmitCommand = defineCommand({
         grossSatang: totals.gross,
         vatRateBp: prepared.rateBp,
         taxPointDate: new Date(`${prepared.taxDate}T00:00:00Z`),
+        budgetLineId: prepared.budgetLineId,
+        chargedDepartmentId: prepared.chargedDepartmentId,
         submittedAt: ctx.now,
         currentRouteId: route.routeId,
         version: { increment: 1 },
@@ -364,8 +395,10 @@ export const resubmitCommand = defineCommand({
             routeId: route.routeId,
             doaVersionId: route.route.doaVersionId,
             doaRuleCode: route.route.ruleCode,
+            budgetCheck: prepared.budget.check,
           },
         },
+        ...prepared.budget.events,
         ...route.events,
       ],
       notifications: route.notifications,
@@ -401,13 +434,19 @@ export const editCommand = defineCommand({
         priceIncludesVat: input.priceIncludesVat,
         formData: input.formData as object,
         nonLowestQuoteReason: input.nonLowestQuoteReason ?? null,
+        budgetLineId: input.budgetLineId ?? null,
         version: { increment: 1 },
       },
     })
-    await writeLines(tx, ctx, request.id, input.lines)
+    const written = await writeLines(tx, ctx, request.id, input.lines)
+    if (!written.ok) return written
     const quotes = await writeQuotations(tx, ctx, request, input.quotations, await todaysRate(ctx))
     if (quotes) return quotes
-    return { ok: true, result: { requestId: request.id }, events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: request.id, data: { requestTypeCode: request.requestType.code, lines: input.lines.length } }] }
+    return {
+      ok: true,
+      result: { requestId: request.id },
+      events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: request.id, data: { requestTypeCode: request.requestType.code, lines: input.lines.length } }, ...written.events],
+    }
   },
 })
 
@@ -431,17 +470,19 @@ export const cancelCommand = defineCommand({
     const moved = move(request.status as RequestState, 'request.cancel')
     if (!moved.ok) return moved
     const closed = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'REQUEST_CANCELLED')
+    // FR-INT-009 AC1: the budget the request reserved goes back at once (§6.4)
+    const released = await releaseForRequest(tx, ctx, request.id, request.lines.map((l) => l.id))
+    if (!released.ok) return released
     let reasonCommentId: string | null = null
     if (input.reason) {
       reasonCommentId = newId()
       await tx.comment.create({ data: { id: reasonCommentId, organizationId: ctx.organizationId, subjectType: 'Request', subjectId: request.id, authorMemberId: requesterOf(ctx), body: input.reason } })
     }
-    // The budget reservation is released here once S3-05 reserves it (FR-INT-009 AC1 "งบคืนทันที")
     await tx.request.update({ where: { id: request.id }, data: { status: moved.to, cancelledAt: ctx.now, cancelReason: input.reason ?? null, version: { increment: 1 } } })
     return {
       ok: true,
       result: { requestId: request.id },
-      events: [...closed, { type: 'request.cancelled', aggregateType: 'Request', aggregateId: request.id, data: { from: request.status, reasonCommentId } }],
+      events: [...closed, { type: 'request.cancelled', aggregateType: 'Request', aggregateId: request.id, data: { from: request.status, reasonCommentId } }, ...released.events],
     }
   },
 })

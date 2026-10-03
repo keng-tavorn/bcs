@@ -25,7 +25,9 @@
     "verify": "tsx scripts/verify.ts",
     "spec:check": "node scripts/py.mjs scripts/spec_check.py spec.md",
     "inputs:check": "node scripts/py.mjs scripts/validate_inputs.py docs/inputs/BCS_inputs_v1_demo.xlsx --spec spec.md",
-    "db:migrate": "tsx scripts/db-migrate.ts"
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
+    "db:reset": "tsx --env-file-if-exists=.env scripts/db-reset.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1144.0",
@@ -54,6 +56,7 @@
     "react-dom": "19.2.8",
     "react-hook-form": "^7.89.0",
     "tailwind-merge": "^3.7.0",
+    "uqr": "0.1.3",
     "uuid": "^14.0.2",
     "yaml": "^2.9.1",
     "zod": "^4.6.5"

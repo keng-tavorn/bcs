@@ -12,7 +12,7 @@ frs:
     title: "ตั้งค่า tenant และองค์กร"
     acs:
       AC1: { owner: S1-13, demo: true, basis: named, text: "รัน pnpm db:seed ได้องค์กร DEMO ตามภาคผนวก A และรันซ้ำแล้วข้อมูลไม่ซ้ำ", note: "S1-13 seed ชีต Org และ Users · S1-13 เป็นเจ้าของเมื่ออ่าน 'องค์กร DEMO' แบบแคบ = แถวองค์กรกับโมดูล CORE (ภาคผนวก A) · ถ้าอ่านแบบกว้างว่า db:seed ใส่ภาคผนวก A ทั้งหมด (§5.4) เจ้าของจะเป็นข้อสุดท้ายที่ seed (S4-02 ถ้านับเฉพาะภาคผนวก A · D-01 ถ้านับ Demo_History ด้วย) · ข้อที่ seed เพิ่มและรันซ้ำแล้วต้องไม่ซ้ำเช่นกัน: S2-02 (TaxRate) S2-15 S3-04 S4-02 และ D-01 (Demo_History สร้างตอน seed)" }
-      AC2: { owner: S1-13, demo: true, basis: named, text: "บันทึก Organization.settings ที่ไม่ผ่าน OrgSettingsSchema ได้ VALIDATION_FAILED และค่าเดิมไม่เปลี่ยน", note: "spec ไม่ได้ระบุว่า S1 บันทึก settings ผ่าน service หรือหน้าจอใด · ชีต Settings seed ใน S2-15" }
+      AC2: { owner: NEW-12, demo: true, basis: named, text: "บันทึก Organization.settings ที่ไม่ผ่าน OrgSettingsSchema ได้ VALIDATION_FAILED และค่าเดิมไม่เปลี่ยน", note: "NEW-12 ระบุ AC นี้ตรง ๆ ในเสร็จเมื่อ จึงเป็นเจ้าของแทน S1-13 ที่ระบุทั้ง FR (กฎ named ข้อย่อยแรก) · บันทึกผ่าน command organization.save_settings ทีละส่วนที่ §2.4 มีสิทธิ์รองรับ (businessCalendar admin.calendar · numbering admin.numbering) · ทำและติ๊กพร้อม S1-13" }
       AC3: { owner: S1-13, demo: true, basis: named, text: "เทสต์ INV-TEN-01 และ INV-TEN-02 ผ่าน โดยนับ model จาก DMMF เอง", note: "เทสต์ INV-TEN-01 สร้างตั้งแต่ S1-06" }
   FR-PLT-002:
     title: "โครงหน้าจอ เมนู ภาษา และวันที่ไทย"

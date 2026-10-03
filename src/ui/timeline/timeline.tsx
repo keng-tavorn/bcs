@@ -77,12 +77,12 @@ export function Timeline({ items, label }: { items: readonly TimelineItem[]; lab
               {item.waiting ? <p className="font-medium text-warn">{item.waiting}</p> : null}
               {item.doaRef ? (
                 <p className="mt-1.5">
-                  <span className="inline-block rounded-sm border-2 border-primary px-1.5 py-0.5 text-sm font-semibold text-primary">
+                  <span className="inline-block rounded-sm border-2 border-primary px-1.5 py-0.5 text-base md:text-sm font-semibold text-primary">
                     {item.doaRef}
                   </span>
                 </p>
               ) : null}
-              <p className="mt-1 text-sm text-ink-muted" aria-hidden="true">
+              <p className="mt-1 text-base md:text-sm text-ink-muted" aria-hidden="true">
                 {item.statusLabel}
               </p>
             </div>

@@ -40,6 +40,7 @@ model Organization {
   createdAt                   DateTime           @default(now()) @db.Timestamptz(6)
   updatedAt                   DateTime           @updatedAt @db.Timestamptz(6)
 
+  /// Same-organization rule enforced by trigger Organization_signatory_same_org (a composite key would stop Prisma generating ids)
   contractSignatory  Member?             @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   members            Member[]            @relation("OrganizationMembers")
   modules            OrgModule[]
@@ -50,6 +51,8 @@ model Organization {
   files              FileObject[]
   fileLinks          FileLink[]
   notifications      Notification[]
+  invitations        MemberInvitation[]
+  comments           Comment[]
   breakGlassSessions BreakGlassSession[]
 }
 
@@ -95,7 +98,7 @@ enum MemberStatus {
 model Member {
   id                  String       @id @default(uuid(7)) @db.Uuid
   organizationId      String       @db.Uuid
-  /// Better Auth user id (identity only); null while INVITED. FK added with the auth tables (S1-07).
+  /// Better Auth user id (identity only — membership and roles live in our tables); null while INVITED
   userId              String?      @db.Uuid
   displayNameTh       String
   displayNameEn       String?
@@ -114,12 +117,19 @@ model Member {
   updatedAt           DateTime     @updatedAt @db.Timestamptz(6)
 
   organization         Organization     @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user                 User?            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   signatoryFor         Organization[]   @relation("OrganizationContractSignatory")
+  invitations          MemberInvitation[] @relation("InvitationMember")
+  invitationsSent      MemberInvitation[] @relation("InvitationSender")
   roleAssignments      RoleAssignment[] @relation("MemberRoles")
   rolesGranted         RoleAssignment[] @relation("RoleGrantedBy")
   notifications        Notification[]
   uploadedFiles        FileObject[]
+  comments             Comment[]          @relation("CommentAuthor")
+  commentsRetracted    Comment[]          @relation("CommentRetractedBy")
 
+  /// Target of same-tenant foreign keys (organizationId, memberId): Postgres refuses links across organizations
+  @@unique([organizationId, id])
   @@unique([organizationId, userId])
   @@unique([organizationId, email])
   @@unique([organizationId, employeeCode])
@@ -149,7 +159,7 @@ model RoleAssignment {
   role                     RoleCode
   /// FK to Department added in S2-01
   scopeDepartmentId        String?   @db.Uuid
-  /// Exactly one of grantedById / grantedByPlatformAdminId is set (bootstrap ORG_ADMIN is granted by PLATFORM_ADMIN)
+  /// At most one of grantedById / grantedByPlatformAdminId is set (bootstrap ORG_ADMIN by PLATFORM_ADMIN; neither = demo seed)
   grantedById              String?   @db.Uuid
   grantedByPlatformAdminId String?   @db.Uuid
   grantedAt                DateTime  @db.Timestamptz(6)
@@ -158,8 +168,8 @@ model RoleAssignment {
   updatedAt                DateTime  @updatedAt @db.Timestamptz(6)
 
   organization           Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  member                 Member         @relation("MemberRoles", fields: [memberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  grantedBy              Member?        @relation("RoleGrantedBy", fields: [grantedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member                 Member         @relation("MemberRoles", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy              Member?        @relation("RoleGrantedBy", fields: [organizationId, grantedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   grantedByPlatformAdmin PlatformAdmin? @relation(fields: [grantedByPlatformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, memberId, role], map: "role_assignment_active_unique", where: raw("\"revokedAt\" IS NULL"))
@@ -169,13 +179,14 @@ model RoleAssignment {
 /// BCS team account (global, not a Member of any organization — spec §6.1)
 model PlatformAdmin {
   id          String   @id @default(uuid(7)) @db.Uuid
-  /// Better Auth user id; FK added with the auth tables (S1-07)
+  /// Better Auth user id
   userId      String?  @unique @db.Uuid
   displayName String
   active      Boolean  @default(true)
   createdAt   DateTime @default(now()) @db.Timestamptz(6)
   updatedAt   DateTime @updatedAt @db.Timestamptz(6)
 
+  user               User?               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   moduleChanges      OrgModule[]
   rolesGranted       RoleAssignment[]
   breakGlassSessions BreakGlassSession[]
@@ -261,17 +272,23 @@ model Outbox {
   eventName      String
   payload        Json
   sentAt         DateTime? @db.Timestamptz(6)
+  /// Refusals: sends Inngest refused for this message alone; OUTBOX_MAX_ATTEMPTS of them make the row dead (deadAt).
+  /// Tries while Inngest was unavailable or did not answer are not counted (see lastError, nextAttemptAt).
   attempts       Int       @default(0)
   lastError      String?
   /// History created by the demo seed is never dispatched (no reminders or LINE pushes for the past)
   suppressed     Boolean   @default(false)
+  /// Earliest time the sweeper may retry this row (exponential backoff); null = due now
+  nextAttemptAt  DateTime? @db.Timestamptz(6)
+  /// Set when the row used up its attempts: no more retries, an alert is raised (NFR-OBS-02)
+  deadAt         DateTime? @db.Timestamptz(6)
   createdAt      DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime  @updatedAt @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([organizationId])
-  @@index([sentAt, createdAt])
+  @@index([nextAttemptAt, createdAt], map: "outbox_due_idx", where: raw("\"sentAt\" IS NULL AND \"deadAt\" IS NULL AND NOT \"suppressed\""))
 }
 
 /// Idempotency record of every command (INV-PLT-01). Insert-only for the app role; purged by the migrator.
@@ -320,9 +337,11 @@ model FileObject {
   updatedAt      DateTime       @updatedAt @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  uploadedBy   Member?      @relation(fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  uploadedBy   Member?      @relation(fields: [organizationId, uploadedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   links        FileLink[]
 
+  /// Target of same-tenant foreign keys (organizationId, fileId)
+  @@unique([organizationId, id])
   @@index([organizationId])
 }
 
@@ -350,7 +369,7 @@ model FileLink {
   updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  file         FileObject   @relation(fields: [fileId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject   @relation(fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([organizationId, subjectType, subjectId])
 }
@@ -394,8 +413,158 @@ model Notification {
   updatedAt         DateTime             @updatedAt @db.Timestamptz(6)
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  recipient    Member       @relation(fields: [recipientMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recipient    Member       @relation(fields: [organizationId, recipientMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, dedupeKey])
   @@index([organizationId, recipientMemberId, status])
+}
+
+// ---------- Identity (Better Auth, S1-07) ----------
+// Global tables (spec §4.8): Better Auth is identity only; organization membership and permissions live in
+// Member/RoleAssignment. Shapes follow `auth generate` for better-auth 1.7.7 with BCS conventions
+// (uuid v7 ids via advanced.database.generateId, timestamptz).
+
+model User {
+  id               String      @id @db.Uuid
+  name             String
+  email            String      @unique
+  emailVerified    Boolean     @default(false)
+  image            String?
+  twoFactorEnabled Boolean?    @default(false)
+  createdAt        DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime    @updatedAt @db.Timestamptz(6)
+
+  sessions       Session[]
+  accounts       Account[]
+  twofactors     TwoFactor[]
+  members        Member[]
+  platformAdmins PlatformAdmin[]
+}
+
+model Session {
+  id           String    @id @db.Uuid
+  expiresAt    DateTime  @db.Timestamptz(6)
+  token        String    @unique
+  ipAddress    String?
+  userAgent    String?
+  userId       String    @db.Uuid
+  /// Idle timeout tracking (FR-AUTH-003 AC1: web 30 min, LIFF 15 min)
+  lastActiveAt DateTime? @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt    DateTime  @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Account {
+  id                    String    @id @db.Uuid
+  accountId             String
+  providerId            String
+  userId                String    @db.Uuid
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime? @db.Timestamptz(6)
+  refreshTokenExpiresAt DateTime? @db.Timestamptz(6)
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Verification {
+  id         String   @id @db.Uuid
+  identifier String
+  value      String
+  expiresAt  DateTime @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(6)
+
+  @@index([identifier])
+}
+
+model TwoFactor {
+  id                      String    @id @db.Uuid
+  secret                  String
+  backupCodes             String
+  userId                  String    @db.Uuid
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime? @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([secret])
+  @@index([userId])
+}
+
+model RateLimit {
+  id          String @id @db.Uuid
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+}
+
+/// Login attempts for the lockout rule (FR-AUTH-001 AC3: 5 failures in 15 minutes per account or per IP).
+/// Global, like the identity tables. Stores the normalized email, never the password.
+model AuthAttempt {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  email     String
+  ip        String
+  success   Boolean
+  /// Reserved as a failure while its password or code is being checked (NFR-SEC-05): the per-account count includes
+  /// it, the per-IP count waits until it is settled
+  pending   Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([email, createdAt])
+  @@index([ip, createdAt])
+}
+
+/// One-time invitation link (FR-AUTH-001 AC1: valid 72 hours, used once). Only the sha256 of the token is stored.
+model MemberInvitation {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  memberId       String    @db.Uuid
+  tokenHash      String    @unique
+  expiresAt      DateTime  @db.Timestamptz(6)
+  usedAt         DateTime? @db.Timestamptz(6)
+  revokedAt      DateTime? @db.Timestamptz(6)
+  createdById    String?   @db.Uuid
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("InvitationMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member?      @relation("InvitationSender", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([organizationId, memberId])
+}
+
+// ---------- Comments (spec §6.2, pulled forward from S2: free-text reasons stay out of Event.data, §4.5) ----------
+
+/// Immutable free text attached to any subject (reasons, comments). Retracting hides the body (comment.retracted).
+model Comment {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @db.Uuid
+  subjectType         String
+  subjectId           String    @db.Uuid
+  authorMemberId      String?   @db.Uuid
+  body                String
+  retractedAt         DateTime? @db.Timestamptz(6)
+  retractedByMemberId String?   @db.Uuid
+  createdAt           DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  author       Member?      @relation("CommentAuthor", fields: [organizationId, authorMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  retractedBy  Member?      @relation("CommentRetractedBy", fields: [organizationId, retractedByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([organizationId, subjectType, subjectId])
 }

@@ -10,6 +10,8 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'FileObject',
   'FileLink',
   'Notification',
+  'MemberInvitation',
+  'Comment',
 ])
 
 // Have an organizationId column but are platform tables reached only through platform code (spec §4.8).

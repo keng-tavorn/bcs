@@ -13,7 +13,8 @@ export interface EventDefinition {
   readonly requiresDoaRef: boolean
 }
 
-const TYPE_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/
+// The verb part may start with a digit: the §10.2 catalog has auth.2fa_enabled and auth.2fa_reset
+const TYPE_PATTERN = /^[a-z][a-z0-9_]*\.[a-z0-9][a-z0-9_]*$/
 const definitions = new Map<string, EventDefinition>()
 
 export function defineEvents(

@@ -1,9 +1,9 @@
+import 'dotenv/config'
 import { defineConfig, devices } from '@playwright/test'
+import { E2E_BASE_URL as BASE_URL, E2E_PORT as PORT, e2eEnv } from './tests/support/e2e-env'
 
-// e2e runs against a production build on its own port and build folder so it never clashes with the
-// shared `next dev` on :3000 (plan: runtime partitioning). Data/env for e2e is wired in later items.
-const PORT = Number(process.env.E2E_PORT ?? 3100)
-const BASE_URL = `http://localhost:${PORT}`
+// e2e runs against a production build on its own port, build folder and database (bcs_e2e, reset and seeded by
+// tests/e2e/prepare-db.ts before the server starts) so it never clashes with the shared `next dev` on :3000.
 
 export default defineConfig({
   testDir: 'tests/e2e',
@@ -27,10 +27,10 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm build && pnpm start -p ${PORT}`,
+    command: `pnpm exec tsx --env-file-if-exists=.env tests/e2e/prepare-db.ts && pnpm build && pnpm start -p ${PORT}`,
     url: BASE_URL,
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 600_000,
-    env: { NEXT_DIST_DIR: '.next-e2e' },
+    env: e2eEnv(),
   },
 })

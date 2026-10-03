@@ -1,57 +1,66 @@
-// Validates docs/feature-status.yaml against spec.md (spec §15.5 gate 10, §15.6).
+// Validates docs/feature-status.yaml against spec.md and the tests (spec §15.5 gate 10, §15.6).
 // - every tier-1 FR in spec §8 has an entry and every entry is a real FR
-// - status/step are valid; done/verified/live need evidence files that exist; verified/live need verifiedBy
-import { existsSync, readFileSync } from 'node:fs'
+// - status is valid and step is one of the steps on the FR's "ขั้น" line
+// - evidence is test files under tests/, at least one tagged [FR-xxx-nnn/ACn]
+// - done/verified/live: every AC of the FR has a tagged test, and (with --reports) that test passed in this run
+// - planned: no AC of the FR has a test yet (otherwise the status is out of date)
+// - verified/live: verifiedBy names the real users who tried it
+// Usage: tsx scripts/check-feature-status.ts [--reports=<vitest json>,<vitest json>]   (pnpm verify passes its reports)
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { parse } from 'yaml'
+import { acTags, featureStatusProblems, frsFromSpec, testTitleTags, type FeatureDoc, type TestIndex } from './lib/feature-status'
+import type { VitestJson } from './lib/verify-gates'
 
 const ROOT = path.resolve(import.meta.dirname, '..')
-const STATUSES = new Set(['planned', 'in_progress', 'done', 'verified', 'live'])
+const abs = (p: string) => path.join(ROOT, p)
 
-interface Feature {
-  status?: string
-  step?: string
-  evidence?: string[]
-  verifiedBy?: string | null
-  notes?: string
-}
-
-const spec = readFileSync(path.join(ROOT, 'spec.md'), 'utf8')
-const definedFrs = new Set<string>()
-let inCode = false
-for (const line of spec.split(/\r?\n/)) {
-  if (line.trim().startsWith('```')) {
-    inCode = !inCode
-    continue
+function testIndex(reportFiles: string[]): TestIndex {
+  const files = new Map<string, string[]>()
+  for (const d of readdirSync(abs('tests'), { recursive: true, withFileTypes: true })) {
+    if (!d.isFile()) continue
+    const file = path.relative(ROOT, path.join(d.parentPath, d.name)).split(path.sep).join('/')
+    if (!/\.(ts|tsx)$/.test(file)) continue
+    for (const key of new Set(testTitleTags(readFileSync(abs(file), 'utf8')))) files.set(key, [...(files.get(key) ?? []), file])
   }
-  const m = !inCode && /^#{2,5} (FR-[A-Z0-9]+-\d{3})\b/.exec(line)
-  if (m) definedFrs.add(m[1]!)
-}
-const tier1 = [...definedFrs].filter((id) => /^FR-[A-Z0-9]+-0\d\d$/.test(id))
-
-const doc = parse(readFileSync(path.join(ROOT, 'docs/feature-status.yaml'), 'utf8')) as {
-  updatedAt?: string
-  features?: Record<string, Feature>
-}
-const problems: string[] = []
-if (!/^\d{4}-\d{2}-\d{2}$/.test(String(doc.updatedAt ?? ''))) problems.push('updatedAt ต้องเป็นวันที่ YYYY-MM-DD')
-const features = doc.features ?? {}
-
-for (const id of tier1) if (!features[id]) problems.push(`${id} ไม่มีใน feature-status`)
-for (const [id, f] of Object.entries(features)) {
-  if (!definedFrs.has(id)) problems.push(`${id} ไม่มีใน spec.md`)
-  if (!STATUSES.has(f.status ?? '')) problems.push(`${id}: status "${f.status}" ไม่ถูกต้อง`)
-  if (!/^S([1-9]|1[0-5])$/.test(f.step ?? '')) problems.push(`${id}: step "${f.step}" ไม่ถูกต้อง`)
-  if (['done', 'verified', 'live'].includes(f.status ?? '')) {
-    if (!f.evidence?.length) problems.push(`${id}: status ${f.status} ต้องมี evidence`)
-    for (const e of f.evidence ?? []) if (!existsSync(path.join(ROOT, e))) problems.push(`${id}: evidence ${e} ไม่มีอยู่จริง`)
+  if (reportFiles.length === 0) return { files, passed: null }
+  const passed = new Set<string>()
+  for (const reportFile of reportFiles) {
+    const report = JSON.parse(readFileSync(reportFile, 'utf8')) as VitestJson
+    for (const r of report.testResults) for (const a of r.assertionResults) if (a.status === 'passed') for (const key of acTags(a.fullName)) passed.add(key)
   }
-  if (['verified', 'live'].includes(f.status ?? '') && !f.verifiedBy) problems.push(`${id}: status ${f.status} ต้องระบุ verifiedBy (§16.2 ข้อ 5)`)
+  return { files, passed }
 }
+
+const reportsArg = process.argv.find((a) => a.startsWith('--reports='))
+const reportFiles = (reportsArg?.slice('--reports='.length).split(',') ?? []).map((s) => s.trim()).filter(Boolean)
+for (const f of reportFiles) {
+  if (!existsSync(f)) {
+    console.error(`ไม่พบรายงาน ${f}`)
+    process.exit(1)
+  }
+}
+
+const frs = frsFromSpec(readFileSync(abs('spec.md'), 'utf8'))
+const doc = parse(readFileSync(abs('docs/feature-status.yaml'), 'utf8')) as FeatureDoc
+const tests = testIndex(reportFiles)
+const problems = featureStatusProblems({
+  frs,
+  doc,
+  tests,
+  fs: {
+    kind: (p) => (existsSync(abs(p)) ? (statSync(abs(p)).isDirectory() ? 'dir' : 'file') : 'missing'),
+    text: (p) => readFileSync(abs(p), 'utf8'),
+  },
+})
 
 if (problems.length) {
   console.error(problems.join('\n'))
   process.exit(1)
 }
+const features = doc.features ?? {}
 const count = (s: string) => Object.values(features).filter((f) => f.status === s).length
-console.log(`${Object.keys(features).length} FR · done ${count('done')} · in_progress ${count('in_progress')} · planned ${count('planned')}`)
+const passNote = tests.passed ? 'ตรวจกับผลเทสต์รอบนี้' : 'ไม่ได้ตรวจว่าเทสต์ผ่าน (ไม่มี --reports)'
+console.log(
+  `${Object.keys(features).length} FR · done ${count('done')} · verified ${count('verified')} · live ${count('live')} · in_progress ${count('in_progress')} · planned ${count('planned')} · ${passNote}`,
+)

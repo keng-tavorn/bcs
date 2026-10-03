@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import { expect, test } from '@playwright/test'
 import { config } from 'dotenv'
 import { s3FromEnv } from '../../scripts/storage-init'
+import { expect, test } from './fixtures'
 
 config({ path: '.env', quiet: true })
 const bucket = process.env.S3_BUCKET ?? 'bcs-local'

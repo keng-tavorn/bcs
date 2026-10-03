@@ -1,0 +1,11 @@
+{
+  "comment": "sha256 ของ prisma/migrations/<ชื่อ>/migration.sql · เพิ่มรายการด้วย pnpm exec tsx scripts/verify-db.ts lock · รายการที่ commit แล้วห้ามแก้หรือลบ (§17.3)",
+  "migrations": {
+    "20261002024508_s1_platform": "c24120ed1120032ea4660a702ed72cc9b14df6a9ba76b2782cd850c0c293dc27",
+    "20261002031041_s1_auth": "d6977066d857403b42c74d88feb02e351a3a58e8e233241f25b3357c85ae1701",
+    "20261002031600_s1_comment": "9ac6dafb58147fc025b2470e99215ca0fbf2e6e3635447f1183ef48753a3b0d8",
+    "20261002033801_s1_tenant_integrity": "f8b56079cbcdfa3187d0da29d365c3835e41d61f911434247e9e2f57366006d9",
+    "20261002034641_s1_signatory_same_org": "161d4062474e2a5769ca4a34d057fd4b769d4a645c462df5fed44207117aeeb5",
+    "20261003090000_s1_auth_attempt_pending": "93d4630d77cff7a2026f4505af7e337618070bcace2ee24b9b2851c192d2dcde"
+  }
+}

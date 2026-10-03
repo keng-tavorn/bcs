@@ -18,33 +18,35 @@ export interface NotificationDraft {
   readonly subjectId?: string
 }
 
+/**
+ * Inserts the notifications whose dedupeKey is new for the organization and returns outbox drafts for the
+ * IMMEDIATE ones actually inserted. A dedupeKey that already exists, or that a concurrent command is
+ * inserting right now, is skipped (INSERT … ON CONFLICT DO NOTHING) instead of failing the command.
+ */
 export async function createNotifications(
   tx: TenantTx,
   organizationId: string,
   drafts: readonly NotificationDraft[],
 ): Promise<OutboxDraft[]> {
   if (drafts.length === 0) return []
-  const unique = [...new Map(drafts.map((d) => [d.dedupeKey, d])).values()]
-  const existing = await tx.notification.findMany({
-    where: { dedupeKey: { in: unique.map((d) => d.dedupeKey) } },
-    select: { dedupeKey: true },
-  })
-  const seen = new Set(existing.map((e) => e.dedupeKey))
-  const rows = unique
-    .filter((d) => !seen.has(d.dedupeKey))
-    .map((d) => ({
-      id: newId(),
-      organizationId,
-      recipientMemberId: d.recipientMemberId,
-      templateKey: d.templateKey,
-      data: toJsonSafe(d.data) as object,
-      urgency: d.urgency,
-      dedupeKey: d.dedupeKey,
-      ...(d.subjectType ? { subjectType: d.subjectType } : {}),
-      ...(d.subjectId ? { subjectId: d.subjectId } : {}),
-    }))
-  if (rows.length) await tx.notification.createMany({ data: rows })
+  // One row per dedupeKey, inserted in key order so concurrent commands wait on each other's keys in one order.
+  const unique = [...new Map(drafts.map((d) => [d.dedupeKey, d])).values()].sort((a, b) =>
+    a.dedupeKey < b.dedupeKey ? -1 : a.dedupeKey > b.dedupeKey ? 1 : 0,
+  )
+  const rows = unique.map((d) => ({
+    id: newId(),
+    organizationId,
+    recipientMemberId: d.recipientMemberId,
+    templateKey: d.templateKey,
+    data: toJsonSafe(d.data) as object,
+    urgency: d.urgency,
+    dedupeKey: d.dedupeKey,
+    ...(d.subjectType ? { subjectType: d.subjectType } : {}),
+    ...(d.subjectId ? { subjectId: d.subjectId } : {}),
+  }))
+  const inserted = await tx.notification.createManyAndReturn({ data: rows, skipDuplicates: true, select: { id: true } })
+  const insertedIds = new Set(inserted.map((r) => r.id))
   return rows
-    .filter((r) => r.urgency === 'IMMEDIATE')
+    .filter((r) => insertedIds.has(r.id) && r.urgency === 'IMMEDIATE')
     .map((r) => ({ eventName: 'bcs/notification.requested', payload: { notificationId: r.id, organizationId } }))
 }

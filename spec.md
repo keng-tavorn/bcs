@@ -3155,10 +3155,10 @@ features:
 - [x] **S3-01** `[demo]` migration ของงบ + CHECK §6.3 ข้อ 3 — เสร็จ 2026-10-03 · c3c54f7
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S3-02** `[demo]` `core/budget` + property test
+- [x] **S3-02** `[demo]` `core/budget` + property test — เสร็จ 2026-10-03 · 42c6ead
   - เสร็จเมื่อ: ทุกเคสใน budget.yaml (GC-BUD-01 ถึง GC-BUD-06) และ property test อย่างน้อย 1,000 ลำดับผ่าน
   - แยกงาน: ทำเอง เพราะ invariant ต้องคิดรวมทั้งก้อน
-- [ ] **S3-03** `[demo]` service งบพร้อมล็อกแถว
+- [x] **S3-03** `[demo]` service งบพร้อมล็อกแถว — เสร็จ 2026-10-03 · ed20996
   - เสร็จเมื่อ: GC-BUD-07 และเทสต์ INV-BUD-05 ผ่านกับ Postgres จริง
   - แยกงาน: ทำเองได้
 - [ ] **S3-04** `[demo]` นำเข้างบจาก Excel (ตรวจรายแถว กันนำเข้าซ้ำ) และ seed ชีต Budget

@@ -1,0 +1,48 @@
+{
+  "teamName": "BCS team",
+  "twoFactorRequired": "The BCS team must set up two-step verification before switching customer modules. Set up the authenticator app below.",
+  "orgStatus": {
+    "ACTIVE": "Active",
+    "SUSPENDED": "Suspended"
+  },
+  "tenants": {
+    "title": "Customer organizations",
+    "intro": "The BCS team sees only the name, code and status of each organization, never the customer's business data.",
+    "forbidden": "This page is for active members of the BCS team.",
+    "empty": "There are no customer organizations yet. A new organization is created when its contract starts, following the BCS team guide, and then appears here.",
+    "manageModules": "Manage modules of {name}"
+  },
+  "modules": {
+    "titleShort": "Customer modules",
+    "title": "Modules of {name}",
+    "intro": "Switch modules only as the contract says. Every change needs a contract reference and a reason; the organization admins will be told, and switching off deletes no data.",
+    "back": "Back to customer organizations",
+    "coreAlwaysOn": "Core is always on and cannot be switched off.",
+    "openEnable": "Switch on {name}",
+    "openDisable": "Switch off {name}",
+    "enableHint": "The module's menus appear at once for members of this organization who may use them.",
+    "disableHint": "The module's menus hide and its commands are refused. Existing data stays.",
+    "contractRef": "Contract reference",
+    "reason": "Reason (kept in the history)",
+    "enableSubmit": "Confirm: switch on {name}",
+    "disableSubmit": "Confirm: switch off {name}",
+    "enabled": "{name} switched on. The organization admins will be told.",
+    "disabled": "{name} switched off. The organization admins will be told.",
+    "errors": {
+      "CONTRACT_REF": "Enter the contract reference.",
+      "REASON": "Enter a reason of at least 3 characters.",
+      "REQUIRES": "Switch on {modules} first, then this module.",
+      "REQUIRED_BY": "These modules still use this one: {modules}. Switch them off first.",
+      "OPEN_DOCUMENTS": "Documents are still open in this module: {documents}. The customer must close them first.",
+      "NO_CHANGE": "The module is already in this state. Reload the page to see the latest state.",
+      "CORE_ALWAYS_ON": "Core cannot be switched off.",
+      "INPUT": "Some fields are missing or wrong. Check them and try again.",
+      "FORBIDDEN": "This page is for active members of the BCS team. Sign in again and try again.",
+      "NOT_FOUND": "This organization was not found. Go back to customer organizations and choose again.",
+      "FAILED": "This could not be saved. Try again.",
+      "UNAUTHENTICATED": "Your session has ended. Sign in again, then do this again.",
+      "INTERNAL": "Something went wrong (reference {requestId}). Try again."
+    },
+    "code": "code {code}"
+  }
+}

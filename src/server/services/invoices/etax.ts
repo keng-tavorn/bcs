@@ -18,8 +18,9 @@ import { defineCommand, runCommand, type CommandOutcome } from '../_pipeline'
 // e-Tax system sends the XML itself. The XML is found among the PDF's embedded files by its content, not its name;
 // the number, date, seller tax id and branch, amount before VAT, VAT and total are read and offered for FINANCE to
 // confirm. A seller tax id that is not the PO's supplier, or no readable XML, is reported with the reason so the form
-// is filled by hand. The file is kept (the confirmation links it as ETAX); what is read still goes through
-// BR-IVC-01 to BR-IVC-04 when the invoice is recorded.
+// is filled by hand. The file is kept under a storage key that names the PO it was read for (invoiceFileKey), and
+// what the invoice says it came from is decided again from the stored file when it is recorded (./source.ts) — never
+// on the word of the browser; what is read still goes through BR-IVC-01 to BR-IVC-04 when the invoice is recorded.
 
 export interface EtaxPrefill {
   readonly invoiceNo: string
@@ -125,21 +126,18 @@ function looksLikeXml(bytes: Uint8Array): boolean {
   return head.startsWith('<')
 }
 
-/** FR-P2P-008 AC4: FINANCE uploads the e-Tax file of a PO's invoice; returns what to fill in and any problem */
-export async function readEtaxFile(ctx: Ctx, input: { poId: string; fileName: string; content: Uint8Array }): Promise<Result<EtaxReading>> {
-  const db = forTenant(ctx.organizationId)
-  const allowed = await db.$transaction((tx) => authorize(tx, ctx, 'invoiceConfirmation.record'))
-  if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
-  if (allowed.data.kind !== 'member') return err('FORBIDDEN', 'members only')
-  const po = await db.purchaseOrder.findFirst({ where: { id: input.poId }, select: { supplier: { select: { taxId: true, branchCode: true } } } })
-  if (!po) return err('NOT_FOUND', 'purchase order not found')
-  if (input.content.length === 0 || input.content.length > MAX_UPLOAD_BYTES) return err('VALIDATION_FAILED', 'the file is empty or too large', { field: 'file', reason: input.content.length ? 'TOO_LARGE' : 'EMPTY' })
-  const isPdf = new TextDecoder('latin1').decode(input.content.subarray(0, 5)) === '%PDF-'
-  if (!isPdf && !looksLikeXml(input.content)) return err('VALIDATION_FAILED', 'an e-Tax file is a PDF or an XML file', { field: 'file', reason: 'TYPE_NOT_ALLOWED' })
+/** What a file's bytes say, nothing else: an e-Tax invoice's values or why there are none */
+export type EtaxContentReading = { readonly prefill: EtaxPrefill } | { readonly problem: Exclude<EtaxProblem, 'TAX_ID_MISMATCH'> }
 
-  // The XML: the file itself, or the embedded file of the PDF that reads as an e-Tax invoice
-  const candidates = isPdf ? embeddedFiles(input.content) : [input.content]
-  let reading: ReturnType<typeof readEtaxXml> = { problem: isPdf && candidates.length === 0 ? 'NOT_AN_ETAX_INVOICE' : 'XML_UNREADABLE' }
+/**
+ * Reads a PDF or an XML file (null for any other file): the XML is the file itself, or the embedded file of the PDF
+ * that reads as an e-Tax invoice. Pure: the same bytes always give the same reading, at upload and when recorded.
+ */
+export function readEtaxContent(content: Uint8Array): { readonly type: 'PDF' | 'XML'; readonly reading: EtaxContentReading } | null {
+  const isPdf = new TextDecoder('latin1').decode(content.subarray(0, 5)) === '%PDF-'
+  if (!isPdf && !looksLikeXml(content)) return null
+  const candidates = isPdf ? embeddedFiles(content) : [content]
+  let reading: EtaxContentReading = { problem: isPdf && candidates.length === 0 ? 'NOT_AN_ETAX_INVOICE' : 'XML_UNREADABLE' }
   for (const candidate of candidates) {
     const result = readEtaxXml(new TextDecoder('utf-8').decode(candidate))
     if ('prefill' in result) {
@@ -149,9 +147,35 @@ export async function readEtaxFile(ctx: Ctx, input: { poId: string; fileName: st
     // keep the most telling problem: a readable XML that is not an invoice beats a broken one
     if (!('prefill' in reading) && reading.problem === 'XML_UNREADABLE') reading = result
   }
+  return { type: isPdf ? 'PDF' : 'XML', reading }
+}
 
+/**
+ * The storage key of a file FINANCE uploads for the invoices of one PO. The PO is part of the key, which the server
+ * chooses and never changes, so the file stays bound to the PO it was read for (BR-IVC-05, ./source.ts).
+ */
+export function invoiceFileKey(organizationId: string, poId: string): string {
+  return `${invoiceFilePrefix(organizationId, poId)}${newId()}`
+}
+
+export const invoiceFilePrefix = (organizationId: string, poId: string): string => `org/${organizationId}/invoice-files/${poId}/`
+
+/** FR-P2P-008 AC4: FINANCE uploads the e-Tax file of a PO's invoice; returns what to fill in and any problem */
+export async function readEtaxFile(ctx: Ctx, input: { poId: string; fileName: string; content: Uint8Array }): Promise<Result<EtaxReading>> {
+  const db = forTenant(ctx.organizationId)
+  const allowed = await db.$transaction((tx) => authorize(tx, ctx, 'invoiceConfirmation.record'))
+  if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
+  if (allowed.data.kind !== 'member') return err('FORBIDDEN', 'members only')
+  const po = await db.purchaseOrder.findFirst({ where: { id: input.poId }, select: { id: true, supplier: { select: { taxId: true, branchCode: true } } } })
+  if (!po) return err('NOT_FOUND', 'purchase order not found')
+  if (input.content.length === 0 || input.content.length > MAX_UPLOAD_BYTES) return err('VALIDATION_FAILED', 'the file is empty or too large', { field: 'file', reason: input.content.length ? 'TOO_LARGE' : 'EMPTY' })
+  const read = readEtaxContent(input.content)
+  if (!read) return err('VALIDATION_FAILED', 'an e-Tax file is a PDF or an XML file', { field: 'file', reason: 'TYPE_NOT_ALLOWED' })
+  const { reading } = read
+
+  const isPdf = read.type === 'PDF'
   const mime = isPdf ? PDF_MIME : XML_MIME
-  const key = `org/${ctx.organizationId}/${newId()}`
+  const key = invoiceFileKey(ctx.organizationId, po.id)
   await putObject(key, input.content, mime)
   const sha256 = createHash('sha256').update(input.content).digest('hex')
   const fileName = input.fileName.replace(/[\\/\u0000-\u001f]/g, ' ').trim().slice(0, 200) || (isPdf ? 'etax.pdf' : 'etax.xml')

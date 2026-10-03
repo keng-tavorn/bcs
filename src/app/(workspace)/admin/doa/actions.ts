@@ -6,17 +6,19 @@ import { systemClock } from '@/lib/clock'
 import { DOA_YAML_MAX_CHARS, REASON_MAX_LENGTH } from '@/lib/constants'
 import { ctxFromSession } from '@/server/auth/session'
 import { importDoaDraft, submitDoaVersion } from '@/server/services/doa'
+import { draftDoaCopy, type DraftCopyInput } from '@/server/services/doa/editor'
 import { submitInitialPackage } from '@/server/services/doa/initial-package'
 import { getDoaOverviewForAdmin } from '@/server/services/doa/view'
+import type { SaveDoaDraftResult } from '@/ui/admin-doa/editor'
 import type { ImportDoaResult } from '@/ui/admin-doa/import-form'
 import type { PackageHolder } from '@/ui/admin-doa/initial-package-form'
 import type { SubmitDoaResult } from '@/ui/admin-doa/submit-panel'
 import { toActionFailure, type ActionFailure } from '@/ui/admin-org/outcome'
 import { getSession } from '../../../_lib/session'
 
-// Browser-facing adapters for /admin/doa (FR-DOA-001 AC2, FR-DOA-002 AC1 and AC3). Each checks the session; the
-// services check admin.doa.draft or admin.doa.submitForPublish, run the full lint and every rule of BR-DOA-08/12/19 and
-// record the events (BR-AUTH-05). The idempotencyKey comes from the form (spec §4.3).
+// Browser-facing adapters for /admin/doa (FR-DOA-001 AC1–AC2, FR-DOA-002 AC1 and AC3, FR-DOA-009 AC3). Each checks the
+// session; the services check admin.doa.draft or admin.doa.submitForPublish, run the full lint and every rule of
+// BR-DOA-08/12/19 and record the events (BR-AUTH-05). The idempotencyKey comes from the form (spec §4.3).
 
 const NO_SESSION: ActionFailure = { ok: false, code: 'UNAUTHENTICATED' }
 const BAD_KEY: ActionFailure = { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
@@ -27,6 +29,11 @@ const submissionKey = z.uuid()
 const Text = z.string().max(REASON_MAX_LENGTH * 2)
 const Acknowledged = z.array(z.string().max(200)).max(100)
 const Holders = z.array(z.object({ positionCode: Text, departmentId: Text, memberId: Text })).max(500)
+/**
+ * The drafter's tick of the boundary table the page showed (FR-DOA-009 AC3), or null when the page showed none: the
+ * service asks for the tick whenever the version has a table, and refuses the send without it
+ */
+const BoundaryTick = z.boolean().nullable()
 
 async function currentCtx() {
   return ctxFromSession(await getSession(), 'WEB', systemClock.now())
@@ -52,14 +59,26 @@ export async function importDoaAction(formData: FormData): Promise<ImportDoaResu
   return { ok: true, versions }
 }
 
-export async function submitDoaAction(versionId: string, acknowledgedWarnings: readonly string[], idempotencyKey: string): Promise<SubmitDoaResult> {
+/** The editor's table saved as a new draft (FR-DOA-001 AC1); the service checks every value and runs the lint */
+export async function saveDoaDraftAction(input: DraftCopyInput, idempotencyKey: string): Promise<SaveDoaDraftResult> {
+  const ctx = await currentCtx()
+  if (!ctx) return NO_SESSION
+  if (!submissionKey.safeParse(idempotencyKey).success) return BAD_KEY
+  const result = await draftDoaCopy(ctx, input, { idempotencyKey })
+  if (!result.ok) return toActionFailure(result.error)
+  revalidatePath('/admin/doa', 'layout')
+  return { ok: true, versionId: result.data.versionId, code: result.data.code, versionNo: result.data.versionNo }
+}
+
+export async function submitDoaAction(versionId: string, acknowledgedWarnings: readonly string[], boundaryTableConfirmed: boolean | null, idempotencyKey: string): Promise<SubmitDoaResult> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   if (!submissionKey.safeParse(idempotencyKey).success) return BAD_KEY
   const id = Text.safeParse(versionId)
   const acknowledged = Acknowledged.safeParse(acknowledgedWarnings)
-  if (!id.success || !acknowledged.success) return BAD_INPUT
-  const result = await submitDoaVersion(ctx, { versionId: id.data, acknowledgedWarnings: acknowledged.data }, { idempotencyKey })
+  const tick = BoundaryTick.safeParse(boundaryTableConfirmed)
+  if (!id.success || !acknowledged.success || !tick.success) return BAD_INPUT
+  const result = await submitDoaVersion(ctx, { versionId: id.data, acknowledgedWarnings: acknowledged.data, ...(tick.data === null ? {} : { boundaryTableConfirmed: tick.data }) }, { idempotencyKey })
   if (!result.ok) return toActionFailure(result.error)
   revalidatePath('/admin/doa', 'layout')
   return { ok: true, assigneeMemberId: result.data.assigneeMemberId }
@@ -70,14 +89,18 @@ export async function submitInitialPackageAction(
   holders: readonly PackageHolder[],
   reason: string,
   acknowledgedWarnings: readonly string[],
+  boundaryTableConfirmed: boolean | null,
   idempotencyKey: string,
 ): Promise<SubmitDoaResult> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   if (!submissionKey.safeParse(idempotencyKey).success) return BAD_KEY
-  const shape = z.object({ versionId: Text, holders: Holders, reason: Text, acknowledgedWarnings: Acknowledged }).safeParse({ versionId, holders, reason, acknowledgedWarnings })
+  const shape = z
+    .object({ versionId: Text, holders: Holders, reason: Text, acknowledgedWarnings: Acknowledged, boundaryTableConfirmed: BoundaryTick })
+    .safeParse({ versionId, holders, reason, acknowledgedWarnings, boundaryTableConfirmed })
   if (!shape.success) return BAD_INPUT
-  const result = await submitInitialPackage(ctx, shape.data, { idempotencyKey })
+  const { boundaryTableConfirmed: tick, ...rest } = shape.data
+  const result = await submitInitialPackage(ctx, { ...rest, ...(tick === null ? {} : { boundaryTableConfirmed: tick }) }, { idempotencyKey })
   if (!result.ok) return toActionFailure(result.error)
   revalidatePath('/admin/doa', 'layout')
   revalidatePath('/admin/org-authority', 'layout')

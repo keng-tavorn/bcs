@@ -12,6 +12,7 @@ import { versionSnapshotFromRows } from '@/server/doa/snapshot'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { storeRoute } from '../approvals/route'
+import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
 
 // The organization's initial package (spec BR-DOA-19, FR-DOA-002 AC3, OQ-31 default): the holders of the positions the
@@ -38,6 +39,8 @@ const SubmitInitialInput = z.strictObject({
   holders: z.array(Holder).min(1).max(500),
   reason: z.string().trim().min(3).max(REASON_MAX_LENGTH),
   acknowledgedWarnings: z.array(z.string()).default([]),
+  /** FR-DOA-009 AC3: the drafter ticked the boundary table; required (true) whenever the version has one (boundary.ts) */
+  boundaryTableConfirmed: z.boolean().optional(),
 })
 
 const slotKey = (h: { positionCode: string; departmentId: string }) => `${h.positionCode}@${h.departmentId}`
@@ -126,6 +129,10 @@ export const submitInitialPackageCommand = defineCommand({
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
     const unacknowledged = lint.warnings.map(warningKey).filter((k) => !input.acknowledgedWarnings.includes(k))
     if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })
+    // FR-DOA-009 AC3: the boundary table of the first version (nothing is in effect to compare it with), when it has one
+    if (input.boundaryTableConfirmed !== true && (await boundaryTableRequired(tx, row, ctx.now))) {
+      return fail('VALIDATION_FAILED', 'the boundary table must be confirmed', { field: 'boundaryTableConfirmed', reason: 'BOUNDARY_NOT_CONFIRMED' })
+    }
 
     // The route: the signatory alone, within the time the version itself gives its DOA_CHANGE approver (lint ensures one)
     const governance = version.rules.find((r) => r.documentType === 'DOA_CHANGE')!
@@ -172,7 +179,19 @@ export const submitInitialPackageCommand = defineCommand({
       ok: true,
       result: { versionId: row.id, routeId, assigneeMemberId: signatory.id, changeIds },
       events: [
-        { type: 'doa_version.submitted', aggregateType: 'DoaVersion', aggregateId: row.id, data: { code: row.code, versionNo: row.versionNo, warningsAcknowledged: lint.warnings.length, routeId, initialPackageHolders: input.holders.length } },
+        {
+          type: 'doa_version.submitted',
+          aggregateType: 'DoaVersion',
+          aggregateId: row.id,
+          data: {
+            code: row.code,
+            versionNo: row.versionNo,
+            warningsAcknowledged: lint.warnings.length,
+            routeId,
+            initialPackageHolders: input.holders.length,
+            ...(input.boundaryTableConfirmed ? { boundaryTableConfirmed: true } : {}),
+          },
+        },
         ...events,
         ...stored.data.events,
       ],

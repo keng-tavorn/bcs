@@ -443,7 +443,7 @@ describe('[FR-AUTH-002/AC1] holders of positions a DOA refers to set up two-step
     // A draft names nobody yet
     expect(await sessionKind(solo, 'receiver_con')).toBe('member')
     await expectSameAsNamedApprovers(solo)
-    const submitted = await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: imported.data.versionIds[0]!, acknowledgedWarnings: ['DOA_LINT_MEMBER_APPROVER:GRV-02'] }, key())
+    const submitted = await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: imported.data.versionIds[0]!, acknowledgedWarnings: ['DOA_LINT_MEMBER_APPROVER:GRV-02'], boundaryTableConfirmed: true }, key())
     expect(submitted).toMatchObject({ ok: true })
     expect(await sessionKind(solo, 'receiver_con')).toBe('needs-2fa-setup')
     expect(await sessionKind(solo, 'asst_con')).toBe('needs-2fa-setup')

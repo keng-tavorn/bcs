@@ -120,7 +120,7 @@ describe('[FR-DOA-001/AC3] every version shows with its period, reason, people a
   let v2: string
   it('a published version keeps its period, the approver and the diff with the version before', async () => {
     v2 = await imported(version2(20), 'ขยายวงเงิน DM เป็น 30,000 บาท')
-    expect(await submitDoaVersion(admin(), { versionId: v2 }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
+    expect(await submitDoaVersion(admin(), { versionId: v2, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: v2 } } } })
     await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: v2, code: totp(CEO_SECRET) }, new Date())
     expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
@@ -223,7 +223,7 @@ describe('[FR-DOA-002/AC1] a draft shows the lint before it is sent: errors by c
     expect(detail.data.submit.openTasksUnderCurrent).toBeGreaterThanOrEqual(1)
     // The service asks for the same key the page shows
     expect(await submitDoaVersion(admin(), { versionId: id }, key())).toMatchObject({ ok: false, error: { details: { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: detail.data.submit.warnings } } })
-    expect(await submitDoaVersion(admin(), { versionId: id, acknowledgedWarnings: [...detail.data.submit.warnings] }, key())).toMatchObject({ ok: true })
+    expect(await submitDoaVersion(admin(), { versionId: id, acknowledgedWarnings: [...detail.data.submit.warnings], boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true })
   })
 
   it('a draft starting with or before a version approved for later says which one must be withdrawn first', async () => {

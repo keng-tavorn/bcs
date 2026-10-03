@@ -249,7 +249,7 @@ describe('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version waiting for approval s
     const imported = await importDoaDraft(org.ctxOf('admin', NOW), { yaml, changeReason: 'ขยายวงเงิน DM เป็น 30,000 บาท' }, key())
     if (!imported.ok) throw new Error(`import failed: ${imported.error.code}`)
     const versionId = imported.data.versionIds[0]!
-    const sent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId }, key())
+    const sent = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
     if (!sent.ok) throw new Error(`submit failed: ${sent.error.code}`)
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'DOA_VERSION', subjectId: versionId } } } })
     // Only the approver of DOA-CHG-01 reads it from the decision page; the admin who sent it may not decide it (GC-SOD-04)

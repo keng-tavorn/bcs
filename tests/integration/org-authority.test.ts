@@ -169,7 +169,7 @@ describe('[FR-DOA-002/AC2] a DOA version is approved by the DOA_CHANGE approver 
     const imported = await importDoaDraft(org.ctxOf('admin', NOW), { yaml: version2(20) }, key())
     if (!imported.ok) throw new Error('import failed')
     const versionId = imported.data.versionIds[0]!
-    const submitted = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId }, key())
+    const submitted = await submitDoaVersion(org.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
     expect(submitted).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     const task = await taskOf(versionId)
     await ceoStepUp('DOA_VERSION', versionId)
@@ -271,7 +271,7 @@ describe('[FR-DOA-007/AC2] every separation-of-duties violation is blocked and r
     const imported = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: version2(21) }, key())
     if (!imported.ok) throw new Error('import failed')
     const versionId = imported.data.versionIds[0]!
-    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId }, key())
+    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
     const versionTask = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
     await prisma.approvalTask.update({ where: { id: versionTask.id }, data: { assigneeMemberId: solo.member.admin! } })
     expect(await decideTask(solo.ctxOf('admin', NOW), { taskId: versionTask.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'SOD_VIOLATION', details: { rule: 'BR-SOD-06' } } })
@@ -294,7 +294,7 @@ describe('[FR-DOA-007/AC3] separation of duties is relaxed only by a new DOA ver
     const imported = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: relaxed }, key())
     if (!imported.ok) throw new Error('import failed')
     const versionId = imported.data.versionIds[0]!
-    expect(await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: solo.member.ceo } })
+    expect(await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: solo.member.ceo } })
     // The version in effect keeps its policy until the new one is approved and starts
     const v1 = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: solo.organizationId, versionNo: 1 } })
     expect(v1.sodPolicy).toMatchObject({ approverMayReceive: false })
@@ -321,7 +321,7 @@ describe('[FR-DOA-007/AC3] separation of duties is relaxed only by a new DOA ver
       const imported = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: version2(versionNo, edit) }, key())
       if (!imported.ok) throw new Error('import failed')
       const versionId = imported.data.versionIds[0]!
-      const submitted = await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId }, key())
+      const submitted = await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key())
       return { versionId, submitted }
     }
     // Version 23 for 1 Nov waits for the CEO while version 24 for 20 Oct is submitted too

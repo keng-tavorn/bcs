@@ -1,5 +1,5 @@
 import type { Ctx } from '@/server/context'
-import { forTenant } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { ROUTE_SELECT, routeRow, type RouteRow } from './org'
 
 // Read-only views of the organization's DOA versions for the admin screens (FR-DOA-001 AC2–AC3, FR-DOA-002). Queries
@@ -97,7 +97,32 @@ export async function previousDoaVersionId(ctx: Ctx, code: string, versionNo: nu
   return row?.id ?? null
 }
 
-/** Who imported the draft and when, from its doa_version.drafted event (the seed publishes without one). */
+/**
+ * The moment a draft or a version waiting for approval is compared at (FR-DOA-009 AC1, AC3): just before it starts, so
+ * the version in effect then is the one it replaces — a version approved for later included — or now, once its start
+ * has passed (an approval moves a start that has passed to the approval itself, BR-DOA-12).
+ */
+export function comparisonInstant(effectiveFrom: Date, now: Date): Date {
+  return effectiveFrom.getTime() > now.getTime() ? new Date(effectiveFrom.getTime() - 1) : now
+}
+
+/**
+ * The version a draft or a version waiting for approval is compared with (FR-DOA-009 AC1, AC3): the one in effect at
+ * comparisonInstant (BR-DOA-01: PUBLISHED or SUPERSEDED with effectiveFrom ≤ that moment < effectiveTo; the latest
+ * start wins, as the route engine's versionAt picks it). The drafter's page, the send and the approver's decision page
+ * read the same baseline. Takes the tenant client or a transaction of it; null when no version is in effect then.
+ */
+export async function comparisonBaselineId(db: Pick<TenantTx, 'doaVersion'>, version: { readonly id: string; readonly effectiveFrom: Date }, now: Date): Promise<string | null> {
+  const at = comparisonInstant(version.effectiveFrom, now)
+  const row = await db.doaVersion.findFirst({
+    where: { id: { not: version.id }, status: { in: ['PUBLISHED', 'SUPERSEDED'] }, effectiveFrom: { lte: at }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }] },
+    select: { id: true },
+    orderBy: [{ effectiveFrom: 'desc' }, { versionNo: 'desc' }],
+  })
+  return row?.id ?? null
+}
+
+/** Who drafted the version (imported it, or saved it from the editor) and when, from its doa_version.drafted event (the seed publishes without one). */
 export async function doaVersionDrafted(ctx: Ctx, versionId: string): Promise<{ memberId: string | null; at: Date } | null> {
   const event = await forTenant(ctx.organizationId).event.findFirst({
     where: { aggregateType: 'DoaVersion', aggregateId: versionId, type: 'doa_version.drafted' },

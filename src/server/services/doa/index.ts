@@ -14,13 +14,15 @@ import { parseDoaYaml } from '@/server/doa/yaml'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { startRoute } from '../approvals/route'
+import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
 
 export { warningKey } from './lint-view'
 
 // DOA versions (spec §7.4, FR-DOA-001 AC2, FR-DOA-002, BR-DOA-08, BR-DOA-12): the customer's ORG_ADMIN imports a draft
-// from YAML, submits it — the full lint must pass, every warning must be acknowledged one by one, and the effective
-// time may not be in the past — and the approver of the DOA_CHANGE rule of the version in effect decides it (with a
+// from YAML, submits it — the full lint must pass, every warning must be acknowledged one by one, the boundary table
+// ticked as checked when there is one (FR-DOA-009 AC3), and the effective time may not be in the past — and the
+// approver of the DOA_CHANGE rule of the version in effect decides it (with a
 // step-up, S2-16). Publishing moves the effective time to the approval when it was already past and supersedes the
 // previous version once the new one takes effect. PLATFORM_ADMIN never touches this (NG-12, BR-DOA-19).
 
@@ -88,7 +90,16 @@ export function importDoaDraft(ctx: Ctx, input: z.input<typeof ImportInput>, opt
 
 // ---------- submit for publishing (FR-DOA-002 AC1, AC2 route, AC4 effective time) ----------
 
-const SubmitInput = z.strictObject({ versionId: z.uuid(), acknowledgedWarnings: z.array(z.string()).default([]) })
+const SubmitInput = z.strictObject({
+  versionId: z.uuid(),
+  acknowledgedWarnings: z.array(z.string()).default([]),
+  /**
+   * FR-DOA-009 AC3: the drafter ticked the boundary table as checked. Required (true) whenever the version has a
+   * boundary table beside the version it is compared with (boundary.ts); anything else is then refused as
+   * BOUNDARY_NOT_CONFIRMED. A version without one has nothing to tick, and the value is not read.
+   */
+  boundaryTableConfirmed: z.boolean().optional(),
+})
 
 export const submitDoaVersionCommand = defineCommand({
   name: 'doa.submit',
@@ -115,6 +126,10 @@ export const submitDoaVersionCommand = defineCommand({
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
     const unacknowledged = lint.warnings.map(warningKey).filter((k) => !input.acknowledgedWarnings.includes(k))
     if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })
+    // FR-DOA-009 AC3: the drafter ticked the boundary table the version's page shows, whenever it has one
+    if (input.boundaryTableConfirmed !== true && (await boundaryTableRequired(tx, row, ctx.now))) {
+      return fail('VALIDATION_FAILED', 'the boundary table must be confirmed', { field: 'boundaryTableConfirmed', reason: 'BOUNDARY_NOT_CONFIRMED' })
+    }
 
     // FR-DOA-002 AC2: the approver of the DOA_CHANGE rule of the version in effect now; never the submitter (GC-SOD-04)
     const member = await tx.member.findUniqueOrThrow({ where: { id: submitter }, select: { primaryDepartmentId: true } })
@@ -133,7 +148,12 @@ export const submitDoaVersionCommand = defineCommand({
       ok: true,
       result: { versionId: row.id, routeId: route.data.routeId, assigneeMemberId: route.data.firstTask.assigneeMemberId },
       events: [
-        { type: 'doa_version.submitted', aggregateType: 'DoaVersion', aggregateId: row.id, data: { code: row.code, versionNo: row.versionNo, warningsAcknowledged: lint.warnings.length, routeId: route.data.routeId } },
+        {
+          type: 'doa_version.submitted',
+          aggregateType: 'DoaVersion',
+          aggregateId: row.id,
+          data: { code: row.code, versionNo: row.versionNo, warningsAcknowledged: lint.warnings.length, routeId: route.data.routeId, ...(input.boundaryTableConfirmed ? { boundaryTableConfirmed: true } : {}) },
+        },
         ...route.data.events,
       ],
       notifications: route.data.notifications,

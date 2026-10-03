@@ -86,7 +86,7 @@ describe('[FR-DOA-002/AC3] the initial package goes to the contract signatory, w
 
   it('the signatory approves with a step-up: version 1 is published and the holders start on its effective date', async () => {
     const versionId = await draft()
-    const submitted = await submitInitialPackage(org.ctxOf('admin', NOW), { versionId, holders: holders(), reason: 'ชุดตั้งต้นตามสัญญา' }, key())
+    const submitted = await submitInitialPackage(org.ctxOf('admin', NOW), { versionId, holders: holders(), reason: 'ชุดตั้งต้นตามสัญญา', boundaryTableConfirmed: true }, key())
     expect(submitted).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     if (!submitted.ok) return
     const route = await prisma.approvalRoute.findUniqueOrThrow({ where: { id: submitted.data.routeId } })

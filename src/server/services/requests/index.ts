@@ -96,7 +96,22 @@ const DraftInput = z.strictObject({
   /** BR-FORM-06: quotations as data, one chosen; a reason when the chosen one is not the lowest */
   quotations: z.array(QuotationInput).max(MAX_QUOTATIONS).default([]),
   nonLowestQuoteReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
+  /** Where the goods go: one active delivery site of the organization (BR-CONS-01 groups POs by it) */
+  deliverySiteId: z.uuid().nullable().optional(),
+  /** The supplier the requester suggests; PROCUREMENT chooses per line in the pool (FR-P2P-001 AC2) */
+  suggestedSupplierId: z.uuid().nullable().optional(),
 })
+
+/** A delivery site and a suggested supplier must exist, the site active and the supplier ACTIVE (S4-02) */
+async function checkSiteAndSupplier(tx: TenantTx, input: { deliverySiteId?: string | null; suggestedSupplierId?: string | null }) {
+  if (input.deliverySiteId && !(await tx.deliverySite.count({ where: { id: input.deliverySiteId, active: true } }))) {
+    return fail('VALIDATION_FAILED', 'unknown delivery site', { field: 'deliverySiteId', reason: 'UNKNOWN' })
+  }
+  if (input.suggestedSupplierId && !(await tx.supplier.count({ where: { id: input.suggestedSupplierId, status: 'ACTIVE' } }))) {
+    return fail('VALIDATION_FAILED', 'unknown or inactive supplier', { field: 'suggestedSupplierId', reason: 'UNKNOWN' })
+  }
+  return null
+}
 
 /** Today's VAT rate for the prices before VAT of draft quotations; submit computes them again (BR-FORM-06) */
 async function todaysRate(ctx: Ctx): Promise<number | null> {
@@ -220,6 +235,8 @@ export const createDraftCommand = defineCommand({
     if (!(await tx.department.findFirst({ where: { id: chargedDepartmentId, active: true }, select: { id: true } }))) {
       return fail('VALIDATION_FAILED', 'unknown department', { field: 'chargedDepartmentId' })
     }
+    const place = await checkSiteAndSupplier(tx, input)
+    if (place) return place
     // A new draft has no saved lines yet: a line naming an id belongs to another request
     const named = input.lines.findIndex((l) => l.id)
     if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
@@ -244,6 +261,8 @@ export const createDraftCommand = defineCommand({
         formData: answers.fields as object,
         nonLowestQuoteReason: input.nonLowestQuoteReason || null,
         ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
+        ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
+        ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
       },
     })
     const written = await writeLines(tx, ctx, id, input.lines)
@@ -545,6 +564,9 @@ const EditInput = z.strictObject({
   budgetLineId: z.uuid().nullable().optional(),
   quotations: z.array(QuotationInput).max(MAX_QUOTATIONS).optional(),
   nonLowestQuoteReason: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
+  /** null clears */
+  deliverySiteId: z.uuid().nullable().optional(),
+  suggestedSupplierId: z.uuid().nullable().optional(),
 })
 
 export const editCommand = defineCommand({
@@ -560,6 +582,8 @@ export const editCommand = defineCommand({
     const conflict = versionConflict(input.expectedVersion, request.version)
     if (conflict) return conflict
     if (request.status !== 'DRAFT' && request.status !== 'RETURNED') return fail('INVALID_STATE_TRANSITION', 'only a draft or a returned request can be edited', { from: request.status })
+    const place = await checkSiteAndSupplier(tx, input)
+    if (place) return place
     const rateBp = await todaysRate(ctx)
     const form = formDefinition(request.formVersion.schema)
     const priceIncludesVat = input.priceIncludesVat ?? request.priceIncludesVat
@@ -580,6 +604,8 @@ export const editCommand = defineCommand({
         formData: answers.fields as object,
         ...(input.nonLowestQuoteReason !== undefined ? { nonLowestQuoteReason: input.nonLowestQuoteReason || null } : {}),
         ...(input.budgetLineId !== undefined ? { budgetLineId: input.budgetLineId } : {}),
+        ...(input.deliverySiteId !== undefined ? { deliverySiteId: input.deliverySiteId } : {}),
+        ...(input.suggestedSupplierId !== undefined ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
         version: { increment: 1 },
       },
     })

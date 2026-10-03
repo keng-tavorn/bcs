@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { addBusinessMinutes, businessMinutesBetween, remindAt, resumeDue, type BusinessCalendar, type Weekday } from '@/core/sla'
+import { addBusinessMinutes, businessMinutesBetween, remindAt, resumeDue, subtractBusinessMinutes, type BusinessCalendar, type Weekday } from '@/core/sla'
 import { loadYaml } from './doa-fixtures'
 
 // tests/golden/sla.yaml (spec §7.8): GC-SLA-01 to GC-SLA-08, then properties and edge branches of core/sla.
@@ -83,6 +83,49 @@ describe('[FR-INT-007/AC1] business time beyond the golden cases (BR-SLA-01 to B
         expect(due.getTime()).toBeGreaterThanOrEqual(from.getTime())
         const opening = addBusinessMinutes(from, 0, calendar)
         expect(businessMinutesBetween(opening, due, calendar)).toBe(minutes)
+      }),
+      { numRuns: 1000 },
+    )
+  })
+})
+
+describe('[FR-VIS-001/AC3] counting business time backwards dates work that has waited (D-01 demo history)', () => {
+  it('goes back over closing hours, weekends and holidays, and has exactly that much business time to the end', () => {
+    // Monday 5 Oct 2026 10:30 Thai time back 18 business hours: Monday 2 h, Friday 9 h, Thursday 7 h → Thursday 1 Oct 10:30
+    expect(iso(subtractBusinessMinutes(d('2026-10-05T03:30:00Z'), 18 * 60, calendar))).toBe('2026-10-01T03:30:00Z')
+    // An end after closing counts back from the closing; one before opening from the day before
+    expect(iso(subtractBusinessMinutes(d('2026-10-05T13:00:00Z'), 60, calendar))).toBe('2026-10-05T09:30:00Z')
+    expect(iso(subtractBusinessMinutes(d('2026-10-06T00:00:00Z'), 60, calendar))).toBe('2026-10-05T09:30:00Z')
+    expect(iso(subtractBusinessMinutes(d('2026-10-05T03:30:00Z'), 0, calendar))).toBe('2026-10-05T03:30:00Z')
+  })
+
+  it('refuses bad input and a calendar without business time', () => {
+    const to = d('2026-10-05T03:00:00Z')
+    expect(() => subtractBusinessMinutes(to, -1, calendar)).toThrow(RangeError)
+    expect(() => subtractBusinessMinutes(to, 0.5, calendar)).toThrow(RangeError)
+    expect(() => subtractBusinessMinutes(to, 1, { ...calendar, workdays: [] })).toThrow(RangeError)
+    const mondays: string[] = []
+    for (let t = Date.UTC(2026, 9, 5); t > Date.UTC(2016, 0, 1); t -= 7 * 86_400_000) mondays.push(new Date(t).toISOString().slice(0, 10))
+    expect(() => subtractBusinessMinutes(to, 1, { ...calendar, workdays: ['MON'], holidays: mondays })).toThrow(RangeError)
+  })
+
+  it('the business time from the result to the end is the minutes asked, and adding them back returns the end (1,000 samples)', () => {
+    const anyInstant = fc.record({ day: fc.integer({ min: 0, max: 90 }), minute: fc.integer({ min: 0, max: 1439 }) })
+    const workHours = fc.record({ day: fc.integer({ min: 0, max: 90 }), minute: fc.integer({ min: 1, max: 540 }) })
+    fc.assert(
+      fc.property(anyInstant, fc.integer({ min: 0, max: 20_000 }), (end, minutes) => {
+        const to = new Date(Date.UTC(2026, 9, 1 + end.day, 0, end.minute))
+        const from = subtractBusinessMinutes(to, minutes, calendar)
+        expect(from.getTime()).toBeLessThanOrEqual(to.getTime())
+        expect(businessMinutesBetween(from, to, calendar)).toBe(minutes)
+      }),
+      { numRuns: 1000 },
+    )
+    fc.assert(
+      fc.property(workHours, fc.integer({ min: 1, max: 20_000 }), (end, minutes) => {
+        // an end inside business hours (Thai 08:31–17:30 of a business day)
+        const to = addBusinessMinutes(new Date(Date.UTC(2026, 9, 1 + end.day, 1, 30)), end.minute, calendar)
+        expect(addBusinessMinutes(subtractBusinessMinutes(to, minutes, calendar), minutes, calendar).getTime()).toBe(to.getTime())
       }),
       { numRuns: 1000 },
     )

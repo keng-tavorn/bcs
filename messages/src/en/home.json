@@ -1,9 +1,13 @@
 {
   "title": "Home",
   "greeting": "Hello {name}",
-  "organization": "Organization {name}",
+  "newRequest": "Buy or hire",
   "myTasks": "Waiting for your decision",
-  "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in LINE.",
+  "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
+  "myTasksAll": "See all tasks waiting for approval ({count})",
+  "toMyRequests": "Follow your own requests",
   "myRequests": "My requests",
-  "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status."
+  "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
+  "myRequestsAll": "See all requests ({count})",
+  "startRequest": "Start a purchase or hiring request"
 }

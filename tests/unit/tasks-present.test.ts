@@ -1,0 +1,138 @@
+import { describe, expect, it } from 'vitest'
+import { routeSentence, stageText, timelineItems, waitingText, type TimelineT, type ViewT } from '@/app/(workspace)/_tracking/present'
+import type { RouteDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
+
+// S2-12 presentation: business time waited in hours with one decimal (integers only), the tracking timeline as stamps,
+// "where it is now" in one line, and the English route sentence built from the stored route (the Thai one is the record).
+
+const t = ((key: string, values?: Record<string, unknown>) => (values ? `${key}${JSON.stringify(values)}` : key)) as unknown as ViewT
+const tl = ((key: string, values?: Record<string, unknown>) => (key === 'doaRef' && values ? `${String(values.code)} v${String(values.version)} ${String(values.rule)}` : values ? `${key}${JSON.stringify(values)}` : key)) as unknown as TimelineT
+
+const vp = { id: 'm-vp', name: { th: 'วีระ ปฏิบัติการ', en: 'Weera Operations' } }
+const requester = { id: 'm-req', name: { th: 'สมชาย ใจดี', en: null } }
+const role = { kind: 'POSITION' as const, positionCode: 'VP', position: { th: 'รองประธานสายงาน', en: 'Vice president' }, department: { th: 'สายปฏิบัติการ', en: 'Operations' }, orgWide: false }
+
+function entry(over: Partial<TrackEntryDto>): TrackEntryDto {
+  return {
+    key: 'k',
+    state: 'done',
+    what: 'SUBMITTED',
+    at: new Date('2026-10-05T03:00:00Z'),
+    channel: 'WEB',
+    actor: requester,
+    onBehalfOf: null,
+    role: null,
+    expected: null,
+    doa: null,
+    note: null,
+    other: null,
+    number: null,
+    stepNo: null,
+    waitingMinutes: null,
+    dueAt: null,
+    overdue: false,
+    ...over,
+  }
+}
+
+describe('[FR-INT-008/AC1] how long a step has waited, in business hours', () => {
+  it.each([
+    [null, null],
+    [0, 'waiting.notStarted'],
+    [45, 'waiting.minutes{"minutes":45}'],
+    [60, 'waiting.hours{"hours":"1"}'],
+    [90, 'waiting.hours{"hours":"1.5"}'],
+    [125, 'waiting.hours{"hours":"2.1"}'],
+    [540, 'waiting.hours{"hours":"9"}'],
+  ])('%s minutes → %s', (minutes, text) => {
+    expect(waitingText(t, minutes)).toBe(text)
+  })
+
+  it('says who the request waits for, with their position, and what the requester has to do', () => {
+    const stage: StageDto = { kind: 'APPROVER', taskId: 't', assignee: vp, onBehalfOf: null, role, since: new Date(), waitingMinutes: 30, dueAt: null, overdue: false, stepNo: 1, stepCount: 1 }
+    expect(stageText(t, 'th', stage, true)).toBe('stage.APPROVER{"name":"วีระ ปฏิบัติการ (role.positionIn{\\"position\\":\\"รองประธานสายงาน\\",\\"department\\":\\"สายปฏิบัติการ\\"})"}')
+    expect(stageText(t, 'en', stage, true)).toContain('Weera Operations (role.positionIn')
+    expect(stageText(t, 'th', { kind: 'REQUESTER_EDIT', since: null }, true)).toBe('stage.REQUESTER_EDIT_MINE')
+    expect(stageText(t, 'th', { kind: 'REQUESTER_EDIT', since: null }, false)).toBe('stage.REQUESTER_EDIT')
+  })
+
+  it('names whom a delegate acts for, so the delegate is never shown as the holder of the position (BR-DLG-04)', () => {
+    const delegate = { id: 'm-asst', name: { th: 'สมหญิง รักงาน', en: 'Somying Rakngan' } }
+    const stage: StageDto = { kind: 'APPROVER', taskId: 't', assignee: delegate, onBehalfOf: vp, role, since: new Date(), waitingMinutes: 30, dueAt: null, overdue: false, stepNo: 1, stepCount: 1 }
+    const position = `role.positionIn${JSON.stringify({ position: 'รองประธานสายงาน', department: 'สายปฏิบัติการ' })}`
+    const acting = `stage.actingForRole${JSON.stringify({ name: 'วีระ ปฏิบัติการ', role: position })}`
+    expect(stageText(t, 'th', stage, true)).toBe(`stage.APPROVER${JSON.stringify({ name: `สมหญิง รักงาน (${acting})` })}`)
+    const actingEn = `stage.actingFor${JSON.stringify({ name: 'Weera Operations' })}`
+    expect(stageText(t, 'en', { ...stage, role: { kind: 'UNKNOWN' } }, true)).toBe(`stage.APPROVER${JSON.stringify({ name: `Somying Rakngan (${actingEn})` })}`)
+  })
+})
+
+describe('[FR-PLT-003/AC3] [FR-DOA-005/AC2] the timeline as stamps', () => {
+  it('stamps decisions with who, position, when, channel and a link to the DOA version for those who may open it', () => {
+    const decided = [entry({ what: 'APPROVED', actor: vp, role, channel: 'LIFF', doa: { versionId: 'v-1', code: 'DOA-DEMO', versionNo: 1, ruleCode: 'PR-02' } })]
+    const [item] = timelineItems(t, tl, 'th', decided, { doaLinks: true })
+    expect(item).toMatchObject({
+      title: 'timeline.what.APPROVED',
+      actor: 'วีระ ปฏิบัติการ',
+      role: 'role.positionIn{"position":"รองประธานสายงาน","department":"สายปฏิบัติการ"}',
+      when: '5 ต.ค. 2569 10:00 น.',
+      channel: 'channel.LIFF',
+      doaRef: 'DOA-DEMO v1 PR-02',
+      doaHref: '/admin/doa/v-1',
+      outcome: 'approved',
+      statusLabel: 'timeline.statusLabel.approved',
+      stamp: true,
+      state: 'done',
+    })
+    // Without the right to open DOA versions the reference stays on the stamp, as text (no link that ends in a refusal)
+    const [plain] = timelineItems(t, tl, 'th', decided)
+    expect(plain).toMatchObject({ doaRef: 'DOA-DEMO v1 PR-02' })
+    expect(plain).not.toHaveProperty('doaHref')
+  })
+
+  it('shows the requester’s edit after a return as one step', () => {
+    const [item] = timelineItems(t, tl, 'th', [entry({ what: 'EDITED' })])
+    expect(item).toMatchObject({ title: 'timeline.what.EDITED', actor: 'สมชาย ใจดี', when: '5 ต.ค. 2569 10:00 น.', channel: 'channel.WEB', state: 'done' })
+  })
+
+  it('names the number on submit, the reason of a return, the delegate’s principal and the current step’s wait', () => {
+    const items = timelineItems(t, tl, 'th', [
+      entry({ what: 'SUBMITTED', number: 'PR-2569-00012' }),
+      entry({ what: 'RETURNED', actor: vp, note: 'แยกรายการ', onBehalfOf: requester }),
+      entry({ what: 'WAIT_APPROVAL', state: 'current', actor: vp, role, at: null, channel: null, waitingMinutes: 90, dueAt: new Date('2026-10-06T02:00:00Z'), overdue: true, stepNo: 2 }),
+      entry({ what: 'NEXT_PROCUREMENT', state: 'upcoming', actor: null, at: null, channel: null }),
+    ], { stepCount: 2 })
+    expect(items[0]!.title).toBe('timeline.submittedNumber{"number":"PR-2569-00012"}')
+    expect(items[1]).toMatchObject({ outcome: 'returned', note: 'แยกรายการ', noteLabel: 'timeline.noteReason', onBehalfOf: 'actingFor{"name":"สมชาย ใจดี"}', stamp: true })
+    expect(items[2]).toMatchObject({ title: 'timeline.waitStep{"no":2}', state: 'current', waiting: 'waiting.hours{"hours":"1.5"}', overdue: true, statusLabel: 'timeline.statusLabel.current' })
+    expect(items[2]!.due).toBe('waiting.overdue{"time":"6 ต.ค. 2569 09:00 น."}')
+    expect(items[2]).not.toHaveProperty('when')
+    expect(items[3]).toMatchObject({ title: 'timeline.what.NEXT_PROCUREMENT', actor: 'procurement', state: 'upcoming' })
+  })
+})
+
+describe('[FR-DOA-003/AC2] the route and why, in the reader’s language', () => {
+  const route: RouteDto = {
+    id: 'r',
+    routeNo: 1,
+    status: 'ACTIVE',
+    doa: { versionId: 'v-1', code: 'DOA-DEMO', versionNo: 1, ruleCode: 'PR-02' },
+    escalatedFromRuleCode: 'PR-01',
+    amountBasis: 'GROSS',
+    basisSatang: 1_500_000n,
+    explanationTh: 'DOA-DEMO ฉบับ 1 ข้อ PR-02: คำขอซื้อยอด 15,000.00 บาท (รวม VAT) …',
+    band: { lowerSatang: 0n, upperSatang: 2_000_000n },
+    steps: [{ stepNo: 1, status: 'ACTIVE', approver: vp, onBehalfOf: null, role, expected: null, taskStatus: 'OPEN', decision: null, decidedAt: null }],
+    createdAt: new Date(),
+  }
+
+  it('shows the Thai record as stored, and builds the English sentence from the route', () => {
+    expect(routeSentence(t, tl, 'th', route, 'REQUEST')).toBe(route.explanationTh)
+    const en = routeSentence(t, tl, 'en', route, 'REQUEST')
+    expect(en.startsWith('DOA-DEMO v1 PR-02:')).toBe(true)
+    expect(en).toContain('route.explain.subject{"document":"route.explain.document.REQUEST","amount":"15,000.00","basis":"route.explain.basis.GROSS"}')
+    expect(en).toContain('route.explain.bandUpTo{"upper":"20,000.00"}')
+    expect(en).toContain('route.explain.escalated{"from":"PR-01","rule":"PR-02"}')
+    expect(en).toContain('Weera Operations (role.positionIn')
+  })
+})

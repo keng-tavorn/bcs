@@ -1,0 +1,63 @@
+import Link from 'next/link'
+import { StateLine, type StateKind } from '../request-view/status'
+
+// Rows of tasks waiting for a decision (inbox and home): what it is (a link to the decision page), who asked and for
+// which department, the amount right-aligned in tabular digits, and where it stands — each state an icon with words,
+// never colour alone. No cards: rows separated by rules. Strings arrive translated and formatted.
+
+export interface TaskRow {
+  readonly id: string
+  readonly href: string
+  readonly title: string
+  readonly meta?: string
+  /** Formatted amount, e.g. 45,000.00 */
+  readonly amount?: string
+  /** What the amount is, e.g. "ยอดรวม VAT", and its unit for screen readers */
+  readonly amountLabel?: string
+  readonly amountUnit?: string
+  readonly states: ReadonlyArray<{ readonly kind: StateKind; readonly text: string }>
+  /** Holding for someone, needs a code from the app … */
+  readonly tags: readonly string[]
+}
+
+export function TaskList({ rows, label }: { rows: readonly TaskRow[]; label: string }) {
+  return (
+    <ul aria-label={label} className="flex flex-col divide-y divide-line border-y border-line">
+      {rows.map((row) => (
+        <li key={row.id} className="flex flex-col gap-1.5 py-3">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex min-w-0 flex-col">
+              <Link href={row.href} className="font-semibold break-words text-primary underline underline-offset-4 hover:no-underline">
+                {row.title}
+              </Link>
+              {row.meta ? <span className="text-base text-ink-muted md:text-sm">{row.meta}</span> : null}
+            </div>
+            {row.amount ? (
+              <p className="flex shrink-0 flex-col items-end">
+                <span className="money font-semibold text-ink">
+                  {row.amount}
+                  {row.amountUnit ? <span className="sr-only"> {row.amountUnit}</span> : null}
+                </span>
+                {row.amountLabel ? <span className="text-base text-ink-muted md:text-sm">{row.amountLabel}</span> : null}
+              </p>
+            ) : null}
+          </div>
+          {row.states.length || row.tags.length ? (
+            <div className="flex flex-wrap items-start gap-x-5 gap-y-1 text-base md:text-sm">
+              {row.states.map((s) => (
+                <StateLine key={s.text} kind={s.kind}>
+                  {s.text}
+                </StateLine>
+              ))}
+              {row.tags.map((tag) => (
+                <span key={tag} className="rounded-sm border border-line px-1.5 text-ink">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  )
+}

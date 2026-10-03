@@ -1,0 +1,306 @@
+import { type Page } from '@playwright/test'
+import { formatThaiDate } from '../../src/core/thai/date'
+import { ATTACHMENT_PDF } from './tasks-attachment'
+import { castOf, expectNoBlockingAxe, fixture, openAttachment, rowWith, shot, signIn, totpOf } from './tasks-support'
+import { expect, test } from './fixtures'
+
+// S2-12 approver side: the inbox, the decision page and the timeline as stamps (FR-DOA-004, FR-DOA-005 AC2,
+// FR-PLT-003 AC3, FR-INT-009 AC3, BR-DOA-15). tests/e2e/seed-activity.ts gave vp_ops (desktop) and vp_sup (mobile) two
+// tasks each, 45,000 and 50,000 baht; tasks-fixtures.ts adds what a test needs through the services. Screenshots at 1440
+// and 375 px go to the test output (§9.9 step 4); axe runs on every screen (§9.9 step 5).
+
+type Created = { requestId: string; number: string; taskId: string; fileName?: string }
+
+const inbox = (page: Page) => page.getByRole('list', { name: 'งานรออนุมัติของคุณ' })
+const timeline = (page: Page) => page.getByRole('list', { name: 'ไทม์ไลน์ของคำขอ' })
+/** The page's own heading block (the workspace shell has a header of its own) */
+const heading = (page: Page) => page.locator('#content header')
+const approveButton = (page: Page) => page.getByRole('button', { name: 'อนุมัติ', exact: true })
+const DOA_REF = 'DOA-DEMO ฉบับ 1 ข้อ PR-02'
+
+test('[FR-DOA-004/AC1] the approver’s inbox lists their tasks, the ones due first, with the business hours waited', async ({ page }, testInfo) => {
+  const cast = castOf(testInfo)
+  await signIn(page, cast.approver, true)
+
+  // Home: work first — the tasks waiting for me, each a link to its decision page
+  await expect(page.getByRole('heading', { level: 2, name: 'งานรอคุณตัดสิน' })).toBeVisible()
+  const homeTasks = page.getByRole('list', { name: 'งานรอคุณตัดสิน' })
+  await expect(rowWith(homeTasks, '45,000.00').first().getByRole('link', { name: /PR-2569-\d{5} · วัสดุสำหรับงานทดสอบ/ })).toBeVisible()
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'home-approver')
+
+  await page.getByRole('link', { name: /ดูงานรออนุมัติทั้งหมด/ }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('งานรออนุมัติ')
+  const rows = inbox(page).getByRole('listitem')
+  const texts = await rows.allInnerTexts()
+  const first = texts.findIndex((t) => t.includes('45,000.00'))
+  const second = texts.findIndex((t) => t.includes('50,000.00'))
+  // Submitted first, due first: the 45,000 baht request comes before the 50,000 one
+  expect(first).toBeGreaterThanOrEqual(0)
+  expect(second).toBeGreaterThan(first)
+  const row = rows.nth(first)
+  await expect(row).toContainText(cast.seedRequesterName)
+  await expect(row).toContainText('ยอดรวม VAT')
+  await expect(row).toContainText(/ค้างมา|ยังไม่เริ่มนับเวลาทำการ/)
+  await expect(row).toContainText(/ครบกำหนด|เกินกำหนด/)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'inbox')
+})
+
+test('@demo [FR-DOA-005/AC2] [FR-PLT-003/AC3] [FR-DOA-004/AC2] the approver approves the 45,000 baht request on the web and the timeline shows DOA-DEMO ฉบับ 1 ข้อ PR-02', async ({ page, context }, testInfo) => {
+  const cast = castOf(testInfo)
+  await signIn(page, cast.approver, true)
+  await page.goto('/tasks')
+  await rowWith(inbox(page), '45,000.00').first().getByRole('link').click()
+  await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/)
+  const taskUrl = page.url()
+
+  // Everything to decide on one screen (§9.9 principle 5)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('วัสดุสำหรับงานทดสอบ')
+  const amounts = page.getByRole('region', { name: 'ยอดเงิน' })
+  await expect(amounts).toContainText(/ยอดก่อน VAT\s*42,056\.07/)
+  await expect(amounts).toContainText(/VAT 7%\s*2,943\.93/)
+  await expect(amounts).toContainText(/ยอดรวม VAT\s*45,000\.00/)
+  const budget = page.getByRole('region', { name: 'งบประมาณ' })
+  await expect(budget).toContainText(`${cast.seedBudgetDepartment}-OPEX-`)
+  await expect(budget).toContainText('จองงบแล้ว')
+  // The DOA rule with why the route comes here; an approver may not open the admin page, so it is text, not a link
+  const route = page.getByRole('region', { name: 'เส้นทางอนุมัติ' })
+  await expect(route.getByText(DOA_REF, { exact: true })).toBeVisible()
+  await expect(route.getByRole('link', { name: DOA_REF })).toHaveCount(0)
+  await expect(route).toContainText('ทำไมไปทางนี้')
+  await expect(route).toContainText('PR-02')
+  await expect(timeline(page).getByRole('listitem').first()).toContainText(cast.seedRequesterName)
+  await expect(timeline(page).locator('[aria-current="step"]')).toContainText(cast.approverName)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'decision')
+
+  // A second tab on the same task, left open while the first one decides
+  const stale = await context.newPage()
+  await stale.goto(taskUrl)
+  await expect(approveButton(stale)).toBeVisible()
+
+  await approveButton(page).click()
+  await expect(page.getByText(/อนุมัติ PR-2569-\d{5} ยอดรวม VAT 45,000\.00 บาท/)).toBeVisible()
+  await shot(page, testInfo, 'decision-confirm')
+  await page.getByRole('button', { name: 'ยืนยันอนุมัติ' }).click()
+  await expect(page.getByRole('status').filter({ hasText: `อนุมัติแล้วโดย ${cast.approverName} เมื่อ` })).toBeVisible()
+  await expect(approveButton(page)).toHaveCount(0)
+  // The stamp: decision, name, position, time, channel and the DOA rule (FR-DOA-005 AC2, FR-PLT-003 AC3)
+  const stamp = timeline(page).getByRole('listitem').filter({ hasText: DOA_REF }).filter({ hasText: cast.approverName })
+  await expect(stamp).toContainText('อนุมัติ')
+  await expect(stamp).toContainText(cast.approverRole)
+  await expect(stamp).toContainText(/\d{1,2} \S+ 25\d\d \d\d:\d\d น\. · เว็บ/)
+  await expect(stamp.getByText(DOA_REF, { exact: true })).toBeVisible()
+  await expect(stamp.getByRole('link', { name: DOA_REF })).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'decided')
+
+  // FR-DOA-004 AC2: the tab left open says who decided it and when
+  await approveButton(stale).click()
+  await stale.getByRole('button', { name: 'ยืนยันอนุมัติ' }).click()
+  await expect(stale.getByRole('alert').filter({ hasText: `ดำเนินการแล้วโดย ${cast.approverName} เมื่อ` })).toBeVisible()
+  await shot(stale, testInfo, 'decided-twice')
+
+  // The request page says under which DOA rule it was approved
+  await page.getByRole('link', { name: /เปิดหน้าคำขอ PR-2569-\d{5}/ }).click()
+  await expect(heading(page)).toContainText('อนุมัติภายใต้')
+  await expect(heading(page).getByText(DOA_REF, { exact: true })).toBeVisible()
+})
+
+test('[FR-DOA-004/AC1] [FR-INT-009/AC3] the approver asks for information, the requester answers, then the approver returns it with a reason', async ({ page, browser }, testInfo) => {
+  const cast = castOf(testInfo)
+  await signIn(page, cast.approver, true)
+  await page.goto('/tasks')
+  await rowWith(inbox(page), '50,000.00').first().getByRole('link').click()
+  await expect(page).toHaveURL(/\/tasks\/[0-9a-f-]{36}$/)
+  const number = (await page.getByText(/^คำขอ PR-2569-\d{5}$/).innerText()).replace('คำขอ ', '')
+
+  await page.getByRole('button', { name: 'ส่งคำถามถึงผู้ขอ' }).click()
+  await expect(page.getByText('ใส่คำถามอย่างน้อย 3 ตัวอักษร')).toBeVisible()
+  await page.getByLabel('คำถามถึงผู้ขอ').fill('ขอใบเสนอราคาเพิ่มเติมอีก 1 ใบ')
+  // The message goes as soon as the field is being fixed
+  await expect(page.getByText('ใส่คำถามอย่างน้อย 3 ตัวอักษร')).toHaveCount(0)
+  await page.getByRole('button', { name: 'ส่งคำถามถึงผู้ขอ' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'ส่งคำถามถึงผู้ขอแล้ว' })).toBeVisible()
+  await expect(page.getByText('รอผู้ขอตอบคำถาม: ขอใบเสนอราคาเพิ่มเติมอีก 1 ใบ')).toBeVisible()
+  await expect(approveButton(page)).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'info-asked')
+
+  // The requester sees it waits for them, and answers (FR-INT-009 AC3)
+  const requesterContext = await browser.newContext()
+  const requester = await requesterContext.newPage()
+  await signIn(requester, cast.seedRequester, cast.seedRequesterTotp)
+  await requester.goto('/requests')
+  const mine = requester.getByRole('list', { name: 'คำขอของฉัน' })
+  await expect(rowWith(mine, number)).toContainText('รอคุณตอบคำถามของผู้อนุมัติ')
+  await rowWith(mine, number).getByRole('link').click()
+  await expect(requester.getByRole('heading', { level: 3, name: 'ผู้อนุมัติขอข้อมูลเพิ่ม' })).toBeVisible()
+  await expect(requester.getByText('ขอใบเสนอราคาเพิ่มเติมอีก 1 ใบ').first()).toBeVisible()
+  await requester.getByLabel('คำตอบของคุณ').fill('แนบใบเสนอราคาเพิ่มแล้ว')
+  await expectNoBlockingAxe(requester)
+  await shot(requester, testInfo, 'info-answer')
+  await requester.getByRole('button', { name: 'ส่งคำตอบให้ผู้อนุมัติ' }).click()
+  await expect(requester.getByRole('status').filter({ hasText: 'ส่งคำตอบให้ผู้อนุมัติแล้ว' })).toBeVisible()
+  await expect(heading(requester)).toContainText(`รอ ${cast.approverName}`)
+  await requesterContext.close()
+
+  // Back with the approver: a return needs a reason and a tick
+  await page.reload()
+  await expect(timeline(page)).toContainText('แนบใบเสนอราคาเพิ่มแล้ว')
+  await expect(page.getByRole('radio', { name: /ตีกลับให้ผู้ขอแก้ไข/ })).toBeChecked()
+  await page.getByRole('button', { name: 'ตีกลับให้ผู้ขอแก้ไข' }).click()
+  await expect(page.getByText('ใส่เหตุผลอย่างน้อย 3 ตัวอักษร เพื่อให้ผู้ขอรู้ว่าต้องแก้อะไร')).toBeVisible()
+  await expect(page.getByText('ติ๊กยืนยันก่อน เพราะเปลี่ยนการตัดสินภายหลังไม่ได้')).toBeVisible()
+  await page.getByLabel('เหตุผล', { exact: true }).fill('แยกรายการวัสดุให้ชัดเจน')
+  await page.getByLabel('ฉันตรวจเหตุผลแล้ว และเข้าใจว่าเปลี่ยนการตัดสินภายหลังไม่ได้').check()
+  // Both messages went once their fields were fixed
+  await expect(page.getByText('ใส่เหตุผลอย่างน้อย 3 ตัวอักษร เพื่อให้ผู้ขอรู้ว่าต้องแก้อะไร')).toHaveCount(0)
+  await expect(page.getByText('ติ๊กยืนยันก่อน เพราะเปลี่ยนการตัดสินภายหลังไม่ได้')).toHaveCount(0)
+  await page.getByRole('button', { name: 'ตีกลับให้ผู้ขอแก้ไข' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'ตีกลับให้ผู้ขอแก้ไขแล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: `ตีกลับให้แก้ไขโดย ${cast.approverName} เมื่อ` })).toContainText('เหตุผล: แยกรายการวัสดุให้ชัดเจน')
+  // The route says the step was returned (the same icon and words as the timeline)
+  await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('ตีกลับ')
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'returned')
+})
+
+test('[FR-DOA-004/AC1] rejecting is a separate choice that needs a reason and a tick, never looks like approve, and the attachment opens', async ({ page }, testInfo) => {
+  const cast = castOf(testInfo)
+  const created = fixture<Created>('request', cast.requester, '21500.00', 'reject', 'attach')
+  await signIn(page, cast.approver, true)
+  await page.goto(`/tasks/${created.taskId}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('โต๊ะประชุม (ทดสอบไม่อนุมัติ)')
+
+  // The attachment opens from the decision page through a short-lived address (§9.9 principle 5, FR-PLT-004 AC2)
+  const files = page.getByRole('region', { name: 'ไฟล์แนบ' })
+  await expect(files).toContainText(created.fileName!)
+  await expect(files).toContainText('เอกสารประกอบเหตุผล')
+  const href = await openAttachment(page, created.fileName!)
+  expect(Number(new URL(href).searchParams.get('X-Amz-Expires'))).toBeLessThanOrEqual(300)
+  const file = await page.request.get(href)
+  expect(file.status()).toBe(200)
+  expect(Buffer.from(await file.body()).equals(ATTACHMENT_PDF)).toBe(true)
+  await expect(page).toHaveURL(new RegExp(`/tasks/${created.taskId}$`))
+
+  await page.getByRole('radio', { name: /ไม่อนุมัติ/ }).check()
+  const reject = page.getByRole('button', { name: 'ไม่อนุมัติคำขอนี้' })
+  await expect(reject).toBeVisible()
+  // Approve is the solid primary button; reject is outlined in danger, in another part of the page (§9.9)
+  expect(await reject.evaluate((b) => getComputedStyle(b).backgroundColor)).not.toBe(await approveButton(page).evaluate((b) => getComputedStyle(b).backgroundColor))
+  await page.getByLabel('เหตุผล', { exact: true }).fill('ซ้ำกับคำขอที่อนุมัติไปแล้ว')
+  await page.getByLabel('ฉันตรวจเหตุผลแล้ว และเข้าใจว่าเปลี่ยนการตัดสินภายหลังไม่ได้').check()
+  await shot(page, testInfo, 'reject-form')
+  await reject.click()
+  await expect(page.getByRole('status').filter({ hasText: 'ไม่อนุมัติคำขอนี้แล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: `ไม่อนุมัติโดย ${cast.approverName} เมื่อ` })).toBeVisible()
+  const stamp = timeline(page).getByRole('listitem').filter({ hasText: 'ซ้ำกับคำขอที่อนุมัติไปแล้ว' })
+  await expect(stamp).toContainText('ไม่อนุมัติ')
+  await expect(stamp).toContainText(DOA_REF)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'rejected')
+})
+
+test('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy change shows what is approved and needs the authenticator code again (BR-DOA-15)', async ({ page }, testInfo) => {
+  const cast = castOf(testInfo)
+  const created = fixture<{ changeId: string; taskId: string; effectiveFrom: string }>('policy', cast.proposer, cast.appointee, cast.appointDepartment)
+  const effective = formatThaiDate(new Date(created.effectiveFrom))
+  await signIn(page, 'ceo', true)
+  await page.goto('/tasks')
+  const toTask = `a[href="/tasks/${created.taskId}"]`
+  const row = inbox(page).getByRole('listitem').filter({ has: page.locator(toTask) })
+  await expect(row.getByRole('link')).toHaveText('การเปลี่ยนโครงสร้างอำนาจ: แต่งตั้งผู้ดำรงตำแหน่ง')
+  await expect(row).toContainText('ต้องใส่รหัสจากแอปยืนยันตัวตน')
+  await expect(row).toContainText(`มีผล ${effective}`)
+  await row.getByRole('link').click()
+
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`แต่งตั้ง ${cast.appointeeName} เป็นผู้จัดการฝ่าย ${cast.appointDepartmentName}`)
+  const what = page.getByRole('region', { name: 'สิ่งที่ขออนุมัติ' })
+  await expect(what).toContainText('แต่งตั้งตามคำสั่งบริษัท')
+  await expect(what).toContainText(cast.proposerName)
+  await expect(what).toContainText(effective)
+  // The list of authority changes is an ORG_ADMIN page: the CEO decides from what this page shows
+  await expect(page.getByRole('link', { name: 'ดูการเปลี่ยนโครงสร้างอำนาจทั้งหมด' })).toHaveCount(0)
+  // Approve or reject only: a policy change is never returned
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'policy')
+
+  const approve = page.getByRole('button', { name: 'อนุมัติการเปลี่ยนนี้', exact: true })
+  const approveForm = page.locator('form').filter({ has: approve })
+  const wrong = String((Number(totpOf('ceo')) + 500_000) % 1_000_000).padStart(6, '0')
+  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(wrong)
+  await approve.click()
+  await expect(page.getByRole('alert').filter({ hasText: 'รหัสไม่ถูกต้องหรือหมดเวลาแล้ว' })).toBeVisible()
+  await shot(page, testInfo, 'policy-wrong-code')
+  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(totpOf('ceo'))
+  await approve.click()
+  await expect(page.getByRole('status').filter({ hasText: 'อนุมัติการเปลี่ยนนี้แล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'อนุมัติแล้วโดย ศักดิ์ชัย ผู้นำ เมื่อ' })).toBeVisible()
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'policy-approved')
+})
+
+test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version shows every rule and what differs from the version in effect, and is decided with the authenticator code (BR-DOA-15)', async ({ page }, testInfo) => {
+  const cast = castOf(testInfo)
+  const created = fixture<{ versionId: string; taskId: string; effectiveFrom: string }>('doa', cast.proposer, String(cast.doaVersionNo))
+  const name = `DOA-DEMO ฉบับ ${cast.doaVersionNo}`
+  await signIn(page, 'ceo', true)
+  await page.goto('/tasks')
+  const row = inbox(page).getByRole('listitem').filter({ has: page.locator(`a[href="/tasks/${created.taskId}"]`) })
+  await expect(row.getByRole('link')).toHaveText(`อนุมัติเผยแพร่ ${name}`)
+  await expect(row).toContainText('ต้องใส่รหัสจากแอปยืนยันตัวตน')
+  await expect(row).toContainText(`มีผล ${formatThaiDate(new Date(created.effectiveFrom))}`)
+  await row.getByRole('link').click()
+
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`เผยแพร่ ${name}`)
+  const what = page.getByRole('region', { name: 'สิ่งที่ขออนุมัติ' })
+  await expect(what).toContainText(cast.proposerName)
+  await expect(what).toContainText('ขยายวงเงินผู้จัดการฝ่ายเป็น 30,000 บาท')
+  await expect(what).toContainText('DOA-DEMO ฉบับ 1')
+  // What differs from the version in effect, rule by rule (the same comparison as the version history)
+  const diff = page.getByRole('region', { name: 'เปลี่ยนจาก DOA-DEMO ฉบับ 1 ที่มีผลอยู่' })
+  await expect(diff.getByRole('listitem').filter({ hasText: 'แก้ข้อ PR-01' })).toContainText('ช่วงวงเงิน: เดิม ไม่เกิน 20,000.00 บาท · ใหม่ ไม่เกิน 30,000.00 บาท')
+  await expect(diff.getByRole('listitem').filter({ hasText: 'แก้ข้อ PR-02' })).toContainText('ช่วงวงเงิน: เดิม มากกว่า 20,000.00 ถึงไม่เกิน 100,000.00 บาท · ใหม่ มากกว่า 30,000.00 ถึงไม่เกิน 100,000.00 บาท')
+  // Every rule the version publishes: band, approver and SLA, the changed ones marked in words
+  const rules = page.getByRole('list', { name: `ข้อของ ${name}` })
+  await expect(rules.getByRole('listitem')).toHaveCount(8)
+  const pr02 = rules.getByRole('listitem').filter({ hasText: 'ข้อ PR-02 ·' })
+  await expect(pr02).toContainText('มากกว่า 30,000.00 ถึงไม่เกิน 100,000.00 บาท')
+  await expect(pr02).toContainText('ของแผนกที่ตั้งเบิก · 8 ชั่วโมงทำการ')
+  await expect(pr02).toContainText('เปลี่ยน: ช่วงวงเงิน')
+  await expect(page.getByRole('region', { name: 'นโยบายของฉบับ' })).toContainText('รวม VAT')
+  // The approver reads it all here; the admin page of DOA versions is for ORG_ADMIN
+  await expect(page.getByRole('link', { name: 'ดูรายละเอียดและความต่างของฉบับนี้' })).toHaveCount(0)
+  await expect(page.getByRole('radio')).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'doa-policy')
+
+  // Rejected with a reason, the code from the app and a tick (nothing is published for the other tests)
+  const rejectForm = page.locator('form#reject-policy')
+  const reject = rejectForm.getByRole('button', { name: 'ไม่อนุมัติการเปลี่ยนนี้', exact: true })
+  await reject.click()
+  await expect(rejectForm.getByText('ใส่รหัส 6 หลักจากแอปยืนยันตัวตน')).toBeVisible()
+  await rejectForm.getByLabel('เหตุผล', { exact: true }).fill('ขอให้ทบทวนวงเงินกับฝ่ายบัญชีก่อน')
+  await rejectForm.getByLabel('รหัส 6 หลักจากแอป').fill(totpOf('ceo'))
+  await rejectForm.getByLabel('ฉันตรวจเหตุผลแล้ว และเข้าใจว่าเปลี่ยนการตัดสินภายหลังไม่ได้').check()
+  await expect(rejectForm.getByText('ใส่รหัส 6 หลักจากแอปยืนยันตัวตน')).toHaveCount(0)
+  await reject.click()
+  await expect(page.getByRole('status').filter({ hasText: 'ไม่อนุมัติการเปลี่ยนนี้แล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'ไม่อนุมัติโดย ศักดิ์ชัย ผู้นำ เมื่อ' })).toBeVisible()
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'doa-policy-rejected')
+})
+
+test('[FR-DOA-004/AC1] a member who is not the task’s approver cannot open its decision page', async ({ page }, testInfo) => {
+  const cast = castOf(testInfo)
+  const created = fixture<Created>('request', cast.requester, '5000.00', 'foreign')
+  await signIn(page, cast.requester, false)
+  await page.goto(`/tasks/${created.taskId}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('งานนี้ไม่ได้อยู่ในรายการของคุณ')
+  await expect(approveButton(page)).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'not-yours')
+})

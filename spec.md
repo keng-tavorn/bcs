@@ -2683,7 +2683,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 
 | Aggregate | Event types |
 | --- | --- |
-| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
@@ -2701,7 +2701,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` |
-| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
+| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 
 ### 10.3 สรุปรายวันและข้อความ
@@ -3475,6 +3475,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-29** `[go-live]` จัดการผู้ติดตามคำขอ (`RequestFollower`) ให้ผู้ขอเพิ่มและเอาผู้ติดตามออกได้พร้อม event เพราะ FR-INT-008 AC2 ให้ผู้ติดตามเห็นสถานะเดียวกับผู้ขอ แต่ยังไม่มีหน้าจอหรือ service ที่เพิ่มผู้ติดตาม (หน้าคำขอบอกให้ติดต่อผู้ขอหรือผู้ดูแลแทน) · พบระหว่าง S2-12
   - เสร็จเมื่อ: เทสต์ AC2 ของ FR-INT-008 ผ่านโดยผู้ติดตามถูกเพิ่มผ่าน service
   - แยกงาน: ทำเองได้
+- [ ] **NEW-30** `[demo]` เพิ่ม event `auth.pin_set` ในแคตตาล็อก §10.2 เพราะการตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม (FR-AUTH-005 AC1 · `self.pin`) เปลี่ยนข้อมูลของ member จึงต้องมี Event · event ไม่มีค่า PIN หรือ hash · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่างวางแผน S5
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/auth.ts` · เทสต์ AC1 ของ FR-AUTH-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-05)
+- [ ] **NEW-31** `[demo]` เพิ่ม event `member.notification_prefs_updated` ในแคตตาล็อก §10.2 เพราะการปิดสรุปรายวันของตนเอง (FR-LINE-006 AC3 · `self.notificationPrefs`) เปลี่ยน `Member.notificationPrefs` จึงต้องมี Event · การแจ้งงานอนุมัติและงานเกิน SLA ยังปิดไม่ได้ (BR-NOTI-04) · พบระหว่างวางแผน S5
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/member.ts` · เทสต์ AC3 ของ FR-LINE-006 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-07)
 
 ---
 

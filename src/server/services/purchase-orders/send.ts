@@ -15,6 +15,7 @@ import { poEmail } from '@/server/notifications/templates/po-email'
 import { printablePurchaseOrder } from '@/server/pdf/printable'
 import { renderPdf } from '@/server/pdf/render'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { departmentReceivers } from '../receiving/receivers'
 
 // Sending a PO to its supplier (spec §6.4 APPROVED → po.send → SENT, FR-P2P-005): PROCUREMENT e-mails the approved PO
 // with its PDF (FR-PLT-009), reply-to the sender, and the PO becomes SENT with sentAt and sentToEmail. The e-mail goes
@@ -48,15 +49,12 @@ export interface SendPoResult {
 }
 
 /** Who hears that a PO went out (§10.1 po.sent): the requesters of its PRs and the RECEIVERs of their departments */
-async function sentRecipients(tx: TenantTx, poId: string): Promise<Array<{ memberId: string; forReceiver: boolean }>> {
+async function sentRecipients(tx: TenantTx, ctx: Ctx, poId: string): Promise<Array<{ memberId: string; forReceiver: boolean }>> {
   const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId } } } } } }, select: { requesterMemberId: true, requesterDepartmentId: true } })
-  const receivers = await tx.roleAssignment.findMany({
-    where: { role: 'RECEIVER', revokedAt: null, scopeDepartmentId: { in: [...new Set(requests.map((r) => r.requesterDepartmentId))] }, member: { status: 'ACTIVE' } },
-    select: { memberId: true },
-  })
+  const receivers = await departmentReceivers(tx, ctx.organizationId, [...new Set(requests.map((r) => r.requesterDepartmentId))], ctx.now)
   const out = new Map<string, boolean>()
   for (const r of requests) out.set(r.requesterMemberId, false)
-  for (const r of receivers) out.set(r.memberId, true)
+  for (const memberId of receivers) out.set(memberId, true)
   return [...out].map(([memberId, forReceiver]) => ({ memberId, forReceiver }))
 }
 
@@ -130,7 +128,7 @@ export const sendPoCommand = defineCommand({
 
     const status = moved?.ok ? moved.to : po.status
     await tx.purchaseOrder.update({ where: { id: po.id }, data: { status, pdfFileId, sentAt: ctx.now, sentToEmail: to, sendBouncedAt: null, sendBounceReason: null, version: { increment: 1 } } })
-    const notifications: NotificationDraft[] = (await sentRecipients(tx, po.id)).map((r) => ({
+    const notifications: NotificationDraft[] = (await sentRecipients(tx, ctx, po.id)).map((r) => ({
       recipientMemberId: r.memberId,
       templateKey: 'po.sent',
       data: { poId: po.id, number: document.number, forReceiver: r.forReceiver },

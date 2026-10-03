@@ -1,0 +1,25 @@
+# tests/golden/doa.yaml
+suite: doa
+fixtures: [fixtures/org-demo.yaml, fixtures/doa-versions.yaml]
+defaults: { documentType: PURCHASE_REQUEST, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+cases:
+  - { id: GC-DOA-01, title: ขอบบนของช่วง DM, input: { amount: "20000.00" }, expect: { version: 1, rule: PR-01, approvers: [dm_con] } }
+  - { id: GC-DOA-02, title: เกินขอบ 1 สตางค์, input: { amount: "20000.01" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-03, input: { amount: "100000.00" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-04, input: { amount: "100000.01" }, expect: { version: 1, rule: PR-03, approvers: [ceo] } }
+  - { id: GC-DOA-05, input: { documentType: PURCHASE_ORDER, amount: "1000000.00", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PO-01, approvers: [coo] } }
+  - { id: GC-DOA-06, input: { documentType: PURCHASE_ORDER, amount: "1000000.01", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PO-02, approvers: [ceo] } }
+  - { id: GC-DOA-07, title: DM ขอเอง ยกไปช่วงถัดไป, input: { amount: "15000.00", requester: dm_con }, expect: { version: 1, rule: PR-01, escalatedTo: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-08, title: VP ขอเอง ยกไป CEO, input: { amount: "50000.00", requester: vp_ops, department: OPS }, expect: { version: 1, rule: PR-02, escalatedTo: PR-03, approvers: [ceo] } }
+  - { id: GC-DOA-09, title: ยอดศูนย์, input: { amount: "0.00" }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-DOA-10, title: ตำแหน่ง VP ว่าง, input: { amount: "50000.00", vacate: ["VP@OPS"] }, expect: { error: APPROVER_NOT_FOUND } }
+  - { id: GC-DOA-11, title: CEO ขอเองเกินช่วงสุดท้าย, input: { amount: "150000.00", requester: ceo, department: HQ }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-12, title: ฐาน GROSS, input: { net: "19000.00", vat: "1330.00" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-13, title: ฐาน NET ยอดเดียวกัน, input: { net: "19000.00", vat: "1330.00", amountBasis: NET }, expect: { version: 1, rule: PR-01, approvers: [dm_con] } }
+  - { id: GC-DOA-14, title: ผู้ขอ PR ต้นทางเป็น COO, input: { documentType: PURCHASE_ORDER, amount: "500000.00", requester: proc_officer, alsoConflicting: [coo] }, expect: { version: 1, rule: PO-01, escalatedTo: PO-02, approvers: [ceo] } }
+  - { id: GC-DOA-15, title: วินาทีสุดท้ายของฉบับ 1 (เวลาไทย), input: { amount: "25000.00", at: "2026-10-31T16:59:59Z" }, expect: { version: 1, rule: PR-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-16, title: วินาทีแรกของฉบับ 2, input: { amount: "25000.00", at: "2026-10-31T17:00:00Z" }, expect: { version: 2, rule: PR-01, approvers: [dm_con] } }
+  - { id: GC-DOA-17, title: ก่อนมี DOA ฉบับแรก, input: { amount: "1000.00", at: "2026-09-30T16:59:59Z" }, expect: { error: DOA_NOT_CONFIGURED } }
+  - { id: GC-DOA-18, input: { documentType: GR_VARIANCE, amount: "2000.00", requester: receiver_con }, expect: { version: 1, rule: GRV-01, approvers: [dm_con] } }
+  - { id: GC-DOA-19, input: { documentType: DOA_CHANGE, requester: admin, department: IT }, expect: { version: 1, rule: DOA-CHG-01, approvers: [ceo] } }
+  - { id: GC-DOA-27, title: เส้นทางของการเปลี่ยนโครงสร้างอำนาจ, input: { documentType: ORG_AUTHORITY_CHANGE, requester: admin, department: IT }, expect: { version: 1, rule: ORG-CHG-01, approvers: [ceo] } }

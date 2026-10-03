@@ -45,12 +45,26 @@ const GLOBAL_UNIQUE_ALLOWED: Record<string, string[]> = {
   FileObject: ['storageKey'], // object key is unique in the whole bucket
   MemberInvitation: ['tokenHash'], // sha256 of a random 32-byte token, unique by construction
 }
+// Unique indexes whose exact columns the spec writes out; each leads with a key of one organization's row
+const SPEC_UNIQUE_ALLOWED: Record<string, string[][]> = {
+  PositionAssignment: [['positionId', 'departmentId']], // §6.3 item 4 position_single_holder (Position.id is one organization's)
+}
 
 const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1)
 // any: generic access to every model delegate, whose types differ per model
 const delegate = (client: unknown, model: string): any => (client as Record<string, unknown>)[delegateName(model)]
 
+// Sample values that CHECK constraints of the migrations require (the generic sample would break them)
+const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
+  Delegation: { endsAt: new Date('2026-10-06T03:00:00Z') }, // delegation_period: startsAt < endsAt
+}
+// Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
+const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
+  Delegation: new Set(['delegate']),
+}
+
 function sample(field: Field): unknown {
+  if (field.isList) return []
   if (field.kind === 'enum') return enums.get(field.type)![0]
   switch (field.type) {
     case 'String':
@@ -80,13 +94,15 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
   for (const f of model.fields) {
     if (f.kind !== 'object' || !f.relationFromFields?.length) continue
     const fkFields = f.relationFromFields
-    const required = fkFields.some((fk) => model.fields.find((x) => x.name === fk)?.isRequired)
+    // A composite key (organizationId, xId) is required when its own column is: organizationId is always required
+    const own = fkFields.filter((fk) => fk !== 'organizationId')
+    const required = (own.length ? own : fkFields).every((fk) => model.fields.find((x) => x.name === fk)?.isRequired)
     if (!required) continue
     if (f.type === 'Organization') {
       data[fkFields[0]!] = organizationId
       continue
     }
-    const parent = await createRow(f.type, organizationId)
+    const parent = FRESH_PARENTS[modelName]?.has(f.name) ? await createRow(f.type, organizationId) : await parentRow(f.type, organizationId)
     fkFields.forEach((fk, i) => (data[fk] = parent[f.relationToFields![i]!]))
   }
   for (const f of model.fields) {
@@ -96,13 +112,22 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
       continue
     }
     if (f.isId || f.hasDefaultValue || f.isUpdatedAt || !f.isRequired) continue
-    data[f.name] = sample(f)
+    data[f.name] = SAMPLE_OVERRIDES[modelName]?.[f.name] ?? sample(f)
   }
   return data
 }
 
 async function createRow(modelName: string, organizationId: string): Promise<Record<string, unknown>> {
   return delegate(prisma, modelName).create({ data: await rowData(modelName, organizationId) })
+}
+
+// Parent rows are created once per organization and shared: some tables allow one row of a kind per organization
+// (department_single_root: one root department), and every child only needs some parent in the same organization
+const parents = new Map<string, Promise<Record<string, unknown>>>()
+function parentRow(modelName: string, organizationId: string): Promise<Record<string, unknown>> {
+  const key = `${organizationId}:${modelName}`
+  if (!parents.has(key)) parents.set(key, createRow(modelName, organizationId))
+  return parents.get(key)!
 }
 
 const REACHABLE = new Set([...TENANT_MODELS, 'Organization'])
@@ -144,6 +169,7 @@ describe('[FR-PLT-001/AC3] [INV-TEN-02] tenant tables in the schema', () => {
     for (const u of uniques) {
       const fields = u.fields.map((f) => f.name)
       if (fields.length === 1 && (GLOBAL_UNIQUE_ALLOWED[name] ?? []).includes(fields[0]!)) continue
+      if ((SPEC_UNIQUE_ALLOWED[name] ?? []).some((spec) => spec.join(',') === fields.join(','))) continue
       expect(fields, `${name} unique (${fields.join(', ')})`).toContain('organizationId')
     }
   })
@@ -159,7 +185,8 @@ describe('[FR-PLT-001/AC3] [INV-TEN-01] db.forTenant() never crosses organizatio
       prisma.organization.create({ data: { code: `T-${randomUUID().slice(0, 8)}`, legalNameTh: 'tenant test', taxId: '0999999000055', settings: {} } })
     orgA = (await make()).id
     orgB = (await make()).id
-    for (const name of tenantModels) rows.set(name, { a: await createRow(name, orgA), b: await createRow(name, orgB) })
+    // A model that is also some other model's parent reuses that row, so the one-per-organization tables hold
+    for (const name of tenantModels) rows.set(name, { a: await parentRow(name, orgA), b: await parentRow(name, orgB) })
   })
 
   it('sees only its own organization row', async () => {
@@ -277,7 +304,8 @@ describe('[INV-TEN-01] Postgres refuses references into another organization', (
   })
 
   it.each(sameTenantKeys.map((k) => [`${k.model}.${k.field.name}`, k] as const))('%s cannot point at a row of another organization', async (_label, k) => {
-    const target = await createRow(k.field.type, orgB)
+    // Any row of the other organization will do; a shared one keeps one-per-organization tables valid
+    const target = await parentRow(k.field.type, orgB)
     const data = await rowData(k.model, orgA)
     k.from.forEach((column, i) => {
       if (column !== 'organizationId') data[column] = target[k.to[i]!]

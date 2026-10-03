@@ -3131,7 +3131,7 @@ features:
 - [ ] **S2-14** `[demo]` การแจ้งเตือนในระบบ
   - เสร็จเมื่อ: เทสต์ AC ของ FR-NOTI-001 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S2-15** `[demo]` ขยาย seed loader: ชีต Departments Positions DOA DOA_Policy RequestTypes Holidays Settings
+- [x] **S2-15** `[demo]` ขยาย seed loader: ชีต Departments Positions DOA DOA_Policy RequestTypes Holidays Settings — เสร็จ 2026-10-03 · 215ef1e
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · seed แล้วเทสต์ยืนยันว่าโครงองค์กรและ DOA ตรง fixture ใน §7.4 (FR-PLT-007 AC3)
   - แยกงาน: ทำเองได้
 - [ ] **S2-16** `[demo]` lint ชุดเต็ม ข้อกำกับ `ORG-CHG-01` service `OrgAuthorityChange` job `org-authority-apply` BR-SOD-08 BR-DOA-13 ชุดตั้งต้น (BR-DOA-19) และ step-up ด้วย TOTP สำหรับการอนุมัติเชิงนโยบาย

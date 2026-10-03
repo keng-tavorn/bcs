@@ -3134,7 +3134,7 @@ features:
 - [x] **S2-15** `[demo]` ขยาย seed loader: ชีต Departments Positions DOA DOA_Policy RequestTypes Holidays Settings — เสร็จ 2026-10-03 · 215ef1e
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · seed แล้วเทสต์ยืนยันว่าโครงองค์กรและ DOA ตรง fixture ใน §7.4 (FR-PLT-007 AC3)
   - แยกงาน: ทำเองได้
-- [ ] **S2-16** `[demo]` lint ชุดเต็ม ข้อกำกับ `ORG-CHG-01` service `OrgAuthorityChange` job `org-authority-apply` BR-SOD-08 BR-DOA-13 ชุดตั้งต้น (BR-DOA-19) และ step-up ด้วย TOTP สำหรับการอนุมัติเชิงนโยบาย
+- [x] **S2-16** `[demo]` lint ชุดเต็ม ข้อกำกับ `ORG-CHG-01` service `OrgAuthorityChange` job `org-authority-apply` BR-SOD-08 BR-DOA-13 ชุดตั้งต้น (BR-DOA-19) และ step-up ด้วย TOTP สำหรับการอนุมัติเชิงนโยบาย — เสร็จ 2026-10-03 · f25421a
   - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-010 และ GC-SOD-06 ถึง GC-SOD-09 ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S2-17** `[demo]` คำถามคัดกรองและกฎ ATT-DPA ใบเสนอราคาเป็นข้อมูลพร้อมกฎเลือกรายถูกสุด และวันสิ้นสุดบริการในบรรทัดคำขอ (BR-FORM-05 BR-FORM-06)
@@ -3417,10 +3417,10 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-12** `[demo]` เพิ่ม event `organization.settings_updated` ในแคตตาล็อก §10.2 เพราะการบันทึก `Organization.settings` (FR-PLT-001 AC2) เป็น command ที่ต้องมี Event · บันทึกได้เฉพาะส่วนที่ §2.4 มีสิทธิ์รองรับ (`businessCalendar` ด้วย `admin.calendar` · `numbering` ด้วย `admin.numbering`) · พบระหว่าง S1-13 — เสร็จ 2026-10-03 · 594ac37
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/organization.ts` · เทสต์ AC2 ของ FR-PLT-001 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **NEW-13** `[demo]` เปลี่ยนสถานะ DOA ฉบับก่อนหน้าเป็น `SUPERSEDED` เมื่อฉบับใหม่ที่อนุมัติไว้ล่วงหน้าถึงเวลามีผล (§6.4 `doa.supersede`) · ตอนอนุมัติ ถ้าฉบับใหม่มีผลทันที service เปลี่ยนให้แล้ว ส่วนฉบับที่มีผลภายหลัง การคำนวณเส้นทางถูกต้องอยู่แล้วเพราะเลือกฉบับตามช่วงเวลา (`versionAt`) แต่สถานะที่หน้าประวัติแสดงยังเป็น `PUBLISHED` จนกว่างานตามเวลาจะเปลี่ยน · พบระหว่าง S2-10
+- [x] **NEW-13** `[demo]` เปลี่ยนสถานะ DOA ฉบับก่อนหน้าเป็น `SUPERSEDED` เมื่อฉบับใหม่ที่อนุมัติไว้ล่วงหน้าถึงเวลามีผล (§6.4 `doa.supersede`) · ตอนอนุมัติ ถ้าฉบับใหม่มีผลทันที service เปลี่ยนให้แล้ว ส่วนฉบับที่มีผลภายหลัง การคำนวณเส้นทางถูกต้องอยู่แล้วเพราะเลือกฉบับตามช่วงเวลา (`versionAt`) แต่สถานะที่หน้าประวัติแสดงยังเป็น `PUBLISHED` จนกว่างานตามเวลาจะเปลี่ยน · พบระหว่าง S2-10 — เสร็จ 2026-10-03 · f25421a
   - เสร็จเมื่อ: เทสต์ที่อนุมัติฉบับที่มีผลในวันหน้า แล้วเลื่อนนาฬิกาธุรกิจถึงวันนั้น พบว่าฉบับก่อนหน้าเป็น `SUPERSEDED` และมี event `doa_version.superseded`
   - แยกงาน: ทำพร้อมงานตามเวลาใน S5-07
-- [ ] **NEW-14** `[demo]` เพิ่ม event `cost_center.created` และ `cost_center.updated` ในแคตตาล็อก §10.2 เพราะ `admin.orgStructure.editBasic` แก้ cost center ได้ทันทีโดยต้องมี event (§2.4 · FR-ADM-002 AC1) · พบระหว่าง S2-16
+- [x] **NEW-14** `[demo]` เพิ่ม event `cost_center.created` และ `cost_center.updated` ในแคตตาล็อก §10.2 เพราะ `admin.orgStructure.editBasic` แก้ cost center ได้ทันทีโดยต้องมี event (§2.4 · FR-ADM-002 AC1) · พบระหว่าง S2-16 — เสร็จ 2026-10-03 · f25421a
   - เสร็จเมื่อ: §10.2 มีทั้งสองชนิด · schema ของ event อยู่ใน `src/server/events/schemas/org-structure.ts` · เทสต์ AC1 ของ FR-ADM-002 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม S2-16)
 - [ ] **NEW-15** `[go-live]` capability และหน้าจอให้ PLATFORM_ADMIN ยืนยันผู้มีอำนาจลงนามตามสัญญา (§2.2 · BR-DOA-19 · `/platform/tenants` ใน §9.1) เพราะ §2.4 ยังไม่มี capability ของเรื่องนี้ ระหว่างรอ seed ตั้งผู้ลงนามขององค์กรตัวอย่าง (ภาคผนวก A) · พบระหว่าง S2-16 (ADR-042) — รอยืนยัน

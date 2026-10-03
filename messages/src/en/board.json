@@ -1,0 +1,94 @@
+{
+  "title": "Who is holding what",
+  "intro": "Who holds documents waiting for a decision, how many, how long they have waited in business hours, and which are past their due time (SLA). People with documents past due come first.",
+  "forbidden": "This account cannot open the board because it is not an active member of the organization. Contact your organization admin.",
+  "home": "Back to home",
+  "scope": {
+    "ORG": "Showing pending documents across the organization",
+    "DEPT": "Showing the requests charged to the departments you head, your tasks and the documents you requested",
+    "OWN": "Showing your tasks and the documents you requested"
+  },
+  "asOf": "Counted up to {time} · ages count business hours only",
+  "refresh": "See the latest figures",
+  "filters": {
+    "department": "Holder's department",
+    "allDepartments": "All departments",
+    "type": "Kind of document",
+    "allTypes": "All kinds",
+    "submit": "Apply filters",
+    "clear": "Clear filters"
+  },
+  "subject": {
+    "REQUEST": "Request",
+    "PURCHASE_ORDER": "Purchase order",
+    "VARIANCE": "Receiving variance",
+    "DOA_VERSION": "DOA version",
+    "ORG_AUTHORITY_CHANGE": "Authority change"
+  },
+  "empty": {
+    "title": "No pending documents within your scope",
+    "hint": "When a document waits for someone's decision it shows here with how long it has waited. Meanwhile, see what waits for you on the approvals page.",
+    "link": "Go to my approvals",
+    "filteredTitle": "No pending documents match these filters",
+    "filteredHint": "Choose another department or kind of document, or clear the filters to see everything."
+  },
+  "table": {
+    "title": "{count, plural, one {# person holds pending documents} other {# people hold pending documents}}",
+    "hint": "Press a name or a figure to see that person's documents and send a reminder.",
+    "caption": "Pending documents by holder",
+    "person": "Holder",
+    "open": "Awaiting decision",
+    "overdue": "Past due (SLA)",
+    "waiting": "Awaiting requester",
+    "oldest": "Oldest (business hrs)",
+    "average": "Average (business hrs)",
+    "hours": "business hours",
+    "overdueWord": "past due",
+    "waitingWord": "awaiting requester",
+    "nameLink": "See the documents {name} holds",
+    "openLink": "{count} awaiting decision at {name}: see documents",
+    "overdueLink": "{count} past due at {name}: see documents",
+    "waitingLink": "{count} awaiting the requester at {name}: see documents"
+  },
+  "document": {
+    "change": "Authority change",
+    "variance": "Receiving variance of {number}",
+    "waitingForRequester": "Waiting for the requester's answer",
+    "waited": "Waited {hours} business hours",
+    "overdue": "Past due since {time}",
+    "due": "Due {time}",
+    "meta": "{kind} · assigned {time}"
+  },
+  "remind": {
+    "button": "Remind {name}",
+    "buttonFull": "Remind {name} about {document}",
+    "recent": "Reminded within the hour; it can be sent again after {time}",
+    "sending": "Sending the reminder…",
+    "sent": "Reminder sent at {time} · this document can be reminded again after {again}",
+    "rule": "A document can be reminded by hand once an hour, whoever sends it. Documents waiting for the requester's answer do not need the approver reminded yet.",
+    "readOnly": "Documents without a reminder button are ones you see as the auditor, who only reads and cannot send reminders."
+  },
+  "errors": {
+    "RECENT": "The reminder was not sent: someone reminded this document within the last hour. It can be sent again after {time}.",
+    "BUSY": "The system is busy with other work, so the reminder was not sent. Wait a moment and press remind again.",
+    "STATE": "The reminder was not sent: this document no longer waits for a decision (it was decided or waits for the requester). Press See the latest figures to update the list.",
+    "NOT_FOUND": "This task is no longer within your scope; it may have been decided or moved. Press See the latest figures to update the list.",
+    "READ_ONLY": "The reminder was not sent: you see this document as the auditor, who only reads.",
+    "FORBIDDEN": "You may not remind about this document.",
+    "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
+    "CONFLICT": "This press clashed with another command. Reload the page and try again.",
+    "INTERNAL": "Something went wrong and the reminder was not sent. Try again; if it still fails, tell your admin the reference {requestId}.",
+    "FAILED": "The reminder was not sent. Check your connection and try again."
+  },
+  "person": {
+    "metaTitle": "Documents held by a person",
+    "back": "Back to the board",
+    "noneTitle": "This person holds no pending documents within your scope",
+    "noneHint": "The documents may have been decided, or fall outside the filters you chose. Go back to the board for the overview.",
+    "title": "Documents held by {name}",
+    "summary": "Awaiting decision {open} · past due {overdue} · awaiting requester {waiting}",
+    "ages": "Oldest {oldest} business hours · average {average} business hours",
+    "listTitle": "Documents",
+    "listLabel": "Documents held by {name}"
+  }
+}

@@ -39,7 +39,13 @@ async function submitted(name: string, requester: string, budgetLine: string, ne
 beforeAll(async () => {
   setEmailProvider({ send: async (m) => (sent.push(m), { messageId: randomUUID() }) })
   org = await createDoaOrg()
-  await prisma.roleAssignment.createMany({ data: [{ organizationId: org.organizationId, memberId: org.member.fin_officer!, role: 'FINANCE', grantedAt: MONDAY_0900 }] })
+  // finance and the CEO (EXECUTIVE) read the whole organization's reports, so the schedule below may send them the file
+  await prisma.roleAssignment.createMany({
+    data: [
+      { organizationId: org.organizationId, memberId: org.member.fin_officer!, role: 'FINANCE', grantedAt: MONDAY_0900 },
+      { organizationId: org.organizationId, memberId: org.member.ceo!, role: 'EXECUTIVE', grantedAt: MONDAY_0900 },
+    ],
+  })
   // Monday 09:00: five requests of CON (four for the DM, one for the VP) and one of IT
   await submitted('R1', 'req_con', 'CON-OPEX-2569', '5000.00')
   await submitted('R2', 'req_con', 'CON-OPEX-2569', '6000.00')

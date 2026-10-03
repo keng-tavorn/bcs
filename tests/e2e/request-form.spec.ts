@@ -60,6 +60,13 @@ function latestSite(requester: string, site: string): void {
   if (r.status !== 0) throw new Error(`supplier scene failed:\n${r.stdout}\n${r.stderr}`)
 }
 
+/** The code of the budget line <member> sent their latest request of <type> on, or null (tests/e2e/form-defaults-scene.ts) */
+function lastUsedBudgetLine(member: string, type: string): string | null {
+  const r = spawnSync(`pnpm exec tsx tests/e2e/form-defaults-scene.ts ${member} ${type}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
+  if (r.status !== 0) throw new Error(`form defaults scene failed:\n${r.stdout}\n${r.stderr}`)
+  return (JSON.parse(r.stdout.trim().split('\n').at(-1)!) as { code: string | null }).code
+}
+
 /** A request req_con2 sent and its approver returned, made through the services in the e2e database (request-form-scene.ts) */
 function returnedRequest(): { requestId: string } {
   const r = spawnSync('pnpm exec tsx tests/e2e/request-form-scene.ts', { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
@@ -116,8 +123,13 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
   await expect(page.getByRole('heading', { level: 1, name: 'คำขอใหม่: ซื้อของ' })).toBeVisible()
   await stepHeading(page, 1, 'รายละเอียดคำขอ')
 
-  // BR-FORM-02: the line req_con used last for this type, the department that pays; only CON's own lines are offered
+  // BR-FORM-02: the line req_con used last for this type (other tests may have sent requests of req_con on another
+  // line), the department that pays; only CON's own lines are offered; the requester may change the line
   const budgetLine = page.getByLabel('บรรทัดงบที่ใช้')
+  const lastUsed = lastUsedBudgetLine('req_con', 'BUY_GOODS')
+  await expect(budgetLine.locator('option:checked')).toHaveText(new RegExp(`^${lastUsed ?? 'CON-OPEX-2569'} · `))
+  const opex = await budgetLine.locator('option', { hasText: /^CON-OPEX-2569 · / }).getAttribute('value')
+  await budgetLine.selectOption(opex!)
   await expect(budgetLine.locator('option:checked')).toHaveText(/^CON-OPEX-2569 · /)
   const offered = await budgetLine.locator('option').allTextContents()
   expect(offered.filter((o) => /^[A-Z]+-/.test(o)).every((o) => o.startsWith('CON-'))).toBe(true)

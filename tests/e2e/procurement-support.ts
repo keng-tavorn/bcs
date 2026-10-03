@@ -44,7 +44,8 @@ export async function chooseSupplier(page: Page, numbers: readonly string[], sup
 
 /** The PO number of the page, read from its heading ("ใบสั่งซื้อ PO-2569-00012") */
 export async function poNumberOf(page: Page): Promise<string> {
-  const label = await header(page).getByText(/^ใบสั่งซื้อ PO-\d{4}-\d+$/).innerText()
+  // The number follows the organization's pattern (FR-ADM-004 lets an admin change it), so any number after the name
+  const label = await header(page).getByText(/^ใบสั่งซื้อ PO\S*\d$/).innerText()
   return label.replace('ใบสั่งซื้อ ', '')
 }
 

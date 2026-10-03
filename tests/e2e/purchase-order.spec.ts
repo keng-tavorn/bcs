@@ -69,7 +69,7 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await expect(actions(page)).toContainText('ราคาไม่เกินที่คำขอจองงบไว้ ไม่ต้องจองงบเพิ่ม')
   await actions(page).getByRole('button', { name: 'ส่งขออนุมัติ' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติแล้ว' })).toBeVisible()
-  await expect(header(page)).toContainText(/ใบสั่งซื้อ PO-\d{4}-\d+/)
+  await expect(header(page)).toContainText(/ใบสั่งซื้อ PO\S*\d/)
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('ชัยวัฒน์ ปฏิบัติการใหญ่')
   await expect(page.getByRole('region', { name: 'แก้ไขร่าง' })).toHaveCount(0)
   await expect(budgetRegion(page)).toContainText('จองไว้แล้ว รอผู้อนุมัติตัดสิน')

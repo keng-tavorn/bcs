@@ -3,6 +3,7 @@ import { formatSatang } from '@/core/money/format'
 import { err, ok, type ErrorCode, type Result } from '@/core/result'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { linkSecretMatches, parseEmailLink } from '@/server/tokens/action-tokens'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -128,6 +129,10 @@ export const decideByLinkCommand = defineCommand({
       }
     }
     if (!token.allowedActions.includes(input.decision)) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the link cannot make this decision', details: { field: 'decision' } } }
+    // Every deciding path locks the task before its token (the LINE postback and decideTask do too), so an e-mail
+    // link and a chat button pressed together wait for each other instead of deadlocking
+    const [lockedTask] = await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, [token.taskId])
+    if (!lockedTask) return tokenError('TOKEN_INVALID', 'the task is gone')
     const route = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { step: { select: { route: { select: { subjectType: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } } })
     const r = route.step.route
     const threshold = r.doaVersion.stepUpThresholdSatang

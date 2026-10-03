@@ -12,6 +12,7 @@ import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { seedBudget } from '@/server/seed/budget'
 import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { seedDevPins } from '@/server/seed/pins'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, seedDemoHistory } from '@/server/services/demo-history'
@@ -42,6 +43,8 @@ try {
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, systemClock.now())
   // The LINE channel from the LINE_* values of .env, when they are set (S5-01)
   const lineChannel = await seedLineChannel(report.organizationId, env, systemClock.now())
+  // Transaction PINs of the demo approvers from SEED_DEV_PIN (S5-05); without it nobody has a PIN
+  const pins = env.SEED_DEV_PIN ? await seedDevPins(report.organizationId, env.SEED_DEV_PIN, systemClock.now()) : null
   const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistory(report.organizationId, parseDemoHistory(workbook), systemClock.now())
   console.log(
     `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
@@ -54,6 +57,7 @@ try {
       (history === null ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)' : history.seeded ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}` : ' · ประวัติ demo มีอยู่แล้ว'),
   )
   console.log(`db:seed LINE: ${describeLineSeed(lineChannel)}`)
+  console.log(`db:seed PIN: ${pins === null ? 'ไม่มี SEED_DEV_PIN: ผู้อนุมัติตั้ง PIN เองตอนใช้ครั้งแรก' : `ตั้ง PIN ใหม่ ${pins.set} คน · มีอยู่แล้ว ${pins.kept} คน`}`)
 } catch (error) {
   if (error instanceof DemoHistoryOutOfYearError) {
     stop(

@@ -235,6 +235,20 @@ describe('[NFR-SEC-09] secrets inside text are redacted', () => {
     expect(out).toContain('callbackURL=%2F')
   })
 
+  it('redacts the PIN-change proof and the LINE link code wherever they appear in text', () => {
+    const proof = `p1.PASSWORD.1791100800000.${'Ab_-'.repeat(5)}Cd.${'Ef9_'.repeat(10)}Gh-`
+    const code = `l1.${'Or9-'.repeat(5)}gA.${'Me7_'.repeat(5)}bQ.1791100800000.${'No5-'.repeat(5)}cE.${'Mac8'.repeat(10)}x_Z`
+    const { logger, output } = capture()
+    logger.warn(`set_pin refused for proof ${proof} (EXPIRED)`)
+    logger.info({ note: `link ${code} used twice` }, 'line link')
+    const out = output()
+    expectAbsent(out, [proof, code, proof.slice(-43), code.slice(-43)])
+    expect(scrubText(`proof ${proof}.`)).toBe(`proof ${REDACTED}.`)
+    expect(scrubText(`code=${code}`)).toBe(`code=${REDACTED}`)
+    // a document number or a version string that starts the same way stays
+    expect(scrubText('p1.PASSWORD changed · l1.2 of the spec')).toBe('p1.PASSWORD changed · l1.2 of the spec')
+  })
+
   it('redacts national IDs and bank accounts in their printed formats', () => {
     for (const value of ['1-1017-00203-45-1', '1 1017 00203 45 1', '123-456789-0', '123-4-56789-0', '1234-567-890', '123 4 56789 0', '4111 1111 1111 1111', '4111111111111111']) {
       expect(scrubText(`supplier ${value} failed mod-11`), value).toBe('supplier [REDACTED] failed mod-11')

@@ -1,3 +1,4 @@
+import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
 import { SLA_TEMPLATES } from './sla'
 
 // Notification templates (spec §4.7 rule 5, §10.1): each template turns a notification's data into a short text in
@@ -155,11 +156,22 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     // §9.1: Express files under finance, audit exports under /audit, report files under /reports
     href: d.kind === 'AUDIT' ? '/audit' : d.kind === 'REPORT' ? '/reports' : '/finance/exports',
   }),
-  'security.notice': (d) => ({
-    title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
-    body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },
-    href: '/settings/security',
-  }),
+  'security.notice': (d) =>
+    d.kind === 'PIN_LOCKED'
+      ? {
+          // FR-AUTH-005 AC3: five wrong PINs in a row lock the PIN; the owner hears of it at once, by e-mail only (§10.1)
+          title: { th: `PIN ยืนยันธุรกรรมของคุณถูกล็อก ${PIN_LOCK_MINUTES} นาที`, en: `Your transaction PIN is locked for ${PIN_LOCK_MINUTES} minutes` },
+          body: {
+            th: `มีการใส่ PIN ผิด ${PIN_FAILURE_LIMIT} ครั้งติดกัน ถ้าไม่ใช่คุณ ให้เปลี่ยนรหัสผ่านและติดต่อผู้ดูแลระบบทันที`,
+            en: `A wrong PIN was entered ${PIN_FAILURE_LIMIT} times in a row. If it was not you, change your password and contact your administrator now`,
+          },
+          href: '/settings/pin',
+        }
+      : {
+          title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
+          body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },
+          href: '/settings/security',
+        },
   // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
   ...SLA_TEMPLATES,
 }

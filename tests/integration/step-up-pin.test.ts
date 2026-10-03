@@ -269,8 +269,12 @@ describe('[FR-AUTH-005/AC3] five wrong PINs in a row lock the PIN for 15 minutes
     expect(sent).toHaveLength(1)
     const th = renderNotification(notice, 'th')
     expect(sent[0]!.subject).toBe(th.title)
-    // The e-mail links to the member's own settings page
-    expect(th.href).toMatch(/^\/settings\//)
+    // The e-mail says it is the PIN, for how long, and what to do if it was not the owner
+    expect(th.title).toBe('PIN ยืนยันธุรกรรมของคุณถูกล็อก 15 นาที')
+    expect(th.body).toContain('ใส่ PIN ผิด 5 ครั้งติดกัน')
+    expect(renderNotification(notice, 'en').title).toBe('Your transaction PIN is locked for 15 minutes')
+    // The e-mail links to the member's own PIN settings
+    expect(th.href).toBe('/settings/pin')
     expect(sent[0]!.text).toContain(th.href!)
     expect(JSON.stringify(sent)).not.toContain(WRONG)
     expect(JSON.stringify(sent)).not.toContain(PINS.dm_it)

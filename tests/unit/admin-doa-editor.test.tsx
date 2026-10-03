@@ -25,6 +25,7 @@ import {
   type RuleState,
 } from '@/ui/admin-doa/editor-model'
 import { SubmitDoaPanel, type SubmitDoaPanelProps } from '@/ui/admin-doa/submit-panel'
+import en from '../../messages/en.json'
 import th from '../../messages/th.json'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 
@@ -285,6 +286,50 @@ describe('[FR-DOA-009/AC1] a change of amount basis is named, since the same amo
     expect(html).toContain('ผู้จัดการฝ่าย (DM)')
     expect(html).not.toContain('ฉบับที่มีผล')
     expect(html).not.toContain('ผู้อนุมัติเดิม')
+  })
+})
+
+describe('[FR-DOA-009/AC3] the same comparison on the approver’s decision page of a DOA version', () => {
+  const dm = { kind: 'POSITION_OF_DEPARTMENT' as const, position: 'DM', positionNameTh: 'ผู้จัดการฝ่าย', positionNameEn: null }
+  const side = { ruleCode: 'PR-01', approvers: [dm] }
+  const compare: CompareView = {
+    baseline: { id: 'v1', code: 'DOA-DEMO', versionNo: 1, inEffectNow: false, effectiveFrom: '2025-12-31T17:00:00.000Z', policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: null, approverMayReceive: false, requesterMayReceive: true }, rules: [] },
+    diff: { policy: [{ field: 'amountBasis', before: 'GROSS', after: 'NET' }], added: [], removed: [], changed: [] },
+    authority: [],
+    boundaries: [{ documentType: 'PURCHASE_REQUEST', rows: [{ amount: baht('20000.00'), before: side, after: side, changed: false }] }],
+    basis: { before: 'GROSS', after: 'NET' },
+  }
+  const render = (messages: typeof th, baseline: { name: string; next: boolean; replaced?: boolean }, simulateHref: string | null) => {
+    const t = createTranslator({ locale: 'th', messages, namespace: 'adminDoa' }) as unknown as DoaT
+    const words = doaWords(t, 'th')
+    return renderToStaticMarkup(
+      <>
+        <AuthorityList compare={compare} baseline={baseline} simulateHref={simulateHref} t={t} words={words} />
+        <BoundaryCompare tables={compare.boundaries} baseline={baseline} basis={compare.basis} simulateHref={simulateHref} t={t} words={words} />
+      </>,
+    )
+  }
+
+  it('an approver who may not open the try-out reads the change of amount basis without a link that would refuse them', () => {
+    const html = render(th, { name: 'DOA-DEMO ฉบับ 1', next: false }, null)
+    expect(html).toContain('ฉบับนี้เปลี่ยนฐานวงเงินจากรวม VAT เป็นก่อน VAT')
+    expect(html).not.toContain('ลองเอกสารจริงในหน้าทดลองส่ง')
+    expect(html).not.toContain('/simulate')
+  })
+
+  it('a version published since is read beside the version it replaced, in the past tense, in Thai and English', () => {
+    const replaced = { name: 'DOA-DEMO ฉบับ 1', next: true, replaced: true }
+    const html = render(th, replaced, null)
+    expect(html).toContain('ซึ่งเป็นฉบับก่อนหน้า')
+    expect(html).not.toContain('ซึ่งจะมีผลก่อนฉบับนี้')
+    expect(render(en as unknown as typeof th, { ...replaced, name: 'DOA-DEMO version 1' }, null)).toContain('the version before this one')
+    // Approved for later, it is still the version that takes effect before this one
+    expect(render(th, { name: 'DOA-DEMO ฉบับ 1', next: true }, null)).toContain('ซึ่งจะมีผลก่อนฉบับนี้')
+  })
+
+  it('the column header keeps the version’s name on one line', () => {
+    expect(render(th, { name: 'DOA-DEMO ฉบับ 1', next: false }, null)).toContain('ฉบับที่มีผล <span class="whitespace-nowrap">(DOA-DEMO ฉบับ 1)</span>')
+    expect(render(th, { name: 'DOA-DEMO ฉบับ 1', next: true }, null)).toContain('ฉบับก่อนหน้า <span class="whitespace-nowrap">(DOA-DEMO ฉบับ 1)</span>')
   })
 })
 

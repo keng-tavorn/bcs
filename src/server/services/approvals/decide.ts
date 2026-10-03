@@ -23,6 +23,8 @@ import { closeRoute, remindShareOf, taskTimes } from './route'
 // delegator when a delegate holds it (BR-DLG-04); the task must still be OPEN; separation of duties is checked again at the moment of deciding (GC-SOD-01, GC-SOD-03).
 // Return and reject need a reason (kept in Comment). The last approval moves the document on; a return or a rejection
 // ends the route. Every decision event names the DOA version and rule, the channel, the actor and whom they act for.
+// DOA versions and authority changes are decided in policy-decide.ts (a step-up every time, BR-DOA-15; a DOA version is
+// approved only with its boundary table ticked, FR-DOA-009 AC3).
 
 const MIN_REASON_LENGTH = 3
 
@@ -78,6 +80,17 @@ const DecideInput = z.strictObject({
   taskId: z.uuid(),
   decision: z.enum(['APPROVE', 'RETURN', 'REJECT']),
   reason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
+  /**
+   * FR-DOA-009 AC3: the approver ticked the boundary table of the DOA version they approve. Required (true) to approve a
+   * DOA_VERSION task whose version has a boundary table (policy-decide.ts); every other decision leaves it unread.
+   */
+  boundaryTableConfirmed: z.boolean().optional(),
+  /**
+   * The version the ticked table compared this one with, as the decision page showed it (null: the version's own table,
+   * an organization's first). Sent with the tick, it binds the tick to that table: a version compared with another one
+   * by now is refused as BOUNDARY_TABLE_CHANGED (policy-decide.ts). The web's decision page always sends it.
+   */
+  boundaryBaselineId: z.uuid().nullable().optional(),
 })
 
 const COMMAND_OF = { APPROVE: 'approval.approve', RETURN: 'approval.return', REJECT: 'approval.reject' } as const satisfies Record<string, TaskCommand>

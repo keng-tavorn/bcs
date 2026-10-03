@@ -98,7 +98,7 @@ describe('[FR-DOA-002/AC3] the initial package goes to the contract signatory, w
     expect(await submitInitialPackage(org.ctxOf('admin', NOW), { versionId: second, holders: holders(), reason: 'ซ้ำ' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'NOT_INITIAL' } } })
 
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { routeId: route.id } } })
-    const approve = () => decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())
+    const approve = () => decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())
     expect(await approve()).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
     await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(SIGNATORY_SECRET) }, new Date())
     expect(await approve()).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })

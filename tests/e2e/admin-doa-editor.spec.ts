@@ -6,22 +6,25 @@ import path from 'node:path'
 import { type Locator, type Page, type TestInfo } from '@playwright/test'
 import { parse as parseYaml } from 'yaml'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
-import { e2eEnv } from '../support/e2e-env'
+import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 
-// S3-09 · the DOA editor (FR-DOA-001 AC1), the comparison with the version in effect and the boundary table the drafter
-// ticks before sending (FR-DOA-009 AC1; the drafter's half of AC3; GC-DOA-22), and the try-out (AC2). Demo scene 10:
-// the admin moves the DM band to 30,000 baht on screen, sees the diff and the boundary table, sends; the CEO approves
-// with a step-up; it takes effect on the first of next month; the try-out with 25,000 baht shows version 1 going to the
-// VP and version 2 to the DM. The approver's tick of FR-DOA-009 AC3 belongs to the decision page of DOA_VERSION tasks,
-// not built yet, so no title here carries that AC's tag. Each test builds an organization of its own
-// (tests/e2e/admin-doa-editor-scene.ts) so the demo organization's DOA never changes under other specs, and desktop
-// and mobile never meet. Screenshots at 375 px and 1440 px go to the test output (§9.9 step 4); axe runs on every state.
+// S3-09 · the DOA editor (FR-DOA-001 AC1), the comparison with the version in effect and the boundary table, ticked by
+// the drafter before sending and by the approver before approving (FR-DOA-009 AC1, AC3; GC-DOA-22), and the try-out
+// (AC2). Demo scene 10: the admin moves the DM band to 30,000 baht on screen, sees the diff and the boundary table,
+// sends; the CEO opens the task, reads the same diff, authority changes and boundary table, cannot approve before
+// ticking the table, ticks it and approves with a step-up (FR-DOA-002 AC2); it takes effect on the first of next
+// month; the try-out with 25,000 baht shows version 1 going to the VP and version 2 to the DM. Each test builds an
+// organization of its own (tests/e2e/admin-doa-editor-scene.ts) so the demo organization's DOA never changes under
+// other specs, and desktop and mobile never meet. Screenshots at 375 px and 1440 px go to the test output (§9.9 step
+// 4); axe runs on every state.
 
 interface Scene {
   readonly orgCode: string
   readonly email: string
   readonly code: string
+  /** The CEO's sign-in: the approver of DOA-CHG-01 */
+  readonly ceo: { readonly email: string; readonly code: string }
   readonly v1: string
   readonly names: Readonly<Record<'admin' | 'ceo' | 'coo' | 'vp_ops' | 'vp_sup' | 'dm_con' | 'dm_it' | 'req_con', string>>
 }
@@ -79,9 +82,13 @@ const thaiDate = (iso: string) => {
   return `${d} ${THAI_MONTHS[m - 1]} ${y + 543}`
 }
 
-test('@demo [FR-DOA-001/AC1] [FR-DOA-009/AC1] the admin moves the DM band to 30,000 on screen, checks the diff and ticks the boundary table, sends; the CEO approves; it takes effect on the first of next month', async ({ page }, testInfo) => {
-  // The whole demo scene in one test, with two scene runs and an accessibility check on every state
-  test.setTimeout(180_000)
+test('@demo [FR-DOA-001/AC1] [FR-DOA-009/AC1] [FR-DOA-009/AC3] [FR-DOA-002/AC2] the admin moves the DM band to 30,000 on screen, checks the diff and ticks the boundary table, sends; the CEO reads the same, ticks the table and approves; it takes effect on the first of next month', async ({
+  page,
+  browser,
+  clientIp,
+}, testInfo) => {
+  // The whole demo scene in one test, the CEO in a browser of their own, and an accessibility check on every state
+  test.setTimeout(300_000)
   const mobile = testInfo.project.name === 'mobile'
   const s = scene<Scene>('org', testInfo.project.name)
   await signIn(page, s)
@@ -204,8 +211,59 @@ test('@demo [FR-DOA-001/AC1] [FR-DOA-009/AC1] the admin moves the DM band to 30,
   await send.getByRole('button', { name: 'ส่งขออนุมัติเผยแพร่' }).click()
   await expect(page.getByRole('status').filter({ hasText: `ส่งขออนุมัติเผยแพร่แล้ว รอ ${s.names.ceo} อนุมัติ` }).first()).toBeVisible()
 
-  // The CEO approves with a step-up (the decision page is the approver's, tests/e2e/tasks*.spec.ts)
-  expect(scene<{ approved: string }>('approve', s.orgCode).approved).toBeTruthy()
+  // The CEO, the approver of DOA-CHG-01, decides on the task's page in a browser of their own (FR-DOA-009 AC3, BR-DOA-15)
+  const ceoContext = await browser.newContext({ ...testInfo.project.use, baseURL: E2E_BASE_URL, extraHTTPHeaders: { 'x-forwarded-for': clientIp } })
+  const ceo = await ceoContext.newPage()
+  await signIn(ceo, s.ceo)
+  await ceo.goto('/tasks')
+  await ceo.getByRole('link', { name: 'อนุมัติเผยแพร่ DOA-DEMO ฉบับ 2' }).click()
+  await expect(ceo.getByRole('heading', { level: 1 })).toHaveText('เผยแพร่ DOA-DEMO ฉบับ 2')
+  // The same comparison the admin sent: what changes, who gains or loses authority, and the boundary table
+  const taskDiff = ceo.getByRole('region', { name: 'เปลี่ยนจาก DOA-DEMO ฉบับ 1 ที่มีผลอยู่' })
+  await expect(taskDiff.getByRole('listitem').filter({ hasText: 'แก้ข้อ PR-01' })).toContainText('ช่วงวงเงิน: เดิม ไม่เกิน 20,000.00 บาท · ใหม่ ไม่เกิน 30,000.00 บาท')
+  await expect(ceo.getByRole('region', { name: 'ตำแหน่งที่ได้หรือเสียอำนาจ' }).getByRole('listitem')).toHaveText([
+    /ได้อำนาจ\s*ผู้จัดการฝ่าย \(DM\) ของแผนกที่ตั้งเบิก\s*คำขอซื้อ \(PR\) · มากกว่า 20,000\.00 ถึงไม่เกิน 30,000\.00 บาท/,
+    /เสียอำนาจ\s*รองประธานสายงาน \(VP\) ของแผนกที่ตั้งเบิก\s*คำขอซื้อ \(PR\) · มากกว่า 20,000\.00 ถึงไม่เกิน 30,000\.00 บาท/,
+  ])
+  const taskEdges = ceo.getByRole('region', { name: 'ตารางผลที่ขอบของช่วงวงเงิน' }).getByRole('list', { name: 'คำขอซื้อ (PR)' }).getByRole('listitem')
+  await expect(taskEdges).toHaveCount(6)
+  const taskEdge = taskEdges.filter({ hasText: '20,000.01 บาท' })
+  await expect(taskEdge).toContainText(/ฉบับที่มีผล\s*ใช้ข้อ PR-02\s*รองประธานสายงาน \(VP\)/)
+  await expect(taskEdge).toContainText(/ฉบับนี้\s*ใช้ข้อ PR-01\s*ผู้จัดการฝ่าย \(DM\)/)
+  await expect(taskEdge).toContainText('ผู้อนุมัติเปลี่ยน')
+  await expect(taskEdges.filter({ hasText: '30,000.01 บาท' })).toContainText('ผู้อนุมัติเดิม')
+  // Money right-aligned on wide screens; on phones each amount is a row of its own with its label
+  if (!mobile) expect(await taskEdge.locator('.tabular').first().evaluate((e) => getComputedStyle(e.parentElement!).textAlign)).toBe('right')
+  // The column header keeps the name of the version compared with on one line
+  if (!mobile) {
+    const header = ceo.getByRole('region', { name: 'ตารางผลที่ขอบของช่วงวงเงิน' }).getByText('(DOA-DEMO ฉบับ 1)', { exact: true }).first()
+    expect(await header.evaluate((e) => getComputedStyle(e).whiteSpace)).toBe('nowrap')
+  }
+  await review(ceo, testInfo, 'doa-task-compare')
+
+  // Approving asks for the tick of the boundary table first, then the code from the app
+  const approve = ceo.getByRole('button', { name: 'อนุมัติการเปลี่ยนนี้', exact: true })
+  const approveForm = ceo.locator('form').filter({ has: approve })
+  const tick = approveForm.getByRole('checkbox', { name: 'ฉันตรวจตารางผลที่ขอบแล้ว ทุกยอดที่ขอบของช่วงไปหาผู้อนุมัติที่ถูกต้อง' })
+  const tickBox = (await tick.boundingBox())!
+  const codeBox = (await approveForm.getByLabel('รหัส 6 หลักจากแอป').boundingBox())!
+  expect(tickBox.y).toBeLessThan(codeBox.y)
+  const ceoCode = () => totp(deriveSeedTotpSecret(process.env.SEED_TOTP_KEY!, s.ceo.code))
+  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(ceoCode())
+  await approve.click()
+  await expect(approveForm.getByText('ติ๊กยืนยันว่าตรวจตารางผลที่ขอบแล้วก่อนอนุมัติ')).toBeVisible()
+  await expect(tick).toHaveAttribute('aria-invalid', 'true')
+  await review(ceo, testInfo, 'doa-task-tick')
+  await expect(ceo.getByRole('status').filter({ hasText: 'อนุมัติการเปลี่ยนนี้แล้ว' })).toHaveCount(0)
+  await tick.check()
+  await expect(approveForm.getByText('ติ๊กยืนยันว่าตรวจตารางผลที่ขอบแล้วก่อนอนุมัติ')).toHaveCount(0)
+  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(ceoCode())
+  await approve.click()
+  await expect(ceo.getByRole('status').filter({ hasText: 'อนุมัติการเปลี่ยนนี้แล้ว' })).toBeVisible()
+  await expect(ceo.getByRole('status').filter({ hasText: `อนุมัติแล้วโดย ${s.names.ceo} เมื่อ` })).toBeVisible()
+  await review(ceo, testInfo, 'doa-task-approved')
+  await ceoContext.close()
+
   await page.goto('/admin/doa')
   const list = page.getByRole('region', { name: /ทุกฉบับ/ }).getByRole('listitem')
   await expect(list.filter({ hasText: 'DOA-DEMO ฉบับ 2' })).toContainText('อนุมัติแล้ว รอมีผล')

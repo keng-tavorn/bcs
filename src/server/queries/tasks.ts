@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { comparisonBaselineId } from './doa'
 import {
   approverRoles,
   businessCalendarOf,
@@ -291,6 +292,18 @@ export interface DoaVersionContentDto {
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
+/**
+ * The version a DOA version is compared with (FR-DOA-009 AC1, AC3), and how it stands now: IN_EFFECT now; NEXT,
+ * approved for later and in effect just before this version starts; REPLACED, in effect before this version and ended.
+ */
+export interface DoaBaselineDto {
+  readonly versionId: string
+  readonly code: string
+  readonly versionNo: number
+  readonly effectiveFrom: Date
+  readonly relation: 'IN_EFFECT' | 'NEXT' | 'REPLACED'
+}
+
 /** What a policy task asks the approver to approve (BR-DOA-15) */
 export type PolicySubjectDto =
   | {
@@ -311,8 +324,14 @@ export type PolicySubjectDto =
       readonly holders: ReadonlyArray<{ readonly position: PositionNameDto; readonly department: DepartmentRefDto | null; readonly member: MemberRefDto | null }>
       /** The rules and policy the approver is asked to publish; null when a stored rule cannot be read */
       readonly content: DoaVersionContentDto | null
-      /** The same of the version in effect now, to compare with (FR-DOA-009 AC1); null without one */
-      readonly currentContent: DoaVersionContentDto | null
+      /**
+       * The version it is compared with — the diff, the authority gained or lost and the boundary table the approver
+       * ticks (FR-DOA-009 AC1, AC3): the one the drafter's page, the send and the approval compare it with; null without
+       * one (an organization's first version)
+       */
+      readonly baseline: DoaBaselineDto | null
+      /** The rules and policy of the baseline; null without one, or when one of its stored rules cannot be read */
+      readonly baselineContent: DoaVersionContentDto | null
       /** Names of the positions and members the rules of both versions name as approvers */
       readonly positionNames: ReadonlyMap<string, NameDto>
       readonly memberNames: ReadonlyMap<string, MemberRefDto>
@@ -502,6 +521,26 @@ async function doaContentOf(db: TenantDb, versionId: string): Promise<DoaVersion
   }
 }
 
+/** Statuses of a version that was approved: in effect, approved for later, or replaced since */
+const ONCE_IN_EFFECT: readonly string[] = ['PUBLISHED', 'SUPERSEDED']
+
+/**
+ * The version a DOA version is compared with (FR-DOA-009 AC1, AC3). While it waits, comparisonBaselineId at this
+ * moment: the version in effect just before it starts — the drafter's page, the send and the approval read the same
+ * one, so the approver ticks the table the approval asks for. Once published, the version it replaced: in effect just
+ * before it started (its start may have moved to the approval, BR-DOA-12).
+ */
+async function baselineOf(db: TenantDb, version: { readonly id: string; readonly status: string; readonly effectiveFrom: Date }, now: Date): Promise<DoaBaselineDto | null> {
+  const at = ONCE_IN_EFFECT.includes(version.status) ? new Date(version.effectiveFrom.getTime() - 1) : now
+  const id = await comparisonBaselineId(db, version, at)
+  if (!id) return null
+  const row = await db.doaVersion.findUniqueOrThrow({ where: { id }, select: { id: true, code: true, versionNo: true, status: true, effectiveFrom: true, effectiveTo: true } })
+  const started = row.effectiveFrom.getTime() <= now.getTime()
+  const ended = row.effectiveTo !== null && row.effectiveTo.getTime() <= now.getTime()
+  const relation = row.status === 'PUBLISHED' && started && !ended ? 'IN_EFFECT' : started ? 'REPLACED' : 'NEXT'
+  return { versionId: row.id, code: row.code, versionNo: row.versionNo, effectiveFrom: row.effectiveFrom, relation }
+}
+
 async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: string, departments: { byId: Map<string, DepartmentRefDto> }): Promise<PolicySubjectDto | null> {
   const version = await db.doaVersion.findUnique({ where: { id: versionId }, include: { _count: { select: { rules: true } } } })
   if (!version) return null
@@ -511,9 +550,10 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
     orderBy: { effectiveFrom: 'desc' },
     select: { id: true, code: true, versionNo: true },
   })
-  // What the approver publishes, and what is in effect now to compare it with (FR-DOA-002 AC2, FR-DOA-009 AC1)
-  const [content, currentContent] = await Promise.all([doaContentOf(db, version.id), current && current.id !== version.id ? doaContentOf(db, current.id) : Promise.resolve(null)])
-  const approvers = [...(content?.rules ?? []), ...(currentContent?.rules ?? [])].flatMap((r) => r.steps.map((s) => s.approver))
+  // What the approver publishes, and the version it is compared with (FR-DOA-002 AC2, FR-DOA-009 AC1, AC3)
+  const baseline = await baselineOf(db, version, now)
+  const [content, baselineContent] = await Promise.all([doaContentOf(db, version.id), baseline ? doaContentOf(db, baseline.versionId) : Promise.resolve(null)])
+  const approvers = [...(content?.rules ?? []), ...(baselineContent?.rules ?? [])].flatMap((r) => r.steps.map((s) => s.approver))
   const positionCodes = [...new Set(approvers.flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position])))]
   const [positionRows, memberNames] = await Promise.all([
     positionCodes.length ? db.position.findMany({ where: { code: { in: positionCodes } }, select: { code: true, nameTh: true, nameEn: true } }) : Promise.resolve([]),
@@ -552,7 +592,8 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
       }
     }),
     content,
-    currentContent,
+    baseline,
+    baselineContent,
     positionNames: new Map(positionRows.map((p) => [p.code, { th: p.nameTh, en: p.nameEn }])),
     memberNames,
   }

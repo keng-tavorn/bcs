@@ -6,6 +6,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import type { ActionOutcome } from '@/ui/tasks/outcome'
+import type { PolicyDecisionInput } from '@/ui/tasks/policy-decision'
 import { getSession } from '../../_lib/session'
 import { askRequester, decidePolicy, decideRequestTask } from '../_tracking/commands'
 import { localeOf } from '../_tracking/present'
@@ -35,8 +36,12 @@ export async function askForInformationAction(input: { taskId: string; question:
   return refreshed(await askRequester(ctx, input, idempotencyKey))
 }
 
-/** BR-DOA-15: a DOA version or an authority change is decided with the authenticator code again (security clock) */
-export async function decidePolicyTaskAction(input: { taskId: string; decision: 'APPROVE' | 'REJECT'; reason?: string; code: string }, idempotencyKey: string): Promise<ActionOutcome> {
+/**
+ * BR-DOA-15: a DOA version or an authority change is decided with the authenticator code again (security clock); a DOA
+ * version with a boundary table is approved with the approver's tick of it and the version it compared with
+ * (FR-DOA-009 AC3)
+ */
+export async function decidePolicyTaskAction(input: PolicyDecisionInput, idempotencyKey: string): Promise<ActionOutcome> {
   const state = await getSession()
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx || state.kind !== 'member') return NO_SESSION

@@ -269,6 +269,7 @@
     "authorityTitle": "Positions that gain or lose authority",
     "authorityIntro": "Compared with {name}, <now>in effect now</now>, by the approvers each rule names, before a document moves to the next band because its approver is the requester",
     "authorityIntroNext": "Compared with {name}, <now>in effect just before this one</now>, by the approvers each rule names, before a document moves to the next band because its approver is the requester",
+    "authorityIntroReplaced": "Compared with {name}, <now>the version before this one</now>, by the approvers each rule names, before a document moves to the next band because its approver is the requester",
     "authorityNone": "No position gains or loses authority: every amount of every document type goes to the same approvers",
     "authorityNoneBasis": "By the numbers of the amount bands no position gains or loses authority, but the amount basis changes, so the same document may still go to another approver",
     "basisNotice": "This version changes the amount basis from {before} to {after}. Amounts here are on each version’s own basis, so the same document may go to another approver than shown here.",
@@ -280,8 +281,8 @@
     "boundaryCompareIntro": "Which rule and approver each band’s upper edge in either version, and 0.01 baht above it, goes to",
     "boundaryHeaders": {
       "amount": "Amount",
-      "before": "In effect ({name})",
-      "beforeNext": "Before this one ({name})",
+      "before": "In effect <keep>({name})</keep>",
+      "beforeNext": "Before this one <keep>({name})</keep>",
       "after": "This version",
       "result": "Result",
       "beforeShort": "In effect",

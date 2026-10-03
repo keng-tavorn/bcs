@@ -1,17 +1,25 @@
 import { getTranslations } from 'next-intl/server'
 import type { MemberRefDto, NameDto } from '@/server/queries/requests'
 import type { DoaVersionContentDto, PolicySubjectDto, TaskViewDto } from '@/server/queries/tasks'
+import { amountBasisChange, authorityChanges, boundaryComparison, type BoundarySide } from '@/server/services/doa/compare'
 import { diffVersions, type PolicyField, type PolicyValue, type RuleField } from '@/server/services/doa/diff'
+import type { ApproverView, BoundarySideView, BoundaryTableView, CompareView, RuleView } from '@/server/services/doa/view'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Facts, Section, type Fact } from '@/ui/request-view/facts'
 import { Notice } from '@/ui/form/notice'
+import type { BoundaryTick } from '@/ui/tasks/policy-decision'
+import { AuthorityList, BoundaryCompare, type Baseline } from '../admin/doa/_parts/sections'
+import { doaWords as adminDoaWords, type DoaT } from '../admin/doa/_parts/words'
 import { doaHref, doaRefText, memberName, money, nameIn, routeSentence, when, type Locale } from './present'
 
 // What a policy task asks the approver to approve (BR-DOA-15, FR-DOA-010 AC1–AC2, FR-DOA-002 AC2, BR-DOA-13): the
 // change as one sentence with names, who proposed it and when it takes effect, the reason, and who gains or loses
-// authority — or, for a DOA version, every rule and the policy it publishes, what differs from the version in effect
-// (the same comparison as the version history, FR-DOA-001 AC3), and the tasks still running under that one. The
-// approver reads it all here: they are the task's decider, and the admin pages are for ORG_ADMIN only.
+// authority — or, for a DOA version, what differs from the version it is compared with (the same comparison as the
+// version history, FR-DOA-001 AC3), the positions that gain or lose authority and the boundary table the approver ticks
+// before approving (FR-DOA-009 AC1, AC3: the drafter's page shows the same, with the same renderers), every rule and the
+// policy it publishes, and the tasks still running under the version in effect. The version it is compared with is the
+// one the drafter's page, the send and the approval read (src/server/queries/tasks.ts baselineOf). The approver reads
+// it all here: they are the task's decider, and the admin pages are for ORG_ADMIN only.
 
 type TasksT = Awaited<ReturnType<typeof getTranslations<'tasks'>>>
 // The engine's shapes, as the query hands them over (screens import core only for formatting, §4.10)
@@ -20,6 +28,10 @@ type DoaStepSpec = DoaRuleSnapshot['steps'][number]
 type ApproverSpec = DoaStepSpec['approver']
 type AmountCondition = NonNullable<DoaRuleSnapshot['when']['amount']>
 type DoaDocumentType = DoaRuleSnapshot['documentType']
+type DoaPolicy = Extract<PolicySubjectDto, { kind: 'DOA_VERSION' }>
+
+/** The section of the decision page that holds the boundary table, which the approver's tick links to (FR-DOA-009 AC3) */
+export const DOA_BOUNDARY_SECTION = 'doa-boundaries'
 
 /** The change as one sentence, e.g. "แต่งตั้ง สมหญิง รักงาน เป็นผู้จัดการฝ่าย ฝ่ายก่อสร้าง" */
 export function policyHeadline(t: TasksT, locale: Locale, policy: PolicySubjectDto): string {
@@ -48,6 +60,35 @@ export function policyHeadline(t: TasksT, locale: Locale, policy: PolicySubjectD
     case 'IDENTITY_RESET':
       return t('policy.change.IDENTITY_RESET', { member: member(d.member) })
   }
+}
+
+/**
+ * A DOA version beside the version it is compared with, by the functions the drafter's page and the services use
+ * (src/server/services/doa/compare.ts): who gains or loses authority, the two amount bases when they differ, and the
+ * boundary table — of both versions, or of this version alone when it is an organization's first. null when a stored
+ * rule of either version cannot be read.
+ */
+export function doaComparison(policy: DoaPolicy) {
+  const content = policy.content
+  // The query reads the baseline's content only when there is a baseline
+  const before = policy.baselineContent
+  if (!content || (policy.baseline !== null && before === null)) return null
+  return {
+    authority: before ? authorityChanges(before, content) : [],
+    basis: before ? amountBasisChange(before, content) : null,
+    boundaries: boundaryComparison(before, content),
+  }
+}
+
+/**
+ * The boundary table on the decision page of a DOA version that has one, else null: the approve form then asks for the
+ * tick before the code (FR-DOA-009 AC3), as the service asks for it before it approves, and sends it with the version
+ * the table compares with (null: the version's own table), so the service approves only the table that was ticked.
+ */
+export function boundaryTickOf(task: TaskViewDto): BoundaryTick | null {
+  if (task.policy?.kind !== 'DOA_VERSION') return null
+  if ((doaComparison(task.policy)?.boundaries.length ?? 0) === 0) return null
+  return { tableId: DOA_BOUNDARY_SECTION, baselineId: task.policy.baseline?.versionId ?? null }
 }
 
 /** Words for the rules and the policy of a DOA version, in the reader's language */
@@ -112,29 +153,114 @@ function policyValues(c: DoaVersionContentDto): Record<PolicyField, PolicyValue>
   }
 }
 
+/**
+ * The comparison in the shapes the renderers of the drafter's page take (src/server/services/doa/view.ts): approvers
+ * with the names of their positions or people (a person the page cannot name reads as `unknown`), money as satang text.
+ */
+function comparisonViews(policy: DoaPolicy, comparison: NonNullable<ReturnType<typeof doaComparison>>, unknown: string) {
+  const approver = (a: ApproverSpec): ApproverView => {
+    if (a.kind === 'MEMBER') {
+      const m = policy.memberNames.get(a.memberId)
+      return { kind: 'MEMBER', member: { id: a.memberId, nameTh: m?.name.th ?? unknown, nameEn: m?.name.en ?? null } }
+    }
+    const p = policy.positionNames.get(a.position)
+    return { kind: a.kind, position: a.position, positionNameTh: p?.th ?? null, positionNameEn: p?.en ?? null }
+  }
+  const side = (s: BoundarySide): BoundarySideView => ({ ruleCode: s.ruleCode, approvers: s.approvers.map(approver) })
+  const boundaries: BoundaryTableView[] = comparison.boundaries.map((table) => ({
+    documentType: table.documentType,
+    rows: table.rows.map((r) => ({ amount: r.amount, before: r.before ? side(r.before) : null, after: side(r.after), changed: r.changed })),
+  }))
+  const ruleView = (r: DoaRuleSnapshot): RuleView => {
+    const amount = r.when.amount
+    return {
+      code: r.code,
+      documentType: r.documentType,
+      priority: r.priority,
+      band: amount
+        ? {
+            ...(amount.gt !== undefined ? { gt: amount.gt.toString() } : {}),
+            ...(amount.gte !== undefined ? { gte: amount.gte.toString() } : {}),
+            ...(amount.lte !== undefined ? { lte: amount.lte.toString() } : {}),
+          }
+        : null,
+      steps: r.steps.map((s) => ({ approver: approver(s.approver), slaMinutes: s.slaBusinessMinutes })),
+    }
+  }
+  const baseline = policy.baseline
+  const before = policy.baselineContent
+  const compare: CompareView | null =
+    baseline && before && policy.content
+      ? {
+          baseline: {
+            id: baseline.versionId,
+            code: baseline.code,
+            versionNo: baseline.versionNo,
+            inEffectNow: baseline.relation === 'IN_EFFECT',
+            effectiveFrom: baseline.effectiveFrom.toISOString(),
+            policy: policyValues(before),
+            rules: before.rules.map(ruleView),
+          },
+          diff: diffVersions(before, policy.content),
+          authority: comparison.authority.map((c) => ({ change: c.change, approver: approver(c.approver), documentType: c.documentType, band: c.band })),
+          boundaries,
+          basis: comparison.basis,
+        }
+      : null
+  return { compare, boundaries }
+}
+
 const tagClass = 'rounded-sm border border-line px-1.5 text-base font-normal text-ink md:text-sm'
 
-/** The rules and the policy a DOA version publishes, and what differs from the version in effect */
-function DoaVersionContent({ policy, t, locale }: { policy: Extract<PolicySubjectDto, { kind: 'DOA_VERSION' }>; t: TasksT; locale: Locale }) {
+/**
+ * The diff with the version it is compared with, who gains or loses authority and the boundary table the approver
+ * ticks, then the rules and the policy the version publishes. `simulate`: the reader may open the try-out of this
+ * version, which those renderers offer beside a change of amount basis.
+ */
+function DoaVersionContent({ policy, t, tAdmin, locale, simulate }: { policy: DoaPolicy; t: TasksT; tAdmin: DoaT; locale: Locale; simulate: boolean }) {
   const content = policy.content
-  if (!content) return <Notice tone="warning">{t('policy.doaUnreadable')}</Notice>
+  const comparison = doaComparison(policy)
+  if (!content || !comparison) return <Notice tone="warning">{t('policy.doaUnreadable')}</Notice>
   const words = doaWords(t, locale, { positions: policy.positionNames, members: policy.memberNames })
-  const current = policy.currentContent
-  const currentName = policy.current ? t('policy.doaVersionRef', { code: policy.current.code, version: policy.current.versionNo }) : ''
-  const diff = current ? diffVersions(current, content) : null
+  // The authority list and the boundary table go through the renderers of the drafter's page, so both read the same
+  const views = comparisonViews(policy, comparison, t('policy.unknown'))
+  const baseline = policy.baseline
+  const baselineName = baseline ? t('policy.doaVersionRef', { code: baseline.code, version: baseline.versionNo }) : ''
+  const diff = views.compare?.diff ?? null
   const changedCodes = new Map((diff?.changed ?? []).map((c) => [c.code, c.fields]))
   const added = new Set(diff?.added ?? [])
-  const before = new Map((current?.rules ?? []).map((r) => [r.code, r]))
+  const beforeRules = new Map((policy.baselineContent?.rules ?? []).map((r) => [r.code, r]))
   const differs = diff ? diff.policy.length + diff.added.length + diff.removed.length + diff.changed.length > 0 : false
   const values = policyValues(content)
+  const diffTitle = !baseline
+    ? t('policy.doaDiffTitleFirst')
+    : baseline.relation === 'IN_EFFECT'
+      ? t('policy.doaDiffTitle', { name: baselineName })
+      : baseline.relation === 'NEXT'
+        ? t('policy.doaDiffTitleNext', { name: baselineName })
+        : t('policy.doaDiffTitleReplaced', { name: baselineName })
+
+  const adminWords = adminDoaWords(tAdmin, locale)
+  // The version it is compared with, as those renderers name it: in effect now, or before this one — approved for
+  // later, or replaced since (in the past tense)
+  const sectionsBaseline: Baseline | null = baseline
+    ? { name: adminWords.versionName(baseline), next: baseline.relation !== 'IN_EFFECT', replaced: baseline.relation === 'REPLACED' }
+    : null
+  // The try-out of this version is an ORG_ADMIN page (admin.doa.simulate): offered only to a reader who may open it,
+  // never as a link that ends in a refusal
+  const simulateHref = simulate ? `/admin/doa/${policy.versionId}/simulate` : null
+  const authorityShown = Boolean(views.compare && sectionsBaseline)
+  // Those renderers close their lists with a rule: the section that follows one starts without a rule of its own
+  const afterRule = 'border-t-0 pt-0'
 
   return (
     <>
-      <Section id="doa-diff" title={current ? t('policy.doaDiffTitle', { name: currentName }) : t('policy.doaDiffTitleFirst')}>
+      <Section id="doa-diff" title={diffTitle}>
+        {baseline?.relation === 'NEXT' ? <p className="text-base text-ink-muted md:text-sm">{t('policy.doaDiffNextNote', { name: baselineName, time: when(locale, baseline.effectiveFrom) })}</p> : null}
         {!diff ? (
           <p className="text-ink">{t('policy.doaDiffFirst')}</p>
         ) : !differs ? (
-          <p className="text-ink">{t('policy.doaDiffNone', { name: currentName })}</p>
+          <p className="text-ink">{t('policy.doaDiffNone', { name: baselineName })}</p>
         ) : (
           <ul aria-label={t('policy.doaDiffLabel')} className="flex flex-col divide-y divide-line border-t border-line">
             {diff.policy.map((p) => (
@@ -144,7 +270,7 @@ function DoaVersionContent({ policy, t, locale }: { policy: Extract<PolicySubjec
               </li>
             ))}
             {diff.changed.map((c) => {
-              const old = before.get(c.code)
+              const old = beforeRules.get(c.code)
               const now = content.rules.find((r) => r.code === c.code)
               return (
                 <li key={`changed-${c.code}`} className="flex flex-col gap-0.5 py-2.5">
@@ -169,7 +295,7 @@ function DoaVersionContent({ policy, t, locale }: { policy: Extract<PolicySubjec
               )
             })}
             {diff.removed.map((code) => {
-              const rule = before.get(code)
+              const rule = beforeRules.get(code)
               return (
                 <li key={`removed-${code}`} className="flex flex-col gap-0.5 py-2.5">
                   <span className="font-medium text-ink">{t('policy.doaDiffRemoved', { rule: code })}</span>
@@ -181,7 +307,19 @@ function DoaVersionContent({ policy, t, locale }: { policy: Extract<PolicySubjec
         )}
       </Section>
 
-      <Section id="doa-rules" title={t('policy.doaRulesTitle', { count: content.rules.length })}>
+      {views.compare && sectionsBaseline ? (
+        <Section id="doa-authority" title={tAdmin('detail.authorityTitle')}>
+          <AuthorityList compare={views.compare} baseline={sectionsBaseline} simulateHref={simulateHref} t={tAdmin} words={adminWords} />
+        </Section>
+      ) : null}
+
+      {views.boundaries.length ? (
+        <Section id={DOA_BOUNDARY_SECTION} title={tAdmin('detail.boundaryTitle')} className={authorityShown ? afterRule : undefined}>
+          <BoundaryCompare tables={views.boundaries} baseline={sectionsBaseline} basis={comparison.basis} simulateHref={simulateHref} t={tAdmin} words={adminWords} />
+        </Section>
+      ) : null}
+
+      <Section id="doa-rules" title={t('policy.doaRulesTitle', { count: content.rules.length })} className={authorityShown || views.boundaries.length > 0 ? afterRule : undefined}>
         <ul aria-label={t('policy.doaRulesLabel', { name: t('policy.doaVersionRef', { code: content.code, version: content.versionNo }) })} className="flex flex-col divide-y divide-line border-t border-line">
           {content.rules.map((rule) => {
             const fields = changedCodes.get(rule.code)
@@ -214,11 +352,24 @@ function DoaVersionContent({ policy, t, locale }: { policy: Extract<PolicySubjec
 }
 
 /**
- * `doaLinks`: the reader may open DOA versions on the admin pages; `orgAuthorityLink`: the reader may open the list of
- * authority changes. Without them the page shows the references as text and leaves the admin links out.
+ * `doaLinks`: the reader may open DOA versions on the admin pages; `doaSimulate`: the reader may open the try-out of a
+ * DOA version; `orgAuthorityLink`: the reader may open the list of authority changes. Without them the page shows the
+ * references as text and leaves the admin links out.
  */
-export async function PolicySubject({ task, locale, doaLinks, orgAuthorityLink }: { task: TaskViewDto; locale: Locale; doaLinks: boolean; orgAuthorityLink: boolean }) {
-  const [t, tv, tl] = await Promise.all([getTranslations('tasks'), getTranslations('requestView'), getTranslations('timeline')])
+export async function PolicySubject({
+  task,
+  locale,
+  doaLinks,
+  doaSimulate,
+  orgAuthorityLink,
+}: {
+  task: TaskViewDto
+  locale: Locale
+  doaLinks: boolean
+  doaSimulate: boolean
+  orgAuthorityLink: boolean
+}) {
+  const [t, tv, tl, tAdmin] = await Promise.all([getTranslations('tasks'), getTranslations('requestView'), getTranslations('timeline'), getTranslations('adminDoa')])
   const policy = task.policy
   if (!policy) return null
   const names = (list: ReadonlyArray<{ name: { th: string; en: string | null } }>) => (list.length ? list.map((m) => nameIn(locale, m.name)).join(', ') : t('policy.facts.none'))
@@ -285,7 +436,7 @@ export async function PolicySubject({ task, locale, doaLinks, orgAuthorityLink }
         ) : null}
       </Section>
 
-      {policy.kind === 'DOA_VERSION' ? <DoaVersionContent policy={policy} t={t} locale={locale} /> : null}
+      {policy.kind === 'DOA_VERSION' ? <DoaVersionContent policy={policy} t={t} tAdmin={tAdmin} locale={locale} simulate={doaSimulate} /> : null}
 
       {task.route ? (
         <Section id="route" title={tv('route.title')}>

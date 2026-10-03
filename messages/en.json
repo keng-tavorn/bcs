@@ -218,6 +218,7 @@
       "authorityGain": "Gains authority",
       "authorityIntro": "Compared with {name}, <now>in effect now</now>, by the approvers each rule names, before a document moves to the next band because its approver is the requester",
       "authorityIntroNext": "Compared with {name}, <now>in effect just before this one</now>, by the approvers each rule names, before a document moves to the next band because its approver is the requester",
+      "authorityIntroReplaced": "Compared with {name}, <now>the version before this one</now>, by the approvers each rule names, before a document moves to the next band because its approver is the requester",
       "authorityLine": "{documentType} · {band}",
       "authorityLose": "Loses authority",
       "authorityNoAmount": "any document",
@@ -238,8 +239,8 @@
       "boundaryHeaders": {
         "after": "This version",
         "amount": "Amount",
-        "before": "In effect ({name})",
-        "beforeNext": "Before this one ({name})",
+        "before": "In effect <keep>({name})</keep>",
+        "beforeNext": "Before this one <keep>({name})</keep>",
         "beforeShort": "In effect",
         "beforeShortNext": "Before",
         "own": "Rule and approver",
@@ -4781,6 +4782,8 @@
     "emptyLink": "Go to my requests",
     "errors": {
       "APPROVER_NOT_FOUND": "No approver was found for the next step. Ask your administrator to check who holds the positions in the DOA.",
+      "BOUNDARY_NOT_CONFIRMED": "Tick that you checked the boundary table before approving",
+      "BOUNDARY_TABLE_CHANGED": "The boundary table of this version changed after this page was opened, because the version it is compared with changed. Nothing was approved. Reload the page, check the table and tick it before approving.",
       "BUDGET": "The budget line does not have enough for this approval, so it cannot be approved yet. Ask the budget administrator for more budget, or reject it with a reason.",
       "BUDGET_LINE_CLOSED": "This document's budget line is closed or frozen, so it cannot be approved yet. Contact the budget administrator, or reject it with a reason.",
       "BUSY": "Someone is working on this task right now. Wait a moment and try again.",
@@ -4829,6 +4832,9 @@
     "policy": {
       "approve": "Approve this change",
       "approved": "Change approved",
+      "boundaryConfirm": "I checked the boundary table: every amount at a band edge goes to the right approver",
+      "boundaryLink": "See the boundary table of the amount bands",
+      "boundaryTitle": "Boundary table",
       "change": {
         "DELEGATION_ON_BEHALF": "Make {delegate} act for {delegator} from {start} to {end}",
         "DEPARTMENT_REPARENT": "Move {department} from under {from} to under {to}",
@@ -4859,11 +4865,14 @@
       "doaDiffChanged": "Rule {rule} changes",
       "doaDiffFirst": "No DOA is in effect yet, so there is nothing to compare with. Check every rule below before deciding.",
       "doaDiffLabel": "What changes",
+      "doaDiffNextNote": "{name} is approved and in effect from {time} until this version starts, so this version is compared with {name}, the version it replaces, not with the version in effect today.",
       "doaDiffNone": "The rules and the policy are the same as {name}; only the start date differs.",
       "doaDiffPolicy": "Policy: {field}",
       "doaDiffRemoved": "Rule {rule} is removed",
       "doaDiffTitle": "Changes from {name}, the version in effect",
       "doaDiffTitleFirst": "Compared with the version in effect",
+      "doaDiffTitleNext": "Changes from {name}, in effect just before this one",
+      "doaDiffTitleReplaced": "Changes from {name}, the version before this one",
       "doaDiffValues": "was {before} · now {after}",
       "doaDocumentType": {
         "DOA_CHANGE": "DOA change",

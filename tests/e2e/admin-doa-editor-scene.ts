@@ -3,14 +3,12 @@ import { parse as parseYaml } from 'yaml'
 import type { DoaRuleSnapshot } from '@/core/doa'
 import { toJsonSafe } from '@/lib/json'
 import { OrgSettingsSchema } from '@/lib/org-settings'
-import { deriveSeedTotpSecret, totp } from '@/lib/totp'
+import { deriveSeedTotpSecret } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
-import { decideTask } from '@/server/services/approvals/decide'
 import { draftDoaCopy, getDoaEditor } from '@/server/services/doa/editor'
 import { versionSnapshots } from '../golden/doa-fixtures'
 import { E2E_DB } from '../support/e2e-env'
@@ -19,13 +17,14 @@ import { E2E_DB } from '../support/e2e-env'
 // builds an organization of its own, so the demo organization's DOA never changes under other specs: the departments,
 // positions and holders of the §7.4 fixture with Thai names, and version 1 of the fixture in effect since 1 January 2026
 // (published as the demo seed publishes it — local e2e data, never a customer's). Its admin signs in with
-// SEED_DEV_PASSWORD and the TOTP derived from SEED_TOTP_KEY and the printed code; so does its CEO, who approves.
-//   org <desktop|mobile>       → the organization; prints its code, the admin's sign-in and the names the spec reads
+// SEED_DEV_PASSWORD and the TOTP derived from SEED_TOTP_KEY and the printed code; so does its CEO, who approves on the
+// decision page with the tick of the boundary table and a step-up (FR-DOA-009 AC3, BR-DOA-15).
+//   org <desktop|mobile>       → the organization; prints its code, the admin's and the CEO's sign-in and the names the
+//                                spec reads
 //   flat <desktop|mobile>      → the same organization with a version 1 whose bands have no upper end (every purchase
 //                                request to the DM, every order to the COO), and version 2 saved through the editor's
 //                                service with the VP in place of the DM: neither has a band edge, so no boundary table
 //   draft <org code>           → the admin saves version 2 (DM band up to 30,000) through the editor's service
-//   approve <org code>         → the CEO approves the version waiting for them, with a step-up, through the service
 // Prints JSON on the last line.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the DOA editor scene runs in the e2e database only')
 const password = process.env.SEED_DEV_PASSWORD
@@ -145,7 +144,7 @@ async function createOrganization(project: string, rules: readonly DoaRuleSnapsh
     const json = ruleJson(rule)
     await prisma.doaRule.create({ data: { organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
   }
-  return { orgCode: org.code, email: `${prefix}-admin@e2e.bcs.local`, code: `${prefix}_admin`, v1: version.id, names: NAMES }
+  return { orgCode: org.code, email: `${prefix}-admin@e2e.bcs.local`, code: `${prefix}_admin`, ceo: { email: `${prefix}-ceo@e2e.bcs.local`, code: `${prefix}_ceo` }, v1: version.id, names: NAMES }
 }
 
 /** An organization whose versions have no band edge: version 1 flat, version 2 saved from it with the VP for purchase requests */
@@ -211,23 +210,6 @@ async function saveDraft(orgCode: string) {
   return saved.data
 }
 
-/** The CEO approves the DOA version waiting for them, with a step-up, as the web does it (BR-DOA-15) */
-async function approve(orgCode: string) {
-  const { organizationId, memberOf } = await organization(orgCode)
-  const ceo = memberOf('ceo')
-  const task = await prisma.approvalTask.findFirstOrThrow({
-    where: { organizationId, status: 'OPEN', assigneeMemberId: ceo.id, step: { route: { subjectType: 'DOA_VERSION' } } },
-    select: { id: true, step: { select: { route: { select: { subjectId: true } } } } },
-  })
-  const versionId = task.step.route.subjectId
-  const stepUp = await grantStepUp({ organizationId, memberId: ceo.id, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(deriveSeedTotpSecret(totpKey!, ceo.employeeCode!)) }, new Date())
-  if (!stepUp.ok) throw new Error(`step-up refused: ${stepUp.reason}`)
-  const ctx = makeCtx({ organizationId, actor: { type: 'USER', memberId: ceo.id }, channel: 'WEB', now: new Date() })
-  const decided = await decideTask(ctx, { taskId: task.id, decision: 'APPROVE' }, { idempotencyKey: randomUUID(), sender: null })
-  if (!decided.ok) throw new Error(`approval failed: ${JSON.stringify(decided.error)}`)
-  return { approved: versionId }
-}
-
-const out = mode === 'draft' ? await saveDraft(arg) : mode === 'approve' ? await approve(arg) : mode === 'flat' ? await flatOrganization(arg) : await createOrganization(arg)
+const out = mode === 'draft' ? await saveDraft(arg) : mode === 'flat' ? await flatOrganization(arg) : await createOrganization(arg)
 console.log(JSON.stringify(out))
 await prisma.$disconnect()

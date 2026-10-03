@@ -26,7 +26,18 @@ const CODE = /^\d{6}$/
 
 const DecideInput = z.object({ taskId: Id, decision: z.enum(['APPROVE', 'RETURN', 'REJECT']), reason: z.string().max(REASON_MAX_LENGTH).optional() })
 const AskInput = z.object({ taskId: Id, question: z.string().max(REASON_MAX_LENGTH) })
-const PolicyInput = z.object({ taskId: Id, decision: z.enum(['APPROVE', 'REJECT']), reason: z.string().max(REASON_MAX_LENGTH).optional(), code: z.string().max(20) })
+/**
+ * boundaryTableConfirmed: the approver's tick of the boundary table the page showed, or null when it showed none;
+ * boundaryBaselineId: the version that table compared this one with (null: the version's own table) (FR-DOA-009 AC3)
+ */
+const PolicyInput = z.object({
+  taskId: Id,
+  decision: z.enum(['APPROVE', 'REJECT']),
+  reason: z.string().max(REASON_MAX_LENGTH).optional(),
+  code: z.string().max(20),
+  boundaryTableConfirmed: z.boolean().nullable().optional(),
+  boundaryBaselineId: Id.nullable().optional(),
+})
 const AnswerInput = z.object({ infoRequestId: Id, answer: z.string().max(REASON_MAX_LENGTH) })
 const CancelInput = z.object({ requestId: Id, reason: z.string().max(REASON_MAX_LENGTH) })
 
@@ -79,7 +90,10 @@ export async function askRequester(ctx: Ctx, input: unknown, idempotencyKey: unk
 /**
  * BR-DOA-15: a DOA version or an authority change is approved or rejected with the authenticator code again. Only a
  * decider of such a task spends a code on it; the code buys a step-up for this one document (5 minutes, used once by
- * the decision) on the security clock `securityNow`; the decision refuses without it.
+ * the decision) on the security clock `securityNow`; the decision refuses without it. Approving a DOA version passes the
+ * approver's tick of its boundary table with the version the table compared it with (FR-DOA-009 AC3): a page that
+ * showed the table unticked spends no code, and the service asks for the tick whenever the version has a table — and
+ * refuses a tick of a table that is no longer the one compared — before it uses the step-up.
  */
 export async function decidePolicy(ctx: Ctx, principal: Principal, input: unknown, idempotencyKey: unknown, locale: Locale, securityNow: Date): Promise<ActionOutcome> {
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
@@ -88,15 +102,21 @@ export async function decidePolicy(ctx: Ctx, principal: Principal, input: unknow
   const { taskId, decision } = parsed.data
   const code = parsed.data.code.trim()
   const reason = parsed.data.reason?.trim() ?? ''
+  // Rejecting needs no tick
+  const tick = decision === 'APPROVE' ? parsed.data.boundaryTableConfirmed : null
   if (!CODE.test(code)) return invalid('code')
   if (decision === 'REJECT' && reason.length < REASON_MIN) return invalid('reason')
+  if (tick === false) return invalid('boundaryTableConfirmed', 'BOUNDARY_NOT_CONFIRMED')
   if (principal.kind !== 'member' || ctx.actor.type !== 'USER' || ctx.actor.memberId !== principal.memberId) return FORBIDDEN
   const access = await getTaskAccess(ctx, taskId)
   if (!access) return NOT_FOUND
   if (!POLICY_SUBJECTS.includes(access.subjectType) || taskRight(principal, access) !== 'DECIDE') return FORBIDDEN
   const stepUp = await grantStepUp({ organizationId: ctx.organizationId, memberId: principal.memberId, subjectType: access.subjectType, subjectId: access.subjectId, code }, securityNow)
   if (!stepUp.ok) return { ok: false, code: 'STEP_UP', reason: stepUp.reason }
-  const result = await decideTask(ctx, { taskId, decision, ...(reason ? { reason } : {}) }, { idempotencyKey: idempotencyKey as string })
+  // The tick goes with the version its table compared with, so the service approves only the table that was ticked
+  const baselineId = parsed.data.boundaryBaselineId
+  const boundary = tick === true ? { boundaryTableConfirmed: true, ...(baselineId !== undefined ? { boundaryBaselineId: baselineId } : {}) } : {}
+  const result = await decideTask(ctx, { taskId, decision, ...(reason ? { reason } : {}), ...boundary }, { idempotencyKey: idempotencyKey as string })
   return decidedOutcome(ctx, taskId, result, locale)
 }
 

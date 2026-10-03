@@ -15,11 +15,11 @@ import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S3-09 · the DOA editor and what a draft shows before it is sent, through the services the pages call: the editor
 // starts from a copy of the latest version and saves the edited table as the next draft without touching the source
-// (FR-DOA-001 AC1); a draft is compared with the version in effect — bands, policies, and the positions that gain or
-// lose authority (FR-DOA-009 AC1); the boundary table of both versions, which matches GC-DOA-22 for version 1, and the
-// drafter's tick of it before sending — the drafter's half of FR-DOA-009 AC3: the approver's tick belongs to the
-// decision page of DOA_VERSION tasks and is not built yet, so these titles do not carry that AC's tag. Real Postgres;
-// the org is the §7.4 fixture (createDoaOrg).
+// (FR-DOA-001 AC1), recorded as drafted from that version; a draft is compared with the version in effect — bands,
+// policies, and the positions that gain or lose authority (FR-DOA-009 AC1); the boundary table of both versions, which
+// matches GC-DOA-22 for version 1, ticked by the drafter before sending and by the approver before approving, each tick
+// on its event (FR-DOA-009 AC3; the approver's side in full in doa-editor-approve.test.ts). Real Postgres; the org is
+// the §7.4 fixture (createDoaOrg).
 
 const NOW = new Date('2026-10-05T03:00:00Z')
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
@@ -123,10 +123,10 @@ describe('[FR-DOA-001/AC1] a draft starts from a copy of the latest version and 
     expect(draft.rules.find((r) => r.code === 'PR-01')).toMatchObject({ priority: 100, when: { amount: { gt: '0', lte: baht('30000.00') } } })
     expect(draft.rules.find((r) => r.code === 'PR-02')).toMatchObject({ when: { amount: { gt: baht('30000.00'), lte: baht('100000.00') } } })
     expect(draft.rules.find((r) => r.code === 'PR-03')!.steps).toEqual([{ approver: { kind: 'POSITION_OF_ORG', position: 'CEO' }, slaBusinessMinutes: 1440, mode: 'SEQUENTIAL' }])
-    // Drafting is an event of the new version, by the admin, as a copy
+    // Drafting is an event of the new version, by the admin, as a copy of version 1
     const events = await prisma.event.findMany({ where: { organizationId: org.organizationId, aggregateId: draft.id } })
     expect(events).toHaveLength(1)
-    expect(events[0]).toMatchObject({ type: 'doa_version.drafted', actorMemberId: org.member.admin, data: { code: 'DOA-DEMO', versionNo: 2, via: 'COPY', rules: 8 } })
+    expect(events[0]).toMatchObject({ type: 'doa_version.drafted', actorMemberId: org.member.admin, data: { code: 'DOA-DEMO', versionNo: 2, via: 'COPY', rules: 8, fromVersionId: v1, fromVersionNo: 1 } })
     // Version 1 keeps its rules and policies (FR-DOA-007 AC3)
     expect(await prisma.doaRule.findMany({ where: { doaVersionId: v1 }, orderBy: { id: 'asc' } })).toEqual(before)
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: v1 } })).toEqual(sourceRow)
@@ -246,7 +246,7 @@ describe('[FR-DOA-009/AC1] before it is sent, a draft is read beside the version
   })
 })
 
-describe('the boundary table of both versions, ticked by the drafter before sending (FR-DOA-009 AC3, drafter side)', () => {
+describe('[FR-DOA-009/AC3] the boundary table of both versions, ticked by the drafter before sending and by the approver before approving', () => {
   it('[GC-DOA-22] version 1 has the boundary table of the golden case', async () => {
     const golden = loadYaml<{ cases: Array<{ id: string; expect: { rows: Array<{ amount: string; rule: string }> } }> }>('doa-lint.yaml').cases.find((c) => c.id === 'GC-DOA-22')!
     const expected = golden.expect.rows.map((r) => ({ amount: amountToSatang(r.amount).toString(), ruleCode: r.rule }))
@@ -287,7 +287,7 @@ describe('the boundary table of both versions, ticked by the drafter before send
     expect(detail.data.compare.boundaries.map((b) => b.documentType)).toEqual(['PURCHASE_REQUEST', 'PURCHASE_ORDER'])
   })
 
-  it('a draft is not sent until the drafter ticks the boundary table; the approver then decides it with a step-up', async () => {
+  it('a draft is not sent until the drafter ticks the boundary table; the approver then ticks it too and decides it with a step-up', async () => {
     const view = await editor(v1)
     const saved = await draftDoaCopy(admin(), inputOf(view, dmTo30k), key())
     if (!saved.ok) throw new Error(JSON.stringify(saved.error))
@@ -301,13 +301,21 @@ describe('the boundary table of both versions, ticked by the drafter before send
     }
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: versionId } })).toMatchObject({ status: 'DRAFT' })
     expect(await submitDoaVersion(admin(), { versionId, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
+    // The send records the drafter's tick
+    const submitted = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: versionId, type: 'doa_version.submitted' } })
+    expect(submitted).toMatchObject({ actorMemberId: org.member.admin, data: { code: 'DOA-DEMO', versionNo: saved.data.versionNo, warningsAcknowledged: 0, boundaryTableConfirmed: true } })
     // Waiting for approval it is still read beside the version in effect
     expect(await getDoaVersionForAdmin(admin(), versionId)).toMatchObject({ ok: true, data: { version: { status: 'PENDING_APPROVAL' }, compare: { baseline: { id: v1 } }, submit: null } })
 
-    // The CEO approves with a step-up: the draft is published for 1 November and version 1 stays in effect until then
+    // The CEO approves with a step-up and the tick: the draft is published for 1 November and version 1 stays in effect
+    // until then; the decision records both
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
-    await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
-    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    const grant = await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
+    if (!grant.ok) throw new Error(`step-up refused: ${grant.reason}`)
+    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'BOUNDARY_NOT_CONFIRMED' } } })
+    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    const decided = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: task.id, type: 'approval_task.decided' } })
+    expect(decided).toMatchObject({ actorMemberId: org.member.ceo, data: { decision: 'APPROVE', subjectType: 'DOA_VERSION', subjectId: versionId, stepUpGrantId: grant.grantId, boundaryTableConfirmed: true } })
 
     // The editor now starts from the version approved for later, and its dates follow it (ADR-042 item 7)
     const overview = await getDoaOverviewForAdmin(admin())

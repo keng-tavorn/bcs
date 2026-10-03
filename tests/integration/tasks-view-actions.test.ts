@@ -269,9 +269,11 @@ describe('[FR-DOA-002/AC2] [FR-DOA-010/AC2] a DOA version waiting for approval s
       when: { amount: { gt: 0n, lte: 3_000_000n } },
       steps: [{ approver: { kind: 'POSITION_OF_DEPARTMENT', position: 'DM' }, slaBusinessMinutes: 480, mode: 'SEQUENTIAL' }],
     })
-    expect(policy.currentContent).toMatchObject({ code: 'DOA-DEMO', versionNo: 1 })
+    // Compared with the version in effect, which it would replace
+    expect(policy.baseline).toMatchObject({ code: 'DOA-DEMO', versionNo: 1, relation: 'IN_EFFECT' })
+    expect(policy.baselineContent).toMatchObject({ code: 'DOA-DEMO', versionNo: 1 })
     expect([...policy.positionNames.keys()].sort()).toEqual(['CEO', 'COO', 'DM', 'VP'])
-    const diff = diffVersions(policy.currentContent!, policy.content!)
+    const diff = diffVersions(policy.baselineContent!, policy.content!)
     expect(diff).toEqual({ policy: [], added: [], removed: [], changed: [{ code: 'PR-01', fields: ['band'] }, { code: 'PR-02', fields: ['band'] }] })
     expect(policy.changeReason).toBe('ขยายวงเงิน DM เป็น 30,000 บาท')
   })

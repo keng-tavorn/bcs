@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { memberPrincipal } from '@/server/authz'
+import { isAllowed, memberPrincipal } from '@/server/authz'
 import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, type TaskViewDto } from '@/server/queries/tasks'
@@ -15,7 +15,7 @@ import { Timeline } from '@/ui/timeline/timeline'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
-import { PolicySubject, policyHeadline } from '../../_tracking/policy-subject'
+import { PolicySubject, boundaryTickOf, policyHeadline } from '../../_tracking/policy-subject'
 import { dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { taskTitle } from '../../_tracking/rows'
@@ -116,6 +116,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   // The approver decides on the prices too: the prices paid before for the same items (FR-P2P-003 AC1)
   const reader = po ? poReader(principal, poAccess, po, { prices: true }) : null
   const open = right === 'DECIDE' && task.status === 'OPEN'
+  // A DOA version with a boundary table: the approver ticks it before approving (FR-DOA-009 AC3)
+  const boundary = open ? boundaryTickOf(task) : null
   const inbox = open ? null : await listMyTasks(ctx, { limit: 2 })
   const next = inbox?.items.find((i) => i.id !== task.id) ?? null
 
@@ -147,6 +149,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const track = request ? request.track : [...task.track, ...policyNow]
   // DOA references link to the version only for those who may open it (ORG_ADMIN); everyone else reads them as text
   const doaLinks = canOpenDoaVersion(principal)
+  // The try-out of a DOA version, offered beside a change of amount basis, only to who may open it (admin.doa.simulate)
+  const doaSimulate = isAllowed(principal, 'admin.doa.simulate')
   const items = po
     ? docTimelineItems(tp, tv, tl, locale, po.track, { doaLinks })
     : variance
@@ -165,9 +169,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           ? policyHeadline(t, locale, task.policy)
           : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : (varianceTitle ?? label)
+  // On phones the decision bar is fixed to the bottom: the page ends above it (taller with the boundary table's tick)
+  const pageClass = open ? `flex flex-col gap-6 ${boundary ? 'pb-80' : 'pb-56'} lg:pb-0` : 'flex flex-col gap-6'
 
   return (
-    <div className={open ? 'flex flex-col gap-6 pb-56 lg:pb-0' : 'flex flex-col gap-6'}>
+    <div className={pageClass}>
       <Link href="/tasks" className={linkClass}>
         {t('detail.back')}
       </Link>
@@ -231,13 +237,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           ) : variance ? (
             <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
           ) : (
-            <PolicySubject task={task} locale={locale} doaLinks={doaLinks} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
+            <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
           )}
         </div>
 
         <aside className="flex min-w-0 flex-col gap-8">
           {task.stepUp ? (
-            <PolicyDecision taskId={task.id} open={open} locale={locale} decide={decidePolicyTaskAction} />
+            <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} />
           ) : (
             <DecisionPanel
               taskId={task.id}

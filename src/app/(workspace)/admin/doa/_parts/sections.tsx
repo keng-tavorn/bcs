@@ -86,25 +86,36 @@ export interface Baseline {
   readonly name: string
   /** Approved for later and in effect just before this version starts, rather than in effect now */
   readonly next: boolean
+  /**
+   * In effect before this version and ended since (with `next`): the approver's page of a version already published
+   * reads the version it replaced in the past tense
+   */
+  readonly replaced?: boolean
 }
 
-/** The two versions read amounts on different bases: the same number is a different document in each (BR-DOA-02) */
-function BasisNotice({ basis, simulateHref, t }: { basis: NonNullable<CompareView['basis']>; simulateHref: string; t: DoaT }) {
+/**
+ * The two versions read amounts on different bases: the same number is a different document in each (BR-DOA-02). The
+ * try-out link (`simulateHref`) only for a reader who may open it; null leaves it out, never a link to a refusal.
+ */
+function BasisNotice({ basis, simulateHref, t }: { basis: NonNullable<CompareView['basis']>; simulateHref: string | null; t: DoaT }) {
   return (
     <Notice tone="warning">
       <p>{t('detail.basisNotice', { before: t(`detail.policy.${basis.before}`), after: t(`detail.policy.${basis.after}`) })}</p>
-      <Link href={simulateHref} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
-        {t('detail.basisSimulate')}
-      </Link>
+      {simulateHref ? (
+        <Link href={simulateHref} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
+          {t('detail.basisSimulate')}
+        </Link>
+      ) : null}
     </Notice>
   )
 }
 
 /** Who gains or loses authority, by document type and amount band (FR-DOA-009 AC1) */
-export function AuthorityList({ compare, baseline, simulateHref, t, words }: { compare: CompareView; baseline: Baseline; simulateHref: string; t: DoaT; words: DoaWords }) {
+export function AuthorityList({ compare, baseline, simulateHref, t, words }: { compare: CompareView; baseline: Baseline; simulateHref: string | null; t: DoaT; words: DoaWords }) {
+  const intro = baseline.replaced ? 'detail.authorityIntroReplaced' : baseline.next ? 'detail.authorityIntroNext' : 'detail.authorityIntro'
   return (
     <>
-      <p className="text-base text-ink-muted md:text-sm">{t.rich(baseline.next ? 'detail.authorityIntroNext' : 'detail.authorityIntro', { name: baseline.name, now: keepTogether })}</p>
+      <p className="text-base text-ink-muted md:text-sm">{t.rich(intro, { name: baseline.name, now: keepTogether })}</p>
       {compare.basis ? <BasisNotice basis={compare.basis} simulateHref={simulateHref} t={t} /> : null}
       {compare.authority.length === 0 ? (
         <p className="border-y border-line py-3">{compare.basis ? t('detail.authorityNoneBasis') : t('detail.authorityNone')}</p>
@@ -148,12 +159,13 @@ export function BoundaryCompare({
   tables: readonly BoundaryTableView[]
   baseline: Baseline | null
   basis: CompareView['basis']
-  simulateHref: string
+  simulateHref: string | null
   t: DoaT
   words: DoaWords
 }) {
   const grid = baseline ? COMPARE_GRID : OWN_GRID
-  const before = baseline ? t(baseline.next ? 'detail.boundaryHeaders.beforeNext' : 'detail.boundaryHeaders.before', { name: baseline.name }) : ''
+  // The version's name stays on one line in its column's header: "(DOA-DEMO ฉบับ 1)", never "(DOA-DEMO ฉบับ" over "1)"
+  const before = baseline ? t.rich(baseline.next ? 'detail.boundaryHeaders.beforeNext' : 'detail.boundaryHeaders.before', { name: baseline.name, keep: keepTogether }) : ''
   // Each cell says which version it is in short, so the two columns line up on phones; the header names the version
   const beforeShort = baseline?.next ? t('detail.boundaryHeaders.beforeShortNext') : t('detail.boundaryHeaders.beforeShort')
   const after = baseline ? t('detail.boundaryHeaders.after') : t('detail.boundaryHeaders.own')

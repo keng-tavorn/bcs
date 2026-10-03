@@ -182,7 +182,7 @@ describe('[FR-DOA-009/AC1] a draft is compared with the version it replaces: the
     expect(await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: v2, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: v2 } } } })
     await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: v2, code: totp(CEO_SECRET) }, new Date())
-    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
 
     // Version 3 from version 2 for 1 December: the COO's orders go to the CEO; nothing else changes
     const view = await editor(org, v2)

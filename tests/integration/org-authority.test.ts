@@ -173,7 +173,7 @@ describe('[FR-DOA-002/AC2] a DOA version is approved by the DOA_CHANGE approver 
     expect(submitted).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     const task = await taskOf(versionId)
     await ceoStepUp('DOA_VERSION', versionId)
-    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: versionId } })).toMatchObject({ status: 'PUBLISHED', approvedById: org.member.ceo })
   })
 })
@@ -301,7 +301,7 @@ describe('[FR-DOA-007/AC3] separation of duties is relaxed only by a new DOA ver
 
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
     await grantStepUp({ organizationId: solo.organizationId, memberId: solo.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
-    expect(await decideTask(solo.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    expect(await decideTask(solo.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: versionId } })).toMatchObject({ status: 'PUBLISHED', submittedById: solo.member.admin, approvedById: solo.member.ceo, sodPolicy: { approverMayReceive: true } })
     // The history report (FR-DOA-011) reads these: who drafted, submitted and approved, with the step-up
     const history = await prisma.event.findMany({ where: { organizationId: solo.organizationId, aggregateId: { in: [versionId, task.id] } }, orderBy: { seq: 'asc' }, select: { type: true, actorMemberId: true, data: true } })
@@ -331,7 +331,7 @@ describe('[FR-DOA-007/AC3] separation of duties is relaxed only by a new DOA ver
     const approve = async (versionId: string) => {
       const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
       await grantStepUp({ organizationId: solo.organizationId, memberId: solo.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
-      return decideTask(solo.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())
+      return decideTask(solo.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())
     }
     expect(await approve(first.versionId)).toMatchObject({ ok: true })
     // 20 Oct is before the 1 Nov version that is now approved: the approval is refused, nothing changes

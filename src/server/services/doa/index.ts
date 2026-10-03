@@ -180,7 +180,10 @@ export async function laterVersionScheduled(tx: TenantTx, version: { id: string;
 /**
  * Publishes a version whose DOA_CHANGE approval is complete, inside the approving command's transaction. BR-DOA-12: an
  * effective time that has passed becomes the approval time. The previous version of the same code ends where the new
- * one starts and is SUPERSEDED once the new one is in effect (now, or by the scheduled job when the time comes).
+ * one starts and is SUPERSEDED once the new one is in effect (now, or by the scheduled job when the time comes). The
+ * previous version is the one whose period reaches past that start (no end yet, or a later one): a version that already
+ * ends at or before it keeps its end — version 1 ending where version 2, approved for later, starts — so the periods
+ * of the code still never overlap (doa_no_overlap, ADR-042 item 7).
  */
 export async function publishApprovedDoaVersion(tx: TenantTx, ctx: Ctx, versionId: string, approverMemberId: string): Promise<EventDraft[]> {
   const row = await tx.doaVersion.findUniqueOrThrow({ where: { id: versionId }, include: { rules: { select: { id: true } } } })
@@ -188,7 +191,10 @@ export async function publishApprovedDoaVersion(tx: TenantTx, ctx: Ctx, versionI
   if (!moved.ok) throw new Error(`doa.approve is not allowed from ${row.status}`)
   const effectiveFrom = row.effectiveFrom.getTime() < ctx.now.getTime() ? ctx.now : row.effectiveFrom
   const events: EventDraft[] = []
-  const previous = await tx.doaVersion.findMany({ where: { code: row.code, status: 'PUBLISHED', id: { not: row.id } }, select: { id: true, versionNo: true, effectiveTo: true } })
+  const previous = await tx.doaVersion.findMany({
+    where: { code: row.code, status: 'PUBLISHED', id: { not: row.id }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: effectiveFrom } }] },
+    select: { id: true, versionNo: true, effectiveTo: true },
+  })
   for (const p of previous) {
     // End the previous period first: published periods of one code never overlap (doa_no_overlap)
     const inEffectNow = effectiveFrom.getTime() <= ctx.now.getTime()

@@ -141,7 +141,7 @@ describe('[FR-DOA-009/AC2] the try-out shows the route of the version in effect 
     expect(await submitDoaVersion(admin(), { versionId: draftId, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: draftId } } } })
     await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: draftId, code: totp(CEO_SECRET) }, new Date())
-    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
 
     // 2 November: version 2 is in effect
     const later = new Date('2026-11-02T03:00:00Z')

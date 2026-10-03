@@ -123,7 +123,7 @@ describe('[FR-DOA-001/AC3] every version shows with its period, reason, people a
     expect(await submitDoaVersion(admin(), { versionId: v2, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: v2 } } } })
     await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: v2, code: totp(CEO_SECRET) }, new Date())
-    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
+    expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
 
     const overview = await getDoaOverviewForAdmin(admin())
     if (!overview.ok) throw new Error('overview failed')

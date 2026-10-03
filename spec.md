@@ -2659,7 +2659,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
 | ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
-| เกิด `APPROVER_NOT_FOUND` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
+| ส่งคำขอไม่ได้เพราะ `DOA_NOT_CONFIGURED` · `APPROVER_NOT_FOUND` · `NO_HIGHER_AUTHORITY` (NEW-27) | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
 | โควตา LINE ถึง 80% | ORG_ADMIN · PLATFORM_ADMIN | อีเมล | IMMEDIATE | `admin.line_quota` |
 | `export.generated` | ผู้สั่งส่งออก | ในระบบ | IMMEDIATE | `export.ready` |
 | `organization.module_enabled` · `organization.module_disabled` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.module_changed` |
@@ -2689,7 +2689,8 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `comment.added` `comment.retracted` |
+| request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
@@ -3462,6 +3463,18 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-25** `[demo]` เพิ่ม event `po.send_bounced` ในแคตตาล็อก §10.2 และแถวการแจ้งเตือน `po.send_bounced` ถึง PROCUREMENT ใน §10.1 เพราะอีเมล PO ที่ตีกลับ (FR-P2P-005 AC2) บันทึกการตีกลับบน PO แต่สถานะคงเดิม จึงต้องมี Event ของตัวเอง · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-06 (ADR-043)
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-005 ผ่าน
   - แยกงาน: ทำเองได้ (ทำพร้อม S4-06)
+- [x] **NEW-26** `[demo]` เพิ่ม event `request_type.updated` ในแคตตาล็อก §10.2 เพราะการเปิดปิดและเรียงลำดับประเภทคำขอในแคตตาล็อก (FR-ADM-005 AC2) เป็น command ที่ต้องมี Event · หนึ่ง event ต่อประเภทที่เปลี่ยน (code changed active sortOrder) · พบระหว่าง S2-13 — เสร็จ 2026-10-03 · 2bb3617
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/request-type.ts` · เทสต์ AC2 ของ FR-ADM-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-13)
+- [x] **NEW-27** `[demo]` เพิ่ม event `request.doa_gap_reported` ในแคตตาล็อก §10.2 และให้แถว `admin.doa_gap` ของ §10.1 ครอบคลุมทั้ง `DOA_NOT_CONFIGURED` `APPROVER_NOT_FOUND` และ `NO_HIGHER_AUTHORITY` ตาม FR-DOA-003 AC3 · การแจ้งเป็นคำสั่งที่สอง `request.report_doa_gap` ในธุรกรรมของตัวเองหลังการส่งที่ถูกปฏิเสธ (การส่งย้อนกลับทั้งหมด) และบอกผู้ขอว่าแจ้งผู้ดูแลกี่คน · การแนบและถอดไฟล์ของคำขอเป็น `request.drafted` ที่มี `data.file` · พบระหว่าง S2-11 — เสร็จ 2026-10-03 · 2ad2034
+  - เสร็จเมื่อ: §10.2 มี event นี้ · เทสต์ AC3 ของ FR-DOA-003 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-11)
+- [x] **NEW-28** `[demo]` เมื่อการเปลี่ยนผู้ดำรงตำแหน่งมีผล งานค้างทุกงานของตำแหน่งนั้น (`resolvedFrom` ตรงตำแหน่ง) ย้ายไปผู้ดำรงคนใหม่ รวมงานที่รอผู้ขอตอบ (INFO_REQUESTED คงสถานะ เวลาที่เหลือ และคำถามที่ยังไม่ตอบ) งานที่ผู้รักษาการถือแทนผู้ดำรงเดิม และงานที่ค้างกับผู้ดำรงเดิมหลังตำแหน่งว่าง · ผลกระทบก่อนส่งแยกงานที่ย้าย (`openTasks`) กับงานที่ยังอยู่เมื่อตำแหน่งว่าง (`openTasksStay`) · preview ที่ขัด BR-SOD-08 บันทึก `security.sod_blocked` · พบระหว่างรีวิวหน้าจอ S2-13 (BR-DOA-17 · FR-ADM-002 AC3 · FR-DOA-007 AC2 · ADR-042) — เสร็จ 2026-10-03 · 9e51ed3
+  - เสร็จเมื่อ: `tests/integration/admin-org-screens.test.ts` [FR-ADM-002/AC3] และ [FR-DOA-007/AC2] ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-29** `[go-live]` จัดการผู้ติดตามคำขอ (`RequestFollower`) ให้ผู้ขอเพิ่มและเอาผู้ติดตามออกได้พร้อม event เพราะ FR-INT-008 AC2 ให้ผู้ติดตามเห็นสถานะเดียวกับผู้ขอ แต่ยังไม่มีหน้าจอหรือ service ที่เพิ่มผู้ติดตาม (หน้าคำขอบอกให้ติดต่อผู้ขอหรือผู้ดูแลแทน) · พบระหว่าง S2-12
+  - เสร็จเมื่อ: เทสต์ AC2 ของ FR-INT-008 ผ่านโดยผู้ติดตามถูกเพิ่มผ่าน service
+  - แยกงาน: ทำเองได้
 
 ---
 

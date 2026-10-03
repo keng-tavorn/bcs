@@ -6,7 +6,8 @@ import { E2E_DB, e2eEnv, withDatabase } from '../support/e2e-env'
 // Runs as the first step of the e2e web server command (playwright.config.ts) so the server never starts
 // against a half-built database. Reads DATABASE_URL/DIRECT_URL from .env (via tsx --env-file).
 async function prepareE2eDatabase(): Promise<void> {
-  const env = { ...process.env, ...e2eEnv() }
+  // The screens' e2e database has no demo history (D-01): their tests count tasks, notifications and budget themselves
+  const env: NodeJS.ProcessEnv = { ...process.env, ...e2eEnv(), SEED_DEMO_HISTORY: process.env.SEED_DEMO_HISTORY ?? '0' }
   const admin = new pg.Client({ connectionString: withDatabase(process.env.DIRECT_URL!, 'postgres') })
   await admin.connect()
   try {

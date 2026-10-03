@@ -96,7 +96,9 @@ function seedVerifyDatabase(): void {
     cwd: ROOT,
     shell: true,
     encoding: 'utf8',
-    env: { ...process.env, DATABASE_URL: appUrl(VERIFY_DB), DIRECT_URL: migratorUrl(VERIFY_DB), FORCE_COLOR: '0' },
+    // The demo history (D-01) is dated from today inside the fiscal year of the sheets; its own test runs it at a fixed
+    // date, so this gate does not depend on today's date
+    env: { ...process.env, DATABASE_URL: appUrl(VERIFY_DB), DIRECT_URL: migratorUrl(VERIFY_DB), FORCE_COLOR: '0', SEED_DEMO_HISTORY: '0' },
   })
   if (r.status !== 0) throw new Error(`db:seed ล้มบนฐานตรวจ ${VERIFY_DB}:\n${`${r.stdout ?? ''}${r.stderr ?? ''}`.trim()}`)
 }

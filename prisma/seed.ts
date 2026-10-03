@@ -1,7 +1,8 @@
 // pnpm db:seed (spec §5.4, Appendix A): the VAT rates of §7.1 (prisma/seed/tax-rates.yaml), then the demo organization,
 // its users, departments, positions, DOA version 1, request types with their forms (prisma/seed/forms.yaml), holidays
-// the budget, suppliers and delivery sites from docs/inputs/BCS_inputs_v1_demo.xlsx (run pnpm inputs:check first). Safe to
-// run again: nothing is duplicated.
+// the budget, suppliers and delivery sites from docs/inputs/BCS_inputs_v1_demo.xlsx (run pnpm inputs:check first), and
+// the requests of the past of sheet Demo_History through the real services (D-01; SEED_DEMO_HISTORY=0 leaves them out,
+// as the e2e database of the screens does). Safe to run again: nothing is duplicated.
 // Demo users with passwords exist only in local and staging (Appendix A); production is refused.
 import { systemClock } from '@/lib/clock'
 import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
@@ -10,9 +11,10 @@ import { prisma } from '@/server/db/client'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { seedBudget } from '@/server/seed/budget'
-import { parseBudget, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
+import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, seedDemoHistory } from '@/server/services/demo-history'
 import { loadInputWorkbook } from '@/server/seed/workbook'
 
 const SEED_ENVS = new Set(['local', 'staging'])
@@ -37,6 +39,7 @@ try {
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), systemClock.now())
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), systemClock.now())
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, systemClock.now())
+  const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistory(report.organizationId, parseDemoHistory(workbook), systemClock.now())
   console.log(
     `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
       `สมาชิกใหม่ ${report.members.created} มีอยู่แล้ว ${report.members.existing} · บทบาทใหม่ ${report.rolesGranted} · ` +
@@ -44,9 +47,19 @@ try {
       ` · แผนกใหม่ ${structure.departments} · ตำแหน่งใหม่ ${structure.positions} · ผู้ดำรงตำแหน่งใหม่ ${structure.assignments}` +
       ` · DOA ใหม่ ${structure.doaVersions} ฉบับ · ประเภทคำขอใหม่ ${structure.requestTypes} · ฟอร์มใหม่ ${structure.forms} · วันหยุดใหม่ ${structure.holidays}` +
       ` · ปีงบใหม่ ${budget.fiscalYears} · cost center ใหม่ ${budget.costCenters} · บรรทัดงบใหม่ ${budget.lines}` +
-      ` · ผู้ขายใหม่ ${suppliers.suppliers} · สถานที่ส่งใหม่ ${suppliers.sites}`,
+      ` · ผู้ขายใหม่ ${suppliers.suppliers} · สถานที่ส่งใหม่ ${suppliers.sites}` +
+      (history === null ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)' : history.seeded ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}` : ' · ประวัติ demo มีอยู่แล้ว'),
   )
 } catch (error) {
+  if (error instanceof DemoHistoryOutOfYearError) {
+    stop(
+      `ข้อมูลตัวอย่างใช้ปีงบ ${error.fiscalYear} (${error.startsOn} ถึง ${error.endsOn}) แต่ประวัติ demo แถว ${error.ref} ต้องใช้วันที่ ${error.day} ซึ่งอยู่นอกปีงบนั้น จึงไม่ได้สร้างประวัติ demo · ` +
+        `แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน แล้วรัน pnpm inputs:check และ pnpm db:reset · หรือ seed โดยไม่มีประวัติด้วย SEED_DEMO_HISTORY=0`,
+    )
+  }
+  if (error instanceof DemoHistoryIncompleteError) {
+    stop(`ประวัติ demo จาก seed รอบก่อนสร้างไม่ครบ (แถวสุดท้าย ${error.lastRef} ยังไม่เสร็จ) ตัวเลขบนกระดานและ dashboard จะไม่ตรงกับฉาก demo · บนเครื่องรัน pnpm db:reset เพื่อล้างแล้วสร้างใหม่ทั้งหมด`)
+  }
   stop(error instanceof Error ? error.message : String(error))
 } finally {
   await prisma.$disconnect()

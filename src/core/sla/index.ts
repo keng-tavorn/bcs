@@ -44,8 +44,12 @@ function keyOf(local: TZDate): string {
 }
 
 function nextDay(day: Day, timezone: string): Day {
+  return shiftDay(day, 1, timezone)
+}
+
+function shiftDay(day: Day, by: 1 | -1, timezone: string): Day {
   const m = day.midnight
-  const next = new TZDate(m.getFullYear(), m.getMonth(), m.getDate() + 1, 0, 0, timezone)
+  const next = new TZDate(m.getFullYear(), m.getMonth(), m.getDate() + by, 0, 0, timezone)
   return { midnight: next, key: keyOf(next), weekday: WEEKDAYS[next.getDay()]! }
 }
 
@@ -87,6 +91,32 @@ export function addBusinessMinutes(from: Date, minutes: number, calendar: Busine
     }
     day = nextDay(day, calendar.timezone)
     cursor = day.midnight.getTime()
+  }
+  throw new RangeError('no business time found within ten years')
+}
+
+/**
+ * The instant `minutes` business minutes before `to` — the latest one with exactly that much business time up to `to`
+ * (an end outside hours counts back from the last closing before it). It dates work that has waited a known time,
+ * such as the pending requests of the demo history (D-01); 0 minutes is `to` itself.
+ */
+export function subtractBusinessMinutes(to: Date, minutes: number, calendar: BusinessCalendar): Date {
+  if (!Number.isInteger(minutes) || minutes < 0) throw new RangeError(`minutes must be a whole number ≥ 0: ${minutes}`)
+  const { startMin, endMin } = checked(calendar)
+  if (minutes === 0) return new Date(to.getTime())
+  let remaining = minutes * MS_PER_MINUTE
+  let cursor = to.getTime()
+  let day = dayOf(to, calendar.timezone)
+  for (let i = 0; i < MAX_CALENDAR_SEARCH_DAYS; i++) {
+    const window = windowOf(day, calendar, startMin, endMin)
+    if (window && cursor > window.from) {
+      const finish = Math.min(cursor, window.to)
+      const available = finish - window.from
+      if (remaining <= available) return new Date(finish - remaining)
+      remaining -= available
+    }
+    day = shiftDay(day, -1, calendar.timezone)
+    cursor = Number.POSITIVE_INFINITY
   }
   throw new RangeError('no business time found within ten years')
 }

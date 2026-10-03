@@ -1,0 +1,161 @@
+import { z } from 'zod'
+import { amountToSatang } from '@/core/money/dto'
+import type { DoaRuleSnapshot, DoaVersionSnapshot } from '@/core/doa'
+import type { InputWorkbook } from './workbook'
+
+// S2-15: the sheets Departments, Positions, DOA, DOA_Policy, RequestTypes and Holidays of
+// docs/inputs/BCS_inputs_v1_demo.xlsx, read the way scripts/validate_inputs.py reads them. Every problem names the
+// sheet and row so a person can fix the file in Excel (the agent never edits the workbook).
+
+const text = z.string().trim().min(1)
+const yesNo = z.enum(['Y', 'N']).transform((v) => v === 'Y')
+/** Whole baht written as a number in the sheet ("20000") or empty; DOA amounts in the sheet have no satang */
+const bahtOrNull = z
+  .string()
+  .nullable()
+  .transform((v, ctx) => {
+    if (v === null) return null
+    if (!/^\d+(\.\d{1,2})?$/.test(v)) {
+      ctx.addIssue({ code: 'custom', message: `not an amount in baht: ${v}` })
+      return z.NEVER
+    }
+    return amountToSatang(v)
+  })
+
+function issueText(error: z.ZodError): string {
+  return error.issues.map((i) => `${i.path.join('.') || '(row)'}: ${i.message}`).join('; ')
+}
+
+function rows<T>(workbook: InputWorkbook, sheet: string, schema: z.ZodType<T>): T[] {
+  return workbook.table(sheet).map(({ row, values }) => {
+    const parsed = schema.safeParse(values)
+    if (!parsed.success) throw new Error(`${sheet} row ${row}: ${issueText(parsed.error)}`)
+    return parsed.data
+  })
+}
+
+const DepartmentRow = z.object({ code: z.string().regex(/^[A-Z0-9_]{2,20}$/), nameTh: text, parent: z.string().nullable(), kind: z.enum(['COMPANY', 'DIVISION', 'DEPARTMENT', 'SECTION']) })
+const PositionRow = z.object({ code: z.string().regex(/^[A-Z_]{2,20}$/), nameTh: text, scope: z.enum(['DEPARTMENT', 'ORG']) })
+const DoaRow = z.object({
+  version: z.coerce.number().int().min(1),
+  ruleCode: z.string().regex(/^[A-Z0-9-]{2,20}$/),
+  documentType: z.enum(['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE']),
+  gt: bahtOrNull,
+  lte: bahtOrNull,
+  approverKind: z.enum(['POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG', 'MEMBER']),
+  approverPosition: z.string().nullable(),
+  approverMember: z.string().nullable(),
+  slaBusinessHours: z.coerce.number().int().min(1),
+  descriptionTh: z.string().nullable(),
+})
+const RequestTypeRow = z.object({
+  code: z.string().regex(/^[A-Z_]{2,30}$/),
+  nameTh: text,
+  documentType: z.enum(['PURCHASE_REQUEST', 'SUPPLIER_REQUEST']),
+  descriptionTh: z.string().nullable(),
+  keyFields: z.string().nullable(),
+  attachmentRule: z.string().nullable(),
+  active: yesNo,
+})
+const HolidayRow = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), nameTh: text, source: z.string().nullable() })
+
+const DoaPolicy = z.object({
+  code: text,
+  version: z.coerce.number().int().min(1),
+  effectiveFrom: z.string().regex(/^\d{4}-\d{2}-\d{2}/),
+  amountBasis: z.enum(['GROSS', 'NET']),
+  selfApprovalPolicy: z.enum(['ESCALATE_NEXT_BAND', 'BLOCK']),
+  collapseDuplicateApprovers: yesNo,
+  stepUpThreshold: bahtOrNull,
+  approverMayReceive: yesNo,
+  requesterMayReceive: yesNo,
+  remindPct: z.coerce.number().min(0).max(1),
+  escalateAfterBusinessHours: z.coerce.number().int().min(0),
+})
+
+export interface OrgStructureInput {
+  readonly departments: z.infer<typeof DepartmentRow>[]
+  readonly positions: z.infer<typeof PositionRow>[]
+}
+
+export interface DoaInput {
+  readonly policy: z.infer<typeof DoaPolicy>
+  readonly rules: z.infer<typeof DoaRow>[]
+}
+
+export function parseOrgStructure(workbook: InputWorkbook): OrgStructureInput {
+  const departments = rows(workbook, 'Departments', DepartmentRow)
+  const codes = new Set(departments.map((d) => d.code))
+  if (codes.size !== departments.length) throw new Error('Departments: duplicate code')
+  const roots = departments.filter((d) => d.parent === null)
+  if (roots.length !== 1) throw new Error(`Departments: exactly one root (no parent) is needed, found ${roots.length}`)
+  for (const d of departments) if (d.parent !== null && !codes.has(d.parent)) throw new Error(`Departments: ${d.code} has unknown parent ${d.parent}`)
+  // No loops: walking up from every department reaches the root
+  for (const d of departments) {
+    const seen = new Set<string>()
+    for (let p: string | null = d.code; p !== null; p = departments.find((x) => x.code === p)!.parent) {
+      if (seen.has(p)) throw new Error(`Departments: ${d.code} is its own ancestor`)
+      seen.add(p)
+    }
+  }
+  const positions = rows(workbook, 'Positions', PositionRow)
+  if (new Set(positions.map((p) => p.code)).size !== positions.length) throw new Error('Positions: duplicate code')
+  return { departments, positions }
+}
+
+export function parseDoa(workbook: InputWorkbook): DoaInput {
+  const kv = workbook.keyValues('DOA_Policy')
+  const raw = Object.fromEntries([...kv].map(([key, { value }]) => [key, value]))
+  const policy = DoaPolicy.safeParse(raw)
+  if (!policy.success) throw new Error(`DOA_Policy: ${issueText(policy.error)}`)
+  const rules = rows(workbook, 'DOA', DoaRow)
+  for (const r of rules) {
+    if (r.approverKind === 'MEMBER' ? !r.approverMember : !r.approverPosition) throw new Error(`DOA ${r.ruleCode}: approver ${r.approverKind === 'MEMBER' ? 'member' : 'position'} is missing`)
+  }
+  if (new Set(rules.map((r) => `${r.version}:${r.ruleCode}`)).size !== rules.length) throw new Error('DOA: duplicate rule code within a version')
+  return { policy: policy.data, rules }
+}
+
+/** The DOA version of the sheets as an engine snapshot (status PUBLISHED, no end date), for the seed and its tests. */
+export function doaSnapshot(doa: DoaInput, id: string): DoaVersionSnapshot {
+  const rules: DoaRuleSnapshot[] = doa.rules
+    .filter((r) => r.version === doa.policy.version)
+    .map((r) => ({
+      code: r.ruleCode,
+      documentType: r.documentType,
+      priority: 100,
+      when: r.gt === null && r.lte === null ? {} : { amount: { ...(r.gt !== null ? { gt: r.gt } : {}), ...(r.lte !== null ? { lte: r.lte } : {}) } },
+      steps: [
+        {
+          approver: r.approverKind === 'MEMBER' ? { kind: 'MEMBER', memberId: r.approverMember! } : { kind: r.approverKind, position: r.approverPosition! },
+          slaBusinessMinutes: r.slaBusinessHours * 60,
+          mode: 'SEQUENTIAL',
+        },
+      ],
+      ...(r.descriptionTh ? { descriptionTh: r.descriptionTh } : {}),
+    }))
+  return {
+    id,
+    code: doa.policy.code,
+    versionNo: doa.policy.version,
+    status: 'PUBLISHED',
+    effectiveFrom: new Date(doa.policy.effectiveFrom.length === 10 ? `${doa.policy.effectiveFrom}T00:00:00+07:00` : doa.policy.effectiveFrom),
+    effectiveTo: null,
+    amountBasis: doa.policy.amountBasis,
+    selfApprovalPolicy: doa.policy.selfApprovalPolicy,
+    collapseDuplicateApprovers: doa.policy.collapseDuplicateApprovers,
+    rules,
+  }
+}
+
+export function parseRequestTypes(workbook: InputWorkbook): z.infer<typeof RequestTypeRow>[] {
+  const types = rows(workbook, 'RequestTypes', RequestTypeRow)
+  if (new Set(types.map((t) => t.code)).size !== types.length) throw new Error('RequestTypes: duplicate code')
+  return types
+}
+
+export function parseHolidays(workbook: InputWorkbook): z.infer<typeof HolidayRow>[] {
+  const holidays = rows(workbook, 'Holidays', HolidayRow)
+  if (new Set(holidays.map((h) => h.date)).size !== holidays.length) throw new Error('Holidays: duplicate date')
+  return holidays
+}

@@ -6,8 +6,12 @@ import { auth } from '@/server/auth/auth'
 import { resolveSession } from '@/server/auth/session'
 import { STORED_ROLES } from '@/server/authz/permissions'
 import { prisma } from '@/server/db/client'
+import { lintDoaVersion } from '@/core/doa'
+import { orgSnapshotFromRows, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization, type SeedReport } from '@/server/seed/demo-org'
+import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook } from '@/server/seed/workbook'
+import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 
 // S1-13: `pnpm db:seed` builds the demo organization of Appendix A from docs/inputs/BCS_inputs_v1_demo.xlsx (sheets Org
 // and Users), creates nothing new when run again, and every seeded user signs in with the dev password. The expected
@@ -140,5 +144,79 @@ describe('[FR-PLT-007/AC1] the seed has users for every role of tier 1, and each
       const session = await resolveSession(new Headers({ cookie }))
       expect(session.kind, user.email).toBe('member')
     }
+  })
+})
+
+describe('[FR-PLT-007/AC3] the seed builds the organization structure and DOA version 1 of the §7.4 fixtures', () => {
+  interface OrgFixture {
+    departments: Array<{ code: string; nameTh: string; parent: string | null }>
+    positions: Array<{ position: string; department: string; member: string }>
+    members: Record<string, string>
+  }
+  const fixture = loadYaml<OrgFixture>('fixtures/org-demo.yaml')
+
+  async function seedStructure() {
+    const workbook = await loadInputWorkbook()
+    const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
+    return seedOrgStructure(first.organizationId, input.users, parseOrgStructureInput(workbook), new Date('2026-10-01T09:00:00+07:00'))
+  }
+
+  it('has the fixture departments and position holders; demo-only users hold no position; a second run adds nothing', async () => {
+    await seedStructure()
+    const orgId = first.organizationId
+    const departments = await prisma.department.findMany({ where: { organizationId: orgId }, select: { id: true, code: true, nameTh: true, parentId: true } })
+    const codeOf = new Map(departments.map((d) => [d.id, d.code]))
+    expect(departments.map((d) => ({ code: d.code, nameTh: d.nameTh, parent: d.parentId ? codeOf.get(d.parentId)! : null })).sort((a, b) => a.code.localeCompare(b.code))).toEqual(
+      [...fixture.departments].sort((a, b) => a.code.localeCompare(b.code)),
+    )
+    const holders = await prisma.positionAssignment.findMany({
+      where: { organizationId: orgId, validTo: null },
+      select: { position: { select: { code: true } }, departmentId: true, member: { select: { employeeCode: true } } },
+    })
+    const key = (h: { position: string; department: string; member: string }) => `${h.position}@${h.department}=${h.member}`
+    expect(holders.map((h) => key({ position: h.position.code, department: codeOf.get(h.departmentId)!, member: h.member.employeeCode! })).sort()).toEqual(fixture.positions.map(key).sort())
+    const members = await prisma.member.findMany({ where: { organizationId: orgId }, select: { employeeCode: true, primaryDepartmentId: true } })
+    for (const [code, department] of Object.entries(fixture.members)) {
+      expect(codeOf.get(members.find((m) => m.employeeCode === code)!.primaryDepartmentId!), code).toBe(department)
+    }
+    expect(await seedStructure()).toEqual({ departments: 0, positions: 0, assignments: 0, doaVersions: 0, requestTypes: 0, holidays: 0 })
+  })
+
+  it('publishes DOA version 1 with the fixture rules and policy; only effectiveFrom differs (2026-01-01, ADR-038), and it passes the full lint', async () => {
+    await seedStructure()
+    const orgId = first.organizationId
+    const row = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: orgId, versionNo: 1 } })
+    const rules = await prisma.doaRule.findMany({ where: { organizationId: orgId, doaVersionId: row.id }, orderBy: { code: 'asc' } })
+    const seeded = versionSnapshotFromRows(row, rules)
+    const golden = versionSnapshots().find((v) => v.versionNo === 1)!
+    const withoutText = (rs: typeof seeded.rules) => [...rs].map(({ descriptionTh: _d, ...r }) => r).sort((a, b) => a.code.localeCompare(b.code))
+    expect(withoutText(seeded.rules)).toEqual(withoutText(golden.rules))
+    expect({ ...seeded, id: '', rules: [], effectiveFrom: null }).toEqual({ ...golden, id: '', rules: [], effectiveFrom: null })
+    expect(seeded.effectiveFrom.toISOString()).toBe('2025-12-31T17:00:00.000Z')
+    expect(row).toMatchObject({ status: 'PUBLISHED', stepUpThresholdSatang: 10_000_000n, sodPolicy: { approverMayReceive: false, requesterMayReceive: true } })
+    // The seeded structure lets every governance rule find its approver (BR-DOA-08), as pnpm verify checks too
+    const departments = await prisma.department.findMany({ where: { organizationId: orgId } })
+    const holders = await prisma.positionAssignment.findMany({ where: { organizationId: orgId }, include: { position: true } })
+    const members = await prisma.member.findMany({ where: { organizationId: orgId } })
+    const org = orgSnapshotFromRows({
+      departments,
+      holders: holders.map((h) => ({ positionCode: h.position.code, departmentId: h.departmentId, memberId: h.memberId, validFrom: h.validFrom, validTo: h.validTo })),
+      members,
+    })
+    expect(lintDoaVersion(seeded, org, new Date('2026-10-01T02:00:00Z')).errors).toEqual([])
+  })
+
+  it('loads the five request types and the holidays used by the SLA cases', async () => {
+    await seedStructure()
+    const types = await prisma.requestType.findMany({ where: { organizationId: first.organizationId }, orderBy: { sortOrder: 'asc' } })
+    expect(types.map((t) => [t.code, t.documentType])).toEqual([
+      ['BUY_GOODS', 'PURCHASE_REQUEST'],
+      ['HIRE_SERVICE', 'PURCHASE_REQUEST'],
+      ['CONTRACT_WORK', 'PURCHASE_REQUEST'],
+      ['IT_PURCHASE', 'PURCHASE_REQUEST'],
+      ['NEW_SUPPLIER', 'SUPPLIER_REQUEST'],
+    ])
+    const holidays = await prisma.holiday.findMany({ where: { organizationId: first.organizationId } })
+    expect(holidays.map((h) => h.date.toISOString().slice(0, 10))).toEqual(expect.arrayContaining(['2026-10-13', '2026-10-23']))
   })
 })

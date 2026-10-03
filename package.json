@@ -27,7 +27,10 @@
     "inputs:check": "node scripts/py.mjs scripts/validate_inputs.py docs/inputs/BCS_inputs_v1_demo.xlsx --spec spec.md",
     "db:migrate": "tsx scripts/db-migrate.ts",
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
-    "db:reset": "tsx --env-file-if-exists=.env scripts/db-reset.ts"
+    "db:reset": "tsx --env-file-if-exists=.env scripts/db-reset.ts",
+    "line:fake": "tsx --env-file-if-exists=.env scripts/fake-line.ts",
+    "line:simulate": "tsx --env-file-if-exists=.env scripts/line-simulate.ts",
+    "line:richmenu": "tsx --env-file-if-exists=.env scripts/line-richmenu.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1144.0",

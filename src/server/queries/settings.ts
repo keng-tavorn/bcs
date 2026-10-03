@@ -68,17 +68,20 @@ export async function departmentCodes(ctx: Ctx): Promise<string[]> {
 
 /**
  * Numbers already issued in the uniqueness domain of a document type that start with one of the given prefixes and end
- * with its suffix (the fixed texts around the running number of a pattern): PR and RQ share Request.number (unique per
- * organization), so both read request numbers. The filter runs in the database, so a check never loads every number of
- * the organization. PO and GR documents arrive in S4; until then nothing carries those numbers.
- * TODO(S4-01): read PurchaseOrder.number for PO and GoodsReceipt.number for GR once the tables exist.
+ * with its suffix (the fixed texts around the running number of a pattern): PR and RQ share Request.number, PO numbers
+ * are PurchaseOrder.number and GR numbers GoodsReceipt.number (each unique per organization). The filter runs in the
+ * database, so a check never loads every number of the organization.
  */
 export async function issuedDocumentNumbers(ctx: Ctx, document: NumberedDocumentCode, around: ReadonlyArray<{ readonly prefix: string; readonly suffix: string }>): Promise<string[]> {
-  if ((document !== 'PR' && document !== 'RQ') || around.length === 0) return []
-  const rows = await forTenant(ctx.organizationId).request.findMany({
-    where: { OR: around.map((a) => ({ number: { startsWith: a.prefix, endsWith: a.suffix } })) },
-    select: { number: true },
-  })
+  if (around.length === 0) return []
+  const db = forTenant(ctx.organizationId)
+  const where = { OR: around.map((a) => ({ number: { startsWith: a.prefix, endsWith: a.suffix } })) }
+  const rows =
+    document === 'PO'
+      ? await db.purchaseOrder.findMany({ where, select: { number: true } })
+      : document === 'GR'
+        ? await db.goodsReceipt.findMany({ where, select: { number: true } })
+        : await db.request.findMany({ where, select: { number: true } })
   return rows.flatMap((r) => (r.number ? [r.number] : []))
 }
 

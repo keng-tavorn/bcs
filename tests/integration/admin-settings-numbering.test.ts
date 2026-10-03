@@ -9,7 +9,9 @@ import { getNumberingAdminView, patternRefusal, previewNumbering } from '@/serve
 import { saveNumberingRule } from '@/server/services/numbering/save-rule'
 import { saveOrgSettings } from '@/server/services/organization/settings'
 import { createDraft, submitRequest } from '@/server/services/requests'
+import { postGoodsReceipt } from '@/server/services/receiving'
 import { createDoaOrg } from '../support/doa-org'
+import { p2p } from '../support/p2p'
 
 // S2-13 · FR-ADM-004 (BR-NUM-01..03, INV-NUM-01): the admin sees the next number of each document before saving a
 // pattern (AC1); an unknown token or a pattern without exactly one {SEQn} is VALIDATION_FAILED (AC2); a change in the
@@ -231,6 +233,27 @@ describe('[FR-ADM-004/AC3] a change in the middle of the year opens a new scope 
     const before = await numbering()
     expect(await save('PR', { pattern: 'PR_{BE}%\\{SEQ5}', reset: 'NEVER' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: refusal } })
     expect(await numbering()).toEqual(before)
+  })
+
+  it('a PO or GR counter that starts again on issued PO or GR numbers is refused too (PurchaseOrder.number, GoodsReceipt.number)', async () => {
+    const { org, admin, numbering, save } = await setup()
+    await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.receiver_con!, role: 'RECEIVER', scopeDepartmentId: org.department.CON!, grantedAt: NOW } })
+    const kit = p2p(org, NOW)
+    const supplier = await prisma.supplier.create({ data: { organizationId: org.organizationId, code: 'S-NUM', nameTh: 'ผู้ขายเลขเอกสาร', taxId: '0999999000012' } })
+    const pr = await kit.approvedRequest(await kit.fundedLine(100_000n), [{ quantity: '1', unitPrice: '1000.00' }])
+    const po = await kit.approvedPo([pr.lines[0]!.id], supplier.id)
+    expect(po.number).toBe('PO-2569-00001')
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { status: 'SENT', sentAt: NOW } })
+    const gr = await postGoodsReceipt(org.ctxOf('receiver_con', NOW), { poId: po.id, lines: [{ poLineId: po.lines[0]!.id, received: '1' }] }, key())
+    expect(gr).toMatchObject({ ok: true, data: { number: 'GR-2569-00001' } })
+    for (const [document, example] of [['PO', 'PO-2569-00001'], ['GR', 'GR-2569-00001']] as const) {
+      const rule = { pattern: `${document}-{BE}-{SEQ5}`, reset: 'NEVER' as const }
+      const refusal = { reason: 'NUMBER_COLLISION', example }
+      expect(await previewNumbering(admin, { document, ...rule }), document).toMatchObject({ ok: true, data: { refusal } })
+      const before = await numbering()
+      expect(await save(document, rule), document).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: `settings.numbering.${document}.pattern`, ...refusal } } })
+      expect(await numbering()).toEqual(before)
+    }
   })
 
   it('checks a rule on its own the same way for every document', () => {

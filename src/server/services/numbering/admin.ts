@@ -69,10 +69,16 @@ export interface NumberingReader {
 export function txNumberingReader(tx: TenantTx): NumberingReader {
   return {
     async issuedNumbers(document, around) {
-      // The same domain and filter as issuedDocumentNumbers in src/server/queries/settings.ts (PR and RQ share
-      // Request.number). TODO(S4-01): read PurchaseOrder.number for PO and GoodsReceipt.number for GR once they exist.
-      if ((document !== 'PR' && document !== 'RQ') || around.length === 0) return []
-      const rows = await tx.request.findMany({ where: { OR: around.map((a) => ({ number: { startsWith: a.prefix, endsWith: a.suffix } })) }, select: { number: true } })
+      // The same domains and filter as issuedDocumentNumbers in src/server/queries/settings.ts: PR and RQ share
+      // Request.number, PO is PurchaseOrder.number, GR is GoodsReceipt.number
+      if (around.length === 0) return []
+      const where = { OR: around.map((a) => ({ number: { startsWith: a.prefix, endsWith: a.suffix } })) }
+      const rows =
+        document === 'PO'
+          ? await tx.purchaseOrder.findMany({ where, select: { number: true } })
+          : document === 'GR'
+            ? await tx.goodsReceipt.findMany({ where, select: { number: true } })
+            : await tx.request.findMany({ where, select: { number: true } })
       return rows.flatMap((r) => (r.number ? [r.number] : []))
     },
     async nextValue(document, key) {

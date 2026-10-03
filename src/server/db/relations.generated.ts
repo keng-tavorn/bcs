@@ -138,6 +138,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     roleAssignments: { model: 'RoleAssignment', list: true },
     rolesGranted: { model: 'RoleAssignment', list: true },
     signatoryFor: { model: 'Organization', list: true },
+    stepUpGrants: { model: 'StepUpGrant', list: true },
     tasksAsPrincipal: { model: 'ApprovalTask', list: true },
     tasksAssigned: { model: 'ApprovalTask', list: true },
     tasksDecided: { model: 'ApprovalTask', list: true },
@@ -188,6 +189,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     requests: { model: 'Request', list: true },
     requestTypes: { model: 'RequestType', list: true },
     roleAssignments: { model: 'RoleAssignment', list: true },
+    stepUpGrants: { model: 'StepUpGrant', list: true },
   },
   OrgAuthorityChange: {
     delegations: { model: 'Delegation', list: true },
@@ -263,6 +265,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   },
   Session: {
     user: { model: 'User', list: false },
+  },
+  StepUpGrant: {
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
   },
   TaxRate: {
     confirmedBy: { model: 'PlatformAdmin', list: false },

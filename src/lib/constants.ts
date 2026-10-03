@@ -27,6 +27,10 @@ export const SESSION_TOUCH_AFTER_MS = MS_PER_MINUTE
 /** Lockout: 5 failed sign-ins within 15 minutes per account or per IP (FR-AUTH-001 AC3, NFR-SEC-05) */
 export const LOGIN_FAILURE_LIMIT = 5
 export const LOGIN_FAILURE_WINDOW_MS = 15 * MS_PER_MINUTE
+/** A step-up (the second factor again for one sensitive approval) is good for 5 minutes and one use (NFR-SEC-04) */
+export const STEP_UP_TTL_MS = 5 * MS_PER_MINUTE
+/** TOTP codes of the step before and after are accepted too, for clocks that drift (RFC 6238 §5.2) */
+export const TOTP_ACCEPTED_DRIFT_STEPS = 1
 /** Invitation links are single-use and valid for 72 hours (FR-AUTH-001 AC1) */
 export const INVITATION_TTL_MS = 72 * MS_PER_HOUR
 /** Password reset links */

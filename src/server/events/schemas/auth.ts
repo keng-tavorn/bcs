@@ -10,6 +10,12 @@ defineEvents('Auth', {
   'auth.login_failed': { schema: z.object({ ...common, step: z.enum(['password', 'two_factor']) }) },
   'auth.login_locked': { schema: z.object({ ...common, reason: z.enum(['ACCOUNT', 'IP']) }) },
   'auth.2fa_enabled': { schema: z.object({ memberKnown: z.boolean(), method: z.literal('TOTP') }) },
-  // ORG_ADMIN reset (FR-AUTH-002 AC3): the reason is a Comment referenced by id
-  'auth.2fa_reset': { schema: z.object({ reasonCommentId: z.uuid(), sessionsRevoked: z.number().int().nonnegative() }) },
+  // ORG_ADMIN reset (FR-AUTH-002 AC3): the reason is a Comment referenced by id; for a member the DOA relies on, the reset
+  // comes from an approved IDENTITY_RESET authority change, which holds the reason (BR-AUTH-07)
+  'auth.2fa_reset': {
+    schema: z.union([
+      z.strictObject({ reasonCommentId: z.uuid(), sessionsRevoked: z.number().int().nonnegative() }),
+      z.strictObject({ orgAuthorityChangeId: z.uuid(), sessionsRevoked: z.number().int().nonnegative() }),
+    ]),
+  },
 })

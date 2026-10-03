@@ -8,6 +8,7 @@ import { findInvitationByTokenHash } from '@/server/db/lookups'
 import { countOtherActiveMemberships, deleteMemberSession, deleteMemberSessions, removeMemberTwoFactor } from '@/server/db/sql/identity'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { reliedOnByDoa } from '@/server/doa/policy'
 import { authorize } from '@/server/authz'
 import { STORED_ROLES } from '@/server/authz/permissions'
 import { sendInvitationEmail } from '@/server/auth/emails'
@@ -235,8 +236,11 @@ export const resetTwoFactorCommand = defineCommand({
     if (locked.length === 0) return fail('NOT_FOUND', 'member not found')
     const member = await tx.member.findUniqueOrThrow({ where: { id: input.memberId } })
     if (!member.userId) return fail('INVALID_STATE_TRANSITION', 'member has not activated an account')
-    // TODO(S2-16): members holding a DOA-referenced position or with pending approval tasks must go through
-    // ORG_AUTHORITY_CHANGE kind IDENTITY_RESET instead (BR-AUTH-07).
+    // BR-AUTH-07 (FR-AUTH-002 AC3): a member the DOA relies on — a holder of a position a rule names, a named approver,
+    // or anyone with an open approval task — is reset only through an ORG_AUTHORITY_CHANGE of kind IDENTITY_RESET
+    if (await reliedOnByDoa(tx, member.id, ctx.now)) {
+      return fail('FORBIDDEN', 'this member holds DOA authority: propose an IDENTITY_RESET authority change', { reason: 'USE_ORG_AUTHORITY_CHANGE', kind: 'IDENTITY_RESET' })
+    }
     if ((await countOtherActiveMemberships(tx, ctx.organizationId, member.id)) > 0) {
       // The sign-in identity is shared with another organization: this organization's admin cannot change it
       return fail('FORBIDDEN', 'the account is also used by another organization', { reason: 'SHARED_IDENTITY' })

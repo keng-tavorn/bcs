@@ -37,19 +37,25 @@ const dateOnly = (text: string) => new Date(`${text}T00:00:00Z`)
 export async function seedTaxRates(rates: readonly TaxRateSeed[] = loadTaxRates()): Promise<number> {
   let added = 0
   for (const rate of rates) {
-    const existing = await systemDb.taxRate.findFirst({ where: { code: rate.code, effectiveFrom: dateOnly(rate.effectiveFrom) }, select: { id: true } })
-    if (existing) continue
-    await systemDb.taxRate.create({
-      data: {
-        code: rate.code,
-        rateBp: rate.rateBp,
-        effectiveFrom: dateOnly(rate.effectiveFrom),
-        effectiveTo: rate.effectiveTo ? dateOnly(rate.effectiveTo) : null,
-        ...(rate.note ? { note: rate.note } : {}),
-        ...(rate.sourceUrl ? { sourceUrl: rate.sourceUrl } : {}),
-      },
-    })
-    added++
+    const exists = async () => Boolean(await systemDb.taxRate.findFirst({ where: { code: rate.code, effectiveFrom: dateOnly(rate.effectiveFrom) }, select: { id: true } }))
+    if (await exists()) continue
+    try {
+      await systemDb.taxRate.create({
+        data: {
+          code: rate.code,
+          rateBp: rate.rateBp,
+          effectiveFrom: dateOnly(rate.effectiveFrom),
+          effectiveTo: rate.effectiveTo ? dateOnly(rate.effectiveTo) : null,
+          ...(rate.note ? { note: rate.note } : {}),
+          ...(rate.sourceUrl ? { sourceUrl: rate.sourceUrl } : {}),
+        },
+      })
+      added++
+    } catch (error) {
+      // Another seeder (a parallel test file) added the same rate at the same moment: the constraint refused ours
+      if (await exists()) continue
+      throw error
+    }
   }
   return added
 }

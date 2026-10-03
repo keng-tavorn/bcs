@@ -30,7 +30,12 @@ defineEvents('ApprovalTask', {
       actorMemberId: z.uuid(),
       onBehalfOfMemberId: z.uuid().nullable(),
       reasonCommentId: z.uuid().nullable(),
+      // BR-DOA-15: the step-up the approver gave for a DOA version or an authority change
+      stepUpGrantId: z.uuid().nullable().optional(),
     }),
+  },
+  'approval_task.reassigned': {
+    schema: z.object({ fromTaskId: z.uuid(), fromMemberId: z.uuid(), toMemberId: z.uuid(), why: z.enum(['ORG_AUTHORITY_CHANGE', 'DELEGATION', 'ADMIN']), changeId: z.uuid().nullable() }),
   },
   'approval_task.cancelled': { schema: z.object({ subjectId: z.uuid(), why: z.enum(['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED']) }) },
 })

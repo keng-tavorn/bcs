@@ -75,6 +75,7 @@ model Organization {
   approvalTasks       ApprovalTask[]
   orgAuthorityChanges OrgAuthorityChange[]
   documentSequences   DocumentSequence[]
+  stepUpGrants        StepUpGrant[]
 }
 
 enum ModuleKey {
@@ -164,6 +165,7 @@ model Member {
   tasksAsPrincipal        ApprovalTask[]       @relation("TaskPrincipal")
   tasksDecided            ApprovalTask[]       @relation("TaskDecidedBy")
   orgAuthorityChanges     OrgAuthorityChange[] @relation("OrgAuthorityChangeSubmittedBy")
+  stepUpGrants            StepUpGrant[]        @relation("MemberStepUps")
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
   @@unique([organizationId, email])
@@ -1325,4 +1327,35 @@ model TaxRate {
   confirmedBy PlatformAdmin? @relation(fields: [confirmedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([code, effectiveFrom])
+}
+
+// ---------- step-up (S2-16) ----------
+
+enum StepUpMethod {
+  /// The authenticator code again; the LINE PIN replaces it from S5-05 (BR-DOA-15, FR-AUTH-005)
+  TOTP
+  PIN
+}
+
+/// A fresh second factor for one sensitive approval (BR-DOA-15, NFR-SEC-04): valid 5 minutes, for one document, used once
+model StepUpGrant {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  memberId       String       @db.Uuid
+  /// What the grant allows, e.g. APPROVE_POLICY
+  purpose        String
+  subjectType    String
+  subjectId      String       @db.Uuid
+  method         StepUpMethod
+  grantedAt      DateTime     @db.Timestamptz(6)
+  expiresAt      DateTime     @db.Timestamptz(6)
+  usedAt         DateTime?    @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("MemberStepUps", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, memberId, subjectType, subjectId])
 }

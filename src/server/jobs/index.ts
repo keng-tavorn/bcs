@@ -1,4 +1,6 @@
+import { doaVersionActivate } from './doa-version-activate'
+import { orgAuthorityApply } from './org-authority-apply'
 import { outboxSweeper } from './outbox-sweeper'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
-export const functions = [outboxSweeper]
+export const functions = [outboxSweeper, orgAuthorityApply, doaVersionActivate]

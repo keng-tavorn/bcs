@@ -13,6 +13,7 @@ import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { decidePolicyTask } from './policy-decide'
 import { closeRoute, taskTimes } from './route'
 
 // Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). The task's assignee decides, or the
@@ -93,6 +94,7 @@ export const decideCommand = defineCommand({
     if (!taskTo) return alreadyDecided(tx, task, command)
     if (input.decision !== 'APPROVE' && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason' })
     const route = task.step.route
+    if (route.subjectType === 'DOA_VERSION' || route.subjectType === 'ORG_AUTHORITY_CHANGE') return decidePolicyTask(tx, ctx, task, input, taskTo)
     if (route.subjectType !== 'REQUEST') return fail('VALIDATION_FAILED', `${route.subjectType} tasks are decided by their own flow`, { reason: 'SUBJECT' })
 
     const [lockedRequest] = await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [route.subjectId])

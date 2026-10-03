@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
-import { lintDoaVersion, type LintIssue } from '@/core/doa'
+import { lintDoaVersion } from '@/core/doa'
 import { DOA_VERSION_MACHINE, transition, type DoaVersionState } from '@/core/state-machines'
 import { DOA_YAML_MAX_CHARS } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { authorize } from '@/server/authz'
-import type { Ctx } from '@/server/context'
+import { systemCtx, type Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadOrgSnapshot } from '@/server/doa/policy'
@@ -14,6 +14,9 @@ import { parseDoaYaml } from '@/server/doa/yaml'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { startRoute } from '../approvals/route'
+import { issueView, warningKey } from './lint-view'
+
+export { warningKey } from './lint-view'
 
 // DOA versions (spec §7.4, FR-DOA-001 AC2, FR-DOA-002, BR-DOA-08, BR-DOA-12): the customer's ORG_ADMIN imports a draft
 // from YAML, submits it — the full lint must pass, every warning must be acknowledged one by one, and the effective
@@ -26,11 +29,6 @@ const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITIO
 
 const actorOf = (ctx: Ctx) => (ctx.actor.type === 'USER' ? ctx.actor.memberId : null)
 
-/** A warning is acknowledged by this key: its code and the rule it is about. */
-export const warningKey = (issue: LintIssue) => `${issue.code}:${issue.rule ?? issue.documentType ?? ''}`
-
-const satangText = (v: bigint | undefined | null) => (v === undefined || v === null ? null : v.toString())
-const issueView = (i: LintIssue) => ({ code: i.code, ...(i.documentType ? { documentType: i.documentType } : {}), ...(i.rule ? { rule: i.rule } : {}), ...(i.gt !== undefined ? { gt: satangText(i.gt) } : {}), ...(i.lte !== undefined ? { lte: satangText(i.lte) } : {}) })
 
 // ---------- import a draft (FR-DOA-001 AC2) ----------
 
@@ -106,6 +104,8 @@ export const submitDoaVersionCommand = defineCommand({
     if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `doa.submit is not allowed from ${row.status}`, { from: row.status, command: 'doa.submit' })
     // BR-DOA-12: an effective time in the past is refused at submit
     if (row.effectiveFrom.getTime() < ctx.now.getTime()) return fail('VALIDATION_FAILED', 'the effective time is in the past', { field: 'effectiveFrom', reason: 'EFFECTIVE_IN_PAST' })
+    const later = await laterVersionScheduled(tx, row, row.effectiveFrom)
+    if (later) return later
 
     // BR-DOA-08: the full lint against the organization as it will be on the effective date
     const version = versionSnapshotFromRows(row, row.rules)
@@ -146,6 +146,16 @@ export function submitDoaVersion(ctx: Ctx, input: z.input<typeof SubmitInput>, o
 // ---------- publish an approved version (FR-DOA-002 AC4) ----------
 
 /**
+ * A version starts after every published version of its code has started (§6.3 (5) doa_no_overlap and the period
+ * check): one approved for the same or a later time must be withdrawn first (BR-DOA-18, S6). Checked at submit and
+ * again when the approval publishes, with the effective time it would really get.
+ */
+export async function laterVersionScheduled(tx: TenantTx, version: { id: string; code: string }, effectiveFrom: Date) {
+  const later = await tx.doaVersion.findFirst({ where: { code: version.code, status: 'PUBLISHED', id: { not: version.id }, effectiveFrom: { gte: effectiveFrom } }, select: { versionNo: true } })
+  return later ? fail('VALIDATION_FAILED', `version ${later.versionNo} is approved for the same or a later time`, { field: 'effectiveFrom', reason: 'LATER_VERSION_SCHEDULED', versionNo: later.versionNo }) : null
+}
+
+/**
  * Publishes a version whose DOA_CHANGE approval is complete, inside the approving command's transaction. BR-DOA-12: an
  * effective time that has passed becomes the approval time. The previous version of the same code ends where the new
  * one starts and is SUPERSEDED once the new one is in effect (now, or by the scheduled job when the time comes).
@@ -162,7 +172,7 @@ export async function publishApprovedDoaVersion(tx: TenantTx, ctx: Ctx, versionI
     const inEffectNow = effectiveFrom.getTime() <= ctx.now.getTime()
     await tx.doaVersion.update({ where: { id: p.id }, data: { effectiveTo: effectiveFrom, ...(inEffectNow ? { status: 'SUPERSEDED' } : {}) } })
     // A version that takes effect later leaves its predecessor PUBLISHED until then: routing already picks versions by
-    // their dates (versionAt), and the status follows when the time comes (NEW-13)
+    // their dates (versionAt), and the job doa-version-activate sets the status when the time comes (NEW-13)
     if (inEffectNow) events.push({ type: 'doa_version.superseded', aggregateType: 'DoaVersion', aggregateId: p.id, data: { code: row.code, versionNo: p.versionNo, supersededBy: row.id } })
   }
   await tx.doaVersion.update({ where: { id: row.id }, data: { status: moved.to, effectiveFrom, approvedById: approverMemberId, approvedAt: ctx.now, publishedAt: ctx.now, version: { increment: 1 } } })
@@ -173,4 +183,53 @@ export async function publishApprovedDoaVersion(tx: TenantTx, ctx: Ctx, versionI
     data: { code: row.code, versionNo: row.versionNo, effectiveFrom: effectiveFrom.toISOString(), via: 'APPROVAL', rules: row.rules.length },
   })
   return events
+}
+
+// ---------- activation at the effective time (job doa-version-activate, NEW-13) ----------
+
+const ActivateInput = z.strictObject({ versionId: z.uuid() })
+
+/**
+ * When a version approved in advance takes effect, the versions of its code that ended then become SUPERSEDED and the
+ * organization admins are told (spec §4.6 doa-version-activate, BR-DOA-16). Routing never waits for this: it picks
+ * versions by their dates.
+ */
+export const activateDoaVersionCommand = defineCommand({
+  name: 'doa.activate',
+  capability: 'admin.doa.submitForPublish',
+  input: ActivateInput,
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ superseded: number }>> {
+    if (ctx.actor.type !== 'SYSTEM') return { ok: false, error: { code: 'FORBIDDEN', message: 'only the scheduled job activates versions' } }
+    const version = await tx.doaVersion.findFirst({ where: { id: input.versionId, status: 'PUBLISHED' }, select: { code: true, versionNo: true, effectiveFrom: true } })
+    if (!version) return fail('NOT_FOUND', 'published version not found')
+    if (version.effectiveFrom.getTime() > ctx.now.getTime()) return fail('VALIDATION_FAILED', 'not in effect yet', { reason: 'NOT_DUE' })
+    const ended = await tx.doaVersion.findMany({ where: { code: version.code, status: 'PUBLISHED', id: { not: input.versionId }, effectiveTo: { lte: ctx.now } }, select: { id: true, versionNo: true } })
+    if (ended.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
+    const events: EventDraft[] = []
+    for (const p of ended) {
+      const t = transition(DOA_VERSION_MACHINE, 'PUBLISHED', 'doa.supersede')
+      await tx.doaVersion.update({ where: { id: p.id }, data: { status: t.ok ? t.to : 'SUPERSEDED', version: { increment: 1 } } })
+      events.push({ type: 'doa_version.superseded', aggregateType: 'DoaVersion', aggregateId: p.id, data: { code: version.code, versionNo: p.versionNo, supersededBy: input.versionId } })
+    }
+    const admins = await tx.roleAssignment.findMany({ where: { role: 'ORG_ADMIN', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true } })
+    return {
+      ok: true,
+      result: { superseded: ended.length },
+      events,
+      notifications: [...new Set(admins.map((a) => a.memberId))].map((memberId) => ({
+        recipientMemberId: memberId,
+        templateKey: 'doa_version.in_effect',
+        data: { versionId: input.versionId, code: version.code, versionNo: version.versionNo },
+        urgency: 'IMMEDIATE' as const,
+        dedupeKey: `doa_version.in_effect:${input.versionId}:${memberId}`,
+        subjectType: 'DOA_VERSION',
+        subjectId: input.versionId,
+      })),
+    }
+  },
+})
+
+/** What the job doa-version-activate runs at the effective time; the version id is the idempotency key. */
+export function activateDoaVersion(organizationId: string, versionId: string, now: Date) {
+  return runCommand(systemCtx(organizationId, now, 'doa-version-activate'), activateDoaVersionCommand, { versionId }, { idempotencyKey: `doa-version-activate:${versionId}` })
 }

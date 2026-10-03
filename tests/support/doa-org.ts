@@ -38,7 +38,8 @@ const FORM_SCHEMA = {
   ],
 }
 
-export async function createDoaOrg(): Promise<DoaOrg> {
+/** options.doa false: no DOA version yet, as before an organization's initial package (BR-DOA-19) */
+export async function createDoaOrg(options: { doa?: boolean } = {}): Promise<DoaOrg> {
   await seedTaxRates()
   const fixture = loadYaml<OrgFixture>('fixtures/org-demo.yaml')
   const settings = OrgSettingsSchema.parse(parseYaml(loadOrgSettingsYaml()))
@@ -73,26 +74,7 @@ export async function createDoaOrg(): Promise<DoaOrg> {
   }
 
   const v1 = versionSnapshots().find((v) => v.versionNo === 1)!
-  const version = await prisma.doaVersion.create({
-    data: {
-      organizationId,
-      code: v1.code,
-      versionNo: 1,
-      status: 'PUBLISHED',
-      effectiveFrom: v1.effectiveFrom,
-      amountBasis: v1.amountBasis,
-      selfApprovalPolicy: v1.selfApprovalPolicy,
-      collapseDuplicateApprovers: v1.collapseDuplicateApprovers,
-      stepUpThresholdSatang: 10_000_000n,
-      escalationPolicy: { remindPct: 0.5, escalateAfterBusinessHours: 8 },
-      sodPolicy: { approverMayReceive: false, requesterMayReceive: true },
-      publishedAt: v1.effectiveFrom,
-    },
-  })
-  for (const rule of v1.rules) {
-    const json = ruleJson(rule)
-    await prisma.doaRule.create({ data: { organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
-  }
+  if (options.doa !== false) await publishVersion1(organizationId, v1)
 
   const type = await prisma.requestType.create({ data: { organizationId, code: 'BUY_GOODS', nameTh: 'ซื้อของ', documentType: 'PURCHASE_REQUEST' } })
   const form = await prisma.formVersion.create({ data: { organizationId, requestTypeId: type.id, versionNo: 1, schema: FORM_SCHEMA, status: 'PUBLISHED', publishedAt: v1.effectiveFrom } })
@@ -117,5 +99,28 @@ export async function createDoaOrg(): Promise<DoaOrg> {
     member,
     department,
     ctxOf: (code, now, channel = 'WEB') => makeCtx({ organizationId, actor: { type: 'USER', memberId: member[code]! }, channel, now }),
+  }
+}
+
+async function publishVersion1(organizationId: string, v1: ReturnType<typeof versionSnapshots>[number]) {
+  const version = await prisma.doaVersion.create({
+    data: {
+      organizationId,
+      code: v1.code,
+      versionNo: 1,
+      status: 'PUBLISHED',
+      effectiveFrom: v1.effectiveFrom,
+      amountBasis: v1.amountBasis,
+      selfApprovalPolicy: v1.selfApprovalPolicy,
+      collapseDuplicateApprovers: v1.collapseDuplicateApprovers,
+      stepUpThresholdSatang: 10_000_000n,
+      escalationPolicy: { remindPct: 0.5, escalateAfterBusinessHours: 8 },
+      sodPolicy: { approverMayReceive: false, requesterMayReceive: true },
+      publishedAt: v1.effectiveFrom,
+    },
+  })
+  for (const rule of v1.rules) {
+    const json = ruleJson(rule)
+    await prisma.doaRule.create({ data: { organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
   }
 }

@@ -5,7 +5,10 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
-import { importDoaDraft, publishApprovedDoaVersion, submitDoaVersion } from '@/server/services/doa'
+import { openTasksUnderVersion } from '@/server/doa/policy'
+import { decideTask } from '@/server/services/approvals/decide'
+import { activateDoaVersion, importDoaDraft, publishApprovedDoaVersion, submitDoaVersion } from '@/server/services/doa'
+import { createDraft, resubmitRequest, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // FR-DOA-002 AC1 and AC4 (BR-DOA-08, BR-DOA-12): an imported DOA version is submitted only when the full lint passes and
@@ -76,5 +79,63 @@ describe('[FR-DOA-002/AC4] the effective time is never in the past, and the new 
       [1, 'SUPERSEDED', '2026-09-30T17:00:00.000Z', approvedAt.toISOString()],
       [14, 'PUBLISHED', approvedAt.toISOString(), null],
     ])
+  })
+})
+
+describe('[NEW-13] a version approved for a later date supersedes its predecessor when it takes effect', () => {
+  it('keeps version 1 PUBLISHED until then; the job sets it SUPERSEDED at the effective time and tells the admins', async () => {
+    const solo = await createDoaOrg()
+    await prisma.roleAssignment.create({ data: { organizationId: solo.organizationId, memberId: solo.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
+    const draft = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: version2(30) }, key())
+    if (!draft.ok) throw new Error('import failed')
+    const id = draft.data.versionIds[0]!
+    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: id }, key())
+    // Approved on 6 Oct for 1 Nov
+    const approver = makeCtx({ organizationId: solo.organizationId, actor: { type: 'USER', memberId: solo.member.ceo! }, channel: 'WEB', now: new Date('2026-10-06T03:00:00Z') })
+    const published = await forTenant(solo.organizationId).$transaction((tx) => publishApprovedDoaVersion(tx, approver, id, solo.member.ceo!))
+    expect(published.map((e) => e.type)).toEqual(['doa_version.published'])
+    const v1 = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: solo.organizationId, versionNo: 1 } })
+    expect(v1).toMatchObject({ status: 'PUBLISHED', effectiveTo: new Date('2026-10-31T17:00:00Z') })
+    expect(await activateDoaVersion(solo.organizationId, id, new Date('2026-10-31T16:59:00Z'))).toMatchObject({ ok: false, error: { details: { reason: 'NOT_DUE' } } })
+    expect(await activateDoaVersion(solo.organizationId, id, new Date('2026-10-31T17:00:00Z'))).toMatchObject({ ok: true, data: { superseded: 1 } })
+    expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: v1.id } })).toMatchObject({ status: 'SUPERSEDED' })
+    expect(await prisma.event.count({ where: { aggregateId: v1.id, type: 'doa_version.superseded' } })).toBe(1)
+    expect(await prisma.notification.count({ where: { recipientMemberId: solo.member.admin, templateKey: 'doa_version.in_effect' } })).toBe(1)
+  })
+})
+
+describe('[FR-DOA-002/AC4] a submitted document keeps the route of the version it was submitted under (BR-DOA-13)', () => {
+  it('a new version does not move the open task; resubmitting after a return uses the new version (BR-DOA-09)', async () => {
+    const solo = await createDoaOrg()
+    await prisma.roleAssignment.create({ data: { organizationId: solo.organizationId, memberId: solo.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
+    // 25,000 baht: version 1 sends it to the VP (PR-02); version 2 raises the DM band to 30,000 (PR-01)
+    const draft = await createDraft(solo.ctxOf('req_con', NOW), { requestTypeCode: 'BUY_GOODS', title: 'เครื่องมือ', priceIncludesVat: true, lines: [{ description: 'สว่าน', quantity: '1', uom: 'ชุด', unitPrice: '25000.00' }] }, key())
+    if (!draft.ok) throw new Error('draft failed')
+    await submitRequest(solo.ctxOf('req_con', NOW), { requestId: draft.data.requestId }, key())
+    const v1 = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: solo.organizationId, versionNo: 1 } })
+    expect(await forTenant(solo.organizationId).$transaction((tx) => openTasksUnderVersion(tx, v1.id))).toBe(1)
+
+    const imported = await importDoaDraft(solo.ctxOf('admin', NOW), { yaml: version2(40) }, key())
+    if (!imported.ok) throw new Error('import failed')
+    const v2 = imported.data.versionIds[0]!
+    await submitDoaVersion(solo.ctxOf('admin', NOW), { versionId: v2 }, key())
+    const later = new Date('2026-11-02T03:00:00Z')
+    const approver = makeCtx({ organizationId: solo.organizationId, actor: { type: 'USER', memberId: solo.member.ceo! }, channel: 'WEB', now: later })
+    await forTenant(solo.organizationId).$transaction((tx) => publishApprovedDoaVersion(tx, approver, v2, solo.member.ceo!))
+
+    // Still with the VP under version 1, rule PR-02
+    const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: draft.data.requestId } } }, include: { step: { include: { route: true } } } })
+    expect(task).toMatchObject({ assigneeMemberId: solo.member.vp_ops, step: { route: { doaVersionId: v1.id, ruleCode: 'PR-02' } } })
+    expect(await forTenant(solo.organizationId).$transaction((tx) => openTasksUnderVersion(tx, v1.id))).toBe(1)
+
+    // Returned and sent again: the new route follows version 2
+    await decideTask(solo.ctxOf('vp_ops', later), { taskId: task.id, decision: 'RETURN', reason: 'แนบใบเสนอราคา' }, key())
+    expect(await resubmitRequest(solo.ctxOf('req_con', later), { requestId: draft.data.requestId }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: solo.member.dm_con } })
+    const routes = await prisma.approvalRoute.findMany({ where: { subjectId: draft.data.requestId }, orderBy: { routeNo: 'asc' } })
+    expect(routes.map((r) => [r.routeNo, r.doaVersionId, r.ruleCode, r.status])).toEqual([
+      [1, v1.id, 'PR-02', 'CANCELLED'],
+      [2, v2, 'PR-01', 'ACTIVE'],
+    ])
+    expect(await forTenant(solo.organizationId).$transaction((tx) => openTasksUnderVersion(tx, v1.id))).toBe(0)
   })
 })

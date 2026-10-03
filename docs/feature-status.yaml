@@ -115,8 +115,9 @@ features:
     evidence:
       - tests/e2e/auth.spec.ts
       - tests/integration/auth.test.ts
+      - tests/integration/org-authority.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 รวมข้อยกเว้นของผู้ที่ DOA พึ่งพา (S2-16 · ADR-042) · AC1 ส่วนหน้าจอเป็นของ S2-13"
   FR-AUTH-003:
     status: in_progress
     step: S1
@@ -145,11 +146,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-ADM-002:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/org-structure.test.ts
+      - tests/integration/org-authority.test.ts
+      - tests/generated/authority-writes.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "service ของ S2-16 (ADR-042) · หน้าผู้ดูแลอยู่ใน S2-13"
   FR-ADM-003:
     status: planned
     step: S2
@@ -190,15 +194,17 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-002:
-    status: in_progress
+    status: done
     step: S2
     evidence:
       - tests/golden/doa.test.ts
       - tests/integration/doa-lint-gate.test.ts
       - tests/integration/doa-versions.test.ts
+      - tests/integration/initial-package.test.ts
+      - tests/integration/org-authority.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 ชุดตั้งต้นตาม ADR-042 · การยืนยันผู้ลงนามโดย PLATFORM_ADMIN อยู่ใน NEW-15"
   FR-DOA-003:
     status: in_progress
     step: S2
@@ -236,7 +242,9 @@ features:
     status: in_progress
     step: S2
     evidence:
+      - tests/generated/authority-writes.test.ts
       - tests/golden/sod.test.ts
+      - tests/integration/org-authority.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-008:
@@ -255,11 +263,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-010:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/org-authority.test.ts
+      - tests/integration/org-structure.test.ts
+      - tests/generated/authority-writes.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "step-up ด้วย TOTP จนถึง S5-05 (BR-DOA-15)"
   FR-DOA-011:
     status: planned
     step: S4

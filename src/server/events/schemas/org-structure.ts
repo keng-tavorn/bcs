@@ -10,9 +10,15 @@ defineEvents('Department', {
 
 defineEvents('PositionAssignment', {
   'position.assigned': {
-    schema: z.object({ positionCode: z.string().min(1), departmentId: z.uuid(), memberId: z.uuid(), validFrom: z.iso.datetime({ offset: true }), via: z.enum(['SEED', 'ORG_AUTHORITY_CHANGE']) }),
+    schema: z.object({ positionCode: z.string().min(1), departmentId: z.uuid(), memberId: z.uuid(), validFrom: z.iso.datetime({ offset: true }), via: z.enum(['SEED', 'ADMIN', 'ORG_AUTHORITY_CHANGE']) }),
   },
   'position.unassigned': { schema: z.object({ positionCode: z.string().min(1), departmentId: z.uuid(), memberId: z.uuid(), validTo: z.iso.datetime({ offset: true }) }) },
+})
+
+// Cost centers change at once with admin.orgStructure.editBasic (FR-ADM-002 AC1, NEW-14)
+defineEvents('CostCenter', {
+  'cost_center.created': { schema: z.object({ code: z.string().min(1), departmentId: z.uuid() }) },
+  'cost_center.updated': { schema: z.object({ code: z.string().min(1), changed: z.array(z.string().min(1)).min(1) }) },
 })
 
 defineEvents('Organization', {

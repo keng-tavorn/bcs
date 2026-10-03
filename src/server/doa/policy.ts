@@ -59,3 +59,59 @@ export async function loadBusinessCalendar(tx: TenantTx, organizationId: string)
     holidays: holidays.map((h) => h.date.toISOString().slice(0, 10)),
   }
 }
+
+/**
+ * Whether the DOA relies on this member now (BR-AUTH-07, BR-DOA-17): they hold a position that a rule of a version in
+ * effect or awaiting approval names, a rule names them as approver, or they have an open approval task. Such a member's
+ * identity and positions change only through an ORG_AUTHORITY_CHANGE.
+ */
+export async function reliedOnByDoa(tx: TenantTx, memberId: string, now: Date): Promise<boolean> {
+  if (await tx.approvalTask.count({ where: { assigneeMemberId: memberId, status: { in: ['OPEN', 'INFO_REQUESTED'] } } })) return true
+  const named = await doaNamedApprovers(tx, now)
+  if (named.members.has(memberId)) return true
+  const held = await tx.positionAssignment.findMany({
+    where: { memberId, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gt: now } }] },
+    select: { position: { select: { code: true } } },
+  })
+  return held.some((h) => named.positions.has(h.position.code))
+}
+
+/** Position codes and members the rules of versions in effect, to come, or awaiting approval name as approvers. */
+export async function doaNamedApprovers(tx: TenantTx, now: Date): Promise<{ positions: Set<string>; members: Set<string> }> {
+  const versions = await tx.doaVersion.findMany({
+    where: { OR: [{ status: 'PENDING_APPROVAL' }, { status: 'PUBLISHED', OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] }] },
+    include: { rules: true },
+  })
+  const positions = new Set<string>()
+  const members = new Set<string>()
+  for (const v of versions) {
+    for (const rule of versionSnapshotFromRows(v, v.rules).rules) {
+      for (const step of rule.steps) {
+        if (step.approver.kind === 'MEMBER') members.add(step.approver.memberId)
+        else positions.add(step.approver.position)
+      }
+    }
+  }
+  return { positions, members }
+}
+
+/**
+ * Whether a position carries authority now (BR-DOA-17): a DOA version in effect, to come or awaiting approval names it,
+ * or open approval tasks came from it. Its holders change only through an ORG_AUTHORITY_CHANGE.
+ */
+export async function positionHasAuthority(tx: TenantTx, positionCode: string, now: Date): Promise<boolean> {
+  if ((await doaNamedApprovers(tx, now)).positions.has(positionCode)) return true
+  const open = await tx.approvalTask.count({ where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: { startsWith: `POSITION:${positionCode}@` } } })
+  return open > 0
+}
+
+/**
+ * Open approval tasks of documents routed under this version (BR-DOA-13): they keep that version's route to the end,
+ * so the page that approves a new version shows how many are still waiting under the one it replaces. The approval of
+ * a DOA version itself is not counted.
+ */
+export async function openTasksUnderVersion(tx: TenantTx, versionId: string): Promise<number> {
+  return tx.approvalTask.count({
+    where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, step: { route: { doaVersionId: versionId, status: 'ACTIVE', subjectType: { not: 'DOA_VERSION' } } } },
+  })
+}

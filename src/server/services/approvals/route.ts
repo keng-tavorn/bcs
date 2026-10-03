@@ -43,7 +43,19 @@ export async function startRoute(
   const policy = await loadRoutePolicy(tx)
   const resolved = resolveRoute(input, policy)
   if (!resolved.ok) return resolved
-  const route = resolved.data
+  return storeRoute(tx, ctx, subject, resolved.data)
+}
+
+/**
+ * Stores a route with its first task: one the DOA engine resolved, or the initial package's route to the contract
+ * signatory (BR-DOA-19), which no DOA can resolve because none is in effect yet.
+ */
+export async function storeRoute(
+  tx: TenantTx,
+  ctx: Ctx,
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  route: RouteResult,
+): Promise<Result<StartedRoute>> {
   if (route.steps.length === 0) return err('APPROVER_NOT_FOUND', 'the route has no approver', { ruleCode: route.ruleCode })
 
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { escalationPolicy: true } })

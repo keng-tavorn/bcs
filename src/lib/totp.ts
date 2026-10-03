@@ -3,7 +3,8 @@ import { MS_PER_SECOND } from './constants'
 
 // RFC 4226/6238 one-time codes compatible with Better Auth's two-factor plugin (HMAC-SHA1 keyed by the raw
 // secret string, 6 digits, 30-second period). Used by the demo seed (deterministic secrets for local/staging
-// only) and by tests — never to verify logins (Better Auth does that). Built on node:crypto, no new dependency.
+// only), by tests and by the step-up check of src/server/auth/step-up.ts — never to verify sign-ins (Better Auth
+// does that). Built on node:crypto, no new dependency.
 
 export const TOTP_PERIOD_SECONDS = 30
 export const TOTP_DIGITS = 6

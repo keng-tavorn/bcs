@@ -2681,7 +2681,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | Aggregate | Event types |
 | --- | --- |
 | organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` |
-| โครงองค์กร | `department.created` `department.updated` `position.assigned` `position.unassigned` `holiday.imported` |
+| โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
@@ -3420,6 +3420,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-13** `[demo]` เปลี่ยนสถานะ DOA ฉบับก่อนหน้าเป็น `SUPERSEDED` เมื่อฉบับใหม่ที่อนุมัติไว้ล่วงหน้าถึงเวลามีผล (§6.4 `doa.supersede`) · ตอนอนุมัติ ถ้าฉบับใหม่มีผลทันที service เปลี่ยนให้แล้ว ส่วนฉบับที่มีผลภายหลัง การคำนวณเส้นทางถูกต้องอยู่แล้วเพราะเลือกฉบับตามช่วงเวลา (`versionAt`) แต่สถานะที่หน้าประวัติแสดงยังเป็น `PUBLISHED` จนกว่างานตามเวลาจะเปลี่ยน · พบระหว่าง S2-10
   - เสร็จเมื่อ: เทสต์ที่อนุมัติฉบับที่มีผลในวันหน้า แล้วเลื่อนนาฬิกาธุรกิจถึงวันนั้น พบว่าฉบับก่อนหน้าเป็น `SUPERSEDED` และมี event `doa_version.superseded`
   - แยกงาน: ทำพร้อมงานตามเวลาใน S5-07
+- [ ] **NEW-14** `[demo]` เพิ่ม event `cost_center.created` และ `cost_center.updated` ในแคตตาล็อก §10.2 เพราะ `admin.orgStructure.editBasic` แก้ cost center ได้ทันทีโดยต้องมี event (§2.4 · FR-ADM-002 AC1) · พบระหว่าง S2-16
+  - เสร็จเมื่อ: §10.2 มีทั้งสองชนิด · schema ของ event อยู่ใน `src/server/events/schemas/org-structure.ts` · เทสต์ AC1 ของ FR-ADM-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-16)
+- [ ] **NEW-15** `[go-live]` capability และหน้าจอให้ PLATFORM_ADMIN ยืนยันผู้มีอำนาจลงนามตามสัญญา (§2.2 · BR-DOA-19 · `/platform/tenants` ใน §9.1) เพราะ §2.4 ยังไม่มี capability ของเรื่องนี้ ระหว่างรอ seed ตั้งผู้ลงนามขององค์กรตัวอย่าง (ภาคผนวก A) · พบระหว่าง S2-16 (ADR-042) — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันชื่อ capability และกติกา (PLATFORM_ADMIN ใส่อีเมลตามสัญญาโดยไม่เห็นรายชื่อสมาชิก) แล้ว §2.4 มี capability นี้ และเทสต์ที่ PLATFORM_ADMIN ตั้งผู้ลงนามได้โดยไม่เห็นข้อมูลธุรกิจผ่าน
+  - แยกงาน: ทำเองได้
 
 ---
 
@@ -3527,7 +3533,7 @@ pnpm db:reset
 
 ### 18.1 ADR
 
-ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-041 บันทึกระหว่าง demo build (2026-10-02 ถึง 2026-10-03): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วน ADR-037 ADR-039 ADR-040 และ ADR-041 agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
+ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-042 บันทึกระหว่าง demo build (2026-10-02 ถึง 2026-10-03): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วน ADR-037 ADR-039 ADR-040 ADR-041 และ ADR-042 agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
 
 | ID | การตัดสินใจ | สถานะ |
 | --- | --- | --- |
@@ -3572,6 +3578,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-039 | แยก tenant ในฐานข้อมูลเพิ่ม: foreign key ระหว่างตาราง tenant รวม `organizationId` · `db.forTenant()` ห้ามเข้าตาราง identity และ platform และห้าม nested write · `Event.seq` เป็น identity | เสนอ |
 | ADR-040 | ใช้ Better Auth: ล็อกการเข้าระบบนับเฉพาะครั้งที่ผิด · บังคับ 2FA ตามบทบาทและตำแหน่ง · TOTP ของผู้ใช้ตัวอย่างจาก `SEED_TOTP_KEY` (ไม่บังคับ · ตัวแปรที่เพิ่มต่อจากภาคผนวก B ในส่วนที่เพิ่มของ `.env.example`) · plugin `liffIdToken` | เสนอ |
 | ADR-041 | นโยบายของ command pipeline และ outbox: key กันส่งซ้ำแยกตามผู้ส่ง · ส่งหลัง commit ครั้งเดียวไม่เกิน 2 วินาที · นับเฉพาะการปฏิเสธของ Inngest ครบ 10 ครั้งเป็นข้อความตายพร้อมแจ้งเตือน | เสนอ |
+| ADR-042 | ชุดตั้งต้นส่งเป็นฉบับ DOA หนึ่งฉบับกับการเปลี่ยนชนิด `POSITION_ASSIGN` บนเส้นทางเดียวกันที่อ้างฉบับนั้นเองกับข้อ `BR-DOA-19` · ตำแหน่งที่มีงานค้างนับว่ามีอำนาจ · การทำให้ตำแหน่งว่างต้องยืนยันรายตำแหน่ง · ย้ายแผนกได้ครั้งละหนึ่งรายการ · cost center ไม่ย้ายแผนกด้วยการแก้พื้นฐาน · DOA ฉบับใหม่เริ่มก่อนหรือพร้อมฉบับที่อนุมัติล่วงหน้าไว้แล้วไม่ได้ | เสนอ |
 
 ### 18.2 สมมติฐาน
 

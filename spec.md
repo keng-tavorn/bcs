@@ -3089,7 +3089,7 @@ features:
 
 **FR ที่ครอบคลุม:** FR-DOA-001 FR-DOA-002 FR-DOA-003 FR-DOA-004 FR-DOA-005 FR-DOA-006 FR-DOA-007 FR-DOA-008 FR-DOA-010 FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 FR-INT-006 FR-INT-007 FR-INT-008 FR-INT-009 FR-ADM-002 FR-ADM-003 FR-ADM-004 FR-ADM-005 FR-NOTI-001 FR-PLT-007
 
-- [ ] **S2-01** `[demo]` migration โครงองค์กร คำขอ DOA การอนุมัติ OrgAuthorityChange Notification DocumentSequence TaxRate + SQL §6.3 ข้อ 4–5
+- [x] **S2-01** `[demo]` migration โครงองค์กร คำขอ DOA การอนุมัติ OrgAuthorityChange Notification DocumentSequence TaxRate + SQL §6.3 ข้อ 4–5 — เสร็จ 2026-10-03 · 70db684
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate`

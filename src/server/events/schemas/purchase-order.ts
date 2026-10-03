@@ -92,3 +92,20 @@ defineEvents('ConsolidationRun', {
     }),
   },
 })
+
+// Invoices confirmed against a PO (BR-IVC-01 to BR-IVC-04): the share of each PO line and whether the VAT looked off
+defineEvents('InvoiceConfirmation', {
+  'invoice_confirmation.recorded': {
+    schema: z.object({
+      poId: z.uuid(),
+      supplierId: z.uuid(),
+      invoiceNoNormalized: z.string().min(1),
+      netSatang: satang,
+      vatSatang: satang,
+      isFinal: z.boolean(),
+      parsedFrom: z.enum(['MANUAL', 'ETAX_XML']),
+      allocation: z.array(z.object({ poLineId: z.uuid(), netSatang: satang })),
+      vatWarning: z.boolean(),
+    }),
+  },
+})

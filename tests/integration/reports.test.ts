@@ -135,3 +135,37 @@ describe('[FR-VIS-002/AC3] a report reads only what the caller may see', () => {
     expect(await exportReport(org.ctxOf('req_con', period.now), { reportCode: 'KPI', params: { from: '2026-10-05', to: '2026-10-05' } }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
   })
 })
+
+// The file of a report holds the figures of the scope it was made for (ExportJob.params.scope): it reaches only members
+// whose own report.view covers that scope, whether they download it (the ExportJob file policy) or a schedule mails it.
+describe('[FR-VIS-002/AC3] a report’s file reaches only readers whose report.view covers the scope it was made for', () => {
+  const params = { from: '2026-10-05', to: '2026-10-05' }
+  const download = (who: string, fileId: string) => getDownloadUrl(org.ctxOf(who, period.now), { fileId })
+
+  it('a department head who knows the id of the organization’s file is refused it; the organization’s readers get it; a department’s file goes to its heads and the organization’s readers, never to another department’s head', async () => {
+    const orgFile = ok(await exportReport(org.ctxOf('fin_officer', period.now), { reportCode: 'KPI', params, format: 'csv' }, key()))
+    const conFile = ok(await exportReport(org.ctxOf('dm_con', period.now), { reportCode: 'KPI', params, format: 'csv' }, key()))
+    expect((await prisma.exportJob.findUniqueOrThrow({ where: { id: conFile.exportJobId }, select: { params: true } })).params).toMatchObject({ scope: [org.department.CON] })
+    // the organization's file: not for the head of CON, the head of the OPS line above it, or a requester
+    for (const who of ['dm_con', 'vp_ops', 'req_con']) expect(await download(who, orgFile.fileId), who).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    for (const who of ['fin_officer', 'ceo']) expect(await download(who, orgFile.fileId), who).toMatchObject({ ok: true })
+    // CON's file: CON's head, the head of OPS above it, and the organization's readers; not IT's head or a requester of CON
+    for (const who of ['dm_con', 'vp_ops', 'fin_officer', 'ceo']) expect(await download(who, conFile.fileId), who).toMatchObject({ ok: true })
+    for (const who of ['dm_it', 'req_con']) expect(await download(who, conFile.fileId), who).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // what downloads is the file that was made
+    const url = ok(await download('dm_con', conFile.fileId)).url
+    expect(createHash('sha256').update(new Uint8Array(await (await fetch(url)).arrayBuffer())).digest('hex')).toBe(conFile.checksum)
+  })
+
+  it('a schedule of the organization’s file refuses a recipient whose report.view covers less — the head of a whole line, a member without it — and takes the organization’s readers', async () => {
+    const weekly = 'TZ=Asia/Bangkok 0 8 * * 1'
+    for (const who of ['vp_ops', 'req_con']) {
+      expect(await createReportSchedule(org.ctxOf('fin_officer', period.now), { reportCode: 'KPI', cron: weekly, recipientMemberIds: [org.member.ceo!, org.member[who]!] }, key()), who).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION_FAILED', details: { field: 'recipientMemberIds', reason: 'RECIPIENT_SCOPE', count: 1 } },
+      })
+    }
+    const made = ok(await createReportSchedule(org.ctxOf('ceo', period.now), { reportCode: 'KPI', cron: weekly, recipientMemberIds: [org.member.ceo!, org.member.fin_officer!] }, key()))
+    expect(await prisma.reportSchedule.findUniqueOrThrow({ where: { id: made.scheduleId }, select: { recipients: true } })).toEqual({ recipients: [org.member.ceo, org.member.fin_officer] })
+  })
+})

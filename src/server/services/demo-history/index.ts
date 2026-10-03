@@ -17,7 +17,7 @@ import { assignSupplier, consolidateNow } from '../procurement'
 import { closePurchaseOrder, submitPo } from '../purchase-orders'
 import { sendPurchaseOrder } from '../purchase-orders/send'
 import { postGoodsReceipt } from '../receiving'
-import { createDraft, editRequest, submitRequest } from '../requests'
+import { cancelRequest, createDraft, editRequest, submitRequest } from '../requests'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
 // with the business clock set back, so every row ends in its status with real routes, decisions, budget movements,
@@ -26,7 +26,8 @@ import { createDraft, editRequest, submitRequest } from '../requests'
 // time of the seed (core subtractBusinessMinutes), which is what the board shows (FR-VIS-001). The route of every row
 // is checked against the rule, approver and escalation the sheet expects. Nothing is sent: the outbox of the past is
 // written suppressed and POs go to a mail provider that drops them. Every step has a fixed idempotency key, and an
-// organization that has the first row already is left alone, so the seed can run again.
+// organization whose history is made in full is left alone, so the seed can run again. A row CANCELLED is taken back by
+// its requester `hours` business hours after the send.
 // Rows APPROVED stay in the pool with the supplier only suggested, so a consolidation round does not take them before
 // the demo scene does (FR-P2P-001 AC2).
 
@@ -63,7 +64,27 @@ function must<T>(row: DemoHistoryRow, what: string, result: Result<T>): T {
   return result.data
 }
 
-const optionsOf = (row: DemoHistoryRow, step: string): RunOptions => ({ idempotencyKey: `demo-history:${row.ref}:${step}`, sender: null, suppressOutbox: true })
+/** Every idempotency key of the history starts so; a row's steps are `demo-history:<ref>:<step>` */
+const HISTORY_KEY = 'demo-history:'
+const keyOf = (row: DemoHistoryRow, step: string) => `${HISTORY_KEY}${row.ref}:${step}`
+const optionsOf = (row: DemoHistoryRow, step: string): RunOptions => ({ idempotencyKey: keyOf(row, step), sender: null, suppressOutbox: true })
+
+/** The step a row's replay ends with (a request still waiting ends at its send, with quotations or without) */
+function lastSteps(row: DemoHistoryRow): readonly string[] {
+  if (row.status === 'PENDING_APPROVAL') return ['submit', 'submit-with-quotations']
+  if (row.status === 'CANCELLED') return ['cancel']
+  if (row.status === 'ORDERED') return ['po-send']
+  if (row.status === 'COMPLETED') return ['po-close']
+  return ['decide']
+}
+
+/** An earlier seed stopped half way through the history: only a fresh database gives the demo its numbers again */
+export class DemoHistoryIncompleteError extends Error {
+  constructor(readonly lastRef: string) {
+    super(`the demo history of an earlier seed did not finish (its last row is ${lastRef}): reset the database and seed again`)
+    this.name = 'DemoHistoryIncompleteError'
+  }
+}
 
 function memberCtx(c: Context, code: string, now: Date, channel: Ctx['channel'] = 'WEB'): Ctx {
   const memberId = c.members.get(code)
@@ -204,6 +225,11 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     throw new Error(`Demo_History ${row.ref}: route ${route.rule} to ${route.approver}${route.escalated ? ' (escalated)' : ''}, the sheet expects ${row.expectedRule} to ${row.expectedApprover}${row.escalated ? ' (escalated)' : ''}`)
   }
   if (pending) return
+  if (row.status === 'CANCELLED') {
+    // The requester takes the request back `hours` business hours after sending it, before anyone decides (§2.4 NO_PO_YET)
+    must(row, 'cancel', await cancelRequest(requester(decideAt), { requestId, ...(row.note ? { reason: row.note } : {}) }, optionsOf(row, 'cancel')))
+    return
+  }
 
   const decision = row.status === 'REJECTED' ? 'REJECT' : row.status === 'RETURNED' ? 'RETURN' : 'APPROVE'
   const reason = row.note ?? (decision === 'APPROVE' ? undefined : 'ตามหมายเหตุของผู้อนุมัติ')
@@ -248,12 +274,25 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   must(row, 'close PO', await closePurchaseOrder(proc(next('po-close', MINUTES_PER_HOUR)), { poId: po.id }, optionsOf(row, 'po-close')))
 }
 
-/** D-01: the demo history of one organization; nothing happens when its first row was made already */
+/**
+ * D-01: the demo history of one organization. A history made in full before is left alone; one that an earlier seed
+ * stopped half way (a storage that was down, a row the routes refused) throws DemoHistoryIncompleteError rather than
+ * leave the board and the dashboard with numbers the demo does not expect.
+ */
 export async function seedDemoHistory(organizationId: string, rows: readonly DemoHistoryRow[], now: Date): Promise<DemoHistoryReport> {
   const db = forTenant(organizationId)
-  const first = rows[0]
-  if (!first) return { seeded: false, byStatus: {} }
-  if (await db.commandLog.count({ where: { idempotencyKey: { endsWith: `demo-history:${first.ref}:draft` } } })) return { seeded: false, byStatus: {} }
+  // Decided and cancelled requests first, oldest first; then what they told people is marked read; then the requests
+  // still waiting, whose task notices stay new (the board and the bell of the demo)
+  const ordered = [...rows].sort((a, b) => b.daysAgo - a.daysAgo || a.ref.localeCompare(b.ref))
+  const done = ordered.filter((r) => r.status !== 'PENDING_APPROVAL')
+  const waiting = ordered.filter((r) => r.status === 'PENDING_APPROVAL')
+  const last = [...done, ...waiting].at(-1)
+  if (!last) return { seeded: false, byStatus: {} }
+  if (await db.commandLog.count({ where: { idempotencyKey: { contains: HISTORY_KEY } } })) {
+    const ends = await db.commandLog.findMany({ where: { OR: lastSteps(last).map((step) => ({ idempotencyKey: { endsWith: keyOf(last, step) } })) }, select: { result: true } })
+    if (ends.some((e) => (e.result as { ok?: unknown } | null)?.ok === true)) return { seeded: false, byStatus: {} }
+    throw new DemoHistoryIncompleteError(last.ref)
+  }
 
   const calendar = await db.$transaction((tx) => loadBusinessCalendar(tx, organizationId))
   const [members, suppliers, sites, fiscal] = await Promise.all([
@@ -279,19 +318,15 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   setEmailProvider({ send: async () => ({ messageId: 'demo-history' }) })
   const byStatus: Record<string, number> = {}
   try {
-    // Decided requests first, oldest first; then what they told people is marked read; then the requests still
-    // waiting, whose task notices stay new (the board and the bell of the demo)
-    const ordered = [...rows].sort((a, b) => b.daysAgo - a.daysAgo || a.ref.localeCompare(b.ref))
-    const decided = ordered.filter((r) => r.status !== 'PENDING_APPROVAL')
-    for (const row of decided) {
+    for (const row of done) {
       await replay(c, row)
       byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
     }
     for (const [code] of c.members) {
-      const marked = await markNotificationsRead(memberCtx(c, code, now), { all: true }, { idempotencyKey: `demo-history:read:${code}`, sender: null, suppressOutbox: true })
+      const marked = await markNotificationsRead(memberCtx(c, code, now), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
       if (!marked.ok && marked.error.code !== 'NOT_FOUND') throw new Error(`Demo_History: marking ${code}'s notifications read: ${marked.error.code}`)
     }
-    for (const row of ordered.filter((r) => r.status === 'PENDING_APPROVAL')) {
+    for (const row of waiting) {
       await replay(c, row)
       byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
     }

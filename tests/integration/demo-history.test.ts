@@ -12,13 +12,13 @@ import { loadBusinessCalendar } from '@/server/doa/policy'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization, type DemoOrgInput } from '@/server/seed/demo-org'
 import { seedBudget } from '@/server/seed/budget'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
-import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { parseBudget, parseDemoHistory, parseSites, parseSuppliers, type DemoHistoryRow } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook, type InputWorkbook } from '@/server/seed/workbook'
 import { pendingBoard } from '@/server/services/board'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
-import { seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { computeKpis } from '@/server/services/reports/kpi'
 
 // D-01: the requests of sheet Demo_History are made through the real services with the business clock set back by
@@ -59,9 +59,19 @@ function inputsCheckDashboardLine(): DashboardLine {
 }
 
 /** The demo organization of the sheets under another code, its users under other addresses */
-function historyOrgInput(workbook: InputWorkbook): DemoOrgInput {
+function historyOrgInput(workbook: InputWorkbook, code: string, emailPrefix: string): DemoOrgInput {
   const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
-  return { ...input, org: { ...input.org, code: ORG_CODE }, users: input.users.map((u) => ({ ...u, email: `history.${u.email}` })) }
+  return { ...input, org: { ...input.org, code }, users: input.users.map((u) => ({ ...u, email: `${emailPrefix}${u.email}` })) }
+}
+
+/** What pnpm db:seed makes before the history: the organization, its structure, budget, suppliers and sites */
+async function seedOrganization(workbook: InputWorkbook, code: string, emailPrefix: string): Promise<string> {
+  const input = historyOrgInput(workbook, code, emailPrefix)
+  const org = await seedDemoOrganization(input, { password: PASSWORD, totpKey: TOTP_KEY, now: NOW })
+  await seedOrgStructure(org.organizationId, input.users, parseOrgStructureInput(workbook), NOW)
+  await seedBudget(org.organizationId, parseBudget(workbook), NOW)
+  await seedSuppliers(org.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, NOW)
+  return org.organizationId
 }
 
 interface Seeded {
@@ -88,24 +98,20 @@ beforeAll(async () => {
   expected = inputsCheckDashboardLine()
   workbook = await loadInputWorkbook()
   await seedTaxRates()
-  const input = historyOrgInput(workbook)
-  const org = await seedDemoOrganization(input, { password: PASSWORD, totpKey: TOTP_KEY, now: NOW })
-  await seedOrgStructure(org.organizationId, input.users, parseOrgStructureInput(workbook), NOW)
-  await seedBudget(org.organizationId, parseBudget(workbook), NOW)
-  await seedSuppliers(org.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, NOW)
-  const report = await seedDemoHistory(org.organizationId, parseDemoHistory(workbook), NOW)
+  const organizationId = await seedOrganization(workbook, ORG_CODE, 'history.')
+  const report = await seedDemoHistory(organizationId, parseDemoHistory(workbook), NOW)
 
-  const db = forTenant(org.organizationId)
+  const db = forTenant(organizationId)
   const members = await db.member.findMany({ select: { id: true, employeeCode: true } })
   const sheet = workbook.table('Demo_History').map((r) => r.values)
   const requests = await db.request.findMany({ select: { id: true, title: true, status: true, submittedAt: true } })
   const byTitle = new Map(requests.map((r) => [r.title, r]))
   seeded = {
-    organizationId: org.organizationId,
+    organizationId,
     report,
     sheet,
     budgetSheet: workbook.table('Budget').map((r) => r.values),
-    calendar: await db.$transaction((tx) => loadBusinessCalendar(tx, org.organizationId)),
+    calendar: await db.$transaction((tx) => loadBusinessCalendar(tx, organizationId)),
     memberOf: new Map(members.map((m) => [m.employeeCode ?? '', m.id])),
     codeOf: new Map(members.map((m) => [m.id, m.employeeCode ?? ''])),
     requestOf: new Map(sheet.map((row) => [row.ref!, byTitle.get(row.title!)!])),
@@ -249,5 +255,32 @@ describe('[FR-VIS-003/AC1] D-01 the KPIs give the share of purchase-request deci
     const requests = kpi.g5.bySubject.PURCHASE_REQUEST!
     expect(requests.denominator).toBe(seeded.sheet.filter((r) => DECIDED.has(r.status!)).length)
     expect(Math.round((requests.numerator * PERCENT) / requests.denominator!)).toBe(expected.linePercent)
+  })
+})
+
+describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is refused; a row CANCELLED is taken back by its requester', () => {
+  it('stops at a row it cannot make, keeps what was made before it, and the next seed refuses to go on', async () => {
+    const organizationId = await seedOrganization(workbook, `${ORG_CODE}-2`, 'history2.')
+    const rows = parseDemoHistory(workbook)
+    const cheapest = (status: DemoHistoryRow['status']) => rows.filter((r) => r.status === status).sort((a, b) => Number(amountToSatang(a.net) - amountToSatang(b.net)))[0]!
+    const completed = cheapest('COMPLETED')
+    const pending = cheapest('PENDING_APPROVAL')
+    // The same request as the one still waiting, sent a week ago (a Monday, as NOW is), taken back an hour later
+    const cancelled: DemoHistoryRow = { ...pending, ref: 'H98', title: `${pending.title} (ยกเลิก)`, status: 'CANCELLED', channel: null, daysAgo: 7, hours: 1, note: 'ซื้อจากร้านใกล้ไซต์งานแทน' }
+
+    // The last row names a budget line the organization does not have: the seed stops before making it
+    await expect(seedDemoHistory(organizationId, [completed, cancelled, { ...pending, budgetLine: 'NO-SUCH-LINE' }], NOW)).rejects.toThrow(`Demo_History ${pending.ref}: unknown`)
+    const db = forTenant(organizationId)
+    const made = new Map((await db.request.findMany({ select: { id: true, title: true, status: true } })).map((r) => [r.title, r]))
+    expect([completed, cancelled, pending].map((r) => made.get(r.title)?.status ?? null)).toEqual(['COMPLETED', 'CANCELLED', null])
+    // Taking the request back gave its reservation back (BR-BUD-03)
+    const lines = await db.requestLine.findMany({ where: { requestId: made.get(cancelled.title)!.id }, select: { id: true } })
+    const moves = await db.budgetLedgerEntry.findMany({ where: { sourceId: { in: lines.map((l) => l.id) } }, select: { fromBucket: true, toBucket: true, amountSatang: true } })
+    expect(moves.length).toBeGreaterThan(0)
+    expect(moves.reduce((held, m) => held + (m.toBucket === 'RESERVED' ? m.amountSatang : 0n) - (m.fromBucket === 'RESERVED' ? m.amountSatang : 0n), 0n)).toBe(0n)
+
+    const again = seedDemoHistory(organizationId, [completed, cancelled, pending], NOW)
+    await expect(again).rejects.toBeInstanceOf(DemoHistoryIncompleteError)
+    await expect(again).rejects.toMatchObject({ lastRef: pending.ref })
   })
 })

@@ -14,7 +14,7 @@ import { seedBudget } from '@/server/seed/budget'
 import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
-import { seedDemoHistory } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, seedDemoHistory } from '@/server/services/demo-history'
 import { loadInputWorkbook } from '@/server/seed/workbook'
 
 const SEED_ENVS = new Set(['local', 'staging'])
@@ -51,6 +51,9 @@ try {
       (history === null ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)' : history.seeded ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}` : ' · ประวัติ demo มีอยู่แล้ว'),
   )
 } catch (error) {
+  if (error instanceof DemoHistoryIncompleteError) {
+    stop(`ประวัติ demo จาก seed รอบก่อนสร้างไม่ครบ (แถวสุดท้าย ${error.lastRef} ยังไม่เสร็จ) ตัวเลขบนกระดานและ dashboard จะไม่ตรงกับฉาก demo · บนเครื่องรัน pnpm db:reset เพื่อล้างแล้วสร้างใหม่ทั้งหมด`)
+  }
   stop(error instanceof Error ? error.message : String(error))
 } finally {
   await prisma.$disconnect()

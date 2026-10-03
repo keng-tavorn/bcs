@@ -234,8 +234,9 @@ export function parseDemoHistory(workbook: InputWorkbook): DemoHistoryRow[] {
   const history = rows(workbook, 'Demo_History', HistoryRow)
   if (new Set(history.map((h) => h.ref)).size !== history.length) throw new Error('Demo_History: duplicate ref')
   for (const h of history) {
-    const decided = h.status !== 'PENDING_APPROVAL'
-    if (decided !== (h.channel !== null)) throw new Error(`Demo_History ${h.ref}: a decided request needs its channel, a pending one has none`)
+    // Only a decision has a channel: a request still waiting or taken back by its requester has none
+    const decided = h.status !== 'PENDING_APPROVAL' && h.status !== 'CANCELLED'
+    if (decided !== (h.channel !== null)) throw new Error(`Demo_History ${h.ref}: a decided request needs its channel, a pending or cancelled one has none`)
     if (!h.expectedRule || !h.expectedApprover) throw new Error(`Demo_History ${h.ref}: the expected rule and approver are needed`)
   }
   return history

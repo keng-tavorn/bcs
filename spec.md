@@ -534,6 +534,7 @@ sequenceDiagram
 | `approval-task-sla` | `bcs/approval_task.assigned` · ยกเลิกเมื่อ `bcs/approval_task.closed` หรือ `bcs/approval_task.paused` ที่ taskId ตรงกัน | sleepUntil(remindAt) → เตือน · sleepUntil(dueAt) → ทำเครื่องหมายเกินกำหนดและแจ้ง · sleepUntil(escalateAt) → ส่งต่อตาม `escalationPolicy` (BR-SLA-04) | S5 |
 | `approval-task-resume` | `bcs/approval_task.info_provided` | คำนวณ dueAt ใหม่จากเวลาที่เหลือ แล้วส่ง `assigned` ใหม่ | S5 |
 | `delegation-window` | `bcs/delegation.created` | sleepUntil(startsAt) → ย้ายงานค้างไปผู้รักษาการ · sleepUntil(endsAt) → ย้ายงานที่ยังค้างกลับ | S5 (การมอบงานใหม่ให้ผู้รักษาการทำตั้งแต่ S2) |
+| `delegation-revoked` | `bcs/delegation.revoked` | ยกเลิกรักษาการกลางช่วง = จบช่วงก่อนกำหนด: ย้ายงานที่ยังค้างของผู้มอบจากผู้รักษาการกลับทันที (NEW-35) | S5 |
 | `daily-digest` | cron `TZ=Asia/Bangkok 0 8 * * 1-5` | ข้ามวันหยุดขององค์กร ส่งสรุปรายคน | S5 |
 | `po-idle-reminder` | cron `TZ=Asia/Bangkok 0 9 * * 1-5` | หา PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO (FR-P2P-010 AC4) | S5 |
 | `supplier-registry-recheck` | cron `TZ=Asia/Bangkok 0 6 1 * *` | ตรวจสถานะผู้ขายกับสรรพากรและ DBD ซ้ำ แจ้งจัดซื้อเมื่อสถานะเปลี่ยน (BR-SUP-04) | S4 |
@@ -2700,7 +2701,7 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
-| การแจ้งเตือน | `notification.read` |
+| การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 
@@ -3487,6 +3488,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-33** `[demo]` การค้นและส่งออก audit ต้อง mask เลขบัตรประชาชนใน `data` ของ event สำหรับผู้อ่านที่เห็นแบบ mask (BR-AUTH-04) เพราะ event `supplier.created` และ `supplier.registry_checked` ของผู้ขายบุคคลธรรมดาเก็บเลขผู้เสียภาษีซึ่งคือเลขบัตรประชาชน ขณะที่หน้าผู้ขาย mask ไว้แล้ว · ทำตามกฎเดิม ไม่เปลี่ยนสิทธิ์ · พบระหว่างทำหน้าจอ S4-02
   - เสร็จเมื่อ: เทสต์ที่ AUDITOR ค้นและส่งออก event ของผู้ขายบุคคลธรรมดาแล้วเห็นเลขแบบ mask ผ่านภายใต้ [FR-VIS-004/AC2]
   - แยกงาน: ทำเองได้ (หลังรวมหน้าจอของ S4-10)
+- [ ] **NEW-34** `[demo]` เพิ่ม event `notification.digest_sent` ในแคตตาล็อก §10.2 เพราะสรุปรายวัน (FR-LINE-006 · job `daily-digest`) สร้าง Notification ให้แต่ละคนจึงเป็น command ที่ต้องมี Event (INV-EVT-02) · data มีแต่จำนวน ไม่มีข้อมูลต้องห้าม · พบระหว่าง S5-07
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/notification.ts` · เทสต์ AC1 ของ FR-LINE-006 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-07)
+- [ ] **NEW-35** `[demo]` ยกเลิกรักษาการที่กำลังมีผลต้องย้ายงานค้างของผู้มอบจากผู้รักษาการกลับทันที (function `delegation-revoked` ใน §4.6) เพราะ BR-DLG-04 ย้ายงานกลับเฉพาะตอนจบช่วง ผู้รักษาการที่ถูกยกเลิกจึงยังตัดสินงานที่ค้างอยู่ได้ · ไม่ให้อำนาจใครเพิ่ม · พบระหว่าง S5-07
+  - เสร็จเมื่อ: §4.6 มี function นี้ · เทสต์ที่ยกเลิกรักษาการกลางช่วงแล้วงานกลับไปผู้มอบผ่านภายใต้ [FR-DOA-006/AC3]
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-07)
 
 ---
 

@@ -9,6 +9,8 @@ import './schemas'
 // registered schema; unknown types and malformed data are programming errors and abort the transaction.
 
 export interface EventDraft {
+  /** Given when another row must name this event in the same transaction (BudgetLedgerEntry.eventId, INV-BUD-04) */
+  readonly id?: string
   readonly type: string
   readonly aggregateType: string
   readonly aggregateId: string
@@ -69,7 +71,7 @@ export async function appendEvents(tx: TenantTx, ctx: Ctx, drafts: readonly Even
   const rows = drafts.map((draft) => {
     const def = getEventDefinition(draft.type)
     return {
-      id: newId(),
+      id: draft.id ?? newId(),
       type: draft.type,
       aggregateType: draft.aggregateType,
       aggregateId: draft.aggregateId,

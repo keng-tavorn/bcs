@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '../cn'
+import { cn } from './cn'
 import { LIFF_COLUMN, LIFF_GUTTER } from './content'
 import { LiffIcon } from './icons'
 import { LiffLink } from './liff-link'

@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '../cn'
+import { cn } from './cn'
 import { NoticeIcon } from './notice'
 
 // The transaction PIN field of LIFF pages (FR-AUTH-005, FR-LINE-003 AC2): the decision forms of /liff/tasks/[id] use it.

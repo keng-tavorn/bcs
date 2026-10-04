@@ -3,8 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button } from '../form/button'
-import { LIFF_HOME_PATH, LIFF_LINK_PATH, liffStateTarget, webSignInHref, type LiffSignInRefusal, type LiffSignInResult } from './bootstrap'
+import { LIFF_HOME_PATH, LIFF_LINK_PATH, liffStateTarget, signOutBrowser, webSignInHref, type LiffSignInRefusal, type LiffSignInResult } from './bootstrap'
+import { Button } from './button'
 import { useLiff } from './liff-provider'
 import { LiffNotice } from './notice'
 
@@ -23,6 +23,10 @@ import { LiffNotice } from './notice'
 //    `whenOutside`; nothing moves.
 // `state` is the session the server rendered the page with. Only "signed-out" signs in with LINE: a page that has a
 // session — a password sign-in inside LINE included — is never swapped for the session of the LINE account's owner.
+// Nor is one that came after the page was rendered (someone signed in in another tab of this LINE browser): the server
+// refuses the LINE sign-in while the browser holds another person's live session (SIGNED_IN_AS_ANOTHER_USER), and the
+// gate says so, with a button that signs that session out (POST /api/auth/sign-out) and loads the page again — which
+// then signs in with LINE. Nothing else ends another person's sign-in.
 // state "member": the server saw a member (only /liff renders the gate then, to follow a deep link or go home);
 // state "needs-2fa-setup": the member's role needs TOTP set up on the web before any work (FR-AUTH-002 AC1);
 // state "no-membership": the identity is no active member anywhere.
@@ -30,7 +34,7 @@ import { LiffNotice } from './notice'
 export type LiffGateMode = 'member' | 'optional' | 'index' | 'link'
 export type LiffGateState = 'signed-out' | 'member' | 'needs-2fa-setup' | 'no-membership'
 
-type Problem = 'ambiguous' | 'tokenInvalid' | 'unavailable' | 'failed'
+type Problem = 'ambiguous' | 'anotherUser' | 'tokenInvalid' | 'unavailable' | 'failed'
 type Outcome =
   | { readonly kind: 'moving'; readonly to: 'link' | 'web' }
   | { readonly kind: 'quiet' }
@@ -40,6 +44,7 @@ type Outcome =
 
 const PROBLEMS: Readonly<Record<Exclude<LiffSignInRefusal, 'NOT_IN_LINE' | 'LINK_REQUIRED'>, Problem>> = {
   LINK_AMBIGUOUS: 'ambiguous',
+  SIGNED_IN_AS_ANOTHER_USER: 'anotherUser',
   TOKEN_INVALID: 'tokenInvalid',
   UNAVAILABLE: 'unavailable',
   FAILED: 'failed',
@@ -140,7 +145,9 @@ export function LiffGate({ mode, state, liffState = null, workspaceHref = '/', w
       <LiffNotice tone="danger">
         <p>{t(problem)}</p>
         <div className="mt-2">
-          {reload ? (
+          {problem === 'anotherUser' ? (
+            <SignOutAndReload />
+          ) : reload ? (
             <Button variant="secondary" onClick={() => window.location.reload()}>
               {t('reload')}
             </Button>
@@ -166,5 +173,26 @@ export function LiffGate({ mode, state, liffState = null, workspaceHref = '/', w
     <p role="status" className={mode === 'optional' ? 'sr-only' : 'text-ink-muted'}>
       {words}
     </p>
+  )
+}
+
+/**
+ * The way on when this browser holds someone else's sign-in: sign it out (signOutBrowser), then load the page again,
+ * whose gate signs in with LINE. Pressed once: the button waits while the page goes.
+ */
+function SignOutAndReload() {
+  const t = useTranslations('liff.gate')
+  const [leaving, setLeaving] = useState(false)
+  return (
+    <Button
+      variant="secondary"
+      disabled={leaving}
+      onClick={() => {
+        setLeaving(true)
+        void signOutBrowser((input, init) => fetch(input, init)).then(() => window.location.reload())
+      }}
+    >
+      {leaving ? t('signingOut') : t('signOut')}
+    </Button>
   )
 }

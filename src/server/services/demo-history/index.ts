@@ -10,6 +10,7 @@ import { setEmailProvider } from '@/integrations/email-provider'
 import { checkBucket } from '@/integrations/storage'
 import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx, type Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 import { effectiveSodPolicy, loadBusinessCalendar } from '@/server/doa/policy'
 import { approversWithoutPin, giveOneTimePins, randomDemoPin, takeBackOneTimePins, type OneTimePins } from '@/server/seed/pins'
@@ -413,7 +414,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   if (!last) return { seeded: false, byStatus: {} }
   // What the history made is read from its events, which are kept for good (CommandLog only for 90 days, §6.2): every
   // step's events carry the step's key as their requestId. The last row's last step made → the history is whole.
-  const started = (await db.event.count({ where: { requestId: { startsWith: HISTORY_KEY } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: HISTORY_KEY } } }))
+  const started = (await db.event.count({ where: { requestId: { startsWith: escapeLike(HISTORY_KEY) } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY) } } }))
   if (started) {
     if (await db.event.count({ where: { requestId: { in: lastSteps(last).map((step) => keyOf(last, step)) } } })) return { seeded: false, byStatus: {} }
     throw new DemoHistoryIncompleteError(last.ref)

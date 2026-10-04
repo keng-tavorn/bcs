@@ -119,11 +119,16 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
       href: code === 'APPROVER_NOT_FOUND' ? '/admin/org-authority' : '/admin/doa',
     }
   },
-  // FR-AUTH-003 AC2: a deactivated member still had approval tasks
+  // FR-AUTH-003 AC2, BR-AUTH-06: a deactivated member still had approval tasks. No command moves a task by hand: an
+  // appointment through the authority changes page moves the position's open tasks to the new holder when it takes
+  // effect (BR-DOA-17, NEW-28), so that is what the notice offers — and opens
   'admin.reassign_needed': (d) => ({
     title: { th: `${str(d.name)} ถูกปิดใช้งานและมีงานอนุมัติค้าง ${str(d.openTasks)} งาน`, en: `${str(d.name)} was deactivated with ${str(d.openTasks)} approval tasks open` },
-    body: { th: 'ย้ายงานให้ผู้อื่นหรือแต่งตั้งผู้ดำรงตำแหน่งแทน', en: 'Move the tasks to someone else or appoint a new holder of the position' },
-    href: '/admin/members',
+    body: {
+      th: 'แต่งตั้งผู้ดำรงตำแหน่งคนใหม่ได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ งานค้างของตำแหน่งจะย้ายไปผู้ดำรงคนใหม่เมื่อการแต่งตั้งมีผล',
+      en: 'Appoint a new holder of the position on the Authority changes page; the position’s open tasks move to them when the appointment takes effect',
+    },
+    href: '/admin/org-authority',
   }),
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },

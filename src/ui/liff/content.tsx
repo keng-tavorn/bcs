@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '../cn'
+import { cn } from './cn'
 
 // The content column of a LIFF page (§9.4, §9.9) — what a client component of a LIFF page may import without pulling in
 // the frame's top bar (./frame.tsx re-exports all of this for server pages). One column for a phone in the LINE app:

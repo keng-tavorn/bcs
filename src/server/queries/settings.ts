@@ -1,6 +1,7 @@
 import type { Weekday } from '@/core/sla'
 import { OrgSettingsSchema, type OrgSettings } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 
 // Read-only facts for the organization settings pages (FR-ADM-003 to FR-ADM-005): the business calendar, holidays,
@@ -70,12 +71,13 @@ export async function departmentCodes(ctx: Ctx): Promise<string[]> {
  * Numbers already issued in the uniqueness domain of a document type that start with one of the given prefixes and end
  * with its suffix (the fixed texts around the running number of a pattern): PR and RQ share Request.number, PO numbers
  * are PurchaseOrder.number and GR numbers GoodsReceipt.number (each unique per organization). The filter runs in the
- * database, so a check never loads every number of the organization.
+ * database, so a check never loads every number of the organization; a `_` or `%` of a pattern's text matches itself
+ * only (escapeLike).
  */
 export async function issuedDocumentNumbers(ctx: Ctx, document: NumberedDocumentCode, around: ReadonlyArray<{ readonly prefix: string; readonly suffix: string }>): Promise<string[]> {
   if (around.length === 0) return []
   const db = forTenant(ctx.organizationId)
-  const where = { OR: around.map((a) => ({ number: { startsWith: a.prefix, endsWith: a.suffix } })) }
+  const where = { OR: around.map((a) => ({ number: { startsWith: escapeLike(a.prefix), endsWith: escapeLike(a.suffix) } })) }
   const rows =
     document === 'PO'
       ? await db.purchaseOrder.findMany({ where, select: { number: true } })

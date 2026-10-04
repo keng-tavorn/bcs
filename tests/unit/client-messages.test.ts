@@ -15,7 +15,10 @@ import th from '../../messages/th.json'
 // its scope and replaces the provider above it; <NextIntlClientProvider> with no messages prop passes the whole
 // catalogue (the workspace). A page, error or not-found file is inside the provider of the nearest layout above it that
 // has one; global-error replaces the root layout and has a provider of its own, with the `app` namespace of the files it
-// imports. A translator whose keys are all written out
+// imports. A client module that renders a <NextIntlClientProvider> with the messages above it (useMessages()) and
+// namespaces it imports from messages/src in both languages adds those namespaces: a client module that imports it draws
+// everything else it imports inside it (src/ui/liff/requests/step-words.tsx and the parts of the LIFF request form loaded
+// with their words). A translator whose keys are all written out
 // ('t("boundaryConfirm")') may be covered message by message; any other use of it (a key built at run time, the
 // translator handed on) needs its whole namespace.
 
@@ -47,6 +50,8 @@ interface ModuleInfo {
   readonly translators: readonly Translator[]
   /** useMessages(): the whole provider */
   readonly readsAll: boolean
+  /** A provider of its own that holds the messages above it and adds these namespaces; null for any other module */
+  readonly adds: readonly string[] | null
 }
 
 /** The code after the leading comments: where a 'use client' or 'use server' directive stands */
@@ -121,6 +126,19 @@ function translatorsOf(text: string): Translator[] {
   return translators
 }
 
+/**
+ * The namespaces a client provider of its own adds to the messages above it: a module that renders a
+ * <NextIntlClientProvider> with useMessages() and imports the same namespaces from messages/src in Thai and in English
+ * (src/ui/liff/requests/step-words.tsx); null for any other module
+ */
+function addedNamespacesOf(directive: 'client' | 'server' | null, text: string): string[] | null {
+  if (directive !== 'client' || !/<NextIntlClientProvider\b/.test(text) || !/\buseMessages\(\)/.test(text)) return null
+  const imported = (locale: string) => new Set([...text.matchAll(new RegExp(`from '(?:\\.\\./)+messages/src/${locale}/(\\w+)\\.json'`, 'g'))].map((m) => m[1]!))
+  const [thNamespaces, enNamespaces] = [imported('th'), imported('en')]
+  if (thNamespaces.size === 0 || thNamespaces.size !== enNamespaces.size || [...thNamespaces].some((ns) => !enNamespaces.has(ns))) return null
+  return [...thNamespaces].sort()
+}
+
 const modules = new Map<string, ModuleInfo>()
 function moduleInfo(file: string): ModuleInfo {
   const known = modules.get(file)
@@ -133,19 +151,30 @@ function moduleInfo(file: string): ModuleInfo {
     imports: importsOf(file, text),
     translators: translatorsOf(text),
     readsAll: /\buseMessages\(/.test(text),
+    adds: addedNamespacesOf(directive, text),
   }
   modules.set(file, info)
   return info
 }
 
-/** The client modules a page or layout renders: every 'use client' module it reaches, and all those import */
-function clientModulesOf(entry: string): Set<string> {
+/**
+ * The client modules a page or layout renders — every 'use client' module it reaches, and all those import — each with
+ * the namespaces a provider of its own adds above it (none for a module drawn outside every such provider). A module
+ * that imports such a provider draws everything else it imports inside it; a module reached more than one way has only
+ * what every way gives it.
+ */
+function clientModulesOf(entry: string): Map<string, readonly string[]> {
   const server = new Set<string>()
-  const client = new Set<string>()
-  const visitClient = (file: string) => {
-    if (client.has(file)) return
-    client.add(file)
-    for (const next of moduleInfo(file).imports) if (!moduleInfo(next).server) visitClient(next)
+  const client = new Map<string, readonly string[]>()
+  const visitClient = (file: string, added: readonly string[]) => {
+    const known = client.get(file)
+    const now = known ? known.filter((ns) => added.includes(ns)) : added
+    if (known && now.length === known.length) return
+    client.set(file, now)
+    const info = moduleInfo(file)
+    const provider = info.imports.find((next) => moduleInfo(next).adds !== null)
+    const inside = provider ? [...new Set([...now, ...moduleInfo(provider).adds!])] : now
+    for (const next of info.imports) if (!moduleInfo(next).server) visitClient(next, next === provider ? now : inside)
   }
   const visitServer = (file: string) => {
     if (server.has(file)) return
@@ -153,11 +182,11 @@ function clientModulesOf(entry: string): Set<string> {
     for (const next of moduleInfo(file).imports) {
       const info = moduleInfo(next)
       if (info.server) continue
-      if (info.client) visitClient(next)
+      if (info.client) visitClient(next, [])
       else visitServer(next)
     }
   }
-  if (moduleInfo(entry).client) visitClient(entry)
+  if (moduleInfo(entry).client) visitClient(entry, [])
   else visitServer(entry)
   return client
 }
@@ -190,16 +219,23 @@ const ENTRY = /^(page|layout|error|not-found|loading|template|default|forbidden|
 const entries = filesUnder(APP).filter((file) => ENTRY.test(path.basename(file)))
 const layouts = new Map(entries.filter((f) => path.basename(f) === 'layout.tsx').map((f) => [path.dirname(f), providerOfLayout(f)] as const))
 
-/** The parts of the LIFF app (folders under src/app/liff) whose words go to a member only, and their scopes */
+/**
+ * The parts of the LIFF app (folders under src/app/liff) whose words go to a member only, and their scopes. The
+ * catalogue and a request's page are route groups of their own, so that the form of a type and the form of a draft are
+ * not under them: a page under two providers carries the words of both (§9.4)
+ */
 const LIFF_PARTS: ReadonlyArray<readonly [string, LiffPartScope]> = [
   ['tasks/[id]', 'liffTask'],
-  ['requests/new', 'liffCatalog'],
+  ['requests/new/(catalog)', 'liffCatalog'],
   ['requests/new/[type]', 'liffRequestForm'],
-  ['requests/[id]', 'liffRequest'],
+  ['requests/[id]/(view)', 'liffRequest'],
   ['requests/[id]/edit', 'liffRequestForm'],
   ['delegation', 'liffDelegation'],
   ['gr', 'liffReceiving'],
 ]
+
+/** The provider of the parts of the LIFF request form that are loaded with their words (steps 2 and 3, …) */
+const STEP_WORDS = path.join(SRC, 'ui', 'liff', 'requests', 'step-words.tsx')
 
 /** The provider of global-error: its own, with the `app` namespace of the two files it imports */
 function globalErrorProvider(file: string): Provider | 'unknown' {
@@ -220,12 +256,13 @@ function providerOf(entry: string): Provider | 'unknown' {
 
 const covers = (paths: readonly string[], message: string) => paths.some((p) => message === p || message.startsWith(`${p}.`))
 
-/** What a client module reads that the provider does not pass */
-function missingIn(provider: Provider, info: ModuleInfo): string[] {
+/** What a client module reads that the provider does not pass, with the namespaces a provider of its own adds above it */
+function missingIn(provider: Provider, info: ModuleInfo, added: readonly string[] = []): string[] {
   if (provider.kind === 'all') return []
-  const paths: readonly string[] = provider.kind === 'scope' ? CLIENT_MESSAGES[provider.scope] : provider.kind === 'own' ? provider.paths : []
+  const paths: readonly string[] = [...(provider.kind === 'scope' ? CLIENT_MESSAGES[provider.scope] : provider.kind === 'own' ? provider.paths : []), ...added]
   const missing: string[] = []
-  if (info.readsAll) missing.push('useMessages() (every message of the provider)')
+  // A provider of its own hands every message above it on, with its own namespaces: it reads none of them itself
+  if (info.readsAll && info.adds === null) missing.push('useMessages() (every message of the provider)')
   for (const { namespace, keys } of info.translators) {
     if (namespace === null) missing.push('useTranslations() with a namespace that is not a plain string')
     else if (namespace !== '' && covers(paths, namespace)) continue
@@ -271,9 +308,10 @@ describe('[NFR-I18N-01] [FR-PLT-002/AC2] [§9.4] every client component finds it
     for (const entry of entries) {
       const provider = providerOf(entry)
       if (provider === 'unknown') continue
-      for (const file of clientModulesOf(entry)) {
-        const missing = missingIn(provider, moduleInfo(file))
-        if (missing.length > 0) problems.push(`${rel(entry)} → ${rel(file)} reads ${[...new Set(missing)].join(', ')}, not passed by ${describeProvider(provider)}`)
+      for (const [file, added] of clientModulesOf(entry)) {
+        const missing = missingIn(provider, moduleInfo(file), added)
+        const by = describeProvider(provider) + (added.length > 0 ? ` with ${added.join(', ')} of a provider of its own` : '')
+        if (missing.length > 0) problems.push(`${rel(entry)} → ${rel(file)} reads ${[...new Set(missing)].join(', ')}, not passed by ${by}`)
       }
     }
     expect([...new Set(problems)]).toEqual([])
@@ -298,7 +336,7 @@ describe('[NFR-I18N-01] [FR-PLT-002/AC2] [§9.4] every client component finds it
       { namespace: 'b', keys: 'dynamic' },
     ])
     expect(directiveOf(`// a comment\n/* another */\n'use client'\nimport x from 'y'`)).toBe('client')
-    const reading = (translators: Translator[]): ModuleInfo => ({ client: true, server: false, imports: [], readsAll: false, translators })
+    const reading = (translators: Translator[]): ModuleInfo => ({ client: true, server: false, imports: [], readsAll: false, translators, adds: null })
     const task: Provider = { kind: 'scope', scope: 'liffTask' }
     expect(missingIn(task, reading([{ namespace: 'adminDoa.detail', keys: ['boundaryConfirm'] }]))).toEqual([])
     expect(missingIn(task, reading([{ namespace: 'adminDoa.detail', keys: 'dynamic' }]))).toEqual(['adminDoa.detail'])
@@ -306,6 +344,33 @@ describe('[NFR-I18N-01] [FR-PLT-002/AC2] [§9.4] every client component finds it
     expect(missingIn(task, reading([{ namespace: 'liff.gate', keys: 'dynamic' }, { namespace: 'tasks.decide', keys: 'dynamic' }]))).toEqual([])
     expect(missingIn({ kind: 'scope', scope: 'liff' }, reading([{ namespace: 'tasks.decide', keys: 'dynamic' }]))).toEqual(['tasks.decide'])
     expect(missingIn({ kind: 'none' }, reading([{ namespace: 'app.error', keys: ['title'] }]))).toEqual(['app.error.title'])
+    // Inside a provider of its own, the namespaces it adds are there too
+    const form: Provider = { kind: 'scope', scope: 'liffRequestForm' }
+    expect(missingIn(form, reading([{ namespace: 'requestForm.lines', keys: 'dynamic' }]))).toEqual(['requestForm.lines'])
+    expect(missingIn(form, reading([{ namespace: 'requestForm.lines', keys: 'dynamic' }]), ['requestForm'])).toEqual([])
+    // useMessages() reads every message, unless the module is a provider of its own that hands them on
+    expect(missingIn(form, { ...reading([]), readsAll: true })).toEqual(['useMessages() (every message of the provider)'])
+    expect(missingIn(form, { ...reading([]), readsAll: true, adds: ['requestForm'] })).toEqual([])
+  })
+
+  it('sees a provider of its own: the namespaces it imports in both languages, which reach what the module importing it draws', () => {
+    expect(addedNamespacesOf('client', `const m = useMessages(); <NextIntlClientProvider messages={m} />\nimport a from '../../messages/src/th/x.json'\nimport b from '../../messages/src/en/x.json'`)).toEqual(['x'])
+    // One language only, no provider, or not a client module: none
+    expect(addedNamespacesOf('client', `useMessages(); <NextIntlClientProvider />\nimport a from '../../messages/src/th/x.json'`)).toBeNull()
+    expect(addedNamespacesOf('client', `import a from '../../messages/src/th/x.json'\nimport b from '../../messages/src/en/x.json'`)).toBeNull()
+    expect(addedNamespacesOf(null, `useMessages(); <NextIntlClientProvider />\nimport a from '../../messages/src/th/x.json'\nimport b from '../../messages/src/en/x.json'`)).toBeNull()
+    // The LIFF request form: steps 2 and 3 are drawn inside the provider of their words, step 1 and the shell outside it
+    expect(moduleInfo(STEP_WORDS).adds).toEqual(['files', 'liffRequests', 'requestForm'])
+    const form = clientModulesOf(path.join(APP, 'liff', 'requests', 'new', '[type]', 'page.tsx'))
+    const inForm = (file: string) => form.get(path.join(SRC, ...file.split('/')))
+    expect(inForm('ui/liff/requests/request-form.tsx')).toEqual([])
+    expect(inForm('ui/liff/requests/details-step.tsx')).toEqual([])
+    expect(inForm('ui/liff/requests/step-words.tsx')).toEqual([])
+    expect(inForm('ui/request-form/details-items.tsx')).toEqual(['files', 'liffRequests', 'requestForm'])
+    expect(inForm('ui/liff/requests/review-step.tsx')).toEqual(['files', 'liffRequests', 'requestForm'])
+    expect(inForm('ui/liff/requests/camera-attach.tsx')).toEqual(['files', 'liffRequests', 'requestForm'])
+    // A module drawn outside the provider as well has only the page's words (the notice of step 1 and of step 3)
+    expect(inForm('ui/liff/notice.tsx')).toEqual([])
   })
 })
 
@@ -335,7 +400,7 @@ describe('[NFR-I18N-01] [§9.4] a LIFF part passes its words to a member only, a
     const gate = path.join(SRC, 'ui', 'liff', 'liff-gate.tsx')
     const modules = clientModulesOf(gate)
     expect(modules.has(gate) && modules.size > 1).toBe(true)
-    const problems = [...modules].flatMap((file) => {
+    const problems = [...modules.keys()].flatMap((file) => {
       const missing = missingIn({ kind: 'scope', scope: LIFF_GATE_SCOPE }, moduleInfo(file))
       return missing.length > 0 ? [`${rel(file)} reads ${missing.join(', ')}`] : []
     })

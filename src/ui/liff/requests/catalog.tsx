@@ -2,8 +2,8 @@
 
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
-import { Button } from '../../form/button'
 import type { CatalogEntry } from '../../request-form/types'
+import { Button } from '../button'
 import { LiffLink } from '../liff-link'
 import { inputClass } from './classes'
 

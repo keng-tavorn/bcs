@@ -73,15 +73,15 @@ export function LiffDetailsStep(props: LiffDetailsProps) {
 }
 
 function BudgetLineField({ data, values, update, showErrors, budget, previewLoading }: LiffDetailsProps) {
-  const t = useTranslations('requestForm.budget')
+  const tb = useTranslations('requestForm.budget')
   const tf = useTranslations('requestForm.fields')
-  if (data.budgetLines.length === 0) return <LiffNotice tone="warning">{t('noLines')}</LiffNotice>
+  if (data.budgetLines.length === 0) return <LiffNotice tone="warning">{tb('noLines')}</LiffNotice>
   const line = data.budgetLines.find((l) => l.id === values.budgetLineId) ?? null
-  const error = showErrors && !line ? t('chooseMissing') : undefined
+  const error = showErrors && !line ? tb('chooseMissing') : undefined
   const balance = line && budget?.kind === 'LINE' && budget.budgetLineId === line.id ? budget : null
   return (
     <div className="flex flex-col gap-3">
-      <LiffLabelled id="budget-line" label={t('line')} requiredText={tf('required')} hint={t('lineHint')} error={error}>
+      <LiffLabelled id="budget-line" label={tb('line')} requiredText={tf('required')} hint={tb('lineHint')} error={error}>
         <select
           id="budget-line"
           name="budgetLineId"
@@ -93,28 +93,28 @@ function BudgetLineField({ data, values, update, showErrors, budget, previewLoad
           aria-describedby={describedBy('budget-line', true, Boolean(error))}
           onChange={(e) => update({ type: 'budgetLine', value: e.currentTarget.value })}
         >
-          <option value="">{t('choose')}</option>
+          <option value="">{tb('choose')}</option>
           {data.budgetLines.map((l) => (
             <option key={l.id} value={l.id}>
-              {l.granted ? t('optionGranted', { code: l.code, name: l.name, department: l.departmentName }) : t('option', { code: l.code, name: l.name })}
+              {l.granted ? tb('optionGranted', { code: l.code, name: l.name, department: l.departmentName }) : tb('option', { code: l.code, name: l.name })}
             </option>
           ))}
         </select>
       </LiffLabelled>
       <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
-        <dt className="text-ink-muted">{t('department')}</dt>
-        <dd>{line?.departmentName ?? data.requesterDepartmentName ?? t('dash')}</dd>
-        <dt className="text-ink-muted">{t('costCenter')}</dt>
-        <dd>{line ? t('costCenterValue', { code: line.costCenterCode, name: line.costCenterName }) : t('dash')}</dd>
+        <dt className="text-ink-muted">{tb('department')}</dt>
+        <dd>{line?.departmentName ?? data.requesterDepartmentName ?? tb('dash')}</dd>
+        <dt className="text-ink-muted">{tb('costCenter')}</dt>
+        <dd>{line ? tb('costCenterValue', { code: line.costCenterCode, name: line.costCenterName }) : tb('dash')}</dd>
       </dl>
       {line ? (
         // What is left on the chosen line, as the server last said it (FR-INT-004 AC1); the amount it needs comes with the items
         <div aria-live="polite" className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 border-l-4 border-info bg-surface px-3 py-2">
-          <span>{t('remaining')}</span>
+          <span>{tb('remaining')}</span>
           {balance ? (
-            <span className="money font-semibold">{t('baht', { amount: showMoney(balance.available) })}</span>
+            <span className="money font-semibold">{tb('baht', { amount: showMoney(balance.available) })}</span>
           ) : (
-            <span className="text-ink-muted">{budget?.kind === 'NOT_USABLE' ? t('notUsableShort') : previewLoading ? t('loading') : t('unknown')}</span>
+            <span className="text-ink-muted">{budget?.kind === 'NOT_USABLE' ? tb('notUsableShort') : previewLoading ? tb('loading') : tb('unknown')}</span>
           )}
         </div>
       ) : null}

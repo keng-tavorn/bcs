@@ -4,6 +4,7 @@ import type { DelegationSnapshot, DelegationStatus, DoaDocumentType } from '@/co
 import type { AppError } from '@/core/result'
 import { TASK_MACHINE, transition, type TaskState } from '@/core/state-machines'
 import { systemCtx, type Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadDelegations, loadOrgSnapshot } from '@/server/doa/policy'
@@ -147,7 +148,7 @@ async function moveToDelegate(tx: TenantTx, ctx: Ctx, d: DelegationRow): Promise
   // BR-DLG-03: a delegate who is not ACTIVE holds nothing
   if (delegate?.status !== 'ACTIVE') return { events, notifications, kept: 0 }
   // BR-DLG-02: only tasks the delegator holds in their own right (principal null), and authority from a position
-  const tasks = await lockedOpenTasks(tx, ctx, { assigneeMemberId: d.delegatorMemberId, principalMemberId: null, resolvedFrom: { startsWith: 'POSITION:' } })
+  const tasks = await lockedOpenTasks(tx, ctx, { assigneeMemberId: d.delegatorMemberId, principalMemberId: null, resolvedFrom: { startsWith: escapeLike('POSITION:') } })
   const window = [snapshotOf(d, 'ACTIVE')]
   for (const task of tasks) {
     // The delegate already decides this step (for example as its co-assignee): there is nothing to hand over

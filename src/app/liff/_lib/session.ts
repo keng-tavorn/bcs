@@ -3,18 +3,17 @@ import { cache } from 'react'
 import { systemClock } from '@/lib/clock'
 import { auth } from '@/server/auth/auth'
 import { isLiffSessionToken } from '@/server/auth/liff'
-import { liffSessionStandsForMember } from '@/server/auth/liff-sessions'
 import { ctxFromSession, resolveSession, type SessionMember } from '@/server/auth/session'
 import type { Ctx } from '@/server/context'
 import { withHeldCookies } from '../../_lib/held-cookies'
 
 // The session of a LIFF page (§9.4, ADR-046): a LIFF session (opened with the LINE ID token, accepted on LIFF pages only)
 // or a web session (a password sign-in, in the LINE app or a browser), both with the LIFF idle limit of 15 minutes
-// (FR-AUTH-003 AC1). A LIFF session acts only as a member whose LINE link still stands (src/server/auth/liff.ts checks it
-// on every request), and only while none of that member's LINE links ended after it was opened: a session of an old
-// phone never comes back to life when the member links a new one (src/server/auth/liff-sessions.ts ends it here). One
-// lookup per request, shared by the layout and the page. Pages build their service context from it (channel LIFF) and
-// render data only for kind "member"; anything else renders <LiffGate> and nothing of the page.
+// (FR-AUTH-003 AC1). A LIFF session acts only as the member of the LINE link it was opened with, and only while that very
+// link stands: resolveSession checks it on every request and ends the session otherwise (src/server/auth/liff.ts), so a
+// session of an old phone never comes back to life when the member links a new one. One lookup per request, shared by
+// the layout and the page. Pages build their service context from it (channel LIFF) and render data only for kind
+// "member"; anything else renders <LiffGate> and nothing of the page.
 // `session` says which of the two it is: the bootstrap renews only a LIFF session with a new ID token (a password sign-in
 // is never swapped for the session of the LINE account's owner), and ending the link of another LINE account from LIFF
 // needs the password sign-in (src/server/services/liff).
@@ -59,10 +58,7 @@ export const liffPage = cache(async (): Promise<LiffPage> => {
   const state = await resolveSession(requestHeaders, { channel: 'LIFF' })
   if (state.kind === 'anonymous' || state.kind === 'expired') return { kind: 'signed-out' }
   const session = await sessionKindOf(requestHeaders)
-  if (state.kind === 'no-membership') return { kind: state.kind, session }
-  // A LIFF session opened before one of the member's LINE links ended may stand on that link: it is ended, not used
-  if (session === 'liff' && !(await liffSessionStandsForMember(state.sessionId, state.member))) return { kind: 'signed-out' }
-  if (state.kind === 'needs-2fa-setup') return { kind: state.kind, session }
+  if (state.kind === 'no-membership' || state.kind === 'needs-2fa-setup') return { kind: state.kind, session }
   const ctx = ctxFromSession(state, 'LIFF', systemClock.now())
   return ctx ? { kind: 'member', ctx, member: state.member, session } : { kind: 'signed-out' }
 })

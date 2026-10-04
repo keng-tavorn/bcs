@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { cn } from '../../cn'
+import { cn } from '../cn'
 
 // The state of a delegation on /liff/delegation as an icon and words, never colour alone (NFR-A11Y-03), with the icons and
 // tones of the workspace's src/ui/delegation/delegation-state.tsx drawn as plain SVG from Lucide's path data (lucide-react

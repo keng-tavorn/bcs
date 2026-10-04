@@ -1,6 +1,9 @@
 import { spawnSync } from 'node:child_process'
 import { randomInt } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import { devices, type BrowserContext, type Locator, type Page, type TestInfo } from '@playwright/test'
+import { localeCookieName } from '../../src/i18n/locales'
 import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 import {
@@ -14,6 +17,8 @@ import {
   openAsLineUser,
   sceneTag,
   sessionCookie,
+  TAILWIND_MERGE_PAGE,
+  watchScripts,
   weighOpenedFromLine,
   weighWithLiffSession,
   type LiffBudgetScreen,
@@ -583,6 +588,81 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
   })
 })
 
+type Catalogue = Record<string, unknown>
+const CATALOGUES: Readonly<Record<'th' | 'en', Catalogue>> = {
+  th: JSON.parse(readFileSync(path.resolve(import.meta.dirname, '../../messages/th.json'), 'utf8')) as Catalogue,
+  en: JSON.parse(readFileSync(path.resolve(import.meta.dirname, '../../messages/en.json'), 'utf8')) as Catalogue,
+}
+
+/** The words of a message in one language, with its arguments filled in */
+function say(locale: 'th' | 'en', key: string, values: Readonly<Record<string, string>> = {}): string {
+  const words = key.split('.').reduce<unknown>((node, name) => (node && typeof node === 'object' ? (node as Catalogue)[name] : undefined), CATALOGUES[locale])
+  if (typeof words !== 'string') throw new Error(`${key} is not a message in ${locale}`)
+  return words.replace(/\{(\w+)\}/g, (all, name: string) => values[name] ?? all)
+}
+
+/** A message key where words should be: a namespace of the catalogue, then dot-separated names */
+const KEY = new RegExp(`(?<![\\w.@/:-])(?:${Object.keys(CATALOGUES.th).join('|')})\\.[A-Za-z][\\w]*(?:\\.[\\w]+)*`, 'g')
+
+test.describe('[NFR-I18N-01] [§9.4] steps 2 and 3 of the LIFF form bring their own words', () => {
+  test.describe.configure({ timeout: SCENE_TIMEOUT_MS })
+
+  // The form's page passes its shell and step 1 only the words they read (src/i18n/client-messages.ts liffRequestForm):
+  // steps 2 and 3 are loaded when the requester gets there, with the rest of the form's words in their own chunk
+  // (src/ui/liff/requests/step-words.tsx). In Thai and in English: the steps say their words in the page's language,
+  // never a key, next-intl logs no missing message, and the form's HTML carries none of the words of steps 2 and 3.
+  for (const locale of ['th', 'en'] as const) {
+    test(`[FR-LINE-003/AC1] [FR-PLT-002/AC2] in ${locale === 'th' ? 'Thai' : 'English'}: the words of steps 2 and 3 come with the steps, and the form’s HTML has only those of step 1`, async ({
+      page,
+      context,
+    }, testInfo) => {
+      const lineUserId = newLineUserId()
+      const tag = sceneTag(`steps-${locale}`)
+      liffRequestsScene<{ member: SceneMember }>('requester', tag, lineUserId, 'CON', 'history')
+      await context.addCookies([{ name: localeCookieName, value: locale, url: E2E_BASE_URL }])
+      await openAsLineUser(context, lineUserId)
+      const missing: string[] = []
+      page.on('console', (message) => {
+        if (message.type() === 'error' && /MISSING_MESSAGE|INSUFFICIENT_PATH|INVALID_MESSAGE/.test(message.text())) missing.push(message.text())
+      })
+      const other = locale === 'th' ? 'en' : 'th'
+      const heading = (n: number, step: string) => page.getByRole('heading', { level: 2, name: say(locale, 'requestForm.steps.heading', { n: String(n), total: '3', name: say(locale, `requestForm.steps.${step}`) }) })
+      const next = (step: string) => page.getByRole('button', { name: say(locale, 'requestForm.steps.next', { name: say(locale, `requestForm.steps.${step}`) }) })
+      /** Words of steps 2 and 3 only: the review, the route, adding a line, the documents */
+      const later = ['requestForm.review.summary', 'requestForm.route.title', 'requestForm.lines.add', 'liffRequests.form.documentsOpen'] as const
+
+      // The gate signs in with LINE first; the form opened again has its LIFF session and its content in the HTML
+      await page.goto('/liff/requests/new/BUY_GOODS')
+      await expect(heading(1, 'details')).toBeVisible()
+      const opened = await page.goto('/liff/requests/new/BUY_GOODS')
+      const html = (await opened?.text()) ?? ''
+      await expect(heading(1, 'details')).toBeVisible()
+      expect(html).toContain(say(locale, 'requestForm.details.title'))
+      for (const key of later) expect(html, `${key} in the form's HTML`).not.toContain(say(locale, key))
+      await page.getByLabel(say(locale, 'requestForm.details.title')).fill(`ไม้อัด ${tag}`)
+
+      await next('items').click()
+      await expect(heading(2, 'items')).toBeVisible()
+      await expect(page.getByRole('button', { name: say(locale, 'requestForm.lines.add') })).toBeVisible()
+      await expect(page.getByLabel(say(locale, 'requestForm.site.label'))).toBeVisible()
+      await page.screenshot({ path: testInfo.outputPath(`liff-request-form-items-${locale}.png`), fullPage: true })
+
+      await next('review').click()
+      await expect(heading(3, 'review')).toBeVisible()
+      await expect(page.getByRole('heading', { level: 2, name: say(locale, 'requestForm.review.summary') })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 2, name: say(locale, 'requestForm.route.title') })).toBeVisible()
+      await expect(page.getByRole('button', { name: say(locale, 'liffRequests.form.documentsOpen') })).toBeVisible()
+      await page.waitForLoadState('networkidle')
+      await page.screenshot({ path: testInfo.outputPath(`liff-request-form-review-${locale}.png`), fullPage: true })
+
+      const text = await page.locator('body').innerText()
+      expect(text.match(KEY) ?? []).toEqual([])
+      for (const key of later) expect(text, `${key} in ${other}`).not.toContain(say(other, key))
+      expect(missing).toEqual([])
+    })
+  }
+})
+
 interface SceneStates {
   readonly member: { readonly id: string }
   readonly approved: SceneRequest
@@ -607,6 +687,17 @@ test.describe('[§9.4] the first JavaScript of the LIFF request pages: their scr
   }
   const numbered = (request: SceneRequest) => (page: Page) => expect(page.getByRole('heading', { level: 1, name: request.number })).toBeVisible()
   const formReady = (page: Page) => expect(stepHeading(page, 1, 'รายละเอียดคำขอ')).toBeVisible()
+
+  // Every first load weighed here is also held to having no tailwind-merge (expectFirstLoadWithinBudget): the check looks
+  // for a string of tailwind-merge in the scripts, and finds it where the workspace loads it
+  test('the check for tailwind-merge in a first load finds it where it is: the sign-in page, whose form joins its classes with src/ui/cn.ts', async ({ page }) => {
+    const scripts = watchScripts(page)
+    await page.goto(TAILWIND_MERGE_PAGE)
+    // Enabled once the page's script runs (src/ui/form/hydrated.ts)
+    await expect(page.getByRole('button', { name: 'เข้าสู่ระบบ' })).toBeEnabled()
+    await page.waitForLoadState('networkidle')
+    expect((await scripts()).filter((l) => l.merge).length, `${TAILWIND_MERGE_PAGE}: a script with tailwind-merge`).toBeGreaterThan(0)
+  })
 
   test('the catalogue, the request page in every state a LINE message opens it in, a request of 40 lines, and the list — each opened from LINE and again with the LIFF session, in a fresh LINE app', async ({
     browser,
@@ -667,14 +758,19 @@ test.describe('[§9.4] the first JavaScript of the LIFF request pages: their scr
 
   // The form is weighed in two tests, one per way LINE opens it, so that each shows on its own. Opened from LINE the HTML
   // is the gate's, without the form's words (src/app/liff/_lib/part-messages.tsx). Opened with its LIFF session the form
-  // carries its data and all its words in the HTML: today that is over the budget, and what brings it under is the form's
-  // own — the words of steps 2 and 3 loaded with those steps, the request page's words off its edit page and the
-  // catalogue's off the form, its data written once, and no tailwind-merge in the LIFF components — not the weighing
+  // carries its data and the words of its shell and step 1 in the HTML; what keeps that within the budget is the form's
+  // own — the words of steps 2 and 3 loaded with those steps (src/ui/liff/requests/step-words.tsx), neither the request
+  // page's words nor the catalogue's on it (route groups of their own), the draft's lines written once
+  // (src/ui/liff/requests/lines.ts), and no tailwind-merge in the LIFF components — not the weighing
   test('the form opened from LINE: new, a draft of 40 lines at the address its first save gave it, and a returned request, each in a fresh LINE app', async ({ browser }, testInfo) => {
-    for (const screen of formScreens(newLineUserId())) expectFirstLoadWithinBudget(testInfo, `${screen.name}, opened from LINE`, await weighOpenedFromLine(browser, screen))
+    for (const screen of formScreens(newLineUserId())) {
+      expectFirstLoadWithinBudget(testInfo, `${screen.name}, opened from LINE`, await weighOpenedFromLine(browser, screen))
+    }
   })
 
   test('the form with the LIFF session: new, a draft of 40 lines at the address its first save gave it, and a returned request, each in a fresh LINE app', async ({ browser }, testInfo) => {
-    for (const screen of formScreens(newLineUserId())) expectFirstLoadWithinBudget(testInfo, `${screen.name}, with the LIFF session`, await weighWithLiffSession(browser, screen))
+    for (const screen of formScreens(newLineUserId())) {
+      expectFirstLoadWithinBudget(testInfo, `${screen.name}, with the LIFF session`, await weighWithLiffSession(browser, screen))
+    }
   })
 })

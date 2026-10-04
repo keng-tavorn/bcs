@@ -15,11 +15,12 @@ import { createEarlySaver, EARLY_SAVE_TIMEOUT_MS, earlyDraft, type EarlyBase, ty
 import { evaluate } from '@/ui/liff/requests/engine'
 import { LiffField } from '@/ui/liff/requests/field'
 import { newUuid } from '@/ui/liff/requests/key'
+import { openingLines, previewLinesOf } from '@/ui/liff/requests/lines'
 import { LiffRequesterScreen, type LiffRequesterProps } from '@/ui/liff/requests/requester-box'
 import { openFileWith } from '@/ui/liff/requests/review-step'
-import { liffFormStart, previewLinesOf } from '@/ui/liff/requests/start'
+import { liffFormStart } from '@/ui/liff/requests/start'
 import { LiffTrackList } from '@/ui/liff/requests/track-list'
-import { draftPayload, formReducer, type FormAction, type FormValues } from '@/ui/request-form/model'
+import { draftPayload, formReducer, initialValues, plainNumber, savableLine, type FormAction, type FormLine, type FormValues } from '@/ui/request-form/model'
 import type { BudgetView, RequestFormData } from '@/ui/request-form/types'
 import en from '../../messages/en.json'
 import th from '../../messages/th.json'
@@ -74,13 +75,38 @@ function itForm(draft: RequestFormData['draft'] = null): RequestFormData {
   }
 }
 
+/** The values the LIFF form opens with in the browser: what the server worked out, and the lines of the page's data */
+const openingOf = (data: RequestFormData): FormValues => ({ ...liffFormStart(data).values, lines: openingLines(data) })
+
+const DRAFT_LINES = [
+  { id: '00000000-0000-4000-8000-000000000004', reserved: null, description: 'เซิร์ฟเวอร์', quantity: '1', uom: 'เครื่อง', unitPrice: '60,000.00', vatable: true, serviceEndDate: null },
+  { id: '00000000-0000-4000-8000-000000000005', reserved: null, description: 'สายไฟ', quantity: '', uom: 'เส้น', unitPrice: '', vatable: true, serviceEndDate: null },
+] as const
+
+const serverDraft = (lines: NonNullable<RequestFormData['draft']>['lines'], status: 'DRAFT' | 'RETURNED' = 'DRAFT'): NonNullable<RequestFormData['draft']> => ({
+  requestId: '00000000-0000-4000-8000-000000000003',
+  version: 2,
+  status,
+  title: 'เซิร์ฟเวอร์สำรองข้อมูล',
+  budgetLineId: LINE.id,
+  priceIncludesVat: false,
+  formData: { category: 'HARDWARE' },
+  lines,
+  quotations: [],
+  nonLowestQuoteReason: '',
+  attachments: [],
+  returnReason: null,
+  deliverySiteId: null,
+  suggestedSupplierId: null,
+})
+
 describe('[FR-INT-003/AC1] [FR-INT-002/AC1] the LIFF form starts as the server works it out, and the browser’s engine agrees', () => {
   it('[FR-INT-003/AC1] a new form opens with the default budget line and site (BR-FORM-02), one empty line, and the fields the rules show', () => {
     const start = liffFormStart(itForm())
     expect(start.values.budgetLineId).toBe(LINE.id)
     expect(start.values.deliverySiteId).toBe(SITE.id)
-    expect(start.values.lines).toHaveLength(1)
-    expect(start.previewLines).toEqual([])
+    expect(openingLines(itForm())).toHaveLength(1)
+    expect(previewLinesOf(openingOf(itForm()))).toEqual([])
     // The asset tag shows for hardware only (FR-INT-002 AC1): nothing is chosen yet
     expect(start.visible).toEqual(['category', 'processesPersonalData'])
     expect(start.titleMax).toBe(200)
@@ -89,40 +115,77 @@ describe('[FR-INT-003/AC1] [FR-INT-002/AC1] the LIFF form starts as the server w
   it('[FR-INT-002/AC1] the engine shows the asset tag as soon as hardware is chosen, and agrees with the server on the opening values', () => {
     const data = itForm()
     const start = liffFormStart(data)
-    expect([...evaluate(data, start.values, []).visible]).toEqual(start.visible)
-    const hardware = { ...start.values, fields: { category: 'HARDWARE' } }
+    expect([...evaluate(data, openingOf(data), []).visible]).toEqual(start.visible)
+    const hardware = { ...openingOf(data), fields: { category: 'HARDWARE' } }
     expect([...evaluate(data, hardware, []).visible]).toEqual(['category', 'assetTag', 'processesPersonalData'])
     // Software: the lines must carry the day the service ends (BR-FORM-05)
-    expect(evaluate(data, { ...start.values, fields: { category: 'SOFTWARE' } }, []).endDateRequired).toBe(true)
+    expect(evaluate(data, { ...openingOf(data), fields: { category: 'SOFTWARE' } }, []).endDateRequired).toBe(true)
   })
 
   it('[FR-INT-004/AC1] a draft opens with its own values; the preview is asked about its complete lines, numbers as plain text', () => {
-    const data = itForm({
-      requestId: '00000000-0000-4000-8000-000000000003',
-      version: 2,
-      status: 'DRAFT',
-      title: 'เซิร์ฟเวอร์สำรองข้อมูล',
-      budgetLineId: LINE.id,
-      priceIncludesVat: false,
-      formData: { category: 'HARDWARE' },
-      lines: [
-        { id: '00000000-0000-4000-8000-000000000004', reserved: null, description: 'เซิร์ฟเวอร์', quantity: '1', uom: 'เครื่อง', unitPrice: '60,000.00', vatable: true, serviceEndDate: null },
-        { id: '00000000-0000-4000-8000-000000000005', reserved: null, description: 'สายไฟ', quantity: '', uom: 'เส้น', unitPrice: '', vatable: true, serviceEndDate: null },
-      ],
-      quotations: [],
-      nonLowestQuoteReason: '',
-      attachments: [],
-      returnReason: null,
-      deliverySiteId: null,
-      suggestedSupplierId: null,
-    })
+    const data = itForm(serverDraft([...DRAFT_LINES]))
     const start = liffFormStart(data)
     expect(start.values.title).toBe('เซิร์ฟเวอร์สำรองข้อมูล')
     // A draft keeps what it saved, "no site chosen" too
     expect(start.values.deliverySiteId).toBe('')
     expect(start.visible).toContain('assetTag')
-    expect(start.previewLines).toEqual([{ quantity: '1', unitPrice: '60000.00', vatable: true }])
-    expect(previewLinesOf(start.values)).toEqual(start.previewLines)
+    expect(previewLinesOf(openingOf(data))).toEqual([{ quantity: '1', unitPrice: '60000.00', vatable: true }])
+  })
+
+  it('[§9.4] the draft’s lines are written into the page once: the start carries none, and the browser opens with the workspace’s values', () => {
+    const data = itForm(serverDraft([...DRAFT_LINES]))
+    const start = liffFormStart(data)
+    expect(start).not.toHaveProperty('previewLines')
+    expect(start.values).not.toHaveProperty('lines')
+    expect(JSON.stringify(start)).not.toContain(DRAFT_LINES[0].id)
+    expect(openingOf(data)).toEqual(initialValues(data))
+  })
+})
+
+describe('[FR-INT-004/AC1] [§9.4] the lines of the LIFF form in the browser follow the workspace’s form rules (src/ui/request-form/model.ts)', () => {
+  const text = fc.oneof(fc.constantFrom('', ' ', '1', '0', '00', '0.5', '1,234.50', ' 12 ', '1.2345', '1.23456', '12.345', '-1', '1e3', 'abc', '99999999999999', '100,000.00'), fc.string({ maxLength: 8 }))
+  const line = fc.record({
+    key: fc.uuid(),
+    id: fc.option(fc.uuid(), { nil: null }),
+    reserved: fc.constant(null),
+    description: fc.constantFrom('', '  ', 'ไม้อัด', 'สายไฟ VAF'),
+    quantity: text,
+    uom: fc.constantFrom('', ' ', 'แผ่น', 'm'),
+    unitPrice: text,
+    vatable: fc.boolean(),
+    serviceEndDate: fc.constantFrom('', '2570-01-31'),
+  }) satisfies fc.Arbitrary<FormLine>
+
+  it('[FR-INT-004/AC1] the preview is asked about the lines the workspace would save, with the same plain numbers', () => {
+    fc.assert(
+      fc.property(fc.array(line, { maxLength: 6 }), (lines) => {
+        const expected = lines.filter(savableLine).map((l) => ({ quantity: plainNumber(l.quantity), unitPrice: plainNumber(l.unitPrice), vatable: l.vatable }))
+        expect(previewLinesOf({ lines })).toEqual(expected)
+      }),
+      { numRuns: 500 },
+    )
+  })
+
+  it('[§9.4] a form opens with the same lines as the workspace’s: a draft’s own, a returned request’s with what they hold, or one empty line', () => {
+    const draftLine = fc.record({
+      id: fc.uuid(),
+      reserved: fc.option(fc.constantFrom('0.00', '0.01', '1500.00').map((amount) => ({ amount, currency: 'THB' as const })), { nil: null }),
+      description: fc.constantFrom('', 'ไม้อัด'),
+      quantity: text,
+      uom: fc.constantFrom('', 'แผ่น'),
+      unitPrice: text,
+      vatable: fc.boolean(),
+      serviceEndDate: fc.option(fc.constantFrom('2570-01-31'), { nil: null }),
+    })
+    fc.assert(
+      fc.property(fc.option(fc.array(draftLine, { maxLength: 4 }), { nil: null }), fc.boolean(), fc.constantFrom('DRAFT', 'RETURNED') as fc.Arbitrary<'DRAFT' | 'RETURNED'>, (lines, purchase, status) => {
+        const form = itForm(lines === null ? null : serverDraft(lines, status))
+        const data: RequestFormData = purchase ? form : { ...form, type: { ...form.type, documentType: 'SUPPLIER_REQUEST' } }
+        expect(openingLines(data)).toEqual(initialValues(data).lines)
+        expect(openingOf(data)).toEqual(initialValues(data))
+      }),
+      { numRuns: 300 },
+    )
   })
 })
 
@@ -151,7 +214,7 @@ describe('[FR-INT-004/AC1] the first step of the LIFF form shows the budget line
   const props = (budget: BudgetView | null) => {
     const data = itForm()
     const start = liffFormStart(data)
-    return { data, values: start.values, update: () => undefined, locale: 'th' as const, visible: new Set(start.visible), showErrors: false, budget, previewLoading: false, fieldErrors: {}, titleMax: start.titleMax }
+    return { data, values: openingOf(data), update: () => undefined, locale: 'th' as const, visible: new Set(start.visible), showErrors: false, budget, previewLoading: false, fieldErrors: {}, titleMax: start.titleMax }
   }
 
   it('[FR-INT-004/AC1] the line, the department that pays and what is left on it, for that line only', () => {
@@ -267,13 +330,13 @@ describe('[FR-INT-006/AC1] a save made as the page goes away before the engine a
 
   it('[FR-INT-006/AC1] a new form: the step-1 parts with the same values as the workspace’s first save, the site the form opened with included', () => {
     const data = itForm()
-    const values = apply(liffFormStart(data).values, STEP_ONE)
+    const values = apply(openingOf(data), STEP_ONE)
     const early = earlyDraft(values, data.type.name, true, 200)
     const full = draftPayload(values, data.type.name, true).draft as unknown as Record<string, unknown>
     expect(early).toEqual({ title: 'เซิร์ฟเวอร์สำรองข้อมูล', budgetLineId: LINE.id, deliverySiteId: SITE.id, priceIncludesVat: false, formData: { category: 'HARDWARE', assetTag: 'IT-0042' } })
     for (const [key, value] of Object.entries(early)) expect(full[key], key).toEqual(value)
     // Without a title the draft takes the type's name, as the workspace's first save does
-    expect(earlyDraft(liffFormStart(data).values, data.type.name, true, 200).title).toBe(data.type.name)
+    expect(earlyDraft(openingOf(data), data.type.name, true, 200).title).toBe(data.type.name)
   })
 
   it('[FR-INT-006/AC1] a saved draft: only what step 1 changes, a cleared budget line as null, nothing about its lines', () => {
@@ -293,7 +356,7 @@ describe('[FR-INT-006/AC1] a save made as the page goes away before the engine a
       deliverySiteId: SITE.id,
       suggestedSupplierId: null,
     })
-    const values = apply(liffFormStart(data).values, [...STEP_ONE, { type: 'budgetLine', value: '' }])
+    const values = apply(openingOf(data), [...STEP_ONE, { type: 'budgetLine', value: '' }])
     const early = earlyDraft(values, data.type.name, false, 200)
     const full = draftPayload(values, data.type.name, false).draft as unknown as Record<string, unknown>
     expect(early).toEqual({ title: 'เซิร์ฟเวอร์สำรองข้อมูล', budgetLineId: null, priceIncludesVat: false, formData: { category: 'HARDWARE', assetTag: 'IT-0042' } })
@@ -401,7 +464,7 @@ function fakeAutosaveRoute() {
 
 describe('[FR-INT-006/AC1] the early save of the LIFF form: one at a time, an unanswered one again with its key, a leave in between not lost', () => {
   const DRAFT = '00000000-0000-4000-8000-000000000009'
-  const valuesWith = (title: string) => ({ ...liffFormStart(itForm()).values, title })
+  const valuesWith = (title: string) => ({ ...openingOf(itForm()), title })
 
   function saverOf(base: EarlyBase = { requestId: null, version: null }) {
     const route = fakeAutosaveRoute()

@@ -47,8 +47,8 @@ import { isCheckablePinHash, PIN_PROOF_TTL_MS, PinHashError, signPinChangeProof,
 // at S5-05 — it stays the second factor of the sign-in — so a TOTP grant written before then never decides anything.
 // After a grant the caller changes the session id (NFR-SEC-04, ./session-rotation.ts).
 //
-// Setting a PIN needs a fresh proof of who the member is (proveIdentityForPin): the password or the authenticator code,
-// counted and recorded like a sign-in, gives a proof good for 5 minutes (./pin.ts).
+// Setting a PIN needs a fresh proof of who the member is (proveIdentityForPin): the password or the code of a confirmed
+// authenticator, counted and recorded like a sign-in, gives a proof good for 5 minutes (./pin.ts).
 
 /** TOTP names the grants of the authenticator code made before S5-05 (StepUpGrant.method); only PIN grants are made now */
 export type StepUpMethod = 'TOTP' | 'PIN'
@@ -175,9 +175,18 @@ function sameCode(a: string, b: string): boolean {
   return a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
 }
 
-/** Checks a TOTP code of the member's sign-in identity against the steps around `nowMs`; null without an authenticator */
+/**
+ * Checks a TOTP code of the member's sign-in identity against the steps around `nowMs`; null without a confirmed
+ * authenticator. Confirmed as Better Auth's own sign-in counts it (and ./proof-methods.ts offers it): two-step sign-in is
+ * on for the identity (twoFactorEnabled) and its authenticator is not a setup started and never confirmed with a code
+ * (TwoFactor.verified true, or null as on rows made before Better Auth had the column). A setup never confirmed is no
+ * authenticator yet — the sign-in refuses its codes — so its codes never prove who the member is before a PIN is set.
+ */
 async function totpMatches(userId: string, code: string, nowMs: number): Promise<boolean | null> {
-  const row = await systemDb.twoFactor.findFirst({ where: { userId }, select: { secret: true } })
+  const row = await systemDb.twoFactor.findFirst({
+    where: { userId, secret: { gt: '' }, OR: [{ verified: true }, { verified: null }], user: { is: { twoFactorEnabled: true } } },
+    select: { secret: true },
+  })
   if (!row?.secret) return null
   const key = (await auth.$context).secretConfig
   const secret = await symmetricDecrypt({ key, data: row.secret })
@@ -405,7 +414,7 @@ export type IdentityProofOutcome =
   | { readonly ok: true; readonly proofToken: string; readonly expiresAt: Date; readonly method: IdentityProofMethod }
   /** The sign-in lock of the account (FR-AUTH-001 AC3): this check counts like a sign-in */
   | { readonly ok: false; readonly reason: 'LOCKED'; readonly retryAt: Date }
-  /** INVALID: wrong password or code · NOT_AVAILABLE: no active membership, no password or no authenticator */
+  /** INVALID: wrong password or code · NOT_AVAILABLE: no active membership, no password or no confirmed authenticator */
   | { readonly ok: false; readonly reason: 'INVALID' | 'NOT_AVAILABLE' }
 
 /**

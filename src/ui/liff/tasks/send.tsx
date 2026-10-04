@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useCallback, useRef, useState } from 'react'
-import { Button } from '../../form/button'
+import { Button } from '../button'
 import { LIFF_LINK_CLASS, LiffLink } from '../liff-link'
 import { useLiff } from '../liff-provider'
 import { LiffNotice } from '../notice'

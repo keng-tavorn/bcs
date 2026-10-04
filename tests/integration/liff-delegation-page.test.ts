@@ -39,9 +39,12 @@ import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 const NOW = new Date('2026-10-05T03:00:00Z')
 const UNAUTHENTICATED = { ok: false, code: 'UNAUTHENTICATED' }
 const BAD_KEY = { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
-/** The LIFF page's own opening line (messages/src/th/liffDelegation.json) and the workspace's (delegation.json) */
+/**
+ * The LIFF page's own opening line (messages/src/th/liffDelegation.json) and the end of the workspace's (delegation.json),
+ * which names the cancellation too: a LIFF page says that at each delegation's cancel button
+ */
 const INTRO_LIFF = 'ตั้งผู้รักษาการเมื่อคุณลาหรือไม่อยู่ เมื่อเริ่มช่วงนั้น งานอนุมัติที่รอคุณอยู่จะย้ายไปที่ผู้รักษาการ และงานใหม่ที่มาถึงคุณระหว่างช่วงนั้นก็ไปที่ผู้รักษาการด้วย'
-const INTRO_WEB = 'ระหว่างช่วงนั้นงานอนุมัติใหม่ที่มาถึงคุณจะไปที่ผู้รักษาการ'
+const INTRO_WEB = 'เมื่อจบช่วงหรือเมื่อยกเลิก งานที่ยังค้างจะกลับมาที่คุณ'
 
 let org: DoaOrg
 
@@ -127,6 +130,8 @@ describe('[FR-DOA-006/AC2] the LIFF delegation page says what a delegation does 
     const html = renderToStaticMarkup(createElement(NextIntlClientProvider, intl, createElement(LiffProvider, liffProps, page)))
     expect(html).toContain(INTRO_LIFF)
     expect(html).toContain('เมื่อจบช่วง งานที่ยังค้างจะกลับมาที่คุณ')
+    // The workspace's line is not the LIFF page's (it still says this, so the check below can fail)
+    expect(th.delegation.intro).toContain(INTRO_WEB)
     expect(html).not.toContain(INTRO_WEB)
     // The form is there, for an approver who holds a position
     expect(html).toContain('ตั้งผู้รักษาการ')

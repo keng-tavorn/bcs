@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '../cn'
+import { cn } from './cn'
 import { LIFF_COLUMN, LIFF_GUTTER } from './content'
 
 // The bar of a LIFF page that decides something (§9.4: "แถบปุ่มตัดสินติดล่างจอ", §9.9 principle 5): the buttons stay at the

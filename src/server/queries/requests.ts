@@ -6,6 +6,7 @@ import { businessMinutesBetween, type BusinessCalendar, type Weekday } from '@/c
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
 
 // Read-only views of purchase requests for the screens of S2-12 (spec FR-INT-008, FR-DOA-003 AC2, FR-DOA-005 AC2,
@@ -439,7 +440,7 @@ export async function listMyRequests(ctx: Ctx, filter: MyRequestsFilter = {}): P
     AND: [
       mine,
       ...(isRequestStatus(filter.status) ? [{ status: filter.status }] : []),
-      ...(q ? [{ OR: [{ number: { contains: q, mode: 'insensitive' as const } }, { title: { contains: q, mode: 'insensitive' as const } }] }] : []),
+      ...(q ? [{ OR: [{ number: { contains: escapeLike(q), mode: 'insensitive' as const } }, { title: { contains: escapeLike(q), mode: 'insensitive' as const } }] }] : []),
     ],
   }
   const [total, matched, rows] = await Promise.all([
@@ -590,6 +591,13 @@ export interface RouteStepDto {
    * could be added (ORG_ADMIN and the requester were told); null otherwise. Always set by routeOf
    */
   readonly escalation?: 'CO_ASSIGNED' | 'NO_NEXT_BAND' | null
+  /**
+   * Whom the route's rule gave the step, as the route's Thai explanation names them (BR-DOA-10): the step's first task —
+   * not the co-assignee an escalation added (who may have decided it: `approver`), nor a task moved to someone later.
+   * null while the step waits for its turn (`expected` names the approver then). Always set by routeOf; a step made
+   * elsewhere without it (a preview of the engine's route) has its rule's approver in `approver`
+   */
+  readonly ruleApprover?: { readonly approver: MemberRefDto | null; readonly onBehalfOf: MemberRefDto | null; readonly role: ApproverRoleDto } | null
 }
 
 /** The route the DOA engine chose, and why (FR-DOA-003 AC2, BR-DOA-10) */
@@ -989,7 +997,9 @@ export async function routeOf(
     where: { id: routeId },
     include: {
       doaVersion: { select: { id: true, code: true, versionNo: true } },
-      steps: { orderBy: { stepNo: 'asc' }, include: { tasks: { orderBy: { assignedAt: 'asc' }, select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, decision: true, decidedAt: true } } } },
+      // A step's tasks in the order they were made: by assignedAt, and by id (uuid v7, made in time order) when two share
+      // the business time a fixed clock gave them
+      steps: { orderBy: { stepNo: 'asc' }, include: { tasks: { orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }], select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, decision: true, decidedAt: true } } } },
     },
   })
   if (!route) return null
@@ -1032,6 +1042,9 @@ export async function routeOf(
       const decided = s.tasks.find((t) => t.decision !== null)
       const open = decided ? [] : s.tasks.filter((t) => isOpenTask(t.status))
       const task = decided ?? open[0] ?? s.tasks.at(-1) ?? null
+      // The rule's own approver of the step: its first task, assigned when the step started (a co-assignee or a moved
+      // task is made later, even at the same business time)
+      const first = s.tasks[0] ?? null
       return {
         stepNo: s.stepNo,
         status: s.status,
@@ -1044,6 +1057,7 @@ export async function routeOf(
         decidedAt: task?.decidedAt ?? null,
         open: open.map((t) => ({ taskId: t.id, approver: who(t.assigneeMemberId), onBehalfOf: who(t.principalMemberId), role: roleOf(t.resolvedFrom), status: t.status as StepTaskDto['status'] })),
         escalation: escalations.get(s.id) ?? null,
+        ruleApprover: first ? { approver: who(first.assigneeMemberId), onBehalfOf: who(first.principalMemberId), role: roleOf(first.resolvedFrom) } : null,
       }
     }),
   }

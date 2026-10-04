@@ -9,9 +9,11 @@ import { isLiffRequestFromThisSite, LIFF_SESSION_PATH } from '@/server/auth/liff
 // never read. The request is handed to the liffIdToken plugin of Better Auth (/api/auth/liff/session, ADR-040), which has
 // LINE verify the token, finds the linked member and sets the LIFF session cookie; Better Auth's rate limit applies there.
 // Answers: 200 { ok } with the cookie · 400 a body that is not { idToken } · 401 a token LINE does not accept for our LIFF
-// channel (forged, wrong aud, expired) · 403 another site (CROSS_SITE), or reason LINK_REQUIRED (open /liff/link) or
-// LINK_AMBIGUOUS (one LINE account linked to two sign-in identities: an admin unlinks one) · 413 · 503 LINE cannot be
-// asked now. Sending a new ID token renews the session (§9.4).
+// channel (forged, wrong aud, expired) · 403 another site (CROSS_SITE), or reason LINK_REQUIRED (open /liff/link),
+// LINK_AMBIGUOUS (one LINE account linked to two sign-in identities: an admin unlinks one) or SIGNED_IN_AS_ANOTHER_USER
+// (the browser holds a live session of another sign-in identity, which stays with its cookie: the gate offers to sign it
+// out first) · 413 · 503 LINE cannot be asked now. Sending a new ID token renews the session (§9.4): the new one takes
+// the place of the session the browser holds when that is the same person's or has ended, never of someone else's.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 

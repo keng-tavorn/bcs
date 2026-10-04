@@ -2,8 +2,8 @@
 
 import { useTranslations } from 'next-intl'
 import { useId, useState, type ChangeEvent } from 'react'
-import { cn } from '../../cn'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '../../files/file-upload'
+import { cn } from '../cn'
 import { LiffNotice } from '../notice'
 import { CameraIcon } from '../receiving/camera-icon'
 import type { LiffReadiness } from './ready'
@@ -91,8 +91,8 @@ export function LiffCameraAttach({ taken, busy, ready, requestUpload, completeUp
       <label
         htmlFor={id}
         className={cn(
-          'inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-input bg-bg px-4 py-2 text-center font-medium text-ink hover:bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)]',
-          disabled && 'cursor-not-allowed opacity-60',
+          'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-input bg-bg px-4 py-2 text-center font-medium text-ink hover:bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)]',
+          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
         )}
       >
         <CameraIcon />

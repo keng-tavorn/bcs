@@ -13,6 +13,9 @@ import { safeNextPath } from '@/lib/next-path'
 //    session opened with LINE (a password sign-in is never swapped for the LINE account's own), tries at most once a
 //    minute, and stops for the page load after an answer that will not change (./session-keeper.ts). A page whose
 //    session ended anyway shows the gate, which signs in again without asking anything.
+//  - A LINE sign-in never takes the place of someone else's live sign-in in this browser (a password or LINE sign-in of
+//    another person in this LINE app): the server refuses it (SIGNED_IN_AS_ANOTHER_USER) and that session stays. The
+//    gate says so and offers to sign it out (WEB_SIGN_OUT_ENDPOINT); the page then loads again and signs in with LINE.
 
 export const LIFF_BASE_PATH = '/liff'
 /** Where a linked member lands (§9.4: /liff sends a linked member to their tasks) */
@@ -22,6 +25,8 @@ export const LIFF_HELP_PATH = '/liff/help'
 export const LIFF_SESSION_ENDPOINT = '/api/liff/session'
 export const LIFF_LINK_ENDPOINT = '/api/liff/link'
 export const LIFF_MOCK_TOKEN_ENDPOINT = '/api/liff/mock-token'
+/** Better Auth's sign-out: ends the session this browser holds, whoever's it is, and clears its cookie */
+export const WEB_SIGN_OUT_ENDPOINT = '/api/auth/sign-out'
 /** The web sign-in a LIFF page opened outside the LINE app sends people to (§9.4) */
 export const WEB_SIGN_IN_PATH = '/login'
 /** Where a member manages their LINE link and gets a new link code on the web (§9.1 /settings/*, §9.2 step 1) */
@@ -41,6 +46,11 @@ export type LiffSignInRefusal =
   | 'LINK_REQUIRED'
   /** One LINE account linked to members of two sign-in identities (403 LINK_AMBIGUOUS): an administrator unlinks one */
   | 'LINK_AMBIGUOUS'
+  /**
+   * The browser holds a live session of another sign-in identity — someone else signed in in this LINE browser, with a
+   * password or through LINE (403 SIGNED_IN_AS_ANOTHER_USER). It stays until it is signed out: the gate offers that
+   */
+  | 'SIGNED_IN_AS_ANOTHER_USER'
   /** LINE did not accept the token (401), e.g. it expired while the page was open */
   | 'TOKEN_INVALID'
   /** LINE or BCS could not be reached (network, 5xx, 429) */
@@ -50,7 +60,7 @@ export type LiffSignInRefusal =
 export type LiffSignInResult = { readonly ok: true } | { readonly ok: false; readonly reason: LiffSignInRefusal }
 
 /** Refusals that the same page load cannot turn around by asking again: the keeper stops renewing after them */
-export const FINAL_SIGN_IN_REFUSALS: ReadonlySet<LiffSignInRefusal> = new Set(['NOT_IN_LINE', 'LINK_REQUIRED', 'LINK_AMBIGUOUS', 'TOKEN_INVALID', 'FAILED'])
+export const FINAL_SIGN_IN_REFUSALS: ReadonlySet<LiffSignInRefusal> = new Set(['NOT_IN_LINE', 'LINK_REQUIRED', 'LINK_AMBIGUOUS', 'SIGNED_IN_AS_ANOTHER_USER', 'TOKEN_INVALID', 'FAILED'])
 
 const HTTP_UNAUTHORIZED = 401
 const HTTP_FORBIDDEN = 403
@@ -62,9 +72,26 @@ export function signInRefusalOf(status: number, body: unknown): LiffSignInRefusa
   const reason = typeof body === 'object' && body !== null && 'reason' in body ? (body as { reason?: unknown }).reason : undefined
   if (status === HTTP_FORBIDDEN && reason === 'LINK_REQUIRED') return 'LINK_REQUIRED'
   if (status === HTTP_FORBIDDEN && reason === 'LINK_AMBIGUOUS') return 'LINK_AMBIGUOUS'
+  if (status === HTTP_FORBIDDEN && reason === 'SIGNED_IN_AS_ANOTHER_USER') return 'SIGNED_IN_AS_ANOTHER_USER'
   if (status === HTTP_UNAUTHORIZED) return 'TOKEN_INVALID'
   if (status === HTTP_TOO_MANY || status >= HTTP_SERVER_ERROR) return 'UNAVAILABLE'
   return 'FAILED'
+}
+
+/**
+ * Signs this browser out of BCS, so that a LINE sign-in may follow (SIGNED_IN_AS_ANOTHER_USER): Better Auth's sign-out
+ * ends the session the browser holds — someone else's — and clears its cookie. The request goes from this page with its
+ * cookies, never with anything of the ID token. Never throws: the caller loads the page again whatever came back, and
+ * the gate of that page says what it finds then.
+ */
+export async function signOutBrowser(fetchImpl: typeof fetch): Promise<void> {
+  try {
+    const response = await fetchImpl(WEB_SIGN_OUT_ENDPOINT, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}', cache: 'no-store', credentials: 'same-origin' })
+    // Read to its end: a body nobody reads keeps the request open in the browser
+    await response.json().catch(() => null)
+  } catch {
+    // No answer (the network): the page loads again and the gate tells what it finds
+  }
 }
 
 /**

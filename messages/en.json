@@ -2729,6 +2729,7 @@
     },
     "gate": {
       "ambiguous": "This LINE account is linked to more than one BCS account. Ask your organization's administrator to unlink the one that is not yours, then open this page again",
+      "anotherUser": "This browser is signed in to BCS as someone else. Sign out first, then open this page again.",
       "failed": "Signing in with LINE did not work. Press Try again; if it still fails, tell your organization's administrator",
       "needsTwoFactor": "Your role needs two-step verification before you start. Open BCS on the web to set it up once, then come back to LINE",
       "noMembership": "This account is not an active member of any organization. Contact your organization's administrator",
@@ -2737,7 +2738,9 @@
       "reload": "Reload this page",
       "retry": "Try again",
       "sdkFailed": "BCS could not start in LINE. Reload this page; if it still fails, close it and open it again from the menu in the LINE chat",
+      "signOut": "Sign out",
       "signingIn": "Confirming who you are with your LINE account",
+      "signingOut": "Signing out",
       "toLink": "This LINE account is not linked to a BCS account yet. Opening the link page",
       "toWebSignIn": "This page is open outside the LINE app. Opening the BCS sign-in page",
       "tokenInvalid": "LINE could not confirm who you are. Close this page and open it again from the menu in the LINE chat",

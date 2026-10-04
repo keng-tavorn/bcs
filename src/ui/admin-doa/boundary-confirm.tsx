@@ -3,7 +3,9 @@
 import { CircleAlert } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useId } from 'react'
-import { cn } from '../cn'
+// Joined without tailwind-merge (§9.4): a DOA version's LIFF decision draws the tick on its first screen, and no two of
+// its classes set the same thing (tests/unit/liff-classes.test.tsx)
+import { cn } from '../liff/cn'
 
 // The tick that the boundary table was checked (FR-DOA-009 AC3, BR-DOA-08 (ช)): which rule and approver each amount at
 // a band edge goes to. A link jumps to the table (on wide screens it sits beside the send; on phones the send follows

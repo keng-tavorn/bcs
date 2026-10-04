@@ -2,7 +2,7 @@
 
 import { useTranslations } from 'next-intl'
 import type { ChangeEvent } from 'react'
-import { Button } from '../../form/button'
+import { Button } from '../button'
 import { LiffNotice } from '../notice'
 import { CameraIcon } from './camera-icon'
 import { FieldError } from './fields'

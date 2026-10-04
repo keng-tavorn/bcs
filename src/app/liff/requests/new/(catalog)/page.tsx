@@ -5,10 +5,10 @@ import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
 import { LiffGate } from '@/ui/liff/liff-gate'
 import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffCatalog } from '@/ui/liff/requests/catalog'
-import { liffHref } from '../../_lib/links'
-import { liffPage } from '../../_lib/session'
-import { LIFF_FORM_PATHS, liffDraftHref } from '../_lib/form'
-import { screenOf } from '../_lib/principal'
+import { liffHref } from '../../../_lib/links'
+import { liffPage } from '../../../_lib/session'
+import { LIFF_FORM_PATHS, liffDraftHref } from '../../_lib/form'
+import { screenOf } from '../../_lib/principal'
 
 export async function generateMetadata() {
   const t = await getTranslations('request.catalog')
@@ -20,7 +20,7 @@ const OPEN_DRAFTS_SHOWN = 5
 
 // /liff/requests/new (§9.4 "แคตตาล็อกและฟอร์มแบบย่อ", the rich menu's "ขอซื้อ": FR-INT-001 AC3, FR-LINE-004 AC2): the one
 // door every request starts from in LINE — the request types the organization switched on, each saying when to use it,
-// with a search (FR-INT-001 AC1 AC2); a type opens its short form (./[type]/page.tsx). The requester's drafts and
+// with a search (FR-INT-001 AC1 AC2); a type opens its short form (../[type]/page.tsx). The requester's drafts and
 // returned requests are here too, from whichever device they began on (FR-INT-006 AC2). The same queries as the
 // workspace's catalogue. A member only: without a session the gate signs in with LINE first.
 export default async function LiffNewRequestPage() {

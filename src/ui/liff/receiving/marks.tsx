@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { cn } from '../../cn'
+import { cn } from '../cn'
 
 // The status of a purchase order, a goods receipt or a variance on the LIFF receiving page (/liff/gr/[poId]): an icon and
 // words, never colour alone (NFR-A11Y-03), with the same icons and tones as the workspace's src/ui/receiving/status.tsx.

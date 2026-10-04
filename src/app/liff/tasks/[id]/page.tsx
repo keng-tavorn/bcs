@@ -28,6 +28,7 @@ import { taskTitle } from '../../../(workspace)/_tracking/rows'
 import { poReader } from '../../../(workspace)/procurement/pos/_parts/access'
 import { PoBody } from '../../../(workspace)/procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../../(workspace)/procurement/pos/_parts/present'
+import { ClosedTaskText } from '../../../(workspace)/tasks/_parts/closed-task'
 import { VarianceBody } from '../../../(workspace)/tasks/_parts/variance-body'
 import { liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
@@ -80,10 +81,14 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
         </LiffNotice>
       )
     }
+    // Moved or cancelled: the words of the web decision page — why, and who decided its step and when
     case 'REASSIGNED':
-      return <LiffNotice tone="info">{task.reassignedTo ? t('state.reassigned', { name: memberName(locale, task.reassignedTo) }) : t('state.reassignedUnknown')}</LiffNotice>
     default:
-      return <LiffNotice tone="info">{t(`state.cancelled.${task.cancelledWhy ?? 'other'}`)}</LiffNotice>
+      return (
+        <LiffNotice tone="info">
+          <ClosedTaskText task={task} t={t} locale={locale} />
+        </LiffNotice>
+      )
   }
 }
 

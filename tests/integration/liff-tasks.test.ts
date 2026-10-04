@@ -36,9 +36,8 @@ import { liffStepUpSession, type LiffStepUpIo } from '@/app/liff/tasks/_lib/step
 import { amountToSatang } from '@/core/money/dto'
 import { MS_PER_HOUR } from '@/lib/constants'
 import { auth } from '@/server/auth/auth'
-import { isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX, newLiffSessionToken, setLiffVerification } from '@/server/auth/liff'
+import { isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX, liffSessionIdentityId, liffSessionMemberIds, newLiffSessionToken, setLiffVerification } from '@/server/auth/liff'
 import { rotateLiffSessionAfterStepUp } from '@/server/auth/liff-session-rotation'
-import { liffSessionStandsForMember } from '@/server/auth/liff-sessions'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { resolveSession } from '@/server/auth/session'
 import { rotateSessionAfterStepUp, type SignedInSession } from '@/server/auth/session-rotation'
@@ -219,8 +218,10 @@ describe('[NFR-SEC-04] [FR-LINE-003/AC2] after a right PIN on a LIFF page the LI
     // cannot be turned into another session
     expect(await resolveSession(new Headers({ cookie }), { channel: 'LIFF' })).toEqual({ kind: 'anonymous' })
     expect(await rotateLiffSessionAfterStepUp(new Headers({ cookie }), { sessionId: randomUUID(), userId: signedIn.userId })).toEqual({ ok: false, reason: 'NO_SESSION' })
-    // The sign-in time is kept, so a LINE link that ends later still ends this session (liff-sessions.ts)
-    expect(await liffSessionStandsForMember(row.id, { id: member('vp_ops'), organizationId: org.organizationId })).toBe(true)
+    // The new token stands on the link the session was opened with, as its member: a LINE link that ends later still ends
+    // this session (the binding resolveSession checks on every request)
+    expect(liffSessionIdentityId(now.token)).toBe(await linked('vp_ops'))
+    expect(await liffSessionMemberIds(row.userId, now.token)).toEqual(new Set([member('vp_ops')]))
   })
 
   it('two step-ups of one LIFF session at the same moment change it once, and every answer carries the token in force', async () => {

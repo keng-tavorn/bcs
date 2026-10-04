@@ -4,10 +4,10 @@ import { MAX_IMAGE_SIDE_PX } from '@/lib/constants'
 // capture="environment"> แล้วย่อรูปฝั่ง client", FR-PLT-004 AC3, FR-LINE-003 AC3): decoded upright (EXIF orientation
 // applied), scaled so its longest side is at most LIFF_PHOTO_MAX_SIDE_PX, and encoded again as JPEG at
 // LIFF_PHOTO_JPEG_QUALITY. Encoding again drops every metadata block of the camera — EXIF with the GPS position
-// included — because a canvas keeps only the pixels. Unlike the workspace's src/ui/files/prepare-image.ts, which uploads
-// a picture it cannot decode unchanged and keeps PNG as PNG, every LIFF photo becomes a JPEG and a photo this cannot
-// decode is refused (the page asks for another one): a camera file sent as it is would carry its position to the
-// server. An older WebView without createImageBitmap decodes through an <img>, which browsers also turn upright. A name
+// included — because a canvas keeps only the pixels. A photo this cannot decode is refused (the page asks for another
+// one), as the workspace's src/ui/files/prepare-image.ts refuses one: a camera file sent as it is would carry its
+// position to the server. Unlike the workspace's, which keeps PNG as PNG, every LIFF photo becomes a JPEG. An older
+// WebView without createImageBitmap decodes through an <img>, which browsers also turn upright. A name
 // another photo of the same receipt already has gets a number (distinctPhotoName). Loaded only when a photo is chosen
 // (with ./receiving/photo-upload.ts, through import() in ./receiving/photos.tsx), so it costs the page's first
 // JavaScript nothing (§9.4: 200 KB gzip).

@@ -4,13 +4,12 @@ import { useEffect, useLayoutEffect, type RefObject } from 'react'
 import { applicableRules, compareFormQuotations, draftPayload, formInput, formReducer, needsServiceEndDate, problemsOf, totalsOf, visibleFieldIds, type FormValues } from '../../request-form/model'
 import type { Attachment, RequestFormData } from '../../request-form/types'
 import { useAutosave, type Autosave, type AutosaveOptions, type SaveState } from '../../request-form/use-autosave'
-import { previewLinesOf } from './start'
 
 // The engine of the LIFF request form, loaded on the requester's first touch of the form (./request-form.tsx), never
 // with the first screen (§9.4: the first JavaScript of a LIFF page): the workspace's form rules (model.ts — core/forms
 // and core/money, which the server runs again) and the workspace's autosave of drafts (use-autosave.ts, FR-INT-006).
 
-export { draftPayload, formReducer, previewLinesOf }
+export { draftPayload, formReducer }
 
 /** Everything the rules say about the form as it is now (the same as the workspace's form works out on every keystroke) */
 export function evaluate(data: RequestFormData, values: FormValues, attachments: readonly Attachment[]) {

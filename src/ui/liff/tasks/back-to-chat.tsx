@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '../../form/button'
+import { Button } from '../button'
 import { useLiff } from '../liff-provider'
 
 // Back to the LINE chat after a task is decided (§9.4): the LIFF window closes and the member is where the card was.

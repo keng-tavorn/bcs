@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { cn } from '../cn'
+import { cn } from './cn'
 
 // The inline message of LIFF pages: the same look, words-first rule and roles as the workspace's src/ui/form/notice.tsx
 // (an icon and words, never colour alone, NFR-A11Y-03; a left rule; danger is announced at once with role=alert, the

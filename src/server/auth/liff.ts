@@ -43,8 +43,7 @@ import { clientIp, ipPrefix, normalizeEmail } from './lockout'
 //    ended — past the limits resolveSession counts (sessionPastItsLimits), or a LIFF session whose link is gone — is no
 //    sign-in to keep, whoever's it was: it is replaced.
 //  - audit: every sign-in through LINE is recorded like a web sign-in (auth.login_succeeded / auth.login_failed, step
-//    liff, channel LIFF), with the reason when it is refused and the event catalogue has it; never the token or the LINE
-//    user id.
+//    liff, channel LIFF), with the reason when it is refused; never the token or the LINE user id.
 
 export const LINE_ID_TOKEN_ISSUER = 'https://access.line.me'
 const VERIFY_TIMEOUT_MS = 5 * MS_PER_SECOND
@@ -354,8 +353,14 @@ export function liffIdToken() {
           if (typeof current === 'string' && current) {
             if (!(await replaceableBy(user.id, current, now))) {
               logger.warn({ reason: 'SIGNED_IN_AS_ANOTHER_USER' }, 'LIFF sign-in refused: the browser holds a session of another sign-in identity, which stays')
-              // The catalogue's auth.login_failed has no reason for this refusal yet: recorded without one until it has
-              await recordAuthEvent('auth.login_failed', normalizeEmail(user.email), { ip: ipPrefix(clientIp(ctx.headers)), step: 'liff' }, now, { channel: 'LIFF' })
+              // A failed sign-in of the LINE account's own member (the identity is known here), with the reason
+              await recordAuthEvent(
+                'auth.login_failed',
+                normalizeEmail(user.email),
+                { ip: ipPrefix(clientIp(ctx.headers)), step: 'liff', reason: 'SIGNED_IN_AS_ANOTHER_USER' },
+                now,
+                { channel: 'LIFF' },
+              )
               throw refuse('SIGNED_IN_AS_ANOTHER_USER')
             }
             await ctx.context.internalAdapter.deleteSession(current)

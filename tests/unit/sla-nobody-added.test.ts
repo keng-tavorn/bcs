@@ -8,7 +8,9 @@ import { renderNotification } from '@/server/notifications/templates'
 // does by hand. The requester hears only that the administrators were told. A notice stored before NEW-47 with the
 // reason NOT_LAST_STEP still renders. The delegate whose acting period ended with tasks that could not go back (the
 // delegator is no longer active) hears that they stay until a new holder of the position is appointed (NEW-28), not that
-// an administrator will move them.
+// an administrator will move them. Nor are the administrators told to move the open tasks of a deactivated member
+// (admin.reassign_needed, FR-AUTH-003 AC2): they appoint a new holder of the position on the authority changes page, which
+// the notice opens, and the position's open tasks move once the appointment takes effect (BR-DOA-17, NEW-28).
 
 const notice = (data: Record<string, unknown>) => ({ templateKey: 'task.escalated', data: { subjectType: 'REQUEST', subjectId: 'r-1', number: 'PR-2569-00012', title: null, taskId: 't-1', outcome: 'NO_NEXT_BAND', ...data }, subjectType: 'REQUEST', subjectId: 'r-1' })
 /** A promise that someone moves a task: "ย้ายงาน…", "…จะย้ายให้…", "move the task", "moves it", "moves them" */
@@ -77,6 +79,35 @@ describe('[FR-DOA-006/AC3] the end of an acting period that could not give its t
       for (const locale of ['th', 'en'] as const) {
         const rendered = renderNotification(ended(kept), locale)
         expect(`${rendered.title} ${rendered.body}`, `${kept} ${locale}`).not.toMatch(MOVES_A_TASK)
+      }
+    }
+  })
+})
+
+describe('[FR-AUTH-003/AC2] a deactivated member with open tasks: the administrators are told to appoint a new holder of the position, never to move the tasks', () => {
+  // Sent when a member is deactivated (members service) and when an acting period ends with tasks of a delegator who is
+  // no longer active (BR-AUTH-06, delegation-window.ts): the same words for both
+  const reassign = (openTasks: number) => ({ templateKey: 'admin.reassign_needed', data: { memberId: 'm-1', name: 'ผู้ใช้ dm_con', openTasks }, subjectType: 'MEMBER', subjectId: 'm-1' })
+
+  it('says what moves the tasks — an appointment through the authority changes page, once it takes effect — and opens that page', () => {
+    expect(renderNotification(reassign(2), 'th')).toEqual({
+      title: 'ผู้ใช้ dm_con ถูกปิดใช้งานและมีงานอนุมัติค้าง 2 งาน',
+      body: 'แต่งตั้งผู้ดำรงตำแหน่งคนใหม่ได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ งานค้างของตำแหน่งจะย้ายไปผู้ดำรงคนใหม่เมื่อการแต่งตั้งมีผล',
+      href: '/admin/org-authority',
+    })
+    expect(renderNotification(reassign(2), 'en')).toEqual({
+      title: 'ผู้ใช้ dm_con was deactivated with 2 approval tasks open',
+      body: 'Appoint a new holder of the position on the Authority changes page; the position’s open tasks move to them when the appointment takes effect',
+      href: '/admin/org-authority',
+    })
+  })
+
+  it('promises no one will move a task, in either language', () => {
+    for (const open of [1, 3]) {
+      for (const locale of ['th', 'en'] as const) {
+        const rendered = renderNotification(reassign(open), locale)
+        expect(rendered.body, `${open} ${locale}`).toBeTruthy()
+        expect(`${rendered.title} ${rendered.body}`, `${open} ${locale}`).not.toMatch(MOVES_A_TASK)
       }
     }
   })

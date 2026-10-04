@@ -2,10 +2,10 @@
 
 import { useTranslations } from 'next-intl'
 import { useEffect, useId, useState, type ReactNode } from 'react'
-import { Button } from '../form/button'
 import type { ActionOutcome } from '../tasks/outcome'
 import { LiffActionBar } from './action-bar'
 import { LIFF_HELP_PATH, LIFF_HOME_PATH } from './bootstrap'
+import { Button } from './button'
 import { LiffContent } from './content'
 import { LiffLink } from './liff-link'
 import { useLiff } from './liff-provider'

@@ -1,4 +1,4 @@
-import { cn } from '../cn'
+import { cn } from './cn'
 
 // Thai / English on a LIFF page (FR-PLT-002 AC2): the workspace switch with 44 px touch targets (§9.4). Each language is
 // named in itself; the form posts to the server action that keeps the choice in a cookie (never a GET).

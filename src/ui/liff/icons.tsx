@@ -1,5 +1,5 @@
 import { createElement } from 'react'
-import { cn } from '../cn'
+import { cn } from './cn'
 
 // The icons of LIFF pages as plain SVG, from Lucide's path data (lucide-react 1.49, ISC License, Copyright (c) Lucide
 // Icons and Contributors). lucide-react draws every icon through its Icon client component, so a LIFF page that used

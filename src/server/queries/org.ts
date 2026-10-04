@@ -1,4 +1,5 @@
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 
 // Read-only views of the organization structure and of authority changes for the admin screens (FR-ADM-002,
@@ -85,7 +86,7 @@ export async function listMembers(ctx: Ctx): Promise<MemberOptionRow[]> {
 export async function openTasksBySlot(ctx: Ctx): Promise<Map<string, number>> {
   const groups = await forTenant(ctx.organizationId).approvalTask.groupBy({
     by: ['resolvedFrom'],
-    where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: { startsWith: 'POSITION:' } },
+    where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: { startsWith: escapeLike('POSITION:') } },
     _count: { _all: true },
   })
   return new Map(groups.map((g) => [g.resolvedFrom.slice('POSITION:'.length), g._count._all]))

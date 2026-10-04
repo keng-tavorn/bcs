@@ -3,7 +3,6 @@
 import { useFormatter, useTranslations } from 'next-intl'
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { amountToSatang } from '@/core/money/dto'
-import { Button } from '../../form/button'
 import type { FormAction, FormValues } from '../../request-form/model'
 import { showSatang } from '../../request-form/money'
 import type { FormFailure, FormOutcome } from '../../request-form/outcome'
@@ -11,6 +10,7 @@ import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, Se
 import type { Autosave, SaveState } from '../../request-form/use-autosave'
 import { usePreview, type PreviewAction } from '../../request-form/use-preview'
 import { LiffActionBar } from '../action-bar'
+import { Button } from '../button'
 import { LiffContent } from '../content'
 import { LiffLink } from '../liff-link'
 import { LiffNotice, NoticeIcon } from '../notice'
@@ -19,6 +19,7 @@ import { createEarlySaver, type EarlyBase, type EarlySaver } from './early-save'
 import type * as EngineModule from './engine'
 import { fieldLabelOf } from './field'
 import { useRequestKey } from './key'
+import { openingLines, previewLinesOf } from './lines'
 import { useLiffReady, type LiffReadiness } from './ready'
 import type { LiffFileActions } from './review-step'
 import type { LiffFormStart } from './start'
@@ -32,21 +33,23 @@ import type { LiffFormStart } from './start'
 //  1. รายละเอียดคำขอ — the title, the budget line with what is left on it (FR-INT-004 AC1), the type's questions;
 //  2. รายการที่ขอ — the delivery site, the lines, the totals and the budget check (the workspace's items step);
 //  3. ตรวจและส่ง — totals, budget, the route the DOA expects (FR-DOA-003 AC2) and the documents the rules ask for.
-// The first JavaScript of the page (§9.4: 200 KB gzip with the LINE SDK) carries step 1 only: it opens with what the
-// server worked out (./start.ts), and the rules and the autosave (./engine.tsx) load on the requester's first touch of
-// the form, steps 2 and 3 when they get there. The main button sits at the bottom of the screen (§9.9); over budget it
-// cannot send and says why and by how much (FR-INT-004 AC2). Before anything goes to the server — the preview, a file,
-// the send — the LIFF session is renewed when due (./ready.ts), and nothing is sent after a refusal that will not change
-// on this page load. Edits made before the engine arrived are saved with a keepalive request when LINE's window goes
-// away (./early-save.ts), and the engine's autosave goes on from that save once it has its answer.
+// The first JavaScript of the page (§9.4: 200 KB gzip with the LINE SDK and the page data in its HTML) carries step 1
+// only: it opens with what the server worked out (./start.ts) and the draft's lines, written into the page once
+// (./lines.ts); the rules and the autosave (./engine.tsx) load on the requester's first touch of the form, steps 2 and 3
+// — with their words (./step-words.tsx) — when they get there. The main button sits at the bottom of the screen (§9.9);
+// over budget it cannot send and says why and by how much (FR-INT-004 AC2). Before anything goes to the server — the
+// preview, a file, the send — the LIFF session is renewed when due (./ready.ts), and nothing is sent after a refusal that
+// will not change on this page load. Edits made before the engine arrived are saved with a keepalive request when LINE's
+// window goes away (./early-save.ts), and the engine's autosave goes on from that save once it has its answer.
 
 type Engine = typeof EngineModule
 type LiffStep = 'details' | 'items' | 'review'
 
-const ItemsStep = lazy(() => import('../../request-form/details-items').then((m) => ({ default: m.ItemsStep })))
-const LiffReviewStep = lazy(() => import('./review-step').then((m) => ({ default: m.LiffReviewStep })))
-const LiffSent = lazy(() => import('./review-step').then((m) => ({ default: m.LiffSent })))
-const SaveFailureText = lazy(() => import('./review-step').then((m) => ({ default: m.SaveFailureText })))
+// Each with its words, which the page's HTML does not carry (./step-words.tsx)
+const ItemsStep = lazy(() => import('./items-with-words').then((m) => ({ default: m.LiffItemsStep })))
+const LiffReviewStep = lazy(() => import('./review-with-words').then((m) => ({ default: m.LiffReviewStep })))
+const LiffSent = lazy(() => import('./review-with-words').then((m) => ({ default: m.LiffSent })))
+const SaveFailureText = lazy(() => import('./review-with-words').then((m) => ({ default: m.SaveFailureText })))
 
 /** Problems that would send something other than what is on screen (as the workspace's review step) */
 const BLOCKING: ReadonlySet<string> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE'])
@@ -115,11 +118,12 @@ export function LiffRequestForm({
   readonly locale: ScreenLocale
 }) {
   const t = useTranslations('requestForm')
+  const ts = useTranslations('requestForm.steps')
   const tl = useTranslations('liffRequests.form')
   const format = useFormatter()
   const ready = useLiffReady()
   const gated = useMemo(() => gatedActions(actions, ready), [actions, ready])
-  const [values, setValues] = useState<FormValues>(start.values)
+  const [values, setValues] = useState<FormValues>(() => ({ ...start.values, lines: openingLines(data) }))
   const valuesRef = useRef(values)
   // Up to date as soon as an edit is on screen: a save while the page goes away reads it
   useLayoutEffect(() => {
@@ -246,7 +250,7 @@ export function LiffRequestForm({
   const totals = evaluated?.totals ?? null
 
   // The server's view: the chosen line's balance and the expected route, shortly after amounts or the line change
-  const previewLines = engine ? engine.previewLinesOf(values) : start.previewLines
+  const previewLines = previewLinesOf(values)
   const previewKey = JSON.stringify([requestId, values.budgetLineId, values.priceIncludesVat, previewLines])
   const previewInput = useMemo<PreviewRequestInput | null>(() => {
     if (!purchase) return null
@@ -278,7 +282,7 @@ export function LiffRequestForm({
     headingRef.current?.focus()
     headingRef.current?.scrollIntoView({ block: 'start' })
     // The last step is fetched once the requester moved on
-    if (step === 'items') void import('./review-step')
+    if (step === 'items') void import('./review-with-words')
   }, [step])
 
   /** The draft must exist before a file is linked to it, or before it is sent */
@@ -420,7 +424,7 @@ export function LiffRequestForm({
 
           <div className="flex flex-col gap-1">
             <h2 ref={headingRef} tabIndex={-1} className="text-lg leading-snug font-semibold outline-none">
-              {t('steps.heading', { n: index + 1, total: stepIds.length, name: t(`steps.${step}`) })}
+              {ts('heading', { n: index + 1, total: stepIds.length, name: ts(step) })}
             </h2>
             {saveState.kind === 'error' ? (
               <div role="status" className="flex flex-col gap-2">
@@ -523,13 +527,13 @@ export function LiffRequestForm({
         ) : null}
         <div className="flex items-stretch gap-3">
           {previous ? (
-            <Button variant="secondary" className="shrink-0" aria-label={t('steps.back', { name: t(`steps.${previous}`) })} onClick={() => goTo(previous)}>
+            <Button variant="secondary" className="shrink-0" aria-label={ts('back', { name: ts(previous) })} onClick={() => goTo(previous)}>
               {tl('back')}
             </Button>
           ) : null}
           {next ? (
             <Button className="h-auto min-h-11 min-w-0 flex-1 py-2" onClick={() => goTo(next)}>
-              {t('steps.next', { name: t(`steps.${next}`) })}
+              {ts('next', { name: ts(next) })}
             </Button>
           ) : (
             <Button
@@ -549,10 +553,10 @@ export function LiffRequestForm({
 
 /** While a part that is loaded on demand arrives */
 function Waiting() {
-  const t = useTranslations('liffRequests.form')
+  const tw = useTranslations('liffRequests.form')
   return (
     <p role="status" className="text-ink-muted">
-      {t('stepLoading')}
+      {tw('stepLoading')}
     </p>
   )
 }

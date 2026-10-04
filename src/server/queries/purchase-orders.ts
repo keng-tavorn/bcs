@@ -4,6 +4,7 @@ import { PO_MACHINE, transition, type PoState } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
 import {
@@ -261,9 +262,9 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
   const search = q
     ? {
         OR: [
-          { number: { contains: q, mode: 'insensitive' as const } },
-          { supplier: { is: { nameTh: { contains: q, mode: 'insensitive' as const } } } },
-          { supplier: { is: { code: { contains: q, mode: 'insensitive' as const } } } },
+          { number: { contains: escapeLike(q), mode: 'insensitive' as const } },
+          { supplier: { is: { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+          { supplier: { is: { code: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
         ],
       }
     : {}

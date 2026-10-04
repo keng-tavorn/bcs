@@ -1,5 +1,5 @@
 import type { InputHTMLAttributes, ReactNode, TextareaHTMLAttributes } from 'react'
-import { cn } from '../../cn'
+import { cn } from '../cn'
 import { NoticeIcon } from '../notice'
 
 // The fields of the LIFF forms (/liff/gr/[poId], /liff/delegation): the workspace's src/ui/form/field.tsx look and

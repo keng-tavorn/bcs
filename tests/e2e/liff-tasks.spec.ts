@@ -373,7 +373,7 @@ test.describe('[FR-DOA-004/AC1] returning, rejecting and asking from LIFF', () =
     const twin = twinOf(testInfo)
     const made = request(twin, '52000.00', 'scaffold')
     // The LINE app's WebView of an older phone (iOS before 15.4, Android System WebView before 92) has no
-    // crypto.randomUUID: the decision's key is still a uuid the commands take (src/ui/liff/tasks/key.ts)
+    // crypto.randomUUID: the decision's key is still a uuid the commands take (src/ui/liff/submission-key.ts)
     await context.addInitScript(() => {
       Reflect.deleteProperty(Crypto.prototype, 'randomUUID')
     })

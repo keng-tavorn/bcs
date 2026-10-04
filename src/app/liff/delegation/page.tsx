@@ -78,7 +78,8 @@ export default async function LiffDelegationPage() {
 
   // What a delegation does, as this build does it (BR-DLG-04 with S5's delegation-window job): when the period starts the
   // tasks waiting for the delegator move to the acting approver, new ones go there too, and what is left comes back at
-  // the end — the LIFF page's own words while the workspace's (delegation.intro) speak of new tasks only
+  // the end (liffDelegation.intro). The workspace's opening line (delegation.intro) says the same and adds the
+  // cancellation, which a LIFF page says at each delegation's cancel button (liffDelegation.revokeConfirm)
   const intro = (
     <div className="flex flex-col gap-2">
       <p>{tLiff('intro')}</p>

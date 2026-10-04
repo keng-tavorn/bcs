@@ -12,7 +12,8 @@ import { rowWith, signIn } from './tasks-support'
 // co-assignee — whoever decides first decides. The list of POs and the PO's page name both wherever they say whom the PO
 // waits for, the page's timeline has a current entry for each, and once the CEO decides, the decision's stamp carries the
 // route's own DOA rule with the escalated flag (BR-SLA-04 "DOA ref เดิมพร้อมธง escalated"). The COO's task closed with
-// that decision: its page says why, in the reader's language (FR-DOA-004 AC2), and its timeline names the CEO.
+// that decision: its page says why and that the CEO approved and when, in the reader's language (FR-DOA-004 AC2), and
+// its timeline names the CEO.
 // tests/e2e/po-coassign-scene.ts makes the PO through the services with the business clock set back, and decides it as
 // the CEO; each project makes its own request and PO. Axe, no sideways scroll and a screenshot at the project's width
 // (1440 px, 375 px) on every screen (§9.9 steps 4–5).
@@ -73,12 +74,15 @@ test('[FR-INT-008/AC1] [FR-NOTI-003/AC2] an escalated PO step names the COO and 
   await expect(current(page)).toContainText('รอส่ง PO ให้ผู้ขาย')
   await checkScreen(page, testInfo, 'po-escalated-decided')
 
-  // The COO's task was cancelled with the CEO's decision: its page says why, and its timeline names the CEO
+  // The COO's task was cancelled with the CEO's decision: its page says why, who decided the step and when, and its
+  // timeline names the CEO
   const context = await browser.newContext()
   const coo = await context.newPage()
   await signIn(coo, 'coo', true)
   await coo.goto(`/tasks/${s.first.taskId}`)
-  await expect(coo.getByRole('status').filter({ hasText: 'งานนี้ปิดแล้ว เพราะผู้อนุมัติอีกคนของขั้นนี้ตัดสินก่อน' })).toBeVisible()
+  const closed = coo.getByRole('status').filter({ hasText: 'งานนี้ปิดแล้ว เพราะผู้อนุมัติอีกคนของขั้นนี้ตัดสินก่อน' })
+  await expect(closed).toBeVisible()
+  await expect(closed).toContainText(`อนุมัติแล้วโดย ${s.coAssignee.name} เมื่อ`)
   await expect(coo.getByRole('button', { name: 'อนุมัติ', exact: true })).toHaveCount(0)
   const cooStamp = poTimeline(coo).getByRole('listitem').filter({ hasText: s.doaRef })
   await expect(cooStamp).toContainText(s.coAssignee.name)
@@ -87,7 +91,9 @@ test('[FR-INT-008/AC1] [FR-NOTI-003/AC2] an escalated PO step names the COO and 
   // The same page in English (the language switch keeps its choice in this cookie)
   await context.addCookies([{ name: localeCookieName, value: 'en', url: E2E_BASE_URL }])
   await coo.reload()
-  await expect(coo.getByRole('status').filter({ hasText: 'This task is closed because another approver of this step decided first' })).toBeVisible()
+  const closedEn = coo.getByRole('status').filter({ hasText: 'This task is closed because another approver of this step decided first' })
+  await expect(closedEn).toBeVisible()
+  await expect(closedEn).toContainText(`Approved by ${s.coAssignee.name} `)
   const englishStamp = coo.getByRole('list', { name: 'Timeline of the purchase order' }).getByRole('listitem').filter({ hasText: 'This step was escalated when overdue' })
   await expect(englishStamp).toContainText(s.coAssignee.name)
   await checkScreen(coo, testInfo, 'po-task-closed-by-co-assignee-en')

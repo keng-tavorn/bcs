@@ -178,6 +178,16 @@ export function workspaceOnlyMessages(): string[] {
 
 /** A string only the LINE SDK carries: its CDN host (src/ui/liff/sdk.ts loads @line/liff/core) */
 const LIFF_SDK_MARKER = 'liffsdk.line-scdn.net'
+/**
+ * A string only tailwind-merge carries (the name of a part of its configuration, which minifying keeps): the workspace's
+ * class merger, src/ui/cn.ts, some 8.6 KB gzip that LIFF pages do without (src/ui/liff/cn.ts). The sign-in page loads it
+ * (TAILWIND_MERGE_PAGE), and liff-requests.spec.ts finds it there: a new tailwind-merge without this string fails that
+ * test, not every LIFF page quietly
+ */
+const TAILWIND_MERGE_MARKER = 'conflictingClassGroups'
+
+/** A page of the workspace whose first load has tailwind-merge: the sign-in form's button joins its classes with src/ui/cn.ts */
+export const TAILWIND_MERGE_PAGE = '/login'
 
 export interface ScriptLoad {
   readonly url: string
@@ -186,6 +196,8 @@ export interface ScriptLoad {
   readonly encoding: string | null
   /** The chunk of the LINE SDK */
   readonly sdk: boolean
+  /** The chunk of tailwind-merge (src/ui/cn.ts), which a component of the workspace would bring */
+  readonly merge: boolean
 }
 
 /**
@@ -208,6 +220,7 @@ export function watchScripts(page: Page): () => Promise<ScriptLoad[]> {
           transferred: sizes.responseBodySize,
           encoding: (await response.headerValue('content-encoding')) ?? null,
           sdk: body.includes(LIFF_SDK_MARKER),
+          merge: body.includes(TAILWIND_MERGE_MARKER),
         }
       }),
     )
@@ -228,8 +241,8 @@ export interface FirstLoad {
   readonly note: string
 }
 
-/** File name of a script with its weight, and (LINE SDK) for the SDK's file */
-const describeLoad = (l: ScriptLoad) => `${new URL(l.url).pathname.split('/').at(-1)}${l.sdk ? ' (LINE SDK)' : ''} ${l.transferred}`
+/** File name of a script with its weight, and (LINE SDK) or (tailwind-merge) for those chunks */
+const describeLoad = (l: ScriptLoad) => `${new URL(l.url).pathname.split('/').at(-1)}${l.sdk ? ' (LINE SDK)' : ''}${l.merge ? ' (tailwind-merge)' : ''} ${l.transferred}`
 
 /**
  * Loads a LIFF page as a person would (in a browser with nothing cached: the caller opens it in a context of its own),
@@ -249,20 +262,24 @@ export async function weighFirstLoad(page: Page, path: string, ready: () => Prom
     .slice(0, 8)
     .map(describeLoad)
   const total = scriptBytes + inline
-  const note = `${total} bytes of ${FIRST_LOAD_JS_BUDGET_BYTES}: ${loads.length} script files ${scriptBytes} bytes over the wire and inline page data ${inline} bytes gzip; largest ${largest.join(', ')}`
+  const merge = loads.filter((l) => l.merge).map((l) => `${new URL(l.url).pathname.split('/').at(-1)} ${l.transferred}`)
+  const note = `${total} bytes of ${FIRST_LOAD_JS_BUDGET_BYTES}: ${loads.length} script files ${scriptBytes} bytes over the wire and inline page data ${inline} bytes gzip; largest ${largest.join(', ')}${merge.length > 0 ? `; tailwind-merge in ${merge.join(', ')}` : '; no tailwind-merge'}`
   return { loads, scripts: scriptBytes, inline, total, html, note }
 }
 
 /**
  * §9.4 on one first load, noted on the test (annotation first-load-js): the LINE SDK is part of it, as in the LINE app
  * (with LIFF_MOCK the bootstrap loads it without liff.init); what came over the wire was compressed, so the bytes are
- * the gzip size; and the script files with the inline page data are at most 200 KB
+ * the gzip size; none of it is tailwind-merge — the LIFF components and the workspace's that LIFF pages draw join their
+ * classes without it (src/ui/liff/cn.ts; tests/unit/liff-classes.test.tsx follows the imports), and one component that
+ * brought it would add some 8.6 KB; and the script files with the inline page data are at most 200 KB
  */
 export function expectFirstLoadWithinBudget(testInfo: TestInfo, name: string, load: FirstLoad) {
   testInfo.annotations.push({ type: 'first-load-js', description: `${name}: ${load.note}` })
   expect(load.loads.filter((l) => l.sdk), name).toHaveLength(1)
   expect(load.loads.filter((l) => l.transferred > 1024 && l.encoding !== 'gzip' && l.encoding !== 'br').map(describeLoad), name).toEqual([])
   // Soft: a test that weighs several pages weighs them all, and fails at its end with every page over the budget
+  expect.soft(load.loads.filter((l) => l.merge).map(describeLoad), `${name}: no tailwind-merge in the first load`).toEqual([])
   expect.soft(load.total, `${name}: ${load.note}`).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
 }
 

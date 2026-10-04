@@ -5,8 +5,7 @@ import { POST as liffSessionRoute } from '@/app/api/liff/session/route'
 import { MS_PER_HOUR } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { auth } from '@/server/auth/auth'
-import { isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX, liffSessionIdentityId, setLiffVerification } from '@/server/auth/liff'
-import { liffSessionStandsForMember } from '@/server/auth/liff-sessions'
+import { endStaleLiffSession, isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX, liffSessionIdentityId, liffSessionMemberIds, setLiffVerification } from '@/server/auth/liff'
 import { upsertUserWithPassword } from '@/server/auth/provision'
 import { resolveSession } from '@/server/auth/session'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
@@ -20,8 +19,8 @@ import { newLineUserId } from '../../scripts/line-simulate'
 import { createOrg } from '../support/factory'
 import { TEST_ACCESS_TOKEN, TEST_CHANNEL_SECRET, withFakeLine } from '../support/fake-line'
 
-// S5-06 · the server side of the LIFF shell (src/server/services/liff, src/server/auth/liff-sessions.ts,
-// POST /api/liff/mock-token):
+// S5-06 · the server side of the LIFF shell (src/server/services/liff, the binding of a LIFF session to its link in
+// src/server/auth/liff.ts, POST /api/liff/mock-token):
 //  - /liff/help names the organization's administrators from data, to an active member of that organization only;
 //  - FR-LINE-001 AC2: a member who signed in inside LIFF with e-mail, password and 2FA links the LINE account the page
 //    was opened with — a code issued for them and spent at once with the LIFF ID token, the same path as a QR code;
@@ -474,7 +473,7 @@ describe('[FR-LINE-001/AC3] a LIFF session stands on the link it was opened with
   })
 
   it('unlinked on the web and linked again from another phone: the old phone’s session is refused and ended, even one the unlink missed', async () => {
-    const { orgId, member, lineUserId: x } = await linkedMember()
+    const { member, lineUserId: x } = await linkedMember()
     const oldPhone = await liffSessionOf(x)
     const [opened] = await prisma.session.findMany({ where: { userId: member.userId, token: { startsWith: LIFF_SESSION_TOKEN_PREFIX } } })
     // /settings/line ends the link (no LIFF page is involved): the old phone's session ends in the same transaction
@@ -485,8 +484,10 @@ describe('[FR-LINE-001/AC3] a LIFF session stands on the link it was opened with
     const issued = await issueLineLinkCode(member.ctx('WEB'))
     if (!issued.ok) throw new Error(issued.error.code)
     expect(await linkLineAccount({ code: issued.data.code, idToken: idTokenFor(newLineUserId()) }, { sender: null })).toMatchObject({ ok: true })
-    // The LIFF page's own check and the session lookup refuse it: it names link X, which ended
-    expect(await liffSessionStandsForMember(opened!.id, { id: member.memberId, organizationId: orgId })).toBe(false)
+    // The binding checked on every request refuses it: it names link X, which ended. Better Auth's endpoints that a LIFF
+    // session may reach end it (endStaleLiffSession), and so does the session lookup of every LIFF page
+    expect(await liffSessionMemberIds(member.userId, opened!.token)).toEqual(new Set())
+    expect(await endStaleLiffSession(opened!.token)).toBe(false)
     expect(await prisma.session.count({ where: { id: opened!.id } })).toBe(0)
     await prisma.session.create({ data: { ...opened!, lastActiveAt: new Date() } })
     expect(await asLiffPage(oldPhone)).toEqual({ kind: 'anonymous' })
@@ -494,14 +495,15 @@ describe('[FR-LINE-001/AC3] a LIFF session stands on the link it was opened with
   })
 
   it('moved through LIFF and back to the same LINE account: the session of the earlier link stays refused', async () => {
-    const { orgId, member, lineUserId: x } = await linkedMember()
+    const { member, lineUserId: x } = await linkedMember()
     const phone = await liffSessionOf(x)
     const [opened] = await prisma.session.findMany({ where: { userId: member.userId, token: { startsWith: LIFF_SESSION_TOKEN_PREFIX } } })
     expect(await unlinkLineInLiff(member.ctx(), { idToken: idTokenFor(x), which: 'this' }, { idempotencyKey: randomUUID(), signIn: 'liff' })).toMatchObject({ ok: true })
     expect(await linkThisLineAccount(member.ctx('WEB'), { idToken: idTokenFor(x) }, { sender: null })).toMatchObject({ ok: true })
     // The same LINE account is linked again, as a new link: a session of the earlier one is not a session of this one
     await prisma.session.create({ data: { ...opened!, lastActiveAt: new Date() } })
-    expect(await liffSessionStandsForMember(opened!.id, { id: member.memberId, organizationId: orgId })).toBe(false)
+    expect(await liffSessionMemberIds(member.userId, opened!.token)).toEqual(new Set())
+    expect(await endStaleLiffSession(opened!.token)).toBe(false)
     await prisma.session.create({ data: { ...opened!, lastActiveAt: new Date() } })
     expect(await asLiffPage(phone)).toEqual({ kind: 'anonymous' })
     // A sign-in now stands on the new link
@@ -509,7 +511,7 @@ describe('[FR-LINE-001/AC3] a LIFF session stands on the link it was opened with
   })
 
   it('accepts a LIFF session of the member’s live link, and never refuses a password session for it', async () => {
-    const { orgId, member, lineUserId: x } = await linkedMember()
+    const { member, lineUserId: x } = await linkedMember()
     const web = await passwordSessionOf(member.email)
     expect(await unlinkMyLine(member.ctx('WEB'), {}, { idempotencyKey: randomUUID(), sender: null })).toMatchObject({ ok: true })
     const issued = await issueLineLinkCode(member.ctx('WEB'))
@@ -519,9 +521,13 @@ describe('[FR-LINE-001/AC3] a LIFF session stands on the link it was opened with
     const freshState = await asLiffPage(fresh)
     const webState = await asLiffPage(web)
     if (freshState.kind !== 'member' || webState.kind !== 'member') throw new Error('both sessions should open LIFF pages')
-    const self = { id: member.memberId, organizationId: orgId }
-    expect(await liffSessionStandsForMember(freshState.sessionId, self)).toBe(true)
-    expect(await liffSessionStandsForMember(webState.sessionId, self)).toBe(true)
+    expect(freshState.member.id).toBe(member.memberId)
+    expect(webState.member.id).toBe(member.memberId)
+    // The binding checked on every request: the LIFF session stands on the live link, as its member (a password session
+    // has no link to stand on, and nothing of this is asked of it)
+    const { token } = await prisma.session.findUniqueOrThrow({ where: { id: freshState.sessionId }, select: { token: true } })
+    expect(await liffSessionMemberIds(member.userId, token)).toEqual(new Set([member.memberId]))
+    expect(await endStaleLiffSession(token)).toBe(true)
     // Asked again, both still stand: nothing was ended on the way
     expect(await asLiffPage(fresh)).toMatchObject({ kind: 'member' })
     expect(await asLiffPage(web)).toMatchObject({ kind: 'member' })

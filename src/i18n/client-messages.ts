@@ -17,7 +17,9 @@ import type { Messages, NestedKeyOf } from 'next-intl'
 //    without a session, the page is the gate's, and its words come with the page's content once the gate has signed in.
 //    The messages of a big namespace that LIFF components read by name are named one by one
 //    ('adminDoa.detail.boundaryConfirm', each(…)): a component that reads a key built at run time, or hands its
-//    translator on, needs the whole namespace;
+//    translator on, needs the whole namespace. A part a LIFF page loads on demand may bring its own words: it is drawn
+//    inside a client provider that holds the page's messages and namespaces it imports from messages/src
+//    (src/ui/liff/requests/step-words.tsx, steps 2 and 3 of the request form), so they are in its chunk, not the HTML;
 //  - the workspace ((workspace)/layout.tsx) passes the whole catalogue: its pages have no such budget.
 // tests/unit/client-messages.test.ts follows the imports of every page and layout to its client components and fails
 // when one reads a namespace or a message its provider does not pass: the page would show the key instead of the words.
@@ -59,8 +61,41 @@ export const CLIENT_MESSAGES = {
   ],
   /** /liff/requests/new: the catalogue of request types (its search and its list; the drafts' words are the web's) */
   liffCatalog: [...LIFF_GATE, ...each('request.catalog', ['all', 'clear', 'found', 'noDescription', 'noMatch', 'noTypes', 'search', 'searchHint', 'start', 'typesHeading', 'whenToUse'])],
-  /** /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form */
-  liffRequestForm: [...LIFF_GATE, 'requestForm', 'liffRequests.form', 'files'],
+  /**
+   * /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form's shell and its first step. Steps 2 and 3,
+   * the confirmation once sent and why a save was refused are loaded on demand with their words — the rest of
+   * requestForm, the file words and liffRequests (src/ui/liff/requests/step-words.tsx): some 5 KB gzip less in the
+   * form's HTML
+   */
+  liffRequestForm: [
+    ...LIFF_GATE,
+    ...each('liffRequests.form', ['back', 'barLabel', 'savedAt', 'stepLoading']),
+    'requestForm.details',
+    'requestForm.fields',
+    'requestForm.steps',
+    ...each('requestForm.budget', [
+      'baht',
+      'choose',
+      'chooseMissing',
+      'costCenter',
+      'costCenterValue',
+      'dash',
+      'department',
+      'line',
+      'lineHint',
+      'loading',
+      'noLines',
+      'notUsableShort',
+      'option',
+      'optionGranted',
+      'remaining',
+      'unknown',
+    ]),
+    ...each('requestForm.save', ['closed', 'conflict', 'dirty', 'error', 'idleNew', 'idleSaved', 'openRequest', 'reload', 'saveNow', 'saving']),
+    ...each('requestForm.submit', ['blockedBudget', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
+    ...each('requestForm.page', ['returned', 'returnedReason']),
+    'requestForm.errors.FORM_FIELD',
+  ],
   /** /liff/requests/[id]: the requester's bar (answer, send again, cancel) and the files */
   liffRequest: [...LIFF_GATE, 'requestView.actions', 'requestView.errors', 'requestView.files', 'liffRequests.view'],
   /** /liff/delegation */

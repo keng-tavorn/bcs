@@ -55,6 +55,7 @@ describe('[BR-LINE-01] a refused LIFF sign-in is read from the answer of POST /a
   it('maps every answer of the route to what the page does next', () => {
     expect(signInRefusalOf(403, { code: 'FORBIDDEN', reason: 'LINK_REQUIRED' })).toBe('LINK_REQUIRED')
     expect(signInRefusalOf(403, { code: 'FORBIDDEN', reason: 'LINK_AMBIGUOUS' })).toBe('LINK_AMBIGUOUS')
+    expect(signInRefusalOf(403, { code: 'FORBIDDEN', reason: 'SIGNED_IN_AS_ANOTHER_USER' })).toBe('SIGNED_IN_AS_ANOTHER_USER')
     expect(signInRefusalOf(403, { code: 'FORBIDDEN', reason: 'CROSS_SITE' })).toBe('FAILED')
     expect(signInRefusalOf(401, { code: 'TOKEN_INVALID' })).toBe('TOKEN_INVALID')
     expect(signInRefusalOf(429, null)).toBe('UNAVAILABLE')
@@ -65,7 +66,7 @@ describe('[BR-LINE-01] a refused LIFF sign-in is read from the answer of POST /a
   })
 
   it('stops renewing after every refusal but "LINE or BCS could not be reached"', () => {
-    expect([...FINAL_SIGN_IN_REFUSALS].sort()).toEqual(['FAILED', 'LINK_AMBIGUOUS', 'LINK_REQUIRED', 'NOT_IN_LINE', 'TOKEN_INVALID'])
+    expect([...FINAL_SIGN_IN_REFUSALS].sort()).toEqual(['FAILED', 'LINK_AMBIGUOUS', 'LINK_REQUIRED', 'NOT_IN_LINE', 'SIGNED_IN_AS_ANOTHER_USER', 'TOKEN_INVALID'])
   })
 })
 

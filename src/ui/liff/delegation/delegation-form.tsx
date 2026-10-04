@@ -2,10 +2,10 @@
 
 import { useLocale, useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { Button } from '../../form/button'
 import type { DelegationInputView } from '../../delegation/delegation-form'
 import { delegationErrorKey, type DelegationOutcome } from '../../delegation/outcome'
 import { LiffActionBar } from '../action-bar'
+import { Button } from '../button'
 import { LiffContent } from '../content'
 import { LiffNotice } from '../notice'
 import { FieldError, LiffField, LiffRadio, describedBy } from '../receiving/fields'

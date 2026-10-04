@@ -1,6 +1,8 @@
 import { CircleAlert, CircleCheck, Info, TriangleAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { cn } from '../cn'
+// Joined without tailwind-merge (§9.4): a request's list of files draws this notice on LIFF pages too, whose first
+// JavaScript is at most 200 KB gzip, and none of its classes sets what another sets (tests/unit/liff-classes.test.tsx)
+import { cn } from '../liff/cn'
 
 // An inline message next to the thing it is about (errors are never toast-only, §9.9). Icon + words + a left rule;
 // danger is announced immediately (role=alert), the others politely (role=status). warning: the action was saved

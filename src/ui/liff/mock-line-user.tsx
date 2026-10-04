@@ -1,7 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { Button } from '../form/button'
+import { Button } from './button'
 
 // LIFF_MOCK only (APP_ENV=local, src/lib/env.ts refuses it elsewhere): a LIFF page in an ordinary browser counts as
 // "outside LINE" until the mock cookie names a LINE user (src/app/liff/_lib/mock-cookie.ts). An e2e test sets the cookie

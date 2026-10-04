@@ -1,7 +1,7 @@
 import type { getTranslations } from 'next-intl/server'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai'
 import { formatSatang } from '@/core/money/format'
-import type { ApproverRoleDto, ExpectedApproverDto, MemberRefDto, NameDto, RouteDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
+import type { ApproverRoleDto, ExpectedApproverDto, MemberRefDto, NameDto, RouteDto, RouteStepDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
 import { formatDateTime } from '@/ui/format'
 import type { TimelineItem, TimelineOutcome } from '@/ui/timeline/timeline'
 
@@ -175,7 +175,26 @@ export function stageText(t: ViewT, locale: Locale, stage: StageDto, mine: boole
   }
 }
 
-/** The English sentence of a route (the Thai record is RouteDto.explanationTh, core/doa/explain.ts) */
+/** Whom the route's rule gave a step: "name (position)", and for a delegate whom they act for (the Thai record's "(… รักษาการแทน …)") */
+function ruleApproverText(t: ViewT, locale: Locale, step: RouteStepDto): string {
+  // A step made elsewhere (a preview of the engine's route) has its rule's approver in `approver`
+  const named = step.ruleApprover === undefined ? (step.approver || step.role ? { approver: step.approver, onBehalfOf: step.onBehalfOf, role: step.role } : null) : step.ruleApprover
+  // Not started yet: the approver its rule expects
+  if (!named) return expectedText(locale, step.expected)
+  const who = memberName(locale, named.approver)
+  const role = roleText(t, locale, named.role)
+  if (who && named.onBehalfOf) {
+    const principal = memberName(locale, named.onBehalfOf)
+    return `${who} (${role ? t('stage.actingForRole', { name: principal, role }) : t('stage.actingFor', { name: principal })})`
+  }
+  return role && who ? `${who} (${role})` : who || role
+}
+
+/**
+ * The English sentence of a route (the Thai record is RouteDto.explanationTh, core/doa/explain.ts), naming whom the
+ * rule gave each step as the Thai record does (BR-DOA-10) — never whoever decided an escalated step in their place
+ * (BR-SLA-04, NEW-46: the co-assignee who decided first is the step's `approver`)
+ */
 export function routeSentence(t: ViewT, tl: TimelineT, locale: Locale, route: RouteDto, subjectType: 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'): string {
   if (locale === 'th') return route.explanationTh
   const parts = [`${doaRefText(tl, route.doa)}:`]
@@ -190,11 +209,8 @@ export function routeSentence(t: ViewT, tl: TimelineT, locale: Locale, route: Ro
     else if (upper) parts.push(t('route.explain.bandUpTo', { upper }))
   }
   if (route.escalatedFromRuleCode) parts.push(`(${t('route.explain.escalated', { from: route.escalatedFromRuleCode, rule: route.doa.ruleCode })})`)
-  const approvers = route.steps.map((s) => {
-    const who = s.approver ? memberName(locale, s.approver) : expectedText(locale, s.expected)
-    const role = roleText(t, locale, s.role)
-    return role && who ? `${who} (${role})` : who || role
-  })
-  if (approvers.length) parts.push(t('route.explain.to', { approvers: approvers.join(', ') }))
-  return parts.join(' ')
+  const sentence = parts.join(' ')
+  const approvers = route.steps.map((s) => ruleApproverText(t, locale, s)).filter(Boolean)
+  // "…, goes to …": a comma ends the amount and its band before the approvers
+  return approvers.length ? `${sentence}, ${t('route.explain.to', { approvers: approvers.join(', ') })}` : sentence
 }

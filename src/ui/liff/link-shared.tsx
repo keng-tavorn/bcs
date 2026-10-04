@@ -2,9 +2,9 @@
 
 import { useFormatter, useTranslations } from 'next-intl'
 import { lazy, Suspense, type ReactNode } from 'react'
-import { Button } from '../form/button'
 import { LiffActionBar } from './action-bar'
 import { LIFF_HOME_PATH, WEB_LINE_SETTINGS_PATH } from './bootstrap'
+import { Button } from './button'
 import { LiffContent } from './content'
 import { LIFF_LINK_CLASS, LiffLink } from './liff-link'
 import { useLiff } from './liff-provider'

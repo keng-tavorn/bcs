@@ -2,8 +2,8 @@
 
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { Button } from '../../form/button'
 import { delegationErrorKey, type DelegationOutcome } from '../../delegation/outcome'
+import { Button } from '../button'
 import { LiffNotice } from '../notice'
 import { FieldError } from '../receiving/fields'
 import { useSessionReady } from '../receiving/session-ready'
@@ -13,10 +13,10 @@ import { useLiffSubmissionKey } from '../submission-key'
 // (src/ui/delegation/revoke-delegation.tsx), it cannot be undone, so the first button only opens a tick box that says
 // what happens and the second, outlined in danger, cancels — 44 px each, kept apart so neither is pressed by mistake
 // (§9.9). What happens is said as this build does it (NEW-35, the delegation-revoked job of §4.6): new approval tasks
-// come to the delegator at once, and what the acting approver still holds for them comes back too — the words are the
-// LIFF page's own (liffDelegation.revokeConfirm and revoked) while the workspace's still say otherwise. An ended or
-// cancelled delegation offers nothing: the page passes revocable=false, and the service refuses a delegation that is no
-// longer running anyway. The row stays after the cancellation, with its confirmation.
+// come to the delegator at once, and what the acting approver still holds for them comes back too
+// (liffDelegation.revokeConfirm and revoked, the same words as the workspace's delegation.revokeConfirm and revoked). An
+// ended or cancelled delegation offers nothing: the page passes revocable=false, and the service refuses a delegation
+// that is no longer running anyway. The row stays after the cancellation, with its confirmation.
 
 export type LiffRevokeDelegation = (delegationId: string, idempotencyKey: string) => Promise<DelegationOutcome>
 

@@ -13,16 +13,18 @@ import {
 // runs it with a fake fetch and a fake clock (tests/unit/liff-session-keeper.test.ts); ./liff-provider.tsx holds one
 // per page load. What it does:
 //  - signIn(): the gate of a page rendered without a session asks for it. A fresh ID token goes to POST
-//    /api/liff/session, which opens a LIFF session (the server replaces whatever session the browser held). Calls made
-//    while one is on its way share it.
+//    /api/liff/session, which opens a LIFF session in place of the one the browser held when that one is the same
+//    person's or has ended. A live session of someone else stays, and the sign-in is refused (SIGNED_IN_AS_ANOTHER_USER):
+//    the gate offers to sign that session out. Calls made while one is on its way share it.
 //  - renewIfDue(): a tap, a key, the page coming back into view, or a page about to run a server action asks for it.
 //    It renews only a session opened with LINE — the page said so (seen('liff')) or this keeper opened it — so a
 //    password sign-in made inside LINE is never swapped for the session of whoever this LINE account is linked to. It
 //    renews when the last sign-in or page load is LIFF_RENEW_AFTER_MS old, tries at most once a minute
 //    (LIFF_RENEW_RETRY_MS: every attempt counts, answered or not), and after an answer that the same page load cannot
-//    change (not linked any more, linked twice, a token LINE no longer accepts, no token at all) it stops for the page
-//    load: the session then idles out and the gate of the next page signs in again. Only "LINE or BCS could not be
-//    reached" is tried again, once a minute at most.
+//    change (not linked any more, linked twice, someone else signed in in this browser meanwhile, a token LINE no longer
+//    accepts, no token at all) it stops for the page load: the session then idles out and the gate of the next page
+//    signs in again, or says what stands in the way. Only "LINE or BCS could not be reached" is tried again, once a
+//    minute at most.
 //  - It answers what it found (LiffSessionCheck), so a page about to run a server action knows when the LIFF session
 //    cannot be kept on this page load — and loads the page again for a new ID token, or shows the gate — instead of
 //    sending the action with a session that has ended and losing what the person typed.

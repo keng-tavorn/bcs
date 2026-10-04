@@ -22,6 +22,7 @@ import { taskTitle } from '../../_tracking/rows'
 import { canViewPo, poReader } from '../../procurement/pos/_parts/access'
 import { PoBody } from '../../procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../procurement/pos/_parts/present'
+import { ClosedTaskText } from '../_parts/closed-task'
 import { VarianceBody } from '../_parts/variance-body'
 import { askForInformationAction, decidePolicyTaskAction, decideTaskAction } from '../actions'
 
@@ -69,10 +70,14 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
         </Notice>
       )
     }
+    // Moved or cancelled: why, and — when another task of its step decided it — who decided and when (FR-DOA-004 AC2)
     case 'REASSIGNED':
-      return <Notice tone="info">{task.reassignedTo ? t('state.reassigned', { name: memberName(locale, task.reassignedTo) }) : t('state.reassignedUnknown')}</Notice>
     default:
-      return <Notice tone="info">{t(`state.cancelled.${task.cancelledWhy ?? 'other'}`)}</Notice>
+      return (
+        <Notice tone="info">
+          <ClosedTaskText task={task} t={t} locale={locale} />
+        </Notice>
+      )
   }
 }
 

@@ -6,9 +6,12 @@ import { defineEvents } from '../registry'
 const common = { memberKnown: z.boolean(), ip: z.string().optional() }
 
 defineEvents('Auth', {
-  // step liff: a sign-in with a LINE ID token (S5-03, src/server/auth/liff.ts, channel LIFF); a refused one says why
+  // step liff: a sign-in with a LINE ID token (S5-03, src/server/auth/liff.ts, channel LIFF); a refused one says why —
+  // SIGNED_IN_AS_ANOTHER_USER: the browser held a live session of another sign-in identity, which stayed
   'auth.login_succeeded': { schema: z.object({ ...common, step: z.enum(['password', 'two_factor', 'liff']) }) },
-  'auth.login_failed': { schema: z.object({ ...common, step: z.enum(['password', 'two_factor', 'liff']), reason: z.enum(['TOKEN_INVALID', 'LINK_REQUIRED', 'LINK_AMBIGUOUS']).optional() }) },
+  'auth.login_failed': {
+    schema: z.object({ ...common, step: z.enum(['password', 'two_factor', 'liff']), reason: z.enum(['TOKEN_INVALID', 'LINK_REQUIRED', 'LINK_AMBIGUOUS', 'SIGNED_IN_AS_ANOTHER_USER']).optional() }),
+  },
   'auth.login_locked': { schema: z.object({ ...common, reason: z.enum(['ACCOUNT', 'IP']) }) },
   'auth.2fa_enabled': { schema: z.object({ memberKnown: z.boolean(), method: z.literal('TOTP') }) },
   // ORG_ADMIN reset (FR-AUTH-002 AC3): the reason is a Comment referenced by id; for a member the DOA relies on, the reset

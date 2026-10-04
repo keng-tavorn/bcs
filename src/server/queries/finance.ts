@@ -2,6 +2,7 @@ import { lineNet, parseQuantity, type Satang } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { OrgSettingsSchema, type OrgSettings } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
 import { isUuid, membersById, type MemberRefDto, type NameDto } from './requests'
 
@@ -127,9 +128,9 @@ export async function listInvoiceablePos(ctx: Ctx, filter: { readonly q?: string
   const search = q
     ? {
         OR: [
-          { number: { contains: q, mode: 'insensitive' as const } },
-          { supplier: { is: { nameTh: { contains: q, mode: 'insensitive' as const } } } },
-          { supplier: { is: { code: { contains: q, mode: 'insensitive' as const } } } },
+          { number: { contains: escapeLike(q), mode: 'insensitive' as const } },
+          { supplier: { is: { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+          { supplier: { is: { code: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
         ],
       }
     : {}
@@ -257,10 +258,10 @@ export async function listRecordedInvoices(ctx: Ctx, filter: { readonly q?: stri
   const where = q
     ? {
         OR: [
-          { invoiceNo: { contains: q, mode: 'insensitive' as const } },
-          { po: { is: { number: { contains: q, mode: 'insensitive' as const } } } },
-          { supplier: { is: { nameTh: { contains: q, mode: 'insensitive' as const } } } },
-          { supplier: { is: { code: { contains: q, mode: 'insensitive' as const } } } },
+          { invoiceNo: { contains: escapeLike(q), mode: 'insensitive' as const } },
+          { po: { is: { number: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+          { supplier: { is: { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+          { supplier: { is: { code: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
         ],
       }
     : {}

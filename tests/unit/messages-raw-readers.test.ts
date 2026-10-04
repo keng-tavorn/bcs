@@ -26,6 +26,9 @@ const READERS: Readonly<Record<string, Use>> = {
   'src/i18n/request.ts': { formats: 'the catalogue of next-intl on the server' },
   'src/app/_lib/client-messages.tsx': { formats: 'the messages of a part of the app, handed to NextIntlClientProvider' },
   'src/app/global-error.tsx': { formats: 'the app namespace, through a NextIntlClientProvider of its own' },
+  'src/ui/liff/requests/step-words.tsx': {
+    formats: 'the messages above it and the words of steps 2 and 3 of the LIFF request form (requestForm, files, liffRequests), through a NextIntlClientProvider of its own',
+  },
   'src/app/(workspace)/audit/page.tsx': { asText: ['audit.events', 'audit.groups', 'audit.aggregate'], why: 'the names of event types, their groups and the documents in the search and the rows' },
   'src/app/offline/route.ts': { asText: ['pwa.offlineTitle', 'pwa.offlineBody', 'pwa.retry'], why: 'the offline page is plain HTML the service worker keeps' },
 }

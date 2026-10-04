@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { FORM_TEXTAREA_MAX_LENGTH, FORM_TEXT_MAX_LENGTH } from '../money/constants'
+import { MONEY_TEXT } from './money-text'
 
 // Field definitions of a request form (spec §7.9, FormVersion.schema) and the Zod schema the server checks every save
 // and submit with (BR-FORM-01). Hidden fields are dropped before this check (evaluateForm), so the schema is built
@@ -69,7 +70,6 @@ export const FieldDefSchema = z
   .refine((f) => Object.keys(f.optionLabels ?? {}).every((k) => f.options?.includes(k)), { message: 'optionLabels name options of the field', path: ['optionLabels'] })
 
 const DECIMAL_TEXT = /^-?\d{1,14}(\.\d{1,4})?$/
-const MONEY_TEXT = /^\d{1,13}(\.\d{1,2})?$/
 const DATE_TEXT = /^(\d{4})-(\d{2})-(\d{2})$/
 
 function isCalendarDate(text: string): boolean {

@@ -1,5 +1,6 @@
 import { DECIMAL_COMPARE_SCALE } from '../money/constants'
 import { vatFromGross, type Satang } from '../money/math'
+import { satangOf } from './money-text'
 
 // Dynamic forms (spec §7.9, BR-FORM-01 to BR-FORM-06): conditions decide which fields show and which attachments a
 // request needs; hidden fields are dropped before saving and never checked. Quotations are data and the lowest
@@ -9,16 +10,25 @@ import { vatFromGross, type Satang } from '../money/math'
 export const OPS = ['eq', 'ne', 'in', 'gt', 'gte', 'lt', 'lte', 'empty', 'notEmpty'] as const
 export type Op = (typeof OPS)[number]
 
-export type Condition =
-  | { readonly all: readonly Condition[] }
-  | { readonly any: readonly Condition[] }
-  | { readonly field: string; readonly op: Op; readonly value?: unknown }
+/** A field or special variable compared with a value (empty and notEmpty take none) */
+export interface Comparison {
+  readonly field: string
+  readonly op: Op
+  readonly value?: unknown
+  /**
+   * The field is of type money, so it is compared as money (BR-MONEY-01). A form's JSON never carries this: the server
+   * sets it from the field definitions when it reads a form (markMoneyFields), and the screens get the form so marked.
+   */
+  readonly money?: boolean
+}
+
+export type Condition = { readonly all: readonly Condition[] } | { readonly any: readonly Condition[] } | Comparison
 
 export type Requirement =
   | { readonly attachments: string; readonly min: number }
   | { readonly all: readonly Requirement[] }
   | { readonly any: readonly Requirement[] }
-  | { readonly field: string; readonly op: Op; readonly value?: unknown }
+  | Comparison
 
 export interface AttachmentRule {
   readonly id: string
@@ -32,6 +42,7 @@ export interface VisibilityRule {
 }
 
 export interface FormInput {
+  /** Answers by field id; a field of type money holds baht text such as "12345.50" (BR-MONEY-01) */
   readonly fields: Readonly<Record<string, unknown>>
   /** Number of attachments per kind (QUOTATION, DPA, …) */
   readonly attachments: Readonly<Record<string, number>>
@@ -55,7 +66,10 @@ function isEmpty(value: unknown): boolean {
   return value === undefined || value === null || (typeof value === 'string' && value.trim() === '') || (Array.isArray(value) && value.length === 0)
 }
 
-/** Compares two numbers written as decimal strings (or bigint/number values) without floating point. */
+/**
+ * Orders two plain numbers (never money, see compareMoney), written as decimal text or given as bigint or number values,
+ * exactly: as integers scaled by 10^18, without floating-point arithmetic.
+ */
 function compareNumbers(a: unknown, b: unknown): number | null {
   const toScaled = (x: unknown): bigint | null => {
     if (typeof x === 'bigint') return x * DECIMAL_COMPARE_SCALE
@@ -80,19 +94,30 @@ function valueOf(field: string, input: FormInput): unknown {
   return input.fields[field]
 }
 
-const MONEY_VARIABLES = ['$amountGross', '$amountNet']
-const BAHT = /^\d+(\.\d{1,2})?$/
+/** The special variables that hold money, in satang ($requestType is text) */
+export const MONEY_VARIABLES: readonly string[] = ['$amountGross', '$amountNet']
+
+type ValueOp = Exclude<Op, 'empty' | 'notEmpty'>
 
 /**
- * Money variables are satang; a condition writes baht ("100000.00", or 100000), so the value is compared in satang.
- * A value that is not baht with at most two decimals compares with nothing (§7.0 (3)).
+ * A comparison of money ($amountGross, $amountNet, and fields of type money once marked) in satang. A rule writes the
+ * amount as baht text ("100000.00", §7.0 (3)); code may pass bigint satang. A number, or any other text, is no amount
+ * and never matches, so the condition is false, "ne" included (BR-MONEY-01); an answer that is not money matches
+ * nothing either. No answer is no amount: it equals none and is neither more nor less than one, so only "ne" holds.
  */
-function comparable(field: string, value: unknown): unknown {
-  if (!MONEY_VARIABLES.includes(field) || typeof value === 'bigint') return value
-  const text = typeof value === 'number' || typeof value === 'string' ? String(value).trim() : ''
-  if (!BAHT.test(text)) return null
-  const [whole, fraction = ''] = text.split('.')
-  return BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))
+function compareMoney(op: ValueOp, actual: unknown, value: unknown): boolean {
+  const amount = satangOf(actual)
+  // each listed amount is read like the value of eq; what is not an amount matches nothing
+  if (op === 'in') return amount !== null && Array.isArray(value) && value.some((v) => satangOf(v) === amount)
+  const expected = satangOf(value)
+  if (expected === null) return false
+  if (amount === null) return op === 'ne' && isEmpty(actual)
+  if (op === 'eq') return amount === expected
+  if (op === 'ne') return amount !== expected
+  if (op === 'gt') return amount > expected
+  if (op === 'gte') return amount >= expected
+  if (op === 'lt') return amount < expected
+  return amount <= expected
 }
 
 /** A missing or null answer is "no value": it equals only another missing value, never the text "undefined" or "null" */
@@ -107,28 +132,41 @@ export function evaluateCondition(condition: Condition, input: FormInput): boole
   if ('all' in condition) return condition.all.every((c) => evaluateCondition(c, input))
   if ('any' in condition) return condition.any.some((c) => evaluateCondition(c, input))
   const actual = valueOf(condition.field, input)
-  const expected = comparable(condition.field, condition.value)
-  switch (condition.op) {
-    case 'empty':
-      return isEmpty(actual)
-    case 'notEmpty':
-      return !isEmpty(actual)
+  const op = condition.op
+  if (op === 'empty') return isEmpty(actual)
+  if (op === 'notEmpty') return !isEmpty(actual)
+  if (condition.money === true || MONEY_VARIABLES.includes(condition.field)) return compareMoney(op, actual, condition.value)
+  switch (op) {
     case 'eq':
-      return same(actual, expected)
+      return same(actual, condition.value)
     case 'ne':
-      return !same(actual, expected)
+      return !same(actual, condition.value)
     case 'in':
-      // each listed value is read like the value of eq (baht for money variables)
-      return Array.isArray(condition.value) && condition.value.some((v) => same(actual, comparable(condition.field, v)))
+      // each listed value is read like the value of eq
+      return Array.isArray(condition.value) && condition.value.some((v) => same(actual, v))
     default: {
-      const order = compareNumbers(actual, expected)
+      const order = compareNumbers(actual, condition.value)
       if (order === null) return false
-      if (condition.op === 'gt') return order > 0
-      if (condition.op === 'gte') return order >= 0
-      if (condition.op === 'lt') return order < 0
+      if (op === 'gt') return order > 0
+      if (op === 'gte') return order >= 0
+      if (op === 'lt') return order < 0
       return order <= 0
     }
   }
+}
+
+/**
+ * The condition or requirement with each comparison on one of `moneyFields` (ids of the form's fields of type money)
+ * marked as money, at any depth. The server marks a form as it reads it, so the screens and the server compare those
+ * fields alike; the special variables need no mark.
+ */
+export function markMoneyFields(node: Condition, moneyFields: ReadonlySet<string>): Condition
+export function markMoneyFields(node: Requirement, moneyFields: ReadonlySet<string>): Requirement
+export function markMoneyFields(node: Requirement, moneyFields: ReadonlySet<string>): Requirement {
+  if ('attachments' in node) return node
+  if ('all' in node) return { all: node.all.map((n) => markMoneyFields(n, moneyFields)) }
+  if ('any' in node) return { any: node.any.map((n) => markMoneyFields(n, moneyFields)) }
+  return moneyFields.has(node.field) ? { ...node, money: true } : node
 }
 
 function unmet(requirement: Requirement, input: FormInput): Missing[] {

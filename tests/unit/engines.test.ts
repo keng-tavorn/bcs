@@ -1,6 +1,6 @@
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
-import { compareQuotations, evaluateCondition, evaluateForm, type FormInput } from '@/core/forms'
+import { compareQuotations, evaluateCondition, evaluateForm, markMoneyFields, type AttachmentRule, type Condition, type FormInput, type Op, type Requirement } from '@/core/forms'
 import { formatDocumentNumber, patternProblems, scopeKey } from '@/core/numbering'
 import { bahtText, integerText } from '@/core/thai/baht-text'
 import { isValidThaiTaxId, normalizeTaxId } from '@/core/thai/taxid'
@@ -68,11 +68,11 @@ describe('[FR-INT-002/AC1] form conditions (§7.9)', () => {
     })
   })
 
-  it('compares money conditions in satang whether written as baht text or a number, and never a missing answer with text', () => {
+  it('compares money conditions in satang with amounts written as baht text, and never a missing answer with text', () => {
     const money = input({}, {}, 500_000n)
-    // 5,000.00 is not above 100,000 (written as a number) nor above "100000.00"
-    expect(evaluateCondition({ field: '$amountGross', op: 'gt', value: 100000 }, money)).toBe(false)
-    expect(evaluateCondition({ field: '$amountGross', op: 'lte', value: 5000 }, money)).toBe(true)
+    // 5,000.00 is not above "100000.00", and is at most "5000.00"
+    expect(evaluateCondition({ field: '$amountGross', op: 'gt', value: '100000.00' }, money)).toBe(false)
+    expect(evaluateCondition({ field: '$amountGross', op: 'lte', value: '5000.00' }, money)).toBe(true)
     expect(evaluateCondition({ field: '$amountGross', op: 'in', value: ['5000.00', '1.00'] }, money)).toBe(true)
     expect(evaluateCondition({ field: '$amountGross', op: 'gt', value: '1.005' }, money)).toBe(false)
     expect(evaluateCondition({ field: 'processesPersonalData', op: 'eq', value: 'undefined' }, input({}))).toBe(false)
@@ -80,6 +80,83 @@ describe('[FR-INT-002/AC1] form conditions (§7.9)', () => {
     expect(evaluateCondition({ field: 'processesPersonalData', op: 'ne', value: 'Y' }, input({}))).toBe(true)
     expect(evaluateCondition({ field: 'kind', op: 'in', value: ['A', 'B'] }, input({ kind: 'B' }))).toBe(true)
     expect(evaluateCondition({ field: 'kind', op: 'in', value: 'A' }, input({ kind: 'A' }))).toBe(false)
+  })
+
+  it('never takes a number as an amount: a money condition written with one is false, "ne" and "in" included (BR-MONEY-01)', () => {
+    const money = input({}, {}, 500_000n)
+    // Gross and net are 5,000.00: read as numbers, every one of these would hold
+    const numeric: ReadonlyArray<[Op, unknown]> = [
+      ['gt', 100],
+      ['gte', 5000],
+      ['lte', 5000],
+      ['lt', 100000],
+      ['eq', 5000],
+      ['ne', 1],
+      ['in', [5000]],
+    ]
+    for (const field of ['$amountGross', '$amountNet']) {
+      for (const [op, value] of numeric) expect(evaluateCondition({ field, op, value }, money), `${field} ${op} ${JSON.stringify(value)}`).toBe(false)
+    }
+    // Nor text that is not baht with at most two decimals: spaces, separators, a sign, a third decimal, 14 digits
+    for (const value of [' 5000.00', '5,000.00', '+5000', '5000.000', '1'.repeat(14), '', null, undefined, true]) {
+      expect(evaluateCondition({ field: '$amountGross', op: 'lte', value }, money), String(value)).toBe(false)
+    }
+    // bigint satang from code is an amount; an "in" list skips what is not one; empty and notEmpty take no value
+    expect(evaluateCondition({ field: '$amountGross', op: 'eq', value: 500_000n }, money)).toBe(true)
+    expect(evaluateCondition({ field: '$amountGross', op: 'in', value: [5000, '5000'] }, money)).toBe(true)
+    expect(evaluateCondition({ field: '$amountGross', op: 'in', value: '5000.00' }, money)).toBe(false)
+    expect(evaluateCondition({ field: '$amountGross', op: 'notEmpty' }, money)).toBe(true)
+    expect(evaluateCondition({ field: '$amountNet', op: 'empty' }, money)).toBe(false)
+    // An attachment rule written with a number never applies: the import refuses such a rule (form-import.ts)
+    const rules = [{ id: 'ATT-QUOTES', when: { field: '$amountGross', op: 'gt' as const, value: 100000 }, require: { attachments: 'QUOTATION', min: 3 } }]
+    expect(evaluateForm({ rules, visibility: [] }, input({}, {}, 15_000_000n))).toMatchObject({ ok: true })
+    expect(evaluateForm({ rules: [{ ...rules[0]!, when: { ...rules[0]!.when, value: '100000.00' } }], visibility: [] }, input({}, {}, 15_000_000n))).toMatchObject({ ok: false, rule: 'ATT-QUOTES' })
+  })
+
+  it('compares a field of type money as money once marked: in satang whatever the decimals, never a number', () => {
+    const budget = (op: Op, value: unknown, answers: Record<string, unknown> = {}) => evaluateCondition({ field: 'budget', op, value, money: true }, input(answers))
+    expect(budget('eq', '5000', { budget: '5000.00' })).toBe(true)
+    expect(budget('gt', '4999.99', { budget: '5000.00' })).toBe(true)
+    expect(budget('lt', '5000.01', { budget: '5000' })).toBe(true)
+    expect(budget('gte', '5000.1', { budget: '5000.10' })).toBe(true)
+    expect(budget('lte', '0.99', { budget: '1.00' })).toBe(false)
+    expect(budget('ne', '5000.00', { budget: '5000.01' })).toBe(true)
+    expect(budget('in', ['1.00', '5000.0'], { budget: '5000.00' })).toBe(true)
+    expect(budget('eq', 500_000n, { budget: '5000.00' })).toBe(true)
+    expect(budget('eq', '5000.00', { budget: 500_000n })).toBe(true)
+    // A number, on either side, matches nothing, "ne" included; nor does an answer that is not baht text
+    expect(budget('eq', 5000, { budget: '5000.00' })).toBe(false)
+    expect(budget('ne', 1, { budget: '5000.00' })).toBe(false)
+    expect(budget('eq', '5000.00', { budget: 5000 })).toBe(false)
+    expect(budget('ne', '1.00', { budget: 5000 })).toBe(false)
+    expect(budget('gt', '1.00', { budget: 5000 })).toBe(false)
+    expect(budget('in', ['5000.00'], { budget: 5000 })).toBe(false)
+    expect(budget('ne', '1.00', { budget: '1,000.00' })).toBe(false)
+    // No answer is no amount: equal to none, neither more nor less than one, so only "ne" holds
+    for (const answers of [{}, { budget: null }, { budget: '  ' }]) {
+      expect(budget('ne', '5000.00', answers)).toBe(true)
+      expect(budget('eq', '5000.00', answers)).toBe(false)
+      expect(budget('gte', '0.00', answers)).toBe(false)
+      expect(budget('in', ['0.00'], answers)).toBe(false)
+    }
+    expect(budget('empty', undefined, {})).toBe(true)
+    expect(budget('notEmpty', undefined, { budget: '1.00' })).toBe(true)
+  })
+
+  it('marks the comparisons on fields of type money at any depth, in conditions and requirements, and nothing else', () => {
+    const money = new Set(['budget'])
+    const when: Condition = { all: [{ field: 'budget', op: 'gt', value: '1.00' }, { any: [{ field: 'note', op: 'notEmpty' }, { field: 'budget', op: 'empty' }] }] }
+    expect(markMoneyFields(when, money)).toEqual({
+      all: [{ field: 'budget', op: 'gt', value: '1.00', money: true }, { any: [{ field: 'note', op: 'notEmpty' }, { field: 'budget', op: 'empty', money: true }] }],
+    })
+    const require: Requirement = { any: [{ attachments: 'QUOTATION', min: 3 }, { all: [{ field: 'budget', op: 'lte', value: '5000.00' }] }] }
+    expect(markMoneyFields(require, money)).toEqual({ any: [{ attachments: 'QUOTATION', min: 3 }, { all: [{ field: 'budget', op: 'lte', value: '5000.00', money: true }] }] })
+    // The special variables are money by name; other fields stay as they are
+    expect(markMoneyFields({ field: '$amountGross', op: 'gt', value: '1.00' }, money)).toEqual({ field: '$amountGross', op: 'gt', value: '1.00' })
+    expect(markMoneyFields(when, new Set())).toEqual(when)
+    // A marked rule applies to the request in satang: "5000" in the rule is the answer "5000.00"
+    const rules: AttachmentRule[] = [{ id: 'ATT-BUDGET', when: markMoneyFields({ field: 'budget', op: 'eq', value: '5000' }, money), require: { attachments: 'JUSTIFICATION', min: 1 } }]
+    expect(evaluateForm({ rules, visibility: [] }, input({ budget: '5000.00' }))).toMatchObject({ ok: false, rule: 'ATT-BUDGET' })
   })
 
   it('needs exactly one existing quote, and treats equal prices before VAT as lowest together', () => {

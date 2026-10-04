@@ -1,14 +1,16 @@
 'use client'
 
-import en from '../../messages/en.json'
-import th from '../../messages/th.json'
+import en from '../../messages/src/en/app.json'
+import th from '../../messages/src/th/app.json'
 import './globals.css'
 
 // Last resort when the root layout itself fails: no message provider is available, so the text comes straight from
-// the built message files, in the language the browser prefers (Thai first).
+// the message files, in the language the browser prefers (Thai first). Only the `app` namespace: this component is in
+// the first JavaScript of every page, and the whole catalogue would add some 160 KB gzip to it (§9.4: a LIFF page loads
+// at most 200 KB).
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const english = typeof navigator !== 'undefined' && !navigator.language.toLowerCase().startsWith('th')
-  const t = (english ? en : th).app.error
+  const t = (english ? en : th).error
   return (
     <html lang={english ? 'en' : 'th'}>
       <body className="bg-bg text-ink">

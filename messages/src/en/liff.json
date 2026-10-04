@@ -1,0 +1,162 @@
+{
+  "frame": {
+    "back": "Back"
+  },
+  "gate": {
+    "signingIn": "Confirming who you are with your LINE account",
+    "opening": "Opening the page",
+    "toLink": "This LINE account is not linked to a BCS account yet. Opening the link page",
+    "toWebSignIn": "This page is open outside the LINE app. Opening the BCS sign-in page",
+    "ambiguous": "This LINE account is linked to more than one BCS account. Ask your organization's administrator to unlink the one that is not yours, then open this page again",
+    "tokenInvalid": "LINE could not confirm who you are. Close this page and open it again from the menu in the LINE chat",
+    "unavailable": "LINE cannot be reached right now. Wait a moment, then press Try again",
+    "failed": "Signing in with LINE did not work. Press Try again; if it still fails, tell your organization's administrator",
+    "sdkFailed": "BCS could not start in LINE. Reload this page; if it still fails, close it and open it again from the menu in the LINE chat",
+    "retry": "Try again",
+    "reload": "Reload this page",
+    "needsTwoFactor": "Your role needs two-step verification before you start. Open BCS on the web to set it up once, then come back to LINE",
+    "noMembership": "This account is not an active member of any organization. Contact your organization's administrator",
+    "openWorkspace": "Open BCS on the web"
+  },
+  "index": {
+    "title": "BCS in LINE"
+  },
+  "link": {
+    "title": "Link your LINE account",
+    "intro": "Link LINE to your BCS account to get approvals and notifications in the chat, and to use the Request, Tasks and Track menu",
+    "barLabel": "Confirm the link",
+    "preparing": "Getting LINE ready",
+    "working": "Linking",
+    "settingsLink": "Open LINE settings on the web",
+    "checking": "Checking whether your account is linked to this LINE",
+    "checkRefusedTitle": "Could not check the LINE account",
+    "retry": "Try again",
+    "codeNotNeeded": "This link code no longer works, and you do not need a new one: your account is linked to LINE already. Its status is below",
+    "preview": {
+      "heading": "Check that this is your account",
+      "organization": "Organization",
+      "member": "Name in BCS",
+      "expires": "This code works until",
+      "caution": "Link only if the name above is yours. If someone sent you this code, do not link: your LINE would get that account's approvals and notifications",
+      "confirm": "Link this LINE to this account",
+      "outsideLine": "Open this link in the LINE app to link, for example by scanning the QR code with LINE"
+    },
+    "done": {
+      "heading": "Linked",
+      "body": "BCS sent a welcome message to the chat, and the menu below the chat now shows Request, Tasks, Track and Help",
+      "tasks": "Go to my tasks",
+      "close": "Back to the chat",
+      "next": "Next step"
+    },
+    "signIn": {
+      "heading": "Sign in to BCS to link",
+      "intro": "This LINE account is not linked to a BCS account yet. Sign in with your work e-mail and password, then confirm the link",
+      "twoFactorHeading": "Second sign-in step",
+      "outsideLine": "Linking happens in the LINE app: tap Link account in the menu below the BCS chat, or sign in on the web and scan the QR code in LINE settings"
+    },
+    "member": {
+      "heading": "Link this LINE to your account",
+      "caution": "Once linked, this account's approvals and notifications come to this LINE",
+      "confirm": "Link this LINE to my account",
+      "outsideLine": "Open this page in the LINE app to link, or scan the QR code in LINE settings on the web"
+    },
+    "linked": {
+      "heading": "This LINE is linked to BCS",
+      "since": "Linked on {time}",
+      "tasks": "Go to my tasks",
+      "unlinkHeading": "Unlink the account",
+      "unlinkBody": "After unlinking, this LINE gets no BCS approvals or notifications; they go by e-mail instead, and the menu below the chat goes back to the unlinked one",
+      "unlink": "Unlink this LINE",
+      "unlinkConfirm": "Unlink this LINE from {name}'s account?",
+      "unlinkConfirmButton": "Yes, unlink",
+      "keep": "Keep it linked",
+      "unlinking": "Unlinking",
+      "unlinked": "Unlinked. This LINE no longer gets BCS approvals, and the menu below the chat is back to the unlinked one",
+      "unlinkRefusedTitle": "Could not unlink",
+      "help": "How to use BCS in LINE"
+    },
+    "other": {
+      "heading": "Your account is linked to another LINE account",
+      "body": "This account's approvals and notifications go to that LINE account, not to this one",
+      "switchHeading": "Use this LINE instead",
+      "switchBody": "Unlink the other LINE account first, then link this one to your account. The other LINE account will no longer get BCS approvals",
+      "unlink": "Unlink the other LINE account",
+      "unlinkConfirm": "Unlink the other LINE account from {name}'s account?",
+      "unlinkConfirmButton": "Yes, unlink the other LINE",
+      "unlinked": "The other LINE account is unlinked. Confirm below to link this LINE to your account",
+      "passwordNeeded": "Change the linked LINE account in LINE settings on the BCS web, after signing in with your password"
+    },
+    "outsideLinked": {
+      "heading": "Your account is linked to LINE",
+      "body": "Open this page in the LINE app to see whether it is linked to that LINE, or manage the link in LINE settings on the web"
+    },
+    "refusedTitle": "Could not link",
+    "refused": {
+      "TOKEN_EXPIRED": "This link code has expired (codes work for {minutes} minutes). Get a new one in LINE settings on the BCS web",
+      "UNLINKED_SINCE": "This code was issued before the account was last unlinked, so it no longer works. Get a new one in LINE settings on the BCS web",
+      "TOKEN_USED": "This link code was used already; each code links once. Get a new one in LINE settings on the BCS web",
+      "TOKEN_INVALID": "This link is not a BCS link code. Open the QR code from LINE settings again",
+      "ACCOUNT_LINKED_TO_ANOTHER_MEMBER": "This LINE is linked to another member of the organization. The owner of that account must unlink it first",
+      "MEMBER_LINKED_TO_ANOTHER_ACCOUNT": "This BCS account is linked to another LINE account. Unlink it in LINE settings on the web first, then link again",
+      "ALREADY_LINKED": "This LINE is already linked to this account. You can use the menu below the chat",
+      "LINE_NOT_ENABLED": "This organization has not switched LINE on yet. Contact your organization's administrator",
+      "FORBIDDEN": "This BCS account is not active. Contact your organization's administrator",
+      "SIGN_IN_WITH_PASSWORD": "Unlinking another LINE account needs a sign-in with your password. Do it in LINE settings on the BCS web",
+      "RATE_LIMITED": "Too many tries. Try again after {time}",
+      "RATE_LIMITED_LATER": "Too many tries. Wait a moment and try again",
+      "ID_TOKEN_INVALID": "LINE could not confirm who you are. Close this page and open the link from LINE again",
+      "EXTERNAL_SERVICE_ERROR": "LINE cannot be reached right now. Wait a moment and try again",
+      "NOT_LINKED": "This LINE is not linked to any account any more",
+      "LINK_CHANGED": "The linked LINE account has changed. Reload this page and try again",
+      "UNAUTHENTICATED": "Your session has ended. Close this page and open it again from the menu in the LINE chat",
+      "FAILED": "That did not work. Try again; if it still fails, tell your organization's administrator"
+    }
+  },
+  "help": {
+    "title": "Using BCS in LINE",
+    "intro": "Use BCS in LINE to decide approvals, make requests and follow them from your phone. Settings and reports are on the BCS web",
+    "linkHeading": "Start using BCS in LINE",
+    "linkBody": "First link this LINE to your BCS account. Approvals then come to this chat, and the menu below the chat gets Request, Tasks and Track",
+    "menuHeading": "The menu below the chat",
+    "menuIntro": "Once your account is linked, the menu below the BCS chat has these buttons",
+    "menu": {
+      "request": {
+        "label": "Request",
+        "body": "Make a short purchase or service request"
+      },
+      "tasks": {
+        "label": "Tasks",
+        "body": "Approvals waiting for you, the ones due soonest first"
+      },
+      "track": {
+        "label": "Track",
+        "body": "Your requests and which approval they wait for"
+      },
+      "help": {
+        "label": "Help",
+        "body": "How to use BCS in LINE and whom to contact (this page)"
+      }
+    },
+    "menuUnlinked": "Before you link, the menu has only Link account and Help",
+    "approveHeading": "Approving in the chat, and your PIN",
+    "approveBody": "New approvals arrive as cards in the chat. Below the amount your organization set, press Approve on the card. At or above it, and for policy changes, open the details in LINE and confirm with your {length}-digit PIN",
+    "pinBody": "{limit} wrong PINs in a row lock the PIN for {minutes} minutes, and BCS e-mails you. Set or change your PIN in PIN settings on the BCS web after confirming your password",
+    "unlinkHeading": "Unlinking",
+    "unlinkBody": "Unlink on the Link your LINE account page in the LINE app, or in LINE settings on the web. Blocking the BCS LINE account does not unlink you; approvals and notifications then come by e-mail",
+    "unlinkLink": "Open the Link your LINE account page",
+    "contactHeading": "Contact your administrators",
+    "contactBody": "The administrators of {organization} help with accounts, permissions and LINE settings",
+    "contactNone": "Your organization has no administrator listed yet. Contact the team that runs systems in your organization",
+    "contactSignedOut": "Link your LINE account to see your organization's administrators, or ask the team that runs systems in your organization",
+    "linkNow": "Link your LINE account",
+    "language": "Language"
+  },
+  "pin": {
+    "label": "{length}-digit PIN",
+    "hint": "Enter the {length} digits, then press the confirm button"
+  },
+  "mock": {
+    "intro": "Test mode on this machine (LIFF_MOCK): open this page as a mock LINE user of the fake LINE server",
+    "act": "Open as a mock LINE user"
+  }
+}

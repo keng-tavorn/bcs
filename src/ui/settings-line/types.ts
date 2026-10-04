@@ -5,12 +5,15 @@ import type { QrDrawing } from './qr'
 // the error code with the reason the page explains in its own words (§9.9 rule 7). Never the raw message.
 
 /**
- * A one-time link code as the page holds it: in this page's memory only — never in a URL of BCS, a log or a cookie
- * (it is a bearer secret for its few minutes: whoever opens it first links their LINE account to this member).
+ * A one-time link code as the page holds it: in this page's memory only — never in this page's address, a log or a
+ * cookie; only in the LIFF link it is for (§9.2) — as it is a bearer secret for its few minutes: whoever opens it first
+ * links their LINE account to this member.
  */
 export interface LinkCodeView {
   /** The LIFF page that links in LINE (LINE's address, the code in its query): the QR's content and the link itself */
   readonly url: string
+  /** LIFF_MOCK on this machine (local only): `url` is the LIFF page of this machine, opened in a browser, not in LINE */
+  readonly local: boolean
   /** When the code stops working, in the reader's language */
   readonly expiresAtText: string
   /** How long the code still worked when the server answered: the countdown runs from this, not from the device clock */
@@ -60,6 +63,19 @@ export function lineLinkErrorKey(failure: LineLinkFailure): LineLinkErrorKey {
     default:
       return 'FAILED'
   }
+}
+
+/**
+ * The notice of /settings/line while LINE cannot be linked in the organization (message key under lineLink.status):
+ * LINE is off — `off`, or `offLinked`, which tells a linked member that tasks and notifications go by e-mail meanwhile —
+ * or LINE is on but not set up for this system — `unavailable`, `unavailableLinked`: LINE still delivers, so no word of
+ * e-mail.
+ */
+export type LineUnavailableKey = 'off' | 'offLinked' | 'unavailable' | 'unavailableLinked'
+
+export function unavailableKey(status: { readonly delivering: boolean; readonly linked: boolean }): LineUnavailableKey {
+  if (!status.delivering) return status.linked ? 'offLinked' : 'off'
+  return status.linked ? 'unavailableLinked' : 'unavailable'
 }
 
 const SECONDS_PER_MINUTE = 60

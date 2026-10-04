@@ -25,9 +25,10 @@ import { switchLineRichMenuNow } from './rich-menu'
 
 // Linking a member's LINE account (FR-LINE-001 AC1 AC2 AC3, §9.2 steps 1 to 4, S5 sub-spec row "ผูกบัญชี").
 //  1. The signed-in member asks for a one-time code (issueLineLinkCode, self.lineLink): nothing is written; the screen
-//     draws the QR of `url`, the LIFF page /liff/link?code=… in LINE. Starting from LINE instead (AC2), the LIFF page
-//     signs in with e-mail, password and the authenticator first (Better Auth, as on the web), then asks for a code the
-//     same way and goes on with step 2.
+//     draws the QR of `url`, the LIFF page /liff/link?code=… in LINE (with LIFF_MOCK, the same page on this machine: no
+//     real LINE app takes part locally). Starting from LINE instead (AC2), the LIFF page signs in with e-mail, password
+//     and the authenticator first (Better Auth, as on the web), then asks for a code the same way and goes on with
+//     step 2.
 //  2. The LIFF page shows whose account the code links (previewLineLinkCode: the organization and the member's name,
 //     read only, LINE not asked) and waits for the person to confirm with a tap: a code someone else sent would link the
 //     opener's LINE account to the sender's member, so the page never posts on its own from a URL.
@@ -195,9 +196,31 @@ function lineLinkedNotice(memberId: string, identityId: string): NotificationDra
 export interface LineLinkCodeDto {
   /** The one-time code (a bearer secret for 10 minutes: keep it in the page only, never in a log) */
   readonly code: string
-  /** The LIFF page that links in LINE (https://liff.line.me/<LIFF ID>/link?code=…): the QR's content and the link */
+  /**
+   * The LIFF page that links in LINE (https://liff.line.me/<LIFF ID>/link?code=…): the QR's content and the link. With
+   * LIFF_MOCK (APP_ENV=local only) the same page on this machine instead (<APP_URL>/liff/link?code=…), where a developer
+   * goes on as a mock LINE user: LINE's address would open the real LINE app, which knows nothing of this machine.
+   */
   readonly url: string
+  /** `url` is the page on this machine (LIFF_MOCK), not LINE's */
+  readonly local: boolean
   readonly expiresAt: string
+}
+
+/** The LIFF app's own path on this site (§9.4: one app at /liff, its pages as sub-paths) */
+const LIFF_APP_PATH = '/liff'
+
+/** LIFF_MOCK=1 on this machine (src/lib/env.ts refuses it outside APP_ENV=local): LIFF pages open in an ordinary browser */
+function liffMocked(): boolean {
+  const env = getEnv()
+  return env.APP_ENV === 'local' && env.LIFF_MOCK === true
+}
+
+/** Where a link code opens (LineLinkCodeDto.url): the LIFF page /link?code=… in LINE, or on this machine with LIFF_MOCK */
+function linkCodeUrl(liffId: string, code: string): { readonly url: string; readonly local: boolean } {
+  const page = `/link?code=${encodeURIComponent(code)}`
+  if (!liffMocked()) return { url: liffLink(liffId, page), local: false }
+  return { url: `${getEnv().APP_URL.replace(/\/+$/, '')}${LIFF_APP_PATH}${page}`, local: true }
 }
 
 /** Whether LINE can be linked in the organization now, as a LIFF sign-in will need it: switched on, with this LIFF app */
@@ -225,13 +248,19 @@ export async function issueLineLinkCode(ctx: Ctx, securityNow: Date = systemCloc
     const live = await tx.channelIdentity.findFirst({ where: { memberId, channel: 'LINE', unlinkedAt: null }, select: { id: true } })
     if (live) return { ok: false, error: lineLinkRefusal('ALREADY_LINKED') }
     const { code, expiresAt } = signLineLinkCode({ organizationId: ctx.organizationId, memberId }, securityNow)
-    return ok({ code, url: liffLink(channel.liffId, `/link?code=${encodeURIComponent(code)}`), expiresAt: expiresAt.toISOString() })
+    return ok({ code, ...linkCodeUrl(channel.liffId, code), expiresAt: expiresAt.toISOString() })
   })
 }
 
 export interface MyLineLinkDto {
   /** LINE can be linked here now: the organization's channel is on, with this environment's LIFF app */
   readonly available: boolean
+  /**
+   * LINE delivers in the organization now: its channel is switched on (LineChannelConfig.active, the one switch the
+   * notifications obey — ADR-050 item 6), whether or not new links can be made here. Off, a linked member's tasks and
+   * notifications go by e-mail meanwhile.
+   */
+  readonly delivering: boolean
   readonly linked: boolean
   readonly linkedAt: string | null
   /** Member.lineReachable: false once the member blocked the account (BR-LINE-08); e-mail is used instead */
@@ -248,7 +277,13 @@ export async function getMyLineLink(ctx: Ctx): Promise<Result<MyLineLinkDto>> {
     const channel = await tx.lineChannelConfig.findFirst({ select: { active: true, liffId: true, liffChannelId: true } })
     const live = await tx.channelIdentity.findFirst({ where: { memberId, channel: 'LINE', unlinkedAt: null }, select: { linkedAt: true } })
     const member = await tx.member.findUniqueOrThrow({ where: { id: memberId }, select: { lineReachable: true } })
-    return ok({ available: lineReady(channel), linked: live !== null, linkedAt: live?.linkedAt.toISOString() ?? null, reachable: member.lineReachable })
+    return ok({
+      available: lineReady(channel),
+      delivering: channel?.active === true,
+      linked: live !== null,
+      linkedAt: live?.linkedAt.toISOString() ?? null,
+      reachable: member.lineReachable,
+    })
   })
 }
 

@@ -20,9 +20,10 @@ import th from '../../messages/th.json'
 //    button is disabled in the server's HTML (src/ui/form/hydrated.ts), so a native submission can never write them
 //    into the page's address (NFR-SEC-09);
 //  - /admin/line says under the test and the rich-menu buttons why each waits, in that button's own words;
-//  - /settings/line lets a linked member unlink from the web whatever the state of the organization's LINE, says nothing
-//    about how LINE delivers while LINE cannot be linked, and links to "ลืมรหัสผ่าน" as the LINE_LINKED notice says;
-//  - /settings/pin says, before the choice, when the authenticator code works.
+//  - /settings/line lets a linked member unlink from the web whatever the state of the organization's LINE, says that
+//    e-mail is used meanwhile only while LINE is switched off (LINE on but not set up here still delivers), and links to
+//    "ลืมรหัสผ่าน" as the LINE_LINKED notice says;
+//  - /settings/pin offers only the ways of proving who you are that work for the member (PinStatusDto.proofMethods).
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined, replace: () => undefined }) }))
 
@@ -110,24 +111,76 @@ describe('[FR-AUTH-005/AC1] the new PIN is never offered to the browser as a pas
     expect(attr(tag, 'maxlength')).toBeUndefined()
   })
 
-  it('step 1 says before the choice that the authenticator code works only once an authenticator app is set up', () => {
+})
+
+describe('[FR-AUTH-005/AC1] step 1 of /settings/pin offers only the ways of proving who you are that work for the member', () => {
+  const setup = (proofMethods: ReadonlyArray<'PASSWORD' | 'TOTP'>, locale: 'th' | 'en' = 'th', hasPin = false) =>
+    html(<PinSetup hasPin={hasPin} proofMethods={proofMethods} prove={never} setPin={never} />, locale)
+  const radios = (markup: string) => [...markup.matchAll(/<input[^>]*\btype="radio"[^>]*>/g)].map((m) => attr(m[0], 'value'))
+
+  it('with a password and an authenticator app: the choice of both, the password first', () => {
     for (const locale of ['th', 'en'] as const) {
-      const markup = html(<PinSetup hasPin={false} prove={never} setPin={never} />, locale)
-      expect(markup).toMatch(/<fieldset[^>]*aria-describedby="pin-method-hint"/)
-      expect(markup).toContain(`<p id="pin-method-hint" class="text-base text-ink-muted md:text-sm">${messagesOf(locale).pinSettings.prove.methodHint}</p>`)
+      const m = messagesOf(locale).pinSettings.prove
+      // In either order from the server, the screen offers them in its own
+      const markup = setup(['TOTP', 'PASSWORD'], locale)
+      expect(markup).toContain(m.intro)
+      expect(markup).toMatch(/<fieldset[^>]*><legend[^>]*>/)
+      expect(radios(markup)).toEqual(['PASSWORD', 'TOTP'])
+      expect(attr(markup.match(/<input[^>]*\bvalue="PASSWORD"[^>]*>/)![0], 'checked')).toBe('')
       // The account password itself is still the browser's to fill in
       expect(attr(inputTag(markup, 'pin-password'), 'autocomplete')).toBe('current-password')
+      expect(markup).not.toContain('id="pin-code"')
+    }
+  })
+
+  it('with a password only: no choice and no word of an authenticator app, the password field alone', () => {
+    for (const locale of ['th', 'en'] as const) {
+      const m = messagesOf(locale).pinSettings.prove
+      const markup = setup(['PASSWORD'], locale)
+      expect(markup).toContain(m.introOnly.PASSWORD)
+      expect(markup).not.toContain(m.intro)
+      expect(markup).not.toContain('<fieldset')
+      expect(radios(markup)).toEqual([])
+      expect(markup).not.toContain(m.TOTP)
+      expect(attr(inputTag(markup, 'pin-password'), 'type')).toBe('password')
+      expect(markup).not.toContain('id="pin-code"')
+    }
+  })
+
+  it('with an authenticator app only: the code field alone', () => {
+    for (const locale of ['th', 'en'] as const) {
+      const m = messagesOf(locale).pinSettings.prove
+      const markup = setup(['TOTP'], locale)
+      expect(markup).toContain(m.introOnly.TOTP)
+      expect(radios(markup)).toEqual([])
+      expect(attr(inputTag(markup, 'pin-code'), 'autocomplete')).toBe('one-time-code')
+      expect(markup).not.toContain('id="pin-password"')
+    }
+  })
+
+  it('with neither: says so and what to do, and offers no step that would be refused — with or without a PIN', () => {
+    for (const locale of ['th', 'en'] as const) {
+      for (const hasPin of [false, true]) {
+        const markup = setup([], locale, hasPin)
+        expect(markup).toContain(messagesOf(locale).pinSettings.prove.noMethod)
+        expect(markup).not.toContain('<form')
+        expect(markup).not.toContain('<input')
+        expect(markup).not.toContain('<button')
+      }
     }
   })
 })
 
 describe('[FR-AUTH-005/AC1][NFR-SEC-09] /settings/pin sends nothing before the page runs its script', () => {
   it('step 1, in the server HTML a member without a PIN gets, posts and keeps its button disabled: the password never goes into the address', () => {
-    const { form, submit, submitText } = formAndSubmit(html(<PinSetup hasPin={false} prove={never} setPin={never} />), /<form[^>]*aria-labelledby="pin-prove"/)
-    expect(attr(form, 'method')).toBe('post')
-    // A disabled default button also stops pressing Enter in the password field from submitting the form
-    expect(attr(submit, 'disabled')).toBe('')
-    expect(submitText).toBe(th.pinSettings.prove.submit)
+    for (const proofMethods of [['PASSWORD', 'TOTP'], ['PASSWORD'], ['TOTP']] as const) {
+      const markup = html(<PinSetup hasPin={false} proofMethods={proofMethods} prove={never} setPin={never} />)
+      const { form, submit, submitText } = formAndSubmit(markup, /<form[^>]*aria-labelledby="pin-prove"/)
+      expect(attr(form, 'method')).toBe('post')
+      // A disabled default button also stops pressing Enter in the password field from submitting the form
+      expect(attr(submit, 'disabled')).toBe('')
+      expect(submitText).toBe(th.pinSettings.prove.submit)
+    }
   })
 })
 
@@ -192,6 +245,7 @@ describe('[FR-LINE-004/AC1] the rich-menu button of /admin/line makes the menus 
 describe('[FR-LINE-001/AC3] a linked member can unlink from the web whatever the state of the organization LINE', () => {
   const status = (s: Partial<LineLinkStatusView>): LineLinkStatusView => ({
     available: true,
+    delivering: true,
     linked: true,
     linkedAtText: '4 Oct 2026 09:15',
     reachable: true,
@@ -199,41 +253,61 @@ describe('[FR-LINE-001/AC3] a linked member can unlink from the web whatever the
     ...s,
   })
   const panel = (s: LineLinkStatusView, locale: 'th' | 'en' = 'th') => html(<LineLinkPanel status={s} issue={never} linkStatus={never} unlink={never} />, locale)
+  const notices = (m: (typeof th)['lineLink']) => [m.status.unavailable, m.status.unavailableLinked, m.status.off, m.status.offLinked]
+  /** A message as React writes it into the HTML (the English ones carry apostrophes) */
+  const asHtml = (text: string) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;')
 
   it('while LINE can be linked: the unlink is offered, LINE is said to deliver, no notice', () => {
     const markup = panel(status({}))
     expect(markup).toContain(th.lineLink.unlink.button)
     expect(markup).toContain(th.lineLink.unlink.intro)
     expect(markup).toContain(th.lineLink.status.reachable)
-    expect(markup).not.toContain(th.lineLink.status.unavailableLinked)
-    expect(markup).not.toContain(th.lineLink.status.unavailable)
+    for (const notice of notices(th.lineLink)) expect(markup).not.toContain(notice)
   })
 
-  it('while LINE cannot be linked (off, or set up without this system LIFF app): the unlink is still offered, says that linking again waits for LINE, and nothing claims how LINE delivers', () => {
+  it('while the organization switched LINE off: the unlink is still offered, linking again waits for LINE, and e-mail is said to be used meanwhile — nothing of how LINE delivers', () => {
     for (const locale of ['th', 'en'] as const) {
       const m = messagesOf(locale).lineLink
       for (const reachable of [true, false]) {
-        const markup = panel(status({ available: false, reachable }), locale)
+        const markup = panel(status({ available: false, delivering: false, reachable }), locale)
         expect(markup).toContain(m.status.linked)
         expect(markup).toContain(m.unlink.button)
         expect(markup).toContain(m.unlink.introUnavailable)
         expect(markup).not.toContain(m.unlink.intro)
-        expect(markup).toContain(m.status.unavailableLinked)
-        expect(markup).not.toContain(m.status.reachable)
-        expect(markup).not.toContain(m.status.unreachable)
-        expect(markup).not.toContain(m.status.unavailable)
+        expect(markup).toContain(m.status.offLinked)
+        expect(markup).not.toContain(asHtml(m.status.reachable))
+        expect(markup).not.toContain(asHtml(m.status.unreachable))
+        for (const notice of notices(m).filter((n) => n !== m.status.offLinked)) expect(markup).not.toContain(notice)
       }
-      // The page cannot tell "switched off" (e-mail meanwhile) from "on, without this LIFF app" (LINE still delivers):
-      // the notice does not say e-mail replaces LINE
+      expect(m.status.offLinked).toMatch(/อีเมล|e-mail/)
+    }
+  })
+
+  it('while LINE is on but not set up for this system: linking waits, LINE still delivers as it did, and nothing says e-mail replaces it', () => {
+    for (const locale of ['th', 'en'] as const) {
+      const m = messagesOf(locale).lineLink
+      for (const reachable of [true, false]) {
+        const markup = panel(status({ available: false, delivering: true, reachable }), locale)
+        expect(markup).toContain(m.unlink.button)
+        expect(markup).toContain(m.unlink.introUnavailable)
+        expect(markup).toContain(m.status.unavailableLinked)
+        expect(markup).toContain(asHtml(reachable ? m.status.reachable : m.status.unreachable))
+        for (const notice of notices(m).filter((n) => n !== m.status.unavailableLinked)) expect(markup).not.toContain(notice)
+      }
       expect(m.status.unavailableLinked).not.toMatch(/อีเมล|e-mail/)
     }
   })
 
-  it('a member who is not linked while LINE cannot be linked: told so, and no code to ask for', () => {
-    const markup = panel(status({ available: false, linked: false }))
-    expect(markup).toContain(th.lineLink.status.unavailable)
-    expect(markup).not.toContain(th.lineLink.status.unavailableLinked)
-    expect(markup).not.toContain('id="line-link"')
+  it('a member who is not linked while LINE cannot be linked: told why — switched off, or not set up — and no code to ask for', () => {
+    for (const [delivering, notice] of [
+      [false, th.lineLink.status.off],
+      [true, th.lineLink.status.unavailable],
+    ] as const) {
+      const markup = panel(status({ available: false, delivering, linked: false }))
+      expect(markup).toContain(notice)
+      for (const other of notices(th.lineLink).filter((n) => n !== notice)) expect(markup).not.toContain(other)
+      expect(markup).not.toContain('id="line-link"')
+    }
   })
 
   it('beside the unlink, the page a LINE_LINKED notice opens links to ลืมรหัสผ่าน, as the notice says', () => {

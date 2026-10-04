@@ -23,7 +23,7 @@ export default async function LineAccountPage() {
   if (!ctx || state.kind !== 'member') return null
   const link = await getMyLineLink(ctx)
   if (!link.ok) return <NoAccess title={t('title')} message={t('errors.FORBIDDEN')} homeLabel={tCommon('homeLink')} />
-  const { available, linked, linkedAt, reachable } = link.data
+  const { available, delivering, linked, linkedAt, reachable } = link.data
 
   return (
     <div className="flex max-w-2xl flex-col gap-8">
@@ -34,6 +34,7 @@ export default async function LineAccountPage() {
       <LineLinkPanel
         status={{
           available,
+          delivering,
           linked,
           linkedAtText: linkedAt ? formatDateTime(locale, linkedAt) : null,
           reachable,

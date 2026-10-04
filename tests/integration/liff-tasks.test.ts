@@ -36,7 +36,7 @@ import { liffStepUpSession, type LiffStepUpIo } from '@/app/liff/tasks/_lib/step
 import { amountToSatang } from '@/core/money/dto'
 import { MS_PER_HOUR } from '@/lib/constants'
 import { auth } from '@/server/auth/auth'
-import { isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX, setLiffVerification } from '@/server/auth/liff'
+import { isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX, newLiffSessionToken, setLiffVerification } from '@/server/auth/liff'
 import { rotateLiffSessionAfterStepUp } from '@/server/auth/liff-session-rotation'
 import { liffSessionStandsForMember } from '@/server/auth/liff-sessions'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
@@ -127,20 +127,20 @@ async function identityOf(code: string): Promise<string> {
   return userId
 }
 
-/** The member's LINE account linked under the channel's provider (as S5-04's link records it), once */
-async function linked(code: string): Promise<void> {
+/** The member's LINE account linked under the channel's provider (as S5-04's link records it), once: the link's id */
+async function linked(code: string): Promise<string> {
   const live = await prisma.channelIdentity.findFirst({ where: { organizationId: org.organizationId, memberId: member(code), unlinkedAt: null } })
-  if (live) return
-  await prisma.channelIdentity.create({
+  if (live) return live.id
+  const made = await prisma.channelIdentity.create({
     data: { organizationId: org.organizationId, memberId: member(code), channel: 'LINE', providerKey: PROVIDER, externalUserId: `U${randomBytes(16).toString('hex')}`, linkedAt: new Date() },
   })
+  return made.id
 }
 
-/** A session opened from a LIFF ID token for the member (liff.ts makes them so: the LIFF prefix, 12 hours) */
+/** A session opened from a LIFF ID token for the member (liff.ts makes them so: bound to the member's link, 12 hours) */
 async function liffSession(code: string) {
   const userId = await identityOf(code)
-  await linked(code)
-  const token = `${LIFF_SESSION_TOKEN_PREFIX}${randomBytes(24).toString('base64url')}`
+  const token = newLiffSessionToken(await linked(code))
   const row = await prisma.session.create({ data: { id: randomUUID(), userId, token, expiresAt: new Date(Date.now() + 12 * MS_PER_HOUR) } })
   const signedIn: SignedInSession = { sessionId: row.id, userId }
   return { cookie: await signedCookieFor(token), signedIn, row }

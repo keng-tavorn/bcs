@@ -12,20 +12,23 @@ import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
 import { CopyButton } from './copy-button'
-import { countdownText, lineLinkErrorKey, type IssueLinkCodeAction, type LinkCodeView, type LinkStatusAction, type UnlinkLineAction } from './types'
+import { countdownText, lineLinkErrorKey, unavailableKey, type IssueLinkCodeAction, type LinkCodeView, type LinkStatusAction, type UnlinkLineAction } from './types'
 
 // The member's own LINE link on /settings/line (FR-LINE-001 AC1 AC3, §9.2 step 1). Not linked: "ผูกบัญชี LINE" asks the
 // server for a one-time code and shows it three ways — the LIFF link itself (to open on a phone that has LINE), the QR
 // drawn on the server (to scan from that phone when this page is on a computer) and how long it still works, counting
-// down. The code stays in this component's memory only: it never goes into a URL of BCS, a cookie or storage, and it is
-// gone when the page closes or the time is up. While it is shown and the page is in view, the page asks every few
+// down. The code stays in this component's memory only: it never goes into this page's address, a cookie or storage —
+// only into the LIFF link it is for (§9.2) — and it is gone when the page closes or the time is up. While it is shown and the page is in view, the page asks every few
 // seconds whether the link was made in LINE and then shows the new status by itself. Linked: unlinking asks first (it
 // cannot be undone: the member links again with a new code), then ends the link; beside it, what to do when the member
 // did not make the link (unlink, then a new password through "ลืมรหัสผ่าน", which the LINE_LINKED notice points to).
-// When LINE cannot be linked in the organization now (`available` false: switched off, or set up without this system's
-// LIFF app), the page says so and says nothing about how LINE delivers: the switch alone decides that, and the page does
-// not know which of the two it is (MyLineLinkDto has only `available`). Every button here needs the page's script, so
-// each waits for it (src/ui/form/hydrated.ts): a click before it would be lost, and the unlink form posts.
+// When LINE cannot be linked in the organization now (`available` false), the page says why in the words of the two
+// cases it can tell apart (MyLineLinkDto `delivering`, the organization's LINE switch, which alone decides how LINE
+// delivers): LINE is off — then, for a linked member, tasks and notifications go by e-mail meanwhile, and the page says
+// so — or LINE is on but not set up for this system's LIFF app, when LINE still delivers to a linked member as before
+// and the page says nothing about e-mail. With LIFF_MOCK (local only) the code's link and QR open the LIFF page of this
+// machine (LinkCodeView `local`), and the page says so. Every button here needs the page's script, so each waits for it
+// (src/ui/form/hydrated.ts): a click before it would be lost, and the unlink form posts.
 
 /** How often the page asks whether the code was used in LINE while it is shown */
 const LINK_POLL_MS = 4 * MS_PER_SECOND
@@ -37,6 +40,8 @@ const LINK_CLASS = 'inline-flex min-h-11 items-center self-start font-medium tex
 export interface LineLinkStatusView {
   /** LINE can be linked in the organization now: switched on, with this system's LIFF app */
   readonly available: boolean
+  /** The organization's LINE is switched on, so it delivers to linked members; off, they get e-mail meanwhile */
+  readonly delivering: boolean
   readonly linked: boolean
   /** When the live link was made, in the reader's language */
   readonly linkedAtText: string | null
@@ -77,9 +82,9 @@ export function LineLinkPanel({ status, issue, linkStatus, unlink }: { status: L
               <span>{t('status.linked')}</span>
             </p>
             {status.linkedAtText ? <p className="text-ink-muted">{t('status.linkedSince', { time: status.linkedAtText })}</p> : null}
-            {/* Whether LINE reaches the member is said only while LINE can be linked: otherwise the page cannot tell
-                whether the organization's LINE delivers at all, and the notice below claims nothing about it */}
-            {!status.available ? null : status.reachable ? <p className="text-ink-muted">{t('status.reachable')}</p> : <Notice tone="warning">{t('status.unreachable')}</Notice>}
+            {/* Whether LINE reaches the member is said while the organization's LINE delivers at all; while it is off,
+                the notice below says that e-mail is used meanwhile */}
+            {!status.delivering ? null : status.reachable ? <p className="text-ink-muted">{t('status.reachable')}</p> : <Notice tone="warning">{t('status.unreachable')}</Notice>}
           </div>
         ) : (
           <div className="flex flex-col gap-1">
@@ -92,7 +97,7 @@ export function LineLinkPanel({ status, issue, linkStatus, unlink }: { status: L
         )}
         {!status.available ? (
           <Notice tone="info">
-            <p>{status.linked ? t('status.unavailableLinked') : t('status.unavailable')}</p>
+            <p>{t(`status.${unavailableKey(status)}`)}</p>
             {status.canManageChannel ? (
               <Link href="/admin/line" className={LINK_CLASS}>
                 {t('status.adminLink')}
@@ -227,6 +232,8 @@ function LinkSection({ issue, linkStatus, onStart }: { issue: IssueLinkCodeActio
                   <li className="flex flex-col gap-3">
                     <p>{t('link.open')}</p>
                     <p className="text-base break-all text-ink-muted md:text-sm">{code.view.url}</p>
+                    {/* LIFF_MOCK (this machine only): the link opens the LIFF page here, where one goes on as a mock LINE user */}
+                    {code.view.local ? <Notice tone="info">{t('link.local')}</Notice> : null}
                     <div className="flex flex-wrap items-start gap-3">
                       <a
                         href={code.view.url}

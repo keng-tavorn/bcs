@@ -3,6 +3,7 @@ import type { Result } from '@/core/result'
 import type { Jsonified } from '@/lib/json'
 import { authorize } from '@/server/authz'
 import { actorMemberId, type Ctx } from '@/server/context'
+import { deleteMemberLiffSessions } from '@/server/db/sql/identity'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
@@ -20,9 +21,12 @@ import { switchLineRichMenuNow } from './rich-menu'
 // A code issued before the link ended no longer links (./link.ts): a QR shown or photographed earlier dies with it.
 // The ChannelIdentity row is kept with unlinkedAt (the history of who was linked when). The member's unused LINE action
 // tokens are revoked with it (S5 sub-spec row "ActionToken ของ LINE": the card buttons of an unlinked account no longer
-// decide anything). Event line.unlinked per link ended. A LIFF session of the member ends at its next request (liff.ts
-// checks the link every time), and the rich menu goes back to UNLINKED: at once after the commit, or by job
-// line-rich-menu, which the event starts.
+// decide anything), and every LIFF session of the member's sign-in identity ends in the same transaction
+// (deleteMemberLiffSessions: a phone signed in with LINE alone is signed out the moment its link ends, before any
+// newer link can be made; a password session stays) — besides, a LIFF session stands only on the link it was opened
+// with (src/server/auth/liff.ts), so none can come back. Event line.unlinked per link ended; its data stays { memberId,
+// reason } as the catalogue has it (no count of the sessions ended). The rich menu goes back to UNLINKED: at once after
+// the commit, or by job line-rich-menu, which the event starts.
 
 export type LineUnlinkReason = 'SELF' | 'MEMBER_DEACTIVATED'
 
@@ -32,7 +36,10 @@ interface EndedLinks {
   readonly events: EventDraft[]
 }
 
-/** Ends the member's live LINE links (only `identityId` when given) and their unused LINE tokens, in the caller's tx. */
+/**
+ * Ends the member's live LINE links (only `identityId` when given), their unused LINE tokens and the LIFF sessions of
+ * their sign-in identity, in the caller's tx.
+ */
 async function endLineLinks(tx: TenantTx, ctx: Ctx, memberId: string, reason: LineUnlinkReason, identityId?: string): Promise<EndedLinks> {
   const live = await tx.channelIdentity.findMany({
     where: { memberId, channel: 'LINE', unlinkedAt: null, ...(identityId ? { id: identityId } : {}) },
@@ -43,6 +50,8 @@ async function endLineLinks(tx: TenantTx, ctx: Ctx, memberId: string, reason: Li
   const identityIds = live.map((l) => l.id)
   await tx.channelIdentity.updateMany({ where: { id: { in: identityIds }, unlinkedAt: null }, data: { unlinkedAt: ctx.now } })
   const tokens = await tx.actionToken.updateMany({ where: { memberId, channel: 'LINE', usedAt: null, revokedAt: null }, data: { revokedAt: ctx.now } })
+  // Whatever was opened with LINE alone ends with the link, in this transaction (password sessions stay)
+  await deleteMemberLiffSessions(tx, ctx.organizationId, memberId)
   return {
     identityIds,
     lineActionTokensRevoked: tokens.count,
@@ -80,7 +89,8 @@ export const unlinkLineCommand = defineCommand({
 
 /**
  * The member ends their own LINE link (self.lineLink) — from the workspace (ctx channel WEB) or the LIFF app (LIFF) —
- * then the rich menu goes back to UNLINKED. Input {} (or { identityId }). NOT_LINKED when there is no live link.
+ * with every LIFF session of their sign-in identity in the same transaction, then the rich menu goes back to UNLINKED.
+ * Input {} (or { identityId }). NOT_LINKED when there is no live link.
  */
 export async function unlinkMyLine(ctx: Ctx, input: unknown, options: RunOptions): Promise<Result<Jsonified<LineUnlinkResult>>> {
   const result = await runCommand(ctx, unlinkLineCommand, input ?? {}, options)
@@ -91,7 +101,8 @@ export async function unlinkMyLine(ctx: Ctx, input: unknown, options: RunOptions
 /**
  * The lineLink revoker of a deactivation (FR-AUTH-003 AC2, FR-LINE-001 AC3), in the deactivation's transaction: every
  * live LINE link of the member ends with line.unlinked (reason MEMBER_DEACTIVATED). The deactivate command holds the
- * member's row lock already. The rich menu follows in job line-rich-menu, after the commit.
+ * member's row lock already and has ended every session of the member (the LIFF ones would end here too). The rich menu
+ * follows in job line-rich-menu, after the commit.
  */
 export async function unlinkLineOnDeactivation(tx: TenantTx, ctx: Ctx, memberId: string): Promise<{ readonly count: number; readonly events: readonly EventDraft[] }> {
   const ended = await endLineLinks(tx, ctx, memberId, 'MEMBER_DEACTIVATED')

@@ -136,11 +136,12 @@ export async function setWebhookAtLine(request: APIRequestContext, endpoint: str
 
 /**
  * Presses "ผูกบัญชี LINE" on /settings/line and returns the code of the LIFF link the page shows (the QR's content). The
- * code is read from the link on the page, as a phone camera reads it from the QR.
+ * code is read from the link on the page, as a phone camera reads it from the QR. With LIFF_MOCK — every e2e run — the
+ * link is the LIFF page of the run's own server (/liff/link?code=…), not LINE's address.
  */
 export async function issueCodeOnPage(page: Page): Promise<{ readonly url: string; readonly code: string }> {
   await page.getByRole('button', { name: 'ผูกบัญชี LINE', exact: true }).click()
-  const shown = page.getByText(/^https:\/\/liff\.line\.me\//)
+  const shown = page.getByText(/^(https:\/\/liff\.line\.me\/|https?:\/\/[^/]+\/liff\/link\?code=)/)
   await expect(shown).toBeVisible()
   const url = await shown.innerText()
   const code = new URL(url).searchParams.get('code')

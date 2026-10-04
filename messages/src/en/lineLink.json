@@ -9,8 +9,10 @@
     "unreachable": "LINE cannot deliver messages to you right now, perhaps because you blocked the organization's LINE account, so e-mail is used instead. Unblock it in the LINE app to get them in LINE again.",
     "notLinked": "No LINE account is linked",
     "notLinkedHint": "You get your tasks and notifications by e-mail.",
-    "unavailable": "LINE cannot be linked right now: your organization has not switched LINE on or has not finished setting it up. Ask your organization administrator if you need it.",
-    "unavailableLinked": "LINE accounts cannot be linked right now: your organization has switched LINE off or has not finished setting it up. Your LINE account stays linked. Every task and notification is always in the notification bell on the web. Ask your organization administrator if you have questions.",
+    "unavailable": "LINE cannot be linked right now: your organization has not finished setting LINE up. Ask your organization administrator if you need it.",
+    "unavailableLinked": "LINE accounts cannot be linked right now: your organization has not finished setting LINE up. Your LINE account stays linked. Ask your organization administrator if you have questions.",
+    "off": "LINE cannot be linked right now: your organization has not switched LINE on. Ask your organization administrator if you need it.",
+    "offLinked": "Your organization has switched LINE off, so your tasks and notifications go by e-mail meanwhile. Your LINE account stays linked, and you get them in LINE again once your organization switches LINE back on. Every task and notification is always in the notification bell on the web.",
     "adminLink": "Go to the organization's LINE settings"
   },
   "link": {
@@ -27,6 +29,7 @@
     "copy": "Copy link",
     "copied": "Link copied",
     "copyFailed": "It could not be copied. Select the text and copy it yourself.",
+    "local": "Test mode on this machine (LIFF_MOCK): this link and QR code open the LIFF page of this machine in the browser, not the real LINE app. On that page, open it as a mock LINE user to link.",
     "expiresIn": "{time} left (until {at}), once only.",
     "expired": "This code has expired. Get a new code to link your account.",
     "renew": "Get a new code",

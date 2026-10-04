@@ -3,9 +3,7 @@ import { PIN_FAILURE_LIMIT, PIN_LENGTH, PIN_LOCK_MINUTES } from '@/core/pin'
 import { err, ok, type Result } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { LIFF_ID_TOKEN_MAX_LENGTH, MS_PER_MINUTE } from '@/lib/constants'
-import { logger } from '@/lib/logger'
 import { verifyLiffIdToken } from '@/server/auth/liff'
-import { endMemberLiffSessions } from '@/server/auth/liff-sessions'
 import { authorize } from '@/server/authz'
 import { actorMemberId, type Ctx } from '@/server/context'
 import { countRateLimited } from '@/server/db/sql/rate-limit'
@@ -29,10 +27,11 @@ import { issueLineLinkCode, LINE_LINK_ATTEMPTS_MAX, lineLinkRefusal, linkLineAcc
 //  - Unlinking from LIFF ends only the link the page showed: "this" LINE account's, or "the other" one's. Ending the link
 //    of another LINE account needs the password sign-in (a web session): a session opened with LINE alone stands for
 //    the LINE account it was opened with, and must not reach a link it does not stand for.
-//  - A link ended or made from LIFF ends every LIFF session of the member's sign-in identity
-//    (src/server/auth/liff-sessions.ts): moving the link to a new phone signs the old phone out at once, instead of
-//    leaving its session to work again as soon as the new link stands. The LINE app that is linked signs in again by
-//    itself; the password session of the page that made the change is kept.
+//  - Moving the link to a new phone signs the old phone out at once: the unlink command ends every LIFF session of the
+//    member's sign-in identity in its own transaction (src/server/services/line-link/unlink.ts), and a LIFF session
+//    stands only on the link it was opened with (src/server/auth/liff.ts), so a newer link never brings an old phone's
+//    session back. Nothing is left to clean up after the commit; the password session of the page that made the change
+//    is kept, and the LINE app that is linked signs in again by itself.
 
 export interface LiffFacts {
   /** Digits of a transaction PIN (FR-AUTH-005 AC1) */
@@ -96,33 +95,14 @@ export interface LinkThisLineOptions {
 export async function linkThisLineAccount(ctx: Ctx, request: unknown, options: LinkThisLineOptions = {}): Promise<Result<LineLinkedDto>> {
   const parsed = IdTokenOnly.safeParse(request)
   if (!parsed.success) return validationFailed(parsed.error, '{ idToken }')
-  const memberId = actorMemberId(ctx)
   const now = options.now ?? systemClock.now()
   const issued = await issueLineLinkCode(ctx, now)
   if (!issued.ok) return issued
-  const linked = await linkLineAccount(
+  // No LIFF session of the member needs ending here: any of them stands on its own link, which an unlink ended with it
+  return linkLineAccount(
     { code: issued.data.code, idToken: parsed.data.idToken },
     { now, requestId: ctx.requestId, ...(options.sender === undefined ? {} : { sender: options.sender }) },
   )
-  // A LIFF session opened before this link stood on an older one (a phone the member no longer uses)
-  if (linked.ok && memberId) await endLiffSessionsAfterLinkChange(ctx, memberId, 'linked')
-  return linked
-}
-
-/**
- * After a link of the member was made or ended from LIFF: every LIFF session of the member's sign-in identity ends
- * (src/server/auth/liff-sessions.ts). The change is committed and stands whatever happens here: a failure is logged
- * (no token, no LINE user id), and the LIFF pages refuse such a session anyway (liffSessionStandsForMember).
- */
-async function endLiffSessionsAfterLinkChange(ctx: Ctx, memberId: string, change: 'linked' | 'unlinked'): Promise<void> {
-  try {
-    await endMemberLiffSessions(ctx.organizationId, memberId)
-  } catch (error) {
-    logger.warn(
-      { organizationId: ctx.organizationId, requestId: ctx.requestId, change, reason: error instanceof Error ? error.name : 'UNEXPECTED' },
-      'the LIFF sessions of a member were not ended after a LINE link change; LIFF pages refuse them anyway',
-    )
-  }
 }
 
 // ---------- which LINE account the member's link is, and ending it from LIFF ----------
@@ -206,8 +186,9 @@ export interface UnlinkInLiffOptions {
  * the page's ID token) or "other" (their link to another LINE account, before linking this one). The link must still be
  * the one the page showed (INVALID_STATE_TRANSITION { reason: LINK_CHANGED } otherwise, NOT_LINKED when there is none);
  * "other" needs the password sign-in (FORBIDDEN { reason: PASSWORD_SIGN_IN_REQUIRED } for a LINE sign-in). Then command
- * line.unlink for that link only (unlinkMyLine: Event line.unlinked, the rich menu back to UNLINKED), and every LIFF
- * session of the member's sign-in identity ends — the old phone's of "other", and this page's own for "this".
+ * line.unlink for that link only (unlinkMyLine: Event line.unlinked, the rich menu back to UNLINKED), which ends every
+ * LIFF session of the member's sign-in identity in its transaction — the old phone's of "other", and this page's own
+ * for "this".
  */
 export async function unlinkLineInLiff(ctx: Ctx, request: unknown, options: UnlinkInLiffOptions): Promise<Result<{ readonly unlinked: true }>> {
   const parsed = UnlinkRequest.safeParse(request)
@@ -229,6 +210,5 @@ export async function unlinkLineInLiff(ctx: Ctx, request: unknown, options: Unli
   }
   const ended = await unlinkMyLine(ctx, { identityId: link.id }, { idempotencyKey: options.idempotencyKey })
   if (!ended.ok) return ended
-  await endLiffSessionsAfterLinkChange(ctx, read.data.memberId, 'unlinked')
   return ok({ unlinked: true })
 }

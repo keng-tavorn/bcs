@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createHmac, randomBytes, randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { POST } from '@/app/api/liff/session/route'
 import { MS_PER_HOUR, MS_PER_MINUTE, MS_PER_SECOND } from '@/lib/constants'
@@ -6,9 +6,10 @@ import { getEnv } from '@/lib/env'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { auth } from '@/server/auth/auth'
-import { LIFF_SESSION_ALLOWED_PATHS, LIFF_SESSION_TOKEN_PREFIX, setLiffVerification } from '@/server/auth/liff'
+import { LIFF_SESSION_ALLOWED_PATHS, LIFF_SESSION_TOKEN_PREFIX, liffSessionIdentityId, newLiffSessionToken, setLiffVerification } from '@/server/auth/liff'
 import { upsertUserWithPassword } from '@/server/auth/provision'
 import { ORG_COOKIE, resolvePlatformSession, resolveSession } from '@/server/auth/session'
+import { listMySessions } from '@/server/auth/sessions'
 import { saveLineChannelSettings } from '@/server/services/line-channel'
 import { startFakeLine, type FakeLine } from '../../scripts/lib/fake-line'
 import { newLineUserId } from '../../scripts/line-simulate'
@@ -19,8 +20,11 @@ import { TEST_ACCESS_TOKEN, TEST_CHANNEL_SECRET, withFakeLine } from '../support
 // server has LINE's verify endpoint check it for our LIFF channel (here the fake LINE server of the repo, which verifies
 // only tokens it issued, as LINE does) and checks the claims itself — BR-LINE-02 — and never takes a LINE user id or a
 // profile from the browser — BR-LINE-01. Only a LINE user linked to an active member of an organization whose LINE
-// channel is on gets a session; that session acts only as such a member, serves LIFF pages only (Better Auth's own
-// endpoints refuse it too), ends after 15 idle minutes and is renewed with a new ID token (FR-AUTH-003 AC1).
+// channel is on gets a session; that session stands on the very link it was opened with (its token names it) and acts
+// only as that link's member while that link stands, serves LIFF pages only (Better Auth's own endpoints refuse it too,
+// and the few it may reach drop it once its link is gone), ends after 15 idle minutes and is renewed with a new ID token
+// — never in place of another identity's live session (FR-AUTH-003 AC1). A request a page makes by itself is no activity of
+// its session (touch: false), and the list of signed-in devices shows live sessions only (FR-AUTH-003 AC3).
 
 const LIFF_CHANNEL = '1650000003'
 const PROVIDER = '1650000001'
@@ -161,6 +165,26 @@ async function webSession(userId: string) {
     data: { id: randomUUID(), token: randomBytes(24).toString('hex'), userId, expiresAt: new Date(now.getTime() + 12 * MS_PER_HOUR), createdAt: now, updatedAt: now },
   })
 }
+
+/** A session row with this token and these times, as Better Auth writes one (12 hours from its start unless told) */
+async function sessionRow(userId: string, token: string, times: { createdAt?: Date; lastActiveAt?: Date | null; expiresAt?: Date } = {}) {
+  const createdAt = times.createdAt ?? new Date()
+  return prisma.session.create({
+    data: { id: randomUUID(), token, userId, createdAt, updatedAt: createdAt, lastActiveAt: times.lastActiveAt ?? null, expiresAt: times.expiresAt ?? new Date(createdAt.getTime() + 12 * MS_PER_HOUR) },
+  })
+}
+
+/** A LIFF token as the sign-in made them before sessions were bound to their link: the prefix and random characters */
+const unboundLiffToken = () => `${LIFF_SESSION_TOKEN_PREFIX}${randomBytes(24).toString('base64url')}`
+
+/** The cookie Better Auth signs for a session token (better-call: HMAC-SHA256 with the auth secret, URI-encoded) */
+async function signedCookieFor(token: string): Promise<string> {
+  const context = await auth.$context
+  const signature = createHmac('sha256', context.secret).update(token).digest('base64')
+  return `${context.authCookies.sessionToken.name}=${encodeURIComponent(`${token}.${signature}`)}`
+}
+
+const liffSessionOf = async (userId: string) => (await sessionsOf(userId)).find((s) => s.token.startsWith(LIFF_SESSION_TOKEN_PREFIX))
 
 describe('[BR-LINE-02] the ID token is checked with LINE’s verify endpoint for our LIFF channel', () => {
   it('a token LINE issued for our LIFF channel signs the linked member in with a LIFF session', async () => {
@@ -554,5 +578,247 @@ describe('[FR-AUTH-003/AC1] a LIFF session ends after 15 idle minutes, is renewe
     const recorded = JSON.stringify([succeeded, ...mine].map((e) => ({ ...e, seq: String(e?.seq) })))
     expect(recorded).not.toContain(linked.lineUserId)
     expect(recorded).not.toContain(idToken)
+  })
+})
+
+describe('[FR-LINE-001/AC3] a LIFF session stands on the LINE link it was opened with, and on no other', () => {
+  it('names that link in its token (liff_<ChannelIdentity id>.<random>), and acts only as its member', async () => {
+    const orgId = await lineOrg()
+    const linked = await linkedUser(orgId)
+    const identity = await prisma.channelIdentity.findFirstOrThrow({ where: { memberId: linked.memberId, unlinkedAt: null } })
+    const r = await liffSignIn({ idToken: tokenFor(linked.lineUserId) })
+    const session = await liffSessionOf(linked.userId)
+    expect(session!.token).toMatch(new RegExp(`^${LIFF_SESSION_TOKEN_PREFIX}${identity.id}\\.[A-Za-z0-9_-]{32}$`))
+    expect(liffSessionIdentityId(session!.token)).toBe(identity.id)
+    expect(await resolveSession(new Headers({ cookie: r.cookie }), { channel: 'LIFF' })).toMatchObject({ kind: 'member', member: { id: linked.memberId } })
+    // Anything else is no link: a web token, an unbound LIFF token, a link id spelled otherwise
+    expect(liffSessionIdentityId(randomBytes(24).toString('hex'))).toBeNull()
+    expect(liffSessionIdentityId(unboundLiffToken())).toBeNull()
+    expect(liffSessionIdentityId(session!.token.replace(identity.id, identity.id.toUpperCase()))).toBeNull()
+    expect(() => newLiffSessionToken('not-a-link')).toThrow(TypeError)
+  })
+
+  it('is refused and deleted once its link moved to another LINE account, though the member is linked again: on LIFF pages and on /get-session', async () => {
+    for (const where of ['a LIFF page', '/get-session'] as const) {
+      const orgId = await lineOrg()
+      const linked = await linkedUser(orgId)
+      const r = await liffSignIn({ idToken: tokenFor(linked.lineUserId) })
+      const headers = new Headers({ cookie: r.cookie })
+      expect((await betterAuth('/get-session', { method: 'GET', cookie: r.cookie })).body).toMatchObject({ user: { id: linked.userId } })
+      // The link moves to the member's new phone: X's link ends and Y's is made, without anything ending the old session
+      await prisma.channelIdentity.updateMany({ where: { organizationId: orgId, memberId: linked.memberId }, data: { unlinkedAt: new Date() } })
+      await link(orgId, linked.memberId, newLineUserId())
+      if (where === 'a LIFF page') {
+        expect({ where, state: await resolveSession(headers, { channel: 'LIFF' }) }).toEqual({ where, state: { kind: 'anonymous' } })
+      } else {
+        // Better Auth's own read of the session finds none (and clears the cookie), as for a browser without one
+        const read = await betterAuth('/get-session', { method: 'GET', cookie: r.cookie })
+        expect({ where, status: read.status, body: read.body }).toEqual({ where, status: 200, body: null })
+      }
+      expect({ where, sessions: await sessionsOf(linked.userId) }).toEqual({ where, sessions: [] })
+    }
+  })
+
+  it('a token that names no link — a session opened before sessions were bound — is refused and deleted, wherever it is seen', async () => {
+    const orgId = await lineOrg()
+    const linked = await linkedUser(orgId)
+    const cases: Record<string, (cookie: string) => Promise<unknown>> = {
+      'a LIFF page': (cookie) => resolveSession(new Headers({ cookie }), { channel: 'LIFF' }),
+      'the workspace': (cookie) => resolveSession(new Headers({ cookie })),
+      '/get-session': async (cookie) => (await betterAuth('/get-session', { method: 'GET', cookie })).body,
+      '/sign-out': async (cookie) => (await betterAuth('/sign-out', { cookie })).status,
+    }
+    const answers: Record<string, unknown> = {}
+    for (const [where, ask] of Object.entries(cases)) {
+      const row = await sessionRow(linked.userId, unboundLiffToken())
+      answers[where] = await ask(await signedCookieFor(row.token))
+      expect({ where, left: await prisma.session.count({ where: { id: row.id } }) }).toEqual({ where, left: 0 })
+    }
+    expect(answers).toEqual({ 'a LIFF page': { kind: 'anonymous' }, 'the workspace': { kind: 'anonymous' }, '/get-session': null, '/sign-out': 200 })
+    // A well-formed token that names a link of another member, or a link that is not there, stands for nobody either
+    const someoneElse = await linkedUser(orgId)
+    const theirs = await prisma.channelIdentity.findFirstOrThrow({ where: { memberId: someoneElse.memberId, unlinkedAt: null } })
+    for (const identityId of [theirs.id, randomUUID()]) {
+      const row = await sessionRow(linked.userId, newLiffSessionToken(identityId))
+      expect(await resolveSession(new Headers({ cookie: await signedCookieFor(row.token) }), { channel: 'LIFF' })).toEqual({ kind: 'anonymous' })
+      expect(await prisma.session.count({ where: { id: row.id } })).toBe(0)
+    }
+    expect(await sessionsOf(someoneElse.userId)).toEqual([])
+  })
+
+  it('one person linked with the same LINE account in two organizations: the session is the first member’s link’s, and ends with it', async () => {
+    const first = await lineOrg()
+    const second = await lineOrg()
+    const email = `${randomUUID()}@test.bcs.local`
+    const userId = await upsertUserWithPassword({ email, name: 'สองบริษัท', password: PASSWORD })
+    // a joined first (the member resolveSession has always opened first for this person)
+    const a = await prisma.member.create({ data: { organizationId: first, email, displayNameTh: 'สองบริษัท', status: 'ACTIVE', userId, createdAt: new Date(Date.now() - MS_PER_MINUTE) } })
+    const b = await prisma.member.create({ data: { organizationId: second, email, displayNameTh: 'สองบริษัท', status: 'ACTIVE', userId } })
+    const lineUserId = newLineUserId()
+    const aLink = await link(first, a.id, lineUserId)
+    const bLink = await link(second, b.id, lineUserId)
+    const r = await liffSignIn({ idToken: tokenFor(lineUserId) })
+    expect(liffSessionIdentityId((await liffSessionOf(userId))!.token)).toBe(aLink.id)
+    // Asking for the other organization changes nothing: the session is one link's, so one member's
+    expect(await resolveSession(new Headers({ cookie: `${r.cookie}; ${ORG_COOKIE}=${second}` }), { channel: 'LIFF' })).toMatchObject({ kind: 'member', member: { id: a.id } })
+    // Its link ends: the session ends with it, though the same LINE account is still linked in the other organization
+    await prisma.channelIdentity.update({ where: { id: aLink.id }, data: { unlinkedAt: new Date() } })
+    expect(await resolveSession(new Headers({ cookie: r.cookie }), { channel: 'LIFF' })).toEqual({ kind: 'anonymous' })
+    // A new sign-in stands on the link that is left
+    const again = await liffSignIn({ idToken: tokenFor(lineUserId) })
+    expect(liffSessionIdentityId((await liffSessionOf(userId))!.token)).toBe(bLink.id)
+    expect(await resolveSession(new Headers({ cookie: again.cookie }), { channel: 'LIFF' })).toMatchObject({ kind: 'member', member: { id: b.id } })
+  })
+})
+
+describe('[FR-AUTH-003/AC1] a LINE sign-in never replaces a live session of another sign-in identity', () => {
+  it('refuses it in a browser holding someone else’s session (password or LINE), which stays with its cookie; the refusal is recorded without the token', async () => {
+    const orgId = await lineOrg()
+    const a = await linkedUser(orgId)
+    const b = await linkedUser(orgId)
+    const since = new Date()
+    const aWeb = await webSession(a.userId)
+    const aWebCookie = await signedCookieFor(aWeb.token)
+    const idToken = tokenFor(b.lineUserId)
+    const refused = await liffSignIn({ idToken }, { cookie: aWebCookie })
+    expect(refused).toMatchObject({ status: 403, body: { code: 'FORBIDDEN', reason: 'SIGNED_IN_AS_ANOTHER_USER' }, cookie: '' })
+    expect(await prisma.session.findUnique({ where: { id: aWeb.id } })).toMatchObject({ token: aWeb.token })
+    expect(await resolveSession(new Headers({ cookie: aWebCookie }))).toMatchObject({ kind: 'member', userId: a.userId })
+    expect(await sessionsOf(b.userId)).toEqual([])
+
+    // Someone else's LINE sign-in in this browser: the same
+    const aLiff = await liffSignIn({ idToken: tokenFor(a.lineUserId) })
+    expect(await liffSignIn({ idToken: tokenFor(b.lineUserId) }, { cookie: aLiff.cookie })).toMatchObject({ status: 403, body: { reason: 'SIGNED_IN_AS_ANOTHER_USER' }, cookie: '' })
+    expect(await resolveSession(new Headers({ cookie: aLiff.cookie }), { channel: 'LIFF' })).toMatchObject({ kind: 'member', userId: a.userId })
+    expect(await sessionsOf(b.userId)).toEqual([])
+
+    // Recorded as a failed LINE sign-in of b, with neither token nor LINE user id
+    const failed = await prisma.event.findMany({ where: { type: 'auth.login_failed', channel: 'LIFF', aggregateId: b.memberId, occurredAt: { gte: since } } })
+    expect(failed.map((e) => (e.data as { step?: string }).step)).toEqual(['liff', 'liff'])
+    const recorded = JSON.stringify(failed.map((e) => e.data))
+    expect(recorded).not.toContain(b.lineUserId)
+    expect(recorded).not.toContain(idToken)
+    expect(recorded).not.toContain(aWeb.token)
+  })
+
+  it('someone else’s session counts until its own limits: a password session for 30 idle minutes, a LINE session for 15 while its link stands', async () => {
+    const orgId = await lineOrg()
+    const a = await linkedUser(orgId)
+    const b = await linkedUser(orgId)
+    const aLink = await prisma.channelIdentity.findFirstOrThrow({ where: { memberId: a.memberId, unlinkedAt: null } })
+    const now = Date.now()
+    const ago = (minutes: number) => new Date(now - minutes * MS_PER_MINUTE)
+    // Live by the limits resolveSession counts for each kind (the workspace keeps a password session 30 idle minutes)
+    const live = {
+      'a password session idle for 20 minutes': await sessionRow(a.userId, randomBytes(24).toString('hex'), { createdAt: ago(60), lastActiveAt: ago(20) }),
+      'a password session nearly 12 hours old': await sessionRow(a.userId, randomBytes(24).toString('hex'), { createdAt: ago(12 * 60 - 10), lastActiveAt: ago(1) }),
+      'a LINE session idle for 13 minutes': await sessionRow(a.userId, newLiffSessionToken(aLink.id), { createdAt: ago(60), lastActiveAt: ago(13) }),
+    }
+    for (const [what, row] of Object.entries(live)) {
+      const r = await liffSignIn({ idToken: tokenFor(b.lineUserId) }, { cookie: await signedCookieFor(row.token) })
+      const kept = await prisma.session.count({ where: { id: row.id, token: row.token } })
+      expect({ what, status: r.status, reason: r.body?.reason, cookie: r.cookie, kept }).toEqual({ what, status: 403, reason: 'SIGNED_IN_AS_ANOTHER_USER', cookie: '', kept: 1 })
+    }
+    expect(await sessionsOf(b.userId)).toEqual([])
+  })
+
+  it('still replaces what the browser holds of the same identity, or a session that has ended — past its limits, or a LINE session whose link is gone — whoever’s it was', async () => {
+    const orgId = await lineOrg()
+    const a = await linkedUser(orgId)
+    const b = await linkedUser(orgId)
+    // b's own password session in b's LINE browser: replaced by b's LINE sign-in (holding the cookie is the right to end it)
+    const bWeb = await webSession(b.userId)
+    expect((await liffSignIn({ idToken: tokenFor(b.lineUserId) }, { cookie: await signedCookieFor(bWeb.token) })).status).toBe(200)
+    expect(await prisma.session.findUnique({ where: { id: bWeb.id } })).toBeNull()
+    // a's sessions that resolveSession would refuse and delete at their next request are no sign-in to keep
+    const aLink = await prisma.channelIdentity.findFirstOrThrow({ where: { memberId: a.memberId, unlinkedAt: null } })
+    const aOldLink = await link(orgId, a.memberId, newLineUserId(), { unlinked: true })
+    const now = Date.now()
+    const ago = (minutes: number) => new Date(now - minutes * MS_PER_MINUTE)
+    const ended = {
+      'a session past its 12 hours': await sessionRow(a.userId, randomBytes(24).toString('hex'), { createdAt: ago(13 * 60) }),
+      'a password session idle for 30 minutes': await sessionRow(a.userId, randomBytes(24).toString('hex'), { createdAt: ago(60), lastActiveAt: ago(30) }),
+      'a password session never used for 30 minutes': await sessionRow(a.userId, randomBytes(24).toString('hex'), { createdAt: ago(30) }),
+      'a LINE session idle for 15 minutes': await sessionRow(a.userId, newLiffSessionToken(aLink.id), { createdAt: ago(60), lastActiveAt: ago(15) }),
+      'a LINE session whose link ended': await sessionRow(a.userId, newLiffSessionToken(aOldLink.id), { createdAt: ago(3), lastActiveAt: ago(1) }),
+    }
+    for (const [what, row] of Object.entries(ended)) {
+      const r = await liffSignIn({ idToken: tokenFor(b.lineUserId) }, { cookie: await signedCookieFor(row.token) })
+      expect({ what, status: r.status, left: await prisma.session.count({ where: { id: row.id } }) }).toEqual({ what, status: 200, left: 0 })
+      expect({ what, state: await resolveSession(new Headers({ cookie: r.cookie }), { channel: 'LIFF' }) }).toMatchObject({ what, state: { kind: 'member', userId: b.userId } })
+    }
+  })
+})
+
+describe('[FR-AUTH-003/AC1] a request the page makes by itself (touch: false) is no activity of the session', () => {
+  it('leaves lastActiveAt as it was, yet still refuses and deletes a session past its idle limit', async () => {
+    const orgId = await lineOrg()
+    const linked = await linkedUser(orgId)
+    const web = await webSession(linked.userId)
+    const headers = new Headers({ cookie: await signedCookieFor(web.token) })
+    const start = web.createdAt.getTime()
+    // A status poll every few minutes for nearly half an hour: the session answers, and its idle clock never moves
+    for (let minute = 2; minute < 30; minute += 4) {
+      expect(await resolveSession(headers, { now: new Date(start + minute * MS_PER_MINUTE), touch: false })).toMatchObject({ kind: 'member', sessionId: web.id })
+    }
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: web.id } })).lastActiveAt).toBeNull()
+    // 30 minutes after the last activity it is idle, polled or not: refused and deleted
+    expect(await resolveSession(headers, { now: new Date(start + 30 * MS_PER_MINUTE), touch: false })).toEqual({ kind: 'expired' })
+    expect(await prisma.session.count({ where: { id: web.id } })).toBe(0)
+  })
+
+  it('the LIFF idle limit and the absolute limit hold too; a request that is activity moves the clock, as before', async () => {
+    const orgId = await lineOrg()
+    const linked = await linkedUser(orgId)
+    const r = await liffSignIn({ idToken: tokenFor(linked.lineUserId) })
+    const headers = new Headers({ cookie: r.cookie })
+    const session = (await liffSessionOf(linked.userId))!
+    const start = session.createdAt.getTime()
+    expect(await resolveSession(headers, { channel: 'LIFF', now: new Date(start + 10 * MS_PER_MINUTE), touch: false })).toMatchObject({ kind: 'member' })
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: session.id } })).lastActiveAt).toBeNull()
+    // Activity at 10 minutes moves it, so 20 minutes is within the LIFF limit only thanks to that activity
+    const at = new Date(start + 10 * MS_PER_MINUTE)
+    expect(await resolveSession(headers, { channel: 'LIFF', now: at })).toMatchObject({ kind: 'member' })
+    expect((await prisma.session.findUniqueOrThrow({ where: { id: session.id } })).lastActiveAt).toEqual(at)
+    expect(await resolveSession(headers, { channel: 'LIFF', now: new Date(start + 20 * MS_PER_MINUTE), touch: false })).toMatchObject({ kind: 'member' })
+    expect(await resolveSession(headers, { channel: 'LIFF', now: new Date(start + 25 * MS_PER_MINUTE), touch: false })).toEqual({ kind: 'expired' })
+    expect(await sessionsOf(linked.userId)).toEqual([])
+
+    // The absolute 12 hours, without touching
+    const web = await webSession(linked.userId)
+    const webHeaders = new Headers({ cookie: await signedCookieFor(web.token) })
+    await prisma.session.update({ where: { id: web.id }, data: { lastActiveAt: new Date(web.createdAt.getTime() + 12 * MS_PER_HOUR - MS_PER_MINUTE) } })
+    expect(await resolveSession(webHeaders, { now: new Date(web.createdAt.getTime() + 12 * MS_PER_HOUR), touch: false })).toEqual({ kind: 'expired' })
+    expect(await prisma.session.count({ where: { id: web.id } })).toBe(0)
+  })
+})
+
+describe('[FR-AUTH-003/AC3] the list of signed-in devices shows live sessions only', () => {
+  it('leaves out sessions past the absolute or idle limit, and LIFF sessions whose link ended or that name none; keeps the current one', async () => {
+    const orgId = await lineOrg()
+    const linked = await linkedUser(orgId)
+    const live = await prisma.channelIdentity.findFirstOrThrow({ where: { memberId: linked.memberId, unlinkedAt: null } })
+    const ended = await link(orgId, linked.memberId, newLineUserId(), { unlinked: true })
+    const now = new Date()
+    const ago = (minutes: number) => new Date(now.getTime() - minutes * MS_PER_MINUTE)
+    const web = () => randomBytes(24).toString('hex')
+    const current = await sessionRow(linked.userId, web(), { createdAt: ago(5), lastActiveAt: ago(1) })
+    const rows = {
+      webActive: await sessionRow(linked.userId, web(), { createdAt: ago(60), lastActiveAt: ago(20) }),
+      webIdle: await sessionRow(linked.userId, web(), { createdAt: ago(60), lastActiveAt: ago(31) }),
+      webNeverUsedIdle: await sessionRow(linked.userId, web(), { createdAt: ago(45) }),
+      webPastTwelveHours: await sessionRow(linked.userId, web(), { createdAt: ago(12 * 60 + 1), lastActiveAt: ago(2), expiresAt: new Date(now.getTime() + MS_PER_HOUR) }),
+      webExpired: await sessionRow(linked.userId, web(), { createdAt: ago(10), expiresAt: ago(1) }),
+      liffActive: await sessionRow(linked.userId, newLiffSessionToken(live.id), { createdAt: ago(30), lastActiveAt: ago(10) }),
+      liffIdle: await sessionRow(linked.userId, newLiffSessionToken(live.id), { createdAt: ago(30), lastActiveAt: ago(16) }),
+      liffLinkEnded: await sessionRow(linked.userId, newLiffSessionToken(ended.id), { createdAt: ago(3), lastActiveAt: ago(1) }),
+      liffUnbound: await sessionRow(linked.userId, unboundLiffToken(), { createdAt: ago(3), lastActiveAt: ago(1) }),
+    }
+    const listed = await listMySessions(linked.userId, current.id, now)
+    const names = Object.fromEntries(Object.entries(rows).map(([name, row]) => [row.id, name]))
+    expect(listed.map((d) => (d.id === current.id ? 'current' : names[d.id])).sort()).toEqual(['current', 'liffActive', 'webActive'])
+    expect(listed.filter((d) => d.current).map((d) => d.id)).toEqual([current.id])
+    // Listing changes nothing: every row is still there for the session lookup or the clean-up to end
+    expect(await prisma.session.count({ where: { userId: linked.userId } })).toBe(Object.keys(rows).length + 1)
   })
 })

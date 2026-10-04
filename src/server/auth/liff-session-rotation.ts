@@ -1,10 +1,9 @@
-import { randomBytes } from 'node:crypto'
 import { APIError, createAuthEndpoint, isAPIError, type DispatchContext } from 'better-auth/api'
 import { setSessionCookie } from 'better-auth/cookies'
 import { systemClock } from '@/lib/clock'
 import { systemDb } from '@/server/db/system'
 import { auth } from './auth'
-import { isLiffSessionToken, LIFF_SESSION_TOKEN_PREFIX } from './liff'
+import { isLiffSessionToken, liffSessionIdentityId, newLiffSessionToken } from './liff'
 import type { SignedInSession } from './session-rotation'
 
 // NFR-SEC-04 for a session opened from a LIFF ID token (§9.4, ADR-046, ADR-047): once the member proved the PIN for a
@@ -13,9 +12,10 @@ import type { SignedInSession } from './session-rotation'
 // session's row, after which the old token opens nothing; the row keeps the sign-in's time and absolute end (createdAt
 // and expiresAt, FR-AUTH-003 AC1), and the step-up is activity, so its idle clock starts again. Two step-ups of one
 // session at the same moment change it once; the other one proved the PIN too, so it gets the token now in force.
-// The new token keeps the LIFF prefix: the session still serves LIFF pages only, with their 15-minute idle limit
-// (liff.ts, session.ts), and as its createdAt is kept, a LINE link that ended after the sign-in still ends it
-// (liff-sessions.ts liffSessionStandsForMember). A password session is left to ./session-rotation.ts.
+// The new token is made the way the sign-in makes one (liff.ts newLiffSessionToken) and names the same LINE link: the
+// session still serves LIFF pages only, with their 15-minute idle limit (liff.ts, session.ts), and still ends with that
+// link. A LIFF token that names no link (opened before sessions were bound to one) is not rotated: no page accepts it.
+// A password session is left to ./session-rotation.ts.
 // It runs as a server-only endpoint of Better Auth — never reachable over HTTP — called directly instead of dispatched:
 // the liffIdToken plugin refuses every dispatched endpoint to a LIFF session except its own few (liff.ts
 // LIFF_SESSION_ALLOWED_PATHS, which keeps a LINE login away from the endpoints that would make it a workspace login),
@@ -23,22 +23,18 @@ import type { SignedInSession } from './session-rotation'
 // run, so nextCookies() does not write the new cookie into the response: the caller does, from `setCookie` — the
 // Set-Cookie lines Better Auth wrote with setSessionCookie. Nothing here logs or returns a token.
 
-/** Random bytes after the prefix: 32 base64url characters, as long as the tokens the LIFF sign-in makes (liff.ts) */
-const LIFF_SESSION_TOKEN_BYTES = 24
-
 const NO_SESSION = 'NO_SESSION'
 const NOT_LIFF = 'NOT_LIFF'
 
-const newLiffSessionToken = () => `${LIFF_SESSION_TOKEN_PREFIX}${randomBytes(LIFF_SESSION_TOKEN_BYTES).toString('base64url')}`
-
 /**
  * The token another step-up of the same session gave it after this request came with `token` (two tabs at once): only
- * when `token` opens no session any more and the session named is the request's own, live, and still a LIFF one
+ * when `token` opens no session any more and the session named is the request's own, live, and still a LIFF one of the
+ * same LINE link
  */
-async function liffTokenInForce(token: string, signedIn: SignedInSession, now: Date): Promise<string | null> {
+async function liffTokenInForce(token: string, identityId: string, signedIn: SignedInSession, now: Date): Promise<string | null> {
   if (await systemDb.session.findUnique({ where: { token }, select: { id: true } })) return null
   const row = await systemDb.session.findFirst({ where: { id: signedIn.sessionId, userId: signedIn.userId, expiresAt: { gt: now } }, select: { token: true } })
-  return row && isLiffSessionToken(row.token) ? row.token : null
+  return row && liffSessionIdentityId(row.token) === identityId ? row.token : null
 }
 
 const rotateLiffSessionEndpoint = createAuthEndpoint.serverOnly({ method: 'POST' }, async (ctx) => {
@@ -49,15 +45,18 @@ const rotateLiffSessionEndpoint = createAuthEndpoint.serverOnly({ method: 'POST'
   if (!sessionId || !userId || typeof token !== 'string' || !token) throw new APIError('UNAUTHORIZED', { message: NO_SESSION })
   // A password session changes through ./session-rotation.ts, with Better Auth's own token format
   if (!isLiffSessionToken(token)) throw new APIError('FORBIDDEN', { message: NOT_LIFF })
+  // A LIFF token that names no link opens no page (resolveSession ends it): there is no session to give a new token
+  const identityId = liffSessionIdentityId(token)
+  if (!identityId) throw new APIError('UNAUTHORIZED', { message: NO_SESSION })
   // Session limits run on real time, the security clock (session.ts)
   const now = systemClock.now()
-  const fresh = newLiffSessionToken()
+  const fresh = newLiffSessionToken(identityId)
   // One conditional update: of two step-ups of this session at once, only the one whose token is still the session's wins
   const { count } = await systemDb.session.updateMany({
     where: { id: sessionId, userId, token, expiresAt: { gt: now } },
     data: { token: fresh, lastActiveAt: now, updatedAt: now },
   })
-  const current = count === 1 ? fresh : await liffTokenInForce(token, { sessionId, userId }, now)
+  const current = count === 1 ? fresh : await liffTokenInForce(token, identityId, { sessionId, userId }, now)
   if (!current) throw new APIError('UNAUTHORIZED', { message: NO_SESSION })
   // Sessions of this identity that have ended go too, as the password session's rotation does
   await systemDb.session.deleteMany({ where: { userId, expiresAt: { lte: now } } })

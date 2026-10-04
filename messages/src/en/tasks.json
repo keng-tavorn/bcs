@@ -62,6 +62,7 @@
       "REQUEST_CANCELLED": "This task is closed because the requester cancelled the request",
       "ROUTE_REPLACED": "This task is closed because the requester edited and sent the request again, and a new route was worked out",
       "DOCUMENT_DECIDED": "This task is closed because the document has been decided",
+      "CO_ASSIGNEE_DECIDED": "This task is closed because another approver of this step decided first",
       "other": "This task is closed; there is nothing to decide"
     }
   },

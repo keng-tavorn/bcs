@@ -3,7 +3,11 @@
 // number (an authority change, which has none, by its kind) and never carry items, prices, files or people's names
 // (BR-NOTI-01). Every one links back to the task, the document or the page that settles it (BR-NOTI-02). They promise
 // only what will happen: the next band hears that escalation follows only when it will (data.willEscalate), and the
-// administrators hear why nobody was added (data.reason). task.reminder lives with the board's reminder in index.ts.
+// administrators hear why nobody was added (data.reason) and what they can do in this build — no command moves a task
+// by hand, and a step escalates once (ADR-048 item 4), so they are pointed at the approver and at the authority changes
+// that move an approver's open tasks: an acting appointment, or a new holder of the position (BR-DOA-17, BR-DLG-04). A
+// delegate whose acting period ended with tasks that could not go back hears that a new holder of the position takes
+// them (NEW-28), never that someone will move them. task.reminder lives with the board's reminder in index.ts.
 
 type Data = Readonly<Record<string, unknown>>
 type Text = { readonly th: string; readonly en: string }
@@ -133,16 +137,28 @@ function digestBody(d: Data): Text {
   return { th: th.join('\n'), en: en.join('\n') }
 }
 
-const FOLLOW_UP: Text = { th: 'โปรดติดตามกับผู้อนุมัติ หรือย้ายงานให้ผู้มีอำนาจเท่ากันหรือสูงกว่า', en: 'Follow up with the approver, or move the task to someone with the same or higher authority' }
+/**
+ * What an administrator can do for an overdue task nobody was added to: follow up with the approver, and — when the
+ * approver is away — propose on the authority changes page an acting appointment or a new holder of the approver's
+ * position, which take the approver's open tasks once approved and in effect. Nothing moves a task by hand.
+ */
+const FOLLOW_UP: Text = {
+  th: 'โปรดติดตามกับผู้อนุมัติ ถ้าผู้อนุมัติไม่อยู่ เสนอตั้งผู้รักษาการแทนหรือเปลี่ยนผู้ดำรงตำแหน่งได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ',
+  en: 'Follow up with the approver. If they are away, propose an acting appointment or a new holder of their position on the Authority changes page',
+}
 
 /** BR-SLA-04 "ถ้าไม่มีช่วงถัดไปให้แจ้ง ORG_ADMIN": why nobody was added, so the administrator knows what to fix */
 function nobodyAdded(d: Data): { title: Text; body: Text } {
   const r = ref(d)
   switch (d.reason) {
     case 'APPROVER_NOT_FOUND':
+      // The step escalates once (ADR-048 item 4): a holder appointed now joins later escalations, not this task
       return {
         title: { th: `${r.th} เลยกำหนด แต่ตำแหน่งผู้อนุมัติระดับถัดไปไม่มีผู้ดำรงตำแหน่ง`, en: `${r.en} is overdue, but no one holds the position of the next approval level` },
-        body: { th: 'โปรดแต่งตั้งผู้ดำรงตำแหน่ง หรือย้ายงานให้ผู้มีอำนาจเท่ากันหรือสูงกว่า', en: 'Appoint someone to the position, or move the task to someone with the same or higher authority' },
+        body: {
+          th: 'โปรดแต่งตั้งผู้ดำรงตำแหน่งที่ว่างได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ งานนี้จะไม่ถูกส่งต่ออีก โปรดติดตามกับผู้อนุมัติ',
+          en: 'Appoint someone to the vacant position on the Authority changes page. This task will not be escalated again, so follow up with the approver',
+        },
       }
     case 'DOA_AMBIGUOUS':
       return {
@@ -211,8 +227,17 @@ export const SLA_TEMPLATES: Readonly<Record<string, SlaTemplate>> = {
       return toYou
         ? {
             title: { th: `สิ้นสุดการรักษาการแทนแล้ว งานค้าง ${n} งานกลับไปที่ผู้มอบ`, en: `Your acting period has ended: ${openTasks(n)} went back` },
-            // The delegator is no longer active: what could not go back stays with the delegate until ORG_ADMIN moves it
-            ...(kept > 0 ? { body: { th: `งานค้าง ${kept} งานยังอยู่กับคุณจนกว่าผู้ดูแลระบบจะย้ายให้ผู้อื่น`, en: `${plural(kept, 'open task stays', 'open tasks stay')} with you until your administrator moves ${kept === 1 ? 'it' : 'them'}` } } : {}),
+            // The delegator is no longer active: what could not go back stays with the delegate (who may still decide it,
+            // ADR-048 item 6) until a new holder of the delegator's position takes office through an authority change,
+            // which takes the position's open tasks (BR-DOA-17, NEW-28). Nothing moves a task by hand
+            ...(kept > 0
+              ? {
+                  body: {
+                    th: `งานค้าง ${kept} งานยังอยู่กับคุณ จนกว่าจะมีผู้ดำรงตำแหน่งคนใหม่ที่แต่งตั้งผ่านหน้าเปลี่ยนโครงสร้างอำนาจ`,
+                    en: `${plural(kept, 'open task stays', 'open tasks stay')} with you until a new holder of the position is appointed through the Authority changes page`,
+                  },
+                }
+              : {}),
             href: kept > 0 ? '/tasks' : '/settings/delegation',
           }
         : { title: { th: `สิ้นสุดช่วงรักษาการแล้ว งานค้าง ${n} งานกลับมาที่คุณ`, en: `Your delegation has ended: ${openTasks(n)} came back to you` }, href: '/tasks' }

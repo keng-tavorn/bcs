@@ -67,15 +67,17 @@ defineEvents('ApprovalTask', {
   // BR-SLA-04, FR-NOTI-003 AC2 (S5-08): past escalateAt the approver of the next band joins the step as co-assignee
   // (whoever decides first decides), on any step of the route (NEW-47) — the event keeps the route's own DOA reference
   // (doaVersionId, doaRuleCode, also on the Event columns) and both tasks carry escalatedAt; with no next band, ORG_ADMIN
-  // and the requester are told. Events written before NEW-47 may also give the reason NOT_LAST_STEP (no co-assignee on
-  // a step that had steps after it); none is written any more.
+  // and the requester are told.
   'approval_task.escalated': {
     schema: z.object({
       subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
       subjectId: z.uuid(),
       stepId: z.uuid(),
       outcome: z.enum(['CO_ASSIGNED', 'NO_NEXT_BAND']),
-      reason: z.enum(['NO_HIGHER_BAND', 'APPROVER_NOT_FOUND', 'DOA_AMBIGUOUS']).nullable(),
+      // NOT_LAST_STEP is no longer produced: the first draft of S5-08 escalated only the last step of a route and gave
+      // it for a step with steps after it, until NEW-47 opened every step (ADR-048 item 5). Events of schema version 1
+      // stored before that still carry it, so it stays readable here; nothing writes it any more.
+      reason: z.enum(['NO_HIGHER_BAND', 'APPROVER_NOT_FOUND', 'DOA_AMBIGUOUS', 'NOT_LAST_STEP']).nullable(),
       coAssigneeTaskId: z.uuid().nullable(),
       coAssigneeMemberId: z.uuid().nullable(),
       coAssigneePrincipalMemberId: z.uuid().nullable(),

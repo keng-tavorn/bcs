@@ -3,6 +3,7 @@ import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import { closingDecisionOf, type ClosingDecision, type DecidableTask } from '@/server/queries/tasks'
 
 // A decision completes its step (spec §6.4 "ผู้รับร่วมอีกคนตัดสินแล้ว", BR-SLA-04 "whoever decides first decides",
 // NEW-47). A step can hold more than one open task: the co-assignee the SLA job adds past escalateAt (ADR-048), or the
@@ -78,26 +79,47 @@ export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask)
 }
 
 /** Who decided a step and when; decidedBy is null when the decider's member row is gone */
-export interface StepDecision {
-  readonly decidedAt: Date
-  readonly decidedBy: { readonly displayNameTh: string; readonly displayNameEn: string | null } | null
-}
+export type StepDecision = ClosingDecision
 
 /**
  * The decision that closed a task (FR-DOA-004 AC2, §9.3 "ดำเนินการแล้วโดย … เมื่อ …"): its own, or — for a task
  * cancelled or moved with nothing decided of its own, because the other approver of an escalated step decided first
  * (BR-SLA-04) or a delegate decided the task it moved to — the first decision on its step. null: nothing was decided
  * (the task is still open, waits for an answer, or closed with the route: the request cancelled, the route replaced).
+ * One rule for every answer, with the decision page's (closingDecisionOf, src/server/queries/tasks.ts). Called inside
+ * the command, after the task is locked (lockForDecision) and after the actor was checked: a refusal names the
+ * decider only to whoever may act on the task — a member without it is refused FORBIDDEN first (decide.ts), and a
+ * button or link of someone else's FORBIDDEN or TOKEN_INVALID (line-postback.ts, action-link.ts).
  */
-export async function decisionOfStep(
+export function decisionOfStep(tx: TenantTx, task: DecidableTask): Promise<StepDecision | null> {
+  return closingDecisionOf(tx, task)
+}
+
+/**
+ * Why a decision button or link (ActionToken) cannot be used now, read again after its one conditional update took no
+ * row (BR-TOK-04): TOKEN_USED with who decided and when (§9.3) whenever its task was decided — with this token or
+ * anywhere else: on the web, in LIFF, from the chat, by e-mail — or closed by the decision of another task of its step
+ * (the other approver of an escalated step, the delegate it moved to); TOKEN_INVALID when it was revoked with nothing
+ * decided (the task moved or was cancelled with its route); TOKEN_EXPIRED otherwise (ADR-050 item 4). The same answer
+ * for the LINE button and the e-mail link; both check that the token is the actor's before they ask.
+ */
+export async function tokenRefusalOf(
   tx: TenantTx,
-  task: { readonly stepId: string; readonly status: string; readonly decidedAt: Date | null; readonly decidedByMemberId: string | null },
-): Promise<StepDecision | null> {
-  const byStep = !task.decidedAt && (task.status === 'CANCELLED' || task.status === 'REASSIGNED')
-  const decision = byStep
-    ? await tx.approvalTask.findFirst({ where: { stepId: task.stepId, decidedAt: { not: null } }, orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }], select: { decidedAt: true, decidedByMemberId: true } })
-    : task
-  if (!decision?.decidedAt) return null
-  const by = decision.decidedByMemberId ? await tx.member.findUnique({ where: { id: decision.decidedByMemberId }, select: { displayNameTh: true, displayNameEn: true } }) : null
-  return { decidedAt: decision.decidedAt, decidedBy: by }
+  tokenId: string,
+): Promise<{ readonly code: 'TOKEN_USED'; readonly decision: StepDecision | null } | { readonly code: 'TOKEN_INVALID' | 'TOKEN_EXPIRED' }> {
+  const token = await tx.actionToken.findUniqueOrThrow({ where: { id: tokenId }, select: { taskId: true, usedAt: true, revokedAt: true } })
+  const task = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { id: true, stepId: true, status: true, decision: true, decidedAt: true, decidedByMemberId: true } })
+  const decision = await decisionOfStep(tx, task)
+  // A token used with a decision always finds it; usedAt alone still means the button's work is done
+  if (decision || token.usedAt) return { code: 'TOKEN_USED', decision }
+  return { code: token.revokedAt ? 'TOKEN_INVALID' : 'TOKEN_EXPIRED' }
+}
+
+/** The details of TOKEN_USED, as §14.2 words it ("ดำเนินการแล้วโดย {name} เมื่อ {time}"): the name in Thai and in English */
+export function deciderDetails(decision: StepDecision | null): Record<string, string> {
+  const by = decision?.decidedBy
+  return {
+    ...(by ? { name: by.displayNameTh, nameEn: by.displayNameEn ?? by.displayNameTh } : {}),
+    ...(decision ? { time: decision.decidedAt.toISOString() } : {}),
+  }
 }

@@ -255,7 +255,13 @@ describe('[FR-NOTI-003/AC2] past escalateAt the approver of the next band joins 
     const adminNote = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'task.escalated', subjectId: requestId, recipientMemberId: own.member.admin } })
     expect(adminNote.data).toMatchObject({ role: 'ADMIN', outcome: 'NO_NEXT_BAND', reason: 'APPROVER_NOT_FOUND' })
     const number = (adminNote.data as { number: string }).number
-    expect(renderNotification(adminNote, 'th')).toEqual({ title: `${number} เลยกำหนด แต่ตำแหน่งผู้อนุมัติระดับถัดไปไม่มีผู้ดำรงตำแหน่ง`, body: 'โปรดแต่งตั้งผู้ดำรงตำแหน่ง หรือย้ายงานให้ผู้มีอำนาจเท่ากันหรือสูงกว่า', href: `/requests/${requestId}` })
+    // What the administrator can do in this build: appoint the vacant position through an authority change, and follow
+    // up — nothing moves a task by hand, and the step does not escalate again (ADR-048 item 4)
+    expect(renderNotification(adminNote, 'th')).toEqual({
+      title: `${number} เลยกำหนด แต่ตำแหน่งผู้อนุมัติระดับถัดไปไม่มีผู้ดำรงตำแหน่ง`,
+      body: 'โปรดแต่งตั้งผู้ดำรงตำแหน่งที่ว่างได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ งานนี้จะไม่ถูกส่งต่ออีก โปรดติดตามกับผู้อนุมัติ',
+      href: `/requests/${requestId}`,
+    })
     expect(renderNotification(adminNote, 'en')).toMatchObject({ title: `${number} is overdue, but no one holds the position of the next approval level` })
   })
 

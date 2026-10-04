@@ -7,7 +7,7 @@ import { approvePostbackHandler } from '@/server/line/postback-approve'
 import { registerLinePostbackHandler } from '@/server/line/webhook'
 import { defineCommand, runCommand, type CommandFailure, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decideCommand } from './decide'
-import { lockForDecision } from './step-complete'
+import { deciderDetails, lockForDecision, tokenRefusalOf } from './step-complete'
 
 // Deciding from the approve button of a LINE card (spec §9.3, BR-TOK-02, BR-TOK-04, BR-TOK-05, INV-TOK-01, FR-LINE-002
 // AC2 AC3) — the e-mail link's path (action-link.ts) for a postback. The actor is the member linked to the LINE user of
@@ -22,7 +22,7 @@ import { lockForDecision } from './step-complete'
 //    lock first — the workspace's and LIFF's decisions and the e-mail link's — so a decision anywhere at the same
 //    moment, on this task or on the other task of an escalated step, waits instead of deadlocking and then finds the
 //    task decided or cancelled: still one decision (tested). When the conditional update does not take one row the
-//    answer says why:
+//    answer says why, as the e-mail link's does (tokenRefusalOf, step-complete.ts, ADR-050 item 4):
 //    decided already (TOKEN_USED, with who decided and when — §9.3 "ดำเนินการแล้วโดย … เมื่อ …" — whether with this
 //    button or anywhere else, and also when the other task of the step was decided first: the co-assignee of an
 //    escalated step, BR-SLA-04, or the task moved to a delegate who decided it), revoked (TOKEN_INVALID: moved or
@@ -39,37 +39,12 @@ const refused = (code: 'TOKEN_INVALID' | 'TOKEN_EXPIRED', message: string, taskI
   error: { code, message, ...(taskId ? { details: { taskId } } : {}) },
 })
 
-const DECIDER = { decidedAt: true, decidedBy: { select: { displayNameTh: true, displayNameEn: true } } } as const
-
-/** Why the token could not be used now, read again after the conditional update took no row */
-async function tokenRefusal(tx: TenantTx, tokenId: string): Promise<CommandFailure> {
-  const token = await tx.actionToken.findUniqueOrThrow({ where: { id: tokenId }, select: { taskId: true, usedAt: true, revokedAt: true } })
-  const task = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { stepId: true, status: true, ...DECIDER } })
-  // Its own decision, or the decision of the step by its other task: the co-assignee's task of an escalated step is
-  // cancelled when the first approver decides (BR-SLA-04 "whoever decides first"), and a task moved to a delegate is
-  // decided by them — the button's work is done either way (§9.3)
-  const decided =
-    token.usedAt || task.decidedAt
-      ? task
-      : task.status === 'CANCELLED' || task.status === 'REASSIGNED'
-        ? await tx.approvalTask.findFirst({ where: { stepId: task.stepId, decidedAt: { not: null } }, orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }], select: DECIDER })
-        : null
-  if (decided) {
-    return {
-      ok: false,
-      error: {
-        code: 'TOKEN_USED',
-        message: 'the task was decided already',
-        details: {
-          taskId: token.taskId,
-          ...(decided.decidedBy ? { name: decided.decidedBy.displayNameTh, nameEn: decided.decidedBy.displayNameEn ?? decided.decidedBy.displayNameTh } : {}),
-          ...(decided.decidedAt ? { time: decided.decidedAt.toISOString() } : {}),
-        },
-      },
-    }
-  }
-  if (token.revokedAt) return refused('TOKEN_INVALID', 'the button was revoked: the task moved or was cancelled', token.taskId)
-  return refused('TOKEN_EXPIRED', 'the button has expired', token.taskId)
+/** Why the token could not be used now, read again after the conditional update took no row (tokenRefusalOf) */
+async function tokenRefusal(tx: TenantTx, tokenId: string, taskId: string): Promise<CommandFailure> {
+  const why = await tokenRefusalOf(tx, tokenId)
+  if (why.code === 'TOKEN_USED') return { ok: false, error: { code: 'TOKEN_USED', message: 'the task was decided already', details: { taskId, ...deciderDetails(why.decision) } } }
+  if (why.code === 'TOKEN_INVALID') return refused('TOKEN_INVALID', 'the button was revoked: the task moved or was cancelled', taskId)
+  return refused('TOKEN_EXPIRED', 'the button has expired', taskId)
 }
 
 export const decideByLinePostbackCommand = defineCommand({
@@ -101,7 +76,7 @@ export const decideByLinePostbackCommand = defineCommand({
     }
     // BR-TOK-04: one conditional update uses the token; INV-TOK-01 follows, since a second use finds usedAt set
     const used = await tx.actionToken.updateMany({ where: { id: token.id, usedAt: null, revokedAt: null, expiresAt: { gt: ctx.now } }, data: { usedAt: ctx.now } })
-    if (used.count !== 1) return tokenRefusal(tx, token.id)
+    if (used.count !== 1) return tokenRefusal(tx, token.id, token.taskId)
     return decideCommand.execute(tx, { taskId: token.taskId, decision: 'APPROVE' }, ctx)
   },
 })

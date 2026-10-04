@@ -297,8 +297,7 @@ describe('[FR-LINE-002/AC3] tapping again, after the button expired or from anot
     expect(await decidedEvents(task.id)).toHaveLength(1)
   })
 
-  it('a tap and the e-mail link POSTed at the same moment decide once; when the two deadlock, Postgres breaks it and the loser is run again', async () => {
-    // The e-mail link uses its token before it locks the task, the tap locks the task first: they can deadlock
+  it('a tap and the e-mail link POSTed at the same moment decide once: the one that waited finds the task decided and says by whom', async () => {
     for (let round = 0; round < 3; round++) {
       const { task, lineToken } = await submitted()
       const emailToken = await prisma.actionToken.findFirstOrThrow({ where: { taskId: task.id, channel: 'EMAIL' } })
@@ -308,8 +307,9 @@ describe('[FR-LINE-002/AC3] tapping again, after the button expired or from anot
         decideByActionLink(org.ctxOf('dm_con', LATER, 'EMAIL'), { link: `${emailToken.id}.${emailLinkSecret(emailToken.id)}`, decision: 'APPROVE' }, key()),
       ])
       expect(results.filter((r) => r.ok)).toHaveLength(1)
-      // The tap that lost finds the task decided (TOKEN_USED); the link that lost finds its token revoked with it
-      expect(results.find((r) => !r.ok)).toMatchObject({ ok: false, error: { code: expect.stringMatching(/^TOKEN_(USED|INVALID)$/) } })
+      // Both lock the task before their token: the loser waits, then finds the task decided — the tap and the link
+      // alike answer TOKEN_USED with who decided and when (§9.3, FR-DOA-004 AC2)
+      expect(results.find((r) => !r.ok)).toMatchObject({ ok: false, error: { code: 'TOKEN_USED', details: { name: 'ผู้ใช้ dm_con', time: LATER.toISOString() } } })
       expect(await decidedEvents(task.id)).toHaveLength(1)
       expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'APPROVED' })
     }

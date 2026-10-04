@@ -183,8 +183,13 @@ describe('[FR-DOA-006/AC3] when the period starts and ends the open tasks move b
     const ended = (await windowNotices(id)).filter((n) => n.phase === 'ENDED')
     expect(ended.map((n) => [n.to, n.role, n.movedTasks])).toEqual([[org.member.asst_con, 'DELEGATE', 0]])
     const toDelegate = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'delegation.window', subjectId: id, recipientMemberId: org.member.asst_con, data: { path: ['phase'], equals: 'ENDED' } } })
-    expect(renderNotification(toDelegate, 'th')).toEqual({ title: 'สิ้นสุดการรักษาการแทนแล้ว งานค้าง 0 งานกลับไปที่ผู้มอบ', body: 'งานค้าง 1 งานยังอยู่กับคุณจนกว่าผู้ดูแลระบบจะย้ายให้ผู้อื่น', href: '/tasks' })
-    expect(renderNotification(toDelegate, 'en').body).toBe('1 open task stays with you until your administrator moves it')
+    // No command moves a task by hand: a new holder of the delegator's position takes it (BR-DOA-17, NEW-28)
+    expect(renderNotification(toDelegate, 'th')).toEqual({
+      title: 'สิ้นสุดการรักษาการแทนแล้ว งานค้าง 0 งานกลับไปที่ผู้มอบ',
+      body: 'งานค้าง 1 งานยังอยู่กับคุณ จนกว่าจะมีผู้ดำรงตำแหน่งคนใหม่ที่แต่งตั้งผ่านหน้าเปลี่ยนโครงสร้างอำนาจ',
+      href: '/tasks',
+    })
+    expect(renderNotification(toDelegate, 'en').body).toBe('1 open task stays with you until a new holder of the position is appointed through the Authority changes page')
   })
 
   it('a delegate deactivated during the period gives the tasks back to the active delegator at once, who is told', async () => {

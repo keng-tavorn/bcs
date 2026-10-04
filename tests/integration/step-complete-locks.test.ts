@@ -143,7 +143,7 @@ describe('[FR-DOA-004/AC2] a link of a task its step’s decision cancelled says
     expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ revokedAt: DECIDED, usedAt: null })
     expect(await decideByActionLink(org.ctxOf('vp_ops', LATE, 'EMAIL'), { link: `${token.id}.${emailLinkSecret(token.id)}`, decision: 'APPROVE' }, key())).toEqual({
       ok: false,
-      error: { code: 'TOKEN_USED', message: 'the link was used already', details: { name: 'ผู้ใช้ dm_con', nameEn: expect.any(String), time: DECIDED.toISOString() } },
+      error: { code: 'TOKEN_USED', message: 'the task was decided already', details: { name: 'ผู้ใช้ dm_con', nameEn: expect.any(String), time: DECIDED.toISOString() } },
     })
     // A link revoked with nothing decided on its step still says it was revoked
     const cancelled = await escalated(org, '10410.00')

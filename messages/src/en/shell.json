@@ -35,13 +35,17 @@
     "calendar": "Business calendar",
     "numbering": "Document numbers",
     "requestTypes": "Request types",
+    "line": "LINE settings",
     "doa": "Approval authority (DOA)",
     "orgAuthority": "Authority changes",
     "policyHistory": "Policy history",
     "modules": "Enabled modules",
     "tenants": "Customer organizations",
     "delegation": "Acting approver",
-    "security": "Account security"
+    "security": "Account security",
+    "pin": "Transaction PIN",
+    "lineLink": "LINE account",
+    "notifications": "Notification settings"
   },
   "notifications": {
     "button": "Notifications",

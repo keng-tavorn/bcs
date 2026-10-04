@@ -14,8 +14,8 @@ import { openLineSecret, sealLineSecret } from './secrets'
 // The organization's LINE channel (FR-ADM-006 AC2, §9.2, §6.2 LineChannelConfig): an ORG_ADMIN (admin.channels) saves
 // the provider id, the Messaging API channel id, its channel secret and access token, the LIFF ID with its channel id,
 // and whether LINE is in use. The secret and the token are sealed with AES-256-GCM before they are written and are never
-// shown again in full (the screen gets them masked from getLineChannelSettings) nor written into an event, a log or the
-// command's stored result. A secret field left empty keeps the stored value. The first save makes the channel's random
+// shown again — not a single character: the screen learns from getLineChannelSettings only whether each one is set
+// (ADR-045 item 2) — nor written into an event, a log or the command's stored result. A secret field left empty keeps the stored value. The first save makes the channel's random
 // channelKey — the last part of its webhook URL — which never changes afterwards. Every save records
 // organization.settings_updated (section lineChannel) with the names of the fields that changed.
 
@@ -164,7 +164,7 @@ export function saveLineChannelSettings(ctx: Ctx, input: SaveLineChannelInput, o
   return runCommand(ctx, saveLineChannelCommand, input, options)
 }
 
-/** The settings screen (admin.channels): every field, the channel secret and access token masked. */
+/** The settings screen (admin.channels): every field; of the channel secret and access token only whether each is set. */
 export async function getLineChannelSettings(ctx: Ctx): Promise<Result<LineChannelSettingsDto>> {
   const allowed = await forTenant(ctx.organizationId).$transaction((tx) => authorize(tx, ctx, 'admin.channels'))
   if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)

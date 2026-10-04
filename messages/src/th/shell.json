@@ -35,13 +35,17 @@
     "calendar": "ปฏิทินทำการและวันหยุด",
     "numbering": "รูปแบบเลขเอกสาร",
     "requestTypes": "ประเภทคำขอ",
+    "line": "ตั้งค่า LINE",
     "doa": "อำนาจอนุมัติ (DOA)",
     "orgAuthority": "เปลี่ยนโครงสร้างอำนาจ",
     "policyHistory": "ประวัติการเปลี่ยนนโยบาย",
     "modules": "โมดูลที่เปิดใช้",
     "tenants": "องค์กรลูกค้า",
     "delegation": "รักษาการ",
-    "security": "ความปลอดภัยของบัญชี"
+    "security": "ความปลอดภัยของบัญชี",
+    "pin": "PIN ยืนยันธุรกรรม",
+    "lineLink": "บัญชี LINE",
+    "notifications": "ตั้งค่าการแจ้งเตือน"
   },
   "notifications": {
     "button": "แจ้งเตือน",

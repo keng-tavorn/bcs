@@ -9,7 +9,9 @@ import type { StoredRole } from '@/server/authz/permissions'
 const CORE = ['CORE'] as const
 const keys = (p: Principal, modules: readonly ('CORE' | 'PAY')[] = CORE) => visibleMenu(p, modules).map((i) => i.key)
 const member = (...roles: StoredRole[]) => memberPrincipal('m1', roles)
-const EVERY_MEMBER: MenuKey[] = ['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'delegation', 'security']
+// Every member's own settings (§9.1 /settings/*): acting approver, account security, transaction PIN, LINE and notifications
+const OWN_SETTINGS: MenuKey[] = ['delegation', 'security', 'pin', 'lineLink', 'notifications']
+const EVERY_MEMBER: MenuKey[] = ['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', ...OWN_SETTINGS]
 const withExtra = (extra: MenuKey[]) => EVERY_MEMBER.concat(extra)
 
 describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
@@ -24,7 +26,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     ['RECEIVER', ['receiving']],
     ['EXECUTIVE', ['budgets', 'reports', 'kpi']],
     ['AUDITOR', ['budgets', 'reports', 'kpi', 'audit', 'policyHistory']],
-    ['ORG_ADMIN', ['audit', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
+    ['ORG_ADMIN', ['audit', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
     const order = visibleMenu(member(...['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'] as StoredRole[]), CORE).map((i) => i.key)
@@ -33,7 +35,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
 
   it('a department head (DM/VP) sees the budgets and reports of their department', () => {
     const head: Principal = { kind: 'member', memberId: 'm1', roles: new Set(), headOfDepartmentIds: new Set(['d1']), departmentIds: new Set() }
-    expect(keys(head)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'delegation', 'security'])
+    expect(keys(head)).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', ...OWN_SETTINGS])
   })
 
   it('the BCS team (PLATFORM_ADMIN) sees only customer organizations, no business menus', () => {
@@ -45,8 +47,9 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
   })
 
   it('menus of a switched-off module are hidden', () => {
-    expect(keys(member('ORG_ADMIN'), [])).toEqual(['home', 'security'])
-    expect(keys(member('ORG_ADMIN'), ['PAY'])).toEqual(['home', 'security'])
+    // The member's own account settings belong to no module; the LINE channel page belongs to CORE like the other admin pages
+    expect(keys(member('ORG_ADMIN'), [])).toEqual(['home', 'security', 'pin', 'lineLink', 'notifications'])
+    expect(keys(member('ORG_ADMIN'), ['PAY'])).toEqual(['home', 'security', 'pin', 'lineLink', 'notifications'])
   })
 
   it('the screen renders only menus whose pages exist', () => {
@@ -54,12 +57,14 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     // · S3-08 S4-02 to S4-11 S5-12: budgets, suppliers (every member reads basic fields), the pool, POs, receiving, finance,
     // the board (every member sees their own documents), reports, KPI and the audit
     const ready = (...roles: StoredRole[]) => visibleMenu(member(...roles), CORE, true).map((i) => i.key)
-    expect(ready('ORG_ADMIN')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'audit', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'doa', 'orgAuthority', 'modules', 'delegation', 'security'])
-    expect(ready()).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'delegation', 'security'])
-    expect(ready('PROCUREMENT')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'pool', 'pos', 'suppliers', 'board', 'reports', 'kpi', 'delegation', 'security'])
-    expect(ready('RECEIVER')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'receiving', 'suppliers', 'board', 'delegation', 'security'])
-    expect(ready('FINANCE')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'invoices', 'exports', 'budgets', 'board', 'reports', 'kpi', 'delegation', 'security'])
-    expect(ready('EXECUTIVE')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'kpi', 'delegation', 'security'])
-    expect(ready('AUDITOR')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'kpi', 'audit', 'delegation', 'security'])
+    // S5 (wave 4): /admin/line for the ORG_ADMIN, and /settings/pin, /settings/line and /settings/notifications for every member
+    const own = ['delegation', 'security', 'pin', 'lineLink', 'notifications']
+    expect(ready('ORG_ADMIN')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', 'audit', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'modules', ...own])
+    expect(ready()).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'board', ...own])
+    expect(ready('PROCUREMENT')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'pool', 'pos', 'suppliers', 'board', 'reports', 'kpi', ...own])
+    expect(ready('RECEIVER')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'receiving', 'suppliers', 'board', ...own])
+    expect(ready('FINANCE')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'invoices', 'exports', 'budgets', 'board', 'reports', 'kpi', ...own])
+    expect(ready('EXECUTIVE')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'kpi', ...own])
+    expect(ready('AUDITOR')).toEqual(['home', 'newRequest', 'requests', 'tasks', 'suppliers', 'budgets', 'board', 'reports', 'kpi', 'audit', ...own])
   })
 })

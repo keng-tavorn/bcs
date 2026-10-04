@@ -1,0 +1,62 @@
+{
+  "title": "LINE account",
+  "intro": "Link your LINE account to BCS to get approvals and notifications in LINE, approve smaller amounts from the chat and open BCS pages in the LINE app.",
+  "statusTitle": "Status",
+  "status": {
+    "linked": "Your LINE account is linked",
+    "linkedSince": "Linked on {time}",
+    "reachable": "LINE can deliver your tasks and notifications.",
+    "unreachable": "LINE cannot deliver messages to you right now, perhaps because you blocked the organization's LINE account, so e-mail is used instead. Unblock it in the LINE app to get them in LINE again.",
+    "notLinked": "No LINE account is linked",
+    "notLinkedHint": "You get your tasks and notifications by e-mail.",
+    "unavailable": "LINE cannot be linked right now: your organization has not switched LINE on or has not finished setting it up. Ask your organization administrator if you need it.",
+    "unavailableLinked": "LINE accounts cannot be linked right now: your organization has switched LINE off or has not finished setting it up. Your LINE account stays linked. Every task and notification is always in the notification bell on the web. Ask your organization administrator if you have questions.",
+    "adminLink": "Go to the organization's LINE settings"
+  },
+  "link": {
+    "title": "Link your LINE account",
+    "intro": "Get a link code, then open it in the LINE app on your phone. The code works once and only for a few minutes.",
+    "start": "Link LINE account",
+    "starting": "Getting a code…",
+    "howTo": "Open this code in the LINE app in one of two ways",
+    "scan": "On a computer or another device, scan this QR code with the camera of a phone that has LINE",
+    "open": "On a phone that has LINE, open this link",
+    "confirm": "In LINE, check that it is your name, then confirm the link",
+    "qrLabel": "QR code to link your LINE account, works once",
+    "openInLine": "Open the link in LINE",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "copyFailed": "It could not be copied. Select the text and copy it yourself.",
+    "expiresIn": "{time} left (until {at}), once only.",
+    "expired": "This code has expired. Get a new code to link your account.",
+    "renew": "Get a new code",
+    "keepPrivate": "Do not send this QR code or link to anyone: whoever opens it first links their LINE to your account. You get an e-mail every time an account is linked.",
+    "waiting": "This page shows the new status by itself once the link is done in LINE."
+  },
+  "unlink": {
+    "title": "Unlink",
+    "intro": "After unlinking you get your tasks and notifications by e-mail, the approve buttons on LINE cards you already got stop working, and you can link again at any time.",
+    "introUnavailable": "After unlinking you get your tasks and notifications by e-mail, the approve buttons on LINE cards you already got stop working, and you can link again only once your organization has LINE fully working.",
+    "button": "Unlink LINE account",
+    "confirm": "Yes, unlink: the buttons on LINE cards I already got stop working.",
+    "submit": "Unlink now",
+    "submitting": "Unlinking…",
+    "keep": "Keep it linked",
+    "done": "Your LINE account was unlinked. Tasks and notifications go by e-mail now.",
+    "doneNotYou": "If you did not link that account yourself, set a new password at once on the Forgot password page, which signs you out everywhere.",
+    "notYou": "If you did not link this LINE account yourself, unlink it first, then set a new password at once on the Forgot password page, which signs you out everywhere.",
+    "forgotLink": "Go to Forgot password"
+  },
+  "errors": {
+    "CONFIRM": "Tick the box to confirm before unlinking.",
+    "LINE_NOT_ENABLED": "LINE cannot be linked right now: your organization has not switched LINE on or has not finished setting it up. Ask your organization administrator.",
+    "ALREADY_LINKED": "Your account is linked to LINE already. Unlink it first to link another LINE account.",
+    "NOT_LINKED": "Your account is not linked to LINE.",
+    "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this.",
+    "FORBIDDEN": "You cannot do this. Ask your organization administrator.",
+    "BUSY": "Something else of yours is being saved. Try again in a moment.",
+    "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
+    "FAILED": "It did not work. Try again.",
+    "NO_ANSWER": "No answer came back, so it is not certain the account was unlinked. Confirm again (it is not done twice) or reload the page to see the status."
+  }
+}

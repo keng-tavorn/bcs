@@ -3,8 +3,9 @@ import { forTenant } from '@/server/db/tenant'
 
 // The organization's LINE channel (LineChannelConfig, §6.2, FR-ADM-006 AC2). Read-only. The channel secret and the
 // access token stay sealed here: a query cannot open them (src/server/crypto is not a layer queries may use, §4.10). The
-// service that has checked admin.channels passes the function that opens them (src/server/services/line-channel), so
-// the settings screen gets them masked — "••••" and the last 4 characters — and never in full.
+// service that has checked admin.channels passes the function that opens them (src/server/services/line-channel), only
+// to learn whether each still opens: the settings screen gets whether each one is set — never a character of either
+// (ADR-045 item 2: even the last 4 characters of the secret give away 16 of its 128 bits).
 
 /** LineChannelConfig.channelKey: 24 base64url characters (src/server/crypto/random-key.ts) */
 export const LINE_CHANNEL_KEY_PATTERN = /^[A-Za-z0-9_-]{24}$/
@@ -64,22 +65,12 @@ export async function readLineChannelStored(organizationId: string): Promise<Lin
 /** Opens a sealed secret of this organization's channel; null when it cannot be opened (e.g. ENCRYPTION_KEY changed). */
 export type LineSecretOpener = (field: LineSecretField, sealed: string) => string | null
 
-export interface MaskedSecretDto {
+/** What the settings screen learns about a write-only secret: whether it is set, never any character of it */
+export interface LineSecretStatusDto {
   /** A value is stored */
   readonly set: boolean
   /** The stored value opens with the current ENCRYPTION_KEY; when false the admin enters it again */
   readonly readable: boolean
-  /** "••••" and the last 4 characters; null when nothing is stored or it does not open */
-  readonly masked: string | null
-}
-
-const MASK = '••••'
-const VISIBLE_TAIL = 4
-/** Shorter values show no characters at all, so the tail never gives away a large part of the value */
-const MIN_LENGTH_FOR_TAIL = 16
-
-export function maskSecret(plain: string): string {
-  return plain.length >= MIN_LENGTH_FOR_TAIL ? `${MASK}${plain.slice(-VISIBLE_TAIL)}` : MASK
 }
 
 export interface LineChannelSettingsDto {
@@ -89,8 +80,8 @@ export interface LineChannelSettingsDto {
   readonly webhookUrl: string | null
   readonly providerId: string | null
   readonly messagingChannelId: string | null
-  readonly channelSecret: MaskedSecretDto
-  readonly channelAccessToken: MaskedSecretDto
+  readonly channelSecret: LineSecretStatusDto
+  readonly channelAccessToken: LineSecretStatusDto
   readonly liffId: string | null
   readonly liffChannelId: string | null
   readonly richMenuLinkedId: string | null
@@ -101,9 +92,12 @@ export interface LineChannelSettingsDto {
   readonly updatedAt: string | null
 }
 
-const NOT_SET: MaskedSecretDto = { set: false, readable: true, masked: null }
+const NOT_SET: LineSecretStatusDto = { set: false, readable: true }
 
-/** The settings screen's view (FR-ADM-006 AC2): every field, the secrets masked. The caller checked admin.channels. */
+/**
+ * The settings screen's view (FR-ADM-006 AC2): every field but the two secrets, of which only whether each is set and
+ * still opens. The caller checked admin.channels.
+ */
 export async function readLineChannelSettings(organizationId: string, open: LineSecretOpener, appUrl: string = getEnv().APP_URL): Promise<LineChannelSettingsDto> {
   const stored = await readLineChannelStored(organizationId)
   if (!stored) {
@@ -124,18 +118,16 @@ export async function readLineChannelSettings(organizationId: string, open: Line
       updatedAt: null,
     }
   }
-  const masked = (field: LineSecretField): MaskedSecretDto => {
-    const plain = open(field, stored.sealed[field])
-    return plain === null ? { set: true, readable: false, masked: null } : { set: true, readable: true, masked: maskSecret(plain) }
-  }
+  // Opened only to tell whether it still opens; the value itself goes no further than this line
+  const status = (field: LineSecretField): LineSecretStatusDto => ({ set: true, readable: open(field, stored.sealed[field]) !== null })
   return {
     configured: true,
     channelKey: stored.channelKey,
     webhookUrl: lineWebhookUrl(appUrl, stored.channelKey),
     providerId: stored.providerId,
     messagingChannelId: stored.messagingChannelId,
-    channelSecret: masked('channelSecret'),
-    channelAccessToken: masked('channelAccessToken'),
+    channelSecret: status('channelSecret'),
+    channelAccessToken: status('channelAccessToken'),
     liffId: stored.liffId,
     liffChannelId: stored.liffChannelId,
     richMenuLinkedId: stored.richMenuLinkedId,

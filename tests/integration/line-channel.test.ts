@@ -19,8 +19,8 @@ import { createMember, createOrg } from '../support/factory'
 import { TEST_ACCESS_TOKEN, TEST_CHANNEL_SECRET } from '../support/fake-line'
 
 // S5-01 · FR-ADM-006 AC2: an ORG_ADMIN enters the organization's LINE channel; the channel secret and the access token
-// are sealed with AES-256-GCM before they are stored, shown masked afterwards, and never written into an event, the
-// command log or the outbox. Every other role is refused. The demo seed creates the channel from the LINE_* values of
+// are sealed with AES-256-GCM before they are stored, afterwards shown only as set or not set (ADR-045 item 2: no
+// character of either), and never written into an event, the command log or the outbox. Every other role is refused. The demo seed creates the channel from the LINE_* values of
 // .env through the same command.
 
 const NOW = new Date('2026-10-05T03:00:00Z')
@@ -101,12 +101,16 @@ describe('[FR-ADM-006/AC2] an ORG_ADMIN saves the LINE channel; the secret and t
     expect(written).not.toContain(TEST_ACCESS_TOKEN)
   })
 
-  it('shows the secret and the token masked (the last 4 characters) with the webhook URL to give LINE', async () => {
+  it('shows only whether the secret and the token are set — not one character of either (ADR-045 item 2) — with the webhook URL to give LINE', async () => {
     const { admin } = await orgWithAdmin()
-    expect(await getLineChannelSettings(admin)).toMatchObject({ ok: true, data: { configured: false, channelSecret: { set: false }, channelAccessToken: { set: false }, webhookUrl: null } })
+    expect(await getLineChannelSettings(admin)).toEqual({
+      ok: true,
+      data: expect.objectContaining({ configured: false, channelSecret: { set: false, readable: true }, channelAccessToken: { set: false, readable: true }, webhookUrl: null, version: null }),
+    })
     const saved = await saveLineChannelSettings(admin, VALID, key())
     if (!saved.ok) throw new Error('refused')
     const view = await getLineChannelSettings(admin)
+    // toEqual: nothing else about the two values is in the answer (no mask, no tail, no length)
     expect(view).toEqual({
       ok: true,
       data: {
@@ -115,8 +119,8 @@ describe('[FR-ADM-006/AC2] an ORG_ADMIN saves the LINE channel; the secret and t
         webhookUrl: `${getEnv().APP_URL.replace(/\/+$/, '')}/api/webhooks/line/${saved.data.channelKey}`,
         providerId: VALID.providerId,
         messagingChannelId: VALID.messagingChannelId,
-        channelSecret: { set: true, readable: true, masked: `••••${TEST_CHANNEL_SECRET.slice(-4)}` },
-        channelAccessToken: { set: true, readable: true, masked: `••••${TEST_ACCESS_TOKEN.slice(-4)}` },
+        channelSecret: { set: true, readable: true },
+        channelAccessToken: { set: true, readable: true },
         liffId: VALID.liffId,
         liffChannelId: VALID.liffChannelId,
         richMenuLinkedId: null,
@@ -126,8 +130,11 @@ describe('[FR-ADM-006/AC2] an ORG_ADMIN saves the LINE channel; the secret and t
         updatedAt: expect.any(String),
       },
     })
-    expect(JSON.stringify(view)).not.toContain(TEST_CHANNEL_SECRET.slice(0, 28))
-    expect(JSON.stringify(view)).not.toContain(TEST_ACCESS_TOKEN.slice(0, 40))
+    const shown = JSON.stringify(view)
+    expect(shown).not.toContain('•')
+    // The secret's last characters ("cdef") appear nowhere; the token's ("0000") are digits other fields hold anyway
+    expect(shown).not.toContain(TEST_CHANNEL_SECRET.slice(-4))
+    for (const plain of [TEST_CHANNEL_SECRET, TEST_ACCESS_TOKEN]) expect(shown).not.toContain(plain.slice(0, 12))
   })
 
   it('keeps a secret left empty, records only what changed, keeps the channel key, and refuses a save that changes nothing', async () => {
@@ -258,7 +265,10 @@ describe('[FR-ADM-006/AC2] an ORG_ADMIN saves the LINE channel; the secret and t
     await saveLineChannelSettings(b.admin, { ...VALID, channelAccessToken: OTHER_TOKEN }, key())
     const fromA = (await stored(a.orgId))!
     await prisma.lineChannelConfig.update({ where: { organizationId: b.orgId }, data: { channelAccessTokenEnc: fromA.channelAccessTokenEnc } })
-    expect(await getLineChannelSettings(b.admin)).toMatchObject({ ok: true, data: { channelAccessToken: { set: true, readable: false, masked: null }, channelSecret: { readable: true } } })
+    const view = await getLineChannelSettings(b.admin)
+    expect(view).toMatchObject({ ok: true, data: { channelSecret: { set: true, readable: true } } })
+    // The admin is asked to enter it again; still nothing of the value
+    if (view.ok) expect(view.data.channelAccessToken).toEqual({ set: true, readable: false })
   })
 })
 

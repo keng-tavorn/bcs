@@ -1,6 +1,12 @@
 {
   "title": "ตั้งค่า LINE",
   "intro": "เชื่อม BCS กับ LINE Official Account ขององค์กร ค่าทุกช่องคัดลอกได้จาก LINE Developers Console ของ provider เดียวกัน",
+  "state": {
+    "notConfigured": "ยังไม่ได้ตั้งค่า LINE สมาชิกได้รับงานและการแจ้งเตือนทางอีเมลอย่างเดียว",
+    "active": "ใช้ LINE อยู่ สมาชิกที่ผูกบัญชีแล้วได้รับงานและการแจ้งเตือนทาง LINE",
+    "inactive": "ปิดใช้ LINE อยู่ สมาชิกได้รับงานและการแจ้งเตือนทางอีเมลแทน"
+  },
+  "formTitle": "ค่าของ LINE channel",
   "fields": {
     "providerId": "Provider ID",
     "messagingChannelId": "Channel ID ของ Messaging API channel",
@@ -11,23 +17,57 @@
     "active": "ใช้ LINE กับองค์กรนี้",
     "webhookUrl": "Webhook URL"
   },
+  "hints": {
+    "providerId": "LINE Developers Console → Providers → Provider ID",
+    "messagingChannelId": "Messaging API channel → Basic settings → Channel ID (ตัวเลข)",
+    "liffId": "LINE MINI App channel → LIFF ID เช่น 1234567890-AbCdEfGh",
+    "liffChannelId": "LINE MINI App channel → Basic settings → Channel ID (ตัวเลข)",
+    "active": "ปิดไว้: ระบบไม่ส่งข้อความทาง LINE (ส่งอีเมลแทน) และหน้า BCS ในแอป LINE เข้าไม่ได้"
+  },
   "secret": {
-    "saved": "บันทึกแล้ว ({masked})",
-    "notSet": "ยังไม่ได้ใส่",
+    "set": "ตั้งแล้ว",
+    "notSet": "ยังไม่ได้ตั้ง",
     "unreadable": "อ่านค่าที่บันทึกไว้ไม่ได้ ใส่ค่าใหม่แล้วบันทึก",
-    "keep": "เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน ระบบจะใช้ค่าเดิม"
+    "keep": "เว้นว่างไว้ถ้าไม่ต้องการเปลี่ยน ระบบจะใช้ค่าเดิม ค่านี้ถูกเข้ารหัสและจะไม่แสดงอีก",
+    "first": "ต้องใส่ในการบันทึกครั้งแรก ระบบเข้ารหัสค่านี้และจะไม่แสดงอีก",
+    "channelSecretWhere": "Messaging API channel → Basic settings → Channel secret",
+    "channelAccessTokenWhere": "Messaging API channel → Messaging API → Channel access token"
+  },
+  "invalid": {
+    "providerId": "Provider ID ใช้ตัวอักษรอังกฤษ ตัวเลข จุด ขีด หรือขีดล่าง ไม่เกิน 64 ตัว และไม่มีช่องว่าง",
+    "messagingChannelId": "Channel ID เป็นตัวเลขเท่านั้น",
+    "channelSecret": "Channel secret ต้องเป็นตัวอักษร 0–9 และ a–f จำนวน 32 ตัว คัดลอกจาก Basic settings ใหม่อีกครั้ง",
+    "channelAccessToken": "Channel access token ต้องยาว 16 ถึง 2,048 ตัวอักษรและไม่มีช่องว่าง คัดลอกจากแท็บ Messaging API ใหม่อีกครั้ง",
+    "liffId": "LIFF ID มีรูปแบบ Channel ID ตามด้วยขีดและรหัส เช่น 1234567890-AbCdEfGh",
+    "liffChannelId": "Channel ID เป็นตัวเลขเท่านั้น",
+    "other": "ค่าบางช่องไม่ถูกต้อง ตรวจแล้วบันทึกอีกครั้ง"
   },
   "webhookUrlHint": "คัดลอกไปวางที่ LINE Developers Console → Messaging API → Webhook settings แล้วเปิด Use webhook",
-  "save": "บันทึก",
+  "webhookUrlNotYet": "Webhook URL จะแสดงหลังบันทึกค่า LINE ครั้งแรก",
+  "copy": "คัดลอก Webhook URL",
+  "copied": "คัดลอก Webhook URL แล้ว",
+  "copyFailed": "คัดลอกไม่ได้ เลือกข้อความแล้วคัดลอกเอง",
+  "switch": {
+    "on": "เปิด",
+    "off": "ปิด"
+  },
+  "save": "บันทึกค่า LINE",
+  "saving": "กำลังบันทึก…",
   "saved": "บันทึกค่า LINE แล้ว",
+  "conflict": "มีผู้ดูแลคนอื่นบันทึกค่า LINE ระหว่างที่คุณแก้ไข หน้านี้แสดงค่าล่าสุดแล้ว ตรวจแล้วแก้ใหม่ถ้ายังต้องการเปลี่ยน (ค่าลับที่พิมพ์ไว้ยังไม่ได้บันทึก)",
+  "noAnswer": "ไม่ได้รับคำตอบจากระบบ จึงไม่แน่ใจว่าบันทึกแล้วหรือยัง กดบันทึกอีกครั้ง (ระบบไม่บันทึกซ้ำ) หรือโหลดหน้าใหม่เพื่อดูค่าที่บันทึกไว้",
+  "unsaved": "บันทึกการแก้ไขก่อน ปุ่มนี้ใช้ค่าที่บันทึกไว้แล้ว",
   "refused": {
     "REQUIRED": "ต้องใส่ {field} ในการบันทึกครั้งแรก",
     "NO_CHANGE": "ไม่มีค่าที่เปลี่ยนจากเดิม",
     "PROVIDER_IN_USE": "เปลี่ยน Provider ID ไม่ได้ขณะยังมีสมาชิกผูก LINE อยู่ {linked} คน เพราะ LINE ให้ userId คนละชุดในแต่ละ provider ให้สมาชิกยกเลิกผูกก่อนแล้วจึงเปลี่ยน"
   },
   "test": {
+    "title": "ทดสอบการเชื่อมต่อ",
+    "intro": "ตรวจทีละข้อว่า LINE รับค่าที่บันทึกไว้และส่ง webhook ถึง BCS ได้ ใช้เวลาไม่เกิน {seconds} วินาที",
     "button": "ทดสอบการเชื่อมต่อ",
     "running": "กำลังทดสอบ…",
+    "results": "ผลการทดสอบ",
     "passed": "ผ่านทุกข้อ LINE พร้อมใช้งาน",
     "failed": "ยังไม่ผ่าน {count} ข้อ แก้ตามคำแนะนำของแต่ละข้อแล้วทดสอบอีกครั้ง",
     "notConfigured": "บันทึกค่า LINE ก่อนแล้วจึงทดสอบ"
@@ -80,11 +120,33 @@
     "richMenus": {
       "title": "Rich menu ทั้งสองชุด",
       "ok": "LINE มี rich menu ทั้งชุดสำหรับคนที่ยังไม่ผูกบัญชีและชุดสำหรับคนที่ผูกแล้ว",
-      "notCreated": "ยังไม่ได้สร้าง rich menu ให้ทีม BCS รันคำสั่ง pnpm line:richmenu",
+      "notCreated": "ยังไม่ได้สร้าง rich menu กดปุ่ม \"สร้าง rich menu ใหม่ทั้งสองชุด\" ในหน้านี้",
       "needsAccessToken": "ตรวจข้อนี้ได้เมื่อ access token ผ่านแล้ว",
-      "missingAtLine": "LINE ไม่มี rich menu ชุด {missing} แล้ว ให้ทีม BCS รันคำสั่ง pnpm line:richmenu อีกครั้ง",
+      "missingAtLine": "LINE ไม่มี rich menu ชุด {missing} แล้ว กดปุ่ม \"สร้าง rich menu ใหม่ทั้งสองชุด\" ในหน้านี้",
       "unreachable": "ติดต่อ LINE ไม่ได้ตอนนี้ ({cause}) รอสักครู่แล้วทดสอบอีกครั้ง",
       "rejected": "LINE ปฏิเสธคำขอ (HTTP {status}) {detail}"
+    }
+  },
+  "richMenus": {
+    "title": "Rich menu",
+    "intro": "เมนูใต้ห้องแชท LINE มีสองชุด ชุดผูกบัญชีสำหรับคนที่ยังไม่ผูก และชุดใช้งานสำหรับสมาชิกที่ผูกแล้ว ปุ่มนี้สร้างทั้งสองชุดใหม่จากภาพของระบบ แล้วตั้งให้สมาชิกที่ผูกแล้วทุกคน",
+    "stored": "สร้างไว้แล้วทั้งสองชุด",
+    "notStored": "ยังไม่ได้สร้าง",
+    "button": "สร้าง rich menu ใหม่ทั้งสองชุด",
+    "running": "กำลังสร้าง rich menu…",
+    "done": "สร้าง rich menu ใหม่ทั้งสองชุดแล้ว",
+    "relinked": "ตั้งเมนูใหม่ให้สมาชิกที่ผูกบัญชีแล้ว {count} คน",
+    "relinkRefused": "LINE ไม่รับการตั้งเมนูของสมาชิก {count} คน อาจเพราะบล็อกบัญชี LINE ขององค์กรไว้ เมนูจะกลับมาเมื่อเขาเลิกบล็อก",
+    "relinkFailed": "LINE ตั้งเมนูให้สมาชิก {count} คนไม่สำเร็จชั่วคราว ระบบเก็บเมนูเดิมไว้ให้ กดปุ่มนี้อีกครั้งในอีกสักครู่",
+    "defaultNotSet": "LINE ยังไม่ได้ตั้งชุดผูกบัญชีเป็นเมนูเริ่มต้น กดปุ่มนี้อีกครั้งในอีกสักครู่",
+    "noAnswer": "ไม่ได้รับคำตอบจากระบบ จึงไม่แน่ใจว่าสร้าง rich menu แล้วหรือยัง กดปุ่มอีกครั้ง หรือโหลดหน้าใหม่เพื่อดูสถานะ",
+    "errors": {
+      "NOT_CONFIGURED": "บันทึกค่า LINE ก่อนแล้วจึงสร้าง rich menu",
+      "LIFF_REQUIRED": "ใส่ LIFF ID แล้วบันทึกก่อน เพราะปุ่มในเมนูเปิดหน้า BCS ในแอป LINE",
+      "TOKEN_UNREADABLE": "อ่าน access token ที่บันทึกไว้ไม่ได้ ใส่ token ใหม่แล้วบันทึกก่อน",
+      "IMAGES": "ภาพ rich menu ของระบบใช้ไม่ได้ แจ้งทีม BCS",
+      "LINE": "LINE ไม่รับการสร้าง rich menu (HTTP {status}) ทดสอบการเชื่อมต่อด้านบนแล้วแก้ข้อที่ไม่ผ่าน จากนั้นลองอีกครั้ง",
+      "CONFLICT": "มีผู้ดูแลคนอื่นบันทึกค่า LINE ระหว่างสร้างเมนู หน้านี้แสดงค่าล่าสุดแล้ว กดสร้างอีกครั้ง"
     }
   }
 }

@@ -156,9 +156,10 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     // §9.1: Express files under finance, audit exports under /audit, report files under /reports
     href: d.kind === 'AUDIT' ? '/audit' : d.kind === 'REPORT' ? '/reports' : '/finance/exports',
   }),
-  'security.notice': (d) =>
-    d.kind === 'PIN_LOCKED'
-      ? {
+  'security.notice': (d) => {
+    switch (d.kind) {
+      case 'PIN_LOCKED':
+        return {
           // FR-AUTH-005 AC3: five wrong PINs in a row lock the PIN; the owner hears of it at once, by e-mail only (§10.1)
           title: { th: `PIN ยืนยันธุรกรรมของคุณถูกล็อก ${PIN_LOCK_MINUTES} นาที`, en: `Your transaction PIN is locked for ${PIN_LOCK_MINUTES} minutes` },
           body: {
@@ -167,11 +168,30 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
           },
           href: '/settings/pin',
         }
-      : {
+      case 'LINE_LINKED':
+        return {
+          // ADR-049 item 10: every LINE link is told to the account owner at once (e-mail only, §10.1), so a QR or link
+          // someone else used is noticed; the notice says nothing about the LINE account itself. What to do names the
+          // pages as the member finds them: the member's own page is "บัญชี LINE" (/settings/line; "ตั้งค่า LINE" is the
+          // organization's channel, /admin/line), which the notice opens and which links to "ลืมรหัสผ่าน" (/login sends a
+          // signed-in member away, so that link is how they get there). A new password set there ends every session of
+          // the account, this one too (revokeSessionsOnPasswordReset), and a link outlives it: unlink first. There is no
+          // change-password screen yet: a decision for the user
+          title: { th: 'มีการผูกบัญชี LINE กับบัญชี BCS ของคุณ', en: 'A LINE account was linked to your BCS account' },
+          body: {
+            th: 'ถ้าไม่ใช่คุณ ให้ยกเลิกการผูกที่หน้าบัญชี LINE แล้วกดลิงก์ ลืมรหัสผ่าน ในหน้าเดียวกันเพื่อตั้งรหัสผ่านใหม่ทันที ซึ่งจะออกจากระบบทุกอุปกรณ์',
+            en: 'If this was not you, unlink it on your LINE account page, then use the Forgot password link on that page to set a new password at once, which signs you out everywhere',
+          },
+          href: '/settings/line',
+        }
+      default:
+        return {
           title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
           body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },
           href: '/settings/security',
-        },
+        }
+    }
+  },
   // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
   ...SLA_TEMPLATES,
 }

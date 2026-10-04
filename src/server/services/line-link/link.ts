@@ -13,6 +13,7 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { countRateLimited } from '@/server/db/sql/rate-limit'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { OutboxSender } from '@/server/events/outbox'
+import type { NotificationDraft } from '@/server/notifications/create'
 import { checkLineLinkCode, LINE_LINK_CODE_MAX_LENGTH, LINE_LINK_CODE_TTL_MS, signLineLinkCode, type LineLinkCodeCheck } from '@/server/line/link-code'
 import { lineLinkedMessages } from '@/server/line/link-messages'
 import { liffLink } from '@/server/line/webhook/messages'
@@ -42,7 +43,8 @@ import { switchLineRichMenuNow } from './rich-menu'
 //     LINE account (one live link each, AC3; the partial unique indexes of ChannelIdentity hold the same); a code issued
 //     before the member's last unlink no longer links (unlinking ends the codes shown before it); then the code is spent
 //     by inserting its sha256 into ChannelLinkCode (unique: once), and the ChannelIdentity is made with providerKey =
-//     the channel's provider (LINE user ids differ per provider). Event line.linked.
+//     the channel's provider (LINE user ids differ per provider). Event line.linked, and in the same transaction the
+//     security notice to the member's e-mail (security.notice LINE_LINKED, ADR-049 item 10).
 //     Member.lineReachable follows the last follow or unfollow LINE sent for this LINE user (BR-LINE-08), true when it
 //     sent none: it describes this LINE account from now on, not one linked before.
 //  5. After the commit: the LINKED rich menu for this user at once (job line-rich-menu tries again when LINE fails, and
@@ -167,9 +169,26 @@ export const linkLineCommand = defineCommand({
       ok: true,
       result: { identityId, memberId },
       events: [{ type: 'line.linked', aggregateType: 'ChannelIdentity', aggregateId: identityId, data: { memberId } }],
+      // ADR-049 item 10: the account owner hears of every link at once, by e-mail only like the other security notices
+      // (§10.1), so a QR or link someone else used to link their own LINE account is noticed and undone. One per link
+      // (the dedupe key is the link's id); it names nothing of the LINE account — no LINE user id (NFR-SEC-09)
+      notifications: [lineLinkedNotice(memberId, identityId)],
     }
   },
 })
+
+/** The security notice of a new link (security.notice, kind LINE_LINKED, to the member's own account) */
+function lineLinkedNotice(memberId: string, identityId: string): NotificationDraft {
+  return {
+    recipientMemberId: memberId,
+    templateKey: 'security.notice',
+    data: { kind: 'LINE_LINKED' },
+    urgency: 'IMMEDIATE',
+    dedupeKey: `security.notice:line_linked:${identityId}`,
+    subjectType: 'Member',
+    subjectId: memberId,
+  }
+}
 
 // ---------- step 1: the code ----------
 

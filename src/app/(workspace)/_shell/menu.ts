@@ -28,6 +28,7 @@ export type MenuKey =
   | 'calendar'
   | 'numbering'
   | 'requestTypes'
+  | 'line'
   | 'doa'
   | 'orgAuthority'
   | 'policyHistory'
@@ -35,6 +36,9 @@ export type MenuKey =
   | 'tenants'
   | 'delegation'
   | 'security'
+  | 'pin'
+  | 'lineLink'
+  | 'notifications'
 
 export interface MenuItem {
   readonly key: MenuKey
@@ -70,6 +74,8 @@ export const MENU: readonly MenuItem[] = [
   { key: 'calendar', href: '/admin/calendar', group: 'admin', capability: 'admin.calendar', module: 'CORE', ready: true },
   { key: 'numbering', href: '/admin/numbering', group: 'admin', capability: 'admin.numbering', module: 'CORE', ready: true },
   { key: 'requestTypes', href: '/admin/request-types', group: 'admin', capability: 'admin.requestTypes', module: 'CORE', ready: true },
+  // The organization's LINE channel (FR-ADM-006 AC2 AC3; §9.1 lists the channels after the request types)
+  { key: 'line', href: '/admin/line', group: 'admin', capability: 'admin.channels', module: 'CORE', ready: true },
   { key: 'doa', href: '/admin/doa', group: 'admin', capability: 'admin.doa.draft', module: 'CORE', ready: true },
   { key: 'orgAuthority', href: '/admin/org-authority', group: 'admin', capability: 'admin.orgAuthority.propose', module: 'CORE', ready: true },
   { key: 'policyHistory', href: '/admin/policy-history', group: 'admin', capability: 'admin.policyHistory.view', module: 'CORE', ready: false },
@@ -78,6 +84,10 @@ export const MENU: readonly MenuItem[] = [
   // Acting approvers belong to approvals (CORE); every member may name one for themself (delegation.manage OWN)
   { key: 'delegation', href: '/settings/delegation', group: 'account', capability: 'delegation.manage', module: 'CORE', ready: true },
   { key: 'security', href: '/settings/security', group: 'account', capability: 'self.twoFactor', module: null, ready: true },
+  // The member's own settings (§9.1 /settings/*: PIN, LINE, notifications), like the account's security not tied to a module
+  { key: 'pin', href: '/settings/pin', group: 'account', capability: 'self.pin', module: null, ready: true },
+  { key: 'lineLink', href: '/settings/line', group: 'account', capability: 'self.lineLink', module: null, ready: true },
+  { key: 'notifications', href: '/settings/notifications', group: 'account', capability: 'self.notificationPrefs', module: null, ready: true },
 ]
 
 function itemAllowed(principal: Principal, item: MenuItem): boolean {

@@ -192,6 +192,22 @@ export const REQUEST_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'RETURNED', 'APPRO
 export type RequestStatusDto = (typeof REQUEST_STATUSES)[number]
 const isRequestStatus = (value: string | undefined): value is RequestStatusDto => value !== undefined && (REQUEST_STATUSES as readonly string[]).includes(value)
 
+/**
+ * An approver the current step waits for: one open task of the step. An escalated step has two — the first assignee and
+ * the approver of the next band added as co-assignee — and whoever decides first decides the step (BR-SLA-04, NEW-46).
+ */
+export interface WaitingApproverDto {
+  readonly taskId: string
+  readonly assignee: MemberRefDto
+  /** The delegator when a delegate holds the task (BR-DLG-04) */
+  readonly onBehalfOf: MemberRefDto | null
+  readonly role: ApproverRoleDto
+  readonly since: Date
+  readonly waitingMinutes: number | null
+  readonly dueAt: Date | null
+  readonly overdue: boolean
+}
+
 /** Where the request waits now and on whom (FR-INT-008 AC1) */
 export type StageDto =
   | { readonly kind: 'DRAFT'; readonly since: Date }
@@ -208,9 +224,25 @@ export type StageDto =
       readonly overdue: boolean
       readonly stepNo: number
       readonly stepCount: number
+      /**
+       * Everyone who may decide the step now, oldest task first: the approver above, and the co-assignee of an escalated
+       * step. Always set by the queries; a stage made elsewhere without it waits for the approver above alone
+       */
+      readonly approvers?: readonly WaitingApproverDto[]
     }
-  /** The approver asked a question; the task's SLA has stopped until the requester answers (BR-SLA-03) */
-  | { readonly kind: 'ANSWER'; readonly taskId: string; readonly infoRequestId: string | null; readonly question: string | null; readonly askedBy: MemberRefDto | null; readonly since: Date }
+  /**
+   * The approver asked a question; the task's SLA has stopped until the requester answers (BR-SLA-03). `approvers`: the
+   * other approvers of an escalated step, who may still decide it meanwhile (BR-SLA-04; always set by the queries)
+   */
+  | {
+      readonly kind: 'ANSWER'
+      readonly taskId: string
+      readonly infoRequestId: string | null
+      readonly question: string | null
+      readonly askedBy: MemberRefDto | null
+      readonly since: Date
+      readonly approvers?: readonly WaitingApproverDto[]
+    }
   | { readonly kind: 'REQUESTER_EDIT'; readonly since: Date | null }
   | { readonly kind: 'PROCUREMENT'; readonly since: Date | null; readonly waitingMinutes: number | null }
   /** A new-supplier request waits in the procurement queue without a DOA route (OQ-23) */
@@ -255,31 +287,53 @@ interface StageContext {
   readonly pausesByTask: Map<string, SlaPause[]>
 }
 
+const isOpenTask = (status: string): boolean => (OPEN_TASK as readonly string[]).includes(status)
+
+/** One open task as the approver it waits for, with the business time it has waited (FR-INT-008 AC1, BR-SLA-03) */
+function waitingApprover(t: TaskRow, s: StageContext): WaitingApproverDto | null {
+  const assignee = s.members.get(t.assigneeMemberId)
+  if (!assignee) return null
+  return {
+    taskId: t.id,
+    assignee,
+    onBehalfOf: t.principalMemberId ? (s.members.get(t.principalMemberId) ?? null) : null,
+    role: s.roleOf(t.resolvedFrom),
+    since: t.assignedAt,
+    waitingMinutes: businessMinutesWaited(s.calendar, t.assignedAt, s.now, s.pausesByTask.get(t.id) ?? []),
+    dueAt: t.dueAt,
+    overdue: t.dueAt !== null && t.dueAt.getTime() < s.now.getTime(),
+  }
+}
+
 function stageOf(r: StageInput, s: StageContext): StageDto {
   const tasks = r.currentRouteId ? (s.tasksByRoute.get(r.currentRouteId) ?? []) : []
   switch (r.status) {
     case 'DRAFT':
       return { kind: 'DRAFT', since: r.createdAt }
     case 'PENDING_APPROVAL': {
-      const open = tasks.find((t) => (OPEN_TASK as readonly string[]).includes(t.status))
-      const assignee = open ? s.members.get(open.assigneeMemberId) : undefined
-      if (!open || !assignee) return { kind: 'UNKNOWN' }
-      if (open.status === 'INFO_REQUESTED') {
-        const q = s.openQuestionByTask.get(open.id)
-        return { kind: 'ANSWER', taskId: open.id, infoRequestId: q?.id ?? null, question: q?.question ?? null, askedBy: q ? (s.members.get(q.askedById) ?? null) : assignee, since: q?.askedAt ?? open.assignedAt }
+      // Every open task of the current step, oldest first: an escalated step waits for its first assignee and for the
+      // co-assignee alike, and whoever decides first decides (BR-SLA-04, NEW-46). A question one of them asked waits for
+      // the requester's answer first — the page shows the requester the question to answer — while the others may
+      // still decide.
+      const open = tasks.filter((t) => isOpenTask(t.status))
+      const first = open[0]
+      if (!first) return { kind: 'UNKNOWN' }
+      const step = open.filter((t) => t.step.routeId === first.step.routeId && t.step.stepNo === first.step.stepNo)
+      const approvers = step.filter((t) => t.status === 'OPEN').flatMap((t) => waitingApprover(t, s) ?? [])
+      const asking = step.find((t) => t.status === 'INFO_REQUESTED')
+      if (asking) {
+        const q = s.openQuestionByTask.get(asking.id)
+        const askedBy = q ? (s.members.get(q.askedById) ?? null) : (s.members.get(asking.assigneeMemberId) ?? null)
+        return { kind: 'ANSWER', taskId: asking.id, infoRequestId: q?.id ?? null, question: q?.question ?? null, askedBy, since: q?.askedAt ?? asking.assignedAt, approvers }
       }
+      const lead = approvers[0]
+      if (!lead) return { kind: 'UNKNOWN' }
       return {
         kind: 'APPROVER',
-        taskId: open.id,
-        assignee,
-        onBehalfOf: open.principalMemberId ? (s.members.get(open.principalMemberId) ?? null) : null,
-        role: s.roleOf(open.resolvedFrom),
-        since: open.assignedAt,
-        waitingMinutes: businessMinutesWaited(s.calendar, open.assignedAt, s.now, s.pausesByTask.get(open.id) ?? []),
-        dueAt: open.dueAt,
-        overdue: open.dueAt !== null && open.dueAt.getTime() < s.now.getTime(),
-        stepNo: open.step.stepNo,
-        stepCount: s.stepCountByRoute.get(open.step.routeId) ?? open.step.stepNo,
+        ...lead,
+        stepNo: first.step.stepNo,
+        stepCount: s.stepCountByRoute.get(first.step.routeId) ?? first.step.stepNo,
+        approvers,
       }
     }
     case 'RETURNED': {
@@ -491,12 +545,32 @@ export interface InfoRequestDto {
   readonly answer: string | null
   readonly answeredBy: MemberRefDto | null
   readonly answeredAt: Date | null
+  /**
+   * Unanswered, and no answer is needed any more because the task that asked was closed: the other approver of its step
+   * decided first (STEP_DECIDED, BR-SLA-04), or the route ended without it (CLOSED: the request cancelled or sent
+   * again). null while the question still waits, or once answered. Always set by getRequestView
+   */
+  readonly noLongerNeeded?: 'STEP_DECIDED' | 'CLOSED' | null
+}
+
+/** A task still open on a route step: someone who may decide the step now */
+export interface StepTaskDto {
+  readonly taskId: string
+  readonly approver: MemberRefDto | null
+  /** The delegator when a delegate holds the task (BR-DLG-04) */
+  readonly onBehalfOf: MemberRefDto | null
+  readonly role: ApproverRoleDto
+  /** INFO_REQUESTED: this approver waits for the requester's answer (BR-SLA-03) */
+  readonly status: 'OPEN' | 'INFO_REQUESTED'
 }
 
 export interface RouteStepDto {
   readonly stepNo: number
   readonly status: 'WAITING' | 'ACTIVE' | 'DONE' | 'CANCELLED'
-  /** The approver of the step's latest task; null while the step waits for its turn */
+  /**
+   * Who decided the step; while it waits, the first of its open tasks; otherwise (closed with nothing decided) its
+   * latest task. null while the step waits for its turn
+   */
   readonly approver: MemberRefDto | null
   readonly onBehalfOf: MemberRefDto | null
   readonly role: ApproverRoleDto | null
@@ -504,6 +578,18 @@ export interface RouteStepDto {
   readonly taskStatus: string | null
   readonly decision: 'APPROVE' | 'RETURN' | 'REJECT' | null
   readonly decidedAt: Date | null
+  /**
+   * Every task still open on the step, oldest first (`approver` is the first): an escalated step waits for its
+   * co-assignee too, and whoever decides first decides (BR-SLA-04, NEW-46). Empty once the step is decided. Always set
+   * by routeOf; a step made elsewhere without it has `approver` alone.
+   */
+  readonly open?: readonly StepTaskDto[]
+  /**
+   * The step went past its escalation time (BR-SLA-04, approval_task.escalated): CO_ASSIGNED when the approver of the
+   * band above joined it — its decision keeps the route's own DOA reference, with this flag — NO_NEXT_BAND when nobody
+   * could be added (ORG_ADMIN and the requester were told); null otherwise. Always set by routeOf
+   */
+  readonly escalation?: 'CO_ASSIGNED' | 'NO_NEXT_BAND' | null
 }
 
 /** The route the DOA engine chose, and why (FR-DOA-003 AC2, BR-DOA-10) */
@@ -569,6 +655,11 @@ export interface TrackEntryDto {
   readonly waitingMinutes: number | null
   readonly dueAt: Date | null
   readonly overdue: boolean
+  /**
+   * A decision on a step escalated past its time with a co-assignee (BR-SLA-04: the route's own DOA reference with the
+   * escalated flag), whoever of the two decided it. Set by historyOf when the caller names the escalated tasks
+   */
+  readonly escalated?: boolean
 }
 
 export interface RequesterActionsDto {
@@ -735,12 +826,16 @@ type EventRow = {
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null)
 
-/** The documented history of a document as timeline steps (FR-PLT-003 AC3): one step per meaningful Event */
+/**
+ * The documented history of a document as timeline steps (FR-PLT-003 AC3): one step per meaningful Event.
+ * `escalatedTaskIds`: the tasks of steps escalated with a co-assignee (escalatedTaskIdsOf): their decisions carry the flag
+ */
 export async function historyOf(
   db: TenantDb,
   events: readonly EventRow[],
   taskRoleById: Map<string, string>,
   roleOf: (resolvedFrom: string | null | undefined) => ApproverRoleDto,
+  escalatedTaskIds: ReadonlySet<string> = new Set(),
 ): Promise<TrackEntryDto[]> {
   const dataOf = (e: EventRow) => (e.data && typeof e.data === 'object' ? (e.data as Record<string, unknown>) : {})
   const commentIds = events.flatMap((e) => [str(dataOf(e).reasonCommentId)]).filter(present)
@@ -818,6 +913,7 @@ export async function historyOf(
           role: roleOf(taskRoleById.get(e.aggregateId)),
           doa: version && ruleCode ? { versionId: version.id, code: version.code, versionNo: version.versionNo, ruleCode } : null,
           note: reasonId ? (comment.get(reasonId) ?? null) : null,
+          ...(escalatedTaskIds.has(e.aggregateId) ? { escalated: true } : {}),
         })
         break
       }
@@ -847,6 +943,30 @@ export async function historyOf(
     }
   }
   return entries
+}
+
+type EscalationOutcome = NonNullable<RouteStepDto['escalation']>
+const isEscalationOutcome = (v: unknown): v is EscalationOutcome => v === 'CO_ASSIGNED' || v === 'NO_NEXT_BAND'
+
+/** How each escalated step was escalated, by step id, from its approval_task.escalated events (once per step, BR-SLA-04) */
+function escalationsOf(events: ReadonlyArray<{ readonly type: string; readonly data: unknown }>): Map<string, EscalationOutcome> {
+  const byStep = new Map<string, EscalationOutcome>()
+  for (const e of events) {
+    if (e.type !== 'approval_task.escalated' || !e.data || typeof e.data !== 'object') continue
+    const data = e.data as Record<string, unknown>
+    const stepId = str(data.stepId)
+    if (stepId && isEscalationOutcome(data.outcome) && !byStep.has(stepId)) byStep.set(stepId, data.outcome)
+  }
+  return byStep
+}
+
+/**
+ * The tasks whose decision carries the escalated flag (BR-SLA-04): every task of a step the approver of the band above
+ * joined as co-assignee — the first assignee's, the co-assignee's, and a task moved from either
+ */
+export function escalatedTaskIdsOf(events: ReadonlyArray<{ readonly type: string; readonly data: unknown }>, tasks: ReadonlyArray<{ readonly id: string; readonly stepId: string }>): Set<string> {
+  const escalations = escalationsOf(events)
+  return new Set(tasks.filter((t) => escalations.get(t.stepId) === 'CO_ASSIGNED').map((t) => t.id))
 }
 
 /** The events of a document and of every approval task on it, in the order they happened */
@@ -880,7 +1000,12 @@ export async function routeOf(
   const positions = specs.success ? await db.position.findMany({ where: { code: { in: specs.data.flatMap((s) => ('position' in s.approver ? [s.approver.position] : [])) } }, select: { code: true, nameTh: true, nameEn: true } }) : []
   const named = specs.success ? await membersById(db, specs.data.flatMap((s) => ('memberId' in s.approver ? [s.approver.memberId] : []))) : new Map<string, MemberRefDto>()
   const missing = route.steps.flatMap((s) => s.tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId])).filter((id): id is string => Boolean(id) && !members.has(id!))
-  const more = await membersById(db, missing)
+  const taskIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id))
+  const [more, escalatedEvents] = await Promise.all([
+    membersById(db, missing),
+    taskIds.length ? db.event.findMany({ where: { type: 'approval_task.escalated', aggregateType: 'ApprovalTask', aggregateId: { in: taskIds } }, select: { type: true, data: true }, orderBy: { seq: 'asc' } }) : Promise.resolve([]),
+  ])
+  const escalations = escalationsOf(escalatedEvents)
   const who = (id: string | null) => (id ? (members.get(id) ?? more.get(id) ?? null) : null)
   const expectedOf = (stepNo: number): ExpectedApproverDto | null => {
     const spec = specs.success ? specs.data[stepNo - 1] : undefined
@@ -902,7 +1027,11 @@ export async function routeOf(
     band: amountRule ? bandOfRule(amountRule.when) : null,
     createdAt: route.createdAt,
     steps: route.steps.map((s) => {
-      const task = s.tasks.at(-1) ?? null
+      // The task that decided the step names it — not the co-assignee's task its decision cancelled (BR-SLA-04,
+      // NEW-46); while nobody has decided, the open ones; a step closed with nothing decided shows its latest task
+      const decided = s.tasks.find((t) => t.decision !== null)
+      const open = decided ? [] : s.tasks.filter((t) => isOpenTask(t.status))
+      const task = decided ?? open[0] ?? s.tasks.at(-1) ?? null
       return {
         stepNo: s.stepNo,
         status: s.status,
@@ -913,6 +1042,8 @@ export async function routeOf(
         taskStatus: task?.status ?? null,
         decision: task?.decision ?? null,
         decidedAt: task?.decidedAt ?? null,
+        open: open.map((t) => ({ taskId: t.id, approver: who(t.assigneeMemberId), onBehalfOf: who(t.principalMemberId), role: roleOf(t.resolvedFrom), status: t.status as StepTaskDto['status'] })),
+        escalation: escalations.get(s.id) ?? null,
       }
     }),
   }
@@ -941,26 +1072,34 @@ function liveSteps(request: { status: string; requester: MemberRefDto }, stage: 
     ...more,
   })
   const later = (route?.status === 'ACTIVE' ? route.steps : []).filter((s) => s.status === 'WAITING').map((s) => entry(`next-${s.stepNo}`, 'upcoming', 'NEXT_APPROVAL', { stepNo: s.stepNo, expected: s.expected }))
+  // One current entry for every approver who may decide the step now: an escalated step shows its first assignee and
+  // its co-assignee, as its route does (BR-SLA-04, NEW-46)
+  const waiting = (approvers: readonly WaitingApproverDto[], stepNo: number | null, first: string | null) =>
+    approvers.map((a) =>
+      entry(a.taskId === first ? 'waiting' : `waiting-${a.taskId}`, 'current', 'WAIT_APPROVAL', {
+        actor: a.assignee,
+        onBehalfOf: a.onBehalfOf,
+        role: a.role,
+        at: a.since,
+        waitingMinutes: a.waitingMinutes,
+        dueAt: a.dueAt,
+        overdue: a.overdue,
+        stepNo,
+      }),
+    )
+  const stepOfTask = (taskId: string) => route?.steps.find((s) => (s.open ?? []).some((o) => o.taskId === taskId))?.stepNo ?? null
   switch (stage.kind) {
     case 'DRAFT':
       return [entry('draft', 'current', 'DRAFT_OPEN', { actor: request.requester, at: stage.since })]
     case 'APPROVER':
+      return [...waiting(stage.approvers ?? [stage], stage.stepNo, stage.taskId), ...later, entry('procurement', 'upcoming', 'NEXT_PROCUREMENT')]
+    case 'ANSWER':
       return [
-        entry('waiting', 'current', 'WAIT_APPROVAL', {
-          actor: stage.assignee,
-          onBehalfOf: stage.onBehalfOf,
-          role: stage.role,
-          at: stage.since,
-          waitingMinutes: stage.waitingMinutes,
-          dueAt: stage.dueAt,
-          overdue: stage.overdue,
-          stepNo: stage.stepNo,
-        }),
+        entry('answer', 'current', 'WAIT_ANSWER', { actor: request.requester, other: stage.askedBy, at: stage.since, note: requesterQuestion ?? stage.question }),
+        ...waiting(stage.approvers ?? [], stepOfTask(stage.taskId), null),
         ...later,
         entry('procurement', 'upcoming', 'NEXT_PROCUREMENT'),
       ]
-    case 'ANSWER':
-      return [entry('answer', 'current', 'WAIT_ANSWER', { actor: request.requester, other: stage.askedBy, at: stage.since, note: requesterQuestion ?? stage.question }), ...later, entry('procurement', 'upcoming', 'NEXT_PROCUREMENT')]
     case 'REQUESTER_EDIT':
       return [entry('edit', 'current', 'WAIT_REQUESTER_EDIT', { actor: request.requester, at: stage.since })]
     case 'PROCUREMENT':
@@ -996,7 +1135,7 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
   const departments = await departmentsOf(db)
   const roleOf = await approverRoles(db, departments.byCode)
   const [allTasks, allocations, links] = await Promise.all([
-    db.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: request.id } } }, select: { id: true, resolvedFrom: true, reason: true, decision: true, decidedAt: true } }),
+    db.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: request.id } } }, select: { id: true, stepId: true, status: true, resolvedFrom: true, reason: true, decision: true, decidedAt: true } }),
     request.lines.length
       ? db.budgetAllocation.findMany({ where: { sourceType: 'REQUEST_LINE', sourceId: { in: request.lines.map((l) => l.id) } }, select: { budgetLineId: true, reservedSatang: true, committedSatang: true, actualSatang: true } })
       : Promise.resolve([]),
@@ -1009,6 +1148,15 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
   const route = request.currentRouteId ? await routeOf(db, request.currentRouteId, members, roleOf) : null
   const stage = stageOf(request, stages)
 
+  // A question whose task closed unanswered needs no answer any more (its task is cancelled with its step's decision,
+  // BR-SLA-04, or with the route); a question that moved with its task (a delegation) still waits
+  const taskById = new Map(allTasks.map((t) => [t.id, t]))
+  const decidedSteps = new Set(allTasks.filter((t) => t.decision !== null).map((t) => t.stepId))
+  const noLongerNeeded = (i: { taskId: string; answeredAt: Date | null }): InfoRequestDto['noLongerNeeded'] => {
+    const task = taskById.get(i.taskId)
+    if (i.answeredAt || !task || isOpenTask(task.status)) return null
+    return decidedSteps.has(task.stepId) ? 'STEP_DECIDED' : 'CLOSED'
+  }
   const infoRequests: InfoRequestDto[] = request.infoRequests.map((i) => ({
     id: i.id,
     taskId: i.taskId,
@@ -1018,11 +1166,12 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
     answer: i.answer,
     answeredBy: i.answeredById ? (members.get(i.answeredById) ?? null) : null,
     answeredAt: i.answeredAt,
+    noLongerNeeded: noLongerNeeded(i),
   }))
-  const openInfoRequest = stage.kind === 'ANSWER' ? (infoRequests.find((i) => i.id === stage.infoRequestId) ?? infoRequests.filter((i) => !i.answeredAt).at(-1) ?? null) : null
+  const openInfoRequest = stage.kind === 'ANSWER' ? (infoRequests.find((i) => i.id === stage.infoRequestId) ?? infoRequests.filter((i) => !i.answeredAt && !i.noLongerNeeded).at(-1) ?? null) : null
 
   const events = await documentEvents(db, 'Request', request.id, allTasks.map((t) => t.id))
-  const history = await historyOf(db, events, new Map(allTasks.map((t) => [t.id, t.resolvedFrom])), roleOf)
+  const history = await historyOf(db, events, new Map(allTasks.map((t) => [t.id, t.resolvedFrom])), roleOf, escalatedTaskIdsOf(events, allTasks))
 
   const held = allocations.filter((a) => a.budgetLineId === request.budgetLineId)
   const sum = (pick: (a: (typeof held)[number]) => bigint) => held.reduce((total, a) => total + pick(a), 0n)

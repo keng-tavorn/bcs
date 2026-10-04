@@ -3,11 +3,11 @@ import { formatSatang } from '@/core/money/format'
 import { err, ok, type ErrorCode, type Result } from '@/core/result'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
-import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { linkSecretMatches, parseEmailLink } from '@/server/tokens/action-tokens'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decideCommand } from './decide'
+import { decisionOfStep, lockForDecision } from './step-complete'
 
 // Deciding from an e-mail link (spec BR-TOK-03, BR-TOK-04, INV-TOK-01, FR-NOTI-002 AC2). Opening the link only shows
 // the task — a GET changes nothing, because an e-mail scanner may open it. The decision is a POST by the member the
@@ -129,10 +129,10 @@ export const decideByLinkCommand = defineCommand({
       }
     }
     if (!token.allowedActions.includes(input.decision)) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the link cannot make this decision', details: { field: 'decision' } } }
-    // Every deciding path locks the task before its token (the LINE postback and decideTask do too), so an e-mail
-    // link and a chat button pressed together wait for each other instead of deadlocking
-    const [lockedTask] = await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, [token.taskId])
-    if (!lockedTask) return tokenError('TOKEN_INVALID', 'the task is gone')
+    // Every deciding path locks the task with the other open tasks of its step before anything else (lockForDecision,
+    // INV-PLT-03; the LINE postback and decideTask do too), so an e-mail link, a chat button and the workspace pressed
+    // together — on this task or on the other task of an escalated step — wait for each other instead of deadlocking
+    if (!(await lockForDecision(tx, ctx.organizationId, token.taskId))) return tokenError('TOKEN_INVALID', 'the task is gone')
     const route = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { step: { select: { route: { select: { subjectType: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } } })
     const r = route.step.route
     const threshold = r.doaVersion.stepUpThresholdSatang
@@ -145,10 +145,23 @@ export const decideByLinkCommand = defineCommand({
     if (used.count !== 1) {
       const now = await tx.actionToken.findUniqueOrThrow({ where: { id: token.id }, select: { usedAt: true, revokedAt: true, expiresAt: true } })
       const why = unusable(now, ctx.now) ?? 'TOKEN_INVALID'
-      if (why !== 'TOKEN_USED') return tokenError(why, why === 'TOKEN_EXPIRED' ? 'the link has expired' : 'the link was revoked')
-      // §14.2 TOKEN_USED says who decided and when
-      const task = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { decidedAt: true, decidedBy: { select: { displayNameTh: true } } } })
-      return { ok: false, error: { code: 'TOKEN_USED', message: 'the link was used already', details: { ...(task.decidedBy ? { name: task.decidedBy.displayNameTh } : {}), ...(task.decidedAt ? { time: task.decidedAt.toISOString() } : {}) } } }
+      if (why === 'TOKEN_EXPIRED') return tokenError(why, 'the link has expired')
+      // §14.2 TOKEN_USED says who decided and when: this link's decision, or — for a link revoked because its task closed
+      // when its step was decided by another of its tasks (the other approver of an escalated step decided first,
+      // BR-SLA-04, or a delegate decided the task it moved to) — that decision, as the LINE button answers (FR-DOA-004 AC2)
+      const task = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { stepId: true, status: true, decidedAt: true, decidedByMemberId: true } })
+      const closedByItsStep = !task.decidedAt && (task.status === 'CANCELLED' || task.status === 'REASSIGNED')
+      const decided = why === 'TOKEN_USED' || closedByItsStep ? await decisionOfStep(tx, task) : null
+      if (why !== 'TOKEN_USED' && !decided) return tokenError(why, 'the link was revoked')
+      const by = decided?.decidedBy
+      return {
+        ok: false,
+        error: {
+          code: 'TOKEN_USED',
+          message: 'the link was used already',
+          details: { ...(by ? { name: by.displayNameTh, nameEn: by.displayNameEn ?? by.displayNameTh } : {}), ...(decided ? { time: decided.decidedAt.toISOString() } : {}) },
+        },
+      }
     }
     return decideCommand.execute(tx, { taskId: token.taskId, decision: input.decision, ...(input.reason ? { reason: input.reason } : {}) }, ctx)
   },

@@ -2,12 +2,12 @@ import { z } from 'zod'
 import { stepUpNeeded } from '@/core/pin'
 import { err } from '@/core/result'
 import type { Ctx } from '@/server/context'
-import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import { approvePostbackHandler } from '@/server/line/postback-approve'
 import { registerLinePostbackHandler } from '@/server/line/webhook'
 import { defineCommand, runCommand, type CommandFailure, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decideCommand } from './decide'
+import { lockForDecision } from './step-complete'
 
 // Deciding from the approve button of a LINE card (spec §9.3, BR-TOK-02, BR-TOK-04, BR-TOK-05, INV-TOK-01, FR-LINE-002
 // AC2 AC3) — the e-mail link's path (action-link.ts) for a postback. The actor is the member linked to the LINE user of
@@ -17,11 +17,12 @@ import { decideCommand } from './decide'
 //    security.token_misuse although nothing else is written;
 //  - a decision that needs a step-up (the amount the DOA counted at or above the version's stepUpThreshold, and every
 //    policy task) is refused STEP_UP_REQUIRED — the card shows no approve button for it, and the server says no again;
-//  - the task row is locked first, then the token is used by one conditional update. Locking the task first is the order
-//    of the workspace's decisions, so a decision there at the same moment waits instead of deadlocking. The e-mail link's
-//    command (action-link.ts) uses its token before it locks the task, so a tap and a link POST on the same task at the
-//    same moment can deadlock; Postgres breaks it (40P01) and runCommand runs the loser again, which then finds the task
-//    decided: still one decision (tested). When the conditional update does not take one row the answer says why:
+//  - the task is locked first, with the other open tasks of its step in one ascending-id lock (lockForDecision,
+//    step-complete.ts, INV-PLT-03), then the token is used by one conditional update. Every deciding path takes that
+//    lock first — the workspace's and LIFF's decisions and the e-mail link's — so a decision anywhere at the same
+//    moment, on this task or on the other task of an escalated step, waits instead of deadlocking and then finds the
+//    task decided or cancelled: still one decision (tested). When the conditional update does not take one row the
+//    answer says why:
 //    decided already (TOKEN_USED, with who decided and when — §9.3 "ดำเนินการแล้วโดย … เมื่อ …" — whether with this
 //    button or anywhere else, and also when the other task of the step was decided first: the co-assignee of an
 //    escalated step, BR-SLA-04, or the task moved to a delegate who decided it), revoked (TOKEN_INVALID: moved or
@@ -88,8 +89,7 @@ export const decideByLinePostbackCommand = defineCommand({
       }
     }
     if (!token.allowedActions.includes('APPROVE')) return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'the button cannot approve', details: { field: 'action' } } }
-    const [locked] = await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, [token.taskId])
-    if (!locked) return refused('TOKEN_INVALID', 'the task is gone')
+    if (!(await lockForDecision(tx, ctx.organizationId, token.taskId))) return refused('TOKEN_INVALID', 'the task is gone')
     const task = await tx.approvalTask.findUniqueOrThrow({
       where: { id: token.taskId },
       select: { step: { select: { route: { select: { subjectType: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },

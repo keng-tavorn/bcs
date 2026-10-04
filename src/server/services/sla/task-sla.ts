@@ -81,22 +81,29 @@ async function lockedTask(tx: TenantTx, ctx: Ctx, taskId: string): Promise<Loade
   return locked ? loadTask(tx, taskId) : null
 }
 
-/** Steps of the route after the task's own that still wait or run */
-async function laterSteps(tx: TenantTx, task: LoadedTask): Promise<number> {
-  return tx.approvalStep.count({ where: { routeId: task.step.routeId, stepNo: { gt: task.step.stepNo }, status: { in: ['WAITING', 'ACTIVE'] } } })
-}
-
 /** The step was escalated already: the escalated flag stays on its tasks even after one of them moved (BR-DOA-17) */
 async function stepEscalated(tx: TenantTx, stepId: string): Promise<boolean> {
   return (await tx.approvalTask.count({ where: { stepId, escalatedAt: { not: null } } })) > 0
 }
 
-/** The approver of the next band for a task (BR-SLA-04), with the people who decide the step now left out */
+const membersOf = (tasks: ReadonlyArray<{ assigneeMemberId: string; principalMemberId: string | null; decidedByMemberId?: string | null }>) => [
+  ...new Set(tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId, t.decidedByMemberId]).filter((m): m is string => Boolean(m))),
+]
+
+/**
+ * The approver of the next band for a task (BR-SLA-04), with the people who decide the step now left out, and everyone
+ * with a part in another step of the route (NEW-47, next-band.ts): who decided one of its other steps, or for whom it
+ * was decided, and who holds an open task on one
+ */
 async function nextBandOf(tx: TenantTx, ctx: Ctx, task: LoadedTask, subject: SubjectFacts): Promise<NextBand> {
   const route = task.step.route
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, include: { rules: true } })
   const open = await tx.approvalTask.findMany({ where: { stepId: task.stepId, status: { in: [...OPEN_STATES] } }, select: { assigneeMemberId: true, principalMemberId: true } })
-  const deciders = [...new Set(open.flatMap((t) => [t.assigneeMemberId, t.principalMemberId]).filter((m): m is string => Boolean(m)))]
+  const others = await tx.approvalTask.findMany({
+    where: { step: { routeId: route.id }, stepId: { not: task.stepId }, OR: [{ decidedAt: { not: null } }, { status: { in: [...OPEN_STATES] } }] },
+    select: { assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true },
+  })
+  const deciders = membersOf(open)
   const [org, delegations] = await Promise.all([loadOrgSnapshot(tx), loadDelegations(tx)])
   return nextBandApprover(
     {
@@ -108,6 +115,8 @@ async function nextBandOf(tx: TenantTx, ctx: Ctx, task: LoadedTask, subject: Sub
       at: ctx.now,
       conflictMemberIds: subject.conflictMemberIds,
       currentDeciderIds: deciders,
+      routeMemberIds: membersOf(others),
+      routeCreatedAt: route.createdAt,
     },
     org,
     delegations,
@@ -205,11 +214,11 @@ export const markTaskOverdueCommand = defineCommand({
     const subject = await subjectFacts(tx, task.step.route.subjectType as ApprovalSubject, task.step.route.subjectId)
     // BR-SLA-04: the approver of the next band hears of it, for acknowledgement — unless the step was escalated already,
     // when that band decides it with the assignee (an answered question gave the task a new due time). The notice says
-    // that escalation follows only when it will: on the route's last step (see escalateTaskCommand).
+    // that escalation follows: the band is added as co-assignee at escalateAt on any step of the route (NEW-47).
     const escalated = await stepEscalated(tx, task.stepId)
     const next = escalated ? null : await nextBandOf(tx, ctx, task, subject)
     const ack = next?.kind === 'FOUND' && next.assigneeMemberId !== task.assigneeMemberId ? next.assigneeMemberId : null
-    const willEscalate = ack !== null && (await laterSteps(tx, task)) === 0
+    const willEscalate = ack !== null
     await tx.approvalTask.update({ where: { id: task.id }, data: { overdueAt: ctx.now, escalateAt: times.escalateAt } })
     const dueAt = times.dueAt.toISOString()
     const base = { ...subjectData(subject), taskId: task.id, dueAt }
@@ -277,11 +286,11 @@ export const escalateTaskCommand = defineCommand({
     const route = task.step.route
     const subject = await subjectFacts(tx, route.subjectType as ApprovalSubject, route.subjectId)
 
-    // A co-assignee is added on the route's last step only: until a decision cancels the other tasks of its step
-    // (§6.4 "ผู้รับร่วมอีกคนตัดสินแล้ว"), a second task on an earlier step would still be open after the step moved on,
-    // and the decide flows would let it approve the document past the later steps. An approval-authority choice that
-    // waits for the user; it can go once the decide flows cancel the step's other tasks.
-    const next: NextBand | { kind: 'NONE'; reason: 'NOT_LAST_STEP'; ruleCode: null } = (await laterSteps(tx, task)) > 0 ? { kind: 'NONE', reason: 'NOT_LAST_STEP', ruleCode: null } : await nextBandOf(tx, ctx, task, subject)
+    // A co-assignee joins any step of the route (NEW-47): the first decision on the step cancels its other open tasks
+    // (§6.4 "ผู้รับร่วมอีกคนตัดสินแล้ว", src/server/services/approvals/step-complete.ts), so neither task can act on
+    // the document after the step moved on; and nobody with a part in another step of the route is added, so no one
+    // approves two of its steps (next-band.ts)
+    const next: NextBand = await nextBandOf(tx, ctx, task, subject)
 
     await tx.approvalTask.update({ where: { id: task.id }, data: { escalatedAt: ctx.now, escalateAt: times.escalateAt, version: { increment: 1 } } })
     const told = new Map<string, { role: Role; taskId: string }>()
@@ -346,7 +355,7 @@ export const escalateTaskCommand = defineCommand({
         }
       }
     } else {
-      // No band above (or none can be added here): ORG_ADMIN and the requester are told (BR-SLA-04), with the reason
+      // No band above, or its position is vacant: ORG_ADMIN and the requester are told (BR-SLA-04), with the reason
       tell(subject.ownerMemberId, 'REQUESTER', task.id)
       for (const admin of await orgAdmins(tx)) tell(admin, 'ADMIN', task.id)
     }

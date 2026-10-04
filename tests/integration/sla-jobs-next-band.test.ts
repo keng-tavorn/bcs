@@ -1,21 +1,39 @@
 import { describe, expect, it } from 'vitest'
-import type { DelegationSnapshot, DoaDocumentType } from '@/core/doa'
+import type { ApproverSpec, DelegationSnapshot, DoaDocumentType, DoaVersionSnapshot, OrgSnapshot } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
 import type { BusinessCalendar } from '@/core/sla'
 import { DEFAULT_ESCALATE_AFTER_MINUTES, nextBandApprover, remindMinutesOf, slaPolicyOf, slaTimes } from '@/server/services/sla'
 import { orgSnapshot, versionSnapshots } from '../golden/doa-fixtures'
 
 // The pure parts of the SLA jobs: which approver is "of the next band" (BR-SLA-04 — upwards only, never to lower
-// authority, passing over a band whose approver is tied to the document like BR-DOA-06) on the §7.4 fixtures (members
-// and departments are their codes), and the SLA times (BR-SLA-02, BR-SLA-03) on the §7.8 calendar.
+// authority, passing over a band whose approver is tied to the document like BR-DOA-06, or who has a part in another
+// step of the route, NEW-47) on the §7.4 fixtures (members and departments are their codes), and the SLA times
+// (BR-SLA-02, BR-SLA-03) on the §7.8 calendar.
 
 const v1 = versionSnapshots().find((v) => v.versionNo === 1)!
 const AT = new Date('2026-10-06T03:00:00Z')
+/** When the route was made: the day before */
+const ROUTE_MADE = new Date('2026-10-05T03:00:00Z')
+const VP_OF = (): ApproverSpec => ({ kind: 'POSITION_OF_DEPARTMENT', position: 'VP' })
+const COO = (): ApproverSpec => ({ kind: 'POSITION_OF_ORG', position: 'COO' })
 
-function next(ruleCode: string, options: { documentType?: DoaDocumentType; amount?: string; department?: string | null; conflicts?: string[]; deciders?: string[]; vacate?: string[]; delegations?: DelegationSnapshot[] } = {}) {
+function next(
+  ruleCode: string,
+  options: {
+    documentType?: DoaDocumentType
+    amount?: string
+    department?: string | null
+    conflicts?: string[]
+    deciders?: string[]
+    routeMembers?: string[]
+    vacate?: string[]
+    delegations?: DelegationSnapshot[]
+    version?: DoaVersionSnapshot
+  } = {},
+) {
   return nextBandApprover(
     {
-      version: v1,
+      version: options.version ?? v1,
       ruleCode,
       documentType: options.documentType ?? 'PURCHASE_REQUEST',
       basisAmountSatang: options.amount ? amountToSatang(options.amount) : null,
@@ -23,10 +41,23 @@ function next(ruleCode: string, options: { documentType?: DoaDocumentType; amoun
       at: AT,
       conflictMemberIds: options.conflicts ?? ['req_con'],
       currentDeciderIds: options.deciders ?? [],
+      routeMemberIds: options.routeMembers ?? [],
+      routeCreatedAt: ROUTE_MADE,
     },
     orgSnapshot(options.vacate ?? []),
     options.delegations ?? [],
   )
+}
+
+/** Version 1 with a second step added to some rules (tests/support/two-step-doa.ts does the same in the database) */
+function withSecondSteps(seconds: Readonly<Record<string, ApproverSpec>>): DoaVersionSnapshot {
+  return {
+    ...v1,
+    rules: v1.rules.map((r) => {
+      const approver = seconds[r.code]
+      return approver ? { ...r, steps: [...r.steps, { ...r.steps[r.steps.length - 1]!, approver }] } : r
+    }),
+  }
 }
 
 const delegation = (over: Partial<DelegationSnapshot>): DelegationSnapshot => ({
@@ -78,6 +109,55 @@ describe('[FR-NOTI-003/AC2] the approver of the next band is found upwards only 
     expect(next('PR-01', { deciders: ['dm_con'], delegations: [delegation({ status: 'REVOKED' })] })).toMatchObject({ assigneeMemberId: 'vp_ops', principalMemberId: null })
     // the delegate already decides the step: the holder takes it themselves
     expect(next('PR-01', { deciders: ['dm_con', 'dm_proc'], delegations: [delegation({})] })).toMatchObject({ assigneeMemberId: 'vp_ops', principalMemberId: null })
+  })
+})
+
+describe('[FR-NOTI-003/AC2] nobody approves two steps of one route: a band whose approver has a part in another step is passed over (NEW-47)', () => {
+  it('who decided another step of the route, or holds an open task on one, is passed over upwards like a conflict', () => {
+    // PR-01 is the DM alone here; the route's other steps are given by the people the caller found on them
+    expect(next('PR-01', { deciders: ['dm_con'], routeMembers: ['vp_ops'] })).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-03', assigneeMemberId: 'ceo' })
+    // nobody left above: the caller tells ORG_ADMIN and the requester, as for a missing band
+    expect(next('PR-01', { deciders: ['dm_con'], routeMembers: ['vp_ops', 'ceo'] })).toEqual({ kind: 'NONE', reason: 'NO_HIGHER_BAND', ruleCode: null })
+    // the band holder's delegate with a part in the route adds nobody new: the holder takes it themselves
+    expect(next('PR-01', { deciders: ['dm_con'], routeMembers: ['dm_proc'], delegations: [delegation({})] })).toMatchObject({ assigneeMemberId: 'vp_ops', principalMemberId: null })
+  })
+
+  it('the approver the route’s rule names for a later step is passed over: PR-01 of DM then VP, the band above ends with the VP → the CEO', () => {
+    // PR-02 ends with the VP of the chain (one step in the fixtures): the VP holds step 2 of this route already
+    const twoStep = withSecondSteps({ 'PR-01': VP_OF() })
+    expect(next('PR-01', { version: twoStep, deciders: ['dm_con'] })).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-03', assigneeMemberId: 'ceo', resolvedFrom: 'POSITION:CEO@HQ' })
+    // with PR-02 ending with the COO, step 1's co-assignee is the COO, who has no step of PR-01
+    const coo = withSecondSteps({ 'PR-01': VP_OF(), 'PR-02': COO() })
+    expect(next('PR-01', { version: coo, deciders: ['dm_con'] })).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-02', assigneeMemberId: 'coo', resolvedFrom: 'POSITION:COO@HQ' })
+    // step 2 escalated after the COO decided step 1: the COO is passed over, the CEO joins
+    expect(next('PR-01', { version: coo, deciders: ['vp_ops'], routeMembers: ['coo'] })).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-03', assigneeMemberId: 'ceo' })
+    // the CEO asked for it too (a conflict): nobody is left
+    expect(next('PR-01', { version: coo, deciders: ['vp_ops'], routeMembers: ['coo'], conflicts: ['ceo'] })).toEqual({ kind: 'NONE', reason: 'NO_HIGHER_BAND', ruleCode: null })
+  })
+
+  it('step 2’s approver of when the route was made counts as well as today’s, and so does the delegate who would hold it now', () => {
+    const coo = withSecondSteps({ 'PR-01': VP_OF(), 'PR-02': COO() })
+    // vp_ops was the VP of OPS when the route was made (step 2 goes to the holder of then, decide.ts) and is the COO
+    // today, so the band above PR-01 (PR-02, ending with the COO) would be vp_ops: passed over for the CEO
+    const fixture = orgSnapshot()
+    const CHANGED = new Date('2026-10-06T00:00:00Z')
+    const promoted: OrgSnapshot = {
+      ...fixture,
+      holders: [
+        ...fixture.holders.filter((h) => !['VP@OPS', 'COO@HQ'].includes(`${h.positionCode}@${h.departmentId}`)),
+        { positionCode: 'VP', departmentId: 'OPS', memberId: 'vp_ops', validFrom: new Date('2020-01-01T00:00:00Z'), validTo: CHANGED },
+        { positionCode: 'VP', departmentId: 'OPS', memberId: 'dm_fin', validFrom: CHANGED, validTo: null },
+        { positionCode: 'COO', departmentId: 'HQ', memberId: 'coo', validFrom: new Date('2020-01-01T00:00:00Z'), validTo: CHANGED },
+        { positionCode: 'COO', departmentId: 'HQ', memberId: 'vp_ops', validFrom: CHANGED, validTo: null },
+      ],
+    }
+    const input = { version: coo, ruleCode: 'PR-01', documentType: 'PURCHASE_REQUEST' as const, basisAmountSatang: null, chargedDepartmentId: 'CON', at: AT, conflictMemberIds: ['req_con'], currentDeciderIds: ['dm_con'], routeMemberIds: [] }
+    expect(nextBandApprover({ ...input, routeCreatedAt: ROUTE_MADE }, promoted, [])).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-03', assigneeMemberId: 'ceo' })
+    // a route made after the change: step 2 is dm_fin's, and vp_ops, the COO now, may join step 1
+    expect(nextBandApprover({ ...input, routeCreatedAt: AT }, promoted, [])).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-02', assigneeMemberId: 'vp_ops', resolvedFrom: 'POSITION:COO@HQ' })
+    // The VP of OPS (step 2) is away and the COO holds their work: the COO would decide step 2 for them, so the COO
+    // does not join step 1 → the CEO
+    expect(next('PR-01', { version: coo, deciders: ['dm_con'], delegations: [delegation({ delegatorMemberId: 'vp_ops', delegateMemberId: 'coo' })] })).toMatchObject({ kind: 'FOUND', ruleCode: 'PR-03', assigneeMemberId: 'ceo' })
   })
 })
 

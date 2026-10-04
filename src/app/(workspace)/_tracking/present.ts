@@ -114,6 +114,9 @@ export function timelineItems(
             ? t('system')
             : ''
     const role = entry.what === 'WAIT_ANSWER' && entry.other ? t('timeline.askedBy', { name: memberName(locale, entry.other) }) : roleText(t, locale, entry.role)
+    // Muted lines under the actor: whom a delegate acted for (BR-DLG-04), and the escalated flag of a decision on a step
+    // the band above joined past its time (BR-SLA-04: the route's own DOA reference with the flag)
+    const aside = [entry.onBehalfOf ? t('actingFor', { name: memberName(locale, entry.onBehalfOf) }) : null, entry.escalated ? t('timeline.escalated') : null].filter((s): s is string => Boolean(s))
     const statusLabel =
       entry.state === 'current'
         ? t('timeline.statusLabel.current')
@@ -132,7 +135,7 @@ export function timelineItems(
       ...(entry.state === 'done' && entry.at ? { when: when(locale, entry.at) } : {}),
       ...(entry.state === 'done' && channelText(tl, entry.channel) ? { channel: channelText(tl, entry.channel)! } : {}),
       ...(entry.doa ? { doaRef: doaRefText(tl, entry.doa), ...(options.doaLinks ? { doaHref: doaHref(entry.doa.versionId) } : {}) } : {}),
-      ...(entry.onBehalfOf ? { onBehalfOf: t('actingFor', { name: memberName(locale, entry.onBehalfOf) }) } : {}),
+      ...(aside.length ? { onBehalfOf: aside.join(' · ') } : {}),
       ...(entry.state === 'current' && waitingText(t, entry.waitingMinutes) ? { waiting: waitingText(t, entry.waitingMinutes)! } : {}),
       ...(entry.state === 'current' && entry.dueAt ? { due: dueText(t, locale, entry.dueAt, entry.overdue)!, overdue: entry.overdue } : {}),
       ...(entry.note ? { note: entry.note, ...(noteLabel(t, entry.what) ? { noteLabel: noteLabel(t, entry.what)! } : {}) } : {}),
@@ -143,18 +146,25 @@ export function timelineItems(
   })
 }
 
+/** "name (position)" of an approver a step waits for */
+function approverText(t: ViewT, locale: Locale, a: { readonly assignee: MemberRefDto; readonly onBehalfOf: MemberRefDto | null; readonly role: ApproverRoleDto }): string {
+  const role = roleText(t, locale, a.role)
+  const who = memberName(locale, a.assignee)
+  // A delegate holds the task: the position is the delegator's, so the line says whom they act for (BR-DLG-04)
+  if (a.onBehalfOf) {
+    const principal = memberName(locale, a.onBehalfOf)
+    return `${who} (${role ? t('stage.actingForRole', { name: principal, role }) : t('stage.actingFor', { name: principal })})`
+  }
+  return role ? `${who} (${role})` : who
+}
+
 /** Where the request is now, in one line (lists, home, the header of the request page) */
 export function stageText(t: ViewT, locale: Locale, stage: StageDto, mine: boolean): string {
   switch (stage.kind) {
     case 'APPROVER': {
-      const role = roleText(t, locale, stage.role)
-      const who = memberName(locale, stage.assignee)
-      // A delegate holds the task: the position is the delegator's, so the line says whom they act for (BR-DLG-04)
-      if (stage.onBehalfOf) {
-        const principal = memberName(locale, stage.onBehalfOf)
-        return t('stage.APPROVER', { name: `${who} (${role ? t('stage.actingForRole', { name: principal, role }) : t('stage.actingFor', { name: principal })})` })
-      }
-      return t('stage.APPROVER', { name: role ? `${who} (${role})` : who })
+      // An escalated step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" (BR-SLA-04, NEW-46)
+      const approvers = stage.approvers?.length ? stage.approvers : [stage]
+      return t('stage.APPROVER', { name: new Intl.ListFormat(locale, { type: 'disjunction' }).format(approvers.map((a) => approverText(t, locale, a))) })
     }
     case 'ANSWER':
       return t(mine ? 'stage.ANSWER_MINE' : 'stage.ANSWER')

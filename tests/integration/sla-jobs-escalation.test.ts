@@ -1,26 +1,25 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { ManualClock } from '@/lib/clock'
-import { toJsonSafe } from '@/lib/json'
 import { systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
-import { ruleJson } from '@/server/doa/snapshot'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { approvalTaskSlaHandler, type TimerStep } from '@/server/jobs/approval-task-sla'
 import { renderNotification } from '@/server/notifications/templates'
 import { runCommand } from '@/server/services/_pipeline'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { createDraft, submitRequest } from '@/server/services/requests'
-import { escalateTask, markTaskOverdue } from '@/server/services/sla'
+import { escalateTask, markTaskOverdue, planTaskSla, remindTaskSla } from '@/server/services/sla'
 import { escalateTaskCommand } from '@/server/services/sla/task-sla'
-import { versionSnapshots } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { createTwoStepOrg } from '../support/two-step-doa'
 
 // Escalation past escalateAt (spec BR-SLA-04, FR-NOTI-003 AC2, S5-08) on the §7.4 fixture organization: the approver
-// of the next amount band joins the step as co-assignee, whoever decides first decides, the decision keeps the route's
-// own DOA reference, and with no band above ORG_ADMIN and the requester are told. A task never goes to lower
-// authority. Times: a request submitted Monday 5 Oct 2026 09:00 Thai time is due 17:00 and escalated Tuesday 16:00
-// (8 business hours later, escalationPolicy.escalateAfterBusinessHours).
+// of the next amount band joins the step as co-assignee — on any step of the route (NEW-47) — whoever decides first
+// decides and the step's other open task is cancelled, the decision keeps the route's own DOA reference, and with no
+// band above ORG_ADMIN and the requester are told. A task never goes to lower authority. Times: a request submitted
+// Monday 5 Oct 2026 09:00 Thai time is due 17:00 and escalated Tuesday 16:00 (8 business hours later,
+// escalationPolicy.escalateAfterBusinessHours).
 
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
 const at = (iso: string) => new Date(iso)
@@ -91,6 +90,7 @@ function fakeStep(clock: ManualClock) {
 
 const tasksOfStep = (stepId: string) => prisma.approvalTask.findMany({ where: { stepId }, orderBy: { createdAt: 'asc' } })
 const escalatedEvents = (taskId: string) => prisma.event.findMany({ where: { organizationId: org.organizationId, type: 'approval_task.escalated', aggregateId: taskId } })
+const cancelledOf = (taskId: string) => prisma.event.findMany({ where: { type: 'approval_task.cancelled', aggregateId: taskId }, orderBy: { seq: 'asc' } })
 const toldOf = async (subjectId: string) =>
   (await prisma.notification.findMany({ where: { templateKey: 'task.escalated', subjectId }, orderBy: { dedupeKey: 'asc' } })).map((n) => ({ to: n.recipientMemberId, ...(n.data as { role: string; taskId: string; outcome: string }) }))
 
@@ -154,17 +154,28 @@ describe('[FR-NOTI-003/AC2] past escalateAt the approver of the next band joins 
     expect(decided).toMatchObject({ doaVersionId: task.step.route.doaVersionId, doaRuleCode: 'PR-01' })
     expect(decided.data).toMatchObject({ actorMemberId: org.member.vp_ops, doaRuleCode: 'PR-01' })
     expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'CANCELLED' })
-    expect(await decideTask(org.ctxOf('dm_con', at('2026-10-06T09:40:00Z')), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
+    // …by the decision of its step, before the route closed (NEW-47): one cancellation, why CO_ASSIGNEE_DECIDED
+    expect((await cancelledOf(task.id)).map((e) => e.data)).toEqual([{ subjectId: requestId, why: 'CO_ASSIGNEE_DECIDED' }])
+    expect(await decideTask(org.ctxOf('dm_con', at('2026-10-06T09:40:00Z')), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED', name: 'ผู้ใช้ vp_ops', time: '2026-10-06T09:30:00.000Z' } },
+    })
   })
 
-  it('the first approver may still decide first: the co-assignee task is cancelled with the route', async () => {
+  it('the first approver may still decide first: the co-assignee task is cancelled with its links and refused', async () => {
     const { requestId, task } = await submitted(org, 'req_con', '11000.00', MON_0900)
     const { coAssigneeTaskId } = await escalateTask(org.organizationId, task.id, TUE_1600)
+    const version = (await prisma.approvalTask.findUniqueOrThrow({ where: { id: coAssigneeTaskId! } })).version
     expect(await decideTask(org.ctxOf('dm_con', at('2026-10-06T09:30:00Z')), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'APPROVED' } })
-    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: coAssigneeTaskId! } })).toMatchObject({ status: 'CANCELLED' })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: coAssigneeTaskId! } })).toMatchObject({ status: 'CANCELLED', decision: null, decidedAt: null, version: version + 1 })
+    expect((await cancelledOf(coAssigneeTaskId!)).map((e) => e.data)).toEqual([{ subjectId: requestId, why: 'CO_ASSIGNEE_DECIDED' }])
     // BR-TOK-01: the co-assignee's decision link dies with their task
     expect(await prisma.actionToken.findFirstOrThrow({ where: { taskId: coAssigneeTaskId! } })).toMatchObject({ revokedAt: at('2026-10-06T09:30:00Z') })
-    expect(await decideTask(org.ctxOf('vp_ops', at('2026-10-06T09:40:00Z')), { taskId: coAssigneeTaskId!, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
+    // FR-DOA-004 AC2: refused with who decided the step and when
+    expect(await decideTask(org.ctxOf('vp_ops', at('2026-10-06T09:40:00Z')), { taskId: coAssigneeTaskId!, decision: 'APPROVE' }, key())).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED', name: 'ผู้ใช้ dm_con', time: '2026-10-06T09:30:00.000Z' } },
+    })
     expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ status: 'APPROVED' })
   })
 
@@ -260,48 +271,184 @@ describe('[FR-NOTI-003/AC2] past escalateAt the approver of the next band joins 
   })
 })
 
-describe('[FR-NOTI-003/AC2] a step that is not the last of its route gets no co-assignee', () => {
-  it('a DM step followed by a VP step: ORG_ADMIN and the requester are told instead, and the route is unchanged', async () => {
-    // A version whose PR-01 has two steps (DM then VP): a second task on step 1 would stay open after step 1 moves on
-    const own = await createDoaOrg({ doa: false })
-    await prisma.roleAssignment.create({ data: { organizationId: own.organizationId, memberId: own.member.admin!, role: 'ORG_ADMIN', grantedAt: at('2026-01-01T00:00:00Z') } })
-    const v1 = versionSnapshots().find((v) => v.versionNo === 1)!
-    const version = await prisma.doaVersion.create({
-      data: {
-        organizationId: own.organizationId,
-        code: 'DOA-TWO-STEP',
-        versionNo: 1,
-        status: 'PUBLISHED',
-        effectiveFrom: v1.effectiveFrom,
-        amountBasis: 'GROSS',
-        selfApprovalPolicy: 'ESCALATE_NEXT_BAND',
-        collapseDuplicateApprovers: true,
-        escalationPolicy: { remindPct: 0.5, escalateAfterBusinessHours: 8 },
-        sodPolicy: { approverMayReceive: false, requesterMayReceive: true },
-        publishedAt: v1.effectiveFrom,
-      },
-    })
-    for (const rule of v1.rules) {
-      const json = ruleJson(rule)
-      const steps = rule.code === 'PR-01' ? [...json.steps, { approver: { kind: 'POSITION_OF_DEPARTMENT', position: 'VP' }, slaBusinessMinutes: 480, mode: 'SEQUENTIAL' }] : json.steps
-      await prisma.doaRule.create({ data: { organizationId: own.organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: toJsonSafe(json.when) as object, steps } })
-    }
+describe('[FR-NOTI-003/AC2] a step with steps after it gets its co-assignee too, and its first decision decides it (BR-SLA-04, NEW-47)', () => {
+  // DOA-TWO-STEP (tests/support/two-step-doa.ts): PR-01 is the DM of CON, then the VP of OPS; the band above (PR-02) ends
+  // with the COO, who joins step 1 when it escalates. Step 1 of a request sent Monday 09:00 is due 17:00 and escalated
+  // Tuesday 16:00; a decision on Tuesday at 16:30 starts step 2, due 8 business hours later (Wednesday 15:30) and
+  // reminded half way (Wednesday 11:30), escalated 8 business hours after that (Thursday 14:30).
+  const DECIDED = at('2026-10-06T09:30:00Z')
+  const LATE = at('2026-10-06T09:40:00Z')
+  const stepsOf = (routeId: string) => prisma.approvalStep.findMany({ where: { routeId }, orderBy: { stepNo: 'asc' } })
+  const tasksOfRoute = (routeId: string, stepNo: number) => prisma.approvalTask.findMany({ where: { step: { routeId, stepNo } }, orderBy: { createdAt: 'asc' } })
+
+  it('step 1 of DM then VP: the COO joins it and decides first; the DM is cancelled and refused, and step 2 starts with its own task and timers', async () => {
+    const own = await createTwoStepOrg()
     const { requestId, task } = await submitted(own, 'req_con', '10000.00', MON_0900)
-    expect(await prisma.approvalStep.count({ where: { routeId: task.step.routeId } })).toBe(2)
-    // At dueAt the next band (PR-02, VP of OPS) still hears of it, but is promised no escalation that will not come
+    expect(task).toMatchObject({ assigneeMemberId: own.member.dm_con, resolvedFrom: 'POSITION:DM@CON' })
+    expect((await stepsOf(task.step.routeId)).map((s) => s.status)).toEqual(['ACTIVE', 'WAITING'])
+    // At dueAt the band above hears of it, and that escalation follows: a step with steps after it escalates too
     expect(await markTaskOverdue(own.organizationId, task.id, at('2026-10-05T10:00:00Z'))).toMatchObject({ done: true })
-    const ack = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'task.overdue', subjectId: requestId, recipientMemberId: own.member.vp_ops } })
-    expect(ack.data).toMatchObject({ role: 'ACK', willEscalate: false })
-    expect(renderNotification(ack, 'th').body).toBeNull()
-    expect(await escalateTask(own.organizationId, task.id, TUE_1600)).toMatchObject({ done: true, outcome: 'NO_NEXT_BAND', coAssigneeTaskId: null })
-    expect(await tasksOfStep(task.stepId)).toHaveLength(1)
-    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.escalated', aggregateId: task.id } })).data).toMatchObject({ reason: 'NOT_LAST_STEP' })
-    expect((await toldOf(requestId)).map((t) => t.role).sort()).toEqual(['ADMIN', 'REQUESTER'])
-    // The administrators hear why nobody was added, not that there is no band above
-    const adminNote = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'task.escalated', subjectId: requestId, recipientMemberId: own.member.admin } })
-    const number = (adminNote.data as { number: string }).number
-    expect(renderNotification(adminNote, 'th')).toMatchObject({ title: `${number} เลยกำหนดที่ขั้นที่ยังมีขั้นถัดไป ระบบจึงยังไม่เพิ่มผู้อนุมัติร่วม` })
-    expect(renderNotification(adminNote, 'en')).toMatchObject({ title: `${number} is overdue at a step with more steps after it, so no co-approver was added` })
+    const ack = await prisma.notification.findFirstOrThrow({ where: { templateKey: 'task.overdue', subjectId: requestId, recipientMemberId: own.member.coo } })
+    expect(ack.data).toMatchObject({ role: 'ACK', willEscalate: true })
+    expect(renderNotification(ack, 'th').body).toBe('ถ้ายังไม่มีผู้ตัดสิน งานนี้จะส่งต่อให้ผู้อนุมัติระดับถัดไปร่วมพิจารณา')
+
+    const escalated = await escalateTask(own.organizationId, task.id, TUE_1600)
+    expect(escalated).toMatchObject({ done: true, outcome: 'CO_ASSIGNED' })
+    const [, co] = await tasksOfStep(task.stepId)
+    expect(co).toMatchObject({ id: escalated.coAssigneeTaskId, status: 'OPEN', assigneeMemberId: own.member.coo, resolvedFrom: 'POSITION:COO@HQ', escalatedAt: TUE_1600 })
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.escalated', aggregateId: task.id } })).data).toMatchObject({
+      outcome: 'CO_ASSIGNED',
+      reason: null,
+      coAssigneeMemberId: own.member.coo,
+      doaRuleCode: 'PR-01',
+      nextRuleCode: 'PR-02',
+    })
+    expect((await toldOf(requestId)).map((t) => [t.to, t.role])).toEqual(
+      expect.arrayContaining([
+        [own.member.coo, 'CO_ASSIGNEE'],
+        [own.member.dm_con, 'ASSIGNEE'],
+        [own.member.req_con, 'REQUESTER'],
+      ]),
+    )
+    const version = (await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).version
+
+    // The COO decides first: step 1 is done, and the DM's task is cancelled with its link, its timers stopped
+    expect(await decideTask(own.ctxOf('coo', DECIDED), { taskId: co!.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PENDING_APPROVAL' } })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'CANCELLED', decision: null, decidedAt: null, version: version + 1 })
+    expect((await cancelledOf(task.id)).map((e) => e.data)).toEqual([{ subjectId: requestId, why: 'CO_ASSIGNEE_DECIDED' }])
+    expect((await prisma.actionToken.findMany({ where: { taskId: task.id } })).map((t) => t.revokedAt)).toEqual([DECIDED])
+    // approval-task-sla is cancelled by approval_task.cancelled of the same task (cancelOn), sent through the outbox,
+    // and a run still sleeping finds no timers left (FR-NOTI-003 AC3)
+    expect(await prisma.outbox.count({ where: { organizationId: own.organizationId, eventName: 'bcs/approval_task.cancelled', payload: { path: ['aggregateId'], equals: task.id } } })).toBe(1)
+    expect(await planTaskSla(own.organizationId, task.id, DECIDED)).toMatchObject({ open: false, status: 'CANCELLED' })
+    expect(await remindTaskSla(own.organizationId, task.id, LATE)).toMatchObject({ done: false, reason: 'CLOSED' })
+
+    // A late decision by the DM — approve, return, reject or a question — is refused with who decided the step and when
+    const refused = { ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED', name: 'ผู้ใช้ coo', time: DECIDED.toISOString() } } }
+    expect(await decideTask(own.ctxOf('dm_con', LATE), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject(refused)
+    expect(await decideTask(own.ctxOf('dm_con', LATE), { taskId: task.id, decision: 'RETURN', reason: 'ขอใบเสนอราคาใหม่' }, key())).toMatchObject(refused)
+    expect(await decideTask(own.ctxOf('dm_con', LATE), { taskId: task.id, decision: 'REJECT', reason: 'ไม่จำเป็น' }, key())).toMatchObject(refused)
+    expect(await requestInfo(own.ctxOf('dm_con', LATE), { taskId: task.id, question: 'ขอรายละเอียดเพิ่ม' }, key())).toMatchObject(refused)
+    expect(await prisma.event.count({ where: { type: 'approval_task.decided', aggregateId: task.id } })).toBe(0)
+
+    // Step 2 starts as any step does: the VP's own task, due from the decision, with a reminder and nothing escalated
+    expect((await stepsOf(task.step.routeId)).map((s) => s.status)).toEqual(['DONE', 'ACTIVE'])
+    const step2 = await tasksOfRoute(task.step.routeId, 2)
+    expect(step2).toHaveLength(1)
+    expect(step2[0]).toMatchObject({ status: 'OPEN', assigneeMemberId: own.member.vp_ops, assignedAt: DECIDED, remindAt: at('2026-10-07T04:30:00Z'), dueAt: at('2026-10-07T08:30:00Z'), overdueAt: null, escalatedAt: null })
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.assigned', aggregateId: step2[0]!.id } })).data).toMatchObject({ stepNo: 2, assigneeMemberId: own.member.vp_ops })
+    expect(await planTaskSla(own.organizationId, step2[0]!.id, DECIDED)).toEqual({
+      taskId: step2[0]!.id,
+      status: 'OPEN',
+      open: true,
+      remindAt: '2026-10-07T04:30:00.000Z',
+      dueAt: '2026-10-07T08:30:00.000Z',
+      escalateAt: '2026-10-08T07:30:00.000Z',
+    })
+    // …and it is escalated by its own timer, once per step. The band above ends with the COO, who decided step 1: one
+    // person must not approve two steps of the route (NEW-47), so the COO is passed over upwards and the CEO joins
+    expect(await escalateTask(own.organizationId, step2[0]!.id, at('2026-10-08T07:29:00Z'))).toMatchObject({ done: false, reason: 'NOT_DUE' })
+    expect(await escalateTask(own.organizationId, step2[0]!.id, at('2026-10-08T07:30:00Z'))).toMatchObject({ done: true, outcome: 'CO_ASSIGNED' })
+    expect((await tasksOfRoute(task.step.routeId, 2)).map((t) => t.assigneeMemberId)).toEqual([own.member.vp_ops, own.member.ceo])
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.escalated', aggregateId: step2[0]!.id } })).data).toMatchObject({
+      outcome: 'CO_ASSIGNED',
+      coAssigneeMemberId: own.member.ceo,
+      doaRuleCode: 'PR-01',
+      nextRuleCode: 'PR-03',
+    })
+    expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ status: 'PENDING_APPROVAL' })
+  })
+
+  it('the band above ends with the approver of step 2: the VP is passed over for the CEO at step 1, and step 2 finds nobody left above', async () => {
+    // PR-01 is the DM then the VP; PR-02 keeps its one step, the VP — who holds step 2 of this very route already
+    const own = await createTwoStepOrg({ secondSteps: ['PR-01'] })
+    const { requestId, task } = await submitted(own, 'req_con', '10000.00', MON_0900)
+    expect(await markTaskOverdue(own.organizationId, task.id, at('2026-10-05T10:00:00Z'))).toMatchObject({ done: true })
+    // the acknowledgement goes to whoever would be added: the CEO, not the VP
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.overdue', aggregateId: task.id } })).data).toMatchObject({ nextBandMemberId: own.member.ceo })
+    const escalated = await escalateTask(own.organizationId, task.id, TUE_1600)
+    expect(escalated).toMatchObject({ done: true, outcome: 'CO_ASSIGNED' })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: escalated.coAssigneeTaskId! } })).toMatchObject({ assigneeMemberId: own.member.ceo, resolvedFrom: 'POSITION:CEO@HQ' })
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.escalated', aggregateId: task.id } })).data).toMatchObject({ doaRuleCode: 'PR-01', nextRuleCode: 'PR-03', coAssigneeMemberId: own.member.ceo })
+
+    // The CEO decides step 1; step 2 goes to the VP as the route says
+    expect(await decideTask(own.ctxOf('ceo', DECIDED), { taskId: escalated.coAssigneeTaskId!, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PENDING_APPROVAL' } })
+    const [step2] = await tasksOfRoute(task.step.routeId, 2)
+    expect(step2).toMatchObject({ status: 'OPEN', assigneeMemberId: own.member.vp_ops })
+    // Step 2 past its escalation time: the VP decides it already and the CEO decided step 1 — nobody may be added, so
+    // ORG_ADMIN and the requester are told, as when there is no band above (BR-SLA-04)
+    const plan = await planTaskSla(own.organizationId, step2!.id, DECIDED)
+    expect(await escalateTask(own.organizationId, step2!.id, new Date(plan.escalateAt!))).toMatchObject({ done: true, outcome: 'NO_NEXT_BAND', coAssigneeTaskId: null })
+    expect(await tasksOfRoute(task.step.routeId, 2)).toHaveLength(1)
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.escalated', aggregateId: step2!.id } })).data).toMatchObject({ outcome: 'NO_NEXT_BAND', reason: 'NO_HIGHER_BAND', coAssigneeMemberId: null })
+    const told = (await toldOf(requestId)).filter((t) => t.taskId === step2!.id)
+    expect(told.map((t) => [t.to, t.role]).sort()).toEqual(
+      [
+        [own.member.admin, 'ADMIN'],
+        [own.member.req_con, 'REQUESTER'],
+      ].sort(),
+    )
+  })
+
+  it('the DM decides step 1 first: the COO’s task is cancelled with its link, it cannot approve past step 2, and step 2 goes to the VP', async () => {
+    const own = await createTwoStepOrg()
+    const { requestId, task } = await submitted(own, 'req_con', '11000.00', MON_0900)
+    const { coAssigneeTaskId } = await escalateTask(own.organizationId, task.id, TUE_1600)
+    expect(await decideTask(own.ctxOf('dm_con', DECIDED), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PENDING_APPROVAL' } })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: coAssigneeTaskId! } })).toMatchObject({ status: 'CANCELLED', decidedAt: null })
+    expect((await cancelledOf(coAssigneeTaskId!)).map((e) => e.data)).toEqual([{ subjectId: requestId, why: 'CO_ASSIGNEE_DECIDED' }])
+    expect(await prisma.actionToken.findFirstOrThrow({ where: { taskId: coAssigneeTaskId! } })).toMatchObject({ revokedAt: DECIDED })
+    // The second task of step 1 can no longer act on the document: it would have approved it past the VP's step
+    expect(await decideTask(own.ctxOf('coo', LATE), { taskId: coAssigneeTaskId!, decision: 'APPROVE' }, key())).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED', name: 'ผู้ใช้ dm_con', time: DECIDED.toISOString() } },
+    })
+    const open = await prisma.approvalTask.findMany({ where: { step: { routeId: task.step.routeId }, status: { in: ['OPEN', 'INFO_REQUESTED'] } }, include: { step: true } })
+    expect(open.map((t) => [t.step.stepNo, t.assigneeMemberId])).toEqual([[2, own.member.vp_ops]])
+    expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ status: 'PENDING_APPROVAL' })
+  })
+
+  it('a return by the co-assignee decides step 1 too: the DM’s task is cancelled once, step 2 never starts and the request goes back', async () => {
+    const own = await createTwoStepOrg()
+    const { requestId, task } = await submitted(own, 'req_con', '12000.00', MON_0900)
+    const { coAssigneeTaskId } = await escalateTask(own.organizationId, task.id, TUE_1600)
+    expect(await decideTask(own.ctxOf('coo', DECIDED), { taskId: coAssigneeTaskId!, decision: 'RETURN', reason: 'ขอใบเสนอราคาเพิ่ม' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'RETURNED' } })
+    expect((await cancelledOf(task.id)).map((e) => e.data)).toEqual([{ subjectId: requestId, why: 'CO_ASSIGNEE_DECIDED' }])
+    expect((await stepsOf(task.step.routeId)).map((s) => s.status)).toEqual(['DONE', 'CANCELLED'])
+    expect(await tasksOfRoute(task.step.routeId, 2)).toEqual([])
+    expect(await prisma.approvalRoute.findUniqueOrThrow({ where: { id: task.step.routeId } })).toMatchObject({ status: 'CANCELLED' })
+    expect(await decideTask(own.ctxOf('dm_con', LATE), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { name: 'ผู้ใช้ coo' } } })
+  })
+
+  it('a co-assignee waiting for the requester’s answer is cancelled when the first assignee decides; the answer then finds the task closed', async () => {
+    const own = await createTwoStepOrg()
+    const { requestId, task } = await submitted(own, 'req_con', '13000.00', MON_0900)
+    const { coAssigneeTaskId } = await escalateTask(own.organizationId, task.id, TUE_1600)
+    expect(await requestInfo(own.ctxOf('coo', at('2026-10-06T09:10:00Z')), { taskId: coAssigneeTaskId!, question: 'ขอรายละเอียดผู้ขาย' }, key())).toMatchObject({ ok: true })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: coAssigneeTaskId! } })).toMatchObject({ status: 'INFO_REQUESTED' })
+    expect(await decideTask(own.ctxOf('dm_con', DECIDED), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true })
+    expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: coAssigneeTaskId! } })).toMatchObject({ status: 'CANCELLED' })
+    expect((await cancelledOf(coAssigneeTaskId!)).map((e) => e.data)).toEqual([{ subjectId: requestId, why: 'CO_ASSIGNEE_DECIDED' }])
+    const info = await prisma.infoRequest.findFirstOrThrow({ where: { taskId: coAssigneeTaskId! } })
+    expect(await provideInfo(own.ctxOf('req_con', LATE), { infoRequestId: info.id, answer: 'แนบแล้ว' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED' } } })
+  })
+
+  it('[INV-PLT-03] the two approvers of an escalated step deciding at the same moment decide it once: the other waits, is refused and its task cancelled', async () => {
+    const { requestId, task } = await submitted(org, 'req_con', '12500.00', MON_0900)
+    const { coAssigneeTaskId } = await escalateTask(org.organizationId, task.id, TUE_1600)
+    // Both lock the step's two tasks in id order before anything else (lockForDecision): the second waits for the first
+    // and then finds its task cancelled. No deadlock to retry: with retries turned off, a deadlock would end INTERNAL.
+    const once = () => ({ ...key(), maxRetries: 0 })
+    const [first, second] = await Promise.all([
+      decideTask(org.ctxOf('dm_con', DECIDED), { taskId: task.id, decision: 'APPROVE' }, once()),
+      decideTask(org.ctxOf('vp_ops', DECIDED), { taskId: coAssigneeTaskId!, decision: 'REJECT', reason: 'ไม่จำเป็นต้องซื้อ' }, once()),
+    ])
+    expect([first.ok, second.ok].filter(Boolean)).toHaveLength(1)
+    const [winner, loser] = first.ok ? ['dm_con', second] : ['vp_ops', first]
+    expect(loser).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED', name: `ผู้ใช้ ${winner}`, time: DECIDED.toISOString() } } })
+    expect(await prisma.event.count({ where: { type: 'approval_task.decided', aggregateId: { in: [task.id, coAssigneeTaskId!] } } })).toBe(1)
+    expect((await tasksOfStep(task.stepId)).map((t) => t.status)).toEqual(first.ok ? ['APPROVED', 'CANCELLED'] : ['CANCELLED', 'REJECTED'])
+    expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId } })).toMatchObject({ status: first.ok ? 'APPROVED' : 'REJECTED' })
   })
 })
 

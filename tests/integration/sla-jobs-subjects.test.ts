@@ -78,6 +78,9 @@ describe('[FR-NOTI-003/AC2] a purchase order and a policy change escalate by the
     const later = new Date(new Date(plan.escalateAt!).getTime() + 60_000)
     expect(await decideTask(org.ctxOf('ceo', later), { taskId: escalated.coAssigneeTaskId!, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'APPROVED' } })
     expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'CANCELLED' })
+    // …by the decision of its step (NEW-47), so the COO's late decision is refused with who decided and when
+    expect((await prisma.event.findFirstOrThrow({ where: { type: 'approval_task.cancelled', aggregateId: task.id } })).data).toEqual({ subjectId: po.id, why: 'CO_ASSIGNEE_DECIDED' })
+    expect(await decideTask(org.ctxOf('coo', later), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { name: 'ผู้ใช้ ceo', time: later.toISOString() } } })
     expect(await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: po.id } })).toMatchObject({ status: 'APPROVED' })
   })
 
@@ -85,7 +88,8 @@ describe('[FR-NOTI-003/AC2] a purchase order and a policy change escalate by the
     const v2 = FIXTURE.slice(FIXTURE.indexOf('  - code: DOA-DEMO\n    version: 2'))
     const imported = ok(await importDoaDraft(org.ctxOf('admin', NOW), { yaml: `versions:\n${v2.replace('version: 2', 'version: 30')}` }, key()))
     const versionId = imported.versionIds[0]!
-    ok(await submitDoaVersion(org.ctxOf('admin', NOW), { versionId }, key()))
+    // FR-DOA-009 AC3 (S3-09): the drafter ticks the boundary table to send it
+    ok(await submitDoaVersion(org.ctxOf('admin', NOW), { versionId, boundaryTableConfirmed: true }, key()))
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'DOA_VERSION', subjectId: versionId } } } })
     expect(task).toMatchObject({ assigneeMemberId: org.member.ceo })
     const plan = await planTaskSla(org.organizationId, task.id, NOW)

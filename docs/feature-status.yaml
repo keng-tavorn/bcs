@@ -638,11 +638,20 @@ features:
     verifiedBy: null
     notes: "การ์ด Flex postback และ ActionToken ของ LINE ผ่านแล้ว · ปิดพร้อม S5-05 เมื่อ PIN ต่อเข้าทุกการตัดสิน"
   FR-LINE-003:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/e2e/liff-delegation.spec.ts
+      - tests/e2e/liff-gr.spec.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/e2e/liff-shell.spec.ts
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/integration/liff-gr.test.ts
+      - tests/integration/liff-requests.test.ts
+      - tests/integration/liff-tasks.test.ts
+      - tests/unit/liff-image-resize.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "หน้า LIFF ทั้ง 8 หน้าใน §9.4 ทำงานผ่าน LIFF_MOCK พร้อม PIN และกล้อง · งบ JavaScript เริ่มต้นตาม ADR-052 · การทดสอบบนแอป LINE จริงบน iOS และ Android อยู่ใน D-08"
   FR-LINE-004:
     status: in_progress
     step: S5

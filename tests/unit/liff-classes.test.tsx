@@ -277,6 +277,9 @@ function noticeClassNames(): { readonly notices: number; readonly classNames: st
   return { notices, classNames, unreadable }
 }
 
+/** These tests read every LIFF file or walk its imports: 5 s is too short when the whole unit project runs at once */
+const SCAN_TIMEOUT_MS = 60_000
+
 describe('[§9.4] the LIFF components join their classes without tailwind-merge', () => {
   it('no LIFF page or component imports the workspace’s class merger or its button, which brings it', () => {
     const merging = [path.join(SRC, 'ui', 'cn.ts'), path.join(SRC, 'ui', 'form', 'button.tsx')]
@@ -288,7 +291,7 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
         .map((target) => `${rel(file)} → ${rel(target)}`)
     })
     expect(found).toEqual([])
-  })
+  }, SCAN_TIMEOUT_MS)
 
   it('no LIFF page brings tailwind-merge into the browser for its first screen, through its own components or the workspace’s it draws', () => {
     const pages = LIFF_SOURCES.filter((file) => path.basename(file) === 'page.tsx')
@@ -298,7 +301,7 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
       return MERGER.filter((module) => brought.has(module)).map((module) => `${rel(page)}: ${pathTo(brought, module)}`)
     })
     expect(merging).toEqual([])
-  })
+  }, SCAN_TIMEOUT_MS)
 
   it('the walk sees what a page draws — a request’s list of files with its notice, a DOA version’s decision loaded with import() with its tick, the LINE SDK — and finds tailwind-merge where the workspace draws its components', () => {
     const at = (...parts: string[]) => path.join(SRC, ...parts)
@@ -312,7 +315,7 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
     // A page of the workspace draws its components with src/ui/cn.ts: the walk that finds no tailwind-merge in a LIFF page finds it there
     const workspace = browserModulesOf(routeFilesOf(path.join(APP, '(workspace)', 'requests', 'page.tsx')))
     expect(MERGER.filter((module) => !workspace.has(module))).toEqual([])
-  })
+  }, SCAN_TIMEOUT_MS)
 
   it('the workspace components a LIFF page draws join classes that do not conflict: the notice in every tone with every className its callers pass, and the boundary tick', () => {
     const { notices, classNames, unreadable } = noticeClassNames()
@@ -336,7 +339,7 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
     ]
     const problems = screens.flatMap(([name, node]) => conflictsIn(html(node)).map((classes) => `${name}: "${classes}"`))
     expect(problems).toEqual([])
-  })
+  }, SCAN_TIMEOUT_MS)
 
   it('cn joins the classes that are set and leaves out the others, without merging any', () => {
     expect(cn('a', false, null, undefined, '', 'b c')).toBe('a b c')
@@ -415,5 +418,5 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
     const small = classSet(firstClass(html(<CameraIcon className="size-4" />)))
     expect([small.has('size-4'), small.has('size-5')]).toEqual([true, false])
     expect(classSet(firstClass(html(<CameraIcon />))).has('size-5')).toBe(true)
-  })
+  }, SCAN_TIMEOUT_MS)
 })

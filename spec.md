@@ -1652,6 +1652,7 @@ cases:
 
 - FieldDef ชนิด: `text` `textarea` `number` `money` `date` `select` `multiselect` `checkbox` `member` `department` `costCenter` `budgetLine` `supplier` `deliverySite` `lineItems` `attachment`
 - เงื่อนไข: `{ all: [...] }` · `{ any: [...] }` · `{ field, op, value }` โดย op เป็น `eq` `ne` `in` `gt` `gte` `lt` `lte` `empty` `notEmpty` และมีตัวแปรพิเศษ `$amountGross` `$amountNet` `$requestType`
+- ยอดเงินในเงื่อนไข (`$amountGross` `$amountNet` และฟิลด์ชนิด `money`) เขียนเป็นสตริงบาท เช่น `"100000.00"` ตาม BR-MONEY-01 · ตอนนำเข้าปฏิเสธตัวเลข JSON และเงื่อนไขที่ค่าไม่ใช่สตริงบาทไม่เป็นจริง (D-06)
 
 | ID | กฎ |
 | --- | --- |
@@ -3546,6 +3547,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-51** `[go-live]` outbox ส่งเฉพาะ id ของ event ไป Inngest แล้วให้ job อ่านข้อมูลจากฐาน เพราะตอนนี้ payload มี `data` ทั้งก้อน รวมเลขผู้เสียภาษีของผู้ขายบุคคลธรรมดา (เลขบัตรประชาชน) ซึ่งจะไปเก็บที่ Inngest Cloud (PDPA) · ข้อมูล demo เป็นข้อมูลสมมติจึงไม่กระทบ demo · พบระหว่าง D-06
   - เสร็จเมื่อ: เทสต์ที่ payload ของ outbox ไม่มีข้อมูลต้องห้ามตาม NFR-SEC-09 ผ่าน และ job ทุกตัวยังทำงานจากข้อมูลในฐาน
   - แยกงาน: ทำเองได้
+- [ ] **NEW-52** `[go-live]` ตั้งรูปแบบไฟล์ Express ให้องค์กรที่มีอยู่แล้วพร้อม event (`organization.settings_updated`) และให้ `pnpm inputs:check` ตรวจแถว `express.*` ของชีต Settings ด้วยกติกาเดียวกับ seed เพราะตอนนี้รูปแบบมาจาก seed เท่านั้น เมื่อได้ไฟล์ตัวอย่างของลูกค้า (P0-10) องค์กรที่ seed แล้วจะตั้งรูปแบบจริงไม่ได้ถ้าไม่ reset · ใครตั้งได้เป็นเรื่องสิทธิ์ (§2.4 ยังไม่มี capability นี้) · พบระหว่าง D-06 — รอยืนยัน
+  - เสร็จเมื่อ: §2.4 มี capability ที่ผู้ใช้เลือก · เทสต์ที่ผู้มีสิทธิ์ตั้งรูปแบบได้และผู้ไม่มีสิทธิ์ถูกปฏิเสธผ่าน · `pnpm inputs:check` แจ้งแถว `express.*` ที่ผิด
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
 
 ---
 

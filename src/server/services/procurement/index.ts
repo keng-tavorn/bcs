@@ -62,7 +62,8 @@ export const assignSupplierCommand = defineCommand({
     // BR-CONS-02: an urgent request does not wait for the round
     let purchaseOrderIds: readonly string[] = []
     if (input.supplierId) {
-      const urgent = await tx.request.findMany({ where: { id: { in: [...byRequest.keys()] }, urgency: 'URGENT' }, select: { id: true } })
+      // TODO(NEW-50): a request priced with VAT is never drafted until NEW-50 is decided, so it starts no urgent round
+      const urgent = await tx.request.findMany({ where: { id: { in: [...byRequest.keys()] }, urgency: 'URGENT', priceIncludesVat: false }, select: { id: true } })
       if (urgent.length) {
         const run = await consolidateInTx(tx, ctx, { trigger: 'URGENT', requestIds: urgent.map((r) => r.id) })
         purchaseOrderIds = run.purchaseOrderIds

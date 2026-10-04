@@ -131,9 +131,13 @@ describe('[FR-P2P-002/AC1] a group of one supplier, site and kind drafts only it
 describe('[FR-P2P-002/AC1] an urgent request priced with VAT gets no draft at once when its supplier is chosen (BR-CONS-02)', () => {
   it('takes the supplier and drafts nothing; the line waits in the pool, urgent and blocked', async () => {
     const urgent = await approvedRequest({ site: 'SITE-A', urgent: true, includesVat: true, lines: [{ quantity: '1', unitPrice: '107.00' }] })
+    const urgentRuns = () => prisma.consolidationRun.count({ where: { organizationId: org.organizationId, trigger: 'URGENT' } })
+    const runsBefore = await urgentRuns()
     expect(ok(await assignSupplier(proc(), { requestLineIds: urgent.lineIds, supplierId: supplier.S1! }, key()))).toEqual({ assigned: 1, purchaseOrderIds: [] })
     expect(await orderedLines(urgent.lineIds)).toBe(0)
     expect(ok(await listPool(proc())).find((p) => p.requestLineId === urgent.lineIds[0])).toMatchObject({ urgency: 'URGENT', supplier: { code: 'S1' }, draftBlock: 'PRICE_INCLUDES_VAT' })
+    // nothing could be drafted, so no urgent round is recorded either
+    expect(await urgentRuns()).toBe(runsBefore)
   })
 })
 

@@ -82,7 +82,7 @@ function gatedActions(actions: LiffRequestFormActions, ready: () => Promise<Liff
     detach: async (requestId, fileId, key) => ((await go()) ? actions.detach(requestId, fileId, key) : NO_SESSION),
     requestUpload: async (input) => ((await go()) ? actions.requestUpload(input) : { ok: false, reason: 'FAILED' }),
     completeUpload: async (ticket) => ((await go()) ? actions.completeUpload(ticket) : { ok: false, reason: 'FAILED' }),
-    downloadUrl: async (fileId) => ((await go()) ? actions.downloadUrl(fileId) : null),
+    downloadUrl: async (requestId, fileId) => ((await go()) ? actions.downloadUrl(requestId, fileId) : null),
   }
 }
 
@@ -504,7 +504,7 @@ export function LiffRequestForm({
                   onGoTo={goTo}
                   submitError={submitError}
                   onReload={() => window.location.reload()}
-                  files={{ attachments, setAttachments, draftId, actions: gated, ready, saveBlocked: blockedSave }}
+                  files={{ attachments, setAttachments, draftId, requestId, actions: gated, ready, saveBlocked: blockedSave }}
                 />
               )}
             </Suspense>

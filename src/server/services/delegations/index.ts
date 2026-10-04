@@ -16,8 +16,10 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 
 // Delegation set by the delegator (spec §7.6, FR-DOA-006, BR-DLG-01..05): who acts for them, from when until when,
 // optionally for some document types and up to a cap. While it runs, new tasks of the delegator go to the delegate
-// (resolveRoute, BR-DLG-04). Moving open tasks when it starts and ends is a job of S5-07. ORG_ADMIN sets one for someone
-// else only through an ORG_AUTHORITY_CHANGE of kind DELEGATION_ON_BEHALF (S2-16), never here.
+// (resolveRoute, BR-DLG-04); the delegation-window job of S5-07 moves the tasks waiting for the delegator to the delegate
+// when it starts and those still waiting back when it ends or is cancelled (NEW-35, ../sla/delegation-window.ts).
+// ORG_ADMIN sets one for someone else only through an ORG_AUTHORITY_CHANGE of kind DELEGATION_ON_BEHALF (S2-16), never
+// here.
 
 const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION', message: string, details?: Record<string, unknown>) =>
   ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
@@ -93,6 +95,9 @@ export function createDelegation(ctx: Ctx, input: z.input<typeof CreateInput>, o
 
 const RevokeInput = z.strictObject({ delegationId: z.uuid() })
 
+/** [startsAt, endsAt): the period is over at endsAt (§6.4 Delegation ACTIVE → ENDED), whatever the stored status says yet */
+const periodOver = (delegation: { readonly endsAt: Date }, now: Date) => delegation.endsAt.getTime() <= now.getTime()
+
 export const revokeDelegationCommand = defineCommand({
   name: 'delegation.revoke',
   capability: 'delegation.manage',
@@ -104,6 +109,10 @@ export const revokeDelegationCommand = defineCommand({
     const allowed = await authorize(tx, ctx, 'delegation.manage', { ownerMemberIds: [delegation.delegatorMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (delegation.status !== 'SCHEDULED' && delegation.status !== 'ACTIVE') return fail('INVALID_STATE_TRANSITION', 'the delegation is no longer running', { from: delegation.status })
+    // The period decides as well as the stored status: the delegation-window job writes ENDED when it runs at endsAt, so a
+    // delegation whose period is over has ended even while its row still says ACTIVE or SCHEDULED — there is nothing to
+    // cancel, and its tasks come back through the job's end of the period (BR-DLG-04)
+    if (periodOver(delegation, ctx.now)) return fail('INVALID_STATE_TRANSITION', 'the delegation has ended', { from: 'ENDED' })
     await tx.delegation.update({ where: { id: delegation.id }, data: { status: 'REVOKED', revokedAt: ctx.now } })
     return {
       ok: true,

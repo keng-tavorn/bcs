@@ -80,7 +80,7 @@ export default async function LiffReceivingPage({ params }: { params: Promise<{ 
       }}
     />
   )
-  const receipts = <LiffReceipts receipts={receiptViews(po.receipts, locale)} closeShort={po.closeShort.map(varianceView)} locale={locale} open={receiptPhotoUrlAction} />
+  const receipts = <LiffReceipts receipts={receiptViews(po.receipts, locale)} closeShort={po.closeShort.map(varianceView)} locale={locale} open={receiptPhotoUrlAction.bind(null, po.id)} />
   const linesSection = <LiffPoLines lines={lines} headingId="liff-gr-lines" />
 
   // A close-short waiting for its approver, or one that cannot be asked for yet: the same notices as the workspace's page

@@ -1,3 +1,4 @@
+import { expectLinesFitLaptops } from './document-lines'
 import { expect, test } from './fixtures'
 import { actions, budgetRegion, expectPdfLink, expectPoMail, header, poolGroup, poTimeline, requestsRegion, scene, tagOf, type Made, type MadePo, topShot } from './procurement-support'
 import { expectNoBlockingAxe, rowWith, signIn } from './tasks-support'
@@ -32,6 +33,8 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await expect(budgetRegion(page)).toContainText('คำขอต้นทางจองไว้ PO ยังไม่ได้จองเพิ่ม')
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'po-draft-prices')
+  // At laptop widths, where the PO's column is narrow, its lines with the prices paid before still fit it (§9.9)
+  await expectLinesFitLaptops(page, testInfo, lines, 'po-draft-lines')
 
   // AC2: never more than the request has left, said before typing and checked on saving
   const edit = page.getByRole('region', { name: 'แก้ไขร่าง' })

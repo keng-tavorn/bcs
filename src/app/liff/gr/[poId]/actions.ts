@@ -1,5 +1,6 @@
 'use server'
 
+import { isDocumentFile } from '@/server/queries/document-files'
 import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services/files'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/ui/files/file-upload'
 import type { LiffNoSession } from '@/ui/liff/receiving/photo-upload'
@@ -13,10 +14,10 @@ import { liffPage } from '../../_lib/session'
 // the same code as the workspace's receiving page, on channel LIFF: the receipt and its preview through
 // src/app/(workspace)/receiving/commands.ts (parsed there, then gr.post with BR-SOD-02 and BR-SOD-07 checked by the
 // service every time, BR-AUTH-05), the photos through the file service's presigned upload (FR-PLT-004, NFR-SEC-08), and
-// a photo's address only after the service checks the reader may see its receipt (FR-PLT-004 AC2). A hidden button is
-// never the guard. The idempotency key comes from the page (spec §4.3). Without a member session nothing is done, and
-// the answer says the session ended (the page says so, rather than blaming the connection). Nothing here logs what the
-// person sent.
+// a photo's address only for a photo of this PO's receipts, after the service checks the reader may see its receipt
+// (FR-PLT-004 AC2). A hidden button is never the guard. The idempotency key comes from the page (spec §4.3). Without a
+// member session nothing is done, and the answer says the session ended (the page says so, rather than blaming the
+// connection). Nothing here logs what the person sent.
 
 const NO_SESSION: ReceivingFailure = { ok: false, code: 'UNAUTHENTICATED' }
 const NO_UPLOAD_SESSION: LiffNoSession = { ok: false, reason: 'UNAUTHENTICATED' }
@@ -63,10 +64,18 @@ export async function completeLiffUploadAction(ticket: string): Promise<Complete
   return done.ok ? { ok: true, fileId: done.data.fileId, fileName: done.data.fileName } : { ok: false, reason: uploadRefusal(done.error.details) }
 }
 
-/** A photo of a receipt: an address valid five minutes, for a member the service lets see the receipt; null otherwise */
-export async function receiptPhotoUrlAction(fileId: string): Promise<string | null> {
+/**
+ * A photo of one of the PO's receipts, as the page lists them: an address valid five minutes, for a member the file
+ * service lets see that receipt (its receiver and the approvers of its variances, whoever may view the PO, whoever may
+ * receive on it). Only a file linked to a goods receipt of this PO: through this page a LINE sign-in reaches no other
+ * file of the organization (defence in depth, src/server/queries/document-files.ts). Null otherwise, or without a
+ * session. The page binds the PO's id (receiptPhotoUrlAction.bind(null, poId)); both ids come from the browser, so both
+ * are checked here.
+ */
+export async function receiptPhotoUrlAction(poId: string, fileId: string): Promise<string | null> {
   const ctx = await memberCtx()
-  if (!ctx) return null
+  if (!ctx || typeof poId !== 'string' || typeof fileId !== 'string') return null
+  if (!(await isDocumentFile(ctx, { subjectType: 'PO_RECEIPTS', subjectId: poId }, fileId))) return null
   const url = await getDownloadUrl(ctx, { fileId })
   return url.ok ? url.data.url : null
 }

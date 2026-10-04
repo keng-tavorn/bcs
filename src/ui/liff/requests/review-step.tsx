@@ -95,7 +95,8 @@ function problemText(t: T, p: Problem, fields: readonly FieldDef[], locale: 'th'
 export interface LiffFileActions extends UploadActions {
   readonly attach: (requestId: string, fileId: string, kind: string, idempotencyKey: string) => Promise<FormOutcome>
   readonly detach: (requestId: string, fileId: string, idempotencyKey: string) => Promise<FormOutcome>
-  readonly downloadUrl: (fileId: string) => Promise<string | null>
+  /** A file of the draft (requestId), or the requester's own upload not linked yet (requestId null without a draft) */
+  readonly downloadUrl: (requestId: string | null, fileId: string) => Promise<string | null>
 }
 
 /** The request's files and how to change them */
@@ -104,6 +105,8 @@ export interface LiffReviewFiles {
   readonly setAttachments: (update: (list: readonly Attachment[]) => readonly Attachment[]) => void
   /** The draft's id, saving it first when it does not exist yet (a file is linked to a saved draft) */
   readonly draftId: () => Promise<string | null>
+  /** The draft's id as the form knows it now, without saving: null while nothing has been saved yet */
+  readonly requestId: string | null
   /** The file commands, each sent only once the LIFF session is kept (./ready.ts) */
   readonly actions: LiffFileActions
   /** Whether a command may go now (the camera asks before its upload) */
@@ -229,7 +232,9 @@ export function LiffReviewStep(props: LiffReviewProps) {
     setFileProblem(null)
     // Inside the LINE app (not the LIFF_MOCK stand-in, whose browser opens windows as any browser does) LINE opens it
     const line = liff.inClient && !liff.mocked ? liff.openExternal : null
-    void openFileWith({ line, open: () => window.open('', '_blank') }, () => files.actions.downloadUrl(fileId)).then((opened) => {
+    // A file opens through the draft it belongs to, or — nothing saved yet — as the requester's own upload
+    // (src/app/liff/requests/actions.ts downloadUrlAction); opening a file saves nothing
+    void openFileWith({ line, open: () => window.open('', '_blank') }, () => files.actions.downloadUrl(files.requestId, fileId)).then((opened) => {
       if (!opened) setFileProblem('NOT_OPENED')
     })
   }

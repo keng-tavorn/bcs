@@ -24,8 +24,9 @@ import { postReceipt } from '@/app/(workspace)/receiving/commands'
 import { completeLiffUploadAction, postLiffReceiptAction, previewLiffReceiptAction, receiptPhotoUrlAction, requestLiffUploadAction } from '@/app/liff/gr/[poId]/actions'
 import LiffReceivingPage from '@/app/liff/gr/[poId]/page'
 import { prisma } from '@/server/db/client'
+import { isDocumentFile } from '@/server/queries/document-files'
 import { decideTask } from '@/server/services/approvals/decide'
-import { completeUpload, requestUpload } from '@/server/services/files'
+import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services/files'
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { requestCloseShort } from '@/server/services/receiving'
@@ -38,6 +39,8 @@ import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 // S5-06 · the server side of /liff/gr/[poId] (FR-LINE-003 AC3, FR-P2P-006, the notices of FR-P2P-010 AC2):
 //  - the page's server actions (src/app/liff/gr/[poId]/actions.ts) — the photo's presigned upload, the check, the
 //    receipt and a photo's address — take the member from the LIFF page's session and run on channel LIFF;
+//  - a photo opens only through the PO whose receipt it belongs to: no other file of the organization opens through the
+//    page (FR-PLT-004 AC2; the query each LIFF page binds its files with, src/server/queries/document-files.ts);
 //  - without a member session they do nothing and say the session ended (the camera says so, not "check the
 //    connection"), whatever the page's state: signed out, a role still without TOTP, or no membership;
 //  - the page says what the workspace's page says about closing the PO short: a close-short waiting for approval (to the
@@ -163,10 +166,10 @@ describe('[FR-LINE-003/AC3] the actions of the LIFF receiving page run with the 
     expect(await prisma.fileLink.findMany({ where: { fileId: done.fileId }, select: { subjectType: true, subjectId: true, kind: true } })).toEqual([{ subjectType: 'GoodsReceipt', subjectId: gr.id, kind: 'PHOTO' }])
     expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: gr.id, type: 'gr.posted' } })).toMatchObject({ channel: 'LIFF', actorMemberId: org.member.receiver_con })
 
-    // The photo's address: for the receiver, not for a member with no part in the PO
-    expect(await receiptPhotoUrlAction(done.fileId)).toMatch(/X-Amz-Expires=\d+/)
+    // The photo's address, through its PO: for the receiver, not for a member with no part in the PO
+    expect(await receiptPhotoUrlAction(po.poId, done.fileId)).toMatch(/X-Amz-Expires=\d+/)
     asMember('dm_it')
-    expect(await receiptPhotoUrlAction(done.fileId)).toBeNull()
+    expect(await receiptPhotoUrlAction(po.poId, done.fileId)).toBeNull()
     // The idempotency key comes from the page: a malformed one is refused before anything runs
     asMember('receiver_con')
     expect(await postLiffReceiptAction(receipt(po.poId, [line(po.lineIds[0]!, '1')]), 'not-a-key')).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' })
@@ -196,7 +199,7 @@ describe('[FR-LINE-003/AC3] without a member session of the LIFF page nothing is
       expect(await postLiffReceiptAction(receipt(po.poId, lines, { photoFileIds: [photo] }), randomUUID())).toEqual(UNAUTHENTICATED)
       expect(await requestLiffUploadAction({ fileName: 'site.jpg', mimeType: 'image/jpeg', sizeBytes: JPEG.length })).toEqual(NO_UPLOAD_SESSION)
       expect(await completeLiffUploadAction(started.ticket)).toEqual(NO_UPLOAD_SESSION)
-      expect(await receiptPhotoUrlAction(photo)).toBeNull()
+      expect(await receiptPhotoUrlAction(po.poId, photo)).toBeNull()
       expect(await counts()).toEqual(before)
       // The page shows no part of the PO, only the gate
       const html = markup(await LiffReceivingPage({ params: Promise.resolve({ poId: po.poId }) }))
@@ -250,5 +253,89 @@ describe('[FR-P2P-010/AC2] the LIFF receiving page says what the workspace’s p
     expect(procurement).not.toContain(WORDS.closeShortWaitingOther)
     // As on the workspace's page, only a member who may close it short is told what closing short waits for
     expect(await pageFor('receiver_con', po.poId)).not.toContain(WORDS.closeShortWaitsForDamaged)
+  })
+})
+
+/** A file as an upload records it, by member `code` (no bytes needed: an address is only signed) */
+async function fileRow(code: string, name: string, mimeType = 'image/jpeg'): Promise<string> {
+  const file = await prisma.fileObject.create({
+    data: { organizationId: org.organizationId, storageKey: `test/${randomUUID()}`, fileName: name, mimeType, sizeBytes: 1, status: 'AVAILABLE', uploadedById: org.member[code]! },
+  })
+  return file.id
+}
+
+/** The request a PO orders for, and a quotation file of it as the request form links one */
+async function sourceRequestFile(poId: string): Promise<{ requestId: string; fileId: string }> {
+  const source = await prisma.poLineSource.findFirstOrThrow({ where: { poLine: { poId } }, select: { requestLine: { select: { requestId: true } } } })
+  const fileId = await fileRow('req_con', 'quotation.pdf', 'application/pdf')
+  await prisma.fileLink.create({ data: { organizationId: org.organizationId, fileId, subjectType: 'Request', subjectId: source.requestLine.requestId, kind: 'QUOTATION' } })
+  return { requestId: source.requestLine.requestId, fileId }
+}
+
+const SIGNED = /X-Amz-Signature=/
+
+describe('[FR-PLT-004/AC2] [FR-LINE-003/AC3] a photo opens from the LIFF receiving page only through the PO its receipt belongs to', () => {
+  it('[FR-PLT-004/AC2] gives the receiver the photo of this PO’s receipt; another PO’s receipt photo, a request’s file and a photo of no receipt do not open through it', async () => {
+    const first = await sentPo([PPE])
+    const second = await sentPo([PPE])
+    const firstPhoto = await fileRow('receiver_con', 'first.jpg')
+    const secondPhoto = await fileRow('receiver_con', 'second.jpg')
+    expect(await postReceipt(liff('receiver_con'), receipt(first.poId, [line(first.lineIds[0]!, '2')], { photoFileIds: [firstPhoto] }), randomUUID())).toMatchObject({ ok: true })
+    expect(await postReceipt(liff('receiver_con'), receipt(second.poId, [line(second.lineIds[0]!, '2')], { photoFileIds: [secondPhoto] }), randomUUID())).toMatchObject({ ok: true })
+
+    // The receiver took part in both receipts: each photo opens through its own PO, neither through the other
+    asMember('receiver_con')
+    expect(await receiptPhotoUrlAction(first.poId, firstPhoto)).toMatch(SIGNED)
+    expect(await receiptPhotoUrlAction(second.poId, secondPhoto)).toMatch(SIGNED)
+    expect(await receiptPhotoUrlAction(first.poId, secondPhoto)).toBeNull()
+    expect(await receiptPhotoUrlAction(second.poId, firstPhoto)).toBeNull()
+    // A photo of no receipt yet — the receiver's own upload, which the file service would give them — is not one the page lists
+    const loose = await fileRow('receiver_con', 'loose.jpg')
+    expect((await getDownloadUrl(liff('receiver_con'), { fileId: loose })).ok).toBe(true)
+    expect(await receiptPhotoUrlAction(first.poId, loose)).toBeNull()
+    // Something that is not an id
+    expect(await receiptPhotoUrlAction('../../etc/passwd', firstPhoto)).toBeNull()
+    expect(await receiptPhotoUrlAction(first.poId, '../../etc/passwd')).toBeNull()
+
+    // The quotation of the request the PO orders for, which its requester reads in the workspace: not a receipt's photo
+    const quotation = await sourceRequestFile(first.poId)
+    expect((await getDownloadUrl(liff('req_con'), { fileId: quotation.fileId })).ok).toBe(true)
+    asMember('req_con')
+    expect(await receiptPhotoUrlAction(first.poId, quotation.fileId)).toBeNull()
+  })
+
+  it('[FR-PLT-004/AC2] each page’s document lists its own files: a request’s, a PO’s source requests’, a variance’s receipt photos, a PO’s receipts’ photos — and a policy document none', async () => {
+    const po = await sentPo([PLYWOOD])
+    const other = await sentPo([PLYWOOD])
+    const damaged = await fileRow('receiver_con', 'damaged.jpg')
+    const otherPhoto = await fileRow('receiver_con', 'other.jpg')
+    // 1 of the 10 sheets damaged and kept: a variance on the receipt, decided on its photo
+    expect(
+      await postReceipt(liff('receiver_con'), receipt(po.poId, [line(po.lineIds[0]!, '10', { rejected: '1', damaged: true, damagedDisposition: 'ACCEPT_DAMAGED' })], { photoFileIds: [damaged] }), randomUUID()),
+    ).toMatchObject({ ok: true, pendingApproval: 1 })
+    expect(await postReceipt(liff('receiver_con'), receipt(other.poId, [line(other.lineIds[0]!, '4')], { photoFileIds: [otherPhoto] }), randomUUID())).toMatchObject({ ok: true })
+    const variance = await prisma.variance.findFirstOrThrow({ where: { poId: po.poId }, select: { id: true } })
+    const quotation = await sourceRequestFile(po.poId)
+    const otherQuotation = await sourceRequestFile(other.poId)
+    const ctx = liff('receiver_con')
+    const lists = (subjectType: Parameters<typeof isDocumentFile>[1]['subjectType'], subjectId: string, fileId: string) => isDocumentFile(ctx, { subjectType, subjectId }, fileId)
+
+    expect(await lists('REQUEST', quotation.requestId, quotation.fileId)).toBe(true)
+    expect(await lists('REQUEST', quotation.requestId, otherQuotation.fileId)).toBe(false)
+    expect(await lists('REQUEST', quotation.requestId, damaged)).toBe(false)
+    expect(await lists('PURCHASE_ORDER', po.poId, quotation.fileId)).toBe(true)
+    expect(await lists('PURCHASE_ORDER', po.poId, otherQuotation.fileId)).toBe(false)
+    expect(await lists('PURCHASE_ORDER', po.poId, damaged)).toBe(false)
+    expect(await lists('VARIANCE', variance.id, damaged)).toBe(true)
+    expect(await lists('VARIANCE', variance.id, otherPhoto)).toBe(false)
+    expect(await lists('VARIANCE', variance.id, quotation.fileId)).toBe(false)
+    expect(await lists('PO_RECEIPTS', po.poId, damaged)).toBe(true)
+    expect(await lists('PO_RECEIPTS', po.poId, otherPhoto)).toBe(false)
+    expect(await lists('PO_RECEIPTS', po.poId, quotation.fileId)).toBe(false)
+    // A DOA version or an authority change has no files; ids that are not ids name nothing
+    expect(await lists('DOA_VERSION', po.poId, damaged)).toBe(false)
+    expect(await lists('ORG_AUTHORITY_CHANGE', po.poId, damaged)).toBe(false)
+    expect(await lists('PO_RECEIPTS', 'not-an-id', damaged)).toBe(false)
+    expect(await lists('PO_RECEIPTS', po.poId, 'not-an-id')).toBe(false)
   })
 })

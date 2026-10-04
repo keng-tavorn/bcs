@@ -149,7 +149,7 @@ export default async function LiffRequestPage({ params }: { params: Promise<{ id
         {view.documentType === 'PURCHASE_REQUEST' ? <PlaceFacts items={placeFacts(tv, locale, view)} /> : null}
       </LiffSection>
 
-      <RequestSections view={view} locale={locale} openFile={downloadUrlAction} doaLinks={false} />
+      <RequestSections view={view} locale={locale} openFile={downloadUrlAction.bind(null, view.id)} doaLinks={false} />
       {mine ? <LiffCancelRequest requestId={view.id} canCancel={view.actions.canCancel} cancel={cancelRequestAction} /> : null}
     </>
   )

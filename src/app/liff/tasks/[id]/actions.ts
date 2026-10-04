@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { memberPrincipal } from '@/server/authz'
-import { isTaskDocumentFile } from '@/server/queries/task-files'
+import { isDocumentFile } from '@/server/queries/document-files'
 import { getTaskAccess } from '@/server/queries/tasks'
 import { getDownloadUrl } from '@/server/services/files'
 import { formatDateTime } from '@/ui/format'
@@ -97,7 +97,7 @@ export async function openLiffFileAction(taskId: string, fileId: string): Promis
   if (page.kind !== 'member' || typeof taskId !== 'string' || typeof fileId !== 'string') return null
   const access = await getTaskAccess(page.ctx, taskId)
   if (!access || taskRight(memberPrincipal(page.member.id, []), access) === 'NONE') return null
-  if (!(await isTaskDocumentFile(page.ctx, access, fileId))) return null
+  if (!(await isDocumentFile(page.ctx, access, fileId))) return null
   const url = await getDownloadUrl(page.ctx, { fileId })
   return url.ok ? url.data.url : null
 }

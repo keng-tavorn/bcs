@@ -128,6 +128,7 @@
     "notesLabel": "Notes",
     "toReview": "Check before recording",
     "checking": "Checking",
+    "uploadWait": "A photo is still uploading. Wait for it to finish before checking or recording, or stop the upload in the photos field above.",
     "reviewTitle": "Check before recording",
     "reviewHint": "See what will happen before you confirm. Once recorded you cannot change it; procurement can reverse it.",
     "afterPartial": "After this, the purchase order will be \"Partly received\" with {count, plural, one {# line} other {# lines}} still to come",

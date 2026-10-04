@@ -2,7 +2,9 @@
 
 import { getLocale } from 'next-intl/server'
 import { z } from 'zod'
+import { isDocumentFile, isOwnUnattachedUpload } from '@/server/queries/document-files'
 import { doaGapNames, sentRequestSummary } from '@/server/queries/request-form'
+import { getRequestAccess } from '@/server/queries/requests'
 import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services/files'
 import { resubmitRequest, submitRequest } from '@/server/services/requests'
 import { attachFile, detachFile } from '@/server/services/requests/attachments'
@@ -11,8 +13,10 @@ import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/u
 import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
 import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
 import type { ActionOutcome } from '@/ui/tasks/outcome'
+import { canViewRequest } from '../../(workspace)/_tracking/access'
 import { answerQuestion, cancelOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
-import { liffPage } from '../_lib/session'
+import { liffPage, type LiffPage } from '../_lib/session'
+import { liffPrincipalOf } from './_lib/principal'
 
 // Browser-facing adapters of the LIFF request pages (S5-06, §9.4: /liff/requests/new and /liff/requests/[id]): the same
 // services as the web's request form and request page (src/app/(workspace)/requests/new/actions.ts,
@@ -21,7 +25,8 @@ import { liffPage } from '../_lib/session'
 // reads the session of the LIFF page (a LIFF session, or a password sign-in, src/app/liff/_lib/session.ts) and hands the
 // raw input to the service, which checks the member (request.create, request.submit OWN), the state and every rule
 // again (BR-AUTH-05): what the screen hides or disables is never the guard. The idempotency key comes from the browser
-// per submission (spec §4.3), so a double tap or a retry after a lost answer runs the command once.
+// per submission (spec §4.3), so a double tap or a retry after a lost answer runs the command once. A file opens only
+// through the request it belongs to, or as the member's own upload the form has not linked yet (downloadUrlAction).
 
 const NO_SESSION: FormFailure = { ok: false, code: 'UNAUTHENTICATED' }
 const BAD_KEY: FormFailure = { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
@@ -29,6 +34,8 @@ const Key = z.uuid()
 /** DOA gaps whose answer names the position and departments in words (FR-DOA-003 AC3) */
 const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS'])
 const FILE_REFUSALS: readonly FileRefusal[] = ['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'CONTENT_MISMATCH']
+
+type MemberPage = Extract<LiffPage, { kind: 'member' }>
 
 async function memberCtx() {
   const page = await liffPage()
@@ -113,12 +120,30 @@ export async function completeUploadAction(ticket: string): Promise<CompleteUplo
   return r.ok ? { ok: true, fileId: r.data.fileId, fileName: r.data.fileName } : { ok: false, reason: fileRefusalOf(r.error.details) }
 }
 
-/** A download address valid a few minutes, for a member who may view the request the file belongs to (FR-PLT-004 AC2) */
-export async function downloadUrlAction(fileId: string): Promise<string | null> {
-  const ctx = await memberCtx()
-  if (!ctx) return null
-  const r = await getDownloadUrl(ctx, { fileId })
+/**
+ * A file of the request's LIFF page or of its form, at an address valid a few minutes (FR-PLT-004 AC2): a file linked to
+ * the request — its attachments and its quotations' files — for a member who may view the request, as its page checks
+ * it; or the member's own upload the form has not linked yet (a quotation's file before the draft is saved; requestId is
+ * null while the form has no draft). Nothing else: through these pages a LINE sign-in reaches no other file of the
+ * organization (defence in depth, src/server/queries/document-files.ts), and the file service checks the document the
+ * file belongs to again. Null for anyone else, or without a session. The page binds the request's id
+ * (downloadUrlAction.bind(null, requestId)) and the form sends its draft's; both ids come from the browser, so both are
+ * checked here.
+ */
+export async function downloadUrlAction(requestId: string | null, fileId: string): Promise<string | null> {
+  const page = await liffPage()
+  if (page.kind !== 'member' || typeof fileId !== 'string' || (requestId !== null && typeof requestId !== 'string')) return null
+  const opens = (requestId !== null && (await requestFile(page, requestId, fileId))) || (await isOwnUnattachedUpload(page.ctx, page.member.id, fileId))
+  if (!opens) return null
+  const r = await getDownloadUrl(page.ctx, { fileId })
   return r.ok ? r.data.url : null
+}
+
+/** A file linked to the request, for a member who may view it (request.view, as /liff/requests/[id] checks it) */
+async function requestFile(page: MemberPage, requestId: string, fileId: string): Promise<boolean> {
+  const access = await getRequestAccess(page.ctx, requestId)
+  if (!access || !canViewRequest(await liffPrincipalOf(page.member.id), access)) return false
+  return isDocumentFile(page.ctx, { subjectType: 'REQUEST', subjectId: requestId }, fileId)
 }
 
 const NO_SESSION_ACTION: ActionOutcome = { ok: false, code: 'UNAUTHENTICATED' }

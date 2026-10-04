@@ -9,6 +9,23 @@ import type { Ctx } from '@/server/context'
 const session = vi.hoisted(() => ({ page: { kind: 'signed-out' } as unknown }))
 vi.mock('@/app/liff/_lib/session', () => ({ liffPage: async () => session.page }))
 vi.mock('next-intl/server', () => ({ getLocale: async () => 'th' }))
+// The roles a request page asks request.view with: the session's (src/app/liff/requests/_lib/principal.ts reads them
+// from the request's cookies, which a test has none of) — here the member's roles in the database, as the session holds them
+vi.mock('@/app/liff/requests/_lib/principal', async (importOriginal) => {
+  const { memberPrincipal } = await import('@/server/authz')
+  const { STORED_ROLES } = await import('@/server/authz/permissions')
+  const { prisma } = await import('@/server/db/client')
+  return {
+    ...(await importOriginal<typeof import('@/app/liff/requests/_lib/principal')>()),
+    liffPrincipalOf: async (memberId: string) => {
+      const held = await prisma.roleAssignment.findMany({ where: { memberId, revokedAt: null }, select: { role: true } })
+      return memberPrincipal(
+        memberId,
+        held.map((r) => r.role).filter((r): r is (typeof STORED_ROLES)[number] => (STORED_ROLES as readonly string[]).includes(r)),
+      )
+    },
+  }
+})
 
 import {
   answerInfoAction,
@@ -24,6 +41,7 @@ import {
 import { POST as autosave } from '@/app/liff/requests/new/autosave/route'
 import { prisma } from '@/server/db/client'
 import { decideTask, requestInfo } from '@/server/services/approvals/decide'
+import { getDownloadUrl } from '@/server/services/files'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S5-06 · the server side of the LIFF request pages (§9.4 /liff/requests/new, /liff/requests/[id]; FR-LINE-003 AC1):
@@ -34,6 +52,8 @@ import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 //  - a send runs once, whether it is tapped twice or sent again after a lost answer;
 //  - the requester answers a question and sends a returned request again from LIFF, and nobody else can;
 //  - nothing is saved, previewed, sent, uploaded or opened without a member session of the LIFF page;
+//  - a file opens only through the request it belongs to, for a member who may view that request, or as the
+//    requester's own upload the form has not linked yet — no other file of the organization (FR-PLT-004 AC2);
 //  - another member can neither save into, preview nor send someone else's draft (the services refuse, BR-AUTH-05);
 //  - the autosave route takes same-origin requests only, and no body above its limit.
 
@@ -325,7 +345,8 @@ describe('[FR-LINE-003/AC1] without a member session of the LIFF page, nothing i
       expect(await cancelRequestAction({ requestId, reason: 'ไม่ต้องการแล้ว' }, randomUUID())).toEqual(unauthenticated)
       expect(await requestUploadAction({ fileName: 'ใบเสนอราคา.pdf', mimeType: 'application/pdf', sizeBytes: 1000 })).toEqual({ ok: false, reason: 'FAILED' })
       expect(await completeUploadAction('ticket')).toEqual({ ok: false, reason: 'FAILED' })
-      expect(await downloadUrlAction(randomUUID())).toBeNull()
+      expect(await downloadUrlAction(requestId, randomUUID())).toBeNull()
+      expect(await downloadUrlAction(null, randomUUID())).toBeNull()
       // The draft stayed as it was
       expect((await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true, version: true } })).status).toBe('DRAFT')
     })
@@ -383,5 +404,78 @@ describe('[§9.4] the LIFF autosave route takes the page’s own site only, and 
     const malformed = await autosave(saveRequest({ idempotencyKey: 'not-a-key', requestId: null, requestTypeCode: 'BUY_GOODS', expectedVersion: null, draft: {} }))
     expect(malformed.status).toBe(400)
     expect(await malformed.json()).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' })
+  })
+})
+
+/** A file in the organization's storage as an upload records it, by member `code`, linked to `link` when given */
+async function storedFile(code: string, link?: { subjectType: string; subjectId: string; kind: 'QUOTATION' | 'OTHER' | 'INVOICE' }): Promise<string> {
+  const file = await prisma.fileObject.create({
+    data: { organizationId: org.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: 'quotation.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: org.member[code]! },
+  })
+  if (link) await prisma.fileLink.create({ data: { organizationId: org.organizationId, fileId: file.id, ...link } })
+  return file.id
+}
+
+const SIGNED = /X-Amz-Signature=/
+
+describe('[FR-PLT-004/AC2] [FR-LINE-003/AC1] a file opens from the LIFF request pages only through the request it belongs to', () => {
+  it('[FR-PLT-004/AC2] gives a short-lived address for a file of the request to a member who may view it; another request’s file does not open through it', async () => {
+    const requestId = await sentFromLiff()
+    const other = await sentFromLiff()
+    const file = await storedFile('req_con', { subjectType: 'Request', subjectId: requestId, kind: 'QUOTATION' })
+    const otherFile = await storedFile('req_con', { subjectType: 'Request', subjectId: other, kind: 'QUOTATION' })
+    asMember('req_con')
+    const url = await downloadUrlAction(requestId, file)
+    expect(url).toMatch(SIGNED)
+    expect(Number(new URL(url!).searchParams.get('X-Amz-Expires'))).toBeLessThanOrEqual(300)
+    // The requester may read both requests, yet each file opens only through its own request
+    expect(await downloadUrlAction(other, otherFile)).toMatch(SIGNED)
+    expect(await downloadUrlAction(requestId, otherFile)).toBeNull()
+    expect(await downloadUrlAction(other, file)).toBeNull()
+    // Nor as an upload of the form: it is linked to a document now
+    expect(await downloadUrlAction(null, file)).toBeNull()
+    // The approver whose task it is views the request and opens the file; a member with no part in it does not
+    asMember('vp_ops')
+    expect(await downloadUrlAction(requestId, file)).toMatch(SIGNED)
+    asMember('dm_fin')
+    expect(await downloadUrlAction(requestId, file)).toBeNull()
+    // Something that is not an id
+    asMember('req_con')
+    expect(await downloadUrlAction(requestId, '../../etc/passwd')).toBeNull()
+    expect(await downloadUrlAction('../../etc/passwd', file)).toBeNull()
+  })
+
+  it('[FR-PLT-004/AC2] opens no file of another kind of document through a request, even one the member may read elsewhere', async () => {
+    const requestId = await sentFromLiff()
+    const file = await storedFile('req_con', { subjectType: 'Request', subjectId: requestId, kind: 'QUOTATION' })
+    // An AUDITOR reads every request (request.view ORG) and the invoices' files (audit.view) in the workspace
+    if (!(await prisma.roleAssignment.findFirst({ where: { memberId: org.member.auditor!, role: 'AUDITOR', revokedAt: null } }))) {
+      await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.auditor!, role: 'AUDITOR', grantedAt: NOW } })
+    }
+    const invoice = await storedFile('fin_officer', { subjectType: 'InvoiceConfirmation', subjectId: randomUUID(), kind: 'INVOICE' })
+    expect((await getDownloadUrl(org.ctxOf('auditor', NOW, 'LIFF'), { fileId: invoice })).ok).toBe(true)
+    asMember('auditor')
+    expect(await downloadUrlAction(requestId, file)).toMatch(SIGNED)
+    // Through the request pages of LIFF the invoice opens neither through a request nor as an upload of the form
+    expect(await downloadUrlAction(requestId, invoice)).toBeNull()
+    expect(await downloadUrlAction(null, invoice)).toBeNull()
+  })
+
+  it('[FR-PLT-004/AC2] the form opens the requester’s own upload it has not linked yet, with or without a draft, and nobody else’s', async () => {
+    const { requestId } = await newDraft('req_con')
+    const mine = await storedFile('req_con')
+    const theirs = await storedFile('asst_con')
+    asMember('req_con')
+    expect(await downloadUrlAction(null, mine)).toMatch(SIGNED)
+    expect(await downloadUrlAction(requestId, mine)).toMatch(SIGNED)
+    expect(await downloadUrlAction(null, theirs)).toBeNull()
+    expect(await downloadUrlAction(requestId, theirs)).toBeNull()
+    // Saved with the draft (a quotation's file), it opens through the draft only
+    await prisma.fileLink.create({ data: { organizationId: org.organizationId, fileId: mine, subjectType: 'Request', subjectId: requestId, kind: 'QUOTATION' } })
+    expect(await downloadUrlAction(requestId, mine)).toMatch(SIGNED)
+    expect(await downloadUrlAction(null, mine)).toBeNull()
+    // Someone else's draft is not theirs to open, its files neither
+    asMember('asst_con')
+    expect(await downloadUrlAction(requestId, mine)).toBeNull()
   })
 })

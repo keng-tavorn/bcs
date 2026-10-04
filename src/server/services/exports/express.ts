@@ -19,7 +19,8 @@ import './file-policy'
 // an Express vendor code are kept out and listed so they can be filled before the next file (BR-EXP-04). Every file
 // shows its rows, its total (the sum of the invoices with VAT, as the file's rows add up) and its sha256; exporting the
 // same invoices again needs a reason and makes a new ExportJob. Amounts are written as baht text with two decimals,
-// never as floating-point numbers. The demo layout is assumed until the customer's real file arrives (OQ-10, S4-14).
+// never as floating-point numbers. The layout is never guessed: until the customer's sample import file arrives (OQ-10,
+// P0-10, S4-14) the organization has no columns and the export is refused with MAPPING_NOT_SET.
 // A first export claims its invoices (exportedAt still empty) before it writes anything, so two exports at the same
 // moment never put one invoice into two files: the second finds them taken and is refused (BR-EXP-02). The screen sends
 // the fingerprint of the list it showed; a list that changed since (an invoice recorded or exported meanwhile) is
@@ -131,7 +132,7 @@ export const exportExpressCommand = defineCommand({
     if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member exports' } }
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true, timezone: true } })
     const settings = OrgSettingsSchema.shape.express.parse((org.settings as { express?: unknown } | null)?.express)
-    if (settings.mapping.length === 0) return fail('VALIDATION_FAILED', 'the Express layout is not set', { reason: 'MAPPING_NOT_SET' })
+    if (settings.mapping.length === 0) return fail('VALIDATION_FAILED', 'the Express file layout is not set yet: it waits for a sample file that Express imports, from the customer’s accounting team (OQ-10)', { reason: 'MAPPING_NOT_SET' })
 
     const again = input.invoiceIds !== undefined
     if (again && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'exporting again needs a reason', { field: 'reason', reason: 'REASON_REQUIRED' })

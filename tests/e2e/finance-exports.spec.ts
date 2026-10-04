@@ -2,25 +2,32 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import type { Locator, Page } from '@playwright/test'
 import ExcelJS from 'exceljs'
+import { TEST_EXPRESS_HEADERS, testExpressColumn, testExpressRow } from '../support/express-layout'
 import { check, h1, scene, SCENE_TEST_TIMEOUT_MS, signIn, tagOf } from './finance-support'
 import { expect, test } from './fixtures'
 
 // Unit g, the Express export (S4-09 · spec §9.1 /finance/exports, FR-P2P-009 AC1 AC2 AC4, BR-EXP-01 to BR-EXP-04).
-// tests/e2e/finance-scene.ts adds a supplier without an Express vendor code (procurement, after the registry check),
+// The demo organization has no Express layout until the customer's sample import file arrives (OQ-10): the page says
+// so, still lists the invoice waiting, and makes no file, neither a first one nor an earlier one again (the scene makes
+// that earlier file and the waiting invoice beforehand). For the export itself, tests/e2e/finance-scene.ts gives the
+// organization the TEST FIXTURE layout of tests/support/express-layout.ts (not the Express format; the expected header
+// and rows are built from it), adds a supplier without an Express vendor code (procurement, after the registry check),
 // sends a PO of it and two of S3, and records FINANCE's invoice on two of them through the services. FINANCE
 // (fin_officer) opens the page; the third PO's invoice is recorded after that, so the list FINANCE ticks is no longer
-// the list waiting and no file is made until the page shows it (BR-EXP-02). FINANCE then makes the file in the demo
-// layout of settings.express (OQ-10), checks the downloaded file against the rows, total and checksum the page shows,
-// makes it again with a reason, and — once procurement fills the vendor code — exports the invoice that was kept out.
-// Other invoices waiting in the database go into the same file, so the file is compared with what the page says, not
-// with a fixed count. Pictures at 1440 px and 375 px, axe on every state.
+// the list waiting and no file is made until the page shows it (BR-EXP-02). FINANCE then makes the file, checks the
+// downloaded file against the rows, total and checksum the page shows, makes it again with a reason, and — once
+// procurement fills the vendor code — exports the invoice that was kept out. Other invoices waiting in the database
+// (the one the first test leaves, for instance) go into the same file, so the file is compared with what the page
+// says, not with a fixed count. Pictures at 1440 px and 375 px, axe on every state.
 
 type Made = { poId: string; number: string; invoiceNo: string }
 type ExportScene = { supplier: { id: string; code: string; nameTh: string }; held: Made; ready: Made; late: { poId: string; number: string }; today: string }
+type WaitingScene = { filed: { invoiceNo: string; number: string; checksum: string }; waiting: { invoiceNo: string; number: string } }
 
-const HEADER = ['รหัสเจ้าหนี้', 'ชื่อผู้ขาย', 'เลขประจำตัวผู้เสียภาษี', 'สาขา', 'เลขที่ใบกำกับ', 'วันที่ใบกำกับ', 'เลขที่ใบสั่งซื้อ', 'ยอดก่อนภาษี', 'ภาษีมูลค่าเพิ่ม', 'ยอดรวม', 'รหัสบัญชี']
+/** Where the invoice number sits in a row of the test layout's file */
+const INVOICE_NO = testExpressColumn('invoiceNo')
 
-/** "2026-10-05" → "05/10/2569", the demo layout's Buddhist-era date */
+/** "2026-10-05" → "05/10/2569", the test layout's Buddhist-era date */
 const beDate = (day: string) => {
   const [y, m, d] = day.split('-')
   return `${d}/${m}/${Number(y) + 543}`
@@ -56,6 +63,44 @@ async function makeFile(page: Page): Promise<Locator> {
   return made
 }
 
+test('[FR-P2P-009/AC1] without an Express layout — the demo’s until the customer’s sample file (OQ-10) — the page says why and makes no file, first or again', async ({ page }, testInfo) => {
+  // A scene through the services (two POs approved and e-mailed, a file made) comes first: longer than the default 30 s
+  test.setTimeout(SCENE_TEST_TIMEOUT_MS)
+  // A file made earlier and an invoice waiting for the next one; then the layout as the demo is seeded: none
+  const s = scene<WaitingScene>('waiting', tagOf(testInfo))
+  scene('layout', 'none')
+  await signIn(page, 'fin_officer', true)
+  await page.goto('/finance/exports')
+  await expect(h1(page)).toHaveText('ส่งออกไฟล์ Express')
+  const notice = page.getByRole('status').filter({ hasText: 'ยังสร้างไฟล์ Express ไม่ได้ เพราะยังไม่ได้ตั้งรูปแบบไฟล์' })
+  await expect(notice).toContainText('ต้องตั้งตามไฟล์ตัวอย่างที่ Express นำเข้าได้จริง ระบบจึงไม่เดาเอง')
+  await expect(notice).toContainText('ส่งไฟล์ตัวอย่างนั้นให้ผู้ดูแลระบบขององค์กร เพื่อส่งต่อให้ทีม BCS ตั้งรูปแบบ')
+  await expect(notice).toContainText('ใบกำกับที่บันทึกแล้วรออยู่ในรายการด้านล่าง และส่งออกได้เมื่อตั้งรูปแบบแล้ว')
+  // The invoice waits in the list, yet nothing can be made: no tick, no button, no layout to show
+  const ready = page.getByRole('list', { name: 'ใบกำกับที่จะเข้าไฟล์' })
+  await expect(ready.getByRole('listitem').filter({ hasText: s.waiting.invoiceNo })).toContainText(s.waiting.number)
+  await expect(page.getByLabel(/^ตรวจรายการแล้ว ใบกำกับ/)).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^สร้างไฟล์ Express/ })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'รูปแบบไฟล์ขององค์กร' })).toHaveCount(0)
+  await check(page, testInfo, 'exports-no-layout')
+
+  // The earlier file cannot be made again either: the page says why, and no new file appears (BR-EXP-02)
+  const jobs = page.getByRole('list', { name: 'ไฟล์ Express ที่สร้างแล้ว' })
+  const filesBefore = await jobs.getByRole('listitem').count()
+  const job = jobs.getByRole('listitem').filter({ hasText: s.filed.checksum })
+  await job.getByText(/^ส่งออกใบกำกับ \d+ ใบของไฟล์นี้อีกครั้ง$/).click()
+  await job.getByLabel('เหตุผลที่ส่งออกซ้ำ').fill('ไฟล์เดิมนำเข้า Express ไม่สำเร็จ')
+  await job.getByRole('button', { name: /^สร้างไฟล์ใหม่จากใบกำกับ \d+ ใบนี้$/ }).click()
+  const refused = job.getByRole('alert').filter({ hasText: 'ยังไม่ได้สร้างไฟล์ เพราะยังไม่ได้ตั้งรูปแบบไฟล์ Express' })
+  await expect(refused).toContainText('ส่งไฟล์ตัวอย่างนั้นให้ผู้ดูแลระบบขององค์กร เพื่อส่งต่อให้ทีม BCS ตั้งรูปแบบ')
+  await expect(refused).toContainText('ระบบยังไม่ได้บันทึกใบกำกับใบไหนว่าส่งออกเพิ่ม')
+  await check(page, testInfo, 'exports-no-layout-again')
+  await page.reload()
+  await expect(h1(page)).toHaveText('ส่งออกไฟล์ Express')
+  await expect(jobs.getByRole('listitem')).toHaveCount(filesBefore)
+  await expect(ready.getByRole('listitem').filter({ hasText: s.waiting.invoiceNo })).toHaveCount(1)
+})
+
 test('[FR-P2P-009/AC1] [FR-P2P-009/AC2] [FR-P2P-009/AC4] finance makes the Express file of the invoices not exported yet; the file matches its rows, total and checksum; an invoice without a vendor code waits for procurement', async ({ page }, testInfo) => {
   // A scene through the services (requests, approvals, the PO e-mailed) comes first: longer than the default 30 s
   test.setTimeout(SCENE_TEST_TIMEOUT_MS)
@@ -74,9 +119,10 @@ test('[FR-P2P-009/AC1] [FR-P2P-009/AC2] [FR-P2P-009/AC4] finance makes the Expre
   await expect(held).toContainText(`${s.held.invoiceNo} (${s.held.number})`)
   await expect(held).toContainText('2,140.00')
   await expect(held.getByRole('link', { name: `เปิดข้อมูลผู้ขาย ${s.supplier.nameTh}` })).toHaveAttribute('href', `/suppliers/${s.supplier.id}`)
-  // BR-EXP-01: the organization's layout
+  // BR-EXP-01: the organization's layout (here the test fixture's) and no notice that it is missing
   await expect(page.getByText('ไฟล์ Excel (xlsx) · อักขระ UTF-8 (มี BOM) · วันที่แบบ พ.ศ. (วว/ดด/ปปปป)')).toBeVisible()
-  await expect(page.getByText(`11 คอลัมน์ตามลำดับ: ${HEADER.join(' · ')}`)).toBeVisible()
+  await expect(page.getByText(`${TEST_EXPRESS_HEADERS.length} คอลัมน์ตามลำดับ: ${TEST_EXPRESS_HEADERS.join(' · ')}`)).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'ยังสร้างไฟล์ Express ไม่ได้' })).toHaveCount(0)
   await check(page, testInfo, 'exports')
 
   // Marking invoices exported cannot be undone: the tick first
@@ -103,12 +149,29 @@ test('[FR-P2P-009/AC1] [FR-P2P-009/AC2] [FR-P2P-009/AC4] finance makes the Expre
   // AC2: the downloaded file is the one the page describes — checksum, rows and total — in the layout's columns
   const file = await downloaded(page, made.getByRole('button', { name: 'ดาวน์โหลดไฟล์ที่สร้าง' }))
   expect(createHash('sha256').update(file.bytes).digest('hex')).toBe(first.checksum)
-  expect(file.rows[0]).toEqual(HEADER)
+  expect(file.rows[0]).toEqual(TEST_EXPRESS_HEADERS)
   const body = file.rows.slice(1)
   expect(body).toHaveLength(first.rows)
-  expect(body.find((r) => r[4] === s.ready.invoiceNo)).toEqual(['V0003', 'บริษัท บริการทำความสะอาดทดสอบ จำกัด', '0999999000039', '00000', s.ready.invoiceNo, beDate(s.today), s.ready.number, '1000.00', '70.00', '1070.00', expect.any(String)])
-  expect(body.some((r) => r[4] === s.held.invoiceNo)).toBe(false)
-  expect(body.reduce((sum, r) => sum + satang(r[9]!), 0n)).toBe(satang(first.total))
+  expect(body.find((r) => r[INVOICE_NO] === s.ready.invoiceNo)).toEqual(
+    testExpressRow({
+      expressVendorCode: 'V0003',
+      invoiceNo: s.ready.invoiceNo,
+      invoiceDate: beDate(s.today),
+      supplierCode: 'S3',
+      supplierName: 'บริษัท บริการทำความสะอาดทดสอบ จำกัด',
+      supplierTaxId: '0999999000039',
+      supplierBranch: '00000',
+      poNumber: s.ready.number,
+      net: '1000.00',
+      vat: '70.00',
+      gross: '1070.00',
+      budgetLineCode: expect.stringMatching(/^CON-(CAPEX|OPEX)-2569$/),
+      costCenterCode: expect.any(String),
+      accountCode: expect.any(String),
+    }),
+  )
+  expect(body.some((r) => r[INVOICE_NO] === s.held.invoiceNo)).toBe(false)
+  expect(body.reduce((sum, r) => sum + satang(r[testExpressColumn('gross')]!), 0n)).toBe(satang(first.total))
 
   // The file among those made, with the same figures; made again only with a reason (BR-EXP-02)
   const jobs = page.getByRole('list', { name: 'ไฟล์ Express ที่สร้างแล้ว' })
@@ -136,18 +199,24 @@ test('[FR-P2P-009/AC1] [FR-P2P-009/AC2] [FR-P2P-009/AC4] finance makes the Expre
   const second = await shown(next)
   const nextFile = await downloaded(page, next.getByRole('button', { name: 'ดาวน์โหลดไฟล์ที่สร้าง' }))
   expect(createHash('sha256').update(nextFile.bytes).digest('hex')).toBe(second.checksum)
-  expect(nextFile.rows.slice(1).find((r) => r[4] === s.held.invoiceNo)).toEqual([
-    `V-${tag.toUpperCase()}`,
-    s.supplier.nameTh,
-    '0999999000098',
-    expect.stringMatching(/^\d{5}$/),
-    s.held.invoiceNo,
-    beDate(s.today),
-    s.held.number,
-    '2000.00',
-    '140.00',
-    '2140.00',
-    expect.any(String),
-  ])
+  expect(nextFile.rows[0]).toEqual(TEST_EXPRESS_HEADERS)
+  expect(nextFile.rows.slice(1).find((r) => r[INVOICE_NO] === s.held.invoiceNo)).toEqual(
+    testExpressRow({
+      expressVendorCode: `V-${tag.toUpperCase()}`,
+      invoiceNo: s.held.invoiceNo,
+      invoiceDate: beDate(s.today),
+      supplierCode: s.supplier.code,
+      supplierName: s.supplier.nameTh,
+      supplierTaxId: '0999999000098',
+      supplierBranch: expect.stringMatching(/^\d{5}$/),
+      poNumber: s.held.number,
+      net: '2000.00',
+      vat: '140.00',
+      gross: '2140.00',
+      budgetLineCode: expect.stringMatching(/^CON-(CAPEX|OPEX)-2569$/),
+      costCenterCode: expect.any(String),
+      accountCode: expect.any(String),
+    }),
+  )
   await check(page, testInfo, 'exports-code-filled')
 })

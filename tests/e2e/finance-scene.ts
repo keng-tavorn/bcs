@@ -3,6 +3,7 @@ import { systemClock } from '@/lib/clock'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
+import { exportExpress } from '@/server/services/exports/express'
 import { recordInvoice } from '@/server/services/invoices'
 import { markNotificationsRead } from '@/server/services/notifications'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
@@ -12,6 +13,8 @@ import { postGoodsReceipt } from '@/server/services/receiving'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createSupplier, updateSupplier } from '@/server/services/suppliers'
 import { E2E_DB } from '../support/e2e-env'
+import { TEST_EXPRESS_LAYOUT } from '../support/express-layout'
+import { setExpressLayout } from '../support/set-express-layout'
 
 // Run by tests/e2e/finance*.spec.ts against the e2e database only (unit g: S4-08, S4-17, S4-09): sent, received and
 // closed POs for the finance screens, and invoices recorded for the export screen — everything through the services
@@ -25,9 +28,17 @@ import { E2E_DB } from '../support/e2e-env'
 //   closed <tag>          a PO of S3 for 2 items at 500, received and closed by procurement before any invoice: it keeps
 //                         the 1,000 received and not invoiced (BR-BUD-06)
 //   sent <tag>            a PO of S1 for 2 items at 10,000, sent, nothing received (the e-Tax files of the spec)
-//   export <tag>          a new supplier without an Express vendor code (procurement adds it after the registry check)
-//                         and S3, a sent PO of each, and FINANCE's invoice on each — one kept out of the Express file;
-//                         and a third PO of S3, sent, whose invoice comes later (the `invoice` scenario)
+//   layout <none|test>    the demo organization's Express layout: none (as seeded: no columns until the customer's
+//                         sample file, OQ-10) or the TEST FIXTURE of tests/support/express-layout.ts (not the Express
+//                         format). No service saves a layout (organization.save_settings has no section for it, §2.4),
+//                         so it is written as that command would, under its row lock (tests/support/set-express-layout.ts)
+//   waiting <tag>         the test fixture's layout as in `layout test`; FINANCE's invoice on a sent PO of S3, put in an
+//                         Express file by FINANCE (with any other invoice waiting); then FINANCE's invoice on a second
+//                         sent PO of S3, which waits for the next file
+//   export <tag>          the test fixture's layout as in `layout test`; then a new supplier without an Express vendor
+//                         code (procurement adds it after the registry check) and S3, a sent PO of each, and FINANCE's
+//                         invoice on each — one kept out of the Express file; and a third PO of S3, sent, whose invoice
+//                         comes later (the `invoice` scenario)
 //   invoice <poId> <no>   FINANCE records invoice <no> on the PO: 1,000 before VAT and 70 VAT, dated today
 //   vendor-code <id> <tag> procurement fills the Express vendor code of supplier <id>
 //   close <poId>          procurement closes the PO
@@ -195,7 +206,29 @@ switch (scenario) {
     out = { ...(await sentUrgentPo(tag, 'S1', 'แบบหล่อเหล็ก', '2', '9000.00')), today }
     break
   }
+  case 'layout': {
+    if (arg1 !== 'none' && arg1 !== 'test') throw new Error(`layout takes none or test, not ${arg1}`)
+    const express = arg1 === 'none' ? { ...TEST_EXPRESS_LAYOUT, mapping: [] } : TEST_EXPRESS_LAYOUT
+    await setExpressLayout(org.id, express)
+    out = { columns: express.mapping.length }
+    break
+  }
+  case 'waiting': {
+    // A file can be made only with a layout: the test fixture's (not the Express format, OQ-10)
+    await setExpressLayout(org.id, TEST_EXPRESS_LAYOUT)
+    const filed = await sentUrgentPo(tag, 'S3', 'ผ้าเช็ดมือ', '1', '1000.00')
+    const filedInvoiceNo = `EXF-${tag}`
+    await invoice(filed.poId, filedInvoiceNo, '1000.00', '70.00')
+    const made = ok(await exportExpress(await ctxOf('fin_officer'), {}, key()), 'export')
+    const waiting = await sentUrgentPo(tag, 'S3', 'ถุงขยะ', '1', '1000.00')
+    const waitingInvoiceNo = `EXW-${tag}`
+    await invoice(waiting.poId, waitingInvoiceNo, '1000.00', '70.00')
+    out = { filed: { invoiceNo: filedInvoiceNo, number: filed.number, checksum: made.checksum }, waiting: { invoiceNo: waitingInvoiceNo, number: waiting.number } }
+    break
+  }
   case 'export': {
+    // The demo has no Express layout until the customer's sample file (OQ-10): the file is made in the test fixture's
+    await setExpressLayout(org.id, TEST_EXPRESS_LAYOUT)
     // A supplier the registry knows, at a branch of its own, with no Express vendor code yet (BR-EXP-04)
     const code = `FIN-${randomUUID().slice(0, 6).toUpperCase()}`
     const branchCode = String(randomInt(10000, 99999))

@@ -11,10 +11,12 @@ import { systemCtx } from '@/server/context'
 import { systemDb } from '@/server/db/system'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents, type EventDraft } from '@/server/events/append'
+import { expressLayoutFromSheet } from './express-layout'
 import type { InputWorkbook } from './workbook'
 
 // Demo organization loader (spec Appendix A, S1-13): sheets Org and Users of docs/inputs/BCS_inputs_v1_demo.xlsx
-// plus prisma/seed/org-settings.demo.yaml. Runs only in local/preview/staging (prisma/seed.ts checks APP_ENV).
+// plus prisma/seed/org-settings.demo.yaml, with the Express file layout of sheet Settings (S4-09, express-layout.ts:
+// no columns until the customer's sample file, OQ-10). Runs only in local/preview/staging (prisma/seed.ts checks APP_ENV).
 // Re-running changes nothing that already exists: rows and their events are created only when missing.
 // Passwords come from SEED_DEV_PASSWORD. When SEED_TOTP_KEY is set, members who need 2FA get a TOTP secret derived
 // from it so e2e tests (and a presenter on this machine) can produce codes (scripts/seed-totp.ts prints them); without
@@ -89,7 +91,8 @@ export function parseDemoOrgInput(workbook: InputWorkbook, settingsYaml: string)
 
   const settings = OrgSettingsSchema.safeParse(parseYaml(settingsYaml))
   if (!settings.success) throw new Error(`${ORG_SETTINGS_DEMO_PATH}: ${issueText(settings.error)}`)
-  return { org: org.data, settings: settings.data, users }
+  // The Express columns are whatever the person filling in the workbook wrote, never a guess (§7.13, §17.3)
+  return { org: org.data, settings: { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }, users }
 }
 
 export function loadOrgSettingsYaml(path: string = ORG_SETTINGS_DEMO_PATH): string {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { parse as parseYaml } from 'yaml'
 import { toJsonSafe } from '@/lib/json'
-import { OrgSettingsSchema } from '@/lib/org-settings'
+import { OrgSettingsSchema, type OrgSettings } from '@/lib/org-settings'
 import { fund } from '@/core/budget'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { applyBudget } from '@/server/budget/ledger'
@@ -13,11 +13,14 @@ import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
 import { loadSeedForms } from '@/server/seed/forms'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
+import { TEST_EXPRESS_LAYOUT } from './express-layout'
 
 // An organization built from the §7.4 fixtures for service tests: the departments and position holders of
 // org-demo.yaml, DOA version 1 of doa-versions.yaml as PUBLISHED, the demo settings (calendar, numbering), the VAT
 // rates, a BUY_GOODS request type with a published form that carries the ATT-QUOTES rule of forms.yaml, and the
-// HIRE_SERVICE and IT_PURCHASE types with the forms of prisma/seed/forms.yaml.
+// HIRE_SERVICE and IT_PURCHASE types with the forms of prisma/seed/forms.yaml. The demo settings have no Express layout
+// until the customer's sample file arrives (OQ-10); a test organization exports in the test fixture's layout of
+// tests/support/express-layout.ts (not the Express format) unless the test gives another.
 
 interface OrgFixture {
   departments: Array<{ code: string; nameTh: string; parent: string | null }>
@@ -44,11 +47,14 @@ const FORM_SCHEMA = {
   ],
 }
 
-/** options.doa false: no DOA version yet, as before an organization's initial package (BR-DOA-19) */
-export async function createDoaOrg(options: { doa?: boolean } = {}): Promise<DoaOrg> {
+/**
+ * options.doa false: no DOA version yet, as before an organization's initial package (BR-DOA-19).
+ * options.express: the Express layout instead of the test fixture's (a mapping of [] is the demo's: none yet, OQ-10).
+ */
+export async function createDoaOrg(options: { doa?: boolean; express?: OrgSettings['express'] } = {}): Promise<DoaOrg> {
   await seedTaxRates()
   const fixture = loadYaml<OrgFixture>('fixtures/org-demo.yaml')
-  const settings = OrgSettingsSchema.parse(parseYaml(loadOrgSettingsYaml()))
+  const settings = OrgSettingsSchema.parse({ ...(parseYaml(loadOrgSettingsYaml()) as object), express: options.express ?? TEST_EXPRESS_LAYOUT })
   const org = await prisma.organization.create({
     data: { code: `D-${randomUUID().slice(0, 8)}`, legalNameTh: 'องค์กรทดสอบ DOA', taxId: '0999999000055', timezone: 'Asia/Bangkok', settings: toJsonSafe(settings) as object },
   })

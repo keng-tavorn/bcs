@@ -1,7 +1,7 @@
 import { CircleCheck, CircleMinus, CirclePlus, Scale, TriangleAlert } from 'lucide-react'
-import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { Notice } from '@/ui/form/notice'
+import { LightLink } from '@/ui/light-link'
 import type { VersionDiff } from '@/server/services/doa/diff'
 import type { BoundarySideView, BoundaryTableView, CompareView, RuleView } from '@/server/services/doa/view'
 import type { DoaT, DoaWords } from './words'
@@ -102,9 +102,9 @@ function BasisNotice({ basis, simulateHref, t }: { basis: NonNullable<CompareVie
     <Notice tone="warning">
       <p>{t('detail.basisNotice', { before: t(`detail.policy.${basis.before}`), after: t(`detail.policy.${basis.after}`) })}</p>
       {simulateHref ? (
-        <Link href={simulateHref} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
+        <LightLink href={simulateHref} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
           {t('detail.basisSimulate')}
-        </Link>
+        </LightLink>
       ) : null}
     </Notice>
   )

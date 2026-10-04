@@ -1,11 +1,13 @@
 import { CircleCheck, TriangleAlert } from 'lucide-react'
-import Link from 'next/link'
+import { LightLink } from '../light-link'
 
 // The lines of a purchase order (FR-P2P-003, BR-CONS-04): each item with the request lines it orders (links), the
 // quantity, unit price and amount before VAT right-aligned in tabular digits, what was received, and the prices paid
 // for the same item on the last approved POs with a warning when the new price is too far above the last one (AC1) —
 // an icon and words, never colour alone. Wide screens: columns; phones: each line stacks with the numbers next to
 // their labels — never a table that scrolls sideways (§9.9). Strings and numbers arrive translated and formatted.
+// The links are light links (src/ui/light-link.tsx), not next/link: the LIFF decision page of a PO renders these lines
+// too, and next/link's client code would weigh on its first JavaScript (§9.4: 200 KB gzip) even where no line links.
 
 export interface PoLineView {
   readonly key: string
@@ -56,9 +58,9 @@ export function PoLines({ lines, labels }: { lines: readonly PoLineView[]; label
                 <p className="font-medium break-words text-ink">{line.title}</p>
                 {line.sources.map((s) =>
                   s.href ? (
-                    <Link key={s.label} href={s.href} className="block text-base break-words text-primary underline underline-offset-4 hover:no-underline md:text-sm">
+                    <LightLink key={s.label} href={s.href} className="block text-base break-words text-primary underline underline-offset-4 hover:no-underline md:text-sm">
                       {s.label}
-                    </Link>
+                    </LightLink>
                   ) : (
                     <p key={s.label} className="text-base break-words text-ink md:text-sm">
                       {s.label}

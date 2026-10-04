@@ -1,0 +1,145 @@
+'use server'
+
+import { getLocale } from 'next-intl/server'
+import { z } from 'zod'
+import { doaGapNames, sentRequestSummary } from '@/server/queries/request-form'
+import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services/files'
+import { resubmitRequest, submitRequest } from '@/server/services/requests'
+import { attachFile, detachFile } from '@/server/services/requests/attachments'
+import { previewRequest } from '@/server/services/requests/preview'
+import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/ui/files/file-upload'
+import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
+import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
+import type { ActionOutcome } from '@/ui/tasks/outcome'
+import { answerQuestion, cancelOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
+import { liffPage } from '../_lib/session'
+
+// Browser-facing adapters of the LIFF request pages (S5-06, §9.4: /liff/requests/new and /liff/requests/[id]): the same
+// services as the web's request form and request page (src/app/(workspace)/requests/new/actions.ts,
+// src/app/_lib/file-actions.ts, src/app/(workspace)/requests/[id]/actions.ts), with the context of the LIFF
+// page — its channel is LIFF, so every Event of a request made or sent here says so (FR-LINE-003 AC1, FR-DOA-005). Each
+// reads the session of the LIFF page (a LIFF session, or a password sign-in, src/app/liff/_lib/session.ts) and hands the
+// raw input to the service, which checks the member (request.create, request.submit OWN), the state and every rule
+// again (BR-AUTH-05): what the screen hides or disables is never the guard. The idempotency key comes from the browser
+// per submission (spec §4.3), so a double tap or a retry after a lost answer runs the command once.
+
+const NO_SESSION: FormFailure = { ok: false, code: 'UNAUTHENTICATED' }
+const BAD_KEY: FormFailure = { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
+const Key = z.uuid()
+/** DOA gaps whose answer names the position and departments in words (FR-DOA-003 AC3) */
+const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS'])
+const FILE_REFUSALS: readonly FileRefusal[] = ['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'CONTENT_MISMATCH']
+
+async function memberCtx() {
+  const page = await liffPage()
+  return page.kind === 'member' ? page.ctx : null
+}
+
+async function screenLocale(): Promise<'th' | 'en'> {
+  return (await getLocale()) === 'en' ? 'en' : 'th'
+}
+
+/** FR-INT-004 AC1, FR-DOA-003 AC2: the chosen line's balance and the expected route, without writing anything */
+export async function previewRequestAction(input: PreviewRequestInput): Promise<FormOutcome<{ preview: PreviewView }>> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION
+  // Browser input on its way to the service, whose Zod schema checks every part of it (a malformed one: VALIDATION_FAILED)
+  const result = await previewRequest(ctx, input as unknown as Parameters<typeof previewRequest>[1], await screenLocale())
+  return result.ok ? { ok: true, preview: result.data } : toFormFailure(result.error)
+}
+
+/**
+ * "ส่งขออนุมัติ" from LIFF (FR-INT-007, FR-LINE-003 AC1): submit the draft the form saved, or send a returned request
+ * again (FR-INT-009 AC2), naming the version the requester checked (FR-INT-006 AC2). Sent, the answer carries the number
+ * and who decides it now, for the confirmation in the button's own words (§9.9 rule 7).
+ */
+export async function submitRequestAction(
+  input: { requestId: string; expectedVersion: number; resubmit: boolean },
+  idempotencyKey: string,
+): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const command = input?.resubmit === true ? resubmitRequest : submitRequest
+  const result = await command(ctx, { requestId: input?.requestId, expectedVersion: input?.expectedVersion }, { idempotencyKey })
+  const screen = await screenLocale()
+  if (result.ok) {
+    const sent = await sentRequestSummary(ctx, input.requestId, screen)
+    return { ok: true, requestId: input.requestId, sent: sent ?? { number: null, waitingFor: [] } }
+  }
+  const failure = toFormFailure(result.error)
+  if (DOA_GAPS.has(failure.code)) {
+    const names = await doaGapNames(ctx, { position: failure.position ?? null, departments: failure.departments ?? [] }, screen)
+    return { ...failure, ...(names.position ? { position: names.position } : {}), departments: names.departments }
+  }
+  return failure
+}
+
+/** FR-INT-005: a file the requester uploaded becomes an attachment of their draft, of one kind */
+export async function attachFileAction(requestId: string, fileId: string, kind: string, idempotencyKey: string): Promise<FormOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  // The kind comes from the browser as text; the service's schema refuses any that is not a FileLinkKind
+  const result = await attachFile(ctx, { requestId, fileId, kind: kind as 'OTHER' }, { idempotencyKey })
+  return result.ok ? { ok: true } : toFormFailure(result.error)
+}
+
+export async function detachFileAction(requestId: string, fileId: string, idempotencyKey: string): Promise<FormOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const result = await detachFile(ctx, { requestId, fileId }, { idempotencyKey })
+  return result.ok ? { ok: true } : toFormFailure(result.error)
+}
+
+function fileRefusalOf(details: Readonly<Record<string, unknown>> | undefined): FileRefusal {
+  const reason = details?.reason
+  return typeof reason === 'string' && (FILE_REFUSALS as readonly string[]).includes(reason) ? (reason as FileRefusal) : 'FAILED'
+}
+
+/** FR-PLT-004: a presigned upload straight to private storage (a photo from the phone's camera included, FR-INT-005 AC3) */
+export async function requestUploadAction(input: { fileName: string; mimeType: string; sizeBytes: number }): Promise<RequestUploadResult> {
+  const ctx = await memberCtx()
+  if (!ctx) return { ok: false, reason: 'FAILED' }
+  const r = await requestUpload(ctx, input)
+  return r.ok ? { ok: true, uploadUrl: r.data.uploadUrl, ticket: r.data.ticket } : { ok: false, reason: fileRefusalOf(r.error.details) }
+}
+
+export async function completeUploadAction(ticket: string): Promise<CompleteUploadResult> {
+  const ctx = await memberCtx()
+  if (!ctx) return { ok: false, reason: 'FAILED' }
+  const r = await completeUpload(ctx, { ticket })
+  return r.ok ? { ok: true, fileId: r.data.fileId, fileName: r.data.fileName } : { ok: false, reason: fileRefusalOf(r.error.details) }
+}
+
+/** A download address valid a few minutes, for a member who may view the request the file belongs to (FR-PLT-004 AC2) */
+export async function downloadUrlAction(fileId: string): Promise<string | null> {
+  const ctx = await memberCtx()
+  if (!ctx) return null
+  const r = await getDownloadUrl(ctx, { fileId })
+  return r.ok ? r.data.url : null
+}
+
+const NO_SESSION_ACTION: ActionOutcome = { ok: false, code: 'UNAUTHENTICATED' }
+
+/** FR-INT-009: the requester answers the approver's question from LIFF (the LINE message about it opens the request here) */
+export async function answerInfoAction(input: { infoRequestId: string; answer: string }, idempotencyKey: string): Promise<ActionOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION_ACTION
+  return answerQuestion(ctx, input, idempotencyKey)
+}
+
+/** FR-INT-009 AC2: the requester sends a returned request again as it is, from LIFF */
+export async function resubmitReturnedAction(requestId: string, idempotencyKey: string): Promise<ActionOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION_ACTION
+  return resubmitOwnRequest(ctx, requestId, idempotencyKey)
+}
+
+/** FR-INT-009 AC1: the requester cancels their request with a reason, from LIFF; the budget it reserved goes back at once */
+export async function cancelRequestAction(input: { requestId: string; reason: string }, idempotencyKey: string): Promise<ActionOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION_ACTION
+  return cancelOwnRequest(ctx, input, idempotencyKey)
+}

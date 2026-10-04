@@ -5,11 +5,13 @@ import { MS_PER_DAY } from '@/lib/constants'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
-import { freeLines } from './pool'
+import { draftBlock, freeLines, type DraftBlock } from './pool'
 
 // What PROCUREMENT sees in the pool (spec FR-P2P-001 AC1, AC3; §2.4 procurement.pool.view = PROCUREMENT): every
 // approved request line with something left to order, filtered by supplier, delivery site, urgency and age, oldest
-// approval first. A line without a supplier says so (BR-CONS-03) and waits for one.
+// approval first. A line without a supplier says so (BR-CONS-03) and waits for one. A line no round drafts even with
+// its supplier says why (draftBlock: a request whose prices include VAT, NEW-50). Prices are the request's own, on its
+// VAT basis: nothing is converted, so nothing is rounded beyond the line amount (BR-MONEY-02 (1)).
 
 export interface PoolFilter {
   /** A supplier's id, or NONE for the lines that still need one */
@@ -34,12 +36,17 @@ export interface PoolLineDto {
   /** Left to order, decimal text */
   readonly quantity: string
   readonly uom: string
+  /** The request's unit price: before VAT, or with VAT included when `priceIncludesVat` */
   readonly unitPriceSatang: Satang
-  /** What is left × the unit price, before VAT */
-  readonly netSatang: Satang
+  /** What is left × the unit price (BR-MONEY-02 (1)), on the same VAT basis as the unit price */
+  readonly amountSatang: Satang
+  /** The request's prices include VAT: the unit price and the amount above include it */
+  readonly priceIncludesVat: boolean
   readonly supplier: { readonly id: string; readonly code: string; readonly nameTh: string } | null
   /** BR-CONS-03: "ต้องเลือกผู้ขาย" */
   readonly needsSupplier: boolean
+  /** Why no round drafts the line even with its supplier, or null: the next round drafts it once it has one */
+  readonly draftBlock: DraftBlock | null
   readonly suggestedSupplierId: string | null
   readonly deliverySite: { readonly id: string; readonly code: string; readonly nameTh: string } | null
   readonly urgency: 'NORMAL' | 'URGENT'
@@ -77,10 +84,12 @@ export async function listPool(ctx: Ctx, filter: PoolFilter = {}): Promise<Resul
       kind: l.kind,
       quantity,
       uom: l.uom,
-      unitPriceSatang: l.unitPriceBeforeVat,
-      netSatang: lineNet(quantity, l.unitPriceBeforeVat),
+      unitPriceSatang: l.unitPriceSatang,
+      amountSatang: lineNet(quantity, l.unitPriceSatang),
+      priceIncludesVat: l.priceIncludesVat,
       supplier: l.supplierId ? (supplierOf.get(l.supplierId) ?? null) : null,
       needsSupplier: l.supplierId === null,
+      draftBlock: draftBlock(l),
       suggestedSupplierId: r.suggestedSupplierId,
       deliverySite: l.deliverySiteId ? (siteOf.get(l.deliverySiteId) ?? null) : null,
       urgency: l.urgent ? 'URGENT' : 'NORMAL',

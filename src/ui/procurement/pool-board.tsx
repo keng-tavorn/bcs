@@ -1,6 +1,6 @@
 'use client'
 
-import { AlarmClock, CircleAlert, Store } from 'lucide-react'
+import { AlarmClock, CircleAlert, CirclePause, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
@@ -17,8 +17,12 @@ import { useOutcomeAction } from './use-outcome-action'
 // wide screens while the list scrolls; on phones a small bar at the bottom says how many lines are ticked and leads back
 // to it. No cards: requests and lines are separated by rules; numbers are right-aligned in tabular digits. Choosing the
 // supplier of an urgent request drafts its PO at once (BR-CONS-02), and a draft cannot be thrown away or given another
-// supplier yet, so that choice asks a second time, naming how many urgent requests it drafts (§9.9). Strings and
-// amounts arrive translated and formatted; the service checks permissions again.
+// supplier yet, so that choice asks a second time, naming how many urgent requests it drafts (§9.9). A request no round
+// drafts yet says why under its name, with an icon (a request whose prices include VAT, NEW-50); its prices are shown
+// as it states them, marked "รวม VAT", and choosing its supplier drafts nothing at once even when it is urgent — the
+// notice of the choice says so. While such a request is listed, the amount column names no VAT basis and every line
+// states its own ("รวม VAT" or "ก่อน VAT"). Strings and amounts arrive translated and formatted; the service checks
+// permissions again.
 
 export interface PoolLineView {
   readonly id: string
@@ -27,7 +31,10 @@ export interface PoolLineView {
   readonly kind: string
   readonly quantity: string
   readonly unitPrice: string
-  readonly net: string
+  /** What is left × the unit price, on the same VAT basis */
+  readonly amount: string
+  /** The unit price and the amount include VAT (the request's prices do) */
+  readonly includesVat: boolean
   /** The supplier chosen in the pool, or null: the line waits for one */
   readonly supplierName: string | null
 }
@@ -42,6 +49,8 @@ export interface PoolRequestView {
   readonly meta: readonly string[]
   readonly urgent: boolean
   readonly suggested: string | null
+  /** Why no round drafts this request's lines yet, or null */
+  readonly blocked: 'PRICE_INCLUDES_VAT' | null
   readonly lines: readonly PoolLineView[]
 }
 
@@ -54,11 +63,17 @@ export interface PoolBoardProps {
 const GRID = 'md:grid md:grid-cols-[minmax(0,1fr)_6.5rem_7.5rem_8.5rem] md:items-start md:gap-4'
 const SOURCE = 'assign'
 
-function Figure({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+/** `note` is seen under the value on wide screens, where the label is only read out: the label already says it */
+function Figure({ label, value, strong, note }: { label: string; value: string; strong?: boolean; note?: string }) {
   return (
     <p className="flex items-baseline justify-between gap-3 md:block md:text-right">
       <span className="text-base text-ink-muted md:sr-only">{label}</span>
       <span className={strong ? 'tabular font-semibold text-ink' : 'tabular text-ink'}>{value}</span>
+      {note ? (
+        <span aria-hidden="true" className="hidden text-sm text-ink-muted md:block">
+          {note}
+        </span>
+      ) : null}
     </p>
   )
 }
@@ -68,6 +83,29 @@ type PoolT = ReturnType<typeof useTranslations<'procurement.pool'>>
 /** "เปิดร่าง PO ของ <ผู้ขาย> · <สถานที่ส่ง> · <ชนิด>": two drafts of one supplier never read alike */
 export function draftLinkLabel(t: PoolT, draft: DraftView): string {
   return t('draftLink', { supplier: draft.supplierName, site: draft.siteName ?? t('round.draftNoSite'), kind: t(`kind.${draft.kind}`) })
+}
+
+/**
+ * The urgent requests among the ticked lines that choosing their supplier drafts at once (BR-CONS-02) — what the second
+ * press asks about. A request no round drafts yet is not drafted at once either (NEW-50: prices that include VAT).
+ */
+export function urgentDraftedAtOnce(requests: readonly PoolRequestView[], picked: ReadonlySet<string>): number {
+  return requests.filter((r) => r.urgent && !r.blocked && r.lines.some((l) => picked.has(l.id))).length
+}
+
+/** The ticked lines of requests no round drafts yet (NEW-50): choosing their supplier puts them on no draft PO */
+export function blockedPicked(requests: readonly PoolRequestView[], picked: ReadonlySet<string>): number {
+  return requests.reduce((n, r) => (r.blocked ? n + r.lines.filter((l) => picked.has(l.id)).length : n), 0)
+}
+
+/**
+ * The labels of a line's unit price and amount, and the note under each value on wide screens. While a listed request
+ * has prices that include VAT, the column heading names no basis, so every line states its own (NEW-50).
+ */
+export function figureLabels(t: PoolT, line: Pick<PoolLineView, 'includesVat'>, vatListed: boolean): { unitPrice: string; amount: string; note: string | undefined } {
+  if (line.includesVat) return { unitPrice: t('line.unitPriceIncludingVat'), amount: t('line.amountIncludingVat'), note: t('line.includingVat') }
+  if (vatListed) return { unitPrice: t('line.unitPriceBeforeVat'), amount: t('line.amount'), note: t('line.beforeVat') }
+  return { unitPrice: t('line.unitPrice'), amount: t('line.amount'), note: undefined }
 }
 
 export function DraftLinks({ drafts, label }: { drafts: readonly DraftView[]; label: (draft: DraftView) => string }) {
@@ -91,7 +129,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [supplierId, setSupplierId] = useState('')
   const [problem, setProblem] = useState<'needLines' | 'needSupplier' | null>(null)
-  const [done, setDone] = useState<{ text: string; drafts: readonly DraftView[]; urgent: string | null } | null>(null)
+  const [done, setDone] = useState<{ text: string; drafts: readonly DraftView[]; urgent: string | null; blocked: string | null } | null>(null)
   /** Urgent requests among the ticked lines, while the second press is asked for */
   const [confirmUrgent, setConfirmUrgent] = useState<number | null>(null)
   // A round run after the choice: the choice's notice is no longer the last thing done
@@ -104,7 +142,8 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
   // Lines that left the pool after a refresh are no longer selected
   const present = new Set(requests.flatMap((r) => r.lines.map((l) => l.id)))
   const selected = [...picked].filter((lineId) => present.has(lineId))
-  const urgentPicked = requests.filter((r) => r.urgent && r.lines.some((l) => picked.has(l.id))).length
+  const urgentPicked = urgentDraftedAtOnce(requests, picked)
+  const vatListed = requests.some((r) => r.lines.some((l) => l.includesVat))
 
   const toggle = (lineIds: readonly string[], on: boolean) => {
     setPicked((current) => {
@@ -134,6 +173,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
     setConfirmUrgent(null)
     announcePoolAction(SOURCE)
     const supplier = suppliers.find((s) => s.id === supplierId)
+    const blocked = clear ? 0 : blockedPicked(requests, new Set(selected))
     const outcome = await action.run((key) => assign({ requestLineIds: selected, supplierId: clear ? null : supplierId }, key))
     if (!outcome.ok) return
     const count = outcome.assigned ?? selected.length
@@ -143,6 +183,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
       text: clear ? t('assign.cleared', { count }) : t('assign.done', { supplier: supplier?.label ?? '', count }),
       drafts,
       urgent: drafts.length ? t('assign.urgent', { count: drafts.length }) : null,
+      blocked: blocked ? t('assign.blocked', { count: blocked }) : null,
     })
   }
 
@@ -167,6 +208,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
           <Notice tone="success">
             <p>{done.text}</p>
             {done.urgent ? <p>{done.urgent}</p> : null}
+            {done.blocked ? <p>{done.blocked}</p> : null}
             {done.drafts.length ? <DraftLinks drafts={done.drafts} label={(d) => draftLinkLabel(t, d)} /> : null}
           </Notice>
         ) : null}
@@ -223,7 +265,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
         <span>{t('line.description')}</span>
         <span className="text-right">{t('line.quantity')}</span>
         <span className="text-right">{t('line.unitPrice')}</span>
-        <span className="text-right">{t('line.amount')}</span>
+        <span className="text-right">{vatListed ? t('line.amountColumn') : t('line.amount')}</span>
       </div>
       <ul aria-label={t('listLabel')} className="flex flex-col divide-y divide-line border-b border-line">
         {requests.map((r) => {
@@ -257,40 +299,49 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                     </span>
                   ))}
                   {r.suggested ? <span className="text-base text-ink md:text-sm">{t('request.suggested', { name: r.suggested })}</span> : null}
+                  {r.blocked ? (
+                    <span className="inline-flex items-start gap-1.5 text-base font-medium text-warn md:text-sm">
+                      <CirclePause className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
+                      <span className="break-words">{t(`blocked.${r.blocked}`)}</span>
+                    </span>
+                  ) : null}
                 </div>
               </div>
               <ol className="flex flex-col divide-y divide-line border-t border-line md:ml-8">
-                {r.lines.map((l) => (
-                  <li key={l.id} className={`flex flex-col gap-1.5 py-2.5 ${GRID}`}>
-                    <label className="flex min-w-0 items-start gap-3">
-                      <input
-                        type="checkbox"
-                        checked={picked.has(l.id)}
-                        onChange={(event) => toggle([l.id], event.currentTarget.checked)}
-                        aria-label={t('line.select', { no: l.no, description: l.description })}
-                        className="mt-1.5 size-5 shrink-0 accent-[var(--primary)]"
-                      />
-                      <span className="flex min-w-0 flex-col gap-0.5">
-                        <span className="font-medium break-words text-ink">{t('line.title', { no: l.no, description: l.description })}</span>
-                        <span className="text-base text-ink-muted md:text-sm">{l.kind}</span>
-                        {l.supplierName ? (
-                          <span className="inline-flex items-start gap-1.5 text-base text-ink md:text-sm">
-                            <Store className="mt-[0.3em] size-4 shrink-0 text-primary" aria-hidden="true" />
-                            <span className="break-words">{t('line.supplier', { name: l.supplierName })}</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-start gap-1.5 text-base font-medium text-warn md:text-sm">
-                            <CircleAlert className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
-                            <span>{t('line.needsSupplier')}</span>
-                          </span>
-                        )}
-                      </span>
-                    </label>
-                    <Figure label={t('line.quantity')} value={l.quantity} />
-                    <Figure label={t('line.unitPrice')} value={l.unitPrice} />
-                    <Figure label={t('line.amount')} value={l.net} strong />
-                  </li>
-                ))}
+                {r.lines.map((l) => {
+                  const labels = figureLabels(t, l, vatListed)
+                  return (
+                    <li key={l.id} className={`flex flex-col gap-1.5 py-2.5 ${GRID}`}>
+                      <label className="flex min-w-0 items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={picked.has(l.id)}
+                          onChange={(event) => toggle([l.id], event.currentTarget.checked)}
+                          aria-label={t('line.select', { no: l.no, description: l.description })}
+                          className="mt-1.5 size-5 shrink-0 accent-[var(--primary)]"
+                        />
+                        <span className="flex min-w-0 flex-col gap-0.5">
+                          <span className="font-medium break-words text-ink">{t('line.title', { no: l.no, description: l.description })}</span>
+                          <span className="text-base text-ink-muted md:text-sm">{l.kind}</span>
+                          {l.supplierName ? (
+                            <span className="inline-flex items-start gap-1.5 text-base text-ink md:text-sm">
+                              <Store className="mt-[0.3em] size-4 shrink-0 text-primary" aria-hidden="true" />
+                              <span className="break-words">{t('line.supplier', { name: l.supplierName })}</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-start gap-1.5 text-base font-medium text-warn md:text-sm">
+                              <CircleAlert className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
+                              <span>{t('line.needsSupplier')}</span>
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                      <Figure label={t('line.quantity')} value={l.quantity} />
+                      <Figure label={labels.unitPrice} value={l.unitPrice} note={labels.note} />
+                      <Figure label={labels.amount} value={l.amount} strong note={labels.note} />
+                    </li>
+                  )
+                })}
               </ol>
             </li>
           )

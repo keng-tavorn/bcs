@@ -55,7 +55,14 @@ async function fundedLine(baht: bigint): Promise<string> {
 const balance = async (budgetLineId: string) => {
   const b = await prisma.budgetLineBalance.findUniqueOrThrow({ where: { budgetLineId } })
   const baht = (s: bigint) => `${s / 100n}.${String(s % 100n).padStart(2, '0')}`
-  return { available: baht(b.availableSatang), reserved: baht(b.reservedSatang), committed: baht(b.committedSatang), actual: baht(b.actualSatang) }
+  return {
+    available: baht(b.availableSatang),
+    reserved: baht(b.reservedSatang),
+    committed: baht(b.committedSatang),
+    actual: baht(b.actualSatang),
+    /** The same amounts in satang, as the row holds them: differences are taken here, never through a float (BR-MONEY-01) */
+    satang: { available: b.availableSatang, reserved: b.reservedSatang, committed: b.committedSatang, actual: b.actualSatang },
+  }
 }
 
 async function approveAll(subjectId: string) {
@@ -166,7 +173,7 @@ describe('[FR-P2P-007/AC1] [FR-P2P-007/AC2] [FR-P2P-007/AC3] an excess goes back
     expect(await prisma.variance.findUniqueOrThrow({ where: { id: variance.id } })).toMatchObject({ status: 'APPROVED' })
     expect((await lineOf(po.poLineId)).receivedQuantity.toString()).toBe('11')
     const after = await balance(po.line)
-    expect(Number(after.committed) - Number(before.committed)).toBe(1100)
+    expect(after.satang.committed - before.satang.committed).toBe(110_000n)
     expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: po.line, type: 'budget.committed', data: { path: ['documentId'], equals: po.poId }, NOT: { data: { path: ['amountSatang'], equals: '1100000' } } } })).toMatchObject({ data: { amountSatang: '110000' } })
   })
 
@@ -180,7 +187,7 @@ describe('[FR-P2P-007/AC1] [FR-P2P-007/AC2] [FR-P2P-007/AC3] an excess goes back
       const gr = ok(await postGoodsReceipt(receiver(), { poId: po.poId, lines: [{ poLineId: po.poLineId, received: '104' }] }, key()))
       expect(gr).toMatchObject({ poStatus: 'RECEIVED', varianceIds: [] })
       expect((await lineOf(po.poLineId)).acceptedExtraQuantity.toString()).toBe('4')
-      expect(Number((await balance(po.line)).committed) - Number(before.committed)).toBe(40)
+      expect((await balance(po.line)).satang.committed - before.satang.committed).toBe(4_000n)
     } finally {
       await prisma.organization.update({ where: { id: org.organizationId }, data: { settings: settings as object } })
     }
@@ -203,7 +210,7 @@ describe('[FR-P2P-010/AC2] [FR-P2P-010/AC3] a PO that will not come in full is c
     expect(await poStatus(po.poId)).toBe('CLOSED')
     const after = await balance(po.line)
     // 4 × 1,100 never came: given back; 6 × 1,100 received and not invoiced: still held (ADR-038 ข้อ 10)
-    expect(Number(after.available) - Number(before.available)).toBe(4400)
+    expect(after.satang.available - before.satang.available).toBe(440_000n)
     expect(after.committed).toBe('6600.00')
     expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: po.poId, type: 'po.closed' } })).toMatchObject({ data: { via: 'CLOSE_SHORT', keptSatang: '660000', releasedSatang: '0' } })
     expect((await lineOf(po.poLineId)).cancelledQuantity.toString()).toBe('4')

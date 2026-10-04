@@ -20,10 +20,12 @@ export type PoolOutcome =
       readonly assigned?: number
       /** Draft POs made: by the round, or at once for urgent requests (BR-CONS-02) */
       readonly drafts?: readonly DraftView[]
-      /** After a round: lines still in the pool because they need a supplier (BR-CONS-03) */
+      /** After a round: lines still in the pool because they need a supplier, and drafted once they have one (BR-CONS-03) */
       readonly left?: number
       /** After a round: lines that got a supplier while it ran, for the next round */
       readonly waiting?: number
+      /** After a round: lines no round drafts yet, with a supplier or without, because their request's prices include VAT (NEW-50) */
+      readonly blocked?: number
     }
   | PoolFailure
 

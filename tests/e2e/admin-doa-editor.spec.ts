@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { type Locator, type Page, type TestInfo } from '@playwright/test'
 import { parse as parseYaml } from 'yaml'
+import { amountToSatang } from '../../src/core/money/dto'
+import { formatSatang } from '../../src/core/money/format'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
@@ -334,7 +336,8 @@ test('[GC-DOA-22] the boundary table of version 1 is the golden case, with the a
   await signIn(page, s)
   await page.goto(`/admin/doa/${s.v1}`)
   const golden = (parseYaml(readFileSync(path.resolve(import.meta.dirname, '../golden/doa-lint.yaml'), 'utf8')) as { cases: Array<{ id: string; expect: { rows: Array<{ amount: string; rule: string }> } }> }).cases.find((c) => c.id === 'GC-DOA-22')!
-  const money = (text: string) => Number(text).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  // "20000.01" → "20,000.01" the way the page formats money: parsed to satang and formatted, never through a float
+  const money = (text: string) => formatSatang(amountToSatang(text))
   const rows = page.getByRole('region', { name: 'ตารางผลที่ขอบของช่วงวงเงิน' }).getByRole('list', { name: 'คำขอซื้อ (PR)' }).getByRole('listitem')
   // Each edge in order: the amount, the rule of the golden case, and who that rule names (BR-DOA-08 (ช))
   await expect(rows).toHaveText(golden.expect.rows.map((r) => new RegExp(`${money(r.amount).replace(/[.]/g, '\\.')} บาท.*ใช้ข้อ ${r.rule}`)))

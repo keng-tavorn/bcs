@@ -13,7 +13,7 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { freeLines, POOL_REQUEST_STATUSES, releasableFor, type FreeLine } from './pool'
+import { draftBlock, freeLines, POOL_REQUEST_STATUSES, releasableFor, type FreeLine } from './pool'
 
 // The consolidation round (spec §7.10, BR-CONS-01 to BR-CONS-05, FR-P2P-002): the free request lines PROCUREMENT has
 // chosen a supplier for become draft POs, one per (supplier, delivery site, goods or service) and in the order of
@@ -22,9 +22,11 @@ import { freeLines, POOL_REQUEST_STATUSES, releasableFor, type FreeLine } from '
 // (settings consolidation.cron, OQ-13 default on business days), by hand ("รวมตอนนี้"), or for an urgent request, and
 // is recorded as a ConsolidationRun even when it drafts nothing.
 //
-// A draft orders all that is left of each line at the request's price before VAT; each PO line keeps its source
-// request line with what it gives back when the PO is approved (PoLineSource, BR-BUD-05, BR-CONS-04). The VAT of the
-// draft uses today's rate for display; the PO takes its rate again when it is sent for approval (§6.4).
+// A draft orders all that is left of each line at the request's unit price, which is before VAT; each PO line keeps its
+// source request line with what it gives back when the PO is approved (PoLineSource, BR-BUD-05, BR-CONS-04). The VAT
+// of the draft uses today's rate for display; the PO takes its rate again when it is sent for approval (§6.4). Lines of
+// a request whose prices include VAT are never drafted: they stay in the pool, with the reason shown, until the user
+// decides how such prices become PO lines (draftBlock, NEW-50) — so no PO amount differs from what was approved.
 
 export type ConsolidationTrigger = 'SCHEDULED' | 'MANUAL' | 'URGENT'
 
@@ -60,7 +62,8 @@ export async function consolidateInTx(
   options: { trigger: ConsolidationTrigger; scheduledFor?: Date | null; requestIds?: readonly string[] },
 ): Promise<ConsolidationOutcome> {
   const locked = await lockPoolRequests(tx, ctx, options.requestIds)
-  const lines = locked.length ? await freeLines(tx, { requestIds: locked, withSupplierOnly: true }) : []
+  // TODO(NEW-50): lines of a request whose prices include VAT wait in the pool
+  const lines = locked.length ? (await freeLines(tx, { requestIds: locked, withSupplierOnly: true })).filter((l) => draftBlock(l) === null) : []
   const byId = new Map(lines.map((l) => [l.requestLineId, l]))
   const grouped = consolidate(
     lines.map((l) => ({ ref: l.requestLineId, requestNo: l.requestNo, lineNo: l.lineNo, supplierId: l.supplierId, siteId: l.deliverySiteId, kind: l.kind, urgent: l.urgent })),
@@ -108,12 +111,15 @@ async function createDraft(
   options: { rateBp: number | null; runId: string | null; via: 'CONSOLIDATION' | 'MANUAL' },
 ): Promise<EventDraft> {
   const first = lines[0]!
+  // A draft is priced before VAT at the request's own unit price: a price that includes VAT never gets here, or the
+  // PO would need a unit price rounded outside BR-MONEY-02 (NEW-50)
+  if (lines.some((l) => l.priceIncludesVat)) throw new Error('a line whose price includes VAT is never put on a draft PO (NEW-50)')
   const poLines = lines.map((l, i) => {
     const quantity = formatQuantity(l.free)
-    return { id: newId(), line: l, lineNo: i + 1, quantity, netSatang: lineNet(quantity, l.unitPriceBeforeVat) }
+    return { id: newId(), line: l, lineNo: i + 1, quantity, netSatang: lineNet(quantity, l.unitPriceSatang) }
   })
   const totals = documentTotals(
-    poLines.map((p) => ({ quantity: p.quantity, unitPriceSatang: p.line.unitPriceBeforeVat, vatable: p.line.vatable })),
+    poLines.map((p) => ({ quantity: p.quantity, unitPriceSatang: p.line.unitPriceSatang, vatable: p.line.vatable })),
     options.rateBp ?? 0,
     false,
   )
@@ -145,7 +151,7 @@ async function createDraft(
       categoryCode: p.line.categoryCode,
       quantity: p.quantity,
       uom: p.line.uom,
-      unitPriceSatang: p.line.unitPriceBeforeVat,
+      unitPriceSatang: p.line.unitPriceSatang,
       netSatang: p.netSatang,
       vatable: p.line.vatable,
       budgetLineId: p.line.budgetLineId,

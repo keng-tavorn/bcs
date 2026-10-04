@@ -3,6 +3,7 @@ import { isPinLocked, pinAttemptsLeft, pinProblem } from '@/core/pin'
 import { err, ok, type Result } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { checkPinChangeProof, hashPin, type IdentityProofMethod } from '@/server/auth/pin'
+import { identityProofMethods } from '@/server/auth/proof-methods'
 import { proveIdentityForPin } from '@/server/auth/step-up'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -133,14 +134,31 @@ export interface PinStatusDto {
   readonly lockedUntil: string | null
   /** Wrong PINs still allowed before the lock */
   readonly attemptsLeft: number
+  /**
+   * The ways this member can prove who they are before setting the PIN (step 1, confirmIdentityForPin), in the order the
+   * screen offers them: PASSWORD when the account has a password, TOTP once an authenticator app is set up. Empty when
+   * neither is: step 1 cannot be done, and the screen says so instead of offering a way that is refused.
+   */
+  readonly proofMethods: readonly IdentityProofMethod[]
 }
 
-/** Whether the signed-in member has a PIN and whether it is locked now (security clock). Never the PIN or its hash. */
+/**
+ * Whether the signed-in member has a PIN, whether it is locked now (security clock), and how they can prove who they are
+ * to set one. Never the PIN or its hash, nor a password hash or a secret.
+ */
 export async function getOwnPinStatus(ctx: Ctx, securityNow: Date = systemClock.now()): Promise<Result<PinStatusDto>> {
   const allowed = await allowedForSelf(ctx)
   if (!allowed.ok) return allowed
-  const member = await forTenant(ctx.organizationId).member.findFirst({ where: { id: allowed.data }, select: { transactionPinHash: true, pinFailedCount: true, pinLockedUntil: true } })
+  const member = await forTenant(ctx.organizationId).member.findFirst({
+    where: { id: allowed.data },
+    select: { userId: true, transactionPinHash: true, pinFailedCount: true, pinLockedUntil: true },
+  })
   if (!member) return err('NOT_FOUND', 'member not found')
   const locked = isPinLocked(member.pinLockedUntil, securityNow)
-  return ok({ hasPin: member.transactionPinHash !== null, lockedUntil: locked && member.pinLockedUntil ? member.pinLockedUntil.toISOString() : null, attemptsLeft: locked ? 0 : pinAttemptsLeft(member.pinFailedCount) })
+  return ok({
+    hasPin: member.transactionPinHash !== null,
+    lockedUntil: locked && member.pinLockedUntil ? member.pinLockedUntil.toISOString() : null,
+    attemptsLeft: locked ? 0 : pinAttemptsLeft(member.pinFailedCount),
+    proofMethods: await identityProofMethods(member.userId),
+  })
 }

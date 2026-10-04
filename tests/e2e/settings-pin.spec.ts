@@ -30,6 +30,9 @@ test('[FR-AUTH-005/AC1] a member proves who they are, then sets a PIN the rules 
     'ไม่ใช่เลขที่คนใช้บ่อย เช่น 121212 หรือ 147258',
   ])
   await expect(page.getByRole('heading', { name: 'ขั้นที่ 1 จาก 2: ยืนยันว่าเป็นคุณ' })).toBeVisible()
+  // The member has a password and an authenticator app: both ways are offered, the password first
+  await expect(page.getByRole('radio')).toHaveCount(2)
+  await expect(page.getByRole('radio', { name: 'รหัสผ่าน', exact: true })).toBeChecked()
   // The button is enabled once the page runs its script (src/ui/form/hydrated.ts)
   await expect(page.getByRole('button', { name: 'ยืนยันตัวตน' })).toBeEnabled()
   await checkScreen(page, testInfo, 'settings-pin')
@@ -116,6 +119,9 @@ test('[FR-AUTH-005/AC1][NFR-SEC-09] before the page runs its script, step 1 send
   try {
     await bare.page.goto('/settings/pin')
     await expect(bare.page.getByRole('heading', { name: 'ขั้นที่ 1 จาก 2: ยืนยันว่าเป็นคุณ' })).toBeVisible()
+    // A requester has no authenticator app: the password is the only way offered — no choice, no word of the code
+    await expect(bare.page.getByText('ก่อนตั้งหรือเปลี่ยน PIN ยืนยันตัวตนอีกครั้งด้วยรหัสผ่านของคุณ', { exact: true })).toBeVisible()
+    await expect(bare.page.getByRole('radio')).toHaveCount(0)
     const password = 'not-the-real-password-123'
     const field = bare.page.getByLabel('รหัสผ่านของคุณ')
     await field.fill(password)

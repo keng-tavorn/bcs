@@ -6,6 +6,7 @@ import { useId, useState, type FormEvent, type InputHTMLAttributes } from 'react
 import { LOGIN_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS, MS_PER_MINUTE } from '@/lib/constants'
 import { cn } from '../cn'
 import { Button } from '../form/button'
+import { useHydrated } from '../form/hydrated'
 import { LIFF_LINK_CLASS } from './liff-link'
 import { LiffNotice } from './notice'
 
@@ -18,7 +19,10 @@ import { LiffNotice } from './notice'
 // LINE SDK (§9.4): it calls the endpoints with fetch rather than Better Auth's browser client (some 13 KB gzip), and its
 // fields and the lockout words are the workspace's (src/ui/form/field.tsx, src/ui/auth/lock-message.ts) without the icon
 // library and the date code those bring. Errors show in one message above the fields, as on the web sign-in. Nothing
-// typed here is kept beyond the request.
+// typed here is kept beyond the request. Nothing is sent but by the script, as on the web sign-in (src/ui/auth): both
+// forms post and their buttons — the switch to a backup code too — wait for hydration (src/ui/form/hydrated.ts), so a
+// password or a code never goes into the page's address (NFR-SEC-09). The screen is drawn after the LINE sign-in said
+// "not linked", by the script, so it is never in the server's HTML; the guard holds wherever it is drawn.
 
 const LOCKED_STATUS = 429
 const UNAUTHORIZED_STATUS = 401
@@ -91,6 +95,7 @@ export function LiffSignIn() {
   const router = useRouter()
   const lockText = useLockText()
   const id = useId()
+  const hydrated = useHydrated()
   const [step, setStep] = useState<'password' | 'second'>('password')
   const [mode, setMode] = useState<'app' | 'backup'>('app')
   const [error, setError] = useState<string | null>(null)
@@ -140,7 +145,7 @@ export function LiffSignIn() {
         <h2 id={`${id}-second`} className="text-lg leading-snug font-semibold">
           {t('twoFactorHeading')}
         </h2>
-        <form onSubmit={onSecond} className="flex flex-col gap-5" noValidate>
+        <form method="post" onSubmit={onSecond} className="flex flex-col gap-5" noValidate>
           <p className="text-ink-muted">{tTwo('intro')}</p>
           {error ? <LiffNotice tone="danger">{error}</LiffNotice> : null}
           {mode === 'app' ? (
@@ -148,12 +153,13 @@ export function LiffSignIn() {
           ) : (
             <LiffField key="backup" id={`${id}-code`} name="code" label={tTwo('backupCode')} hint={tTwo('backupHint')} autoComplete="off" required />
           )}
-          <Button type="submit" disabled={pending} className="w-full">
+          <Button type="submit" disabled={pending || !hydrated} className="w-full">
             {pending ? tTwo('submitting') : tTwo('submit')}
           </Button>
           <Button
             variant="link"
             className="min-h-11 self-start"
+            disabled={!hydrated}
             onClick={() => {
               setMode(mode === 'app' ? 'backup' : 'app')
               setError(null)
@@ -172,11 +178,11 @@ export function LiffSignIn() {
         {t('heading')}
       </h2>
       <p className="text-ink-muted">{t('intro')}</p>
-      <form onSubmit={onPassword} className="flex flex-col gap-5" noValidate>
+      <form method="post" onSubmit={onPassword} className="flex flex-col gap-5" noValidate>
         {error ? <LiffNotice tone="danger">{error}</LiffNotice> : null}
         <LiffField id={`${id}-email`} name="email" type="email" autoComplete="username" inputMode="email" required label={tLogin('email')} />
         <LiffField id={`${id}-pw`} name="password" type="password" autoComplete="current-password" required label={tLogin('password')} />
-        <Button type="submit" disabled={pending} className="w-full">
+        <Button type="submit" disabled={pending || !hydrated} className="w-full">
           {pending ? tLogin('submitting') : tLogin('submit')}
         </Button>
       </form>

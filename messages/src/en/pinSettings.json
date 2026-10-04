@@ -21,10 +21,14 @@
   "prove": {
     "title": "Step 1 of 2: confirm it is you",
     "intro": "Before you set or change the PIN, confirm who you are again with your password or the code from your authenticator app.",
+    "introOnly": {
+      "PASSWORD": "Before you set or change the PIN, confirm who you are again with your password.",
+      "TOTP": "Before you set or change the PIN, confirm who you are again with the code from your authenticator app."
+    },
+    "noMethod": "Your account has no password and no authenticator app to confirm who you are with, so the PIN cannot be set or changed on this page. Ask your organization administrator.",
     "method": "Confirm with",
     "PASSWORD": "Password",
     "TOTP": "6-digit code from your authenticator app",
-    "methodHint": "The authenticator code works only if your account has an authenticator app set up. If it has none, confirm with your password.",
     "password": "Your password",
     "code": "The 6-digit code the app shows now",
     "submit": "Confirm it is me",

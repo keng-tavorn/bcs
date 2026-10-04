@@ -98,10 +98,60 @@ describe('[FR-AUTH-005/AC1] the member sets a six-digit PIN, stored as argon2id 
 
   it('tells the member whether they have a PIN and how many tries are left, never the PIN or its hash', async () => {
     const status = await getOwnPinStatus(org.ctxOf('vp_ops', NOW))
-    expect(status).toEqual({ ok: true, data: { hasPin: true, lockedUntil: null, attemptsLeft: 5 } })
-    expect(await getOwnPinStatus(org.ctxOf('asst_con', NOW))).toEqual({ ok: true, data: { hasPin: false, lockedUntil: null, attemptsLeft: 5 } })
+    expect(status).toEqual({ ok: true, data: { hasPin: true, lockedUntil: null, attemptsLeft: 5, proofMethods: ['PASSWORD', 'TOTP'] } })
+    expect(await getOwnPinStatus(org.ctxOf('asst_con', NOW))).toEqual({ ok: true, data: { hasPin: false, lockedUntil: null, attemptsLeft: 5, proofMethods: ['PASSWORD'] } })
     // Only a signed-in member asks about their own PIN
     expect(await getOwnPinStatus(makeCtx({ organizationId: org.organizationId, actor: { type: 'SYSTEM' }, channel: 'SYSTEM', now: NOW }))).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+})
+
+describe('[FR-AUTH-005/AC1] /settings/pin offers only the ways of proving who you are that work for the member', () => {
+  it('the password where the account has one, the authenticator code once an app is set up and confirmed — as confirmIdentityForPin answers', async () => {
+    const solo = await createDoaOrg()
+    const ctx = (code: string) => solo.ctxOf(code, NOW)
+    const methodsOf = async (code: string) => {
+      const status = await getOwnPinStatus(ctx(code))
+      if (!status.ok) throw new Error(`no status: ${status.error.code}`)
+      return status.data.proofMethods
+    }
+    const userOf = async (code: string) => (await prisma.member.findUniqueOrThrow({ where: { id: solo.member[code]! } })).userId!
+    const notAvailable = { ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'method', reason: 'NOT_AVAILABLE' } } }
+
+    // A password and an authenticator app: both, the password first
+    await identity(solo, 'auditor', 'A'.repeat(32))
+    expect(await methodsOf('auditor')).toEqual(['PASSWORD', 'TOTP'])
+
+    // A password only: the authenticator code is not offered — the server would refuse it
+    await identity(solo, 'req_con')
+    expect(await methodsOf('req_con')).toEqual(['PASSWORD'])
+    expect(await confirmIdentityForPin(ctx('req_con'), { method: 'TOTP', code: '123456' })).toMatchObject(notAvailable)
+
+    // An authenticator app whose setup was started and never confirmed with a code (Better Auth's enable before verify):
+    // not an authenticator yet, as at sign-in
+    await identity(solo, 'fin_officer', 'F'.repeat(32))
+    await prisma.twoFactor.updateMany({ where: { userId: await userOf('fin_officer') }, data: { verified: false } })
+    await prisma.user.update({ where: { id: await userOf('fin_officer') }, data: { twoFactorEnabled: false } })
+    expect(await methodsOf('fin_officer')).toEqual(['PASSWORD'])
+
+    // An authenticator app and no password (a sign-in identity without a credential account): the code only, which works,
+    // and the password is not offered — the server would refuse it
+    const secret = 'P'.repeat(32)
+    const procMember = await prisma.member.findUniqueOrThrow({ where: { id: solo.member.proc_officer! } })
+    const procUser = randomUUID()
+    await prisma.user.create({ data: { id: procUser, email: procMember.email, name: procMember.displayNameTh, emailVerified: true } })
+    await enableTotpWithSecret(procUser, secret, [])
+    await prisma.member.update({ where: { id: procMember.id }, data: { userId: procUser } })
+    expect(await methodsOf('proc_officer')).toEqual(['TOTP'])
+    expect(await confirmIdentityForPin(ctx('proc_officer'), { method: 'PASSWORD', password: PASSWORD })).toMatchObject(notAvailable)
+    expect(await confirmIdentityForPin(ctx('proc_officer'), { method: 'TOTP', code: totp(secret) })).toMatchObject({ ok: true, data: { method: 'TOTP' } })
+
+    // No sign-in identity yet (an invitation not accepted): nothing to offer
+    expect(solo.member.receiver_con).toBeDefined()
+    expect(await methodsOf('receiver_con')).toEqual([])
+
+    // Only which ways exist: no password hash, no secret, nothing of the identity's rows
+    const answer = await getOwnPinStatus(ctx('auditor'))
+    expect(answer.ok && Object.keys(answer.data).sort()).toEqual(['attemptsLeft', 'hasPin', 'lockedUntil', 'proofMethods'])
   })
 })
 

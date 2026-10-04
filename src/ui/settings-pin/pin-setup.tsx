@@ -12,7 +12,10 @@ import { NewPinField } from './new-pin-field'
 import { proveError, setPinError, type IdentityMethodView, type ProveIdentityAction, type SetPinAction } from './types'
 
 // Setting or changing the member's own transaction PIN (FR-AUTH-005 AC1, /settings/pin). Two real steps:
-//  1. prove who you are again — the password, or the code of the authenticator app — which gives a short-lived proof;
+//  1. prove who you are again — the password, or the code of the authenticator app — which gives a short-lived proof.
+//     Only the ways that work for this member are offered (proofMethods, from getOwnPinStatus): the choice shows when
+//     both do, one field alone when only one does, and a member who has neither is told so instead of being offered a
+//     way the server refuses;
 //  2. the new PIN twice; the server checks the PIN rules and stores only its hash.
 // The proof lives in this component's memory only and is dropped on cancel or once used. The password is read from the
 // form when it is sent and never kept; the two PINs are held while typed (digits only, NewPinField: never offered to the
@@ -29,14 +32,27 @@ type FormMessage = { readonly tone: 'danger' | 'warning'; readonly text: string 
 
 const PIN_PATTERN = /^[0-9]{6}$/
 const CODE_PATTERN = /^[0-9]{6}$/
+/** The order the ways of proving who you are are offered in */
+const METHOD_ORDER: readonly IdentityMethodView[] = ['PASSWORD', 'TOTP']
 
-export function PinSetup({ hasPin, prove, setPin }: { hasPin: boolean; prove: ProveIdentityAction; setPin: SetPinAction }) {
+export interface PinSetupProps {
+  readonly hasPin: boolean
+  /** The ways this member can prove who they are (PinStatusDto.proofMethods): only these are offered */
+  readonly proofMethods: readonly IdentityMethodView[]
+  readonly prove: ProveIdentityAction
+  readonly setPin: SetPinAction
+}
+
+export function PinSetup({ hasPin, proofMethods, prove, setPin }: PinSetupProps) {
   const t = useTranslations('pinSettings')
   const hydrated = useHydrated()
   const submission = useSubmissionKey()
+  const methods = METHOD_ORDER.filter((m) => proofMethods.includes(m))
   // A member without a PIN came to set one: the first step shows at once
   const [step, setStep] = useState<Step>(hasPin ? { kind: 'idle' } : { kind: 'prove' })
-  const [method, setMethod] = useState<IdentityMethodView>('PASSWORD')
+  const [chosen, setChosen] = useState<IdentityMethodView>(methods[0] ?? 'PASSWORD')
+  // The page's status is read again after every answer: a way that stopped working meanwhile is never kept chosen
+  const method = methods.includes(chosen) ? chosen : (methods[0] ?? chosen)
   const [pending, setPending] = useState(false)
   const [fieldError, setFieldError] = useState<{ field: 'password' | 'code' | 'pin' | 'repeat'; text: string } | null>(null)
   const [formMessage, setFormMessage] = useState<FormMessage | null>(null)
@@ -123,6 +139,9 @@ export function PinSetup({ hasPin, prove, setPin }: { hasPin: boolean; prove: Pr
   const submitLabel = hasPin ? t('set.submitChange') : t('set.submitNew')
   const formNotice = formMessage ? <Notice tone={formMessage.tone}>{formMessage.text}</Notice> : null
 
+  // Neither a password nor an authenticator app: no proof can be made, so no step is offered that would be refused
+  if (methods.length === 0) return <Notice tone="warning">{t('prove.noMethod')}</Notice>
+
   if (step.kind === 'idle') {
     return (
       <div className="flex flex-col gap-4">
@@ -150,35 +169,32 @@ export function PinSetup({ hasPin, prove, setPin }: { hasPin: boolean; prove: Pr
           <h2 id="pin-prove" className="text-xl font-semibold">
             {t('prove.title')}
           </h2>
-          <p className="text-ink-muted">{t('prove.intro')}</p>
+          <p className="text-ink-muted">{methods.length > 1 ? t('prove.intro') : t(`prove.introOnly.${method}`)}</p>
         </div>
         {formNotice}
-        {/* The choice is the component's state: before the script runs, a click on it would show the wrong field after */}
-        <fieldset disabled={!hydrated} className="flex min-w-0 flex-col gap-1" aria-describedby="pin-method-hint">
-          <legend className="mb-1 font-medium">{t('prove.method')}</legend>
-          {/* Both ways are offered: getOwnPinStatus does not say yet which ones this member has set up, so before the
-              choice the page says when the authenticator code works (a member without one is answered TOTP_NOT_AVAILABLE
-              in words) */}
-          <p id="pin-method-hint" className="text-base text-ink-muted md:text-sm">
-            {t('prove.methodHint')}
-          </p>
-          {(['PASSWORD', 'TOTP'] as const).map((m) => (
-            <label key={m} className="flex min-h-11 cursor-pointer items-center gap-3">
-              <input
-                type="radio"
-                name="method"
-                value={m}
-                checked={method === m}
-                onChange={() => {
-                  setMethod(m)
-                  clearErrors()
-                }}
-                className="size-5 shrink-0 accent-[var(--primary)]"
-              />
-              <span>{t(`prove.${m}`)}</span>
-            </label>
-          ))}
-        </fieldset>
+        {/* A choice only between ways that work for this member; with one way, its field alone. The choice is the
+            component's state: before the script runs, a click on it would show the wrong field after */}
+        {methods.length > 1 ? (
+          <fieldset disabled={!hydrated} className="flex min-w-0 flex-col gap-1">
+            <legend className="mb-1 font-medium">{t('prove.method')}</legend>
+            {methods.map((m) => (
+              <label key={m} className="flex min-h-11 cursor-pointer items-center gap-3">
+                <input
+                  type="radio"
+                  name="method"
+                  value={m}
+                  checked={method === m}
+                  onChange={() => {
+                    setChosen(m)
+                    clearErrors()
+                  }}
+                  className="size-5 shrink-0 accent-[var(--primary)]"
+                />
+                <span>{t(`prove.${m}`)}</span>
+              </label>
+            ))}
+          </fieldset>
+        ) : null}
         {method === 'PASSWORD' ? (
           <Field id="pin-password" name="password" type="password" autoComplete="current-password" maxLength={256} label={t('prove.password')} error={errorOf('password')} />
         ) : (

@@ -6,18 +6,23 @@ import { useTranslations } from 'next-intl'
 import { useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
+import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { authClient, errorStatus } from './client'
 import { useLockMessage } from './lock-message'
 
 const LOCKED_STATUS = 429
 
-// Second sign-in step (FR-AUTH-002): a code from the authenticator app, or one of the 10 single-use backup codes.
+// Second sign-in step (FR-AUTH-002): a code from the authenticator app, or one of the 10 single-use backup codes, sent
+// by the page's script. Nothing is sent before the script runs (/login/2fa opened directly is the server's HTML first):
+// the form posts and its button waits for hydration (src/ui/form/hydrated.ts), so a code never goes into the page's
+// address (NFR-SEC-09); the switch to a backup code waits too, as a press before the script runs would be lost.
 export function TwoFactorForm({ next = null }: { next?: string | null }) {
   const t = useTranslations('auth.twoFactor')
   const tAuth = useTranslations('auth')
   const router = useRouter()
   const lockMessage = useLockMessage()
+  const hydrated = useHydrated()
   const [mode, setMode] = useState<'app' | 'backup'>('app')
   const [error, setError] = useState<string | null>(null)
   const [expired, setExpired] = useState(false)
@@ -56,7 +61,7 @@ export function TwoFactorForm({ next = null }: { next?: string | null }) {
   }
 
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
+    <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
       <p className="text-ink-muted">{t('intro')}</p>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       {mode === 'app' ? (
@@ -64,12 +69,13 @@ export function TwoFactorForm({ next = null }: { next?: string | null }) {
       ) : (
         <Field key="backup" id="code" name="code" label={t('backupCode')} hint={t('backupHint')} autoComplete="off" required />
       )}
-      <Button type="submit" disabled={pending} className="w-full">
+      <Button type="submit" disabled={pending || !hydrated} className="w-full">
         {pending ? t('submitting') : t('submit')}
       </Button>
       <Button
         variant="link"
         className="self-start"
+        disabled={!hydrated}
         onClick={() => {
           setMode(mode === 'app' ? 'backup' : 'app')
           setError(null)

@@ -4,15 +4,19 @@ import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
+import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { authClient } from './client'
 import { PasswordPair, readPasswordPair } from './password-pair'
 
-// Set a new password from the e-mailed link (FR-AUTH-001 AC2). Better Auth signs out the account's other sessions.
+// Set a new password from the e-mailed link (FR-AUTH-001 AC2). Better Auth signs out the account's other sessions. The
+// new password is sent by the page's script only: the form posts and its button waits for hydration
+// (src/ui/form/hydrated.ts), so a password typed before the script runs never goes into the page's address (NFR-SEC-09).
 export function ResetForm({ token, min }: { token: string | null; min: number }) {
   const t = useTranslations('auth.reset')
   const tInvite = useTranslations('auth.invite')
   const tAuth = useTranslations('auth')
+  const hydrated = useHydrated()
   const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({})
   const [state, setState] = useState<'form' | 'done' | 'invalid'>(token ? 'form' : 'invalid')
   const [pending, setPending] = useState(false)
@@ -53,9 +57,9 @@ export function ResetForm({ token, min }: { token: string | null; min: number })
     )
   }
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
+    <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
       <PasswordPair min={min} labels={{ password: t('password'), confirm: t('confirm') }} errors={errors} />
-      <Button type="submit" disabled={pending} className="w-full">
+      <Button type="submit" disabled={pending || !hydrated} className="w-full">
         {pending ? t('submitting') : t('submit')}
       </Button>
     </form>

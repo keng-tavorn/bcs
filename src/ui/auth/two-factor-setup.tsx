@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
+import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { authClient } from './client'
 import { QrCode } from './qr-code'
@@ -17,10 +18,14 @@ function manualKey(uri: string): string {
   return secret.replace(/(.{4})/g, '$1 ').trim()
 }
 
-// Authenticator setup (FR-AUTH-002 AC1–AC2): confirm the password, scan, confirm a code, keep the 10 backup codes.
+// Authenticator setup (FR-AUTH-002 AC1–AC2): confirm the password, scan, confirm a code, keep the 10 backup codes. The
+// password and the code are sent by the page's script only. The password step is in the server's HTML (the workspace
+// shows it before any work), so both forms post and their buttons wait for hydration (src/ui/form/hydrated.ts): nothing
+// typed before the script runs goes into the page's address (NFR-SEC-09).
 export function TwoFactorSetup() {
   const t = useTranslations('auth.security')
   const router = useRouter()
+  const hydrated = useHydrated()
   const [step, setStep] = useState<Step>({ kind: 'password' })
   const [error, setError] = useState<string | null>(null)
   const [pending, setPending] = useState(false)
@@ -92,7 +97,7 @@ export function TwoFactorSetup() {
 
   if (step.kind === 'scan') {
     return (
-      <form onSubmit={confirm} className="flex flex-col gap-5" noValidate>
+      <form method="post" onSubmit={confirm} className="flex flex-col gap-5" noValidate>
         <div className="flex flex-col gap-3">
           <h3 className="font-semibold">{t('stepScan')}</h3>
           <QrCode value={step.uri} label={t('qrLabel')} />
@@ -102,7 +107,7 @@ export function TwoFactorSetup() {
         <h3 className="font-semibold">{t('stepConfirm')}</h3>
         {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field id="code" name="code" label={t('code')} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required className="tabular tracking-widest" />
-        <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+        <Button type="submit" disabled={pending || !hydrated} className="w-full sm:w-auto">
           {pending ? t('confirming') : t('confirm')}
         </Button>
       </form>
@@ -110,11 +115,11 @@ export function TwoFactorSetup() {
   }
 
   return (
-    <form onSubmit={start} className="flex flex-col gap-5" noValidate>
+    <form method="post" onSubmit={start} className="flex flex-col gap-5" noValidate>
       <h3 className="font-semibold">{t('stepPassword')}</h3>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       <Field id="setup-password" name="password" type="password" autoComplete="current-password" required label={t('password')} />
-      <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+      <Button type="submit" disabled={pending || !hydrated} className="w-full sm:w-auto">
         {pending ? t('starting') : t('start')}
       </Button>
     </form>

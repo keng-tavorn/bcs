@@ -7,7 +7,7 @@ import { Button } from '../../form/button'
 import { LIFF_LINK_CLASS, LiffLink } from '../liff-link'
 import { useLiff } from '../liff-provider'
 import { LiffNotice } from '../notice'
-import { newDecisionKey } from './key'
+import { useLiffSubmissionKey } from '../submission-key'
 import type { LiffTaskFailure, LiffTaskResult } from './result'
 
 // What the forms of the LIFF decision page share (./decision.tsx, ./policy-decision.tsx; FR-LINE-003, FR-AUTH-005):
@@ -15,22 +15,15 @@ import type { LiffTaskFailure, LiffTaskResult } from './result'
 //    kept on this page load sends nothing — in the LINE app a new page load brings a fresh ID token, otherwise the form
 //    says to open the page again. One try at a time: a second press while one is on its way is dropped before it reaches
 //    the server, so a double tap never counts two wrong PINs (FR-AUTH-005 AC3). The idempotencyKey of the submission — a
-//    uuid on every WebView of the LINE app (./key.ts) — is reused when no answer came back (spec §4.3) and renewed after
-//    every answer.
+//    uuid on every WebView of the LINE app, which the deciding commands take (../submission-key.ts) — is reused when no
+//    answer came back (spec §4.3) and renewed after every answer.
 //  - TaskRefusal: what the server answered, in the member's words, by the form's button — with where to set a PIN when
 //    the member has none (the web settings, or how it works in LINE), and a reload when the session ended.
-
-/** The idempotencyKey of the form's submission: the same until next() (call it once an answer arrives) */
-function useDecisionKey(): { readonly key: string; readonly next: () => void } {
-  const [key, setKey] = useState(newDecisionKey)
-  const next = useCallback(() => setKey(newDecisionKey()), [])
-  return { key, next }
-}
 
 export function useLiffSend() {
   const liff = useLiff()
   const t = useTranslations('liffTasks.decide')
-  const submission = useDecisionKey()
+  const submission = useLiffSubmissionKey()
   const busy = useRef(false)
   const [pending, setPending] = useState(false)
 

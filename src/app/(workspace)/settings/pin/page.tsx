@@ -24,7 +24,7 @@ export default async function PinPage() {
   // Real time: the lock of FR-AUTH-005 AC3 runs on the security clock
   const status = await getOwnPinStatus(ctx)
   if (!status.ok) return <NoAccess title={t('title')} message={t('errors.FORBIDDEN')} homeLabel={tCommon('homeLink')} />
-  const { hasPin, lockedUntil, attemptsLeft } = status.data
+  const { hasPin, lockedUntil, attemptsLeft, proofMethods } = status.data
 
   return (
     <div className="flex max-w-2xl flex-col gap-8">
@@ -58,8 +58,9 @@ export default async function PinPage() {
           <Notice tone="warning">
             <p>{t('status.locked', { time: formatDateTime(locale, lockedUntil) })}</p>
             {/* ADR-047 item 5 (waiting for the user's confirmation): a new PIN after a fresh proof ends the lock now, as
-                self.set_pin does. If item 5 is rejected, this sentence goes together with that behaviour. */}
-            <p>{t('status.lockedUnlock')}</p>
+                self.set_pin does. If item 5 is rejected, this sentence goes together with that behaviour. Not said to a
+                member who has no way to make that proof (PinSetup says so below). */}
+            {proofMethods.length > 0 ? <p>{t('status.lockedUnlock')}</p> : null}
           </Notice>
         ) : null}
       </section>
@@ -78,7 +79,7 @@ export default async function PinPage() {
       </section>
 
       <div className="border-t border-line pt-6">
-        <PinSetup hasPin={hasPin} prove={proveIdentityForPinAction} setPin={setOwnPinAction} />
+        <PinSetup hasPin={hasPin} proofMethods={proofMethods} prove={proveIdentityForPinAction} setPin={setOwnPinAction} />
       </div>
     </div>
   )

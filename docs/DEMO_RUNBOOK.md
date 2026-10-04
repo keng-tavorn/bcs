@@ -7,7 +7,7 @@
 
 1. **ตรวจไฟล์ข้อมูล** — `pnpm inputs:check` ต้องขึ้น `0 FAIL` ทุกครั้งก่อน reset
 2. **staging พร้อม** — เปิด `https://<staging>/api/health` แล้วได้ 200 พร้อมเลข commit (คู่มือ `docs/runbooks/p0-05-neon-staging.md` ถึง `p0-08-vercel.md`)
-3. **LINE ของ BCS** — ตั้ง provider channel และ LIFF ตาม `docs/runbooks/line-demo-setup.md` (D-02 · ใส่ค่าใน Environment Variables ของ staging เอง ไม่ส่งในแชท) แล้วเปิด `/admin/line` กด "ทดสอบการเชื่อมต่อ" ต้องผ่านทุกข้อ (D-03) จากนั้นรัน `pnpm line:richmenu` ครั้งเดียว
+3. **LINE ของ BCS** — ตั้ง provider channel และ LIFF ตาม `docs/runbooks/line-demo-setup.md` (D-02 · ใส่ค่าใน Environment Variables ของ staging เอง ไม่ส่งในแชท) แล้วเปิด `/admin/line` กด "ทดสอบการเชื่อมต่อ" ต้องผ่านทุกข้อ (D-03) จากนั้นกดปุ่มสร้าง rich menu ในหน้าเดียวกันครั้งเดียว (บนเครื่องใช้ `pnpm line:richmenu` แทน · ADR-049)
 4. **มือถือที่ใช้ demo** — แต่ละเครื่องเพิ่ม OA ของ BCS เป็นเพื่อน แล้วเข้าเว็บด้วยบัญชีตามตารางข้อ 3 เปิด `/settings/line` สแกน QR เพื่อผูก LINE กับผู้ใช้นั้น (ผูกใหม่ทุกครั้งหลัง reset เพราะ reset ลบการผูก)
 5. **รหัสยืนยันตัวตน (TOTP)** — ผู้ใช้ที่มีบทบาทหรือตำแหน่งต้องใส่รหัส 6 หลักตอน login เพิ่มเข้าแอป authenticator ครั้งเดียวด้วย
    `pnpm exec tsx --env-file-if-exists=.env scripts/seed-totp.ts ceo coo vp_ops vp_sup dm_con proc_officer fin_officer receiver_con auditor admin`

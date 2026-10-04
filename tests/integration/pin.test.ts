@@ -2,11 +2,12 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { REDACTED, redactDeep, scrubText } from '@/lib/logger'
 import { totp } from '@/lib/totp'
-import { checkPinChangeProof, PIN_PROOF_TTL_MS, signPinChangeProof, verifyPin } from '@/server/auth/pin'
+import { pinProblem } from '@/core/pin'
+import { checkPinChangeProof, hashPin, PIN_PROOF_TTL_MS, signPinChangeProof, verifyPin } from '@/server/auth/pin'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
-import { seedDevPins } from '@/server/seed/pins'
+import { approversWithoutPin, giveOneTimePins, randomDemoPin, seedDevPins, takeBackOneTimePins } from '@/server/seed/pins'
 import { confirmIdentityForPin, getOwnPinStatus, setOwnPin } from '@/server/services/self/pin'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
@@ -268,5 +269,49 @@ describe('[FR-AUTH-005/AC1] the demo seed gives SEED_DEV_PIN to every member who
       expect((error as Error).message).not.toContain(pin)
     }
     expect(await prisma.member.count({ where: { organizationId: demo.organizationId, transactionPinHash: { not: null } } })).toBe(0)
+  })
+
+  it('without SEED_DEV_PIN the demo history draws a one-time PIN that the PIN rule accepts', () => {
+    const drawn = Array.from({ length: 200 }, () => randomDemoPin())
+    for (const pin of drawn) expect(pinProblem(pin), pin).toBeNull()
+    // Random, not one fixed value
+    expect(new Set(drawn).size).toBeGreaterThan(150)
+  })
+
+  it('gives the one-time PIN of the demo history to the approvers without a PIN only, records no PIN set, and takes back only that PIN', async () => {
+    const demo = await createDoaOrg()
+    const hashOf = async (code: string) => (await prisma.member.findUniqueOrThrow({ where: { id: demo.member[code]! }, select: { transactionPinHash: true } })).transactionPinHash
+    // dm_con set a PIN of their own before: it stays theirs
+    await prisma.member.update({ where: { id: demo.member.dm_con! }, data: { transactionPinHash: await hashPin('915372') } })
+    const given = await giveOneTimePins(demo.organizationId, '264809', NOW)
+    const without = APPROVERS.filter((c) => c !== 'dm_con')
+    expect([...given.keys()].sort()).toEqual(without.map((c) => demo.member[c]!).sort())
+    for (const code of without) expect(await verifyPin('264809', (await hashOf(code))!), code).toBe(true)
+    expect(await verifyPin('915372', (await hashOf('dm_con'))!)).toBe(true)
+    for (const code of OTHERS) expect(await hashOf(code), code).toBeNull()
+
+    // vp_ops sets a PIN of their own meanwhile: that one stays too; everybody else holds no PIN again, with no try counted
+    await prisma.member.update({ where: { id: demo.member.vp_ops! }, data: { transactionPinHash: await hashPin('503817') } })
+    await prisma.member.update({ where: { id: demo.member.coo! }, data: { pinFailedCount: 2 } })
+    await takeBackOneTimePins(demo.organizationId, given)
+    const holders = await prisma.member.findMany({ where: { organizationId: demo.organizationId, transactionPinHash: { not: null } }, select: { employeeCode: true } })
+    expect(holders.map((m) => m.employeeCode).sort()).toEqual(['dm_con', 'vp_ops'])
+    expect(await prisma.member.findUniqueOrThrow({ where: { id: demo.member.coo! }, select: { pinFailedCount: true, pinLockedUntil: true } })).toEqual({ pinFailedCount: 0, pinLockedUntil: null })
+    // Nobody ever held it as their PIN: no auth.pin_set, and the PIN is in no event
+    expect(await prisma.event.count({ where: { organizationId: demo.organizationId, type: 'auth.pin_set' } })).toBe(0)
+    expect(text(await prisma.event.findMany({ where: { organizationId: demo.organizationId } }))).not.toContain('264809')
+  })
+
+  it('tells which approvers do not hold the seed’s PIN (none, another, or locked) without counting a try', async () => {
+    const demo = await createDoaOrg()
+    await seedDevPins(demo.organizationId, '739164', NOW)
+    expect(await approversWithoutPin(demo.organizationId, '739164', NOW)).toEqual([])
+    expect(await approversWithoutPin(demo.organizationId, '480263', NOW)).toEqual([...APPROVERS].sort())
+    await prisma.member.update({ where: { id: demo.member.dm_con! }, data: { transactionPinHash: await hashPin('915372') } })
+    await prisma.member.update({ where: { id: demo.member.coo! }, data: { pinLockedUntil: new Date(Date.now() + 60_000) } })
+    await prisma.member.update({ where: { id: demo.member.vp_sup! }, data: { transactionPinHash: null } })
+    expect(await approversWithoutPin(demo.organizationId, '739164', NOW)).toEqual(['coo', 'dm_con', 'vp_sup'])
+    const counts = await prisma.member.findMany({ where: { organizationId: demo.organizationId }, select: { pinFailedCount: true } })
+    expect(counts.every((c) => c.pinFailedCount === 0)).toBe(true)
   })
 })

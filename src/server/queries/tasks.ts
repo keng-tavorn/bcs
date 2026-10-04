@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
+import { stepUpNeeded } from '@/core/pin'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
 import { comparisonBaselineId } from './doa'
@@ -35,6 +36,16 @@ export type OrgChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REP
 /** BR-DOA-15: DOA versions and authority changes are approved or rejected with a step-up, on the web or LIFF only */
 export const POLICY_SUBJECTS: readonly TaskSubjectType[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE']
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
+
+/** What a task's route says about the step-up its decision needs: the amount the DOA counted and the version's threshold */
+const STEP_UP_ROUTE = { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } as const
+
+/**
+ * FR-AUTH-005 AC2, BR-DOA-15: deciding this task needs the PIN — every policy task, and every task whose amount the DOA
+ * counted is at or above its version's stepUpThreshold (the rule of src/core/pin the deciding commands apply)
+ */
+const needsStepUp = (route: { subjectType: string; amountSatang: bigint | null; doaVersion: { stepUpThresholdSatang: bigint | null } }) =>
+  stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })
 
 export type InboxSubjectDto =
   | {
@@ -83,6 +94,7 @@ export interface InboxTaskDto {
   readonly overdue: boolean
   /** FOR: I hold it for the delegator · BY: my delegate holds it for me (BR-DLG-04) */
   readonly holding: { readonly kind: 'FOR'; readonly member: MemberRefDto } | { readonly kind: 'BY'; readonly member: MemberRefDto } | null
+  /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
 }
 
@@ -185,7 +197,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
         principalMemberId: true,
         assignedAt: true,
         dueAt: true,
-        step: { select: { route: { select: { subjectType: true, subjectId: true } } } },
+        step: { select: { route: { select: STEP_UP_ROUTE } } },
       },
       orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { assignedAt: 'asc' }, { id: 'asc' }],
       take: Math.min(options.limit ?? INBOX_LIMIT, INBOX_LIMIT),
@@ -217,7 +229,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
         waitingMinutes: businessMinutesWaited(calendar, t.assignedAt, ctx.now, pauses.get(t.id) ?? []),
         overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
         holding,
-        stepUp: POLICY_SUBJECTS.includes(t.step.route.subjectType),
+        stepUp: needsStepUp(t.step.route),
       }
     }),
   }
@@ -234,6 +246,8 @@ export interface TaskAccessDto {
   /** The delegator when a delegate holds the task: they may decide it too (BR-DLG-04) */
   readonly principalMemberId: string | null
   readonly decidedByMemberId: string | null
+  /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
+  readonly stepUp: boolean
 }
 
 export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAccessDto | null> {
@@ -241,7 +255,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
   const db = forTenant(ctx.organizationId)
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
-    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } },
+    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { route: { select: STEP_UP_ROUTE } } } },
   })
   if (!task) return null
   return {
@@ -252,6 +266,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
     assigneeMemberId: task.assigneeMemberId,
     principalMemberId: task.principalMemberId,
     decidedByMemberId: task.decidedByMemberId,
+    stepUp: needsStepUp(task.step.route),
   }
 }
 
@@ -373,6 +388,7 @@ export interface TaskViewDto {
   readonly cancelledWhy: 'REQUEST_CANCELLED' | 'ROUTE_REPLACED' | 'DOCUMENT_DECIDED' | null
   /** INFO_REQUESTED: the question that waits for the requester */
   readonly openQuestion: { readonly id: string; readonly question: string; readonly askedAt: Date } | null
+  /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
   readonly route: RouteDto | null
   readonly policy: PolicySubjectDto | null
@@ -617,7 +633,7 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
     include: {
-      step: { select: { routeId: true, route: { select: { subjectType: true, subjectId: true } } } },
+      step: { select: { routeId: true, route: { select: STEP_UP_ROUTE } } },
       reassignedTo: { select: { assigneeMemberId: true }, orderBy: { assignedAt: 'desc' }, take: 1 },
       // Every question of the task: the open one waits for the requester, and all of them paused its SLA (BR-SLA-03)
       infoRequests: { orderBy: { askedAt: 'desc' }, select: { id: true, question: true, askedAt: true, answeredAt: true } },
@@ -634,10 +650,9 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     task.status === 'CANCELLED' ? await db.event.findFirst({ where: { aggregateType: 'ApprovalTask', aggregateId: task.id, type: 'approval_task.cancelled' }, orderBy: { seq: 'desc' }, select: { data: true } }) : null
   const why = text((cancelled?.data as { why?: unknown } | null)?.why)
 
-  const stepUp = POLICY_SUBJECTS.includes(subjectType)
   let policy: PolicySubjectDto | null = null
   let track: TrackEntryDto[] = []
-  if (stepUp) {
+  if (POLICY_SUBJECTS.includes(subjectType)) {
     policy = subjectType === 'DOA_VERSION' ? await doaVersionOf(db, ctx, subjectId, task.step.routeId, departments) : await orgChangeOf(db, subjectId, departments)
     const tasks = await db.approvalTask.findMany({ where: { step: { route: { subjectType, subjectId } } }, select: { id: true, resolvedFrom: true } })
     const events = await documentEvents(db, subjectType === 'DOA_VERSION' ? 'DoaVersion' : 'OrgAuthorityChange', subjectId, tasks.map((t) => t.id))
@@ -666,7 +681,7 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     reassignedTo: task.reassignedTo[0] ? (members.get(task.reassignedTo[0].assigneeMemberId) ?? null) : null,
     cancelledWhy: why && (CANCELLED_WHY as readonly string[]).includes(why) ? (why as (typeof CANCELLED_WHY)[number]) : null,
     openQuestion: task.status === 'INFO_REQUESTED' && unanswered ? { id: unanswered.id, question: unanswered.question, askedAt: unanswered.askedAt } : null,
-    stepUp,
+    stepUp: needsStepUp(task.step.route),
     route,
     policy,
     track,

@@ -1,6 +1,6 @@
-import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import type { VarianceViewDto } from '@/server/queries/purchase-orders'
+import { LightLink } from '@/ui/light-link'
 import { AttachmentList } from '@/ui/request-view/attachments'
 import { Amounts, Facts, Section, type AmountRow, type Fact } from '@/ui/request-view/facts'
 import { StateLine } from '@/ui/request-view/status'
@@ -13,6 +13,8 @@ import { attachmentViews, RouteSection, type OpenFile } from '../../procurement/
 // and what the PO holds there with what approving changes, the reason it was recorded with, the goods receipt it came
 // from with its photos (a damaged-goods variance has at least one), and the route with its DOA rule. Flat sections; no
 // cards. Amounts are right-aligned in tabular digits; the budget shows the PO's own amounts, never the line's balance.
+// The LIFF decision page of a variance task renders this body too (src/app/liff/tasks/[id]/page.tsx, without a PO link):
+// its one link is a light link (src/ui/light-link.tsx), as next/link's client code would weigh on a LIFF page (§9.4).
 
 const HINTED = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED'] as const
 
@@ -37,9 +39,9 @@ export async function VarianceBody({ variance, locale, doaLinks, poHref, openFil
     {
       label: t('variance.po'),
       value: poHref ? (
-        <Link href={poHref} className="font-medium text-primary underline underline-offset-4 hover:no-underline">
+        <LightLink href={poHref} className="font-medium text-primary underline underline-offset-4 hover:no-underline">
           {poLabel}
-        </Link>
+        </LightLink>
       ) : (
         poLabel
       ),

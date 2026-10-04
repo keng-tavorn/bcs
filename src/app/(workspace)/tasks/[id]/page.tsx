@@ -6,7 +6,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
 import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
-import { getTaskAccess, getTaskView, listMyTasks, type TaskViewDto } from '@/server/queries/tasks'
+import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { Notice } from '@/ui/form/notice'
 import { StateLine } from '@/ui/request-view/status'
 import { DecisionPanel } from '@/ui/tasks/decision-panel'
@@ -82,6 +82,8 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
 // the task's deciders open it while it waits (approval.decide), and those who held or decided it afterwards. A
 // purchase order shows its supplier, lines with their source requests, totals and the prices paid before (FR-P2P-003,
 // FR-P2P-004); a receiving variance shows its PO line, what was ordered and received, and its amount (FR-P2P-007 AC2).
+// Policy tasks, and tasks whose amount is at or above the DOA version's stepUpThreshold, are decided with the PIN
+// (FR-AUTH-005 AC2): the decision forms ask for it whenever task.stepUp says so.
 export default async function TaskPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const state = await getSession()
@@ -116,6 +118,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   // The approver decides on the prices too: the prices paid before for the same items (FR-P2P-003 AC1)
   const reader = po ? poReader(principal, poAccess, po, { prices: true }) : null
   const open = right === 'DECIDE' && task.status === 'OPEN'
+  // A DOA version or an authority change (BR-DOA-15): approved or rejected with the PIN, on a page of its own
+  const policyTask = POLICY_SUBJECTS.includes(task.subjectType)
   // A DOA version with a boundary table: the approver ticks it before approving (FR-DOA-009 AC3)
   const boundary = open ? boundaryTickOf(task) : null
   const inbox = open ? null : await listMyTasks(ctx, { limit: 2 })
@@ -123,7 +127,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
   // The timeline: the request's own (FR-INT-008), or the policy document's with the step that waits now
   const policyNow: TrackEntryDto[] =
-    task.stepUp && (task.status === 'OPEN' || task.status === 'INFO_REQUESTED')
+    policyTask && (task.status === 'OPEN' || task.status === 'INFO_REQUESTED')
       ? [
           {
             key: `task-${task.id}`,
@@ -169,8 +173,17 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           ? policyHeadline(t, locale, task.policy)
           : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : (varianceTitle ?? label)
-  // On phones the decision bar is fixed to the bottom: the page ends above it (taller with the boundary table's tick)
-  const pageClass = open ? `flex flex-col gap-6 ${boundary ? 'pb-80' : 'pb-56'} lg:pb-0` : 'flex flex-col gap-6'
+  // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
+  // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
+  // the boundary table's tick; until then a guess of it for the first paint, taller with the PIN and with the tick
+  const barSpace = policyTask
+    ? boundary
+      ? 'pb-[calc(var(--task-bar-space,23rem)_+_1rem)]'
+      : 'pb-[calc(var(--task-bar-space,15rem)_+_1rem)]'
+    : task.stepUp
+      ? 'pb-[calc(var(--task-bar-space,19rem)_+_1rem)]'
+      : 'pb-[calc(var(--task-bar-space,13rem)_+_1rem)]'
+  const pageClass = open ? `flex flex-col gap-6 ${barSpace} lg:pb-0` : 'flex flex-col gap-6'
 
   return (
     <div className={pageClass}>
@@ -242,7 +255,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         </div>
 
         <aside className="flex min-w-0 flex-col gap-8">
-          {task.stepUp ? (
+          {policyTask ? (
             <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} />
           ) : (
             <DecisionPanel
@@ -252,6 +265,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               label={label}
               amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : '-'}
               kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
+              stepUp={task.stepUp}
               {...(variance ? { disposition: variance.disposition } : {})}
               actions={po || variance ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
             />

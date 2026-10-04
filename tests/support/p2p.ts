@@ -10,10 +10,12 @@ import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import type { DoaOrg } from './doa-org'
+import { stepUpForTask } from './pin'
 
 // The purchase-to-pay steps service tests start from (spec §6.4): a funded budget line, an approved request with the
 // quotations ATT-QUOTES asks above 100,000, and its lines on an approved PO of one supplier — all through the real
-// services, each request on a delivery site of its own so a consolidation round takes only its lines.
+// services, each request on a delivery site of its own so a consolidation round takes only its lines. An approver of an
+// amount at or above the DOA version's stepUpThreshold gives the PIN first (FR-AUTH-005 AC2, ./pin.ts).
 
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
 const ok = <T,>(r: { ok: true; data: T } | { ok: false; error: unknown }): T => {
@@ -43,6 +45,7 @@ export function p2p(org: DoaOrg, now: Date) {
     for (let i = 0; i < 5; i++) {
       const task = await prisma.approvalTask.findFirst({ where: { status: 'OPEN', step: { route: { subjectId } } } })
       if (!task) return
+      await stepUpForTask(task.id, task.assigneeMemberId)
       ok(await decideTask(org.ctxOf(codeOf(task.assigneeMemberId), now), { taskId: task.id, decision: 'APPROVE' }, key()))
     }
   }

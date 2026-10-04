@@ -11,6 +11,7 @@ import { assignSupplier, consolidateNow, listPool } from '@/server/services/proc
 import { cancelPurchaseOrder, editDraftPo, priceHistory, submitPo } from '@/server/services/purchase-orders'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { stepUpForTask } from '../support/pin'
 
 // S4-04 (spec §6.4 PO table, FR-P2P-003, FR-P2P-004, FR-P2P-010 AC1, BR-BUD-05, BR-BUD-06): PROCUREMENT edits a draft
 // PO, sends it for approval on the DOA rule of PURCHASE_ORDER, and the budget moves as GC-BUD-01 to GC-BUD-04 say,
@@ -60,6 +61,8 @@ async function approveAll(subjectId: string, at = NOW) {
   for (let i = 0; i < 5; i++) {
     const task = await prisma.approvalTask.findFirst({ where: { status: 'OPEN', step: { route: { subjectId } } } })
     if (!task) return
+    // At or above the DOA version's stepUpThreshold the approver gives the PIN first (FR-AUTH-005 AC2)
+    await stepUpForTask(task.id, task.assigneeMemberId)
     ok(await decideTask(org.ctxOf(codeOf(task.assigneeMemberId), at), { taskId: task.id, decision: 'APPROVE' }, key()))
   }
 }

@@ -9,16 +9,18 @@ import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
+import { seedDevPins } from '@/server/seed/pins'
 import { draftDoaCopy, getDoaEditor } from '@/server/services/doa/editor'
 import { versionSnapshots } from '../golden/doa-fixtures'
-import { E2E_DB } from '../support/e2e-env'
+import { E2E_DB, E2E_PIN } from '../support/e2e-env'
 
 // Run by tests/e2e/admin-doa-editor.spec.ts against the e2e database only (S3-09, FR-DOA-001 AC1, FR-DOA-009). Each run
 // builds an organization of its own, so the demo organization's DOA never changes under other specs: the departments,
 // positions and holders of the §7.4 fixture with Thai names, and version 1 of the fixture in effect since 1 January 2026
 // (published as the demo seed publishes it — local e2e data, never a customer's). Its admin signs in with
 // SEED_DEV_PASSWORD and the TOTP derived from SEED_TOTP_KEY and the printed code; so does its CEO, who approves on the
-// decision page with the tick of the boundary table and a step-up (FR-DOA-009 AC3, BR-DOA-15).
+// decision page with the tick of the boundary table and a step-up (FR-DOA-009 AC3, BR-DOA-15): the transaction PIN the
+// e2e seed gives every demo approver (E2E_PIN, FR-AUTH-005), given here to the approvers of this organization too.
 //   org <desktop|mobile>       → the organization; prints its code, the admin's and the CEO's sign-in and the names the
 //                                spec reads
 //   flat <desktop|mobile>      → the same organization with a version 1 whose bands have no upper end (every purchase
@@ -144,6 +146,8 @@ async function createOrganization(project: string, rules: readonly DoaRuleSnapsh
     const json = ruleJson(rule)
     await prisma.doaRule.create({ data: { organizationId, doaVersionId: version.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
   }
+  // The approvers of version 1 (the CEO among them) decide with the PIN of the e2e seed
+  await seedDevPins(organizationId, E2E_PIN, now)
   return { orgCode: org.code, email: `${prefix}-admin@e2e.bcs.local`, code: `${prefix}_admin`, ceo: { email: `${prefix}-ceo@e2e.bcs.local`, code: `${prefix}_ceo` }, v1: version.id, names: NAMES }
 }
 

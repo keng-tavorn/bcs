@@ -14,6 +14,7 @@ import { diffVersions } from '@/server/services/doa/diff'
 import { proposeOrgChange } from '@/server/services/org-authority'
 import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { TEST_PIN, testStepUpSession } from '../support/pin'
 
 // S2-12, the browser side of the decision page and the request page: the commands behind their buttons
 // (src/app/(workspace)/_tracking/commands.ts) refuse whoever the service refuses — and the request page's cancel refuses
@@ -129,7 +130,7 @@ describe('[FR-DOA-004/AC1] asking for information is for the task’s approver, 
   })
 })
 
-describe('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy decision spends no code unless the member decides the task', () => {
+describe('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy decision spends no PIN unless the member decides the task', () => {
   it('refuses an organization admin before asking for a step-up, and leaves the task open', async () => {
     const proposed = await proposeOrgChange(
       org.ctxOf('admin', NOW),
@@ -139,12 +140,16 @@ describe('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy decision spends no code unl
     if (!proposed.ok) throw new Error(`propose failed: ${proposed.error.code}`)
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: proposed.data.changeId } } } })
     const asAdmin = memberPrincipal(org.member.admin!, ['ORG_ADMIN'])
-    expect(await decidePolicy(org.ctxOf('admin', MON_1300), asAdmin, { taskId: task.id, decision: 'APPROVE', code: '123456' }, randomUUID(), 'th', MON_1300)).toEqual({ ok: false, code: 'FORBIDDEN' })
-    // A malformed code or a rejection without a reason is told before anything is checked
+    const session = testStepUpSession()
+    expect(await decidePolicy(org.ctxOf('admin', MON_1300), asAdmin, { taskId: task.id, decision: 'APPROVE', pin: TEST_PIN }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'FORBIDDEN' })
+    // A malformed PIN or a rejection without a reason is told before anything is checked
     const asCeo = memberPrincipal(org.member.ceo!, ['EXECUTIVE'])
-    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'APPROVE', code: '12ab' }, randomUUID(), 'th', MON_1300)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'code' })
-    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'REJECT', code: '123456' }, randomUUID(), 'th', MON_1300)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'reason' })
+    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'APPROVE', pin: '12ab' }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'pin' })
+    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'REJECT', pin: TEST_PIN }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'reason' })
+    // The authenticator code of the page before S5-05 is no input any more
+    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'APPROVE', code: '123456' }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'decision' })
     expect(await prisma.stepUpGrant.count({ where: { organizationId: org.organizationId } })).toBe(0)
+    expect(session.rotated).toEqual([])
     expect((await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('OPEN')
   })
 })

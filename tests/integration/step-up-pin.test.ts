@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { setEmailProvider, type EmailMessage } from '@/integrations/email-provider'
-import { totp } from '@/lib/totp'
+import { STEP_UP_TTL_MS } from '@/lib/constants'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { consumeStepUp, grantStepUp, PIN_ONLY, policyStepUpMethods, requireStepUp, stepUpRefusalError, type StepUpOptions, type StepUpRefusal } from '@/server/auth/step-up'
 import { prisma } from '@/server/db/client'
@@ -18,11 +18,11 @@ import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 // and every task whose DOA amount is at or above the version's stepUpThreshold (BR-TOK-05) — is refused
 // STEP_UP_REQUIRED without a grant for that document; a right PIN gives a grant good once and for 5 minutes on the
 // security clock (§9.3); five wrong PINs in a row lock the PIN for 15 minutes (STEP_UP_LOCKED), write
-// security.pin_locked and e-mail the owner security.notice (§10.1), and that lock never fails open. Real Postgres
+// security.pin_locked and e-mail the owner security.notice (§10.1), and that lock never fails open. The authenticator
+// code is no step-up on any channel since S5-05: a grant of it made before never decides anything. Real Postgres
 // (BCS_TEST_DB), the §7.4 fixtures: stepUpThreshold 100,000.00 baht; a request up to that amount goes to the VP of its
-// line, policy goes to the CEO.
-// Request, PO and variance decisions do not call the gate yet (see the notes of S5-05): only the policy decisions
-// carry the AC2 tag here; the gate itself is tested under BR-TOK-05.
+// line, policy goes to the CEO. The request, PO and variance decisions at the threshold are tested in
+// step-up-decisions.test.ts.
 
 const NOW = new Date('2026-10-05T03:00:00Z')
 const MINUTE = 60_000
@@ -55,6 +55,17 @@ const pinStepUp = (code: string, subjectType: string, subjectId: string, at: Dat
 
 const pinState = (code: string) => prisma.member.findUniqueOrThrow({ where: { id: member(code) }, select: { pinFailedCount: true, pinLockedUntil: true } })
 
+/**
+ * A live grant of the authenticator code for this document, as grantStepUp made them before S5-05 (StepUpGrant.method
+ * TOTP): written straight on the table, since no code path makes one any more
+ */
+async function totpGrantOfBefore(code: string, subjectType: string, subjectId: string, at: Date): Promise<string> {
+  const grant = await prisma.stepUpGrant.create({
+    data: { organizationId: org.organizationId, memberId: member(code), purpose: 'DECIDE', subjectType, subjectId, method: 'TOTP', grantedAt: at, expiresAt: new Date(at.getTime() + STEP_UP_TTL_MS) },
+  })
+  return grant.id
+}
+
 beforeAll(async () => {
   org = await createDoaOrg()
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: member('admin'), role: 'ORG_ADMIN', grantedAt: NOW } })
@@ -85,15 +96,22 @@ async function submitted(grossBaht: string) {
 }
 
 /** A pending authority change, whose task waits for the CEO */
-async function authorityChangeTask(kind: 'assign' | 'reparent') {
+async function authorityChangeTask(kind: 'assign' | 'reparent' | 'delegation') {
   const proposed = await proposeOrgChange(
     org.ctxOf('admin', NOW),
     kind === 'assign'
       ? { kind: 'POSITION_ASSIGN', payload: { positionCode: 'DM', departmentId: org.department.IT!, memberId: member('admin2') }, effectiveFrom: '2026-12-01T01:00:00Z', reason: 'แต่งตั้งตามคำสั่งบริษัท' }
-      : { kind: 'DEPARTMENT_REPARENT', payload: { departmentId: org.department.FIN!, newParentId: org.department.OPS! }, effectiveFrom: '2026-12-05T01:00:00Z', reason: 'ปรับโครงสร้างตามคำสั่งบริษัท' },
+      : kind === 'reparent'
+        ? { kind: 'DEPARTMENT_REPARENT', payload: { departmentId: org.department.FIN!, newParentId: org.department.OPS! }, effectiveFrom: '2026-12-05T01:00:00Z', reason: 'ปรับโครงสร้างตามคำสั่งบริษัท' }
+        : {
+            kind: 'DELEGATION_ON_BEHALF',
+            payload: { delegatorMemberId: member('dm_fin'), delegateMemberId: member('fin_officer'), startsAt: '2026-12-07T01:00:00Z', endsAt: '2026-12-08T01:00:00Z' },
+            effectiveFrom: '2026-12-06T01:00:00Z',
+            reason: 'ผู้มอบลาพักร้อน',
+          },
     key(),
   )
-  if (!proposed.ok) throw new Error(`propose failed: ${proposed.error.code}`)
+  if (!proposed.ok) throw new Error(`propose failed: ${JSON.stringify(proposed.error)}`)
   const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: proposed.data.changeId } } } })
   expect(task.assigneeMemberId).toBe(member('ceo'))
   return { changeId: proposed.data.changeId, taskId: task.id }
@@ -164,14 +182,25 @@ describe('[BR-TOK-05] requireStepUp, the gate for request, PO and variance decis
     const T = new Date()
     const subjectId = randomUUID()
     const route = { subjectType: 'DOA_VERSION', subjectId, amountSatang: null, stepUpThresholdSatang: null }
-    const byCode = await grantStepUp({ organizationId: org.organizationId, memberId: member('ceo'), subjectType: 'DOA_VERSION', subjectId, code: totp(CEO_SECRET, T.getTime()) }, T)
-    if (!byCode.ok) throw new Error(`code refused: ${byCode.reason}`)
-    expect(byCode.method).toBe('TOTP')
+    const byCode = await totpGrantOfBefore('ceo', 'DOA_VERSION', subjectId, T)
     expect(await inTx((tx) => consumeStepUp(tx, { memberId: member('ceo'), subjectType: 'DOA_VERSION', subjectId, methods: PIN_ONLY }, T))).toBeNull()
     expect(await inTx((tx) => requireStepUp(tx, { memberId: member('ceo'), route, methods: PIN_ONLY }, T))).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED', details: { method: 'PIN' } } })
+    expect((await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: byCode } })).usedAt, 'the code grant is not used').toBeNull()
     const byPin = await pinStepUp('ceo', 'DOA_VERSION', subjectId, T)
     if (!byPin.ok) throw new Error('step-up refused')
     expect(await inTx((tx) => requireStepUp(tx, { memberId: member('ceo'), route, methods: PIN_ONLY }, T))).toEqual({ ok: true, grantId: byPin.grantId })
+  })
+
+  it('a step-up is the PIN only: the authenticator code gives none any more, and is refused before anything is checked', async () => {
+    const T = new Date()
+    const subjectId = randomUUID()
+    const before = await pinState('ceo')
+    const asBefore = { organizationId: org.organizationId, memberId: member('ceo'), subjectType: 'DOA_VERSION', subjectId, code: '123456' }
+    // The shape of the callers before S5-05, and the TOTP method by name: programming errors, never a grant
+    await expect(grantStepUp(asBefore as never, T, { sender: null })).rejects.toBeInstanceOf(TypeError)
+    await expect(grantStepUp({ ...asBefore, method: 'TOTP' } as never, T, { sender: null })).rejects.toBeInstanceOf(TypeError)
+    expect(await prisma.stepUpGrant.count({ where: { subjectId } })).toBe(0)
+    expect(await pinState('ceo')).toEqual(before)
   })
 
   it('a deciding command must name the proofs it takes', async () => {
@@ -199,13 +228,10 @@ describe('[FR-AUTH-005/AC2] a policy decision (BR-DOA-15) without a step-up for 
   it('in LIFF a grant of the authenticator code no longer counts (TOTP → PIN, docs/sub-specs/S5.md); the PIN decides', async () => {
     expect(policyStepUpMethods('LIFF')).toEqual(['PIN'])
     expect(policyStepUpMethods('PWA')).toEqual(['PIN'])
-    expect(policyStepUpMethods('WEB')[0], 'the PIN first, on the web too').toBe('PIN')
     const { changeId, taskId } = await authorityChangeTask('reparent')
-    const T = new Date()
-    const byCode = await grantStepUp({ organizationId: org.organizationId, memberId: member('ceo'), subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: changeId, code: totp(CEO_SECRET, T.getTime()) }, T)
-    if (!byCode.ok) throw new Error(`code refused: ${byCode.reason}`)
+    const byCode = await totpGrantOfBefore('ceo', 'ORG_AUTHORITY_CHANGE', changeId, new Date())
     expect(await decideTask(org.ctxOf('ceo', NOW, 'LIFF'), { taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
-    expect((await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: byCode.grantId } })).usedAt, 'the code grant is not used').toBeNull()
+    expect((await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: byCode } })).usedAt, 'the code grant is not used').toBeNull()
     expect((await prisma.approvalTask.findUniqueOrThrow({ where: { id: taskId } })).status).toBe('OPEN')
 
     const byPin = await pinStepUp('ceo', 'ORG_AUTHORITY_CHANGE', changeId, new Date(), PINS.ceo, 'LIFF')
@@ -213,6 +239,24 @@ describe('[FR-AUTH-005/AC2] a policy decision (BR-DOA-15) without a step-up for 
     expect(await decideTask(org.ctxOf('ceo', NOW, 'LIFF'), { taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: true })
     const decided = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, type: 'approval_task.decided', aggregateId: taskId } })
     expect(decided.data).toMatchObject({ stepUpGrantId: byPin.grantId })
+  })
+
+  it('on the web too a grant of the authenticator code no longer counts since the decision page switched to the PIN; the PIN decides', async () => {
+    expect(policyStepUpMethods('WEB')).toEqual(['PIN'])
+    const { changeId, taskId } = await authorityChangeTask('delegation')
+    const byCode = await totpGrantOfBefore('ceo', 'ORG_AUTHORITY_CHANGE', changeId, new Date())
+    expect(await decideTask(org.ctxOf('ceo', NOW, 'WEB'), { taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED', details: { method: 'PIN' } } })
+    expect(await decideTask(org.ctxOf('ceo', NOW, 'WEB'), { taskId, decision: 'REJECT', reason: 'ทบทวนอีกครั้ง' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
+    expect((await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: byCode } })).usedAt, 'the code grant is not used').toBeNull()
+    expect((await prisma.approvalTask.findUniqueOrThrow({ where: { id: taskId } })).status).toBe('OPEN')
+
+    const byPin = await pinStepUp('ceo', 'ORG_AUTHORITY_CHANGE', changeId, new Date())
+    if (!byPin.ok) throw new Error('step-up refused')
+    expect(await decideTask(org.ctxOf('ceo', NOW, 'WEB'), { taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: true })
+    const decided = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, type: 'approval_task.decided', aggregateId: taskId } })
+    expect(decided).toMatchObject({ channel: 'WEB', data: { decision: 'APPROVE', stepUpGrantId: byPin.grantId } })
+    // The PIN grant used up the code grant still held for the document (one entry decides one task): it decides nothing later
+    expect((await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: byCode } })).usedAt).toEqual(expect.any(Date))
   })
 })
 

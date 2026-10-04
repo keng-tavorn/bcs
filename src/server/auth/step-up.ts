@@ -27,33 +27,30 @@ import { isCheckablePinHash, PIN_PROOF_TTL_MS, PinHashError, signPinChangeProof,
 // unused one the member still holds for it, so one entry of the PIN decides one task. Times here are the security
 // clock (real time), never the business clock that e2e tests move.
 //
-// A grant is earned with the method the caller names:
-// - PIN (S5-05, FR-AUTH-005): the transaction PIN of ./pin.ts. Five wrong PINs in a row lock it for 15 minutes
-//   (src/core/pin); the fifth writes security.pin_locked and e-mails the owner security.notice (§10.1). A try runs in
-//   three steps, like a sign-in (lockout.ts), so the lock never fails open:
-//     1. reserve: in its own transaction, which commits before the PIN is checked, holding the member's row lock, the
-//        try is counted as wrong, and the fifth locks the PIN at once. Parallel tries are counted one by one, so at
-//        most five are ever checked, and nothing that fails afterwards can take a try back off the count;
-//     2. check: Argon2, with no transaction open;
-//     3. settle: a right PIN starts the count again, lifts the lock its own try made (a lock another try made in the
-//        meantime stands) and gets the grant; the fifth wrong PIN records its lock (the event, the notification and
-//        their outbox rows). A PIN changed in the meantime voids the check. If this step fails, the count and the lock
-//        stay as step 1 wrote them; only the lock's event and e-mail can be missing then.
-//   Everything a later write could refuse is checked before step 1: the ids, with the validator of the event schemas,
-//   and the lock's event itself. Wrong PINs are counted on Member (pinFailedCount, pinLockedUntil): security
-//   bookkeeping like AuthAttempt for sign-ins, not a business event.
-// - TOTP (before S5-05, BR-DOA-15): the authenticator code again, counted toward the sign-in lock (NFR-SEC-05) and
-//   recorded like a sign-in.
+// A grant is earned with the transaction PIN of ./pin.ts only (S5-05, FR-AUTH-005, ADR-047 item 8), on every channel.
+// Five wrong PINs in a row lock it for 15 minutes (src/core/pin); the fifth writes security.pin_locked and e-mails the
+// owner security.notice (§10.1). A try runs in three steps, like a sign-in (lockout.ts), so the lock never fails open:
+//   1. reserve: in its own transaction, which commits before the PIN is checked, holding the member's row lock, the try
+//      is counted as wrong, and the fifth locks the PIN at once. Parallel tries are counted one by one, so at most five
+//      are ever checked, and nothing that fails afterwards can take a try back off the count;
+//   2. check: Argon2, with no transaction open;
+//   3. settle: a right PIN starts the count again, lifts the lock its own try made (a lock another try made in the
+//      meantime stands) and gets the grant; the fifth wrong PIN records its lock (the event, the notification and their
+//      outbox rows). A PIN changed in the meantime voids the check. If this step fails, the count and the lock stay as
+//      step 1 wrote them; only the lock's event and e-mail can be missing then.
+// Everything a later write could refuse is checked before step 1: the ids, with the validator of the event schemas, and
+// the lock's event itself. Wrong PINs are counted on Member (pinFailedCount, pinLockedUntil): security bookkeeping like
+// AuthAttempt for sign-ins, not a business event.
 //
-// SWITCH POINT (TOTP → PIN). A deciding command names the proofs it takes (consumeStepUp, requireStepUp). Request, PO
-// and variance decisions take the PIN only. Policy decisions take policyStepUpMethods(channel): the PIN, and on the web
-// also the authenticator code, because the web decision page (src/app/(workspace)/_tracking/commands.ts) asks for that
-// code until the screens of S5 switch it to the PIN. In LIFF, and on every other channel, a TOTP grant no longer counts.
-// At the switch, policyStepUpMethods() gives the PIN on the web too and the TOTP branch of grantStepUp() goes.
+// Every deciding command names the proofs it takes (consumeStepUp, requireStepUp): PIN_ONLY, for request, PO and
+// variance decisions and for policy alike (policyStepUpMethods). The authenticator code (TOTP) stopped being a step-up
+// at S5-05 — it stays the second factor of the sign-in — so a TOTP grant written before then never decides anything.
+// After a grant the caller changes the session id (NFR-SEC-04, ./session-rotation.ts).
 //
 // Setting a PIN needs a fresh proof of who the member is (proveIdentityForPin): the password or the authenticator code,
 // counted and recorded like a sign-in, gives a proof good for 5 minutes (./pin.ts).
 
+/** TOTP names the grants of the authenticator code made before S5-05 (StepUpGrant.method); only PIN grants are made now */
 export type StepUpMethod = 'TOTP' | 'PIN'
 
 /** What a grant allows: deciding the one document it names */
@@ -66,15 +63,15 @@ export const STEP_UP_SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', '
 export type StepUpChannel = 'WEB' | 'LIFF' | 'PWA'
 const STEP_UP_CHANNELS = ['WEB', 'LIFF', 'PWA'] as const
 
-/** The proofs request, PO and variance decisions take (FR-AUTH-005 AC2): the PIN only, from the start */
+/** The proofs every decision that needs a step-up takes (FR-AUTH-005 AC2, ADR-047 item 8): the PIN only */
 export const PIN_ONLY: readonly StepUpMethod[] = ['PIN']
 
 /**
- * The proofs a policy decision (BR-DOA-15) takes on this channel until the switch point above, the preferred first:
- * the PIN everywhere, and on the web the authenticator code as well.
+ * The proofs a policy decision (BR-DOA-15) takes: the PIN only, on every channel — the web included since S5-05, when
+ * its decision page switched from the authenticator code to the PIN. The channel stays in the signature for the callers.
  */
-export function policyStepUpMethods(channel: Channel): readonly StepUpMethod[] {
-  return channel === 'WEB' ? ['PIN', 'TOTP'] : PIN_ONLY
+export function policyStepUpMethods(_channel?: Channel): readonly StepUpMethod[] {
+  return PIN_ONLY
 }
 
 interface StepUpSubject {
@@ -85,20 +82,16 @@ interface StepUpSubject {
   readonly subjectId: string
 }
 
-export type StepUpRequest = StepUpSubject &
-  (
-    | { readonly method: 'PIN'; readonly pin: string; readonly channel?: StepUpChannel }
-    /** `method` may be left out by the callers written before S5-05 */
-    | { readonly method?: 'TOTP'; readonly code: string }
-  )
+/** A try of the PIN for one document, typed where the member typed it (the channel of security.pin_locked; WEB when left out) */
+export type StepUpRequest = StepUpSubject & { readonly method: 'PIN'; readonly pin: string; readonly channel?: StepUpChannel }
 
 export type StepUpOutcome =
   | { readonly ok: true; readonly grantId: string; readonly expiresAt: Date; readonly method: StepUpMethod }
-  /** Too many wrong tries: the PIN lock (FR-AUTH-005 AC3) or the sign-in lock for TOTP; retryAt when it ends */
+  /** Five wrong PINs in a row locked it (FR-AUTH-005 AC3); retryAt when the lock ends */
   | { readonly ok: false; readonly reason: 'LOCKED'; readonly method: StepUpMethod; readonly retryAt: Date | null }
-  /** Wrong PIN or code; attemptsLeft before the PIN locks (null for TOTP, which shares the sign-in lock) */
+  /** Wrong PIN; attemptsLeft before the PIN locks */
   | { readonly ok: false; readonly reason: 'INVALID_CODE'; readonly method: StepUpMethod; readonly attemptsLeft: number | null }
-  /** No PIN set (or one that must be set again), or no authenticator */
+  /** No PIN set, or one that must be set again (made under a key the server no longer holds) */
   | { readonly ok: false; readonly reason: 'NO_SECOND_FACTOR'; readonly method: StepUpMethod }
 
 export type StepUpRefusal = Extract<StepUpOutcome, { ok: false }>
@@ -126,18 +119,18 @@ const StepUpIds = z.object({
 const PinTry = z.object({ pin: z.string(), channel: z.enum(STEP_UP_CHANNELS).optional() })
 
 /**
- * Checks the PIN or code and, when it is right, grants a step-up for one document (5 minutes, used once). The member and
- * the document come from the session and the task, never from the request: anything else is a programming error,
- * thrown before any try is counted or any PIN checked.
+ * Checks the PIN and, when it is right, grants a step-up for one document (5 minutes, used once). The member and the
+ * document come from the session and the task, never from the request: anything else — another method than the PIN
+ * included (the authenticator code is no step-up since S5-05) — is a programming error, thrown before any try is
+ * counted or any PIN checked.
  */
 export async function grantStepUp(input: StepUpRequest, now: Date, options: StepUpOptions = {}): Promise<StepUpOutcome> {
   const { organizationId, memberId, subjectType, subjectId } = input
   const ids = StepUpIds.safeParse({ organizationId, memberId, subjectType, subjectId, requestId: options.requestId, correlationId: options.correlationId })
-  const pinTry = input.method === 'PIN' ? PinTry.safeParse({ pin: input.pin, channel: input.channel }).success : true
+  const pinTry = input.method === 'PIN' && PinTry.safeParse({ pin: input.pin, channel: input.channel }).success
   if (!ids.success || !pinTry || Number.isNaN(now.getTime())) {
-    throw new TypeError('a step-up names the member and one document of an approval route by their ids, at a valid time')
+    throw new TypeError('a step-up is a PIN of the member for one document of an approval route, named by their ids, at a valid time')
   }
-  if (input.method !== 'PIN') return grantByTotp(input, now)
   // The lock's event, as the fifth wrong PIN would write it: checked now, it can no longer refuse after the check
   validateEventDraft(pinLockedEvent(input, pinLockEndsAt(now)))
   return grantByPin(input, now, options)
@@ -176,7 +169,7 @@ async function countedIdentityCheck(email: string, step: 'password' | 'two_facto
   return { kind: 'CHECKED', matches }
 }
 
-// ---------- TOTP (until the switch point) ----------
+// ---------- the authenticator code, to prove who the member is before setting a PIN ----------
 
 function sameCode(a: string, b: string): boolean {
   return a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b))
@@ -192,17 +185,6 @@ async function totpMatches(userId: string, code: string, nowMs: number): Promise
   let match = false
   for (let drift = -TOTP_ACCEPTED_DRIFT_STEPS; drift <= TOTP_ACCEPTED_DRIFT_STEPS; drift++) match = sameCode(hotp(secret, step + drift), code) || match
   return match
-}
-
-async function grantByTotp(input: StepUpSubject & { readonly code: string }, now: Date): Promise<StepUpOutcome> {
-  const member = await systemDb.member.findFirst({ where: { id: input.memberId, organizationId: input.organizationId }, select: { email: true, userId: true } })
-  if (!member?.userId) return { ok: false, reason: 'NO_SECOND_FACTOR', method: 'TOTP' }
-  const userId = member.userId
-  const checked = await countedIdentityCheck(member.email, 'two_factor', now, () => totpMatches(userId, input.code.trim(), now.getTime()))
-  if (checked.kind === 'LOCKED') return { ok: false, reason: 'LOCKED', method: 'TOTP', retryAt: checked.retryAt }
-  if (checked.matches === null) return { ok: false, reason: 'NO_SECOND_FACTOR', method: 'TOTP' }
-  if (!checked.matches) return { ok: false, reason: 'INVALID_CODE', method: 'TOTP', attemptsLeft: null }
-  return forTenant(input.organizationId).$transaction((tx) => issueGrant(tx, input, 'TOTP', now))
 }
 
 // ---------- PIN (FR-AUTH-005) ----------
@@ -334,19 +316,19 @@ async function grantByPin(input: StepUpSubject & { readonly pin: string; readonl
   return settled.outcome
 }
 
-/** How a refused step-up reads as an error of §14.2, for the screens and LIFF (details never hold the PIN or code) */
+/**
+ * How a refused step-up reads as an error of §14.2, for the screens and LIFF: STEP_UP_LOCKED {time: when the lock ends},
+ * VALIDATION_FAILED {field: pin, reason: WRONG, attemptsLeft}, STEP_UP_REQUIRED {reason: PIN_NOT_SET}. Neither the
+ * message nor the details ever hold the PIN (NFR-SEC-09).
+ */
 export function stepUpRefusalError(refusal: StepUpRefusal): AppError {
   switch (refusal.reason) {
     case 'LOCKED':
-      return { code: 'STEP_UP_LOCKED', message: 'too many wrong tries; the step-up is locked for a while', details: { method: refusal.method, ...(refusal.retryAt ? { time: refusal.retryAt.toISOString() } : {}) } }
+      return { code: 'STEP_UP_LOCKED', message: 'five wrong PINs in a row: the PIN is locked for a while', details: { method: refusal.method, ...(refusal.retryAt ? { time: refusal.retryAt.toISOString() } : {}) } }
     case 'INVALID_CODE':
-      return {
-        code: 'VALIDATION_FAILED',
-        message: refusal.method === 'PIN' ? 'wrong PIN' : 'wrong authenticator code',
-        details: { field: refusal.method === 'PIN' ? 'pin' : 'code', reason: 'WRONG', ...(refusal.attemptsLeft !== null ? { attemptsLeft: refusal.attemptsLeft } : {}) },
-      }
+      return { code: 'VALIDATION_FAILED', message: 'wrong PIN', details: { field: 'pin', reason: 'WRONG', ...(refusal.attemptsLeft !== null ? { attemptsLeft: refusal.attemptsLeft } : {}) } }
     case 'NO_SECOND_FACTOR':
-      return { code: 'STEP_UP_REQUIRED', message: refusal.method === 'PIN' ? 'set a transaction PIN first' : 'set up the authenticator first', details: { method: refusal.method, reason: refusal.method === 'PIN' ? 'PIN_NOT_SET' : 'NO_AUTHENTICATOR' } }
+      return { code: 'STEP_UP_REQUIRED', message: 'set a transaction PIN first', details: { method: refusal.method, reason: 'PIN_NOT_SET' } }
   }
 }
 
@@ -354,8 +336,8 @@ export function stepUpRefusalError(refusal: StepUpRefusal): AppError {
 
 /**
  * Uses the member's live grant for this document inside the deciding command (once only). `methods` are the proofs the
- * command takes: PIN_ONLY, or policyStepUpMethods(channel) for policy until the switch point above. null when there is
- * none: the command answers STEP_UP_REQUIRED.
+ * command takes: PIN_ONLY (policyStepUpMethods() gives the same). null when there is none: the command answers
+ * STEP_UP_REQUIRED.
  */
 export async function consumeStepUp(
   tx: TenantTx,
@@ -379,7 +361,8 @@ export type StepUpGate = { readonly ok: true; readonly grantId: string | null } 
  * FR-AUTH-005 AC2: the gate a deciding command runs in its transaction, at `now` on the security clock. When the route
  * needs a step-up (stepUpNeeded: a policy subject, or an amount at or above the version's stepUpThreshold), the member's
  * live grant for this document is used, once; without one the decision is refused STEP_UP_REQUIRED {method: the
- * preferred proof}. grantId is null when the route needs none. `methods` as for consumeStepUp().
+ * preferred proof}. grantId is null when the route needs none. `methods` as for consumeStepUp(). Every decision is
+ * gated alike — approve, return and reject ("ตัดสินงาน", ADR-047 item 8); asking the requester is not a decision.
  */
 export async function requireStepUp(
   tx: TenantTx,

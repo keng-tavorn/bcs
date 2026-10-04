@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { amountToSatang } from '@/core/money/dto'
-import { totp } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
@@ -12,6 +10,7 @@ import { draftDoaCopy, getDoaEditor, type DraftCopyInput } from '@/server/servic
 import { getDoaSimulation, type SimulatedRouteView } from '@/server/services/doa/simulate'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // S3-09 · FR-DOA-009 AC2 (BR-DOA-14): the try-out — document type, amount, charged department and requester in; the
 // route and Thai explanation of the version in effect and of a draft out, with the engine of real routing. The draft is
@@ -140,7 +139,7 @@ describe('[FR-DOA-009/AC2] the try-out shows the route of the version in effect 
     const tried = ok((await simulate(query({ net: '25000' }))).result?.version)
     expect(await submitDoaVersion(admin(), { versionId: draftId, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: draftId } } } })
-    await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: draftId, code: totp(CEO_SECRET) }, new Date())
+    await pinStepUp(org.organizationId, org.member.ceo!, 'DOA_VERSION', draftId)
     expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
 
     // 2 November: version 2 is in effect

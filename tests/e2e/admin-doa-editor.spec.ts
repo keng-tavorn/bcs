@@ -6,14 +6,15 @@ import path from 'node:path'
 import { type Locator, type Page, type TestInfo } from '@playwright/test'
 import { parse as parseYaml } from 'yaml'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
-import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
+import { E2E_BASE_URL, E2E_PIN, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
+import { PIN_LABEL } from './tasks-support'
 
 // S3-09 · the DOA editor (FR-DOA-001 AC1), the comparison with the version in effect and the boundary table, ticked by
 // the drafter before sending and by the approver before approving (FR-DOA-009 AC1, AC3; GC-DOA-22), and the try-out
 // (AC2). Demo scene 10: the admin moves the DM band to 30,000 baht on screen, sees the diff and the boundary table,
 // sends; the CEO opens the task, reads the same diff, authority changes and boundary table, cannot approve before
-// ticking the table, ticks it and approves with a step-up (FR-DOA-002 AC2); it takes effect on the first of next
+// ticking the table, ticks it and approves with a step-up — the PIN (FR-DOA-002 AC2, FR-AUTH-005 AC2); it takes effect on the first of next
 // month; the try-out with 25,000 baht shows version 1 going to the VP and version 2 to the DM. Each test builds an
 // organization of its own (tests/e2e/admin-doa-editor-scene.ts) so the demo organization's DOA never changes under
 // other specs, and desktop and mobile never meet. Screenshots at 375 px and 1440 px go to the test output (§9.9 step
@@ -241,15 +242,14 @@ test('@demo [FR-DOA-001/AC1] [FR-DOA-009/AC1] [FR-DOA-009/AC3] [FR-DOA-002/AC2] 
   }
   await review(ceo, testInfo, 'doa-task-compare')
 
-  // Approving asks for the tick of the boundary table first, then the code from the app
+  // Approving asks for the tick of the boundary table first, then the PIN (FR-AUTH-005 AC2)
   const approve = ceo.getByRole('button', { name: 'อนุมัติการเปลี่ยนนี้', exact: true })
   const approveForm = ceo.locator('form').filter({ has: approve })
   const tick = approveForm.getByRole('checkbox', { name: 'ฉันตรวจตารางผลที่ขอบแล้ว ทุกยอดที่ขอบของช่วงไปหาผู้อนุมัติที่ถูกต้อง' })
   const tickBox = (await tick.boundingBox())!
-  const codeBox = (await approveForm.getByLabel('รหัส 6 หลักจากแอป').boundingBox())!
-  expect(tickBox.y).toBeLessThan(codeBox.y)
-  const ceoCode = () => totp(deriveSeedTotpSecret(process.env.SEED_TOTP_KEY!, s.ceo.code))
-  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(ceoCode())
+  const pinBox = (await approveForm.getByLabel(PIN_LABEL).boundingBox())!
+  expect(tickBox.y).toBeLessThan(pinBox.y)
+  await approveForm.getByLabel(PIN_LABEL).fill(E2E_PIN)
   await approve.click()
   await expect(approveForm.getByText('ติ๊กยืนยันว่าตรวจตารางผลที่ขอบแล้วก่อนอนุมัติ')).toBeVisible()
   await expect(tick).toHaveAttribute('aria-invalid', 'true')
@@ -257,7 +257,7 @@ test('@demo [FR-DOA-001/AC1] [FR-DOA-009/AC1] [FR-DOA-009/AC3] [FR-DOA-002/AC2] 
   await expect(ceo.getByRole('status').filter({ hasText: 'อนุมัติการเปลี่ยนนี้แล้ว' })).toHaveCount(0)
   await tick.check()
   await expect(approveForm.getByText('ติ๊กยืนยันว่าตรวจตารางผลที่ขอบแล้วก่อนอนุมัติ')).toHaveCount(0)
-  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(ceoCode())
+  await approveForm.getByLabel(PIN_LABEL).fill(E2E_PIN)
   await approve.click()
   await expect(ceo.getByRole('status').filter({ hasText: 'อนุมัติการเปลี่ยนนี้แล้ว' })).toBeVisible()
   await expect(ceo.getByRole('status').filter({ hasText: `อนุมัติแล้วโดย ${s.names.ceo} เมื่อ` })).toBeVisible()

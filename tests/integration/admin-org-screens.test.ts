@@ -8,7 +8,6 @@ import { totp } from '@/lib/totp'
 import { auth } from '@/server/auth/auth'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { holdsDoaReferencedPosition, resolveSession } from '@/server/auth/session'
-import { grantStepUp } from '@/server/auth/step-up'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { doaNamedApprovers } from '@/server/doa/policy'
@@ -22,6 +21,7 @@ import { getOrgStructureForAdmin } from '@/server/services/org-structure/view'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import type { OrgChangeDraft } from '@/ui/admin-org/org-change-form'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // S2-13 screens of the organization structure and of authority changes (FR-ADM-002, FR-DOA-010 AC1), read through the
 // services the pages call: what each page shows, the impact a proposal shows before it is sent — the pending tasks that
@@ -49,7 +49,7 @@ async function orgWithCeo(): Promise<DoaOrg> {
 /** The CEO approves the change's task with a step-up, as the governance approver */
 async function ceoApproves(o: DoaOrg, changeId: string) {
   const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: changeId } } } })
-  expect(await grantStepUp({ organizationId: o.organizationId, memberId: o.member.ceo!, subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: changeId, code: totp(CEO_SECRET) }, new Date())).toMatchObject({ ok: true })
+  await pinStepUp(o.organizationId, o.member.ceo!, 'ORG_AUTHORITY_CHANGE', changeId)
   expect(await decideTask(o.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true })
 }
 

@@ -1,15 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { totp } from '@/lib/totp'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { decideTask } from '@/server/services/approvals/decide'
 import { applyDueChange, proposeOrgChange } from '@/server/services/org-authority'
 import { assignHolder, createCostCenter, createDepartment, endHolder, updateCostCenter, updateDepartment } from '@/server/services/org-structure'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // FR-ADM-002 (BR-DOA-17): departments, their names and cost centers change at once; the holders of positions without
 // authority change at once; moving a department and the holders of positions the DOA names go through an
@@ -35,7 +34,7 @@ const events = (aggregateId: string) => prisma.event.findMany({ where: { aggrega
 /** The CEO approves the change's task with a step-up, as the governance approver */
 async function ceoApproves(changeId: string) {
   const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: changeId } } } })
-  expect(await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: changeId, code: totp(CEO_SECRET) }, new Date())).toMatchObject({ ok: true })
+  await pinStepUp(org.organizationId, org.member.ceo!, 'ORG_AUTHORITY_CHANGE', changeId)
   expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true })
 }
 

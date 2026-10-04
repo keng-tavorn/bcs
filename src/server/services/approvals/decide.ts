@@ -3,8 +3,10 @@ import { resolveRoute } from '@/core/doa'
 import { checkSod, type SodPolicy } from '@/core/sod'
 import { businessMinutesBetween, addBusinessMinutes } from '@/core/sla'
 import { REQUEST_MACHINE, TASK_MACHINE, transition, type RequestState, type TaskCommand, type TaskState } from '@/core/state-machines'
+import { systemClock } from '@/lib/clock'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
+import { PIN_ONLY, requireStepUp } from '@/server/auth/step-up'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -18,13 +20,23 @@ import { decidePoTask } from '../purchase-orders/decide'
 import { decideVarianceTask } from '../receiving/variance-decide'
 import { releaseForRequest } from '../requests/budget'
 import { closeRoute, remindShareOf, taskTimes } from './route'
+import { completeStep, decisionOfStep, lockForDecision } from './step-complete'
 
 // Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). The task's assignee decides, or the
 // delegator when a delegate holds it (BR-DLG-04); the task must still be OPEN; separation of duties is checked again at the moment of deciding (GC-SOD-01, GC-SOD-03).
 // Return and reject need a reason (kept in Comment). The last approval moves the document on; a return or a rejection
 // ends the route. Every decision event names the DOA version and rule, the channel, the actor and whom they act for.
-// DOA versions and authority changes are decided in policy-decide.ts (a step-up every time, BR-DOA-15; a DOA version is
-// approved only with its boundary table ticked, FR-DOA-009 AC3).
+// The first decision on a step decides it: the step's other open tasks — the co-assignee of an escalated step — are
+// cancelled with it (step-complete.ts, BR-SLA-04, NEW-47), and a late decision on one of them is refused with who
+// decided the step and when (FR-DOA-004 AC2). Every command here starts by locking the task with the other open tasks of
+// its step, in ascending id order, before anything else (lockForDecision, INV-PLT-03): two approvers of one step who
+// act at the same moment queue there instead of deadlocking.
+// A task whose amount the DOA counted is at or above the version's stepUpThreshold is decided — approved, returned or
+// rejected alike — only with the member's PIN step-up for that document, used once (FR-AUTH-005 AC2, BR-TOK-05,
+// ADR-047 item 8; the grant's id goes into approval_task.decided); purchase orders (purchase-orders/decide.ts) and
+// variances (receiving/variance-decide.ts) the same. DOA versions and authority changes are decided in policy-decide.ts
+// (a step-up every time, BR-DOA-15; a DOA version is approved only with its boundary table ticked, FR-DOA-009 AC3).
+// Asking the requester for information decides nothing and needs no step-up.
 
 const MIN_REASON_LENGTH = 3
 
@@ -32,8 +44,7 @@ const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITIO
   ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
 async function lockedTask(tx: TenantTx, ctx: Ctx, taskId: string) {
-  const [locked] = await lockRowsForUpdate(tx, 'ApprovalTask', ctx.organizationId, [taskId])
-  if (!locked) return null
+  if (!(await lockForDecision(tx, ctx.organizationId, taskId))) return null
   return tx.approvalTask.findUniqueOrThrow({ where: { id: taskId }, include: { step: { include: { route: true } } } })
 }
 
@@ -42,14 +53,21 @@ type LoadedTask = NonNullable<Awaited<ReturnType<typeof lockedTask>>>
 /** Who may act on a task: its assignee and, when a delegate holds it, the delegator (BR-DLG-04). */
 const deciders = (task: LoadedTask) => [task.assigneeMemberId, task.principalMemberId].filter((m): m is string => Boolean(m))
 
-/** FR-DOA-004 AC2: a task decided already is refused with who decided it and when. */
+/**
+ * FR-DOA-004 AC2: a task decided already is refused with who decided it and when. A task closed because another task of
+ * its step was decided — cancelled when the co-assignee of an escalated step decided first (BR-SLA-04), or moved to a
+ * delegate who decided it — names that decision, as its LINE button does (line-postback.ts); a task closed with
+ * nothing decided on its step (the request cancelled, the route replaced) names nobody.
+ */
 async function alreadyDecided(tx: TenantTx, task: LoadedTask, command: TaskCommand) {
-  const by = task.decidedByMemberId ? await tx.member.findUnique({ where: { id: task.decidedByMemberId }, select: { displayNameTh: true } }) : null
+  const decision = await decisionOfStep(tx, task)
+  const by = decision?.decidedBy
   return fail('INVALID_STATE_TRANSITION', `${command} is not allowed from ${task.status}`, {
     from: task.status,
     command,
-    ...(by ? { name: by.displayNameTh } : {}),
-    ...(task.decidedAt ? { time: task.decidedAt.toISOString() } : {}),
+    // The name in Thai and in English, as the LINE button's refusal gives it (line-postback.ts)
+    ...(by ? { name: by.displayNameTh, nameEn: by.displayNameEn ?? by.displayNameTh } : {}),
+    ...(decision ? { time: decision.decidedAt.toISOString() } : {}),
   })
 }
 
@@ -122,7 +140,7 @@ export const decideCommand = defineCommand({
     if (!actorMemberId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member decides' } }
 
     // Separation of duties at the moment of deciding: the actor, and the principal when a delegate decides (ADR-038 ข้อ 8)
-    const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { sodPolicy: true } })
+    const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { sodPolicy: true, stepUpThresholdSatang: true } })
     const sodPolicy = version.sodPolicy as unknown as SodPolicy
     for (const who of [actorMemberId, task.principalMemberId].filter((m): m is string => Boolean(m))) {
       const sod = checkSod({ kind: 'DECIDE_APPROVAL', subject: 'REQUEST', actorMemberId: who, requesterMemberIds: [request.requesterMemberId] }, sodPolicy)
@@ -136,6 +154,14 @@ export const decideCommand = defineCommand({
         }
       }
     }
+    // FR-AUTH-005 AC2: at or above the version's stepUpThreshold, every decision takes the actor's PIN grant for this
+    // request (security clock), used once; a refusal rolls the use back with the rest
+    const stepUp = await requireStepUp(
+      tx,
+      { memberId: actorMemberId, route: { subjectType: 'REQUEST', subjectId: request.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: PIN_ONLY },
+      systemClock.now(),
+    )
+    if (!stepUp.ok) return { ok: false, error: stepUp.error }
 
     const reasonCommentId = input.reason && input.decision !== 'APPROVE' ? await addReason(tx, ctx, 'Request', request.id, input.reason) : null
     await tx.approvalTask.update({
@@ -160,11 +186,13 @@ export const decideCommand = defineCommand({
           actorMemberId,
           onBehalfOfMemberId: task.principalMemberId && actorMemberId !== task.principalMemberId ? task.principalMemberId : null,
           reasonCommentId,
+          ...(stepUp.grantId ? { stepUpGrantId: stepUp.grantId } : {}),
         },
       },
     ]
     const notifications: NotificationDraft[] = []
-    await tx.approvalStep.update({ where: { id: task.stepId }, data: { status: 'DONE' } })
+    // BR-SLA-04: the step is decided — its other open tasks are cancelled before anything moves on
+    events.push(...(await completeStep(tx, ctx, task)))
 
     if (input.decision === 'APPROVE') {
       const next = await tx.approvalStep.findFirst({ where: { routeId: route.id, status: 'WAITING' }, orderBy: { stepNo: 'asc' } })

@@ -2,7 +2,6 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { totp } from '@/lib/totp'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
@@ -13,9 +12,10 @@ import { resetMemberTwoFactor } from '@/server/services/members'
 import { applyDueChange, proposeOrgChange } from '@/server/services/org-authority'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp, seedTestPins, TEST_PIN } from '../support/pin'
 
 // S2-16 (FR-DOA-010, FR-DOA-002 AC2, BR-DOA-15, BR-SOD-08): authority changes and DOA versions are approved by the
-// approver of their governance rule (CEO in the fixtures) with a step-up every time.
+// approver of their governance rule (CEO in the fixtures) with a step-up every time: the PIN (FR-AUTH-005 AC2, S5-05).
 
 const NOW = new Date('2026-10-05T03:00:00Z')
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
@@ -25,14 +25,15 @@ let org: DoaOrg
 beforeAll(async () => {
   org = await createDoaOrg()
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
-  // The CEO signs in with an authenticator: the step-up checks a code from it
+  // The CEO signs in with a password and an authenticator, and decides with the transaction PIN
   const ceo = await prisma.member.findUniqueOrThrow({ where: { id: org.member.ceo! } })
   const userId = await upsertUserWithPassword({ email: ceo.email, name: ceo.displayNameTh, password: 'ceo-password-123456' })
   await enableTotpWithSecret(userId, CEO_SECRET, [])
   await prisma.member.update({ where: { id: ceo.id }, data: { userId } })
+  await seedTestPins(org.organizationId)
 })
 
-/** An organization of its own, with admin and admin2 as ORG_ADMIN and a CEO who signs in with an authenticator */
+/** An organization of its own, with admin and admin2 as ORG_ADMIN and a CEO who decides with the PIN */
 async function orgWithCeo(): Promise<DoaOrg> {
   const solo = await createDoaOrg()
   for (const code of ['admin', 'admin2']) await prisma.roleAssignment.create({ data: { organizationId: solo.organizationId, memberId: solo.member[code]!, role: 'ORG_ADMIN', grantedAt: NOW } })
@@ -40,6 +41,7 @@ async function orgWithCeo(): Promise<DoaOrg> {
   const userId = await upsertUserWithPassword({ email: ceo.email, name: ceo.displayNameTh, password: 'ceo-password-123456' })
   await enableTotpWithSecret(userId, CEO_SECRET, [])
   await prisma.member.update({ where: { id: ceo.id }, data: { userId } })
+  await seedTestPins(solo.organizationId)
   return solo
 }
 
@@ -59,8 +61,8 @@ async function taskOf(subjectId: string) {
   return prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId } } } })
 }
 
-async function ceoStepUp(subjectType: string, subjectId: string, code = totp(CEO_SECRET)) {
-  return grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType, subjectId, code }, new Date())
+async function ceoStepUp(subjectType: string, subjectId: string, pin = TEST_PIN) {
+  return grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType, subjectId, method: 'PIN', pin }, new Date(), { sender: null })
 }
 
 describe('[FR-DOA-010/AC1] ORG_ADMIN proposes the five kinds with an effective time that is not in the past', () => {
@@ -95,7 +97,7 @@ describe('[FR-DOA-010/AC1] ORG_ADMIN proposes the five kinds with an effective t
 })
 
 describe('[FR-DOA-010/AC2] the governance approver decides with a step-up every time', () => {
-  it('needs a fresh, correct authenticator code for that change; the code is used once', async () => {
+  it('needs a fresh, correct PIN step-up for that change; the step-up is used once', async () => {
     const proposed = await assign('VP', 'SUP', 'dm_fin', '2026-10-25T01:00:00Z')
     if (!proposed.ok) throw new Error('propose failed')
     const task = await taskOf(proposed.data.changeId)
@@ -243,7 +245,7 @@ describe('[GC-SOD-07] the proposer never approves their own change, even when th
     const promote = await proposeOrgChange(solo.ctxOf('admin2', NOW), { kind: 'POSITION_ASSIGN', payload: { positionCode: 'CEO', departmentId: solo.department.HQ!, memberId: solo.member.admin! }, effectiveFrom: NOW.toISOString(), reason: 'แต่งตั้ง CEO' }, key())
     if (!promote.ok) throw new Error(JSON.stringify(promote.error))
     const promoteTask = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: promote.data.changeId } } } })
-    await grantStepUp({ organizationId: solo.organizationId, memberId: solo.member.ceo!, subjectType: 'ORG_AUTHORITY_CHANGE', subjectId: promote.data.changeId, code: totp(CEO_SECRET) }, new Date())
+    await pinStepUp(solo.organizationId, solo.member.ceo!, 'ORG_AUTHORITY_CHANGE', promote.data.changeId)
     expect(await decideTask(solo.ctxOf('ceo', NOW), { taskId: promoteTask.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'APPLIED' } })
     const moved = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: mine.data.changeId } } } })
     expect(moved.assigneeMemberId).toBe(solo.member.admin)
@@ -300,7 +302,7 @@ describe('[FR-DOA-007/AC3] separation of duties is relaxed only by a new DOA ver
     expect(v1.sodPolicy).toMatchObject({ approverMayReceive: false })
 
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
-    await grantStepUp({ organizationId: solo.organizationId, memberId: solo.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
+    await pinStepUp(solo.organizationId, solo.member.ceo!, 'DOA_VERSION', versionId)
     expect(await decideTask(solo.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: versionId } })).toMatchObject({ status: 'PUBLISHED', submittedById: solo.member.admin, approvedById: solo.member.ceo, sodPolicy: { approverMayReceive: true } })
     // The history report (FR-DOA-011) reads these: who drafted, submitted and approved, with the step-up
@@ -330,7 +332,7 @@ describe('[FR-DOA-007/AC3] separation of duties is relaxed only by a new DOA ver
     expect(second.submitted).toMatchObject({ ok: true })
     const approve = async (versionId: string) => {
       const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
-      await grantStepUp({ organizationId: solo.organizationId, memberId: solo.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
+      await pinStepUp(solo.organizationId, solo.member.ceo!, 'DOA_VERSION', versionId)
       return decideTask(solo.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())
     }
     expect(await approve(first.versionId)).toMatchObject({ ok: true })

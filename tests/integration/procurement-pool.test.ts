@@ -71,7 +71,7 @@ describe('[FR-P2P-001/AC1] [FR-P2P-001/AC3] PROCUREMENT sees the approved lines 
     const r = await approvedRequest({ site: 'SITE-A', urgent: false })
     const pool = ok(await listPool(proc()))
     const row = pool.find((p) => p.requestLineId === r.lineIds[0])!
-    expect(row).toMatchObject({ requestNo: r.number, quantity: '10', uom: 'ชิ้น', unitPriceSatang: 10_000n, netSatang: 100_000n, needsSupplier: true, supplier: null, deliverySite: { code: 'SITE-A' }, urgency: 'NORMAL', ageDays: 0 })
+    expect(row).toMatchObject({ requestNo: r.number, quantity: '10', uom: 'ชิ้น', unitPriceSatang: 10_000n, amountSatang: 100_000n, priceIncludesVat: false, needsSupplier: true, draftBlock: null, supplier: null, deliverySite: { code: 'SITE-A' }, urgency: 'NORMAL', ageDays: 0 })
     expect(ok(await listPool(proc(), { supplierId: 'NONE' })).some((p) => p.requestLineId === r.lineIds[0])).toBe(true)
     expect(ok(await listPool(proc(), { deliverySiteId: site['SITE-B'] })).some((p) => p.requestLineId === r.lineIds[0])).toBe(false)
     expect(ok(await listPool(proc(), { urgency: 'URGENT' })).some((p) => p.requestLineId === r.lineIds[0])).toBe(false)

@@ -195,8 +195,10 @@ features:
     status: done
     step: S2
     evidence:
-      - tests/integration/admin-settings-request-types.test.ts
       - tests/e2e/admin-settings.spec.ts
+      - tests/integration/admin-settings-request-types.test.ts
+      - tests/integration/form-import-money.test.ts
+      - tests/unit/forms-money.test.ts
     verifiedBy: null
     notes: ""
   FR-ADM-006:
@@ -344,9 +346,11 @@ features:
     evidence:
       - tests/e2e/request-form.spec.ts
       - tests/golden/forms.test.ts
+      - tests/integration/form-import-money.test.ts
       - tests/integration/request-form.test.ts
       - tests/unit/engines.test.ts
       - tests/unit/forms-fields.test.ts
+      - tests/unit/forms-money.test.ts
       - tests/unit/request-form-fields.test.tsx
       - tests/unit/request-form.test.ts
     verifiedBy: null
@@ -468,21 +472,25 @@ features:
     step: S4
     evidence:
       - tests/e2e/procurement.spec.ts
+      - tests/integration/procurement-pool-vat.test.ts
       - tests/integration/procurement-pool.test.ts
       - tests/integration/procurement-screens.test.ts
+      - tests/unit/procurement-pool-present.test.ts
+      - tests/unit/procurement-pool-vat.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "NEW-50 ระหว่างรอ: บรรทัดของคำขอที่ราคารวม VAT ค้างในกองพร้อมเหตุผล ไม่มีรอบใดรวมเป็นร่าง PO"
   FR-P2P-002:
     status: done
     step: S4
     evidence:
       - tests/e2e/procurement.spec.ts
       - tests/golden/consolidation.test.ts
+      - tests/integration/procurement-pool-vat.test.ts
       - tests/integration/procurement-pool.test.ts
       - tests/integration/procurement-screens.test.ts
       - tests/unit/schedule.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "NEW-50 ระหว่างรอ: บรรทัดของคำขอที่ราคารวม VAT ค้างในกองพร้อมเหตุผล ไม่มีรอบใดรวมเป็นร่าง PO"
   FR-P2P-003:
     status: done
     step: S4
@@ -544,8 +552,11 @@ features:
     status: in_progress
     step: S4
     evidence:
+      - tests/e2e/finance-exports.spec.ts
+      - tests/integration/express-demo-layout.test.ts
       - tests/integration/express-export.test.ts
       - tests/unit/encoding.test.ts
+      - tests/unit/express-layout-seed.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-010:

@@ -25,10 +25,13 @@ import { expectNoBlockingAxe, rowWith, signIn } from './tasks-support'
 // (Demo_Script: จัดซื้อรวม PR เป็น PO). tests/e2e/procurement-scene.ts makes the approved requests through the
 // services; procurement (proc_officer) works the pool in the browser. Screenshots at 1440 and 375 px go to the test
 // output (§9.9 step 4); axe runs on every screen (§9.9 step 5). These scenes cross several pages and two members, so
-// they get more time than a single screen (a loaded machine stretches every step).
+// they get more time than a single screen (a loaded machine stretches every step). A request whose prices include VAT
+// stays in the pool until NEW-50 is decided, so a round may leave lines for that reason too.
 
 type PoolScene = { a: Made; b: Made; c: Made }
 type DemoScene = { scene1: Made; h11: Made; budgetLine: string }
+
+const VAT_REASON = 'ราคารวม VAT: คำขอนี้ยังรวมเป็นร่าง PO ไม่ได้ รอการตัดสินใจเรื่องการแปลงราคารวม VAT เป็นราคาในใบสั่งซื้อ'
 
 test('[FR-P2P-001/AC1] [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC2] [FR-P2P-002/AC3] procurement filters the pool, chooses a supplier for several lines at once and makes draft POs now', async ({ page }, testInfo) => {
   test.setTimeout(180_000)
@@ -103,7 +106,7 @@ test('[FR-P2P-001/AC1] [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC2] [FR-P2
   await expect(draftA).toContainText('2 บรรทัด')
   await expect(draftA).toContainText(/ยอดก่อน VAT\s*4,000\.00 บาท/)
   await expect(result.getByRole('listitem').filter({ hasText: made.b.number }).getByRole('link')).toHaveText('เปิดร่าง PO ของ บริษัท ไอทีทดสอบ จำกัด · ไซต์งานตัวอย่าง B · สินค้า')
-  await expect(result).toContainText(/เหลือในกอง \d+ บรรทัด เพราะยังไม่ได้เลือกผู้ขาย|ไม่มีบรรทัดค้างในกอง/)
+  await expect(result).toContainText(/เหลือในกอง \d+ บรรทัด เพราะ(ยังไม่ได้เลือกผู้ขาย|มาจากคำขอที่ราคารวม VAT)|ไม่มีบรรทัดค้างในกอง/)
   await expect(poolGroup(page, made.a.number)).toHaveCount(0)
   // FR-P2P-002 AC2: the round is kept, with who ran it and the drafts it made
   const rounds = page.getByRole('list', { name: 'รอบรวมคำขอที่ผ่านมา' })
@@ -221,4 +224,62 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
   await expectPdfLink(page, page.getByRole('link', { name: `เปิด PDF ของ ${number}` }))
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'demo-po-sent')
+})
+
+test('[FR-P2P-001/AC1] [FR-P2P-001/AC3] [FR-P2P-002/AC1] [FR-P2P-002/AC3] a request whose prices include VAT waits in the pool at its own prices and says why; choosing its supplier and making drafts leave it there (NEW-50)', async ({ page }, testInfo) => {
+  test.setTimeout(180_000)
+  const made = scene<Made>('vat', tagOf(testInfo))
+  await signIn(page, 'proc_officer', true)
+  await page.goto('/procurement/pool')
+  const group = poolGroup(page, made.number)
+  const panel = page.getByRole('region', { name: 'รวมเป็นร่าง PO', exact: true })
+
+  // Why no round drafts it, in words beside an icon under its name; its prices as it states them, VAT included:
+  // 3 × 100.00 = 300.00, the amount approved — nothing converted, nothing rounded
+  await expect(group).toContainText(VAT_REASON)
+  await expect(group).toContainText('ด่วน')
+  await expect(group).toContainText('3 ถุง')
+  await expect(group).toContainText('300.00')
+  await expect(group.getByText('ต้องเลือกผู้ขาย')).toBeVisible()
+  // Each figure says its VAT basis: in its label on a phone, in a note under the value on a wide screen, where the
+  // column heading over the amounts names no basis while such a request is listed
+  await expect(group.getByText('รวม VAT', { exact: true })).toHaveCount(2)
+  if (testInfo.project.name === 'mobile') {
+    await expect(group.getByText('ราคาต่อหน่วย (รวม VAT)', { exact: true })).toBeVisible()
+    await expect(group.getByText('ยอดรวม VAT', { exact: true })).toBeVisible()
+  } else {
+    await expect(group.getByText('รวม VAT', { exact: true }).first()).toBeVisible()
+    await expect(page.getByText('ยอด', { exact: true })).toBeVisible()
+  }
+  // The round panel counts the lines that wait for the decision, and does not promise an urgent one a draft at once
+  await expect(panel).toContainText(/\d+ บรรทัดในกองมาจากคำขอที่ราคารวม VAT จึงยังไม่ถูกรวมเป็นร่าง PO/)
+  await expect(panel).toContainText('ส่วนคำขอที่ราคารวม VAT ยังไม่ถูกรวมเป็นร่าง PO แม้เป็นคำขอด่วน')
+  await expectNoBlockingAxe(page)
+  await topShot(page, testInfo, 'pool-vat')
+
+  // Urgent, yet choosing its supplier asks nothing more (no draft is made at once) and the notice says why it stays
+  await chooseSupplier(page, [made.number], S1, 1)
+  const chosen = page.getByRole('status').filter({ hasText: `เลือกผู้ขาย ${S1} ให้ 1 บรรทัดแล้ว` })
+  await expect(chosen).toContainText('1 บรรทัดที่เลือกมาจากคำขอที่ราคารวม VAT จึงยังรอในกองและยังไม่ถูกรวมเป็นร่าง PO')
+  await expect(chosen).not.toContainText('คำขอด่วนได้ร่าง PO ทันที')
+  await expect(group).toContainText('ผู้ขาย บริษัท วัสดุก่อสร้างทดสอบ จำกัด')
+  await expect(group).toContainText(VAT_REASON)
+  await expectNoBlockingAxe(page)
+  await topShot(page, testInfo, 'pool-vat-chosen', { whole: false })
+
+  // "รวมเป็นร่าง PO ตอนนี้" leaves it in the pool, and says why
+  await consolidateNow(page)
+  const result = page.getByRole('status').filter({ hasText: /รอบนี้ไม่มีบรรทัดที่พร้อมรวม|รวมแล้ว ได้ร่าง PO/ })
+  await expect(result).toContainText(/เหลือในกอง \d+ บรรทัด เพราะมาจากคำขอที่ราคารวม VAT ซึ่งยังรวมเป็นร่าง PO ไม่ได้/)
+  await expect(result).not.toContainText('ไม่มีบรรทัดค้างในกอง')
+  await expect(group).toContainText(VAT_REASON)
+  await expect(group).toContainText('ผู้ขาย บริษัท วัสดุก่อสร้างทดสอบ จำกัด')
+  await expectNoBlockingAxe(page)
+  await topShot(page, testInfo, 'pool-vat-round')
+
+  // Its supplier comes off again, as the other scenes leave no line with a supplier behind them
+  await page.getByRole('checkbox', { name: `เลือกทุกบรรทัดของ ${made.number}` }).check()
+  await page.getByRole('button', { name: 'เอาผู้ขายออกจากบรรทัดที่เลือก' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'เอาผู้ขายออกจาก 1 บรรทัดแล้ว' })).toBeVisible()
+  await expect(group.getByText('ต้องเลือกผู้ขาย')).toBeVisible()
 })

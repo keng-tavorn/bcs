@@ -35,6 +35,8 @@ import { ATTACHMENT_PDF } from './tasks-attachment'
 //                   the rest closed short by proc_officer: a variance waiting for the DM of CON (GRV-01)
 //   damaged <tag>   a PO of S3 sent, all 10 delivered to receiver_con with 2 damaged pieces kept and a photo of them:
 //                   a damaged-goods variance waiting for the DM of CON (GRV-01, BR-GR-05)
+//   vat <tag>       an urgent approved request of CON at SITE-B whose prices include VAT, 3 × 100.00 (300.00 approved),
+//                   with no supplier: no round drafts it until NEW-50 is decided, so it stays in the pool
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the procurement scene runs in the e2e database only')
 
 const now = systemClock.now()
@@ -87,6 +89,8 @@ interface RequestSpec {
   readonly site: string
   readonly suggested?: string
   readonly urgent?: boolean
+  /** The prices include VAT (a document-level choice); before VAT when left out */
+  readonly includesVat?: boolean
   readonly budget: { readonly id: string }
   readonly lines: ReadonlyArray<{ readonly description: string; readonly quantity: string; readonly uom: string; readonly unitPrice: string; readonly categoryCode?: string }>
   /** A PDF the requester attaches to the draft before sending it, by this name */
@@ -104,6 +108,7 @@ async function approvedRequest(spec: RequestSpec) {
         budgetLineId: spec.budget.id,
         deliverySiteId: await siteId(spec.site),
         ...(spec.suggested ? { suggestedSupplierId: await supplierId(spec.suggested) } : {}),
+        ...(spec.includesVat ? { priceIncludesVat: true } : {}),
         urgency: spec.urgent ? 'URGENT' : 'NORMAL',
         lines: spec.lines.map((l) => ({ ...l })),
       },
@@ -270,6 +275,19 @@ switch (scenario) {
     const [varianceId] = gr.varianceIds
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'VARIANCE', subjectId: varianceId! } } }, select: { id: true, assignee: { select: { employeeCode: true } }, principal: { select: { employeeCode: true } } } })
     out = { ...po, varianceId, taskId: task.id, description: line.description, photo, approver: task.principal?.employeeCode ?? task.assignee.employeeCode }
+    break
+  }
+  case 'vat': {
+    // NEW-50: urgent, so choosing its supplier would draft it at once if its prices were before VAT (BR-CONS-02)
+    out = await approvedRequest({
+      requester: 'req_con',
+      title: `ปูนซีเมนต์ราคารวม VAT (${tag})`,
+      site: 'SITE-B',
+      urgent: true,
+      includesVat: true,
+      budget: await budgetLine('CON-CAPEX-2569', 'CON-OPEX-2569', 300n),
+      lines: [{ description: 'ปูนซีเมนต์ 50 กก.', quantity: '3', uom: 'ถุง', unitPrice: '100.00' }],
+    })
     break
   }
   default:

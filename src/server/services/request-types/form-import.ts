@@ -1,14 +1,16 @@
-import type { z } from 'zod'
-import type { Condition, Requirement } from '@/core/forms'
+import { z } from 'zod'
+import { MONEY_VARIABLES, type Comparison, type Condition, type Requirement } from '@/core/forms'
 import type { FormText } from '@/core/forms/fields'
+import { MONEY_TEXT } from '@/core/forms/money-text'
 import { BYTES_PER_KIB } from '@/lib/constants'
 import { stableStringify } from '@/lib/json'
-import { FormSchemaJson } from '@/server/forms/schema'
+import { FormSchemaJson, moneyFieldIds } from '@/server/forms/schema'
 
 // A request form imported as JSON (FR-ADM-005 AC1, spec §7.9): the shape is checked with the same schema the server
 // reads forms with (src/server/forms/schema.ts), then what the shape cannot say: field and rule ids are unique, every
-// condition names a field of the form or a special variable, and every attachment rule asks for a kind of file that
-// can be attached. Problems carry a reason and the place in the JSON, so the screen can say each one in Thai or English.
+// condition names a field of the form or a special variable, every attachment rule asks for a kind of file that can be
+// attached, and every amount money is compared with is baht text (BR-MONEY-01). Problems carry a reason and the place
+// in the JSON, so the screen can say each one in Thai or English.
 
 /** Forms are a few kilobytes; the text arrives through a server action (1 MB body limit) */
 export const FORM_JSON_MAX_CHARS = 200 * BYTES_PER_KIB
@@ -36,8 +38,11 @@ export type FormProblem =
   | { readonly reason: 'UNKNOWN_FIELD'; readonly field: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_ATTACHMENT'; readonly attachment: string; readonly path: string }
 
+/** A place in the form's JSON: ['fields', 2, 'options'] */
+type JsonPath = ReadonlyArray<PropertyKey>
+
 /** "fields[2].options" from ['fields', 2, 'options'] */
-function pathText(path: ReadonlyArray<PropertyKey>): string {
+function pathText(path: JsonPath): string {
   return path.reduce<string>((s, p) => (typeof p === 'number' ? `${s}[${p}]` : s ? `${s}.${String(p)}` : String(p)), '') || '(form)'
 }
 
@@ -51,23 +56,63 @@ const ISSUES: Readonly<Record<string, SchemaIssue>> = {
   invalid_union: 'SHAPE',
 }
 
-function schemaProblems(error: z.ZodError): FormProblem[] {
+/** The issues of a Zod check, placed under `at` (the place in the form of the value it checked) */
+function schemaProblems(error: z.ZodError, at: JsonPath = []): FormProblem[] {
   return error.issues.map((i) => ({
     reason: 'SCHEMA' as const,
     issue: ISSUES[i.code] ?? 'OTHER',
-    path: pathText(i.path),
+    path: pathText([...at, ...i.path]),
     ...(i.code === 'unrecognized_keys' ? { keys: i.keys } : {}),
   }))
 }
 
 type ConditionNode = Condition | Requirement
 
+/** The comparisons a condition or requirement makes, with where each is. */
+function comparisons(node: ConditionNode, at: JsonPath): Array<{ comparison: Comparison; at: JsonPath }> {
+  if ('all' in node) return (node.all as readonly ConditionNode[]).flatMap((c, i) => comparisons(c, [...at, 'all', i]))
+  if ('any' in node) return (node.any as readonly ConditionNode[]).flatMap((c, i) => comparisons(c, [...at, 'any', i]))
+  if ('attachments' in node) return []
+  return [{ comparison: node, at }]
+}
+
 /** Field names a condition reads, with where they are. */
-function conditionFields(condition: ConditionNode, path: string): Array<{ field: string; path: string }> {
-  if ('all' in condition) return (condition.all as readonly ConditionNode[]).flatMap((c, i) => conditionFields(c, `${path}.all[${i}]`))
-  if ('any' in condition) return (condition.any as readonly ConditionNode[]).flatMap((c, i) => conditionFields(c, `${path}.any[${i}]`))
-  if ('attachments' in condition) return []
-  return [{ field: condition.field, path: `${path}.field` }]
+function conditionFields(node: ConditionNode, at: JsonPath): Array<{ field: string; path: string }> {
+  return comparisons(node, at).map((c) => ({ field: c.comparison.field, path: pathText([...c.at, 'field']) }))
+}
+
+/** Every condition and requirement of the form, with where it is */
+function conditionsOf(form: FormJson): Array<{ node: ConditionNode; at: JsonPath }> {
+  return [
+    ...form.visibility.map((v, i) => ({ node: v.when, at: ['visibility', i, 'when'] })),
+    ...form.rules.flatMap((r, i) => [
+      { node: r.when, at: ['rules', i, 'when'] },
+      { node: r.require, at: ['rules', i, 'require'] },
+    ]),
+    ...(form.lines.serviceEndDate ? [{ node: form.lines.serviceEndDate.when, at: ['lines', 'serviceEndDate', 'when'] }] : []),
+  ]
+}
+
+/** An amount is baht text such as "100000.00", as the answers of a money field are; "in" lists one or more */
+const MoneyText = z.string().regex(MONEY_TEXT)
+const MoneyList = z.array(MoneyText).min(1)
+
+/**
+ * Amounts that money ($amountGross, $amountNet or a field of type money) is compared with and that are not baht text.
+ * core/forms never matches such a value, a JSON number above all, so the rule would never apply: the admin is told
+ * where it is instead. Each is reported as the schema reports a value: TYPE for a number, a missing value or a value
+ * that is not a list for "in", FORMAT for other text, SIZE for an empty list. empty and notEmpty take no value.
+ */
+function moneyValueProblems(form: FormJson): FormProblem[] {
+  const money = moneyFieldIds(form.fields)
+  return conditionsOf(form)
+    .flatMap((c) => comparisons(c.node, c.at))
+    .flatMap(({ comparison, at }) => {
+      if (comparison.op === 'empty' || comparison.op === 'notEmpty') return []
+      if (!MONEY_VARIABLES.includes(comparison.field) && !money.has(comparison.field)) return []
+      const checked = (comparison.op === 'in' ? MoneyList : MoneyText).safeParse(comparison.value)
+      return checked.success ? [] : schemaProblems(checked.error, [...at, 'value'])
+    })
 }
 
 function attachmentKinds(requirement: Requirement, path: string): Array<{ attachment: string; path: string }> {
@@ -91,9 +136,9 @@ function meaningProblems(form: FormJson): FormProblem[] {
   })
   const known = (field: string) => ids.has(field) || SPECIAL_VARIABLES.includes(field)
   const reads = [
-    ...form.visibility.flatMap((v, i) => [{ field: v.field, path: `visibility[${i}].field` }, ...conditionFields(v.when, `visibility[${i}].when`)]),
-    ...form.rules.flatMap((r, i) => [...conditionFields(r.when, `rules[${i}].when`), ...conditionFields(r.require, `rules[${i}].require`)]),
-    ...(form.lines.serviceEndDate ? conditionFields(form.lines.serviceEndDate.when, 'lines.serviceEndDate.when') : []),
+    ...form.visibility.flatMap((v, i) => [{ field: v.field, path: `visibility[${i}].field` }, ...conditionFields(v.when, ['visibility', i, 'when'])]),
+    ...form.rules.flatMap((r, i) => [...conditionFields(r.when, ['rules', i, 'when']), ...conditionFields(r.require, ['rules', i, 'require'])]),
+    ...(form.lines.serviceEndDate ? conditionFields(form.lines.serviceEndDate.when, ['lines', 'serviceEndDate', 'when']) : []),
   ]
   for (const read of reads) if (!known(read.field)) problems.push({ reason: 'UNKNOWN_FIELD', field: read.field, path: read.path })
   for (const [i, r] of form.rules.entries()) {
@@ -101,6 +146,7 @@ function meaningProblems(form: FormJson): FormProblem[] {
       if (!(ATTACHMENT_KINDS as readonly string[]).includes(a.attachment)) problems.push({ reason: 'UNKNOWN_ATTACHMENT', attachment: a.attachment, path: a.path })
     }
   }
+  problems.push(...moneyValueProblems(form))
   return problems
 }
 

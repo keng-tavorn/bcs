@@ -220,7 +220,7 @@
     "REASON": "Give a reason for exporting again, at least 3 characters",
     "CONFIRM": "Tick that you checked the list before making the file",
     "PENDING_CHANGED": "The invoices waiting for export changed after this page opened (an invoice was recorded, or someone made a file first), so no file was made. The latest list is shown now: check it and tick again.",
-    "MAPPING_NOT_SET": "The organization has no Express file layout yet. Ask your administrator to set it first.",
+    "MAPPING_NOT_SET": "No file was made: the Express file layout is not set yet. It has to follow a sample file that the Express program really imports. Send such a sample to your organization administrator, who passes it on to the BCS team to set the layout. No invoice was marked as exported this time.",
     "NOTHING_TO_EXPORT": "No invoice is waiting for export any more; someone may have made the file already. Reload the page to see the latest file.",
     "NOTHING_TO_EXPORT_HELD": "No invoice can go into the file: the {excluded, plural, one {# invoice} other {# invoices}} not exported yet wait for their supplier's Express vendor code.",
     "ENCODING": "Some characters cannot be written in Windows-874 (an emoji, for example). Fix the supplier's or invoice's data, or ask your administrator to switch to UTF-8.",
@@ -241,7 +241,7 @@
     "intro": "Make the file of the invoices not exported yet, in your organization's layout, for the Express accounting program to import.",
     "toInvoices": "Go to confirming invoices",
     "layout": {
-      "notSet": "The organization has no Express file layout yet, so no file can be made. Ask your administrator to set it first.",
+      "notSet": "No Express file can be made yet: the file layout (the columns Express takes, in order) is not set. It has to follow a sample file that Express really imports, so the system does not guess it. Send such a sample to your organization administrator, who passes it on to the BCS team to set the layout. Meanwhile the recorded invoices wait in the list below and can be exported once the layout is set.",
       "title": "The organization's file layout",
       "summary": "{fileType} · {encoding} · {dateFormat}",
       "columns": "{count} columns in this order: {columns}",

@@ -1,11 +1,16 @@
 import { roundHalfUpDiv, lineNetsBeforeVat, parseQuantity, type Satang } from '@/core/money/math'
-import { QUANTITY_SCALE } from '@/core/money/constants'
 import type { TenantTx } from '@/server/db/tenant'
 
 // The procurement pool (spec FR-P2P-001, §7.10): the approved request lines with a quantity nobody has ordered yet.
 // What is left of a line = its quantity − what was cancelled − what POs still order (PoLineSource of every PO that is
 // not REJECTED or CANCELLED: a rejected PO, or one cancelled with RETURN_TO_POOL, gives its lines back, BR-BUD-06).
-// Quantities are decimal text scaled by 10⁴ (§6.1); amounts are satang before VAT (BR-BUD-03).
+// Quantities are decimal text scaled by 10⁴ (§6.1); budget amounts are satang before VAT (BR-BUD-03).
+//
+// A line keeps the unit price its request states. A request whose prices include VAT has no unit price before VAT
+// without rounding one, which BR-MONEY-02 does not allow (only line amounts, document VAT, withholding tax and
+// largest-remainder shares are rounded): 3 × 100.00 including VAT 7% would become a draft PO of 300.01 against the
+// 300.00 approved. Until the user decides how such a request becomes PO lines (NEW-50), its lines stay in the pool
+// and no round drafts them (draftBlock).
 
 /** POs whose sources still order their request lines */
 export const ORDERING_PO_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED'] as const
@@ -33,8 +38,23 @@ export interface FreeLine {
   readonly free: bigint
   /** The line's amount before VAT (the share of the document's when its prices include VAT, BR-BUD-05) */
   readonly netBeforeVat: Satang
-  /** The price of one unit before VAT, rounded half up (equal to the line's unit price when it excludes VAT) */
-  readonly unitPriceBeforeVat: Satang
+  /** The request's unit price as it states it: before VAT, or with VAT included when `priceIncludesVat` */
+  readonly unitPriceSatang: Satang
+  /** The request's prices include VAT (a document-level choice, §6.1) */
+  readonly priceIncludesVat: boolean
+}
+
+/** Why no round drafts a line although it has its supplier */
+export type DraftBlock = 'PRICE_INCLUDES_VAT'
+
+/**
+ * What keeps a consolidation round (scheduled, by hand or urgent) from putting a free line on a draft PO, or null when
+ * nothing does once the line has its supplier. A request whose prices include VAT waits for NEW-50: a draft PO is
+ * priced before VAT, and its unit price before VAT cannot be had without a rounding BR-MONEY-02 does not allow.
+ */
+export function draftBlock(line: Pick<FreeLine, 'priceIncludesVat'>): DraftBlock | null {
+  // TODO(NEW-50): the user chooses (a) VAT-inclusive POs grouped apart (BR-CONS-01) or (b) a fifth rounding point
+  return line.priceIncludesVat ? 'PRICE_INCLUDES_VAT' : null
 }
 
 const scaled = (d: { toString(): string }) => parseQuantity(d.toString())
@@ -119,7 +139,8 @@ export async function freeLines(tx: TenantTx, filter: { requestIds?: readonly st
         quantity,
         free,
         netBeforeVat,
-        unitPriceBeforeVat: r.priceIncludesVat ? roundHalfUpDiv(netBeforeVat * QUANTITY_SCALE, quantity) : l.unitPriceSatang,
+        unitPriceSatang: l.unitPriceSatang,
+        priceIncludesVat: r.priceIncludesVat,
       })
     })
   }

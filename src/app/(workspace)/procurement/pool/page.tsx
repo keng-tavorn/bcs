@@ -1,24 +1,22 @@
 import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
-import { formatSatang } from '@/core/money/format'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { consolidationSchedule, poolOptions, type NextRoundDto, type RoundDto } from '@/server/queries/procurement'
-import { listPool, type PoolFilter, type PoolLineDto } from '@/server/services/procurement'
+import { listPool, type PoolFilter } from '@/server/services/procurement'
 import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { ConsolidatePanel } from '@/ui/procurement/consolidate-panel'
-import { PoolBoard, type PoolRequestView } from '@/ui/procurement/pool-board'
+import { PoolBoard } from '@/ui/procurement/pool-board'
 import { getSession } from '../../../_lib/session'
-import { day, localeOf, when, type Locale } from '../../_tracking/present'
+import { localeOf, when, type Locale } from '../../_tracking/present'
 import { assignSupplierAction, consolidateNowAction } from './actions'
+import { poolCounts, requestsOf, type PoolT } from './present'
 
 export async function generateMetadata() {
   const t = await getTranslations('procurement.pool')
   return { title: t('metaTitle') }
 }
-
-type PoolT = Awaited<ReturnType<typeof getTranslations<'procurement.pool'>>>
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 const selectClass = 'h-11 w-full rounded-md border border-input bg-bg px-3 text-base text-ink'
@@ -38,38 +36,6 @@ function filterOf(params: Record<string, string | string[] | undefined>): PoolFi
     ...(urgency === 'NORMAL' || urgency === 'URGENT' ? { urgency } : {}),
     ...((AGES as readonly number[]).includes(age) ? { minAgeDays: age } : {}),
   }
-}
-
-/** The lines of each request together, in the pool's order (oldest approval first) */
-function requestsOf(t: PoolT, locale: Locale, lines: readonly PoolLineDto[], supplierName: (id: string | null) => string | null): PoolRequestView[] {
-  const groups = new Map<string, PoolLineDto[]>()
-  for (const l of lines) groups.set(l.requestId, [...(groups.get(l.requestId) ?? []), l])
-  return [...groups.values()].map((group) => {
-    const first = group[0]!
-    return {
-      id: first.requestId,
-      number: first.requestNo,
-      title: `${first.requestNo} · ${first.requestTitle}`,
-      href: `/requests/${first.requestId}`,
-      meta: [
-        t('request.requester', { name: locale === 'en' && first.requesterNameEn ? first.requesterNameEn : first.requesterName }),
-        first.deliverySite ? t('request.site', { site: first.deliverySite.nameTh }) : t('request.noSite'),
-        `${t('request.approved', { date: day(locale, first.approvedAt) })} · ${first.ageDays > 0 ? t('request.ageDays', { days: first.ageDays }) : t('request.ageToday')}`,
-      ],
-      urgent: first.urgency === 'URGENT',
-      suggested: supplierName(first.suggestedSupplierId),
-      lines: group.map((l) => ({
-        id: l.requestLineId,
-        no: l.lineNo,
-        description: l.description,
-        kind: t(`kind.${l.kind}`),
-        quantity: t('line.qty', { quantity: l.quantity, uom: l.uom }),
-        unitPrice: formatSatang(l.unitPriceSatang),
-        net: formatSatang(l.netSatang),
-        supplierName: l.supplier?.nameTh ?? null,
-      })),
-    }
-  })
 }
 
 function nextText(t: PoolT, locale: Locale, next: NextRoundDto): string {
@@ -108,7 +74,10 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
     )
   }
   const [everything, options, schedule] = await Promise.all([filtered ? listPool(ctx) : Promise.resolve(pool), poolOptions(ctx), consolidationSchedule(ctx)])
-  const total = everything.ok ? everything.data.length : pool.data.length
+  const all = everything.ok ? everything.data : pool.data
+  const total = all.length
+  // The round panel counts the whole pool, whatever the filter shows
+  const counts = poolCounts(all)
   const supplierName = (id: string | null) => (id ? (options.suppliers.find((s) => s.id === id)?.nameTh ?? null) : null)
   const requests = requestsOf(t, locale, pool.data, supplierName)
 
@@ -126,7 +95,7 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
 
       <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-10">
         <div className="lg:col-start-2 lg:row-start-1">
-          <ConsolidatePanel next={nextText(t, locale, schedule.next)} ready={(everything.ok ? everything.data : pool.data).filter((l) => !l.needsSupplier).length} consolidate={consolidateNowAction} />
+          <ConsolidatePanel next={nextText(t, locale, schedule.next)} ready={counts.ready} blocked={counts.blocked} consolidate={consolidateNowAction} />
         </div>
 
         <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1">

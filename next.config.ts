@@ -1,7 +1,16 @@
 import type { NextConfig } from 'next'
 import createNextIntlPlugin from 'next-intl/plugin'
 
-const withNextIntl = createNextIntlPlugin('./src/i18n/request.ts')
+// Messages are compiled when the app is built (next-intl's precompile): the browser then formats them without the ICU
+// parser, some 9 KB gzip less in the first JavaScript of every page — a LIFF page loads at most 200 KB gzip with the LINE
+// SDK and its page data (§9.4). Every JSON file under messages/ that the app imports is compiled, so code that reads a
+// message with arguments formats it through next-intl, never by replacing text in it (src/app/global-error.tsx); a
+// message without arguments stays a plain string. tests/unit/messages-precompile.test.ts checks that every message
+// compiles and reads as it did before.
+const withNextIntl = createNextIntlPlugin({
+  requestConfig: './src/i18n/request.ts',
+  experimental: { messages: { path: './messages', format: 'json', locales: 'infer', precompile: true } },
+})
 
 // react-pdf (ADR-044) reads Sarabun from assets/fonts when it renders, and pdfkit's ESM build loads its standard fonts
 // through a require of *.cjs files the file tracer does not follow: both ship with every route that can render a

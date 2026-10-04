@@ -3,7 +3,7 @@ import { randomBytes, randomUUID } from 'node:crypto'
 import type { Page, TestInfo } from '@playwright/test'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
-import { anotherPhone, checkScreen, FIRST_LOAD_JS_BUDGET_BYTES, gzipBytes, inlineScriptsOf, newLineUserId, openAsLineUser, sceneTag, watchScripts } from './liff-support'
+import { anotherPhone, BUDGET_DOCUMENT_LINES, checkScreen, expectFirstLoadsWithinBudget, liffBudgetScene, newLineUserId, openAsLineUser, sceneTag } from './liff-support'
 
 // S5-06 · /liff/gr/[poId], receiving with the camera in the LINE app (§9.4, FR-LINE-003 AC3, FR-P2P-006, demo scene 8),
 // at 375 px in the mobile project (liff-* specs run on the phone only), every screen also checked at 1440 px
@@ -147,22 +147,6 @@ async function firstScreen(page: Page, testInfo: TestInfo, name: string) {
 async function expectAtBottom(page: Page, name: string) {
   const box = (await page.getByRole('region', { name }).boundingBox())!
   expect(box.y + box.height).toBeGreaterThan(page.viewportSize()!.height - 2)
-}
-
-/** The script files a page loads until the network is quiet (§9.4, as tests/e2e/liff-shell.spec.ts weighs them) */
-async function firstLoad(page: Page, testInfo: TestInfo, path: string, ready: () => Promise<void>) {
-  const scripts = watchScripts(page)
-  const document = await page.goto(path)
-  await ready()
-  await page.waitForLoadState('networkidle')
-  const loads = await scripts()
-  const total = loads.reduce((sum, load) => sum + load.transferred, 0)
-  const inline = gzipBytes(inlineScriptsOf((await document?.text()) ?? '').join('\n'))
-  testInfo.annotations.push({ type: 'first-load-js', description: `${path.replace(/[0-9a-f-]{36}/, '<poId>')}: ${loads.length} script files, ${total} bytes over the wire; inline page data about ${inline} bytes gzip, reported apart` })
-  // The LINE SDK is part of it, as in the LINE app; what came over the wire was compressed
-  expect(loads.filter((l) => l.sdk)).toHaveLength(1)
-  expect(loads.filter((l) => l.transferred > 1024).every((l) => l.encoding === 'gzip' || l.encoding === 'br')).toBe(true)
-  expect(total).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
 }
 
 // Every test first builds its sent PO through the services in a child process (several seconds): three times the time
@@ -509,11 +493,22 @@ test('[FR-P2P-006/AC3] in LINE, separation of duties is said in plain words with
   expect(liffGrScene<RecordedReceipt>('receipt', s.poId)).toMatchObject({ poStatus: 'RECEIVED', receipt: { channel: 'LIFF', photos: [] } })
 })
 
-test('[§9.4] the first JavaScript of /liff/gr/[poId] — the receiving form of a linked receiver, with the LINE SDK — is at most 200 KB gzip', async ({ page, context }, testInfo) => {
+test('[§9.4] the first JavaScript of /liff/gr/[poId] — the receiving form of a linked receiver, with the LINE SDK and the page data in its HTML — is at most 200 KB gzip, opened from LINE and again with the LIFF session', async ({ browser }, testInfo) => {
+  // Two POs, each opened from LINE and again with the session, and a PO of 40 lines made through the services
+  test.setTimeout(300_000)
   const s = receivingScene('demo')
+  // A PO of realistic size as well: the same requester's urgent request of 40 lines, sent to the supplier
+  // (tests/e2e/liff-budget-scene.ts); the receiver of the scene receives it too
+  const big = liffBudgetScene<{ poId: string }>('sent-po', s.requestNumber, String(BUDGET_DOCUMENT_LINES), sceneTag('size'))
   const lineUserId = newLineUserId()
   liffGrScene('link', s.receiver!, lineUserId)
-  await openAsLineUser(context, lineUserId)
-  // The first visit: the gate signs in with LINE, then the page shows the form; the review and the photo code wait for a tap
-  await firstLoad(page, testInfo, `/liff/gr/${s.poId}`, () => expect(page.getByRole('button', { name: 'ตรวจสอบก่อนบันทึก' })).toBeVisible())
+  // Opened from LINE, the gate signs in and then the page shows the form; with the session the form is in the HTML. The
+  // review and the photo code wait for a tap either way
+  const ready = (page: Page) => expect(page.getByRole('button', { name: 'ตรวจสอบก่อนบันทึก' })).toBeVisible()
+  for (const screen of [
+    { name: '/liff/gr/<poId>', path: `/liff/gr/${s.poId}` },
+    { name: `/liff/gr/<poId>, a PO of ${BUDGET_DOCUMENT_LINES} lines`, path: `/liff/gr/${big.poId}` },
+  ]) {
+    await expectFirstLoadsWithinBudget(browser, testInfo, { ...screen, lineUserId, ready })
+  }
 })

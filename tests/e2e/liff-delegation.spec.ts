@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process'
 import type { Page, TestInfo } from '@playwright/test'
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
-import { checkScreen, FIRST_LOAD_JS_BUDGET_BYTES, gzipBytes, inlineScriptsOf, newLineUserId, openAsLineUser, sceneTag, watchScripts } from './liff-support'
+import { checkScreen, expectFirstLoadsWithinBudget, newLineUserId, openAsLineUser, sceneTag } from './liff-support'
 
 // S5-06 · /liff/delegation, naming an acting approver in the LINE app (§9.4 "ตั้งรักษาการ", FR-DOA-006 AC2 LIFF part,
 // BR-DLG-01 to BR-DLG-03, demo scene 11), at 375 px in the mobile project, every screen also checked at 1440 px
@@ -176,28 +176,19 @@ test('[FR-DOA-006/AC2] in LINE, a member who holds no position learns why there 
   await checkScreen(page, testInfo, 'liff-delegation-no-position')
 })
 
-/** The script files a page loads until the network is quiet (§9.4, as tests/e2e/liff-shell.spec.ts weighs them) */
-async function firstLoad(page: Page, testInfo: TestInfo, path: string, ready: () => Promise<void>) {
-  const scripts = watchScripts(page)
-  const document = await page.goto(path)
-  await ready()
-  await page.waitForLoadState('networkidle')
-  const loads = await scripts()
-  const total = loads.reduce((sum, load) => sum + load.transferred, 0)
-  const inline = gzipBytes(inlineScriptsOf((await document?.text()) ?? '').join('\n'))
-  testInfo.annotations.push({ type: 'first-load-js', description: `${path}: ${loads.length} script files, ${total} bytes over the wire; inline page data about ${inline} bytes gzip, reported apart` })
-  expect(loads.filter((l) => l.sdk)).toHaveLength(1)
-  expect(loads.filter((l) => l.transferred > 1024).every((l) => l.encoding === 'gzip' || l.encoding === 'br')).toBe(true)
-  expect(total).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
-}
-
-test('[§9.4] the first JavaScript of /liff/delegation — the form of an approver, with the LINE SDK — is at most 200 KB gzip', async ({ page, context }, testInfo) => {
+test('[§9.4] the first JavaScript of /liff/delegation — the form of an approver, with the LINE SDK and the page data in its HTML — is at most 200 KB gzip, opened from LINE and again with the LIFF session', async ({ browser }, testInfo) => {
+  // Two LINE apps open the page and one signs in: more than the default 30 seconds
+  test.setTimeout(120_000)
   // A member who holds no position sees no form: the form's own weight is measured with the approver of scene 11
   const lineUserId = newLineUserId()
   lineScene('link', 'dm_con', lineUserId)
   try {
-    await openAsLineUser(context, lineUserId)
-    await firstLoad(page, testInfo, '/liff/delegation', () => expect(page.getByRole('button', { name: 'ตั้งผู้รักษาการ', exact: true })).toBeVisible())
+    await expectFirstLoadsWithinBudget(browser, testInfo, {
+      name: '/liff/delegation',
+      lineUserId,
+      path: '/liff/delegation',
+      ready: (page) => expect(page.getByRole('button', { name: 'ตั้งผู้รักษาการ', exact: true })).toBeVisible(),
+    })
   } finally {
     lineScene('unlink', 'dm_con')
   }

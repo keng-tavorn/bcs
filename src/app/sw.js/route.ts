@@ -2,6 +2,13 @@
 // other request (pages, data, API, files) always goes to the network and is never stored, so no business data is
 // kept on the device in tier 1. A navigation that fails offline shows the Thai offline page. A new build changes
 // VERSION, so the browser installs the new worker and the page offers to reload (no web push in tier 1).
+// POST requests never reach the worker where the browser has the Static Routing API (InstallEvent.addRoutes): they go
+// straight to the network. A page that is left sends its draft as a keepalive POST (FR-INT-006 AC1). When the page is
+// replaced by another one in the same window (a link, a reload, a new address), Chromium drops that request if the
+// worker controls the page, even though the fetch handler leaves every request but GET alone: measured in Chromium 153,
+// no save arrived with the worker and all of them arrived with the rule or with no worker; a tab closed outright
+// delivered its save either way. tests/e2e/pwa.spec.ts checks the rule, tests/e2e/liff-requests.spec.ts the saves with
+// the worker in place. Where the API is missing, nothing changes: the fetch handler still ignores POST requests.
 
 export const dynamic = 'force-static'
 
@@ -13,8 +20,18 @@ const CACHE = ${JSON.stringify(`bcs-shell-${VERSION}`)};
 const PRECACHE = ${JSON.stringify(PRECACHE)};
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(PRECACHE)));
+  event.waitUntil(Promise.all([postToNetwork(event), caches.open(CACHE).then((cache) => cache.addAll(PRECACHE))]));
 });
+
+// The rule is added during the install event; a browser that refuses it still installs the worker
+function postToNetwork(event) {
+  if (!event.addRoutes) return undefined;
+  try {
+    return Promise.resolve(event.addRoutes({ condition: { requestMethod: 'POST' }, source: 'network' })).catch(() => undefined);
+  } catch {
+    return undefined;
+  }
+}
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(

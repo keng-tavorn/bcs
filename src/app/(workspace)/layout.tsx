@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
 import { systemClock } from '@/lib/clock'
@@ -12,6 +13,7 @@ import { TwoFactorSetup } from '@/ui/auth/two-factor-setup'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { LanguageSwitch } from '@/ui/shell/language-switch'
+import { PwaRegistration } from '@/ui/pwa/pwa-registration'
 import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
@@ -21,6 +23,9 @@ import { markAllNotificationsReadAction, openNotificationAction } from './_shell
 
 // Every workspace page: signed in, a member, and 2FA set up when the role needs it (FR-AUTH-002 AC1) — otherwise
 // only the setup screen shows. The menu lists what the member may open (FR-PLT-002 AC1); services check again.
+// The workspace's client components read any namespace, so its provider passes the whole catalogue (no page budget
+// here; the LIFF app and the sign-in pages pass only what they read, src/i18n/client-messages.ts). The PWA's service
+// worker is registered here and on the sign-in pages (§9.7), and offers to reload when a new version is ready.
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   const state = await getSession()
   if (state.kind === 'anonymous') redirect('/login')
@@ -53,9 +58,16 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       action={setLocaleAction}
     />
   )
+  /** The page with the whole catalogue for its client components, and the PWA's registration after it */
+  const withMessages = (page: ReactNode) => (
+    <NextIntlClientProvider>
+      {page}
+      <PwaRegistration labels={{ updateReady: tPwa('updateReady'), updateNow: tPwa('updateNow'), updateLater: tPwa('updateLater') }} />
+    </NextIntlClientProvider>
+  )
 
   if (state.kind !== 'member') {
-    return (
+    return withMessages(
       <div className="min-h-dvh bg-bg">
         <header className="border-b border-line bg-surface">
           <div className="mx-auto max-w-2xl px-4 py-4">
@@ -111,7 +123,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     />
   )
 
-  return (
+  return withMessages(
     <WorkspaceShell
       brand={tAuth('brand')}
       orgName={state.member.organizationName}

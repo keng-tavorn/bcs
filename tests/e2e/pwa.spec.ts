@@ -1,7 +1,8 @@
 import { expect, test } from './fixtures'
 
 // FR-PLT-005 (S1-11): manifest, icons and the service worker on the production build. Installing from a real phone
-// over the staging URL is checked in D-08.
+// over the staging URL is checked in D-08. The sign-in and workspace pages register the worker, a LIFF page never does
+// (LIFF runs inside LINE), and the worker sends every POST straight to the network (FR-INT-006 AC1).
 
 const pngSize = (bytes: Buffer) => ({ width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) })
 
@@ -58,6 +59,50 @@ test('[FR-PLT-005/AC2] offline shows the Thai offline page; business pages are n
   } finally {
     await context.setOffline(false)
   }
+})
+
+test('[FR-PLT-005/AC3] [FR-INT-006/AC1] the service worker sends every POST straight to the network, so a page replaced by another one still saves its draft', async ({ page, context }) => {
+  // When another page replaces a page the worker controls (a link, a reload, a new address), Chromium drops that page's
+  // keepalive POST (a draft saved on the way out), even with a fetch handler that leaves POST alone. The worker adds a
+  // Static Routing rule when it installs (src/app/sw.js), and DevTools reports the rules with the worker's version
+  const browserSide = await context.newCDPSession(page)
+  const versions: Array<{ scriptURL: string; status: string; routerRules?: string }> = []
+  browserSide.on('ServiceWorker.workerVersionUpdated', ({ versions: updated }) => versions.push(...updated))
+  await browserSide.send('ServiceWorker.enable')
+  await page.goto('/login')
+  await expect.poll(() => page.evaluate(() => Boolean(navigator.serviceWorker.controller))).toBe(true)
+  const active = () => versions.findLast((v) => new URL(v.scriptURL).pathname === '/sw.js' && v.status === 'activated')
+  await expect.poll(() => active()?.routerRules ?? null).not.toBeNull()
+  expect(JSON.parse(active()!.routerRules!)).toEqual([expect.objectContaining({ condition: { request: { method: 'POST' } }, source: ['network'] })])
+})
+
+test('[FR-PLT-005/AC3] the workspace pages register the service worker too, not only the sign-in page', async ({ page, browser }, testInfo) => {
+  await page.goto('/login')
+  await page.getByLabel('อีเมลบริษัท').fill('req_con@demo.bcs.local')
+  await page.getByLabel('รหัสผ่าน').fill(process.env.SEED_DEV_PASSWORD!)
+  await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('สวัสดี')
+  // The same session in a browser where the sign-in page never ran: the workspace page registers the worker itself
+  const use = testInfo.project.use
+  const other = await browser.newContext({ baseURL: use.baseURL, viewport: use.viewport, locale: use.locale, timezoneId: use.timezoneId, userAgent: use.userAgent })
+  try {
+    await other.addCookies(await page.context().cookies())
+    const home = await other.newPage()
+    await home.goto('/')
+    await expect(home.getByRole('heading', { level: 1 })).toContainText('สวัสดี')
+    await expect.poll(() => home.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? null)).toMatch(/\/sw\.js$/)
+  } finally {
+    await other.close()
+  }
+})
+
+test('[§9.4] [§9.7] a LIFF page registers no service worker: LIFF runs inside LINE', async ({ page }) => {
+  await page.goto('/liff/help')
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  // The workspace's registration runs right after the page starts: give it time to show
+  await page.waitForTimeout(1000)
+  expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0)
 })
 
 test('the install page explains adding BCS to the home screen on iPhone', async ({ page }) => {

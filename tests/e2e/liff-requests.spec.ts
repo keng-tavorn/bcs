@@ -5,15 +5,18 @@ import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 import {
   anotherPhone,
+  BUDGET_DOCUMENT_LINES,
   checkScreen,
-  FIRST_LOAD_JS_BUDGET_BYTES,
-  gzipBytes,
-  inlineScriptsOf,
+  expectFirstLoadsWithinBudget,
+  expectFirstLoadWithinBudget,
+  liffBudgetScene,
   newLineUserId,
   openAsLineUser,
   sceneTag,
   sessionCookie,
-  watchScripts,
+  weighOpenedFromLine,
+  weighWithLiffSession,
+  type LiffBudgetScreen,
 } from './liff-support'
 
 // S5-06 · the request pages of LIFF (§9.4: /liff/requests/new, /liff/requests/[id], /liff/track), at 375 px in the
@@ -86,6 +89,24 @@ const requesterBar = (page: Page) => page.getByRole('region', { name: 'สิ่
 async function firstScreen(page: Page, testInfo: TestInfo, name: string) {
   await page.screenshot({ path: testInfo.outputPath(`${name}-screen.png`) })
 }
+
+/**
+ * A browser where the PWA's service worker is in place, as on a phone where BCS was opened before: the sign-in page
+ * registers it (src/ui/pwa/pwa-registration.tsx, production builds) and it takes the pages of the site (scope /), the
+ * LIFF pages included, from the next page load on
+ */
+async function withPwaWorker(context: BrowserContext) {
+  const signIn = await context.newPage()
+  try {
+    await signIn.goto('/login')
+    await expect.poll(() => controlledByWorker(signIn), { timeout: 20_000 }).toBe(true)
+  } finally {
+    await signIn.close()
+  }
+}
+
+/** The page is controlled by the PWA's service worker */
+const controlledByWorker = (page: Page) => page.evaluate(() => navigator.serviceWorker.controller?.scriptURL.endsWith('/sw.js') ?? false)
 
 /** A scene walks through several screens, each checked with axe and photographed at two widths */
 const SCENE_TIMEOUT_MS = 120_000
@@ -431,11 +452,11 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     page,
     context,
     browser,
-  }, testInfo) => {
-    // Parts 5 and 6 close a page for real in a LINE app without the PWA's service worker: with it in control, Chromium
-    // drops the keepalive saves of a closing page (0 of 8 arrive in scratch/sw-keepalive-experiment.mjs, 8 of 8 when the
-    // worker sends POST straight to the network with the Static Routing API). The worker is not this page's to change
-    testInfo.annotations.push({ type: 'waits-for', description: 'the PWA service worker (src/app/sw.js) to let POST requests go straight to the network; then parts 5 and 6 run with the worker in place' })
+  }) => {
+    // Parts 5 and 6 leave a page for real, another page loading in its place, in a LINE app where the PWA's service
+    // worker controls the LIFF pages: Chromium drops the keepalive save of a page that another page replaces when the
+    // worker controls it, so the worker sends every POST straight to the network (the Static Routing API, src/app/sw.js)
+    // and the saves arrive with it in place
     const lineUserId = newLineUserId()
     const tag = sceneTag('leave')
     liffRequestsScene('requester', tag, lineUserId, 'CON')
@@ -515,22 +536,23 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await expect(catalog).toBeVisible()
     await expect.poll(async () => titleOf(draftId), { timeout: 20_000 }).toBe(third)
 
-    // 5. The page itself goes (another page loads in its place, as when LINE's window closes): the autosave's keepalive
-    //    request carries the edit. In a LINE app of its own without the PWA's service worker (see the annotation)
+    // 5. The page itself goes, another page loading in its place: the autosave's keepalive request carries the edit. In a
+    //    LINE app of its own, where the PWA's service worker controls the LIFF pages (the case where Chromium dropped it)
     const phone = await browser.newContext({
       ...devices['Pixel 7'],
       viewport: { width: 375, height: 812 },
       baseURL: E2E_BASE_URL,
       locale: 'th-TH',
       timezoneId: 'Asia/Bangkok',
-      serviceWorkers: 'block',
       extraHTTPHeaders: { 'x-forwarded-for': `198.19.${randomInt(1, 250)}.${randomInt(1, 250)}` },
     })
     try {
+      await withPwaWorker(phone)
       await openAsLineUser(phone, lineUserId)
       const closing = await phone.newPage()
       await closing.goto(`/liff/requests/${draftId}/edit`)
       await expect(closing.getByLabel('ชื่อคำขอ')).toHaveValue(third)
+      expect(await controlledByWorker(closing)).toBe(true)
       const fourth = `ร่างแก้แล้วปิดหน้า ${tag}`
       await closing.getByLabel('ชื่อคำขอ').fill(fourth)
       await expect(closing.getByText(/^มีการแก้ไขที่ยังไม่บันทึก/)).toBeVisible()
@@ -544,6 +566,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
       await early.goto('/liff/requests/new/BUY_GOODS')
       await expect(stepHeading(early, 1, 'รายละเอียดคำขอ')).toBeVisible()
       await early.waitForLoadState('networkidle')
+      expect(await controlledByWorker(early)).toBe(true)
       const browserSide = await phone.newCDPSession(early)
       // Never answered, as a script still on its way when LINE's window closes
       browserSide.on('Fetch.requestPaused', () => undefined)
@@ -560,48 +583,43 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
   })
 })
 
-/** Loads a LIFF page as a person would, waits until its first screen is up and the network is quiet, and weighs it */
-async function firstLoad(page: Page, path: string, ready: () => Promise<void>) {
-  const scripts = watchScripts(page)
-  const document = await page.goto(path)
-  await ready()
-  await page.waitForLoadState('networkidle')
-  const loads = await scripts()
-  const total = loads.reduce((sum, load) => sum + load.transferred, 0)
-  const html = (await document?.text()) ?? ''
-  const inline = gzipBytes(inlineScriptsOf(html).join('\n'))
-  const largest = [...loads]
-    .sort((a, b) => b.transferred - a.transferred)
-    .slice(0, 8)
-    .map((l) => `${new URL(l.url).pathname.split('/').at(-1)}${l.sdk ? ' (LINE SDK)' : ''} ${l.transferred}`)
-  const note = `${loads.length} script files, ${total} bytes over the wire; largest ${largest.join(', ')}. Inline page data of the HTML about ${inline} bytes gzip`
-  return { loads, total, sdk: loads.filter((l) => l.sdk), note }
-}
-
 interface SceneStates {
+  readonly member: { readonly id: string }
   readonly approved: SceneRequest
   readonly asked: SceneRequest
   readonly returned: SceneRequest
   readonly draft: { readonly requestId: string }
 }
 
-test.describe('[§9.4] the first JavaScript of the LIFF request pages: its script files, with the LINE SDK, are at most 200 KB gzip', () => {
-  test.describe.configure({ timeout: SCENE_TIMEOUT_MS })
+/** Every page is opened twice and signed in once, each in a LINE app of its own: more time than a scene's */
+const BUDGET_TIMEOUT_MS = 300_000
 
-  test('the catalogue, the form (new, a draft’s and a returned request’s), the request page in every state a LINE message opens it in, and the list, each opened from LINE in a fresh LINE app', async ({
+test.describe('[§9.4] the first JavaScript of the LIFF request pages: their script files with the LINE SDK, and the page data in their HTML, are at most 200 KB gzip', () => {
+  test.describe.configure({ timeout: BUDGET_TIMEOUT_MS })
+
+  /** A requester's pages in every state a LINE message opens them in, and a draft and a sent request of realistic size */
+  function requesterScene(lineUserId: string) {
+    const tag = sceneTag('size')
+    const states = liffRequestsScene<SceneStates>('states', tag, lineUserId)
+    const draft = liffBudgetScene<{ requestId: string; title: string }>('draft', states.member.id, String(BUDGET_DOCUMENT_LINES), tag)
+    const sent = liffBudgetScene<SceneRequest>('sent', states.member.id, String(BUDGET_DOCUMENT_LINES), tag)
+    return { states, draft, sent }
+  }
+  const numbered = (request: SceneRequest) => (page: Page) => expect(page.getByRole('heading', { level: 1, name: request.number })).toBeVisible()
+  const formReady = (page: Page) => expect(stepHeading(page, 1, 'รายละเอียดคำขอ')).toBeVisible()
+
+  test('the catalogue, the request page in every state a LINE message opens it in, a request of 40 lines, and the list — each opened from LINE and again with the LIFF session, in a fresh LINE app', async ({
     browser,
   }, testInfo) => {
     const lineUserId = newLineUserId()
-    const states = liffRequestsScene<SceneStates>('states', sceneTag('size'), lineUserId)
-    const numbered = (request: SceneRequest) => (page: Page) => expect(page.getByRole('heading', { level: 1, name: request.number })).toBeVisible()
+    const { states, sent } = requesterScene(lineUserId)
     /** The page with what the requester does now: the main button in the bar at the bottom (a part loaded with the page) */
     const withBar = (request: SceneRequest) => async (page: Page) => {
       await numbered(request)(page)
       await expect(requesterBar(page).getByRole('button').first()).toBeVisible()
     }
-    const screens: ReadonlyArray<{ readonly name: string; readonly path: string; readonly ready: (page: Page) => Promise<void> }> = [
+    const screens: ReadonlyArray<Omit<LiffBudgetScreen, 'lineUserId'>> = [
       { name: '/liff/requests/new', path: '/liff/requests/new', ready: (page) => expect(page.getByRole('link', { name: /เริ่มคำขอ ซื้อของ$/ })).toBeVisible() },
-      { name: '/liff/requests/new/BUY_GOODS', path: '/liff/requests/new/BUY_GOODS', ready: (page) => expect(stepHeading(page, 1, 'รายละเอียดคำขอ')).toBeVisible() },
       { name: '/liff/requests/[id] approved', path: `/liff/requests/${states.approved.requestId}`, ready: numbered(states.approved) },
       { name: '/liff/requests/[id] with a question', path: `/liff/requests/${states.asked.requestId}`, ready: withBar(states.asked) },
       { name: '/liff/requests/[id] returned', path: `/liff/requests/${states.returned.requestId}`, ready: withBar(states.returned) },
@@ -613,35 +631,50 @@ test.describe('[§9.4] the first JavaScript of the LIFF request pages: its scrip
           await expect(requesterBar(page).getByRole('link', { name: 'แก้ไขร่างแล้วส่งขออนุมัติ' })).toBeVisible()
         },
       },
+      { name: `/liff/requests/[id] waiting for approval, ${BUDGET_DOCUMENT_LINES} lines`, path: `/liff/requests/${sent.requestId}`, ready: numbered(sent) },
       { name: '/liff/track', path: '/liff/track', ready: (page) => expect(page.getByRole('link', { name: new RegExp(`^${states.approved.number} · `) })).toBeVisible() },
+    ]
+    for (const screen of screens) await expectFirstLoadsWithinBudget(browser, testInfo, { ...screen, lineUserId })
+  })
+
+  /** The form: new, a draft of realistic size at the address its first save gave it, and a returned request */
+  function formScreens(lineUserId: string): readonly LiffBudgetScreen[] {
+    const { states, draft } = requesterScene(lineUserId)
+    return [
+      { name: '/liff/requests/new/BUY_GOODS', lineUserId, path: '/liff/requests/new/BUY_GOODS', ready: formReady },
       // The form at the address a draft gets after its first save, opened again (a reload in LINE, the draft's link), and
       // the form of a returned request (its "แก้ไขคำขอ" link): the same form with the draft's own values
-      { name: '/liff/requests/[id]/edit draft', path: `/liff/requests/${states.draft.requestId}/edit`, ready: (page) => expect(stepHeading(page, 1, 'รายละเอียดคำขอ')).toBeVisible() },
+      {
+        name: `/liff/requests/[id]/edit draft, ${BUDGET_DOCUMENT_LINES} lines`,
+        lineUserId,
+        path: `/liff/requests/${draft.requestId}/edit`,
+        ready: async (page) => {
+          await formReady(page)
+          await expect(page.getByLabel('ชื่อคำขอ')).toHaveValue(draft.title)
+        },
+      },
       {
         name: '/liff/requests/[id]/edit returned',
+        lineUserId,
         path: `/liff/requests/${states.returned.requestId}/edit`,
         ready: async (page) => {
-          await expect(stepHeading(page, 1, 'รายละเอียดคำขอ')).toBeVisible()
+          await formReady(page)
           await expect(page.getByText('แยกรายการไม้อัดตามความหนาก่อนส่งอีกครั้ง')).toBeVisible()
         },
       },
     ]
-    for (const screen of screens) {
-      // A LINE app of its own for every page: nothing comes from the cache of the page before
-      const phone: BrowserContext = await anotherPhone(browser)
-      try {
-        await openAsLineUser(phone, lineUserId)
-        const page = await phone.newPage()
-        const { loads, total, sdk, note } = await firstLoad(page, screen.path, () => screen.ready(page))
-        testInfo.annotations.push({ type: 'first-load-js', description: `${screen.name}: ${note}` })
-        // The LINE SDK is part of it, as in the LINE app (with LIFF_MOCK the bootstrap loads it without liff.init)
-        expect(sdk).toHaveLength(1)
-        // What came over the wire was compressed, so this is the gzip size of §9.4
-        expect(loads.filter((l) => l.transferred > 1024).every((l) => l.encoding === 'gzip' || l.encoding === 'br')).toBe(true)
-        expect(total, screen.name).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
-      } finally {
-        await phone.close()
-      }
-    }
+  }
+
+  // The form is weighed in two tests, one per way LINE opens it, so that each shows on its own. Opened from LINE the HTML
+  // is the gate's, without the form's words (src/app/liff/_lib/part-messages.tsx). Opened with its LIFF session the form
+  // carries its data and all its words in the HTML: today that is over the budget, and what brings it under is the form's
+  // own — the words of steps 2 and 3 loaded with those steps, the request page's words off its edit page and the
+  // catalogue's off the form, its data written once, and no tailwind-merge in the LIFF components — not the weighing
+  test('the form opened from LINE: new, a draft of 40 lines at the address its first save gave it, and a returned request, each in a fresh LINE app', async ({ browser }, testInfo) => {
+    for (const screen of formScreens(newLineUserId())) expectFirstLoadWithinBudget(testInfo, `${screen.name}, opened from LINE`, await weighOpenedFromLine(browser, screen))
+  })
+
+  test('the form with the LIFF session: new, a draft of 40 lines at the address its first save gave it, and a returned request, each in a fresh LINE app', async ({ browser }, testInfo) => {
+    for (const screen of formScreens(newLineUserId())) expectFirstLoadWithinBudget(testInfo, `${screen.name}, with the LIFF session`, await weighWithLiffSession(browser, screen))
   })
 })

@@ -1,17 +1,17 @@
-import type { BrowserContext, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import {
   checkScreen,
-  FIRST_LOAD_JS_BUDGET_BYTES,
-  gzipBytes,
-  inlineScriptsOf,
+  expectFirstLoadsWithinBudget,
+  expectFirstLoadWithinBudget,
   liffScene,
   newLineUserId,
   openAsLineUser,
   sceneTag,
   sessionCookie,
-  watchScripts,
+  weighOpenedFromLine,
   workspaceOnlyMessages,
+  type LiffBudgetScreen,
   type SceneMember,
 } from './liff-support'
 
@@ -210,78 +210,107 @@ test.describe('[§9.4] a session the page has is never swapped for the session o
   })
 })
 
-/** Loads a LIFF page as a person would, waits until its first screen is up and the network is quiet, and weighs it */
-async function firstLoad(page: Page, path: string, ready: () => Promise<void>) {
-  const scripts = watchScripts(page)
-  const document = await page.goto(path)
-  await ready()
-  await page.waitForLoadState('networkidle')
-  const loads = await scripts()
-  const total = loads.reduce((sum, load) => sum + load.transferred, 0)
-  const sdk = loads.filter((l) => l.sdk)
-  // The HTML: its bytes over the wire, and the page data written into it as inline scripts (gzip, as the server sends it)
-  const html = (await document?.text()) ?? ''
-  const htmlBytes = document ? (await document.request().sizes()).responseBodySize : 0
-  const inline = gzipBytes(inlineScriptsOf(html).join('\n'))
-  const catalogue = workspaceOnlyMessages().filter((message) => html.includes(message)).length
-  const largest = [...loads]
-    .sort((a, b) => b.transferred - a.transferred)
-    .slice(0, 6)
-    .map((l) => `${new URL(l.url).pathname.split('/').at(-1)}${l.sdk ? ' (LINE SDK)' : ''} ${l.transferred}`)
-  const note =
-    `${loads.length} script files, ${total} bytes over the wire; largest ${largest.join(', ')}. ` +
-    `HTML ${htmlBytes} bytes over the wire, of which inline page data about ${inline} bytes gzip ` +
-    `(script files and inline data together ${total + inline}); workspace messages found in it: ${catalogue} of ${workspaceOnlyMessages().length}`
-  return { loads, total, sdk, inline, note }
-}
-
-test.describe('[§9.4] the first JavaScript of a LIFF page: its script files, with the LINE SDK, are at most 200 KB gzip', () => {
-  const screens: ReadonlyArray<{ readonly name: string; readonly open: (page: Page, context: BrowserContext) => Promise<{ path: string; ready: () => Promise<void> }> }> = [
+test.describe('[§9.4] the first JavaScript of a LIFF page: its script files with the LINE SDK, and the page data in its HTML, are at most 200 KB gzip', () => {
+  // A LINE account that is not linked never has a LIFF session: its pages are weighed as LINE opens them. A linked
+  // member's pages are weighed that way and again with the LIFF session, when the server writes the page into the HTML
+  const screens: ReadonlyArray<{ readonly name: string; readonly session: boolean; readonly make: () => LiffBudgetScreen }> = [
     {
       name: '/liff/help, a LINE account that is not linked',
-      open: async (page, context) => {
-        await openAsLineUser(context, newLineUserId())
-        return { path: '/liff/help', ready: () => expect(page.getByRole('heading', { level: 2, name: 'เริ่มใช้ BCS ใน LINE' })).toBeVisible() }
-      },
+      session: false,
+      make: () => ({
+        name: '/liff/help, not linked',
+        lineUserId: newLineUserId(),
+        path: '/liff/help',
+        ready: (page) => expect(page.getByRole('heading', { level: 2, name: 'เริ่มใช้ BCS ใน LINE' })).toBeVisible(),
+      }),
     },
     {
       name: '/liff/link, the e-mail sign-in of a LINE account that is not linked',
-      open: async (page, context) => {
-        await openAsLineUser(context, newLineUserId())
-        return { path: '/liff/link', ready: () => expect(page.getByLabel('อีเมลบริษัท')).toBeVisible() }
-      },
+      session: false,
+      make: () => ({ name: '/liff/link, not linked', lineUserId: newLineUserId(), path: '/liff/link', ready: (page) => expect(page.getByLabel('อีเมลบริษัท')).toBeVisible() }),
     },
     {
       name: '/liff/link?code=, a code from the web settings',
-      open: async (page, context) => {
+      session: false,
+      make: () => {
         const { code } = liffScene<{ code: string }>('code', sceneTag('size'))
-        await openAsLineUser(context, newLineUserId())
-        return { path: `/liff/link?code=${encodeURIComponent(code)}`, ready: () => expect(page.getByRole('button', { name: 'ผูก LINE นี้กับบัญชีนี้' })).toBeVisible() }
+        return {
+          name: '/liff/link?code=',
+          lineUserId: newLineUserId(),
+          path: `/liff/link?code=${encodeURIComponent(code)}`,
+          ready: (page) => expect(page.getByRole('button', { name: 'ผูก LINE นี้กับบัญชีนี้' })).toBeVisible(),
+        }
       },
     },
     {
       name: '/liff/link, a linked member in their own LINE app',
-      open: async (page, context) => {
+      session: true,
+      make: () => {
         const lineUserId = newLineUserId()
         liffScene('linked', sceneTag('size'), lineUserId)
-        await openAsLineUser(context, lineUserId)
-        return { path: '/liff/link', ready: () => expect(page.getByRole('button', { name: 'ยกเลิกการผูก LINE นี้' })).toBeVisible() }
+        return { name: '/liff/link, linked', lineUserId, path: '/liff/link', ready: (page) => expect(page.getByRole('button', { name: 'ยกเลิกการผูก LINE นี้' })).toBeVisible() }
+      },
+    },
+    {
+      name: '/liff/help, a linked member: the help names their administrators',
+      session: true,
+      make: () => {
+        const lineUserId = newLineUserId()
+        const { admins } = liffScene<{ admins: string[] }>('linked', sceneTag('size'), lineUserId)
+        return { name: '/liff/help, linked', lineUserId, path: '/liff/help', ready: (page) => expect(page.getByText(admins[0]!).first()).toBeVisible() }
+      },
+    },
+    // /liff is the LIFF app's endpoint: a rich-menu tap or a card opens it first. Without a session its gate signs in and
+    // goes on to the tasks (the tasks' scripts load in the same first load); with the LIFF session the server sends the
+    // member on to the tasks at once
+    {
+      name: '/liff, a linked member: the gate signs in and goes on to their tasks',
+      session: true,
+      make: () => {
+        const lineUserId = newLineUserId()
+        liffScene('linked', sceneTag('size'), lineUserId)
+        return {
+          name: '/liff',
+          lineUserId,
+          path: '/liff',
+          ready: async (page) => {
+            await expect(page.getByRole('heading', { level: 1, name: 'งานรออนุมัติ' })).toBeVisible()
+            await expect(page).toHaveURL(/\/liff\/tasks$/)
+          },
+        }
+      },
+    },
+    // A deep link of LINE (https://liff.line.me/<LIFF ID>/help) opens /liff with ?liff.state=: the gate goes on to the page
+    // it names, which signs in when there is no session yet
+    {
+      name: '/liff?liff.state=/help, a deep link of a linked member',
+      session: true,
+      make: () => {
+        const lineUserId = newLineUserId()
+        const { admins } = liffScene<{ admins: string[] }>('linked', sceneTag('size'), lineUserId)
+        return {
+          name: '/liff?liff.state=/help',
+          lineUserId,
+          path: `/liff?liff.state=${encodeURIComponent('/help')}`,
+          ready: async (page) => {
+            await expect(page.getByText(admins[0]!).first()).toBeVisible()
+            await expect(page).toHaveURL(/\/liff\/help$/)
+          },
+        }
       },
     },
   ]
 
   for (const screen of screens) {
-    test(screen.name, async ({ page, context }, testInfo) => {
-      const { path, ready } = await screen.open(page, context)
-      const { loads, total, sdk, note } = await firstLoad(page, path, ready)
-      // The page data inlined in the HTML is reported, not counted: whether §9.4 counts it is the spec owner's to say,
-      // and today it carries the whole message catalogue of the root layout (src/app/layout.tsx)
-      testInfo.annotations.push({ type: 'first-load-js', description: `${screen.name}: ${note}` })
-      // The LINE SDK is part of it, as in the LINE app (with LIFF_MOCK the bootstrap loads it without liff.init)
-      expect(sdk).toHaveLength(1)
-      // What came over the wire was compressed, so this is the gzip size of §9.4
-      expect(loads.filter((l) => l.transferred > 1024).every((l) => l.encoding === 'gzip' || l.encoding === 'br')).toBe(true)
-      expect(total).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
+    test(screen.name, async ({ browser }, testInfo) => {
+      // Two LINE apps open the page and one signs in: more than the default 30 seconds
+      test.setTimeout(120_000)
+      const made = screen.make()
+      const loads = screen.session ? await expectFirstLoadsWithinBudget(browser, testInfo, made) : [await weighOpenedFromLine(browser, made)]
+      if (!screen.session) expectFirstLoadWithinBudget(testInfo, `${made.name}, opened from LINE`, loads[0]!)
+      // The page data holds the words of the page's own client components (src/i18n/client-messages.ts), never the whole
+      // catalogue: no message of a workspace screen is in the HTML
+      for (const load of loads) expect(workspaceOnlyMessages().filter((message) => load.html.includes(message))).toEqual([])
     })
   }
 })

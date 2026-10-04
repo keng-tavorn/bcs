@@ -15,7 +15,7 @@ import { expect } from './fixtures'
 // the real one), another phone in the same test, the scene that builds members and link codes through the services
 // (liff-scene.ts), what the fake LINE server received, the §9.9 checks of one screen (axe, no sideways scroll, 44 px
 // touch targets, screenshots at the project's width and at 1440 px) and the first JavaScript a LIFF page loads (§9.4: at
-// most 200 KB gzip), with the page data written into its HTML weighed apart.
+// most 200 KB gzip, the page data written into its HTML included).
 
 export interface SceneMember {
   readonly id: string
@@ -138,13 +138,15 @@ export async function sessionCookie(context: BrowserContext): Promise<string | n
 }
 
 /**
- * §9.4 "JavaScript เริ่มต้นไม่เกิน 200 KB (gzip)", read as the script files a LIFF page loads: every script file from the
- * navigation until the network is quiet, before the person does anything — the HTML's own scripts, the ones a screen
- * loads lazily for what it shows first (the e-mail sign-in of an unlinked LINE account, the member's link) and the LINE
- * SDK, which the bootstrap imports before anything else (with LIFF_MOCK it imports it too, without liff.init, so a test
- * measures what the LINE app loads) — as bytes over the wire with gzip. KB read strictly (1000). The page data Next.js
- * writes into the HTML as inline scripts (the RSC payload) is weighed apart (inlineScriptsOf): whether the budget counts
- * it too is the spec owner's to say, and today it carries the whole message catalogue of the root layout.
+ * §9.4 "JavaScript เริ่มต้นไม่เกิน 200 KB (gzip)", read strictly: all the JavaScript a LIFF page loads before the person
+ * does anything. That is every script file from the navigation until the network is quiet — the HTML's own scripts, the
+ * ones a screen loads lazily for what it shows first (the e-mail sign-in of an unlinked LINE account, a task's decision)
+ * and the LINE SDK, which the bootstrap imports before anything else (with LIFF_MOCK it imports it too, without
+ * liff.init, so a test measures what the LINE app loads) — as bytes over the wire with gzip, plus the page data Next.js
+ * writes into the HTML as inline scripts (the RSC payload, with the messages the page's client components read:
+ * src/i18n/client-messages.ts), gzip as the server compresses the page. KB read strictly (1000). A page is weighed both
+ * ways LINE opens it (expectFirstLoadsWithinBudget): with no LIFF session yet, when the HTML is the gate's, and with the
+ * LIFF session, when the page's content — a document of realistic size — is in the HTML too.
  */
 export const FIRST_LOAD_JS_BUDGET_BYTES = 200 * 1000
 
@@ -209,4 +211,154 @@ export function watchScripts(page: Page): () => Promise<ScriptLoad[]> {
         }
       }),
     )
+}
+
+/** The first JavaScript of one LIFF page load, as §9.4 counts it (FIRST_LOAD_JS_BUDGET_BYTES) */
+export interface FirstLoad {
+  readonly loads: readonly ScriptLoad[]
+  /** The script files' bytes over the wire (gzip) */
+  readonly scripts: number
+  /** The page data written into the first HTML as inline scripts, gzip */
+  readonly inline: number
+  /** What the budget counts: the script files and the inline page data together */
+  readonly total: number
+  /** The first HTML, to look for what should not be in it */
+  readonly html: string
+  /** The weights in one line, for the test's annotations */
+  readonly note: string
+}
+
+/** File name of a script with its weight, and (LINE SDK) for the SDK's file */
+const describeLoad = (l: ScriptLoad) => `${new URL(l.url).pathname.split('/').at(-1)}${l.sdk ? ' (LINE SDK)' : ''} ${l.transferred}`
+
+/**
+ * Loads a LIFF page as a person would (in a browser with nothing cached: the caller opens it in a context of its own),
+ * waits until its first screen is up and the network is quiet, and weighs its first JavaScript
+ */
+export async function weighFirstLoad(page: Page, path: string, ready: () => Promise<void>): Promise<FirstLoad> {
+  const scripts = watchScripts(page)
+  const document = await page.goto(path)
+  await ready()
+  await page.waitForLoadState('networkidle')
+  const loads = await scripts()
+  const scriptBytes = loads.reduce((sum, load) => sum + load.transferred, 0)
+  const html = (await document?.text()) ?? ''
+  const inline = gzipBytes(inlineScriptsOf(html).join('\n'))
+  const largest = [...loads]
+    .sort((a, b) => b.transferred - a.transferred)
+    .slice(0, 8)
+    .map(describeLoad)
+  const total = scriptBytes + inline
+  const note = `${total} bytes of ${FIRST_LOAD_JS_BUDGET_BYTES}: ${loads.length} script files ${scriptBytes} bytes over the wire and inline page data ${inline} bytes gzip; largest ${largest.join(', ')}`
+  return { loads, scripts: scriptBytes, inline, total, html, note }
+}
+
+/**
+ * §9.4 on one first load, noted on the test (annotation first-load-js): the LINE SDK is part of it, as in the LINE app
+ * (with LIFF_MOCK the bootstrap loads it without liff.init); what came over the wire was compressed, so the bytes are
+ * the gzip size; and the script files with the inline page data are at most 200 KB
+ */
+export function expectFirstLoadWithinBudget(testInfo: TestInfo, name: string, load: FirstLoad) {
+  testInfo.annotations.push({ type: 'first-load-js', description: `${name}: ${load.note}` })
+  expect(load.loads.filter((l) => l.sdk), name).toHaveLength(1)
+  expect(load.loads.filter((l) => l.transferred > 1024 && l.encoding !== 'gzip' && l.encoding !== 'br').map(describeLoad), name).toEqual([])
+  // Soft: a test that weighs several pages weighs them all, and fails at its end with every page over the budget
+  expect.soft(load.total, `${name}: ${load.note}`).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
+}
+
+/**
+ * The lines of a document of realistic size on a page weighed with its LIFF session, whose content is in the HTML: a big
+ * request of a construction site for its materials (each line adds some 50 bytes gzip to the page data of a request's
+ * form, more to a PO's decision page)
+ */
+export const BUDGET_DOCUMENT_LINES = 40
+
+/** Runs tests/e2e/liff-budget-scene.ts (documents of realistic size) against the e2e database: the JSON of its last line */
+export function liffBudgetScene<T>(...args: string[]): T {
+  const r = spawnSync(`pnpm exec tsx tests/e2e/liff-budget-scene.ts ${args.join(' ')}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
+  if (r.status !== 0) throw new Error(`LIFF budget scene ${args[0]} failed:\n${r.stderr}`)
+  return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
+}
+
+/** A browser's cookies, as Playwright gives and takes them */
+export type BrowserCookies = Awaited<ReturnType<BrowserContext['cookies']>>
+
+/** Where the LIFF bootstrap signs in with the LINE ID token (src/ui/liff/bootstrap.ts LIFF_SESSION_ENDPOINT) */
+const LIFF_SESSION_ENDPOINT = '/api/liff/session'
+
+/**
+ * The LIFF session of this LINE user as LINE keeps it between two taps (§9.4: a session of channel LIFF, idle 15
+ * minutes): the cookies of a LINE app of its own once the gate of `path` signed in with the ID token
+ */
+export async function liffSessionOf(browser: Browser, lineUserId: string, path: string, ready: (page: Page) => Promise<void>): Promise<BrowserCookies> {
+  const phone = await anotherPhone(browser)
+  try {
+    await openAsLineUser(phone, lineUserId)
+    const page = await phone.newPage()
+    await page.goto(path)
+    await ready(page)
+    await page.waitForLoadState('networkidle')
+    expect(await sessionCookie(phone), `${path}: the gate signed in with LINE`).toMatch(/^liff_/)
+    return await phone.cookies(E2E_BASE_URL)
+  } finally {
+    await phone.close()
+  }
+}
+
+/** One LIFF page as a budget test opens it: for which LINE user, and when its first screen is up */
+export interface LiffBudgetScreen {
+  readonly name: string
+  readonly lineUserId: string
+  readonly path: string
+  readonly ready: (page: Page) => Promise<void>
+}
+
+/**
+ * The first load of a LIFF page as LINE opens it with no LIFF session yet, in a LINE app of its own with nothing cached:
+ * the HTML is the gate's, which signs in with the ID token and then fetches the page's content
+ */
+export async function weighOpenedFromLine(browser: Browser, screen: LiffBudgetScreen): Promise<FirstLoad> {
+  const phone = await anotherPhone(browser)
+  try {
+    await openAsLineUser(phone, screen.lineUserId)
+    const page = await phone.newPage()
+    return await weighFirstLoad(page, screen.path, () => screen.ready(page))
+  } finally {
+    await phone.close()
+  }
+}
+
+/**
+ * The first load of a LIFF page within the LIFF session of the last 15 minutes (a second card or rich-menu tap), in a
+ * LINE app with nothing cached (the first visit after a deploy changed the scripts, a cleared cache): the server writes
+ * the page's content into the HTML, as big as the scene made the document, and nothing signs in again
+ */
+export async function weighWithLiffSession(browser: Browser, screen: LiffBudgetScreen): Promise<FirstLoad> {
+  const cookies = await liffSessionOf(browser, screen.lineUserId, screen.path, screen.ready)
+  const phone = await anotherPhone(browser)
+  try {
+    await phone.addCookies(cookies)
+    const page = await phone.newPage()
+    const signIns: string[] = []
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && new URL(request.url()).pathname === LIFF_SESSION_ENDPOINT) signIns.push(request.url())
+    })
+    const load = await weighFirstLoad(page, screen.path, () => screen.ready(page))
+    expect(signIns, `${screen.name}: opened with its LIFF session, the page's content in its HTML`).toEqual([])
+    return load
+  } finally {
+    await phone.close()
+  }
+}
+
+/**
+ * §9.4 on a LIFF page both ways LINE opens it (weighOpenedFromLine, weighWithLiffSession), each noted on the test and at
+ * most 200 KB with the page data in its HTML; returns both loads
+ */
+export async function expectFirstLoadsWithinBudget(browser: Browser, testInfo: TestInfo, screen: LiffBudgetScreen): Promise<readonly FirstLoad[]> {
+  const opened = await weighOpenedFromLine(browser, screen)
+  expectFirstLoadWithinBudget(testInfo, `${screen.name}, opened from LINE`, opened)
+  const again = await weighWithLiffSession(browser, screen)
+  expectFirstLoadWithinBudget(testInfo, `${screen.name}, with the LIFF session`, again)
+  return [opened, again]
 }

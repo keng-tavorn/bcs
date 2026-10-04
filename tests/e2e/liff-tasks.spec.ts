@@ -4,7 +4,18 @@ import path from 'node:path'
 import type { BrowserContext, Page, TestInfo } from '@playwright/test'
 import { E2E_BASE_URL, E2E_PIN, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
-import { anotherPhone, checkScreen, FIRST_LOAD_JS_BUDGET_BYTES, gzipBytes, inlineScriptsOf, newLineUserId, openAsLineUser, sessionCookie, watchScripts } from './liff-support'
+import {
+  BUDGET_DOCUMENT_LINES,
+  checkScreen,
+  expectFirstLoadsWithinBudget,
+  expectFirstLoadWithinBudget,
+  liffBudgetScene,
+  newLineUserId,
+  openAsLineUser,
+  sessionCookie,
+  weighFirstLoad,
+  type LiffBudgetScreen,
+} from './liff-support'
 import { withoutScript } from './settings-line-scene'
 import { ATTACHMENT_PDF } from './tasks-attachment'
 import { expectNoPinBeforeScript, openAttachment } from './tasks-support'
@@ -137,26 +148,7 @@ async function approveInBar(page: Page, confirmText: string, approver: string, p
 /** Loads a LIFF page from scratch as a LINE app would (the gate signs in), waits for its first screen, and weighs it */
 async function firstLoad(page: Page, context: BrowserContext, lineUserId: string, pagePath: string, ready: () => Promise<void>) {
   await openAsLineUser(context, lineUserId)
-  const scripts = watchScripts(page)
-  const document = await page.goto(pagePath)
-  await ready()
-  await page.waitForLoadState('networkidle')
-  const loads = await scripts()
-  const total = loads.reduce((sum, load) => sum + load.transferred, 0)
-  const inline = gzipBytes(inlineScriptsOf((await document?.text()) ?? '').join('\n'))
-  const largest = [...loads]
-    .sort((a, b) => b.transferred - a.transferred)
-    .slice(0, 6)
-    .map((l) => `${new URL(l.url).pathname.split('/').at(-1)}${l.sdk ? ' (LINE SDK)' : ''} ${l.transferred}`)
-  return { loads, total, note: `${loads.length} script files, ${total} bytes over the wire; largest ${largest.join(', ')}; inline page data of the first HTML about ${inline} bytes gzip` }
-}
-
-/** §9.4: the page's script files with the LINE SDK, measured on its first load in a browser with nothing cached */
-async function expectWithinBudget(testInfo: TestInfo, name: string, load: Awaited<ReturnType<typeof firstLoad>>) {
-  testInfo.annotations.push({ type: 'first-load-js', description: `${name}: ${load.note}` })
-  expect(load.loads.filter((l) => l.sdk)).toHaveLength(1)
-  expect(load.loads.filter((l) => l.transferred > 1024).every((l) => l.encoding === 'gzip' || l.encoding === 'br')).toBe(true)
-  expect(load.total, name).toBeLessThanOrEqual(FIRST_LOAD_JS_BUDGET_BYTES)
+  return weighFirstLoad(page, pagePath, ready)
 }
 
 test.describe('[FR-LINE-003/AC1] the approver’s tasks in the LINE app', () => {
@@ -472,7 +464,7 @@ test.describe('[FR-P2P-004/AC1] [FR-P2P-007/AC2] [FR-LINE-003/AC2] [FR-AUTH-005/
     const twin = twinOf(testInfo)
     const made = scene<PoMade>('po', twin.orgCode)
     // The COO's phone, nothing cached: the page's first JavaScript is within the budget of §9.4
-    await expectWithinBudget(testInfo, '/liff/tasks/[id], a PO at the threshold', await firstLoad(page, context, twin.lineCoo, `/liff/tasks/${made.taskId}`, () => expect(decisionBar(page)).toBeVisible()))
+    expectFirstLoadWithinBudget(testInfo, '/liff/tasks/[id], a PO at the threshold', await firstLoad(page, context, twin.lineCoo, `/liff/tasks/${made.taskId}`, () => expect(decisionBar(page)).toBeVisible()))
     await expect(page.getByText(`ใบสั่งซื้อ ${made.number}`, { exact: true })).toBeVisible()
     await expect(page.getByText('ยอดของงานนี้ถึงเกณฑ์ที่ต้องยืนยันด้วย PIN 6 หลัก ทั้งการอนุมัติ การตีกลับ และการไม่อนุมัติ')).toBeVisible()
     const summary = page.getByRole('region', { name: 'สรุปงานนี้' })
@@ -514,7 +506,7 @@ test.describe('[FR-P2P-004/AC1] [FR-P2P-007/AC2] [FR-LINE-003/AC2] [FR-AUTH-005/
   test('[FR-PLT-004/AC2] [NFR-SEC-04] a damaged-goods variance at the threshold: its amounts, the budget the PO holds, the goods receipt and its photo, the route; approved with the PIN on channel LIFF with a new session id', async ({ page, context }, testInfo) => {
     const twin = twinOf(testInfo)
     const made = scene<VarianceMade>('variance', twin.orgCode)
-    await expectWithinBudget(testInfo, '/liff/tasks/[id], a variance at the threshold', await firstLoad(page, context, twin.lineDm, `/liff/tasks/${made.taskId}`, () => expect(decisionBar(page)).toBeVisible()))
+    expectFirstLoadWithinBudget(testInfo, '/liff/tasks/[id], a variance at the threshold', await firstLoad(page, context, twin.lineDm, `/liff/tasks/${made.taskId}`, () => expect(decisionBar(page)).toBeVisible()))
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(`ของเสียหาย: ${PUMPS.line}`)
     await expect(page.getByText(`ผลต่างจากการตรวจรับ · ${made.poNumber}`, { exact: true })).toBeVisible()
     await expect(page.getByText('ยอดของงานนี้ถึงเกณฑ์ที่ต้องยืนยันด้วย PIN 6 หลัก ทั้งการอนุมัติและการไม่อนุมัติ')).toBeVisible()
@@ -604,25 +596,31 @@ test.describe('[FR-DOA-009/AC3] [BR-DOA-15] [FR-AUTH-005/AC2] a DOA version deci
   })
 })
 
-test.describe('[§9.4] the first JavaScript of the task pages: their script files, with the LINE SDK, are at most 200 KB gzip', () => {
-  test('/liff/tasks, a request task at the threshold and a DOA version task', async ({ page, context, browser }, testInfo) => {
+test.describe('[§9.4] the first JavaScript of the task pages: their script files with the LINE SDK, and the page data in their HTML, are at most 200 KB gzip', () => {
+  // Every page is opened twice and signed in once, each in a LINE app of its own, after scenes that build a PO
+  test.describe.configure({ timeout: 360_000 })
+
+  test('/liff/tasks, a request and a PO of 40 lines at the threshold, a variance and a DOA version task — each opened from LINE and again with the LIFF session, in a fresh LINE app', async ({
+    browser,
+  }, testInfo) => {
     const twin = twinOf(testInfo)
-    const made = request(twin, '100000.00', 'generator')
+    const lines = String(BUDGET_DOCUMENT_LINES)
+    const made = liffBudgetScene<{ taskId: string; number: string }>('twin-request', twin.orgCode, lines)
+    const po = liffBudgetScene<{ taskId: string; number: string; assignee: string }>('twin-po', twin.orgCode, lines)
+    const variance = scene<VarianceMade>('variance', twin.orgCode)
     const doa = scene<{ taskId: string }>('doa', twin.orgCode)
-    const screens: ReadonlyArray<{ name: string; line: string; path: string; ready: (p: Page) => Promise<void> }> = [
-      { name: '/liff/tasks', line: twin.lineVp, path: '/liff/tasks', ready: (p) => expect(inbox(p)).toBeVisible() },
-      { name: '/liff/tasks/[id], a request at the threshold', line: twin.lineVp, path: `/liff/tasks/${made.taskId}`, ready: (p) => expect(decisionBar(p)).toBeVisible() },
-      { name: '/liff/tasks/[id], a DOA version', line: twin.lineCeo, path: `/liff/tasks/${doa.taskId}`, ready: (p) => expect(p.getByRole('region', { name: 'ตัดสินการเปลี่ยนนโยบาย' })).toBeVisible() },
+    /** The twin's LINE users by the demo code of the member they are linked to */
+    const lineOf: Readonly<Record<string, string>> = { vp_ops: twin.lineVp, ceo: twin.lineCeo, coo: twin.lineCoo, dm_con: twin.lineDm, vp_sup: twin.lineVpSup }
+    const poLine = lineOf[po.assignee]
+    if (!poLine) throw new Error(`the PO went to ${po.assignee}, who has no LINE app in the twin`)
+    const decision = (p: Page) => expect(decisionBar(p)).toBeVisible()
+    const screens: readonly LiffBudgetScreen[] = [
+      { name: '/liff/tasks', lineUserId: twin.lineVp, path: '/liff/tasks', ready: (p) => expect(inbox(p)).toBeVisible() },
+      { name: `/liff/tasks/[id], a request of ${lines} lines at the threshold`, lineUserId: twin.lineVp, path: `/liff/tasks/${made.taskId}`, ready: decision },
+      { name: `/liff/tasks/[id], a PO of ${lines} lines`, lineUserId: poLine, path: `/liff/tasks/${po.taskId}`, ready: decision },
+      { name: '/liff/tasks/[id], a variance at the threshold', lineUserId: twin.lineDm, path: `/liff/tasks/${variance.taskId}`, ready: decision },
+      { name: '/liff/tasks/[id], a DOA version', lineUserId: twin.lineCeo, path: `/liff/tasks/${doa.taskId}`, ready: (p) => expect(p.getByRole('region', { name: 'ตัดสินการเปลี่ยนนโยบาย' })).toBeVisible() },
     ]
-    for (const screen of screens) {
-      // Every screen in a browser of its own: nothing is in the cache yet
-      const phone = screen === screens[0] ? context : await anotherPhone(browser)
-      const tab = screen === screens[0] ? page : await phone.newPage()
-      try {
-        await expectWithinBudget(testInfo, screen.name, await firstLoad(tab, phone, screen.line, screen.path, () => screen.ready(tab)))
-      } finally {
-        if (phone !== context) await phone.close()
-      }
-    }
+    for (const screen of screens) await expectFirstLoadsWithinBudget(browser, testInfo, screen)
   })
 })

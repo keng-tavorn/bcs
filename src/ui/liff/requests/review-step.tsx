@@ -8,7 +8,7 @@ import type { StepProps } from '../../request-form/details-items'
 import { problemStep, savableLine, type Problem, type RuleStatus } from '../../request-form/model'
 import { adminsWereTold, failureStep, type FormFailure, type FormOutcome } from '../../request-form/outcome'
 import { placeAndSupplierText } from '../../request-form/place-supplier'
-import { failureText } from '../../request-form/review-step'
+import { failureText, sendBlockPoint, type SendBlock } from '../../request-form/review-step'
 import { BudgetStatus, RoutePreview, TotalsList } from '../../request-form/summary'
 import type { Attachment, RouteView, SentView } from '../../request-form/types'
 import type { UploadActions } from '../../request-form/upload-button'
@@ -27,12 +27,15 @@ import type { LiffReadiness } from './ready'
 // loaded once the requester gets there (it is not part of the first JavaScript, §9.4): the request in short, its totals,
 // the chosen budget line against the amount before VAT (enough, or short by how much), the route the DOA engine expects
 // — who approves under which rule of which DOA version, e.g. "DOA-DEMO ฉบับ 1 ข้อ PR-02" — the documents the rules ask
-// for, and what still needs fixing with a way to the step that fixes it. The workspace's own parts show the totals, the
-// budget and the route (src/ui/request-form/summary.tsx), and its documents step the quotations, the suggested supplier
-// and the files when the rules ask for them or the requester opens them (loaded only then). A photo from the phone's
-// camera is one tap away in any case (./camera-attach.tsx, FR-INT-005 AC3), beside the general file picker. The send
-// button sits in the bar at the bottom (the form's shell): its words, its refusal and the server's answer are the same
-// as on the web. The file commands reach this step already gated by the LIFF session (the form's shell, ./ready.ts).
+// for, and what still needs fixing: what stops the send button first, then each problem with a way to the step that
+// fixes it (the budget point names its two fixes, a lower amount or another line, in words). The workspace's own parts
+// show the totals, the budget and the route (src/ui/request-form/summary.tsx), and its documents step the quotations, the
+// suggested supplier and the files when the rules ask for them or the requester opens them (loaded only then). A photo
+// from the phone's camera is one tap away in any case (./camera-attach.tsx, FR-INT-005 AC3), beside the general file
+// picker. The send button sits in the bar at the bottom (the form's shell): its words, its refusal and the server's
+// answer are the same as on the web, and the shell tells this step what stops the button, so that "ตรวจก่อนส่ง" leads
+// with it and says the request can be sent only when nothing does (§9.9 principle 3). The file commands reach this step
+// already gated by the LIFF session (the form's shell, ./ready.ts).
 
 /** A refusal because the DOA names nobody who can approve (FR-DOA-003 AC3) */
 const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
@@ -123,6 +126,8 @@ export interface LiffReviewProps extends StepProps {
   readonly problems: readonly Problem[]
   readonly route: RouteView | null
   readonly onGoTo: (step: LiffStep) => void
+  /** What stops the send button in the bar now, as the bar says it (the form's shell works it out); null: it can send */
+  readonly sendBlock: SendBlock | null
   /** The server's last refusal of the send */
   readonly submitError: FormFailure | null
   /** Load the latest version of the draft (after CONFLICT_VERSION) */
@@ -163,8 +168,10 @@ export function LiffReviewStep(props: LiffReviewProps) {
   const t = useTranslations('requestForm')
   const tl = useTranslations('liffRequests.form')
   const liff = useLiff()
-  const { data, values, update, input, visible, showErrors, fieldErrors, totals, budget, previewLoading, rules, problems, route, onGoTo, locale, submitError, files } = props
+  const { data, values, update, input, visible, showErrors, fieldErrors, totals, budget, previewLoading, rules, problems, route, onGoTo, locale, sendBlock, submitError, files } = props
   const stepProps: StepProps = { data, values, update, locale, input, visible, totals, showErrors, budget, previewLoading, fieldErrors }
+  // "ตรวจก่อนส่ง" leads with what stops the button, and is ready only when nothing does
+  const blockPoint = sendBlockPoint(t, sendBlock)
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   const line = data.budgetLines.find((l) => l.id === values.budgetLineId) ?? null
   const place = placeAndSupplierText(data, values)
@@ -331,10 +338,18 @@ export function LiffReviewStep(props: LiffReviewProps) {
       </LiffSection>
 
       <LiffSection id="review-problems" title={t('review.problemsTitle')}>
-        {problems.length === 0 ? (
+        {problems.length === 0 && sendBlock === null ? (
           <LiffNotice tone="success">{t('review.ready')}</LiffNotice>
         ) : (
           <ul className="flex flex-col divide-y divide-line border-y border-line">
+            {blockPoint ? (
+              <li className="py-2">
+                <p className="text-ink">
+                  {blockPoint.text}
+                  {blockPoint.mustFix ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
+                </p>
+              </li>
+            ) : null}
             {problems.map((p, i) => {
               const step = liffStepOf(problemStep(p))
               return (

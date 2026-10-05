@@ -28,7 +28,7 @@ import {
   type FormAction,
 } from './model'
 import { failureKey, failureTarget, STEP_IDS, toFormFailure, type FormFailure, type FormOutcome, type StepId } from './outcome'
-import { failureText, ReviewStep } from './review-step'
+import { failureText, ReviewStep, type SaveStop } from './review-step'
 import { Stepper } from './stepper'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
 import { useAutosave, type SaveState } from './use-autosave'
@@ -240,7 +240,9 @@ export function RequestForm({
   }
 
   const stepProps: StepProps = { data, values, update, locale, input, visible, totals, showErrors, budget, previewLoading, fieldErrors }
-  const blockedSave = autosave.state.kind === 'conflict' || autosave.state.kind === 'closed'
+  // Why saving is stopped, which the review step says in its "ตรวจก่อนส่ง" (sendBlockPoint)
+  const saveStop: SaveStop | null = autosave.state.kind === 'conflict' ? 'conflict' : autosave.state.kind === 'closed' ? 'closed' : null
+  const blockedSave = saveStop !== null
   const titleKey = data.draft?.status === 'RETURNED' ? 'page.returnedTitle' : data.draft ? 'page.draftTitle' : 'page.newTitle'
   const saveError = autosave.state.kind === 'error' ? (autosave.state.failure ? t('save.failed', { reason: failureText(t, autosave.state.failure, data.form.fields, locale, (k) => kindLabelOf(t, k)) }) : t('save.error')) : null
 
@@ -310,7 +312,7 @@ export function RequestForm({
             onReload={() => window.location.reload()}
             submitting={submitting}
             submitError={submitError}
-            saveBlocked={blockedSave}
+            saveStop={saveStop}
           />
         ) : null}
       </section>

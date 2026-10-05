@@ -6,6 +6,7 @@ import { amountToSatang } from '@/core/money/dto'
 import type { FormAction, FormValues } from '../../request-form/model'
 import { showSatang } from '../../request-form/money'
 import type { FormFailure, FormOutcome } from '../../request-form/outcome'
+import type { SaveStop, SendBlock } from '../../request-form/review-step'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from '../../request-form/types'
 import type { Autosave, SaveState } from '../../request-form/use-autosave'
 import { usePreview, type PreviewAction } from '../../request-form/use-preview'
@@ -365,16 +366,26 @@ export function LiffRequestForm({
     )
   }
 
-  const blockedSave = saveState.kind === 'conflict' || saveState.kind === 'closed'
-  // FR-INT-004 AC2: over budget (before VAT, BR-BUD-03) the button cannot send and says why and by how much
+  const saveStop: SaveStop | null = saveState.kind === 'conflict' ? 'conflict' : saveState.kind === 'closed' ? 'closed' : null
+  const blockedSave = saveStop !== null
+  // FR-INT-004 AC2: over budget (before VAT, BR-BUD-03) the button cannot send and says why and by how much. The review
+  // step is told what stops it (sendBlock), so that its "ตรวจก่อนส่ง" says the same (§9.9 principle 3)
   const available = budget?.kind === 'LINE' ? amountToSatang(budget.available.amount) : null
   const shortfall = available !== null && totals !== null && totals.net > available ? totals.net - available : null
-  const blockedReason =
+  const sendBlock: SendBlock | null =
     available !== null && shortfall !== null
-      ? t('submit.blockedBudget', { available: showSatang(available), shortfall: showSatang(shortfall) })
+      ? { kind: 'BUDGET', available, shortfall }
       : evaluated?.problems.some((p) => BLOCKING.has(p.kind))
+        ? { kind: 'PROBLEMS' }
+        : saveStop
+          ? { kind: 'SAVE', stop: saveStop }
+          : null
+  const blockedReason =
+    sendBlock?.kind === 'BUDGET'
+      ? t('submit.blockedBudget', { available: showSatang(sendBlock.available), shortfall: showSatang(sendBlock.shortfall) })
+      : sendBlock?.kind === 'PROBLEMS'
         ? t('submit.blockedProblems')
-        : blockedSave
+        : sendBlock?.kind === 'SAVE'
           ? t('submit.blockedSave')
           : null
   const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
@@ -506,6 +517,7 @@ export function LiffRequestForm({
                   problems={evaluated.problems}
                   route={preview?.route ?? null}
                   onGoTo={goTo}
+                  sendBlock={sendBlock}
                   submitError={submitError}
                   onReload={() => window.location.reload()}
                   files={{ attachments, setAttachments, draftId, requestId, actions: gated, ready, saveBlocked: blockedSave }}

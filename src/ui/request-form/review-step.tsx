@@ -4,6 +4,7 @@ import { CircleAlert, CircleCheck } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { FieldDef } from '@/core/forms/fields'
 import { amountToSatang } from '@/core/money/dto'
+import type { Satang } from '@/core/money/math'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import type { StepProps } from './details-items'
@@ -15,18 +16,55 @@ import { adminsWereTold, failureKey, failureStep, failureTarget, type FormFailur
 import { placeAndSupplierText } from './place-supplier'
 import { BudgetStatus, RoutePreview, TotalsList } from './summary'
 import type { RouteView } from './types'
+import type { SaveState } from './use-autosave'
 
 /** Refusals because the DOA names nobody who can approve (FR-DOA-003 AC3) */
 const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
 
 // Step 4, "check and send" (§9.9 principle 3, FR-INT-004, FR-INT-005 AC1, FR-DOA-003 AC2): the request in short, the
 // budget line against its amount, the approval route the DOA expects with its explanation, the attachments the rules ask
-// for, what still needs fixing (each with a way to the step that fixes it) and the button that sends it. A request over
-// budget cannot be sent and the button says why (FR-INT-004 AC2); everything else is checked again by the server, whose
-// answer is shown next to the button with how to fix it (§9.9 rule 7, never only in a toast).
+// for, what still needs fixing and the button that sends it. A request over budget cannot be sent and the button says
+// why (FR-INT-004 AC2); everything else is checked again by the server, whose answer is shown next to the button with how
+// to fix it (§9.9 rule 7, never only in a toast). "ตรวจก่อนส่ง" says it can be sent only when the button can send (§9.9
+// principle 3, sendBlockPoint): what stops the button comes first, then each problem with a way to the step that fixes
+// it. The budget point has no such way: its two fixes, a lower amount (items) or another line (details), are in its words.
 
 /** Problems that would send something other than what is on screen: an unfinished line or quotation is not saved */
 const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE'])
+
+/** Saving is stopped: the draft was changed elsewhere (a version conflict), or the request was sent or cancelled elsewhere */
+export type SaveStop = Extract<SaveState['kind'], 'conflict' | 'closed'>
+
+/**
+ * Why the send button cannot send now, the reason it names first (FR-INT-004 AC2): the amount before VAT is above what
+ * is left on the budget line (BR-BUD-03), by `shortfall`; a problem that must be fixed first (BLOCKING); or saving is
+ * stopped, and why. The LIFF form works it out in its shell, where its button is (src/ui/liff/requests/request-form.tsx),
+ * and hands it to its review step.
+ */
+export type SendBlock =
+  | { readonly kind: 'BUDGET'; readonly available: Satang; readonly shortfall: Satang }
+  | { readonly kind: 'PROBLEMS' }
+  | { readonly kind: 'SAVE'; readonly stop: SaveStop }
+
+/**
+ * What stops the send button, as the first point of "ตรวจก่อนส่ง" — which says the request can be sent only when nothing
+ * is left to fix and nothing stops the button (§9.9 principle 3: told before sending, one message, never the opposite of
+ * the button). Over budget: the button's words after "ส่งไม่ได้เพราะ", with its figures and its advice, marked as the
+ * list marks every point to fix before sending. Saving stopped: what stopped it and what that leaves to do, in words of
+ * its own, so that the button's sentence stays the only one on the page. For a request sent or cancelled elsewhere the
+ * point says so, as the notice above the form and the workspace's button do: loading the latest version cannot make it
+ * sendable. A problem that must be fixed is a point of the list already (null).
+ */
+export function sendBlockPoint(t: T, block: SendBlock | null): { readonly text: string; readonly mustFix: boolean } | null {
+  switch (block?.kind) {
+    case 'BUDGET':
+      return { text: t('review.budgetShort', { available: showSatang(block.available), shortfall: showSatang(block.shortfall) }), mustFix: true }
+    case 'SAVE':
+      return { text: t(block.stop === 'conflict' ? 'review.saveConflict' : 'review.saveClosed'), mustFix: false }
+    default:
+      return null
+  }
+}
 
 export interface ReviewProps extends StepProps {
   readonly rules: readonly RuleStatus[]
@@ -39,8 +77,8 @@ export interface ReviewProps extends StepProps {
   readonly onReload: () => void
   readonly submitting: boolean
   readonly submitError: FormFailure | null
-  /** Saving is stopped (a version conflict or the request was sent elsewhere) */
-  readonly saveBlocked: boolean
+  /** Why saving is stopped (a version conflict, or the request was sent or cancelled elsewhere); null while it goes on */
+  readonly saveStop: SaveStop | null
 }
 
 export function ReviewStep(props: ReviewProps) {
@@ -55,14 +93,28 @@ export function ReviewStep(props: ReviewProps) {
   // FR-INT-004 AC2: over budget (before VAT, BR-BUD-03) the button cannot send and says why and by how much
   const available = budget?.kind === 'LINE' && budget.budgetLineId === values.budgetLineId ? amountToSatang(budget.available.amount) : null
   const shortfall = available !== null && totals !== null && totals.net > available ? totals.net - available : null
-  const blockedReason =
+  const block: SendBlock | null =
     available !== null && shortfall !== null
-      ? t('submit.blockedBudget', { available: showSatang(available), shortfall: showSatang(shortfall) })
+      ? { kind: 'BUDGET', available, shortfall }
       : blocking.length
-      ? t('submit.blockedProblems')
-      : props.saveBlocked
-        ? t('submit.blockedSave')
-        : null
+        ? { kind: 'PROBLEMS' }
+        : props.saveStop
+          ? { kind: 'SAVE', stop: props.saveStop }
+          : null
+  // Saving stopped: load the latest version (a conflict), or nothing to do on this page (sent or cancelled elsewhere,
+  // where loading would not make the request sendable, as its point and the notice above the form say)
+  const blockedReason =
+    block?.kind === 'BUDGET'
+      ? t('submit.blockedBudget', { available: showSatang(block.available), shortfall: showSatang(block.shortfall) })
+      : block?.kind === 'PROBLEMS'
+        ? t('submit.blockedProblems')
+        : block?.kind === 'SAVE'
+          ? block.stop === 'closed'
+            ? t('submit.blockedClosed')
+            : t('submit.blockedSave')
+          : null
+  // "ตรวจก่อนส่ง" leads with what stops the button, and is ready only when nothing does (§9.9 principle 3)
+  const blockPoint = sendBlockPoint(t, block)
   const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
 
@@ -145,13 +197,24 @@ export function ReviewStep(props: ReviewProps) {
         <h3 id="review-problems" className="text-lg font-semibold">
           {t('review.problemsTitle')}
         </h3>
-        {problems.length === 0 ? (
+        {problems.length === 0 && block === null ? (
           <p className="flex items-start gap-2">
             <CircleCheck className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
             <span>{t('review.ready')}</span>
           </p>
         ) : (
           <ul className="flex flex-col divide-y divide-line border-y border-line">
+            {blockPoint ? (
+              <li className="py-2">
+                <p className="flex items-start gap-2">
+                  <CircleAlert className="mt-1 size-4 shrink-0 text-danger" aria-hidden="true" />
+                  <span>
+                    {blockPoint.text}
+                    {blockPoint.mustFix ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
+                  </span>
+                </p>
+              </li>
+            ) : null}
             {problems.map((p, i) => {
               const step = problemStep(p)
               return (

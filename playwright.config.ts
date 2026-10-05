@@ -12,6 +12,8 @@ const OUTPUT_DIR = process.env.E2E_OUTPUT_DIR ?? 'test-results'
 const LIFF_SPECS = '**/liff-*.spec.ts'
 /** The demo scenes (D-04) run only in demo mode, against the database with the demo history (tests/support/e2e-env.ts) */
 const DEMO_SPECS = '**/demo/**'
+/** Only the scene files run; tests/e2e/demo/support.ts and scripts/ are helpers the scenes import */
+const DEMO_SCENES = '**/demo/*.spec.ts'
 
 const desktop = { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } }
 const mobile = { ...devices['Pixel 7'], viewport: { width: 375, height: 812 }, isMobile: true, hasTouch: true }
@@ -34,7 +36,7 @@ export default defineConfig({
   // Demo mode runs the scenes in file order on one database, one after another: each scene builds on the ones before
   // it, as on the day; a scene file picks its own device (the LIFF scenes a phone, the web scenes a desktop)
   projects: E2E_DEMO
-    ? [{ name: 'demo', testMatch: DEMO_SPECS, use: desktop }]
+    ? [{ name: 'demo', testMatch: DEMO_SCENES, use: desktop }]
     : [
         { name: 'desktop', testIgnore: [LIFF_SPECS, DEMO_SPECS], use: desktop },
         { name: 'mobile', testIgnore: [DEMO_SPECS], use: mobile },

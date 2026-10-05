@@ -3,14 +3,17 @@ import { expect, test } from '../fixtures'
 
 // Demo scene 2 "อนุมัติในแชท" (sheet Demo_Script; runbook §4), on the request scene 1 sent: the notification job delivers
 // the approver's notice and the approval card reaches the approver's LINE (the fake LINE server of the run) with the
-// summary only; below sheet DOA_Policy's stepUpThreshold the approver taps the button the row's steps name ("อนุมัติ") —
-// LINE's signed postback, sent with `pnpm line:simulate` — and the app decides it on channel LINE_CHAT and answers with
-// the confirmation card by reply. As §16.10 "ฉากที่ปรับ" has it, the channel and the DOA reference are then read on the
-// request page's timeline (request.view ASSIGNED: the approver had a task on it), opened from the confirmation's
-// "ดูรายละเอียด" in LIFF at 375 px: the stamp says who (name and position), what, when, on which channel, under which
-// DOA version and rule. The scene's row names the approver (actor), the channel, the button and the DOA reference its
-// steps quote; the request, its amounts and its rule are scene 1's row's, the DOA's code and version sheet DOA_Policy's.
-// ./support.ts is imported inside the test: to the demo project every file of this folder is a test file (see there).
+// summary only. The premise, by the sheets: the amount the DOA counts for scene 1's row is below sheet DOA_Policy's
+// stepUpThreshold, so the card carries the in-chat approve — §9.3's postback, which LINE shows in the chat as
+// "อนุมัติ <number>" — and the approver taps the button the row's steps name ("อนุมัติ"): LINE's signed postback, sent
+// with `pnpm line:simulate`. The app decides it on channel LINE_CHAT and answers with the confirmation card, a Flex
+// message by reply with the tap's reply token (no push). As §16.10 "ฉากที่ปรับ" has it, the channel and the DOA reference
+// are then read on the request page's timeline (request.view ASSIGNED: the approver had a task on it), opened from the
+// confirmation's "ดูรายละเอียด" in LIFF at 375 px: the stamp says who (name and position), what, when, on which channel,
+// under which DOA version and rule. The scene's row names the approver (actor), the channel, the button and the DOA
+// reference its steps quote; the request, its amounts and its rule are scene 1's row's, the DOA's code, version and
+// stepUpThreshold sheet DOA_Policy's. ./support.ts is imported inside the test: to the demo project every file of this
+// folder is a test file (see there).
 
 // The phone of LIFF at 375 px (§9.4): a Pixel 7 without its defaultBrowserType, a worker option that would give this file
 // a worker of its own — Playwright runs each worker's files together, and the scenes must run in the files' name order
@@ -31,19 +34,24 @@ test('@demo [FR-LINE-002/AC1] [FR-LINE-002/AC2] [FR-LINE-007/AC2] [FR-DOA-005/AC
     cardWord,
     channelLabel,
     checkLiffScreen,
+    confirmationWord,
     countedOf,
     deliverPending,
     demoSheet,
-    doaRefOf,
     expectApprovalCard,
+    expectCardButtons,
     latestRequestOf,
     liffPathOf,
+    nameIn,
     openLiffAs,
     openTaskOf,
     prepareTheDay,
+    pushesSince,
     requestFacts,
     requestTimeline,
     sceneOf,
+    sheetDoa,
+    sheetDoaRef,
     stampRoleOf,
     tapPostback,
     tappedIn,
@@ -61,21 +69,26 @@ test('@demo [FR-LINE-002/AC1] [FR-LINE-002/AC2] [FR-LINE-007/AC2] [FR-DOA-005/AC
   const approver = userOf(sheet, scene.actor)
   const role = approverByRule(sheet, asked.expectedRule, asked.chargedDept)
   expect(role.member).toBe(scene.actor)
-  // FR-LINE-002 AC2: the amount the DOA counts is below sheet DOA_Policy's stepUpThreshold, so the card approves in the chat
-  expect(countedOf(sheet, asked), 'scene 1\'s amount on the DOA\'s basis is below the stepUpThreshold').toBeLessThan(sheet.doa.stepUpThreshold)
+  // The premise (FR-LINE-002 AC2): the amount the DOA counts for scene 1's row is below sheet DOA_Policy's
+  // stepUpThreshold, so the card approves in the chat with no PIN
+  expect(countedOf(sheet, asked), 'scene 1\'s amount on the DOA\'s basis is below the stepUpThreshold of sheet DOA_Policy').toBeLessThan(sheet.doa.stepUpThreshold)
   // The DOA reference the scene's steps name ("DOA-DEMO ฉบับ 1 ข้อ PR-02"): sheet DOA_Policy's code and version, and
-  // the rule of scene 1's row; and the button they tap
-  const doaRef = doaRefOf({ code: sheet.doa.code, versionNo: sheet.doa.version }, asked.expectedRule!)
+  // the rule of scene 1's row; and the button they tap, which is the card's approve
+  const doaRef = sheetDoaRef(sheet, asked.expectedRule)
   expect(scene.stepsTh, 'the steps of the scene name the DOA reference the timeline shows').toContain(doaRef)
   const button = tappedIn(scene)
+  expect(button, 'the steps tap the card\'s approve button').toBe(cardWord('approve'))
+  const typeName = nameIn(sheet.requestTypes, asked.requestType, 'request type')
 
   prepareTheDay(sheet)
+  // The DOA in effect is sheet DOA_Policy's, with its stepUpThreshold
+  const doa = sheetDoa(sheet)
   const request = latestRequestOf(asked.actor, amountOf(asked, 'net'))
   if (!request?.number || !request.route) throw new Error('scene 1 sent no request: run the demo scenes in order')
   const number = request.number
   const task = openTaskOf(request)
   expect(task).toMatchObject({ assignee: scene.actor, principal: null, resolvedFrom: role.resolvedFrom })
-  expect(request.route).toMatchObject({ ruleCode: asked.expectedRule, amount: countedOf(sheet, asked).toString(), doa: { code: sheet.doa.code, versionNo: sheet.doa.version } })
+  expect(request.route).toMatchObject({ ruleCode: asked.expectedRule, amount: countedOf(sheet, asked).toString(), doa: { versionId: doa.id, code: sheet.doa.code, versionNo: sheet.doa.version } })
 
   // The notification job delivers the approver's notice about it: by LINE, as the approval card with the summary only
   // (FR-LINE-002 AC1) — not the title, nor any line of what is asked for
@@ -83,24 +96,19 @@ test('@demo [FR-LINE-002/AC1] [FR-LINE-002/AC2] [FR-LINE-007/AC2] [FR-DOA-005/AC
   expect(delivered.map((d) => ({ template: d.templateKey, status: d.outcome.status, channel: d.outcome.channel }))).toContainEqual({ template: 'task.assigned', status: 'SENT', channel: 'LINE' })
   const card = await cardTo(scene.actor, number)
   expectApprovalCard(sheet, card, { number, scene: asked, task, doaRef, hidden: [request.title, ...request.lines] })
-  // With the approver's LINE token: the button the steps name is a postback of v, a and k only (BR-TOK-02), and LINE
-  // shows what was tapped in the chat
-  const approve = actionsOf(card).find((a) => a.type === 'postback')
-  expect(approve).toMatchObject({ label: button, displayText: `${button} ${number}` })
-  expect(approve?.data).toMatch(/^v=1&a=approve&k=[0-9a-f-]{36}$/)
+  // §9.3: with the approver's LINE token, "อนุมัติ" is the postback v=1&a=approve&k=<tokenId> (BR-TOK-02) whose
+  // displayText LINE shows in the chat — "อนุมัติ <number>" — beside "ตีกลับ / ไม่อนุมัติ" and "ดูรายละเอียด" into LIFF
+  const approve = expectCardButtons(card, { taskId: task.id, number, inChat: true })
+  expect(approve).toMatchObject({ type: 'postback', label: button, displayText: `${button} ${number}` })
 
   // The approver taps it: LINE's postback webhook, signed with the channel secret
-  const tap = tapPostback(testInfo, scene.actor, approve!.data!)
+  const tap = tapPostback(testInfo, scene.actor, approve.data!)
   expect(tap.status, tap.printed).toBe(200)
-  // The confirmation card, by reply while the reply token is fresh (FR-LINE-007 AC2): the document and its DOA reference
+  expect(tap.replyToken, 'the event LINE sent carries a reply token').not.toBeNull()
+  // FR-LINE-007 AC2: the answer is a reply with the tap's reply token while it is fresh, not a push
   const answer = await answerTo(tap)
-  expect(answer.kind).toBe('reply')
-  const confirmation = answer.messages[0]!
-  expect(confirmation.type, 'the confirmation is a card').toBe('flex')
-  const said = wordsOf(confirmation)
-  expect(said).toContain('อนุมัติแล้ว')
-  expect(said).toContain(number)
-  expect(said).toContain(`อนุมัติภายใต้ ${doaRef}`)
+  expect(answer, 'the answer is the reply to the tap').toMatchObject({ kind: 'reply', replyToken: tap.replyToken })
+  expect(await pushesSince(scene.actor, tap.sentAt), 'nothing was pushed to the approver for the tap').toEqual([])
 
   // Decided once, by the approver for nobody else, in the chat, with the DOA version and rule on the event (FR-DOA-005 AC1)
   const decided = requestFacts(number)
@@ -110,8 +118,27 @@ test('@demo [FR-LINE-002/AC1] [FR-LINE-002/AC2] [FR-LINE-007/AC2] [FR-DOA-005/AC
     status: 'APPROVED',
     decision: 'APPROVE',
     channel: 'LINE_CHAT',
-    decided: { channel: 'LINE_CHAT', by: scene.actor, onBehalfOf: null, doaVersionId: request.route.doa.versionId, doaRuleCode: request.route.ruleCode },
+    decided: { channel: 'LINE_CHAT', by: scene.actor, onBehalfOf: null, doaVersionId: doa.id, doaRuleCode: asked.expectedRule },
   })
+  expect(done!.decidedAt, 'the task records when it was decided').not.toBeNull()
+
+  // FR-LINE-002 AC2 (§9.3 "ผลสำเร็จตอบด้วยการ์ดยืนยันที่มี DOA ref"): the reply is one message, the confirmation card — a
+  // Flex message that says the request is approved, which one, under which DOA version and rule, when, and that every
+  // step is done (the demo DOA has one step), with "ดูรายละเอียด"
+  expect(answer.messages, 'the reply is one message').toHaveLength(1)
+  const confirmation = answer.messages[0]!
+  expect(confirmation.type, 'the confirmation is a Flex message').toBe('flex')
+  expect(confirmation.altText, 'what LINE shows of the card in the chat list').toBe(`${confirmationWord('header')}: ${typeName} ${number}`)
+  const said = wordsOf(confirmation)
+  for (const words of [
+    confirmationWord('header'),
+    `${typeName} ${number}`,
+    `${confirmationWord('under')} ${doaRef}`,
+    `${confirmationWord('at')} ${thaiDateTime(done!.decidedAt!)}`,
+    confirmationWord('done'),
+  ]) {
+    expect(said, `the confirmation card says "${words}"`).toContain(words)
+  }
 
   // "ดูรายละเอียด" of the confirmation opens the request's page in LIFF: the timeline stamps the approval with who
   // approved (name and position), when and on which channel, and the DOA version and rule (FR-PLT-003 AC3); the page

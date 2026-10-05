@@ -30,7 +30,6 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
     chooseSupplier,
     consolidateNow,
     demoSheet,
-    doaRefOf,
     doaRuleFor,
     expectPdfLink,
     historyOf,
@@ -55,6 +54,7 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
     sceneOf,
     settingOf,
     sheetDoa,
+    sheetDoaRef,
     shownQuantity,
     signInChecked,
     stampRoleOf,
@@ -99,9 +99,15 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(receiver.roles, 'scene 8\'s actor is a RECEIVER').toContain('RECEIVER')
   expect(receiver.department, 'of the requesters\' department').toBe(userOf(sheet, asked.actor).department)
 
+  // The prices paid before: a line whose price is above the newest of them by more than sheet Settings' priceAlertPct
+  // says so (FR-P2P-003 AC1)
+  const alertBp = basisPointsOf(settingOf(sheet, 'priceAlertPct'))
+  const alertPct = percentOfBp(alertBp)
+
   prepareTheDay(sheet)
+  // The DOA in effect is sheet DOA_Policy's; the reference the pages show is its code and version with the PO rule
   const doa = sheetDoa(sheet)
-  const doaRef = doaRefOf(doa, rule.ruleCode)
+  const doaRef = sheetDoaRef(sheet, rule.ruleCode)
   const first = latestRequestOf(asked.actor, amountOf(asked, 'net'))
   if (!first?.number) throw new Error('scene 1 sent no request: run the demo scenes in order')
   expect(first.status, 'scene 2 approved scene 1\'s request').toBe('APPROVED')
@@ -149,7 +155,9 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(drafted.requests.map((r) => r.number).sort()).toEqual([...numbers].sort())
   await expect(poHeader(page)).toContainText(th('purchaseOrder.detail.draftLabel'))
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(supplier.nameTh)
-  // FR-P2P-003 AC3: the totals the server worked out — the rows' amounts before VAT, the VAT at the sheet's rate
+  // FR-P2P-003 AC3: the totals the server worked out with core — the draft was made by the server's round, so nothing of
+  // them came from a browser — are the rows' amounts before VAT and the VAT at the sheet's rate, once for the document
+  // and rounded half up (BR-MONEY-02)
   const amounts = page.getByRole('region', { name: th('purchaseOrder.amounts.title') })
   const rate = th('purchaseOrder.amounts.vat', { rate: percentOfBp(basisPointsOf(settingOf(sheet, 'vatRate'))) })
   await expect(amounts).toContainText(new RegExp(`${literally(th('purchaseOrder.amounts.net'))}\\s*${literally(baht(net))}`))
@@ -159,8 +167,10 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   await expect(poBudget(page)).toContainText(past.budgetLine)
   await expect(poBudget(page)).toContainText(new RegExp(`${literally(th('purchaseOrder.budget.requestReserved'))}\\s*${literally(baht(net))}`))
   await expect(poBudget(page)).toContainText(th('purchaseOrder.budget.state.DRAFT'))
-  // Every line with the request line it orders, and the prices paid before for the same item as the database has them
-  // (none yet for an item no approved PO ordered)
+  // Every line with the request line it orders, and the prices paid before for the same item (FR-P2P-003 AC1: the
+  // category and the description after normalizing, on approved POs) as the database has them: the section is there for
+  // every line — "never bought" for an item no approved PO ordered, otherwise the newest three with their PO and date,
+  // and whether the line's price is above the newest by more than sheet Settings' priceAlertPct
   for (const line of drafted.lines) {
     const item = poLineItems(page).filter({ hasText: `${line.lineNo}. ${line.description}` })
     await expect(item, `line ${line.lineNo}`).toHaveCount(1)
@@ -168,10 +178,16 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
       await expect(item).toContainText(th('purchaseOrder.lines.source', { number: s.requestNumber ?? '', line: s.lineNo, quantity: th('purchaseOrder.lines.qty', { quantity: shownQuantity(s.quantity), uom: line.uom }) }))
     }
     await expect(item).toContainText(th('purchaseOrder.lines.pricesTitle'))
-    if (line.earlierPrices.length === 0) await expect(item).toContainText(th('purchaseOrder.lines.pricesNone'))
+    if (line.earlierPrices.length === 0) {
+      await expect(item).toContainText(th('purchaseOrder.lines.pricesNone'))
+      continue
+    }
+    await expect(item).not.toContainText(th('purchaseOrder.lines.pricesNone'))
     for (const p of line.earlierPrices) {
       await expect(item).toContainText(th('purchaseOrder.lines.price', { number: p.poNumber ?? '', date: thaiDate(p.approvedAt), price: baht(BigInt(p.unitPrice)) }))
     }
+    const above = BigInt(line.unitPrice) * 10_000n > BigInt(line.earlierPrices[0]!.unitPrice) * (10_000n + alertBp)
+    await expect(item, `line ${line.lineNo}: its price against the newest paid before`).toContainText(th(above ? 'purchaseOrder.lines.priceAlert' : 'purchaseOrder.lines.priceOk', { pct: alertPct }))
   }
   for (const r of requests) await expect(poRequests(page).getByRole('link', { name: th('purchaseOrder.requests.title', { number: r.number!, title: r.title }) })).toBeVisible()
   await expect(page.getByRole('region', { name: th('purchaseOrder.facts.title') })).toContainText(new RegExp(`${literally(th('purchaseOrder.facts.createdBy'))}\\s*${literally(buyer.nameTh)}`))
@@ -190,7 +206,7 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   await expect(page.getByRole('region', { name: th('purchaseOrder.facts.title') })).toContainText(new RegExp(`${literally(th('purchaseOrder.facts.submittedBy'))}\\s*${literally(buyer.nameTh)}`))
   const pending = poOrdering(first.number)!
   expect(pending).toMatchObject({ id: drafted.id, number, status: 'PENDING_APPROVAL', net: net.toString(), vat: vat.toString(), gross: gross.toString() })
-  expect(pending.route).toMatchObject({ ruleCode: rule.ruleCode, amountBasis: sheet.doa.amountBasis, amount: counted.toString(), doa: { versionId: doa.id, code: doa.code, versionNo: doa.versionNo } })
+  expect(pending.route).toMatchObject({ ruleCode: rule.ruleCode, amountBasis: sheet.doa.amountBasis, amount: counted.toString(), doa: { versionId: doa.id, code: sheet.doa.code, versionNo: sheet.doa.version } })
   const task = pending.route!.tasks.find((t) => t.status === 'OPEN')
   expect(task, 'one step: the approver of the rule').toMatchObject({ assignee: role.member, principal: null, resolvedFrom: role.resolvedFrom })
   await checkWebScreen(page, testInfo, 'scene7-po-pending')

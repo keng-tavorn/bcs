@@ -36,7 +36,6 @@ test('@demo [FR-VIS-001/AC1] [FR-VIS-001/AC3] [FR-BUD-005/AC1] [FR-VIS-003/AC2] 
     channelLabel,
     checkWebScreen,
     demoSheet,
-    doaRefOf,
     expectBudgetRow,
     exportedFile,
     historyOf,
@@ -54,6 +53,7 @@ test('@demo [FR-VIS-001/AC1] [FR-VIS-001/AC3] [FR-BUD-005/AC1] [FR-VIS-003/AC2] 
     sha256,
     shareText,
     sheetDoa,
+    sheetDoaRef,
     sheetRows,
     shownChecksum,
     signInChecked,
@@ -224,7 +224,7 @@ test('@demo [FR-VIS-001/AC1] [FR-VIS-001/AC3] [FR-BUD-005/AC1] [FR-VIS-003/AC2] 
     const decision = audit.locator('table:visible tbody tr').filter({ hasText: 'ตัดสินงานอนุมัติ: อนุมัติ' }).filter({ hasText: channelLabel('LINE_CHAT') })
     await expect(decision).toHaveCount(1)
     await expect(decision).toContainText(userOf(sheet, chat.actor).nameTh)
-    await expect(decision).toContainText(doaRefOf(doa, asked.expectedRule!))
+    await expect(decision).toContainText(sheetDoaRef(sheet, asked.expectedRule))
     await checkWebScreen(audit, testInfo, 'scene9-audit')
     const bytes = await exportedFile(audit, 'ส่งออก Excel')
     await expect(audit.getByRole('status').filter({ hasText: /^ส่งออกแล้ว \d+ แถว/ })).toBeVisible()

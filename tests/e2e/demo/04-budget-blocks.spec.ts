@@ -98,14 +98,13 @@ test('@demo [FR-INT-004/AC1] [FR-INT-004/AC2] [FR-BUD-003/AC1] [FR-INT-007/AC2] 
   const send = page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true })
   await expect(send).toBeDisabled()
   await expect(page.getByText(th('requestForm.submit.blockedBudget', { available: baht(available), shortfall: baht(shortfall) }))).toBeVisible()
-  // The row's "ส่งไม่ได้": nothing on the step tells the requester the opposite. Once the step's own part has loaded (it
-  // comes after the send bar), "ตรวจก่อนส่ง" must not say "…ครบแล้ว กดส่งได้" (review.ready) while the budget blocks
-  // sending. Soft, so the rest of the scene still shows that nothing reached an approver (the review steps of
-  // src/ui/liff/requests and src/ui/request-form show review.ready whenever their own problem list is empty, which
-  // leaves the budget out)
+  // The row's "ส่งไม่ได้", said the same way on the step (§9.9 principle 3): "ตรวจก่อนส่ง" leads with what stops the
+  // button — the budget, with what is left and what is lacking, to be fixed before sending — and never says
+  // "…ครบแล้ว กดส่งได้" (review.ready) while the budget blocks sending
   const beforeSending = page.getByRole('region', { name: th('requestForm.review.problemsTitle') })
   await expect(beforeSending).toBeVisible()
-  await expect.soft(beforeSending, 'the review step does not say the request can be sent while the budget blocks it').not.toContainText(th('requestForm.review.ready'))
+  await expect(beforeSending.getByRole('listitem').first()).toHaveText(`${th('requestForm.review.budgetShort', { available: baht(available), shortfall: baht(shortfall) })} ${th('requestForm.review.mustFix')}`)
+  await expect(beforeSending, 'the review step does not say the request can be sent while the budget blocks it').not.toContainText(th('requestForm.review.ready'))
   await checkLiffScreen(page, testInfo, 'scene4-form-review')
 
   // FR-INT-007 AC2 (G-4): nothing was sent, no approver got a task or a notice, and the line keeps what it had

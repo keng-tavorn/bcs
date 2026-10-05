@@ -43,7 +43,6 @@ test('@demo [FR-INT-001/AC3] [FR-LINE-003/AC1] [FR-INT-003/AC1] [FR-INT-004/AC1]
     costCenterOf,
     countedOf,
     demoSheet,
-    doaRefOf,
     doaRuleFor,
     expectDelegation,
     expectEscalation,
@@ -65,6 +64,7 @@ test('@demo [FR-INT-001/AC3] [FR-LINE-003/AC1] [FR-INT-003/AC1] [FR-INT-004/AC1]
     sceneOf,
     sentNumber,
     sheetDoa,
+    sheetDoaRef,
     stepHeading,
     th,
     typed,
@@ -93,7 +93,8 @@ test('@demo [FR-INT-001/AC3] [FR-LINE-003/AC1] [FR-INT-003/AC1] [FR-INT-004/AC1]
 
   // Before the day: the rich menus are made and every phone of the demo is linked (runbook §1)
   prepareTheDay(sheet)
-  // The DOA of sheet DOA_Policy is in effect, and the line has what sheet Budget leaves on it after the history
+  // The DOA of sheet DOA_Policy is in effect (its code, version, basis and stepUpThreshold), and the line has what sheet
+  // Budget leaves on it after the history
   const doa = sheetDoa(sheet)
   const available = budgetLeftNow(sheet, scene)
   // BR-FORM-02 fills a new form from the requester's latest requests, which the demo history left on the row's line and site
@@ -140,7 +141,7 @@ test('@demo [FR-INT-001/AC3] [FR-LINE-003/AC1] [FR-INT-003/AC1] [FR-INT-004/AC1]
   const route = page.getByRole('region', { name: th('requestForm.route.title') })
   await expect(route.getByText(approver.nameTh, { exact: true })).toBeVisible()
   await expect(route).toContainText(routeRoleOf(role))
-  await expect(route).toContainText(doaRefOf(doa, scene.expectedRule!))
+  await expect(route).toContainText(sheetDoaRef(sheet, scene.expectedRule))
   await expect(page.getByText(th('requestForm.review.ready'))).toBeVisible()
   await checkLiffScreen(page, testInfo, 'scene1-form-review')
 
@@ -163,7 +164,7 @@ test('@demo [FR-INT-001/AC3] [FR-LINE-003/AC1] [FR-INT-003/AC1] [FR-INT-004/AC1]
     gross: gross.toString(),
   })
   expect(sent.events.find((e) => e.type === 'request.submitted')?.channel).toBe('LIFF')
-  expect(sent.route).toMatchObject({ ruleCode: scene.expectedRule, doa: { code: doa.code, versionNo: doa.versionNo } })
+  expect(sent.route).toMatchObject({ ruleCode: scene.expectedRule, doa: { versionId: doa.id, code: sheet.doa.code, versionNo: sheet.doa.version } })
   expectEscalation(scene, sent.route)
   const task = openTaskOf(sent)
   expect(task).toMatchObject({ assignee: scene.expectedApprover, resolvedFrom: role.resolvedFrom })

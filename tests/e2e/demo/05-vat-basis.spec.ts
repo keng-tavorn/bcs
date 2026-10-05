@@ -25,7 +25,6 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
     costCenterOf,
     countedOf,
     demoSheet,
-    doaRefOf,
     doaRuleFor,
     expectDelegation,
     expectEscalation,
@@ -42,6 +41,7 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
     sceneOf,
     sentNumber,
     sheetDoa,
+    sheetDoaRef,
     signInAs,
     spokenBaht,
     stepHeading,
@@ -131,7 +131,7 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
   const route = page.getByRole('region', { name: th('requestForm.route.title') })
   await expect(route.getByText(approver.nameTh, { exact: true })).toBeVisible()
   await expect(route).toContainText(routeRoleOf(role))
-  await expect(route).toContainText(doaRefOf(doa, scene.expectedRule!))
+  await expect(route).toContainText(sheetDoaRef(sheet, scene.expectedRule))
   await expect(route).toContainText(`ยอด ${baht(counted)} บาท`)
   await expect(route).not.toContainText(userOf(sheet, notRole.member).nameTh)
   await expect(page.getByText(th('requestForm.review.ready'))).toBeVisible()
@@ -156,7 +156,7 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
     gross: gross.toString(),
   })
   expect(sent.events.find((e) => e.type === 'request.submitted')?.channel).toBe('WEB')
-  expect(sent.route).toMatchObject({ ruleCode: scene.expectedRule, amountBasis: sheet.doa.amountBasis, amount: counted.toString(), doa: { code: doa.code, versionNo: doa.versionNo } })
+  expect(sent.route).toMatchObject({ ruleCode: scene.expectedRule, amountBasis: sheet.doa.amountBasis, amount: counted.toString(), doa: { versionId: doa.id, code: sheet.doa.code, versionNo: sheet.doa.version } })
   expectEscalation(scene, sent.route)
   const task = openTaskOf(sent)
   expect(task).toMatchObject({ assignee: scene.expectedApprover, resolvedFrom: role.resolvedFrom })

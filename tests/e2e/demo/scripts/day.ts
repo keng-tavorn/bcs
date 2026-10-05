@@ -13,13 +13,14 @@ import { E2E_DB } from '../../../support/e2e-env'
 //   deliver <code> [subjectId] what the notification job does with the member's pending notices (about one document
 //                              when given): deliverNotification of each, so LINE cards reach the fake LINE server
 //   request <number>           a request as the database has it: amounts, budget line, site, its route and tasks (who
-//                              holds each, for whom, from which position) with their decisions' events (when, channel,
-//                              by and for whom, DOA reference), the channels of its own events, the kinds of its files
+//                              holds each, for whom, from which position, when it was decided) with their decisions'
+//                              events (when, channel, by and for whom, DOA reference), the channels of its own events,
+//                              the kinds of its files
 //   latest <code> <netSatang>  the same for the latest request that member sent of that amount before VAT, or null
 //   defaults <code> <type>     what a new form of that type fills in for the member (BR-FORM-02): the budget line of
 //                              their latest sent request of the type, the site of the latest request they started
 //   budget <lineCode>          what is left on a budget line (BudgetLineBalance), and what is held on it
-//   doa                        the DOA version in effect: code, number and amount basis
+//   doa                        the DOA version in effect: code, number, amount basis and stepUpThreshold
 //   counts                     how many requests were sent, approval tasks made and notifications written so far
 //   channel                    the organization's LINE channel: its key (the webhook path) and LIFF ID
 //   history <ref>              the request the demo history made for a row of sheet Demo_History (its draft's events
@@ -172,6 +173,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
                     channel: true,
                     assignedAt: true,
                     dueAt: true,
+                    decidedAt: true,
                     resolvedFrom: true,
                     assignee: { select: { employeeCode: true } },
                     principal: { select: { employeeCode: true } },
@@ -234,6 +236,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
           channel: t.channel,
           assignedAt: t.assignedAt.toISOString(),
           dueAt: t.dueAt?.toISOString() ?? null,
+          decidedAt: t.decidedAt?.toISOString() ?? null,
           decided: event
             ? {
                 at: event.occurredAt.toISOString(),
@@ -294,10 +297,10 @@ async function main(command: string | undefined, args: readonly string[]): Promi
     const version = await prisma.doaVersion.findFirst({
       where: { organizationId: org.id, status: 'PUBLISHED', effectiveFrom: { lte: at }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: at } }] },
       orderBy: { effectiveFrom: 'desc' },
-      select: { id: true, code: true, versionNo: true, amountBasis: true },
+      select: { id: true, code: true, versionNo: true, amountBasis: true, stepUpThresholdSatang: true },
     })
     if (!version) throw new Error('no DOA version in effect')
-    return version
+    return { id: version.id, code: version.code, versionNo: version.versionNo, amountBasis: version.amountBasis, stepUpThreshold: satang(version.stepUpThresholdSatang) }
   }
 
   async function counts() {
@@ -358,7 +361,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
             stepNo: true,
             tasks: {
               orderBy: { assignedAt: 'asc' },
-              select: { id: true, status: true, decision: true, channel: true, resolvedFrom: true, assignedAt: true, dueAt: true, assignee: { select: { employeeCode: true } }, principal: { select: { employeeCode: true } } },
+              select: { id: true, status: true, decision: true, channel: true, resolvedFrom: true, assignedAt: true, dueAt: true, decidedAt: true, assignee: { select: { employeeCode: true } }, principal: { select: { employeeCode: true } } },
             },
           },
         },
@@ -389,6 +392,7 @@ async function main(command: string | undefined, args: readonly string[]): Promi
           channel: t.channel,
           assignedAt: t.assignedAt.toISOString(),
           dueAt: t.dueAt?.toISOString() ?? null,
+          decidedAt: t.decidedAt?.toISOString() ?? null,
           decided: event
             ? {
                 at: event.occurredAt.toISOString(),

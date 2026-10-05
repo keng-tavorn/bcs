@@ -2,8 +2,8 @@ import { spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
 import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
-import { devices, type Browser, type BrowserContext, type Locator, type Page, type TestInfo } from '@playwright/test'
-import { cardLabel, type CardLabel } from '../../../src/channels/line/flex/labels'
+import { devices, type Browser, type BrowserContext, type Locator, type Page, type Route, type TestInfo } from '@playwright/test'
+import { cardLabel, confirmationLabel, type CardLabel, type ConfirmationLabel } from '../../../src/channels/line/flex/labels'
 import { liffPathFor } from '../../../src/channels/line/links'
 import { formatThaiDate, formatThaiDateTime } from '../../../src/core/thai/date'
 import { deriveSeedTotpSecret, totp } from '../../../src/lib/totp'
@@ -479,8 +479,17 @@ export const cardRow = (label: CardLabel, value: string) => `${cardLabel(label, 
 /** A fixed word of the LINE cards in Thai (src/channels/line/flex/labels): "จองแล้ว" */
 export const cardWord = (label: CardLabel) => cardLabel(label, 'th')
 
+/** A fixed word of the confirmation card of a decision made in the chat, in Thai (src/channels/line/flex/labels): "อนุมัติแล้ว" */
+export const confirmationWord = (label: ConfirmationLabel) => confirmationLabel(label, 'th')
+
 /** "DOA-DEMO ฉบับ 1 ข้อ PR-02": the DOA reference of a decision as the timeline writes it (FR-DOA-005 AC2) */
 export const doaRefOf = (doa: { readonly code: string; readonly versionNo: number }, rule: string) => th('timeline.doaRef', { code: doa.code, version: doa.versionNo, rule })
+
+/**
+ * The DOA reference of a rule of the sheet's DOA as the screens and the cards write it ("DOA-DEMO ฉบับ 1 ข้อ PR-02"),
+ * its code and version those of sheet DOA_Policy — never the database's, which sheetDoa holds to the sheet
+ */
+export const sheetDoaRef = (sheet: DemoSheet, rule: string | null) => doaRefOf({ code: sheet.doa.code, versionNo: sheet.doa.version }, ruleOf(sheet, rule).ruleCode)
 
 /** The channel of an event as the timeline names it (LINE_CHAT → "แชท LINE", LIFF → "LINE (LIFF)") */
 export const channelLabel = (channel: Channel) => th(`timeline.channel.${channel}`)
@@ -536,6 +545,8 @@ export interface TaskFacts {
   readonly assignedAt: string
   /** When the task falls due (ISO), by the business hours of its SLA; null without one */
   readonly dueAt: string | null
+  /** When the task was decided (ISO), as the task records it — the time the confirmation card says; null while open */
+  readonly decidedAt: string | null
   /**
    * The approval_task.decided event (FR-DOA-005 AC1): when (ISO), on which channel, by whom and for whom (member codes),
    * under which DOA version and rule, and whether it used a step-up
@@ -613,16 +624,20 @@ export function budgetLeftNow(sheet: DemoSheet, scene: DemoScene): bigint {
   return left
 }
 
-/** The DOA version in effect */
-export const doaInEffect = () => day<{ id: string; code: string; versionNo: number; amountBasis: 'GROSS' | 'NET' }>('doa')
+/** The DOA version in effect; its stepUpThreshold in satang as text, null when it has none */
+export const doaInEffect = () => day<{ id: string; code: string; versionNo: number; amountBasis: 'GROSS' | 'NET'; stepUpThreshold: string | null }>('doa')
 
-/** The DOA version in effect, which must be the one sheet DOA_Policy names: its code, its number and its amount basis */
+/**
+ * The DOA version in effect, which must be the one sheet DOA_Policy names: its code, its number, its amount basis and
+ * its stepUpThreshold — the premise of the scenes that approve in the chat or with the PIN
+ */
 export function sheetDoa(sheet: DemoSheet) {
   const doa = doaInEffect()
-  expect({ code: doa.code, versionNo: doa.versionNo, amountBasis: doa.amountBasis }, 'the DOA in effect is the version of sheet DOA_Policy').toEqual({
+  expect({ code: doa.code, versionNo: doa.versionNo, amountBasis: doa.amountBasis, stepUpThreshold: doa.stepUpThreshold }, 'the DOA in effect is the version of sheet DOA_Policy').toEqual({
     code: sheet.doa.code,
     versionNo: sheet.doa.version,
     amountBasis: sheet.doa.amountBasis,
+    stepUpThreshold: sheet.doa.stepUpThreshold.toString(),
   })
   return doa
 }
@@ -738,6 +753,11 @@ export async function pushesTo(code: string): Promise<FakeLineMessage[]> {
   return (await fakeMessages()).filter((m) => m.kind === 'push' && m.to === to)
 }
 
+/** The pushes LINE accepted for the member's LINE user at or after an instant (ISO): a push counts against the quota, a reply does not (§9.3) */
+export async function pushesSince(code: string, since: string): Promise<FakeLineMessage[]> {
+  return (await pushesTo(code)).filter((m) => m.at >= since)
+}
+
 /** Every string a message shows (Flex texts and its altText, or a text message's text), one per line, to read it */
 export function wordsOf(message: LineMessage): string {
   const words: string[] = []
@@ -828,6 +848,37 @@ export function expectApprovalCard(
   for (const hidden of of.hidden) expect(shown, `the card does not show "${hidden}"`).not.toContain(hidden)
 }
 
+/**
+ * The buttons of an approval card, as §9.3's table has them: below the stepUpThreshold "อนุมัติ" is the one postback —
+ * `v=1&a=approve&k=<tokenId>`, which LINE shows in the chat as "อนุมัติ <number>" (its displayText) — and at or above it
+ * "อนุมัติ (ยืนยัน PIN)" opens the task's LIFF page with approve ready, with no postback at all; "ตีกลับ / ไม่อนุมัติ"
+ * opens the page with reject ready and "ดูรายละเอียด" the page itself. Returns the approve button's action.
+ */
+export function expectCardButtons(card: LineMessage, of: { readonly taskId: string; readonly number: string; readonly inChat: boolean }): CardAction {
+  const buttons = actionsOf(card)
+  const named = (label: CardLabel) => {
+    const found = buttons.filter((a) => a.label === cardWord(label))
+    expect(found, `one button "${cardWord(label)}" on the card`).toHaveLength(1)
+    return found[0]!
+  }
+  const approve = named(of.inChat ? 'approve' : 'approveWithPin')
+  if (of.inChat) {
+    expect(approve, '§9.3: "อนุมัติ" approves in the chat, and the chat shows "อนุมัติ <number>"').toMatchObject({ type: 'postback', displayText: `${cardWord('approve')} ${of.number}` })
+    expect(approve.data, 'the postback data is v, a and k only (BR-TOK-02), within 300 characters').toMatch(/^v=1&a=approve&k=[0-9a-f-]{36}$/)
+  } else {
+    expect(approve.type, '§9.3: at or above the stepUpThreshold the approve button opens LIFF').toBe('uri')
+    expect(liffPathOf(approve.uri!), 'the task in LIFF with approve ready').toBe(`/liff/tasks/${of.taskId}?action=approve`)
+  }
+  expect(buttons.filter((a) => a.type === 'postback'), of.inChat ? 'approving is the only postback' : 'no postback approves at or above the stepUpThreshold').toHaveLength(of.inChat ? 1 : 0)
+  const decline = named('decline')
+  expect(decline.type).toBe('uri')
+  expect(liffPathOf(decline.uri!), 'return or reject: the task in LIFF with reject ready, for the reason').toBe(`/liff/tasks/${of.taskId}?action=reject`)
+  const details = named('details')
+  expect(details.type).toBe('uri')
+  expect(liffPathOf(details.uri!), 'the details: the task in LIFF').toBe(`/liff/tasks/${of.taskId}`)
+  return approve
+}
+
 export interface Tap {
   /** The status the app's webhook answered (200 once the signature was right) */
   readonly status: number
@@ -893,6 +944,49 @@ export async function phoneOf(browser: Browser, code: string): Promise<BrowserCo
   const phone = await anotherPhone(browser)
   await openLiffAs(phone, code)
   return phone
+}
+
+export interface PinLeftOut {
+  /** How many decisions went to the server without their PIN */
+  readonly sent: () => number
+  /** What went wrong with a decision it caught (never its body, which holds the PIN: NFR-SEC-09) */
+  readonly problems: () => readonly string[]
+  readonly stop: () => Promise<void>
+}
+
+/**
+ * The next decision a task's LIFF page sends goes to the server without the PIN the member typed, as a page that skipped
+ * its own check would send it: the call of the page's server action (a POST to the page with the `Next-Action` header,
+ * whose arguments React sends as JSON text, [input, idempotencyKey]) is caught on its way and `pin` taken out of the
+ * input — so what answers is the server, not the page. The deciding command of a task that needs a step-up asks for the
+ * PIN before anything else (src/app/(workspace)/_tracking/commands.ts: VALIDATION_FAILED on the field pin, which the page
+ * words as tasks.errors.PIN); STEP_UP_REQUIRED is the service's own guard below it, which a LIFF page does not reach
+ * without a PIN. Only that one call is changed; any other request of the page goes on as it is.
+ */
+export async function leaveOutThePin(page: Page, taskId: string): Promise<PinLeftOut> {
+  let sent = 0
+  const problems: string[] = []
+  const matches = (url: URL) => url.pathname === `/liff/tasks/${taskId}`
+  const handler = async (route: Route) => {
+    const request = route.request()
+    if (request.method() !== 'POST' || !request.headers()['next-action'] || sent > 0) return route.fallback()
+    let args: unknown = null
+    try {
+      args = JSON.parse(request.postData() ?? '')
+    } catch {
+      // not the JSON text of plain arguments
+    }
+    const input = Array.isArray(args) && args[0] !== null && typeof args[0] === 'object' ? (args[0] as Record<string, unknown>) : null
+    if (!input || typeof input.pin !== 'string') {
+      problems.push('the decision did not go as a server action whose input holds the PIN')
+      return route.abort()
+    }
+    delete input.pin
+    sent++
+    return route.continue({ postData: JSON.stringify(args) })
+  }
+  await page.route(matches, handler)
+  return { sent: () => sent, problems: () => problems, stop: () => page.unroute(matches, handler) }
 }
 
 /** The path here of a LIFF deep link (https://liff.line.me/<LIFF ID>/tasks/<id>?action=approve → /liff/tasks/<id>?action=approve) */

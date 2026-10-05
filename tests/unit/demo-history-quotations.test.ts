@@ -66,4 +66,17 @@ describe('[FR-PLT-001/AC1] D-01 the quotations of a demo-history row: its net an
       expect(quotationAmounts(row), row.ref).toEqual([baht * SATANG_PER_BAHT, baht * 104n, baht * 107n])
     }
   })
+
+  it('reads a net of sheet Demo_History only in whole baht (NEW-66): the row schema refuses satang before the seed writes anything', async () => {
+    const workbook = await loadInputWorkbook()
+    const table = workbook.table.bind(workbook)
+    const withNet = (net: string) => ({
+      ...workbook,
+      table: (sheet: string) => (sheet === 'Demo_History' ? table(sheet).map((r, i) => (i === 0 ? { ...r, values: { ...r.values, net } } : r)) : table(sheet)),
+    })
+    expect(() => parseDemoHistory(withNet('1000.25'))).toThrow(/whole baht/)
+    expect(() => parseDemoHistory(withNet('1000.5'))).toThrow(/whole baht/)
+    expect(parseDemoHistory(withNet('1000.00'))[0]!.net).toBe('1000.00')
+    expect(parseDemoHistory(withNet('1000'))[0]!.net).toBe('1000')
+  })
 })

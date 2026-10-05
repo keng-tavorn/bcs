@@ -17,7 +17,7 @@ import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/ser
 import { approversWithoutPin, seedDevPins, type SeedPinsReport } from '@/server/seed/pins'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
-import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError, seedDemoHistory } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, DemoHistoryNetError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError, seedDemoHistory } from '@/server/services/demo-history'
 import { describeLineSeed, seedLineChannel } from '@/server/services/line-channel'
 import { ensureBucket } from '../scripts/storage-init'
 import { loadInputWorkbook } from '@/server/seed/workbook'
@@ -91,6 +91,12 @@ try {
     stop(
       `ข้อมูลตัวอย่างใช้ปีงบ ${error.fiscalYear} (${error.startsOn} ถึง ${error.endsOn}) แต่ประวัติ demo แถว ${error.ref} ต้องใช้วันที่ ${error.day} ซึ่งอยู่นอกปีงบนั้น จึงไม่ได้สร้างประวัติ demo · ` +
         `แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน (ช่วงต้นปีงบให้ daysAgo ของทุกแถวไม่ย้อนไปก่อนวันเริ่มปีงบ) แล้วรัน pnpm inputs:check และ pnpm db:reset · หรือ seed โดยไม่มีประวัติด้วย SEED_DEMO_HISTORY=0`,
+    )
+  }
+  if (error instanceof DemoHistoryNetError) {
+    stop(
+      `ประวัติ demo แถว ${error.ref} มียอดก่อน VAT ${error.net} บาทที่มีสตางค์ ใบเสนอราคาเปรียบเทียบ ${error.percent}% ของยอดนี้จึงไม่ลงตัวที่สตางค์ และระบบไม่ปัดเศษ (BR-MONEY-02) จึงยังไม่ได้สร้างประวัติ demo · ` +
+        `แก้ช่อง net ของแถวนี้ในชีต Demo_History ให้เป็นบาทเต็ม แล้วรัน pnpm inputs:check และ pnpm db:reset`,
     )
   }
   if (error instanceof DemoHistoryStorageError) {

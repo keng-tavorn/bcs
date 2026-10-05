@@ -15,7 +15,7 @@ import { expect, test } from '../fixtures'
 // page is checked and photographed at 1440 px, the sign-in pages too. ./support.ts is imported inside the test: to the
 // demo project every file of this folder is a test file (see there).
 
-test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] [FR-P2P-004/AC1] [FR-DOA-005/AC1] [FR-P2P-005/AC1] scene 7: procurement finds scene 1’s request and the history’s in the pool, makes one PO of both with the prices paid before, sends it on the DOA’s route; its approver approves it on the web and procurement e-mails it to the supplier with its PDF', async ({
+test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] [FR-P2P-004/AC1] [FR-DOA-005/AC1] [FR-P2P-005/AC1] scene 7: procurement finds scene 1’s request and the history’s in the pool, makes one PO of both with the price history of each line as the data has it, sends it on the DOA’s route; its approver approves it on the web and procurement e-mails it to the supplier with its PDF', async ({
   page,
   browser,
 }, testInfo) => {

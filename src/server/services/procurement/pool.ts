@@ -1,4 +1,5 @@
-import { roundHalfUpDiv, lineNetsBeforeVat, parseQuantity, type Satang } from '@/core/money/math'
+import { lineNet, lineNetsBeforeVat, parseQuantity, roundHalfUpDiv, type Satang } from '@/core/money/math'
+import { formatQuantity } from '@/core/receiving'
 import type { TenantTx } from '@/server/db/tenant'
 
 // The procurement pool (spec FR-P2P-001, §7.10): the approved request lines with a quantity nobody has ordered yet.
@@ -60,11 +61,27 @@ export function draftBlock(line: Pick<FreeLine, 'priceIncludesVat'>): DraftBlock
 const scaled = (d: { toString(): string }) => parseQuantity(d.toString())
 
 /**
- * BR-BUD-05: what ordering `quantity` (×10⁴) of a request line gives back to the request when the PO is approved —
- * the quantity × the line's unit price, or for a document whose prices include VAT the quantity × the line's amount
- * before VAT ÷ its quantity — rounded half up once.
+ * BR-BUD-05: what ordering `quantity` (×10⁴) of a request line gives back to the request when the PO is approved,
+ * rounded half up once. A request priced before VAT: the quantity ordered × the request's unit price — the amount of a
+ * line (BR-MONEY-02 (1)), so a PO line at the request's own price gives back exactly its own amount. Never the share of
+ * the line's amount, which was rounded already: 2.4 of 2.5 × 10.01 gives back 24.02, not 24.03 from 25.03 × 2.4 ÷ 2.5.
+ * Only a request whose prices include VAT has no unit price before VAT: ADR-038 item 11 then shares the line's amount
+ * before VAT by quantity (quantity × amount before VAT ÷ the line's quantity) — and such a line reaches no PO until
+ * NEW-50 is decided (draftBlock).
+ * Each part is rounded on its own, so the parts of a line can give back a satang more or less than the line reserved
+ * when more than one of them is a fraction whose amount is not a whole satang: 2.5 × 10.01 (25.03) ordered as 0.1 and
+ * 2.4 gives back 1.00 + 24.02 = 25.02, and 4 × 2,500.25 (10,001.00) as 0.5 and 3.5 gives back 1,250.13 + 8,750.88 =
+ * 10,001.01. Approving never gives back more than the line still reserves (purchase-orders/budget.ts commitForPo), and
+ * nothing gives back a satang left reserved. Parts in whole units never differ.
+ * A PO cancelled with RETURN_TO_POOL reserves its releasable again as stored (BR-BUD-06), not the capped amount its
+ * approval gave back: 0.3 × 10.08 (3.02) ordered as 0.1 and 0.2 gives back 1.01 + 2.01 when both are approved and
+ * reserves 1.01 + 2.02 = 3.03 again when both are cancelled, a satang above the line's amount (INV-BUD-03).
+ * TODO(NEW-65): the user decides how a line ordered in parts ends at exactly what it reserved, both when its
+ * parts are approved and when they come back to the pool (pending NEW item)
  */
-export function releasableFor(line: Pick<FreeLine, 'quantity' | 'netBeforeVat'>, quantity: bigint): Satang {
+export function releasableFor(line: Pick<FreeLine, 'quantity' | 'netBeforeVat' | 'unitPriceSatang' | 'priceIncludesVat'>, quantity: bigint): Satang {
+  if (!line.priceIncludesVat) return lineNet(formatQuantity(quantity), line.unitPriceSatang)
+  // TODO(NEW-50): a request priced with VAT is kept off POs (draftBlock); this is ADR-038 item 11 for when it is not
   return roundHalfUpDiv(quantity * line.netBeforeVat, line.quantity)
 }
 
@@ -153,11 +170,14 @@ export interface LineBasis {
   readonly quantity: bigint
   readonly cancelled: bigint
   readonly netBeforeVat: Satang
+  /** The request's unit price as it states it, and whether its prices include VAT (what releasableFor needs) */
+  readonly unitPriceSatang: Satang
+  readonly priceIncludesVat: boolean
   /** What each source of a PO that still orders the line orders, ×10⁴ (by PoLineSource id) */
   readonly ordering: ReadonlyMap<string, bigint>
 }
 
-/** The quantity and amount before VAT of request lines, with what POs still order of them (BR-BUD-05, FR-P2P-003 AC2) */
+/** The quantity, price and amount before VAT of request lines, with what POs still order of them (BR-BUD-05, FR-P2P-003 AC2) */
 export async function requestLineBasis(tx: TenantTx, requestLineIds: readonly string[]): Promise<Map<string, LineBasis>> {
   const requestIds = [...new Set((await tx.requestLine.findMany({ where: { id: { in: [...requestLineIds] } }, select: { requestId: true } })).map((l) => l.requestId))]
   const requests = await tx.request.findMany({
@@ -187,7 +207,15 @@ export async function requestLineBasis(tx: TenantTx, requestLineIds: readonly st
       r.priceIncludesVat,
     )
     r.lines.forEach((l, i) =>
-      out.set(l.id, { requestId: r.id, quantity: scaled(l.quantity), cancelled: scaled(l.cancelledQuantity), netBeforeVat: nets[i]!, ordering: new Map(l.poSources.map((s) => [s.id, scaled(s.quantity)])) }),
+      out.set(l.id, {
+        requestId: r.id,
+        quantity: scaled(l.quantity),
+        cancelled: scaled(l.cancelledQuantity),
+        netBeforeVat: nets[i]!,
+        unitPriceSatang: l.unitPriceSatang,
+        priceIncludesVat: r.priceIncludesVat,
+        ordering: new Map(l.poSources.map((s) => [s.id, scaled(s.quantity)])),
+      }),
     )
   }
   return out

@@ -1,6 +1,5 @@
 import { TZDate } from '@date-fns/tz'
-import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { lineNet } from '@/core/money/math'
+import { satangToAmount } from '@/core/money/dto'
 import { stepUpNeeded } from '@/core/pin'
 import type { Result } from '@/core/result'
 import { addBusinessMinutes, subtractBusinessMinutes, type BusinessCalendar } from '@/core/sla'
@@ -26,6 +25,9 @@ import { sendPurchaseOrder } from '../purchase-orders/send'
 import { postGoodsReceipt } from '../receiving'
 import { departmentReceivers } from '../receiving/receivers'
 import { cancelRequest, createDraft, editRequest, submitRequest } from '../requests'
+import { quotationAmounts } from './quotations'
+
+export { DemoHistoryNetError } from './quotations'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
 // with the business clock set back, so every row ends in its status with real routes, decisions, budget movements,
@@ -52,8 +54,6 @@ const PO_DECISION_MINUTES = 120
 /** A delivery comes this many business days after the PO is sent, the invoice one business day after the delivery */
 const DELIVERY_DAYS = 2
 const MINUTES_PER_HOUR = 60
-/** The quotations of a request above the ATT-QUOTES threshold: the chosen one, and two higher by these factors */
-const OTHER_QUOTES_FACTOR = ['1.04', '1.07']
 
 export interface DemoHistoryReport {
   readonly seeded: boolean
@@ -317,10 +317,9 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   // Send; when the form's attachment rule asks for quotations (ATT-QUOTES above its amount), add three and send again
   let sent = await submitRequest(requester(submitAt, 'submit'), { requestId }, optionsOf(row, 'submit'))
   if (!sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED') {
-    const net = amountToSatang(row.net)
     const names = [row.supplier ?? 'S0', 'ALT-1', 'ALT-2']
-    // A comparison quote is the chosen one times 1.04 or 1.07, rounded as a line amount is (BR-MONEY-02)
-    const amounts = [net, ...OTHER_QUOTES_FACTOR.map((factor) => lineNet(factor, net))]
+    // The chosen quotation at the row's net and two comparisons at exactly 104 % and 107 % of it, never rounded
+    const amounts = quotationAmounts(row)
     const quotations = []
     for (const [i, amount] of amounts.entries()) {
       const fileId = await upload(row, requester(draftAt, `quote-${i + 1}`), `quote-${i + 1}`, `quotation-${row.ref}-${i + 1}.pdf`, quotationPdf(['BCS demo quotation', `${row.ref} ${names[i]}`, `THB ${satangToAmount(amount)} before VAT`]))
@@ -453,6 +452,10 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
       if (day < dateText(year.startsOn) || day > dateText(year.endsOn)) throw new DemoHistoryOutOfYearError(row.ref, day, year.code, dateText(year.startsOn), dateText(year.endsOn))
     }
   }
+  // Every row's quotations can be made exactly, whether or not its form will ask for them: the sheet gives its nets in
+  // whole baht (HistoryRow), and a net that is not is refused here with DemoHistoryNetError, before anything is written,
+  // rather than half way through the history (quotations.ts)
+  for (const row of rows) quotationAmounts(row)
 
   // Without the seed's PIN, the approvers without a PIN hold the one-time PIN until the history returns or stops
   let oneTime: OneTimePins = new Map()

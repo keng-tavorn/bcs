@@ -6,6 +6,7 @@ import { PO_MACHINE, VARIANCE_MACHINE, transition, type PoState, type TaskState,
 import { systemClock } from '@/lib/clock'
 import { newId } from '@/lib/ids'
 import { PIN_ONLY, requireStepUp } from '@/server/auth/step-up'
+import { loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { applyBudget } from '@/server/budget/ledger'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -15,6 +16,7 @@ import type { CommandOutcome } from '../_pipeline'
 import { assignNextStep } from '../approvals/next-step'
 import { closeRoute } from '../approvals/route'
 import { completeStep } from '../approvals/step-complete'
+import { budgetRefusalFor } from '../purchase-orders/budget'
 import { closePoInTx, unsettledLines } from '../purchase-orders/close'
 import type { DocumentTask } from '../purchase-orders/decide'
 import { keepPendingByLine, shortNow, standingOf } from './standing'
@@ -27,7 +29,9 @@ import { keepPendingByLine, shortNow, standingOf } from './standing'
 // gives back what still has not come when it is approved (BR-GR-04, NEW-32: goods received while it waited are not
 // given up), counts it as cancelled on the line, and once nothing on the PO is short or waiting, closes the PO
 // (GC-GR-04). Rejected: the excess or the damaged goods go back; a close-short is not done. The first decision on a step
-// decides it: its other open tasks are cancelled with it (step-complete.ts, BR-SLA-04, NEW-47).
+// decides it: its other open tasks are cancelled with it (step-complete.ts, BR-SLA-04, NEW-47). An excess the budget line
+// cannot hold is refused with BUDGET_INSUFFICIENT; what is left on the line and what is missing are told only to an
+// approver who may view the line (§2.4 budget.view), the same rule as for a receipt (services/receiving).
 
 const scaled = (d: { toString(): string }) => parseQuantity(d.toString())
 const COMMAND = { APPROVE: 'variance.final_approval', REJECT: 'approval.reject' } as const
@@ -130,9 +134,10 @@ export async function decideVarianceTask(
   const quantity = scaled(variance.quantity)
   const document = { type: 'PURCHASE_ORDER' as const, id: variance.poId }
   if (variance.disposition === 'ACCEPT_EXCESS') {
-    // BR-GR-04: the excess is kept and held at the PO price
+    // BR-GR-04: the excess is kept and held at the PO price; what is left and missing only for an approver who may view
+    // the budget line (§2.4 budget.view)
     const budget = await applyBudget(tx, ctx, [{ budgetLineId: line.budgetLineId, document, run: (s) => holdMore(s, line.id, variance.amountSatang) }])
-    if (!budget.ok) return budget
+    if (!budget.ok) return { ok: false, error: await budgetRefusalFor(tx, await loadPrincipal(tx, ctx), budget.error, [line.budgetLineId]) }
     events.push(...budget.events)
     await tx.poLine.update({ where: { id: line.id }, data: { receivedQuantity: formatQuantity(scaled(line.receivedQuantity) + quantity), acceptedExtraQuantity: formatQuantity(scaled(line.acceptedExtraQuantity) + quantity) } })
   } else if (variance.disposition === 'ACCEPT_DAMAGED') {

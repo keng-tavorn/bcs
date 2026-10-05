@@ -202,6 +202,24 @@ describe('[FR-PLT-001/AC1] D-01 the demo history: every row of Demo_History ends
     expect(() => parseDemoHistory(edited)).toThrow(`Demo_History ${returned.values.ref}: a returned request is decided in LIFF or on the web`)
   })
 
+  it('sends a request above the ATT-QUOTES amount with its net and comparison quotations of exactly 104 % and 107 % of it, never rounded (BR-MONEY-02)', async () => {
+    const quotations = await prisma.requestQuotation.findMany({ where: { organizationId: seeded.organizationId }, orderBy: [{ requestId: 'asc' }, { amountSatang: 'asc' }], select: { requestId: true, amountSatang: true, includesVat: true, isSelected: true } })
+    const quoted = [...new Set(quotations.map((q) => q.requestId))]
+    expect(quoted.length).toBeGreaterThan(0)
+    for (const requestId of quoted) {
+      const ref = seeded.refOf.get(requestId)!
+      // The sheet's net in whole baht: 104 and 107 baht for every 100 of it
+      const baht = amountToSatang(seeded.sheet.find((r) => r.ref === ref)!.net!) / 100n
+      const mine = quotations.filter((q) => q.requestId === requestId)
+      expect(mine.map((q) => [q.amountSatang, q.includesVat, q.isSelected]), ref).toEqual([
+        [baht * 100n, false, true],
+        [baht * 104n, false, false],
+        [baht * 107n, false, false],
+      ])
+    }
+    // The amounts themselves, and the refusal of a net that is not whole baht: tests/unit/demo-history-quotations.test.ts
+  })
+
   it('a second run finds the history made and adds nothing', async () => {
     const count = () => Promise.all([prisma.request.count({ where: { organizationId: seeded.organizationId } }), prisma.event.count({ where: { organizationId: seeded.organizationId } })])
     const before = await count()
@@ -351,6 +369,17 @@ describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is re
     const year = await prisma.fiscalYear.findFirstOrThrow({ where: { organizationId }, orderBy: { endsOn: 'desc' }, select: { endsOn: true } })
     const afterTheYear = new Date(year.endsOn.getTime() + 4 * MS_PER_DAY)
     await expect(seedDemoHistory(organizationId, parseDemoHistory(workbook), afterTheYear, { pin: PIN })).rejects.toBeInstanceOf(DemoHistoryOutOfYearError)
+    expect(await prisma.request.count({ where: { organizationId } })).toBe(0)
+    expect(await prisma.commandLog.count({ where: { organizationId, idempotencyKey: { contains: 'demo-history:' } } })).toBe(0)
+  })
+
+  it('refuses, before it makes anything, a row whose net is not whole baht: its comparison quotations would need rounding (BR-MONEY-02)', async () => {
+    const organizationId = await seedOrganization(workbook, `${ORG_CODE}-2`, 'history2.')
+    const rows = parseDemoHistory(workbook)
+    // The last row of the sheet with satang in its net: 107 % of 1,000.25 is 1,070.2675
+    const last = rows.at(-1)!
+    const refused = seedDemoHistory(organizationId, [...rows.slice(0, -1), { ...last, net: '1000.25' }], NOW, { pin: PIN })
+    await expect(refused).rejects.toThrow(`Demo_History ${last.ref}: a comparison quotation of 107% of 1000.25 is not a whole satang and is never rounded (BR-MONEY-02)`)
     expect(await prisma.request.count({ where: { organizationId } })).toBe(0)
     expect(await prisma.commandLog.count({ where: { organizationId, idempotencyKey: { contains: 'demo-history:' } } })).toBe(0)
   })

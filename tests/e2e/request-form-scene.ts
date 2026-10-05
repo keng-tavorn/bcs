@@ -5,16 +5,19 @@ import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { E2E_DB } from '../support/e2e-env'
+import { lineWithRoom } from './budget-room'
 
 // Run by tests/e2e/request-form.spec.ts against the e2e database only: a request of two lines that req_con2 sent on
 // CON-CAPEX-2569 (cement 12,000.00 and sand 3,000.00 before VAT) and its approver returned for changes, so the form can
-// show a returned request that keeps its reservation (§6.4). Prints the request id as JSON on the last line.
+// show a returned request that keeps its reservation (§6.4). The line has room for the 15,000.00 first: other specs of the
+// run spend it too, and a budget admin tops it up through the budget import when they have left less
+// (tests/e2e/budget-room.ts). Prints the request id as JSON on the last line.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the request form scene runs in the e2e database only')
 
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
 const requester = await prisma.member.findFirstOrThrow({ where: { employeeCode: 'req_con2' }, select: { id: true, organizationId: true } })
 const ctxOf = (memberId: string) => makeCtx({ organizationId: requester.organizationId, actor: { type: 'USER', memberId }, channel: 'WEB', now: systemClock.now() })
-const budgetLine = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId: requester.organizationId, code: 'CON-CAPEX-2569' }, select: { id: true } })
+const budgetLine = await lineWithRoom(['CON-CAPEX-2569'], 1_500_000n)
 
 const draft = await createDraft(
   ctxOf(requester.id),

@@ -60,6 +60,16 @@ function liffRequestsScene<T>(...args: string[]): T {
   return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
 }
 
+/**
+ * The budget line has at least `baht` left before the test asks for that much on it (tests/e2e/budget-room-scene.ts):
+ * both projects and many specs spend the same lines in one database, and when they have left less, a budget admin tops
+ * the line up through the budget import, as an administrator does
+ */
+function roomOn(code: string, baht: string): void {
+  const r = spawnSync(`pnpm exec tsx tests/e2e/budget-room-scene.ts ${code} ${baht}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
+  if (r.status !== 0) throw new Error(`budget room scene failed:\n${r.stdout}\n${r.stderr}`)
+}
+
 /** A photo as a phone's camera hands it over, at its smallest: one pixel of PNG */
 const PHOTO_PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64')
 
@@ -126,6 +136,8 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     const lineUserId = newLineUserId()
     const tag = sceneTag('scene1')
     liffRequestsScene<{ member: SceneMember }>('requester', tag, lineUserId, 'CON', 'history')
+    // The line the form fills has room for the 42,000.00 before VAT asked below
+    roomOn('CON-OPEX-2569', '42000.00')
     await openAsLineUser(context, lineUserId)
     const title = `ไม้อัดและตะปู ไซต์ A ${tag}`
 
@@ -366,13 +378,15 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     context,
   }, testInfo) => {
     const lineUserId = newLineUserId()
-    liffRequestsScene('requester', sceneTag('scene4'), lineUserId, 'IT')
+    // An IT requester whose last IT purchase went on IT-OPEX-2569 (sent and cancelled): other specs of the run add budget
+    // lines to IT, so the line this form fills is the requester's own history, not IT's only line
+    liffRequestsScene('requester', sceneTag('scene4'), lineUserId, 'IT', 'history')
     await openAsLineUser(context, lineUserId)
 
     // A link from LINE straight to the type's form: the gate signs in first, then the form shows
     await page.goto('/liff/requests/new/IT_PURCHASE')
     await expect(page.getByRole('heading', { level: 1, name: 'คำขอใหม่: ซื้ออุปกรณ์/ซอฟต์แวร์ไอที' })).toBeVisible()
-    // IT has one budget line: the form fills it, with what is left on it
+    // BR-FORM-02: the line the requester used last for this type, with what is left on it
     await expect(page.getByLabel('บรรทัดงบที่ใช้').locator('option:checked')).toHaveText(/^IT-OPEX-2569 · /)
     await expect(remainingOf(page)).toContainText(/[\d,]+\.\d{2} บาท/)
     const available = satangOf((await remainingOf(page).textContent())!.replace('งบคงเหลือของบรรทัดนี้', ''))
@@ -400,6 +414,14 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     const send = page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true })
     await expect(send).toBeDisabled()
     await expect(page.getByText(`ส่งไม่ได้เพราะงบไม่พอ: คงเหลือ ${shown(available)} บาท ขาด ${shown(shortfall)} บาท ลดยอดหรือเลือกบรรทัดงบอื่น`)).toBeVisible()
+    // §9.9 principle 3: "ตรวจก่อนส่ง" leads with the same reason and figures, and never says the request can be sent. Once
+    // what the run left on the line and 35,000.00 more is above 100,000.00 baht with VAT, the quotation rule (ATT-QUOTES)
+    // is listed too, which kept the ready line away even when the step left the budget out: the budget point is the check
+    // that tells the two apart. Over budget with nothing else to fix: demo scene 4 (tests/e2e/demo/04-budget-blocks.spec.ts)
+    // and tests/unit/request-form-review.test.tsx
+    const beforeSending = page.getByRole('region', { name: 'ตรวจก่อนส่ง' })
+    await expect(beforeSending).toContainText(`งบไม่พอ: คงเหลือ ${shown(available)} บาท ขาด ${shown(shortfall)} บาท ลดยอดหรือเลือกบรรทัดงบอื่น (ต้องแก้ก่อนส่ง)`)
+    await expect(beforeSending).not.toContainText('ข้อมูลที่ตรวจได้บนหน้านี้ครบแล้ว กดส่งได้')
     await checkScreen(page, testInfo, 'liff-request-over-budget')
     await firstScreen(page, testInfo, 'liff-request-over-budget')
 

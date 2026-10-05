@@ -11,6 +11,7 @@ import { sendPurchaseOrder } from '@/server/services/purchase-orders/send'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { attachFile } from '@/server/services/requests/attachments'
 import { E2E_DB, E2E_PIN } from '../support/e2e-env'
+import { lineWithRoom } from './budget-room'
 import { ATTACHMENT_NAME, ATTACHMENT_PDF } from './tasks-attachment'
 
 // Run by the §9.4 budget tests of the LIFF pages (liff-requests.spec.ts, liff-tasks.spec.ts, liff-gr.spec.ts) against the
@@ -31,10 +32,10 @@ import { ATTACHMENT_NAME, ATTACHMENT_PDF } from './tasks-attachment'
 //   sent-po <requestNumber> <lines> <tag>
 //                                       the member who sent that request of the demo organization (a fresh requester of
 //                                       tests/e2e/receiving-scene.ts) asks in LIFF for <lines> lines, 14,900.00 baht before
-//                                       VAT in all (that scene's PO, within the DM's band: no PIN), urgent: approved by
-//                                       whoever holds its task, drafted into its own PO by procurement (BR-CONS-02), approved
-//                                       and e-mailed to the supplier — a PO the receivers of construction receive
-//                                       (/liff/gr/<poId>)
+//                                       VAT in all (that scene's PO, within the DM's band: no PIN) on a construction budget
+//                                       line with room for it, urgent: approved by whoever holds its task, drafted into its
+//                                       own PO by procurement (BR-CONS-02), approved and e-mailed to the supplier — a PO the
+//                                       receivers of construction receive (/liff/gr/<poId>)
 // The amounts are whole satang written as text (BR-MONEY-01): no floating point anywhere.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the LIFF budget scene runs in the e2e database only')
 
@@ -99,15 +100,11 @@ async function demoMember(memberId: string | undefined) {
   return makeCtx({ organizationId: member.organizationId, actor: { type: 'USER', memberId: member.id }, channel: 'LIFF', now })
 }
 
-/** A construction budget line of the organization with at least `netSatang` left: the capex line first */
-async function conLineWithRoom(organizationId: string, netSatang: bigint) {
-  for (const code of ['CON-CAPEX-2569', 'CON-OPEX-2569']) {
-    const line = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId, code }, select: { id: true } })
-    const balance = await prisma.budgetLineBalance.findUniqueOrThrow({ where: { budgetLineId: line.id }, select: { availableSatang: true } })
-    if (balance.availableSatang >= netSatang) return line
-  }
-  throw new Error('no construction budget line has room left for the scene')
-}
+/**
+ * A construction budget line of the demo organization with at least `netSatang` left: the capex line first; when neither
+ * has room, a budget admin tops the capex line up through the budget import (tests/e2e/budget-room.ts)
+ */
+const conLineWithRoom = (netSatang: bigint) => lineWithRoom(['CON-CAPEX-2569', 'CON-OPEX-2569'], netSatang)
 
 const netOf = (lines: ReadonlyArray<{ quantity: string; unitPrice: string }>) => lines.reduce((sum, l) => sum + BigInt(l.quantity) * BigInt(l.unitPrice.replace('.', '')), 0n)
 
@@ -115,7 +112,7 @@ const netOf = (lines: ReadonlyArray<{ quantity: string; unitPrice: string }>) =>
 async function demoDraft(ctx: Ctx, count: number, tag: string) {
   const lines = Array.from({ length: count }, (_, i) => materialLine(i))
   const [line, site] = await Promise.all([
-    conLineWithRoom(ctx.organizationId, netOf(lines)),
+    conLineWithRoom(netOf(lines)),
     prisma.deliverySite.findFirstOrThrow({ where: { organizationId: ctx.organizationId, code: 'SITE-A' }, select: { id: true } }),
   ])
   const title = `วัสดุงานโครงสร้างไซต์ A ${count} รายการ ${tag}`
@@ -259,12 +256,12 @@ switch (command) {
     const count = countOf(args[1])
     const title = `วัสดุงานโครงสร้างไซต์ A ${count} รายการ ${tagOf(args[2])}`
     const procurement = await seededMember(ctx.organizationId, 'proc_officer')
+    const lines = linesSummingTo(count, 1_490_000n)
     const [budgetLine, site, supplier] = await Promise.all([
-      prisma.budgetLine.findFirstOrThrow({ where: { organizationId: ctx.organizationId, code: 'CON-OPEX-2569' }, select: { id: true } }),
+      conLineWithRoom(netOf(lines)),
       prisma.deliverySite.findFirstOrThrow({ where: { organizationId: ctx.organizationId, code: 'SITE-A' }, select: { id: true } }),
       prisma.supplier.findFirstOrThrow({ where: { organizationId: ctx.organizationId, code: 'S1' }, select: { id: true } }),
     ])
-    const lines = linesSummingTo(count, 1_490_000n)
     const draft = must(
       'draft',
       await createDraft(ctx, { requestTypeCode: 'BUY_GOODS', title, urgency: 'URGENT', priceIncludesVat: false, budgetLineId: budgetLine.id, deliverySiteId: site.id, lines }, key()),

@@ -7,14 +7,17 @@ import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { issueLineLinkCode, linkLineAccount } from '@/server/services/line-link'
 import { cancelRequest, createDraft, submitRequest } from '@/server/services/requests'
 import { E2E_DB } from '../support/e2e-env'
+import { lineWithRoom } from './budget-room'
 
 // Run by tests/e2e/liff-requests.spec.ts (through liffRequestsScene) against the e2e database only: builds what a test
 // of the LIFF request pages needs through the services, as the workspace and LINE would, and prints it as JSON on the
 // last line.
 //   requester <tag> <lineUserId> <CON|IT> [history]
 //        a fresh requester of that department, linked to that LINE account (a link code issued and spent with an ID token
-//        of the fake LINE server, as /liff/link does). With "history": a request of theirs sent on CON-OPEX-2569 to SITE-A
-//        and cancelled, so the form fills that budget line and that site as BR-FORM-02 says (scene 1: req_con's form)
+//        of the fake LINE server, as /liff/link does). With "history": a request of theirs sent and cancelled — of CON a
+//        purchase (BUY_GOODS) on CON-OPEX-2569 to SITE-A, of IT an IT purchase (IT_PURCHASE) on IT-OPEX-2569 — so the form
+//        of that type fills that budget line (and site) as BR-FORM-02 says, whatever lines other specs of the run add to
+//        the department (scene 1: req_con's form; scene 4: req_it's)
 //   approved <tag> <lineUserId>
 //        a fresh CON requester linked to that LINE account, with a request of 42,000.00 baht before VAT sent from LIFF
 //        and approved by its approver in the LINE chat (scenes 1 and 2), for the request page and the list
@@ -32,10 +35,11 @@ import { E2E_DB } from '../support/e2e-env'
 //   drafts <tag>
 //        the drafts of the scene member with that tag: id, title and the channels of their request.drafted Events
 // Requests whose amount is not the point take a CON budget line that has room left for them (CON-CAPEX-2569 first), so
-// this spec does not use up the line the demo's scenes and other specs count on (CON-OPEX-2569). A fresh member (employee
-// code e2e-liffreq-<tag>, a plain requester of the demo organization no other test touches) keeps each test apart from
-// the rest of the run; nothing here signs anyone in. Link codes are short-lived secrets of this test database only, and
-// are never printed.
+// this spec does not use up the line the demo's scenes and other specs count on (CON-OPEX-2569); when no line has room,
+// a budget admin tops one up through the budget import, never by writing a balance (tests/e2e/budget-room.ts). A fresh
+// member (employee code e2e-liffreq-<tag>, a plain requester of the demo organization no other test touches) keeps each
+// test apart from the rest of the run; nothing here signs anyone in. Link codes are short-lived secrets of this test
+// database only, and are never printed.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the LIFF requests scene runs in the e2e database only')
 
 const [command, ...args] = process.argv.slice(2)
@@ -93,19 +97,11 @@ async function link(memberId: string, lineUserId: string): Promise<void> {
   if (!linked.ok) throw new Error(`not linked: ${linked.error.code}`)
 }
 
-async function budgetLineByCode(code: string) {
-  return prisma.budgetLine.findFirstOrThrow({ where: { organizationId: org.id, code }, select: { id: true, code: true } })
-}
-
-/** A CON budget line with at least `netSatang` left: CON-CAPEX-2569 when it has room, else CON-OPEX-2569 */
-async function conLineWithRoom(netSatang: bigint) {
-  for (const code of ['CON-CAPEX-2569', 'CON-OPEX-2569']) {
-    const line = await budgetLineByCode(code)
-    const balance = await prisma.budgetLineBalance.findUniqueOrThrow({ where: { budgetLineId: line.id }, select: { availableSatang: true } })
-    if (balance.availableSatang >= netSatang) return line
-  }
-  throw new Error('no CON budget line has room left for the scene')
-}
+/**
+ * A CON budget line with at least `netSatang` left: CON-CAPEX-2569 when it has room, else CON-OPEX-2569; when neither
+ * has, a budget admin tops CON-CAPEX-2569 up through the budget import (tests/e2e/budget-room.ts)
+ */
+const conLineWithRoom = (netSatang: bigint) => lineWithRoom(['CON-CAPEX-2569', 'CON-OPEX-2569'], netSatang)
 
 async function site(code: string) {
   return prisma.deliverySite.findFirstOrThrow({ where: { organizationId: org.id, code }, select: { id: true, code: true } })
@@ -164,6 +160,47 @@ async function giveBack(requestId: string) {
   if (!returned.ok) throw new Error(`return failed: ${returned.error.code} ${JSON.stringify(returned.error.details ?? {})}`)
 }
 
+/** The one line of a history request, 100.00 before VAT, and its budget line */
+const HISTORY = {
+  CON: { budgetLine: 'CON-OPEX-2569', line: { description: 'ถุงมือผ้า', quantity: '1', uom: 'โหล', unitPrice: '100.00' } },
+  IT: { budgetLine: 'IT-OPEX-2569', line: { description: 'เมาส์ไร้สาย', quantity: '1', uom: 'ชิ้น', unitPrice: '100.00' } },
+} as const satisfies Record<'CON' | 'IT', { budgetLine: string; line: Line }>
+
+/**
+ * A request of the member's sent and cancelled at once: it leaves no task with anyone and gives its budget back
+ * (FR-INT-009 AC1), and it is the latest request of its type the member sent — on CON-OPEX-2569 to SITE-A for CON, an IT
+ * purchase of hardware on IT-OPEX-2569 for IT (no personal data, no system or site access: no DPA asked). Its line has
+ * room for it first (tests/e2e/budget-room.ts): other specs of the run may have left the line nothing
+ */
+async function history(memberId: string, departmentCode: 'CON' | 'IT', tag: string) {
+  const { budgetLine, line } = HISTORY[departmentCode]
+  const { id: budgetLineId } = await lineWithRoom([budgetLine], netOf([line]))
+  const draft =
+    departmentCode === 'CON'
+      ? await createDraft(
+          ctxOf(memberId, 'WEB'),
+          { requestTypeCode: 'BUY_GOODS', priceIncludesVat: false, title: `คำขอก่อนหน้า ${tag}`, budgetLineId, deliverySiteId: (await site('SITE-A')).id, lines: [{ ...line }] },
+          key(),
+        )
+      : await createDraft(
+          ctxOf(memberId, 'WEB'),
+          {
+            requestTypeCode: 'IT_PURCHASE',
+            priceIncludesVat: false,
+            title: `คำขอก่อนหน้า ${tag}`,
+            budgetLineId,
+            formData: { category: 'HARDWARE', processesPersonalData: 'N', accessesSystems: 'N', accessesPremises: 'N' },
+            lines: [{ ...line }],
+          },
+          key(),
+        )
+  if (!draft.ok) throw new Error(`draft failed: ${draft.error.code} ${JSON.stringify(draft.error.details ?? {})}`)
+  const submitted = await submitRequest(ctxOf(memberId, 'WEB'), { requestId: draft.data.requestId }, key())
+  if (!submitted.ok) throw new Error(`submit failed: ${submitted.error.code} ${JSON.stringify(submitted.error.details ?? {})}`)
+  const cancelled = await cancelRequest(ctxOf(memberId, 'WEB'), { requestId: draft.data.requestId, reason: 'ส่งซ้ำ ยกเลิกใบนี้' }, key())
+  if (!cancelled.ok) throw new Error(`cancel failed: ${cancelled.error.code}`)
+}
+
 async function sceneMember(tag: string | undefined, lineUserId: string | undefined) {
   const member = await freshMember(tagOf(tag), 'CON')
   await link(member.id, lineUserOf(lineUserId))
@@ -173,24 +210,12 @@ async function sceneMember(tag: string | undefined, lineUserId: string | undefin
 let result: unknown
 switch (command) {
   case 'requester': {
-    const [tag, lineUserId, department, history] = args
+    const [tag, lineUserId, department, withHistory] = args
     if (department !== 'CON' && department !== 'IT') throw new Error('the requester is of CON or IT')
+    if (withHistory !== undefined && withHistory !== 'history') throw new Error('the last argument of requester is "history" or nothing')
     const member = await freshMember(tagOf(tag), department)
     await link(member.id, lineUserOf(lineUserId))
-    if (history === 'history') {
-      // Sent on CON-OPEX-2569 and cancelled at once: it leaves no task with anyone and gives its budget back (FR-INT-009 AC1)
-      const [line, place] = await Promise.all([budgetLineByCode('CON-OPEX-2569'), site('SITE-A')])
-      const draft = await createDraft(
-        ctxOf(member.id, 'WEB'),
-        { requestTypeCode: 'BUY_GOODS', priceIncludesVat: false, title: `คำขอก่อนหน้า ${tag}`, budgetLineId: line.id, deliverySiteId: place.id, lines: [{ description: 'ถุงมือผ้า', quantity: '1', uom: 'โหล', unitPrice: '100.00' }] },
-        key(),
-      )
-      if (!draft.ok) throw new Error(`draft failed: ${draft.error.code}`)
-      const submitted = await submitRequest(ctxOf(member.id, 'WEB'), { requestId: draft.data.requestId }, key())
-      if (!submitted.ok) throw new Error(`submit failed: ${submitted.error.code}`)
-      const cancelled = await cancelRequest(ctxOf(member.id, 'WEB'), { requestId: draft.data.requestId, reason: 'ส่งซ้ำ ยกเลิกใบนี้' }, key())
-      if (!cancelled.ok) throw new Error(`cancel failed: ${cancelled.error.code}`)
-    }
+    if (withHistory) await history(member.id, department, tagOf(tag))
     result = { member }
     break
   }

@@ -60,6 +60,16 @@ function latestSite(requester: string, site: string): void {
   if (r.status !== 0) throw new Error(`supplier scene failed:\n${r.stdout}\n${r.stderr}`)
 }
 
+/**
+ * The budget line has at least `baht` left before the test asks for that much on it (tests/e2e/budget-room-scene.ts):
+ * both projects and many specs spend the same lines in one database, and when they have left less, a budget admin tops
+ * the line up through the budget import, as an administrator does
+ */
+function roomOn(code: string, baht: string): void {
+  const r = spawnSync(`pnpm exec tsx tests/e2e/budget-room-scene.ts ${code} ${baht}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
+  if (r.status !== 0) throw new Error(`budget room scene failed:\n${r.stdout}\n${r.stderr}`)
+}
+
 /** The code of the budget line <member> sent their latest request of <type> on, or null (tests/e2e/form-defaults-scene.ts) */
 function lastUsedBudgetLine(member: string, type: string): string | null {
   const r = spawnSync(`pnpm exec tsx tests/e2e/form-defaults-scene.ts ${member} ${type}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
@@ -118,6 +128,8 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
 }, testInfo) => {
   // Demo scene 1: req_con's requests go to SITE-A, so the form fills the department, the budget and the site
   latestSite('req_con', 'SITE-A')
+  // The line has room for what the request reserves: 45,000.00 with VAT is 42,056.07 before it (BR-VAT-03)
+  roomOn('CON-OPEX-2569', '42056.07')
   await signIn(page, 'req_con')
   await page.goto('/requests/new/BUY_GOODS')
   await expect(page.getByRole('heading', { level: 1, name: 'คำขอใหม่: ซื้อของ' })).toBeVisible()
@@ -200,6 +212,13 @@ test('[FR-INT-004/AC2] over budget, the send button says why and by how much, an
   await expect(send).toBeDisabled()
   await expect(page.getByText(`ส่งไม่ได้เพราะงบไม่พอ: คงเหลือ ${shown(available)} บาท ขาด ${shown(shortfall)} บาท`)).toBeVisible()
   await expect(send).toHaveAccessibleDescription(/ส่งไม่ได้เพราะงบไม่พอ/)
+  // §9.9 principle 3: "ตรวจก่อนส่ง" leads with the same reason and figures, and never says the request can be sent. At
+  // 963,000.00 baht with VAT the quotation rule (ATT-QUOTES) is listed too, which kept the ready line away even when the
+  // step left the budget out: the budget point is the check that tells the two apart. Over budget with nothing else to
+  // fix: tests/unit/request-form-review.test.tsx (this form) and demo scene 4 (LIFF)
+  const beforeSending = page.getByRole('region', { name: 'ตรวจก่อนส่ง' })
+  await expect(beforeSending).toContainText(`งบไม่พอ: คงเหลือ ${shown(available)} บาท ขาด ${shown(shortfall)} บาท ลดยอดหรือเลือกบรรทัดงบอื่น (ต้องแก้ก่อนส่ง)`)
+  await expect(beforeSending).not.toContainText('ข้อมูลที่ตรวจได้บนหน้านี้ครบแล้ว กดส่งได้')
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'review-over-budget')
 })
@@ -274,6 +293,8 @@ test('[FR-INT-002/AC1] [FR-INT-002/AC3] [FR-INT-005/AC5] [FR-PLT-004/AC2] IT: fi
 test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quotations as data, compared before VAT, and what is missing is refused with the rule', async ({
   page,
 }, testInfo) => {
+  // The request goes at the end: its line has room for 107,000.00 with VAT, 100,000.00 before it
+  roomOn('CON-CAPEX-2569', '100000.00')
   await signIn(page, 'req_con2')
   await page.goto('/requests/new/BUY_GOODS')
   await page.getByLabel('ชื่อคำขอ').fill(`เครื่องผสมปูน (${testInfo.project.name})`)

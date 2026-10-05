@@ -30,6 +30,8 @@
   "closedBody": "It was decided, cancelled or moved to someone else",
   "usedTitle": "This link was already used",
   "usedBody": "A decision link works once. See the result in BCS",
+  "usedBy": "Already decided by {name} {time}",
+  "usedAt": "Already decided {time}. See the result in BCS",
   "expiredTitle": "This link has expired",
   "expiredBody": "Decision links work for 72 hours. Decide in BCS",
   "invalidTitle": "This link cannot be used",

@@ -6,11 +6,13 @@ import { TwoFactorSetup } from '@/ui/auth/two-factor-setup'
 import { Notice } from '@/ui/form/notice'
 import { LanguageSwitch } from '@/ui/shell/language-switch'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
+import { ClientMessages } from '../_lib/client-messages'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession } from '../_lib/session'
 
 // Pages of the BCS team (PLATFORM_ADMIN, §2.2 · §9.1): signed in, an active PlatformAdmin row, and TOTP always on
-// (BR-AUTH-08). Anyone else gets "not found", so the area is not advertised. Services check the admin again.
+// (BR-AUTH-08). Anyone else gets "not found", so the area is not advertised. Services check the admin again. Its client
+// components read the platform's and the security messages only (src/i18n/client-messages.ts).
 export default async function PlatformLayout({ children }: { children: ReactNode }) {
   const state = await getPlatformSession()
   if (state.kind === 'anonymous') redirect('/login')
@@ -41,40 +43,44 @@ export default async function PlatformLayout({ children }: { children: ReactNode
 
   if (state.kind === 'needs-2fa-setup') {
     return (
-      <div className="min-h-dvh bg-bg">
-        <header className="border-b border-line bg-surface">
-          <div className="mx-auto max-w-2xl px-4 py-4">
-            <span className="text-xl font-bold text-ink">{tAuth('brand')}</span>
-          </div>
-        </header>
-        <main id="content" className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
-          <h1 className="text-2xl font-semibold">{tSecurity('twoFactorTitle')}</h1>
-          <Notice tone="info">{t('twoFactorRequired')}</Notice>
-          <TwoFactorSetup />
-          <div className="flex flex-wrap items-center gap-4 border-t border-line pt-4">
-            {languageSwitch}
-            <SignOutButton />
-          </div>
-        </main>
-      </div>
+      <ClientMessages scope="platform">
+        <div className="min-h-dvh bg-bg">
+          <header className="border-b border-line bg-surface">
+            <div className="mx-auto max-w-2xl px-4 py-4">
+              <span className="text-xl font-bold text-ink">{tAuth('brand')}</span>
+            </div>
+          </header>
+          <main id="content" className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-8">
+            <h1 className="text-2xl font-semibold">{tSecurity('twoFactorTitle')}</h1>
+            <Notice tone="info">{t('twoFactorRequired')}</Notice>
+            <TwoFactorSetup />
+            <div className="flex flex-wrap items-center gap-4 border-t border-line pt-4">
+              {languageSwitch}
+              <SignOutButton />
+            </div>
+          </main>
+        </div>
+      </ClientMessages>
     )
   }
 
   return (
-    <WorkspaceShell
-      brand={tAuth('brand')}
-      orgName={t('teamName')}
-      userLine={tShell('signedInAs', { name: state.displayName })}
-      labels={{ skipToContent: tShell('skipToContent'), menu: tShell('menu'), mainNav: tShell('mainNav') }}
-      nav={[{ key: 'tenants', href: '/platform/tenants', group: 'platform', label: tItems('tenants'), groupLabel: tGroups('platform') }]}
-      account={
-        <div className="flex flex-col items-start gap-3">
-          {languageSwitch}
-          <SignOutButton />
-        </div>
-      }
-    >
-      {children}
-    </WorkspaceShell>
+    <ClientMessages scope="platform">
+      <WorkspaceShell
+        brand={tAuth('brand')}
+        orgName={t('teamName')}
+        userLine={tShell('signedInAs', { name: state.displayName })}
+        labels={{ skipToContent: tShell('skipToContent'), menu: tShell('menu'), mainNav: tShell('mainNav') }}
+        nav={[{ key: 'tenants', href: '/platform/tenants', group: 'platform', label: tItems('tenants'), groupLabel: tGroups('platform') }]}
+        account={
+          <div className="flex flex-col items-start gap-3">
+            {languageSwitch}
+            <SignOutButton />
+          </div>
+        }
+      >
+        {children}
+      </WorkspaceShell>
+    </ClientMessages>
   )
 }

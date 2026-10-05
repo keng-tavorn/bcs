@@ -5,6 +5,7 @@ import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, Section, type Fact } from '@/ui/request-view/facts'
 import { LineList } from '@/ui/request-view/lines'
 import { StateLine, type StateKind } from '@/ui/request-view/status'
+import { StepApprovers } from '@/ui/request-view/step-approvers'
 import { BYTES_PER_KIB } from '@/lib/constants'
 import { day, doaHref, doaRefText, expectedText, fileKind, memberName, money, nameIn, roleText, routeSentence, when, type Locale } from './present'
 
@@ -163,16 +164,34 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                 const state = stepState(step)
                 const who = step.approver ? memberName(locale, step.approver) : expectedText(locale, step.expected)
                 const role = roleText(t, locale, step.role)
+                // BR-SLA-04: the band above joined the step past its escalation time; its decision keeps the route's rule
+                const escalated = step.escalation === 'CO_ASSIGNED' ? t('route.escalated') : undefined
                 return (
                   <li key={step.stepNo} className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                    <div className="min-w-0">
-                      <p className="font-medium text-ink">
-                        {t('route.step', { no: step.stepNo })}
-                        {who ? ` · ${who}` : ''}
-                      </p>
-                      {role ? <p className="text-ink-muted">{role}</p> : null}
-                      {step.onBehalfOf ? <p className="text-ink-muted">{t('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
-                    </div>
+                    {/* An escalated step waits for its co-assignee too: everyone who may decide it (BR-SLA-04, NEW-46) */}
+                    {step.open && step.open.length > 1 ? (
+                      <StepApprovers
+                        title={t('route.step', { no: step.stepNo })}
+                        approvers={step.open.map((o, i) => ({
+                          key: o.taskId,
+                          name: i === 0 ? memberName(locale, o.approver) : t('route.orApprover', { name: memberName(locale, o.approver) }),
+                          role: roleText(t, locale, o.role) || undefined,
+                          actingFor: o.onBehalfOf ? t('actingFor', { name: memberName(locale, o.onBehalfOf) }) : undefined,
+                        }))}
+                        mark={escalated}
+                        note={t('route.firstDecides')}
+                      />
+                    ) : (
+                      <div className="min-w-0">
+                        <p className="font-medium text-ink">
+                          {t('route.step', { no: step.stepNo })}
+                          {who ? ` · ${who}` : ''}
+                        </p>
+                        {role ? <p className="text-ink-muted">{role}</p> : null}
+                        {step.onBehalfOf ? <p className="text-ink-muted">{t('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
+                        {escalated ? <p className="text-base text-ink-muted md:text-sm">{escalated}</p> : null}
+                      </div>
+                    )}
                     <StateLine kind={state.kind} className="shrink-0">
                       {t(`route.stepState.${state.key}`)}
                     </StateLine>
@@ -260,6 +279,9 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                     <p className="break-words whitespace-pre-line text-ink">{q.answer}</p>
                     <p className="text-base text-ink-muted md:text-sm">{t('questions.answered', { name: memberName(locale, q.answeredBy), time: when(locale, q.answeredAt) })}</p>
                   </blockquote>
+                ) : q.noLongerNeeded ? (
+                  // The task that asked was closed: the other approver of the step decided first (BR-SLA-04), or the route ended
+                  <StateLine kind="closed">{t(`questions.noLongerNeeded.${q.noLongerNeeded}`)}</StateLine>
                 ) : (
                   <StateLine kind="question">{t('questions.waiting')}</StateLine>
                 )}

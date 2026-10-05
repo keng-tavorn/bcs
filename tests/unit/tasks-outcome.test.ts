@@ -18,7 +18,7 @@ describe('[FR-DOA-004/AC1] decisions explain every refusal', () => {
   it.each([
     [{ code: 'VALIDATION_FAILED', details: { field: 'reason' } }, 'REASON'],
     [{ code: 'VALIDATION_FAILED', details: { field: 'question' } }, 'QUESTION'],
-    [{ code: 'VALIDATION_FAILED', details: { field: 'code' } }, 'CODE'],
+    [{ code: 'VALIDATION_FAILED', details: { field: 'pin' } }, 'PIN'],
     [{ code: 'VALIDATION_FAILED', details: { field: 'effectiveFrom', reason: 'LATER_VERSION_SCHEDULED' } }, 'LATER_VERSION'],
     [{ code: 'VALIDATION_FAILED', details: { field: 'decision', reason: 'RETURN_NOT_ALLOWED' } }, 'FAILED'],
     // A question asked on a policy task (those are approved or rejected only, BR-DOA-15)
@@ -37,10 +37,21 @@ describe('[FR-DOA-004/AC1] decisions explain every refusal', () => {
     expect(taskErrorKey(toActionFailure(error))).toBe(key)
   })
 
-  it('tells a wrong, locked or missing authenticator code apart (BR-DOA-15 step-up)', () => {
-    expect(taskErrorKey({ ok: false, code: 'STEP_UP', reason: 'INVALID_CODE' })).toBe('CODE_INVALID')
-    expect(taskErrorKey({ ok: false, code: 'STEP_UP', reason: 'LOCKED' })).toBe('CODE_LOCKED')
-    expect(taskErrorKey({ ok: false, code: 'STEP_UP', reason: 'NO_SECOND_FACTOR' })).toBe('NO_SECOND_FACTOR')
+  it('[FR-AUTH-005/AC2] [FR-AUTH-005/AC3] tells a wrong, locked or missing PIN apart, with the tries left and the end of the lock', () => {
+    // The step-up's refusals as src/server/auth/step-up.ts words them (stepUpRefusalError)
+    const wrong = toActionFailure({ code: 'VALIDATION_FAILED', details: { field: 'pin', reason: 'WRONG', attemptsLeft: 3 } })
+    expect(wrong).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'pin', reason: 'WRONG', attemptsLeft: 3 })
+    expect(taskErrorKey(wrong)).toBe('PIN_INVALID')
+    const locked = toActionFailure({ code: 'STEP_UP_LOCKED', details: { method: 'PIN', time: '2026-10-05T03:15:00.000Z' } })
+    expect(locked).toEqual({ ok: false, code: 'STEP_UP_LOCKED', time: '2026-10-05T03:15:00.000Z' })
+    expect(taskErrorKey(locked)).toBe('PIN_LOCKED')
+    expect(taskErrorKey(toActionFailure({ code: 'STEP_UP_REQUIRED', details: { method: 'PIN', reason: 'PIN_NOT_SET' } }))).toBe('PIN_NOT_SET')
+    // The decision found no step-up for its document (expired, or used already): enter the PIN again
+    expect(taskErrorKey(toActionFailure({ code: 'STEP_UP_REQUIRED', details: { subjectType: 'REQUEST', method: 'PIN' } }))).toBe('STEP_UP')
+    // Only a count of tries passes: never text, a negative or a fraction
+    expect(toActionFailure({ code: 'VALIDATION_FAILED', details: { field: 'pin', attemptsLeft: '3' } })).not.toHaveProperty('attemptsLeft')
+    expect(toActionFailure({ code: 'VALIDATION_FAILED', details: { field: 'pin', attemptsLeft: -1 } })).not.toHaveProperty('attemptsLeft')
+    expect(toActionFailure({ code: 'VALIDATION_FAILED', details: { field: 'pin', attemptsLeft: 1.5 } })).not.toHaveProperty('attemptsLeft')
   })
 
   it('passes on only the safe parts of the details', () => {

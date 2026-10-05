@@ -4,6 +4,7 @@ import { PO_MACHINE, transition, type PoState } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
 import {
@@ -11,6 +12,7 @@ import {
   businessCalendarOf,
   businessMinutesWaited,
   doaVersionsById,
+  escalatedTaskIdsOf,
   isUuid,
   membersById,
   routeOf,
@@ -21,6 +23,7 @@ import {
   type MemberRefDto,
   type RequestAccessDto,
   type RouteDto,
+  type WaitingApproverDto,
 } from './requests'
 
 // Read-only views of purchase orders for the screens of S4-04 to S4-06 (spec §9.1 /procurement/pos, FR-P2P-003,
@@ -29,9 +32,12 @@ import {
 // the totals the server computed (FR-P2P-003 AC3), the last three approved prices of each item (AC1), what it reserves
 // or holds on each budget line, the route of the DOA rule of PURCHASE_ORDER, the sending to the supplier with a bounce
 // (FR-P2P-005), what may happen next by the state machine of §6.4, and a timeline built from its Events; a variance with
-// its PO line, its budget line and the photos of its receipt (§9.9 principle 5). Queries never check permissions (they
-// cannot import authz): pages ask getPoAccess() and check po.view (or the task's deciders) with src/server/authz before
-// they read anything else, and request.view (canViewRequest) before they link a source request or list its files.
+// its PO line, its budget line and the photos of its receipt (§9.9 principle 5). An escalated step waits for its first
+// assignee and its co-assignee alike — "waiting for" and the timeline name every open task of the step, oldest first —
+// and its decision is stamped with the escalated flag beside the route's own DOA reference (BR-SLA-04, FR-INT-008 AC1,
+// as a request's page, NEW-46). Queries never check permissions (they cannot import authz): pages ask getPoAccess() and
+// check po.view (or the task's deciders) with src/server/authz before they read anything else, and request.view
+// (canViewRequest) before they link a source request or list its files.
 
 export const PO_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'CANCELLED', 'REJECTED'] as const
 export type PoStatusDto = (typeof PO_STATUSES)[number]
@@ -100,6 +106,7 @@ async function attachmentsOf(db: TenantDb, subjectType: 'Request' | 'GoodsReceip
 export type PoWaitingDto =
   /** DRAFT: procurement checks it and sends it for approval */
   | { readonly kind: 'EDIT' }
+  /** PENDING_APPROVAL: the first of `approvers` (assignee null when no open task is found) */
   | {
       readonly kind: 'APPROVER'
       readonly assignee: MemberRefDto | null
@@ -108,6 +115,11 @@ export type PoWaitingDto =
       readonly waitingMinutes: number | null
       readonly dueAt: Date | null
       readonly overdue: boolean
+      /**
+       * Everyone who may decide the step now, oldest task first: its approver, and the co-assignee of an escalated
+       * step — whoever decides first decides (BR-SLA-04, FR-INT-008 AC1, NEW-46)
+       */
+      readonly approvers: readonly WaitingApproverDto[]
     }
   /** APPROVED: procurement sends it to the supplier; `bounced` when the last e-mail came back (FR-P2P-005 AC2) */
   | { readonly kind: 'SEND'; readonly bounced: boolean }
@@ -121,29 +133,25 @@ export type PoWaitingDto =
   | { readonly kind: 'NONE' }
 
 interface WaitingContext {
-  readonly openTasks: Map<string, { assigneeMemberId: string; principalMemberId: string | null; resolvedFrom: string | null; assignedAt: Date; dueAt: Date | null; id: string }>
-  readonly members: Map<string, MemberRefDto>
-  readonly roleOf: (resolvedFrom: string | null | undefined) => ApproverRoleDto
-  readonly minutesOf: (task: { id: string; assignedAt: Date }) => number | null
-  readonly now: Date
+  /**
+   * The approvers each route waits for: every open task of its current step (tier 1 routes are sequential: the step of
+   * its oldest open task), oldest first, with the business time each has waited
+   */
+  readonly waitingByRoute: ReadonlyMap<string, readonly WaitingApproverDto[]>
 }
+
+/** The approvers a route waits for now; empty when it waits for nobody */
+const waitingFor = (w: WaitingContext, routeId: string | null): readonly WaitingApproverDto[] => (routeId ? (w.waitingByRoute.get(routeId) ?? []) : [])
 
 function waitingOf(po: { status: string; currentRouteId: string | null; sendBouncedAt: Date | null }, w: WaitingContext): PoWaitingDto {
   switch (po.status) {
     case 'DRAFT':
       return { kind: 'EDIT' }
     case 'PENDING_APPROVAL': {
-      const task = po.currentRouteId ? w.openTasks.get(po.currentRouteId) : undefined
-      if (!task) return { kind: 'APPROVER', assignee: null, onBehalfOf: null, role: { kind: 'UNKNOWN' }, waitingMinutes: null, dueAt: null, overdue: false }
-      return {
-        kind: 'APPROVER',
-        assignee: w.members.get(task.assigneeMemberId) ?? null,
-        onBehalfOf: task.principalMemberId ? (w.members.get(task.principalMemberId) ?? null) : null,
-        role: w.roleOf(task.resolvedFrom),
-        waitingMinutes: w.minutesOf(task),
-        dueAt: task.dueAt,
-        overdue: task.dueAt !== null && task.dueAt.getTime() < w.now.getTime(),
-      }
+      const approvers = waitingFor(w, po.currentRouteId)
+      const lead = approvers[0]
+      if (!lead) return { kind: 'APPROVER', assignee: null, onBehalfOf: null, role: { kind: 'UNKNOWN' }, waitingMinutes: null, dueAt: null, overdue: false, approvers: [] }
+      return { kind: 'APPROVER', assignee: lead.assignee, onBehalfOf: lead.onBehalfOf, role: lead.role, waitingMinutes: lead.waitingMinutes, dueAt: lead.dueAt, overdue: lead.overdue, approvers }
     }
     case 'APPROVED':
       return { kind: 'SEND', bounced: po.sendBouncedAt !== null }
@@ -158,12 +166,17 @@ function waitingOf(po: { status: string; currentRouteId: string | null; sendBoun
   }
 }
 
-/** The open approval task of each route (tier 1 routes are sequential: one task waits at a time) */
+/**
+ * Whom each route waits for: every open task of its current step, oldest first (FR-INT-008 AC1). Tier 1 routes are
+ * sequential, so the open tasks of a route are on one step — two when the step was escalated past its time and the
+ * approver of the band above joined it (BR-SLA-04), whoever decides first decides.
+ */
 async function waitingContext(db: TenantDb, ctx: Ctx, routeIds: readonly string[]): Promise<WaitingContext> {
   const tasks = routeIds.length
     ? await db.approvalTask.findMany({
         where: { status: { in: [...OPEN_TASK] }, step: { routeId: { in: [...routeIds] } } },
-        select: { id: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, assignedAt: true, dueAt: true, step: { select: { routeId: true } } },
+        select: { id: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, assignedAt: true, dueAt: true, step: { select: { routeId: true, stepNo: true } } },
+        orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }],
       })
     : []
   const [members, roleOf, calendar, pauses] = await Promise.all([
@@ -178,13 +191,29 @@ async function waitingContext(db: TenantDb, ctx: Ctx, routeIds: readonly string[
       tasks.map((t) => t.id),
     ),
   ])
-  return {
-    openTasks: new Map(tasks.map((t) => [t.step.routeId, t])),
-    members,
-    roleOf,
-    minutesOf: (task) => businessMinutesWaited(calendar, task.assignedAt, ctx.now, pauses.get(task.id) ?? []),
-    now: ctx.now,
+  const waitingByRoute = new Map<string, WaitingApproverDto[]>()
+  const stepOf = new Map<string, number>()
+  for (const t of tasks) {
+    // The step of the route's oldest open task is the one it waits on
+    const stepNo = stepOf.get(t.step.routeId) ?? t.step.stepNo
+    stepOf.set(t.step.routeId, stepNo)
+    const assignee = members.get(t.assigneeMemberId)
+    if (t.step.stepNo !== stepNo || !assignee) continue
+    waitingByRoute.set(t.step.routeId, [
+      ...(waitingByRoute.get(t.step.routeId) ?? []),
+      {
+        taskId: t.id,
+        assignee,
+        onBehalfOf: t.principalMemberId ? (members.get(t.principalMemberId) ?? null) : null,
+        role: roleOf(t.resolvedFrom),
+        since: t.assignedAt,
+        waitingMinutes: businessMinutesWaited(calendar, t.assignedAt, ctx.now, pauses.get(t.id) ?? []),
+        dueAt: t.dueAt,
+        overdue: t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
+      },
+    ])
   }
+  return { waitingByRoute }
 }
 
 // ---------- the list (/procurement/pos) ----------
@@ -233,9 +262,9 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
   const search = q
     ? {
         OR: [
-          { number: { contains: q, mode: 'insensitive' as const } },
-          { supplier: { is: { nameTh: { contains: q, mode: 'insensitive' as const } } } },
-          { supplier: { is: { code: { contains: q, mode: 'insensitive' as const } } } },
+          { number: { contains: escapeLike(q), mode: 'insensitive' as const } },
+          { supplier: { is: { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+          { supplier: { is: { code: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
         ],
       }
     : {}
@@ -442,6 +471,11 @@ export interface DocTrackEntryDto {
   readonly waitingMinutes: number | null
   readonly dueAt: Date | null
   readonly overdue: boolean
+  /**
+   * A decision on a step escalated past its time with a co-assignee (BR-SLA-04: the route's own DOA reference with the
+   * escalated flag), whoever of the two decided it; as on a request's timeline (TrackEntryDto.escalated)
+   */
+  readonly escalated?: boolean
 }
 
 interface EventRow {
@@ -487,8 +521,11 @@ const blank = {
   overdue: false,
 } as const
 
-/** Done steps of a document from its events and the events of its approval tasks, in the order they happened */
-async function historyFrom(db: TenantDb, events: readonly EventRow[], roleOfTask: (taskId: string) => ApproverRoleDto): Promise<DocTrackEntryDto[]> {
+/**
+ * Done steps of a document from its events and the events of its approval tasks, in the order they happened.
+ * `escalatedTaskIds`: the tasks of steps escalated with a co-assignee (escalatedTaskIdsOf): their decisions carry the flag
+ */
+async function historyFrom(db: TenantDb, events: readonly EventRow[], roleOfTask: (taskId: string) => ApproverRoleDto, escalatedTaskIds: ReadonlySet<string>): Promise<DocTrackEntryDto[]> {
   const dataOf = (e: EventRow) => (e.data && typeof e.data === 'object' ? (e.data as Record<string, unknown>) : {})
   const commentIds = events.map((e) => str(dataOf(e).reasonCommentId)).filter((id): id is string => Boolean(id))
   const [comments, versions, members] = await Promise.all([
@@ -542,6 +579,7 @@ async function historyFrom(db: TenantDb, events: readonly EventRow[], roleOfTask
           role: roleOfTask(e.aggregateId),
           doa: version && ruleCode ? { versionId: version.id, code: version.code, versionNo: version.versionNo, ruleCode } : null,
           note: reason,
+          ...(escalatedTaskIds.has(e.aggregateId) ? { escalated: true } : {}),
         })
         break
       }
@@ -576,35 +614,41 @@ async function historyFrom(db: TenantDb, events: readonly EventRow[], roleOfTask
   return out
 }
 
-/** The tasks of a document's routes, their roles, and the live steps of the route that waits now */
+/** The tasks of a document's routes, with their steps (for their roles and the escalated flag of their decisions) */
 async function routeTasksOf(db: TenantDb, subjectType: 'PURCHASE_ORDER' | 'VARIANCE', subjectId: string) {
   const tasks = await db.approvalTask.findMany({
     where: { step: { route: { subjectType, subjectId } } },
-    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, assignedAt: true, dueAt: true },
+    select: { id: true, stepId: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, assignedAt: true, dueAt: true },
   })
   return tasks
 }
 
-/** Where a document waits on its route now and what comes after it (FR-INT-008 AC1, the same as a request's) */
-function liveRouteSteps(route: RouteDto | null, task: { id: string; assignedAt: Date; dueAt: Date | null } | null, waited: number | null, now: Date): DocTrackEntryDto[] {
+/**
+ * Where a document waits on its route now and what comes after it (FR-INT-008 AC1, the same as a request's): one
+ * current entry for every approver who may decide the active step — an escalated step shows its first assignee and its
+ * co-assignee, oldest first, as its route does (BR-SLA-04, NEW-46)
+ */
+function liveRouteSteps(route: RouteDto | null, waiting: readonly WaitingApproverDto[]): DocTrackEntryDto[] {
   if (!route || route.status !== 'ACTIVE') return []
   const out: DocTrackEntryDto[] = []
   for (const step of route.steps) {
-    if (step.status === 'ACTIVE' && task) {
-      out.push({
-        ...blank,
-        key: `wait-${task.id}`,
-        state: 'current',
-        what: 'WAIT_APPROVAL',
-        at: task.assignedAt,
-        channel: null,
-        actor: step.approver,
-        onBehalfOf: step.onBehalfOf,
-        role: step.role,
-        waitingMinutes: waited,
-        dueAt: task.dueAt,
-        overdue: task.dueAt !== null && task.dueAt.getTime() < now.getTime(),
-      })
+    if (step.status === 'ACTIVE') {
+      for (const a of waiting) {
+        out.push({
+          ...blank,
+          key: `wait-${a.taskId}`,
+          state: 'current',
+          what: 'WAIT_APPROVAL',
+          at: a.since,
+          channel: null,
+          actor: a.assignee,
+          onBehalfOf: a.onBehalfOf,
+          role: a.role,
+          waitingMinutes: a.waitingMinutes,
+          dueAt: a.dueAt,
+          overdue: a.overdue,
+        })
+      }
     } else if (step.status === 'WAITING') {
       out.push({ ...blank, key: `next-${route.id}-${step.stepNo}`, state: 'upcoming', what: 'NEXT_APPROVAL', at: null, channel: null, actor: step.approver ?? null, role: step.role, expected: step.expected })
     }
@@ -818,11 +862,10 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
   const members = await membersById(db, [creatorId, submittedById, ...requestRows.map((r) => r.requesterMemberId)])
   const route = po.currentRouteId ? await routeOf(db, po.currentRouteId, members, roleOf) : null
   const resolvedFrom = new Map(taskRows.map((t) => [t.id, t.resolvedFrom]))
-  const history = await historyFrom(db, events, (taskId) => roleOf(resolvedFrom.get(taskId)))
-  const openTask = po.currentRouteId ? (w.openTasks.get(po.currentRouteId) ?? null) : null
+  const history = await historyFrom(db, events, (taskId) => roleOf(resolvedFrom.get(taskId)), escalatedTaskIdsOf(events, taskRows))
   const live: DocTrackEntryDto[] =
     po.status === 'PENDING_APPROVAL'
-      ? liveRouteSteps(route, openTask, openTask ? w.minutesOf(openTask) : null, ctx.now)
+      ? liveRouteSteps(route, waitingFor(w, po.currentRouteId))
       : po.status === 'DRAFT' || po.status === 'APPROVED' || po.status === 'SENT' || po.status === 'PARTIALLY_RECEIVED' || po.status === 'RECEIVED'
         ? [
             {
@@ -1043,11 +1086,10 @@ export async function getVarianceView(ctx: Ctx, varianceId: string): Promise<Var
     orderBy: { seq: 'asc' },
   })) as EventRow[]
   const resolvedFrom = new Map(taskRows.map((t) => [t.id, t.resolvedFrom]))
-  const history = await historyFrom(db, events, (taskId) => roleOf(resolvedFrom.get(taskId)))
+  const history = await historyFrom(db, events, (taskId) => roleOf(resolvedFrom.get(taskId)), escalatedTaskIdsOf(events, taskRows))
   // The reason the variance was recorded with is its own note
   const recorded = history.map((h) => (h.what === 'VARIANCE_RECORDED' ? { ...h, note: v.reason } : h))
-  const openTask = v.currentRouteId ? (w.openTasks.get(v.currentRouteId) ?? null) : null
-  const live = v.status === 'PENDING_APPROVAL' ? liveRouteSteps(route, openTask, openTask ? w.minutesOf(openTask) : null, ctx.now) : []
+  const live = v.status === 'PENDING_APPROVAL' ? liveRouteSteps(route, waitingFor(w, v.currentRouteId)) : []
   const vat = vatFromNet(v.amountSatang, v.po.vatRateBp ?? 0)
   return {
     id: v.id,

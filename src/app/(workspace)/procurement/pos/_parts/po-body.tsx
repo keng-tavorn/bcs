@@ -1,13 +1,14 @@
-import Link from 'next/link'
 import { getTranslations } from 'next-intl/server'
 import { BYTES_PER_KIB } from '@/lib/constants'
 import type { AttachmentDto, PoBudgetDto, PoViewDto } from '@/server/queries/purchase-orders'
 import type { RouteDto, RouteStepDto } from '@/server/queries/requests'
+import { LightLink } from '@/ui/light-link'
 import { PoLines, type PoLineView } from '@/ui/purchase-order/po-lines'
 import { AttachmentList, type AttachmentView } from '@/ui/request-view/attachments'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, Section, type AmountRow, type Fact } from '@/ui/request-view/facts'
 import { StateLine, type StateKind } from '@/ui/request-view/status'
+import { StepApprovers } from '@/ui/request-view/step-approvers'
 import { day, doaHref, doaRefText, expectedText, fileKind, memberName, money, roleText, routeSentence, when, type Locale } from '../../../_tracking/present'
 
 // The body of a purchase order as both its own page and the decision page of its approval task show it (§9.9
@@ -17,11 +18,20 @@ import { day, doaHref, doaRefText, expectedText, fileKind, memberName, money, ro
 // site and terms; and the route of the DOA rule of PURCHASE_ORDER with why it goes where it goes (FR-P2P-004 AC1).
 // Flat sections separated by rules; no cards. A source request is a link, and its files are listed, only for a reader
 // who may open that request (request.view); the supplier's e-mail only for a reader who sees the supplier register in
-// full or sends POs (supplier.view without BASIC_FIELDS_ONLY, po.send).
+// full or sends POs (supplier.view without BASIC_FIELDS_ONLY, po.send). The LIFF decision page of a PO task renders this
+// body too (src/app/liff/tasks/[id]/page.tsx): its links are light links (src/ui/light-link.tsx), not next/link, whose
+// client code a LIFF page would load even where nothing links (§9.4), and `requestHref` says where a source request
+// opens there — nowhere, as the workspace's request page is not for a LINE sign-in.
 
 type PoT = Awaited<ReturnType<typeof getTranslations<'purchaseOrder'>>>
 
 export type OpenFile = (fileId: string) => Promise<string | null>
+
+/** Where a source request the reader may open is linked to; null: its title is plain text (its files are still listed) */
+export type RequestHref = (requestId: string) => string | null
+
+/** The workspace's request page */
+const WORKSPACE_REQUEST_HREF: RequestHref = (requestId) => `/requests/${requestId}`
 
 /** What the reader may see beside the PO itself; the page works it out with src/server/authz */
 export interface PoReader {
@@ -64,16 +74,34 @@ export async function RouteSection({ id, route, locale, doaLinks, subject, empty
               const state = stepState(step)
               const who = step.approver ? memberName(locale, step.approver) : expectedText(locale, step.expected)
               const role = roleText(tv, locale, step.role)
+              // BR-SLA-04: the band above joined the step past its escalation time; its decision keeps the route's rule
+              const escalated = step.escalation === 'CO_ASSIGNED' ? tv('route.escalated') : undefined
               return (
                 <li key={step.stepNo} className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
-                  <div className="min-w-0">
-                    <p className="font-medium text-ink">
-                      {tv('route.step', { no: step.stepNo })}
-                      {who ? ` · ${who}` : ''}
-                    </p>
-                    {role ? <p className="text-ink-muted">{role}</p> : null}
-                    {step.onBehalfOf ? <p className="text-ink-muted">{tv('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
-                  </div>
+                  {/* An escalated step waits for its co-assignee too: everyone who may decide it, as on the request page */}
+                  {step.open && step.open.length > 1 ? (
+                    <StepApprovers
+                      title={tv('route.step', { no: step.stepNo })}
+                      approvers={step.open.map((o, i) => ({
+                        key: o.taskId,
+                        name: i === 0 ? memberName(locale, o.approver) : tv('route.orApprover', { name: memberName(locale, o.approver) }),
+                        role: roleText(tv, locale, o.role) || undefined,
+                        actingFor: o.onBehalfOf ? tv('actingFor', { name: memberName(locale, o.onBehalfOf) }) : undefined,
+                      }))}
+                      mark={escalated}
+                      note={tv('route.firstDecides')}
+                    />
+                  ) : (
+                    <div className="min-w-0">
+                      <p className="font-medium text-ink">
+                        {tv('route.step', { no: step.stepNo })}
+                        {who ? ` · ${who}` : ''}
+                      </p>
+                      {role ? <p className="text-ink-muted">{role}</p> : null}
+                      {step.onBehalfOf ? <p className="text-ink-muted">{tv('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
+                      {escalated ? <p className="text-base text-ink-muted md:text-sm">{escalated}</p> : null}
+                    </div>
+                  )}
                   <StateLine kind={state.kind} className="shrink-0">
                     {tv(`route.stepState.${state.key}`)}
                   </StateLine>
@@ -97,7 +125,7 @@ export async function attachmentViews(locale: Locale, files: readonly Attachment
 }
 
 /** The lines of a PO for PoLines: sources as links to the requests the reader may open, prices paid before when they may see them */
-export async function poLineViews(po: PoViewDto, locale: Locale, reader: PoReader): Promise<PoLineView[]> {
+export async function poLineViews(po: PoViewDto, locale: Locale, reader: PoReader, requestHref: RequestHref = WORKSPACE_REQUEST_HREF): Promise<PoLineView[]> {
   const t = await getTranslations('purchaseOrder')
   const prices = new Map(po.prices.lines.map((p) => [p.poLineId, p]))
   const pct = new Intl.NumberFormat(locale === 'en' ? 'en' : 'th', { maximumFractionDigits: 2 }).format(po.prices.alertPct)
@@ -108,7 +136,7 @@ export async function poLineViews(po: PoViewDto, locale: Locale, reader: PoReade
       key: l.id,
       title: `${l.lineNo}. ${l.description}`,
       sources: l.sources.map((s) => ({
-        href: reader.requests.has(s.requestId) ? `/requests/${s.requestId}` : null,
+        href: reader.requests.has(s.requestId) ? requestHref(s.requestId) : null,
         label: s.requestNumber
           ? t('lines.source', { number: s.requestNumber, line: s.requestLineNo, quantity: t('lines.qty', { quantity: s.quantity, uom: l.uom }) })
           : t('lines.sourceNoNumber', { title: s.requestTitle, line: s.requestLineNo, quantity: t('lines.qty', { quantity: s.quantity, uom: l.uom }) }),
@@ -216,21 +244,22 @@ async function PoBudget({ po, t }: { po: PoViewDto; t: PoT }) {
 }
 
 /** The requests the PO orders, each with who asked and its attachments and quotations (FR-PLT-004 AC2) */
-async function PoRequests({ po, locale, reader, openFile, t }: { po: PoViewDto; locale: Locale; reader: PoReader; openFile: OpenFile; t: PoT }) {
+async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po: PoViewDto; locale: Locale; reader: PoReader; openFile: OpenFile; requestHref: RequestHref; t: PoT }) {
   const views = new Map(await Promise.all(po.requests.map(async (r) => [r.id, await attachmentViews(locale, r.attachments)] as const)))
   return (
     <ul aria-label={t('requests.label')} className="flex flex-col divide-y divide-line border-t border-line">
       {po.requests.map((r) => {
         const open = reader.requests.has(r.id)
+        const href = open ? requestHref(r.id) : null
         const label = r.number ? t('requests.title', { number: r.number, title: r.title }) : r.title
         const files = views.get(r.id) ?? []
         return (
           <li key={r.id} className="flex flex-col gap-2 py-3">
             <div className="flex min-w-0 flex-col gap-0.5">
-              {open ? (
-                <Link href={`/requests/${r.id}`} className="self-start font-medium break-words text-primary underline underline-offset-4 hover:no-underline">
+              {href ? (
+                <LightLink href={href} className="self-start font-medium break-words text-primary underline underline-offset-4 hover:no-underline">
                   {label}
-                </Link>
+                </LightLink>
               ) : (
                 <p className="font-medium break-words text-ink">{label}</p>
               )}
@@ -250,7 +279,21 @@ async function PoRequests({ po, locale, reader, openFile, t }: { po: PoViewDto; 
   )
 }
 
-export async function PoBody({ po, locale, doaLinks, reader, openFile }: { po: PoViewDto; locale: Locale; doaLinks: boolean; reader: PoReader; openFile: OpenFile }) {
+export async function PoBody({
+  po,
+  locale,
+  doaLinks,
+  reader,
+  openFile,
+  requestHref = WORKSPACE_REQUEST_HREF,
+}: {
+  po: PoViewDto
+  locale: Locale
+  doaLinks: boolean
+  reader: PoReader
+  openFile: OpenFile
+  requestHref?: RequestHref
+}) {
   const t = await getTranslations('purchaseOrder')
   const draft = po.status === 'DRAFT'
   const note = !draft ? t('amounts.fixedNote') : po.totals.basis === 'TODAY' ? t('amounts.draftNote') : t('amounts.draftNoteStored')
@@ -277,13 +320,13 @@ export async function PoBody({ po, locale, doaLinks, reader, openFile }: { po: P
 
       <Section id="po-lines" title={t('lines.title')}>
         <PoLines
-          lines={await poLineViews(po, locale, reader)}
+          lines={await poLineViews(po, locale, reader, requestHref)}
           labels={{ list: t('lines.label'), description: t('lines.description'), quantity: t('lines.quantity'), unitPrice: t('lines.unitPrice'), amount: t('lines.amount') }}
         />
       </Section>
 
       <Section id="po-requests" title={t('requests.heading')}>
-        <PoRequests po={po} locale={locale} reader={reader} openFile={openFile} t={t} />
+        <PoRequests po={po} locale={locale} reader={reader} openFile={openFile} requestHref={requestHref} t={t} />
       </Section>
 
       <Section id="po-facts" title={t('facts.title')}>

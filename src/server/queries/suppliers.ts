@@ -1,5 +1,6 @@
 import { normalizeTaxId } from '@/core/thai/taxid'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 
 // Read models of the supplier register (S4-02, spec §6.2 Supplier, FR-SUP-001). Queries never check permissions (they
@@ -88,10 +89,10 @@ const JURISTIC_PREFIX = '0'
 
 function taxIdClauses(match: TaxIdMatch | null | undefined, digits: string) {
   if (!match || !DIGITS.test(digits)) return []
-  if (match === 'ANY_PART') return [{ taxId: { contains: digits } }]
+  if (match === 'ANY_PART') return [{ taxId: { contains: escapeLike(digits) } }]
   return [
-    { isForeign: true, taxId: { contains: digits } },
-    { isForeign: false, taxId: { startsWith: JURISTIC_PREFIX, contains: digits } },
+    { isForeign: true, taxId: { contains: escapeLike(digits) } },
+    { isForeign: false, taxId: { startsWith: escapeLike(JURISTIC_PREFIX), contains: escapeLike(digits) } },
     ...(WHOLE_TAX_ID.test(digits) ? [{ taxId: digits }] : []),
   ]
 }
@@ -105,9 +106,9 @@ export async function searchSuppliers(ctx: Ctx, search: SupplierSearch): Promise
     ? [
         {
           OR: [
-            { nameTh: { contains: q, mode: 'insensitive' as const } },
-            { nameEn: { contains: q, mode: 'insensitive' as const } },
-            { code: { contains: q, mode: 'insensitive' as const } },
+            { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } },
+            { nameEn: { contains: escapeLike(q), mode: 'insensitive' as const } },
+            { code: { contains: escapeLike(q), mode: 'insensitive' as const } },
             ...taxIdClauses(search.taxIdMatch, digits),
           ],
         },

@@ -1,14 +1,18 @@
 import { TZDate } from '@date-fns/tz'
-import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { lineNet } from '@/core/money/math'
+import { satangToAmount } from '@/core/money/dto'
+import { stepUpNeeded } from '@/core/pin'
 import type { Result } from '@/core/result'
 import { addBusinessMinutes, subtractBusinessMinutes, type BusinessCalendar } from '@/core/sla'
+import { systemClock } from '@/lib/clock'
 import { MS_PER_DAY } from '@/lib/constants'
 import { setEmailProvider } from '@/integrations/email-provider'
 import { checkBucket } from '@/integrations/storage'
+import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx, type Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 import { effectiveSodPolicy, loadBusinessCalendar } from '@/server/doa/policy'
+import { approversWithoutPin, giveOneTimePins, randomDemoPin, takeBackOneTimePins, type OneTimePins } from '@/server/seed/pins'
 import type { DemoHistoryRow } from '@/server/seed/sheets'
 import type { RunOptions } from '../_pipeline'
 import { decideTask } from '../approvals/decide'
@@ -21,6 +25,9 @@ import { sendPurchaseOrder } from '../purchase-orders/send'
 import { postGoodsReceipt } from '../receiving'
 import { departmentReceivers } from '../receiving/receivers'
 import { cancelRequest, createDraft, editRequest, submitRequest } from '../requests'
+import { quotationAmounts } from './quotations'
+
+export { DemoHistoryNetError } from './quotations'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
 // with the business clock set back, so every row ends in its status with real routes, decisions, budget movements,
@@ -33,6 +40,13 @@ import { cancelRequest, createDraft, editRequest, submitRequest } from '../reque
 // its requester `hours` business hours after the send.
 // Rows APPROVED stay in the pool with the supplier only suggested, so a consolidation round does not take them before
 // the demo scene does (FR-P2P-001 AC2).
+// A decision that needs a step-up — a request or PO whose amount the DOA counted is at or above the version's
+// stepUpThreshold (FR-AUTH-005 AC2) — is made the way the approver makes it: right before it, the approver's PIN step-up
+// for that document, on the row's channel (LIFF, otherwise WEB). The PIN is the one the seed gave the demo approvers
+// (SEED_DEV_PIN, src/server/seed/pins.ts); without one (ADR-047 item 9: then nobody gets a PIN from the seed), the
+// approvers without a PIN hold a one-time PIN while the history runs, taken back before it returns, whatever happens.
+// The step-up runs on the real clock, as its 5-minute window is a security timer; the decision keeps its backdated
+// business time. Before anything is written, every demo approver must hold that PIN.
 
 /** Business minutes between steps of the purchase-to-pay chain of a row (after its approval) */
 const STEP_MINUTES = 30
@@ -40,8 +54,6 @@ const PO_DECISION_MINUTES = 120
 /** A delivery comes this many business days after the PO is sent, the invoice one business day after the delivery */
 const DELIVERY_DAYS = 2
 const MINUTES_PER_HOUR = 60
-/** The quotations of a request above the ATT-QUOTES threshold: the chosen one, and two higher by these factors */
-const OTHER_QUOTES_FACTOR = ['1.04', '1.07']
 
 export interface DemoHistoryReport {
   readonly seeded: boolean
@@ -59,6 +71,27 @@ interface Context {
   readonly suppliers: ReadonlyMap<string, string>
   readonly sites: ReadonlyMap<string, string>
   readonly budgetLines: ReadonlyMap<string, string>
+  /** The transaction PIN of the demo approvers, for the step-ups of their decisions (never logged or printed) */
+  readonly pin: string
+}
+
+export interface DemoHistoryOptions {
+  /**
+   * The PIN the seed gave the demo approvers (SEED_DEV_PIN): their decisions step up with it. null when the seed gave none:
+   * the approvers without a PIN then hold a one-time PIN while the history runs (giveOneTimePins), and none afterwards.
+   */
+  readonly pin: string | null
+}
+
+/**
+ * Some demo approvers do not hold the seed's PIN (they kept an older one, set their own, or are locked): the history would
+ * stop at their first step-up, so it does not start. `codes` are their employee codes.
+ */
+export class DemoHistoryPinError extends Error {
+  constructor(readonly codes: readonly string[]) {
+    super(`demo approvers without the seed's PIN: ${codes.join(', ')}`)
+    this.name = 'DemoHistoryPinError'
+  }
 }
 
 function must<T>(row: DemoHistoryRow, what: string, result: Result<T>): T {
@@ -94,6 +127,28 @@ export class DemoHistoryIncompleteError extends Error {
     super(`the demo history of an earlier seed did not finish (its last row is ${lastRef}): reset the database and seed again`)
     this.name = 'DemoHistoryIncompleteError'
   }
+}
+
+/**
+ * FR-AUTH-005 AC2: when the route's amount is at or above its version's stepUpThreshold, the approver gives the PIN for
+ * this document right before deciding, on the channel of the decision (real time; the decision keeps its business time)
+ */
+async function stepUpIfNeeded(
+  c: Context,
+  row: DemoHistoryRow,
+  approverCode: string,
+  route: { readonly subjectType: 'REQUEST' | 'PURCHASE_ORDER'; readonly subjectId: string; readonly amountSatang: bigint | null; readonly stepUpThresholdSatang: bigint | null },
+  channel: Ctx['channel'],
+): Promise<void> {
+  if (!stepUpNeeded(route)) return
+  const memberId = c.members.get(approverCode)
+  if (!memberId) throw new Error(`Demo_History: no member ${approverCode}`)
+  const granted = await grantStepUp(
+    { organizationId: c.organizationId, memberId, subjectType: route.subjectType, subjectId: route.subjectId, method: 'PIN', pin: c.pin, channel: channel === 'LIFF' ? 'LIFF' : 'WEB' },
+    systemClock.now(),
+    { sender: null },
+  )
+  if (!granted.ok) throw new Error(`Demo_History ${row.ref}: the PIN step-up of ${approverCode} for ${route.subjectType} was refused (${granted.reason})`)
 }
 
 /** A member's context for one step; `step` names the events the step writes (Event.requestId), which are kept for good */
@@ -262,10 +317,9 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   // Send; when the form's attachment rule asks for quotations (ATT-QUOTES above its amount), add three and send again
   let sent = await submitRequest(requester(submitAt, 'submit'), { requestId }, optionsOf(row, 'submit'))
   if (!sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED') {
-    const net = amountToSatang(row.net)
     const names = [row.supplier ?? 'S0', 'ALT-1', 'ALT-2']
-    // A comparison quote is the chosen one times 1.04 or 1.07, rounded as a line amount is (BR-MONEY-02)
-    const amounts = [net, ...OTHER_QUOTES_FACTOR.map((factor) => lineNet(factor, net))]
+    // The chosen quotation at the row's net and two comparisons at exactly 104 % and 107 % of it, never rounded
+    const amounts = quotationAmounts(row)
     const quotations = []
     for (const [i, amount] of amounts.entries()) {
       const fileId = await upload(row, requester(draftAt, `quote-${i + 1}`), `quote-${i + 1}`, `quotation-${row.ref}-${i + 1}.pdf`, quotationPdf(['BCS demo quotation', `${row.ref} ${names[i]}`, `THB ${satangToAmount(amount)} before VAT`]))
@@ -293,6 +347,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   if (refusal) throw new Error(refusal)
   const decision = row.status === 'REJECTED' ? 'REJECT' : row.status === 'RETURNED' ? 'RETURN' : 'APPROVE'
   const reason = row.note ?? (decision === 'APPROVE' ? undefined : 'ตามหมายเหตุของผู้อนุมัติ')
+  await stepUpIfNeeded(c, row, route.approver, { subjectType: 'REQUEST', subjectId: requestId, amountSatang: routed.amountSatang, stepUpThresholdSatang: routed.doaVersion.stepUpThresholdSatang }, row.channel!)
   must(row, 'decide', await decideTask(memberCtx(c, route.approver, decideAt, row.channel!, keyOf(row, 'decide')), { taskId: route.taskId, decision, ...(decision !== 'APPROVE' ? { reason } : {}) }, optionsOf(row, 'decide')))
   if (row.status !== 'ORDERED' && row.status !== 'COMPLETED') return
 
@@ -315,8 +370,14 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   const po = pos.find((p) => p.lines.some((l) => l.sources.some((s) => s.requestLine.requestId === requestId)))
   if (!po || pos.length !== 1) throw new Error(`Demo_History ${row.ref}: the round made ${pos.length} POs`)
   must(row, 'submit PO', await submitPo(proc(next('po-submit', STEP_MINUTES), 'po-submit'), { poId: po.id }, optionsOf(row, 'po-submit')))
-  const poTask = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'PURCHASE_ORDER', subjectId: po.id } } }, select: { id: true, assignee: { select: { employeeCode: true } } } })
-  must(row, 'approve PO', await decideTask(memberCtx(c, poTask.assignee.employeeCode!, next('po-approve', PO_DECISION_MINUTES), 'WEB', keyOf(row, 'po-approve')), { taskId: poTask.id, decision: 'APPROVE' }, optionsOf(row, 'po-approve')))
+  const poTask = await db.approvalTask.findFirstOrThrow({
+    where: { status: 'OPEN', step: { route: { subjectType: 'PURCHASE_ORDER', subjectId: po.id } } },
+    select: { id: true, assignee: { select: { employeeCode: true } }, step: { select: { route: { select: { amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+  })
+  const poRoute = poTask.step.route
+  const poAt = next('po-approve', PO_DECISION_MINUTES)
+  await stepUpIfNeeded(c, row, poTask.assignee.employeeCode!, { subjectType: 'PURCHASE_ORDER', subjectId: po.id, amountSatang: poRoute.amountSatang, stepUpThresholdSatang: poRoute.doaVersion.stepUpThresholdSatang }, 'WEB')
+  must(row, 'approve PO', await decideTask(memberCtx(c, poTask.assignee.employeeCode!, poAt, 'WEB', keyOf(row, 'po-approve')), { taskId: poTask.id, decision: 'APPROVE' }, optionsOf(row, 'po-approve')))
   must(row, 'send PO', await sendPurchaseOrder(proc(next('po-send', STEP_MINUTES), 'po-send'), { poId: po.id }, optionsOf(row, 'po-send')))
   if (row.status === 'ORDERED') return
 
@@ -337,9 +398,11 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
 /**
  * D-01: the demo history of one organization. A history made in full before is left alone; one that an earlier seed
  * stopped half way (a storage that was down, a row the routes refused) throws DemoHistoryIncompleteError rather than
- * leave the board and the dashboard with numbers the demo does not expect.
+ * leave the board and the dashboard with numbers the demo does not expect. `options.pin` is the PIN the seed gave the
+ * demo approvers: a history that is yet to be made needs every one of them to hold it (DemoHistoryPinError otherwise).
+ * null: the seed gave none, and the approvers without a PIN hold a one-time PIN only while the history runs.
  */
-export async function seedDemoHistory(organizationId: string, rows: readonly DemoHistoryRow[], now: Date): Promise<DemoHistoryReport> {
+export async function seedDemoHistory(organizationId: string, rows: readonly DemoHistoryRow[], now: Date, options: DemoHistoryOptions): Promise<DemoHistoryReport> {
   const db = forTenant(organizationId)
   // Decided and cancelled requests first, oldest first; then what they told people is marked read; then the requests
   // still waiting, whose task notices stay new (the board and the bell of the demo)
@@ -350,7 +413,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   if (!last) return { seeded: false, byStatus: {} }
   // What the history made is read from its events, which are kept for good (CommandLog only for 90 days, §6.2): every
   // step's events carry the step's key as their requestId. The last row's last step made → the history is whole.
-  const started = (await db.event.count({ where: { requestId: { startsWith: HISTORY_KEY } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: HISTORY_KEY } } }))
+  const started = (await db.event.count({ where: { requestId: { startsWith: escapeLike(HISTORY_KEY) } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY) } } }))
   if (started) {
     if (await db.event.count({ where: { requestId: { in: lastSteps(last).map((step) => keyOf(last, step)) } } })) return { seeded: false, byStatus: {} }
     throw new DemoHistoryIncompleteError(last.ref)
@@ -374,6 +437,8 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     suppliers: new Map(suppliers.map((s) => [s.code, s.id])),
     sites: new Map(sites.map((s) => [s.code, s.id])),
     budgetLines: new Map(fiscal.map((b) => [b.code, b.id])),
+    // The seed's PIN, or a one-time PIN when the seed gave none (see above)
+    pin: options.pin ?? randomDemoPin(),
   }
 
   // Every row lies inside the fiscal year of its budget line, from its first day to today
@@ -387,32 +452,47 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
       if (day < dateText(year.startsOn) || day > dateText(year.endsOn)) throw new DemoHistoryOutOfYearError(row.ref, day, year.code, dateText(year.startsOn), dateText(year.endsOn))
     }
   }
+  // Every row's quotations can be made exactly, whether or not its form will ask for them: the sheet gives its nets in
+  // whole baht (HistoryRow), and a net that is not is refused here with DemoHistoryNetError, before anything is written,
+  // rather than half way through the history (quotations.ts)
+  for (const row of rows) quotationAmounts(row)
 
-  // Quotations and the PDFs of POs are files: the bucket has to answer before anything is written
+  // Without the seed's PIN, the approvers without a PIN hold the one-time PIN until the history returns or stops
+  let oneTime: OneTimePins = new Map()
   try {
-    await checkBucket()
-  } catch (error) {
-    throw new DemoHistoryStorageError(error instanceof Error ? error.name : String(error))
-  }
+    if (options.pin === null) oneTime = await giveOneTimePins(organizationId, c.pin, now)
+    // The approvers step up with that PIN for their high-amount decisions (FR-AUTH-005 AC2): every one of them holds it
+    const withoutPin = await approversWithoutPin(organizationId, c.pin, now)
+    if (withoutPin.length > 0) throw new DemoHistoryPinError(withoutPin)
 
-  // POs of the past go nowhere
-  setEmailProvider({ send: async () => ({ messageId: 'demo-history' }) })
-  const byStatus: Record<string, number> = {}
-  try {
-    for (const row of done) {
-      await replay(c, row)
-      byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+    // Quotations and the PDFs of POs are files: the bucket has to answer before anything is written
+    try {
+      await checkBucket()
+    } catch (error) {
+      throw new DemoHistoryStorageError(error instanceof Error ? error.name : String(error))
     }
-    for (const [code] of c.members) {
-      const marked = await markNotificationsRead(memberCtx(c, code, now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
-      if (!marked.ok && marked.error.code !== 'NOT_FOUND') throw new Error(`Demo_History: marking ${code}'s notifications read: ${marked.error.code}`)
+
+    // POs of the past go nowhere
+    setEmailProvider({ send: async () => ({ messageId: 'demo-history' }) })
+    const byStatus: Record<string, number> = {}
+    try {
+      for (const row of done) {
+        await replay(c, row)
+        byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+      }
+      for (const [code] of c.members) {
+        const marked = await markNotificationsRead(memberCtx(c, code, now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
+        if (!marked.ok && marked.error.code !== 'NOT_FOUND') throw new Error(`Demo_History: marking ${code}'s notifications read: ${marked.error.code}`)
+      }
+      for (const row of waiting) {
+        await replay(c, row)
+        byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+      }
+    } finally {
+      setEmailProvider(null)
     }
-    for (const row of waiting) {
-      await replay(c, row)
-      byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
-    }
+    return { seeded: true, byStatus }
   } finally {
-    setEmailProvider(null)
+    await takeBackOneTimePins(organizationId, oneTime)
   }
-  return { seeded: true, byStatus }
 }

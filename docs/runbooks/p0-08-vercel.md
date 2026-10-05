@@ -155,6 +155,7 @@ ENABLE_EXPERIMENTAL_COREPACK=1
 | `ENCRYPTION_KEY` | Secret | B2 (ขึ้นต้น `base64:`) |
 | `SEED_TOTP_KEY` | Secret | B2 (เก็บสำเนาในโปรแกรมจัดการรหัสผ่าน) |
 | `SEED_DEV_PASSWORD` | Secret | B2 (คุณตั้งเอง เก็บสำเนาในโปรแกรมจัดการรหัสผ่าน) |
+| `SEED_DEV_PIN` | Secret | ไม่บังคับ · PIN ยืนยันธุรกรรม 6 หลักของผู้อนุมัติตัวอย่าง (คุณตั้งเอง ห้ามใช้เลขเรียงหรือเลขซ้ำ เก็บสำเนาในโปรแกรมจัดการรหัสผ่าน) ถ้าไม่ใส่ ผู้อนุมัติตั้ง PIN เองที่ `/settings/pin` |
 | `DATABASE_URL` | Secret | [p0-05-neon-staging.md](p0-05-neon-staging.md) ขั้นที่ 9 (`bcs_app` แบบ pooled) |
 | `DIRECT_URL` | Secret | [p0-05-neon-staging.md](p0-05-neon-staging.md) ขั้นที่ 5 (`bcs_migrator` แบบ direct) |
 | `S3_ENDPOINT` `S3_REGION` `S3_BUCKET` `S3_FORCE_PATH_STYLE` | Config | [p0-06-storage-staging.md](p0-06-storage-staging.md) |

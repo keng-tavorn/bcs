@@ -3,9 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { DOA_BOUNDARY_SECTION, boundaryTickOf, doaComparison } from '@/app/(workspace)/_tracking/policy-subject'
 import type { ApproverSpec, DoaRuleSnapshot, DoaWhen } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
-import { totp } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { ruleJson } from '@/server/doa/snapshot'
@@ -17,6 +15,7 @@ import { draftDoaCopy, getDoaEditor, type DoaEditorView, type DraftCopyInput } f
 import { submitInitialPackage } from '@/server/services/doa/initial-package'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // S3-09 · the decision page of a DOA_VERSION task reads the version beside the one it is compared with — the version in
 // effect just before it starts, as the drafter's page, the send and the approval read it (comparisonBaselineId) — so the
@@ -114,8 +113,7 @@ async function sent(org: DoaOrg, sourceId: string, edit: (input: DraftCopyInput)
 
 /** The CEO approves with a step-up and the tick of the boundary table, at `at`; `tick`: what the page sends with it */
 async function approve(org: DoaOrg, versionId: string, taskId: string, at = NOW, tick: { boundaryBaselineId?: string | null } = {}) {
-  const grant = await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
-  if (!grant.ok) throw new Error(`step-up refused: ${grant.reason}`)
+  await pinStepUp(org.organizationId, org.member.ceo!, 'DOA_VERSION', versionId)
   const decided = await decideTask(org.ctxOf('ceo', at), { taskId, decision: 'APPROVE', boundaryTableConfirmed: true, ...tick }, key())
   if (!decided.ok) throw new Error(`approval failed: ${JSON.stringify(decided.error)}`)
 }

@@ -81,6 +81,14 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     budgetLine: { model: 'BudgetLine', list: false },
     organization: { model: 'Organization', list: false },
   },
+  ChannelIdentity: {
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+  },
+  ChannelLinkCode: {
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+  },
   CommandLog: {
     organization: { model: 'Organization', list: false },
   },
@@ -213,11 +221,19 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     organization: { model: 'Organization', list: false },
     poLine: { model: 'PoLine', list: false },
   },
+  LineChannelConfig: {
+    organization: { model: 'Organization', list: false },
+  },
+  LineWebhookEvent: {
+    organization: { model: 'Organization', list: false },
+  },
   Member: {
     actionTokens: { model: 'ActionToken', list: true },
     budgetGrantsGiven: { model: 'BudgetGrant', list: true },
     budgetGrantsReceived: { model: 'BudgetGrant', list: true },
     budgetImports: { model: 'BudgetImport', list: true },
+    channelIdentities: { model: 'ChannelIdentity', list: true },
+    channelLinkCodes: { model: 'ChannelLinkCode', list: true },
     comments: { model: 'Comment', list: true },
     commentsRetracted: { model: 'Comment', list: true },
     consolidationRuns: { model: 'ConsolidationRun', list: true },
@@ -275,6 +291,8 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     budgetImports: { model: 'BudgetImport', list: true },
     budgetLedger: { model: 'BudgetLedgerEntry', list: true },
     budgetLines: { model: 'BudgetLine', list: true },
+    channelIdentities: { model: 'ChannelIdentity', list: true },
+    channelLinkCodes: { model: 'ChannelLinkCode', list: true },
     commandLogs: { model: 'CommandLog', list: true },
     comments: { model: 'Comment', list: true },
     consolidationRuns: { model: 'ConsolidationRun', list: true },
@@ -300,6 +318,8 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     invitations: { model: 'MemberInvitation', list: true },
     invoiceConfirmations: { model: 'InvoiceConfirmation', list: true },
     invoiceLineAllocations: { model: 'InvoiceLineAllocation', list: true },
+    lineChannelConfig: { model: 'LineChannelConfig', list: false },
+    lineWebhookEvents: { model: 'LineWebhookEvent', list: true },
     members: { model: 'Member', list: true },
     modules: { model: 'OrgModule', list: true },
     notifications: { model: 'Notification', list: true },

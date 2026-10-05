@@ -2,13 +2,11 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { totp } from '@/lib/totp'
 import { authorize } from '@/server/authz'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { decideTask } from '@/server/services/approvals/decide'
 import { importDoaDraft } from '@/server/services/doa'
 import { INITIAL_PACKAGE_RULE, submitInitialPackage } from '@/server/services/doa/initial-package'
@@ -16,10 +14,11 @@ import { applyScheduledChange } from '@/server/services/org-authority'
 import { getTenant } from '@/server/services/platform/tenants'
 import { loadYaml } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // FR-DOA-002 AC3 (BR-DOA-19, OQ-31 default): the first DOA version and the holders of the positions it names go together
-// to the contract signatory, who approves with a step-up; the submitter is never the signatory; PLATFORM_ADMIN never
-// sees the content.
+// to the contract signatory, who approves with a step-up (the PIN, FR-AUTH-005 AC2); the submitter is never the
+// signatory; PLATFORM_ADMIN never sees the content.
 
 const NOW = new Date('2026-10-05T03:00:00Z')
 const EFFECTIVE = '2026-10-10T00:00:00+07:00'
@@ -38,7 +37,7 @@ let org: DoaOrg
 beforeAll(async () => {
   org = await createDoaOrg({ doa: false })
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
-  // The BCS team verified the CEO as the contract signatory; the CEO signs in with an authenticator
+  // The BCS team verified the CEO as the contract signatory; the CEO signs in with an authenticator and decides with the PIN
   await prisma.organization.update({ where: { id: org.organizationId }, data: { contractSignatoryMemberId: org.member.ceo!, contractSignatoryVerifiedAt: NOW } })
   const ceo = await prisma.member.findUniqueOrThrow({ where: { id: org.member.ceo! } })
   const userId = await upsertUserWithPassword({ email: ceo.email, name: ceo.displayNameTh, password: 'ceo-password-123456' })
@@ -100,7 +99,7 @@ describe('[FR-DOA-002/AC3] the initial package goes to the contract signatory, w
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { routeId: route.id } } })
     const approve = () => decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())
     expect(await approve()).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
-    await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(SIGNATORY_SECRET) }, new Date())
+    await pinStepUp(org.organizationId, org.member.ceo!, 'DOA_VERSION', versionId)
     expect(await approve()).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
     expect(await prisma.doaVersion.findUniqueOrThrow({ where: { id: versionId } })).toMatchObject({ status: 'PUBLISHED', approvedById: org.member.ceo, effectiveFrom: new Date(EFFECTIVE) })
     const decided = await prisma.event.findFirstOrThrow({ where: { aggregateId: task.id, type: 'approval_task.decided' } })

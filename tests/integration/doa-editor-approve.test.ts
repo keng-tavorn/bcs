@@ -4,9 +4,7 @@ import { decidePolicy } from '@/app/(workspace)/_tracking/commands'
 import { DOA_BOUNDARY_SECTION, boundaryTickOf } from '@/app/(workspace)/_tracking/policy-subject'
 import type { ApproverSpec, DoaRuleSnapshot, DoaWhen } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
-import { totp } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { memberPrincipal } from '@/server/authz'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
@@ -18,6 +16,7 @@ import { submitInitialPackage } from '@/server/services/doa/initial-package'
 import { proposeOrgChange } from '@/server/services/org-authority'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { ensureTestPin, pinStepUp, TEST_PIN, testStepUpSession } from '../support/pin'
 
 // S3-09 · the approver's half of FR-DOA-009 AC3: a DOA version is approved only once its approver ticks the boundary
 // table as checked — the table of the version beside the one it replaces, which the drafter ticked to send it — and the
@@ -62,7 +61,7 @@ const FLAT: DoaRuleSnapshot[] = [
   rule('ORG-CHG-01', 'ORG_AUTHORITY_CHANGE', {}, CEO, 960),
 ]
 
-/** An organization of the fixture with its admin, and a CEO who signs in with an authenticator (the step-up) */
+/** An organization of the fixture with its admin, and a CEO who signs in with an authenticator and decides with the PIN */
 async function orgWithCeo(options: { doa?: boolean } = {}): Promise<DoaOrg> {
   const org = await createDoaOrg(options)
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.admin!, role: 'ORG_ADMIN', grantedAt: NOW } })
@@ -70,6 +69,7 @@ async function orgWithCeo(options: { doa?: boolean } = {}): Promise<DoaOrg> {
   const userId = await upsertUserWithPassword({ email: ceo.email, name: ceo.displayNameTh, password: 'ceo-password-123456' })
   await enableTotpWithSecret(userId, CEO_SECRET, [])
   await prisma.member.update({ where: { id: ceo.id }, data: { userId } })
+  await ensureTestPin(ceo.id)
   return org
 }
 
@@ -135,11 +135,9 @@ async function sent(org: DoaOrg, sourceId: string, edit: (input: DraftCopyInput)
   return { versionId, task }
 }
 
-/** The CEO's step-up for one document, on the security clock (real time), as the decision page gets it */
+/** The CEO's PIN step-up for one document, on the security clock (real time), as the decision page gets it */
 async function stepUp(org: DoaOrg, subjectType: 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE', subjectId: string): Promise<string> {
-  const grant = await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType, subjectId, code: totp(CEO_SECRET) }, new Date())
-  if (!grant.ok) throw new Error(`step-up refused: ${grant.reason}`)
-  return grant.grantId
+  return pinStepUp(org.organizationId, org.member.ceo!, subjectType, subjectId)
 }
 
 const decidedEvent = (taskId: string) => prisma.event.findFirst({ where: { aggregateType: 'ApprovalTask', aggregateId: taskId, type: 'approval_task.decided' } })
@@ -258,15 +256,15 @@ describe('[FR-DOA-010/AC2] an authority change has no boundary table: it is deci
   })
 })
 
-describe('[FR-DOA-009/AC3] [FR-DOA-002/AC2] the decision page passes the approver’s tick with the code', () => {
-  it('an unticked page spends no code; a page without the table is refused by the service; the ticked page approves', async () => {
+describe('[FR-DOA-009/AC3] [FR-DOA-002/AC2] the decision page passes the approver’s tick with the PIN', () => {
+  it('an unticked page spends no PIN; a page without the table is refused by the service; the ticked page approves', async () => {
     const org = await orgWithCeo()
     const { versionId, task } = await sent(org, await v1Of(org), dmTo30k)
     const ceo = memberPrincipal(org.member.ceo!, ['EXECUTIVE'])
-    const decide = (boundaryTableConfirmed: boolean | null) => decidePolicy(org.ctxOf('ceo', NOW), ceo, { taskId: task.id, decision: 'APPROVE', code: totp(CEO_SECRET), boundaryTableConfirmed }, randomUUID(), 'th', new Date())
+    const decide = (boundaryTableConfirmed: boolean | null) => decidePolicy(org.ctxOf('ceo', NOW), ceo, { taskId: task.id, decision: 'APPROVE', pin: TEST_PIN, boundaryTableConfirmed }, randomUUID(), 'th', testStepUpSession())
     const grants = () => prisma.stepUpGrant.count({ where: { organizationId: org.organizationId, subjectId: versionId } })
 
-    // The page showed the table and it was not ticked: told before the code is checked, so no step-up is granted
+    // The page showed the table and it was not ticked: told before the PIN is checked, so no step-up is granted
     expect(await decide(false)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'boundaryTableConfirmed', reason: 'BOUNDARY_NOT_CONFIRMED' })
     expect(await grants()).toBe(0)
     // A page that showed no table sends no tick: the service asks for it all the same, and its grant stays unused
@@ -282,7 +280,7 @@ describe('[FR-DOA-009/AC3] [FR-DOA-002/AC2] the decision page passes the approve
     const org = await orgWithCeo()
     const { task } = await sent(org, await v1Of(org), dmTo30k)
     const ceo = memberPrincipal(org.member.ceo!, ['EXECUTIVE'])
-    expect(await decidePolicy(org.ctxOf('ceo', NOW), ceo, { taskId: task.id, decision: 'REJECT', reason: 'ขอทบทวนวงเงินก่อน', code: totp(CEO_SECRET), boundaryTableConfirmed: false }, randomUUID(), 'th', new Date())).toEqual({
+    expect(await decidePolicy(org.ctxOf('ceo', NOW), ceo, { taskId: task.id, decision: 'REJECT', reason: 'ขอทบทวนวงเงินก่อน', pin: TEST_PIN, boundaryTableConfirmed: false }, randomUUID(), 'th', testStepUpSession())).toEqual({
       ok: true,
       documentStatus: 'REJECTED',
     })
@@ -318,7 +316,7 @@ describe('[FR-DOA-009/AC3] the approver’s tick is of the table the page showed
     // The decision page's command passes the page's version: the same refusal, with the words for it
     const ceo = memberPrincipal(org.member.ceo!, ['EXECUTIVE'])
     const decide = (boundaryBaselineId: string | null) =>
-      decidePolicy(org.ctxOf('ceo', NOW), ceo, { taskId: third.task.id, decision: 'APPROVE', code: totp(CEO_SECRET), boundaryTableConfirmed: true, boundaryBaselineId }, randomUUID(), 'th', new Date())
+      decidePolicy(org.ctxOf('ceo', NOW), ceo, { taskId: third.task.id, decision: 'APPROVE', pin: TEST_PIN, boundaryTableConfirmed: true, boundaryBaselineId }, randomUUID(), 'th', testStepUpSession())
     expect(await decide(v1)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'boundaryTableConfirmed', reason: 'BOUNDARY_TABLE_CHANGED' })
     expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: third.task.id } })).toMatchObject({ status: 'OPEN' })
 

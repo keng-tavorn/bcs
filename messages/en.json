@@ -37,7 +37,9 @@
     },
     "submitting": "Saving…",
     "titleLabel": "Subject",
+    "usedAt": "Already decided {time}. See the result in BCS",
     "usedBody": "A decision link works once. See the result in BCS",
+    "usedBy": "Already decided by {name} {time}",
     "usedTitle": "This link was already used",
     "workspaceOnly": "This task needs an extra identity check, so it cannot be decided from e-mail. Open it in BCS"
   },
@@ -2157,7 +2159,7 @@
     "formTitle": "Name an acting approver",
     "givenEmpty": "Nobody acts for you yet. Before leave or time away, name an acting approver with the form on this page; new approval tasks then go to them for that time.",
     "givenTitle": "Acting for you",
-    "intro": "Name someone to act for you while you are on leave or away. During that time new approval tasks that come to you go to them. Both of you can decide; whoever acts first decides.",
+    "intro": "Name someone to act for you while you are on leave or away. When the period starts, the approval tasks waiting for you move to them, and new tasks that come to you during the period go to them too, within the kinds of task and the cap you set. Both of you can decide; whoever acts first decides. When the period ends, or when you cancel it, the tasks still waiting come back to you.",
     "keep": "Keep it",
     "lastDay": "Last day (included)",
     "maxAmount": "Highest amount handed over (baht)",
@@ -2174,9 +2176,9 @@
     "receivedEmpty": "You do not act for anyone now. When someone names you, it shows here and you are told.",
     "receivedTitle": "You act for",
     "revoke": "Cancel acting by {name}",
-    "revokeConfirm": "Confirm the cancellation: new approval tasks come back to you at once; tasks already sent to the acting approver stay with them",
+    "revokeConfirm": "Confirm the cancellation: new approval tasks come to you at once, and the tasks the acting approver still holds for you come back to you",
     "revokeSubmit": "Confirm cancelling the acting approver",
-    "revoked": "Acting approver cancelled; new approval tasks come to you",
+    "revoked": "Acting approver cancelled: new approval tasks and the tasks they still held for you come back to you",
     "state": {
       "ACTIVE": "Acting now",
       "ENDED": "Ended",
@@ -2229,8 +2231,11 @@
     "harnessIntro": "This page exists only on developer machines, to test attachments before the request forms exist.",
     "harnessTitle": "Attachment test",
     "rule": "PDF, JPG, PNG and HEIC images, Excel and Word (xlsx, docx) up to 20 MB",
+    "stop": "Stop this upload",
+    "stopped": "Upload stopped: this file was not attached. Try again when the signal is better.",
     "tooLarge": "The file is larger than 20 MB. Make it smaller or split it, then try again.",
     "typeNotAllowed": "This kind of file cannot be attached. Use PDF, JPG, PNG, HEIC, or Excel and Word files (xlsx, docx).",
+    "unreadable": "This photo cannot be used: the browser cannot open it to remove where it was taken. Choose a JPG or PNG photo.",
     "uploaded": "{name} attached",
     "uploading": "Uploading {name}"
   },
@@ -2717,6 +2722,593 @@
       },
       "percent": "{value}%"
     }
+  },
+  "liff": {
+    "frame": {
+      "back": "Back"
+    },
+    "gate": {
+      "ambiguous": "This LINE account is linked to more than one BCS account. Ask your organization's administrator to unlink the one that is not yours, then open this page again",
+      "anotherUser": "This browser is signed in to BCS as someone else. Sign out first, then open this page again.",
+      "failed": "Signing in with LINE did not work. Press Try again; if it still fails, tell your organization's administrator",
+      "needsTwoFactor": "Your role needs two-step verification before you start. Open BCS on the web to set it up once, then come back to LINE",
+      "noMembership": "This account is not an active member of any organization. Contact your organization's administrator",
+      "openWorkspace": "Open BCS on the web",
+      "opening": "Opening the page",
+      "reload": "Reload this page",
+      "retry": "Try again",
+      "sdkFailed": "BCS could not start in LINE. Reload this page; if it still fails, close it and open it again from the menu in the LINE chat",
+      "signOut": "Sign out",
+      "signingIn": "Confirming who you are with your LINE account",
+      "signingOut": "Signing out",
+      "toLink": "This LINE account is not linked to a BCS account yet. Opening the link page",
+      "toWebSignIn": "This page is open outside the LINE app. Opening the BCS sign-in page",
+      "tokenInvalid": "LINE could not confirm who you are. Close this page and open it again from the menu in the LINE chat",
+      "unavailable": "LINE cannot be reached right now. Wait a moment, then press Try again"
+    },
+    "help": {
+      "approveBody": "New approvals arrive as cards in the chat. Below the amount your organization set, press Approve on the card. At or above it, and for policy changes, open the details in LINE and confirm with your {length}-digit PIN",
+      "approveHeading": "Approving in the chat, and your PIN",
+      "contactBody": "The administrators of {organization} help with accounts, permissions and LINE settings",
+      "contactHeading": "Contact your administrators",
+      "contactNone": "Your organization has no administrator listed yet. Contact the team that runs systems in your organization",
+      "contactSignedOut": "Link your LINE account to see your organization's administrators, or ask the team that runs systems in your organization",
+      "intro": "Use BCS in LINE to decide approvals, make requests and follow them from your phone. Settings and reports are on the BCS web",
+      "language": "Language",
+      "linkBody": "First link this LINE to your BCS account. Approvals then come to this chat, and the menu below the chat gets Request, Tasks and Track",
+      "linkHeading": "Start using BCS in LINE",
+      "linkNow": "Link your LINE account",
+      "menu": {
+        "help": {
+          "body": "How to use BCS in LINE and whom to contact (this page)",
+          "label": "Help"
+        },
+        "request": {
+          "body": "Make a short purchase or service request",
+          "label": "Request"
+        },
+        "tasks": {
+          "body": "Approvals waiting for you, the ones due soonest first",
+          "label": "Tasks"
+        },
+        "track": {
+          "body": "Your requests and which approval they wait for",
+          "label": "Track"
+        }
+      },
+      "menuHeading": "The menu below the chat",
+      "menuIntro": "Once your account is linked, the menu below the BCS chat has these buttons",
+      "menuUnlinked": "Before you link, the menu has only Link account and Help",
+      "pinBody": "{limit} wrong PINs in a row lock the PIN for {minutes} minutes, and BCS e-mails you. Set or change your PIN in PIN settings on the BCS web after confirming your password",
+      "title": "Using BCS in LINE",
+      "unlinkBody": "Unlink on the Link your LINE account page in the LINE app, or in LINE settings on the web. Blocking the BCS LINE account does not unlink you; approvals and notifications then come by e-mail",
+      "unlinkHeading": "Unlinking",
+      "unlinkLink": "Open the Link your LINE account page"
+    },
+    "index": {
+      "title": "BCS in LINE"
+    },
+    "link": {
+      "barLabel": "Confirm the link",
+      "checkRefusedTitle": "Could not check the LINE account",
+      "checking": "Checking whether your account is linked to this LINE",
+      "codeNotNeeded": "This link code no longer works, and you do not need a new one: your account is linked to LINE already. Its status is below",
+      "done": {
+        "body": "BCS sent a welcome message to the chat, and the menu below the chat now shows Request, Tasks, Track and Help",
+        "close": "Back to the chat",
+        "heading": "Linked",
+        "next": "Next step",
+        "tasks": "Go to my tasks"
+      },
+      "intro": "Link LINE to your BCS account to get approvals and notifications in the chat, and to use the Request, Tasks and Track menu",
+      "linked": {
+        "heading": "This LINE is linked to BCS",
+        "help": "How to use BCS in LINE",
+        "keep": "Keep it linked",
+        "since": "Linked on {time}",
+        "tasks": "Go to my tasks",
+        "unlink": "Unlink this LINE",
+        "unlinkBody": "After unlinking, this LINE gets no BCS approvals or notifications; they go by e-mail instead, and the menu below the chat goes back to the unlinked one",
+        "unlinkConfirm": "Unlink this LINE from {name}'s account?",
+        "unlinkConfirmButton": "Yes, unlink",
+        "unlinkHeading": "Unlink the account",
+        "unlinkRefusedTitle": "Could not unlink",
+        "unlinked": "Unlinked. This LINE no longer gets BCS approvals, and the menu below the chat is back to the unlinked one",
+        "unlinking": "Unlinking"
+      },
+      "member": {
+        "caution": "Once linked, this account's approvals and notifications come to this LINE",
+        "confirm": "Link this LINE to my account",
+        "heading": "Link this LINE to your account",
+        "outsideLine": "Open this page in the LINE app to link, or scan the QR code in LINE settings on the web"
+      },
+      "other": {
+        "body": "This account's approvals and notifications go to that LINE account, not to this one",
+        "heading": "Your account is linked to another LINE account",
+        "passwordNeeded": "Change the linked LINE account in LINE settings on the BCS web, after signing in with your password",
+        "switchBody": "Unlink the other LINE account first, then link this one to your account. The other LINE account will no longer get BCS approvals",
+        "switchHeading": "Use this LINE instead",
+        "unlink": "Unlink the other LINE account",
+        "unlinkConfirm": "Unlink the other LINE account from {name}'s account?",
+        "unlinkConfirmButton": "Yes, unlink the other LINE",
+        "unlinked": "The other LINE account is unlinked. Confirm below to link this LINE to your account"
+      },
+      "outsideLinked": {
+        "body": "Open this page in the LINE app to see whether it is linked to that LINE, or manage the link in LINE settings on the web",
+        "heading": "Your account is linked to LINE"
+      },
+      "preparing": "Getting LINE ready",
+      "preview": {
+        "caution": "Link only if the name above is yours. If someone sent you this code, do not link: your LINE would get that account's approvals and notifications",
+        "confirm": "Link this LINE to this account",
+        "expires": "This code works until",
+        "heading": "Check that this is your account",
+        "member": "Name in BCS",
+        "organization": "Organization",
+        "outsideLine": "Open this link in the LINE app to link, for example by scanning the QR code with LINE"
+      },
+      "refused": {
+        "ACCOUNT_LINKED_TO_ANOTHER_MEMBER": "This LINE is linked to another member of the organization. The owner of that account must unlink it first",
+        "ALREADY_LINKED": "This LINE is already linked to this account. You can use the menu below the chat",
+        "EXTERNAL_SERVICE_ERROR": "LINE cannot be reached right now. Wait a moment and try again",
+        "FAILED": "That did not work. Try again; if it still fails, tell your organization's administrator",
+        "FORBIDDEN": "This BCS account is not active. Contact your organization's administrator",
+        "ID_TOKEN_INVALID": "LINE could not confirm who you are. Close this page and open the link from LINE again",
+        "LINE_NOT_ENABLED": "This organization has not switched LINE on yet. Contact your organization's administrator",
+        "LINK_CHANGED": "The linked LINE account has changed. Reload this page and try again",
+        "MEMBER_LINKED_TO_ANOTHER_ACCOUNT": "This BCS account is linked to another LINE account. Unlink it in LINE settings on the web first, then link again",
+        "NOT_LINKED": "This LINE is not linked to any account any more",
+        "RATE_LIMITED": "Too many tries. Try again after {time}",
+        "RATE_LIMITED_LATER": "Too many tries. Wait a moment and try again",
+        "SIGN_IN_WITH_PASSWORD": "Unlinking another LINE account needs a sign-in with your password. Do it in LINE settings on the BCS web",
+        "TOKEN_EXPIRED": "This link code has expired (codes work for {minutes} minutes). Get a new one in LINE settings on the BCS web",
+        "TOKEN_INVALID": "This link is not a BCS link code. Open the QR code from LINE settings again",
+        "TOKEN_USED": "This link code was used already; each code links once. Get a new one in LINE settings on the BCS web",
+        "UNAUTHENTICATED": "Your session has ended. Close this page and open it again from the menu in the LINE chat",
+        "UNLINKED_SINCE": "This code was issued before the account was last unlinked, so it no longer works. Get a new one in LINE settings on the BCS web"
+      },
+      "refusedTitle": "Could not link",
+      "retry": "Try again",
+      "settingsLink": "Open LINE settings on the web",
+      "signIn": {
+        "heading": "Sign in to BCS to link",
+        "intro": "This LINE account is not linked to a BCS account yet. Sign in with your work e-mail and password, then confirm the link",
+        "outsideLine": "Linking happens in the LINE app: tap Link account in the menu below the BCS chat, or sign in on the web and scan the QR code in LINE settings",
+        "twoFactorHeading": "Second sign-in step"
+      },
+      "title": "Link your LINE account",
+      "working": "Linking"
+    },
+    "mock": {
+      "act": "Open as a mock LINE user",
+      "intro": "Test mode on this machine (LIFF_MOCK): open this page as a mock LINE user of the fake LINE server"
+    },
+    "pin": {
+      "hint": "Enter the {length} digits, then press the confirm button",
+      "label": "{length}-digit PIN"
+    }
+  },
+  "liffDelegation": {
+    "barLabel": "Save the delegation",
+    "fixAbove": "Not set yet: fix the fields with a message above first.",
+    "intro": "Name someone to act for you while you are on leave or away. When the period starts, the approval tasks waiting for you move to them, and new tasks that come to you during the period go to them too, within the kinds of task and the cap you set. Both of you can decide; whoever acts first decides. When the period ends, the tasks still waiting come back to you.",
+    "revokeConfirm": "Confirm the cancellation: new approval tasks come to you at once, and the tasks the acting approver still holds for you come back to you",
+    "revoked": "Acting approver cancelled: new approval tasks and the tasks they still held for you come back to you",
+    "sessionEnded": "Your session has ended and nothing was saved. Close this page and open the same link again, or set it on the BCS website under Acting approver."
+  },
+  "liffReceiving": {
+    "barLabel": "Record the receipt",
+    "closeChat": "Back to the chat",
+    "fixAbove": "Not yet: fix the fields with a message above first.",
+    "nextLabel": "Next step",
+    "notFound": {
+      "body": "The link may be incomplete, or the purchase order no longer exists. Purchase orders waiting to be received are listed on the BCS website under Receiving. If it is not there, contact procurement.",
+      "title": "This purchase order was not found"
+    },
+    "photoNumbered": "{name} (photo {n})",
+    "photoRefusedLate": "The last photo you took is not attached to this receipt. {reason} To take it again, go back to edit the quantities.",
+    "photoWait": "A photo is still being sent. Wait for it to finish before checking or recording.",
+    "photos": {
+      "added": "Photo {name} attached",
+      "full": "{max} photos are attached. To take another one, remove a photo you do not need first.",
+      "hide": "Hide photo {name}",
+      "preparing": "Making the photo smaller",
+      "rule": "Photos are made smaller on your phone before they are sent, and the location they were taken at is removed. Up to {max} photos.",
+      "sending": "Sending photo {name}",
+      "stop": "Stop sending this photo",
+      "stopped": "Sending stopped. This photo is not attached; take it again when the signal is better.",
+      "take": "Take a photo",
+      "takeMore": "Take another photo",
+      "unreadable": "This photo cannot be used. Take it again, or choose a JPG or PNG picture."
+    },
+    "reviewFailed": "The check step could not be opened because the connection failed. What you entered is kept. Try again when the signal is better.",
+    "reviewRetry": "Open the check step again",
+    "sessionEnded": "Your session has ended and nothing was recorded. Close this page and open the same link again, or record the receipt on the BCS website under Receiving.",
+    "title": "Receiving"
+  },
+  "liffRequests": {
+    "catalog": {
+      "track": "See my requests and their status"
+    },
+    "form": {
+      "back": "Back",
+      "backToCatalog": "Request types",
+      "backToChat": "Back to the chat",
+      "barLabel": "Go to the next step or send the request",
+      "camera": {
+        "added": "Photo {name} attached",
+        "hint": "Opens the phone camera. The photo is made smaller in the phone before it is sent, and is attached to the request as a photo",
+        "preparing": "Getting the photo ready",
+        "sending": "Sending the photo {name}",
+        "take": "Take a photo for the request",
+        "takeMore": "Take another photo",
+        "unreadable": "This photo could not be opened. Take it again or choose another one"
+      },
+      "documentsLoading": "Opening the documents",
+      "documentsOpen": "Attach quotations or documents, or suggest a supplier",
+      "notFound": "This request was not found, or it is not yours. Choose a request type to start a new request",
+      "notFoundTitle": "Request not found",
+      "savedAt": "Draft saved at {time}",
+      "sentBar": "Next step",
+      "stepLoading": "Opening the next step"
+    },
+    "track": {
+      "emptyHint": "Tap Buy or hire, choose a request type and fill it in step by step. Requests you send show here with their latest status",
+      "limited": "Showing the newest {shown} of {total} requests. Search the older ones on My requests in BCS on the web",
+      "newRequest": "Buy or hire"
+    },
+    "view": {
+      "barLabel": "What you can do with this request",
+      "notFound": "This request was not found: it may have been removed, or the link is incomplete. Open it again from My requests",
+      "notFoundTitle": "Request not found",
+      "title": "Request"
+    }
+  },
+  "liffTasks": {
+    "decide": {
+      "failed": "We could not confirm it was sent because the connection failed. Try again; if it went through, the page will show it once it reloads.",
+      "pinHelp": "How the PIN works in LINE",
+      "reload": "Reload this page",
+      "setPin": "Set your PIN on the web",
+      "signedOut": "Your LINE sign-in has ended, so this was not sent. Reload this page and try again."
+    },
+    "detail": {
+      "backToChat": "Back to the chat",
+      "budgetLeft": "Left on this budget line",
+      "doaRule": "DOA rule applied",
+      "purchaseOrder": "Purchase order",
+      "summary": "This task at a glance",
+      "supplier": "Supplier",
+      "varianceAmount": "Variance amount (before VAT)"
+    },
+    "list": {
+      "emptyHint": "Tasks sent to you appear here and as approval cards in LINE. Meanwhile you can follow your own requests.",
+      "emptyLink": "Follow my requests"
+    }
+  },
+  "lineLink": {
+    "errors": {
+      "ALREADY_LINKED": "Your account is linked to LINE already. Unlink it first to link another LINE account.",
+      "BUSY": "Something else of yours is being saved. Try again in a moment.",
+      "CONFIRM": "Tick the box to confirm before unlinking.",
+      "FAILED": "It did not work. Try again.",
+      "FORBIDDEN": "You cannot do this. Ask your organization administrator.",
+      "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
+      "LINE_NOT_ENABLED": "LINE cannot be linked right now: your organization has not switched LINE on or has not finished setting it up. Ask your organization administrator.",
+      "NOT_LINKED": "Your account is not linked to LINE.",
+      "NO_ANSWER": "No answer came back, so it is not certain the account was unlinked. Confirm again (it is not done twice) or reload the page to see the status.",
+      "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this."
+    },
+    "intro": "Link your LINE account to BCS to get approvals and notifications in LINE, approve smaller amounts from the chat and open BCS pages in the LINE app.",
+    "link": {
+      "confirm": "In LINE, check that it is your name, then confirm the link",
+      "copied": "Link copied",
+      "copy": "Copy link",
+      "copyFailed": "It could not be copied. Select the text and copy it yourself.",
+      "expired": "This code has expired. Get a new code to link your account.",
+      "expiresIn": "{time} left (until {at}), once only.",
+      "howTo": "Open this code in the LINE app in one of two ways",
+      "intro": "Get a link code, then open it in the LINE app on your phone. The code works once and only for a few minutes.",
+      "keepPrivate": "Do not send this QR code or link to anyone: whoever opens it first links their LINE to your account. You get an e-mail every time an account is linked.",
+      "local": "Test mode on this machine (LIFF_MOCK): this link and QR code open the LIFF page of this machine in the browser, not the real LINE app. On that page, open it as a mock LINE user to link.",
+      "open": "On a phone that has LINE, open this link",
+      "openInLine": "Open the link in LINE",
+      "qrLabel": "QR code to link your LINE account, works once",
+      "renew": "Get a new code",
+      "scan": "On a computer or another device, scan this QR code with the camera of a phone that has LINE",
+      "start": "Link LINE account",
+      "starting": "Getting a code…",
+      "title": "Link your LINE account",
+      "waiting": "This page shows the new status by itself once the link is done in LINE."
+    },
+    "status": {
+      "adminLink": "Go to the organization's LINE settings",
+      "linked": "Your LINE account is linked",
+      "linkedSince": "Linked on {time}",
+      "notLinked": "No LINE account is linked",
+      "notLinkedHint": "You get your tasks and notifications by e-mail.",
+      "off": "LINE cannot be linked right now: your organization has not switched LINE on. Ask your organization administrator if you need it.",
+      "offLinked": "Your organization has switched LINE off, so your tasks and notifications go by e-mail meanwhile. Your LINE account stays linked, and you get them in LINE again once your organization switches LINE back on. Every task and notification is always in the notification bell on the web.",
+      "reachable": "LINE can deliver your tasks and notifications.",
+      "unavailable": "LINE cannot be linked right now: your organization has not finished setting LINE up. Ask your organization administrator if you need it.",
+      "unavailableLinked": "LINE accounts cannot be linked right now: your organization has not finished setting LINE up. Your LINE account stays linked. Ask your organization administrator if you have questions.",
+      "unreachable": "LINE cannot deliver messages to you right now, perhaps because you blocked the organization's LINE account, so e-mail is used instead. Unblock it in the LINE app to get them in LINE again."
+    },
+    "statusTitle": "Status",
+    "title": "LINE account",
+    "unlink": {
+      "button": "Unlink LINE account",
+      "confirm": "Yes, unlink: the buttons on LINE cards I already got stop working.",
+      "done": "Your LINE account was unlinked. Tasks and notifications go by e-mail now.",
+      "doneNotYou": "If you did not link that account yourself, set a new password at once on the Forgot password page, which signs you out everywhere.",
+      "forgotLink": "Go to Forgot password",
+      "intro": "After unlinking you get your tasks and notifications by e-mail, the approve buttons on LINE cards you already got stop working, and you can link again at any time.",
+      "introUnavailable": "After unlinking you get your tasks and notifications by e-mail, the approve buttons on LINE cards you already got stop working, and you can link again only once your organization has LINE fully working.",
+      "keep": "Keep it linked",
+      "notYou": "If you did not link this LINE account yourself, unlink it first, then set a new password at once on the Forgot password page, which signs you out everywhere.",
+      "submit": "Unlink now",
+      "submitting": "Unlinking…",
+      "title": "Unlink"
+    }
+  },
+  "lineSettings": {
+    "checks": {
+      "accessToken": {
+        "forbidden": "LINE does not let this token use the Messaging API. Check that it is the token of this account's Messaging API channel and that the account's plan allows the API.",
+        "ok": "LINE accepts this token (account {botName} {basicId}).",
+        "rejected": "LINE refused the request (HTTP {status}) {detail}",
+        "title": "Channel access token",
+        "tokenUnreadable": "The saved access token cannot be read because the system encryption key changed. Enter the token again and save.",
+        "unauthorized": "LINE does not accept this token: it may be mistyped, expired or replaced by a newer one. In LINE Developers Console → Messaging API → Channel access token, click Issue, paste the token in the Channel access token field and save.",
+        "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again."
+      },
+      "liffId": {
+        "channelMismatch": "LIFF ID {liffId} does not belong to channel {liffChannelId}. Copy the LIFF ID and the Channel ID from the same LINE MINI App channel.",
+        "channelNotSet": "Also enter the Channel ID of the LINE MINI App channel that issued LIFF ID {liffId}. It is used to verify who opens the LIFF pages.",
+        "envMismatch": "LIFF ID {liffId} (channel {liffChannelId}) is not the LIFF app this BCS system runs, which is {envLiffId} (channel {envLiffChannelId}). Save those two values, or tell the BCS team if your organization needs a LIFF app of its own.",
+        "envNotSet": "This BCS system has no LIFF app set up yet, so LIFF pages cannot open. Tell the BCS team: NEXT_PUBLIC_LIFF_ID and LINE_LIFF_CHANNEL_ID are missing.",
+        "notSet": "No LIFF ID yet. Copy it from LINE Developers Console → your LINE MINI App channel and save.",
+        "ok": "LIFF ID {liffId} is set.",
+        "title": "LIFF ID"
+      },
+      "richMenus": {
+        "missingAtLine": "LINE no longer has the {missing} rich menu. Click \"Make both rich menus again\" on this page.",
+        "needsAccessToken": "This check runs once the access token passes.",
+        "notCreated": "The rich menus are not created yet. Click \"Make both rich menus again\" on this page.",
+        "ok": "LINE has the rich menu for people who have not linked their account and the one for linked people.",
+        "rejected": "LINE refused the request (HTTP {status}) {detail}",
+        "title": "Both rich menus",
+        "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again."
+      },
+      "webhookReachable": {
+        "couldNotConnect": "LINE cannot connect to {expected}. BCS must be reachable from the internet over https and its address (APP_URL) must be right. Ask the BCS team if you are not sure.",
+        "errorStatus": "BCS answered LINE with HTTP {statusCode}. Check that the address (APP_URL) points to this system; if it still fails, tell the BCS team.",
+        "needsAccessToken": "This check runs once the access token passes.",
+        "ok": "LINE delivered a test webhook to BCS and the signature is right.",
+        "rejected": "LINE refused the test (HTTP {status}) {detail} LINE accepts webhook URLs that start with https only.",
+        "signatureRefused": "LINE reached BCS but the signature did not match, so the saved channel secret is not this channel's. Copy the Channel secret from LINE Developers Console → Basic settings, paste it and save.",
+        "timeout": "BCS did not answer LINE in time. Test again; if it still fails, tell the BCS team.",
+        "title": "LINE can reach BCS",
+        "unclassified": "LINE could not test the webhook ({detail}). Test again; if it still fails, tell the BCS team.",
+        "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again."
+      },
+      "webhookUrl": {
+        "inactive": "The webhook URL is right but Use webhook is off. Turn it on in LINE Developers Console → Messaging API → Webhook settings.",
+        "mismatch": "The webhook URL in LINE is {registered} but it must be {expected}. Change it in LINE Developers Console → Messaging API → Webhook settings.",
+        "needsAccessToken": "This check runs once the access token passes.",
+        "notSet": "No webhook URL is set in LINE. In LINE Developers Console → Messaging API → Webhook settings, paste {expected}, click Update and turn on Use webhook.",
+        "ok": "LINE sends webhooks to {expected} and Use webhook is on.",
+        "rejected": "LINE refused the request (HTTP {status}) {detail}",
+        "title": "Webhook URL set in LINE",
+        "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again."
+      }
+    },
+    "conflict": "Another administrator saved the LINE settings while you were editing. The page now shows the latest values. Check them and make your change again if it is still needed (secrets you typed were not saved).",
+    "copied": "Webhook URL copied",
+    "copy": "Copy webhook URL",
+    "copyFailed": "It could not be copied. Select the text and copy it yourself.",
+    "fields": {
+      "active": "Use LINE in this organization",
+      "channelAccessToken": "Channel access token (long-lived)",
+      "channelSecret": "Channel secret",
+      "liffChannelId": "Channel ID of the LINE MINI App channel (LIFF)",
+      "liffId": "LIFF ID",
+      "messagingChannelId": "Channel ID of the Messaging API channel",
+      "providerId": "Provider ID",
+      "webhookUrl": "Webhook URL"
+    },
+    "formTitle": "LINE channel values",
+    "hints": {
+      "active": "When off, nothing is sent by LINE (e-mail is used instead) and the BCS pages in the LINE app do not open.",
+      "liffChannelId": "LINE MINI App channel → Basic settings → Channel ID (digits)",
+      "liffId": "LINE MINI App channel → LIFF ID, for example 1234567890-AbCdEfGh",
+      "messagingChannelId": "Messaging API channel → Basic settings → Channel ID (digits)",
+      "providerId": "LINE Developers Console → Providers → Provider ID"
+    },
+    "intro": "Connect BCS to the LINE Official Account of your organization. Copy every value from LINE Developers Console, all from the same provider.",
+    "invalid": {
+      "channelAccessToken": "A channel access token is 16 to 2,048 characters without spaces. Copy it from the Messaging API tab again.",
+      "channelSecret": "A channel secret is 32 characters of 0–9 and a–f. Copy it from Basic settings again.",
+      "liffChannelId": "A channel ID has digits only.",
+      "liffId": "A LIFF ID is the channel ID, a dash and a code, for example 1234567890-AbCdEfGh.",
+      "messagingChannelId": "A channel ID has digits only.",
+      "other": "Some values are not valid. Check them and save again.",
+      "providerId": "Use letters, digits, dots, dashes or underscores only, at most 64, without spaces."
+    },
+    "noAnswer": "No answer came back, so it is not certain the settings were saved. Click save again (they are not saved twice) or reload the page to see what is saved.",
+    "refused": {
+      "NO_CHANGE": "Nothing was changed.",
+      "PROVIDER_IN_USE": "The provider ID cannot change while {linked, plural, one {# member is} other {# members are}} linked to LINE, because LINE gives every provider its own user IDs. Ask them to unlink first, then change it.",
+      "REQUIRED": "Enter {field} the first time you save."
+    },
+    "richMenus": {
+      "button": "Make both rich menus again",
+      "defaultNotSet": "LINE did not make the link-account set the default menu yet. Click the button again in a moment.",
+      "done": "Both rich menus were made again.",
+      "errors": {
+        "CONFLICT": "Another administrator saved the LINE settings while the menus were made. The page now shows the latest values; click the button again.",
+        "IMAGES": "The system's rich menu pictures cannot be used. Tell the BCS team.",
+        "LIFF_REQUIRED": "Enter the LIFF ID and save first: the menu buttons open the BCS pages in the LINE app.",
+        "LINE": "LINE refused to make the rich menus (HTTP {status}). Test the connection above, fix what fails, then try again.",
+        "NOT_CONFIGURED": "Save the LINE settings first, then make the rich menus.",
+        "TOKEN_UNREADABLE": "The saved access token cannot be read. Enter the token again and save first."
+      },
+      "intro": "The menu under the LINE chat comes in two sets: one to link an account, for people who have not linked yet, and one to work with, for linked members. This button makes both again from the system's pictures and gives every linked member the new one.",
+      "noAnswer": "No answer came back, so it is not certain the rich menus were made. Click the button again or reload the page to see their state.",
+      "notStored": "Not made yet",
+      "relinkFailed": "LINE could not give the menu to {count, plural, one {# member} other {# members}} for now. They keep the old one; click the button again in a moment.",
+      "relinkRefused": "LINE refused the menu for {count, plural, one {# member} other {# members}}, perhaps because they blocked the account. They get it back when they unblock it.",
+      "relinked": "{count, plural, one {# linked member got} other {# linked members got}} the new menu.",
+      "running": "Making the rich menus…",
+      "stored": "Both are made",
+      "title": "Rich menu"
+    },
+    "save": "Save LINE settings",
+    "saved": "LINE settings saved.",
+    "saving": "Saving…",
+    "secret": {
+      "channelAccessTokenWhere": "Messaging API channel → Messaging API → Channel access token",
+      "channelSecretWhere": "Messaging API channel → Basic settings → Channel secret",
+      "first": "Required the first time you save. It is encrypted and never shown again.",
+      "keep": "Leave empty to keep the saved value. It is encrypted and never shown again.",
+      "notSet": "Not set",
+      "set": "Set",
+      "unreadable": "The saved value cannot be read. Enter it again and save."
+    },
+    "state": {
+      "active": "LINE is on. Members who linked their account get tasks and notifications in LINE.",
+      "inactive": "LINE is off. Members get their tasks and notifications by e-mail instead.",
+      "notConfigured": "LINE is not set up. Members get their tasks and notifications by e-mail only."
+    },
+    "status": {
+      "FAIL": "Fail",
+      "PASS": "Pass"
+    },
+    "switch": {
+      "off": "Off",
+      "on": "On"
+    },
+    "test": {
+      "button": "Test connection",
+      "failed": "{count, plural, one {# check did not pass. Fix it as it says} other {# checks did not pass. Fix them as each one says}}, then test again.",
+      "intro": "Checks one by one that LINE accepts the saved values and can deliver webhooks to BCS. It takes at most {seconds} seconds.",
+      "notConfigured": "Save the LINE settings first, then test.",
+      "passed": "Every check passed. LINE is ready.",
+      "results": "Test results",
+      "running": "Testing…",
+      "title": "Test connection"
+    },
+    "title": "LINE settings",
+    "unsaved": "Save your changes first: this button uses the saved values.",
+    "webhookUrlHint": "Paste it in LINE Developers Console → Messaging API → Webhook settings, then turn on Use webhook.",
+    "webhookUrlNotYet": "The webhook URL shows after the LINE settings are saved the first time."
+  },
+  "notificationSettings": {
+    "always": {
+      "escalations": "Tasks passed on to you to decide as well",
+      "fixed": "Cannot be turned off",
+      "intro": "These need you to act, so they are always sent at once and nothing is left waiting.",
+      "reminders": "Reminders of tasks nearly due and overdue tasks",
+      "tasks": "Tasks waiting for your approval",
+      "title": "Always sent at once, cannot be turned off"
+    },
+    "channel": {
+      "manageLine": "Go to LINE account",
+      "text": "Work notices such as approval tasks, task reminders, the results of your requests and the daily summary go by LINE when you have linked your LINE account and your organization uses LINE. When it is not linked, your organization has LINE off or LINE cannot deliver, they go by e-mail instead. Account security notices always go by e-mail, never by LINE. Everything is also in the notification bell on the web.",
+      "title": "Where they arrive"
+    },
+    "digest": {
+      "hint": "A summary of the tasks waiting for you, overdue work and budgets running low in your scope, sent on working-day mornings, only when there is something to report.",
+      "label": "Send me the daily summary",
+      "off": "Off",
+      "on": "On",
+      "saving": "Saving…",
+      "title": "Daily summary",
+      "turnedOff": "The daily summary is off. Approval tasks and overdue work still reach you at once.",
+      "turnedOn": "The daily summary is on."
+    },
+    "errors": {
+      "BUSY": "Something else of yours is being saved. Try again in a moment.",
+      "FAILED": "It was not saved; the previous setting still applies. Try again.",
+      "FORBIDDEN": "You cannot do this. Ask your organization administrator.",
+      "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
+      "NO_ANSWER": "No answer came back, so it is not certain the change was saved. Try again, or reload the page to see the setting in effect.",
+      "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this."
+    },
+    "intro": "Choose whether you get the daily summary. Anything that needs your decision is always sent at once.",
+    "title": "Notification settings"
+  },
+  "pinSettings": {
+    "done": {
+      "changed": "PIN changed. Use the new PIN to confirm your next approval.",
+      "set": "PIN set. Use it to confirm your next approval."
+    },
+    "errors": {
+      "ACCOUNT_LOCKED": "Too many wrong tries: confirming is paused for this account until {time}. Try again then.",
+      "ALL_SAME": "This PIN is one digit six times, which is too easy to guess. Choose another.",
+      "BUSY": "Something else of yours is being saved. Try again in a moment.",
+      "CODE_FORMAT": "Enter the 6-digit code from your authenticator app.",
+      "CODE_WRONG": "The code is not right or has expired. Enter the latest code from the app.",
+      "COMMON": "Many people choose this PIN, so it is too easy to guess. Choose another.",
+      "FAILED": "It was not saved. Try again.",
+      "FORBIDDEN": "You cannot do this. Ask your organization administrator.",
+      "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
+      "MISMATCH": "The two PINs are not the same. Enter the same PIN twice.",
+      "NOT_AVAILABLE": "This way of confirming is not available. Ask your organization administrator.",
+      "NO_ANSWER": "No answer came back, so it is not certain the PIN was set. Press the button again (it is not set twice) or reload the page to see the status.",
+      "PASSWORD_REQUIRED": "Enter your password.",
+      "PASSWORD_WRONG": "The password is not right. Try again.",
+      "PIN_FORMAT": "A PIN is 6 digits.",
+      "PROOF_EXPIRED": "Your confirmation expired or was used already. Confirm it is you again, then set the PIN.",
+      "SEQUENCE": "This PIN is a run of digits, which is too easy to guess. Choose another.",
+      "TOTP_NOT_AVAILABLE": "This account has no authenticator app set up. Confirm with your password instead.",
+      "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this."
+    },
+    "intro": "You confirm high-value approvals and policy changes with this 6-digit PIN, on the web and in the LINE app. It is not your password.",
+    "prove": {
+      "PASSWORD": "Password",
+      "TOTP": "6-digit code from your authenticator app",
+      "code": "The 6-digit code the app shows now",
+      "intro": "Before you set or change the PIN, confirm who you are again with your password or the code from your authenticator app.",
+      "introOnly": {
+        "PASSWORD": "Before you set or change the PIN, confirm who you are again with your password.",
+        "TOTP": "Before you set or change the PIN, confirm who you are again with the code from your authenticator app."
+      },
+      "method": "Confirm with",
+      "noMethod": "Your account has no password and no authenticator app to confirm who you are with, so the PIN cannot be set or changed on this page. Ask your organization administrator.",
+      "password": "Your password",
+      "submit": "Confirm it is me",
+      "submitting": "Checking…",
+      "title": "Step 1 of 2: confirm it is you"
+    },
+    "rules": {
+      "digits": "6 digits",
+      "notCommon": "not a PIN many people choose, such as 121212 or 147258",
+      "notSame": "not one digit six times, such as 000000",
+      "notSequence": "not digits going up or down, such as 123456 or 654321",
+      "private": "Do not use a birthday or a number others know, and never tell anyone your PIN.",
+      "title": "A PIN you can use"
+    },
+    "set": {
+      "cancel": "Cancel",
+      "pin": "New 6-digit PIN",
+      "proved": "Confirmed. Set the PIN before {time}.",
+      "repeat": "Enter the new PIN again",
+      "submitChange": "Change PIN",
+      "submitNew": "Set PIN",
+      "submitting": "Saving…",
+      "title": "Step 2 of 2: set the new PIN"
+    },
+    "status": {
+      "attemptsLeft": "{count, plural, one {# more wrong PIN locks it for a while.} other {# more wrong PINs lock it for a while.}}",
+      "locked": "Your PIN is locked until {time} after too many wrong tries in a row.",
+      "lockedUnlock": "Set a new PIN below to unlock it now.",
+      "notSet": "No PIN set yet",
+      "notSetHint": "Set a PIN before you approve a task that asks for it.",
+      "set": "Your PIN is set"
+    },
+    "statusTitle": "Status",
+    "title": "Transaction PIN"
   },
   "platform": {
     "modules": {
@@ -3430,6 +4022,7 @@
       "step": "Step {step} of 2",
       "toList": "Back to receiving",
       "toReview": "Check before recording",
+      "uploadWait": "A photo is still uploading. Wait for it to finish before checking or recording, or stop the upload in the photos field above.",
       "whyDamaged": "Damaged (a photo is needed)",
       "whyLegend": "Why it is refused",
       "whyOther": "Another reason, such as the wrong model or size",
@@ -3897,6 +4490,7 @@
     },
     "review": {
       "budgetLine": "Budget line",
+      "budgetShort": "The budget is not enough: {available} baht left, {shortfall} baht short. Lower the amount or choose another budget line",
       "department": "Paying department",
       "fileCount": "{count, plural, one {# file} other {# files}}",
       "files": "Attached files",
@@ -3910,6 +4504,8 @@
       "noTitle": "No title yet",
       "problemsTitle": "Check before sending",
       "ready": "Everything this page can check is complete. You can send it",
+      "saveClosed": "This request was already sent or cancelled elsewhere, so it cannot be sent from this page",
+      "saveConflict": "This draft was changed elsewhere. Load the latest version and check it again before sending",
       "site": "Delivery site",
       "summary": "Request summary",
       "supplier": "Suggested supplier",
@@ -4022,6 +4618,7 @@
       "after": "Once sent, the request gets its number, the budget is reserved and the first approver gets the task. You can still cancel it from the request page",
       "afterSupplier": "Once sent, the request gets its number and procurement is told",
       "blockedBudget": "It cannot be sent because the budget is not enough: {available} baht left, {shortfall} baht short. Lower the amount or choose another budget line",
+      "blockedClosed": "It cannot be sent because this request was already sent or cancelled elsewhere",
       "blockedProblems": "It cannot be sent until the points marked fix before sending above are fixed",
       "blockedSave": "It cannot be sent until you load the latest version of the draft",
       "resubmit": "Send for approval again",
@@ -4228,6 +4825,10 @@
     "questions": {
       "answered": "{name} answered {time}",
       "asked": "{name} asked {time}",
+      "noLongerNeeded": {
+        "CLOSED": "No answer needed any more",
+        "STEP_DECIDED": "No answer needed: this step was decided"
+      },
       "title": "Questions and answers",
       "waiting": "No answer yet"
     },
@@ -4245,6 +4846,7 @@
       "signatory": "Contract signatory"
     },
     "route": {
+      "escalated": "Escalated when overdue: the next approval level joined",
       "explain": {
         "bandAbove": "is in the band above {lower}",
         "bandBetween": "is in the band above {lower} up to {upper}",
@@ -4264,8 +4866,10 @@
         "subject": "a {document} of {amount} baht ({basis})",
         "to": "goes to {approvers}"
       },
+      "firstDecides": "Whoever decides first decides this step",
       "none": "This request type does not go through the DOA; it goes straight to procurement",
       "notYet": "The approval route is worked out when the request is sent, then shown here with the reason",
+      "orApprover": "or {name}",
       "round": "Round {no}: worked out again when it was sent again, under the DOA in effect at that time",
       "rule": "Under",
       "step": "Step {no}",
@@ -4314,6 +4918,7 @@
     "system": "System",
     "timeline": {
       "askedBy": "Question from {name}",
+      "escalated": "This step was escalated when overdue",
       "label": "Timeline of the request",
       "nextStep": "Approval step {no}",
       "noteAnswer": "Answer",
@@ -4385,12 +4990,16 @@
       "home": "Home",
       "invoices": "Confirm invoices",
       "kpi": "KPI",
+      "line": "LINE settings",
+      "lineLink": "LINE account",
       "members": "Members and roles",
       "modules": "Enabled modules",
       "newRequest": "New purchase request",
+      "notifications": "Notification settings",
       "numbering": "Document numbers",
       "org": "Organization structure",
       "orgAuthority": "Authority changes",
+      "pin": "Transaction PIN",
       "policyHistory": "Policy history",
       "pool": "Requests to purchase",
       "pos": "Purchase orders (PO)",
@@ -4722,6 +5331,7 @@
       "confirmText": "Approve {label}, total incl. VAT {amount} baht. The decision cannot be changed later.",
       "otherLink": "Return, reject or ask for information",
       "otherTitle": "Return or reject",
+      "pin": "6-digit PIN",
       "po": {
         "otherLink": "Return or reject",
         "otherTitle": "Return or reject",
@@ -4745,6 +5355,7 @@
       "returnHint": "The request goes back to the requester to edit and send again; the reserved budget stays reserved",
       "returnOption": "Return to the requester for changes",
       "returned": "Returned to the requester for changes",
+      "stepUpHint": "The amount of this task needs your 6-digit PIN to approve, return or reject it",
       "submitReject": "Reject this request",
       "submitReturn": "Return to the requester for changes",
       "title": "Decide this task",
@@ -4768,6 +5379,7 @@
           "other": "What was recorded is not done"
         },
         "rejected": "This variance was rejected",
+        "stepUpHint": "The amount of this task needs your 6-digit PIN to approve or reject it",
         "submitReject": "Reject this variance"
       },
       "working": "Saving"
@@ -4802,9 +5414,6 @@
       "BUSY": "Someone is working on this task right now. Wait a moment and try again.",
       "CHANNEL": "Policy changes can be decided on the web or LIFF only",
       "CHOICE": "Choose whether to return it for changes or reject it",
-      "CODE": "Enter the 6-digit code from your authenticator app",
-      "CODE_INVALID": "The code is wrong or has expired. Open your authenticator app and enter the latest code.",
-      "CODE_LOCKED": "Too many wrong codes. Verification is paused; wait 15 minutes and try again.",
       "CONFIRM": "Tick the box first, because the decision cannot be changed later",
       "CONFLICT": "This was already sent with different details. Reload the page and try again.",
       "DECIDED": "Already decided by {name} {time}",
@@ -4813,12 +5422,16 @@
       "INTERNAL": "It could not be saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
       "LATER_VERSION": "A DOA version approved earlier starts after this one, so this one cannot be approved. Contact your administrator.",
       "NOT_FOUND": "This task is no longer there. It may have moved or been cancelled. Reload the page.",
-      "NO_SECOND_FACTOR": "Your account has no authenticator app yet. Set one up on the account security page first.",
+      "PIN": "Enter your 6-digit PIN",
+      "PIN_INVALID": "The PIN is wrong. {attemptsLeft, plural, one {# more wrong try} other {# more wrong tries}} and the PIN locks for 15 minutes.",
+      "PIN_LOCKED": "Five wrong PINs in a row locked your PIN until {time}. Try again after that.",
+      "PIN_NOT_SET": "You have not set a transaction PIN yet. Set one, then come back to decide this task.",
+      "PIN_NOT_SET_LINK": "Set your PIN",
       "QUESTION": "Write a question of at least 3 characters",
       "REASON": "Give a reason of at least 3 characters so the requester knows what to change",
       "SOD": "You cannot decide this task because you are part of this document ({rule}). Ask your administrator to give the task to someone else.",
       "STATE": "This task no longer waits for a decision. Reload the page to see its latest status.",
-      "STEP_UP": "The code check has expired. Enter a code from the app again.",
+      "STEP_UP": "Every decision on this task needs your PIN. Enter it and try again.",
       "SUBJECT": "Information can be asked on request approvals only. A policy change is approved or rejected.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and retry."
     },
@@ -4835,7 +5448,7 @@
       "poMeta": "Sent for approval by {name}",
       "question": "Waiting for the requester’s answer",
       "requester": "{name} · {department}",
-      "stepUp": "Needs a code from your authenticator app",
+      "stepUp": "Needs your PIN",
       "untitled": "Approval task",
       "variance": "{type} · {description}",
       "varianceAmountLabel": "Before VAT",
@@ -4856,7 +5469,6 @@
         "POSITION_END": "End the appointment of {position}, {department}",
         "POSITION_END_REPLACED": "End the appointment of {position}, {department} and appoint {member} instead"
       },
-      "code": "6-digit code from the app",
       "confirm": "I have checked the reason and understand the decision cannot be changed later",
       "doaApprover": {
         "MEMBER": "{name} (named person)",
@@ -4955,12 +5567,13 @@
         "reason": "Reason"
       },
       "openAdmin": "See all authority changes",
+      "pin": "6-digit PIN",
       "reason": "Reason",
       "reject": "Reject this change",
       "rejectHint": "The proposer sees the reason and must propose again if the change is still needed",
       "rejectTitle": "Reject this change",
       "rejected": "Change rejected",
-      "stepUpHint": "Approving or rejecting a DOA or authority change needs the 6-digit code from your authenticator app again, every time",
+      "stepUpHint": "Approving or rejecting a DOA or authority change needs your 6-digit PIN, every time",
       "title": "Decide this policy change",
       "unknown": "unknown",
       "whatTitle": "What you are asked to approve"
@@ -4970,6 +5583,7 @@
       "REJECT": "Rejected by {name} {time}",
       "RETURN": "Returned for changes by {name} {time}",
       "cancelled": {
+        "CO_ASSIGNEE_DECIDED": "This task is closed because another approver of this step decided first",
         "DOCUMENT_DECIDED": "This task is closed because the document has been decided",
         "REQUEST_CANCELLED": "This task is closed because the requester cancelled the request",
         "ROUTE_REPLACED": "This task is closed because the requester edited and sent the request again, and a new route was worked out",

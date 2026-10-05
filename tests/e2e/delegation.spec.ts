@@ -64,6 +64,9 @@ test('[FR-DOA-006/AC2] the delegator names an acting approver on the web; a 10,0
   await signIn(page, 'dm_con', true)
   await page.goto('/settings/delegation')
   await expect(page.getByRole('heading', { level: 1, name: 'รักษาการ' })).toBeVisible()
+  // What a delegation does in this build (BR-DLG-04, NEW-35): the waiting tasks move at the start, new ones follow within
+  // the kinds and cap set, either decides, and what is still waiting comes back at the end or on a cancel
+  await expect(page.getByText(/^ตั้งผู้รักษาการเมื่อคุณลาหรือไม่อยู่ เมื่อเริ่มช่วงนั้น งานอนุมัติที่รอคุณอยู่จะย้ายไปที่ผู้รักษาการ .* ใครตัดสินก่อนได้ก่อน เมื่อจบช่วงหรือเมื่อยกเลิก งานที่ยังค้างจะกลับมาที่คุณ$/)).toBeVisible()
   await expect(page.getByText('อำนาจที่มอบได้มาจากตำแหน่ง ผู้จัดการฝ่าย ของ ฝ่ายก่อสร้าง')).toBeVisible()
   await expectNoBlockingAxe(page)
   await expectNoHorizontalScroll(page)
@@ -124,9 +127,10 @@ test('[FR-DOA-006/AC2] the delegator names an acting approver on the web; a 10,0
   await row.getByRole('button', { name: 'ยกเลิกการรักษาการของ สมหญิง รักงาน' }).click()
   await row.getByRole('button', { name: 'ยืนยันยกเลิกการรักษาการ' }).click()
   await expect(row.getByText('ติ๊กช่องยืนยันก่อนยกเลิก')).toBeVisible()
-  await row.getByLabel('ยืนยันยกเลิก งานอนุมัติใหม่จะกลับมาที่คุณทันที งานที่ส่งให้ผู้รักษาการไปแล้วยังอยู่กับผู้รักษาการ').check()
+  // Cancelling ends the period early: what the acting approver still holds comes back (BR-DLG-04, NEW-35), as the box says
+  await row.getByLabel('ยืนยันยกเลิก งานอนุมัติใหม่จะมาที่คุณทันที และงานที่ยังค้างอยู่กับผู้รักษาการจะกลับมาที่คุณ').check()
   await row.getByRole('button', { name: 'ยืนยันยกเลิกการรักษาการ' }).click()
-  const cancelled = page.getByRole('region', { name: 'ผู้รักษาการแทนคุณ' }).getByRole('listitem').filter({ hasText: 'ยกเลิกการรักษาการแล้ว งานอนุมัติใหม่จะมาที่คุณ' })
+  const cancelled = page.getByRole('region', { name: 'ผู้รักษาการแทนคุณ' }).getByRole('listitem').filter({ hasText: 'ยกเลิกการรักษาการแล้ว งานอนุมัติใหม่และงานที่ค้างอยู่กับผู้รักษาการจะกลับมาที่คุณ' })
   await expect(cancelled).toContainText('ยกเลิกแล้ว')
   // The overlap refusal was about the delegation just cancelled, so it is gone
   await expect(failure(page, 'ช่วงนี้ทับกับการรักษาการที่ตั้งไว้แล้ว')).toHaveCount(0)

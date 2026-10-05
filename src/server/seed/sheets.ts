@@ -217,7 +217,7 @@ const HistoryRow = z.object({
   supplier: z.string().nullable(),
   budgetLine: z.string().regex(/^[A-Z0-9_-]{2,50}$/),
   /** Whole baht before VAT; VAT, gross and what counts against the budget are formulas the services compute again */
-  net: z.string().regex(/^\d{1,13}(\.\d{1,2})?$/),
+  net: z.string().regex(/^\d{1,13}(\.00?)?$/, 'Demo_History net must be whole baht'),
   status: z.enum(['COMPLETED', 'ORDERED', 'APPROVED', 'PENDING_APPROVAL', 'RETURNED', 'REJECTED', 'CANCELLED']),
   expectedRule: z.string().nullable(),
   expectedApprover: z.string().nullable(),

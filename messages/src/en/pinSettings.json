@@ -1,0 +1,72 @@
+{
+  "title": "Transaction PIN",
+  "intro": "You confirm high-value approvals and policy changes with this 6-digit PIN, on the web and in the LINE app. It is not your password.",
+  "statusTitle": "Status",
+  "status": {
+    "set": "Your PIN is set",
+    "notSet": "No PIN set yet",
+    "notSetHint": "Set a PIN before you approve a task that asks for it.",
+    "locked": "Your PIN is locked until {time} after too many wrong tries in a row.",
+    "lockedUnlock": "Set a new PIN below to unlock it now.",
+    "attemptsLeft": "{count, plural, one {# more wrong PIN locks it for a while.} other {# more wrong PINs lock it for a while.}}"
+  },
+  "rules": {
+    "title": "A PIN you can use",
+    "digits": "6 digits",
+    "notSame": "not one digit six times, such as 000000",
+    "notSequence": "not digits going up or down, such as 123456 or 654321",
+    "notCommon": "not a PIN many people choose, such as 121212 or 147258",
+    "private": "Do not use a birthday or a number others know, and never tell anyone your PIN."
+  },
+  "prove": {
+    "title": "Step 1 of 2: confirm it is you",
+    "intro": "Before you set or change the PIN, confirm who you are again with your password or the code from your authenticator app.",
+    "introOnly": {
+      "PASSWORD": "Before you set or change the PIN, confirm who you are again with your password.",
+      "TOTP": "Before you set or change the PIN, confirm who you are again with the code from your authenticator app."
+    },
+    "noMethod": "Your account has no password and no authenticator app to confirm who you are with, so the PIN cannot be set or changed on this page. Ask your organization administrator.",
+    "method": "Confirm with",
+    "PASSWORD": "Password",
+    "TOTP": "6-digit code from your authenticator app",
+    "password": "Your password",
+    "code": "The 6-digit code the app shows now",
+    "submit": "Confirm it is me",
+    "submitting": "Checking…"
+  },
+  "set": {
+    "title": "Step 2 of 2: set the new PIN",
+    "proved": "Confirmed. Set the PIN before {time}.",
+    "pin": "New 6-digit PIN",
+    "repeat": "Enter the new PIN again",
+    "submitNew": "Set PIN",
+    "submitChange": "Change PIN",
+    "submitting": "Saving…",
+    "cancel": "Cancel"
+  },
+  "done": {
+    "set": "PIN set. Use it to confirm your next approval.",
+    "changed": "PIN changed. Use the new PIN to confirm your next approval."
+  },
+  "errors": {
+    "PASSWORD_REQUIRED": "Enter your password.",
+    "PASSWORD_WRONG": "The password is not right. Try again.",
+    "CODE_FORMAT": "Enter the 6-digit code from your authenticator app.",
+    "CODE_WRONG": "The code is not right or has expired. Enter the latest code from the app.",
+    "TOTP_NOT_AVAILABLE": "This account has no authenticator app set up. Confirm with your password instead.",
+    "NOT_AVAILABLE": "This way of confirming is not available. Ask your organization administrator.",
+    "ACCOUNT_LOCKED": "Too many wrong tries: confirming is paused for this account until {time}. Try again then.",
+    "PIN_FORMAT": "A PIN is 6 digits.",
+    "ALL_SAME": "This PIN is one digit six times, which is too easy to guess. Choose another.",
+    "SEQUENCE": "This PIN is a run of digits, which is too easy to guess. Choose another.",
+    "COMMON": "Many people choose this PIN, so it is too easy to guess. Choose another.",
+    "MISMATCH": "The two PINs are not the same. Enter the same PIN twice.",
+    "NO_ANSWER": "No answer came back, so it is not certain the PIN was set. Press the button again (it is not set twice) or reload the page to see the status.",
+    "PROOF_EXPIRED": "Your confirmation expired or was used already. Confirm it is you again, then set the PIN.",
+    "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this.",
+    "FORBIDDEN": "You cannot do this. Ask your organization administrator.",
+    "BUSY": "Something else of yours is being saved. Try again in a moment.",
+    "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
+    "FAILED": "It was not saved. Try again."
+  }
+}

@@ -138,6 +138,9 @@
     "why": "Why this route",
     "round": "Round {no}: worked out again when it was sent again, under the DOA in effect at that time",
     "step": "Step {no}",
+    "orApprover": "or {name}",
+    "firstDecides": "Whoever decides first decides this step",
+    "escalated": "Escalated when overdue: the next approval level joined",
     "notYet": "The approval route is worked out when the request is sent, then shown here with the reason",
     "none": "This request type does not go through the DOA; it goes straight to procurement",
     "stepState": {
@@ -219,7 +222,11 @@
     "title": "Questions and answers",
     "asked": "{name} asked {time}",
     "answered": "{name} answered {time}",
-    "waiting": "No answer yet"
+    "waiting": "No answer yet",
+    "noLongerNeeded": {
+      "STEP_DECIDED": "No answer needed: this step was decided",
+      "CLOSED": "No answer needed any more"
+    }
   },
   "timeline": {
     "title": "Timeline",
@@ -251,6 +258,7 @@
     "nextStep": "Approval step {no}",
     "reassignedTo": "Approval task moved to {name}",
     "askedBy": "Question from {name}",
+    "escalated": "This step was escalated when overdue",
     "noteReason": "Reason",
     "noteQuestion": "Question",
     "noteAnswer": "Answer",

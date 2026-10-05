@@ -377,6 +377,14 @@ const TEXT_RULES: TextRule[] = [
   // one-time links: e-mail action links /a/<tokenId>.<secret> (BR-TOK-03), invitations, password resets; the
   // Inngest event API path /e/<event key>
   { pattern: /(\/(?:a|e|invite|reset-password)\/)[^\s/?#"'<>]+/g, replacement: `$1${REDACTED}` },
+  // bearer proofs of our own with a fixed shape, wherever they appear in text: the PIN-change proof
+  // p1.<PASSWORD|TOTP>.<ms>.<nonce>.<mac> (src/server/auth/pin.ts) and the LINE link code l1.<org>.<member>.<ms>.<nonce>.<mac>
+  // (src/server/line/link-code.ts), which links a LINE account for ten minutes
+  {
+    pattern: /(?<![\w-])(?:p1\.(?:PASSWORD|TOTP)\.\d{1,15}|l1\.[\w-]{22}\.[\w-]{22}\.\d{1,15})\.[\w-]{22}\.[\w-]{43}(?![\w-])/g,
+    replacement: REDACTED,
+    when: /[pl]1\./,
+  },
   { pattern: /(?<!(?<!\\)\w)(Bearer|Basic)\s+[\w.~+/=-]+/gi, replacement: `$1 ${REDACTED}` },
   // query parameters that are secret only in URLs; named secrets are handled by the key/value scan
   { pattern: /([?&](?:code|sig|key)=)[^&\s"'#]+/gi, replacement: `$1${REDACTED}`, when: /[?&]/ },

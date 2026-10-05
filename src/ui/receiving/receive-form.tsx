@@ -25,6 +25,11 @@ import type { ApproverView, DamagedChoice, ExcessChoice, ReceiptInput, ReceiptPr
 // approval, or keep with the GR_VARIANCE approver named. Confirming posts the receipt (gr.post). A posted receipt cannot
 // be undone by the receiver, so step 2 is the confirmation. The server checks every rule again. Each press of "check"
 // carries its own idempotency key, so a check refused by separation of duties is recorded once per press (FR-DOA-007 AC2).
+// A photo still being uploaded holds the receipt, as on the LIFF receiving page (src/ui/liff/receiving/receive-flow.tsx):
+// neither step's button works until the photo is recorded, and the bar says why — the receipt never goes without a photo
+// the receiver chose, and what step 2 showed is what is posted. The upload has a time limit and a stop
+// (../files/upload.ts), so a stalled network never locks the form; while the receipt is being checked or posted no photo
+// is chosen or taken out.
 
 export interface ReceiveFormActions {
   readonly preview: (input: Omit<ReceiptInput, 'deliveryNoteNo' | 'notes'>, idempotencyKey: string) => Promise<PreviewOutcome>
@@ -57,8 +62,12 @@ type Posted = Extract<PostOutcome, { ok: true }>
 
 const EMPTY_LINE: LineState = { received: '', rejected: '', damaged: true, remark: '', refusing: false }
 const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
-// The main action stays at the bottom of a phone screen while the form scrolls; on wide screens it follows the form
-const barClass = 'sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-line bg-bg px-4 py-3 sm:flex-row sm:items-center lg:static lg:mx-0 lg:border-0 lg:px-0 lg:py-0'
+// The main action stays at the bottom of a phone screen while the form scrolls; on wide screens it follows the form.
+// What holds the action back (a photo still on its way) has a row of its own above the buttons, so it never squeezes them
+const barClass = 'sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-line bg-bg px-4 py-3 lg:static lg:mx-0 lg:border-0 lg:px-0 lg:py-0'
+// The step's buttons: one under the other on a phone, side by side where they fit and on two rows where they do not —
+// each keeps its words on one line inside its 44 px (a squeezed button would spill them over its edge)
+const barButtonsClass = 'flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center'
 
 function useFailureText() {
   const t = useTranslations('receiving.errors')
@@ -88,6 +97,8 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
   const [choiceErrors, setChoiceErrors] = useState<ReadonlySet<string>>(new Set())
   const [failure, setFailure] = useState<ReceivingFailure | null>(null)
   const [pending, setPending] = useState(false)
+  /** A photo is on its way (FileUpload's onBusyChange): the receipt waits for it */
+  const [uploading, setUploading] = useState(false)
   const [posted, setPosted] = useState<Posted | null>(null)
 
   const lineOf = (lineId: string): LineState => state[lineId] ?? EMPTY_LINE
@@ -146,6 +157,8 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
 
   async function onReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    // A photo on its way belongs to this receipt: the check waits for it (the bar says so); one check at a time
+    if (pending || uploading) return
     setFailure(null)
     const collected = collect()
     if (!collected.ok) return
@@ -167,7 +180,8 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
 
   async function onConfirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (!preview) return
+    // Nothing is posted twice, nor while a photo is still on its way
+    if (!preview || pending || uploading) return
     // Every excess and every damaged line needs the receiver's choice (BR-GR-03)
     const missing = new Set<string>()
     for (const l of preview.lines) {
@@ -312,21 +326,15 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
         </div>
 
         {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
-        <div className={barClass}>
-          <Button type="submit" disabled={pending}>
-            {pending ? t('posting') : t('confirm')}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => {
-              setFailure(null)
-              setStep('enter')
-            }}
-            disabled={pending}
-          >
-            {t('backToEnter')}
-          </Button>
-        </div>
+        <ReceiveBar
+          step="review"
+          pending={pending}
+          uploading={uploading}
+          onBack={() => {
+            setFailure(null)
+            setStep('enter')
+          }}
+        />
       </form>
     )
   }
@@ -444,13 +452,20 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
               setPhotos((list) => [...list, file])
               setPhotoError(null)
             }}
+            onBusyChange={setUploading}
+            disabled={pending}
           />
           {photos.length ? (
             <ul aria-label={t('photosLabel')} className="flex flex-col divide-y divide-line border-y border-line">
               {photos.map((photo) => (
                 <li key={photo.fileId} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between">
                   <span className="break-all text-ink">{t('photoItem', { name: photo.fileName })}</span>
-                  <Button variant="link" className="min-h-11 self-start sm:self-center" onClick={() => setPhotos((list) => list.filter((p) => p.fileId !== photo.fileId))}>
+                  <Button
+                    variant="link"
+                    className="min-h-11 self-start sm:self-center"
+                    disabled={pending || uploading}
+                    onClick={() => setPhotos((list) => list.filter((p) => p.fileId !== photo.fileId))}
+                  >
                     {t('removePhoto', { name: photo.fileName })}
                   </Button>
                 </li>
@@ -464,12 +479,42 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
 
       {formError ? <Notice tone="danger">{formError}</Notice> : null}
       {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
-      <div className={barClass}>
-        <Button type="submit" disabled={pending}>
-          {pending ? t('checking') : t('toReview')}
-        </Button>
-      </div>
+      <ReceiveBar step="enter" pending={pending} uploading={uploading} />
     </form>
+  )
+}
+
+export interface ReceiveBarProps {
+  /** enter: "check before recording"; review: "confirm the receipt" and the way back to the quantities */
+  readonly step: 'enter' | 'review'
+  /** The check or the receipt is on its way to the server */
+  readonly pending: boolean
+  /** A photo is still being uploaded: the receipt waits for it */
+  readonly uploading: boolean
+  readonly onBack?: () => void
+}
+
+/**
+ * The main action of a step, at the bottom of a phone screen: its button works only when nothing is on its way — the
+ * check or the receipt itself, or a photo of the receipt — and the bar says why when a photo holds it, above the buttons
+ */
+export function ReceiveBar({ step, pending, uploading, onBack }: ReceiveBarProps) {
+  const t = useTranslations('receiving.form')
+  const label = step === 'review' ? (pending ? t('posting') : t('confirm')) : pending ? t('checking') : t('toReview')
+  return (
+    <div className={barClass}>
+      {uploading ? <Notice tone="info">{t('uploadWait')}</Notice> : null}
+      <div className={barButtonsClass}>
+        <Button type="submit" className="shrink-0" disabled={pending || uploading}>
+          {label}
+        </Button>
+        {step === 'review' ? (
+          <Button variant="secondary" className="shrink-0" onClick={onBack} disabled={pending}>
+            {t('backToEnter')}
+          </Button>
+        ) : null}
+      </div>
+    </div>
   )
 }
 

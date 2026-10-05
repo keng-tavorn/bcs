@@ -15,6 +15,7 @@ import { closePurchaseOrder, editDraftPo, submitPo } from '@/server/services/pur
 import { postGoodsReceipt } from '@/server/services/receiving'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { stepUpForTask } from '../support/pin'
 import { etaxXml, pdfWithEmbedded } from '../support/etax-files'
 
 // S4-08 (spec §7.12, BR-IVC-01 to BR-IVC-04, FR-P2P-008 AC1–AC3): FINANCE records the supplier's invoices against the
@@ -72,6 +73,8 @@ async function approveAll(subjectId: string) {
   for (let i = 0; i < 5; i++) {
     const task = await prisma.approvalTask.findFirst({ where: { status: 'OPEN', step: { route: { subjectId } } } })
     if (!task) return
+    // At or above the DOA version's stepUpThreshold the approver gives the PIN first (FR-AUTH-005 AC2)
+    await stepUpForTask(task.id, task.assigneeMemberId)
     ok(await decideTask(org.ctxOf(codeOf(task.assigneeMemberId), NOW), { taskId: task.id, decision: 'APPROVE' }, key()))
   }
 }

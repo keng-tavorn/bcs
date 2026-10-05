@@ -136,9 +136,11 @@ features:
     step: S1
     evidence:
       - tests/integration/auth.test.ts
+      - tests/integration/liff-session.test.ts
+      - tests/integration/line-link.test.ts
       - tests/integration/member-deactivation.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "session ของ LIFF และการยกเลิกผูกเมื่อปิดใช้งานผ่านแล้ว"
   FR-AUTH-004:
     status: planned
     step: S5
@@ -146,11 +148,16 @@ features:
     verifiedBy: null
     notes: ""
   FR-AUTH-005:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/pin.test.ts
+      - tests/integration/step-up-pin.test.ts
+      - tests/unit/pin-env.test.ts
+      - tests/unit/pin-hash.test.ts
+      - tests/unit/pin.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 AC3 ผ่านแล้ว (PIN argon2id ล็อก 5 ครั้ง) · AC2 กำลังต่อ PIN เข้าทุกการตัดสินและเปลี่ยนหน้าเว็บจาก TOTP เป็น PIN (ADR-047)"
   FR-ADM-001:
     status: done
     step: S1
@@ -199,9 +206,14 @@ features:
     step: S1
     evidence:
       - tests/e2e/admin.spec.ts
+      - tests/integration/line-channel-connection-env.test.ts
+      - tests/integration/line-channel-connection.test.ts
+      - tests/integration/line-channel.test.ts
       - tests/integration/modules.test.ts
+      - tests/unit/line-env.test.ts
+      - tests/unit/secret-box.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 ผ่านแล้ว · AC2 AC3 service ผ่านแล้ว หน้า /admin/line กำลังทำ"
   FR-ADM-007:
     status: planned
     step: S5
@@ -267,11 +279,12 @@ features:
     step: S2
     evidence:
       - tests/golden/delegation.test.ts
+      - tests/integration/delegation-window.test.ts
       - tests/integration/delegations.test.ts
       - tests/integration/requests.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 AC2 ผ่านแล้ว · AC3 ย้ายงานตามช่วงรักษาการผ่านแล้ว · หน้า LIFF กำลังทำ"
   FR-DOA-007:
     status: done
     step: S2
@@ -296,10 +309,14 @@ features:
     step: S3
     evidence:
       - tests/e2e/admin-doa-editor.spec.ts
+      - tests/integration/doa-editor-approve.test.ts
+      - tests/integration/doa-editor-boundary.test.ts
       - tests/integration/doa-editor-simulate.test.ts
       - tests/integration/doa-editor.test.ts
+      - tests/integration/tasks-view-doa.test.ts
+      - tests/unit/admin-doa-editor.test.tsx
     verifiedBy: null
-    notes: "AC1 AC2 ผ่านแล้ว · AC3 ฝั่งผู้ร่างผ่านแล้ว ฝั่งผู้อนุมัติกำลังทำ"
+    notes: "AC1 AC2 AC3 ผ่านแล้วบนเว็บ (ฝั่งผู้ร่างและผู้อนุมัติ) · หน้าตัดสินบน LIFF ทำใน NEW-41"
   FR-DOA-010:
     status: done
     step: S2
@@ -591,9 +608,10 @@ features:
     status: in_progress
     step: S4
     evidence:
+      - tests/integration/audit-masking.test.ts
       - tests/integration/board-audit.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "NEW-33: เลขผู้เสียภาษีของผู้ขายบุคคลธรรมดา (เลขบัตรประชาชน) ใน data ของ event แสดงแบบ mask ในการค้น หน้า audit และไฟล์ส่งออก สำหรับผู้ที่เห็นแบบ mask (ADR-051)"
   FR-VIS-005:
     status: in_progress
     step: S4
@@ -602,47 +620,70 @@ features:
     verifiedBy: null
     notes: ""
   FR-LINE-001:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-link-code.test.ts
+      - tests/integration/line-link-concurrency.test.ts
+      - tests/integration/line-link.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "service และ route ของการผูกบัญชีผ่านแล้ว · หน้า /settings/line และ /liff/link กำลังทำ"
   FR-LINE-002:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/line-postback.test.ts
+      - tests/unit/line-flex.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "การ์ด Flex postback และ ActionToken ของ LINE ผ่านแล้ว · ปิดพร้อม S5-05 เมื่อ PIN ต่อเข้าทุกการตัดสิน"
   FR-LINE-003:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/e2e/liff-delegation.spec.ts
+      - tests/e2e/liff-gr.spec.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/e2e/liff-shell.spec.ts
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/integration/liff-gr.test.ts
+      - tests/integration/liff-requests.test.ts
+      - tests/integration/liff-tasks.test.ts
+      - tests/unit/liff-image-resize.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "หน้า LIFF ทั้ง 8 หน้าใน §9.4 ทำงานผ่าน LIFF_MOCK พร้อม PIN และกล้อง · งบ JavaScript เริ่มต้นตาม ADR-052 · การทดสอบบนแอป LINE จริงบน iOS และ Android อยู่ใน D-08"
   FR-LINE-004:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-richmenu-images.test.ts
+      - tests/integration/line-richmenu.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "rich menu สองชุดและการสลับหลังผูกผ่านแล้ว · ปุ่มเปิดหน้า LIFF รอหน้า LIFF ของ S5-06"
   FR-LINE-005:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-webhook-cli.test.ts
+      - tests/integration/line-webhook.test.ts
+      - tests/unit/line-simulate.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "webhook ตรวจ signature กันซ้ำ inline หรือคิว และ pnpm line:simulate ผ่านแล้ว · รอ verify รอบรวม"
   FR-LINE-006:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/daily-digest.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "สรุปรายวัน 08:00 ข้ามวันหยุดและคนที่ไม่มีอะไรต้องรายงานผ่านแล้ว · สวิตช์ปิดสรุปบนหน้าเว็บกำลังทำ"
   FR-LINE-007:
-    status: planned
+    status: in_progress
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/line-postback.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC2 AC3 ผ่านแล้ว (ส่ง LINE ไม่ได้ถอยไปอีเมลภายใน 5 นาที) · AC1 นับโควตารายเดือนเป็นของ S5-14 [go-live] · คำตอบจริงของ LINE ตรวจใน D-03 (NEW-44)"
   FR-NOTI-001:
     status: done
     step: S2
@@ -657,18 +698,24 @@ features:
     status: in_progress
     step: S4
     evidence:
-      - tests/integration/action-links.test.ts
-      - tests/unit/action-link-shapes.test.ts
       - tests/e2e/action-link.spec.ts
+      - tests/integration/action-links.test.ts
+      - tests/integration/line-delivery.test.ts
+      - tests/unit/action-link-shapes.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ลิงก์ตัดสินทางอีเมลผ่านแล้ว · ส่งทาง LINE ก่อนแล้วสำรองทางอีเมลผ่านแล้ว · AC3 (SPF DKIM) รอ ADR-031"
   FR-NOTI-003:
     status: in_progress
     step: S5
     evidence:
+      - tests/integration/sla-jobs-escalation.test.ts
+      - tests/integration/sla-jobs-next-band.test.ts
+      - tests/integration/sla-jobs-subjects.test.ts
+      - tests/integration/sla-jobs-timers.test.ts
+      - tests/integration/sla-jobs.test.ts
       - tests/integration/task-times.test.ts
     verifiedBy: null
-    notes: "เวลาเตือนตั้งถูกที่ครึ่ง SLA แล้ว · การส่งเตือนและส่งต่อมากับ S5-07 S5-08"
+    notes: "AC1 AC3 ผ่านแล้ว · AC2 ส่งต่อขั้นสุดท้ายผ่านแล้ว ขั้นอื่นกำลังทำใน NEW-47"
   FR-NOTI-004:
     status: planned
     step: S5

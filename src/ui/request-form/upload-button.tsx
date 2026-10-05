@@ -3,19 +3,50 @@
 import { Paperclip } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useId, useState, type ChangeEvent } from 'react'
-import { ACCEPT_ATTRIBUTE, checkDeclaredUpload, mimeTypeFromName } from '@/lib/file-types'
+import { ACCEPT_ATTRIBUTE } from '@/lib/file-types'
 import { cn } from '../cn'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '../files/file-upload'
-import { prepareImage } from '../files/prepare-image'
+import { uploadFile } from '../files/upload'
 import { FieldError } from './controls'
 
 // The upload flow of FR-PLT-004 (presigned PUT straight to private storage, then the server verifies and records the
 // file) with a label that says what the file is for, so a form with several uploads stays clear. The caller links the
-// recorded file to the request (a quotation, or an attachment of a kind).
+// recorded file to the request (a quotation, or an attachment of a kind). The steps are the workspace's one upload
+// (src/ui/files/upload.ts, as FileUpload runs them): the file made ready in the browser first — a photo the browser
+// cannot decode is refused and the button says so (files.unreadable: choose a JPG or PNG), never "check your connection"
+// —, its declared type and size checked, then the file service's steps, within FILE_UPLOAD_LIMIT_MS.
 
 export interface UploadActions {
   readonly requestUpload: (input: { fileName: string; mimeType: string; sizeBytes: number }) => Promise<RequestUploadResult>
   readonly completeUpload: (ticket: string) => Promise<CompleteUploadResult>
+}
+
+/** Where the button's upload stands: nothing under way, a file on its way, or why the last one was not attached */
+export type UploadButtonStatus =
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'busy'; readonly name: string }
+  | { readonly kind: 'error'; readonly reason: FileRefusal | 'UNREADABLE' }
+
+/**
+ * One upload of the button, told to `show` as it goes: busy once the prepared file is on its way, idle once the caller
+ * has attached the recorded file, or why it was not attached. Nothing on the button stops an upload, so an upload that
+ * ended early ran out of time: a failed one
+ */
+export async function uploadFromButton(
+  original: File,
+  actions: UploadActions,
+  onUploaded: (file: { fileId: string; fileName: string }) => Promise<void> | void,
+  show: (status: UploadButtonStatus) => void,
+): Promise<void> {
+  try {
+    const outcome = await uploadFile(original, { requestUpload: actions.requestUpload, completeUpload: actions.completeUpload, onSending: (name) => show({ kind: 'busy', name }) })
+    if (!outcome.ok) return show({ kind: 'error', reason: outcome.reason === 'STOPPED' ? 'FAILED' : outcome.reason })
+    await onUploaded({ fileId: outcome.fileId, fileName: outcome.fileName })
+    show({ kind: 'idle' })
+  } catch {
+    // The caller could not attach the recorded file (a server action with no answer)
+    show({ kind: 'error', reason: 'FAILED' })
+  }
 }
 
 export function UploadButton({
@@ -34,39 +65,45 @@ export function UploadButton({
   /** Which files are accepted; a list of several uploads says it once instead */
   showRule?: boolean
 }) {
-  const t = useTranslations('files')
-  const tf = useTranslations('requestForm.files')
   const id = useId()
-  const [status, setStatus] = useState<{ kind: 'idle' } | { kind: 'busy'; name: string } | { kind: 'error'; reason: FileRefusal }>({ kind: 'idle' })
-
-  async function upload(original: File) {
-    const prepared = await prepareImage(original)
-    const mimeType = prepared.type || mimeTypeFromName(prepared.name) || ''
-    const refusal = checkDeclaredUpload(mimeType, prepared.size)
-    if (refusal) return setStatus({ kind: 'error', reason: refusal })
-    setStatus({ kind: 'busy', name: prepared.name })
-    const started = await actions.requestUpload({ fileName: prepared.name, mimeType, sizeBytes: prepared.size })
-    if (!started.ok) return setStatus({ kind: 'error', reason: started.reason })
-    const put = await fetch(started.uploadUrl, { method: 'PUT', headers: { 'content-type': mimeType }, body: prepared }).catch(() => null)
-    if (!put?.ok) return setStatus({ kind: 'error', reason: 'FAILED' })
-    const done = await actions.completeUpload(started.ticket)
-    if (!done.ok) return setStatus({ kind: 'error', reason: done.reason })
-    await onUploaded({ fileId: done.fileId, fileName: done.fileName })
-    setStatus({ kind: 'idle' })
-  }
+  const [status, setStatus] = useState<UploadButtonStatus>({ kind: 'idle' })
 
   function onChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0]
     event.currentTarget.value = ''
-    if (file) void upload(file).catch(() => setStatus({ kind: 'error', reason: 'FAILED' }))
+    if (file) void uploadFromButton(file, actions, onUploaded, setStatus)
   }
 
-  const refusals: Record<FileRefusal, string> = {
+  return <UploadButtonView id={id} label={label} status={status} disabled={disabled} className={className} showRule={showRule} onChange={onChange} />
+}
+
+/** What UploadButton shows: the file input behind a 44 px button, the rule or the file on its way, and why a file was not attached */
+export function UploadButtonView({
+  id,
+  label,
+  status,
+  disabled,
+  className,
+  showRule,
+  onChange,
+}: {
+  id: string
+  label: string
+  status: UploadButtonStatus
+  disabled?: boolean
+  className?: string
+  showRule: boolean
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void
+}) {
+  const t = useTranslations('files')
+  const tf = useTranslations('requestForm.files')
+  const refusals: Record<FileRefusal | 'UNREADABLE', string> = {
     TYPE_NOT_ALLOWED: t('typeNotAllowed'),
     TOO_LARGE: t('tooLarge'),
     EMPTY: t('empty'),
     CONTENT_MISMATCH: t('contentMismatch'),
     FAILED: t('failed'),
+    UNREADABLE: t('unreadable'),
   }
   const busy = status.kind === 'busy'
 

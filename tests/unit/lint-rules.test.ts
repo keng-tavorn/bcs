@@ -26,6 +26,7 @@ import {
   evaluateCoverage,
   evaluateEslintRun,
   evaluatePlaywrightRun,
+  mergePlaywrightReports,
   evaluateVitestRun,
   orphanTestFiles,
   parseVerifyArgs,
@@ -686,6 +687,16 @@ describe('pnpm verify vitest gates', () => {
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 1, unexpected: 0, flaky: 0 } } }).status).toBe('FAIL')
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 1 } } }).status).toBe('FAIL')
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 0 } } }).status).toBe('PASS')
+  })
+  it('[EG-7] the screens and the demo scenes make one report: suites side by side, counts added up', () => {
+    const screens = { config: { version: '1' }, suites: [{ title: 'tasks.spec.ts' }], errors: [], stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 0, duration: 9 } }
+    const scenes = { suites: [{ title: 'demo/01.spec.ts' }, { title: 'demo/02.spec.ts' }], errors: [{ message: 'x' }], stats: { expected: 2, skipped: 1, unexpected: 1, flaky: 0 } }
+    const merged = mergePlaywrightReports([screens, scenes])
+    expect(merged.suites).toEqual([{ title: 'tasks.spec.ts' }, { title: 'demo/01.spec.ts' }, { title: 'demo/02.spec.ts' }])
+    expect(merged.errors).toEqual([{ message: 'x' }])
+    expect(merged.stats).toEqual({ expected: 5, skipped: 1, unexpected: 1, flaky: 0, duration: 9 })
+    expect(merged.config).toEqual({ version: '1' })
+    expect(evaluatePlaywrightRun({ code: 0, out: '', report: merged }).status).toBe('FAIL')
   })
 })
 

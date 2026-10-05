@@ -1,3 +1,6 @@
+import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
+import { SLA_TEMPLATES } from './sla'
+
 // Notification templates (spec §4.7 rule 5, §10.1): each template turns a notification's data into a short text in
 // Thai and English and the page it links to (BR-NOTI-02). The in-app list (FR-NOTI-001) uses them now; LINE and e-mail
 // use the same text when they arrive (S4, S5). Data holds ids, numbers and titles only (BR-NOTI-01).
@@ -116,11 +119,16 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
       href: code === 'APPROVER_NOT_FOUND' ? '/admin/org-authority' : '/admin/doa',
     }
   },
-  // FR-AUTH-003 AC2: a deactivated member still had approval tasks
+  // FR-AUTH-003 AC2, BR-AUTH-06: a deactivated member still had approval tasks. No command moves a task by hand: an
+  // appointment through the authority changes page moves the position's open tasks to the new holder when it takes
+  // effect (BR-DOA-17, NEW-28), so that is what the notice offers — and opens
   'admin.reassign_needed': (d) => ({
     title: { th: `${str(d.name)} ถูกปิดใช้งานและมีงานอนุมัติค้าง ${str(d.openTasks)} งาน`, en: `${str(d.name)} was deactivated with ${str(d.openTasks)} approval tasks open` },
-    body: { th: 'ย้ายงานให้ผู้อื่นหรือแต่งตั้งผู้ดำรงตำแหน่งแทน', en: 'Move the tasks to someone else or appoint a new holder of the position' },
-    href: '/admin/members',
+    body: {
+      th: 'แต่งตั้งผู้ดำรงตำแหน่งคนใหม่ได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ งานค้างของตำแหน่งจะย้ายไปผู้ดำรงคนใหม่เมื่อการแต่งตั้งมีผล',
+      en: 'Appoint a new holder of the position on the Authority changes page; the position’s open tasks move to them when the appointment takes effect',
+    },
+    href: '/admin/org-authority',
   }),
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
@@ -153,11 +161,44 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     // §9.1: Express files under finance, audit exports under /audit, report files under /reports
     href: d.kind === 'AUDIT' ? '/audit' : d.kind === 'REPORT' ? '/reports' : '/finance/exports',
   }),
-  'security.notice': (d) => ({
-    title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
-    body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },
-    href: '/settings/security',
-  }),
+  'security.notice': (d) => {
+    switch (d.kind) {
+      case 'PIN_LOCKED':
+        return {
+          // FR-AUTH-005 AC3: five wrong PINs in a row lock the PIN; the owner hears of it at once, by e-mail only (§10.1)
+          title: { th: `PIN ยืนยันธุรกรรมของคุณถูกล็อก ${PIN_LOCK_MINUTES} นาที`, en: `Your transaction PIN is locked for ${PIN_LOCK_MINUTES} minutes` },
+          body: {
+            th: `มีการใส่ PIN ผิด ${PIN_FAILURE_LIMIT} ครั้งติดกัน ถ้าไม่ใช่คุณ ให้เปลี่ยนรหัสผ่านและติดต่อผู้ดูแลระบบทันที`,
+            en: `A wrong PIN was entered ${PIN_FAILURE_LIMIT} times in a row. If it was not you, change your password and contact your administrator now`,
+          },
+          href: '/settings/pin',
+        }
+      case 'LINE_LINKED':
+        return {
+          // ADR-049 item 10: every LINE link is told to the account owner at once (e-mail only, §10.1), so a QR or link
+          // someone else used is noticed; the notice says nothing about the LINE account itself. What to do names the
+          // pages as the member finds them: the member's own page is "บัญชี LINE" (/settings/line; "ตั้งค่า LINE" is the
+          // organization's channel, /admin/line), which the notice opens and which links to "ลืมรหัสผ่าน" (/login sends a
+          // signed-in member away, so that link is how they get there). A new password set there ends every session of
+          // the account, this one too (revokeSessionsOnPasswordReset), and a link outlives it: unlink first. There is no
+          // change-password screen yet: a decision for the user
+          title: { th: 'มีการผูกบัญชี LINE กับบัญชี BCS ของคุณ', en: 'A LINE account was linked to your BCS account' },
+          body: {
+            th: 'ถ้าไม่ใช่คุณ ให้ยกเลิกการผูกที่หน้าบัญชี LINE แล้วกดลิงก์ ลืมรหัสผ่าน ในหน้าเดียวกันเพื่อตั้งรหัสผ่านใหม่ทันที ซึ่งจะออกจากระบบทุกอุปกรณ์',
+            en: 'If this was not you, unlink it on your LINE account page, then use the Forgot password link on that page to set a new password at once, which signs you out everywhere',
+          },
+          href: '/settings/line',
+        }
+      default:
+        return {
+          title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },
+          body: { th: 'ถ้าคุณไม่ได้ขอ ให้ติดต่อผู้ดูแลระบบทันที', en: 'If you did not ask for this, contact your administrator now' },
+          href: '/settings/security',
+        }
+    }
+  },
+  // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
+  ...SLA_TEMPLATES,
 }
 
 const FALLBACK: Template = () => ({ title: { th: 'มีการแจ้งเตือนใหม่', en: 'New notification' }, href: null })

@@ -19,16 +19,29 @@ export type ActionOutcome =
       readonly shortfall?: string
       /** INTERNAL: the reference support finds in the logs */
       readonly requestId?: string
+      /** A wrong PIN (FR-AUTH-005 AC3): wrong PINs still allowed before the PIN locks; STEP_UP_LOCKED says when in `time` */
+      readonly attemptsLeft?: number
     }
 
 export type ActionFailure = Extract<ActionOutcome, { ok: false }>
 
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined)
+const count = (value: unknown): number | undefined => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined)
 
-/** Picks the screen-safe parts of a service error. */
+/** Picks the screen-safe parts of a service error (never a PIN: the step-up's details hold none, NFR-SEC-09). */
 export function toActionFailure(error: { code: string; details?: Record<string, unknown> }): ActionFailure {
   const d = error.details ?? {}
-  const pick = { reason: text(d.reason), field: text(d.field), name: text(d.name), time: text(d.time), rule: text(d.rule), available: text(d.available), shortfall: text(d.shortfall), requestId: text(d.requestId) }
+  const pick = {
+    reason: text(d.reason),
+    field: text(d.field),
+    name: text(d.name),
+    time: text(d.time),
+    rule: text(d.rule),
+    available: text(d.available),
+    shortfall: text(d.shortfall),
+    requestId: text(d.requestId),
+    attemptsLeft: count(d.attemptsLeft),
+  }
   return { ok: false, code: error.code, ...Object.fromEntries(Object.entries(pick).filter(([, v]) => v !== undefined)) }
 }
 
@@ -41,10 +54,10 @@ export const TASK_ERROR_KEYS = [
   'QUESTION',
   'CONFIRM',
   'CHOICE',
-  'CODE',
-  'CODE_INVALID',
-  'CODE_LOCKED',
-  'NO_SECOND_FACTOR',
+  'PIN',
+  'PIN_INVALID',
+  'PIN_LOCKED',
+  'PIN_NOT_SET',
   'STEP_UP',
   'FORBIDDEN',
   'SOD',
@@ -63,16 +76,28 @@ export const TASK_ERROR_KEYS = [
 ] as const
 export type TaskErrorKey = (typeof TASK_ERROR_KEYS)[number]
 
-/** Message key under tasks.errors for a failed decision, question or step-up. */
+/** Refusals said at the PIN field itself: not six digits, or wrong (with the tries left) */
+export const PIN_FIELD_KEYS: readonly TaskErrorKey[] = ['PIN', 'PIN_INVALID']
+/**
+ * The task was decided, moved or closed while the page was open: the page says so and shows the task as it is now. Kept
+ * here, apart from the forms, so the server actions of the LIFF decision page tell them apart the same way.
+ */
+export const CLOSED_TASK_KEYS: readonly TaskErrorKey[] = ['DECIDED', 'STATE', 'NOT_FOUND']
+
+/**
+ * Message key under tasks.errors for a failed decision, question or step-up. The PIN (FR-AUTH-005): PIN when it is not
+ * six digits or was not sent, PIN_INVALID {attemptsLeft} when it is wrong, PIN_LOCKED {time} after five wrong in a row,
+ * PIN_NOT_SET when the member has none yet (the message links to /settings/pin), STEP_UP when the decision found no step-up.
+ */
 export function taskErrorKey(failure: ActionFailure): TaskErrorKey {
   const { code, reason, field } = failure
   if (code === 'INVALID_STATE_TRANSITION') return failure.name && failure.time ? 'DECIDED' : 'STATE'
-  if (code === 'STEP_UP') return reason === 'LOCKED' ? 'CODE_LOCKED' : reason === 'NO_SECOND_FACTOR' ? 'NO_SECOND_FACTOR' : 'CODE_INVALID'
-  if (code === 'STEP_UP_REQUIRED' || code === 'STEP_UP_LOCKED') return code === 'STEP_UP_LOCKED' ? 'CODE_LOCKED' : 'STEP_UP'
+  if (code === 'STEP_UP_LOCKED') return 'PIN_LOCKED'
+  if (code === 'STEP_UP_REQUIRED') return reason === 'PIN_NOT_SET' ? 'PIN_NOT_SET' : 'STEP_UP'
   if (code === 'VALIDATION_FAILED') {
     if (field === 'reason') return 'REASON'
     if (field === 'question') return 'QUESTION'
-    if (field === 'code') return 'CODE'
+    if (field === 'pin') return reason === 'WRONG' ? 'PIN_INVALID' : 'PIN'
     if (field === 'confirm') return 'CONFIRM'
     if (field === 'decision' && reason !== 'RETURN_NOT_ALLOWED') return 'CHOICE'
     if (reason === 'LATER_VERSION_SCHEDULED') return 'LATER_VERSION'

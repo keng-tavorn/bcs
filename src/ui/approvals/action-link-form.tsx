@@ -1,16 +1,48 @@
 'use client'
 
 import Link from 'next/link'
-import { useTranslations } from 'next-intl'
+import { useLocale, useTranslations } from 'next-intl'
 import { useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
+import { formatDateTime } from '../format'
+import type { ActionLinkFailure, ActionLinkOutcome } from './action-link-outcome'
 
 // Deciding from an e-mail link (BR-TOK-03, FR-NOTI-002 AC2): the page is the confirmation — nothing is decided until
-// one of these buttons is pressed. Not approving asks for a reason first. The outcome replaces the form.
+// one of these buttons is pressed. Not approving asks for a reason first. The outcome replaces the form; a task decided
+// already — with this link or anywhere else, by this member or by the other approver of its step — says when and, to
+// the member signed in as the link's, by whom (§9.3 "ดำเนินการแล้วโดย … เมื่อ …", FR-DOA-004 AC2), and offers the
+// task in BCS instead of buttons that would only be refused again. What the server action answers, and what it tells
+// whom, is src/ui/approvals/action-link-outcome.ts.
 
-export type ActionLinkOutcome = { readonly ok: true; readonly decision: 'APPROVE' | 'REJECT' } | { readonly ok: false; readonly code: string }
+/** What went wrong, in words that say what to do next (§9.9 rule 7) */
+export function LinkRefusal({ failure }: { failure: ActionLinkFailure }) {
+  const t = useTranslations('actionLink')
+  const locale = useLocale()
+  function text(): string {
+    switch (failure.code) {
+      case 'TOKEN_USED':
+        if (!failure.time) return t('usedBody')
+        return failure.name ? t('usedBy', { name: failure.name, time: formatDateTime(locale, failure.time) }) : t('usedAt', { time: formatDateTime(locale, failure.time) })
+      case 'TOKEN_EXPIRED':
+        return t('expiredBody')
+      case 'TOKEN_INVALID':
+        return t('invalidBody')
+      case 'STEP_UP_REQUIRED':
+        return t('workspaceOnly')
+      case 'INVALID_STATE_TRANSITION':
+        return t('closedBody')
+      case 'UNAUTHENTICATED':
+        return t('signIn')
+      case 'SOD_VIOLATION':
+        return t('sod')
+      default:
+        return t('failed')
+    }
+  }
+  return <Notice tone="danger">{text()}</Notice>
+}
 
 export interface ActionLinkFormProps {
   readonly link: string
@@ -30,28 +62,6 @@ export function ActionLinkForm({ link, csrf, actions, workspaceHref, decide }: A
   const [reasonError, setReasonError] = useState(false)
   const [pending, setPending] = useState(false)
   const [outcome, setOutcome] = useState<ActionLinkOutcome | null>(null)
-
-  /** What went wrong, in words that say what to do next (§9.9 rule 7) */
-  function failureText(code: string): string {
-    switch (code) {
-      case 'TOKEN_USED':
-        return t('usedBody')
-      case 'TOKEN_EXPIRED':
-        return t('expiredBody')
-      case 'TOKEN_INVALID':
-        return t('invalidBody')
-      case 'STEP_UP_REQUIRED':
-        return t('workspaceOnly')
-      case 'INVALID_STATE_TRANSITION':
-        return t('closedBody')
-      case 'UNAUTHENTICATED':
-        return t('signIn')
-      case 'SOD_VIOLATION':
-        return t('sod')
-      default:
-        return t('failed')
-    }
-  }
 
   async function submit(decision: 'APPROVE' | 'REJECT') {
     setPending(true)
@@ -86,12 +96,22 @@ export function ActionLinkForm({ link, csrf, actions, workspaceHref, decide }: A
     )
   }
 
-  const failure = outcome && !outcome.ok ? failureText(outcome.code) : null
+  const failure = outcome && !outcome.ok ? outcome : null
+
+  // Decided already: who and when, and the task in BCS — pressing again would only be refused again
+  if (failure?.code === 'TOKEN_USED') {
+    return (
+      <div className="flex flex-col gap-4">
+        <LinkRefusal failure={failure} />
+        {workspace}
+      </div>
+    )
+  }
 
   if (rejecting) {
     return (
       <form onSubmit={onReject} className="flex flex-col gap-4" noValidate>
-        {failure ? <Notice tone="danger">{failure}</Notice> : null}
+        {failure ? <LinkRefusal failure={failure} /> : null}
         <div className="flex flex-col gap-1.5">
           <label htmlFor="reason" className="font-medium text-ink">
             {t('reason')}
@@ -129,7 +149,7 @@ export function ActionLinkForm({ link, csrf, actions, workspaceHref, decide }: A
 
   return (
     <div className="flex flex-col gap-4">
-      {failure ? <Notice tone="danger">{failure}</Notice> : null}
+      {failure ? <LinkRefusal failure={failure} /> : null}
       <div className="flex flex-col gap-3 sm:flex-row">
         {actions.includes('APPROVE') ? (
           <Button disabled={pending} onClick={() => void submit('APPROVE')}>

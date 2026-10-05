@@ -1,0 +1,29 @@
+import { cn } from '../cn'
+
+// The camera icon of the LIFF receiving page — on the button that opens the camera and beside each photo of a receipt —
+// as plain SVG from Lucide's "camera" path data (lucide-react 1.49, ISC License, Copyright (c) Lucide Icons and
+// Contributors), apart from ./marks.tsx so the page's client components carry this one icon only. Decorative: the words
+// beside it say what it does.
+
+/** A className that sizes the icon itself (16 px beside the name of a photo): it takes the place of the 20 px (../cn.ts) */
+const OWN_SIZE = /(?:^|\s)size-/
+
+export function CameraIcon({ className }: { readonly className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={cn(OWN_SIZE.test(className ?? '') ? null : 'size-5', 'shrink-0', className)}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z" />
+      <circle cx="12" cy="13" r="3" />
+    </svg>
+  )
+}

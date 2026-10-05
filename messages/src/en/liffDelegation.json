@@ -1,0 +1,8 @@
+{
+  "barLabel": "Save the delegation",
+  "fixAbove": "Not set yet: fix the fields with a message above first.",
+  "sessionEnded": "Your session has ended and nothing was saved. Close this page and open the same link again, or set it on the BCS website under Acting approver.",
+  "revokeConfirm": "Confirm the cancellation: new approval tasks come to you at once, and the tasks the acting approver still holds for you come back to you",
+  "revoked": "Acting approver cancelled: new approval tasks and the tasks they still held for you come back to you",
+  "intro": "Name someone to act for you while you are on leave or away. When the period starts, the approval tasks waiting for you move to them, and new tasks that come to you during the period go to them too, within the kinds of task and the cap you set. Both of you can decide; whoever acts first decides. When the period ends, the tasks still waiting come back to you."
+}

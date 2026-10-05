@@ -5,10 +5,13 @@ import { systemDb } from '@/server/db/system'
 import { forTenant } from '@/server/db/tenant'
 import { STORED_ROLES, type StoredRole } from '@/server/authz/permissions'
 import { auth } from './auth'
+import { isLiffSessionToken, liffSessionMemberIds } from './liff'
 
 // Resolves the signed-in member from the request (spec §4.3 step 3). Session limits run on real time — the
 // "security clock" — so e2e time travel of business time never signs anybody out (FR-AUTH-003 AC1):
-// web idle 30 min / absolute 12 h, LIFF idle 15 min. Expired sessions are deleted, not just ignored.
+// web idle 30 min / absolute 12 h, LIFF idle 15 min. Expired sessions are deleted, not just ignored. A request is
+// activity of its session unless the caller says it is not (touch: false — a page asking by itself, such as the link
+// status /settings/line polls for): then the session's idle clock is left as it was, and the limits still apply.
 
 export const ORG_COOKIE = 'bcs-org'
 
@@ -74,16 +77,44 @@ export async function holdsDoaReferencedPosition(organizationId: string, memberI
   return naming > 0
 }
 
+export interface ResolveSessionOptions {
+  /** Where the request comes from: LIFF pages accept LIFF sessions, with the LIFF idle limit; anything else does not */
+  readonly channel?: SessionChannel
+  /** The security clock; real time unless a test gives its own */
+  readonly now?: Date
+  /**
+   * Whether the request is activity of its session (default true). False for a request a page makes by itself, without
+   * the person doing anything — a status poll — so it never keeps an idle session alive (FR-AUTH-003 AC1): lastActiveAt
+   * stays as it was, while the idle and absolute limits still apply and an expired session is still deleted.
+   */
+  readonly touch?: boolean
+}
+
 type ValidatedSession =
   | { readonly kind: 'anonymous' }
   | { readonly kind: 'expired' }
-  | { readonly kind: 'valid'; readonly userId: string; readonly sessionId: string; readonly twoFactorEnabled: boolean }
+  | {
+      readonly kind: 'valid'
+      readonly userId: string
+      readonly sessionId: string
+      readonly twoFactorEnabled: boolean
+      /** The token of a session opened from a LIFF ID token (it names the LINE link it stands on); null for any other */
+      readonly liffToken: string | null
+    }
 
-/** Session limits on real time (FR-AUTH-003 AC1): expired sessions are deleted; activity is recorded at most every few minutes. */
-async function validateSession(headers: Headers, opts: { channel?: SessionChannel; now?: Date }): Promise<ValidatedSession> {
+/**
+ * Session limits on real time (FR-AUTH-003 AC1): expired sessions are deleted; activity is recorded at most every
+ * minute, and not at all for a request that is no activity (touch: false).
+ */
+async function validateSession(headers: Headers, opts: ResolveSessionOptions): Promise<ValidatedSession> {
+  // Better Auth's own lookup; for a LIFF session the liffIdToken plugin (liff.ts) ends it first when its link is gone
   const result = await auth.api.getSession({ headers })
   if (!result) return { kind: 'anonymous' }
   const { session, user } = result
+  // A session opened from a LIFF ID token is for LIFF pages only (§9.4, liff.ts): elsewhere it is no session, so a LINE
+  // login never stands in for the password and TOTP the workspace asks for (FR-AUTH-002 AC1). It is kept for LIFF.
+  const liff = isLiffSessionToken(session.token)
+  if (liff && opts.channel !== 'LIFF') return { kind: 'anonymous' }
   const now = (opts.now ?? systemClock.now()).getTime()
   const createdAt = new Date(session.createdAt).getTime()
   const lastActive = session.lastActiveAt ? new Date(session.lastActiveAt).getTime() : createdAt
@@ -92,21 +123,32 @@ async function validateSession(headers: Headers, opts: { channel?: SessionChanne
     await systemDb.session.deleteMany({ where: { id: session.id } })
     return { kind: 'expired' }
   }
-  if (now - lastActive >= SESSION_TOUCH_AFTER_MS) {
-    await systemDb.session.update({ where: { id: session.id }, data: { lastActiveAt: new Date(now) } })
+  if (opts.touch !== false && now - lastActive >= SESSION_TOUCH_AFTER_MS) {
+    // updateMany: a session ended in the meantime (an unlink, a sign-out in another tab) is simply not there to update
+    await systemDb.session.updateMany({ where: { id: session.id }, data: { lastActiveAt: new Date(now) } })
   }
-  return { kind: 'valid', userId: user.id, sessionId: session.id, twoFactorEnabled: Boolean(user.twoFactorEnabled) }
+  return { kind: 'valid', userId: user.id, sessionId: session.id, twoFactorEnabled: Boolean(user.twoFactorEnabled), liffToken: liff ? session.token : null }
 }
 
-export async function resolveSession(headers: Headers, opts: { channel?: SessionChannel; now?: Date } = {}): Promise<SessionState> {
+export async function resolveSession(headers: Headers, opts: ResolveSessionOptions = {}): Promise<SessionState> {
   const validated = await validateSession(headers, opts)
   if (validated.kind !== 'valid') return validated
   const { userId, sessionId } = validated
-  const members = await systemDb.member.findMany({
+  let members = await systemDb.member.findMany({
     where: { userId, status: 'ACTIVE', organization: { status: 'ACTIVE' } },
     include: { organization: { select: { legalNameTh: true, displayName: true } } },
     orderBy: { createdAt: 'asc' },
   })
+  if (validated.liffToken !== null) {
+    // A LIFF session acts only as the member of the LINE link it was opened with, while that very link stands where LINE
+    // is on (liff.ts): never as another member of the same person, nor on a newer link of theirs. Otherwise it ends here
+    const linked = await liffSessionMemberIds(userId, validated.liffToken)
+    members = members.filter((m) => linked.has(m.id))
+    if (members.length === 0) {
+      await systemDb.session.deleteMany({ where: { id: sessionId, token: validated.liffToken } })
+      return { kind: 'anonymous' }
+    }
+  }
   if (members.length === 0) return { kind: 'no-membership', userId }
   const preferred = readCookie(headers, ORG_COOKIE)
   const member = members.find((m) => m.organizationId === preferred) ?? members[0]!
@@ -151,7 +193,7 @@ export type PlatformSessionState =
  * The BCS team (PLATFORM_ADMIN, §2.2) signs in like everyone else; an active PlatformAdmin row for the identity makes
  * the session a platform session. TOTP is always required: platform admins switch customers' modules (BR-AUTH-08).
  */
-export async function resolvePlatformSession(headers: Headers, opts: { now?: Date } = {}): Promise<PlatformSessionState> {
+export async function resolvePlatformSession(headers: Headers, opts: Omit<ResolveSessionOptions, 'channel'> = {}): Promise<PlatformSessionState> {
   const validated = await validateSession(headers, opts)
   if (validated.kind !== 'valid') return validated
   const admin = await systemDb.platformAdmin.findFirst({ where: { userId: validated.userId, active: true } })

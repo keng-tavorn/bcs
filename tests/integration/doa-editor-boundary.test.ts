@@ -2,9 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import type { ApproverSpec, DoaRuleSnapshot, DoaWhen } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
-import { totp } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { prisma } from '@/server/db/client'
 import { ruleJson } from '@/server/doa/snapshot'
 import { decideTask } from '@/server/services/approvals/decide'
@@ -14,6 +12,7 @@ import { submitInitialPackage } from '@/server/services/doa/initial-package'
 import { getDoaVersionForAdmin } from '@/server/services/doa/view'
 import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // S3-09 · what a draft is compared with and when its boundary table must be ticked, through the services the pages call:
 // the drafter ticks the boundary table whenever the version — beside the version it replaces — has one, and the send
@@ -181,7 +180,7 @@ describe('[FR-DOA-009/AC1] a draft is compared with the version it replaces: the
     )
     expect(await submitDoaVersion(org.ctxOf('admin', NOW), { versionId: v2, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: v2 } } } })
-    await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: v2, code: totp(CEO_SECRET) }, new Date())
+    await pinStepUp(org.organizationId, org.member.ceo!, 'DOA_VERSION', v2)
     expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
 
     // Version 3 from version 2 for 1 December: the COO's orders go to the CEO; nothing else changes

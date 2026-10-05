@@ -1,9 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { amountToSatang } from '@/core/money/dto'
-import { totp } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
@@ -12,6 +10,7 @@ import { draftDoaCopy, getDoaEditor, type DoaEditorView, type DraftCopyInput } f
 import { getDoaOverviewForAdmin, getDoaVersionForAdmin } from '@/server/services/doa/view'
 import { loadYaml } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // S3-09 · the DOA editor and what a draft shows before it is sent, through the services the pages call: the editor
 // starts from a copy of the latest version and saves the edited table as the next draft without touching the source
@@ -310,12 +309,11 @@ describe('[FR-DOA-009/AC3] the boundary table of both versions, ticked by the dr
     // The CEO approves with a step-up and the tick: the draft is published for 1 November and version 1 stays in effect
     // until then; the decision records both
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: versionId } } } })
-    const grant = await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: versionId, code: totp(CEO_SECRET) }, new Date())
-    if (!grant.ok) throw new Error(`step-up refused: ${grant.reason}`)
+    const grantId = await pinStepUp(org.organizationId, org.member.ceo!, 'DOA_VERSION', versionId)
     expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'BOUNDARY_NOT_CONFIRMED' } } })
     expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
     const decided = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, aggregateId: task.id, type: 'approval_task.decided' } })
-    expect(decided).toMatchObject({ actorMemberId: org.member.ceo, data: { decision: 'APPROVE', subjectType: 'DOA_VERSION', subjectId: versionId, stepUpGrantId: grant.grantId, boundaryTableConfirmed: true } })
+    expect(decided).toMatchObject({ actorMemberId: org.member.ceo, data: { decision: 'APPROVE', subjectType: 'DOA_VERSION', subjectId: versionId, stepUpGrantId: grantId, boundaryTableConfirmed: true } })
 
     // The editor now starts from the version approved for later, and its dates follow it (ADR-042 item 7)
     const overview = await getDoaOverviewForAdmin(admin())

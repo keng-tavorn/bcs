@@ -2,6 +2,7 @@ import type { DelegationSnapshot, DelegationStatus, DoaDocumentType, OrgSnapshot
 import type { BusinessCalendar, Weekday } from '@/core/sla'
 import type { SodPolicy } from '@/core/sod'
 import { OrgSettingsSchema } from '@/lib/org-settings'
+import { escapeLike } from '@/server/db/like'
 import type { TenantTx } from '@/server/db/tenant'
 import { orgSnapshotFromRows, versionSnapshotFromRows } from './snapshot'
 
@@ -98,11 +99,12 @@ export async function doaNamedApprovers(tx: TenantTx, now: Date): Promise<{ posi
 
 /**
  * Whether a position carries authority now (BR-DOA-17): a DOA version in effect, to come or awaiting approval names it,
- * or open approval tasks came from it. Its holders change only through an ORG_AUTHORITY_CHANGE.
+ * or open approval tasks came from it — from a slot of this very position: a `_` of its code matches itself only, never
+ * another position (escapeLike). Its holders change only through an ORG_AUTHORITY_CHANGE.
  */
 export async function positionHasAuthority(tx: TenantTx, positionCode: string, now: Date): Promise<boolean> {
   if ((await doaNamedApprovers(tx, now)).positions.has(positionCode)) return true
-  const open = await tx.approvalTask.count({ where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: { startsWith: `POSITION:${positionCode}@` } } })
+  const open = await tx.approvalTask.count({ where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, resolvedFrom: { startsWith: escapeLike(`POSITION:${positionCode}@`) } } })
   return open > 0
 }
 

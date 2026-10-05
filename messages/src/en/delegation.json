@@ -1,6 +1,6 @@
 {
   "title": "Acting approver",
-  "intro": "Name someone to act for you while you are on leave or away. During that time new approval tasks that come to you go to them. Both of you can decide; whoever acts first decides.",
+  "intro": "Name someone to act for you while you are on leave or away. When the period starts, the approval tasks waiting for you move to them, and new tasks that come to you during the period go to them too, within the kinds of task and the cap you set. Both of you can decide; whoever acts first decides. When the period ends, or when you cancel it, the tasks still waiting come back to you.",
   "positionsLine": "The authority you can hand over comes from {positions}",
   "positionItem": "{position} of {department}",
   "noPosition": "You hold no position with approval authority, so there is nothing to hand over. If this is wrong, contact your organization admin.",
@@ -48,10 +48,10 @@
     "REVOKED": "Cancelled"
   },
   "revoke": "Cancel acting by {name}",
-  "revokeConfirm": "Confirm the cancellation: new approval tasks come back to you at once; tasks already sent to the acting approver stay with them",
+  "revokeConfirm": "Confirm the cancellation: new approval tasks come to you at once, and the tasks the acting approver still holds for you come back to you",
   "revokeSubmit": "Confirm cancelling the acting approver",
   "keep": "Keep it",
-  "revoked": "Acting approver cancelled; new approval tasks come to you",
+  "revoked": "Acting approver cancelled: new approval tasks and the tasks they still held for you come back to you",
   "errors": {
     "DELEGATE": "Choose the acting approver from the list first",
     "FIRST_DAY": "Enter a real date as the first day",

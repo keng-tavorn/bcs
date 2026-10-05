@@ -1,15 +1,18 @@
 'use server'
 
+import { getLocale } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { makeCtx } from '@/server/context'
 import { actionLinkCsrfMatches, actionLinkOwner } from '@/server/auth/action-links'
 import { decideByActionLink } from '@/server/services/approvals/action-link'
-import type { ActionLinkOutcome } from '@/ui/approvals/action-link-form'
+import { linkRefusal, type ActionLinkOutcome } from '@/ui/approvals/action-link-outcome'
 import { getSession } from '../../../_lib/session'
 
 // The POST of an e-mail decision link (BR-TOK-03): the CSRF value must match the sign-in session (or the link, when the
 // organization lets links decide without signing in), and the decision runs as the member the link was sent to on
-// the EMAIL channel. Business time, like every command.
+// the EMAIL channel. Business time, like every command. A task decided already answers TOKEN_USED with when, and with
+// who in the reader's language to the member signed in as the link's — a decision through the link alone names nobody
+// (linkRefusal, src/ui/approvals/action-link-outcome.ts; §9.3, FR-DOA-004 AC2).
 export async function decideByLinkAction(input: { link: string; csrf: string; decision: 'APPROVE' | 'REJECT'; reason: string; idempotencyKey: string }): Promise<ActionLinkOutcome> {
   const owner = await actionLinkOwner(input.link)
   if (!owner) return { ok: false, code: 'TOKEN_INVALID' }
@@ -29,5 +32,7 @@ export async function decideByLinkAction(input: { link: string; csrf: string; de
   if (!actionLinkCsrfMatches(binding, input.link, input.csrf)) return { ok: false, code: 'TOKEN_INVALID' }
   const ctx = makeCtx({ organizationId: owner.organizationId, actor: { type: 'USER', memberId }, channel: 'EMAIL', now: systemClock.now() })
   const result = await decideByActionLink(ctx, { link: input.link, decision: input.decision, ...(input.reason ? { reason: input.reason } : {}) }, { idempotencyKey: input.idempotencyKey })
-  return result.ok ? { ok: true, decision: input.decision } : { ok: false, code: result.error.code }
+  if (result.ok) return { ok: true, decision: input.decision }
+  // Signed in: the service ran as the session's member and refused anybody but the link's before reading a name
+  return linkRefusal(result.error, { signedIn: session.kind === 'member', locale: await getLocale() })
 }

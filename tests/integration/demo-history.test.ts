@@ -6,12 +6,14 @@ import { BP_PER_WHOLE } from '@/core/money/constants'
 import { amountToSatang } from '@/core/money/dto'
 import { addBusinessMinutes, businessMinutesBetween, type BusinessCalendar } from '@/core/sla'
 import { MS_PER_DAY } from '@/lib/constants'
+import { hashPin } from '@/server/auth/pin'
 import { makeCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization, type DemoOrgInput } from '@/server/seed/demo-org'
 import { seedBudget } from '@/server/seed/budget'
+import { seedDevPins } from '@/server/seed/pins'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { parseBudget, parseDemoHistory, parseSites, parseSuppliers, type DemoHistoryRow } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
@@ -19,7 +21,7 @@ import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOK_PATH, loadInputWorkbook, type InputWorkbook } from '@/server/seed/workbook'
 import { pendingBoard } from '@/server/services/board'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
-import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, lineChatRefusal, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { DemoHistoryIncompleteError, DemoHistoryOutOfYearError, DemoHistoryPinError, lineChatRefusal, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { computeKpis } from '@/server/services/reports/kpi'
 
 // D-01: the requests of sheet Demo_History are made through the real services with the business clock set back by
@@ -36,6 +38,8 @@ const NOW = new Date('2026-09-28T03:00:00Z')
 const ORG_CODE = 'DEMO-HISTORY'
 const PASSWORD = 'history-test-password-0001'
 const TOTP_KEY = 'history-test-totp-key-000000000001'
+/** The transaction PIN the seed gives the demo approvers (a PIN the rules of FR-AUTH-005 AC1 accept) */
+const PIN = '739164'
 const MINUTES_PER_HOUR = 60
 const PERCENT = 100
 /** The KPI period: long enough to hold every row of the sheet */
@@ -67,13 +71,18 @@ function historyOrgInput(workbook: InputWorkbook, code: string, emailPrefix: str
   return { ...input, org: { ...input.org, code }, users: input.users.map((u) => ({ ...u, email: `${emailPrefix}${u.email}` })) }
 }
 
-/** What pnpm db:seed makes before the history: the organization, its structure, budget, suppliers and sites */
-async function seedOrganization(workbook: InputWorkbook, code: string, emailPrefix: string): Promise<string> {
+/**
+ * What pnpm db:seed makes before the history: the organization, its structure, budget, suppliers, sites and — with
+ * SEED_DEV_PIN set — the approvers' PIN (`pins: false` is a seed without SEED_DEV_PIN)
+ */
+async function seedOrganization(workbook: InputWorkbook, code: string, emailPrefix: string, options: { pins?: boolean } = {}): Promise<string> {
   const input = historyOrgInput(workbook, code, emailPrefix)
   const org = await seedDemoOrganization(input, { password: PASSWORD, totpKey: TOTP_KEY, now: NOW })
   await seedOrgStructure(org.organizationId, input.users, parseOrgStructureInput(workbook), NOW)
   await seedBudget(org.organizationId, parseBudget(workbook), NOW)
   await seedSuppliers(org.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, NOW)
+  // The approvers' PIN, as pnpm db:seed gives SEED_DEV_PIN before the history (S5-05)
+  if (options.pins !== false) await seedDevPins(org.organizationId, PIN, NOW)
   return org.organizationId
 }
 
@@ -94,7 +103,7 @@ let seeded: Seeded
 let workbook: InputWorkbook
 
 async function seedHistory(): Promise<DemoHistoryReport> {
-  return seedDemoHistory(seeded.organizationId, parseDemoHistory(workbook), NOW)
+  return seedDemoHistory(seeded.organizationId, parseDemoHistory(workbook), NOW, { pin: PIN })
 }
 
 beforeAll(async () => {
@@ -104,7 +113,7 @@ beforeAll(async () => {
   workbook = await loadInputWorkbook()
   await seedTaxRates()
   const organizationId = await seedOrganization(workbook, ORG_CODE, 'history.')
-  const report = await seedDemoHistory(organizationId, parseDemoHistory(workbook), NOW)
+  const report = await seedDemoHistory(organizationId, parseDemoHistory(workbook), NOW, { pin: PIN })
 
   const db = forTenant(organizationId)
   const members = await db.member.findMany({ select: { id: true, employeeCode: true } })
@@ -191,6 +200,24 @@ describe('[FR-PLT-001/AC1] D-01 the demo history: every row of Demo_History ends
     const returned = rows.find((r) => r.values.status === 'RETURNED')!
     const edited: InputWorkbook = { ...workbook, table: (sheet) => (sheet === 'Demo_History' ? rows.map((r) => (r === returned ? { ...r, values: { ...r.values, channel: 'LINE_CHAT' } } : r)) : workbook.table(sheet)) }
     expect(() => parseDemoHistory(edited)).toThrow(`Demo_History ${returned.values.ref}: a returned request is decided in LIFF or on the web`)
+  })
+
+  it('sends a request above the ATT-QUOTES amount with its net and comparison quotations of exactly 104 % and 107 % of it, never rounded (BR-MONEY-02)', async () => {
+    const quotations = await prisma.requestQuotation.findMany({ where: { organizationId: seeded.organizationId }, orderBy: [{ requestId: 'asc' }, { amountSatang: 'asc' }], select: { requestId: true, amountSatang: true, includesVat: true, isSelected: true } })
+    const quoted = [...new Set(quotations.map((q) => q.requestId))]
+    expect(quoted.length).toBeGreaterThan(0)
+    for (const requestId of quoted) {
+      const ref = seeded.refOf.get(requestId)!
+      // The sheet's net in whole baht: 104 and 107 baht for every 100 of it
+      const baht = amountToSatang(seeded.sheet.find((r) => r.ref === ref)!.net!) / 100n
+      const mine = quotations.filter((q) => q.requestId === requestId)
+      expect(mine.map((q) => [q.amountSatang, q.includesVat, q.isSelected]), ref).toEqual([
+        [baht * 100n, false, true],
+        [baht * 104n, false, false],
+        [baht * 107n, false, false],
+      ])
+    }
+    // The amounts themselves, and the refusal of a net that is not whole baht: tests/unit/demo-history-quotations.test.ts
   })
 
   it('a second run finds the history made and adds nothing', async () => {
@@ -341,7 +368,18 @@ describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is re
     const organizationId = await seedOrganization(workbook, `${ORG_CODE}-2`, 'history2.')
     const year = await prisma.fiscalYear.findFirstOrThrow({ where: { organizationId }, orderBy: { endsOn: 'desc' }, select: { endsOn: true } })
     const afterTheYear = new Date(year.endsOn.getTime() + 4 * MS_PER_DAY)
-    await expect(seedDemoHistory(organizationId, parseDemoHistory(workbook), afterTheYear)).rejects.toBeInstanceOf(DemoHistoryOutOfYearError)
+    await expect(seedDemoHistory(organizationId, parseDemoHistory(workbook), afterTheYear, { pin: PIN })).rejects.toBeInstanceOf(DemoHistoryOutOfYearError)
+    expect(await prisma.request.count({ where: { organizationId } })).toBe(0)
+    expect(await prisma.commandLog.count({ where: { organizationId, idempotencyKey: { contains: 'demo-history:' } } })).toBe(0)
+  })
+
+  it('refuses, before it makes anything, a row whose net is not whole baht: its comparison quotations would need rounding (BR-MONEY-02)', async () => {
+    const organizationId = await seedOrganization(workbook, `${ORG_CODE}-2`, 'history2.')
+    const rows = parseDemoHistory(workbook)
+    // The last row of the sheet with satang in its net: 107 % of 1,000.25 is 1,070.2675
+    const last = rows.at(-1)!
+    const refused = seedDemoHistory(organizationId, [...rows.slice(0, -1), { ...last, net: '1000.25' }], NOW, { pin: PIN })
+    await expect(refused).rejects.toThrow(`Demo_History ${last.ref}: a comparison quotation of 107% of 1000.25 is not a whole satang and is never rounded (BR-MONEY-02)`)
     expect(await prisma.request.count({ where: { organizationId } })).toBe(0)
     expect(await prisma.commandLog.count({ where: { organizationId, idempotencyKey: { contains: 'demo-history:' } } })).toBe(0)
   })
@@ -356,7 +394,7 @@ describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is re
     const cancelled: DemoHistoryRow = { ...pending, ref: 'H98', title: `${pending.title} (ยกเลิก)`, status: 'CANCELLED', channel: null, daysAgo: 7, hours: 1, note: 'ซื้อจากร้านใกล้ไซต์งานแทน' }
 
     // The last row names a budget line the organization does not have: the seed stops before making it
-    await expect(seedDemoHistory(organizationId, [completed, cancelled, { ...pending, budgetLine: 'NO-SUCH-LINE' }], NOW)).rejects.toThrow(`Demo_History ${pending.ref}: unknown`)
+    await expect(seedDemoHistory(organizationId, [completed, cancelled, { ...pending, budgetLine: 'NO-SUCH-LINE' }], NOW, { pin: PIN })).rejects.toThrow(`Demo_History ${pending.ref}: unknown`)
     const db = forTenant(organizationId)
     const made = new Map((await db.request.findMany({ select: { id: true, title: true, status: true } })).map((r) => [r.title, r]))
     expect([completed, cancelled, pending].map((r) => made.get(r.title)?.status ?? null)).toEqual(['COMPLETED', 'CANCELLED', null])
@@ -366,8 +404,87 @@ describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is re
     expect(moves.length).toBeGreaterThan(0)
     expect(moves.reduce((held, m) => held + (m.toBucket === 'RESERVED' ? m.amountSatang : 0n) - (m.fromBucket === 'RESERVED' ? m.amountSatang : 0n), 0n)).toBe(0n)
 
-    const again = seedDemoHistory(organizationId, [completed, cancelled, pending], NOW)
+    const again = seedDemoHistory(organizationId, [completed, cancelled, pending], NOW, { pin: PIN })
     await expect(again).rejects.toBeInstanceOf(DemoHistoryIncompleteError)
     await expect(again).rejects.toMatchObject({ lastRef: pending.ref })
+  })
+})
+
+describe('[FR-AUTH-005/AC2] D-01 the decisions of the history at or above stepUpThreshold were made with the approver’s PIN step-up', () => {
+  it('names a PIN step-up of the one who decided on every such decision — the requests above 100,000 baht and their POs — and none below', async () => {
+    const decided = await prisma.event.findMany({ where: { organizationId: seeded.organizationId, type: 'approval_task.decided' }, select: { aggregateId: true, actorMemberId: true, data: true } })
+    const tasks = await prisma.approvalTask.findMany({
+      where: { id: { in: decided.map((e) => e.aggregateId) } },
+      select: { id: true, step: { select: { route: { select: { subjectType: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+    })
+    const routeOf = new Map(tasks.map((t) => [t.id, t.step.route]))
+    const stepped: string[] = []
+    for (const e of decided) {
+      const route = routeOf.get(e.aggregateId)!
+      const threshold = route.doaVersion.stepUpThresholdSatang
+      const grantId = (e.data as { stepUpGrantId?: string }).stepUpGrantId
+      if (threshold !== null && route.amountSatang !== null && route.amountSatang >= threshold) {
+        expect(grantId, `${route.subjectType} ${e.aggregateId}`).toEqual(expect.any(String))
+        expect(await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: grantId! } })).toMatchObject({ memberId: e.actorMemberId, method: 'PIN', usedAt: expect.any(Date) })
+        stepped.push(route.subjectType)
+      } else expect(grantId, `${route.subjectType} ${e.aggregateId}`).toBeUndefined()
+    }
+    // Counted from the sheet: every decided row whose amount with VAT is at or above the threshold, and its PO when ordered
+    const threshold = routeOf.values().next().value!.doaVersion.stepUpThresholdSatang!
+    const high = seeded.sheet.filter((r) => DECIDED.has(r.status!) && amountToSatang(r.gross!) >= threshold)
+    expect(high.length).toBeGreaterThan(0)
+    expect(stepped.sort()).toEqual([...high.map(() => 'REQUEST'), ...high.filter((r) => r.status === 'ORDERED' || r.status === 'COMPLETED').map(() => 'PURCHASE_ORDER')].sort())
+  })
+
+  it('refuses before it makes anything when a demo approver does not hold the seed’s PIN', async () => {
+    const organizationId = await seedOrganization(workbook, `${ORG_CODE}-3`, 'history3.')
+    const ceo = await prisma.member.findFirstOrThrow({ where: { organizationId, employeeCode: 'ceo' }, select: { id: true } })
+    // The CEO set another PIN meanwhile (the rules of FR-AUTH-005 AC1 accept it)
+    await prisma.member.update({ where: { id: ceo.id }, data: { transactionPinHash: await hashPin('480263') } })
+    const refused = seedDemoHistory(organizationId, parseDemoHistory(workbook), NOW, { pin: PIN })
+    await expect(refused).rejects.toBeInstanceOf(DemoHistoryPinError)
+    await expect(refused).rejects.toMatchObject({ codes: ['ceo'] })
+    expect(await prisma.request.count({ where: { organizationId } })).toBe(0)
+    // Nobody's PIN was tried: the check counts nothing
+    expect(await prisma.member.findUniqueOrThrow({ where: { id: ceo.id }, select: { pinFailedCount: true, pinLockedUntil: true } })).toEqual({ pinFailedCount: 0, pinLockedUntil: null })
+  })
+
+  it('without SEED_DEV_PIN steps up with a one-time PIN that no approver holds afterwards, and takes it back when it cannot start', async () => {
+    // pnpm db:seed without SEED_DEV_PIN: nobody gets a PIN, the approvers set their own at first use (ADR-047 item 9)
+    const organizationId = await seedOrganization(workbook, `${ORG_CODE}-4`, 'history4.', { pins: false })
+    const db = forTenant(organizationId)
+    const pinHolders = async () => (await db.member.findMany({ where: { transactionPinHash: { not: null } }, select: { employeeCode: true } })).map((m) => m.employeeCode)
+    expect(await pinHolders()).toEqual([])
+    const threshold = (await db.doaVersion.findFirstOrThrow({ where: { status: 'PUBLISHED' }, select: { stepUpThresholdSatang: true } })).stepUpThresholdSatang!
+    // The cheapest row ordered at or above the threshold (with VAT, as the sheet gives it): its request and its PO need the PIN
+    const grossOf = new Map(workbook.table('Demo_History').map((r) => [r.values.ref!, amountToSatang(r.values.gross!)]))
+    const high = parseDemoHistory(workbook)
+      .filter((r) => (r.status === 'ORDERED' || r.status === 'COMPLETED') && grossOf.get(r.ref)! >= threshold)
+      .sort((a, b) => Number(grossOf.get(a.ref)! - grossOf.get(b.ref)!) || (a.status === 'ORDERED' ? -1 : 1))[0]!
+    expect(high).toBeDefined()
+
+    // An approver who set a PIN of their own: the history does not start, and the one-time PIN is taken back from the rest
+    const ceo = await db.member.findFirstOrThrow({ where: { employeeCode: 'ceo' }, select: { id: true } })
+    await prisma.member.update({ where: { id: ceo.id }, data: { transactionPinHash: await hashPin('480263') } })
+    const refused = seedDemoHistory(organizationId, [high], NOW, { pin: null })
+    await expect(refused).rejects.toBeInstanceOf(DemoHistoryPinError)
+    await expect(refused).rejects.toMatchObject({ codes: ['ceo'] })
+    expect(await pinHolders()).toEqual(['ceo'])
+    expect(await db.request.count()).toBe(0)
+
+    // Without one, the history is made: every decision at or above the threshold names a PIN step-up of its decider
+    await prisma.member.update({ where: { id: ceo.id }, data: { transactionPinHash: null } })
+    expect(await seedDemoHistory(organizationId, [high], NOW, { pin: null })).toMatchObject({ seeded: true, byStatus: { [high.status]: 1 } })
+    const decided = await prisma.event.findMany({ where: { organizationId, type: 'approval_task.decided' }, select: { actorMemberId: true, data: true } })
+    expect(new Set(decided.map((e) => (e.data as { subjectType: string }).subjectType))).toEqual(new Set(['REQUEST', 'PURCHASE_ORDER']))
+    for (const e of decided) {
+      const grantId = (e.data as { stepUpGrantId?: string }).stepUpGrantId
+      expect(grantId).toEqual(expect.any(String))
+      expect(await prisma.stepUpGrant.findUniqueOrThrow({ where: { id: grantId! } })).toMatchObject({ memberId: e.actorMemberId, method: 'PIN', usedAt: expect.any(Date) })
+    }
+    // Afterwards nobody holds a PIN or a wrong try, and no PIN was recorded as set: the approvers set theirs at first use
+    expect(await pinHolders()).toEqual([])
+    expect(await db.member.count({ where: { OR: [{ pinFailedCount: { gt: 0 } }, { pinLockedUntil: { not: null } }] } })).toBe(0)
+    expect(await prisma.event.count({ where: { organizationId, type: 'auth.pin_set' } })).toBe(0)
   })
 })

@@ -2,9 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { totp } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
-import { grantStepUp } from '@/server/auth/step-up'
 import { HTTP_STATUS } from '@/core/result'
 import { prisma } from '@/server/db/client'
 import { parseDoaYaml } from '@/server/doa/yaml'
@@ -14,6 +12,7 @@ import { exportDoaVersionYaml, getDoaOverviewForAdmin, getDoaVersionForAdmin } f
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { versionSnapshots } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { pinStepUp } from '../support/pin'
 
 // S2-13 DOA screens, read through the services the pages call: import and export YAML in the fixture's shape with a
 // round trip (FR-DOA-001 AC2); every version with its period, reason, people and diff with the version before, and a
@@ -122,7 +121,7 @@ describe('[FR-DOA-001/AC3] every version shows with its period, reason, people a
     v2 = await imported(version2(20), 'ขยายวงเงิน DM เป็น 30,000 บาท')
     expect(await submitDoaVersion(admin(), { versionId: v2, boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { assigneeMemberId: org.member.ceo } })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: v2 } } } })
-    await grantStepUp({ organizationId: org.organizationId, memberId: org.member.ceo!, subjectType: 'DOA_VERSION', subjectId: v2, code: totp(CEO_SECRET) }, new Date())
+    await pinStepUp(org.organizationId, org.member.ceo!, 'DOA_VERSION', v2)
     expect(await decideTask(org.ctxOf('ceo', NOW), { taskId: task.id, decision: 'APPROVE', boundaryTableConfirmed: true }, key())).toMatchObject({ ok: true, data: { documentStatus: 'PUBLISHED' } })
 
     const overview = await getDoaOverviewForAdmin(admin())

@@ -1,0 +1,38 @@
+{
+  "catalog": {
+    "track": "See my requests and their status"
+  },
+  "form": {
+    "backToCatalog": "Request types",
+    "back": "Back",
+    "barLabel": "Go to the next step or send the request",
+    "savedAt": "Draft saved at {time}",
+    "stepLoading": "Opening the next step",
+    "documentsOpen": "Attach quotations or documents, or suggest a supplier",
+    "documentsLoading": "Opening the documents",
+    "sentBar": "Next step",
+    "backToChat": "Back to the chat",
+    "notFoundTitle": "Request not found",
+    "notFound": "This request was not found, or it is not yours. Choose a request type to start a new request",
+    "camera": {
+      "take": "Take a photo for the request",
+      "takeMore": "Take another photo",
+      "hint": "Opens the phone camera. The photo is made smaller in the phone before it is sent, and is attached to the request as a photo",
+      "preparing": "Getting the photo ready",
+      "sending": "Sending the photo {name}",
+      "added": "Photo {name} attached",
+      "unreadable": "This photo could not be opened. Take it again or choose another one"
+    }
+  },
+  "track": {
+    "newRequest": "Buy or hire",
+    "emptyHint": "Tap Buy or hire, choose a request type and fill it in step by step. Requests you send show here with their latest status",
+    "limited": "Showing the newest {shown} of {total} requests. Search the older ones on My requests in BCS on the web"
+  },
+  "view": {
+    "title": "Request",
+    "notFoundTitle": "Request not found",
+    "notFound": "This request was not found: it may have been removed, or the link is incomplete. Open it again from My requests",
+    "barLabel": "What you can do with this request"
+  }
+}

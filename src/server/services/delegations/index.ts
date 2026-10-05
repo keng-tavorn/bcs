@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES } from '@/core/doa'
 import { validateNewDelegation } from '@/core/delegation'
+import { DELEGATION_MACHINE, transition, type DelegationState } from '@/core/state-machines'
 import { amountToSatang } from '@/core/money/dto'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -15,8 +16,10 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 
 // Delegation set by the delegator (spec §7.6, FR-DOA-006, BR-DLG-01..05): who acts for them, from when until when,
 // optionally for some document types and up to a cap. While it runs, new tasks of the delegator go to the delegate
-// (resolveRoute, BR-DLG-04). Moving open tasks when it starts and ends is a job of S5-07. ORG_ADMIN sets one for someone
-// else only through an ORG_AUTHORITY_CHANGE of kind DELEGATION_ON_BEHALF (S2-16), never here.
+// (resolveRoute, BR-DLG-04); the delegation-window job of S5-07 moves the tasks waiting for the delegator to the delegate
+// when it starts and those still waiting back when it ends or is cancelled (NEW-35, ../sla/delegation-window.ts).
+// ORG_ADMIN sets one for someone else only through an ORG_AUTHORITY_CHANGE of kind DELEGATION_ON_BEHALF (S2-16), never
+// here.
 
 const fail = (code: 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION', message: string, details?: Record<string, unknown>) =>
   ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
@@ -92,6 +95,9 @@ export function createDelegation(ctx: Ctx, input: z.input<typeof CreateInput>, o
 
 const RevokeInput = z.strictObject({ delegationId: z.uuid() })
 
+/** [startsAt, endsAt): the period is over at endsAt (§6.4 Delegation ACTIVE → ENDED), whatever the stored status says yet */
+const periodOver = (delegation: { readonly endsAt: Date }, now: Date) => delegation.endsAt.getTime() <= now.getTime()
+
 export const revokeDelegationCommand = defineCommand({
   name: 'delegation.revoke',
   capability: 'delegation.manage',
@@ -103,6 +109,10 @@ export const revokeDelegationCommand = defineCommand({
     const allowed = await authorize(tx, ctx, 'delegation.manage', { ownerMemberIds: [delegation.delegatorMemberId] })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (delegation.status !== 'SCHEDULED' && delegation.status !== 'ACTIVE') return fail('INVALID_STATE_TRANSITION', 'the delegation is no longer running', { from: delegation.status })
+    // The period decides as well as the stored status: the delegation-window job writes ENDED when it runs at endsAt, so a
+    // delegation whose period is over has ended even while its row still says ACTIVE or SCHEDULED — there is nothing to
+    // cancel, and its tasks come back through the job's end of the period (BR-DLG-04)
+    if (periodOver(delegation, ctx.now)) return fail('INVALID_STATE_TRANSITION', 'the delegation has ended', { from: 'ENDED' })
     await tx.delegation.update({ where: { id: delegation.id }, data: { status: 'REVOKED', revokedAt: ctx.now } })
     return {
       ok: true,
@@ -154,4 +164,19 @@ export async function revokeDelegationsOf(tx: TenantTx, ctx: Ctx, memberId: stri
     notifications.push({ recipientMemberId: other, templateKey: 'delegation.revoked', data: { delegationId: id }, urgency: 'IMMEDIATE', dedupeKey: `delegation.revoked:${id}`, subjectType: 'DELEGATION', subjectId: id })
   }
   return { count: events.length, events, notifications }
+}
+
+/**
+ * The stored status follows the period (§6.4 Delegation: SCHEDULED → ACTIVE at startsAt, ACTIVE → ENDED at endsAt),
+ * written by the delegation-window job's commands in their transaction, which holds the delegation's row lock and
+ * records delegation.started or delegation.ended (S5-07, src/server/services/sla/delegation-window.ts). An ended
+ * delegation can no longer be revoked, and deactivating either side leaves it alone. Returns the new status, or null
+ * when the move does not apply (ACTIVE already at its start — it was set while running — revoked, or ended).
+ */
+export async function markDelegationWindow(tx: TenantTx, delegationId: string, command: 'delegation.start' | 'delegation.end'): Promise<DelegationState | null> {
+  const d = await tx.delegation.findUniqueOrThrow({ where: { id: delegationId }, select: { status: true } })
+  const moved = transition(DELEGATION_MACHINE, d.status as DelegationState, command)
+  if (!moved.ok) return null
+  await tx.delegation.update({ where: { id: delegationId }, data: { status: moved.to } })
+  return moved.to
 }

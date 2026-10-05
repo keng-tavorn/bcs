@@ -1,15 +1,37 @@
 import { type Page } from '@playwright/test'
 import { formatThaiDate } from '../../src/core/thai/date'
+import { E2E_PIN } from '../support/e2e-env'
 import { ATTACHMENT_PDF } from './tasks-attachment'
-import { castOf, expectNoBlockingAxe, fixture, openAttachment, rowWith, shot, signIn, totpOf } from './tasks-support'
+import { withoutScript } from './settings-line-scene'
+import {
+  castOf,
+  expectNoBlockingAxe,
+  expectNoPinBeforeScript,
+  expectNoSideways,
+  expectPageEndAboveBar,
+  fixture,
+  openAttachment,
+  PIN_LABEL,
+  rowWith,
+  sessionCookie,
+  sessionCookieOf,
+  shot,
+  signIn,
+  stepUpFixture,
+} from './tasks-support'
 import { expect, test } from './fixtures'
 
 // S2-12 approver side: the inbox, the decision page and the timeline as stamps (FR-DOA-004, FR-DOA-005 AC2,
 // FR-PLT-003 AC3, FR-INT-009 AC3, BR-DOA-15). tests/e2e/seed-activity.ts gave vp_ops (desktop) and vp_sup (mobile) two
-// tasks each, 45,000 and 50,000 baht; tasks-fixtures.ts adds what a test needs through the services. Screenshots at 1440
-// and 375 px go to the test output (§9.9 step 4); axe runs on every screen (§9.9 step 5).
+// tasks each, 45,000 and 50,000 baht; tasks-fixtures.ts and step-up-fixtures.ts add what a test needs through the
+// services. Policy changes and amounts at or above the DOA version's stepUpThreshold are decided with the transaction PIN
+// the e2e seed gave every demo approver (E2E_PIN, FR-AUTH-005 AC2); before the page's script runs, no PIN can be typed
+// or sent (NFR-SEC-09). Screenshots at 1440 and 375 px go to the test output (§9.9 step 4); axe runs on every screen
+// (§9.9 step 5).
 
 type Created = { requestId: string; number: string; taskId: string; fileName?: string }
+/** A six-digit PIN that is not the approvers' one */
+const WRONG_PIN = '480263'
 
 const inbox = (page: Page) => page.getByRole('list', { name: 'งานรออนุมัติของคุณ' })
 const timeline = (page: Page) => page.getByRole('list', { name: 'ไทม์ไลน์ของคำขอ' })
@@ -203,7 +225,7 @@ test('[FR-DOA-004/AC1] rejecting is a separate choice that needs a reason and a 
   await shot(page, testInfo, 'rejected')
 })
 
-test('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy change shows what is approved and needs the authenticator code again (BR-DOA-15)', async ({ page }, testInfo) => {
+test('[FR-DOA-010/AC2] [FR-DOA-002/AC2] [FR-AUTH-005/AC2] [NFR-SEC-09] a policy change shows what is approved and needs the PIN every time (BR-DOA-15), never sent before the page’s script runs', async ({ page, context, browser, clientIp }, testInfo) => {
   const cast = castOf(testInfo)
   const created = fixture<{ changeId: string; taskId: string; effectiveFrom: string }>('policy', cast.proposer, cast.appointee, cast.appointDepartment)
   const effective = formatThaiDate(new Date(created.effectiveFrom))
@@ -212,7 +234,7 @@ test('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy change shows what is approved a
   const toTask = `a[href="/tasks/${created.taskId}"]`
   const row = inbox(page).getByRole('listitem').filter({ has: page.locator(toTask) })
   await expect(row.getByRole('link')).toHaveText('การเปลี่ยนโครงสร้างอำนาจ: แต่งตั้งผู้ดำรงตำแหน่ง')
-  await expect(row).toContainText('ต้องใส่รหัสจากแอปยืนยันตัวตน')
+  await expect(row).toContainText('ต้องยืนยันด้วย PIN')
   await expect(row).toContainText(`มีผล ${effective}`)
   await row.getByRole('link').click()
 
@@ -227,23 +249,43 @@ test('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy change shows what is approved a
   await expect(page.getByRole('radio')).toHaveCount(0)
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'policy')
+  // Before the page's script runs (a slow phone network), both forms hold a PIN field that takes nothing, and a form
+  // forced to send goes by POST: the PIN never reaches an address (NFR-SEC-09)
+  await expectNoPinBeforeScript(await withoutScript(browser, page, testInfo, clientIp), `/tasks/${created.taskId}`, 2, WRONG_PIN)
 
   const approve = page.getByRole('button', { name: 'อนุมัติการเปลี่ยนนี้', exact: true })
   const approveForm = page.locator('form').filter({ has: approve })
-  const wrong = String((Number(totpOf('ceo')) + 500_000) % 1_000_000).padStart(6, '0')
-  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(wrong)
+  // The PIN field: masked, a number keypad, a one-time code to the browser (never saved or filled as a password)
+  const pin = approveForm.getByLabel(PIN_LABEL)
+  await expect(pin).toHaveAttribute('type', 'password')
+  await expect(pin).toHaveAttribute('inputmode', 'numeric')
+  await expect(pin).toHaveAttribute('autocomplete', 'one-time-code')
+  await expect(page.locator('form#reject-policy').getByLabel(PIN_LABEL)).toBeVisible()
+  await expectNoSideways(page)
+  await pin.fill(WRONG_PIN)
   await approve.click()
-  await expect(page.getByRole('alert').filter({ hasText: 'รหัสไม่ถูกต้องหรือหมดเวลาแล้ว' })).toBeVisible()
-  await shot(page, testInfo, 'policy-wrong-code')
-  await approveForm.getByLabel('รหัส 6 หลักจากแอป').fill(totpOf('ceo'))
+  // A wrong PIN is said at its field with the tries left; nothing is approved and the field is empty for the next try
+  await expect(approveForm.getByText('PIN ไม่ถูกต้อง ใส่ผิดได้อีก 4 ครั้ง')).toBeVisible()
+  await expect(pin).toHaveAttribute('aria-invalid', 'true')
+  await expect(pin).toHaveValue('')
+  // On phones the page still ends above the approve bar, now taller with the message
+  await expectPageEndAboveBar(page)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'policy-wrong-pin')
+  const before = await sessionCookie(context)
+  await pin.fill(E2E_PIN)
   await approve.click()
   await expect(page.getByRole('status').filter({ hasText: 'อนุมัติการเปลี่ยนนี้แล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'อนุมัติแล้วโดย ศักดิ์ชัย ผู้นำ เมื่อ' })).toBeVisible()
+  // NFR-SEC-04: the session id changed with the step-up, and the CEO is still signed in
+  expect(await sessionCookie(context)).not.toBe(before)
+  await page.reload()
   await expect(page.getByRole('status').filter({ hasText: 'อนุมัติแล้วโดย ศักดิ์ชัย ผู้นำ เมื่อ' })).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'policy-approved')
 })
 
-test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] [FR-DOA-009/AC3] a DOA version shows every rule and what differs from the version in effect, and is decided with the authenticator code (BR-DOA-15)', async ({ page }, testInfo) => {
+test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] [FR-DOA-009/AC3] [FR-AUTH-005/AC2] a DOA version shows every rule and what differs from the version in effect, and is decided with the PIN (BR-DOA-15)', async ({ page }, testInfo) => {
   const cast = castOf(testInfo)
   const created = fixture<{ versionId: string; taskId: string; effectiveFrom: string }>('doa', cast.proposer, String(cast.doaVersionNo))
   const name = `DOA-DEMO ฉบับ ${cast.doaVersionNo}`
@@ -251,7 +293,7 @@ test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] [FR-DOA-009/AC3] a DOA version shows eve
   await page.goto('/tasks')
   const row = inbox(page).getByRole('listitem').filter({ has: page.locator(`a[href="/tasks/${created.taskId}"]`) })
   await expect(row.getByRole('link')).toHaveText(`อนุมัติเผยแพร่ ${name}`)
-  await expect(row).toContainText('ต้องใส่รหัสจากแอปยืนยันตัวตน')
+  await expect(row).toContainText('ต้องยืนยันด้วย PIN')
   await expect(row).toContainText(`มีผล ${formatThaiDate(new Date(created.effectiveFrom))}`)
   await row.getByRole('link').click()
 
@@ -284,21 +326,137 @@ test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] [FR-DOA-009/AC3] a DOA version shows eve
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'doa-policy')
 
-  // Rejected with a reason, the code from the app and a tick (nothing is published for the other tests); rejecting asks
-  // for no tick of the boundary table
+  // Rejected with a reason, the PIN and a tick (nothing is published for the other tests); rejecting asks for no tick of
+  // the boundary table
   const rejectForm = page.locator('form#reject-policy')
   const reject = rejectForm.getByRole('button', { name: 'ไม่อนุมัติการเปลี่ยนนี้', exact: true })
   await reject.click()
-  await expect(rejectForm.getByText('ใส่รหัส 6 หลักจากแอปยืนยันตัวตน')).toBeVisible()
+  await expect(rejectForm.getByText('ใส่ PIN ตัวเลข 6 หลัก')).toBeVisible()
   await rejectForm.getByLabel('เหตุผล', { exact: true }).fill('ขอให้ทบทวนวงเงินกับฝ่ายบัญชีก่อน')
-  await rejectForm.getByLabel('รหัส 6 หลักจากแอป').fill(totpOf('ceo'))
+  await rejectForm.getByLabel(PIN_LABEL).fill(E2E_PIN)
   await rejectForm.getByLabel('ฉันตรวจเหตุผลแล้ว และเข้าใจว่าเปลี่ยนการตัดสินภายหลังไม่ได้').check()
-  await expect(rejectForm.getByText('ใส่รหัส 6 หลักจากแอปยืนยันตัวตน')).toHaveCount(0)
+  await expect(rejectForm.getByText('ใส่ PIN ตัวเลข 6 หลัก')).toHaveCount(0)
   await reject.click()
   await expect(page.getByRole('status').filter({ hasText: 'ไม่อนุมัติการเปลี่ยนนี้แล้ว' })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'ไม่อนุมัติโดย ศักดิ์ชัย ผู้นำ เมื่อ' })).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'doa-policy-rejected')
+})
+
+test('[FR-AUTH-005/AC2] [FR-AUTH-005/AC3] [NFR-SEC-04] [NFR-SEC-09] a request at the step-up threshold is approved with the PIN: never sent before the page’s script runs, no PIN, a wrong or a locked one passes nothing, and the session id changes at once', async ({ page, context, browser, clientIp }, testInfo) => {
+  const cast = castOf(testInfo)
+  const made = stepUpFixture<{ requestId: string; number: string; taskId: string; amount: string }>('at-threshold', cast.requester)
+  await signIn(page, cast.approver, true)
+  // The inbox says which tasks need the PIN
+  await page.goto('/tasks')
+  const row = inbox(page).getByRole('listitem').filter({ has: page.locator(`a[href="/tasks/${made.taskId}"]`) })
+  await expect(row).toContainText('ต้องยืนยันด้วย PIN')
+  await row.getByRole('link').click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('เครื่องปั่นไฟสำรองไซต์งาน')
+  await expect(page.getByText('ยอดของงานนี้ถึงเกณฑ์ที่ต้องยืนยันด้วย PIN 6 หลัก ทั้งการอนุมัติ การตีกลับ และการไม่อนุมัติ')).toBeVisible()
+  // Returning and rejecting ask for the PIN too; asking the requester does not
+  await expect(page.locator('#other-decisions form').first().getByLabel(PIN_LABEL)).toBeVisible()
+  await expect(page.locator('#other-decisions form').nth(1).getByLabel(PIN_LABEL)).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await expectNoSideways(page)
+  await shot(page, testInfo, 'step-up-decision')
+  // Before the page's script runs (a slow phone network), the return-or-reject form's PIN field takes nothing, and the
+  // form forced to send goes by POST: the PIN never reaches an address (NFR-SEC-09). The approve button waits too: a
+  // press before the script would be lost
+  await expectNoPinBeforeScript(await withoutScript(browser, page, testInfo, clientIp), `/tasks/${made.taskId}`, 1, WRONG_PIN, async (before) => {
+    await expect(approveButton(before)).toBeDisabled()
+  })
+
+  // The second press of approve asks for the PIN: masked, a number keypad, a one-time code to the browser (never saved
+  // or filled as a password)
+  await approveButton(page).click()
+  // The amount is the threshold of the DOA version in effect, as the fixture read it
+  const confirm = page.getByRole('group', { name: new RegExp(`^อนุมัติ ${made.number} ยอดรวม VAT [0-9,]+\\.[0-9]{2} บาท`) })
+  const pin = confirm.getByLabel(PIN_LABEL)
+  const confirmButton = confirm.getByRole('button', { name: 'ยืนยันอนุมัติ' })
+  // The second press is a form of its own, and posts like every form of the page
+  await expect(page.locator('form').filter({ has: pin })).toHaveAttribute('method', 'post')
+  await expect(pin).toHaveAttribute('type', 'password')
+  await expect(pin).toHaveAttribute('inputmode', 'numeric')
+  await expect(pin).toHaveAttribute('autocomplete', 'one-time-code')
+  await expectNoBlockingAxe(page)
+  await expectNoSideways(page)
+  await shot(page, testInfo, 'step-up-confirm')
+  // Not six digits: said at once, nothing is sent — Enter (Go on the phone's keypad) confirms like the button
+  await pin.fill('1234')
+  await pin.press('Enter')
+  await expect(confirm.getByText('ใส่ PIN ตัวเลข 6 หลัก')).toBeVisible()
+
+  // A member without a PIN is told to set one first, with the way to /settings/pin; nothing is approved
+  stepUpFixture('pin-off', cast.approver)
+  try {
+    await pin.fill(WRONG_PIN)
+    await confirmButton.click()
+    const noPin = page.locator('[data-decision-bar]').getByText('คุณยังไม่ได้ตั้ง PIN ยืนยันธุรกรรม ตั้ง PIN ก่อนแล้วกลับมาตัดสินงานนี้')
+    await expect(noPin).toBeVisible()
+    await expect(page.getByRole('link', { name: 'ไปตั้ง PIN' })).toHaveAttribute('href', '/settings/pin')
+    await expect(pin).toHaveValue('')
+    await expect(approveButton(page)).toHaveCount(0)
+    await expectPageEndAboveBar(page)
+    await expectNoBlockingAxe(page)
+    await expectNoSideways(page)
+    await shot(page, testInfo, 'step-up-no-pin')
+  } finally {
+    stepUpFixture('pin-on', cast.approver)
+  }
+
+  // A wrong PIN: said at its field with the tries left, nothing approved, the field empty for the next try
+  await pin.fill(WRONG_PIN)
+  await confirmButton.click()
+  await expect(confirm.getByText('PIN ไม่ถูกต้อง ใส่ผิดได้อีก 4 ครั้ง')).toBeVisible()
+  await expect(pin).toHaveValue('')
+  await expect(approveButton(page)).toHaveCount(0)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'step-up-wrong-pin')
+
+  // FR-AUTH-005 AC3: the fifth wrong PIN in a row locks it; the bar says until when, and the page still ends above it
+  try {
+    for (const left of [3, 2, 1]) {
+      await pin.fill(WRONG_PIN)
+      await pin.press('Enter')
+      await expect(confirm.getByText(`PIN ไม่ถูกต้อง ใส่ผิดได้อีก ${left} ครั้ง`)).toBeVisible()
+    }
+    await pin.fill(WRONG_PIN)
+    await confirmButton.click()
+    await expect(page.locator('[data-decision-bar]').getByText(/^ใส่ PIN ผิด 5 ครั้งติดกัน PIN ถูกล็อกถึง .+ ลองใหม่หลังเวลานั้น$/)).toBeVisible()
+    await expect(approveButton(page)).toHaveCount(0)
+    await expectPageEndAboveBar(page)
+    await expectNoBlockingAxe(page)
+    await expectNoSideways(page)
+    await shot(page, testInfo, 'step-up-locked')
+  } finally {
+    stepUpFixture('pin-unlock', cast.approver)
+  }
+
+  const before = await sessionCookieOf(context)
+  await pin.fill(E2E_PIN)
+  await confirmButton.click()
+  await expect(page.getByRole('status').filter({ hasText: `อนุมัติแล้วโดย ${cast.approverName} เมื่อ` })).toBeVisible()
+  // NFR-SEC-04: a new session id after the step-up; the approver stays signed in
+  const after = await sessionCookie(context)
+  expect(after).toBeTruthy()
+  expect(after).not.toBe(before?.value)
+  // …and the old one opens nothing from then on: a browser that still holds it is sent to the sign-in page
+  const stale = await browser.newContext()
+  try {
+    await stale.addCookies([before!])
+    const elsewhere = await stale.newPage()
+    await elsewhere.goto(`/tasks/${made.taskId}`)
+    await expect(elsewhere).toHaveURL(/\/login(\?.*)?$/)
+  } finally {
+    await stale.close()
+  }
+  await page.reload()
+  await expect(page.getByRole('status').filter({ hasText: `อนุมัติแล้วโดย ${cast.approverName} เมื่อ` })).toBeVisible()
+  const stamp = timeline(page).getByRole('listitem').filter({ hasText: cast.approverName }).filter({ hasText: 'DOA-DEMO ฉบับ 1 ข้อ PR-02' })
+  await expect(stamp).toContainText('อนุมัติ')
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'step-up-approved')
 })
 
 test('[FR-DOA-004/AC1] a member who is not the task’s approver cannot open its decision page', async ({ page }, testInfo) => {

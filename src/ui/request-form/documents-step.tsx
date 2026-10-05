@@ -208,7 +208,8 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
         {q.fileId ? (
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span>{t('file', { name: q.fileName ?? '' })}</span>
-            <Button variant="link" onClick={() => onOpenFile(q.fileId!)}>
+            {/* A link to look at, still a 44 px touch target on a phone (NFR-A11Y-02, §9.4) */}
+            <Button variant="link" className="min-h-11" onClick={() => onOpenFile(q.fileId!)}>
               {t('openFile', { n })}
             </Button>
           </p>
@@ -291,7 +292,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
               </p>
               {/* Opening is a link at the start; taking the file off is a danger button at the far end, asked first */}
               <div className="flex flex-wrap items-start justify-between gap-x-10 gap-y-3">
-                <Button variant="link" onClick={() => onOpenFile(a.fileId)}>
+                <Button variant="link" className="min-h-11" onClick={() => onOpenFile(a.fileId)}>
                   {t('open', { name: a.fileName })}
                 </Button>
                 <ConfirmRemove

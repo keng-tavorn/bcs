@@ -122,3 +122,10 @@ export const OUTBOX_LAST_ERROR_MAX_LENGTH = 500
 /** NFR-OBS-02: a sweeper run that could deliver nothing raises an alert once the oldest message it tried has waited
  *  this long (raised again on every such run until the backlog moves) */
 export const OUTBOX_STALL_ALERT_AFTER_MS = 10 * MS_PER_MINUTE
+
+// ---------- LINE rich menus (§9.5, FR-LINE-004) ----------
+/** The image of each BCS rich menu, in pixels (§9.5: 2500 × 843, LINE's large compact size); its areas share it out */
+export const LINE_RICH_MENU_WIDTH_PX = 2500
+export const LINE_RICH_MENU_HEIGHT_PX = 843
+/** LINE takes a rich menu image of at most "1 MB", read the strict way: 1,000,000 bytes (the pictures of BCS are < 100 KB) */
+export const LINE_RICH_MENU_IMAGE_MAX_BYTES = 1000 * 1000

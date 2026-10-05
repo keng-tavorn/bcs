@@ -29,6 +29,10 @@ import {
   LayoutList,
   ListTree,
   UserCheck,
+  BellRing,
+  MessageCircle,
+  MessagesSquare,
+  RectangleEllipsis,
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -65,6 +69,10 @@ const ICONS: Record<string, LucideIcon> = {
   tenants: Building,
   delegation: UserCheck,
   security: KeyRound,
+  line: MessagesSquare,
+  pin: RectangleEllipsis,
+  lineLink: MessageCircle,
+  notifications: BellRing,
 }
 
 export interface NavEntry {

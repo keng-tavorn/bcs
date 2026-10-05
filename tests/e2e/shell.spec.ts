@@ -32,7 +32,19 @@ test('[FR-PLT-002/AC2] Thai by default, English on request; the menu lists what 
 
   await openMenuOnPhone(page, isMobile, 'เมนู')
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' })
-  await expect(nav.getByRole('link')).toHaveText(['หน้าแรก', 'ขอซื้อ / ขอจ้าง', 'คำขอ', 'งานรออนุมัติ', 'ผู้ขาย', 'เอกสารค้างที่ใคร', 'รักษาการ', 'ความปลอดภัยของบัญชี'])
+  await expect(nav.getByRole('link')).toHaveText([
+    'หน้าแรก',
+    'ขอซื้อ / ขอจ้าง',
+    'คำขอ',
+    'งานรออนุมัติ',
+    'ผู้ขาย',
+    'เอกสารค้างที่ใคร',
+    'รักษาการ',
+    'ความปลอดภัยของบัญชี',
+    'PIN ยืนยันธุรกรรม',
+    'บัญชี LINE',
+    'ตั้งค่าการแจ้งเตือน',
+  ])
   await expect(nav.getByRole('link', { name: 'หน้าแรก' })).toHaveAttribute('aria-current', 'page')
   await page.screenshot({ path: testInfo.outputPath('menu-th.png'), fullPage: true })
 

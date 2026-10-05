@@ -1,0 +1,22 @@
+{
+  "list": {
+    "emptyHint": "Tasks sent to you appear here and as approval cards in LINE. Meanwhile you can follow your own requests.",
+    "emptyLink": "Follow my requests"
+  },
+  "detail": {
+    "summary": "This task at a glance",
+    "supplier": "Supplier",
+    "purchaseOrder": "Purchase order",
+    "varianceAmount": "Variance amount (before VAT)",
+    "budgetLeft": "Left on this budget line",
+    "doaRule": "DOA rule applied",
+    "backToChat": "Back to the chat"
+  },
+  "decide": {
+    "signedOut": "Your LINE sign-in has ended, so this was not sent. Reload this page and try again.",
+    "failed": "We could not confirm it was sent because the connection failed. Try again; if it went through, the page will show it once it reloads.",
+    "reload": "Reload this page",
+    "setPin": "Set your PIN on the web",
+    "pinHelp": "How the PIN works in LINE"
+  }
+}

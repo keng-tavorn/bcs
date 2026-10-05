@@ -5,8 +5,10 @@ import { prisma } from '@/server/db/client'
 import { deliverNotification } from '@/server/notifications/deliver'
 import { decideTask } from '@/server/services/approvals/decide'
 import { decideByActionLink, viewActionLink } from '@/server/services/approvals/action-link'
+import { decideByLinePostback } from '@/server/services/approvals/line-postback'
 import { deactivateMember } from '@/server/services/members'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, submitRequest } from '@/server/services/requests'
+import { escalateTask } from '@/server/services/sla'
 import { emailLinkPath, emailLinkSecret, hashLinkSecret, parseEmailLink } from '@/server/tokens/action-tokens'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { messagesTo } from '../support/mailpit'
@@ -27,6 +29,7 @@ const ok = <T,>(r: { ok: true; data: T } | { ok: false; error: unknown }): T => 
 let org: DoaOrg
 let budgetLineId: string
 const emailCtx = (code: string, now = NOW) => makeCtx({ organizationId: org.organizationId, actor: { type: 'USER', memberId: org.member[code]! }, channel: 'EMAIL', now })
+const codeOf = (memberId: string) => Object.entries(org.member).find(([, id]) => id === memberId)![0]
 
 beforeAll(async () => {
   org = await createDoaOrg()
@@ -63,7 +66,9 @@ describe('[BR-TOK-01] a token per task and assignee, issued at assignment and re
     const { task, token, link } = await submitted()
     ok(await decideTask(org.ctxOf('dm_con', NOW), { taskId: task.id, decision: 'APPROVE' }, key()))
     expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ revokedAt: NOW, usedAt: null })
-    expect(await decideByActionLink(emailCtx('dm_con'), { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'TOKEN_INVALID' } })
+    // …and the link then says who decided it and when (FR-DOA-004 AC2, below), deciding nothing
+    expect(await decideByActionLink(emailCtx('dm_con'), { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'TOKEN_USED' } })
+    expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ revokedAt: NOW, usedAt: null })
   })
 
   it('deactivating the member revokes their tokens in the same transaction (FR-AUTH-003 AC2)', async () => {
@@ -124,7 +129,8 @@ describe('[FR-NOTI-002/AC2] opening the link changes nothing; deciding needs the
     const { link } = await submitted()
     const results = await Promise.all([decideByActionLink(emailCtx('dm_con'), { link, decision: 'APPROVE' }, key()), decideByActionLink(emailCtx('dm_con'), { link, decision: 'APPROVE' }, key())])
     expect(results.filter((r) => r.ok)).toHaveLength(1)
-    expect(results.find((r) => !r.ok)).toMatchObject({ ok: false, error: { code: expect.stringMatching(/^(TOKEN_USED|TOKEN_INVALID)$/) } })
+    // Both lock the task first: the second finds it decided by the first
+    expect(results.find((r) => !r.ok)).toMatchObject({ ok: false, error: { code: 'TOKEN_USED', details: { name: 'ผู้ใช้ dm_con', time: NOW.toISOString() } } })
   })
 
   it('a reason is needed to say no, and a refused POST leaves the link usable', async () => {
@@ -164,5 +170,62 @@ describe('[FR-NOTI-002/AC2] opening the link changes nothing; deciding needs the
   it('a decision through the link must be on the EMAIL channel', async () => {
     const { link } = await submitted()
     expect(await decideByActionLink(org.ctxOf('dm_con', NOW), { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'channel' } } })
+  })
+})
+
+describe('[FR-DOA-004/AC2] a link whose task was decided elsewhere says who decided it and when, as the LINE button does (§9.3, ADR-050 item 4)', () => {
+  const LATER = new Date(NOW.getTime() + 30 * 60_000)
+  /** Thursday 8 Oct 2026 09:00 Thai time: past the escalation time of a task assigned at NOW, before its links expire */
+  const THU_0900 = new Date('2026-10-08T02:00:00Z')
+
+  it('decided on the web, in LIFF or from the chat: the link answers TOKEN_USED with the decider and the time, not TOKEN_INVALID', async () => {
+    const decide = {
+      WEB: (taskId: string) => decideTask(org.ctxOf('dm_con', NOW, 'WEB'), { taskId, decision: 'APPROVE' }, key()),
+      LIFF: (taskId: string) => decideTask(org.ctxOf('dm_con', NOW, 'LIFF'), { taskId, decision: 'APPROVE' }, key()),
+      // The approve button of the LINE card: a LINE token, as an approver linked to LINE gets one with the task
+      LINE_CHAT: async (taskId: string) => {
+        const button = await prisma.actionToken.create({ data: { organizationId: org.organizationId, memberId: org.member.dm_con!, taskId, allowedActions: ['APPROVE'], channel: 'LINE', expiresAt: new Date(NOW.getTime() + HOURS_72) } })
+        return decideByLinePostback(org.ctxOf('dm_con', NOW, 'LINE_CHAT'), { tokenId: button.id }, key())
+      },
+    }
+    for (const channel of ['WEB', 'LIFF', 'LINE_CHAT'] as const) {
+      const { task, token, link } = await submitted()
+      ok(await decide[channel](task.id))
+      expect(await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).toMatchObject({ status: 'APPROVED', channel })
+      expect(await decideByActionLink(emailCtx('dm_con', LATER), { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'TOKEN_USED', details: { name: 'ผู้ใช้ dm_con', nameEn: 'ผู้ใช้ dm_con', time: NOW.toISOString() } } })
+      // Nothing more was decided and the link was not used
+      expect(await prisma.event.count({ where: { type: 'approval_task.decided', aggregateId: task.id } })).toBe(1)
+      expect(await prisma.actionToken.findUniqueOrThrow({ where: { id: token.id } })).toMatchObject({ usedAt: null, revokedAt: NOW })
+    }
+  })
+
+  it('rejected in the workspace: the link names that decision too, also when it has expired since', async () => {
+    const { task, link } = await submitted()
+    ok(await decideTask(org.ctxOf('dm_con', NOW), { taskId: task.id, decision: 'REJECT', reason: 'ราคาสูงกว่าที่เคยซื้อ' }, key()))
+    const expired = new Date(NOW.getTime() + HOURS_72)
+    expect(await decideByActionLink(emailCtx('dm_con', expired), { link, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'TOKEN_USED', details: { name: 'ผู้ใช้ dm_con', time: NOW.toISOString() } } })
+  })
+
+  it('the co-assignee’s link, once the first approver decided the escalated step, names the first approver (BR-SLA-04)', async () => {
+    const { task } = await submitted()
+    const escalated = await escalateTask(org.organizationId, task.id, THU_0900)
+    expect(escalated).toMatchObject({ done: true, outcome: 'CO_ASSIGNED' })
+    const coToken = await prisma.actionToken.findFirstOrThrow({ where: { taskId: escalated.coAssigneeTaskId!, channel: 'EMAIL' } })
+    const decidedAt = new Date(THU_0900.getTime() + 5 * 60_000)
+    ok(await decideTask(org.ctxOf('dm_con', decidedAt), { taskId: task.id, decision: 'APPROVE' }, key()))
+    const coLink = `${coToken.id}.${emailLinkSecret(coToken.id)}`
+    const late = new Date(THU_0900.getTime() + 10 * 60_000)
+    expect(await decideByActionLink(emailCtx(codeOf(coToken.memberId), late), { link: coLink, decision: 'APPROVE' }, key())).toMatchObject({
+      ok: false,
+      error: { code: 'TOKEN_USED', details: { name: 'ผู้ใช้ dm_con', time: decidedAt.toISOString() } },
+    })
+    expect(await prisma.event.count({ where: { type: 'approval_task.decided', aggregateId: escalated.coAssigneeTaskId! } })).toBe(0)
+  })
+
+  it('a link whose request was cancelled, with nothing decided, still answers TOKEN_INVALID', async () => {
+    const { requestId, link } = await submitted()
+    ok(await cancelRequest(org.ctxOf('req_con', NOW), { requestId, reason: 'ไม่ต้องใช้แล้ว' }, key()))
+    const refused = await decideByActionLink(emailCtx('dm_con', LATER), { link, decision: 'APPROVE' }, key())
+    expect(refused).toEqual({ ok: false, error: { code: 'TOKEN_INVALID', message: 'the link was revoked' } })
   })
 })

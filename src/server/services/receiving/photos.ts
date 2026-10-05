@@ -1,3 +1,4 @@
+import { escapeLike } from '@/server/db/like'
 import type { TenantTx } from '@/server/db/tenant'
 
 /**
@@ -9,7 +10,7 @@ export async function photosUsable(tx: Pick<TenantTx, 'fileObject'>, actor: stri
   const ids = [...new Set(photoFileIds)]
   if (ids.length === 0) return true
   const usable = await tx.fileObject.count({
-    where: { id: { in: ids }, uploadedById: actor, status: 'AVAILABLE', mimeType: { startsWith: 'image/' }, links: { none: {} }, requestQuotations: { none: {} } },
+    where: { id: { in: ids }, uploadedById: actor, status: 'AVAILABLE', mimeType: { startsWith: escapeLike('image/') }, links: { none: {} }, requestQuotations: { none: {} } },
   })
   return usable === ids.length
 }

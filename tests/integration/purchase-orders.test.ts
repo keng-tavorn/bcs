@@ -11,6 +11,7 @@ import { assignSupplier, consolidateNow, listPool } from '@/server/services/proc
 import { cancelPurchaseOrder, editDraftPo, priceHistory, submitPo } from '@/server/services/purchase-orders'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
+import { stepUpForTask } from '../support/pin'
 
 // S4-04 (spec §6.4 PO table, FR-P2P-003, FR-P2P-004, FR-P2P-010 AC1, BR-BUD-05, BR-BUD-06): PROCUREMENT edits a draft
 // PO, sends it for approval on the DOA rule of PURCHASE_ORDER, and the budget moves as GC-BUD-01 to GC-BUD-04 say,
@@ -60,6 +61,8 @@ async function approveAll(subjectId: string, at = NOW) {
   for (let i = 0; i < 5; i++) {
     const task = await prisma.approvalTask.findFirst({ where: { status: 'OPEN', step: { route: { subjectId } } } })
     if (!task) return
+    // At or above the DOA version's stepUpThreshold the approver gives the PIN first (FR-AUTH-005 AC2)
+    await stepUpForTask(task.id, task.assigneeMemberId)
     ok(await decideTask(org.ctxOf(codeOf(task.assigneeMemberId), at), { taskId: task.id, decision: 'APPROVE' }, key()))
   }
 }
@@ -172,6 +175,41 @@ describe('[FR-P2P-004/AC2] the budget moves as GC-BUD-01 to GC-BUD-04 through th
     expect(await balance(line)).toEqual({ available: '90000.00', reserved: '10000.00', committed: '0.00', actual: '0.00' })
     const again = ok(await submitPo(proc(), { poId }, key()))
     expect(again.number).toBe(sent.number)
+  })
+
+  it('BR-BUD-05: a part of a request line priced before VAT gives back its quantity × the request unit price, rounded once (BR-MONEY-02)', async () => {
+    // 2.5 × 10.01 = 25.025 → 25.03 reserved (GC-MONEY-07). Each part ordered gives back its own quantity × 10.01 rounded
+    // once — never a share of the rounded 25.03, which would round again: 2.4 would give back 24.03 and 1.4 14.02.
+    const line = await fundedLine(100n)
+    const pr = await approvedRequest(line, '2.5', '10.01', { description: 'ลวดผูกเหล็ก' })
+    expect(await balance(line)).toEqual({ available: '74.97', reserved: '25.03', committed: '0.00', actual: '0.00' })
+    const sourcesOf = async (poId: string) => (await poOf(poId)).lines.map((l) => [l.quantity.toString(), l.netSatang, l.sources.map((s) => s.releasableSatang)])
+
+    // A first PO orders 0.1 of it: 1.001 → 1.00 back to the request when approved
+    const first = await draftPo([pr.lineId])
+    const po = await poOf(first)
+    ok(await editDraftPo(proc(), { poId: first, expectedVersion: po.version, lines: [{ poLineId: po.lines[0]!.id, quantity: '0.1' }] }, key()))
+    expect(await sourcesOf(first)).toEqual([['0.1', 100n, [100n]]])
+    ok(await submitPo(proc(), { poId: first }, key()))
+    await approveAll(first)
+    expect(await balance(line)).toEqual({ available: '74.97', reserved: '24.03', committed: '1.00', actual: '0.00' })
+
+    // The next round drafts the 2.4 left: 24.024 → 24.02, as much as the PO line itself (not 24.03)
+    const run = ok(await consolidateNow(proc(), key()))
+    const second = (await prisma.purchaseOrder.findFirstOrThrow({ where: { id: { in: [...run.purchaseOrderIds] }, lines: { some: { sources: { some: { requestLineId: pr.lineId } } } } } })).id
+    expect(await sourcesOf(second)).toEqual([['2.4', 2_402n, [2_402n]]])
+    // Edited to 1.4: 14.014 → 14.01 (not 14.02)
+    const draft = await poOf(second)
+    ok(await editDraftPo(proc(), { poId: second, expectedVersion: draft.version, lines: [{ poLineId: draft.lines[0]!.id, quantity: '1.4' }] }, key()))
+    expect(await sourcesOf(second)).toEqual([['1.4', 1_401n, [1_401n]]])
+
+    // At the request's own price the PO needs what it gives back: nothing is reserved at submit, and approving gives
+    // back 14.01 and holds 14.01 — no satang more back than the PO holds
+    ok(await submitPo(proc(), { poId: second }, key()))
+    expect(await balance(line)).toEqual({ available: '74.97', reserved: '24.03', committed: '1.00', actual: '0.00' })
+    await approveAll(second)
+    expect(await balance(line)).toEqual({ available: '74.97', reserved: '10.02', committed: '15.01', actual: '0.00' })
+    expect(ok(await listPool(proc())).find((p) => p.requestLineId === pr.lineId)).toMatchObject({ quantity: '1' })
   })
 })
 

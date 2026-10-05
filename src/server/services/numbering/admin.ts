@@ -3,6 +3,7 @@ import { formatDocumentNumber, scopeKey, type ResetPeriod } from '@/core/numberi
 import { err, ok, type Result } from '@/core/result'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { departmentCodes, issuedDocumentNumbers, nextSequenceValue, readNumberingRules, type NumberingRules } from '@/server/queries/settings'
 import type { NumberedDocument } from './index'
@@ -70,9 +71,9 @@ export function txNumberingReader(tx: TenantTx): NumberingReader {
   return {
     async issuedNumbers(document, around) {
       // The same domains and filter as issuedDocumentNumbers in src/server/queries/settings.ts: PR and RQ share
-      // Request.number, PO is PurchaseOrder.number, GR is GoodsReceipt.number
+      // Request.number, PO is PurchaseOrder.number, GR is GoodsReceipt.number; a `_` or `%` of the texts matches itself
       if (around.length === 0) return []
-      const where = { OR: around.map((a) => ({ number: { startsWith: a.prefix, endsWith: a.suffix } })) }
+      const where = { OR: around.map((a) => ({ number: { startsWith: escapeLike(a.prefix), endsWith: escapeLike(a.suffix) } })) }
       const rows =
         document === 'PO'
           ? await tx.purchaseOrder.findMany({ where, select: { number: true } })
@@ -152,21 +153,6 @@ function matchersOf(pattern: string, at: Date, codes: readonly string[]): Matche
   })
 }
 
-/** SQL LIKE (startsWith/endsWith) treats these as special */
-const LIKE_SPECIAL = /[%_\\]/
-
-/** The start of `text` up to its first LIKE character: a filter on it can only find more numbers, never fewer */
-function plainStart(text: string): string {
-  const at = text.search(LIKE_SPECIAL)
-  return at < 0 ? text : text.slice(0, at)
-}
-
-/** The end of `text` after its last LIKE character, for the same reason */
-function plainEnd(text: string): string {
-  const last = Math.max(text.lastIndexOf('%'), text.lastIndexOf('_'), text.lastIndexOf('\\'))
-  return last < 0 ? text : text.slice(last + 1)
-}
-
 /** The sequence value the pattern would have printed as `text`, or null when it never prints it that way. */
 function sequenceOf(text: string, width: number): number | null {
   const value = Number(text)
@@ -211,7 +197,7 @@ export async function ruleRefusal(reader: NumberingReader, document: NumberedDoc
     if (example) return { reason: 'OVERLAPS_OTHER_DOCUMENT', other, example }
   }
   const nextValues = new Map<string, number>()
-  const around = mine.map((m) => ({ prefix: plainStart(m.prefix), suffix: plainEnd(m.suffix) }))
+  const around = mine.map(({ prefix, suffix }) => ({ prefix, suffix }))
   for (const number of await reader.issuedNumbers(document, around)) {
     const produced = producedBy(mine, number)
     if (!produced) continue

@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
+import { stepUpNeeded } from '@/core/pin'
 import type { Ctx } from '@/server/context'
-import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { forTenant, type TenantDb, type TenantTx } from '@/server/db/tenant'
 import { comparisonBaselineId } from './doa'
 import {
   approverRoles,
@@ -26,7 +27,9 @@ import {
 // principles 1, 4, 5, FR-DOA-004, BR-DOA-15). A member's open tasks are the ones they hold and the ones a delegate holds
 // for them (BR-DLG-04: both may decide), oldest due first, with the business time each has waited. Queries never check
 // permissions: the decision page asks getTaskAccess() first and checks approval.decide (or that the task was the
-// member's) with src/server/authz before it reads the task.
+// member's) with src/server/authz before it reads the task. closingDecisionOf is the one rule of "who decided it and
+// when" (FR-DOA-004 AC2, §9.3): the decision page, the refusal of a late decision, the LINE button and the e-mail link
+// all name the decider through it, the services with the transaction that holds the task's lock.
 
 export type TaskSubjectType = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'
 export type TaskStatusDto = 'OPEN' | 'INFO_REQUESTED' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'CANCELLED' | 'REASSIGNED'
@@ -35,6 +38,16 @@ export type OrgChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REP
 /** BR-DOA-15: DOA versions and authority changes are approved or rejected with a step-up, on the web or LIFF only */
 export const POLICY_SUBJECTS: readonly TaskSubjectType[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE']
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
+
+/** What a task's route says about the step-up its decision needs: the amount the DOA counted and the version's threshold */
+const STEP_UP_ROUTE = { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } as const
+
+/**
+ * FR-AUTH-005 AC2, BR-DOA-15: deciding this task needs the PIN — every policy task, and every task whose amount the DOA
+ * counted is at or above its version's stepUpThreshold (the rule of src/core/pin the deciding commands apply)
+ */
+const needsStepUp = (route: { subjectType: string; amountSatang: bigint | null; doaVersion: { stepUpThresholdSatang: bigint | null } }) =>
+  stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })
 
 export type InboxSubjectDto =
   | {
@@ -83,6 +96,7 @@ export interface InboxTaskDto {
   readonly overdue: boolean
   /** FOR: I hold it for the delegator · BY: my delegate holds it for me (BR-DLG-04) */
   readonly holding: { readonly kind: 'FOR'; readonly member: MemberRefDto } | { readonly kind: 'BY'; readonly member: MemberRefDto } | null
+  /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
 }
 
@@ -185,7 +199,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
         principalMemberId: true,
         assignedAt: true,
         dueAt: true,
-        step: { select: { route: { select: { subjectType: true, subjectId: true } } } },
+        step: { select: { route: { select: STEP_UP_ROUTE } } },
       },
       orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { assignedAt: 'asc' }, { id: 'asc' }],
       take: Math.min(options.limit ?? INBOX_LIMIT, INBOX_LIMIT),
@@ -217,7 +231,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
         waitingMinutes: businessMinutesWaited(calendar, t.assignedAt, ctx.now, pauses.get(t.id) ?? []),
         overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
         holding,
-        stepUp: POLICY_SUBJECTS.includes(t.step.route.subjectType),
+        stepUp: needsStepUp(t.step.route),
       }
     }),
   }
@@ -234,6 +248,8 @@ export interface TaskAccessDto {
   /** The delegator when a delegate holds the task: they may decide it too (BR-DLG-04) */
   readonly principalMemberId: string | null
   readonly decidedByMemberId: string | null
+  /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
+  readonly stepUp: boolean
 }
 
 export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAccessDto | null> {
@@ -241,7 +257,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
   const db = forTenant(ctx.organizationId)
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
-    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } },
+    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { route: { select: STEP_UP_ROUTE } } } },
   })
   if (!task) return null
   return {
@@ -252,6 +268,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
     assigneeMemberId: task.assigneeMemberId,
     principalMemberId: task.principalMemberId,
     decidedByMemberId: task.decidedByMemberId,
+    stepUp: needsStepUp(task.step.route),
   }
 }
 
@@ -369,10 +386,20 @@ export interface TaskViewDto {
   readonly reason: string | null
   /** REASSIGNED: who holds the task now */
   readonly reassignedTo: MemberRefDto | null
-  /** CANCELLED: why the task ended without a decision */
-  readonly cancelledWhy: 'REQUEST_CANCELLED' | 'ROUTE_REPLACED' | 'DOCUMENT_DECIDED' | null
+  /**
+   * CANCELLED: why the task ended without a decision — CO_ASSIGNEE_DECIDED when another approver of its step decided
+   * first (the co-assignee of an escalated step, or the first assignee, BR-SLA-04)
+   */
+  readonly cancelledWhy: (typeof CANCELLED_WHY)[number] | null
+  /**
+   * CANCELLED or REASSIGNED with no decision of its own, once another task of its step decided the step — the other
+   * approver of an escalated step decided first (BR-SLA-04), or the delegate it moved to decided it: what was decided,
+   * by whom and when (FR-DOA-004 AC2, §9.3 "ดำเนินการแล้วโดย … เมื่อ …", closingDecisionOf); null otherwise
+   */
+  readonly stepDecision: { readonly decision: 'APPROVE' | 'RETURN' | 'REJECT' | null; readonly decidedBy: MemberRefDto | null; readonly decidedAt: Date } | null
   /** INFO_REQUESTED: the question that waits for the requester */
   readonly openQuestion: { readonly id: string; readonly question: string; readonly askedAt: Date } | null
+  /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
   readonly route: RouteDto | null
   readonly policy: PolicySubjectDto | null
@@ -599,17 +626,66 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
   }
 }
 
-/** Who decided a task and when, in both languages (FR-DOA-004 AC2: a second decision is told who and when) */
+// ---------- who decided it (FR-DOA-004 AC2, §9.3) ----------
+
+/** What closingDecisionOf reads of a task: a row of ApprovalTask */
+export interface DecidableTask {
+  readonly id: string
+  readonly stepId: string
+  readonly status: string
+  readonly decision: 'APPROVE' | 'RETURN' | 'REJECT' | null
+  readonly decidedAt: Date | null
+  readonly decidedByMemberId: string | null
+}
+
+/** The decision that closed a task */
+export interface ClosingDecision {
+  /** The task that was decided: the task itself, or the other task of its step whose decision closed it */
+  readonly taskId: string
+  readonly decision: 'APPROVE' | 'RETURN' | 'REJECT' | null
+  readonly decidedAt: Date
+  /** The decider's names as stored; null when their member row is gone */
+  readonly decidedBy: { readonly id: string; readonly displayNameTh: string; readonly displayNameEn: string | null } | null
+}
+
+const DECIDABLE = { id: true, stepId: true, status: true, decision: true, decidedAt: true, decidedByMemberId: true } as const
+
+/**
+ * The decision that closed a task — the one rule of every answer "ดำเนินการแล้วโดย … เมื่อ …" (FR-DOA-004 AC2, §9.3,
+ * ADR-050 item 4): the decision page, a late decision on the web or in LIFF, the LINE button and the e-mail link. Its
+ * own decision; or, for a task cancelled or moved with nothing decided of its own — the other approver of an escalated
+ * step decided first (BR-SLA-04, CO_ASSIGNEE_DECIDED), or the delegate it moved to decided it — the first decision on
+ * its step. null: nothing was decided (the task is still open, waits for an answer, or closed with its route: the
+ * request cancelled, the route replaced). Reads with the caller's client: a query's, or the transaction of a command
+ * that holds the task's lock. Names come back only to callers that checked who may act on the task first.
+ */
+export async function closingDecisionOf(db: Pick<TenantTx, 'approvalTask' | 'member'>, task: DecidableTask): Promise<ClosingDecision | null> {
+  const byStep = !task.decidedAt && (task.status === 'CANCELLED' || task.status === 'REASSIGNED')
+  const decided = byStep
+    ? await db.approvalTask.findFirst({ where: { stepId: task.stepId, decidedAt: { not: null } }, orderBy: [{ decidedAt: 'asc' }, { id: 'asc' }], select: DECIDABLE })
+    : task
+  if (!decided?.decidedAt) return null
+  const decidedBy = decided.decidedByMemberId ? await db.member.findUnique({ where: { id: decided.decidedByMemberId }, select: { id: true, displayNameTh: true, displayNameEn: true } }) : null
+  return { taskId: decided.id, decision: decided.decision, decidedAt: decided.decidedAt, decidedBy }
+}
+
+const memberRefOf = (m: { readonly id: string; readonly displayNameTh: string; readonly displayNameEn: string | null }): MemberRefDto => ({ id: m.id, name: { th: m.displayNameTh, en: m.displayNameEn } })
+
+/**
+ * Who decided a task and when, in both languages (FR-DOA-004 AC2: a second decision is told who and when): the decision
+ * that closed it (closingDecisionOf), so a task cancelled because the other approver of its step decided first names that
+ * approver. The caller has checked that the reader may act on the task (the decision services refuse anyone else first).
+ */
 export async function taskDecision(ctx: Ctx, taskId: string): Promise<{ readonly decidedBy: MemberRefDto | null; readonly decidedAt: Date | null } | null> {
   if (!isUuid(taskId)) return null
   const db = forTenant(ctx.organizationId)
-  const task = await db.approvalTask.findUnique({ where: { id: taskId }, select: { decidedAt: true, decidedByMemberId: true } })
+  const task = await db.approvalTask.findUnique({ where: { id: taskId }, select: DECIDABLE })
   if (!task) return null
-  const members = await membersById(db, [task.decidedByMemberId])
-  return { decidedBy: task.decidedByMemberId ? (members.get(task.decidedByMemberId) ?? null) : null, decidedAt: task.decidedAt }
+  const decided = await closingDecisionOf(db, task)
+  return { decidedBy: decided?.decidedBy ? memberRefOf(decided.decidedBy) : null, decidedAt: decided?.decidedAt ?? null }
 }
 
-const CANCELLED_WHY = ['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED'] as const
+const CANCELLED_WHY = ['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED', 'CO_ASSIGNEE_DECIDED'] as const
 
 export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto | null> {
   if (!isUuid(taskId)) return null
@@ -617,7 +693,7 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
     include: {
-      step: { select: { routeId: true, route: { select: { subjectType: true, subjectId: true } } } },
+      step: { select: { routeId: true, route: { select: STEP_UP_ROUTE } } },
       reassignedTo: { select: { assigneeMemberId: true }, orderBy: { assignedAt: 'desc' }, take: 1 },
       // Every question of the task: the open one waits for the requester, and all of them paused its SLA (BR-SLA-03)
       infoRequests: { orderBy: { askedAt: 'desc' }, select: { id: true, question: true, askedAt: true, answeredAt: true } },
@@ -633,11 +709,13 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
   const cancelled =
     task.status === 'CANCELLED' ? await db.event.findFirst({ where: { aggregateType: 'ApprovalTask', aggregateId: task.id, type: 'approval_task.cancelled' }, orderBy: { seq: 'desc' }, select: { data: true } }) : null
   const why = text((cancelled?.data as { why?: unknown } | null)?.why)
+  // A task closed by another task of its step names that decision (its own decision has the fields above)
+  const closing = await closingDecisionOf(db, task)
+  const stepDecision = closing && closing.taskId !== task.id ? { decision: closing.decision, decidedBy: closing.decidedBy ? memberRefOf(closing.decidedBy) : null, decidedAt: closing.decidedAt } : null
 
-  const stepUp = POLICY_SUBJECTS.includes(subjectType)
   let policy: PolicySubjectDto | null = null
   let track: TrackEntryDto[] = []
-  if (stepUp) {
+  if (POLICY_SUBJECTS.includes(subjectType)) {
     policy = subjectType === 'DOA_VERSION' ? await doaVersionOf(db, ctx, subjectId, task.step.routeId, departments) : await orgChangeOf(db, subjectId, departments)
     const tasks = await db.approvalTask.findMany({ where: { step: { route: { subjectType, subjectId } } }, select: { id: true, resolvedFrom: true } })
     const events = await documentEvents(db, subjectType === 'DOA_VERSION' ? 'DoaVersion' : 'OrgAuthorityChange', subjectId, tasks.map((t) => t.id))
@@ -665,8 +743,9 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     reason: task.reason,
     reassignedTo: task.reassignedTo[0] ? (members.get(task.reassignedTo[0].assigneeMemberId) ?? null) : null,
     cancelledWhy: why && (CANCELLED_WHY as readonly string[]).includes(why) ? (why as (typeof CANCELLED_WHY)[number]) : null,
+    stepDecision,
     openQuestion: task.status === 'INFO_REQUESTED' && unanswered ? { id: unanswered.id, question: unanswered.question, askedAt: unanswered.askedAt } : null,
-    stepUp,
+    stepUp: needsStepUp(task.step.route),
     route,
     policy,
     track,

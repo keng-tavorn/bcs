@@ -1,5 +1,6 @@
 import { type Page, type TestInfo } from '@playwright/test'
 import { castOf, expectNoBlockingAxe, fixtureOnce, rowWith, shot, signIn } from './tasks-support'
+import { expectLinesFitLaptops } from './document-lines'
 import { expect, test } from './fixtures'
 
 // S2-12 requester side: "my requests" and one request — where it is now and for how long, the route the DOA engine
@@ -96,6 +97,8 @@ test('[FR-INT-008/AC1] [FR-DOA-003/AC2] a waiting request shows who it waits for
   await expect(page.getByRole('region', { name: 'ยอดเงิน' })).toContainText(/ยอดรวม VAT\s*23,000\.00/)
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'request-waiting')
+  // At laptop widths, where the request's column is narrow, its lines still fit it (§9.9)
+  await expectLinesFitLaptops(page, testInfo, page.getByRole('region', { name: 'รายการ', exact: true }).getByRole('list'), 'request-waiting-lines')
 })
 
 test('@demo [FR-DOA-005/AC2] [FR-PLT-003/AC3] an approved request names the DOA rule it was approved under, and stamps who, when and through which channel', async ({ page, browser }, testInfo) => {

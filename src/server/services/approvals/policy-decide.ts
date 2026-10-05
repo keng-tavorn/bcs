@@ -3,7 +3,7 @@ import type { TaskState } from '@/core/state-machines'
 import { systemClock } from '@/lib/clock'
 import { newId } from '@/lib/ids'
 import type { Ctx } from '@/server/context'
-import { consumeStepUp } from '@/server/auth/step-up'
+import { consumeStepUp, policyStepUpMethods } from '@/server/auth/step-up'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
@@ -15,6 +15,7 @@ import { boundaryTableRequiredFor } from '../doa/boundary'
 import { isInitialPackageRoute } from '../doa/initial-package'
 import { approveOrgChange, rejectOrgChange } from '../org-authority'
 import { closeRoute } from './route'
+import { completeStep } from './step-complete'
 
 // Approving policy (spec BR-DOA-15, FR-DOA-002 AC2–AC3, FR-DOA-010 AC2): a DOA version or an authority change is
 // decided by the approver of its DOA_CHANGE or ORG_AUTHORITY_CHANGE rule — or, for the initial package, by the contract
@@ -23,7 +24,8 @@ import { closeRoute } from './route'
 // authority changes on the same route and follow its decision. A DOA version is approved only with its boundary table
 // ticked as checked whenever it has one — the table the drafter ticked to send it (FR-DOA-009 AC3) — and a tick given
 // for a table compared with another version than the one compared now (another version approved in between) is
-// refused; rejecting needs no tick, and authority changes have no table.
+// refused; rejecting needs no tick, and authority changes have no table. The first decision on a step decides it: its
+// other open tasks are cancelled with it (step-complete.ts, BR-SLA-04, NEW-47).
 
 export interface PolicyTask {
   readonly id: string
@@ -94,9 +96,10 @@ export async function decidePolicyTask(
     }
   }
 
-  // BR-DOA-15: a step-up for this document, given in the last 5 minutes (security clock), used once
-  const stepUpGrantId = await consumeStepUp(tx, { memberId: actor, subjectType, subjectId: route.subjectId }, systemClock.now())
-  if (!stepUpGrantId) return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'enter your authenticator code again to approve policy', details: { subjectType, subjectId: route.subjectId } } }
+  // BR-DOA-15: a step-up for this document, given in the last 5 minutes (security clock), used once: the PIN only, on
+  // the web as in LIFF (S5-05, FR-AUTH-005 AC2); a grant of the authenticator code made before S5-05 never counts
+  const stepUpGrantId = await consumeStepUp(tx, { memberId: actor, subjectType, subjectId: route.subjectId, methods: policyStepUpMethods(ctx.channel) }, systemClock.now())
+  if (!stepUpGrantId) return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'confirm with your PIN again to decide policy', details: { subjectType, subjectId: route.subjectId, method: 'PIN' } } }
 
   let reasonCommentId: string | null = null
   if (input.decision === 'REJECT') {
@@ -107,7 +110,6 @@ export async function decidePolicyTask(
     where: { id: task.id },
     data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actor, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },
   })
-  await tx.approvalStep.update({ where: { id: task.stepId }, data: { status: 'DONE' } })
   const events: EventDraft[] = [
     {
       type: 'approval_task.decided',
@@ -131,6 +133,8 @@ export async function decidePolicyTask(
       },
     },
   ]
+  // BR-SLA-04: the step is decided — its other open tasks are cancelled before the route moves on or closes
+  events.push(...(await completeStep(tx, ctx, task)))
   const notifications: NotificationDraft[] = []
   const waiting = await tx.approvalStep.count({ where: { routeId: route.id, status: 'WAITING' } })
   if (input.decision === 'APPROVE' && waiting > 0) {

@@ -1,15 +1,22 @@
 'use client'
 
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { Button } from '../form/button'
+import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { formatDateTime } from '../format'
 import { ConfirmBox, TextArea } from '../request-view/text-area'
+import { StateLine } from '../request-view/status'
 import { useAction } from '../request-view/use-action'
-import { taskErrorKey, type ActionFailure, type ActionOutcome } from './outcome'
+import { useBarSpace } from './bar-space'
+import { CLOSED_TASK_KEYS, PIN_FIELD_KEYS, taskErrorKey, type ActionFailure, type ActionOutcome } from './outcome'
+import { PinField, pinIsComplete } from './pin-field'
+
+export { PIN_FIELD_KEYS }
 
 // Deciding a request, purchase-order or variance task (FR-DOA-004 AC1, §9.9 principles 5 and 7): approve is the one
 // primary button — on phones it sticks to the bottom of the screen — and asks for a second press that names the document
@@ -18,10 +25,29 @@ import { taskErrorKey, type ActionFailure, type ActionOutcome } from './outcome'
 // request can also be asked about, in a third, separate form (FR-INT-009 AC3); a PO is approved, returned to procurement
 // or rejected; a variance is approved or rejected, never returned (BR-GR-03). A field's error goes as soon as the field
 // changes. The service checks the assignee, the state and separation of duties again.
+// A task whose amount is at or above the DOA version's stepUpThreshold (stepUp) is decided with the PIN (FR-AUTH-005
+// AC2): the approval's second press and the return or reject form each ask for it; asking the requester does not. The
+// PIN is checked for six digits here and again on the server, sent with the decision only, and cleared after every try;
+// a form sends one try at a time, so a double tap never counts two wrong PINs. The second press is a form of its own, so
+// Enter, or Go on the phone's number keypad, confirms like the button. On phones the page keeps room at its end as tall
+// as the bar is, whatever the bar says (useBarSpace).
+// Nothing is sent before the page's script runs (src/ui/form/hydrated.ts; a slow phone network shows the server's HTML
+// for seconds): every form here is sent by the script only, so each says method="post" and its submit button waits for
+// the script, and so does the PIN field (pin-field.tsx) — a PIN never goes with a native submission into the page's
+// address, the browser's history or a request log (NFR-SEC-09). The approve button waits too: a press before it would
+// be lost.
 
 const REASON_MIN = 3
 
 export type Decision = 'APPROVE' | 'RETURN' | 'REJECT'
+
+/** What a decision sends: the PIN only when the task needs a step-up */
+export interface TaskDecisionInput {
+  readonly taskId: string
+  readonly decision: Decision
+  readonly reason?: string
+  readonly pin?: string
+}
 
 /** What the task decides; each has its own choices and words */
 export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE'
@@ -40,8 +66,10 @@ export interface DecisionPanelProps {
   readonly kind?: DecisionKind
   /** VARIANCE: what approving does (CLOSE_SHORT, ACCEPT_EXCESS, ACCEPT_DAMAGED), for the hint of rejecting */
   readonly disposition?: string
+  /** Deciding needs the PIN: the amount is at or above the DOA version's stepUpThreshold (FR-AUTH-005 AC2) */
+  readonly stepUp?: boolean
   readonly actions: {
-    readonly decide: (input: { taskId: string; decision: Decision; reason?: string }, idempotencyKey: string) => Promise<ActionOutcome>
+    readonly decide: (input: TaskDecisionInput, idempotencyKey: string) => Promise<ActionOutcome>
     /** Asking the requester: request tasks only */
     readonly ask?: (input: { taskId: string; question: string }, idempotencyKey: string) => Promise<ActionOutcome>
   }
@@ -51,11 +79,66 @@ export interface DecisionPanelProps {
 export function useTaskFailureText(locale: string) {
   const t = useTranslations('tasks.errors')
   return (failure: ActionFailure) =>
-    t(taskErrorKey(failure), { name: failure.name ?? '-', time: failure.time ? formatDateTime(locale, failure.time) : '-', rule: failure.rule ?? '-', requestId: failure.requestId ?? '-' })
+    t(taskErrorKey(failure), {
+      name: failure.name ?? '-',
+      time: failure.time ? formatDateTime(locale, failure.time) : '-',
+      rule: failure.rule ?? '-',
+      requestId: failure.requestId ?? '-',
+      attemptsLeft: failure.attemptsLeft ?? 0,
+    })
+}
+
+/** Where a member without a PIN sets one (FR-AUTH-005 AC1) */
+export const PIN_SETTINGS_HREF = '/settings/pin'
+
+/** A failed decision next to its form, with the way to the PIN settings when the member has no PIN yet */
+export function TaskFailure({ failure, text }: { failure: ActionFailure; text: string }) {
+  const t = useTranslations('tasks.errors')
+  return (
+    <Notice tone="danger">
+      <p>{text}</p>
+      {taskErrorKey(failure) === 'PIN_NOT_SET' ? (
+        <Link href={PIN_SETTINGS_HREF} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
+          {t('PIN_NOT_SET_LINK')}
+        </Link>
+      ) : null}
+    </Notice>
+  )
+}
+
+/** The PIN was refused or missing: the try is over, and the same form takes the next one */
+const PIN_KEYS: readonly string[] = ['PIN', 'PIN_INVALID', 'PIN_LOCKED', 'PIN_NOT_SET', 'STEP_UP']
+export const pinRefused = (outcome: ActionOutcome | null) => Boolean(outcome && !outcome.ok && PIN_KEYS.includes(taskErrorKey(outcome)))
+
+/**
+ * After a PIN refused at its field the field is empty again: the focus goes back to it, so a screen reader reads the
+ * message with the field and the next try starts at once
+ */
+export function useFocusPinAfterRefusal(outcome: ActionOutcome | null, fieldId: string) {
+  useEffect(() => {
+    if (outcome && !outcome.ok && PIN_FIELD_KEYS.includes(taskErrorKey(outcome))) document.getElementById(fieldId)?.focus()
+  }, [outcome, fieldId])
+}
+
+/**
+ * One try at a time: a second press while a decision is on its way is dropped before it reaches the server, so a double
+ * tap never sends the same PIN twice (each wrong one counts toward the lock, FR-AUTH-005 AC3)
+ */
+export function useOneTry() {
+  const busy = useRef(false)
+  return async (run: () => Promise<void>) => {
+    if (busy.current) return
+    busy.current = true
+    try {
+      await run()
+    } finally {
+      busy.current = false
+    }
+  }
 }
 
 /** The task was decided, moved or closed while this page was open */
-export const taskClosed = (outcome: ActionOutcome | null): outcome is ActionFailure => Boolean(outcome && !outcome.ok && ['DECIDED', 'STATE', 'NOT_FOUND'].includes(taskErrorKey(outcome)))
+export const taskClosed = (outcome: ActionOutcome | null): outcome is ActionFailure => Boolean(outcome && !outcome.ok && CLOSED_TASK_KEYS.includes(taskErrorKey(outcome)))
 
 /**
  * When the task turns out to be closed already, the panel says so — who decided it and when — and the page reloads to
@@ -75,7 +158,7 @@ export function useClosedTask(locale: string) {
   return { closed, check }
 }
 
-export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQUEST', disposition, actions }: DecisionPanelProps) {
+export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQUEST', disposition, stepUp = false, actions }: DecisionPanelProps) {
   const t = useTranslations('tasks.decide')
   const po = kind === 'PURCHASE_ORDER'
   const variance = kind === 'VARIANCE'
@@ -95,6 +178,8 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
     submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : t('submitReject'),
     returned: po ? t('po.returned') : t('returned'),
     rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : t('rejected'),
+    // A variance is never returned (BR-GR-03): its PIN is for approving or rejecting
+    stepUpHint: variance ? t('variance.stepUpHint') : t('stepUpHint'),
   }
   const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : ['RETURN', 'REJECT']
   const tErrors = useTranslations('tasks.errors')
@@ -105,37 +190,59 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const approving = useAction()
   const deciding = useAction()
   const asking = useAction()
+  const oneTry = useOneTry()
+  const hydrated = useHydrated()
+  const barRef = useBarSpace<HTMLDivElement>()
   const [confirming, setConfirming] = useState(false)
   const [done, setDone] = useState<string | null>(null)
   const [choice, setChoice] = useState<'RETURN' | 'REJECT'>(variance ? 'REJECT' : 'RETURN')
   const [reason, setReason] = useState('')
   const [confirmed, setConfirmed] = useState(false)
-  const [errors, setErrors] = useState<{ reason?: string; confirm?: string }>({})
+  const [errors, setErrors] = useState<{ reason?: string; pin?: string; confirm?: string }>({})
+  const [approvePin, setApprovePin] = useState('')
+  const [approvePinError, setApprovePinError] = useState<string>()
+  const [decidePin, setDecidePin] = useState('')
   const [question, setQuestion] = useState('')
   const [questionError, setQuestionError] = useState<string>()
+  useFocusPinAfterRefusal(approving.outcome, `${id}-approve-pin`)
+  useFocusPinAfterRefusal(deciding.outcome, `${id}-decide-pin`)
 
   const finished = (text: string) => {
     setDone(text)
     window.scrollTo({ top: 0 })
   }
 
-  async function approve() {
-    const outcome = await approving.run((key) => actions.decide({ taskId, decision: 'APPROVE' }, key))
-    setConfirming(false)
-    if (outcome.ok) finished(t('approved'))
-    else stale.check(outcome)
+  async function approve(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const pin = approvePin
+    if (stepUp && !pinIsComplete(pin)) return setApprovePinError(tErrors('PIN'))
+    setApprovePinError(undefined)
+    await oneTry(async () => {
+      const outcome = await approving.run((key) => actions.decide({ taskId, decision: 'APPROVE', ...(stepUp ? { pin } : {}) }, key))
+      setApprovePin('')
+      // A wrong, locked or missing PIN leaves the second press open for the next try
+      if (!outcome.ok && pinRefused(outcome)) return
+      setConfirming(false)
+      if (outcome.ok) finished(t('approved'))
+      else stale.check(outcome)
+    })
   }
 
   async function onDecide(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    const pin = decidePin
     const next: typeof errors = {}
     if (reason.trim().length < REASON_MIN) next.reason = reasonError
+    if (stepUp && !pinIsComplete(pin)) next.pin = tErrors('PIN')
     if (!confirmed) next.confirm = tErrors('CONFIRM')
     setErrors(next)
-    if (next.reason || next.confirm) return
-    const outcome = await deciding.run((key) => actions.decide({ taskId, decision: choice, reason: reason.trim() }, key))
-    if (outcome.ok) finished(choice === 'RETURN' ? copy.returned : copy.rejected)
-    else stale.check(outcome)
+    if (next.reason || next.pin || next.confirm) return
+    await oneTry(async () => {
+      const outcome = await deciding.run((key) => actions.decide({ taskId, decision: choice, reason: reason.trim(), ...(stepUp ? { pin } : {}) }, key))
+      setDecidePin('')
+      if (outcome.ok) finished(choice === 'RETURN' ? copy.returned : copy.rejected)
+      else stale.check(outcome)
+    })
   }
 
   async function onAsk(event: FormEvent<HTMLFormElement>) {
@@ -150,8 +257,10 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
     } else stale.check(outcome)
   }
 
-  /** A failure that belongs next to its form; a closed task is told once, above */
-  const failureOf = (outcome: ActionOutcome | null) => (outcome && !outcome.ok && !taskClosed(outcome) ? <Notice tone="danger">{failureText(outcome)}</Notice> : null)
+  /** A wrong or malformed PIN is said at the PIN field */
+  const atPin = (outcome: ActionOutcome | null) => (outcome && !outcome.ok && PIN_FIELD_KEYS.includes(taskErrorKey(outcome)) ? failureText(outcome) : undefined)
+  /** A failure that belongs next to its form; a closed task is told once, above, and a wrong PIN at its field */
+  const failureOf = (outcome: ActionOutcome | null) => (outcome && !outcome.ok && !taskClosed(outcome) && !atPin(outcome) ? <TaskFailure failure={outcome} text={failureText(outcome)} /> : null)
 
   if (!open && !done && !stale.closed) return null
   return (
@@ -163,29 +272,60 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
       {stale.closed ? <Notice tone="danger">{stale.closed}</Notice> : null}
       {open && !stale.closed ? (
         <>
+          {stepUp ? <StateLine kind="key">{copy.stepUpHint}</StateLine> : null}
           {/* Phones: the approve bar sticks to the bottom of the screen; wide screens: it heads the right column */}
-          <div className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-line bg-bg px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0">
+          <div
+            ref={barRef}
+            data-decision-bar=""
+            className="fixed inset-x-0 bottom-0 z-30 flex flex-col gap-2 border-t border-line bg-bg px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:static lg:z-auto lg:border-0 lg:bg-transparent lg:p-0"
+          >
             {failureOf(approving.outcome)}
             {confirming ? (
-              <div role="group" aria-labelledby={`${id}-confirm-text`} className="flex flex-col gap-2">
-                <p id={`${id}-confirm-text`} className="font-medium text-ink">
-                  {copy.confirmText}
-                </p>
-                <div className="flex gap-3">
-                  <Button onClick={() => void approve()} disabled={approving.pending} className="flex-1">
-                    {approving.pending ? t('working') : t('confirm')}
-                  </Button>
-                  <Button variant="secondary" onClick={() => setConfirming(false)} disabled={approving.pending}>
-                    {t('checkFirst')}
-                  </Button>
+              <form method="post" onSubmit={(event) => void approve(event)} noValidate>
+                <div role="group" aria-labelledby={`${id}-confirm-text`} className="flex flex-col gap-2">
+                  <p id={`${id}-confirm-text`} className="font-medium text-ink">
+                    {copy.confirmText}
+                  </p>
+                  {stepUp ? (
+                    <PinField
+                      id={`${id}-approve-pin`}
+                      label={t('pin')}
+                      value={approvePin}
+                      onChange={(value) => {
+                        setApprovePin(value)
+                        setApprovePinError(undefined)
+                        approving.clear()
+                      }}
+                      error={approvePinError ?? atPin(approving.outcome)}
+                      disabled={approving.pending}
+                    />
+                  ) : null}
+                  <div className="flex gap-3">
+                    <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="flex-1">
+                      {approving.pending ? t('working') : t('confirm')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setConfirming(false)
+                        setApprovePin('')
+                        setApprovePinError(undefined)
+                        approving.clear()
+                      }}
+                      disabled={approving.pending}
+                    >
+                      {t('checkFirst')}
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              </form>
             ) : (
               <Button
                 onClick={() => {
                   approving.clear()
                   setConfirming(true)
                 }}
+                disabled={!hydrated}
                 className="w-full"
               >
                 {t('approve')}
@@ -197,7 +337,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
           </div>
 
           <div id="other-decisions" className="flex scroll-mt-4 flex-col gap-6 border-t border-line pt-4">
-            <form onSubmit={onDecide} noValidate className="flex flex-col gap-4" aria-labelledby={`${id}-other`}>
+            <form method="post" onSubmit={onDecide} noValidate className="flex flex-col gap-4" aria-labelledby={`${id}-other`}>
               <h3 id={`${id}-other`} className="font-semibold text-ink">
                 {copy.otherTitle}
               </h3>
@@ -247,6 +387,20 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                 maxLength={REASON_MAX_LENGTH}
                 required
               />
+              {stepUp ? (
+                <PinField
+                  id={`${id}-decide-pin`}
+                  label={t('pin')}
+                  value={decidePin}
+                  onChange={(value) => {
+                    setDecidePin(value)
+                    setErrors((e) => ({ ...e, pin: undefined }))
+                    deciding.clear()
+                  }}
+                  error={errors.pin ?? atPin(deciding.outcome)}
+                  disabled={deciding.pending}
+                />
+              ) : null}
               <ConfirmBox
                 id={`${id}-decision-confirm`}
                 label={t('confirmDecision')}
@@ -257,13 +411,19 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                 }}
                 error={errors.confirm}
               />
-              <Button type="submit" variant={choice === 'REJECT' ? 'danger' : 'secondary'} disabled={deciding.pending} className="self-start">
+              <Button
+                type="submit"
+                variant={choice === 'REJECT' ? 'danger' : 'secondary'}
+                disabled={deciding.pending || !hydrated}
+                aria-busy={deciding.pending || undefined}
+                className="self-start"
+              >
                 {deciding.pending ? t('working') : choice === 'REJECT' ? copy.submitReject : copy.submitReturn}
               </Button>
             </form>
 
             {ask ? (
-              <form onSubmit={onAsk} noValidate className="flex flex-col gap-4 border-t border-line pt-4" aria-labelledby={`${id}-ask`}>
+              <form method="post" onSubmit={onAsk} noValidate className="flex flex-col gap-4 border-t border-line pt-4" aria-labelledby={`${id}-ask`}>
                 <h3 id={`${id}-ask`} className="font-semibold text-ink">
                   {t('askTitle')}
                 </h3>
@@ -282,7 +442,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                   maxLength={REASON_MAX_LENGTH}
                   required
                 />
-                <Button type="submit" variant="secondary" disabled={asking.pending} className="self-start">
+                <Button type="submit" variant="secondary" disabled={asking.pending || !hydrated} className="self-start">
                   {asking.pending ? t('working') : t('askSubmit')}
                 </Button>
               </form>

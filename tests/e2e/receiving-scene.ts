@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { amountToSatang } from '@/core/money/dto'
 import { systemClock } from '@/lib/clock'
 import { deriveSeedBackupCodes, deriveSeedTotpSecret } from '@/lib/totp'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
@@ -13,13 +14,18 @@ import { sendPurchaseOrder } from '@/server/services/purchase-orders/send'
 import { postGoodsReceipt } from '@/server/services/receiving'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { E2E_DB } from '../support/e2e-env'
+import { lineWithRoom } from './budget-room'
 
 // Run by tests/e2e/receiving.spec.ts against the e2e database only (S4-07, FR-P2P-006, FR-P2P-007, FR-P2P-010 AC2): sent
 // POs for the receiving screens, made through the services — an urgent request of a fresh member of the construction
 // department (so it gets a PO of its own at once, and nobody else's pool lines or "my requests" change), approved by
 // whoever holds the DM's task, drafted by procurement, approved by the COO and e-mailed to the supplier (Mailpit). The
 // receiver of each Playwright project is its own (TOTP codes never repeat): receiver_con on the phone (demo scene 8),
-// a fresh RECEIVER on the desktop. Prints what the spec needs as JSON on the last line.
+// a fresh RECEIVER on the desktop. The request takes a construction budget line with room left for it, the capital line
+// first: the specs of the run spend the same lines, and the operating line is the one the demo's scenes and the specs
+// that count on its room ask for (request-form.spec.ts, liff-requests.spec.ts); when neither has room, a budget admin
+// tops the capital line up through the budget import (tests/e2e/budget-room.ts). The DOA routes by amount, not by line,
+// and a receipt never shows its budget line. Prints what the spec needs as JSON on the last line.
 //   SCENE_MODE  demo        plywood, nails and PPE (scene 1 + H11 of the demo, scaled to the DM's band)
 //               sod         a fresh RECEIVER approves the request acting for the DM (delegation), so may not receive it
 //               variance    10 bags of cement, for receiving more than ordered
@@ -76,10 +82,18 @@ async function approveOpen(subjectId: string) {
 
 type Line = { description: string; quantity: string; uom: string; unitPrice: string }
 
+/** What the lines reserve: whole quantities times their prices before VAT, in satang (BR-MONEY-01: no floating point) */
+function netOf(lines: readonly Line[]): bigint {
+  return lines.reduce((sum, l) => {
+    if (!/^\d+$/.test(l.quantity)) throw new Error(`the scene's quantities are whole: ${l.quantity}`)
+    return sum + BigInt(l.quantity) * amountToSatang(l.unitPrice)
+  }, 0n)
+}
+
 /** An urgent request drafted into its own PO at once (BR-CONS-02), approved and e-mailed to the supplier */
 async function sentPo(requester: string, title: string, lines: Line[]): Promise<{ poId: string; number: string; requestNumber: string }> {
   const [budgetLine, site, supplier] = await Promise.all([
-    prisma.budgetLine.findFirstOrThrow({ where: { organizationId: org.id, code: 'CON-OPEX-2569' }, select: { id: true } }),
+    lineWithRoom(['CON-CAPEX-2569', 'CON-OPEX-2569'], netOf(lines)),
     prisma.deliverySite.findFirstOrThrow({ where: { organizationId: org.id, code: 'SITE-A' }, select: { id: true } }),
     prisma.supplier.findFirstOrThrow({ where: { organizationId: org.id, code: 'S1' }, select: { id: true } }),
   ])

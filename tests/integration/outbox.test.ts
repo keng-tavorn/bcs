@@ -131,7 +131,9 @@ async function fakeEventApi(answer: (events: readonly ApiEvent[]) => FakeAnswer 
       setTimeout(() => {
         if (res.destroyed) return
         if (status === 200) for (const e of events) accepted.set(e.id, (accepted.get(e.id) ?? 0) + 1)
-        res.writeHead(status, { 'content-type': 'application/json' })
+        // connection: close — each case starts a fake on a free port, and the OS may hand the next case the same port:
+        // a keep-alive socket of the closed fake must never be reused for it (fetch failed under load)
+        res.writeHead(status, { 'content-type': 'application/json', connection: 'close' })
         res.end(JSON.stringify(status === 200 ? { ids: events.map((e) => e.id), status } : { error: `fake answer ${status}`, status }))
       }, delayMs)
     })

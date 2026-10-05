@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import AxeBuilder from '@axe-core/playwright'
-import type { Browser, Page, TestInfo } from '@playwright/test'
+import type { Browser, Locator, Page, TestInfo } from '@playwright/test'
 import { deriveSeedTotpSecret, totp } from '../../src/lib/totp'
 import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
@@ -85,19 +85,67 @@ async function photo(page: Page): Promise<Buffer> {
   return Buffer.from(base64, 'base64')
 }
 
+/** Presigned addresses of the run's storage (the PUT of an upload, the GET of a photo) */
+const PRESIGNED = /X-Amz-Signature=/
+
 /** Presses "เปิดรูป <name>" and returns the short-lived address it led to (answered 204, so the page stays) */
 async function openPhoto(page: Page, name: string): Promise<string> {
   let opened = ''
-  const presigned = /X-Amz-Signature=/
-  await page.route(presigned, async (route) => {
+  await page.route(PRESIGNED, async (route) => {
     opened = route.request().url()
     await route.fulfill({ status: 204 })
   })
   await page.getByRole('button', { name: `เปิดรูป ${name}` }).click()
   await expect.poll(() => opened).toMatch(/X-Amz-Expires=\d+/)
-  await page.unroute(presigned)
+  await page.unroute(PRESIGNED)
   return opened
 }
+
+/**
+ * The widths between a phone and a wide screen, where the form's column is narrow next to what stands beside a button:
+ * from 640 px the bar's buttons go side by side, and from 1024 px the aside takes 24rem of the page
+ */
+const BETWEEN = [640, 768, 1024] as const
+
+/**
+ * Each button keeps its words on one line inside its 44 px box — nothing beside it squeezes it (§9.4, §9.9) — at the
+ * project's width and, on the desktop project, at each width between, photographed there (the whole page, the bar in
+ * its place); the page is never wider than the screen
+ */
+async function expectButtonsWhole(page: Page, testInfo: TestInfo, buttons: readonly Locator[], name: string) {
+  const whole = async (width: number) => {
+    for (const button of buttons) {
+      await expect(button).toBeVisible()
+      const box = await button.evaluate((el) => {
+        const words = document.createRange()
+        words.selectNodeContents(el)
+        const style = getComputedStyle(el)
+        const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5
+        return {
+          label: el.textContent,
+          inside: el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth,
+          oneLine: words.getBoundingClientRect().height < line * 1.5,
+          height: el.getBoundingClientRect().height,
+        }
+      })
+      expect({ width, ...box }).toEqual({ width, label: box.label, inside: true, oneLine: true, height: expect.any(Number) })
+      expect(box.height).toBeGreaterThanOrEqual(44)
+    }
+    await expectNoHorizontalScroll(page)
+  }
+  await whole(page.viewportSize()!.width)
+  if (testInfo.project.name === 'mobile') return
+  const wide = page.viewportSize()!
+  for (const width of BETWEEN) {
+    await page.setViewportSize({ width, height: wide.height })
+    await whole(width)
+    await page.screenshot({ path: testInfo.outputPath(`${name}-${width}.png`), fullPage: true, style: '.sticky { position: static !important; }' })
+  }
+  await page.setViewportSize(wide)
+}
+
+/** What the bar says while a photo of the receipt is still being uploaded */
+const UPLOAD_WAIT = 'กำลังอัปโหลดรูป รอให้เสร็จก่อนจึงตรวจสอบหรือบันทึกได้ หรือหยุดอัปโหลดที่ช่องรูปถ่ายด้านบน'
 
 const receiverOf = (testInfo: TestInfo): Record<string, string> => (testInfo.project.name === 'mobile' ? { SCENE_RECEIVER: 'receiver_con' } : {})
 
@@ -116,7 +164,7 @@ async function receivingListWithNewest(page: Page) {
   await expect(page.getByRole('heading', { level: 1, name: 'ตรวจรับ' })).toBeVisible()
 }
 
-test('[FR-P2P-006/AC1] [FR-P2P-006/AC2] @demo scene 8 — on site with a phone the receiver takes 60% of the plywood and all the PPE with a photo; the PO becomes partly received', async ({ page }, testInfo) => {
+test('[FR-P2P-006/AC1] [FR-P2P-006/AC2] @demo scene 8 — on site with a phone the receiver takes 60% of the plywood and all the PPE with a photo — the receipt waits while the photo is uploaded, a stalled upload can be stopped, no photo is chosen during the check; the PO becomes partly received', async ({ page }, testInfo) => {
   const s = scene('demo', testInfo, receiverOf(testInfo))
   await signIn(page, s.receiver!, true)
 
@@ -150,12 +198,84 @@ test('[FR-P2P-006/AC1] [FR-P2P-006/AC2] @demo scene 8 — on site with a phone t
   await expect(camera).toHaveAttribute('capture', 'environment')
   // the rule under the camera button says what is taken: pictures only (the server takes nothing else as a photo)
   await expect(page.getByText('แนบได้เฉพาะรูป JPG PNG หรือ HEIC ไม่เกิน 20 MB')).toBeVisible()
-  await camera.setInputFiles({ name: 'site-delivery.jpg', mimeType: 'image/jpeg', buffer: await photo(page) })
+  const picture = await photo(page)
+  const toReview = page.getByRole('button', { name: 'ตรวจสอบก่อนบันทึก' })
+  const wait = page.getByText(UPLOAD_WAIT)
+
+  // No signal gets the photo through: the receipt waits for it and the bar says why, above its button; the upload can be
+  // stopped. Stopped, nothing is attached and the receipt can go on (an upload also gives up by itself after
+  // FILE_UPLOAD_LIMIT_MS: tests/unit/file-upload.test.ts). The same as the LIFF receiving page (tests/e2e/liff-gr.spec.ts)
+  let unstall: () => void = () => undefined
+  const stalled = new Promise<void>((resolve) => {
+    unstall = resolve
+  })
+  await page.route(PRESIGNED, async (route) => {
+    if (route.request().method() !== 'PUT') return route.continue()
+    await stalled
+    // The page has given up on this request by now
+    await route.abort('timedout').catch(() => undefined)
+  })
+  await camera.setInputFiles({ name: 'no-signal.jpg', mimeType: 'image/jpeg', buffer: picture })
+  await expect(page.getByText('กำลังอัปโหลด no-signal.jpg', { exact: true })).toBeVisible()
+  await expect(wait).toBeVisible()
+  await expect(toReview).toBeDisabled()
+  await expect(camera).toBeDisabled()
+  const stop = page.getByRole('button', { name: 'หยุดอัปโหลดไฟล์นี้' })
+  await expectButtonsWhole(page, testInfo, [toReview, stop], 'receiving-photo-wait')
+  await check(page, testInfo, 'receiving-photo-wait')
+  await stop.click()
+  await expect(page.getByText('หยุดอัปโหลดแล้ว ไฟล์นี้ไม่ได้แนบ ลองใหม่ได้เมื่อสัญญาณดีขึ้น')).toBeVisible()
+  await expect(stop).toHaveCount(0)
+  await expect(wait).toHaveCount(0)
+  await expect(toReview).toBeEnabled()
+  await expect(camera).toBeEnabled()
+  await expect(page.getByRole('list', { name: 'รูปถ่ายของที่มาส่ง' })).toHaveCount(0)
+  unstall()
+  await page.unroute(PRESIGNED)
+
+  // A slow site network: the photo's bytes are held on their way to storage. Until the photo is recorded the receipt
+  // cannot be checked, and the bar says why — the receipt never leaves without the photo the receiver chose
+  let release: () => void = () => undefined
+  const held = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await page.route(PRESIGNED, async (route) => {
+    if (route.request().method() === 'PUT') await held
+    await route.continue()
+  })
+  await camera.setInputFiles({ name: 'site-delivery.jpg', mimeType: 'image/jpeg', buffer: picture })
+  await expect(page.getByText('กำลังอัปโหลด site-delivery.jpg', { exact: true })).toBeVisible()
+  await expect(wait).toBeVisible()
+  await expect(toReview).toBeDisabled()
+  release()
   await expect(page.getByText('รูป site-delivery.jpg', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'ตรวจสอบก่อนบันทึก' }).click()
+  await page.unroute(PRESIGNED)
+  await expect(wait).toHaveCount(0)
+  await expect(toReview).toBeEnabled()
+
+  // The check takes its time on the site's network: meanwhile no photo is chosen or taken out, so nothing the receiver
+  // does then is lost when step 2 takes the place of step 1
+  let releaseCheck: () => void = () => undefined
+  const checkHeld = new Promise<void>((resolve) => {
+    releaseCheck = resolve
+  })
+  const PAGE = `**/receiving/${s.poId}`
+  await page.route(PAGE, async (route) => {
+    const request = route.request()
+    // The check is a server action posted to the page, its body the receipt's lines
+    if (request.method() === 'POST' && (request.postData() ?? '').includes('"lines"')) await checkHeld
+    await route.continue()
+  })
+  await toReview.click()
+  await expect(page.getByRole('button', { name: 'กำลังตรวจสอบ' })).toBeDisabled()
+  await expect(camera).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'เอารูป site-delivery.jpg ออก' })).toBeDisabled()
+  releaseCheck()
 
   // Before anything is written: what will happen
   await expect(page.getByRole('heading', { name: 'ตรวจสอบก่อนบันทึก' })).toBeVisible()
+  // Only now, the held check having gone on: removing the route earlier would let Playwright resume it under the handler
+  await page.unroute(PAGE)
   await expect(page.getByText('ขั้น 2 จาก 2')).toBeVisible()
   await expect(page.getByText('หลังบันทึก ใบสั่งซื้อจะเป็น "รับบางส่วน" ยังค้างรับ 2 รายการ')).toBeVisible()
   await expect(page.getByText('มาส่ง 6 แผ่น · รับเข้า 6 แผ่น · ยังค้าง 4 แผ่น')).toBeVisible()
@@ -163,7 +283,10 @@ test('[FR-P2P-006/AC1] [FR-P2P-006/AC2] @demo scene 8 — on site with a phone t
   await expect(page.getByText('ใบส่งของเลขที่ DN-2569-0815')).toBeVisible()
   await expect(page.getByText('รูปถ่าย 1 รูป')).toBeVisible()
   await check(page, testInfo, 'receiving-review')
-  await page.getByRole('button', { name: 'ยืนยันบันทึกการตรวจรับ' }).click()
+  // The confirmation and the way back share the bar: side by side where both fit whole, on two rows where they do not
+  const confirm = page.getByRole('button', { name: 'ยืนยันบันทึกการตรวจรับ' })
+  await expectButtonsWhole(page, testInfo, [confirm, page.getByRole('button', { name: 'กลับไปแก้จำนวน' })], 'receiving-review')
+  await confirm.click()
 
   // Recorded: the confirmation uses the button's words, and the PO is partly received
   await expect(page.getByText(/^บันทึกการตรวจรับแล้ว GR-\d{4}-\d{5}$/)).toBeVisible()

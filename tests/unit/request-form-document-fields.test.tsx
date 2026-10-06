@@ -146,7 +146,7 @@ describe('[FR-INT-005/AC1] [§9.9] a rule met and the lowest quotation are suppo
     const quotations = ['ร้านปั๊มบาดาลท้องถิ่น', 'บริษัท ปั๊มน้ำทดสอบ จำกัด', 'ห้างวัสดุทดสอบ'].map((supplierName, i) => ({
       key: `q-${i + 1}`,
       supplierName,
-      amount: `${150_000 + i * 1_000}.00`,
+      amount: `${150_000n + BigInt(i) * 1_000n}.00`,
       includesVat: false,
       fileId: `f-${i + 1}`,
       fileName: `quote-${i + 1}.pdf`,

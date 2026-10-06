@@ -83,7 +83,7 @@ const cancelledWhy = async (taskId: string) => (await prisma.event.findMany({ wh
 describe('[FR-NOTI-003/AC2] [INV-PLT-03] the two approvers of an escalated step act at the same moment from any channel: one decision, no deadlock', () => {
   it('the workspace and the web again, three times: the second waits for the first and is refused with who decided', async () => {
     for (let round = 0; round < 3; round++) {
-      const { first, co } = await escalated(org, `${10_100 + round}.00`)
+      const { first, co } = await escalated(org, `${10_100n + BigInt(round)}.00`)
       const [dm, vp] = await Promise.all([
         decideTask(org.ctxOf('dm_con', DECIDED), { taskId: first.id, decision: 'APPROVE' }, once()),
         decideTask(org.ctxOf('vp_ops', DECIDED), { taskId: co.id, decision: 'APPROVE' }, once()),
@@ -99,7 +99,7 @@ describe('[FR-NOTI-003/AC2] [INV-PLT-03] the two approvers of an escalated step 
 
   it('the VP taps the LINE button of their co-assignee card while the DM approves in the workspace', async () => {
     for (let round = 0; round < 3; round++) {
-      const { first, co } = await escalated(org, `${10_200 + round}.00`)
+      const { first, co } = await escalated(org, `${10_200n + BigInt(round)}.00`)
       const button = await prisma.actionToken.findFirstOrThrow({ where: { taskId: co.id, channel: 'LINE' } })
       const tapCtx = makeCtx({ organizationId: org.organizationId, actor: { type: 'USER', memberId: org.member.vp_ops! }, channel: 'LINE_CHAT', now: DECIDED })
       const [web, tap] = await Promise.all([decideTask(org.ctxOf('dm_con', DECIDED), { taskId: first.id, decision: 'APPROVE' }, once()), decideByLinePostback(tapCtx, { tokenId: button.id }, once())])
@@ -119,7 +119,7 @@ describe('[FR-NOTI-003/AC2] [INV-PLT-03] the two approvers of an escalated step 
 
   it('the VP posts the e-mail link of their co-assignee task while the DM approves in the workspace', async () => {
     for (let round = 0; round < 3; round++) {
-      const { first, co } = await escalated(org, `${10_300 + round}.00`)
+      const { first, co } = await escalated(org, `${10_300n + BigInt(round)}.00`)
       const token = await prisma.actionToken.findFirstOrThrow({ where: { taskId: co.id, channel: 'EMAIL' } })
       const link = `${token.id}.${emailLinkSecret(token.id)}`
       const [web, mail] = await Promise.all([

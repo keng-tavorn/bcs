@@ -1,0 +1,105 @@
+import { describe, expect, it } from 'vitest'
+import { amountToSatang } from '@/core/money/dto'
+import { boundaryTable, lintDoaVersion, resolveRoute, type DoaDocumentType, type DoaVersionSnapshot, type LintIssue } from '@/core/doa'
+import { baht, loadYaml, orgSnapshot, pick, ruleSnapshot, versionSnapshots, type RuleFixture } from './doa-fixtures'
+
+// tests/golden/doa.yaml and doa-lint.yaml (spec §7.4): GC-DOA-01 to GC-DOA-27. The runner finds and counts the cases
+// itself; every test name carries the case id.
+
+interface Suite<C> {
+  defaults?: Record<string, unknown>
+  cases: C[]
+}
+
+interface RouteCase {
+  id: string
+  title?: string
+  input: Record<string, unknown>
+  expect: Record<string, unknown>
+}
+
+const doa = loadYaml<Suite<RouteCase>>('doa.yaml')
+const defaults = doa.defaults as { documentType: DoaDocumentType; requester: string; department: string; at: string }
+
+describe('golden doa.yaml (resolveRoute)', () => {
+  it('has cases', () => expect(doa.cases.length).toBeGreaterThan(0))
+  for (const c of doa.cases) {
+    it(`[${c.id}] ${c.title ?? ''}`.trim(), () => {
+      const i = { ...defaults, ...c.input } as typeof defaults & {
+        amount?: string
+        net?: string
+        vat?: string
+        alsoConflicting?: string[]
+        vacate?: string[]
+        amountBasis?: 'GROSS' | 'NET'
+      }
+      let versions = versionSnapshots()
+      if (i.amountBasis) versions = versions.map((v) => ({ ...v, amountBasis: i.amountBasis! }))
+      const amount =
+        i.net !== undefined ? { netSatang: amountToSatang(i.net), vatSatang: amountToSatang(i.vat ?? '0') } : i.amount !== undefined ? { netSatang: amountToSatang(i.amount), vatSatang: 0n } : undefined
+      const result = resolveRoute(
+        {
+          documentType: i.documentType,
+          ...(amount ? { amount } : {}),
+          requesterMemberId: i.requester,
+          chargedDepartmentId: i.department,
+          conflictMemberIds: [i.requester, ...(i.alsoConflicting ?? [])],
+          at: new Date(i.at),
+        },
+        { versions, org: orgSnapshot(i.vacate ?? []), delegations: [] },
+      )
+      const actual = result.ok
+        ? {
+            version: result.data.versionNo,
+            rule: result.data.escalatedFromRuleCode ?? result.data.ruleCode,
+            ...(result.data.escalatedFromRuleCode ? { escalatedTo: result.data.ruleCode } : {}),
+            approvers: result.data.steps.map((s) => s.assigneeMemberId),
+          }
+        : { error: result.error.code }
+      expect(pick(actual, c.expect)).toEqual(c.expect)
+      // No stated escalation means none happened
+      if (result.ok && !('escalatedTo' in c.expect)) expect(result.data.escalatedFromRuleCode).toBeNull()
+    })
+  }
+})
+
+interface LintCase {
+  id: string
+  title?: string
+  fn: 'lintDoaVersion' | 'boundaryTable'
+  input: { base: number; replaceRules?: RuleFixture[]; removeRules?: string[]; vacate?: string[]; documentType?: DoaDocumentType }
+  expect: Record<string, unknown>
+}
+
+const lint = loadYaml<Suite<LintCase>>('doa-lint.yaml')
+
+function baseVersion(input: LintCase['input']): DoaVersionSnapshot {
+  const base = versionSnapshots().find((v) => v.versionNo === input.base)!
+  const replaced = new Map((input.replaceRules ?? []).map((r) => [r.code, ruleSnapshot(r)]))
+  const rules = base.rules.filter((r) => !(input.removeRules ?? []).includes(r.code)).map((r) => replaced.get(r.code) ?? r)
+  return { ...base, rules }
+}
+
+const issueOut = (issue: LintIssue) => ({
+  code: issue.code,
+  ...(issue.documentType ? { documentType: issue.documentType } : {}),
+  ...(issue.rule ? { rule: issue.rule } : {}),
+  ...(issue.gt !== undefined ? { gt: baht(issue.gt) } : {}),
+  ...(issue.lte !== undefined ? { lte: issue.lte === null ? null : baht(issue.lte) } : {}),
+})
+
+describe('golden doa-lint.yaml (lintDoaVersion, boundaryTable)', () => {
+  it('has cases', () => expect(lint.cases.length).toBeGreaterThan(0))
+  for (const c of lint.cases) {
+    it(`[${c.id}] ${c.title ?? ''}`.trim(), () => {
+      const version = baseVersion(c.input)
+      if (c.fn === 'boundaryTable') {
+        const rows = boundaryTable(version, c.input.documentType!).map((r) => ({ amount: baht(r.amountSatang), rule: r.ruleCode }))
+        expect({ rows }).toEqual(c.expect)
+        return
+      }
+      const result = lintDoaVersion(version, orgSnapshot(c.input.vacate ?? []), version.effectiveFrom)
+      expect({ errors: result.errors.map(issueOut), warnings: result.warnings.map(issueOut) }).toEqual(c.expect)
+    })
+  }
+})

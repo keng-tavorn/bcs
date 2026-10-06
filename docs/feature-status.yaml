@@ -1,16 +1,17 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-03
+updatedAt: 2026-10-06
 features:
   FR-PLT-001:
     status: done
     step: S1
     evidence:
       - tests/generated/tenant-isolation.test.ts
+      - tests/integration/demo-history.test.ts
       - tests/integration/org-settings.test.ts
       - tests/integration/seed.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01)"
   FR-PLT-002:
     status: done
     step: S1
@@ -21,21 +22,29 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-003:
-    status: in_progress
+    status: done
     step: S1
     evidence:
+      - tests/e2e/request-view.spec.ts
+      - tests/e2e/tasks.spec.ts
       - tests/integration/event-append-only.test.ts
       - tests/integration/pipeline.test.ts
+      - tests/integration/tasks-view-actions.test.ts
+      - tests/integration/tasks-view.test.ts
       - tests/unit/json.test.ts
+      - tests/unit/tasks-present.test.ts
+      - tests/unit/tasks-timeline-stamp.test.tsx
       - tests/unit/timeline-ui.test.tsx
     verifiedBy: null
     notes: ""
   FR-PLT-004:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/e2e/files.spec.ts
+      - tests/e2e/request-form.spec.ts
       - tests/integration/files.test.ts
+      - tests/integration/request-form.test.ts
       - tests/unit/file-types.test.ts
     verifiedBy: null
     notes: ""
@@ -54,7 +63,7 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-007:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/integration/seed.test.ts
@@ -70,11 +79,16 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-009:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/thai.test.ts
+      - tests/unit/engines.test.ts
+      - tests/integration/printed-documents.test.ts
+      - tests/integration/pdf-snapshot.test.ts
+      - tests/unit/pdf-thai-breaks.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "react-pdf กับ Sarabun (ADR-044) · ปุ่มดาวน์โหลดบนหน้า PR และ PO มากับหน้าจอของ S4"
   FR-PLT-010:
     status: planned
     step: S5
@@ -108,20 +122,34 @@ features:
     verifiedBy: null
     notes: ""
   FR-AUTH-002:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/e2e/auth.spec.ts
+      - tests/integration/admin-org-screens.test.ts
       - tests/integration/auth.test.ts
+      - tests/integration/org-authority.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 รวมข้อยกเว้นของผู้ที่ DOA พึ่งพา (S2-16 · ADR-042)"
   FR-AUTH-003:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/integration/auth.test.ts
+      - tests/integration/liff-session.test.ts
+      - tests/integration/line-link.test.ts
+      - tests/integration/member-deactivation.test.ts
+      - tests/e2e/liff-another-user.spec.ts
+      - tests/e2e/liff-shell.spec.ts
+      - tests/integration/liff-sign-in-another-user.test.ts
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/settings-line-actions.test.ts
+      - tests/unit/liff-another-user.test.ts
+      - tests/unit/liff-bootstrap.test.ts
+      - tests/unit/liff-session-keeper.test.ts
+      - tests/unit/sla-nobody-added.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-AUTH-004:
     status: planned
     step: S5
@@ -129,11 +157,32 @@ features:
     verifiedBy: null
     notes: ""
   FR-AUTH-005:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/pin.test.ts
+      - tests/integration/step-up-pin.test.ts
+      - tests/unit/pin-env.test.ts
+      - tests/unit/pin-hash.test.ts
+      - tests/unit/pin.test.ts
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/e2e/settings-pin.spec.ts
+      - tests/e2e/tasks.spec.ts
+      - tests/integration/demo-history.test.ts
+      - tests/integration/liff-tasks.test.ts
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/pin-proof-totp.test.ts
+      - tests/integration/step-up-decisions.test.ts
+      - tests/integration/tasks-step-up.test.ts
+      - tests/unit/liff-tasks-result.test.ts
+      - tests/unit/liff-tasks-screens.test.tsx
+      - tests/unit/pin-paste.test.tsx
+      - tests/unit/settings-fields.test.tsx
+      - tests/unit/settings-screens.test.ts
+      - tests/unit/tasks-outcome.test.ts
+      - tests/unit/tasks-pin-screens.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-ADM-001:
     status: done
     step: S1
@@ -143,37 +192,58 @@ features:
     verifiedBy: null
     notes: ""
   FR-ADM-002:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/org-structure.test.ts
+      - tests/integration/org-authority.test.ts
+      - tests/generated/authority-writes.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "service ของ S2-16 (ADR-042) · หน้าผู้ดูแลอยู่ใน S2-13"
   FR-ADM-003:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/admin-settings-calendar.test.ts
+      - tests/e2e/admin-settings.spec.ts
     verifiedBy: null
     notes: ""
   FR-ADM-004:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/admin-settings-numbering.test.ts
+      - tests/e2e/admin-settings.spec.ts
     verifiedBy: null
     notes: ""
   FR-ADM-005:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/e2e/admin-settings.spec.ts
+      - tests/integration/admin-settings-request-types.test.ts
+      - tests/integration/form-import-money.test.ts
+      - tests/unit/forms-money.test.ts
     verifiedBy: null
     notes: ""
   FR-ADM-006:
-    status: in_progress
+    status: done
     step: S1
     evidence:
       - tests/e2e/admin.spec.ts
+      - tests/integration/line-channel-connection-env.test.ts
+      - tests/integration/line-channel-connection.test.ts
+      - tests/integration/line-channel.test.ts
       - tests/integration/modules.test.ts
+      - tests/unit/line-env.test.ts
+      - tests/unit/secret-box.test.ts
+      - tests/e2e/admin-line.spec.ts
+      - tests/unit/line-client.test.ts
+      - tests/unit/line-fake.test.ts
+      - tests/unit/settings-fields.test.tsx
+      - tests/unit/settings-screens.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-ADM-007:
     status: planned
     step: S5
@@ -181,65 +251,141 @@ features:
     verifiedBy: null
     notes: ""
   FR-DOA-001:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/unit/doa-yaml.test.ts
+      - tests/e2e/admin-doa-editor.spec.ts
+      - tests/e2e/admin-doa.spec.ts
+      - tests/integration/admin-org-screens-doa.test.ts
+      - tests/integration/doa-editor-boundary.test.ts
+      - tests/integration/doa-editor.test.ts
+      - tests/unit/admin-doa-editor.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-DOA-002:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/doa.test.ts
+      - tests/integration/doa-lint-gate.test.ts
+      - tests/integration/doa-versions.test.ts
+      - tests/integration/initial-package.test.ts
+      - tests/integration/org-authority.test.ts
+      - tests/unit/doa.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC3 ชุดตั้งต้นตาม ADR-042 · การยืนยันผู้ลงนามโดย PLATFORM_ADMIN อยู่ใน NEW-15"
   FR-DOA-003:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/e2e/request-form.spec.ts
+      - tests/e2e/request-view.spec.ts
+      - tests/golden/doa.test.ts
+      - tests/integration/request-form.test.ts
+      - tests/integration/requests.test.ts
+      - tests/integration/tasks-view.test.ts
+      - tests/unit/doa.test.ts
+      - tests/unit/request-form.test.ts
+      - tests/unit/tasks-present.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-004:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/e2e/tasks-po.spec.ts
+      - tests/e2e/tasks.spec.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/integration/requests.test.ts
+      - tests/integration/tasks-view-actions.test.ts
+      - tests/integration/tasks-view.test.ts
+      - tests/unit/tasks-outcome.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-005:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/requests.test.ts
+      - tests/e2e/audit.spec.ts
+      - tests/e2e/board-demo.spec.ts
+      - tests/e2e/demo/02-approve-in-chat.spec.ts
+      - tests/e2e/demo/07-consolidate-po.spec.ts
+      - tests/e2e/demo/09-executive-overview.spec.ts
+      - tests/e2e/request-view.spec.ts
+      - tests/e2e/tasks.spec.ts
+      - tests/integration/insight-screens.test.ts
+      - tests/integration/line-postback.test.ts
+      - tests/integration/tasks-view.test.ts
+      - tests/unit/tasks-present.test.ts
+      - tests/unit/tasks-timeline-stamp.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-DOA-006:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/delegation.test.ts
+      - tests/integration/delegation-window.test.ts
+      - tests/integration/delegations.test.ts
+      - tests/integration/requests.test.ts
+      - tests/unit/doa.test.ts
+      - tests/e2e/delegation.spec.ts
+      - tests/e2e/liff-delegation.spec.ts
+      - tests/integration/delegation-screens.test.ts
+      - tests/integration/liff-delegation-page.test.ts
+      - tests/integration/liff-delegation.test.ts
+      - tests/unit/liff-delegation-ui.test.tsx
+      - tests/unit/sla-nobody-added.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-DOA-007:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/generated/authority-writes.test.ts
+      - tests/golden/sod.test.ts
+      - tests/integration/admin-org-screens.test.ts
+      - tests/integration/org-authority.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-008:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/numbering.test.ts
+      - tests/integration/numbering.test.ts
+      - tests/unit/engines.test.ts
     verifiedBy: null
     notes: ""
   FR-DOA-009:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/e2e/admin-doa-editor.spec.ts
+      - tests/integration/doa-editor-approve.test.ts
+      - tests/integration/doa-editor-boundary.test.ts
+      - tests/integration/doa-editor-simulate.test.ts
+      - tests/integration/doa-editor.test.ts
+      - tests/integration/tasks-view-doa.test.ts
+      - tests/unit/admin-doa-editor.test.tsx
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/e2e/tasks.spec.ts
+      - tests/integration/liff-tasks.test.ts
+      - tests/unit/liff-tasks-result.test.ts
+      - tests/unit/liff-tasks-screens.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-DOA-010:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/org-authority.test.ts
+      - tests/integration/org-structure.test.ts
+      - tests/generated/authority-writes.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "step-up ด้วย TOTP จนถึง S5-05 (BR-DOA-15)"
   FR-DOA-011:
     status: planned
     step: S4
@@ -247,246 +393,484 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-001:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/request-form.test.ts
+      - tests/e2e/request-form.spec.ts
+      - tests/e2e/demo/01-request-in-liff.spec.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/unit/liff-requests.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-INT-002:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/e2e/request-form.spec.ts
+      - tests/golden/forms.test.ts
+      - tests/integration/form-import-money.test.ts
+      - tests/integration/request-form.test.ts
+      - tests/unit/engines.test.ts
+      - tests/unit/forms-fields.test.ts
+      - tests/unit/forms-money.test.ts
+      - tests/unit/request-form-fields.test.tsx
+      - tests/unit/request-form.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-003:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/e2e/budgets-grants.spec.ts
+      - tests/e2e/request-form-site.spec.ts
+      - tests/e2e/request-form.spec.ts
+      - tests/golden/forms.test.ts
+      - tests/integration/request-form-site.test.ts
+      - tests/integration/request-form.test.ts
+      - tests/integration/request-site-supplier.test.ts
+      - tests/unit/engines.test.ts
+      - tests/unit/request-form-site.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-004:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/request-form.test.ts
+      - tests/e2e/request-form.spec.ts
     verifiedBy: null
     notes: ""
   FR-INT-005:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/forms.test.ts
+      - tests/integration/quotations.test.ts
+      - tests/e2e/demo/03-pin-in-liff.spec.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/e2e/request-form.spec.ts
+      - tests/unit/liff-requests.test.tsx
+      - tests/unit/request-form.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-INT-006:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/e2e/request-form.spec.ts
+      - tests/integration/request-form.test.ts
+      - tests/integration/stale-drafts.test.ts
+      - tests/unit/request-form-fields.test.tsx
+      - tests/unit/request-form.test.ts
     verifiedBy: null
     notes: ""
   FR-INT-007:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/golden/sla.test.ts
+      - tests/integration/request-budget.test.ts
+      - tests/integration/requests.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "เส้นทาง DOA (S2-10) และการตรวจและจองงบตอนส่ง (S3-05)"
   FR-INT-008:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/integration/tasks-view.test.ts
+      - tests/e2e/request-view.spec.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/e2e/po-view-coassign.spec.ts
+      - tests/e2e/request-view-coassign.spec.ts
+      - tests/integration/po-view-escalated.test.ts
+      - tests/integration/request-view-escalated.test.ts
+      - tests/integration/route-sentence-coassign.test.ts
+      - tests/integration/tasks-view-actions.test.ts
+      - tests/unit/liff-requests.test.tsx
+      - tests/unit/po-waiting-coassign.test.ts
+      - tests/unit/request-view-coassign.test.tsx
+      - tests/unit/tasks-present.test.ts
+      - tests/unit/tasks-timeline-stamp.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-INT-009:
-    status: planned
+    status: done
     step: S2
-    evidence: []
+    evidence:
+      - tests/generated/state-machines.test.ts
+      - tests/integration/request-budget.test.ts
+      - tests/integration/requests.test.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/e2e/request-form.spec.ts
+      - tests/e2e/request-view.spec.ts
+      - tests/e2e/tasks.spec.ts
+      - tests/integration/liff-requests.test.ts
+      - tests/integration/purchase-orders.test.ts
+      - tests/integration/request-cancel.test.ts
+      - tests/integration/request-form.test.ts
+      - tests/integration/sla-jobs.test.ts
+      - tests/integration/tasks-view-actions.test.ts
+      - tests/integration/tasks-view.test.ts
+      - tests/unit/tasks-outcome.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-BUD-001:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/e2e/budgets-import.spec.ts
+      - tests/integration/budget-import.test.ts
+      - tests/integration/seed.test.ts
     verifiedBy: null
     notes: ""
   FR-BUD-002:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/golden/budget.test.ts
+      - tests/integration/budget.test.ts
+      - tests/property/budget.property.test.ts
+      - tests/unit/budget.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "core/budget (S3-02) และ service ที่ล็อกแถว (S3-03) · การจองจากคำขอจริงมาใน S3-05"
   FR-BUD-003:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/request-budget.test.ts
+      - tests/unit/budget-stub-guard.test.ts
     verifiedBy: null
     notes: ""
   FR-BUD-004:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/e2e/budgets-grants.spec.ts
+      - tests/integration/budget-grants.test.ts
+      - tests/integration/request-budget.test.ts
+      - tests/integration/request-form.test.ts
     verifiedBy: null
     notes: ""
   FR-BUD-005:
-    status: planned
+    status: done
     step: S3
-    evidence: []
+    evidence:
+      - tests/integration/demo-history.test.ts
+      - tests/e2e/budgets.spec.ts
+      - tests/e2e/demo/09-executive-overview.spec.ts
+      - tests/integration/budget-dashboard.test.ts
+      - tests/unit/budgets-screens.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-P2P-001:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/procurement.spec.ts
+      - tests/integration/procurement-pool-vat.test.ts
+      - tests/integration/procurement-pool.test.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/unit/procurement-pool-present.test.ts
+      - tests/unit/procurement-pool-vat.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "NEW-50 ระหว่างรอ: บรรทัดของคำขอที่ราคารวม VAT ค้างในกองพร้อมเหตุผล ไม่มีรอบใดรวมเป็นร่าง PO"
   FR-P2P-002:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/procurement.spec.ts
+      - tests/golden/consolidation.test.ts
+      - tests/integration/procurement-pool-vat.test.ts
+      - tests/integration/procurement-pool.test.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/unit/schedule.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "NEW-50 ระหว่างรอ: บรรทัดของคำขอที่ราคารวม VAT ค้างในกองพร้อมเหตุผล ไม่มีรอบใดรวมเป็นร่าง PO"
   FR-P2P-003:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/purchase-order.spec.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-004:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/procurement.spec.ts
+      - tests/e2e/purchase-order.spec.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/integration/purchase-orders.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-005:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/po-send.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-006:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/receiving.spec.ts
+      - tests/integration/receiving-screens.test.ts
+      - tests/integration/receiving.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-007:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/receiving.spec.ts
+      - tests/e2e/tasks-po.spec.ts
+      - tests/golden/receiving.test.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/integration/receiving-screens.test.ts
+      - tests/integration/receiving.test.ts
+      - tests/unit/budget.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-008:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/invoice-confirmation.test.ts
+      - tests/integration/invoices.test.ts
+      - tests/unit/etax-files.test.ts
+      - tests/e2e/finance.spec.ts
+      - tests/integration/finance-screens.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-P2P-009:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/finance-exports.spec.ts
+      - tests/integration/express-demo-layout.test.ts
+      - tests/integration/express-export.test.ts
+      - tests/unit/encoding.test.ts
+      - tests/unit/express-layout-seed.test.ts
     verifiedBy: null
     notes: ""
   FR-P2P-010:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/purchase-order.spec.ts
+      - tests/e2e/receiving.spec.ts
+      - tests/integration/procurement-screens.test.ts
+      - tests/integration/purchase-orders.test.ts
+      - tests/integration/receiving-screens.test.ts
+      - tests/integration/receiving.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 ถึง AC3 ผ่านแล้ว · AC4 (เตือน PO ที่ไม่มีความเคลื่อนไหว) เป็นของ S5-16 [go-live]"
   FR-SUP-001:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/suppliers.spec.ts
+      - tests/integration/supplier-registry.test.ts
+      - tests/integration/suppliers-screens.test.ts
+      - tests/integration/suppliers.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1 ถึง AC3 ผ่านแล้วด้วยโหมด stub · AC4 (ตรวจสถานะรายเดือนและเหตุผลตอนสร้าง PO) เป็นของ S4-16 [go-live]"
   FR-VIS-001:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/board-audit.test.ts
+      - tests/integration/demo-history.test.ts
+      - tests/e2e/board-demo.spec.ts
+      - tests/e2e/board.spec.ts
+      - tests/e2e/demo/09-executive-overview.spec.ts
+      - tests/integration/insight-screens.test.ts
+      - tests/unit/insight-format.test.ts
+      - tests/unit/insight-outcome.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-VIS-002:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/reports.test.ts
     verifiedBy: null
     notes: ""
   FR-VIS-003:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/demo-history.test.ts
+      - tests/integration/reports.test.ts
+      - tests/e2e/board-demo.spec.ts
+      - tests/e2e/demo/09-executive-overview.spec.ts
+      - tests/e2e/kpi.spec.ts
+      - tests/integration/insight-screens.test.ts
+      - tests/unit/insight-format.test.ts
+      - tests/unit/insight-kpi-present.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-VIS-004:
-    status: planned
+    status: done
     step: S4
-    evidence: []
+    evidence:
+      - tests/integration/audit-masking.test.ts
+      - tests/integration/board-audit.test.ts
+      - tests/e2e/audit.spec.ts
+      - tests/e2e/board-demo.spec.ts
+      - tests/e2e/demo/09-executive-overview.spec.ts
+      - tests/integration/insight-screens.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-VIS-005:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/golden/grni.test.ts
     verifiedBy: null
     notes: ""
   FR-LINE-001:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-link-code.test.ts
+      - tests/integration/line-link-concurrency.test.ts
+      - tests/integration/line-link.test.ts
+      - tests/e2e/auth-prehydration.spec.ts
+      - tests/e2e/liff-link.spec.ts
+      - tests/e2e/settings-line.spec.ts
+      - tests/integration/liff-session.test.ts
+      - tests/integration/liff-shell.test.ts
+      - tests/integration/line-link-notice.test.ts
+      - tests/integration/settings-line-actions.test.ts
+      - tests/unit/liff-bootstrap.test.ts
+      - tests/unit/liff-ui.test.tsx
+      - tests/unit/security-notice-template.test.ts
+      - tests/unit/settings-fields.test.tsx
+      - tests/unit/settings-screens.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-LINE-002:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/line-postback.test.ts
+      - tests/unit/line-flex.test.ts
+      - tests/e2e/demo/02-approve-in-chat.spec.ts
+      - tests/e2e/demo/03-pin-in-liff.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-LINE-003:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/e2e/liff-delegation.spec.ts
+      - tests/e2e/liff-gr.spec.ts
+      - tests/e2e/liff-requests.spec.ts
+      - tests/e2e/liff-shell.spec.ts
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/integration/liff-gr.test.ts
+      - tests/integration/liff-requests.test.ts
+      - tests/integration/liff-tasks.test.ts
+      - tests/unit/liff-image-resize.test.ts
+      - tests/e2e/demo/01-request-in-liff.spec.ts
+      - tests/e2e/demo/03-pin-in-liff.spec.ts
+      - tests/e2e/demo/08-receive-in-liff.spec.ts
+      - tests/integration/liff-gr-page.test.ts
+      - tests/unit/liff-gr-ui.test.tsx
+      - tests/unit/liff-photo-upload.test.ts
+      - tests/unit/liff-requests.test.tsx
+      - tests/unit/liff-tasks-key.test.ts
+      - tests/unit/liff-tasks-result.test.ts
+      - tests/unit/liff-tasks-screens.test.tsx
+      - tests/unit/pin-paste.test.tsx
+      - tests/unit/request-form-review.test.tsx
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-LINE-004:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-richmenu-images.test.ts
+      - tests/integration/line-richmenu.test.ts
+      - tests/e2e/liff-richmenu.spec.ts
+      - tests/unit/settings-fields.test.tsx
+      - tests/unit/settings-screens.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-LINE-005:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/line-webhook-cli.test.ts
+      - tests/integration/line-webhook.test.ts
+      - tests/unit/line-simulate.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-LINE-006:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/daily-digest.test.ts
+      - tests/e2e/settings-notifications.spec.ts
+      - tests/integration/line-delivery.test.ts
+      - tests/unit/line-flex.test.ts
+      - tests/unit/settings-screens.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-LINE-007:
-    status: planned
-    step: S5
-    evidence: []
-    verifiedBy: null
-    notes: ""
-  FR-NOTI-001:
     status: in_progress
+    step: S5
+    evidence:
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/line-postback.test.ts
+    verifiedBy: null
+    notes: "AC2 AC3 ผ่านแล้ว (ส่ง LINE ไม่ได้ถอยไปอีเมลภายใน 5 นาที) · AC1 นับโควตารายเดือนเป็นของ S5-14 [go-live] · คำตอบจริงของ LINE ตรวจใน D-03 (NEW-44)"
+  FR-NOTI-001:
+    status: done
     step: S2
     evidence:
+      - tests/e2e/notifications.spec.ts
+      - tests/integration/notification-bell.test.ts
       - tests/integration/notifications.test.ts
+      - tests/unit/notification-templates.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "กระดิ่งในระบบ (S2-14) · LINE และอีเมลใช้แม่แบบเดียวกันเมื่อมาถึงใน S4 และ S5"
   FR-NOTI-002:
-    status: planned
+    status: in_progress
     step: S4
-    evidence: []
+    evidence:
+      - tests/e2e/action-link.spec.ts
+      - tests/integration/action-links.test.ts
+      - tests/integration/line-delivery.test.ts
+      - tests/unit/action-link-shapes.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ลิงก์ตัดสินทางอีเมลผ่านแล้ว · ส่งทาง LINE ก่อนแล้วสำรองทางอีเมลผ่านแล้ว · AC3 (SPF DKIM) รอ ADR-031"
   FR-NOTI-003:
-    status: planned
+    status: done
     step: S5
-    evidence: []
+    evidence:
+      - tests/integration/sla-jobs-escalation.test.ts
+      - tests/integration/sla-jobs-next-band.test.ts
+      - tests/integration/sla-jobs-subjects.test.ts
+      - tests/integration/sla-jobs-timers.test.ts
+      - tests/integration/sla-jobs.test.ts
+      - tests/integration/task-times.test.ts
+      - tests/e2e/liff-task-closed.spec.ts
+      - tests/e2e/po-view-coassign.spec.ts
+      - tests/e2e/request-view-coassign.spec.ts
+      - tests/integration/line-delivery.test.ts
+      - tests/integration/step-complete-locks.test.ts
+      - tests/integration/step-complete.test.ts
+      - tests/unit/sla-nobody-added.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-NOTI-004:
     status: planned
     step: S5

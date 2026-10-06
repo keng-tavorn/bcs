@@ -7,13 +7,13 @@
   "system": "System",
   "channel": {
     "WEB": "Web",
-    "LIFF": "LINE (LIFF)",
+    "LIFF": "Screen in LINE",
     "LINE_CHAT": "LINE chat",
     "PWA": "BCS Go app",
     "EMAIL": "Email",
     "PORTAL": "Supplier portal",
     "SYSTEM": "Automated",
-    "API": "API",
-    "MCP": "MCP"
+    "API": "Connected system",
+    "MCP": "Connected AI assistant"
   }
 }

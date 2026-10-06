@@ -20,6 +20,7 @@ import { appendEvents, type AppendedEvent, type EventDraft } from '@/server/even
 import { dispatchOutbox, enqueueOutbox, getDefaultOutboxSender, type OutboxDraft, type OutboxSender } from '@/server/events/outbox'
 import '@/server/inngest'
 import { createNotifications, type NotificationDraft } from '@/server/notifications/create'
+import { applyTokenLifecycle } from '@/server/tokens/action-tokens'
 
 // runCommand() — the only path for a state change (spec §4.3, P-1, ADR-022):
 //  1. the adapter supplies an idempotencyKey; CommandLog stores it inside the actor's namespace (scopedIdempotencyKey)
@@ -29,7 +30,8 @@ import { createNotifications, type NotificationDraft } from '@/server/notificati
 //     CommandLog check → execute() inside a savepoint (load with FOR UPDATE in id order, version check,
 //     authorize + SoD, core decide, write state) → Event (≥ 1, INV-EVT-02) + Outbox + Notification + CommandLog.
 //     A rejection rolls back to the savepoint. A rejection that carries audit events writes them and is recorded
-//     in CommandLog, so a resend with the same key replays it instead of auditing twice (INV-PLT-01).
+//     in CommandLog, so a resend with the same key replays it instead of auditing twice (INV-PLT-01). Approval
+//     task events issue and revoke the tasks' ActionTokens in the same transaction (BR-TOK-01).
 //  5. commit, then send the outbox with one request, holding the response at most OUTBOX_DISPATCH_TIMEOUT_MS (the
 //     outbox-sweeper sends whatever is not confirmed by then)
 //  6. serialization failure / deadlock → retry the whole transaction up to 3 times with jitter; lock or statement
@@ -291,6 +293,7 @@ export async function runCommand<I, R>(
               throw new Error(`INV-EVT-02: command ${definition.name} changed state without writing an Event`)
             }
             const events = await appendEvents(tx, ctx, out.events)
+            await applyTokenLifecycle(tx, ctx, out.events)
             const notificationOutbox = await createNotifications(tx, ctx.organizationId, out.notifications ?? [])
             drafts = [...events.map((e) => eventOutboxDraft(ctx, e)), ...notificationOutbox, ...(out.outbox ?? [])]
             result = { ok: true, data: toJsonSafe(out.result) }

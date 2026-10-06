@@ -46,10 +46,10 @@ New-Item -ItemType Directory -Force bcs\docs\inputs, bcs\scripts | Out-Null; Mov
 งานรอบนี้คือ **เส้นชัย A — Demo พร้อม** ถือว่าเสร็จเมื่อครบทุกข้อด้านล่าง ติ๊กแต่ละข้อเมื่อตรวจแล้วจริง
 
 - [ ] ทุกข้อใน §16 ที่มีแท็ก `[demo]` และไม่มีแท็ก `[คน]` เป็น `[x]`
-- [ ] `pnpm verify` ผ่านทุกด่าน (0 FAIL)
-- [ ] `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y ในชีต `Demo_Script`
+- [x] `pnpm verify` ผ่านทุกด่าน (0 FAIL) — ตรวจแล้ว 2026-10-06 · `pnpm verify --strict --e2e` ที่ 46d16c0: 0 FAIL · 19 PASS · 0 SKIP
+- [x] `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y ในชีต `Demo_Script` — ตรวจแล้ว 2026-10-06 · 2 รอบติดจากฐานใหม่ที่ 217a993 (9/9 ทั้งสองรอบ) และอีกรอบใน verify ที่ 46d16c0
 - [ ] staging เปิดจาก URL จริงได้ และ `/api/health` ตอบ 200
-- [ ] มีรายงาน `docs/reports/demo-ready.md` ที่ใช้ 3 หัวข้อตาม §17.8 พร้อมตารางข้อที่เสร็จ ผลของคำสั่งข้างบน และข้อ `[คน]` ที่เหลือให้ผู้ใช้ทำ
+- [x] มีรายงาน `docs/reports/demo-ready.md` ที่ใช้ 3 หัวข้อตาม §17.8 พร้อมตารางข้อที่เสร็จ ผลของคำสั่งข้างบน และข้อ `[คน]` ที่เหลือให้ผู้ใช้ทำ — ตรวจแล้ว 2026-10-06 · docs/reports/demo-ready.md
 
 ถึงเส้นชัย A แล้วให้หยุด รายงาน และรอคำสั่ง ห้ามเริ่มข้อ `[go-live]` เอง
 
@@ -531,10 +531,14 @@ sequenceDiagram
 
 | Function | Trigger | ทำอะไร | ขั้น |
 | --- | --- | --- | --- |
-| `approval-task-sla` | `bcs/approval_task.assigned` · ยกเลิกเมื่อ `bcs/approval_task.closed` หรือ `bcs/approval_task.paused` ที่ taskId ตรงกัน | sleepUntil(remindAt) → เตือน · sleepUntil(dueAt) → ทำเครื่องหมายเกินกำหนดและแจ้ง · sleepUntil(escalateAt) → ส่งต่อตาม `escalationPolicy` (BR-SLA-04) | S5 |
-| `approval-task-resume` | `bcs/approval_task.info_provided` | คำนวณ dueAt ใหม่จากเวลาที่เหลือ แล้วส่ง `assigned` ใหม่ | S5 |
+| `approval-task-sla` | `bcs/approval_task.assigned` หรือ `bcs/approval_task.reassigned` (งานที่ย้ายมา) · ยกเลิกเมื่อ `bcs/approval_task.decided` `bcs/approval_task.cancelled` `bcs/approval_task.reassigned` (ย้ายออก) หรือ `bcs/request.info_requested` ของงานนั้น | sleepUntil(remindAt) → เตือน · sleepUntil(dueAt) → ทำเครื่องหมายเกินกำหนดและแจ้ง · sleepUntil(escalateAt) → ส่งต่อตาม `escalationPolicy` (BR-SLA-04) | S5 |
+| `approval-task-resume` | `bcs/request.info_provided` ของงานนั้น · ยกเลิกด้วย event ชุดเดียวกับ `approval-task-sla` | คำนวณ dueAt ใหม่จากเวลาที่เหลือ แล้วส่ง `assigned` ใหม่ | S5 |
 | `delegation-window` | `bcs/delegation.created` | sleepUntil(startsAt) → ย้ายงานค้างไปผู้รักษาการ · sleepUntil(endsAt) → ย้ายงานที่ยังค้างกลับ | S5 (การมอบงานใหม่ให้ผู้รักษาการทำตั้งแต่ S2) |
+| `delegation-revoked` | `bcs/delegation.revoked` | ยกเลิกรักษาการกลางช่วง = จบช่วงก่อนกำหนด: ย้ายงานที่ยังค้างของผู้มอบจากผู้รักษาการกลับทันที (NEW-35) | S5 |
 | `daily-digest` | cron `TZ=Asia/Bangkok 0 8 * * 1-5` | ข้ามวันหยุดขององค์กร ส่งสรุปรายคน | S5 |
+| `line-webhook` | `bcs/line.webhook_received` (คิวภายใน ไม่ใช่ event ของแคตตาล็อก) | ทำ event ของ LINE ที่บันทึกแล้วตามลำดับต่อผู้ใช้ (follow unfollow ข้อความ postback) · run ที่ล้มทำซ้ำอีก 2 รอบ เลิกพร้อมแจ้งเตือนเมื่อรอเกิน 1 วัน (ADR-046) | S5 |
+| `line-webhook-sweep` | cron ทุก 5 นาที | ส่ง event ของ LINE ที่บันทึกแล้วแต่คำขอจบก่อนส่งต่อ เข้า `line-webhook` | S5 |
+| `line-rich-menu` | `bcs/line.linked` · `bcs/line.unlinked` | ตั้ง rich menu ของผู้ใช้ตามการผูกล่าสุด (LINKED หรือเมนูเริ่มต้น UNLINKED) ให้ Inngest ทำซ้ำเมื่อ LINE ล้ม · เป็นทางเดียวที่สลับเมนูเมื่อยกเลิกผูกพร้อมปิดใช้งานสมาชิก · สมาชิกที่ผูกแล้ว follow ใหม่ได้เมนูคืนผ่าน follow hook ของ webhook (ADR-049) | S5 |
 | `po-idle-reminder` | cron `TZ=Asia/Bangkok 0 9 * * 1-5` | หา PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO (FR-P2P-010 AC4) | S5 |
 | `supplier-registry-recheck` | cron `TZ=Asia/Bangkok 0 6 1 * *` | ตรวจสถานะผู้ขายกับสรรพากรและ DBD ซ้ำ แจ้งจัดซื้อเมื่อสถานะเปลี่ยน (BR-SUP-04) | S4 |
 | `consolidation-cycle` | cron ตาม `settings.consolidation.cron` (OQ-13) | รวม PR เป็นร่าง PO | S4 |
@@ -990,6 +994,7 @@ stateDiagram-v2
 | APPROVED | PO อนุมัติบางส่วน | PARTIALLY_ORDERED | — | ตาม BR-BUD-05 |
 | APPROVED · PARTIALLY_ORDERED | PO อนุมัติครบ หรือยกเลิกจำนวนที่เหลือ | ORDERED | ทุกบรรทัด `ordered + cancelled = quantity` | คืนงบของจำนวนที่ยกเลิก |
 | ORDERED | PO ที่เกี่ยวข้องปิดครบ | COMPLETED | — | `request.completed` |
+| ORDERED · PARTIALLY_ORDERED | PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (NEW-23) | PARTIALLY_ORDERED หรือ APPROVED | ตามจำนวนที่ยังสั่งอยู่ | บรรทัดคำขอกลับเข้ากองรอจัดซื้อ |
 
 การขอข้อมูลเพิ่มไม่เปลี่ยนสถานะคำขอ (ยังเป็น PENDING_APPROVAL) แต่งานอนุมัติเป็น `INFO_REQUESTED` และ SLA หยุดนับ
 
@@ -1015,6 +1020,7 @@ stateDiagram-v2
 | PENDING_APPROVAL | `approval.return` | DRAFT | ต้องมีเหตุผล | คืนส่วนต่างที่จอง |
 | APPROVED | `po.send` | SENT | ผู้ขายมีอีเมล | ส่งอีเมลพร้อม PDF · บันทึก `sentAt` `sentToEmail` |
 | SENT · PARTIALLY_RECEIVED | GR ถูก post | PARTIALLY_RECEIVED หรือ RECEIVED | — | ตามจำนวนรับสะสม |
+| PARTIALLY_RECEIVED · RECEIVED | GR ถูกกลับรายการ (NEW-23) | PARTIALLY_RECEIVED หรือ SENT | ก่อนยืนยันใบกำกับของ PO นั้น | ตามจำนวนที่ GR ที่ยัง POSTED รับไว้ |
 | APPROVED · SENT | `po.cancel` | CANCELLED | ยังไม่มี GR ที่ POSTED · ต้องเลือก disposition | BR-BUD-06 |
 | SENT · PARTIALLY_RECEIVED · RECEIVED | `po.close` | CLOSED | ถ้ารับไม่ครบต้องมี variance `SHORT` ที่อนุมัติแล้ว | คืนงบตาม BR-BUD-06 (ปิดที่รับไม่ครบก่อนมีใบกำกับ: ส่วนที่ไม่ได้รับคืนครั้งเดียวตอนอนุมัติ variance `CLOSE_SHORT` ตาม BR-GR-04 · ถือส่วนที่รับแล้วไว้รอใบกำกับ) |
 
@@ -1646,6 +1652,7 @@ cases:
 
 - FieldDef ชนิด: `text` `textarea` `number` `money` `date` `select` `multiselect` `checkbox` `member` `department` `costCenter` `budgetLine` `supplier` `deliverySite` `lineItems` `attachment`
 - เงื่อนไข: `{ all: [...] }` · `{ any: [...] }` · `{ field, op, value }` โดย op เป็น `eq` `ne` `in` `gt` `gte` `lt` `lte` `empty` `notEmpty` และมีตัวแปรพิเศษ `$amountGross` `$amountNet` `$requestType`
+- ยอดเงินในเงื่อนไข (`$amountGross` `$amountNet` และฟิลด์ชนิด `money`) เขียนเป็นสตริงบาท เช่น `"100000.00"` ตาม BR-MONEY-01 · ตอนนำเข้าปฏิเสธตัวเลข JSON และเงื่อนไขที่ค่าไม่ใช่สตริงบาทไม่เป็นจริง (D-06)
 
 | ID | กฎ |
 | --- | --- |
@@ -2653,10 +2660,11 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 | `request.info_provided` | ผู้อนุมัติที่ถาม | LINE → อีเมล | IMMEDIATE | `request.info_provided` |
 | `po.approved` | PROCUREMENT ผู้สร้าง PO | ในระบบ · LINE | IMMEDIATE | `po.approved` |
 | `po.sent` | ผู้ขอของ PR ต้นทาง · ผู้ตรวจรับที่ได้รับมอบหมาย | LINE → อีเมล | DIGEST | `po.sent` |
+| `po.send_bounced` (NEW-25) | PROCUREMENT | LINE → อีเมล | IMMEDIATE | `po.send_bounced` |
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
 | ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
-| เกิด `APPROVER_NOT_FOUND` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
+| ส่งคำขอไม่ได้เพราะ `DOA_NOT_CONFIGURED` · `APPROVER_NOT_FOUND` · `NO_HIGHER_AUTHORITY` (NEW-27) | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
 | โควตา LINE ถึง 80% | ORG_ADMIN · PLATFORM_ADMIN | อีเมล | IMMEDIATE | `admin.line_quota` |
 | `export.generated` | ผู้สั่งส่งออก | ในระบบ | IMMEDIATE | `export.ready` |
 | `organization.module_enabled` · `organization.module_disabled` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.module_changed` |
@@ -2680,21 +2688,25 @@ manifest: `name` "BCS Workspace" · `short_name` "BCS" · `start_url` "/?source=
 
 | Aggregate | Event types |
 | --- | --- |
-| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` |
-| โครงองค์กร | `department.created` `department.updated` `position.assigned` `position.unassigned` `holiday.imported` |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
+| โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `comment.added` `comment.retracted` |
+| request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
-| po | `po.drafted` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.cancelled` `po.closed` `po.idle_reminded` |
+| po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
+| consolidation_run | `consolidation_run.completed` |
+| report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | ช่องทาง | `line.linked` `line.unlinked` |
-| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
+| การแจ้งเตือน | `notification.read` `notification.digest_sent` |
+| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 
 ### 10.3 สรุปรายวันและข้อความ
@@ -3089,55 +3101,55 @@ features:
 
 **FR ที่ครอบคลุม:** FR-DOA-001 FR-DOA-002 FR-DOA-003 FR-DOA-004 FR-DOA-005 FR-DOA-006 FR-DOA-007 FR-DOA-008 FR-DOA-010 FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 FR-INT-006 FR-INT-007 FR-INT-008 FR-INT-009 FR-ADM-002 FR-ADM-003 FR-ADM-004 FR-ADM-005 FR-NOTI-001 FR-PLT-007
 
-- [ ] **S2-01** `[demo]` migration โครงองค์กร คำขอ DOA การอนุมัติ OrgAuthorityChange Notification DocumentSequence TaxRate + SQL §6.3 ข้อ 4–5
+- [x] **S2-01** `[demo]` migration โครงองค์กร คำขอ DOA การอนุมัติ OrgAuthorityChange Notification DocumentSequence TaxRate + SQL §6.3 ข้อ 4–5 — เสร็จ 2026-10-03 · 70db684
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate`
+- [x] **S2-02** `[demo]` `core/money` และ `core/vat` + seed `TaxRate` — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: ทุกเคสใน money.yaml และ vat-rate.yaml ผ่าน
   - แยกงาน: golden suite แต่ละไฟล์อิสระต่อกัน งาน S2-02 ถึง S2-08 แยก subagent ต่อ suite ได้ ห้าม subagent แก้ค่า expect และต้องตรวจว่าเทสต์อ่านไฟล์ YAML จริงก่อนรับ
-- [ ] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ.
+- [x] **S2-03** `[demo]` `core/thai`: คำอ่านจำนวนเงิน เลขผู้เสียภาษี และวันที่ พ.ศ. — เสร็จ 2026-10-03 · d82ac37
   - เสร็จเมื่อ: ทุกเคสใน thai.yaml taxid.yaml dates.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก
+- [x] **S2-04** `[demo]` `core/numbering` + service ออกเลขพร้อมล็อก — เสร็จ 2026-10-03 · af0fa4b
   - เสร็จเมื่อ: ทุกเคสใน numbering.yaml ผ่าน และเทสต์ออกเลข 50 ใบพร้อมกันได้ 1 ถึง 50 ครบ (INV-NUM-01)
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-05** `[demo]` `core/doa`: resolveRoute lint ตารางผลที่ขอบ และนำเข้า YAML
+- [x] **S2-05** `[demo]` `core/doa`: resolveRoute lint ตารางผลที่ขอบ และนำเข้า YAML — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: ทุกเคสใน doa.yaml และ doa-lint.yaml ผ่าน (GC-DOA-01 ถึง GC-DOA-27)
   - แยกงาน: ทำเอง เพราะกฎต้องสอดคล้องกันทั้งก้อน
-- [ ] **S2-06** `[demo]` `core/sod` และ `core/delegation`
+- [x] **S2-06** `[demo]` `core/sod` และ `core/delegation` — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: ทุกเคสใน sod.yaml และ delegation.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5)
+- [x] **S2-07** `[demo]` `core/sla` (ใช้คำนวณ dueAt ตั้งแต่ S2 แม้การเตือนเริ่ม S5) — เสร็จ 2026-10-03 · d82ac37
   - เสร็จเมื่อ: ทุกเคสใน sla.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef
+- [x] **S2-08** `[demo]` `core/forms`: เงื่อนไข กฎเอกสารแนบ และสร้าง Zod จาก FieldDef — เสร็จ 2026-10-03 · af0fa4b
   - เสร็จเมื่อ: ทุกเคสใน forms.yaml ผ่าน
   - แยกงาน: แยกต่อ golden suite ได้ (ดู S2-02)
-- [ ] **S2-09** `[demo]` state machine ของ Request ApprovalTask DoaVersion OrgAuthorityChange + เทสต์ทุกคู่สถานะ
+- [x] **S2-09** `[demo]` state machine ของ Request ApprovalTask DoaVersion OrgAuthorityChange + เทสต์ทุกคู่สถานะ — เสร็จ 2026-10-03 · be254c2
   - เสร็จเมื่อ: เทสต์ที่สร้างจากตาราง transition ผ่านทุกคู่ โดยนับคู่เอง (§15.3)
   - แยกงาน: แยก subagent ต่อ state machine ได้ แล้วตรวจว่าตารางตรงกับ §6.4 ก่อนรับ
-- [ ] **S2-10** `[demo]` services: ร่าง ส่ง ส่งซ้ำ ยกเลิก ขอข้อมูล ตัดสิน รักษาการ และ DOA version (ขั้นตรวจงบเป็น stub จนถึง S3-05)
+- [x] **S2-10** `[demo]` services: ร่าง ส่ง ส่งซ้ำ ยกเลิก ขอข้อมูล ตัดสิน รักษาการ และ DOA version (ขั้นตรวจงบเป็น stub จนถึง S3-05) — เสร็จ 2026-10-03 · 53f435f
   - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-007 FR-INT-009 FR-DOA-002 FR-DOA-004 FR-DOA-006 ผ่าน
   - แยกงาน: ทำเองได้ · ถ้าแยก ให้แยกต่อ service และตรวจว่าทุก service ผ่าน runCommand()
-- [ ] **S2-11** `[demo]` หน้าจอแคตตาล็อก ฟอร์มไดนามิก เติมข้อมูล แนบไฟล์ และบันทึกร่าง
+- [x] **S2-11** `[demo]` หน้าจอแคตตาล็อก ฟอร์มไดนามิก เติมข้อมูล แนบไฟล์ และบันทึกร่าง — เสร็จ 2026-10-03 · 2ad2034
   - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-001 FR-INT-002 FR-INT-003 FR-INT-005 และ FR-INT-006 AC1–AC2 ผ่าน (AC3 อยู่ใน NEW-07) · ทุกหน้าผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: แยก subagent ต่อหน้าจอได้ แล้วตรวจ screenshot ของแต่ละหน้าก่อนรับ
-- [ ] **S2-12** `[demo]` หน้าจอกล่องงาน หน้าตัดสิน และไทม์ไลน์ติดตามสถานะ
+- [x] **S2-12** `[demo]` หน้าจอกล่องงาน หน้าตัดสิน และไทม์ไลน์ติดตามสถานะ — เสร็จ 2026-10-03 · 2ade9c5
   - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-004 FR-INT-008 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: แยกต่อหน้าจอได้
-- [ ] **S2-13** `[demo]` หน้าผู้ดูแล: ผังองค์กร ตำแหน่ง ปฏิทิน เลขเอกสาร ประเภทคำขอ และ DOA (นำเข้าและส่งออก YAML)
+- [x] **S2-13** `[demo]` หน้าผู้ดูแล: ผังองค์กร ตำแหน่ง ปฏิทิน เลขเอกสาร ประเภทคำขอ และ DOA (นำเข้าและส่งออก YAML) — เสร็จ 2026-10-03 · 2bb3617
   - เสร็จเมื่อ: เทสต์ AC ของ FR-ADM-002 FR-ADM-003 FR-ADM-004 FR-ADM-005 และ FR-DOA-001 AC2–AC3 ผ่าน
   - แยกงาน: แยกต่อหน้าจอได้
-- [ ] **S2-14** `[demo]` การแจ้งเตือนในระบบ
+- [x] **S2-14** `[demo]` การแจ้งเตือนในระบบ — เสร็จ 2026-10-03 · 33cc2e8
   - เสร็จเมื่อ: เทสต์ AC ของ FR-NOTI-001 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S2-15** `[demo]` ขยาย seed loader: ชีต Departments Positions DOA DOA_Policy RequestTypes Holidays Settings
+- [x] **S2-15** `[demo]` ขยาย seed loader: ชีต Departments Positions DOA DOA_Policy RequestTypes Holidays Settings — เสร็จ 2026-10-03 · 215ef1e
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · seed แล้วเทสต์ยืนยันว่าโครงองค์กรและ DOA ตรง fixture ใน §7.4 (FR-PLT-007 AC3)
   - แยกงาน: ทำเองได้
-- [ ] **S2-16** `[demo]` lint ชุดเต็ม ข้อกำกับ `ORG-CHG-01` service `OrgAuthorityChange` job `org-authority-apply` BR-SOD-08 BR-DOA-13 ชุดตั้งต้น (BR-DOA-19) และ step-up ด้วย TOTP สำหรับการอนุมัติเชิงนโยบาย
+- [x] **S2-16** `[demo]` lint ชุดเต็ม ข้อกำกับ `ORG-CHG-01` service `OrgAuthorityChange` job `org-authority-apply` BR-SOD-08 BR-DOA-13 ชุดตั้งต้น (BR-DOA-19) และ step-up ด้วย TOTP สำหรับการอนุมัติเชิงนโยบาย — เสร็จ 2026-10-03 · f25421a
   - เสร็จเมื่อ: เทสต์ AC ของ FR-DOA-010 และ GC-SOD-06 ถึง GC-SOD-09 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S2-17** `[demo]` คำถามคัดกรองและกฎ ATT-DPA ใบเสนอราคาเป็นข้อมูลพร้อมกฎเลือกรายถูกสุด และวันสิ้นสุดบริการในบรรทัดคำขอ (BR-FORM-05 BR-FORM-06)
+- [x] **S2-17** `[demo]` คำถามคัดกรองและกฎ ATT-DPA ใบเสนอราคาเป็นข้อมูลพร้อมกฎเลือกรายถูกสุด และวันสิ้นสุดบริการในบรรทัดคำขอ (BR-FORM-05 BR-FORM-06) — เสร็จ 2026-10-03 · 2ad2034
   - เสร็จเมื่อ: ทุกเคสใน forms.yaml และ quotations.yaml ผ่าน และเทสต์ AC4–AC5 ของ FR-INT-005 ผ่าน
   - แยกงาน: ทำเองได้ · ถ้าแยก ให้แยกส่วน core กับหน้าจอ แล้วตรวจว่าหน้าจอเรียก core ตัวเดียวกัน
 
@@ -3151,31 +3163,31 @@ features:
 
 **FR ที่ครอบคลุม:** FR-BUD-001 FR-BUD-002 FR-BUD-003 FR-BUD-004 FR-BUD-005 FR-INT-004 FR-INT-007 FR-DOA-001 FR-DOA-009
 
-- [ ] **S3-01** `[demo]` migration ของงบ + CHECK §6.3 ข้อ 3
+- [x] **S3-01** `[demo]` migration ของงบ + CHECK §6.3 ข้อ 3 — เสร็จ 2026-10-03 · c3c54f7
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S3-02** `[demo]` `core/budget` + property test
+- [x] **S3-02** `[demo]` `core/budget` + property test — เสร็จ 2026-10-03 · 42c6ead
   - เสร็จเมื่อ: ทุกเคสใน budget.yaml (GC-BUD-01 ถึง GC-BUD-06) และ property test อย่างน้อย 1,000 ลำดับผ่าน
   - แยกงาน: ทำเอง เพราะ invariant ต้องคิดรวมทั้งก้อน
-- [ ] **S3-03** `[demo]` service งบพร้อมล็อกแถว
+- [x] **S3-03** `[demo]` service งบพร้อมล็อกแถว — เสร็จ 2026-10-03 · ed20996
   - เสร็จเมื่อ: GC-BUD-07 และเทสต์ INV-BUD-05 ผ่านกับ Postgres จริง
   - แยกงาน: ทำเองได้
-- [ ] **S3-04** `[demo]` นำเข้างบจาก Excel (ตรวจรายแถว กันนำเข้าซ้ำ) และ seed ชีต Budget
+- [x] **S3-04** `[demo]` นำเข้างบจาก Excel (ตรวจรายแถว กันนำเข้าซ้ำ) และ seed ชีต Budget — เสร็จ 2026-10-04 · f42d0de
   - เสร็จเมื่อ: เทสต์ AC ของ FR-BUD-001 ผ่าน · ยอดงบหลัง seed เท่าผลรวมในชีต โดยเทสต์รวมเอง
   - แยกงาน: ทำเองได้
-- [ ] **S3-05** `[demo]` ต่อการตรวจและจองงบเข้ากับการส่ง ปฏิเสธ ยกเลิก และส่งซ้ำคำขอ แทน stub
+- [x] **S3-05** `[demo]` ต่อการตรวจและจองงบเข้ากับการส่ง ปฏิเสธ ยกเลิก และส่งซ้ำคำขอ แทน stub — เสร็จ 2026-10-03 · 8b59bed
   - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-007 FR-BUD-003 ผ่าน และเทสต์ที่กัน stub ใน production ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S3-06** `[demo]` แสดงงบคงเหลือในฟอร์ม
+- [x] **S3-06** `[demo]` แสดงงบคงเหลือในฟอร์ม — เสร็จ 2026-10-03 · 2ad2034
   - เสร็จเมื่อ: เทสต์ AC ของ FR-INT-004 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S3-07** `[demo]` จัดการสิทธิ์ใช้งบข้ามฝ่าย
+- [x] **S3-07** `[demo]` จัดการสิทธิ์ใช้งบข้ามฝ่าย — เสร็จ 2026-10-04 · f42d0de
   - เสร็จเมื่อ: เทสต์ AC ของ FR-BUD-004 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S3-08** `[demo]` dashboard งบพร้อม drill-down
+- [x] **S3-08** `[demo]` dashboard งบพร้อม drill-down — เสร็จ 2026-10-04 · f42d0de
   - เสร็จเมื่อ: เทสต์ AC ของ FR-BUD-005 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: ทำเองได้
-- [ ] **S3-09** `[demo]` หน้าจอแก้ DOA แบบตาราง diff ตารางผลที่ขอบ และทดลองส่ง
+- [x] **S3-09** `[demo]` หน้าจอแก้ DOA แบบตาราง diff ตารางผลที่ขอบ และทดลองส่ง — เสร็จ 2026-10-06 · a40053b
   - เสร็จเมื่อ: GC-DOA-22 และเทสต์ AC ของ FR-DOA-001 AC1 และ FR-DOA-009 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: แยกต่อหน้าจอได้ (แก้ไข · diff · ทดลองส่ง)
 
@@ -3187,37 +3199,37 @@ features:
 
 **FR ที่ครอบคลุม:** FR-P2P-001 FR-P2P-002 FR-P2P-003 FR-P2P-004 FR-P2P-005 FR-P2P-006 FR-P2P-007 FR-P2P-008 FR-P2P-009 FR-P2P-010 FR-PLT-009 FR-VIS-001 FR-VIS-002 FR-VIS-003 FR-VIS-004 FR-NOTI-002 FR-DOA-011 FR-SUP-001 FR-VIS-005
 
-- [ ] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken
+- [x] **S4-01** `[demo]` migration ของผู้ขาย สถานที่ส่ง PO GR variance ใบกำกับ export รายงาน และ ActionToken — เสร็จ 2026-10-03 · 450829c
   - เสร็จเมื่อ: `pnpm verify` ด่าน db ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S4-02** `[demo]` ทะเบียนผู้ขายขั้นต้น (ตรวจเลขผู้เสียภาษี และรหัสเจ้าหนี้ Express) และ seed ชีต Suppliers กับ Sites
+- [x] **S4-02** `[demo]` ทะเบียนผู้ขายขั้นต้น (ตรวจเลขผู้เสียภาษี และรหัสเจ้าหนี้ Express) และ seed ชีต Suppliers กับ Sites — เสร็จ 2026-10-04 · 4ad3844
   - เสร็จเมื่อ: ทุกเคสใน taxid.yaml ผ่าน · จำนวนผู้ขายและสถานที่หลัง seed เท่าจำนวนแถวในชีต
   - แยกงาน: ทำเองได้
-- [ ] **S4-03** `[demo]` กองรอจัดซื้อ + engine รวม PR + job รอบรวม
+- [x] **S4-03** `[demo]` กองรอจัดซื้อ + engine รวม PR + job รอบรวม — เสร็จ 2026-10-04 · 612c4e4
   - เสร็จเมื่อ: ทุกเคสใน consolidation.yaml และเทสต์ AC ของ FR-P2P-001 FR-P2P-002 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S4-04** `[demo]` ร่าง PO ประวัติราคา state machine เส้นทาง DOA และงบตาม BR-BUD-05 BR-BUD-06
+- [x] **S4-04** `[demo]` ร่าง PO ประวัติราคา state machine เส้นทาง DOA และงบตาม BR-BUD-05 BR-BUD-06 — เสร็จ 2026-10-04 · 612c4e4
   - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-003 FR-P2P-004 FR-P2P-010 ผ่าน และ GC-BUD-01 ถึง GC-BUD-05 ผ่านเมื่อรันผ่าน service จริง
   - แยกงาน: ทำเองได้
-- [ ] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน
+- [x] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน — เสร็จ 2026-10-03 · 0e99907
   - เสร็จเมื่อ: มี ADR ของวิธีที่เลือก · เทสต์ AC ของ FR-PLT-009 และ snapshot ภาษาไทยผ่าน
   - แยกงาน: spike สองวิธีแยกให้ subagent วิธีละตัวได้ แล้วตรวจ snapshot ของทั้งสองเองก่อนเลือก
-- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS)
+- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS) — ติดอยู่: FR-NOTI-002 AC3 (SPF และ DKIM ของโดเมนผู้ส่ง) ต้องมีโดเมนและผู้ให้บริการอีเมลตาม ADR-031 ที่ยังไม่ตัดสิน · ส่วนอื่นทำแล้ว (fc57a66) และ e2e ของหน้า /a/[token] ผ่านแล้ว
   - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-005 FR-NOTI-002 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S4-07** `[demo]` ตรวจรับบนเว็บและจอมือถือ + engine variance + เส้นทาง GRV
+- [x] **S4-07** `[demo]` ตรวจรับบนเว็บและจอมือถือ + engine variance + เส้นทาง GRV — เสร็จ 2026-10-04 · 78cb3af
   - เสร็จเมื่อ: ทุกเคสใน receiving.yaml และเทสต์ AC ของ FR-P2P-006 FR-P2P-007 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S4-08** `[demo]` ยืนยันใบกำกับและการปันส่วน
+- [x] **S4-08** `[demo]` ยืนยันใบกำกับและการปันส่วน — เสร็จ 2026-10-06 · 86c1f61
   - เสร็จเมื่อ: ทุกเคสใน invoice-confirmation.yaml และเทสต์ AC ของ FR-P2P-008 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S4-09** `[demo]` ส่งออกไฟล์ Express ด้วย mapping จากชีต Settings (demo ใช้รูปแบบสมมติ) และกันแถวที่ไม่มีรหัสเจ้าหนี้ตาม BR-EXP-04
+- [x] **S4-09** `[demo]` ส่งออกไฟล์ Express ด้วย mapping จากชีต Settings (demo ใช้รูปแบบสมมติ) และกันแถวที่ไม่มีรหัสเจ้าหนี้ตาม BR-EXP-04 — เสร็จ 2026-10-06 · 575e6ca
   - เสร็จเมื่อ: เทสต์ AC1 AC2 และ AC4 ของ FR-P2P-009 ผ่าน (AC3 อยู่ใน S4-14)
   - แยกงาน: ทำเองได้
-- [ ] **S4-10** `[demo]` กระดานเอกสารค้าง และค้นหาพร้อมส่งออก audit
+- [x] **S4-10** `[demo]` กระดานเอกสารค้าง และค้นหาพร้อมส่งออก audit — เสร็จ 2026-10-06 · d2b7aba
   - เสร็จเมื่อ: เทสต์ AC ของ FR-VIS-001 FR-VIS-004 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: แยกต่อหน้าจอได้
-- [ ] **S4-11** `[demo]` framework รายงาน + KPI view ของ G-1 ถึง G-5
+- [x] **S4-11** `[demo]` framework รายงาน + KPI view ของ G-1 ถึง G-5 — เสร็จ 2026-10-06 · d2b7aba
   - เสร็จเมื่อ: เทสต์ FR-VIS-002 AC1 AC3 และ FR-VIS-003 AC1 ผ่านด้วยข้อมูลที่รู้คำตอบ
   - แยกงาน: แยก subagent ต่อ KPI ได้ แล้วตรวจสูตรกับ §11.4 ก่อนรับ
 - [ ] **S4-12** `[go-live]` job เตือนอัตรา VAT ใกล้หมดช่วง
@@ -3228,13 +3240,13 @@ features:
   - แยกงาน: ทำเองได้
 - [ ] **S4-14** `[go-live]` `[คน]` นำเข้าไฟล์ Express จริงร่วมกับฝ่ายบัญชีของลูกค้า
   - เสร็จเมื่อ: ฝ่ายบัญชียืนยันว่าไฟล์นำเข้า Express ได้ (FR-P2P-009 AC3)
-- [ ] **S4-15** `[demo]` ตรวจตัวตนผู้ขายกับสรรพากรและ DBD ผ่าน adapter โหมด stub พร้อมเติมข้อมูลบนหน้าจอและการยืนยันมือ (FR-SUP-001)
+- [x] **S4-15** `[demo]` ตรวจตัวตนผู้ขายกับสรรพากรและ DBD ผ่าน adapter โหมด stub พร้อมเติมข้อมูลบนหน้าจอและการยืนยันมือ (FR-SUP-001) — เสร็จ 2026-10-04 · 4ad3844
   - เสร็จเมื่อ: เทสต์ AC1–AC3 ของ FR-SUP-001 ผ่านด้วยโหมด stub และพิมพ์เลขผู้ขายใน seed แล้วข้อมูลถูกเติม
   - แยกงาน: ทำเองได้ · adapter ของสรรพากรกับ DBD แยกให้ subagent ละตัวได้ แล้วตรวจว่าทั้งคู่คืนรูปแบบเดียวกัน
 - [ ] **S4-16** `[go-live]` เชื่อมบริการจริงของสรรพากรและ DBD (`REGISTRY_MODE=live`) พร้อม contract test และ job ตรวจสถานะรายเดือน
   - เสร็จเมื่อ: contract test ผ่านกับคำตอบที่บันทึกจากบริการจริง เทสต์ AC4 ของ FR-SUP-001 ผ่าน และ OQ-37 ได้คำตอบแล้ว
   - แยกงาน: ทำเองได้
-- [ ] **S4-17** `[demo]` อ่านไฟล์ e-Tax (PDF/A-3 ที่ฝัง XML หรือไฟล์ XML) มาเติมฟอร์มยืนยันใบกำกับ (BR-IVC-05)
+- [x] **S4-17** `[demo]` อ่านไฟล์ e-Tax (PDF/A-3 ที่ฝัง XML หรือไฟล์ XML) มาเติมฟอร์มยืนยันใบกำกับ (BR-IVC-05) — เสร็จ 2026-10-06 · 86c1f61
   - เสร็จเมื่อ: เทสต์ AC4 ของ FR-P2P-008 ผ่านด้วยไฟล์ที่เทสต์สร้างเอง ครบทั้งไฟล์ถูกต้อง เลขผู้เสียภาษีไม่ตรง และ XML เสีย
   - แยกงาน: ทำเองได้
 - [ ] **S4-18** `[go-live]` รายงานรับของแล้วยังไม่มีใบกำกับ (FR-VIS-005)
@@ -3249,28 +3261,28 @@ features:
 
 **FR ที่ครอบคลุม:** FR-LINE-001 FR-LINE-002 FR-LINE-003 FR-LINE-004 FR-LINE-005 FR-LINE-006 FR-LINE-007 FR-AUTH-004 FR-AUTH-005 FR-NOTI-003 FR-NOTI-004 FR-DOA-006 FR-PLT-010 FR-VIS-003 FR-ADM-006 FR-ADM-007
 
-- [ ] **S5-01** `[demo]` ตั้งค่า LINE channel แบบเข้ารหัส + ปุ่มทดสอบการเชื่อมต่อ
+- [x] **S5-01** `[demo]` ตั้งค่า LINE channel แบบเข้ารหัส + ปุ่มทดสอบการเชื่อมต่อ — เสร็จ 2026-10-06 · 67c42d0
   - เสร็จเมื่อ: เทสต์ AC2–AC3 ของ FR-ADM-006 ผ่าน (ใช้ค่าจาก D-03 หรือค่าจำลองบนเครื่อง)
   - แยกงาน: ทำเองได้
-- [ ] **S5-02** `[demo]` webhook (ตรวจ signature กันซ้ำ inline หรือคิว) + `pnpm line:simulate`
+- [x] **S5-02** `[demo]` webhook (ตรวจ signature กันซ้ำ inline หรือคิว) + `pnpm line:simulate` — เสร็จ 2026-10-06 · 52027cb
   - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-005 ผ่านด้วย webhook ที่เซ็นจริงจาก `line:simulate`
   - แยกงาน: ทำเองได้
-- [ ] **S5-03** `[demo]` plugin ตรวจ LIFF ID token + `/api/liff/session` + นโยบาย session ของ LIFF
+- [x] **S5-03** `[demo]` plugin ตรวจ LIFF ID token + `/api/liff/session` + นโยบาย session ของ LIFF — เสร็จ 2026-10-06 · 72e281d
   - เสร็จเมื่อ: เทสต์ BR-LINE-01 BR-LINE-02 ผ่าน: token ปลอม aud ผิด และหมดอายุถูกปฏิเสธ
   - แยกงาน: ทำเองได้
-- [ ] **S5-04** `[demo]` ผูกบัญชีและ rich menu สองชุด
+- [x] **S5-04** `[demo]` ผูกบัญชีและ rich menu สองชุด — เสร็จ 2026-10-06 · 6fa44e6
   - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-001 FR-LINE-004 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S5-05** `[demo]` การ์ด Flex + postback + ActionToken ของ LINE + PIN
+- [x] **S5-05** `[demo]` การ์ด Flex + postback + ActionToken ของ LINE + PIN — เสร็จ 2026-10-06 · 6e9a979
   - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-002 FR-AUTH-005 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S5-06** `[demo]` หน้า LIFF ทั้งหมดใน §9.4
+- [x] **S5-06** `[demo]` หน้า LIFF ทั้งหมดใน §9.4 — เสร็จ 2026-10-06 · 8129747
   - เสร็จเมื่อ: เทสต์ AC ของ FR-LINE-003 ผ่านบนจอ 375 px · ทุกหน้าผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: แยก subagent ต่อหน้า LIFF ได้ แล้วตรวจ screenshot และเทสต์ของแต่ละหน้าก่อนรับ
-- [ ] **S5-07** `[demo]` Inngest functions: เตือนตาม SLA resume ย้ายงานตามช่วงรักษาการ และสรุปรายวัน
+- [x] **S5-07** `[demo]` Inngest functions: เตือนตาม SLA resume ย้ายงานตามช่วงรักษาการ และสรุปรายวัน — เสร็จ 2026-10-06 · 52027cb
   - เสร็จเมื่อ: เทสต์ FR-NOTI-003 AC1 AC3 · FR-DOA-006 AC3 · FR-LINE-006 ผ่านด้วย clock ปลอม
   - แยกงาน: แยกต่อ function ได้
-- [ ] **S5-08** `[demo]` การส่งต่อตาม BR-SLA-04 และช่องทางสำรองเมื่อส่ง LINE ไม่ได้
+- [x] **S5-08** `[demo]` การส่งต่อตาม BR-SLA-04 และช่องทางสำรองเมื่อส่ง LINE ไม่ได้ — เสร็จ 2026-10-06 · 70c08ff
   - เสร็จเมื่อ: เทสต์ FR-NOTI-003 AC2 และ FR-LINE-007 AC3 ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S5-09** `[go-live]` SSO Google และ Microsoft
@@ -3282,7 +3294,7 @@ features:
 - [ ] **S5-11** `[go-live]` PDPA พื้นฐาน `SensitiveAccessLog` และ job ระยะเก็บข้อมูล
   - เสร็จเมื่อ: เทสต์ AC ของ FR-PLT-010 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S5-12** `[demo]` หน้า KPI สำหรับผู้บริหาร
+- [x] **S5-12** `[demo]` หน้า KPI สำหรับผู้บริหาร — เสร็จ 2026-10-06 · d2b7aba
   - เสร็จเมื่อ: เทสต์ FR-VIS-003 AC2–AC3 ผ่าน · ผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: ทำเองได้
 - [ ] **S5-13** `[go-live]` `[คน]` รายการตรวจก่อน go-live §16.9
@@ -3348,24 +3360,24 @@ features:
 
 เส้นชัยของ demo build คือเส้นชัย A ในส่วน "เริ่มที่นี่" งานเฉพาะ demo มีดังนี้
 
-- [ ] **D-01** `[demo]` สร้างคำขอย้อนหลังจากชีต `Demo_History` ผ่าน service จริงด้วย clock ที่ย้อนเวลาตาม `daysAgo` พร้อม PO ตรวจรับ และใบกำกับตามสถานะ
+- [x] **D-01** `[demo]` สร้างคำขอย้อนหลังจากชีต `Demo_History` ผ่าน service จริงด้วย clock ที่ย้อนเวลาตาม `daysAgo` พร้อม PO ตรวจรับ และใบกำกับตามสถานะ — เสร็จ 2026-10-03 · f74650b
   - เสร็จเมื่อ: เทสต์ยืนยันว่ากระดานค้าง dashboard งบ และ KPI ได้ค่าตรงกับบรรทัด "ข้อมูลพอสำหรับฉาก dashboard" ของ `pnpm inputs:check` (งานค้างเกิน SLA งบใกล้หมด และสัดส่วนอนุมัติผ่าน LINE ของคำขอซื้อตาม G-5)
   - แยกงาน: ทำเอง เพราะต้องสร้างตามลำดับเวลา
-- [ ] **D-02** `[demo]` คู่มือตั้ง LINE ของ BCS สำหรับ demo ใน `docs/runbooks/line-demo-setup.md` และสคริปต์ `pnpm line:richmenu`
+- [x] **D-02** `[demo]` คู่มือตั้ง LINE ของ BCS สำหรับ demo ใน `docs/runbooks/line-demo-setup.md` และสคริปต์ `pnpm line:richmenu` — เสร็จ 2026-10-06 · 6fa44e6
   - เสร็จเมื่อ: คู่มือบอกทีละขั้นว่าต้องสร้างอะไรใน LINE Developers และใส่ค่าใดใน `.env` · สคริปต์รันกับค่าจำลองได้
   - แยกงาน: ทำเองได้
 - [ ] **D-03** `[demo]` `[คน]` สร้าง provider และ channel ของ BCS ตามคู่มือ D-02 แล้วใส่ค่าใน secret ของ staging
   - เสร็จเมื่อ: ปุ่มทดสอบการเชื่อมต่อบน staging ผ่านทุกข้อ
-- [ ] **D-04** `[demo]` e2e ของฉากหลักในชีต `Demo_Script` (Playwright, clock ปลอม, LINE ผ่าน `line:simulate`)
+- [x] **D-04** `[demo]` e2e ของฉากหลักในชีต `Demo_Script` (Playwright, clock ปลอม, LINE ผ่าน `line:simulate`) — เสร็จ 2026-10-06 · fb33dc2
   - เสร็จเมื่อ: `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y โดยเทสต์อ่านจำนวนฉาก ผู้ใช้ และยอดจากชีตเอง ยกเว้นขั้นที่ปรับตามแถว "ฉากที่ปรับ" ข้างบน (ฉาก 9 ขั้นส่งออก audit ใช้ `auditor`)
   - แยกงาน: แยก subagent ต่อฉากได้ แล้วตรวจว่าแต่ละฉากใช้ผู้ใช้และยอดตามชีตก่อนรับ
-- [ ] **D-05** `[demo]` ตรวจดีไซน์ทุกหน้าที่อยู่ในฉาก demo ตาม §9.9
+- [x] **D-05** `[demo]` ตรวจดีไซน์ทุกหน้าที่อยู่ในฉาก demo ตาม §9.9 — เสร็จ 2026-10-06 · e04b178
   - เสร็จเมื่อ: มี screenshot 375 px และ 1440 px ของทุกหน้าใน `docs/design-review/` · ตารางเดียว (หน้า, สิ่งที่ห้ามใช้ที่พบ, แก้แล้วหรือยัง) ไม่มีข้อค้าง · axe ไม่มี violation ระดับ serious หรือ critical
   - แยกงาน: แยก subagent ต่อหน้าจอ ให้แต่ละตัวส่ง screenshot และรายการที่พบ แล้วตรวจภาพเองก่อนรับ
-- [ ] **D-06** `[demo]` audit ทั้งโค้ดเบสก่อน demo ตามรายการห้ามทำใน §17.3
+- [x] **D-06** `[demo]` audit ทั้งโค้ดเบสก่อน demo ตามรายการห้ามทำใน §17.3 — เสร็จ 2026-10-06 · e47d7d2
   - เสร็จเมื่อ: ตารางเดียว (โฟลเดอร์, กฎ, ผ่านหรือไม่, หลักฐาน) ไม่มีข้อไม่ผ่าน
   - แยกงาน: แยก subagent ต่อโฟลเดอร์ใน `src/` เมื่อรายงานกลับให้ตรวจหลักฐาน (ไฟล์และบรรทัด) ก่อนรับ
-- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง
+- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง — ติดอยู่: "เสร็จเมื่อ" ต้องรันคำสั่ง reset บน staging ซึ่งรอบัญชี P0-05 ถึง P0-08 · runbook เขียนแล้ว (ลำดับฉาก บัญชีผู้ใช้ คำสั่ง `pnpm demo:reset` แผนสำรอง) และ reset บนเครื่องกับ `pnpm inputs:check` ผ่าน
   - เสร็จเมื่อ: คำสั่ง reset ใน runbook รันบน staging แล้วข้อมูลกลับเป็นสถานะก่อน demo และ `pnpm inputs:check` ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **D-08** `[demo]` `[คน]` ซ้อม demo บนมือถือจริงตาม runbook 1 รอบ รวม LINE และอัดวิดีโอสำรองฉาก 1–3
@@ -3390,16 +3402,16 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-03** `[demo]` เพิ่ม event `auth.login_locked` และ `member.session_revoked` ในแคตตาล็อก §10.2 · พบระหว่าง S1-07 — เสร็จ 2026-10-03 · 43d8ad4
   - เสร็จเมื่อ: §10.2 มีทั้งสองชนิดและเทสต์ schema ของ event ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **NEW-04** `[demo]` trigger append-only และ REVOKE UPDATE/DELETE ของ `BudgetLedgerEntry` ตาม §6.3 ข้อ 1–2 ใน migration ของ S3-01 · พบระหว่าง NEW-01 (เขียน ADR-020)
+- [x] **NEW-04** `[demo]` trigger append-only และ REVOKE UPDATE/DELETE ของ `BudgetLedgerEntry` ตาม §6.3 ข้อ 1–2 ใน migration ของ S3-01 · พบระหว่าง NEW-01 (เขียน ADR-020) — เสร็จ 2026-10-03 · c3c54f7
   - เสร็จเมื่อ: ด่าน db ของ `pnpm verify` ยืนยันว่า `bcs_app` UPDATE และ DELETE `BudgetLedgerEntry` ไม่ได้
   - แยกงาน: ทำเองได้ (ทำพร้อม S3-01)
 - [ ] **NEW-05** `[go-live]` trigger append-only และ REVOKE UPDATE/DELETE ของ `EventSeal` ตาม §6.3 ข้อ 1–2 ใน migration ของ S5-14 · พบระหว่าง NEW-01 (เขียน ADR-020)
   - เสร็จเมื่อ: ด่าน db ของ `pnpm verify` ยืนยันว่า `bcs_app` UPDATE และ DELETE `EventSeal` ไม่ได้
   - แยกงาน: ทำเองได้ (ทำพร้อม S5-14)
-- [ ] **NEW-06** `[demo]` หน้าเว็บตั้งรักษาการของตัวเองใน `/settings/*` (§9.1 · ส่วนเว็บของ FR-DOA-006 AC2 · หน้า LIFF `/liff/delegation` สร้างใน S5-06) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01
+- [x] **NEW-06** `[demo]` หน้าเว็บตั้งรักษาการของตัวเองใน `/settings/*` (§9.1 · ส่วนเว็บของ FR-DOA-006 AC2 · หน้า LIFF `/liff/delegation` สร้างใน S5-06) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01 — เสร็จ 2026-10-03 · 2bb3617
   - เสร็จเมื่อ: เทสต์ AC2 ของ FR-DOA-006 ส่วนหน้าเว็บผ่าน และหน้าผ่านขั้นตอนงานหน้าจอ §9.9
   - แยกงาน: ทำเองได้
-- [ ] **NEW-07** `[demo]` job แจ้งเตือนแล้วลบร่างคำขอที่ไม่ได้แก้ 90 วัน (FR-INT-006 AC3) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01
+- [x] **NEW-07** `[demo]` job แจ้งเตือนแล้วลบร่างคำขอที่ไม่ได้แก้ 90 วัน (FR-INT-006 AC3) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01 — เสร็จ 2026-10-03 · ed6af8e
   - เสร็จเมื่อ: เทสต์ AC3 ของ FR-INT-006 ผ่านด้วย clock ปลอม
   - แยกงาน: ทำเองได้
 - [ ] **NEW-08** `[go-live]` รายงาน R-01 ถึง R-07 หลัง OQ-09 ปิด (FR-VIS-002 AC2) · พบระหว่างทำ `docs/traceability/ac-map.yaml` ใน S1-01
@@ -3416,6 +3428,169 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้
 - [x] **NEW-12** `[demo]` เพิ่ม event `organization.settings_updated` ในแคตตาล็อก §10.2 เพราะการบันทึก `Organization.settings` (FR-PLT-001 AC2) เป็น command ที่ต้องมี Event · บันทึกได้เฉพาะส่วนที่ §2.4 มีสิทธิ์รองรับ (`businessCalendar` ด้วย `admin.calendar` · `numbering` ด้วย `admin.numbering`) · พบระหว่าง S1-13 — เสร็จ 2026-10-03 · 594ac37
   - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/organization.ts` · เทสต์ AC2 ของ FR-PLT-001 ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-13** `[demo]` เปลี่ยนสถานะ DOA ฉบับก่อนหน้าเป็น `SUPERSEDED` เมื่อฉบับใหม่ที่อนุมัติไว้ล่วงหน้าถึงเวลามีผล (§6.4 `doa.supersede`) · ตอนอนุมัติ ถ้าฉบับใหม่มีผลทันที service เปลี่ยนให้แล้ว ส่วนฉบับที่มีผลภายหลัง การคำนวณเส้นทางถูกต้องอยู่แล้วเพราะเลือกฉบับตามช่วงเวลา (`versionAt`) แต่สถานะที่หน้าประวัติแสดงยังเป็น `PUBLISHED` จนกว่างานตามเวลาจะเปลี่ยน · พบระหว่าง S2-10 — เสร็จ 2026-10-03 · f25421a
+  - เสร็จเมื่อ: เทสต์ที่อนุมัติฉบับที่มีผลในวันหน้า แล้วเลื่อนนาฬิกาธุรกิจถึงวันนั้น พบว่าฉบับก่อนหน้าเป็น `SUPERSEDED` และมี event `doa_version.superseded`
+  - แยกงาน: ทำพร้อมงานตามเวลาใน S5-07
+- [x] **NEW-14** `[demo]` เพิ่ม event `cost_center.created` และ `cost_center.updated` ในแคตตาล็อก §10.2 เพราะ `admin.orgStructure.editBasic` แก้ cost center ได้ทันทีโดยต้องมี event (§2.4 · FR-ADM-002 AC1) · พบระหว่าง S2-16 — เสร็จ 2026-10-03 · f25421a
+  - เสร็จเมื่อ: §10.2 มีทั้งสองชนิด · schema ของ event อยู่ใน `src/server/events/schemas/org-structure.ts` · เทสต์ AC1 ของ FR-ADM-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-16)
+- [ ] **NEW-15** `[go-live]` capability และหน้าจอให้ PLATFORM_ADMIN ยืนยันผู้มีอำนาจลงนามตามสัญญา (§2.2 · BR-DOA-19 · `/platform/tenants` ใน §9.1) เพราะ §2.4 ยังไม่มี capability ของเรื่องนี้ ระหว่างรอ seed ตั้งผู้ลงนามขององค์กรตัวอย่าง (ภาคผนวก A) · พบระหว่าง S2-16 (ADR-042) — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันชื่อ capability และกติกา (PLATFORM_ADMIN ใส่อีเมลตามสัญญาโดยไม่เห็นรายชื่อสมาชิก) แล้ว §2.4 มี capability นี้ และเทสต์ที่ PLATFORM_ADMIN ตั้งผู้ลงนามได้โดยไม่เห็นข้อมูลธุรกิจผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-16** `[demo]` เพิ่ม event `notification.read` ในแคตตาล็อก §10.2 เพราะการทำเครื่องหมายว่าอ่านแล้วในกระดิ่ง (FR-NOTI-001 AC1) เป็น command ที่ต้องมี Event · สมาชิกทำได้กับการแจ้งเตือนของตนเองเท่านั้น (`self.notificationPrefs` · ตนเอง) · พบระหว่าง S2-14 — เสร็จ 2026-10-03 · 33cc2e8
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema ของ event อยู่ใน `src/server/events/schemas/notification.ts` · เทสต์ AC1 และ AC3 ของ FR-NOTI-001 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-14)
+- [x] **NEW-17** `[demo]` เพิ่ม event `request.draft_expiry_notified` ในแคตตาล็อก §10.2 เพราะการแจ้งผู้ขอว่าร่างที่ไม่ได้แก้จะถูกลบ (FR-INT-006 AC3) เป็น command ที่ต้องมี Event · การลบร่างใช้การยกเลิกโดยระบบตาม §6.4 (`request.cancelled` เหตุผล `STALE_DRAFT`) จึงเก็บประวัติไว้ · แจ้งเมื่อไม่ได้แก้ 83 วัน ลบเมื่อครบ 90 วันและหลังแจ้งอย่างน้อย 7 วัน · พบระหว่าง NEW-07 — เสร็จ 2026-10-03 · ed6af8e
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/request.ts` · เทสต์ AC3 ของ FR-INT-006 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม NEW-07)
+- [x] **NEW-18** `[demo]` ฟังก์ชันคำนวณภาษีหัก ณ ที่จ่าย (`src/core/wht` · BR-WHT-01) และรับของแล้วยังไม่มีใบกำกับ (`src/core/grni` · BR-RPT-01) พร้อม runner ของ `tests/golden/wht.yaml` และ `tests/golden/grni.yaml` เพื่อให้ golden ครบ 19 ไฟล์ที่ด่าน golden ของ `pnpm verify --strict` ต้องการ · ไม่รวมหน้ารายงานและการส่งออกของ S4-18 ซึ่งยังเป็น `[go-live]` · พบระหว่าง S4-08 — เสร็จ 2026-10-03 · bb81f96
+  - เสร็จเมื่อ: ด่าน golden ของ `pnpm verify --strict` ผ่านครบ 19 ไฟล์ · GC-WHT-01 และ GC-RPT-01 ถึง GC-RPT-05 ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-19** `[demo]` ด่าน `coverage` ใน `pnpm verify` ตรวจ branch coverage 100% ของ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}` ตาม §7.0 ข้อ 4 และ NFR-MNT-02 · พบระหว่าง NEW-18 — เสร็จ 2026-10-03 · e59c8e5
+  - เสร็จเมื่อ: ด่าน coverage ของ `pnpm verify` ผ่านที่ 100% branch และ FAIL เมื่อมี branch ที่ไม่มีเทสต์ (ตัวอย่างผิดที่ต้องจับได้)
+  - แยกงาน: ทำเองได้
+- [x] **NEW-20** `[demo]` เพิ่ม event `request.supplier_assigned` ในแคตตาล็อก §10.2 เพราะการที่ PROCUREMENT เลือกผู้ขายให้บรรทัดคำขอในกอง (FR-P2P-001 AC2) เป็น command ที่ต้องมี Event · หนึ่ง event ต่อคำขอที่บรรทัดเปลี่ยน · พบระหว่าง S4-03 — เสร็จ 2026-10-04 · b835cc4
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/procurement.ts` · เทสต์ AC2 ของ FR-P2P-001 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
+- [x] **NEW-21** `[demo]` เพิ่ม event `consolidation_run.completed` ในแคตตาล็อก §10.2 เพราะรอบรวม PR ทุกรอบบันทึก `ConsolidationRun` (FR-P2P-002 AC2) รวมรอบที่ไม่มีร่าง PO จึงต้องมี Event ของตัวเอง · พบระหว่าง S4-03 — เสร็จ 2026-10-04 · b835cc4
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 และ AC3 ของ FR-P2P-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-03)
+- [x] **NEW-22** `[demo]` เพิ่ม event `po.updated` ในแคตตาล็อก §10.2 เพราะการแก้ร่าง PO (ราคา จำนวน เงื่อนไข หมายเหตุ เอาบรรทัดออก FR-P2P-003 AC2) เป็น command ที่ต้องมี Event · พบระหว่าง S4-04 — เสร็จ 2026-10-04 · 5a813bf
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-003 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-04)
+- [x] **NEW-23** `[demo]` เพิ่มการเปลี่ยนสถานะที่ §6.4 ยังไม่มี: คำขอที่ PO ที่อนุมัติแล้วถูกยกเลิกแบบ `RETURN_TO_POOL` (BR-BUD-06) กลับเป็น PARTIALLY_ORDERED หรือ APPROVED ตามจำนวนที่ยังสั่งอยู่ เพื่อให้บรรทัดกลับเข้ากองได้จริง · PO ที่ GR ถูกกลับรายการกลับเป็น PARTIALLY_RECEIVED หรือ SENT ตามจำนวนที่ยังรับไว้ · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-04 — เสร็จ 2026-10-04 · 5a813bf
+  - เสร็จเมื่อ: ตาราง §6.4 มีแถวเหล่านี้ · `src/core/state-machines` มี transition ตรงกัน · เทสต์ที่วนทุกคู่ (สถานะ, command) และเทสต์ AC1 ของ FR-P2P-010 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-04 และ S4-07)
+- [x] **NEW-24** `[demo]` เพิ่ม event `report_schedule.created` ในแคตตาล็อก §10.2 เพราะการตั้งรอบส่งรายงานทางอีเมล (FR-VIS-002 AC1 · `report.schedule`) เป็น command ที่ต้องมี Event · การส่งแต่ละรอบบันทึกเป็น `export.generated` ของไฟล์รายงาน · พบระหว่าง S4-11 — เสร็จ 2026-10-06 · 0ab6cd1
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/report-schedule.ts` · เทสต์ AC1 ของ FR-VIS-002 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-11)
+- [x] **NEW-25** `[demo]` เพิ่ม event `po.send_bounced` ในแคตตาล็อก §10.2 และแถวการแจ้งเตือน `po.send_bounced` ถึง PROCUREMENT ใน §10.1 เพราะอีเมล PO ที่ตีกลับ (FR-P2P-005 AC2) บันทึกการตีกลับบน PO แต่สถานะคงเดิม จึงต้องมี Event ของตัวเอง · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S4-06 (ADR-043) — เสร็จ 2026-10-06 · fc57a66
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/purchase-order.ts` · เทสต์ AC2 ของ FR-P2P-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S4-06)
+- [x] **NEW-26** `[demo]` เพิ่ม event `request_type.updated` ในแคตตาล็อก §10.2 เพราะการเปิดปิดและเรียงลำดับประเภทคำขอในแคตตาล็อก (FR-ADM-005 AC2) เป็น command ที่ต้องมี Event · หนึ่ง event ต่อประเภทที่เปลี่ยน (code changed active sortOrder) · พบระหว่าง S2-13 — เสร็จ 2026-10-03 · 2bb3617
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/request-type.ts` · เทสต์ AC2 ของ FR-ADM-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-13)
+- [x] **NEW-27** `[demo]` เพิ่ม event `request.doa_gap_reported` ในแคตตาล็อก §10.2 และให้แถว `admin.doa_gap` ของ §10.1 ครอบคลุมทั้ง `DOA_NOT_CONFIGURED` `APPROVER_NOT_FOUND` และ `NO_HIGHER_AUTHORITY` ตาม FR-DOA-003 AC3 · การแจ้งเป็นคำสั่งที่สอง `request.report_doa_gap` ในธุรกรรมของตัวเองหลังการส่งที่ถูกปฏิเสธ (การส่งย้อนกลับทั้งหมด) และบอกผู้ขอว่าแจ้งผู้ดูแลกี่คน · การแนบและถอดไฟล์ของคำขอเป็น `request.drafted` ที่มี `data.file` · พบระหว่าง S2-11 — เสร็จ 2026-10-03 · 2ad2034
+  - เสร็จเมื่อ: §10.2 มี event นี้ · เทสต์ AC3 ของ FR-DOA-003 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S2-11)
+- [x] **NEW-28** `[demo]` เมื่อการเปลี่ยนผู้ดำรงตำแหน่งมีผล งานค้างทุกงานของตำแหน่งนั้น (`resolvedFrom` ตรงตำแหน่ง) ย้ายไปผู้ดำรงคนใหม่ รวมงานที่รอผู้ขอตอบ (INFO_REQUESTED คงสถานะ เวลาที่เหลือ และคำถามที่ยังไม่ตอบ) งานที่ผู้รักษาการถือแทนผู้ดำรงเดิม และงานที่ค้างกับผู้ดำรงเดิมหลังตำแหน่งว่าง · ผลกระทบก่อนส่งแยกงานที่ย้าย (`openTasks`) กับงานที่ยังอยู่เมื่อตำแหน่งว่าง (`openTasksStay`) · preview ที่ขัด BR-SOD-08 บันทึก `security.sod_blocked` · พบระหว่างรีวิวหน้าจอ S2-13 (BR-DOA-17 · FR-ADM-002 AC3 · FR-DOA-007 AC2 · ADR-042) — เสร็จ 2026-10-03 · 9e51ed3
+  - เสร็จเมื่อ: `tests/integration/admin-org-screens.test.ts` [FR-ADM-002/AC3] และ [FR-DOA-007/AC2] ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-29** `[go-live]` จัดการผู้ติดตามคำขอ (`RequestFollower`) ให้ผู้ขอเพิ่มและเอาผู้ติดตามออกได้พร้อม event เพราะ FR-INT-008 AC2 ให้ผู้ติดตามเห็นสถานะเดียวกับผู้ขอ แต่ยังไม่มีหน้าจอหรือ service ที่เพิ่มผู้ติดตาม (หน้าคำขอบอกให้ติดต่อผู้ขอหรือผู้ดูแลแทน) · พบระหว่าง S2-12
+  - เสร็จเมื่อ: เทสต์ AC2 ของ FR-INT-008 ผ่านโดยผู้ติดตามถูกเพิ่มผ่าน service
+  - แยกงาน: ทำเองได้
+- [x] **NEW-30** `[demo]` เพิ่ม event `auth.pin_set` ในแคตตาล็อก §10.2 เพราะการตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม (FR-AUTH-005 AC1 · `self.pin`) เปลี่ยนข้อมูลของ member จึงต้องมี Event · event ไม่มีค่า PIN หรือ hash · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่างวางแผน S5 — เสร็จ 2026-10-06 · 6e9a979
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/auth.ts` · เทสต์ AC1 ของ FR-AUTH-005 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-05)
+- [x] **NEW-31** `[demo]` เพิ่ม event `member.notification_prefs_updated` ในแคตตาล็อก §10.2 เพราะการปิดสรุปรายวันของตนเอง (FR-LINE-006 AC3 · `self.notificationPrefs`) เปลี่ยน `Member.notificationPrefs` จึงต้องมี Event · การแจ้งงานอนุมัติและงานเกิน SLA ยังปิดไม่ได้ (BR-NOTI-04) · พบระหว่างวางแผน S5 — เสร็จ 2026-10-06 · 67c42d0
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/member.ts` · เทสต์ AC3 ของ FR-LINE-006 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-07)
+- [x] **NEW-32** `[demo]` อนุมัติ variance `CLOSE_SHORT` ต้องคิดจำนวนที่ขาดใหม่ ณ เวลาอนุมัติ เพราะ service ยังรับของระหว่างรออนุมัติได้ แล้วยกเลิกจำนวนตามที่ขาดตอนขอ จึงคืนถือรวมของที่มาถึงแล้วซึ่งขัด BR-BUD-06 (คืนเฉพาะส่วนที่ไม่ได้รับ) · ของที่รับระหว่างรอไม่นับเป็นยกเลิก และรับ + ยกเลิกไม่เกินจำนวนสั่ง · ทำให้ service เป็นไปตามกฎเดิม ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่างทำหน้าจอ S4-07 — เสร็จ 2026-10-04 · 78cb3af
+  - เสร็จเมื่อ: เทสต์ที่รับของระหว่าง CLOSE_SHORT รออนุมัติแล้วอนุมัติ ได้จำนวนยกเลิกเท่าที่ยังขาด และ ledger คืนเฉพาะส่วนที่ไม่ได้รับ ผ่านภายใต้ [FR-P2P-010/AC3]
+  - แยกงาน: ทำเองได้ (หลังรวมหน้าจอของ S4-07)
+- [x] **NEW-33** `[demo]` การค้นและส่งออก audit ต้อง mask เลขบัตรประชาชนใน `data` ของ event สำหรับผู้อ่านที่เห็นแบบ mask (BR-AUTH-04) เพราะ event `supplier.created` และ `supplier.registry_checked` ของผู้ขายบุคคลธรรมดาเก็บเลขผู้เสียภาษีซึ่งคือเลขบัตรประชาชน ขณะที่หน้าผู้ขาย mask ไว้แล้ว · ทำตามกฎเดิม ไม่เปลี่ยนสิทธิ์ · พบระหว่างทำหน้าจอ S4-02 — เสร็จ 2026-10-06 · 60bf45e
+  - เสร็จเมื่อ: เทสต์ที่ AUDITOR ค้นและส่งออก event ของผู้ขายบุคคลธรรมดาแล้วเห็นเลขแบบ mask ผ่านภายใต้ [FR-VIS-004/AC2]
+  - ผล: ไฟล์ส่งออก audit บอกใน `ExportJob.params.wholeNationalIds` ว่ามีเลขเต็มหรือไม่ ไฟล์ที่มีเลขเต็มและไฟล์ที่ทำก่อนการแก้นี้ดาวน์โหลดได้เฉพาะผู้ที่เห็นเลขเต็ม เหมือนหลักฐานยืนยันตัวตนของผู้ขายบุคคลธรรมดา (ADR-051 เรื่องสิทธิ์รอยืนยัน)
+  - แยกงาน: ทำเองได้ (หลังรวมหน้าจอของ S4-10)
+- [x] **NEW-34** `[demo]` เพิ่ม event `notification.digest_sent` ในแคตตาล็อก §10.2 เพราะสรุปรายวัน (FR-LINE-006 · job `daily-digest`) สร้าง Notification ให้แต่ละคนจึงเป็น command ที่ต้องมี Event (INV-EVT-02) · data มีแต่จำนวน ไม่มีข้อมูลต้องห้าม · พบระหว่าง S5-07 — เสร็จ 2026-10-06 · 52027cb
+  - เสร็จเมื่อ: §10.2 มี event นี้ · schema อยู่ใน `src/server/events/schemas/notification.ts` · เทสต์ AC1 ของ FR-LINE-006 ผ่าน
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-07)
+- [x] **NEW-35** `[demo]` ยกเลิกรักษาการที่กำลังมีผลต้องย้ายงานค้างของผู้มอบจากผู้รักษาการกลับทันที (function `delegation-revoked` ใน §4.6) เพราะ BR-DLG-04 ย้ายงานกลับเฉพาะตอนจบช่วง ผู้รักษาการที่ถูกยกเลิกจึงยังตัดสินงานที่ค้างอยู่ได้ · ไม่ให้อำนาจใครเพิ่ม · พบระหว่าง S5-07 — เสร็จ 2026-10-06 · 52027cb
+  - เสร็จเมื่อ: §4.6 มี function นี้ · เทสต์ที่ยกเลิกรักษาการกลางช่วงแล้วงานกลับไปผู้มอบผ่านภายใต้ [FR-DOA-006/AC3]
+  - แยกงาน: ทำเองได้ (ทำพร้อม S5-07)
+- [ ] **NEW-36** `[go-live]` ที่เก็บ baseline ของ KPI จาก Phase 0 ในระบบ และใครบันทึก (ต่อจาก P0-09) เพราะ FR-VIS-003 AC2 ให้หน้า KPI เทียบกับ baseline แต่ spec ไม่ได้ระบุที่เก็บ · ระหว่างนี้หน้า KPI บอกว่ายังไม่มี baseline · ค่าเป็นตัวเลขของลูกค้า ห้ามเขียนในโค้ด · พบระหว่างทำ S5-12
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันที่เก็บและสิทธิ์บันทึก แล้วเทสต์ AC2 ของ FR-VIS-003 ผ่านด้วย baseline ที่บันทึกจริง
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-37** `[go-live]` หยุดรอบส่งรายงานทางอีเมลได้ พร้อม event `report_schedule.deactivated` ในแคตตาล็อก §10.2 เพราะตอนนี้ตั้งรอบได้อย่างเดียว ผู้รับจะได้อีเมลต่อไปเรื่อย ๆ · พบระหว่างทำ S4-11
+  - เสร็จเมื่อ: §10.2 มี event นี้ · เทสต์ที่ผู้ตั้งหรือผู้มีสิทธิ์ `report.schedule` หยุดรอบแล้วไม่มีการส่งรอบถัดไปผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-38** `[go-live]` คำนวณ KPI ให้ทันกับข้อมูลจริง: ตอนนี้ `collectKpis` อ่านฐานต่อการตัดสินแต่ละครั้งในธุรกรรมที่หมดเวลาใน 5 วินาที หน้าจะล้มเมื่อช่วงเวลามีการตัดสินราว 500 ครั้ง · โหลดงาน เส้นทาง คำขอ และ PO ครั้งเดียวต่อช่วง จำกัดความยาวช่วง และตั้งเวลาของธุรกรรมอ่าน · พบระหว่างทำ S5-12
+  - เสร็จเมื่อ: เทสต์เวลาด้วยการตัดสินสังเคราะห์หลายพันครั้งผ่าน และเทสต์ AC1 ของ FR-VIS-003 ยังผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-39** `[go-live]` ถอนฉบับร่าง DOA ที่ยังไม่ส่ง: คำสั่ง `doa.discard` (DRAFT → WITHDRAWN) ภายใต้ `admin.doa.draft` พร้อม schema ของ `doa_version.withdrawn` (อยู่ใน §10.2 แล้ว) และปุ่มถอนที่ต้องยืนยัน เพราะ §6.4 ยังไม่มีทางออกจาก DRAFT และตัวแก้บันทึกเป็นฉบับเลขใหม่ทุกครั้ง ฉบับร่างที่ไม่ใช้จึงค้างในรายการ · พบระหว่างทำ S3-09
+  - เสร็จเมื่อ: §6.4 มีแถวนี้ · เทสต์ที่ถอนฉบับร่างแล้วไม่อยู่ในรายการที่ส่งได้ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-40** `[go-live]` ทิ้งร่าง PO: คำสั่งที่พาร่าง PO ไป CANCELLED แล้วคืนบรรทัดเข้ากองรอจัดซื้อ พร้อมแถวใน §6.4 เพราะตอนนี้ร่างออกได้ทางเดียวคือส่งขออนุมัติ บรรทัดของร่างที่ไม่ใช้จึงไม่กลับเข้ากอง · พบระหว่างทำหน้าจอ S4-04
+  - เสร็จเมื่อ: §6.4 มีแถวนี้ · เทสต์ที่ทิ้งร่างแล้วบรรทัดกลับเข้ากองผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-41** `[demo]` หน้าตัดสินบน LIFF ของงาน DOA_VERSION แสดง diff ตำแหน่งที่ได้หรือเสียอำนาจ และตารางผลที่ขอบ แล้วส่ง `boundaryTableConfirmed` กับ `boundaryBaselineId` ตอนอนุมัติ (FR-DOA-009 AC3 · BR-DOA-15) เพราะ service ปฏิเสธการอนุมัติฉบับที่มีตารางผลที่ขอบโดยไม่ติ๊กทุกช่องทาง (`BOUNDARY_NOT_CONFIRMED`) · พบระหว่างทำ S3-09 — เสร็จ 2026-10-06 · 3970d8f
+  - เสร็จเมื่อ: เทสต์ e2e บน LIFF 375 px ที่อนุมัติไม่ได้ก่อนติ๊ก แล้วอนุมัติได้หลังติ๊กพร้อม step-up ผ่าน
+  - แยกงาน: ทำพร้อม S5-06
+- [ ] **NEW-42** `[go-live]` ผูกการติ๊กตารางผลที่ขอบของผู้ร่างกับฉบับที่ใช้เทียบ เหมือนฝั่งผู้อนุมัติ (ส่ง `boundaryBaselineId` กับ `doa.submit` แล้วปฏิเสธ `BOUNDARY_TABLE_CHANGED` เมื่อฉบับที่ใช้เทียบเปลี่ยนหลังเปิดหน้า) · พบระหว่างทำ S3-09
+  - เสร็จเมื่อ: เทสต์ที่ฉบับที่ใช้เทียบเปลี่ยนระหว่างร่างแล้วการส่งถูกปฏิเสธผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-43** `[demo]` ไฟล์รายงาน (ExportJob ชนิด REPORT) ดาวน์โหลดได้เฉพาะผู้ที่ `report.view` ครอบขอบเขตที่ไฟล์สร้าง (`ExportJob.params.scope`) เพราะ policy ของไฟล์ส่งออกเดิมให้ทุกคนที่มี `report.view` ในขอบเขตใดก็ได้ หัวหน้าแผนกที่รู้ id ไฟล์จึงโหลดรายงานทั้งองค์กรได้ (FR-VIS-002 AC3) · ทำตามกฎเดิม ไม่เปลี่ยนสิทธิ์ · พบจากการรีวิว S4-11 — เสร็จ 2026-10-06 · e6cb82e
+  - เสร็จเมื่อ: เทสต์ที่หัวหน้าแผนกโหลดไฟล์รายงานทั้งองค์กรแล้วถูกปฏิเสธ และผู้อ่านทั้งองค์กรโหลดได้ ผ่านภายใต้ [FR-VIS-002/AC3]
+  - แยกงาน: ทำเองได้ (หลังรวมหน้าจอของ S4-11)
+- [ ] **NEW-44** `[go-live]` ตรวจพฤติกรรมของ LINE จริงหลัง D-03 แล้วปรับโค้ดให้ตรง: push ถึงผู้ใช้ที่บล็อกหรือไม่ได้เพิ่ม OA ตอบอะไร · ข้อความ 429 เมื่อโควตารายเดือนหมด · หลังบล็อกแล้วเลิกบล็อก เมนู LINKED กลับมาไหม · `linkRichMenuToUser` กับผู้ที่ไม่ใช่เพื่อนตอบอะไร · ข้อความต้อนรับถึงไหมเมื่อผูกก่อนเพิ่ม OA · ระหว่างรอ ทุกกรณีที่ไม่แน่ใจถอยไปส่งอีเมล (ADR-045 ADR-049 ADR-050) · พบระหว่าง S5-01 S5-04 S5-08
+  - เสร็จเมื่อ: ผลทั้ง 5 ข้อบันทึกใน `docs/runbooks/line-demo-setup.md` · `recipientRefused` `MONTHLY_LIMIT_MESSAGE` และคำตอบของ fake LINE ตรงกับของจริง พร้อมเทสต์
+  - แยกงาน: ทำได้หลัง D-03
+- [ ] **NEW-45** `[go-live]` รหัสผูก LINE ใหม่ทำให้รหัสเก่าที่ยังไม่ใช้หมดอายุ เพราะรหัสลงชื่อและบันทึกเมื่อใช้เท่านั้น (ADR-049) ตอนนี้มีแต่การยกเลิกผูกที่ทำให้รหัสก่อนหน้าใช้ไม่ได้ · เพิ่ม `Member.lineLinkCodesValidFrom` ด้วย migration แบบเพิ่มคอลัมน์ · พบระหว่างรีวิว S5-04
+  - เสร็จเมื่อ: เทสต์ที่ออกรหัสใหม่แล้วรหัสเก่าใช้ไม่ได้ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-46** `[demo]` หน้าคำขอแสดงผู้ตัดสินของขั้นที่ถูกส่งต่อให้ตรงกัน (BR-SLA-04 · FR-INT-008 AC1): `routeOf` ใน `src/server/queries/requests.ts` ใช้งานสุดท้ายของขั้น (ของผู้ร่วมพิจารณา) แม้ผู้รับงานเดิมตัดสินก่อน ส่วน "รอใคร" ใช้งานที่เปิดงานแรก ชื่อในเส้นทางกับ "รอใคร" จึงไม่ตรงกัน · แสดงผู้ที่ตัดสินจริง และทุกงานที่ยังเปิดของขั้น · พบระหว่างรีวิว S5-08 — เสร็จ 2026-10-06 · 70c08ff
+  - เสร็จเมื่อ: เทสต์ที่ขั้นถูกส่งต่อแล้วผู้รับงานเดิมหรือผู้ร่วมพิจารณาตัดสินก่อน หน้าคำขอแสดงชื่อผู้ตัดสินจริงและ "รอใคร" ตรงกัน ผ่านภายใต้ [FR-INT-008/AC1]
+  - แยกงาน: ทำเองได้
+- [x] **NEW-47** `[demo]` ผู้ร่วมพิจารณาในทุกขั้นของเส้นทาง (BR-SLA-04 "ใครตัดสินก่อนได้ก่อน"): เมื่อขั้นเสร็จ คำสั่งตัดสินทั้ง 4 ทาง (คำขอ นโยบาย PO ผลต่างการตรวจรับ) ยกเลิกงานอื่นที่ยังเปิดของขั้นนั้นด้วย `approval_task.cancelled` แล้วเปิดการส่งต่อทุกขั้น · ร่างแรกของ S5-08 ส่งต่อเฉพาะขั้นสุดท้าย (`NOT_LAST_STEP`) เพราะงานที่สองที่ค้างบนขั้นแรกอาจอนุมัติเอกสารข้ามขั้นหลังได้ · ไม่ให้อำนาจใครเพิ่ม · พบระหว่างรีวิว S5-08 — เสร็จ 2026-10-06 · 70c08ff
+  - เสร็จเมื่อ: เทสต์ที่ขั้นแรกถูกส่งต่อ ผู้รับงานเดิมตัดสินแล้วงานของผู้ร่วมพิจารณาถูกยกเลิก การตัดสินที่ช้ากว่าถูกปฏิเสธ และขั้นถัดไปเริ่มตามปกติ ผ่านภายใต้ [FR-NOTI-003/AC2]
+  - แยกงาน: ทำพร้อม S5-08
+- [ ] **NEW-48** `[go-live]` ระยะเก็บแถว `LineWebhookEvent` (LINE user id reply token และข้อมูล postback ต่อ event) ใน job เก็บรักษาของ S5-11 พร้อม index (organizationId, type, receivedAt) สำหรับหา follow หรือ unfollow ล่าสุด · ระยะเวลาเป็นการตัดสินเรื่องข้อมูลส่วนบุคคล (PDPA) · พบระหว่าง S5-02 — รอยืนยัน
+  - เสร็จเมื่อ: ระยะเก็บอยู่ใน spec หรือ settings · เทสต์ที่ job ลบแถวที่เกินระยะผ่าน
+  - แยกงาน: ทำพร้อม S5-11
+- [ ] **NEW-49** `[go-live]` ช่องทางของการแจ้งเตือนที่ §10.1 ยังไม่ระบุ: `po.approved` อยู่ใน §10.1 เป็น "ในระบบ · LINE" แต่ตอนนี้ส่ง LINE เมื่อผูกและอีเมลเมื่อไม่ผูกแบบ S4 · `request.draft_expiring` `delegation.created` `delegation.revoked` `approval_task.delegate_conflict` `position.vacant` และผลอนุมัติ DOA และการเปลี่ยนโครงสร้างอำนาจ ส่งทางอีเมลอย่างเดียว · ผู้ใช้ตัดสินว่าอันไหนส่ง LINE ได้ แล้วเพิ่มแถวใน §10.1 (ADR-050) · พบระหว่าง S5-08 — รอยืนยัน
+  - เสร็จเมื่อ: §10.1 มีแถวครบทุก templateKey ที่ระบบใช้ · เทสต์เลือกช่องทางตามตารางผ่าน
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [ ] **NEW-50** `[go-live]` แปลงคำขอที่ราคารวม VAT เป็นบรรทัดใบสั่งซื้อโดยไม่ปัดนอก BR-MONEY-02: ร่างแรกปัดราคาต่อหน่วยก่อน VAT ทำให้ PO สูงกว่ายอดที่อนุมัติได้ (3 × 100.00 รวม VAT ได้ PO 300.01) · ระหว่างรอ บรรทัดของคำขอที่ราคารวม VAT ค้างในกองรอจัดซื้อพร้อมเหตุผล ไม่ถูกรวมเป็น PO · ทางเลือก (ก) PO แบบราคารวม VAT ตามคำขอ แยกกลุ่มตามฐาน VAT ใน BR-CONS-01 และปรับการคิดงบ ตรวจรับ และปิด PO ให้ใช้ยอดก่อน VAT ของบรรทัด (ข) เพิ่มจุดปัดที่ 5 ใน BR-MONEY-02 · พบระหว่าง D-06 — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้เลือกทางแล้ว spec และ ADR ตรงกัน · เทสต์ 3 × 100.00 รวม VAT ได้ PO รวม 300.00 และ delta ของงบเป็น 0 ผ่าน
+  - แยกงาน: ทำเองได้หลังผู้ใช้ตัดสิน
+- [ ] **NEW-51** `[go-live]` outbox ส่งเฉพาะ id ของ event ไป Inngest แล้วให้ job อ่านข้อมูลจากฐาน เพราะตอนนี้ payload มี `data` ทั้งก้อน รวมเลขผู้เสียภาษีของผู้ขายบุคคลธรรมดา (เลขบัตรประชาชน) ซึ่งจะไปเก็บที่ Inngest Cloud (PDPA) · ข้อมูล demo เป็นข้อมูลสมมติจึงไม่กระทบ demo · พบระหว่าง D-06
+  - เสร็จเมื่อ: เทสต์ที่ payload ของ outbox ไม่มีข้อมูลต้องห้ามตาม NFR-SEC-09 ผ่าน และ job ทุกตัวยังทำงานจากข้อมูลในฐาน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-52** `[go-live]` ตั้งรูปแบบไฟล์ Express ให้องค์กรที่มีอยู่แล้วพร้อม event (`organization.settings_updated`) และให้ `pnpm inputs:check` ตรวจแถว `express.*` ของชีต Settings ด้วยกติกาเดียวกับ seed เพราะตอนนี้รูปแบบมาจาก seed เท่านั้น เมื่อได้ไฟล์ตัวอย่างของลูกค้า (P0-10) องค์กรที่ seed แล้วจะตั้งรูปแบบจริงไม่ได้ถ้าไม่ reset · ใครตั้งได้เป็นเรื่องสิทธิ์ (§2.4 ยังไม่มี capability นี้) · พบระหว่าง D-06 — รอยืนยัน
+  - เสร็จเมื่อ: §2.4 มี capability ที่ผู้ใช้เลือก · เทสต์ที่ผู้มีสิทธิ์ตั้งรูปแบบได้และผู้ไม่มีสิทธิ์ถูกปฏิเสธผ่าน · `pnpm inputs:check` แจ้งแถว `express.*` ที่ผิด
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [ ] **NEW-53** `[go-live]` passkey เป็นหลักฐาน step-up อีกทางตาม FR-AUTH-005 AC2 ("หรือ passkey ถ้าอุปกรณ์รองรับ") · demo ใช้ PIN อย่างเดียว · ไม่เปลี่ยนกฎเงินหรืออำนาจ · พบระหว่าง S5-05 — รอยืนยัน
+  - เสร็จเมื่อ: เทสต์ที่ตัดสินงานยอดถึงเกณฑ์ด้วย passkey บนอุปกรณ์ที่รองรับผ่าน และ PIN ยังใช้ได้
+  - แยกงาน: ทำเองได้
+- [x] **NEW-54** `[demo]` ฟอร์มที่มีรหัสผ่าน PIN รหัส 2FA หรืออีเมล ส่งแบบ POST และปุ่มส่งรอจนสคริปต์ของหน้าทำงาน เพราะฟอร์มที่ไม่มี method ถ้าถูกส่งก่อนหน้าโหลดเสร็จจะกลายเป็น GET ที่มีค่าที่พิมพ์อยู่ในที่อยู่ของหน้า (NFR-SEC-09) · ฟอร์มเข้าระบบ 2FA ตั้งรหัสผ่าน รับคำเชิญ ลืมรหัสผ่าน และเข้าระบบใน LIFF · พบระหว่างรีวิวหน้าจอ S5 — เสร็จ 2026-10-06 · 55dea95
+  - เสร็จเมื่อ: เทสต์ e2e ที่ปิด JavaScript ของทุกฟอร์มนี้ผ่าน: ไม่มีที่อยู่ใดมีค่าที่พิมพ์
+  - แยกงาน: ทำเองได้
+- [x] **NEW-55** `[demo]` ร่างที่บันทึกตอนปิดหน้าหายเมื่อ service worker ของ PWA คุมหน้า: Chromium ทิ้ง keepalive POST ของหน้าที่กำลังปิด (0/8 เมื่อมี worker · 8/8 เมื่อ worker ส่ง POST ตรงไป network ด้วย Static Routing API) · กระทบ FR-INT-006 AC1 ทั้งฟอร์มเว็บและ LIFF · แก้ที่ `src/app/sw.js/route.ts` · พบระหว่าง S5-06 — เสร็จ 2026-10-06 · 394401b
+  - เสร็จเมื่อ: `tests/e2e/liff-requests.spec.ts` ส่วนที่ปิดหน้าผ่านโดยไม่ปิด service worker
+  - แยกงาน: ทำเองได้
+- [x] **NEW-56** `[demo]` หน้า PO และผลต่างการตรวจรับ: "รอใคร" ของขั้นที่ถูกส่งต่อแสดงทุกงานที่เปิดของขั้นเรียงตามงานที่เก่ากว่า และตราการตัดสินมีธงส่งต่อ (BR-SLA-04) เพราะ `waitingOf` เลือกงานใดงานหนึ่ง · พบระหว่างรีวิว NEW-46 — เสร็จ 2026-10-06 · 60ca080
+  - เสร็จเมื่อ: เทสต์ที่ PO ถูกส่งต่อแล้ว "รอใคร" มีทั้งสองคน ผ่านภายใต้ [FR-INT-008/AC1]
+  - แยกงาน: ทำเองได้
+- [x] **NEW-57** `[demo]` ลิงก์อีเมลของงานที่ถูกตัดสินที่อื่น (เว็บ LIFF LINE) ตอบ `TOKEN_USED` พร้อมผู้ตัดสินและเวลาแบบปุ่ม LINE (§9.3) แทน `TOKEN_INVALID` · พบระหว่างรีวิว NEW-47 — เสร็จ 2026-10-06 · 60ca080
+  - เสร็จเมื่อ: เทสต์ลิงก์หลังตัดสินบนเว็บตอบ `TOKEN_USED` พร้อมชื่อและเวลา ผ่านภายใต้ [FR-DOA-004/AC2]
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-58** `[go-live]` คำสั่งที่ปิดเส้นทาง (ยกเลิกคำขอ) ล็อกงานที่เปิดของเส้นทางตามลำดับ id ก่อน Request เหมือนการตัดสิน (INV-PLT-03) เพราะตอนนี้ยกเลิกกับตัดสินพร้อมกันอาจ deadlock แล้วทำซ้ำ ผลถูกแต่ช้าและมี ERROR ใน log · พบระหว่าง NEW-47
+  - เสร็จเมื่อ: เทสต์ยกเลิกกับตัดสินพร้อมกันโดยปิดการทำซ้ำผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **NEW-59** `[demo]` ความเท่ากันของการตรวจรับบนเว็บกับ LIFF และกติกาที่พบระหว่างทำหน้า LIFF: ปุ่มตรวจสอบและยืนยันรอจนอัปโหลดเสร็จ ช่องไฟล์ปิดระหว่างตรวจ และอัปโหลดมีเวลาจำกัดและหยุดได้ · รูปที่ถอดรหัสไม่ได้ถูกปฏิเสธแทนการส่งพร้อมพิกัด (FR-PLT-004 AC3) · ไฟล์บนหน้า LIFF เปิดได้เฉพาะไฟล์ของเอกสารบนหน้านั้น (FR-PLT-004 AC2) · ยกเลิกรักษาการที่หมดช่วงแล้วไม่ได้ และข้อความหน้ารักษาการบอกว่างานที่รออยู่ย้ายไปและกลับเมื่อใด (BR-DLG-04 NEW-35) · ตารางรายการของคำขอและ PO บนหน้า LIFF คงรูปแบบมือถือแม้จอกว้าง · พบระหว่าง S5-06 — เสร็จ 2026-10-06 · 608f01b
+  - เสร็จเมื่อ: เทสต์ของแต่ละเรื่องผ่าน และ e2e ตรวจรับและรักษาการบนเว็บยังผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-60** `[go-live]` หน้าเปลี่ยนรหัสผ่านสำหรับสมาชิกที่เข้าระบบอยู่ (ตอนนี้ใช้ลืมรหัสผ่านซึ่งปิด session ทุกอุปกรณ์) และให้อีเมลแจ้งการผูก LINE ชี้ไปหน้านั้น · พบระหว่างทำหน้าตั้งค่า LINE — รอยืนยัน
+  - เสร็จเมื่อ: เทสต์เปลี่ยนรหัสผ่านที่ต้องใส่รหัสเดิม และ session อื่นของบัญชีถูกปิด ผ่าน
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [x] **NEW-61** `[demo]` ค่าที่ใช้ค้นแบบ `startsWith` `contains` `endsWith` ของ Prisma ต้อง escape `_` และ `%` เพราะ Prisma 7 ส่งต่อเป็น wildcard ของ LIKE (ทดสอบแล้ว `startsWith 'liff_'` ตรงกับ `'liffA…'`) · จุดที่กระทบ: การหางานค้างของตำแหน่งตาม `resolvedFrom` (รหัสตำแหน่งมี `_` ได้ จึงอาจย้ายงานของตำแหน่งอื่น · BR-DOA-17) คำค้นของเลขเอกสาร และช่องค้นหาทุกช่อง · พบระหว่างทำ session ของ LIFF — เสร็จ 2026-10-06 · e42b37b
+  - เสร็จเมื่อ: เทสต์ที่รหัสตำแหน่งมี `_` ไม่ตรงกับตำแหน่งอื่น และค้นด้วย `%` หรือ `_` ได้เฉพาะค่าที่ตรงตัว ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-62** `[go-live]` งานค้างของสมาชิกที่ถูกปิดใช้งานซึ่งกฎ DOA ระบุตัวบุคคลโดยตรง (`MEMBER:<id>` ไม่ใช่ตำแหน่ง) ไม่มีทางย้าย เพราะ BR-DOA-17 ย้ายเฉพาะงานของตำแหน่งเมื่อแต่งตั้งผู้ดำรงคนใหม่ · ต้องตัดสินว่าใครย้ายและอย่างไร และประกาศ `admin.reassign_needed` ควรแยกงานกลุ่มนี้หรือไม่ · พบระหว่างแก้ข้อความแจ้งผู้ดูแล — รอยืนยัน
+  - เสร็จเมื่อ: spec มีกฎของงานกลุ่มนี้ · เทสต์ที่งานถูกย้ายตามกฎนั้นและประกาศบอกถูกต้องผ่าน
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [ ] **NEW-63** `[go-live]` นาฬิกาธุรกิจแยกจากนาฬิกาความปลอดภัย (`E2E_CLOCK_START` คู่กับ `E2E_TEST_CLOCK=1` เฉพาะ local) ให้ e2e ตั้งเวลาเริ่มได้ ไม่ขึ้นกับวันที่รัน และเดินเวลาเพื่อทดสอบฉากเตือนตาม SLA ส่งต่อ และสรุปรายวันผ่านหน้าจอ · ตอนนี้นาฬิกาเดียว (`systemClock`) ใช้ทั้งสองอย่าง ฉาก demo จึงใช้นาฬิกาจริง (ADR-053) · พบระหว่าง D-04
+  - เสร็จเมื่อ: เทสต์ที่ e2e ตั้งเวลาเริ่มแล้วฉาก demo ผ่านโดยไม่ขึ้นกับวันที่รัน และ session กับ step-up ยังใช้เวลาจริง
+  - แยกงาน: ทำเองได้
+- [ ] **NEW-64** `[go-live]` แจ้งผู้ตรวจรับทาง LINE ทันทีเมื่อส่ง PO พร้อมลิงก์ LIFF ไปหน้าตรวจรับ เพราะ §10.1 กำหนด `po.sent` ถึงผู้ตรวจรับเป็น DIGEST และ rich menu ไม่มีปุ่มตรวจรับ ผู้ตรวจรับจึงไม่ได้ลิงก์ทันที (ฉาก 8 ผู้นำเสนอเปิดลิงก์เอง) · เปลี่ยน §10.1 และ allowlist ของ LINE · พบระหว่าง S5-06 และ D-04 — รอยืนยัน
+  - เสร็จเมื่อ: §10.1 แก้ตามที่ผู้ใช้เลือก · เทสต์ที่ผู้ตรวจรับได้ข้อความ LINE พร้อมลิงก์ไปหน้าตรวจรับเมื่อส่ง PO ผ่าน
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [ ] **NEW-65** `[go-live]` บรรทัดคำขอที่สั่งเป็นหลายส่วนคืนการจองไม่ตรงกับที่จองไว้ 1 สตางค์ (BR-BUD-05 BR-BUD-06 INV-BUD-03): BR-BUD-05 ให้แต่ละส่วนคืน จำนวนที่สั่ง × ราคาต่อหน่วย ปัดทีละส่วน แต่บรรทัดจองไว้ จำนวนทั้งบรรทัด × ราคา ปัดครั้งเดียว จึงต่างกันเมื่อสั่งเป็นจำนวนไม่เต็มอย่างน้อยสองส่วน (สั่งเป็นจำนวนเต็มไม่ต่าง demo จึงไม่กระทบ) · คืนน้อยไปเหลือจองค้าง เช่น 2.5 × 10.01 สั่ง 0.1 แล้ว 2.4 · คืนมากไปทำให้บรรทัดงบที่หมดพอดีปฏิเสธการอนุมัติ PO ขาด 0.01 · ยกเลิก PO แบบ `RETURN_TO_POOL` จองคืนด้วย releasable เดิมจึงอาจจองเกินยอดของบรรทัด (ผิด INV-BUD-03) · ทางเลือก (ก) ส่วนสุดท้ายของบรรทัดคืนเท่าที่บรรทัดยังจองอยู่ และ PO ที่ต้องการเกินจองเพิ่มตอนส่ง (ข) คืนส่วนที่ค้างเมื่อคำขอเป็น ORDERED · ทั้งสองทางให้ `RETURN_TO_POOL` จองคืนเท่าที่คืนจริง · แนะนำ (ก) · ตำแหน่งในโค้ด `TODO(NEW-65)` · พบระหว่าง D-06 — รอยืนยัน
+  - เสร็จเมื่อ: BR-BUD-05 BR-BUD-06 และ ADR ตรงกับทางที่ผู้ใช้เลือก · เทสต์ที่สั่ง 2.5 × 10.01 เป็นหลายส่วนจนครบแล้วยอดจองของบรรทัดคำขอเป็น 0.00 และเทสต์ 0.3 × 10.08 อนุมัติสองส่วนแล้วคืนเข้ากองทั้งสองจอง 3.02 พอดี ผ่าน
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [x] **NEW-66** `[demo]` ยอดก่อน VAT (`net`) ในชีต Demo_History ต้องเป็นบาทเต็มให้ตรงกันทุกจุด: `pnpm inputs:check` และ regex ของ `HistoryRow` ยังรับสตางค์ ขณะที่ seed หยุดด้วย `DemoHistoryNetError` เป็นภาษาอังกฤษ (ใบเสนอราคาเปรียบเทียบ 104% และ 107% ต้องลงตัวที่สตางค์และ BR-MONEY-02 ห้ามปัด) · ผู้ใช้อาจเพิ่มแถวในชีตก่อน demo จึงต้องได้ข้อความไทยที่บอกแถว · พบระหว่าง D-06 — เสร็จ 2026-10-06 · a7b42d8
+  - เสร็จเมื่อ: `pnpm inputs:check` ปฏิเสธ net ที่มีสตางค์พร้อมบอกแถว · seed อธิบาย `DemoHistoryNetError` เป็นภาษาไทยพร้อมวิธีแก้ · เทสต์ครอบ
   - แยกงาน: ทำเองได้
 
 ---
@@ -3524,7 +3699,7 @@ pnpm db:reset
 
 ### 18.1 ADR
 
-ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-041 บันทึกระหว่าง demo build (2026-10-02 ถึง 2026-10-03): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วน ADR-037 ADR-039 ADR-040 และ ADR-041 agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
+ADR-001 ถึง ADR-016 มาจากตารางเรื่องที่ต้องตัดสินใจในเอกสารต้นทาง (ตัดสินแล้ว) · ADR-017 ADR-034 และ ADR-035 เป็นการตัดสินใจของเจ้าของโปรเจกต์ · ADR-018 ถึง ADR-030 เสนอโดย spec นี้ ใช้ได้ทันทีเว้นแต่มีผู้คัดค้านใน PR · ADR-031 และ ADR-033 ยังไม่ตัดสิน ให้ใช้ค่าชั่วคราวที่ระบุ · ADR-032 ตัดสินแล้วเฉพาะ staging · ADR-036 ถึง ADR-053 บันทึกระหว่าง demo build (2026-10-02 ถึง 2026-10-05): ADR-036 และ ADR-038 เป็นการตัดสินใจของผู้ใช้ ส่วนข้ออื่น agent เสนอ ใช้ได้ทันทีเว้นแต่ผู้ใช้คัดค้าน (แจ้งในสรุปตอนจบรอบแทน PR) · แต่ละข้อต้องมีไฟล์ `docs/decisions/ADR-nnn.md`
 
 | ID | การตัดสินใจ | สถานะ |
 | --- | --- | --- |
@@ -3569,6 +3744,18 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-039 | แยก tenant ในฐานข้อมูลเพิ่ม: foreign key ระหว่างตาราง tenant รวม `organizationId` · `db.forTenant()` ห้ามเข้าตาราง identity และ platform และห้าม nested write · `Event.seq` เป็น identity | เสนอ |
 | ADR-040 | ใช้ Better Auth: ล็อกการเข้าระบบนับเฉพาะครั้งที่ผิด · บังคับ 2FA ตามบทบาทและตำแหน่ง · TOTP ของผู้ใช้ตัวอย่างจาก `SEED_TOTP_KEY` (ไม่บังคับ · ตัวแปรที่เพิ่มต่อจากภาคผนวก B ในส่วนที่เพิ่มของ `.env.example`) · plugin `liffIdToken` | เสนอ |
 | ADR-041 | นโยบายของ command pipeline และ outbox: key กันส่งซ้ำแยกตามผู้ส่ง · ส่งหลัง commit ครั้งเดียวไม่เกิน 2 วินาที · นับเฉพาะการปฏิเสธของ Inngest ครบ 10 ครั้งเป็นข้อความตายพร้อมแจ้งเตือน | เสนอ |
+| ADR-042 | ชุดตั้งต้นส่งเป็นฉบับ DOA หนึ่งฉบับกับการเปลี่ยนชนิด `POSITION_ASSIGN` บนเส้นทางเดียวกันที่อ้างฉบับนั้นเองกับข้อ `BR-DOA-19` · ตำแหน่งที่มีงานค้างนับว่ามีอำนาจ · การทำให้ตำแหน่งว่างต้องยืนยันรายตำแหน่ง · ย้ายแผนกได้ครั้งละหนึ่งรายการ · cost center ไม่ย้ายแผนกด้วยการแก้พื้นฐาน · DOA ฉบับใหม่เริ่มก่อนหรือพร้อมฉบับที่อนุมัติล่วงหน้าไว้แล้วไม่ได้ | เสนอ |
+| ADR-043 | ลิงก์ตัดสินทางอีเมล: token เกิดและถูกเพิกถอนตาม event ของงานใน `runCommand` · secret ของลิงก์คำนวณจาก key ของเซิร์ฟเวอร์ เก็บเฉพาะ sha256 · งานนโยบายและงานที่ยอด ≥ `stepUpThreshold` ตัดสินในระบบเท่านั้น · ส่งการแจ้งเตือน IMMEDIATE ทางอีเมลจนกว่าจะมี LINE · ส่ง PO ภายในคำสั่ง `po.send` หลังล็อกแถวและไม่ลองซ้ำ ผู้ให้บริการปฏิเสธถาวร = ตีกลับ | เสนอ |
+| ADR-044 | สร้าง PDF ของ PR และ PO ด้วย `@react-pdf/renderer` 4.9.0 กับ Sarabun (ผล spike ของ OQ-18): แก้การวางวรรณยุกต์ด้วย `pnpm patch` ของ `@react-pdf/render` และแปลงสระอำกับจุดตัดคำไทยก่อนจัดบรรทัด · ล็อกเวอร์ชันของ library ที่การแก้พึ่ง · เทสต์ภาพทุกหน้าด้วย poppler ใน Docker | เสนอ |
+| ADR-045 | ค่า LINE ต่อองค์กร: secret และ access token เข้ารหัส AES-256-GCM ผูกกับองค์กรและช่อง · แสดงเพียงว่าตั้งแล้วหรือยัง · เปลี่ยน provider ไม่ได้ระหว่างมีสมาชิกผูก · ปุ่มทดสอบ 4 ข้อภายใน 8 วินาที · seed เปิดช่องทางเมื่อมีค่าครบ | เสนอ |
+| ADR-046 | session ของ LIFF ใช้ได้เฉพาะหน้า LIFF และตรวจการผูกทุกคำขอ · endpoint ของ Better Auth ปฏิเสธ session นี้ · webhook ตรวจ signature บนไบต์ดิบ บันทึกก่อนทำ ทำ inline 1.5 วินาทีแล้วส่งเข้าคิว เรียงตามผู้ใช้ เก็บตกด้วย `line-webhook-sweep` | เสนอ |
+| ADR-047 | PIN ยืนยันธุรกรรม: argon2id พร้อม pepper · ตั้งหรือเปลี่ยนต้องยืนยันตัวตนก่อน · นับครั้งที่ผิดก่อนตรวจ ล็อกแล้วไม่เปิดเอง · ทุกการตัดสินงานที่ยอดตั้งแต่ `stepUpThreshold` ต้องใช้ PIN · seed ให้ PIN จาก `SEED_DEV_PIN` | เสนอ |
+| ADR-048 | งานตามเวลา: ผู้ร่วมพิจารณาเป็นงานที่สองบนขั้นเดียวกัน · ช่วงถัดไปคือผู้ดำรงขั้นสุดท้ายของช่วงที่สูงกว่า · ตำแหน่งว่างหยุดส่งต่อ · ส่งต่อครั้งเดียวต่อขั้น · ขั้นที่เสร็จยกเลิกงานอื่นของขั้นจึงส่งต่อได้ทุกขั้น · ตัวจับเวลาอ่านสถานะล่าสุดเสมอ | เสนอ |
+| ADR-049 | ผูก LINE ด้วยรหัสที่ลงชื่ออายุ 10 นาทีและบันทึกเมื่อใช้ · แสดงตัวอย่างแล้วผูกเมื่อกดยืนยัน · สลับ rich menu หลัง commit ใน job `line-rich-menu` · บล็อก OA ไม่ยกเลิกผูก · ผูกแล้วแจ้งเจ้าของทางอีเมล | เสนอ |
+| ADR-050 | อนุมัติในแชท LINE: ActionToken ของ LINE คู่กับของอีเมล · ทุกทางที่ตัดสินล็อกงานก่อน token · คำตอบเมื่อกดซ้ำตาม §9.3 · ส่ง LINE ตาม allowlist ของ §10.1 แล้วสำรองทางอีเมลภายใน 5 นาที · การ์ด PO ไม่ระบุชื่อใคร | เสนอ |
+| ADR-051 | เลขบัตรประชาชนใน audit trail mask ตอนอ่านตามสิทธิ์ของทะเบียนผู้ขาย · ไฟล์ส่งออก audit บอกว่ามีเลขเต็มหรือไม่และโหลดได้ตามนั้น · ไฟล์รายงานโหลดได้เฉพาะในขอบเขตของผู้อ่าน | เสนอ |
+| ADR-052 | งบ JavaScript เริ่มต้นของหน้า LIFF นับแบบเข้ม (ไฟล์ script รวม LINE SDK และข้อมูลหน้าที่ฝังใน HTML ทั้งสองแบบที่ LINE เปิด) · ส่งข้อความเฉพาะ namespace ที่แต่ละส่วนใช้ · หน้า LIFF ไม่โหลด PWA และไม่ใช้ tailwind-merge · คอมไพล์ข้อความตอน build ด้วย precompile ของ next-intl พร้อมเทสต์กัน | เสนอ |
+| ADR-053 | e2e ของฉาก demo รันในโหมด demo บนฐานแยกที่มีประวัติ D-01 · ใช้นาฬิกาจริงและอ่านค่าที่ขึ้นกับเวลาจากฐานตอนรัน · นาฬิกาธุรกิจแยกเป็น NEW-63 | เสนอ |
 
 ### 18.2 สมมติฐาน
 

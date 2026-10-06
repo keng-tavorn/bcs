@@ -46,7 +46,7 @@ async function signInPlatform(page: Page) {
 
 async function openMenuItem(page: Page, isMobile: boolean, name: string) {
   if (isMobile) {
-    const menu = page.locator('header details')
+    const menu = page.locator('header details:has(nav)')
     if (!(await menu.evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByText('เมนู', { exact: true }).click()
   }
   await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name }).click()

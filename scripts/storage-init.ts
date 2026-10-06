@@ -3,6 +3,7 @@
 // Usage: pnpm exec tsx scripts/storage-init.ts
 import {
   CreateBucketCommand,
+  GetBucketCorsCommand,
   HeadBucketCommand,
   PutBucketCorsCommand,
   S3Client,
@@ -29,7 +30,8 @@ export function s3FromEnv(): S3Client {
   })
 }
 
-async function main() {
+/** Makes the bucket when it is missing and sets its CORS rule; returns whether it was made. Idempotent. */
+export async function ensureBucket(): Promise<{ created: boolean; allowed: string[] }> {
   const s3 = s3FromEnv()
   let created = false
   try {
@@ -38,13 +40,19 @@ async function main() {
     await s3.send(new CreateBucketCommand({ Bucket: bucket }))
     created = true
   }
+  // Keep the origins already allowed: e2e runs on other ports (3101…) each add their own APP_URL
+  const existing = await s3
+    .send(new GetBucketCorsCommand({ Bucket: bucket }))
+    .then((r) => (r.CORSRules ?? []).flatMap((rule) => rule.AllowedOrigins ?? []))
+    .catch(() => [] as string[])
+  const allowed = [...new Set([...origins, ...existing.filter((o) => /^http:\/\/localhost:\d+$/.test(o))])]
   await s3.send(
     new PutBucketCorsCommand({
       Bucket: bucket,
       CORSConfiguration: {
         CORSRules: [
           {
-            AllowedOrigins: [...new Set(origins)],
+            AllowedOrigins: allowed,
             AllowedMethods: ['GET', 'PUT', 'HEAD'],
             AllowedHeaders: ['*'],
             ExposeHeaders: ['ETag'],
@@ -54,7 +62,12 @@ async function main() {
       },
     }),
   )
-  console.log(`bucket ${bucket}: ${created ? 'สร้างใหม่' : 'มีอยู่แล้ว'} · ตั้ง CORS ให้ ${[...new Set(origins)].join(', ')}`)
+  return { created, allowed }
+}
+
+async function main() {
+  const { created, allowed } = await ensureBucket()
+  console.log(`bucket ${bucket}: ${created ? 'สร้างใหม่' : 'มีอยู่แล้ว'} · ตั้ง CORS ให้ ${allowed.join(', ')}`)
 }
 
 if (process.argv[1]?.endsWith('storage-init.ts')) {

@@ -1,0 +1,35 @@
+{
+  "title": "Receiving",
+  "notFound": {
+    "title": "This purchase order was not found",
+    "body": "The link may be incomplete, or the purchase order no longer exists. Purchase orders waiting to be received are listed on the BCS website under Receiving. If it is not there, contact procurement."
+  },
+  "barLabel": "Record the receipt",
+  "nextLabel": "Next step",
+  "closeChat": "Back to the chat",
+  "fixAbove": "Not yet: fix the fields with a message above first.",
+  "sessionEnded": "Your session has ended and nothing was recorded. Close this page and open the same link again, or record the receipt on the BCS website under Receiving.",
+  "photoWait": "A photo is still being sent. Wait for it to finish before checking or recording.",
+  "reviewFailed": "The check step could not be opened because the connection failed. What you entered is kept. Try again when the signal is better.",
+  "reviewRetry": "Open the check step again",
+  "photoNumbered": "{name} (photo {n})",
+  "photos": {
+    "take": "Take a photo",
+    "takeMore": "Take another photo",
+    "rule": "Photos are made smaller on your phone before they are sent, and the location they were taken at is removed. Up to {max} photos.",
+    "preparing": "Making the photo smaller",
+    "sending": "Sending photo {name}",
+    "added": "Photo {name} attached",
+    "unreadable": "This photo cannot be used. Take it again, or choose a JPG or PNG picture.",
+    "full": "{max} photos are attached. To take another one, remove a photo you do not need first.",
+    "hide": "Hide photo {name}",
+    "stop": "Stop sending this photo",
+    "stopped": "Sending stopped. This photo is not attached; take it again when the signal is better.",
+    "removeQuestion": "Remove photo {name} from this receipt?",
+    "removeDetail": "A photo you remove cannot be brought back: to use it, you would take it again.",
+    "removeConfirm": "Remove this photo",
+    "removeKeep": "Keep the photo",
+    "removed": "Photo {name} removed"
+  },
+  "photoRefusedLate": "The last photo you took is not attached to this receipt. {reason} To take it again, go back to edit the quantities."
+}

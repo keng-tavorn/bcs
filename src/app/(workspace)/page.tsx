@@ -1,33 +1,119 @@
+import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
+import { systemClock } from '@/lib/clock'
+import { ctxFromSession } from '@/server/auth/session'
+import { isAllowed, memberPrincipal } from '@/server/authz'
+import { procurementPoCounts } from '@/server/queries/purchase-orders'
+import { listMyRequests } from '@/server/queries/requests'
+import { listMyTasks } from '@/server/queries/tasks'
+import { listPool } from '@/server/services/procurement'
+import { RequestList } from '@/ui/request-view/request-list'
+import { TaskList } from '@/ui/tasks/task-list'
 import { getSession } from '../_lib/session'
+import { loadHomeBudget } from './_tracking/home-budget-load'
+import { HomeBudgetSection } from './_tracking/home-budget-section'
+import { poRows } from './_tracking/po-rows'
+import { poolRow } from './_tracking/pool-row'
+import { localeOf } from './_tracking/present'
+import { requestRows, taskRows } from './_tracking/rows'
 
 export async function generateMetadata() {
   const t = await getTranslations('home')
   return { title: t('title') }
 }
 
-// Home, work first (§9.9 rule 1): what waits for my decision, then my requests. Both fill in from S2; until then the
-// empty states say what will appear here.
+/** How many tasks and requests the home page shows before "see all" */
+const HOME_ROWS = 5
+const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+
+// Home, work first (§9.9 principle 1): what waits for my decision — the ones due first, and for procurement the pool of
+// approved requests nobody has ordered yet and the POs waiting on them (a draft to send for approval, an approved PO to
+// send out) — then my requests with where each one is now; every count links to its list. The budget comes after the
+// work, for members who may view budgets (§9.1 "/"): what is left in their budget.view scope and the lines running low,
+// from the dashboard of /budgets, every amount a link to what makes it up — a short list, never a chart before the work.
 export default async function HomePage() {
   const state = await getSession()
   if (state.kind !== 'member') return null
-  const [t, locale] = await Promise.all([getTranslations('home'), getLocale()])
+  const ctx = ctxFromSession(state, 'WEB', systemClock.now())
+  if (!ctx) return null
+  const [t, tt, tv, tb, locale] = await Promise.all([getTranslations('home'), getTranslations('tasks'), getTranslations('requestView'), getTranslations('budgets'), getLocale().then(localeOf)])
+  // The pool is read only by those whose menu has it (the same check, §2.4 procurement.pool.view); listPool checks again.
+  // So are the POs waiting on procurement: by those whose menu lists POs (po.create, the menu's entry). The budget's
+  // service checks budget.view itself, with the departments a member heads, and answers no one else (loadHomeBudget)
+  const principal = memberPrincipal(state.member.id, state.roles)
+  const seesPool = isAllowed(principal, 'procurement.pool.view')
+  const seesPos = isAllowed(principal, 'po.create')
+  const [tasks, requests, pool, pos, budget] = await Promise.all([
+    listMyTasks(ctx, { limit: HOME_ROWS }),
+    listMyRequests(ctx, { limit: HOME_ROWS }),
+    seesPool ? listPool(ctx) : null,
+    seesPos ? procurementPoCounts(ctx) : null,
+    loadHomeBudget(ctx, t, tb),
+  ])
+  const poolWork = pool?.ok ? poolRow(t, pool.data) : null
+  const poWork = pos ? poRows(t, pos) : []
+  // One answer for both sections, so they never disagree: only a member whose requests are listed below has progress to
+  // follow; one with none is not sent to an empty list, and their next step is the start link of "my requests" (§9.9
+  // principle 8)
+  const hasRequests = requests.rows.length > 0
   const name = locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex max-w-5xl flex-col gap-8">
+      {/* The door to a new request is the shell's, on every page (§9.9 principle 2) */}
       <h1 className="text-2xl font-semibold">{t('greeting', { name })}</h1>
+
       <section aria-labelledby="my-tasks" className="flex flex-col gap-3">
         <h2 id="my-tasks" className="text-xl font-semibold">
           {t('myTasks')}
         </h2>
-        <p className="border-y border-line py-4 text-ink-muted">{t('myTasksEmpty')}</p>
+        {tasks.items.length ? (
+          <>
+            <TaskList label={t('myTasks')} rows={taskRows(tt, tv, locale, tasks.items)} />
+            <Link href="/tasks" className={linkClass}>
+              {t('myTasksAll', { count: tasks.total })}
+            </Link>
+          </>
+        ) : null}
+        {poolWork ? <TaskList label={t('pool.list')} rows={[poolWork]} /> : null}
+        {poWork.length ? <TaskList label={t('po.list')} rows={poWork} /> : null}
+        {!tasks.items.length && !poolWork && !poWork.length ? (
+          <div className="flex flex-col gap-1 border-y border-line py-4">
+            <p className="text-ink-muted">{t('myTasksEmpty')}</p>
+            {hasRequests ? (
+              <Link href="/requests" className={linkClass}>
+                {t('toMyRequests')}
+              </Link>
+            ) : null}
+          </div>
+        ) : null}
       </section>
+
       <section aria-labelledby="my-requests" className="flex flex-col gap-3">
         <h2 id="my-requests" className="text-xl font-semibold">
           {t('myRequests')}
         </h2>
-        <p className="border-y border-line py-4 text-ink-muted">{t('myRequestsEmpty')}</p>
+        {hasRequests ? (
+          <>
+            <RequestList
+              rows={requestRows(tv, locale, requests.rows)}
+              labels={{ list: t('myRequests'), request: tv('columns.request'), status: tv('columns.status'), now: tv('columns.now'), amount: tv('columns.amount'), unit: tv('amounts.currency') }}
+            />
+            <Link href="/requests" className={linkClass}>
+              {t('myRequestsAll', { count: requests.total })}
+            </Link>
+          </>
+        ) : (
+          <div className="flex flex-col gap-1 border-y border-line py-4">
+            <p className="text-ink-muted">{t('myRequestsEmpty')}</p>
+            <Link href="/requests/new" className={linkClass}>
+              {t('startRequest')}
+            </Link>
+          </div>
+        )}
       </section>
+
+      {budget ? <HomeBudgetSection view={budget} /> : null}
     </div>
   )
 }

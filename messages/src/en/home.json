@@ -1,9 +1,34 @@
 {
   "title": "Home",
   "greeting": "Hello {name}",
-  "organization": "Organization {name}",
   "myTasks": "Waiting for your decision",
-  "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in LINE.",
+  "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
+  "myTasksAll": "See all tasks waiting for approval ({count})",
+  "toMyRequests": "Follow your own requests",
+  "pool": {
+    "list": "Requests to purchase",
+    "title": "Requests to purchase: {requests} ({lines, plural, one {# line} other {# lines}})",
+    "needSupplier": "{count, plural, one {# line needs} other {# lines need}} a supplier",
+    "ready": "{count, plural, one {# line is} other {# lines are}} ready for a draft PO",
+    "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet"
+  },
+  "po": {
+    "list": "Purchase orders waiting for procurement",
+    "drafts": "{count, plural, one {# draft PO waits} other {# draft POs wait}} to be checked and sent for approval",
+    "approved": "{count, plural, one {# approved PO waits} other {# approved POs wait}} to be sent to the supplier"
+  },
   "myRequests": "My requests",
-  "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status."
+  "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
+  "myRequestsAll": "See all requests ({count})",
+  "startRequest": "Start a purchase or hiring request",
+  "budget": {
+    "title": "Budgets",
+    "list": "Budget left and budget lines running low",
+    "scope": "Fiscal year {code} · {scope}",
+    "amountHeading": "Available (baht)",
+    "planned": "Planned {amount} baht",
+    "noneLow": "No budget line is running low",
+    "all": "See all budgets",
+    "allLow": "See all budgets ({count, plural, one {# line} other {# lines}} running low)"
+  }
 }

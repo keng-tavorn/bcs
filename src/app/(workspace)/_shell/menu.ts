@@ -24,12 +24,21 @@ export type MenuKey =
   | 'kpi'
   | 'audit'
   | 'members'
+  | 'org'
+  | 'calendar'
+  | 'numbering'
+  | 'requestTypes'
+  | 'line'
   | 'doa'
   | 'orgAuthority'
   | 'policyHistory'
   | 'modules'
   | 'tenants'
+  | 'delegation'
   | 'security'
+  | 'pin'
+  | 'lineLink'
+  | 'notifications'
 
 export interface MenuItem {
   readonly key: MenuKey
@@ -45,28 +54,40 @@ export interface MenuItem {
 
 export const MENU: readonly MenuItem[] = [
   { key: 'home', href: '/', group: 'work', capability: null, module: null, ready: true },
-  { key: 'newRequest', href: '/requests/new', group: 'work', capability: 'request.create', module: 'CORE', ready: false },
-  { key: 'requests', href: '/requests', group: 'work', capability: 'request.view', module: 'CORE', ready: false },
-  { key: 'tasks', href: '/tasks', group: 'work', capability: null, module: 'CORE', ready: false },
-  { key: 'receiving', href: '/receiving', group: 'work', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: false },
-  { key: 'pool', href: '/procurement/pool', group: 'procurement', capability: 'procurement.pool.view', module: 'CORE', ready: false },
-  { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.create', module: 'CORE', ready: false },
-  { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: false },
-  { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: false },
-  { key: 'exports', href: '/finance/exports', group: 'finance', capability: 'export.express', module: 'CORE', ready: false },
-  { key: 'budgets', href: '/budgets', group: 'insight', capability: 'budget.view', scopes: ['DEPT', 'ORG'], module: 'CORE', ready: false },
-  { key: 'board', href: '/board/pending', group: 'insight', capability: 'board.pending.view', module: 'CORE', ready: false },
-  { key: 'reports', href: '/reports', group: 'insight', capability: 'report.view', module: 'CORE', ready: false },
+  { key: 'newRequest', href: '/requests/new', group: 'work', capability: 'request.create', module: 'CORE', ready: true },
+  { key: 'requests', href: '/requests', group: 'work', capability: 'request.view', module: 'CORE', ready: true },
+  { key: 'tasks', href: '/tasks', group: 'work', capability: null, module: 'CORE', ready: true },
+  { key: 'receiving', href: '/receiving', group: 'work', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
+  { key: 'pool', href: '/procurement/pool', group: 'procurement', capability: 'procurement.pool.view', module: 'CORE', ready: true },
+  { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.create', module: 'CORE', ready: true },
+  { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
+  { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true },
+  { key: 'exports', href: '/finance/exports', group: 'finance', capability: 'export.express', module: 'CORE', ready: true },
+  { key: 'budgets', href: '/budgets', group: 'insight', capability: 'budget.view', scopes: ['DEPT', 'ORG'], module: 'CORE', ready: true },
+  { key: 'board', href: '/board/pending', group: 'insight', capability: 'board.pending.view', module: 'CORE', ready: true },
+  { key: 'reports', href: '/reports', group: 'insight', capability: 'report.view', module: 'CORE', ready: true },
   // KPI G-1..G-5 are organization-wide figures for executives (FR-VIS-003 AC2), so the page needs an ORG-scoped report.view
-  { key: 'kpi', href: '/kpi', group: 'insight', capability: 'report.view', scopes: ['ORG'], module: 'CORE', ready: false },
-  { key: 'audit', href: '/audit', group: 'insight', capability: 'audit.view', module: 'CORE', ready: false },
+  { key: 'kpi', href: '/kpi', group: 'insight', capability: 'report.view', scopes: ['ORG'], module: 'CORE', ready: true },
+  { key: 'audit', href: '/audit', group: 'insight', capability: 'audit.view', module: 'CORE', ready: true },
   { key: 'members', href: '/admin/members', group: 'admin', capability: 'admin.members', module: 'CORE', ready: true },
-  { key: 'doa', href: '/admin/doa', group: 'admin', capability: 'admin.doa.draft', module: 'CORE', ready: false },
-  { key: 'orgAuthority', href: '/admin/org-authority', group: 'admin', capability: 'admin.orgAuthority.propose', module: 'CORE', ready: false },
+  { key: 'org', href: '/admin/org', group: 'admin', capability: 'admin.orgStructure.editBasic', module: 'CORE', ready: true },
+  { key: 'calendar', href: '/admin/calendar', group: 'admin', capability: 'admin.calendar', module: 'CORE', ready: true },
+  { key: 'numbering', href: '/admin/numbering', group: 'admin', capability: 'admin.numbering', module: 'CORE', ready: true },
+  { key: 'requestTypes', href: '/admin/request-types', group: 'admin', capability: 'admin.requestTypes', module: 'CORE', ready: true },
+  // The organization's LINE channel (FR-ADM-006 AC2 AC3; §9.1 lists the channels after the request types)
+  { key: 'line', href: '/admin/line', group: 'admin', capability: 'admin.channels', module: 'CORE', ready: true },
+  { key: 'doa', href: '/admin/doa', group: 'admin', capability: 'admin.doa.draft', module: 'CORE', ready: true },
+  { key: 'orgAuthority', href: '/admin/org-authority', group: 'admin', capability: 'admin.orgAuthority.propose', module: 'CORE', ready: true },
   { key: 'policyHistory', href: '/admin/policy-history', group: 'admin', capability: 'admin.policyHistory.view', module: 'CORE', ready: false },
   { key: 'modules', href: '/admin/modules', group: 'admin', capability: 'admin.modules.view', module: 'CORE', ready: true },
   { key: 'tenants', href: '/platform/tenants', group: 'platform', capability: 'platform.modules.manage', module: null, ready: true },
+  // Acting approvers belong to approvals (CORE); every member may name one for themself (delegation.manage OWN)
+  { key: 'delegation', href: '/settings/delegation', group: 'account', capability: 'delegation.manage', module: 'CORE', ready: true },
   { key: 'security', href: '/settings/security', group: 'account', capability: 'self.twoFactor', module: null, ready: true },
+  // The member's own settings (§9.1 /settings/*: PIN, LINE, notifications), like the account's security not tied to a module
+  { key: 'pin', href: '/settings/pin', group: 'account', capability: 'self.pin', module: null, ready: true },
+  { key: 'lineLink', href: '/settings/line', group: 'account', capability: 'self.lineLink', module: null, ready: true },
+  { key: 'notifications', href: '/settings/notifications', group: 'account', capability: 'self.notificationPrefs', module: null, ready: true },
 ]
 
 function itemAllowed(principal: Principal, item: MenuItem): boolean {

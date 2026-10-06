@@ -7,7 +7,8 @@
 //   tsx scripts/verify-db.ts db [--strict]     → append-only triggers (enabled, every row) · bcs_app privileges ·
 //                                     a live UPDATE/DELETE on every append-only table must fail for both roles ·
 //                                     Event.seq identity and createdAt stamp · same-tenant foreign keys · money CHECKs ·
-//                                     §6.3 items 3–5 once their tables exist · DOA lint (BR-DOA-08) once DoaVersion exists
+//                                     §6.3 items 3–5 once their tables exist · DOA lint (BR-DOA-08) once DoaVersion
+//                                     exists, over the verify database after migrate deploy and the demo seed
 //                                     --strict also requires the tables finish line A needs
 //   tsx scripts/verify-db.ts lock              → add new migrations to scripts/migrations.lock.json
 import { spawnSync } from 'node:child_process'
@@ -84,6 +85,22 @@ async function freshVerifyDatabase(): Promise<void> {
   })
   const deploy = prisma('migrate deploy', migratorUrl(VERIFY_DB))
   if (deploy.code !== 0) throw new Error(`migrate deploy ล้มบนฐานใหม่:\n${deploy.out}`)
+}
+
+/**
+ * The demo seed on the verify database (spec §15.5 item 5: "DOA ทุกฉบับที่ seed"): the DOA lint checks the version that
+ * db:seed really publishes. Variables already set in the environment win over .env (node --env-file never overrides).
+ */
+function seedVerifyDatabase(): void {
+  const r = spawnSync('pnpm exec tsx --env-file-if-exists=.env prisma/seed.ts', {
+    cwd: ROOT,
+    shell: true,
+    encoding: 'utf8',
+    // The demo history (D-01) is dated from today inside the fiscal year of the sheets; its own test runs it at a fixed
+    // date, so this gate does not depend on today's date
+    env: { ...process.env, DATABASE_URL: appUrl(VERIFY_DB), DIRECT_URL: migratorUrl(VERIFY_DB), FORCE_COLOR: '0', SEED_DEMO_HISTORY: '0' },
+  })
+  if (r.status !== 0) throw new Error(`db:seed ล้มบนฐานตรวจ ${VERIFY_DB}:\n${`${r.stdout ?? ''}${r.stderr ?? ''}`.trim()}`)
 }
 
 async function schemaGate(): Promise<string> {
@@ -259,6 +276,7 @@ async function liveStampProbe(c: pg.Client): Promise<string[]> {
 async function dbGate(): Promise<string> {
   if (!existsSync(path.join(ROOT, 'prisma/migrations'))) return 'ยังไม่มี migration'
   await freshVerifyDatabase()
+  seedVerifyDatabase()
   const problems: string[] = []
   const notes: string[] = []
   const summary = await withClient(migratorUrl(VERIFY_DB), async (c) => {

@@ -1,0 +1,5 @@
+# tests/golden/wht.yaml
+suite: wht
+status: preview-T2
+cases:
+  - { id: GC-WHT-01, title: ค่าบริการ 10,000 VAT 7% หัก 3%, input: { net: "10000.00", vatRateBp: 700, whtRateBp: 300 }, expect: { vat: "700.00", wht: "300.00", payable: "10400.00" } }

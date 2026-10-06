@@ -1,0 +1,36 @@
+# tests/golden/fixtures/doa-versions.yaml
+versions:
+  - code: DOA-DEMO
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+  - code: DOA-DEMO
+    version: 2
+    effectiveFrom: "2026-11-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "30000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "30000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }

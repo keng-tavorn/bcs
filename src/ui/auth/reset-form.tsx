@@ -2,34 +2,64 @@
 
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { useState, type FormEvent } from 'react'
-import { Button } from '../form/button'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Notice } from '../form/notice'
-import { authClient } from './client'
+import { resetRefusal } from './answers'
+import { authClient, settledWithWait } from './client'
 import { PasswordPair, readPasswordPair } from './password-pair'
+import { ScriptButton } from './script-button'
 
-// Set a new password from the e-mailed link (FR-AUTH-001 AC2). Better Auth signs out the account's other sessions.
-export function ResetForm({ token, min }: { token: string | null; min: number }) {
+type FieldErrors = { readonly password?: string; readonly confirm?: string }
+
+// Set a new password from the e-mailed link (FR-AUTH-001 AC2). Better Auth signs out the account's other sessions. The
+// new password is sent by the page's script only: the form posts and its button waits for hydration
+// (./script-button.tsx), so a password typed before the script runs never goes into the page's address (NFR-SEC-09).
+// What went wrong is said for what it is (§9.9 rule 7, ./answers.ts): a password shorter or longer than the rule, or two
+// that differ, on the field, which takes the focus — checked here before sending, and by Better Auth before it uses the
+// link, which then still works; no answer, a server failure or too many requests above the fields, the link not used
+// either; only a link Better Auth does not take is called expired or used, with the way to a new one.
+export function ResetForm({ token, min, max }: { token: string | null; min: number; max: number }) {
   const t = useTranslations('auth.reset')
   const tInvite = useTranslations('auth.invite')
   const tAuth = useTranslations('auth')
-  const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({})
+  const formRef = useRef<HTMLFormElement>(null)
+  const [errors, setErrors] = useState<FieldErrors>({})
+  const [failure, setFailure] = useState<string | null>(null)
   const [state, setState] = useState<'form' | 'done' | 'invalid'>(token ? 'form' : 'invalid')
   const [pending, setPending] = useState(false)
+
+  // The first field that says what is wrong with it takes the focus, so a screen reader reads its words with it
+  useEffect(() => {
+    const first = errors.password ? 'password' : errors.confirm ? 'confirm' : null
+    const field = first ? formRef.current?.elements.namedItem(first) : null
+    if (field instanceof HTMLInputElement) field.focus()
+  }, [errors])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!token) return
     const { password, confirm } = readPasswordPair(new FormData(event.currentTarget))
-    const next: typeof errors = {}
-    if (password.length < min) next.password = tInvite('tooShort', { min })
-    else if (password !== confirm) next.confirm = tInvite('mismatch')
+    const tooShort = tInvite('tooShort', { min })
+    const tooLong = t('tooLong', { max })
+    const next: FieldErrors =
+      password.length < min ? { password: tooShort } : password.length > max ? { password: tooLong } : password !== confirm ? { confirm: tInvite('mismatch') } : {}
     setErrors(next)
+    setFailure(null)
     if (next.password || next.confirm) return
     setPending(true)
-    const { error } = await authClient.resetPassword({ newPassword: password, token })
+    const { answer, retryAfter } = await settledWithWait((hooks) => authClient.resetPassword({ newPassword: password, token }, hooks))
     setPending(false)
-    setState(error ? 'invalid' : 'done')
+    if (!answer.error) {
+      setState('done')
+      return
+    }
+    const refusal = resetRefusal(answer.error)
+    if (refusal === 'linkInvalid') setState('invalid')
+    // Better Auth's own length rule, read before the link: the link still works
+    else if (refusal === 'tooShort') setErrors({ password: tooShort })
+    else if (refusal === 'tooLong') setErrors({ password: tooLong })
+    // No answer, a server failure or too many requests: the link was not used up, so the form stays and says to send again
+    else setFailure(refusal === 'busy' ? t('busy', { seconds: retryAfter ?? 0 }) : t('failed'))
   }
 
   if (state === 'done') {
@@ -53,11 +83,12 @@ export function ResetForm({ token, min }: { token: string | null; min: number })
     )
   }
   return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
+    <form ref={formRef} method="post" onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
+      {failure ? <Notice tone="danger">{failure}</Notice> : null}
       <PasswordPair min={min} labels={{ password: t('password'), confirm: t('confirm') }} errors={errors} />
-      <Button type="submit" disabled={pending} className="w-full">
+      <ScriptButton type="submit" disabled={pending} className="w-full">
         {pending ? t('submitting') : t('submit')}
-      </Button>
+      </ScriptButton>
     </form>
   )
 }

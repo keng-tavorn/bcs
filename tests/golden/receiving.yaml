@@ -1,0 +1,9 @@
+# tests/golden/receiving.yaml
+suite: receiving
+# ผลหลังการอนุมัติ variance ที่ต้องอนุมัติ (สมมติว่าอนุมัติ)
+cases:
+  - { id: GC-GR-01, title: รับบางส่วน, input: { ordered: "10", unitPrice: "1100.00", received: "6", tolerancePct: 0 }, expect: { poStatus: PARTIALLY_RECEIVED, accepted: "6", variances: [], commitDelta: "0.00" } }
+  - { id: GC-GR-02, title: รับเกินแล้วคืนส่วนเกิน, input: { ordered: "10", unitPrice: "1100.00", received: "11", tolerancePct: 0, disposition: RETURN_EXCESS }, expect: { poStatus: RECEIVED, accepted: "10", variances: [{ type: OVER, quantity: "1", amount: "1100.00", needsApproval: false }], commitDelta: "0.00" } }
+  - { id: GC-GR-03, title: รับเกินและขอเก็บไว้, input: { ordered: "10", unitPrice: "1100.00", received: "11", tolerancePct: 0, disposition: ACCEPT_EXCESS }, expect: { poStatus: RECEIVED, accepted: "11", variances: [{ type: OVER, quantity: "1", amount: "1100.00", needsApproval: true }], commitDelta: "1100.00" } }
+  - { id: GC-GR-04, title: ปิด PO ทั้งที่รับไม่ครบ, input: { ordered: "10", unitPrice: "1100.00", received: "6", tolerancePct: 0, closeShort: true }, expect: { poStatus: CLOSED, accepted: "6", variances: [{ type: SHORT, quantity: "4", amount: "4400.00", needsApproval: true }], commitDelta: "-4400.00" } }
+  - { id: GC-GR-05, title: รับเกินภายใน tolerance, input: { ordered: "100", unitPrice: "10.00", received: "104", tolerancePct: 5 }, expect: { poStatus: RECEIVED, accepted: "104", variances: [], commitDelta: "40.00" } }

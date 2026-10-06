@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { ESLint } from 'eslint'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { GOLDEN_STRICT_OPTIONAL, goldenDriftProblems } from '../../scripts/golden-drift'
 import {
   appendOnlyTriggerProblems,
@@ -23,11 +23,14 @@ import { committedState, migrationChecksums, migrationLockProblems, nextLock } f
 import {
   GATE_REQUIRES,
   casesWithoutPassingTest,
+  evaluateCoverage,
   evaluateEslintRun,
   evaluatePlaywrightRun,
+  mergePlaywrightReports,
   evaluateVitestRun,
   orphanTestFiles,
   parseVerifyArgs,
+  type CoverageSummary,
   type VitestJson,
 } from '../../scripts/lib/verify-gates'
 
@@ -37,6 +40,9 @@ let eslint: ESLint
 beforeAll(() => {
   eslint = new ESLint({ cwd: ROOT })
 }, 60_000)
+
+// The first lint of a run loads the whole config and its plugins; on a busy machine that alone takes seconds
+vi.setConfig({ testTimeout: 60_000 })
 
 async function messages(file: string, code: string) {
   const [result] = await eslint.lintText(code, { filePath: path.join(ROOT, file), warnIgnored: true })
@@ -681,6 +687,43 @@ describe('pnpm verify vitest gates', () => {
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 1, unexpected: 0, flaky: 0 } } }).status).toBe('FAIL')
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 1 } } }).status).toBe('FAIL')
     expect(evaluatePlaywrightRun({ code: 0, out: '', report: { stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 0 } } }).status).toBe('PASS')
+  })
+  it('[EG-7] the screens and the demo scenes make one report: suites side by side, counts added up', () => {
+    const screens = { config: { version: '1' }, suites: [{ title: 'tasks.spec.ts' }], errors: [], stats: { expected: 3, skipped: 0, unexpected: 0, flaky: 0, duration: 9 } }
+    const scenes = { suites: [{ title: 'demo/01.spec.ts' }, { title: 'demo/02.spec.ts' }], errors: [{ message: 'x' }], stats: { expected: 2, skipped: 1, unexpected: 1, flaky: 0 } }
+    const merged = mergePlaywrightReports([screens, scenes])
+    expect(merged.suites).toEqual([{ title: 'tasks.spec.ts' }, { title: 'demo/01.spec.ts' }, { title: 'demo/02.spec.ts' }])
+    expect(merged.errors).toEqual([{ message: 'x' }])
+    expect(merged.stats).toEqual({ expected: 5, skipped: 1, unexpected: 1, flaky: 0, duration: 9 })
+    expect(merged.config).toEqual({ version: '1' })
+    expect(evaluatePlaywrightRun({ code: 0, out: '', report: merged }).status).toBe('FAIL')
+  })
+})
+
+describe('pnpm verify coverage gate', () => {
+  const root = 'C:/repo'
+  const files = [
+    { path: 'src/core/money/math.ts', source: 'export const a = 1' },
+    { path: 'src/core/doa/types.ts', source: 'export type T = 1' },
+  ]
+  const summary = (covered: number): CoverageSummary => ({
+    total: { branches: { total: 10, covered } },
+    [`${root}/src/core/money/math.ts`]: { branches: { total: 10, covered } },
+    [`${root}/src/core/doa/types.ts`]: { branches: { total: 0, covered: 0 } },
+  })
+  it('[NFR-MNT-02] every branch of every engine file needs a test', () => {
+    expect(evaluateCoverage({ code: 0, out: '', summary: summary(10) }, { root, files }).status).toBe('PASS')
+    const short = evaluateCoverage({ code: 0, out: '', summary: summary(9) }, { root, files })
+    expect(short.status).toBe('FAIL')
+    expect(short.detail).toContain('src/core/money/math.ts 9/10 branch')
+  })
+  it('[NFR-MNT-02] a file no test loads, an ignore comment, a failed run or a missing report is a FAIL', () => {
+    const extra = [...files, { path: 'src/core/grni/index.ts', source: 'export const b = 2' }]
+    expect(evaluateCoverage({ code: 0, out: '', summary: summary(10) }, { root, files: extra }).detail).toContain('src/core/grni/index.ts ไม่มีเทสต์ที่โหลดไฟล์นี้')
+    const ignored = [{ path: 'src/core/money/math.ts', source: '/* v8 ignore next */\nexport const a = 1' }]
+    expect(evaluateCoverage({ code: 0, out: '', summary: summary(10) }, { root, files: ignored }).status).toBe('FAIL')
+    expect(evaluateCoverage({ code: 1, out: 'boom', summary: summary(10) }, { root, files }).status).toBe('FAIL')
+    expect(evaluateCoverage({ code: 0, out: '', summary: null }, { root, files }).status).toBe('FAIL')
   })
 })
 

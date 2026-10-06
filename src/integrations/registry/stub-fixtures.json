@@ -1,0 +1,123 @@
+{
+  "_comment": "Fixtures of the registry stub (BR-SUP-05, ADR-025): the synthetic suppliers of the seed (sheet Suppliers) and cases for tests and the demo — 0999999000098 and 0999999000101 are companies not in the seed, for adding a new supplier (demo scene 12); a valid tax id that is not here is not found. null = not in that registry; \"UNAVAILABLE\" = the service does not answer.",
+  "0999999000012": {
+    "rd": {
+      "nameTh": "บริษัท วัสดุก่อสร้างทดสอบ จำกัด",
+      "address": "1 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": true
+    },
+    "dbd": {
+      "nameTh": "บริษัท วัสดุก่อสร้างทดสอบ จำกัด",
+      "address": "1 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000021": {
+    "rd": {
+      "nameTh": "บริษัท ไอทีทดสอบ จำกัด",
+      "address": "2 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": true
+    },
+    "dbd": {
+      "nameTh": "บริษัท ไอทีทดสอบ จำกัด",
+      "address": "2 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000039": {
+    "rd": {
+      "nameTh": "บริษัท บริการทำความสะอาดทดสอบ จำกัด",
+      "address": "3 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": true
+    },
+    "dbd": {
+      "nameTh": "บริษัท บริการทำความสะอาดทดสอบ จำกัด",
+      "address": "3 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000047": {
+    "rd": {
+      "nameTh": "ห้างหุ้นส่วนจำกัด รับเหมาเล็กทดสอบ",
+      "address": "4 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": false
+    },
+    "dbd": {
+      "nameTh": "ห้างหุ้นส่วนจำกัด รับเหมาเล็กทดสอบ",
+      "address": "4 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000063": {
+    "rd": {
+      "nameTh": "สำนักงานบัญชีทดสอบ จำกัด",
+      "address": "6 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": true
+    },
+    "dbd": {
+      "nameTh": "สำนักงานบัญชีทดสอบ จำกัด",
+      "address": "6 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000071": {
+    "rd": null,
+    "dbd": {
+      "nameTh": "บริษัท เลิกกิจการทดสอบ จำกัด",
+      "address": null,
+      "branchCode": "00000",
+      "juristicStatus": "เลิกกิจการ"
+    }
+  },
+  "0999999000080": {
+    "rd": "UNAVAILABLE",
+    "dbd": "UNAVAILABLE"
+  },
+  "0999999000098": {
+    "rd": {
+      "nameTh": "บริษัท เครื่องมือช่างทดสอบ จำกัด",
+      "address": "9 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": true
+    },
+    "dbd": {
+      "nameTh": "บริษัท เครื่องมือช่างทดสอบ จำกัด",
+      "address": "9 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "0999999000101": {
+    "rd": {
+      "nameTh": "บริษัท ขนส่งทดสอบ จำกัด",
+      "address": "10 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "vatRegistered": false
+    },
+    "dbd": {
+      "nameTh": "บริษัท ขนส่งทดสอบ จำกัด",
+      "address": "10 ถนนทดสอบ แขวงทดสอบ เขตทดสอบ กรุงเทพมหานคร 10000",
+      "branchCode": "00000",
+      "juristicStatus": "ยังดำเนินกิจการอยู่"
+    }
+  },
+  "1234567890121": {
+    "rd": {
+      "nameTh": "นายทดสอบ ผู้รับจ้าง",
+      "address": null,
+      "branchCode": "00000",
+      "vatRegistered": false
+    },
+    "dbd": null
+  }
+}

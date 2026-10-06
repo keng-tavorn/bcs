@@ -41,19 +41,66 @@ model Organization {
   updatedAt                   DateTime           @updatedAt @db.Timestamptz(6)
 
   /// Same-organization rule enforced by trigger Organization_signatory_same_org (a composite key would stop Prisma generating ids)
-  contractSignatory  Member?             @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  members            Member[]            @relation("OrganizationMembers")
-  modules            OrgModule[]
-  roleAssignments    RoleAssignment[]
-  events             Event[]
-  outbox             Outbox[]
-  commandLogs        CommandLog[]
-  files              FileObject[]
-  fileLinks          FileLink[]
-  notifications      Notification[]
-  invitations        MemberInvitation[]
-  comments           Comment[]
-  breakGlassSessions BreakGlassSession[]
+  contractSignatory      Member?                 @relation("OrganizationContractSignatory", fields: [contractSignatoryMemberId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  members                Member[]                @relation("OrganizationMembers")
+  modules                OrgModule[]
+  roleAssignments        RoleAssignment[]
+  events                 Event[]
+  outbox                 Outbox[]
+  commandLogs            CommandLog[]
+  files                  FileObject[]
+  fileLinks              FileLink[]
+  notifications          Notification[]
+  invitations            MemberInvitation[]
+  comments               Comment[]
+  breakGlassSessions     BreakGlassSession[]
+  departments            Department[]
+  costCenters            CostCenter[]
+  positions              Position[]
+  positionAssignments    PositionAssignment[]
+  delegations            Delegation[]
+  holidays               Holiday[]
+  requestTypes           RequestType[]
+  formVersions           FormVersion[]
+  requests               Request[]
+  requestLines           RequestLine[]
+  requestQuotations      RequestQuotation[]
+  requestFollowers       RequestFollower[]
+  infoRequests           InfoRequest[]
+  doaVersions            DoaVersion[]
+  doaRules               DoaRule[]
+  doaTestCases           DoaTestCase[]
+  approvalRoutes         ApprovalRoute[]
+  approvalSteps          ApprovalStep[]
+  approvalTasks          ApprovalTask[]
+  orgAuthorityChanges    OrgAuthorityChange[]
+  documentSequences      DocumentSequence[]
+  stepUpGrants           StepUpGrant[]
+  fiscalYears            FiscalYear[]
+  budgetLines            BudgetLine[]
+  budgetLedger           BudgetLedgerEntry[]
+  budgetBalances         BudgetLineBalance[]
+  budgetAllocations      BudgetAllocation[]
+  budgetGrants           BudgetGrant[]
+  budgetImports          BudgetImport[]
+  suppliers              Supplier[]
+  deliverySites          DeliverySite[]
+  purchaseOrders         PurchaseOrder[]
+  poLines                PoLine[]
+  poLineSources          PoLineSource[]
+  consolidationRuns      ConsolidationRun[]
+  goodsReceipts          GoodsReceipt[]
+  grLines                GrLine[]
+  variances              Variance[]
+  invoiceConfirmations   InvoiceConfirmation[]
+  invoiceLineAllocations InvoiceLineAllocation[]
+  exportJobs             ExportJob[]
+  reportSchedules        ReportSchedule[]
+  actionTokens           ActionToken[]
+  channelIdentities      ChannelIdentity[]
+  channelLinkCodes       ChannelLinkCode[]
+  lineChannelConfig      LineChannelConfig?
+  lineWebhookEvents      LineWebhookEvent[]
 }
 
 enum ModuleKey {
@@ -82,7 +129,7 @@ model OrgModule {
   createdAt                DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt                DateTime  @updatedAt @db.Timestamptz(6)
 
-  organization         Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization           Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   changedByPlatformAdmin PlatformAdmin? @relation(fields: [changedByPlatformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, module])
@@ -105,7 +152,6 @@ model Member {
   email               String
   phone               String?
   employeeCode        String?
-  /// FK to Department added in S2-01
   primaryDepartmentId String?      @db.Uuid
   status              MemberStatus @default(INVITED)
   transactionPinHash  String?
@@ -116,19 +162,51 @@ model Member {
   createdAt           DateTime     @default(now()) @db.Timestamptz(6)
   updatedAt           DateTime     @updatedAt @db.Timestamptz(6)
 
-  organization         Organization     @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  user                 User?            @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  signatoryFor         Organization[]   @relation("OrganizationContractSignatory")
-  invitations          MemberInvitation[] @relation("InvitationMember")
-  invitationsSent      MemberInvitation[] @relation("InvitationSender")
-  roleAssignments      RoleAssignment[] @relation("MemberRoles")
-  rolesGranted         RoleAssignment[] @relation("RoleGrantedBy")
-  notifications        Notification[]
-  uploadedFiles        FileObject[]
-  comments             Comment[]          @relation("CommentAuthor")
-  commentsRetracted    Comment[]          @relation("CommentRetractedBy")
+  organization      Organization       @relation("OrganizationMembers", fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  user              User?              @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  signatoryFor      Organization[]     @relation("OrganizationContractSignatory")
+  invitations       MemberInvitation[] @relation("InvitationMember")
+  invitationsSent   MemberInvitation[] @relation("InvitationSender")
+  roleAssignments   RoleAssignment[]   @relation("MemberRoles")
+  rolesGranted      RoleAssignment[]   @relation("RoleGrantedBy")
+  notifications     Notification[]
+  uploadedFiles     FileObject[]
+  comments          Comment[]          @relation("CommentAuthor")
+  commentsRetracted Comment[]          @relation("CommentRetractedBy")
 
   /// Target of same-tenant foreign keys (organizationId, memberId): Postgres refuses links across organizations
+  primaryDepartment     Department?          @relation("MemberPrimaryDepartment", fields: [organizationId, primaryDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  positionAssignments   PositionAssignment[] @relation("MemberPositions")
+  delegationsGiven      Delegation[]         @relation("DelegationDelegator")
+  delegationsReceived   Delegation[]         @relation("DelegationDelegate")
+  formVersionsPublished FormVersion[]        @relation("FormVersionPublishedBy")
+  requests              Request[]            @relation("RequestRequester")
+  requestFollows        RequestFollower[]    @relation("RequestFollows")
+  infoRequestsAsked     InfoRequest[]        @relation("InfoRequestAskedBy")
+  infoRequestsAnswered  InfoRequest[]        @relation("InfoRequestAnsweredBy")
+  doaVersionsSubmitted  DoaVersion[]         @relation("DoaVersionSubmittedBy")
+  doaVersionsApproved   DoaVersion[]         @relation("DoaVersionApprovedBy")
+  tasksAssigned         ApprovalTask[]       @relation("TaskAssignee")
+  tasksAsPrincipal      ApprovalTask[]       @relation("TaskPrincipal")
+  tasksDecided          ApprovalTask[]       @relation("TaskDecidedBy")
+  orgAuthorityChanges   OrgAuthorityChange[] @relation("OrgAuthorityChangeSubmittedBy")
+  stepUpGrants          StepUpGrant[]        @relation("MemberStepUps")
+  budgetGrantsReceived  BudgetGrant[]        @relation("BudgetGrantMember")
+  budgetGrantsGiven     BudgetGrant[]        @relation("BudgetGrantGrantedBy")
+  budgetImports         BudgetImport[]       @relation("BudgetImportedBy")
+
+  suppliersCreated      Supplier[]            @relation("SupplierCreatedBy")
+  purchaseOrdersCreated PurchaseOrder[]       @relation("PurchaseOrderCreatedBy")
+  consolidationRuns     ConsolidationRun[]    @relation("ConsolidationRunTriggeredBy")
+  goodsReceipts         GoodsReceipt[]        @relation("GoodsReceiptReceiver")
+  variancesCreated      Variance[]            @relation("VarianceCreatedBy")
+  invoicesRecorded      InvoiceConfirmation[] @relation("InvoiceRecordedBy")
+  exportJobs            ExportJob[]           @relation("ExportJobRequestedBy")
+  reportSchedules       ReportSchedule[]      @relation("ReportScheduleCreatedBy")
+  actionTokens          ActionToken[]         @relation("ActionTokenMember")
+  channelIdentities     ChannelIdentity[]     @relation("ChannelIdentityMember")
+  channelLinkCodes      ChannelLinkCode[]     @relation("ChannelLinkCodeMember")
+
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
   @@unique([organizationId, email])
@@ -157,7 +235,6 @@ model RoleAssignment {
   organizationId           String    @db.Uuid
   memberId                 String    @db.Uuid
   role                     RoleCode
-  /// FK to Department added in S2-01
   scopeDepartmentId        String?   @db.Uuid
   /// At most one of grantedById / grantedByPlatformAdminId is set (bootstrap ORG_ADMIN by PLATFORM_ADMIN; neither = demo seed)
   grantedById              String?   @db.Uuid
@@ -171,6 +248,8 @@ model RoleAssignment {
   member                 Member         @relation("MemberRoles", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   grantedBy              Member?        @relation("RoleGrantedBy", fields: [organizationId, grantedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   grantedByPlatformAdmin PlatformAdmin? @relation(fields: [grantedByPlatformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  scopeDepartment Department? @relation("RoleScopeDepartment", fields: [organizationId, scopeDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, memberId, role], map: "role_assignment_active_unique", where: raw("\"revokedAt\" IS NULL"))
   @@index([organizationId, memberId])
@@ -190,6 +269,7 @@ model PlatformAdmin {
   moduleChanges      OrgModule[]
   rolesGranted       RoleAssignment[]
   breakGlassSessions BreakGlassSession[]
+  taxRatesConfirmed  TaxRate[]
 }
 
 /// Global table (spec §4.8) even though it records the tenant it opens (BR-AUTH-03)
@@ -341,6 +421,12 @@ model FileObject {
   links        FileLink[]
 
   /// Target of same-tenant foreign keys (organizationId, fileId)
+  requestQuotations RequestQuotation[]
+
+  purchaseOrderPdfs PurchaseOrder[]       @relation("PurchaseOrderPdf")
+  invoiceSources    InvoiceConfirmation[] @relation("InvoiceSourceFile")
+  exportJobs        ExportJob[]           @relation("ExportJobFile")
+
   @@unique([organizationId, id])
   @@index([organizationId])
 }
@@ -425,14 +511,14 @@ model Notification {
 // (uuid v7 ids via advanced.database.generateId, timestamptz).
 
 model User {
-  id               String      @id @db.Uuid
+  id               String   @id @db.Uuid
   name             String
-  email            String      @unique
-  emailVerified    Boolean     @default(false)
+  email            String   @unique
+  emailVerified    Boolean  @default(false)
   image            String?
-  twoFactorEnabled Boolean?    @default(false)
-  createdAt        DateTime    @default(now()) @db.Timestamptz(6)
-  updatedAt        DateTime    @updatedAt @db.Timestamptz(6)
+  twoFactorEnabled Boolean? @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
 
   sessions       Session[]
   accounts       Account[]
@@ -567,4 +653,1612 @@ model Comment {
   retractedBy  Member?      @relation("CommentRetractedBy", fields: [organizationId, retractedByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@index([organizationId, subjectType, subjectId])
+}
+
+// ================= S2 (S2-01): organization structure, requests, DOA, approvals, numbering, VAT =================
+// Conventions as in S1 (ADR-039): every tenant row carries organizationId; references inside an organization use
+// (organizationId, id) pairs so Postgres refuses links across organizations; money is BigInt satang with a CHECK in
+// the migration SQL (§6.3).
+
+// ---------- organization structure (§6.2) ----------
+
+enum DepartmentKind {
+  COMPANY
+  DIVISION
+  DEPARTMENT
+  SECTION
+}
+
+model Department {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  organizationId String         @db.Uuid
+  code           String
+  nameTh         String
+  nameEn         String?
+  /// null = the root; one tree per organization (partial unique index + no-cycle trigger in the migration)
+  parentId       String?        @db.Uuid
+  kind           DepartmentKind
+  active         Boolean        @default(true)
+  createdAt      DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @db.Timestamptz(6)
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  parent              Department?          @relation("DepartmentTree", fields: [organizationId, parentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  children            Department[]         @relation("DepartmentTree")
+  costCenters         CostCenter[]
+  positionAssignments PositionAssignment[]
+  primaryMembers      Member[]             @relation("MemberPrimaryDepartment")
+  roleScopes          RoleAssignment[]     @relation("RoleScopeDepartment")
+  requestsOfRequester Request[]            @relation("RequestRequesterDepartment")
+  requestsCharged     Request[]            @relation("RequestChargedDepartment")
+  budgetLines         BudgetLine[]
+  budgetGrants        BudgetGrant[]        @relation("BudgetGrantDepartment")
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+  @@unique([organizationId], map: "department_single_root", where: raw("\"parentId\" IS NULL"))
+  @@index([organizationId, parentId])
+}
+
+model CostCenter {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  code           String
+  nameTh         String
+  departmentId   String   @db.Uuid
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  department   Department   @relation(fields: [organizationId, departmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requests     Request[]
+  budgetLines  BudgetLine[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+enum PositionScope {
+  DEPARTMENT
+  ORG
+}
+
+/// A position is not authority: authority comes from the DOA only (§6.2)
+model Position {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  code           String
+  nameTh         String
+  nameEn         String?
+  scope          PositionScope
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  assignments  PositionAssignment[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+model PositionAssignment {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  positionId     String    @db.Uuid
+  /// Organization-wide positions belong to the root department (§6.2)
+  departmentId   String    @db.Uuid
+  memberId       String    @db.Uuid
+  validFrom      DateTime  @db.Timestamptz(6)
+  /// null = still holds it
+  validTo        DateTime? @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  position     Position     @relation(fields: [organizationId, positionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  department   Department   @relation(fields: [organizationId, departmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("MemberPositions", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  /// §6.3 (4): one current holder per (position, department), with exactly the columns §6.3 names; positionId belongs
+  /// to one organization, so the rule stays inside it
+  @@unique([positionId, departmentId], map: "position_single_holder", where: raw("\"validTo\" IS NULL"))
+  @@unique([organizationId, id])
+  @@index([organizationId, memberId])
+}
+
+enum DelegationStatus {
+  SCHEDULED
+  ACTIVE
+  ENDED
+  REVOKED
+}
+
+enum DelegationCreatedVia {
+  SELF
+  ORG_AUTHORITY_CHANGE
+}
+
+model Delegation {
+  id                   String               @id @default(uuid(7)) @db.Uuid
+  organizationId       String               @db.Uuid
+  delegatorMemberId    String               @db.Uuid
+  delegateMemberId     String               @db.Uuid
+  /// [startsAt, endsAt) (BR-DLG-03; CHECK startsAt < endsAt and no overlap per delegator in the migration)
+  startsAt             DateTime             @db.Timestamptz(6)
+  endsAt               DateTime             @db.Timestamptz(6)
+  /// empty = every document type (BR-DLG-01)
+  documentTypes        DoaDocumentType[]
+  maxAmountSatang      BigInt?
+  reason               String
+  status               DelegationStatus     @default(SCHEDULED)
+  createdVia           DelegationCreatedVia
+  orgAuthorityChangeId String?              @db.Uuid
+  revokedAt            DateTime?            @db.Timestamptz(6)
+  createdAt            DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization       Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  delegator          Member              @relation("DelegationDelegator", fields: [organizationId, delegatorMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  delegate           Member              @relation("DelegationDelegate", fields: [organizationId, delegateMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  orgAuthorityChange OrgAuthorityChange? @relation(fields: [organizationId, orgAuthorityChangeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, delegatorMemberId])
+  @@index([organizationId, delegateMemberId])
+}
+
+model Holiday {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  date           DateTime @db.Date
+  nameTh         String
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, date])
+}
+
+// ---------- requests (§6.2) ----------
+
+enum RequestDocumentType {
+  PURCHASE_REQUEST
+  SUPPLIER_REQUEST
+}
+
+model RequestType {
+  id                   String              @id @default(uuid(7)) @db.Uuid
+  organizationId       String              @db.Uuid
+  code                 String
+  nameTh               String
+  nameEn               String?
+  descriptionTh        String?
+  icon                 String?
+  documentType         RequestDocumentType
+  currentFormVersionId String?             @db.Uuid
+  active               Boolean             @default(true)
+  sortOrder            Int                 @default(0)
+  createdAt            DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization       Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currentFormVersion FormVersion?  @relation("RequestTypeCurrentForm", fields: [organizationId, currentFormVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  formVersions       FormVersion[] @relation("FormVersionRequestType")
+  requests           Request[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+enum FormVersionStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+/// A published form never changes; a request keeps the form version it was created with (§6.2)
+model FormVersion {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
+  requestTypeId  String            @db.Uuid
+  versionNo      Int
+  /// FieldDef[], conditions and attachmentRules (§7.9)
+  schema         Json
+  status         FormVersionStatus @default(DRAFT)
+  publishedAt    DateTime?         @db.Timestamptz(6)
+  publishedById  String?           @db.Uuid
+  createdAt      DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestType  RequestType   @relation("FormVersionRequestType", fields: [organizationId, requestTypeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentFor   RequestType[] @relation("RequestTypeCurrentForm")
+  publishedBy  Member?       @relation("FormVersionPublishedBy", fields: [organizationId, publishedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requests     Request[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, requestTypeId, versionNo])
+}
+
+enum RequestStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELLED
+  PARTIALLY_ORDERED
+  ORDERED
+  COMPLETED
+  /// supplier requests (§6.4): DRAFT → SUBMITTED → DONE | REJECTED
+  SUBMITTED
+  DONE
+}
+
+enum Urgency {
+  NORMAL
+  URGENT
+}
+
+model Request {
+  id                    String              @id @default(uuid(7)) @db.Uuid
+  organizationId        String              @db.Uuid
+  /// null while DRAFT; issued at submit (BR-NUM-01)
+  number                String?
+  requestTypeId         String              @db.Uuid
+  formVersionId         String              @db.Uuid
+  documentType          RequestDocumentType
+  status                RequestStatus       @default(DRAFT)
+  title                 String
+  requesterMemberId     String              @db.Uuid
+  requesterDepartmentId String              @db.Uuid
+  chargedDepartmentId   String              @db.Uuid
+  costCenterId          String?             @db.Uuid
+  /// The budget line the request reserves (BR-BUD-04: one line per request in tier 1)
+  budgetLineId          String?             @db.Uuid
+  urgency               Urgency             @default(NORMAL)
+  neededBy              DateTime?           @db.Date
+  /// Where the goods go; consolidation groups by it (BR-CONS-01)
+  deliverySiteId        String?             @db.Uuid
+  /// The supplier the requester suggests; procurement chooses per line in the pool (FR-P2P-001)
+  suggestedSupplierId   String?             @db.Uuid
+  nonLowestQuoteReason  String?
+  priceIncludesVat      Boolean             @default(false)
+  /// Totals come from core/money only, never from the client (§6.2)
+  netSatang             BigInt              @default(0)
+  vatSatang             BigInt              @default(0)
+  grossSatang           BigInt              @default(0)
+  vatRateBp             Int?
+  taxPointDate          DateTime?           @db.Date
+  formData              Json                @default("{}")
+  submittedAt           DateTime?           @db.Timestamptz(6)
+  approvedAt            DateTime?           @db.Timestamptz(6)
+  completedAt           DateTime?           @db.Timestamptz(6)
+  cancelledAt           DateTime?           @db.Timestamptz(6)
+  cancelReason          String?
+  currentRouteId        String?             @db.Uuid
+  version               Int                 @default(0)
+  createdAt             DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestType         RequestType        @relation(fields: [organizationId, requestTypeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  formVersion         FormVersion        @relation(fields: [organizationId, formVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requester           Member             @relation("RequestRequester", fields: [organizationId, requesterMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requesterDepartment Department         @relation("RequestRequesterDepartment", fields: [organizationId, requesterDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  chargedDepartment   Department         @relation("RequestChargedDepartment", fields: [organizationId, chargedDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  costCenter          CostCenter?        @relation(fields: [organizationId, costCenterId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine          BudgetLine?        @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute        ApprovalRoute?     @relation("RequestCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines               RequestLine[]
+  quotations          RequestQuotation[]
+  followers           RequestFollower[]
+  infoRequests        InfoRequest[]
+
+  deliverySite      DeliverySite? @relation(fields: [organizationId, deliverySiteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  suggestedSupplier Supplier?     @relation("RequestSuggestedSupplier", fields: [organizationId, suggestedSupplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([organizationId, requesterMemberId])
+}
+
+model RequestLine {
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @db.Uuid
+  requestId         String    @db.Uuid
+  lineNo            Int
+  description       String
+  categoryCode      String?
+  quantity          Decimal   @db.Decimal(18, 4)
+  uom               String
+  unitPriceSatang   BigInt
+  netSatang         BigInt
+  vatable           Boolean   @default(true)
+  orderedQuantity   Decimal   @default(0) @db.Decimal(18, 4)
+  cancelledQuantity Decimal   @default(0) @db.Decimal(18, 4)
+  /// Services and licences (BR-FORM-05)
+  serviceEndDate    DateTime? @db.Date
+  /// Goods or a service: lines of different kinds never share a PO (BR-CONS-01)
+  kind              LineKind  @default(GOODS)
+  /// Chosen by procurement in the pool (FR-P2P-001 AC2); a line without one waits (BR-CONS-03)
+  supplierId        String?   @db.Uuid
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  request      Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  supplier  Supplier?      @relation("RequestLineSupplier", fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poSources PoLineSource[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, requestId, lineNo])
+}
+
+/// Quotations as data (BR-FORM-06)
+model RequestQuotation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  requestId      String   @db.Uuid
+  /// null when the supplier is not in the register yet
+  supplierId     String?  @db.Uuid
+  supplierName   String
+  amountSatang   BigInt
+  includesVat    Boolean
+  vatRateBp      Int
+  netSatang      BigInt
+  fileId         String?  @db.Uuid
+  isSelected     Boolean  @default(false)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  request      Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject?  @relation(fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  supplier Supplier? @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, requestId], map: "request_quotation_one_selected", where: raw("\"isSelected\""))
+  @@unique([organizationId, id])
+}
+
+model RequestFollower {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  requestId      String   @db.Uuid
+  memberId       String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  request      Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("RequestFollows", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, requestId, memberId])
+}
+
+/// While a question waits for its answer the task's SLA stops (BR-SLA-03)
+model InfoRequest {
+  id             String    @id @default(uuid(7)) @db.Uuid
+  organizationId String    @db.Uuid
+  requestId      String    @db.Uuid
+  taskId         String    @db.Uuid
+  askedById      String    @db.Uuid
+  question       String
+  answeredById   String?   @db.Uuid
+  answer         String?
+  askedAt        DateTime  @db.Timestamptz(6)
+  answeredAt     DateTime? @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  request      Request      @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  task         ApprovalTask @relation(fields: [organizationId, taskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  askedBy      Member       @relation("InfoRequestAskedBy", fields: [organizationId, askedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  answeredBy   Member?      @relation("InfoRequestAnsweredBy", fields: [organizationId, answeredById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, requestId])
+}
+
+// ---------- DOA and approvals (§6.2, §7.4) ----------
+
+enum DoaVersionStatus {
+  DRAFT
+  PENDING_APPROVAL
+  PUBLISHED
+  SUPERSEDED
+  REJECTED
+  WITHDRAWN
+}
+
+enum AmountBasis {
+  GROSS
+  NET
+}
+
+enum SelfApprovalPolicy {
+  ESCALATE_NEXT_BAND
+  BLOCK
+}
+
+enum DoaDocumentType {
+  PURCHASE_REQUEST
+  PURCHASE_ORDER
+  GR_VARIANCE
+  DOA_CHANGE
+  ORG_AUTHORITY_CHANGE
+}
+
+/// A published version never changes; the next one is a new row. versionNo is the edition (ฉบับ); `version` is the
+/// optimistic lock of §6.1 (sub-spec S2).
+model DoaVersion {
+  id                         String             @id @default(uuid(7)) @db.Uuid
+  organizationId             String             @db.Uuid
+  code                       String
+  versionNo                  Int
+  status                     DoaVersionStatus   @default(DRAFT)
+  effectiveFrom              DateTime           @db.Timestamptz(6)
+  effectiveTo                DateTime?          @db.Timestamptz(6)
+  amountBasis                AmountBasis
+  selfApprovalPolicy         SelfApprovalPolicy
+  collapseDuplicateApprovers Boolean            @default(true)
+  stepUpThresholdSatang      BigInt?
+  escalationPolicy           Json               @default("{}")
+  /// { approverMayReceive, requesterMayReceive } — relaxed only through a new version (4-eyes)
+  sodPolicy                  Json
+  changeReason               String?
+  diffSummary                Json?
+  sourceYaml                 String?
+  checksum                   String?
+  submittedById              String?            @db.Uuid
+  approvedById               String?            @db.Uuid
+  submittedAt                DateTime?          @db.Timestamptz(6)
+  approvedAt                 DateTime?          @db.Timestamptz(6)
+  publishedAt                DateTime?          @db.Timestamptz(6)
+  withdrawnAt                DateTime?          @db.Timestamptz(6)
+  version                    Int                @default(0)
+  createdAt                  DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt                  DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy  Member?         @relation("DoaVersionSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  approvedBy   Member?         @relation("DoaVersionApprovedBy", fields: [organizationId, approvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  rules        DoaRule[]
+  testCases    DoaTestCase[]
+  routes       ApprovalRoute[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code, versionNo])
+}
+
+model DoaRule {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  doaVersionId   String          @db.Uuid
+  code           String
+  documentType   DoaDocumentType
+  priority       Int
+  /// { amount: { gt | gte, lte } } in satang strings
+  when           Json
+  /// [{ approver, slaBusinessMinutes, mode }]
+  steps          Json
+  descriptionTh  String?
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  doaVersion   DoaVersion   @relation(fields: [organizationId, doaVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, doaVersionId, code])
+}
+
+/// Every case must pass before the version can be submitted (BR-DOA-08)
+model DoaTestCase {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  doaVersionId   String   @db.Uuid
+  name           String
+  input          Json
+  expected       Json
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  doaVersion   DoaVersion   @relation(fields: [organizationId, doaVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+}
+
+enum ApprovalSubjectType {
+  REQUEST
+  PURCHASE_ORDER
+  VARIANCE
+  DOA_VERSION
+  ORG_AUTHORITY_CHANGE
+}
+
+enum ApprovalRouteStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+/// A new route on every submit or resubmit; an old route is never edited (§6.2)
+model ApprovalRoute {
+  id                    String              @id @default(uuid(7)) @db.Uuid
+  organizationId        String              @db.Uuid
+  subjectType           ApprovalSubjectType
+  subjectId             String              @db.Uuid
+  routeNo               Int
+  doaVersionId          String              @db.Uuid
+  ruleCode              String
+  escalatedFromRuleCode String?
+  amountBasis           AmountBasis
+  amountSatang          BigInt?
+  explanationTh         String
+  status                ApprovalRouteStatus @default(ACTIVE)
+  createdAt             DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization        Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  doaVersion          DoaVersion           @relation(fields: [organizationId, doaVersionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  steps               ApprovalStep[]
+  currentForRequests  Request[]            @relation("RequestCurrentRoute")
+  orgAuthorityChanges OrgAuthorityChange[]
+
+  currentForPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCurrentRoute")
+  currentForVariances      Variance[]      @relation("VarianceCurrentRoute")
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, subjectType, subjectId, routeNo])
+}
+
+enum ApprovalStepMode {
+  SEQUENTIAL
+  PARALLEL
+}
+
+enum ApprovalQuorum {
+  ALL
+  ANY
+  COUNT
+}
+
+enum ApprovalStepStatus {
+  WAITING
+  ACTIVE
+  DONE
+  CANCELLED
+}
+
+model ApprovalStep {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  organizationId     String             @db.Uuid
+  routeId            String             @db.Uuid
+  stepNo             Int
+  mode               ApprovalStepMode   @default(SEQUENTIAL)
+  quorum             ApprovalQuorum     @default(ALL)
+  quorumCount        Int?
+  slaBusinessMinutes Int
+  status             ApprovalStepStatus @default(WAITING)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  route        ApprovalRoute  @relation(fields: [organizationId, routeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  tasks        ApprovalTask[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, routeId, stepNo])
+}
+
+enum ApprovalTaskStatus {
+  OPEN
+  INFO_REQUESTED
+  APPROVED
+  REJECTED
+  RETURNED
+  CANCELLED
+  REASSIGNED
+}
+
+enum ApprovalDecision {
+  APPROVE
+  REJECT
+  RETURN
+}
+
+/// A decided task never changes (§6.2)
+model ApprovalTask {
+  id                       String             @id @default(uuid(7)) @db.Uuid
+  organizationId           String             @db.Uuid
+  stepId                   String             @db.Uuid
+  assigneeMemberId         String             @db.Uuid
+  /// The delegator when a delegate holds the task (BR-DLG-04)
+  principalMemberId        String?            @db.Uuid
+  /// e.g. "POSITION:VP@OPS"
+  resolvedFrom             String
+  status                   ApprovalTaskStatus @default(OPEN)
+  assignedAt               DateTime           @db.Timestamptz(6)
+  dueAt                    DateTime?          @db.Timestamptz(6)
+  remindAt                 DateTime?          @db.Timestamptz(6)
+  escalateAt               DateTime?          @db.Timestamptz(6)
+  remainingBusinessMinutes Int?
+  overdueAt                DateTime?          @db.Timestamptz(6)
+  escalatedAt              DateTime?          @db.Timestamptz(6)
+  decidedAt                DateTime?          @db.Timestamptz(6)
+  decidedByMemberId        String?            @db.Uuid
+  decision                 ApprovalDecision?
+  reason                   String?
+  channel                  Channel?
+  reassignedFromTaskId     String?            @db.Uuid
+  version                  Int                @default(0)
+  createdAt                DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt                DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  step           ApprovalStep   @relation(fields: [organizationId, stepId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  assignee       Member         @relation("TaskAssignee", fields: [organizationId, assigneeMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  principal      Member?        @relation("TaskPrincipal", fields: [organizationId, principalMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  decidedBy      Member?        @relation("TaskDecidedBy", fields: [organizationId, decidedByMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  reassignedFrom ApprovalTask?  @relation("TaskReassigned", fields: [organizationId, reassignedFromTaskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  reassignedTo   ApprovalTask[] @relation("TaskReassigned")
+  infoRequests   InfoRequest[]
+
+  actionTokens ActionToken[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, assigneeMemberId, status])
+  @@index([organizationId, principalMemberId, status])
+}
+
+enum OrgAuthorityChangeKind {
+  POSITION_ASSIGN
+  POSITION_END
+  DEPARTMENT_REPARENT
+  DELEGATION_ON_BEHALF
+  IDENTITY_RESET
+}
+
+enum OrgAuthorityChangeStatus {
+  DRAFT
+  PENDING_APPROVAL
+  SCHEDULED
+  APPLIED
+  REJECTED
+  CANCELLED
+}
+
+model OrgAuthorityChange {
+  id             String                   @id @default(uuid(7)) @db.Uuid
+  organizationId String                   @db.Uuid
+  kind           OrgAuthorityChangeKind
+  payload        Json
+  reason         String
+  /// Never in the past (BR-DOA-17)
+  effectiveFrom  DateTime                 @db.Timestamptz(6)
+  submittedById  String                   @db.Uuid
+  routeId        String?                  @db.Uuid
+  status         OrgAuthorityChangeStatus @default(DRAFT)
+  impactSummary  Json?
+  submittedAt    DateTime?                @db.Timestamptz(6)
+  approvedAt     DateTime?                @db.Timestamptz(6)
+  appliedAt      DateTime?                @db.Timestamptz(6)
+  cancelledAt    DateTime?                @db.Timestamptz(6)
+  version        Int                      @default(0)
+  createdAt      DateTime                 @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                 @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy  Member         @relation("OrgAuthorityChangeSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  route        ApprovalRoute? @relation(fields: [organizationId, routeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  delegations  Delegation[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, status])
+}
+
+// ---------- platform (§6.2) ----------
+
+/// Row locked while a number is issued (INV-NUM-01)
+model DocumentSequence {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  documentType   String
+  /// e.g. "2569" for a yearly reset
+  scopeKey       String
+  pattern        String
+  nextValue      Int      @default(1)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, documentType, scopeKey])
+}
+
+/// Global VAT rates (BR-VAT-01): periods of one code never overlap (exclusion constraint in the migration)
+model TaxRate {
+  id            String    @id @default(uuid(7)) @db.Uuid
+  code          String
+  rateBp        Int
+  effectiveFrom DateTime  @db.Date
+  /// inclusive last day; null = open-ended
+  effectiveTo   DateTime? @db.Date
+  sourceUrl     String?
+  note          String?
+  confirmedById String?   @db.Uuid
+  confirmedAt   DateTime? @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(6)
+
+  confirmedBy PlatformAdmin? @relation(fields: [confirmedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@index([code, effectiveFrom])
+}
+
+// ---------- step-up (S2-16) ----------
+
+enum StepUpMethod {
+  /// The authenticator code again; the LINE PIN replaces it from S5-05 (BR-DOA-15, FR-AUTH-005)
+  TOTP
+  PIN
+}
+
+/// A fresh second factor for one sensitive approval (BR-DOA-15, NFR-SEC-04): valid 5 minutes, for one document, used once
+model StepUpGrant {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  memberId       String       @db.Uuid
+  /// What the grant allows, e.g. APPROVE_POLICY
+  purpose        String
+  subjectType    String
+  subjectId      String       @db.Uuid
+  method         StepUpMethod
+  grantedAt      DateTime     @db.Timestamptz(6)
+  expiresAt      DateTime     @db.Timestamptz(6)
+  usedAt         DateTime?    @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("MemberStepUps", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, memberId, subjectType, subjectId])
+}
+
+// ---------- budget (§6.2, §7.7, S3) ----------
+// The ledger is the truth (BR-BUD-01, ADR-021): every movement is an append-only BudgetLedgerEntry between buckets;
+// BudgetLineBalance and BudgetAllocation are projections written in the same transaction. Money is satang (BigInt).
+
+enum FiscalYearStatus {
+  OPEN
+  CLOSED
+}
+
+model FiscalYear {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  /// e.g. FY2569 (OQ-11)
+  code           String
+  startsOn       DateTime         @db.Date
+  /// The last day, inclusive
+  endsOn         DateTime         @db.Date
+  status         FiscalYearStatus @default(OPEN)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLines   BudgetLine[]
+  budgetImports BudgetImport[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+enum BudgetLineStatus {
+  OPEN
+  /// No new reservations; holds and actuals on existing ones go on (BR-BUD-08)
+  FROZEN
+  CLOSED
+}
+
+model BudgetLine {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  fiscalYearId   String           @db.Uuid
+  departmentId   String           @db.Uuid
+  costCenterId   String           @db.Uuid
+  code           String
+  nameTh         String
+  accountCode    String?
+  /// The amount imported in all (the ledger has it as OUTSIDE → AVAILABLE)
+  plannedSatang  BigInt
+  status         BudgetLineStatus @default(OPEN)
+  version        Int              @default(0)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fiscalYear   FiscalYear          @relation(fields: [organizationId, fiscalYearId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  department   Department          @relation(fields: [organizationId, departmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  costCenter   CostCenter          @relation(fields: [organizationId, costCenterId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  balance      BudgetLineBalance?
+  ledger       BudgetLedgerEntry[]
+  allocations  BudgetAllocation[]
+  grants       BudgetGrant[]
+  requests     Request[]
+
+  poLines PoLine[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, fiscalYearId, code])
+  @@index([organizationId, departmentId])
+}
+
+enum BudgetBucket {
+  OUTSIDE
+  AVAILABLE
+  RESERVED
+  COMMITTED
+  ACTUAL
+}
+
+/// Append-only (INV-BUD-06, INV-EVT-01): trigger ledger_append_only and no UPDATE/DELETE for bcs_app (§6.3)
+model BudgetLedgerEntry {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  budgetLineId   String       @db.Uuid
+  /// 1, 2, 3 … per budget line, in the order the movements happened
+  seq            Int
+  fromBucket     BudgetBucket
+  toBucket       BudgetBucket
+  amountSatang   BigInt
+  /// What moved the money: REQUEST_LINE, PO_LINE, IMPORT, …
+  sourceType     String
+  sourceId       String       @db.Uuid
+  /// The Event of the same transaction (INV-BUD-04, checked by a deferred trigger)
+  eventId        String       @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, budgetLineId, seq])
+  @@index([organizationId, sourceType, sourceId])
+}
+
+/// Projection of the ledger per budget line, updated in the same transaction (§7.7); locked FOR UPDATE (INV-BUD-05)
+model BudgetLineBalance {
+  budgetLineId    String   @id @db.Uuid
+  organizationId  String   @db.Uuid
+  availableSatang BigInt   @default(0)
+  reservedSatang  BigInt   @default(0)
+  committedSatang BigInt   @default(0)
+  actualSatang    BigInt   @default(0)
+  lastSeq         Int      @default(0)
+  version         Int      @default(0)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, budgetLineId])
+}
+
+enum BudgetSourceType {
+  REQUEST_LINE
+  PO_LINE
+}
+
+/// Projection per document line (INV-BUD-03); the dashboard drills down through it (FR-BUD-005 AC2)
+model BudgetAllocation {
+  id              String           @id @default(uuid(7)) @db.Uuid
+  organizationId  String           @db.Uuid
+  budgetLineId    String           @db.Uuid
+  sourceType      BudgetSourceType
+  sourceId        String           @db.Uuid
+  reservedSatang  BigInt           @default(0)
+  committedSatang BigInt           @default(0)
+  actualSatang    BigInt           @default(0)
+  version         Int              @default(0)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, budgetLineId, sourceType, sourceId])
+}
+
+/// Use of another department's budget line (FR-BUD-004): to one department or to one member, for a period
+model BudgetGrant {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  organizationId      String    @db.Uuid
+  budgetLineId        String    @db.Uuid
+  granteeDepartmentId String?   @db.Uuid
+  granteeMemberId     String?   @db.Uuid
+  validFrom           DateTime  @db.Timestamptz(6)
+  /// null = open-ended
+  validTo             DateTime? @db.Timestamptz(6)
+  grantedById         String    @db.Uuid
+  revokedAt           DateTime? @db.Timestamptz(6)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine        BudgetLine   @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  granteeDepartment Department?  @relation("BudgetGrantDepartment", fields: [organizationId, granteeDepartmentId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  granteeMember     Member?      @relation("BudgetGrantMember", fields: [organizationId, granteeMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  grantedBy         Member       @relation("BudgetGrantGrantedBy", fields: [organizationId, grantedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, budgetLineId])
+}
+
+/// One import of a budget file (FR-BUD-001): the same file again is found by its checksum and needs confirming (AC3)
+model BudgetImport {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  organizationId     String   @db.Uuid
+  fiscalYearId       String   @db.Uuid
+  /// sha256 of the file
+  checksum           String
+  fileName           String
+  rows               Int
+  totalSatang        BigInt
+  importedById       String?  @db.Uuid
+  /// The same file was imported before and the importer confirmed adding it again
+  confirmedDuplicate Boolean  @default(false)
+  importedAt         DateTime @db.Timestamptz(6)
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  fiscalYear   FiscalYear   @relation(fields: [organizationId, fiscalYearId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  importedBy   Member?      @relation("BudgetImportedBy", fields: [organizationId, importedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, checksum])
+}
+
+// ===== S4 · suppliers, delivery sites, purchase orders, receiving, invoices, exports, action tokens (S4-01) =====
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// Where the supplier data came from (BR-SUP-01, BR-SUP-03, BR-SUP-05)
+enum RegistrySource {
+  RD
+  DBD
+  MANUAL
+  STUB
+}
+
+/// Supplier register, tier 1 (§6.2): taxId passes mod-11 unless the supplier is foreign (BR-TAXID-01); expressVendorCode
+/// per BR-EXP-04; the registry fields per BR-SUP-01 to BR-SUP-05
+model Supplier {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  organizationId    String          @db.Uuid
+  code              String
+  nameTh            String
+  nameEn            String?
+  /// 13 digits; null only for a foreign supplier without a Thai tax id
+  taxId             String?
+  /// "00000" = head office
+  branchCode        String          @default("00000")
+  isVatRegistered   Boolean         @default(true)
+  isForeign         Boolean         @default(false)
+  email             String?
+  phone             String?
+  address           String?
+  /// What the supplier sells, as the Suppliers sheet says
+  category          String?
+  status            SupplierStatus  @default(ACTIVE)
+  expressVendorCode String?
+  /// The status the registry reported (BR-SUP-04)
+  registryStatus    String?
+  registrySource    RegistrySource?
+  registryCheckedAt DateTime?       @db.Timestamptz(6)
+  /// The values as the registry gave them, kept to compare with what the user confirmed (BR-SUP-01)
+  registryData      Json?
+  createdById       String?         @db.Uuid
+  version           Int             @default(0)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy            Member?               @relation("SupplierCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  suggestedFor         Request[]             @relation("RequestSuggestedSupplier")
+  requestLines         RequestLine[]         @relation("RequestLineSupplier")
+  quotations           RequestQuotation[]
+  purchaseOrders       PurchaseOrder[]
+  invoiceConfirmations InvoiceConfirmation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+  @@unique([organizationId, taxId, branchCode])
+}
+
+/// Where goods are delivered, e.g. a construction site; consolidation groups by it (BR-CONS-01)
+model DeliverySite {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  code           String
+  nameTh         String
+  address        String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requests       Request[]
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// Goods or a service: lines of different kinds never share a PO (BR-CONS-01)
+enum LineKind {
+  GOODS
+  SERVICE
+}
+
+enum PoStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  PARTIALLY_RECEIVED
+  RECEIVED
+  CLOSED
+  CANCELLED
+  REJECTED
+}
+
+/// BR-BUD-06: what happens to the request lines when an approved PO is cancelled
+enum PoCancelDisposition {
+  RETURN_TO_POOL
+  CANCEL_REQUEST_LINES
+}
+
+/// Tier 1: every PO line comes from request lines (OQ-24, FR-P2P-004 AC3)
+model PurchaseOrder {
+  id                 String               @id @default(uuid(7)) @db.Uuid
+  organizationId     String               @db.Uuid
+  /// null while DRAFT; issued at submit (BR-NUM-01)
+  number             String?
+  status             PoStatus             @default(DRAFT)
+  supplierId         String               @db.Uuid
+  deliverySiteId     String?              @db.Uuid
+  kind               LineKind             @default(GOODS)
+  urgency            Urgency              @default(NORMAL)
+  currency           String               @default("THB")
+  priceIncludesVat   Boolean              @default(false)
+  /// Totals come from core/money only (FR-P2P-003 AC3)
+  netSatang          BigInt               @default(0)
+  vatSatang          BigInt               @default(0)
+  grossSatang        BigInt               @default(0)
+  vatRateBp          Int?
+  taxPointDate       DateTime?            @db.Date
+  paymentTermDays    Int?
+  notesToSupplier    String?
+  /// null when the consolidation round made the draft
+  createdById        String?              @db.Uuid
+  consolidationRunId String?              @db.Uuid
+  submittedAt        DateTime?            @db.Timestamptz(6)
+  approvedAt         DateTime?            @db.Timestamptz(6)
+  sentAt             DateTime?            @db.Timestamptz(6)
+  sentToEmail        String?
+  /// The last sending bounced (FR-P2P-005 AC2): the PO stays APPROVED and procurement is told
+  sendBouncedAt      DateTime?            @db.Timestamptz(6)
+  sendBounceReason   String?
+  closedAt           DateTime?            @db.Timestamptz(6)
+  cancelledAt        DateTime?            @db.Timestamptz(6)
+  cancelReason       String?
+  cancelDisposition  PoCancelDisposition?
+  pdfFileId          String?              @db.Uuid
+  currentRouteId     String?              @db.Uuid
+  version            Int                  @default(0)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier              @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  deliverySite     DeliverySite?         @relation(fields: [organizationId, deliverySiteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy        Member?               @relation("PurchaseOrderCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  consolidationRun ConsolidationRun?     @relation(fields: [organizationId, consolidationRunId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  pdfFile          FileObject?           @relation("PurchaseOrderPdf", fields: [organizationId, pdfFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute     ApprovalRoute?        @relation("PurchaseOrderCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines            PoLine[]
+  goodsReceipts    GoodsReceipt[]
+  variances        Variance[]
+  invoices         InvoiceConfirmation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, status])
+  @@index([organizationId, supplierId])
+}
+
+model PoLine {
+  id                    String    @id @default(uuid(7)) @db.Uuid
+  organizationId        String    @db.Uuid
+  poId                  String    @db.Uuid
+  lineNo                Int
+  description           String
+  categoryCode          String?
+  quantity              Decimal   @db.Decimal(18, 4)
+  uom                   String
+  unitPriceSatang       BigInt
+  netSatang             BigInt
+  vatable               Boolean   @default(true)
+  /// From the source request (BR-BUD-04)
+  budgetLineId          String    @db.Uuid
+  /// Accepted on POSTED GRs (BR-GR-01)
+  receivedQuantity      Decimal   @default(0) @db.Decimal(18, 4)
+  /// Kept beyond the ordered quantity: within the tolerance or by an approved ACCEPT_EXCESS (BR-GR-02, BR-GR-04)
+  acceptedExtraQuantity Decimal   @default(0) @db.Decimal(18, 4)
+  /// Never coming: closed short or cancelled
+  cancelledQuantity     Decimal   @default(0) @db.Decimal(18, 4)
+  serviceEndDate        DateTime? @db.Date
+  createdAt             DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder           @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  budgetLine   BudgetLine              @relation(fields: [organizationId, budgetLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sources      PoLineSource[]
+  grLines      GrLine[]
+  variances    Variance[]
+  invoiceParts InvoiceLineAllocation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, poId, lineNo])
+}
+
+/// The part of a request line a PO line orders; its releasable amount is given back to the request when the PO is
+/// approved (BR-BUD-05). BR-CONS-04: every PO line keeps its source request lines.
+model PoLineSource {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @db.Uuid
+  poLineId         String   @db.Uuid
+  requestLineId    String   @db.Uuid
+  quantity         Decimal  @db.Decimal(18, 4)
+  releasableSatang BigInt
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine       @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestLine  RequestLine  @relation(fields: [organizationId, requestLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, poLineId, requestLineId])
+  @@index([organizationId, requestLineId])
+}
+
+enum ConsolidationTrigger {
+  /// The organization's cron (BR-CONS-01)
+  SCHEDULED
+  /// "รวมตอนนี้" (FR-P2P-002 AC3)
+  MANUAL
+  /// An urgent request approved with a supplier (BR-CONS-02)
+  URGENT
+}
+
+enum ConsolidationRunStatus {
+  COMPLETED
+  FAILED
+}
+
+/// One consolidation round (FR-P2P-002 AC2)
+model ConsolidationRun {
+  id             String                 @id @default(uuid(7)) @db.Uuid
+  organizationId String                 @db.Uuid
+  trigger        ConsolidationTrigger
+  /// The cron slot the round belongs to; null when run by hand
+  scheduledFor   DateTime?              @db.Timestamptz(6)
+  ranAt          DateTime               @db.Timestamptz(6)
+  status         ConsolidationRunStatus
+  createdPoIds   String[]               @db.Uuid
+  triggeredById  String?                @db.Uuid
+  error          String?
+  createdAt      DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime               @updatedAt @db.Timestamptz(6)
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  triggeredBy    Member?         @relation("ConsolidationRunTriggeredBy", fields: [organizationId, triggeredById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  purchaseOrders PurchaseOrder[]
+
+  @@unique([organizationId, id])
+  /// A scheduled round runs once per slot of the cron (FR-P2P-002 AC2)
+  @@unique([organizationId, scheduledFor], map: "consolidation_run_one_per_slot", where: raw("\"trigger\" = 'SCHEDULED'"))
+  @@index([organizationId, ranAt])
+}
+
+enum GrStatus {
+  DRAFT
+  POSTED
+  REVERSED
+}
+
+model GoodsReceipt {
+  id               String    @id @default(uuid(7)) @db.Uuid
+  organizationId   String    @db.Uuid
+  /// null while DRAFT; issued when posted (BR-NUM-01)
+  number           String?
+  poId             String    @db.Uuid
+  status           GrStatus  @default(DRAFT)
+  receivedAt       DateTime  @db.Timestamptz(6)
+  receiverMemberId String    @db.Uuid
+  deliveryNoteNo   String?
+  notes            String?
+  postedAt         DateTime? @db.Timestamptz(6)
+  reversedAt       DateTime? @db.Timestamptz(6)
+  reverseReason    String?
+  version          Int       @default(0)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime  @updatedAt @db.Timestamptz(6)
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  receiver     Member        @relation("GoodsReceiptReceiver", fields: [organizationId, receiverMemberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines        GrLine[]
+  variances    Variance[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, poId])
+}
+
+/// BR-GR-01: received = accepted + rejected; photos are FileLinks of kind PHOTO
+model GrLine {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @db.Uuid
+  grId             String   @db.Uuid
+  poLineId         String   @db.Uuid
+  receivedQuantity Decimal  @db.Decimal(18, 4)
+  acceptedQuantity Decimal  @db.Decimal(18, 4)
+  rejectedQuantity Decimal  @default(0) @db.Decimal(18, 4)
+  remark           String?
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  gr           GoodsReceipt @relation(fields: [organizationId, grId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine       @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, grId, poLineId])
+}
+
+enum VarianceType {
+  SHORT
+  OVER
+  DAMAGED
+}
+
+/// BR-GR-03: ACCEPT_EXCESS, ACCEPT_DAMAGED and CLOSE_SHORT need approval; RETURN_EXCESS and RETURN_REPLACE do not
+enum VarianceDisposition {
+  ACCEPT_EXCESS
+  RETURN_EXCESS
+  ACCEPT_DAMAGED
+  RETURN_REPLACE
+  CLOSE_SHORT
+}
+
+enum VarianceStatus {
+  RECORDED
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+}
+
+/// A difference between what was ordered and what came (BR-GR-01 to BR-GR-05); CLOSE_SHORT has no GR
+model Variance {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  organizationId String              @db.Uuid
+  poId           String              @db.Uuid
+  poLineId       String              @db.Uuid
+  grId           String?             @db.Uuid
+  type           VarianceType
+  quantity       Decimal             @db.Decimal(18, 4)
+  /// quantity × PO unit price, rounded once (BR-GR-04)
+  amountSatang   BigInt
+  disposition    VarianceDisposition
+  status         VarianceStatus
+  reason         String?
+  createdById    String              @db.Uuid
+  currentRouteId String?             @db.Uuid
+  decidedAt      DateTime?           @db.Timestamptz(6)
+  version        Int                 @default(0)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder  @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine         @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  gr           GoodsReceipt?  @relation(fields: [organizationId, grId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member         @relation("VarianceCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute ApprovalRoute? @relation("VarianceCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, poId])
+  @@index([organizationId, status])
+}
+
+enum InvoiceSource {
+  MANUAL
+  ETAX_XML
+}
+
+/// Simple invoice confirmation, tier 1 (§7.12, BR-IVC-01 to BR-IVC-04); tier 2 replaces it with Invoice
+model InvoiceConfirmation {
+  id                  String        @id @default(uuid(7)) @db.Uuid
+  organizationId      String        @db.Uuid
+  poId                String        @db.Uuid
+  supplierId          String        @db.Uuid
+  invoiceNo           String
+  /// Spaces removed, upper case (BR-IVC-03)
+  invoiceNoNormalized String
+  invoiceDate         DateTime      @db.Date
+  netSatang           BigInt
+  vatSatang           BigInt
+  grossSatang         BigInt
+  isFinal             Boolean       @default(false)
+  sourceFileId        String?       @db.Uuid
+  parsedFrom          InvoiceSource @default(MANUAL)
+  recordedById        String        @db.Uuid
+  recordedAt          DateTime      @db.Timestamptz(6)
+  exportedAt          DateTime?     @db.Timestamptz(6)
+  exportJobId         String?       @db.Uuid
+  createdAt           DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime      @updatedAt @db.Timestamptz(6)
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder           @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier                @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceFile   FileObject?             @relation("InvoiceSourceFile", fields: [organizationId, sourceFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy   Member                  @relation("InvoiceRecordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  exportJob    ExportJob?              @relation(fields: [organizationId, exportJobId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines        InvoiceLineAllocation[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, supplierId, invoiceNoNormalized])
+  @@index([organizationId, poId])
+}
+
+/// The share of an invoice's amount before VAT on one PO line (BR-IVC-04); the GRNI report reads it (BR-RPT-01)
+model InvoiceLineAllocation {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  invoiceId      String   @db.Uuid
+  poLineId       String   @db.Uuid
+  netSatang      BigInt
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice      InvoiceConfirmation @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine              @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceId, poLineId])
+  @@index([organizationId, poLineId])
+}
+
+enum ExportKind {
+  EXPRESS_AP
+  REPORT
+  AUDIT
+}
+
+enum ExportStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+/// A file made for download (BR-EXP-02, BR-EXP-03, FR-VIS-004 AC2): row count, total and sha256 shown to the user
+model ExportJob {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  kind           ExportKind
+  params         Json         @default("{}")
+  status         ExportStatus @default(PENDING)
+  fileId         String?      @db.Uuid
+  rowCount       Int?
+  totalSatang    BigInt?
+  /// sha256 of the file
+  checksum       String?
+  /// Required when the same invoices are exported again (BR-EXP-02)
+  reason         String?
+  requestedById  String       @db.Uuid
+  completedAt    DateTime?    @db.Timestamptz(6)
+  error          String?
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject?           @relation("ExportJobFile", fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy  Member                @relation("ExportJobRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  invoices     InvoiceConfirmation[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, kind, createdAt])
+}
+
+enum ReportFormat {
+  XLSX
+  CSV
+}
+
+/// A report sent by email on a schedule (FR-VIS-002 AC1)
+model ReportSchedule {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  organizationId String       @db.Uuid
+  reportCode     String
+  /// e.g. "TZ=Asia/Bangkok 0 8 * * 1"
+  cron           String
+  /// Member ids
+  recipients     String[]     @db.Uuid
+  format         ReportFormat @default(XLSX)
+  active         Boolean      @default(true)
+  createdById    String       @db.Uuid
+  lastRunAt      DateTime?    @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member       @relation("ReportScheduleCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+}
+
+enum ActionTokenChannel {
+  LINE
+  EMAIL
+}
+
+/// Buttons and links that decide a task outside the workspace (§4.9): one per (task, member, channel), 72 hours or until
+/// the task closes; used once with a single UPDATE (BR-TOK-04, INV-TOK-01). Email links keep only the sha256 of the
+/// secret (BR-TOK-03); LINE postbacks carry no secret (BR-TOK-02).
+model ActionToken {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @db.Uuid
+  memberId       String             @db.Uuid
+  taskId         String             @db.Uuid
+  /// e.g. ["APPROVE", "REJECT"]
+  allowedActions String[]
+  channel        ActionTokenChannel
+  secretHash     String?
+  expiresAt      DateTime           @db.Timestamptz(6)
+  usedAt         DateTime?          @db.Timestamptz(6)
+  revokedAt      DateTime?          @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("ActionTokenMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  task         ApprovalTask @relation(fields: [organizationId, taskId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, taskId])
+}
+
+// ---------- LINE (S5) ----------
+
+enum IdentityChannel {
+  LINE
+}
+
+/// A member's account on an outside channel (spec §6.2, FR-LINE-001): LINE user ids differ per provider, so the provider
+/// is part of the key. One live link per account and one live LINE account per member in an organization; unlinking
+/// keeps the row with unlinkedAt (line.unlinked).
+model ChannelIdentity {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  memberId       String          @db.Uuid
+  channel        IdentityChannel
+  /// The LINE provider that issued the user id (§9.2)
+  providerKey    String
+  externalUserId String
+  linkedAt       DateTime        @db.Timestamptz(6)
+  unlinkedAt     DateTime?       @db.Timestamptz(6)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("ChannelIdentityMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, channel, providerKey, externalUserId], map: "channel_identity_live_account", where: raw("\"unlinkedAt\" IS NULL"))
+  @@unique([organizationId, memberId, channel], map: "channel_identity_live_member", where: raw("\"unlinkedAt\" IS NULL"))
+  @@index([organizationId, memberId])
+}
+
+/// A one-time code that links LINE to a member (FR-LINE-001 AC1, §9.2): the code is signed and handed out without a
+/// write; the link records the sha256 of the code here with usedAt, so a code links once. Lives 10 minutes.
+model ChannelLinkCode {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  memberId       String   @db.Uuid
+  codeHash       String
+  expiresAt      DateTime @db.Timestamptz(6)
+  usedAt         DateTime @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("ChannelLinkCodeMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, codeHash])
+}
+
+/// The LINE channels of an organization (spec §6.2, FR-ADM-006 AC2, OQ-15): the secret and the access token are
+/// encrypted with AES-256-GCM under ENCRYPTION_KEY; channelKey is random and public (it names the webhook path).
+model LineChannelConfig {
+  id                    String   @id @default(uuid(7)) @db.Uuid
+  organizationId        String   @db.Uuid
+  channelKey            String
+  providerId            String
+  messagingChannelId    String
+  channelSecretEnc      String
+  channelAccessTokenEnc String
+  liffId                String?
+  liffChannelId         String?
+  richMenuLinkedId      String?
+  richMenuUnlinkedId    String?
+  active                Boolean  @default(false)
+  version               Int      @default(0)
+  createdAt             DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt             DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId])
+  @@unique([channelKey])
+}
+
+enum LineWebhookStatus {
+  RECEIVED
+  QUEUED
+  PROCESSED
+  SKIPPED
+  FAILED
+}
+
+/// Each LINE webhook event once (BR-LINE-04, BR-LINE-05): the row is written before anything is processed; a delivery
+/// with a webhookEventId seen before is not processed again. Message text is never kept (PDPA): payload holds what
+/// processing needs — the kind, the source user id, the postback data and the reply token.
+model LineWebhookEvent {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
+  webhookEventId String
+  channelKey     String
+  type           String
+  payload        Json              @default("{}")
+  receivedAt     DateTime          @db.Timestamptz(6)
+  processedAt    DateTime?         @db.Timestamptz(6)
+  status         LineWebhookStatus @default(RECEIVED)
+  error          String?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, webhookEventId])
+  @@index([organizationId, status, receivedAt])
 }

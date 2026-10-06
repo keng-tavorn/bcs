@@ -1,5 +1,5 @@
 import { getTranslations } from 'next-intl/server'
-import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@/lib/constants'
 import { InviteForm } from '@/ui/auth/invite-form'
 import { acceptInvitationAction } from './actions'
 
@@ -15,7 +15,7 @@ export default async function InvitePage({ params }: { params: Promise<{ token: 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">{t('title')}</h1>
-      <InviteForm token={decodeURIComponent(token)} min={PASSWORD_MIN_LENGTH} accept={acceptInvitationAction} />
+      <InviteForm token={decodeURIComponent(token)} min={PASSWORD_MIN_LENGTH} max={PASSWORD_MAX_LENGTH} accept={acceptInvitationAction} />
     </div>
   )
 }

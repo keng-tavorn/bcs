@@ -1,0 +1,17 @@
+# tests/golden/sla.yaml
+suite: sla
+calendar:
+  timezone: Asia/Bangkok
+  workdays: [MON, TUE, WED, THU, FRI]
+  start: "08:30"
+  end: "17:30"
+  holidays: ["2026-10-13", "2026-10-23"]
+cases:
+  - { id: GC-SLA-01, title: ศุกร์ 16:30 + 8 ชม. ทำการ → จันทร์ 15:30, fn: addBusinessMinutes, input: { from: "2026-10-02T09:30:00Z", minutes: 480 }, expect: "2026-10-05T08:30:00Z" }
+  - { id: GC-SLA-02, title: จันทร์ 17:00 ข้ามวันหยุดอังคาร → พุธ 16:00, fn: addBusinessMinutes, input: { from: "2026-10-12T10:00:00Z", minutes: 480 }, expect: "2026-10-14T09:00:00Z" }
+  - { id: GC-SLA-03, title: เริ่มวันเสาร์ → เริ่มนับจันทร์ 08:30, fn: addBusinessMinutes, input: { from: "2026-10-03T03:00:00Z", minutes: 60 }, expect: "2026-10-05T02:30:00Z" }
+  - { id: GC-SLA-04, title: เริ่มตรงเวลาเลิกงาน, fn: addBusinessMinutes, input: { from: "2026-10-02T10:30:00Z", minutes: 60 }, expect: "2026-10-05T02:30:00Z" }
+  - { id: GC-SLA-05, fn: businessMinutesBetween, input: { from: "2026-10-02T09:30:00Z", to: "2026-10-05T02:30:00Z" }, expect: 120 }
+  - { id: GC-SLA-06, title: หยุดนับระหว่างขอข้อมูลเพิ่ม, fn: resumeDue, input: { assignedAt: "2026-10-05T01:30:00Z", slaMinutes: 480, pausedAt: "2026-10-05T04:30:00Z", resumedAt: "2026-10-07T03:00:00Z" }, expect: "2026-10-07T08:00:00Z" }
+  - { id: GC-SLA-07, fn: remindAt, input: { assignedAt: "2026-10-05T01:30:00Z", slaMinutes: 480, remindPct: 50 }, expect: "2026-10-05T05:30:00Z" }
+  - { id: GC-SLA-08, title: ข้ามวันหยุดวันศุกร์และเสาร์อาทิตย์, fn: addBusinessMinutes, input: { from: "2026-10-22T09:00:00Z", minutes: 180 }, expect: "2026-10-26T03:00:00Z" }

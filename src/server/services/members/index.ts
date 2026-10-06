@@ -1,13 +1,14 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
-import { INVITATION_TTL_MS, PASSWORD_MIN_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
+import { INVITATION_TTL_MS, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { makeCtx, type Ctx } from '@/server/context'
 import { findInvitationByTokenHash } from '@/server/db/lookups'
 import { countOtherActiveMemberships, deleteMemberSession, deleteMemberSessions, removeMemberTwoFactor } from '@/server/db/sql/identity'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { reliedOnByDoa } from '@/server/doa/policy'
 import { authorize } from '@/server/authz'
 import { STORED_ROLES } from '@/server/authz/permissions'
 import { sendInvitationEmail } from '@/server/auth/emails'
@@ -134,7 +135,8 @@ export async function inviteMember(
 
 // ---------- accept invitation (FR-AUTH-001 AC1–AC2) ----------
 
-const AcceptInput = z.object({ token: z.string().min(20), password: z.string().min(PASSWORD_MIN_LENGTH).max(128) })
+// The same password rule as the invitation form's own check (src/ui/auth/invite-form.tsx) and Better Auth's (../../auth/auth.ts)
+const AcceptInput = z.object({ token: z.string().min(20), password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH) })
 
 const acceptCommand = defineCommand({
   name: 'member.accept_invitation',
@@ -184,7 +186,7 @@ export const deactivateMemberCommand = defineCommand({
   name: 'member.deactivate',
   capability: 'admin.members',
   input: DeactivateInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ memberId: string; revoked: Record<string, number> }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ memberId: string; revoked: Record<string, number>; openTasks: number }>> {
     const allowed = await authorize(tx, ctx, 'admin.members')
     if (!allowed.ok) return { ok: false, error: allowed.error }
     if (ctx.actor.type === 'USER' && ctx.actor.memberId === input.memberId) {
@@ -203,12 +205,26 @@ export const deactivateMemberCommand = defineCommand({
     const sessions = await deleteMemberSessions(tx, ctx.organizationId, member.id)
     const invitations = (await tx.memberInvitation.updateMany({ where: { memberId: member.id, usedAt: null, revokedAt: null }, data: { revokedAt: ctx.now } })).count
     const extra = await runDeactivationRevokers(tx, ctx, { memberId: member.id, userId: member.userId })
-    const revoked = { sessions, invitations, ...extra }
-    // TODO(S2-10): notify ORG_ADMIN of the member's pending approval tasks so they can be reassigned (FR-AUTH-003 AC2).
+    const revoked = { sessions, invitations, ...extra.counts }
+    // FR-AUTH-003 AC2 (§10.1 admin.reassign_needed): approval tasks still waiting on the member need someone else
+    const openTasks = await tx.approvalTask.count({ where: { OR: [{ assigneeMemberId: member.id }, { principalMemberId: member.id }], status: { in: ['OPEN', 'INFO_REQUESTED'] } } })
+    const told = openTasks ? admins.filter((id) => id !== member.id) : []
     return {
       ok: true,
-      result: { memberId: member.id, revoked },
-      events: [{ type: 'member.deactivated', aggregateType: 'Member', aggregateId: member.id, data: { reasonCommentId, revoked } }],
+      result: { memberId: member.id, revoked, openTasks },
+      events: [{ type: 'member.deactivated', aggregateType: 'Member', aggregateId: member.id, data: { reasonCommentId, revoked } }, ...extra.events],
+      notifications: [
+        ...extra.notifications,
+        ...told.map((adminId) => ({
+          recipientMemberId: adminId,
+          templateKey: 'admin.reassign_needed',
+          data: { memberId: member.id, name: member.displayNameTh, openTasks },
+          urgency: 'IMMEDIATE' as const,
+          dedupeKey: `admin.reassign_needed:${reasonCommentId}:${adminId}`,
+          subjectType: 'MEMBER',
+          subjectId: member.id,
+        })),
+      ],
     }
   },
 })
@@ -235,8 +251,11 @@ export const resetTwoFactorCommand = defineCommand({
     if (locked.length === 0) return fail('NOT_FOUND', 'member not found')
     const member = await tx.member.findUniqueOrThrow({ where: { id: input.memberId } })
     if (!member.userId) return fail('INVALID_STATE_TRANSITION', 'member has not activated an account')
-    // TODO(S2-16): members holding a DOA-referenced position or with pending approval tasks must go through
-    // ORG_AUTHORITY_CHANGE kind IDENTITY_RESET instead (BR-AUTH-07).
+    // BR-AUTH-07 (FR-AUTH-002 AC3): a member the DOA relies on — a holder of a position a rule names, a named approver,
+    // or anyone with an open approval task — is reset only through an ORG_AUTHORITY_CHANGE of kind IDENTITY_RESET
+    if (await reliedOnByDoa(tx, member.id, ctx.now)) {
+      return fail('FORBIDDEN', 'this member holds DOA authority: propose an IDENTITY_RESET authority change', { reason: 'USE_ORG_AUTHORITY_CHANGE', kind: 'IDENTITY_RESET' })
+    }
     if ((await countOtherActiveMemberships(tx, ctx.organizationId, member.id)) > 0) {
       // The sign-in identity is shared with another organization: this organization's admin cannot change it
       return fail('FORBIDDEN', 'the account is also used by another organization', { reason: 'SHARED_IDENTITY' })

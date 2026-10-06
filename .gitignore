@@ -8,6 +8,7 @@ __pycache__/
 # Next.js
 .next/
 .next-e2e/
+.e2e-runs/
 out/
 next-env.d.ts
 *.tsbuildinfo
@@ -27,3 +28,6 @@ playwright/.cache/
 .vercel/
 .worktrees/
 .DS_Store
+
+# Pictures a failed PDF snapshot comparison leaves to look at (tests/support/pdf-raster.ts)
+tests/snapshots/pdf/*.actual.png

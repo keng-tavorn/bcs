@@ -1,0 +1,15 @@
+# TaxRate seed (spec §7.1 "ข้อมูลตั้งต้นของ TaxRate", BR-VAT-01). Global rows, not per organization. A PLATFORM_ADMIN
+# confirms them before go-live, so confirmedById stays empty here. From 2027-10-01 there is no row on purpose: the rate
+# depends on a decree that is not published yet (OQ-29), and documents dated then are refused with
+# TAX_RATE_NOT_CONFIGURED until someone enters it.
+rates:
+  - code: VAT_STANDARD
+    rateBp: 700
+    effectiveFrom: "2025-10-01"
+    effectiveTo: "2026-09-30"
+    note: "พระราชกฤษฎีกาคง VAT 7% รอบก่อน"
+  - code: VAT_STANDARD
+    rateBp: 700
+    effectiveFrom: "2026-10-01"
+    effectiveTo: "2027-09-30"
+    note: "ครม. อนุมัติในหลักการร่างพระราชกฤษฎีกาเมื่อ 27 ก.ค. 2026 ต้องยืนยันการประกาศในราชกิจจานุเบกษา (OQ-29)"

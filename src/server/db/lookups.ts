@@ -29,6 +29,24 @@ export async function findInvitationByTokenHash(tokenHash: string): Promise<Invi
   })
 }
 
+/**
+ * The organization whose LINE channel answers at /api/webhooks/line/<channelKey> (§9.1, S5-02). channelKey is public
+ * (it is the webhook path), so finding the organization proves nothing: the webhook still checks x-line-signature with
+ * that organization's channel secret before it reads anything (BR-LINE-03). null when no channel has this key.
+ */
+export async function findLineChannelOrganization(channelKey: string): Promise<{ readonly organizationId: string } | null> {
+  return systemDb.lineChannelConfig.findUnique({ where: { channelKey }, select: { organizationId: true } })
+}
+
+/**
+ * Every organization that has a LINE channel, switched on or not: the line-webhook sweep looks at the webhook events of
+ * each (S5-02, BR-LINE-05). Ids only.
+ */
+export async function listLineChannelOrganizationIds(): Promise<string[]> {
+  const rows = await systemDb.lineChannelConfig.findMany({ select: { organizationId: true }, orderBy: { organizationId: 'asc' } })
+  return rows.map((r) => r.organizationId)
+}
+
 /** True when the id belongs to an active member of the BCS team (PLATFORM_ADMIN, §2.2). */
 export async function isActivePlatformAdmin(platformAdminId: string): Promise<boolean> {
   const admin = await systemDb.platformAdmin.findUnique({ where: { id: platformAdminId }, select: { active: true } })
@@ -54,4 +72,14 @@ export async function listOrganizationsForPlatform(): Promise<PlatformOrganizati
 export async function findOrganizationForPlatform(organizationId: string): Promise<PlatformOrganization | null> {
   const r = await systemDb.organization.findUnique({ where: { id: organizationId }, select: PLATFORM_ORG_SELECT })
   return r ? { id: r.id, code: r.code, name: r.displayName ?? r.legalNameTh, status: r.status } : null
+}
+
+/**
+ * The VAT rates (BR-VAT-01, spec §7.1). TaxRate belongs to no organization, so services read it here; the dates come
+ * back as the calendar days they hold ("YYYY-MM-DD").
+ */
+export async function listTaxRates(): Promise<Array<{ code: string; rateBp: number; effectiveFrom: string; effectiveTo: string | null }>> {
+  const rows = await systemDb.taxRate.findMany({ select: { code: true, rateBp: true, effectiveFrom: true, effectiveTo: true }, orderBy: { effectiveFrom: 'asc' } })
+  const day = (d: Date) => d.toISOString().slice(0, 10)
+  return rows.map((r) => ({ code: r.code, rateBp: r.rateBp, effectiveFrom: day(r.effectiveFrom), effectiveTo: r.effectiveTo ? day(r.effectiveTo) : null }))
 }

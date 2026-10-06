@@ -44,13 +44,39 @@ const GLOBAL_UNIQUE_ALLOWED: Record<string, string[]> = {
   Event: ['seq'], // global ordering used for the audit seal (§4.5)
   FileObject: ['storageKey'], // object key is unique in the whole bucket
   MemberInvitation: ['tokenHash'], // sha256 of a random 32-byte token, unique by construction
+  LineChannelConfig: ['channelKey'], // random and public: the LINE webhook path names it, and it finds the organization (§6.2)
+}
+// Unique indexes whose exact columns the spec writes out; each leads with a key of one organization's row
+const SPEC_UNIQUE_ALLOWED: Record<string, string[][]> = {
+  PositionAssignment: [['positionId', 'departmentId']], // §6.3 item 4 position_single_holder (Position.id is one organization's)
 }
 
 const delegateName = (model: string) => model.charAt(0).toLowerCase() + model.slice(1)
 // any: generic access to every model delegate, whose types differ per model
 const delegate = (client: unknown, model: string): any => (client as Record<string, unknown>)[delegateName(model)]
 
+// Sample values that CHECK constraints of the migrations require (the generic sample would break them)
+const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
+  Delegation: { endsAt: new Date('2026-10-06T03:00:00Z') }, // delegation_period: startsAt < endsAt
+  BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
+  Supplier: { isForeign: true }, // supplier_tax_id_shape: a Thai supplier needs a 13-digit tax id, a foreign one may have none
+  InvoiceConfirmation: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n }, // invoice_money_non_negative: gross = net + VAT
+}
+// Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
+const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
+  Delegation: new Set(['delegate']),
+}
+// Optional relations a CHECK requires one of: budget_grant_one_grantee (a department or a member)
+const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
+  BudgetGrant: new Set(['granteeDepartment']),
+}
+// Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
+const EXISTING_ROWS: Record<string, Record<string, string>> = {
+  BudgetLedgerEntry: { eventId: 'Event' },
+}
+
 function sample(field: Field): unknown {
+  if (field.isList) return []
   if (field.kind === 'enum') return enums.get(field.type)![0]
   switch (field.type) {
     case 'String':
@@ -80,13 +106,15 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
   for (const f of model.fields) {
     if (f.kind !== 'object' || !f.relationFromFields?.length) continue
     const fkFields = f.relationFromFields
-    const required = fkFields.some((fk) => model.fields.find((x) => x.name === fk)?.isRequired)
-    if (!required) continue
+    // A composite key (organizationId, xId) is required when its own column is: organizationId is always required
+    const own = fkFields.filter((fk) => fk !== 'organizationId')
+    const required = (own.length ? own : fkFields).every((fk) => model.fields.find((x) => x.name === fk)?.isRequired)
+    if (!required && !OPTIONAL_PARENTS[modelName]?.has(f.name)) continue
     if (f.type === 'Organization') {
       data[fkFields[0]!] = organizationId
       continue
     }
-    const parent = await createRow(f.type, organizationId)
+    const parent = FRESH_PARENTS[modelName]?.has(f.name) ? await createRow(f.type, organizationId) : await parentRow(f.type, organizationId)
     fkFields.forEach((fk, i) => (data[fk] = parent[f.relationToFields![i]!]))
   }
   for (const f of model.fields) {
@@ -95,14 +123,29 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
       data[f.name] = organizationId
       continue
     }
+    const override = SAMPLE_OVERRIDES[modelName]?.[f.name]
+    if (override !== undefined) {
+      data[f.name] = override
+      continue
+    }
     if (f.isId || f.hasDefaultValue || f.isUpdatedAt || !f.isRequired) continue
-    data[f.name] = sample(f)
+    const existing = EXISTING_ROWS[modelName]?.[f.name]
+    data[f.name] = existing ? (await parentRow(existing, organizationId)).id : sample(f)
   }
   return data
 }
 
 async function createRow(modelName: string, organizationId: string): Promise<Record<string, unknown>> {
   return delegate(prisma, modelName).create({ data: await rowData(modelName, organizationId) })
+}
+
+// Parent rows are created once per organization and shared: some tables allow one row of a kind per organization
+// (department_single_root: one root department), and every child only needs some parent in the same organization
+const parents = new Map<string, Promise<Record<string, unknown>>>()
+function parentRow(modelName: string, organizationId: string): Promise<Record<string, unknown>> {
+  const key = `${organizationId}:${modelName}`
+  if (!parents.has(key)) parents.set(key, createRow(modelName, organizationId))
+  return parents.get(key)!
 }
 
 const REACHABLE = new Set([...TENANT_MODELS, 'Organization'])
@@ -144,6 +187,7 @@ describe('[FR-PLT-001/AC3] [INV-TEN-02] tenant tables in the schema', () => {
     for (const u of uniques) {
       const fields = u.fields.map((f) => f.name)
       if (fields.length === 1 && (GLOBAL_UNIQUE_ALLOWED[name] ?? []).includes(fields[0]!)) continue
+      if ((SPEC_UNIQUE_ALLOWED[name] ?? []).some((spec) => spec.join(',') === fields.join(','))) continue
       expect(fields, `${name} unique (${fields.join(', ')})`).toContain('organizationId')
     }
   })
@@ -159,7 +203,8 @@ describe('[FR-PLT-001/AC3] [INV-TEN-01] db.forTenant() never crosses organizatio
       prisma.organization.create({ data: { code: `T-${randomUUID().slice(0, 8)}`, legalNameTh: 'tenant test', taxId: '0999999000055', settings: {} } })
     orgA = (await make()).id
     orgB = (await make()).id
-    for (const name of tenantModels) rows.set(name, { a: await createRow(name, orgA), b: await createRow(name, orgB) })
+    // A model that is also some other model's parent reuses that row, so the one-per-organization tables hold
+    for (const name of tenantModels) rows.set(name, { a: await parentRow(name, orgA), b: await parentRow(name, orgB) })
   })
 
   it('sees only its own organization row', async () => {
@@ -171,43 +216,48 @@ describe('[FR-PLT-001/AC3] [INV-TEN-01] db.forTenant() never crosses organizatio
   it.each(tenantModels)('%s: reads, updates, deletes and creates stay inside the tenant', async (name) => {
     const { a, b } = rows.get(name)!
     const db = delegate(forTenant(orgA), name)
+    const model = models.find((m) => m.name === name)!
+    // The row key: "id", or the column a projection is keyed by (BudgetLineBalance.budgetLineId)
+    const idKey = model.fields.find((f) => f.isId)!.name
+    const byKey = (row: Record<string, unknown>) => ({ [idKey]: row[idKey] })
 
-    const visible = (await db.findMany({ where: { id: { in: [a.id, b.id] } } })) as Array<Record<string, unknown>>
-    expect(visible.map((r) => r.id)).toEqual([a.id])
+    const visible = (await db.findMany({ where: { [idKey]: { in: [a[idKey], b[idKey]] } } })) as Array<Record<string, unknown>>
+    expect(visible.map((r) => r[idKey])).toEqual([a[idKey]])
     expect(visible.every((r) => r.organizationId === orgA)).toBe(true)
-    expect(await db.findFirst({ where: { id: b.id } })).toBeNull()
-    expect(await db.findUnique({ where: { id: b.id } })).toBeNull()
-    expect(await db.count({ where: { id: b.id } })).toBe(0)
+    expect(await db.findFirst({ where: byKey(b) })).toBeNull()
+    expect(await db.findUnique({ where: byKey(b) })).toBeNull()
+    expect(await db.count({ where: byKey(b) })).toBe(0)
 
     // Asking for the other tenant's rows explicitly finds nothing (it is not rewritten to this tenant's rows).
     expect(await db.findMany({ where: { organizationId: orgB } })).toEqual([])
 
     // A harmless "update" (set a column to its current value) must not reach the other tenant's row.
     // Append-only/insert-only tables (Event, CommandLog) refuse UPDATE/DELETE for the app role entirely.
-    const model = models.find((m) => m.name === name)!
     // a plain column (not the id, the tenant key, or a database-assigned value such as Event.seq)
-    const column = model.fields.find((f) => f.kind !== 'object' && !f.isId && f.name !== 'organizationId' && !f.isUpdatedAt && !f.hasDefaultValue)!
+    const plain = (f: Field) => f.kind !== 'object' && !f.isId && f.name !== 'organizationId' && !f.isUpdatedAt
+    // a projection whose columns all start from a default (BudgetLineBalance) uses one of those
+    const column = model.fields.find((f) => plain(f) && !f.hasDefaultValue) ?? model.fields.find((f) => plain(f) && f.kind === 'scalar' && f.name !== 'seq')!
     const [privileges] = await prisma.$queryRawUnsafe<Array<{ upd: boolean; del: boolean }>>(
       `select has_table_privilege('bcs_app', '"${name}"', 'UPDATE') as upd, has_table_privilege('bcs_app', '"${name}"', 'DELETE') as del`,
     )
     if (privileges!.upd) {
-      expect((await db.updateMany({ where: { id: b.id }, data: { [column.name]: b[column.name] } })).count).toBe(0)
-      await expect(db.update({ where: { id: b.id }, data: { [column.name]: b[column.name] } })).rejects.toThrow()
+      expect((await db.updateMany({ where: byKey(b), data: { [column.name]: b[column.name] } })).count).toBe(0)
+      await expect(db.update({ where: byKey(b), data: { [column.name]: b[column.name] } })).rejects.toThrow()
     } else {
-      await expect(db.updateMany({ where: { id: b.id }, data: { [column.name]: b[column.name] } })).rejects.toThrow(/permission denied/)
+      await expect(db.updateMany({ where: byKey(b), data: { [column.name]: b[column.name] } })).rejects.toThrow(/permission denied/)
     }
     if (privileges!.del) {
-      expect((await db.deleteMany({ where: { id: b.id } })).count).toBe(0)
+      expect((await db.deleteMany({ where: byKey(b) })).count).toBe(0)
     } else {
-      await expect(db.deleteMany({ where: { id: b.id } })).rejects.toThrow(/permission denied/)
+      await expect(db.deleteMany({ where: byKey(b) })).rejects.toThrow(/permission denied/)
     }
 
     // Writing a row for another organization is refused before it reaches the database.
     await expect(db.create({ data: { organizationId: orgB } })).rejects.toBeInstanceOf(TenantViolationError)
-    await expect(db.updateMany({ where: { id: a.id }, data: { organizationId: orgB } })).rejects.toBeInstanceOf(TenantViolationError)
+    await expect(db.updateMany({ where: byKey(a), data: { organizationId: orgB } })).rejects.toBeInstanceOf(TenantViolationError)
 
     // The other tenant's row is untouched.
-    expect(await delegate(prisma, name).findUnique({ where: { id: b.id } })).not.toBeNull()
+    expect(await delegate(prisma, name).findUnique({ where: byKey(b) })).not.toBeNull()
   })
 })
 
@@ -277,7 +327,8 @@ describe('[INV-TEN-01] Postgres refuses references into another organization', (
   })
 
   it.each(sameTenantKeys.map((k) => [`${k.model}.${k.field.name}`, k] as const))('%s cannot point at a row of another organization', async (_label, k) => {
-    const target = await createRow(k.field.type, orgB)
+    // Any row of the other organization will do; a shared one keeps one-per-organization tables valid
+    const target = await parentRow(k.field.type, orgB)
     const data = await rowData(k.model, orgA)
     k.from.forEach((column, i) => {
       if (column !== 'organizationId') data[column] = target[k.to[i]!]

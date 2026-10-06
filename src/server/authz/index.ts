@@ -92,7 +92,32 @@ export function memberPrincipal(memberId: string, roles: Iterable<StoredRole>): 
   return { kind: 'member', memberId, roles: new Set(roles), headOfDepartmentIds: new Set(), departmentIds: new Set() }
 }
 
-/** Loads the acting member's active roles (S2 adds department-head and department subtrees). */
+/**
+ * §2.2 DEPT_HEAD is not a role: holding a department's position (DM or VP in the demo — the positions whose scope is
+ * DEPARTMENT, so no position name is written in code) makes a member head of that department and its subtree, now.
+ */
+async function headedDepartments(tx: TenantTx, memberId: string, now: Date): Promise<Set<string>> {
+  const held = await tx.positionAssignment.findMany({
+    where: { memberId, validFrom: { lte: now }, OR: [{ validTo: null }, { validTo: { gt: now } }], position: { scope: 'DEPARTMENT' } },
+    select: { departmentId: true },
+  })
+  if (held.length === 0) return new Set()
+  const departments = await tx.department.findMany({ select: { id: true, parentId: true } })
+  const headed = new Set(held.map((h) => h.departmentId))
+  // the subtree: add children until nothing new comes in (the tree has no cycles, §6.2)
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const d of departments) {
+      if (d.parentId && headed.has(d.parentId) && !headed.has(d.id)) {
+        headed.add(d.id)
+        grew = true
+      }
+    }
+  }
+  return headed
+}
+
+/** Loads the acting member's active roles, departments, and the departments they head (§2.2 DEPT_HEAD). */
 export async function loadPrincipal(tx: TenantTx, ctx: Ctx): Promise<Principal> {
   if (ctx.actor.type === 'PLATFORM_ADMIN') return { kind: 'platform', platformAdminId: ctx.actor.platformAdminId }
   if (ctx.actor.type !== 'USER') return { kind: 'system' }
@@ -104,7 +129,7 @@ export async function loadPrincipal(tx: TenantTx, ctx: Ctx): Promise<Principal> 
   if (!member || member.status !== 'ACTIVE') return { kind: 'inactive', memberId }
   const storedRoles = new Set(assignments.map((r) => r.role).filter((r): r is StoredRole => (STORED_ROLES as readonly string[]).includes(r)))
   const departmentIds = new Set([...assignments.map((r) => r.scopeDepartmentId), member.primaryDepartmentId].filter((d): d is string => Boolean(d)))
-  return { kind: 'member', memberId, roles: storedRoles, headOfDepartmentIds: new Set(), departmentIds }
+  return { kind: 'member', memberId, roles: storedRoles, headOfDepartmentIds: await headedDepartments(tx, memberId, ctx.now), departmentIds }
 }
 
 /** Service-side check. Returns FORBIDDEN (403) when the capability does not cover this actor and resource. */

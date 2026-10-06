@@ -74,6 +74,20 @@
   --font-sans: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
 }
 
+/*
+ * Line height 1.6 for every text size the screens use (§9.9: Thai vowels and tone marks never collide). Tailwind's size
+ * utilities (text-sm … text-2xl) set a line height of their own, 1.25 to 1.5 by default, over the body's 1.6; these give
+ * them the body's. An element that needs a fixed line box still sets its own leading-*, at least 1.6 times its text (the
+ * bell's count: a 26 px box for 16 px on a phone and 14 px on the web).
+ */
+@theme {
+  --text-sm--line-height: 1.6;
+  --text-base--line-height: 1.6;
+  --text-lg--line-height: 1.6;
+  --text-xl--line-height: 1.6;
+  --text-2xl--line-height: 1.6;
+}
+
 @layer base {
   * {
     border-color: var(--border);
@@ -99,6 +113,119 @@
     outline: 2px solid var(--ring);
     outline-offset: 2px;
   }
+
+  /*
+   * Checkboxes and radio buttons, drawn from the tokens (§9.9) once for every page, the workspace's and LIFF's: the
+   * browser draws an unticked one in its own grey (#767676), which is no token. They stay native inputs — their label,
+   * the keyboard, the form's value and Playwright's check() work as before — at the size their component gives them
+   * (size-5, 20 px; this one only when it gives none). Unticked: the border of the other inputs (--input, 3:1 or more
+   * against the page, WCAG 1.4.11) on --bg; ticked: --primary with a white mark, a tick or a radio's dot; with an error
+   * (aria-invalid), the --danger border of the other inputs; focused, the ring of every control (:focus-visible above);
+   * disabled, the look of a disabled button: the light --surface inside a quiet --line, and a ticked one --ink-muted
+   * under its white mark, which still reads at 7.2:1. The marks are SVG in data: URLs, whose white is that of
+   * --primary-foreground (a URL cannot read a CSS variable), so a Content-Security-Policy (NFR-SEC-06) keeps data: in
+   * img-src. In forced colours (a Windows contrast theme) the browser draws them itself, in the theme's colours.
+   */
+  input:where([type='checkbox'], [type='radio']) {
+    appearance: none;
+    width: 1.25rem;
+    height: 1.25rem;
+    border: 1px solid var(--input);
+    border-radius: calc(var(--radius) - 2px);
+    background: var(--bg) center / 100% 100% no-repeat;
+    print-color-adjust: exact;
+  }
+  input[type='radio'] {
+    border-radius: 50%;
+  }
+  input:where([type='checkbox'], [type='radio']):checked {
+    border-color: var(--primary);
+    background-color: var(--primary);
+  }
+  input[type='checkbox']:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+  }
+  input[type='radio']:checked {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='white'%3E%3Ccircle cx='8' cy='8' r='3'/%3E%3C/svg%3E");
+  }
+  input:where([type='checkbox'], [type='radio'])[aria-invalid='true']:not(:checked, :disabled) {
+    border-color: var(--danger);
+  }
+  input:where([type='checkbox'], [type='radio']):disabled {
+    cursor: not-allowed;
+    border-color: var(--line);
+    background-color: var(--surface);
+  }
+  input:where([type='checkbox'], [type='radio']):disabled:checked {
+    border-color: var(--ink-muted);
+    background-color: var(--ink-muted);
+  }
+  /*
+   * The clear button (×) of a search box, which Chromium draws in a blue of its own (no token) once the box holds words
+   * and is pointed at or focused: drawn from the tokens instead, a --ink-muted cross for every search box of every page.
+   * The cross is a mask, so its colour is the token itself (the URL holds only its shape). It still empties the box and
+   * sends the input event, so the page's search clears as before. In forced colours the browser draws its own again.
+   */
+  input[type='search']::-webkit-search-cancel-button {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 1rem;
+    height: 1rem;
+    cursor: pointer;
+    background-color: var(--ink-muted);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E") center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E") center / contain no-repeat;
+  }
+  /*
+   * A field the browser filled in itself, such as the saved e-mail and password of a member signing in again: Chromium
+   * paints it light blue (#e8f0fe) with black words and Safari yellow, both through !important rules a page cannot
+   * override, and Firefox tints it with a filter — no token among them. An inset shadow wider than any field covers the
+   * browser's colour with --surface, which still sets a filled-in field apart from a typed one as the browser meant to;
+   * the words and the caret are --ink (-webkit-text-fill-color, which the browser's colour does not reach); Firefox's
+   * filter goes. The field's border, its error border and its focus ring (an outline) stay as they are. In forced colours
+   * the browser draws the field itself again (below): they do not reach -webkit-text-fill-color, whose --ink words would
+   * stay on the theme's background.
+   */
+  input:-webkit-autofill,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--ink);
+    caret-color: var(--ink);
+    box-shadow: inset 0 0 0 100vmax var(--surface);
+    filter: none;
+  }
+  /*
+   * The grip in the corner of a text box that drags it bigger, which Chromium draws in a grey of its own (#666666, no
+   * token): the same two lines in --ink-muted, the colour of the box's border, over the box's own background. The lines
+   * are SVG in a data: URL whose stroke is written as --ink-muted's value, #4a5a63 (a URL cannot read a CSS variable, and
+   * Chromium does not mask the grip): a change of that token is made here too. A grip once styled cannot be handed back,
+   * so the rule holds outside forced colours only, where the browser draws its own in the theme's colours. LIFF's text
+   * boxes have no grip (liff-type, below).
+   */
+  @media (forced-colors: none) {
+    textarea::-webkit-resizer {
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%234a5a63' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M14 6l-8 8M14 10l-4 4'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    }
+  }
+  @media (forced-colors: active) {
+    input:where([type='checkbox'], [type='radio']) {
+      appearance: auto;
+    }
+    input[type='search']::-webkit-search-cancel-button {
+      -webkit-appearance: auto;
+      appearance: auto;
+      -webkit-mask: none;
+      mask: none;
+    }
+    input:-webkit-autofill,
+    textarea:-webkit-autofill,
+    select:-webkit-autofill {
+      -webkit-text-fill-color: revert;
+      caret-color: revert;
+      box-shadow: revert;
+      filter: revert;
+    }
+  }
 }
 
 /* Money: right-aligned, tabular digits (§9.9 principle 6) */
@@ -109,4 +236,30 @@
 
 @utility tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The heading of a part inside a component the workspace and LIFF share (an h3, a group's legend): 18 px under the
+ * workspace's 20 px step and section headings; 16 px on a LIFF page, whose section headings are 18 px (liff-type).
+ * Headings differ by size and weight (§9.9).
+ */
+@utility subheading {
+  font-size: var(--subheading-size, var(--text-lg));
+}
+
+/*
+ * The root of a LIFF page (src/ui/liff/frame.tsx): LINE's mobile screen keeps its text at 16 px whatever the width (§9.4,
+ * §9.9). The workspace parts it draws step their secondary text down to text-sm on a wide screen (md:text-sm, the web's
+ * 14 px), so inside LIFF text-sm is 16 px; and their sub-headings take LIFF's 16 px (subheading). Their amounts fill
+ * LIFF's one column (Amounts, src/ui/request-view/facts.tsx), so every figure of a page ends at its right edge, with the
+ * lines' (§9.9 principle 6). A text box keeps its height and scrolls: there is nothing to drag on a phone, so it has no
+ * resize grip.
+ */
+@utility liff-type {
+  --text-sm: var(--text-base);
+  --subheading-size: var(--text-base);
+  --amounts-max-width: none;
+  & textarea {
+    resize: none;
+  }
 }

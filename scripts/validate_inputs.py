@@ -258,6 +258,7 @@ for r, d in table('Demo_History'):
     if s_(d['supplier']) not in SUP: refp.append(f'{ref}: ไม่มีผู้ขาย {s_(d["supplier"])}')
     if s_(d['site']) not in SITE: refp.append(f'{ref}: ไม่มีสถานที่ {s_(d["site"])}')
     if st not in STAT: refp.append(f'{at("Demo_History","status",r)} สถานะ {st}')
+    if Decimal(str(d['net'])) % 1 != 0: refp.append(f'{at("Demo_History","net",r)} ยอดก่อน VAT ต้องเป็นบาทเต็ม (ใบเสนอราคาเปรียบเทียบ 104% และ 107% ต้องลงตัวที่สตางค์ และห้ามปัด BR-MONEY-02)')
     net = sat(d['net']); vat = rhu(net * RATE_BP, 10000); gross = net + vat; cnt = 0 if st in ('REJECTED', 'CANCELLED') else net
     for key, want in (('vat', vat), ('gross', gross), ('countsAgainstBudget', cnt)):
         if d[key] is None: arith.append(f'{at("Demo_History",key,r)} ยังไม่มีค่าที่คำนวณ (บันทึกไฟล์จาก Excel ก่อน)')

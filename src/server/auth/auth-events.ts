@@ -8,8 +8,9 @@ import { validateEventDraft } from '@/server/events/append'
 // They are not commands on an aggregate, so they are appended directly (still append-only and schema-checked).
 // The event belongs to the member's organization when the e-mail maps to exactly one active member;
 // otherwise it is a platform-level event (organizationId null). The e-mail itself is not stored in the event.
+// `channel` is where the sign-in came from: WEB, or LIFF for a sign-in with a LINE ID token (src/server/auth/liff.ts).
 
-export async function recordAuthEvent(type: string, email: string, data: Record<string, unknown>, now: Date): Promise<void> {
+export async function recordAuthEvent(type: string, email: string, data: Record<string, unknown>, now: Date, options: { readonly channel?: 'WEB' | 'LIFF' } = {}): Promise<void> {
   try {
     const members = email
       ? await systemDb.member.findMany({ where: { email, status: { not: 'DEACTIVATED' } }, select: { id: true, organizationId: true } })
@@ -32,7 +33,7 @@ export async function recordAuthEvent(type: string, email: string, data: Record<
         occurredAt: now,
         actorType: target ? 'USER' : 'SYSTEM',
         actorMemberId: target?.id ?? null,
-        channel: 'WEB',
+        channel: options.channel ?? 'WEB',
         correlationId: newId(),
         requestId: newId(),
         data: toJsonSafe(payload) as object,

@@ -5,13 +5,18 @@ import { deleteObject, headObject, presignDownload, presignUpload, PRESIGN_TTL_S
 import { systemClock } from '@/lib/clock'
 import { FILE_NAME_INPUT_MAX, MS_PER_MINUTE } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
-import { ALLOWED_FILE_TYPES, checkDeclaredUpload, cleanFileName, contentMatchesType, FILE_NAME_MAX, isAllowedMimeType, SNIFF_BYTES, type AllowedMimeType } from '@/lib/file-types'
+import '../exports/file-policy'
+import { ALLOWED_FILE_TYPES, checkDeclaredUpload, cleanFileName, contentMatchesType, FILE_NAME_MAX, GENERATED_FILE_TYPES, isAllowedMimeType, isGeneratedMimeType, SNIFF_BYTES, type AllowedMimeType } from '@/lib/file-types'
 import { newId } from '@/lib/ids'
 import { loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { fileSubjectPolicy } from './policies'
+// Document types register who may download their files when the service loads (FR-PLT-004 AC2)
+import './request-policy'
+import './receipt-policy'
+import '../suppliers/file-policy'
 
 // Upload and download through presigned URLs (FR-PLT-004, NFR-SEC-08).
 // 1. requestUpload checks the declared type and size and returns a PUT URL bound to that type and exact length,
@@ -164,7 +169,7 @@ export async function getDownloadUrl(ctx: Ctx, input: { fileId: string }): Promi
   if (!z.uuid().safeParse(input.fileId).success) return err('NOT_FOUND', 'file not found')
   const decision = await forTenant(ctx.organizationId).$transaction(async (tx) => {
     const file = await tx.fileObject.findUnique({ where: { id: input.fileId } })
-    if (!file || file.status !== 'AVAILABLE' || !isAllowedMimeType(file.mimeType)) return { kind: 'missing' as const }
+    if (!file || file.status !== 'AVAILABLE' || !(isAllowedMimeType(file.mimeType) || isGeneratedMimeType(file.mimeType))) return { kind: 'missing' as const }
     const principal = await loadPrincipal(tx, ctx)
     if (principal.kind !== 'member') return { kind: 'denied' as const }
     const links = await tx.fileLink.findMany({ where: { fileId: file.id }, select: { subjectType: true, subjectId: true } })
@@ -179,8 +184,9 @@ export async function getDownloadUrl(ctx: Ctx, input: { fileId: string }): Promi
   if (decision.kind === 'missing') return err('NOT_FOUND', 'file not found')
   if (decision.kind === 'denied') return err('FORBIDDEN', 'no access to this file')
   const { file } = decision
-  const mime = file.mimeType as AllowedMimeType
-  const url = await presignDownload(file.storageKey, { fileName: file.fileName, contentType: mime, inline: ALLOWED_FILE_TYPES[mime].inline })
+  const mime = file.mimeType
+  const inline = isAllowedMimeType(mime) ? ALLOWED_FILE_TYPES[mime].inline : isGeneratedMimeType(mime) && GENERATED_FILE_TYPES[mime].inline
+  const url = await presignDownload(file.storageKey, { fileName: file.fileName, contentType: mime, inline })
   return ok({ url, expiresInSeconds: PRESIGN_TTL_SECONDS })
 }
 

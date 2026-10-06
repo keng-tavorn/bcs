@@ -1,0 +1,13 @@
+# tests/golden/sod.yaml
+suite: sod
+sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+cases:
+  - { id: GC-SOD-01, title: ผู้ขอกดอนุมัติเอง (กันที่ runtime), input: { action: DECIDE_APPROVAL, actor: req_con, requester: req_con }, expect: { error: SOD_VIOLATION, rule: BR-SOD-01 } }
+  - { id: GC-SOD-02, title: ผู้อนุมัติ PR ตรวจรับเอง, input: { action: POST_GR, actor: vp_ops, requester: req_con, approvers: [vp_ops, coo] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-02 } }
+  - { id: GC-SOD-03, title: ผู้สร้าง PO อนุมัติ PO, input: { action: DECIDE_APPROVAL, subject: PURCHASE_ORDER, actor: proc_officer, requester: req_con, poCreator: proc_officer }, expect: { error: SOD_VIOLATION, rule: BR-SOD-03 } }
+  - { id: GC-SOD-04, title: ผู้ส่ง DOA อนุมัติเอง, input: { action: DECIDE_APPROVAL, subject: DOA_VERSION, actor: admin, requester: admin }, expect: { error: SOD_VIOLATION, rule: BR-SOD-06 } }
+  - { id: GC-SOD-05, title: ผู้ขอตรวจรับของตัวเอง, input: { action: POST_GR, actor: req_con, requester: req_con, approvers: [dm_con, coo] }, expect: { ok: true } }
+  - { id: GC-SOD-06, title: ORG_ADMIN เสนอตั้งตัวเองเป็น DM, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: POSITION_ASSIGN, actor: admin, beneficiary: admin, position: "DM@IT" }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
+  - { id: GC-SOD-07, title: ผู้เสนออนุมัติการเปลี่ยนของตัวเอง, input: { action: DECIDE_APPROVAL, subject: ORG_AUTHORITY_CHANGE, actor: admin, requester: admin }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
+  - { id: GC-SOD-08, title: ORG_ADMIN เสนอตัวเองเป็นผู้รักษาการแทน CEO, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: DELEGATION_ON_BEHALF, actor: admin, beneficiary: admin, delegator: ceo }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
+  - { id: GC-SOD-09, title: ORG_ADMIN เสนอแต่งตั้งคนอื่น, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: POSITION_ASSIGN, actor: admin, beneficiary: dm_it, position: "DM@IT" }, expect: { ok: true } }

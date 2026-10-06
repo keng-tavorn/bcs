@@ -255,9 +255,78 @@ export function orphanTestFiles(files: readonly string[], runnerPatterns: readon
   return files.filter((f) => TEST_LIKE.test(f) && !runnerPatterns.some((p) => path.posix.matchesGlob(f, p)))
 }
 
+// ---------- Coverage ----------
+/** spec §7.0 item 4 and NFR-MNT-02: the engines of money and authority whose every branch needs a test */
+export const COVERAGE_ENGINES = ['money', 'vat', 'thai', 'numbering', 'doa', 'sod', 'delegation', 'budget', 'sla', 'invoice', 'grni'] as const
+
+export interface CoverageCount {
+  total: number
+  covered: number
+}
+/** `--coverage.reporter=json-summary`: one entry per file (absolute path) plus `total` */
+export type CoverageSummary = Record<string, { branches: CoverageCount }>
+
+const COVERAGE_OPT_OUT = /\b(?:v8|c8|istanbul)\s+ignore\b/
+
+/**
+ * Judges one `vitest run --coverage` over the engines. `files` are the engine files on disk with their source: each
+ * must be in the report (a file no test loads is not covered) with every branch covered, and none may opt out of
+ * coverage with an ignore comment.
+ */
+export function evaluateCoverage(
+  run: { code: number; out: string; summary: CoverageSummary | null },
+  opts: { root: string; files: ReadonlyArray<{ path: string; source: string }> },
+): GateResult {
+  const impact = 'มีทางเดินของโค้ดเงินหรืออำนาจที่ไม่มีเทสต์ ผลผิดในกรณีนั้นจะไม่ถูกจับ (§7.0 ข้อ 4 · NFR-MNT-02)'
+  const rerun = `pnpm exec vitest run --project unit --project golden --project property --coverage.enabled --coverage.include="src/core/{${COVERAGE_ENGINES.join(',')}}/**"`
+  if (run.code !== 0 || !run.summary) {
+    return { status: 'FAIL', detail: `vitest กับ coverage ล้ม (exit ${run.code}):\n      ${lastLines(run.out)}`, impact, fix: `รัน ${rerun} แล้วแก้ตามข้อความ` }
+  }
+  const optedOut = opts.files.filter((f) => COVERAGE_OPT_OUT.test(f.source)).map((f) => f.path)
+  if (optedOut.length) {
+    return { status: 'FAIL', detail: `มีคำสั่งข้าม coverage ใน ${optedOut.join(', ')}`, impact, fix: 'ลบคอมเมนต์ ignore แล้วเพิ่มเทสต์ให้ทางเดินนั้น' }
+  }
+  const byFile = new Map(
+    Object.entries(run.summary)
+      .filter(([k]) => k !== 'total')
+      .map(([k, v]) => [rel(opts.root, k), v.branches]),
+  )
+  const missing = opts.files.filter((f) => !byFile.has(f.path)).map((f) => f.path)
+  const short = opts.files.flatMap((f) => {
+    const b = byFile.get(f.path)
+    return b && b.covered < b.total ? [`${f.path} ${b.covered}/${b.total} branch`] : []
+  })
+  if (missing.length || short.length) {
+    const lines = [...short, ...missing.map((p) => `${p} ไม่มีเทสต์ที่โหลดไฟล์นี้`)]
+    return { status: 'FAIL', detail: `${lines.length} ไฟล์ไม่ถึง 100% branch\n      ${lines.slice(0, 8).join('\n      ')}`, impact, fix: `เพิ่มเทสต์ใน tests/unit tests/golden หรือ tests/property ให้ทุก branch แล้วรัน ${rerun} --coverage.reporter=text` }
+  }
+  const total = opts.files.reduce((n, f) => n + byFile.get(f.path)!.total, 0)
+  return { status: 'PASS', detail: `${opts.files.length} ไฟล์ของ engine เงินและอำนาจ · branch 100% (${total}/${total})` }
+}
+
 // ---------- Playwright ----------
 export interface PlaywrightJson {
   stats?: { expected?: number; skipped?: number; unexpected?: number; flaky?: number }
+}
+
+/**
+ * One report of several `playwright test` runs (the screens, then the demo scenes on their own database): suites and
+ * errors side by side, the counts added up, so the traceability gate reads every e2e test of this verify in one file
+ */
+export function mergePlaywrightReports(reports: ReadonlyArray<PlaywrightJson & Record<string, unknown>>): PlaywrightJson & Record<string, unknown> {
+  const stats = { expected: 0, skipped: 0, unexpected: 0, flaky: 0 }
+  const suites: unknown[] = []
+  const errors: unknown[] = []
+  for (const report of reports) {
+    stats.expected += report.stats?.expected ?? 0
+    stats.skipped += report.stats?.skipped ?? 0
+    stats.unexpected += report.stats?.unexpected ?? 0
+    stats.flaky += report.stats?.flaky ?? 0
+    if (Array.isArray(report.suites)) suites.push(...(report.suites as unknown[]))
+    if (Array.isArray(report.errors)) errors.push(...(report.errors as unknown[]))
+  }
+  const first = reports[0] ?? {}
+  return { ...first, suites, errors, stats: { ...(first.stats ?? {}), ...stats } }
 }
 
 /**

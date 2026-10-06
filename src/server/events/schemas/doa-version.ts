@@ -1,0 +1,37 @@
+import { z } from 'zod'
+import { defineEvents } from '../registry'
+
+// DOA version events (spec §10.2 "doa_version"). The rules themselves are on DoaVersion and DoaRule; events name the
+// version. The demo seed publishes version 1 directly (Appendix A, local and staging only; NG-12).
+
+const version = { code: z.string().min(1), versionNo: z.number().int().positive() }
+
+defineEvents('DoaVersion', {
+  // via YAML: imported (FR-DOA-001 AC2); via COPY: saved from the editor's table as a copy of the version fromVersionId,
+  // edition fromVersionNo (FR-DOA-001 AC1), which the history names as where the draft started
+  'doa_version.drafted': {
+    schema: z.object({
+      ...version,
+      via: z.enum(['YAML', 'COPY']),
+      rules: z.number().int().positive(),
+      fromVersionId: z.uuid().optional(),
+      fromVersionNo: z.number().int().positive().optional(),
+    }),
+  },
+  // initialPackageHolders: the holders sent with the first version to the contract signatory (BR-DOA-19);
+  // boundaryTableConfirmed: the drafter ticked the boundary table the version was sent with (FR-DOA-009 AC3)
+  'doa_version.submitted': {
+    schema: z.object({
+      ...version,
+      warningsAcknowledged: z.number().int().nonnegative(),
+      routeId: z.uuid(),
+      initialPackageHolders: z.number().int().positive().optional(),
+      boundaryTableConfirmed: z.boolean().optional(),
+    }),
+  },
+  'doa_version.superseded': { schema: z.object({ ...version, supersededBy: z.uuid() }) },
+  'doa_version.rejected': { schema: z.object({ ...version, reasonCommentId: z.uuid() }) },
+  'doa_version.published': {
+    schema: z.object({ ...version, effectiveFrom: z.iso.datetime({ offset: true }), via: z.enum(['SEED', 'APPROVAL']), rules: z.number().int().positive() }),
+  },
+})

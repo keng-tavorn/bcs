@@ -1,0 +1,14 @@
+# tests/golden/delegation.yaml
+suite: delegation
+fixtures: [fixtures/org-demo.yaml, fixtures/doa-versions.yaml]
+defaults: { documentType: PURCHASE_REQUEST, requester: req_con, department: CON }
+delegations:
+  D1: { delegator: dm_con, delegate: asst_con, startsAt: "2026-10-05T00:00:00+07:00", endsAt: "2026-10-10T00:00:00+07:00" }
+  D2: { delegator: dm_con, delegate: asst_con, startsAt: "2026-10-05T00:00:00+07:00", endsAt: "2026-10-10T00:00:00+07:00", maxAmount: "10000.00" }
+cases:
+  - { id: GC-DLG-01, input: { amount: "10000.00", at: "2026-10-06T03:00:00Z", active: [D1] }, expect: { assignee: asst_con, principal: dm_con } }
+  - { id: GC-DLG-02, title: หลังหมดช่วง, input: { amount: "10000.00", at: "2026-10-12T03:00:00Z", active: [D1] }, expect: { assignee: dm_con, principal: null } }
+  - { id: GC-DLG-03, title: เกินวงเงินที่มอบ, input: { amount: "15000.00", at: "2026-10-06T03:00:00Z", active: [D2] }, expect: { assignee: dm_con, principal: null } }
+  - { id: GC-DLG-04, title: ผู้รักษาการเป็นผู้ขอเอง, input: { amount: "5000.00", requester: asst_con, at: "2026-10-06T03:00:00Z", active: [D1] }, expect: { assignee: dm_con, principal: null, notifyOrgAdmin: true } }
+  - { id: GC-DLG-05, title: ผู้ไม่มีตำแหน่งมอบอำนาจ, create: { delegator: asst_con, delegate: req_con, startsAt: "2026-10-05T00:00:00+07:00", endsAt: "2026-10-06T00:00:00+07:00" }, existing: [], expect: { error: VALIDATION_FAILED, reason: NOTHING_TO_DELEGATE } }
+  - { id: GC-DLG-06, title: ช่วงทับกัน, create: { delegator: dm_con, delegate: dm_proc, startsAt: "2026-10-08T00:00:00+07:00", endsAt: "2026-10-12T00:00:00+07:00" }, existing: [D1], expect: { error: VALIDATION_FAILED, reason: OVERLAPPING_DELEGATION } }

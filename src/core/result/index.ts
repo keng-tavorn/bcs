@@ -69,7 +69,8 @@ export const HTTP_STATUS: Readonly<Record<ErrorCode, number>> = {
 
 /**
  * `message` is a short developer-facing description for logs and API problem details. Screens and LINE
- * replies never show it: they render `errors.<code>` from next-intl messages with `details` as ICU params.
+ * replies never show it: screens render `errors.<code>` from next-intl messages with `details` as ICU params, and
+ * LINE replies use the Thai and English templates of src/channels/line/flex (§4.7 rule 5) with the same details.
  */
 export interface AppError {
   readonly code: ErrorCode

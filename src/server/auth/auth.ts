@@ -4,7 +4,7 @@ import { APIError, createAuthMiddleware } from 'better-auth/api'
 import { nextCookies } from 'better-auth/next-js'
 import { twoFactor } from 'better-auth/plugins'
 import { systemClock } from '@/lib/clock'
-import { MS_PER_SECOND, PASSWORD_MIN_LENGTH, PASSWORD_RESET_TTL_SECONDS, SESSION_ABSOLUTE_MS } from '@/lib/constants'
+import { MS_PER_SECOND, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, PASSWORD_RESET_TTL_SECONDS, SESSION_ABSOLUTE_MS, TWO_FACTOR_LOCK_LIMIT, TWO_FACTOR_LOCK_MS } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { newId } from '@/lib/ids'
 import { prisma } from '@/server/db/client'
@@ -64,7 +64,7 @@ export const auth = betterAuth({
     // Accounts are created by invitation only (FR-AUTH-001 AC1)
     disableSignUp: true,
     minPasswordLength: PASSWORD_MIN_LENGTH,
-    maxPasswordLength: 128,
+    maxPasswordLength: PASSWORD_MAX_LENGTH,
     autoSignIn: false,
     resetPasswordTokenExpiresIn: PASSWORD_RESET_TTL_SECONDS,
     revokeSessionsOnPasswordReset: true,
@@ -102,8 +102,17 @@ export const auth = betterAuth({
       },
     },
   },
-  // nextCookies() must stay last
-  plugins: [twoFactor({ issuer: 'BCS', backupCodeOptions: { amount: 10, storeBackupCodes: 'encrypted' } }), liffIdToken(), nextCookies()],
+  // nextCookies() must stay last. The plugin's own lock of the second step is named (its defaults) so that the pages can
+  // say it apart from our lockout: ACCOUNT_TEMPORARILY_LOCKED, worded by src/ui/auth/lock-message.ts
+  plugins: [
+    twoFactor({
+      issuer: 'BCS',
+      backupCodeOptions: { amount: 10, storeBackupCodes: 'encrypted' },
+      accountLockout: { maxFailedAttempts: TWO_FACTOR_LOCK_LIMIT, durationSeconds: TWO_FACTOR_LOCK_MS / MS_PER_SECOND },
+    }),
+    liffIdToken(),
+    nextCookies(),
+  ],
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       // Members cannot switch their own 2FA off; an ORG_ADMIN resets it with a reason (FR-AUTH-002 AC3)

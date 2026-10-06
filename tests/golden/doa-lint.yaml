@@ -1,0 +1,42 @@
+# tests/golden/doa-lint.yaml
+suite: doa-lint
+fixtures: [fixtures/org-demo.yaml, fixtures/doa-versions.yaml]
+# input.base = ฉบับใน fixture · replaceRules แทนข้อที่ code ตรงกัน · removeRules ลบข้อ · vacate ทำตำแหน่งว่าง
+cases:
+  - id: GC-DOA-20
+    title: ช่วงวงเงินมีช่องว่างแบบที่ proposal เขียน 20,001
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20001.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_GAP, documentType: PURCHASE_REQUEST, gt: "20000.00", lte: "20001.00" }], warnings: [] }
+  - id: GC-DOA-21
+    title: ลบข้อ DOA_CHANGE
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [DOA-CHG-01] }
+    expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: DOA_CHANGE }], warnings: [] }
+  - id: GC-DOA-22
+    title: ตารางผลที่ขอบของ DOA ฉบับ 1
+    fn: boundaryTable
+    input: { base: 1, documentType: PURCHASE_REQUEST }
+    expect: { rows: [{ amount: "20000.00", rule: PR-01 }, { amount: "20000.01", rule: PR-02 }, { amount: "100000.00", rule: PR-02 }, { amount: "100000.01", rule: PR-03 }] }
+  - id: GC-DOA-23
+    title: ช่วงวงเงินทับกัน
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "15000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_OVERLAP, documentType: PURCHASE_REQUEST, gt: "15000.00", lte: "20000.00" }], warnings: [] }
+  - id: GC-DOA-24
+    title: ลบข้อ ORG_AUTHORITY_CHANGE
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [ORG-CHG-01] }
+    expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: ORG_AUTHORITY_CHANGE }], warnings: [] }
+  - id: GC-DOA-25
+    title: CEO ว่าง ทำให้ไม่มีใครอนุมัติการเปลี่ยนนโยบายได้
+    fn: lintDoaVersion
+    input: { base: 1, vacate: ["CEO@HQ"] }
+    expect:
+      errors: [{ code: DOA_LINT_UNRESOLVABLE_GOVERNANCE, rule: DOA-CHG-01 }, { code: DOA_LINT_UNRESOLVABLE_GOVERNANCE, rule: ORG-CHG-01 }]
+      warnings: [{ code: DOA_LINT_VACANT_POSITION, rule: PR-03 }, { code: DOA_LINT_VACANT_POSITION, rule: PO-02 }]
+  - id: GC-DOA-26
+    title: ผู้อนุมัติระบุตัวบุคคล
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: MEMBER, member: dm_con }, slaBusinessHours: 8 }] }
+    expect: { errors: [], warnings: [{ code: DOA_LINT_MEMBER_APPROVER, rule: GRV-01 }] }

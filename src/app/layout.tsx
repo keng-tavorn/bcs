@@ -1,9 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { IBM_Plex_Sans_Thai } from 'next/font/google'
-import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
-import { PwaRegistration } from '@/ui/pwa/pwa-registration'
+import { ClientMessages } from './_lib/client-messages'
 import './globals.css'
 
 const plexThai = IBM_Plex_Sans_Thai({
@@ -29,16 +28,17 @@ export const viewport: Viewport = {
   themeColor: '#0b6e5f',
 }
 
+// Every page. The message provider here holds only what the root error boundary reads: each part of the app (the
+// workspace, sign-in, the BCS team's pages, the LIFF app) has a provider of its own in its layout, with what its own
+// client components read (src/i18n/client-messages.ts) — every page carries its provider's messages in its HTML, and
+// the whole catalogue would be some 90 KB gzip of it (§9.4). The PWA's service worker is registered by the workspace and
+// sign-in layouts, not here: the LIFF pages run inside LINE (§9.4, §9.7).
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const locale = await getLocale()
-  const t = await getTranslations('pwa')
   return (
     <html lang={locale} className={plexThai.variable}>
       <body>
-        <NextIntlClientProvider>
-          {children}
-          <PwaRegistration labels={{ updateReady: t('updateReady'), updateNow: t('updateNow'), updateLater: t('updateLater') }} />
-        </NextIntlClientProvider>
+        <ClientMessages scope="root">{children}</ClientMessages>
       </body>
     </html>
   )

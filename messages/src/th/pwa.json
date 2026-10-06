@@ -4,7 +4,7 @@
   "retry": "ลองอีกครั้ง",
   "updateReady": "มี BCS เวอร์ชันใหม่ บันทึกงานที่กรอกค้างไว้ก่อนโหลด",
   "updateNow": "โหลดเวอร์ชันใหม่",
-  "updateLater": "ภายหลัง",
+  "updateLater": "โหลดภายหลัง",
   "installTitle": "ติดตั้ง BCS บนมือถือ",
   "installIntro": "ติดตั้งแล้วจะมีไอคอน BCS บนหน้าจอหลัก เปิดได้ทันทีเหมือนแอป",
   "iosTitle": "iPhone และ iPad (Safari)",

@@ -1,0 +1,35 @@
+{
+  "title": "Notification settings",
+  "intro": "Choose whether you get the daily summary. Anything that needs your decision is always sent at once.",
+  "digest": {
+    "title": "Daily summary",
+    "label": "Send me the daily summary",
+    "on": "On",
+    "off": "Off",
+    "hint": "A summary of the tasks waiting for you, overdue work and budgets running low in your scope, sent on working-day mornings, only when there is something to report.",
+    "turnedOn": "The daily summary is on.",
+    "turnedOff": "The daily summary is off. Approval tasks and overdue work still reach you at once.",
+    "saving": "Saving…"
+  },
+  "always": {
+    "title": "Always sent at once, cannot be turned off",
+    "intro": "These need you to act, so they are always sent at once and nothing is left waiting.",
+    "tasks": "Tasks waiting for your approval",
+    "reminders": "Reminders of tasks nearly due and overdue tasks",
+    "escalations": "Tasks passed on to you to decide as well",
+    "fixed": "Cannot be turned off"
+  },
+  "channel": {
+    "title": "Where they arrive",
+    "text": "Work notices such as approval tasks, task reminders, the results of your requests and the daily summary go by LINE when you have linked your LINE account and your organization uses LINE. When it is not linked, your organization has LINE off or LINE cannot deliver, they go by e-mail instead. Account security notices always go by e-mail, never by LINE. Everything is also in the notification bell on the web.",
+    "manageLine": "Go to LINE account"
+  },
+  "errors": {
+    "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this.",
+    "FORBIDDEN": "You cannot do this. Ask your organization administrator.",
+    "BUSY": "Something else of yours is being saved. Try again in a moment.",
+    "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
+    "FAILED": "It was not saved; the previous setting still applies. Try again.",
+    "NO_ANSWER": "No answer came back, so it is not certain the change was saved. Try again, or reload the page to see the setting in effect."
+  }
+}

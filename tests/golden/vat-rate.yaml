@@ -1,0 +1,14 @@
+# tests/golden/vat-rate.yaml
+suite: vat-rate
+fixture:
+  rates:
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2025-10-01", effectiveTo: "2026-09-30" }
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2026-10-01", effectiveTo: "2027-09-30" }
+cases:
+  - { id: GC-VAT-01, input: { date: "2026-09-30" }, expect: { rateBp: 700 } }
+  - { id: GC-VAT-02, input: { date: "2026-10-01" }, expect: { rateBp: 700 } }
+  - { id: GC-VAT-03, input: { date: "2027-10-01" }, expect: { error: TAX_RATE_NOT_CONFIGURED } }
+  - id: GC-VAT-04
+    title: วันที่ภาษีคิดตามเวลาไทย (17:00Z = 00:00 ของวันถัดไป)
+    input: { at: "2027-09-30T17:00:00Z" }
+    expect: { date: "2027-10-01", error: TAX_RATE_NOT_CONFIGURED }

@@ -10,6 +10,9 @@ export const OUTBOX_SWEEP_AFTER_MS = 30 * MS_PER_SECOND
 /** Interactive transaction limits for runCommand (Prisma). */
 export const COMMAND_TX_MAX_WAIT_MS = 10 * MS_PER_SECOND
 export const COMMAND_TX_TIMEOUT_MS = 20 * MS_PER_SECOND
+/** SMTP waits, kept well inside COMMAND_TX_TIMEOUT_MS because a PO is e-mailed inside its command (FR-P2P-005) */
+export const EMAIL_CONNECT_TIMEOUT_MS = 5 * MS_PER_SECOND
+export const EMAIL_SOCKET_TIMEOUT_MS = 10 * MS_PER_SECOND
 
 /** Transaction errors that are safe to retry (spec §4.3 step 6): Prisma write conflict, Postgres
  *  serialization_failure and deadlock_detected. */
@@ -17,7 +20,10 @@ export const RETRYABLE_TX_ERROR_CODES: ReadonlySet<string> = new Set(['P2034', '
 
 // ---------- Authentication (FR-AUTH-001..003, NFR-SEC-03..05) ----------
 export const MS_PER_HOUR = 60 * MS_PER_MINUTE
+export const MS_PER_DAY = 24 * MS_PER_HOUR
 export const PASSWORD_MIN_LENGTH = 12
+/** Longest password Better Auth takes (src/server/auth/auth.ts); the new-password form says it before sending */
+export const PASSWORD_MAX_LENGTH = 128
 /** Web session: absolute lifetime 12 h, idle 30 min; LIFF: idle 15 min (FR-AUTH-003 AC1) */
 export const SESSION_ABSOLUTE_MS = 12 * MS_PER_HOUR
 export const SESSION_IDLE_WEB_MS = 30 * MS_PER_MINUTE
@@ -27,13 +33,41 @@ export const SESSION_TOUCH_AFTER_MS = MS_PER_MINUTE
 /** Lockout: 5 failed sign-ins within 15 minutes per account or per IP (FR-AUTH-001 AC3, NFR-SEC-05) */
 export const LOGIN_FAILURE_LIMIT = 5
 export const LOGIN_FAILURE_WINDOW_MS = 15 * MS_PER_MINUTE
+/**
+ * Better Auth's own lock of the second sign-in step (its two-factor plugin's accountLockout, on by default): this many
+ * wrong codes in a row, across sign-ins and backup codes, pause the account's second step for TWO_FACTOR_LOCK_MS — even
+ * for the right code. Named here (Better Auth's defaults) so the sign-in pages can say this lock in its own words
+ * (src/ui/auth/lock-message.ts), apart from ours above.
+ */
+export const TWO_FACTOR_LOCK_LIMIT = 10
+export const TWO_FACTOR_LOCK_MS = 15 * MS_PER_MINUTE
+/** A step-up (the second factor again for one sensitive approval) is good for 5 minutes and one use (NFR-SEC-04) */
+export const STEP_UP_TTL_MS = 5 * MS_PER_MINUTE
+/** TOTP codes of the step before and after are accepted too, for clocks that drift (RFC 6238 §5.2) */
+export const TOTP_ACCEPTED_DRIFT_STEPS = 1
+/** Rows one budget import may hold (FR-BUD-001) */
+export const BUDGET_IMPORT_MAX_ROWS = 1000
 /** Invitation links are single-use and valid for 72 hours (FR-AUTH-001 AC1) */
 export const INVITATION_TTL_MS = 72 * MS_PER_HOUR
+/** An ActionToken lives 72 hours or until its task closes, whichever comes first (BR-TOK-01) */
+export const ACTION_TOKEN_TTL_MS = 72 * MS_PER_HOUR
 /** Password reset links */
 export const PASSWORD_RESET_TTL_SECONDS = 60 * 60
 
 /** Longest free-text reason accepted by admin commands (stored in Comment) */
 export const REASON_MAX_LENGTH = 1000
+/** A share as tenths of a percent: 13 of 17 → 765 → "76.5" (KPI reports, §11.4) */
+export const PERCENT_TENTHS_SCALE = 1000n
+/** Events on one page of the audit search (FR-VIS-004 AC1) */
+export const AUDIT_PAGE_MAX = 100
+/** Events one audit export file takes: a wider search is narrowed first (FR-VIS-004 AC2) */
+export const AUDIT_EXPORT_MAX_ROWS = 50_000
+/** Most invoices one Express file takes when exporting again by hand (BR-EXP-02) */
+export const EXPORT_MAX_INVOICES = 5000
+/** Longest note to a supplier on a PO (FR-P2P-003 AC2) */
+export const PO_NOTE_MAX_LENGTH = 2000
+/** Longest payment term a PO takes, in days */
+export const PAYMENT_TERM_MAX_DAYS = 3650
 /** The language cookie is remembered for a year (FR-PLT-002 AC2) */
 export const LOCALE_COOKIE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60
 /** A LINE ID token is a JWT of a few hundred bytes; anything far longer is refused before it is sent to LINE */
@@ -47,6 +81,13 @@ export const MAX_UPLOAD_BYTES = 20 * BYTES_PER_MIB
 /** The member import file goes through a server action, and Next.js refuses action bodies above 1 MB; 500 rows of the
  *  template (IMPORT_MAX_ROWS) are far below this. Checked in the browser and again on the server. */
 export const MEMBER_IMPORT_MAX_BYTES = 900 * BYTES_PER_KIB
+/** Largest DOA YAML file the import reads (FR-DOA-001 AC2); a DOA of any real organization is a few kilobytes */
+export const DOA_YAML_MAX_CHARS = 500_000
+/** Largest file read out of a PDF (an e-Tax invoice's XML, BR-IVC-05, is tens of kilobytes); a stream that inflates
+ *  past this is skipped, so a small hostile PDF cannot fill the server's memory */
+export const MAX_EMBEDDED_FILE_BYTES = 5 * BYTES_PER_MIB
+/** react-pdf minPresenceAhead (points) larger than any page: the last line row always moves with the totals block */
+export const PDF_KEEP_WITH_TOTALS_PT = 2000
 /** Longest file name accepted from the browser before it is cleaned (cleanFileName shortens what is stored) */
 export const FILE_NAME_INPUT_MAX = 1000
 /** Photos are scaled so the long side is at most this many pixels before upload (FR-PLT-004 AC3) */
@@ -91,3 +132,10 @@ export const OUTBOX_LAST_ERROR_MAX_LENGTH = 500
 /** NFR-OBS-02: a sweeper run that could deliver nothing raises an alert once the oldest message it tried has waited
  *  this long (raised again on every such run until the backlog moves) */
 export const OUTBOX_STALL_ALERT_AFTER_MS = 10 * MS_PER_MINUTE
+
+// ---------- LINE rich menus (§9.5, FR-LINE-004) ----------
+/** The image of each BCS rich menu, in pixels (§9.5: 2500 × 843, LINE's large compact size); its areas share it out */
+export const LINE_RICH_MENU_WIDTH_PX = 2500
+export const LINE_RICH_MENU_HEIGHT_PX = 843
+/** LINE takes a rich menu image of at most "1 MB", read the strict way: 1,000,000 bytes (the pictures of BCS are < 100 KB) */
+export const LINE_RICH_MENU_IMAGE_MAX_BYTES = 1000 * 1000

@@ -1,0 +1,8 @@
+# tests/golden/invoice-confirmation.yaml
+suite: invoice-confirmation
+cases:
+  - { id: GC-IVC-01, input: { committed: ["115000.00"], invoices: [{ invoiceNo: "INV-001", net: "115000.00" }] }, expect: { results: [ok], actualByLine: ["115000.00"], remaining: ["0.00"] } }
+  - { id: GC-IVC-02, input: { committed: ["115000.00"], invoices: [{ invoiceNo: "INV-002", net: "116000.00" }] }, expect: { results: [INVOICE_EXCEEDS_COMMITTED], actualByLine: ["0.00"], remaining: ["115000.00"] } }
+  - { id: GC-IVC-03, input: { committed: ["115000.00"], invoices: [{ invoiceNo: "A1", net: "60000.00" }, { invoiceNo: "A2", net: "55000.00" }, { invoiceNo: "A3", net: "0.01" }] }, expect: { results: [ok, ok, INVOICE_EXCEEDS_COMMITTED], actualByLine: ["115000.00"], remaining: ["0.00"] } }
+  - { id: GC-IVC-04, title: เลขซ้ำหลัง normalize, input: { committed: ["50000.00"], existingInvoiceNos: ["INV001"], invoices: [{ invoiceNo: " inv 001", net: "1000.00" }] }, expect: { results: [DUPLICATE_INVOICE], actualByLine: ["0.00"], remaining: ["50000.00"] } }
+  - { id: GC-IVC-05, title: ปันส่วนแบบ largest remainder, input: { committed: ["3333.33", "6666.67"], invoices: [{ invoiceNo: "B1", net: "1000.00" }] }, expect: { results: [ok], actualByLine: ["333.33", "666.67"], remaining: ["3000.00", "6000.00"] } }

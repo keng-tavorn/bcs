@@ -1,0 +1,61 @@
+# tests/golden/budget.yaml
+suite: budget
+# ทุกเคสใช้บรรทัดงบเดียว · expect คือยอดของบรรทัดงบหลัง step นั้น
+# op: fund | reserve | release | submitPo | approvePo | rejectPo | cancelPo | actualize | closePo | parallelReserve
+cases:
+  - id: GC-BUD-01
+    title: วงจรเต็ม PR → PO → ใบกำกับ พร้อมกรณีงบไม่พอและการคืนงบ
+    steps:
+      - { op: fund, amount: "500000.00", expect: { available: "500000.00", reserved: "0.00", committed: "0.00", actual: "0.00" } }
+      - { op: reserve, source: PR-1, amount: "120000.00", expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+      - { op: reserve, source: PR-2, amount: "400000.00", expectError: BUDGET_INSUFFICIENT, expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+      - { op: submitPo, po: PO-1, need: "115000.00", sources: [{ source: PR-1, releasable: "120000.00" }], expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+      - { op: approvePo, po: PO-1, expect: { available: "385000.00", reserved: "0.00", committed: "115000.00", actual: "0.00" } }
+      - { op: actualize, po: PO-1, amount: "115000.00", expect: { available: "385000.00", reserved: "0.00", committed: "0.00", actual: "115000.00" } }
+      - { op: reserve, source: PR-3, amount: "50000.00", expect: { available: "335000.00", reserved: "50000.00", committed: "0.00", actual: "115000.00" } }
+      - { op: release, source: PR-3, expect: { available: "385000.00", reserved: "0.00", committed: "0.00", actual: "115000.00" } }
+  - id: GC-BUD-02
+    title: PO สั่งบางส่วนในราคาสูงกว่าคำขอ (PR 10 × 1,000 → PO 6 × 1,100)
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-4, amount: "10000.00", expect: { available: "90000.00", reserved: "10000.00", committed: "0.00", actual: "0.00" } }
+      - { op: submitPo, po: PO-2, need: "6600.00", sources: [{ source: PR-4, releasable: "6000.00" }], expect: { available: "89400.00", reserved: "10600.00", committed: "0.00", actual: "0.00" } }
+      - { op: approvePo, po: PO-2, expect: { available: "89400.00", reserved: "4000.00", committed: "6600.00", actual: "0.00" } }
+  - id: GC-BUD-03
+    title: PO ถูกปฏิเสธ คืนเฉพาะส่วนต่างที่จอง
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-5, amount: "10000.00" }
+      - { op: submitPo, po: PO-3, need: "6600.00", sources: [{ source: PR-5, releasable: "6000.00" }], expect: { available: "89400.00", reserved: "10600.00", committed: "0.00", actual: "0.00" } }
+      - { op: rejectPo, po: PO-3, expect: { available: "90000.00", reserved: "10000.00", committed: "0.00", actual: "0.00" } }
+  - id: GC-BUD-04
+    title: ยกเลิก PO ที่อนุมัติแล้วแบบคืนเข้ากอง
+    steps:
+      - { op: fund, amount: "500000.00" }
+      - { op: reserve, source: PR-6, amount: "120000.00" }
+      - { op: submitPo, po: PO-4, need: "115000.00", sources: [{ source: PR-6, releasable: "120000.00" }] }
+      - { op: approvePo, po: PO-4, expect: { available: "385000.00", reserved: "0.00", committed: "115000.00", actual: "0.00" } }
+      - { op: cancelPo, po: PO-4, disposition: RETURN_TO_POOL, expect: { available: "380000.00", reserved: "120000.00", committed: "0.00", actual: "0.00" } }
+  - id: GC-BUD-05
+    title: ใบกำกับน้อยกว่า PO แล้วปิด PO
+    steps:
+      - { op: fund, amount: "500000.00" }
+      - { op: reserve, source: PR-7, amount: "120000.00" }
+      - { op: submitPo, po: PO-5, need: "115000.00", sources: [{ source: PR-7, releasable: "120000.00" }] }
+      - { op: approvePo, po: PO-5 }
+      - { op: actualize, po: PO-5, amount: "110000.00", expect: { available: "385000.00", reserved: "0.00", committed: "5000.00", actual: "110000.00" } }
+      - { op: closePo, po: PO-5, expect: { available: "390000.00", reserved: "0.00", committed: "0.00", actual: "110000.00" } }
+  - id: GC-BUD-06
+    title: ตัดเกินยอดถือ
+    steps:
+      - { op: fund, amount: "200000.00" }
+      - { op: reserve, source: PR-8, amount: "100000.00" }
+      - { op: submitPo, po: PO-6, need: "100000.00", sources: [{ source: PR-8, releasable: "100000.00" }] }
+      - { op: approvePo, po: PO-6 }
+      - { op: actualize, po: PO-6, amount: "100000.01", expectError: INVOICE_EXCEEDS_COMMITTED, expect: { available: "100000.00", reserved: "0.00", committed: "100000.00", actual: "0.00" } }
+  - id: GC-BUD-07
+    kind: concurrency
+    title: จองพร้อมกัน 2 รายการ รายการละ 300,000 บนงบ 500,000 ต้องสำเร็จรายการเดียว (integration test กับ Postgres จริง)
+    steps:
+      - { op: fund, amount: "500000.00" }
+      - { op: parallelReserve, amounts: ["300000.00", "300000.00"], expectSuccesses: 1, expect: { available: "200000.00", reserved: "300000.00", committed: "0.00", actual: "0.00" } }

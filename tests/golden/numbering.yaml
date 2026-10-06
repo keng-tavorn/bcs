@@ -1,0 +1,17 @@
+# tests/golden/numbering.yaml
+suite: numbering
+cases:
+  - id: GC-NUM-01
+    input: { pattern: "PR-{BE}-{SEQ5}", reset: YEARLY, documentType: PR, at: "2026-10-02T03:00:00Z", seq: 1 }
+    expect: { number: "PR-2569-00001", scopeKey: "PR:2569" }
+  - id: GC-NUM-02
+    title: ข้ามปีตามเวลาไทย
+    input: { pattern: "PO-{BE}{MM}-{SEQ4}", reset: MONTHLY, documentType: PO, at: "2026-12-31T17:30:00Z", seq: 12 }
+    expect: { number: "PO-257001-0012", scopeKey: "PO:2570-01" }
+  - id: GC-NUM-03
+    input: { pattern: "GR-{DEPT}-{YY}-{SEQ3}", reset: YEARLY, documentType: GR, department: CON, at: "2026-10-02T03:00:00Z", seq: 7 }
+    expect: { number: "GR-CON-69-007", scopeKey: "GR:2569:CON" }
+  - id: GC-NUM-04
+    title: เลขเกินความกว้างที่กำหนดให้ขยายหลัก
+    input: { pattern: "GR-{DEPT}-{YY}-{SEQ3}", reset: YEARLY, documentType: GR, department: CON, at: "2026-10-02T03:00:00Z", seq: 1000 }
+    expect: { number: "GR-CON-69-1000", scopeKey: "GR:2569:CON" }

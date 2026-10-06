@@ -31,11 +31,29 @@
     "kpi": "KPI",
     "audit": "Audit trail",
     "members": "Members and roles",
+    "org": "Organization structure",
+    "calendar": "Business calendar",
+    "numbering": "Document numbers",
+    "requestTypes": "Request types",
+    "line": "LINE settings",
     "doa": "Approval authority (DOA)",
     "orgAuthority": "Authority changes",
     "policyHistory": "Policy history",
     "modules": "Enabled modules",
     "tenants": "Customer organizations",
-    "security": "Account security"
+    "delegation": "Acting approver",
+    "security": "Account security",
+    "pin": "Transaction PIN",
+    "lineLink": "LINE account",
+    "notifications": "Notification settings"
+  },
+  "notifications": {
+    "button": "Notifications",
+    "unreadCount": "{count} unread",
+    "panelTitle": "Notifications",
+    "newItem": "New",
+    "markAllRead": "Mark all as read",
+    "empty": "No notifications yet",
+    "emptyHint": "Tasks waiting for your approval and news about your requests will show here"
   }
 }

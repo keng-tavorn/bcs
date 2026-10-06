@@ -1,0 +1,25 @@
+# tests/golden/forms.yaml
+suite: forms
+rules:
+  - id: ATT-QUOTES
+    when: { field: $amountGross, op: gt, value: "100000.00" }
+    require:
+      any:
+        - { attachments: QUOTATION, min: 3 }
+        - all:
+            - { attachments: QUOTATION, min: 1 }
+            - { field: singleSourceJustification, op: notEmpty }
+  - id: ATT-DPA
+    when: { field: processesPersonalData, op: eq, value: "Y" }
+    require: { attachments: DPA, min: 1 }
+visibility:
+  - { field: assetTag, when: { field: category, op: eq, value: HARDWARE } }
+cases:
+  - { id: GC-FORM-01, input: { amountGross: "100000.00", attachments: { QUOTATION: 0 } }, expect: { ok: true } }
+  - { id: GC-FORM-02, input: { amountGross: "100000.01", attachments: { QUOTATION: 2 }, fields: { singleSourceJustification: "" } }, expect: { error: ATTACHMENT_RULE_FAILED, rule: ATT-QUOTES } }
+  - { id: GC-FORM-03, input: { amountGross: "100000.01", attachments: { QUOTATION: 1 }, fields: { singleSourceJustification: "เป็นตัวแทนจำหน่ายรายเดียวในประเทศ" } }, expect: { ok: true } }
+  - { id: GC-FORM-04, input: { amountGross: "150000.00", attachments: { QUOTATION: 3 } }, expect: { ok: true } }
+  - { id: GC-FORM-05, title: ฟิลด์ที่ถูกซ่อนถูกตัดทิ้ง, input: { amountGross: "5000.00", attachments: {}, fields: { category: SOFTWARE, assetTag: "X-1" } }, expect: { ok: true, droppedFields: [assetTag] } }
+  - { id: GC-FORM-06, title: ผู้ขายประมวลผลข้อมูลส่วนบุคคลแต่ไม่แนบ DPA, input: { amountGross: "50000.00", attachments: {}, fields: { processesPersonalData: "Y" } }, expect: { error: ATTACHMENT_RULE_FAILED, rule: ATT-DPA } }
+  - { id: GC-FORM-07, title: แนบ DPA แล้ว, input: { amountGross: "50000.00", attachments: { DPA: 1 }, fields: { processesPersonalData: "Y" } }, expect: { ok: true } }
+  - { id: GC-FORM-08, title: ผู้ขายไม่ประมวลผลข้อมูลส่วนบุคคล, input: { amountGross: "50000.00", attachments: {}, fields: { processesPersonalData: "N" } }, expect: { ok: true } }

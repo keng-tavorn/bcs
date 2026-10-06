@@ -14,7 +14,8 @@ async function expectNoBlockingAxe(page: Page) {
 /** Phones show the menu behind a button; open it only when it is closed (a second click would close it). */
 async function openMenuOnPhone(page: Page, isMobile: boolean, label: string) {
   if (!isMobile) return
-  const menu = page.locator('header details')
+  // The menu, not the notification bell that shares the phone header
+  const menu = page.locator('header details:has(nav)')
   if (!(await menu.evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByText(label, { exact: true }).click()
 }
 
@@ -31,7 +32,19 @@ test('[FR-PLT-002/AC2] Thai by default, English on request; the menu lists what 
 
   await openMenuOnPhone(page, isMobile, 'เมนู')
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' })
-  await expect(nav.getByRole('link')).toHaveText(['หน้าแรก', 'ความปลอดภัยของบัญชี'])
+  await expect(nav.getByRole('link')).toHaveText([
+    'หน้าแรก',
+    'ขอซื้อ / ขอจ้าง',
+    'คำขอ',
+    'งานรออนุมัติ',
+    'ผู้ขาย',
+    'เอกสารค้างที่ใคร',
+    'รักษาการ',
+    'ความปลอดภัยของบัญชี',
+    'PIN ยืนยันธุรกรรม',
+    'บัญชี LINE',
+    'ตั้งค่าการแจ้งเตือน',
+  ])
   await expect(nav.getByRole('link', { name: 'หน้าแรก' })).toHaveAttribute('aria-current', 'page')
   await page.screenshot({ path: testInfo.outputPath('menu-th.png'), fullPage: true })
 
@@ -57,7 +70,7 @@ test('[FR-PLT-002/AC1] choosing a page from the menu leaves the page uncovered (
   await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name: 'ความปลอดภัยของบัญชี' }).click()
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('ความปลอดภัยของบัญชี')
   if (isMobile) {
-    await expect(page.locator('header details')).not.toHaveAttribute('open', '')
+    await expect(page.locator('header details:has(nav)')).not.toHaveAttribute('open', '')
     await expect(page.getByRole('navigation', { name: 'เมนูหลัก' })).toBeHidden()
   }
   // Nothing lies over the content: a click on it lands on it (Playwright refuses a click another element intercepts)

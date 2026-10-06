@@ -1,0 +1,127 @@
+{
+  "title": "Reports",
+  "intro": "The reports the system offers: choose a period, see the result within your access, export it to Excel and have it e-mailed on a schedule.",
+  "forbidden": "Reports are for finance, procurement, executives, auditors and department heads. If you need a report, ask your department head.",
+  "home": "Back to home",
+  "scope": {
+    "ORG": "Reports read the whole organization",
+    "DEPT": "Reports read only the departments you head"
+  },
+  "scopeShort": {
+    "ORG": "whole organization",
+    "DEPT": "departments you head"
+  },
+  "catalogTitle": "Available reports",
+  "catalog": {
+    "KPI": {
+      "name": "KPI G-1 to G-5",
+      "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE."
+    }
+  },
+  "proposalReports": "The seven reports of the original proposal (R-01 to R-07) will be added once the customer confirms their list and definitions. The system does not build reports that have no definition yet.",
+  "params": {
+    "from": "From",
+    "to": "To"
+  },
+  "run": "Show this period",
+  "periodInvalid": "The chosen period cannot be used (it must start on or before its last day), so the last {days} days are shown instead.",
+  "resultLine": "{from} to {to} · {scope} · read at {time}",
+  "caption": "Result of the report {name}",
+  "columns": {
+    "kpi": "KPI",
+    "name": "Measure",
+    "value": "Value",
+    "numerator": "Numerator",
+    "denominator": "Denominator"
+  },
+  "kpiHint": "The same figures as the KPI page, which explains each formula in words and opens the documents counted.",
+  "kpiLink": "Open the KPI page for this period",
+  "exportTitle": "Export this report",
+  "exportHint": "An Excel file of the same period and access as this page, with the file's checksum.",
+  "failed": "The report could not be read. Choose the period again or reload the page.",
+  "measures": {
+    "PO_APPROVED_OVER_ACCOUNTING_PURCHASES": "POs approved ÷ purchase documents in the accounting system",
+    "DECISIONS_NOT_BY_DOA": "Approvals not by the DOA",
+    "DECISIONS_WITH_DOA_REFERENCE": "Decisions citing the DOA version and rule",
+    "MEDIAN_SUBMIT_TO_FIRST_PO_HOURS": "Median time from request to first approved PO",
+    "MEDIAN_DECISION_HOURS": "Median decision time per step",
+    "TASKS_PAST_DUE": "Steps past due (SLA)",
+    "TASKS_ON_FAILED_BUDGET_CHECK": "Approval tasks of requests that failed the budget check",
+    "DECISIONS_ON_LINE_ALL": "Decisions in LINE, all kinds of document",
+    "decisionsOnLineOf": "Decisions in LINE: {kind}"
+  },
+  "kinds": {
+    "PURCHASE_REQUEST": "purchase requests",
+    "PURCHASE_ORDER": "purchase orders",
+    "VARIANCE": "receiving variances",
+    "DOA_VERSION": "DOA versions",
+    "ORG_AUTHORITY_CHANGE": "authority changes"
+  },
+  "units": {
+    "percent": "{value}%",
+    "hours": "{value} business hours",
+    "count": "{value} items",
+    "notYet": "not computable yet",
+    "none": "none"
+  },
+  "export": {
+    "xlsx": "Export to Excel",
+    "csv": "Export to CSV",
+    "working": "Making the file…",
+    "done": "{count, plural, one {Exported # row} other {Exported # rows}}; the download has started.",
+    "doneNotOpened": "{count, plural, one {Exported # row} other {Exported # rows}}.",
+    "checksum": "File checksum (SHA-256): {checksum}",
+    "again": "Download this file again",
+    "openFailed": "The file was made but the download did not open. Press Download this file again.",
+    "errors": {
+      "TOO_MANY": "One file holds at most {max} rows. Narrow the period or the conditions and export again.",
+      "FILTER": "These conditions cannot be exported. Check the dates and conditions and try again.",
+      "FORBIDDEN": "Your account may not export this file; your rights may have just changed. Reload the page to see them, and ask your organization admin if you still need the file.",
+      "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
+      "BUSY": "The system is busy. Wait a moment and try again.",
+      "CONFLICT": "This press clashed with another command. Reload the page and try again.",
+      "INTERNAL": "Something went wrong and nothing was exported. Try again; if it still fails, tell your admin the reference {requestId}.",
+      "FAILED": "The export did not complete. Check your connection and try again."
+    }
+  },
+  "schedule": {
+    "title": "E-mail reports on a schedule",
+    "intro": "The system e-mails the report file to the recipients on the schedule you set. Each run covers the 30 days before it, within its creator's access. A recipient who may no longer read reports gets no more files.",
+    "listLabel": "Report schedules",
+    "item": "{name} · {cadence} · {format} file",
+    "itemMeta": "{count, plural, one {# recipient} other {# recipients}} · set by {name} on {time}",
+    "none": "No report schedules yet.",
+    "formTitle": "Set a new schedule",
+    "report": "Report",
+    "reportOnly": "Report: {name}",
+    "cadence": "When to send",
+    "cadences": {
+      "WEEKLY": "Every Monday at 08:00",
+      "MONTHLY": "On the 1st of every month at 08:00"
+    },
+    "format": "File type",
+    "formats": {
+      "xlsx": "Excel",
+      "csv": "CSV"
+    },
+    "recipients": "Send to",
+    "recipientsHint": "Only people who may read the whole organization's reports themselves can be chosen, so the file never reaches someone who may not see it.",
+    "you": "{name} (you)",
+    "period": "Each run sends the 30 days before the day it is sent.",
+    "done": "Report scheduled: {cadence}, to {count, plural, one {# recipient} other {# recipients}}.",
+    "working": "Setting the schedule…",
+    "submit": "Schedule the report e-mail",
+    "errors": {
+      "RECIPIENTS": "Choose at least one active recipient.",
+      "RECIPIENT_SCOPE": "Some recipients may no longer read this report themselves (their access may have changed). Reload the page and choose the recipients from the list again.",
+      "CADENCE": "Choose one of the schedules offered.",
+      "REPORT": "This report was not found. Choose a report from the list.",
+      "FORBIDDEN": "Only finance and executives may schedule reports.",
+      "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
+      "CONFLICT": "This press clashed with another command. Reload the page and try again.",
+      "BUSY": "The system is busy with other work. Wait a moment and press schedule again.",
+      "INTERNAL": "Something went wrong and the schedule was not set. Try again; if it still fails, tell your admin the reference {requestId}.",
+      "FAILED": "The schedule was not set. Check your connection and try again."
+    }
+  }
+}

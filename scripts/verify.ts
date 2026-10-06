@@ -7,19 +7,23 @@
 // a file left behind by an earlier run (or by another run going on at the same time). BCS_VITEST_REPORTS lists them
 // for the gates and checkers that read them; a value inherited from the shell is dropped first.
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import vitestConfig from '../vitest.config'
 import {
+  COVERAGE_ENGINES,
   GATE_REQUIRES,
   casesWithoutPassingTest,
+  evaluateCoverage,
   evaluateEslintRun,
   evaluatePlaywrightRun,
+  mergePlaywrightReports,
   evaluateVitestRun,
   lastLines,
   orphanTestFiles,
   parseVerifyArgs,
+  type CoverageSummary,
   type GateResult,
   type PlaywrightJson,
   type Status,
@@ -234,6 +238,22 @@ const gates: Gate[] = [
     run: () => vitestGate('property', ['tests/property'], ' property ', 'invariant ของงบหรือเงินอาจพังในบางลำดับการทำงาน').result,
   },
   {
+    name: 'coverage',
+    run: () => {
+      // spec §7.0 item 4: every branch of the money and authority engines has a test (unit, golden or property)
+      const engines = COVERAGE_ENGINES.filter((e) => exists(`src/core/${e}`))
+      if (engines.length === 0) return { status: 'SKIP', detail: 'ยังไม่มี engine เงินหรืออำนาจใน src/core' }
+      const files = engines.flatMap((e) => filesUnder(`src/core/${e}`, CODE_FILE).filter((f) => !TEST_FILE.test(f)).map((f) => `src/core/${e}/${f}`))
+      const dir = path.join(RUN_DIR, 'coverage')
+      const r = sh(
+        `pnpm exec vitest run --project unit --project golden --project property --passWithNoTests --coverage.enabled --coverage.provider=v8 "--coverage.include=src/core/{${engines.join(',')}}/**" --coverage.reporter=json-summary "--coverage.reportsDirectory=${dir}"`,
+      )
+      const summaryFile = path.join(dir, 'coverage-summary.json')
+      const summary = existsSync(summaryFile) ? (JSON.parse(readFileSync(summaryFile, 'utf8')) as CoverageSummary) : null
+      return evaluateCoverage({ code: r.code, out: r.out, summary }, { root: ROOT, files: files.map((p) => ({ path: p, source: read(p) })) })
+    },
+  },
+  {
     name: 'integration',
     run: () => {
       const a = vitestGate('int', ['tests/integration'], ' integration ', 'ธุรกรรมกับฐานข้อมูลจริงทำงานผิด').result
@@ -327,10 +347,25 @@ const gates: Gate[] = [
       if (!WITH_E2E) return { status: 'SKIP', detail: 'รันเมื่อสั่ง pnpm verify --e2e (เฉพาะก่อน merge เข้า main และที่เส้นชัย)' }
       // playwright.config.ts writes this JSON report; remove the previous run's copy so nothing reads it as this run's
       const e2eReport = path.join(ROOT, 'test-results/e2e-results.json')
+      const demoDir = 'test-results/demo'
+      const demoReport = path.join(ROOT, demoDir, 'e2e-results.json')
       rmSync(e2eReport, { force: true })
-      const r = sh('pnpm test:e2e')
-      const report = existsSync(e2eReport) ? (JSON.parse(readFileSync(e2eReport, 'utf8')) as PlaywrightJson) : null
-      return evaluatePlaywrightRun({ code: r.code, out: r.out, report })
+      rmSync(demoReport, { force: true })
+      const readReport = (file: string) => (existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as PlaywrightJson & Record<string, unknown>) : null)
+      const screens = sh('pnpm test:e2e')
+      const screensReport = readReport(e2eReport)
+      const screensResult = evaluatePlaywrightRun({ code: screens.code, out: screens.out, report: screensReport })
+      // The demo scenes (D-04, tests/e2e/demo) run alone on their own database with the demo history, after the screens
+      const scenes = existsSync(path.join(ROOT, 'tests/e2e/demo')) && readdirSync(path.join(ROOT, 'tests/e2e/demo')).some((f) => f.endsWith('.spec.ts'))
+      if (!scenes) return screensResult
+      const demo = sh('pnpm test:e2e', { env: { E2E_DEMO: '1', E2E_OUTPUT_DIR: demoDir } })
+      const scenesReport = readReport(demoReport)
+      const demoResult = evaluatePlaywrightRun({ code: demo.code, out: demo.out, report: scenesReport })
+      // One report for the traceability gate: the screens' tests and the scenes' tests of this run together
+      if (screensReport && scenesReport) writeFileSync(e2eReport, JSON.stringify(mergePlaywrightReports([screensReport, scenesReport])))
+      if (screensResult.status === 'FAIL') return screensResult
+      if (demoResult.status === 'FAIL') return { ...demoResult, detail: `ฉาก demo (pnpm test:e2e --grep @demo): ${demoResult.detail}` }
+      return { status: 'PASS', detail: `หน้าจอ: ${screensResult.detail} · ฉาก demo: ${demoResult.detail}` }
     },
   },
   {

@@ -1,20 +1,31 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
+import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
+import { systemClock } from '@/lib/clock'
+import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { listEnabledModules } from '@/server/queries/organization'
+import { listMyNotifications } from '@/server/services/notifications'
 import { SignOutButton } from '@/ui/auth/sign-out-button'
 import { TwoFactorSetup } from '@/ui/auth/two-factor-setup'
 import { Notice } from '@/ui/form/notice'
+import { formatDateTime } from '@/ui/format'
 import { LanguageSwitch } from '@/ui/shell/language-switch'
+import { PwaRegistration } from '@/ui/pwa/pwa-registration'
+import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
 import { visibleMenu } from './_shell/menu'
+import { markAllNotificationsReadAction, openNotificationAction } from './_shell/notification-actions'
 
 // Every workspace page: signed in, a member, and 2FA set up when the role needs it (FR-AUTH-002 AC1) — otherwise
 // only the setup screen shows. The menu lists what the member may open (FR-PLT-002 AC1); services check again.
+// The workspace's client components read any namespace, so its provider passes the whole catalogue (no page budget
+// here; the LIFF app and the sign-in pages pass only what they read, src/i18n/client-messages.ts). The PWA's service
+// worker is registered here and on the sign-in pages (§9.7), and offers to reload when a new version is ready.
 export default async function WorkspaceLayout({ children }: { children: ReactNode }) {
   const state = await getSession()
   if (state.kind === 'anonymous') redirect('/login')
@@ -25,7 +36,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     if (platform.kind === 'platform-admin' || platform.kind === 'needs-2fa-setup') redirect('/platform/tenants')
   }
 
-  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, locale] = await Promise.all([
+  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, locale] = await Promise.all([
     getTranslations('shell'),
     getTranslations('shell.items'),
     getTranslations('shell.groups'),
@@ -33,6 +44,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     getTranslations('auth.security'),
     getTranslations('app'),
     getTranslations('pwa'),
+    getTranslations('shell.notifications'),
     getLocale(),
   ])
   const languageSwitch = (
@@ -46,9 +58,16 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       action={setLocaleAction}
     />
   )
+  /** The page with the whole catalogue for its client components, and the PWA's registration after it */
+  const withMessages = (page: ReactNode) => (
+    <NextIntlClientProvider>
+      {page}
+      <PwaRegistration labels={{ updateReady: tPwa('updateReady'), updateNow: tPwa('updateNow'), updateLater: tPwa('updateLater') }} />
+    </NextIntlClientProvider>
+  )
 
   if (state.kind !== 'member') {
-    return (
+    return withMessages(
       <div className="min-h-dvh bg-bg">
         <header className="border-b border-line bg-surface">
           <div className="mx-auto max-w-2xl px-4 py-4">
@@ -82,15 +101,39 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     label: tItems(item.key),
     groupLabel: tGroups(item.group),
   }))
+  // The one door (§9.9 principle 2): only for a member whose menu has it — one who may create requests
+  const door = nav.find((item) => item.key === 'newRequest')
   const name = locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh
+  // The bell (FR-NOTI-001): the member's own notifications in their language
+  const ctx = ctxFromSession(state, 'WEB', systemClock.now())
+  const notifications = ctx ? await listMyNotifications(ctx, locale === 'en' ? 'en' : 'th') : { items: [], unread: 0 }
+  const bell = (
+    <NotificationBell
+      items={notifications.items.map((i) => ({ id: i.id, title: i.title, body: i.body, href: i.href, unread: i.unread, when: formatDateTime(locale, i.createdAt) }))}
+      unread={notifications.unread}
+      labels={{
+        button: tBell('button'),
+        unreadCount: tBell('unreadCount', { count: notifications.unread }),
+        panelTitle: tBell('panelTitle'),
+        newItem: tBell('newItem'),
+        markAllRead: tBell('markAllRead'),
+        empty: tBell('empty'),
+        emptyHint: tBell('emptyHint'),
+      }}
+      openAction={openNotificationAction}
+      markAllReadAction={markAllNotificationsReadAction}
+    />
+  )
 
-  return (
+  return withMessages(
     <WorkspaceShell
       brand={tAuth('brand')}
       orgName={state.member.organizationName}
       userLine={t('signedInAs', { name })}
       labels={{ skipToContent: t('skipToContent'), menu: t('menu'), mainNav: t('mainNav') }}
       nav={nav}
+      bell={bell}
+      newRequest={door ? { href: door.href, label: door.label } : undefined}
       account={
         <div className="flex flex-col items-start gap-3">
           {languageSwitch}

@@ -1,12 +1,15 @@
 import { spawnSync } from 'node:child_process'
 import pg from 'pg'
-import { E2E_DB, e2eEnv, withDatabase } from '../support/e2e-env'
+import { E2E_DB, E2E_DEMO, e2eEnv, withDatabase } from '../support/e2e-env'
 
 // Fresh e2e database before every run: drop the schema, apply all migrations, seed the demo organization.
 // Runs as the first step of the e2e web server command (playwright.config.ts) so the server never starts
 // against a half-built database. Reads DATABASE_URL/DIRECT_URL from .env (via tsx --env-file).
 async function prepareE2eDatabase(): Promise<void> {
-  const env = { ...process.env, ...e2eEnv() }
+  // The screens' e2e database has no demo history (D-01): their tests count tasks, notifications and budget themselves.
+  // The demo scenes' database (E2E_DEMO) has the history and nothing else, so the board, dashboard and KPI show the
+  // figures of the Demo_History sheet as on the day.
+  const env: NodeJS.ProcessEnv = { ...process.env, ...e2eEnv(), SEED_DEMO_HISTORY: process.env.SEED_DEMO_HISTORY ?? (E2E_DEMO ? '1' : '0') }
   const admin = new pg.Client({ connectionString: withDatabase(process.env.DIRECT_URL!, 'postgres') })
   await admin.connect()
   try {
@@ -25,7 +28,11 @@ async function prepareE2eDatabase(): Promise<void> {
   }
   // storage-init: the private bucket and its CORS rule for the e2e origin (browser uploads, FR-PLT-004)
   // seed-platform-admin: a BCS-team account for the /platform pages (the demo seed has none)
-  for (const command of ['pnpm exec prisma migrate deploy', 'pnpm exec tsx prisma/seed.ts', 'pnpm exec tsx tests/e2e/seed-platform-admin.ts', 'pnpm exec tsx scripts/storage-init.ts']) {
+  // seed-activity: requests submitted through the services, so approvers have tasks and notifications
+  const commands = E2E_DEMO
+    ? ['pnpm exec prisma migrate deploy', 'pnpm exec tsx scripts/storage-init.ts', 'pnpm exec tsx prisma/seed.ts']
+    : ['pnpm exec prisma migrate deploy', 'pnpm exec tsx prisma/seed.ts', 'pnpm exec tsx tests/e2e/seed-platform-admin.ts', 'pnpm exec tsx tests/e2e/seed-activity.ts', 'pnpm exec tsx scripts/storage-init.ts']
+  for (const command of commands) {
     const r = spawnSync(command, { shell: true, env, encoding: 'utf8' })
     if (r.status !== 0) throw new Error(`${command} failed:\n${r.stdout}\n${r.stderr}`)
   }

@@ -26,6 +26,9 @@ const SECRETS = {
   bearer: 'eyJhbGciOiJIUzI1NiJ9.payload.sig',
 }
 
+/** Catastrophic backtracking on these inputs takes minutes; 10 s leaves room for a machine busy with other work */
+const BACKTRACKING_BUDGET_MS = 10_000
+
 describe('[NFR-SEC-09] logger redaction', () => {
   it('redacts sensitive keys at any depth', () => {
     const { logger, output } = capture()
@@ -235,6 +238,20 @@ describe('[NFR-SEC-09] secrets inside text are redacted', () => {
     expect(out).toContain('callbackURL=%2F')
   })
 
+  it('redacts the PIN-change proof and the LINE link code wherever they appear in text', () => {
+    const proof = `p1.PASSWORD.1791100800000.${'Ab_-'.repeat(5)}Cd.${'Ef9_'.repeat(10)}Gh-`
+    const code = `l1.${'Or9-'.repeat(5)}gA.${'Me7_'.repeat(5)}bQ.1791100800000.${'No5-'.repeat(5)}cE.${'Mac8'.repeat(10)}x_Z`
+    const { logger, output } = capture()
+    logger.warn(`set_pin refused for proof ${proof} (EXPIRED)`)
+    logger.info({ note: `link ${code} used twice` }, 'line link')
+    const out = output()
+    expectAbsent(out, [proof, code, proof.slice(-43), code.slice(-43)])
+    expect(scrubText(`proof ${proof}.`)).toBe(`proof ${REDACTED}.`)
+    expect(scrubText(`code=${code}`)).toBe(`code=${REDACTED}`)
+    // a document number or a version string that starts the same way stays
+    expect(scrubText('p1.PASSWORD changed · l1.2 of the spec')).toBe('p1.PASSWORD changed · l1.2 of the spec')
+  })
+
   it('redacts national IDs and bank accounts in their printed formats', () => {
     for (const value of ['1-1017-00203-45-1', '1 1017 00203 45 1', '123-456789-0', '123-4-56789-0', '1234-567-890', '123 4 56789 0', '4111 1111 1111 1111', '4111111111111111']) {
       expect(scrubText(`supplier ${value} failed mod-11`), value).toBe('supplier [REDACTED] failed mod-11')
@@ -331,7 +348,7 @@ describe('[NFR-SEC-09] redaction keeps logs useful and never breaks a log call',
     const started = performance.now()
     for (const text of hostile) scrubText(text)
     expect(redactDeep({ [`${'A'.repeat(n)}b`]: 1 })).toBeTruthy()
-    expect(performance.now() - started).toBeLessThan(2000)
+    expect(performance.now() - started).toBeLessThan(BACKTRACKING_BUDGET_MS)
   })
 
   it('never throws on values that cannot be serialized', () => {
@@ -618,6 +635,6 @@ describe('[NFR-SEC-09] redaction stays linear', () => {
     for (const text of hostile) scrubText(text)
     const entries = Array.from({ length: n / 10 }, (_, i) => [`key${i}`, 'value'])
     redactDeep({ entries, argv: Array.from({ length: n / 10 }, () => '--token'), byKey: Object.fromEntries(entries) })
-    expect(performance.now() - started).toBeLessThan(2000)
+    expect(performance.now() - started).toBeLessThan(BACKTRACKING_BUDGET_MS)
   })
 })

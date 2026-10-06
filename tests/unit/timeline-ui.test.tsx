@@ -8,7 +8,7 @@ const items: TimelineItem[] = [
     title: 'ส่งขออนุมัติ',
     actor: 'สมชาย ใจดี',
     when: '5 ต.ค. 2569 10:00 น.',
-    channel: 'LINE (LIFF)',
+    channel: 'หน้าจอใน LINE',
     state: 'done',
     outcome: 'neutral',
     statusLabel: 'เสร็จแล้ว',

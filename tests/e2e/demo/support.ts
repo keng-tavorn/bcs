@@ -492,7 +492,7 @@ export const doaRefOf = (doa: { readonly code: string; readonly versionNo: numbe
  */
 export const sheetDoaRef = (sheet: DemoSheet, rule: string | null) => doaRefOf({ code: sheet.doa.code, versionNo: sheet.doa.version }, ruleOf(sheet, rule).ruleCode)
 
-/** The channel of an event as the timeline names it (LINE_CHAT → "แชท LINE", LIFF → "LINE (LIFF)") */
+/** The channel of an event as the timeline names it (LINE_CHAT → "แชท LINE", LIFF → "หน้าจอใน LINE") */
 export const channelLabel = (channel: Channel) => th(`timeline.channel.${channel}`)
 
 /** The approver's position as the route before sending names it: "รองประธานสายงาน ของสายปฏิบัติการ" */
@@ -1457,21 +1457,17 @@ export const sumFigures = (lines: readonly BudgetLineFacts[]): BudgetFigures =>
   )
 
 /**
- * A row of the budget dashboard holds these figures, each amount the link to what makes it up (FR-BUD-005 AC1 AC2): the
- * planned amount and what is available whenever something is planned, the reserved, committed and actual amounts when
- * there is any — the links' names say the amount and whose it is (`of`: a line's code, a department's name, everything)
+ * A row of the budget dashboard holds these figures, each amount the link to what makes it up (FR-BUD-005 AC1 AC2) —
+ * every one of the five, 0.00 too (§9.9: every number opens its list) — the links' names say the amount and whose it is
+ * (`of`: a line's code, a department's name, everything)
  */
 export async function expectBudgetRow(row: Locator, of: string, f: BudgetFigures) {
-  const links: Array<readonly [string, bigint, boolean]> = [
-    [th('budgets.table.plannedLink', { amount: baht(f.planned), code: of }), f.planned, f.planned !== 0n],
-    [th('budgets.table.availableLink', { amount: baht(f.available), code: of }), f.available, f.planned !== 0n],
-    ...(['reserved', 'committed', 'actual'] as const).map(
-      (bucket) => [th('budgets.table.amountLink', { bucket: th(`budgets.columns.${bucket}`), amount: baht(f[bucket]), code: of }), f[bucket], f[bucket] !== 0n] as const,
-    ),
+  const links: Array<readonly [string, bigint]> = [
+    [th('budgets.table.plannedLink', { amount: baht(f.planned), code: of }), f.planned],
+    [th('budgets.table.availableLink', { amount: baht(f.available), code: of }), f.available],
+    ...(['reserved', 'committed', 'actual'] as const).map((bucket) => [th('budgets.table.amountLink', { bucket: th(`budgets.columns.${bucket}`), amount: baht(f[bucket]), code: of }), f[bucket]] as const),
   ]
-  for (const [name, amount, linked] of links) {
-    if (linked) await expect(row.getByRole('link', { name, exact: true }), name).toHaveText(baht(amount))
-  }
+  for (const [name, amount] of links) await expect(row.getByRole('link', { name, exact: true }), name).toHaveText(baht(amount))
 }
 
 /** Another person's computer in the same scene: a browser of its own at 1440 px and a client address of its own */

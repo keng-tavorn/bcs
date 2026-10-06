@@ -176,19 +176,21 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   await expect(poBudget(page)).toContainText(th('purchaseOrder.budget.state.DRAFT'))
   // Every line with the request line it orders, and the prices paid before for the same item (FR-P2P-003 AC1: the
   // category and the description after normalizing, on approved POs) as the database has them: the section is there for
-  // every line — "never bought" for an item no approved PO ordered, otherwise the newest three with their PO and date,
-  // and whether the line's price is above the newest by more than sheet Settings' priceAlertPct
+  // every line — "never bought" alone for an item no approved PO ordered, otherwise under its label the newest three with
+  // their PO and date, and whether the line's price is above the newest by more than sheet Settings' priceAlertPct
   for (const line of drafted.lines) {
     const item = poLineItems(page).filter({ hasText: `${line.lineNo}. ${line.description}` })
     await expect(item, `line ${line.lineNo}`).toHaveCount(1)
     for (const s of line.sources) {
       await expect(item).toContainText(th('purchaseOrder.lines.source', { number: s.requestNumber ?? '', line: s.lineNo, quantity: th('purchaseOrder.lines.qty', { quantity: shownQuantity(s.quantity), uom: line.uom }) }))
     }
-    await expect(item).toContainText(th('purchaseOrder.lines.pricesTitle'))
     if (line.earlierPrices.length === 0) {
+      // "never bought" says it all by itself: no label above it (§9.9: no label that adds nothing)
       await expect(item).toContainText(th('purchaseOrder.lines.pricesNone'))
+      await expect(item).not.toContainText(th('purchaseOrder.lines.pricesTitle'))
       continue
     }
+    await expect(item).toContainText(th('purchaseOrder.lines.pricesTitle'))
     await expect(item).not.toContainText(th('purchaseOrder.lines.pricesNone'))
     for (const p of line.earlierPrices) {
       await expect(item).toContainText(th('purchaseOrder.lines.price', { number: p.poNumber ?? '', date: thaiDate(p.approvedAt), price: baht(BigInt(p.unitPrice)) }))

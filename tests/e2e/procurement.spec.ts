@@ -156,7 +156,14 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
   await expect(lines).toContainText(`จากคำขอ ${made.scene1.number} บรรทัด 1`)
   await expect(lines).toContainText(`จากคำขอ ${made.scene1.number} บรรทัด 2`)
   await expect(lines).toContainText(`จากคำขอ ${made.h11.number} บรรทัด 1`)
-  await expect(lines).toContainText('ราคาที่เคยซื้อรายการนี้')
+  // The prices paid before for each item (FR-P2P-003 AC1): under their label, or — never bought — that sentence alone,
+  // without a label that adds nothing (§9.9)
+  const items = await lines.locator(':scope > li').all()
+  expect(items.length).toBeGreaterThan(0)
+  for (const item of items) {
+    const text = (await item.textContent()) ?? ''
+    expect(text.includes('ราคาที่เคยซื้อรายการนี้'), text).not.toBe(text.includes('ยังไม่เคยซื้อรายการนี้ใน PO ที่อนุมัติแล้ว'))
+  }
   await expect(requestsRegion(page).getByRole('link', { name: `${made.h11.number} · อุปกรณ์ความปลอดภัย PPE` })).toBeVisible()
   // Made by whoever ran the round; nobody has sent it for approval yet
   await expect(page.getByRole('region', { name: 'รายละเอียดใบสั่งซื้อ' })).toContainText(/สร้างโดย\s*พิมพ์ใจ จัดหา/)
@@ -281,5 +288,15 @@ test('[FR-P2P-001/AC1] [FR-P2P-001/AC3] [FR-P2P-002/AC1] [FR-P2P-002/AC3] a requ
   await page.getByRole('checkbox', { name: `เลือกทุกบรรทัดของ ${made.number}` }).check()
   await page.getByRole('button', { name: 'เอาผู้ขายออกจากบรรทัดที่เลือก' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'เอาผู้ขายออกจาก 1 บรรทัดแล้ว' })).toBeVisible()
+  await expect(group.getByText('ต้องเลือกผู้ขาย')).toBeVisible()
+
+  // §9.9 rule 7: taking the supplier off lines that have none says just that, with the way to give them one — never that
+  // they "already have this supplier"; nothing is sent
+  await page.getByRole('checkbox', { name: `เลือกทุกบรรทัดของ ${made.number}` }).check()
+  await page.getByRole('button', { name: 'เอาผู้ขายออกจากบรรทัดที่เลือก' }).click()
+  const nothingToClear = page.getByRole('alert').filter({ hasText: 'บรรทัดที่เลือกยังไม่มีผู้ขาย จึงไม่มีผู้ขายให้เอาออก' })
+  await expect(nothingToClear).toContainText('เลือกจากรายการแล้วกด "ใช้ผู้ขายนี้กับบรรทัดที่เลือก"')
+  await expect(page.getByRole('alert').filter({ hasText: 'ใช้ผู้ขายนี้อยู่แล้ว' })).toHaveCount(0)
+  await expect(page.getByRole('status').filter({ hasText: 'เอาผู้ขายออกจาก' })).toHaveCount(0)
   await expect(group.getByText('ต้องเลือกผู้ขาย')).toBeVisible()
 })

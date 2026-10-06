@@ -58,7 +58,7 @@ export default async function BoardPersonPage({ params, searchParams }: { params
         <h1 className="text-2xl font-semibold">{t('person.title', { name: row.name })}</h1>
         <p className="text-ink">{t('person.summary', { open: row.open, overdue: row.overdue, waiting: row.waitingForRequester })}</p>
         {row.open ? <p className="text-ink">{t('person.ages', { oldest: hoursText(row.oldestMinutes), average: hoursText(row.averageMinutes) })}</p> : null}
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-ink-muted md:text-sm">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-ink-muted">
           <span>{t('asOf', { time: formatDateTime(locale, result.data.asOf) })}</span>
           {/* A full reload, as on the board: an installed app has no reload button of its own. A reminder refused because
               the document was decided or left the reader's scope meanwhile says to press this (board.errors) */}
@@ -71,8 +71,8 @@ export default async function BoardPersonPage({ params, searchParams }: { params
         <h2 id="board-documents" className="text-xl font-semibold">
           {t('person.listTitle')}
         </h2>
-        <p className="text-base text-ink-muted md:text-sm">{t('remind.rule')}</p>
-        {readsOnly(row) ? <p className="text-base text-ink md:text-sm">{t('remind.readOnly')}</p> : null}
+        <p className="text-ink-muted">{t('remind.rule')}</p>
+        {readsOnly(row) ? <p className="text-ink">{t('remind.readOnly')}</p> : null}
         <BoardDocuments documents={documents} label={t('person.listLabel', { name: row.name })} locale={locale} remind={remindTaskAction} />
       </section>
     </div>

@@ -28,19 +28,38 @@ export async function generateMetadata() {
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 
+/** A PO whose goods are received (or still to come) on its receiving page: it went to its supplier */
+const RECEIVING_STATES: ReadonlySet<string> = new Set(['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED'])
+
 type ViewT = Awaited<ReturnType<typeof getTranslations<'requestView'>>>
 type TimelineT = Awaited<ReturnType<typeof getTranslations<'timeline'>>>
+
+/**
+ * Why the DOA engine (or the draft) stops "ส่งขออนุมัติ", as the key of its words under actions.submit.blocked: each
+ * code in Thai and English with its fix (§9.9 rule 7), never the raw code. The engine refuses a VALIDATION_FAILED only
+ * for the amount: a draft whose lines total 0.00, fixed by its prices in "แก้ไขร่าง".
+ */
+function blockedKey(code: string) {
+  switch (code) {
+    case 'DOA_NOT_CONFIGURED':
+    case 'APPROVER_NOT_FOUND':
+    case 'NO_HIGHER_AUTHORITY':
+    case 'TAX_RATE_NOT_CONFIGURED':
+    case 'NO_LINES':
+    case 'SOD_VIOLATION':
+    case 'DOA_AMBIGUOUS':
+      return code
+    case 'VALIDATION_FAILED':
+      return 'ZERO_AMOUNT'
+    default:
+      return 'other'
+  }
+}
 
 /** What the DOA engine expects before "ส่งขออนุมัติ" (§9.9 principle 3), in words */
 function previewView(t: PoT, tv: ViewT, tl: TimelineT, locale: Locale, preview: PoSubmitPreviewDto): SubmitPreviewView {
   const route = preview.route
-  const blocked = !preview.supplierActive
-    ? t('actions.submit.supplierInactive')
-    : route.kind === 'BLOCKED'
-      ? route.code === 'DOA_NOT_CONFIGURED' || route.code === 'APPROVER_NOT_FOUND' || route.code === 'NO_HIGHER_AUTHORITY' || route.code === 'TAX_RATE_NOT_CONFIGURED' || route.code === 'NO_LINES'
-        ? t(`actions.submit.blocked.${route.code}`)
-        : t('actions.submit.blocked.other', { code: route.code })
-      : null
+  const blocked = !preview.supplierActive ? t('actions.submit.supplierInactive') : route.kind === 'BLOCKED' ? t(`actions.submit.blocked.${blockedKey(route.code)}`) : null
   // Thai readers get the engine's own record; English ones the same sentence built from its parts (as on the route itself)
   const why =
     route.kind !== 'ROUTE'
@@ -190,6 +209,8 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
               close={po.next.close && rights.close}
               // Closing waits for goods still to come: said once some came, not while nothing has arrived yet
               closeWaits={po.next.closeNeedsShortfall && rights.close && po.status === 'PARTIALLY_RECEIVED' ? t('actions.close.needsShortfall') : null}
+              // Where what will not come is closed short (the receiving page, not in procurement's menu): once it went out
+              receivingHref={RECEIVING_STATES.has(po.status) ? `/receiving/${po.id}` : null}
               {...(po.status === 'PENDING_APPROVAL' ? { nothing: t('actions.nothingWhileApproval') } : {})}
               actions={{ submit: submitPoAction, send: sendPoAction, cancel: cancelPoAction, close: closePoAction }}
             />

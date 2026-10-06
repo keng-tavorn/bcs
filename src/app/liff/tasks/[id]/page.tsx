@@ -110,7 +110,8 @@ function Summary({ label, amounts, facts, unit }: { label: string; amounts: read
   return (
     <section aria-label={label} className="flex flex-col gap-4 border-t border-line pt-5">
       {amounts.length ? <Amounts rows={amounts} heading={unit.heading} unit={unit.name} /> : null}
-      {facts.length ? <Facts items={facts} /> : null}
+      {/* One column at every width, as LIFF is (§9.9): Facts splits by the screen's width, not by LIFF's column */}
+      {facts.length ? <Facts items={facts} className="sm:grid-cols-1" /> : null}
     </section>
   )
 }

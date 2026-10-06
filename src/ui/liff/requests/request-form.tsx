@@ -318,8 +318,9 @@ export function LiffRequestForm({
       const id = api?.id() ?? null
       const version = api?.version() ?? null
       if (!api || !saved || !id || version === null) {
-        // Why the save failed is shown at the top of the form (a conflict, a closed request or the connection)
-        setSubmitError({ ok: false, code: 'DRAFT_NOT_SAVED' })
+        // Why the save failed is shown at the top of the form (a conflict, a closed request or the connection). A request
+        // closed to this page cannot be sent from it at all: its notice and the bar's reason say so, never "try again"
+        if (api?.halted() !== 'closed') setSubmitError({ ok: false, code: 'DRAFT_NOT_SAVED' })
         return
       }
       const outcome = await gated.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED' }, submission.key)
@@ -387,7 +388,10 @@ export function LiffRequestForm({
       : sendBlock?.kind === 'PROBLEMS'
         ? t('submit.blockedProblems')
         : sendBlock?.kind === 'SAVE'
-          ? t('submit.blockedSave')
+          ? // Closed to this page (sent or cancelled elsewhere): loading the latest version would not make it sendable
+            sendBlock.stop === 'closed'
+            ? t('submit.blockedClosed')
+            : t('submit.blockedSave')
           : null
   const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
   const previous = index > 0 ? stepIds[index - 1]! : null

@@ -20,7 +20,8 @@ export function PlaceFacts({ items }: { items: readonly PlaceFact[] }) {
           <dt className="text-base text-ink-muted md:text-sm">{item.label}</dt>
           <dd className={cn('break-words', item.set ? 'text-ink' : 'text-ink-muted')}>
             {item.value}
-            {item.detail ? <span className="block text-base text-ink-muted md:text-sm">{item.detail}</span> : null}
+            {/* The address under the place: content at the body's size (§9.9: 15 px on the web) */}
+            {item.detail ? <span className="block text-ink-muted">{item.detail}</span> : null}
           </dd>
         </div>
       ))}

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { setEmailProvider, type EmailMessage } from '@/integrations/email-provider'
-import { MS_PER_HOUR, MS_PER_MINUTE } from '@/lib/constants'
+import { MS_PER_HOUR, MS_PER_MINUTE, TWO_FACTOR_LOCK_MS } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { fromBase32, totp } from '@/lib/totp'
 import { makeCtx } from '@/server/context'
@@ -174,6 +174,20 @@ describe('[FR-AUTH-001/AC3] lockout after 5 failures in 15 minutes', () => {
     const events = await prisma.event.findMany({ where: { aggregateId: m.member.id, aggregateType: 'Auth' } })
     expect(events.filter((e) => e.type === 'auth.login_failed' && (e.data as { step?: string }).step === 'two_factor')).toHaveLength(5)
     expect(events.map((e) => e.type)).toContain('auth.login_locked')
+  })
+
+  it('Better Auth’s own lock of the second step answers 429 ACCOUNT_TEMPORARILY_LOCKED, even for the right code: the pages word it apart from ours', async () => {
+    const org = await createOrg()
+    const m = await activatedMember(org.id, ['FINANCE'])
+    const secret = 'U'.repeat(32)
+    await enableTotpWithSecret(m.userId, secret, ['eeeee-fffff'])
+    const challenge = await signIn(m.email, PASSWORD, '198.18.9.1')
+    expect(challenge.twoFactor).toBe(true)
+    // The plugin's lock as TWO_FACTOR_LOCK_LIMIT wrong codes in a row leave it (its accountLockout, src/server/auth/auth.ts)
+    await prisma.twoFactor.updateMany({ where: { userId: m.userId }, data: { lockedUntil: new Date(Date.now() + TWO_FACTOR_LOCK_MS) } })
+    const res = await verifyTotpOverHttp(challenge.cookie, totp(secret), '198.18.9.1')
+    expect(res.status).toBe(429)
+    expect(await res.json()).toMatchObject({ code: 'ACCOUNT_TEMPORARILY_LOCKED' })
   })
 
   it('locks an IP after 5 failures across accounts; successful sign-ins never count', async () => {

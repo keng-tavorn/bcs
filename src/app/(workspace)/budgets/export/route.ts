@@ -8,16 +8,28 @@ import { BUDGET_EXPORT_COLUMNS, budgetDashboardWorkbook, type BudgetExportTexts 
 import { formatDateTime } from '@/ui/format'
 import { dayText, localeOf, nameIn } from '../_present'
 
+/** "See Other": the browser follows it with a GET of the dashboard */
+const HTTP_STATUS_SEE_OTHER = 303
+
 // GET the Excel file of the budget dashboard (spec §11.2 "ส่งออก Excel"): the fiscal year `fy` (or the current one) in
 // the scope the member may see — budgetDashboard checks budget.view, so the file never holds more than the page.
-// Read-only: it changes nothing. A refusal answers with the HTTP status of its §14.2 code and the code itself.
+// Read-only: it changes nothing. A refusal answers with the HTTP status of its §14.2 code and the code itself — but
+// when the member followed the dashboard's link (a browser navigation), the refusal goes back to the dashboard of the
+// same year instead (§9.9 rule 7): the page runs the same check and says each refusal in words with its way on — the
+// budget pages are not for this account, the year was not found, or (the session ended) the sign-in page — where the
+// browser would only show a failed download of its own.
 export async function GET(request: Request): Promise<Response> {
   const noStore = { 'cache-control': 'no-store' }
-  const ctx = ctxFromSession(await resolveSession(request.headers), 'WEB', systemClock.now())
-  if (!ctx) return Response.json({ code: 'UNAUTHENTICATED' }, { status: HTTP_STATUS.UNAUTHENTICATED, headers: noStore })
   const asked = new URL(request.url).searchParams.get('fy')
+  const navigated = request.headers.get('sec-fetch-mode') === 'navigate'
+  const refused = (code: keyof typeof HTTP_STATUS): Response =>
+    navigated
+      ? new Response(null, { status: HTTP_STATUS_SEE_OTHER, headers: { location: `/budgets${asked ? `?fy=${encodeURIComponent(asked)}` : ''}`, ...noStore } })
+      : Response.json({ code }, { status: HTTP_STATUS[code], headers: noStore })
+  const ctx = ctxFromSession(await resolveSession(request.headers), 'WEB', systemClock.now())
+  if (!ctx) return refused('UNAUTHENTICATED')
   const result = await budgetDashboard(ctx, asked && z.uuid().safeParse(asked).success ? { fiscalYearId: asked } : {})
-  if (!result.ok) return Response.json({ code: result.error.code }, { status: HTTP_STATUS[result.error.code], headers: noStore })
+  if (!result.ok) return refused(result.error.code)
 
   const [t, locale] = await Promise.all([getTranslations('budgets.export'), getLocale().then(localeOf)])
   const tScope = await getTranslations('budgets.scope')

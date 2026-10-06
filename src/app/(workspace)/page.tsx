@@ -3,12 +3,14 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
+import { procurementPoCounts } from '@/server/queries/purchase-orders'
 import { listMyRequests } from '@/server/queries/requests'
 import { listMyTasks } from '@/server/queries/tasks'
 import { listPool } from '@/server/services/procurement'
 import { RequestList } from '@/ui/request-view/request-list'
 import { TaskList } from '@/ui/tasks/task-list'
 import { getSession } from '../_lib/session'
+import { poRows } from './_tracking/po-rows'
 import { poolRow } from './_tracking/pool-row'
 import { localeOf } from './_tracking/present'
 import { requestRows, taskRows } from './_tracking/rows'
@@ -23,7 +25,8 @@ const HOME_ROWS = 5
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 
 // Home, work first (§9.9 principle 1): what waits for my decision — the ones due first, and for procurement the pool of
-// approved requests nobody has ordered yet — then my requests with where each one is now; every count links to its list.
+// approved requests nobody has ordered yet and the POs waiting on them (a draft to send for approval, an approved PO to
+// send out) — then my requests with where each one is now; every count links to its list.
 // Charts come later (S3 budget, S4 board), never before the work.
 export default async function HomePage() {
   const state = await getSession()
@@ -31,10 +34,19 @@ export default async function HomePage() {
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx) return null
   const [t, tt, tv, locale] = await Promise.all([getTranslations('home'), getTranslations('tasks'), getTranslations('requestView'), getLocale().then(localeOf)])
-  // The pool is read only by those whose menu has it (the same check, §2.4 procurement.pool.view); listPool checks again
-  const seesPool = isAllowed(memberPrincipal(state.member.id, state.roles), 'procurement.pool.view')
-  const [tasks, requests, pool] = await Promise.all([listMyTasks(ctx, { limit: HOME_ROWS }), listMyRequests(ctx, { limit: HOME_ROWS }), seesPool ? listPool(ctx) : null])
+  // The pool is read only by those whose menu has it (the same check, §2.4 procurement.pool.view); listPool checks again.
+  // So are the POs waiting on procurement: by those whose menu lists POs (po.create, the menu's entry)
+  const principal = memberPrincipal(state.member.id, state.roles)
+  const seesPool = isAllowed(principal, 'procurement.pool.view')
+  const seesPos = isAllowed(principal, 'po.create')
+  const [tasks, requests, pool, pos] = await Promise.all([
+    listMyTasks(ctx, { limit: HOME_ROWS }),
+    listMyRequests(ctx, { limit: HOME_ROWS }),
+    seesPool ? listPool(ctx) : null,
+    seesPos ? procurementPoCounts(ctx) : null,
+  ])
   const poolWork = pool?.ok ? poolRow(t, pool.data) : null
+  const poWork = pos ? poRows(t, pos) : []
   // One answer for both sections, so they never disagree: only a member whose requests are listed below has progress to
   // follow; one with none is not sent to an empty list, and their next step is the start link of "my requests" (§9.9
   // principle 8)
@@ -59,7 +71,8 @@ export default async function HomePage() {
           </>
         ) : null}
         {poolWork ? <TaskList label={t('pool.list')} rows={[poolWork]} /> : null}
-        {!tasks.items.length && !poolWork ? (
+        {poWork.length ? <TaskList label={t('po.list')} rows={poWork} /> : null}
+        {!tasks.items.length && !poolWork && !poWork.length ? (
           <div className="flex flex-col gap-1 border-y border-line py-4">
             <p className="text-ink-muted">{t('myTasksEmpty')}</p>
             {hasRequests ? (

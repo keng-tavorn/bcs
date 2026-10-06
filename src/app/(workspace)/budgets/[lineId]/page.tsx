@@ -12,7 +12,7 @@ import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../../_lib/session'
 import { BudgetDocumentSections } from '../_documents'
-import { figureStrip, localeOf, lowText, nameIn, shareStrip } from '../_present'
+import { figureStrip, localeOf, lowText, nameIn, shareStrip, usedUp } from '../_present'
 
 /** One read per request: the title and the page share it */
 const load = cache(async (lineId: string) => {
@@ -62,7 +62,7 @@ export default async function BudgetLinePage({ params }: { params: Promise<{ lin
         {line.accountCode ? <p className="text-ink-muted">{t('line.account', { code: line.accountCode })}</p> : null}
         {low || line.status !== 'OPEN' ? (
           <div className="flex flex-col gap-1">
-            {low ? <LowBadge label={low} /> : null}
+            {low ? <LowBadge label={low} out={usedUp(line)} /> : null}
             {line.status !== 'OPEN' ? <LineStatusBadge status={line.status} label={t(`status.${line.status}`)} /> : null}
           </div>
         ) : null}

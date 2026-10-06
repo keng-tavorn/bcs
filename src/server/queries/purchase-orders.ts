@@ -107,7 +107,8 @@ async function attachmentsOf(db: TenantDb, subjectType: 'Request' | 'GoodsReceip
 /**
  * Whom a PO waits for. A wait on procurement or on the supplier carries the business minutes it has lasted (§9.9 principle
  * 4, FR-INT-008 AC1: how long the current step has waited, as a request waits for procurement since its approval), from
- * when the PO entered its state (teamWaitSince); null without a business calendar
+ * when the PO entered its state — or, once goods came, from its latest posted goods receipt (teamWaitSince); null
+ * without a business calendar
  */
 export type PoWaitingDto =
   /** DRAFT: procurement checks it and sends it for approval */
@@ -131,10 +132,10 @@ export type PoWaitingDto =
   | { readonly kind: 'SEND'; readonly bounced: boolean; readonly waitingMinutes: number | null }
   /** SENT: the supplier delivers and the receiver records it */
   | { readonly kind: 'DELIVERY'; readonly waitingMinutes: number | null }
-  /** PARTIALLY_RECEIVED: the rest of the goods */
-  | { readonly kind: 'REST' }
-  /** RECEIVED: the invoice, then closing */
-  | { readonly kind: 'CLOSE' }
+  /** PARTIALLY_RECEIVED: the rest of the goods, since the latest posted goods receipt */
+  | { readonly kind: 'REST'; readonly waitingMinutes: number | null }
+  /** RECEIVED: the invoice, then closing, since the latest posted goods receipt */
+  | { readonly kind: 'CLOSE'; readonly waitingMinutes: number | null }
   /** CLOSED, CANCELLED, REJECTED */
   | { readonly kind: 'NONE' }
 
@@ -157,18 +158,22 @@ const DRAFT_WAIT_EVENTS: readonly string[] = ['po.drafted', 'po.returned']
 
 /**
  * When a PO began to wait on procurement or on its supplier: when it entered the state it is in — a draft when it was
- * drafted or returned (`draftSince`), an approved PO at its approval, a sent PO when it was last sent. null for any other
- * state: an approver's wait counts from the task (waitingContext), and the rest of the goods and the closing are not
- * counted here.
+ * drafted or returned (`draft`), an approved PO at its approval, a sent PO when it was last sent — and, once goods came,
+ * its latest posted goods receipt (`receipt`): a PO partly received waits from then for the rest of its goods, one
+ * received in full for its invoice and its closing. null for any other state, or without the time it needs: an
+ * approver's wait counts from the task (waitingContext).
  */
-function teamWaitSince(po: { status: string; approvedAt: Date | null; sentAt: Date | null }, draftSince: Date | null): Date | null {
+function teamWaitSince(po: { status: string; approvedAt: Date | null; sentAt: Date | null }, since: { readonly draft: Date | null; readonly receipt: Date | null }): Date | null {
   switch (po.status) {
     case 'DRAFT':
-      return draftSince
+      return since.draft
     case 'APPROVED':
       return po.approvedAt
     case 'SENT':
       return po.sentAt
+    case 'PARTIALLY_RECEIVED':
+    case 'RECEIVED':
+      return since.receipt
     default:
       return null
   }
@@ -193,6 +198,23 @@ async function draftsSince(db: TenantDb, poIds: readonly string[]): Promise<Map<
   return since
 }
 
+/** The latest of these goods receipts that is posted (a reversed one no longer counts), or null when none is */
+function latestPosted(receipts: ReadonlyArray<{ readonly status: string; readonly postedAt: Date | null }>): Date | null {
+  return receipts.reduce<Date | null>((latest, r) => (r.status === 'POSTED' && r.postedAt && (!latest || r.postedAt > latest) ? r.postedAt : latest), null)
+}
+
+/**
+ * When each of these POs last had goods received: its latest posted goods receipt. A PO with none is not in the map (its
+ * wait is not counted)
+ */
+async function receiptsSince(db: TenantDb, poIds: readonly string[]): Promise<Map<string, Date>> {
+  const since = new Map<string, Date>()
+  if (poIds.length === 0) return since
+  const latest = await db.goodsReceipt.groupBy({ by: ['poId'], where: { poId: { in: [...poIds] }, status: 'POSTED' }, _max: { postedAt: true } })
+  for (const g of latest) if (g._max.postedAt) since.set(g.poId, g._max.postedAt)
+  return since
+}
+
 /** `teamWaited`: the business minutes of a wait on procurement or the supplier (businessWaited of teamWaitSince) */
 function waitingOf(po: { status: string; currentRouteId: string | null; sendBouncedAt: Date | null }, w: WaitingContext, teamWaited: number | null): PoWaitingDto {
   switch (po.status) {
@@ -209,9 +231,9 @@ function waitingOf(po: { status: string; currentRouteId: string | null; sendBoun
     case 'SENT':
       return { kind: 'DELIVERY', waitingMinutes: teamWaited }
     case 'PARTIALLY_RECEIVED':
-      return { kind: 'REST' }
+      return { kind: 'REST', waitingMinutes: teamWaited }
     case 'RECEIVED':
-      return { kind: 'CLOSE' }
+      return { kind: 'CLOSE', waitingMinutes: teamWaited }
     default:
       return { kind: 'NONE' }
   }
@@ -305,6 +327,22 @@ export interface PoListFilter {
   readonly q?: string
 }
 
+/** The states in which a PO waits on procurement: a draft to check and send for approval, an approved PO to send out */
+export const PROCUREMENT_WAITS = ['DRAFT', 'APPROVED'] as const satisfies readonly PoStatusDto[]
+
+/**
+ * How many POs of the organization wait on procurement now, by state (§9.9 principle 1: the home's work of PROCUREMENT,
+ * beside the pool): the same counts the PO list leads to with its status filter. The caller shows them only to whoever
+ * the PO list is for (po.create, as the menu's entry).
+ */
+export async function procurementPoCounts(ctx: Ctx): Promise<Readonly<Record<(typeof PROCUREMENT_WAITS)[number], number>>> {
+  const db = forTenant(ctx.organizationId)
+  const grouped = await db.purchaseOrder.groupBy({ by: ['status'], where: { status: { in: [...PROCUREMENT_WAITS] } }, _count: { _all: true } })
+  const counts = { DRAFT: 0, APPROVED: 0 }
+  for (const g of grouped) if (g.status === 'DRAFT' || g.status === 'APPROVED') counts[g.status] = g._count._all
+  return counts
+}
+
 /** POs of the organization, the ones changed last first, by status (spec §9.1 /procurement/pos) */
 export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): Promise<PoListDto> {
   const db = forTenant(ctx.organizationId)
@@ -349,7 +387,7 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
       },
     }),
   ])
-  const [w, todayBp, drafted] = await Promise.all([
+  const [w, todayBp, drafted, received] = await Promise.all([
     waitingContext(
       db,
       ctx,
@@ -359,6 +397,10 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
     draftsSince(
       db,
       pos.filter((p) => p.status === 'DRAFT').map((p) => p.id),
+    ),
+    receiptsSince(
+      db,
+      pos.filter((p) => p.status === 'PARTIALLY_RECEIVED' || p.status === 'RECEIVED').map((p) => p.id),
     ),
   ])
   const counts = Object.fromEntries(PO_STATUSES.map((s) => [s, 0])) as Record<PoStatusDto, number>
@@ -387,7 +429,7 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
         grossSatang: totals.grossSatang,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        waiting: waitingOf(p, w, businessWaited(w, teamWaitSince(p, drafted.get(p.id) ?? p.createdAt))),
+        waiting: waitingOf(p, w, businessWaited(w, teamWaitSince(p, { draft: drafted.get(p.id) ?? p.createdAt, receipt: received.get(p.id) ?? null }))),
       }
     }),
   }
@@ -880,7 +922,7 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
     waitingContext(db, ctx, routeIds),
     approverRoles(db),
     priceHistoryOf(db, ctx.organizationId, po.id),
-    db.goodsReceipt.findMany({ where: { poId: po.id }, select: { id: true, status: true } }),
+    db.goodsReceipt.findMany({ where: { poId: po.id }, select: { id: true, status: true, postedAt: true } }),
     po.status === 'DRAFT' ? rateOfToday(ctx) : Promise.resolve(null),
     db.budgetLine.findMany({ where: { id: { in: [...new Set(po.lines.map((l) => l.budgetLineId))] } }, select: { id: true, code: true, nameTh: true, status: true }, orderBy: { code: 'asc' } }),
     db.budgetAllocation.findMany({
@@ -923,9 +965,10 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
   const resolvedFrom = new Map(taskRows.map((t) => [t.id, t.resolvedFrom]))
   const history = await historyFrom(db, events, (taskId) => roleOf(resolvedFrom.get(taskId)), escalatedTaskIdsOf(events, taskRows))
   // A wait on procurement or the supplier, from when the PO entered its state: a draft since the round drafted it or its
-  // approver returned it (a returned PO is a draft again), else since it was made
+  // approver returned it (a returned PO is a draft again), else since it was made; once goods came, since the latest
+  // posted goods receipt
   const draftSince = events.filter((e) => e.aggregateType === 'PurchaseOrder' && DRAFT_WAIT_EVENTS.includes(e.type)).at(-1)?.occurredAt ?? po.createdAt
-  const since = teamWaitSince(po, draftSince)
+  const since = teamWaitSince(po, { draft: draftSince, receipt: latestPosted(postedGrs) })
   const waited = businessWaited(w, since)
   const nowWhat: DocTrackWhat = po.status === 'DRAFT' ? 'WAIT_EDIT' : po.status === 'APPROVED' ? 'WAIT_SEND' : po.status === 'RECEIVED' ? 'WAIT_CLOSE' : 'WAIT_DELIVERY'
   const live: DocTrackEntryDto[] =

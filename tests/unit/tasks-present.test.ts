@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { routeSentence, stageText, timelineItems, waitingText, type TimelineT, type ViewT } from '@/app/(workspace)/_tracking/present'
-import type { RouteDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
+import { routeSentence, stageText, stageWaitingMinutes, timelineItems, waitingText, type TimelineT, type ViewT } from '@/app/(workspace)/_tracking/present'
+import { requestRows } from '@/app/(workspace)/_tracking/rows'
+import type { MyRequestRowDto, RouteDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
+import en from '../../messages/en.json'
+import th from '../../messages/th.json'
 
 // S2-12 presentation: business time waited in hours with one decimal (integers only), the tracking timeline as stamps,
 // "where it is now" in one line, and the English route sentence built from the stored route (the Thai one is the record).
@@ -38,7 +41,8 @@ function entry(over: Partial<TrackEntryDto>): TrackEntryDto {
 describe('[FR-INT-008/AC1] how long a step has waited, in business hours', () => {
   it.each([
     [null, null],
-    [0, 'waiting.notStarted'],
+    // under one whole business minute, true inside business hours (the clock runs) and outside them alike (D-05 round 4)
+    [0, 'waiting.underMinute'],
     [45, 'waiting.minutes{"minutes":45}'],
     [60, 'waiting.hours{"hours":"1"}'],
     [90, 'waiting.hours{"hours":"1.5"}'],
@@ -46,6 +50,17 @@ describe('[FR-INT-008/AC1] how long a step has waited, in business hours', () =>
     [540, 'waiting.hours{"hours":"9"}'],
   ])('%s minutes → %s', (minutes, text) => {
     expect(waitingText(t, minutes)).toBe(text)
+  })
+
+  it('[§9.9] words every wait as how long it has waited, under a minute too, in Thai and in English', () => {
+    expect(th.requestView.waiting.underMinute).toBe('ค้างมาไม่ถึง 1 นาทีในเวลาทำการ')
+    expect(en.requestView.waiting.underMinute).toBe('Waiting under 1 business minute')
+    // the screens and their tests read every wait by its first word (ค้างมา / Waiting)
+    for (const key of ['underMinute', 'minutes', 'hours'] as const) {
+      expect(th.requestView.waiting[key].startsWith('ค้างมา'), key).toBe(true)
+      expect(en.requestView.waiting[key].startsWith('Waiting'), key).toBe(true)
+    }
+    expect(JSON.stringify(th.requestView)).not.toContain('ยังไม่เริ่มนับเวลาทำการ')
   })
 
   it('says who the request waits for, with their position, and what the requester has to do', () => {
@@ -64,6 +79,63 @@ describe('[FR-INT-008/AC1] how long a step has waited, in business hours', () =>
     expect(stageText(t, 'th', stage, true)).toBe(`stage.APPROVER${JSON.stringify({ name: `สมหญิง รักงาน (${acting})` })}`)
     const actingEn = `stage.actingFor${JSON.stringify({ name: 'Weera Operations' })}`
     expect(stageText(t, 'en', { ...stage, role: { kind: 'UNKNOWN' } }, true)).toBe(`stage.APPROVER${JSON.stringify({ name: `Somying Rakngan (${actingEn})` })}`)
+  })
+})
+
+describe('[FR-INT-008/AC1] whoever a request waits for, the screens say for how long; an ordered one names the suppliers (§9.9 principle 4)', () => {
+  const since = new Date('2026-10-08T01:00:00Z')
+  const suppliers = [
+    { th: 'บริษัท ผู้ขายหนึ่ง จำกัด', en: 'Supplier One Co., Ltd.' },
+    { th: 'บริษัท ผู้ขายสอง จำกัด', en: null },
+  ]
+  const delivery: StageDto = { kind: 'DELIVERY', since, waitingMinutes: 90, suppliers }
+  const row = (stage: StageDto): MyRequestRowDto => ({
+    id: 'r-1',
+    number: 'PR-2569-00012',
+    title: 'ไม้อัดและตะปู',
+    status: 'ORDERED',
+    documentType: 'PURCHASE_REQUEST',
+    relation: 'REQUESTER',
+    grossSatang: 4_494_000n,
+    createdAt: since,
+    submittedAt: since,
+    stage,
+  })
+
+  it('an ordered request names the suppliers of its POs that went out, in the reader’s language; none yet, the general words', () => {
+    expect(stageText(t, 'th', delivery, true)).toBe(`stage.DELIVERY_SUPPLIERS${JSON.stringify({ suppliers: new Intl.ListFormat('th', { type: 'conjunction' }).format(suppliers.map((s) => s.th)) })}`)
+    expect(stageText(t, 'en', delivery, true)).toBe(`stage.DELIVERY_SUPPLIERS${JSON.stringify({ suppliers: 'Supplier One Co., Ltd. and บริษัท ผู้ขายสอง จำกัด' })}`)
+    expect(stageText(t, 'th', { kind: 'DELIVERY', since: null, waitingMinutes: null, suppliers: [] }, true)).toBe('stage.DELIVERY')
+  })
+
+  it('every stage that waits on someone gives its business minutes: an approver, the requester, procurement, a supplier', () => {
+    expect(stageWaitingMinutes(delivery)).toBe(90)
+    expect(stageWaitingMinutes({ kind: 'ANSWER', taskId: 't', infoRequestId: 'q', question: 'ขอใบเสนอราคา', askedBy: vp, since, waitingMinutes: 45 })).toBe(45)
+    expect(stageWaitingMinutes({ kind: 'REQUESTER_EDIT', since, waitingMinutes: 600 })).toBe(600)
+    expect(stageWaitingMinutes({ kind: 'PROCUREMENT', since, waitingMinutes: 30 })).toBe(30)
+    expect(stageWaitingMinutes({ kind: 'CLOSED' })).toBeNull()
+    expect(stageWaitingMinutes({ kind: 'DELIVERY', since: null, waitingMinutes: null, suppliers: [] })).toBeNull()
+  })
+
+  it('"my requests" and home say how long an ordered request has waited for its suppliers, as for the requester and procurement', () => {
+    const [ordered] = requestRows(t, 'th', [row(delivery)])
+    expect(ordered!.now).toContain('stage.DELIVERY_SUPPLIERS')
+    expect(ordered!.nowStates).toEqual([{ kind: 'waiting', text: 'waiting.hours{"hours":"1.5"}' }])
+    const [returned] = requestRows(t, 'th', [row({ kind: 'REQUESTER_EDIT', since, waitingMinutes: 45 })])
+    expect(returned!.nowStates).toEqual([{ kind: 'waiting', text: 'waiting.minutes{"minutes":45}' }])
+    // Not sent to a supplier yet: no time to count
+    const [notSent] = requestRows(t, 'th', [row({ kind: 'DELIVERY', since: null, waitingMinutes: null, suppliers: [] })])
+    expect(notSent!.nowStates).toEqual([])
+  })
+
+  it('the timeline’s delivery step names the suppliers and how long; without one it stays procurement’s', () => {
+    const [waiting] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_DELIVERY', state: 'current', actor: null, at: since, channel: null, waitingMinutes: 90, suppliers })])
+    expect(waiting).toMatchObject({ actor: new Intl.ListFormat('th', { type: 'conjunction' }).format(suppliers.map((s) => s.th)), waiting: 'waiting.hours{"hours":"1.5"}', state: 'current' })
+    const [none] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_DELIVERY', state: 'current', actor: null, at: null, channel: null, waitingMinutes: null })])
+    expect(none).toMatchObject({ actor: 'procurement' })
+    expect(none).not.toHaveProperty('waiting')
+    const [answer] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_ANSWER', state: 'current', actor: requester, at: since, channel: null, waitingMinutes: 45 })])
+    expect(answer).toMatchObject({ actor: 'สมชาย ใจดี', waiting: 'waiting.minutes{"minutes":45}' })
   })
 })
 

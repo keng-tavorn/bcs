@@ -103,7 +103,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                     { label: t('amounts.gross'), value: money(view.totals.grossSatang), total: true },
                   ]}
                 />
-                <p className="text-base text-ink-muted md:text-sm">{view.totals.priceIncludesVat ? t('amounts.includesVat') : t('amounts.excludesVat')}</p>
+                <p className="text-ink-muted">{view.totals.priceIncludesVat ? t('amounts.includesVat') : t('amounts.excludesVat')}</p>
               </>
             ) : (
               <>
@@ -157,10 +157,10 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
               <DoaRef label={doaRefText(tl, view.route.doa)} href={doaLinks ? doaHref(view.route.doa.versionId) : null} />
             </p>
             <div className="flex flex-col gap-1">
-              <h3 className="font-medium text-ink">{t('route.why')}</h3>
+              <h3 className="font-semibold text-ink">{t('route.why')}</h3>
               <p className="break-words text-ink">{routeSentence(t, tl, locale, view.route, 'REQUEST')}</p>
             </div>
-            {view.route.routeNo > 1 ? <p className="text-base text-ink-muted md:text-sm">{t('route.round', { no: view.route.routeNo })}</p> : null}
+            {view.route.routeNo > 1 ? <p className="text-ink-muted">{t('route.round', { no: view.route.routeNo })}</p> : null}
             <ol className="flex flex-col divide-y divide-line border-t border-line">
               {view.route.steps.map((step) => {
                 const state = stepState(step)
@@ -191,7 +191,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                         </p>
                         {role ? <p className="text-ink-muted">{role}</p> : null}
                         {step.onBehalfOf ? <p className="text-ink-muted">{t('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
-                        {escalated ? <p className="text-base text-ink-muted md:text-sm">{escalated}</p> : null}
+                        {escalated ? <p className="text-ink-muted">{escalated}</p> : null}
                       </div>
                     )}
                     <StateLine kind={state.kind} className="shrink-0">
@@ -243,7 +243,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="tabular text-ink">{q.includesVat ? t('quotes.includesVat', { amount: money(q.amountSatang) }) : t('quotes.excludesVat', { amount: money(q.amountSatang) })}</p>
-                      {q.includesVat ? <p className="tabular text-base text-ink-muted md:text-sm">{t('quotes.beforeVat', { amount: money(q.netSatang) })}</p> : null}
+                      {q.includesVat ? <p className="tabular text-ink-muted">{t('quotes.beforeVat', { amount: money(q.netSatang) })}</p> : null}
                     </div>
                   </li>
                 ))}

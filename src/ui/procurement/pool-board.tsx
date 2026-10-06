@@ -128,7 +128,9 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
   const action = useOutcomeAction<PoolOutcome>({ ok: false, code: 'FAILED' })
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [supplierId, setSupplierId] = useState('')
-  const [problem, setProblem] = useState<'needLines' | 'needSupplier' | null>(null)
+  const [problem, setProblem] = useState<'needLines' | 'needSupplier' | 'nothingToClear' | null>(null)
+  /** The last press asked to take the supplier off (its refusal is worded for it) */
+  const [clearing, setClearing] = useState(false)
   const [done, setDone] = useState<{ text: string; drafts: readonly DraftView[]; urgent: string | null; blocked: string | null } | null>(null)
   /** Urgent requests among the ticked lines, while the second press is asked for */
   const [confirmUrgent, setConfirmUrgent] = useState<number | null>(null)
@@ -163,7 +165,14 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
   async function apply(clear: boolean, confirmed = false) {
     if (selected.length === 0) return setProblem('needLines')
     if (!clear && !supplierId) return setProblem('needSupplier')
+    // Taking the supplier off lines that have none changes nothing: said for what it is (§9.9 rule 7), not sent
+    if (clear && !requests.some((r) => r.lines.some((l) => l.supplierName !== null && selected.includes(l.id)))) {
+      action.clear()
+      setDone(null)
+      return setProblem('nothingToClear')
+    }
     setProblem(null)
+    setClearing(clear)
     setDone(null)
     // An urgent request is drafted as soon as it has its supplier: asked a second time first
     if (!clear && urgentPicked > 0 && !confirmed) {
@@ -212,7 +221,12 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
             {done.drafts.length ? <DraftLinks drafts={done.drafts} label={(d) => draftLinkLabel(t, d)} /> : null}
           </Notice>
         ) : null}
-        {failure ? <Notice tone="danger">{t(`errors.${poolErrorKey(failure)}`, { requestId: failure.requestId ?? '-' })}</Notice> : null}
+        {failure ? (
+          <Notice tone="danger">
+            {/* Someone took the suppliers off meanwhile: nothing was left to take off, in the words of that case */}
+            {clearing && poolErrorKey(failure) === 'NO_CHANGE' ? t('assign.nothingToClear') : t(`errors.${poolErrorKey(failure)}`, { requestId: failure.requestId ?? '-' })}
+          </Notice>
+        ) : null}
         {problem ? <Notice tone="danger">{t(`assign.${problem}`)}</Notice> : null}
         <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
           <div className="flex flex-col gap-1.5 md:w-64">
@@ -279,7 +293,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                   checked={all}
                   onChange={(event) => toggle(lineIds, event.currentTarget.checked)}
                   aria-label={t('request.selectAll', { number: r.number })}
-                  className="mt-1.5 size-5 shrink-0 accent-[var(--primary)]"
+                  className="mt-1.5 size-5 shrink-0"
                 />
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -319,7 +333,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                           checked={picked.has(l.id)}
                           onChange={(event) => toggle([l.id], event.currentTarget.checked)}
                           aria-label={t('line.select', { no: l.no, description: l.description })}
-                          className="mt-1.5 size-5 shrink-0 accent-[var(--primary)]"
+                          className="mt-1.5 size-5 shrink-0"
                         />
                         <span className="flex min-w-0 flex-col gap-0.5">
                           <span className="font-medium break-words text-ink">{t('line.title', { no: l.no, description: l.description })}</span>

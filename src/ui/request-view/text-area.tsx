@@ -55,7 +55,7 @@ export function ConfirmBox({ id, label, checked, onChange, error }: { id: string
           onChange={(event) => onChange(event.currentTarget.checked)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
-          className="size-5 shrink-0 accent-[var(--primary)]"
+          className="size-5 shrink-0"
         />
         <span>{label}</span>
       </label>

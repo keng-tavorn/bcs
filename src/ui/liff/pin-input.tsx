@@ -13,7 +13,9 @@ import { NoticeIcon } from './notice'
 // autocomplete=one-time-code keeps browsers from filling in the account password or offering to save the PIN, with the
 // opt-outs of 1Password (data-1p-ignore), LastPass (data-lpignore), Bitwarden (data-bwignore) and Dashlane
 // (data-form-type=other), as the PIN fields of the web do (src/ui/tasks/pin-field.tsx, /settings/pin). The value lives in
-// the page's state only: never in a URL, storage or a log.
+// the page's state only: never in a URL, storage or a log. Disabled while a decision is sent, it takes the look of a
+// disabled LIFF button (./button.tsx): --ink-muted on --surface inside --line, 6.7:1; faded instead, it fell to about
+// 4.1:1, under the 4.5:1 of §9.9.
 
 /** The digits 0–9 of what was typed or pasted, at most `length` of them */
 export function pinDigits(raw: string, length: number): string {
@@ -69,7 +71,7 @@ export function PinInput({ id, label, length, value, onChange, hint, error, name
         onChange={(event) => onChange(pinDigits(event.currentTarget.value, length))}
         className={cn(
           'tabular h-12 w-full max-w-[14rem] rounded-md border border-input bg-bg px-3 text-center text-xl tracking-[0.4em] text-ink',
-          'aria-[invalid=true]:border-danger disabled:cursor-not-allowed disabled:opacity-60',
+          'aria-[invalid=true]:border-danger disabled:cursor-not-allowed disabled:border-line disabled:bg-surface disabled:text-ink-muted',
         )}
       />
       {error ? (

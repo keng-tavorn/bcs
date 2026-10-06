@@ -406,7 +406,7 @@ describe('[FR-VIS-003/AC3] the KPI CSV of a 60-day review has every measure with
     for (const r of rows) expect(r[1], r[6]).toBe(screenWords(r[6]!))
     for (const r of rows) expect(kpiMeasureTh(r[6]!)).toBe(r[1])
     const pr = kpi.g5.bySubject.PURCHASE_REQUEST!
-    expect(rows.find((r) => r[6] === 'DECISIONS_ON_LINE_PURCHASE_REQUEST')).toEqual(['G-5', 'การตัดสินผ่าน LINE หรือ LIFF ของคำขอซื้อ', expect.stringMatching(/^\d+\.\d$/), '%', String(pr.numerator), String(pr.denominator), 'DECISIONS_ON_LINE_PURCHASE_REQUEST'])
+    expect(rows.find((r) => r[6] === 'DECISIONS_ON_LINE_PURCHASE_REQUEST')).toEqual(['G-5', 'การตัดสินใน LINE ของคำขอซื้อ', expect.stringMatching(/^\d+\.\d$/), '%', String(pr.numerator), String(pr.denominator), 'DECISIONS_ON_LINE_PURCHASE_REQUEST'])
     // times in business hours with one decimal, as the KPI page shows them (not h:mm)
     const decisionTime = rows.find((r) => r[6] === 'MEDIAN_DECISION_HOURS')!
     expect(decisionTime.slice(2, 4)).toEqual([expect.stringMatching(/^\d+\.\d$/), 'ชั่วโมงทำการ'])

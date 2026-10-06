@@ -105,7 +105,7 @@ function WideTable({ rows, labels }: { rows: readonly AuditRowView[]; labels: Au
               <span className="block">{r.actor}</span>
               {r.onBehalfOf ? <span className="block text-ink-muted">{r.onBehalfOf}</span> : null}
             </td>
-            {/* a channel's name is short and reads as one: "LINE (LIFF)" never splits over two lines */}
+            {/* a channel's name is short and reads as one: "หน้าจอใน LINE" never splits over two lines */}
             <td className={cn(td, 'whitespace-nowrap')}>{r.channel}</td>
             <td className={td}>{r.doa ? <Linked link={r.doa} /> : <Empty none={labels.none} />}</td>
           </tr>
@@ -131,7 +131,8 @@ function NarrowList({ rows, labels }: { rows: readonly AuditRowView[]; labels: A
         <li key={r.id} className="flex flex-col gap-2 py-3">
           <div className="flex flex-col">
             <p className="font-semibold text-ink">{r.event}</p>
-            <p className="tabular text-base text-ink-muted md:text-sm">
+            {/* The record's time and number: content, at the body's size like the wide table's cells (§9.9: 15 px on the web) */}
+            <p className="tabular text-ink-muted">
               {r.when} · {r.seq}
             </p>
           </div>

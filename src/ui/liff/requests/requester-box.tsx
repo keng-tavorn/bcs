@@ -6,24 +6,26 @@ import { useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { amountToSatang } from '@/core/money/dto'
 import { formatSatang } from '@/core/money/format'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
-import { requestErrorKey, type ActionFailure, type ActionOutcome } from '../../tasks/outcome'
+import { NO_ANSWER, requestErrorKey, type ActionFailure, type ActionOutcome } from '../../tasks/outcome'
 import { LiffActionBar } from '../action-bar'
 import { Button } from '../button'
 import { LiffContent } from '../content'
 import { LiffLink } from '../liff-link'
 import { LiffNotice } from '../notice'
-import { describedBy, primaryLinkClass, secondaryLinkClass, textareaClass } from './classes'
+import { describedBy, primaryLinkClass, textareaClass } from './classes'
 import { useRequestKey } from './key'
 import { LiffLabelled } from './labelled'
 import { useLiffReady } from './ready'
 
 // What the requester does on their request in LINE (FR-INT-009, §9.4 /liff/requests/[id]): answer the approver's
-// question (AC3: the task goes back to the approver who asked), send a returned request again or change it first (AC2:
-// a new route under the DOA in effect, BR-DOA-09), or go on with a draft. The same choices, words and server commands
-// as the workspace's box (src/ui/request-view/requester-actions.tsx), laid out for a phone in the LINE app (§9.9: one
-// column, the main button at the bottom of the screen): what is asked, the reason or the state sits under the request's
-// heading in "สิ่งที่ต้องทำ", and the one main action — send the answer, send again, or open the draft — sits in the bar at
-// the bottom, with the server's refusal next to it. Built from the LIFF parts so that a request page that shows it stays
+// question (AC3: the task goes back to the approver who asked), change a returned request and send it again (AC2: a new
+// route under the DOA in effect, BR-DOA-09) — from the LIFF form's last step, which shows first what is left on the
+// budget line, the new route and the documents to attach (§9.9 principle 3), so nothing here sends it at once — or go on
+// with a draft. The same choices, words and server commands as the workspace's box
+// (src/ui/request-view/requester-actions.tsx), laid out for a phone in the LINE app (§9.9: one column, the main button at
+// the bottom of the screen): what is asked, the reason or the state sits under the request's heading in "สิ่งที่ต้องทำ",
+// and the one main action — send the answer, change the returned request, or open the draft — sits in the bar at the
+// bottom, with the server's refusal next to it. Built from the LIFF parts so that a request page that shows it stays
 // within its first JavaScript (§9.4: at most 200 KB gzip with the LINE SDK); the workspace's box brings next/link, its
 // notice and the uuid package. Before each send the LIFF session is kept (./ready.ts); one try at a time, and the
 // submission's idempotencyKey is reused when no answer came back (spec §4.3). A success renders the page again with the
@@ -37,12 +39,10 @@ export interface LiffRequesterProps {
   /** RETURNED: the approver's reason */
   readonly returned: { readonly reason: string | null } | null
   readonly draft: boolean
-  /** The request's LIFF form while it is a draft or returned (/liff/requests/<id>/edit) */
+  /** The request's LIFF form while it is a draft or returned (/liff/requests/<id>/edit): where a returned one is sent again */
   readonly editHref: string | null
-  readonly canResubmit: boolean
   readonly actions: {
     readonly answer: (input: { infoRequestId: string; answer: string }, idempotencyKey: string) => Promise<ActionOutcome>
-    readonly resubmit: (requestId: string, idempotencyKey: string) => Promise<ActionOutcome>
   }
 }
 
@@ -58,26 +58,25 @@ function money(value: string | undefined): string {
 
 const SIGNED_OUT: ActionFailure = { ok: false, code: 'UNAUTHENTICATED' }
 
-export function LiffRequesterScreen({ header, children, requestId, question, returned, draft, editHref, canResubmit, actions }: LiffRequesterProps & { readonly header: ReactNode; readonly children: ReactNode }) {
+export function LiffRequesterScreen({ header, children, question, returned, draft, editHref, actions }: LiffRequesterProps & { readonly header: ReactNode; readonly children: ReactNode }) {
   const t = useTranslations('requestView.actions')
   const tErrors = useTranslations('requestView.errors')
   const tl = useTranslations('liffRequests.view')
   const router = useRouter()
   const ready = useLiffReady()
   const answerKey = useRequestKey()
-  const resubmitKey = useRequestKey()
   const id = useId()
   const formId = `${id}-answer-form`
   const answerRef = useRef<HTMLTextAreaElement>(null)
   const busy = useRef(false)
   const [answer, setAnswer] = useState('')
   const [answerError, setAnswerError] = useState<string>()
-  const [pending, setPending] = useState<'answer' | 'resubmit' | null>(null)
+  const [pending, setPending] = useState<'answer' | null>(null)
   const [failure, setFailure] = useState<ActionFailure | null>(null)
   const [done, setDone] = useState<string | null>(null)
 
   /** One try at a time; the session first; the key kept when no answer came back */
-  async function send(what: 'answer' | 'resubmit', call: (idempotencyKey: string) => Promise<ActionOutcome>, key: { key: string; next: () => void }): Promise<boolean> {
+  async function send(what: 'answer', call: (idempotencyKey: string) => Promise<ActionOutcome>, key: { key: string; next: () => void }): Promise<boolean> {
     if (busy.current) return false
     busy.current = true
     setPending(what)
@@ -93,7 +92,8 @@ export function LiffRequesterScreen({ header, children, requestId, question, ret
         outcome = readiness === 'ended' ? SIGNED_OUT : null
       }
     } catch {
-      outcome = { ok: false, code: 'FAILED' }
+      // No answer: the key stays, so pressing again is the same action, done once (spec §4.3)
+      outcome = NO_ANSWER
     } finally {
       busy.current = false
       setPending(null)
@@ -121,10 +121,6 @@ export function LiffRequesterScreen({ header, children, requestId, question, ret
       setAnswer('')
       setDone(t('answered'))
     }
-  }
-
-  async function onResubmit() {
-    if (await send('resubmit', (key) => actions.resubmit(requestId, key), resubmitKey)) setDone(t('resubmitted'))
   }
 
   const failed = failure
@@ -208,23 +204,12 @@ export function LiffRequesterScreen({ header, children, requestId, question, ret
               {t('editDraft')}
             </LiffLink>
           ) : null}
-          {returned ? (
-            canResubmit ? (
-              <div className="flex items-stretch gap-3">
-                {editHref ? (
-                  <LiffLink href={editHref} className={secondaryLinkClass}>
-                    {t('edit')}
-                  </LiffLink>
-                ) : null}
-                <Button onClick={() => void onResubmit()} disabled={pending !== null} className="h-auto min-h-11 min-w-0 flex-1 py-2">
-                  {pending === 'resubmit' ? t('working') : t('resubmit')}
-                </Button>
-              </div>
-            ) : editHref ? (
-              <LiffLink href={editHref} className={primaryLinkClass}>
-                {t('edit')}
-              </LiffLink>
-            ) : null
+          {/* A returned request: the LIFF form, whose last step sends it again once its budget, its new route and its
+              documents were seen (§9.9 principle 3) — the one main action */}
+          {returned && editHref ? (
+            <LiffLink href={editHref} className={primaryLinkClass}>
+              {t('edit')}
+            </LiffLink>
           ) : null}
         </LiffActionBar>
       ) : null}

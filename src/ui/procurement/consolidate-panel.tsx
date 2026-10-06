@@ -6,7 +6,7 @@ import { useId, useState } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { announcePoolAction, useOtherPoolAction } from './activity'
-import { poolErrorKey, type PoolOutcome } from './outcome'
+import { poolErrorKey, type DraftView, type PoolOutcome } from './outcome'
 import { DraftLinks, draftLinkLabel } from './pool-board'
 import { useOutcomeAction } from './use-outcome-action'
 
@@ -53,6 +53,37 @@ export function roundLeftovers(result: RoundResult): Array<{ readonly key: 'left
 }
 
 const SOURCE = 'round'
+
+/**
+ * The drafts a round made: each a link named by its supplier, site and kind, then its lines and requests and its amount
+ * before VAT — all of it body text at the body's size (§9.9: 16 px on phones, 15 px on the web), never a 14 px caption
+ */
+export function RoundResultList({ drafts }: { readonly drafts: readonly DraftView[] }) {
+  const t = useTranslations('procurement.pool')
+  return (
+    <ul className="mt-1 flex flex-col divide-y divide-line">
+      {drafts.map((d) => (
+        <li key={d.id} className="flex flex-col py-1.5">
+          <DraftLinks drafts={[d]} label={(draft) => draftLinkLabel(t, draft)} />
+          {/* Document numbers never break at their hyphens */}
+          <span className="text-ink-muted">
+            {t('round.draftLines', { lines: d.lineCount })} · {t('round.requestsLabel')}{' '}
+            {d.requestNumbers.map((number, i) => (
+              <span key={number} className="whitespace-nowrap">
+                {number}
+                {i < d.requestNumbers.length - 1 ? ', ' : ''}
+              </span>
+            ))}
+          </span>
+          <span className="flex items-baseline justify-between gap-3">
+            <span className="text-ink-muted">{t('round.draftAmountLabel')}</span>
+            <span className="tabular text-ink">{t('round.draftAmountValue', { amount: d.net })}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
 export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: ConsolidatePanelProps) {
   const t = useTranslations('procurement.pool')
@@ -116,29 +147,7 @@ export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: Cons
       {outcome?.ok ? (
         <Notice tone={outcome.drafts?.length ? 'success' : 'info'}>
           <p className="font-medium">{t(`round.${roundHeading(outcome)}`, { count: outcome.drafts?.length ?? 0 })}</p>
-          {outcome.drafts?.length ? (
-            <ul className="mt-1 flex flex-col divide-y divide-line">
-              {outcome.drafts.map((d) => (
-                <li key={d.id} className="flex flex-col py-1.5">
-                  <DraftLinks drafts={[d]} label={(draft) => draftLinkLabel(t, draft)} />
-                  {/* Document numbers never break at their hyphens */}
-                  <span className="text-base text-ink-muted md:text-sm">
-                    {t('round.draftLines', { lines: d.lineCount })} · {t('round.requestsLabel')}{' '}
-                    {d.requestNumbers.map((number, i) => (
-                      <span key={number} className="whitespace-nowrap">
-                        {number}
-                        {i < d.requestNumbers.length - 1 ? ', ' : ''}
-                      </span>
-                    ))}
-                  </span>
-                  <span className="flex items-baseline justify-between gap-3">
-                    <span className="text-ink-muted">{t('round.draftAmountLabel')}</span>
-                    <span className="tabular text-ink">{t('round.draftAmountValue', { amount: d.net })}</span>
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : null}
+          {outcome.drafts?.length ? <RoundResultList drafts={outcome.drafts} /> : null}
           <div className="mt-1">
             {roundLeftovers(outcome).map((line) => (
               <p key={line.key}>{t(`round.${line.key}`, { count: line.count })}</p>

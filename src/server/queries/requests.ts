@@ -243,18 +243,28 @@ export type StageDto =
       readonly askedBy: MemberRefDto | null
       readonly since: Date
       readonly approvers?: readonly WaitingApproverDto[]
+      /** Business minutes the question has waited for the requester's answer (§9.9 principle 4; always set by the queries) */
+      readonly waitingMinutes?: number | null
     }
-  | { readonly kind: 'REQUESTER_EDIT'; readonly since: Date | null }
+  /** Returned: waits for the requester to edit and send it again, for `waitingMinutes` (always set by the queries) */
+  | { readonly kind: 'REQUESTER_EDIT'; readonly since: Date | null; readonly waitingMinutes?: number | null }
   | { readonly kind: 'PROCUREMENT'; readonly since: Date | null; readonly waitingMinutes: number | null }
   /** A new-supplier request waits in the procurement queue without a DOA route (OQ-23) */
   | { readonly kind: 'QUEUE'; readonly since: Date | null; readonly waitingMinutes: number | null }
-  | { readonly kind: 'DELIVERY' }
+  /**
+   * Ordered: its lines are on approved POs. `suppliers`: whom it waits for — the suppliers of its POs that went out and
+   * still wait for goods (SENT, PARTIALLY_RECEIVED), in the order they began to wait; empty when none does (a PO not
+   * sent yet, or all goods in). `since`: the earliest of their waits, as the PO page counts each (teamWaitSince: a sent
+   * PO from its sending, one partly received from its latest goods receipt). Always set by the queries
+   */
+  | { readonly kind: 'DELIVERY'; readonly since?: Date | null; readonly waitingMinutes?: number | null; readonly suppliers?: readonly NameDto[] }
   | { readonly kind: 'CLOSED' }
   | { readonly kind: 'UNKNOWN' }
 
 const OPEN_TASK = ['OPEN', 'INFO_REQUESTED'] as const
 
 interface StageInput {
+  readonly id: string
   readonly status: string
   readonly createdAt: Date
   readonly approvedAt: Date | null
@@ -286,6 +296,8 @@ interface StageContext {
   readonly openQuestionByTask: Map<string, { id: string; question: string; askedById: string; askedAt: Date }>
   /** The questions of the open tasks: the time they waited for the requester is not counted (BR-SLA-03) */
   readonly pausesByTask: Map<string, SlaPause[]>
+  /** Ordered requests: the suppliers their goods wait for, and since when (DELIVERY) */
+  readonly deliveryByRequest: Map<string, { readonly since: Date | null; readonly suppliers: readonly NameDto[] }>
 }
 
 const isOpenTask = (status: string): boolean => (OPEN_TASK as readonly string[]).includes(status)
@@ -325,7 +337,18 @@ function stageOf(r: StageInput, s: StageContext): StageDto {
       if (asking) {
         const q = s.openQuestionByTask.get(asking.id)
         const askedBy = q ? (s.members.get(q.askedById) ?? null) : (s.members.get(asking.assigneeMemberId) ?? null)
-        return { kind: 'ANSWER', taskId: asking.id, infoRequestId: q?.id ?? null, question: q?.question ?? null, askedBy, since: q?.askedAt ?? asking.assignedAt, approvers }
+        const since = q?.askedAt ?? asking.assignedAt
+        return {
+          kind: 'ANSWER',
+          taskId: asking.id,
+          infoRequestId: q?.id ?? null,
+          question: q?.question ?? null,
+          askedBy,
+          since,
+          approvers,
+          // How long the question has waited for the requester's answer (§9.9 principle 4)
+          waitingMinutes: businessMinutesSince(s.calendar, since, s.now),
+        }
       }
       const lead = approvers[0]
       if (!lead) return { kind: 'UNKNOWN' }
@@ -339,7 +362,8 @@ function stageOf(r: StageInput, s: StageContext): StageDto {
     }
     case 'RETURNED': {
       const returned = tasks.filter((t) => t.decision === 'RETURN' && t.decidedAt).sort((a, b) => b.decidedAt!.getTime() - a.decidedAt!.getTime())[0]
-      return { kind: 'REQUESTER_EDIT', since: returned?.decidedAt ?? null }
+      const since = returned?.decidedAt ?? null
+      return { kind: 'REQUESTER_EDIT', since, waitingMinutes: since ? businessMinutesSince(s.calendar, since, s.now) : null }
     }
     case 'APPROVED':
     case 'PARTIALLY_ORDERED':
@@ -347,17 +371,72 @@ function stageOf(r: StageInput, s: StageContext): StageDto {
     // A new-supplier request waits in the procurement queue (OQ-23)
     case 'SUBMITTED':
       return { kind: 'QUEUE', since: r.submittedAt, waitingMinutes: r.submittedAt ? businessMinutesSince(s.calendar, r.submittedAt, s.now) : null }
-    case 'ORDERED':
-      return { kind: 'DELIVERY' }
+    case 'ORDERED': {
+      const delivery = s.deliveryByRequest.get(r.id)
+      const since = delivery?.since ?? null
+      return { kind: 'DELIVERY', since, waitingMinutes: since ? businessMinutesSince(s.calendar, since, s.now) : null, suppliers: delivery?.suppliers ?? [] }
+    }
     default:
       return { kind: 'CLOSED' }
   }
 }
 
+/** POs that went to their supplier and still wait for goods: what an ordered request waits for (DELIVERY) */
+const DELIVERY_WAIT: readonly ('SENT' | 'PARTIALLY_RECEIVED')[] = ['SENT', 'PARTIALLY_RECEIVED']
+
+/**
+ * For each ordered request, the suppliers its goods wait for and since when (StageDto DELIVERY): its POs that went out
+ * and still wait for goods, each waiting as the PO page counts it — a sent PO from its sending, a PO partly received from
+ * its latest posted goods receipt — the earliest wait first, each supplier once
+ */
+async function deliveriesOf(db: TenantDb, requestIds: readonly string[]): Promise<Map<string, { readonly since: Date | null; readonly suppliers: readonly NameDto[] }>> {
+  const byRequest = new Map<string, { since: Date | null; suppliers: NameDto[] }>()
+  if (requestIds.length === 0) return byRequest
+  const pos = await db.purchaseOrder.findMany({
+    where: { status: { in: [...DELIVERY_WAIT] }, lines: { some: { sources: { some: { requestLine: { requestId: { in: [...requestIds] } } } } } } },
+    select: {
+      id: true,
+      status: true,
+      sentAt: true,
+      supplierId: true,
+      supplier: { select: { nameTh: true, nameEn: true } },
+      lines: { select: { sources: { select: { requestLine: { select: { requestId: true } } } } } },
+      goodsReceipts: { where: { status: 'POSTED' }, select: { postedAt: true } },
+    },
+  })
+  const waits = pos
+    .map((po) => {
+      const receipt = po.goodsReceipts.reduce<Date | null>((latest, g) => (g.postedAt && (!latest || g.postedAt > latest) ? g.postedAt : latest), null)
+      const since = po.status === 'SENT' ? po.sentAt : (receipt ?? po.sentAt)
+      const requests = new Set(po.lines.flatMap((l) => l.sources.map((src) => src.requestLine.requestId)))
+      return { since, supplierId: po.supplierId, supplier: { th: po.supplier.nameTh, en: po.supplier.nameEn }, requests }
+    })
+    .sort((a, b) => (a.since?.getTime() ?? Number.MAX_SAFE_INTEGER) - (b.since?.getTime() ?? Number.MAX_SAFE_INTEGER))
+  for (const requestId of requestIds) {
+    const mine = waits.filter((w) => w.requests.has(requestId))
+    if (mine.length === 0) continue
+    const suppliers: NameDto[] = []
+    const seen = new Set<string>()
+    for (const w of mine) {
+      if (seen.has(w.supplierId)) continue
+      seen.add(w.supplierId)
+      suppliers.push(w.supplier)
+    }
+    // Sorted earliest first, a wait without a time last: the first with one is the earliest
+    byRequest.set(requestId, { since: mine.find((w) => w.since)?.since ?? null, suppliers })
+  }
+  return byRequest
+}
+
 /** What stageOf needs for these requests, read in a few queries */
-async function stageContext(db: TenantDb, ctx: Ctx, requests: ReadonlyArray<{ readonly currentRouteId: string | null }>, extraMemberIds: ReadonlyArray<string | null> = []): Promise<StageContext> {
+async function stageContext(
+  db: TenantDb,
+  ctx: Ctx,
+  requests: ReadonlyArray<{ readonly id: string; readonly status: string; readonly currentRouteId: string | null }>,
+  extraMemberIds: ReadonlyArray<string | null> = [],
+): Promise<StageContext> {
   const routeIds = [...new Set(requests.map((r) => r.currentRouteId).filter(present))]
-  const [tasks, steps, calendar, roleOf] = await Promise.all([
+  const [tasks, steps, calendar, roleOf, deliveryByRequest] = await Promise.all([
     routeIds.length
       ? db.approvalTask.findMany({
           where: { step: { routeId: { in: routeIds } } },
@@ -368,6 +447,10 @@ async function stageContext(db: TenantDb, ctx: Ctx, requests: ReadonlyArray<{ re
     routeIds.length ? db.approvalStep.groupBy({ by: ['routeId'], where: { routeId: { in: routeIds } }, _count: { _all: true } }) : Promise.resolve([]),
     businessCalendarOf(db, ctx.organizationId),
     approverRoles(db),
+    deliveriesOf(
+      db,
+      requests.filter((r) => r.status === 'ORDERED').map((r) => r.id),
+    ),
   ])
   // Every question of the open tasks: the unanswered one waits for the requester, and all of them paused the SLA
   const openIds = tasks.filter((t) => (OPEN_TASK as readonly string[]).includes(t.status)).map((t) => t.id)
@@ -392,6 +475,7 @@ async function stageContext(db: TenantDb, ctx: Ctx, requests: ReadonlyArray<{ re
     stepCountByRoute: new Map(steps.map((s) => [s.routeId, s._count._all])),
     openQuestionByTask,
     pausesByTask,
+    deliveryByRequest,
   }
 }
 
@@ -668,6 +752,8 @@ export interface TrackEntryDto {
    * escalated flag), whoever of the two decided it. Set by historyOf when the caller names the escalated tasks
    */
   readonly escalated?: boolean
+  /** WAIT_DELIVERY: the suppliers the goods wait for (StageDto DELIVERY); none: the step names procurement */
+  readonly suppliers?: readonly NameDto[]
 }
 
 export interface RequesterActionsDto {
@@ -1109,19 +1195,20 @@ function liveSteps(request: { status: string; requester: MemberRefDto }, stage: 
       return [...waiting(stage.approvers ?? [stage], stage.stepNo, stage.taskId), ...later, entry('procurement', 'upcoming', 'NEXT_PROCUREMENT')]
     case 'ANSWER':
       return [
-        entry('answer', 'current', 'WAIT_ANSWER', { actor: request.requester, other: stage.askedBy, at: stage.since, note: requesterQuestion ?? stage.question }),
+        entry('answer', 'current', 'WAIT_ANSWER', { actor: request.requester, other: stage.askedBy, at: stage.since, note: requesterQuestion ?? stage.question, waitingMinutes: stage.waitingMinutes ?? null }),
         ...waiting(stage.approvers ?? [], stepOfTask(stage.taskId), null),
         ...later,
         entry('procurement', 'upcoming', 'NEXT_PROCUREMENT'),
       ]
     case 'REQUESTER_EDIT':
-      return [entry('edit', 'current', 'WAIT_REQUESTER_EDIT', { actor: request.requester, at: stage.since })]
+      return [entry('edit', 'current', 'WAIT_REQUESTER_EDIT', { actor: request.requester, at: stage.since, waitingMinutes: stage.waitingMinutes ?? null })]
     case 'PROCUREMENT':
       return [entry('procurement', 'current', 'WAIT_PROCUREMENT', { at: stage.since, waitingMinutes: stage.waitingMinutes })]
     case 'QUEUE':
       return [entry('queue', 'current', 'WAIT_QUEUE', { at: stage.since, waitingMinutes: stage.waitingMinutes })]
     case 'DELIVERY':
-      return [entry('delivery', 'current', 'WAIT_DELIVERY')]
+      // Whom the goods wait for — the suppliers of the POs that went out — and for how long (§9.9 principle 4)
+      return [entry('delivery', 'current', 'WAIT_DELIVERY', { at: stage.since ?? null, waitingMinutes: stage.waitingMinutes ?? null, suppliers: stage.suppliers ?? [] })]
     default:
       return []
   }

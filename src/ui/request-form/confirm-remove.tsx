@@ -46,7 +46,9 @@ export function ConfirmRemove({
             {question}
           </p>
           {detail ? <p className="text-ink">{detail}</p> : null}
-          <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+          {/* Side by side once the part that holds the question is wide enough (its @container: the request form's steps,
+              the supplier page), never by the screen's width: in the LIFF column they stack at every width (§9.9) */}
+          <div className="flex flex-col gap-3 @min-[40rem]:flex-row @min-[40rem]:gap-6">
             <Button
               variant="danger"
               className="self-start"

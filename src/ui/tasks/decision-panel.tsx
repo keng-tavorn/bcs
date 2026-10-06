@@ -361,7 +361,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                         checked={choice === value}
                         onChange={() => setChoice(value)}
                         aria-describedby={`${id}-${value}-hint`}
-                        className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
+                        className="mt-1 size-5 shrink-0"
                       />
                       <span className="flex flex-col">
                         <span className="font-medium text-ink">{value === 'RETURN' ? copy.returnOption : copy.rejectOption}</span>

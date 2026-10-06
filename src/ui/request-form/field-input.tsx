@@ -5,12 +5,15 @@ import type { FieldDef } from '@/core/forms/fields'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai/date'
 import { Notice } from '../form/notice'
 import { checkboxClass, Choices, describedBy, FieldError, Hint, inputClass, Labelled, textareaClass } from './controls'
+import { plainMoney } from './money'
+import { MoneyInput } from './money-input'
 import type { ScreenLocale } from './types'
 
 // One field of a request type's form (spec §7.9, FR-INT-002). Labels, hints and option names are data in the reader's
 // language (FieldDef.label/help/optionLabels, FR-ADM-005); the words around them come from messages. A select with
 // a few options shows them all as radio buttons, so a yes/no screening question is one tap (BR-FORM-05). A date shows
-// its Buddhist-era form under the device's date picker (FR-PLT-002 AC3).
+// its Buddhist-era form under the device's date picker, and an amount of money reads grouped by thousands with two
+// decimals once it is typed (FR-PLT-002 AC3).
 
 const RADIO_MAX_OPTIONS = 3
 const DAY = /^\d{4}-\d{2}-\d{2}$/
@@ -46,7 +49,8 @@ export function FieldInput({
   const t = useTranslations('requestForm.fields')
   const id = `field-${def.id}`
   const label = fieldLabel(def, locale)
-  const hint = def.help?.[locale] ?? def.help?.th
+  // A money question without a hint of its own gets the form's, tied to its input as any hint is
+  const hint = def.help?.[locale] ?? def.help?.th ?? (def.type === 'money' ? t('moneyHint') : undefined)
   const required = def.required ? t('required') : undefined
   const aria = { 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy(id, Boolean(hint), Boolean(error)), 'aria-required': def.required ? true : undefined }
 
@@ -64,10 +68,17 @@ export function FieldInput({
         </Labelled>
       )
     case 'number':
-    case 'money':
       return (
-        <Labelled id={id} label={label} requiredText={required} hint={hint ?? (def.type === 'money' ? t('moneyHint') : undefined)} error={error}>
+        <Labelled id={id} label={label} requiredText={required} hint={hint} error={error}>
           <input id={id} name={def.id} className={`${inputClass} tabular text-right`} inputMode="decimal" value={text(value)} required={def.required} onChange={(e) => onChange(e.currentTarget.value)} {...aria} />
+        </Labelled>
+      )
+    case 'money':
+      // §9.9 rule 6: grouped by thousands with two decimals once left, the raw digits while edited; the answer kept and
+      // saved is the plain digits the server takes (MONEY_TEXT), separators typed or not
+      return (
+        <Labelled id={id} label={label} requiredText={required} hint={hint} error={error}>
+          <MoneyInput id={id} name={def.id} className={`${inputClass} tabular text-right`} value={text(value)} required={def.required} onChange={(e) => onChange(plainMoney(e.currentTarget.value))} {...aria} />
         </Labelled>
       )
     case 'date': {

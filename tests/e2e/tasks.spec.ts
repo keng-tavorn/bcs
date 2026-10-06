@@ -1,6 +1,7 @@
+import { spawnSync } from 'node:child_process'
 import { type Page } from '@playwright/test'
 import { formatThaiDate } from '../../src/core/thai/date'
-import { E2E_PIN } from '../support/e2e-env'
+import { E2E_PIN, e2eEnv } from '../support/e2e-env'
 import { ATTACHMENT_PDF } from './tasks-attachment'
 import { withoutScript } from './settings-line-scene'
 import {
@@ -40,6 +41,19 @@ const heading = (page: Page) => page.locator('#content header')
 const approveButton = (page: Page) => page.getByRole('button', { name: 'อนุมัติ', exact: true })
 const DOA_REF = 'DOA-DEMO ฉบับ 1 ข้อ PR-02'
 
+/**
+ * A plain member of the demo organization nobody else has touched, with no request and no task
+ * (tests/e2e/fresh-member-scene.ts, a new one per run and viewport): its code, which signIn takes; it signs in with
+ * SEED_DEV_PASSWORD and no second step
+ */
+function freshMember(project: string): string {
+  const code = `e2e-inbox-${project}-${Date.now().toString(36)}`
+  const r = spawnSync('pnpm exec tsx tests/e2e/fresh-member-scene.ts', { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), SCENE_MEMBER_CODE: code } })
+  if (r.status !== 0) throw new Error(`fresh member scene failed:\n${r.stdout}\n${r.stderr}`)
+  expect((JSON.parse(r.stdout.trim().split('\n').at(-1)!) as { email: string }).email).toBe(`${code}@demo.bcs.local`)
+  return code
+}
+
 test('[FR-DOA-004/AC1] the approver’s inbox lists their tasks, the ones due first, with the business hours waited', async ({ page }, testInfo) => {
   const cast = castOf(testInfo)
   await signIn(page, cast.approver, true)
@@ -63,7 +77,7 @@ test('[FR-DOA-004/AC1] the approver’s inbox lists their tasks, the ones due fi
   const row = rows.nth(first)
   await expect(row).toContainText(cast.seedRequesterName)
   await expect(row).toContainText('ยอดรวม VAT')
-  await expect(row).toContainText(/ค้างมา|ยังไม่เริ่มนับเวลาทำการ/)
+  await expect(row).toContainText(/ค้างมา/)
   await expect(row).toContainText(/ครบกำหนด|เกินกำหนด/)
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'inbox')
@@ -457,6 +471,35 @@ test('[FR-AUTH-005/AC2] [FR-AUTH-005/AC3] [NFR-SEC-04] [NFR-SEC-09] a request at
   await expect(stamp).toContainText('อนุมัติ')
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'step-up-approved')
+})
+
+test('[FR-DOA-004/AC1] an empty inbox offers a next step the member can take: their requests when they have some, a new request when they have none (§9.9 principle 8)', async ({ page }, testInfo) => {
+  const cast = castOf(testInfo)
+  const content = page.locator('#content')
+  // A requester with a request of their own and nothing to decide follows their requests
+  fixture<Created>('request', cast.requester, '5000.00', 'foreign')
+  await signIn(page, cast.requester, false)
+  await page.goto('/tasks')
+  await expect(content.getByText('ยังไม่มีงานรออนุมัติ', { exact: true })).toBeVisible()
+  await expect(content.getByText('เมื่อมีคำขอส่งถึงคุณ จะแสดงที่นี่และแจ้งในกระดิ่งแจ้งเตือน ระหว่างนี้ดูความคืบหน้าของคำขอของคุณได้', { exact: true })).toBeVisible()
+  await expect(content.getByRole('link', { name: 'ไปที่คำขอของฉัน', exact: true })).toHaveAttribute('href', '/requests')
+  await expect(content.getByRole('link', { name: 'เริ่มขอซื้อหรือขอจ้าง', exact: true })).toHaveCount(0)
+
+  // A member with neither — like an auditor or an approver who never asked for anything — is never sent to an empty list
+  // of requests, nor told to follow requests they do not have. A member no other test has touched: the demo users carry
+  // what other specs did (on the phone, action-link.spec.ts makes the auditor a requester before this runs)
+  const untouched = freshMember(testInfo.project.name)
+  await page.context().clearCookies()
+  await signIn(page, untouched, false)
+  await page.goto('/tasks')
+  await expect(content.getByText('ยังไม่มีงานรออนุมัติ', { exact: true })).toBeVisible()
+  await expect(content.getByText('เมื่อมีคำขอส่งถึงคุณ จะแสดงที่นี่และแจ้งในกระดิ่งแจ้งเตือน', { exact: true })).toBeVisible()
+  await expect(content).not.toContainText('ระหว่างนี้ดูความคืบหน้าของคำขอของคุณได้')
+  await expect(content.getByRole('link', { name: 'ไปที่คำขอของฉัน', exact: true })).toHaveCount(0)
+  await expect(content.getByRole('link', { name: 'เริ่มขอซื้อหรือขอจ้าง', exact: true })).toHaveAttribute('href', '/requests/new')
+  await expectNoBlockingAxe(page)
+  await expectNoSideways(page)
+  await shot(page, testInfo, 'inbox-empty')
 })
 
 test('[FR-DOA-004/AC1] a member who is not the task’s approver cannot open its decision page', async ({ page }, testInfo) => {

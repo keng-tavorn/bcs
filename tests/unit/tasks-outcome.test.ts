@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { requestErrorKey, taskErrorKey, toActionFailure } from '@/ui/tasks/outcome'
+import { NO_ANSWER, requestErrorKey, taskErrorKey, toActionFailure } from '@/ui/tasks/outcome'
+import en from '../../messages/en.json'
+import th from '../../messages/th.json'
 
 // S2-12: what a decision or a requester action tells the screen when it fails (§14.2, §9.9 rule 7): a code the screen
 // turns into a message that says what happened and how to fix it, with only the safe parts of the details.
@@ -77,6 +79,15 @@ describe('[FR-INT-009/AC2] [FR-INT-009/AC1] the requester’s actions explain ev
     [{ code: 'TOKEN_USED' }, 'FAILED'],
   ] as const)('%j → %s', (error, key) => {
     expect(requestErrorKey(toActionFailure(error))).toBe(key)
+  })
+
+  it('[§9.9] no answer (the connection dropped) is said as no answer, never "not saved": the same button again does it once', () => {
+    expect(requestErrorKey(NO_ANSWER)).toBe('NO_ANSWER')
+    expect(th.requestView.errors.NO_ANSWER).toBe('ไม่ได้รับคำตอบจากระบบ อาจเป็นเพราะการเชื่อมต่อ ตรวจการเชื่อมต่อแล้วกดปุ่มเดิมอีกครั้ง ระบบทำรายการนี้เพียงครั้งเดียว')
+    expect(th.requestView.errors.NO_ANSWER).not.toContain('ไม่สำเร็จ')
+    expect(en.requestView.errors.NO_ANSWER).toBe('No answer came back, perhaps because of the connection. Check it and press the same button again; it is done only once.')
+    // An answer the screen does not know is still "not saved"
+    expect(requestErrorKey(toActionFailure({ code: 'SOMETHING_NEW' }))).toBe('FAILED')
   })
 
   it('keeps the budget amounts as decimal text for the message', () => {

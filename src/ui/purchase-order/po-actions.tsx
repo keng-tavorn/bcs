@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useId, useState, type FormEvent } from 'react'
 import { PAYMENT_TERM_MAX_DAYS, PO_NOTE_MAX_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
@@ -15,9 +16,41 @@ import { poCancelErrorKey, poErrorKey, type PoErrorKey, type PoFailure, type PoO
 // first (principle 3); send an approved PO to its supplier by e-mail — a second press names the address, because an
 // e-mail cannot be called back; send it again with a reason; cancel it with what happens to its request lines, a
 // reason and a tick; close it with a tick. Cancel is outlined in danger and sits apart from the sending. The page offers
-// a part only when the PO's state and the member's role allow it; the services check both again.
+// a part only when the PO's state and the member's role allow it; the services check both again. Goods that will not
+// come are settled on the PO's receiving page ("ปิดใบสั่งซื้อทั้งที่รับไม่ครบ", src/ui/receiving/close-short.tsx), which
+// procurement's menu does not list: every text here that sends procurement there carries the link (§9.9 rules 7 and 8).
 
 const REASON_MIN = 3
+
+/** A plain text link, 44 px tall, underlined, without an arrow (§9.9) */
+const LINK = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+
+/** The way to the PO's receiving page, named with the PO */
+function ReceivingLink({ href, label }: { href: string; label: string }) {
+  const t = useTranslations('purchaseOrder.actions')
+  return (
+    <Link href={href} className={LINK}>
+      {t('receivingLink', { label })}
+    </Link>
+  )
+}
+
+/**
+ * The refusal of the cancel or the close, beside its part: in words, and — when what fixes it is done on the receiving
+ * page — the way there. A cancel is refused once goods came (GR_POSTED) and a close while some did not come
+ * (SHORT_NOT_APPROVED): what will not come is closed short on that page.
+ */
+export function PartRefusal({ part, failure, receiving }: { part: 'cancel' | 'close'; failure: PoFailure; receiving: { readonly href: string; readonly label: string } | null }) {
+  const keyOf = part === 'cancel' ? poCancelErrorKey : poErrorKey
+  const failureText = usePoFailureText(keyOf)
+  const fixedOnReceiving = keyOf(failure) === (part === 'cancel' ? 'GR_POSTED' : 'SHORT_NOT_APPROVED')
+  return (
+    <Notice tone="danger">
+      <p>{failureText(failure)}</p>
+      {receiving && fixedOnReceiving ? <ReceivingLink href={receiving.href} label={receiving.label} /> : null}
+    </Notice>
+  )
+}
 
 export interface SubmitPreviewView {
   /** "DOA-DEMO ฉบับ 1 ข้อ PO-01" with why, and each step's approver; null when the engine refuses */
@@ -40,6 +73,8 @@ export interface PoActionsProps {
   readonly close: boolean
   /** Why closing waits, already worded */
   readonly closeWaits: string | null
+  /** The PO's receiving page, once it went to its supplier (SENT, PARTIALLY_RECEIVED, RECEIVED); null before */
+  readonly receivingHref?: string | null
   /** What to say when nothing can be done now (the PO waits for its approver, or it is over) */
   readonly nothing?: string
   readonly actions: {
@@ -70,8 +105,11 @@ function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: Sub
       <h3 id={`${id}-title`} className="font-semibold text-ink">
         {t('submit.title')}
       </h3>
+      {/* The route the DOA engine expects: information in --info, never the --primary of "approved" (§9.9 token table),
+          as the request form's expected approver is; what procurement reads before sending is content at the body's
+          size (§9.9: 15 px on the web, principle 3) */}
       {preview.route ? (
-        <div className="flex flex-col gap-2 border-l-4 border-primary bg-surface px-3 py-2.5">
+        <div className="flex flex-col gap-2 border-l-4 border-info bg-surface px-3 py-2.5">
           <p className="font-medium text-ink">{t('submit.routeTitle')}</p>
           <ol className="flex flex-col">
             {preview.route.steps.map((step) => (
@@ -80,12 +118,12 @@ function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: Sub
               </li>
             ))}
           </ol>
-          <DoaRef label={preview.route.doaRef} className="self-start text-base md:text-sm" />
-          <p className="text-base text-ink-muted md:text-sm">{preview.route.why}</p>
+          <DoaRef label={preview.route.doaRef} className="self-start" />
+          <p className="text-ink-muted">{preview.route.why}</p>
         </div>
       ) : null}
       {preview.blocked ? <Notice tone="danger">{preview.blocked}</Notice> : null}
-      <p className="text-base text-ink md:text-sm">{preview.budget}</p>
+      <p className="text-ink">{preview.budget}</p>
       <p className="text-base text-ink-muted md:text-sm">{t('submit.hint')}</p>
       {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
       <Button
@@ -194,9 +232,18 @@ function SendPart({
   )
 }
 
-function CancelPart({ poId, run, onDone }: { poId: string; run: PoActionsProps['actions']['cancel']; onDone: (text: string, tone: 'success') => void }) {
+function CancelPart({
+  poId,
+  receiving,
+  run,
+  onDone,
+}: {
+  poId: string
+  receiving: { readonly href: string; readonly label: string } | null
+  run: PoActionsProps['actions']['cancel']
+  onDone: (text: string, tone: 'success') => void
+}) {
   const t = useTranslations('purchaseOrder.actions')
-  const failureText = usePoFailureText(poCancelErrorKey)
   const id = useId()
   const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
   const [disposition, setDisposition] = useState<'RETURN_TO_POOL' | 'CANCEL_REQUEST_LINES'>('RETURN_TO_POOL')
@@ -222,7 +269,7 @@ function CancelPart({ poId, run, onDone }: { poId: string; run: PoActionsProps['
         {t('cancel.title')}
       </h3>
       <p className="text-base text-ink-muted md:text-sm">{t('cancel.hint')}</p>
-      {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
+      {failure ? <PartRefusal part="cancel" failure={failure} receiving={receiving} /> : null}
       <fieldset className="flex flex-col gap-1">
         <legend className="mb-1 font-medium text-ink">{t('cancel.choice')}</legend>
         {(['RETURN_TO_POOL', 'CANCEL_REQUEST_LINES'] as const).map((value) => (
@@ -234,7 +281,7 @@ function CancelPart({ poId, run, onDone }: { poId: string; run: PoActionsProps['
               checked={disposition === value}
               onChange={() => setDisposition(value)}
               aria-describedby={`${id}-${value}-hint`}
-              className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
+              className="mt-1 size-5 shrink-0"
             />
             <span className="flex flex-col">
               <span className="font-medium text-ink">{t(`cancel.${value}`)}</span>
@@ -275,9 +322,18 @@ function CancelPart({ poId, run, onDone }: { poId: string; run: PoActionsProps['
   )
 }
 
-function ClosePart({ poId, run, onDone }: { poId: string; run: PoActionsProps['actions']['close']; onDone: (text: string, tone: 'success') => void }) {
+function ClosePart({
+  poId,
+  receiving,
+  run,
+  onDone,
+}: {
+  poId: string
+  receiving: { readonly href: string; readonly label: string } | null
+  run: PoActionsProps['actions']['close']
+  onDone: (text: string, tone: 'success') => void
+}) {
   const t = useTranslations('purchaseOrder.actions')
-  const failureText = usePoFailureText()
   const id = useId()
   const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
   const [confirmed, setConfirmed] = useState(false)
@@ -298,7 +354,7 @@ function ClosePart({ poId, run, onDone }: { poId: string; run: PoActionsProps['a
         {t('close.title')}
       </h3>
       <p className="text-base text-ink-muted md:text-sm">{t('close.hint')}</p>
-      {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
+      {failure ? <PartRefusal part="close" failure={failure} receiving={receiving} /> : null}
       <ConfirmBox
         id={`${id}-confirm`}
         label={t('close.confirmTick')}
@@ -316,12 +372,13 @@ function ClosePart({ poId, run, onDone }: { poId: string; run: PoActionsProps['a
   )
 }
 
-export function PoActions({ poId, label, submit, send, resend, cancel, close, closeWaits, nothing: nothingText, actions }: PoActionsProps) {
+export function PoActions({ poId, label, submit, send, resend, cancel, close, closeWaits, receivingHref = null, nothing: nothingText, actions }: PoActionsProps) {
   const t = useTranslations('purchaseOrder.actions')
   const id = useId()
   const [done, setDone] = useState<{ text: string; tone: 'success' | 'warning' } | null>(null)
   const onDone = (text: string, tone: 'success' | 'warning') => setDone({ text, tone })
   const nothing = !submit && !send && !resend && !cancel && !close && !closeWaits
+  const receiving = receivingHref ? { href: receivingHref, label } : null
 
   return (
     <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4">
@@ -333,9 +390,15 @@ export function PoActions({ poId, label, submit, send, resend, cancel, close, cl
       {submit ? <SubmitPart poId={poId} preview={submit} run={actions.submit} onDone={onDone} /> : null}
       {send ? <SendPart poId={poId} label={label} email={send.email} again={false} run={actions.send} onDone={onDone} /> : null}
       {resend ? <SendPart poId={poId} label={label} email={resend.email} again run={actions.send} onDone={onDone} /> : null}
-      {close ? <ClosePart poId={poId} run={actions.close} onDone={onDone} /> : null}
-      {closeWaits ? <p className="border-t border-line pt-4 text-base text-ink-muted md:text-sm">{closeWaits}</p> : null}
-      {cancel ? <CancelPart poId={poId} run={actions.cancel} onDone={onDone} /> : null}
+      {close ? <ClosePart poId={poId} receiving={receiving} run={actions.close} onDone={onDone} /> : null}
+      {closeWaits ? (
+        <div className="flex flex-col gap-1 border-t border-line pt-4">
+          <p className="text-base text-ink-muted md:text-sm">{closeWaits}</p>
+          {/* What will not come is closed short there; procurement's menu does not list the receiving page */}
+          {receiving ? <ReceivingLink href={receiving.href} label={receiving.label} /> : null}
+        </div>
+      ) : null}
+      {cancel ? <CancelPart poId={poId} receiving={receiving} run={actions.cancel} onDone={onDone} /> : null}
     </section>
   )
 }

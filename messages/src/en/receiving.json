@@ -240,6 +240,8 @@
     "CONFLICT": "This was already sent with other details. Open the page again and try again.",
     "UNAUTHENTICATED": "You are signed out. Sign in again and try again.",
     "INTERNAL": "Something went wrong. Try again; if it still fails, give your administrator the reference {requestId}.",
-    "FAILED": "Not recorded. Check your connection and try again."
+    "FAILED": "Not recorded. Check your connection and try again.",
+    "CHECK_FAILED": "The check did not go through, and nothing has been recorded yet. Check your connection and press Check before recording again.",
+    "NO_ANSWER": "No answer came back, so it is not certain it was recorded. Check your connection and press the same button again without changing anything; it is not recorded twice."
   }
 }

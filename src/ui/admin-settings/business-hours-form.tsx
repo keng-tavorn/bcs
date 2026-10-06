@@ -72,7 +72,7 @@ export function BusinessHoursForm({
         <div className="grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
           {CALENDAR_WEEKDAYS.map((day) => (
             <label key={day} className="flex min-h-11 items-center gap-3">
-              <input type="checkbox" name="workdays" value={day} defaultChecked={initial.workdays.includes(day)} className="size-5 accent-[var(--primary)]" />
+              <input type="checkbox" name="workdays" value={day} defaultChecked={initial.workdays.includes(day)} className="size-5" />
               <span>{t(`weekdays.${day}`)}</span>
             </label>
           ))}

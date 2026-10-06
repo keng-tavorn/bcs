@@ -120,8 +120,27 @@ test.describe('[FR-LINE-001/AC2] starting from LINE without a code: e-mail, pass
     await expect(page.getByRole('heading', { level: 2, name: 'ยืนยันตัวตนขั้นที่สอง' })).toBeVisible()
     // The second step, its switch to a backup code included, is tapped as easily as the rest (44 px)
     await checkScreen(page, testInfo, 'liff-link-sign-in-second')
-    await page.getByLabel('รหัส 6 หลักจากแอป').fill(totpOf(member.employeeCode))
-    await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
+    // Nothing that cannot be a code is sent (§9.9 rule 7), as on the web: said on the field, which takes the focus —
+    // never "the code is wrong", and never a failed sign-in counted against the account
+    const verifying: string[] = []
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname
+      if (path.startsWith('/api/auth/two-factor/')) verifying.push(path)
+    })
+    const code = page.getByLabel('รหัส 6 หลักจากแอป')
+    const verify = page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' })
+    await verify.click()
+    await expect(code).toHaveAttribute('aria-invalid', 'true')
+    await expect(code).toHaveAccessibleDescription('ใส่รหัส 6 หลักจากแอปยืนยันตัวตน')
+    await expect(code).toBeFocused()
+    await code.fill('12345')
+    await verify.click()
+    await expect(code).toHaveAccessibleDescription('รหัสจากแอปเป็นตัวเลข 6 หลัก ใส่ให้ครบ 6 หลัก')
+    await expect(code).toBeFocused()
+    await expect(page.getByRole('alert').filter({ hasText: 'รหัสไม่ถูกต้อง' })).toHaveCount(0)
+    expect(verifying).toEqual([])
+    await code.fill(totpOf(member.employeeCode))
+    await verify.click()
 
     // Signed in on the web: whose account this LINE is about to be linked to, and the confirm tap
     await expect(page.getByRole('heading', { level: 2, name: 'ผูก LINE นี้กับบัญชีของคุณ' })).toBeVisible()
@@ -132,6 +151,40 @@ test.describe('[FR-LINE-001/AC2] starting from LINE without a code: e-mail, pass
     await expect(page.getByText('ผูกบัญชีแล้ว', { exact: true })).toBeVisible()
     await expect.poll(() => richMenuOf(lineUserId)).toBe(linkedMenuId)
     expect((await pushesTo(lineUserId)).length).toBeGreaterThan(0)
+  })
+
+  test('the sign-in says on the field what to fix: an empty or unreadable e-mail is never a connection that failed (§9.9 rule 7)', async ({ page, context }, testInfo) => {
+    await openAsLineUser(context, newLineUserId())
+    const sent: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/auth/sign-in/email') sent.push(request.method())
+    })
+    await page.goto('/liff/link')
+    await expect(page.getByRole('heading', { level: 2, name: 'เข้าสู่ระบบ BCS เพื่อผูกบัญชี' })).toBeVisible()
+    const email = page.getByLabel('อีเมลบริษัท')
+    const password = page.getByLabel('รหัสผ่าน', { exact: true })
+    const submit = page.getByRole('button', { name: 'เข้าสู่ระบบ', exact: true })
+    await expect(submit).toBeEnabled()
+
+    // Nothing typed: each field says what to fill in, the e-mail takes the focus, and nothing is sent
+    await submit.click()
+    await expect(email).toHaveAttribute('aria-invalid', 'true')
+    await expect(email).toHaveAccessibleDescription('ใส่อีเมลบริษัทก่อนเข้าสู่ระบบ')
+    await expect(email).toBeFocused()
+    await expect(password).toHaveAccessibleDescription('ใส่รหัสผ่านก่อนเข้าสู่ระบบ')
+    expect(sent).toEqual([])
+
+    // An address that is not a whole e-mail: Better Auth refuses it (INVALID_EMAIL), and the e-mail field says how to fix
+    // it — as on the web sign-in, not the connection
+    await email.fill('auditor@demo')
+    await password.fill('not-the-password-123')
+    await submit.click()
+    await expect(email).toHaveAccessibleDescription('รูปแบบอีเมลไม่ถูกต้อง ตรวจว่ามี @ และชื่อโดเมนของบริษัทต่อท้าย')
+    await expect(email).toBeFocused()
+    await expect(password).not.toHaveAttribute('aria-invalid', 'true')
+    await expect(page.getByRole('alert').filter({ hasText: 'ตรวจการเชื่อมต่อ' })).toHaveCount(0)
+    expect(sent).toEqual(['POST'])
+    await checkScreen(page, testInfo, 'liff-link-sign-in-email-invalid')
   })
 })
 

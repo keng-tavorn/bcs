@@ -55,7 +55,7 @@ export function LineList({ lines, labels }: { lines: readonly LineView[]; labels
             <div className="min-w-0">
               <p className="font-medium break-words text-ink">{line.description}</p>
               {line.notes.map((note) => (
-                <p key={note} className="text-base text-ink-muted md:@min-[37rem]:text-sm">
+                <p key={note} className="text-ink-muted">
                   {note}
                 </p>
               ))}

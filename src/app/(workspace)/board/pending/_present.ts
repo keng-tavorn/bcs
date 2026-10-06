@@ -86,9 +86,19 @@ export function boardDocumentViews(t: BoardT, locale: string, row: BoardRowDto, 
       meta: t('document.meta', { kind: t(`subject.${subjectOf(task.subjectType)}`), time: formatDateTime(locale, task.assignedAt) }),
       states,
       // the button only where the service would send the reminder: a task waiting for a decision that the reader sees
-      // other than as AUDITOR (BR-AUTH-04 — remindTask refuses the same)
+      // other than as AUDITOR (BR-AUTH-04 — remindTask refuses the same). Its first press asks in these words; only the
+      // confirmation sends (§9.9: a reminder cannot be taken back)
       remind: task.canRemind
-        ? { label: t('remind.button', { name: row.name }), ariaLabel: t('remind.buttonFull', { name: row.name, document: title }), hint: again ? t('remind.recent', { time: formatDateTime(locale, again) }) : null }
+        ? {
+            label: t('remind.button', { name: row.name }),
+            ariaLabel: t('remind.buttonFull', { name: row.name, document: title }),
+            question: t('remind.confirmText', { name: row.name, document: title }),
+            confirmLabel: t('remind.confirm', { name: row.name }),
+            confirmAriaLabel: t('remind.confirmFull', { name: row.name, document: title }),
+            hint: again ? t('remind.recent', { time: formatDateTime(locale, again) }) : null,
+            // within the hour the button does not ask: it says at once from when it may be sent again
+            againAt: again,
+          }
         : null,
     }
   })

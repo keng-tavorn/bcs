@@ -54,7 +54,7 @@
     "required": "required",
     "missing": "Answer this before sending",
     "choose": "Choose",
-    "moneyHint": "An amount in baht, for example 1500 or 1500.50",
+    "moneyHint": "An amount in baht, for example 1500 or 1,500.50",
     "unsupported": "This field cannot be filled in on this form yet. Contact your organization's administrator",
     "dateChosen": "Chosen: {date}"
   },
@@ -261,6 +261,12 @@
     "budgetShort": "The budget is not enough: {available} baht left, {shortfall} baht short. Lower the amount or choose another budget line",
     "saveConflict": "This draft was changed elsewhere. Load the latest version and check it again before sending",
     "saveClosed": "This request was already sent or cancelled elsewhere, so it cannot be sent from this page",
+    "saveClosedBy": {
+      "SENT": "This request was already sent elsewhere, so it cannot be sent from this page",
+      "CANCELLED": "This request was already cancelled elsewhere, so it cannot be sent from this page",
+      "NOT_FOUND": "This request is no longer found, so it cannot be sent from this page",
+      "FORBIDDEN": "This account can no longer change this request, so it cannot be sent from this page"
+    },
     "mustFix": "(fix before sending)",
     "goTo": "Fix it in {step}"
   },
@@ -287,7 +293,13 @@
     "blockedBudget": "It cannot be sent because the budget is not enough: {available} baht left, {shortfall} baht short. Lower the amount or choose another budget line",
     "blockedProblems": "It cannot be sent until the points marked fix before sending above are fixed",
     "blockedSave": "It cannot be sent until you load the latest version of the draft",
-    "blockedClosed": "It cannot be sent because this request was already sent or cancelled elsewhere"
+    "blockedClosed": "It cannot be sent because this request was already sent or cancelled elsewhere",
+    "blockedClosedBy": {
+      "SENT": "It cannot be sent because this request was already sent elsewhere",
+      "CANCELLED": "It cannot be sent because this request was already cancelled elsewhere",
+      "NOT_FOUND": "It cannot be sent because this request is no longer found",
+      "FORBIDDEN": "It cannot be sent because this account can no longer change this request"
+    }
   },
   "errors": {
     "BUDGET_INSUFFICIENT": "Not enough budget: {available} baht left, {shortfall} baht short. Lower the amount or choose another budget line, then send again",
@@ -315,6 +327,8 @@
     "TAX_RATE_NOT_CONFIGURED": "There is no VAT rate for {date}. Contact the platform administrator",
     "CONFLICT_VERSION": "This draft was changed elsewhere after you opened it. Load the latest version and check it again",
     "STATE": "This request was sent or cancelled, so this cannot be done",
+    "STATE_SENT": "This request was already sent, so this cannot be done. Open the request to see where it stands",
+    "STATE_CANCELLED": "This request was cancelled, so this cannot be done. Open the request to see its history",
     "FORBIDDEN": "Only the requester who owns this request can do this",
     "NOT_FOUND": "The request or file was not found; it may have been removed. Reload the page",
     "UNAUTHENTICATED": "Your session has ended. Sign in again, then try again",

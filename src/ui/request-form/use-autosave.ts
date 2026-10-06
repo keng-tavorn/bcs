@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { BYTES_PER_KIB, MS_PER_SECOND } from '@/lib/constants'
 import type { DraftSave } from './model'
-import type { FormFailure } from './outcome'
+import { closedWhy, type ClosedWhy, type FormFailure } from './outcome'
 
 // Drafts save themselves (FR-INT-006 AC1): 10 seconds after the requester stops typing, and when they leave the page —
 // another page of the app, another tab or app, closing or reloading. Every save names the version it is based on; a
@@ -28,8 +28,8 @@ export type SaveState =
   | { readonly kind: 'saved'; readonly at: string }
   | { readonly kind: 'error'; readonly failure: FormFailure | null }
   | { readonly kind: 'conflict' }
-  /** The request was sent, cancelled or is no longer the requester's to edit */
-  | { readonly kind: 'closed' }
+  /** The request was sent or cancelled elsewhere, is gone, or is no longer the requester's to edit: `why`, as the server said */
+  | { readonly kind: 'closed'; readonly why: ClosedWhy }
 
 export type SaveAnswer = { readonly ok: true; readonly requestId: string; readonly version: number; readonly lineIds: readonly string[] } | FormFailure
 
@@ -66,6 +66,8 @@ export interface Autosave {
   readonly saveNow: (options?: { force?: boolean; keepalive?: boolean }) => Promise<boolean>
   /** No more saves (after the request was sent) */
   readonly stop: () => void
+  /** Why saving stopped for good, right now (also in the event handler that awaited the save): a conflict, the request closed, or null */
+  readonly halted: () => 'conflict' | 'closed' | null
 }
 
 /** HTTP statuses of the route (§14.2) for an answer that is not the route's own JSON (a proxy refusing a large body) */
@@ -93,6 +95,8 @@ export function useAutosave(options: AutosaveOptions): Autosave {
   const edits = useRef(0)
   const saved = useRef(0)
   const stopped = useRef(false)
+  /** Why saving stopped for good (a conflict, the request closed); null while it goes on, or once stopped after sending */
+  const haltedBy = useRef<'conflict' | 'closed' | null>(null)
   const pending = useRef<Pending | null>(null)
   const running = useRef<Promise<boolean> | null>(null)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -158,14 +162,17 @@ export function useAutosave(options: AutosaveOptions): Autosave {
       }
       if (answer.code === 'CONFLICT_VERSION') {
         stopped.current = true
+        haltedBy.current = 'conflict'
         clearTimer()
         setState({ kind: 'conflict' })
         return false
       }
       if (answer.code === 'INVALID_STATE_TRANSITION' || answer.code === 'NOT_FOUND' || answer.code === 'FORBIDDEN') {
         stopped.current = true
+        haltedBy.current = 'closed'
         clearTimer()
-        setState({ kind: 'closed' })
+        // What stopped it, as the server said: the request's status, or that it is gone or not this account's
+        setState({ kind: 'closed', why: closedWhy(answer) })
         return false
       }
       setState({ kind: 'error', failure: answer })
@@ -254,6 +261,7 @@ export function useAutosave(options: AutosaveOptions): Autosave {
 
   const version = useCallback(() => versionRef.current, [])
   const id = useCallback(() => idRef.current, [])
+  const halted = useCallback(() => haltedBy.current, [])
 
-  return { state, requestId, id, version, changed, saveNow, stop }
+  return { state, requestId, id, version, changed, saveNow, stop, halted }
 }

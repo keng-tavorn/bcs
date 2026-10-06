@@ -42,8 +42,9 @@ export function TaskList({ rows, label }: { rows: readonly TaskRow[]; label: str
               </p>
             ) : null}
           </div>
+          {/* How long it has waited, when it is due, what it needs: content at the body's size (§9.9: 15 px on the web) */}
           {row.states.length || row.tags.length ? (
-            <div className="flex flex-wrap items-start gap-x-5 gap-y-1 text-base md:text-sm">
+            <div className="flex flex-wrap items-start gap-x-5 gap-y-1">
               {row.states.map((s) => (
                 <StateLine key={s.text} kind={s.kind}>
                   {s.text}

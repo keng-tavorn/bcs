@@ -17,9 +17,9 @@
     "notFoundTitle": "Request not found",
     "notFound": "This request was not found, or it is not yours. Choose a request type to start a new request",
     "camera": {
-      "take": "Take a photo for the request",
-      "takeMore": "Take another photo",
-      "hint": "Opens the phone camera. The photo is made smaller in the phone before it is sent, and is attached to the request as a photo",
+      "take": "Attach a photo",
+      "takeMore": "Attach another photo",
+      "hint": "Opens the camera on a phone, or lets you choose an image file on a computer. The photo is made smaller on your device before it is sent, and is attached to the request as a photo",
       "preparing": "Getting the photo ready",
       "sending": "Sending the photo {name}",
       "added": "Photo {name} attached",

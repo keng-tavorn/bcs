@@ -31,7 +31,7 @@ const items: TimelineItem[] = [
     role: 'ผู้จัดการฝ่าย ฝ่ายก่อสร้าง',
     onBehalfOf: 'รักษาการแทน ดำรง ก่อสร้างไทย',
     when: '6 ต.ค. 2569 09:15 น.',
-    channel: 'LINE (LIFF)',
+    channel: 'หน้าจอใน LINE',
     doaRef: 'DOA-DEMO ฉบับ 1 ข้อ PR-01',
     doaHref: '/admin/doa/0199a1b2-0000-7000-8000-000000000001',
     state: 'done',
@@ -53,7 +53,7 @@ describe('[FR-PLT-003/AC3] [FR-DOA-005/AC2] [FR-INT-008/AC1] the timeline draws 
   })
 
   it('shows who decided, their position, when, through which channel and for whom', () => {
-    for (const text of ['วีระ ปฏิบัติการ', 'รองประธานสายงาน สายปฏิบัติการ', '5 ต.ค. 2569 11:00 น. · เว็บ', 'รักษาการแทน ดำรง ก่อสร้างไทย', '6 ต.ค. 2569 09:15 น. · LINE (LIFF)']) expect(html).toContain(text)
+    for (const text of ['วีระ ปฏิบัติการ', 'รองประธานสายงาน สายปฏิบัติการ', '5 ต.ค. 2569 11:00 น. · เว็บ', 'รักษาการแทน ดำรง ก่อสร้างไทย', '6 ต.ค. 2569 09:15 น. · หน้าจอใน LINE']) expect(html).toContain(text)
   })
 
   it('quotes the reason of a return under its label, and never relies on colour alone', () => {

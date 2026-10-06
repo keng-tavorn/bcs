@@ -4,7 +4,7 @@ import type { InboxTaskDto } from '@/server/queries/tasks'
 import type { RequestRow } from '@/ui/request-view/request-list'
 import type { StateKind } from '@/ui/request-view/status'
 import type { TaskRow } from '@/ui/tasks/task-list'
-import { day, dueText, memberName, money, nameIn, stageText, waitingText, type Locale, type ViewT } from './present'
+import { day, dueText, memberName, money, nameIn, stageText, stageWaitingMinutes, waitingText, type Locale, type ViewT } from './present'
 
 // Rows of the inbox, the home page and "my requests", translated and formatted for the reader.
 
@@ -78,15 +78,11 @@ export function requestRows(tv: ViewT, locale: Locale, rows: readonly MyRequestR
   return rows.map((r) => {
     const mine = r.relation === 'REQUESTER'
     const nowStates: Array<{ kind: StateKind; text: string }> = []
-    if (r.stage.kind === 'APPROVER') {
-      const waited = waitingText(tv, r.stage.waitingMinutes)
-      if (waited) nowStates.push({ kind: 'waiting', text: waited })
-      if (r.stage.overdue) nowStates.push({ kind: 'overdue', text: dueText(tv, locale, r.stage.dueAt, true)! })
-    }
-    if (r.stage.kind === 'PROCUREMENT' || r.stage.kind === 'QUEUE') {
-      const waited = waitingText(tv, r.stage.waitingMinutes)
-      if (waited) nowStates.push({ kind: 'waiting', text: waited })
-    }
+    // How long it has waited, whoever it waits for — an approver, the requester, procurement or a supplier (§9.9
+    // principle 4) — and, for an approver, past due since when
+    const waited = waitingText(tv, stageWaitingMinutes(r.stage))
+    if (waited) nowStates.push({ kind: 'waiting', text: waited })
+    if (r.stage.kind === 'APPROVER' && r.stage.overdue) nowStates.push({ kind: 'overdue', text: dueText(tv, locale, r.stage.dueAt, true)! })
     const amount = r.grossSatang !== null ? money(r.grossSatang) : r.documentType === 'SUPPLIER_REQUEST' ? tv('amountNone') : tv('amountPending')
     return {
       id: r.id,

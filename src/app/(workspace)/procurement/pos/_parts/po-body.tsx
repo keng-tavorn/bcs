@@ -65,10 +65,10 @@ export async function RouteSection({ id, route, locale, doaLinks, subject, empty
             <DoaRef label={doaRefText(tl, route.doa)} href={doaLinks ? doaHref(route.doa.versionId) : null} />
           </p>
           <div className="flex flex-col gap-1">
-            <h3 className="font-medium text-ink">{tv('route.why')}</h3>
+            <h3 className="font-semibold text-ink">{tv('route.why')}</h3>
             <p className="break-words text-ink">{routeSentence(tv, tl, locale, route, subject)}</p>
           </div>
-          {route.routeNo > 1 ? <p className="text-base text-ink-muted md:text-sm">{tv('route.round', { no: route.routeNo })}</p> : null}
+          {route.routeNo > 1 ? <p className="text-ink-muted">{tv('route.round', { no: route.routeNo })}</p> : null}
           <ol className="flex flex-col divide-y divide-line border-t border-line">
             {route.steps.map((step) => {
               const state = stepState(step)
@@ -99,7 +99,7 @@ export async function RouteSection({ id, route, locale, doaLinks, subject, empty
                       </p>
                       {role ? <p className="text-ink-muted">{role}</p> : null}
                       {step.onBehalfOf ? <p className="text-ink-muted">{tv('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
-                      {escalated ? <p className="text-base text-ink-muted md:text-sm">{escalated}</p> : null}
+                      {escalated ? <p className="text-ink-muted">{escalated}</p> : null}
                     </div>
                   )}
                   <StateLine kind={state.kind} className="shrink-0">
@@ -238,7 +238,8 @@ async function PoBudget({ po, t }: { po: PoViewDto; t: PoT }) {
           </div>
         )
       })}
-      <p className="pt-3 text-base text-ink-muted md:text-sm">{t('budget.note')}</p>
+      {/* What these amounts are, read before deciding: content at the body's size (§9.9: 15 px on the web) */}
+      <p className="pt-3 text-ink-muted">{t('budget.note')}</p>
     </div>
   )
 }
@@ -312,7 +313,7 @@ export async function PoBody({
               { label: t('amounts.gross'), value: money(po.totals.grossSatang), total: true },
             ]}
           />
-          <p className="text-base text-ink-muted md:text-sm">{note}</p>
+          <p className="text-ink-muted">{note}</p>
         </Section>
 
         <Section id="po-budget" title={t('budget.title')}>

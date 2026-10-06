@@ -129,6 +129,15 @@ test('@demo [FR-INT-005/AC1] [FR-LINE-002/AC1] [FR-LINE-003/AC1] [FR-LINE-003/AC
   // FR-INT-005 AC1: at this amount the rule asks for quotations, and is not met yet
   const rule = page.locator(`[data-rule="${quotesRule}"]`)
   await expect(rule).toContainText(th('requestForm.documents.notMet'))
+  // "ตรวจก่อนส่ง" (§9.9 principle 3 and rule 7) marks it as a point to fix before sending, beside the way to its entry;
+  // the bar's button still sends, for the server to answer with the rule's code (FR-INT-005 AC2)
+  const quotesPoint = page
+    .getByRole('region', { name: th('requestForm.review.problemsTitle') })
+    .getByRole('listitem')
+    .filter({ hasText: th('requestForm.problems.ATTACHMENTS', { rule: quotesRule }) })
+  await expect(quotesPoint).toContainText(`${th('requestForm.problems.ATTACHMENTS', { rule: quotesRule })} ${th('requestForm.review.mustFix')}`)
+  await expect(quotesPoint.getByRole('button', { name: th('liffRequests.form.fixRule', { rule: quotesRule, part: th('requestForm.steps.documents') }) })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true })).toBeEnabled()
   // Above 100,000.00 baht with VAT the rule's single-source reason is asked here, beside the rule that takes it
   const reason = page.getByLabel(/^เหตุผลกรณีมีผู้ขายรายเดียว/)
   await expect(reason).toBeVisible()

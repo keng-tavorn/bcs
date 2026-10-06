@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import type { FileRefusal } from '../../files/file-upload'
+import { NO_ANSWER, type ReceivingAction } from '../../receiving/failed'
 import type { PostOutcome, PreviewOutcome, ReceivingFailure } from '../../receiving/outcome'
 import { cleanQuantity, compareQuantity, isZeroQuantity } from '../../receiving/quantity'
 import type { DamagedChoice, ExcessChoice, ReceiptInput, ReceiptPreviewView, ReceiveLineView } from '../../receiving/types'
@@ -14,6 +15,7 @@ import { LiffContent } from '../content'
 import { useLiff } from '../liff-provider'
 import { LiffNotice } from '../notice'
 import { useLiffSubmissionKey } from '../submission-key'
+import { liffFailureText } from './failure-text'
 import { LiffField, LiffRadio, LiffTextArea } from './fields'
 import type { LiffCompleteUpload, LiffRequestUpload } from './photo-upload'
 import { LiffPhotos, type LiffPhoto, type LiffPhotoStatus } from './photos'
@@ -44,7 +46,9 @@ import { useSessionReady } from './session-ready'
 // offers to try again. Who may receive is decided by the service on every action (gr.post with BR-SOD-02 and BR-SOD-07):
 // the page only shows the form to a member it may serve. Before every server action the LIFF session is renewed when it
 // is close to its idle limit, and nothing is sent once it has ended (./session-ready.ts); the button shows the action
-// is under way from the tap. The component stays mounted while the page refreshes, so its confirmation stays on screen.
+// is under way from the tap. A refusal, or no answer at all (the signal drops), is said in the bar in the words of the
+// step it came from (./failure-text.ts): a check that failed has recorded nothing, a receipt that failed was not recorded.
+// The component stays mounted while the page refreshes, so its confirmation stays on screen.
 
 type ReviewPart = typeof LiffReceiptReview
 
@@ -163,16 +167,12 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
 
   const sessionEnded = useCallback(() => setFailure(tLiff('sessionEnded')), [tLiff])
   const ready = useSessionReady(sessionEnded)
-  /** A refusal in words: the mapping of error codes to messages is loaded only when a refusal comes */
-  async function refuse(outcome: ReceivingFailure) {
-    if (outcome.code === 'UNAUTHENTICATED') return setFailure(tLiff('sessionEnded'))
-    try {
-      const { receivingErrorKey, receivingErrorValues } = await import('../../receiving/outcome')
-      setFailure(tErrors(receivingErrorKey(outcome), receivingErrorValues(outcome)))
-    } catch {
-      // The words could not be loaded (no connection): what happened in general, and what to do
-      setFailure(tErrors('FAILED'))
-    }
+  /**
+   * A refusal of the check or of the receipt, or no answer, in words of that step (./failure-text.ts): the mapping of
+   * error codes to messages is loaded only when a refusal comes
+   */
+  async function refuse(outcome: ReceivingFailure, action: ReceivingAction) {
+    setFailure(await liffFailureText(outcome, action, { error: (key, values) => tErrors(key, values), sessionEnded: () => tLiff('sessionEnded') }))
   }
 
   /** Fetches step 2's part once (again after a failure); nothing happens while it is on its way or once it is here */
@@ -353,11 +353,11 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
       outcome = await actions.preview({ poId, photoFileIds: photos.map((p) => p.fileId), lines: collected.lines }, check.key)
       check.next()
     } catch {
-      // No answer: the key stays, so pressing again is the same check (spec §4.3)
-      outcome = { ok: false, code: 'FAILED' }
+      // No answer: the key stays, so pressing again is the same check (spec §4.3); nothing has been recorded
+      outcome = NO_ANSWER
     }
     setPending(false)
-    if (!outcome.ok) return refuse(outcome)
+    if (!outcome.ok) return refuse(outcome, 'check')
     setPreview(outcome.preview)
     setChoiceErrors(new Set())
     // What step 1 said about the last photo stays with step 1: a refusal step 2's bar shows is one that came after
@@ -393,13 +393,13 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
       submission.next()
     } catch {
       // No answer: the key stays, so trying again is the same submission (spec §4.3)
-      outcome = { ok: false, code: 'FAILED' }
+      outcome = NO_ANSWER
     }
     setPending(false)
     if (!outcome.ok) {
       // What the server found wrong is fixed on step 1, then checked again (the PO may have moved since the preview)
       if (outcome.code === 'VALIDATION_FAILED') goTo('enter')
-      return refuse(outcome)
+      return refuse(outcome, 'record')
     }
     setPosted(outcome)
     goTo('done')
@@ -433,7 +433,8 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
           {summary}
           <section aria-labelledby={`${id}-done`} className="flex flex-col gap-3">
             <LiffNotice tone="success">
-              <h2 id={`${id}-done`} ref={stepHeading} tabIndex={-1} className="font-semibold">
+              {/* An h2 at the size of the step headings it replaces and of "การตรวจรับที่ผ่านมา" (18 px, §9.9) */}
+              <h2 id={`${id}-done`} ref={stepHeading} tabIndex={-1} className="text-lg font-semibold">
                 {t('doneTitle', { number: posted.number })}
               </h2>
               <p>{t('donePo', { status: tStatus(posted.poStatus === 'RECEIVED' ? 'RECEIVED' : 'PARTIALLY_RECEIVED') })}</p>

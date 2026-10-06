@@ -5,13 +5,12 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
 import { BudgetTable, type BudgetDepartmentView } from '@/ui/budgets/budget-table'
-import { leftPercentText } from '@/ui/budgets/format'
 import { Refused } from '@/ui/budgets/refused'
 import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../_lib/session'
-import { amountLinks, budgetHref, dayText, figureView, localeOf, nameIn, type BudgetsT, type Locale } from './_present'
+import { amountLinks, budgetHref, dayText, figureView, localeOf, lowItemText, nameIn, usedUp, type BudgetsT, type Locale } from './_present'
 
 export async function generateMetadata() {
   const t = await getTranslations('budgets')
@@ -76,7 +75,8 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
 
   const d = result.data
   const year = d.fiscalYear
-  const low = d.lines.filter((l) => l.low)
+  // Running low, or used up (nothing left, whatever the organization's warning threshold)
+  const low = d.lines.filter((l) => l.low || usedUp(l))
   const query = year ? `?fy=${year.id}` : ''
 
   return (
@@ -96,7 +96,8 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
 
       <nav aria-label={t('actions.label')} className="flex flex-wrap gap-x-6 gap-y-1 border-y border-line py-2">
         {year && d.lines.length ? (
-          <a href={`/budgets/export${query}`} download className={linkClass}>
+          // No download attribute: the file comes as an attachment and the page stays; a refusal leads back here in words
+          <a href={`/budgets/export${query}`} className={linkClass}>
             {t('actions.export', { code: year.code })}
           </a>
         ) : null}
@@ -140,7 +141,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
             {low.map((l) => (
               <li key={l.id}>
                 <Link href={budgetHref.line(l.id)} className={linkClass}>
-                  {t('low.item', { code: l.code, name: l.nameTh, left: leftPercentText(l.availableBp) ?? '0.0' })}
+                  {lowItemText(t, l)}
                 </Link>
               </li>
             ))}

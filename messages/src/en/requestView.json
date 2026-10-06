@@ -50,6 +50,7 @@
     "REQUESTER_EDIT": "Waiting for the requester to edit and send it again",
     "PROCUREMENT": "Waiting for procurement to issue a purchase order",
     "DELIVERY": "Ordered, waiting for delivery",
+    "DELIVERY_SUPPLIERS": "Ordered, waiting for {suppliers} to deliver",
     "CLOSED": "Closed",
     "UNKNOWN": "Being passed to the approver",
     "QUEUE": "Waiting for procurement to add this supplier",
@@ -59,7 +60,7 @@
   "waiting": {
     "hours": "Waiting {hours} business hours",
     "minutes": "Waiting {minutes} business minutes",
-    "notStarted": "Business hours have not started counting yet",
+    "underMinute": "Waiting under 1 business minute",
     "due": "Due {time}",
     "overdue": "Overdue, it was due {time}"
   },
@@ -286,9 +287,7 @@
     "editDraft": "Edit the draft and send it for approval",
     "draftTitle": "This request is still a draft",
     "draftHint": "A draft has not reached any approver. Complete it and send it for approval from the edit page.",
-    "resubmitHint": "Edit the request, then send it again. The approval route is worked out again under the DOA in effect at that time.",
-    "resubmit": "Send for approval again",
-    "resubmitted": "Sent for approval again",
+    "resubmitHint": "Press Edit the request, then check the budget left, the new approval route and the documents to attach on its Check and send step before you press Send for approval again.",
     "cancelTitle": "Cancel the request",
     "cancelHint": "The reserved budget is given back at once and open approval tasks are closed",
     "cancelReason": "Why you cancel it",
@@ -302,7 +301,7 @@
     "REASON": "Give a reason of at least 3 characters",
     "ANSWER": "Write an answer before sending",
     "CONFIRM": "Tick the box first, because this cannot be undone",
-    "FORBIDDEN": "Only the requester can do this",
+    "FORBIDDEN": "You cannot do this: the signed-in account is not this request's requester or no longer has this right. Reload the page to see your current rights; if you still cannot, ask your organization's administrator to check your account's roles.",
     "BUDGET_INSUFFICIENT": "Not enough budget: {available} baht left, {shortfall} baht short. Change the amount or choose another budget line, then send again.",
     "BUDGET_LINE_CLOSED": "This budget line is frozen or closed. Choose another line on the edit page, then send again.",
     "BUDGET_LINE": "No budget line is chosen. Choose one on the edit page, then send again.",
@@ -317,6 +316,7 @@
     "CONFLICT": "This was already sent with different details. Reload the page and try again.",
     "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
     "INTERNAL": "It could not be saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
+    "NO_ANSWER": "No answer came back, perhaps because of the connection. Check it and press the same button again; it is done only once.",
     "FAILED": "It could not be saved. Try again, or tell your administrator."
   }
 }

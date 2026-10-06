@@ -29,7 +29,9 @@ function waitedStates(tv: ViewT, minutes: number | null): Array<{ kind: StateKin
  * Whom the PO waits for, in words, with how long (§9.9 principle 4, FR-INT-008 AC1 for POs) — and until when for an
  * approver. An escalated step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" in the reader's
  * language, oldest task first (BR-SLA-04, NEW-46, as a request's "now" line); the time waited and the due time are the
- * first approver's. A draft, an approved PO and a sent one say how long procurement or the supplier has had it.
+ * first approver's. A draft, an approved PO and a sent one say how long procurement or the supplier has had it, and a
+ * PO partly or fully received how long the rest of its goods, or its invoice and closing, have waited since its latest
+ * goods receipt.
  */
 export function waitingOf(t: PoT, tv: ViewT, locale: Locale, waiting: PoWaitingDto): { now: string; states: Array<{ kind: StateKind; text: string }> } {
   switch (waiting.kind) {
@@ -49,6 +51,8 @@ export function waitingOf(t: PoT, tv: ViewT, locale: Locale, waiting: PoWaitingD
       return { now: waiting.bounced ? t('waiting.SEND_BOUNCED') : t('waiting.SEND'), states: waitedStates(tv, waiting.waitingMinutes) }
     case 'EDIT':
     case 'DELIVERY':
+    case 'REST':
+    case 'CLOSE':
       return { now: t(`waiting.${waiting.kind}`), states: waitedStates(tv, waiting.waitingMinutes) }
     default:
       return { now: t(`waiting.${waiting.kind}`), states: [] }

@@ -61,7 +61,7 @@ test('[FR-INT-008/AC1] [FR-NOTI-003/AC2] an escalated step names the DM and the 
   await expect(current).toHaveCount(2)
   await expect(current.first()).toContainText(s.first.name)
   await expect(current.last()).toContainText(s.coAssignee.name)
-  for (const entry of await current.all()) await expect(entry).toContainText(/ค้างมา|ยังไม่เริ่มนับเวลาทำการ/)
+  for (const entry of await current.all()) await expect(entry).toContainText(/ค้างมา/)
   await checkScreen(page, testInfo, 'request-escalated')
 
   // The VP decides first: step 1 names the VP who decided, and nobody waits on it any more

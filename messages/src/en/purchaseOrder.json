@@ -203,6 +203,8 @@
       "removeHint": "The request line goes back to the pool with its supplier. A draft keeps at least one line.",
       "editLine": "Edit line {no}",
       "saveLine": "Save line {no}",
+      "removeLine": "Take line {no} off",
+      "removed": "Line {no} taken off; its request line is back in the procurement pool with the same supplier",
       "closeLine": "Close without saving",
       "termsTitle": "Terms and note to the supplier",
       "termDays": "Credit (days)",
@@ -210,7 +212,8 @@
       "note": "Note to the supplier",
       "noteHint": "The supplier reads it on the PDF of the purchase order",
       "saveTerms": "Save terms and note",
-      "saved": "Draft saved; the amounts were computed again",
+      "savedLine": "Line {no} saved; the amounts were computed again",
+      "savedTerms": "Terms and note saved",
       "badPrice": "Type the price as a number with at most 2 decimals, such as 1,500.00",
       "badQuantity": "Type a quantity above 0 with at most 4 decimals",
       "overMax": "At most {max}",
@@ -234,7 +237,10 @@
         "NO_HIGHER_AUTHORITY": "Every approver of the DOA is involved in this document, so it cannot be sent for approval. Contact your organization's administrator.",
         "TAX_RATE_NOT_CONFIGURED": "No VAT rate covers today, so it cannot be sent for approval. Contact your administrator.",
         "NO_LINES": "This draft has no lines, so it cannot be sent for approval.",
-        "other": "It cannot be sent for approval now ({code}). Contact your organization's administrator."
+        "SOD_VIOLATION": "The approver of the DOA is involved in this purchase order (made or sent it, or asked for one of its source requests), and this DOA version does not pass it to a higher authority, so it cannot be sent for approval. Ask your organization's administrator to check the DOA.",
+        "DOA_AMBIGUOUS": "More than one rule of the DOA applies to this purchase order, so it cannot be sent for approval. Ask your organization's administrator to correct the DOA.",
+        "ZERO_AMOUNT": "The draft totals 0.00 baht. Enter the unit prices under “Edit the draft”, then send it for approval.",
+        "other": "The DOA finds no approver for this purchase order, so it cannot be sent for approval. Contact your organization's administrator."
       }
     },
     "approval": {
@@ -284,25 +290,26 @@
       "confirmTick": "I understand a closed PO cannot be opened again",
       "button": "Close this PO",
       "done": "The PO was closed",
-      "needsShortfall": "Some lines did not come in full. It closes once they come, or once a shortfall variance is approved."
+      "needsShortfall": "Some lines did not come in full. It closes once they come; if the rest will not come, ask to close the purchase order short on its receiving page, and close it once that is approved."
     },
     "confirmMissing": "Tick to confirm first, because this cannot be undone",
     "reasonMissing": "Type a reason of at least 3 characters",
-    "nothingWhileApproval": "The purchase order waits for its approver; there is nothing to do meanwhile"
+    "nothingWhileApproval": "The purchase order waits for its approver; there is nothing to do meanwhile",
+    "receivingLink": "Open the receiving page of {label}"
   },
   "errors": {
     "STATE": "This purchase order changed status already. Reload the page to see where it is now.",
-    "GR_POSTED": "Goods were received on it already, so the PO cannot be cancelled.",
-    "SHORT_NOT_APPROVED": "Some lines did not come in full. It closes once they come, or once a shortfall variance is approved.",
+    "GR_POSTED": "Goods were received on this purchase order already, so the PO cannot be cancelled. If what is still to come will not come, ask to close the purchase order short on its receiving page.",
+    "SHORT_NOT_APPROVED": "Some lines did not come in full. It closes once they come; if the rest will not come, ask to close the purchase order short on its receiving page, and close it once that is approved.",
     "CONFLICT_VERSION": "Someone else changed this draft while you had it open. Reload the page and edit it again.",
     "NO_CHANGE": "Nothing changed. Change a price, a quantity, the terms or the note before saving.",
     "QUANTITY_OVER_REQUEST": "More than the request has left ({left} left). Lower the quantity and save again.",
     "QUANTITY": "Type a quantity above 0",
-    "MERGED_LINE": "A line that orders several request lines cannot change its quantity",
+    "MERGED_LINE": "A line that orders several request lines cannot change its quantity, only its price. To order another quantity, take this line off, back to the procurement pool, then press “Make draft POs now” in the pool: the new draft has one line per request line, so its quantities can change.",
     "NO_LINES": "A draft keeps at least one line",
     "LINE": "Some lines are no longer on this draft. Reload the page.",
-    "SUPPLIER_INACTIVE": "This supplier is inactive, so the PO cannot be sent for approval.",
-    "NO_SOURCE_REQUEST": "Every line must come from an approved request, so it cannot be sent for approval.",
+    "SUPPLIER_INACTIVE": "This supplier is inactive, so the PO cannot be sent for approval. Activate the supplier in the supplier register first, then come back to send it.",
+    "NO_SOURCE_REQUEST": "Every line must come from an approved request, but some lines of this draft have no source request (under “Lines” they show no “From request”), so it cannot be sent for approval. Take those lines off under “Edit the draft”, then send it for approval again.",
     "EMAIL_MISSING": "This supplier has no e-mail address in the register. Add one, then send again.",
     "REASON": "Type a reason of at least 3 characters",
     "BUDGET_INSUFFICIENT": "The budget line does not have enough for what the PO costs above its requests, so it cannot be sent for approval yet. Lower the price or quantity to what the requests reserved, or ask the budget administrator for more budget.",

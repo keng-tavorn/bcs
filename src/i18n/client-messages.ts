@@ -44,14 +44,15 @@ export const CLIENT_MESSAGES = {
   liff: [...LIFF_GATE],
   /**
    * /liff/link: the link flow, the e-mail sign-in of an account that is not linked, the LINE user of LIFF_MOCK. Of the
-   * web sign-in's words, those the LIFF sign-in reads by name: the web form's own checks of its fields stay on the web
+   * web sign-in's words, those the LIFF sign-in reads by name — its fields' own checks included, said on the field as on
+   * the web (an empty field, an address that is not an e-mail); the session-ended notice of /login stays on the web
    */
   liffLink: [
     ...LIFF_GATE,
     'liff.link',
     'liff.mock',
     'auth.lock',
-    ...each('auth.login', ['email', 'failed', 'forgot', 'invalid', 'password', 'submit', 'submitting']),
+    ...each('auth.login', ['email', 'emailInvalid', 'emailRequired', 'failed', 'forgot', 'invalid', 'password', 'passwordRequired', 'serverFailed', 'submit', 'submitting']),
     'auth.twoFactor',
   ],
   /**
@@ -102,7 +103,7 @@ export const CLIENT_MESSAGES = {
       'unknown',
     ]),
     ...each('requestForm.save', ['closed', 'conflict', 'dirty', 'error', 'idleNew', 'idleSaved', 'openRequest', 'reload', 'saveNow', 'saving']),
-    ...each('requestForm.submit', ['blockedBudget', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
+    ...each('requestForm.submit', ['blockedBudget', 'blockedClosed', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
     ...each('requestForm.page', ['returned', 'returnedReason']),
     'requestForm.errors.FORM_FIELD',
   ],

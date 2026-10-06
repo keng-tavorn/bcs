@@ -74,11 +74,11 @@
       "target": "0"
     },
     "g5": {
-      "name": "Decisions on LINE or LIFF",
-      "formula": "Decisions made in LINE chat or in LIFF ÷ all decisions in the period, in all and per kind of document",
+      "name": "Decisions in LINE",
+      "formula": "Decisions made in LINE chat or on a screen in LINE ÷ all decisions in the period, in all and per kind of document",
       "target": "At least 60%",
-      "byKind": "Decisions on LINE or LIFF: {kind}",
-      "byKindFormula": "Decisions on {kind} made in LINE chat or in LIFF ÷ all decisions on {kind} in the period"
+      "byKind": "Decisions in LINE: {kind}",
+      "byKindFormula": "Decisions on {kind} made in LINE chat or on a screen in LINE ÷ all decisions on {kind} in the period"
     }
   },
   "kinds": {

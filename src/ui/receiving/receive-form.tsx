@@ -13,6 +13,7 @@ import { useSubmissionKey } from '../form/submission-key'
 import { StateLine } from '../request-view/status'
 import { TextArea } from '../request-view/text-area'
 import { ApproverText } from './approver-text'
+import { NO_ANSWER, type ReceivingAction } from './failed'
 import { receivingErrorKey, receivingErrorValues, type PostOutcome, type PreviewOutcome, type ReceivingFailure } from './outcome'
 import { cleanQuantity, compareQuantity, isZeroQuantity } from './quantity'
 import type { ApproverView, DamagedChoice, ExcessChoice, ReceiptInput, ReceiptPreviewView, ReceiveLineView } from './types'
@@ -29,7 +30,8 @@ import type { ApproverView, DamagedChoice, ExcessChoice, ReceiptInput, ReceiptPr
 // neither step's button works until the photo is recorded, and the bar says why — the receipt never goes without a photo
 // the receiver chose, and what step 2 showed is what is posted. The upload has a time limit and a stop
 // (../files/upload.ts), so a stalled network never locks the form; while the receipt is being checked or posted no photo
-// is chosen or taken out.
+// is chosen or taken out. A check or a receipt that gets no answer (the signal drops) says so in the words of its own
+// step (./failed.ts): a failed check has recorded nothing, a failed receipt was not recorded.
 
 export interface ReceiveFormActions {
   readonly preview: (input: Omit<ReceiptInput, 'deliveryNoteNo' | 'notes'>, idempotencyKey: string) => Promise<PreviewOutcome>
@@ -59,6 +61,11 @@ interface LineState {
 type LineErrors = Partial<Record<'received' | 'rejected', string>>
 type Choices = Readonly<Record<string, { readonly excess?: ExcessChoice; readonly damaged?: DamagedChoice }>>
 type Posted = Extract<PostOutcome, { ok: true }>
+/** A check or a receipt that the server refused or did not answer, and which of the two it was: the words depend on it */
+interface Failure {
+  readonly outcome: ReceivingFailure
+  readonly action: ReceivingAction
+}
 
 const EMPTY_LINE: LineState = { received: '', rejected: '', damaged: true, remark: '', refusing: false }
 const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
@@ -71,7 +78,7 @@ const barButtonsClass = 'flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-c
 
 function useFailureText() {
   const t = useTranslations('receiving.errors')
-  return (failure: ReceivingFailure) => t(receivingErrorKey(failure), receivingErrorValues(failure))
+  return ({ outcome, action }: Failure) => t(receivingErrorKey(outcome, action), receivingErrorValues(outcome))
 }
 
 export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFormProps) {
@@ -95,7 +102,7 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
   const [formError, setFormError] = useState<string | null>(null)
   const [photoError, setPhotoError] = useState<string | null>(null)
   const [choiceErrors, setChoiceErrors] = useState<ReadonlySet<string>>(new Set())
-  const [failure, setFailure] = useState<ReceivingFailure | null>(null)
+  const [failure, setFailure] = useState<Failure | null>(null)
   const [pending, setPending] = useState(false)
   /** A photo is on its way (FileUpload's onBusyChange): the receipt waits for it */
   const [uploading, setUploading] = useState(false)
@@ -168,11 +175,11 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
       outcome = await actions.preview({ poId, photoFileIds: photos.map((p) => p.fileId), lines: collected.lines }, check.key)
       check.next()
     } catch {
-      // No answer: the key stays, so pressing again is the same check (spec §4.3)
-      outcome = { ok: false, code: 'FAILED' }
+      // No answer: the key stays, so pressing again is the same check (spec §4.3); nothing has been recorded
+      outcome = NO_ANSWER
     }
     setPending(false)
-    if (!outcome.ok) return setFailure(outcome)
+    if (!outcome.ok) return setFailure({ outcome, action: 'check' })
     setPreview(outcome.preview)
     setChoiceErrors(new Set())
     setStep('review')
@@ -200,11 +207,11 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
       submission.next()
     } catch {
       // No answer: the key stays, so trying again is the same submission (spec §4.3)
-      outcome = { ok: false, code: 'FAILED' }
+      outcome = NO_ANSWER
     }
     setPending(false)
     if (!outcome.ok) {
-      setFailure(outcome)
+      setFailure({ outcome, action: 'record' })
       // What the server found wrong is fixed on step 1, then checked again (the PO may have moved since the preview)
       if (outcome.code === 'VALIDATION_FAILED') setStep('enter')
       return
@@ -540,7 +547,7 @@ function Figure({ label, value, strong }: { label: string; value: string; strong
 function Radio({ name, checked, onChange, label }: { name: string; checked: boolean; onChange: () => void; label: string }) {
   return (
     <label className="flex min-h-11 items-center gap-3">
-      <input type="radio" name={name} checked={checked} onChange={onChange} className="size-5 shrink-0 accent-[var(--primary)]" />
+      <input type="radio" name={name} checked={checked} onChange={onChange} className="size-5 shrink-0" />
       <span>{label}</span>
     </label>
   )
@@ -593,7 +600,7 @@ function ChoiceGroup({
               checked={value === o.value}
               disabled={blocked}
               onChange={() => onChange(o.value)}
-              className={`size-5 shrink-0 accent-[var(--primary)] ${o.approver ? 'mt-1' : ''}`}
+              className={`size-5 shrink-0 ${o.approver ? 'mt-1' : ''}`}
             />
             <span className="flex flex-col">
               <span className="text-ink">{o.label}</span>

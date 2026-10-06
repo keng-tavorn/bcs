@@ -66,11 +66,25 @@ export function ExportPanel({ endpoint, payload, formats, open }: ExportPanelPro
           </Button>
         ))}
       </div>
+      <ExportResult outcome={outcome} openFailed={openFailed} onAgain={(fileId) => void download(fileId)} />
+    </div>
+  )
+}
+
+/**
+ * What the last export answered: the rows and the checksum with a way to download the file again, or the refusal in
+ * words; and when the download did not open, that it did not. The success then says only what was exported, never
+ * "the download has started" beside a notice that it did not open (§9.9 rule 7: not vague, one message).
+ */
+export function ExportResult({ outcome, openFailed, onAgain }: { readonly outcome: ExportOutcome | null; readonly openFailed: boolean; readonly onAgain: (fileId: string) => void }) {
+  const t = useTranslations('reports.export')
+  return (
+    <>
       {outcome?.ok ? (
         <Notice tone="success">
-          <p>{t('done', { count: outcome.rowCount })}</p>
+          <p>{t(openFailed ? 'doneNotOpened' : 'done', { count: outcome.rowCount })}</p>
           <p className="break-all">{t('checksum', { checksum: outcome.checksum })}</p>
-          <Button variant="link" onClick={() => void download(outcome.fileId)}>
+          <Button variant="link" onClick={() => onAgain(outcome.fileId)}>
             {t('again')}
           </Button>
         </Notice>
@@ -78,6 +92,6 @@ export function ExportPanel({ endpoint, payload, formats, open }: ExportPanelPro
         <Notice tone="danger">{t(`errors.${exportErrorKey(outcome)}`, { max: String(outcome.max ?? '-'), requestId: outcome.requestId ?? '-' })}</Notice>
       ) : null}
       {openFailed ? <Notice tone="danger">{t('openFailed')}</Notice> : null}
-    </div>
+    </>
   )
 }

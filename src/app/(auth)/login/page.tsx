@@ -22,7 +22,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-semibold">{t('title')}</h1>
       <LoginForm sessionEnded={ended === '1' || state.kind === 'expired'} next={next} />
-      <Link href="/forgot-password" className="self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
+      {/* A 44 px tap target on a phone, as the fields and the button above are (NFR-A11Y-02) */}
+      <Link href="/forgot-password" className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
         {t('forgot')}
       </Link>
     </div>

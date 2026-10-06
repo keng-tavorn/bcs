@@ -30,15 +30,20 @@ export const isKind = (kind: string): kind is KpiKind => (KINDS as readonly stri
 
 function ratioValue(t: KpiT, r: Ratio, unit: 'decisions' | 'tasks'): { value: string; detail: string | null; empty: boolean } {
   const pct = percentText(r.numerator, r.denominator)
-  // nothing counted in the period: no share and no list to open
-  if (pct === null) return { value: t('values.noneYet'), detail: t(`values.of.${unit}`, { numerator: r.numerator, denominator: r.denominator ?? 0 }), empty: true }
+  // nothing counted in the period: no share and no list to open — words only, as an empty median reads, never a bare
+  // "0 จาก 0" that would look like a number leading nowhere (§9.9: every number opens its list)
+  if (pct === null) return { value: t('values.noneYet'), detail: null, empty: true }
   return { value: t('values.percent', { value: pct }), detail: t(`values.of.${unit}`, { numerator: r.numerator, denominator: r.denominator ?? 0 }), empty: false }
 }
 
 const timeValue = (t: KpiT, minutes: number | null) => ({ value: minutes === null ? t('values.noneYet') : t('values.hours', { value: hoursText(minutes) }), detail: null, empty: minutes === null })
 
-/** A count; none counted is a plain value (its list would be empty) */
-const countValue = (t: KpiT, count: number) => ({ value: t('values.count', { count }), empty: count === 0 })
+/**
+ * A count, a number like every other: it opens its list even when it is 0 (§9.9 every number opens its list), and the
+ * list then says nothing was counted in the period. Only words with no number ("ยังไม่มีข้อมูลในช่วงนี้": a share of
+ * nothing, a time with no data) lead nowhere.
+ */
+const countValue = (t: KpiT, count: number) => ({ value: t('values.count', { count }) })
 
 function baselineText(t: KpiT, value: KpiBaselineValue | undefined, baseline: KpiBaseline | null, locale: string): string {
   if (!baseline || !value) return t('baseline.notRecorded')
@@ -65,7 +70,7 @@ export function kpiGoals(t: KpiT, locale: string, kpi: KpiResult, baseline: KpiB
       formula: extra.formula ?? t(`measures.${id}.formula`),
       value: figure.value,
       detail: figure.detail,
-      // a value with nothing behind it ("no data in this period") leads nowhere
+      // words with no number behind them ("no data in this period") lead nowhere; every number does, 0 too
       href: figure.empty ? null : (extra.href ?? `/kpi/${id}${query}`),
       linkLabel: t('linkLabel', { name, value: figure.detail ? `${figure.value} (${figure.detail})` : figure.value }),
       // a row of one kind of document compares with that kind's baseline only, never the total's
@@ -83,8 +88,9 @@ export function kpiGoals(t: KpiT, locale: string, kpi: KpiResult, baseline: KpiB
       code: 'G-2',
       title: t('goals.G-2'),
       measures: [
-        // its list holds every decision it checked, the misrouted ones counted: "0 รายการ" opens them once any was checked
-        measure('g2a', { value: t('values.count', { count: kpi.g2.misrouted }), detail: t('values.checked', { count: kpi.g2.checked }), empty: kpi.g2.checked === 0 }),
+        // its list holds every decision it checked, the misrouted ones counted: "0 รายการ" opens them, and says none was
+        // checked when none was
+        measure('g2a', { ...countValue(t, kpi.g2.misrouted), detail: t('values.checked', { count: kpi.g2.checked }) }),
         measure('g2b', ratioValue(t, kpi.g2.withDoaReference, 'decisions')),
       ],
     },

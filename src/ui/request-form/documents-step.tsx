@@ -75,8 +75,10 @@ export function DocumentsStep(props: DocumentsProps) {
   // (./document-fields.ts): the single-source reason of ATT-QUOTES beside the rule that takes it
   const documentFields = documentFieldIds(data.form.rules)
   const asked = data.form.fields.filter((f) => visible.has(f.id) && documentFields.has(f.id))
+  // Its pairs split by the step's own width (@container), not the screen's: inside the LIFF column (34rem of content,
+  // §9.9 "LIFF เป็นคอลัมน์เดียว") each pair stacks at every width; the workspace's wider step keeps them side by side
   return (
-    <div className="flex flex-col gap-10">
+    <div className="@container flex flex-col gap-10">
       <section aria-labelledby="required-documents" className="flex flex-col gap-3">
         <h3 id="required-documents" className="subheading font-semibold">
           {t('documents.requiredTitle')}
@@ -205,7 +207,7 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
           onChange={(e) => set({ supplierName: e.currentTarget.value })}
         />
       </Labelled>
-      <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+      <div className="grid gap-3 @min-[40rem]:grid-cols-2 @min-[40rem]:items-end">
         <Labelled id={`${p}-amount`} label={t('amount')} requiredText={tf('required')} error={errors.amount}>
           <MoneyInput
             id={`${p}-amount`}
@@ -286,8 +288,8 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
         {t('title')}
       </h3>
       <p className="text-ink-muted">{t('intro')}</p>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <Labelled id="attachment-kind" label={t('kind')} className="sm:w-72">
+      <div className="flex flex-col gap-3 @min-[40rem]:flex-row @min-[40rem]:items-start">
+        <Labelled id="attachment-kind" label={t('kind')} className="@min-[40rem]:w-72">
           <select id="attachment-kind" className={inputClass} value={kind} onChange={(e) => setKind(e.currentTarget.value)}>
             {data.attachmentKinds.map((k) => (
               <option key={k} value={k}>
@@ -296,7 +298,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
             ))}
           </select>
         </Labelled>
-        <UploadButton className="sm:pt-8" label={t('upload', { kind: kindLabel(kind) })} actions={uploads} disabled={busy} onUploaded={(f) => onAttach(f, kind)} />
+        <UploadButton className="@min-[40rem]:pt-8" label={t('upload', { kind: kindLabel(kind) })} actions={uploads} disabled={busy} onUploaded={(f) => onAttach(f, kind)} />
       </div>
       {fileError ? <Notice tone="danger">{fileError}</Notice> : null}
       {attachments.length === 0 ? (
@@ -315,7 +317,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
                   {t('open', { name: a.fileName })}
                 </Button>
                 <ConfirmRemove
-                  className="sm:ml-auto"
+                  className="@min-[40rem]:ml-auto"
                   label={t('remove', { name: a.fileName })}
                   question={t('removeQuestion', { name: a.fileName })}
                   confirmLabel={t('removeConfirm')}

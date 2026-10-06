@@ -1569,7 +1569,8 @@
     "lock": {
       "account": "This account failed to sign in {limit} times in {minutes} minutes (wrong password or verification code), so its sign-in is paused. Try again from {time}.",
       "address": "Sign-in failed {limit} times in {minutes} minutes from this network, so sign-in from it is paused. Try again from {time}.",
-      "busy": "Too many requests. Please try again later."
+      "busy": "Too many requests. Please try again later.",
+      "secondStep": "The verification code was wrong {limit} times in a row, so the second sign-in step of this account is paused for {minutes} minutes (backup codes too). Wait {minutes} minutes, then try again."
     },
     "login": {
       "email": "Work e-mail",
@@ -1580,6 +1581,7 @@
       "invalid": "The e-mail or password is not correct. Check them and try again, or choose Forgot password.",
       "password": "Password",
       "passwordRequired": "Enter your password to sign in.",
+      "serverFailed": "BCS had a fault, so your e-mail and password were not checked. Wait a moment, then press Sign in again.",
       "sessionEnded": "Your session ended for security. Sign in again to continue.",
       "submit": "Sign in",
       "submitting": "Checking",
@@ -1587,6 +1589,7 @@
     },
     "passwordRule": "At least {min} characters",
     "reset": {
+      "busy": "The new password was not saved: too many requests came from this network in a short time. The link still works. {seconds, plural, =0 {Wait a moment} one {Wait # second} other {Wait # seconds}}, then press Save new password again.",
       "confirm": "Enter the new password again",
       "done": "Your new password is saved and other devices were signed out. Sign in with the new password.",
       "failed": "The new password was not saved. Check your connection and press Save new password again.",
@@ -1595,11 +1598,14 @@
       "requestNew": "Request a new link",
       "submit": "Save new password",
       "submitting": "Saving",
-      "title": "Set a new password"
+      "title": "Set a new password",
+      "tooLong": "The password is too long. Use at most {max} characters."
     },
     "security": {
+      "alreadyOn": "Two-step verification is already on for this account. Reload this page to start working.",
       "backupIntro": "Use one instead of an app code when you do not have your phone. Each works once. They will not be shown again.",
       "backupTitle": "Keep these 10 backup codes somewhere safe",
+      "busy": "What you entered was not checked: too many requests came from this network in a short time. {seconds, plural, =0 {Wait a moment} one {Wait # second} other {Wait # seconds}}, then try again.",
       "code": "6-digit code from the app",
       "confirm": "Confirm and turn on",
       "confirming": "Confirming",
@@ -1617,11 +1623,16 @@
       "manualKey": "If you cannot scan, type this key into the app",
       "noMembership": "This account is not a member of any active organization. Contact your organization admin.",
       "password": "Password",
+      "passwordRequired": "Enter your password to start the setup.",
       "qrLabel": "QR code that adds your BCS account to an authenticator app",
+      "refused": "Two-step verification was not set up. Reload this page and try again. If it still does not work, contact your organization admin.",
       "required": "Your role needs two-step verification before you start. Set it up once with an authenticator app on your phone, such as Google Authenticator or Microsoft Authenticator.",
       "savedContinue": "I saved the codes, start working",
       "signOut": "Sign out",
       "signOutDevice": "Sign out this device",
+      "signOutNoAnswer": "Not signed out. Check your connection, then press Sign out again.",
+      "signOutRefused": "Not signed out. Reload this page, then press Sign out again.",
+      "signedOut": "Your session has ended. Reload this page, sign in again, then start the setup again.",
       "signedOutDevice": "That device is signed out",
       "start": "Start authenticator setup",
       "starting": "Preparing",
@@ -1635,7 +1646,10 @@
     "twoFactor": {
       "backupCode": "Backup code",
       "backupHint": "Each backup code works once.",
+      "backupRequired": "Enter one of your backup codes.",
       "code": "6-digit code from the app",
+      "codeFormat": "The code from the app is 6 digits. Enter all 6 digits.",
+      "codeRequired": "Enter the 6-digit code from the authenticator app.",
       "expired": "The verification step timed out. Sign in with your password again.",
       "intro": "Open the authenticator app on your phone and enter the 6-digit BCS code.",
       "invalid": "The code is wrong or has expired. Enter the latest code from the app.",
@@ -1672,7 +1686,7 @@
       "FORBIDDEN": "The reminder was not sent: this account may no longer remind about this document. If it should, ask your organization admin to check its roles.",
       "INTERNAL": "Something went wrong and the reminder was not sent. Try again; if it still fails, tell your admin the reference {requestId}.",
       "NOT_FOUND": "This task is no longer within your scope; it may have been decided or moved. Press See the latest figures to update the list.",
-      "READ_ONLY": "The reminder was not sent: you see this document as the auditor, who only reads.",
+      "READ_ONLY": "The reminder was not sent: you now see this document as the auditor, who only reads. Press See the latest figures to update the list; if it should be sent, ask your organization admin to check this account's roles.",
       "RECENT": "The reminder was not sent: someone reminded this document within the last hour. It can be sent again after {time}.",
       "STATE": "The reminder was not sent: this document no longer waits for a decision (it was decided or waits for the requester). Press See the latest figures to update the list.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and retry."
@@ -1703,6 +1717,10 @@
     "remind": {
       "button": "Remind {name}",
       "buttonFull": "Remind {name} about {document}",
+      "confirm": "Confirm reminding {name}",
+      "confirmFull": "Confirm reminding {name} about {document}",
+      "confirmText": "Remind {name} about {document} now? {name} is notified at once, a reminder cannot be called back, and this document can be reminded again after 1 hour.",
+      "keep": "Do not remind yet",
       "readOnly": "Documents without a reminder button are ones you see as the auditor, who only reads and cannot send reminders.",
       "recent": "Reminded within the hour; it can be sent again after {time}",
       "rule": "A document can be reminded by hand once an hour, whoever sends it. Documents waiting for the requester's answer do not need the approver reminded yet.",
@@ -2081,6 +2099,8 @@
       "badge": "Running low · {left}% left",
       "hint": "These lines have less than {pct}% of their planned amount left. Open the documents using them to decide whether to add budget or hold new requests.",
       "item": "{code} {name} · {left}% left",
+      "itemOut": "{code} {name} · used up: {amount} baht left",
+      "out": "Used up: {amount} baht left",
       "title": "{count, plural, one {# budget line} other {# budget lines}} running low"
     },
     "poStatus": {
@@ -2133,7 +2153,7 @@
     "year": {
       "current": "Show the current fiscal year",
       "label": "Fiscal year shown",
-      "notFound": "That fiscal year was not found. Show the current one or choose a fiscal year from the list.",
+      "notFound": "That fiscal year was not found; the link may be old or incomplete. Select \"Show the current fiscal year\" below; if the organization has more than one fiscal year, choose another in \"Fiscal year shown\" there.",
       "submit": "Show the chosen fiscal year"
     },
     "yearLine": "Fiscal year {code} ({from} to {to}) · {scope}"
@@ -2598,6 +2618,11 @@
     "myTasks": "Waiting for your decision",
     "myTasksAll": "See all tasks waiting for approval ({count})",
     "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
+    "po": {
+      "approved": "{count, plural, one {# approved PO waits} other {# approved POs wait}} to be sent to the supplier",
+      "drafts": "{count, plural, one {# draft PO waits} other {# draft POs wait}} to be checked and sent for approval",
+      "list": "Purchase orders waiting for procurement"
+    },
     "pool": {
       "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet",
       "list": "Requests to purchase",
@@ -2726,10 +2751,10 @@
         "target": "0"
       },
       "g5": {
-        "byKind": "Decisions on LINE or LIFF: {kind}",
-        "byKindFormula": "Decisions on {kind} made in LINE chat or in LIFF ÷ all decisions on {kind} in the period",
-        "formula": "Decisions made in LINE chat or in LIFF ÷ all decisions in the period, in all and per kind of document",
-        "name": "Decisions on LINE or LIFF",
+        "byKind": "Decisions in LINE: {kind}",
+        "byKindFormula": "Decisions on {kind} made in LINE chat or on a screen in LINE ÷ all decisions on {kind} in the period",
+        "formula": "Decisions made in LINE chat or on a screen in LINE ÷ all decisions in the period, in all and per kind of document",
+        "name": "Decisions in LINE",
         "target": "At least 60%"
       }
     },
@@ -2973,11 +2998,11 @@
       "barLabel": "Go to the next step or send the request",
       "camera": {
         "added": "Photo {name} attached",
-        "hint": "Opens the phone camera. The photo is made smaller in the phone before it is sent, and is attached to the request as a photo",
+        "hint": "Opens the camera on a phone, or lets you choose an image file on a computer. The photo is made smaller on your device before it is sent, and is attached to the request as a photo",
         "preparing": "Getting the photo ready",
         "sending": "Sending the photo {name}",
-        "take": "Take a photo for the request",
-        "takeMore": "Take another photo",
+        "take": "Attach a photo",
+        "takeMore": "Attach another photo",
         "unreadable": "This photo could not be opened. Take it again or choose another one"
       },
       "documentsLoading": "Opening the documents",
@@ -3409,6 +3434,7 @@
         "needLines": "Tick the lines you want first",
         "needSupplier": "Choose a supplier first",
         "nothing": "No line selected yet. Tick the lines you want first.",
+        "nothingToClear": "The selected lines have no supplier, so there is none to remove. To give them one, choose it in the list and press \"Use this supplier for the selected lines\".",
         "selected": "{count} lines selected",
         "submit": "Use this supplier for the selected lines",
         "supplier": "Supplier for the selected lines",
@@ -3430,7 +3456,7 @@
         "BUSY": "Someone is working on these requests right now. Wait a moment and try again.",
         "CONFLICT": "This was already sent with different data. Reload the page and try again.",
         "FAILED": "Not saved. Try again, or contact your administrator.",
-        "FORBIDDEN": "Only procurement chooses suppliers and makes draft POs.",
+        "FORBIDDEN": "This account can no longer choose suppliers or make draft POs; its rights may have just changed. Reload the page to see them, and if you still need to do this, ask your organization admin to check the account's roles.",
         "INTERNAL": "Not saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
         "LINE_NOT_IN_POOL": "Some lines are no longer in the pool; they may be on a draft PO already. Reload the page to see the latest list.",
         "NOT_FOUND": "Some lines were not found. Reload the page to see the latest list.",
@@ -3567,7 +3593,7 @@
         "confirmTick": "I understand a closed PO cannot be opened again",
         "done": "The PO was closed",
         "hint": "Everything came. Closing gives back what is held beyond what was received; what was received and not yet invoiced stays held for the invoice.",
-        "needsShortfall": "Some lines did not come in full. It closes once they come, or once a shortfall variance is approved.",
+        "needsShortfall": "Some lines did not come in full. It closes once they come; if the rest will not come, ask to close the purchase order short on its receiving page, and close it once that is approved.",
         "title": "Close the PO"
       },
       "confirmMissing": "Tick to confirm first, because this cannot be undone",
@@ -3589,9 +3615,12 @@
         "quantity": "Quantity ({uom})",
         "remove": "Take this line off, back to the procurement pool",
         "removeHint": "The request line goes back to the pool with its supplier. A draft keeps at least one line.",
+        "removeLine": "Take line {no} off",
+        "removed": "Line {no} taken off; its request line is back in the procurement pool with the same supplier",
         "saveLine": "Save line {no}",
         "saveTerms": "Save terms and note",
-        "saved": "Draft saved; the amounts were computed again",
+        "savedLine": "Line {no} saved; the amounts were computed again",
+        "savedTerms": "Terms and note saved",
         "termDays": "Credit (days)",
         "termHint": "Leave empty when there is none; 0 means cash on delivery; at most {max, number} days",
         "termsTitle": "Terms and note to the supplier",
@@ -3600,6 +3629,7 @@
       "nothing": "Nothing is left to do on this purchase order.",
       "nothingWhileApproval": "The purchase order waits for its approver; there is nothing to do meanwhile",
       "reasonMissing": "Type a reason of at least 3 characters",
+      "receivingLink": "Open the receiving page of {label}",
       "resend": {
         "button": "Send the PO again",
         "hint": "For example the supplier asked for it again, or the last e-mail bounced. The supplier gets the latest PDF, marked as sent again.",
@@ -3625,11 +3655,14 @@
       "submit": {
         "blocked": {
           "APPROVER_NOT_FOUND": "The approver of the DOA was not found, so it cannot be sent for approval. Ask your organization's administrator to check the position holders.",
+          "DOA_AMBIGUOUS": "More than one rule of the DOA applies to this purchase order, so it cannot be sent for approval. Ask your organization's administrator to correct the DOA.",
           "DOA_NOT_CONFIGURED": "No DOA covers purchase orders, so it cannot be sent for approval. Contact your organization's administrator.",
           "NO_HIGHER_AUTHORITY": "Every approver of the DOA is involved in this document, so it cannot be sent for approval. Contact your organization's administrator.",
           "NO_LINES": "This draft has no lines, so it cannot be sent for approval.",
+          "SOD_VIOLATION": "The approver of the DOA is involved in this purchase order (made or sent it, or asked for one of its source requests), and this DOA version does not pass it to a higher authority, so it cannot be sent for approval. Ask your organization's administrator to check the DOA.",
           "TAX_RATE_NOT_CONFIGURED": "No VAT rate covers today, so it cannot be sent for approval. Contact your administrator.",
-          "other": "It cannot be sent for approval now ({code}). Contact your organization's administrator."
+          "ZERO_AMOUNT": "The draft totals 0.00 baht. Enter the unit prices under “Edit the draft”, then send it for approval.",
+          "other": "The DOA finds no approver for this purchase order, so it cannot be sent for approval. Contact your organization's administrator."
         },
         "button": "Send for approval",
         "done": "Sent for approval",
@@ -3721,24 +3754,24 @@
       "EMAIL_SERVICE": "The e-mail service could not be reached, so the PO was not sent. Try again in a moment.",
       "FAILED": "Not saved. Try again, or contact your administrator.",
       "FORBIDDEN": "You cannot do this to a purchase order; it is procurement's work.",
-      "GR_POSTED": "Goods were received on it already, so the PO cannot be cancelled.",
+      "GR_POSTED": "Goods were received on this purchase order already, so the PO cannot be cancelled. If what is still to come will not come, ask to close the purchase order short on its receiving page.",
       "INTERNAL": "Not saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
       "LINE": "Some lines are no longer on this draft. Reload the page.",
       "LINES": "A price or a quantity is not valid: prices take at most 2 decimals and quantities at most 4. Correct them and save again.",
-      "MERGED_LINE": "A line that orders several request lines cannot change its quantity",
+      "MERGED_LINE": "A line that orders several request lines cannot change its quantity, only its price. To order another quantity, take this line off, back to the procurement pool, then press “Make draft POs now” in the pool: the new draft has one line per request line, so its quantities can change.",
       "NOTE": "The note to the supplier is longer than {noteMax, number} characters. Shorten it and save again.",
       "NOT_FOUND": "This purchase order was not found. Reload the page.",
       "NO_CHANGE": "Nothing changed. Change a price, a quantity, the terms or the note before saving.",
       "NO_HIGHER_AUTHORITY": "Every approver of the DOA is involved in this document. Contact your organization's administrator.",
       "NO_LINES": "A draft keeps at least one line",
-      "NO_SOURCE_REQUEST": "Every line must come from an approved request, so it cannot be sent for approval.",
+      "NO_SOURCE_REQUEST": "Every line must come from an approved request, but some lines of this draft have no source request (under “Lines” they show no “From request”), so it cannot be sent for approval. Take those lines off under “Edit the draft”, then send it for approval again.",
       "PAYMENT_DAYS": "The credit days must be a whole number from 0 to {max, number}. Correct it and save again.",
       "QUANTITY": "Type a quantity above 0",
       "QUANTITY_OVER_REQUEST": "More than the request has left ({left} left). Lower the quantity and save again.",
       "REASON": "Type a reason of at least 3 characters",
-      "SHORT_NOT_APPROVED": "Some lines did not come in full. It closes once they come, or once a shortfall variance is approved.",
+      "SHORT_NOT_APPROVED": "Some lines did not come in full. It closes once they come; if the rest will not come, ask to close the purchase order short on its receiving page, and close it once that is approved.",
       "STATE": "This purchase order changed status already. Reload the page to see where it is now.",
-      "SUPPLIER_INACTIVE": "This supplier is inactive, so the PO cannot be sent for approval.",
+      "SUPPLIER_INACTIVE": "This supplier is inactive, so the PO cannot be sent for approval. Activate the supplier in the supplier register first, then come back to send it.",
       "TAX_RATE": "No VAT rate covers today. Contact your administrator.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and try once more."
     },
@@ -3917,7 +3950,7 @@
     "offlineBody": "BCS needs a connection to show your work. Document data is never kept on this device. Connect to the internet and try again.",
     "offlineTitle": "No internet connection",
     "retry": "Try again",
-    "updateLater": "Later",
+    "updateLater": "Load it later",
     "updateNow": "Load the new version",
     "updateReady": "A new version of BCS is ready. Save what you are typing before you load it."
   },
@@ -3974,6 +4007,7 @@
       "BUDGET_INSUFFICIENT_PLAIN": "There is not enough budget for what came above the order. Receive less, or tell the budget administrator.",
       "BUDGET_LINE_CLOSED": "The budget line of this item is closed. Tell the budget administrator.",
       "BUSY": "Someone else is recording on this purchase order. Wait a moment and try again.",
+      "CHECK_FAILED": "The check did not go through, and nothing has been recorded yet. Check your connection and press Check before recording again.",
       "CLOSE_SHORT_PENDING": "A request to close this purchase order already waits for approval. Wait for its result.",
       "CONFIRM": "Tick to confirm first, because this cannot be undone",
       "CONFLICT": "This was already sent with other details. Open the page again and try again.",
@@ -3988,6 +4022,7 @@
       "NOTHING_RECEIVED": "Enter what came for at least one line.",
       "NOTHING_SHORT": "Every line came in full; there is nothing to close short.",
       "NOT_FOUND": "This purchase order was not found; it may be gone or you may not see it.",
+      "NO_ANSWER": "No answer came back, so it is not certain it was recorded. Check your connection and press the same button again without changing anything; it is not recorded twice.",
       "NO_APPROVER": "The DOA names no approver for receiving differences yet. Choose to return instead, or tell your organization administrator.",
       "PHOTO": "Only pictures (JPG, PNG, HEIC) you took or uploaded on this page and not attached to anything else can be used. Remove that file and take the photo again.",
       "PHOTO_REQUIRED": "Some goods are damaged: take at least one photo before recording.",
@@ -4187,6 +4222,7 @@
       "checksum": "File checksum (SHA-256): {checksum}",
       "csv": "Export to CSV",
       "done": "{count, plural, one {Exported # row} other {Exported # rows}}; the download has started.",
+      "doneNotOpened": "{count, plural, one {Exported # row} other {Exported # rows}}.",
       "errors": {
         "BUSY": "The system is busy. Wait a moment and try again.",
         "CONFLICT": "This press clashed with another command. Reload the page and try again.",
@@ -4218,14 +4254,14 @@
     "kpiLink": "Open the KPI page for this period",
     "measures": {
       "DECISIONS_NOT_BY_DOA": "Approvals not by the DOA",
-      "DECISIONS_ON_LINE_ALL": "Decisions on LINE or LIFF, all kinds of document",
+      "DECISIONS_ON_LINE_ALL": "Decisions in LINE, all kinds of document",
       "DECISIONS_WITH_DOA_REFERENCE": "Decisions citing the DOA version and rule",
       "MEDIAN_DECISION_HOURS": "Median decision time per step",
       "MEDIAN_SUBMIT_TO_FIRST_PO_HOURS": "Median time from request to first approved PO",
       "PO_APPROVED_OVER_ACCOUNTING_PURCHASES": "POs approved ÷ purchase documents in the accounting system",
       "TASKS_ON_FAILED_BUDGET_CHECK": "Approval tasks of requests that failed the budget check",
       "TASKS_PAST_DUE": "Steps past due (SLA)",
-      "decisionsOnLineOf": "Decisions on LINE or LIFF: {kind}"
+      "decisionsOnLineOf": "Decisions in LINE: {kind}"
     },
     "params": {
       "from": "From",
@@ -4298,7 +4334,7 @@
       "clear": "Clear the search and see every type",
       "continue": "Continue: {title}",
       "draftLine": "{type} · {status} · last changed {time}",
-      "draftsEmpty": "No drafts yet. Once you start a request it is saved as a draft by itself, and you can go on with it here from any device",
+      "draftsEmpty": "No drafts or returned requests yet. Once you start a request it is saved as a draft by itself, and you can go on with it here from any device",
       "draftsTitle": "Your drafts and returned requests",
       "found": "{count, plural, one {# type matches} other {# types match}} your search",
       "intro": "Choose the type of request that fits what you need; the form then asks only what that type needs",
@@ -4402,6 +4438,8 @@
       "SITE_UNKNOWN": "The delivery site you chose is no longer in use. Choose another one in Items",
       "SOD_VIOLATION": "It cannot be sent because the DOA names you as its approver. Contact your organization's administrator",
       "STATE": "This request was sent or cancelled, so this cannot be done",
+      "STATE_CANCELLED": "This request was cancelled, so this cannot be done. Open the request to see its history",
+      "STATE_SENT": "This request was already sent, so this cannot be done. Open the request to see where it stands",
       "SUPPLIER_UNKNOWN": "The suggested supplier is no longer in use. Choose another supplier or none in Quotations and documents",
       "TAX_RATE_NOT_CONFIGURED": "There is no VAT rate for {date}. Contact the platform administrator",
       "TOO_LARGE": "This draft is too large to save. Remove some items or shorten very long texts, then try again",
@@ -4418,7 +4456,7 @@
       "choose": "Choose",
       "dateChosen": "Chosen: {date}",
       "missing": "Answer this before sending",
-      "moneyHint": "An amount in baht, for example 1500 or 1500.50",
+      "moneyHint": "An amount in baht, for example 1500 or 1,500.50",
       "required": "required",
       "unsupported": "This field cannot be filled in on this form yet. Contact your organization's administrator"
     },
@@ -4547,6 +4585,12 @@
       "problemsTitle": "Check before sending",
       "ready": "Everything this page can check is complete. You can send it",
       "saveClosed": "This request was already sent or cancelled elsewhere, so it cannot be sent from this page",
+      "saveClosedBy": {
+        "CANCELLED": "This request was already cancelled elsewhere, so it cannot be sent from this page",
+        "FORBIDDEN": "This account can no longer change this request, so it cannot be sent from this page",
+        "NOT_FOUND": "This request is no longer found, so it cannot be sent from this page",
+        "SENT": "This request was already sent elsewhere, so it cannot be sent from this page"
+      },
       "saveConflict": "This draft was changed elsewhere. Load the latest version and check it again before sending",
       "site": "Delivery site",
       "summary": "Request summary",
@@ -4661,6 +4705,12 @@
       "afterSupplier": "Once sent, the request gets its number and procurement is told",
       "blockedBudget": "It cannot be sent because the budget is not enough: {available} baht left, {shortfall} baht short. Lower the amount or choose another budget line",
       "blockedClosed": "It cannot be sent because this request was already sent or cancelled elsewhere",
+      "blockedClosedBy": {
+        "CANCELLED": "It cannot be sent because this request was already cancelled elsewhere",
+        "FORBIDDEN": "It cannot be sent because this account can no longer change this request",
+        "NOT_FOUND": "It cannot be sent because this request is no longer found",
+        "SENT": "It cannot be sent because this request was already sent elsewhere"
+      },
       "blockedProblems": "It cannot be sent until the points marked fix before sending above are fixed",
       "blockedSave": "It cannot be sent until you load the latest version of the draft",
       "resubmit": "Send for approval again",
@@ -4707,9 +4757,7 @@
       "draftTitle": "This request is still a draft",
       "edit": "Edit the request",
       "editDraft": "Edit the draft and send it for approval",
-      "resubmit": "Send for approval again",
-      "resubmitHint": "Edit the request, then send it again. The approval route is worked out again under the DOA in effect at that time.",
-      "resubmitted": "Sent for approval again",
+      "resubmitHint": "Press Edit the request, then check the budget left, the new approval route and the documents to attach on its Check and send step before you press Send for approval again.",
       "returnedReason": "Reason: {reason}",
       "returnedTitle": "The approver returned it for changes",
       "title": "What to do",
@@ -4788,10 +4836,11 @@
       "CONFLICT": "This was already sent with different details. Reload the page and try again.",
       "DOA_NOT_CONFIGURED": "No DOA is in effect for this request. Contact your administrator.",
       "FAILED": "It could not be saved. Try again, or tell your administrator.",
-      "FORBIDDEN": "Only the requester can do this",
+      "FORBIDDEN": "You cannot do this: the signed-in account is not this request's requester or no longer has this right. Reload the page to see your current rights; if you still cannot, ask your organization's administrator to check your account's roles.",
       "FORM": "The request is not complete. Complete it on the edit page, then send again.",
       "INTERNAL": "It could not be saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
       "NOT_FOUND": "This request or question is no longer there. Reload the page.",
+      "NO_ANSWER": "No answer came back, perhaps because of the connection. Check it and press the same button again; it is done only once.",
       "NO_HIGHER_AUTHORITY": "The DOA has nobody above the requester for this amount. Contact your administrator.",
       "REASON": "Give a reason of at least 3 characters",
       "STATE": "This request is no longer in a state that allows this. Reload the page to see its latest status.",
@@ -4934,6 +4983,7 @@
       "APPROVER": "Waiting for {name} to approve",
       "CLOSED": "Closed",
       "DELIVERY": "Ordered, waiting for delivery",
+      "DELIVERY_SUPPLIERS": "Ordered, waiting for {suppliers} to deliver",
       "DRAFT": "Not sent yet. Edit it and send it when ready",
       "PROCUREMENT": "Waiting for procurement to issue a purchase order",
       "QUEUE": "Waiting for procurement to add this supplier",
@@ -5006,8 +5056,8 @@
       "due": "Due {time}",
       "hours": "Waiting {hours} business hours",
       "minutes": "Waiting {minutes} business minutes",
-      "notStarted": "Business hours have not started counting yet",
-      "overdue": "Overdue, it was due {time}"
+      "overdue": "Overdue, it was due {time}",
+      "underMinute": "Waiting under 1 business minute"
     }
   },
   "shell": {
@@ -5446,7 +5496,9 @@
     },
     "empty": "Nothing is waiting for your approval",
     "emptyHint": "Requests sent to you appear here and in the notification bell. Meanwhile you can follow your own requests.",
+    "emptyHintNoRequests": "Requests sent to you appear here and in the notification bell.",
     "emptyLink": "Go to my requests",
+    "emptyStart": "Start a purchase or hiring request",
     "errors": {
       "APPROVER_NOT_FOUND": "No approver was found for the next step. Ask your administrator to check who holds the positions in the DOA.",
       "BOUNDARY_NOT_CONFIRMED": "Tick that you checked the boundary table before approving",
@@ -5454,13 +5506,13 @@
       "BUDGET": "The budget line does not have enough for this approval, so it cannot be approved yet. Ask the budget administrator for more budget, or reject it with a reason.",
       "BUDGET_LINE_CLOSED": "This document's budget line is closed or frozen, so it cannot be approved yet. Contact the budget administrator, or reject it with a reason.",
       "BUSY": "Someone is working on this task right now. Wait a moment and try again.",
-      "CHANNEL": "Policy changes can be decided on the web or LIFF only",
+      "CHANNEL": "Policy changes can be decided on the web or on a screen in LINE only",
       "CHOICE": "Choose whether to return it for changes or reject it",
       "CONFIRM": "Tick the box first, because the decision cannot be changed later",
       "CONFLICT": "This was already sent with different details. Reload the page and try again.",
       "DECIDED": "Already decided by {name} {time}",
       "FAILED": "It could not be saved. Try again, or tell your administrator.",
-      "FORBIDDEN": "You are not the person this task was sent to, so you cannot decide it",
+      "FORBIDDEN": "You are not the person this task was sent to, so you cannot decide it. Reload the page to see where the task is now; if it should be yours, contact your administrator.",
       "INTERNAL": "It could not be saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
       "LATER_VERSION": "A DOA version approved earlier starts after this one, so this one cannot be approved. Contact your administrator.",
       "NOT_FOUND": "This task is no longer there. It may have moved or been cancelled. Reload the page.",
@@ -5704,11 +5756,11 @@
   },
   "timeline": {
     "channel": {
-      "API": "API",
+      "API": "Connected system",
       "EMAIL": "Email",
-      "LIFF": "LINE (LIFF)",
+      "LIFF": "Screen in LINE",
       "LINE_CHAT": "LINE chat",
-      "MCP": "MCP",
+      "MCP": "Connected AI assistant",
       "PORTAL": "Supplier portal",
       "PWA": "BCS Go app",
       "SYSTEM": "Automated",

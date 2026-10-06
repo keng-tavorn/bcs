@@ -28,10 +28,14 @@ export interface AmountRow {
   readonly total?: boolean
 }
 
-/** Money right-aligned with tabular digits (§9.9 principle 6); the unit heads the column and is read with each amount */
+/**
+ * Money right-aligned with tabular digits (§9.9 principle 6); the unit heads the column and is read with each amount. At
+ * most 28rem wide in the workspace; on a LIFF page as wide as its one column (liff-type sets --amounts-max-width), so
+ * its figures end at the column's right edge with those of the lines and quotations.
+ */
 export function Amounts({ rows, heading, unit }: { rows: readonly AmountRow[]; heading: string; unit: string }) {
   return (
-    <div className="flex w-full max-w-md flex-col">
+    <div className="flex w-full max-w-[var(--amounts-max-width,28rem)] flex-col">
       <p className="pb-1 text-right text-base text-ink-muted md:text-sm" aria-hidden="true">
         {heading}
       </p>

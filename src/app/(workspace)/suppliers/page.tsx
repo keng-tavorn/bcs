@@ -117,7 +117,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
           {full ? (
             <div className="flex flex-col gap-1.5 md:pt-8">
               <label className="flex min-h-11 items-center gap-3">
-                <input type="checkbox" name="missing" value="1" defaultChecked={missing} className="size-5 shrink-0 accent-[var(--primary)]" />
+                <input type="checkbox" name="missing" value="1" defaultChecked={missing} className="size-5 shrink-0" />
                 <span>{t('list.filter.missingExpress')}</span>
               </label>
             </div>

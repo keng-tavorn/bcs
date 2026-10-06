@@ -77,7 +77,7 @@ export function PoLines({ lines, labels }: { lines: readonly PoLineView[]; label
                   ),
                 )}
                 {line.notes.map((note) => (
-                  <p key={note} className="text-base text-ink-muted md:@min-[37rem]:text-sm">
+                  <p key={note} className="text-ink-muted">
                     {note}
                   </p>
                 ))}
@@ -86,19 +86,24 @@ export function PoLines({ lines, labels }: { lines: readonly PoLineView[]; label
               <Figure label={labels.unitPrice} value={line.unitPrice} />
               <Figure label={labels.amount} value={line.amount} strong />
             </div>
+            {/* The prices paid before, which the approver reads before deciding: content at the body's size (§9.9, 15 px on
+                the web), under their 14 px label — a label shown only above prices, since "never bought" says it all
+                by itself (§9.9: no label that adds nothing) */}
             {line.prices ? (
               <div className="flex flex-col gap-1 border-l-2 border-line pl-3">
-                <p className="text-base text-ink-muted md:@min-[37rem]:text-sm">{line.prices.title}</p>
                 {line.prices.entries.length ? (
-                  <ul className="flex flex-col">
-                    {line.prices.entries.map((entry) => (
-                      <li key={entry} className="tabular text-base text-ink md:@min-[37rem]:text-sm">
-                        {entry}
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <p className="text-base text-ink-muted md:@min-[37rem]:text-sm">{line.prices.title}</p>
+                    <ul className="flex flex-col">
+                      {line.prices.entries.map((entry) => (
+                        <li key={entry} className="tabular text-ink">
+                          {entry}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
                 ) : line.prices.none ? (
-                  <p className="text-base text-ink md:@min-[37rem]:text-sm">{line.prices.none}</p>
+                  <p className="text-ink">{line.prices.none}</p>
                 ) : null}
                 {line.prices.alert ? (
                   <p className="inline-flex items-start gap-1.5 font-medium text-danger">
@@ -106,7 +111,7 @@ export function PoLines({ lines, labels }: { lines: readonly PoLineView[]; label
                     <span>{line.prices.alert}</span>
                   </p>
                 ) : line.prices.ok ? (
-                  <p className="inline-flex items-start gap-1.5 text-base text-ink md:@min-[37rem]:text-sm">
+                  <p className="inline-flex items-start gap-1.5 text-ink">
                     <CircleCheck className="mt-[0.3em] size-4 shrink-0 text-primary" aria-hidden="true" />
                     <span>{line.prices.ok}</span>
                   </p>

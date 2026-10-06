@@ -1,4 +1,4 @@
-import { Ban, CircleCheck, CircleMinus, CircleSlash, CircleX, Clock, FilePen, Lock, PackageCheck, PauseCircle, Send, TriangleAlert, Undo2, type LucideIcon } from 'lucide-react'
+import { Ban, CircleAlert, CircleCheck, CircleMinus, CircleSlash, CircleX, Clock, FilePen, Lock, PackageCheck, PauseCircle, Send, TriangleAlert, Undo2, type LucideIcon } from 'lucide-react'
 import { cn } from '../cn'
 
 // States of the budget screens as an icon and words, never colour alone (NFR-A11Y-03). Labels arrive translated.
@@ -12,9 +12,16 @@ function Badge({ Icon, tone, label, className }: { Icon: LucideIcon; tone: strin
   )
 }
 
-/** Below digest.budgetLowPct: "ใกล้หมด เหลือ 8.3%" */
-export function LowBadge({ label, className }: { label: string; className?: string }) {
-  return <Badge Icon={TriangleAlert} tone="text-warn" label={label} className={cn('font-medium text-ink', className)} />
+/**
+ * Below digest.budgetLowPct: "ใกล้หมด เหลือ 8.3%", in the warning colour; nothing left (`out`): "งบหมด เหลือ 0.00 บาท",
+ * in the danger colour the token table gives to งบไม่พอ (§9.9)
+ */
+export function LowBadge({ label, out, className }: { label: string; out?: boolean; className?: string }) {
+  return out ? (
+    <Badge Icon={CircleAlert} tone="text-danger" label={label} className={cn('font-medium text-ink', className)} />
+  ) : (
+    <Badge Icon={TriangleAlert} tone="text-warn" label={label} className={cn('font-medium text-ink', className)} />
+  )
 }
 
 /** A line that takes no new reservation (FROZEN) or is closed; an open line shows nothing */

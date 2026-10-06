@@ -7,37 +7,17 @@ import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
-import { authClient, errorStatus, failedToAnswer, settled } from './client'
+import { signInRefusal } from './answers'
+import { authClient, settled } from './client'
 import { useLockMessage } from './lock-message'
-
-const LOCKED_STATUS = 429
-const BAD_REQUEST_STATUS = 400
-/** Better Auth's answer to an e-mail it cannot read as one (z.email(), an empty one included) */
-const INVALID_EMAIL = 'INVALID_EMAIL'
 
 // The web sign-in's first step (FR-AUTH-001): the e-mail and the password, sent by the page's script to Better Auth.
 // Nothing is sent before the script runs: the form posts and its button waits for hydration (src/ui/form/hydrated.ts),
 // so a password typed into the server's HTML on a slow phone never goes into the page's address, the browser's history,
 // a request log or a Referer header (NFR-SEC-09). The fields take typing meanwhile; React keeps what was typed.
 // What went wrong is said where it is (§9.9 rule 7): an empty field or an e-mail the server cannot read on that field,
-// which takes the focus; a refusal or a request that got no answer in one message above the fields.
-
-/** How the form words a first step that did not sign in */
-export type SignInRefusal = 'emailInvalid' | 'locked' | 'invalid' | 'failed'
-
-/**
- * Why the first step did not sign in, from Better Auth's answer: no answer or a server failure (check the connection
- * and send again), a lock (its own words, lock-message.ts), an address that is not an e-mail (on the e-mail field), or
- * anything else the server refused — a wrong e-mail or password, a password too long to be anyone's — without saying
- * which part was wrong (FR-AUTH-001 AC3)
- */
-export function signInRefusal(failure: { status?: number; code?: string }): SignInRefusal {
-  if (failedToAnswer(failure)) return 'failed'
-  const status = errorStatus(failure)
-  if (status === LOCKED_STATUS) return 'locked'
-  if (status === BAD_REQUEST_STATUS && failure.code === INVALID_EMAIL) return 'emailInvalid'
-  return 'invalid'
-}
+// which takes the focus; a refusal or a request that got no answer in one message above the fields. What each answer
+// means (signInRefusal) is ./answers.ts, which the sign-in inside LIFF reads too.
 
 type FieldErrors = { readonly email?: string; readonly password?: string }
 
@@ -75,7 +55,7 @@ export function LoginForm({ sessionEnded = false, next = null }: { sessionEnded?
       setPending(false)
       const refusal = signInRefusal(failure)
       if (refusal === 'emailInvalid') setFieldErrors({ email: t('emailInvalid') })
-      else setError(refusal === 'locked' ? lockMessage(failure) : refusal === 'invalid' ? t('invalid') : t('failed'))
+      else setError(refusal === 'locked' ? lockMessage(failure) : refusal === 'invalid' ? t('invalid') : refusal === 'serverFailed' ? t('serverFailed') : t('failed'))
       return
     }
     if (data && 'twoFactorRedirect' in data && data.twoFactorRedirect) {

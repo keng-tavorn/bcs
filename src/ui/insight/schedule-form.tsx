@@ -71,7 +71,6 @@ export function ScheduleForm({ reports, recipients, schedule }: ScheduleFormProp
     }
   }
 
-  const radio = 'size-5 accent-[var(--primary)]'
   return (
     <form onSubmit={(e) => void onSubmit(e)} className="flex max-w-2xl flex-col gap-5" noValidate>
       {reports.length > 1 ? (
@@ -95,7 +94,7 @@ export function ScheduleForm({ reports, recipients, schedule }: ScheduleFormProp
         <legend className="mb-1 font-medium text-ink">{t('cadence')}</legend>
         {CADENCES.map((c) => (
           <label key={c} className="inline-flex min-h-11 items-center gap-3">
-            <input type="radio" name="cadence" value={c} checked={cadence === c} onChange={() => setCadence(c)} className={radio} />
+            <input type="radio" name="cadence" value={c} checked={cadence === c} onChange={() => setCadence(c)} className="size-5" />
             <span>{t(`cadences.${c}`)}</span>
           </label>
         ))}
@@ -105,7 +104,7 @@ export function ScheduleForm({ reports, recipients, schedule }: ScheduleFormProp
         <legend className="mb-1 font-medium text-ink">{t('format')}</legend>
         {FORMATS.map((f) => (
           <label key={f} className="inline-flex min-h-11 items-center gap-3">
-            <input type="radio" name="format" value={f} checked={format === f} onChange={() => setFormat(f)} className={radio} />
+            <input type="radio" name="format" value={f} checked={format === f} onChange={() => setFormat(f)} className="size-5" />
             <span>{t(`formats.${f}`)}</span>
           </label>
         ))}
@@ -118,7 +117,7 @@ export function ScheduleForm({ reports, recipients, schedule }: ScheduleFormProp
         </p>
         {recipients.map((r) => (
           <label key={r.id} className="inline-flex min-h-11 items-center gap-3">
-            <input type="checkbox" checked={chosen.has(r.id)} onChange={(e) => toggle(r.id, e.target.checked)} className="size-5 accent-[var(--primary)]" />
+            <input type="checkbox" checked={chosen.has(r.id)} onChange={(e) => toggle(r.id, e.target.checked)} className="size-5" />
             <span>{r.self ? t('you', { name: r.name }) : r.name}</span>
           </label>
         ))}

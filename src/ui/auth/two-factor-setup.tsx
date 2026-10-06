@@ -2,12 +2,13 @@
 
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
-import { authClient, failedToAnswer, settled } from './client'
+import { setupCodeRefusal, setupPasswordRefusal, type SetupRefusal } from './answers'
+import { authClient, settledWithWait } from './client'
 import { QrCode } from './qr-code'
 
 type Step = { kind: 'password' } | { kind: 'scan'; uri: string; secret: string; backupCodes: string[] } | { kind: 'codes'; backupCodes: string[] }
@@ -21,30 +22,65 @@ function manualKey(uri: string): string {
 // Authenticator setup (FR-AUTH-002 AC1–AC2): confirm the password, scan, confirm a code, keep the 10 backup codes. The
 // password and the code are sent by the page's script only. The password step is in the server's HTML (the workspace
 // shows it before any work), so both forms post and their buttons wait for hydration (src/ui/form/hydrated.ts): nothing
-// typed before the script runs goes into the page's address (NFR-SEC-09).
+// typed before the script runs goes into the page's address (NFR-SEC-09). What went wrong is said for what it is (§9.9
+// rule 7, ./answers.ts): an empty password on its field, which takes the focus; above the form, a password or a code the
+// server refused, and apart from them what never reached that check — no answer, too many requests (Better Auth's limit
+// on its two-factor routes, with the seconds to wait it sends), a session that ended, a setup already done elsewhere.
 export function TwoFactorSetup() {
   const t = useTranslations('auth.security')
   const router = useRouter()
   const hydrated = useHydrated()
+  const passwordForm = useRef<HTMLFormElement>(null)
   const [step, setStep] = useState<Step>({ kind: 'password' })
   const [error, setError] = useState<string | null>(null)
+  const [missing, setMissing] = useState<{ readonly password?: string }>({})
   const [pending, setPending] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // An empty password field says so and takes the focus, so a screen reader reads its words with it
+  useEffect(() => {
+    const field = missing.password ? passwordForm.current?.elements.namedItem('password') : null
+    if (field instanceof HTMLInputElement) field.focus()
+  }, [missing])
+
+  /** What happened to a step that did not go through, and what to do (retryAfter: the seconds the server asked to wait) */
+  function refusalText(refusal: SetupRefusal, retryAfter: number | null): string {
+    switch (refusal) {
+      case 'failed':
+        return t('failed')
+      case 'busy':
+        return t('busy', { seconds: retryAfter ?? 0 })
+      case 'signedOut':
+        return t('signedOut')
+      case 'alreadyOn':
+        return t('alreadyOn')
+      case 'wrongPassword':
+        return t('wrongPassword')
+      case 'invalidCode':
+        return t('invalidCode')
+      case 'refused':
+        return t('refused')
+    }
+  }
 
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const password = String(new FormData(event.currentTarget).get('password') ?? '')
-    setPending(true)
     setError(null)
-    const { data, error: failure } = await settled(authClient.twoFactor.enable({ password }))
+    // Nothing is sent without it: an empty password is not a wrong one
+    setMissing(password ? {} : { password: t('passwordRequired') })
+    if (!password) return
+    setPending(true)
+    const { answer, retryAfter } = await settledWithWait((hooks) => authClient.twoFactor.enable({ password }, hooks))
     setPending(false)
-    // No answer, or the server failed: the password was not checked, so it is not called wrong
-    if (failure && failedToAnswer(failure)) {
-      setError(t('failed'))
+    const { data, error: failure } = answer
+    if (failure) {
+      setError(refusalText(setupPasswordRefusal(failure), retryAfter))
       return
     }
-    if (failure || !data || !('totpURI' in data)) {
-      setError(t('wrongPassword'))
+    // An answer without the authenticator's key sets nothing up, and says nothing about the password
+    if (!data || !('totpURI' in data)) {
+      setError(t('refused'))
       return
     }
     setStep({ kind: 'scan', uri: data.totpURI, secret: manualKey(data.totpURI), backupCodes: data.backupCodes })
@@ -56,10 +92,10 @@ export function TwoFactorSetup() {
     const code = String(new FormData(event.currentTarget).get('code') ?? '').trim()
     setPending(true)
     setError(null)
-    const { error: failure } = await settled(authClient.twoFactor.verifyTotp({ code }))
+    const { answer, retryAfter } = await settledWithWait((hooks) => authClient.twoFactor.verifyTotp({ code }, hooks))
     setPending(false)
-    if (failure) {
-      setError(failedToAnswer(failure) ? t('failed') : t('invalidCode'))
+    if (answer.error) {
+      setError(refusalText(setupCodeRefusal(answer.error), retryAfter))
       return
     }
     setStep({ kind: 'codes', backupCodes: step.backupCodes })
@@ -120,10 +156,10 @@ export function TwoFactorSetup() {
   }
 
   return (
-    <form method="post" onSubmit={start} className="flex flex-col gap-5" noValidate>
+    <form ref={passwordForm} method="post" onSubmit={start} className="flex flex-col gap-5" noValidate>
       <h3 className="font-semibold">{t('stepPassword')}</h3>
       {error ? <Notice tone="danger">{error}</Notice> : null}
-      <Field id="setup-password" name="password" type="password" autoComplete="current-password" required label={t('password')} />
+      <Field id="setup-password" name="password" type="password" autoComplete="current-password" required label={t('password')} error={missing.password} />
       <Button type="submit" disabled={pending || !hydrated} className="w-full sm:w-auto">
         {pending ? t('starting') : t('start')}
       </Button>

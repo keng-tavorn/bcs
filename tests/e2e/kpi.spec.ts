@@ -9,7 +9,7 @@ settleNoticesAfterEachTest(test)
 // of document; a CSV of the period for the 60-day review. tests/e2e/insight-scene.ts makes three purchase requests the
 // DM approved in LINE chat, in LIFF and on the web, and counts G-5 from the events the way §11.4 defines it.
 
-const LINE_PR = 'การตัดสินผ่าน LINE หรือ LIFF ของคำขอซื้อ'
+const LINE_PR = 'การตัดสินใน LINE ของคำขอซื้อ'
 
 test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with their formulas and targets — the share of purchase-request decisions on LINE opens the decisions it counts — and no invented baseline while none is recorded', async ({ page }, testInfo) => {
   // a scene of its own (a separate process through the services) and axe on several screens
@@ -24,7 +24,7 @@ test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with 
   await expect(page.getByRole('status').filter({ hasText: 'ยังไม่มีค่าตั้งต้นให้เทียบ' })).toBeVisible()
   await expect(page.getByText('ยังไม่ได้บันทึก', { exact: true }).filter({ visible: true }).first()).toBeVisible()
   for (const goal of ['G-1 · ประตูเดียว', 'G-2 · อนุมัติถูกคน', 'G-3 · เร็วขึ้น', 'G-4 · คุมงบ', 'G-5 · อนุมัติบนมือถือ']) await expect(page.getByText(goal, { exact: true }).filter({ visible: true })).toBeVisible()
-  await expect(page.getByText('การตัดสินที่ทำในแชท LINE หรือใน LIFF ÷ การตัดสินทั้งหมดในช่วงนี้ แสดงทั้งรวมและแยกตามชนิดเอกสาร').filter({ visible: true }).first()).toBeVisible()
+  await expect(page.getByText('การตัดสินในแชท LINE หรือหน้าจอใน LINE ÷ การตัดสินทั้งหมดในช่วงนี้ แสดงทั้งรวมและแยกตามชนิดเอกสาร').filter({ visible: true }).first()).toBeVisible()
   await expect(page.getByText('อย่างน้อย 60%').filter({ visible: true }).first()).toBeVisible()
 
   // G-5 of purchase requests, as the events count it
@@ -33,7 +33,7 @@ test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with 
   await expect(prLink).toBeVisible()
   await expect(prLink).toHaveText(pr)
   const all = `${percent(s.kpi.all.numerator, s.kpi.all.denominator)}%`
-  await expect(page.getByRole('link', { name: `ดูรายการที่นับ: การตัดสินผ่าน LINE หรือ LIFF ${all} (${s.kpi.all.numerator} จาก ${s.kpi.all.denominator} การตัดสิน)` })).toBeVisible()
+  await expect(page.getByRole('link', { name: `ดูรายการที่นับ: การตัดสินใน LINE ${all} (${s.kpi.all.numerator} จาก ${s.kpi.all.denominator} การตัดสิน)` })).toBeVisible()
   await checkScreen(page, testInfo, 'kpi')
 
   // Every number leads to its list: the purchase-request decisions, each counted or not with its channel and DOA rule
@@ -42,7 +42,7 @@ test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with 
   await expect(page.getByRole('heading', { level: 1, name: LINE_PR })).toBeVisible()
   await expect(page.getByText(`นับ ${s.kpi.pr.numerator} จาก ${s.kpi.pr.denominator} รายการ`)).toBeVisible()
   const list = page.getByRole('list', { name: `รายการที่นับใน${LINE_PR}` })
-  const marks = { LINE_CHAT: 'นับ: ตัดสินผ่านช่องทาง แชท LINE', LIFF: 'นับ: ตัดสินผ่านช่องทาง LINE (LIFF)', WEB: 'ไม่นับ: ตัดสินผ่านช่องทาง เว็บ' } as const
+  const marks = { LINE_CHAT: 'นับ: ตัดสินผ่านช่องทาง แชท LINE', LIFF: 'นับ: ตัดสินผ่านช่องทาง หน้าจอใน LINE', WEB: 'ไม่นับ: ตัดสินผ่านช่องทาง เว็บ' } as const
   for (const r of s.requests) {
     const item = list.getByRole('listitem').filter({ hasText: r.number })
     await expect(item.getByRole('link', { name: `คำขอ ${r.number} ${r.title}` })).toHaveAttribute('href', `/requests/${r.id}`)
@@ -53,6 +53,17 @@ test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with 
   await checkScreen(page, testInfo, 'kpi-items')
   await page.getByRole('link', { name: 'กลับไปหน้า KPI' }).click()
   await expect(page).toHaveURL(new RegExp(`/kpi\\?from=${s.kpi.from}&to=${s.kpi.to}$`))
+
+  // A count is a number like the others: G-4's opens its list whatever it is, "0 รายการ" too, and the list says the same
+  // count and shows what it counts or that none is in the period (§9.9: every number opens its list)
+  const g4 = page.getByRole('link', { name: /^ดูรายการที่นับ: คำขอเกินงบที่หลุดถึงผู้อนุมัติ \d+ รายการ$/ })
+  await expect(g4).toHaveAttribute('href', `/kpi/g4?from=${s.kpi.from}&to=${s.kpi.to}`)
+  const count = (await g4.innerText()).trim()
+  expect(count).toMatch(/^\d+ รายการ$/)
+  await g4.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'คำขอเกินงบที่หลุดถึงผู้อนุมัติ' })).toBeVisible()
+  await expect(page.getByText(count, { exact: true }).first()).toBeVisible()
+  await expect(page.getByRole('list', { name: 'รายการที่นับในคำขอเกินงบที่หลุดถึงผู้อนุมัติ' }).or(page.getByText('ไม่มีรายการในช่วงนี้', { exact: true }))).toBeVisible()
 })
 
 test('[FR-VIS-003/AC2] the KPI page is the organization’s: a department head is sent to the report of their departments, a requester is refused', async ({ page }, testInfo) => {
@@ -97,7 +108,7 @@ test('[FR-VIS-003/AC3] the CSV of the 60-day review holds every measure with its
   ])
   expect(rows.find((r) => r[6] === 'DECISIONS_ON_LINE_ALL')).toEqual([
     'G-5',
-    'การตัดสินผ่าน LINE หรือ LIFF ทุกชนิดเอกสาร',
+    'การตัดสินใน LINE ทุกชนิดเอกสาร',
     percent(s.kpi.all.numerator, s.kpi.all.denominator),
     '%',
     String(s.kpi.all.numerator),

@@ -2,7 +2,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH } from '@/lib/constants'
 import { ForgotForm } from '@/ui/auth/forgot-form'
 import { InviteForm } from '@/ui/auth/invite-form'
 import { LoginForm } from '@/ui/auth/login-form'
@@ -48,7 +48,7 @@ const SCREENS: readonly Screen[] = [
   ['/login?next= (back to an e-mailed link after signing in)', (l) => html(<LoginForm next="/tasks/00000000-0000-4000-8000-000000000001" />, l), ['email', 'password'], (m) => m.auth.login.submit],
   ['/login/2fa', (l) => html(<TwoFactorForm />, l), ['code'], (m) => m.auth.twoFactor.submit],
   ['/forgot-password', (l) => html(<ForgotForm />, l), ['email'], (m) => m.auth.forgot.submit],
-  ['/reset-password?token=', (l) => html(<ResetForm token="e2e-not-a-token" min={PASSWORD_MIN_LENGTH} />, l), ['password', 'confirm'], (m) => m.auth.reset.submit],
+  ['/reset-password?token=', (l) => html(<ResetForm token="e2e-not-a-token" min={PASSWORD_MIN_LENGTH} max={PASSWORD_MAX_LENGTH} />, l), ['password', 'confirm'], (m) => m.auth.reset.submit],
   ['/invite/[token]', (l) => html(<InviteForm token="e2e-not-a-token" min={PASSWORD_MIN_LENGTH} accept={never} />, l), ['password', 'confirm'], (m) => m.auth.invite.submit],
   ['the authenticator setup of the workspace', (l) => html(<TwoFactorSetup />, l), ['password'], (m) => m.auth.security.start],
   ['/liff/link (the sign-in inside LIFF)', (l) => html(<LiffSignIn />, l), ['email', 'password'], (m) => m.auth.login.submit],

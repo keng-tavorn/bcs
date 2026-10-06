@@ -75,7 +75,7 @@ export function LiffTextArea({ id, label, hint, className, ...area }: LiffTextAr
 export function LiffRadio({ name, checked, onChange, label, value }: { readonly name: string; readonly checked: boolean; readonly onChange: () => void; readonly label: ReactNode; readonly value?: string }) {
   return (
     <label className="flex min-h-11 items-center gap-3">
-      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} className="size-5 shrink-0 accent-[var(--primary)]" />
+      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} className="size-5 shrink-0" />
       <span>{label}</span>
     </label>
   )

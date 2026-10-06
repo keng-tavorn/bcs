@@ -504,7 +504,7 @@ export function DoaEditor(props: DoaEditorProps) {
       {legend(key, tDetail(`policy.${key}`))}
       {choices.map((c) => (
         <label key={String(c.value)} className="flex min-h-11 items-center gap-3">
-          <input type="radio" name={`${id}-${key}`} checked={value === c.value} onChange={() => set(c.value)} className="size-5 shrink-0 accent-[var(--primary)]" />
+          <input type="radio" name={`${id}-${key}`} checked={value === c.value} onChange={() => set(c.value)} className="size-5 shrink-0" />
           <span>{c.label}</span>
         </label>
       ))}

@@ -77,7 +77,8 @@ function WideTable({ goals, labels }: { goals: readonly KpiGoalView[]; labels: K
       {goals.map((g) => (
         <tbody key={g.code} className="border-b border-line">
           <tr className="bg-surface">
-            <th scope="rowgroup" colSpan={4} className="px-3 py-2 text-left font-semibold">
+            {/* A goal heads its measures a size up (18 px, subheading) as well as a weight up: headings differ by both (§9.9) */}
+            <th scope="rowgroup" colSpan={4} className="subheading px-3 py-2 text-left font-semibold">
               {g.code} · {g.title}
             </th>
           </tr>
@@ -106,7 +107,7 @@ function NarrowList({ goals, labels }: { goals: readonly KpiGoalView[]; labels: 
     <div className="flex flex-col gap-6 lg:hidden">
       {goals.map((g) => (
         <section key={g.code} aria-labelledby={`kpi-goal-${g.code}`} className="flex flex-col gap-2">
-          <h3 id={`kpi-goal-${g.code}`} className="border-y border-line bg-surface px-3 py-2 font-semibold">
+          <h3 id={`kpi-goal-${g.code}`} className="subheading border-y border-line bg-surface px-3 py-2 font-semibold">
             {g.code} · {g.title}
           </h3>
           <ul className="flex flex-col divide-y divide-line border-b border-line">

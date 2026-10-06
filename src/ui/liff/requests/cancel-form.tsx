@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useId, useState, type FormEvent } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
-import { requestErrorKey, type ActionOutcome } from '../../tasks/outcome'
+import { NO_ANSWER, requestErrorKey, type ActionOutcome } from '../../tasks/outcome'
 import { Button } from '../button'
 import { useLiff } from '../liff-provider'
 import { LiffNotice } from '../notice'
@@ -60,7 +60,8 @@ export function LiffCancelForm({
         submission.next()
       }
     } catch {
-      result = { ok: false, code: 'FAILED' }
+      // No answer: the key stays, so pressing again is the same cancellation, done once (spec §4.3)
+      result = NO_ANSWER
     }
     setPending(false)
     setOutcome(result)

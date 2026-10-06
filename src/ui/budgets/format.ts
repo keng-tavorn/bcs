@@ -9,9 +9,6 @@ import { formatSatang } from '@/core/money/format'
 /** { amount: "12345.5" } → "12,345.50" */
 export const moneyText = (m: { readonly amount: string }): string => formatSatang(amountToSatang(m.amount))
 
-/** Nothing in this bucket: its amount leads to no document */
-export const isZero = (m: { readonly amount: string }): boolean => amountToSatang(m.amount) === 0n
-
 const BP_PER_TENTH_PERCENT = 10
 
 const tenthsText = (tenths: number) => `${Math.floor(tenths / 10)}.${tenths % 10}`

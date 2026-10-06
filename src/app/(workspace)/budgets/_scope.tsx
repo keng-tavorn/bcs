@@ -13,7 +13,7 @@ import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../_lib/session'
 import { BudgetDocumentSections } from './_documents'
-import { dayText, figureStrip, localeOf, lowText, nameIn, shareStrip, type BudgetsT } from './_present'
+import { dayText, figureStrip, localeOf, lowText, nameIn, shareStrip, usedUp, type BudgetsT } from './_present'
 
 // The drill-down of the dashboard's added-up rows (spec §11.2, FR-BUD-005 AC2): a department's total (/budgets/
 // departments/[id]) or the total of everything the viewer may see (/budgets/total), in the fiscal year `fy` (or the
@@ -78,7 +78,7 @@ export async function BudgetScopePage({ departmentId, fiscalYearId }: { departme
         {/* The heading names what is added up; the year says which */}
         <p className="text-ink">{t('detail.yearLine', { code: year.code, from: dayText(locale, year.startsOn), to: dayText(locale, year.endsOn) })}</p>
         <p className="text-ink">{d.department ? t('detail.lineCount', { count: d.lineCount }) : t('detail.lineAndDepartmentCount', { lines: d.lineCount, departments: d.departmentCount })}</p>
-        {low ? <LowBadge label={low} /> : null}
+        {low ? <LowBadge label={low} out={usedUp(d.figures)} /> : null}
         <p className="text-ink-muted">{t('asOf', { time: formatDateTime(locale, d.asOf) })}</p>
       </header>
 

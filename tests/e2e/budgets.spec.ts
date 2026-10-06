@@ -213,4 +213,15 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] a department head sees the budgets of th
   await expect(page.getByText('หน้างบประมาณสำหรับหัวหน้าแผนก ฝ่ายบัญชีและการเงิน ผู้ดูแลงบ ผู้บริหาร และผู้ตรวจสอบ', { exact: false })).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'budgets-refused')
+
+  // §9.9 rule 7: the Excel link followed by an account the budget pages are not for (e.g. its role was taken away after
+  // the dashboard loaded) leads back to the dashboard, which says the refusal in words with its way on — never a failed
+  // download the browser names in its own words. A call that is not a navigation still gets the code
+  await page.goto('/budgets/export')
+  await expect(page).toHaveURL(/\/budgets$/)
+  await expect(page.getByText('หน้างบประมาณสำหรับหัวหน้าแผนก ฝ่ายบัญชีและการเงิน ผู้ดูแลงบ ผู้บริหาร และผู้ตรวจสอบ', { exact: false })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'กลับหน้าแรก' })).toBeVisible()
+  const call = await page.request.get('/budgets/export', { maxRedirects: 0 })
+  expect(call.status()).toBe(403)
+  expect(await call.json()).toEqual({ code: 'FORBIDDEN' })
 })

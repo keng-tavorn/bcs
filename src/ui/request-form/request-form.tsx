@@ -27,7 +27,7 @@ import {
   visibleFieldIds,
   type FormAction,
 } from './model'
-import { failureKey, failureTarget, STEP_IDS, toFormFailure, type FormFailure, type FormOutcome, type StepId } from './outcome'
+import { failureKey, failureTarget, STEP_IDS, toFormFailure, type ClosedWhy, type FormFailure, type FormOutcome, type StepId } from './outcome'
 import { failureText, ReviewStep, type SaveStop } from './review-step'
 import { Stepper } from './stepper'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
@@ -52,6 +52,18 @@ export interface RequestFormActions extends UploadActions {
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+
+/**
+ * The notice above a form whose request was closed to it, by what closed it (§9.9 rule 7): the words the edit page says
+ * of a request sent or cancelled, gone, or not this account's; without a status from the server, "sent or cancelled"
+ */
+const CLOSED_NOTICE = {
+  SENT: 'page.sent',
+  CANCELLED: 'page.cancelled',
+  NOT_FOUND: 'errors.NOT_FOUND',
+  FORBIDDEN: 'errors.FORBIDDEN',
+  ELSEWHERE: 'save.closed',
+} as const satisfies Record<ClosedWhy, string>
 
 export function RequestForm({
   data,
@@ -207,8 +219,9 @@ export function RequestForm({
       const id = autosave.id()
       const version = autosave.version()
       if (!saved || !id || version === null) {
-        // Why the save failed is shown above the form (a conflict, a closed request or the connection)
-        setSubmitError(toFormFailure({ code: 'DRAFT_NOT_SAVED' }))
+        // Why the save failed is shown above the form (a conflict, a closed request or the connection). A request closed
+        // to this page cannot be sent from it at all: its notice and the button's reason say so, never "try again"
+        if (autosave.halted() !== 'closed') setSubmitError(toFormFailure({ code: 'DRAFT_NOT_SAVED' }))
         return
       }
       const outcome = await actions.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED' }, submission.key)
@@ -267,8 +280,10 @@ export function RequestForm({
       ) : null}
       {autosave.state.kind === 'closed' ? (
         <Notice tone="warning">
-          <p>{t('save.closed')}</p>
-          {autosave.requestId ? (
+          {/* What closed it, as the server said (§9.9 rule 7), in the words of the edit page for each case */}
+          <p>{t(CLOSED_NOTICE[autosave.state.why])}</p>
+          {/* Its page says where it stands — a request gone, or not this account's, has none to open */}
+          {autosave.requestId && autosave.state.why !== 'NOT_FOUND' && autosave.state.why !== 'FORBIDDEN' ? (
             <a href={`/requests/${autosave.requestId}`} className={linkClass}>
               {t('save.openRequest')}
             </a>
@@ -313,6 +328,8 @@ export function RequestForm({
             submitting={submitting}
             submitError={submitError}
             saveStop={saveStop}
+            {...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {})}
+            requestHref={autosave.requestId ? `/requests/${autosave.requestId}` : null}
           />
         ) : null}
       </section>

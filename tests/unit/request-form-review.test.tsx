@@ -6,7 +6,7 @@ import { LiffProvider } from '@/ui/liff/liff-provider'
 import { LiffReviewStep, type LiffReviewProps } from '@/ui/liff/requests/review-step'
 import type { StepProps } from '@/ui/request-form/details-items'
 import { formInput, initialValues, totalsOf, type FormValues } from '@/ui/request-form/model'
-import { toFormFailure, type FormFailure } from '@/ui/request-form/outcome'
+import { closedWhy, toFormFailure, type FormFailure } from '@/ui/request-form/outcome'
 import { ReviewStep, type ReviewProps, type SendBlock } from '@/ui/request-form/review-step'
 import type { BudgetView, RequestFormData } from '@/ui/request-form/types'
 import en from '../../messages/en.json'
@@ -26,7 +26,9 @@ import th from '../../messages/th.json'
 // — is reached in a browser by demo scene 4 only (LIFF). The over-budget tests of the two specs ask for 963,000.00 baht
 // with VAT (web) and for what the run left on the line and 35,000.00 more (LIFF), which the runs so far put above
 // 100,000.00 baht with VAT, where the quotation rule (ATT-QUOTES) is listed too. For the workspace's form, these tests are
-// that case.
+// that case. FR-INT-005 AC1 and AC2: an attachment rule not met is a point to fix before sending as well, beside its way
+// to the documents, while the button still sends the request for the server to refuse with the rule's code
+// (ATTACHMENT_RULE_FAILED) — in a browser: the web's quotation test in tests/e2e/request-form.spec.ts and demo scene 3 (LIFF).
 
 type Locale = 'th' | 'en'
 
@@ -48,6 +50,16 @@ function beforeSending(page: string): string {
 }
 
 const timesIn = (text: string, part: string) => text.split(part).length - 1
+
+/** The point of a list that holds `text`: its <li>, once */
+function pointOf(list: string, text: string): string {
+  const points = [...list.matchAll(/<li[^>]*>[\s\S]*?<\/li>/g)].map((m) => m[0]).filter((point) => words(point).includes(text))
+  expect(points, `one point holds "${text}"`).toHaveLength(1)
+  return points[0]!
+}
+
+/** The words of the buttons of some markup, in order */
+const waysOf = (markup: string) => [...markup.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1])
 
 const READY = { th: th.requestForm.review.ready, en: en.requestForm.review.ready }
 
@@ -180,8 +192,25 @@ describe('[§9.9] the workspace’s check and send: "ตรวจก่อนส
     const section = words(beforeSending(web(SHORT, { problems: [{ kind: 'ATTACHMENTS', ruleId: 'ATT-QUOTE' }] })))
     const budget = section.indexOf('งบไม่พอ: คงเหลือ 25,000.00 บาท ขาด 35,000.00 บาท')
     expect(budget).toBeGreaterThan(-1)
-    expect(budget).toBeLessThan(section.indexOf('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTE'))
+    expect(budget).toBeLessThan(section.indexOf('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTE (ต้องแก้ก่อนส่ง)'))
     expect(section).not.toContain(READY.th)
+  })
+
+  it('[FR-INT-005/AC1] [FR-INT-005/AC2] an attachment rule not met is a point to fix before sending, as the budget is, beside its way to the documents; the button still sends, for the server to answer with the rule', () => {
+    const problems: ReviewProps['problems'] = [{ kind: 'ATTACHMENTS', ruleId: 'ATT-QUOTES' }]
+    const page = web(ENOUGH, { problems })
+    const section = beforeSending(page)
+    expect(words(pointOf(section, 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES'))).toBe('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES (ต้องแก้ก่อนส่ง)ไปแก้ที่ขั้น ใบเสนอราคาและเอกสาร')
+    expect(waysOf(pointOf(section, 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES'))).toEqual(['ไปแก้ที่ขั้น ใบเสนอราคาและเอกสาร'])
+    expect(words(section)).not.toContain(READY.th)
+    // AC2: the button still sends — the server refuses with ATTACHMENT_RULE_FAILED and the rule's code, shown beside it
+    const send = /<button[^>]*>ส่งขออนุมัติ<\/button>/.exec(page)?.[0]
+    expect(send).toBeDefined()
+    expect(send).not.toContain('disabled=""')
+    expect(page).not.toContain('id="submit-blocked"')
+    const english = beforeSending(web(ENOUGH, { problems }, 'en'))
+    expect(words(pointOf(english, 'Documents are missing under rule ATT-QUOTES'))).toBe('Documents are missing under rule ATT-QUOTES (fix before sending)Fix it in Quotations and documents')
+    expect(words(english)).not.toContain(READY.en)
   })
 
   it('[FR-INT-004/AC2] the line the requester chose has room: a balance the server sent for another line stops nothing', () => {
@@ -262,9 +291,28 @@ describe('[FR-LINE-003/AC1] [§9.9] the LIFF form’s check and send: "ตรว
 
   it('[FR-INT-005/AC1] [§9.9] a problem this step fixes itself, under its quotations and documents, says what to do there and leads to it; one fixed on another step leads to that step', () => {
     const problems: LiffReviewProps['problems'] = [{ kind: 'ATTACHMENTS', ruleId: 'ATT-QUOTES' }, { kind: 'QUOTATION_FILE', quotationNo: 1 }, { kind: 'TITLE' }]
-    const ways = (locale: Locale) => [...beforeSending(liff(null, { problems }, locale)).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1])
+    const ways = (locale: Locale) => waysOf(beforeSending(liff(null, { problems }, locale)))
     expect(ways('th')).toEqual(['แนบให้ครบตามกฎ ATT-QUOTES ในส่วน ใบเสนอราคาและเอกสาร', 'ไปแก้ที่ส่วน ใบเสนอราคาและเอกสาร', 'ไปแก้ที่ขั้น รายละเอียดคำขอ'])
     expect(ways('en')).toEqual(['Attach what rule ATT-QUOTES asks for under Quotations and documents', 'Fix it under Quotations and documents', 'Fix it in Request details'])
+    // The rule not met is marked as one to fix before sending, as the title is: each beside its way to the fix
+    const section = beforeSending(liff(null, { problems }))
+    expect(words(pointOf(section, 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES'))).toBe('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES (ต้องแก้ก่อนส่ง)แนบให้ครบตามกฎ ATT-QUOTES ในส่วน ใบเสนอราคาและเอกสาร')
+    expect(words(pointOf(section, 'ยังไม่ได้ใส่ชื่อคำขอ'))).toBe('ยังไม่ได้ใส่ชื่อคำขอ (ต้องแก้ก่อนส่ง)ไปแก้ที่ขั้น รายละเอียดคำขอ')
+  })
+
+  it('[FR-INT-005/AC1] [FR-INT-005/AC2] an attachment rule not met is a point to fix before sending, though nothing stops the bar’s button: the server answers the send with the rule', () => {
+    // The shell stops the button only for what would send something other than the screen (sendBlock null here): the
+    // point still says the rule must be met first, with its way to the rule's entry in the documents
+    const problems: LiffReviewProps['problems'] = [{ kind: 'ATTACHMENTS', ruleId: 'ATT-QUOTES' }]
+    const section = beforeSending(liff(null, { problems }))
+    expect(words(pointOf(section, 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES'))).toBe('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES (ต้องแก้ก่อนส่ง)แนบให้ครบตามกฎ ATT-QUOTES ในส่วน ใบเสนอราคาและเอกสาร')
+    expect(words(section)).not.toContain(READY.th)
+    expect(words(section)).not.toContain('ส่งไม่ได้')
+    const english = beforeSending(liff(null, { problems }, 'en'))
+    expect(words(pointOf(english, 'Documents are missing under rule ATT-QUOTES'))).toBe(
+      'Documents are missing under rule ATT-QUOTES (fix before sending)Attach what rule ATT-QUOTES asks for under Quotations and documents',
+    )
+    expect(words(english)).not.toContain(READY.en)
   })
 
   it('[FR-INT-006/AC2] saving stopped (the draft was changed elsewhere): it says to load the latest version first, in words of its own, not that the request can be sent', () => {
@@ -291,6 +339,61 @@ describe('[FR-LINE-003/AC1] [§9.9] the LIFF form’s check and send: "ตรว
     expect(conflict).toContain('This draft was changed elsewhere. Load the latest version and check it again before sending')
     expect(conflict).not.toContain(READY.en)
   })
+})
+
+describe('[FR-INT-005/AC2] [§9.9] every point of "ตรวจก่อนส่ง" is one to fix before sending: what the button still sends, the server refuses', () => {
+  /**
+   * A point of each kind that does not stop the button, each refused by the server when it is sent: no budget line, a
+   * question not answered (FORM), a service line without its end (SERVICE_END_DATE), a quotation without its file
+   * (FILE_REQUIRED), none chosen (QUOTE-SELECTED), a dearer one without its reason (QUOTE-LOWEST), a rule not met
+   * (ATTACHMENT_RULE_FAILED)
+   */
+  const SENT_BUT_REFUSED: ReviewProps['problems'] = [
+    { kind: 'BUDGET_LINE' },
+    { kind: 'FIELD_REQUIRED', fieldId: 'category' },
+    { kind: 'SERVICE_END_DATE', lineNo: 1 },
+    { kind: 'QUOTATION_FILE', quotationNo: 1 },
+    { kind: 'QUOTATION_CHOOSE' },
+    { kind: 'QUOTATION_REASON' },
+    { kind: 'ATTACHMENTS', ruleId: 'ATT-QUOTES' },
+  ]
+  const POINTS: Record<Locale, readonly string[]> = {
+    th: [
+      'ยังไม่ได้เลือกบรรทัดงบ',
+      'ยังไม่ได้ตอบ “category”',
+      'รายการที่ 1 ยังไม่มีวันสิ้นสุดบริการ',
+      'ใบเสนอราคาที่ 1 ยังไม่มีไฟล์',
+      'ยังไม่ได้เลือกใบเสนอราคาที่จะใช้',
+      'ใบเสนอราคาที่เลือกไม่ใช่ยอดก่อน VAT ต่ำสุด ใส่เหตุผล',
+      'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES',
+    ],
+    en: [
+      'No budget line chosen yet',
+      '“category” is not answered',
+      'Item 1 has no service end date',
+      'Quotation 1 has no file',
+      'No quotation chosen to use',
+      'The chosen quotation is not the lowest before VAT: give a reason',
+      'Documents are missing under rule ATT-QUOTES',
+    ],
+  }
+  const MUST_FIX: Record<Locale, string> = { th: '(ต้องแก้ก่อนส่ง)', en: '(fix before sending)' }
+
+  for (const locale of ['th', 'en'] as const) {
+    it(`[FR-INT-005/AC2] the workspace’s step and the LIFF one mark each of them, e.g. "ใบเสนอราคาที่ 1 ยังไม่มีไฟล์ (ต้องแก้ก่อนส่ง)" (${locale})`, () => {
+      const forms = { web: web(ENOUGH, { problems: SENT_BUT_REFUSED }, locale), liff: liff(null, { problems: SENT_BUT_REFUSED }, locale) }
+      for (const [form, page] of Object.entries(forms)) {
+        const section = beforeSending(page)
+        for (const point of POINTS[locale]) expect(words(pointOf(section, point)), `${form}: ${point}`).toContain(`${point} ${MUST_FIX[locale]}`)
+        expect(timesIn(words(section), MUST_FIX[locale]), `${form}: every point is marked`).toBe(SENT_BUT_REFUSED.length)
+        expect(words(section), form).not.toContain(READY[locale])
+      }
+      // None of them stops the workspace's button: the server answers the send, beside it
+      const send = new RegExp(`<button[^>]*>${locale === 'th' ? 'ส่งขออนุมัติ' : en.requestForm.submit.send}</button>`).exec(forms.web)?.[0]
+      expect(send).toBeDefined()
+      expect(send).not.toContain('disabled=""')
+    })
+  }
 })
 
 describe('[FR-INT-005/AC2] [§9.9] the LIFF form’s refusal of a send says what to do and leads there: to another step, or to its place on this one', () => {
@@ -351,6 +454,62 @@ describe('[FR-INT-005/AC2] [§9.9] the LIFF form’s refusal of a send says what
     expect(words(rule)).toContain('Attach them in Quotations and documents, then send again')
     expect(ways(rule)).toEqual(['Fix it under Quotations and documents'])
     expect(ways(refusal(SUPPLIER, 'en'))).toEqual(['Fix it under Quotations and documents'])
+  })
+})
+
+describe('[FR-INT-006/AC2] [§9.9] a request closed to the form is said by what closed it, never a guess between two (D-05 round 4)', () => {
+  const CAUSES = ['SENT', 'CANCELLED', 'NOT_FOUND', 'FORBIDDEN'] as const
+  const POINT = {
+    SENT: 'คำขอนี้ส่งจากที่อื่นไปแล้ว จึงส่งจากหน้านี้ไม่ได้',
+    CANCELLED: 'คำขอนี้ถูกยกเลิกจากที่อื่นไปแล้ว จึงส่งจากหน้านี้ไม่ได้',
+    NOT_FOUND: 'ไม่พบคำขอนี้แล้ว จึงส่งจากหน้านี้ไม่ได้',
+    FORBIDDEN: 'บัญชีนี้แก้ไขคำขอนี้ไม่ได้แล้ว จึงส่งจากหน้านี้ไม่ได้',
+  } as const
+
+  it('the server’s answer names the cause: the status it gives, or that the request is gone or not this account’s', () => {
+    expect(closedWhy(toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'PENDING_APPROVAL', command: 'request.edit' } }))).toBe('SENT')
+    expect(closedWhy(toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'APPROVED' } }))).toBe('SENT')
+    expect(closedWhy(toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED' } }))).toBe('CANCELLED')
+    expect(closedWhy(toFormFailure({ code: 'NOT_FOUND' }))).toBe('NOT_FOUND')
+    expect(closedWhy(toFormFailure({ code: 'FORBIDDEN' }))).toBe('FORBIDDEN')
+    // No status named: only then both
+    expect(closedWhy(toFormFailure({ code: 'INVALID_STATE_TRANSITION' }))).toBe('ELSEWHERE')
+  })
+
+  for (const why of CAUSES) {
+    it(`${why}: "ตรวจก่อนส่ง" and the button give that one reason, the button's once, and never to load the latest version`, () => {
+      const page = web(ENOUGH, { saveStop: 'closed', closedWhy: why })
+      const section = words(beforeSending(page))
+      expect(section).toContain(POINT[why])
+      expect(section).not.toContain(th.requestForm.review.saveClosed)
+      const send = /<button[^>]*>ส่งขออนุมัติ<\/button>/.exec(page)?.[0]
+      expect(send).toContain('disabled=""')
+      expect(words(/<[^>]*id="submit-blocked"[^>]*>[\s\S]*?<\/p>/.exec(page)?.[0] ?? '')).toBe(th.requestForm.submit.blockedClosedBy[why])
+      expect(timesIn(words(page), th.requestForm.submit.blockedClosedBy[why])).toBe(1)
+      expect(section).not.toContain('โหลด')
+      expect(words(page)).not.toContain('ส่งไม่ได้จนกว่าจะโหลดร่างฉบับล่าสุด')
+      // The LIFF step says the same point when its shell names the cause
+      expect(words(beforeSending(liff({ kind: 'SAVE', stop: 'closed', why })))).toContain(POINT[why])
+    })
+  }
+
+  it('the button’s reason is the point’s cause after "ส่งไม่ได้เพราะ", for every cause, in Thai and in English', () => {
+    for (const why of CAUSES) {
+      expect(th.requestForm.submit.blockedClosedBy[why], why).toBe(`ส่งไม่ได้เพราะ${th.requestForm.review.saveClosedBy[why].split(' ')[0]}`)
+      expect(en.requestForm.submit.blockedClosedBy[why], why).toBe(`It cannot be sent because ${en.requestForm.review.saveClosedBy[why].split(', so ')[0]!.replace(/^This/, 'this')}`)
+      for (const m of [th, en]) expect(m.requestForm.review.saveClosedBy[why].toLowerCase(), why).not.toMatch(/โหลด|load/)
+    }
+  })
+
+  it('a refusal because the request was sent or cancelled meanwhile says which, and leads to the request’s page', () => {
+    const sent = web(ENOUGH, { submitError: toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'PENDING_APPROVAL' } }), requestHref: '/requests/r-1' })
+    expect(words(sent)).toContain(th.requestForm.errors.STATE_SENT)
+    expect(sent).toMatch(new RegExp(`<a href="/requests/r-1"[^>]*>${th.requestForm.page.openRequest}</a>`))
+    const cancelled = web(ENOUGH, { submitError: toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED' } }), requestHref: '/requests/r-1' })
+    expect(words(cancelled)).toContain(th.requestForm.errors.STATE_CANCELLED)
+    expect(words(cancelled)).not.toContain(th.requestForm.errors.STATE)
+    // Without a status the words stay "sent or cancelled"
+    expect(words(web(ENOUGH, { submitError: toFormFailure({ code: 'INVALID_STATE_TRANSITION' }) }))).toContain(th.requestForm.errors.STATE)
   })
 })
 

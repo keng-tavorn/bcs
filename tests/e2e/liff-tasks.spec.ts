@@ -152,7 +152,7 @@ async function firstLoad(page: Page, context: BrowserContext, lineUserId: string
 }
 
 test.describe('[FR-LINE-003/AC1] the approver’s tasks in the LINE app', () => {
-  test('[FR-PLT-004/AC2] /liff/tasks lists the tasks due first with the overdue one marked; one below the threshold opens its file and is approved in LIFF without a PIN, and its stamp says LINE (LIFF)', async ({ page, context }, testInfo) => {
+  test('[FR-PLT-004/AC2] /liff/tasks lists the tasks due first with the overdue one marked; one below the threshold opens its file and is approved in LIFF without a PIN, and its stamp says หน้าจอใน LINE', async ({ page, context }, testInfo) => {
     const twin = twinOf(testInfo)
     const first = request(twin, '45000.00', 'drill', 'attach')
     const second = request(twin, '61500.00', 'cutter')
@@ -207,7 +207,7 @@ test.describe('[FR-LINE-003/AC1] the approver’s tasks in the LINE app', () => 
     // One notice says what was decided: who, when — not a second one of this visit
     await expect(page.getByRole('status').filter({ hasText: /^อนุมัติแล้ว$/ })).toHaveCount(0)
     // The stamp of the decision: who, when, through which channel, under which DOA rule (FR-DOA-005 AC2)
-    await expect(stampOf(page, twin.approver)).toContainText(/\d\d:\d\d น\. · LINE \(LIFF\)/)
+    await expect(stampOf(page, twin.approver)).toContainText(/\d\d:\d\d น\. · หน้าจอใน LINE/)
     expect(decidedOf(twin, first.taskId)).toEqual({ channel: 'LIFF', decision: 'APPROVE', stepUp: false })
     await checkScreen(page, testInfo, 'liff-task-approved')
 
@@ -310,8 +310,8 @@ test.describe('[FR-LINE-003/AC2] [FR-AUTH-005/AC2] a task at or above the thresh
     const after = await sessionCookie(context)
     expect(after).toMatch(/^liff_/)
     expect(after).not.toBe(before.value)
-    // The request's timeline stamps the decision with channel LIFF, and the decision used the PIN step-up
-    await expect(stampOf(page, twin.approver)).toContainText('LINE (LIFF)')
+    // The request's timeline stamps the decision with channel LIFF (หน้าจอใน LINE), and the decision used the PIN step-up
+    await expect(stampOf(page, twin.approver)).toContainText('หน้าจอใน LINE')
     expect(decidedOf(twin, made.taskId)).toEqual({ channel: 'LIFF', decision: 'APPROVE', stepUp: true })
     await checkScreen(page, testInfo, 'liff-task-step-up-approved')
     // …and the old session id opens nothing from then on: a phone that still holds it gets the gate, not the task
@@ -401,7 +401,7 @@ test.describe('[FR-DOA-004/AC1] returning, rejecting and asking from LIFF', () =
     await expect(page.getByRole('status').filter({ hasText: `ไม่อนุมัติโดย ${twin.approver} เมื่อ` })).toContainText('เหตุผล: ซื้อซ้ำกับรายการที่อนุมัติแล้ว', AFTER_DECISION)
     const stamp = timeline(page).getByRole('listitem').filter({ hasText: 'ซื้อซ้ำกับรายการที่อนุมัติแล้ว' })
     await expect(stamp).toContainText('ไม่อนุมัติ')
-    await expect(stamp).toContainText('LINE (LIFF)')
+    await expect(stamp).toContainText('หน้าจอใน LINE')
     expect(decidedOf(twin, made.taskId)).toEqual({ channel: 'LIFF', decision: 'REJECT', stepUp: false })
     await checkScreen(page, testInfo, 'liff-task-rejected')
   })
@@ -478,7 +478,14 @@ test.describe('[FR-P2P-004/AC1] [FR-P2P-007/AC2] [FR-LINE-003/AC2] [FR-AUTH-005/
     await expect(budget).toContainText('จองไว้แล้ว รอผู้อนุมัติตัดสิน')
     const lines = page.getByRole('list', { name: 'รายการของใบสั่งซื้อ' })
     await expect(lines).toContainText(PUMPS.line)
-    await expect(lines).toContainText('ราคาที่เคยซื้อรายการนี้')
+    // The prices paid before for each item (FR-P2P-003 AC1): under their label, or — never bought in this organization —
+    // that sentence alone, without a label that adds nothing (§9.9)
+    const items = await lines.locator(':scope > li').all()
+    expect(items.length).toBeGreaterThan(0)
+    for (const item of items) {
+      const text = (await item.textContent()) ?? ''
+      expect(text.includes('ราคาที่เคยซื้อรายการนี้'), text).not.toBe(text.includes('ยังไม่เคยซื้อรายการนี้ใน PO ที่อนุมัติแล้ว'))
+    }
     await expect(lines).toContainText(made.requestNumber)
     const sources = page.getByRole('list', { name: 'คำขอต้นทางของใบสั่งซื้อ' })
     await expect(sources).toContainText(made.requestNumber)
@@ -498,7 +505,7 @@ test.describe('[FR-P2P-004/AC1] [FR-P2P-007/AC2] [FR-LINE-003/AC2] [FR-AUTH-005/
     const before = await sessionCookie(context)
     await approveInBar(page, `อนุมัติ ${made.number} ยอดรวม VAT ${PUMPS.gross} บาท เปลี่ยนการตัดสินภายหลังไม่ได้`, twin.coo, E2E_PIN)
     expect(await sessionCookie(context)).not.toBe(before)
-    await expect(stampOf(page, twin.coo, 'DOA-DEMO ฉบับ 1 ข้อ PO-01', 'ไทม์ไลน์ของใบสั่งซื้อ')).toContainText('LINE (LIFF)')
+    await expect(stampOf(page, twin.coo, 'DOA-DEMO ฉบับ 1 ข้อ PO-01', 'ไทม์ไลน์ของใบสั่งซื้อ')).toContainText('หน้าจอใน LINE')
     expect(decidedOf(twin, made.taskId)).toEqual({ channel: 'LIFF', decision: 'APPROVE', stepUp: true })
     await checkScreen(page, testInfo, 'liff-po-task-approved')
   })
@@ -541,7 +548,7 @@ test.describe('[FR-P2P-004/AC1] [FR-P2P-007/AC2] [FR-LINE-003/AC2] [FR-AUTH-005/
     const after = await sessionCookie(context)
     expect(after).toMatch(/^liff_/)
     expect(after).not.toBe(before)
-    await expect(stampOf(page, twin.dm, 'DOA-DEMO ฉบับ 1 ข้อ GRV-01', 'ไทม์ไลน์ของผลต่าง')).toContainText('LINE (LIFF)')
+    await expect(stampOf(page, twin.dm, 'DOA-DEMO ฉบับ 1 ข้อ GRV-01', 'ไทม์ไลน์ของผลต่าง')).toContainText('หน้าจอใน LINE')
     expect(decidedOf(twin, made.taskId)).toEqual({ channel: 'LIFF', decision: 'APPROVE', stepUp: true })
     await checkScreen(page, testInfo, 'liff-variance-task-approved')
   })

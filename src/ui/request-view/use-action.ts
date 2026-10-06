@@ -3,12 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useSubmissionKey } from '../form/submission-key'
-import type { ActionOutcome } from '../tasks/outcome'
+import { NO_ANSWER, type ActionOutcome } from '../tasks/outcome'
 
 /**
  * Runs one server action with this form's submission key (spec §4.3: a resend of the same submission runs once). A new
  * key follows every answer; when no answer came back (the network failed) the key stays, so a retry is the same
- * submission. A success refreshes the page so it shows the new state.
+ * submission, and the outcome says no answer came (NO_ANSWER) rather than that it failed. A success refreshes the page
+ * so it shows the new state.
  */
 export function useAction() {
   const router = useRouter()
@@ -24,7 +25,7 @@ export function useAction() {
       result = await call(submission.key)
       submission.next()
     } catch {
-      result = { ok: false, code: 'FAILED' }
+      result = NO_ANSWER
     }
     setPending(false)
     setOutcome(result)

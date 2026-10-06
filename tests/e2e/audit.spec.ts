@@ -53,7 +53,7 @@ test('[FR-VIS-004/AC1] the auditor finds a document’s trail by its number, and
   await expect(page.getByLabel('เลขที่เอกสาร')).toHaveValue('')
   await page.getByLabel('ผู้กระทำ').selectOption({ label: liff!.approver.name })
   await page.getByLabel('ประเภทเหตุการณ์').selectOption({ label: 'ตัดสินงานอนุมัติ' })
-  await page.getByLabel('ช่องทาง').selectOption({ label: 'LINE (LIFF)' })
+  await page.getByLabel('ช่องทาง').selectOption({ label: 'หน้าจอใน LINE' })
   // each day as day, month and Buddhist-era year from lists, in Thai only (§9.9)
   await pickDay(page, 'ตั้งแต่วันที่', s.kpi.from)
   await pickDay(page, 'ถึงวันที่', s.kpi.to)
@@ -67,7 +67,7 @@ test('[FR-VIS-004/AC1] the auditor finds a document’s trail by its number, and
   const rows = await results(page).count()
   expect(rows).toBeGreaterThanOrEqual(1)
   for (let i = 0; i < rows; i++) {
-    await expect(results(page).nth(i)).toContainText('LINE (LIFF)')
+    await expect(results(page).nth(i)).toContainText('หน้าจอใน LINE')
     await expect(results(page).nth(i)).toContainText(liff!.approver.name)
   }
   await checkScreen(page, testInfo, 'audit-filtered')

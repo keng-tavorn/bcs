@@ -1,7 +1,8 @@
 import { NextIntlClientProvider } from 'next-intl'
+import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { DraftEditor, lineChange, type DraftLineEdit } from '@/ui/purchase-order/draft-editor'
+import { DraftEditor, LineForm, LineFormButtons, lineChange, lineFormWords, TermsForm, type DraftLineEdit } from '@/ui/purchase-order/draft-editor'
 import en from '../../messages/en.json'
 import th from '../../messages/th.json'
 
@@ -9,8 +10,10 @@ import th from '../../messages/th.json'
 // form of more than 8 fields): the lines are listed with their price and quantity, each with a button that opens that line
 // alone, so the page first shows no field of any line — only the two of the terms. Prices read with thousands separators
 // and 2 decimals (§9.9 principle 6, FR-PLT-002 AC3); what a line's form sends is the price without them, compared with the
-// line's as an amount, never as a number. Opening a line, the focus and the grouping when a field is left are checked in
-// the browser (tests/e2e/purchase-order.spec.ts).
+// line's as an amount, never as a number. A line's button says what pressing it does — "บันทึกบรรทัด {n}", or "เอาบรรทัด
+// {n} ออก" once taking the line off is ticked — and the confirmation after it the same (§9.9 principle 7). Opening a line,
+// the focus, the grouping when a field is left and ticking the line off are checked in the browser
+// (tests/e2e/purchase-order.spec.ts); what the service does with a line taken off, in tests/integration/po-refusal-fixes.test.ts.
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: () => undefined }) }))
 
@@ -116,12 +119,96 @@ describe('[FR-P2P-003/AC2] the draft is edited one line at a time: no form of mo
   it('names what each button does, and shows a price as it reads elsewhere, in both languages', () => {
     for (const messages of [th, en]) {
       const edit = messages.purchaseOrder.actions.edit
-      for (const words of [edit.editLine, edit.saveLine]) expect(words).toContain('{no}')
+      for (const words of [edit.editLine, edit.saveLine, edit.removeLine, edit.removed]) expect(words).toContain('{no}')
       expect(edit.closeLine.length).toBeGreaterThan(0)
       // The example of a price is written as prices read (§9.9 principle 6)
       expect(edit.badPrice).toContain('1,500.00')
     }
     expect(th.purchaseOrder.actions.edit.saveLine).toBe('บันทึกบรรทัด {no}')
     expect(th.purchaseOrder.actions.edit.closeLine).toBe('ปิดโดยไม่บันทึก')
+  })
+})
+
+describe('[FR-P2P-003/AC2] a line taken off the draft says so on its button and in the confirmation after it (§9.9 principle 7)', () => {
+  const buttons = (messages: typeof th, props: { no: number; remove: boolean; pending?: boolean }) =>
+    renderToStaticMarkup(
+      <NextIntlClientProvider locale={messages === th ? 'th' : 'en'} messages={messages} timeZone="Asia/Bangkok">
+        <LineFormButtons no={props.no} remove={props.remove} pending={props.pending ?? false} onClose={() => undefined} />
+      </NextIntlClientProvider>,
+    )
+  /** The classes of the submit button */
+  const submitClasses = (html: string) => html.match(/<button type="submit" class="([^"]*)"/)?.[1]?.split(' ') ?? []
+
+  it('saves the line until "take this line off" is ticked, then names the line it takes off, outlined in danger', () => {
+    const saving = buttons(th, { no: 2, remove: false })
+    expect(saving).toMatch(/<button type="submit"[^>]*>บันทึกบรรทัด 2<\/button>/)
+    expect(saving).not.toContain('เอาบรรทัด')
+    expect(submitClasses(saving)).not.toContain('border-danger')
+
+    const removing = buttons(th, { no: 2, remove: true })
+    expect(removing).toMatch(/<button type="submit"[^>]*>เอาบรรทัด 2 ออก<\/button>/)
+    expect(removing).not.toContain('บันทึกบรรทัด')
+    // Taking something away never looks like saving (../form/button.tsx: danger outlines what takes something away)
+    expect(submitClasses(removing)).toEqual(expect.arrayContaining(['border-danger', 'text-danger']))
+    // Closing the form stays a plain link either way
+    for (const html of [saving, removing]) expect(html).toContain('>ปิดโดยไม่บันทึก</button>')
+  })
+
+  it('says it is working while the server takes the line off, and the same in English', () => {
+    const working = buttons(th, { no: 2, remove: true, pending: true })
+    expect(working).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>กำลังบันทึก<\/button>/)
+    expect(buttons(en as unknown as typeof th, { no: 3, remove: true })).toMatch(/<button type="submit"[^>]*>Take line 3 off<\/button>/)
+    expect(buttons(en as unknown as typeof th, { no: 3, remove: false })).toMatch(/<button type="submit"[^>]*>Save line 3<\/button>/)
+  })
+
+  it('confirms in the words of the button: the line is off and its request line is back in the pool with the same supplier', () => {
+    expect(lineFormWords(true)).toEqual({ button: 'removeLine', done: 'removed' })
+    expect(lineFormWords(false)).toEqual({ button: 'saveLine', done: 'savedLine' })
+    const edit = th.purchaseOrder.actions.edit
+    expect(edit.removeLine).toBe('เอาบรรทัด {no} ออก')
+    expect(edit.removed).toBe('เอาบรรทัด {no} ออกแล้ว บรรทัดคำขอกลับเข้ากองรอจัดซื้อพร้อมผู้ขายเดิม')
+    // The confirmation opens with the button's own words, done (§9.9 principle 7)
+    expect(edit.removed.startsWith(`${edit.removeLine}แล้ว`)).toBe(true)
+    // A saved price or quantity, and the terms, each in the words of their own button, done
+    expect(edit.savedLine).toBe('บันทึกบรรทัด {no} แล้ว ยอดเงินคำนวณใหม่แล้ว')
+    expect(edit.savedLine.startsWith(`${edit.saveLine} แล้ว`)).toBe(true)
+    expect(edit.savedTerms).toBe('บันทึกเงื่อนไขและหมายเหตุแล้ว')
+    expect(edit.savedTerms).toBe(`${edit.saveTerms}แล้ว`)
+    expect(en.purchaseOrder.actions.edit.removeLine).toBe('Take line {no} off')
+    expect(en.purchaseOrder.actions.edit.removed).toBe('Line {no} taken off; its request line is back in the procurement pool with the same supplier')
+    expect(en.purchaseOrder.actions.edit.savedLine).toBe('Line {no} saved; the amounts were computed again')
+    expect(en.purchaseOrder.actions.edit.savedTerms).toBe('Terms and note saved')
+  })
+})
+
+describe('[FR-P2P-003/AC2] the service’s refusal of a change is said inside the form that sent it, right above its button (§9.9)', () => {
+  const REFUSAL = th.purchaseOrder.errors.NO_CHANGE
+  const inTh = (node: ReactNode) =>
+    renderToStaticMarkup(
+      <NextIntlClientProvider locale="th" messages={th} timeZone="Asia/Bangkok">
+        {node}
+      </NextIntlClientProvider>,
+    )
+
+  it('a refusal of line 2: inside line 2’s form, after its fields and before its buttons, ready to take the focus', () => {
+    const html = inTh(<LineForm line={line({ id: 'l-2', no: 2, description: 'ไม้อัด 10 มม.' })} base="e-l-2" alone={false} run={async () => false} pending={false} refusal={REFUSAL} onClose={() => undefined} />)
+    const alert = html.indexOf('role="alert"')
+    expect(alert).toBeGreaterThan(html.indexOf('</fieldset>'))
+    expect(alert).toBeLessThan(html.indexOf('>บันทึกบรรทัด 2</button>'))
+    expect(html).toMatch(/<div tabindex="-1" class="outline-none"><div role="alert"/)
+    expect(html).toContain(REFUSAL)
+    // No refusal, nothing said
+    expect(inTh(<LineForm line={line()} base="e-l-1" alone={false} run={async () => true} pending={false} refusal={null} onClose={() => undefined} />)).not.toContain('role="alert"')
+  })
+
+  it('a refusal of the terms: inside the terms’ form, right above its button', () => {
+    const html = inTh(<TermsForm paymentTermDays={null} notesToSupplier={null} run={async () => false} pending={false} refusal={REFUSAL} />)
+    const alert = html.indexOf('role="alert"')
+    expect(alert).toBeGreaterThan(html.indexOf('</textarea>'))
+    expect(alert).toBeLessThan(html.indexOf('>บันทึกเงื่อนไขและหมายเหตุ</button>'))
+  })
+
+  it('the editor as it loads says nothing above its forms: no refusal far from the button that was pressed', () => {
+    expect(render(th, [line()])).not.toContain('role="alert"')
   })
 })

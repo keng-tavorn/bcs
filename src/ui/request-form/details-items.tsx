@@ -131,8 +131,10 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
   const t = useTranslations('requestForm')
   const { data, values, update, totals, budget, previewLoading } = props
   const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
+  // The parts of a line split by the step's own width (@container), not the screen's: the LIFF column (34rem of content,
+  // §9.9 "LIFF เป็นคอลัมน์เดียว") keeps its phone layout at every width, and the workspace's wider form splits as before
   return (
-    <div className="flex flex-col gap-6">
+    <div className="@container flex flex-col gap-6">
       {/* Where every line of the request goes (S4-02): prefilled, changeable */}
       <DeliverySiteField {...props} />
       <label className="flex min-h-11 items-center gap-3">
@@ -192,14 +194,14 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
       <Labelled id={`${p}-description`} label={t('description')} requiredText={tf('required')} error={shown.description}>
         <input id={`${p}-description`} className={inputClass} value={line.description} maxLength={500} required aria-required onChange={(e) => set({ description: e.currentTarget.value })} {...control(`${p}-description`, shown.description)} />
       </Labelled>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
+      <div className="grid grid-cols-2 gap-3 @min-[40rem]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)]">
         <Labelled id={`${p}-quantity`} label={t('quantity')} requiredText={tf('required')} error={shown.quantity}>
           <input id={`${p}-quantity`} className={`${inputClass} tabular text-right`} inputMode="decimal" value={line.quantity} required aria-required onChange={(e) => set({ quantity: e.currentTarget.value })} {...control(`${p}-quantity`, shown.quantity)} />
         </Labelled>
         <Labelled id={`${p}-uom`} label={t('uom')} requiredText={tf('required')} hint={t('uomHint')} error={shown.uom}>
           <input id={`${p}-uom`} className={inputClass} value={line.uom} maxLength={30} required aria-required onChange={(e) => set({ uom: e.currentTarget.value })} {...control(`${p}-uom`, shown.uom, true)} />
         </Labelled>
-        <Labelled id={`${p}-price`} className="col-span-2 sm:col-span-1" label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')} requiredText={tf('required')} error={shown.unitPrice}>
+        <Labelled id={`${p}-price`} className="col-span-2 @min-[40rem]:col-span-1" label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')} requiredText={tf('required')} error={shown.unitPrice}>
           <MoneyInput id={`${p}-price`} className={`${inputClass} tabular text-right`} value={line.unitPrice} required aria-required onChange={(e) => set({ unitPrice: e.currentTarget.value })} {...control(`${p}-price`, shown.unitPrice)} />
         </Labelled>
       </div>
@@ -219,7 +221,8 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
           <input id={`${p}-end`} type="date" className={inputClass} value={line.serviceEndDate} required aria-required onChange={(e) => set({ serviceEndDate: e.currentTarget.value })} {...control(`${p}-end`, shown.end, true)} />
         </Labelled>
       ) : null}
-      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+      {/* As wide as the totals and the budget below (max-w-xl, ./summary.tsx): the line's amount ends at their right edge (§9.9 principle 6) */}
+      <div className="flex max-w-xl flex-wrap items-start justify-between gap-x-6 gap-y-3">
         {canRemove ? (
           <ConfirmRemove
             label={t('remove', { n })}

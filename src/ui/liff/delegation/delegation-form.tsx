@@ -234,7 +234,7 @@ export function LiffDelegationForm({ candidates, documentTypes, today, givenKey,
             <fieldset className="flex flex-col gap-1">
               <legend className="mb-1.5 font-medium text-ink">{t('coverage')}</legend>
               <label className="flex min-h-11 items-start gap-3">
-                <input type="radio" name="coverage" value="ALL" checked={coverage === 'ALL'} onChange={() => chooseCoverage('ALL')} className="mt-1 size-5 shrink-0 accent-[var(--primary)]" />
+                <input type="radio" name="coverage" value="ALL" checked={coverage === 'ALL'} onChange={() => chooseCoverage('ALL')} className="mt-1 size-5 shrink-0" />
                 <span className="flex flex-col">
                   <span>{t('coverageAll')}</span>
                   <span className="text-ink-muted">{t('coverageAllHint')}</span>
@@ -252,7 +252,7 @@ export function LiffDelegationForm({ candidates, documentTypes, today, givenKey,
                         value={d.value}
                         aria-describedby={errors.types ? `${id}-types-error` : undefined}
                         onChange={() => setErrors((e) => ({ ...e, types: undefined }))}
-                        className="size-5 shrink-0 accent-[var(--primary)]"
+                        className="size-5 shrink-0"
                       />
                       <span>{d.label}</span>
                     </label>

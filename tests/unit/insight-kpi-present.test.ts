@@ -59,19 +59,23 @@ describe('[FR-VIS-003/AC2] the KPI page shows each current value next to the Pha
     expect(find(list, 'g5')).toMatchObject({ target: 'อย่างน้อย 60%' })
   })
 
-  it('every value with something behind it opens its list; a share of nothing, a time with no data and a count of none are not links', () => {
+  it('every number opens its list, a count of 0 too; only the words of a share of nothing or a time with no data are not links', () => {
     const list = measures(null)
     expect(find(list, 'g5').href).toBe(`/kpi/g5${QUERY}`)
     expect(find(list, 'g3b').href).toBe(`/kpi/g3b${QUERY}`)
     expect(find(list, 'g1')).toMatchObject({ value: '4 รายการ', href: `/kpi/g1${QUERY}` })
-    // G-3 past due of no tasks assigned: no share and nothing to list
-    expect(find(list, 'g3c')).toMatchObject({ value: 'ยังไม่มีข้อมูลในช่วงนี้', href: null })
+    // G-3 past due of no tasks assigned: no share, words rather than a number, and nothing to list
+    expect(find(list, 'g3c')).toMatchObject({ value: 'ยังไม่มีข้อมูลในช่วงนี้', href: null, detail: null })
     expect(find(list, 'g3a')).toMatchObject({ value: 'ยังไม่มีข้อมูลในช่วงนี้', href: null })
-    // nothing counted: the value says 0 and opens no empty list
-    expect(find(list, 'g4')).toMatchObject({ value: '0 รายการ', href: null })
+    // nothing counted: "0 รายการ" is a number like the others and opens its list, which says none is in the period
+    expect(find(list, 'g4')).toMatchObject({ value: '0 รายการ', href: `/kpi/g4${QUERY}`, linkLabel: 'ดูรายการที่นับ: คำขอเกินงบที่หลุดถึงผู้อนุมัติ 0 รายการ' })
+    const none = kpiGoals(t, 'th', { ...kpi, g1: { numerator: 0, denominator: null } }, null, QUERY).flatMap((g) => g.measures)
+    expect(find(none, 'g1')).toMatchObject({ value: '0 รายการ', href: `/kpi/g1${QUERY}` })
+    // so no count on the page is plain text beside the links
+    for (const m of list.filter((x) => /^\d+ รายการ$/.test(x.value))) expect(m.href, m.name).not.toBeNull()
   })
 
-  it('G-2 (a) "0 รายการ" opens the decisions it checked again with the DOA engine, and is plain text only while none was checked', () => {
+  it('G-2 (a) "0 รายการ" opens the decisions it checked again with the DOA engine, and its list even when none was checked', () => {
     // §9.9 every number opens its list: none misrouted, but 5 decisions stand behind the 0
     expect(find(measures(null), 'g2a')).toMatchObject({
       value: '0 รายการ',
@@ -80,7 +84,7 @@ describe('[FR-VIS-003/AC2] the KPI page shows each current value next to the Pha
       linkLabel: 'ดูรายการที่นับ: การอนุมัติที่ผิด DOA 0 รายการ (ตรวจแล้ว 5 การตัดสิน)',
     })
     const unchecked = kpiGoals(t, 'th', { ...kpi, g2: { misrouted: 0, checked: 0, withDoaReference: { numerator: 0, denominator: 0 } } }, null, QUERY).flatMap((g) => g.measures)
-    expect(find(unchecked, 'g2a')).toMatchObject({ value: '0 รายการ', detail: 'ตรวจแล้ว 0 การตัดสิน', href: null })
+    expect(find(unchecked, 'g2a')).toMatchObject({ value: '0 รายการ', detail: 'ตรวจแล้ว 0 การตัดสิน', href: `/kpi/g2a${QUERY}` })
   })
 })
 

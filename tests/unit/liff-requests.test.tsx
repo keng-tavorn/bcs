@@ -367,8 +367,8 @@ describe('[FR-INT-006/AC1] a save made as the page goes away before the engine a
 })
 
 describe('[§9.9] [§9.4] what the requester does on their request in LIFF: the main button at the bottom of the screen', () => {
-  const actions: LiffRequesterProps['actions'] = { answer: async () => ({ ok: true }), resubmit: async () => ({ ok: true }) }
-  const base: LiffRequesterProps = { requestId: 'r1', question: null, returned: null, draft: false, editHref: null, canResubmit: false, actions }
+  const actions: LiffRequesterProps['actions'] = { answer: async () => ({ ok: true }) }
+  const base: LiffRequesterProps = { requestId: 'r1', question: null, returned: null, draft: false, editHref: null, actions }
   const screen = (props: Partial<LiffRequesterProps>) =>
     inLiff(
       <LiffRequesterScreen {...base} {...props} header={<h2>ไม้อัดและตะปู</h2>}>
@@ -388,13 +388,15 @@ describe('[§9.9] [§9.4] what the requester does on their request in LIFF: the 
     expect(page).toMatch(new RegExp(`<button type="submit"[^>]*form="${form}"[^>]*>ส่งคำตอบให้ผู้อนุมัติ</button>`))
   })
 
-  it('[§9.9] a returned request: the reason under the heading; in the bar the way to change it and, first, sending it again', () => {
-    const page = screen({ returned: { reason: 'แยกรายการตามความหนา' }, editHref: '/liff/requests/r1/edit', canResubmit: true })
+  it('[§9.9] a returned request: the reason under the heading; in the bar one main action, the form whose last step shows the budget, the new route and the documents before it sends it again — nothing here sends it at once', () => {
+    const page = screen({ returned: { reason: 'แยกรายการตามความหนา' }, editHref: '/liff/requests/r1/edit' })
     expect(page).toContain('ผู้อนุมัติตีกลับให้แก้ไข')
     expect(page).toContain('เหตุผล: แยกรายการตามความหนา')
+    expect(page).toContain('กด แก้ไขคำขอ แล้วตรวจงบคงเหลือ เส้นทางอนุมัติใหม่ และเอกสารที่ต้องแนบในขั้นตรวจและส่ง ก่อนกด ส่งขออนุมัติอีกครั้ง')
     const bar = page.slice(page.indexOf('<section aria-label="สิ่งที่ทำได้กับคำขอนี้"'))
-    expect(bar).toMatch(/<a href="\/liff\/requests\/r1\/edit"[^>]*>แก้ไขคำขอ<\/a>/)
-    expect(bar).toMatch(/<button type="button"[^>]*>ส่งขออนุมัติอีกครั้ง<\/button>/)
+    expect(bar).toMatch(/<a href="\/liff\/requests\/r1\/edit" class="[^"]*bg-primary[^"]*"[^>]*>แก้ไขคำขอ<\/a>/)
+    expect(bar).not.toContain('<button')
+    expect(page).not.toMatch(/>ส่งขออนุมัติอีกครั้ง</)
   })
 
   it('[§9.4] a draft: the way back to the form is the main button', () => {
@@ -406,7 +408,7 @@ describe('[§9.9] [§9.4] what the requester does on their request in LIFF: the 
   it('[§9.9] with nothing to do — a request cancelled or answered while the page was open — neither "สิ่งที่ต้องทำ" nor a bar shows', () => {
     // The page keeps this box once it was shown, so its confirmations stay; with none held and nothing to do, nothing of it
     // is left on the screen: no empty heading over a cancelled request
-    for (const props of [{}, { draft: true, editHref: null }, { returned: null, canResubmit: false }]) {
+    for (const props of [{}, { draft: true, editHref: null }, { returned: null }]) {
       const page = screen(props)
       expect(page).not.toContain('สิ่งที่ต้องทำ')
       expect(page).not.toContain('<section')
@@ -430,8 +432,11 @@ describe('[FR-INT-005/AC3] [§9.4] the camera of the LIFF request form', () => {
         onAttach={async () => true}
       />,
     )
-    expect(page).toMatch(/<label for="([^"]+)" class="[^"]*min-h-11[^"]*">.*ถ่ายรูปแนบคำขอ<input id="\1" type="file" accept="image\/\*" capture="environment" class="sr-only"/)
+    expect(page).toMatch(/<label for="([^"]+)" class="[^"]*min-h-11[^"]*">.*แนบรูปถ่าย<input id="\1" type="file" accept="image\/\*" capture="environment" class="sr-only"/)
     expect(page).toContain('รูปจะถูกย่อในเครื่องก่อนส่ง')
+    // Words true on both kinds of device (§9.9 rule 7): a computer ignores capture and opens a file chooser
+    expect(page).toContain('บนโทรศัพท์จะเปิดกล้อง บนคอมพิวเตอร์ให้เลือกไฟล์รูป')
+    expect(page).not.toContain('ถ่ายรูปแนบคำขอ')
     // The camera icon is decoration: the words name the control
     expect(page).toMatch(/<svg[^>]*aria-hidden="true"/)
   })

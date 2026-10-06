@@ -12,6 +12,11 @@
     "ready": "{count, plural, one {# line is} other {# lines are}} ready for a draft PO",
     "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet"
   },
+  "po": {
+    "list": "Purchase orders waiting for procurement",
+    "drafts": "{count, plural, one {# draft PO waits} other {# draft POs wait}} to be checked and sent for approval",
+    "approved": "{count, plural, one {# approved PO waits} other {# approved POs wait}} to be sent to the supplier"
+  },
   "myRequests": "My requests",
   "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
   "myRequestsAll": "See all requests ({count})",

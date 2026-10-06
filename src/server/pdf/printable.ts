@@ -31,16 +31,20 @@ export interface PrintableDocument {
 const HEAD_OFFICE = '00000'
 const PERCENT_BP = 100
 
+/**
+ * The channel of an approval as printed; the two LINE channels and the two connected ones (tier 4) in the timeline's words
+ * (messages/src/th/timeline.json)
+ */
 const CHANNEL_TH: Readonly<Record<string, string>> = {
   WEB: 'เว็บ',
-  LIFF: 'LINE (LIFF)',
-  LINE_CHAT: 'LINE (แชท)',
+  LIFF: 'หน้าจอใน LINE',
+  LINE_CHAT: 'แชท LINE',
   PWA: 'แอปบนมือถือ',
   EMAIL: 'ลิงก์ในอีเมล',
   PORTAL: 'พอร์ทัล',
   SYSTEM: 'ระบบ',
-  API: 'API',
-  MCP: 'MCP',
+  API: 'ระบบอื่นที่เชื่อมต่อ',
+  MCP: 'ผู้ช่วย AI ที่เชื่อมต่อ',
 }
 
 /** "2000.0000" → "2,000" · "2.5000" → "2.5" */

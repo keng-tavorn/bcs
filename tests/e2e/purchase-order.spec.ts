@@ -51,6 +51,18 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await topShot(page, testInfo, 'po-draft-line-open')
+  // Ticking "take this line off" turns the button into what pressing it does (§9.9 principle 7); the only line of a
+  // draft is never taken off, said before anything is sent; unticked, the button saves the line again
+  const takeOff = edit.getByRole('checkbox', { name: /^เอาบรรทัดนี้ออก กลับเข้ากองรอจัดซื้อ/ })
+  await takeOff.check()
+  await expect(edit.getByRole('button', { name: 'บันทึกบรรทัด 1' })).toHaveCount(0)
+  await expect(edit.getByRole('button', { name: 'เอาบรรทัด 1 ออก' })).toBeVisible()
+  await expectNoBlockingAxe(page)
+  await edit.getByRole('button', { name: 'เอาบรรทัด 1 ออก' }).click()
+  await expect(edit.getByRole('alert').filter({ hasText: 'ร่างต้องเหลืออย่างน้อย 1 บรรทัด และระบบยังทิ้งร่างทั้งใบไม่ได้' })).toBeVisible()
+  await takeOff.uncheck()
+  await expect(edit.getByRole('button', { name: 'เอาบรรทัด 1 ออก' })).toHaveCount(0)
+  await expect(edit.getByRole('alert')).toHaveCount(0)
   await edit.getByLabel('จำนวน (ชิ้น)').fill('11')
   await edit.getByRole('button', { name: 'บันทึกบรรทัด 1' }).click()
   await expect(edit.getByText('สั่งได้ไม่เกิน 10', { exact: true })).toBeVisible()
@@ -64,7 +76,7 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await price.blur()
   await expect(price).toHaveValue('1,150.00')
   await edit.getByRole('button', { name: 'บันทึกบรรทัด 1' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'บันทึกการแก้ไขร่างแล้ว ยอดเงินคำนวณใหม่แล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'บันทึกบรรทัด 1 แล้ว ยอดเงินคำนวณใหม่แล้ว' })).toBeVisible()
   // Saved, the line is closed again and listed with its new price
   await expect(editLines).toContainText('1,150.00')
   await expect(edit.getByRole('button', { name: 'แก้บรรทัด 1' })).toBeVisible()
@@ -77,6 +89,9 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await edit.getByLabel('เครดิต (วัน)').fill('30')
   await edit.getByLabel('หมายเหตุถึงผู้ขาย', { exact: true }).fill('ส่งของก่อน 10 โมง ติดต่อผู้รับที่คลัง')
   await edit.getByRole('button', { name: 'บันทึกเงื่อนไขและหมายเหตุ' }).click()
+  // §9.9 principle 7: confirmed in the words of the terms' own button, not "the amounts were computed again"
+  await expect(page.getByRole('status').filter({ hasText: 'บันทึกเงื่อนไขและหมายเหตุแล้ว' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'ยอดเงินคำนวณใหม่แล้ว' })).toHaveCount(0)
   const facts = page.getByRole('region', { name: 'รายละเอียดใบสั่งซื้อ' })
   await expect(facts).toContainText('เครดิต 30 วัน')
   await expect(facts).toContainText('ส่งของก่อน 10 โมง ติดต่อผู้รับที่คลัง')
@@ -204,6 +219,7 @@ test('the purchase orders by status say whom each waits for; a requester sees on
   await expect(requester.getByRole('heading', { level: 1 })).toHaveText('บริษัท บริการทำความสะอาดทดสอบ จำกัด')
   await expect(requester.getByText('คุณดูใบสั่งซื้อนี้ได้อย่างเดียว การแก้ไข ส่ง และยกเลิกเป็นงานของฝ่ายจัดซื้อ')).toBeVisible()
   await expect(requester.getByText('ราคาที่เคยซื้อรายการนี้')).toHaveCount(0)
+  await expect(requester.getByText('ยังไม่เคยซื้อรายการนี้ใน PO ที่อนุมัติแล้ว')).toHaveCount(0)
   await expect(requester.getByRole('button', { name: 'ส่งขออนุมัติ' })).toHaveCount(0)
   // The supplier's address is a field of the full register: not for a requester
   await expect(requester.getByText('อีเมลรับ PO')).toHaveCount(0)

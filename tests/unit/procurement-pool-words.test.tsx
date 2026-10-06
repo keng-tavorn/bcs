@@ -2,7 +2,8 @@ import { NextIntlClientProvider } from 'next-intl'
 import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { ConsolidatePanel } from '@/ui/procurement/consolidate-panel'
+import { ConsolidatePanel, RoundResultList } from '@/ui/procurement/consolidate-panel'
+import type { DraftView } from '@/ui/procurement/outcome'
 import { PoolBoard, type PoolRequestView } from '@/ui/procurement/pool-board'
 import en from '../../messages/en.json'
 import th from '../../messages/th.json'
@@ -40,6 +41,15 @@ describe('[FR-P2P-002/AC3] a round’s explanation and the lines priced with VAT
     const html = render(<ConsolidatePanel next="รอบอัตโนมัติถัดไป" ready={2} blocked={3} consolidate={async () => ({ ok: true })} />)
     expect(html).toContain(th.procurement.pool.round.hint)
     expect(html).toContain('3 บรรทัดในกองมาจากคำขอที่ราคารวม VAT')
+    expect(html).not.toContain('text-sm')
+  })
+
+  it('nor anything of a round’s result: each draft’s lines, requests and amount at the body size', () => {
+    const draft: DraftView = { id: 'po-1', supplierName: 'บริษัท วัสดุก่อสร้างทดสอบ จำกัด', siteName: 'ไซต์งานตัวอย่าง B', kind: 'GOODS', lineCount: 3, net: '54,000.00', requestNumbers: ['PR-2569-00016', 'PR-2569-00021'] }
+    const html = render(<RoundResultList drafts={[draft]} />)
+    expect(html.replace(/<[^>]+>/g, '')).toContain('3 บรรทัด · คำขอ PR-2569-00016, PR-2569-00021')
+    expect(html).toContain('54,000.00')
+    expect(html).toContain('href="/procurement/pos/po-1"')
     expect(html).not.toContain('text-sm')
   })
 

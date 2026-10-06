@@ -69,6 +69,21 @@ export function toFormFailure(error: { code: string; details?: Readonly<Record<s
 /** A DOA gap that the organization's administrators were told about (the screen says so only then) */
 export const adminsWereTold = (f: FormFailure): boolean => (f.adminsNotified ?? 0) > 0
 
+/**
+ * Why this page can no longer save or send the request, from the refusal that stopped it (§9.9 rule 7: the real cause,
+ * never a guess between two): sent elsewhere, or cancelled — the request's status the server names with the refusal
+ * (INVALID_STATE_TRANSITION, details.from) — no longer found, or no longer this account's to change. ELSEWHERE: the
+ * server named no status, so the page can only say it was sent or cancelled elsewhere.
+ */
+export type ClosedWhy = 'SENT' | 'CANCELLED' | 'NOT_FOUND' | 'FORBIDDEN' | 'ELSEWHERE'
+
+export function closedWhy(f: Pick<FormFailure, 'code' | 'status'>): ClosedWhy {
+  if (f.code === 'NOT_FOUND') return 'NOT_FOUND'
+  if (f.code === 'FORBIDDEN') return 'FORBIDDEN'
+  if (f.status === 'CANCELLED') return 'CANCELLED'
+  return f.status ? 'SENT' : 'ELSEWHERE'
+}
+
 /** The steps of the form (real steps of filling it in, §9.9) */
 export const STEP_IDS = ['details', 'items', 'documents', 'review'] as const
 export type StepId = (typeof STEP_IDS)[number]

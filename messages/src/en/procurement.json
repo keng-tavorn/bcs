@@ -84,7 +84,8 @@
       "jump": "Choose the supplier",
       "urgentConfirm": "The lines you ticked include {count} urgent requests. Choosing {supplier} drafts their POs at once, and a draft cannot be thrown away or given another supplier yet.",
       "urgentConfirmButton": "Confirm: use this supplier and draft now",
-      "back": "Check again first"
+      "back": "Check again first",
+      "nothingToClear": "The selected lines have no supplier, so there is none to remove. To give them one, choose it in the list and press \"Use this supplier for the selected lines\"."
     },
     "round": {
       "title": "Make draft POs",
@@ -129,7 +130,7 @@
       "SUPPLIER_INACTIVE": "This supplier is inactive. Choose another supplier.",
       "SUPPLIER": "This supplier was not found. Choose a supplier from the list.",
       "NO_CHANGE": "The selected lines already have this supplier; nothing changed.",
-      "FORBIDDEN": "Only procurement chooses suppliers and makes draft POs.",
+      "FORBIDDEN": "This account can no longer choose suppliers or make draft POs; its rights may have just changed. Reload the page to see them, and if you still need to do this, ask your organization admin to check the account's roles.",
       "NOT_FOUND": "Some lines were not found. Reload the page to see the latest list.",
       "BUSY": "Someone is working on these requests right now. Wait a moment and try again.",
       "CONFLICT": "This was already sent with different data. Reload the page and try again.",

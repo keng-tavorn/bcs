@@ -44,8 +44,8 @@ export function NotificationBell({ items, unread, labels, openAction, markAllRea
         <span>{labels.button}</span>
         {unread > 0 ? (
           // The count of new notifications, in the colour of the "new" mark inside (danger is kept for overdue, not approved
-          // and short budget, §9.9)
-          <span className="rounded-full bg-primary px-2 text-base leading-6 font-semibold text-primary-foreground tabular-nums md:text-sm" aria-hidden="true">
+          // and short budget, §9.9); one 26 px line box at both sizes, at least 1.6 times its text (1.63 at 16 px)
+          <span className="rounded-full bg-primary px-2 text-base leading-[1.625rem] font-semibold text-primary-foreground tabular-nums md:text-sm" aria-hidden="true">
             {unread}
           </span>
         ) : null}

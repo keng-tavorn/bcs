@@ -64,7 +64,7 @@ export function InviteMemberForm({ roles, invite }: { roles: ReadonlyArray<{ val
         <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
           {roles.map((role) => (
             <label key={role.value} className="flex min-h-11 items-center gap-3">
-              <input type="checkbox" name="roles" value={role.value} className="size-5 accent-[var(--primary)]" />
+              <input type="checkbox" name="roles" value={role.value} className="size-5" />
               <span>{role.label}</span>
             </label>
           ))}

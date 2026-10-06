@@ -415,7 +415,7 @@ export async function PolicySubject({
         {policy.kind === 'DOA_VERSION' && policy.status === 'PENDING_APPROVAL' && policy.openTasksUnderCurrent > 0 ? <p className="text-ink">{t('policy.doaOpenTasks', { count: policy.openTasksUnderCurrent })}</p> : null}
         {policy.kind === 'DOA_VERSION' && policy.holders.length ? (
           <div className="flex flex-col gap-2">
-            <h3 className="font-medium text-ink">{t('policy.doaHolders')}</h3>
+            <h3 className="font-semibold text-ink">{t('policy.doaHolders')}</h3>
             <ul className="flex flex-col divide-y divide-line border-t border-line">
               {policy.holders.map((h, i) => (
                 <li key={`${h.position.code}-${i}`} className="py-2 text-ink">
@@ -445,7 +445,7 @@ export async function PolicySubject({
             <DoaRef label={doaRefText(tl, task.route.doa)} href={doaLinks ? doaHref(task.route.doa.versionId) : null} />
           </p>
           <div className="flex flex-col gap-1">
-            <h3 className="font-medium text-ink">{tv('route.why')}</h3>
+            <h3 className="font-semibold text-ink">{tv('route.why')}</h3>
             <p className="break-words text-ink">{routeSentence(tv, tl, locale, task.route, task.subjectType)}</p>
           </div>
         </Section>

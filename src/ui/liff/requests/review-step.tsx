@@ -9,7 +9,7 @@ import { documentFieldIds } from '../../request-form/document-fields'
 import { problemStep, savableLine, type Problem, type RuleStatus } from '../../request-form/model'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type FormFailure, type FormOutcome } from '../../request-form/outcome'
 import { placeAndSupplierText } from '../../request-form/place-supplier'
-import { failureText, sendBlockPoint, type SendBlock } from '../../request-form/review-step'
+import { failureText, mustFixBeforeSending, sendBlockPoint, type SendBlock } from '../../request-form/review-step'
 import { BudgetStatus, RoutePreview, TotalsList } from '../../request-form/summary'
 import type { Attachment, RouteView, SentView } from '../../request-form/types'
 import type { UploadActions } from '../../request-form/upload-button'
@@ -30,7 +30,9 @@ import type { LiffReadiness } from './ready'
 // — who approves under which rule of which DOA version, e.g. "DOA-DEMO ฉบับ 1 ข้อ PR-02" — the documents the rules ask
 // for, and what still needs fixing: what stops the send button first, then each problem with a way to the step that
 // fixes it, or — for one this step fixes itself, in its quotations and documents — what to do there and a way to the
-// place (the budget point names its two fixes, a lower amount or another line, in words); the server's refusal of a send
+// place, each marked as one to fix before sending as the workspace's step marks it: what stops the button, and every
+// other problem, which the button still sends for the server to refuse (an attachment rule with its code; the budget
+// point names its two fixes, a lower amount or another line, in words); the server's refusal of a send
 // leads the same way, to another step or to its place on this one. The workspace's own parts
 // show the totals, the budget and the route (src/ui/request-form/summary.tsx), and its documents step the quotations, the
 // suggested supplier and the files when the rules ask for them or the requester opens them (loaded only then). A photo
@@ -43,8 +45,6 @@ import type { LiffReadiness } from './ready'
 
 /** A refusal because the DOA names nobody who can approve (FR-DOA-003 AC3) */
 const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
-/** Problems that would send something other than what is on screen (the web's review step blocks the button on these) */
-const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE'])
 
 /** The steps of the LIFF form: the workspace's four, with quotations and documents inside the last one */
 export type LiffStep = 'details' | 'items' | 'review'
@@ -447,7 +447,8 @@ export function LiffReviewStep(props: LiffReviewProps) {
                 <li key={i} className="flex flex-col gap-1 py-2">
                   <p className="text-ink">
                     {problemText(t, p, data.form.fields, locale)}
-                    {BLOCKING.has(p.kind) ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
+                    {/* What stops the bar's button, and every other problem, which the server refuses on send (FR-INT-005 AC2) */}
+                    {mustFixBeforeSending(p) ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
                   </p>
                   {step !== 'review' ? (
                     <Button variant="link" className={LINK_BUTTON} onClick={() => onGoTo(step)}>
@@ -507,7 +508,9 @@ const PRIMARY_LINK =
 /**
  * Sent (§9.9 rule 7): the confirmation repeats the button's words — "ส่งขออนุมัติแล้ว", "ส่งขออนุมัติอีกครั้งแล้ว",
  * "ส่งคำขอให้ฝ่ายจัดซื้อแล้ว" — with the number the request got and who decides it now; the bar leads to the request's
- * LIFF page, where its status and timeline are followed, and back to the LINE chat inside the LINE app.
+ * LIFF page, where its status and timeline are followed, and back to the LINE chat inside the LINE app. The send button
+ * goes with the form, so the confirmation takes focus as it appears (NFR-A11Y-01, WCAG 2.4.3 and 4.1.3): the request's
+ * title and the confirmation with its number are the first thing a screen reader reads, as on the web's form.
  */
 export function LiffSent({
   sent,
@@ -527,14 +530,20 @@ export function LiffSent({
   const { inClient, mocked, closeWindow } = useLiff()
   const names = sent.waitingFor.map((w) => (w.principalName ? t('acting', { name: w.name, principal: w.principalName }) : w.name)).join(t('namesJoin'))
   const headline = kind === 'procurement' ? t('procurement') : names ? t(kind === 'resubmit' ? 'resubmitWaiting' : 'sendWaiting', { names }) : t(kind === 'resubmit' ? 'resubmit' : 'send')
+  const confirmation = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    confirmation.current?.focus()
+  }, [])
   return (
     <>
       <LiffContent>
-        <h2 className="text-lg font-semibold break-words">{title}</h2>
-        <LiffNotice tone="success">
-          <p className="font-semibold">{headline}</p>
-          {sent.number ? <p>{t('number', { number: sent.number })}</p> : null}
-        </LiffNotice>
+        <div ref={confirmation} tabIndex={-1} className="flex flex-col gap-6 outline-none">
+          <h2 className="text-lg font-semibold break-words">{title}</h2>
+          <LiffNotice tone="success">
+            <p className="font-semibold">{headline}</p>
+            {sent.number ? <p>{t('number', { number: sent.number })}</p> : null}
+          </LiffNotice>
+        </div>
         <p className="text-ink-muted">{kind === 'procurement' ? t('nextProcurement') : t('next')}</p>
         <LiffLink href={catalogHref}>{t('another')}</LiffLink>
       </LiffContent>

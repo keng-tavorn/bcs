@@ -25,6 +25,12 @@ export interface DateFieldProps {
   readonly defaultValue?: string
   readonly hint?: string
   readonly required?: boolean
+  /**
+   * The id of an error the form around says of this field — a period whose "to" day is before its "from" day
+   * (src/ui/insight/audit-period.tsx), drawn by the form beside the field: while it is set, every list is marked invalid
+   * and described by it, as Field marks its input with its own error (NFR-A11Y-03)
+   */
+  readonly errorId?: string
 }
 
 /** The three lists as chosen: the day (1–31), the month (1–12) and the year of the Christian era, each '' while not chosen */
@@ -74,7 +80,7 @@ const thisYear = () => Number(new Intl.DateTimeFormat('en-US', { timeZone: THAI_
 
 const selectClass = 'h-11 w-full min-w-0 rounded-md border border-input bg-bg px-3 text-base text-ink aria-[invalid=true]:border-danger'
 
-export function DateField({ id, name, label, defaultValue, hint, required = false }: DateFieldProps) {
+export function DateField({ id, name, label, defaultValue, hint, required = false, errorId: formErrorId }: DateFieldProps) {
   const t = useTranslations('app')
   const locale = useLocale() === 'en' ? 'en' : 'th'
   const [parts, setParts] = useState(() => datePartsOf(defaultValue))
@@ -86,7 +92,7 @@ export function DateField({ id, name, label, defaultValue, hint, required = fals
   const words = [hint, said ? t('dateChosen', { date: said }) : null].filter(Boolean).join(' · ')
   const hintId = words ? `${id}-hint` : undefined
   const errorId = partial ? `${id}-error` : undefined
-  const describedBy = [hintId, errorId].filter(Boolean).join(' ') || undefined
+  const describedBy = [hintId, errorId, formErrorId].filter(Boolean).join(' ') || undefined
   // A field that may stay empty asks for all three lists once one is chosen
   const each = (part: keyof DateParts) => ({
     id: `${id}-${part}`,
@@ -94,7 +100,7 @@ export function DateField({ id, name, label, defaultValue, hint, required = fals
     value: parts[part],
     required: required || partial,
     'aria-label': t(`dateParts.${part}`),
-    'aria-invalid': partial && !parts[part] ? true : undefined,
+    'aria-invalid': formErrorId || (partial && !parts[part]) ? true : undefined,
     'aria-describedby': describedBy,
     onChange: (event: { currentTarget: { value: string } }) => {
       const chosen = event.currentTarget.value

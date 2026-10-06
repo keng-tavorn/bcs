@@ -138,3 +138,58 @@ describe('[FR-INT-002/AC1] [FR-INT-005/AC1] the single-source reason is asked be
     expect(failureStep(refused(REASON))).toBe('details')
   })
 })
+
+describe('[FR-INT-005/AC1] [§9.9] a rule met and the lowest quotation are supporting information on a request not sent yet: --info, never the approved mark', () => {
+  it('"ครบแล้ว" beside the rule, "ครบ" beside what it asks for, and "ต่ำสุดก่อน VAT" under the lowest quotation: the info icon in --info beside words in ink', () => {
+    const above = formAt('150000.00')
+    // Three quotations, each with its file: ATT-QUOTES is met, the first one is the lowest before VAT
+    const quotations = ['ร้านปั๊มบาดาลท้องถิ่น', 'บริษัท ปั๊มน้ำทดสอบ จำกัด', 'ห้างวัสดุทดสอบ'].map((supplierName, i) => ({
+      key: `q-${i + 1}`,
+      supplierName,
+      amount: `${150_000 + i * 1_000}.00`,
+      includesVat: false,
+      fileId: `f-${i + 1}`,
+      fileName: `quote-${i + 1}.pdf`,
+      selected: i === 0,
+      saved: true,
+    }))
+    const values: FormValues = { ...above.values, quotations }
+    const input = formInput(values, [], above.totals, DATA.type.code)
+    const rules = applicableRules(DATA.form, input)
+    expect(rules.find((r) => r.id === 'ATT-QUOTES')?.met).toBe(true)
+    const page = html(
+      <DocumentsStep
+        {...above}
+        values={values}
+        input={input}
+        visible={visibleFieldIds(DATA.form, input)}
+        rules={rules}
+        nets={{ 'q-1': 15_000_000n, 'q-2': 15_100_000n, 'q-3': 15_200_000n }}
+        lowest={['q-1']}
+        attachments={[]}
+        uploads={{ requestUpload: async () => ({ ok: false, reason: 'FAILED' }), completeUpload: async () => ({ ok: false, reason: 'FAILED' }) }}
+        onAttach={async () => undefined}
+        onDetach={async () => undefined}
+        onOpenFile={() => undefined}
+        fileError={null}
+        busy={false}
+      />,
+    )
+    /** Each mark of `words` after its icon: the mark's classes and the icon's attributes */
+    const marks = (tag: 'span' | 'p', words: string) =>
+      [...page.matchAll(new RegExp(`<${tag} class="([^"]*)"><svg([^>]*)>(?:(?!</svg>)[\\s\\S])*</svg>${words}</${tag}>`, 'g'))].map((m) => ({ mark: m[1]!, icon: m[2]! }))
+    const met = marks('span', th.requestForm.documents.met)
+    const parts = marks('span', th.requestForm.rules.met)
+    const lowest = marks('p', th.requestForm.quotations.lowest)
+    expect(met).toHaveLength(1)
+    expect(parts.length).toBeGreaterThanOrEqual(1)
+    expect(lowest).toHaveLength(1)
+    for (const { mark, icon } of [...met, ...parts, ...lowest]) {
+      expect(mark).toContain('text-ink')
+      expect(mark).not.toContain('text-primary')
+      expect(icon).toContain('lucide-info')
+      expect(icon).toContain('text-info')
+    }
+    expect(page).not.toContain('lucide-circle-check')
+  })
+})

@@ -144,6 +144,46 @@ test('[FR-AUTH-002/AC1] [FR-AUTH-001/AC3] the second step says on its field what
   await expectNoBlockingAxe(page)
 })
 
+test('[FR-AUTH-002/AC1] [FR-AUTH-001/AC3] a code the second step could not check is never called wrong, and the words above the field ask for what it takes', async ({ page }) => {
+  await page.goto('/login/2fa')
+  const code = page.getByLabel('รหัส 6 หลักจากแอป')
+  const submit = page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' })
+  const appIntro = page.getByText('เปิดแอปยืนยันตัวตนในมือถือ แล้วใส่รหัส 6 หลักของ BCS')
+  await expect(submit).toBeEnabled()
+  await expect(appIntro).toBeVisible()
+
+  // The request reaches BCS, which fails (5xx): the code was not checked, and the connection worked — said so, never
+  // "check the connection" and never a wrong code
+  await page.route('**/api/auth/two-factor/verify-totp', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Service Unavailable' }) }))
+  await code.fill('123456')
+  await submit.click()
+  await expect(page.getByRole('alert').filter({ hasText: 'ระบบขัดข้อง จึงยังไม่ได้ตรวจรหัส รอสักครู่แล้วกด ยืนยันและเข้าสู่ระบบ อีกครั้ง' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: 'ตรวจการเชื่อมต่อ' })).toHaveCount(0)
+  await expect(page.getByRole('alert').filter({ hasText: 'รหัสไม่ถูกต้อง' })).toHaveCount(0)
+  await expect(submit).toBeEnabled()
+
+  // The connection drops on the way: that is what the message says, and the button can be pressed again
+  await page.unroute('**/api/auth/two-factor/verify-totp')
+  await page.route('**/api/auth/two-factor/verify-totp', (route) => route.abort('internetdisconnected'))
+  await submit.click()
+  await expect(page.getByRole('alert').filter({ hasText: 'เข้าสู่ระบบไม่สำเร็จ ตรวจการเชื่อมต่อแล้วลองอีกครั้ง' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: 'ระบบขัดข้อง' })).toHaveCount(0)
+  await expect(submit).toBeEnabled()
+
+  // A backup code instead (no phone at hand): the words above the field ask for one — not to open the app — and a
+  // server failure is said the same way
+  await page.getByRole('button', { name: 'ใช้รหัสสำรองแทน' }).click()
+  await expect(page.getByText('ใส่รหัสสำรองหนึ่งรหัสจากชุดที่เก็บไว้ตอนตั้งค่าการยืนยันตัวตนสองชั้น', { exact: false })).toBeVisible()
+  await expect(appIntro).toHaveCount(0)
+  await page.route('**/api/auth/two-factor/verify-backup-code', (route) => route.fulfill({ status: 500, contentType: 'application/json', body: '{}' }))
+  await page.getByLabel('รหัสสำรอง', { exact: true }).fill('e2e-backup-code')
+  await submit.click()
+  await expect(page.getByRole('alert').filter({ hasText: 'ระบบขัดข้อง จึงยังไม่ได้ตรวจรหัส' })).toBeVisible()
+  await expect(page.getByRole('alert').filter({ hasText: 'รหัสสำรองนี้ไม่ถูกต้อง' })).toHaveCount(0)
+  await expect(submit).toBeEnabled()
+  await expectNoBlockingAxe(page)
+})
+
 test('[FR-AUTH-001/AC2] a new password longer than the rule is said on its field, and the e-mailed link is not called expired', async ({ page }) => {
   const sent: string[] = []
   page.on('request', (request) => {
@@ -165,6 +205,44 @@ test('[FR-AUTH-001/AC2] a new password longer than the rule is said on its field
   expect(sent).toEqual([])
   await expect(page.getByText('ลิงก์นี้หมดอายุหรือใช้ไปแล้ว', { exact: false })).toHaveCount(0)
   await expect(save).toBeEnabled()
+  await expectNoBlockingAxe(page)
+})
+
+test('[FR-AUTH-001/AC1] an invitation says what is wrong for what it is: a password longer than the rule on its field, a link cut short as a link that is not valid', async ({ page }) => {
+  // The password goes to the server action, a POST to the page's own address
+  const posted: string[] = []
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname.startsWith('/invite/')) posted.push(request.url())
+  })
+  // A link cut short when it was copied: shorter than any invitation token BCS sends
+  await page.goto('/invite/cut-short')
+  const password = page.getByLabel('รหัสผ่านใหม่', { exact: true })
+  const again = page.getByLabel('ใส่รหัสผ่านอีกครั้ง')
+  const submit = page.getByRole('button', { name: 'ตั้งรหัสผ่านและเปิดใช้บัญชี' })
+  await expect(submit).toBeEnabled()
+
+  // 132 characters, both fields alike: the rule is at most 128 — said on the field, which takes the focus, before
+  // anything is sent (never "too short")
+  const tooLong = 'Long-pass-9!'.repeat(11)
+  await password.fill(tooLong)
+  await again.fill(tooLong)
+  await submit.click()
+  await expect(password).toHaveAttribute('aria-invalid', 'true')
+  await expect(password).toHaveAccessibleDescription(/รหัสผ่านยาวเกินไป ใช้ไม่เกิน 128 ตัวอักษร/)
+  await expect(password).toBeFocused()
+  await expect(page.getByText('รหัสผ่านสั้นเกินไป', { exact: false })).toHaveCount(0)
+  expect(posted).toEqual([])
+
+  // A password within the rule: the server cannot read the link, and the form says the link is not valid and where to
+  // get a new one — not that the password is too short
+  const fine = 'Long-pass-9!-fits'
+  await password.fill(fine)
+  await again.fill(fine)
+  await submit.click()
+  await expect(page.getByRole('alert').filter({ hasText: 'ลิงก์เชิญนี้ไม่ถูกต้อง ขอลิงก์ใหม่จากผู้ดูแลระบบขององค์กร' })).toBeVisible()
+  await expect(password).not.toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByText('รหัสผ่านสั้นเกินไป', { exact: false })).toHaveCount(0)
+  expect(posted.length).toBeGreaterThan(0)
   await expectNoBlockingAxe(page)
 })
 

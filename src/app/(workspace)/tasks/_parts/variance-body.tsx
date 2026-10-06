@@ -92,7 +92,7 @@ export async function VarianceBody({ variance, locale, doaLinks, poHref, openFil
           {budget ? (
             <div className="flex flex-col gap-3">
               <Facts
-                className="sm:grid-cols-1"
+                columns="one"
                 items={[
                   { label: t('variance.budgetLine'), value: `${budget.code} · ${budget.name}` },
                   {
@@ -116,7 +116,8 @@ export async function VarianceBody({ variance, locale, doaLinks, poHref, openFil
       </div>
 
       <Section id="variance-facts" title={t('variance.title')}>
-        <Facts items={items} className="lg:grid-cols-2" />
+        {/* In columns by the list's own width: one in the LIFF column at every screen width, two in the workspace's */}
+        <Facts items={items} columns={2} />
       </Section>
 
       <Section id="variance-photos" title={t('variance.photosTitle')}>

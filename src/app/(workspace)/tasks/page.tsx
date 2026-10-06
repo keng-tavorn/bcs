@@ -18,8 +18,10 @@ export async function generateMetadata() {
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 
 // The approver's inbox (spec §9.1 /tasks, §9.9 principle 1): every task waiting for this member — theirs and the ones
-// they hold for someone while acting for them — the ones due first at the top, each with the business time it has
-// waited. The list holds only the member's own tasks; deciding is checked again on the decision page and in the service.
+// they hold for someone while acting for them — those they can decide first, the ones due first at the top, each with
+// the business time it has waited; then those waiting for the requester's answer, the question asked first, each with
+// how long it has waited for the answer (listMyTasks). The count reads "1 task", "2 tasks" in English (an ICU plural).
+// The list holds only the member's own tasks; deciding is checked again on the decision page and in the service.
 // Nothing waiting (§9.9 principle 8), the next step is one the member can take, as on home: a member with requests of
 // their own follows them; one with none — an auditor, an approver who never asked for anything — is never sent to an
 // empty list of requests, but offered to start one when their role may (the shell's door checks the same right).

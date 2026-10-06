@@ -7,7 +7,7 @@ import { useId, useState } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { announcePoolAction, useOtherPoolAction } from './activity'
-import { poolErrorKey, type DraftView, type PoolOutcome } from './outcome'
+import { POOL_NO_ANSWER, poolActionErrorKey, poolErrorKey, type DraftView, type PoolOutcome } from './outcome'
 import { useOutcomeAction } from './use-outcome-action'
 
 // The procurement pool (spec FR-P2P-001): approved request lines nobody has ordered, grouped by request (oldest
@@ -21,8 +21,10 @@ import { useOutcomeAction } from './use-outcome-action'
 // drafts yet says why under its name, with an icon (a request whose prices include VAT, NEW-50); its prices are shown
 // as it states them, marked "รวม VAT", and choosing its supplier drafts nothing at once even when it is urgent — the
 // notice of the choice says so. While such a request is listed, the amount column names no VAT basis and every line
-// states its own ("รวม VAT" or "ก่อน VAT"). Strings and amounts arrive translated and formatted; the service checks
-// permissions again.
+// states its own ("รวม VAT" or "ก่อน VAT"). While a choice is sent, the button pressed says so in its own words
+// ("กำลังใช้ผู้ขายนี้", "กำลังเอาผู้ขายออก"); a choice that got no answer says it is not certain it was made, and to
+// press the same button again without changing the lines or the supplier (POOL_NO_ANSWER). Strings and amounts arrive
+// translated and formatted; the service checks permissions again.
 
 export interface PoolLineView {
   readonly id: string
@@ -125,11 +127,11 @@ export function DraftLinks({ drafts, label }: { drafts: readonly DraftView[]; la
 export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
   const t = useTranslations('procurement.pool')
   const id = useId()
-  const action = useOutcomeAction<PoolOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoolOutcome>(POOL_NO_ANSWER)
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set())
   const [supplierId, setSupplierId] = useState('')
   const [problem, setProblem] = useState<'needLines' | 'needSupplier' | 'nothingToClear' | null>(null)
-  /** The last press asked to take the supplier off (its refusal is worded for it) */
+  /** The last press asked to take the supplier off (its refusal and its pending words are worded for it) */
   const [clearing, setClearing] = useState(false)
   const [done, setDone] = useState<{ text: string; drafts: readonly DraftView[]; urgent: string | null; blocked: string | null } | null>(null)
   /** Urgent requests among the ticked lines, while the second press is asked for */
@@ -224,7 +226,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
         {failure ? (
           <Notice tone="danger">
             {/* Someone took the suppliers off meanwhile: nothing was left to take off, in the words of that case */}
-            {clearing && poolErrorKey(failure) === 'NO_CHANGE' ? t('assign.nothingToClear') : t(`errors.${poolErrorKey(failure)}`, { requestId: failure.requestId ?? '-' })}
+            {clearing && poolErrorKey(failure) === 'NO_CHANGE' ? t('assign.nothingToClear') : t(`errors.${poolActionErrorKey(failure, clearing ? 'clear' : 'assign')}`, { requestId: failure.requestId ?? '-' })}
           </Notice>
         ) : null}
         {problem ? <Notice tone="danger">{t(`assign.${problem}`)}</Notice> : null}
@@ -251,11 +253,12 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
               ))}
             </select>
           </div>
+          {/* Only the button pressed says it is working, in its own words */}
           <Button onClick={() => void apply(false)} disabled={action.pending || confirmUrgent !== null}>
-            {action.pending ? t('assign.working') : t('assign.submit')}
+            {action.pending && !clearing ? t('assign.working') : t('assign.submit')}
           </Button>
           <Button variant="secondary" onClick={() => void apply(true)} disabled={action.pending || confirmUrgent !== null}>
-            {t('assign.clear')}
+            {action.pending && clearing ? t('assign.clearing') : t('assign.clear')}
           </Button>
         </div>
         {confirmUrgent !== null ? (
@@ -301,18 +304,21 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                       {r.title}
                     </Link>
                     {r.urgent ? (
-                      <span className="inline-flex items-center gap-1 rounded-sm border border-warn px-1.5 text-base font-medium text-warn md:text-sm">
+                      <span className="inline-flex items-center gap-1 rounded-sm border border-warn px-1.5 font-medium text-warn">
                         <AlarmClock className="size-4 shrink-0" aria-hidden="true" />
                         {t('urgency.URGENT')}
                       </span>
                     ) : null}
                   </p>
+                  {/* What procurement reads before choosing a supplier — who asked, where it goes, since when it was
+                      approved, the supplier the requester suggests — is content at the body's size (§9.9: 15 px on the
+                      web, 16 on phones); only the column headings and the note under an amount are smaller on the web */}
                   {r.meta.map((m) => (
-                    <span key={m} className="text-base text-ink-muted md:text-sm">
+                    <span key={m} className="text-ink-muted">
                       {m}
                     </span>
                   ))}
-                  {r.suggested ? <span className="text-base text-ink md:text-sm">{t('request.suggested', { name: r.suggested })}</span> : null}
+                  {r.suggested ? <span className="text-ink">{t('request.suggested', { name: r.suggested })}</span> : null}
                   {r.blocked ? (
                     // A sentence on why the request waits: body size, not a caption (§9.9)
                     <span className="inline-flex items-start gap-1.5 font-medium text-warn">
@@ -336,15 +342,17 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                           className="mt-1.5 size-5 shrink-0"
                         />
                         <span className="flex min-w-0 flex-col gap-0.5">
+                          {/* The line's kind and its supplier, or that it needs one: content at the body's size (§9.9). A
+                              supplier chosen is not an approval: its store in --info, never --primary (§9.9 tokens) */}
                           <span className="font-medium break-words text-ink">{t('line.title', { no: l.no, description: l.description })}</span>
-                          <span className="text-base text-ink-muted md:text-sm">{l.kind}</span>
+                          <span className="text-ink-muted">{l.kind}</span>
                           {l.supplierName ? (
-                            <span className="inline-flex items-start gap-1.5 text-base text-ink md:text-sm">
-                              <Store className="mt-[0.3em] size-4 shrink-0 text-primary" aria-hidden="true" />
+                            <span className="inline-flex items-start gap-1.5 text-ink">
+                              <Store className="mt-[0.3em] size-4 shrink-0 text-info" aria-hidden="true" />
                               <span className="break-words">{t('line.supplier', { name: l.supplierName })}</span>
                             </span>
                           ) : (
-                            <span className="inline-flex items-start gap-1.5 text-base font-medium text-warn md:text-sm">
+                            <span className="inline-flex items-start gap-1.5 font-medium text-warn">
                               <CircleAlert className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
                               <span>{t('line.needsSupplier')}</span>
                             </span>

@@ -5,11 +5,11 @@ import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
-import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { setupCodeRefusal, setupPasswordRefusal, type SetupRefusal } from './answers'
 import { authClient, settledWithWait } from './client'
 import { QrCode } from './qr-code'
+import { ScriptButton } from './script-button'
 
 type Step = { kind: 'password' } | { kind: 'scan'; uri: string; secret: string; backupCodes: string[] } | { kind: 'codes'; backupCodes: string[] }
 
@@ -21,7 +21,7 @@ function manualKey(uri: string): string {
 
 // Authenticator setup (FR-AUTH-002 AC1–AC2): confirm the password, scan, confirm a code, keep the 10 backup codes. The
 // password and the code are sent by the page's script only. The password step is in the server's HTML (the workspace
-// shows it before any work), so both forms post and their buttons wait for hydration (src/ui/form/hydrated.ts): nothing
+// shows it before any work), so both forms post and their buttons wait for hydration (./script-button.tsx): nothing
 // typed before the script runs goes into the page's address (NFR-SEC-09). What went wrong is said for what it is (§9.9
 // rule 7, ./answers.ts): an empty password on its field, which takes the focus; above the form, a password or a code the
 // server refused, and apart from them what never reached that check — no answer, too many requests (Better Auth's limit
@@ -29,7 +29,6 @@ function manualKey(uri: string): string {
 export function TwoFactorSetup() {
   const t = useTranslations('auth.security')
   const router = useRouter()
-  const hydrated = useHydrated()
   const passwordForm = useRef<HTMLFormElement>(null)
   const [step, setStep] = useState<Step>({ kind: 'password' })
   const [error, setError] = useState<string | null>(null)
@@ -148,9 +147,9 @@ export function TwoFactorSetup() {
         <h3 className="font-semibold">{t('stepConfirm')}</h3>
         {error ? <Notice tone="danger">{error}</Notice> : null}
         <Field id="code" name="code" label={t('code')} inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required className="tabular tracking-widest" />
-        <Button type="submit" disabled={pending || !hydrated} className="w-full sm:w-auto">
+        <ScriptButton type="submit" disabled={pending} className="w-full sm:w-auto">
           {pending ? t('confirming') : t('confirm')}
-        </Button>
+        </ScriptButton>
       </form>
     )
   }
@@ -160,9 +159,9 @@ export function TwoFactorSetup() {
       <h3 className="font-semibold">{t('stepPassword')}</h3>
       {error ? <Notice tone="danger">{error}</Notice> : null}
       <Field id="setup-password" name="password" type="password" autoComplete="current-password" required label={t('password')} error={missing.password} />
-      <Button type="submit" disabled={pending || !hydrated} className="w-full sm:w-auto">
+      <ScriptButton type="submit" disabled={pending} className="w-full sm:w-auto">
         {pending ? t('starting') : t('start')}
-      </Button>
+      </ScriptButton>
     </form>
   )
 }

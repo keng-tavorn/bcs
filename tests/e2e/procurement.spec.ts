@@ -110,7 +110,7 @@ test('[FR-P2P-001/AC1] [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC2] [FR-P2
   await expect(poolGroup(page, made.a.number)).toHaveCount(0)
   // FR-P2P-002 AC2: the round is kept, with who ran it and the drafts it made
   const rounds = page.getByRole('list', { name: 'รอบรวมคำขอที่ผ่านมา' })
-  await expect(rounds.getByRole('listitem').first()).toContainText('รวมตอนนี้โดย พิมพ์ใจ จัดหา')
+  await expect(rounds.getByRole('listitem').first()).toContainText('กดรวมเป็นร่าง PO โดย พิมพ์ใจ จัดหา')
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'pool-consolidated')
 

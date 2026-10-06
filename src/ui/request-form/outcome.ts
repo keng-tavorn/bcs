@@ -114,6 +114,7 @@ export const FAILURE_KEYS = [
   'STATE',
   'FORBIDDEN',
   'NOT_FOUND',
+  'FILE_NOT_FOUND',
   'UNAUTHENTICATED',
   'BUSY',
   'FILE',
@@ -184,6 +185,8 @@ export function failureKey(f: FormFailure): FailureKey {
   if (f.code === 'VALIDATION_FAILED') return validationKey(f)
   if (f.code === 'INVALID_STATE_TRANSITION') return 'STATE'
   if (f.code === 'RATE_LIMITED') return 'BUSY'
+  // A file the request no longer holds is not the request missing: each gets its own words, neither guesses why
+  if (f.code === 'NOT_FOUND' && f.field === 'fileId') return 'FILE_NOT_FOUND'
   return BY_CODE.find((k) => k === f.code) ?? 'FAILED'
 }
 

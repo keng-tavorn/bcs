@@ -33,8 +33,12 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
   return tasks.map((task) => {
     const s = task.subject
     const states: Array<{ kind: StateKind; text: string }> = []
-    if (task.status === 'INFO_REQUESTED') states.push({ kind: 'question', text: t('item.question') })
-    else {
+    if (task.status === 'INFO_REQUESTED') {
+      // Waiting for the requester's answer, and for how long — the wait of the request page's ANSWER step (§9.9 principle 4)
+      states.push({ kind: 'question', text: t('item.question') })
+      const asked = waitingText(tv, task.question?.waitingMinutes)
+      if (asked) states.push({ kind: 'waiting', text: asked })
+    } else {
       const waited = waitingText(tv, task.waitingMinutes)
       if (waited) states.push({ kind: 'waiting', text: waited })
       const due = dueText(tv, locale, task.dueAt, task.overdue)

@@ -96,7 +96,8 @@ export function boardDocumentViews(t: BoardT, locale: string, row: BoardRowDto, 
             confirmLabel: t('remind.confirm', { name: row.name }),
             confirmAriaLabel: t('remind.confirmFull', { name: row.name, document: title }),
             hint: again ? t('remind.recent', { time: formatDateTime(locale, again) }) : null,
-            // within the hour the button does not ask: it says at once from when it may be sent again
+            // within the hour the button cannot be pressed, and the hint beside it says from when it may be sent again;
+            // it can be pressed again by itself once that time comes
             againAt: again,
           }
         : null,

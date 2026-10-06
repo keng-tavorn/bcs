@@ -40,8 +40,12 @@ import type { LiffReadiness } from './ready'
 // picker. The send button sits in the bar at the bottom (the form's shell): its words, its refusal and the server's
 // answer are the same as on the web, and the shell tells this step what stops the button, so that "ตรวจก่อนส่ง" leads
 // with it and says the request can be sent only when nothing does (§9.9 principle 3). The server's refusal of a send is
-// the last thing on the step, right above the bar's button as on the web, and comes into view when it arrives. The file
-// commands reach this step already gated by the LIFF session (the form's shell, ./ready.ts).
+// the last thing on the step, right above the bar's button as on the web, and comes into view when it arrives; a refusal
+// because the request was sent or cancelled meanwhile leads to its page, as on the web. The file commands reach this step
+// already gated by the LIFF session (the form's shell, ./ready.ts). LIFF has no sign-in page of its own: a session that
+// has ended — a send, a file, the camera or a save of the draft refused for it — says that nothing was done, and to open
+// the form again from the LINE chat's menu, where the saved drafts are (liffRequests.form.sessionEnded), never the web's
+// "sign in again".
 
 /** A refusal because the DOA names nobody who can approve (FR-DOA-003 AC3) */
 const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
@@ -134,6 +138,8 @@ export interface LiffReviewProps extends StepProps {
   readonly sendBlock: SendBlock | null
   /** The server's last refusal of the send */
   readonly submitError: FormFailure | null
+  /** The request's LIFF page, once the draft exists: where a refusal because it was sent or cancelled meanwhile leads */
+  readonly requestHref?: string | null
   /** Load the latest version of the draft (after CONFLICT_VERSION) */
   readonly onReload: () => void
   readonly files: LiffReviewFiles
@@ -294,6 +300,8 @@ export function LiffReviewStep(props: LiffReviewProps) {
     setDocumentsOpen(true)
     bringToFocus(refusalPlaceOf(f))
   }
+  /** A refusal in the workspace's words, but a session that has ended in LIFF's: nothing was done, and how to come back */
+  const refusalText = (f: FormFailure) => (f.code === 'UNAUTHENTICATED' ? tl('sessionEnded') : failureText(t, f, data.form.fields, locale, kindLabel))
   const fileError =
     fileProblem === null
       ? null
@@ -301,7 +309,7 @@ export function LiffReviewStep(props: LiffReviewProps) {
         ? t('errors.DRAFT_NOT_SAVED')
         : fileProblem === 'NOT_OPENED'
           ? t('errors.fileNotOpened')
-          : failureText(t, fileProblem, data.form.fields, locale, kindLabel)
+          : refusalText(fileProblem)
 
   /** Links an uploaded file to the draft as `kind`; true when it is attached */
   async function attachAs(file: { fileId: string; fileName: string }, kind: string): Promise<boolean> {
@@ -430,7 +438,9 @@ export function LiffReviewStep(props: LiffReviewProps) {
 
       <LiffSection id="review-problems" title={t('review.problemsTitle')}>
         {problems.length === 0 && sendBlock === null ? (
-          <LiffNotice tone="success">{t('review.ready')}</LiffNotice>
+          // Supporting information on a request not sent yet, as the workspace's form says it: --info, never the
+          // approved colour of --primary (§9.9 tokens)
+          <LiffNotice tone="info">{t('review.ready')}</LiffNotice>
         ) : (
           <ul className="flex flex-col divide-y divide-line border-y border-line">
             {blockPoint ? (
@@ -472,7 +482,7 @@ export function LiffReviewStep(props: LiffReviewProps) {
       {submitError ? (
         <div ref={refusalRef}>
           <LiffNotice tone="danger">
-            <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
+            <p>{refusalText(submitError)}</p>
             {fixStep === 'review' ? (
               // Fixed on this step, under its quotations and documents: the way there (§9.9 rule 7)
               <Button variant="link" className={LINK_BUTTON} onClick={() => toRefusalPlace(submitError)}>
@@ -489,6 +499,8 @@ export function LiffReviewStep(props: LiffReviewProps) {
                 {t('save.reload')}
               </Button>
             ) : null}
+            {/* Sent or cancelled meanwhile: its own page says where it stands (§9.9 rule 7: the way on), as on the web */}
+            {failureKey(submitError) === 'STATE' && props.requestHref ? <LiffLink href={props.requestHref}>{t('page.openRequest')}</LiffLink> : null}
           </LiffNotice>
         </div>
       ) : null}
@@ -496,9 +508,14 @@ export function LiffReviewStep(props: LiffReviewProps) {
   )
 }
 
-/** A save of the draft that the server refused, in the words of the workspace's form (shown at the top of the form) */
+/**
+ * A save of the draft that the server refused, in the words of the workspace's form (shown at the top of the form) — but
+ * a session that has ended in LIFF's own: the latest changes were not saved, and the form opens again from the LINE chat
+ */
 export function SaveFailureText({ failure, fields, locale }: { readonly failure: FormFailure; readonly fields: readonly FieldDef[]; readonly locale: 'th' | 'en' }) {
   const t = useTranslations('requestForm')
+  const tl = useTranslations('liffRequests.form')
+  if (failure.code === 'UNAUTHENTICATED') return <span>{tl('sessionEnded')}</span>
   return <span>{t('save.failed', { reason: failureText(t, failure, fields, locale, (kind) => kindLabelOf(t, kind)) })}</span>
 }
 

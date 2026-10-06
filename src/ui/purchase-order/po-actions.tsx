@@ -9,7 +9,7 @@ import { Notice } from '../form/notice'
 import { useOutcomeAction } from '../procurement/use-outcome-action'
 import { DoaRef } from '../request-view/doa-ref'
 import { ConfirmBox, TextArea } from '../request-view/text-area'
-import { poCancelErrorKey, poErrorKey, type PoErrorKey, type PoFailure, type PoOutcome } from './outcome'
+import { PO_NO_ANSWER, poActionErrorKey, type PoAction, type PoFailure, type PoOutcome } from './outcome'
 
 // What procurement can do with a PO now (spec §6.4, FR-P2P-004, FR-P2P-005, FR-P2P-010), each in its own part with a
 // button that says what happens (§9.9 rule 7): send a draft for approval with the route the DOA engine expects shown
@@ -19,6 +19,10 @@ import { poCancelErrorKey, poErrorKey, type PoErrorKey, type PoFailure, type PoO
 // a part only when the PO's state and the member's role allow it; the services check both again. Goods that will not
 // come are settled on the PO's receiving page ("ปิดใบสั่งซื้อทั้งที่รับไม่ครบ", src/ui/receiving/close-short.tsx), which
 // procurement's menu does not list: every text here that sends procurement there carries the link (§9.9 rules 7 and 8).
+// While its action runs, a button says what it is doing in its own words ("กำลังส่ง PO", "กำลังยกเลิก PO"); an action
+// that got no answer says it is not certain it was done, and to press the same button again (PO_NO_ANSWER). The sentence
+// that says what a part does is read before pressing: body text at the body's size (§9.9: 15 px on the web), as the
+// route and the budget above the button; only the hints of the choices and fields stay at 14 px.
 
 const REASON_MIN = 3
 
@@ -41,12 +45,11 @@ function ReceivingLink({ href, label }: { href: string; label: string }) {
  * (SHORT_NOT_APPROVED): what will not come is closed short on that page.
  */
 export function PartRefusal({ part, failure, receiving }: { part: 'cancel' | 'close'; failure: PoFailure; receiving: { readonly href: string; readonly label: string } | null }) {
-  const keyOf = part === 'cancel' ? poCancelErrorKey : poErrorKey
-  const failureText = usePoFailureText(keyOf)
-  const fixedOnReceiving = keyOf(failure) === (part === 'cancel' ? 'GR_POSTED' : 'SHORT_NOT_APPROVED')
+  const failureText = usePoFailureText()
+  const fixedOnReceiving = poActionErrorKey(failure, part) === (part === 'cancel' ? 'GR_POSTED' : 'SHORT_NOT_APPROVED')
   return (
     <Notice tone="danger">
-      <p>{failureText(failure)}</p>
+      <p>{failureText(failure, part)}</p>
       {receiving && fixedOnReceiving ? <ReceivingLink href={receiving.href} label={receiving.label} /> : null}
     </Notice>
   )
@@ -85,20 +88,27 @@ export interface PoActionsProps {
   }
 }
 
-/** The words of a failure: what happened and how to fix it (§9.9 rule 7); `keyOf` picks the message of the part that failed */
-export function usePoFailureText(keyOf: (failure: PoFailure) => PoErrorKey = poErrorKey) {
+/**
+ * The words of an action that did not go through (§9.9 rule 7): a refusal says what happened and how to fix it; no answer
+ * says, in the words of `action`, that it is not certain it was done, and to press its button again (`no`: the line of a
+ * line's action)
+ */
+export function usePoFailureText() {
   const t = useTranslations('purchaseOrder.errors')
-  return (failure: PoFailure) =>
-    t(keyOf(failure), { left: failure.left ?? '-', shortfall: failure.shortfall ?? '-', requestId: failure.requestId ?? '-', max: PAYMENT_TERM_MAX_DAYS, noteMax: PO_NOTE_MAX_LENGTH })
+  return (failure: PoFailure, action: PoAction, no = 0) =>
+    t(poActionErrorKey(failure, action), { left: failure.left ?? '-', shortfall: failure.shortfall ?? '-', requestId: failure.requestId ?? '-', max: PAYMENT_TERM_MAX_DAYS, noteMax: PO_NOTE_MAX_LENGTH, no })
 }
 
 const failureOf = (outcome: PoOutcome | null): PoFailure | null => (outcome && !outcome.ok ? outcome : null)
+
+/** No answer came: the action may have been done, and the same press sends the same submission again */
+const unanswered = (outcome: PoOutcome): boolean => !outcome.ok && outcome.code === PO_NO_ANSWER.code
 
 function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: SubmitPreviewView; run: PoActionsProps['actions']['submit']; onDone: (text: string, tone: 'success') => void }) {
   const t = useTranslations('purchaseOrder.actions')
   const failureText = usePoFailureText()
   const id = useId()
-  const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoOutcome>(PO_NO_ANSWER)
   const failure = failureOf(action.outcome)
   return (
     <section aria-labelledby={`${id}-title`} className="flex flex-col gap-3">
@@ -124,8 +134,8 @@ function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: Sub
       ) : null}
       {preview.blocked ? <Notice tone="danger">{preview.blocked}</Notice> : null}
       <p className="text-ink">{preview.budget}</p>
-      <p className="text-base text-ink-muted md:text-sm">{t('submit.hint')}</p>
-      {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
+      <p className="text-ink-muted">{t('submit.hint')}</p>
+      {failure ? <Notice tone="danger">{failureText(failure, 'submit')}</Notice> : null}
       <Button
         onClick={async () => {
           const outcome = await action.run((key) => run(poId, key))
@@ -134,9 +144,32 @@ function SubmitPart({ poId, preview, run, onDone }: { poId: string; preview: Sub
         disabled={action.pending || preview.blocked !== null}
         className="w-full sm:w-auto sm:self-start"
       >
-        {action.pending ? t('working') : t('submit.button')}
+        {action.pending ? t('submit.working') : t('submit.button')}
       </Button>
     </section>
+  )
+}
+
+/**
+ * The second press of a sending, naming the PO and the address: an e-mail cannot be called back. While it is on its
+ * way the button says so in its own words ("กำลังส่ง PO", or "กำลังส่ง PO อีกครั้ง" for a sending again)
+ */
+export function SendConfirm({ id, text, again, pending, onConfirm, onBack }: { id: string; text: string; again: boolean; pending: boolean; onConfirm: () => void; onBack: () => void }) {
+  const t = useTranslations('purchaseOrder.actions')
+  return (
+    <div role="group" aria-labelledby={id} className="flex flex-col gap-2 border-l-4 border-info bg-surface px-3 py-2.5">
+      <p id={id} className="font-medium text-ink">
+        {text}
+      </p>
+      <div className="flex flex-wrap gap-3">
+        <Button onClick={onConfirm} disabled={pending}>
+          {pending ? (again ? t('resend.working') : t('send.working')) : t('send.confirm')}
+        </Button>
+        <Button variant="secondary" onClick={onBack} disabled={pending}>
+          {t('send.back')}
+        </Button>
+      </div>
+    </div>
   )
 }
 
@@ -158,7 +191,7 @@ function SendPart({
   const t = useTranslations('purchaseOrder.actions')
   const failureText = usePoFailureText()
   const id = useId()
-  const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoOutcome>(PO_NO_ANSWER)
   const [confirming, setConfirming] = useState(false)
   const [reason, setReason] = useState('')
   const [reasonError, setReasonError] = useState<string>()
@@ -166,6 +199,9 @@ function SendPart({
 
   async function send() {
     const outcome = await action.run((key) => run({ poId, ...(again ? { reason: reason.trim() } : {}) }, key))
+    // No answer: the second press stays, so "ยืนยันส่ง PO" is pressed again as it is — the same submission, which
+    // e-mails the supplier once (spec §4.3); its words say so above the form
+    if (unanswered(outcome)) return
     setConfirming(false)
     if (!outcome.ok) return
     if (outcome.bounce) onDone(t('send.bounced', { code: outcome.bounce }), 'warning')
@@ -187,8 +223,8 @@ function SendPart({
         {again ? t('resend.title') : t('send.title')}
       </h3>
       {email ? <p className="text-ink">{t('send.to', { email })}</p> : <Notice tone="warning">{t('send.noEmail')}</Notice>}
-      {again ? <p className="text-base text-ink-muted md:text-sm">{t('resend.hint')}</p> : null}
-      {failure ? <Notice tone="danger">{failureText(failure)}</Notice> : null}
+      {again ? <p className="text-ink-muted">{t('resend.hint')}</p> : null}
+      {failure ? <Notice tone="danger">{failureText(failure, again ? 'resend' : 'send')}</Notice> : null}
       {email ? (
         <form onSubmit={ask} noValidate className="flex flex-col gap-3">
           {again ? (
@@ -208,19 +244,7 @@ function SendPart({
             />
           ) : null}
           {confirming ? (
-            <div role="group" aria-labelledby={`${id}-confirm`} className="flex flex-col gap-2 border-l-4 border-info bg-surface px-3 py-2.5">
-              <p id={`${id}-confirm`} className="font-medium text-ink">
-                {t('send.confirmText', { number: label, email })}
-              </p>
-              <div className="flex flex-wrap gap-3">
-                <Button onClick={() => void send()} disabled={action.pending}>
-                  {action.pending ? t('working') : t('send.confirm')}
-                </Button>
-                <Button variant="secondary" onClick={() => setConfirming(false)} disabled={action.pending}>
-                  {t('send.back')}
-                </Button>
-              </div>
-            </div>
+            <SendConfirm id={`${id}-confirm`} text={t('send.confirmText', { number: label, email })} again={again} pending={action.pending} onConfirm={() => void send()} onBack={() => setConfirming(false)} />
           ) : (
             <Button type="submit" variant={again ? 'secondary' : 'primary'} className="w-full sm:w-auto sm:self-start">
               {again ? t('resend.button') : t('send.button')}
@@ -245,7 +269,7 @@ function CancelPart({
 }) {
   const t = useTranslations('purchaseOrder.actions')
   const id = useId()
-  const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoOutcome>(PO_NO_ANSWER)
   const [disposition, setDisposition] = useState<'RETURN_TO_POOL' | 'CANCEL_REQUEST_LINES'>('RETURN_TO_POOL')
   const [reason, setReason] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -268,7 +292,7 @@ function CancelPart({
       <h3 id={`${id}-title`} className="font-semibold text-ink">
         {t('cancel.title')}
       </h3>
-      <p className="text-base text-ink-muted md:text-sm">{t('cancel.hint')}</p>
+      <p className="text-ink-muted">{t('cancel.hint')}</p>
       {failure ? <PartRefusal part="cancel" failure={failure} receiving={receiving} /> : null}
       <fieldset className="flex flex-col gap-1">
         <legend className="mb-1 font-medium text-ink">{t('cancel.choice')}</legend>
@@ -316,7 +340,7 @@ function CancelPart({
         error={errors.confirm}
       />
       <Button type="submit" variant="danger" disabled={action.pending} className="self-start">
-        {action.pending ? t('working') : t('cancel.button')}
+        {action.pending ? t('cancel.working') : t('cancel.button')}
       </Button>
     </form>
   )
@@ -335,7 +359,7 @@ function ClosePart({
 }) {
   const t = useTranslations('purchaseOrder.actions')
   const id = useId()
-  const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoOutcome>(PO_NO_ANSWER)
   const [confirmed, setConfirmed] = useState(false)
   const [error, setError] = useState<string>()
   const failure = failureOf(action.outcome)
@@ -353,7 +377,7 @@ function ClosePart({
       <h3 id={`${id}-title`} className="font-semibold text-ink">
         {t('close.title')}
       </h3>
-      <p className="text-base text-ink-muted md:text-sm">{t('close.hint')}</p>
+      <p className="text-ink-muted">{t('close.hint')}</p>
       {failure ? <PartRefusal part="close" failure={failure} receiving={receiving} /> : null}
       <ConfirmBox
         id={`${id}-confirm`}
@@ -366,7 +390,7 @@ function ClosePart({
         error={error}
       />
       <Button type="submit" variant="secondary" disabled={action.pending} className="self-start">
-        {action.pending ? t('working') : t('close.button')}
+        {action.pending ? t('close.working') : t('close.button')}
       </Button>
     </form>
   )
@@ -393,7 +417,7 @@ export function PoActions({ poId, label, submit, send, resend, cancel, close, cl
       {close ? <ClosePart poId={poId} receiving={receiving} run={actions.close} onDone={onDone} /> : null}
       {closeWaits ? (
         <div className="flex flex-col gap-1 border-t border-line pt-4">
-          <p className="text-base text-ink-muted md:text-sm">{closeWaits}</p>
+          <p className="text-ink-muted">{closeWaits}</p>
           {/* What will not come is closed short there; procurement's menu does not list the receiving page */}
           {receiving ? <ReceivingLink href={receiving.href} label={receiving.label} /> : null}
         </div>

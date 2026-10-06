@@ -49,7 +49,7 @@ const SCREENS: readonly Screen[] = [
   ['/login/2fa', (l) => html(<TwoFactorForm />, l), ['code'], (m) => m.auth.twoFactor.submit],
   ['/forgot-password', (l) => html(<ForgotForm />, l), ['email'], (m) => m.auth.forgot.submit],
   ['/reset-password?token=', (l) => html(<ResetForm token="e2e-not-a-token" min={PASSWORD_MIN_LENGTH} max={PASSWORD_MAX_LENGTH} />, l), ['password', 'confirm'], (m) => m.auth.reset.submit],
-  ['/invite/[token]', (l) => html(<InviteForm token="e2e-not-a-token" min={PASSWORD_MIN_LENGTH} accept={never} />, l), ['password', 'confirm'], (m) => m.auth.invite.submit],
+  ['/invite/[token]', (l) => html(<InviteForm token="e2e-not-a-token" min={PASSWORD_MIN_LENGTH} max={PASSWORD_MAX_LENGTH} accept={never} />, l), ['password', 'confirm'], (m) => m.auth.invite.submit],
   ['the authenticator setup of the workspace', (l) => html(<TwoFactorSetup />, l), ['password'], (m) => m.auth.security.start],
   ['/liff/link (the sign-in inside LIFF)', (l) => html(<LiffSignIn />, l), ['email', 'password'], (m) => m.auth.login.submit],
 ]
@@ -84,5 +84,20 @@ describe('[FR-AUTH-001/AC1] [FR-AUTH-002/AC1] [NFR-SEC-09] in the server’s HTM
     const toggle = page.match(/<button[^>]*\btype="button"[^>]*>([^<]*)<\/button>/)
     expect(toggle?.[1]).toBe(th.auth.twoFactor.useBackup)
     expect(isDisabled(toggle![0])).toBe(true)
+  })
+
+  it('a button that waits for the script comes on at once when it runs: no colour fades in while nobody pressed anything (§9.9)', () => {
+    // The web's sign-in pages and the authenticator setup (src/ui/auth/script-button.tsx); the sign-in inside LIFF draws
+    // LIFF's own button
+    for (const [name, markup] of SCREENS.filter(([screen]) => !screen.startsWith('/liff/'))) {
+      for (const button of tagsOf(markup('th'), /<button\b[^>]*>/g)) {
+        const classes = attr(button, 'class')?.split(/\s+/) ?? []
+        expect(classes, `${name}: ${button}`).toContain('transition-none')
+        expect(
+          classes.filter((c) => c.startsWith('transition-') && c !== 'transition-none'),
+          `${name}: ${button}`,
+        ).toEqual([])
+      }
+    }
   })
 })

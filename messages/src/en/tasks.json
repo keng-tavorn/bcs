@@ -1,7 +1,7 @@
 {
   "title": "Waiting for approval",
   "intro": "Tasks waiting for your decision, the ones due first at the top",
-  "count": "{count} tasks",
+  "count": "{count, plural, one {# task} other {# tasks}}",
   "listLabel": "Your tasks waiting for approval",
   "empty": "Nothing is waiting for your approval",
   "emptyHint": "Requests sent to you appear here and in the notification bell. Meanwhile you can follow your own requests.",
@@ -154,9 +154,9 @@
     "doaHeadline": "Publish {code} version {version}",
     "doaEffective": "In effect from",
     "doaRules": "Rules",
-    "doaRuleCount": "{count} rules",
+    "doaRuleCount": "{count, plural, one {# rule} other {# rules}}",
     "doaCurrent": "Version in effect now",
-    "doaOpenTasks": "{count} open tasks under the current version keep their route to the end",
+    "doaOpenTasks": "{count, plural, one {# open task under the current version keeps its route to the end} other {# open tasks under the current version keep their route to the end}}",
     "doaHolders": "Position holders approved with this version",
     "doaHolder": "{member} as {position}, {department}",
     "doaOpen": "See this version’s details and differences",
@@ -178,7 +178,7 @@
       "gains": "Gains authority",
       "loses": "Loses authority",
       "openTasks": "Open tasks that move to the new holder",
-      "openTasksCount": "{count} tasks",
+      "openTasksCount": "{count, plural, one {# task} other {# tasks}}",
       "none": "Nobody"
     },
     "openAdmin": "See all authority changes",
@@ -255,8 +255,8 @@
       "MEMBER": "{name} (named person)",
       "position": "{name} ({code})"
     },
-    "doaSla": "{hours} business hours",
-    "doaSlaMinutes": "{minutes} business minutes"
+    "doaSla": "{hours, plural, one {# business hour} other {# business hours}}",
+    "doaSlaMinutes": "{minutes, plural, one {# business minute} other {# business minutes}}"
   },
   "errors": {
     "DECIDED": "Already decided by {name} {time}",

@@ -406,7 +406,7 @@ export function InitialPackageForm({ versionId, positions, departments, members,
                     return next
                   })
                 }}
-                className="mt-1 size-5 shrink-0 accent-[var(--warn)]"
+                className="mt-1 size-5 shrink-0"
               />
               <WarningText warningKey={w} />
             </label>

@@ -112,7 +112,7 @@ export function SubmitDoaPanel({ versionId, warnings: initialWarnings, approvers
                     return next
                   })
                 }}
-                className="mt-1 size-5 shrink-0 accent-[var(--warn)]"
+                className="mt-1 size-5 shrink-0"
               />
               <WarningText warningKey={w} />
             </label>

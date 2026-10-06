@@ -187,15 +187,21 @@ export async function PoFacts({ po, locale, reader }: { po: PoViewDto; locale: L
     },
     { label: t('facts.note'), value: po.notesToSupplier ? <span className="whitespace-pre-line">{po.notesToSupplier}</span> : t('facts.notSet') },
   ]
-  return <Facts items={items} className="lg:grid-cols-2" />
+  // In columns by the list's own width, never the screen's: two in the workspace's document column, one on a phone and
+  // in the one column of the LIFF decision page at every screen width (§9.9 "LIFF เป็นคอลัมน์เดียว")
+  return <Facts items={items} columns={2} />
 }
 
-/** Where the PO stands on a budget line, in words with an icon (never colour alone) */
+/**
+ * Where the PO stands on a budget line, in words with an icon (never colour alone). Budget reserved for the PO while it
+ * waits for approval, or held for it once approved, is a padlock in --info (`held`), as on the request page: never the
+ * approved mark of --primary, since holding is not approving (§9.9 tokens)
+ */
 function budgetState(po: PoViewDto, b: PoBudgetDto): { kind: StateKind; key: 'HELD' | 'RESERVED' | 'DRAFT' | 'RELEASED' | 'CLOSED' } {
   if (po.status === 'CANCELLED' || po.status === 'REJECTED') return { kind: 'closed', key: 'RELEASED' }
   if (po.status === 'CLOSED') return { kind: 'closed', key: 'CLOSED' }
-  if (b.committedSatang > 0n || b.actualSatang > 0n) return { kind: 'done', key: 'HELD' }
-  if (po.status === 'PENDING_APPROVAL') return { kind: 'done', key: 'RESERVED' }
+  if (b.committedSatang > 0n || b.actualSatang > 0n) return { kind: 'held', key: 'HELD' }
+  if (po.status === 'PENDING_APPROVAL') return { kind: 'held', key: 'RESERVED' }
   return { kind: 'draft', key: 'DRAFT' }
 }
 
@@ -220,7 +226,7 @@ async function PoBudget({ po, t }: { po: PoViewDto; t: PoT }) {
         return (
           <div key={b.lineId} className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0">
             <Facts
-              className="sm:grid-cols-1"
+              columns="one"
               items={[
                 { label: t('budget.line'), value: `${b.code} · ${b.name}` },
                 {
@@ -244,8 +250,13 @@ async function PoBudget({ po, t }: { po: PoViewDto; t: PoT }) {
   )
 }
 
-/** The requests the PO orders, each with who asked and its attachments and quotations (FR-PLT-004 AC2) */
-async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po: PoViewDto; locale: Locale; reader: PoReader; openFile: OpenFile; requestHref: RequestHref; t: PoT }) {
+/**
+ * The requests the PO orders, each with who asked and its attachments and quotations (FR-PLT-004 AC2). Who asked, and
+ * that a request has no files or that the reader may not see them, are what the approver reads before deciding — on the
+ * decision page they are the only word on attachments (§9.9 principle 5) — so they are body text at the body's size (§9.9:
+ * 15 px on the web, 16 px on phones and in LIFF), never a 14 px caption
+ */
+export async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po: PoViewDto; locale: Locale; reader: PoReader; openFile: OpenFile; requestHref: RequestHref; t: PoT }) {
   const views = new Map(await Promise.all(po.requests.map(async (r) => [r.id, await attachmentViews(locale, r.attachments)] as const)))
   return (
     <ul aria-label={t('requests.label')} className="flex flex-col divide-y divide-line border-t border-line">
@@ -264,14 +275,14 @@ async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po
               ) : (
                 <p className="font-medium break-words text-ink">{label}</p>
               )}
-              {r.requester ? <p className="text-base text-ink-muted md:text-sm">{t('requests.requester', { name: memberName(locale, r.requester) })}</p> : null}
+              {r.requester ? <p className="text-ink-muted">{t('requests.requester', { name: memberName(locale, r.requester) })}</p> : null}
             </div>
             {!open ? (
-              <p className="text-base text-ink-muted md:text-sm">{t('requests.closed')}</p>
+              <p className="text-ink-muted">{t('requests.closed')}</p>
             ) : files.length ? (
               <AttachmentList open={openFile} files={files} />
             ) : (
-              <p className="text-base text-ink-muted md:text-sm">{t('requests.noFiles')}</p>
+              <p className="text-ink-muted">{t('requests.noFiles')}</p>
             )}
           </li>
         )

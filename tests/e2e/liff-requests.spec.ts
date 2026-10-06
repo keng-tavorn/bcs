@@ -289,6 +289,37 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     expect(html).not.toContain(number)
     expect(html).not.toContain('ไม้อัดและตะปู')
     await checkScreen(page, testInfo, 'liff-request-forbidden')
+    // Its form's address says why without guessing (§9.9 rule 7): only its requester changes it, and this account may not
+    // even open it — so it leads to LIFF's home, never to the request page that refuses it (the web edit page's words)
+    await page.goto(`/liff/requests/${requestId}/edit`)
+    await expect(page.getByRole('heading', { level: 1, name: 'แก้ไขคำขอนี้ไม่ได้' })).toBeVisible()
+    const refused = page.getByRole('status').filter({ hasText: 'แก้ไขได้เฉพาะผู้ขอที่สร้างคำขอนี้ และบัญชีของคุณไม่มีสิทธิ์ดูคำขอนี้ ถ้างานของคุณต้องใช้คำขอนี้ ติดต่อผู้ขอ หรือผู้ดูแลระบบขององค์กร' })
+    await expect(refused).toBeVisible()
+    await expect(refused).toHaveCSS('border-left-color', 'rgb(154, 91, 0)')
+    await expect(page.getByRole('link', { name: 'เปิดคำขอ', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'กลับหน้าแรก', exact: true })).toHaveAttribute('href', '/liff/tasks')
+    await expect(page.getByText(number)).toHaveCount(0)
+  })
+
+  test('[FR-INT-006/AC2] [§9.9] a sent request opened at its draft’s address — as reloading the form right after sending opens it — says so as information, and leads to the request', async ({
+    page,
+    context,
+  }, testInfo) => {
+    const lineUserId = newLineUserId()
+    const { requestId, number } = liffRequestsScene<SceneRequest>('approved', sceneTag('sent-edit'), lineUserId)
+    await openAsLineUser(context, lineUserId)
+    // The form's address became /liff/requests/<id>/edit on its first save: this is what a reload after sending opens
+    await page.goto(`/liff/requests/${requestId}/edit`)
+    await expect(page.getByRole('heading', { level: 1, name: 'คำขอนี้ส่งแล้ว' })).toBeVisible()
+    // Information, as the web's edit page says it — the request is where it should be, nothing went wrong: the --info
+    // rule and icon, read politely (§9.9 tokens); a request not this account's, or not found, stays a warning
+    const notice = page.getByRole('status').filter({ hasText: 'คำขอนี้ส่งแล้ว จึงแก้ไขไม่ได้ เปิดคำขอเพื่อดูสถานะ' })
+    await expect(notice).toBeVisible()
+    await expect(notice).toHaveCSS('border-left-color', 'rgb(31, 95, 173)')
+    await checkScreen(page, testInfo, 'liff-request-edit-sent')
+    await page.getByRole('link', { name: 'เปิดคำขอ', exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`/liff/requests/${requestId}$`))
+    await expect(page.getByRole('heading', { level: 1, name: number })).toBeVisible()
   })
 
   test('[FR-LINE-003/AC1] [FR-INT-009/AC3] [FR-INT-009/AC1] the requester answers the approver’s question from the bar at the bottom and cancels the request from LIFF; the budget goes back at once', async ({

@@ -11,7 +11,7 @@ settleNoticesAfterEachTest(test)
 
 const LINE_PR = 'การตัดสินใน LINE ของคำขอซื้อ'
 
-test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with their formulas and targets — the share of purchase-request decisions on LINE opens the decisions it counts — and no invented baseline while none is recorded', async ({ page }, testInfo) => {
+test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with their formulas and targets — the share of purchase-request decisions on LINE opens the decisions it counts, and "x จาก y ขั้น" of the steps past due every step it divides by — and no invented baseline while none is recorded', async ({ page }, testInfo) => {
   // a scene of its own (a separate process through the services) and axe on several screens
   test.slow()
   const s = scene<DecisionsScene>('decisions', testInfo.project.name)
@@ -64,6 +64,30 @@ test('[FR-VIS-003/AC2] the executive sees the current values of G-1 to G-5 with 
   await expect(page.getByRole('heading', { level: 1, name: 'คำขอเกินงบที่หลุดถึงผู้อนุมัติ' })).toBeVisible()
   await expect(page.getByText(count, { exact: true }).first()).toBeVisible()
   await expect(page.getByRole('list', { name: 'รายการที่นับในคำขอเกินงบที่หลุดถึงผู้อนุมัติ' }).or(page.getByText('ไม่มีรายการในช่วงนี้', { exact: true }))).toBeVisible()
+
+  // G-3 (c): its value opens the steps past due, and "x จาก y ขั้น" under it every step it divides by, in the same period
+  // — the past-due ones counted and first, each saying whether it is counted and why (§9.9: every number opens its list).
+  // Back at the top of the page: a list with nothing in the period repeats the link in its empty state, to the same place
+  await page.getByRole('link', { name: 'กลับไปหน้า KPI' }).first().click()
+  const late = page.getByRole('link', { name: /^ดูรายการที่นับ: ขั้นที่เกินกำหนด \(SLA\) \d+\.\d% \(\d+ จาก \d+ ขั้น\)$/ })
+  await expect(late).toHaveAttribute('href', `/kpi/g3c?from=${s.kpi.from}&to=${s.kpi.to}`)
+  const steps = page.getByRole('link', { name: /^ดูทุกขั้นที่มอบในช่วงนี้: ขั้นที่เกินกำหนด \(SLA\) \d+ จาก \d+ ขั้น$/ })
+  await expect(steps).toHaveAttribute('href', `/kpi/g3c-steps?from=${s.kpi.from}&to=${s.kpi.to}`)
+  await expect(steps).toHaveText(/^\d+ จาก \d+ ขั้น$/)
+  const total = Number(/จาก (\d+) ขั้น/.exec(await steps.innerText())![1])
+  expect(total).toBeGreaterThanOrEqual(s.requests.length)
+  await steps.click()
+  await expect(page).toHaveURL(new RegExp(`/kpi/g3c-steps\\?from=${s.kpi.from}&to=${s.kpi.to}$`))
+  await expect(page.getByRole('heading', { level: 1, name: 'ขั้นที่มอบในช่วงนี้' })).toBeVisible()
+  await expect(page.getByText(new RegExp(`^นับ \\d+ จาก ${total} รายการ$`))).toBeVisible()
+  const stepMarks = (await page.getByRole('list', { name: 'รายการที่นับในขั้นที่มอบในช่วงนี้' }).getByRole('listitem').allInnerTexts()).map((text) =>
+    /ไม่นับ: /.test(text) ? 'not counted' : /นับ: /.test(text) ? 'counted' : 'unmarked',
+  )
+  expect(stepMarks).toHaveLength(Math.min(total, 200))
+  expect(stepMarks).not.toContain('unmarked')
+  // the counted ones come first
+  expect(stepMarks.indexOf('not counted') === -1 || stepMarks.lastIndexOf('counted') < stepMarks.indexOf('not counted')).toBe(true)
+  await checkScreen(page, testInfo, 'kpi-steps')
 })
 
 test('[FR-VIS-003/AC2] the KPI page is the organization’s: a department head is sent to the report of their departments, a requester is refused', async ({ page }, testInfo) => {

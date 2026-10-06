@@ -96,6 +96,16 @@ describe('[NFR-A11Y-03] a LIFF message says what happened with an icon and words
     expect(danger).toContain('ผูกบัญชีไม่ได้')
     for (const tone of ['info', 'success', 'warning'] as const) expect(html(<LiffNotice tone={tone}>x</LiffNotice>)).toMatch(/^<div role="status"/)
   })
+
+  it('states how something stands in danger’s colour politely, as a status: a task not approved, drawn as its timeline draws it (D-05 round 5)', () => {
+    const rejected = html(
+      <LiffNotice tone="danger" role="status">
+        ไม่อนุมัติโดย วีระ ปฏิบัติการ
+      </LiffNotice>,
+    )
+    expect(rejected).toMatch(/^<div role="status" class="[^"]*border-danger[^"]*"><svg[^>]*class="[^"]*text-danger[^"]*"[^>]*aria-hidden="true"/)
+    expect(rejected).toContain('ไม่อนุมัติโดย วีระ ปฏิบัติการ')
+  })
 })
 
 describe('[§9.4] the last-resort error page needs the app messages only, not the whole catalogue in every page’s JavaScript', () => {

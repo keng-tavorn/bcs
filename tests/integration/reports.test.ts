@@ -106,6 +106,19 @@ describe('[FR-VIS-003/AC1] the KPI view G-1 to G-5 from events, on data whose an
     expect(list.items.filter((i) => i.mark === 'MISROUTED').map((i) => ({ document: i.document?.id, by: i.person?.nameTh }))).toEqual([{ document: ids.R3!.requestId, by: ceo.displayNameTh }])
     expect(list.items.filter((i) => i.mark !== 'MISROUTED').every((i) => i.mark === 'DOA_MATCHED')).toBe(true)
   })
+
+  it('G-3 (c) "1 จาก 6 ขั้น" opens the six steps assigned: R5, open past its due time, counted and first; the five decided in time marked not counted', async () => {
+    // the KPI page's list behind the "6" (§9.9 every number opens its list): the same period and scope as the share
+    const steps = ok(await kpiDetail(org.ctxOf('ceo', period.now), { from: '2026-10-05', to: '2026-10-05' }, 'g3c-steps'))
+    expect({ total: steps.total, counted: steps.counted }).toEqual({ total: 6, counted: 1 })
+    expect(steps.items[0]).toMatchObject({ key: ids.R5!.taskId, mark: 'PAST_DUE_OPEN', document: { id: ids.R5!.requestId } })
+    const inTime = steps.items.slice(1)
+    expect(inTime.map((i) => i.key).sort()).toEqual(['R1', 'R2', 'R3', 'R4', 'IT1'].map((name) => ids[name]!.taskId).sort())
+    expect(inTime.every((i) => i.mark === 'DECIDED_ON_TIME' && i.minutes !== null && i.dueAt !== null)).toBe(true)
+    // the share's own list holds R5 alone
+    const late = ok(await kpiDetail(org.ctxOf('ceo', period.now), { from: '2026-10-05', to: '2026-10-05' }, 'g3c'))
+    expect(late.items.map((i) => [i.key, i.mark])).toEqual([[ids.R5!.taskId, 'PAST_DUE_OPEN']])
+  })
 })
 
 describe('[FR-VIS-002/AC1] the report framework: the KPI report, its Excel export and a schedule that emails it', () => {

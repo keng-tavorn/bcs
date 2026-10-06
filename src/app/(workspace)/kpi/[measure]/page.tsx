@@ -2,14 +2,14 @@ import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { KPI_MEASURES, kpiDetail, type KpiMeasure } from '@/server/services/reports/screens'
+import { KPI_LISTS, kpiDetail, type KpiList } from '@/server/services/reports/screens'
 import { daysInPeriod } from '@/ui/insight/format'
 import { KpiItems } from '@/ui/insight/kpi-items'
 import { EmptyState, Refused } from '@/ui/insight/refused'
 import { getSession } from '../../../_lib/session'
 import { linkRights } from '../../board/_rights'
 import { periodFrom } from '../../reports/_present'
-import { KPI_REVIEW_DAYS, cappedSentence, dayText, detailSentence, isKind, kpiItemViews } from '../_present'
+import { KPI_REVIEW_DAYS, cappedSentence, dayText, detailSentence, isKind, kpiItemViews, listTitle } from '../_present'
 
 export async function generateMetadata() {
   const t = await getTranslations('kpi')
@@ -21,7 +21,8 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
 // The documents behind one KPI figure (spec §9.9: every number on the KPI page leads to its list; §11.4): for the same
 // period, each decision, task, request or PO the figure counts, with who, when, the channel and the DOA reference, and
-// why it is counted. kpiDetail checks report.view over the whole organization, like the KPI page.
+// why it is counted — or, behind the "37" of "1 จาก 37 ขั้น" (g3c-steps), every step the share of steps past due
+// divides by, the counted ones first. kpiDetail checks report.view over the whole organization, like the KPI page.
 export default async function KpiItemsPage({ params, searchParams }: { params: Promise<{ measure: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const state = await getSession()
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
@@ -37,7 +38,7 @@ export default async function KpiItemsPage({ params, searchParams }: { params: P
       {t('items.back')}
     </Link>
   )
-  if (!(KPI_MEASURES as readonly string[]).includes(measure)) {
+  if (!(KPI_LISTS as readonly string[]).includes(measure)) {
     return (
       <div className="flex max-w-3xl flex-col gap-6">
         {backLink}
@@ -46,14 +47,14 @@ export default async function KpiItemsPage({ params, searchParams }: { params: P
       </div>
     )
   }
-  const m = measure as KpiMeasure
+  const m = measure as KpiList
   const result = await kpiDetail(ctx, { from: period.from, to: period.to }, m, kind)
   if (!result.ok) {
     const head = result.error.code === 'FORBIDDEN' && result.error.details?.reason === 'ORG_SCOPE'
     return <Refused title={t('title')} message={head ? t('forbiddenHead') : t('forbidden')} href={head ? '/reports' : '/'} linkLabel={head ? t('toReports') : t('home')} />
   }
   const d = result.data
-  const name = kind && m === 'g5' ? t('measures.g5.byKind', { kind: t(`kinds.${kind}`) }) : t(`measures.${m}.name`)
+  const { name, formula } = listTitle(t, m, kind)
   const items = kpiItemViews(t, tl, locale, m, d.items, linkRights(state.member.id, state.roles))
 
   return (
@@ -61,7 +62,7 @@ export default async function KpiItemsPage({ params, searchParams }: { params: P
       {backLink}
       <div className="flex flex-col gap-2">
         <h1 className="text-2xl font-semibold">{name}</h1>
-        <p className="text-ink-muted">{kind && m === 'g5' ? t('measures.g5.byKindFormula', { kind: t(`kinds.${kind}`) }) : t(`measures.${m}.formula`)}</p>
+        <p className="text-ink-muted">{formula}</p>
         <p className="font-medium text-ink">{t('periodLine', { from: dayText(locale, period.from), to: dayText(locale, period.to), days: daysInPeriod(period.from, period.to) })}</p>
         <p className="text-ink">{detailSentence(t, d)}</p>
         {cappedSentence(t, d) ? <p className="text-base text-ink-muted md:text-sm">{cappedSentence(t, d)}</p> : null}

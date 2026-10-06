@@ -2,11 +2,10 @@
 
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Button } from '../form/button'
 import { Field } from '../form/field'
-import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { authClient, errorStatus, settled } from './client'
+import { ScriptButton } from './script-button'
 
 /** The address is not an e-mail (Better Auth checks it with z.email() before anything else) */
 const BAD_REQUEST_STATUS = 400
@@ -15,14 +14,13 @@ const BUSY_STATUS = 429
 
 // Forgot password (FR-AUTH-001 AC2). The answer is the same whether or not the e-mail has an account,
 // so the page cannot be used to find out who has one. The e-mail is sent by the page's script only: the form posts and
-// its button waits for hydration (src/ui/form/hydrated.ts), so an address typed before the script runs never goes into
+// its button waits for hydration (./script-button.tsx), so an address typed before the script runs never goes into
 // the page's address, the browser's history or a request log. "Sent" is said only when the server took the request
 // (§9.9 rule 7): an empty or unreadable address is said on the field, which takes the focus; too many requests, no
 // answer or a server failure in a message above it, with the link not sent.
 export function ForgotForm() {
   const t = useTranslations('auth.forgot')
   const tAuth = useTranslations('auth')
-  const hydrated = useHydrated()
   const formRef = useRef<HTMLFormElement>(null)
   const [sent, setSent] = useState(false)
   const [pending, setPending] = useState(false)
@@ -59,9 +57,9 @@ export function ForgotForm() {
       <p className="text-ink-muted">{t('intro')}</p>
       {failure ? <Notice tone="danger">{failure}</Notice> : null}
       <Field id="email" name="email" type="email" autoComplete="username" inputMode="email" required label={t('email')} error={fieldErrors.email} />
-      <Button type="submit" disabled={pending || !hydrated} className="w-full">
+      <ScriptButton type="submit" disabled={pending} className="w-full">
         {pending ? t('submitting') : t('submit')}
-      </Button>
+      </ScriptButton>
     </form>
   )
 }

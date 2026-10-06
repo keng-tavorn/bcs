@@ -5,7 +5,8 @@ import { checkScreen, scene, settleNoticesAfterEachTest, signIn, signInAs, type 
 // S4-10 · FR-VIS-001 (spec §11.1, demo scene 9): the board "เอกสารค้างที่ใคร" — every person holding open documents
 // within the reader's scope, the ones past their SLA first, ages in business hours; a name opens that person's
 // documents, and a document can be reminded by hand once an hour, once confirmed in its row (a reminder cannot be taken
-// back) — by the requester here; the auditor reads only (BR-AUTH-04) and gets no reminder button.
+// back) — by the requester here; within the hour its button cannot be pressed and says from when it may; the auditor
+// reads only (BR-AUTH-04) and gets no reminder button.
 // tests/e2e/insight-scene.ts makes, for each project, a request waiting 18 business hours at a VP (past its 8-hour SLA,
 // like Demo_History H12) and one the DM asked the requester about; desktop works in CON (vp_ops, dm_con), mobile in IT
 // (vp_sup, dm_it).
@@ -83,7 +84,7 @@ test('[FR-VIS-001/AC1] the executive sees who holds open documents, past SLA fir
   await checkScreen(page, testInfo, 'board-requester')
 })
 
-test('[FR-VIS-001/AC2] a name lists that person’s documents with links, and a document is reminded by hand once an hour — the first press only asks and sends nothing, the confirmation sends, the second reminder is refused in plain words; the auditor reads only', async ({ page }, testInfo) => {
+test('[FR-VIS-001/AC2] a name lists that person’s documents with links, and a document is reminded by hand once an hour — the first press only asks and sends nothing, the confirmation sends and its answer takes the focus, within the hour the button cannot be pressed and says from when it may, a page opened before is refused in plain words; the auditor reads only', async ({ page }, testInfo) => {
   // a scene of its own (a separate process through the services) and axe on several screens
   test.slow()
   const s = scene<BoardScene>('board', testInfo.project.name)
@@ -140,34 +141,41 @@ test('[FR-VIS-001/AC2] a name lists that person’s documents with links, and a 
   await expect(otherItem).toContainText('เกินกำหนดตั้งแต่')
   await expect(otherItem).not.toContainText('ส่งเตือนแล้วภายในชั่วโมงนี้')
 
-  // Confirmed, the reminder is sent, and the answer says when the next one may go
+  // Confirmed, the reminder is sent; the answer says when the next one may go and takes the focus from the question
+  const sent = /^ส่งเตือนแล้วเมื่อ .+ · ส่งเตือนเอกสารนี้ได้อีกครั้งหลัง .+ น\.$/
   await remind.click()
   await confirm.click()
-  await expect(item.getByRole('status')).toContainText(/^ส่งเตือนแล้วเมื่อ .+ · ส่งเตือนเอกสารนี้ได้อีกครั้งหลัง .+$/)
+  await expect(item.getByRole('status')).toHaveText(sent)
   await expect(question).toHaveCount(0)
-  await expect(remind).toBeFocused()
-  // Within the hour the button never asks for a reminder that cannot go (§9.9 rule 7): pressed, it says at once, in plain
-  // words, that the document was reminded already and from when it may be sent again — no question, no confirmation
+  await expect(page.locator(':focus')).toHaveText(sent)
+  // Within the hour the page knows a reminder cannot go (§9.9 rule 7: no press that can only fail): the button cannot be
+  // pressed, the answer under it says from when it may be sent again and describes it — and the page words no refusal
+  await expect(remind).toBeDisabled()
+  await expect(remind).toHaveAccessibleDescription(sent)
+  await expect(item.getByRole('alert')).toHaveCount(0)
+  await checkScreen(page, testInfo, 'board-remind-sent')
+  // The hour is the service's rule: the page opened before the reminder still asks, its confirmation is refused by the
+  // service in words that say from when it may go, and the button then waits for that time too
   const recent = /^ยังส่งเตือนไม่ได้ เพราะมีคนเตือนเอกสารนี้ไปแล้วภายใน 1 ชั่วโมง ส่งเตือนได้อีกครั้งหลัง .+ น\.$/
-  await remind.click()
-  await expect(item.getByRole('alert')).toHaveText(recent)
-  await expect(question).toHaveCount(0)
-  await expect(confirm).toHaveCount(0)
-  await checkScreen(page, testInfo, 'board-remind-refused')
-  // The hour is the service's rule: the page opened before the reminder still asks, and its confirmation is refused by the
-  // service, in the same words
-  await otherItem.getByRole('button', { name: `ส่งเตือน ${vp.name} เรื่อง ${doc}`, exact: true }).click()
+  const otherRemind = otherItem.getByRole('button', { name: `ส่งเตือน ${vp.name} เรื่อง ${doc}`, exact: true })
+  await otherRemind.click()
   await otherItem.getByRole('button', { name: `ยืนยันส่งเตือน ${vp.name} เรื่อง ${doc}`, exact: true }).click()
   await expect(otherItem.getByRole('alert')).toHaveText(recent)
+  await expect(otherRemind).toBeDisabled()
+  await expect(otherRemind).toHaveAccessibleDescription(recent)
+  await checkScreen(other, testInfo, 'board-remind-refused')
   await other.close()
-  // The board remembers it for everyone who opens the page, and the button says so at once there too
+  // The board remembers it for everyone who opens the page: the button cannot be pressed there either, and the sentence
+  // beside it says from when it may be sent again — no question, no refusal
   await page.reload()
   const reloaded = page.getByRole('list', { name: `เอกสารที่ค้างที่ ${vp.name}` }).getByRole('listitem').filter({ hasText: s.overdue.number })
-  await expect(reloaded).toContainText('ส่งเตือนแล้วภายในชั่วโมงนี้ ส่งได้อีกครั้งหลัง')
-  await reloaded.getByRole('button', { name: `ส่งเตือน ${vp.name} เรื่อง ${doc}`, exact: true }).click()
-  await expect(reloaded.getByRole('alert')).toHaveText(recent)
+  const again = /^ส่งเตือนแล้วภายในชั่วโมงนี้ ส่งได้อีกครั้งหลัง .+ น\.$/
+  const reloadedRemind = reloaded.getByRole('button', { name: `ส่งเตือน ${vp.name} เรื่อง ${doc}`, exact: true })
+  await expect(reloaded.getByText(again)).toBeVisible()
+  await expect(reloadedRemind).toBeDisabled()
+  await expect(reloadedRemind).toHaveAccessibleDescription(again)
   await expect(reloaded.getByRole('group')).toHaveCount(0)
-  await expect(reloaded).not.toContainText('ส่งเตือนแล้วภายในชั่วโมงนี้')
+  await expect(reloaded.getByRole('alert')).toHaveCount(0)
 
   // A document waiting for the requester's answer has nothing to remind the approver of
   await page.getByRole('link', { name: 'กลับไปกระดานเอกสารค้าง' }).click()

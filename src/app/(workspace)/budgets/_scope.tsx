@@ -13,7 +13,7 @@ import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../_lib/session'
 import { BudgetDocumentSections } from './_documents'
-import { dayText, figureStrip, localeOf, lowText, nameIn, shareStrip, usedUp, type BudgetsT } from './_present'
+import { dayText, figureStrip, localeOf, lowBadge, nameIn, shareStrip, type BudgetsT } from './_present'
 
 // The drill-down of the dashboard's added-up rows (spec §11.2, FR-BUD-005 AC2): a department's total (/budgets/
 // departments/[id]) or the total of everything the viewer may see (/budgets/total), in the fiscal year `fy` (or the
@@ -63,9 +63,10 @@ export async function BudgetScopePage({ departmentId, fiscalYearId }: { departme
 
   const d = result.data
   const year = d.fiscalYear
-  const low = lowText(t, d.figures)
   // What the amounts' links say they are of: the department, or the scope ("ทั้งองค์กร")
   const of = d.department ? nameIn(locale, d.department) : t(`scope.${d.scope}`)
+  // the warning's number opens the movements behind what is left, further down this page
+  const low = lowBadge(t, d.figures, of)
 
   return (
     <div className="flex flex-col gap-8">
@@ -78,11 +79,11 @@ export async function BudgetScopePage({ departmentId, fiscalYearId }: { departme
         {/* The heading names what is added up; the year says which */}
         <p className="text-ink">{t('detail.yearLine', { code: year.code, from: dayText(locale, year.startsOn), to: dayText(locale, year.endsOn) })}</p>
         <p className="text-ink">{d.department ? t('detail.lineCount', { count: d.lineCount }) : t('detail.lineAndDepartmentCount', { lines: d.lineCount, departments: d.departmentCount })}</p>
-        {low ? <LowBadge label={low} out={usedUp(d.figures)} /> : null}
+        {low ? <LowBadge label={low.label} out={low.out} link={low.link} /> : null}
         <p className="text-ink-muted">{t('asOf', { time: formatDateTime(locale, d.asOf) })}</p>
       </header>
 
-      <LineFigures title={t('detail.figuresTitle')} figures={figureStrip(t, d.figures, of)} shares={shareStrip(t, d.figures)} unit={t('unit')} />
+      <LineFigures title={t('detail.figuresTitle')} figures={figureStrip(t, d.figures, of)} shares={shareStrip(t, d.figures, of)} unit={t('unit')} />
 
       <BudgetDocumentSections t={t} locale={locale} docs={d} many />
     </div>

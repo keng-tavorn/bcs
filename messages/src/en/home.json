@@ -20,5 +20,15 @@
   "myRequests": "My requests",
   "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
   "myRequestsAll": "See all requests ({count})",
-  "startRequest": "Start a purchase or hiring request"
+  "startRequest": "Start a purchase or hiring request",
+  "budget": {
+    "title": "Budgets",
+    "list": "Budget left and budget lines running low",
+    "scope": "Fiscal year {code} · {scope}",
+    "amountHeading": "Available (baht)",
+    "planned": "Planned {amount} baht",
+    "noneLow": "No budget line is running low",
+    "all": "See all budgets",
+    "allLow": "See all budgets ({count, plural, one {# line} other {# lines}} running low)"
+  }
 }

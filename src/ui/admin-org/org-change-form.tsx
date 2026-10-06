@@ -414,7 +414,7 @@ export function OrgChangeForm({ kind, data, initial, preview, propose }: OrgChan
                         return next
                       })
                     }}
-                    className="mt-1 size-5 shrink-0 accent-[var(--warn)]"
+                    className="mt-1 size-5 shrink-0"
                   />
                   <WarningText warningKey={w} positions={data.positions} departments={data.departments} />
                 </label>

@@ -90,7 +90,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               {t('run')}
             </Button>
           </form>
-          {period.invalid ? <Notice tone="warning">{t('periodInvalid', { days: DEFAULT_REPORT_DAYS })}</Notice> : null}
+          {/* The period shown instead of one that cannot be used: information, as on /kpi (§9.9 tokens: --warn is pending) */}
+          {period.invalid ? <Notice tone="info">{t('periodInvalid', { days: DEFAULT_REPORT_DAYS })}</Notice> : null}
           {result.ok ? (
             <>
               <p className="text-ink">

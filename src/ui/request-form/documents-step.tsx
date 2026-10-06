@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CircleCheck, Plus } from 'lucide-react'
+import { CircleAlert, Info, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -92,8 +92,10 @@ export function DocumentsStep(props: DocumentsProps) {
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-semibold">{t('documents.rule', { rule: rule.id })}</span>
                   {rule.met ? (
-                    <span className="inline-flex items-center gap-1 text-primary">
-                      <CircleCheck className="size-4" aria-hidden="true" />
+                    // A rule met on a request not sent yet: supporting information — the info icon in --info beside
+                    // words in ink — never the approved mark of --primary (§9.9 tokens)
+                    <span className="inline-flex items-center gap-1 text-ink">
+                      <Info className="size-4 text-info" aria-hidden="true" />
                       {t('documents.met')}
                     </span>
                   ) : (
@@ -265,9 +267,10 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
         />
         <div className="ml-auto flex flex-col items-end">
           {net !== undefined ? <p className="money">{t('net', { amount: showSatang(net) })}</p> : <p className="text-ink-muted">{t('netPending')}</p>}
+          {/* The lowest price is a fact of the quotation, not an approval: --info, never --primary (§9.9 tokens) */}
           {isLowest ? (
-            <p className="inline-flex items-center gap-1 font-medium text-primary">
-              <CircleCheck className="size-4" aria-hidden="true" />
+            <p className="inline-flex items-center gap-1 font-medium text-ink">
+              <Info className="size-4 text-info" aria-hidden="true" />
               {t('lowest')}
             </p>
           ) : null}

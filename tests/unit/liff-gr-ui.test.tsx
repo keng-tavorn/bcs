@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { LiffFrame } from '@/ui/liff/frame'
 import { LiffProvider } from '@/ui/liff/liff-provider'
 import { LiffPhotoButton } from '@/ui/liff/receiving/photo-button'
-import { LiffPhotos, type LiffPhotosProps } from '@/ui/liff/receiving/photos'
+import { LiffPhotos, LiffRemovePhotoQuestion, type LiffPhotosProps } from '@/ui/liff/receiving/photos'
 import { LiffReceipts, photoNames } from '@/ui/liff/receiving/receipts'
 import { LiffReceiveFlow, type LiffReceiveActions } from '@/ui/liff/receiving/receive-flow'
 import { LiffReceiptReview } from '@/ui/liff/receiving/review'
@@ -89,6 +89,49 @@ describe('[FR-LINE-003/AC3] the camera of the LIFF receiving page', () => {
   it('says it in English too', () => {
     const page = html(<LiffPhotos {...photosProps()} />, 'en')
     expect(page).toContain('Take a photo')
+    expect(page).not.toMatch(/[฀-๿]/)
+  })
+})
+
+describe('[§9.9] [BR-GR-05] taking a photo out of a LIFF receipt asks first: it cannot be undone (D-05 round 5)', () => {
+  const PHOTO = { fileId: 'f1', fileName: 'site-delivery.jpg', preview: 'blob:http://localhost/1' }
+  const question = (busy: boolean, locale: 'th' | 'en' = 'th') =>
+    html(<LiffRemovePhotoQuestion id="gr-camera-remove-question" name={PHOTO.fileName} busy={busy} onRemove={() => undefined} onKeep={() => undefined} />, locale)
+  /** The buttons of some markup: their words and their classes, in order */
+  const buttonsOf = (markup: string) => [...markup.matchAll(/<button type="button" class="([^"]*)"[^>]*>([^<]*)<\/button>/g)].map((m) => ({ words: m[2], classes: m[1]! }))
+
+  it('the list shows the photo’s button — which the focus comes back to when the photo is kept — and no question until it is pressed', () => {
+    const page = html(<LiffPhotos {...photosProps({ photos: [PHOTO] })} />)
+    expect(page).toMatch(/<button type="button" class="[^"]*" id="gr-camera-remove-f1">เอารูป site-delivery.jpg ออก<\/button>/)
+    expect(page).not.toContain('role="group"')
+    expect(page).not.toContain('ออกจากการตรวจรับนี้?')
+  })
+
+  it('asks in the photo’s place: the photo it is about names the group and takes the focus, what follows says it cannot be brought back, and the two answers stand one under the other — taking it out in danger, keeping it plain', () => {
+    const page = question(false)
+    expect(page).toMatch(
+      /^<div role="group" aria-labelledby="gr-camera-remove-question" class="[^"]*border-danger[^"]*"><p id="gr-camera-remove-question" tabindex="-1" class="[^"]*">เอารูป site-delivery.jpg ออกจากการตรวจรับนี้\?<\/p>/,
+    )
+    expect(page).toContain('รูปที่เอาออกแล้วเรียกคืนไม่ได้ ถ้ายังต้องใช้ ต้องถ่ายใหม่')
+    const buttons = buttonsOf(page)
+    expect(buttons.map((b) => b.words)).toEqual(['เอารูปนี้ออก', 'ไม่เอาออก เก็บรูปไว้'])
+    expect(buttons[0]!.classes).toContain('border-danger')
+    expect(buttons[1]!.classes).not.toContain('danger')
+    // 44 px each, one under the other with room between them, so neither is pressed by mistake (§9.9)
+    for (const b of buttons) expect(b.classes).toContain('min-h-11')
+    expect(page).toMatch(/^<div[^>]*class="[^"]*flex-col gap-3[^"]*"/)
+  })
+
+  it('waits to take the photo out while a photo is sent or the receipt is checked or posted; keeping it never waits', () => {
+    const page = question(true)
+    expect(page).toMatch(/<button type="button"[^>]*disabled="">เอารูปนี้ออก<\/button>/)
+    expect(page).toMatch(/<button type="button"(?![^>]*disabled="")[^>]*>ไม่เอาออก เก็บรูปไว้<\/button>/)
+  })
+
+  it('in English too', () => {
+    const page = question(false, 'en')
+    expect(page).toContain('Remove photo site-delivery.jpg from this receipt?')
+    expect(buttonsOf(page).map((b) => b.words)).toEqual(['Remove this photo', 'Keep the photo'])
     expect(page).not.toMatch(/[฀-๿]/)
   })
 })

@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CircleCheck } from 'lucide-react'
+import { CircleAlert, Info } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { evaluateCondition, type Condition, type FormInput, type Requirement } from '@/core/forms'
 import type { FieldDef } from '@/core/forms/fields'
@@ -43,9 +43,11 @@ export function conditionText(condition: Condition, fields: readonly FieldDef[],
 function Status({ met, t, quiet }: { met: boolean; t: T; quiet?: boolean }) {
   // Once the rule is met, a branch it no longer needs is not shown as missing
   if (!met && quiet) return null
+  // Met is supporting information on a request not sent yet — the info icon in --info beside words in ink — never the
+  // approved mark of --primary (§9.9 tokens); missing is --danger
   return met ? (
-    <span className="inline-flex items-center gap-1 text-primary">
-      <CircleCheck className="size-4 shrink-0" aria-hidden="true" />
+    <span className="inline-flex items-center gap-1 text-ink">
+      <Info className="size-4 shrink-0 text-info" aria-hidden="true" />
       {t('met')}
     </span>
   ) : (

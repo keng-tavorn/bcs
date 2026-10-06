@@ -34,7 +34,11 @@ export interface AuditForm {
   readonly channel: string
 }
 
-export function auditQuery(params: Params): { filter: AuditFilter; form: AuditForm; before: string | undefined; searched: boolean } {
+/**
+ * The search of the address. `reversed`: its period ends before it starts ("ถึงวันที่" before "ตั้งแต่วันที่"), so it
+ * holds no event — the page says so at the field and shows no results rather than "ไม่พบบันทึก…" (§9.9 rules 7, 8)
+ */
+export function auditQuery(params: Params): { filter: AuditFilter; form: AuditForm; before: string | undefined; searched: boolean; reversed: boolean } {
   const document = (one(params.document) ?? '').trim().slice(0, DOCUMENT_MAX)
   const actor = one(params.actor) ?? ''
   const from = one(params.from) ?? ''
@@ -59,7 +63,14 @@ export function auditQuery(params: Params): { filter: AuditFilter; form: AuditFo
     ...(form.type ? { types: [form.type] } : {}),
     ...(form.channel ? { channel: form.channel as (typeof AUDIT_CHANNELS)[number] } : {}),
   }
-  return { filter, form, before: before && /^\d{1,19}$/.test(before) ? before : undefined, searched: Object.values(form).some(Boolean) }
+  return {
+    filter,
+    form,
+    before: before && /^\d{1,19}$/.test(before) ? before : undefined,
+    searched: Object.values(form).some(Boolean),
+    // days of the form yyyy-mm-dd compare as text
+    reversed: form.from !== '' && form.to !== '' && form.from > form.to,
+  }
 }
 
 /** The search again as a query string, with the page to continue from */

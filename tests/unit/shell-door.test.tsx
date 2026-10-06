@@ -1,13 +1,22 @@
+import { NextIntlClientProvider } from 'next-intl'
+import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
+import { twMerge } from 'tailwind-merge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { RequestCatalog } from '@/ui/request-form/catalog'
+import { RequestForm, SentConfirmation, type RequestFormActions } from '@/ui/request-form/request-form'
+import type { RequestFormData } from '@/ui/request-form/types'
 import { currentHref, NavLinks, type NavEntry } from '@/ui/shell/nav-links'
-import { atDoor } from '@/ui/shell/new-request-door'
+import { DOOR_ASIDE, DOOR_HIDDEN } from '@/ui/shell/new-request-door'
 import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
+import th from '../../messages/th.json'
 
 // FR-PLT-002 AC1 with §9.9 principle 2 ("ประตูเดียว"): the menu marks the one page the member is on, and the workspace shell
 // shows the door to a new request — "ขอซื้อ / ขอจ้าง" as the main button — on every page, for a member whose menu has
-// it (one who may create requests), except on the door's own pages. The phone's menu and the bell open one at a time.
+// it (one who may create requests), except while the page shows the door's own content: the catalogue and the form, at
+// whatever address the form has (a new form moves to /requests/[id]/edit with its first save). The confirmation once
+// sent has no form, and the door is back. The phone's menu and the bell open one at a time.
 
 const path = vi.hoisted(() => ({ now: '/' }))
 vi.mock('next/navigation', () => ({ usePathname: () => path.now }))
@@ -73,20 +82,82 @@ describe('[FR-PLT-002/AC1] the door to a new request is the main button of every
     expect(links(shell().replace(/<nav[^>]*>[\s\S]*?<\/nav>/g, '')).filter((l) => l.href === '/requests/new')).toEqual([])
   })
 
-  it('steps aside on its own pages: the catalogue and the form', () => {
-    for (const [pathname, at] of [
-      ['/requests/new', true],
-      ['/requests/new/BUY_GOODS', true],
-      ['/requests', false],
-      ['/requests/new-supplier', false],
-      ['/', false],
-    ] as const) {
-      expect(atDoor(pathname, DOOR.href), pathname).toBe(at)
+  it('steps aside while the page shows its own content, whatever the address: the shell hides it by what the page holds', () => {
+    // The page's content decides, not its address: at every address, the form's two included, both doors are drawn …
+    for (const pathname of ['/requests/new', '/requests/new/BUY_GOODS', `/requests/${DRAFT_ID}/edit`, '/requests', '/requests/new-supplier', '/']) {
       path.now = pathname
-      expect(links(shell(DOOR).replace(/<nav[^>]*>[\s\S]*?<\/nav>/g, '')).filter((l) => l.href === '/requests/new').length, pathname).toBe(at ? 0 : 2)
+      const html = shell(DOOR).replace(/<nav[^>]*>[\s\S]*?<\/nav>/g, '')
+      expect(links(html).filter((l) => l.href === '/requests/new').length, pathname).toBe(2)
+      // … each in a wrapper — the phone's row too — that is hidden while the page holds DOOR_ASIDE
+      const wrappers = [...html.matchAll(/<div data-door=""[^>]*class="([^"]*)"/g)].map((m) => m[1]!.replaceAll('&amp;', '&').split(/\s+/))
+      expect(wrappers, pathname).toHaveLength(2)
+      for (const classes of wrappers) expect(classes, pathname).toContain(DOOR_HIDDEN)
     }
+    // The rule's selector names the attribute the door's own content carries, and the shell's classes keep it
+    expect(DOOR_HIDDEN).toBe(`[body:has([${Object.keys(DOOR_ASIDE)[0]}])_&]:hidden`)
+    expect(twMerge('border-b border-line bg-surface px-4 py-2 lg:hidden', DOOR_HIDDEN).split(' ')).toContain(DOOR_HIDDEN)
+  })
+
+  it('the catalogue and the form carry DOOR_ASIDE — the form at both its addresses — and the confirmation once sent does not', () => {
+    const aside = (html: string) => html.includes(' data-door-aside=""')
+    expect(aside(intl(<RequestCatalog types={[{ code: 'BUY_GOODS', name: 'ซื้อของ', description: null, documentType: 'PURCHASE_REQUEST' }]} drafts={[]} locale="th" />))).toBe(true)
+    // A new form (/requests/new/[type]) and a draft opened again (/requests/[id]/edit): the same form, the same mark
+    expect(aside(form(null))).toBe(true)
+    expect(aside(form(DRAFT))).toBe(true)
+    // Sent: the confirmation alone is on the page, so the door shows again for the next request
+    const sent = intl(<SentConfirmation ref={null} sent={{ requestId: DRAFT_ID, view: { number: 'PR-2569-00001', waitingFor: [] } }} title="วัสดุ" kind="send" />)
+    expect(sent).toContain('ส่งขออนุมัติแล้ว')
+    expect(aside(sent)).toBe(false)
   })
 })
+
+const DRAFT_ID = '0199aaaa-0000-7000-8000-000000000001'
+
+const intl = (node: ReactNode) =>
+  renderToStaticMarkup(
+    <NextIntlClientProvider locale="th" messages={th} timeZone="Asia/Bangkok">
+      {node}
+    </NextIntlClientProvider>,
+  )
+
+const DATA: RequestFormData = {
+  type: { code: 'BUY_GOODS', name: 'ซื้อของ', description: null, documentType: 'PURCHASE_REQUEST' },
+  form: { fields: [], visibility: [], rules: [], lines: {} },
+  requesterDepartmentName: 'ฝ่ายก่อสร้าง',
+  budgetLines: [],
+  defaultBudgetLineId: null,
+  vatRateBp: 700,
+  attachmentKinds: ['OTHER'],
+  draft: null,
+}
+
+const DRAFT: NonNullable<RequestFormData['draft']> = {
+  requestId: DRAFT_ID,
+  version: 1,
+  status: 'DRAFT',
+  title: 'วัสดุ',
+  budgetLineId: null,
+  priceIncludesVat: false,
+  formData: {},
+  lines: [],
+  quotations: [],
+  nonLowestQuoteReason: '',
+  attachments: [],
+  returnReason: null,
+}
+
+const ACTIONS: RequestFormActions = {
+  preview: async () => ({ ok: false, code: 'FAILED' }),
+  attach: async () => ({ ok: true }),
+  detach: async () => ({ ok: true }),
+  submit: async () => ({ ok: false, code: 'FAILED' }),
+  downloadUrl: async () => null,
+  requestUpload: async () => ({ ok: false, reason: 'FAILED' }),
+  completeUpload: async () => ({ ok: false, reason: 'FAILED' }),
+}
+
+/** The request form as it first draws: a new one, or a draft opened again */
+const form = (draft: RequestFormData['draft']) => intl(<RequestForm data={{ ...DATA, draft }} actions={ACTIONS} autosaveUrl="/requests/new/autosave" locale="th" backLink={draft ? 'toCatalog' : 'otherType'} />)
 
 describe('[FR-NOTI-001/AC1] [FR-PLT-002/AC1] the shell’s panels open one at a time (§9.9: no modal over a modal)', () => {
   it('the phone’s menu and the bell — in the phone’s header and beside the door — are one group of details, so opening one closes the other', () => {

@@ -55,9 +55,9 @@ export function waitingText(t: ViewT, minutes: number | null | undefined): strin
   if (minutes === null || minutes === undefined) return null
   if (minutes <= 0) return t('waiting.underMinute')
   if (minutes < 60) return t('waiting.minutes', { minutes })
-  const tenths = Math.round(minutes / 6)
-  const hours = tenths % 10 === 0 ? String(tenths / 10) : `${Math.floor(tenths / 10)}.${tenths % 10}`
-  return t('waiting.hours', { hours })
+  // Hours as a number of tenths over ten (1.5, and 2 for whole hours: one decimal at most, none when it is .0), so the
+  // English words can choose "hour" or "hours" (an ICU plural: "Waiting 1 business hour")
+  return t('waiting.hours', { hours: Math.round(minutes / 6) / 10 })
 }
 
 export function dueText(t: ViewT, locale: Locale, dueAt: Date | null | undefined, overdue: boolean): string | null {

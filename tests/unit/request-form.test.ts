@@ -340,6 +340,20 @@ describe('[FR-DOA-003/AC3] the form explains every refusal of the submit, and wh
     expect(k('SOMETHING_NEW')).toBe('FAILED')
   })
 
+  it('a file the request no longer holds and a request this account cannot find get their own words, and neither guesses that something was deleted (§9.9 rule 7)', () => {
+    const k = (code: string, details: Record<string, unknown> = {}) => failureKey(toFormFailure({ code, details }))
+    // attachments.ts answers a file that is not on the request NOT_FOUND with field fileId
+    expect(k('NOT_FOUND', { field: 'fileId' })).toBe('FILE_NOT_FOUND')
+    expect(k('NOT_FOUND')).toBe('NOT_FOUND')
+    expect(th.requestForm.errors.FILE_NOT_FOUND).toContain('โหลดหน้านี้ใหม่')
+    expect(th.requestForm.errors.NOT_FOUND).toContain('บัญชีที่เข้าระบบอยู่ตอนนี้')
+    expect(en.requestForm.errors.NOT_FOUND).toContain('account signed in now')
+    for (const key of ['NOT_FOUND', 'FILE_NOT_FOUND'] as const) {
+      expect(th.requestForm.errors[key]).not.toMatch(/ถูกลบ|อาจ/)
+      expect(en.requestForm.errors[key]).not.toMatch(/removed|deleted|may have/)
+    }
+  })
+
   it('every message key exists in Thai and English; a DOA gap says to contact the administrators by their role, and whether they were told', () => {
     for (const key of FAILURE_KEYS) {
       expect(th.requestForm.errors[key], key).toBeTruthy()

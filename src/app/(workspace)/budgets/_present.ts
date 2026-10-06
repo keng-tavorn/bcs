@@ -2,14 +2,15 @@ import type { getTranslations } from 'next-intl/server'
 import { amountToSatang } from '@/core/money/dto'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai/date'
 import type { BudgetFiguresDto } from '@/server/services/budget/dashboard'
-import type { AmountLink, AmountLinks, Bucket, FigureView } from '@/ui/budgets/budget-table'
-import type { LineFigureView } from '@/ui/budgets/line-detail'
+import type { AmountLink, AmountLinks, Bucket, FigureLinks, FigureView } from '@/ui/budgets/budget-table'
+import type { LineFigureView, LineSharesView } from '@/ui/budgets/line-detail'
 import { leftPercentText, moneyText, percentText } from '@/ui/budgets/format'
 
 // Turns the budget services' DTOs into the translated, formatted strings of the budget screens (spec §11.2): money with
 // thousands separators and two decimals from its decimal text, shares with one decimal (the share left rounded down,
 // so the warning never reads as at its threshold), names in the reader's language when the organization has one,
-// dates in the Buddhist era, and the link of every amount to what makes it up (FR-BUD-005 AC2).
+// dates in the Buddhist era, and the link of every figure to what makes it up (FR-BUD-005 AC2, §9.9 every number opens
+// its list): each amount, each share, and the number in a warning.
 
 export type BudgetsT = Awaited<ReturnType<typeof getTranslations<'budgets'>>>
 export type Locale = 'th' | 'en'
@@ -67,17 +68,44 @@ export function amountLinks(t: BudgetsT, f: BudgetFiguresDto, of: string, page: 
   return { planned: link('planned'), available: link('available'), reserved: link('reserved'), committed: link('committed'), actual: link('actual') }
 }
 
-export function figureView(t: BudgetsT, f: BudgetFiguresDto, links: AmountLinks): FigureView {
+/** "ใช้แล้ว 18.0%" and "รวมที่จองแล้ว 26.0%", or none when nothing is planned */
+function sharesText(t: BudgetsT, f: BudgetFiguresDto): { used: string; held: string } | null {
   const used = percentText(f.usedBp)
   const held = percentText(f.heldBp)
+  return used === null || held === null ? null : { used: t('columns.used', { pct: used }), held: t('columns.held', { pct: held }) }
+}
+
+/**
+ * The links of the shares and of the warning of a line, a department or a total (`of` names it) to the sections of its
+ * drill-down page (`page`; '' on that page itself) that make them up: "ใช้แล้ว" — held and spent, (ถือ + ตัดจ่ายจริง) ÷
+ * งบตั้งต้น — to the POs that commit it, followed by the actual; "รวมที่จองแล้ว" — everything taken, (จอง + ถือ +
+ * ตัดจ่ายจริง) ÷ งบตั้งต้น — to the documents that reserve it, followed by the rest; and the warning ("ใกล้หมด เหลือ 8.3%",
+ * "งบหมด เหลือ 0.00 บาท") to the ledger's movements behind what is left. Each is named with its words as shown first,
+ * then what it is of and where it leads; null where there is no share or no warning.
+ */
+export function shareLinks(t: BudgetsT, f: BudgetFiguresDto, of: string, page: string): Pick<FigureLinks, 'used' | 'held' | 'low'> {
+  const shares = sharesText(t, f)
+  const low = lowText(t, f)
+  return {
+    used: shares ? { href: `${page}#${SECTION.committed}`, label: t('table.usedLink', { share: shares.used, code: of }) } : null,
+    held: shares ? { href: `${page}#${SECTION.reserved}`, label: t('table.heldLink', { share: shares.held, code: of }) } : null,
+    low: low ? { href: `${page}#${SECTION.available}`, label: t('table.lowLink', { warning: low, code: of }) } : null,
+  }
+}
+
+/** Every link of a row of the dashboard: its amounts, its shares and its warning (FigureView.links) */
+export const figureLinks = (t: BudgetsT, f: BudgetFiguresDto, of: string, page: string): FigureLinks => ({ ...amountLinks(t, f, of, page), ...shareLinks(t, f, of, page) })
+
+export function figureView(t: BudgetsT, f: BudgetFiguresDto, links: FigureLinks): FigureView {
+  const shares = sharesText(t, f)
   return {
     planned: moneyText(f.planned),
     available: moneyText(f.available),
     reserved: moneyText(f.reserved),
     committed: moneyText(f.committed),
     actual: moneyText(f.actual),
-    used: used === null ? null : t('columns.used', { pct: used }),
-    held: held === null ? null : t('columns.held', { pct: held }),
+    used: shares?.used ?? null,
+    held: shares?.held ?? null,
     heldBp: f.heldBp,
     low: lowText(t, f),
     out: usedUp(f),
@@ -97,11 +125,18 @@ export function figureStrip(t: BudgetsT, f: BudgetFiguresDto, of: string): LineF
   }))
 }
 
-/** The shares under the strip, or none when nothing is planned */
-export function shareStrip(t: BudgetsT, f: BudgetFiguresDto): { used: string; held: string; heldBp: number; low: boolean; out: boolean } | null {
-  const used = percentText(f.usedBp)
-  const held = percentText(f.heldBp)
-  return used && held && f.heldBp !== null ? { used: t('columns.used', { pct: used }), held: t('columns.held', { pct: held }), heldBp: f.heldBp, low: f.low, out: usedUp(f) } : null
+/** The shares under the strip of a drill-down page, each linking to its sections on the same page; none when nothing is planned */
+export function shareStrip(t: BudgetsT, f: BudgetFiguresDto, of: string): LineSharesView | null {
+  const shares = sharesText(t, f)
+  const links = shareLinks(t, f, of, '')
+  return shares && links.used && links.held && f.heldBp !== null ? { ...shares, usedLink: links.used, heldLink: links.held, heldBp: f.heldBp, low: f.low, out: usedUp(f) } : null
+}
+
+/** The warning of a drill-down page in its header, linking to the movements on the same page; none when it has no warning */
+export function lowBadge(t: BudgetsT, f: BudgetFiguresDto, of: string): { label: string; out: boolean; link: AmountLink } | null {
+  const low = lowText(t, f)
+  const link = shareLinks(t, f, of, '').low
+  return low && link ? { label: low, out: usedUp(f), link } : null
 }
 
 /** Where the dashboard's rows lead: a line, a department or everything shown, in the fiscal year shown */

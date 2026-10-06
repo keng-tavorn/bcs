@@ -74,7 +74,8 @@
       "choose": "Choose a supplier",
       "submit": "Use this supplier for the selected lines",
       "clear": "Remove the supplier from the selected lines",
-      "working": "Saving",
+      "working": "Using this supplier",
+      "clearing": "Removing the supplier",
       "done": "{supplier} is now used for {count} lines",
       "cleared": "Supplier removed from {count} lines. They wait in the pool until a supplier is chosen again.",
       "urgent": "Urgent requests got {count} draft POs at once, without waiting for the round",
@@ -117,8 +118,8 @@
       "label": "Earlier consolidation rounds",
       "empty": "No round has run yet. When you make drafts or an automatic round runs, it shows here.",
       "SCHEDULED": "Automatic round {time}",
-      "MANUAL": "Made now by {name} {time}",
-      "MANUAL_UNKNOWN": "Made now {time}",
+      "MANUAL": "Run by {name} {time}",
+      "MANUAL_UNKNOWN": "Run by hand {time}",
       "URGENT": "Urgent request {time}",
       "drafts": "{count} draft POs made",
       "noDrafts": "No line was ready",
@@ -136,7 +137,10 @@
       "CONFLICT": "This was already sent with different data. Reload the page and try again.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and try once more.",
       "INTERNAL": "Not saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
-      "FAILED": "Not saved. Try again, or contact your administrator."
+      "FAILED": "Not saved. Try again, or contact your administrator.",
+      "NO_ANSWER_ASSIGN": "No answer came back, so it is not certain the supplier is now used for the selected lines. Check your connection and press “Use this supplier for the selected lines” again without changing the lines or the supplier; it is not done twice.",
+      "NO_ANSWER_CLEAR": "No answer came back, so it is not certain the supplier was removed from the selected lines. Check your connection and press “Remove the supplier from the selected lines” again without changing the lines; it is not done twice.",
+      "NO_ANSWER_ROUND": "No answer came back, so it is not certain the draft POs were made. Check your connection and press “Confirm: make draft POs” again; they are not made twice."
     },
     "blocked": {
       "PRICE_INCLUDES_VAT": "Prices include VAT: this request cannot go on a draft PO yet, until a decision is made on how prices that include VAT become purchase order prices"

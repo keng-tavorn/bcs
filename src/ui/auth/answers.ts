@@ -35,11 +35,18 @@ export function errorStatus(error: { status?: number } | null | undefined): numb
 
 /**
  * The request got no answer, or the server failed (5xx): what was sent was neither accepted nor refused, so the form
- * says to check the connection and send it again — never that the password, the code or the link was wrong
+ * says to send it again — never that the password, the code or the link was wrong. serverFailed tells the two apart.
  */
 export function failedToAnswer(error: { status?: number }): boolean {
-  const status = errorStatus(error)
-  return status === 0 || status >= SERVER_ERROR_STATUS
+  return errorStatus(error) === 0 || serverFailed(error)
+}
+
+/**
+ * The server failed (5xx): the request reached BCS, which failed before it decided on what was sent — so the form says
+ * to wait a moment and send it again, never to check the connection, which worked
+ */
+export function serverFailed(error: { status?: number }): boolean {
+  return errorStatus(error) >= SERVER_ERROR_STATUS
 }
 
 /** How a sign-in form words a first step that did not sign in */
@@ -55,7 +62,7 @@ export type SignInRefusal = 'emailInvalid' | 'locked' | 'invalid' | 'failed' | '
 export function signInRefusal(failure: AuthFailure): SignInRefusal {
   const status = errorStatus(failure)
   if (status === 0) return 'failed'
-  if (status >= SERVER_ERROR_STATUS) return 'serverFailed'
+  if (serverFailed(failure)) return 'serverFailed'
   if (status === TOO_MANY_REQUESTS_STATUS) return 'locked'
   if (status === BAD_REQUEST_STATUS && failure.code === INVALID_EMAIL) return 'emailInvalid'
   return 'invalid'
@@ -66,8 +73,8 @@ export type SecondStepRefusal = 'expired' | 'failed' | 'locked' | 'invalid'
 
 /**
  * Why a code of the second step did not sign in: the step waited too long (Better Auth no longer knows the sign-in the
- * code is for, so it starts again with the password), no answer or a server failure (the code was not checked), a lock
- * (its own words), or a code that is wrong, expired or used
+ * code is for, so it starts again with the password), no answer or a server failure (the code was not checked: the
+ * form words each its own way, with serverFailed), a lock (its own words), or a code that is wrong, expired or used
  */
 export function secondStepRefusal(failure: AuthFailure): SecondStepRefusal {
   if (failure.code === INVALID_TWO_FACTOR_COOKIE) return 'expired'

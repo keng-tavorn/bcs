@@ -3,18 +3,17 @@
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Button } from '../form/button'
-import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
 import { resetRefusal } from './answers'
 import { authClient, settledWithWait } from './client'
 import { PasswordPair, readPasswordPair } from './password-pair'
+import { ScriptButton } from './script-button'
 
 type FieldErrors = { readonly password?: string; readonly confirm?: string }
 
 // Set a new password from the e-mailed link (FR-AUTH-001 AC2). Better Auth signs out the account's other sessions. The
 // new password is sent by the page's script only: the form posts and its button waits for hydration
-// (src/ui/form/hydrated.ts), so a password typed before the script runs never goes into the page's address (NFR-SEC-09).
+// (./script-button.tsx), so a password typed before the script runs never goes into the page's address (NFR-SEC-09).
 // What went wrong is said for what it is (§9.9 rule 7, ./answers.ts): a password shorter or longer than the rule, or two
 // that differ, on the field, which takes the focus — checked here before sending, and by Better Auth before it uses the
 // link, which then still works; no answer, a server failure or too many requests above the fields, the link not used
@@ -23,7 +22,6 @@ export function ResetForm({ token, min, max }: { token: string | null; min: numb
   const t = useTranslations('auth.reset')
   const tInvite = useTranslations('auth.invite')
   const tAuth = useTranslations('auth')
-  const hydrated = useHydrated()
   const formRef = useRef<HTMLFormElement>(null)
   const [errors, setErrors] = useState<FieldErrors>({})
   const [failure, setFailure] = useState<string | null>(null)
@@ -88,9 +86,9 @@ export function ResetForm({ token, min, max }: { token: string | null; min: numb
     <form ref={formRef} method="post" onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
       {failure ? <Notice tone="danger">{failure}</Notice> : null}
       <PasswordPair min={min} labels={{ password: t('password'), confirm: t('confirm') }} errors={errors} />
-      <Button type="submit" disabled={pending || !hydrated} className="w-full">
+      <ScriptButton type="submit" disabled={pending} className="w-full">
         {pending ? t('submitting') : t('submit')}
-      </Button>
+      </ScriptButton>
     </form>
   )
 }

@@ -1,3 +1,4 @@
+import { createTranslator } from 'next-intl'
 import { describe, expect, it } from 'vitest'
 import { routeSentence, stageText, stageWaitingMinutes, timelineItems, waitingText, type TimelineT, type ViewT } from '@/app/(workspace)/_tracking/present'
 import { requestRows } from '@/app/(workspace)/_tracking/rows'
@@ -44,12 +45,28 @@ describe('[FR-INT-008/AC1] how long a step has waited, in business hours', () =>
     // under one whole business minute, true inside business hours (the clock runs) and outside them alike (D-05 round 4)
     [0, 'waiting.underMinute'],
     [45, 'waiting.minutes{"minutes":45}'],
-    [60, 'waiting.hours{"hours":"1"}'],
-    [90, 'waiting.hours{"hours":"1.5"}'],
-    [125, 'waiting.hours{"hours":"2.1"}'],
-    [540, 'waiting.hours{"hours":"9"}'],
+    [60, 'waiting.hours{"hours":1}'],
+    [90, 'waiting.hours{"hours":1.5}'],
+    [125, 'waiting.hours{"hours":2.1}'],
+    [540, 'waiting.hours{"hours":9}'],
   ])('%s minutes → %s', (minutes, text) => {
     expect(waitingText(t, minutes)).toBe(text)
+  })
+
+  it('[FR-PLT-002/AC2] says the wait in the words of each language: one decimal at most, and "hour" for one hour in English', () => {
+    const words = (locale: 'th' | 'en') => createTranslator({ locale, messages: locale === 'th' ? th : en, namespace: 'requestView' }) as unknown as ViewT
+    for (const [minutes, thai, english] of [
+      [1, 'ค้างมา 1 นาทีในเวลาทำการ', 'Waiting 1 business minute'],
+      [45, 'ค้างมา 45 นาทีในเวลาทำการ', 'Waiting 45 business minutes'],
+      [60, 'ค้างมา 1 ชั่วโมงทำการ', 'Waiting 1 business hour'],
+      [90, 'ค้างมา 1.5 ชั่วโมงทำการ', 'Waiting 1.5 business hours'],
+      [125, 'ค้างมา 2.1 ชั่วโมงทำการ', 'Waiting 2.1 business hours'],
+      [540, 'ค้างมา 9 ชั่วโมงทำการ', 'Waiting 9 business hours'],
+      [1086, 'ค้างมา 18.1 ชั่วโมงทำการ', 'Waiting 18.1 business hours'],
+    ] as const) {
+      expect(waitingText(words('th'), minutes), `${minutes} th`).toBe(thai)
+      expect(waitingText(words('en'), minutes), `${minutes} en`).toBe(english)
+    }
   })
 
   it('[§9.9] words every wait as how long it has waited, under a minute too, in Thai and in English', () => {
@@ -120,7 +137,7 @@ describe('[FR-INT-008/AC1] whoever a request waits for, the screens say for how 
   it('"my requests" and home say how long an ordered request has waited for its suppliers, as for the requester and procurement', () => {
     const [ordered] = requestRows(t, 'th', [row(delivery)])
     expect(ordered!.now).toContain('stage.DELIVERY_SUPPLIERS')
-    expect(ordered!.nowStates).toEqual([{ kind: 'waiting', text: 'waiting.hours{"hours":"1.5"}' }])
+    expect(ordered!.nowStates).toEqual([{ kind: 'waiting', text: 'waiting.hours{"hours":1.5}' }])
     const [returned] = requestRows(t, 'th', [row({ kind: 'REQUESTER_EDIT', since, waitingMinutes: 45 })])
     expect(returned!.nowStates).toEqual([{ kind: 'waiting', text: 'waiting.minutes{"minutes":45}' }])
     // Not sent to a supplier yet: no time to count
@@ -130,7 +147,7 @@ describe('[FR-INT-008/AC1] whoever a request waits for, the screens say for how 
 
   it('the timeline’s delivery step names the suppliers and how long; without one it stays procurement’s', () => {
     const [waiting] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_DELIVERY', state: 'current', actor: null, at: since, channel: null, waitingMinutes: 90, suppliers })])
-    expect(waiting).toMatchObject({ actor: new Intl.ListFormat('th', { type: 'conjunction' }).format(suppliers.map((s) => s.th)), waiting: 'waiting.hours{"hours":"1.5"}', state: 'current' })
+    expect(waiting).toMatchObject({ actor: new Intl.ListFormat('th', { type: 'conjunction' }).format(suppliers.map((s) => s.th)), waiting: 'waiting.hours{"hours":1.5}', state: 'current' })
     const [none] = timelineItems(t, tl, 'th', [entry({ what: 'WAIT_DELIVERY', state: 'current', actor: null, at: null, channel: null, waitingMinutes: null })])
     expect(none).toMatchObject({ actor: 'procurement' })
     expect(none).not.toHaveProperty('waiting')
@@ -176,7 +193,7 @@ describe('[FR-PLT-003/AC3] [FR-DOA-005/AC2] the timeline as stamps', () => {
     ], { stepCount: 2 })
     expect(items[0]!.title).toBe('timeline.submittedNumber{"number":"PR-2569-00012"}')
     expect(items[1]).toMatchObject({ outcome: 'returned', note: 'แยกรายการ', noteLabel: 'timeline.noteReason', onBehalfOf: 'actingFor{"name":"สมชาย ใจดี"}', stamp: true })
-    expect(items[2]).toMatchObject({ title: 'timeline.waitStep{"no":2}', state: 'current', waiting: 'waiting.hours{"hours":"1.5"}', overdue: true, statusLabel: 'timeline.statusLabel.current' })
+    expect(items[2]).toMatchObject({ title: 'timeline.waitStep{"no":2}', state: 'current', waiting: 'waiting.hours{"hours":1.5}', overdue: true, statusLabel: 'timeline.statusLabel.current' })
     expect(items[2]!.due).toBe('waiting.overdue{"time":"6 ต.ค. 2569 09:00 น."}')
     expect(items[2]).not.toHaveProperty('when')
     expect(items[3]).toMatchObject({ title: 'timeline.what.NEXT_PROCUREMENT', actor: 'procurement', state: 'upcoming' })

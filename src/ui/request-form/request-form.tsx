@@ -3,12 +3,13 @@
 import { CircleAlert } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, type Ref } from 'react'
+import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState, type Ref } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
 import { formatDateTime } from '../format'
+import { DOOR_ASIDE } from '../shell/new-request-door'
 import { DetailsStep, ItemsStep, type StepProps } from './details-items'
 import { DocumentsStep, kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
@@ -41,7 +42,8 @@ import type { UploadActions } from './upload-button'
 // budget line's balance and the expected route follow the amount (FR-INT-004, FR-DOA-003 AC2), fields show and hide as
 // the requester answers (FR-INT-002 AC1) and the attachments the rules ask for are listed before sending (FR-INT-005).
 // Once sent, the form says so in the button's own words — "ส่งขออนุมัติแล้ว" — with the number and who decides it now,
-// and leads to the request's page (§9.9 rule 7).
+// and leads to the request's page (§9.9 rule 7). The form is the door's own content (DOOR_ASIDE): while it shows, at
+// either of its addresses, the shell's "ขอซื้อ / ขอจ้าง" steps aside; the confirmation offers it again.
 
 export interface RequestFormActions extends UploadActions {
   readonly preview: PreviewAction
@@ -54,16 +56,27 @@ export interface RequestFormActions extends UploadActions {
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 
 /**
- * The notice above a form whose request was closed to it, by what closed it (§9.9 rule 7): the words the edit page says
- * of a request sent or cancelled, gone, or not this account's; without a status from the server, "sent or cancelled"
+ * The notice above a form whose request was closed to it, by what closed it (§9.9 rule 7), in words of its own for each
+ * cause: what happened, and that it happened elsewhere — sent or cancelled from another device, tab or the LIFF form;
+ * not found for, or not editable by, the account signed in now (a sign-in in another tab changes this page's account
+ * too) — that what was typed here after the last save of the draft is not saved, and what to do next. No guess: a
+ * request that is not found is never said to be deleted (no service deletes one). Only when the server names no status
+ * (ELSEWHERE) does it say "sent or cancelled elsewhere", all that is known then. The request's page, linked under the
+ * notice when this account may open it, says where it stands, so the words never repeat the link.
  */
 const CLOSED_NOTICE = {
-  SENT: 'page.sent',
-  CANCELLED: 'page.cancelled',
-  NOT_FOUND: 'errors.NOT_FOUND',
-  FORBIDDEN: 'errors.FORBIDDEN',
-  ELSEWHERE: 'save.closed',
+  SENT: 'save.closedBy.SENT',
+  CANCELLED: 'save.closedBy.CANCELLED',
+  NOT_FOUND: 'save.closedBy.NOT_FOUND',
+  FORBIDDEN: 'save.closedBy.FORBIDDEN',
+  ELSEWHERE: 'save.closedBy.ELSEWHERE',
 } as const satisfies Record<ClosedWhy, string>
+
+/** Whether the notice of a closed request links to the request's page: not when it is not found, or not this account's */
+export const closedLinksToRequest = (why: ClosedWhy): boolean => why !== 'NOT_FOUND' && why !== 'FORBIDDEN'
+
+/** The notice above the form for a request closed to it (exported for its tests) */
+export const closedNoticeKey = (why: ClosedWhy) => CLOSED_NOTICE[why]
 
 export function RequestForm({
   data,
@@ -174,7 +187,9 @@ export function RequestForm({
     setFileBusy(true)
     try {
       const id = await draftId()
-      if (!id) return setFileError(t('errors.DRAFT_NOT_SAVED'))
+      // The first save of the draft failed, so the file has nothing to join yet: it is not in the request, why is said
+      // at the top of the page (the save line, or the notice of a draft closed to this page), and it can be attached again
+      if (!id) return setFileError(t('attachments.notAttachedDraft', { name: file.fileName }))
       const outcome = await actions.attach(id, file.fileId, kind, uuidv4())
       if (outcome.ok) setAttachments((list) => [...list, { fileId: file.fileId, fileName: file.fileName, kind }])
       else setFileError(failureText(t, outcome, data.form.fields, locale, (k) => kindLabelOf(t, k)))
@@ -260,7 +275,7 @@ export function RequestForm({
   const saveError = autosave.state.kind === 'error' ? (autosave.state.failure ? t('save.failed', { reason: failureText(t, autosave.state.failure, data.form.fields, locale, (k) => kindLabelOf(t, k)) }) : t('save.error')) : null
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <div className="flex max-w-4xl flex-col gap-6" {...DOOR_ASIDE}>
       <Link href="/requests/new" className={linkClass}>
         {t(`page.${backLink}`)}
       </Link>
@@ -280,10 +295,10 @@ export function RequestForm({
       ) : null}
       {autosave.state.kind === 'closed' ? (
         <Notice tone="warning">
-          {/* What closed it, as the server said (§9.9 rule 7), in the words of the edit page for each case */}
-          <p>{t(CLOSED_NOTICE[autosave.state.why])}</p>
-          {/* Its page says where it stands — a request gone, or not this account's, has none to open */}
-          {autosave.requestId && autosave.state.why !== 'NOT_FOUND' && autosave.state.why !== 'FORBIDDEN' ? (
+          {/* What closed it, as the server said (§9.9 rule 7): where it happened, what was not saved, what to do next */}
+          <p>{t(closedNoticeKey(autosave.state.why))}</p>
+          {/* Its page says where it stands — a request not found, or not this account's, has none to open */}
+          {autosave.requestId && closedLinksToRequest(autosave.state.why) ? (
             <a href={`/requests/${autosave.requestId}`} className={linkClass}>
               {t('save.openRequest')}
             </a>
@@ -351,9 +366,9 @@ export function RequestForm({
 /**
  * Sent (§9.9 rule 7): the confirmation repeats the button's words — "ส่งขออนุมัติแล้ว", "ส่งขออนุมัติอีกครั้งแล้ว",
  * "ส่งคำขอให้ฝ่ายจัดซื้อแล้ว" — with the number the request got and who decides it now, then leads to the request's page
- * where its status is followed, or to a new request.
+ * where its status is followed, or to a new request. No form is left on the page, so the shell's door shows again.
  */
-function SentConfirmation({ ref, sent, title, kind }: { ref: Ref<HTMLDivElement>; sent: { requestId: string; view: SentView }; title: string; kind: 'send' | 'resubmit' | 'procurement' }) {
+export function SentConfirmation({ ref, sent, title, kind }: { ref: Ref<HTMLDivElement>; sent: { requestId: string; view: SentView }; title: string; kind: 'send' | 'resubmit' | 'procurement' }) {
   const t = useTranslations('requestForm.sent')
   const names = sent.view.waitingFor.map((w) => (w.principalName ? t('acting', { name: w.name, principal: w.principalName }) : w.name)).join(t('namesJoin'))
   const headline = kind === 'procurement' ? t('procurement') : names ? t(kind === 'resubmit' ? 'resubmitWaiting' : 'sendWaiting', { names }) : t(kind === 'resubmit' ? 'resubmit' : 'send')
@@ -377,8 +392,15 @@ function SentConfirmation({ ref, sent, title, kind }: { ref: Ref<HTMLDivElement>
   )
 }
 
-function SaveLine({ state, errorText, isNew, locale, onSaveNow }: { state: SaveState; errorText: string | null; isNew: boolean; locale: ScreenLocale; onSaveNow: () => void }) {
+/**
+ * Where the draft stands, beside "บันทึกร่างตอนนี้" (FR-INT-006 AC1). A new form with nothing typed yet has nothing to
+ * save — pressed, the button saved nothing and said nothing (§9.9 rule 7) — so it cannot be pressed until the requester
+ * starts filling the form in; the line beside it says the draft then saves itself, and the button names that line.
+ */
+export function SaveLine({ state, errorText, isNew, locale, onSaveNow }: { state: SaveState; errorText: string | null; isNew: boolean; locale: ScreenLocale; onSaveNow: () => void }) {
   const t = useTranslations('requestForm.save')
+  const id = useId()
+  const nothingYet = isNew && state.kind === 'idle'
   const text =
     state.kind === 'idle'
       ? isNew
@@ -396,11 +418,17 @@ function SaveLine({ state, errorText, isNew, locale, onSaveNow }: { state: SaveS
   if (text === null) return null
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-      <p role="status" className={state.kind === 'error' ? 'flex items-start gap-2 font-medium text-danger' : 'text-ink-muted'}>
+      <p id={id} role="status" className={state.kind === 'error' ? 'flex items-start gap-2 font-medium text-danger' : 'text-ink-muted'}>
         {state.kind === 'error' ? <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" /> : null}
         <span>{text}</span>
       </p>
-      <Button variant="secondary" className="shrink-0 self-start sm:self-auto" disabled={state.kind === 'saving'} onClick={onSaveNow}>
+      <Button
+        variant="secondary"
+        className="shrink-0 self-start sm:self-auto"
+        disabled={nothingYet || state.kind === 'saving'}
+        aria-describedby={nothingYet ? id : undefined}
+        onClick={onSaveNow}
+      >
         {t('saveNow')}
       </Button>
     </div>

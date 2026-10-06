@@ -139,6 +139,23 @@ test.describe('[FR-LINE-001/AC2] starting from LINE without a code: e-mail, pass
     await expect(code).toBeFocused()
     await expect(page.getByRole('alert').filter({ hasText: 'รหัสไม่ถูกต้อง' })).toHaveCount(0)
     expect(verifying).toEqual([])
+    // A code BCS could not check (a server failure, 5xx) is never called wrong, nor a connection that failed — the web's
+    // words (/login/2fa); and with a backup code the words above the field ask for one, not to open the app
+    const appIntro = page.getByText('เปิดแอปยืนยันตัวตนในมือถือ แล้วใส่รหัส 6 หลักของ BCS')
+    await expect(appIntro).toBeVisible()
+    await page.route('**/api/auth/two-factor/verify-totp', (route) => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: 'Service Unavailable' }) }))
+    await code.fill('123456')
+    await verify.click()
+    await expect(page.getByRole('alert').filter({ hasText: 'ระบบขัดข้อง จึงยังไม่ได้ตรวจรหัส รอสักครู่แล้วกด ยืนยันและเข้าสู่ระบบ อีกครั้ง' })).toBeVisible()
+    await expect(page.getByRole('alert').filter({ hasText: 'ตรวจการเชื่อมต่อ' })).toHaveCount(0)
+    await expect(page.getByRole('alert').filter({ hasText: 'รหัสไม่ถูกต้อง' })).toHaveCount(0)
+    await expect(verify).toBeEnabled()
+    await page.unroute('**/api/auth/two-factor/verify-totp')
+    await page.getByRole('button', { name: 'ใช้รหัสสำรองแทน' }).click()
+    await expect(page.getByText('ใส่รหัสสำรองหนึ่งรหัสจากชุดที่เก็บไว้ตอนตั้งค่าการยืนยันตัวตนสองชั้น', { exact: false })).toBeVisible()
+    await expect(appIntro).toHaveCount(0)
+    await page.getByRole('button', { name: 'ใช้รหัสจากแอปแทน' }).click()
+    await expect(appIntro).toBeVisible()
     await code.fill(totpOf(member.employeeCode))
     await verify.click()
 

@@ -15,7 +15,7 @@ const t = fake as unknown as PoT
 const tv = fake as unknown as ViewT
 const tl = fake as unknown as TimelineT
 
-const waited = (hours: string) => ({ kind: 'waiting', text: `waiting.hours${JSON.stringify({ hours })}` })
+const waited = (hours: number) => ({ kind: 'waiting', text: `waiting.hours${JSON.stringify({ hours })}` })
 
 function current(over: Partial<DocTrackEntryDto>): DocTrackEntryDto {
   return {
@@ -41,18 +41,18 @@ function current(over: Partial<DocTrackEntryDto>): DocTrackEntryDto {
 
 describe('[FR-INT-008/AC1] a PO waiting on procurement or its supplier says for how long (§9.9 principle 4)', () => {
   it('a draft, an approved PO and a sent PO say the business time they have waited under whom they wait for', () => {
-    expect(waitingOf(t, tv, 'th', { kind: 'EDIT', waitingMinutes: 90 })).toEqual({ now: 'waiting.EDIT', states: [waited('1.5')] })
-    expect(waitingOf(t, tv, 'th', { kind: 'SEND', bounced: false, waitingMinutes: 600 })).toEqual({ now: 'waiting.SEND', states: [waited('10')] })
+    expect(waitingOf(t, tv, 'th', { kind: 'EDIT', waitingMinutes: 90 })).toEqual({ now: 'waiting.EDIT', states: [waited(1.5)] })
+    expect(waitingOf(t, tv, 'th', { kind: 'SEND', bounced: false, waitingMinutes: 600 })).toEqual({ now: 'waiting.SEND', states: [waited(10)] })
     // A bounced e-mail still says how long the PO has waited to go out since its approval
     expect(waitingOf(t, tv, 'th', { kind: 'SEND', bounced: true, waitingMinutes: 45 })).toEqual({ now: 'waiting.SEND_BOUNCED', states: [{ kind: 'waiting', text: `waiting.minutes${JSON.stringify({ minutes: 45 })}` }] })
-    expect(waitingOf(t, tv, 'en', { kind: 'DELIVERY', waitingMinutes: 1_620 })).toEqual({ now: 'waiting.DELIVERY', states: [waited('27')] })
+    expect(waitingOf(t, tv, 'en', { kind: 'DELIVERY', waitingMinutes: 1_620 })).toEqual({ now: 'waiting.DELIVERY', states: [waited(27)] })
     // Under a whole business minute (sent a moment ago, or outside business hours): said in words, never a bare 0
     expect(waitingOf(t, tv, 'th', { kind: 'DELIVERY', waitingMinutes: 0 }).states).toEqual([{ kind: 'waiting', text: 'waiting.underMinute' }])
   })
 
   it('a PO partly received waits for the rest of its goods, and one received in full for its invoice and closing, for as long as its latest goods receipt says', () => {
-    expect(waitingOf(t, tv, 'th', { kind: 'REST', waitingMinutes: 60 })).toEqual({ now: 'waiting.REST', states: [waited('1')] })
-    expect(waitingOf(t, tv, 'en', { kind: 'CLOSE', waitingMinutes: 120 })).toEqual({ now: 'waiting.CLOSE', states: [waited('2')] })
+    expect(waitingOf(t, tv, 'th', { kind: 'REST', waitingMinutes: 60 })).toEqual({ now: 'waiting.REST', states: [waited(1)] })
+    expect(waitingOf(t, tv, 'en', { kind: 'CLOSE', waitingMinutes: 120 })).toEqual({ now: 'waiting.CLOSE', states: [waited(2)] })
     expect(waitingOf(t, tv, 'th', { kind: 'CLOSE', waitingMinutes: 45 })).toEqual({ now: 'waiting.CLOSE', states: [{ kind: 'waiting', text: `waiting.minutes${JSON.stringify({ minutes: 45 })}` }] })
     // Received a moment ago, or outside business hours: under a whole business minute, said in words
     expect(waitingOf(t, tv, 'th', { kind: 'REST', waitingMinutes: 0 }).states).toEqual([{ kind: 'waiting', text: 'waiting.underMinute' }])
@@ -81,13 +81,13 @@ describe('[FR-INT-008/AC1] a PO waiting on procurement or its supplier says for 
       ],
       { doaLinks: false },
     )
-    expect(send).toMatchObject({ id: 'send', title: 'track.what.WAIT_SEND', actor: 'track.procurement', state: 'current', waiting: waited('1.5').text })
+    expect(send).toMatchObject({ id: 'send', title: 'track.what.WAIT_SEND', actor: 'track.procurement', state: 'current', waiting: waited(1.5).text })
     expect(delivery).toMatchObject({ id: 'delivery', title: 'track.what.WAIT_DELIVERY', actor: 'บริษัท วัสดุก่อสร้างทดสอบ จำกัด', waiting: `waiting.minutes${JSON.stringify({ minutes: 30 })}` })
     // A current step is never stamped with a time of its own: the time it began is not a decision
     expect(delivery).not.toHaveProperty('when')
     // The rest of the goods waits on the same supplier since the latest receipt; the closing waits on procurement
-    expect(rest).toMatchObject({ id: 'rest', title: 'track.what.WAIT_DELIVERY', actor: 'บริษัท วัสดุก่อสร้างทดสอบ จำกัด', waiting: waited('1').text })
-    expect(close).toMatchObject({ id: 'close', title: 'track.what.WAIT_CLOSE', actor: 'track.procurement', state: 'current', waiting: waited('2').text })
+    expect(rest).toMatchObject({ id: 'rest', title: 'track.what.WAIT_DELIVERY', actor: 'บริษัท วัสดุก่อสร้างทดสอบ จำกัด', waiting: waited(1).text })
+    expect(close).toMatchObject({ id: 'close', title: 'track.what.WAIT_CLOSE', actor: 'track.procurement', state: 'current', waiting: waited(2).text })
     expect(close).not.toHaveProperty('when')
   })
 

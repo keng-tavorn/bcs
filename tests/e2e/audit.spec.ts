@@ -76,6 +76,38 @@ test('[FR-VIS-004/AC1] the auditor finds a document’s trail by its number, and
   await page.goto('/audit?document=PR-2569-99999')
   await expect(page.getByText('ไม่พบบันทึกของเอกสาร PR-2569-99999')).toBeVisible()
   await checkScreen(page, testInfo, 'audit-none')
+
+  // A period that ends before it starts holds no event, so it is never searched (§9.9 rules 7 and 8): the browser holds
+  // the search, and "ถึงวันที่" says which day is before which and what to choose — icon and words — with the focus on it
+  await page.goto('/audit')
+  const search = page.getByRole('form', { name: 'ค้นหาบันทึก' })
+  const reversed = /^ยังไม่ได้ค้นหา เพราะ “ถึงวันที่” \(\d{1,2} \S+ 25\d\d\) อยู่ก่อน “ตั้งแต่วันที่” \(\d{1,2} \S+ 25\d\d\) เลือก “ถึงวันที่” เป็น \d{1,2} \S+ 25\d\d หรือหลังจากนั้น แล้วกดค้นหาบันทึกอีกครั้ง$/
+  await pickDay(page, 'ตั้งแต่วันที่', s.kpi.to)
+  await pickDay(page, 'ถึงวันที่', s.kpi.from)
+  await page.getByRole('button', { name: 'ค้นหาบันทึก' }).click()
+  await expect(search.getByRole('alert')).toHaveText(reversed)
+  const toDay = page.getByRole('group', { name: 'ถึงวันที่', exact: true }).getByRole('combobox', { name: 'วัน', exact: true })
+  await expect(toDay).toBeFocused()
+  // its lists are marked invalid and described by those words, as a field with an error is
+  await expect(toDay).toHaveAttribute('aria-invalid', 'true')
+  await expect(toDay).toHaveAccessibleDescription(/ยังไม่ได้ค้นหา เพราะ “ถึงวันที่”/)
+  await expect(page).toHaveURL(/\/audit$/)
+  // An address that carries such a period is refused on the server in the same words: no results, no "nothing found",
+  // and no export until it is fixed
+  await page.goto(`/audit?from=${s.kpi.to}&to=${s.kpi.from}`)
+  await expect(search.getByRole('alert')).toHaveText(reversed)
+  await expect(page.getByRole('heading', { level: 2, name: 'ผลการค้นหา' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { level: 2, name: 'ส่งออกผลการค้นหานี้' })).toHaveCount(0)
+  await expect(page.getByText('ไม่พบบันทึกตามเงื่อนไขนี้')).toHaveCount(0)
+  await checkScreen(page, testInfo, 'audit-period-reversed')
+  // Fixed, the words go and the search runs
+  await pickDay(page, 'ถึงวันที่', s.kpi.to)
+  await expect(search.getByRole('alert')).toHaveCount(0)
+  await expect(toDay).not.toHaveAttribute('aria-invalid')
+  await page.getByRole('button', { name: 'ค้นหาบันทึก' }).click()
+  await expect(page).toHaveURL(new RegExp(`from=${s.kpi.to}&to=${s.kpi.to}`))
+  // "ผลการค้นหา" alone: the auditor's export heading "ส่งออกผลการค้นหานี้" shows with the results too
+  await expect(page.getByRole('heading', { level: 2, name: 'ผลการค้นหา', exact: true })).toBeVisible()
 })
 
 test('[FR-VIS-004/AC2] [FR-VIS-004/AC3] [FR-DOA-005/AC3] the auditor exports the search as Excel and CSV with the DOA version, rule, channel, actor and on-behalf-of in every row and the file’s checksum; the export is an event', async ({ page }, testInfo) => {
@@ -106,6 +138,11 @@ test('[FR-VIS-004/AC2] [FR-VIS-004/AC3] [FR-DOA-005/AC3] the auditor exports the
     expect(cell(decision, 'aggregateId')).toBe(line.taskId)
     await checkScreen(page, testInfo, `audit-exported-${format}`)
   }
+
+  // A period that ends before it starts is refused before any file is made, as the page refuses to search it
+  const backwards = await page.request.post('/audit/export', { data: { idempotencyKey: randomUUID(), format: 'csv', filter: { from: `${s.kpi.to}T00:00:00+07:00`, to: `${s.kpi.from}T00:00:00+07:00` } } })
+  expect(backwards.status()).toBe(400)
+  expect(await backwards.json()).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'filter.to', reason: 'PERIOD' })
 
   // The export is in the trail itself (FR-VIS-004 AC3): the auditor's own export, the newest of its kind
   await page.goto('/audit')

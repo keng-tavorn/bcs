@@ -164,6 +164,20 @@ test('[FR-DOA-004/AC1] [FR-INT-009/AC3] the approver asks for information, the r
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'info-asked')
 
+  // The inbox lists it after every task to decide, saying it waits for the requester's answer and for how long (§9.9
+  // principles 1 and 4); its SLA has stopped, so it shows no due time
+  const taskUrl = page.url()
+  await page.goto('/tasks')
+  const askedRow = rowWith(inbox(page), number)
+  await expect(askedRow).toContainText('รอผู้ขอตอบคำถาม')
+  await expect(askedRow).toContainText(/ค้างมา/)
+  await expect(askedRow).not.toContainText(/ครบกำหนด|เกินกำหนด/)
+  const listed = await inbox(page).getByRole('listitem').allInnerTexts()
+  expect(listed.slice(listed.findIndex((t) => t.includes(number)) + 1).filter((t) => /ครบกำหนด|เกินกำหนด/.test(t))).toEqual([])
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'inbox-question')
+  await page.goto(taskUrl)
+
   // The requester sees it waits for them, and answers (FR-INT-009 AC3)
   const requesterContext = await browser.newContext()
   const requester = await requesterContext.newPage()
@@ -231,7 +245,10 @@ test('[FR-DOA-004/AC1] rejecting is a separate choice that needs a reason and a 
   await shot(page, testInfo, 'reject-form')
   await reject.click()
   await expect(page.getByRole('status').filter({ hasText: 'ไม่อนุมัติคำขอนี้แล้ว' })).toBeVisible()
-  await expect(page.getByRole('status').filter({ hasText: `ไม่อนุมัติโดย ${cast.approverName} เมื่อ` })).toBeVisible()
+  const rejected = page.getByRole('status').filter({ hasText: `ไม่อนุมัติโดย ${cast.approverName} เมื่อ` })
+  await expect(rejected).toBeVisible()
+  // Not approved in --danger, as the timeline beside it draws the same decision (§9.9 tokens), still read politely as a status
+  await expect(rejected).toHaveCSS('border-left-color', 'rgb(180, 35, 24)')
   const stamp = timeline(page).getByRole('listitem').filter({ hasText: 'ซ้ำกับคำขอที่อนุมัติไปแล้ว' })
   await expect(stamp).toContainText('ไม่อนุมัติ')
   await expect(stamp).toContainText(DOA_REF)

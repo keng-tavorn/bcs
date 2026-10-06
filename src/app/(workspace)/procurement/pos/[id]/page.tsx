@@ -9,7 +9,7 @@ import { previewPoSubmit, type PoSubmitPreviewDto } from '@/server/services/purc
 import { Notice } from '@/ui/form/notice'
 import { DraftEditor } from '@/ui/purchase-order/draft-editor'
 import { PoActions, type SubmitPreviewView } from '@/ui/purchase-order/po-actions'
-import { PoStatus } from '@/ui/purchase-order/status'
+import { PoStatus, RejectedNotice } from '@/ui/purchase-order/status'
 import { StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
 import { downloadUrlAction } from '../../../../_lib/file-actions'
@@ -103,7 +103,11 @@ function previewView(t: PoT, tv: ViewT, tl: TimelineT, locale: Locale, preview: 
   }
 }
 
-/** The PO's state in words above everything else: cancelled, closed, rejected, returned, or a bounced e-mail */
+/**
+ * The PO's state in words above everything else: cancelled, closed, rejected, returned, or a bounced e-mail. A rejected
+ * PO in --danger with a cross, as its status and its timeline say "ไม่อนุมัติ"; a PO returned for changes and a bounced
+ * e-mail wait for procurement, in --warn
+ */
 function StateNotices({ po, t, locale }: { po: PoViewDto; t: PoT; locale: Locale }) {
   const returned = po.status === 'DRAFT' && po.track.some((e) => e.what === 'RETURNED')
   return (
@@ -115,7 +119,7 @@ function StateNotices({ po, t, locale }: { po: PoViewDto; t: PoT; locale: Locale
         </Notice>
       ) : null}
       {po.status === 'CLOSED' && po.closedAt ? <Notice tone="success">{t('detail.closedState', { time: when(locale, po.closedAt) })}</Notice> : null}
-      {po.status === 'REJECTED' ? <Notice tone="warning">{t('detail.rejectedState')}</Notice> : null}
+      {po.status === 'REJECTED' ? <RejectedNotice>{t('detail.rejectedState')}</RejectedNotice> : null}
       {returned ? <Notice tone="warning">{t('detail.returnedNote')}</Notice> : null}
       {po.bounce && po.status === 'APPROVED' ? <Notice tone="warning">{t('actions.send.bounceState', { time: when(locale, po.bounce.at), code: po.bounce.code ?? '-' })}</Notice> : null}
     </>

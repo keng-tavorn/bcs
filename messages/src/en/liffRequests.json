@@ -16,6 +16,14 @@
     "backToChat": "Back to the chat",
     "notFoundTitle": "Request not found",
     "notFound": "This request was not found, or it is not yours. Choose a request type to start a new request",
+    "closedBy": {
+      "SENT": "This request was already sent elsewhere, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved",
+      "CANCELLED": "This request was already cancelled elsewhere, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved. If you still need it, start a new request from Request types",
+      "NOT_FOUND": "This request is no longer found, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved. Your drafts and returned requests are on Request types",
+      "FORBIDDEN": "This account can no longer change this request, and what you changed here since the draft was last saved is not saved. If you should be able to change it, ask your organization's administrator to check your account's role",
+      "ELSEWHERE": "This request was already sent or cancelled elsewhere, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved"
+    },
+    "sessionEnded": "Your session has ended, so this was not done. Close this page and open Request from the menu in the LINE chat again. A draft saved before is under Your drafts and returned requests",
     "camera": {
       "take": "Attach a photo",
       "takeMore": "Attach another photo",
@@ -35,6 +43,7 @@
     "title": "Request",
     "notFoundTitle": "Request not found",
     "notFound": "This request was not found: it may have been removed, or the link is incomplete. Open it again from My requests",
-    "barLabel": "What you can do with this request"
+    "barLabel": "What you can do with this request",
+    "sessionEnded": "Your session has ended, so this was not done. Close this page and open the same link again, or open the request from Track in the menu of the LINE chat"
   }
 }

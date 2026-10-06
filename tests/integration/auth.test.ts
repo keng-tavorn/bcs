@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { acceptInvitationAction } from '@/app/(auth)/invite/[token]/actions'
 import { setEmailProvider, type EmailMessage } from '@/integrations/email-provider'
-import { MS_PER_HOUR, MS_PER_MINUTE, TWO_FACTOR_LOCK_MS } from '@/lib/constants'
+import { MS_PER_HOUR, MS_PER_MINUTE, PASSWORD_MAX_LENGTH, TWO_FACTOR_LOCK_MS } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { fromBase32, totp } from '@/lib/totp'
 import { makeCtx } from '@/server/context'
@@ -108,6 +109,18 @@ describe('[FR-AUTH-001/AC1] invitation by e-mail', () => {
     const later = new Date(Date.now() + 72 * MS_PER_HOUR + MS_PER_MINUTE)
     expect(await acceptInvitation({ token, password: PASSWORD }, later)).toMatchObject({ ok: false, error: { code: 'TOKEN_EXPIRED' } })
     expect(await acceptInvitation({ token: 'x'.repeat(43), password: PASSWORD }, new Date())).toMatchObject({ ok: false, error: { code: 'TOKEN_INVALID' } })
+  })
+
+  it('the invitation page’s action names what it could not read — a link cut short, or a password longer than the rule — so the form says which (§9.9 rule 7)', async () => {
+    const { ctx } = await orgWithAdmin()
+    const email = `${randomUUID()}@test.bcs.local`
+    await inviteMember(ctx, { email, displayNameTh: 'ทดสอบ ลิงก์ไม่ครบ' }, { idempotencyKey: randomUUID(), sender: null })
+    const token = decodeURIComponent(linkIn(lastMailTo(email)).split('/invite/')[1]!)
+    expect(await acceptInvitationAction('cut-short', PASSWORD)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'token' })
+    expect(await acceptInvitationAction(token, 'x'.repeat(PASSWORD_MAX_LENGTH + 1))).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'password' })
+    expect(await acceptInvitationAction('x'.repeat(43), PASSWORD)).toEqual({ ok: false, code: 'TOKEN_INVALID' })
+    // Neither refusal used the link up: it still sets the password
+    expect(await acceptInvitationAction(token, PASSWORD)).toEqual({ ok: true })
   })
 
   it('refuses invitations from a member without admin.members (deny case)', async () => {

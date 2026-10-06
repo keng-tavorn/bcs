@@ -7,9 +7,11 @@ import { cn } from './cn'
 // or side padding of their own: the button gives the 44 px height and the side padding unless it is drawn as a link, or
 // the caller's className sets them itself — h-auto with min-h-11 and some padding, for words that may wrap. A className
 // adds nothing else that one of these classes sets (tests/unit/liff-classes.test.tsx draws every LIFF use of it beside
-// the workspace's button and compares their classes).
+// the workspace's button and compares their classes). Like the workspace's, its look changes at once, with no colour
+// transition: a button drawn disabled until the page's script runs comes on when the script starts, which nobody did
+// (§9.9: a transition only shows the result of what the person did).
 
-const BASE = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors duration-150 disabled:cursor-not-allowed'
+const BASE = 'inline-flex items-center justify-center gap-2 rounded-md font-medium disabled:cursor-not-allowed'
 
 // Disabled: the words stay readable (§9.9, 4.5:1 or more) — the secondary text on the light surface inside a quiet rule.
 // Pointed at, the main button keeps its --primary fill and underlines its words (only the tokens of §9.9 as colours)

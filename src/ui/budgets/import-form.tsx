@@ -272,7 +272,7 @@ export function ImportBudgetForm({
                       aria-invalid={duplicateError ? true : undefined}
                       aria-describedby={duplicateError ? `${id}-again-error` : undefined}
                       onChange={(event) => event.currentTarget.checked && setDuplicateError(null)}
-                      className="mt-1 size-5 shrink-0 accent-[var(--warn)]"
+                      className="mt-1 size-5 shrink-0"
                     />
                     <span>{t('duplicateConfirm')}</span>
                   </label>

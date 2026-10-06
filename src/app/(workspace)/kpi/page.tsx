@@ -63,7 +63,9 @@ export default async function KpiPage({ searchParams }: { searchParams: Promise<
           {t('show')}
         </Button>
       </form>
-      {period.invalid ? <Notice tone="warning">{t('periodInvalid', { days: KPI_REVIEW_DAYS })}</Notice> : null}
+      {/* What the page shows instead of a period it cannot use: plain information in --info, never the --warn of what is
+          pending or nearly due (§9.9 token table) */}
+      {period.invalid ? <Notice tone="info">{t('periodInvalid', { days: KPI_REVIEW_DAYS })}</Notice> : null}
 
       {baseline ? null : (
         <Notice tone="info">

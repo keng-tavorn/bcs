@@ -17,10 +17,12 @@ import { LiffField } from '@/ui/liff/requests/field'
 import { newUuid } from '@/ui/liff/requests/key'
 import { openingLines, previewLinesOf } from '@/ui/liff/requests/lines'
 import { LiffRequesterScreen, type LiffRequesterProps } from '@/ui/liff/requests/requester-box'
-import { openFileWith } from '@/ui/liff/requests/review-step'
+import { LiffReviewStep, openFileWith, SaveFailureText, type LiffReviewProps } from '@/ui/liff/requests/review-step'
+import { closedRequestOpens, LiffSaveClosed } from '@/ui/liff/requests/save-closed'
 import { liffFormStart } from '@/ui/liff/requests/start'
 import { LiffTrackList } from '@/ui/liff/requests/track-list'
-import { draftPayload, formReducer, initialValues, plainNumber, savableLine, type FormAction, type FormLine, type FormValues } from '@/ui/request-form/model'
+import { draftPayload, formInput, formReducer, initialValues, plainNumber, savableLine, totalsOf, type FormAction, type FormLine, type FormValues } from '@/ui/request-form/model'
+import { toFormFailure, type ClosedWhy, type FormFailure } from '@/ui/request-form/outcome'
 import type { BudgetView, RequestFormData } from '@/ui/request-form/types'
 import en from '../../messages/en.json'
 import th from '../../messages/th.json'
@@ -619,5 +621,154 @@ describe('[FR-LINE-003/AC1] a file of the LIFF form opens through LINE inside th
     expect(refused.close).toHaveBeenCalledOnce()
     // A window the browser blocked: nothing to close, not opened
     expect(await openFileWith({ line: null, open: () => null }, async () => 'https://files.example/p.jpg?sig=3')).toBe(false)
+  })
+})
+
+/** Inside the LIFF bootstrap, in the reader's language */
+const inLiffIn = (node: ReactNode, locale: 'th' | 'en') => html(<LiffProvider config={{ liffId: null, mock: null, session: 'liff' }}>{node}</LiffProvider>, locale)
+
+/** The words of some markup, without its tags, as a reader sees them (the characters markup escapes put back) */
+const wordsOf = (markup: string) =>
+  markup
+    .replace(/<[^>]+>/g, '')
+    .replaceAll('&#x27;', "'")
+    .replaceAll('&quot;', '"')
+    .replaceAll('&lt;', '<')
+    .replaceAll('&gt;', '>')
+    .replaceAll('&amp;', '&')
+
+describe('[FR-INT-006/AC2] [§9.9] a LIFF form whose request was closed to it says what closed it, as the server said, never a guess (D-05 round 5)', () => {
+  const CAUSES: readonly ClosedWhy[] = ['SENT', 'CANCELLED', 'NOT_FOUND', 'FORBIDDEN', 'ELSEWHERE']
+  const notice = (why: ClosedWhy, locale: 'th' | 'en' = 'th', requestHref: string | null = '/liff/requests/r-1') => html(<LiffSaveClosed why={why} requestHref={requestHref} />, locale)
+
+  it('[§9.9] each cause in its own words, each saying that what was changed since the draft was last saved is not saved; "sent or cancelled" only when the server named no status', () => {
+    for (const why of CAUSES) {
+      const page = notice(why)
+      expect(wordsOf(page), why).toContain(th.liffRequests.form.closedBy[why])
+      expect(th.liffRequests.form.closedBy[why], why).toContain('สิ่งที่แก้ในหน้านี้หลังบันทึกร่างครั้งล่าสุดไม่ได้บันทึก')
+      expect(en.liffRequests.form.closedBy[why], why).toContain('what you changed here since the draft was last saved is not saved')
+      // Not the words of before, which guessed "sent or cancelled" for every cause, nor a guess at why it is gone
+      expect(wordsOf(page), why).not.toContain('คำขอนี้ส่งแล้วหรือถูกยกเลิกจากที่อื่น')
+      expect(page, why).not.toContain('อาจถูกลบ')
+    }
+    for (const why of CAUSES.filter((c) => c !== 'ELSEWHERE')) expect(th.liffRequests.form.closedBy[why], why).not.toContain('ส่งหรือยกเลิก')
+    expect(th.liffRequests.form.closedBy.ELSEWHERE).toContain('ส่งหรือยกเลิกจากที่อื่น')
+  })
+
+  it('[§9.9] leads to the request’s page only when this account can open it: sent or cancelled, never gone or no longer its own', () => {
+    for (const why of CAUSES.filter(closedRequestOpens)) expect(notice(why), why).toMatch(/<a href="\/liff\/requests\/r-1"[^>]*>เปิดคำขอเพื่อดูสถานะ<\/a>/)
+    expect(CAUSES.filter((why) => !closedRequestOpens(why))).toEqual(['NOT_FOUND', 'FORBIDDEN'])
+    for (const why of ['NOT_FOUND', 'FORBIDDEN'] as const) expect(notice(why), why).not.toContain('<a ')
+    // No address yet: nothing to open
+    expect(notice('SENT', 'th', null)).not.toContain('<a ')
+  })
+
+  it('[NFR-A11Y-03] a warning with its icon beside the words, read politely; in English with no Thai', () => {
+    const page = notice('CANCELLED')
+    expect(page).toMatch(/^<div role="status" class="[^"]*border-warn[^"]*"><svg[^>]*aria-hidden="true"/)
+    for (const why of CAUSES) {
+      const english = notice(why, 'en')
+      expect(wordsOf(english), why).toContain(en.liffRequests.form.closedBy[why])
+      expect(english, why).not.toMatch(/[฀-๿]/)
+    }
+  })
+})
+
+describe('[§9.9] the LIFF form’s refusals: a session that ended says how to come back in LINE, and a request sent meanwhile leads to its page (D-05 round 5)', () => {
+  const data = itForm()
+  const values: FormValues = { ...openingOf(data), title: 'เซิร์ฟเวอร์สำรองข้อมูล' }
+  const totals = totalsOf(values, data.vatRateBp)
+  const files: LiffReviewProps['files'] = {
+    attachments: [],
+    setAttachments: () => undefined,
+    draftId: async () => null,
+    requestId: 'r-1',
+    actions: {
+      requestUpload: async () => ({ ok: false, reason: 'FAILED' }),
+      completeUpload: async () => ({ ok: false, reason: 'FAILED' }),
+      attach: async () => ({ ok: true }),
+      detach: async () => ({ ok: true }),
+      downloadUrl: async () => null,
+    },
+    ready: async () => 'go',
+    saveBlocked: false,
+  }
+  /** Step 3 with the server's last refusal of the send */
+  const review = (submitError: FormFailure, more: Partial<LiffReviewProps> = {}, locale: 'th' | 'en' = 'th') =>
+    inLiffIn(
+      <LiffReviewStep
+        data={data}
+        values={values}
+        update={() => undefined}
+        locale={locale}
+        input={formInput(values, [], totals, data.type.code)}
+        visible={new Set(liffFormStart(data).visible)}
+        totals={totals}
+        showErrors
+        budget={null}
+        previewLoading={false}
+        fieldErrors={{}}
+        rules={[]}
+        nets={{}}
+        lowest={[]}
+        problems={[]}
+        route={null}
+        onGoTo={() => undefined}
+        sendBlock={null}
+        submitError={submitError}
+        onReload={() => undefined}
+        files={files}
+        {...more}
+      />,
+      locale,
+    )
+  /** The refusal: the notice that announces itself at once (role alert), last on the step */
+  const refusalIn = (page: string) => page.slice(page.lastIndexOf('<div role="alert"'))
+  const NO_SESSION: FormFailure = { ok: false, code: 'UNAUTHENTICATED' }
+
+  it('[§9.9] a send refused because the session ended says nothing was done, and to open the form again from the LINE chat’s menu — never the web’s "sign in again"', () => {
+    const refusal = wordsOf(refusalIn(review(NO_SESSION)))
+    expect(refusal).toContain(th.liffRequests.form.sessionEnded)
+    expect(refusal).not.toContain(th.requestForm.errors.UNAUTHENTICATED)
+    expect(refusal).not.toContain('เข้าสู่ระบบ')
+    const english = wordsOf(refusalIn(review(NO_SESSION, {}, 'en')))
+    expect(english).toContain(en.liffRequests.form.sessionEnded)
+    expect(english).not.toMatch(/sign in/i)
+  })
+
+  it('[§9.9] a save of the draft refused because the session ended says so in the same words; any other refusal keeps the workspace’s', () => {
+    expect(html(<SaveFailureText failure={NO_SESSION} fields={data.form.fields} locale="th" />)).toBe(`<span>${th.liffRequests.form.sessionEnded}</span>`)
+    expect(html(<SaveFailureText failure={NO_SESSION} fields={data.form.fields} locale="en" />, 'en')).toBe(`<span>${en.liffRequests.form.sessionEnded}</span>`)
+    const other = html(<SaveFailureText failure={toFormFailure({ code: 'INTERNAL', details: { requestId: 'req-7' } })} fields={data.form.fields} locale="th" />)
+    expect(other).toContain('บันทึกร่างไม่สำเร็จ: ')
+    expect(other).not.toContain(th.liffRequests.form.sessionEnded)
+  })
+
+  it('[§9.9] the words name where to come back — the rich menu’s button and the catalogue’s drafts — and that nothing was done, in Thai and in English', () => {
+    expect(th.liffRequests.form.sessionEnded).toContain(`เปิดเมนู ${th.liff.help.menu.request.label} ในแชท LINE`)
+    expect(th.liffRequests.form.sessionEnded).toContain(th.request.catalog.draftsTitle)
+    expect(th.liffRequests.form.sessionEnded).toContain('ยังไม่ได้ทำรายการนี้')
+    expect(en.liffRequests.form.sessionEnded).toContain(`open ${en.liff.help.menu.request.label} from the menu in the LINE chat`)
+    expect(en.liffRequests.form.sessionEnded).toContain(en.request.catalog.draftsTitle)
+    expect(en.liffRequests.form.sessionEnded).toContain('this was not done')
+    // The request's own page (its answer and its cancel) says the same, and where the request opens again: the same link,
+    // or the rich menu's ติดตามสถานะ
+    expect(th.liffRequests.view.sessionEnded).toContain('ยังไม่ได้ทำรายการนี้')
+    expect(th.liffRequests.view.sessionEnded).toContain(`เมนู ${th.liff.help.menu.track.label} ในแชท LINE`)
+    expect(en.liffRequests.view.sessionEnded).toContain('this was not done')
+    expect(en.liffRequests.view.sessionEnded).toContain(`from ${en.liff.help.menu.track.label} in the menu of the LINE chat`)
+    for (const m of [th, en]) for (const words of [m.liffRequests.form.sessionEnded, m.liffRequests.view.sessionEnded]) expect(words).not.toMatch(/เข้าสู่ระบบ|sign in/i)
+  })
+
+  it('[§9.9] a send refused because the request was sent or cancelled meanwhile says which, and leads to its LIFF page', () => {
+    const sent = review(toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'PENDING_APPROVAL' } }), { requestHref: '/liff/requests/r-1' })
+    expect(wordsOf(refusalIn(sent))).toContain(th.requestForm.errors.STATE_SENT)
+    expect(refusalIn(sent)).toMatch(new RegExp(`<a href="/liff/requests/r-1"[^>]*>${th.requestForm.page.openRequest}</a>`))
+    const cancelled = review(toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED' } }), { requestHref: '/liff/requests/r-1' })
+    expect(wordsOf(refusalIn(cancelled))).toContain(th.requestForm.errors.STATE_CANCELLED)
+    expect(refusalIn(cancelled)).toContain('<a href="/liff/requests/r-1"')
+    // Before the draft has an address, or for another refusal, no such link
+    expect(refusalIn(review(toFormFailure({ code: 'INVALID_STATE_TRANSITION', details: { from: 'PENDING_APPROVAL' } })))).not.toContain('<a ')
+    expect(refusalIn(review(toFormFailure({ code: 'CONFLICT_VERSION' }), { requestHref: '/liff/requests/r-1' }))).not.toContain('<a ')
   })
 })

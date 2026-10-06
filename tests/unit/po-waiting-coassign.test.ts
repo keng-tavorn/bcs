@@ -51,7 +51,7 @@ describe('[FR-INT-008/AC1] a PO or a variance on an escalated step names everyon
     expect(waitingOf(t, tv, 'th', escalatedStep)).toEqual({
       now: `waiting.APPROVER${JSON.stringify({ name: 'ชัยวัฒน์ ปฏิบัติการใหญ่ (ประธานเจ้าหน้าที่ฝ่ายปฏิบัติการ) หรือ สมศักดิ์ บริหารดี (ประธานเจ้าหน้าที่บริหาร)' })}`,
       states: [
-        { kind: 'waiting', text: `waiting.hours${JSON.stringify({ hours: '10' })}` },
+        { kind: 'waiting', text: `waiting.hours${JSON.stringify({ hours: 10 })}` },
         { kind: 'overdue', text: `waiting.overdue${JSON.stringify({ time: when('th', since) })}` },
       ],
     })

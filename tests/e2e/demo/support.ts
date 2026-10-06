@@ -536,6 +536,20 @@ async function settled(page: Page) {
   })
 }
 
+/**
+ * The focus away from the control the last step typed in or pressed, as pointerAway moves the mouse away: a field still
+ * being edited shows what was typed, not what the person reads once they move on — a money field its raw digits
+ * ("60000.00") until it is left, then "60,000.00" (src/ui/request-form/money-input.tsx) — and draws its focus ring. A
+ * screen is checked and photographed at rest, as the person sees it after the step; the page is laid out again first.
+ */
+async function focusAway(page: Page) {
+  await page.evaluate(async () => {
+    const active = document.activeElement
+    if (active instanceof HTMLElement && active !== document.body) active.blur()
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  })
+}
+
 /** What axe finds serious or critical on the page: each rule, its help and the elements it names */
 async function blockingAxe(page: Page): Promise<string[]> {
   const results = await new AxeBuilder({ page }).analyze()
@@ -549,12 +563,14 @@ async function blockingAxe(page: Page): Promise<string[]> {
  * `<name>.png`; then the same page at a phone's 375 × 812 — axe with nothing serious or critical, no sideways scroll, a
  * full-page screenshot `<name>-375.png`, a bar fixed to the bottom of a phone's screen drawn in its place (BARS_IN_PLACE)
  * — and back to 1440 × 900. A failure at 375 px is recorded with expect.soft: the test fails, but the scene goes on, so
- * the screens after it are still checked and photographed.
+ * the screens after it are still checked and photographed. The pointer and the focus are moved away first: the screen at
+ * rest (pointerAway, focusAway).
  */
 export async function checkWebScreen(page: Page, testInfo: TestInfo, name: string) {
   noteScreen(page, testInfo, name, 'web')
-  // Every control at rest in the pictures, not under the pointer the last click left
+  // Every control at rest in the pictures, not under the pointer the last click left, nor still being edited
   await pointerAway(page)
+  await focusAway(page)
   await checkWorkspaceScreen(page, testInfo, name)
   const at = `${name} at ${PHONE.width} px`
   try {
@@ -579,13 +595,17 @@ const GATE_UNDER_WAY = ['signingIn', 'opening', 'toLink', 'toWebSignIn'] as cons
  * The §9.9 checks of a LIFF page at the phone's 375 px (axe, no sideways scroll, 44 px targets, a full-page screenshot
  * `<name>.png`), then the same at 1440 px (`<name>-1440.png`) and back to the phone. A page opened in a new browser
  * shows its title while its gate still signs in with LINE, so the checks wait for the gate to be done: what axe reads
- * and the pictures show is the page itself.
+ * and the pictures show is the page itself, at rest — no field still being edited (focusAway), no control under the
+ * pointer.
  */
 export async function checkLiffScreen(page: Page, testInfo: TestInfo, name: string) {
   noteScreen(page, testInfo, name, 'liff')
   const gate = page.getByRole('status').filter({ hasText: new RegExp(GATE_UNDER_WAY.map((key) => literally(th(`liff.gate.${key}`))).join('|')) })
   await expect(gate, `${name}: the LIFF page has signed in with LINE before it is checked`).toHaveCount(0, { timeout: 30_000 })
   await settled(page)
+  // No field still being edited: a price shows "60,000.00" as the person reads it once they move on (checkPhoneScreen
+  // moves the pointer away)
+  await focusAway(page)
   await checkPhoneScreen(page, testInfo, name)
 }
 

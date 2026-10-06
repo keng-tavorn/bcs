@@ -10,6 +10,8 @@ import { listPool } from '@/server/services/procurement'
 import { RequestList } from '@/ui/request-view/request-list'
 import { TaskList } from '@/ui/tasks/task-list'
 import { getSession } from '../_lib/session'
+import { loadHomeBudget } from './_tracking/home-budget-load'
+import { HomeBudgetSection } from './_tracking/home-budget-section'
 import { poRows } from './_tracking/po-rows'
 import { poolRow } from './_tracking/pool-row'
 import { localeOf } from './_tracking/present'
@@ -26,24 +28,27 @@ const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text
 
 // Home, work first (§9.9 principle 1): what waits for my decision — the ones due first, and for procurement the pool of
 // approved requests nobody has ordered yet and the POs waiting on them (a draft to send for approval, an approved PO to
-// send out) — then my requests with where each one is now; every count links to its list.
-// Charts come later (S3 budget, S4 board), never before the work.
+// send out) — then my requests with where each one is now; every count links to its list. The budget comes after the
+// work, for members who may view budgets (§9.1 "/"): what is left in their budget.view scope and the lines running low,
+// from the dashboard of /budgets, every amount a link to what makes it up — a short list, never a chart before the work.
 export default async function HomePage() {
   const state = await getSession()
   if (state.kind !== 'member') return null
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, tt, tv, locale] = await Promise.all([getTranslations('home'), getTranslations('tasks'), getTranslations('requestView'), getLocale().then(localeOf)])
+  const [t, tt, tv, tb, locale] = await Promise.all([getTranslations('home'), getTranslations('tasks'), getTranslations('requestView'), getTranslations('budgets'), getLocale().then(localeOf)])
   // The pool is read only by those whose menu has it (the same check, §2.4 procurement.pool.view); listPool checks again.
-  // So are the POs waiting on procurement: by those whose menu lists POs (po.create, the menu's entry)
+  // So are the POs waiting on procurement: by those whose menu lists POs (po.create, the menu's entry). The budget's
+  // service checks budget.view itself, with the departments a member heads, and answers no one else (loadHomeBudget)
   const principal = memberPrincipal(state.member.id, state.roles)
   const seesPool = isAllowed(principal, 'procurement.pool.view')
   const seesPos = isAllowed(principal, 'po.create')
-  const [tasks, requests, pool, pos] = await Promise.all([
+  const [tasks, requests, pool, pos, budget] = await Promise.all([
     listMyTasks(ctx, { limit: HOME_ROWS }),
     listMyRequests(ctx, { limit: HOME_ROWS }),
     seesPool ? listPool(ctx) : null,
     seesPos ? procurementPoCounts(ctx) : null,
+    loadHomeBudget(ctx, t, tb),
   ])
   const poolWork = pool?.ok ? poolRow(t, pool.data) : null
   const poWork = pos ? poRows(t, pos) : []
@@ -107,6 +112,8 @@ export default async function HomePage() {
           </div>
         )}
       </section>
+
+      {budget ? <HomeBudgetSection view={budget} /> : null}
     </div>
   )
 }

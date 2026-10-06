@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { amountToSatang } from '@/core/money/dto'
 import { memberPrincipal } from '@/server/authz'
 import { getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
-import { getRequestView, type RequestViewDto, type TrackEntryDto } from '@/server/queries/requests'
+import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { budgetLineAvailable } from '@/server/services/budget/line-available'
 import { liffFacts } from '@/server/services/liff'
@@ -18,9 +18,10 @@ import { LiffPolicyDecisionLoader, LiffTaskDecisionLoader } from '@/ui/liff/task
 import { liffTaskAction, WEB_PIN_SETTINGS_PATH } from '@/ui/liff/tasks/shared'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, type AmountRow, type Fact } from '@/ui/request-view/facts'
-import { StateLine, type StateKind } from '@/ui/request-view/status'
+import { StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
 import { taskRight } from '../../../(workspace)/_tracking/access'
+import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
 import { doaRefText, dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../(workspace)/_tracking/request-sections'
@@ -74,8 +75,10 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
     case 'RETURNED':
     case 'REJECTED': {
       const text = t(`state.${task.decision ?? 'APPROVE'}`, { name: memberName(locale, task.decidedBy), time: task.decidedAt ? when(locale, task.decidedAt) : '' })
+      // In the colours the timeline below draws the same decision in: approved --primary, returned --warn, not approved
+      // --danger (§9.9 tokens). How the task stands, read politely as a status, not an error just made (role=alert)
       return (
-        <LiffNotice tone={task.status === 'APPROVED' ? 'success' : 'warning'}>
+        <LiffNotice tone={task.status === 'APPROVED' ? 'success' : task.status === 'REJECTED' ? 'danger' : 'warning'} role="status">
           <p>{text}</p>
           {task.reason && task.status !== 'APPROVED' ? <p className="break-words whitespace-pre-line">{t('state.reason', { reason: task.reason })}</p> : null}
         </LiffNotice>
@@ -92,15 +95,6 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
   }
 }
 
-/** The budget state of a request, as its page says it (reserved, held in an order, given back, or none yet) */
-function budgetState(view: RequestViewDto): { kind: StateKind; key: 'stateReserved' | 'stateCommitted' | 'stateReleased' | 'stateNone' } {
-  const b = view.budget
-  if (b && b.committedSatang > 0n) return { kind: 'done', key: 'stateCommitted' }
-  if (b && b.reservedSatang > 0n) return { kind: 'done', key: 'stateReserved' }
-  if (view.status === 'REJECTED' || view.status === 'CANCELLED') return { kind: 'closed', key: 'stateReleased' }
-  return { kind: 'draft', key: 'stateNone' }
-}
-
 /**
  * The facts to decide on, first on the phone's screen (§9.9 principle 5): the amount and what is left on the budget line —
  * label and figure on one row, the figures right-aligned in tabular digits under their unit, as in the amounts below
@@ -110,8 +104,8 @@ function Summary({ label, amounts, facts, unit }: { label: string; amounts: read
   return (
     <section aria-label={label} className="flex flex-col gap-4 border-t border-line pt-5">
       {amounts.length ? <Amounts rows={amounts} heading={unit.heading} unit={unit.name} /> : null}
-      {/* One column at every width, as LIFF is (§9.9): Facts splits by the screen's width, not by LIFF's column */}
-      {facts.length ? <Facts items={facts} className="sm:grid-cols-1" /> : null}
+      {/* One column at every width, as LIFF is (§9.9) */}
+      {facts.length ? <Facts items={facts} columns="one" /> : null}
     </section>
   )
 }
@@ -263,7 +257,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
             value: (
               <span className="flex flex-col">
                 <span>{`${request.budget.code} · ${request.budget.name}`}</span>
-                <StateLine kind={budgetState(request).kind}>{tv(`budget.${budgetState(request).key}`)}</StateLine>
+                {/* The request page's state and mark: budget held — reserved or committed — is a padlock in --info, not approved */}
+                <StateLine kind={requestBudgetState(request).kind}>{tv(`budget.${requestBudgetState(request).key}`)}</StateLine>
               </span>
             ),
           },

@@ -24,7 +24,12 @@
     "full": "{max} photos are attached. To take another one, remove a photo you do not need first.",
     "hide": "Hide photo {name}",
     "stop": "Stop sending this photo",
-    "stopped": "Sending stopped. This photo is not attached; take it again when the signal is better."
+    "stopped": "Sending stopped. This photo is not attached; take it again when the signal is better.",
+    "removeQuestion": "Remove photo {name} from this receipt?",
+    "removeDetail": "A photo you remove cannot be brought back: to use it, you would take it again.",
+    "removeConfirm": "Remove this photo",
+    "removeKeep": "Keep the photo",
+    "removed": "Photo {name} removed"
   },
   "photoRefusedLate": "The last photo you took is not attached to this receipt. {reason} To take it again, go back to edit the quantities."
 }

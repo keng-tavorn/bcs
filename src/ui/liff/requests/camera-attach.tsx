@@ -48,8 +48,8 @@ const REFUSAL_KEYS: Readonly<Record<FileRefusal, 'typeNotAllowed' | 'tooLarge' |
 
 export function LiffCameraAttach({ taken, busy, ready, requestUpload, completeUpload, onAttach }: LiffCameraAttachProps) {
   const t = useTranslations('liffRequests.form.camera')
+  const tForm = useTranslations('liffRequests.form')
   const tFiles = useTranslations('files')
-  const tErrors = useTranslations('requestForm.errors')
   const id = useId()
   const [status, setStatus] = useState<Status>({ kind: 'idle' })
   const working = status.kind === 'preparing' || status.kind === 'sending'
@@ -70,7 +70,8 @@ export function LiffCameraAttach({ taken, busy, ready, requestUpload, completeUp
       onSending: (name) => setStatus({ kind: 'sending', name }),
     })
     if (!sent.ok) {
-      if (sent.reason === 'NOT_SENT') return setStatus(ended ? { kind: 'refused', text: tErrors('UNAUTHENTICATED') } : { kind: 'idle' })
+      // The session has ended: LIFF has no sign-in page of its own, so the words say nothing was attached and how to come back
+      if (sent.reason === 'NOT_SENT') return setStatus(ended ? { kind: 'refused', text: tForm('sessionEnded') } : { kind: 'idle' })
       return setStatus({ kind: 'refused', text: sent.reason === 'UNREADABLE' ? t('unreadable') : tFiles(REFUSAL_KEYS[sent.reason]) })
     }
     // Attached: the documents list shows it with its kind; a refusal of the attach is said there by the form

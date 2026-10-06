@@ -377,6 +377,20 @@ describe('[FR-VIS-003/AC2] the executive’s KPI page shows the organization’s
     const g3c = ok(await kpiDetail(org.ctxOf('ceo', now), period, 'g3c'))
     expect(g3c.items).toHaveLength(kpi.g3.pastDue.numerator)
     expect(g3c.items.every((i) => i.mark === 'PAST_DUE_OPEN' || i.mark === 'PAST_DUE_DECIDED')).toBe(true)
+    // "1 จาก 37 ขั้น": every step G-3 (c) divides by, in the same scope and period, the past-due ones counted and first,
+    // each marked why it is counted or not (§9.9 every number opens its list)
+    expect(kpi.g3.pastDue.denominator).toBeGreaterThan(0)
+    const steps = ok(await kpiDetail(org.ctxOf('ceo', now), period, 'g3c-steps'))
+    expect({ items: steps.items.length, total: steps.total, counted: steps.counted }).toEqual({ items: kpi.g3.pastDue.denominator, total: kpi.g3.pastDue.denominator, counted: kpi.g3.pastDue.numerator })
+    const pastDue = (i: { mark: string | null }) => i.mark === 'PAST_DUE_OPEN' || i.mark === 'PAST_DUE_DECIDED'
+    expect(steps.items.slice(0, steps.counted).every(pastDue)).toBe(true)
+    expect(steps.items.slice(steps.counted).some(pastDue)).toBe(false)
+    expect(steps.items.slice(steps.counted).every((i) => ['DECIDED_ON_TIME', 'OPEN_NOT_DUE', 'NO_DUE_TIME', 'CLOSED_UNDECIDED'].includes(i.mark ?? ''))).toBe(true)
+    // the counted steps are the steps of the value's own list
+    expect(steps.items.filter(pastDue).map((i) => i.key).sort()).toEqual(g3c.items.map((i) => i.key).sort())
+    // every step names its document and who holds it
+    expect(steps.items.every((i) => i.document !== null && i.person !== null)).toBe(true)
+    expect(await kpiDetail(org.ctxOf('dm_con', now), period, 'g3c-steps')).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     const g3b = ok(await kpiDetail(org.ctxOf('ceo', now), period, 'g3b'))
     expect(g3b.items.map((i) => i.minutes)).not.toContain(null)
     expect(await kpiDetail(org.ctxOf('ceo', now), period, 'g9')).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })

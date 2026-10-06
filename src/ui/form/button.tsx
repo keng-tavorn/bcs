@@ -1,10 +1,13 @@
 import type { ButtonHTMLAttributes } from 'react'
 import { cn } from '../cn'
 
-// Buttons say what will happen (§9.9 rule 7). 44 px tall for touch; transitions only show the result of an action.
-// A button that cannot be pressed now keeps its words readable (§9.9: contrast 4.5:1 or more, no exception for a
-// disabled control): the secondary text on the light surface, inside a quiet rule, not the button faded out. Pointed
-// at, the main button keeps its --primary fill and underlines its words: every colour on the screen is a token of §9.9.
+// Buttons say what will happen (§9.9 rule 7). 44 px tall for touch. A button that cannot be pressed now keeps its words
+// readable (§9.9: contrast 4.5:1 or more, no exception for a disabled control): the secondary text on the light surface,
+// inside a quiet rule, not the button faded out. Pointed at, the main button keeps its --primary fill and underlines its
+// words: every colour on the screen is a token of §9.9. Its look changes at once, with no colour transition: a button
+// the server draws disabled until the page's script runs (src/ui/form/hydrated.ts) comes on when the script starts,
+// which nobody did (§9.9: a transition only shows the result of what the person did), and halfway between the disabled
+// look and its own its words could not be read.
 const VARIANTS = {
   primary:
     'bg-primary text-primary-foreground underline-offset-4 hover:underline disabled:bg-surface disabled:text-ink-muted disabled:no-underline disabled:ring-1 disabled:ring-line disabled:ring-inset',
@@ -22,7 +25,7 @@ export function Button({ variant = 'primary', className, type = 'button', ...pro
   return (
     <button
       type={type}
-      className={cn('inline-flex h-11 items-center justify-center gap-2 rounded-md px-4 font-medium transition-colors duration-150 disabled:cursor-not-allowed', VARIANTS[variant], className)}
+      className={cn('inline-flex h-11 items-center justify-center gap-2 rounded-md px-4 font-medium disabled:cursor-not-allowed', VARIANTS[variant], className)}
       {...props}
     />
   )

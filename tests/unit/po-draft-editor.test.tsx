@@ -130,10 +130,10 @@ describe('[FR-P2P-003/AC2] the draft is edited one line at a time: no form of mo
 })
 
 describe('[FR-P2P-003/AC2] a line taken off the draft says so on its button and in the confirmation after it (§9.9 principle 7)', () => {
-  const buttons = (messages: typeof th, props: { no: number; remove: boolean; pending?: boolean }) =>
+  const buttons = (messages: typeof th, props: { no: number; remove: boolean; pending?: boolean; busy?: boolean }) =>
     renderToStaticMarkup(
       <NextIntlClientProvider locale={messages === th ? 'th' : 'en'} messages={messages} timeZone="Asia/Bangkok">
-        <LineFormButtons no={props.no} remove={props.remove} pending={props.pending ?? false} onClose={() => undefined} />
+        <LineFormButtons no={props.no} remove={props.remove} pending={props.pending ?? false} busy={props.busy ?? false} onClose={() => undefined} />
       </NextIntlClientProvider>,
     )
   /** The classes of the submit button */
@@ -155,10 +155,22 @@ describe('[FR-P2P-003/AC2] a line taken off the draft says so on its button and 
   })
 
   it('says it is working while the server takes the line off, and the same in English', () => {
+    // In the button's own words (§9.9 principle 7): taking the line off, never "saving"
     const working = buttons(th, { no: 2, remove: true, pending: true })
-    expect(working).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>กำลังบันทึก<\/button>/)
+    expect(working).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>กำลังเอาบรรทัด 2 ออก<\/button>/)
+    expect(working).not.toContain('กำลังบันทึก')
+    expect(buttons(en as unknown as typeof th, { no: 3, remove: true, pending: true })).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>Taking line 3 off<\/button>/)
+    // Saving a line keeps the words of saving
+    expect(buttons(th, { no: 2, remove: false, pending: true })).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>กำลังบันทึก<\/button>/)
     expect(buttons(en as unknown as typeof th, { no: 3, remove: true })).toMatch(/<button type="submit"[^>]*>Take line 3 off<\/button>/)
     expect(buttons(en as unknown as typeof th, { no: 3, remove: false })).toMatch(/<button type="submit"[^>]*>Save line 3<\/button>/)
+  })
+
+  it('waits shut under its own words while another form of the draft sends its change', () => {
+    const waiting = buttons(th, { no: 2, remove: true, busy: true })
+    expect(waiting).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>เอาบรรทัด 2 ออก<\/button>/)
+    expect(waiting).toMatch(/<button type="button"[^>]*disabled=""[^>]*>ปิดโดยไม่บันทึก<\/button>/)
+    expect(waiting).not.toContain('กำลัง')
   })
 
   it('confirms in the words of the button: the line is off and its request line is back in the pool with the same supplier', () => {
@@ -210,5 +222,22 @@ describe('[FR-P2P-003/AC2] the service’s refusal of a change is said inside th
 
   it('the editor as it loads says nothing above its forms: no refusal far from the button that was pressed', () => {
     expect(render(th, [line()])).not.toContain('role="alert"')
+  })
+})
+
+describe('[FR-P2P-003/AC2] only the form whose change is on its way says so; the others wait shut under their own words (§9.9 principle 7)', () => {
+  const terms = (props: { pending: boolean; busy?: boolean }) =>
+    renderToStaticMarkup(
+      <NextIntlClientProvider locale="th" messages={th} timeZone="Asia/Bangkok">
+        <TermsForm paymentTermDays={null} notesToSupplier={null} run={async () => true} pending={props.pending} busy={props.busy ?? false} refusal={null} />
+      </NextIntlClientProvider>,
+    )
+
+  it('the terms say "กำลังบันทึก" while their own change is sent, and keep their words, shut, while a line’s is', () => {
+    expect(terms({ pending: true })).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>กำลังบันทึก<\/button>/)
+    const waiting = terms({ pending: false, busy: true })
+    expect(waiting).toMatch(/<button type="submit"[^>]*disabled=""[^>]*>บันทึกเงื่อนไขและหมายเหตุ<\/button>/)
+    expect(waiting).not.toContain('กำลังบันทึก')
+    expect(terms({ pending: false })).toMatch(/<button type="submit" class="[^"]*">บันทึกเงื่อนไขและหมายเหตุ<\/button>/)
   })
 })

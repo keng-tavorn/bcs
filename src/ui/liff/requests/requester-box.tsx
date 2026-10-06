@@ -123,8 +123,11 @@ export function LiffRequesterScreen({ header, children, question, returned, draf
     }
   }
 
+  // A session that has ended in LIFF's words: LIFF has no sign-in page of its own (not the web's "sign in again")
   const failed = failure
-    ? tErrors(requestErrorKey(failure), { available: money(failure.available), shortfall: money(failure.shortfall), rule: failure.rule ?? '-', requestId: failure.requestId ?? '-' })
+    ? failure.code === 'UNAUTHENTICATED'
+      ? tl('sessionEnded')
+      : tErrors(requestErrorKey(failure), { available: money(failure.available), shortfall: money(failure.shortfall), rule: failure.rule ?? '-', requestId: failure.requestId ?? '-' })
     : null
   const editDraft = draft && editHref
   const hasBar = Boolean(question || returned || editDraft)

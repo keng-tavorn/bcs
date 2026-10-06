@@ -6,7 +6,7 @@ import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { RunOptions } from '../_pipeline'
 import { REPORTS, createReportSchedule, periodOf, reportScope, type Column, type KpiParams, type ReportParamField } from './index'
-import { collectKpis, isMobileChannel, kpiDocumentKind, type KpiDecisionItem, type KpiResult, type KpiTaskItem } from './kpi'
+import { collectKpis, isMobileChannel, isPastDue, kpiDocumentKind, type KpiAssignedTaskItem, type KpiDecisionItem, type KpiPastDueMark, type KpiResult, type KpiTaskItem } from './kpi'
 
 // What the report and KPI screens read (spec §11.3, §11.4, FR-VIS-002 AC1 AC3, FR-VIS-003 AC2): the reports the
 // framework offers with their filters and columns, the schedules, the KPI page (organization-wide figures for
@@ -127,6 +127,13 @@ export async function scheduleReport(ctx: Ctx, input: unknown, options: RunOptio
 export const KPI_MEASURES = ['g1', 'g2a', 'g2b', 'g3a', 'g3b', 'g3c', 'g4', 'g5'] as const
 export type KpiMeasure = (typeof KPI_MEASURES)[number]
 
+/**
+ * The lists behind the KPI page's figures: one per measure, and the steps G-3 (c) divides by — every step assigned in
+ * the period, the past-due ones counted — behind the "37" of "1 จาก 37 ขั้น" (§9.9: every number opens its list)
+ */
+export const KPI_LISTS = [...KPI_MEASURES, 'g3c-steps'] as const
+export type KpiList = (typeof KPI_LISTS)[number]
+
 export type KpiBaselineValue = { readonly kind: 'ratio'; readonly numerator: number; readonly denominator: number } | { readonly kind: 'minutes'; readonly minutes: number } | { readonly kind: 'count'; readonly count: number }
 
 export interface KpiBaseline {
@@ -195,15 +202,15 @@ export interface KpiItemDto {
   readonly minutes: number | null
   readonly doaRef: { readonly versionId: string; readonly code: string; readonly versionNo: number; readonly ruleCode: string } | null
   /** Why the item is in the list, in a word the screen translates */
-  readonly mark: 'MOBILE' | 'NOT_MOBILE' | 'WITH_DOA' | 'WITHOUT_DOA' | 'MISROUTED' | 'DOA_MATCHED' | 'PAST_DUE_DECIDED' | 'PAST_DUE_OPEN' | null
+  readonly mark: 'MOBILE' | 'NOT_MOBILE' | 'WITH_DOA' | 'WITHOUT_DOA' | 'MISROUTED' | 'DOA_MATCHED' | KpiPastDueMark | null
 }
 
 export interface KpiDetailDto {
-  readonly measure: KpiMeasure
+  readonly measure: KpiList
   /** G-5 of one kind of document (PURCHASE_REQUEST …), or null for all */
   readonly kind: string | null
   readonly period: { readonly from: string; readonly to: string }
-  /** At most KPI_DETAIL_MAX items, newest first; G-2 (a) puts the misrouted decisions it counts first */
+  /** At most KPI_DETAIL_MAX items, newest first; G-2 (a) and the steps of G-3 (c) put the ones they count first */
   readonly items: readonly KpiItemDto[]
   /** How many items stand behind the figure in all */
   readonly total: number
@@ -235,7 +242,10 @@ async function resolveDocuments(tx: TenantTx, refs: ReadonlyArray<{ subjectType:
   ])
 }
 
-const MeasureInput = z.enum(KPI_MEASURES)
+const MeasureInput = z.enum(KPI_LISTS)
+
+/** The marks of the past-due steps G-3 (c) counts */
+const countedPastDue = (item: KpiItemDto): boolean => item.mark === 'PAST_DUE_DECIDED' || item.mark === 'PAST_DUE_OPEN'
 
 /** The documents behind one KPI figure for the period, newest first (the KPI page's lists) */
 export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, kind: string | null = null): Promise<Result<KpiDetailDto>> {
@@ -253,6 +263,7 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
     let tasks: readonly KpiTaskItem[] = []
     let counted = 0
     let decisionMark: (d: KpiDecisionItem) => KpiItemDto['mark'] = () => null
+    let taskMark: (t: KpiTaskItem) => KpiItemDto['mark'] = () => null
     if (m === 'g2a') {
       // every decision the DOA engine checked again, the misrouted ones counted: "0 รายการ (ตรวจแล้ว 33 การตัดสิน)"
       // opens the 33 decisions it checked, as G-2 (b) and G-5 open every decision they count or not (§9.9)
@@ -273,6 +284,15 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
     } else if (m === 'g3c') {
       tasks = items.g3PastDue
       counted = tasks.length
+      taskMark = (t) => (t.decidedAt ? 'PAST_DUE_DECIDED' : 'PAST_DUE_OPEN')
+    } else if (m === 'g3c-steps') {
+      // every step G-3 (c) divides by, the past-due ones counted: "1 จาก 37 ขั้น" opens the 37, each saying whether it
+      // is counted and why, as G-2 and G-5 open every decision they count or not (§9.9)
+      const steps: readonly KpiAssignedTaskItem[] = items.g3Assigned
+      const marks = new Map<string, KpiPastDueMark>(steps.map((s) => [s.taskId, s.pastDue]))
+      tasks = steps
+      counted = steps.filter((s) => isPastDue(s.pastDue)).length
+      taskMark = (t) => marks.get(t.taskId) ?? null
     } else if (m === 'g4') {
       tasks = items.g4
       counted = tasks.length
@@ -321,7 +341,7 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
           at: t.decidedAt ?? t.assignedAt,
           dueAt: t.dueAt,
           minutes: t.minutes,
-          mark: m === 'g3c' ? (t.decidedAt ? 'PAST_DUE_DECIDED' : 'PAST_DUE_OPEN') : null,
+          mark: taskMark(t),
         }),
       ),
       ...(m === 'g1' ? items.g1.map((p): KpiItemDto => ({ ...blank, key: p.poId, document: documents.get(p.poId) ?? null, at: p.approvedAt })) : []),
@@ -331,9 +351,10 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
     ]
     if (m === 'g1' || m === 'g3a') counted = list.length
     list.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
-    // G-2 (a) counts the misrouted decisions among all it checked: they come first, so the cut at KPI_DETAIL_MAX never
-    // hides one behind newer decisions made by the right person
-    const shown = m === 'g2a' ? [...list.filter((i) => i.mark === 'MISROUTED'), ...list.filter((i) => i.mark !== 'MISROUTED')] : list
+    // G-2 (a) counts the misrouted decisions among all it checked, and the steps of G-3 (c) the past-due ones among all
+    // assigned: those come first, so the cut at KPI_DETAIL_MAX never hides one behind newer ones it does not count
+    const first = m === 'g2a' ? (i: KpiItemDto) => i.mark === 'MISROUTED' : m === 'g3c-steps' ? countedPastDue : null
+    const shown = first ? [...list.filter(first), ...list.filter((i) => !first(i))] : list
     return ok({ measure: m, kind, period: period.data, items: shown.slice(0, KPI_DETAIL_MAX), total: list.length, counted })
   })
 }

@@ -49,6 +49,7 @@
     "to": "To",
     "submit": "Search the trail",
     "clear": "Clear the search",
+    "periodReversed": "Not searched: “To” ({to}) is before “From” ({from}). Choose a “To” day of {from} or later, then press Search the trail again.",
     "period": {
       "both": "{from} to {to}",
       "from": "From {from}",

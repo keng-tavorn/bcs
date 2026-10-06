@@ -320,11 +320,13 @@ function DoaVersionContent({ policy, t, tAdmin, locale, simulate }: { policy: Do
       ) : null}
 
       <Section id="doa-rules" title={t('policy.doaRulesTitle', { count: content.rules.length })} className={authorityShown || views.boundaries.length > 0 ? afterRule : undefined}>
-        <ul aria-label={t('policy.doaRulesLabel', { name: t('policy.doaVersionRef', { code: content.code, version: content.versionNo }) })} className="flex flex-col divide-y divide-line border-t border-line">
+        {/* Each rule beside its band where the list is 36rem wide or more (its own container, not the screen): in the
+            workspace's column, never in the one column of a LIFF page, which stacks them at every screen width (§9.9) */}
+        <ul aria-label={t('policy.doaRulesLabel', { name: t('policy.doaVersionRef', { code: content.code, version: content.versionNo }) })} className="@container flex flex-col divide-y divide-line border-t border-line">
           {content.rules.map((rule) => {
             const fields = changedCodes.get(rule.code)
             return (
-              <li key={rule.code} className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+              <li key={rule.code} className="flex flex-col gap-1 py-2.5 @min-[36rem]:flex-row @min-[36rem]:items-start @min-[36rem]:justify-between @min-[36rem]:gap-6">
                 <div className="flex min-w-0 flex-col gap-0.5">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1 font-medium text-ink">
                     <span>{t('policy.doaRuleTitle', { rule: rule.code, documentType: words.documentType(rule.documentType) })}</span>
@@ -337,7 +339,7 @@ function DoaVersionContent({ policy, t, tAdmin, locale, simulate }: { policy: Do
                     </span>
                   ))}
                 </div>
-                <span className="tabular shrink-0 text-ink sm:text-right">{words.band(rule.when.amount)}</span>
+                <span className="tabular shrink-0 text-ink @min-[36rem]:text-right">{words.band(rule.when.amount)}</span>
               </li>
             )
           })}
@@ -345,7 +347,7 @@ function DoaVersionContent({ policy, t, tAdmin, locale, simulate }: { policy: Do
       </Section>
 
       <Section id="doa-policy" title={t('policy.doaPolicyTitle')}>
-        <Facts items={POLICY_ORDER.map((field) => ({ label: t(`policy.doaPolicy.${field}`), value: <span className="tabular">{words.policyValue(field, values[field])}</span> }))} />
+        <Facts columns={2} items={POLICY_ORDER.map((field) => ({ label: t(`policy.doaPolicy.${field}`), value: <span className="tabular">{words.policyValue(field, values[field])}</span> }))} />
       </Section>
     </>
   )
@@ -410,7 +412,7 @@ export async function PolicySubject({
   return (
     <div className="flex flex-col gap-6">
       <Section id="what" title={t('policy.whatTitle')}>
-        <Facts items={facts} />
+        <Facts columns={2} items={facts} />
         {/* What publishing would leave running under the version in effect (BR-DOA-13): only while it waits for approval */}
         {policy.kind === 'DOA_VERSION' && policy.status === 'PENDING_APPROVAL' && policy.openTasksUnderCurrent > 0 ? <p className="text-ink">{t('policy.doaOpenTasks', { count: policy.openTasksUnderCurrent })}</p> : null}
         {policy.kind === 'DOA_VERSION' && policy.holders.length ? (

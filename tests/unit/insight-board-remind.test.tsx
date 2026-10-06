@@ -10,8 +10,11 @@ import th from '../../messages/th.json'
 // S4-10 · FR-VIS-001 AC2 (spec §11.1, §9.9 "ห้ามการกระทำที่ย้อนไม่ได้โดยไม่ยืนยัน"): a reminder cannot be taken back — the
 // holder is notified at once, an Event records it, and nobody may remind the document again for an hour — so the
 // button only asks first, in the document's row and not in a modal: whom it reminds about what and what follows, then
-// "ยืนยันส่งเตือน (ชื่อ)" apart from "ยังไม่ส่งเตือน". These are the words and the page as it loads; pressing, that the
-// first press sends nothing, and the confirmation that sends run in tests/e2e/board.spec.ts at 375 and 1440 px.
+// "ยืนยันส่งเตือน (ชื่อ)" apart from "ยังไม่ส่งเตือน". Within the hour the page knows a reminder cannot go, so the button
+// cannot be pressed and the sentence beside it says from when it may (§9.9 rule 7: no press that can only fail). These
+// are the words and the page as it loads; pressing, that the first press sends nothing, the confirmation that sends,
+// the focus on its answer and the button pressed again once its time comes run in tests/e2e/board.spec.ts at 375 and
+// 1440 px.
 
 // The presenter takes only the list of document kinds from the board's service; the service itself opens the database
 // client when it loads, which a screen test has no use for (the rows are the service's DTOs, written out below)
@@ -83,7 +86,7 @@ describe('[FR-VIS-001/AC2] a reminder asks before it is sent, in words that say 
   it('reminded within the hour, the reminder says from when it may be sent again; once the hour has passed it says nothing', () => {
     const [doc] = views('th', 'วีระ ปฏิบัติการ', [task({ remindAgainAt: '2026-10-06T03:30:00.000Z' })])
     expect(doc?.remind?.hint).toMatch(/^ส่งเตือนแล้วภายในชั่วโมงนี้ ส่งได้อีกครั้งหลัง .+ 10:30 น\.$/)
-    // the button knows the time too, so that a press within the hour says it at once instead of asking (§9.9 rule 7)
+    // the button knows the time too: it cannot be pressed until then, and can be once it comes (§9.9 rule 7)
     expect(doc?.remind?.againAt).toBe('2026-10-06T03:30:00.000Z')
     // an hour that has passed says nothing, and the button asks again
     const [later] = views('th', 'วีระ ปฏิบัติการ', [task({ remindAgainAt: '2026-10-06T02:30:00.000Z' })])
@@ -103,6 +106,34 @@ describe('[FR-VIS-001/AC2] a reminder asks before it is sent, in words that say 
     expect(html.match(/<button /g)).toHaveLength(1)
     expect(html).not.toContain('ยืนยันส่งเตือน')
     expect(html).not.toContain('ยังไม่ส่งเตือน')
+    expect(html).not.toContain('role="group"')
+    // and it can be pressed: nothing says the document was reminded within the hour
+    expect(html).not.toMatch(/<button [^>]* disabled=""/)
+    expect(html).not.toContain('aria-describedby')
+    expect(remind).not.toHaveBeenCalled()
+  })
+
+  it('within the hour the page loads with the button that cannot be pressed, the sentence beside it saying from when it may, and no refusal of its own', () => {
+    const [doc] = views('th', 'วีระ ปฏิบัติการ', [task({ remindAgainAt: '2026-10-06T03:30:00.000Z' })])
+    const remind = vi.fn()
+    const html = renderToStaticMarkup(
+      <NextIntlClientProvider locale="th" timeZone="Asia/Bangkok" messages={th}>
+        <RemindButton taskId={task().taskId} view={doc!.remind!} locale="th" remind={remind} />
+      </NextIntlClientProvider>,
+    )
+    // one button, the reminder's, which cannot be pressed: no press that can only fail (§9.9 rule 7)
+    expect(html.match(/<button /g)).toHaveLength(1)
+    const button = /<button [^>]*>ส่งเตือน วีระ ปฏิบัติการ<\/button>/.exec(html)?.[0] ?? ''
+    expect(button).toContain(`aria-label="ส่งเตือน วีระ ปฏิบัติการ เรื่อง ${DOCUMENT}"`)
+    expect(button).toMatch(/ disabled=""/)
+    // the sentence beside it says from when it may be sent again, and describes the button to screen readers
+    const describedBy = /aria-describedby="([^"]+)"/.exec(button)?.[1] ?? ''
+    expect(describedBy).not.toBe('')
+    const said = new RegExp(`<p id="${describedBy.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^>]*>ส่งเตือนแล้วภายในชั่วโมงนี้ ส่งได้อีกครั้งหลัง .+ 10:30 น\\.</p>`)
+    expect(html).toMatch(said)
+    // the page words no refusal of its own, and asks nothing
+    expect(html).not.toContain('role="alert"')
+    expect(html).not.toContain('ยังส่งเตือนไม่ได้')
     expect(html).not.toContain('role="group"')
     expect(remind).not.toHaveBeenCalled()
   })

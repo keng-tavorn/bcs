@@ -12,7 +12,7 @@ import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../../_lib/session'
 import { BudgetDocumentSections } from '../_documents'
-import { figureStrip, localeOf, lowText, nameIn, shareStrip, usedUp } from '../_present'
+import { figureStrip, localeOf, lowBadge, nameIn, shareStrip } from '../_present'
 
 /** One read per request: the title and the page share it */
 const load = cache(async (lineId: string) => {
@@ -47,7 +47,8 @@ export default async function BudgetLinePage({ params }: { params: Promise<{ lin
 
   const d = result.data
   const line = d.line
-  const low = lowText(t, line)
+  // the warning's number opens the movements behind what is left, further down this page
+  const low = lowBadge(t, line, line.code)
 
   return (
     <div className="flex flex-col gap-8">
@@ -62,14 +63,14 @@ export default async function BudgetLinePage({ params }: { params: Promise<{ lin
         {line.accountCode ? <p className="text-ink-muted">{t('line.account', { code: line.accountCode })}</p> : null}
         {low || line.status !== 'OPEN' ? (
           <div className="flex flex-col gap-1">
-            {low ? <LowBadge label={low} out={usedUp(line)} /> : null}
+            {low ? <LowBadge label={low.label} out={low.out} link={low.link} /> : null}
             {line.status !== 'OPEN' ? <LineStatusBadge status={line.status} label={t(`status.${line.status}`)} /> : null}
           </div>
         ) : null}
         <p className="text-ink-muted">{t('asOf', { time: formatDateTime(locale, d.asOf) })}</p>
       </header>
 
-      <LineFigures title={t('line.figuresTitle')} figures={figureStrip(t, line, line.code)} shares={shareStrip(t, line)} unit={t('unit')} />
+      <LineFigures title={t('line.figuresTitle')} figures={figureStrip(t, line, line.code)} shares={shareStrip(t, line, line.code)} unit={t('unit')} />
 
       <BudgetDocumentSections t={t} locale={locale} docs={d} many={false} />
     </div>

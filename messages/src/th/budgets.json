@@ -58,7 +58,10 @@
     },
     "amountLink": "{bucket} {amount} บาท ของ {code}: ดูเอกสาร",
     "plannedLink": "งบตั้งต้น {amount} บาท ของ {code}: ดูการนำเข้างบ",
-    "availableLink": "คงเหลือ {amount} บาท ของ {code}: ดูความเคลื่อนไหวในบัญชีงบ"
+    "availableLink": "คงเหลือ {amount} บาท ของ {code}: ดูความเคลื่อนไหวในบัญชีงบ",
+    "usedLink": "{share} ของ {code}: ดูเอกสารที่ถือและตัดจ่ายจริง",
+    "heldLink": "{share} ของ {code}: ดูเอกสารที่จอง ถือ และตัดจ่ายจริง",
+    "lowLink": "{warning} ของ {code}: ดูความเคลื่อนไหวในบัญชีงบ"
   },
   "unit": "บาท",
   "status": {

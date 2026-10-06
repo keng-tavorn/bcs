@@ -9,6 +9,7 @@ import {
   resetRefusal,
   retryAfterSeconds,
   secondStepRefusal,
+  serverFailed,
   setupCodeRefusal,
   setupPasswordRefusal,
   signInRefusal,
@@ -154,6 +155,38 @@ describe('[FR-LINE-001/AC2] [FR-AUTH-002/AC1] the second sign-in step words each
   ])('%o is %s', (failure, refusal) => {
     expect(secondStepRefusal(failure)).toBe(refusal)
   })
+
+  it.each([
+    [0, false],
+    [500, true],
+    [502, true],
+    [503, true],
+    [400, false],
+    [401, false],
+    [429, false],
+  ])('status %i: a server failure (the request reached BCS, which failed) is %s — no answer is not one', (status, failed) => {
+    expect(serverFailed({ status })).toBe(failed)
+  })
+
+  it('a code the server failed to check is said so on the web, never as a dropped connection nor as a wrong code, in Thai and in English', () => {
+    expect(th.auth.twoFactor.serverFailed).toBe('ระบบขัดข้อง จึงยังไม่ได้ตรวจรหัส รอสักครู่แล้วกด ยืนยันและเข้าสู่ระบบ อีกครั้ง')
+    expect(th.auth.twoFactor.serverFailed).toContain(th.auth.twoFactor.submit)
+    expect(th.auth.twoFactor.serverFailed).not.toContain('การเชื่อมต่อ')
+    expect(th.auth.twoFactor.serverFailed).not.toContain('ไม่ถูกต้อง')
+    expect(en.auth.twoFactor.serverFailed).toBe('BCS had a fault, so your code was not checked. Wait a moment, then press Verify and sign in again.')
+    expect(en.auth.twoFactor.serverFailed).toContain(en.auth.twoFactor.submit)
+    expect(en.auth.twoFactor.serverFailed.toLowerCase()).not.toMatch(/connection|wrong/)
+  })
+
+  it('with a backup code, the words above the field ask for one, and say what to do without any left — not to open the app', () => {
+    expect(th.auth.twoFactor.backupIntro).toBe('ใส่รหัสสำรองหนึ่งรหัสจากชุดที่เก็บไว้ตอนตั้งค่าการยืนยันตัวตนสองชั้น ถ้าไม่มีรหัสสำรองเหลือแล้ว ให้ผู้ดูแลระบบขององค์กรรีเซ็ตให้')
+    expect(en.auth.twoFactor.backupIntro).toBe(
+      'Enter one of the backup codes you kept when you set up two-step verification. If you have none left, ask your organization admin to reset it.',
+    )
+    expect(th.auth.twoFactor.intro).toContain('เปิดแอป')
+    expect(th.auth.twoFactor.backupIntro).not.toContain('แอป')
+    expect(en.auth.twoFactor.backupIntro).not.toMatch(/\bapp\b/i)
+  })
 })
 
 describe('[FR-LINE-001/AC2] the sign-in inside LIFF reads the answers as the web sign-in does, and carries the words it shows (ADR-052)', () => {
@@ -166,7 +199,7 @@ describe('[FR-LINE-001/AC2] the sign-in inside LIFF reads the answers as the web
 
   it('it words the answers with the web sign-in’s mapping, which has no import at all: Better Auth’s browser client stays out of LIFF', () => {
     const liff = readFileSync(path.join(ROOT, 'src/ui/liff/liff-sign-in.tsx'), 'utf8')
-    expect(liff).toMatch(/import \{ lockWords, secondStepRefusal, signInRefusal \} from '\.\.\/auth\/answers'/)
+    expect(liff).toMatch(/import \{ lockWords, secondStepRefusal, serverFailed, signInRefusal \} from '\.\.\/auth\/answers'/)
     expect(liff).not.toMatch(/from '(?:\.\.\/auth\/client|@\/ui\/auth\/client|better-auth[^']*)'/)
     const answers = readFileSync(path.join(ROOT, 'src/ui/auth/answers.ts'), 'utf8')
     expect(answers).not.toMatch(/^import /m)

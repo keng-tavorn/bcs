@@ -1,5 +1,6 @@
 import {
   Ban,
+  Bookmark,
   CalendarClock,
   CircleAlert,
   CircleCheck,
@@ -7,6 +8,7 @@ import {
   Clock,
   FilePen,
   KeyRound,
+  Lock,
   MessageCircleQuestion,
   PackageCheck,
   Send,
@@ -60,6 +62,16 @@ const LINE_LOOK = {
   closed: { Icon: Ban, tone: 'text-ink-muted', text: 'text-ink-muted' },
   key: { Icon: KeyRound, tone: 'text-info', text: 'text-ink' },
   draft: { Icon: FilePen, tone: 'text-ink-muted', text: 'text-ink' },
+  /**
+   * Budget held for a document — reserved for a request waiting for approval, or committed in a purchase order: a
+   * padlock in --info, never the approved mark (--primary is "approved", §9.9 tokens), whatever the document's state
+   */
+  held: { Icon: Lock, tone: 'text-info', text: 'text-ink' },
+  /**
+   * The quotation the requester chose: a fact of the request, not a decision on it — a bookmark in --info, never the
+   * approved mark (--primary is "approved", §9.9 tokens), whether the request still waits for its approvers or not
+   */
+  chosen: { Icon: Bookmark, tone: 'text-info', text: 'text-ink' },
 } as const
 
 export type StateKind = keyof typeof LINE_LOOK

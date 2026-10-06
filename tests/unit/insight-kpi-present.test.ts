@@ -1,9 +1,11 @@
 import { createTranslator } from 'next-intl'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { cappedSentence, dayText, detailSentence, kpiGoals, kpiItemViews, type KpiT, type TimelineT } from '@/app/(workspace)/kpi/_present'
+import { cappedSentence, dayText, detailSentence, kpiGoals, kpiItemViews, listTitle, type KpiT, type TimelineT } from '@/app/(workspace)/kpi/_present'
 import type { KpiResult } from '@/server/services/reports/kpi'
 import type { KpiBaseline, KpiDetailDto, KpiItemDto } from '@/server/services/reports/screens'
-import type { KpiMeasureView } from '@/ui/insight/kpi-table'
+import { KpiTable, type KpiMeasureView } from '@/ui/insight/kpi-table'
 import th from '../../messages/th.json'
 
 // S5-12 · FR-VIS-003 AC2 (spec §11.4): the executive's KPI page shows each measure's current value next to the Phase 0
@@ -75,6 +77,23 @@ describe('[FR-VIS-003/AC2] the KPI page shows each current value next to the Pha
     for (const m of list.filter((x) => /^\d+ รายการ$/.test(x.value))) expect(m.href, m.name).not.toBeNull()
   })
 
+  it('G-3 (c) "1 จาก 37 ขั้น" opens every step it divides by: its 37 a list of its own beside the past-due steps the value opens', () => {
+    const late = kpiGoals(t, 'th', { ...kpi, g3: { ...kpi.g3, pastDue: { numerator: 1, denominator: 37 } } }, null, QUERY).flatMap((g) => g.measures)
+    expect(find(late, 'g3c')).toMatchObject({
+      value: '2.7%',
+      detail: '1 จาก 37 ขั้น',
+      // the value: the steps past due
+      href: `/kpi/g3c${QUERY}`,
+      linkLabel: 'ดูรายการที่นับ: ขั้นที่เกินกำหนด (SLA) 2.7% (1 จาก 37 ขั้น)',
+      // "1 จาก 37 ขั้น": all 37 steps assigned in the same period, named with the words it shows (WCAG 2.5.3)
+      detailLink: { href: `/kpi/g3c-steps${QUERY}`, label: 'ดูทุกขั้นที่มอบในช่วงนี้: ขั้นที่เกินกำหนด (SLA) 1 จาก 37 ขั้น' },
+    })
+    // no step assigned: words with no number, and nothing to open
+    expect(find(measures(null), 'g3c')).toMatchObject({ detail: null, detailLink: null })
+    // the other details are words, or numbers the value's own list already opens (G-2 and G-5 list what they count and not)
+    for (const m of late.filter((x) => x.id !== 'g3c')) expect(m.detailLink, m.name).toBeNull()
+  })
+
   it('G-2 (a) "0 รายการ" opens the decisions it checked again with the DOA engine, and its list even when none was checked', () => {
     // §9.9 every number opens its list: none misrouted, but 5 decisions stand behind the 0
     expect(find(measures(null), 'g2a')).toMatchObject({
@@ -122,5 +141,90 @@ describe('[FR-VIS-003/AC2] the list behind G-2 (a) holds every decision checked,
     expect(cappedSentence(t, cut)).toBe('แสดง 2 จากทั้งหมด 250 รายการ รายการที่นับขึ้นก่อน ตามด้วยรายการล่าสุด')
     expect(cappedSentence(t, { ...cut, measure: 'g2b' })).toBe('แสดง 2 รายการล่าสุดจากทั้งหมด 250 รายการ')
     expect(cappedSentence(t, { ...cut, total: 2 })).toBeNull()
+  })
+})
+
+describe('[FR-VIS-003/AC2] the list behind "1 จาก 37 ขั้น" of G-3 (c) holds every step assigned, each marked counted or not and why', () => {
+  const step = (n: number, mark: KpiItemDto['mark'], over: Partial<KpiItemDto> = {}): KpiItemDto => ({
+    key: `task-${n}`,
+    document: { type: 'REQUEST', id: `request-${n}`, label: `PR-2569-0000${n} โต๊ะประชุม`, poId: null },
+    person: { nameTh: 'วีระ ปฏิบัติการ', nameEn: 'Weera Operations' },
+    onBehalfOf: null,
+    channel: null,
+    decision: null,
+    at: '2026-10-05T03:00:00.000Z',
+    dueAt: '2026-10-05T09:00:00.000Z',
+    minutes: 120,
+    doaRef: null,
+    mark,
+    ...over,
+  })
+  const rights = { requests: true, purchaseOrders: false, doaVersions: false, orgAuthorityChanges: false }
+
+  it('heads the list as the steps assigned in the period, and says how many of them are counted', () => {
+    expect(listTitle(t, 'g3c-steps', null)).toEqual({
+      name: 'ขั้นที่มอบในช่วงนี้',
+      formula: 'ทุกขั้นอนุมัติที่มอบในช่วงนี้ ซึ่งเป็นตัวหารของขั้นที่เกินกำหนด (SLA) ขั้นที่ตัดสินหลังครบกำหนด หรือยังเปิดอยู่และเลยกำหนดแล้ว นับและขึ้นก่อน แต่ละขั้นบอกว่านับหรือไม่นับเพราะอะไร',
+    })
+    // the measures' own lists keep their names, G-5 of one kind of document too
+    expect(listTitle(t, 'g3c', null).name).toBe('ขั้นที่เกินกำหนด (SLA)')
+    expect(listTitle(t, 'g5', 'PURCHASE_REQUEST').name).toBe('การตัดสินใน LINE ของคำขอซื้อ')
+    expect(listTitle(t, 'g4', 'PURCHASE_REQUEST').name).toBe('คำขอเกินงบที่หลุดถึงผู้อนุมัติ')
+    const d: KpiDetailDto = { measure: 'g3c-steps', kind: null, period: { from: '2026-08-08', to: '2026-10-06' }, items: [step(1, 'PAST_DUE_DECIDED'), step(2, 'DECIDED_ON_TIME')], total: 37, counted: 1 }
+    expect(detailSentence(t, d)).toBe('นับ 1 จาก 37 รายการ')
+    // the steps past due come first when the list is cut short, as G-2 (a) puts its misrouted decisions first
+    expect(cappedSentence(t, d)).toBe('แสดง 2 จากทั้งหมด 37 รายการ รายการที่นับขึ้นก่อน ตามด้วยรายการล่าสุด')
+    // the list of the value itself counts the steps past due only
+    expect(detailSentence(t, { ...d, measure: 'g3c', total: 1 })).toBe('1 รายการ')
+  })
+
+  it('marks every step counted or not with an icon kind and the reason in words', () => {
+    const views = kpiItemViews(
+      t,
+      tl,
+      'th',
+      'g3c-steps',
+      [
+        step(1, 'PAST_DUE_DECIDED', { minutes: 600 }),
+        step(2, 'PAST_DUE_OPEN', { minutes: null }),
+        step(3, 'DECIDED_ON_TIME'),
+        step(4, 'OPEN_NOT_DUE', { minutes: null }),
+        step(5, 'NO_DUE_TIME', { dueAt: null }),
+        step(6, 'CLOSED_UNDECIDED', { minutes: null }),
+      ],
+      rights,
+    )
+    expect(views.map((v) => v.mark)).toEqual([
+      { kind: 'overdue', text: 'นับ: ตัดสินหลังครบกำหนด' },
+      { kind: 'overdue', text: 'นับ: ยังเปิดอยู่และเลยกำหนดแล้ว' },
+      { kind: 'done', text: 'ไม่นับ: ตัดสินภายในกำหนด' },
+      { kind: 'due', text: 'ไม่นับ: ยังเปิดอยู่และยังไม่ถึงกำหนด' },
+      { kind: 'due', text: 'ไม่นับ: ขั้นนี้ไม่มีกำหนดเวลา' },
+      { kind: 'closed', text: 'ไม่นับ: ปิดโดยไม่ได้ตัดสิน (ยกเลิกหรือโอนงาน)' },
+    ])
+    // each says who holds it, when it was decided or assigned, and when it was due
+    expect(views[0]!.lines[0]).toBe('ผู้รับงาน วีระ ปฏิบัติการ')
+    expect(views[0]!.lines[1]).toMatch(/^ตัดสินเมื่อ .+ หลังมอบงาน 10\.0 ชั่วโมงทำการ$/)
+    expect(views[1]!.lines[1]).toMatch(/^มอบงานเมื่อ .+ ยังไม่ได้ตัดสิน$/)
+    expect(views[0]!.lines[2]).toMatch(/^ครบกำหนด /)
+    expect(views[4]!.lines).toHaveLength(2)
+    expect(views[0]).toMatchObject({ title: 'คำขอ PR-2569-00001 โต๊ะประชุม', href: '/requests/request-1' })
+  })
+})
+
+describe('[FR-VIS-003/AC2] the KPI table draws a detail that stands for a list of its own as a link to it', () => {
+  it('links "1 จาก 37 ขั้น" under the share of steps past due, and leaves the other details as words', () => {
+    const goals = kpiGoals(t, 'th', { ...kpi, g3: { ...kpi.g3, pastDue: { numerator: 1, denominator: 37 } } }, null, QUERY)
+    const html = renderToStaticMarkup(createElement(KpiTable, { goals, labels: { caption: 'ตัวชี้วัด', measure: 'ตัวชี้วัดและสูตร', value: 'ค่าในช่วงนี้', baseline: 'ค่าตั้งต้น', target: 'เป้าที่เสนอ' } }))
+    const wide = html.slice(html.indexOf('<table'), html.indexOf('</table>'))
+    const narrow = html.slice(html.indexOf('</table>'))
+    for (const part of [wide, narrow]) {
+      // next/link writes the address last
+      expect(part).toContain(`<a aria-label="ดูทุกขั้นที่มอบในช่วงนี้: ขั้นที่เกินกำหนด (SLA) 1 จาก 37 ขั้น" class="block w-fit text-primary underline underline-offset-4 hover:no-underline lg:text-sm" href="/kpi/g3c-steps${QUERY.replace(/&/g, '&amp;')}">1 จาก 37 ขั้น</a>`)
+      // the value keeps its own link to the steps past due
+      expect(part).toContain(`href="/kpi/g3c${QUERY.replace(/&/g, '&amp;')}">2.7%</a>`)
+      // G-5's "3 จาก 5 การตัดสิน" stays words: its value opens all 5, counted or not
+      expect(part).toMatch(/<span class="[^"]*">3 จาก 5 การตัดสิน<\/span>/)
+    }
   })
 })

@@ -58,8 +58,8 @@
     "actingFor": "acting for {name}"
   },
   "waiting": {
-    "hours": "Waiting {hours} business hours",
-    "minutes": "Waiting {minutes} business minutes",
+    "hours": "Waiting {hours, plural, one {# business hour} other {# business hours}}",
+    "minutes": "Waiting {minutes, plural, one {# business minute} other {# business minutes}}",
     "underMinute": "Waiting under 1 business minute",
     "due": "Due {time}",
     "overdue": "Overdue, it was due {time}"

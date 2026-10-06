@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useFormatter, useTranslations } from 'next-intl'
 import { useEffect, useId, useRef, useState, type FormEvent, type InputHTMLAttributes } from 'react'
 import { LOGIN_FAILURE_LIMIT, LOGIN_FAILURE_WINDOW_MS, MS_PER_MINUTE, TWO_FACTOR_LOCK_LIMIT, TWO_FACTOR_LOCK_MS } from '@/lib/constants'
-import { lockWords, secondStepRefusal, signInRefusal } from '../auth/answers'
+import { lockWords, secondStepRefusal, serverFailed, signInRefusal } from '../auth/answers'
 import { useHydrated } from '../form/hydrated'
 import { Button } from './button'
 import { cn } from './cn'
@@ -191,8 +191,9 @@ export function LiffSignIn() {
         setError(tTwo('expired'))
         return
       }
-      // No answer, or the server failed: the code was not checked, so it is not called wrong (the sign-in's words)
-      if (refusal === 'failed') setError(tLogin('failed'))
+      // No answer, or the server failed: the code was not checked, so it is not called wrong. No answer speaks of the
+      // connection (the sign-in's words); a server failure says the code was not checked, and to send it again shortly
+      if (refusal === 'failed') setError(serverFailed(failureOf(answer)) ? tTwo('serverFailed') : tLogin('failed'))
       else setError(refusal === 'locked' ? lockText(answer.body) : mode === 'app' ? tTwo('invalid') : tTwo('invalidBackup'))
       return
     }
@@ -206,7 +207,8 @@ export function LiffSignIn() {
           {t('twoFactorHeading')}
         </h2>
         <form ref={secondForm} method="post" onSubmit={onSecond} className="flex flex-col gap-5" noValidate>
-          <p className="text-ink-muted">{tTwo('intro')}</p>
+          {/* The words above the field ask for what the field takes: a code from the app, or a backup code */}
+          <p className="text-ink-muted">{mode === 'app' ? tTwo('intro') : tTwo('backupIntro')}</p>
           {error ? <LiffNotice tone="danger">{error}</LiffNotice> : null}
           {mode === 'app' ? (
             <SignInField

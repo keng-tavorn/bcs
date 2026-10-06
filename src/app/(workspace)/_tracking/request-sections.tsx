@@ -7,15 +7,29 @@ import { LineList } from '@/ui/request-view/lines'
 import { StateLine, type StateKind } from '@/ui/request-view/status'
 import { StepApprovers } from '@/ui/request-view/step-approvers'
 import { BYTES_PER_KIB } from '@/lib/constants'
+import { requestBudgetState } from './budget-state'
 import { day, doaHref, doaRefText, expectedText, fileKind, memberName, money, nameIn, roleText, routeSentence, when, type Locale } from './present'
 
 // The body of a request as both the request page and the decision page show it (§9.9 principle 5: amount before VAT,
 // VAT, the budget and its state, the DOA rule with why the route goes where it goes, the lines, the details, the
-// attachments and the questions — all on one screen). Flat sections separated by rules; no cards.
+// attachments and the questions — all on one screen). Flat sections separated by rules; no cards. The LIFF pages draw
+// these parts too (/liff/requests/[id], /liff/tasks/[id]), in their one column of 34rem at most whatever the screen
+// (§9.9 "LIFF เป็นคอลัมน์เดียว"): so every part lays itself out by its own width — a container query — never by the
+// screen's, and a LIFF page looks the same at 375 px and in LINE on a computer, while the workspace's wider column
+// keeps its columns and rows (from 36rem; the amounts beside the budget from 40rem).
+
+/**
+ * A row of a list in the sections (a step of the route, a quotation): what it is, with its state or amount beside it
+ * where the sections are 36rem wide or more (RequestSections is their container), stacked below that — on a phone, and
+ * in the LIFF column at every screen width. Tailwind reads each class whole, so the variant is written out.
+ */
+const ROW = 'flex flex-col gap-1 py-2.5 @min-[36rem]:flex-row @min-[36rem]:items-start @min-[36rem]:justify-between @min-[36rem]:gap-4'
 
 /**
  * Who asked, for which department, when and how urgently. The decision page names the requester, the department and
- * the type in its heading already, so it shows only the rest (`brief`), keeping the amounts high on a phone.
+ * the type in its heading already, so it shows only the rest (`brief`), keeping the amounts high on a phone. In columns
+ * by the list's own width (one in the LIFF column and on a phone, up to three in the workspace's), as the delivery site
+ * and the suggested supplier under it (PlaceFacts), which line up with these.
  */
 export async function RequestFacts({ view, locale, brief = false }: { view: RequestViewDto; locale: Locale; brief?: boolean }) {
   const t = await getTranslations('requestView')
@@ -32,15 +46,7 @@ export async function RequestFacts({ view, locale, brief = false }: { view: Requ
     ...(view.neededBy ? [{ label: t('facts.neededBy'), value: day(locale, view.neededBy) }] : []),
     { label: t('facts.urgency'), value: view.urgency === 'URGENT' ? t('facts.urgent') : t('facts.normal') },
   ]
-  return <Facts items={items} className="grid-cols-2 lg:grid-cols-3" />
-}
-
-function budgetState(view: RequestViewDto): { kind: StateKind; key: 'stateReserved' | 'stateCommitted' | 'stateReleased' | 'stateNone' } {
-  const b = view.budget
-  if (b && b.committedSatang > 0n) return { kind: 'done', key: 'stateCommitted' }
-  if (b && b.reservedSatang > 0n) return { kind: 'done', key: 'stateReserved' }
-  if (view.status === 'REJECTED' || view.status === 'CANCELLED') return { kind: 'closed', key: 'stateReleased' }
-  return { kind: 'draft', key: 'stateNone' }
+  return <Facts items={items} columns={3} />
 }
 
 function stepState(step: RouteStepDto): { kind: StateKind; key: 'WAITING' | 'ACTIVE' | 'QUESTION' | 'APPROVE' | 'RETURN' | 'REJECT' | 'CANCELLED' | 'DONE' } {
@@ -78,7 +84,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
   const fieldLabel = (f: RequestViewDto['fields'][number]) => (f.label ? nameIn(locale, f.label) : f.id)
   const moneyFields = view.fields.flatMap((f) => (f.value.kind === 'MONEY' ? [{ label: fieldLabel(f), value: money(f.value.satang) }] : []))
   const otherFields = view.fields.flatMap((f) => (f.value.kind === 'MONEY' ? [] : [{ label: fieldLabel(f), value: <span className="whitespace-pre-line">{value(f.value)}</span> }]))
-  const budget = budgetState(view)
+  const budget = requestBudgetState(view)
   const lineSum = view.lines.reduce((sum, l) => sum + l.netSatang, 0n)
   const kb = (bytes: number) => new Intl.NumberFormat(locale === 'en' ? 'en' : 'th').format(Math.max(1, Math.ceil(bytes / BYTES_PER_KIB)))
 
@@ -117,7 +123,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
             {view.budget ? (
               <>
                 <Facts
-                  className="sm:grid-cols-1"
+                  columns="one"
                   items={[
                     { label: t('budget.line'), value: `${view.budget.code} · ${view.budget.name}` },
                     {
@@ -169,7 +175,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                 // BR-SLA-04: the band above joined the step past its escalation time; its decision keeps the route's rule
                 const escalated = step.escalation === 'CO_ASSIGNED' ? t('route.escalated') : undefined
                 return (
-                  <li key={step.stepNo} className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <li key={step.stepNo} className={ROW}>
                     {/* An escalated step waits for its co-assignee too: everyone who may decide it (BR-SLA-04, NEW-46) */}
                     {step.open && step.open.length > 1 ? (
                       <StepApprovers
@@ -229,17 +235,19 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
 
       {view.fields.length || view.quotations.length ? (
         <Section id="details" title={t('details.title')}>
-          {otherFields.length ? <Facts className="sm:grid-cols-1" items={otherFields} /> : null}
+          {otherFields.length ? <Facts columns="one" items={otherFields} /> : null}
           {moneyFields.length ? <Amounts heading={t('amounts.unit')} unit={t('amounts.currency')} rows={moneyFields} /> : null}
           {view.quotations.length ? (
             <div className="flex flex-col gap-2">
-              <h3 className="font-medium text-ink">{t('quotes.title')}</h3>
+              {/* A sub-heading of the section, in the weight of the page's other ones (route.why) */}
+              <h3 className="font-semibold text-ink">{t('quotes.title')}</h3>
               <ul className="flex flex-col divide-y divide-line border-t border-line">
                 {view.quotations.map((q, i) => (
-                  <li key={`${q.supplierName}-${i}`} className="flex flex-col gap-1 py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                  <li key={`${q.supplierName}-${i}`} className={ROW}>
                     <div className="min-w-0">
                       <p className="break-words text-ink">{q.supplierName}</p>
-                      {q.isSelected ? <StateLine kind="done">{t('quotes.selected')}</StateLine> : null}
+                      {/* The requester's choice, not an approval: its own mark, never the approved one (§9.9 tokens) */}
+                      {q.isSelected ? <StateLine kind="chosen">{t('quotes.selected')}</StateLine> : null}
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="tabular text-ink">{q.includesVat ? t('quotes.includesVat', { amount: money(q.amountSatang) }) : t('quotes.excludesVat', { amount: money(q.amountSatang) })}</p>
@@ -248,7 +256,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
                   </li>
                 ))}
               </ul>
-              {view.nonLowestQuoteReason ? <Facts className="sm:grid-cols-1" items={[{ label: t('quotes.nonLowest'), value: view.nonLowestQuoteReason }]} /> : null}
+              {view.nonLowestQuoteReason ? <Facts columns="one" items={[{ label: t('quotes.nonLowest'), value: view.nonLowestQuoteReason }]} /> : null}
             </div>
           ) : null}
         </Section>

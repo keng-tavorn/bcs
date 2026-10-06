@@ -398,7 +398,10 @@ test.describe('[FR-DOA-004/AC1] returning, rejecting and asking from LIFF', () =
     await section.getByLabel('ฉันตรวจเหตุผลแล้ว และเข้าใจว่าเปลี่ยนการตัดสินภายหลังไม่ได้').check()
     await expect(section.getByText('ใส่เหตุผลอย่างน้อย 3 ตัวอักษร เพื่อให้ผู้ขอรู้ว่าต้องแก้อะไร')).toHaveCount(0)
     await reject.click()
-    await expect(page.getByRole('status').filter({ hasText: `ไม่อนุมัติโดย ${twin.approver} เมื่อ` })).toContainText('เหตุผล: ซื้อซ้ำกับรายการที่อนุมัติแล้ว', AFTER_DECISION)
+    const rejected = page.getByRole('status').filter({ hasText: `ไม่อนุมัติโดย ${twin.approver} เมื่อ` })
+    await expect(rejected).toContainText('เหตุผล: ซื้อซ้ำกับรายการที่อนุมัติแล้ว', AFTER_DECISION)
+    // Not approved in --danger, as the timeline draws the same decision (§9.9 tokens), still read politely as a status
+    await expect(rejected).toHaveCSS('border-left-color', 'rgb(180, 35, 24)')
     const stamp = timeline(page).getByRole('listitem').filter({ hasText: 'ซื้อซ้ำกับรายการที่อนุมัติแล้ว' })
     await expect(stamp).toContainText('ไม่อนุมัติ')
     await expect(stamp).toContainText('หน้าจอใน LINE')

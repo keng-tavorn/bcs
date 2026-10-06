@@ -73,14 +73,15 @@ export const CLIENT_MESSAGES = {
   /** /liff/requests/new: the catalogue of request types (its search and its list; the drafts' words are the web's) */
   liffCatalog: [...LIFF_GATE, ...each('request.catalog', ['all', 'clear', 'found', 'noDescription', 'noMatch', 'noTypes', 'search', 'searchHint', 'start', 'typesHeading', 'whenToUse'])],
   /**
-   * /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form's shell and its first step. Steps 2 and 3,
-   * the confirmation once sent and why a save was refused are loaded on demand with their words — the rest of
-   * requestForm, the file words and liffRequests (src/ui/liff/requests/step-words.tsx): some 5 KB gzip less in the
+   * /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form's shell and its first step — with what
+   * closed the request to the form, said above it and in the bar (liffRequests.form.closedBy, submit.blockedClosedBy).
+   * Steps 2 and 3, the confirmation once sent and why a save was refused are loaded on demand with their words — the rest
+   * of requestForm, the file words and liffRequests (src/ui/liff/requests/step-words.tsx): some 5 KB gzip less in the
    * form's HTML
    */
   liffRequestForm: [
     ...LIFF_GATE,
-    ...each('liffRequests.form', ['back', 'barLabel', 'savedAt', 'stepLoading']),
+    ...each('liffRequests.form', ['back', 'barLabel', 'closedBy', 'savedAt', 'stepLoading']),
     'requestForm.details',
     'requestForm.fields',
     'requestForm.steps',
@@ -102,8 +103,8 @@ export const CLIENT_MESSAGES = {
       'remaining',
       'unknown',
     ]),
-    ...each('requestForm.save', ['closed', 'conflict', 'dirty', 'error', 'idleNew', 'idleSaved', 'openRequest', 'reload', 'saveNow', 'saving']),
-    ...each('requestForm.submit', ['blockedBudget', 'blockedClosed', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
+    ...each('requestForm.save', ['conflict', 'dirty', 'error', 'idleNew', 'idleSaved', 'openRequest', 'reload', 'saveNow', 'saving']),
+    ...each('requestForm.submit', ['blockedBudget', 'blockedClosed', 'blockedClosedBy', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
     ...each('requestForm.page', ['returned', 'returnedReason']),
     'requestForm.errors.FORM_FIELD',
   ],

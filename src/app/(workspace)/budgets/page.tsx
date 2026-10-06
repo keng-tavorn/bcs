@@ -10,7 +10,7 @@ import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../_lib/session'
-import { amountLinks, budgetHref, dayText, figureView, localeOf, lowItemText, nameIn, usedUp, type BudgetsT, type Locale } from './_present'
+import { budgetHref, dayText, figureLinks, figureView, localeOf, lowItemText, nameIn, usedUp, type BudgetsT, type Locale } from './_present'
 
 export async function generateMetadata() {
   const t = await getTranslations('budgets')
@@ -29,7 +29,7 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
       name,
       totalLabel: t('table.departmentTotal', { name }),
       href,
-      ...figureView(t, dept, amountLinks(t, dept, name, href)),
+      ...figureView(t, dept, figureLinks(t, dept, name, href)),
       lines: d.lines
         .filter((l) => l.departmentId === dept.id)
         .map((l) => {
@@ -40,7 +40,7 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
             name: l.nameTh,
             href: lineHref,
             status: l.status === 'OPEN' ? null : { kind: l.status, label: t(`status.${l.status}`) },
-            ...figureView(t, l, amountLinks(t, l, l.code, lineHref)),
+            ...figureView(t, l, figureLinks(t, l, l.code, lineHref)),
           }
         }),
     }
@@ -48,8 +48,9 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
 }
 
 // The budget dashboard (spec §9.1 /budgets, §11.2, FR-BUD-005 AC1 AC3, demo scene 9): the lines running low first,
-// then every budget line by department with the total, every amount of a line, a department and the total leading to
-// what makes it up (AC2: /budgets/[lineId], /budgets/departments/[id], /budgets/total), the fiscal year and the scope
+// then every budget line by department with the total, every amount, share and warning of a line, a department and the
+// total leading to what makes it up (AC2: /budgets/[lineId], /budgets/departments/[id], /budgets/total; §9.9 every
+// number opens its list), the fiscal year and the scope
 // shown, when the figures were read, and the Excel file of the same. budgetDashboard checks budget.view: the whole
 // organization for FINANCE, BUDGET_ADMIN, EXECUTIVE and AUDITOR, a head's own departments otherwise.
 export default async function BudgetsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -61,10 +62,12 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
   const result = await budgetDashboard(ctx, fiscalYearId ? { fiscalYearId } : {})
 
   if (!result.ok && result.error.code === 'NOT_FOUND') {
+    // An old or cut link: plain information in --info like the page's other refusals, never the --warn of what is
+    // pending or nearly due (§9.9 token table)
     return (
       <div className="flex max-w-2xl flex-col gap-6">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <Notice tone="warning">{t('year.notFound')}</Notice>
+        <Notice tone="info">{t('year.notFound')}</Notice>
         <Link href="/budgets" className={linkClass}>
           {t('year.current')}
         </Link>
@@ -165,7 +168,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
           total={{
             label: t(`table.total.${d.scope}`),
             href: budgetHref.total(year.id),
-            ...figureView(t, d.total, amountLinks(t, d.total, t(`scope.${d.scope}`), budgetHref.total(year.id))),
+            ...figureView(t, d.total, figureLinks(t, d.total, t(`scope.${d.scope}`), budgetHref.total(year.id))),
           }}
           labels={{
             caption: t('table.caption', { code: year.code }),

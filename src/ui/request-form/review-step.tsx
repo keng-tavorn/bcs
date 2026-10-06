@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CircleCheck } from 'lucide-react'
+import { CircleAlert, Info } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { FieldDef } from '@/core/forms/fields'
 import { amountToSatang } from '@/core/money/dto'
@@ -222,8 +222,10 @@ export function ReviewStep(props: ReviewProps) {
               <li key={r.id} className="flex flex-wrap items-center gap-x-3">
                 <span>{t('documents.rule', { rule: r.id })}</span>
                 {r.met ? (
-                  <span className="inline-flex items-center gap-1 text-primary">
-                    <CircleCheck className="size-4" aria-hidden="true" />
+                  // A rule met on a request not sent yet: supporting information, as the ready line below — never the
+                  // approved mark of --primary (§9.9 tokens)
+                  <span className="inline-flex items-center gap-1 text-ink">
+                    <Info className="size-4 text-info" aria-hidden="true" />
                     {t('documents.met')}
                   </span>
                 ) : (
@@ -243,8 +245,10 @@ export function ReviewStep(props: ReviewProps) {
           {t('review.problemsTitle')}
         </h3>
         {problems.length === 0 && block === null ? (
-          <p className="flex items-start gap-2">
-            <CircleCheck className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
+          // Supporting information on a request not sent yet — the info icon in --info beside words in ink, as the
+          // route's explanation and "งบพอ" above — never the approved mark of --primary (§9.9 tokens)
+          <p className="flex items-start gap-2 text-ink">
+            <Info className="mt-1 size-4 shrink-0 text-info" aria-hidden="true" />
             <span>{t('review.ready')}</span>
           </p>
         ) : (

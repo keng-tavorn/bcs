@@ -348,10 +348,11 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                   <p className="text-base text-ink-muted md:text-sm">{t('variance.noReturn')}</p>
                 </div>
               ) : null}
-              {/* A variance has one way out besides approving: no choice to make */}
+              {/* A variance has one way out besides approving: no choice to make. The group keeps its name for screen
+                  readers; on screen the heading above already says what the choice is (§9.9: no label repeating it) */}
               {choices.length > 1 ? (
                 <fieldset className="flex flex-col gap-1">
-                  <legend className="mb-1 font-medium text-ink">{t('choice')}</legend>
+                  <legend className="sr-only">{t('choice')}</legend>
                   {choices.map((value) => (
                     <label key={value} className="flex min-h-11 items-start gap-3 py-1">
                       <input

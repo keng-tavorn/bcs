@@ -3,8 +3,9 @@ import { cn } from '../cn'
 
 // The KPI page's figures (spec §11.4, FR-VIS-003 AC2): goal by goal (G-1 to G-5), each measure with what it counts in
 // plain words, its value for the period next to the Phase 0 baseline and the proposed target. Not a wall of big
-// numbers: every value is a link to the documents it counts (§9.9). Wide screens get one table (goals as group
-// headers); phones get the same as a list per goal, never a table that scrolls sideways. Strings arrive translated.
+// numbers: every value is a link to the documents it counts, and a detail that stands for a list of its own links to it
+// (§9.9). Wide screens get one table (goals as group headers); phones get the same as a list per goal, never a table
+// that scrolls sideways. Strings arrive translated.
 
 export interface KpiMeasureView {
   readonly id: string
@@ -17,6 +18,11 @@ export interface KpiMeasureView {
   readonly href: string | null
   /** Says what the link opens: "ดูรายการที่นับ: … 60.0% (3 จาก 5 การตัดสิน)" */
   readonly linkLabel: string
+  /**
+   * The detail as a link of its own, where its "of y" is a list the value's link does not open: "1 จาก 37 ขั้น" of the
+   * steps past due opens all 37 steps assigned, the counted ones first; null where the detail is words only
+   */
+  readonly detailLink: { readonly href: string; readonly label: string } | null
   readonly baseline: string
   readonly target: string
 }
@@ -47,8 +53,15 @@ function Value({ m }: { m: KpiMeasureView }) {
       ) : (
         <span className="font-semibold text-ink">{m.value}</span>
       )}
-      {/* secondary in the wide table, like the formula beside it; the list below lg keeps it at the body size */}
-      {m.detail ? <span className="block text-ink-muted lg:text-sm">{m.detail}</span> : null}
+      {/* secondary in the wide table, like the formula beside it; the list below lg keeps it at the body size. A detail
+          whose numbers stand for a list of their own opens it (§9.9: every number opens its list) */}
+      {m.detail && m.detailLink ? (
+        <Link href={m.detailLink.href} aria-label={m.detailLink.label} className="block w-fit text-primary underline underline-offset-4 hover:no-underline lg:text-sm">
+          {m.detail}
+        </Link>
+      ) : m.detail ? (
+        <span className="block text-ink-muted lg:text-sm">{m.detail}</span>
+      ) : null}
     </>
   )
 }

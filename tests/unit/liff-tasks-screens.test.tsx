@@ -158,6 +158,20 @@ describe('[FR-LINE-003/AC1] [FR-DOA-004/AC1] the decision of a task on its LIFF 
   it('speaks English to an English reader', () => {
     expect(decision({ locale: 'en' })).toContain(en.tasks.decide.otherLink)
   })
+
+  it.each(['th', 'en'] as const)('[§9.9] the return-or-reject section names its choice once on screen: its heading says it, the group keeps its name for screen readers only, as on the web (%s)', (locale) => {
+    const decide = MESSAGES[locale].tasks.decide
+    for (const [kind, title] of [
+      ['REQUEST', decide.otherTitle],
+      ['PURCHASE_ORDER', decide.po.otherTitle],
+    ] as const) {
+      const markup = decision({ kind, locale })
+      expect(markup, kind).toMatch(new RegExp(`<h2 id="other-decisions" [^>]*>${title}</h2>`))
+      expect(markup, kind).toMatch(new RegExp(`<fieldset [^>]*><legend class="sr-only">${decide.choice}</legend><label`))
+    }
+    // A variance is rejected or approved: no choice, no group
+    expect(decision({ kind: 'VARIANCE', locale })).not.toContain('<fieldset')
+  })
 })
 
 describe('[FR-DOA-009/AC3] [BR-DOA-15] a DOA version’s bar holds the tick of its boundary table above the PIN', () => {

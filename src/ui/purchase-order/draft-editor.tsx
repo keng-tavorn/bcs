@@ -11,7 +11,7 @@ import { Notice } from '../form/notice'
 import { useOutcomeAction } from '../procurement/use-outcome-action'
 import { readableMoney } from '../request-form/money'
 import { TextArea } from '../request-view/text-area'
-import { type PoOutcome } from './outcome'
+import { PO_NO_ANSWER, type PoOutcome } from './outcome'
 import { usePoFailureText } from './po-actions'
 
 // Editing a draft PO (spec FR-P2P-003 AC2, BR-CONS-04), one line at a time: the lines are listed with their unit price
@@ -26,7 +26,10 @@ import { usePoFailureText } from './po-actions'
 // from core on the server (AC3). A field's error goes as soon as the field changes. The service's refusal of a change is
 // said inside the form that sent it, just above its button, and takes the focus (§9.9: never where the member is not
 // looking — the forms of a long draft sit far below the editor's heading on a phone); each saved change is confirmed in
-// the words of its own button ("บันทึกบรรทัด 1" → "บันทึกบรรทัด 1 แล้ว", "บันทึกเงื่อนไขและหมายเหตุ" → "…แล้ว").
+// the words of its own button ("บันทึกบรรทัด 1" → "บันทึกบรรทัด 1 แล้ว", "บันทึกเงื่อนไขและหมายเหตุ" → "…แล้ว"). While a
+// change is sent, only the button that sent it says so, in its own words ("กำลังเอาบรรทัด 1 ออก"; a save "กำลังบันทึก"),
+// and the other forms wait shut under their own words; a change that got no answer says, in that form, that it is not
+// certain it was saved, and to press the same button again without changing anything (PO_NO_ANSWER).
 
 const QUANTITY = /^\d{1,14}(\.\d{1,4})?$/
 const DAYS = /^\d{1,4}$/
@@ -63,10 +66,18 @@ type Save = DraftEditorProps['save'] extends (input: infer I, key: string) => Pr
 /** The terms' form, as the form a change was sent from (a line's form is its line's id) */
 export const TERMS_FORM = 'terms'
 /**
- * Sends a change from one form (`form`: a line's id, or TERMS_FORM); `done` is the confirmation once the server has made
- * it, in the words of that form's button. A refusal is said inside that form.
+ * A change sent from one form: the form (a line's id, or TERMS_FORM), what it does — saving a line, taking it off or
+ * saving the terms, with the line's number — and `done`, the confirmation once the server has made it, in the words of
+ * that form's button
  */
-type Run = (input: Save, sent: { readonly form: string; readonly done: string }) => Promise<boolean>
+export interface SentChange {
+  readonly form: string
+  readonly action: 'saveLine' | 'removeLine' | 'saveTerms'
+  readonly no?: number
+  readonly done: string
+}
+/** Sends a change from one form; a refusal, or that no answer came, is said inside that form */
+type Run = (input: Save, sent: SentChange) => Promise<boolean>
 type LineErrors = { price?: string | undefined; quantity?: string | undefined }
 
 /**
@@ -80,8 +91,9 @@ export function lineFormWords(remove: boolean): { readonly button: 'saveLine' | 
 }
 
 /**
- * The service's refusal of a change, inside the form that sent it, just above its button: it takes the focus when it
- * appears, so the member who pressed the button — far down a long draft on a phone — and a screen reader are there too
+ * The service's refusal of a change — or that no answer came — inside the form that sent it, just above its button: it
+ * takes the focus when it appears, so the member who pressed the button — far down a long draft on a phone — and a
+ * screen reader are there too
  */
 export function FormRefusal({ text }: { readonly text: string }) {
   const box = useRef<HTMLDivElement>(null)
@@ -130,17 +142,20 @@ export function lineChange(line: Pick<DraftLineEdit, 'id' | 'unitPrice' | 'quant
 /**
  * The buttons under a line's form. The first says what pressing it does (§9.9 principle 7): "บันทึกบรรทัด {n}", or
  * "เอาบรรทัด {n} ออก" once taking the line off is ticked — outlined in danger then, as every action that takes something
- * away (../form/button.tsx), so it never looks like saving
+ * away (../form/button.tsx), so it never looks like saving. `pending`: this form's change is on its way, and the button
+ * says so in its own words ("กำลังเอาบรรทัด {n} ออก"; saving "กำลังบันทึก"); `busy`: another form's change is, and the
+ * buttons wait shut under their own words
  */
-export function LineFormButtons({ no, remove, pending, onClose }: { no: number; remove: boolean; pending: boolean; onClose: () => void }) {
+export function LineFormButtons({ no, remove, pending, busy = false, onClose }: { no: number; remove: boolean; pending: boolean; busy?: boolean; onClose: () => void }) {
   const t = useTranslations('purchaseOrder.actions.edit')
   const tActions = useTranslations('purchaseOrder.actions')
+  const working = remove ? t('removingLine', { no }) : tActions('working')
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-      <Button type="submit" variant={remove ? 'danger' : 'secondary'} disabled={pending}>
-        {pending ? tActions('working') : t(lineFormWords(remove).button, { no })}
+      <Button type="submit" variant={remove ? 'danger' : 'secondary'} disabled={pending || busy}>
+        {pending ? working : t(lineFormWords(remove).button, { no })}
       </Button>
-      <Button variant="link" onClick={onClose} disabled={pending} className="min-h-11">
+      <Button variant="link" onClick={onClose} disabled={pending || busy} className="min-h-11">
         {t('closeLine')}
       </Button>
     </div>
@@ -150,7 +165,7 @@ export function LineFormButtons({ no, remove, pending, onClose }: { no: number; 
 /**
  * One line's form: its unit price, its quantity, or taking it off. `alone`: the draft has no other line, so taking it off
  * is refused before anything is sent. A price reads grouped again once the field is left ("1150" → "1,150.00"); text
- * that is no amount stays as typed, with its error.
+ * that is no amount stays as typed, with its error. `pending`: this form's change is on its way; `busy`: another form's.
  */
 export function LineForm({
   line,
@@ -158,6 +173,7 @@ export function LineForm({
   alone,
   run,
   pending,
+  busy = false,
   refusal,
   onClose,
 }: {
@@ -166,7 +182,8 @@ export function LineForm({
   alone: boolean
   run: Run
   pending: boolean
-  /** The service's refusal of what this form sent, or null */
+  busy?: boolean
+  /** The service's refusal of what this form sent, or that no answer came, or null */
   refusal: string | null
   onClose: () => void
 }) {
@@ -182,7 +199,7 @@ export function LineForm({
     if (remove) {
       // A draft keeps at least one line, and a whole draft cannot be thrown away yet
       if (alone) return setFormError(t('allRemoved'))
-      await run({ lines: [], removeLineIds: [line.id] }, { form: line.id, done: t(lineFormWords(true).done, { no: line.no }) })
+      await run({ lines: [], removeLineIds: [line.id] }, { form: line.id, action: lineFormWords(true).button, no: line.no, done: t(lineFormWords(true).done, { no: line.no }) })
       return
     }
     const change = lineChange(line, { price, quantity })
@@ -195,7 +212,7 @@ export function LineForm({
     }
     setErrors({})
     // Nothing changed is still asked of the service, which says so (as the whole form did), here in the line's form
-    await run({ lines: change.edit ? [change.edit] : [], removeLineIds: [] }, { form: line.id, done: t(lineFormWords(false).done, { no: line.no }) })
+    await run({ lines: change.edit ? [change.edit] : [], removeLineIds: [] }, { form: line.id, action: lineFormWords(false).button, no: line.no, done: t(lineFormWords(false).done, { no: line.no }) })
   }
 
   return (
@@ -262,16 +279,17 @@ export function LineForm({
         </label>
       </fieldset>
       {refusal ? <FormRefusal text={refusal} /> : null}
-      <LineFormButtons no={line.no} remove={remove} pending={pending} onClose={onClose} />
+      <LineFormButtons no={line.no} remove={remove} pending={pending} busy={busy} onClose={onClose} />
     </form>
   )
 }
 
 /**
  * The draft's lines with their unit price and quantity, each with the button that opens its form; one line is open at a
- * time. The focus goes to the price of the line opened, and back to its button when it closes without saving.
+ * time. The focus goes to the price of the line opened, and back to its button when it closes without saving. `sending`:
+ * the form whose change is on its way (a line's id, or TERMS_FORM), or null.
  */
-function LinesPart({ lines, run, pending, refusalOf }: { lines: readonly DraftLineEdit[]; run: Run; pending: boolean; refusalOf: (form: string) => string | null }) {
+function LinesPart({ lines, run, sending, refusalOf }: { lines: readonly DraftLineEdit[]; run: Run; sending: string | null; refusalOf: (form: string) => string | null }) {
   const t = useTranslations('purchaseOrder.actions.edit')
   const id = useId()
   const [open, setOpen] = useState<string | null>(null)
@@ -300,7 +318,8 @@ function LinesPart({ lines, run, pending, refusalOf }: { lines: readonly DraftLi
                 base={`${id}-${line.id}`}
                 alone={lines.length === 1}
                 run={run}
-                pending={pending}
+                pending={sending === line.id}
+                busy={sending !== null && sending !== line.id}
                 refusal={refusalOf(line.id)}
                 onClose={() => {
                   closed.current = line.id
@@ -344,18 +363,21 @@ function LinesPart({ lines, run, pending, refusalOf }: { lines: readonly DraftLi
   )
 }
 
+/** The payment terms and the note to the supplier. `pending`: this form's change is on its way; `busy`: a line's is */
 export function TermsForm({
   paymentTermDays,
   notesToSupplier,
   run,
   pending,
+  busy = false,
   refusal,
 }: {
   paymentTermDays: number | null
   notesToSupplier: string | null
   run: Run
   pending: boolean
-  /** The service's refusal of what this form sent, or null */
+  busy?: boolean
+  /** The service's refusal of what this form sent, or that no answer came, or null */
   refusal: string | null
 }) {
   const t = useTranslations('purchaseOrder.actions.edit')
@@ -378,7 +400,7 @@ export function TermsForm({
         ...(nextDays !== paymentTermDays ? { paymentTermDays: nextDays } : {}),
         ...(nextNote !== (notesToSupplier ?? null) ? { notesToSupplier: nextNote } : {}),
       },
-      { form: TERMS_FORM, done: t('savedTerms') },
+      { form: TERMS_FORM, action: 'saveTerms', done: t('savedTerms') },
     )
   }
 
@@ -403,7 +425,7 @@ export function TermsForm({
       />
       <TextArea id={`${id}-note`} label={t('note')} hint={t('noteHint')} value={note} onChange={(event) => setNote(event.currentTarget.value)} rows={3} maxLength={PO_NOTE_MAX_LENGTH} />
       {refusal ? <FormRefusal text={refusal} /> : null}
-      <Button type="submit" variant="secondary" disabled={pending} className="self-start">
+      <Button type="submit" variant="secondary" disabled={pending || busy} className="self-start">
         {pending ? tActions('working') : t('saveTerms')}
       </Button>
     </form>
@@ -413,22 +435,24 @@ export function TermsForm({
 export function DraftEditor({ poId, version, lines, paymentTermDays, notesToSupplier, save }: DraftEditorProps) {
   const t = useTranslations('purchaseOrder')
   const id = useId()
-  const action = useOutcomeAction<PoOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoOutcome>(PO_NO_ANSWER)
   const failureText = usePoFailureText()
   /** The confirmation of the last change the server made, in the words of the button that sent it */
   const [saved, setSaved] = useState<string | null>(null)
-  /** The form the last change was sent from: its refusal is said there */
-  const [sentFrom, setSentFrom] = useState<string | null>(null)
+  /** The last change sent: its form says its refusal, or that no answer came, and its button that it is on its way */
+  const [sent, setSent] = useState<SentChange | null>(null)
 
-  const run: Run = async (input, sent) => {
+  const run: Run = async (input, change) => {
     setSaved(null)
-    setSentFrom(sent.form)
+    setSent(change)
     const outcome = await action.run((key) => save({ poId, expectedVersion: version, ...input }, key))
-    if (outcome.ok) setSaved(sent.done)
+    if (outcome.ok) setSaved(change.done)
     return outcome.ok
   }
   const failure = action.outcome && !action.outcome.ok ? action.outcome : null
-  const refusalOf = (form: string): string | null => (failure && sentFrom === form ? failureText(failure) : null)
+  const refusalOf = (form: string): string | null => (failure && sent?.form === form ? failureText(failure, sent.action, sent.no) : null)
+  /** The form whose change is on its way: only its button says so; the others wait shut */
+  const sending = action.pending ? (sent?.form ?? null) : null
 
   return (
     <section aria-labelledby={`${id}-edit`} className="flex flex-col gap-4 border-t border-line pt-5">
@@ -437,8 +461,16 @@ export function DraftEditor({ poId, version, lines, paymentTermDays, notesToSupp
       </h2>
       {saved ? <Notice tone="success">{saved}</Notice> : null}
       {/* Remounted at every saved version, so the lines and fields start from what the server keeps, every line closed */}
-      <LinesPart key={`lines-${version}`} lines={lines} run={run} pending={action.pending} refusalOf={refusalOf} />
-      <TermsForm key={`terms-${version}`} paymentTermDays={paymentTermDays} notesToSupplier={notesToSupplier} run={run} pending={action.pending} refusal={refusalOf(TERMS_FORM)} />
+      <LinesPart key={`lines-${version}`} lines={lines} run={run} sending={sending} refusalOf={refusalOf} />
+      <TermsForm
+        key={`terms-${version}`}
+        paymentTermDays={paymentTermDays}
+        notesToSupplier={notesToSupplier}
+        run={run}
+        pending={sending === TERMS_FORM}
+        busy={sending !== null && sending !== TERMS_FORM}
+        refusal={refusalOf(TERMS_FORM)}
+      />
     </section>
   )
 }

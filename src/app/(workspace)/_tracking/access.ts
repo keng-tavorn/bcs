@@ -14,6 +14,22 @@ export function canViewRequest(principal: Principal, access: RequestAccessDto): 
   })
 }
 
+/** Who the edit page refuses (EditRefusal) */
+export type EditRefused = 'REQUESTER' | 'VIEWER' | 'NONE'
+
+/**
+ * Why the edit page refuses a member its form (request.create on the request: only its requester edits it, and only
+ * while their account may), and so what the page says and offers (§9.9 rule 7) — never a guess at whether the reader
+ * may look at the request: the requester whose account may no longer edit (REQUESTER), someone else who may open the
+ * request (VIEWER), or someone who may not even open it (NONE). `canOpen`: the request's page shows it to them (the same
+ * check as that page, canViewRequest), so the edit page links to it only then, never to a page that refuses them again.
+ */
+export function editRefusal(principal: Principal, access: RequestAccessDto): { readonly who: EditRefused; readonly canOpen: boolean } {
+  const canOpen = canViewRequest(principal, access)
+  const requester = principal.kind === 'member' && principal.memberId === access.requesterMemberId
+  return { who: requester ? 'REQUESTER' : canOpen ? 'VIEWER' : 'NONE', canOpen }
+}
+
 /**
  * A DOA version opens on /admin/doa/<id>, which needs admin.doa.draft (ORG_ADMIN, §2.4). Everyone else sees the DOA
  * reference as text rather than a link that ends in a refusal; who else may read a version is an open question.

@@ -18,6 +18,11 @@
     "cancelled": "This request was cancelled, so it can no longer be changed. Open it to see its history, or start a new request from Buy or hire",
     "notYoursTitle": "You cannot change this request",
     "notYours": "You can change only your own requests. Open the request to see it if you may",
+    "lostEditTitle": "You can no longer change this request",
+    "lostEdit": "You are this request's requester, but this account can no longer change requests. Ask your organization's administrator to check the account's status and roles",
+    "viewOnly": "Only the requester who created this request can change it. Your account may open it, but not change it",
+    "noAccess": "Only the requester who created this request can change it, and your account may not open it. If your work needs it, contact the requester or your organization's administrator",
+    "home": "Back to the home page",
     "openRequest": "Open the request"
   },
   "save": {
@@ -31,6 +36,13 @@
     "conflict": "This draft was changed on another device or tab after you opened it, so your latest changes on this page are not saved. Load the latest version and continue from it",
     "reload": "Load the latest version",
     "closed": "This request was sent or cancelled elsewhere, so it can no longer be changed on this page",
+    "closedBy": {
+      "SENT": "This request was sent from elsewhere, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved. If what was sent needs to change, cancel the request on its page and start a new one",
+      "CANCELLED": "This request was cancelled from elsewhere, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved. If you still need it, start a new request from the Buy or hire page",
+      "NOT_FOUND": "This request is not found for the account signed in now, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved. If you just signed in with another account, sign in with yours and reload this page; if not, contact your organization's administrator",
+      "FORBIDDEN": "The account signed in now cannot change this request, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved. If you just signed in with another account, sign in with yours and reload this page; if not, ask your organization's administrator to check the account's roles",
+      "ELSEWHERE": "This request was sent or cancelled elsewhere, so it can no longer be changed on this page, and what you changed here since the draft was last saved is not saved"
+    },
     "openRequest": "Open the request to see where it stands",
     "failed": "The draft could not be saved: {reason}"
   },
@@ -207,7 +219,8 @@
     "remove": "Take the file {name} off",
     "removeQuestion": "Take the file {name} off the request?",
     "removeConfirm": "Take this file off",
-    "removeKeep": "Keep the file"
+    "removeKeep": "Keep the file",
+    "notAttachedDraft": "The file {name} is not in the request yet, because the draft could not be saved. See why on the draft's line at the top of the page, fix it, then attach this file again"
   },
   "files": {
     "rule": "PDF, JPG, PNG or HEIC pictures, or Excel and Word files (xlsx, docx), up to 20 MB"
@@ -329,8 +342,9 @@
     "STATE": "This request was sent or cancelled, so this cannot be done",
     "STATE_SENT": "This request was already sent, so this cannot be done. Open the request to see where it stands",
     "STATE_CANCELLED": "This request was cancelled, so this cannot be done. Open the request to see its history",
-    "FORBIDDEN": "Only the requester who owns this request can do this",
-    "NOT_FOUND": "The request or file was not found; it may have been removed. Reload the page",
+    "FORBIDDEN": "Only the requester who owns this request can do this. If you just signed in with another account, sign in with yours and reload this page; if not, ask your organization's administrator to check the account's roles",
+    "NOT_FOUND": "This request is not found for the account signed in now, so this cannot be done. If you just signed in with another account, sign in with yours and reload this page; if not, contact your organization's administrator",
+    "FILE_NOT_FOUND": "This file is no longer on the request, so this cannot be done with it. Reload the page to see the files attached now",
     "UNAUTHENTICATED": "Your session has ended. Sign in again, then try again",
     "BUSY": "Something else is being done to this request. Try again in a moment",
     "FILE": "Only files you uploaded and that passed the check can be attached. Upload the file again",

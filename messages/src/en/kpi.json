@@ -1,6 +1,6 @@
 {
   "title": "KPI",
-  "intro": "The organization's measures for goals G-1 to G-5, computed from the event log and the documents in the system. Each shows its formula in words, its value for the chosen period, the baseline and the proposed target. Press a value to see what it counts.",
+  "intro": "The organization's measures for goals G-1 to G-5, computed from the event log and the documents in the system. Each shows its formula in words, its value for the chosen period, the baseline and the proposed target.",
   "forbidden": "The KPI page is for executives, finance, procurement and auditors. If you need it, contact your organization admin.",
   "forbiddenHead": "The KPI page shows the whole organization's figures. Department heads read the KPI report of the departments they head on the reports page.",
   "toReports": "Go to reports",
@@ -66,7 +66,9 @@
     "g3c": {
       "name": "Steps past due (SLA)",
       "formula": "Steps decided after their due time, or still open past it ÷ steps assigned in the period",
-      "target": "Under 10%"
+      "target": "Under 10%",
+      "stepsName": "Steps assigned in the period",
+      "stepsFormula": "Every approval step assigned in the period, the denominator of Steps past due (SLA). Steps decided after their due time, or still open past it, are counted and come first; each says whether it is counted and why."
     },
     "g4": {
       "name": "Over-budget requests that reached an approver",
@@ -101,6 +103,7 @@
     "checked": "{count, plural, one {# decision checked} other {# decisions checked}}"
   },
   "linkLabel": "See what is counted: {name} {value}",
+  "stepsLinkLabel": "See every step assigned in the period: {name} {detail}",
   "items": {
     "metaTitle": "What a measure counts",
     "back": "Back to the KPI page",
@@ -143,8 +146,12 @@
       "WITHOUT_DOA": "Not counted: does not cite the DOA version and rule",
       "MISROUTED": "Counted: the decider is not who the DOA names",
       "DOA_MATCHED": "Not counted: the decider is who the DOA names",
-      "PAST_DUE_DECIDED": "Decided after its due time",
-      "PAST_DUE_OPEN": "Still open past its due time"
+      "PAST_DUE_DECIDED": "Counted: decided after its due time",
+      "PAST_DUE_OPEN": "Counted: still open past its due time",
+      "DECIDED_ON_TIME": "Not counted: decided by its due time",
+      "OPEN_NOT_DUE": "Not counted: still open, not due yet",
+      "NO_DUE_TIME": "Not counted: this step has no due time",
+      "CLOSED_UNDECIDED": "Not counted: closed without a decision (cancelled or reassigned)"
     }
   }
 }

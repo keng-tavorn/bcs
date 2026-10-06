@@ -6,7 +6,7 @@ import { useId, useState } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { announcePoolAction, useOtherPoolAction } from './activity'
-import { poolErrorKey, type DraftView, type PoolOutcome } from './outcome'
+import { POOL_NO_ANSWER, poolActionErrorKey, type DraftView, type PoolOutcome } from './outcome'
 import { DraftLinks, draftLinkLabel } from './pool-board'
 import { useOutcomeAction } from './use-outcome-action'
 
@@ -16,8 +16,9 @@ import { useOutcomeAction } from './use-outcome-action'
 // whatever the supplier (NEW-50) — so it asks for suppliers only when that would help. When the next automatic round
 // runs is told above the button (AC2), and how many lines no round drafts yet. A draft cannot be thrown away or given
 // another supplier yet (it is only edited line by line), so the round asks a second time, saying how many lines it puts
-// on drafts, before it runs (§9.9: nothing that cannot be undone without a confirmation). The service checks po.create
-// again.
+// on drafts, before it runs (§9.9: nothing that cannot be undone without a confirmation). A round that got no answer
+// may have run: the second press stays, and its words say it is not certain and to press it again — the same
+// submission, which runs once (POOL_NO_ANSWER). The service checks po.create again.
 
 export interface ConsolidatePanelProps {
   /** "รอบอัตโนมัติถัดไป จ. 5 ต.ค. 2569 15:00 น." or why there is none, already worded */
@@ -88,7 +89,7 @@ export function RoundResultList({ drafts }: { readonly drafts: readonly DraftVie
 export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: ConsolidatePanelProps) {
   const t = useTranslations('procurement.pool')
   const id = useId()
-  const action = useOutcomeAction<PoolOutcome>({ ok: false, code: 'FAILED' })
+  const action = useOutcomeAction<PoolOutcome>(POOL_NO_ANSWER)
   const [confirming, setConfirming] = useState(false)
   // A supplier chosen after the round: its result is no longer the last thing done
   useOtherPoolAction(SOURCE, () => {
@@ -99,8 +100,9 @@ export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: Cons
 
   async function run() {
     announcePoolAction(SOURCE)
-    await action.run((key) => consolidate(key))
-    setConfirming(false)
+    const result = await action.run((key) => consolidate(key))
+    // No answer: the second press stays, so "ยืนยันรวมเป็นร่าง PO" is pressed again as it is (the same submission)
+    if (result.ok || result.code !== POOL_NO_ANSWER.code) setConfirming(false)
   }
 
   return (
@@ -155,7 +157,7 @@ export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: Cons
           </div>
         </Notice>
       ) : null}
-      {outcome && !outcome.ok ? <Notice tone="danger">{t(`errors.${poolErrorKey(outcome)}`, { requestId: outcome.requestId ?? '-' })}</Notice> : null}
+      {outcome && !outcome.ok ? <Notice tone="danger">{t(`errors.${poolActionErrorKey(outcome, 'round')}`, { requestId: outcome.requestId ?? '-' })}</Notice> : null}
     </section>
   )
 }

@@ -535,3 +535,54 @@ describe('[§9.9] one message: the point of "ตรวจก่อนส่ง" 
     for (const text of [en.requestForm.submit.blockedClosed, en.requestForm.review.saveClosed]) expect(text.toLowerCase()).not.toContain('load')
   })
 })
+
+describe('[§9.9] enough budget and "it can be sent" are supporting information on a request not sent yet: --info, never the approved mark of --primary', () => {
+  /** A section of the step by the id of its heading, to its end */
+  function sectionOf(page: string, id: string): string {
+    const start = page.indexOf(`<section aria-labelledby="${id}"`)
+    expect(start, `the step has its section "${id}"`).toBeGreaterThanOrEqual(0)
+    return page.slice(start, page.indexOf('</section>', start) + '</section>'.length)
+  }
+  const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  /** A line of words after its icon: the line's classes and the icon's attributes */
+  function markOf(markup: string, text: string): { line: string; icon: string } {
+    const found = new RegExp(`<p class="([^"]*)"><svg([^>]*)>(?:(?!</svg>)[\\s\\S])*</svg><span>${escape(text)}</span></p>`).exec(markup)
+    expect(found, `"${text}" with its icon`).not.toBeNull()
+    return { line: found![1]!, icon: found![2]! }
+  }
+
+  it('[FR-INT-004/AC1] "งบพอ": the info icon in --info and medium words in ink, on the workspace’s form and the LIFF one (the same BudgetStatus); "งบไม่พอ" stays --danger', () => {
+    for (const page of [web(ENOUGH), liff(null)]) {
+      const budget = sectionOf(page, 'review-budget')
+      const enough = markOf(budget, th.requestForm.budget.enough)
+      expect(enough.line.split(' ')).toEqual(expect.arrayContaining(['font-medium', 'text-ink']))
+      expect(enough.icon).toContain('lucide-info')
+      expect(enough.icon).toContain('text-info')
+      expect(enough.icon).toContain('aria-hidden="true"')
+      expect(budget).not.toContain('text-primary')
+      expect(budget).not.toContain('lucide-circle-check')
+    }
+    const short = markOf(sectionOf(web(SHORT), 'review-budget'), 'งบไม่พอ ขาด 35,000.00 บาท ลดยอดหรือเลือกบรรทัดงบอื่น')
+    expect(short.line).toContain('text-danger')
+    expect(short.icon).toContain('lucide-circle-alert')
+  })
+
+  it('[FR-INT-004/AC2] the workspace’s ready line: the info icon in --info beside words in ink, with nothing of --primary', () => {
+    const section = beforeSending(web(ENOUGH))
+    const ready = markOf(section, READY.th)
+    expect(ready.line).toContain('text-ink')
+    expect(ready.icon).toContain('lucide-info')
+    expect(ready.icon).toContain('text-info')
+    expect(section).not.toContain('text-primary')
+    expect(section).not.toContain('lucide-circle-check')
+  })
+
+  it('[FR-INT-004/AC2] the LIFF ready line: an info notice — its rule and icon in --info — still a status for screen readers', () => {
+    const section = beforeSending(liff(null))
+    const notice = new RegExp(`<div role="status" class="([^"]*)"><svg([^>]*)>(?:(?!</svg>)[\\s\\S])*</svg><div class="min-w-0">${escape(READY.th)}</div></div>`).exec(section)
+    expect(notice, 'the ready notice').not.toBeNull()
+    expect(notice![1]).toContain('border-info')
+    expect(notice![2]).toContain('text-info')
+    expect(section).not.toMatch(/(?:border|text)-primary/)
+  })
+})

@@ -176,6 +176,37 @@
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E") center / contain no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M4 4l8 8M12 4l-8 8'/%3E%3C/svg%3E") center / contain no-repeat;
   }
+  /*
+   * A field the browser filled in itself, such as the saved e-mail and password of a member signing in again: Chromium
+   * paints it light blue (#e8f0fe) with black words and Safari yellow, both through !important rules a page cannot
+   * override, and Firefox tints it with a filter — no token among them. An inset shadow wider than any field covers the
+   * browser's colour with --surface, which still sets a filled-in field apart from a typed one as the browser meant to;
+   * the words and the caret are --ink (-webkit-text-fill-color, which the browser's colour does not reach); Firefox's
+   * filter goes. The field's border, its error border and its focus ring (an outline) stay as they are. In forced colours
+   * the browser draws the field itself again (below): they do not reach -webkit-text-fill-color, whose --ink words would
+   * stay on the theme's background.
+   */
+  input:-webkit-autofill,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--ink);
+    caret-color: var(--ink);
+    box-shadow: inset 0 0 0 100vmax var(--surface);
+    filter: none;
+  }
+  /*
+   * The grip in the corner of a text box that drags it bigger, which Chromium draws in a grey of its own (#666666, no
+   * token): the same two lines in --ink-muted, the colour of the box's border, over the box's own background. The lines
+   * are SVG in a data: URL whose stroke is written as --ink-muted's value, #4a5a63 (a URL cannot read a CSS variable, and
+   * Chromium does not mask the grip): a change of that token is made here too. A grip once styled cannot be handed back,
+   * so the rule holds outside forced colours only, where the browser draws its own in the theme's colours. LIFF's text
+   * boxes have no grip (liff-type, below).
+   */
+  @media (forced-colors: none) {
+    textarea::-webkit-resizer {
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%234a5a63' stroke-width='1.5' stroke-linecap='round'%3E%3Cpath d='M14 6l-8 8M14 10l-4 4'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+    }
+  }
   @media (forced-colors: active) {
     input:where([type='checkbox'], [type='radio']) {
       appearance: auto;
@@ -185,6 +216,14 @@
       appearance: auto;
       -webkit-mask: none;
       mask: none;
+    }
+    input:-webkit-autofill,
+    textarea:-webkit-autofill,
+    select:-webkit-autofill {
+      -webkit-text-fill-color: revert;
+      caret-color: revert;
+      box-shadow: revert;
+      filter: revert;
     }
   }
 }
@@ -213,8 +252,8 @@
  * §9.9). The workspace parts it draws step their secondary text down to text-sm on a wide screen (md:text-sm, the web's
  * 14 px), so inside LIFF text-sm is 16 px; and their sub-headings take LIFF's 16 px (subheading). Their amounts fill
  * LIFF's one column (Amounts, src/ui/request-view/facts.tsx), so every figure of a page ends at its right edge, with the
- * lines' (§9.9 principle 6). A text box keeps its height and scrolls: there is nothing to drag on a phone, and the
- * browser's resize grip is drawn in a grey of its own, no token.
+ * lines' (§9.9 principle 6). A text box keeps its height and scrolls: there is nothing to drag on a phone, so it has no
+ * resize grip.
  */
 @utility liff-type {
   --text-sm: var(--text-base);

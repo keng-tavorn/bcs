@@ -58,7 +58,10 @@
     },
     "amountLink": "{bucket} {amount} baht of {code}: see the documents",
     "plannedLink": "Planned {amount} baht of {code}: see the imports",
-    "availableLink": "Available {amount} baht of {code}: see the ledger movements"
+    "availableLink": "Available {amount} baht of {code}: see the ledger movements",
+    "usedLink": "{share} of {code}: see the committed and actual documents",
+    "heldLink": "{share} of {code}: see the reserved, committed and actual documents",
+    "lowLink": "{warning} on {code}: see the ledger movements"
   },
   "unit": "baht",
   "status": {

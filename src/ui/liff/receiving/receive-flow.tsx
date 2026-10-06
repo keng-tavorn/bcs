@@ -483,7 +483,7 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
           <form id={formId} onSubmit={onConfirm} noValidate aria-labelledby={`${id}-review`} className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
               <p className="text-ink-muted">{t('step', { step: 2 })}</p>
-              <h2 id={`${id}-review`} ref={stepHeading} tabIndex={-1} className="text-lg leading-snug font-semibold text-ink">
+              <h2 id={`${id}-review`} ref={stepHeading} tabIndex={-1} className="text-lg font-semibold text-ink">
                 {t('reviewTitle')}
               </h2>
               <p className="text-ink-muted">{t('reviewHint')}</p>
@@ -516,7 +516,7 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
           <form id={formId} onSubmit={onReview} noValidate aria-labelledby={`${id}-enter`} className="flex flex-col gap-5">
             <div className="flex flex-col gap-1">
               <p className="text-ink-muted">{t('step', { step: 1 })}</p>
-              <h2 id={`${id}-enter`} ref={stepHeading} tabIndex={-1} className="text-lg leading-snug font-semibold text-ink">
+              <h2 id={`${id}-enter`} ref={stepHeading} tabIndex={-1} className="text-lg font-semibold text-ink">
                 {t('enterTitle')}
               </h2>
               <p className="text-ink-muted">{t('enterHint')}</p>
@@ -591,7 +591,7 @@ export function LiffReceiveFlow({ poId, lines, open, summary, notices = null, cl
             </ol>
 
             <section aria-labelledby={`${id}-evidence`} className="flex flex-col gap-4">
-              <h3 id={`${id}-evidence`} className="text-lg leading-snug font-semibold text-ink">
+              <h3 id={`${id}-evidence`} className="font-semibold text-ink">
                 {t('evidenceTitle')}
               </h3>
               <LiffField

@@ -1,7 +1,7 @@
 import { expectLinesFitLaptops } from './document-lines'
 import { expect, test } from './fixtures'
 import { actions, budgetRegion, expectPdfLink, expectPoMail, header, poolGroup, poTimeline, requestsRegion, scene, tagOf, type Made, type MadePo, topShot } from './procurement-support'
-import { expectNoBlockingAxe, rowWith, signIn } from './tasks-support'
+import { expectNoBlockingAxe, expectNoSideways, rowWith, signIn } from './tasks-support'
 
 // Unit e, the purchase-order pages (S4-04, S4-05 screen, S4-06 · spec §9.1 /procurement/pos, FR-P2P-003 to FR-P2P-005,
 // FR-P2P-010 AC1): the draft with the prices paid before and its editing, sending for approval with the route shown
@@ -36,20 +36,38 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   // At laptop widths, where the PO's column is narrow, its lines with the prices paid before still fit it (§9.9)
   await expectLinesFitLaptops(page, testInfo, lines, 'po-draft-lines')
 
-  // AC2: never more than the request has left, said before typing and checked on saving
+  // AC2: never more than the request has left, said before typing and checked on saving. One line at a time: the lines
+  // are listed with their price, and a line's button opens its price, quantity and taking it off (§9.9: no single form
+  // of more than 8 fields); prices read with thousands separators and 2 decimals (§9.9 principle 6)
   const edit = page.getByRole('region', { name: 'แก้ไขร่าง' })
+  const editLines = edit.getByRole('list', { name: 'ราคาและจำนวน' })
+  await expect(editLines).toContainText('1,200.00')
+  await edit.getByRole('button', { name: 'แก้บรรทัด 1' }).click()
+  const price = edit.getByLabel('ราคาต่อหน่วย (บาท ก่อน VAT)')
+  await expect(price).toBeFocused()
+  await expect(price).toHaveValue('1,200.00')
   await expect(edit).toContainText('สั่งได้ไม่เกิน 10 ชิ้น ตามที่คำขอยังเหลือ ส่วนที่ไม่สั่งรอในกองรอจัดซื้อพร้อมผู้ขายเดิม')
+  // The line's own form, at both widths (§9.9 steps 4–5)
+  await expectNoBlockingAxe(page)
+  await expectNoSideways(page)
+  await topShot(page, testInfo, 'po-draft-line-open')
   await edit.getByLabel('จำนวน (ชิ้น)').fill('11')
-  await edit.getByRole('button', { name: 'บันทึกราคาและจำนวน' }).click()
+  await edit.getByRole('button', { name: 'บันทึกบรรทัด 1' }).click()
   await expect(edit.getByText('สั่งได้ไม่เกิน 10', { exact: true })).toBeVisible()
   // The credit days are checked against the same bounds as the service before anything is sent
   await edit.getByLabel('เครดิต (วัน)').fill('4000')
   await edit.getByRole('button', { name: 'บันทึกเงื่อนไขและหมายเหตุ' }).click()
   await expect(edit.getByText('ใส่จำนวนวันเป็นเลขเต็มตั้งแต่ 0 ถึง 3,650')).toBeVisible()
   await edit.getByLabel('จำนวน (ชิ้น)').fill('8')
-  await edit.getByLabel('ราคาต่อหน่วย (บาท ก่อน VAT)').fill('1150.00')
-  await edit.getByRole('button', { name: 'บันทึกราคาและจำนวน' }).click()
+  // A price typed without separators reads with them once the field is left; they are taken out before it is sent
+  await price.fill('1150.00')
+  await price.blur()
+  await expect(price).toHaveValue('1,150.00')
+  await edit.getByRole('button', { name: 'บันทึกบรรทัด 1' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'บันทึกการแก้ไขร่างแล้ว ยอดเงินคำนวณใหม่แล้ว' })).toBeVisible()
+  // Saved, the line is closed again and listed with its new price
+  await expect(editLines).toContainText('1,150.00')
+  await expect(edit.getByRole('button', { name: 'แก้บรรทัด 1' })).toBeVisible()
   // AC3: the totals the server computed
   await expect(amounts).toContainText(/ยอดก่อน VAT\s*9,200\.00/)
   await expect(amounts).toContainText(/VAT 7%\s*644\.00/)

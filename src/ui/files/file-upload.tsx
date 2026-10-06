@@ -127,7 +127,8 @@ export function FileUploadView({ id, mode, rule, status, disabled, onChange, onS
     <div className="flex flex-col gap-3">
       <label
         htmlFor={id}
-        className={`inline-flex min-h-11 w-fit items-center gap-2 rounded-md border border-input bg-bg px-4 font-medium text-ink focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)] ${off ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-surface'}`}
+        // Not now: the words stay readable (§9.9, 4.5:1), the secondary text on the light surface
+        className={`inline-flex min-h-11 w-fit items-center gap-2 rounded-md border px-4 font-medium focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)] ${off ? 'cursor-not-allowed border-line bg-surface text-ink-muted' : 'cursor-pointer border-input bg-bg text-ink hover:bg-surface'}`}
       >
         <Paperclip className="size-4" aria-hidden="true" />
         {mode === 'photo' ? t('choosePhoto') : t('chooseFile')}

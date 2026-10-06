@@ -11,20 +11,26 @@ import { Notice } from '../form/notice'
 import { ConfirmRemove } from './confirm-remove'
 import { checkboxClass, describedBy, inputClass, Labelled, textareaClass } from './controls'
 import type { StepProps } from './details-items'
+import { documentFieldIds } from './document-fields'
+import { FieldInput } from './field-input'
 import { savableQuotation, validMoney, visibleInput, type FormQuotation, type RuleStatus } from './model'
 import { showSatang } from './money'
+import { MoneyInput } from './money-input'
 import { SuggestedSupplierField } from './place-supplier'
 import { conditionText, RequirementList } from './rule-text'
 import type { Attachment } from './types'
 import { UploadButton, type UploadActions } from './upload-button'
 
 // Step 3 (FR-INT-005, BR-FORM-03 to BR-FORM-06): the attachments the rules ask for at the current amount and answers,
-// the supplier the requester suggests from the register (optional, S4-02), the quotations as data — supplier, amount,
+// with the questions those rules ask to be answered (the single-source reason of ATT-QUOTES, ./document-fields.ts), the
+// supplier the requester suggests from the register (optional, S4-02), the quotations as data — supplier, amount,
 // whether it includes VAT, its file — compared before VAT as they are typed, with a reason when the chosen one is not
 // the lowest, and the other files of the request, each of a kind.
 
 /** A request carries at most this many quotations (the service's limit) */
 const MAX_QUOTATIONS = 20
+
+const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
 
 export interface DocumentsProps extends StepProps {
   readonly rules: readonly RuleStatus[]
@@ -62,13 +68,17 @@ export function kindLabelOf(t: ReturnType<typeof useTranslations<'requestForm'>>
 export function DocumentsStep(props: DocumentsProps) {
   const t = useTranslations('requestForm')
   const tr = useTranslations('requestForm.rules')
-  const { data, input, locale, rules } = props
+  const { data, input, locale, rules, values, update, visible, showErrors, fieldErrors } = props
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
   const shown = visibleInput(data.form, input)
+  // The questions the rules ask to be answered, asked here under the rules rather than with the details
+  // (./document-fields.ts): the single-source reason of ATT-QUOTES beside the rule that takes it
+  const documentFields = documentFieldIds(data.form.rules)
+  const asked = data.form.fields.filter((f) => visible.has(f.id) && documentFields.has(f.id))
   return (
     <div className="flex flex-col gap-10">
       <section aria-labelledby="required-documents" className="flex flex-col gap-3">
-        <h3 id="required-documents" className="text-lg font-semibold">
+        <h3 id="required-documents" className="subheading font-semibold">
           {t('documents.requiredTitle')}
         </h3>
         {rules.length === 0 ? (
@@ -97,6 +107,16 @@ export function DocumentsStep(props: DocumentsProps) {
             ))}
           </ul>
         )}
+        {asked.map((def) => (
+          <FieldInput
+            key={def.id}
+            def={def}
+            locale={locale}
+            value={values.fields[def.id]}
+            onChange={(value) => update({ type: 'field', id: def.id, value })}
+            error={fieldErrors[def.id] ?? (showErrors && def.required && blank(values.fields[def.id]) ? t('fields.missing') : undefined)}
+          />
+        ))}
       </section>
       {data.type.documentType === 'PURCHASE_REQUEST' ? (
         <>
@@ -120,7 +140,7 @@ function Quotations(props: DocumentsProps) {
   const reasonError = needsReason && showErrors && !values.nonLowestQuoteReason.trim() ? t('reasonMissing') : undefined
   return (
     <section aria-labelledby="quotations" className="flex flex-col gap-4">
-      <h3 id="quotations" className="text-lg font-semibold">
+      <h3 id="quotations" className="subheading font-semibold">
         {t('title')}
       </h3>
       <p className="text-ink-muted">{t('intro')}</p>
@@ -171,7 +191,7 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
   }
   return (
     <fieldset className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-1 text-lg font-semibold">{t('item', { n })}</legend>
+      <legend className="mb-1 subheading font-semibold">{t('item', { n })}</legend>
       <Labelled id={`${p}-supplier`} label={t('supplier')} requiredText={tf('required')} error={errors.supplier}>
         <input
           id={`${p}-supplier`}
@@ -187,10 +207,9 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
       </Labelled>
       <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
         <Labelled id={`${p}-amount`} label={t('amount')} requiredText={tf('required')} error={errors.amount}>
-          <input
+          <MoneyInput
             id={`${p}-amount`}
             className={`${inputClass} tabular text-right`}
-            inputMode="decimal"
             value={q.amount}
             required
             aria-required
@@ -263,7 +282,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
   const [kind, setKind] = useState<string>(wanted ?? (data.attachmentKinds.includes('OTHER') ? 'OTHER' : (data.attachmentKinds[0] ?? 'OTHER')))
   return (
     <section aria-labelledby="other-files" className="flex flex-col gap-4">
-      <h3 id="other-files" className="text-lg font-semibold">
+      <h3 id="other-files" className="subheading font-semibold">
         {t('title')}
       </h3>
       <p className="text-ink-muted">{t('intro')}</p>

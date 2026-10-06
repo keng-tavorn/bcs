@@ -75,7 +75,7 @@
       "submit": "Use this supplier for the selected lines",
       "clear": "Remove the supplier from the selected lines",
       "working": "Saving",
-      "done": "Supplier {supplier} chosen for {count} lines",
+      "done": "{supplier} is now used for {count} lines",
       "cleared": "Supplier removed from {count} lines. They wait in the pool until a supplier is chosen again.",
       "urgent": "Urgent requests got {count} draft POs at once, without waiting for the round",
       "blocked": "{count} of the ticked lines come from requests whose prices include VAT, so they wait in the pool and are not put on a draft PO yet",

@@ -32,14 +32,10 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex max-w-3xl flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{tv('listTitle')}</h1>
-          <p className="text-ink-muted">{tv('listIntro')}</p>
-        </div>
-        <Link href="/requests/new" className="inline-flex h-11 shrink-0 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]">
-          {tv('newRequest')}
-        </Link>
+      {/* The door to a new request is the shell's, on every page (§9.9 principle 2) */}
+      <div className="flex max-w-3xl flex-col gap-1">
+        <h1 className="text-2xl font-semibold">{tv('listTitle')}</h1>
+        <p className="text-ink-muted">{tv('listIntro')}</p>
       </div>
 
       {list.total > 0 ? (

@@ -111,6 +111,7 @@
     "listLabel": "What is counted in {name}",
     "countedOf": "{counted} of {total} counted",
     "capped": "Showing the latest {shown} of {total}",
+    "cappedCountedFirst": "Showing {shown} of {total}: the counted ones first, then the latest",
     "count": "{count, plural, one {# item} other {# items}}",
     "document": {
       "REQUEST": "Request {label}",
@@ -140,7 +141,8 @@
       "NOT_MOBILE": "Not counted: decided through {channel}",
       "WITH_DOA": "Counted: cites the DOA version and rule",
       "WITHOUT_DOA": "Not counted: does not cite the DOA version and rule",
-      "MISROUTED": "The decider is not who the DOA names",
+      "MISROUTED": "Counted: the decider is not who the DOA names",
+      "DOA_MATCHED": "Not counted: the decider is who the DOA names",
       "PAST_DUE_DECIDED": "Decided after its due time",
       "PAST_DUE_OPEN": "Still open past its due time"
     }

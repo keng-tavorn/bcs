@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { type Page } from '@playwright/test'
 import { expect, test } from './fixtures'
-import { checkScreen, csvRows, exportedFile, scene, settleNoticesAfterEachTest, sha256, sheetRows, shownChecksum, signInAs, type DecisionsScene } from './insight-support'
+import { checkScreen, csvRows, exportedFile, pickDay, scene, settleNoticesAfterEachTest, sha256, sheetRows, shownChecksum, signInAs, type DecisionsScene } from './insight-support'
 
 settleNoticesAfterEachTest(test)
 
@@ -54,11 +54,13 @@ test('[FR-VIS-004/AC1] the auditor finds a document’s trail by its number, and
   await page.getByLabel('ผู้กระทำ').selectOption({ label: liff!.approver.name })
   await page.getByLabel('ประเภทเหตุการณ์').selectOption({ label: 'ตัดสินงานอนุมัติ' })
   await page.getByLabel('ช่องทาง').selectOption({ label: 'LINE (LIFF)' })
-  await page.getByLabel('ตั้งแต่วันที่').fill(s.kpi.from)
-  await page.getByLabel('ถึงวันที่').fill(s.kpi.to)
+  // each day as day, month and Buddhist-era year from lists, in Thai only (§9.9)
+  await pickDay(page, 'ตั้งแต่วันที่', s.kpi.from)
+  await pickDay(page, 'ถึงวันที่', s.kpi.to)
   await page.getByRole('button', { name: 'ค้นหาบันทึก' }).click()
   await expect(page).toHaveURL(/channel=LIFF/)
-  // the date fields may show Christian-era years: the period searched is said again in Buddhist-era days
+  await expect(page).toHaveURL(new RegExp(`from=${s.kpi.from}&to=${s.kpi.to}`))
+  // the period searched is said again in Buddhist-era days
   await expect(page.getByText(/^ช่วง \d{1,2} \S+ 25\d\d ถึง \d{1,2} \S+ 25\d\d$/)).toBeVisible()
   await expect(results(page).filter({ hasText: liff!.number })).toHaveCount(1)
   await expect(results(page).filter({ hasText: line!.number })).toHaveCount(0)

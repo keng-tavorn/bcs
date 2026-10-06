@@ -18,7 +18,8 @@ export async function generateMetadata() {
   return { title: t('person.metaTitle') }
 }
 
-const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+const refreshClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
+const linkClass = `${refreshClass} self-start`
 
 // One person's documents on the board (FR-VIS-001 AC2): what waits at them within the reader's scope, each with its
 // page, its wait in business hours and its due time, and a manual reminder at most once an hour per document. The rows
@@ -57,7 +58,14 @@ export default async function BoardPersonPage({ params, searchParams }: { params
         <h1 className="text-2xl font-semibold">{t('person.title', { name: row.name })}</h1>
         <p className="text-ink">{t('person.summary', { open: row.open, overdue: row.overdue, waiting: row.waitingForRequester })}</p>
         {row.open ? <p className="text-ink">{t('person.ages', { oldest: hoursText(row.oldestMinutes), average: hoursText(row.averageMinutes) })}</p> : null}
-        <p className="text-base text-ink-muted md:text-sm">{t('asOf', { time: formatDateTime(locale, result.data.asOf) })}</p>
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-base text-ink-muted md:text-sm">
+          <span>{t('asOf', { time: formatDateTime(locale, result.data.asOf) })}</span>
+          {/* A full reload, as on the board: an installed app has no reload button of its own. A reminder refused because
+              the document was decided or left the reader's scope meanwhile says to press this (board.errors) */}
+          <a href={`/board/pending/${row.memberId}${query}`} className={refreshClass}>
+            {t('refresh')}
+          </a>
+        </p>
       </div>
       <section aria-labelledby="board-documents" className="flex flex-col gap-3">
         <h2 id="board-documents" className="text-xl font-semibold">

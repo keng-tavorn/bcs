@@ -172,10 +172,19 @@ export function failureKey(f: FormFailure): FailureKey {
   return BY_CODE.find((k) => k === f.code) ?? 'FAILED'
 }
 
-/** The step where the requester fixes what a failure is about; null when nothing in the form can fix it. */
-export function failureStep(f: FormFailure): StepId | null {
+/** No field of the form is asked beside the documents */
+const NO_DOCUMENT_FIELDS: ReadonlySet<string> = new Set()
+
+/**
+ * The step where the requester fixes what a failure is about; null when nothing in the form can fix it. A field the
+ * attachment rules ask to be filled is asked beside the documents (`documentFields`, ./document-fields.ts), every other
+ * field of the form with the request's details.
+ */
+export function failureStep(f: FormFailure, documentFields: ReadonlySet<string> = NO_DOCUMENT_FIELDS): StepId | null {
   const key = failureKey(f)
   const field = f.field ?? ''
+  const fieldId = failureTarget(f).fieldId
+  if (fieldId && documentFields.has(fieldId)) return 'documents'
   if (key === 'FORM_FIELD' || field.startsWith('formData.') || field === 'title') return 'details'
   if (BUDGET_LINE_REASONS.includes(key) || key === 'BUDGET_LINE_CLOSED') return 'details'
   if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || key === 'SITE_UNKNOWN' || field.startsWith('lines')) return 'items'

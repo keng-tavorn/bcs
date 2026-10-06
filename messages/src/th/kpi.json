@@ -111,6 +111,7 @@
     "listLabel": "รายการที่นับใน{name}",
     "countedOf": "นับ {counted} จาก {total} รายการ",
     "capped": "แสดง {shown} รายการล่าสุดจากทั้งหมด {total} รายการ",
+    "cappedCountedFirst": "แสดง {shown} จากทั้งหมด {total} รายการ รายการที่นับขึ้นก่อน ตามด้วยรายการล่าสุด",
     "count": "{count} รายการ",
     "document": {
       "REQUEST": "คำขอ {label}",
@@ -140,7 +141,8 @@
       "NOT_MOBILE": "ไม่นับ: ตัดสินผ่านช่องทาง {channel}",
       "WITH_DOA": "นับ: อ้าง DOA ฉบับและข้อครบ",
       "WITHOUT_DOA": "ไม่นับ: ไม่ได้อ้าง DOA ฉบับและข้อ",
-      "MISROUTED": "ผู้ตัดสินไม่ใช่คนที่ DOA กำหนด",
+      "MISROUTED": "นับ: ผู้ตัดสินไม่ใช่คนที่ DOA กำหนด",
+      "DOA_MATCHED": "ไม่นับ: ผู้ตัดสินตรงกับคนที่ DOA กำหนด",
       "PAST_DUE_DECIDED": "ตัดสินหลังครบกำหนด",
       "PAST_DUE_OPEN": "ยังเปิดอยู่และเลยกำหนดแล้ว"
     }

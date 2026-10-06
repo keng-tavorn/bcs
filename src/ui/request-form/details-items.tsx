@@ -8,16 +8,19 @@ import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { ConfirmRemove } from './confirm-remove'
 import { checkboxClass, describedBy, inputClass, Labelled } from './controls'
+import { documentFieldIds } from './document-fields'
 import { FieldInput, showDay } from './field-input'
 import { lineAmount, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
 import { showMoney, showSatang } from './money'
+import { MoneyInput } from './money-input'
 import { DeliverySiteField } from './place-supplier'
 import { BudgetStatus, TotalsList } from './summary'
 import type { BudgetView, RequestFormData, ScreenLocale } from './types'
 
 // Steps 1 and 2 of the request form (FR-INT-002, FR-INT-003, FR-INT-004): the title, the budget line (prefilled,
 // BR-FORM-02; only the requester's own or granted lines, BR-BUD-04) with what is left on it, the questions of the
-// request type shown or hidden as the requester answers (BR-FORM-01); then where the goods go (prefilled, S4-02), the
+// request type shown or hidden as the requester answers (BR-FORM-01) — but those the attachment rules ask for, which step
+// 3 asks beside the documents (./document-fields.ts); then where the goods go (prefilled, S4-02), the
 // lines with their amounts, the totals and the budget check as the amounts change.
 
 export interface StepProps {
@@ -44,6 +47,8 @@ export function DetailsStep(props: StepProps) {
   const { data, values, update, locale, visible, showErrors, fieldErrors } = props
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   const titleError = showErrors && !values.title.trim() ? t('details.titleMissing') : undefined
+  // A question the attachment rules ask for is asked beside the documents, in step 3 (./document-fields.ts)
+  const documentFields = documentFieldIds(data.form.rules)
   return (
     <div className="flex flex-col gap-6">
       <Labelled id="request-title" label={t('details.title')} requiredText={t('fields.required')} hint={t('details.titleHint')} error={titleError}>
@@ -62,7 +67,7 @@ export function DetailsStep(props: StepProps) {
       </Labelled>
       {purchase ? <BudgetLineField {...props} /> : null}
       {data.form.fields
-        .filter((f) => visible.has(f.id))
+        .filter((f) => visible.has(f.id) && !documentFields.has(f.id))
         .map((def) => (
           <FieldInput
             key={def.id}
@@ -146,7 +151,7 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
         {t('lines.add')}
       </Button>
       <section aria-labelledby="totals-heading" className="flex flex-col gap-2">
-        <h3 id="totals-heading" className="text-lg font-semibold">
+        <h3 id="totals-heading" className="subheading font-semibold">
           {t('totals.title')}
         </h3>
         <div aria-live="polite">
@@ -155,7 +160,7 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
         {pending ? <p className="text-base text-ink-muted md:text-sm">{t('totals.pending', { count: pending })}</p> : null}
       </section>
       <section aria-labelledby="budget-heading" className="flex flex-col gap-2">
-        <h3 id="budget-heading" className="text-lg font-semibold">
+        <h3 id="budget-heading" className="subheading font-semibold">
           {t('budget.title')}
         </h3>
         <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
@@ -183,7 +188,7 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
   const control = (id: string, error: string | undefined, hint = false) => ({ 'aria-invalid': error ? true : undefined, 'aria-describedby': describedBy(id, hint, Boolean(error)) })
   return (
     <fieldset className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-1 text-lg font-semibold">{t('line', { n })}</legend>
+      <legend className="mb-1 subheading font-semibold">{t('line', { n })}</legend>
       <Labelled id={`${p}-description`} label={t('description')} requiredText={tf('required')} error={shown.description}>
         <input id={`${p}-description`} className={inputClass} value={line.description} maxLength={500} required aria-required onChange={(e) => set({ description: e.currentTarget.value })} {...control(`${p}-description`, shown.description)} />
       </Labelled>
@@ -195,7 +200,7 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
           <input id={`${p}-uom`} className={inputClass} value={line.uom} maxLength={30} required aria-required onChange={(e) => set({ uom: e.currentTarget.value })} {...control(`${p}-uom`, shown.uom, true)} />
         </Labelled>
         <Labelled id={`${p}-price`} className="col-span-2 sm:col-span-1" label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')} requiredText={tf('required')} error={shown.unitPrice}>
-          <input id={`${p}-price`} className={`${inputClass} tabular text-right`} inputMode="decimal" value={line.unitPrice} required aria-required onChange={(e) => set({ unitPrice: e.currentTarget.value })} {...control(`${p}-price`, shown.unitPrice)} />
+          <MoneyInput id={`${p}-price`} className={`${inputClass} tabular text-right`} value={line.unitPrice} required aria-required onChange={(e) => set({ unitPrice: e.currentTarget.value })} {...control(`${p}-price`, shown.unitPrice)} />
         </Labelled>
       </div>
       <label className="flex min-h-11 items-center gap-3">

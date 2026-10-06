@@ -1,12 +1,13 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import type { FieldDef } from '@/core/forms/fields'
 import type { Satang } from '@/core/money/math'
 import type { StepProps } from '../../request-form/details-items'
+import { documentFieldIds } from '../../request-form/document-fields'
 import { problemStep, savableLine, type Problem, type RuleStatus } from '../../request-form/model'
-import { adminsWereTold, failureStep, type FormFailure, type FormOutcome } from '../../request-form/outcome'
+import { adminsWereTold, failureKey, failureStep, failureTarget, type FormFailure, type FormOutcome } from '../../request-form/outcome'
 import { placeAndSupplierText } from '../../request-form/place-supplier'
 import { failureText, sendBlockPoint, type SendBlock } from '../../request-form/review-step'
 import { BudgetStatus, RoutePreview, TotalsList } from '../../request-form/summary'
@@ -28,14 +29,17 @@ import type { LiffReadiness } from './ready'
 // the chosen budget line against the amount before VAT (enough, or short by how much), the route the DOA engine expects
 // — who approves under which rule of which DOA version, e.g. "DOA-DEMO ฉบับ 1 ข้อ PR-02" — the documents the rules ask
 // for, and what still needs fixing: what stops the send button first, then each problem with a way to the step that
-// fixes it (the budget point names its two fixes, a lower amount or another line, in words). The workspace's own parts
+// fixes it, or — for one this step fixes itself, in its quotations and documents — what to do there and a way to the
+// place (the budget point names its two fixes, a lower amount or another line, in words); the server's refusal of a send
+// leads the same way, to another step or to its place on this one. The workspace's own parts
 // show the totals, the budget and the route (src/ui/request-form/summary.tsx), and its documents step the quotations, the
 // suggested supplier and the files when the rules ask for them or the requester opens them (loaded only then). A photo
 // from the phone's camera is one tap away in any case (./camera-attach.tsx, FR-INT-005 AC3), beside the general file
 // picker. The send button sits in the bar at the bottom (the form's shell): its words, its refusal and the server's
 // answer are the same as on the web, and the shell tells this step what stops the button, so that "ตรวจก่อนส่ง" leads
-// with it and says the request can be sent only when nothing does (§9.9 principle 3). The file commands reach this step
-// already gated by the LIFF session (the form's shell, ./ready.ts).
+// with it and says the request can be sent only when nothing does (§9.9 principle 3). The server's refusal of a send is
+// the last thing on the step, right above the bar's button as on the web, and comes into view when it arrives. The file
+// commands reach this step already gated by the LIFF session (the form's shell, ./ready.ts).
 
 /** A refusal because the DOA names nobody who can approve (FR-DOA-003 AC3) */
 const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
@@ -164,6 +168,91 @@ export async function openFileWith(way: { readonly line: ((href: string) => void
 /** A button that looks like a link and is still 44 px high (§9.4) */
 const LINK_BUTTON = 'min-h-11 self-start text-left'
 
+/** The part of this step that holds the quotations and the documents (its LiffSection below) */
+const DOCUMENTS_PART = 'review-documents'
+/**
+ * The quotations, the reason for not choosing the lowest one and the suggested supplier, as the documents step names
+ * them (src/ui/request-form/documents-step.tsx, place-supplier.tsx)
+ */
+const QUOTATIONS_ID = 'quotations'
+const REASON_ID = 'non-lowest-reason'
+const SUPPLIER_ID = 'suggested-supplier'
+
+/** The entry of an attachment rule in the documents step, which says what the rule still lacks */
+const ruleEntryOf = (ruleId: string | undefined) => [...document.querySelectorAll<HTMLElement>('[data-rule]')].find((entry) => entry.dataset.rule === ruleId) ?? null
+
+/**
+ * A question of the form asked beside the documents (src/ui/request-form/document-fields.ts): its label with the box,
+ * or — a question of a few choices, radio buttons with no box of their own — the group under the question
+ */
+function fieldPlaceOf(fieldId: string): HTMLElement | null {
+  const control = document.getElementById(`field-${fieldId}`)
+  if (control) return control.closest<HTMLElement>('div') ?? control
+  const choice = document.querySelector<HTMLElement>(`input[name="${CSS.escape(fieldId)}"]`)
+  return choice?.closest<HTMLElement>('fieldset') ?? choice
+}
+
+/**
+ * Where on this step the requester puts right a problem the step fixes itself, in its quotations and documents: the entry
+ * of the attachment rule, which says what the rule still lacks; a question the rules ask to be answered; the reason for
+ * not choosing the lowest quotation; the quotation that is not complete; the quotations. While the documents are still
+ * loading, the part that holds them.
+ */
+function placeOf(p: Problem): HTMLElement | null {
+  const part = document.getElementById(DOCUMENTS_PART)
+  const quotations = document.getElementById(QUOTATIONS_ID)
+  switch (p.kind) {
+    case 'ATTACHMENTS':
+      return ruleEntryOf(p.ruleId) ?? part
+    case 'FIELD_REQUIRED':
+      return fieldPlaceOf(p.fieldId) ?? part
+    case 'QUOTATION_REASON':
+      return document.getElementById(REASON_ID) ?? quotations ?? part
+    case 'QUOTATION_INCOMPLETE':
+    case 'QUOTATION_FILE':
+      return document.getElementById(`quote-${p.quotationNo}-supplier`)?.closest('fieldset') ?? quotations ?? part
+    default:
+      return quotations ?? part
+  }
+}
+
+/**
+ * Where on this step the requester puts right what the server refused, when this step fixes it (failureStep
+ * 'documents'): the rule that is not met, the question it names, the reason for not choosing the lowest quotation, the
+ * suggested supplier, the quotations. While the documents are still loading, the part that holds them.
+ */
+function refusalPlaceOf(f: FormFailure): HTMLElement | null {
+  const part = document.getElementById(DOCUMENTS_PART)
+  const key = failureKey(f)
+  const fieldId = failureTarget(f).fieldId
+  const place =
+    key === 'ATTACHMENT_RULE_FAILED'
+      ? ruleEntryOf(f.rule ?? f.failures?.[0]?.rule)
+      : fieldId
+        ? fieldPlaceOf(fieldId)
+        : key === 'QUOTE_LOWEST' || f.field === 'nonLowestQuoteReason'
+          ? document.getElementById(REASON_ID)
+          : key === 'SUPPLIER_UNKNOWN'
+            ? (document.getElementById(SUPPLIER_ID)?.closest<HTMLElement>('section') ?? null)
+            : null
+  return place ?? document.getElementById(QUOTATIONS_ID) ?? part
+}
+
+/**
+ * Brings a place on this step to the top of the screen — near the end of the page, as far up as the page scrolls, so the
+ * bar never covers it — and gives it focus, so that keyboard and screen reader users start there too. A place that cannot
+ * take focus takes it until it loses it again.
+ */
+function bringToFocus(place: HTMLElement | null) {
+  if (!place) return
+  if (place.tabIndex < 0 && !place.hasAttribute('tabindex')) {
+    place.setAttribute('tabindex', '-1')
+    place.addEventListener('blur', () => place.removeAttribute('tabindex'), { once: true })
+  }
+  place.focus({ preventScroll: true })
+  place.scrollIntoView({ block: 'start' })
+}
+
 export function LiffReviewStep(props: LiffReviewProps) {
   const t = useTranslations('requestForm')
   const tl = useTranslations('liffRequests.form')
@@ -178,14 +267,33 @@ export function LiffReviewStep(props: LiffReviewProps) {
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
   const [fileBusy, setFileBusy] = useState(false)
   const [fileProblem, setFileProblem] = useState<FileProblem | null>(null)
-  // Documents show when a rule asks for some, when the request has some, when the requester opens them, or to say why
-  // a file could not be attached
+  // The questions the attachment rules ask to be answered are asked with the documents (src/ui/request-form/document-fields.ts)
+  const documentFields = documentFieldIds(data.form.rules)
+  const asksHere = data.form.fields.some((f) => visible.has(f.id) && documentFields.has(f.id))
+  // Documents show when a rule asks for some, when the request has some, when one of those questions is asked, when the
+  // requester opens them, or to say why a file could not be attached
   const [documentsOpen, setDocumentsOpen] = useState(false)
-  const showDocuments = documentsOpen || rules.length > 0 || values.quotations.length > 0 || files.attachments.length > 0 || fileProblem !== null
+  const showDocuments = documentsOpen || rules.length > 0 || asksHere || values.quotations.length > 0 || files.attachments.length > 0 || fileProblem !== null
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
-  const failed = submitError ? failureStep(submitError) : null
-  // A refusal fixed on this step (the documents) needs no way to it
+  const failed = submitError ? failureStep(submitError, documentFields) : null
+  // A refusal fixed on this step (the documents) leads to its place here, one fixed on another step to that step
   const fixStep = failed ? liffStepOf(failed) : null
+  // The send button sits in the bar at the bottom of the screen, wherever on this long step the requester is when they
+  // press it: a new refusal is brought into view, right above the bar, and takes focus, so that keyboard and screen
+  // reader users are there too. One already shown when the step opened stays where it is: the step's heading takes focus.
+  const refusalRef = useRef<HTMLDivElement>(null)
+  const shownRefusal = useRef(submitError)
+  useEffect(() => {
+    if (submitError === shownRefusal.current) return
+    shownRefusal.current = submitError
+    if (submitError) bringToFocus(refusalRef.current)
+  }, [submitError])
+
+  /** Opens the documents if they are closed, and brings the place that fixes the refusal to the top */
+  function toRefusalPlace(f: FormFailure) {
+    setDocumentsOpen(true)
+    bringToFocus(refusalPlaceOf(f))
+  }
   const fileError =
     fileProblem === null
       ? null
@@ -248,23 +356,6 @@ export function LiffReviewStep(props: LiffReviewProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      {submitError ? (
-        <LiffNotice tone="danger">
-          <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
-          {fixStep && fixStep !== 'review' ? (
-            <Button variant="link" className={LINK_BUTTON} onClick={() => onGoTo(fixStep)}>
-              {t('review.goTo', { step: t(`steps.${fixStep}`) })}
-            </Button>
-          ) : null}
-          {/* FR-INT-006 AC2: saved elsewhere since this page opened — offer the latest version right here */}
-          {submitError.code === 'CONFLICT_VERSION' ? (
-            <Button variant="secondary" className="mt-2" onClick={props.onReload}>
-              {t('save.reload')}
-            </Button>
-          ) : null}
-        </LiffNotice>
-      ) : null}
-
       <LiffSection id="review-summary" title={t('review.summary')}>
         <dl className="grid grid-cols-1 gap-y-1">
           <dt className="text-ink-muted">{t('review.type')}</dt>
@@ -351,7 +442,7 @@ export function LiffReviewStep(props: LiffReviewProps) {
               </li>
             ) : null}
             {problems.map((p, i) => {
-              const step = liffStepOf(problemStep(p))
+              const step = liffStepOf(problemStep(p, documentFields))
               return (
                 <li key={i} className="flex flex-col gap-1 py-2">
                   <p className="text-ink">
@@ -362,13 +453,44 @@ export function LiffReviewStep(props: LiffReviewProps) {
                     <Button variant="link" className={LINK_BUTTON} onClick={() => onGoTo(step)}>
                       {t('review.goTo', { step: t(`steps.${step}`) })}
                     </Button>
-                  ) : null}
+                  ) : (
+                    // Fixed on this step, under its quotations and documents: what to do, and the way there (§9.9 rule 7)
+                    <Button variant="link" className={LINK_BUTTON} onClick={() => bringToFocus(placeOf(p))}>
+                      {p.kind === 'ATTACHMENTS' ? tl('fixRule', { rule: p.ruleId, part: t('steps.documents') }) : tl('fixHere', { part: t('steps.documents') })}
+                    </Button>
+                  )}
                 </li>
               )
             })}
           </ul>
         )}
       </LiffSection>
+
+      {/* The server's refusal of the send, last on the step: right above the send button in the bar, as the workspace's
+          review step puts it above its button (§9.9: never only somewhere the requester does not look) */}
+      {submitError ? (
+        <div ref={refusalRef}>
+          <LiffNotice tone="danger">
+            <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
+            {fixStep === 'review' ? (
+              // Fixed on this step, under its quotations and documents: the way there (§9.9 rule 7)
+              <Button variant="link" className={LINK_BUTTON} onClick={() => toRefusalPlace(submitError)}>
+                {tl('fixHere', { part: t('steps.documents') })}
+              </Button>
+            ) : fixStep ? (
+              <Button variant="link" className={LINK_BUTTON} onClick={() => onGoTo(fixStep)}>
+                {t('review.goTo', { step: t(`steps.${fixStep}`) })}
+              </Button>
+            ) : null}
+            {/* FR-INT-006 AC2: saved elsewhere since this page opened — offer the latest version right here */}
+            {submitError.code === 'CONFLICT_VERSION' ? (
+              <Button variant="secondary" className="mt-2" onClick={props.onReload}>
+                {t('save.reload')}
+              </Button>
+            ) : null}
+          </LiffNotice>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -380,7 +502,7 @@ export function SaveFailureText({ failure, fields, locale }: { readonly failure:
 }
 
 const PRIMARY_LINK =
-  'inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-center font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
+  'inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 text-center font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline'
 
 /**
  * Sent (§9.9 rule 7): the confirmation repeats the button's words — "ส่งขออนุมัติแล้ว", "ส่งขออนุมัติอีกครั้งแล้ว",
@@ -408,7 +530,7 @@ export function LiffSent({
   return (
     <>
       <LiffContent>
-        <h2 className="text-lg leading-snug font-semibold break-words">{title}</h2>
+        <h2 className="text-lg font-semibold break-words">{title}</h2>
         <LiffNotice tone="success">
           <p className="font-semibold">{headline}</p>
           {sent.number ? <p>{t('number', { number: sent.number })}</p> : null}

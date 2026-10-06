@@ -195,7 +195,7 @@ export interface KpiItemDto {
   readonly minutes: number | null
   readonly doaRef: { readonly versionId: string; readonly code: string; readonly versionNo: number; readonly ruleCode: string } | null
   /** Why the item is in the list, in a word the screen translates */
-  readonly mark: 'MOBILE' | 'NOT_MOBILE' | 'WITH_DOA' | 'WITHOUT_DOA' | 'MISROUTED' | 'PAST_DUE_DECIDED' | 'PAST_DUE_OPEN' | null
+  readonly mark: 'MOBILE' | 'NOT_MOBILE' | 'WITH_DOA' | 'WITHOUT_DOA' | 'MISROUTED' | 'DOA_MATCHED' | 'PAST_DUE_DECIDED' | 'PAST_DUE_OPEN' | null
 }
 
 export interface KpiDetailDto {
@@ -203,7 +203,7 @@ export interface KpiDetailDto {
   /** G-5 of one kind of document (PURCHASE_REQUEST …), or null for all */
   readonly kind: string | null
   readonly period: { readonly from: string; readonly to: string }
-  /** The newest KPI_DETAIL_MAX items */
+  /** At most KPI_DETAIL_MAX items, newest first; G-2 (a) puts the misrouted decisions it counts first */
   readonly items: readonly KpiItemDto[]
   /** How many items stand behind the figure in all */
   readonly total: number
@@ -254,9 +254,11 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
     let counted = 0
     let decisionMark: (d: KpiDecisionItem) => KpiItemDto['mark'] = () => null
     if (m === 'g2a') {
-      decisions = items.decisions.filter((d) => d.misrouted === true)
-      counted = decisions.length
-      decisionMark = () => 'MISROUTED'
+      // every decision the DOA engine checked again, the misrouted ones counted: "0 รายการ (ตรวจแล้ว 33 การตัดสิน)"
+      // opens the 33 decisions it checked, as G-2 (b) and G-5 open every decision they count or not (§9.9)
+      decisions = items.decisions.filter((d) => d.misrouted !== null)
+      counted = decisions.filter((d) => d.misrouted === true).length
+      decisionMark = (d) => (d.misrouted ? 'MISROUTED' : 'DOA_MATCHED')
     } else if (m === 'g2b') {
       decisions = items.decisions
       counted = decisions.filter((d) => d.doaVersionId && d.doaRuleCode).length
@@ -329,6 +331,9 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
     ]
     if (m === 'g1' || m === 'g3a') counted = list.length
     list.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0))
-    return ok({ measure: m, kind, period: period.data, items: list.slice(0, KPI_DETAIL_MAX), total: list.length, counted })
+    // G-2 (a) counts the misrouted decisions among all it checked: they come first, so the cut at KPI_DETAIL_MAX never
+    // hides one behind newer decisions made by the right person
+    const shown = m === 'g2a' ? [...list.filter((i) => i.mark === 'MISROUTED'), ...list.filter((i) => i.mark !== 'MISROUTED')] : list
+    return ok({ measure: m, kind, period: period.data, items: shown.slice(0, KPI_DETAIL_MAX), total: list.length, counted })
   })
 }

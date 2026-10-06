@@ -74,6 +74,19 @@
   --font-sans: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
 }
 
+/*
+ * Line height 1.6 for every text size the screens use (§9.9: Thai vowels and tone marks never collide). Tailwind's size
+ * utilities (text-sm … text-2xl) set a line height of their own, 1.25 to 1.5 by default, over the body's 1.6; these give
+ * them the body's. An element that needs a fixed line box still sets its own leading-* (the bell's count).
+ */
+@theme {
+  --text-sm--line-height: 1.6;
+  --text-base--line-height: 1.6;
+  --text-lg--line-height: 1.6;
+  --text-xl--line-height: 1.6;
+  --text-2xl--line-height: 1.6;
+}
+
 @layer base {
   * {
     border-color: var(--border);
@@ -109,4 +122,23 @@
 
 @utility tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The heading of a part inside a component the workspace and LIFF share (an h3, a group's legend): 18 px under the
+ * workspace's 20 px step and section headings; 16 px on a LIFF page, whose section headings are 18 px (liff-type).
+ * Headings differ by size and weight (§9.9).
+ */
+@utility subheading {
+  font-size: var(--subheading-size, var(--text-lg));
+}
+
+/*
+ * The root of a LIFF page (src/ui/liff/frame.tsx): LINE's mobile screen keeps its text at 16 px whatever the width (§9.4,
+ * §9.9). The workspace parts it draws step their secondary text down to text-sm on a wide screen (md:text-sm, the web's
+ * 14 px), so inside LIFF text-sm is 16 px; and their sub-headings take LIFF's 16 px (subheading).
+ */
+@utility liff-type {
+  --text-sm: var(--text-base);
+  --subheading-size: var(--text-base);
 }

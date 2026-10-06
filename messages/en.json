@@ -1203,6 +1203,14 @@
   },
   "app": {
     "comingSoon": "The system is being built. This page will become your work home page.",
+    "dateChosen": "Chosen: {date}",
+    "dateParts": {
+      "day": "Day",
+      "incomplete": "Choose the day, the month and the year",
+      "incompleteOrNone": "Choose the day, the month and the year, or set all three back to “Day”, “Month” and “Year (BE)” for no date",
+      "month": "Month",
+      "year": "Year (BE)"
+    },
     "description": "Procurement platform with delegation-of-authority approvals and live budget control",
     "error": {
       "body": "The system failed while opening this page. Everything you saved is still there. Try again; if it keeps failing, tell the BCS team the reference code.",
@@ -1234,6 +1242,7 @@
       "Auth": "Sign-in",
       "BudgetGrant": "Cross-department budget grant",
       "BudgetLine": "Budget line",
+      "ChannelIdentity": "LINE account",
       "ConsolidationRun": "Consolidation round",
       "CostCenter": "Cost center",
       "Delegation": "Delegation",
@@ -1281,6 +1290,8 @@
         "assigned": "Approval task assigned",
         "cancelled": "Approval task cancelled",
         "decided": "Approval task decided",
+        "escalated": "Overdue approval task escalated",
+        "overdue": "Approval task overdue",
         "reassigned": "Approval task reassigned",
         "reminded": "Approval task reminded"
       },
@@ -1292,7 +1303,8 @@
         "2fa_reset": "Two-step sign-in reset",
         "login_failed": "Sign-in failed",
         "login_locked": "Sign-in locked for a while",
-        "login_succeeded": "Signed in"
+        "login_succeeded": "Signed in",
+        "pin_set": "Transaction PIN set or changed"
       },
       "budget": {
         "actualized": "Budget moved to actual",
@@ -1350,15 +1362,21 @@
       "invoice_confirmation": {
         "recorded": "Invoice confirmation recorded"
       },
+      "line": {
+        "linked": "LINE account linked",
+        "unlinked": "LINE account unlinked"
+      },
       "member": {
         "activated": "Member activated",
         "deactivated": "Member deactivated",
         "invited": "Member invited",
+        "notification_prefs_updated": "Notification settings changed",
         "role_granted": "Role granted",
         "role_revoked": "Role revoked",
         "session_revoked": "Open sign-ins ended"
       },
       "notification": {
+        "digest_sent": "Daily summary sent",
         "read": "Notification read"
       },
       "org_authority_change": {
@@ -1412,6 +1430,7 @@
         "updated": "Request type changed"
       },
       "security": {
+        "pin_locked": "Transaction PIN locked for a while",
         "sod_blocked": "Separation of duties blocked an action",
         "token_misuse": "Decision link misused"
       },
@@ -1455,6 +1474,7 @@
       "gr": "Receiving",
       "holiday": "Holidays",
       "invoice_confirmation": "Invoices",
+      "line": "LINE accounts",
       "member": "Members",
       "notification": "Notifications",
       "org_authority_change": "Authority structure",
@@ -1521,6 +1541,9 @@
     "brandTagline": "Procurement with approvals that follow your delegation of authority",
     "forgot": {
       "email": "Work e-mail",
+      "emailInvalid": "This is not a complete e-mail address. Check it has @ and your company's domain.",
+      "emailRequired": "Enter your work e-mail to get the link.",
+      "failed": "The link was not sent. Check your connection and press Send password link again. If it still does not work, contact your organization admin.",
       "intro": "Enter your work e-mail and we will send you a link to set a new password.",
       "sent": "If this e-mail has a BCS account, a link to set a new password is on its way. The link works for 1 hour. Check your spam folder if you do not see it.",
       "submit": "Send password link",
@@ -1550,10 +1573,13 @@
     },
     "login": {
       "email": "Work e-mail",
+      "emailInvalid": "This is not a complete e-mail address. Check it has @ and your company's domain.",
+      "emailRequired": "Enter your work e-mail to sign in.",
       "failed": "Sign-in did not work. Check your connection and try again.",
       "forgot": "Forgot password",
       "invalid": "The e-mail or password is not correct. Check them and try again, or choose Forgot password.",
       "password": "Password",
+      "passwordRequired": "Enter your password to sign in.",
       "sessionEnded": "Your session ended for security. Sign in again to continue.",
       "submit": "Sign in",
       "submitting": "Checking",
@@ -1563,7 +1589,7 @@
     "reset": {
       "confirm": "Enter the new password again",
       "done": "Your new password is saved and other devices were signed out. Sign in with the new password.",
-      "failed": "The password was not saved. Request a new link and try again.",
+      "failed": "The new password was not saved. Check your connection and press Save new password again.",
       "invalidLink": "This link has expired or was already used. Request a new one on the Forgot password page.",
       "password": "New password",
       "requestNew": "Request a new link",
@@ -1586,6 +1612,7 @@
       "devicesTitle": "Signed-in devices",
       "enabled": "Two-step verification is on.",
       "enabledHint": "If you change phones or lose the app, ask your organization admin to reset it.",
+      "failed": "Two-step verification was not set up. Check your connection and try again.",
       "invalidCode": "The code is wrong or has expired. Enter the latest code from the app.",
       "manualKey": "If you cannot scan, type this key into the app",
       "noMembership": "This account is not a member of any active organization. Contact your organization admin.",
@@ -1642,7 +1669,7 @@
       "BUSY": "The system is busy with other work, so the reminder was not sent. Wait a moment and press remind again.",
       "CONFLICT": "This press clashed with another command. Reload the page and try again.",
       "FAILED": "The reminder was not sent. Check your connection and try again.",
-      "FORBIDDEN": "You may not remind about this document.",
+      "FORBIDDEN": "The reminder was not sent: this account may no longer remind about this document. If it should, ask your organization admin to check its roles.",
       "INTERNAL": "Something went wrong and the reminder was not sent. Try again; if it still fails, tell your admin the reference {requestId}.",
       "NOT_FOUND": "This task is no longer within your scope; it may have been decided or moved. Press See the latest figures to update the list.",
       "READ_ONLY": "The reminder was not sent: you see this document as the auditor, who only reads.",
@@ -1696,11 +1723,12 @@
     },
     "table": {
       "average": "Average (business hrs)",
+      "averageLink": "Average {hours} business hours at {name}: see documents",
       "caption": "Pending documents by holder",
       "hint": "Press a name or a figure to see that person's documents and send a reminder.",
-      "hours": "business hours",
       "nameLink": "See the documents {name} holds",
       "oldest": "Oldest (business hrs)",
+      "oldestLink": "Oldest {hours} business hours at {name}: see documents",
       "open": "Awaiting decision",
       "openLink": "{count} awaiting decision at {name}: see documents",
       "overdue": "Past due (SLA)",
@@ -2570,7 +2598,13 @@
     "myTasks": "Waiting for your decision",
     "myTasksAll": "See all tasks waiting for approval ({count})",
     "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
-    "newRequest": "Buy or hire",
+    "pool": {
+      "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet",
+      "list": "Requests to purchase",
+      "needSupplier": "{count, plural, one {# line needs} other {# lines need}} a supplier",
+      "ready": "{count, plural, one {# line is} other {# lines are}} ready for a draft PO",
+      "title": "Requests to purchase: {requests} ({lines, plural, one {# line} other {# lines}})"
+    },
     "startRequest": "Start a purchase or hiring request",
     "title": "Home",
     "toMyRequests": "Follow your own requests"
@@ -2607,6 +2641,7 @@
       "atVia": "at {time} · channel {channel}",
       "back": "Back to the KPI page",
       "capped": "Showing the latest {shown} of {total}",
+      "cappedCountedFirst": "Showing {shown} of {total}: the counted ones first, then the latest",
       "count": "{count, plural, one {# item} other {# items}}",
       "countedOf": "{counted} of {total} counted",
       "decidedAfter": "Decided at {time}, {hours} business hours after assignment",
@@ -2629,7 +2664,8 @@
       "heldBy": "Held by {name}",
       "listLabel": "What is counted in {name}",
       "mark": {
-        "MISROUTED": "The decider is not who the DOA names",
+        "DOA_MATCHED": "Not counted: the decider is who the DOA names",
+        "MISROUTED": "Counted: the decider is not who the DOA names",
         "MOBILE": "Counted: decided through {channel}",
         "NOT_MOBILE": "Not counted: decided through {channel}",
         "PAST_DUE_DECIDED": "Decided after its due time",
@@ -2931,7 +2967,7 @@
       "track": "See my requests and their status"
     },
     "form": {
-      "back": "Back",
+      "back": "Back to step {n}",
       "backToCatalog": "Request types",
       "backToChat": "Back to the chat",
       "barLabel": "Go to the next step or send the request",
@@ -2946,6 +2982,8 @@
       },
       "documentsLoading": "Opening the documents",
       "documentsOpen": "Attach quotations or documents, or suggest a supplier",
+      "fixHere": "Fix it under {part}",
+      "fixRule": "Attach what rule {rule} asks for under {part}",
       "notFound": "This request was not found, or it is not yours. Choose a request type to start a new request",
       "notFoundTitle": "Request not found",
       "savedAt": "Draft saved at {time}",
@@ -3366,7 +3404,7 @@
         "choose": "Choose a supplier",
         "clear": "Remove the supplier from the selected lines",
         "cleared": "Supplier removed from {count} lines. They wait in the pool until a supplier is chosen again.",
-        "done": "Supplier {supplier} chosen for {count} lines",
+        "done": "{supplier} is now used for {count} lines",
         "jump": "Choose the supplier",
         "needLines": "Tick the lines you want first",
         "needSupplier": "Choose a supplier first",
@@ -3536,8 +3574,10 @@
       "edit": {
         "allRemoved": "A draft keeps at least one line, and a whole draft cannot be thrown away yet. A draft that was not sent for approval orders nothing and reserves no more budget: leave it, and tell your organization's administrator.",
         "badDays": "Type the days as a whole number from 0 to {max, number}",
-        "badPrice": "Type the price as a number with at most 2 decimals, such as 1500.00",
+        "badPrice": "Type the price as a number with at most 2 decimals, such as 1,500.00",
         "badQuantity": "Type a quantity above 0 with at most 4 decimals",
+        "closeLine": "Close without saving",
+        "editLine": "Edit line {no}",
         "lineLegend": "Line {no}: {description}",
         "linesTitle": "Prices and quantities",
         "maxHint": "At most {max} {uom}, what the request still has left; what is not ordered waits in the pool with the same supplier",
@@ -3549,7 +3589,7 @@
         "quantity": "Quantity ({uom})",
         "remove": "Take this line off, back to the procurement pool",
         "removeHint": "The request line goes back to the pool with its supplier. A draft keeps at least one line.",
-        "saveLines": "Save prices and quantities",
+        "saveLine": "Save line {no}",
         "saveTerms": "Save terms and note",
         "saved": "Draft saved; the amounts were computed again",
         "termDays": "Credit (days)",
@@ -4152,7 +4192,7 @@
         "CONFLICT": "This press clashed with another command. Reload the page and try again.",
         "FAILED": "The export did not complete. Check your connection and try again.",
         "FILTER": "These conditions cannot be exported. Check the dates and conditions and try again.",
-        "FORBIDDEN": "You may not export this file.",
+        "FORBIDDEN": "Your account may not export this file; your rights may have just changed. Reload the page to see them, and ask your organization admin if you still need the file.",
         "INTERNAL": "Something went wrong and nothing was exported. Try again; if it still fails, tell your admin the reference {requestId}.",
         "TOO_MANY": "One file holds at most {max} rows. Narrow the period or the conditions and export again.",
         "UNAUTHENTICATED": "Your session has ended. Sign in again and retry."
@@ -4427,6 +4467,8 @@
       "vatable": "This item carries VAT"
     },
     "page": {
+      "cancelled": "This request was cancelled, so it can no longer be changed. Open it to see its history, or start a new request from Buy or hire",
+      "cancelledTitle": "This request was cancelled",
       "draftTitle": "Draft request: {type}",
       "forbidden": "This account cannot create requests. Contact your organization's administrator",
       "metaEdit": "Change a request",
@@ -4439,7 +4481,7 @@
       "returned": "The approver returned this request for changes. Change it, then press Send for approval again on the last step",
       "returnedReason": "Returned for changes: {reason}",
       "returnedTitle": "Change a returned request: {type}",
-      "sent": "This request was sent for approval or cancelled, so it can no longer be changed. Open it to see where it stands",
+      "sent": "This request was sent, so it can no longer be changed. Open it to see where it stands",
       "sentTitle": "This request was sent",
       "toCatalog": "Back to the request types",
       "unknownType": "This request type does not exist or was switched off. Choose another type on the Buy or hire page",

@@ -1,5 +1,6 @@
 import { documentTotals, exceedsByMoreThan, parseQuantity, vatFromNet, type Satang } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
+import type { BusinessCalendar } from '@/core/sla'
 import { PO_MACHINE, transition, type PoState } from '@/core/state-machines'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { OrgSettingsSchema } from '@/lib/org-settings'
@@ -103,9 +104,14 @@ async function attachmentsOf(db: TenantDb, subjectType: 'Request' | 'GoodsReceip
 
 // ---------- whom a PO waits for ----------
 
+/**
+ * Whom a PO waits for. A wait on procurement or on the supplier carries the business minutes it has lasted (§9.9 principle
+ * 4, FR-INT-008 AC1: how long the current step has waited, as a request waits for procurement since its approval), from
+ * when the PO entered its state (teamWaitSince); null without a business calendar
+ */
 export type PoWaitingDto =
   /** DRAFT: procurement checks it and sends it for approval */
-  | { readonly kind: 'EDIT' }
+  | { readonly kind: 'EDIT'; readonly waitingMinutes: number | null }
   /** PENDING_APPROVAL: the first of `approvers` (assignee null when no open task is found) */
   | {
       readonly kind: 'APPROVER'
@@ -122,9 +128,9 @@ export type PoWaitingDto =
       readonly approvers: readonly WaitingApproverDto[]
     }
   /** APPROVED: procurement sends it to the supplier; `bounced` when the last e-mail came back (FR-P2P-005 AC2) */
-  | { readonly kind: 'SEND'; readonly bounced: boolean }
+  | { readonly kind: 'SEND'; readonly bounced: boolean; readonly waitingMinutes: number | null }
   /** SENT: the supplier delivers and the receiver records it */
-  | { readonly kind: 'DELIVERY' }
+  | { readonly kind: 'DELIVERY'; readonly waitingMinutes: number | null }
   /** PARTIALLY_RECEIVED: the rest of the goods */
   | { readonly kind: 'REST' }
   /** RECEIVED: the invoice, then closing */
@@ -138,15 +144,60 @@ interface WaitingContext {
    * its oldest open task), oldest first, with the business time each has waited
    */
   readonly waitingByRoute: ReadonlyMap<string, readonly WaitingApproverDto[]>
+  /** The organization's business calendar (null when its settings cannot be read) and the time of the read */
+  readonly calendar: BusinessCalendar | null
+  readonly now: Date
 }
 
 /** The approvers a route waits for now; empty when it waits for nobody */
 const waitingFor = (w: WaitingContext, routeId: string | null): readonly WaitingApproverDto[] => (routeId ? (w.waitingByRoute.get(routeId) ?? []) : [])
 
-function waitingOf(po: { status: string; currentRouteId: string | null; sendBouncedAt: Date | null }, w: WaitingContext): PoWaitingDto {
+/** The Events after which a PO is a draft waiting for procurement: the round drafted it, or its approver returned it */
+const DRAFT_WAIT_EVENTS: readonly string[] = ['po.drafted', 'po.returned']
+
+/**
+ * When a PO began to wait on procurement or on its supplier: when it entered the state it is in — a draft when it was
+ * drafted or returned (`draftSince`), an approved PO at its approval, a sent PO when it was last sent. null for any other
+ * state: an approver's wait counts from the task (waitingContext), and the rest of the goods and the closing are not
+ * counted here.
+ */
+function teamWaitSince(po: { status: string; approvedAt: Date | null; sentAt: Date | null }, draftSince: Date | null): Date | null {
   switch (po.status) {
     case 'DRAFT':
-      return { kind: 'EDIT' }
+      return draftSince
+    case 'APPROVED':
+      return po.approvedAt
+    case 'SENT':
+      return po.sentAt
+    default:
+      return null
+  }
+}
+
+/** Business minutes since `since` (no pause: nobody is asked a question on these waits); null without it or a calendar */
+const businessWaited = (w: WaitingContext, since: Date | null): number | null => (since ? businessMinutesWaited(w.calendar, since, w.now, []) : null)
+
+/**
+ * When each of these drafts began to wait for procurement: its last po.drafted or po.returned Event. A draft without
+ * either is not in the map (the caller falls back on when the PO was made)
+ */
+async function draftsSince(db: TenantDb, poIds: readonly string[]): Promise<Map<string, Date>> {
+  const since = new Map<string, Date>()
+  if (poIds.length === 0) return since
+  const events = await db.event.findMany({
+    where: { aggregateType: 'PurchaseOrder', aggregateId: { in: [...poIds] }, type: { in: [...DRAFT_WAIT_EVENTS] } },
+    select: { aggregateId: true, occurredAt: true },
+    orderBy: { seq: 'asc' },
+  })
+  for (const e of events) since.set(e.aggregateId, e.occurredAt)
+  return since
+}
+
+/** `teamWaited`: the business minutes of a wait on procurement or the supplier (businessWaited of teamWaitSince) */
+function waitingOf(po: { status: string; currentRouteId: string | null; sendBouncedAt: Date | null }, w: WaitingContext, teamWaited: number | null): PoWaitingDto {
+  switch (po.status) {
+    case 'DRAFT':
+      return { kind: 'EDIT', waitingMinutes: teamWaited }
     case 'PENDING_APPROVAL': {
       const approvers = waitingFor(w, po.currentRouteId)
       const lead = approvers[0]
@@ -154,9 +205,9 @@ function waitingOf(po: { status: string; currentRouteId: string | null; sendBoun
       return { kind: 'APPROVER', assignee: lead.assignee, onBehalfOf: lead.onBehalfOf, role: lead.role, waitingMinutes: lead.waitingMinutes, dueAt: lead.dueAt, overdue: lead.overdue, approvers }
     }
     case 'APPROVED':
-      return { kind: 'SEND', bounced: po.sendBouncedAt !== null }
+      return { kind: 'SEND', bounced: po.sendBouncedAt !== null, waitingMinutes: teamWaited }
     case 'SENT':
-      return { kind: 'DELIVERY' }
+      return { kind: 'DELIVERY', waitingMinutes: teamWaited }
     case 'PARTIALLY_RECEIVED':
       return { kind: 'REST' }
     case 'RECEIVED':
@@ -213,7 +264,7 @@ async function waitingContext(db: TenantDb, ctx: Ctx, routeIds: readonly string[
       },
     ])
   }
-  return { waitingByRoute }
+  return { waitingByRoute, calendar, now: ctx.now }
 }
 
 // ---------- the list (/procurement/pos) ----------
@@ -288,6 +339,8 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
         grossSatang: true,
         createdAt: true,
         updatedAt: true,
+        approvedAt: true,
+        sentAt: true,
         currentRouteId: true,
         sendBouncedAt: true,
         supplier: { select: { code: true, nameTh: true } },
@@ -296,13 +349,17 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
       },
     }),
   ])
-  const [w, todayBp] = await Promise.all([
+  const [w, todayBp, drafted] = await Promise.all([
     waitingContext(
       db,
       ctx,
       pos.flatMap((p) => (p.status === 'PENDING_APPROVAL' && p.currentRouteId ? [p.currentRouteId] : [])),
     ),
     pos.some((p) => p.status === 'DRAFT') ? rateOfToday(ctx) : Promise.resolve(null),
+    draftsSince(
+      db,
+      pos.filter((p) => p.status === 'DRAFT').map((p) => p.id),
+    ),
   ])
   const counts = Object.fromEntries(PO_STATUSES.map((s) => [s, 0])) as Record<PoStatusDto, number>
   for (const g of grouped) counts[g.status] = g._count._all
@@ -330,7 +387,7 @@ export async function listPurchaseOrders(ctx: Ctx, filter: PoListFilter = {}): P
         grossSatang: totals.grossSatang,
         createdAt: p.createdAt,
         updatedAt: p.updatedAt,
-        waiting: waitingOf(p, w),
+        waiting: waitingOf(p, w, businessWaited(w, teamWaitSince(p, drafted.get(p.id) ?? p.createdAt))),
       }
     }),
   }
@@ -476,6 +533,8 @@ export interface DocTrackEntryDto {
    * escalated flag), whoever of the two decided it; as on a request's timeline (TrackEntryDto.escalated)
    */
   readonly escalated?: boolean
+  /** WAIT_DELIVERY: the supplier the PO waits for, so the current step names whom it waits for (§9.9 principle 4) */
+  readonly supplierName?: string
 }
 
 interface EventRow {
@@ -863,6 +922,12 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
   const route = po.currentRouteId ? await routeOf(db, po.currentRouteId, members, roleOf) : null
   const resolvedFrom = new Map(taskRows.map((t) => [t.id, t.resolvedFrom]))
   const history = await historyFrom(db, events, (taskId) => roleOf(resolvedFrom.get(taskId)), escalatedTaskIdsOf(events, taskRows))
+  // A wait on procurement or the supplier, from when the PO entered its state: a draft since the round drafted it or its
+  // approver returned it (a returned PO is a draft again), else since it was made
+  const draftSince = events.filter((e) => e.aggregateType === 'PurchaseOrder' && DRAFT_WAIT_EVENTS.includes(e.type)).at(-1)?.occurredAt ?? po.createdAt
+  const since = teamWaitSince(po, draftSince)
+  const waited = businessWaited(w, since)
+  const nowWhat: DocTrackWhat = po.status === 'DRAFT' ? 'WAIT_EDIT' : po.status === 'APPROVED' ? 'WAIT_SEND' : po.status === 'RECEIVED' ? 'WAIT_CLOSE' : 'WAIT_DELIVERY'
   const live: DocTrackEntryDto[] =
     po.status === 'PENDING_APPROVAL'
       ? liveRouteSteps(route, waitingFor(w, po.currentRouteId))
@@ -872,10 +937,12 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
               ...blank,
               key: `now-${po.status}`,
               state: 'current',
-              what: po.status === 'DRAFT' ? 'WAIT_EDIT' : po.status === 'APPROVED' ? 'WAIT_SEND' : po.status === 'RECEIVED' ? 'WAIT_CLOSE' : 'WAIT_DELIVERY',
-              at: null,
+              what: nowWhat,
+              at: since,
               channel: null,
               actor: null,
+              waitingMinutes: waited,
+              ...(nowWhat === 'WAIT_DELIVERY' ? { supplierName: po.supplier.nameTh } : {}),
             },
           ]
         : []
@@ -1013,7 +1080,7 @@ export async function getPurchaseOrderView(ctx: Ctx, poId: string): Promise<PoVi
     budget,
     requests,
     route,
-    waiting: waitingOf(po, w),
+    waiting: waitingOf(po, w, waited),
     next,
     track: [...history, ...live],
   }

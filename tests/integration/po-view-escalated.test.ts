@@ -94,7 +94,9 @@ describe('[FR-INT-008/AC1] an escalated step of a PO or a variance: "waiting for
     expect(await decideTask(org.ctxOf('ceo', decidedAt), { taskId: ceoTaskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'APPROVED' } })
     const after = (await getPurchaseOrderView(org.ctxOf('proc_officer', minutesAfter(decidedAt, 10)), po.id))!
     expect(stamps(after.track)).toEqual([[m.ceo, 'PO-01', true]])
-    expect(after.waiting).toEqual({ kind: 'SEND', bounced: false })
+    // Waiting to go out since the approval (§9.9 principle 4): the CEO approved half an hour after the escalation, when
+    // the business day had closed, so ten minutes later no business time has passed yet
+    expect(after.waiting).toEqual({ kind: 'SEND', bounced: false, waitingMinutes: 0 })
     expect(waitingNow(after.track)).toEqual([['WAIT_SEND', null]])
   })
 

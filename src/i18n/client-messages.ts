@@ -42,8 +42,18 @@ export const CLIENT_MESSAGES = {
   platform: ['auth.security', 'platform.modules'],
   /** /liff, /liff/help, /liff/tasks and /liff/track: the gate only */
   liff: [...LIFF_GATE],
-  /** /liff/link: the link flow, the e-mail sign-in of an account that is not linked, the LINE user of LIFF_MOCK */
-  liffLink: [...LIFF_GATE, 'liff.link', 'liff.mock', 'auth.lock', 'auth.login', 'auth.twoFactor'],
+  /**
+   * /liff/link: the link flow, the e-mail sign-in of an account that is not linked, the LINE user of LIFF_MOCK. Of the
+   * web sign-in's words, those the LIFF sign-in reads by name: the web form's own checks of its fields stay on the web
+   */
+  liffLink: [
+    ...LIFF_GATE,
+    'liff.link',
+    'liff.mock',
+    'auth.lock',
+    ...each('auth.login', ['email', 'failed', 'forgot', 'invalid', 'password', 'submit', 'submitting']),
+    'auth.twoFactor',
+  ],
   /**
    * /liff/tasks/[id]: the decision of a request, PO or variance task, and of a DOA version (its boundary tick). The bars
    * read a few refusals by name (the server words the others: src/app/liff/tasks/[id]/actions.ts) and the policy decision

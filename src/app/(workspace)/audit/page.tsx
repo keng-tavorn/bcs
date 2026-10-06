@@ -4,6 +4,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { auditView } from '@/server/services/audit'
 import { Button } from '@/ui/form/button'
+import { DateField } from '@/ui/form/date-field'
 import { Field } from '@/ui/form/field'
 import { AuditResults } from '@/ui/insight/audit-results'
 import { ExportPanel } from '@/ui/insight/export-panel'
@@ -44,7 +45,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const rows = auditRowViews(t, tl, locale, view.rows, audit.events, audit.aggregate, linkRights(state.member.id, state.roles))
   const groups = [...new Set(view.eventTypes.map((type) => type.split('.')[0]!))]
   const memberName = (m: { nameTh: string; nameEn: string | null }) => (locale === 'en' && m.nameEn ? m.nameEn : m.nameTh)
-  // the browser's date fields may show Christian-era years: the period searched is said again in Buddhist-era days
+  // the period searched, said again in Buddhist-era days with the results
   const period =
     form.from && form.to
       ? t('search.period.both', { from: dayText(locale, form.from), to: dayText(locale, form.to) })
@@ -113,8 +114,9 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
               ))}
             </select>
           </div>
-          <Field id="audit-from" name="from" type="date" label={t('search.from')} defaultValue={form.from} />
-          <Field id="audit-to" name="to" type="date" label={t('search.to')} defaultValue={form.to} />
+          {/* Each day is picked as day, month and Buddhist-era year, or left out, and read back in words (DateField) */}
+          <DateField id="audit-from" name="from" label={t('search.from')} defaultValue={form.from} />
+          <DateField id="audit-to" name="to" label={t('search.to')} defaultValue={form.to} />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button type="submit">{t('search.submit')}</Button>

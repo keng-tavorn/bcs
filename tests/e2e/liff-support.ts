@@ -108,25 +108,43 @@ export async function expectTouchTargets(page: Page) {
 /** §9.9 step 4: the wide screen — LINE on a computer, or a LIFF page opened in a desktop browser (§9.4) */
 const WIDE = { width: 1440, height: 900 }
 
+/**
+ * A bar that stays at the bottom of the screen — a LIFF page's action bar (sticky), a task's decision bar and the pool's
+ * bar on a phone (fixed) — is drawn by a full-page screenshot where the screen ended, over the page. For the record of
+ * §9.9 step 4 the screenshot draws it in its own place, at the end of what it belongs to, so nothing of the page is hidden.
+ */
+export const BARS_IN_PLACE = '.sticky.bottom-0, .fixed.bottom-0 { position: static !important; }'
+
 async function noSidewaysScroll(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0)
 }
 
 /**
+ * The pointer away from the page's controls, to the corner of the screen: a tap or a click leaves it where it pressed,
+ * and the link or button that appears there next (the sent request's "ดูคำขอ …") would be drawn pointed at, not at rest
+ */
+export async function pointerAway(page: Page) {
+  await page.mouse.move(0, 0)
+}
+
+/**
  * The §9.9 checks of one screen: axe, no sideways scroll, 44 px touch targets and a full-page screenshot at the
- * project's width (375 px), then the same at 1440 px (`<name>-1440.png`) and back to the phone.
+ * project's width (375 px), then the same at 1440 px (`<name>-1440.png`) and back to the phone. The screenshots draw the
+ * action bar in its place (BARS_IN_PLACE) and every control at rest (pointerAway).
  */
 export async function checkScreen(page: Page, testInfo: TestInfo, name: string) {
+  // First, so that axe reads and the pictures draw the screen at rest, any change of colour on leaving it long done
+  await pointerAway(page)
   await expectNoBlockingAxe(page)
   await noSidewaysScroll(page)
   await expectTouchTargets(page)
-  await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true })
+  await page.screenshot({ path: testInfo.outputPath(`${name}.png`), fullPage: true, style: BARS_IN_PLACE })
   const phone = page.viewportSize()
   if (phone && phone.width < WIDE.width) {
     await page.setViewportSize(WIDE)
     await expectNoBlockingAxe(page)
     await noSidewaysScroll(page)
-    await page.screenshot({ path: testInfo.outputPath(`${name}-1440.png`), fullPage: true })
+    await page.screenshot({ path: testInfo.outputPath(`${name}-1440.png`), fullPage: true, style: BARS_IN_PLACE })
     await page.setViewportSize(phone)
   }
 }

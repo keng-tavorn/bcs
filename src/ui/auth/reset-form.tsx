@@ -6,7 +6,7 @@ import { useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
 import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
-import { authClient } from './client'
+import { authClient, failedToAnswer, settled } from './client'
 import { PasswordPair, readPasswordPair } from './password-pair'
 
 // Set a new password from the e-mailed link (FR-AUTH-001 AC2). Better Auth signs out the account's other sessions. The
@@ -18,6 +18,7 @@ export function ResetForm({ token, min }: { token: string | null; min: number })
   const tAuth = useTranslations('auth')
   const hydrated = useHydrated()
   const [errors, setErrors] = useState<{ password?: string; confirm?: string }>({})
+  const [failure, setFailure] = useState<string | null>(null)
   const [state, setState] = useState<'form' | 'done' | 'invalid'>(token ? 'form' : 'invalid')
   const [pending, setPending] = useState(false)
 
@@ -29,10 +30,16 @@ export function ResetForm({ token, min }: { token: string | null; min: number })
     if (password.length < min) next.password = tInvite('tooShort', { min })
     else if (password !== confirm) next.confirm = tInvite('mismatch')
     setErrors(next)
+    setFailure(null)
     if (next.password || next.confirm) return
     setPending(true)
-    const { error } = await authClient.resetPassword({ newPassword: password, token })
+    const { error } = await settled(authClient.resetPassword({ newPassword: password, token }))
     setPending(false)
+    // No answer, or the server failed: the link was not used up, so the form stays and says to send again
+    if (error && failedToAnswer(error)) {
+      setFailure(t('failed'))
+      return
+    }
     setState(error ? 'invalid' : 'done')
   }
 
@@ -58,6 +65,7 @@ export function ResetForm({ token, min }: { token: string | null; min: number })
   }
   return (
     <form method="post" onSubmit={onSubmit} className="flex flex-col gap-5" noValidate>
+      {failure ? <Notice tone="danger">{failure}</Notice> : null}
       <PasswordPair min={min} labels={{ password: t('password'), confirm: t('confirm') }} errors={errors} />
       <Button type="submit" disabled={pending || !hydrated} className="w-full">
         {pending ? t('submitting') : t('submit')}

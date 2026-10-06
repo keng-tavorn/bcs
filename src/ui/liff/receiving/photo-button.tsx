@@ -63,7 +63,7 @@ export function LiffPhotoButton({
         aria-busy={state === 'opening' || undefined}
         aria-expanded={shown !== null}
         aria-controls={shown ? `${id}-photo` : undefined}
-        className="inline-flex min-h-11 items-center gap-2 self-start text-left font-medium text-primary underline underline-offset-4 hover:no-underline disabled:opacity-60"
+        className="inline-flex min-h-11 items-center gap-2 self-start text-left font-medium text-primary underline underline-offset-4 hover:no-underline disabled:text-ink-muted"
       >
         <CameraIcon className="size-4" />
         <span className="break-all">{state === 'opening' ? t('openingPhoto', { name }) : shown ? tLiff('hide', { name }) : t('openPhoto', { name })}</span>

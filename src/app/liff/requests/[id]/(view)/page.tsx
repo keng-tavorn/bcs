@@ -116,7 +116,7 @@ export default async function LiffRequestPage({ params }: { params: Promise<{ id
 
   const header = (
     <header className="flex flex-col gap-3">
-      <h2 className="text-xl leading-snug font-semibold break-words">{view.title}</h2>
+      <h2 className="text-lg font-semibold break-words">{view.title}</h2>
       <div className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
         <RequestStatus status={view.status} label={tv(`status.${view.status}`)} />
         <p className="text-ink">

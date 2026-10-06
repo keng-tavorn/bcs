@@ -667,8 +667,17 @@ test.describe('[NFR-I18N-01] [§9.4] steps 2 and 3 of the LIFF form bring their 
       await expect(heading(2, 'items')).toBeVisible()
       await expect(page.getByRole('button', { name: say(locale, 'requestForm.lines.add') })).toBeVisible()
       await expect(page.getByLabel(say(locale, 'requestForm.site.label'))).toBeVisible()
+      // §9.9 rule 7: the way back in the bar says which step it leads to, by the number the step's heading shows — never
+      // mistaken for the link back to the request types — and a screen reader reads what it shows
+      const back = (n: number) => page.getByRole('button', { name: say(locale, 'liffRequests.form.back', { n: String(n) }), exact: true })
+      await expect(back(1)).toHaveText(say(locale, 'liffRequests.form.back', { n: '1' }))
       await page.screenshot({ path: testInfo.outputPath(`liff-request-form-items-${locale}.png`), fullPage: true })
 
+      await next('review').click()
+      await expect(heading(3, 'review')).toBeVisible()
+      await expect(back(2)).toHaveText(say(locale, 'liffRequests.form.back', { n: '2' }))
+      await back(2).click()
+      await expect(heading(2, 'items')).toBeVisible()
       await next('review').click()
       await expect(heading(3, 'review')).toBeVisible()
       await expect(page.getByRole('heading', { level: 2, name: say(locale, 'requestForm.review.summary') })).toBeVisible()

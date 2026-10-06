@@ -1,7 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
-import { satangToAmount } from '@/core/money/dto'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
@@ -205,7 +204,8 @@ export default async function PurchaseOrderPage({ params }: { params: Promise<{ 
             <DraftEditor
               poId={po.id}
               version={po.version}
-              lines={po.lines.map((l) => ({ id: l.id, no: l.lineNo, description: l.description, uom: l.uom, quantity: l.quantity, unitPrice: satangToAmount(l.unitPriceSatang), maxQuantity: l.maxQuantity }))}
+              // The price as the lines above show it, with thousands separators (§9.9 principle 6); the editor takes them out
+              lines={po.lines.map((l) => ({ id: l.id, no: l.lineNo, description: l.description, uom: l.uom, quantity: l.quantity, unitPrice: money(l.unitPriceSatang), maxQuantity: l.maxQuantity }))}
               paymentTermDays={po.paymentTermDays}
               notesToSupplier={po.notesToSupplier}
               save={editDraftAction}

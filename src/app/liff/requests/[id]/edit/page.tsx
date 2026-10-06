@@ -37,8 +37,16 @@ export default async function LiffEditRequestPage({ params }: { params: Promise<
   const result = isUuid(id) ? await getRequestForEdit(page.ctx, id, screen) : ({ ok: false, error: { code: 'NOT_FOUND' } } as const)
   if (!result.ok) {
     const code = result.error.code
+    // The service names the status: a cancelled request says so, as it may never have been sent (DRAFT → CANCELLED, §6.4)
+    const status = 'details' in result.error ? result.error.details?.status : undefined
     const [title, body] =
-      code === 'INVALID_STATE_TRANSITION' ? [t('sentTitle'), t('sent')] : code === 'FORBIDDEN' ? [t('notYoursTitle'), t('notYours')] : [tl('notFoundTitle'), tl('notFound')]
+      code === 'INVALID_STATE_TRANSITION'
+        ? status === 'CANCELLED'
+          ? [t('cancelledTitle'), t('cancelled')]
+          : [t('sentTitle'), t('sent')]
+        : code === 'FORBIDDEN'
+          ? [t('notYoursTitle'), t('notYours')]
+          : [tl('notFoundTitle'), tl('notFound')]
     return (
       <LiffFrame title={title} back={back}>
         <LiffContent>

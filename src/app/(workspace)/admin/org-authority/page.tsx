@@ -129,7 +129,7 @@ export default async function OrgAuthorityPage() {
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-ink-muted">{t('intro')}</p>
       </div>
-      <Link href="/admin/org-authority/new" className="inline-flex h-11 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]">
+      <Link href="/admin/org-authority/new" className="inline-flex h-11 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline">
         {t('propose')}
       </Link>
 

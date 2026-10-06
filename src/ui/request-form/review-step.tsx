@@ -8,6 +8,7 @@ import type { Satang } from '@/core/money/math'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import type { StepProps } from './details-items'
+import { documentFieldIds } from './document-fields'
 import { kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
 import { problemStep, savableLine, type Problem, type RuleStatus } from './model'
@@ -117,6 +118,9 @@ export function ReviewStep(props: ReviewProps) {
   const blockPoint = sendBlockPoint(t, block)
   const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
+  // A question the attachment rules ask for is fixed beside the documents, in step 3 (./document-fields.ts)
+  const documentFields = documentFieldIds(data.form.rules)
+  const failedStep = submitError ? failureStep(submitError, documentFields) : null
 
   return (
     <div className="flex flex-col gap-10">
@@ -216,7 +220,7 @@ export function ReviewStep(props: ReviewProps) {
               </li>
             ) : null}
             {problems.map((p, i) => {
-              const step = problemStep(p)
+              const step = problemStep(p, documentFields)
               return (
                 <li key={i} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <p className="flex items-start gap-2">
@@ -240,9 +244,9 @@ export function ReviewStep(props: ReviewProps) {
         {submitError ? (
           <Notice tone="danger">
             <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
-            {failureStep(submitError) ? (
-              <Button variant="link" onClick={() => onGoTo(failureStep(submitError)!)}>
-                {t('review.goTo', { step: stepName(failureStep(submitError)!) })}
+            {failedStep ? (
+              <Button variant="link" onClick={() => onGoTo(failedStep)}>
+                {t('review.goTo', { step: stepName(failedStep) })}
               </Button>
             ) : null}
             {/* FR-INT-006 AC2: saved elsewhere since this page opened — offer the latest version right here */}

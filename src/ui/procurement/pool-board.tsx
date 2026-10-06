@@ -300,7 +300,8 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                   ))}
                   {r.suggested ? <span className="text-base text-ink md:text-sm">{t('request.suggested', { name: r.suggested })}</span> : null}
                   {r.blocked ? (
-                    <span className="inline-flex items-start gap-1.5 text-base font-medium text-warn md:text-sm">
+                    // A sentence on why the request waits: body size, not a caption (§9.9)
+                    <span className="inline-flex items-start gap-1.5 font-medium text-warn">
                       <CirclePause className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
                       <span className="break-words">{t(`blocked.${r.blocked}`)}</span>
                     </span>

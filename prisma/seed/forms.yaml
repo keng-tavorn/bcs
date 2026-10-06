@@ -26,7 +26,11 @@ shared:
     id: singleSourceJustification
     type: textarea
     label: { th: เหตุผลกรณีมีผู้ขายรายเดียว, en: Single-source justification }
-    help: { th: "ใช้เมื่อยอดรวมเกิน 100,000 บาทและมีใบเสนอราคาไม่ครบ 3 ราย", en: "Needed above 100,000 baht with fewer than 3 quotations" }
+    help: { th: "ใช้เมื่อยอดรวม VAT เกิน 100,000.00 บาท และมีใบเสนอราคาไม่ครบ 3 ราย", en: "Needed when the total with VAT is over 100,000.00 baht with fewer than 3 quotations" }
+  # The reason is asked only while ATT-QUOTES applies, the same condition as its `when` (BR-FORM-01 drops it otherwise)
+  singleSourceShown: &singleSourceShown
+    field: singleSourceJustification
+    when: { field: $amountGross, op: gt, value: "100000.00" }
   quotes: &quotes
     id: ATT-QUOTES
     when: { field: $amountGross, op: gt, value: "100000.00" }
@@ -44,6 +48,8 @@ forms:
   BUY_GOODS:
     fields:
       - *singleSource
+    visibility:
+      - *singleSourceShown
     rules:
       - *quotes
   HIRE_SERVICE:
@@ -52,6 +58,8 @@ forms:
       - { id: servicePeriod, type: text, required: true, label: { th: ระยะเวลาบริการ, en: Service period }, help: { th: เช่น 12 เดือน, en: e.g. 12 months } }
       - *singleSource
       - *screening
+    visibility:
+      - *singleSourceShown
     rules:
       - *quotes
       - *dpa
@@ -63,6 +71,8 @@ forms:
       - { id: milestones, type: textarea, required: true, label: { th: งวดงาน, en: Milestones }, help: { th: งานที่ต้องส่งและยอดของแต่ละงวด, en: The work due and the amount of each milestone } }
       - { id: site, type: text, required: true, label: { th: ไซต์งาน, en: Work site } }
       - *singleSource
+    visibility:
+      - *singleSourceShown
     rules:
       - *quotes
   IT_PURCHASE:
@@ -78,6 +88,7 @@ forms:
       - *screening
     visibility:
       - { field: assetTag, when: { field: category, op: eq, value: HARDWARE } }
+      - *singleSourceShown
     rules:
       - *quotes
       - *dpa

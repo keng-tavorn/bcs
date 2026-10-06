@@ -2,6 +2,14 @@
   "name": "BCS",
   "description": "Procurement platform with delegation-of-authority approvals and live budget control",
   "comingSoon": "The system is being built. This page will become your work home page.",
+  "dateChosen": "Chosen: {date}",
+  "dateParts": {
+    "day": "Day",
+    "month": "Month",
+    "year": "Year (BE)",
+    "incomplete": "Choose the day, the month and the year",
+    "incompleteOrNone": "Choose the day, the month and the year, or set all three back to “Day”, “Month” and “Year (BE)” for no date"
+  },
   "language": {
     "th": "ไทย",
     "en": "English"

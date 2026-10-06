@@ -9,14 +9,17 @@ import { cn } from './cn'
 // adds nothing else that one of these classes sets (tests/unit/liff-classes.test.tsx draws every LIFF use of it beside
 // the workspace's button and compares their classes).
 
-const BASE = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-60'
+const BASE = 'inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors duration-150 disabled:cursor-not-allowed'
 
+// Disabled: the words stay readable (§9.9, 4.5:1 or more) — the secondary text on the light surface inside a quiet rule.
+// Pointed at, the main button keeps its --primary fill and underlines its words (only the tokens of §9.9 as colours)
 const VARIANTS = {
-  primary: 'bg-primary text-primary-foreground hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]',
-  secondary: 'border border-input bg-bg text-ink hover:bg-surface',
+  primary:
+    'bg-primary text-primary-foreground underline-offset-4 hover:underline disabled:bg-surface disabled:text-ink-muted disabled:no-underline disabled:ring-1 disabled:ring-line disabled:ring-inset',
+  secondary: 'border border-input bg-bg text-ink hover:bg-surface disabled:border-line disabled:bg-surface disabled:text-ink-muted',
   // Actions that take something away (deactivate, switch off): outlined in danger so it never looks like the main action
-  danger: 'border border-danger bg-bg text-danger hover:bg-surface',
-  link: 'h-auto px-0 text-primary underline underline-offset-4 hover:no-underline',
+  danger: 'border border-danger bg-bg text-danger hover:bg-surface disabled:border-line disabled:bg-surface disabled:text-ink-muted',
+  link: 'h-auto px-0 text-primary underline underline-offset-4 hover:no-underline disabled:text-ink-muted',
 } as const
 
 /** A className that gives the button its own height (h-auto, h-12, …), or its own side padding (px-…, p-…) */

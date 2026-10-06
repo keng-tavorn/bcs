@@ -87,7 +87,8 @@ export function LiffPhotos({ inputId, photos, status, busy, onTake, onRemove, er
       ) : (
         <label
           htmlFor={inputId}
-          className={`inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-md border bg-bg px-4 font-medium text-ink hover:bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)] ${error ? 'border-danger' : 'border-input'} ${busy ? 'cursor-not-allowed opacity-60' : ''}`}
+          // While a photo is sent the words stay readable (§9.9, 4.5:1): the secondary text on the light surface
+          className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border px-4 font-medium focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)] ${error ? 'border-danger' : busy ? 'border-line' : 'border-input'} ${busy ? 'cursor-not-allowed bg-surface text-ink-muted' : 'cursor-pointer bg-bg text-ink hover:bg-surface'}`}
         >
           <CameraIcon />
           {photos.length ? t('takeMore') : t('take')}

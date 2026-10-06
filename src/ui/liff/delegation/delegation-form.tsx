@@ -172,7 +172,7 @@ export function LiffDelegationForm({ candidates, documentTypes, today, givenKey,
       <LiffContent>
         {before}
         <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4 border-t border-line pt-5">
-          <h2 id={`${id}-title`} className="text-lg leading-snug font-semibold">
+          <h2 id={`${id}-title`} className="text-lg font-semibold">
             {t('formTitle')}
           </h2>
           {/* A new entry starts: the bar's message was about the last one */}

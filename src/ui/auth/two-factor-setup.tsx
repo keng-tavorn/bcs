@@ -7,7 +7,7 @@ import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
-import { authClient } from './client'
+import { authClient, failedToAnswer, settled } from './client'
 import { QrCode } from './qr-code'
 
 type Step = { kind: 'password' } | { kind: 'scan'; uri: string; secret: string; backupCodes: string[] } | { kind: 'codes'; backupCodes: string[] }
@@ -36,8 +36,13 @@ export function TwoFactorSetup() {
     const password = String(new FormData(event.currentTarget).get('password') ?? '')
     setPending(true)
     setError(null)
-    const { data, error: failure } = await authClient.twoFactor.enable({ password })
+    const { data, error: failure } = await settled(authClient.twoFactor.enable({ password }))
     setPending(false)
+    // No answer, or the server failed: the password was not checked, so it is not called wrong
+    if (failure && failedToAnswer(failure)) {
+      setError(t('failed'))
+      return
+    }
     if (failure || !data || !('totpURI' in data)) {
       setError(t('wrongPassword'))
       return
@@ -51,10 +56,10 @@ export function TwoFactorSetup() {
     const code = String(new FormData(event.currentTarget).get('code') ?? '').trim()
     setPending(true)
     setError(null)
-    const { error: failure } = await authClient.twoFactor.verifyTotp({ code })
+    const { error: failure } = await settled(authClient.twoFactor.verifyTotp({ code }))
     setPending(false)
     if (failure) {
-      setError(t('invalidCode'))
+      setError(failedToAnswer(failure) ? t('failed') : t('invalidCode'))
       return
     }
     setStep({ kind: 'codes', backupCodes: step.backupCodes })

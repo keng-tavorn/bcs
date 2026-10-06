@@ -13,7 +13,9 @@
     "toCatalog": "Back to the request types",
     "otherType": "Choose another request type",
     "sentTitle": "This request was sent",
-    "sent": "This request was sent for approval or cancelled, so it can no longer be changed. Open it to see where it stands",
+    "sent": "This request was sent, so it can no longer be changed. Open it to see where it stands",
+    "cancelledTitle": "This request was cancelled",
+    "cancelled": "This request was cancelled, so it can no longer be changed. Open it to see its history, or start a new request from Buy or hire",
     "notYoursTitle": "You cannot change this request",
     "notYours": "You can change only your own requests. Open the request to see it if you may",
     "openRequest": "Open the request"

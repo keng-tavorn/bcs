@@ -1,5 +1,6 @@
 import { Bell } from 'lucide-react'
 import { cn } from '../cn'
+import { SHELL_PANELS } from './panels'
 
 // The bell (FR-NOTI-001 AC1): the member's latest notifications, newest first, each opening its document and marking
 // itself read on the way; "mark all read" clears the count. Works without JavaScript (details + forms that POST).
@@ -33,7 +34,8 @@ export interface NotificationBellProps {
 
 export function NotificationBell({ items, unread, labels, openAction, markAllReadAction }: NotificationBellProps) {
   return (
-    <details className="group relative">
+    // One group with the phone's menu (SHELL_PANELS): opening the bell closes the menu, and the other way round
+    <details name={SHELL_PANELS} className="group relative">
       <summary
         className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-bg px-3 font-medium text-ink [&::-webkit-details-marker]:hidden"
         aria-label={unread > 0 ? `${labels.button} · ${labels.unreadCount}` : labels.button}
@@ -41,7 +43,9 @@ export function NotificationBell({ items, unread, labels, openAction, markAllRea
         <Bell className="size-5" aria-hidden="true" />
         <span>{labels.button}</span>
         {unread > 0 ? (
-          <span className="rounded-full bg-danger px-2 text-base leading-6 font-semibold text-white tabular-nums md:text-sm" aria-hidden="true">
+          // The count of new notifications, in the colour of the "new" mark inside (danger is kept for overdue, not approved
+          // and short budget, §9.9)
+          <span className="rounded-full bg-primary px-2 text-base leading-6 font-semibold text-primary-foreground tabular-nums md:text-sm" aria-hidden="true">
             {unread}
           </span>
         ) : null}

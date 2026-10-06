@@ -259,7 +259,7 @@ test('[FR-P2P-001/AC1] [FR-P2P-001/AC3] [FR-P2P-002/AC1] [FR-P2P-002/AC3] a requ
 
   // Urgent, yet choosing its supplier asks nothing more (no draft is made at once) and the notice says why it stays
   await chooseSupplier(page, [made.number], S1, 1)
-  const chosen = page.getByRole('status').filter({ hasText: `เลือกผู้ขาย ${S1} ให้ 1 บรรทัดแล้ว` })
+  const chosen = page.getByRole('status').filter({ hasText: `ใช้ผู้ขาย ${S1} กับ 1 บรรทัดแล้ว` })
   await expect(chosen).toContainText('1 บรรทัดที่เลือกมาจากคำขอที่ราคารวม VAT จึงยังรอในกองและยังไม่ถูกรวมเป็นร่าง PO')
   await expect(chosen).not.toContainText('คำขอด่วนได้ร่าง PO ทันที')
   await expect(group).toContainText('ผู้ขาย บริษัท วัสดุก่อสร้างทดสอบ จำกัด')

@@ -79,9 +79,10 @@ export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: Cons
       </h2>
       <p className="font-medium text-ink">{next}</p>
       {/* TODO(NEW-50): the hint and the counts below say requests priced with VAT are not drafted yet */}
-      <p className="text-base text-ink-muted md:text-sm">{t('round.hint')}</p>
+      {/* Body text at the body's size, 16 px on phones and 15 px on the web (§9.9): it says what a round does */}
+      <p className="text-ink-muted">{t('round.hint')}</p>
       {blocked > 0 ? (
-        <p className="inline-flex items-start gap-1.5 text-base font-medium text-warn md:text-sm">
+        <p className="inline-flex items-start gap-1.5 font-medium text-warn">
           <CirclePause className="mt-[0.3em] size-4 shrink-0" aria-hidden="true" />
           <span>{t('round.blockedInPool', { count: blocked })}</span>
         </p>
@@ -130,7 +131,7 @@ export function ConsolidatePanel({ next, ready, blocked = 0, consolidate }: Cons
                       </span>
                     ))}
                   </span>
-                  <span className="flex items-baseline justify-between gap-3 text-base md:text-sm">
+                  <span className="flex items-baseline justify-between gap-3">
                     <span className="text-ink-muted">{t('round.draftAmountLabel')}</span>
                     <span className="tabular text-ink">{t('round.draftAmountValue', { amount: d.net })}</span>
                   </span>

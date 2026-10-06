@@ -8,7 +8,7 @@ import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
-import { authClient, errorStatus } from './client'
+import { authClient, errorStatus, failedToAnswer, settled } from './client'
 import { useLockMessage } from './lock-message'
 
 const LOCKED_STATUS = 429
@@ -34,13 +34,15 @@ export function TwoFactorForm({ next = null }: { next?: string | null }) {
     setPending(true)
     setError(null)
     const { error: failure } =
-      mode === 'app' ? await authClient.twoFactor.verifyTotp({ code }) : await authClient.twoFactor.verifyBackupCode({ code })
+      mode === 'app' ? await settled(authClient.twoFactor.verifyTotp({ code })) : await settled(authClient.twoFactor.verifyBackupCode({ code }))
     if (failure) {
       setPending(false)
       if (failure.code === 'INVALID_TWO_FACTOR_COOKIE') {
         setExpired(true)
         return
       }
+      // No answer, or the server failed: the code was not checked, so it is not called wrong (the sign-in's words)
+      if (failedToAnswer(failure)) return setError(tAuth('login.failed'))
       if (errorStatus(failure) === LOCKED_STATUS) return setError(lockMessage(failure))
       setError(mode === 'app' ? t('invalid') : t('invalidBackup'))
       return

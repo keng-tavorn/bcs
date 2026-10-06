@@ -60,7 +60,7 @@ export function SuggestedSupplierField({ data, values, update }: StepProps) {
   const dropped = !values.suggestedSupplierId && droppedChoice(data.draft?.suggestedSupplierId, suppliers)
   return (
     <section aria-labelledby="suggested-supplier-heading" className="flex flex-col gap-3">
-      <h3 id="suggested-supplier-heading" className="text-lg font-semibold">
+      <h3 id="suggested-supplier-heading" className="subheading font-semibold">
         {t('title')}
       </h3>
       {suppliers.length === 0 ? (

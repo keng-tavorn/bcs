@@ -26,7 +26,7 @@ const MENU: ReadonlyArray<{ readonly key: 'request' | 'tasks' | 'track' | 'help'
 
 /** A link that looks like the primary button: the one next step of a visitor who is not linked */
 const PRIMARY_LINK_CLASS =
-  'inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
+  'inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline'
 const MENU_LINK_CLASS = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 
 // /liff/help (§9.4): how BCS works in LINE — the menu buttons (§9.5), approving in the chat and the PIN for amounts at or

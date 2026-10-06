@@ -20,7 +20,7 @@ export function LiffContent({ children, className }: { readonly children: ReactN
 export function LiffSection({ id, title, children }: { readonly id: string; readonly title: string; readonly children: ReactNode }) {
   return (
     <section aria-labelledby={id} className="flex flex-col gap-3 border-t border-line pt-5">
-      <h2 id={id} className="text-lg leading-snug font-semibold">
+      <h2 id={id} className="text-lg font-semibold">
         {title}
       </h2>
       {children}

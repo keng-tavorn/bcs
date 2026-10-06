@@ -69,4 +69,17 @@ describe('[FR-PLT-003/AC3] [FR-DOA-005/AC2] [FR-INT-008/AC1] the timeline draws 
     expect(html).toContain('เกินกำหนดแล้ว ครบกำหนดเมื่อ 6 ต.ค. 2569 17:30 น.')
     expect(html).toMatch(/text-danger[^>]*>เกินกำหนดแล้ว/)
   })
+
+  it('[§9.9] the current step stands out the most: its box is the one 2 px frame of the timeline, a stamp’s is 1 px with its DOA mark at 2 px', () => {
+    /** The classes of each step's box (the block beside its marker), in the timeline's order */
+    const boxes = [...html.matchAll(/<li[^>]*>(?:<span[^>]*><\/span>)?<span[^>]*>.*?<\/span><div class="([^"]*)"/g)].map((m) => new Set(m[1]!.split(/\s+/)))
+    expect(boxes).toHaveLength(items.length)
+    const framed = boxes.map((box) => (box.has('border-2') ? 2 : box.has('border') ? 1 : 0))
+    // the sent step, the return, the approval, the current step (overdue), the next
+    expect(framed).toEqual([0, 1, 1, 2, 0])
+    expect(boxes[3]!.has('bg-surface')).toBe(true)
+    expect(boxes[3]!.has('border-danger')).toBe(true)
+    // each stamp's DOA reference keeps its own 2 px mark
+    expect(html.match(/<span class="[^"]*border-2[^"]*">DOA-DEMO ฉบับ 1 ข้อ PR-0\d<\/span>/g)).toHaveLength(2)
+  })
 })

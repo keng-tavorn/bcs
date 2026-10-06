@@ -9,6 +9,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { getDownloadUrl } from '@/server/services/files'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { createReportSchedule, exportReport, runDueReportSchedules, runReport } from '@/server/services/reports'
+import { kpiDetail } from '@/server/services/reports/screens'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
@@ -81,7 +82,7 @@ describe('[FR-VIS-003/AC1] the KPI view G-1 to G-5 from events, on data whose an
     expect(k.g1).toEqual({ numerator: 0, denominator: null })
   })
 
-  it('G-2 (a) finds a decision made by someone the DOA engine would not give the task to', async () => {
+  it('G-2 (a) finds a decision made by someone the DOA engine would not give the task to, and its list holds every decision checked with that one counted', async () => {
     const task = await prisma.approvalTask.findUniqueOrThrow({ where: { id: ids.R3!.taskId }, include: { step: { include: { route: true } } } })
     const ctx = { ...systemCtx(org.organizationId, at('15:00'), 'test'), actor: { type: 'USER' as const, memberId: org.member.ceo! } }
     await forTenant(org.organizationId).$transaction(async (tx) => {
@@ -98,6 +99,12 @@ describe('[FR-VIS-003/AC1] the KPI view G-1 to G-5 from events, on data whose an
     })
     const k = await forTenant(org.organizationId).$transaction((tx) => computeKpis(tx, org.organizationId, period, null))
     expect(k.g2.misrouted).toBe(1)
+    // the KPI page's list behind the figure (§9.9): every decision checked, the CEO's counted, the others marked not counted
+    const list = ok(await kpiDetail(org.ctxOf('ceo', period.now), { from: '2026-10-05', to: '2026-10-05' }, 'g2a'))
+    expect({ total: list.total, counted: list.counted }).toEqual({ total: k.g2.checked, counted: 1 })
+    const ceo = await prisma.member.findUniqueOrThrow({ where: { id: org.member.ceo! }, select: { displayNameTh: true } })
+    expect(list.items.filter((i) => i.mark === 'MISROUTED').map((i) => ({ document: i.document?.id, by: i.person?.nameTh }))).toEqual([{ document: ids.R3!.requestId, by: ceo.displayNameTh }])
+    expect(list.items.filter((i) => i.mark !== 'MISROUTED').every((i) => i.mark === 'DOA_MATCHED')).toBe(true)
   })
 })
 

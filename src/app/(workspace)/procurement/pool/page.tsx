@@ -102,7 +102,7 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
           {total > 0 ? (
             // A new filter remounts the form, so its fields show the filter in effect (defaultValue applies on mount only)
             <form key={JSON.stringify(filter)} method="get" action="/procurement/pool" aria-labelledby="pool-filter" className="flex flex-col gap-3 border-y border-line py-4">
-              <h2 id="pool-filter" className="font-semibold text-ink">
+              <h2 id="pool-filter" className="text-lg font-semibold text-ink">
                 {t('filter.title')}
               </h2>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

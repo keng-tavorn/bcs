@@ -142,7 +142,7 @@ export function LiffSignIn() {
   if (step === 'second') {
     return (
       <section aria-labelledby={`${id}-second`} className="flex flex-col gap-4">
-        <h2 id={`${id}-second`} className="text-lg leading-snug font-semibold">
+        <h2 id={`${id}-second`} className="text-lg font-semibold">
           {t('twoFactorHeading')}
         </h2>
         <form method="post" onSubmit={onSecond} className="flex flex-col gap-5" noValidate>
@@ -174,7 +174,7 @@ export function LiffSignIn() {
 
   return (
     <section aria-labelledby={`${id}-password`} className="flex flex-col gap-4">
-      <h2 id={`${id}-password`} className="text-lg leading-snug font-semibold">
+      <h2 id={`${id}-password`} className="text-lg font-semibold">
         {t('heading')}
       </h2>
       <p className="text-ink-muted">{t('intro')}</p>

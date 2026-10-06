@@ -337,7 +337,8 @@ export function LiffRequestForm({
     }
   }
 
-  // A field the server refused is marked on step 1, as on the web (FR-INT-002: the server checks every answer again)
+  // A field the server refused is marked where it is asked — step 1, or beside the documents for a question the attachment
+  // rules ask for — as on the web (FR-INT-002: the server checks every answer again)
   const fieldErrors: Record<string, string> = {}
   const refusedField = submitError?.code === 'VALIDATION_FAILED' && submitError.reason === 'FORM' ? FORM_FIELD.exec(submitError.field ?? '')?.[1] : undefined
   if (refusedField) {
@@ -433,8 +434,9 @@ export function LiffRequestForm({
             </LiffNotice>
           ) : null}
 
+          {/* The step's heading stands above its parts (18 px, LiffSection) and their headings (16 px), as on the web (§9.9) */}
           <div className="flex flex-col gap-1">
-            <h2 ref={headingRef} tabIndex={-1} className="text-lg leading-snug font-semibold outline-none">
+            <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">
               {ts('heading', { n: index + 1, total: stepIds.length, name: ts(step) })}
             </h2>
             {saveState.kind === 'error' ? (
@@ -539,8 +541,11 @@ export function LiffRequestForm({
         ) : null}
         <div className="flex items-stretch gap-3">
           {previous ? (
-            <Button variant="secondary" className="shrink-0" aria-label={ts('back', { name: ts(previous) })} onClick={() => goTo(previous)}>
-              {tl('back')}
+            // The step it goes back to, by the number its heading shows (§9.9 rule 7): never mistaken for the link back to
+            // the request types above the form; what a screen reader reads is what the button shows (WCAG 2.5.3). It keeps
+            // its words on one line and grows with the row when the main button's words take two (English at 375 px)
+            <Button variant="secondary" className="h-auto min-h-11 shrink-0 py-2" onClick={() => goTo(previous)}>
+              {tl('back', { n: index })}
             </Button>
           ) : null}
           {next ? (

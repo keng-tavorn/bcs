@@ -1,11 +1,17 @@
 {
   "title": "Home",
   "greeting": "Hello {name}",
-  "newRequest": "Buy or hire",
   "myTasks": "Waiting for your decision",
   "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
   "myTasksAll": "See all tasks waiting for approval ({count})",
   "toMyRequests": "Follow your own requests",
+  "pool": {
+    "list": "Requests to purchase",
+    "title": "Requests to purchase: {requests} ({lines, plural, one {# line} other {# lines}})",
+    "needSupplier": "{count, plural, one {# line needs} other {# lines need}} a supplier",
+    "ready": "{count, plural, one {# line is} other {# lines are}} ready for a draft PO",
+    "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet"
+  },
   "myRequests": "My requests",
   "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
   "myRequestsAll": "See all requests ({count})",

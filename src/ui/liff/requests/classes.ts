@@ -11,7 +11,7 @@ export const checkboxClass = 'size-5 shrink-0 accent-[var(--primary)]'
 
 /** A link that leads to the next thing to do, drawn as the main button (src/ui/form/button.tsx primary), 44 px high */
 export const primaryLinkClass =
-  'inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-center font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
+  'inline-flex min-h-11 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-center font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline'
 /** A link drawn as the second button beside the main one (src/ui/form/button.tsx secondary), 44 px high */
 export const secondaryLinkClass =
   'inline-flex min-h-11 shrink-0 items-center justify-center rounded-md border border-input bg-bg px-4 py-2 text-center font-medium text-ink transition-colors duration-150 hover:bg-surface'

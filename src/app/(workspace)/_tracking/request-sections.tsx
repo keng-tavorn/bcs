@@ -85,10 +85,12 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
   const purchase = view.documentType === 'PURCHASE_REQUEST'
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* A new-supplier request has no amount, budget or lines (OQ-23) */}
+    <div className="@container flex flex-col gap-6">
+      {/* A new-supplier request has no amount, budget or lines (OQ-23). The amounts and the budget go side by side where
+          the document's own column is 40rem wide or more, as LineList does: the workspace's wide column, never the one
+          column of a LIFF page (§9.9), whatever the screen */}
       {purchase ? (
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 @min-[40rem]:grid-cols-2">
           <Section id="amounts" title={t('amounts.title')}>
             {view.totals ? (
               <>

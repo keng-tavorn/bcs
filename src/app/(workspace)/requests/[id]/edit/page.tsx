@@ -31,10 +31,13 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
   if (!result.ok) {
     const sent = result.error.code === 'INVALID_STATE_TRANSITION'
+    // The service names the status: a cancelled request says so, as it may never have been sent (DRAFT → CANCELLED, §6.4)
+    const cancelled = sent && result.error.details?.status === 'CANCELLED'
+    const [title, body] = cancelled ? [t('cancelledTitle'), t('cancelled')] : sent ? [t('sentTitle'), t('sent')] : [t('notYoursTitle'), t('notYours')]
     return (
       <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{sent ? t('sentTitle') : t('notYoursTitle')}</h1>
-        <Notice tone={sent ? 'info' : 'warning'}>{sent ? t('sent') : t('notYours')}</Notice>
+        <h1 className="text-2xl font-semibold">{title}</h1>
+        <Notice tone={sent ? 'info' : 'warning'}>{body}</Notice>
         <Link href={`/requests/${id}`} className={link}>
           {t('openRequest')}
         </Link>

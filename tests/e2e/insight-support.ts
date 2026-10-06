@@ -78,6 +78,20 @@ export async function signIn(page: Page, email: string, totpCode: string | null)
 /** A seeded member of the demo organization by code; members with a role or a DOA position sign in with TOTP */
 export const signInAs = (page: Page, code: string, withTotp = true) => signIn(page, `${code}@demo.bcs.local`, withTotp ? code : null)
 
+/**
+ * Picks a day (yyyy-mm-dd) in a date field of a search or a period (src/ui/form/date-field.tsx): under its label, the
+ * Buddhist-era year, the month and the day from their lists — the year and the month first, so the list of days is
+ * that month's — and the field then reads the day back in words
+ */
+export async function pickDay(page: Page, label: string, day: string) {
+  const [year, month, date] = day.split('-').map(Number)
+  const field = page.getByRole('group', { name: label, exact: true })
+  await field.getByRole('combobox', { name: 'ปี พ.ศ.', exact: true }).selectOption(String(year))
+  await field.getByRole('combobox', { name: 'เดือน', exact: true }).selectOption(String(month))
+  await field.getByRole('combobox', { name: 'วัน', exact: true }).selectOption(String(date))
+  await expect(field).toContainText(`วันที่เลือก: ${date} `)
+}
+
 export async function expectNoBlockingAxe(page: Page) {
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')

@@ -298,8 +298,10 @@ export async function PoBody({
   const draft = po.status === 'DRAFT'
   const note = !draft ? t('amounts.fixedNote') : po.totals.basis === 'TODAY' ? t('amounts.draftNote') : t('amounts.draftNoteStored')
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6 md:grid-cols-2">
+    // The amounts and the budget side by side only where the document's column is 40rem wide or more: never in the one
+    // column of a LIFF page (§9.9), whatever the screen (as RequestSections)
+    <div className="@container flex flex-col gap-6">
+      <div className="grid gap-6 @min-[40rem]:grid-cols-2">
         <Section id="po-amounts" title={t('amounts.title')}>
           <Amounts
             heading={t('amounts.unit')}

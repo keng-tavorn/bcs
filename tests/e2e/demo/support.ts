@@ -1,6 +1,7 @@
+import AxeBuilder from '@axe-core/playwright'
 import { spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, readFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { devices, type Browser, type BrowserContext, type Locator, type Page, type Route, type TestInfo } from '@playwright/test'
 import { cardLabel, confirmationLabel, type CardLabel, type ConfirmationLabel } from '../../../src/channels/line/flex/labels'
@@ -12,7 +13,7 @@ import { E2E_BASE_URL, E2E_FAKE_LINE_URL, E2E_LINE, e2eEnv } from '../../support
 import { attachmentOf, type MailpitMessage } from '../../support/mailpit'
 import { expect } from '../fixtures'
 import { checkScreen as checkWorkspaceScreen, exportedFile, percent, sha256, sheetRows, shownChecksum, signIn } from '../insight-support'
-import { anotherPhone, checkScreen as checkPhoneScreen, openAsLineUser } from '../liff-support'
+import { anotherPhone, BARS_IN_PLACE, checkScreen as checkPhoneScreen, openAsLineUser, pointerAway } from '../liff-support'
 import { actions, budgetRegion, chooseSupplier, consolidateNow, expectPdfLink, header, poMails, poNumberOf, poolGroup, poTimeline, requestsRegion } from '../procurement-support'
 import { rowWith } from '../tasks-support'
 
@@ -510,11 +511,83 @@ export async function signInAs(page: Page, sheet: DemoSheet, code: string): Prom
   return user
 }
 
-/** The §9.9 checks of a workspace page at the scene's width (1440 px): axe, no sideways scroll, a full-page screenshot */
-export const checkWebScreen = checkWorkspaceScreen
+/** §9.9 step 4: the two widths every screen of the day is checked and photographed at — the scene's desk and a phone */
+const DESK = { width: 1440, height: 900 } as const
+const PHONE = { width: 375, height: 812 } as const
 
-/** The §9.9 checks of a LIFF page at the phone's 375 px (axe, no sideways scroll, 44 px targets), photographed there and at 1440 px */
-export const checkLiffScreen = checkPhoneScreen
+/**
+ * D-05: one line {name, path, kind} in the test's design-review.jsonl for every screen a scene checks — the base name of
+ * its screenshots, the path of its page and whether it is a workspace ("web") or a LIFF page — which
+ * scripts/design-review-shots.mjs reads to put each picture beside its page. Written before the checks, so a screen
+ * whose checks stopped the scene is listed too, without the pictures it did not get.
+ */
+function noteScreen(page: Page, testInfo: TestInfo, name: string, kind: 'web' | 'liff') {
+  const journal = testInfo.outputPath('design-review.jsonl')
+  mkdirSync(path.dirname(journal), { recursive: true })
+  appendFileSync(journal, `${JSON.stringify({ name, path: new URL(page.url()).pathname, kind })}\n`, 'utf8')
+}
+
+/** The page after a change of width: its document loaded (no navigation under way), its fonts ready, laid out again */
+async function settled(page: Page) {
+  await page.waitForLoadState('load')
+  await page.evaluate(async () => {
+    await document.fonts.ready
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+  })
+}
+
+/** What axe finds serious or critical on the page: each rule, its help and the elements it names */
+async function blockingAxe(page: Page): Promise<string[]> {
+  const results = await new AxeBuilder({ page }).analyze()
+  return results.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)
+}
+
+/**
+ * The §9.9 checks of a workspace page: at the scene's width (1440 px) axe, no sideways scroll and a full-page screenshot
+ * `<name>.png`; then the same page at a phone's 375 × 812 — axe with nothing serious or critical, no sideways scroll, a
+ * full-page screenshot `<name>-375.png`, a bar fixed to the bottom of a phone's screen drawn in its place (BARS_IN_PLACE)
+ * — and back to 1440 × 900. A failure at 375 px is recorded with expect.soft: the test fails, but the scene goes on, so
+ * the screens after it are still checked and photographed.
+ */
+export async function checkWebScreen(page: Page, testInfo: TestInfo, name: string) {
+  noteScreen(page, testInfo, name, 'web')
+  // Every control at rest in the pictures, not under the pointer the last click left
+  await pointerAway(page)
+  await checkWorkspaceScreen(page, testInfo, name)
+  const at = `${name} at ${PHONE.width} px`
+  try {
+    await page.setViewportSize(PHONE)
+    await settled(page)
+    expect.soft(await blockingAxe(page), `${at}: axe finds nothing serious or critical`).toEqual([])
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+    expect.soft(sideways, `${at}: the page scrolls sideways by this many px`).toBeLessThanOrEqual(0)
+    await page.screenshot({ path: testInfo.outputPath(`${name}-375.png`), fullPage: true, style: BARS_IN_PLACE })
+  } catch (error) {
+    expect.soft(error instanceof Error ? error.message : String(error), `${at}: the checks could not run`).toBe('')
+  } finally {
+    await page.setViewportSize(DESK)
+    await settled(page)
+  }
+}
+
+/** What the LIFF gate says while it signs in with LINE or moves on (src/ui/liff/liff-gate.tsx, messages liff.gate) */
+const GATE_UNDER_WAY = ['signingIn', 'opening', 'toLink', 'toWebSignIn'] as const
+
+/**
+ * The §9.9 checks of a LIFF page at the phone's 375 px (axe, no sideways scroll, 44 px targets, a full-page screenshot
+ * `<name>.png`), then the same at 1440 px (`<name>-1440.png`) and back to the phone. A page opened in a new browser
+ * shows its title while its gate still signs in with LINE, so the checks wait for the gate to be done: what axe reads
+ * and the pictures show is the page itself.
+ */
+export async function checkLiffScreen(page: Page, testInfo: TestInfo, name: string) {
+  noteScreen(page, testInfo, name, 'liff')
+  const gate = page.getByRole('status').filter({ hasText: new RegExp(GATE_UNDER_WAY.map((key) => literally(th(`liff.gate.${key}`))).join('|')) })
+  await expect(gate, `${name}: the LIFF page has signed in with LINE before it is checked`).toHaveCount(0, { timeout: 30_000 })
+  await settled(page)
+  await checkPhoneScreen(page, testInfo, name)
+}
 
 // ---------- the scene script: what the database says ----------
 
@@ -1320,8 +1393,9 @@ export const liffEntryOf = (liffPage: string) => `/liff?liff.state=${encodeURICo
 export { actions as poActions, budgetRegion as poBudget, chooseSupplier, consolidateNow, expectPdfLink, exportedFile, header as poHeader, poNumberOf, poolGroup, poTimeline, requestsRegion as poRequests, rowWith, sha256, sheetRows, shownChecksum }
 
 /**
- * Signs the member in on the web as signInAs does, each page of the way checked and photographed at the scene's width
- * (§9.9): the sign-in page, the authenticator step when the sheet gives them a role or a position, and their home
+ * Signs the member in on the web as signInAs does, each page of the way checked and photographed at the scene's 1440 px
+ * and at 375 px (§9.9, checkWebScreen): the sign-in page, the authenticator step when the sheet gives them a role or a
+ * position, and their home
  */
 export async function signInChecked(page: Page, sheet: DemoSheet, code: string, testInfo: TestInfo, name: string): Promise<DemoUser> {
   const user = userOf(sheet, code)

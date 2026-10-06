@@ -20,7 +20,7 @@ export async function generateMetadata() {
 const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
 /** The page's main action is a link that looks like the primary button (it opens the editor, it changes nothing) */
 const primaryLinkClass =
-  'inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
+  'inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline'
 /** What the admin looks for first: the version in effect, one approved for later, one waiting, drafts, then history */
 const ORDER: Readonly<Record<VersionLook, number>> = { IN_EFFECT: 0, UPCOMING: 1, PUBLISHED: 1, PENDING_APPROVAL: 2, DRAFT: 3, SUPERSEDED: 4, REJECTED: 5, WITHDRAWN: 6 }
 /** The import reads at most DOA_YAML_MAX_CHARS characters; a file of at most that many bytes never has more (UTF-8), so

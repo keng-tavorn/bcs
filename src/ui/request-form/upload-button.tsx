@@ -112,8 +112,9 @@ export function UploadButtonView({
       <label
         htmlFor={id}
         className={cn(
-          'inline-flex min-h-11 w-fit max-w-full cursor-pointer items-center gap-2 rounded-md border border-input bg-bg px-4 font-medium text-ink hover:bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)]',
-          (disabled || busy) && 'cursor-not-allowed opacity-60',
+          'inline-flex min-h-11 w-fit max-w-full items-center gap-2 rounded-md border px-4 font-medium focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)]',
+          // Not now (another file is on its way, or saving stopped): the words stay readable (§9.9, 4.5:1)
+          disabled || busy ? 'cursor-not-allowed border-line bg-surface text-ink-muted' : 'cursor-pointer border-input bg-bg text-ink hover:bg-surface',
         )}
       >
         <Paperclip className="size-4 shrink-0" aria-hidden="true" />

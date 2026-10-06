@@ -91,8 +91,9 @@ export function LiffCameraAttach({ taken, busy, ready, requestUpload, completeUp
       <label
         htmlFor={id}
         className={cn(
-          'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-input bg-bg px-4 py-2 text-center font-medium text-ink hover:bg-surface focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)]',
-          disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer',
+          'inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border px-4 py-2 text-center font-medium focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[var(--ring)]',
+          // Not ready yet: the words stay readable (§9.9, 4.5:1), the secondary text on the light surface
+          disabled ? 'cursor-not-allowed border-line bg-surface text-ink-muted' : 'cursor-pointer border-input bg-bg text-ink hover:bg-surface',
         )}
       >
         <CameraIcon />

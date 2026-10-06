@@ -1,8 +1,8 @@
 import { createTranslator } from 'next-intl'
 import { describe, expect, it } from 'vitest'
-import { dayText, kpiGoals, type KpiT } from '@/app/(workspace)/kpi/_present'
+import { cappedSentence, dayText, detailSentence, kpiGoals, kpiItemViews, type KpiT, type TimelineT } from '@/app/(workspace)/kpi/_present'
 import type { KpiResult } from '@/server/services/reports/kpi'
-import type { KpiBaseline } from '@/server/services/reports/screens'
+import type { KpiBaseline, KpiDetailDto, KpiItemDto } from '@/server/services/reports/screens'
 import type { KpiMeasureView } from '@/ui/insight/kpi-table'
 import th from '../../messages/th.json'
 
@@ -12,6 +12,7 @@ import th from '../../messages/th.json'
 // page's side with a baseline handed to it. The page itself runs in tests/e2e/kpi.spec.ts at 375 and 1440 px.
 
 const t = createTranslator({ locale: 'th', messages: th, namespace: 'kpi' }) as unknown as KpiT
+const tl = createTranslator({ locale: 'th', messages: th, namespace: 'timeline' }) as unknown as TimelineT
 const QUERY = '?from=2026-08-06&to=2026-10-04'
 
 const kpi: KpiResult = {
@@ -68,6 +69,54 @@ describe('[FR-VIS-003/AC2] the KPI page shows each current value next to the Pha
     expect(find(list, 'g3a')).toMatchObject({ value: 'ยังไม่มีข้อมูลในช่วงนี้', href: null })
     // nothing counted: the value says 0 and opens no empty list
     expect(find(list, 'g4')).toMatchObject({ value: '0 รายการ', href: null })
-    expect(find(list, 'g2a')).toMatchObject({ value: '0 รายการ', href: null })
+  })
+
+  it('G-2 (a) "0 รายการ" opens the decisions it checked again with the DOA engine, and is plain text only while none was checked', () => {
+    // §9.9 every number opens its list: none misrouted, but 5 decisions stand behind the 0
+    expect(find(measures(null), 'g2a')).toMatchObject({
+      value: '0 รายการ',
+      detail: 'ตรวจแล้ว 5 การตัดสิน',
+      href: `/kpi/g2a${QUERY}`,
+      linkLabel: 'ดูรายการที่นับ: การอนุมัติที่ผิด DOA 0 รายการ (ตรวจแล้ว 5 การตัดสิน)',
+    })
+    const unchecked = kpiGoals(t, 'th', { ...kpi, g2: { misrouted: 0, checked: 0, withDoaReference: { numerator: 0, denominator: 0 } } }, null, QUERY).flatMap((g) => g.measures)
+    expect(find(unchecked, 'g2a')).toMatchObject({ value: '0 รายการ', detail: 'ตรวจแล้ว 0 การตัดสิน', href: null })
+  })
+})
+
+describe('[FR-VIS-003/AC2] the list behind G-2 (a) holds every decision checked, each marked counted or not', () => {
+  const decision = (n: number, mark: KpiItemDto['mark']): KpiItemDto => ({
+    key: `task-${n}`,
+    document: { type: 'REQUEST', id: `request-${n}`, label: `PR-2569-0000${n} โต๊ะประชุม`, poId: null },
+    person: { nameTh: 'วีระ ปฏิบัติการ', nameEn: 'Weera Operations' },
+    onBehalfOf: null,
+    channel: 'LINE_CHAT',
+    decision: 'APPROVE',
+    at: '2026-10-05T03:00:00.000Z',
+    dueAt: null,
+    minutes: null,
+    doaRef: null,
+    mark,
+  })
+  const rights = { requests: true, purchaseOrders: false, doaVersions: false, orgAuthorityChanges: false }
+
+  it('says how many of the decisions checked it counts, and marks each one with an icon kind and words, like G-2 (b) and G-5', () => {
+    const d: KpiDetailDto = { measure: 'g2a', kind: null, period: { from: '2026-10-05', to: '2026-10-05' }, items: [decision(1, 'MISROUTED'), decision(2, 'DOA_MATCHED')], total: 2, counted: 1 }
+    expect(detailSentence(t, d)).toBe('นับ 1 จาก 2 รายการ')
+    expect(detailSentence(t, { ...d, items: [decision(2, 'DOA_MATCHED')], total: 1, counted: 0 })).toBe('นับ 0 จาก 1 รายการ')
+    const views = kpiItemViews(t, tl, 'th', 'g2a', d.items, rights)
+    expect(views.map((v) => v.mark)).toEqual([
+      { kind: 'overdue', text: 'นับ: ผู้ตัดสินไม่ใช่คนที่ DOA กำหนด' },
+      { kind: 'done', text: 'ไม่นับ: ผู้ตัดสินตรงกับคนที่ DOA กำหนด' },
+    ])
+    expect(views[1]).toMatchObject({ title: 'คำขอ PR-2569-00002 โต๊ะประชุม', href: '/requests/request-2' })
+    expect(views[1]!.lines[0]).toBe('อนุมัติโดย วีระ ปฏิบัติการ')
+  })
+
+  it('a list cut short says which decisions it kept: for G-2 (a) the misrouted ones first, for the other lists the newest', () => {
+    const cut: KpiDetailDto = { measure: 'g2a', kind: null, period: { from: '2026-08-08', to: '2026-10-06' }, items: [decision(1, 'MISROUTED'), decision(2, 'DOA_MATCHED')], total: 250, counted: 1 }
+    expect(cappedSentence(t, cut)).toBe('แสดง 2 จากทั้งหมด 250 รายการ รายการที่นับขึ้นก่อน ตามด้วยรายการล่าสุด')
+    expect(cappedSentence(t, { ...cut, measure: 'g2b' })).toBe('แสดง 2 รายการล่าสุดจากทั้งหมด 250 รายการ')
+    expect(cappedSentence(t, { ...cut, total: 2 })).toBeNull()
   })
 })

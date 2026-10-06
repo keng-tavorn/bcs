@@ -97,7 +97,7 @@ export function LinkWithCode({ code, preview, codeMinutes }: { readonly code: st
       <LiffContent>
         <p>{t.rich('intro', LIFF_RICH)}</p>
         <section aria-labelledby={`${id}-preview`} className="flex flex-col gap-3 border-t border-line pt-5">
-          <h2 id={`${id}-preview`} className="text-lg leading-snug font-semibold">
+          <h2 id={`${id}-preview`} className="text-lg font-semibold">
             {t('preview.heading')}
           </h2>
           <dl className="flex flex-col gap-3">

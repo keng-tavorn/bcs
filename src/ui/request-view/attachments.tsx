@@ -48,7 +48,7 @@ export function AttachmentList({ files, open }: { files: readonly AttachmentView
               onClick={() => void onOpen(file)}
               disabled={busy === file.fileId}
               aria-busy={busy === file.fileId || undefined}
-              className="inline-flex min-h-11 shrink-0 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline disabled:opacity-60 sm:self-center"
+              className="inline-flex min-h-11 shrink-0 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline disabled:text-ink-muted sm:self-center"
             >
               {busy === file.fileId ? t('opening', { name: file.fileName }) : t('open', { name: file.fileName })}
             </button>

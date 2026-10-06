@@ -6,6 +6,7 @@ import { LiffProvider } from '@/ui/liff/liff-provider'
 import { LiffReviewStep, type LiffReviewProps } from '@/ui/liff/requests/review-step'
 import type { StepProps } from '@/ui/request-form/details-items'
 import { formInput, initialValues, totalsOf, type FormValues } from '@/ui/request-form/model'
+import { toFormFailure, type FormFailure } from '@/ui/request-form/outcome'
 import { ReviewStep, type ReviewProps, type SendBlock } from '@/ui/request-form/review-step'
 import type { BudgetView, RequestFormData } from '@/ui/request-form/types'
 import en from '../../messages/en.json'
@@ -259,6 +260,13 @@ describe('[FR-LINE-003/AC1] [§9.9] the LIFF form’s check and send: "ตรว
     expect(section).not.toContain('ส่งไม่ได้')
   })
 
+  it('[FR-INT-005/AC1] [§9.9] a problem this step fixes itself, under its quotations and documents, says what to do there and leads to it; one fixed on another step leads to that step', () => {
+    const problems: LiffReviewProps['problems'] = [{ kind: 'ATTACHMENTS', ruleId: 'ATT-QUOTES' }, { kind: 'QUOTATION_FILE', quotationNo: 1 }, { kind: 'TITLE' }]
+    const ways = (locale: Locale) => [...beforeSending(liff(null, { problems }, locale)).matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1])
+    expect(ways('th')).toEqual(['แนบให้ครบตามกฎ ATT-QUOTES ในส่วน ใบเสนอราคาและเอกสาร', 'ไปแก้ที่ส่วน ใบเสนอราคาและเอกสาร', 'ไปแก้ที่ขั้น รายละเอียดคำขอ'])
+    expect(ways('en')).toEqual(['Attach what rule ATT-QUOTES asks for under Quotations and documents', 'Fix it under Quotations and documents', 'Fix it in Request details'])
+  })
+
   it('[FR-INT-006/AC2] saving stopped (the draft was changed elsewhere): it says to load the latest version first, in words of its own, not that the request can be sent', () => {
     const section = words(beforeSending(liff({ kind: 'SAVE', stop: 'conflict' })))
     expect(section).not.toContain(READY.th)
@@ -282,6 +290,67 @@ describe('[FR-LINE-003/AC1] [§9.9] the LIFF form’s check and send: "ตรว
     const conflict = words(beforeSending(liff({ kind: 'SAVE', stop: 'conflict' }, {}, 'en')))
     expect(conflict).toContain('This draft was changed elsewhere. Load the latest version and check it again before sending')
     expect(conflict).not.toContain(READY.en)
+  })
+})
+
+describe('[FR-INT-005/AC2] [§9.9] the LIFF form’s refusal of a send says what to do and leads there: to another step, or to its place on this one', () => {
+  /**
+   * The refusal at the end of the step, after "ตรวจก่อนส่ง" — right above the send button in the bar, where the requester
+   * pressed it, as the workspace's review step puts it above its button: its notice, which nothing on the step follows
+   */
+  function refusal(submitError: FormFailure, locale: Locale = 'th'): string {
+    const page = liff(null, { submitError }, locale)
+    const start = page.indexOf('role="alert"')
+    expect(start, 'the step shows the refusal').toBeGreaterThanOrEqual(0)
+    expect(timesIn(page, 'role="alert"'), 'the refusal is on the step once').toBe(1)
+    const problems = page.indexOf('<section aria-labelledby="review-problems"')
+    expect(problems, 'the step has its "ตรวจก่อนส่ง"').toBeGreaterThanOrEqual(0)
+    expect(start, 'the refusal comes after "ตรวจก่อนส่ง"').toBeGreaterThan(page.indexOf('</section>', problems))
+    const notice = page.slice(start)
+    expect(notice, 'nothing on the step follows the refusal').not.toContain('<section')
+    return notice
+  }
+  const ways = (notice: string) => [...notice.matchAll(/<button[^>]*>([^<]*)<\/button>/g)].map((m) => m[1])
+  const RULE = toFormFailure({ code: 'ATTACHMENT_RULE_FAILED', details: { rule: 'ATT-QUOTES', failures: [{ rule: 'ATT-QUOTES', missing: [{ kind: 'ATTACHMENT', attachment: 'QUOTATION', need: 3, have: 1 }] }] } })
+  const SUPPLIER = toFormFailure({ code: 'VALIDATION_FAILED', details: { field: 'suggestedSupplierId', reason: 'UNKNOWN' } })
+
+  it('[§9.9] whatever the server refused, the refusal is the last thing on the step, right above the send button in the bar — never only at the top of a long step', () => {
+    const said: ReadonlyArray<readonly [FormFailure, string]> = [
+      [RULE, 'แนบเอกสารยังไม่ครบตามกฎ ATT-QUOTES'],
+      [toFormFailure({ code: 'BUDGET_INSUFFICIENT', details: { available: '25000.00', shortfall: '35000.00' } }), 'งบไม่พอ คงเหลือ 25,000.00 บาท ขาด 35,000.00 บาท'],
+      [toFormFailure({ code: 'NO_HIGHER_AUTHORITY', details: { adminsNotified: 1 } }), `${th.requestForm.errors.NO_HIGHER_AUTHORITY} ${th.requestForm.errors.adminsTold}`],
+      [{ ok: false, code: 'DRAFT_NOT_SAVED' }, th.requestForm.errors.DRAFT_NOT_SAVED],
+      [toFormFailure({ code: 'CONFLICT_VERSION' }), th.requestForm.errors.CONFLICT_VERSION],
+    ]
+    for (const [submitError, text] of said) expect(words(refusal(submitError)), submitError.code).toContain(text)
+    // The version conflict keeps its way to the latest version inside the notice
+    expect(ways(refusal(toFormFailure({ code: 'CONFLICT_VERSION' })))).toEqual([th.requestForm.save.reload])
+    // The step still opens with its summary
+    const page = liff(null, { submitError: RULE })
+    expect(page.indexOf('<section aria-labelledby="review-summary"')).toBeGreaterThanOrEqual(0)
+    expect(page.indexOf('<section aria-labelledby="review-summary"')).toBeLessThan(page.indexOf('role="alert"'))
+  })
+
+  it('[FR-INT-005/AC2] fixed in the quotations and documents of this step: it names that part — not a step this form does not have — and leads to it', () => {
+    const rule = refusal(RULE)
+    expect(words(rule)).toContain('แนบเอกสารยังไม่ครบตามกฎ ATT-QUOTES: ขาด ใบเสนอราคา 3 ไฟล์ (มี 1) แนบในส่วนใบเสนอราคาและเอกสารแล้วส่งอีกครั้ง')
+    expect(ways(rule)).toEqual(['ไปแก้ที่ส่วน ใบเสนอราคาและเอกสาร'])
+    const supplier = refusal(SUPPLIER)
+    expect(words(supplier)).toContain('ผู้ขายที่แนะนำเลิกใช้แล้ว เลือกผู้ขายรายอื่นหรือไม่ระบุในส่วนใบเสนอราคาและเอกสาร')
+    expect(ways(supplier)).toEqual(['ไปแก้ที่ส่วน ใบเสนอราคาและเอกสาร'])
+    for (const notice of [rule, supplier]) expect(words(notice)).not.toContain('ขั้นใบเสนอราคาและเอกสาร')
+  })
+
+  it('[§9.9] fixed on another step: it leads to that step', () => {
+    expect(ways(refusal(toFormFailure({ code: 'VALIDATION_FAILED', details: { field: 'deliverySiteId', reason: 'UNKNOWN' } })))).toEqual(['ไปแก้ที่ขั้น รายการที่ขอ'])
+    expect(ways(refusal(toFormFailure({ code: 'VALIDATION_FAILED', details: { field: 'formData.category', reason: 'FORM' } })))).toEqual(['ไปแก้ที่ขั้น รายละเอียดคำขอ'])
+  })
+
+  it('[FR-INT-005/AC2] in English as well', () => {
+    const rule = refusal(RULE, 'en')
+    expect(words(rule)).toContain('Attach them in Quotations and documents, then send again')
+    expect(ways(rule)).toEqual(['Fix it under Quotations and documents'])
+    expect(ways(refusal(SUPPLIER, 'en'))).toEqual(['Fix it under Quotations and documents'])
   })
 })
 

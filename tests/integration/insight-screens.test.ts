@@ -367,6 +367,13 @@ describe('[FR-VIS-003/AC2] the executive’s KPI page shows the organization’s
     expect({ items: requests.items.length, counted: requests.counted }).toEqual({ items: kpi.g5.bySubject.PURCHASE_REQUEST!.denominator, counted: kpi.g5.bySubject.PURCHASE_REQUEST!.numerator })
     const g2b = ok(await kpiDetail(org.ctxOf('ceo', now), period, 'g2b'))
     expect(g2b.counted).toBe(kpi.g2.withDoaReference.numerator)
+    // G-2 (a): every decision checked again with the DOA engine, the misrouted ones counted, so "0 รายการ (ตรวจแล้ว n
+    // การตัดสิน)" opens the n decisions it checked (§9.9)
+    expect(kpi.g2.checked).toBeGreaterThan(0)
+    const g2a = ok(await kpiDetail(org.ctxOf('ceo', now), period, 'g2a'))
+    expect({ items: g2a.items.length, total: g2a.total, counted: g2a.counted }).toEqual({ items: kpi.g2.checked, total: kpi.g2.checked, counted: kpi.g2.misrouted })
+    expect(g2a.items.filter((i) => i.mark === 'MISROUTED')).toHaveLength(kpi.g2.misrouted)
+    expect(g2a.items.filter((i) => i.mark !== 'MISROUTED').every((i) => i.mark === 'DOA_MATCHED')).toBe(true)
     const g3c = ok(await kpiDetail(org.ctxOf('ceo', now), period, 'g3c'))
     expect(g3c.items).toHaveLength(kpi.g3.pastDue.numerator)
     expect(g3c.items.every((i) => i.mark === 'PAST_DUE_OPEN' || i.mark === 'PAST_DUE_DECIDED')).toBe(true)

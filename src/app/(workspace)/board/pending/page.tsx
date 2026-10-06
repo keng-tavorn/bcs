@@ -117,7 +117,6 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
                 waiting: t('table.waiting'),
                 oldest: t('table.oldest'),
                 average: t('table.average'),
-                hours: t('table.hours'),
                 overdueWord: t('table.overdueWord'),
                 waitingWord: t('table.waitingWord'),
               }}

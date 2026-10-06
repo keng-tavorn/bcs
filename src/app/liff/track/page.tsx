@@ -16,7 +16,7 @@ export async function generateMetadata() {
 
 /** A link that looks like the primary button: the next step of someone with no request yet (§9.9 rule 8) */
 const PRIMARY_LINK =
-  'inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
+  'inline-flex h-11 w-full items-center justify-center rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline'
 
 // /liff/track (§9.4 "คำขอของฉันและไทม์ไลน์", the rich menu's "ติดตามสถานะ", FR-LINE-004 AC2): the member's own and
 // followed requests, newest first, each with its status, where it is now — who it waits for and for how long — and its

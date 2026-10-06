@@ -47,7 +47,8 @@ function Value({ m }: { m: KpiMeasureView }) {
       ) : (
         <span className="font-semibold text-ink">{m.value}</span>
       )}
-      {m.detail ? <span className="block text-ink-muted">{m.detail}</span> : null}
+      {/* secondary in the wide table, like the formula beside it; the list below lg keeps it at the body size */}
+      {m.detail ? <span className="block text-ink-muted lg:text-sm">{m.detail}</span> : null}
     </>
   )
 }
@@ -86,11 +87,12 @@ function WideTable({ goals, labels }: { goals: readonly KpiGoalView[]; labels: K
                 <span className="block font-medium text-ink">{m.name}</span>
                 <span className="block text-sm text-ink-muted">{m.formula}</span>
               </th>
-              <td className="px-3 py-2.5 align-top text-sm">
+              {/* the figures at the body's 15 px: only the column headers and the formula are secondary text */}
+              <td className="px-3 py-2.5 align-top">
                 <Value m={m} />
               </td>
-              <td className="px-3 py-2.5 align-top text-sm whitespace-nowrap">{m.baseline}</td>
-              <td className="px-3 py-2.5 align-top text-sm">{m.target}</td>
+              <td className="px-3 py-2.5 align-top whitespace-nowrap">{m.baseline}</td>
+              <td className="px-3 py-2.5 align-top">{m.target}</td>
             </tr>
           ))}
         </tbody>

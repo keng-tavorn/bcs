@@ -142,7 +142,7 @@ export function LiffRequesterScreen({ header, children, requestId, question, ret
         {header}
         {hasToDo ? (
           <section aria-labelledby={`${id}-title`} className="flex flex-col gap-4 border-t border-line pt-5">
-            <h2 id={`${id}-title`} className="text-lg leading-snug font-semibold">
+            <h2 id={`${id}-title`} className="text-lg font-semibold">
               {t('title')}
             </h2>
             {done ? <LiffNotice tone="success">{done}</LiffNotice> : null}

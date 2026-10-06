@@ -41,6 +41,10 @@ test('[FR-VIS-001/AC1] the executive sees who holds open documents, past SLA fir
   expect(await figure(row, 'รอตัดสิน', vp.name)).toBeGreaterThanOrEqual(1)
   const oldest = Number((await row.locator('td, dd').nth(3).innerText()).match(/\d+\.\d/)?.[0])
   expect(oldest).toBeGreaterThanOrEqual(18)
+  // Every figure opens the person's documents, the ages in business hours too (§9.9)
+  for (const age of ['ค้างนานสุด', 'เฉลี่ย']) {
+    await expect(row.getByRole('link', { name: new RegExp(`^${age} \\d+\\.\\d ชั่วโมงทำการที่ ${vp.name}: ดูเอกสาร$`) })).toHaveAttribute('href', `/board/pending/${vp.id}`)
+  }
   // People with documents past due come first: nobody above the VP has none past due
   const blocks = page.locator('tbody tr:visible, ul[aria-label="เอกสารค้างแยกตามผู้รับงาน"] > li:visible')
   const names = await blocks.evaluateAll((els) => els.map((el) => el.querySelector('a')?.textContent ?? ''))
@@ -94,6 +98,8 @@ test('[FR-VIS-001/AC2] a name lists that person’s documents with links, and a 
   await expect(item).toContainText(/ค้างมา 1[89]\.\d ชั่วโมงทำการ/)
   await expect(item).toContainText('เกินกำหนดตั้งแต่')
   await expect(item).toContainText('คำขอ · มอบงานเมื่อ')
+  // The latest figures are a reload away: a reminder refused because the document was decided meanwhile says to press it
+  await expect(page.getByRole('link', { name: 'ดูตัวเลขล่าสุด', exact: true })).toHaveAttribute('href', `/board/pending/${vp.id}`)
   await checkScreen(page, testInfo, 'board-person')
 
   // Remind: sent, and when the next one may go

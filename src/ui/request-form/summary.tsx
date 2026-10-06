@@ -97,7 +97,8 @@ export function RoutePreview({ route, loading, locale, reported }: { route: Rout
         {route.steps.map((s) => {
           const w = who(s)
           return (
-            <li key={s.stepNo} className="flex flex-col border-l-4 border-primary bg-surface px-3 py-2">
+            // An expected approver, not a decision yet: the rule of supporting information, not the approved colour
+            <li key={s.stepNo} className="flex flex-col border-l-4 border-info bg-surface px-3 py-2">
               <span className="text-base text-ink-muted md:text-sm">{t('step', { n: s.stepNo })}</span>
               <span className="font-semibold">{w.name}</span>
               {w.role ? <span>{w.role}</span> : null}

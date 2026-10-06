@@ -113,8 +113,8 @@ test('@demo [FR-INT-005/AC1] [FR-LINE-002/AC1] [FR-LINE-003/AC1] [FR-LINE-003/AC
   await expect(chargedDepartmentOf(page)).toHaveText(nameIn(sheet.departments, scene.chargedDept, 'department'))
   await expect(remainingOf(page)).toContainText(th('requestForm.budget.baht', { amount: baht(available) }))
   await page.getByLabel(th('requestForm.details.title')).fill(`ปั๊มน้ำบาดาล ${siteName}`)
-  // One quotation only: the single-source reason the rule takes with it (a field of the form)
-  await page.getByLabel(/^เหตุผลกรณีมีผู้ขายรายเดียว/).fill('ผู้ขายรายเดียวในพื้นที่ที่ติดตั้งและรับประกันปั๊มบาดาลได้')
+  // The single-source reason is not a question of this step: the rule that takes it is asked beside the documents
+  await expect(page.getByLabel(/^เหตุผลกรณีมีผู้ขายรายเดียว/)).toHaveCount(0)
   await checkLiffScreen(page, testInfo, 'scene3-form-details')
 
   await nextStep(page, 'items')
@@ -129,9 +129,14 @@ test('@demo [FR-INT-005/AC1] [FR-LINE-002/AC1] [FR-LINE-003/AC1] [FR-LINE-003/AC
   // FR-INT-005 AC1: at this amount the rule asks for quotations, and is not met yet
   const rule = page.locator(`[data-rule="${quotesRule}"]`)
   await expect(rule).toContainText(th('requestForm.documents.notMet'))
+  // Above 100,000.00 baht with VAT the rule's single-source reason is asked here, beside the rule that takes it
+  const reason = page.getByLabel(/^เหตุผลกรณีมีผู้ขายรายเดียว/)
+  await expect(reason).toBeVisible()
   await checkLiffScreen(page, testInfo, 'scene3-form-documents')
+  // One quotation only: the single-source reason the rule takes with it (a field of the form)
+  await reason.fill('ผู้ขายรายเดียวในพื้นที่ที่ติดตั้งและรับประกันปั๊มบาดาลได้')
   // The one quotation, as data (BR-FORM-06): the supplier, its amount before VAT, the photo of the paper; chosen. With
-  // the single-source reason of step 1 the rule is met
+  // the single-source reason the rule is met
   await page.getByRole('button', { name: th('requestForm.quotations.add') }).click()
   const quotation = page.getByRole('group', { name: th('requestForm.quotations.item', { n: 1 }) })
   await quotation.getByLabel(th('requestForm.quotations.supplier')).fill(supplier)

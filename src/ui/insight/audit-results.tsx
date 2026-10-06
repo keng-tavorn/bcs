@@ -61,8 +61,9 @@ function Empty({ none }: { none: string }) {
 }
 
 function WideTable({ rows, labels }: { rows: readonly AuditRowView[]; labels: AuditResultsLabels }) {
+  // the cells are the page's content, at the body's 15 px; only the column headers are secondary text
   const th = 'border-b border-line px-3 py-2 text-left text-sm font-medium text-ink-muted'
-  const td = 'px-3 py-2.5 align-top text-sm'
+  const td = 'px-3 py-2.5 align-top'
   return (
     <table className="hidden w-full border-collapse xl:table">
       <caption className="sr-only">{labels.caption}</caption>
@@ -92,7 +93,8 @@ function WideTable({ rows, labels }: { rows: readonly AuditRowView[]; labels: Au
         {rows.map((r) => (
           <tr key={r.id} className="border-b border-line">
             <td className={cn(td, 'tabular')}>
-              <span className="block">{r.when}</span>
+              {/* the time on one line: the column widens rather than leave "น." alone below */}
+              <span className="block whitespace-nowrap">{r.when}</span>
               <span className="block text-ink-muted">{r.seq}</span>
             </td>
             <th scope="row" className={cn(td, 'text-left font-medium')}>
@@ -103,7 +105,8 @@ function WideTable({ rows, labels }: { rows: readonly AuditRowView[]; labels: Au
               <span className="block">{r.actor}</span>
               {r.onBehalfOf ? <span className="block text-ink-muted">{r.onBehalfOf}</span> : null}
             </td>
-            <td className={td}>{r.channel}</td>
+            {/* a channel's name is short and reads as one: "LINE (LIFF)" never splits over two lines */}
+            <td className={cn(td, 'whitespace-nowrap')}>{r.channel}</td>
             <td className={td}>{r.doa ? <Linked link={r.doa} /> : <Empty none={labels.none} />}</td>
           </tr>
         ))}
@@ -132,7 +135,7 @@ function NarrowList({ rows, labels }: { rows: readonly AuditRowView[]; labels: A
               {r.when} · {r.seq}
             </p>
           </div>
-          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1 text-base md:text-sm">
+          <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
             <Pair term={labels.document}>{r.document ? <Linked link={r.document} /> : <Empty none={labels.none} />}</Pair>
             <Pair term={labels.actor}>
               {r.actor}

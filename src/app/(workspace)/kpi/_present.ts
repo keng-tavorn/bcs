@@ -83,7 +83,8 @@ export function kpiGoals(t: KpiT, locale: string, kpi: KpiResult, baseline: KpiB
       code: 'G-2',
       title: t('goals.G-2'),
       measures: [
-        measure('g2a', { ...countValue(t, kpi.g2.misrouted), detail: t('values.checked', { count: kpi.g2.checked }) }),
+        // its list holds every decision it checked, the misrouted ones counted: "0 รายการ" opens them once any was checked
+        measure('g2a', { value: t('values.count', { count: kpi.g2.misrouted }), detail: t('values.checked', { count: kpi.g2.checked }), empty: kpi.g2.checked === 0 }),
         measure('g2b', ratioValue(t, kpi.g2.withDoaReference, 'decisions')),
       ],
     },
@@ -111,14 +112,17 @@ export function kpiGoals(t: KpiT, locale: string, kpi: KpiResult, baseline: KpiB
   ]
 }
 
-/** The figure a list stands behind, in a sentence ("นับ 3 จาก 5 รายการ") */
+/** The figure a list stands behind, in a sentence: "นับ 3 จาก 5 รายการ" for a list of items counted or not, else "5 รายการ" */
 export function detailSentence(t: KpiT, d: KpiDetailDto): string {
-  if (d.measure === 'g2b' || d.measure === 'g5') return t('items.countedOf', { counted: d.counted, total: d.total })
+  if (d.measure === 'g2a' || d.measure === 'g2b' || d.measure === 'g5') return t('items.countedOf', { counted: d.counted, total: d.total })
   return t('items.count', { count: d.total })
 }
 
-/** A list cut at its newest items says so */
-export const cappedSentence = (t: KpiT, d: KpiDetailDto): string | null => (d.items.length < d.total ? t('items.capped', { shown: d.items.length, total: d.total }) : null)
+/** A list cut short says so, and which items it kept: the newest, or for G-2 (a) the misrouted ones first */
+export function cappedSentence(t: KpiT, d: KpiDetailDto): string | null {
+  if (d.items.length >= d.total) return null
+  return t(d.measure === 'g2a' ? 'items.cappedCountedFirst' : 'items.capped', { shown: d.items.length, total: d.total })
+}
 
 const DECISIONS = ['APPROVE', 'RETURN', 'REJECT'] as const
 const CHANNELS = ['WEB', 'LIFF', 'LINE_CHAT', 'PWA', 'EMAIL', 'PORTAL', 'SYSTEM', 'API', 'MCP'] as const
@@ -129,6 +133,7 @@ const MARK_KIND = {
   WITH_DOA: 'done',
   WITHOUT_DOA: 'overdue',
   MISROUTED: 'overdue',
+  DOA_MATCHED: 'done',
   PAST_DUE_DECIDED: 'overdue',
   PAST_DUE_OPEN: 'overdue',
 } as const

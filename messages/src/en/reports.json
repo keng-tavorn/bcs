@@ -75,7 +75,7 @@
     "errors": {
       "TOO_MANY": "One file holds at most {max} rows. Narrow the period or the conditions and export again.",
       "FILTER": "These conditions cannot be exported. Check the dates and conditions and try again.",
-      "FORBIDDEN": "You may not export this file.",
+      "FORBIDDEN": "Your account may not export this file; your rights may have just changed. Reload the page to see them, and ask your organization admin if you still need the file.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
       "BUSY": "The system is busy. Wait a moment and try again.",
       "CONFLICT": "This press clashed with another command. Reload the page and try again.",

@@ -6,9 +6,9 @@ import { cn } from '../cn'
 // The board "เอกสารค้างที่ใคร" (spec §11.1, FR-VIS-001 AC1): one row per person holding open documents — how many wait
 // for their decision, how many are past their SLA, how many wait for the requester's answer, and the oldest and the
 // average wait in business hours. Wide screens get a table (caption, column and row headers, figures right-aligned in
-// tabular digits); phones get the same figures as a list, never a table that scrolls sideways (§9.9). Every figure
-// opens the person's documents (§9.9: a number leads to its list). Past SLA is an icon and words, never colour alone.
-// Strings arrive translated.
+// tabular digits); phones get the same figures as a list, never a table that scrolls sideways (§9.9). Every figure, the
+// two ages too, opens the person's documents (§9.9: a number leads to its list), and its link's name says what it counts,
+// with the unit. Past SLA is an icon and words, never colour alone. Strings arrive translated.
 
 export interface BoardFigure {
   readonly text: string
@@ -25,8 +25,9 @@ export interface BoardRowView {
   readonly open: BoardFigure
   readonly overdue: BoardFigure & { readonly count: number }
   readonly waiting: BoardFigure & { readonly count: number }
-  readonly oldest: string
-  readonly average: string
+  /** The oldest wait, "18.0", its label with the unit: "ค้างนานสุด 18.0 ชั่วโมงทำการที่ วีระ ปฏิบัติการ: ดูเอกสาร" */
+  readonly oldest: BoardFigure
+  readonly average: BoardFigure
 }
 
 export interface BoardTableLabels {
@@ -37,8 +38,6 @@ export interface BoardTableLabels {
   readonly waiting: string
   readonly oldest: string
   readonly average: string
-  /** "ชั่วโมงทำการ", read after each age */
-  readonly hours: string
   /** Words next to the warning icon: "เกิน SLA" */
   readonly overdueWord: string
   readonly waitingWord: string
@@ -112,12 +111,10 @@ function WideTable({ rows, labels }: { rows: readonly BoardRowView[]; labels: Bo
               <Waiting row={r} href={r.href} labels={labels} />
             </td>
             <td className={num}>
-              {r.oldest}
-              <span className="sr-only"> {labels.hours}</span>
+              <Figure figure={r.oldest} href={r.href} />
             </td>
             <td className={num}>
-              {r.average}
-              <span className="sr-only"> {labels.hours}</span>
+              <Figure figure={r.average} href={r.href} />
             </td>
           </tr>
         ))}
@@ -154,12 +151,10 @@ function NarrowList({ rows, labels }: { rows: readonly BoardRowView[]; labels: B
               <Waiting row={r} href={r.href} labels={labels} />
             </Pair>
             <Pair term={labels.oldest}>
-              {r.oldest}
-              <span className="sr-only"> {labels.hours}</span>
+              <Figure figure={r.oldest} href={r.href} />
             </Pair>
             <Pair term={labels.average}>
-              {r.average}
-              <span className="sr-only"> {labels.hours}</span>
+              <Figure figure={r.average} href={r.href} />
             </Pair>
           </dl>
         </li>

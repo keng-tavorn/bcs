@@ -163,6 +163,12 @@ describe('[FR-INT-009/AC3] [FR-INT-009/AC2] [FR-INT-009/AC1] questions, returns,
     expect(waiting!.track.find((t) => t.state === 'current')).toMatchObject({ what: 'WAIT_ANSWER', actor: { id: org.member.req_con }, note: 'ขอใบเสนอราคาประกอบ' })
     const taskView = await getTaskView(org.ctxOf('vp_ops', MON_1300), task.id)
     expect(taskView).toMatchObject({ status: 'INFO_REQUESTED', openQuestion: { id: asked.data.infoRequestId, question: 'ขอใบเสนอราคาประกอบ' } })
+    // [FR-INT-008/AC1] §9.9 principle 4: how long the question has waited for the requester, in business time — asked
+    // Monday 13:00, read Tuesday 10:00: 270 minutes on Monday and 90 on Tuesday, the night not counted
+    const later = await getRequestView(org.ctxOf('req_con', TUE_1000), requestId)
+    expect(later!.stage).toMatchObject({ kind: 'ANSWER', since: MON_1300, waitingMinutes: 360 })
+    expect(later!.track.find((t) => t.state === 'current')).toMatchObject({ what: 'WAIT_ANSWER', at: MON_1300, waitingMinutes: 360 })
+    expect((await listMyRequests(org.ctxOf('req_con', TUE_1000))).rows.find((r) => r.id === requestId)!.stage).toMatchObject({ kind: 'ANSWER', waitingMinutes: 360 })
 
     await provideInfo(org.ctxOf('req_con', TUE_1000), { infoRequestId: asked.data.infoRequestId, answer: 'แนบใบเสนอราคาแล้ว 1 ใบ' }, key())
     const answered = await getRequestView(org.ctxOf('req_con', TUE_1000), requestId)
@@ -178,6 +184,11 @@ describe('[FR-INT-009/AC3] [FR-INT-009/AC2] [FR-INT-009/AC1] questions, returns,
     const returned = await getRequestView(org.ctxOf('req_con', MON_1300), requestId)
     expect(returned).toMatchObject({ status: 'RETURNED', returnReason: 'แยกรายการให้ชัดเจน', stage: { kind: 'REQUESTER_EDIT', since: MON_1300 }, actions: { canEdit: true, canResubmit: true, canCancel: true } })
     expect(returned!.track.find((t) => t.what === 'RETURNED')).toMatchObject({ actor: { id: org.member.vp_ops }, note: 'แยกรายการให้ชัดเจน', doa: { ruleCode: 'PR-02' } })
+    // [FR-INT-008/AC1] §9.9 principle 4: how long it has waited for the requester to edit it, in business time — returned
+    // Monday 13:00, read Tuesday 10:00: 360 business minutes
+    const waitingEdit = await getRequestView(org.ctxOf('req_con', TUE_1000), requestId)
+    expect(waitingEdit!.stage).toMatchObject({ kind: 'REQUESTER_EDIT', since: MON_1300, waitingMinutes: 360 })
+    expect(waitingEdit!.track.find((t) => t.state === 'current')).toMatchObject({ what: 'WAIT_REQUESTER_EDIT', at: MON_1300, waitingMinutes: 360 })
 
     await editRequest(
       org.ctxOf('req_con', TUE_1000),

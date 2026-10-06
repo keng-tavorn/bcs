@@ -72,8 +72,43 @@ export const PO_ERROR_KEYS = [
   'UNAUTHENTICATED',
   'INTERNAL',
   'FAILED',
+  'NO_ANSWER_SUBMIT',
+  'NO_ANSWER_SEND',
+  'NO_ANSWER_RESEND',
+  'NO_ANSWER_CANCEL',
+  'NO_ANSWER_CLOSE',
+  'NO_ANSWER_LINE',
+  'NO_ANSWER_REMOVE',
+  'NO_ANSWER_TERMS',
 ] as const
 export type PoErrorKey = (typeof PO_ERROR_KEYS)[number]
+
+/**
+ * What a form of the page holds when its server action gave no answer — the call threw: the connection dropped, no
+ * server was reached. The server never answers this code. The action may have been done before the answer was lost (an
+ * e-mail to the supplier may have gone out), so its words never say it failed (§9.9 rule 7): they say it is not certain,
+ * and to press the action's own button again without changing anything. The form keeps its idempotency key until an
+ * answer comes (../procurement/use-outcome-action.ts), so that press is the same submission and is done once (spec
+ * §4.3); a submission changed meanwhile is refused as another one (CONFLICT).
+ */
+export const PO_NO_ANSWER: PoFailure = { ok: false, code: 'NO_ANSWER' }
+
+/**
+ * The actions of the purchase-order page, each with its own words when no answer came. A line's two actions are named
+ * as the keys of its button's words (draft-editor.tsx lineFormWords)
+ */
+export type PoAction = 'submit' | 'send' | 'resend' | 'cancel' | 'close' | 'saveLine' | 'removeLine' | 'saveTerms'
+
+const NO_ANSWER_KEYS = {
+  submit: 'NO_ANSWER_SUBMIT',
+  send: 'NO_ANSWER_SEND',
+  resend: 'NO_ANSWER_RESEND',
+  cancel: 'NO_ANSWER_CANCEL',
+  close: 'NO_ANSWER_CLOSE',
+  saveLine: 'NO_ANSWER_LINE',
+  removeLine: 'NO_ANSWER_REMOVE',
+  saveTerms: 'NO_ANSWER_TERMS',
+} as const satisfies Record<PoAction, PoErrorKey>
 
 const VALIDATION_REASONS: readonly PoErrorKey[] = ['NO_CHANGE', 'QUANTITY_OVER_REQUEST', 'QUANTITY', 'MERGED_LINE', 'NO_LINES', 'LINE', 'SUPPLIER_INACTIVE', 'NO_SOURCE_REQUEST']
 
@@ -133,4 +168,13 @@ export function poCancelErrorKey(failure: PoFailure): PoErrorKey {
   if (key === 'BUDGET_INSUFFICIENT') return 'CANCEL_BUDGET_INSUFFICIENT'
   if (key === 'BUDGET_SHORTFALL') return 'CANCEL_BUDGET_SHORTFALL'
   return key
+}
+
+/**
+ * Message key under purchaseOrder.errors of an action of the page that did not go through: no answer (PO_NO_ANSWER) in
+ * the action's own words; a refusal of a cancellation as poCancelErrorKey; every other refusal as poErrorKey
+ */
+export function poActionErrorKey(failure: PoFailure, action: PoAction): PoErrorKey {
+  if (failure.code === PO_NO_ANSWER.code) return NO_ANSWER_KEYS[action]
+  return action === 'cancel' ? poCancelErrorKey(failure) : poErrorKey(failure)
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CircleCheck, Info } from 'lucide-react'
+import { CircleAlert, Info } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { amountToSatang } from '@/core/money/dto'
 import type { Satang } from '@/core/money/math'
@@ -32,7 +32,9 @@ export function TotalsList({ totals, rateBp }: { totals: Totals | null; rateBp: 
 
 /**
  * The selected budget line against the amount before VAT (BR-BUD-03), worked out on every keystroke from the last
- * balance the server sent; the submit checks again under lock (AC3).
+ * balance the server sent; the submit checks again under lock (AC3). Enough budget is supporting information on a
+ * request not sent yet — the info icon in --info beside words in ink, as the route's explanation — never the approved
+ * mark of --primary (§9.9 tokens); not enough is --danger, the token of งบไม่พอ. Both an icon and words, never colour alone.
  */
 export function BudgetStatus({ lineChosen, budget, need, loading }: { lineChosen: boolean; budget: BudgetView | null; need: Satang | null; loading: boolean }) {
   const t = useTranslations('requestForm.budget')
@@ -51,8 +53,8 @@ export function BudgetStatus({ lineChosen, budget, need, loading }: { lineChosen
         <dd className="money">{t('baht', { amount: showSatang(amount) })}</dd>
       </dl>
       {enough ? (
-        <p className="flex items-start gap-2 font-medium text-primary">
-          <CircleCheck className="mt-1 size-4 shrink-0" aria-hidden="true" />
+        <p className="flex items-start gap-2 font-medium text-ink">
+          <Info className="mt-1 size-4 shrink-0 text-info" aria-hidden="true" />
           <span>{t('enough')}</span>
         </p>
       ) : (
@@ -97,7 +99,8 @@ export function RoutePreview({ route, loading, locale, reported }: { route: Rout
         {route.steps.map((s) => {
           const w = who(s)
           return (
-            <li key={s.stepNo} className="flex flex-col border-l-4 border-primary bg-surface px-3 py-2">
+            // An expected approver, not a decision yet: the rule of supporting information, not the approved colour
+            <li key={s.stepNo} className="flex flex-col border-l-4 border-info bg-surface px-3 py-2">
               <span className="text-base text-ink-muted md:text-sm">{t('step', { n: s.stepNo })}</span>
               <span className="font-semibold">{w.name}</span>
               {w.role ? <span>{w.role}</span> : null}

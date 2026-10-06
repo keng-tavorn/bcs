@@ -15,7 +15,7 @@ export async function generateMetadata() {
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
-const primaryLink = 'inline-flex h-11 shrink-0 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]'
+const primaryLink = 'inline-flex h-11 shrink-0 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 hover:underline'
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
 type T = Awaited<ReturnType<typeof getTranslations<'suppliers'>>>
@@ -117,7 +117,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
           {full ? (
             <div className="flex flex-col gap-1.5 md:pt-8">
               <label className="flex min-h-11 items-center gap-3">
-                <input type="checkbox" name="missing" value="1" defaultChecked={missing} className="size-5 shrink-0 accent-[var(--primary)]" />
+                <input type="checkbox" name="missing" value="1" defaultChecked={missing} className="size-5 shrink-0" />
                 <span>{t('list.filter.missingExpress')}</span>
               </label>
             </div>

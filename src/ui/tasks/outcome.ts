@@ -25,6 +25,13 @@ export type ActionOutcome =
 
 export type ActionFailure = Extract<ActionOutcome, { ok: false }>
 
+/**
+ * What a form holds when its server action gave no answer (the call threw: the connection dropped). The server never
+ * answers this code. The action may have been done before the answer was lost; the form keeps its idempotency key, so
+ * pressing the same button again runs it only once (spec §4.3).
+ */
+export const NO_ANSWER: ActionFailure = { ok: false, code: 'NO_ANSWER' }
+
 const text = (value: unknown): string | undefined => (typeof value === 'string' && value ? value : undefined)
 const count = (value: unknown): number | undefined => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined)
 
@@ -140,14 +147,21 @@ export const REQUEST_ERROR_KEYS = [
   'CONFLICT',
   'UNAUTHENTICATED',
   'INTERNAL',
+  'NO_ANSWER',
   'FAILED',
 ] as const
 export type RequestErrorKey = (typeof REQUEST_ERROR_KEYS)[number]
 
-/** Message key under requestView.errors for a failed resubmit, cancel or answer. */
+/**
+ * Message key under requestView.errors for a failed resubmit, cancel or answer. No answer from the server (NO_ANSWER)
+ * says so — the connection, and that pressing the same button again does it only once — never "not saved", which it
+ * cannot know.
+ */
 export function requestErrorKey(failure: ActionFailure): RequestErrorKey {
   const { code, field, reason } = failure
   switch (code) {
+    case NO_ANSWER.code:
+      return 'NO_ANSWER'
     case 'INVALID_STATE_TRANSITION':
       return 'STATE'
     case 'VALIDATION_FAILED':

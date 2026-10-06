@@ -1,6 +1,7 @@
 'use client'
 
 import { useTranslations } from 'next-intl'
+import { documentFieldIds } from '../../request-form/document-fields'
 import type { FormAction, FormValues } from '../../request-form/model'
 import { showMoney } from '../../request-form/money'
 import type { BudgetView, RequestFormData, ScreenLocale } from '../../request-form/types'
@@ -12,9 +13,10 @@ import { LiffLabelled } from './labelled'
 // Step 1 of the LIFF request form (FR-INT-002, FR-INT-003, FR-INT-004 AC1): the title, the budget line the form opened
 // with (BR-FORM-02: the line the requester used last for this type, or their department's only line; only their own or
 // granted lines, BR-BUD-04) with the department that pays and what is left on it (only that line, budget.view
-// SELECTED_LINE_ONLY), then the questions of the request type shown or hidden as the requester answers (BR-FORM-01). The
-// same values, rules and words as the workspace's details step (src/ui/request-form/details-items.tsx), drawn lean for
-// the first screen of LIFF (§9.4).
+// SELECTED_LINE_ONLY), then the questions of the request type shown or hidden as the requester answers (BR-FORM-01) —
+// but those the attachment rules ask for, which step 3 asks beside the documents (src/ui/request-form/document-fields.ts).
+// The same values, rules and words as the workspace's details step (src/ui/request-form/details-items.tsx), drawn lean
+// for the first screen of LIFF (§9.4).
 
 export interface LiffDetailsProps {
   readonly data: RequestFormData
@@ -39,6 +41,8 @@ export function LiffDetailsStep(props: LiffDetailsProps) {
   const t = useTranslations('requestForm')
   const { data, values, update, locale, visible, showErrors, fieldErrors } = props
   const titleError = showErrors && !values.title.trim() ? t('details.titleMissing') : undefined
+  // A question the attachment rules ask for is asked beside the documents, in step 3 (document-fields.ts)
+  const documentFields = documentFieldIds(data.form.rules)
   return (
     <div className="flex flex-col gap-6">
       <LiffLabelled id="request-title" label={t('details.title')} requiredText={t('fields.required')} hint={t('details.titleHint')} error={titleError}>
@@ -57,7 +61,7 @@ export function LiffDetailsStep(props: LiffDetailsProps) {
       </LiffLabelled>
       {data.type.documentType === 'PURCHASE_REQUEST' ? <BudgetLineField {...props} /> : null}
       {data.form.fields
-        .filter((f) => visible.has(f.id))
+        .filter((f) => visible.has(f.id) && !documentFields.has(f.id))
         .map((def) => (
           <LiffField
             key={def.id}

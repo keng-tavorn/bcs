@@ -154,14 +154,14 @@ export function GrantForm({
       <fieldset className="flex flex-col gap-2">
         <legend className="mb-1.5 font-medium text-ink">{t('granteeKind')}</legend>
         <label className="flex min-h-11 items-start gap-3">
-          <input type="radio" name="kind" value="DEPARTMENT" checked={kind === 'DEPARTMENT'} onChange={() => setKind('DEPARTMENT')} className="mt-1 size-5 shrink-0 accent-[var(--primary)]" />
+          <input type="radio" name="kind" value="DEPARTMENT" checked={kind === 'DEPARTMENT'} onChange={() => setKind('DEPARTMENT')} className="mt-1 size-5 shrink-0" />
           <span className="flex flex-col">
             <span>{t('kindDepartment')}</span>
             <span className="text-base text-ink-muted md:text-sm">{t('kindDepartmentHint')}</span>
           </span>
         </label>
         <label className="flex min-h-11 items-center gap-3">
-          <input type="radio" name="kind" value="MEMBER" checked={kind === 'MEMBER'} onChange={() => setKind('MEMBER')} className="size-5 shrink-0 accent-[var(--primary)]" />
+          <input type="radio" name="kind" value="MEMBER" checked={kind === 'MEMBER'} onChange={() => setKind('MEMBER')} className="size-5 shrink-0" />
           <span>{t('kindMember')}</span>
         </label>
       </fieldset>

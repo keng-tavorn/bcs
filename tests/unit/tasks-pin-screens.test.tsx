@@ -59,6 +59,15 @@ describe('[FR-AUTH-005/AC2] the PIN field of a decision is masked and never offe
     expect(tag).not.toMatch(/new-password|current-password|autocomplete="off"/i)
   })
 
+  it('[§9.9] disabled — before the script runs and while a decision is sent — it stays readable in the token colours, never faded', () => {
+    const tag = inputTag(html(<PinField id="pin" label="PIN" value="" onChange={() => undefined} disabled />), 'pin')
+    expect(tag).toMatch(/\sdisabled=""/)
+    const classes = (attr(tag, 'class') ?? '').split(/\s+/)
+    // --ink-muted on --surface inside --line, 6.7:1, as LIFF's PIN field and a disabled button; faded, it fell to about 4:1
+    expect(classes).toEqual(expect.arrayContaining(['disabled:border-line', 'disabled:bg-surface', 'disabled:text-ink-muted']))
+    expect(classes.filter((c) => c.includes('opacity'))).toEqual([])
+  })
+
   it('the policy decision asks for it in both forms, the same way', () => {
     const markup = html(<PolicyDecision taskId="00000000-0000-4000-8000-000000000002" open locale="th" decide={never} />)
     const fields = [...markup.matchAll(/<input[^>]*\bname="pin"[^>]*>/g)].map((m) => m[0])

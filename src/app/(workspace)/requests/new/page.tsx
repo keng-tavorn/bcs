@@ -15,6 +15,7 @@ const OPEN_DRAFTS_SHOWN = 5
 
 // "ขอซื้อ / ขอจ้าง" (§9.1 /requests/new, FR-INT-001): the one door every request starts from — choose a request type,
 // then the form asks only what that type needs. The requester's drafts are here too, from whichever device they began on.
+// The catalogue is the door's own content, so the shell's door steps aside while it shows (RequestCatalog, DOOR_ASIDE).
 export default async function NewRequestPage() {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null

@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CircleCheck } from 'lucide-react'
+import { CircleAlert, Info } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import type { FieldDef } from '@/core/forms/fields'
 import { amountToSatang } from '@/core/money/dto'
@@ -8,11 +8,12 @@ import type { Satang } from '@/core/money/math'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import type { StepProps } from './details-items'
+import { documentFieldIds } from './document-fields'
 import { kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
 import { problemStep, savableLine, type Problem, type RuleStatus } from './model'
 import { showMoney, showSatang } from './money'
-import { adminsWereTold, failureKey, failureStep, failureTarget, type FormFailure, type StepId } from './outcome'
+import { adminsWereTold, failureKey, failureStep, failureTarget, type ClosedWhy, type FormFailure, type StepId } from './outcome'
 import { placeAndSupplierText } from './place-supplier'
 import { BudgetStatus, RoutePreview, TotalsList } from './summary'
 import type { RouteView } from './types'
@@ -27,13 +28,47 @@ const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_N
 // why (FR-INT-004 AC2); everything else is checked again by the server, whose answer is shown next to the button with how
 // to fix it (§9.9 rule 7, never only in a toast). "ตรวจก่อนส่ง" says it can be sent only when the button can send (§9.9
 // principle 3, sendBlockPoint): what stops the button comes first, then each problem with a way to the step that fixes
-// it. The budget point has no such way: its two fixes, a lower amount (items) or another line (details), are in its words.
+// it, each marked as one to fix before sending: it stops the button, or the server refuses the send (mustFixBeforeSending).
+// The budget point has no such way: its two fixes, a lower amount (items) or another line (details), are in its words.
 
 /** Problems that would send something other than what is on screen: an unfinished line or quotation is not saved */
 const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE'])
 
+/**
+ * The problems "ตรวจก่อนส่ง" marks "(ต้องแก้ก่อนส่ง)", as it marks the budget point (§9.9 principle 3 and rule 7): every
+ * one of them. Those that stop the send button (BLOCKING) cannot be sent at all; every other one the button still sends,
+ * and the server refuses the send all the same — an attachment rule not met with its code (ATTACHMENT_RULE_FAILED,
+ * FR-INT-005 AC2), a quotation without its file (FILE_REQUIRED), none chosen or a dearer one without its reason
+ * (QUOTE-SELECTED, QUOTE-LOWEST, BR-FORM-06), a question of the form not answered (FORM), a service line without the day
+ * it ends (SERVICE_END_DATE, BR-FORM-05) and no budget line chosen (the server takes the department's line by itself only
+ * when it has exactly one, which the form chose already, BR-FORM-02: the requester who cleared it chooses again, and sees
+ * what is left on it before sending, §9.9 principle 3). So no point of the list reads as optional: each says beforehand
+ * that it must be fixed first, beside its way to the place that fixes it. Both forms mark the same points (the LIFF one
+ * in src/ui/liff/requests/review-step.tsx). A new kind of problem does not compile until it is placed here.
+ */
+export function mustFixBeforeSending(p: Problem): boolean {
+  switch (p.kind) {
+    case 'TITLE':
+    case 'NO_LINES':
+    case 'LINE_INCOMPLETE':
+    case 'QUOTATION_INCOMPLETE':
+    case 'BUDGET_LINE':
+    case 'SERVICE_END_DATE':
+    case 'FIELD_REQUIRED':
+    case 'QUOTATION_FILE':
+    case 'QUOTATION_CHOOSE':
+    case 'QUOTATION_REASON':
+    case 'ATTACHMENTS':
+      return true
+  }
+}
+
 /** Saving is stopped: the draft was changed elsewhere (a version conflict), or the request was sent or cancelled elsewhere */
 export type SaveStop = Extract<SaveState['kind'], 'conflict' | 'closed'>
+
+/** The words of a request closed to this page, by why (ELSEWHERE: the server named no status — "sent or cancelled") */
+const closedKeys = (why: ClosedWhy | undefined) =>
+  why && why !== 'ELSEWHERE' ? { point: `review.saveClosedBy.${why}` as const, button: `submit.blockedClosedBy.${why}` as const } : { point: 'review.saveClosed' as const, button: 'submit.blockedClosed' as const }
 
 /**
  * Why the send button cannot send now, the reason it names first (FR-INT-004 AC2): the amount before VAT is above what
@@ -44,23 +79,25 @@ export type SaveStop = Extract<SaveState['kind'], 'conflict' | 'closed'>
 export type SendBlock =
   | { readonly kind: 'BUDGET'; readonly available: Satang; readonly shortfall: Satang }
   | { readonly kind: 'PROBLEMS' }
-  | { readonly kind: 'SAVE'; readonly stop: SaveStop }
+  /** `why`: what closed the request to this page, when saving stopped for that (sent, cancelled, gone, not this account's) */
+  | { readonly kind: 'SAVE'; readonly stop: SaveStop; readonly why?: ClosedWhy }
 
 /**
  * What stops the send button, as the first point of "ตรวจก่อนส่ง" — which says the request can be sent only when nothing
  * is left to fix and nothing stops the button (§9.9 principle 3: told before sending, one message, never the opposite of
  * the button). Over budget: the button's words after "ส่งไม่ได้เพราะ", with its figures and its advice, marked as the
  * list marks every point to fix before sending. Saving stopped: what stopped it and what that leaves to do, in words of
- * its own, so that the button's sentence stays the only one on the page. For a request sent or cancelled elsewhere the
- * point says so, as the notice above the form and the workspace's button do: loading the latest version cannot make it
- * sendable. A problem that must be fixed is a point of the list already (null).
+ * its own, so that the button's sentence stays the only one on the page. For a request closed to this page the point
+ * says what closed it — sent or cancelled elsewhere, gone, or no longer this account's (`why`, as the server said; both
+ * when it named no status) — as the notice above the form and the workspace's button do: loading the latest version
+ * cannot make it sendable. A problem that must be fixed is a point of the list already (null).
  */
 export function sendBlockPoint(t: T, block: SendBlock | null): { readonly text: string; readonly mustFix: boolean } | null {
   switch (block?.kind) {
     case 'BUDGET':
       return { text: t('review.budgetShort', { available: showSatang(block.available), shortfall: showSatang(block.shortfall) }), mustFix: true }
     case 'SAVE':
-      return { text: t(block.stop === 'conflict' ? 'review.saveConflict' : 'review.saveClosed'), mustFix: false }
+      return { text: t(block.stop === 'conflict' ? 'review.saveConflict' : closedKeys(block.why).point), mustFix: false }
     default:
       return null
   }
@@ -79,6 +116,10 @@ export interface ReviewProps extends StepProps {
   readonly submitError: FormFailure | null
   /** Why saving is stopped (a version conflict, or the request was sent or cancelled elsewhere); null while it goes on */
   readonly saveStop: SaveStop | null
+  /** What closed the request to this page, when saveStop is 'closed' (without it: "sent or cancelled elsewhere") */
+  readonly closedWhy?: ClosedWhy
+  /** The request's own page, once the draft exists: where a refusal because it was sent or cancelled leads */
+  readonly requestHref?: string | null
 }
 
 export function ReviewStep(props: ReviewProps) {
@@ -99,10 +140,11 @@ export function ReviewStep(props: ReviewProps) {
       : blocking.length
         ? { kind: 'PROBLEMS' }
         : props.saveStop
-          ? { kind: 'SAVE', stop: props.saveStop }
+          ? { kind: 'SAVE', stop: props.saveStop, ...(props.closedWhy ? { why: props.closedWhy } : {}) }
           : null
-  // Saving stopped: load the latest version (a conflict), or nothing to do on this page (sent or cancelled elsewhere,
-  // where loading would not make the request sendable, as its point and the notice above the form say)
+  // Saving stopped: load the latest version (a conflict), or nothing to do on this page (closed to it — sent or
+  // cancelled elsewhere, gone, not this account's — where loading would not make the request sendable, as its point and
+  // the notice above the form say)
   const blockedReason =
     block?.kind === 'BUDGET'
       ? t('submit.blockedBudget', { available: showSatang(block.available), shortfall: showSatang(block.shortfall) })
@@ -110,13 +152,16 @@ export function ReviewStep(props: ReviewProps) {
         ? t('submit.blockedProblems')
         : block?.kind === 'SAVE'
           ? block.stop === 'closed'
-            ? t('submit.blockedClosed')
+            ? t(closedKeys(block.why).button)
             : t('submit.blockedSave')
           : null
   // "ตรวจก่อนส่ง" leads with what stops the button, and is ready only when nothing does (§9.9 principle 3)
   const blockPoint = sendBlockPoint(t, block)
   const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
+  // A question the attachment rules ask for is fixed beside the documents, in step 3 (./document-fields.ts)
+  const documentFields = documentFieldIds(data.form.rules)
+  const failedStep = submitError ? failureStep(submitError, documentFields) : null
 
   return (
     <div className="flex flex-col gap-10">
@@ -177,8 +222,10 @@ export function ReviewStep(props: ReviewProps) {
               <li key={r.id} className="flex flex-wrap items-center gap-x-3">
                 <span>{t('documents.rule', { rule: r.id })}</span>
                 {r.met ? (
-                  <span className="inline-flex items-center gap-1 text-primary">
-                    <CircleCheck className="size-4" aria-hidden="true" />
+                  // A rule met on a request not sent yet: supporting information, as the ready line below — never the
+                  // approved mark of --primary (§9.9 tokens)
+                  <span className="inline-flex items-center gap-1 text-ink">
+                    <Info className="size-4 text-info" aria-hidden="true" />
                     {t('documents.met')}
                   </span>
                 ) : (
@@ -198,8 +245,10 @@ export function ReviewStep(props: ReviewProps) {
           {t('review.problemsTitle')}
         </h3>
         {problems.length === 0 && block === null ? (
-          <p className="flex items-start gap-2">
-            <CircleCheck className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
+          // Supporting information on a request not sent yet — the info icon in --info beside words in ink, as the
+          // route's explanation and "งบพอ" above — never the approved mark of --primary (§9.9 tokens)
+          <p className="flex items-start gap-2 text-ink">
+            <Info className="mt-1 size-4 shrink-0 text-info" aria-hidden="true" />
             <span>{t('review.ready')}</span>
           </p>
         ) : (
@@ -216,14 +265,14 @@ export function ReviewStep(props: ReviewProps) {
               </li>
             ) : null}
             {problems.map((p, i) => {
-              const step = problemStep(p)
+              const step = problemStep(p, documentFields)
               return (
                 <li key={i} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <p className="flex items-start gap-2">
                     <CircleAlert className="mt-1 size-4 shrink-0 text-danger" aria-hidden="true" />
                     <span>
                       {problemText(t, p, data.form.fields, locale)}
-                      {BLOCKING.has(p.kind) ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
+                      {mustFixBeforeSending(p) ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
                     </span>
                   </p>
                   <Button variant="link" className="shrink-0 self-start sm:self-auto" onClick={() => onGoTo(step)}>
@@ -240,9 +289,9 @@ export function ReviewStep(props: ReviewProps) {
         {submitError ? (
           <Notice tone="danger">
             <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
-            {failureStep(submitError) ? (
-              <Button variant="link" onClick={() => onGoTo(failureStep(submitError)!)}>
-                {t('review.goTo', { step: stepName(failureStep(submitError)!) })}
+            {failedStep ? (
+              <Button variant="link" onClick={() => onGoTo(failedStep)}>
+                {t('review.goTo', { step: stepName(failedStep) })}
               </Button>
             ) : null}
             {/* FR-INT-006 AC2: saved elsewhere since this page opened — offer the latest version right here */}
@@ -250,6 +299,12 @@ export function ReviewStep(props: ReviewProps) {
               <Button variant="secondary" className="mt-2" onClick={props.onReload}>
                 {t('save.reload')}
               </Button>
+            ) : null}
+            {/* Sent or cancelled meanwhile: its own page says where it stands (§9.9 rule 7: the way on) */}
+            {failureKey(submitError) === 'STATE' && props.requestHref ? (
+              <a href={props.requestHref} className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
+                {t('page.openRequest')}
+              </a>
             ) : null}
           </Notice>
         ) : null}
@@ -262,7 +317,8 @@ export function ReviewStep(props: ReviewProps) {
         <Button className="self-start" onClick={props.onSubmit} disabled={Boolean(blockedReason) || props.submitting} aria-describedby={blockedReason ? 'submit-blocked' : 'submit-after'}>
           {props.submitting ? t('submit.sending') : submitLabel}
         </Button>
-        <p id="submit-after" className="text-base text-ink-muted md:text-sm">
+        {/* What sending does, read before pressing it: content at the body's size (§9.9 principle 3, 15 px on the web) */}
+        <p id="submit-after" className="text-ink-muted">
           {purchase ? t('submit.after') : t('submit.afterSupplier')}
         </p>
       </div>
@@ -330,6 +386,9 @@ export function failureText(t: T, f: FormFailure, fields: readonly FieldDef[], l
       return t('errors.TAX_RATE_NOT_CONFIGURED', { date: f.date ?? '-' })
     case 'INTERNAL':
       return t('errors.INTERNAL', { requestId: f.requestId ?? '-' })
+    case 'STATE':
+      // What the request became, as the server said (its status): sent, or cancelled — never a guess between the two
+      return t(f.status === 'CANCELLED' ? 'errors.STATE_CANCELLED' : f.status ? 'errors.STATE_SENT' : 'errors.STATE')
     default:
       return t(`errors.${key}`)
   }

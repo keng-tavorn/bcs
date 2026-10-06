@@ -17,14 +17,16 @@
   "year": {
     "label": "Fiscal year shown",
     "submit": "Show the chosen fiscal year",
-    "notFound": "That fiscal year was not found. Show the current one or choose a fiscal year from the list.",
+    "notFound": "That fiscal year was not found; the link may be old or incomplete. Select \"Show the current fiscal year\" below; if the organization has more than one fiscal year, choose another in \"Fiscal year shown\" there.",
     "current": "Show the current fiscal year"
   },
   "low": {
     "title": "{count, plural, one {# budget line} other {# budget lines}} running low",
     "hint": "These lines have less than {pct}% of their planned amount left. Open the documents using them to decide whether to add budget or hold new requests.",
     "item": "{code} {name} · {left}% left",
-    "badge": "Running low · {left}% left"
+    "itemOut": "{code} {name} · used up: {amount} baht left",
+    "badge": "Running low · {left}% left",
+    "out": "Used up: {amount} baht left"
   },
   "legend": {
     "title": "What the amounts mean",
@@ -56,7 +58,10 @@
     },
     "amountLink": "{bucket} {amount} baht of {code}: see the documents",
     "plannedLink": "Planned {amount} baht of {code}: see the imports",
-    "availableLink": "Available {amount} baht of {code}: see the ledger movements"
+    "availableLink": "Available {amount} baht of {code}: see the ledger movements",
+    "usedLink": "{share} of {code}: see the committed and actual documents",
+    "heldLink": "{share} of {code}: see the reserved, committed and actual documents",
+    "lowLink": "{warning} on {code}: see the ledger movements"
   },
   "unit": "baht",
   "status": {

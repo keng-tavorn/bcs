@@ -65,10 +65,10 @@ export async function RouteSection({ id, route, locale, doaLinks, subject, empty
             <DoaRef label={doaRefText(tl, route.doa)} href={doaLinks ? doaHref(route.doa.versionId) : null} />
           </p>
           <div className="flex flex-col gap-1">
-            <h3 className="font-medium text-ink">{tv('route.why')}</h3>
+            <h3 className="font-semibold text-ink">{tv('route.why')}</h3>
             <p className="break-words text-ink">{routeSentence(tv, tl, locale, route, subject)}</p>
           </div>
-          {route.routeNo > 1 ? <p className="text-base text-ink-muted md:text-sm">{tv('route.round', { no: route.routeNo })}</p> : null}
+          {route.routeNo > 1 ? <p className="text-ink-muted">{tv('route.round', { no: route.routeNo })}</p> : null}
           <ol className="flex flex-col divide-y divide-line border-t border-line">
             {route.steps.map((step) => {
               const state = stepState(step)
@@ -99,7 +99,7 @@ export async function RouteSection({ id, route, locale, doaLinks, subject, empty
                       </p>
                       {role ? <p className="text-ink-muted">{role}</p> : null}
                       {step.onBehalfOf ? <p className="text-ink-muted">{tv('actingFor', { name: memberName(locale, step.onBehalfOf) })}</p> : null}
-                      {escalated ? <p className="text-base text-ink-muted md:text-sm">{escalated}</p> : null}
+                      {escalated ? <p className="text-ink-muted">{escalated}</p> : null}
                     </div>
                   )}
                   <StateLine kind={state.kind} className="shrink-0">
@@ -187,15 +187,21 @@ export async function PoFacts({ po, locale, reader }: { po: PoViewDto; locale: L
     },
     { label: t('facts.note'), value: po.notesToSupplier ? <span className="whitespace-pre-line">{po.notesToSupplier}</span> : t('facts.notSet') },
   ]
-  return <Facts items={items} className="lg:grid-cols-2" />
+  // In columns by the list's own width, never the screen's: two in the workspace's document column, one on a phone and
+  // in the one column of the LIFF decision page at every screen width (§9.9 "LIFF เป็นคอลัมน์เดียว")
+  return <Facts items={items} columns={2} />
 }
 
-/** Where the PO stands on a budget line, in words with an icon (never colour alone) */
+/**
+ * Where the PO stands on a budget line, in words with an icon (never colour alone). Budget reserved for the PO while it
+ * waits for approval, or held for it once approved, is a padlock in --info (`held`), as on the request page: never the
+ * approved mark of --primary, since holding is not approving (§9.9 tokens)
+ */
 function budgetState(po: PoViewDto, b: PoBudgetDto): { kind: StateKind; key: 'HELD' | 'RESERVED' | 'DRAFT' | 'RELEASED' | 'CLOSED' } {
   if (po.status === 'CANCELLED' || po.status === 'REJECTED') return { kind: 'closed', key: 'RELEASED' }
   if (po.status === 'CLOSED') return { kind: 'closed', key: 'CLOSED' }
-  if (b.committedSatang > 0n || b.actualSatang > 0n) return { kind: 'done', key: 'HELD' }
-  if (po.status === 'PENDING_APPROVAL') return { kind: 'done', key: 'RESERVED' }
+  if (b.committedSatang > 0n || b.actualSatang > 0n) return { kind: 'held', key: 'HELD' }
+  if (po.status === 'PENDING_APPROVAL') return { kind: 'held', key: 'RESERVED' }
   return { kind: 'draft', key: 'DRAFT' }
 }
 
@@ -220,7 +226,7 @@ async function PoBudget({ po, t }: { po: PoViewDto; t: PoT }) {
         return (
           <div key={b.lineId} className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0">
             <Facts
-              className="sm:grid-cols-1"
+              columns="one"
               items={[
                 { label: t('budget.line'), value: `${b.code} · ${b.name}` },
                 {
@@ -238,13 +244,19 @@ async function PoBudget({ po, t }: { po: PoViewDto; t: PoT }) {
           </div>
         )
       })}
-      <p className="pt-3 text-base text-ink-muted md:text-sm">{t('budget.note')}</p>
+      {/* What these amounts are, read before deciding: content at the body's size (§9.9: 15 px on the web) */}
+      <p className="pt-3 text-ink-muted">{t('budget.note')}</p>
     </div>
   )
 }
 
-/** The requests the PO orders, each with who asked and its attachments and quotations (FR-PLT-004 AC2) */
-async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po: PoViewDto; locale: Locale; reader: PoReader; openFile: OpenFile; requestHref: RequestHref; t: PoT }) {
+/**
+ * The requests the PO orders, each with who asked and its attachments and quotations (FR-PLT-004 AC2). Who asked, and
+ * that a request has no files or that the reader may not see them, are what the approver reads before deciding — on the
+ * decision page they are the only word on attachments (§9.9 principle 5) — so they are body text at the body's size (§9.9:
+ * 15 px on the web, 16 px on phones and in LIFF), never a 14 px caption
+ */
+export async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po: PoViewDto; locale: Locale; reader: PoReader; openFile: OpenFile; requestHref: RequestHref; t: PoT }) {
   const views = new Map(await Promise.all(po.requests.map(async (r) => [r.id, await attachmentViews(locale, r.attachments)] as const)))
   return (
     <ul aria-label={t('requests.label')} className="flex flex-col divide-y divide-line border-t border-line">
@@ -263,14 +275,14 @@ async function PoRequests({ po, locale, reader, openFile, requestHref, t }: { po
               ) : (
                 <p className="font-medium break-words text-ink">{label}</p>
               )}
-              {r.requester ? <p className="text-base text-ink-muted md:text-sm">{t('requests.requester', { name: memberName(locale, r.requester) })}</p> : null}
+              {r.requester ? <p className="text-ink-muted">{t('requests.requester', { name: memberName(locale, r.requester) })}</p> : null}
             </div>
             {!open ? (
-              <p className="text-base text-ink-muted md:text-sm">{t('requests.closed')}</p>
+              <p className="text-ink-muted">{t('requests.closed')}</p>
             ) : files.length ? (
               <AttachmentList open={openFile} files={files} />
             ) : (
-              <p className="text-base text-ink-muted md:text-sm">{t('requests.noFiles')}</p>
+              <p className="text-ink-muted">{t('requests.noFiles')}</p>
             )}
           </li>
         )
@@ -298,8 +310,10 @@ export async function PoBody({
   const draft = po.status === 'DRAFT'
   const note = !draft ? t('amounts.fixedNote') : po.totals.basis === 'TODAY' ? t('amounts.draftNote') : t('amounts.draftNoteStored')
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6 md:grid-cols-2">
+    // The amounts and the budget side by side only where the document's column is 40rem wide or more: never in the one
+    // column of a LIFF page (§9.9), whatever the screen (as RequestSections)
+    <div className="@container flex flex-col gap-6">
+      <div className="grid gap-6 @min-[40rem]:grid-cols-2">
         <Section id="po-amounts" title={t('amounts.title')}>
           <Amounts
             heading={t('amounts.unit')}
@@ -310,7 +324,7 @@ export async function PoBody({
               { label: t('amounts.gross'), value: money(po.totals.grossSatang), total: true },
             ]}
           />
-          <p className="text-base text-ink-muted md:text-sm">{note}</p>
+          <p className="text-ink-muted">{note}</p>
         </Section>
 
         <Section id="po-budget" title={t('budget.title')}>

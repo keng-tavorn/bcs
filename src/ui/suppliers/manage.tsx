@@ -107,8 +107,9 @@ function Part({ id, title, hint, children }: { id: string; title: string; hint?:
 export function SupplierManage({ supplier, actions }: SupplierManageProps) {
   // The version of the last save: the forms of this page save one after another without reloading
   const [version, setVersion] = useState(supplier.version)
+  // The container the question of "ปิดใช้งานผู้ขาย" splits by (src/ui/request-form/confirm-remove.tsx)
   return (
-    <div className="flex flex-col gap-8">
+    <div className="@container flex flex-col gap-8">
       <DetailsForm supplier={supplier} version={version} onSaved={setVersion} actions={actions} />
       <CodesForm supplier={supplier} version={version} onSaved={setVersion} actions={actions} />
       <StatusPart supplier={supplier} version={version} onSaved={setVersion} actions={actions} />

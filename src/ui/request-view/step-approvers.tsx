@@ -25,8 +25,9 @@ export function StepApprovers({ title, approvers, note, mark }: { title: string;
           </li>
         ))}
       </ul>
-      {mark ? <p className="text-base text-ink-muted md:text-sm">{mark}</p> : null}
-      <p className="text-base text-ink-muted md:text-sm">{note}</p>
+      {/* Why there are two, and who decides: sentences of the step at the body's size, as the one-approver step's (§9.9: 15 px on the web) */}
+      {mark ? <p className="text-ink-muted">{mark}</p> : null}
+      <p className="text-ink-muted">{note}</p>
     </div>
   )
 }

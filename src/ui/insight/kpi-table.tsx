@@ -3,8 +3,9 @@ import { cn } from '../cn'
 
 // The KPI page's figures (spec §11.4, FR-VIS-003 AC2): goal by goal (G-1 to G-5), each measure with what it counts in
 // plain words, its value for the period next to the Phase 0 baseline and the proposed target. Not a wall of big
-// numbers: every value is a link to the documents it counts (§9.9). Wide screens get one table (goals as group
-// headers); phones get the same as a list per goal, never a table that scrolls sideways. Strings arrive translated.
+// numbers: every value is a link to the documents it counts, and a detail that stands for a list of its own links to it
+// (§9.9). Wide screens get one table (goals as group headers); phones get the same as a list per goal, never a table
+// that scrolls sideways. Strings arrive translated.
 
 export interface KpiMeasureView {
   readonly id: string
@@ -17,6 +18,11 @@ export interface KpiMeasureView {
   readonly href: string | null
   /** Says what the link opens: "ดูรายการที่นับ: … 60.0% (3 จาก 5 การตัดสิน)" */
   readonly linkLabel: string
+  /**
+   * The detail as a link of its own, where its "of y" is a list the value's link does not open: "1 จาก 37 ขั้น" of the
+   * steps past due opens all 37 steps assigned, the counted ones first; null where the detail is words only
+   */
+  readonly detailLink: { readonly href: string; readonly label: string } | null
   readonly baseline: string
   readonly target: string
 }
@@ -47,7 +53,15 @@ function Value({ m }: { m: KpiMeasureView }) {
       ) : (
         <span className="font-semibold text-ink">{m.value}</span>
       )}
-      {m.detail ? <span className="block text-ink-muted">{m.detail}</span> : null}
+      {/* secondary in the wide table, like the formula beside it; the list below lg keeps it at the body size. A detail
+          whose numbers stand for a list of their own opens it (§9.9: every number opens its list) */}
+      {m.detail && m.detailLink ? (
+        <Link href={m.detailLink.href} aria-label={m.detailLink.label} className="block w-fit text-primary underline underline-offset-4 hover:no-underline lg:text-sm">
+          {m.detail}
+        </Link>
+      ) : m.detail ? (
+        <span className="block text-ink-muted lg:text-sm">{m.detail}</span>
+      ) : null}
     </>
   )
 }
@@ -76,7 +90,8 @@ function WideTable({ goals, labels }: { goals: readonly KpiGoalView[]; labels: K
       {goals.map((g) => (
         <tbody key={g.code} className="border-b border-line">
           <tr className="bg-surface">
-            <th scope="rowgroup" colSpan={4} className="px-3 py-2 text-left font-semibold">
+            {/* A goal heads its measures a size up (18 px, subheading) as well as a weight up: headings differ by both (§9.9) */}
+            <th scope="rowgroup" colSpan={4} className="subheading px-3 py-2 text-left font-semibold">
               {g.code} · {g.title}
             </th>
           </tr>
@@ -86,11 +101,12 @@ function WideTable({ goals, labels }: { goals: readonly KpiGoalView[]; labels: K
                 <span className="block font-medium text-ink">{m.name}</span>
                 <span className="block text-sm text-ink-muted">{m.formula}</span>
               </th>
-              <td className="px-3 py-2.5 align-top text-sm">
+              {/* the figures at the body's 15 px: only the column headers and the formula are secondary text */}
+              <td className="px-3 py-2.5 align-top">
                 <Value m={m} />
               </td>
-              <td className="px-3 py-2.5 align-top text-sm whitespace-nowrap">{m.baseline}</td>
-              <td className="px-3 py-2.5 align-top text-sm">{m.target}</td>
+              <td className="px-3 py-2.5 align-top whitespace-nowrap">{m.baseline}</td>
+              <td className="px-3 py-2.5 align-top">{m.target}</td>
             </tr>
           ))}
         </tbody>
@@ -104,7 +120,7 @@ function NarrowList({ goals, labels }: { goals: readonly KpiGoalView[]; labels: 
     <div className="flex flex-col gap-6 lg:hidden">
       {goals.map((g) => (
         <section key={g.code} aria-labelledby={`kpi-goal-${g.code}`} className="flex flex-col gap-2">
-          <h3 id={`kpi-goal-${g.code}`} className="border-y border-line bg-surface px-3 py-2 font-semibold">
+          <h3 id={`kpi-goal-${g.code}`} className="subheading border-y border-line bg-surface px-3 py-2 font-semibold">
             {g.code} · {g.title}
           </h3>
           <ul className="flex flex-col divide-y divide-line border-b border-line">

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { type Locator, type Page } from '@playwright/test'
 import { BUDGET_EXPORT_COLUMNS } from '../../src/server/services/budget/export'
@@ -58,8 +59,37 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] [FR-BUD-005/AC3] the dashboard shows eve
   await expect(line).toContainText('ใช้แล้ว 45.0%')
   await expect(line).toContainText('รวมที่จองแล้ว 91.3%')
   await expect(line).toContainText('ใกล้หมด เหลือ 8.7%')
+  // …and every share and the warning's share left open what makes them up, like the amounts (§9.9 every number opens
+  // its list): the documents behind a share, the ledger's movements behind what is left
+  for (const [name, section] of [
+    [`ใช้แล้ว 45.0% ของ ${s.line.code}: ดูเอกสารที่ถือและตัดจ่ายจริง`, 'committed'],
+    [`รวมที่จองแล้ว 91.3% ของ ${s.line.code}: ดูเอกสารที่จอง ถือ และตัดจ่ายจริง`, 'reserved'],
+    [`ใกล้หมด เหลือ 8.7% ของ ${s.line.code}: ดูความเคลื่อนไหวในบัญชีงบ`, 'movements'],
+  ] as const) {
+    await expect(line.getByRole('link', { name, exact: true }), name).toHaveAttribute('href', `/budgets/${s.line.id}#${section}`)
+  }
   await expectFigures(totalBlock(page, wide, 'รวมฝ่ายบัญชีและการเงิน'), wide, s.figures.fin)
   await expectFigures(totalBlock(page, wide, 'รวมทั้งองค์กร'), wide, s.figures.total)
+  if (!wide) {
+    // On a phone every amount of the list (the lines, the department bands and the organization total) ends on one
+    // right edge, so a total sits right under what it adds up (§9.9 rule 6; D-05 /budgets item 16)
+    const list = totalBlock(page, wide, 'รวมทั้งองค์กร').locator('xpath=..')
+    const edges = await list.evaluate((root) =>
+      Array.from(root.querySelectorAll('dd.money'))
+        .filter((dd) => (dd as HTMLElement).offsetParent !== null)
+        .flatMap((dd) => {
+          const walker = document.createTreeWalker(dd, NodeFilter.SHOW_TEXT)
+          let amount: Node | null = walker.nextNode()
+          while (amount && !/\d\.\d\d$/.test((amount.textContent ?? '').trim())) amount = walker.nextNode()
+          if (!amount) return []
+          const range = document.createRange()
+          range.selectNodeContents(amount)
+          return [range.getBoundingClientRect().right]
+        }),
+    )
+    expect(edges.length).toBeGreaterThan(10)
+    expect(Math.max(...edges) - Math.min(...edges)).toBeLessThanOrEqual(1.5)
+  }
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)
   await shot(page, testInfo, 'budgets-dashboard')
@@ -110,6 +140,14 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] [FR-BUD-005/AC3] the dashboard shows eve
   await lineBlock(page, wide, s.line.code).getByRole('link', { name: `จอง ${s.figures.line.reserved} บาท ของ ${s.line.code}: ดูเอกสาร` }).click()
   await expect(page).toHaveURL(new RegExp(`/budgets/${s.line.id}#reserved$`))
   await expect(page.getByRole('heading', { level: 1, name: s.line.name })).toBeVisible()
+  // The shares and the warning of the line lead further down the same page, to what makes them up
+  for (const [name, section] of [
+    [`ใช้แล้ว 45.0% ของ ${s.line.code}: ดูเอกสารที่ถือและตัดจ่ายจริง`, 'committed'],
+    [`รวมที่จองแล้ว 91.3% ของ ${s.line.code}: ดูเอกสารที่จอง ถือ และตัดจ่ายจริง`, 'reserved'],
+    [`ใกล้หมด เหลือ 8.7% ของ ${s.line.code}: ดูความเคลื่อนไหวในบัญชีงบ`, 'movements'],
+  ] as const) {
+    await expect(page.getByRole('link', { name, exact: true }), name).toHaveAttribute('href', `#${section}`)
+  }
   const reserved = page.getByRole('region', { name: 'เอกสารที่จองงบ' })
   await expect(reserved.getByRole('listitem').filter({ hasText: s.reserved.number })).toContainText('18,500.00')
   await expect(reserved).toContainText(`รวม ${s.figures.line.reserved} บาท`)
@@ -195,6 +233,15 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] a department head sees the budgets of th
   await expectNoSideways(page)
   await shot(page, testInfo, 'budgets-department-head')
 
+  // An old or cut link to a fiscal year that is not found: plain information in --info, never the --warn of what is
+  // pending or nearly due (§9.9 token table), with the way to the current fiscal year
+  await page.goto(`/budgets?fy=${randomUUID()}`)
+  const notFound = page.getByRole('status').filter({ hasText: 'ไม่พบปีงบที่เลือก' })
+  await expect(notFound).toHaveClass(/\bborder-info\b/)
+  await expect(notFound).not.toHaveClass(/\bborder-warn\b/)
+  await page.getByRole('link', { name: 'ดูปีงบปัจจุบัน', exact: true }).click()
+  await expect(page.getByText(/· แผนกที่คุณดูแล$/)).toBeVisible()
+
   // The department's own page: its amounts, and the initial budget behind the planned amount
   await totalBlock(page, !mobile, `รวม${department}`).getByRole('link', { name: `รวม${department}`, exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: `รวม${department}` })).toBeVisible()
@@ -213,4 +260,15 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] a department head sees the budgets of th
   await expect(page.getByText('หน้างบประมาณสำหรับหัวหน้าแผนก ฝ่ายบัญชีและการเงิน ผู้ดูแลงบ ผู้บริหาร และผู้ตรวจสอบ', { exact: false })).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'budgets-refused')
+
+  // §9.9 rule 7: the Excel link followed by an account the budget pages are not for (e.g. its role was taken away after
+  // the dashboard loaded) leads back to the dashboard, which says the refusal in words with its way on — never a failed
+  // download the browser names in its own words. A call that is not a navigation still gets the code
+  await page.goto('/budgets/export')
+  await expect(page).toHaveURL(/\/budgets$/)
+  await expect(page.getByText('หน้างบประมาณสำหรับหัวหน้าแผนก ฝ่ายบัญชีและการเงิน ผู้ดูแลงบ ผู้บริหาร และผู้ตรวจสอบ', { exact: false })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'กลับหน้าแรก' })).toBeVisible()
+  const call = await page.request.get('/budgets/export', { maxRedirects: 0 })
+  expect(call.status()).toBe(403)
+  expect(await call.json()).toEqual({ code: 'FORBIDDEN' })
 })

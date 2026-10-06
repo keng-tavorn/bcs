@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { amountToSatang } from '@/core/money/dto'
 import { memberPrincipal } from '@/server/authz'
 import { getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
-import { getRequestView, type RequestViewDto, type TrackEntryDto } from '@/server/queries/requests'
+import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { budgetLineAvailable } from '@/server/services/budget/line-available'
 import { liffFacts } from '@/server/services/liff'
@@ -17,10 +17,11 @@ import { BackToChat } from '@/ui/liff/tasks/back-to-chat'
 import { LiffPolicyDecisionLoader, LiffTaskDecisionLoader } from '@/ui/liff/tasks/lazy'
 import { liffTaskAction, WEB_PIN_SETTINGS_PATH } from '@/ui/liff/tasks/shared'
 import { DoaRef } from '@/ui/request-view/doa-ref'
-import { Facts, type Fact } from '@/ui/request-view/facts'
-import { StateLine, type StateKind } from '@/ui/request-view/status'
+import { Amounts, Facts, type AmountRow, type Fact } from '@/ui/request-view/facts'
+import { StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
 import { taskRight } from '../../../(workspace)/_tracking/access'
+import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
 import { doaRefText, dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../(workspace)/_tracking/request-sections'
@@ -74,8 +75,10 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
     case 'RETURNED':
     case 'REJECTED': {
       const text = t(`state.${task.decision ?? 'APPROVE'}`, { name: memberName(locale, task.decidedBy), time: task.decidedAt ? when(locale, task.decidedAt) : '' })
+      // In the colours the timeline below draws the same decision in: approved --primary, returned --warn, not approved
+      // --danger (§9.9 tokens). How the task stands, read politely as a status, not an error just made (role=alert)
       return (
-        <LiffNotice tone={task.status === 'APPROVED' ? 'success' : 'warning'}>
+        <LiffNotice tone={task.status === 'APPROVED' ? 'success' : task.status === 'REJECTED' ? 'danger' : 'warning'} role="status">
           <p>{text}</p>
           {task.reason && task.status !== 'APPROVED' ? <p className="break-words whitespace-pre-line">{t('state.reason', { reason: task.reason })}</p> : null}
         </LiffNotice>
@@ -92,29 +95,17 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
   }
 }
 
-/** The budget state of a request, as its page says it (reserved, held in an order, given back, or none yet) */
-function budgetState(view: RequestViewDto): { kind: StateKind; key: 'stateReserved' | 'stateCommitted' | 'stateReleased' | 'stateNone' } {
-  const b = view.budget
-  if (b && b.committedSatang > 0n) return { kind: 'done', key: 'stateCommitted' }
-  if (b && b.reservedSatang > 0n) return { kind: 'done', key: 'stateReserved' }
-  if (view.status === 'REJECTED' || view.status === 'CANCELLED') return { kind: 'closed', key: 'stateReleased' }
-  return { kind: 'draft', key: 'stateNone' }
-}
-
-/** A sum of money with its unit, right-aligned digits (§9.9 principle 6) */
-function Money({ amount, unit }: { amount: string; unit: string }) {
+/**
+ * The facts to decide on, first on the phone's screen (§9.9 principle 5): the amount and what is left on the budget line —
+ * label and figure on one row, the figures right-aligned in tabular digits under their unit, as in the amounts below
+ * (§9.9 principle 6) — then the budget line, the supplier or the order, and the DOA rule
+ */
+function Summary({ label, amounts, facts, unit }: { label: string; amounts: readonly AmountRow[]; facts: readonly Fact[]; unit: { readonly heading: string; readonly name: string } }) {
   return (
-    <span className="tabular font-semibold text-ink">
-      {amount} <span className="font-normal">{unit}</span>
-    </span>
-  )
-}
-
-/** The facts to decide on, first on the phone's screen (§9.9 principle 5): the amount, the budget and what is left, the DOA rule */
-function Summary({ label, items }: { label: string; items: readonly Fact[] }) {
-  return (
-    <section aria-label={label} className="border-t border-line pt-5">
-      <Facts items={items} />
+    <section aria-label={label} className="flex flex-col gap-4 border-t border-line pt-5">
+      {amounts.length ? <Amounts rows={amounts} heading={unit.heading} unit={unit.name} /> : null}
+      {/* One column at every width, as LIFF is (§9.9) */}
+      {facts.length ? <Facts items={facts} columns="one" /> : null}
     </section>
   )
 }
@@ -246,20 +237,19 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : (varianceTitle ?? label)
   const route = task.route ?? request?.route ?? po?.route ?? variance?.route ?? null
-  const currency = tv('amounts.currency')
   // A file opens through the task it belongs to: the action checks both again (FR-PLT-004 AC2)
   const openFile = openLiffFileAction.bind(null, task.id)
 
-  // The facts first on the screen; the full sections follow
-  const summary: Fact[] = [
-    ...(request?.totals ? [{ label: tv('amounts.gross'), value: <Money amount={money(request.totals.grossSatang)} unit={currency} /> }] : []),
-    ...(po ? [{ label: tLiff('detail.supplier'), value: po.supplier.nameTh }, { label: tv('amounts.gross'), value: <Money amount={money(po.totals.grossSatang)} unit={currency} /> }] : []),
-    ...(variance
-      ? [
-          { label: tLiff('detail.purchaseOrder'), value: `${variance.po.number ?? '-'} · ${variance.po.supplier.nameTh}` },
-          { label: tLiff('detail.varianceAmount'), value: <Money amount={money(variance.amountSatang)} unit={currency} /> },
-        ]
-      : []),
+  // The facts first on the screen; the full sections follow. The money first, as rows of label and figure
+  const summaryAmounts: AmountRow[] = [
+    ...(request?.totals ? [{ label: tv('amounts.gross'), value: money(request.totals.grossSatang) }] : []),
+    ...(po ? [{ label: tv('amounts.gross'), value: money(po.totals.grossSatang) }] : []),
+    ...(variance ? [{ label: tLiff('detail.varianceAmount'), value: money(variance.amountSatang) }] : []),
+    ...(left ? [{ label: tLiff('detail.budgetLeft'), value: left }] : []),
+  ]
+  const summaryFacts: Fact[] = [
+    ...(po ? [{ label: tLiff('detail.supplier'), value: po.supplier.nameTh }] : []),
+    ...(variance ? [{ label: tLiff('detail.purchaseOrder'), value: `${variance.po.number ?? '-'} · ${variance.po.supplier.nameTh}` }] : []),
     ...(request?.budget
       ? [
           {
@@ -267,13 +257,13 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
             value: (
               <span className="flex flex-col">
                 <span>{`${request.budget.code} · ${request.budget.name}`}</span>
-                <StateLine kind={budgetState(request).kind}>{tv(`budget.${budgetState(request).key}`)}</StateLine>
+                {/* The request page's state and mark: budget held — reserved or committed — is a padlock in --info, not approved */}
+                <StateLine kind={requestBudgetState(request).kind}>{tv(`budget.${requestBudgetState(request).key}`)}</StateLine>
               </span>
             ),
           },
         ]
       : []),
-    ...(left ? [{ label: tLiff('detail.budgetLeft'), value: <Money amount={left} unit={currency} /> }] : []),
     ...(route ? [{ label: tLiff('detail.doaRule'), value: <DoaRef label={doaRefText(tl, route.doa)} /> }] : []),
   ]
 
@@ -296,7 +286,9 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
       </header>
 
       {/* A policy change says what it is in its own first section; its DOA rule is in its route section */}
-      {summary.length && !policyTask ? <Summary label={tLiff('detail.summary')} items={summary} /> : null}
+      {summaryAmounts.length + summaryFacts.length > 0 && !policyTask ? (
+        <Summary label={tLiff('detail.summary')} amounts={summaryAmounts} facts={summaryFacts} unit={{ heading: tv('amounts.unit'), name: tv('amounts.currency') }} />
+      ) : null}
 
       {request ? (
         <>

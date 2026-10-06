@@ -12,11 +12,11 @@ import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
 import { RequestStatus, StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
 import { canViewRequest } from '../../../../(workspace)/_tracking/access'
-import { doaRefText, dueText, localeOf, memberName, nameIn, stageText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../../(workspace)/_tracking/present'
+import { doaRefText, dueText, localeOf, memberName, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../../(workspace)/_tracking/request-sections'
 import { liffHref } from '../../../_lib/links'
 import { liffPage } from '../../../_lib/session'
-import { answerInfoAction, cancelRequestAction, downloadUrlAction, resubmitReturnedAction } from '../../actions'
+import { answerInfoAction, cancelRequestAction, downloadUrlAction } from '../../actions'
 import { liffDraftHref } from '../../_lib/form'
 import { liffPrincipalOf } from '../../_lib/principal'
 
@@ -58,7 +58,7 @@ function placeFacts(tv: ViewT, locale: Locale, view: RequestViewDto): PlaceFact[
 // request page shows it — the same read model (getRequestView), the same parts and words — in one column: where it is
 // now, who it waits for and for how long, what the requester has to do (FR-INT-009: answer a question, send a returned
 // request again, go on with a draft — its main button in the bar at the bottom of the screen, §9.9), the timeline as
-// stamps with who, position, when, the channel of every step (LINE (LIFF), แชท LINE, เว็บ, อีเมล) and the DOA rule it was
+// stamps with who, position, when, the channel of every step (หน้าจอใน LINE, แชท LINE, เว็บ, อีเมล) and the DOA rule it was
 // decided under ("DOA-DEMO ฉบับ 1 ข้อ PR-02"), then the amounts, the budget, the route and why, the lines, details and
 // files. The approval card and its confirmation in the LINE chat open this page (scene 2), and so do the LINE messages
 // about a question or a return. request.view is checked before anything is read, with the member's roles (the requester
@@ -112,11 +112,12 @@ export default async function LiffRequestPage({ params }: { params: Promise<{ id
   const returned = view.status === 'RETURNED' ? { reason: view.returnReason } : null
   const draft = view.status === 'DRAFT'
   const editHref = view.actions.canEdit ? liffDraftHref(view.id) : null
-  const waited = stage.kind === 'APPROVER' ? waitingText(tv, stage.waitingMinutes) : null
+  // How long it has waited, whoever it waits for: an approver, the requester, procurement or a supplier (§9.9 principle 4)
+  const waited = waitingText(tv, stageWaitingMinutes(stage))
 
   const header = (
     <header className="flex flex-col gap-3">
-      <h2 className="text-xl leading-snug font-semibold break-words">{view.title}</h2>
+      <h2 className="text-lg font-semibold break-words">{view.title}</h2>
       <div className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
         <RequestStatus status={view.status} label={tv(`status.${view.status}`)} />
         <p className="text-ink">
@@ -166,8 +167,7 @@ export default async function LiffRequestPage({ params }: { params: Promise<{ id
           returned={returned}
           draft={draft}
           editHref={editHref}
-          canResubmit={view.actions.canResubmit}
-          actions={{ answer: answerInfoAction, resubmit: resubmitReturnedAction }}
+          actions={{ answer: answerInfoAction }}
         >
           {body}
         </LiffRequestScreen>

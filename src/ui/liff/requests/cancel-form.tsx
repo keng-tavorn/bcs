@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useId, useState, type FormEvent } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
-import { requestErrorKey, type ActionOutcome } from '../../tasks/outcome'
+import { NO_ANSWER, requestErrorKey, type ActionOutcome } from '../../tasks/outcome'
 import { Button } from '../button'
 import { useLiff } from '../liff-provider'
 import { LiffNotice } from '../notice'
@@ -30,6 +30,7 @@ export function LiffCancelForm({
 }) {
   const t = useTranslations('requestView.actions')
   const tErrors = useTranslations('requestView.errors')
+  const tl = useTranslations('liffRequests.view')
   const router = useRouter()
   const liff = useLiff()
   const submission = useRequestKey()
@@ -60,7 +61,8 @@ export function LiffCancelForm({
         submission.next()
       }
     } catch {
-      result = { ok: false, code: 'FAILED' }
+      // No answer: the key stays, so pressing again is the same cancellation, done once (spec §4.3)
+      result = NO_ANSWER
     }
     setPending(false)
     setOutcome(result)
@@ -70,7 +72,13 @@ export function LiffCancelForm({
     }
   }
 
-  const failed = outcome && !outcome.ok ? tErrors(requestErrorKey(outcome), { available: '-', shortfall: '-', rule: outcome.rule ?? '-', requestId: outcome.requestId ?? '-' }) : null
+  // A session that has ended in LIFF's words: LIFF has no sign-in page of its own (not the web's "sign in again")
+  const failed =
+    outcome && !outcome.ok
+      ? outcome.code === 'UNAUTHENTICATED'
+        ? tl('sessionEnded')
+        : tErrors(requestErrorKey(outcome), { available: '-', shortfall: '-', rule: outcome.rule ?? '-', requestId: outcome.requestId ?? '-' })
+      : null
   return (
     <form onSubmit={onSubmit} noValidate className="mt-3 flex flex-col gap-4">
       <p className="text-ink-muted">{t('cancelHint')}</p>

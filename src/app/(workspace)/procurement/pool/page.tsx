@@ -102,7 +102,7 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
           {total > 0 ? (
             // A new filter remounts the form, so its fields show the filter in effect (defaultValue applies on mount only)
             <form key={JSON.stringify(filter)} method="get" action="/procurement/pool" aria-labelledby="pool-filter" className="flex flex-col gap-3 border-y border-line py-4">
-              <h2 id="pool-filter" className="font-semibold text-ink">
+              <h2 id="pool-filter" className="text-lg font-semibold text-ink">
                 {t('filter.title')}
               </h2>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -209,7 +209,8 @@ export default async function PoolPage({ searchParams }: { searchParams: Promise
               {schedule.recent.map((round) => (
                 <li key={round.id} className="flex flex-col gap-0.5 py-2.5">
                   <p className="font-medium text-ink">{roundTitle(t, locale, round)}</p>
-                  <p className="text-base text-ink-muted md:text-sm">{round.drafts.length ? t('rounds.drafts', { count: round.drafts.length }) : t('rounds.noDrafts')}</p>
+                  {/* What the round did: body text at the body's size, as the round's own notice says it (§9.9: 15 px on the web) */}
+                  <p className="text-ink-muted">{round.drafts.length ? t('rounds.drafts', { count: round.drafts.length }) : t('rounds.noDrafts')}</p>
                   {round.drafts.map((d) => (
                     <Link key={d.id} href={`/procurement/pos/${d.id}`} className="inline-flex min-h-11 items-center self-start font-medium break-words text-primary underline underline-offset-4 hover:no-underline">
                       {t('rounds.draftLink', { label: d.number ?? t('rounds.draftLabel'), supplier: d.supplierName, site: d.siteName ?? t('round.draftNoSite'), kind: t(`kind.${d.kind}`) })}

@@ -3,6 +3,8 @@
 import { useTranslations } from 'next-intl'
 import type { FieldDef } from '@/core/forms/fields'
 import { formatEnglishBeDay, formatThaiDay } from '@/core/thai/day'
+import { plainMoney } from '../../request-form/money'
+import { MoneyInput } from '../../request-form/money-input'
 import type { ScreenLocale } from '../../request-form/types'
 import { checkboxClass, describedBy, inputClass, textareaClass } from './classes'
 import { LiffFieldError, LiffLabelled } from './labelled'
@@ -12,7 +14,9 @@ import { LiffFieldError, LiffLabelled } from './labelled'
 // LIFF building blocks — an error is an icon and words (NoticeIcon, never colour alone, NFR-A11Y-03) — so the first
 // screen of the LIFF form stays within its JavaScript budget (§9.4: 200 KB gzip with the LINE SDK): the workspace's field
 // brings lucide, its notice and the Thai date library along. A select with a few options is a row of radio buttons, so
-// a yes/no screening question is one tap (BR-FORM-05); a date also reads with its Buddhist-era year (FR-PLT-002 AC3).
+// a yes/no screening question is one tap (BR-FORM-05); a date also reads with its Buddhist-era year, and an amount of
+// money grouped by thousands with two decimals once typed (FR-PLT-002 AC3) — the workspace's money input, whose money
+// helpers the first step loads anyway.
 
 const RADIO_MAX_OPTIONS = 3
 
@@ -50,12 +54,16 @@ export function LiffField({
   const options = def.options ?? []
 
   if (def.type === 'text' || def.type === 'number' || def.type === 'money' || def.type === 'date' || def.type === 'textarea') {
-    const numeric = def.type === 'number' || def.type === 'money'
+    const numeric = def.type === 'number'
     const common = { id, name: def.id, value: text(value), required: def.required, ...aria }
     return (
       <LiffLabelled {...frame}>
         {def.type === 'textarea' ? (
           <textarea {...common} className={textareaClass} maxLength={def.maxLength} onChange={(e) => onChange(e.currentTarget.value)} />
+        ) : def.type === 'money' ? (
+          // §9.9 rule 6, as on the web: grouped by thousands with two decimals once left, the raw digits while edited;
+          // the answer kept and saved is the plain digits the server takes (MONEY_TEXT)
+          <MoneyInput {...common} type="text" className={`${inputClass} tabular text-right`} onChange={(e) => onChange(plainMoney(e.currentTarget.value))} />
         ) : (
           <input
             {...common}

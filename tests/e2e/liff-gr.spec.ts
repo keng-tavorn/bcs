@@ -246,6 +246,25 @@ test('[FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2] demo
   await expect(page.getByLabel('ถ่ายรูปเพิ่ม', { exact: true })).toHaveAttribute('capture', 'environment')
   await checkScreen(page, testInfo, 'liff-gr-photo')
 
+  // Taking a photo out cannot be undone, and damaged goods need one (BR-GR-05): the button asks first, in the photo's
+  // place, with the question in focus — taking it out outlined in danger, keeping it apart (§9.9). Kept, nothing changes
+  // and the focus is back on the photo's button
+  const removePhoto = page.getByRole('button', { name: 'เอารูป site-delivery.jpg ออก' })
+  await removePhoto.click()
+  const question = page.getByRole('group', { name: 'เอารูป site-delivery.jpg ออกจากการตรวจรับนี้?' })
+  await expect(question).toBeVisible()
+  await expect(question.getByText('เอารูป site-delivery.jpg ออกจากการตรวจรับนี้?', { exact: true })).toBeFocused()
+  await expect(question).toContainText('รูปที่เอาออกแล้วเรียกคืนไม่ได้ ถ้ายังต้องใช้ ต้องถ่ายใหม่')
+  const removeIt = question.getByRole('button', { name: 'เอารูปนี้ออก', exact: true })
+  const keepIt = question.getByRole('button', { name: 'ไม่เอาออก เก็บรูปไว้', exact: true })
+  await expect(removeIt).toHaveCSS('border-top-color', 'rgb(180, 35, 24)')
+  await expect(keepIt).toBeVisible()
+  await checkScreen(page, testInfo, 'liff-gr-photo-remove-question')
+  await keepIt.click()
+  await expect(question).toHaveCount(0)
+  await expect(page.getByText('รูป site-delivery.jpg', { exact: true })).toBeVisible()
+  await expect(removePhoto).toBeFocused()
+
   // The check takes its time on the site's network: meanwhile no photo is taken or taken out, so nothing the receiver
   // does then is lost when step 2 takes the place of step 1
   let releaseCheck: () => void = () => undefined

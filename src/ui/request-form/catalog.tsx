@@ -6,12 +6,14 @@ import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
 import { Button } from '../form/button'
 import { formatDateTime } from '../format'
+import { DOOR_ASIDE } from '../shell/new-request-door'
 import { inputClass } from './controls'
 import type { CatalogEntry, OpenDraft, ScreenLocale } from './types'
 
 // Where every request starts (FR-INT-001, §9.9 principle 2): the request types the organization switched on as cards —
 // a card per type is a real unit — each saying when to use it, a keyword search over names and descriptions (no AI in
-// tier 1, AC2), and the requester's own drafts and returned requests to go on with (FR-INT-006).
+// tier 1, AC2), and the requester's own drafts and returned requests to go on with (FR-INT-006). It is the door's own
+// content (DOOR_ASIDE): while it shows, the shell's "ขอซื้อ / ขอจ้าง" steps aside.
 
 function matches(type: CatalogEntry, words: readonly string[]): boolean {
   const text = `${type.name} ${type.description ?? ''} ${type.code}`.toLowerCase()
@@ -26,7 +28,7 @@ export function RequestCatalog({ types, drafts, locale }: { types: readonly Cata
   const shown = types.filter((type) => matches(type, words))
 
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-10" {...DOOR_ASIDE}>
       {types.length === 0 ? (
         <p className="border-y border-line py-4">{t('noTypes')}</p>
       ) : (

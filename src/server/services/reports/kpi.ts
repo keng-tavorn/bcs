@@ -109,6 +109,21 @@ export interface KpiTaskItem {
   readonly minutes: number | null
 }
 
+/**
+ * Whether a task assigned in the period counts as past due in G-3 (c), and why: decided after its due time, or still
+ * open (or waiting for the requester's answer) past it when the period ends — or not: decided by its due time, open and
+ * not due yet, with no due time, or closed without a decision (cancelled or reassigned)
+ */
+export type KpiPastDueMark = 'PAST_DUE_DECIDED' | 'PAST_DUE_OPEN' | 'DECIDED_ON_TIME' | 'OPEN_NOT_DUE' | 'NO_DUE_TIME' | 'CLOSED_UNDECIDED'
+
+/** The marks G-3 (c) counts */
+export const isPastDue = (mark: KpiPastDueMark): boolean => mark === 'PAST_DUE_DECIDED' || mark === 'PAST_DUE_OPEN'
+
+/** One task assigned in the period: the denominator of G-3 (c), with whether it is counted and why */
+export interface KpiAssignedTaskItem extends KpiTaskItem {
+  readonly pastDue: KpiPastDueMark
+}
+
 /** One request counted by G-3 (from its submit to its first approved PO) */
 export interface KpiRequestItem {
   readonly requestId: string
@@ -126,6 +141,8 @@ export interface KpiItems {
   readonly g3Decisions: readonly KpiTaskItem[]
   /** G-3: the tasks assigned in the period that were decided after their due time, or are open past it */
   readonly g3PastDue: readonly KpiTaskItem[]
+  /** G-3: every task assigned in the period (the denominator of the past-due share), each marked counted or not and why */
+  readonly g3Assigned: readonly KpiAssignedTaskItem[]
   /** G-4: the tasks of requests whose budget check did not pass */
   readonly g4: readonly KpiTaskItem[]
 }
@@ -240,15 +257,18 @@ export async function collectKpis(
   let pastDue = 0
   let assignedInScope = 0
   const pastDueItems: KpiTaskItem[] = []
+  const assignedItems: KpiAssignedTaskItem[] = []
   const end = period.to < period.now ? period.to : period.now
   for (const t of assigned) {
     if (!(await inScope(t.step.route.subjectType, t.step.route.subjectId))) continue
     assignedInScope++
-    if (!t.dueAt) continue
-    if (t.decidedAt ? t.decidedAt > t.dueAt : (t.status === 'OPEN' || t.status === 'INFO_REQUESTED') && end > t.dueAt) {
+    const item = taskItem(t)
+    const mark = pastDueMark(t, end)
+    if (isPastDue(mark)) {
       pastDue++
-      pastDueItems.push(taskItem(t))
+      pastDueItems.push(item)
     }
+    assignedItems.push({ ...item, pastDue: mark })
   }
 
   // ----- G-4 -----
@@ -283,8 +303,20 @@ export async function collectKpis(
       g4: { tasksOnFailedBudgetCheck: g4 },
       g5: { total: { numerator: decisions.filter((d) => MOBILE.has(d.channel)).length, denominator: decisions.length }, bySubject },
     },
-    items: { g1: g1Items, decisions: decisionItems, g3SubmitToPo: submitToPoItems, g3Decisions: decidedItems, g3PastDue: pastDueItems, g4: g4Items },
+    items: { g1: g1Items, decisions: decisionItems, g3SubmitToPo: submitToPoItems, g3Decisions: decidedItems, g3PastDue: pastDueItems, g3Assigned: assignedItems, g4: g4Items },
   }
+}
+
+/**
+ * G-3 (c) of one assigned task, at the end of the period (or now, if that is earlier): a task with no due time is never
+ * past due; a decided one is past due when it was decided after its due time; an open one, or one waiting for the
+ * requester's answer, when the end is past its due time; one closed without a decision (cancelled, reassigned) is not
+ */
+function pastDueMark(t: { status: string; dueAt: Date | null; decidedAt: Date | null }, end: Date): KpiPastDueMark {
+  if (!t.dueAt) return 'NO_DUE_TIME'
+  if (t.decidedAt) return t.decidedAt > t.dueAt ? 'PAST_DUE_DECIDED' : 'DECIDED_ON_TIME'
+  if (t.status === 'OPEN' || t.status === 'INFO_REQUESTED') return end > t.dueAt ? 'PAST_DUE_OPEN' : 'OPEN_NOT_DUE'
+  return 'CLOSED_UNDECIDED'
 }
 
 /** The kind of document of a decision as G-5 groups it (the DOA's document types) */

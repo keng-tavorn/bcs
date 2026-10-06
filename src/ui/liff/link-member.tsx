@@ -72,7 +72,7 @@ export function LinkThisLine({ memberName, organizationName, codeMinutes, link, 
       <LiffContent>
         {notice}
         <section aria-labelledby={`${id}-member`} className="flex flex-col gap-3">
-          <h2 id={`${id}-member`} className="text-lg leading-snug font-semibold">
+          <h2 id={`${id}-member`} className="text-lg font-semibold">
             {t('member.heading')}
           </h2>
           <dl className="flex flex-col gap-3">
@@ -262,7 +262,7 @@ export function LinkedMember({ memberName, organizationName, since, session, cod
     <LiffContent>
       {top}
       <section aria-labelledby={`${id}-linked`} className="flex flex-col gap-3">
-        <h2 id={`${id}-linked`} className="text-lg leading-snug font-semibold">
+        <h2 id={`${id}-linked`} className="text-lg font-semibold">
           {heading}
         </h2>
         {known ? (
@@ -302,7 +302,7 @@ export function LinkedMember({ memberName, organizationName, since, session, cod
 
       {result.kind === 'this' && !outside ? (
         <section aria-labelledby={`${id}-unlink`} className="flex flex-col gap-3 border-t border-line pt-5">
-          <h2 id={`${id}-unlink`} className="text-lg leading-snug font-semibold">
+          <h2 id={`${id}-unlink`} className="text-lg font-semibold">
             {t('linked.unlinkHeading')}
           </h2>
           <p className="text-ink-muted">{t.rich('linked.unlinkBody', LIFF_RICH)}</p>
@@ -321,7 +321,7 @@ export function LinkedMember({ memberName, organizationName, since, session, cod
 
       {result.kind === 'other' && !outside ? (
         <section aria-labelledby={`${id}-switch`} className="flex flex-col gap-3 border-t border-line pt-5">
-          <h2 id={`${id}-switch`} className="text-lg leading-snug font-semibold">
+          <h2 id={`${id}-switch`} className="text-lg font-semibold">
             {t('other.switchHeading')}
           </h2>
           {session === 'web' ? (

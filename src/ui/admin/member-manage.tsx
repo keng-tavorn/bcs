@@ -79,7 +79,7 @@ function ConfirmBox({ id, label, error }: { id: string; label: string; error?: s
           value="yes"
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-confirm-error` : undefined}
-          className="size-5 shrink-0 accent-[var(--danger)]"
+          className="size-5 shrink-0"
         />
         <span>{label}</span>
       </label>

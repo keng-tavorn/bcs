@@ -105,7 +105,7 @@ export function ReceiptHistory({
                           onClick={() => void onOpen(p)}
                           disabled={busy === p.fileId}
                           aria-busy={busy === p.fileId || undefined}
-                          className="inline-flex min-h-11 items-center gap-2 text-left font-medium text-primary underline underline-offset-4 hover:no-underline disabled:opacity-60"
+                          className="inline-flex min-h-11 items-center gap-2 text-left font-medium text-primary underline underline-offset-4 hover:no-underline disabled:text-ink-muted"
                         >
                           <Camera className="size-4 shrink-0" aria-hidden="true" />
                           <span className="break-all">{busy === p.fileId ? t('history.openingPhoto', { name: p.fileName }) : t('history.openPhoto', { name: p.fileName })}</span>

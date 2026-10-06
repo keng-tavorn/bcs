@@ -55,7 +55,7 @@ export function BoundaryConfirm({ tableId, checked, onChange, error, texts, comp
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${id}-error` : undefined}
           onChange={(event) => onChange(event.currentTarget.checked)}
-          className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
+          className="mt-1 size-5 shrink-0"
         />
         <span>{words.label}</span>
       </label>

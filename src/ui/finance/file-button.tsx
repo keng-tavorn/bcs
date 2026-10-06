@@ -44,7 +44,7 @@ export function FileButton({
         onClick={() => void onOpen()}
         disabled={busy}
         aria-busy={busy || undefined}
-        className="inline-flex min-h-11 items-center gap-2 self-start font-medium text-primary underline underline-offset-4 hover:no-underline disabled:opacity-60"
+        className="inline-flex min-h-11 items-center gap-2 self-start font-medium text-primary underline underline-offset-4 hover:no-underline disabled:text-ink-muted"
       >
         <Download className="size-4 shrink-0" aria-hidden="true" />
         <span className="text-left break-words">{busy ? busyLabel : label}</span>

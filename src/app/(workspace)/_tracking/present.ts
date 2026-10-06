@@ -45,14 +45,19 @@ export function expectedText(locale: Locale, expected: ExpectedApproverDto | nul
   return expected.kind === 'MEMBER' ? memberName(locale, expected.member) : expected.position ? nameIn(locale, expected.position) : expected.positionCode
 }
 
-/** Business time waited (FR-INT-008 AC1): hours with one decimal, minutes under an hour; integers only */
+/**
+ * Business time waited (FR-INT-008 AC1): hours with one decimal, minutes under an hour; integers only. Under one whole
+ * business minute it says just that — true whether the step came a moment ago inside business hours (the clock runs,
+ * the minutes round down to 0) or outside them (the clock has not started) — never that counting has not started while
+ * it runs (§9.9 principle 4)
+ */
 export function waitingText(t: ViewT, minutes: number | null | undefined): string | null {
   if (minutes === null || minutes === undefined) return null
-  if (minutes <= 0) return t('waiting.notStarted')
+  if (minutes <= 0) return t('waiting.underMinute')
   if (minutes < 60) return t('waiting.minutes', { minutes })
-  const tenths = Math.round(minutes / 6)
-  const hours = tenths % 10 === 0 ? String(tenths / 10) : `${Math.floor(tenths / 10)}.${tenths % 10}`
-  return t('waiting.hours', { hours })
+  // Hours as a number of tenths over ten (1.5, and 2 for whole hours: one decimal at most, none when it is .0), so the
+  // English words can choose "hour" or "hours" (an ICU plural: "Waiting 1 business hour")
+  return t('waiting.hours', { hours: Math.round(minutes / 6) / 10 })
 }
 
 export function dueText(t: ViewT, locale: Locale, dueAt: Date | null | undefined, overdue: boolean): string | null {
@@ -104,15 +109,19 @@ export function timelineItems(
     else if (entry.what === 'REASSIGNED' && entry.other) title = t('timeline.reassignedTo', { name: memberName(locale, entry.other) })
     else title = t(`timeline.what.${entry.what}`)
 
+    // The goods wait for the suppliers of the POs that went out, named, as the PO page names its supplier (§9.9
+    // principle 4); without any (a PO not sent yet) the step stays procurement's
     const actor = entry.actor
       ? memberName(locale, entry.actor)
       : entry.what === 'NEXT_APPROVAL'
         ? expectedText(locale, entry.expected)
-        : TEAM.includes(entry.what)
-          ? t('procurement')
-          : entry.state === 'done'
-            ? t('system')
-            : ''
+        : entry.what === 'WAIT_DELIVERY' && entry.suppliers?.length
+          ? namesText(locale, entry.suppliers)
+          : TEAM.includes(entry.what)
+            ? t('procurement')
+            : entry.state === 'done'
+              ? t('system')
+              : ''
     const role = entry.what === 'WAIT_ANSWER' && entry.other ? t('timeline.askedBy', { name: memberName(locale, entry.other) }) : roleText(t, locale, entry.role)
     // Muted lines under the actor: whom a delegate acted for (BR-DLG-04), and the escalated flag of a decision on a step
     // the band above joined past its time (BR-SLA-04: the route's own DOA reference with the flag)
@@ -158,9 +167,34 @@ function approverText(t: ViewT, locale: Locale, a: { readonly assignee: MemberRe
   return role ? `${who} (${role})` : who
 }
 
+/** Names joined as a list of the reader's language ("A, B และ C" / "A, B, and C") */
+const namesText = (locale: Locale, names: readonly NameDto[]): string => new Intl.ListFormat(locale, { type: 'conjunction' }).format(names.map((n) => nameIn(locale, n)))
+
+/**
+ * The business minutes the stage has waited, whoever it waits for — an approver, the requester (a question, a return),
+ * procurement, or a supplier — or null when it waits for nobody or the time is not known (§9.9 principle 4)
+ */
+export function stageWaitingMinutes(stage: StageDto): number | null {
+  switch (stage.kind) {
+    case 'APPROVER':
+    case 'PROCUREMENT':
+    case 'QUEUE':
+      return stage.waitingMinutes
+    case 'ANSWER':
+    case 'REQUESTER_EDIT':
+    case 'DELIVERY':
+      return stage.waitingMinutes ?? null
+    default:
+      return null
+  }
+}
+
 /** Where the request is now, in one line (lists, home, the header of the request page) */
 export function stageText(t: ViewT, locale: Locale, stage: StageDto, mine: boolean): string {
   switch (stage.kind) {
+    case 'DELIVERY':
+      // Ordered: whom the goods wait for, the suppliers of the POs that went out (none yet: the general words)
+      return stage.suppliers?.length ? t('stage.DELIVERY_SUPPLIERS', { suppliers: namesText(locale, stage.suppliers) }) : t('stage.DELIVERY')
     case 'APPROVER': {
       // An escalated step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" (BR-SLA-04, NEW-46)
       const approvers = stage.approvers?.length ? stage.approvers : [stage]

@@ -180,21 +180,21 @@ export function DelegationForm({
       <fieldset className="flex flex-col gap-2" aria-describedby={errors.types ? `${id}-types-error` : undefined}>
         <legend className="mb-1.5 font-medium text-ink">{t('coverage')}</legend>
         <label className="flex min-h-11 items-start gap-3">
-          <input type="radio" name="coverage" value="ALL" checked={coverage === 'ALL'} onChange={() => setCoverage('ALL')} className="mt-1 size-5 shrink-0 accent-[var(--primary)]" />
+          <input type="radio" name="coverage" value="ALL" checked={coverage === 'ALL'} onChange={() => setCoverage('ALL')} className="mt-1 size-5 shrink-0" />
           <span className="flex flex-col">
             <span>{t('coverageAll')}</span>
             <span className="text-base text-ink-muted md:text-sm">{t('coverageAllHint')}</span>
           </span>
         </label>
         <label className="flex min-h-11 items-center gap-3">
-          <input type="radio" name="coverage" value="SOME" checked={coverage === 'SOME'} onChange={() => setCoverage('SOME')} className="size-5 shrink-0 accent-[var(--primary)]" />
+          <input type="radio" name="coverage" value="SOME" checked={coverage === 'SOME'} onChange={() => setCoverage('SOME')} className="size-5 shrink-0" />
           <span>{t('coverageSome')}</span>
         </label>
         {coverage === 'SOME' ? (
           <div className="grid grid-cols-1 gap-x-4 gap-y-1 pl-8 sm:grid-cols-2">
             {documentTypes.map((d) => (
               <label key={d.value} className="flex min-h-11 items-center gap-3">
-                <input type="checkbox" name="documentTypes" value={d.value} className="size-5 shrink-0 accent-[var(--primary)]" />
+                <input type="checkbox" name="documentTypes" value={d.value} className="size-5 shrink-0" />
                 <span>{d.label}</span>
               </label>
             ))}

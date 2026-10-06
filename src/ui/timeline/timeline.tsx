@@ -77,11 +77,14 @@ export function Timeline({ items, label }: { items: readonly TimelineItem[]; lab
       {items.map((item, index) => {
         const last = index === items.length - 1
         const look = item.outcome && item.outcome !== 'neutral' ? OUTCOME_LOOK[item.outcome] : null
+        // The current step outweighs every stamp (§9.9 principle 4): a filled box in a full 2 px rule of the waiting
+        // colour, or of the overdue colour once it is late, beside its clock — the one 2 px frame of the timeline. A
+        // stamp is framed by a 1 px rule of its outcome; its DOA reference keeps its own 2 px mark and its title its colour
         const box =
           item.state === 'current'
-            ? 'rounded-md border border-warn/40 bg-surface p-3'
+            ? cn('rounded-md border-2 bg-surface p-3', item.overdue ? 'border-danger' : 'border-warn')
             : item.stamp && look
-              ? cn('rounded-sm border-2 bg-bg px-3 py-2', look.stamp)
+              ? cn('rounded-sm border bg-bg px-3 py-2', look.stamp)
               : 'pt-0.5'
         return (
           <li key={item.id} className="relative flex gap-3 pb-5" aria-current={item.state === 'current' ? 'step' : undefined}>

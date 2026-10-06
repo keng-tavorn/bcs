@@ -7,22 +7,34 @@ import { HeldMeter } from './meter'
 // The budget dashboard's figures (spec §11.2, FR-BUD-005 AC1 AC2): each department's total over its budget lines, then
 // the total of everything shown. Wide screens get a real table (caption, column and row headers) with money right-
 // aligned in tabular digits; narrower screens get the same figures as stacked lists, never a table that scrolls
-// sideways (§9.9). Every amount leads to what makes it up (AC2, §9.9 "ทุกตัวเลขต้องคลิกไปที่รายการได้"), on a line, a
-// department and the total alike: reserved, committed and actual to their documents, planned to the imports and
-// available to the ledger's movements. A row running low says so in words beside its warning-coloured bar
-// (NFR-A11Y-03). Strings arrive translated and formatted.
+// sideways (§9.9). Every number leads to what makes it up (AC2, §9.9 "ทุกตัวเลขต้องคลิกไปที่รายการได้"), on a line, a
+// department and the total alike, 0.00 too: reserved, committed and actual to their documents, planned to the imports
+// and available to the ledger's movements — an empty section of the drill-down says what will show there; the shares
+// to the documents that make them up, and the warning's share or amount left to the movements. A row running low says
+// so in words beside its warning-coloured bar, and one with nothing left that it is used up, in the danger colour of
+// งบไม่พอ (§9.9 token table, NFR-A11Y-03). Strings arrive translated and formatted.
 
 export interface AmountLink {
   readonly href: string
-  /** Says which amount of what it is and where it leads; it contains the amount as shown */
+  /** Says which figure of what it is and where it leads; it begins with the figure as shown */
   readonly label: string
 }
 
 export type Bucket = 'planned' | 'available' | 'reserved' | 'committed' | 'actual'
 export const BUCKETS: readonly Bucket[] = ['planned', 'available', 'reserved', 'committed', 'actual']
 
-/** The link of each amount; none for an amount nothing makes up */
-export type AmountLinks = Readonly<Record<Bucket, AmountLink | null>>
+/** The link of each amount, whatever the amount: the section that makes it up says when it holds nothing */
+export type AmountLinks = Readonly<Record<Bucket, AmountLink>>
+
+/** A row's links: its amounts', and its shares' and its warning's where it has them (null where it has none) */
+export interface FigureLinks extends AmountLinks {
+  /** "ใช้แล้ว 18.0%": to the POs that commit, followed by the actual */
+  readonly used: AmountLink | null
+  /** "รวมที่จองแล้ว 26.0%": to the documents that reserve, followed by the rest */
+  readonly held: AmountLink | null
+  /** "ใกล้หมด เหลือ 8.3%" or "งบหมด เหลือ 0.00 บาท": to the ledger's movements behind what is left */
+  readonly low: AmountLink | null
+}
 
 export interface FigureView {
   readonly planned: string
@@ -35,9 +47,11 @@ export interface FigureView {
   /** "รวมที่จองแล้ว 26.0%" */
   readonly held: string | null
   readonly heldBp: number | null
-  /** The low warning in words ("ใกล้หมด เหลือ 8.3%"), or null */
+  /** The low warning in words ("ใกล้หมด เหลือ 8.3%", or "งบหมด เหลือ 0.00 บาท" once nothing is left), or null */
   readonly low: string | null
-  readonly links: AmountLinks
+  /** Nothing is left (the warning is the used-up one, in --danger): new requests on it are refused */
+  readonly out: boolean
+  readonly links: FigureLinks
 }
 
 export interface BudgetLineView extends FigureView {
@@ -80,14 +94,23 @@ export interface BudgetTableLabels {
 
 const linkClass = 'text-primary underline underline-offset-4 hover:no-underline'
 
-/** One amount: a link to what makes it up when there is something, else the number */
-function Amount({ text, link }: { text: string; link: AmountLink | null | undefined }) {
-  return link ? (
+/** One amount: a link to what makes it up, named with the amount, what it is of and where it leads */
+function Amount({ text, link }: { text: string; link: AmountLink }) {
+  return (
     <Link href={link.href} aria-label={link.label} className={linkClass}>
       {text}
     </Link>
+  )
+}
+
+/** A share: a link to the documents that make it up, named with the share, what it is of and where it leads */
+function Share({ text, link }: { text: string; link: AmountLink | null }) {
+  return link ? (
+    <Link href={link.href} aria-label={link.label} className={cn('tabular self-start', linkClass)}>
+      {text}
+    </Link>
   ) : (
-    <>{text}</>
+    <span className="tabular">{text}</span>
   )
 }
 
@@ -97,20 +120,23 @@ function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: str
   return (
     <span className={cn('flex flex-col gap-1', className)}>
       <span className={inline ? 'flex flex-wrap gap-x-4' : 'flex flex-col gap-1'}>
-        <span className="tabular">{f.used}</span>
-        <span className="tabular">{f.held}</span>
+        <Share text={f.used} link={f.links.used} />
+        <Share text={f.held} link={f.links.held} />
       </span>
-      <HeldMeter heldBp={f.heldBp} low={f.low !== null} />
+      <HeldMeter heldBp={f.heldBp} low={f.low !== null} out={f.out} />
     </span>
   )
 }
 
-/** The states of a row in words with an icon: running low, and a line's frozen or closed status */
-function States({ low, status, className }: { low: string | null; status?: BudgetLineView['status']; className?: string }) {
-  if (!low && !status) return null
+/**
+ * The states of a row in words with an icon: running low or used up — a link to the ledger's movements behind what is
+ * left, in its own icon and colour — and a line's frozen or closed status
+ */
+function States({ f, status, className }: { f: FigureView; status?: BudgetLineView['status']; className?: string }) {
+  if (!f.low && !status) return null
   return (
     <span className={cn('flex flex-col gap-0.5', className)}>
-      {low ? <LowBadge label={low} /> : null}
+      {f.low ? <LowBadge label={f.low} out={f.out} link={f.links.low} /> : null}
       {status ? <LineStatusBadge status={status.kind} label={status.label} /> : null}
     </span>
   )
@@ -144,14 +170,14 @@ function WideTable({ departments, total, labels }: { departments: readonly Budge
               <Link href={d.href} className={cn('break-words', linkClass)}>
                 {d.totalLabel}
               </Link>
-              <States low={d.low} className="mt-1 text-sm" />
+              <States f={d} className="mt-1" />
             </th>
             {BUCKETS.map((b) => (
               <td key={b} className={money}>
                 <Amount text={d[b]} link={d.links[b]} />
               </td>
             ))}
-            <td className="px-3 py-2.5 align-top text-sm font-normal">
+            <td className="px-3 py-2.5 align-top font-normal">
               <Shares f={d} noShare={labels.noShare} />
             </td>
           </tr>
@@ -161,15 +187,15 @@ function WideTable({ departments, total, labels }: { departments: readonly Budge
                 <Link href={l.href} className={cn('font-semibold break-words', linkClass)}>
                   {l.code}
                 </Link>
-                <span className="block break-words text-sm text-ink-muted">{l.name}</span>
-                <States low={l.low} status={l.status} className="mt-1 text-sm" />
+                <span className="block break-words text-ink-muted">{l.name}</span>
+                <States f={l} status={l.status} className="mt-1" />
               </th>
               {BUCKETS.map((b) => (
                 <td key={b} className={money}>
                   <Amount text={l[b]} link={l.links[b]} />
                 </td>
               ))}
-              <td className="px-3 py-2.5 align-top text-sm">
+              <td className="px-3 py-2.5 align-top">
                 <Shares f={l} noShare={labels.noShare} />
               </td>
             </tr>
@@ -177,19 +203,21 @@ function WideTable({ departments, total, labels }: { departments: readonly Budge
         </tbody>
       ))}
       <tfoot>
-        <tr className="border-t-2 border-ink font-semibold">
+        {/* The organization's total: the rule colour of every divider (--line, §9.9 tokens), 1 px thicker than a row's,
+            under its own heading and in bold */}
+        <tr className="border-t-2 border-line font-semibold">
           <th scope="row" className="px-3 py-3 text-left align-top">
             <Link href={total.href} className={linkClass}>
               {total.label}
             </Link>
-            <States low={total.low} className="mt-1 text-sm" />
+            <States f={total} className="mt-1" />
           </th>
           {BUCKETS.map((b) => (
             <td key={b} className="money px-3 py-3 align-top">
               <Amount text={total[b]} link={total.links[b]} />
             </td>
           ))}
-          <td className="px-3 py-3 align-top text-sm font-normal">
+          <td className="px-3 py-3 align-top font-normal">
             <Shares f={total} noShare={labels.noShare} />
           </td>
         </tr>
@@ -232,7 +260,7 @@ function NarrowList({ departments, total, labels }: { departments: readonly Budg
                 {d.totalLabel}
               </Link>
             </h2>
-            <States low={d.low} />
+            <States f={d} />
             <FigureList f={d} labels={labels} strong />
             <Shares f={d} noShare={labels.noShare} inline />
           </div>
@@ -244,7 +272,7 @@ function NarrowList({ departments, total, labels }: { departments: readonly Budg
                     {l.code}
                   </Link>
                   <span className="break-words text-ink-muted">{l.name}</span>
-                  <States low={l.low} status={l.status} />
+                  <States f={l} status={l.status} />
                 </div>
                 <FigureList f={l} labels={labels} />
                 <Shares f={l} noShare={labels.noShare} inline />
@@ -253,13 +281,13 @@ function NarrowList({ departments, total, labels }: { departments: readonly Budg
           </ul>
         </section>
       ))}
-      <section aria-labelledby="budget-total" className="flex flex-col gap-2 border-t-2 border-ink pt-3">
+      <section aria-labelledby="budget-total" className="flex flex-col gap-2 border-t-2 border-line px-3 pt-3">
         <h2 id="budget-total" className="text-lg font-semibold">
           <Link href={total.href} className={linkClass}>
             {total.label}
           </Link>
         </h2>
-        <States low={total.low} />
+        <States f={total} />
         <FigureList f={total} labels={labels} strong />
         <Shares f={total} noShare={labels.noShare} inline />
       </section>

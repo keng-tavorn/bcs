@@ -69,8 +69,10 @@ export async function VarianceBody({ variance, locale, doaLinks, poHref, openFil
     ? [{ label: t('variance.budgetHeld'), value: money(budget.heldSatang) }, ...(budget.actualSatang > 0n ? [{ label: t('variance.budgetActual'), value: money(budget.actualSatang) }] : [])]
     : []
   return (
-    <div className="flex flex-col gap-6">
-      <div className="grid gap-6 md:grid-cols-2">
+    // The amounts and the budget side by side only where the document's column is 40rem wide or more: never in the one
+    // column of a LIFF page (§9.9), whatever the screen (as RequestSections)
+    <div className="@container flex flex-col gap-6">
+      <div className="grid gap-6 @min-[40rem]:grid-cols-2">
         <Section id="variance-amounts" title={t('variance.amountsTitle')}>
           <Amounts
             heading={tp('amounts.unit')}
@@ -90,7 +92,7 @@ export async function VarianceBody({ variance, locale, doaLinks, poHref, openFil
           {budget ? (
             <div className="flex flex-col gap-3">
               <Facts
-                className="sm:grid-cols-1"
+                columns="one"
                 items={[
                   { label: t('variance.budgetLine'), value: `${budget.code} · ${budget.name}` },
                   {
@@ -114,7 +116,8 @@ export async function VarianceBody({ variance, locale, doaLinks, poHref, openFil
       </div>
 
       <Section id="variance-facts" title={t('variance.title')}>
-        <Facts items={items} className="lg:grid-cols-2" />
+        {/* In columns by the list's own width: one in the LIFF column at every screen width, two in the workspace's */}
+        <Facts items={items} columns={2} />
       </Section>
 
       <Section id="variance-photos" title={t('variance.photosTitle')}>

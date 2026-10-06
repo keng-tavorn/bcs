@@ -8,6 +8,7 @@ import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
 import { LiffLanguageSwitch } from '@/ui/liff/language-switch'
 import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffProvider, type LiffConfig } from '@/ui/liff/liff-provider'
+import { SignInField } from '@/ui/liff/liff-sign-in'
 import { LinkRefused } from '@/ui/liff/link-flow'
 import { LinkedMember } from '@/ui/liff/link-member'
 import { LiffNotice } from '@/ui/liff/notice'
@@ -94,6 +95,16 @@ describe('[NFR-A11Y-03] a LIFF message says what happened with an icon and words
     expect(danger).toMatch(/^<div role="alert" class="[^"]*border-danger[^"]*"><svg[^>]*aria-hidden="true"/)
     expect(danger).toContain('ผูกบัญชีไม่ได้')
     for (const tone of ['info', 'success', 'warning'] as const) expect(html(<LiffNotice tone={tone}>x</LiffNotice>)).toMatch(/^<div role="status"/)
+  })
+
+  it('states how something stands in danger’s colour politely, as a status: a task not approved, drawn as its timeline draws it (D-05 round 5)', () => {
+    const rejected = html(
+      <LiffNotice tone="danger" role="status">
+        ไม่อนุมัติโดย วีระ ปฏิบัติการ
+      </LiffNotice>,
+    )
+    expect(rejected).toMatch(/^<div role="status" class="[^"]*border-danger[^"]*"><svg[^>]*class="[^"]*text-danger[^"]*"[^>]*aria-hidden="true"/)
+    expect(rejected).toContain('ไม่อนุมัติโดย วีระ ปฏิบัติการ')
   })
 })
 
@@ -195,6 +206,24 @@ describe('[FR-LINE-001/AC3] the linked screen tells this LINE account from anoth
     expect(page).toContain('href="/settings/line"')
     expect(page).not.toContain(th.liff.link.linked.heading)
     expect(page).not.toContain('<button')
+  })
+})
+
+describe('[FR-LINE-001/AC2] [NFR-A11Y-03] a field of the sign-in inside LIFF says what is wrong with it, announced with the field', () => {
+  it('the error is read with the input after its hint, and drawn as an icon and the words, never colour alone', () => {
+    const page = html(<SignInField id="e" name="email" type="email" label={th.auth.login.email} hint="ช่วย" error={th.auth.login.emailInvalid} />)
+    const input = page.match(/<input[^>]*>/)![0]
+    expect(input).toContain('aria-invalid="true"')
+    expect(input).toContain('aria-describedby="e-hint e-error"')
+    expect(page).toMatch(/<p id="e-error" class="[^"]*text-danger[^"]*"><svg[^>]*aria-hidden="true"[\s\S]*?<\/svg><span>[^<]*<\/span><\/p>/)
+    expect(page).toContain(`<span>${th.auth.login.emailInvalid}</span></p>`)
+    expect(page).toMatch(/<label for="e"[^>]*>อีเมลบริษัท<\/label>/)
+  })
+
+  it('without an error the field is not marked invalid, and is described by nothing it does not show', () => {
+    const input = html(<SignInField id="p" name="password" type="password" label={th.auth.login.password} />).match(/<input[^>]*>/)![0]
+    expect(input).not.toContain('aria-invalid')
+    expect(input).not.toContain('aria-describedby')
   })
 })
 

@@ -202,6 +202,9 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     const sent = page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติแล้ว' })
     await expect(sent).toContainText('ส่งขออนุมัติแล้ว รอ วีระ ปฏิบัติการ พิจารณา')
     await expect(sent).toContainText(/เลขที่คำขอ PR-\d{4}-\d{5}/)
+    // NFR-A11Y-01: the send button went with the form, so the confirmation takes focus and is read first, with its number
+    await expect(page.locator(':focus')).toContainText('ส่งขออนุมัติแล้ว รอ วีระ ปฏิบัติการ พิจารณา')
+    await expect(page.locator(':focus')).toContainText(/เลขที่คำขอ PR-\d{4}-\d{5}/)
     const number = (/PR-\d{4}-\d{5}/.exec((await sent.textContent()) ?? '') ?? [''])[0]
     await checkScreen(page, testInfo, 'liff-request-sent')
 
@@ -214,8 +217,8 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await expect(nowLine(page)).toContainText('ตอนนี้: รอ วีระ ปฏิบัติการ')
     // Nothing for the requester to do while it waits for the approver: no bar
     await expect(requesterBar(page)).toHaveCount(0)
-    // The timeline stamps the send with its channel: LINE (LIFF) (FR-LINE-003 AC1, FR-PLT-003 AC3)
-    await expect(timeline(page).getByRole('listitem').filter({ hasText: `ส่งขออนุมัติ ได้เลขที่ ${number}` })).toContainText('LINE (LIFF)')
+    // The timeline stamps the send with its channel: หน้าจอใน LINE, the channel LIFF (FR-LINE-003 AC1, FR-PLT-003 AC3)
+    await expect(timeline(page).getByRole('listitem').filter({ hasText: `ส่งขออนุมัติ ได้เลขที่ ${number}` })).toContainText('หน้าจอใน LINE')
     // …and so do the Events themselves: the draft saved from LIFF and the submit
     expect(liffRequestsScene<{ drafted: string[]; submitted: string[] }>('channels', requestId)).toMatchObject({ drafted: ['LIFF'], submitted: ['LIFF'] })
     await checkScreen(page, testInfo, 'liff-request-view-pending')
@@ -286,6 +289,37 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     expect(html).not.toContain(number)
     expect(html).not.toContain('ไม้อัดและตะปู')
     await checkScreen(page, testInfo, 'liff-request-forbidden')
+    // Its form's address says why without guessing (§9.9 rule 7): only its requester changes it, and this account may not
+    // even open it — so it leads to LIFF's home, never to the request page that refuses it (the web edit page's words)
+    await page.goto(`/liff/requests/${requestId}/edit`)
+    await expect(page.getByRole('heading', { level: 1, name: 'แก้ไขคำขอนี้ไม่ได้' })).toBeVisible()
+    const refused = page.getByRole('status').filter({ hasText: 'แก้ไขได้เฉพาะผู้ขอที่สร้างคำขอนี้ และบัญชีของคุณไม่มีสิทธิ์ดูคำขอนี้ ถ้างานของคุณต้องใช้คำขอนี้ ติดต่อผู้ขอ หรือผู้ดูแลระบบขององค์กร' })
+    await expect(refused).toBeVisible()
+    await expect(refused).toHaveCSS('border-left-color', 'rgb(154, 91, 0)')
+    await expect(page.getByRole('link', { name: 'เปิดคำขอ', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('link', { name: 'กลับหน้าแรก', exact: true })).toHaveAttribute('href', '/liff/tasks')
+    await expect(page.getByText(number)).toHaveCount(0)
+  })
+
+  test('[FR-INT-006/AC2] [§9.9] a sent request opened at its draft’s address — as reloading the form right after sending opens it — says so as information, and leads to the request', async ({
+    page,
+    context,
+  }, testInfo) => {
+    const lineUserId = newLineUserId()
+    const { requestId, number } = liffRequestsScene<SceneRequest>('approved', sceneTag('sent-edit'), lineUserId)
+    await openAsLineUser(context, lineUserId)
+    // The form's address became /liff/requests/<id>/edit on its first save: this is what a reload after sending opens
+    await page.goto(`/liff/requests/${requestId}/edit`)
+    await expect(page.getByRole('heading', { level: 1, name: 'คำขอนี้ส่งแล้ว' })).toBeVisible()
+    // Information, as the web's edit page says it — the request is where it should be, nothing went wrong: the --info
+    // rule and icon, read politely (§9.9 tokens); a request not this account's, or not found, stays a warning
+    const notice = page.getByRole('status').filter({ hasText: 'คำขอนี้ส่งแล้ว จึงแก้ไขไม่ได้ เปิดคำขอเพื่อดูสถานะ' })
+    await expect(notice).toBeVisible()
+    await expect(notice).toHaveCSS('border-left-color', 'rgb(31, 95, 173)')
+    await checkScreen(page, testInfo, 'liff-request-edit-sent')
+    await page.getByRole('link', { name: 'เปิดคำขอ', exact: true }).click()
+    await expect(page).toHaveURL(new RegExp(`/liff/requests/${requestId}$`))
+    await expect(page.getByRole('heading', { level: 1, name: number })).toBeVisible()
   })
 
   test('[FR-LINE-003/AC1] [FR-INT-009/AC3] [FR-INT-009/AC1] the requester answers the approver’s question from the bar at the bottom and cancels the request from LIFF; the budget goes back at once', async ({
@@ -317,7 +351,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await send.click()
     await expect(toDo(page).getByRole('status').filter({ hasText: 'ส่งคำตอบให้ผู้อนุมัติแล้ว' })).toBeVisible()
     // The answer is stamped with its channel, and the task is back with the approver who asked; nothing is left to do
-    await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ตอบข้อมูลเพิ่ม' })).toContainText('LINE (LIFF)')
+    await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ตอบข้อมูลเพิ่ม' })).toContainText('หน้าจอใน LINE')
     await expect(nowLine(page)).toContainText('รอ วีระ ปฏิบัติการ')
     await expect(requesterBar(page)).toHaveCount(0)
 
@@ -337,13 +371,13 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await expect(page.getByText('ยกเลิกแล้ว', { exact: true }).first()).toBeVisible()
     // The budget the request held went back at once
     await expect(page.getByText('คืนงบแล้ว')).toBeVisible()
-    await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ยกเลิกคำขอ' })).toContainText('LINE (LIFF)')
+    await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ยกเลิกคำขอ' })).toContainText('หน้าจอใน LINE')
     // The answer's confirmation stays after the page rendered again
     await expect(toDo(page).getByRole('status').filter({ hasText: 'ส่งคำตอบให้ผู้อนุมัติแล้ว' })).toBeVisible()
     await checkScreen(page, testInfo, 'liff-request-cancelled')
   })
 
-  test('[FR-LINE-003/AC1] [FR-INT-009/AC2] a returned request shows the approver’s reason and is sent again from the bar in LIFF, on a new route', async ({ page, context }, testInfo) => {
+  test('[FR-LINE-003/AC1] [FR-INT-009/AC2] a returned request shows the approver’s reason, and its bar leads to the LIFF form, whose last step sends it again on a new route', async ({ page, context }, testInfo) => {
     const lineUserId = newLineUserId()
     const { requestId, number } = liffRequestsScene<SceneRequest>('returned', sceneTag('returned'), lineUserId)
     await openAsLineUser(context, lineUserId)
@@ -354,21 +388,31 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await expect(nowLine(page)).toContainText('รอคุณแก้ไขแล้วส่งอีกครั้ง')
     await expect(toDo(page)).toContainText('ผู้อนุมัติตีกลับให้แก้ไข')
     await expect(toDo(page)).toContainText('เหตุผล: แยกรายการไม้อัดตามความหนาก่อนส่งอีกครั้ง')
-    // The bar: change it first in the LIFF form, or send it again as it is
-    await expect(requesterBar(page).getByRole('link', { name: 'แก้ไขคำขอ' })).toHaveAttribute('href', `/liff/requests/${requestId}/edit`)
-    const resend = requesterBar(page).getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง' })
+    // The bar: one main action, the LIFF form — whose last step shows what is left on the budget line, the new route and
+    // the documents to attach before "ส่งขออนุมัติอีกครั้ง" (§9.9 principle 3); nothing here sends it at once
+    const edit = requesterBar(page).getByRole('link', { name: 'แก้ไขคำขอ' })
+    await expect(edit).toHaveAttribute('href', `/liff/requests/${requestId}/edit`)
+    await expect(requesterBar(page).getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง' })).toHaveCount(0)
+    await expect(toDo(page)).toContainText('กด แก้ไขคำขอ แล้วตรวจงบคงเหลือ เส้นทางอนุมัติใหม่ และเอกสารที่ต้องแนบในขั้นตรวจและส่ง ก่อนกด ส่งขออนุมัติอีกครั้ง')
     await expect(requesterBar(page)).toBeInViewport()
     await checkScreen(page, testInfo, 'liff-request-returned')
     await firstScreen(page, testInfo, 'liff-request-returned')
 
-    await resend.click()
+    await edit.click()
+    await expect(page).toHaveURL(new RegExp(`/liff/requests/${requestId}/edit$`))
+    await nextStep(page, 'รายการที่ขอ')
+    await nextStep(page, 'ตรวจและส่ง')
+    await expect(stepHeading(page, 3, 'ตรวจและส่ง')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติที่คาดไว้' })).toContainText('วีระ ปฏิบัติการ')
+    await page.getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง', exact: true }).click()
     // §9.9 rule 7: the confirmation repeats the button's words; the request waits for its approver again
-    await expect(toDo(page).getByRole('status').filter({ hasText: 'ส่งขออนุมัติอีกครั้งแล้ว' })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติอีกครั้งแล้ว' })).toContainText('ส่งขออนุมัติอีกครั้งแล้ว รอ วีระ ปฏิบัติการ พิจารณา')
+    await page.goto(`/liff/requests/${requestId}`)
     await expect(page.getByText('รออนุมัติ', { exact: true }).first()).toBeVisible()
     await expect(nowLine(page)).toContainText('รอ วีระ ปฏิบัติการ')
     await expect(requesterBar(page)).toHaveCount(0)
     // BR-DOA-09: the route is worked out again; the resend is stamped with its channel, in the timeline and the Event
-    await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ส่งขออนุมัติอีกครั้ง' }).first()).toContainText('LINE (LIFF)')
+    await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ส่งขออนุมัติอีกครั้ง' }).first()).toContainText('หน้าจอใน LINE')
     expect(liffRequestsScene<{ resubmitted: string[] }>('channels', requestId).resubmitted).toEqual(['LIFF'])
     await checkScreen(page, testInfo, 'liff-request-resubmitted')
   })
@@ -440,7 +484,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     // the rule asks for quotations, so the documents show, with the general picker that takes a PDF quotation too
     await nextStep(page, 'รายการที่ขอ')
     await nextStep(page, 'ตรวจและส่ง')
-    const camera = page.getByLabel('ถ่ายรูปแนบคำขอ')
+    const camera = page.getByLabel('แนบรูปถ่าย', { exact: true })
     await expect(camera).toHaveAttribute('accept', 'image/*')
     await expect(camera).toHaveAttribute('capture', 'environment')
     const files = page.getByRole('region', { name: 'ไฟล์แนบอื่น' })
@@ -667,8 +711,17 @@ test.describe('[NFR-I18N-01] [§9.4] steps 2 and 3 of the LIFF form bring their 
       await expect(heading(2, 'items')).toBeVisible()
       await expect(page.getByRole('button', { name: say(locale, 'requestForm.lines.add') })).toBeVisible()
       await expect(page.getByLabel(say(locale, 'requestForm.site.label'))).toBeVisible()
+      // §9.9 rule 7: the way back in the bar says which step it leads to, by the number the step's heading shows — never
+      // mistaken for the link back to the request types — and a screen reader reads what it shows
+      const back = (n: number) => page.getByRole('button', { name: say(locale, 'liffRequests.form.back', { n: String(n) }), exact: true })
+      await expect(back(1)).toHaveText(say(locale, 'liffRequests.form.back', { n: '1' }))
       await page.screenshot({ path: testInfo.outputPath(`liff-request-form-items-${locale}.png`), fullPage: true })
 
+      await next('review').click()
+      await expect(heading(3, 'review')).toBeVisible()
+      await expect(back(2)).toHaveText(say(locale, 'liffRequests.form.back', { n: '2' }))
+      await back(2).click()
+      await expect(heading(2, 'items')).toBeVisible()
       await next('review').click()
       await expect(heading(3, 'review')).toBeVisible()
       await expect(page.getByRole('heading', { level: 2, name: say(locale, 'requestForm.review.summary') })).toBeVisible()
@@ -726,16 +779,28 @@ test.describe('[§9.4] the first JavaScript of the LIFF request pages: their scr
   }, testInfo) => {
     const lineUserId = newLineUserId()
     const { states, sent } = requesterScene(lineUserId)
-    /** The page with what the requester does now: the main button in the bar at the bottom (a part loaded with the page) */
-    const withBar = (request: SceneRequest) => async (page: Page) => {
+    /**
+     * The page with what the requester does now: the main action in the bar at the bottom (a part loaded with the page) —
+     * the button that sends the answer to a question, or for a returned request the link to its LIFF form, whose last step
+     * sends it again (nothing on the request page sends it at once)
+     */
+    const withBar = (request: SceneRequest, main: (bar: Locator) => Locator) => async (page: Page) => {
       await numbered(request)(page)
-      await expect(requesterBar(page).getByRole('button').first()).toBeVisible()
+      await expect(main(requesterBar(page))).toBeVisible()
     }
     const screens: ReadonlyArray<Omit<LiffBudgetScreen, 'lineUserId'>> = [
       { name: '/liff/requests/new', path: '/liff/requests/new', ready: (page) => expect(page.getByRole('link', { name: /เริ่มคำขอ ซื้อของ$/ })).toBeVisible() },
       { name: '/liff/requests/[id] approved', path: `/liff/requests/${states.approved.requestId}`, ready: numbered(states.approved) },
-      { name: '/liff/requests/[id] with a question', path: `/liff/requests/${states.asked.requestId}`, ready: withBar(states.asked) },
-      { name: '/liff/requests/[id] returned', path: `/liff/requests/${states.returned.requestId}`, ready: withBar(states.returned) },
+      { name: '/liff/requests/[id] with a question', path: `/liff/requests/${states.asked.requestId}`, ready: withBar(states.asked, (bar) => bar.getByRole('button').first()) },
+      {
+        name: '/liff/requests/[id] returned',
+        path: `/liff/requests/${states.returned.requestId}`,
+        ready: async (page) => {
+          const edit = (bar: Locator) => bar.getByRole('link', { name: 'แก้ไขคำขอ', exact: true })
+          await withBar(states.returned, edit)(page)
+          await expect(edit(requesterBar(page))).toHaveAttribute('href', `/liff/requests/${states.returned.requestId}/edit`)
+        },
+      },
       {
         name: '/liff/requests/[id] draft',
         path: `/liff/requests/${states.draft.requestId}`,

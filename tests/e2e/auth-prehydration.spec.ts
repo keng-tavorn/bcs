@@ -106,6 +106,13 @@ test('[FR-AUTH-002/AC1][NFR-SEC-09] /login/2fa with JavaScript off: the code nev
   await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
   await expect(page.getByText('หมดเวลายืนยันตัวตน เข้าสู่ระบบด้วยรหัสผ่านอีกครั้ง')).toBeVisible()
   expect(new URL(page.url()).search).toBe('')
+  await expect(page.getByRole('link', { name: 'กลับไปหน้าเข้าสู่ระบบ' })).toHaveAttribute('href', '/login')
+  // On its way to a page (an e-mail action link, LIFF's web sign-in: BR-TOK-03), the way back to the sign-in keeps it
+  await page.goto('/login/2fa?next=%2Ftasks')
+  await page.getByLabel('รหัส 6 หลักจากแอป').fill('123456')
+  await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
+  await expect(page.getByText('หมดเวลายืนยันตัวตน เข้าสู่ระบบด้วยรหัสผ่านอีกครั้ง')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'กลับไปหน้าเข้าสู่ระบบ' })).toHaveAttribute('href', '/login?next=%2Ftasks')
 })
 
 test('[FR-AUTH-001/AC2][NFR-SEC-09] /forgot-password with JavaScript off: the e-mail never reaches an address', async ({ page, browser, clientIp }, testInfo) => {

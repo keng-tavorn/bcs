@@ -7,6 +7,7 @@ import { comparisonBaselineId } from './doa'
 import {
   approverRoles,
   businessCalendarOf,
+  businessMinutesSince,
   businessMinutesWaited,
   departmentsOf,
   documentEvents,
@@ -25,7 +26,8 @@ import {
 
 // Read-only views of approval tasks for the inbox, the decision page and the home page (spec §9.1 /tasks, §9.9
 // principles 1, 4, 5, FR-DOA-004, BR-DOA-15). A member's open tasks are the ones they hold and the ones a delegate holds
-// for them (BR-DLG-04: both may decide), oldest due first, with the business time each has waited. Queries never check
+// for them (BR-DLG-04: both may decide): those waiting for a decision first, oldest due first, with the business time
+// each has waited; then those waiting for the requester's answer, with how long the question has waited. Queries never check
 // permissions: the decision page asks getTaskAccess() first and checks approval.decide (or that the task was the
 // member's) with src/server/authz before it reads the task. closingDecisionOf is the one rule of "who decided it and
 // when" (FR-DOA-004 AC2, §9.3): the decision page, the refusal of a late decision, the LINE button and the e-mail link
@@ -98,6 +100,12 @@ export interface InboxTaskDto {
   readonly holding: { readonly kind: 'FOR'; readonly member: MemberRefDto } | { readonly kind: 'BY'; readonly member: MemberRefDto } | null
   /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
+  /**
+   * INFO_REQUESTED: the question that waits for the requester's answer — when it was asked, and the business minutes it
+   * has waited since, counted as the request page counts its ANSWER step (§9.9 principle 4; null without a business
+   * calendar); null while the task waits for a decision
+   */
+  readonly question: { readonly askedAt: Date; readonly waitingMinutes: number | null } | null
 }
 
 export interface InboxDto {
@@ -107,6 +115,17 @@ export interface InboxDto {
 }
 
 const INBOX_LIMIT = 200
+
+/** What the inbox reads of a task */
+const INBOX_TASK = {
+  id: true,
+  status: true,
+  assigneeMemberId: true,
+  principalMemberId: true,
+  assignedAt: true,
+  dueAt: true,
+  step: { select: { route: { select: STEP_UP_ROUTE } } },
+} as const
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
@@ -182,30 +201,40 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
   }
 }
 
-/** The member's open approval tasks, oldest due first (spec §9.1 /tasks, §9.4 /liff/tasks) */
+/**
+ * The member's open approval tasks (spec §9.1 /tasks, §9.4 /liff/tasks), the ones they can act on first (§9.9 principle
+ * 1): those waiting for their decision, oldest due first; then those waiting for the requester's answer
+ * (INFO_REQUESTED), the question asked first at the top. While a question waits the SLA has stopped (BR-SLA-03): such a
+ * task's due time says nothing of its place, so it never comes before — nor, cut at the limit, pushes off the home page —
+ * a task the member can decide. The order is all that changes; the tasks and their SLA are read as they are.
+ */
 export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number } = {}): Promise<InboxDto> {
   if (ctx.actor.type !== 'USER') return { items: [], total: 0 }
   const me = ctx.actor.memberId
   const db = forTenant(ctx.organizationId)
-  const where = { status: { in: [...OPEN] }, OR: [{ assigneeMemberId: me }, { principalMemberId: me }] }
-  const [total, tasks, calendar] = await Promise.all([
-    db.approvalTask.count({ where }),
+  const limit = Math.min(options.limit ?? INBOX_LIMIT, INBOX_LIMIT)
+  const mine = [{ assigneeMemberId: me }, { principalMemberId: me }]
+  const [total, deciding, questions, calendar] = await Promise.all([
+    db.approvalTask.count({ where: { status: { in: [...OPEN] }, OR: mine } }),
     db.approvalTask.findMany({
-      where,
-      select: {
-        id: true,
-        status: true,
-        assigneeMemberId: true,
-        principalMemberId: true,
-        assignedAt: true,
-        dueAt: true,
-        step: { select: { route: { select: STEP_UP_ROUTE } } },
-      },
+      where: { status: 'OPEN', OR: mine },
+      select: INBOX_TASK,
       orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { assignedAt: 'asc' }, { id: 'asc' }],
-      take: Math.min(options.limit ?? INBOX_LIMIT, INBOX_LIMIT),
+      take: limit,
+    }),
+    // The tasks waiting for an answer, by their open question: each has one, from approval.requestInfo until
+    // request.provideInfo (a task moved to another approver took it along), so the one asked first comes first
+    db.infoRequest.findMany({
+      where: { answeredAt: null, task: { status: 'INFO_REQUESTED', OR: mine } },
+      select: { askedAt: true, task: { select: INBOX_TASK } },
+      orderBy: [{ askedAt: 'asc' }, { id: 'asc' }],
+      take: limit,
     }),
     businessCalendarOf(db, ctx.organizationId),
   ])
+  const tasks = [...deciding, ...questions.map((q) => q.task)].slice(0, limit)
+  // Since when each has waited for the requester: its question, as the request page's ANSWER step counts it (stageOf)
+  const askedAt = new Map(questions.map((q) => [q.task.id, q.askedAt]))
   const [subject, members, pauses] = await Promise.all([
     subjectsOf(db, tasks),
     membersById(db, tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId])),
@@ -220,6 +249,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
           : t.principalMemberId === me && members.has(t.assigneeMemberId)
             ? { kind: 'BY' as const, member: members.get(t.assigneeMemberId)! }
             : null
+      const asked = askedAt.get(t.id)
       return {
         id: t.id,
         status: t.status as 'OPEN' | 'INFO_REQUESTED',
@@ -232,6 +262,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
         overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
         holding,
         stepUp: needsStepUp(t.step.route),
+        question: asked ? { askedAt: asked, waitingMinutes: businessMinutesSince(calendar, asked, ctx.now) } : null,
       }
     }),
   }

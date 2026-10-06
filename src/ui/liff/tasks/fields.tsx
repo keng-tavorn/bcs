@@ -79,7 +79,7 @@ export function LiffTick({ id, label, checked, onChange, error }: LiffTickProps)
           onChange={(event) => onChange(event.currentTarget.checked)}
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? errorId : undefined}
-          className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
+          className="mt-1 size-5 shrink-0"
         />
         <span>{label}</span>
       </label>

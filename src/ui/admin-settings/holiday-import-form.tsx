@@ -219,7 +219,7 @@ export function HolidayImportForm({
                 aria-invalid={confirmError ? true : undefined}
                 aria-describedby={confirmError ? `${id}-confirm-error` : undefined}
                 onChange={(event) => event.currentTarget.checked && setConfirmError(null)}
-                className="mt-1 size-5 shrink-0 accent-[var(--primary)]"
+                className="mt-1 size-5 shrink-0"
               />
               <span>{t('confirm', { count: checked.add.length })}</span>
             </label>

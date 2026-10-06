@@ -1,6 +1,6 @@
 import { type Page } from '@playwright/test'
 import { expect, test } from './fixtures'
-import { checkScreen, exportedFile, scene, settleNoticesAfterEachTest, sha256, sheetRows, shownChecksum, signInAs, type DecisionsScene } from './insight-support'
+import { checkScreen, exportedFile, pickDay, scene, settleNoticesAfterEachTest, sha256, sheetRows, shownChecksum, signInAs, type DecisionsScene } from './insight-support'
 
 settleNoticesAfterEachTest(test)
 
@@ -24,12 +24,12 @@ test('[FR-VIS-002/AC1] finance runs the KPI report for a period, exports it to E
   await expect(page.getByText(/R-01 ถึง R-07\) จะเพิ่มเข้ามาเมื่อลูกค้ายืนยันรายชื่อและนิยาม/)).toBeVisible()
 
   // The report's filters: the period of the scene's decisions
-  await page.getByLabel('ตั้งแต่วันที่').fill(s.kpi.from)
-  await page.getByLabel('ถึงวันที่').fill(s.kpi.to)
+  await pickDay(page, 'ตั้งแต่วันที่', s.kpi.from)
+  await pickDay(page, 'ถึงวันที่', s.kpi.to)
   await page.getByRole('button', { name: 'ดูรายงานช่วงนี้' }).click()
   await expect(page).toHaveURL(new RegExp(`from=${s.kpi.from}&to=${s.kpi.to}`))
   await expect(page.getByText(/^ช่วง .+ ถึง .+ · ทั้งองค์กร · อ่านเมื่อ .+$/)).toBeVisible()
-  const pr = reportRow(page, 'การตัดสินผ่าน LINE หรือ LIFF ของคำขอซื้อ')
+  const pr = reportRow(page, 'การตัดสินใน LINE ของคำขอซื้อ')
   await expect(pr).toHaveCount(1)
   await expect(pr).toContainText(String(s.kpi.pr.denominator))
   await expect(pr).toContainText(/\d+\.\d%/)
@@ -48,7 +48,7 @@ test('[FR-VIS-002/AC1] finance runs the KPI report for a period, exports it to E
   const [header, ...rows] = await sheetRows(bytes, 7)
   expect(header).toEqual(['ตัวชี้วัด', 'สิ่งที่วัด', 'ค่า', 'หน่วย', 'ตัวตั้ง', 'ตัวหาร', 'รหัส'])
   const prRow = rows.find((r) => r[6] === 'DECISIONS_ON_LINE_PURCHASE_REQUEST')!
-  expect([prRow[1], ...prRow.slice(3, 6)]).toEqual(['การตัดสินผ่าน LINE หรือ LIFF ของคำขอซื้อ', '%', String(s.kpi.pr.numerator), String(s.kpi.pr.denominator)])
+  expect([prRow[1], ...prRow.slice(3, 6)]).toEqual(['การตัดสินใน LINE ของคำขอซื้อ', '%', String(s.kpi.pr.numerator), String(s.kpi.pr.denominator)])
 
   // E-mail on a schedule: every Monday, as Excel, to finance herself (the recipients who may read the whole organization)
   const schedule = page.getByRole('region', { name: 'ส่งรายงานทางอีเมลตามรอบ' })
@@ -78,7 +78,7 @@ test('[FR-VIS-002/AC3] a department head’s reports read the departments they h
   await page.goto('/reports')
   await expect(page.getByText('รายงานอ่านเฉพาะแผนกที่คุณดูแล')).toBeVisible()
   await expect(page.getByText(/^ช่วง .+ ถึง .+ · แผนกที่คุณดูแล · อ่านเมื่อ .+$/)).toBeVisible()
-  await expect(reportRow(page, 'การตัดสินผ่าน LINE หรือ LIFF ทุกชนิดเอกสาร')).toHaveCount(1)
+  await expect(reportRow(page, 'การตัดสินใน LINE ทุกชนิดเอกสาร')).toHaveCount(1)
   await expect(page.getByRole('region', { name: 'ส่งรายงานทางอีเมลตามรอบ' })).toHaveCount(0)
   // the head's report opens no organization-wide KPI page
   await expect(page.getByRole('link', { name: 'เปิดหน้า KPI ของช่วงนี้' })).toHaveCount(0)

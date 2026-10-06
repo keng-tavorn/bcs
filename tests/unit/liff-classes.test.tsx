@@ -17,6 +17,7 @@ import { LiffDelegationStateMark, type LiffDelegationState } from '@/ui/liff/del
 import { LiffFrame } from '@/ui/liff/frame'
 import { LiffIcon, type LiffIconName } from '@/ui/liff/icons'
 import { LiffLanguageSwitch } from '@/ui/liff/language-switch'
+import { SignInField } from '@/ui/liff/liff-sign-in'
 import { LiffNotice, NoticeIcon, type LiffNoticeTone } from '@/ui/liff/notice'
 import { PinInput } from '@/ui/liff/pin-input'
 import { CameraIcon } from '@/ui/liff/receiving/camera-icon'
@@ -407,6 +408,7 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
       ),
       ...states.map((state) => [`delegation ${state}`, <LiffDelegationStateMark key={state} state={state} label="สถานะ" />] as const),
       ...[undefined, 'money', 'tabular text-right'].map((className) => [`field ${className ?? ''}`, <LiffField key={className ?? '-'} id="f" label="จำนวน" error="ใส่จำนวน" hint="ช่วย" className={className} />] as const),
+      ...[undefined, 'tabular tracking-widest'].map((className) => [`sign-in field ${className ?? ''}`, <SignInField key={className ?? '-'} id="s" label="อีเมลบริษัท" error="ใส่อีเมลบริษัท" hint="ช่วย" className={className} />] as const),
       ['text area', <LiffTextArea key="area" id="a" label="หมายเหตุ" hint="ช่วย" />],
       ['language switch', <LiffLanguageSwitch key="language" current="th" label="ภาษา" options={[{ value: 'th', name: 'ไทย' }, { value: 'en', name: 'English' }]} action={async () => undefined} />],
       ['PIN', <PinInput key="pin" id="p" label="PIN" length={6} value="" onChange={() => undefined} hint="ช่วย" error="ผิด" disabled />],

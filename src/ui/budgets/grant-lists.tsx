@@ -94,7 +94,7 @@ function RevokeGrant({ row, revoke, onRevoked }: { row: GrantRowView; revoke: Re
             aria-invalid={confirmError ? true : undefined}
             aria-describedby={confirmError ? `${id}-error` : undefined}
             onChange={(event) => event.currentTarget.checked && setConfirmError(null)}
-            className="mt-1 size-5 shrink-0 accent-[var(--danger)]"
+            className="mt-1 size-5 shrink-0"
           />
           <span>{t('revokeConfirm')}</span>
         </label>

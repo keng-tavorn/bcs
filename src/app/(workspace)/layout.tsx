@@ -101,6 +101,8 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     label: tItems(item.key),
     groupLabel: tGroups(item.group),
   }))
+  // The one door (§9.9 principle 2): only for a member whose menu has it — one who may create requests
+  const door = nav.find((item) => item.key === 'newRequest')
   const name = locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh
   // The bell (FR-NOTI-001): the member's own notifications in their language
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
@@ -131,6 +133,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       labels={{ skipToContent: t('skipToContent'), menu: t('menu'), mainNav: t('mainNav') }}
       nav={nav}
       bell={bell}
+      newRequest={door ? { href: door.href, label: door.label } : undefined}
       account={
         <div className="flex flex-col items-start gap-3">
           {languageSwitch}

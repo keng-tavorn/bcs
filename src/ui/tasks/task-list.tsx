@@ -3,7 +3,9 @@ import { StateLine, type StateKind } from '../request-view/status'
 
 // Rows of tasks waiting for a decision (inbox and home): what it is (a link to the decision page), who asked and for
 // which department, the amount right-aligned in tabular digits, and where it stands — each state an icon with words,
-// never colour alone. No cards: rows separated by rules. Strings arrive translated and formatted.
+// never colour alone. The title, who asked and the states are content, at the body's size (§9.9: 15 px on the web, 16
+// on phones); only the small label under the amount is smaller on the web. No cards: rows separated by rules. Strings
+// arrive translated and formatted.
 
 export interface TaskRow {
   readonly id: string
@@ -30,7 +32,7 @@ export function TaskList({ rows, label }: { rows: readonly TaskRow[]; label: str
               <Link href={row.href} className="font-semibold break-words text-primary underline underline-offset-4 hover:no-underline">
                 {row.title}
               </Link>
-              {row.meta ? <span className="text-base text-ink-muted md:text-sm">{row.meta}</span> : null}
+              {row.meta ? <span className="text-ink-muted">{row.meta}</span> : null}
             </div>
             {row.amount ? (
               <p className="flex shrink-0 flex-col items-end">
@@ -42,8 +44,9 @@ export function TaskList({ rows, label }: { rows: readonly TaskRow[]; label: str
               </p>
             ) : null}
           </div>
+          {/* How long it has waited, when it is due, what it needs: content at the body's size (§9.9: 15 px on the web) */}
           {row.states.length || row.tags.length ? (
-            <div className="flex flex-wrap items-start gap-x-5 gap-y-1 text-base md:text-sm">
+            <div className="flex flex-wrap items-start gap-x-5 gap-y-1">
               {row.states.map((s) => (
                 <StateLine key={s.text} kind={s.kind}>
                   {s.text}

@@ -10,7 +10,8 @@ export const inputClass =
   'h-11 w-full min-w-0 rounded-md border border-input bg-bg px-3 text-base text-ink placeholder:text-ink-muted aria-[invalid=true]:border-danger disabled:cursor-not-allowed disabled:opacity-60'
 export const textareaClass =
   'min-h-28 w-full min-w-0 rounded-md border border-input bg-bg px-3 py-2 text-base text-ink placeholder:text-ink-muted aria-[invalid=true]:border-danger'
-export const checkboxClass = 'size-5 shrink-0 accent-[var(--primary)]'
+/** A checkbox or radio button: 20 px, never squeezed; src/app/globals.css draws it from the tokens */
+export const checkboxClass = 'size-5 shrink-0'
 
 export const describedBy = (id: string, hint: boolean, error: boolean) => [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || undefined
 

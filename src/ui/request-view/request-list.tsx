@@ -3,7 +3,10 @@ import { RequestStatus, StateLine, type StateKind } from './status'
 
 // Rows of "my requests" (FR-INT-008): the request (a link), its status, where it is now and for how long, and the total
 // right-aligned in tabular digits. Wide screens line the parts up in columns under one header row; phones stack them —
-// never a table that scrolls sideways (§9.9) — and name the amount under it. Strings arrive translated and formatted.
+// never a table that scrolls sideways (§9.9) — and name the amount under it. The title, the lines under it (when it was
+// sent or made, that the reader follows it), where it is and its states are content, at the body's size (§9.9: 15 px on
+// the web, 16 on phones), as the task rows (src/ui/tasks/task-list.tsx); only the column headings are smaller on the
+// web. Strings arrive translated and formatted.
 
 export interface RequestRow {
   readonly id: string
@@ -47,7 +50,7 @@ export function RequestList({ rows, labels }: { rows: readonly RequestRow[]; lab
                 {row.title}
               </Link>
               {row.meta.map((m) => (
-                <span key={m} className="text-base text-ink-muted md:text-sm">
+                <span key={m} className="text-ink-muted">
                   {m}
                 </span>
               ))}
@@ -59,14 +62,15 @@ export function RequestList({ rows, labels }: { rows: readonly RequestRow[]; lab
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="sr-only">{labels.now}: </span>
               <span className="break-words text-ink">{row.now}</span>
+              {/* How long it has waited and when it is due: content at the body's size (§9.9: 15 px on the web) */}
               {row.nowStates.map((s) => (
-                <StateLine key={s.text} kind={s.kind} className="text-base md:text-sm">
+                <StateLine key={s.text} kind={s.kind}>
                   {s.text}
                 </StateLine>
               ))}
             </div>
             <div className="flex flex-col items-end">
-              <p className={row.amountIsMoney ? 'money font-semibold text-ink' : 'text-right text-base text-ink-muted md:text-sm'}>
+              <p className={row.amountIsMoney ? 'money font-semibold text-ink' : 'text-right text-ink-muted'}>
                 <span className="sr-only">{labels.amount}: </span>
                 {row.amount}
                 {row.amountIsMoney ? <span className="sr-only"> {labels.unit}</span> : null}

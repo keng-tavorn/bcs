@@ -41,6 +41,12 @@ const stepHeading = (page: Page, n: number, name: string, total = 4) => expect(p
 const status = (page: Page, text: string | RegExp) => page.getByRole('status').filter({ hasText: text })
 const alert = (page: Page, text: string | RegExp) => page.getByRole('alert').filter({ hasText: text })
 const money = (text: string) => BigInt(text.replace(/[^\d]/g, ''))
+/**
+ * The shell's door to a new request where it can be seen (§9.9 principle 2): the main button outside the menu — in the
+ * bar on a wide screen, in its own row on a phone. It steps aside while the page shows the catalogue or the form, at any
+ * address of the form, and is back on the confirmation once sent
+ */
+const visibleDoor = (page: Page) => page.locator('[data-door]').getByRole('link', { name: 'ขอซื้อ / ขอจ้าง' }).filter({ visible: true })
 
 async function fillLine(group: Locator, item: { description: string; quantity: string; uom: string; price: string }) {
   await group.getByLabel('สิ่งที่ขอ').fill(item.description)
@@ -95,8 +101,11 @@ async function expectSent(page: Page, waitingFor: string | null): Promise<string
 
 test('[FR-INT-001/AC1] [FR-INT-001/AC2] @demo the catalog shows each request type with when to use it, and a keyword finds one', async ({ page }, testInfo) => {
   await signIn(page, 'req_con')
+  // Every other page shows the door; the catalogue is the door's own page, so it steps aside there
+  await expect(visibleDoor(page)).toHaveCount(1)
   await page.goto('/requests/new')
   await expect(page.getByRole('heading', { level: 1, name: 'ขอซื้อ / ขอจ้าง' })).toBeVisible()
+  await expect(visibleDoor(page)).toHaveCount(0)
   const starts = page.getByRole('link', { name: /เริ่มคำขอ / })
   await expect(starts).toHaveCount(5)
   await expect(page.getByRole('link', { name: /เริ่มคำขอ ซื้อของ$/ })).toContainText('ใช้เมื่อ: วัสดุ อุปกรณ์ สินค้าทั่วไป')
@@ -134,6 +143,8 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
   await page.goto('/requests/new/BUY_GOODS')
   await expect(page.getByRole('heading', { level: 1, name: 'คำขอใหม่: ซื้อของ' })).toBeVisible()
   await stepHeading(page, 1, 'รายละเอียดคำขอ')
+  // The form is the door's own content: the door steps aside while it shows
+  await expect(visibleDoor(page)).toHaveCount(0)
 
   // BR-FORM-02: the line req_con used last for this type (other tests may have sent requests of req_con on another
   // line), the department that pays; only CON's own lines are offered; the requester may change the line
@@ -183,6 +194,8 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
   // §9.9 rule 7: the confirmation repeats the button's words, with the number and the VP of OPS who decides it now
   const number = await expectSent(page, 'วีระ ปฏิบัติการ')
   await expect(page.getByText('ระบบแจ้งผู้อนุมัติแล้ว ติดตามสถานะได้ที่หน้าคำขอ')).toBeVisible()
+  // Sent: no form is left on the page, so the door is back for the next request
+  await expect(visibleDoor(page)).toHaveCount(1)
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'form-sent')
   await page.getByRole('link', { name: `ดูคำขอ ${number} และติดตามสถานะ` }).click()
@@ -219,6 +232,8 @@ test('[FR-INT-004/AC2] over budget, the send button says why and by how much, an
   const beforeSending = page.getByRole('region', { name: 'ตรวจก่อนส่ง' })
   await expect(beforeSending).toContainText(`งบไม่พอ: คงเหลือ ${shown(available)} บาท ขาด ${shown(shortfall)} บาท ลดยอดหรือเลือกบรรทัดงบอื่น (ต้องแก้ก่อนส่ง)`)
   await expect(beforeSending).not.toContainText('ข้อมูลที่ตรวจได้บนหน้านี้ครบแล้ว กดส่งได้')
+  // The quotation rule the amount brings is a point to fix before sending too (FR-INT-005 AC1), after the budget
+  await expect(beforeSending.getByRole('listitem').filter({ hasText: 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES' })).toContainText('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES (ต้องแก้ก่อนส่ง)')
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'review-over-budget')
 })
@@ -323,8 +338,15 @@ test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quo
   const a = await quotation(1, 'ผู้ขาย A', '107000', true)
   await a.getByLabel('เลือกใช้ใบเสนอราคาที่ 1').check()
   await nextStep(page, 'ตรวจและส่ง')
-  await expect(page.getByText('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES')).toBeVisible()
-  await page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true }).click()
+  // §9.9 principle 3 and rule 7: "ตรวจก่อนส่ง" marks the rule not met as a point to fix before sending, as it marks the
+  // budget, beside its way to the documents; the button still sends, so that the server answers with the rule's code
+  const quotesPoint = page.getByRole('region', { name: 'ตรวจก่อนส่ง' }).getByRole('listitem').filter({ hasText: 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES' })
+  await expect(quotesPoint).toBeVisible()
+  await expect(quotesPoint).toContainText('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES (ต้องแก้ก่อนส่ง)')
+  await expect(quotesPoint.getByRole('button', { name: 'ไปแก้ที่ขั้น ใบเสนอราคาและเอกสาร' })).toBeVisible()
+  const send = page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true })
+  await expect(send).toBeEnabled()
+  await send.click()
   await expect(alert(page, 'แนบเอกสารยังไม่ครบตามกฎ ATT-QUOTES: ขาด ใบเสนอราคา 3 ไฟล์ (มี 1)')).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'review-attachment-rule')
@@ -395,18 +417,24 @@ test('[FR-INT-006/AC1] a draft saves itself 10 seconds after typing stops, and w
   await signIn(page, 'asst_con')
   await page.goto('/requests/new/BUY_GOODS')
   await expect(status(page, 'ร่างจะถูกบันทึกให้อัตโนมัติเมื่อคุณเริ่มกรอก')).toBeVisible()
+  // Nothing typed yet, nothing to save: the button cannot be pressed until the requester starts (§9.9 rule 7)
+  const saveNow = page.getByRole('button', { name: 'บันทึกร่างตอนนี้' })
+  await expect(saveNow).toBeDisabled()
   const title = `ร่างบันทึกเอง ${testInfo.project.name} ${Date.now()}`
   await page.getByLabel('ชื่อคำขอ').fill(title)
   const stopped = Date.now()
   await expect(status(page, 'มีการแก้ไขที่ยังไม่บันทึก')).toBeVisible()
+  await expect(saveNow).toBeEnabled()
   await expect(status(page, /^บันทึกร่างแล้ว/)).toBeVisible({ timeout: 25_000 })
   expect(Date.now() - stopped).toBeGreaterThanOrEqual(9_000)
-  // The draft has its own address now and opens again with what was typed
+  // The draft has its own address now and opens again with what was typed; the form keeps the page to itself there too
   await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}\/edit$/)
+  await expect(visibleDoor(page)).toHaveCount(0)
   const editUrl = page.url()
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'ร่างคำขอ: ซื้อของ' })).toBeVisible()
   await expect(page.getByLabel('ชื่อคำขอ')).toHaveValue(title)
+  await expect(visibleDoor(page)).toHaveCount(0)
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'draft-saved')
 

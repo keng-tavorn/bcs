@@ -47,8 +47,8 @@
     "MEDIAN_DECISION_HOURS": "Median decision time per step",
     "TASKS_PAST_DUE": "Steps past due (SLA)",
     "TASKS_ON_FAILED_BUDGET_CHECK": "Approval tasks of requests that failed the budget check",
-    "DECISIONS_ON_LINE_ALL": "Decisions on LINE or LIFF, all kinds of document",
-    "decisionsOnLineOf": "Decisions on LINE or LIFF: {kind}"
+    "DECISIONS_ON_LINE_ALL": "Decisions in LINE, all kinds of document",
+    "decisionsOnLineOf": "Decisions in LINE: {kind}"
   },
   "kinds": {
     "PURCHASE_REQUEST": "purchase requests",
@@ -69,13 +69,14 @@
     "csv": "Export to CSV",
     "working": "Making the file…",
     "done": "{count, plural, one {Exported # row} other {Exported # rows}}; the download has started.",
+    "doneNotOpened": "{count, plural, one {Exported # row} other {Exported # rows}}.",
     "checksum": "File checksum (SHA-256): {checksum}",
     "again": "Download this file again",
     "openFailed": "The file was made but the download did not open. Press Download this file again.",
     "errors": {
       "TOO_MANY": "One file holds at most {max} rows. Narrow the period or the conditions and export again.",
       "FILTER": "These conditions cannot be exported. Check the dates and conditions and try again.",
-      "FORBIDDEN": "You may not export this file.",
+      "FORBIDDEN": "Your account may not export this file; your rights may have just changed. Reload the page to see them, and ask your organization admin if you still need the file.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
       "BUSY": "The system is busy. Wait a moment and try again.",
       "CONFLICT": "This press clashed with another command. Reload the page and try again.",

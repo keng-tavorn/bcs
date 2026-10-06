@@ -22,6 +22,8 @@ export const RETRYABLE_TX_ERROR_CODES: ReadonlySet<string> = new Set(['P2034', '
 export const MS_PER_HOUR = 60 * MS_PER_MINUTE
 export const MS_PER_DAY = 24 * MS_PER_HOUR
 export const PASSWORD_MIN_LENGTH = 12
+/** Longest password Better Auth takes (src/server/auth/auth.ts); the new-password form says it before sending */
+export const PASSWORD_MAX_LENGTH = 128
 /** Web session: absolute lifetime 12 h, idle 30 min; LIFF: idle 15 min (FR-AUTH-003 AC1) */
 export const SESSION_ABSOLUTE_MS = 12 * MS_PER_HOUR
 export const SESSION_IDLE_WEB_MS = 30 * MS_PER_MINUTE
@@ -31,6 +33,14 @@ export const SESSION_TOUCH_AFTER_MS = MS_PER_MINUTE
 /** Lockout: 5 failed sign-ins within 15 minutes per account or per IP (FR-AUTH-001 AC3, NFR-SEC-05) */
 export const LOGIN_FAILURE_LIMIT = 5
 export const LOGIN_FAILURE_WINDOW_MS = 15 * MS_PER_MINUTE
+/**
+ * Better Auth's own lock of the second sign-in step (its two-factor plugin's accountLockout, on by default): this many
+ * wrong codes in a row, across sign-ins and backup codes, pause the account's second step for TWO_FACTOR_LOCK_MS — even
+ * for the right code. Named here (Better Auth's defaults) so the sign-in pages can say this lock in its own words
+ * (src/ui/auth/lock-message.ts), apart from ours above.
+ */
+export const TWO_FACTOR_LOCK_LIMIT = 10
+export const TWO_FACTOR_LOCK_MS = 15 * MS_PER_MINUTE
 /** A step-up (the second factor again for one sensitive approval) is good for 5 minutes and one use (NFR-SEC-04) */
 export const STEP_UP_TTL_MS = 5 * MS_PER_MINUTE
 /** TOTP codes of the step before and after are accepted too, for clocks that drift (RFC 6238 §5.2) */

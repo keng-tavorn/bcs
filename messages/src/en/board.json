@@ -42,13 +42,14 @@
     "waiting": "Awaiting requester",
     "oldest": "Oldest (business hrs)",
     "average": "Average (business hrs)",
-    "hours": "business hours",
     "overdueWord": "past due",
     "waitingWord": "awaiting requester",
     "nameLink": "See the documents {name} holds",
     "openLink": "{count} awaiting decision at {name}: see documents",
     "overdueLink": "{count} past due at {name}: see documents",
-    "waitingLink": "{count} awaiting the requester at {name}: see documents"
+    "waitingLink": "{count} awaiting the requester at {name}: see documents",
+    "oldestLink": "Oldest {hours} business hours at {name}: see documents",
+    "averageLink": "Average {hours} business hours at {name}: see documents"
   },
   "document": {
     "change": "Authority change",
@@ -62,6 +63,10 @@
   "remind": {
     "button": "Remind {name}",
     "buttonFull": "Remind {name} about {document}",
+    "confirmText": "Remind {name} about {document} now? {name} is notified at once, a reminder cannot be called back, and this document can be reminded again after 1 hour.",
+    "confirm": "Confirm reminding {name}",
+    "confirmFull": "Confirm reminding {name} about {document}",
+    "keep": "Do not remind yet",
     "recent": "Reminded within the hour; it can be sent again after {time}",
     "sending": "Sending the reminder…",
     "sent": "Reminder sent at {time} · this document can be reminded again after {again}",
@@ -73,8 +78,8 @@
     "BUSY": "The system is busy with other work, so the reminder was not sent. Wait a moment and press remind again.",
     "STATE": "The reminder was not sent: this document no longer waits for a decision (it was decided or waits for the requester). Press See the latest figures to update the list.",
     "NOT_FOUND": "This task is no longer within your scope; it may have been decided or moved. Press See the latest figures to update the list.",
-    "READ_ONLY": "The reminder was not sent: you see this document as the auditor, who only reads.",
-    "FORBIDDEN": "You may not remind about this document.",
+    "READ_ONLY": "The reminder was not sent: you now see this document as the auditor, who only reads. Press See the latest figures to update the list; if it should be sent, ask your organization admin to check this account's roles.",
+    "FORBIDDEN": "The reminder was not sent: this account may no longer remind about this document. If it should, ask your organization admin to check its roles.",
     "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
     "CONFLICT": "This press clashed with another command. Reload the page and try again.",
     "INTERNAL": "Something went wrong and the reminder was not sent. Try again; if it still fails, tell your admin the reference {requestId}.",

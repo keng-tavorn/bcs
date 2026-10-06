@@ -239,7 +239,7 @@ function LinkSection({ issue, linkStatus, onStart }: { issue: IssueLinkCodeActio
                         href={code.view.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 font-medium text-primary-foreground transition-colors duration-150 hover:bg-[color-mix(in_oklab,var(--primary)_85%,black)]"
+                        className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline"
                       >
                         <ExternalLink className="size-4" aria-hidden="true" />
                         {t('link.openInLine')}
@@ -336,7 +336,7 @@ function UnlinkSection({ available, unlink, onUnlinked }: { available: boolean; 
                 aria-invalid={confirmError ? true : undefined}
                 aria-describedby={confirmError ? `${id}-error` : undefined}
                 onChange={(event) => event.currentTarget.checked && setConfirmError(null)}
-                className="mt-1 size-5 shrink-0 accent-[var(--danger)]"
+                className="mt-1 size-5 shrink-0"
               />
               <span>{t('unlink.confirm')}</span>
             </label>

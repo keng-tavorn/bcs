@@ -5,7 +5,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { runReport } from '@/server/services/reports'
 import { reportCatalog } from '@/server/services/reports/screens'
 import { Button } from '@/ui/form/button'
-import { Field } from '@/ui/form/field'
+import { DateField } from '@/ui/form/date-field'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { ExportPanel } from '@/ui/insight/export-panel'
@@ -76,18 +76,22 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <h2 id="reports-result" className="text-xl font-semibold">
             {name(report.code)}
           </h2>
-          <form key={`${report.code}:${period.from}:${period.to}`} method="get" action="/reports" className="flex flex-col gap-3 md:flex-row md:items-end">
+          {/* Each day is picked as day, month and Buddhist-era year, and read back in words (DateField), wide enough for
+              the three lists, which give way a little where the row is tight; the button keeps its words on one line,
+              level with the lists */}
+          <form key={`${report.code}:${period.from}:${period.to}`} method="get" action="/reports" className="flex flex-col gap-3 md:flex-row md:items-start">
             <input type="hidden" name="report" value={report.code} />
             {report.params.map((p) => (
-              <div key={p.key} className="md:w-56">
-                <Field id={`report-${p.key}`} name={p.key} type="date" label={t(`params.${p.key === 'from' ? 'from' : 'to'}`)} defaultValue={p.key === 'from' ? period.from : period.to} required />
+              <div key={p.key} className="md:w-72">
+                <DateField id={`report-${p.key}`} name={p.key} label={t(`params.${p.key === 'from' ? 'from' : 'to'}`)} defaultValue={p.key === 'from' ? period.from : period.to} required />
               </div>
             ))}
-            <Button type="submit" variant="secondary" className="self-start md:self-auto">
+            <Button type="submit" variant="secondary" className="shrink-0 self-start md:mt-[calc(1lh+0.375rem)]">
               {t('run')}
             </Button>
           </form>
-          {period.invalid ? <Notice tone="warning">{t('periodInvalid', { days: DEFAULT_REPORT_DAYS })}</Notice> : null}
+          {/* The period shown instead of one that cannot be used: information, as on /kpi (§9.9 tokens: --warn is pending) */}
+          {period.invalid ? <Notice tone="info">{t('periodInvalid', { days: DEFAULT_REPORT_DAYS })}</Notice> : null}
           {result.ok ? (
             <>
               <p className="text-ink">

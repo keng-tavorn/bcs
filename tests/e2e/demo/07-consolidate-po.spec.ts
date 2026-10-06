@@ -119,10 +119,17 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(poOrdering(first.number), 'no PO orders scene 1\'s request yet').toBeNull()
   const lineCount = first.lines.length + second.lines.length
 
-  // Procurement signs in (password and authenticator code) and opens the pool: both requests wait there, every line
-  // needing its supplier, the history's with the supplier its requester suggested
+  // Procurement signs in (password and authenticator code). Work first (§9.9 principle 1): the home shows the pool as work
+  // waiting for procurement, with lines that need a supplier, and opens it. Both requests wait there, every line needing
+  // its supplier, the history's with the supplier its requester suggested
   await signInChecked(page, sheet, buyer.code, testInfo, 'scene7-procurement')
-  await page.goto('/procurement/pool')
+  const poolWork = page.getByRole('list', { name: th('home.pool.list'), exact: true })
+  /** A message whose counts may be any number, as a whole text */
+  const anyCounts = (key: string, names: readonly string[]) =>
+    new RegExp(`^${names.reduce((text, name) => text.replace(`__${name}__`, '\\d+'), literally(th(key, Object.fromEntries(names.map((name) => [name, `__${name}__`])))))}$`)
+  await expect(poolWork.getByText(anyCounts('home.pool.needSupplier', ['count']))).toBeVisible()
+  await poolWork.getByRole('link', { name: anyCounts('home.pool.title', ['requests', 'lines']) }).click()
+  await expect(page).toHaveURL(/\/procurement\/pool$/)
   await expect(page.getByRole('heading', { level: 1, name: th('procurement.pool.title') })).toBeVisible()
   for (const r of requests) {
     const group = poolGroup(page, r.number!)
@@ -169,19 +176,21 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   await expect(poBudget(page)).toContainText(th('purchaseOrder.budget.state.DRAFT'))
   // Every line with the request line it orders, and the prices paid before for the same item (FR-P2P-003 AC1: the
   // category and the description after normalizing, on approved POs) as the database has them: the section is there for
-  // every line — "never bought" for an item no approved PO ordered, otherwise the newest three with their PO and date,
-  // and whether the line's price is above the newest by more than sheet Settings' priceAlertPct
+  // every line — "never bought" alone for an item no approved PO ordered, otherwise under its label the newest three with
+  // their PO and date, and whether the line's price is above the newest by more than sheet Settings' priceAlertPct
   for (const line of drafted.lines) {
     const item = poLineItems(page).filter({ hasText: `${line.lineNo}. ${line.description}` })
     await expect(item, `line ${line.lineNo}`).toHaveCount(1)
     for (const s of line.sources) {
       await expect(item).toContainText(th('purchaseOrder.lines.source', { number: s.requestNumber ?? '', line: s.lineNo, quantity: th('purchaseOrder.lines.qty', { quantity: shownQuantity(s.quantity), uom: line.uom }) }))
     }
-    await expect(item).toContainText(th('purchaseOrder.lines.pricesTitle'))
     if (line.earlierPrices.length === 0) {
+      // "never bought" says it all by itself: no label above it (§9.9: no label that adds nothing)
       await expect(item).toContainText(th('purchaseOrder.lines.pricesNone'))
+      await expect(item).not.toContainText(th('purchaseOrder.lines.pricesTitle'))
       continue
     }
+    await expect(item).toContainText(th('purchaseOrder.lines.pricesTitle'))
     await expect(item).not.toContainText(th('purchaseOrder.lines.pricesNone'))
     for (const p of line.earlierPrices) {
       await expect(item).toContainText(th('purchaseOrder.lines.price', { number: p.poNumber ?? '', date: thaiDate(p.approvedAt), price: baht(BigInt(p.unitPrice)) }))

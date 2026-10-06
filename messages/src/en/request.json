@@ -14,7 +14,7 @@
     "start": "Start a request: {name}",
     "noTypes": "Your organization has not switched on any request type yet. Ask your organization's administrator to switch one on",
     "draftsTitle": "Your drafts and returned requests",
-    "draftsEmpty": "No drafts yet. Once you start a request it is saved as a draft by itself, and you can go on with it here from any device",
+    "draftsEmpty": "No drafts or returned requests yet. Once you start a request it is saved as a draft by itself, and you can go on with it here from any device",
     "draftLine": "{type} · {status} · last changed {time}",
     "statusDraft": "Draft",
     "statusReturned": "Returned for changes",

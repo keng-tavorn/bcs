@@ -3,7 +3,9 @@ import { cn } from './cn'
 
 // The inline message of LIFF pages: the same look, words-first rule and roles as the workspace's src/ui/form/notice.tsx
 // (an icon and words, never colour alone, NFR-A11Y-03; a left rule; danger is announced at once with role=alert, the
-// others politely with role=status). Its four icons are drawn inline from Lucide's path data (lucide-react 1.49, ISC
+// others politely with role=status). Where a page states how something stands in danger's colour — a task that was not
+// approved, drawn as its timeline draws it — rather than reporting an error just made, it stays a status (`role`).
+// Its four icons are drawn inline from Lucide's path data (lucide-react 1.49, ISC
 // License, Copyright (c) Lucide Icons and Contributors): lucide-react draws through its Icon client component, which a
 // LIFF page would carry in its first JavaScript (§9.4: at most 200 KB gzip). Use it in every LIFF page and component.
 
@@ -77,9 +79,20 @@ export function NoticeIcon({ tone, className }: { readonly tone: LiffNoticeTone;
   )
 }
 
-export function LiffNotice({ tone = 'info', children, className }: { readonly tone?: LiffNoticeTone; readonly children: ReactNode; readonly className?: string }) {
+export function LiffNotice({
+  tone = 'info',
+  role,
+  children,
+  className,
+}: {
+  readonly tone?: LiffNoticeTone
+  /** By default alert for danger and status for the others; status for a state the page shows, not an error just made */
+  readonly role?: 'status' | 'alert'
+  readonly children: ReactNode
+  readonly className?: string
+}) {
   return (
-    <div role={tone === 'danger' ? 'alert' : 'status'} className={cn('flex items-start gap-2 border-l-4 bg-surface px-3 py-2.5 text-ink', TONES[tone].rule, className)}>
+    <div role={role ?? (tone === 'danger' ? 'alert' : 'status')} className={cn('flex items-start gap-2 border-l-4 bg-surface px-3 py-2.5 text-ink', TONES[tone].rule, className)}>
       <NoticeIcon tone={tone} />
       <div className="min-w-0">{children}</div>
     </div>

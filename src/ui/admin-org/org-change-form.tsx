@@ -414,7 +414,7 @@ export function OrgChangeForm({ kind, data, initial, preview, propose }: OrgChan
                         return next
                       })
                     }}
-                    className="mt-1 size-5 shrink-0 accent-[var(--warn)]"
+                    className="mt-1 size-5 shrink-0"
                   />
                   <WarningText warningKey={w} positions={data.positions} departments={data.departments} />
                 </label>
@@ -584,7 +584,7 @@ export function OrgChangeForm({ kind, data, initial, preview, propose }: OrgChan
                         const checked = event.currentTarget.checked
                         setDraft((x) => ({ ...x, documentTypes: checked ? [...x.documentTypes, d] : x.documentTypes.filter((v) => v !== d) }))
                       }}
-                      className="size-5 accent-[var(--primary)]"
+                      className="size-5"
                     />
                     <span>{t(`authority.documentTypes.${d}`)}</span>
                   </label>
@@ -623,11 +623,11 @@ export function OrgChangeForm({ kind, data, initial, preview, propose }: OrgChan
           <fieldset className="flex flex-col gap-2">
             <legend className="mb-1.5 font-medium text-ink">{tn('fields.effective')}</legend>
             <label className="flex min-h-11 items-center gap-3">
-              <input type="radio" name={field('effectiveAt')} checked={draft.effectiveMode === 'ON_APPROVAL'} onChange={() => set('effectiveMode', 'ON_APPROVAL')} className="size-5 accent-[var(--primary)]" />
+              <input type="radio" name={field('effectiveAt')} checked={draft.effectiveMode === 'ON_APPROVAL'} onChange={() => set('effectiveMode', 'ON_APPROVAL')} className="size-5" />
               <span>{tn('fields.effectiveOnApproval')}</span>
             </label>
             <label className="flex min-h-11 items-center gap-3">
-              <input type="radio" name={field('effectiveAt')} checked={draft.effectiveMode === 'AT'} onChange={() => set('effectiveMode', 'AT')} className="size-5 accent-[var(--primary)]" />
+              <input type="radio" name={field('effectiveAt')} checked={draft.effectiveMode === 'AT'} onChange={() => set('effectiveMode', 'AT')} className="size-5" />
               <span>{tn('fields.effectiveAt')}</span>
             </label>
             {draft.effectiveMode === 'AT' ? (

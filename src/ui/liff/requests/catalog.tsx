@@ -18,7 +18,10 @@ function matches(type: CatalogEntry, words: readonly string[]): boolean {
   return words.every((w) => text.includes(w))
 }
 
-/** A type card: the whole card is the link, at least 44 px high; a plain border, no shadow (§9.9) */
+/**
+ * A type card: the whole card is the link, at least 44 px high; a plain border, no shadow (§9.9). Its name is the body's
+ * 16 px in semibold, a level below the page's section headings (18 px, LiffSection) and the page title (20 px)
+ */
 const CARD =
   'flex min-h-11 flex-col gap-1 rounded-md border border-line bg-bg px-4 py-3 text-ink transition-colors duration-150 hover:border-primary hover:bg-surface focus-visible:border-primary'
 
@@ -67,7 +70,7 @@ export function LiffCatalog({ types, formBase }: { readonly types: readonly Cata
           {shown.map((type) => (
             <li key={type.code}>
               <LiffLink href={`${formBase}/${encodeURIComponent(type.code)}`} className={CARD}>
-                <span className="text-lg leading-snug font-semibold">{type.name}</span>
+                <span className="font-semibold">{type.name}</span>
                 <span className="text-ink-muted">{type.description ? t('whenToUse', { description: type.description }) : t('noDescription')}</span>
                 <span className="pt-1 font-medium text-primary underline underline-offset-4">{t('start', { name: type.name })}</span>
               </LiffLink>

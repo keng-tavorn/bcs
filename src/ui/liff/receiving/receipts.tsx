@@ -58,7 +58,7 @@ export function LiffReceipts({ receipts, closeShort, locale, open }: LiffReceipt
   return (
     <>
       <section aria-labelledby="liff-gr-receipts" className="flex flex-col gap-3 border-t border-line pt-5">
-        <h2 id="liff-gr-receipts" className="text-lg leading-snug font-semibold">
+        <h2 id="liff-gr-receipts" className="text-lg font-semibold">
           {t('history.title')}
         </h2>
         {receipts.length === 0 ? (
@@ -108,7 +108,7 @@ export function LiffReceipts({ receipts, closeShort, locale, open }: LiffReceipt
 
       {closeShort.length ? (
         <section aria-labelledby="liff-gr-close-short" className="flex flex-col gap-3 border-t border-line pt-5">
-          <h2 id="liff-gr-close-short" className="text-lg leading-snug font-semibold">
+          <h2 id="liff-gr-close-short" className="text-lg font-semibold">
             {t('closeShort.requestsTitle')}
           </h2>
           <ul className="flex flex-col gap-2">

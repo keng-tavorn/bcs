@@ -405,12 +405,19 @@ export function problemsOf(data: RequestFormData, values: FormValues, input: For
   return problems
 }
 
-/** The step where each problem is fixed */
-export function problemStep(p: Problem): 'details' | 'items' | 'documents' {
+/** No field of the form is asked beside the documents */
+const NO_DOCUMENT_FIELDS: ReadonlySet<string> = new Set()
+
+/**
+ * The step where each problem is fixed. A field the attachment rules ask to be filled is asked beside the documents
+ * (`documentFields`, ./document-fields.ts), every other field with the request's details.
+ */
+export function problemStep(p: Problem, documentFields: ReadonlySet<string> = NO_DOCUMENT_FIELDS): 'details' | 'items' | 'documents' {
   switch (p.kind) {
+    case 'FIELD_REQUIRED':
+      return documentFields.has(p.fieldId) ? 'documents' : 'details'
     case 'TITLE':
     case 'BUDGET_LINE':
-    case 'FIELD_REQUIRED':
       return 'details'
     case 'NO_LINES':
     case 'LINE_INCOMPLETE':

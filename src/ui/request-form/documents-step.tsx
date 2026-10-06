@@ -1,6 +1,6 @@
 'use client'
 
-import { CircleAlert, CircleCheck, Plus } from 'lucide-react'
+import { CircleAlert, Info, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
 import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -11,20 +11,26 @@ import { Notice } from '../form/notice'
 import { ConfirmRemove } from './confirm-remove'
 import { checkboxClass, describedBy, inputClass, Labelled, textareaClass } from './controls'
 import type { StepProps } from './details-items'
+import { documentFieldIds } from './document-fields'
+import { FieldInput } from './field-input'
 import { savableQuotation, validMoney, visibleInput, type FormQuotation, type RuleStatus } from './model'
 import { showSatang } from './money'
+import { MoneyInput } from './money-input'
 import { SuggestedSupplierField } from './place-supplier'
 import { conditionText, RequirementList } from './rule-text'
 import type { Attachment } from './types'
 import { UploadButton, type UploadActions } from './upload-button'
 
 // Step 3 (FR-INT-005, BR-FORM-03 to BR-FORM-06): the attachments the rules ask for at the current amount and answers,
-// the supplier the requester suggests from the register (optional, S4-02), the quotations as data — supplier, amount,
+// with the questions those rules ask to be answered (the single-source reason of ATT-QUOTES, ./document-fields.ts), the
+// supplier the requester suggests from the register (optional, S4-02), the quotations as data — supplier, amount,
 // whether it includes VAT, its file — compared before VAT as they are typed, with a reason when the chosen one is not
 // the lowest, and the other files of the request, each of a kind.
 
 /** A request carries at most this many quotations (the service's limit) */
 const MAX_QUOTATIONS = 20
+
+const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
 
 export interface DocumentsProps extends StepProps {
   readonly rules: readonly RuleStatus[]
@@ -62,13 +68,19 @@ export function kindLabelOf(t: ReturnType<typeof useTranslations<'requestForm'>>
 export function DocumentsStep(props: DocumentsProps) {
   const t = useTranslations('requestForm')
   const tr = useTranslations('requestForm.rules')
-  const { data, input, locale, rules } = props
+  const { data, input, locale, rules, values, update, visible, showErrors, fieldErrors } = props
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
   const shown = visibleInput(data.form, input)
+  // The questions the rules ask to be answered, asked here under the rules rather than with the details
+  // (./document-fields.ts): the single-source reason of ATT-QUOTES beside the rule that takes it
+  const documentFields = documentFieldIds(data.form.rules)
+  const asked = data.form.fields.filter((f) => visible.has(f.id) && documentFields.has(f.id))
+  // Its pairs split by the step's own width (@container), not the screen's: inside the LIFF column (34rem of content,
+  // §9.9 "LIFF เป็นคอลัมน์เดียว") each pair stacks at every width; the workspace's wider step keeps them side by side
   return (
-    <div className="flex flex-col gap-10">
+    <div className="@container flex flex-col gap-10">
       <section aria-labelledby="required-documents" className="flex flex-col gap-3">
-        <h3 id="required-documents" className="text-lg font-semibold">
+        <h3 id="required-documents" className="subheading font-semibold">
           {t('documents.requiredTitle')}
         </h3>
         {rules.length === 0 ? (
@@ -80,8 +92,10 @@ export function DocumentsStep(props: DocumentsProps) {
                 <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-semibold">{t('documents.rule', { rule: rule.id })}</span>
                   {rule.met ? (
-                    <span className="inline-flex items-center gap-1 text-primary">
-                      <CircleCheck className="size-4" aria-hidden="true" />
+                    // A rule met on a request not sent yet: supporting information — the info icon in --info beside
+                    // words in ink — never the approved mark of --primary (§9.9 tokens)
+                    <span className="inline-flex items-center gap-1 text-ink">
+                      <Info className="size-4 text-info" aria-hidden="true" />
                       {t('documents.met')}
                     </span>
                   ) : (
@@ -97,6 +111,16 @@ export function DocumentsStep(props: DocumentsProps) {
             ))}
           </ul>
         )}
+        {asked.map((def) => (
+          <FieldInput
+            key={def.id}
+            def={def}
+            locale={locale}
+            value={values.fields[def.id]}
+            onChange={(value) => update({ type: 'field', id: def.id, value })}
+            error={fieldErrors[def.id] ?? (showErrors && def.required && blank(values.fields[def.id]) ? t('fields.missing') : undefined)}
+          />
+        ))}
       </section>
       {data.type.documentType === 'PURCHASE_REQUEST' ? (
         <>
@@ -120,7 +144,7 @@ function Quotations(props: DocumentsProps) {
   const reasonError = needsReason && showErrors && !values.nonLowestQuoteReason.trim() ? t('reasonMissing') : undefined
   return (
     <section aria-labelledby="quotations" className="flex flex-col gap-4">
-      <h3 id="quotations" className="text-lg font-semibold">
+      <h3 id="quotations" className="subheading font-semibold">
         {t('title')}
       </h3>
       <p className="text-ink-muted">{t('intro')}</p>
@@ -171,7 +195,7 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
   }
   return (
     <fieldset className="flex min-w-0 flex-col gap-4">
-      <legend className="mb-1 text-lg font-semibold">{t('item', { n })}</legend>
+      <legend className="mb-1 subheading font-semibold">{t('item', { n })}</legend>
       <Labelled id={`${p}-supplier`} label={t('supplier')} requiredText={tf('required')} error={errors.supplier}>
         <input
           id={`${p}-supplier`}
@@ -185,12 +209,11 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
           onChange={(e) => set({ supplierName: e.currentTarget.value })}
         />
       </Labelled>
-      <div className="grid gap-3 sm:grid-cols-2 sm:items-end">
+      <div className="grid gap-3 @min-[40rem]:grid-cols-2 @min-[40rem]:items-end">
         <Labelled id={`${p}-amount`} label={t('amount')} requiredText={tf('required')} error={errors.amount}>
-          <input
+          <MoneyInput
             id={`${p}-amount`}
             className={`${inputClass} tabular text-right`}
-            inputMode="decimal"
             value={q.amount}
             required
             aria-required
@@ -244,9 +267,10 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
         />
         <div className="ml-auto flex flex-col items-end">
           {net !== undefined ? <p className="money">{t('net', { amount: showSatang(net) })}</p> : <p className="text-ink-muted">{t('netPending')}</p>}
+          {/* The lowest price is a fact of the quotation, not an approval: --info, never --primary (§9.9 tokens) */}
           {isLowest ? (
-            <p className="inline-flex items-center gap-1 font-medium text-primary">
-              <CircleCheck className="size-4" aria-hidden="true" />
+            <p className="inline-flex items-center gap-1 font-medium text-ink">
+              <Info className="size-4 text-info" aria-hidden="true" />
               {t('lowest')}
             </p>
           ) : null}
@@ -263,12 +287,12 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
   const [kind, setKind] = useState<string>(wanted ?? (data.attachmentKinds.includes('OTHER') ? 'OTHER' : (data.attachmentKinds[0] ?? 'OTHER')))
   return (
     <section aria-labelledby="other-files" className="flex flex-col gap-4">
-      <h3 id="other-files" className="text-lg font-semibold">
+      <h3 id="other-files" className="subheading font-semibold">
         {t('title')}
       </h3>
       <p className="text-ink-muted">{t('intro')}</p>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
-        <Labelled id="attachment-kind" label={t('kind')} className="sm:w-72">
+      <div className="flex flex-col gap-3 @min-[40rem]:flex-row @min-[40rem]:items-start">
+        <Labelled id="attachment-kind" label={t('kind')} className="@min-[40rem]:w-72">
           <select id="attachment-kind" className={inputClass} value={kind} onChange={(e) => setKind(e.currentTarget.value)}>
             {data.attachmentKinds.map((k) => (
               <option key={k} value={k}>
@@ -277,7 +301,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
             ))}
           </select>
         </Labelled>
-        <UploadButton className="sm:pt-8" label={t('upload', { kind: kindLabel(kind) })} actions={uploads} disabled={busy} onUploaded={(f) => onAttach(f, kind)} />
+        <UploadButton className="@min-[40rem]:pt-8" label={t('upload', { kind: kindLabel(kind) })} actions={uploads} disabled={busy} onUploaded={(f) => onAttach(f, kind)} />
       </div>
       {fileError ? <Notice tone="danger">{fileError}</Notice> : null}
       {attachments.length === 0 ? (
@@ -296,7 +320,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
                   {t('open', { name: a.fileName })}
                 </Button>
                 <ConfirmRemove
-                  className="sm:ml-auto"
+                  className="@min-[40rem]:ml-auto"
                   label={t('remove', { name: a.fileName })}
                   question={t('removeQuestion', { name: a.fileName })}
                   confirmLabel={t('removeConfirm')}

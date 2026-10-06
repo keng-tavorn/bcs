@@ -1,5 +1,6 @@
 import { amountToSatang } from '@/core/money/dto'
 import { formatSatang } from '@/core/money/format'
+import { failedKey, NO_ANSWER, noAnswerKey, type ReceivingAction } from './failed'
 import type { ReceiptPreviewView } from './types'
 
 // What a receiving server action returns to its form (spec §14.2, §9.9 rule 7): success with what happened, or the
@@ -101,11 +102,18 @@ export const RECEIVING_ERROR_KEYS = [
   'UNAUTHENTICATED',
   'INTERNAL',
   'FAILED',
+  'CHECK_FAILED',
+  'NO_ANSWER',
 ] as const
 export type ReceivingErrorKey = (typeof RECEIVING_ERROR_KEYS)[number]
 
-/** Message key under receiving.errors for a failed preview, receipt or close-short. */
-export function receivingErrorKey(failure: ReceivingFailure): ReceivingErrorKey {
+/**
+ * Message key under receiving.errors for a failed check (preview), receipt or close-short. A failure that tells no more
+ * than that the action did not go through is worded for the action (./failed.ts): the check before recording passes
+ * 'check', since it writes nothing. No answer from the server (NO_ANSWER) leaves recording uncertain — it says so, and
+ * to press the same button again unchanged; a code the screen does not know is an answer: nothing was recorded.
+ */
+export function receivingErrorKey(failure: ReceivingFailure, action: ReceivingAction = 'record'): ReceivingErrorKey {
   const { code, reason, field } = failure
   switch (code) {
     case 'SOD_VIOLATION':
@@ -147,8 +155,11 @@ export function receivingErrorKey(failure: ReceivingFailure): ReceivingErrorKey 
       return 'BUSY'
     case 'IDEMPOTENCY_CONFLICT':
       return 'CONFLICT'
+    // No answer (./failed.ts NO_ANSWER; the server never answers this code): recording may have gone through
+    case NO_ANSWER.code:
+      return noAnswerKey(action)
     default:
-      return 'FAILED'
+      return failedKey(action)
   }
 }
 

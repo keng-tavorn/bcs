@@ -49,6 +49,7 @@
     "to": "ถึงวันที่",
     "submit": "ค้นหาบันทึก",
     "clear": "ล้างเงื่อนไข",
+    "periodReversed": "ยังไม่ได้ค้นหา เพราะ “ถึงวันที่” ({to}) อยู่ก่อน “ตั้งแต่วันที่” ({from}) เลือก “ถึงวันที่” เป็น {from} หรือหลังจากนั้น แล้วกดค้นหาบันทึกอีกครั้ง",
     "period": {
       "both": "ช่วง {from} ถึง {to}",
       "from": "ตั้งแต่ {from}",
@@ -98,6 +99,7 @@
     "gr": "ตรวจรับ",
     "holiday": "วันหยุด",
     "invoice_confirmation": "ใบกำกับ",
+    "line": "บัญชี LINE",
     "member": "สมาชิก",
     "notification": "การแจ้งเตือน",
     "org_authority_change": "โครงสร้างอำนาจ",
@@ -116,6 +118,7 @@
     "Auth": "การเข้าระบบ",
     "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
     "BudgetLine": "บรรทัดงบ",
+    "ChannelIdentity": "บัญชี LINE",
     "ConsolidationRun": "รอบรวมคำขอเป็นใบสั่งซื้อ",
     "CostCenter": "ศูนย์ต้นทุน",
     "Delegation": "รักษาการ",
@@ -144,6 +147,8 @@
       "assigned": "มอบงานอนุมัติ",
       "cancelled": "ยกเลิกงานอนุมัติ",
       "decided": "ตัดสินงานอนุมัติ",
+      "escalated": "ส่งต่องานอนุมัติเมื่อเลยกำหนด",
+      "overdue": "งานอนุมัติเกินกำหนด",
       "reassigned": "ย้ายงานอนุมัติให้ผู้อื่น",
       "reminded": "เตือนงานอนุมัติ"
     },
@@ -155,7 +160,8 @@
       "2fa_reset": "รีเซ็ตการยืนยันตัวตนสองชั้น",
       "login_failed": "เข้าระบบไม่สำเร็จ",
       "login_locked": "ล็อกการเข้าระบบชั่วคราว",
-      "login_succeeded": "เข้าระบบสำเร็จ"
+      "login_succeeded": "เข้าระบบสำเร็จ",
+      "pin_set": "ตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม"
     },
     "budget": {
       "actualized": "ตัดงบเป็นจ่ายจริง",
@@ -213,15 +219,21 @@
     "invoice_confirmation": {
       "recorded": "บันทึกยืนยันใบกำกับ"
     },
+    "line": {
+      "linked": "ผูกบัญชี LINE",
+      "unlinked": "ยกเลิกการผูกบัญชี LINE"
+    },
     "member": {
       "activated": "เปิดใช้งานสมาชิก",
       "deactivated": "ปิดใช้งานสมาชิก",
       "invited": "เชิญสมาชิก",
+      "notification_prefs_updated": "แก้ไขการตั้งค่าการแจ้งเตือน",
       "role_granted": "ให้บทบาท",
       "role_revoked": "ถอนบทบาท",
       "session_revoked": "ยกเลิกการเข้าระบบที่ค้างไว้"
     },
     "notification": {
+      "digest_sent": "ส่งสรุปรายวัน",
       "read": "อ่านการแจ้งเตือน"
     },
     "org_authority_change": {
@@ -275,6 +287,7 @@
       "updated": "แก้ไขประเภทคำขอ"
     },
     "security": {
+      "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
       "sod_blocked": "ระบบกันการทำหน้าที่ซ้อนกัน",
       "token_misuse": "พบการใช้ลิงก์ตัดสินผิดวิธี"
     },

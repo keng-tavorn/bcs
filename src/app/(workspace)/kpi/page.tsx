@@ -3,7 +3,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { kpiView } from '@/server/services/reports/screens'
 import { Button } from '@/ui/form/button'
-import { Field } from '@/ui/form/field'
+import { DateField } from '@/ui/form/date-field'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { ExportPanel } from '@/ui/insight/export-panel'
@@ -49,18 +49,23 @@ export default async function KpiPage({ searchParams }: { searchParams: Promise<
         <p className="text-base text-ink-muted md:text-sm">{t('asOf', { time: formatDateTime(locale, asOf) })}</p>
       </div>
 
-      <form key={query} method="get" action="/kpi" className="flex flex-col gap-3 border-y border-line py-4 md:flex-row md:items-end">
-        <div className="md:w-56">
-          <Field id="kpi-from" name="from" type="date" label={t('from')} defaultValue={period.from} required />
+      {/* Each day is picked as day, month and Buddhist-era year, and read back in words (DateField), wide enough for the
+          three lists, which give way a little where the row is tight; the button keeps its words on one line, level with
+          the lists, a label's line and gap below the top of the row */}
+      <form key={query} method="get" action="/kpi" className="flex flex-col gap-3 border-y border-line py-4 md:flex-row md:items-start">
+        <div className="md:w-72">
+          <DateField id="kpi-from" name="from" label={t('from')} defaultValue={period.from} required />
         </div>
-        <div className="md:w-56">
-          <Field id="kpi-to" name="to" type="date" label={t('to')} defaultValue={period.to} required />
+        <div className="md:w-72">
+          <DateField id="kpi-to" name="to" label={t('to')} defaultValue={period.to} required />
         </div>
-        <Button type="submit" variant="secondary" className="self-start md:self-auto">
+        <Button type="submit" variant="secondary" className="shrink-0 self-start md:mt-[calc(1lh+0.375rem)]">
           {t('show')}
         </Button>
       </form>
-      {period.invalid ? <Notice tone="warning">{t('periodInvalid', { days: KPI_REVIEW_DAYS })}</Notice> : null}
+      {/* What the page shows instead of a period it cannot use: plain information in --info, never the --warn of what is
+          pending or nearly due (§9.9 token table) */}
+      {period.invalid ? <Notice tone="info">{t('periodInvalid', { days: KPI_REVIEW_DAYS })}</Notice> : null}
 
       {baseline ? null : (
         <Notice tone="info">

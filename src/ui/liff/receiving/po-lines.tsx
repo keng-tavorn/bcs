@@ -10,7 +10,7 @@ export function LiffPoLines({ lines, headingId }: { readonly lines: readonly Rec
   const t = useTranslations('receiving')
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3 border-t border-line pt-5">
-      <h2 id={headingId} className="text-lg leading-snug font-semibold">
+      <h2 id={headingId} className="text-lg font-semibold">
         {t('detail.linesTitle')}
       </h2>
       <ol className="flex flex-col divide-y divide-line border-t border-line">

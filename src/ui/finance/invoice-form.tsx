@@ -409,7 +409,7 @@ export function InvoiceForm({ poId, open, supplier, vatRate, etaxUrl, listHref, 
             checked={values.isFinal}
             onChange={(event) => update({ isFinal: event.currentTarget.checked })}
             aria-describedby={`${id}-final-hint`}
-            className="size-5 shrink-0 accent-[var(--primary)]"
+            className="size-5 shrink-0"
           />
           <span className="text-ink">{t('finalLabel')}</span>
         </label>

@@ -19,10 +19,19 @@ function approverText(t: PoT, tv: ViewT, locale: Locale, a: { readonly assignee:
   return role ? `${who} (${role})` : who
 }
 
+/** How long a wait on procurement or the supplier has lasted, in business time, as a state line (none without a calendar) */
+function waitedStates(tv: ViewT, minutes: number | null): Array<{ kind: StateKind; text: string }> {
+  const waited = waitingText(tv, minutes)
+  return waited ? [{ kind: 'waiting', text: waited }] : []
+}
+
 /**
- * Whom the PO waits for, in words, with how long and until when for an approver (FR-INT-008 AC1 for POs). An escalated
- * step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" in the reader's language, oldest task
- * first (BR-SLA-04, NEW-46, as a request's "now" line); the time waited and the due time are the first approver's.
+ * Whom the PO waits for, in words, with how long (§9.9 principle 4, FR-INT-008 AC1 for POs) — and until when for an
+ * approver. An escalated step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" in the reader's
+ * language, oldest task first (BR-SLA-04, NEW-46, as a request's "now" line); the time waited and the due time are the
+ * first approver's. A draft, an approved PO and a sent one say how long procurement or the supplier has had it, and a
+ * PO partly or fully received how long the rest of its goods, or its invoice and closing, have waited since its latest
+ * goods receipt.
  */
 export function waitingOf(t: PoT, tv: ViewT, locale: Locale, waiting: PoWaitingDto): { now: string; states: Array<{ kind: StateKind; text: string }> } {
   switch (waiting.kind) {
@@ -39,7 +48,12 @@ export function waitingOf(t: PoT, tv: ViewT, locale: Locale, waiting: PoWaitingD
       return { now: t('waiting.APPROVER', { name }), states }
     }
     case 'SEND':
-      return waiting.bounced ? { now: t('waiting.SEND_BOUNCED'), states: [] } : { now: t('waiting.SEND'), states: [] }
+      return { now: waiting.bounced ? t('waiting.SEND_BOUNCED') : t('waiting.SEND'), states: waitedStates(tv, waiting.waitingMinutes) }
+    case 'EDIT':
+    case 'DELIVERY':
+    case 'REST':
+    case 'CLOSE':
+      return { now: t(`waiting.${waiting.kind}`), states: waitedStates(tv, waiting.waitingMinutes) }
     default:
       return { now: t(`waiting.${waiting.kind}`), states: [] }
   }
@@ -65,17 +79,20 @@ export function docTimelineItems(t: PoT, tv: ViewT, tl: TimelineT, locale: Local
     else if (entry.what === 'REASSIGNED' && entry.other) title = t('track.reassignedTo', { name: memberName(locale, entry.other) })
     else title = t(`track.what.${entry.what}`)
 
+    // Whom the step waits for or who acted: a member, the approver a step expects, the supplier who delivers, a team
     const actor = entry.actor
       ? memberName(locale, entry.actor)
       : entry.what === 'NEXT_APPROVAL'
         ? expectedText(locale, entry.expected)
-        : TEAM.includes(entry.what)
-          ? t('track.procurement')
-          : entry.what === 'DRAFTED'
-            ? t('track.round')
-            : entry.state === 'done'
-              ? t('track.system')
-              : ''
+        : entry.supplierName
+          ? entry.supplierName
+          : TEAM.includes(entry.what)
+            ? t('track.procurement')
+            : entry.what === 'DRAFTED'
+              ? t('track.round')
+              : entry.state === 'done'
+                ? t('track.system')
+                : ''
     const role = roleText(tv, locale, entry.role)
     const statusLabel =
       entry.state === 'current'

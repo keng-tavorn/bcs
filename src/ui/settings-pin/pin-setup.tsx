@@ -188,7 +188,7 @@ export function PinSetup({ hasPin, proofMethods, prove, setPin }: PinSetupProps)
                     setChosen(m)
                     clearErrors()
                   }}
-                  className="size-5 shrink-0 accent-[var(--primary)]"
+                  className="size-5 shrink-0"
                 />
                 <span>{t(`prove.${m}`)}</span>
               </label>

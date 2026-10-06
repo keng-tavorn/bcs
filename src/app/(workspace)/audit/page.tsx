@@ -5,6 +5,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { auditView } from '@/server/services/audit'
 import { Button } from '@/ui/form/button'
 import { Field } from '@/ui/form/field'
+import { AuditPeriod } from '@/ui/insight/audit-period'
 import { AuditResults } from '@/ui/insight/audit-results'
 import { ExportPanel } from '@/ui/insight/export-panel'
 import { EmptyState, Refused } from '@/ui/insight/refused'
@@ -29,13 +30,15 @@ type Labels = Readonly<Record<string, Readonly<Record<string, string>>>>
 // ORG_ADMIN, who may look — searches the events by document, actor, period, type and channel, newest first, 100 a page;
 // every row names the DOA version and rule of a decision, the channel, the actor and on whose behalf. Only the AUDITOR
 // exports the search as Excel or CSV, with the same columns in every row and the file's checksum; the export is an
-// event of its own. auditView checks audit.view; the export route checks audit.export (BR-AUTH-05).
+// event of its own. auditView checks audit.view; the export route checks audit.export (BR-AUTH-05). A period that ends
+// before it starts is held in the browser before the search, and refused here for an address that carries one: the
+// field "ถึงวันที่" says how to fix it, and no results, no export and no "nothing found" show until it is fixed.
 export default async function AuditPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const state = await getSession()
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx || state.kind !== 'member') return null
   const [t, tl, locale, messages] = await Promise.all([getTranslations('audit'), getTranslations('timeline'), getLocale(), getMessages()])
-  const { filter, form, before, searched } = auditQuery(await searchParams)
+  const { filter, form, before, searched, reversed } = auditQuery(await searchParams)
   const result = await auditView(ctx, filter, before ? { beforeSeq: before } : {})
   if (!result.ok) return <Refused title={t('title')} message={t('forbidden')} href="/" linkLabel={t('home')} />
 
@@ -44,7 +47,7 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
   const rows = auditRowViews(t, tl, locale, view.rows, audit.events, audit.aggregate, linkRights(state.member.id, state.roles))
   const groups = [...new Set(view.eventTypes.map((type) => type.split('.')[0]!))]
   const memberName = (m: { nameTh: string; nameEn: string | null }) => (locale === 'en' && m.nameEn ? m.nameEn : m.nameTh)
-  // the browser's date fields may show Christian-era years: the period searched is said again in Buddhist-era days
+  // the period searched, said again in Buddhist-era days with the results
   const period =
     form.from && form.to
       ? t('search.period.both', { from: dayText(locale, form.from), to: dayText(locale, form.to) })
@@ -113,8 +116,9 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
               ))}
             </select>
           </div>
-          <Field id="audit-from" name="from" type="date" label={t('search.from')} defaultValue={form.from} />
-          <Field id="audit-to" name="to" type="date" label={t('search.to')} defaultValue={form.to} />
+          {/* Each day is picked as day, month and Buddhist-era year, or left out, and read back in words (DateField); a
+              period that ends before it starts is not searched, and "ถึงวันที่" says so (AuditPeriod) */}
+          <AuditPeriod fromLabel={t('search.from')} toLabel={t('search.to')} from={form.from} to={form.to} reversed={reversed} />
         </div>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Button type="submit">{t('search.submit')}</Button>
@@ -126,7 +130,9 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         </div>
       </form>
 
-      {rows.length ? (
+      {/* A period that ends before it starts was not searched: no export, no results and no "nothing found" below until
+          "ถึงวันที่" is fixed */}
+      {!reversed && rows.length ? (
         <section aria-labelledby="audit-export" className="flex max-w-4xl flex-col gap-3">
           <h2 id="audit-export" className="text-xl font-semibold">
             {t('export.title')}
@@ -142,48 +148,50 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
         </section>
       ) : null}
 
-      <section aria-labelledby="audit-results" className="flex flex-col gap-3">
-        <h2 id="audit-results" className="text-xl font-semibold">
-          {t('results.title')}
-        </h2>
-        {period ? <p className="font-medium text-ink">{period}</p> : null}
-        {rows.length === 0 ? (
-          searched ? (
-            <EmptyState title={form.document ? t('results.noDocument', { document: form.document }) : t('results.none')} hint={t('results.noneHint')} href="/audit" linkLabel={t('search.clear')} />
+      {reversed ? null : (
+        <section aria-labelledby="audit-results" className="flex flex-col gap-3">
+          <h2 id="audit-results" className="text-xl font-semibold">
+            {t('results.title')}
+          </h2>
+          {period ? <p className="font-medium text-ink">{period}</p> : null}
+          {rows.length === 0 ? (
+            searched ? (
+              <EmptyState title={form.document ? t('results.noDocument', { document: form.document }) : t('results.none')} hint={t('results.noneHint')} href="/audit" linkLabel={t('search.clear')} />
+            ) : (
+              <EmptyState title={t('results.empty')} hint={t('results.emptyHint')} />
+            )
           ) : (
-            <EmptyState title={t('results.empty')} hint={t('results.emptyHint')} />
-          )
-        ) : (
-          <>
-            <p className="text-ink">{before ? t('results.countOlder', { count: rows.length }) : t('results.count', { count: rows.length })}</p>
-            <AuditResults
-              rows={rows}
-              labels={{
-                caption: t('results.caption'),
-                when: t('results.when'),
-                event: t('results.event'),
-                document: t('results.document'),
-                actor: t('results.actor'),
-                channel: t('results.channel'),
-                doa: t('results.doa'),
-                none: t('results.noneCell'),
-              }}
-            />
-            <nav aria-label={t('results.pages')} className="flex flex-wrap gap-x-6">
-              {before ? (
-                <Link href={auditHref(form)} className={linkClass}>
-                  {t('results.newest')}
-                </Link>
-              ) : null}
-              {view.nextBeforeSeq ? (
-                <Link href={auditHref(form, view.nextBeforeSeq)} className={linkClass}>
-                  {t('results.older')}
-                </Link>
-              ) : null}
-            </nav>
-          </>
-        )}
-      </section>
+            <>
+              <p className="text-ink">{before ? t('results.countOlder', { count: rows.length }) : t('results.count', { count: rows.length })}</p>
+              <AuditResults
+                rows={rows}
+                labels={{
+                  caption: t('results.caption'),
+                  when: t('results.when'),
+                  event: t('results.event'),
+                  document: t('results.document'),
+                  actor: t('results.actor'),
+                  channel: t('results.channel'),
+                  doa: t('results.doa'),
+                  none: t('results.noneCell'),
+                }}
+              />
+              <nav aria-label={t('results.pages')} className="flex flex-wrap gap-x-6">
+                {before ? (
+                  <Link href={auditHref(form)} className={linkClass}>
+                    {t('results.newest')}
+                  </Link>
+                ) : null}
+                {view.nextBeforeSeq ? (
+                  <Link href={auditHref(form, view.nextBeforeSeq)} className={linkClass}>
+                    {t('results.older')}
+                  </Link>
+                ) : null}
+              </nav>
+            </>
+          )}
+        </section>
+      )}
     </div>
   )
 }

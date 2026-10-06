@@ -5,13 +5,12 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { budgetDashboard, type BudgetDashboardDto } from '@/server/services/budget/dashboard'
 import { BudgetTable, type BudgetDepartmentView } from '@/ui/budgets/budget-table'
-import { leftPercentText } from '@/ui/budgets/format'
 import { Refused } from '@/ui/budgets/refused'
 import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { getSession } from '../../_lib/session'
-import { amountLinks, budgetHref, dayText, figureView, localeOf, nameIn, type BudgetsT, type Locale } from './_present'
+import { budgetHref, dayText, figureLinks, figureView, localeOf, lowItemText, nameIn, usedUp, type BudgetsT, type Locale } from './_present'
 
 export async function generateMetadata() {
   const t = await getTranslations('budgets')
@@ -30,7 +29,7 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
       name,
       totalLabel: t('table.departmentTotal', { name }),
       href,
-      ...figureView(t, dept, amountLinks(t, dept, name, href)),
+      ...figureView(t, dept, figureLinks(t, dept, name, href)),
       lines: d.lines
         .filter((l) => l.departmentId === dept.id)
         .map((l) => {
@@ -41,7 +40,7 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
             name: l.nameTh,
             href: lineHref,
             status: l.status === 'OPEN' ? null : { kind: l.status, label: t(`status.${l.status}`) },
-            ...figureView(t, l, amountLinks(t, l, l.code, lineHref)),
+            ...figureView(t, l, figureLinks(t, l, l.code, lineHref)),
           }
         }),
     }
@@ -49,8 +48,9 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
 }
 
 // The budget dashboard (spec §9.1 /budgets, §11.2, FR-BUD-005 AC1 AC3, demo scene 9): the lines running low first,
-// then every budget line by department with the total, every amount of a line, a department and the total leading to
-// what makes it up (AC2: /budgets/[lineId], /budgets/departments/[id], /budgets/total), the fiscal year and the scope
+// then every budget line by department with the total, every amount, share and warning of a line, a department and the
+// total leading to what makes it up (AC2: /budgets/[lineId], /budgets/departments/[id], /budgets/total; §9.9 every
+// number opens its list), the fiscal year and the scope
 // shown, when the figures were read, and the Excel file of the same. budgetDashboard checks budget.view: the whole
 // organization for FINANCE, BUDGET_ADMIN, EXECUTIVE and AUDITOR, a head's own departments otherwise.
 export default async function BudgetsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -62,10 +62,12 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
   const result = await budgetDashboard(ctx, fiscalYearId ? { fiscalYearId } : {})
 
   if (!result.ok && result.error.code === 'NOT_FOUND') {
+    // An old or cut link: plain information in --info like the page's other refusals, never the --warn of what is
+    // pending or nearly due (§9.9 token table)
     return (
       <div className="flex max-w-2xl flex-col gap-6">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <Notice tone="warning">{t('year.notFound')}</Notice>
+        <Notice tone="info">{t('year.notFound')}</Notice>
         <Link href="/budgets" className={linkClass}>
           {t('year.current')}
         </Link>
@@ -76,7 +78,8 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
 
   const d = result.data
   const year = d.fiscalYear
-  const low = d.lines.filter((l) => l.low)
+  // Running low, or used up (nothing left, whatever the organization's warning threshold)
+  const low = d.lines.filter((l) => l.low || usedUp(l))
   const query = year ? `?fy=${year.id}` : ''
 
   return (
@@ -96,7 +99,8 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
 
       <nav aria-label={t('actions.label')} className="flex flex-wrap gap-x-6 gap-y-1 border-y border-line py-2">
         {year && d.lines.length ? (
-          <a href={`/budgets/export${query}`} download className={linkClass}>
+          // No download attribute: the file comes as an attachment and the page stays; a refusal leads back here in words
+          <a href={`/budgets/export${query}`} className={linkClass}>
             {t('actions.export', { code: year.code })}
           </a>
         ) : null}
@@ -140,7 +144,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
             {low.map((l) => (
               <li key={l.id}>
                 <Link href={budgetHref.line(l.id)} className={linkClass}>
-                  {t('low.item', { code: l.code, name: l.nameTh, left: leftPercentText(l.availableBp) ?? '0.0' })}
+                  {lowItemText(t, l)}
                 </Link>
               </li>
             ))}
@@ -164,7 +168,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
           total={{
             label: t(`table.total.${d.scope}`),
             href: budgetHref.total(year.id),
-            ...figureView(t, d.total, amountLinks(t, d.total, t(`scope.${d.scope}`), budgetHref.total(year.id))),
+            ...figureView(t, d.total, figureLinks(t, d.total, t(`scope.${d.scope}`), budgetHref.total(year.id))),
           }}
           labels={{
             caption: t('table.caption', { code: year.code }),
@@ -185,7 +189,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
         <h2 id="budget-legend" className="text-lg font-semibold">
           {t('legend.title')}
         </h2>
-        <ul className="flex flex-col gap-1 text-base text-ink-muted md:text-sm">
+        <ul className="flex flex-col gap-1 text-ink-muted">
           {(['planned', 'available', 'reserved', 'committed', 'actual', 'shares'] as const).map((k) => (
             <li key={k}>{t(`legend.${k}`)}</li>
           ))}

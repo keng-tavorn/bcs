@@ -83,7 +83,7 @@ const MEASURE_TH: Readonly<Record<string, string>> = {
   MEDIAN_DECISION_HOURS: 'มัธยฐานเวลาตัดสินต่อขั้น',
   TASKS_PAST_DUE: 'ขั้นที่เกินกำหนด (SLA)',
   TASKS_ON_FAILED_BUDGET_CHECK: 'งานอนุมัติของคำขอที่ตรวจงบไม่ผ่าน',
-  DECISIONS_ON_LINE_ALL: 'การตัดสินผ่าน LINE หรือ LIFF ทุกชนิดเอกสาร',
+  DECISIONS_ON_LINE_ALL: 'การตัดสินใน LINE ทุกชนิดเอกสาร',
 }
 const KIND_TH: Readonly<Record<string, string>> = {
   PURCHASE_REQUEST: 'คำขอซื้อ',
@@ -97,7 +97,7 @@ const LINE_PREFIX = 'DECISIONS_ON_LINE_'
 export function kpiMeasureTh(code: string): string {
   if (MEASURE_TH[code]) return MEASURE_TH[code]
   const kind = code.startsWith(LINE_PREFIX) ? code.slice(LINE_PREFIX.length) : null
-  return kind ? `การตัดสินผ่าน LINE หรือ LIFF ของ${KIND_TH[kind] ?? kind}` : code
+  return kind ? `การตัดสินใน LINE ของ${KIND_TH[kind] ?? kind}` : code
 }
 const UNIT_TH = { percent: '%', hours: 'ชั่วโมงทำการ', count: 'รายการ' } as const
 

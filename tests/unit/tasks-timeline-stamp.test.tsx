@@ -31,7 +31,7 @@ const items: TimelineItem[] = [
     role: 'ผู้จัดการฝ่าย ฝ่ายก่อสร้าง',
     onBehalfOf: 'รักษาการแทน ดำรง ก่อสร้างไทย',
     when: '6 ต.ค. 2569 09:15 น.',
-    channel: 'LINE (LIFF)',
+    channel: 'หน้าจอใน LINE',
     doaRef: 'DOA-DEMO ฉบับ 1 ข้อ PR-01',
     doaHref: '/admin/doa/0199a1b2-0000-7000-8000-000000000001',
     state: 'done',
@@ -53,7 +53,7 @@ describe('[FR-PLT-003/AC3] [FR-DOA-005/AC2] [FR-INT-008/AC1] the timeline draws 
   })
 
   it('shows who decided, their position, when, through which channel and for whom', () => {
-    for (const text of ['วีระ ปฏิบัติการ', 'รองประธานสายงาน สายปฏิบัติการ', '5 ต.ค. 2569 11:00 น. · เว็บ', 'รักษาการแทน ดำรง ก่อสร้างไทย', '6 ต.ค. 2569 09:15 น. · LINE (LIFF)']) expect(html).toContain(text)
+    for (const text of ['วีระ ปฏิบัติการ', 'รองประธานสายงาน สายปฏิบัติการ', '5 ต.ค. 2569 11:00 น. · เว็บ', 'รักษาการแทน ดำรง ก่อสร้างไทย', '6 ต.ค. 2569 09:15 น. · หน้าจอใน LINE']) expect(html).toContain(text)
   })
 
   it('quotes the reason of a return under its label, and never relies on colour alone', () => {
@@ -68,5 +68,18 @@ describe('[FR-PLT-003/AC3] [FR-DOA-005/AC2] [FR-INT-008/AC1] the timeline draws 
     expect(html).toContain('ค้างมา 3.5 ชั่วโมงทำการ')
     expect(html).toContain('เกินกำหนดแล้ว ครบกำหนดเมื่อ 6 ต.ค. 2569 17:30 น.')
     expect(html).toMatch(/text-danger[^>]*>เกินกำหนดแล้ว/)
+  })
+
+  it('[§9.9] the current step stands out the most: its box is the one 2 px frame of the timeline, a stamp’s is 1 px with its DOA mark at 2 px', () => {
+    /** The classes of each step's box (the block beside its marker), in the timeline's order */
+    const boxes = [...html.matchAll(/<li[^>]*>(?:<span[^>]*><\/span>)?<span[^>]*>.*?<\/span><div class="([^"]*)"/g)].map((m) => new Set(m[1]!.split(/\s+/)))
+    expect(boxes).toHaveLength(items.length)
+    const framed = boxes.map((box) => (box.has('border-2') ? 2 : box.has('border') ? 1 : 0))
+    // the sent step, the return, the approval, the current step (overdue), the next
+    expect(framed).toEqual([0, 1, 1, 2, 0])
+    expect(boxes[3]!.has('bg-surface')).toBe(true)
+    expect(boxes[3]!.has('border-danger')).toBe(true)
+    // each stamp's DOA reference keeps its own 2 px mark
+    expect(html.match(/<span class="[^"]*border-2[^"]*">DOA-DEMO ฉบับ 1 ข้อ PR-0\d<\/span>/g)).toHaveLength(2)
   })
 })

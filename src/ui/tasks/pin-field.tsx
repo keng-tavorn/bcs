@@ -63,7 +63,9 @@ export function PinField({ id, label, value, onChange, error, hint, disabled }: 
       data-bwignore="true"
       data-form-type="other"
       disabled={disabled || !hydrated}
-      className="tabular max-w-48 tracking-widest disabled:cursor-not-allowed disabled:opacity-60"
+      // Disabled (before the script runs, and while the decision is sent) in the look of a disabled button: --ink-muted on
+      // --surface inside --line, 6.7:1, as LIFF's PIN field (src/ui/liff/pin-input.tsx); faded, it fell to about 4:1
+      className="tabular max-w-48 tracking-widest disabled:cursor-not-allowed disabled:border-line disabled:bg-surface disabled:text-ink-muted"
     />
   )
 }

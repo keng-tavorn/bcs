@@ -49,6 +49,7 @@
     "to": "To",
     "submit": "Search the trail",
     "clear": "Clear the search",
+    "periodReversed": "Not searched: “To” ({to}) is before “From” ({from}). Choose a “To” day of {from} or later, then press Search the trail again.",
     "period": {
       "both": "{from} to {to}",
       "from": "From {from}",
@@ -98,6 +99,7 @@
     "gr": "Receiving",
     "holiday": "Holidays",
     "invoice_confirmation": "Invoices",
+    "line": "LINE accounts",
     "member": "Members",
     "notification": "Notifications",
     "org_authority_change": "Authority structure",
@@ -116,6 +118,7 @@
     "Auth": "Sign-in",
     "BudgetGrant": "Cross-department budget grant",
     "BudgetLine": "Budget line",
+    "ChannelIdentity": "LINE account",
     "ConsolidationRun": "Consolidation round",
     "CostCenter": "Cost center",
     "Delegation": "Delegation",
@@ -144,6 +147,8 @@
       "assigned": "Approval task assigned",
       "cancelled": "Approval task cancelled",
       "decided": "Approval task decided",
+      "escalated": "Overdue approval task escalated",
+      "overdue": "Approval task overdue",
       "reassigned": "Approval task reassigned",
       "reminded": "Approval task reminded"
     },
@@ -155,7 +160,8 @@
       "2fa_reset": "Two-step sign-in reset",
       "login_failed": "Sign-in failed",
       "login_locked": "Sign-in locked for a while",
-      "login_succeeded": "Signed in"
+      "login_succeeded": "Signed in",
+      "pin_set": "Transaction PIN set or changed"
     },
     "budget": {
       "actualized": "Budget moved to actual",
@@ -213,15 +219,21 @@
     "invoice_confirmation": {
       "recorded": "Invoice confirmation recorded"
     },
+    "line": {
+      "linked": "LINE account linked",
+      "unlinked": "LINE account unlinked"
+    },
     "member": {
       "activated": "Member activated",
       "deactivated": "Member deactivated",
       "invited": "Member invited",
+      "notification_prefs_updated": "Notification settings changed",
       "role_granted": "Role granted",
       "role_revoked": "Role revoked",
       "session_revoked": "Open sign-ins ended"
     },
     "notification": {
+      "digest_sent": "Daily summary sent",
       "read": "Notification read"
     },
     "org_authority_change": {
@@ -275,6 +287,7 @@
       "updated": "Request type changed"
     },
     "security": {
+      "pin_locked": "Transaction PIN locked for a while",
       "sod_blocked": "Separation of duties blocked an action",
       "token_misuse": "Decision link misused"
     },

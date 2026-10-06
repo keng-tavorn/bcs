@@ -1,11 +1,13 @@
 {
   "title": "Waiting for approval",
   "intro": "Tasks waiting for your decision, the ones due first at the top",
-  "count": "{count} tasks",
+  "count": "{count, plural, one {# task} other {# tasks}}",
   "listLabel": "Your tasks waiting for approval",
   "empty": "Nothing is waiting for your approval",
   "emptyHint": "Requests sent to you appear here and in the notification bell. Meanwhile you can follow your own requests.",
   "emptyLink": "Go to my requests",
+  "emptyHintNoRequests": "Requests sent to you appear here and in the notification bell.",
+  "emptyStart": "Start a purchase or hiring request",
   "item": {
     "untitled": "Approval task",
     "requester": "{name} · {department}",
@@ -152,9 +154,9 @@
     "doaHeadline": "Publish {code} version {version}",
     "doaEffective": "In effect from",
     "doaRules": "Rules",
-    "doaRuleCount": "{count} rules",
+    "doaRuleCount": "{count, plural, one {# rule} other {# rules}}",
     "doaCurrent": "Version in effect now",
-    "doaOpenTasks": "{count} open tasks under the current version keep their route to the end",
+    "doaOpenTasks": "{count, plural, one {# open task under the current version keeps its route to the end} other {# open tasks under the current version keep their route to the end}}",
     "doaHolders": "Position holders approved with this version",
     "doaHolder": "{member} as {position}, {department}",
     "doaOpen": "See this version’s details and differences",
@@ -176,7 +178,7 @@
       "gains": "Gains authority",
       "loses": "Loses authority",
       "openTasks": "Open tasks that move to the new holder",
-      "openTasksCount": "{count} tasks",
+      "openTasksCount": "{count, plural, one {# task} other {# tasks}}",
       "none": "Nobody"
     },
     "openAdmin": "See all authority changes",
@@ -253,8 +255,8 @@
       "MEMBER": "{name} (named person)",
       "position": "{name} ({code})"
     },
-    "doaSla": "{hours} business hours",
-    "doaSlaMinutes": "{minutes} business minutes"
+    "doaSla": "{hours, plural, one {# business hour} other {# business hours}}",
+    "doaSlaMinutes": "{minutes, plural, one {# business minute} other {# business minutes}}"
   },
   "errors": {
     "DECIDED": "Already decided by {name} {time}",
@@ -269,13 +271,13 @@
     "PIN_NOT_SET": "You have not set a transaction PIN yet. Set one, then come back to decide this task.",
     "PIN_NOT_SET_LINK": "Set your PIN",
     "STEP_UP": "Every decision on this task needs your PIN. Enter it and try again.",
-    "FORBIDDEN": "You are not the person this task was sent to, so you cannot decide it",
+    "FORBIDDEN": "You are not the person this task was sent to, so you cannot decide it. Reload the page to see where the task is now; if it should be yours, contact your administrator.",
     "SOD": "You cannot decide this task because you are part of this document ({rule}). Ask your administrator to give the task to someone else.",
     "APPROVER_NOT_FOUND": "No approver was found for the next step. Ask your administrator to check who holds the positions in the DOA.",
     "LATER_VERSION": "A DOA version approved earlier starts after this one, so this one cannot be approved. Contact your administrator.",
     "BOUNDARY_NOT_CONFIRMED": "Tick that you checked the boundary table before approving",
     "BOUNDARY_TABLE_CHANGED": "The boundary table of this version changed after this page was opened, because the version it is compared with changed. Nothing was approved. Reload the page, check the table and tick it before approving.",
-    "CHANNEL": "Policy changes can be decided on the web or LIFF only",
+    "CHANNEL": "Policy changes can be decided on the web or on a screen in LINE only",
     "NOT_FOUND": "This task is no longer there. It may have moved or been cancelled. Reload the page.",
     "BUSY": "Someone is working on this task right now. Wait a moment and try again.",
     "CONFLICT": "This was already sent with different details. Reload the page and try again.",

@@ -14,9 +14,9 @@ import { Timeline } from '@/ui/timeline/timeline'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canViewRequest } from '../../_tracking/access'
-import { doaHref, doaRefText, dueText, localeOf, memberName, nameIn, stageText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
+import { doaHref, doaRefText, dueText, localeOf, memberName, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
-import { answerInfoAction, cancelRequestAction, resubmitRequestAction } from './actions'
+import { answerInfoAction, cancelRequestAction } from './actions'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -107,7 +107,8 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
             <span className="text-ink-muted">{tv('detail.nowTitle')}: </span>
             {stageText(tv, locale, stage, mine)}
           </p>
-          {stage.kind === 'APPROVER' && waitingText(tv, stage.waitingMinutes) ? <StateLine kind="waiting">{waitingText(tv, stage.waitingMinutes)}</StateLine> : null}
+          {/* How long it has waited, whoever it waits for: an approver, the requester, procurement or a supplier (§9.9 principle 4) */}
+          {waitingText(tv, stageWaitingMinutes(stage)) ? <StateLine kind="waiting">{waitingText(tv, stageWaitingMinutes(stage))}</StateLine> : null}
           {stage.kind === 'APPROVER' && stage.dueAt ? <StateLine kind={stage.overdue ? 'overdue' : 'due'}>{dueText(tv, locale, stage.dueAt, stage.overdue)}</StateLine> : null}
           {view.approvedUnder ? (
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -127,8 +128,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           returned={view.status === 'RETURNED' ? { reason: view.returnReason } : null}
           draft={view.status === 'DRAFT'}
           editHref={view.actions.canEdit ? `/requests/${view.id}/edit` : null}
-          canResubmit={view.actions.canResubmit}
-          actions={{ answer: answerInfoAction, resubmit: resubmitRequestAction }}
+          actions={{ answer: answerInfoAction }}
         />
       ) : null}
 

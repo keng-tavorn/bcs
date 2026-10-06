@@ -35,7 +35,7 @@ test('@demo [FR-VIS-001/AC1] [FR-VIS-003/AC2] [FR-VIS-004/AC2] [FR-DOA-005/AC3] 
   // The KPI: decisions of purchase requests made on LINE
   await page.goto('/kpi')
   const pr = `${percent(decided.kpi.pr.numerator, decided.kpi.pr.denominator)}%`
-  await expect(page.getByRole('link', { name: `ดูรายการที่นับ: การตัดสินผ่าน LINE หรือ LIFF ของคำขอซื้อ ${pr} (${decided.kpi.pr.numerator} จาก ${decided.kpi.pr.denominator} การตัดสิน)` })).toBeVisible()
+  await expect(page.getByRole('link', { name: `ดูรายการที่นับ: การตัดสินใน LINE ของคำขอซื้อ ${pr} (${decided.kpi.pr.numerator} จาก ${decided.kpi.pr.denominator} การตัดสิน)` })).toBeVisible()
   await checkScreen(page, testInfo, 'scene9-kpi')
 
   // The CEO may not export the audit trail (ADR-038 ข้อ 5)

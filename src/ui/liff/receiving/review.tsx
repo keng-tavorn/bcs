@@ -76,7 +76,7 @@ function ChoiceGroup({
               disabled={blocked}
               onChange={() => onChange(o.value)}
               aria-describedby={error ? errorId : undefined}
-              className={`size-5 shrink-0 accent-[var(--primary)] ${o.approver ? 'mt-1' : ''}`}
+              className={`size-5 shrink-0 ${o.approver ? 'mt-1' : ''}`}
             />
             <span className="flex flex-col">
               <span className="text-ink">{o.label}</span>

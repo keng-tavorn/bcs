@@ -42,8 +42,19 @@ export const CLIENT_MESSAGES = {
   platform: ['auth.security', 'platform.modules'],
   /** /liff, /liff/help, /liff/tasks and /liff/track: the gate only */
   liff: [...LIFF_GATE],
-  /** /liff/link: the link flow, the e-mail sign-in of an account that is not linked, the LINE user of LIFF_MOCK */
-  liffLink: [...LIFF_GATE, 'liff.link', 'liff.mock', 'auth.lock', 'auth.login', 'auth.twoFactor'],
+  /**
+   * /liff/link: the link flow, the e-mail sign-in of an account that is not linked, the LINE user of LIFF_MOCK. Of the
+   * web sign-in's words, those the LIFF sign-in reads by name — its fields' own checks included, said on the field as on
+   * the web (an empty field, an address that is not an e-mail); the session-ended notice of /login stays on the web
+   */
+  liffLink: [
+    ...LIFF_GATE,
+    'liff.link',
+    'liff.mock',
+    'auth.lock',
+    ...each('auth.login', ['email', 'emailInvalid', 'emailRequired', 'failed', 'forgot', 'invalid', 'password', 'passwordRequired', 'serverFailed', 'submit', 'submitting']),
+    'auth.twoFactor',
+  ],
   /**
    * /liff/tasks/[id]: the decision of a request, PO or variance task, and of a DOA version (its boundary tick). The bars
    * read a few refusals by name (the server words the others: src/app/liff/tasks/[id]/actions.ts) and the policy decision
@@ -62,14 +73,15 @@ export const CLIENT_MESSAGES = {
   /** /liff/requests/new: the catalogue of request types (its search and its list; the drafts' words are the web's) */
   liffCatalog: [...LIFF_GATE, ...each('request.catalog', ['all', 'clear', 'found', 'noDescription', 'noMatch', 'noTypes', 'search', 'searchHint', 'start', 'typesHeading', 'whenToUse'])],
   /**
-   * /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form's shell and its first step. Steps 2 and 3,
-   * the confirmation once sent and why a save was refused are loaded on demand with their words — the rest of
-   * requestForm, the file words and liffRequests (src/ui/liff/requests/step-words.tsx): some 5 KB gzip less in the
+   * /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form's shell and its first step — with what
+   * closed the request to the form, said above it and in the bar (liffRequests.form.closedBy, submit.blockedClosedBy).
+   * Steps 2 and 3, the confirmation once sent and why a save was refused are loaded on demand with their words — the rest
+   * of requestForm, the file words and liffRequests (src/ui/liff/requests/step-words.tsx): some 5 KB gzip less in the
    * form's HTML
    */
   liffRequestForm: [
     ...LIFF_GATE,
-    ...each('liffRequests.form', ['back', 'barLabel', 'savedAt', 'stepLoading']),
+    ...each('liffRequests.form', ['back', 'barLabel', 'closedBy', 'savedAt', 'stepLoading']),
     'requestForm.details',
     'requestForm.fields',
     'requestForm.steps',
@@ -91,8 +103,8 @@ export const CLIENT_MESSAGES = {
       'remaining',
       'unknown',
     ]),
-    ...each('requestForm.save', ['closed', 'conflict', 'dirty', 'error', 'idleNew', 'idleSaved', 'openRequest', 'reload', 'saveNow', 'saving']),
-    ...each('requestForm.submit', ['blockedBudget', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
+    ...each('requestForm.save', ['conflict', 'dirty', 'error', 'idleNew', 'idleSaved', 'openRequest', 'reload', 'saveNow', 'saving']),
+    ...each('requestForm.submit', ['blockedBudget', 'blockedClosed', 'blockedClosedBy', 'blockedProblems', 'blockedSave', 'resubmit', 'send', 'sending', 'toProcurement']),
     ...each('requestForm.page', ['returned', 'returnedReason']),
     'requestForm.errors.FORM_FIELD',
   ],

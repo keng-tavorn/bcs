@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
-import { INVITATION_TTL_MS, PASSWORD_MIN_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
+import { INVITATION_TTL_MS, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { makeCtx, type Ctx } from '@/server/context'
 import { findInvitationByTokenHash } from '@/server/db/lookups'
@@ -135,7 +135,8 @@ export async function inviteMember(
 
 // ---------- accept invitation (FR-AUTH-001 AC1–AC2) ----------
 
-const AcceptInput = z.object({ token: z.string().min(20), password: z.string().min(PASSWORD_MIN_LENGTH).max(128) })
+// The same password rule as the invitation form's own check (src/ui/auth/invite-form.tsx) and Better Auth's (../../auth/auth.ts)
+const AcceptInput = z.object({ token: z.string().min(20), password: z.string().min(PASSWORD_MIN_LENGTH).max(PASSWORD_MAX_LENGTH) })
 
 const acceptCommand = defineCommand({
   name: 'member.accept_invitation',

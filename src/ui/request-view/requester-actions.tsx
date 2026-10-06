@@ -12,11 +12,13 @@ import { requestErrorKey, type ActionFailure, type ActionOutcome } from '../task
 import { ConfirmBox, TextArea } from './text-area'
 import { useAction } from './use-action'
 
-// What the requester can do on their request (FR-INT-009): answer the approver's question, edit and send a returned
-// request again (BR-DOA-09: a new route), and cancel with a reason (the reserved budget goes back at once). Each part
-// keeps its result line after the page refreshes to the new state, so the words of the button come back as the
-// confirmation (§9.9 rule 7); the page drops the box once the request is closed. A field's error goes as soon as the
-// field changes. The services check every rule again.
+// What the requester can do on their request (FR-INT-009): answer the approver's question, edit a returned request and
+// send it again (BR-DOA-09: a new route), and cancel with a reason (the reserved budget goes back at once). A returned
+// request is sent again only from the edit page's "ตรวจและส่ง", which shows first what is left on the budget line, the
+// route the DOA in effect gives now and the documents the rules ask for (§9.9 principle 3): this box leads there, and
+// sends nothing itself. Each part keeps its result line after the page refreshes to the new state, so the words of the
+// button come back as the confirmation (§9.9 rule 7); the page drops the box once the request is closed. A field's error
+// goes as soon as the field changes. The services check every rule again.
 
 const REASON_MIN = 3
 
@@ -43,16 +45,14 @@ export interface RequesterActionsProps {
   /** RETURNED: the approver's reason */
   readonly returned: { readonly reason: string | null } | null
   readonly draft: boolean
-  /** /requests/<id>/edit while the request is a draft or returned */
+  /** /requests/<id>/edit while the request is a draft or returned: where a returned request is changed and sent again */
   readonly editHref: string | null
-  readonly canResubmit: boolean
   readonly actions: {
     readonly answer: (input: { infoRequestId: string; answer: string }, idempotencyKey: string) => Promise<ActionOutcome>
-    readonly resubmit: (requestId: string, idempotencyKey: string) => Promise<ActionOutcome>
   }
 }
 
-export function RequesterActions({ requestId, question, returned, draft, editHref, canResubmit, actions }: RequesterActionsProps) {
+export function RequesterActions({ question, returned, draft, editHref, actions }: RequesterActionsProps) {
   const t = useTranslations('requestView.actions')
   const tErrors = useTranslations('requestView.errors')
   const failureText = useFailureText()
@@ -60,7 +60,6 @@ export function RequesterActions({ requestId, question, returned, draft, editHre
   const [answer, setAnswer] = useState('')
   const [answerError, setAnswerError] = useState<string>()
   const answering = useAction()
-  const resubmitting = useAction()
   const [done, setDone] = useState<string | null>(null)
 
   async function onAnswer(event: FormEvent<HTMLFormElement>) {
@@ -76,13 +75,7 @@ export function RequesterActions({ requestId, question, returned, draft, editHre
     }
   }
 
-  async function onResubmit() {
-    setDone(null)
-    const outcome = await resubmitting.run((key) => actions.resubmit(requestId, key))
-    if (outcome.ok) setDone(t('resubmitted'))
-  }
-
-  const failure = [answering.outcome, resubmitting.outcome].find((o): o is ActionFailure => Boolean(o && !o.ok))
+  const failure = answering.outcome && !answering.outcome.ok ? answering.outcome : null
   if (!done && !failure && !question && !returned && !draft) return null
 
   return (
@@ -136,18 +129,16 @@ export function RequesterActions({ requestId, question, returned, draft, editHre
           <h3 className="font-semibold text-ink">{t('returnedTitle')}</h3>
           {returned.reason ? <p className="break-words whitespace-pre-line text-ink">{t('returnedReason', { reason: returned.reason })}</p> : null}
           <p className="text-ink-muted">{t('resubmitHint')}</p>
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            {editHref ? (
-              <Link href={editHref} className="inline-flex min-h-11 items-center justify-center rounded-md border border-input bg-bg px-4 font-medium text-ink hover:bg-surface">
-                {t('edit')}
-              </Link>
-            ) : null}
-            {canResubmit ? (
-              <Button type="button" onClick={() => void onResubmit()} disabled={resubmitting.pending}>
-                {resubmitting.pending ? t('working') : t('resubmit')}
-              </Button>
-            ) : null}
-          </div>
+          {/* The one way on, drawn as the main button: the edit page, whose last step sends it again once its budget, its
+              new route and its documents were seen (§9.9 principle 3) */}
+          {editHref ? (
+            <Link
+              href={editHref}
+              className="inline-flex min-h-11 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline"
+            >
+              {t('edit')}
+            </Link>
+          ) : null}
         </div>
       ) : null}
     </section>

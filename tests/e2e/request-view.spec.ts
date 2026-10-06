@@ -75,7 +75,7 @@ test('[FR-INT-008/AC1] [FR-DOA-003/AC2] a waiting request shows who it waits for
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('วัสดุสิ้นเปลือง (รออนุมัติ)')
   await expect(heading(page)).toContainText('รออนุมัติ')
   await expect(heading(page)).toContainText(`รอ ${cast.approverName} (${cast.approverRole}) อนุมัติ`)
-  await expect(heading(page)).toContainText(/ค้างมา|ยังไม่เริ่มนับเวลาทำการ/)
+  await expect(heading(page)).toContainText(/ค้างมา/)
   await expect(heading(page)).toContainText(/ครบกำหนด|เกินกำหนด/)
 
   // The current step stands out with name, position and the business hours waited; the steps left follow
@@ -83,7 +83,7 @@ test('[FR-INT-008/AC1] [FR-DOA-003/AC2] a waiting request shows who it waits for
   await expect(current).toContainText('รออนุมัติ')
   await expect(current).toContainText(cast.approverName)
   await expect(current).toContainText(cast.approverRole)
-  await expect(current).toContainText(/ค้างมา|ยังไม่เริ่มนับเวลาทำการ/)
+  await expect(current).toContainText(/ค้างมา/)
   await expect(timeline(page).getByRole('listitem').last()).toContainText('ฝ่ายจัดซื้อออกใบสั่งซื้อ')
 
   // The actual route after submitting, with the rule and why (FR-DOA-003 AC2); a requester reads the rule as text
@@ -155,8 +155,20 @@ test('[FR-INT-009/AC2] [FR-INT-009/AC1] a returned request shows the reason; the
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'request-returned')
 
-  await page.getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติอีกครั้งแล้ว' })).toBeVisible()
+  // §9.9 principle 3: a returned request is sent again only from the edit page's "ตรวจและส่ง", which shows first what is
+  // left on the budget line, the route the DOA in effect gives now and the documents to attach — nothing on the request
+  // page sends it at once
+  await expect(page.getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง' })).toHaveCount(0)
+  await expect(page.getByText('กด แก้ไขคำขอ แล้วตรวจงบคงเหลือ เส้นทางอนุมัติใหม่ และเอกสารที่ต้องแนบในขั้นตรวจและส่ง ก่อนกด ส่งขออนุมัติอีกครั้ง')).toBeVisible()
+  await page.getByRole('link', { name: 'แก้ไขคำขอ' }).click()
+  await expect(page).toHaveURL(new RegExp(`/requests/${r.returned.requestId}/edit$`))
+  for (const step of ['รายการที่ขอ', 'ใบเสนอราคาและเอกสาร', 'ตรวจและส่ง']) await page.getByRole('button', { name: `ไปขั้นถัดไป: ${step}` }).click()
+  await expect(page.getByRole('heading', { level: 2, name: 'ขั้นที่ 4 จาก 4: ตรวจและส่ง' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติที่คาดไว้' })).toContainText(cast.approverName)
+  await page.getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง', exact: true }).click()
+  // §9.9 rule 7: the confirmation repeats the button's words, with who decides it now
+  await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติอีกครั้งแล้ว' })).toContainText(`ส่งขออนุมัติอีกครั้งแล้ว รอ ${cast.approverName}`)
+  await page.goto(`/requests/${r.returned.requestId}`)
   await expect(heading(page)).toContainText(`รอ ${cast.approverName}`)
   await expect(timeline(page)).toContainText('ส่งขออนุมัติอีกครั้ง')
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('รอบที่ 2')

@@ -39,7 +39,8 @@ export async function chooseSupplier(page: Page, numbers: readonly string[], sup
   await expect(page.getByRole('region', { name: 'เลือกผู้ขายให้บรรทัดที่เลือก' }).getByText(`เลือกแล้ว ${count} บรรทัด`)).toBeVisible()
   await page.getByLabel('ผู้ขายสำหรับบรรทัดที่เลือก').selectOption({ label: supplier })
   await page.getByRole('button', { name: 'ใช้ผู้ขายนี้กับบรรทัดที่เลือก' }).click()
-  await expect(page.getByRole('status').filter({ hasText: `เลือกผู้ขาย ${supplier} ให้ ${count} บรรทัดแล้ว` })).toBeVisible()
+  // The notice says it with the button's own words (§9.9 principle 7)
+  await expect(page.getByRole('status').filter({ hasText: `ใช้ผู้ขาย ${supplier} กับ ${count} บรรทัดแล้ว` })).toBeVisible()
 }
 
 /** The PO number of the page, read from its heading ("ใบสั่งซื้อ PO-2569-00012") */

@@ -63,8 +63,10 @@ function TaskState({ task, t, tv, locale, mine }: { task: TaskViewDto; t: TasksT
     case 'RETURNED':
     case 'REJECTED': {
       const text = t(`state.${task.decision ?? 'APPROVE'}`, { name: memberName(locale, task.decidedBy), time: task.decidedAt ? when(locale, task.decidedAt) : '' })
+      // In the colours the timeline beside it draws the same decision in: approved --primary, returned --warn, not
+      // approved --danger (§9.9 tokens). How the task stands, read politely as a status, not an error just made (role=alert)
       return (
-        <Notice tone={task.status === 'APPROVED' ? 'success' : 'warning'}>
+        <Notice tone={task.status === 'APPROVED' ? 'success' : task.status === 'REJECTED' ? 'danger' : 'warning'} role="status">
           <p>{text}</p>
           {task.reason && task.status !== 'APPROVED' ? <p className="break-words whitespace-pre-line">{t('state.reason', { reason: task.reason })}</p> : null}
         </Notice>

@@ -16,13 +16,26 @@ export interface LineFigureView {
   readonly key: string
   readonly term: string
   readonly amount: string
-  /** In-page link to what makes up the amount */
-  readonly href: string | null
-  readonly linkLabel: string | null
+  /** In-page link to what makes up the amount, 0.00 too: the section says what will show there */
+  readonly href: string
+  readonly linkLabel: string
+}
+
+/** The shares under the strip, each an in-page link to the sections that make it up (§9.9: every number opens its list) */
+export interface LineSharesView {
+  /** "ใช้แล้ว 18.0%" */
+  readonly used: string
+  readonly usedLink: { readonly href: string; readonly label: string }
+  /** "รวมที่จองแล้ว 26.0%" */
+  readonly held: string
+  readonly heldLink: { readonly href: string; readonly label: string }
+  readonly heldBp: number
+  readonly low: boolean
+  readonly out?: boolean
 }
 
 /** The amounts in one strip: label above, amount below, right-aligned; the shares and their bar after */
-export function LineFigures({ title, figures, shares, unit }: { title: string; figures: readonly LineFigureView[]; shares: { used: string; held: string; heldBp: number; low: boolean } | null; unit: string }) {
+export function LineFigures({ title, figures, shares, unit }: { title: string; figures: readonly LineFigureView[]; shares: LineSharesView | null; unit: string }) {
   return (
     <section aria-labelledby="line-figures" className="flex flex-col gap-3">
       <h2 id="line-figures" className="sr-only">
@@ -34,13 +47,9 @@ export function LineFigures({ title, figures, shares, unit }: { title: string; f
             {/* The label sits over its amount, both on the right like every column of money */}
             <dt className="text-right text-base text-ink-muted md:text-sm">{f.term}</dt>
             <dd className="money text-lg font-semibold">
-              {f.href && f.linkLabel ? (
-                <a href={f.href} aria-label={f.linkLabel} className={linkClass}>
-                  {f.amount}
-                </a>
-              ) : (
-                f.amount
-              )}
+              <a href={f.href} aria-label={f.linkLabel} className={linkClass}>
+                {f.amount}
+              </a>
               <span className="sr-only"> {unit}</span>
             </dd>
           </div>
@@ -49,10 +58,14 @@ export function LineFigures({ title, figures, shares, unit }: { title: string; f
       {shares ? (
         <div className="flex max-w-xl flex-col gap-1.5">
           <p className="tabular flex flex-wrap gap-x-6 gap-y-1">
-            <span>{shares.used}</span>
-            <span>{shares.held}</span>
+            <a href={shares.usedLink.href} aria-label={shares.usedLink.label} className={linkClass}>
+              {shares.used}
+            </a>
+            <a href={shares.heldLink.href} aria-label={shares.heldLink.label} className={linkClass}>
+              {shares.held}
+            </a>
           </p>
-          <HeldMeter heldBp={shares.heldBp} low={shares.low} />
+          <HeldMeter heldBp={shares.heldBp} low={shares.low} out={shares.out} />
         </div>
       ) : null}
     </section>

@@ -5,7 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { amountToSatang } from '@/core/money/dto'
 import type { FormAction, FormValues } from '../../request-form/model'
 import { showSatang } from '../../request-form/money'
-import type { FormFailure, FormOutcome } from '../../request-form/outcome'
+import type { ClosedWhy, FormFailure, FormOutcome } from '../../request-form/outcome'
 import type { SaveStop, SendBlock } from '../../request-form/review-step'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from '../../request-form/types'
 import type { Autosave, SaveState } from '../../request-form/use-autosave'
@@ -13,7 +13,6 @@ import { usePreview, type PreviewAction } from '../../request-form/use-preview'
 import { LiffActionBar } from '../action-bar'
 import { Button } from '../button'
 import { LiffContent } from '../content'
-import { LiffLink } from '../liff-link'
 import { LiffNotice, NoticeIcon } from '../notice'
 import { LiffDetailsStep } from './details-step'
 import { createEarlySaver, type EarlyBase, type EarlySaver } from './early-save'
@@ -23,6 +22,7 @@ import { useRequestKey } from './key'
 import { openingLines, previewLinesOf } from './lines'
 import { useLiffReady, type LiffReadiness } from './ready'
 import type { LiffFileActions } from './review-step'
+import { LiffSaveClosed } from './save-closed'
 import type { LiffFormStart } from './start'
 
 // The short request form of LIFF (§9.4 "/liff/requests/new: แคตตาล็อกและฟอร์มแบบย่อ", S5-06, FR-LINE-003 AC1): the
@@ -41,7 +41,9 @@ import type { LiffFormStart } from './start'
 // over budget it cannot send and says why and by how much (FR-INT-004 AC2). Before anything goes to the server — the
 // preview, a file, the send — the LIFF session is renewed when due (./ready.ts), and nothing is sent after a refusal that
 // will not change on this page load. Edits made before the engine arrived are saved with a keepalive request when LINE's
-// window goes away (./early-save.ts), and the engine's autosave goes on from that save once it has its answer.
+// window goes away (./early-save.ts), and the engine's autosave goes on from that save once it has its answer. A request
+// closed to the form — sent or cancelled elsewhere, gone, or no longer this account's — is said by what closed it, as the
+// server named it, above the form (./save-closed.tsx), in the bar's reason and in "ตรวจก่อนส่ง", as on the web.
 
 type Engine = typeof EngineModule
 type LiffStep = 'details' | 'items' | 'review'
@@ -120,6 +122,7 @@ export function LiffRequestForm({
 }) {
   const t = useTranslations('requestForm')
   const ts = useTranslations('requestForm.steps')
+  const tClosed = useTranslations('requestForm.submit.blockedClosedBy')
   const tl = useTranslations('liffRequests.form')
   const format = useFormatter()
   const ready = useLiffReady()
@@ -318,8 +321,9 @@ export function LiffRequestForm({
       const id = api?.id() ?? null
       const version = api?.version() ?? null
       if (!api || !saved || !id || version === null) {
-        // Why the save failed is shown at the top of the form (a conflict, a closed request or the connection)
-        setSubmitError({ ok: false, code: 'DRAFT_NOT_SAVED' })
+        // Why the save failed is shown at the top of the form (a conflict, a closed request or the connection). A request
+        // closed to this page cannot be sent from it at all: its notice and the bar's reason say so, never "try again"
+        if (api?.halted() !== 'closed') setSubmitError({ ok: false, code: 'DRAFT_NOT_SAVED' })
         return
       }
       const outcome = await gated.submit({ requestId: id, expectedVersion: version, resubmit: data.draft?.status === 'RETURNED' }, submission.key)
@@ -337,7 +341,8 @@ export function LiffRequestForm({
     }
   }
 
-  // A field the server refused is marked on step 1, as on the web (FR-INT-002: the server checks every answer again)
+  // A field the server refused is marked where it is asked — step 1, or beside the documents for a question the attachment
+  // rules ask for — as on the web (FR-INT-002: the server checks every answer again)
   const fieldErrors: Record<string, string> = {}
   const refusedField = submitError?.code === 'VALIDATION_FAILED' && submitError.reason === 'FORM' ? FORM_FIELD.exec(submitError.field ?? '')?.[1] : undefined
   if (refusedField) {
@@ -368,6 +373,8 @@ export function LiffRequestForm({
 
   const saveStop: SaveStop | null = saveState.kind === 'conflict' ? 'conflict' : saveState.kind === 'closed' ? 'closed' : null
   const blockedSave = saveStop !== null
+  /** What closed the request to this page, as the server said (sent, cancelled, gone, not this account's), when it did */
+  const closedWhy: ClosedWhy | null = saveState.kind === 'closed' ? saveState.why : null
   // FR-INT-004 AC2: over budget (before VAT, BR-BUD-03) the button cannot send and says why and by how much. The review
   // step is told what stops it (sendBlock), so that its "ตรวจก่อนส่ง" says the same (§9.9 principle 3)
   const available = budget?.kind === 'LINE' ? amountToSatang(budget.available.amount) : null
@@ -378,7 +385,7 @@ export function LiffRequestForm({
       : evaluated?.problems.some((p) => BLOCKING.has(p.kind))
         ? { kind: 'PROBLEMS' }
         : saveStop
-          ? { kind: 'SAVE', stop: saveStop }
+          ? { kind: 'SAVE', stop: saveStop, ...(closedWhy ? { why: closedWhy } : {}) }
           : null
   const blockedReason =
     sendBlock?.kind === 'BUDGET'
@@ -386,7 +393,13 @@ export function LiffRequestForm({
       : sendBlock?.kind === 'PROBLEMS'
         ? t('submit.blockedProblems')
         : sendBlock?.kind === 'SAVE'
-          ? t('submit.blockedSave')
+          ? // Closed to this page — by what closed it, as the notice above the form says it: loading the latest version
+            // would not make it sendable. "Sent or cancelled" only when the server named no status
+            sendBlock.stop === 'closed'
+            ? sendBlock.why && sendBlock.why !== 'ELSEWHERE'
+              ? tClosed(sendBlock.why)
+              : t('submit.blockedClosed')
+            : t('submit.blockedSave')
           : null
   const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
   const previous = index > 0 ? stepIds[index - 1]! : null
@@ -426,17 +439,16 @@ export function LiffRequestForm({
               </Button>
             </LiffNotice>
           ) : null}
-          {saveState.kind === 'closed' ? (
-            <LiffNotice tone="warning">
-              <p>{t('save.closed')}</p>
-              {requestId ? <LiffLink href={`${paths.requests}/${requestId}`}>{t('save.openRequest')}</LiffLink> : null}
-            </LiffNotice>
-          ) : null}
+          {/* What closed it, as the server said (§9.9 rule 7); its page only when this account can still open it */}
+          {closedWhy ? <LiffSaveClosed why={closedWhy} requestHref={requestId ? `${paths.requests}/${requestId}` : null} /> : null}
 
+          {/* The step's heading stands above its parts (18 px, LiffSection) and their headings (16 px), as on the web (§9.9) */}
           <div className="flex flex-col gap-1">
-            <h2 ref={headingRef} tabIndex={-1} className="text-lg leading-snug font-semibold outline-none">
+            <h2 ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">
               {ts('heading', { n: index + 1, total: stepIds.length, name: ts(step) })}
             </h2>
+            {/* Where saving stands. Once it has stopped — a conflict, or the request closed to the form — the notice above says
+                why and what is not saved: no line here says the draft saves itself, as on the web (SaveLine) */}
             {saveState.kind === 'error' ? (
               <div role="status" className="flex flex-col gap-2">
                 <p className="flex items-start gap-1.5 text-danger">
@@ -453,7 +465,7 @@ export function LiffRequestForm({
                   {t('save.saveNow')}
                 </Button>
               </div>
-            ) : (
+            ) : saveState.kind === 'conflict' || saveState.kind === 'closed' ? null : (
               <p role="status" className="text-ink-muted">
                 {saveState.kind === 'dirty'
                   ? t('save.dirty')
@@ -519,6 +531,7 @@ export function LiffRequestForm({
                   onGoTo={goTo}
                   sendBlock={sendBlock}
                   submitError={submitError}
+                  requestHref={requestId ? `${paths.requests}/${requestId}` : null}
                   onReload={() => window.location.reload()}
                   files={{ attachments, setAttachments, draftId, requestId, actions: gated, ready, saveBlocked: blockedSave }}
                 />
@@ -539,8 +552,11 @@ export function LiffRequestForm({
         ) : null}
         <div className="flex items-stretch gap-3">
           {previous ? (
-            <Button variant="secondary" className="shrink-0" aria-label={ts('back', { name: ts(previous) })} onClick={() => goTo(previous)}>
-              {tl('back')}
+            // The step it goes back to, by the number its heading shows (§9.9 rule 7): never mistaken for the link back to
+            // the request types above the form; what a screen reader reads is what the button shows (WCAG 2.5.3). It keeps
+            // its words on one line and grows with the row when the main button's words take two (English at 375 px)
+            <Button variant="secondary" className="h-auto min-h-11 shrink-0 py-2" onClick={() => goTo(previous)}>
+              {tl('back', { n: index })}
             </Button>
           ) : null}
           {next ? (

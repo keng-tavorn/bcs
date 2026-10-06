@@ -37,9 +37,12 @@ export function filterQuery(filter: BoardFilter): string {
   return s ? `?${s}` : ''
 }
 
+/** The board's rows: every figure, the two ages too, leads to the person's documents, its link named with its unit */
 export function boardRowViews(t: BoardT, rows: readonly BoardRowDto[], query: string): BoardRowView[] {
   return rows.map((r) => {
     const href = `/board/pending/${r.memberId}${query}`
+    const oldest = hoursText(r.oldestMinutes)
+    const average = hoursText(r.averageMinutes)
     return {
       id: r.memberId,
       name: r.name,
@@ -48,8 +51,8 @@ export function boardRowViews(t: BoardT, rows: readonly BoardRowDto[], query: st
       open: { text: String(r.open), label: t('table.openLink', { count: r.open, name: r.name }) },
       overdue: { count: r.overdue, text: String(r.overdue), label: t('table.overdueLink', { count: r.overdue, name: r.name }) },
       waiting: { count: r.waitingForRequester, text: String(r.waitingForRequester), label: t('table.waitingLink', { count: r.waitingForRequester, name: r.name }) },
-      oldest: hoursText(r.oldestMinutes),
-      average: hoursText(r.averageMinutes),
+      oldest: { text: oldest, label: t('table.oldestLink', { hours: oldest, name: r.name }) },
+      average: { text: average, label: t('table.averageLink', { hours: average, name: r.name }) },
     }
   })
 }
@@ -83,9 +86,20 @@ export function boardDocumentViews(t: BoardT, locale: string, row: BoardRowDto, 
       meta: t('document.meta', { kind: t(`subject.${subjectOf(task.subjectType)}`), time: formatDateTime(locale, task.assignedAt) }),
       states,
       // the button only where the service would send the reminder: a task waiting for a decision that the reader sees
-      // other than as AUDITOR (BR-AUTH-04 — remindTask refuses the same)
+      // other than as AUDITOR (BR-AUTH-04 — remindTask refuses the same). Its first press asks in these words; only the
+      // confirmation sends (§9.9: a reminder cannot be taken back)
       remind: task.canRemind
-        ? { label: t('remind.button', { name: row.name }), ariaLabel: t('remind.buttonFull', { name: row.name, document: title }), hint: again ? t('remind.recent', { time: formatDateTime(locale, again) }) : null }
+        ? {
+            label: t('remind.button', { name: row.name }),
+            ariaLabel: t('remind.buttonFull', { name: row.name, document: title }),
+            question: t('remind.confirmText', { name: row.name, document: title }),
+            confirmLabel: t('remind.confirm', { name: row.name }),
+            confirmAriaLabel: t('remind.confirmFull', { name: row.name, document: title }),
+            hint: again ? t('remind.recent', { time: formatDateTime(locale, again) }) : null,
+            // within the hour the button cannot be pressed, and the hint beside it says from when it may be sent again;
+            // it can be pressed again by itself once that time comes
+            againAt: again,
+          }
         : null,
     }
   })

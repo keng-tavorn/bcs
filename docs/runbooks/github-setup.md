@@ -84,7 +84,7 @@ agent จะรัน `git remote add origin <URL>` แล้วบอกคำ�
 ไฟล์ `.github/workflows/ci.yml` deploy staging เองทุกครั้งที่ merge เข้า `main` แล้วตรวจว่า `/api/health` ตอบ 200 พร้อม commit ที่ deploy (FR-PLT-006 AC2) จึงต้องมีค่า 3 ตัวใน GitHub · ห้ามวางค่าเหล่านี้ในแชท
 
 1. ที่ Vercel: มุมขวาบน → **Account Settings** → **Tokens** → **Create** ตั้งชื่อ `bcs-github-deploy` · Scope เลือกทีมที่มีโปรเจกต์ `bcs-staging` · Expiration เลือก 90 วัน → **Create** แล้วคัดลอก token ไว้ก่อน (ใช้ token แยกจากของเครื่องคุณ เพื่อยกเลิกทีละตัวได้)
-2. ที่ Vercel: เปิดโปรเจกต์ `bcs-staging` → **Settings** → **General** → คัดลอก **Project ID** · แล้วไปที่ทีม → **Settings** → **General** → คัดลอก **Team ID**
+2. Project ID และ Team ID (agent จดไว้ตอนสร้างโปรเจกต์ 2026-10-07 ค่าเหล่านี้ไม่ใช่ค่าลับ): **Project ID** `prj_VYD6UOADVVAdQo94MvCzxpK5QyAF` · **Team ID** `team_u2wgQ1xKEQLXuyDU5LBi52Gj` (team slug `tavorn-bcs`) · ถ้าสร้างโปรเจกต์ใหม่ภายหลัง ค่าจะเปลี่ยน ให้คัดลอกจาก Vercel: โปรเจกต์ `bcs-staging` → **Settings** → **General** → **Project ID** · ทีม → **Settings** → **General** → **Team ID**
 3. ที่ GitHub: หน้า repo → **Settings** → แถบซ้าย **Environments** → **New environment** → ชื่อ `staging` → **Configure environment**
 4. ในหน้า environment `staging` ส่วน **Environment secrets** กด **Add environment secret** ทีละตัว:
    - Name `VERCEL_TOKEN` · Value = token จากข้อ 1

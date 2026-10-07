@@ -41,9 +41,9 @@
    - **ห้ามใส่ `VERCEL_TOKEN` ใน Environment Variables ของ Vercel และห้ามวางในแชท**
 7. พิมพ์บอก agent: "ใส่ VERCEL_TOKEN ใน .env แล้ว team slug คือ <team-slug> ช่วยสร้าง project bcs-staging"
 
-agent จะสร้าง project `bcs-staging` ด้วย Vercel CLI และเชื่อมโฟลเดอร์โปรเจกต์ไว้ (โฟลเดอร์ `.vercel/` ไม่เข้า git)
+agent จะสร้าง project `bcs-staging` ด้วย Vercel CLI และเชื่อมโฟลเดอร์โปรเจกต์ไว้ (โฟลเดอร์ `.vercel/` ไม่เข้า git) แล้วตั้ง framework เป็น Next.js และ region ของ function เป็น `sin1` ผ่าน API ของ Vercel ให้ด้วย (ทำแล้ว 2026-10-07 ใน team `tavorn-bcs`)
 
-**ก่อน deploy ครั้งใดก็ตาม** agent จะสร้างไฟล์ `.vercelignore` ที่กันไฟล์ `.env` ไม่ให้ถูกอัปโหลดขึ้น Vercel คุณถามยืนยันกับ agent ได้ว่าสร้างแล้ว เหตุผล:
+**ก่อน deploy ครั้งใดก็ตาม** agent จะสร้างไฟล์ `.vercelignore` ที่กันไฟล์ `.env` ไม่ให้ถูกอัปโหลดขึ้น Vercel คุณถามยืนยันกับ agent ได้ว่าสร้างแล้ว (มีแล้ว และกันทุกอย่างที่ `.gitignore` กัน โดยมีเทสต์ `tests/unit/vercel-config.test.ts` คอยตรวจ) เหตุผล:
 
 - Vercel CLI อัปโหลดทุกไฟล์ในโฟลเดอร์ ยกเว้นรายการที่กันไว้ รายการที่ Vercel กันให้เองมีแค่ `.env.local` และ `.env.*.local` ไม่รวม `.env`
 - ไฟล์ `.env` มี `VERCEL_TOKEN` และไฟล์ที่อัปโหลดแล้วเปิดดูได้ที่ `/_src` ของ deployment โดยสมาชิก team
@@ -57,10 +57,10 @@ agent จะสร้าง project `bcs-staging` ด้วย Vercel CLI แล
    - ถ้าอยากได้ชื่อที่อ่านง่าย กด **Edit** แล้วเปลี่ยนเป็นชื่อที่ยังว่าง เช่น `bcs-staging-demo.vercel.app`
    - ตัดสินชื่อครั้งเดียวตอนนี้ เพราะโดเมนนี้จะใช้ใน `APP_URL` LINE Inngest และ CORS ถ้าเปลี่ยนภายหลังต้องแก้ทุกที่
    - จด `https://<โดเมน>` ไว้ คู่มือทุกฉบับเรียกค่านี้ว่า "โดเมน staging"
-2. **Region ของ function:** **Settings** → **Functions** → ส่วน **Function Regions** เลือก **Singapore (`sin1`)** อย่างเดียว เอาภูมิภาคอื่นออก แล้วกด **Save**
+2. **Region ของ function:** agent ตั้งเป็น `sin1` ให้แล้วตอนสร้าง project คุณแค่ตรวจ: **Settings** → **Functions** → ส่วน **Function Regions** ต้องเป็น **Singapore (`sin1`)** อย่างเดียว ถ้าไม่ใช่ ให้เลือก `sin1` เอาภูมิภาคอื่นออก แล้วกด **Save**
    - project ใหม่ตั้งค่าเริ่มต้นเป็น Washington D.C. (`iad1`) ซึ่งไกลจากฐานข้อมูลที่สิงคโปร์
    - ถ้า agent ใส่ `regions` ในไฟล์ `vercel.json` ค่านั้นจะใช้แทนค่านี้ และต้องเป็น `sin1` เหมือนกัน
-3. **Deployment Protection:** **Settings** → **Deployment Protection** → ส่วน **Vercel Authentication** เปิดไว้และเลือก **Standard Protection** (ค่าเริ่มต้น) แล้วกด **Save**
+3. **Deployment Protection:** **Settings** → **Deployment Protection** → ส่วน **Vercel Authentication** เปิดไว้และเลือก **Standard Protection** (ค่าเริ่มต้น) แล้วกด **Save** · project ที่ agent สร้าง 2026-10-07 เป็นค่านี้อยู่แล้ว (API แสดง `all_except_custom_domains`) ถ้าหน้าจอตรงกันไม่ต้องกด Save
    - Standard Protection กันคนนอกเปิด URL ของแต่ละ deployment แต่ไม่กันโดเมน production ซึ่งก็คือโดเมน staging ของเรา LINE และ Inngest จึงเรียก `https://<โดเมน staging>/api/webhooks/line/…` และ `https://<โดเมน staging>/api/inngest` ได้
    - **ห้ามเลือก All Deployments** เพราะจะกัน LINE และ Inngest · ไม่ต้องเปิด Password Protection (เสียเงินเพิ่มและไม่จำเป็น)
    - ผลคือใครก็เปิดหน้า login ของ staging ได้ จึงใช้ข้อมูลตัวอย่างเท่านั้น (ห้ามข้อมูลจริงของลูกค้าจนกว่า OQ-19 ปิด)

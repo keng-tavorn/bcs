@@ -3592,6 +3592,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-66** `[demo]` ยอดก่อน VAT (`net`) ในชีต Demo_History ต้องเป็นบาทเต็มให้ตรงกันทุกจุด: `pnpm inputs:check` และ regex ของ `HistoryRow` ยังรับสตางค์ ขณะที่ seed หยุดด้วย `DemoHistoryNetError` เป็นภาษาอังกฤษ (ใบเสนอราคาเปรียบเทียบ 104% และ 107% ต้องลงตัวที่สตางค์และ BR-MONEY-02 ห้ามปัด) · ผู้ใช้อาจเพิ่มแถวในชีตก่อน demo จึงต้องได้ข้อความไทยที่บอกแถว · พบระหว่าง D-06 — เสร็จ 2026-10-06 · a7b42d8
   - เสร็จเมื่อ: `pnpm inputs:check` ปฏิเสธ net ที่มีสตางค์พร้อมบอกแถว · seed อธิบาย `DemoHistoryNetError` เป็นภาษาไทยพร้อมวิธีแก้ · เทสต์ครอบ
   - แยกงาน: ทำเองได้
+- [ ] **NEW-67** `[demo]` `.vercelignore` ต้องกันทุกอย่างที่ `.gitignore` กัน เพราะ Vercel CLI ไม่อ่าน `.gitignore` · ไฟล์เดิมกัน `.env` แล้ว แต่ไม่กัน `.e2e-runs/` (ผลเทสต์และ build ทดลอง) และ Prisma client ที่สร้างบนเครื่อง (`src/server/db/generated/`) การ deploy staging ครั้งแรกจากเครื่องจึงจะอัปโหลด 33,398 ไฟล์ ราว 7.3 GB แทน 1,609 ไฟล์ ราว 43 MB (จำลองด้วยรายการกันไฟล์ของ Vercel CLI 62.4.0) · project ที่สร้างด้วย `vercel project add` ไม่มี framework จึง build Next.js ไม่ได้ `vercel.json` จึงระบุ `framework` ไว้ด้วย (ADR-032) · พบระหว่างสร้าง project `bcs-staging` (P0-08) — ติดอยู่: `pnpm verify` ด่าน prisma และ db รันไม่ได้เพราะ Docker Desktop ไม่ได้เปิด (ด่านอื่นผ่าน)
+  - เสร็จเมื่อ: เทสต์ที่ทุกกฎของ `.gitignore` อยู่ใน `.vercelignore` และ `vercel.json` ระบุ `nextjs` กับ `sin1` ผ่าน · จำลองการอัปโหลดแล้วไม่มีไฟล์ที่ git กันไว้
+  - แยกงาน: ทำเองได้
 
 ---
 

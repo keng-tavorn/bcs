@@ -1,12 +1,31 @@
 # Never upload local secrets or local-only folders with `vercel deploy` (Vercel ignores only .env.local by default).
+# Vercel CLI does not read .gitignore, so every .gitignore rule is repeated here: a deploy from this machine uploads
+# what a git checkout holds and nothing more (tests/unit/vercel-config.test.ts checks this).
+
+# Same as .gitignore
 .env
 .env.*
 !.env.example
 scratch/
-test-results/
-playwright-report/
+node_modules/
+__pycache__/
 .next/
 .next-e2e/
+.e2e-runs/
+out/
+next-env.d.ts
+*.tsbuildinfo
+src/server/db/generated/
+coverage/
 .vitest/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+.vercel/
 .worktrees/
+.DS_Store
+tests/snapshots/pdf/*.actual.png
+
+# Only here
 docs/inputs/*.xlsx~

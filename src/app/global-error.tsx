@@ -11,7 +11,9 @@ import './globals.css'
 // to it (§9.4: a LIFF page loads at most 200 KB). The files are compiled when the app is built (next.config.ts), so the
 // words are formatted by next-intl, never by replacing text in them.
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  const english = typeof navigator !== 'undefined' && !navigator.language.toLowerCase().startsWith('th')
+  // Only a browser says which language it prefers: Node 21+ has a navigator too (language en-US), so on the server and in
+  // tests the page stays Thai
+  const english = typeof window !== 'undefined' && !navigator.language.toLowerCase().startsWith('th')
   return (
     <html lang={english ? 'en' : 'th'}>
       <body className="bg-bg text-ink">

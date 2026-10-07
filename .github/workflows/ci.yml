@@ -23,6 +23,8 @@ jobs:
       # The checks run like a developer machine: local services only, never a shared database (§4.12)
       APP_ENV: local
       CI: "true"
+      # tsc and next build of this codebase need more than Node's default heap on the runner (exit 134 otherwise)
+      NODE_OPTIONS: --max-old-space-size=4096
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +36,13 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+
+      # scripts/validate_inputs.py (pnpm inputs:check, spec_check) reads the input workbook with openpyxl
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - run: python -m pip install openpyxl
 
       - name: Local services (Postgres, S3 storage, Mailpit, Inngest dev)
         run: docker compose up -d --wait

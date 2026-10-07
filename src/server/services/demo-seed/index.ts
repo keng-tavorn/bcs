@@ -1,5 +1,6 @@
 import { THAI_TIME_ZONE } from '@/core/thai/date'
 import type { Clock } from '@/lib/clock'
+import { MS_PER_DAY } from '@/lib/constants'
 import type { Env } from '@/lib/env'
 import { checkBucket } from '@/integrations/storage'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
@@ -73,14 +74,19 @@ export async function firstSeedState(): Promise<FirstSeedState> {
   return { organizations: 1, unfinishedFirstSeed: unfinished }
 }
 
-/** Today lies outside the fiscal year of the demo history: the sheets need the current year (DemoHistoryOutOfYearError) */
+/**
+ * A day the demo history needs — today, or the first day of a row (daysAgo calendar days back, as the history counts
+ * it) — lies outside the fiscal year of the row's budget line: the sheets need the current year (as
+ * DemoHistoryOutOfYearError says when the history itself finds it, after the base is seeded)
+ */
 export class DemoYearError extends Error {
   constructor(
-    readonly today: string,
+    readonly day: string,
     readonly fiscalYear: string,
+    readonly ref: string | null,
   ) {
     super(
-      `วันนี้ ${today} อยู่นอกปีงบ ${fiscalYear} ของประวัติ demo จึงยังไม่ได้แตะข้อมูล · แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน แล้วรัน pnpm inputs:check commit และ deploy ใหม่`,
+      `${ref ? `แถว ${ref} ของประวัติ demo ต้องใช้วันที่ ${day}` : `วันนี้ ${day}`} ซึ่งอยู่นอกปีงบ ${fiscalYear} จึงยังไม่ได้แตะข้อมูล · แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน (ช่วงต้นปีงบให้ daysAgo ของทุกแถวไม่ย้อนไปก่อนวันเริ่มปีงบ) แล้วรัน pnpm inputs:check commit และ deploy ใหม่`,
     )
     this.name = 'DemoYearError'
   }
@@ -97,9 +103,14 @@ export async function firstSeedPreflight(now: Date): Promise<void> {
   const history = parseDemoHistory(workbook)
   const yearOfLine = new Map(parseBudget(workbook).map((line) => [line.code, line.fiscalYear]))
   const today = thaiDay(now)
-  for (const code of new Set(history.map((row) => yearOfLine.get(row.budgetLine)).filter((y): y is string => Boolean(y)))) {
+  for (const row of history) {
+    const code = yearOfLine.get(row.budgetLine)
+    if (!code) continue
     const { startsOn, endsOn } = fiscalYearDates(code)
-    if (today < startsOn.toISOString().slice(0, 10) || today > endsOn.toISOString().slice(0, 10)) throw new DemoYearError(today, code)
+    const [first, last] = [startsOn.toISOString().slice(0, 10), endsOn.toISOString().slice(0, 10)]
+    if (today < first || today > last) throw new DemoYearError(today, code, null)
+    const firstDay = thaiDay(new Date(now.getTime() - row.daysAgo * MS_PER_DAY))
+    if (firstDay < first) throw new DemoYearError(firstDay, code, row.ref)
   }
   await checkBucket()
 }
@@ -174,11 +185,15 @@ export async function takeLineChannel(organizationId: string): Promise<LineChann
  * Puts a carried LINE channel on the (new) demo organization after the reset's seed: its secrets sealed again for this
  * organization (NFR-SEC-07 binds them to it), replacing what the seed made from the LINE_* values, if anything
  */
-export async function putLineChannel(organizationId: string, carried: CarriedLineChannel): Promise<void> {
+export async function putLineChannel(organizationId: string, carried: CarriedLineChannel, now: Date): Promise<void> {
   const { channelSecret, channelAccessToken, ...values } = carried
-  await restoreLineChannelRow(organizationId, {
-    ...values,
-    channelSecretEnc: sealLineSecret(organizationId, 'channelSecret', channelSecret),
-    channelAccessTokenEnc: sealLineSecret(organizationId, 'channelAccessToken', channelAccessToken),
-  })
+  await restoreLineChannelRow(
+    organizationId,
+    {
+      ...values,
+      channelSecretEnc: sealLineSecret(organizationId, 'channelSecret', channelSecret),
+      channelAccessTokenEnc: sealLineSecret(organizationId, 'channelAccessToken', channelAccessToken),
+    },
+    now,
+  )
 }

@@ -132,6 +132,7 @@ describe("the staging demo reset wipes only after today's confirmation (ADR-056,
       'preflight',
       'step:reset',
       ...GUARD,
+      'preflight',
       'demoOrganizationId',
       'takeLine:org-old',
       'wipe:DEMO',
@@ -183,9 +184,24 @@ describe("the staging demo reset wipes only after today's confirmation (ADR-056,
     expect(DemoResetEventData.safeParse({ confirm: 20261020 }).success).toBe(false)
   })
 
-  it('[FR-PLT-007/AC2] stops before anything when today is outside the fiscal year of the demo history', async () => {
-    await expect(firstSeedPreflight(new Date('2027-01-05T03:00:00Z'))).rejects.toBeInstanceOf(DemoYearError)
+  it('[FR-PLT-007/AC2] stops before anything when today, or the first day of a history row, is outside the fiscal year', async () => {
+    await expect(firstSeedPreflight(new Date('2027-01-05T03:00:00Z'))).rejects.toMatchObject({ name: 'DemoYearError', ref: null })
+    // Ten days into the year, rows that start weeks back would begin in the year before
+    const early = firstSeedPreflight(new Date('2026-01-10T03:00:00Z'))
+    await expect(early).rejects.toBeInstanceOf(DemoYearError)
+    await expect(early).rejects.toMatchObject({ ref: expect.stringMatching(/^H\d{2}$/) })
     await expect(firstSeedPreflight(NOW)).resolves.toBeUndefined()
+  })
+
+  it('[FR-PLT-007/AC2] the reset step runs the input, fiscal year and bucket checks again before it touches anything', async () => {
+    let checks = 0
+    const { calls, run } = harness({
+      preflight: async () => {
+        if (checks++ > 0) throw new Error('bucket did not answer')
+      },
+    })
+    await expect(run()).rejects.toThrow('bucket did not answer')
+    expect(calls.some((c) => c.startsWith('wipe') || c.startsWith('takeLine'))).toBe(false)
   })
 
   it('[FR-PLT-007/AC2] lists every organization that is not the one it is asked about', async () => {
@@ -231,7 +247,7 @@ describe('the LINE channel the owner set up comes through the reset (ADR-056)', 
     // The wipe removes the old row (and its organization); the seed makes the demo organization again with a new id
     await prisma.lineChannelConfig.deleteMany({ where: { organizationId: before.id } })
     const after = await createOrg()
-    await putLineChannel(after.id, taken.channel)
+    await putLineChannel(after.id, taken.channel, NOW)
     const row = await prisma.lineChannelConfig.findFirstOrThrow({ where: { organizationId: after.id } })
     expect(row).toMatchObject({ channelKey, providerId: 'provider-1', messagingChannelId: 'messaging-1', liffId: 'liff-1', richMenuLinkedId: 'richmenu-l', richMenuUnlinkedId: 'richmenu-u', active: true })
     expect(openLineSecret(after.id, 'channelSecret', row.channelSecretEnc)).toBe('the-secret')
@@ -239,9 +255,16 @@ describe('the LINE channel the owner set up comes through the reset (ADR-056)', 
     // Sealed for the new organization: the value does not open as the old one's
     expect(openLineSecret(before.id, 'channelSecret', row.channelSecretEnc)).toBeNull()
     // A second put replaces the row the seed may have made from the LINE_* values
-    await putLineChannel(after.id, { ...taken.channel, richMenuLinkedId: 'richmenu-l2' })
+    await putLineChannel(after.id, { ...taken.channel, richMenuLinkedId: 'richmenu-l2' }, NOW)
     expect(await prisma.lineChannelConfig.count({ where: { organizationId: after.id } })).toBe(1)
     expect((await prisma.lineChannelConfig.findFirstOrThrow({ where: { organizationId: after.id } })).richMenuLinkedId).toBe('richmenu-l2')
+    // Each put records organization.settings_updated, naming the fields and never a value (NFR-SEC-09)
+    const events = await prisma.event.findMany({ where: { organizationId: after.id, type: 'organization.settings_updated' }, orderBy: { seq: 'asc' } })
+    expect(events.map((e) => e.data)).toEqual([
+      { section: 'lineChannel', created: true, changed: ['providerId', 'messagingChannelId', 'channelSecret', 'channelAccessToken', 'liffId', 'active', 'richMenuLinkedId', 'richMenuUnlinkedId'] },
+      { section: 'lineChannel', created: false, changed: ['providerId', 'messagingChannelId', 'channelSecret', 'channelAccessToken', 'liffId', 'active', 'richMenuLinkedId', 'richMenuUnlinkedId'] },
+    ])
+    expect(JSON.stringify(events.map((e) => e.data))).not.toContain('the-secret')
   })
 
   it('[FR-PLT-007/AC2] tells a channel whose secrets do not open from no channel at all', async () => {

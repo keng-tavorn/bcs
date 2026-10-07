@@ -82,7 +82,7 @@ async function guard(deps: DemoResetDeps): Promise<Guard> {
 
 /**
  * check (the guard, then the inputs, the fiscal year and the bucket — all before anything is touched) → reset (the
- * guard again, so a step run on its own later cannot skip today's confirmation; the LINE channel taken into memory; the
+ * guard and those checks again, so a step run on its own later skips none of them; the LINE channel taken into memory; the
  * wipe, which checks the organizations again in its own transaction; the base; the LINE channel put back) → history.
  * The secrets of the LINE channel never leave the reset step. A run that stops after the wipe can be started again with
  * the same confirmation the same day.
@@ -100,6 +100,7 @@ export async function runStagingDemoReset(step: FirstSeedStep, deps: DemoResetDe
   const reset = await step.run('reset', async () => {
     const again = await guard(deps)
     if (again.refusal || !again.demoCode) throw new Error(`staging-demo-reset stopped before the wipe: ${again.refusal ?? 'NO_DEMO_CODE'}`)
+    await deps.preflight()
     const before = await deps.demoOrganizationId(again.demoCode)
     const taken: LineChannelTake = before ? await deps.takeLine(before) : { state: 'NONE' }
     const tables = await deps.wipe(again.demoCode)
@@ -129,7 +130,7 @@ function liveDeps(data: unknown): DemoResetDeps {
     takeLine: takeLineChannel,
     wipe: (demoCode) => wipeDemoData(env, demoCode),
     seedBase: () => liveSeedBase(env),
-    putLine: putLineChannel,
+    putLine: (organizationId, carried) => putLineChannel(organizationId, carried, systemClock.now()),
     seedHistory: (organizationId) => seedDemoHistoryFromInputs(organizationId, env, systemClock),
   }
 }

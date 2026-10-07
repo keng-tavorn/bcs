@@ -551,7 +551,7 @@ sequenceDiagram
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
 
-บน staging (`APP_ENV=staging` เท่านั้น) งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาทีที่ :00 และ :30 แทนรอบในตาราง เพื่อให้อยู่ในโควตาฟรีของ Neon และ Inngest และเกณฑ์ outbox ค้างของ `/api/health` กับการเตือน NFR-OBS-02 รอเพิ่ม 29 นาทีตาม (ADR-054) · local และ production ใช้รอบในตารางเสมอ
+บน staging (`APP_ENV=staging` เท่านั้น) งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาทีที่ :00 และ :30 แทนรอบในตาราง เพื่อให้อยู่ในโควตาฟรีของ Neon และ Inngest เกณฑ์ outbox ค้างของ `/api/health` รอเพิ่ม 29 นาที และการเตือน NFR-OBS-02 มาที่รอบที่สองติดกันที่ส่งไม่ได้ (ADR-054) · local และ production ใช้รอบในตารางเสมอ
 
 ### 4.7 Notification service
 
@@ -3764,7 +3764,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-051 | เลขบัตรประชาชนใน audit trail mask ตอนอ่านตามสิทธิ์ของทะเบียนผู้ขาย · ไฟล์ส่งออก audit บอกว่ามีเลขเต็มหรือไม่และโหลดได้ตามนั้น · ไฟล์รายงานโหลดได้เฉพาะในขอบเขตของผู้อ่าน | เสนอ |
 | ADR-052 | งบ JavaScript เริ่มต้นของหน้า LIFF นับแบบเข้ม (ไฟล์ script รวม LINE SDK และข้อมูลหน้าที่ฝังใน HTML ทั้งสองแบบที่ LINE เปิด) · ส่งข้อความเฉพาะ namespace ที่แต่ละส่วนใช้ · หน้า LIFF ไม่โหลด PWA และไม่ใช้ tailwind-merge · คอมไพล์ข้อความตอน build ด้วย precompile ของ next-intl พร้อมเทสต์กัน | เสนอ |
 | ADR-053 | e2e ของฉาก demo รันในโหมด demo บนฐานแยกที่มีประวัติ D-01 · ใช้นาฬิกาจริงและอ่านค่าที่ขึ้นกับเวลาจากฐานตอนรัน · นาฬิกาธุรกิจแยกเป็น NEW-63 | เสนอ |
-| ADR-054 | บน staging งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาที (อยู่ในโควตาฟรีของ Neon และ Inngest) · เกณฑ์ outbox ค้างของ health และการเตือนรอเพิ่ม 29 นาที · local และ production ตาม §4.6 | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
+| ADR-054 | บน staging งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาที (อยู่ในโควตาฟรีของ Neon และ Inngest) · เกณฑ์ outbox ค้างของ health รอเพิ่ม 29 นาที และการเตือนมาที่รอบที่สองที่ส่งไม่ได้ · local และ production ตาม §4.6 | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
 
 ### 18.2 สมมติฐาน
 

@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { MS_PER_MINUTE } from '@/lib/constants'
 
 // The job functions as Inngest registers them on staging (ADR-054): this process's real environment with APP_ENV=staging.
-// The same functions on the spec cadence are checked with APP_ENV=local in outbox.test.ts and daily-digest.test.ts.
+// The same functions on the spec cadence (APP_ENV=local): tests/integration/job-cadence-spec.test.ts; the stall alert of
+// the job in both environments: tests/integration/outbox.test.ts.
 vi.mock('@/lib/env', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/env')>()
   const staging = { ...actual.getEnv(), APP_ENV: 'staging' as const }

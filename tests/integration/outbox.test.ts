@@ -32,7 +32,7 @@ import {
 } from '@/server/events/outbox'
 import { defineEvents } from '@/server/events/registry'
 import { createInngestSender } from '@/server/inngest'
-import { OUTBOX_SWEEPER_CRON, outboxSweeper } from '@/server/jobs/outbox-sweeper'
+import { OUTBOX_SWEEPER_CRON, outboxSweeper, sweepOutboxOnce } from '@/server/jobs/outbox-sweeper'
 import { defineCommand, runCommand, scopedIdempotencyKey, type CommandOutcome } from '@/server/services/_pipeline'
 import { createMember, createOrg } from '../support/factory'
 import { testMigratorUrl } from '../support/test-db'
@@ -375,6 +375,34 @@ describe('[FR-PLT-012/AC3] the outbox survives an Inngest outage', () => {
     expect(await sweepOutbox(sender, new Date(stalledAt.getTime() + MINUTE))).toMatchObject({ sent: ids.length, stoppedBy: 'drained' })
     expect(ids.every((id) => delivered.get(id) === 1)).toBe(true)
     expect(alertsOf(errorLog)).toHaveLength(1)
+  })
+
+  it('[NFR-OBS-02] the job raises the stall alert after the spec limit outside staging', async () => {
+    const down: OutboxSender = async () => {
+      throw new OutboxUnavailableError('Inngest API Error: 503 down')
+    }
+    const errorLog = vi.spyOn(logger, 'error')
+    const base = era(14)
+    await insertRows((await newOrg()).id, 2, base)
+    await sweepOutboxOnce(down, new Date(base + OUTBOX_STALL_ALERT_AFTER_MS - MINUTE), 'local')
+    expect(alertsOf(errorLog)).toEqual([])
+    await sweepOutboxOnce(down, new Date(base + OUTBOX_STALL_ALERT_AFTER_MS), 'production')
+    expect(alertsOf(errorLog)).toHaveLength(1)
+  })
+
+  it('[NFR-OBS-02] on staging the job raises the stall alert at the second 30-minute run that cannot send (ADR-054)', async () => {
+    const down: OutboxSender = async () => {
+      throw new OutboxUnavailableError('Inngest API Error: 503 down')
+    }
+    const errorLog = vi.spyOn(logger, 'error')
+    const base = era(15)
+    const [first] = await insertRows((await newOrg()).id, 2, base)
+    // first tried 20 minutes after it was written: past the spec limit, but on staging only the next run raises it
+    await sweepOutboxOnce(down, new Date(base + 20 * MINUTE), 'staging')
+    expect(alertsOf(errorLog)).toEqual([])
+    await sweepOutboxOnce(down, new Date(base + 50 * MINUTE), 'staging')
+    expect(alertsOf(errorLog)).toHaveLength(1)
+    expect(alertsOf(errorLog)[0]).toMatchObject({ alert: true, outboxId: first, attempts: 0 })
   })
 })
 

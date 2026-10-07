@@ -1,4 +1,4 @@
-import { MS_PER_MINUTE, OUTBOX_STALL_ALERT_AFTER_MS, OUTBOX_STALL_HEALTH_MS } from '@/lib/constants'
+import { MS_PER_MINUTE, OUTBOX_STALL_ALERT_AFTER_MS, OUTBOX_STALL_HEALTH_MS, OUTBOX_SWEEP_AFTER_MS } from '@/lib/constants'
 import type { AppEnv } from '@/lib/env'
 
 // Polling jobs on staging (ADR-054, user 2026-10-07). Staging runs on the free plans of Neon (100 CU-hours a month; the
@@ -30,7 +30,11 @@ export function outboxHealthStallMs(appEnv: AppEnv): number {
   return OUTBOX_STALL_HEALTH_MS + sweepSlackMs(appEnv)
 }
 
-/** The outbox-sweeper raises its stall alert when nothing could be sent and a row has waited at least this long */
+/**
+ * The outbox-sweeper raises its stall alert when nothing could be sent and a row has waited at least this long. On
+ * staging that is one interval plus the 30 s a row waits before a sweep takes it: a row is at most that old at the first
+ * sweep that tries it and at least that old at the next, so the second sweep in a row that cannot send raises it.
+ */
 export function outboxStallAlertAfterMs(appEnv: AppEnv): number {
-  return OUTBOX_STALL_ALERT_AFTER_MS + sweepSlackMs(appEnv)
+  return appEnv === 'staging' ? STAGING_POLL_INTERVAL_MS + OUTBOX_SWEEP_AFTER_MS : OUTBOX_STALL_ALERT_AFTER_MS
 }

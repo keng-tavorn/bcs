@@ -48,7 +48,7 @@ New-Item -ItemType Directory -Force bcs\docs\inputs, bcs\scripts | Out-Null; Mov
 - [ ] ทุกข้อใน §16 ที่มีแท็ก `[demo]` และไม่มีแท็ก `[คน]` เป็น `[x]`
 - [x] `pnpm verify` ผ่านทุกด่าน (0 FAIL) — ตรวจแล้ว 2026-10-06 · `pnpm verify --strict --e2e` ที่ 46d16c0: 0 FAIL · 19 PASS · 0 SKIP
 - [x] `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y ในชีต `Demo_Script` — ตรวจแล้ว 2026-10-06 · 2 รอบติดจากฐานใหม่ที่ 217a993 (9/9 ทั้งสองรอบ) และอีกรอบใน verify ที่ 46d16c0
-- [ ] staging เปิดจาก URL จริงได้ และ `/api/health` ตอบ 200
+- [x] staging เปิดจาก URL จริงได้ และ `/api/health` ตอบ 200 — ตรวจแล้ว 2026-10-07 · `https://www.budgetcontrolsystem.com/api/health` ตอบ 200 พร้อม commit c8cce87 (database storage inngest เป็น ok ทั้งหมด) · build บน Vercel ผ่าน `db:check-role` (แอปใช้ role `bcs_app`)
 - [x] มีรายงาน `docs/reports/demo-ready.md` ที่ใช้ 3 หัวข้อตาม §17.8 พร้อมตารางข้อที่เสร็จ ผลของคำสั่งข้างบน และข้อ `[คน]` ที่เหลือให้ผู้ใช้ทำ — ตรวจแล้ว 2026-10-06 · docs/reports/demo-ready.md
 
 ถึงเส้นชัย A แล้วให้หยุด รายงาน และรอคำสั่ง ห้ามเริ่มข้อ `[go-live]` เอง
@@ -3091,7 +3091,7 @@ features:
 - [x] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset` — เสร็จ 2026-10-03 · 594ac37
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · `pnpm db:reset && pnpm db:seed` สร้างองค์กรและผู้ใช้เท่าจำนวนแถวในชีต (เทสต์นับเอง) รันซ้ำแล้วไม่ซ้ำ · เทสต์ AC ของ FR-PLT-001 FR-PLT-007 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check` — ติดอยู่: ส่วน CI รอ GitHub repo (ADR-038 ข้อ 2) · ส่วน staging deploy แล้ว 2026-10-07 (`https://www.budgetcontrolsystem.com/api/health` ตอบ 200 พร้อม commit) แต่การ deploy อัตโนมัติเมื่อ merge `main` ต้องมี CI · ส่วนที่ทำบนเครื่องเสร็จแล้ว (`/api/health` `.github/workflows/ci.yml` `vercel.json` และ `pnpm verify` ที่รวม `spec:check` กับ `inputs:check`)
+- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check` — ติดอยู่: ส่วน CI รอ GitHub repo (ADR-038 ข้อ 2) · ส่วน staging deploy แล้ว 2026-10-07 (`https://www.budgetcontrolsystem.com/api/health` ตอบ 200 พร้อม commit c8cce87 · build ตรวจ role ของแอปผ่าน FR-PLT-006 AC3) แต่การ deploy อัตโนมัติเมื่อ merge `main` ต้องมี CI · ส่วนที่ทำบนเครื่องเสร็จแล้ว (`/api/health` `.github/workflows/ci.yml` `vercel.json` และ `pnpm verify` ที่รวม `spec:check` กับ `inputs:check`)
   - เสร็จเมื่อ: PR ทดสอบรัน `pnpm verify` ใน CI · merge แล้ว staging ตอบ `/api/health` 200 พร้อม commit sha · เทสต์ AC ของ FR-PLT-006 FR-PLT-008 ผ่าน · ถ้ายังไม่มีบัญชี hosting ให้ติดไว้ที่ P0-08 · ส่วน CI (PR และ merge) ติดไว้จนกว่าผู้ใช้จะเปิดใช้ GitHub (ADR-038 ข้อ 2) แล้วทำข้ออื่นต่อ
   - แยกงาน: ทำเองได้
 

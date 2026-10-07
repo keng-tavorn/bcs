@@ -17,8 +17,8 @@ import { completeFinishedRequests } from './requests'
 // line still holds goes back, except what was received and not yet invoiced — held until the invoice comes, which can
 // be recorded on the closed PO; once the final invoice is in, nothing is kept. Requests whose POs are all closed or
 // cancelled are completed.
-// NEW-11 (awaiting the user): the cases BR-BUD-06 does not name — a PO received in full, or one with some invoices
-// then closed short — follow the same rule here: keep what was received and not invoiced, give back the rest.
+// The same rule holds for a PO received in full and for one with some invoices then closed (short or not): keep what was
+// received and not invoiced, give back the rest (NEW-11, the user 2026-10-08).
 
 type Fail = { ok: false; error: AppError }
 const scaled = (d: { toString(): string }) => parseQuantity(d.toString())

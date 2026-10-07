@@ -9,6 +9,7 @@ import { appendEvents } from '@/server/events/append'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { closePurchaseOrder, submitPo } from '@/server/services/purchase-orders'
+import { recordInvoice } from '@/server/services/invoices'
 import { postGoodsReceipt, requestCloseShort } from '@/server/services/receiving'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
@@ -35,6 +36,7 @@ beforeAll(async () => {
   org = await createDoaOrg()
   supplierId = (await prisma.supplier.create({ data: { organizationId: org.organizationId, code: 'S1', nameTh: 'ผู้ขายหนึ่ง', taxId: '0999999000012' } })).id
   await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.receiver_con!, role: 'RECEIVER', scopeDepartmentId: org.department.CON!, grantedAt: NOW } })
+  await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.fin_officer!, role: 'FINANCE', grantedAt: NOW } })
 })
 
 async function fundedLine(baht: bigint): Promise<string> {
@@ -224,5 +226,41 @@ describe('[FR-P2P-010/AC2] [FR-P2P-010/AC3] a PO that will not come in full is c
     ok(await closePurchaseOrder(proc(), { poId: po.poId }, key()))
     expect(await poStatus(po.poId)).toBe('CLOSED')
     expect((await balance(po.line)).committed).toBe('1000.00')
+  })
+})
+
+describe('[FR-P2P-010/AC3] a PO closed after some of its invoices keeps what was received and not invoiced (NEW-11, BR-BUD-06, ADR-038 ข้อ 10)', () => {
+  const fin = () => org.ctxOf('fin_officer', NOW)
+  const invoice = (poId: string, net: string, vat: string, isFinal = false) =>
+    recordInvoice(fin(), { poId, invoiceNo: `INV-${randomUUID().slice(0, 8)}`, invoiceDate: '2026-10-05', net, vat, isFinal }, key())
+
+  it('received in full, one invoice in, then closed: the rest of the received goods stays held; the final invoice gives back what is left', async () => {
+    const po = await sentPo('10', '1100.00')
+    ok(await postGoodsReceipt(receiver(), { poId: po.poId, lines: [{ poLineId: po.poLineId, received: '10' }] }, key()))
+    ok(await invoice(po.poId, '4000.00', '280.00'))
+    expect(await balance(po.line)).toMatchObject({ committed: '7000.00', actual: '4000.00' })
+    ok(await closePurchaseOrder(proc(), { poId: po.poId }, key()))
+    expect(await poStatus(po.poId)).toBe('CLOSED')
+    // 10 × 1,100 received, 4,000 invoiced: 7,000 received and not invoiced is held for its invoice, nothing is given back
+    expect(await balance(po.line)).toMatchObject({ committed: '7000.00', actual: '4000.00' })
+    expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: po.poId, type: 'po.closed' } })).toMatchObject({ data: { via: 'PROCUREMENT', keptSatang: '700000', releasedSatang: '0' } })
+    // The final invoice is recorded on the closed PO and gives back what it does not take
+    ok(await invoice(po.poId, '6000.00', '420.00', true))
+    expect(await balance(po.line)).toMatchObject({ committed: '0.00', actual: '10000.00' })
+  })
+
+  it('one invoice in, then closed short: what never came goes back, the received part not invoiced stays held until the final invoice', async () => {
+    const po = await sentPo('10', '1100.00')
+    ok(await postGoodsReceipt(receiver(), { poId: po.poId, lines: [{ poLineId: po.poLineId, received: '6' }] }, key()))
+    ok(await invoice(po.poId, '2000.00', '140.00'))
+    expect(await balance(po.line)).toMatchObject({ committed: '9000.00', actual: '2000.00' })
+    const asked = ok(await requestCloseShort(proc(), { poId: po.poId, reason: 'ผู้ขายเลิกผลิต' }, key()))
+    await approveAll(asked.varianceIds[0]!)
+    expect(await poStatus(po.poId)).toBe('CLOSED')
+    // 4 × 1,100 never came: given back once (BR-GR-04); 6 × 1,100 received less 2,000 invoiced: 4,600 held
+    expect(await balance(po.line)).toMatchObject({ committed: '4600.00', actual: '2000.00' })
+    expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: po.poId, type: 'po.closed' } })).toMatchObject({ data: { via: 'CLOSE_SHORT', keptSatang: '460000' } })
+    ok(await invoice(po.poId, '4000.00', '280.00', true))
+    expect(await balance(po.line)).toMatchObject({ committed: '0.00', actual: '6000.00' })
   })
 })

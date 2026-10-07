@@ -46,7 +46,7 @@ New-Item -ItemType Directory -Force bcs\docs\inputs, bcs\scripts | Out-Null; Mov
 งานรอบนี้คือ **เส้นชัย A — Demo พร้อม** ถือว่าเสร็จเมื่อครบทุกข้อด้านล่าง ติ๊กแต่ละข้อเมื่อตรวจแล้วจริง
 
 - [ ] ทุกข้อใน §16 ที่มีแท็ก `[demo]` และไม่มีแท็ก `[คน]` เป็น `[x]`
-- [x] `pnpm verify` ผ่านทุกด่าน (0 FAIL) — ตรวจแล้ว 2026-10-06 · `pnpm verify --strict --e2e` ที่ 46d16c0: 0 FAIL · 19 PASS · 0 SKIP
+- [x] `pnpm verify` ผ่านทุกด่าน (0 FAIL) — ตรวจแล้ว 2026-10-07 · `pnpm verify --strict --e2e` ที่ d917f6f กับ spec ของรอบนี้: 0 FAIL · 19 PASS · 0 SKIP (หน้าจอ 349 · ฉาก demo 9 · AC 204/204)
 - [x] `pnpm test:e2e --grep @demo` ผ่านทุกฉากที่ core = Y ในชีต `Demo_Script` — ตรวจแล้ว 2026-10-06 · 2 รอบติดจากฐานใหม่ที่ 217a993 (9/9 ทั้งสองรอบ) และอีกรอบใน verify ที่ 46d16c0
 - [x] staging เปิดจาก URL จริงได้ และ `/api/health` ตอบ 200 — ตรวจแล้ว 2026-10-07 · `https://www.budgetcontrolsystem.com/api/health` ตอบ 200 พร้อม commit c8cce87 (database storage inngest เป็น ok ทั้งหมด) · build บน Vercel ผ่าน `db:check-role` (แอปใช้ role `bcs_app`)
 - [x] มีรายงาน `docs/reports/demo-ready.md` ที่ใช้ 3 หัวข้อตาม §17.8 พร้อมตารางข้อที่เสร็จ ผลของคำสั่งข้างบน และข้อ `[คน]` ที่เหลือให้ผู้ใช้ทำ — ตรวจแล้ว 2026-10-06 · docs/reports/demo-ready.md
@@ -2344,7 +2344,7 @@ cases:
 ขั้น S4 · Email · BR-TOK-03
 - AC1 — งานอนุมัติส่งอีเมลเมื่อผู้รับยังไม่ผูก LINE หรือ LINE ส่งไม่ได้ พร้อมลิงก์ `/a/<token>`
 - AC2 — การเปิดลิงก์ (GET) ไม่เปลี่ยนสถานะ การตัดสินต้องกดยืนยันและ login ตามค่าเริ่มต้น
-- AC3 — โดเมนผู้ส่งมี SPF และ DKIM ถูกต้อง (ตรวจใน S4)
+- AC3 — โดเมนผู้ส่งมี SPF และ DKIM ถูกต้อง (ตรวจก่อน go-live ตาม §16.9 · ผู้ใช้ย้ายจาก S4 เมื่อ 2026-10-07 เพราะ staging ใช้ email sandbox ที่ไม่มีโดเมนจริง · NEW-71)
 
 #### FR-NOTI-003 — เตือนตาม SLA และส่งต่อ
 ขั้น S5 · LINE · Email · BR-SLA-02 ถึง BR-SLA-04
@@ -3216,7 +3216,7 @@ features:
 - [x] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน — เสร็จ 2026-10-03 · 0e99907
   - เสร็จเมื่อ: มี ADR ของวิธีที่เลือก · เทสต์ AC ของ FR-PLT-009 และ snapshot ภาษาไทยผ่าน
   - แยกงาน: spike สองวิธีแยกให้ subagent วิธีละตัวได้ แล้วตรวจ snapshot ของทั้งสองเองก่อนเลือก
-- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS) — ติดอยู่: FR-NOTI-002 AC3 (SPF และ DKIM ของโดเมนผู้ส่ง) ต้องมีโดเมนผู้ส่งจริง แต่ staging ใช้ Mailtrap Email Sandbox กับ `no-reply@bcs.local` (ADR-031 · ผู้ใช้ 2026-10-07) ซึ่งไม่มีโดเมนให้ตรวจ รอผู้ใช้ตัดสินว่า AC3 ย้ายไปตรวจก่อน go-live ตาม §16.9 หรือไม่ · ส่วนอื่นทำแล้ว (fc57a66) และ e2e ของหน้า /a/[token] ผ่านแล้ว
+- [x] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS) · FR-NOTI-002 AC3 (SPF และ DKIM) ผู้ใช้ย้ายไปตรวจก่อน go-live 2026-10-07 (NEW-71) เพราะ staging ใช้ Mailtrap Email Sandbox กับ `no-reply@bcs.local` (ADR-031) · ส่วนอื่นทำแล้ว (fc57a66) และ e2e ของหน้า /a/[token] ผ่านแล้ว — เสร็จ 2026-10-07 · d917f6f
   - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-005 FR-NOTI-002 ผ่าน
   - แยกงาน: ทำเองได้
 - [x] **S4-07** `[demo]` ตรวจรับบนเว็บและจอมือถือ + engine variance + เส้นทาง GRV — เสร็จ 2026-10-04 · 78cb3af
@@ -3379,7 +3379,7 @@ features:
 - [x] **D-06** `[demo]` audit ทั้งโค้ดเบสก่อน demo ตามรายการห้ามทำใน §17.3 — เสร็จ 2026-10-06 · e47d7d2
   - เสร็จเมื่อ: ตารางเดียว (โฟลเดอร์, กฎ, ผ่านหรือไม่, หลักฐาน) ไม่มีข้อไม่ผ่าน
   - แยกงาน: แยก subagent ต่อโฟลเดอร์ใน `src/` เมื่อรายงานกลับให้ตรวจหลักฐาน (ไฟล์และบรรทัด) ก่อนรับ
-- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง — ติดอยู่: "เสร็จเมื่อ" ต้องรันคำสั่ง reset บน staging · staging มีแล้ว (2026-10-07) และ runbook ข้อ 2 ใช้ปุ่ม `staging-demo-reset` ใน Inngest (ADR-056 · NEW-70) รอผู้ดูแลกด reset บน staging หนึ่งครั้ง · runbook เขียนแล้ว (ลำดับฉาก บัญชีผู้ใช้ คำสั่ง `pnpm demo:reset` แผนสำรอง) และ reset บนเครื่องกับ `pnpm inputs:check` ผ่าน
+- [x] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง · reset บน staging ด้วยปุ่ม `staging-demo-reset` (ADR-056) ผู้ใช้กดแล้ว run Completed และ `pnpm inputs:check` ผ่าน — เสร็จ 2026-10-07 · d917f6f
   - เสร็จเมื่อ: คำสั่ง reset ใน runbook รันบน staging แล้วข้อมูลกลับเป็นสถานะก่อน demo และ `pnpm inputs:check` ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **D-08** `[demo]` `[คน]` ซ้อม demo บนมือถือจริงตาม runbook 1 รอบ รวม LINE และอัดวิดีโอสำรองฉาก 1–3
@@ -3603,9 +3603,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-69** `[demo]` seed ครั้งแรกและการตรวจ role ของแอปบน staging ทำจากเครื่องไม่ได้ เพราะ `DATABASE_URL` `DIRECT_URL` และค่าลับอื่นใน Vercel เป็นชนิด Secret ที่ไม่มีใครดึงกลับได้ และ build ของ Vercel รันที่ Washington ห่างฐานข้อมูลสิงคโปร์ราว 0.22 วินาทีต่อคำสั่ง (seed ราว 7,700 คำสั่ง command ในประวัติ demo จะเกินธุรกรรม 20 วินาที) · ทำเป็นงาน Inngest `staging-first-seed` ที่ลงทะเบียนเฉพาะ staging seed เฉพาะฐานว่าง ผู้ดูแลกด Invoke และ `pnpm db:check-role` ใน build (ADR-055) · พบระหว่าง deploy staging ครั้งแรก — เสร็จ 2026-10-07 · c8cce87
   - เสร็จเมื่อ: เทสต์ของการปฏิเสธ การลงทะเบียน ไฟล์ที่ส่งไปกับ `/api/inngest` และกฎ role ผ่าน · `pnpm verify` ผ่าน · log ของ build บน staging มี `db:check-role ผ่าน` · run ของ `staging-first-seed` บน staging เป็น Completed และผู้ใช้ login ด้วยผู้ใช้ตัวอย่างได้
   - แยกงาน: ทำเองได้ ยกเว้นการกด Invoke ซึ่งผู้ใช้ทำ
-- [ ] **NEW-70** `[demo]` คำสั่ง reset staging ใน `docs/DEMO_RUNBOOK.md` (`pnpm demo:reset --env=.env.staging`) ใช้ไม่ได้ เพราะ `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret จึงไม่มีทางได้ `.env.staging` ที่ครบ (รวม `ENCRYPTION_KEY` ที่ต้องตรงกับของ staging) · D-07 ต้องรันคำสั่ง reset บน staging · ทางเลือกที่ agent เสนอ: (ก) งาน Inngest เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `DEMO-<วันที่วันนี้>` แล้วล้างข้อมูลด้วย role migrator และ seed ใหม่บน Vercel แบบเดียวกับ NEW-69 (ข) ผู้ดูแลเก็บสำเนาค่าลับทุกตัวของ staging ไว้เองแล้วรันจากเครื่อง (ต้องสร้างค่าใหม่บางตัว) · การล้าง staging ต้องให้ผู้ใช้อนุมัติทุกครั้ง (spec §17.4) · พบระหว่าง deploy staging ครั้งแรก · ผู้ใช้เลือก (ก) 2026-10-07 (ADR-056) · ทำปุ่ม `staging-demo-reset` แล้ว — ติดอยู่: รอผู้ดูแลกด reset บน staging หนึ่งครั้ง
+- [x] **NEW-70** `[demo]` คำสั่ง reset staging ใน `docs/DEMO_RUNBOOK.md` (`pnpm demo:reset --env=.env.staging`) ใช้ไม่ได้ เพราะ `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret จึงไม่มีทางได้ `.env.staging` ที่ครบ (รวม `ENCRYPTION_KEY` ที่ต้องตรงกับของ staging) · D-07 ต้องรันคำสั่ง reset บน staging · ทางเลือกที่ agent เสนอ: (ก) งาน Inngest เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `DEMO-<วันที่วันนี้>` แล้วล้างข้อมูลด้วย role migrator และ seed ใหม่บน Vercel แบบเดียวกับ NEW-69 (ข) ผู้ดูแลเก็บสำเนาค่าลับทุกตัวของ staging ไว้เองแล้วรันจากเครื่อง (ต้องสร้างค่าใหม่บางตัว) · การล้าง staging ต้องให้ผู้ใช้อนุมัติทุกครั้ง (spec §17.4) · พบระหว่าง deploy staging ครั้งแรก · ผู้ใช้เลือก (ก) 2026-10-07 (ADR-056) · ทำปุ่ม `staging-demo-reset` แล้ว — เสร็จ 2026-10-07 · d917f6f
   - เสร็จเมื่อ: ผู้ใช้เลือกทาง · runbook บอกวิธีที่ใช้ได้จริง · เทสต์ของทางที่เลือกผ่าน · reset บน staging หนึ่งครั้งด้วยการอนุมัติของผู้ใช้แล้วข้อมูลกลับเป็นสถานะก่อน demo
   - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
+- [ ] **NEW-71** `[go-live]` ตรวจ SPF และ DKIM ของโดเมนผู้ส่งจริง (FR-NOTI-002 AC3 · §16.9) เมื่อเลือกผู้ให้บริการอีเมลของ production (ADR-031) · ย้ายมาจาก S4-06 ตามที่ผู้ใช้ตัดสิน 2026-10-07 เพราะ staging ใช้ Mailtrap Email Sandbox กับ `no-reply@bcs.local` ซึ่งไม่มีโดเมนให้ตรวจ
+  - เสร็จเมื่อ: เทสต์ของ FR-NOTI-002 AC3 ผ่านกับโดเมนผู้ส่งของ production
+  - แยกงาน: ทำเองได้หลังผู้ใช้เลือกผู้ให้บริการและโดเมน
 
 ---
 

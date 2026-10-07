@@ -459,7 +459,7 @@ frs:
     acs:
       AC1: { owner: S5-08, demo: true, basis: later, text: "งานอนุมัติส่งอีเมลเมื่อผู้รับยังไม่ผูก LINE หรือ LINE ส่งไม่ได้ พร้อมลิงก์ /a/<token>", note: "กรณียังไม่ผูก LINE ทดสอบได้ใน S4-06 · กรณี LINE ส่งไม่ได้ต้องใช้ช่องทางสำรองที่ S5-08 สร้าง (เรื่องเดียวกับ FR-LINE-007 AC3)" }
       AC2: { owner: S4-06, demo: true, basis: named, text: "การเปิดลิงก์ (GET) ไม่เปลี่ยนสถานะ การตัดสินต้องกดยืนยันและ login ตามค่าเริ่มต้น" }
-      AC3: { owner: S4-06, demo: true, basis: named, text: "โดเมนผู้ส่งมี SPF และ DKIM ถูกต้อง (ตรวจใน S4)", note: "ต้องมีโดเมนจริงและผู้ให้บริการอีเมลซึ่งยังไม่ตัดสิน (ADR-031) · §16.9 มี SPF และ DKIM เป็นรายการตรวจก่อน go-live ด้วย — ผู้ใช้ต้องตัดสินว่า demo ต้องผ่าน AC นี้หรือไม่" }
+      AC3: { owner: NEW-71, demo: false, basis: named, text: "โดเมนผู้ส่งมี SPF และ DKIM ถูกต้อง (ตรวจใน S4)", note: "ผู้ใช้ย้ายไปตรวจก่อน go-live 2026-10-07 (§16.9) เพราะ staging ใช้ Mailtrap Email Sandbox กับ no-reply@bcs.local ซึ่งไม่มีโดเมนจริง (ADR-031)" }
   FR-NOTI-003:
     title: "เตือนตาม SLA และส่งต่อ"
     acs:
@@ -475,6 +475,6 @@ frs:
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 76, acs: 236, demo: 213, goLive: 23, unowned: 0 }
+counts: { frs: 76, acs: 236, demo: 212, goLive: 24, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
 basisCounts: { named: 190, later: 30, builder: 16, none: 0 }

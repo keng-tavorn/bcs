@@ -132,6 +132,9 @@ export const OUTBOX_LAST_ERROR_MAX_LENGTH = 500
 /** NFR-OBS-02: a sweeper run that could deliver nothing raises an alert once the oldest message it tried has waited
  *  this long (raised again on every such run until the backlog moves) */
 export const OUTBOX_STALL_ALERT_AFTER_MS = 10 * MS_PER_MINUTE
+/** /api/health: an outbox row waiting longer than this for its first delivery means events are not reaching Inngest
+ *  (FR-PLT-012 AC3 expects 2 minutes). Staging adds its slower sweeper's interval (src/lib/job-cadence.ts, ADR-054). */
+export const OUTBOX_STALL_HEALTH_MS = 5 * MS_PER_MINUTE
 
 // ---------- LINE rich menus (§9.5, FR-LINE-004) ----------
 /** The image of each BCS rich menu, in pixels (§9.5: 2500 × 843, LINE's large compact size); its areas share it out */

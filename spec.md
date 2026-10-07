@@ -551,6 +551,8 @@ sequenceDiagram
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
 
+บน staging (`APP_ENV=staging` เท่านั้น) งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาทีที่ :00 และ :30 แทนรอบในตาราง เพื่อให้อยู่ในโควตาฟรีของ Neon และ Inngest และเกณฑ์ outbox ค้างของ `/api/health` กับการเตือน NFR-OBS-02 รอเพิ่ม 29 นาทีตาม (ADR-054) · local และ production ใช้รอบในตารางเสมอ
+
 ### 4.7 Notification service
 
 `notify(ctx, { recipientMemberId, templateKey, data, urgency, dedupeKey })` เขียน `Notification` และ outbox ในธุรกรรมเดียวกับ command เสมอ การแจ้งเตือนจึงไม่หลุดจากสถานะจริง
@@ -3595,6 +3597,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-67** `[demo]` `.vercelignore` ต้องกันทุกอย่างที่ `.gitignore` กัน เพราะ Vercel CLI ไม่อ่าน `.gitignore` · ไฟล์เดิมกัน `.env` แล้ว แต่ไม่กัน `.e2e-runs/` (ผลเทสต์และ build ทดลอง) และ Prisma client ที่สร้างบนเครื่อง (`src/server/db/generated/`) การ deploy staging ครั้งแรกจากเครื่องจึงจะอัปโหลด 33,398 ไฟล์ ราว 7.3 GB แทน 1,609 ไฟล์ ราว 43 MB (จำลองด้วยรายการกันไฟล์ของ Vercel CLI 62.4.0) · project ที่สร้างด้วย `vercel project add` ไม่มี framework จึง build Next.js ไม่ได้ `vercel.json` จึงระบุ `framework` ไว้ด้วย (ADR-032) · พบระหว่างสร้าง project `bcs-staging` (P0-08) — เสร็จ 2026-10-07 · 923cbe2
   - เสร็จเมื่อ: เทสต์ที่ทุกกฎของ `.gitignore` อยู่ใน `.vercelignore` และ `vercel.json` ระบุ `nextjs` กับ `sin1` ผ่าน · จำลองการอัปโหลดแล้วไม่มีไฟล์ที่ git กันไว้
   - แยกงาน: ทำเองได้
+- [ ] **NEW-68** `[demo]` staging ใช้แผนฟรีของ Neon และ Inngest (ผู้ใช้เลือก 2026-10-07) แต่งานตามรอบใน §4.6 ทำให้ฐานข้อมูลไม่ได้หลับ (ราว 182 จาก 100 CU-hours ต่อเดือน) และใช้ Inngest ราว 104,000 จาก 50,000 executions ต่อเดือน เพราะนอกจาก `outbox-sweeper` ทุก 1 นาที ยังมี `consolidation` `report-schedules` และ `line-webhook-sweep` ทุก 5 นาทีที่เพิ่มมาใน S4 และ S5 · ผู้ใช้ให้ลดทั้ง 4 งานเหลือทุก 30 นาทีเฉพาะ `APP_ENV=staging` (ADR-054) · พบระหว่างเตรียม deploy staging ครั้งแรก
+  - เสร็จเมื่อ: เทสต์ที่ local preview production ได้ cron และเกณฑ์ outbox ตาม spec ทุกตัว และฟังก์ชันงานจริงบน staging รันทุก 30 นาที ผ่าน · `pnpm verify` ผ่าน · §4.6 มีหมายเหตุชี้ ADR-054
+  - แยกงาน: ทำเองได้
 
 ---
 
@@ -3759,6 +3764,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-051 | เลขบัตรประชาชนใน audit trail mask ตอนอ่านตามสิทธิ์ของทะเบียนผู้ขาย · ไฟล์ส่งออก audit บอกว่ามีเลขเต็มหรือไม่และโหลดได้ตามนั้น · ไฟล์รายงานโหลดได้เฉพาะในขอบเขตของผู้อ่าน | เสนอ |
 | ADR-052 | งบ JavaScript เริ่มต้นของหน้า LIFF นับแบบเข้ม (ไฟล์ script รวม LINE SDK และข้อมูลหน้าที่ฝังใน HTML ทั้งสองแบบที่ LINE เปิด) · ส่งข้อความเฉพาะ namespace ที่แต่ละส่วนใช้ · หน้า LIFF ไม่โหลด PWA และไม่ใช้ tailwind-merge · คอมไพล์ข้อความตอน build ด้วย precompile ของ next-intl พร้อมเทสต์กัน | เสนอ |
 | ADR-053 | e2e ของฉาก demo รันในโหมด demo บนฐานแยกที่มีประวัติ D-01 · ใช้นาฬิกาจริงและอ่านค่าที่ขึ้นกับเวลาจากฐานตอนรัน · นาฬิกาธุรกิจแยกเป็น NEW-63 | เสนอ |
+| ADR-054 | บน staging งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาที (อยู่ในโควตาฟรีของ Neon และ Inngest) · เกณฑ์ outbox ค้างของ health และการเตือนรอเพิ่ม 29 นาที · local และ production ตาม §4.6 | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
 
 ### 18.2 สมมติฐาน
 

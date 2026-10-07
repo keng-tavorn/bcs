@@ -1,6 +1,7 @@
 import { systemClock } from '@/lib/clock'
-import { MS_PER_MINUTE, MS_PER_SECOND } from '@/lib/constants'
+import { MS_PER_SECOND } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
+import { outboxHealthStallMs } from '@/lib/job-cadence'
 import { logger } from '@/lib/logger'
 import { checkBucket } from '@/integrations/storage'
 import { oldestPendingOutboxAgeMs, pingDatabase } from '@/server/db/sql/health'
@@ -19,8 +20,6 @@ export interface HealthReport {
 
 /** Each probe gets this long before it counts as failed, so the endpoint answers within a few seconds. */
 const PROBE_TIMEOUT_MS = 2 * MS_PER_SECOND
-/** Outbox rows waiting longer than this mean events are not reaching Inngest (FR-PLT-012 AC3 expects 2 minutes). */
-const OUTBOX_STALL_MS = 5 * MS_PER_MINUTE
 const LOCAL_INNGEST_DEV_URL = 'http://localhost:8288'
 
 export type HealthProbe = (signal: AbortSignal) => Promise<void>
@@ -41,7 +40,7 @@ async function inngestProbe(signal: AbortSignal, oldestPendingAgeMs: () => Promi
   }
   // Everywhere: events must be leaving the outbox (a stalled relay means Inngest is not receiving them)
   const age = await oldestPendingAgeMs()
-  if (age !== null && age > OUTBOX_STALL_MS) throw new Error('outbox has undelivered events older than the limit')
+  if (age !== null && age > outboxHealthStallMs(env.APP_ENV)) throw new Error('outbox has undelivered events older than the limit')
 }
 
 export const DEFAULT_PROBES: Readonly<Record<HealthCheckName, HealthProbe>> = {

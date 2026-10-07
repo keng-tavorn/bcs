@@ -1,4 +1,6 @@
 import { systemClock, type Clock } from '@/lib/clock'
+import { getEnv } from '@/lib/env'
+import { pollingCron } from '@/lib/job-cadence'
 import { inngest } from '@/server/inngest'
 import {
   LINE_WEBHOOK_JOB_RETRIES,
@@ -90,11 +92,12 @@ export const lineWebhook = inngest.createFunction(
   async ({ event, step }) => lineWebhookRun(systemClock)(event, jobStep(step)),
 )
 
-/** Every five minutes: what a request dropped reaches the job within LINE_WEBHOOK_REQUEST_ENDED_MS and one period */
+/** Every five minutes (30 on staging, ADR-054): what a request dropped reaches the job within LINE_WEBHOOK_REQUEST_ENDED_MS
+ *  and one period */
 export const LINE_WEBHOOK_SWEEP_CRON = '*/5 * * * *'
 
 // One execution per run and no retries, like the outbox-sweeper: the next run is the retry, and the work is idempotent
 // (conditional updates; a row moved meanwhile is left alone)
-export const lineWebhookSweep = inngest.createFunction({ id: 'line-webhook-sweep', retries: 0, triggers: [{ cron: LINE_WEBHOOK_SWEEP_CRON }] }, async () =>
+export const lineWebhookSweep = inngest.createFunction({ id: 'line-webhook-sweep', retries: 0, triggers: [{ cron: pollingCron(LINE_WEBHOOK_SWEEP_CRON, getEnv().APP_ENV) }] }, async () =>
   sweepLineWebhookEvents(systemClock.now()),
 )

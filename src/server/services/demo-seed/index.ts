@@ -1,6 +1,8 @@
 import type { Clock } from '@/lib/clock'
 import type { Env } from '@/lib/env'
+import { checkBucket } from '@/integrations/storage'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
+import { forTenant } from '@/server/db/tenant'
 import { seedBudget } from '@/server/seed/budget'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
@@ -9,7 +11,7 @@ import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/ser
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { loadInputWorkbook } from '@/server/seed/workbook'
-import { seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { seedLineChannel } from '@/server/services/line-channel'
 
 // The demo seed (spec §5.4, Appendix A) in two parts, shared by `pnpm db:seed` (prisma/seed.ts) and the staging seed job
@@ -47,7 +49,33 @@ export async function seedDemoHistoryFromInputs(organizationId: string, env: Env
   return seedDemoHistory(organizationId, parseDemoHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null })
 }
 
-/** How many organizations the database holds: the staging seed job seeds only a database that has none */
-export async function organizationCount(): Promise<number> {
-  return (await listOrganizationsForPlatform()).length
+/** What the staging seed job looks at before it writes anything (ADR-055) */
+export interface FirstSeedState {
+  /** Organizations in the database, of every tenant */
+  readonly organizations: number
+  /**
+   * The only organization is the demo organization of the input workbook, its history has not started and it has no
+   * request: what a first seed leaves when it stopped before its history (the base is safe to run again)
+   */
+  readonly unfinishedFirstSeed: boolean
+}
+
+export async function firstSeedState(): Promise<FirstSeedState> {
+  const organizations = await listOrganizationsForPlatform()
+  const only = organizations.length === 1 ? organizations[0] : undefined
+  if (!only) return { organizations: organizations.length, unfinishedFirstSeed: false }
+  const demoCode = parseDemoOrgInput(await loadInputWorkbook(), loadOrgSettingsYaml()).org.code
+  const unfinished = only.code === demoCode && !(await demoHistoryStarted(only.id)) && (await forTenant(only.id).request.count()) === 0
+  return { organizations: 1, unfinishedFirstSeed: unfinished }
+}
+
+/**
+ * What has to work before the staging seed job writes anything: the input workbook reads (organization and history) and
+ * the bucket answers, so the likeliest failures stop the job while the database is still untouched
+ */
+export async function firstSeedPreflight(): Promise<void> {
+  const workbook = await loadInputWorkbook()
+  parseDemoOrgInput(workbook, loadOrgSettingsYaml())
+  parseDemoHistory(workbook)
+  await checkBucket()
 }

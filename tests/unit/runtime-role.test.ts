@@ -36,7 +36,9 @@ describe('the role the app runs as on a deployment (FR-PLT-006 AC3, spec §6.3)'
     }
   })
 
-  it('[FR-PLT-006/AC3] leaves out an append-only table the migrations have not made yet (EventSeal)', () => {
-    expect(runtimeRoleProblems({ ...right, tables: { Event: appendOnly } })).toEqual([])
+  it('[FR-PLT-006/AC3] leaves out only the append-only table no migration has made yet (EventSeal); any other missing table stops it', () => {
+    expect(runtimeRoleProblems(right)).toEqual([])
+    expect(runtimeRoleProblems({ ...right, tables: { Event: appendOnly } })).toEqual(['role bcs_app ไม่เห็นตาราง "BudgetLedgerEntry": migration ยังไม่ครบ หรือ role ไม่เห็น schema public'])
+    expect(runtimeRoleProblems({ ...right, tables: {} })).toHaveLength(2)
   })
 })

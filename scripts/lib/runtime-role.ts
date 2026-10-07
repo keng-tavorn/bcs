@@ -1,7 +1,7 @@
 // The role the running app connects with, checked where only the deployment sees DATABASE_URL: the Vercel build
 // (scripts/check-runtime-role.ts, vercel.json). FR-PLT-006 AC3 (runtime uses the app role, never the migrator), spec §6.3
 // and INV-EVT-01 (the app role cannot change or empty an append-only table). docs/runbooks/p0-05-neon-staging.md step 10.
-import { APPEND_ONLY } from './db-checks'
+import { APPEND_ONLY, STRICT_OPTIONAL_TABLES } from './db-checks'
 
 export const APP_ROLE = 'bcs_app'
 
@@ -18,7 +18,7 @@ export interface RuntimeRoleFacts {
   readonly superuser: boolean
   /** Member of neon_superuser (whose pg_write_all_data no REVOKE in a migration can take back) */
   readonly neonSuperuser: boolean
-  /** Privileges on each append-only table that exists; tables not made yet are left out */
+  /** Privileges on each append-only table the role can see; a table it cannot see is left out */
   readonly tables: Readonly<Record<string, TablePrivileges>>
 }
 
@@ -34,7 +34,12 @@ export function runtimeRoleProblems(facts: RuntimeRoleFacts): string[] {
   }
   for (const table of APPEND_ONLY) {
     const p = facts.tables[table]
-    if (!p) continue
+    if (!p) {
+      // Only a table no migration has made yet may be missing (EventSeal, S5-14); any other means the migrations did not
+      // run here or the role does not see schema public, and nothing would have been checked
+      if (!(table in STRICT_OPTIONAL_TABLES)) problems.push(`role ${facts.currentUser} ไม่เห็นตาราง "${table}": migration ยังไม่ครบ หรือ role ไม่เห็น schema public`)
+      continue
+    }
     for (const [name, granted] of [['UPDATE', p.update], ['DELETE', p.delete], ['TRUNCATE', p.truncate]] as const) {
       if (granted) problems.push(`role ${facts.currentUser} มีสิทธิ์ ${name} บน "${table}" ซึ่งต้องเพิ่มได้อย่างเดียว (spec §6.3 · INV-EVT-01)`)
     }

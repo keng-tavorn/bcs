@@ -83,20 +83,6 @@ signing key ใช้ยืนยันว่าคำขอที่เข้�
 
 ทุกครั้งที่ deploy ใหม่ต้อง sync ใหม่ Inngest จึงจะเห็นฟังก์ชันล่าสุด agent ทำเองได้ด้วยการส่งคำขอ `PUT` ไปที่ `https://<โดเมน staging>/api/inngest` หลัง deploy (ไม่ต้องใช้ค่าลับ) หรือคุณกด sync ซ้ำที่หน้า **Apps** ก็ได้
 
-## ส่วนที่ 3 · seed ข้อมูลตัวอย่างครั้งแรก (กดครั้งเดียว)
-
-ฐานข้อมูล staging ยังว่างหลัง deploy ครั้งแรก การ seed ครั้งแรกคุณอนุมัติไว้แล้ว (ADR-038 ข้อ 14) แต่ต้องรันบน Vercel เพราะมีแค่ Vercel ที่รู้รหัสฐานข้อมูล (ADR-055) จึงเริ่มด้วยการกดปุ่มที่ Inngest
-
-1. <https://app.inngest.com> → environment `staging` → เมนู **Functions** → กดชื่อ `staging-first-seed`
-2. กดปุ่ม **Invoke** (มุมขวาบน) → ช่องข้อมูลปล่อยเป็น `{}` ตามเดิม → กด **Invoke function**
-3. หน้า **Runs** จะเห็น run ใหม่ รอจนสถานะเป็น **Completed** (ราว 1–4 นาที) กดเปิด run แล้วดูว่า Output มี `"seeded": true`
-   - ถ้าได้ `"refusal": "NOT_EMPTY"` แปลว่าฐานข้อมูลมีข้อมูลอยู่แล้ว งานไม่ได้แตะอะไร
-   - ถ้าสถานะเป็น **Failed** ให้คัดลอกข้อความ error (ไม่มีค่าลับ) ส่งให้ agent และอย่ากด Invoke ซ้ำ
-4. ลอง login ที่ `https://<โดเมน staging>/login` ด้วย `admin@demo.bcs.local` และรหัสผ่าน `SEED_DEV_PASSWORD` ที่เก็บไว้ในโปรแกรมจัดการรหัสผ่าน
-5. พิมพ์บอก agent: "seed staging แล้ว run Completed login ได้"
-
-งานนี้ seed เฉพาะฐานข้อมูลที่ยังไม่มีองค์กร จึงกดซ้ำแล้วไม่แตะข้อมูลที่มีอยู่ · การล้างแล้ว seed ใหม่ก่อน demo เป็นอีกเรื่อง (NEW-70)
-
 ### ถ้า sync ไม่ผ่าน
 
 | อาการ | สาเหตุที่พบบ่อย | วิธีแก้ |
@@ -104,6 +90,24 @@ signing key ใช้ยืนยันว่าคำขอที่เข้�
 | ได้หน้า login ของ Vercel หรือ error 401 จาก Vercel | ใช้ URL ของ deployment แทนโดเมน staging หรือ Deployment Protection ถูกตั้งเป็น All Deployments (Standard Protection ไม่กันโดเมน staging ดูหมายเหตุในข้อ 3 ด้านบน) | ใช้โดเมน staging และตั้ง Deployment Protection เป็น Standard Protection ([p0-08-vercel.md](p0-08-vercel.md) ส่วน A3 ข้อ 3) |
 | error เรื่อง signing key | key ใน Vercel ไม่ได้มาจาก environment `staging` | คัดลอก key จาก environment `staging` ใหม่ แก้ค่าใน Vercel แล้วบอก agent ให้ deploy ใหม่ |
 | ไม่เจอหน้า (404) | แอปยังไม่มี `/api/inngest` หรือ deploy ไม่สำเร็จ | ส่งข้อความ error ให้ agent |
+
+## ส่วนที่ 3 · seed ข้อมูลตัวอย่างครั้งแรก (กดครั้งเดียว)
+
+ฐานข้อมูล staging ยังว่างหลัง deploy ครั้งแรก การ seed ครั้งแรกคุณอนุมัติไว้แล้ว (ADR-038 ข้อ 14) แต่ต้องรันบน Vercel เพราะมีแค่ Vercel ที่รู้รหัสฐานข้อมูล (ADR-055) จึงเริ่มด้วยการกดปุ่มที่ Inngest
+
+1. <https://app.inngest.com> → environment `staging` → เมนู **Functions** → กดชื่อ `staging-first-seed`
+   - ถ้าไม่เห็นชื่อนี้ ให้บอก agent (ฟังก์ชันนี้มีเฉพาะเมื่อ `APP_ENV` ใน Vercel เป็น `staging` ตรงตัว และต้อง sync หลัง deploy ล่าสุด)
+2. กดปุ่ม **Invoke** (มุมขวาบน) → ช่องข้อมูลปล่อยเป็น `{}` ตามเดิม → กด **Invoke function**
+3. หน้า **Runs** จะเห็น run ใหม่ รอจนสถานะเป็น **Completed** (ราว 1–4 นาที) กดเปิด run แล้วดู Output
+   - `"seeded": true` คือเสร็จ ไปข้อ 4
+   - `"refusal": "NOT_EMPTY"` คือฐานข้อมูลมีข้อมูลอยู่แล้ว งานไม่ได้แตะอะไร
+   - `"refusal": "NO_SEED_PASSWORD"` คือ `SEED_DEV_PASSWORD` ใน Vercel ไม่มีหรือสั้นกว่า 12 ตัวอักษร แก้ค่าใน Vercel แล้วบอก agent ให้ deploy ใหม่ จึงกด Invoke อีกครั้ง
+   - ถ้าสถานะเป็น **Failed** ให้คัดลอกข้อความ error ส่งให้ agent · ถ้าล้มที่ step `check` ยังไม่มีอะไรถูกเขียน แก้สาเหตุแล้วกด Invoke ใหม่ได้ · ถ้าล้มที่ step `base` หรือ `history` ให้ถาม agent ก่อนกดซ้ำ
+4. ลอง login ที่ `https://<โดเมน staging>/login` ด้วย `req_con@demo.bcs.local` (ผู้ขอ ไม่ต้องใช้ 2FA) และรหัสผ่าน `SEED_DEV_PASSWORD` ที่เก็บไว้ในโปรแกรมจัดการรหัสผ่าน
+   - ผู้ใช้อื่นเกือบทุกคน เช่น `admin` ต้องใช้รหัส 2FA ซึ่งได้จาก `SEED_TOTP_KEY` ถ้าจะใช้ ให้พิมพ์บอก agent ว่า "ต้องการตั้ง 2FA ของผู้ใช้ตัวอย่างบน staging" ([README.md](README.md) ขั้น 7)
+5. พิมพ์บอก agent: "seed staging แล้ว run Completed login ได้"
+
+งานนี้ seed เฉพาะฐานข้อมูลที่ยังไม่มีองค์กร หรือฐานที่มีแค่ seed รอบก่อนที่หยุดก่อนสร้างประวัติ demo จึงกดซ้ำแล้วไม่แตะข้อมูลอื่น · การล้างแล้ว seed ใหม่ก่อน demo เป็นอีกเรื่อง (NEW-70)
 
 ## ถ้า key หลุด
 

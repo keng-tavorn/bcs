@@ -402,6 +402,13 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
  * demo approvers: a history that is yet to be made needs every one of them to hold it (DemoHistoryPinError otherwise).
  * null: the seed gave none, and the approvers without a PIN hold a one-time PIN only while the history runs.
  */
+/** Whether any step of the history has been made in the organization (its events, or a command still in CommandLog) */
+export async function demoHistoryStarted(organizationId: string): Promise<boolean> {
+  const db = forTenant(organizationId)
+  const made = (await db.event.count({ where: { requestId: { startsWith: escapeLike(HISTORY_KEY) } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY) } } }))
+  return made > 0
+}
+
 export async function seedDemoHistory(organizationId: string, rows: readonly DemoHistoryRow[], now: Date, options: DemoHistoryOptions): Promise<DemoHistoryReport> {
   const db = forTenant(organizationId)
   // Decided and cancelled requests first, oldest first; then what they told people is marked read; then the requests
@@ -413,8 +420,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   if (!last) return { seeded: false, byStatus: {} }
   // What the history made is read from its events, which are kept for good (CommandLog only for 90 days, §6.2): every
   // step's events carry the step's key as their requestId. The last row's last step made → the history is whole.
-  const started = (await db.event.count({ where: { requestId: { startsWith: escapeLike(HISTORY_KEY) } } })) + (await db.commandLog.count({ where: { idempotencyKey: { contains: escapeLike(HISTORY_KEY) } } }))
-  if (started) {
+  if (await demoHistoryStarted(organizationId)) {
     if (await db.event.count({ where: { requestId: { in: lastSteps(last).map((step) => keyOf(last, step)) } } })) return { seeded: false, byStatus: {} }
     throw new DemoHistoryIncompleteError(last.ref)
   }

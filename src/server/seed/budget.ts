@@ -22,7 +22,7 @@ export interface BudgetSeedReport {
 }
 
 /** FY2569 → 1 Jan to 31 Dec 2026 (Buddhist year − 543; OQ-11 default) */
-function fiscalYearDates(code: string): { startsOn: Date; endsOn: Date } {
+export function fiscalYearDates(code: string): { startsOn: Date; endsOn: Date } {
   const year = Number(code.slice(2)) - 543
   return { startsOn: new Date(`${year}-01-01T00:00:00Z`), endsOn: new Date(`${year}-12-31T00:00:00Z`) }
 }

@@ -22,13 +22,14 @@
 - บนเครื่อง: `pnpm demo:reset`
 - บน staging (คนที่ดูแล staging เป็นผู้กดเอง เพราะข้อมูลบน staging ถูกลบทั้งหมด · ADR-056):
   1. <https://app.inngest.com> → environment `staging` → เมนู **Functions** → กด `staging-demo-reset`
-  2. กด **Invoke** → ในช่องข้อมูลพิมพ์ `{"confirm": "DEMO-<วันที่วันนี้ตามเวลาไทย>"}` เช่น `{"confirm": "DEMO-2026-10-20"}` → กด **Invoke function**
+  2. กด **Invoke** → ลบข้อความเดิมในช่องข้อมูล แล้วพิมพ์ `{"data": {"confirm": "DEMO-<วันที่วันนี้ตามเวลาไทย>"}}` เช่น `{"data": {"confirm": "DEMO-2026-10-20"}}` → กด **Invoke function**
   3. หน้า **Runs** รอจนสถานะเป็น **Completed** (ราว 2–5 นาที) แล้วดู Output ว่ามี `"reset": true`
+     - `"line": "KEPT"` คือค่า LINE ที่ตั้งไว้ยังอยู่ (webhook และ rich menu ใช้ได้เหมือนเดิม) · `"NONE"` คือยังไม่เคยตั้ง LINE · `"NOT_OPENED"` คือค่า LINE เดิมเปิดไม่ได้จึงหายไป ให้ทำ [line-demo-setup.md](runbooks/line-demo-setup.md) ส่วนที่ 3 ใหม่
      - `"refusal": "CONFIRMATION_MISMATCH"` คือพิมพ์คำยืนยันไม่ตรง Output บอกคำที่ถูก (`"expected"`) ไม่มีอะไรถูกลบ
      - `"refusal": "OTHER_ORGANIZATIONS"` คือมีองค์กรอื่นนอกจาก DEMO อยู่ใน staging งานจึงไม่ลบอะไร ให้บอก agent
-     - ถ้าสถานะเป็น **Failed** ให้ส่งข้อความ error ให้ agent · ถ้าล้มที่ step `check` ยังไม่มีอะไรถูกลบ · ถ้าล้มหลัง step `wipe` กด Invoke ซ้ำด้วยคำยืนยันเดิมในวันเดียวกันได้
+     - ถ้าสถานะเป็น **Failed** ให้ส่งข้อความ error ให้ agent และอย่ากดซ้ำหลายครั้ง · ถ้าล้มที่ step `check` ยังไม่มีอะไรถูกลบ (เช่นวันนี้อยู่นอกปีงบของข้อมูล demo) · ถ้าล้มที่ step `reset` หรือ `history` ให้ถาม agent ก่อนกดใหม่ และอาจต้องตั้ง LINE ใหม่
   4. login ใหม่ทุกคน (session เดิมถูกล้างด้วย)
-  - ทางเดิม `pnpm demo:reset --env=.env.staging --confirm=DEMO-<วันที่>` ใช้ได้เฉพาะเมื่อมีค่าของ staging ครบในเครื่อง ซึ่ง `vercel env pull` ให้ไม่ได้เพราะค่าชนิด Secret ดึงลงเครื่องไม่ได้
+  - ทางเดิม `pnpm demo:reset --env=.env.staging --confirm=DEMO-<วันที่>` ใช้ได้เฉพาะเมื่อมีค่าของ staging ครบในเครื่อง ซึ่ง `vercel env pull` ให้ไม่ได้เพราะค่าชนิด Secret ดึงลงเครื่องไม่ได้ และทางนี้ไม่เก็บค่า LINE ไว้
   - ทั้งสองทางตรวจไฟล์ inputs ก่อนล้าง แล้ว seed องค์กร DEMO พร้อมประวัติ demo · production ไม่มีวันล้างด้วยทางใด
 - หลัง reset: ผูก LINE ของมือถือ demo ใหม่ (ข้อ 1.4) แล้วเปิด `/admin/line` กดทดสอบการเชื่อมต่ออีกครั้ง
 

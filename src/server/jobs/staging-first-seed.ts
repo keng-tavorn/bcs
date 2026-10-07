@@ -97,7 +97,7 @@ function liveDeps(): FirstSeedDeps {
     appEnv: env.APP_ENV,
     password: env.SEED_DEV_PASSWORD,
     state: firstSeedState,
-    preflight: firstSeedPreflight,
+    preflight: () => firstSeedPreflight(systemClock.now()),
     seedBase: () => liveSeedBase(env),
     seedHistory: (organizationId) => seedDemoHistoryFromInputs(organizationId, env, systemClock),
   }

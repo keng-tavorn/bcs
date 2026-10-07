@@ -3772,7 +3772,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-053 | e2e ของฉาก demo รันในโหมด demo บนฐานแยกที่มีประวัติ D-01 · ใช้นาฬิกาจริงและอ่านค่าที่ขึ้นกับเวลาจากฐานตอนรัน · นาฬิกาธุรกิจแยกเป็น NEW-63 | เสนอ |
 | ADR-054 | บน staging งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาที (อยู่ในโควตาฟรีของ Neon และ Inngest) · เกณฑ์ outbox ค้างของ health รอเพิ่ม 29 นาที และการเตือนมาที่รอบที่สองที่ส่งไม่ได้ · local และ production ตาม §4.6 | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
 | ADR-055 | seed ครั้งแรกของ staging รันเป็นงาน Inngest `staging-first-seed` บน Vercel สิงคโปร์ (ลงทะเบียนเฉพาะ staging · seed เฉพาะฐานว่างหรือ seed รอบก่อนที่หยุดก่อนประวัติ demo · ตรวจไฟล์ input และที่เก็บไฟล์ก่อนเขียน · ผู้ดูแลกด Invoke) เพราะค่าฐานข้อมูลเป็น Secret และ build รันที่ Washington · build ตรวจ role ของแอปหลัง migrate (`pnpm db:check-role`) | เสนอ |
-| ADR-056 | reset staging ก่อน demo ด้วยงาน Inngest `staging-demo-reset` เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `<รหัสองค์กร demo>-<วันที่วันนี้>` · ล้างทุกตารางยกเว้น `_prisma_migrations` ด้วย role migrator แล้ว seed ใหม่ · ปฏิเสธถ้ามีองค์กรอื่นนอกจาก demo | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
+| ADR-056 | reset staging ก่อน demo ด้วยงาน Inngest `staging-demo-reset` เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `<รหัสองค์กร demo>-<วันที่วันนี้>` · ตรวจซ้ำใน step ที่ล้าง · ล้างทุกตารางยกเว้น `_prisma_migrations` ด้วย role migrator แล้ว seed ใหม่ และคงค่า LINE ที่ผู้ดูแลตั้งไว้ · ปฏิเสธถ้ามีองค์กรอื่นนอกจาก demo หรือวันนี้อยู่นอกปีงบของข้อมูล demo | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
 
 ### 18.2 สมมติฐาน
 

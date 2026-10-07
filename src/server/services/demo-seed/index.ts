@@ -5,7 +5,8 @@ import { checkBucket } from '@/integrations/storage'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
 import { wipeAllData } from '@/server/db/sql/staging-wipe'
 import { forTenant } from '@/server/db/tenant'
-import { seedBudget } from '@/server/seed/budget'
+import { fiscalYearDates, seedBudget } from '@/server/seed/budget'
+import { restoreLineChannelRow } from '@/server/seed/line-channel-restore'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
@@ -15,6 +16,7 @@ import { seedTaxRates } from '@/server/seed/tax-rates'
 import { loadInputWorkbook } from '@/server/seed/workbook'
 import { demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { seedLineChannel } from '@/server/services/line-channel'
+import { openLineSecret, sealLineSecret } from '@/server/services/line-channel/secrets'
 
 // The demo seed (spec §5.4, Appendix A) in two parts, shared by `pnpm db:seed` (prisma/seed.ts) and the staging seed job
 // (src/server/jobs/staging-first-seed.ts, ADR-055): the base — VAT rates, the demo organization with its users,
@@ -71,14 +73,34 @@ export async function firstSeedState(): Promise<FirstSeedState> {
   return { organizations: 1, unfinishedFirstSeed: unfinished }
 }
 
+/** Today lies outside the fiscal year of the demo history: the sheets need the current year (DemoHistoryOutOfYearError) */
+export class DemoYearError extends Error {
+  constructor(
+    readonly today: string,
+    readonly fiscalYear: string,
+  ) {
+    super(
+      `วันนี้ ${today} อยู่นอกปีงบ ${fiscalYear} ของประวัติ demo จึงยังไม่ได้แตะข้อมูล · แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน แล้วรัน pnpm inputs:check commit และ deploy ใหม่`,
+    )
+    this.name = 'DemoYearError'
+  }
+}
+
 /**
- * What has to work before the staging seed job writes anything: the input workbook reads (organization and history) and
- * the bucket answers, so the likeliest failures stop the job while the database is still untouched
+ * What has to work before a staging seed job writes or wipes anything: the input workbook reads (organization and
+ * history), today lies inside the fiscal year of every budget line the history uses, and the bucket answers — so the
+ * likeliest failures stop the job while the database is untouched
  */
-export async function firstSeedPreflight(): Promise<void> {
+export async function firstSeedPreflight(now: Date): Promise<void> {
   const workbook = await loadInputWorkbook()
   parseDemoOrgInput(workbook, loadOrgSettingsYaml())
-  parseDemoHistory(workbook)
+  const history = parseDemoHistory(workbook)
+  const yearOfLine = new Map(parseBudget(workbook).map((line) => [line.code, line.fiscalYear]))
+  const today = thaiDay(now)
+  for (const code of new Set(history.map((row) => yearOfLine.get(row.budgetLine)).filter((y): y is string => Boolean(y)))) {
+    const { startsOn, endsOn } = fiscalYearDates(code)
+    if (today < startsOn.toISOString().slice(0, 10) || today > endsOn.toISOString().slice(0, 10)) throw new DemoYearError(today, code)
+  }
   await checkBucket()
 }
 
@@ -89,10 +111,14 @@ export async function demoOrgCode(): Promise<string> {
   return parseDemoOrgInput(await loadInputWorkbook(), loadOrgSettingsYaml()).org.code
 }
 
+/** The day of an instant in Thai time, as YYYY-MM-DD */
+export function thaiDay(now: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: THAI_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+}
+
 /** What the person types to reset staging: the demo organization's code and today in Thai time, as pnpm demo:reset asks */
 export function demoResetConfirmation(orgCode: string, now: Date): string {
-  const day = new Intl.DateTimeFormat('en-CA', { timeZone: THAI_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
-  return `${orgCode}-${day}`
+  return `${orgCode}-${thaiDay(now)}`
 }
 
 /** Codes of the organizations in the database that are not the demo organization: the reset refuses while there is one */
@@ -100,7 +126,59 @@ export async function otherOrganizations(demoCode: string): Promise<string[]> {
   return (await listOrganizationsForPlatform()).map((o) => o.code).filter((code) => code !== demoCode)
 }
 
-/** Empties every table but the migration record, as the migrator; the caller has checked APP_ENV and the confirmation */
-export async function wipeDemoData(env: Env): Promise<number> {
-  return wipeAllData(env.DIRECT_URL)
+/**
+ * Empties every table but the migration record, as the migrator, refusing in the same transaction while an organization
+ * other than the demo one exists; the caller has checked APP_ENV and the confirmation
+ */
+export async function wipeDemoData(env: Env, demoCode: string): Promise<number> {
+  return wipeAllData(env.DIRECT_URL, demoCode)
+}
+
+/** The id of the demo organization when it exists */
+export async function demoOrganizationId(demoCode: string): Promise<string | null> {
+  return (await listOrganizationsForPlatform()).find((o) => o.code === demoCode)?.id ?? null
+}
+
+/**
+ * The LINE channel the owner set up for the demo organization (line-demo-setup part 3), held in memory across a reset:
+ * the webhook path (channelKey) registered at LINE and the rich menus made there stay valid. It holds secrets in
+ * clear, so it is never a step result, a log field or an error message.
+ */
+export interface CarriedLineChannel {
+  readonly channelKey: string
+  readonly providerId: string
+  readonly messagingChannelId: string
+  readonly channelSecret: string
+  readonly channelAccessToken: string
+  readonly liffId: string | null
+  readonly liffChannelId: string | null
+  readonly richMenuLinkedId: string | null
+  readonly richMenuUnlinkedId: string | null
+  readonly active: boolean
+}
+
+export type LineChannelTake = { readonly state: 'NONE' } | { readonly state: 'NOT_OPENED' } | { readonly state: 'TAKEN'; readonly channel: CarriedLineChannel }
+
+/** The organization's LINE channel with its secrets opened; NOT_OPENED when a secret does not open with ENCRYPTION_KEY */
+export async function takeLineChannel(organizationId: string): Promise<LineChannelTake> {
+  const row = await forTenant(organizationId).lineChannelConfig.findFirst()
+  if (!row) return { state: 'NONE' }
+  const channelSecret = openLineSecret(organizationId, 'channelSecret', row.channelSecretEnc)
+  const channelAccessToken = openLineSecret(organizationId, 'channelAccessToken', row.channelAccessTokenEnc)
+  if (channelSecret === null || channelAccessToken === null) return { state: 'NOT_OPENED' }
+  const { channelKey, providerId, messagingChannelId, liffId, liffChannelId, richMenuLinkedId, richMenuUnlinkedId, active } = row
+  return { state: 'TAKEN', channel: { channelKey, providerId, messagingChannelId, channelSecret, channelAccessToken, liffId, liffChannelId, richMenuLinkedId, richMenuUnlinkedId, active } }
+}
+
+/**
+ * Puts a carried LINE channel on the (new) demo organization after the reset's seed: its secrets sealed again for this
+ * organization (NFR-SEC-07 binds them to it), replacing what the seed made from the LINE_* values, if anything
+ */
+export async function putLineChannel(organizationId: string, carried: CarriedLineChannel): Promise<void> {
+  const { channelSecret, channelAccessToken, ...values } = carried
+  await restoreLineChannelRow(organizationId, {
+    ...values,
+    channelSecretEnc: sealLineSecret(organizationId, 'channelSecret', channelSecret),
+    channelAccessTokenEnc: sealLineSecret(organizationId, 'channelAccessToken', channelAccessToken),
+  })
 }

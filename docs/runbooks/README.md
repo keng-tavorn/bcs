@@ -74,6 +74,7 @@
 | 7 deploy | "ใส่ค่า staging ใน Vercel ครบแล้ว deploy ได้" | deploy · migrate · build ตรวจว่าแอปใช้ role `bcs_app` · ตรวจ `/api/health` · sync Inngest แล้วบอกให้คุณกด seed ครั้งแรก ([p0-07-inngest.md](p0-07-inngest.md) ส่วนที่ 3) |
 | 7 2FA บน staging | "ต้องการตั้ง 2FA ของผู้ใช้ตัวอย่างบน staging" | ให้คำสั่งที่คุณรันในหน้าต่าง PowerShell ของคุณเอง แล้ววาง `SEED_TOTP_KEY` เมื่อคำสั่งถาม |
 | 8 seed ครั้งแรก | "seed staging แล้ว run Completed login ได้" | ตรวจว่างานเบื้องหลังทำงาน |
+| reset ก่อน demo | "reset staging แล้ว run Completed" | ตรวจผลแล้วบันทึกว่า D-07 เสร็จ (ครั้งแรก) |
 | 9 LINE | "สร้าง LINE channel ตาม line-demo-setup แล้ว ใส่ค่า LINE ใน Vercel แล้ว (ใช้ MINI App)" | deploy ใหม่ แล้วบอกเมื่อหน้าตั้งค่า LINE บน staging พร้อมให้คุณใส่ค่าเอง พร้อมวิธีสร้าง rich menu และวิธีหา webhook URL (ถ้า agent ต้องเขียนข้อมูลลงฐานข้อมูล staging จะขออนุมัติคุณก่อน) |
 | 10 webhook | "ใส่ค่าในหน้าตั้งค่า LINE แล้ว ใส่ webhook แล้ว Verify ผ่าน ปุ่มทดสอบผ่านทุกข้อ" | ตรวจซ้ำ แล้วรอคุณยืนยัน D-03 |
 
@@ -95,7 +96,7 @@
 
 ## เรื่องที่รอคุณตัดสิน
 
-1. **อีเมลของ staging (ADR-031)** ต้องตัดสินก่อน deploy ครั้งแรก เพราะแอปบน staging เริ่มไม่ได้ถ้าไม่มีค่า `EMAIL_PROVIDER` และ `EMAIL_FROM` ตัวเลือกและค่าที่ต้องใส่อยู่ใน [p0-08-vercel.md](p0-08-vercel.md) หัวข้อ B4
+1. ~~อีเมลของ staging (ADR-031)~~ **ตัดสินแล้ว 2026-10-07:** Mailtrap Email Sandbox ไม่ส่งออกจริง ผู้ส่ง `no-reply@bcs.local`
 2. ~~แผนของ Neon สำหรับ staging~~ **ตัดสินแล้ว 2026-10-07:** ใช้ Neon แบบ Free และให้งานที่รันตามรอบ 4 งาน (`outbox-sweeper` `consolidation` `report-schedules` `line-webhook-sweep`) รันทุก 30 นาทีเฉพาะบน staging (ADR-054) · local และ production ยังรันตาม spec §4.6 · คาดว่าใช้ราว 30 จาก 100 CU-hours ต่อเดือน ยังไม่รวมช่วงที่มีคนใช้งาน
 3. **Inngest Pro (เริ่ม US$99 ต่อเดือน) ยังไม่ต้องตัดสิน** หลัง ADR-054 staging ใช้ราว 12,000 จาก 50,000 executions ต่อเดือน ยังไม่รวมงานที่เกิดจากการใช้งาน (ก่อนหน้านี้ถ้ารันตาม spec จะใช้ราว 104,000 เพราะมีงานทุก 5 นาทีเพิ่มมาใน S4 และ S5) · agent จะแจ้งคุณถ้างานที่เพิ่มภายหลังทำให้ใกล้โควตา เพราะถ้าเกิน งานเบื้องหลังบน staging จะหยุดจนกว่าจะอัปเกรด
 4. **GitHub Pro** ถ้าต้องการให้ GitHub กัน merge เมื่อ CI ไม่ผ่านใน repo ส่วนตัว (FR-PLT-006 AC1)
@@ -104,6 +105,7 @@
 
 ## ตัดสินแล้ว (2026-10-02)
 
+- (2026-10-07) อีเมลของ staging ใช้ Mailtrap Email Sandbox (ADR-031) · reset staging ก่อน demo ด้วยปุ่ม `staging-demo-reset` ใน Inngest ที่ต้องพิมพ์ยืนยัน (ADR-056 · [DEMO_RUNBOOK.md](../DEMO_RUNBOOK.md) ข้อ 2)
 - (2026-10-07) Neon ของ staging ใช้แผน Free และงานตามรอบ 4 งานรันทุก 30 นาทีบน staging (ADR-054)
 - (2026-10-07) team Vercel `tavorn-bcs` ยังใช้แผน Hobby ตามที่คุณตัดสิน เพราะ demo รอบนี้ให้คนในครอบครัวดูคนเดียว · ก่อน demo กับลูกค้าต้องอัปเกรดเป็น Pro (ส่วน A1 ของ [p0-08-vercel.md](p0-08-vercel.md))
 - (2026-10-07) โดเมน staging คือ `https://www.budgetcontrolsystem.com` (`budgetcontrolsystem.com` redirect ไป www)

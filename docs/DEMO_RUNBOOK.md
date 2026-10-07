@@ -20,10 +20,16 @@
 ประวัติคำขอย้อนหลัง (ชีต `Demo_History`) นับวันย้อนจากวันที่ reset งานที่ค้างนับชั่วโมงทำการจากเวลานั้น จึง **reset ไม่เกินประมาณ 6 ชั่วโมงทำการก่อน demo** เพื่อให้กระดานค้างแสดง "H12 ค้าง 18 ชม. ที่ VP" ใกล้เคียงกับที่พูด
 
 - บนเครื่อง: `pnpm demo:reset`
-- บน staging (คนที่ดูแล staging เป็นผู้รันเอง เพราะข้อมูลบน staging ถูกลบทั้งหมด):
-  `pnpm demo:reset --env=.env.staging --confirm=DEMO-<วันที่วันนี้ เช่น 2026-10-20>`
-  - `.env.staging` คือค่าของ staging เก็บในเครื่องเท่านั้น ห้าม commit · **ยังใช้วิธีนี้ไม่ได้ (2026-10-07):** `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret เช่น `DATABASE_URL` `DIRECT_URL` และ `ENCRYPTION_KEY` วิธี reset staging ที่ใช้ได้รอคุณตัดสิน (NEW-70) · seed ครั้งแรกใช้ปุ่มใน Inngest ([p0-07-inngest.md](runbooks/p0-07-inngest.md) ส่วนที่ 3)
-  - คำสั่งตรวจไฟล์ inputs ก่อน ล้างฐาน สร้างตารางใหม่ แล้ว seed องค์กร DEMO พร้อมประวัติ demo · production ปฏิเสธเสมอ
+- บน staging (คนที่ดูแล staging เป็นผู้กดเอง เพราะข้อมูลบน staging ถูกลบทั้งหมด · ADR-056):
+  1. <https://app.inngest.com> → environment `staging` → เมนู **Functions** → กด `staging-demo-reset`
+  2. กด **Invoke** → ในช่องข้อมูลพิมพ์ `{"confirm": "DEMO-<วันที่วันนี้ตามเวลาไทย>"}` เช่น `{"confirm": "DEMO-2026-10-20"}` → กด **Invoke function**
+  3. หน้า **Runs** รอจนสถานะเป็น **Completed** (ราว 2–5 นาที) แล้วดู Output ว่ามี `"reset": true`
+     - `"refusal": "CONFIRMATION_MISMATCH"` คือพิมพ์คำยืนยันไม่ตรง Output บอกคำที่ถูก (`"expected"`) ไม่มีอะไรถูกลบ
+     - `"refusal": "OTHER_ORGANIZATIONS"` คือมีองค์กรอื่นนอกจาก DEMO อยู่ใน staging งานจึงไม่ลบอะไร ให้บอก agent
+     - ถ้าสถานะเป็น **Failed** ให้ส่งข้อความ error ให้ agent · ถ้าล้มที่ step `check` ยังไม่มีอะไรถูกลบ · ถ้าล้มหลัง step `wipe` กด Invoke ซ้ำด้วยคำยืนยันเดิมในวันเดียวกันได้
+  4. login ใหม่ทุกคน (session เดิมถูกล้างด้วย)
+  - ทางเดิม `pnpm demo:reset --env=.env.staging --confirm=DEMO-<วันที่>` ใช้ได้เฉพาะเมื่อมีค่าของ staging ครบในเครื่อง ซึ่ง `vercel env pull` ให้ไม่ได้เพราะค่าชนิด Secret ดึงลงเครื่องไม่ได้
+  - ทั้งสองทางตรวจไฟล์ inputs ก่อนล้าง แล้ว seed องค์กร DEMO พร้อมประวัติ demo · production ไม่มีวันล้างด้วยทางใด
 - หลัง reset: ผูก LINE ของมือถือ demo ใหม่ (ข้อ 1.4) แล้วเปิด `/admin/line` กดทดสอบการเชื่อมต่ออีกครั้ง
 
 **ปีงบของข้อมูล demo:** ชีตผูกกับปีงบ 2569 (ม.ค.–ธ.ค. 2026) ถ้า demo เกิดหลังสิ้นปี 2026 คำสั่ง reset จะหยุดและบอกให้เลื่อนปีในชีต Budget Holidays และ Demo_History (แก้ใน Excel แล้วรัน `pnpm inputs:check`)

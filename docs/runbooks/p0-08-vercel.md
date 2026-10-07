@@ -185,7 +185,7 @@ ENABLE_EXPERIMENTAL_COREPACK=1
 | `SENTRY_DSN` | เมื่อสมัคร Sentry (เป็น SHOULD) |
 | `RD_VAT_SERVICE_URL` `DBD_JURISTIC_API_URL` | เมื่อเปลี่ยน `REGISTRY_MODE` เป็น `live` (OQ-37) |
 
-### B4. อีเมลของ staging (รอคุณตัดสิน · ADR-031)
+### B4. อีเมลของ staging (ตัดสินแล้ว 2026-10-07: ทางเลือก 1 Mailtrap Email Sandbox · ADR-031)
 
 แอปบน staging เริ่มทำงานไม่ได้ถ้าไม่มี `EMAIL_PROVIDER` และ `EMAIL_FROM` (และ `EMAIL_SMTP_URL` เมื่อใช้ `smtp`) จึงต้องเลือกก่อน deploy ครั้งแรก
 

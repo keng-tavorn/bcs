@@ -43,8 +43,8 @@ describe('polling jobs on staging run every 30 minutes (ADR-054)', () => {
     expect(draftExpiry.opts).toMatchObject({ triggers: [{ cron: DRAFT_EXPIRY_CRON }] })
   })
 
-  it('[EG-3] staging also serves the job of its first seed (ADR-055)', () => {
-    expect(functions.map((f) => f.opts.id)).toContain('staging-first-seed')
+  it('[EG-3] staging also serves the jobs of its first seed and its demo reset (ADR-055, ADR-056)', () => {
+    expect(functions.map((f) => f.opts.id)).toEqual(expect.arrayContaining(['staging-first-seed', 'staging-demo-reset']))
   })
 
   it('[FR-PLT-008/AC1] /api/health on staging allows an outbox row to wait for the 30-minute sweeper, not longer', async () => {

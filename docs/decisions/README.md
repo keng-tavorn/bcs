@@ -42,7 +42,7 @@ ADR (Architecture Decision Record) คือบันทึกสั้น ๆ �
 | [ADR-028](ADR-028.md) | id เป็น UUID v7 | เสนอ |
 | [ADR-029](ADR-029.md) | แยก tenant ด้วย Prisma extension (RLS ภายหลัง) | เสนอ |
 | [ADR-030](ADR-030.md) | Transactional outbox ส่งต่อ Inngest | เสนอ |
-| [ADR-031](ADR-031.md) | ผู้ให้บริการอีเมล | ยังไม่ตัดสิน |
+| [ADR-031](ADR-031.md) | ผู้ให้บริการอีเมล | ตัดสินแล้วเฉพาะ staging |
 | [ADR-032](ADR-032.md) | Hosting เว็บ | ตัดสินแล้วเฉพาะ staging (ผู้ใช้ 2026-10-02) · production ยังไม่ตัดสิน |
 | [ADR-033](ADR-033.md) | ที่เก็บไฟล์ | ยังไม่ตัดสิน |
 | [ADR-034](ADR-034.md) | PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา | ตัดสินแล้ว |
@@ -67,6 +67,7 @@ ADR (Architecture Decision Record) คือบันทึกสั้น ๆ �
 | [ADR-053](ADR-053.md) | e2e ของฉาก demo บนฐานแยกและนาฬิกาจริง | เสนอ |
 | [ADR-054](ADR-054.md) | งานที่รันตามรอบบน staging รันทุก 30 นาที | ตัดสินแล้ว |
 | [ADR-055](ADR-055.md) | seed ครั้งแรกของ staging รันเป็นงาน Inngest บน Vercel และ build ตรวจ role ของแอป | เสนอ |
+| [ADR-056](ADR-056.md) | reset staging ก่อน demo ด้วยปุ่มใน Inngest ที่ต้องพิมพ์ยืนยัน | ตัดสินแล้ว |
 
 หมายเหตุ
 

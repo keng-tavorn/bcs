@@ -3216,7 +3216,7 @@ features:
 - [x] **S4-05** `[demo]` spike วิธีสร้าง PDF (OQ-18) → ADR → แม่แบบ PR และ PO พร้อมคำอ่านจำนวนเงิน — เสร็จ 2026-10-03 · 0e99907
   - เสร็จเมื่อ: มี ADR ของวิธีที่เลือก · เทสต์ AC ของ FR-PLT-009 และ snapshot ภาษาไทยผ่าน
   - แยกงาน: spike สองวิธีแยกให้ subagent วิธีละตัวได้ แล้วตรวจ snapshot ของทั้งสองเองก่อนเลือก
-- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS) — ติดอยู่: FR-NOTI-002 AC3 (SPF และ DKIM ของโดเมนผู้ส่ง) ต้องมีโดเมนและผู้ให้บริการอีเมลตาม ADR-031 ที่ยังไม่ตัดสิน · ส่วนอื่นทำแล้ว (fc57a66) และ e2e ของหน้า /a/[token] ผ่านแล้ว
+- [ ] **S4-06** `[demo]` adapter อีเมล ส่ง PO จัดการอีเมลตีกลับ และลิงก์ตัดสิน (demo ใช้ Mailpit หรือ inbox ของ BCS) — ติดอยู่: FR-NOTI-002 AC3 (SPF และ DKIM ของโดเมนผู้ส่ง) ต้องมีโดเมนผู้ส่งจริง แต่ staging ใช้ Mailtrap Email Sandbox กับ `no-reply@bcs.local` (ADR-031 · ผู้ใช้ 2026-10-07) ซึ่งไม่มีโดเมนให้ตรวจ รอผู้ใช้ตัดสินว่า AC3 ย้ายไปตรวจก่อน go-live ตาม §16.9 หรือไม่ · ส่วนอื่นทำแล้ว (fc57a66) และ e2e ของหน้า /a/[token] ผ่านแล้ว
   - เสร็จเมื่อ: เทสต์ AC ของ FR-P2P-005 FR-NOTI-002 ผ่าน
   - แยกงาน: ทำเองได้
 - [x] **S4-07** `[demo]` ตรวจรับบนเว็บและจอมือถือ + engine variance + เส้นทาง GRV — เสร็จ 2026-10-04 · 78cb3af
@@ -3379,7 +3379,7 @@ features:
 - [x] **D-06** `[demo]` audit ทั้งโค้ดเบสก่อน demo ตามรายการห้ามทำใน §17.3 — เสร็จ 2026-10-06 · e47d7d2
   - เสร็จเมื่อ: ตารางเดียว (โฟลเดอร์, กฎ, ผ่านหรือไม่, หลักฐาน) ไม่มีข้อไม่ผ่าน
   - แยกงาน: แยก subagent ต่อโฟลเดอร์ใน `src/` เมื่อรายงานกลับให้ตรวจหลักฐาน (ไฟล์และบรรทัด) ก่อนรับ
-- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง — ติดอยู่: "เสร็จเมื่อ" ต้องรันคำสั่ง reset บน staging · staging มีแล้ว (2026-10-07) แต่คำสั่ง reset ใน runbook ใช้กับค่าชนิด Secret ไม่ได้ รอผู้ใช้เลือกทางใน NEW-70 · runbook เขียนแล้ว (ลำดับฉาก บัญชีผู้ใช้ คำสั่ง `pnpm demo:reset` แผนสำรอง) และ reset บนเครื่องกับ `pnpm inputs:check` ผ่าน
+- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง — ติดอยู่: "เสร็จเมื่อ" ต้องรันคำสั่ง reset บน staging · staging มีแล้ว (2026-10-07) และ runbook ข้อ 2 ใช้ปุ่ม `staging-demo-reset` ใน Inngest (ADR-056 · NEW-70) รอผู้ดูแลกด reset บน staging หนึ่งครั้ง · runbook เขียนแล้ว (ลำดับฉาก บัญชีผู้ใช้ คำสั่ง `pnpm demo:reset` แผนสำรอง) และ reset บนเครื่องกับ `pnpm inputs:check` ผ่าน
   - เสร็จเมื่อ: คำสั่ง reset ใน runbook รันบน staging แล้วข้อมูลกลับเป็นสถานะก่อน demo และ `pnpm inputs:check` ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **D-08** `[demo]` `[คน]` ซ้อม demo บนมือถือจริงตาม runbook 1 รอบ รวม LINE และอัดวิดีโอสำรองฉาก 1–3
@@ -3600,10 +3600,10 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-68** `[demo]` staging ใช้แผนฟรีของ Neon และ Inngest (ผู้ใช้เลือก 2026-10-07) แต่งานตามรอบใน §4.6 ทำให้ฐานข้อมูลไม่ได้หลับ (ราว 182 จาก 100 CU-hours ต่อเดือน) และใช้ Inngest ราว 104,000 จาก 50,000 executions ต่อเดือน เพราะนอกจาก `outbox-sweeper` ทุก 1 นาที ยังมี `consolidation` `report-schedules` และ `line-webhook-sweep` ทุก 5 นาทีที่เพิ่มมาใน S4 และ S5 · ผู้ใช้ให้ลดทั้ง 4 งานเหลือทุก 30 นาทีเฉพาะ `APP_ENV=staging` (ADR-054) · พบระหว่างเตรียม deploy staging ครั้งแรก — เสร็จ 2026-10-07 · 167e37f
   - เสร็จเมื่อ: เทสต์ที่ local preview production ได้ cron และเกณฑ์ outbox ตาม spec ทุกตัว และฟังก์ชันงานจริงบน staging รันทุก 30 นาที ผ่าน · `pnpm verify` ผ่าน · §4.6 มีหมายเหตุชี้ ADR-054
   - แยกงาน: ทำเองได้
-- [ ] **NEW-69** `[demo]` seed ครั้งแรกและการตรวจ role ของแอปบน staging ทำจากเครื่องไม่ได้ เพราะ `DATABASE_URL` `DIRECT_URL` และค่าลับอื่นใน Vercel เป็นชนิด Secret ที่ไม่มีใครดึงกลับได้ และ build ของ Vercel รันที่ Washington ห่างฐานข้อมูลสิงคโปร์ราว 0.22 วินาทีต่อคำสั่ง (seed ราว 7,700 คำสั่ง command ในประวัติ demo จะเกินธุรกรรม 20 วินาที) · ทำเป็นงาน Inngest `staging-first-seed` ที่ลงทะเบียนเฉพาะ staging seed เฉพาะฐานว่าง ผู้ดูแลกด Invoke และ `pnpm db:check-role` ใน build (ADR-055) · พบระหว่าง deploy staging ครั้งแรก
+- [x] **NEW-69** `[demo]` seed ครั้งแรกและการตรวจ role ของแอปบน staging ทำจากเครื่องไม่ได้ เพราะ `DATABASE_URL` `DIRECT_URL` และค่าลับอื่นใน Vercel เป็นชนิด Secret ที่ไม่มีใครดึงกลับได้ และ build ของ Vercel รันที่ Washington ห่างฐานข้อมูลสิงคโปร์ราว 0.22 วินาทีต่อคำสั่ง (seed ราว 7,700 คำสั่ง command ในประวัติ demo จะเกินธุรกรรม 20 วินาที) · ทำเป็นงาน Inngest `staging-first-seed` ที่ลงทะเบียนเฉพาะ staging seed เฉพาะฐานว่าง ผู้ดูแลกด Invoke และ `pnpm db:check-role` ใน build (ADR-055) · พบระหว่าง deploy staging ครั้งแรก — เสร็จ 2026-10-07 · c8cce87
   - เสร็จเมื่อ: เทสต์ของการปฏิเสธ การลงทะเบียน ไฟล์ที่ส่งไปกับ `/api/inngest` และกฎ role ผ่าน · `pnpm verify` ผ่าน · log ของ build บน staging มี `db:check-role ผ่าน` · run ของ `staging-first-seed` บน staging เป็น Completed และผู้ใช้ login ด้วยผู้ใช้ตัวอย่างได้
   - แยกงาน: ทำเองได้ ยกเว้นการกด Invoke ซึ่งผู้ใช้ทำ
-- [ ] **NEW-70** `[demo]` คำสั่ง reset staging ใน `docs/DEMO_RUNBOOK.md` (`pnpm demo:reset --env=.env.staging`) ใช้ไม่ได้ เพราะ `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret จึงไม่มีทางได้ `.env.staging` ที่ครบ (รวม `ENCRYPTION_KEY` ที่ต้องตรงกับของ staging) · D-07 ต้องรันคำสั่ง reset บน staging · ทางเลือกที่ agent เสนอ: (ก) งาน Inngest เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `DEMO-<วันที่วันนี้>` แล้วล้างข้อมูลด้วย role migrator และ seed ใหม่บน Vercel แบบเดียวกับ NEW-69 (ข) ผู้ดูแลเก็บสำเนาค่าลับทุกตัวของ staging ไว้เองแล้วรันจากเครื่อง (ต้องสร้างค่าใหม่บางตัว) · การล้าง staging ต้องให้ผู้ใช้อนุมัติทุกครั้ง (spec §17.4) · พบระหว่าง deploy staging ครั้งแรก — รอยืนยัน
+- [ ] **NEW-70** `[demo]` คำสั่ง reset staging ใน `docs/DEMO_RUNBOOK.md` (`pnpm demo:reset --env=.env.staging`) ใช้ไม่ได้ เพราะ `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret จึงไม่มีทางได้ `.env.staging` ที่ครบ (รวม `ENCRYPTION_KEY` ที่ต้องตรงกับของ staging) · D-07 ต้องรันคำสั่ง reset บน staging · ทางเลือกที่ agent เสนอ: (ก) งาน Inngest เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `DEMO-<วันที่วันนี้>` แล้วล้างข้อมูลด้วย role migrator และ seed ใหม่บน Vercel แบบเดียวกับ NEW-69 (ข) ผู้ดูแลเก็บสำเนาค่าลับทุกตัวของ staging ไว้เองแล้วรันจากเครื่อง (ต้องสร้างค่าใหม่บางตัว) · การล้าง staging ต้องให้ผู้ใช้อนุมัติทุกครั้ง (spec §17.4) · พบระหว่าง deploy staging ครั้งแรก · ผู้ใช้เลือก (ก) 2026-10-07 (ADR-056) · ทำปุ่ม `staging-demo-reset` แล้ว — ติดอยู่: รอผู้ดูแลกด reset บน staging หนึ่งครั้ง
   - เสร็จเมื่อ: ผู้ใช้เลือกทาง · runbook บอกวิธีที่ใช้ได้จริง · เทสต์ของทางที่เลือกผ่าน · reset บน staging หนึ่งครั้งด้วยการอนุมัติของผู้ใช้แล้วข้อมูลกลับเป็นสถานะก่อน demo
   - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
 
@@ -3747,7 +3747,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-028 | id เป็น UUID v7 | เสนอ |
 | ADR-029 | แยก tenant ด้วย Prisma extension และเทสต์ที่สร้างอัตโนมัติ (RLS ภายหลัง) | เสนอ |
 | ADR-030 | Transactional outbox ส่งต่อ Inngest | เสนอ |
-| ADR-031 | ผู้ให้บริการอีเมล (Resend · Amazon SES · SMTP ของลูกค้า) — ชั่วคราวใช้ adapter SMTP และ Mailpit บนเครื่อง ต้องเลือกก่อน S4 | ยังไม่ตัดสิน |
+| ADR-031 | ผู้ให้บริการอีเมล (Resend · Amazon SES · SMTP ของลูกค้า) — ชั่วคราวใช้ adapter SMTP และ Mailpit บนเครื่อง ต้องเลือกก่อน S4 · staging ใช้ Mailtrap Email Sandbox ผู้ส่ง `no-reply@bcs.local` (ผู้ใช้ 2026-10-07) | ตัดสินแล้วเฉพาะ staging |
 | ADR-032 | Hosting เว็บ ต้องอยู่ภูมิภาคเดียวกับฐานข้อมูลและเปิด endpoint ให้ Inngest — staging ใช้ Vercel ภูมิภาคสิงคโปร์ (sin1) กับ seed และข้อมูลสังเคราะห์เท่านั้นจนกว่า OQ-19 ปิด · production ยังไม่ตัดสิน (Vercel · AWS · ผู้ให้บริการในไทย) | ตัดสินแล้วเฉพาะ staging |
 | ADR-033 | ที่เก็บไฟล์ (Cloudflare R2 · S3 · Neon Object Storage) — ชั่วคราวบนเครื่องใช้ RustFS ผ่าน S3 API (ADR-036) | ยังไม่ตัดสิน |
 | ADR-034 | PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ต้องมี contractRef และเหตุผล และแจ้ง ORG_ADMIN ส่วน ORG_ADMIN ดูอย่างเดียว | ตัดสินแล้ว |
@@ -3772,6 +3772,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-053 | e2e ของฉาก demo รันในโหมด demo บนฐานแยกที่มีประวัติ D-01 · ใช้นาฬิกาจริงและอ่านค่าที่ขึ้นกับเวลาจากฐานตอนรัน · นาฬิกาธุรกิจแยกเป็น NEW-63 | เสนอ |
 | ADR-054 | บน staging งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาที (อยู่ในโควตาฟรีของ Neon และ Inngest) · เกณฑ์ outbox ค้างของ health รอเพิ่ม 29 นาที และการเตือนมาที่รอบที่สองที่ส่งไม่ได้ · local และ production ตาม §4.6 | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
 | ADR-055 | seed ครั้งแรกของ staging รันเป็นงาน Inngest `staging-first-seed` บน Vercel สิงคโปร์ (ลงทะเบียนเฉพาะ staging · seed เฉพาะฐานว่างหรือ seed รอบก่อนที่หยุดก่อนประวัติ demo · ตรวจไฟล์ input และที่เก็บไฟล์ก่อนเขียน · ผู้ดูแลกด Invoke) เพราะค่าฐานข้อมูลเป็น Secret และ build รันที่ Washington · build ตรวจ role ของแอปหลัง migrate (`pnpm db:check-role`) | เสนอ |
+| ADR-056 | reset staging ก่อน demo ด้วยงาน Inngest `staging-demo-reset` เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `<รหัสองค์กร demo>-<วันที่วันนี้>` · ล้างทุกตารางยกเว้น `_prisma_migrations` ด้วย role migrator แล้ว seed ใหม่ · ปฏิเสธถ้ามีองค์กรอื่นนอกจาก demo | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
 
 ### 18.2 สมมติฐาน
 

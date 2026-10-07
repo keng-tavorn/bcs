@@ -12,6 +12,7 @@ import { notificationDeliver } from './notification-deliver'
 import { orgAuthorityApply } from './org-authority-apply'
 import { outboxSweeper } from './outbox-sweeper'
 import { reportSchedules } from './report-schedules'
+import { stagingDemoReset } from './staging-demo-reset'
 import { stagingFirstSeed } from './staging-first-seed'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
@@ -34,6 +35,7 @@ export const functions = [
   lineWebhookSweep,
   // S5-04: the rich menu of a LINE user follows their link (FR-LINE-004 AC3)
   lineRichMenu,
-  // ADR-055: the first seed of staging, started by hand from the Inngest dashboard; never registered anywhere else
-  ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed] : []),
+  // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
+  // never registered anywhere else
+  ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),
 ]

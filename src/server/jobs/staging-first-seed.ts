@@ -1,6 +1,6 @@
 import { systemClock } from '@/lib/clock'
 import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
-import { getEnv, type AppEnv } from '@/lib/env'
+import { getEnv, type AppEnv, type Env } from '@/lib/env'
 import { logger } from '@/lib/logger'
 import { inngest } from '@/server/inngest'
 import type { DemoHistoryReport } from '@/server/services/demo-history'
@@ -76,6 +76,20 @@ export async function runStagingFirstSeed(step: FirstSeedStep, deps: FirstSeedDe
   return result
 }
 
+/** The demo seed's base, as the step result both staging jobs keep (plain JSON) */
+export async function liveSeedBase(env: Env): Promise<FirstSeedBase> {
+  const seeded = await seedDemoBase(env, env.SEED_DEV_PASSWORD ?? '', systemClock)
+  return {
+    organizationId: seeded.organizationId,
+    orgCode: seeded.orgCode,
+    members: seeded.report.members.created,
+    twoFactor: seeded.report.twoFactorEnabled,
+    doaVersions: seeded.structure.doaVersions,
+    budgetLines: seeded.budget.lines,
+    suppliers: seeded.suppliers.suppliers,
+  }
+}
+
 /** The job's real dependencies, read when it runs */
 function liveDeps(): FirstSeedDeps {
   const env = getEnv()
@@ -84,30 +98,25 @@ function liveDeps(): FirstSeedDeps {
     password: env.SEED_DEV_PASSWORD,
     state: firstSeedState,
     preflight: firstSeedPreflight,
-    seedBase: async () => {
-      const seeded = await seedDemoBase(env, env.SEED_DEV_PASSWORD ?? '', systemClock)
-      return {
-        organizationId: seeded.organizationId,
-        orgCode: seeded.orgCode,
-        members: seeded.report.members.created,
-        twoFactor: seeded.report.twoFactorEnabled,
-        doaVersions: seeded.structure.doaVersions,
-        budgetLines: seeded.budget.lines,
-        suppliers: seeded.suppliers.suppliers,
-      }
-    },
+    seedBase: () => liveSeedBase(env),
     seedHistory: (organizationId) => seedDemoHistoryFromInputs(organizationId, env, systemClock),
   }
 }
 
 /** Inngest's step as the job's step: every step returns plain JSON already */
-function jobStep(step: { run: (id: string, fn: () => Promise<unknown>) => Promise<unknown> }): FirstSeedStep {
+export function jobStep(step: { run: (id: string, fn: () => Promise<unknown>) => Promise<unknown> }): FirstSeedStep {
   return { run: <T>(id: string, fn: () => Promise<T>) => step.run(id, fn) as Promise<T> }
 }
+
+/**
+ * One concurrency group for both staging jobs that write the demo data (this one and staging-demo-reset, ADR-056):
+ * Inngest runs one step of the group at a time across the environment, so a seed and a reset never write together
+ */
+export const STAGING_DEMO_DATA_CONCURRENCY = { limit: 1, scope: 'env', key: '"staging-demo-data"' } as const
 
 // retries 0: a failed run is looked at by people, never repeated by Inngest. Inngest may run several steps in one call
 // of /api/inngest; each call has up to its maxDuration of 300 s (the base is some 460 statements, the history some 7,000).
 export const stagingFirstSeed = inngest.createFunction(
-  { id: 'staging-first-seed', retries: 0, concurrency: { limit: 1 }, triggers: [{ event: STAGING_FIRST_SEED_EVENT }] },
+  { id: 'staging-first-seed', retries: 0, concurrency: STAGING_DEMO_DATA_CONCURRENCY, triggers: [{ event: STAGING_FIRST_SEED_EVENT }] },
   async ({ step }) => runStagingFirstSeed(jobStep(step), liveDeps()),
 )

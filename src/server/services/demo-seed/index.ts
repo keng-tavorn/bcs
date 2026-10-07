@@ -1,7 +1,9 @@
+import { THAI_TIME_ZONE } from '@/core/thai/date'
 import type { Clock } from '@/lib/clock'
 import type { Env } from '@/lib/env'
 import { checkBucket } from '@/integrations/storage'
 import { listOrganizationsForPlatform } from '@/server/db/lookups'
+import { wipeAllData } from '@/server/db/sql/staging-wipe'
 import { forTenant } from '@/server/db/tenant'
 import { seedBudget } from '@/server/seed/budget'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
@@ -78,4 +80,27 @@ export async function firstSeedPreflight(): Promise<void> {
   parseDemoOrgInput(workbook, loadOrgSettingsYaml())
   parseDemoHistory(workbook)
   await checkBucket()
+}
+
+// ---------- staging demo reset (ADR-056) ----------
+
+/** The demo organization's code, from the input workbook the seed reads (never from code, NG-12) */
+export async function demoOrgCode(): Promise<string> {
+  return parseDemoOrgInput(await loadInputWorkbook(), loadOrgSettingsYaml()).org.code
+}
+
+/** What the person types to reset staging: the demo organization's code and today in Thai time, as pnpm demo:reset asks */
+export function demoResetConfirmation(orgCode: string, now: Date): string {
+  const day = new Intl.DateTimeFormat('en-CA', { timeZone: THAI_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now)
+  return `${orgCode}-${day}`
+}
+
+/** Codes of the organizations in the database that are not the demo organization: the reset refuses while there is one */
+export async function otherOrganizations(demoCode: string): Promise<string[]> {
+  return (await listOrganizationsForPlatform()).map((o) => o.code).filter((code) => code !== demoCode)
+}
+
+/** Empties every table but the migration record, as the migrator; the caller has checked APP_ENV and the confirmation */
+export async function wipeDemoData(env: Env): Promise<number> {
+  return wipeAllData(env.DIRECT_URL)
 }

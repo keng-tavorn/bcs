@@ -11,6 +11,8 @@ import { expect, test } from './fixtures'
 // collide in the shared e2e database. Screenshots at 375 px and 1440 px go to the test output (§9.9 step 4).
 
 async function expectNoBlockingAxe(page: Page) {
+  // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
+  await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([])

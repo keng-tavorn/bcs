@@ -6,6 +6,8 @@ import { expect, test } from './fixtures'
 // req_con has no role, so no 2FA step (FR-AUTH-002 AC1 applies only to roles and DOA positions).
 
 async function expectNoBlockingAxe(page: Page) {
+  // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
+  await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([])

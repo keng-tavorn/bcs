@@ -110,6 +110,8 @@ test('[FR-PLT-004/AC1] other file types and renamed files are refused with a Tha
   const pdf = Buffer.from('%PDF-1.7\n' + 'x'.repeat(100) + '\n%%EOF\n', 'latin1')
   await anyFile.setInputFiles({ name: 'ใบเสนอราคา.pdf', mimeType: 'application/pdf', buffer: pdf })
   await expect(page.getByRole('status').filter({ hasText: 'แนบ ใบเสนอราคา.pdf แล้ว' })).toBeVisible()
+  // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
+  await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
   const results = await new AxeBuilder({ page }).analyze()
   expect(results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
 })

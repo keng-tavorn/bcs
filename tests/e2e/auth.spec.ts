@@ -10,6 +10,8 @@ import { expect, test } from './fixtures'
 // SEED_DEV_PASSWORD and the TOTP secret from SEED_TOTP_KEY (.env), exactly as the presenter's phone would.
 
 async function expectNoBlockingAxe(page: Page) {
+  // Next streams the <title> after the first HTML: let it arrive before axe reads the page (a page without one still fails)
+  await page.waitForFunction(() => document.title !== '', undefined, { timeout: 5_000 }).catch(() => undefined)
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help}`)).toEqual([])

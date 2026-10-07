@@ -1,3 +1,4 @@
+import { getEnv } from '@/lib/env'
 import { approvalTaskResume } from './approval-task-resume'
 import { approvalTaskSla } from './approval-task-sla'
 import { consolidationRound } from './consolidation'
@@ -11,6 +12,7 @@ import { notificationDeliver } from './notification-deliver'
 import { orgAuthorityApply } from './org-authority-apply'
 import { outboxSweeper } from './outbox-sweeper'
 import { reportSchedules } from './report-schedules'
+import { stagingFirstSeed } from './staging-first-seed'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
 export const functions = [
@@ -32,4 +34,6 @@ export const functions = [
   lineWebhookSweep,
   // S5-04: the rich menu of a LINE user follows their link (FR-LINE-004 AC3)
   lineRichMenu,
+  // ADR-055: the first seed of staging, started by hand from the Inngest dashboard; never registered anywhere else
+  ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed] : []),
 ]

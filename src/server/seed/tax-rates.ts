@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod'
 import { systemDb } from '@/server/db/system'
@@ -7,7 +6,9 @@ import { systemDb } from '@/server/db/system'
 // TaxRate seed (spec §7.1, BR-VAT-01): the dated VAT rates of prisma/seed/tax-rates.yaml. The rate is data, never a
 // number in code. Running again adds nothing: a row is matched by its code and first day.
 
-export const TAX_RATES_PATH = path.resolve(import.meta.dirname, '../../../prisma/seed/tax-rates.yaml')
+// From the project root, like the input workbook: scripts and tests run there, and so does the staging seed job on
+// Vercel, where next.config.ts traces this file into the /api/inngest function (ADR-055)
+export const TAX_RATES_PATH = 'prisma/seed/tax-rates.yaml'
 
 const DateText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const TaxRatesFile = z.strictObject({

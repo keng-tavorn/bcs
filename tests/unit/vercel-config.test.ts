@@ -19,10 +19,11 @@ describe('Vercel staging deploy config (ADR-032)', () => {
     for (const rule of ['.env', '.env.*', '.e2e-runs/', 'scratch/', 'src/server/db/generated/']) expect(vercel.has(rule), rule).toBe(true)
   })
 
-  it('[EG-3] vercel.json builds Next.js in Singapore and migrates before the build', () => {
+  it('[EG-3] vercel.json builds Next.js in Singapore, migrates before the build and checks the role the app runs as', () => {
     const config = JSON.parse(readFileSync(path.join(ROOT, 'vercel.json'), 'utf8')) as Record<string, unknown>
     expect(config.framework).toBe('nextjs')
     expect(config.regions).toEqual(['sin1'])
-    expect(config.buildCommand).toBe('pnpm db:migrate && pnpm build')
+    // FR-PLT-006 AC3: the migrator migrates, then the build stops unless the app role is bcs_app (scripts/check-runtime-role.ts)
+    expect(config.buildCommand).toBe('pnpm db:migrate && pnpm db:check-role && pnpm build')
   })
 })

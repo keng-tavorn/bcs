@@ -48,7 +48,7 @@
 - [ ] 6. ตัดสินเรื่องอีเมลของ staging แล้ว และใส่ค่า `EMAIL_*` แล้ว
 - [ ] 6b. ตัดสินเรื่องแผนของ Neon แล้ว ("เรื่องที่รอคุณตัดสิน" ข้อ 2)
 - [ ] 7. Vercel ส่วน B: ค่าลับที่สร้างเอง 4 ตัวและค่าคงที่อยู่ใน Vercel แล้ว · เก็บ `SEED_DEV_PASSWORD` และ `SEED_TOTP_KEY` ในโปรแกรมจัดการรหัสผ่านแล้ว · agent deploy สำเร็จ และ `/api/health` ตอบ 200
-- [ ] 8. Inngest: sync แล้ว และเห็นฟังก์ชันของแอป
+- [ ] 8. Inngest: เห็นแอปและฟังก์ชันในหน้า Apps (agent sync ให้) · กด Invoke ที่ `staging-first-seed` แล้ว run เป็น Completed · login staging ได้
 - [ ] 9. LINE ส่วนที่ 1–2: สร้าง provider OA และ channel แล้ว ใส่ค่า LINE 7 ตัวและ `NEXT_PUBLIC_LIFF_ID` ตามตารางในส่วนที่ 2 ใน Vercel แล้ว
 - [ ] 10. LINE ส่วนที่ 3: ใส่ค่าในหน้าตั้งค่า LINE บน staging แล้ว · มี rich menu แล้ว · ใส่ webhook URL แล้ว Verify ผ่าน · ปุ่มทดสอบการเชื่อมต่อบน staging ผ่านทุกข้อ
 - [ ] 11. ทดสอบหน้า LIFF บนมือถือคนนอกทีมที่เชิญเป็น Tester แล้ว (spec §16.10)
@@ -71,9 +71,9 @@
 | 5 Inngest | "ใส่ key ของ Inngest (environment staging) ใน Vercel แล้ว" | รอ deploy ครั้งแรก |
 | 6 อีเมล | "เลือกอีเมลของ staging แบบ <ทางเลือก> และใส่ค่า EMAIL_* แล้ว" | บันทึกการตัดสินใน ADR-031 |
 | 6b แผน Neon | "เลือกแผน Neon ของ staging แบบ <ก หรือ ข>" | ถ้าเลือก (ข) ปรับความถี่งานบน staging · บันทึกการตัดสินเป็น ADR |
-| 7 deploy | "ใส่ค่า staging ใน Vercel ครบแล้ว deploy ได้" | deploy · migrate และ seed ครั้งแรก · ตรวจว่าแอปใช้ role `bcs_app` · ตรวจ `/api/health` แล้วรายงาน |
+| 7 deploy | "ใส่ค่า staging ใน Vercel ครบแล้ว deploy ได้" | deploy · migrate · build ตรวจว่าแอปใช้ role `bcs_app` · ตรวจ `/api/health` · sync Inngest แล้วบอกให้คุณกด seed ครั้งแรก ([p0-07-inngest.md](p0-07-inngest.md) ส่วนที่ 3) |
 | 7 2FA บน staging | "ต้องการตั้ง 2FA ของผู้ใช้ตัวอย่างบน staging" | ให้คำสั่งที่คุณรันในหน้าต่าง PowerShell ของคุณเอง แล้ววาง `SEED_TOTP_KEY` เมื่อคำสั่งถาม |
-| 8 sync Inngest | "sync Inngest แล้ว เห็นฟังก์ชัน <จำนวน> ตัว" | ตรวจว่างานเบื้องหลังทำงาน |
+| 8 seed ครั้งแรก | "seed staging แล้ว run Completed login ได้" | ตรวจว่างานเบื้องหลังทำงาน |
 | 9 LINE | "สร้าง LINE channel ตาม line-demo-setup แล้ว ใส่ค่า LINE ใน Vercel แล้ว (ใช้ MINI App)" | deploy ใหม่ แล้วบอกเมื่อหน้าตั้งค่า LINE บน staging พร้อมให้คุณใส่ค่าเอง พร้อมวิธีสร้าง rich menu และวิธีหา webhook URL (ถ้า agent ต้องเขียนข้อมูลลงฐานข้อมูล staging จะขออนุมัติคุณก่อน) |
 | 10 webhook | "ใส่ค่าในหน้าตั้งค่า LINE แล้ว ใส่ webhook แล้ว Verify ผ่าน ปุ่มทดสอบผ่านทุกข้อ" | ตรวจซ้ำ แล้วรอคุณยืนยัน D-03 |
 

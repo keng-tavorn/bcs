@@ -245,10 +245,9 @@ spec และโค้ดยังไม่มีตัวแปรสำหร
 
 ### B6. agent จะทำอะไรต่อ
 
-1. deploy ด้วย `vercel deploy --prod` (ไฟล์ `.vercelignore` ทำไว้แล้วตั้งแต่ส่วน A) และ migrate กับ seed ครั้งแรก ซึ่งคุณอนุมัติแล้ว (2026-10-02) การ reset หรือแก้ข้อมูลบน staging ครั้งต่อไป agent ต้องถามคุณก่อน
-2. ตรวจว่าแอปบน staging เชื่อมต่อฐานข้อมูลด้วย role `bcs_app` และ `bcs_app` แก้ตาราง `Event` ไม่ได้ ([p0-05-neon-staging.md](p0-05-neon-staging.md) ขั้นที่ 10)
-3. ตรวจว่า `https://<โดเมน staging>/api/health` ตอบ 200 พร้อม commit sha (S1-14) แล้วรายงานผล
-4. บอกให้คุณทำส่วนที่ 2 ของ [p0-07-inngest.md](p0-07-inngest.md) (sync)
+1. deploy ด้วย `vercel deploy --prod` (ไฟล์ `.vercelignore` ทำไว้แล้วตั้งแต่ส่วน A) · build จะ migrate แล้วตรวจว่าแอปเชื่อมต่อฐานข้อมูลด้วย role `bcs_app` และ `bcs_app` แก้ตาราง `Event` ไม่ได้ (`pnpm db:check-role` · [p0-05-neon-staging.md](p0-05-neon-staging.md) ขั้นที่ 10) ถ้าไม่ผ่าน build หยุดและเว็บเดิมยังทำงาน
+2. ตรวจว่า `https://<โดเมน staging>/api/health` ตอบ 200 พร้อม commit sha (S1-14) แล้วรายงานผล
+3. sync แอปกับ Inngest ด้วยคำขอ `PUT` แล้วบอกให้คุณกด seed ครั้งแรกตามส่วนที่ 3 ของ [p0-07-inngest.md](p0-07-inngest.md) (การ seed ครั้งแรกคุณอนุมัติแล้ว 2026-10-02 · การ reset หรือแก้ข้อมูลบน staging ครั้งต่อไป agent ต้องถามคุณก่อน)
 
 ## หลังจากนี้
 

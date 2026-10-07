@@ -26,6 +26,7 @@
     "spec:check": "node scripts/py.mjs scripts/spec_check.py spec.md",
     "inputs:check": "node scripts/py.mjs scripts/validate_inputs.py docs/inputs/BCS_inputs_v1_demo.xlsx --spec spec.md",
     "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:check-role": "tsx scripts/check-runtime-role.ts",
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
     "db:reset": "tsx --env-file-if-exists=.env scripts/db-reset.ts",
     "line:fake": "tsx --env-file-if-exists=.env scripts/fake-line.ts",

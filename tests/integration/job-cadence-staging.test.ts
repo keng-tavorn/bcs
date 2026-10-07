@@ -17,6 +17,7 @@ const { lineWebhookSweep } = await import('@/server/jobs/line-webhook')
 const { dailyDigest, DAILY_DIGEST_CRON } = await import('@/server/jobs/daily-digest')
 const { draftExpiry, DRAFT_EXPIRY_CRON } = await import('@/server/jobs/draft-expiry')
 const { checkHealth, inngestProbeWith } = await import('@/server/services/health')
+const { functions } = await import('@/server/jobs')
 
 const ok = async () => {}
 
@@ -40,6 +41,10 @@ describe('polling jobs on staging run every 30 minutes (ADR-054)', () => {
   it('[FR-PLT-012/AC3] jobs that already run once a day keep their spec schedule on staging', () => {
     expect(dailyDigest.opts).toMatchObject({ triggers: [{ cron: DAILY_DIGEST_CRON }] })
     expect(draftExpiry.opts).toMatchObject({ triggers: [{ cron: DRAFT_EXPIRY_CRON }] })
+  })
+
+  it('[EG-3] staging also serves the job of its first seed (ADR-055)', () => {
+    expect(functions.map((f) => f.opts.id)).toContain('staging-first-seed')
   })
 
   it('[FR-PLT-008/AC1] /api/health on staging allows an outbox row to wait for the 30-minute sweeper, not longer', async () => {

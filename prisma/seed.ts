@@ -10,17 +10,11 @@ import { systemClock } from '@/lib/clock'
 import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { prisma } from '@/server/db/client'
-import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
-import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
-import { seedBudget } from '@/server/seed/budget'
-import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
-import { approversWithoutPin, seedDevPins, type SeedPinsReport } from '@/server/seed/pins'
-import { seedSuppliers } from '@/server/seed/suppliers'
-import { seedTaxRates } from '@/server/seed/tax-rates'
-import { DemoHistoryIncompleteError, DemoHistoryNetError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError, seedDemoHistory } from '@/server/services/demo-history'
-import { describeLineSeed, seedLineChannel } from '@/server/services/line-channel'
+import type { SeedPinsReport } from '@/server/seed/pins'
+import { DemoHistoryIncompleteError, DemoHistoryNetError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError } from '@/server/services/demo-history'
+import { seedDemoBase, seedDemoHistoryFromInputs } from '@/server/services/demo-seed'
+import { describeLineSeed } from '@/server/services/line-channel'
 import { ensureBucket } from '../scripts/storage-init'
-import { loadInputWorkbook } from '@/server/seed/workbook'
 
 const SEED_ENVS = new Set(['local', 'staging'])
 
@@ -56,26 +50,12 @@ if (!password || password.length < PASSWORD_MIN_LENGTH) stop(`ใส่ SEED_DEV
 const totpKey = env.SEED_TOTP_KEY
 
 try {
-  const taxRates = await seedTaxRates()
-  const workbook = await loadInputWorkbook()
-  const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
-  const report = await seedDemoOrganization(input, { password, ...(totpKey ? { totpKey } : {}), now: systemClock.now() })
-  const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), systemClock.now())
-  const budget = await seedBudget(report.organizationId, parseBudget(workbook), systemClock.now())
-  const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, systemClock.now())
-  // The LINE channel from the LINE_* values of .env, when they are set (S5-01)
-  const lineChannel = await seedLineChannel(report.organizationId, env, systemClock.now())
-  // The transaction PIN of the demo approvers (S5-05, FR-AUTH-005, ADR-047 item 9): SEED_DEV_PIN when it is set, and the
-  // approvers who do not hold it then (another PIN of their own, or locked) by employee code; without it nobody gets a
-  // PIN, the approvers set their own at /settings/pin, and the history steps up with a one-time PIN. Never printed.
-  const seedPin = env.SEED_DEV_PIN ?? null
-  const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, systemClock.now()) : null
-  const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, systemClock.now()) : []
+  const { orgCode, taxRates, report, structure, budget, suppliers, lineChannel, pins, pinless, organizationId } = await seedDemoBase(env, password, systemClock)
   // On this machine the seed makes the local bucket itself (scripts/storage-init.ts); elsewhere the bucket is set up by people (P0-06)
   if (process.env.SEED_DEMO_HISTORY !== '0' && env.APP_ENV === 'local') await ensureBucket()
-  const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistory(report.organizationId, parseDemoHistory(workbook), systemClock.now(), { pin: seedPin })
+  const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistoryFromInputs(organizationId, env, systemClock)
   console.log(
-    `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${input.org.code} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
+    `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${orgCode} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
       `สมาชิกใหม่ ${report.members.created} มีอยู่แล้ว ${report.members.existing} · บทบาทใหม่ ${report.rolesGranted} · ` +
       (totpKey ? `ตั้ง 2FA ใหม่ ${report.twoFactorEnabled}` : 'ไม่มี SEED_TOTP_KEY: ผู้ใช้ที่ต้องใช้ 2FA จะตั้งแอปยืนยันตัวตนตอนเข้าระบบครั้งแรก') +
       ` · แผนกใหม่ ${structure.departments} · ตำแหน่งใหม่ ${structure.positions} · ผู้ดำรงตำแหน่งใหม่ ${structure.assignments}` +

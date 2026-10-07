@@ -69,6 +69,8 @@ signing key ใช้ยืนยันว่าคำขอที่เข้�
 
 ทำเมื่อ agent บอกว่า deploy staging สำเร็จ และ `https://<โดเมน staging>/api/health` ตอบ 200 แล้ว
 
+ตั้งแต่ 2026-10-07 agent sync ให้เองหลัง deploy ด้วยคำขอ `PUT` (ดูท้ายส่วนนี้) คุณแค่เปิดหน้า **Apps** ตามข้อ 1 และข้อ 5 เพื่อตรวจว่ามีแอปของเรา ถ้าไม่มีจึงทำข้อ 2–4 เอง แล้วไปที่ส่วนที่ 3
+
 1. เปิด <https://app.inngest.com> → สลับไป environment `staging`
 2. เมนู **Apps** → กด **Sync new app**
 3. วาง URL: `https://<โดเมน staging>/api/inngest`
@@ -80,6 +82,20 @@ signing key ใช้ยืนยันว่าคำขอที่เข้�
 6. พิมพ์บอก agent: "sync Inngest แล้ว เห็นฟังก์ชัน <จำนวน> ตัว"
 
 ทุกครั้งที่ deploy ใหม่ต้อง sync ใหม่ Inngest จึงจะเห็นฟังก์ชันล่าสุด agent ทำเองได้ด้วยการส่งคำขอ `PUT` ไปที่ `https://<โดเมน staging>/api/inngest` หลัง deploy (ไม่ต้องใช้ค่าลับ) หรือคุณกด sync ซ้ำที่หน้า **Apps** ก็ได้
+
+## ส่วนที่ 3 · seed ข้อมูลตัวอย่างครั้งแรก (กดครั้งเดียว)
+
+ฐานข้อมูล staging ยังว่างหลัง deploy ครั้งแรก การ seed ครั้งแรกคุณอนุมัติไว้แล้ว (ADR-038 ข้อ 14) แต่ต้องรันบน Vercel เพราะมีแค่ Vercel ที่รู้รหัสฐานข้อมูล (ADR-055) จึงเริ่มด้วยการกดปุ่มที่ Inngest
+
+1. <https://app.inngest.com> → environment `staging` → เมนู **Functions** → กดชื่อ `staging-first-seed`
+2. กดปุ่ม **Invoke** (มุมขวาบน) → ช่องข้อมูลปล่อยเป็น `{}` ตามเดิม → กด **Invoke function**
+3. หน้า **Runs** จะเห็น run ใหม่ รอจนสถานะเป็น **Completed** (ราว 1–4 นาที) กดเปิด run แล้วดูว่า Output มี `"seeded": true`
+   - ถ้าได้ `"refusal": "NOT_EMPTY"` แปลว่าฐานข้อมูลมีข้อมูลอยู่แล้ว งานไม่ได้แตะอะไร
+   - ถ้าสถานะเป็น **Failed** ให้คัดลอกข้อความ error (ไม่มีค่าลับ) ส่งให้ agent และอย่ากด Invoke ซ้ำ
+4. ลอง login ที่ `https://<โดเมน staging>/login` ด้วย `admin@demo.bcs.local` และรหัสผ่าน `SEED_DEV_PASSWORD` ที่เก็บไว้ในโปรแกรมจัดการรหัสผ่าน
+5. พิมพ์บอก agent: "seed staging แล้ว run Completed login ได้"
+
+งานนี้ seed เฉพาะฐานข้อมูลที่ยังไม่มีองค์กร จึงกดซ้ำแล้วไม่แตะข้อมูลที่มีอยู่ · การล้างแล้ว seed ใหม่ก่อน demo เป็นอีกเรื่อง (NEW-70)
 
 ### ถ้า sync ไม่ผ่าน
 

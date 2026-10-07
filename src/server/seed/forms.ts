@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import { z } from 'zod'
 import { FormSchemaJson } from '@/server/forms/schema'
@@ -7,7 +6,9 @@ import { FormSchemaJson } from '@/server/forms/schema'
 // Forms of the demo request types (spec §7.9, BR-FORM-04 to BR-FORM-06): prisma/seed/forms.yaml, in the JSON shape
 // ORG_ADMIN imports (FR-ADM-005). Lists may hold the shared parts (YAML aliases), so one level of nesting is flattened.
 
-export const SEED_FORMS_PATH = path.resolve(import.meta.dirname, '../../../prisma/seed/forms.yaml')
+// From the project root, like the input workbook: scripts and tests run there, and so does the staging seed job on
+// Vercel, where next.config.ts traces this file into the /api/inngest function (ADR-055)
+export const SEED_FORMS_PATH = 'prisma/seed/forms.yaml'
 
 const FormsFile = z.strictObject({ shared: z.unknown().optional(), forms: z.record(z.string(), z.record(z.string(), z.unknown())) })
 

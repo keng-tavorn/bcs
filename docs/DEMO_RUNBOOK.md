@@ -22,7 +22,7 @@
 - บนเครื่อง: `pnpm demo:reset`
 - บน staging (คนที่ดูแล staging เป็นผู้รันเอง เพราะข้อมูลบน staging ถูกลบทั้งหมด):
   `pnpm demo:reset --env=.env.staging --confirm=DEMO-<วันที่วันนี้ เช่น 2026-10-20>`
-  - `.env.staging` คือค่าของ staging ที่ดึงจาก Vercel (`vercel env pull .env.staging`) เก็บในเครื่องเท่านั้น ห้าม commit
+  - `.env.staging` คือค่าของ staging เก็บในเครื่องเท่านั้น ห้าม commit · **ยังใช้วิธีนี้ไม่ได้ (2026-10-07):** `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret เช่น `DATABASE_URL` `DIRECT_URL` และ `ENCRYPTION_KEY` วิธี reset staging ที่ใช้ได้รอคุณตัดสิน (NEW-70) · seed ครั้งแรกใช้ปุ่มใน Inngest ([p0-07-inngest.md](runbooks/p0-07-inngest.md) ส่วนที่ 3)
   - คำสั่งตรวจไฟล์ inputs ก่อน ล้างฐาน สร้างตารางใหม่ แล้ว seed องค์กร DEMO พร้อมประวัติ demo · production ปฏิเสธเสมอ
 - หลัง reset: ผูก LINE ของมือถือ demo ใหม่ (ข้อ 1.4) แล้วเปิด `/admin/line` กดทดสอบการเชื่อมต่ออีกครั้ง
 

@@ -3091,7 +3091,7 @@ features:
 - [x] **S1-13** `[demo]` seed loader อ่าน `docs/inputs/BCS_inputs_v1_demo.xlsx` ชีต Org และ Users + ตัวกัน `db:reset` — เสร็จ 2026-10-03 · 594ac37
   - เสร็จเมื่อ: `pnpm inputs:check` ผ่าน · `pnpm db:reset && pnpm db:seed` สร้างองค์กรและผู้ใช้เท่าจำนวนแถวในชีต (เทสต์นับเอง) รันซ้ำแล้วไม่ซ้ำ · เทสต์ AC ของ FR-PLT-001 FR-PLT-007 ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check` — ติดอยู่: ส่วน CI รอ GitHub repo (ADR-038 ข้อ 2) และส่วน staging รอบัญชี P0-05 ถึง P0-08 · ส่วนที่ทำบนเครื่องเสร็จแล้ว (`/api/health` `.github/workflows/ci.yml` `vercel.json` และ `pnpm verify` ที่รวม `spec:check` กับ `inputs:check`)
+- [ ] **S1-14** `[demo]` GitHub Actions + deploy staging + `/api/health` + `scripts/verify.ts` ที่รวม `spec:check` และ `inputs:check` — ติดอยู่: ส่วน CI รอ GitHub repo (ADR-038 ข้อ 2) · ส่วน staging deploy แล้ว 2026-10-07 (`https://www.budgetcontrolsystem.com/api/health` ตอบ 200 พร้อม commit) แต่การ deploy อัตโนมัติเมื่อ merge `main` ต้องมี CI · ส่วนที่ทำบนเครื่องเสร็จแล้ว (`/api/health` `.github/workflows/ci.yml` `vercel.json` และ `pnpm verify` ที่รวม `spec:check` กับ `inputs:check`)
   - เสร็จเมื่อ: PR ทดสอบรัน `pnpm verify` ใน CI · merge แล้ว staging ตอบ `/api/health` 200 พร้อม commit sha · เทสต์ AC ของ FR-PLT-006 FR-PLT-008 ผ่าน · ถ้ายังไม่มีบัญชี hosting ให้ติดไว้ที่ P0-08 · ส่วน CI (PR และ merge) ติดไว้จนกว่าผู้ใช้จะเปิดใช้ GitHub (ADR-038 ข้อ 2) แล้วทำข้ออื่นต่อ
   - แยกงาน: ทำเองได้
 
@@ -3379,7 +3379,7 @@ features:
 - [x] **D-06** `[demo]` audit ทั้งโค้ดเบสก่อน demo ตามรายการห้ามทำใน §17.3 — เสร็จ 2026-10-06 · e47d7d2
   - เสร็จเมื่อ: ตารางเดียว (โฟลเดอร์, กฎ, ผ่านหรือไม่, หลักฐาน) ไม่มีข้อไม่ผ่าน
   - แยกงาน: แยก subagent ต่อโฟลเดอร์ใน `src/` เมื่อรายงานกลับให้ตรวจหลักฐาน (ไฟล์และบรรทัด) ก่อนรับ
-- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง — ติดอยู่: "เสร็จเมื่อ" ต้องรันคำสั่ง reset บน staging ซึ่งรอบัญชี P0-05 ถึง P0-08 · runbook เขียนแล้ว (ลำดับฉาก บัญชีผู้ใช้ คำสั่ง `pnpm demo:reset` แผนสำรอง) และ reset บนเครื่องกับ `pnpm inputs:check` ผ่าน
+- [ ] **D-07** `[demo]` เขียน `docs/DEMO_RUNBOOK.md`: ลำดับฉาก บัญชีผู้ใช้ (รหัสผ่านจาก env) คำสั่ง reset ข้อมูลคำสั่งเดียว และแผนสำรอง — ติดอยู่: "เสร็จเมื่อ" ต้องรันคำสั่ง reset บน staging · staging มีแล้ว (2026-10-07) แต่คำสั่ง reset ใน runbook ใช้กับค่าชนิด Secret ไม่ได้ รอผู้ใช้เลือกทางใน NEW-70 · runbook เขียนแล้ว (ลำดับฉาก บัญชีผู้ใช้ คำสั่ง `pnpm demo:reset` แผนสำรอง) และ reset บนเครื่องกับ `pnpm inputs:check` ผ่าน
   - เสร็จเมื่อ: คำสั่ง reset ใน runbook รันบน staging แล้วข้อมูลกลับเป็นสถานะก่อน demo และ `pnpm inputs:check` ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **D-08** `[demo]` `[คน]` ซ้อม demo บนมือถือจริงตาม runbook 1 รอบ รวม LINE และอัดวิดีโอสำรองฉาก 1–3
@@ -3600,6 +3600,12 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-68** `[demo]` staging ใช้แผนฟรีของ Neon และ Inngest (ผู้ใช้เลือก 2026-10-07) แต่งานตามรอบใน §4.6 ทำให้ฐานข้อมูลไม่ได้หลับ (ราว 182 จาก 100 CU-hours ต่อเดือน) และใช้ Inngest ราว 104,000 จาก 50,000 executions ต่อเดือน เพราะนอกจาก `outbox-sweeper` ทุก 1 นาที ยังมี `consolidation` `report-schedules` และ `line-webhook-sweep` ทุก 5 นาทีที่เพิ่มมาใน S4 และ S5 · ผู้ใช้ให้ลดทั้ง 4 งานเหลือทุก 30 นาทีเฉพาะ `APP_ENV=staging` (ADR-054) · พบระหว่างเตรียม deploy staging ครั้งแรก
   - เสร็จเมื่อ: เทสต์ที่ local preview production ได้ cron และเกณฑ์ outbox ตาม spec ทุกตัว และฟังก์ชันงานจริงบน staging รันทุก 30 นาที ผ่าน · `pnpm verify` ผ่าน · §4.6 มีหมายเหตุชี้ ADR-054
   - แยกงาน: ทำเองได้
+- [ ] **NEW-69** `[demo]` seed ครั้งแรกและการตรวจ role ของแอปบน staging ทำจากเครื่องไม่ได้ เพราะ `DATABASE_URL` `DIRECT_URL` และค่าลับอื่นใน Vercel เป็นชนิด Secret ที่ไม่มีใครดึงกลับได้ และ build ของ Vercel รันที่ Washington ห่างฐานข้อมูลสิงคโปร์ราว 0.22 วินาทีต่อคำสั่ง (seed ราว 7,700 คำสั่ง command ในประวัติ demo จะเกินธุรกรรม 20 วินาที) · ทำเป็นงาน Inngest `staging-first-seed` ที่ลงทะเบียนเฉพาะ staging seed เฉพาะฐานว่าง ผู้ดูแลกด Invoke และ `pnpm db:check-role` ใน build (ADR-055) · พบระหว่าง deploy staging ครั้งแรก
+  - เสร็จเมื่อ: เทสต์ของการปฏิเสธ การลงทะเบียน ไฟล์ที่ส่งไปกับ `/api/inngest` และกฎ role ผ่าน · `pnpm verify` ผ่าน · log ของ build บน staging มี `db:check-role ผ่าน` · run ของ `staging-first-seed` บน staging เป็น Completed และผู้ใช้ login ด้วยผู้ใช้ตัวอย่างได้
+  - แยกงาน: ทำเองได้ ยกเว้นการกด Invoke ซึ่งผู้ใช้ทำ
+- [ ] **NEW-70** `[demo]` คำสั่ง reset staging ใน `docs/DEMO_RUNBOOK.md` (`pnpm demo:reset --env=.env.staging`) ใช้ไม่ได้ เพราะ `vercel env pull` ได้ค่าว่างสำหรับค่าชนิด Secret จึงไม่มีทางได้ `.env.staging` ที่ครบ (รวม `ENCRYPTION_KEY` ที่ต้องตรงกับของ staging) · D-07 ต้องรันคำสั่ง reset บน staging · ทางเลือกที่ agent เสนอ: (ก) งาน Inngest เฉพาะ staging ที่ผู้ดูแลกด Invoke พร้อมพิมพ์ยืนยัน `DEMO-<วันที่วันนี้>` แล้วล้างข้อมูลด้วย role migrator และ seed ใหม่บน Vercel แบบเดียวกับ NEW-69 (ข) ผู้ดูแลเก็บสำเนาค่าลับทุกตัวของ staging ไว้เองแล้วรันจากเครื่อง (ต้องสร้างค่าใหม่บางตัว) · การล้าง staging ต้องให้ผู้ใช้อนุมัติทุกครั้ง (spec §17.4) · พบระหว่าง deploy staging ครั้งแรก — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้เลือกทาง · runbook บอกวิธีที่ใช้ได้จริง · เทสต์ของทางที่เลือกผ่าน · reset บน staging หนึ่งครั้งด้วยการอนุมัติของผู้ใช้แล้วข้อมูลกลับเป็นสถานะก่อน demo
+  - แยกงาน: ทำเองได้หลังผู้ใช้ยืนยัน
 
 ---
 
@@ -3765,6 +3771,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-052 | งบ JavaScript เริ่มต้นของหน้า LIFF นับแบบเข้ม (ไฟล์ script รวม LINE SDK และข้อมูลหน้าที่ฝังใน HTML ทั้งสองแบบที่ LINE เปิด) · ส่งข้อความเฉพาะ namespace ที่แต่ละส่วนใช้ · หน้า LIFF ไม่โหลด PWA และไม่ใช้ tailwind-merge · คอมไพล์ข้อความตอน build ด้วย precompile ของ next-intl พร้อมเทสต์กัน | เสนอ |
 | ADR-053 | e2e ของฉาก demo รันในโหมด demo บนฐานแยกที่มีประวัติ D-01 · ใช้นาฬิกาจริงและอ่านค่าที่ขึ้นกับเวลาจากฐานตอนรัน · นาฬิกาธุรกิจแยกเป็น NEW-63 | เสนอ |
 | ADR-054 | บน staging งาน `outbox-sweeper` `consolidation` `report-schedules` และ `line-webhook-sweep` รันทุก 30 นาที (อยู่ในโควตาฟรีของ Neon และ Inngest) · เกณฑ์ outbox ค้างของ health รอเพิ่ม 29 นาที และการเตือนมาที่รอบที่สองที่ส่งไม่ได้ · local และ production ตาม §4.6 | ตัดสินแล้ว (ผู้ใช้ 2026-10-07) |
+| ADR-055 | seed ครั้งแรกของ staging รันเป็นงาน Inngest `staging-first-seed` บน Vercel สิงคโปร์ (ลงทะเบียนเฉพาะ staging · seed เฉพาะฐานที่ยังไม่มีองค์กร · ผู้ดูแลกด Invoke) เพราะค่าฐานข้อมูลเป็น Secret และ build รันที่ Washington · build ตรวจ role ของแอปหลัง migrate (`pnpm db:check-role`) | เสนอ |
 
 ### 18.2 สมมติฐาน
 

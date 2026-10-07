@@ -66,6 +66,7 @@ ADR (Architecture Decision Record) คือบันทึกสั้น ๆ �
 | [ADR-052](ADR-052.md) | งบ JavaScript เริ่มต้นของหน้า LIFF และการคอมไพล์ข้อความล่วงหน้า | เสนอ |
 | [ADR-053](ADR-053.md) | e2e ของฉาก demo บนฐานแยกและนาฬิกาจริง | เสนอ |
 | [ADR-054](ADR-054.md) | งานที่รันตามรอบบน staging รันทุก 30 นาที | ตัดสินแล้ว |
+| [ADR-055](ADR-055.md) | seed ครั้งแรกของ staging รันเป็นงาน Inngest บน Vercel และ build ตรวจ role ของแอป | เสนอ |
 
 หมายเหตุ
 

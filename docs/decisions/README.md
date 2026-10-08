@@ -68,6 +68,12 @@ ADR (Architecture Decision Record) คือบันทึกสั้น ๆ �
 | [ADR-054](ADR-054.md) | งานที่รันตามรอบบน staging รันทุก 30 นาที | ตัดสินแล้ว |
 | [ADR-055](ADR-055.md) | seed ครั้งแรกของ staging รันเป็นงาน Inngest บน Vercel และ build ตรวจ role ของแอป | เสนอ |
 | [ADR-056](ADR-056.md) | reset staging ก่อน demo ด้วยปุ่มใน Inngest ที่ต้องพิมพ์ยืนยัน | ตัดสินแล้ว |
+| [ADR-057](ADR-057.md) | ลำดับพัฒนาใหม่: ระยะ 1 Intake-to-Procure ถึง LINE และแอป · ระยะ 2 Supplier Sourcing Risk | ตัดสินแล้ว |
+| [ADR-058](ADR-058.md) | หน้าตา Workspace ใกล้ Zip ในโทนเขียว ไม่มี pop-up ที่เด้งเอง | ตัดสินแล้ว |
+| [ADR-059](ADR-059.md) | shadcn/ui เป็นชุดคอมโพเนนต์หลัก และไลบรารีเสริมตาม §5.5 | ตัดสินแล้ว |
+| [ADR-060](ADR-060.md) | AI เรียก Claude ผ่าน AI SDK ใน src/integrations/ai | เสนอ |
+| [ADR-061](ADR-061.md) | BCS Go ใช้ Capacitor 8 ห่อเว็บเดิม | เสนอ |
+| [ADR-062](ADR-062.md) | ทำงานทีละข้อ บอก effort ถัดไป และแยกการตรวจจากการสร้าง | ตัดสินแล้ว |
 
 หมายเหตุ
 

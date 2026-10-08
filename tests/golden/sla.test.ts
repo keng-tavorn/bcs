@@ -86,7 +86,8 @@ describe('[FR-INT-007/AC1] business time beyond the golden cases (BR-SLA-01 to B
       }),
       { numRuns: 1000 },
     )
-  })
+    // 1,000 runs take about 5 s under the coverage gate's instrumentation, past Vitest's 5 s default
+  }, 60_000)
 })
 
 describe('[FR-INT-007/AC1] counting business time backwards dates work that has waited (D-01 demo history)', () => {

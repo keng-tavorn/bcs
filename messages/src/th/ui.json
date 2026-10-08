@@ -1,0 +1,15 @@
+{
+  "breadcrumb": "เส้นทางหน้า",
+  "close": "ปิด",
+  "loading": "กำลังโหลด",
+  "more": "เพิ่มเติม",
+  "morePages": "หน้าอื่น ๆ",
+  "nextPage": "ไปหน้าถัดไป",
+  "next": "ถัดไป",
+  "pagination": "เลขหน้า",
+  "previousPage": "ไปหน้าก่อน",
+  "previous": "ก่อนหน้า",
+  "sidebar": "เมนู",
+  "sidebarDescription": "เมนูของ Workspace บนจอเล็ก",
+  "toggleSidebar": "ยุบหรือขยายเมนู"
+}

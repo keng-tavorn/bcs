@@ -4432,6 +4432,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-060 | AI เรียก Claude ผ่าน AI SDK (`ai` `@ai-sdk/anthropic` `@ai-sdk/react`) ใน `src/integrations/ai` · หน้าจอแชทใช้ Message Bubble Marker ของ shadcn/ui และทดสอบด้วย `@shadcn/helpers` โดยไม่ใช้ key · ถ้าต้องใช้ความสามารถที่ AI SDK ยังไม่รองรับ ใช้ `@anthropic-ai/sdk` ใน adapter เดียวกันพร้อม ADR | เสนอ |
 | ADR-061 | BCS Go ใช้ Capacitor 8 ห่อเว็บเดิม: push เป็นช่องทางแจ้งเตือนที่สาม · สแกน barcode ด้วย ML Kit · biometric ผ่าน passkey · ตรวจรับออฟไลน์ด้วยคิวในเครื่องที่ส่งผ่าน command เดิม · รายละเอียดตัดสินใน sub-spec S17 | เสนอ |
 | ADR-062 | ทำงานทีละข้อ: คำสั่ง "ทำข้อถัดไป" = 1 ข้อใน 1 แชต ติ๊กและ commit ทุกข้อ แล้วบอกคำสั่งถัดไปกับ effort · effort ตาม §17.9 (Claude Opus 5.5 เริ่มที่ `medium` · `high` กับข้อที่แตะเงิน สิทธิ์ หรือการอนุมัติ · ไม่ใช้ `max` และ ultracode เป็นค่าประจำ) · การตรวจแยกจากการสร้างด้วย `/code-review` ในบริบทใหม่ และรีวิวโค้ดทั้งรอบก่อนรายงานเส้นชัย · อ่าน spec เฉพาะส่วนตาม §0.4 | ตัดสินแล้ว (ผู้ใช้ขอให้ซอยงานและบอก effort 2026-10-08) |
+| ADR-063 | shadcn/ui ใช้ base Radix ทั้งโปรเจกต์ (`radix-nova`): คอมโพเนนต์ใน `src/ui/shadcn` ใช้ `cn` ของ `src/ui/cn.ts` · token และการจับคู่ตัวแปรอยู่ใน `globals.css` ตาม §9.10 ไม่ใช้ theme ของ CLI · Combobox ประกอบจาก Popover กับ Command (ตัวใน registry พา Base UI) · ข้อความแจ้งผลใช้ Sonner โดยไม่มี `next-themes` · สีที่ CSS เข้าไม่ถึงอยู่ใน `src/ui/theme.ts` · lint `bcs/no-color-literal` และ `bcs/liff-imports` (S16-02) | ตัดสินแล้ว |
 
 ### 18.2 สมมติฐาน
 

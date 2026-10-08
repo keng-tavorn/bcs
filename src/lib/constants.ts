@@ -142,3 +142,7 @@ export const LINE_RICH_MENU_WIDTH_PX = 2500
 export const LINE_RICH_MENU_HEIGHT_PX = 843
 /** LINE takes a rich menu image of at most "1 MB", read the strict way: 1,000,000 bytes (the pictures of BCS are < 100 KB) */
 export const LINE_RICH_MENU_IMAGE_MAX_BYTES = 1000 * 1000
+
+// ---------- Workspace screens (S16) ----------
+/** How long the browser remembers the menu collapsed or expanded (FR-PLT-013 AC2): the sidebar's cookie, 7 days */
+export const SIDEBAR_STATE_MAX_AGE_S = (7 * MS_PER_DAY) / MS_PER_SECOND

@@ -4,6 +4,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
 import { ClientMessages } from './_lib/client-messages'
 import './globals.css'
+import { THEME_COLORS } from '@/ui/theme'
 
 const plexThai = IBM_Plex_Sans_Thai({
   subsets: ['thai', 'latin'],
@@ -25,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#0b6e5f',
+  themeColor: THEME_COLORS.primary,
 }
 
 // Every page. The message provider here holds only what the root error boundary reads: each part of the app (the

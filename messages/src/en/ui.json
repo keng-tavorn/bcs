@@ -1,0 +1,15 @@
+{
+  "breadcrumb": "Breadcrumb",
+  "close": "Close",
+  "loading": "Loading",
+  "more": "More",
+  "morePages": "More pages",
+  "nextPage": "Go to next page",
+  "next": "Next",
+  "pagination": "Pagination",
+  "previousPage": "Go to previous page",
+  "previous": "Previous",
+  "sidebar": "Menu",
+  "sidebarDescription": "The workspace menu on a small screen",
+  "toggleSidebar": "Collapse or expand the menu"
+}

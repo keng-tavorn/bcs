@@ -1,12 +1,12 @@
 # docs/traceability/ac-map.yaml — แผนที่เจ้าของ AC ของ FR ชั้น 1 (spec §8 · §15.7 · §16)
 # ทุก AC ของ FR-<MOD>-0nn มีเจ้าของเป็นข้อเดียวใน checklist §16 เมื่อข้อนั้นถูกติ๊ก verify ต้องเจอเทสต์ที่ผ่าน
 # และชื่อมีแท็ก [FR-xxx-nnn/ACn] อย่างน้อย 1 ตัวต่อ AC · กฎ ความหมายของฟิลด์ และข้อจำกัด อ่านใน README.md ข้างไฟล์นี้
-# owner: รหัสข้อใน §16 (null = ยังไม่มีข้อใดทำได้) · demo: true ถ้าต้องเสร็จก่อนเส้นชัย A
+# owner: รหัสข้อใน §16 (null = ยังไม่มีข้อใดทำได้) · demo: true ถ้าต้องเสร็จก่อนเส้นชัยของรอบเจ้าของ (A · หรือ A2 สำหรับ S16)
 # basis: named = ข้อนั้นระบุ FR หรือ AC นี้ใน "เสร็จเมื่อ" · later = ข้อก่อนหน้าระบุ แต่ AC ต้องใช้ของที่ข้อหลังสร้าง
 #        builder = ไม่มีข้อใดระบุ เจ้าของคือข้อที่สร้างสิ่งนั้น · none = ไม่มีข้อใดระบุหรือสร้าง
 # spec.md เป็นแหล่งความจริง ถ้าไฟล์นี้ขัดกับ spec ให้ยึด spec แล้วแก้ไฟล์นี้
 version: 1
-generatedFrom: spec.md (2026-10-02)
+generatedFrom: spec.md (2026-10-02 · FR ของ S16 เพิ่ม 2026-10-08 จาก spec 0.3.1)
 frs:
   FR-PLT-001:
     title: "ตั้งค่า tenant และองค์กร"
@@ -472,9 +472,75 @@ frs:
       AC1: { owner: S5-10, demo: false, basis: named, text: "ผู้ใช้เลือกช่องทางหลัก (LINE หรืออีเมล) และรวมการแจ้งทั่วไปเป็นสรุปได้" }
       AC2: { owner: S5-10, demo: false, basis: named, text: "งานอนุมัติและงานเกิน SLA แจ้งทันทีเสมอ ปิดไม่ได้" }
       AC3: { owner: S5-10, demo: false, basis: named, text: "ตั้งช่วงเงียบ (เช่น 20:00–07:00) สำหรับการแจ้งที่ไม่ด่วนได้" }
+  FR-PLT-013:
+    title: "ระบบดีไซน์และโครงหน้า Workspace"
+    acs:
+      AC1: { owner: S16-02, demo: true, basis: named, text: "theme ของ Tailwind และ shadcn/ui อ่านค่าจาก token ชุดเริ่มต้น (§9.9) และส่วนขยาย (§9.10) เท่านั้น" }
+      AC2: { owner: S16-04, demo: true, basis: named, text: "แถบเมนูซ้ายใช้ Sidebar ของ shadcn/ui จัดกลุ่มตามตารางใน §9.10" }
+      AC3: { owner: S16-04, demo: true, basis: named, text: "แถบบนมีช่องค้นหา (FR-PLT-014) กระดิ่ง (FR-NOTI-001) เมนูผู้ใช้ และปุ่มหลัก 'ขอซื้อ / ขอจ้าง' ที่เห็นทุกหน้าของ Workspace ยกเว้นฟอร์มทีละขั้น" }
+      AC4: { owner: S16-04, demo: true, basis: named, text: "จอ 375 px: เมนูเปิดเป็น Sheet จากซ้าย ปุ่มหลักยังเห็น และไม่มีหน้าใดเลื่อนแนวนอน" }
+      AC5: { owner: S16-02, demo: true, basis: named, text: "หน้า LIFF ไม่โหลดไลบรารีหรือคอมโพเนนต์ที่ใช้เฉพาะ Workspace (§5.5 §9.10) ตรวจด้วย lint ตามแถว LIFF ใน §4.10 และงบ JavaScript ของ LIFF (ADR-052) ยังผ่าน" }
+  FR-PLT-014:
+    title: "ค้นหาและคำสั่งจากทุกหน้า (⌘K)"
+    acs:
+      AC1: { owner: S16-03, demo: true, basis: named, text: "กด ⌘K (Mac) หรือ Ctrl K หรือคลิกช่องค้นหา → เปิด command palette ที่มีกลุ่ม ล่าสุด" }
+      AC2: { owner: S16-03, demo: true, basis: named, text: "src/server/queries/search.ts ตรวจตัวตนและ scope ของ request.view po.view และ supplier.view (BR-AUTH-05)" }
+      AC3: { owner: S16-03, demo: true, basis: named, text: "ค้นด้วยเลขเอกสารบางส่วนได้ เช่น 00012 หรือ PR-2569-0001" }
+      AC4: { owner: S16-03, demo: true, basis: named, text: "คำสั่ง 'เริ่มคำขอ <ประเภท>' มีเฉพาะประเภทที่เปิดใช้ และ 'ไปที่หน้า' มีเฉพาะหน้าที่ผู้ใช้เห็นในแถบเมนู" }
+      AC5: { owner: S16-03, demo: true, basis: named, text: "/api/search อ่านอย่างเดียวและไม่สร้าง Event" }
+  FR-VIS-006:
+    title: "หน้าแรก งานของฉัน"
+    acs:
+      AC1: { owner: S16-09, demo: true, basis: named, text: "หน้าแรกแสดงคำทักทายด้วยชื่อผู้ใช้ ช่องค้นหา (FR-PLT-014) และ chip 3 ตัว: งานของฉัน (มุมมองปัจจุบัน)" }
+      AC2: { owner: S16-09, demo: true, basis: named, text: "การ์ด 'สิ่งที่ต้องทำ' แสดงเฉพาะแถวในตาราง §9.10 ที่ผู้ใช้มีสิทธิ์และจำนวนมากกว่า 0" }
+      AC3: { owner: S16-09, demo: true, basis: named, text: "การ์ด 'งานอนุมัติทันเวลา' แสดง % ของ 30 วันล่าสุดและส่วนต่างกับ 30 วันก่อนหน้าตามสูตร §11.5 พร้อมไอคอนลูกศรและข้อความ 'เพิ่มขึ้น n จุด' หรือ 'ลดลง n จุด' (ไม่ใช้สีอย่างเดียว)" }
+      AC4: { owner: S16-09, demo: true, basis: named, text: "การ์ด 'ที่ฉันติดตาม' แสดงจำนวนคำขอที่ฉันเป็นผู้ขอหรือผู้ติดตาม จำนวนที่ยังเปิด และ 5 รายการล่าสุดพร้อม 'รอใคร' แบบเดียวกับ FR-INT-008 AC1" }
+      AC5: { owner: S16-09, demo: true, basis: named, text: "การ์ด 'รอฉันอนุมัติ' แสดงงานที่เปิดของฉันทุกชนิดเอกสารรวมงานรักษาการ แยกแท็บ ทั้งหมด" }
+      AC6: { owner: S16-09, demo: true, basis: named, text: "ไม่มีอะไรต้องทำ → หน้าว่างที่บอกขั้นต่อไป" }
+  FR-VIS-007:
+    title: "สรุปผู้บริหาร"
+    acs:
+      AC1: { owner: S16-08, demo: true, basis: named, text: "/insights มีแถวตัวกรองบรรทัดเดียว (ช่วงเวลา แผนก ประเภทคำขอ ล้างตัวกรอง) ที่เก็บใน URL" }
+      AC2: { owner: S16-08, demo: true, basis: named, text: "การ์ด 4 ใบ: การใช้จ่าย งบประมาณ ความเร็ว การควบคุม แต่ละใบมีตัวเลขหลักและกราฟ 1 ภาพ" }
+      AC3: { owner: S16-08, demo: true, basis: named, text: "ทุกตัวเลขที่แสดงคลิกไปรายการที่ประกอบเป็นตัวเลขนั้นได้ และตรงกับ KPI view (§11.4) และ dashboard งบ (§11.2) เมื่อเทสต์ด้วยข้อมูลที่รู้คำตอบ" }
+      AC4: { owner: S16-08, demo: true, basis: named, text: "ทั้งหน้าตาม scope ของ report.view · การ์ดงบประมาณตาม budget.view · รายการ PO และราคาตาม po.view" }
+      AC5: { owner: S16-08, demo: true, basis: named, text: "กราฟโหลดแบบ lazy ไม่อยู่ใน JavaScript เริ่มต้นของหน้าแรก และทุกกราฟมีมุมมองตาราง" }
+  FR-INT-010:
+    title: "เลือกประเภทคำขอแบบ dialog"
+    acs:
+      AC1: { owner: S16-05, demo: true, basis: named, text: "ปุ่มหลักและ chip 'เริ่มคำขอใหม่' เปิด dialog (จอต่ำกว่า 768 px เป็น drawer ล่าง) ที่มีรายการประเภทแบบเลือกได้หนึ่งรายการ พร้อมคำอธิบายว่าใช้เมื่อไร และปุ่ม 'ดำเนินการต่อ' เต็มความกว้างที่ท้าย dialog" }
+      AC2: { owner: S16-05, demo: true, basis: named, text: "ผู้ใช้มีร่างค้าง → dialog แสดง 'คุณมีร่างคำขอ n ใบ' พร้อมลิงก์ไปรายการร่าง" }
+      AC3: { owner: S16-05, demo: true, basis: named, text: "ประเภทเกิน 6 รายการ → มีช่องค้นหาด้วยคำสำคัญ (FR-INT-001 AC2)" }
+      AC4: { owner: S16-05, demo: true, basis: named, text: "/requests/new และ /requests/new/[type] ยังเปิดได้ตรง และ e2e เดิมไม่เสีย" }
+  FR-INT-011:
+    title: "ฟอร์มคำขอทีละขั้น"
+    acs:
+      AC1: { owner: S16-05, demo: true, basis: named, text: "ฟอร์มเปิดเต็มจอ มีปุ่มปิดที่บันทึกร่างก่อนออก ลำดับขั้นแนวตั้งด้านซ้าย (จอเล็กเป็นแถบ 'ขั้น n จาก m') และแถบล่างที่มี 'ย้อนกลับ' กับปุ่มหลักที่บอกผล ('ถัดไป'" }
+      AC2: { owner: S16-05, demo: true, basis: named, text: "ขั้นมาจาก FormVersion.schema.steps ถ้าไม่มีให้จัดกลุ่มอัตโนมัติตามตารางใน §9.10" }
+      AC3: { owner: S16-05, demo: true, basis: named, text: "กด 'ถัดไป' → ตรวจเฉพาะฟิลด์ของขั้นนั้นและบอก error ใต้ช่อง" }
+      AC4: { owner: S16-05, demo: true, basis: named, text: "แผง 'ก่อนส่ง' ด้านขวา (จอเล็กอยู่ในขั้นตรวจและส่ง) แสดงงบคงเหลือ (FR-INT-004) เส้นทางอนุมัติที่คาดพร้อมคำอธิบาย และเอกสารที่ต้องแนบตามยอดปัจจุบัน (FR-INT-005 AC1)" }
+      AC5: { owner: S16-05, demo: true, basis: named, text: "รายการสินค้าแสดงยอดต่อบรรทัดและยอดรวมที่คำนวณด้วย core (GC-MONEY)" }
+      AC6: { owner: S16-05, demo: true, basis: named, text: "บันทึกร่างอัตโนมัติ (FR-INT-006 AC1) ทำงานทุกขั้น และคำขอซื้อของทั่วไปยังมีฟิลด์ที่ผู้ขอต้องกรอกเองไม่เกิน 6 ฟิลด์ (FR-INT-003 AC3)" }
+  FR-INT-012:
+    title: "หน้าเอกสารแบบแท็บพร้อมเส้นทางอนุมัติ"
+    acs:
+      AC1: { owner: S16-07, demo: true, basis: named, text: "หัวเอกสารมีเลขเอกสาร ชื่อเรื่อง ป้ายสถานะ ป้ายความด่วน ปุ่มติดตาม (FR-INT-013) เมนูเพิ่มเติม และแถวสรุป (ยอดรวม ผู้ขาย วันที่ส่ง เวลาที่ใช้เป็นวันทำการ)" }
+      AC2: { owner: S16-07, demo: true, basis: named, text: "หน้าคำขอมีแท็บ ภาพรวม รายการและงบ เอกสาร ใบสั่งซื้อและการรับของ (เมื่อมี PO และผู้ดูมีสิทธิ์) และประวัติ" }
+      AC3: { owner: S16-07, demo: true, basis: named, text: "ภาพรวมแสดงเส้นทางอนุมัติเป็นการ์ดต่อขั้นเรียงแนวตั้งแบบไทม์ไลน์ (§9.9 ข้อ 4) แต่ละใบมีสถานะ ผู้รับงาน กำหนด และ SLA ที่ใช้ไป และกลายเป็นตราประทับ (ชื่อ ตำแหน่ง เวลา ช่องทาง DOA ฉบับกับข้อ) เมื่อตัดสินแล้ว" }
+      AC4: { owner: S16-07, demo: true, basis: named, text: "ผู้ดูที่มีงานเปิดของเอกสารนั้นเห็นแถบตัดสินบนสุดของแถบขวา (จอเล็กติดล่างจอ) ที่แสดงยอดตามฐาน DOA สถานะงบ และ DOA ฉบับกับข้อ แล้วเรียก service ตัดสินเดิม จึงตัดสินได้ในจอเดียว (§9.9 ข้อ 5)" }
+      AC5: { owner: S16-07, demo: true, basis: named, text: "แท็บประวัติแสดงตาราง วันที่ (พ.ศ.) ผู้กระทำ เหตุการณ์ภาษาไทย ช่องทาง จาก Event (FR-PLT-003 AC3)" }
+      AC6: { owner: S16-07, demo: true, basis: named, text: "หน้า PO ใช้โครงเดียวกัน (หัว แท็บ แถบขวา เส้นทางอนุมัติ)" }
+  FR-INT-013:
+    title: "ผู้ติดตามและการกล่าวถึงในความเห็น"
+    acs:
+      AC1: { owner: S16-06, demo: true, basis: named, text: "ผู้ที่มี request.view ของคำขอนั้นติดตามหรือเลิกติดตามตนเองได้ (request.follow)" }
+      AC2: { owner: S16-06, demo: true, basis: named, text: "ผู้ติดตามได้แจ้งเตือนตามแถวของผู้ติดตามใน §10.1" }
+      AC3: { owner: S16-06, demo: true, basis: named, text: "ผู้ติดตามที่ไม่ใช่ผู้ขอ ส่ง แก้ ยกเลิก หรือเพิ่มผู้ติดตามไม่ได้ แม้ §2.3 นับผู้ติดตามอยู่ใน scope OWN (เทสต์ปฏิเสธทุกคำสั่ง)" }
+      AC4: { owner: S16-14, demo: false, basis: named, text: "พิมพ์ @ ในช่องความเห็น → เลือกได้เฉพาะสมาชิกที่เห็นคำขอนั้นอยู่แล้ว" }
+      AC5: { owner: S16-14, demo: false, basis: named, text: "แท็บความเห็นมีสวิตช์ 'แสดงกิจกรรม' ที่แทรก Event ของเอกสารตามเวลา" }
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 76, acs: 236, demo: 212, goLive: 24, unowned: 0 }
+counts: { frs: 84, acs: 278, demo: 252, goLive: 26, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
-basisCounts: { named: 190, later: 30, builder: 16, none: 0 }
+basisCounts: { named: 232, later: 30, builder: 16, none: 0 }

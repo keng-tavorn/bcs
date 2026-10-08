@@ -94,7 +94,7 @@ export function featureStatusProblems(input: { frs: Map<string, FrSpec>; doc: Fe
     }
     const status = f.status ?? ''
     if (!(STATUSES as readonly string[]).includes(status)) problems.push(`${id}: status "${f.status}" ไม่ถูกต้อง`)
-    if (!/^S([1-9]|1[0-5])$/.test(f.step ?? '')) problems.push(`${id}: step "${f.step}" ไม่ถูกต้อง`)
+    if (!/^S([1-9]|1[0-7])$/.test(f.step ?? '')) problems.push(`${id}: step "${f.step}" ไม่ถูกต้อง`)
     else if (spec.steps.length && !spec.steps.includes(f.step!)) problems.push(`${id}: step ${f.step} ไม่ตรงกับบรรทัด "ขั้น" ใน spec (${spec.steps.join(', ')})`)
 
     // Evidence: test files that exist (not folders), under tests/, and at least one carries a tag of this FR

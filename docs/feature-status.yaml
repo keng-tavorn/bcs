@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-06
+updatedAt: 2026-10-08
 features:
   FR-PLT-001:
     status: done
@@ -874,6 +874,54 @@ features:
   FR-NOTI-004:
     status: planned
     step: S5
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-013:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-PLT-014:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-006:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-VIS-007:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-010:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-011:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-012:
+    status: planned
+    step: S16
+    evidence: []
+    verifiedBy: null
+    notes: ""
+  FR-INT-013:
+    status: planned
+    step: S16
     evidence: []
     verifiedBy: null
     notes: ""

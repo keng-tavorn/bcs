@@ -881,6 +881,13 @@ describe('feature status', () => {
   it('[EG-7] the step must be one named on the FR "ขั้น" line', () => {
     expect(check({ 'FR-TST-001': { status: 'done', step: 'S9', evidence: ['tests/integration/x.test.ts'] } }).join('\n')).toContain('S9')
   })
+  it('[EG-7] steps S16 and S17 of spec 0.3 are valid steps, S18 is not', () => {
+    const v3 = frsFromSpec(['#### FR-TST-003 — x', 'ขั้น S16 · S17 · Web', '- AC1 — one'].join('\n'))
+    const planned = (step: string) => featureStatusProblems({ frs: v3, doc: { updatedAt: '2026-10-08', features: { 'FR-TST-003': { status: 'planned', step, evidence: [] } } }, tests: tested, fs })
+    expect(planned('S16')).toEqual([])
+    expect(planned('S17')).toEqual([])
+    expect(planned('S18').join('\n')).toContain('S18')
+  })
   it('[EG-7] done needs a passing tagged test for every AC', () => {
     const half: TestIndex = { files: new Map([['FR-TST-001/AC1', ['tests/integration/x.test.ts']]]), passed: new Set(['FR-TST-001/AC1']) }
     expect(check({ 'FR-TST-001': { status: 'done', step: 'S1', evidence: ['tests/integration/x.test.ts'] } }, half).join('\n')).toContain('AC2')

@@ -24,6 +24,7 @@ import { CameraIcon } from '@/ui/liff/receiving/camera-icon'
 import { FieldError, LiffField, LiffTextArea } from '@/ui/liff/receiving/fields'
 import { LiffStatusMark, MARK_SHAPES, MarkIcon, type MarkShape } from '@/ui/liff/receiving/marks'
 import { LiffCameraAttach } from '@/ui/liff/requests/camera-attach'
+import { LIFF_FORBIDDEN_PACKAGES, LIFF_FORBIDDEN_PATHS } from '../../eslint/liff-forbidden.mjs'
 import th from '../../messages/th.json'
 
 // §9.4 · the classes of the LIFF components without tailwind-merge (src/ui/liff/cn.ts). The workspace joins classes with
@@ -302,6 +303,26 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
       return MERGER.filter((module) => brought.has(module)).map((module) => `${rel(page)}: ${pathTo(brought, module)}`)
     })
     expect(merging).toEqual([])
+  }, SCAN_TIMEOUT_MS)
+
+  it('[FR-PLT-013/AC5] no LIFF page brings a library or component of the workspace into the browser: cmdk, recharts, the form helpers, the shadcn/ui components and their primitives', () => {
+    const pages = LIFF_SOURCES.filter((file) => path.basename(file) === 'page.tsx')
+    const forbidden = (module: string) =>
+      module.startsWith(PACKAGE)
+        ? LIFF_FORBIDDEN_PACKAGES.some((pattern) => path.posix.matchesGlob(module.slice(PACKAGE.length), pattern))
+        : LIFF_FORBIDDEN_PATHS.some((pattern) => {
+            const target = rel(module).replace(/.tsx?$/, '')
+            return pattern.endsWith('/**') ? target.startsWith(pattern.slice(0, -2)) : target === pattern
+          })
+    const found = pages.flatMap((page) => {
+      const brought = browserModulesOf(routeFilesOf(page))
+      return [...brought.keys()].filter(forbidden).map((module) => `${rel(page)}: ${pathTo(brought, module)}`)
+    })
+    expect(found).toEqual([])
+    // The same walk finds them in the workspace's component sheet, which draws every one of them
+    const sheet = browserModulesOf(routeFilesOf(path.join(APP, '(workspace)', 'dev', 'ui', 'page.tsx')))
+    expect(['cmdk', 'react-dropzone', 'input-otp', 'vaul', 'sonner', 'radix-ui'].filter((name) => !sheet.has(`${PACKAGE}${name}`))).toEqual([])
+    expect([...sheet.keys()].some((module) => !module.startsWith(PACKAGE) && rel(module).startsWith('src/ui/shadcn/'))).toBe(true)
   }, SCAN_TIMEOUT_MS)
 
   it('the walk sees what a page draws — a request’s list of files with its notice, a DOA version’s decision loaded with import() with its tick, the LINE SDK — and finds tailwind-merge where the workspace draws its components', () => {

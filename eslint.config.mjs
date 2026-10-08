@@ -3,6 +3,7 @@ import nextVitals from 'eslint-config-next/core-web-vitals'
 import nextTs from 'eslint-config-next/typescript'
 import boundaries from 'eslint-plugin-boundaries'
 import bcs from './eslint/bcs-plugin.mjs'
+import { LIFF_FORBIDDEN_PACKAGES, LIFF_FORBIDDEN_PATHS } from './eslint/liff-forbidden.mjs'
 
 // Every JavaScript/TypeScript flavour gets the same rules, so a .js or .mts file cannot escape them.
 const CODE = '{ts,tsx,mts,cts,js,jsx,mjs,cjs}'
@@ -259,6 +260,29 @@ export default defineConfig([
     rules: {
       'bcs/no-thai-literal': 'error',
       'bcs/no-ui-literal': 'error',
+    },
+  },
+  // Colours come from the tokens of §9.9 and §9.10 (FR-PLT-013 AC1): the theme is src/app/globals.css, and
+  // src/ui/theme.ts holds the few values CSS cannot reach (the browser's theme colour, the generated app icons, the
+  // offline page). LINE cards, e-mail and PDF are drawn outside src/app and src/ui and are not under this rule.
+  {
+    files: [`src/app/**/*.${CODE}`, `src/ui/**/*.${CODE}`],
+    plugins: { bcs },
+    rules: { 'bcs/no-color-literal': ['error', { allowFiles: ['src/ui/theme.ts'] }] },
+  },
+  // LIFF keeps its light set (§4.10 LIFF row, ADR-052, FR-PLT-013 AC5): none of the workspace's libraries, its shadcn/ui
+  // components, or the class merger (tailwind-merge) its components bring
+  {
+    files: [`src/app/liff/**/*.${CODE}`, `src/ui/liff/**/*.${CODE}`],
+    plugins: { bcs },
+    rules: {
+      'bcs/liff-imports': [
+        'error',
+        {
+          paths: LIFF_FORBIDDEN_PATHS,
+          packages: LIFF_FORBIDDEN_PACKAGES,
+        },
+      ],
     },
   },
   // No default exports except files that Next.js / next-intl require (§14.4)

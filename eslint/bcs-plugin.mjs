@@ -1664,6 +1664,84 @@ const noUiLiteral = {
 }
 
 // ---------------------------------------------------------------------------------------------------------------
+// bcs/no-color-literal — screens take their colours from the tokens of §9.9 and §9.10 only (FR-PLT-013 AC1)
+// ---------------------------------------------------------------------------------------------------------------
+
+// A hex colour (#0b6e5f, #fff): not an HTML entity (&#123;) nor part of a word
+const HEX_COLOR = /(?<![&\w])#(?:[0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{3,4})(?![\w-])/i
+// A colour written as a CSS function, alone or inside a Tailwind arbitrary value (bg-[rgb(0,0,0)])
+const COLOR_FUNCTION = /\b(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch|color)\(/i
+// A colour of Tailwind's own palette (bg-white, text-gray-500, ring-red-600/40): the theme has none of them
+const PALETTE_COLOR =
+  /(?<![\w-])(?:[\w-]+:)*(?:bg|text|border(?:-[trblxyse])?|ring(?:-offset)?|outline|fill|stroke|from|via|to|shadow|decoration|divide|placeholder|caret|accent)-(?:black|white|(?:slate|gray|zinc|neutral|stone|red|orange|amber|yellow|lime|green|emerald|teal|cyan|sky|blue|indigo|violet|purple|fuchsia|pink|rose)-\d{2,3})(?:\/\d+)?(?![\w-])/
+
+const noColorLiteral = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'หน้าจอใช้สีจาก token ของ §9.9 และ §9.10 เท่านั้น ห้ามสี hex สีแบบ arbitrary และสีของ palette Tailwind (FR-PLT-013 AC1)' },
+    schema: [{ type: 'object', properties: { allowFiles: { type: 'array', items: { type: 'string' } } }, additionalProperties: false }],
+    messages: {
+      color:
+        'bcs/no-color-literal: "{{text}}" เป็นค่าสีตายตัว — ใช้ token ของ §9.9 §9.10 ผ่าน class ของ theme (เช่น bg-primary text-ink-muted bg-warn-bg) หรือ var(--token) · ค่าสีที่ CSS เข้าไม่ถึงอยู่ใน src/ui/theme.ts',
+    },
+  },
+  create(context) {
+    if (matchesAny(relFile(context), context.options[0]?.allowFiles)) return {}
+    const check = (node, text) => {
+      const m = HEX_COLOR.exec(text) ?? COLOR_FUNCTION.exec(text) ?? PALETTE_COLOR.exec(text)
+      if (m) context.report({ node, messageId: 'color', data: { text: m[0].trim() } })
+    }
+    return {
+      Literal(node) {
+        if (typeof node.value === 'string') check(node, node.value)
+      },
+      TemplateElement(node) {
+        check(node, node.value.cooked ?? '')
+      },
+    }
+  },
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// bcs/liff-imports — LIFF pages keep their light set: no library or component of the workspace (§4.10, ADR-052,
+// FR-PLT-013 AC5)
+// ---------------------------------------------------------------------------------------------------------------
+
+const liffImports = {
+  meta: {
+    type: 'problem',
+    docs: { description: 'หน้า LIFF ห้าม import ไลบรารีหรือคอมโพเนนต์ที่ใช้เฉพาะ Workspace (§4.10 แถว LIFF · ADR-052)' },
+    schema: [
+      {
+        type: 'object',
+        properties: {
+          // module paths (repo-relative, no extension; `folder/**` for a whole folder) and package globs
+          paths: { type: 'array', items: { type: 'string' } },
+          packages: { type: 'array', items: { type: 'string' } },
+        },
+        additionalProperties: false,
+      },
+    ],
+    messages: {
+      workspace:
+        'bcs/liff-imports: "{{source}}" เป็นของ Workspace — หน้า LIFF ใช้คอมโพเนนต์ชุดเบาใน src/ui/liff และงบ JavaScript ของ ADR-052 (§4.10 แถว LIFF · FR-PLT-013 AC5)',
+    },
+  },
+  create(context) {
+    const file = relFile(context)
+    const { paths = [], packages = [] } = context.options[0] ?? {}
+    const hits = (source) => {
+      const target = resolveImport(file, source)
+      if (target === null) return packages.some((p) => matchesPackage(source, p))
+      return paths.some((p) => (p.endsWith('/**') ? target === p.slice(0, -3) || path.posix.matchesGlob(target, p) : target === p))
+    }
+    return moduleVisitors(context, (node, source) => {
+      if (typeof source === 'string' && hits(source)) context.report({ node, messageId: 'workspace', data: { source } })
+    })
+  },
+}
+
+// ---------------------------------------------------------------------------------------------------------------
 // bcs/no-test-skip — tests are never skipped, focused, left as todo or inverted (CLAUDE.md §9)
 // ---------------------------------------------------------------------------------------------------------------
 
@@ -1916,6 +1994,8 @@ const plugin = {
     'service-tx-writes': serviceTxWrites,
     'no-thai-literal': noThaiLiteral,
     'no-ui-literal': noUiLiteral,
+    'no-color-literal': noColorLiteral,
+    'liff-imports': liffImports,
     'no-test-skip': noTestSkip,
     'explained-any': explainedAny,
   },

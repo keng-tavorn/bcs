@@ -7,7 +7,10 @@ function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div
       data-slot="table-container"
-      className="relative w-full overflow-x-auto"
+      // A table wider than the screen scrolls inside its frame, which the keyboard reaches too (WCAG 2.1.1, axe
+      // scrollable-region-focusable); pages turn wide tables into lists on a phone (§9.9)
+      tabIndex={0}
+      className="relative w-full overflow-x-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       <table
         data-slot="table"

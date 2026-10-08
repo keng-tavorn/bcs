@@ -105,6 +105,13 @@ describe('[FR-PLT-013/AC1] the theme reads the tokens of §9.9 and §9.10 only',
     expect(small).toEqual([])
   })
 
+  it('no shadcn/ui component draws its text translucent: a faded token fails the 4.5:1 of §9.9 (the muted ink is the token for quieter words)', () => {
+    const faded = COMPONENTS.flatMap(({ name, text }) =>
+      [...text.matchAll(/(?:^|[\s"'`])([^\s"'`]*:)?text-(?!sm\b|base\b|lg\b|xl\b|\dxl\b)[a-z-]+\/\d+/g)].filter((m) => !/dark:/.test(m[1] ?? '')).map((m) => `${name}: ${m[0].trim()}`),
+    )
+    expect(faded).toEqual([])
+  })
+
   it('every focus ring of a shadcn/ui component is solid --focus, 2 px, 2 px away from the edge', () => {
     // A translucent ring (ring-ring/50) or one of 3 px; aria-invalid keeps its own error halo, which is not focus
     const translucent = COMPONENTS.flatMap(({ name, text }) => [...text.matchAll(/(?:^|[\s"'`])([^\s"'`]*:)?ring-ring\/\d+/g)].map((m) => `${name}: ${m[0].trim()}`))

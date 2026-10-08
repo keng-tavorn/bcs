@@ -116,7 +116,7 @@ function AttachmentDescription({
     <span
       data-slot="attachment-description"
       className={cn(
-        "mt-0.5 block min-w-0 truncate text-sm text-muted-foreground group-data-[state=error]/attachment:text-destructive/80",
+        "mt-0.5 block min-w-0 truncate text-sm text-muted-foreground group-data-[state=error]/attachment:text-danger-ink",
         "max-w-full",
         className
       )}

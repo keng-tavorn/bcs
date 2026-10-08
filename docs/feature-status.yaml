@@ -878,11 +878,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-PLT-013:
-    status: planned
+    status: in_progress
     step: S16
-    evidence: []
+    evidence:
+      - tests/unit/design-system.test.ts
+      - tests/unit/liff-classes.test.tsx
+      - tests/e2e/dev-ui.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); AC2 to AC4 come with the new shell in S16-04"
   FR-PLT-014:
     status: planned
     step: S16

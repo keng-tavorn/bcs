@@ -5345,6 +5345,35 @@
       "panelTitle": "Notifications",
       "unreadCount": "{count} unread"
     },
+    "search": {
+      "delegate": "Set an acting approver",
+      "description": "Search document numbers, suppliers, pages and commands. Use the up and down arrows to choose, Enter to open, Esc to close.",
+      "draft": "Draft (no number yet)",
+      "empty": "No results. Try part of a document number.",
+      "failed": "Search is not available right now. Please try again.",
+      "groups": {
+        "commands": "Commands",
+        "documents": "Documents",
+        "pages": "Go to page",
+        "recent": "Recent",
+        "suppliers": "Suppliers"
+      },
+      "kinds": {
+        "GOODS_RECEIPT": "Goods receipt",
+        "PURCHASE_ORDER": "Purchase order",
+        "REQUEST": "Request"
+      },
+      "linkLine": "Link LINE",
+      "loading": "Searching…",
+      "overdue": "See overdue tasks",
+      "placeholder": "Search document numbers, suppliers or menus",
+      "rateLimited": "Too many searches. Wait a moment and try again.",
+      "shortcutMac": "⌘K",
+      "shortcutOther": "Ctrl K",
+      "startRequest": "Start request: {type}",
+      "title": "Search and commands",
+      "trigger": "Search"
+    },
     "signedInAs": "Signed in as {name}",
     "skipToContent": "Skip to content"
   },

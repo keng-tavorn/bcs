@@ -123,7 +123,7 @@ const byStatusThenName = (a: SupplierBasicDto, b: SupplierBasicDto) => STATUSES.
  * How a reader's search matches tax ids: never for a reader who may not see them; a reader who sees individuals' numbers
  * masked (BR-AUTH-04) finds an individual only by the whole number, so the hidden digits cannot be searched out
  */
-const taxIdMatchOf = (access: SupplierAccess): TaxIdMatch | null => (access.level !== 'FULL' ? null : access.maskIndividualTaxIds ? 'WHOLE_FOR_INDIVIDUALS' : 'ANY_PART')
+export const taxIdMatchOf = (access: SupplierAccess): TaxIdMatch | null => (access.level !== 'FULL' ? null : access.maskIndividualTaxIds ? 'WHOLE_FOR_INDIVIDUALS' : 'ANY_PART')
 
 /** /suppliers: search by name or code, and by tax id for those who may see it; filter by status and a missing Express code */
 export async function listSuppliersForScreen(ctx: Ctx, filter: { q?: string; status?: string; missingExpressCode?: boolean }): Promise<Result<SupplierListDto>> {

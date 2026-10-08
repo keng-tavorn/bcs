@@ -20,6 +20,8 @@ export interface WorkspaceShellProps {
   readonly bell?: ReactNode
   /** The door to a new request, for a member who may create one (the menu's newRequest entry) */
   readonly newRequest?: { readonly href: string; readonly label: string }
+  /** The ⌘K search (FR-PLT-014): rendered once, as its keyboard shortcut listens on the whole page */
+  readonly search?: ReactNode
   readonly children: ReactNode
 }
 
@@ -32,7 +34,7 @@ function Brand({ brand, orgName }: { brand: string; orgName: string }) {
   )
 }
 
-export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account, bell, newRequest, children }: WorkspaceShellProps) {
+export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account, bell, newRequest, search, children }: WorkspaceShellProps) {
   return (
     <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[17rem_1fr]">
       <a
@@ -80,10 +82,12 @@ export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account,
         </header>
         {/* A phone has no room for the door beside the menu and the bell: it gets a row of its own, outside the menu */}
         {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} className="border-b border-line bg-surface px-4 py-2 lg:hidden" linkClassName="w-full" /> : null}
-        {bell || newRequest ? (
-          <div className="hidden items-center justify-end gap-3 border-b border-line px-8 py-3 lg:flex">
-            {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} /> : null}
-            {bell}
+        {/* One search for every width (its ⌘K listener must exist once): a row of its own on a phone, left of the door on a wide screen */}
+        {search || bell || newRequest ? (
+          <div className="flex items-center gap-3 border-b border-line px-4 py-2 lg:px-8 lg:py-3">
+            <div className="min-w-0 flex-1">{search}</div>
+            {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} className="hidden lg:block" /> : null}
+            {bell ? <div className="hidden lg:block">{bell}</div> : null}
           </div>
         ) : null}
 

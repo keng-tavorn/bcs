@@ -887,11 +887,14 @@ features:
     verifiedBy: null
     notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); AC2 to AC4 come with the new shell in S16-04"
   FR-PLT-014:
-    status: planned
+    status: done
     step: S16
-    evidence: []
+    evidence:
+      - tests/integration/search.test.ts
+      - tests/unit/palette-commands.test.ts
+      - tests/e2e/search.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-03: AC1 to AC5; the search field moves into the new top bar in S16-04; the AI row (FR-AI-309) comes with S13"
   FR-VIS-006:
     status: planned
     step: S16

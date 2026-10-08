@@ -55,5 +55,34 @@
     "markAllRead": "Mark all as read",
     "empty": "No notifications yet",
     "emptyHint": "Tasks waiting for your approval and news about your requests will show here"
+  },
+  "search": {
+    "trigger": "Search",
+    "title": "Search and commands",
+    "description": "Search document numbers, suppliers, pages and commands. Use the up and down arrows to choose, Enter to open, Esc to close.",
+    "placeholder": "Search document numbers, suppliers or menus",
+    "groups": {
+      "recent": "Recent",
+      "documents": "Documents",
+      "suppliers": "Suppliers",
+      "pages": "Go to page",
+      "commands": "Commands"
+    },
+    "kinds": {
+      "REQUEST": "Request",
+      "PURCHASE_ORDER": "Purchase order",
+      "GOODS_RECEIPT": "Goods receipt"
+    },
+    "draft": "Draft (no number yet)",
+    "empty": "No results. Try part of a document number.",
+    "loading": "Searching…",
+    "failed": "Search is not available right now. Please try again.",
+    "rateLimited": "Too many searches. Wait a moment and try again.",
+    "startRequest": "Start request: {type}",
+    "delegate": "Set an acting approver",
+    "linkLine": "Link LINE",
+    "overdue": "See overdue tasks",
+    "shortcutMac": "⌘K",
+    "shortcutOther": "Ctrl K"
   }
 }

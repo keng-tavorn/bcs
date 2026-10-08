@@ -5345,6 +5345,35 @@
       "panelTitle": "การแจ้งเตือน",
       "unreadCount": "ยังไม่อ่าน {count} รายการ"
     },
+    "search": {
+      "delegate": "ตั้งรักษาการ",
+      "description": "ค้นหาเลขเอกสาร ผู้ขาย หน้า และคำสั่ง ใช้ลูกศรขึ้นลงเพื่อเลือก Enter เพื่อเปิด Esc เพื่อปิด",
+      "draft": "ร่าง (ยังไม่มีเลข)",
+      "empty": "ไม่พบผลลัพธ์ ลองพิมพ์เลขเอกสารบางส่วน",
+      "failed": "ค้นหาไม่ได้ตอนนี้ ลองใหม่อีกครั้ง",
+      "groups": {
+        "commands": "คำสั่ง",
+        "documents": "เอกสาร",
+        "pages": "ไปที่หน้า",
+        "recent": "ล่าสุด",
+        "suppliers": "ผู้ขาย"
+      },
+      "kinds": {
+        "GOODS_RECEIPT": "ใบรับของ",
+        "PURCHASE_ORDER": "ใบสั่งซื้อ",
+        "REQUEST": "คำขอ"
+      },
+      "linkLine": "ผูก LINE",
+      "loading": "กำลังค้นหา…",
+      "overdue": "ดูงานเกินกำหนด",
+      "placeholder": "ค้นหาเลขเอกสาร ผู้ขาย หรือเมนู",
+      "rateLimited": "ค้นหาถี่เกินไป รอสักครู่แล้วลองใหม่",
+      "shortcutMac": "⌘K",
+      "shortcutOther": "Ctrl K",
+      "startRequest": "เริ่มคำขอ {type}",
+      "title": "ค้นหาและคำสั่ง",
+      "trigger": "ค้นหา"
+    },
     "signedInAs": "เข้าระบบในชื่อ {name}",
     "skipToContent": "ข้ามไปเนื้อหา"
   },

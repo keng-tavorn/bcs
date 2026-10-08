@@ -7,6 +7,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { listEnabledModules } from '@/server/queries/organization'
+import { listRequestCatalog } from '@/server/queries/request-form'
 import { listMyNotifications } from '@/server/services/notifications'
 import { SignOutButton } from '@/ui/auth/sign-out-button'
 import { TwoFactorSetup } from '@/ui/auth/two-factor-setup'
@@ -14,10 +15,12 @@ import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { LanguageSwitch } from '@/ui/shell/language-switch'
 import { PwaRegistration } from '@/ui/pwa/pwa-registration'
+import { CommandPalette } from '@/ui/shell/command-palette'
 import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
+import { paletteCommands } from './_shell/commands'
 import { visibleMenu } from './_shell/menu'
 import { markAllNotificationsReadAction, openNotificationAction } from './_shell/notification-actions'
 
@@ -36,7 +39,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     if (platform.kind === 'platform-admin' || platform.kind === 'needs-2fa-setup') redirect('/platform/tenants')
   }
 
-  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, locale] = await Promise.all([
+  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, tSearch, locale] = await Promise.all([
     getTranslations('shell'),
     getTranslations('shell.items'),
     getTranslations('shell.groups'),
@@ -45,6 +48,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     getTranslations('app'),
     getTranslations('pwa'),
     getTranslations('shell.notifications'),
+    getTranslations('shell.search'),
     getLocale(),
   ])
   const languageSwitch = (
@@ -107,6 +111,37 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   // The bell (FR-NOTI-001): the member's own notifications in their language
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   const notifications = ctx ? await listMyNotifications(ctx, locale === 'en' ? 'en' : 'th') : { items: [], unread: 0 }
+  // The ⌘K search (FR-PLT-014): pages are the member's menu; commands only reach what that menu holds (AC4)
+  const screen = locale === 'en' ? 'en' : 'th'
+  const requestTypes = door && ctx ? await listRequestCatalog(ctx, screen) : []
+  const commands = paletteCommands(nav, requestTypes, {
+    startRequest: (type) => tSearch('startRequest', { type }),
+    delegate: tSearch('delegate'),
+    linkLine: tSearch('linkLine'),
+    overdue: tSearch('overdue'),
+  })
+  const search = (
+    <CommandPalette
+      locale={screen}
+      pages={nav.map((item) => ({ id: item.key, label: item.label, href: item.href }))}
+      commands={commands}
+      labels={{
+        trigger: tSearch('trigger'),
+        title: tSearch('title'),
+        description: tSearch('description'),
+        placeholder: tSearch('placeholder'),
+        groups: { recent: tSearch('groups.recent'), documents: tSearch('groups.documents'), suppliers: tSearch('groups.suppliers'), pages: tSearch('groups.pages'), commands: tSearch('groups.commands') },
+        kinds: { REQUEST: tSearch('kinds.REQUEST'), PURCHASE_ORDER: tSearch('kinds.PURCHASE_ORDER'), GOODS_RECEIPT: tSearch('kinds.GOODS_RECEIPT') },
+        draft: tSearch('draft'),
+        empty: tSearch('empty'),
+        loading: tSearch('loading'),
+        failed: tSearch('failed'),
+        rateLimited: tSearch('rateLimited'),
+        shortcutMac: tSearch('shortcutMac'),
+        shortcutOther: tSearch('shortcutOther'),
+      }}
+    />
+  )
   const bell = (
     <NotificationBell
       items={notifications.items.map((i) => ({ id: i.id, title: i.title, body: i.body, href: i.href, unread: i.unread, when: formatDateTime(locale, i.createdAt) }))}
@@ -134,6 +169,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       nav={nav}
       bell={bell}
       newRequest={door ? { href: door.href, label: door.label } : undefined}
+      search={search}
       account={
         <div className="flex flex-col items-start gap-3">
           {languageSwitch}

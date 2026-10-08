@@ -33,6 +33,9 @@ export const SESSION_TOUCH_AFTER_MS = MS_PER_MINUTE
 /** Lockout: 5 failed sign-ins within 15 minutes per account or per IP (FR-AUTH-001 AC3, NFR-SEC-05) */
 export const LOGIN_FAILURE_LIMIT = 5
 export const LOGIN_FAILURE_WINDOW_MS = 15 * MS_PER_MINUTE
+/** NFR-SEC-05: API calls per member per window (the ⌘K search, FR-PLT-014 AC5) */
+export const API_RATE_LIMIT_PER_WINDOW = 60
+export const API_RATE_LIMIT_WINDOW_MS = MS_PER_MINUTE
 /**
  * Better Auth's own lock of the second sign-in step (its two-factor plugin's accountLockout, on by default): this many
  * wrong codes in a row, across sign-ins and backup codes, pause the account's second step for TWO_FACTOR_LOCK_MS — even

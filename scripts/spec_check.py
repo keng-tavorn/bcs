@@ -154,12 +154,17 @@ for i, line in enumerate(LINES):
     if not m: continue
     add_def(m.group(2), i + 1); subs, j = [], i + 1
     while j < len(LINES) and LINES[j].startswith("  - "): subs.append(LINES[j].strip()[2:]); j += 1
-    ITEMS.append({"id": m.group(2), "done": m.group(1) == "x", "head": m.group(3), "subs": subs})
+    ITEMS.append({"id": m.group(2), "done": m.group(1) == "x", "head": m.group(3), "subs": subs, "ln": i + 1})
 dups = {k: v for k, v in defs.items() if len(v) > 1}
 report("PASS" if not dups else "FAIL", "ID ไม่ซ้ำ", f"{len(defs)} ID มีนิยามที่เดียว" if not dups else f"ซ้ำ: {dups}",
        "เทสต์และ traceability ชี้ไปสองความหมาย", "เปลี่ยนเลข ID ที่ซ้ำ")
 refs = set(ID_RE.findall(TEXT))
-undef = sorted(r for r in refs if r not in defs)
+max_new = max((int(k[4:]) for k in defs if k.startswith("NEW-")), default=0)
+def range_start(r):  # the next NEW id, named only as where the new items of a round start (spec 0.3.1: NEW-72 for A2)
+    if not r.startswith("NEW-") or int(r[4:]) != max_new + 1: return False
+    uses = [m.start() for m in re.finditer(re.escape(r) + r"(?![0-9])", TEXT)]
+    return all(TEXT[u + len(r):u + len(r) + 8].startswith(" ขึ้นไป") or TEXT[max(0, u - 9):u].endswith("เริ่มที่ ") for u in uses)
+undef = sorted(r for r in refs if r not in defs and not range_start(r))
 report("PASS" if not undef else "FAIL", "ID ที่อ้างถึงมีนิยาม", f"อ้างถึง {len(refs)} ID ทุกตัวมีนิยาม" if not undef else f"ไม่มีนิยาม: {undef}",
        "agent จะเดาความหมายของกฎหรือคำถามที่ไม่มีอยู่", "เพิ่มแถวนิยาม หรือแก้ ID ที่อ้าง")
 groups = {}
@@ -213,8 +218,29 @@ report("PASS" if not notag else "FAIL", "checklist: ทุกข้อมีแ�
        "agent ไม่รู้ว่าข้อนั้นต้องเสร็จก่อนเส้นชัยไหน", "เติมแท็ก `[demo]` หรือ `[go-live]` ในบรรทัดของข้อนั้น")
 report("PASS" if not nodate else "FAIL", "checklist: ข้อที่ติ๊กแล้วมีวันที่เสร็จ", f"{sum(it['done'] for it in ITEMS)} ข้อที่ติ๊ก" if not nodate else f"ไม่มีวันที่: {nodate}",
        "ตรวจย้อนไม่ได้ว่าเสร็จเมื่อไรและ commit ไหน", "ต่อท้ายบรรทัดด้วย '— เสร็จ YYYY-MM-DD · <commit>'")
-demo_agent = [it for it in ITEMS if "`[demo]`" in it["head"] and "`[คน]`" not in it["head"]]
-report("PASS", "ความคืบหน้าสู่เส้นชัย A", f"ข้อ [demo] ของ agent เสร็จ {sum(it['done'] for it in demo_agent)}/{len(demo_agent)} · ทั้ง checklist เสร็จ {sum(it['done'] for it in ITEMS)}/{len(ITEMS)}")
+# §16 subsection of every item ("16.11"), from the nearest "### 16.x" heading above it
+sec16 = [(ln, re.match(r"^### (16\.\d+) ", l).group(1)) for ln, l in heads if re.match(r"^### 16\.\d+ ", l)]
+for it in ITEMS: it["sec"] = next((s for ln, s in reversed(sec16) if ln < it["ln"]), "")
+A2_FIRST_NEW = 72  # spec 0.3.1: §16.11 items found during round A2 start at NEW-72
+def subsec(it): return int(it["sec"].split(".")[1]) if it["sec"] else 0
+def is_a2(it): return it["sec"] == "16.12" or (it["id"].startswith("NEW-") and int(it["id"][4:]) >= A2_FIRST_NEW)
+def agent_demo(it): return "`[demo]`" in it["head"] and "`[คน]`" not in it["head"]
+def step_items(*steps): return [it for it in ITEMS if re.match(r"^S(\d+)-", it["id"]) and int(it["id"].split("-")[0][1:]) in steps]
+def progress(items, what):
+    return f"{what} เสร็จ {sum(it['done'] for it in items)}/{len(items)}" if items else f"{what}: ยังไม่มีข้อใน checklist (ข้อแรกของขั้นคือเขียน sub-spec และ checklist · §16.0)"
+lines_ = {
+    "A": progress([it for it in ITEMS if agent_demo(it) and 3 <= subsec(it) <= 11 and not is_a2(it)], "ข้อ [demo] ของ agent ใน §16.3 ถึง §16.11 (ถึง NEW-71)"),
+    "A2": progress([it for it in ITEMS if agent_demo(it) and is_a2(it)], "ข้อ [demo] ของ agent ใน §16.12 และ NEW-72 ขึ้นไป"),
+    "B": "ไม่มีข้อใน checklist: เสร็จเมื่อผู้ใช้ส่งไฟล์ input จริงและคำตอบในชีต Questions แล้ว spec ถูกปรับ",
+    "C": progress([it for it in ITEMS if "`[go-live]`" in it["head"] and 3 <= subsec(it) <= 12], "ข้อ [go-live] ใน §16.3 ถึง §16.12"),
+    "D": progress(step_items(6), "ข้อของ S6"),
+    "E": progress(step_items(8, 9), "ข้อของ S8 S9"),
+    "F": progress(step_items(13), "ข้อของ S13"),
+    "G": progress(step_items(17), "ข้อของ S17"),
+    "H": progress(step_items(7, 10, 11), "ข้อของ S7 S10 S11"),
+}
+for k in ("A2", "A", "B", "C", "D", "E", "F", "G", "H"):
+    report("PASS", f"ความคืบหน้าสู่เส้นชัย {k}", lines_[k] + (f" · ทั้ง checklist เสร็จ {sum(it['done'] for it in ITEMS)}/{len(ITEMS)}" if k == "A2" else ""))
 start_ok = "## เริ่มที่นี่" in TEXT and "เส้นชัย A" in TEXT and "ทำตาม spec.md" in TEXT and "### หยุดและถามเมื่อ" in TEXT
 report("PASS" if start_ok else "FAIL", "ส่วนเริ่มที่นี่: คำสั่ง เส้นชัย และวิธีทำงาน", "ครบ" if start_ok else "ขาดคำสั่ง เส้นชัย หรือรายการหยุดถาม",
        "ผู้ใช้สั่งสั้น ๆ แล้ว agent ไม่รู้งานทั้งหมดหรือเส้นชัย", "คืนส่วน '## เริ่มที่นี่' ไว้บนสุดของไฟล์")
@@ -234,6 +260,23 @@ report("PASS" if tok and not low and not missing_tok else "FAIL", "§9.9 token �
        (f"{len(pairs) + 1} คู่ผ่าน (ต่ำสุด {min(_cr(tok[f], tok[b]) for f, b in pairs):.2f}:1)" if not low else f"ไม่ผ่าน {len(low)} คู่: {low}") if tok and not missing_tok else f"ไม่พบ token: {missing_tok}",
        "ตัวอักษรบางสีอ่านยากและไม่ผ่าน WCAG AA (NFR-A11Y-02)", "แก้ค่าสีในตาราง token ของ §9.9 ให้เข้มขึ้น: " + "; ".join(low + missing_tok))
 
+i10 = TEXT.find("\n### 9.10 "); s910 = TEXT[i10:TEXT.find("\n---", i10)] if i10 >= 0 else ""
+tok10 = dict(tok)
+for names, vals in re.findall(r"^\| ((?:`--[a-z0-9-]+`(?: · )?)+) \| ((?:`#[0-9A-Fa-f]{6}`(?: · )?)+) \|", s910, re.M):
+    ns, vs = re.findall(r"`(--[a-z0-9-]+)`", names), re.findall(r"`(#[0-9A-Fa-f]{6})`", vals)
+    if len(ns) == len(vs): tok10.update(zip(ns, vs))
+pair_rows = re.findall(r"^\| `(--[a-z0-9-]+)`[^|]* \| `(--[a-z0-9-]+)` \| ([\d.]+) \| ([\d.]+) \|", s910, re.M)
+bad10, ratios = [], []
+for f, b, mn, stated in pair_rows:
+    if f not in tok10 or b not in tok10: bad10.append(f"ไม่พบค่าของ {f if f not in tok10 else b}"); continue
+    got = int(_cr(tok10[f], tok10[b]) * 100) / 100  # WCAG 2.1 ratio, rounded down to 2 places as the table states
+    ratios.append(got)
+    if got < float(mn): bad10.append(f"{f} บน {b} = {got:.2f}:1 ต่ำกว่า {mn}:1")
+    elif f"{got:.2f}" != stated: bad10.append(f"{f} บน {b} คำนวณได้ {got:.2f} แต่ตารางเขียน {stated}")
+report("PASS" if pair_rows and not bad10 else "FAIL", "§9.10 คู่สีผ่าน contrast (คำนวณซ้ำ)",
+       f"{len(pair_rows)} คู่ตรงกับตาราง (ต่ำสุด {min(ratios):.2f}:1)" if pair_rows and not bad10 else ("; ".join(bad10) if pair_rows else "ไม่พบตารางคู่สีใน §9.10"),
+       "สีของหน้าจอใหม่อ่านยากหรือไม่ผ่าน WCAG AA (NFR-A11Y-02) และตารางใน spec ไม่ตรงกับค่าจริง", "แก้ค่าสีในตาราง token ของ §9.10 หรือแก้ค่าที่ได้ในตารางคู่สีให้ตรงกับการคำนวณ")
+
 # ---------- CLAUDE.md ข้างไฟล์ spec ----------
 CLAUDE = os.path.join(os.path.dirname(os.path.abspath(PATH)), "CLAUDE.md")
 if not os.path.exists(CLAUDE):
@@ -248,13 +291,17 @@ else:
     nlines = cm.count("\n") + 1
     if nlines >= 200: cprob.append(f"ยาว {nlines} บรรทัด (ควรต่ำกว่า 200)")
     s54 = TEXT[TEXT.find("### 5.4 "):TEXT.find("\n---", TEXT.find("### 5.4 "))]
-    scripts = {"install"} | {n for row in s54.splitlines() if row.startswith("| `") for n in re.findall(r"`([a-z0-9:]+)`", row.split("|")[1])}
+    scripts = {"install", "dlx", "exec"} | {n for row in s54.splitlines() if row.startswith("| `") for n in re.findall(r"`([a-z0-9:]+)`", row.split("|")[1])}
     badcmd = sorted({x for x in re.findall(r"pnpm ([a-z0-9]+(?::[a-z0-9]+)?)", cm) if x not in scripts})
     if badcmd: cprob.append(f"คำสั่ง pnpm ที่ไม่มีใน §5.4: {badcmd}")
+    i179 = TEXT.find("### 17.9 "); s179 = TEXT[i179:TEXT.find("\n---", i179)] if i179 >= 0 else ""
+    rules179 = [x for x in s179.splitlines() if x.startswith(("- ", "| `"))]
+    cprob += [f"ขาดกติกา §17.9: {x[:40]}…" for x in rules179 if x not in cm]
+    if i179 >= 0 and not rules179: cprob.append("§17.9 ไม่มีรายการให้เทียบ")
     badref = sorted({k for m in re.finditer(r"§(\d+)(?:\.(\d+))?", cm) for k in [m.group(1) + ("." + m.group(2) if m.group(2) else "")] if k not in secs})
     if badref: cprob.append(f"อ้าง § ที่ไม่มี: {badref}")
-    report("PASS" if not cprob else "FAIL", "CLAUDE.md ตรงกับ spec §17", f"{nlines} บรรทัด · ข้อห้ามครบ {len(forb)} ข้อ · มีกติกาหยุดและสรุป 3 หัวข้อ" if not cprob else "; ".join(cprob),
-           "agent ได้กติกาไม่ตรงกับ spec เช่น ข้อห้ามหายหรือไม่รู้ว่าจะหยุดเมื่อไร", "แก้ CLAUDE.md ให้มีรายการตาม spec §17.3 และ §17.8 ครบ")
+    report("PASS" if not cprob else "FAIL", "CLAUDE.md ตรงกับ spec §17", f"{nlines} บรรทัด · ข้อห้ามครบ {len(forb)} ข้อ · มีกติกาหยุดและสรุป 3 หัวข้อ · กติกา effort ครบ {len(rules179)} บรรทัด (§17.9)" if not cprob else "; ".join(cprob),
+           "agent ได้กติกาไม่ตรงกับ spec เช่น ข้อห้ามหายหรือไม่รู้ว่าจะหยุดเมื่อไร", "แก้ CLAUDE.md ให้มีรายการตาม spec §17.3 §17.8 และ §17.9 ครบ")
 
 # ---------- reference implementations ----------
 def sat(x): return int((Decimal(str(x)) * 100).to_integral_value(rounding=ROUND_HALF_UP))

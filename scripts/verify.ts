@@ -292,7 +292,8 @@ const gates: Gate[] = [
     name: 'spec',
     run: () => {
       const r = sh('pnpm spec:check')
-      const progress = r.out.split(/\r?\n/).find((l) => l.includes('ความคืบหน้าสู่เส้นชัย A')) ?? ''
+      // the line of the current round (spec_check prints A2 first, then A to H)
+      const progress = r.out.split(/\r?\n/).find((l) => l.includes('ความคืบหน้าสู่เส้นชัย A2')) ?? ''
       const summary = r.out.split(/\r?\n/).find((l) => l.startsWith('สรุป:')) ?? ''
       if (r.code === 0) return { status: 'PASS', detail: `${summary}\n      ${progress.replace(/^PASS\s+/, '')}` }
       const fails = r.out.split(/\r?\n/).filter((l) => l.startsWith('FAIL'))

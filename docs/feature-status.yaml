@@ -899,11 +899,15 @@ features:
     verifiedBy: null
     notes: "S16-03: AC1 to AC5; the search field moves into the new top bar in S16-04; the AI row (FR-AI-309) comes with S13"
   FR-VIS-006:
-    status: planned
+    status: done
     step: S16
-    evidence: []
+    evidence:
+      - tests/integration/home.test.ts
+      - tests/unit/home-on-time.test.ts
+      - tests/unit/home-page.test.tsx
+      - tests/e2e/home.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-09: AC1 to AC6 · every to-do row is its list's own count, links carry the filter (nuqs) · the queue target uses the OQ-38 default (960 business minutes) unless settings.procurement sets it · rows that wait for the requester link with scope=mine so the list holds exactly what they count"
   FR-VIS-007:
     status: done
     step: S16

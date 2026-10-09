@@ -7,7 +7,7 @@ import { systemClock } from '@/lib/clock'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { PIN_ONLY, requireStepUp } from '@/server/auth/step-up'
-import { authorize } from '@/server/authz'
+import { authorize, isAllowed, loadMemberPrincipals } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
@@ -19,6 +19,7 @@ import { decidePolicyTask } from './policy-decide'
 import { decidePoTask } from '../purchase-orders/decide'
 import { decideVarianceTask } from '../receiving/variance-decide'
 import { releaseForRequest } from '../requests/budget'
+import { requestViewScope } from '../requests/view-scope'
 import { closeRoute, remindShareOf, taskTimes } from './route'
 import { completeStep, decisionOfStep, lockForDecision } from './step-complete'
 
@@ -94,16 +95,21 @@ const notifyRequester = (requesterMemberId: string, templateKey: string, request
 
 /**
  * §10.1 rows request.approved, request.rejected · request.returned: the requester and the followers (FR-INT-013 AC2).
- * The requester's notice keeps its key; each follower's adds their id. The member deciding is not told of their own act.
+ * The requester's notice keeps its key; each follower's adds their id. The member deciding is not told of their own act,
+ * and a follower who is no longer active or may no longer view the request is not told either (no number or title
+ * reaches someone who cannot open it).
  */
 async function notifyRequesterAndFollowers(tx: TenantTx, ctx: Ctx, templateKey: string, request: { id: string; number: string | null; title: string; requesterMemberId: string }, extra: Record<string, unknown>): Promise<NotificationDraft[]> {
   const followers = await tx.requestFollower.findMany({ where: { requestId: request.id }, select: { memberId: true }, orderBy: { createdAt: 'asc' } })
   const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
   const toRequester = notifyRequester(request.requesterMemberId, templateKey, request, extra)
+  const others = followers.filter((f) => f.memberId !== request.requesterMemberId && f.memberId !== actor)
+  if (others.length === 0) return [toRequester]
+  const [scope, principals] = await Promise.all([requestViewScope(tx, request.id), loadMemberPrincipals(tx, others.map((f) => f.memberId), ctx.now)])
   return [
     toRequester,
-    ...followers
-      .filter((f) => f.memberId !== request.requesterMemberId && f.memberId !== actor)
+    ...others
+      .filter((f) => scope !== null && isAllowed(principals.get(f.memberId)!, 'request.view', scope))
       .map((f) => ({ ...toRequester, recipientMemberId: f.memberId, data: { ...toRequester.data, asFollower: true }, dedupeKey: `${toRequester.dedupeKey}:${f.memberId}` })),
   ]
 }

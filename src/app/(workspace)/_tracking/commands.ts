@@ -215,12 +215,14 @@ export async function cancelOwnRequest(ctx: Ctx, input: unknown, idempotencyKey:
 
 const FollowInput = z.object({ requestId: Id, follow: z.boolean() })
 const ManageFollowerInput = z.object({ requestId: Id, memberId: Id, follow: z.boolean() })
+/** The field the first parse problem names (the whole input when it is not an object) */
+const firstField = (error: z.ZodError) => String(error.issues[0]?.path[0] ?? 'input')
 
 /** The viewer follows the request or stops following it (FR-INT-013 AC1); the service checks request.follow */
 export async function followOrUnfollow(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ActionOutcome> {
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = FollowInput.safeParse(input)
-  if (!parsed.success) return invalid('requestId')
+  if (!parsed.success) return invalid(firstField(parsed.error))
   return outcomeOf(await followRequest(ctx, parsed.data, { idempotencyKey: idempotencyKey as string }))
 }
 
@@ -228,6 +230,6 @@ export async function followOrUnfollow(ctx: Ctx, input: unknown, idempotencyKey:
 export async function addOrRemoveFollower(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ActionOutcome> {
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = ManageFollowerInput.safeParse(input)
-  if (!parsed.success) return invalid('memberId')
+  if (!parsed.success) return invalid(firstField(parsed.error))
   return outcomeOf(await manageFollowers(ctx, parsed.data, { idempotencyKey: idempotencyKey as string }))
 }

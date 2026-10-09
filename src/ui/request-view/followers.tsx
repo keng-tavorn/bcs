@@ -1,17 +1,32 @@
 'use client'
 
 import { StarIcon, XIcon } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
 import { Notice } from '../form/notice'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../shadcn/alert-dialog'
 import { Button } from '../shadcn/button'
 import { Combobox } from '../shadcn/combobox'
+import { Label } from '../shadcn/label'
+import { Toggle } from '../shadcn/toggle'
 import type { ActionFailure, ActionOutcome } from '../tasks/outcome'
 import { useAction } from './use-action'
 
 // Followers of a request (FR-INT-013 AC1–AC3, §9.10 document header and right panel). The header carries the follow
-// button — a star with its word, pressed while the viewer follows — for anybody who may view the request but the
-// requester. The panel lists the followers; the requester removes one or adds a member who already sees the request
+// toggle — a star with the word "ติดตาม", pressed (filled star, shaded) while the viewer follows — for anybody who may
+// view the request but the requester. Its name stays the same and aria-pressed says the state. A viewer who sees the
+// request only because they follow it is asked first: stopping ends their access, and they cannot follow it again
+// (§9.9: nothing that cannot be undone without a confirmation). The panel lists the followers; the requester removes one or adds a member who already sees the request
 // (OQ-39: the list holds only them, and the service checks again). Each result stays as a line under the control after
 // the page refreshes (§9.9 rule 7); nothing pops up by itself (NG-13). A button that cannot be pressed keeps its words
 // readable (§9.9 contrast 4.5:1, as src/ui/form/button.tsx), not faded out.
@@ -36,27 +51,68 @@ function useFailureText() {
   }
 }
 
-/** The header's follow button: follows the request, or stops following it */
-export function FollowButton({ requestId, following, follow }: { readonly requestId: string; readonly following: boolean; readonly follow: Follow }) {
+/**
+ * Runs a follower action; when the server says the list changed meanwhile (already following, not following any
+ * more) the page is refreshed too, so the screen shows the state as it is and the next press does what it says.
+ */
+function useFollowerAction() {
+  const router = useRouter()
+  const action = useAction()
+  async function run(call: (idempotencyKey: string) => Promise<ActionOutcome>) {
+    const outcome = await action.run(call)
+    if (!outcome.ok && outcome.code === 'INVALID_STATE_TRANSITION') router.refresh()
+    return outcome
+  }
+  return { ...action, run }
+}
+
+/** The header's follow toggle: follows the request, or stops following it */
+export function FollowButton({
+  requestId,
+  following,
+  unfollowEndsAccess,
+  follow,
+}: {
+  readonly requestId: string
+  readonly following: boolean
+  /** The viewer sees the request only because they follow it */
+  readonly unfollowEndsAccess: boolean
+  readonly follow: Follow
+}) {
   const t = useTranslations('requestView.followers')
   const failureText = useFailureText()
-  const action = useAction()
+  const action = useFollowerAction()
+  const [asking, setAsking] = useState(false)
   const failure = action.outcome && !action.outcome.ok ? action.outcome : null
+  const send = (next: boolean) => void action.run((key) => follow({ requestId, follow: next }, key))
 
   return (
     <div className="flex flex-col items-start gap-1.5">
-      <Button
-        type="button"
+      <Toggle
         variant="outline"
-        aria-pressed={following}
+        pressed={following}
         disabled={action.pending}
         className="min-h-11 px-3 text-base"
-        onClick={() => void action.run((key) => follow({ requestId, follow: !following }, key))}
+        onPressedChange={(next) => (!next && unfollowEndsAccess ? setAsking(true) : send(next))}
       >
         <StarIcon aria-hidden="true" className={following ? 'fill-primary text-primary' : 'text-ink-muted'} />
-        {following ? t('following') : t('follow')}
-      </Button>
+        {t('follow')}
+      </Toggle>
       {failure ? <p className="text-danger">{failureText(failure)}</p> : null}
+      <AlertDialog open={asking} onOpenChange={setAsking}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('unfollowTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>{t('unfollowBody')}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11 text-base">{t('unfollowKeep')}</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" className="min-h-11 text-base" onClick={() => send(false)}>
+              {t('unfollowConfirm')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
@@ -77,7 +133,7 @@ export function FollowersPanel({ requestId, followers, canManage, candidates, ma
   const pickerId = useId()
   const [chosen, setChosen] = useState<string | null>(null)
   const [done, setDone] = useState<string | null>(null)
-  const action = useAction()
+  const action = useFollowerAction()
   const failure = action.outcome && !action.outcome.ok ? action.outcome : null
 
   async function change(memberId: string, follow: boolean, name: string) {
@@ -122,9 +178,9 @@ export function FollowersPanel({ requestId, followers, canManage, candidates, ma
       )}
       {canManage ? (
         <div className="flex flex-col gap-2">
-          <label htmlFor={pickerId} className="font-medium text-ink">
+          <Label htmlFor={pickerId} className="text-base text-ink">
             {t('addLabel')}
-          </label>
+          </Label>
           <p className="text-ink-muted">{t('addHint')}</p>
           <Combobox
             id={pickerId}

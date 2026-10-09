@@ -321,12 +321,11 @@
   },
   "followers": {
     "follow": "Follow",
-    "following": "Following",
     "title": "Followers ({n})",
     "empty": "No followers yet",
     "emptyRequester": "No followers yet. Add colleagues who need to know how this request ends below.",
     "remove": "Remove",
-    "removeLabel": "Remove {name} from the followers",
+    "removeLabel": "Remove {name}",
     "addLabel": "Add a follower",
     "addHint": "Followers are told when the request is approved, returned or not approved · only people who can already see this request can be chosen",
     "pick": "Choose a member",
@@ -342,6 +341,10 @@
       "STATE": "The followers changed meanwhile. Reload the page to see the latest list",
       "FORBIDDEN": "You may not do this on this request",
       "FAILED": "That did not work. Try again"
-    }
+    },
+    "unfollowTitle": "Stop following this request?",
+    "unfollowBody": "You can see this request only because you follow it. If you stop, you can no longer open it and cannot follow it again yourself; the requester would have to add you",
+    "unfollowKeep": "Keep following",
+    "unfollowConfirm": "Stop following and lose access"
   }
 }

@@ -38,6 +38,20 @@ async function submitted(title?: string) {
   return requestId
 }
 
+/** n active AUDITOR members of FIN (they view every request), each following `requestId` when given */
+async function auditors(n: number, requestId?: string) {
+  const { primaryDepartmentId } = await prisma.member.findUniqueOrThrow({ where: { id: org.member.fin_officer! } })
+  const ids: string[] = []
+  for (let i = 0; i < n; i++) {
+    const id = randomUUID()
+    await prisma.member.create({ data: { id, organizationId: org.organizationId, displayNameTh: 'ผู้ตรวจ', email: `${id}@test.bcs.local`, status: 'ACTIVE', primaryDepartmentId } })
+    await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: id, role: 'AUDITOR', grantedAt: NOW } })
+    if (requestId) await prisma.requestFollower.create({ data: { organizationId: org.organizationId, requestId, memberId: id } })
+    ids.push(id)
+  }
+  return ids
+}
+
 const followerIds = async (requestId: string) => (await prisma.requestFollower.findMany({ where: { requestId }, select: { memberId: true }, orderBy: { createdAt: 'asc' } })).map((f) => f.memberId)
 const eventsOf = async (requestId: string, type: string) => prisma.event.findMany({ where: { aggregateId: requestId, type }, select: { data: true, actorMemberId: true }, orderBy: { seq: 'asc' } })
 const noticesTo = async (code: string, requestId: string, templateKey: string) => prisma.notification.findMany({ where: { recipientMemberId: org.member[code]!, subjectId: requestId, templateKey } })
@@ -97,20 +111,30 @@ describe('[FR-INT-013/AC1] whoever views the request follows it themselves; only
     for (const code of ['req_con', 'dm_con', 'asst_con', 'receiver_con', 'dm_fin', 'fin_officer']) expect(offered, code).not.toContain(org.member[code])
 
     const head = await getRequestFollowers(org.ctxOf('vp_ops', NOW), requestId)
-    expect(head).toMatchObject({ canManage: false, canFollow: true, following: false, candidates: [] })
+    expect(head).toMatchObject({ canManage: false, canFollow: true, following: false, unfollowEndsAccess: false, candidates: [] })
+    expect(await getRequestFollowers(org.ctxOf('dm_con', NOW), requestId)).toMatchObject({ following: true, unfollowEndsAccess: false })
     expect(await getRequestFollowers(org.ctxOf('asst_con', NOW), requestId)).toBeNull()
   })
 
   it('caps the followers of one request', async () => {
     const requestId = await submitted()
-    const extra = Array.from({ length: MAX_FOLLOWERS }, () => randomUUID())
-    for (const id of extra) {
-      const m = await prisma.member.create({ data: { id, organizationId: org.organizationId, displayNameTh: 'ผู้ตรวจ', email: `${id}@test.bcs.local`, status: 'ACTIVE', primaryDepartmentId: (await prisma.member.findUniqueOrThrow({ where: { id: org.member.fin_officer! } })).primaryDepartmentId } })
-      await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: m.id, role: 'AUDITOR', grantedAt: NOW } })
-      await prisma.requestFollower.create({ data: { organizationId: org.organizationId, requestId, memberId: m.id } })
-    }
+    await auditors(MAX_FOLLOWERS, requestId)
     expect(await followRequest(org.ctxOf('vp_ops', NOW), { requestId, follow: true }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'TOO_MANY' } } })
     expect(await manageFollowers(org.ctxOf('req_con', NOW), { requestId, memberId: org.member.proc_officer!, follow: true }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'TOO_MANY' } } })
+  })
+})
+
+describe('[FR-INT-013/AC1] the cap holds when members follow at the same moment', () => {
+  it('lets one of two simultaneous follows take the last place and refuses the other', async () => {
+    const requestId = await submitted()
+    await auditors(MAX_FOLLOWERS - 1, requestId)
+    const results = await Promise.all([
+      followRequest(org.ctxOf('vp_ops', NOW), { requestId, follow: true }, key()),
+      followRequest(org.ctxOf('proc_officer', NOW), { requestId, follow: true }, key()),
+    ])
+    expect(results.filter((r) => r.ok)).toHaveLength(1)
+    expect(results.filter((r) => !r.ok)).toMatchObject([{ error: { code: 'VALIDATION_FAILED', details: { reason: 'TOO_MANY' } } }])
+    expect(await prisma.requestFollower.count({ where: { requestId } })).toBe(MAX_FOLLOWERS)
   })
 })
 
@@ -140,6 +164,18 @@ describe('[FR-INT-013/AC2] followers are told with the requester; the member add
     expect((await noticesTo('vp_ops', approved, 'request.approved'))[0]!.data).toMatchObject({ asFollower: true })
     // dm_con follows but decided it: not told of their own decision
     for (const [requestId, template] of [[approved, 'request.approved'], [returned, 'request.decided'], [rejected, 'request.decided']] as const) expect(await noticesTo('dm_con', requestId, template)).toEqual([])
+  })
+
+  it('a follower who is no longer active, or may no longer view the request, is not told', async () => {
+    const requestId = await submitted('ผู้ติดตามที่ออกไปแล้ว')
+    const [gone, roleless] = await auditors(2, requestId)
+    await prisma.member.update({ where: { id: gone! }, data: { status: 'DEACTIVATED' } })
+    await prisma.roleAssignment.updateMany({ where: { memberId: roleless! }, data: { revokedAt: NOW } })
+    const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: requestId } } } })
+    ok(await decideTask(org.ctxOf('dm_con', LATER), { taskId: task.id, decision: 'REJECT', reason: 'ขอใบเสนอราคาเพิ่ม' }, key()))
+    const told = await prisma.notification.findMany({ where: { subjectId: requestId, templateKey: 'request.decided' }, select: { recipientMemberId: true } })
+    // the roleless one still follows, and §2.4 counts a follower as OWN for request.view (NEW-74): told as a viewer
+    expect(told.map((n) => n.recipientMemberId).sort()).toEqual([org.member.req_con!, roleless!].sort())
   })
 
   it('[FR-INT-008/AC2] a follower added through the service sees the same status and current step as the requester, and lists it as followed', async () => {
@@ -176,9 +212,13 @@ describe('[FR-INT-013/AC3] a follower who is not the requester never sends, edit
     expect(await addOrRemoveFollower(asFollower, { requestId, memberId: org.member.dm_con!, follow: true }, randomUUID())).toMatchObject({ ok: false, code: 'FORBIDDEN' })
 
     expect(await prisma.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true, version: true, title: true } })).toEqual(before)
+    // a malformed call names the field that is wrong
+    expect(await addOrRemoveFollower(asFollower, { requestId: 'x', memberId: org.member.dm_con!, follow: true }, randomUUID())).toMatchObject({ ok: false, code: 'VALIDATION_FAILED', field: 'requestId' })
+    expect(await followOrUnfollow(asFollower, { requestId, follow: 'yes' }, randomUUID())).toMatchObject({ ok: false, code: 'VALIDATION_FAILED', field: 'follow' })
     expect(await followerIds(requestId)).toEqual([org.member.asst_con])
     // They still see it and may stop following it themselves
-    expect((await getRequestFollowers(asFollower, requestId))).toMatchObject({ following: true, canFollow: true, canManage: false })
+    // …and the page asks before they stop, because stopping ends their access; someone with access of their own is not asked
+    expect(await getRequestFollowers(asFollower, requestId)).toMatchObject({ following: true, canFollow: true, canManage: false, unfollowEndsAccess: true })
     expect(await followOrUnfollow(asFollower, { requestId, follow: false }, randomUUID())).toEqual({ ok: true })
     expect(await followerIds(requestId)).toEqual([])
   })

@@ -106,7 +106,7 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
             <p className="font-medium text-ink-muted">{view.number ?? tv('detail.draftLabel')}</p>
             <h1 className="text-2xl font-semibold break-words">{view.title}</h1>
           </div>
-          {follow?.canFollow ? <FollowButton requestId={view.id} following={follow.following} follow={followAction} /> : null}
+          {follow?.canFollow ? <FollowButton requestId={view.id} following={follow.following} unfollowEndsAccess={follow.unfollowEndsAccess} follow={followAction} /> : null}
         </div>
         <div className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
           <RequestStatus status={view.status} label={tv(`status.${view.status}`)} />

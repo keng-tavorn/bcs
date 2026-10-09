@@ -5175,14 +5175,17 @@
         "TOO_MANY": "This request has as many followers as it can take. Remove someone first"
       },
       "follow": "Follow",
-      "following": "Following",
       "noCandidates": "No member who can see this request is left to add",
       "pick": "Choose a member",
       "remove": "Remove",
-      "removeLabel": "Remove {name} from the followers",
+      "removeLabel": "Remove {name}",
       "removed": "{name} no longer follows this request",
       "search": "Type a name to search",
-      "title": "Followers ({n})"
+      "title": "Followers ({n})",
+      "unfollowBody": "You can see this request only because you follow it. If you stop, you can no longer open it and cannot follow it again yourself; the requester would have to add you",
+      "unfollowConfirm": "Stop following and lose access",
+      "unfollowKeep": "Keep following",
+      "unfollowTitle": "Stop following this request?"
     },
     "following": "You follow this request",
     "lines": {

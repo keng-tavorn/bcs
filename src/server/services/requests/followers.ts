@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { isAllowed, loadMemberPrincipals, loadPrincipal, type ResourceScope } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { memberRef, type MemberRefDto } from '@/server/queries/requests'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -31,6 +32,7 @@ interface FollowedRequest {
   readonly scope: ResourceScope
 }
 
+/** The request and who may view it */
 async function followedRequest(tx: TenantTx, requestId: string): Promise<FollowedRequest | null> {
   const [request, scope] = await Promise.all([
     tx.request.findFirst({ where: { id: requestId }, select: { id: true, number: true, title: true, requesterMemberId: true } }),
@@ -66,6 +68,8 @@ export const followCommand = defineCommand({
   input: SelfInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string; following: boolean }>> {
     const me = memberOf(ctx)
+    // The request row first (§4.3 step 4): two follows at the same moment take turns, so the cap of MAX_FOLLOWERS holds
+    if ((await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [input.requestId])).length === 0) return fail('NOT_FOUND', 'request not found')
     const request = await followedRequest(tx, input.requestId)
     if (!request) return fail('NOT_FOUND', 'request not found')
     if (!me || !isAllowed(await loadPrincipal(tx, ctx), 'request.follow', request.scope)) return fail('FORBIDDEN', 'missing capability request.follow', { capability: 'request.follow' })
@@ -97,6 +101,8 @@ export const manageFollowersCommand = defineCommand({
   capability: 'request.followers.manage',
   input: ManageInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string; memberId: string; following: boolean }>> {
+    // The request row first (§4.3 step 4): two follows at the same moment take turns, so the cap of MAX_FOLLOWERS holds
+    if ((await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [input.requestId])).length === 0) return fail('NOT_FOUND', 'request not found')
     const request = await followedRequest(tx, input.requestId)
     if (!request) return fail('NOT_FOUND', 'request not found')
     // OWN is the requester alone here: a follower, though OWN for request.view, never manages followers (FR-INT-013 AC3)
@@ -149,6 +155,8 @@ export interface RequestFollowersDto {
   readonly canFollow: boolean
   /** The viewer is the requester (request.followers.manage) */
   readonly canManage: boolean
+  /** The viewer sees the request only because they follow it: stopping ends their access (the page asks first) */
+  readonly unfollowEndsAccess: boolean
   /** For the requester only: the active members who already see the request and do not follow it (OQ-39) */
   readonly candidates: readonly MemberRefDto[]
 }
@@ -178,9 +186,11 @@ export async function getRequestFollowers(ctx: Ctx, requestId: string): Promise<
       const principals = await loadMemberPrincipals(tx, active.map((m) => m.id), ctx.now)
       candidates = active.filter((m) => isAllowed(principals.get(m.id)!, 'request.view', request.scope)).map(memberRef).sort(byName)
     }
+    const following = followers.some((f) => f.id === me)
     return {
       followers,
-      following: followers.some((f) => f.id === me),
+      following,
+      unfollowEndsAccess: following && !isAllowed(principal, 'request.view', { ...request.scope, ownerMemberIds: [request.requesterMemberId] }),
       canFollow: me !== request.requesterMemberId && isAllowed(principal, 'request.follow', request.scope),
       canManage,
       candidates,

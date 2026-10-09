@@ -48,6 +48,11 @@
     "settings": "My settings",
     "admin": "Organization admin"
   },
+  "counts": {
+    "tasks": "{count, plural, one {# open task} other {# open tasks}}",
+    "pool": "{count, plural, one {# line waiting} other {# lines waiting}}",
+    "receiving": "{count, plural, one {# PO waiting to be received} other {# POs waiting to be received}}"
+  },
   "notifications": {
     "button": "Notifications",
     "unreadCount": "{count} unread",

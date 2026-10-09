@@ -96,6 +96,27 @@ export async function homeTodo(ctx: Ctx): Promise<Result<TodoDto>> {
   return ok({ rows, openTasks: tasks.all })
 }
 
+/** The numbers beside the menu (§9.10 "ตัวเลขข้างเมนู"): null for a list that refuses the member, as its menu entry is hidden */
+export interface NavCountsDto {
+  /** /tasks: every open task of mine, waiting for my decision or for the requester's answer */
+  readonly tasks: number
+  /** /procurement/pool: the lines waiting */
+  readonly pool: number | null
+  /** /receiving: the POs waiting for me to receive them */
+  readonly receiving: number | null
+}
+
+/** The menu entries that carry a number, by their menu key */
+export const NAV_COUNT_KEYS = ['tasks', 'pool', 'receiving'] as const satisfies ReadonlyArray<keyof NavCountsDto>
+
+/** Read by the same counts as "สิ่งที่ต้องทำ" above, so the menu and the home card never disagree */
+export async function navCounts(ctx: Ctx): Promise<Result<NavCountsDto>> {
+  const member = await memberOf(ctx)
+  if (!member.ok) return member
+  const [tasks, pool, receiving] = await Promise.all([countMyTasks(ctx), countPoolLines(ctx), countReceivable(ctx)])
+  return ok({ tasks: tasks.all, pool, receiving })
+}
+
 /**
  * "งานอนุมัติทันเวลา" (AC3): my tasks for a member who had one in the last 60 days; my departments' for a department head
  * whose report.view reaches them; the organization's for a reader of the whole organization (report.view ORG: FINANCE,

@@ -21,7 +21,7 @@ import { loadInputWorkbook } from '@/server/seed/workbook'
 import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { seedDemoHistory } from '@/server/services/demo-history'
 import { getExportOverview } from '@/server/services/exports/view'
-import { homeApprovals, homeFollowing, homeOnTime, homeTodo, TODO_KEYS, type TodoKey } from '@/server/services/home'
+import { homeApprovals, homeFollowing, homeOnTime, homeTodo, NAV_COUNT_KEYS, navCounts, TODO_KEYS, type TodoKey } from '@/server/services/home'
 import { listInvoiceWork } from '@/server/services/invoices/view'
 import { assignSupplier, consolidateNow, listPool } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
@@ -269,6 +269,34 @@ describe('[FR-VIS-006/AC2] every to-do row shows exactly the number of the list 
       if (!isAllowed(m.principal, 'invoiceConfirmation.record')) expect(keys.has('INVOICES'), m.code).toBe(false)
       if (!isAllowed(m.principal, 'export.express')) expect(keys.has('EXPORTS'), m.code).toBe(false)
     }
+  })
+})
+
+describe('[FR-PLT-013/AC2] the numbers beside the menu are the counts of the lists they open, for every seed member (NEW-73)', () => {
+  it('งานอนุมัติ = my open tasks of /tasks · กองรอจัดซื้อ = the lines of /procurement/pool · ตรวจรับ = the POs /receiving lets me receive', async () => {
+    const seen = new Set<string>()
+    for (const now of [NOW, LATER]) {
+      for (const m of members) {
+        const ctx = ctxOf(m, now)
+        const counts = ok(await navCounts(ctx))
+        expect(counts.tasks, `${m.code} tasks`).toBe((await listMyTasks(ctx)).total)
+        expect(counts.tasks, `${m.code} tasks counted by the test`).toBe(await db().approvalTask.count({ where: { status: { in: ['OPEN', 'INFO_REQUESTED'] }, OR: [{ assigneeMemberId: m.id }, { principalMemberId: m.id }] } }))
+        expect(counts.pool, `${m.code} pool`).toBe(await listCount('POOL', ctx))
+        expect(counts.receiving, `${m.code} receiving`).toBe(await listCount('RECEIVING', ctx))
+        // a list that refuses the member gives no number, as its menu entry is hidden
+        if (!isAllowed(m.principal, 'procurement.pool.view')) expect(counts.pool, m.code).toBeNull()
+        if (counts.tasks > 0) seen.add('tasks')
+        if (counts.pool) seen.add('pool')
+        if (counts.receiving) seen.add('receiving')
+      }
+    }
+    // each number is compared with a list that holds something for someone
+    expect([...seen].sort()).toEqual([...NAV_COUNT_KEYS].sort())
+  })
+
+  it('only a member has numbers', async () => {
+    const r = await navCounts(makeCtx({ organizationId, actor: { type: 'SYSTEM' }, channel: 'WEB', now: NOW }))
+    expect(r.ok).toBe(false)
   })
 })
 

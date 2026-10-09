@@ -48,6 +48,11 @@
     "settings": "ตั้งค่าของฉัน",
     "admin": "ผู้ดูแลองค์กร"
   },
+  "counts": {
+    "tasks": "งานที่เปิด {count} งาน",
+    "pool": "บรรทัดที่รอ {count} บรรทัด",
+    "receiving": "PO ที่รอตรวจรับ {count} ใบ"
+  },
   "notifications": {
     "button": "แจ้งเตือน",
     "unreadCount": "ยังไม่อ่าน {count} รายการ",

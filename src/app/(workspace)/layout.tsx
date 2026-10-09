@@ -10,6 +10,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { listEnabledModules } from '@/server/queries/organization'
 import { listRequestCatalog } from '@/server/queries/request-form'
+import { NAV_COUNT_KEYS, navCounts } from '@/server/services/home'
 import { listMyNotifications } from '@/server/services/notifications'
 import { SignOutButton } from '@/ui/auth/sign-out-button'
 import { TwoFactorSetup } from '@/ui/auth/two-factor-setup'
@@ -42,9 +43,10 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     if (platform.kind === 'platform-admin' || platform.kind === 'needs-2fa-setup') redirect('/platform/tenants')
   }
 
-  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, tSearch, tRoles, locale] = await Promise.all([
+  const [t, tItems, tCounts, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, tSearch, tRoles, locale] = await Promise.all([
     getTranslations('shell'),
     getTranslations('shell.items'),
+    getTranslations('shell.counts'),
     getTranslations('shell.groups'),
     getTranslations('auth'),
     getTranslations('auth.security'),
@@ -111,7 +113,6 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   // The sidebar holds the groups of §9.10, a heading over the named ones; the hub pages list the rest (/settings, /admin)
   const headingOf = (group: MenuGroup) => (group === 'procurement' || group === 'finance' || group === 'insight' ? tGroups(group) : '')
   const sidebarGroups: readonly MenuGroup[] = SIDEBAR_GROUPS
-  const nav = menu.filter((item) => sidebarGroups.includes(item.group)).map((item) => ({ ...item, groupLabel: headingOf(item.group) }))
   // The one door (§9.9 principle 2): only for a member whose menu has it — one who may create requests
   const door = menu.find((item) => item.key === 'newRequest')
   const name = locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh
@@ -119,7 +120,20 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const sidebarOpen = (await cookies()).get(SIDEBAR_STATE_COOKIE)?.value !== 'false'
   // The bell (FR-NOTI-001): the member's own notifications in their language
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
-  const notifications = ctx ? await listMyNotifications(ctx, locale === 'en' ? 'en' : 'th') : { items: [], unread: 0 }
+  // The numbers beside the menu (§9.10): the same counts as the home's "สิ่งที่ต้องทำ" (services/home), beside an entry
+  // only when it has something
+  const [notifications, counts] = ctx ? await Promise.all([listMyNotifications(ctx, locale === 'en' ? 'en' : 'th'), navCounts(ctx)]) : [{ items: [], unread: 0 }, null]
+  const countOf = (key: string) => {
+    const counted = NAV_COUNT_KEYS.find((k) => k === key)
+    const value = counted && counts?.ok ? counts.data[counted] : null
+    return counted && value ? { value, label: tCounts(counted, { count: value }) } : null
+  }
+  const nav = menu
+    .filter((item) => sidebarGroups.includes(item.group))
+    .map((item) => {
+      const count = countOf(item.key)
+      return { ...item, groupLabel: headingOf(item.group), ...(count ? { count } : {}) }
+    })
   // The ⌘K search (FR-PLT-014): pages are the member's menu; commands only reach what that menu holds (AC4)
   const screen = locale === 'en' ? 'en' : 'th'
   const requestTypes = door && ctx ? await listRequestCatalog(ctx, screen) : []

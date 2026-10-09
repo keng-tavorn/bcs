@@ -5780,6 +5780,11 @@
   },
   "shell": {
     "account": "บัญชีของฉัน",
+    "counts": {
+      "pool": "บรรทัดที่รอ {count} บรรทัด",
+      "receiving": "PO ที่รอตรวจรับ {count} ใบ",
+      "tasks": "งานที่เปิด {count} งาน"
+    },
     "groups": {
       "admin": "ผู้ดูแลองค์กร",
       "finance": "การเงิน",

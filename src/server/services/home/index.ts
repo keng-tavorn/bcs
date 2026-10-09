@@ -5,7 +5,7 @@ import type { StoredRole } from '@/server/authz/permissions'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
-import { hadTasksLately, loadApprovals, loadFollowing, onTimeQueue, onTimeTasks, type ApprovalsDto, type FollowingDto, type OnTimeFigure } from '@/server/queries/home'
+import { hadTasksLately, loadApprovals, loadFollowing, onTimeOfMember, onTimeOfOrg, onTimeQueue, type ApprovalsDto, type FollowingDto, type OnTimeFigure } from '@/server/queries/home'
 import { procurementPoCounts } from '@/server/queries/purchase-orders'
 import { countMyRequests } from '@/server/queries/requests'
 import { countMyTasks } from '@/server/queries/tasks'
@@ -72,7 +72,7 @@ export async function homeTodo(ctx: Ctx): Promise<Result<TodoDto>> {
     countMyRequests(ctx, { scope: 'MINE', status: 'DRAFT' }),
     countReceivable(ctx),
     isAllowed(p, 'procurement.pool.view') ? countPoolLines(ctx) : null,
-    isAllowed(p, 'po.send') ? procurementPoCounts(ctx) : null,
+    isAllowed(p, 'po.create') ? procurementPoCounts(ctx) : null,
     isAllowed(p, 'invoiceConfirmation.record') ? countInvoicesToConfirm(ctx) : null,
     isAllowed(p, 'export.express') ? countReadyForExport(ctx) : null,
   ])
@@ -107,22 +107,27 @@ export async function homeOnTime(ctx: Ctx): Promise<Result<readonly OnTimeRowDto
   if (!member.ok) return member
   const p = member.data
   const reads = reportScope(p)
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
-    const rows: OnTimeRowDto[] = []
-    if (await hadTasksLately(tx, p.memberId, ctx.now)) rows.push({ key: 'MINE', figure: await onTimeTasks(tx, { kind: 'MEMBER', memberId: p.memberId }, ctx.now), insightsDepartmentId: null })
-    const headed = [...p.headOfDepartmentIds]
-    if (headed.length > 0 && reads !== 'NONE') {
-      // a reader of the whole organization opens /insights on their department when it is one; a head reads only theirs anyway
-      const insightsDepartmentId = reads === null && headed.length === 1 ? headed[0]! : null
-      rows.push({ key: 'DEPARTMENT', figure: await onTimeTasks(tx, { kind: 'DEPARTMENTS', departmentIds: headed }, ctx.now), insightsDepartmentId })
-    }
-    if (reads === null) rows.push({ key: 'ORG', figure: await onTimeTasks(tx, { kind: 'ORG' }, ctx.now), insightsDepartmentId: null })
-    if (reads === null && QUEUE_READERS.some((r) => p.roles.has(r))) {
-      const [org, calendar] = await Promise.all([tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } }), loadBusinessCalendar(tx, ctx.organizationId)])
-      rows.push({ key: 'QUEUE', figure: await onTimeQueue(tx, ctx.now, queueTargetMinutesOf(org.settings), calendar), insightsDepartmentId: null })
-    }
-    return ok(rows)
-  })
+  const headed = [...p.headOfDepartmentIds]
+  const wantsDepartment = headed.length > 0 && reads !== 'NONE'
+  const wantsQueue = reads === null && QUEUE_READERS.some((r) => p.roles.has(r))
+  // read only: each figure its own short read, side by side, never one long transaction
+  const db = forTenant(ctx.organizationId)
+  const [mine, org, queue] = await Promise.all([
+    hadTasksLately(db, p.memberId, ctx.now).then((had) => (had ? onTimeOfMember(db, p.memberId, ctx.now) : null)),
+    wantsDepartment || reads === null ? onTimeOfOrg(db, ctx.now, { departments: wantsDepartment ? headed : null, org: reads === null }) : null,
+    wantsQueue
+      ? Promise.all([db.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } }), db.$transaction((tx) => loadBusinessCalendar(tx, ctx.organizationId))]).then(([o, calendar]) =>
+          onTimeQueue(db, ctx.now, queueTargetMinutesOf(o.settings), calendar),
+        )
+      : null,
+  ])
+  const rows: OnTimeRowDto[] = []
+  if (mine) rows.push({ key: 'MINE', figure: mine, insightsDepartmentId: null })
+  // a reader of the whole organization opens /insights on their department when it is one; a head reads only theirs anyway
+  if (org?.departments) rows.push({ key: 'DEPARTMENT', figure: org.departments, insightsDepartmentId: reads === null && headed.length === 1 ? headed[0]! : null })
+  if (org?.org) rows.push({ key: 'ORG', figure: org.org, insightsDepartmentId: null })
+  if (queue) rows.push({ key: 'QUEUE', figure: queue, insightsDepartmentId: null })
+  return ok(rows)
 }
 
 /** "ที่ฉันติดตาม" (AC4): every member's own and followed requests */

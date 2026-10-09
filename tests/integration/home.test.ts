@@ -56,6 +56,8 @@ interface Member {
 
 let organizationId: string
 let members: Member[]
+/** A request an approver decided a step of after everything else: it moved last for its requester */
+let moved: { requestId: string; requesterId: string }
 
 const ctxOf = (m: Member, now: Date): Ctx => makeCtx({ organizationId, actor: { type: 'USER', memberId: m.id }, channel: 'WEB', now })
 const db = () => forTenant(organizationId)
@@ -97,6 +99,14 @@ async function addWork() {
   const draft = await db().purchaseOrder.findFirstOrThrow({ where: { status: 'DRAFT', lines: { some: { sources: { some: { requestLineId: { in: lines } } } } } }, select: { id: true } })
   ok(await submitPo(ctxOf(buyer, NOW), { poId: draft.id }, key()))
   await approveAll(draft.id)
+  // an approver decides a step of another waiting request a minute after everything else (the decision writes the task
+  // and its event; on a longer route the request's own row is not touched)
+  const step = await db().approvalTask.findFirstOrThrow({ where: { status: 'OPEN', id: { not: pending.id }, step: { route: { subjectType: 'REQUEST' } } }, select: { id: true, assigneeMemberId: true, step: { select: { route: { select: { subjectId: true } } } } } })
+  await stepUpForTask(step.id, step.assigneeMemberId)
+  const later = makeCtx({ organizationId, actor: { type: 'USER', memberId: step.assigneeMemberId }, channel: 'WEB', now: new Date(NOW.getTime() + 60_000) })
+  ok(await decideTask(later, { taskId: step.id, decision: 'APPROVE' }, key()))
+  const decided = await db().request.findUniqueOrThrow({ where: { id: step.step.route.subjectId }, select: { id: true, requesterMemberId: true } })
+  moved = { requestId: decided.id, requesterId: decided.requesterMemberId }
   // a receiver takes one of everything on the first PO they may receive: goods in, no invoice yet
   for (const m of members) {
     const list = await listReceivable(ctxOf(m, NOW))
@@ -163,7 +173,7 @@ async function listCount(key: TodoKey, ctx: Ctx): Promise<number | null> {
     }
     case 'PO_APPROVED': {
       const principal = await db().$transaction((tx) => loadPrincipal(tx, ctx))
-      return isAllowed(principal, 'po.send') ? (await listPurchaseOrders(ctx, { status: 'APPROVED' })).matched : null
+      return isAllowed(principal, 'po.create') ? (await listPurchaseOrders(ctx, { status: 'APPROVED' })).matched : null
     }
     case 'INVOICES': {
       const r = await listInvoiceWork(ctx, { received: true })
@@ -255,7 +265,7 @@ describe('[FR-VIS-006/AC2] every to-do row shows exactly the number of the list 
       if (!todo.ok) throw new Error(todo.error.code)
       const keys = new Set(todo.data.rows.map((r) => r.key))
       if (!isAllowed(m.principal, 'procurement.pool.view')) expect(keys.has('POOL'), m.code).toBe(false)
-      if (!isAllowed(m.principal, 'po.send')) expect(keys.has('PO_APPROVED'), m.code).toBe(false)
+      if (!isAllowed(m.principal, 'po.create')) expect(keys.has('PO_APPROVED'), m.code).toBe(false)
       if (!isAllowed(m.principal, 'invoiceConfirmation.record')) expect(keys.has('INVOICES'), m.code).toBe(false)
       if (!isAllowed(m.principal, 'export.express')) expect(keys.has('EXPORTS'), m.code).toBe(false)
     }
@@ -359,8 +369,26 @@ describe('[FR-VIS-006/AC4] the requests I follow: mine and followed, not drafts,
       const ownOrFollowed = { OR: [{ requesterMemberId: m.id }, { followers: { some: { memberId: m.id } } }], status: { not: 'DRAFT' as const } }
       expect(f.total, m.code).toBe(await db().request.count({ where: ownOrFollowed }))
       expect(f.open, m.code).toBe(await db().request.count({ where: { ...ownOrFollowed, status: { in: ['PENDING_APPROVAL', 'RETURNED', 'APPROVED', 'PARTIALLY_ORDERED', 'ORDERED', 'SUBMITTED'] } } }))
-      const latest = await db().request.findMany({ where: ownOrFollowed, select: { id: true }, orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }], take: 5 })
-      expect(f.rows.map((r) => r.id), m.code).toEqual(latest.map((r) => r.id))
+      // when each moved last, counted here: its row and events, its tasks, its questions, the events of its POs
+      const requests = await db().request.findMany({ where: ownOrFollowed, select: { id: true, updatedAt: true } })
+      const ids = requests.map((r) => r.id)
+      const times = new Map(requests.map((r) => [r.id, [r.updatedAt.getTime()]]))
+      const add = (id: string, at: Date | null | undefined) => at && times.get(id)?.push(at.getTime())
+      for (const e of await db().event.findMany({ where: { aggregateType: 'Request', aggregateId: { in: ids } }, select: { aggregateId: true, occurredAt: true } })) add(e.aggregateId, e.occurredAt)
+      for (const t of await db().approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: { in: ids } } } }, select: { assignedAt: true, decidedAt: true, step: { select: { route: { select: { subjectId: true } } } } } })) {
+        add(t.step.route.subjectId, t.assignedAt)
+        add(t.step.route.subjectId, t.decidedAt)
+      }
+      for (const q of await db().infoRequest.findMany({ where: { requestId: { in: ids } }, select: { requestId: true, askedAt: true, answeredAt: true } })) {
+        add(q.requestId, q.askedAt)
+        add(q.requestId, q.answeredAt)
+      }
+      for (const src of await db().poLineSource.findMany({ where: { requestLine: { requestId: { in: ids } } }, select: { poLine: { select: { poId: true } }, requestLine: { select: { requestId: true } } } }))
+        for (const e of await db().event.findMany({ where: { aggregateType: 'PurchaseOrder', aggregateId: src.poLine.poId }, select: { occurredAt: true } })) add(src.requestLine.requestId, e.occurredAt)
+      const last = (id: string) => Math.max(...times.get(id)!)
+      const latest = [...ids].sort((a, b) => last(b) - last(a) || (a < b ? 1 : -1)).slice(0, 5)
+      expect(f.rows.map((r) => r.id), m.code).toEqual(latest)
+      if (m.id === moved.requesterId) expect(f.rows[0]!.id, `${m.code}: the request decided last leads`).toBe(moved.requestId)
       for (const r of f.rows) expect(r.stage.kind, `${m.code} ${r.number}`).not.toBe('DRAFT')
       // "ดูทั้งหมด" opens /requests?scope=following, which holds the same requests
       expect((await listMyRequests(ctxOf(m, NOW), { scope: 'FOLLOWING' })).matched, m.code).toBe(f.total)

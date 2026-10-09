@@ -1,10 +1,10 @@
 import type { BusinessCalendar } from '@/core/sla'
 import { MS_PER_DAY } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
-import type { TenantTx } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { scopeOf } from './insights'
 import { APPROVAL_ROWS, FOLLOWING_ROWS, figureOf, MY_TASKS_LOOKBACK_DAYS, onTimeOfQueue, onTimeOfTasks, onTimeWindows, type OnTimeFigure, type OnTimeTask, type QueueLine } from './on-time'
-import { countMyRequests, FOLLOWING_OPEN_STATUSES, listMyRequests, type MyRequestRowDto } from './requests'
+import { countMyRequests, FOLLOWING_OPEN_STATUSES, listMyRequests, myRequestsWhere, type MyRequestRowDto } from './requests'
 import { listMyTasks, type InboxTaskDto } from './tasks'
 
 export type { OnTimeCount, OnTimeFigure } from './on-time'
@@ -15,26 +15,33 @@ export type { OnTimeCount, OnTimeFigure } from './on-time'
 // (the lesson of NEW-38); the formulas are ./on-time.ts. The to-do card's counts are each list's own count
 // (services/home). Queries never check permissions: the service decides which rows and cards a member gets.
 
-/** Whose tasks: the member's (assigned to them, or held for them by a delegate, as the inbox), some departments' documents, or all */
-export type TaskScope = { readonly kind: 'MEMBER'; readonly memberId: string } | { readonly kind: 'DEPARTMENTS'; readonly departmentIds: readonly string[] } | { readonly kind: 'ORG' }
+const TASK_ROW = { status: true, dueAt: true, decidedAt: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } } as const
 
-/** On-time approval tasks of the last 30 days against the 30 before, for one scope */
-export async function onTimeTasks(tx: TenantTx, scope: TaskScope, now: Date): Promise<OnTimeFigure> {
+/** On-time approval tasks of the last 30 days against the 30 before, of the member's tasks (assigned to them, or held for them by a delegate, as the inbox) */
+export async function onTimeOfMember(db: TenantTx, memberId: string, now: Date): Promise<OnTimeFigure> {
   const { current, previous } = onTimeWindows(now)
-  const rows = await tx.approvalTask.findMany({
-    where: { dueAt: { gte: previous.from, lt: current.to }, ...(scope.kind === 'MEMBER' ? { OR: [{ assigneeMemberId: scope.memberId }, { principalMemberId: scope.memberId }] } : {}) },
-    select: { status: true, dueAt: true, decidedAt: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } },
-  })
-  let tasks: readonly OnTimeTask[] = rows
-  if (scope.kind === 'DEPARTMENTS') {
+  const tasks = await db.approvalTask.findMany({ where: { dueAt: { gte: previous.from, lt: current.to }, OR: [{ assigneeMemberId: memberId }, { principalMemberId: memberId }] }, select: TASK_ROW })
+  return figureOf(onTimeOfTasks(tasks, current, now), onTimeOfTasks(tasks, previous, now))
+}
+
+/**
+ * The same for the documents of some departments and for the whole organization, from one read of the organization's
+ * tasks of both windows: `departments` null for no department row, `org` false for no organization row
+ */
+export async function onTimeOfOrg(db: TenantTx, now: Date, wants: { readonly departments: readonly string[] | null; readonly org: boolean }): Promise<{ readonly departments: OnTimeFigure | null; readonly org: OnTimeFigure | null }> {
+  const { current, previous } = onTimeWindows(now)
+  const rows = await db.approvalTask.findMany({ where: { dueAt: { gte: previous.from, lt: current.to } }, select: TASK_ROW })
+  const figure = (tasks: readonly OnTimeTask[]) => figureOf(onTimeOfTasks(tasks, current, now), onTimeOfTasks(tasks, previous, now))
+  let departments: OnTimeFigure | null = null
+  if (wants.departments) {
     const inScope = await scopeOf(
-      tx,
-      { departmentIds: scope.departmentIds, requestTypeId: null },
+      db,
+      { departmentIds: wants.departments, requestTypeId: null },
       rows.map((r) => r.step.route),
     )
-    tasks = rows.filter((r) => inScope(r.step.route.subjectType, r.step.route.subjectId))
+    departments = figure(rows.filter((r) => inScope(r.step.route.subjectType, r.step.route.subjectId)))
   }
-  return figureOf(onTimeOfTasks(tasks, current, now), onTimeOfTasks(tasks, previous, now))
+  return { departments, org: wants.org ? figure(rows) : null }
 }
 
 /** The member had an approval task in the last 60 days: the row "งานของฉัน" shows for them (§9.10) */
@@ -93,17 +100,57 @@ export interface FollowingDto {
   readonly rows: readonly MyRequestRowDto[]
 }
 
-export async function loadFollowing(ctx: Ctx): Promise<FollowingDto> {
-  const [list, open] = await Promise.all([
-    listMyRequests(ctx, { scope: 'FOLLOWING', order: 'ACTIVITY', limit: FOLLOWING_ROWS }),
-    countOpenFollowing(ctx),
+/**
+ * When each request last moved: the latest of its own row and events, its approval tasks being assigned or decided (a
+ * step's decision writes the task, not the request), its questions asked or answered, and the events of the POs that
+ * order its lines (sent, received). Read once per kind for all the requests.
+ */
+export async function lastActivityOf(tx: TenantTx, requests: ReadonlyArray<{ readonly id: string; readonly updatedAt: Date }>): Promise<Map<string, Date>> {
+  const ids = requests.map((r) => r.id)
+  const last = new Map(requests.map((r) => [r.id, r.updatedAt]))
+  if (ids.length === 0) return last
+  const later = (id: string, at: Date | null | undefined) => {
+    const now = last.get(id)
+    if (at && now && at > now) last.set(id, at)
+  }
+  const [events, tasks, questions, sources] = await Promise.all([
+    tx.event.groupBy({ by: ['aggregateId'], where: { aggregateType: 'Request', aggregateId: { in: ids } }, _max: { occurredAt: true } }),
+    tx.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: { in: ids } } } }, select: { assignedAt: true, decidedAt: true, step: { select: { route: { select: { subjectId: true } } } } } }),
+    tx.infoRequest.groupBy({ by: ['requestId'], where: { requestId: { in: ids } }, _max: { askedAt: true, answeredAt: true } }),
+    tx.poLineSource.findMany({ where: { requestLine: { requestId: { in: ids } } }, select: { poLine: { select: { poId: true } }, requestLine: { select: { requestId: true } } } }),
   ])
-  return { total: list.matched, open, rows: list.rows }
+  for (const e of events) later(e.aggregateId, e._max.occurredAt)
+  for (const t of tasks) {
+    later(t.step.route.subjectId, t.assignedAt)
+    later(t.step.route.subjectId, t.decidedAt)
+  }
+  for (const q of questions) {
+    later(q.requestId, q._max.askedAt)
+    later(q.requestId, q._max.answeredAt)
+  }
+  const poIds = [...new Set(sources.map((s) => s.poLine.poId))]
+  const poEvents = poIds.length ? await tx.event.groupBy({ by: ['aggregateId'], where: { aggregateType: 'PurchaseOrder', aggregateId: { in: poIds } }, _max: { occurredAt: true } }) : []
+  const poLast = new Map(poEvents.map((e) => [e.aggregateId, e._max.occurredAt]))
+  for (const s of sources) later(s.requestLine.requestId, poLast.get(s.poLine.poId))
+  return last
 }
 
-async function countOpenFollowing(ctx: Ctx): Promise<number> {
-  const counts = await Promise.all(FOLLOWING_OPEN_STATUSES.map((status) => countMyRequests(ctx, { scope: 'FOLLOWING', status })))
-  return counts.reduce((sum, n) => sum + n, 0)
+export async function loadFollowing(ctx: Ctx): Promise<FollowingDto> {
+  if (ctx.actor.type !== 'USER') return { total: 0, open: 0, rows: [] }
+  const db = forTenant(ctx.organizationId)
+  const [all, open] = await Promise.all([
+    db.request.findMany({ where: myRequestsWhere(ctx.actor.memberId, { scope: 'FOLLOWING' }), select: { id: true, updatedAt: true } }),
+    countMyRequests(ctx, { scope: 'FOLLOWING', statuses: FOLLOWING_OPEN_STATUSES }),
+  ])
+  const last = await db.$transaction((tx) => lastActivityOf(tx, all))
+  // the five that moved last; on the same moment, the later id (uuid v7: made later) first
+  const latest = [...all]
+    .sort((a, b) => last.get(b.id)!.getTime() - last.get(a.id)!.getTime() || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+    .slice(0, FOLLOWING_ROWS)
+    .map((r) => r.id)
+  const list = latest.length ? await listMyRequests(ctx, { scope: 'FOLLOWING', ids: latest }) : { rows: [] }
+  const byId = new Map(list.rows.map((r) => [r.id, r]))
+  return { total: all.length, open, rows: latest.flatMap((id) => byId.get(id) ?? []) }
 }
 
 // ---------- waiting for my approval ----------

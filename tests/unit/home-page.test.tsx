@@ -9,7 +9,8 @@ import { countOf, figureOf } from '@/server/queries/on-time'
 import type { InboxTaskDto } from '@/server/queries/tasks'
 import type { OnTimeRowDto } from '@/server/services/home'
 import { TODO_KEYS, TODO_TONE } from '@/server/services/home/todo-keys'
-import { ApprovalsTabs } from '@/ui/home/approvals-tabs'
+import { NuqsTestingAdapter } from 'nuqs/adapters/testing'
+import { ApprovalsTabsInAddress } from '@/ui/home/approvals-tabs'
 import { CardError } from '@/ui/home/card-error'
 import { HomeCardSkeleton } from '@/ui/home/home-cards'
 import { HomeHero } from '@/ui/home/home-hero'
@@ -159,8 +160,17 @@ describe('[FR-VIS-006/AC5] the tabs of "รอฉันอนุมัติ": t
     })
     expect(all!.rows[1]).toMatchObject({ sla: { key: 'OPEN', label: 'ยังไม่ถึงกำหนด' }, forName: null })
     expect(overdue!.seeAll).toEqual({ href: '/tasks?due=overdue', text: 'ดูงานที่เกินกำหนดทั้งหมด (1 งาน)' })
-    const html = renderToStaticMarkup(<ApprovalsTabs label="งานรอฉันอนุมัติแยกตามสถานะ" tabs={[all!, overdue!, info!]} />)
+    const tabs = (query: string) =>
+      renderToStaticMarkup(
+        <NuqsTestingAdapter searchParams={query}>
+          <ApprovalsTabsInAddress label="งานรอฉันอนุมัติแยกตามสถานะ" tabs={[all!, overdue!, info!]} />
+        </NuqsTestingAdapter>,
+      )
+    const html = tabs('')
     expect(html).toContain('role="tablist"')
+    // the tab chosen is in the address, so a link opens it (§9.10): none is "ทั้งหมด", ?approvals=overdue the overdue one
+    expect(html).toMatch(/aria-selected="true"[^>]*>ทั้งหมด \(2\)/)
+    expect(tabs('?approvals=overdue')).toMatch(/aria-selected="true"[^>]*>เกินกำหนด \(1\)/)
     expect(html).toContain('href="/tasks/t-1"')
     // no button to decide in the list: the decision page shows the amount, budget and DOA first (§9.9 ข้อ 5)
     expect(html).not.toMatch(/อนุมัติ<\/button>/)
@@ -191,8 +201,8 @@ describe('[FR-VIS-006/AC1] the greeting, the search field and the three chips', 
     const html = renderToStaticMarkup(<HomeHero texts={texts} canRequest />)
     expect(html).toContain('<h1 id="home-greeting"')
     expect(html).toContain('ค้นหาเลขเอกสาร ผู้ขาย หรือเมนู')
-    expect(html).toMatch(/<button type="button" aria-pressed="true"[^>]*>.*งานของฉัน/)
-    expect(html).toMatch(/<a aria-haspopup="dialog"[^>]*href="\/requests\/new"/)
+    expect(html).toMatch(/<button[^>]*aria-pressed="true"[^>]*>.*งานของฉัน/)
+    expect(html).toMatch(/<a [^>]*aria-haspopup="dialog"[^>]*href="\/requests\/new"|<a [^>]*href="\/requests\/new"[^>]*aria-haspopup="dialog"/)
     expect(html).toContain('href="/suppliers"')
   })
 

@@ -6,7 +6,7 @@ import { authorize, loadPrincipal, scopesFor } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { describeError } from '@/server/errors/describe'
-import { latestPricesBySupplier, suppliersSellingItem } from '@/server/queries/purchase-orders'
+import { latestPricesBySupplier, suppliersSellingItem, type LatestPriceDto } from '@/server/queries/purchase-orders'
 import {
   findSupplierByTaxId,
   getSupplierRecord,
@@ -45,15 +45,8 @@ export interface SupplierBasicDto {
   readonly isForeign: boolean
 }
 
-export interface SupplierPriceDto {
-  readonly description: string
-  readonly uom: string
-  /** Before VAT, as approved on the PO */
-  readonly unitPriceSatang: bigint
-  readonly approvedAt: Date
-  readonly poId: string
-  readonly poNumber: string | null
-}
+/** A supplier's latest approved price of one item (before VAT), as the register shows it */
+export type SupplierPriceDto = LatestPriceDto
 
 export interface SupplierListRowDto extends SupplierBasicDto {
   /** The last approved price of its latest items, for readers of every PO (po.view ORG, FR-VIS-006 AC1); left out for others */

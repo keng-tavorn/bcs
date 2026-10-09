@@ -2,6 +2,8 @@
 
 import { FileCheck2, FileText, Network, PackageX, ShoppingCart, SquareCheckBig, UserRoundCheck } from 'lucide-react'
 import Link from 'next/link'
+import { parseAsStringLiteral, useQueryState } from 'nuqs'
+import { NuqsAdapter } from 'nuqs/adapters/next/app'
 import { STEP_BADGES, StatusBadge, type StepBadgeKey } from '../document/badges'
 import { Badge } from '../shadcn/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../shadcn/tabs'
@@ -10,6 +12,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../shadcn/tabs'
 // what kind of document, its number and title, who asked from which department, the amount the DOA counted, its SLA as a
 // badge, and "แทนคุณ…" when the member holds it for someone — the earliest due first, ten at most, each opening the
 // decision page. No decide button here: the approver sees the amount, the budget and the DOA before deciding (§9.9 ข้อ 5).
+// The tab chosen is in the address (?approvals=overdue or info, nuqs, §9.10 "ลิงก์ตรงไปแท็บได้"), changed without
+// asking the server again; "all" leaves the address plain.
+
+export const APPROVAL_TABS = ['all', 'overdue', 'info'] as const
+const TAB = parseAsStringLiteral(APPROVAL_TABS).withDefault('all').withOptions({ shallow: true, scroll: false, history: 'replace' })
 
 const KIND_ICONS = { REQUEST: FileText, PURCHASE_ORDER: ShoppingCart, VARIANCE: PackageX, DOA_VERSION: FileCheck2, ORG_AUTHORITY_CHANGE: Network, OTHER: SquareCheckBig } as const
 
@@ -26,7 +33,7 @@ export interface ApprovalRowView {
 }
 
 export interface ApprovalTabView {
-  readonly key: 'all' | 'overdue' | 'info'
+  readonly key: (typeof APPROVAL_TABS)[number]
   readonly label: string
   readonly listLabel: string
   readonly rows: readonly ApprovalRowView[]
@@ -34,9 +41,19 @@ export interface ApprovalTabView {
   readonly seeAll: { readonly href: string; readonly text: string } | null
 }
 
-export function ApprovalsTabs({ label, tabs }: { label: string; tabs: readonly ApprovalTabView[] }) {
+export function ApprovalsTabs(props: { label: string; tabs: readonly ApprovalTabView[] }) {
   return (
-    <Tabs defaultValue="all">
+    <NuqsAdapter>
+      <ApprovalsTabsInAddress {...props} />
+    </NuqsAdapter>
+  )
+}
+
+/** The tabs, their choice read from and written to the address (under any nuqs adapter) */
+export function ApprovalsTabsInAddress({ label, tabs }: { label: string; tabs: readonly ApprovalTabView[] }) {
+  const [tab, setTab] = useQueryState('approvals', TAB)
+  return (
+    <Tabs value={tab} onValueChange={(value) => void setTab(value as ApprovalTabView['key'])}>
       <TabsList aria-label={label} className="grid w-full grid-cols-3 group-data-horizontal/tabs:h-auto">
         {tabs.map((tab) => (
           <TabsTrigger key={tab.key} value={tab.key} className="h-auto min-h-11 px-2 text-base whitespace-normal md:text-sm lg:min-h-10">

@@ -92,7 +92,12 @@ test('[FR-VIS-006/AC5] [FR-VIS-006/AC3] the approver’s home: the tabs of the t
   // the overdue tab and the one waiting for the requester, each with its count
   await tabs.getByRole('tab', { name: /^รอผู้ขอตอบ \(\d+\)$/ }).click()
   await expect(tabs.getByRole('tab', { name: /^รอผู้ขอตอบ/ })).toHaveAttribute('aria-selected', 'true')
+  // the tab chosen is in the address, so the same link opens it again (§9.10)
+  await expect(page).toHaveURL(/[?&]approvals=info$/)
+  await page.reload()
+  await expect(page.getByRole('tablist', { name: 'งานรอฉันอนุมัติแยกตามสถานะ' }).getByRole('tab', { name: /^รอผู้ขอตอบ/ })).toHaveAttribute('aria-selected', 'true')
   await tabs.getByRole('tab', { name: /^ทั้งหมด/ }).click()
+  await expect(page).toHaveURL(/\/$/)
   // the on-time card: my tasks, with a percent or "nothing yet"
   await expect(page.getByRole('region', { name: 'งานอนุมัติทันเวลา' }).getByRole('link', { name: /^งานของฉัน/ })).toBeVisible()
   await expectNoBlockingAxe(page)

@@ -4,6 +4,7 @@ import { FilePlus2, ListTodo, Search, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useSyncExternalStore, type MouseEvent } from 'react'
 import { cn } from '../cn'
+import { Button } from '../shadcn/button'
 import { Kbd } from '../shadcn/kbd'
 import { openNewRequest, openPalette } from '../shell/shell-events'
 
@@ -17,7 +18,8 @@ const noSubscription = () => () => {}
 const isMac = () => /Mac|iPhone|iPad/.test(navigator.userAgent)
 const notMac = () => false
 
-const CHIP = 'inline-flex min-h-11 items-center gap-2 rounded-full border border-line-strong bg-bg px-4 font-medium text-ink transition-colors duration-150 hover:bg-primary-tint lg:min-h-10'
+/** The chips are shadcn/ui Buttons in the capsule shape of §9.10 ("chip บนหน้าแรก: Button ทรงแคปซูล") */
+const CHIP = 'h-auto min-h-11 gap-2 rounded-full border-line-strong px-4 text-base text-ink hover:bg-primary-tint lg:min-h-10'
 
 export interface HomeHeroTexts {
   readonly greeting: string
@@ -51,24 +53,28 @@ export function HomeHero({ texts, canRequest }: { texts: HomeHeroTexts; canReque
       </button>
       <ul aria-label={texts.chips.label} className="flex flex-wrap justify-center gap-2">
         <li>
-          <button type="button" aria-pressed="true" className={cn(CHIP, 'border-primary bg-primary-tint')}>
-            <ListTodo className="size-4 shrink-0" aria-hidden="true" />
+          <Button type="button" variant="outline" aria-pressed="true" className={cn(CHIP, 'border-primary bg-primary-tint')}>
+            <ListTodo aria-hidden="true" />
             {texts.chips.mine}
-          </button>
+          </Button>
         </li>
         {canRequest ? (
           <li>
-            <Link href="/requests/new" onClick={onNewRequest} aria-haspopup="dialog" className={CHIP}>
-              <FilePlus2 className="size-4 shrink-0" aria-hidden="true" />
-              {texts.chips.newRequest}
-            </Link>
+            <Button asChild variant="outline" className={CHIP}>
+              <Link href="/requests/new" onClick={onNewRequest} aria-haspopup="dialog">
+                <FilePlus2 aria-hidden="true" />
+                {texts.chips.newRequest}
+              </Link>
+            </Button>
           </li>
         ) : null}
         <li>
-          <Link href="/suppliers" className={CHIP}>
-            <Store className="size-4 shrink-0" aria-hidden="true" />
-            {texts.chips.suppliers}
-          </Link>
+          <Button asChild variant="outline" className={CHIP}>
+            <Link href="/suppliers">
+              <Store aria-hidden="true" />
+              {texts.chips.suppliers}
+            </Link>
+          </Button>
         </li>
       </ul>
     </section>

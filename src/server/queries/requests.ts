@@ -485,6 +485,10 @@ async function stageContext(
 export interface MyRequestsFilter {
   /** One status of REQUEST_STATUSES; anything else means all */
   readonly status?: string | undefined
+  /** Any of these statuses (with `status`, both apply) */
+  readonly statuses?: readonly RequestStatusDto[]
+  /** Only these requests (still only the member's own and followed) */
+  readonly ids?: readonly string[]
   /** Part of the document number or of the title */
   readonly q?: string | undefined
   /**
@@ -494,8 +498,6 @@ export interface MyRequestsFilter {
   readonly scope?: MyRequestsScope
   /** Only requests with an approver's question that waits for its answer (the home's row "คำถามจากผู้อนุมัติรอคำตอบ") */
   readonly openQuestion?: boolean
-  /** NEWEST (default): created last first · ACTIVITY: changed last first (the home's card "ที่ฉันติดตาม") */
-  readonly order?: 'NEWEST' | 'ACTIVITY'
   readonly limit?: number
 }
 
@@ -531,7 +533,7 @@ const LIST_LIMIT = 100
 const SEARCH_MAX = 60
 
 /** The requests of a filter, for one member: the list and every count of it read the same condition */
-function myRequestsWhere(me: string, filter: MyRequestsFilter) {
+export function myRequestsWhere(me: string, filter: MyRequestsFilter) {
   const ownOrFollowed = { OR: [{ requesterMemberId: me }, { followers: { some: { memberId: me } } }] }
   const scope = filter.scope ?? 'ALL'
   const q = (filter.q ?? '').trim().slice(0, SEARCH_MAX)
@@ -540,6 +542,8 @@ function myRequestsWhere(me: string, filter: MyRequestsFilter) {
       scope === 'MINE' ? { requesterMemberId: me } : ownOrFollowed,
       ...(scope === 'FOLLOWING' ? [{ status: { not: 'DRAFT' as const } }] : []),
       ...(isRequestStatus(filter.status) ? [{ status: filter.status }] : []),
+      ...(filter.statuses ? [{ status: { in: [...filter.statuses] } }] : []),
+      ...(filter.ids ? [{ id: { in: [...filter.ids] } }] : []),
       // a question waits while its task does (INFO_REQUESTED) and nobody has answered it, as the inbox counts it
       ...(filter.openQuestion ? [{ infoRequests: { some: { answeredAt: null, task: { status: 'INFO_REQUESTED' as const } } } }] : []),
       ...(q ? [{ OR: [{ number: { contains: escapeLike(q), mode: 'insensitive' as const } }, { title: { contains: escapeLike(q), mode: 'insensitive' as const } }] }] : []),
@@ -564,7 +568,7 @@ export async function listMyRequests(ctx: Ctx, filter: MyRequestsFilter = {}): P
     db.request.findMany({
       where,
       select: { id: true, number: true, title: true, status: true, documentType: true, requesterMemberId: true, grossSatang: true, createdAt: true, submittedAt: true, approvedAt: true, currentRouteId: true },
-      orderBy: filter.order === 'ACTIVITY' ? [{ updatedAt: 'desc' }, { id: 'desc' }] : [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: Math.min(filter.limit ?? LIST_LIMIT, LIST_LIMIT),
     }),
   ])

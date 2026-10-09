@@ -38,7 +38,13 @@ export interface NewRequestDialogProps {
 
 export function NewRequestDialog({ open, onOpenChange, types, drafts }: NewRequestDialogProps) {
   const t = useTranslations('request.newDialog')
-  const drawer = useBelow(NEW_REQUEST_DRAWER_BELOW_PX)
+  const below = useBelow(NEW_REQUEST_DRAWER_BELOW_PX)
+  // Opened, it keeps its shape until closed: a screen that turns or resizes across 768 px would otherwise swap the dialog
+  // for the drawer and drop the type already chosen (NEW-84)
+  const [openedAs, setOpenedAs] = useState<boolean | null>(null)
+  if (open && openedAs === null) setOpenedAs(below)
+  if (!open && openedAs !== null) setOpenedAs(null)
+  const drawer = open ? (openedAs ?? below) : below
   const body = <ChooseType types={types} drafts={drafts} onDone={() => onOpenChange(false)} />
   if (drawer) {
     return (

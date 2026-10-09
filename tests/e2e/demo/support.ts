@@ -527,12 +527,25 @@ function noteScreen(page: Page, testInfo: TestInfo, name: string, kind: 'web' | 
   appendFileSync(journal, `${JSON.stringify({ name, path: new URL(page.url()).pathname, kind })}\n`, 'utf8')
 }
 
-/** The page after a change of width: its document loaded (no navigation under way), its fonts ready, laid out again */
+/**
+ * The page at rest: its document loaded (no navigation under way), its fonts ready, every transition or animation that
+ * ends run to its end, and laid out again. Axe reads colours as they are drawn at that moment: a sidebar's group label
+ * still fading out as a document page collapses the sidebar (src/ui/shell/shell-frame.tsx) reads as text too faint
+ * (NEW-77). An animation that never ends (a spinner) is not waited for; a round that starts more is waited for in turn.
+ */
 async function settled(page: Page) {
   await page.waitForLoadState('load')
   await page.evaluate(async () => {
     await document.fonts.ready
-    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    const frames = () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+    for (let round = 0; round < 5; round += 1) {
+      await frames()
+      const ending = document.getAnimations().filter((a) => a.playState === 'running' && Number.isFinite(a.effect?.getComputedTiming().endTime))
+      if (ending.length === 0) return
+      // A cancelled one (its element gone) rejects: it is done too
+      await Promise.all(ending.map((a) => a.finished.catch(() => undefined)))
+    }
+    await frames()
   })
 }
 
@@ -566,13 +579,15 @@ async function blockingAxe(page: Page): Promise<string[]> {
  * full-page screenshot `<name>-375.png`, a bar fixed to the bottom of a phone's screen drawn in its place (BARS_IN_PLACE)
  * — and back to 1440 × 900. A failure at 375 px is recorded with expect.soft: the test fails, but the scene goes on, so
  * the screens after it are still checked and photographed. The pointer and the focus are moved away first: the screen at
- * rest (pointerAway, focusAway).
+ * rest, nothing still moving (pointerAway, focusAway, settled).
  */
 export async function checkWebScreen(page: Page, testInfo: TestInfo, name: string) {
   noteScreen(page, testInfo, name, 'web')
   // Every control at rest in the pictures, not under the pointer the last click left, nor still being edited
   await pointerAway(page)
   await focusAway(page)
+  // Nor still moving: the colour of hover or focus going away, a sidebar collapsing (NEW-77)
+  await settled(page)
   await checkWorkspaceScreen(page, testInfo, name)
   const at = `${name} at ${PHONE.width} px`
   try {

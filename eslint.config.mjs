@@ -134,7 +134,7 @@ const IMPORT_POLICY = {
 const DB_WRITE_OPTIONS = {
   clientModules: UNSCOPED_CLIENT_MODULES,
   opaqueModules: ['src/server/db/sql/**'],
-  readHelpers: ['pingDatabase', 'oldestPendingOutboxAgeMs', 'countOtherActiveMemberships', 'setTransactionTimeouts'],
+  readHelpers: ['pingDatabase', 'oldestPendingOutboxAgeMs', 'countOtherActiveMemberships', 'setTransactionTimeouts', 'recentDocumentsOf'],
 }
 // Test files of every runner: vitest's unit project also runs src/**/*.test.{ts,tsx} (vitest.config.ts)
 const TEST_FILES = [`tests/**/*.${CODE}`, `src/**/*.{test,spec}.${CODE}`, `src/**/__tests__/**/*.${CODE}`]

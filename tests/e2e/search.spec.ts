@@ -62,6 +62,24 @@ test('[FR-PLT-014/AC1] Ctrl K opens the palette on any page; the keyboard alone 
   await expect(dialog).toBeHidden()
 })
 
+test('[FR-PLT-014/AC1] the shortcut works with the Thai keyboard layout on, and closing with it opens empty next time', async ({ page }) => {
+  await signInAs(page, 'req_con', false)
+  await page.goto('/')
+  const dialog = page.getByRole('dialog', { name: DIALOG })
+  // With the Thai layout the K key types "า": the physical key (code KeyK) is what counts
+  const thaiShortcut = () =>
+    page.evaluate(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'า', code: 'KeyK', ctrlKey: true, bubbles: true, cancelable: true })))
+  await thaiShortcut()
+  await expect(dialog).toBeVisible()
+  await page.keyboard.type('ไอที')
+  await expect(dialog.getByRole('option', { name: 'บริษัท ไอทีทดสอบ จำกัด · S2' })).toBeVisible()
+  await thaiShortcut()
+  await expect(dialog).toBeHidden()
+  await page.keyboard.press('Control+k')
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('combobox')).toHaveValue('')
+})
+
 test('[FR-PLT-014/AC2] /api/search answers 401 without a session', async ({ request }) => {
   const response = await request.get('/api/search?q=PR')
   expect(response.status()).toBe(401)

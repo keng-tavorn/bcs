@@ -1,15 +1,16 @@
 import { execSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { canViewPo } from '@/app/(workspace)/procurement/pos/_parts/access'
 import { canViewRequest } from '@/app/(workspace)/_tracking/access'
-import { API_RATE_LIMIT_PER_WINDOW } from '@/lib/constants'
+import { API_RATE_LIMIT_PER_WINDOW, SEARCH_GROUP_LIMIT } from '@/lib/constants'
 import { loadPrincipal, type Principal } from '@/server/authz'
 import { makeCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { getPoAccess } from '@/server/queries/purchase-orders'
 import { getRequestAccess } from '@/server/queries/requests'
-import { SEARCH_GROUP_LIMIT, type SearchDocumentDto } from '@/server/queries/search'
+import type { SearchDocumentDto } from '@/server/queries/search'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { seedBudget } from '@/server/seed/budget'
 import { seedDevPins } from '@/server/seed/pins'
@@ -242,5 +243,48 @@ describe('[FR-PLT-014/AC5] /api/search reads only, is rate limited, and answers 
     }
     times.sort((a, b) => a - b)
     expect(times[Math.ceil(times.length * P95) - 1]).toBeLessThanOrEqual(P95_MS)
+  })
+})
+
+describe('[FR-PLT-014/AC1] "ล่าสุด" keeps the other documents when one has many events (a draft saved again and again)', () => {
+  it('lists the documents the member acted on, each once, newest first, after 60 more events on one of them', async () => {
+    // A member whose recent list holds more than one document
+    let member: Member | undefined
+    let before: readonly SearchDocumentDto[] = []
+    for (const m of members) {
+      const recent = await searchForMember(m.ctx, '')
+      if (recent.ok && recent.data.recent.length >= 3) {
+        member = m
+        before = recent.data.recent
+        break
+      }
+    }
+    expect(member, 'a seed member with three recent documents').toBeDefined()
+    const flooded = before[before.length - 1]!
+    // The events autosave writes on a draft, here on the oldest of them (Event is append-only: inserting is all it allows)
+    const correlationId = randomUUID()
+    await prisma.event.createMany({
+      data: Array.from({ length: 60 }, (_, i) => ({
+        organizationId,
+        type: 'request.drafted',
+        aggregateType: flooded.kind === 'REQUEST' ? 'Request' : flooded.kind === 'PURCHASE_ORDER' ? 'PurchaseOrder' : 'GoodsReceipt',
+        aggregateId: flooded.id,
+        occurredAt: new Date(NOW.getTime() + i * 1000),
+        actorType: 'USER' as const,
+        actorMemberId: member!.id,
+        channel: 'WEB' as const,
+        correlationId,
+        requestId: `search-flood-${i}`,
+        data: {},
+        schemaVersion: 1,
+      })),
+    })
+    const after = await searchForMember(member!.ctx, '')
+    if (!after.ok) throw new Error('recent refused')
+    const ids = after.data.recent.map((d) => d.id)
+    expect(ids[0]).toBe(flooded.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    // Every other document is still there, in the same order
+    expect(ids.slice(1)).toEqual(before.filter((d) => d.id !== flooded.id).map((d) => d.id).slice(0, SEARCH_GROUP_LIMIT - 1))
   })
 })

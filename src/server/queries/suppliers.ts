@@ -97,8 +97,8 @@ function taxIdClauses(match: TaxIdMatch | null | undefined, digits: string) {
   ]
 }
 
-export async function searchSuppliers(ctx: Ctx, search: SupplierSearch): Promise<{ rows: SupplierRecordDto[]; total: number; matched: number }> {
-  const db = forTenant(ctx.organizationId)
+/** The WHERE clause of a search of the register */
+function supplierWhere(search: SupplierSearch) {
   const q = (search.q ?? '').trim().slice(0, SUPPLIER_SEARCH_MAX)
   // A tax id is written with or without dashes and spaces (BR-TAXID-01)
   const digits = normalizeTaxId(q)
@@ -114,18 +114,28 @@ export async function searchSuppliers(ctx: Ctx, search: SupplierSearch): Promise
         },
       ]
     : []
-  const where = {
+  return {
     AND: [
       ...text,
       ...(search.status ? [{ status: search.status }] : []),
       ...(search.missingExpressCode ? [{ OR: [{ expressVendorCode: null }, { expressVendorCode: '' }] }] : []),
     ],
   }
-  const [total, matched, rows] = await Promise.all([
-    db.supplier.count(),
-    db.supplier.count({ where }),
-    db.supplier.findMany({ where, select: RECORD_SELECT, orderBy: [{ status: 'asc' }, { code: 'asc' }], take: Math.min(search.limit ?? SUPPLIER_LIST_LIMIT, SUPPLIER_LIST_LIMIT) }),
-  ])
+}
+
+/** The matching suppliers only, without the counts (the ⌘K search, FR-PLT-014) */
+export async function findSupplierRows(ctx: Ctx, search: SupplierSearch): Promise<SupplierRecordDto[]> {
+  return forTenant(ctx.organizationId).supplier.findMany({
+    where: supplierWhere(search),
+    select: RECORD_SELECT,
+    orderBy: [{ status: 'asc' }, { code: 'asc' }],
+    take: Math.min(search.limit ?? SUPPLIER_LIST_LIMIT, SUPPLIER_LIST_LIMIT),
+  })
+}
+
+export async function searchSuppliers(ctx: Ctx, search: SupplierSearch): Promise<{ rows: SupplierRecordDto[]; total: number; matched: number }> {
+  const db = forTenant(ctx.organizationId)
+  const [total, matched, rows] = await Promise.all([db.supplier.count(), db.supplier.count({ where: supplierWhere(search) }), findSupplierRows(ctx, search)])
   return { rows, total, matched }
 }
 

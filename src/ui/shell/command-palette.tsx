@@ -2,7 +2,10 @@
 
 import { FileText, Search, Store, SquareArrowOutUpRight, Zap, type LucideIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react'
+import { HTTP_STATUS } from '@/core/result'
+import { SEARCH_GROUP_LIMIT, SEARCH_MIN_LENGTH } from '@/lib/constants'
+import { Button } from '../shadcn/button'
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../shadcn/command'
 import { Kbd } from '../shadcn/kbd'
 
@@ -12,10 +15,7 @@ import { Kbd } from '../shadcn/kbd'
 // from the shell, already only what the member's menu holds. A search starts at two characters, 200 ms after the last
 // key; under two the palette shows the member's recent documents. At most five per group (SEARCH_GROUP_LIMIT).
 
-const MIN_LENGTH = 2
 const DEBOUNCE_MS = 200
-const GROUP_LIMIT = 5
-const HTTP_TOO_MANY = 429
 
 type DocumentKind = 'REQUEST' | 'PURCHASE_ORDER' | 'GOODS_RECEIPT'
 
@@ -75,7 +75,7 @@ interface Answered {
 const EMPTY: Answer = { documents: [], suppliers: [], recent: [] }
 const RECENT = ''
 /** What a text asks the server: the trimmed text from two characters on, otherwise the recent documents */
-const keyOf = (query: string) => (query.trim().length >= MIN_LENGTH ? query.trim() : RECENT)
+const keyOf = (query: string) => (query.trim().length >= SEARCH_MIN_LENGTH ? query.trim() : RECENT)
 
 const noSubscription = () => () => {}
 const isMac = () => /Mac|iPhone|iPad/.test(navigator.userAgent)
@@ -83,8 +83,13 @@ const notMac = () => false
 
 const matches = (label: string, text: string) => label.toLocaleLowerCase().includes(text.toLocaleLowerCase())
 
-/** The key that opens the palette: K with ⌘ on a Mac, with Ctrl elsewhere (both are accepted everywhere) */
-const isPaletteKey = (e: KeyboardEvent) => (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
+/**
+ * The key that opens the palette: K with ⌘ on a Mac (where Ctrl K stays the text fields' own), with Ctrl elsewhere. The
+ * physical key is compared, so it works with the Thai keyboard layout on, where the key types a Thai letter.
+ */
+const isPaletteKey = (e: KeyboardEvent, mac: boolean) => (mac ? e.metaKey && !e.ctrlKey : e.ctrlKey && !e.metaKey) && !e.altKey && !e.shiftKey && (e.code === 'KeyK' || e.key.toLowerCase() === 'k')
+/** Another dialog (a form, a sheet, a confirmation) is open — not one closing, like the palette's own on its way out — so the palette never opens on top of it */
+const anotherDialogOpen = () => document.querySelector('[role="dialog"]:not([data-state="closed"]), [role="alertdialog"]:not([data-state="closed"])') !== null
 
 export function CommandPalette({ pages, commands, labels, locale }: { pages: readonly PaletteLink[]; commands: readonly PaletteLink[]; labels: CommandPaletteLabels; locale: 'th' | 'en' }) {
   const router = useRouter()
@@ -96,20 +101,31 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
   const mac = useSyncExternalStore(noSubscription, isMac, notMac)
   const seq = useRef(0)
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (!isPaletteKey(e)) return
-      e.preventDefault()
-      setOpen((was) => !was)
+  const onOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) {
+      setQuery('')
+      setAnswered(null)
     }
+  }
+
+  // The shortcut opens and closes it the same way as Esc and the field do (onOpenChange clears the text)
+  const onShortcut = useEffectEvent((e: KeyboardEvent) => {
+    if (!isPaletteKey(e, mac) || (!open && anotherDialogOpen())) return
+    e.preventDefault()
+    onOpenChange(!open)
+  })
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => onShortcut(e)
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
-  // Recent documents when it opens or the text is under two characters; a search 200 ms after the last key otherwise
+  // Recent documents when it opens or the text is under two characters; a search 200 ms after the last key otherwise.
+  // Only a change of what is asked calls the server (each call counts toward NFR-SEC-05), not every key.
+  const key = keyOf(query)
   useEffect(() => {
     if (!open) return
-    const key = keyOf(query)
     const searching = key !== RECENT
     const mine = ++seq.current
     const controller = new AbortController()
@@ -120,7 +136,7 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
       async () => {
         try {
           const response = await fetch(`/api/search${searching ? `?q=${encodeURIComponent(key)}` : ''}`, { signal: controller.signal, cache: 'no-store' })
-          if (response.status === HTTP_TOO_MANY) return settle('limited')
+          if (response.status === HTTP_STATUS.RATE_LIMITED) return settle('limited')
           if (!response.ok) return settle('failed')
           settle('done', (await response.json()) as Answer)
         } catch {
@@ -133,15 +149,7 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
       clearTimeout(timer)
       controller.abort()
     }
-  }, [open, query])
-
-  const onOpenChange = (next: boolean) => {
-    setOpen(next)
-    if (!next) {
-      setQuery('')
-      setAnswered(null)
-    }
-  }
+  }, [open, key])
 
   const go = (href: string) => {
     onOpenChange(false)
@@ -149,14 +157,14 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
   }
 
   const text = query.trim()
-  const searching = text.length >= MIN_LENGTH
+  const searching = text.length >= SEARCH_MIN_LENGTH
   const current = answered?.key === keyOf(query) ? answered : null
   const status: Status = current ? current.status : 'loading'
   const answer = current?.answer ?? EMPTY
-  const shownPages = searching ? pages.filter((p) => matches(p.label, text)).slice(0, GROUP_LIMIT) : []
-  const shownCommands = (searching ? commands.filter((c) => matches(c.label, text)) : commands).slice(0, GROUP_LIMIT)
-  const documents = (searching ? answer.documents : answer.recent).slice(0, GROUP_LIMIT)
-  const suppliers = searching ? answer.suppliers.slice(0, GROUP_LIMIT) : []
+  const shownPages = searching ? pages.filter((p) => matches(p.label, text)).slice(0, SEARCH_GROUP_LIMIT) : []
+  const shownCommands = (searching ? commands.filter((c) => matches(c.label, text)) : commands).slice(0, SEARCH_GROUP_LIMIT)
+  const documents = (searching ? answer.documents : answer.recent).slice(0, SEARCH_GROUP_LIMIT)
+  const suppliers = searching ? answer.suppliers.slice(0, SEARCH_GROUP_LIMIT) : []
   const nothing = documents.length + suppliers.length + shownPages.length + shownCommands.length === 0
 
   const documentLine = (d: FoundDocument) => `${labels.kinds[d.kind]} ${d.number ?? labels.draft}${d.title ? ` · ${d.title}` : ''}`
@@ -187,17 +195,18 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
 
   return (
     <>
-      <button
+      <Button
         type="button"
-        onClick={() => setOpen(true)}
+        variant="outline"
+        onClick={() => onOpenChange(true)}
         aria-haspopup="dialog"
-        aria-keyshortcuts="Meta+K Control+K"
-        className="inline-flex min-h-11 w-full items-center gap-2 rounded-md border border-input bg-bg px-3 text-left text-ink-muted transition-colors duration-150 hover:border-ink-muted lg:max-w-sm"
+        aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
+        className="min-h-11 w-full justify-start text-base font-normal text-ink-muted md:text-sm lg:max-w-sm"
       >
-        <Search className="size-4 shrink-0" aria-hidden="true" />
-        <span className="flex-1 truncate">{labels.trigger}</span>
+        <Search aria-hidden="true" />
+        <span className="flex-1 truncate text-left">{labels.trigger}</span>
         <Kbd aria-hidden="true">{mac ? labels.shortcutMac : labels.shortcutOther}</Kbd>
-      </button>
+      </Button>
       <CommandDialog open={open} onOpenChange={onOpenChange} title={labels.title} description={labels.description}>
         <Command shouldFilter={false} loop value={selected} onValueChange={(value) => setChoice({ first, value })}>
           <CommandInput value={query} onValueChange={setQuery} placeholder={labels.placeholder} aria-label={labels.placeholder} className="text-base md:text-sm" />

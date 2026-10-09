@@ -16,6 +16,17 @@ function draftOf(member: string): void {
   if (r.status !== 0) throw new Error(`supplier scene failed:\n${r.stdout}\n${r.stderr}`)
 }
 
+/**
+ * The budget line has at least `baht` left before the form asks for it (tests/e2e/budget-room-scene.ts): the specs of a
+ * run spend the same lines, and a budget admin tops the line up through the budget import when they have left less
+ */
+function roomOn(code: string, baht: string): void {
+  const r = spawnSync(`pnpm exec tsx tests/e2e/budget-room-scene.ts ${code} ${baht}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv() } })
+  if (r.status !== 0) throw new Error(`budget room scene failed:
+${r.stdout}
+${r.stderr}`)
+}
+
 const door = (page: Page) => page.locator('header [data-door]').getByRole('link', { name: 'ขอซื้อ / ขอจ้าง' })
 const next = (page: Page, name: string) => page.getByRole('button', { name: `ถัดไป: ${name}`, exact: true })
 
@@ -76,6 +87,8 @@ test('[FR-INT-011/AC1] [FR-INT-011/AC3] [FR-INT-011/AC4] [FR-INT-011/AC5] [FR-IN
   page,
   isMobile,
 }, testInfo) => {
+  // the form's line (its default for req_con) has room for the 483.11 baht the test asks, so "ส่งขออนุมัติ" is open
+  roomOn('CON-OPEX-2569', '1000.00')
   await signInAs(page, 'req_con', false)
   await page.goto('/requests')
   await page.goto('/requests/new/BUY_GOODS')

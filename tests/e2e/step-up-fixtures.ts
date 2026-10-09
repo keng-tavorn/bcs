@@ -7,6 +7,7 @@ import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { E2E_DB, E2E_PIN } from '../support/e2e-env'
+import { makeRoom } from './budget-room'
 
 // Activity for the e2e specs of the PIN on the decision page (S5-05, FR-AUTH-005 AC2 AC3), made through the services in
 // the e2e database only, like tests/e2e/tasks-fixtures.ts. Each Playwright project passes its own requester and
@@ -44,6 +45,8 @@ async function atThreshold(requesterCode: string) {
   })
   const line = lines.find((l) => l.code.includes('OPEX')) ?? lines[0]
   if (!line) throw new Error('no open budget line in the fiscal year of today')
+  // the specs of a run spend the same lines: a budget admin tops this one up when they have left less (./budget-room.ts)
+  await makeRoom(line.code, version.stepUpThresholdSatang)
   const draft = await createDraft(
     ctx,
     { requestTypeCode: 'BUY_GOODS', title: TITLE, priceIncludesVat: true, budgetLineId: line.id, lines: [{ description: 'เครื่องปั่นไฟ', quantity: '1', uom: 'เครื่อง', unitPrice: satangToAmount(version.stepUpThresholdSatang) }] },

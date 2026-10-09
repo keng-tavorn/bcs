@@ -65,6 +65,7 @@
       "OPEN": "Awaiting decision · {hours} business hours left",
       "OPEN_PLAIN": "Awaiting decision",
       "OVERDUE": "Overdue by {hours} business hours",
+      "OVERDUE_PLAIN": "Overdue",
       "INFO_REQUESTED": "Waiting for the requester",
       "WAITING": "Not reached yet",
       "APPROVE": "Approved",

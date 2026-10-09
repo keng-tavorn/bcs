@@ -65,6 +65,7 @@
       "OPEN": "รอตัดสิน · เหลือ {hours} ชม.ทำการ",
       "OPEN_PLAIN": "รอตัดสิน",
       "OVERDUE": "เกินกำหนด {hours} ชม.ทำการ",
+      "OVERDUE_PLAIN": "เกินกำหนด",
       "INFO_REQUESTED": "รอผู้ขอตอบ",
       "WAITING": "รอถึงขั้นนี้",
       "APPROVE": "อนุมัติแล้ว",

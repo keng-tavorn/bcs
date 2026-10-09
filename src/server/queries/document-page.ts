@@ -1,7 +1,7 @@
 import { businessMinutesBetween, type BusinessCalendar } from '@/core/sla'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
-import { businessCalendarOf, businessMinutesWaited, isUuid, membersById, slaPausesOf, type MemberRefDto, type NameDto } from './requests'
+import { businessCalendarOf, businessMinutesWaited, isUuid, membersById, type MemberRefDto, type NameDto, type SlaPause } from './requests'
 
 // The parts of the tabbed document page (FR-INT-012, §9.10 "หน้าเอกสาร") that the request and PO views do not carry:
 // each route step's SLA and its own history for the step cards and their panel (AC3), the open task the reader holds on
@@ -30,9 +30,15 @@ export interface StepEventDto {
 
 /** The SLA of the step's first open task: business minutes used of the minutes it has (§9.10 "ใช้ไป 6 จาก 8 ชม.ทำการ") */
 export interface StepSlaDto {
+  /** When it is due; null while it waits for the requester's answer, as the due time is set again when they answer */
   readonly dueAt: Date | null
-  readonly usedMinutes: number
+  /** Business minutes used since the step's task first arrived, without the pauses; null without a business calendar */
+  readonly usedMinutes: number | null
+  /** Business minutes the step has in all; null when not known */
   readonly targetMinutes: number | null
+  /** Business minutes past the due time once overdue; null when not overdue or without a business calendar */
+  readonly overdueMinutes: number | null
+  /** Past its due time (needs no calendar) */
   readonly overdue: boolean
 }
 
@@ -40,7 +46,7 @@ export interface StepDetailDto {
   readonly stepNo: number
   /** The channel the step was decided through (the deciding task's), null while nobody decided it */
   readonly channel: string | null
-  /** null once nobody waits on the step, or without a business calendar */
+  /** null once nobody waits on the step */
   readonly sla: StepSlaDto | null
   readonly history: readonly StepEventDto[]
 }
@@ -49,22 +55,30 @@ const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : nul
 const dataOf = (data: unknown): Record<string, unknown> => (data && typeof data === 'object' ? (data as Record<string, unknown>) : {})
 
 /**
- * The minutes the task has: what it used and what is left until it is due; a task waiting for the requester's answer
- * keeps what was left when it asked (remainingBusinessMinutes, BR-SLA-03), so a pause never counts against it
+ * The minutes the step's task has: what it used and what is left until it is due. `since` is when the step's task first
+ * arrived: a task moved by a delegation or an authority change starts again at the move but keeps its due time, so the
+ * time used counts from the first task of the chain. A task waiting for the requester's answer keeps what was left when
+ * it asked (remainingBusinessMinutes, BR-SLA-03), so a pause never counts against it, and its old due time is not shown.
+ * Whether it is overdue needs no calendar; the minutes need one.
  */
 export function slaOf(
   calendar: BusinessCalendar | null,
-  task: { readonly status: string; readonly assignedAt: Date; readonly dueAt: Date | null; readonly remainingBusinessMinutes: number | null },
+  task: { readonly status: string; readonly dueAt: Date | null; readonly remainingBusinessMinutes: number | null },
+  since: Date,
   now: Date,
   pauses: Parameters<typeof businessMinutesWaited>[3],
-): StepSlaDto | null {
-  if (!calendar) return null
-  const used = businessMinutesWaited(calendar, task.assignedAt, now, pauses) ?? 0
+): StepSlaDto {
+  const waitsForAnswer = task.status === 'INFO_REQUESTED'
+  const dueAt = waitsForAnswer ? null : task.dueAt
   const overdue = task.status === 'OPEN' && task.dueAt !== null && task.dueAt.getTime() < now.getTime()
-  let left: number | null = null
-  if (task.status === 'INFO_REQUESTED' && task.remainingBusinessMinutes !== null) left = task.remainingBusinessMinutes
-  else if (task.dueAt) left = overdue ? -businessMinutesBetween(task.dueAt, now, calendar) : businessMinutesBetween(now, task.dueAt, calendar)
-  return { dueAt: task.dueAt, usedMinutes: used, targetMinutes: left === null ? null : Math.max(0, used + left), overdue }
+  if (!calendar) return { dueAt, usedMinutes: null, targetMinutes: null, overdueMinutes: null, overdue }
+  const used = businessMinutesWaited(calendar, since, now, pauses) ?? 0
+  const overdueMinutes = overdue && task.dueAt ? businessMinutesBetween(task.dueAt, now, calendar) : null
+  let target: number | null = null
+  if (waitsForAnswer) target = task.remainingBusinessMinutes !== null ? used + task.remainingBusinessMinutes : null
+  else if (overdueMinutes !== null) target = used > overdueMinutes ? used - overdueMinutes : null
+  else if (task.dueAt) target = used + businessMinutesBetween(now, task.dueAt, calendar)
+  return { dueAt, usedMinutes: used, targetMinutes: target, overdueMinutes, overdue }
 }
 
 /** Each step of a route with its SLA, the channel of its decision and its history, by step number */
@@ -78,16 +92,15 @@ export async function getRouteStepDetails(ctx: Ctx, routeId: string): Promise<St
       stepNo: true,
       tasks: {
         orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }],
-        select: { id: true, status: true, assigneeMemberId: true, assignedAt: true, dueAt: true, remainingBusinessMinutes: true, decision: true, decidedAt: true, decidedByMemberId: true, channel: true },
+        select: { id: true, status: true, assigneeMemberId: true, assignedAt: true, dueAt: true, remainingBusinessMinutes: true, decision: true, decidedAt: true, decidedByMemberId: true, channel: true, reassignedFromTaskId: true },
       },
     },
   })
   const tasks = steps.flatMap((s) => s.tasks)
   const taskIds = tasks.map((t) => t.id)
   if (taskIds.length === 0) return steps.map((s) => ({ stepNo: s.stepNo, channel: null, sla: null, history: [] }))
-  const [calendar, pauses, events, infos] = await Promise.all([
+  const [calendar, events, infos] = await Promise.all([
     businessCalendarOf(db, ctx.organizationId),
-    slaPausesOf(db, taskIds),
     db.event.findMany({
       where: { aggregateType: 'ApprovalTask', aggregateId: { in: taskIds }, type: { in: ['approval_task.assigned', 'approval_task.reminded', 'approval_task.overdue', 'approval_task.escalated', 'approval_task.reassigned', 'approval_task.decided', 'approval_task.cancelled'] } },
       select: { id: true, type: true, aggregateId: true, occurredAt: true, actorMemberId: true, channel: true, data: true },
@@ -96,13 +109,29 @@ export async function getRouteStepDetails(ctx: Ctx, routeId: string): Promise<St
     db.infoRequest.findMany({ where: { taskId: { in: taskIds } }, select: { id: true, taskId: true, question: true, askedById: true, askedAt: true, answer: true, answeredById: true, answeredAt: true } }),
   ])
   const taskById = new Map(tasks.map((t) => [t.id, t]))
+  // The SLA pauses of every task: its questions to the requester (BR-SLA-03)
+  const pauses = new Map<string, SlaPause[]>()
+  for (const i of infos) pauses.set(i.taskId, [...(pauses.get(i.taskId) ?? []), { askedAt: i.askedAt, answeredAt: i.answeredAt }])
+  /** The task and the tasks it was moved from, back to the first one of its chain on the step */
+  const chainOf = (task: (typeof tasks)[number]) => {
+    const chain = [task]
+    let from = task.reassignedFromTaskId ? taskById.get(task.reassignedFromTaskId) : undefined
+    while (from && !chain.includes(from)) {
+      chain.push(from)
+      from = from.reassignedFromTaskId ? taskById.get(from.reassignedFromTaskId) : undefined
+    }
+    return chain
+  }
+  const slaOfChain = (open: (typeof tasks)[number]) => {
+    const chain = chainOf(open)
+    return slaOf(calendar, open, chain.at(-1)!.assignedAt, ctx.now, chain.flatMap((t) => pauses.get(t.id) ?? []))
+  }
   const members = await membersById(db, [
     ...tasks.flatMap((t) => [t.assigneeMemberId, t.decidedByMemberId]),
     ...events.flatMap((e) => [e.actorMemberId, str(dataOf(e.data).fromMemberId)]),
     ...infos.flatMap((i) => [i.askedById, i.answeredById]),
   ])
   const who = (id: string | null | undefined) => (id ? (members.get(id) ?? null) : null)
-  const now = ctx.now
 
   const byTask = new Map<string, StepEventDto[]>()
   const add = (taskId: string, entry: StepEventDto) => byTask.set(taskId, [...(byTask.get(taskId) ?? []), entry])
@@ -153,7 +182,7 @@ export async function getRouteStepDetails(ctx: Ctx, routeId: string): Promise<St
     return {
       stepNo: s.stepNo,
       channel: decided?.channel ?? null,
-      sla: open ? slaOf(calendar, open, now, pauses.get(open.id) ?? []) : null,
+      sla: open ? slaOfChain(open) : null,
       history,
     }
   })

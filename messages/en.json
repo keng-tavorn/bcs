@@ -2442,6 +2442,7 @@
         "OPEN": "Awaiting decision · {hours} business hours left",
         "OPEN_PLAIN": "Awaiting decision",
         "OVERDUE": "Overdue by {hours} business hours",
+        "OVERDUE_PLAIN": "Overdue",
         "REJECT": "Not approved",
         "RETURN": "Returned for changes",
         "WAITING": "Not reached yet"

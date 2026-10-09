@@ -19,6 +19,7 @@ import { p2p } from '../support/p2p'
 
 const NOW = new Date('2026-10-05T03:00:00Z')
 const MON_1300 = new Date('2026-10-05T06:00:00Z')
+const MON_1500 = new Date('2026-10-05T08:00:00Z')
 const TUE_1000 = new Date('2026-10-06T03:00:00Z')
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
 const ok = <T,>(r: { ok: true; data: T } | { ok: false; error: unknown }): T => {
@@ -82,6 +83,32 @@ describe('[FR-INT-012/AC3] a step card shows its SLA used of the time it has, an
       ['ASSIGNED', null],
       ['INFO_REQUESTED', 'ขอใบเสนอราคาประกอบ'],
     ])
+  })
+})
+
+describe('[FR-INT-012/AC3] a moved task keeps the time its step has used', () => {
+  it('counts from when the step’s first task arrived, not from the move, and says by how much it is past due', async () => {
+    const { requestId, routeId } = await submitted('req_con', '45000.00')
+    const first = await openTask(requestId)
+    // A delegation moves the task at 13:00 (as delegation-window.ts does): a new task from now, with the same due time
+    await prisma.approvalTask.update({ where: { id: first.id }, data: { status: 'REASSIGNED' } })
+    await prisma.approvalTask.create({
+      data: { organizationId: org.organizationId, stepId: first.stepId, assigneeMemberId: first.assigneeMemberId, resolvedFrom: first.resolvedFrom, status: 'OPEN', assignedAt: MON_1300, dueAt: first.dueAt, reassignedFromTaskId: first.id },
+    })
+    const [step] = await getRouteStepDetails(org.ctxOf('req_con', MON_1500), routeId)
+    // 10:00 to 15:00: 300 of the 480 minutes, not the 120 since the move
+    expect(step!.sla).toMatchObject({ usedMinutes: 300, targetMinutes: 480, overdue: false, overdueMinutes: null })
+    const [late] = await getRouteStepDetails(org.ctxOf('req_con', TUE_1000), routeId)
+    // Due Tuesday 09:00: an hour past it
+    expect(late!.sla).toMatchObject({ usedMinutes: 540, targetMinutes: 480, overdue: true, overdueMinutes: 60 })
+  })
+
+  it('shows no due time while waiting for the requester’s answer', async () => {
+    const { requestId, routeId } = await submitted('req_con', '45000.00')
+    const task = await openTask(requestId)
+    ok(await requestInfo(org.ctxOf('vp_ops', MON_1300), { taskId: task.id, question: 'ขอสเปกสินค้า' }, key()))
+    const [step] = await getRouteStepDetails(org.ctxOf('req_con', TUE_1000), routeId)
+    expect(step!.sla).toMatchObject({ dueAt: null, overdue: false })
   })
 })
 

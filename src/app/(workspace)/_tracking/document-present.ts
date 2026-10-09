@@ -31,8 +31,8 @@ export function stepBadge(t: DocumentT, locale: Locale, step: RouteStepDto, deta
   if (step.status === 'DONE') return { key: 'DONE', label: t('badge.step.DONE') }
   if (step.taskStatus === 'INFO_REQUESTED') return { key: 'INFO_REQUESTED', label: t('badge.step.INFO_REQUESTED') }
   const sla = detail?.sla
-  if (sla?.overdue) return { key: 'OVERDUE', label: t('badge.step.OVERDUE', { hours: hoursText(locale, Math.max(0, sla.usedMinutes - (sla.targetMinutes ?? sla.usedMinutes))) }) }
-  if (sla && sla.targetMinutes !== null) {
+  if (sla?.overdue) return { key: 'OVERDUE', label: sla.overdueMinutes !== null ? t('badge.step.OVERDUE', { hours: hoursText(locale, sla.overdueMinutes) }) : t('badge.step.OVERDUE_PLAIN') }
+  if (sla && sla.usedMinutes !== null && sla.targetMinutes !== null) {
     const left = Math.max(0, sla.targetMinutes - sla.usedMinutes)
     return { key: sla.usedMinutes * 2 >= sla.targetMinutes ? 'OPEN_HALF' : 'OPEN', label: t('badge.step.OPEN', { hours: hoursText(locale, left) }) }
   }
@@ -63,7 +63,10 @@ export function stepCards(
   return route.steps.map((step) => {
     const detail = byNo.get(step.stepNo)
     const badge = stepBadge(t, locale, step, detail)
-    const role = step.role ? roleText(tv, locale, step.role) : expectedText(locale, step.expected)
+    // The step is named after the approver its rule gave it — not the co-assignee who decided an escalated step
+    // (BR-SLA-04, NEW-46: their position is on the stamp) — or, before it starts, the approver the rule expects
+    const ruleRole = step.ruleApprover === undefined ? step.role : (step.ruleApprover?.role ?? null)
+    const role = ruleRole ? roleText(tv, locale, ruleRole) : expectedText(locale, step.expected)
     const active = step.status === 'ACTIVE' && !step.decision
     const open = step.open ?? []
     const people = active
@@ -89,7 +92,9 @@ export function stepCards(
         ? { notes: [...(step.escalation === 'CO_ASSIGNED' ? [tv('route.escalated')] : []), ...(open.length > 1 ? [tv('route.firstDecides')] : [])] }
         : {}),
       ...(sla?.dueAt ? { due: t('steps.due', { time: when(locale, sla.dueAt) }) } : {}),
-      ...(sla ? { sla: sla.targetMinutes !== null ? t('steps.sla', { used: hoursText(locale, sla.usedMinutes), target: hoursText(locale, sla.targetMinutes) }) : t('steps.slaUsed', { used: hoursText(locale, sla.usedMinutes) }) } : {}),
+      ...(sla && sla.usedMinutes !== null
+        ? { sla: sla.targetMinutes !== null ? t('steps.sla', { used: hoursText(locale, sla.usedMinutes), target: hoursText(locale, sla.targetMinutes) }) : t('steps.slaUsed', { used: hoursText(locale, sla.usedMinutes) }) }
+        : {}),
       ...(decided
         ? {
             stamp: {

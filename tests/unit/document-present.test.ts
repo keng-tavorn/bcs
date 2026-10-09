@@ -30,9 +30,13 @@ const route = (steps: RouteStepDto[]): RouteDto => ({ id: 'r1', routeNo: 1, stat
 
 describe('[FR-INT-012/AC3] a step card says its state with the badge of §9.10', () => {
   it('is neutral while under half of its time, warn from half of it, and danger past it', () => {
-    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 120, targetMinutes: 480, overdue: false }))).toEqual({ key: 'OPEN', label: 'รอตัดสิน · เหลือ 6 ชม.ทำการ' })
-    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 240, targetMinutes: 480, overdue: false }))).toEqual({ key: 'OPEN_HALF', label: 'รอตัดสิน · เหลือ 4 ชม.ทำการ' })
-    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 570, targetMinutes: 480, overdue: true }))).toEqual({ key: 'OVERDUE', label: 'เกินกำหนด 1.5 ชม.ทำการ' })
+    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 120, targetMinutes: 480, overdueMinutes: null, overdue: false }))).toEqual({ key: 'OPEN', label: 'รอตัดสิน · เหลือ 6 ชม.ทำการ' })
+    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 240, targetMinutes: 480, overdueMinutes: null, overdue: false }))).toEqual({ key: 'OPEN_HALF', label: 'รอตัดสิน · เหลือ 4 ชม.ทำการ' })
+    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 570, targetMinutes: 480, overdueMinutes: 90, overdue: true }))).toEqual({ key: 'OVERDUE', label: 'เกินกำหนด 1.5 ชม.ทำการ' })
+    // The hours past due are the minutes past the due time, never the time used: a task moved after it was overdue
+    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: 30, targetMinutes: null, overdueMinutes: 360, overdue: true }))).toEqual({ key: 'OVERDUE', label: 'เกินกำหนด 6 ชม.ทำการ' })
+    // Without a business calendar it is still overdue, in words without hours
+    expect(stepBadge(td, 'th', step({}), detail({ dueAt: AT, usedMinutes: null, targetMinutes: null, overdueMinutes: null, overdue: true }))).toEqual({ key: 'OVERDUE', label: 'เกินกำหนด' })
     expect(STEP_BADGES.OPEN).toEqual({ tone: 'neutral', icon: 'Hourglass' })
     expect(STEP_BADGES.OPEN_HALF).toEqual({ tone: 'warn', icon: 'Hourglass' })
     expect(STEP_BADGES.OVERDUE).toEqual({ tone: 'danger', icon: 'AlarmClock' })
@@ -57,9 +61,27 @@ describe('[FR-INT-012/AC3] a step card says its state with the badge of §9.10',
 
   it('names everyone who may decide an escalated step, why, and its SLA used of its time', () => {
     const escalated = step({ escalation: 'CO_ASSIGNED', open: [{ taskId: 't1', approver: requester, onBehalfOf: null, role, status: 'OPEN' }, { taskId: 't2', approver: vp, onBehalfOf: null, role, status: 'OPEN' }] })
-    const [card] = stepCards(td, tv, tl, 'th', route([escalated]), [detail({ dueAt: AT, usedMinutes: 540, targetMinutes: 480, overdue: true })], { doaLinks: false })
+    const [card] = stepCards(td, tv, tl, 'th', route([escalated]), [detail({ dueAt: AT, usedMinutes: 540, targetMinutes: 480, overdueMinutes: 60, overdue: true })], { doaLinks: false })
     expect(card).toMatchObject({ current: true, overdue: true, people: ['สมชาย ใจดี', 'หรือ วีระ ปฏิบัติการ'], sla: 'ใช้ไป 9 จาก 8 ชม.ทำการ' })
     expect(card!.notes).toEqual(['ส่งต่อเมื่อเลยกำหนด ผู้อนุมัติระดับถัดไปร่วมพิจารณา', 'ผู้ที่ตัดสินก่อนเป็นผู้ตัดสินขั้นนี้'])
+  })
+
+  it('keeps the name of the rule’s own approver on an escalated step decided by the co-assignee; the stamp has the decider’s', () => {
+    const dm = { kind: 'POSITION' as const, positionCode: 'DM', position: { th: 'ผู้จัดการฝ่าย', en: null }, department: { th: 'ฝ่ายก่อสร้าง', en: null }, orgWide: false }
+    const decided = step({ status: 'DONE', decision: 'APPROVE', decidedAt: AT, open: [], escalation: 'CO_ASSIGNED', ruleApprover: { approver: requester, onBehalfOf: null, role: dm } })
+    const [card] = stepCards(td, tv, tl, 'th', route([decided]), [detail(null)], { doaLinks: false })
+    expect(card!.title).toBe('ขั้นที่ 1 · ผู้จัดการฝ่าย ฝ่ายก่อสร้าง')
+    expect(card!.stamp).toMatchObject({ name: 'วีระ ปฏิบัติการ', role: 'รองประธานสายงาน สายปฏิบัติการ', escalated: 'ขั้นนี้ส่งต่อเมื่อเลยกำหนด' })
+  })
+
+  it('shows no due time while the step waits for the requester’s answer, and no hours without a business calendar', () => {
+    const [asked] = stepCards(td, tv, tl, 'th', route([step({ taskStatus: 'INFO_REQUESTED' })]), [detail({ dueAt: null, usedMinutes: 180, targetMinutes: 480, overdueMinutes: null, overdue: false })], { doaLinks: false })
+    expect(asked!.due).toBeUndefined()
+    expect(asked!.sla).toBe('ใช้ไป 3 จาก 8 ชม.ทำการ')
+    const [noCalendar] = stepCards(td, tv, tl, 'th', route([step({})]), [detail({ dueAt: AT, usedMinutes: null, targetMinutes: null, overdueMinutes: null, overdue: true })], { doaLinks: false })
+    expect(noCalendar).toMatchObject({ overdue: true, badge: { label: 'เกินกำหนด' } })
+    expect(noCalendar!.sla).toBeUndefined()
+    expect(noCalendar!.due).toMatch(/^กำหนด /)
   })
 })
 

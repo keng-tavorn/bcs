@@ -67,6 +67,19 @@ function markText(t: InsightsT, mark: NonNullable<InsightItemDto['mark']>): stri
   return t('list.marks.LOW')
 }
 
+/** A document's title with its kind in words (an authority change has no number, so its kind's name alone) */
+function documentTitle(t: InsightsT, doc: InsightItemDto['document']): string {
+  if (!doc) return t('list.document.unknown')
+  const label = doc.label
+  if (doc.type === 'REQUEST') return t('list.document.REQUEST', { label })
+  if (doc.type === 'PURCHASE_ORDER') return t('list.document.PURCHASE_ORDER', { label })
+  if (doc.type === 'VARIANCE') return t('list.document.VARIANCE', { label })
+  if (doc.type === 'DOA_VERSION') return t('list.document.DOA_VERSION', { label })
+  if (doc.type === 'ORG_AUTHORITY_CHANGE') return t('list.document.ORG_AUTHORITY_CHANGE')
+  if (doc.type === 'BUDGET_LINE') return t('list.document.BUDGET_LINE', { label })
+  return t('list.document.SUPPLIER', { label })
+}
+
 /** A list's title */
 export function listTitle(t: InsightsT, list: InsightList): string {
   const titles: Record<InsightList, () => string> = {
@@ -112,7 +125,7 @@ export function itemViews(t: InsightsT, locale: string, items: readonly InsightI
     if (item.status) lines.push(t('list.lines.status', { from: item.status.from ?? t('list.lines.unknownStatus'), to: item.status.to }))
     return {
       id: item.key,
-      title: doc?.label ?? '',
+      title: documentTitle(t, doc),
       href,
       lines,
       doa: null,

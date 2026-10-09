@@ -156,6 +156,16 @@
       "WITH_DOA": "อ้าง DOA ฉบับและข้อครบ",
       "WITHOUT_DOA": "ไม่ได้อ้าง DOA ฉบับหรือข้อ",
       "LOW": "งบใกล้หมด"
+    },
+    "document": {
+      "REQUEST": "คำขอ {label}",
+      "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
+      "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
+      "DOA_VERSION": "ฉบับ DOA {label}",
+      "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "BUDGET_LINE": "บรรทัดงบ {label}",
+      "SUPPLIER": "ผู้ขาย {label}",
+      "unknown": "เอกสารที่ไม่พบ"
     }
   }
 }

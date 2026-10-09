@@ -3079,6 +3079,16 @@
       "back": "กลับสรุปผู้บริหาร",
       "capped": "แสดง {shown} รายการแรกจาก {total}",
       "channelOf": "การตัดสินทาง{channel}",
+      "document": {
+        "BUDGET_LINE": "บรรทัดงบ {label}",
+        "DOA_VERSION": "ฉบับ DOA {label}",
+        "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+        "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
+        "REQUEST": "คำขอ {label}",
+        "SUPPLIER": "ผู้ขาย {label}",
+        "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
+        "unknown": "เอกสารที่ไม่พบ"
+      },
       "forbidden": "รายการนี้เปิดได้เฉพาะผู้ที่ดูเอกสารทั้งหมดของรายการได้",
       "lines": {
         "amount": "{amount} บาท ก่อน VAT",

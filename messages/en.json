@@ -3079,6 +3079,16 @@
       "back": "Back to the executive summary",
       "capped": "Showing the first {shown} of {total}",
       "channelOf": "Decisions by {channel}",
+      "document": {
+        "BUDGET_LINE": "Budget line {label}",
+        "DOA_VERSION": "DOA version {label}",
+        "ORG_AUTHORITY_CHANGE": "Authority change",
+        "PURCHASE_ORDER": "Purchase order {label}",
+        "REQUEST": "Request {label}",
+        "SUPPLIER": "Supplier {label}",
+        "VARIANCE": "Receiving variance of {label}",
+        "unknown": "Document not found"
+      },
       "forbidden": "This list is only for people who can open every document in it.",
       "lines": {
         "amount": "{amount} baht before VAT",

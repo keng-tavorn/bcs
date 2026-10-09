@@ -161,6 +161,35 @@ async function scopeOf(tx: TenantTx, scope: InsightsScope, refs: ReadonlyArray<{
   }
 }
 
+/** Earlier approved unit prices of an item (itemKey), with the PO and when it was approved */
+export type PricesOf = ReadonlyMap<string, ReadonlyArray<{ readonly poId: string; readonly at: Date; readonly price: bigint }>>
+
+/**
+ * One PO's spending inside the scope (null: every department): only its lines in the scope count — for the amount, by
+ * department, and for the price alert alike, so a filter to one department never borrows another's price rise. A line
+ * is an alert when its unit price is above the last price of the same item approved before this PO by more than
+ * `alertBp` (FR-P2P-003 AC1, as the PO page's price history stood then).
+ */
+export function spendOfPo(
+  po: { readonly poId: string; readonly approvedAt: Date; readonly lines: ReadonlyArray<{ readonly departmentId: string; readonly netSatang: bigint; readonly unitPriceSatang: bigint; readonly categoryCode: string | null; readonly description: string }> },
+  departments: ReadonlySet<string> | null,
+  pricesOf: PricesOf,
+  alertBp: number,
+): { po: SpendPo; byDepartment: ReadonlyMap<string, bigint> } {
+  const byDepartment = new Map<string, bigint>()
+  let net = 0n
+  let priceAlert = false
+  for (const l of po.lines) {
+    if (departments !== null && !departments.has(l.departmentId)) continue
+    net += l.netSatang
+    byDepartment.set(l.departmentId, (byDepartment.get(l.departmentId) ?? 0n) + l.netSatang)
+    const before = (pricesOf.get(itemKey(l.categoryCode, l.description)) ?? []).filter((x) => x.poId !== po.poId && x.at < po.approvedAt)
+    const last = before.reduce<(typeof before)[number] | null>((a, b) => (a === null || b.at > a.at ? b : a), null)
+    if (last && exceedsByMoreThan(l.unitPriceSatang as Satang, last.price as Satang, alertBp)) priceAlert = true
+  }
+  return { po: { poId: po.poId, approvedAt: po.approvedAt, netSatang: net, priceAlert }, byDepartment }
+}
+
 const TASK_SELECT = { id: true, assigneeMemberId: true, assignedAt: true, dueAt: true, decidedAt: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } } as const
 type TaskRow = { id: string; assigneeMemberId: string; assignedAt: Date; dueAt: Date | null; decidedAt: Date | null; step: { route: { subjectType: string; subjectId: string } } }
 
@@ -258,25 +287,15 @@ export async function loadInsights(tx: TenantTx, input: InsightsInput): Promise<
   }
   const byDepartment = new Map<string, bigint>()
   const pos: SpendPo[] = spendPos.map((p) => {
-    let net = 0n
-    let priceAlert = false
-    for (const l of p.lines) {
-      const department = l.budgetLine.departmentId
-      if (departments === null || departments.has(department)) {
-        net += l.netSatang
-        byDepartment.set(department, (byDepartment.get(department) ?? 0n) + l.netSatang)
-      }
-      // the last price of the same item approved before this PO (the PO page's price history, as it stood then)
-      const before = (pricesOf.get(itemKey(l.categoryCode, l.description)) ?? []).filter((x) => x.poId !== p.id && x.at < p.approvedAt!)
-      const last = before.reduce<(typeof before)[number] | null>((a, b) => (a === null || b.at > a.at ? b : a), null)
-      if (last && exceedsByMoreThan(l.unitPriceSatang as Satang, last.price as Satang, input.alertBp)) priceAlert = true
-    }
-    return { poId: p.id, approvedAt: p.approvedAt!, netSatang: net, priceAlert }
+    const spent = spendOfPo({ poId: p.id, approvedAt: p.approvedAt!, lines: p.lines.map((l) => ({ ...l, departmentId: l.budgetLine.departmentId })) }, departments, pricesOf, input.alertBp)
+    for (const [department, net] of spent.byDepartment) byDepartment.set(department, (byDepartment.get(department) ?? 0n) + net)
+    return spent.po
   })
 
   // ----- budget: §11.2 at the end of the period -----
   // A period that ends today or later reads the balance projection the budget dashboard reads (INV-BUD-05), so the two
-  // agree to the satang; a period that ended earlier adds up the ledger's movements made before its end
+  // agree to the satang; a period that ended earlier adds up the ledger's movements made before its end, the planned
+  // amount included
   let budget: InsightsData['budget'] = null
   if (input.budget) {
     const lines = await tx.budgetLine.findMany({
@@ -303,11 +322,14 @@ export async function loadInsights(tx: TenantTx, input: InsightsInput): Promise<
       for (const r of outOf) move(`${r.budgetLineId}|${r.fromBucket}`, -(r._sum.amountSatang ?? 0n))
     }
     const bucket = (lineId: string, b: string) => held.get(`${lineId}|${b}`) ?? 0n
+    // the planned amount is what the imports had funded by then — the net flow out of OUTSIDE (a line funded or topped up
+    // after the period counts only what it had); today, the line's own column, which the same imports keep
+    const planned = (l: (typeof lines)[number]) => (to > now ? l.plannedSatang : -bucket(l.id, 'OUTSIDE'))
     budget = {
       lines: lines.map((l) => ({
         id: l.id,
         departmentId: l.departmentId,
-        planned: l.plannedSatang,
+        planned: planned(l),
         available: bucket(l.id, 'AVAILABLE'),
         reserved: bucket(l.id, 'RESERVED'),
         committed: bucket(l.id, 'COMMITTED'),

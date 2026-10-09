@@ -191,7 +191,9 @@ export function weeksEnding(day: string, weeks = INSIGHT_WEEKS): InsightsWeek[] 
   const monday = addDays(day, -((weekday + DAYS_PER_WEEK - 1) % DAYS_PER_WEEK))
   return Array.from({ length: weeks }, (_, i) => {
     const start = addDays(monday, -(weeks - 1 - i) * DAYS_PER_WEEK)
-    const { from, to } = periodOf({ from: start, to: addDays(start, DAYS_PER_WEEK - 1) })
+    // the last week stops at the end of the period: its median and its list count nothing decided after the period
+    const sunday = addDays(start, DAYS_PER_WEEK - 1)
+    const { from, to } = periodOf({ from: start, to: sunday < day ? sunday : day })
     return { start, from, to }
   })
 }
@@ -234,6 +236,14 @@ async function reader(tx: TenantTx, ctx: Ctx): Promise<Result<Reader>> {
   return ok({ principal: allowed.data, departments: scope, orgPos: scopesFor(allowed.data, 'po.view').has('ORG'), budgetDepartments })
 }
 
+/** The departments both scopes cover (null: every department · 'NONE': none) */
+function within(a: readonly string[] | null | 'NONE', b: readonly string[] | null): readonly string[] | null | 'NONE' {
+  if (a === 'NONE') return 'NONE'
+  if (b === null) return a
+  const both = a === null ? b : a.filter((d) => b.includes(d))
+  return both.length ? both : 'NONE'
+}
+
 interface Prepared {
   readonly base: InsightsBaseDto
   readonly data: InsightsData
@@ -266,7 +276,9 @@ async function prepare(tx: TenantTx, ctx: Ctx, params: InsightsParams): Promise<
 
   // the departments the figures read: the filter, else the reader's scope (a head never reads past it)
   const scopeDepartments = departmentId ? [departmentId] : r.departments
-  const budgetDepartments = r.budgetDepartments === 'NONE' ? 'NONE' : departmentId ? [departmentId] : r.budgetDepartments
+  // the budget card reads what both budget.view and the page's scope cover, then the filter: a reader's filter never
+  // widens their budget.view (a head of A who reads the organization's reports never reads B's budget lines)
+  const budgetDepartments = within(within(r.budgetDepartments, scopeDepartments), departmentId ? [departmentId] : null)
   const { from, to } = periodOf({ from: period.from, to: period.to })
   const endDay = new Date(`${period.to}T00:00:00Z`)
   const year = budgetDepartments === 'NONE' ? null : await tx.fiscalYear.findFirst({ where: { startsOn: { lte: endDay }, endsOn: { gte: endDay } }, select: { id: true, code: true } })

@@ -156,6 +156,16 @@
       "WITH_DOA": "Cites the DOA version and rule",
       "WITHOUT_DOA": "Does not cite the DOA version or rule",
       "LOW": "Budget running low"
+    },
+    "document": {
+      "REQUEST": "Request {label}",
+      "PURCHASE_ORDER": "Purchase order {label}",
+      "VARIANCE": "Receiving variance of {label}",
+      "DOA_VERSION": "DOA version {label}",
+      "ORG_AUTHORITY_CHANGE": "Authority change",
+      "BUDGET_LINE": "Budget line {label}",
+      "SUPPLIER": "Supplier {label}",
+      "unknown": "Document not found"
     }
   }
 }

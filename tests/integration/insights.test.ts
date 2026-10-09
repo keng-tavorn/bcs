@@ -3,7 +3,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { toMoneyDto } from '@/core/money/dto'
 import { loadPrincipal, scopesFor, type Principal } from '@/server/authz'
 import { makeCtx, type Ctx } from '@/server/context'
+import { BP_PER_WHOLE as BP_WHOLE } from '@/core/money/constants'
+import { MS_PER_DAY } from '@/lib/constants'
 import { forTenant } from '@/server/db/tenant'
+import { loadBusinessCalendar } from '@/server/doa/policy'
+import { loadInsights } from '@/server/queries/insights'
+import { APPROVED_STATUSES, itemKey } from '@/server/queries/purchase-orders'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { seedBudget } from '@/server/seed/budget'
 import { seedDevPins } from '@/server/seed/pins'
@@ -190,6 +195,80 @@ describe('[FR-VIS-007/AC3] every figure agrees with the KPI view and the budget 
     expect(weeks[0]!.from.toISOString()).toBe('2026-07-12T17:00:00.000Z')
     expect(weeksEnding('2026-09-27').at(-1)!.start).toBe('2026-09-21')
   })
+
+  it('the last week stops at the end of the period: nothing decided after it counts (a period ending on a Wednesday)', () => {
+    const weeks = weeksEnding('2026-09-02')
+    expect(weeks.at(-1)!.start).toBe('2026-08-31')
+    expect(weeks.at(-1)!.to.toISOString()).toBe('2026-09-02T17:00:00.000Z')
+    expect(weeks.at(-2)!.to.toISOString()).toBe('2026-08-30T17:00:00.000Z')
+    expect(weeksEnding(TODAY).at(-1)!.to.toISOString()).toBe('2026-09-28T17:00:00.000Z')
+  })
+
+  it('a period that ended earlier adds up the ledger before its end, the planned amount included', async () => {
+    const db = forTenant(organizationId)
+    const day = new Date(`${TODAY}T00:00:00Z`)
+    const year = await db.fiscalYear.findFirstOrThrow({ where: { startsOn: { lte: day }, endsOn: { gte: day } }, select: { id: true } })
+    const run = (to: Date, now: Date) =>
+      db.$transaction(async (tx) =>
+        loadInsights(tx, {
+          from: new Date(to.getTime() - 30 * MS_PER_DAY),
+          to,
+          now,
+          scope: { departmentIds: null, requestTypeId: null },
+          calendar: await loadBusinessCalendar(tx, organizationId),
+          alertBp: 1000,
+          idleDays: 30,
+          weeks: [],
+          budget: { fiscalYearId: year.id, departmentIds: null },
+        }),
+      )
+    // A period ending in 2099 read as today (the balance projection) and as a past period (the ledger up to its end):
+    // nothing moves after it, so the two agree to the satang, planned amounts included
+    const projected = await run(new Date('2099-01-01T00:00:00Z'), NOW)
+    const replayed = await run(new Date('2099-01-01T00:00:00Z'), new Date('2099-06-01T00:00:00Z'))
+    expect(projected.budget!.lines.some((l) => l.planned > 0n && l.committed + l.actual + l.reserved > 0n)).toBe(true)
+    expect(replayed.budget!.lines).toEqual(projected.budget!.lines)
+    // Before the imports were written nothing was funded: no planned amount, so no line reads as running low
+    const before = await run(new Date('2000-01-01T00:00:00Z'), NOW)
+    expect(before.budget!.lines.length).toBe(projected.budget!.lines.length)
+    expect(before.budget!.lines.every((l) => l.planned === 0n && l.available === 0n && l.reserved === 0n && l.committed === 0n && l.actual === 0n)).toBe(true)
+  })
+
+  it('under a department filter a PO is a price alert only for the lines of that department, as the test works it out itself', async () => {
+    const ceo = executive()
+    const all = await view(ceo, { range: '90d' })
+    const alertBp = BigInt(Math.round(all.spend!.alertPct * 100))
+    const { from, to } = periodOf({ from: all.filters.from, to: all.filters.to })
+    const db = forTenant(organizationId)
+    const pos = await db.purchaseOrder.findMany({
+      where: { approvedAt: { gte: from, lt: to }, status: { not: 'CANCELLED' } },
+      select: { id: true, approvedAt: true, lines: { select: { categoryCode: true, description: true, unitPriceSatang: true, budgetLine: { select: { departmentId: true } } } } },
+    })
+    const earlier = await db.poLine.findMany({
+      where: { po: { status: { in: [...APPROVED_STATUSES] }, approvedAt: { not: null } } },
+      select: { poId: true, categoryCode: true, description: true, unitPriceSatang: true, po: { select: { approvedAt: true } } },
+    })
+    const alerted = (departmentId: string | null) =>
+      pos
+        .filter((p) =>
+          p.lines.some((l) => {
+            if (departmentId && l.budgetLine.departmentId !== departmentId) return false
+            const last = earlier
+              .filter((e) => e.poId !== p.id && e.po.approvedAt! < p.approvedAt! && itemKey(e.categoryCode, e.description) === itemKey(l.categoryCode, l.description))
+              .sort((a, b) => b.po.approvedAt!.getTime() - a.po.approvedAt!.getTime())[0]
+            return Boolean(last && l.unitPriceSatang * BP_WHOLE > last.unitPriceSatang * (BP_WHOLE + alertBp))
+          }),
+        )
+        .map((p) => p.id)
+        .sort()
+    const listed = async (params: InsightsParams) => {
+      const result = await insightsList(ceo.ctx, params, 'price-alerts')
+      if (!result.ok) throw new Error(result.error.code)
+      return result.data.items.map((i) => i.document!.id).sort()
+    }
+    expect(await listed({ range: '90d' })).toEqual(alerted(null))
+    for (const dept of all.options.departments) expect(await listed({ range: '90d', dept: dept.id }), dept.code).toEqual(alerted(dept.id))
+  })
 })
 
 describe('[FR-VIS-007/AC1] the filters live in the address: the same link gives the same view', () => {
@@ -275,5 +354,41 @@ describe('[FR-VIS-007/AC4] each seed member gets the page, and each card, only w
     await expectSameAsKpiView(d, [...heads(head)])
     const list = await insightsList(head.ctx, { range: '90d', dept: other.id }, 'doa-ref')
     expect(list.ok && list.data.filters.departmentId).toBeNull()
+  })
+})
+
+describe('[FR-VIS-007/AC4] the budget card reads what budget.view and the page both cover, and a filter never widens it', () => {
+  it('a head who reads the organization’s reports as PROCUREMENT sees only their own budget lines whatever the link asks for; a head with the organization’s budget.view reads only the departments the page covers', async () => {
+    const db = forTenant(organizationId)
+    const budgeted = new Set((await view(executive(), { range: '90d' })).budget!.byDepartment.map((x) => x.id))
+    const head = members.find((m) => Array.isArray(reportScope(m.principal)) && [...heads(m)].some((d) => budgeted.has(d)))!
+    const own = [...heads(head)]
+    const mine = own.find((d) => budgeted.has(d))!
+    const other = [...budgeted].find((d) => !own.includes(d))!
+    // the role is granted for this test alone and revoked after it, so the other tests read the seed as it is
+    const withRole = async (role: 'PROCUREMENT' | 'BUDGET_ADMIN', check: () => Promise<void>) => {
+      const row = await db.roleAssignment.create({ data: { organizationId, memberId: head.id, role, grantedAt: NOW } })
+      try {
+        await check()
+      } finally {
+        await db.roleAssignment.update({ where: { id: row.id }, data: { revokedAt: NOW } })
+      }
+    }
+    await withRole('PROCUREMENT', async () => {
+      const all = await view(head, { range: '90d' })
+      expect(all.scope).toBe('ORG')
+      expect(all.budget!.byDepartment.every((x) => own.includes(x.id))).toBe(true)
+      const asked = await view(head, { range: '90d', dept: other })
+      expect(asked.filters.departmentId).toBe(other)
+      expect(asked.budget).toBeNull()
+      expect((await insightsList(head.ctx, { range: '90d', dept: other }, 'budget')).ok).toBe(false)
+      expect((await view(head, { range: '90d', dept: mine })).budget!.byDepartment.map((x) => x.id)).toEqual([mine])
+    })
+    await withRole('BUDGET_ADMIN', async () => {
+      const all = await view(head, { range: '90d' })
+      expect(all.scope).toBe('DEPT')
+      expect(all.budget!.byDepartment.map((x) => x.id)).toContain(mine)
+      expect(all.budget!.byDepartment.every((x) => own.includes(x.id))).toBe(true)
+    })
   })
 })

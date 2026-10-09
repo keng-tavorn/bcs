@@ -909,6 +909,7 @@ features:
     step: S16
     evidence:
       - tests/integration/insights.test.ts
+      - tests/integration/insights-spend.test.ts
       - tests/unit/insights-charts-lazy.test.ts
       - tests/e2e/insights.spec.ts
     verifiedBy: null

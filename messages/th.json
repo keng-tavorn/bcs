@@ -2408,6 +2408,198 @@
     },
     "title": "ชุดคอมโพเนนต์ของ Workspace"
   },
+  "document": {
+    "badge": {
+      "po": {
+        "APPROVED": "อนุมัติแล้ว · ยังไม่ส่ง",
+        "CANCELLED": "ยกเลิก",
+        "CLOSED": "ปิดแล้ว",
+        "DRAFT": "ร่าง",
+        "PARTIALLY_RECEIVED": "รับบางส่วน",
+        "PENDING_APPROVAL": "รออนุมัติ",
+        "RECEIVED": "รับครบ",
+        "REJECTED": "ไม่อนุมัติ",
+        "SENT": "ส่งผู้ขายแล้ว"
+      },
+      "request": {
+        "APPROVED": "อนุมัติแล้ว",
+        "CANCELLED": "ยกเลิก",
+        "COMPLETED": "เสร็จสิ้น",
+        "DONE": "เพิ่มผู้ขายแล้ว",
+        "DRAFT": "ร่าง",
+        "ORDERED": "สั่งซื้อแล้ว",
+        "PARTIALLY_ORDERED": "สั่งซื้อบางส่วน",
+        "PENDING_APPROVAL": "รออนุมัติ",
+        "REJECTED": "ไม่อนุมัติ",
+        "RETURNED": "ตีกลับให้แก้",
+        "SUBMITTED": "ส่งจัดซื้อแล้ว"
+      },
+      "step": {
+        "APPROVE": "อนุมัติแล้ว",
+        "CANCELLED": "ยกเลิก",
+        "DONE": "เสร็จแล้ว",
+        "INFO_REQUESTED": "รอผู้ขอตอบ",
+        "OPEN": "รอตัดสิน · เหลือ {hours} ชม.ทำการ",
+        "OPEN_PLAIN": "รอตัดสิน",
+        "OVERDUE": "เกินกำหนด {hours} ชม.ทำการ",
+        "REJECT": "ไม่อนุมัติ",
+        "RETURN": "ตีกลับให้แก้",
+        "WAITING": "รอถึงขั้นนี้"
+      },
+      "urgency": {
+        "NORMAL": "ปกติ",
+        "URGENT": "ด่วน"
+      }
+    },
+    "bar": {
+      "amount": "ยอดตามฐาน DOA",
+      "amountValue": "{amount} บาท ({basis})",
+      "ask": "ขอข้อมูลเพิ่ม",
+      "budget": "งบ",
+      "cancel": "กลับไปตรวจก่อน",
+      "doa": "DOA",
+      "reject": "ไม่อนุมัติ",
+      "return": "ตีกลับให้แก้",
+      "returnPo": "ตีกลับให้จัดซื้อแก้"
+    },
+    "comments": {
+      "by": "{name} · {time}",
+      "empty": "ยังไม่มีความเห็น เหตุผลของการตัดสินและคำถามคำตอบระหว่างผู้อนุมัติกับผู้ขอจะแสดงที่นี่",
+      "kind": {
+        "ANSWER": "คำตอบ",
+        "QUESTION": "คำถาม",
+        "REASON": "เหตุผล"
+      },
+      "list": "ความเห็นและเหตุผล"
+    },
+    "header": {
+      "backPos": "ใบสั่งซื้อ",
+      "backRequests": "คำขอของฉัน",
+      "cancelPo": "ยกเลิก PO",
+      "cancelRequest": "ยกเลิกคำขอ",
+      "copied": "คัดลอกลิงก์แล้ว",
+      "copy": "คัดลอกลิงก์",
+      "menu": "เพิ่มเติม",
+      "notSent": "ยังไม่ได้ส่ง",
+      "pdf": "พิมพ์ PDF",
+      "submitted": "ส่งเมื่อ",
+      "supplier": "ผู้ขาย",
+      "supplierNone": "ฝ่ายจัดซื้อเลือก",
+      "taken": "ใช้เวลา",
+      "takenDays": "{days} วันทำการ",
+      "takenUnknown": "-",
+      "total": "ยอดรวม",
+      "totalNotYet": "คำนวณตอนส่ง",
+      "totalValue": "{amount} บาท"
+    },
+    "history": {
+      "all": "ทั้งหมด",
+      "columns": {
+        "actor": "ผู้กระทำ",
+        "channel": "ช่องทาง",
+        "event": "เหตุการณ์",
+        "when": "วันที่"
+      },
+      "empty": "ยังไม่มีเหตุการณ์ของชนิดนี้",
+      "filter": "กรองตามชนิด",
+      "kinds": {
+        "DECISION": "การตัดสิน",
+        "DOCUMENT": "เอกสาร",
+        "GOODS": "การส่งและรับของ",
+        "QUESTION": "คำถามและคำตอบ"
+      },
+      "noChannel": "-",
+      "table": "ประวัติของเอกสาร"
+    },
+    "invoices": {
+      "final": "ใบสุดท้าย",
+      "gross": "{amount} บาท",
+      "list": "ใบกำกับของใบสั่งซื้อนี้",
+      "none": "ยังไม่มีใบกำกับที่ยืนยันแล้ว ฝ่ายการเงินบันทึกเมื่อได้รับใบกำกับจากผู้ขาย",
+      "row": "เลขที่ {number} · ลงวันที่ {date}"
+    },
+    "overview": {
+      "budgetTitle": "งบของเอกสารนี้",
+      "poTitle": "ใบสั่งซื้อ",
+      "routeNone": "ยังไม่มีเส้นทางอนุมัติ"
+    },
+    "pos": {
+      "gross": "ยอดรวม VAT {amount} บาท",
+      "list": "ใบสั่งซื้อของคำขอนี้",
+      "noReceipts": "ยังไม่ได้รับของ",
+      "none": "ยังไม่มีใบสั่งซื้อของคำขอนี้ ฝ่ายจัดซื้อออกใบสั่งซื้อหลังคำขออนุมัติ",
+      "open": "เปิดใบสั่งซื้อ {number}",
+      "receipt": "{number} · รับเมื่อ {time}",
+      "receiptStatus": {
+        "POSTED": "บันทึกแล้ว",
+        "REVERSED": "กลับรายการแล้ว"
+      },
+      "receipts": "การรับของ",
+      "receiveHere": "บันทึกการรับของ"
+    },
+    "rail": {
+      "comments": "ความเห็น ({count})",
+      "label": "สรุปและความเห็น",
+      "summary": "สรุป"
+    },
+    "steps": {
+      "due": "กำหนด {time}",
+      "history": {
+        "ASSIGNED": "มอบงานให้ {name}",
+        "CLOSED": "ปิดงานของ {name} เพราะขั้นนี้ตัดสินแล้วหรือเส้นทางสิ้นสุด",
+        "DECIDED_APPROVE": "{name} อนุมัติ",
+        "DECIDED_REJECT": "{name} ไม่อนุมัติ",
+        "DECIDED_RETURN": "{name} ตีกลับให้แก้",
+        "DELEGATED": "{name} รับงานแทน {from} ระหว่างรักษาการ",
+        "ESCALATED": "ส่งต่อเมื่อเลยกำหนด ผู้อนุมัติระดับถัดไปร่วมพิจารณา",
+        "INFO_PROVIDED": "{name} ตอบข้อมูลเพิ่ม",
+        "INFO_REQUESTED": "{name} ขอข้อมูลเพิ่ม",
+        "OVERDUE": "เลยกำหนดของขั้นนี้",
+        "REASSIGNED": "ย้ายงานจาก {from} ไปที่ {name}",
+        "REMINDED": "เตือน {name}"
+      },
+      "list": "ขั้นอนุมัติ",
+      "open": "ดูประวัติของขั้นนี้",
+      "panelHistory": "ประวัติของงาน",
+      "panelNoHistory": "ขั้นนี้ยังไม่เริ่ม",
+      "panelWhy": "ทำไมเส้นทางไปทางนี้",
+      "sla": "ใช้ไป {used} จาก {target} ชม.ทำการ",
+      "slaUsed": "ใช้ไป {used} ชม.ทำการ",
+      "title": "ขั้นที่ {no} · {role}",
+      "titlePlain": "ขั้นที่ {no}"
+    },
+    "summary": {
+      "budgetLine": "บรรทัดงบ",
+      "charged": "แผนกที่ตั้งเบิก",
+      "createdBy": "ผู้สร้าง",
+      "doa": "DOA",
+      "files": "ไฟล์แนบ",
+      "gross": "ยอดรวม",
+      "kind": "ชนิด",
+      "list": "สรุปเอกสาร",
+      "money": "{amount} บาท",
+      "neededBy": "ต้องการภายใน",
+      "net": "ยอดก่อน VAT",
+      "none": "-",
+      "payment": "เงื่อนไขชำระ",
+      "paymentDays": "{days} วัน",
+      "requester": "ผู้ขอ",
+      "site": "สถานที่ส่ง",
+      "type": "ประเภท",
+      "vat": "VAT"
+    },
+    "tabs": {
+      "documents": "เอกสาร",
+      "history": "ประวัติ",
+      "invoices": "ใบกำกับ",
+      "label": "ส่วนของเอกสาร",
+      "lines": "รายการ",
+      "linesBudget": "รายการและงบ",
+      "overview": "ภาพรวม",
+      "poReceiving": "ใบสั่งซื้อและการรับของ",
+      "receiving": "การรับของ"
+    }
+  },
   "errors": {
     "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
     "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",

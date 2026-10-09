@@ -34,6 +34,7 @@ const TITLES: Record<string, string> = {
   pending: 'วัสดุสิ้นเปลือง (รออนุมัติ)',
   reject: 'โต๊ะประชุม (ทดสอบไม่อนุมัติ)',
   foreign: 'ป้ายความปลอดภัย (ทดสอบสิทธิ์)',
+  tabbed: 'เครื่องพิมพ์สำนักงาน (หน้าเอกสาร)',
 }
 /** Policy changes take effect this many days from today: never in the past (BR-DOA-12), never during the run */
 const EFFECTIVE_IN_DAYS = 60

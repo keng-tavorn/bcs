@@ -291,6 +291,10 @@ export async function PoRequests({ po, locale, reader, openFile, requestHref, t 
   )
 }
 
+/** The sections PoBody draws; the tabs of the PO page (FR-INT-012 AC6) each ask for theirs */
+export type PoPart = 'money' | 'lines' | 'requests' | 'facts' | 'route'
+const ALL_PARTS: readonly PoPart[] = ['money', 'lines', 'requests', 'facts', 'route']
+
 export async function PoBody({
   po,
   locale,
@@ -298,6 +302,7 @@ export async function PoBody({
   reader,
   openFile,
   requestHref = WORKSPACE_REQUEST_HREF,
+  parts = ALL_PARTS,
 }: {
   po: PoViewDto
   locale: Locale
@@ -305,14 +310,18 @@ export async function PoBody({
   reader: PoReader
   openFile: OpenFile
   requestHref?: RequestHref
+  /** The sections to draw, all of them unless named (the decision pages show the whole PO on one screen) */
+  parts?: readonly PoPart[]
 }) {
   const t = await getTranslations('purchaseOrder')
+  const show = (part: PoPart) => parts.includes(part)
   const draft = po.status === 'DRAFT'
   const note = !draft ? t('amounts.fixedNote') : po.totals.basis === 'TODAY' ? t('amounts.draftNote') : t('amounts.draftNoteStored')
   return (
     // The amounts and the budget side by side only where the document's column is 40rem wide or more: never in the one
     // column of a LIFF page (§9.9), whatever the screen (as RequestSections)
     <div className="@container flex flex-col gap-6">
+      {show('money') ? (
       <div className="grid gap-6 @min-[40rem]:grid-cols-2">
         <Section id="po-amounts" title={t('amounts.title')}>
           <Amounts
@@ -331,23 +340,30 @@ export async function PoBody({
           <PoBudget po={po} t={t} />
         </Section>
       </div>
+      ) : null}
 
+      {show('lines') ? (
       <Section id="po-lines" title={t('lines.title')}>
         <PoLines
           lines={await poLineViews(po, locale, reader, requestHref)}
           labels={{ list: t('lines.label'), description: t('lines.description'), quantity: t('lines.quantity'), unitPrice: t('lines.unitPrice'), amount: t('lines.amount') }}
         />
       </Section>
+      ) : null}
 
-      <Section id="po-requests" title={t('requests.heading')}>
-        <PoRequests po={po} locale={locale} reader={reader} openFile={openFile} requestHref={requestHref} t={t} />
-      </Section>
+      {show('requests') ? (
+        <Section id="po-requests" title={t('requests.heading')}>
+          <PoRequests po={po} locale={locale} reader={reader} openFile={openFile} requestHref={requestHref} t={t} />
+        </Section>
+      ) : null}
 
-      <Section id="po-facts" title={t('facts.title')}>
-        <PoFacts po={po} locale={locale} reader={reader} />
-      </Section>
+      {show('facts') ? (
+        <Section id="po-facts" title={t('facts.title')}>
+          <PoFacts po={po} locale={locale} reader={reader} />
+        </Section>
+      ) : null}
 
-      <RouteSection id="po-route" route={po.route} locale={locale} doaLinks={doaLinks} subject="PURCHASE_ORDER" empty={t('detail.routeNotYet')} />
+      {show('route') ? <RouteSection id="po-route" route={po.route} locale={locale} doaLinks={doaLinks} subject="PURCHASE_ORDER" empty={t('detail.routeNotYet')} /> : null}
     </div>
   )
 }

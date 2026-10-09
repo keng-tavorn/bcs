@@ -59,10 +59,28 @@ function stepState(step: RouteStepDto): { kind: StateKind; key: 'WAITING' | 'ACT
   return { kind: 'done', key: 'DONE' }
 }
 
+/** The sections RequestSections draws; the tabs of the request page (FR-INT-012 AC2) each ask for theirs */
+export type RequestPart = 'money' | 'route' | 'lines' | 'details' | 'files' | 'questions'
+const ALL_PARTS: readonly RequestPart[] = ['money', 'route', 'lines', 'details', 'files', 'questions']
+
 /**
  * `doaLinks`: the reader may open the DOA version the route cites (canOpenDoaVersion); otherwise the reference is text.
+ * `parts`: the sections to draw, all of them unless named (the decision page and LIFF show the whole request on one screen)
  */
-export async function RequestSections({ view, locale, openFile, doaLinks }: { view: RequestViewDto; locale: Locale; openFile: (fileId: string) => Promise<string | null>; doaLinks: boolean }) {
+export async function RequestSections({
+  view,
+  locale,
+  openFile,
+  doaLinks,
+  parts = ALL_PARTS,
+}: {
+  view: RequestViewDto
+  locale: Locale
+  openFile: (fileId: string) => Promise<string | null>
+  doaLinks: boolean
+  parts?: readonly RequestPart[]
+}) {
+  const show = (part: RequestPart) => parts.includes(part)
   const [t, tl] = await Promise.all([getTranslations('requestView'), getTranslations('timeline')])
   const value = (v: Exclude<FieldValueDto, { kind: 'MONEY' }>): string => {
     switch (v.kind) {
@@ -95,7 +113,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
       {/* A new-supplier request has no amount, budget or lines (OQ-23). The amounts and the budget go side by side where
           the document's own column is 40rem wide or more, as LineList does: the workspace's wide column, never the one
           column of a LIFF page (§9.9), whatever the screen */}
-      {purchase ? (
+      {purchase && show('money') ? (
         <div className="grid gap-6 @min-[40rem]:grid-cols-2">
           <Section id="amounts" title={t('amounts.title')}>
             {view.totals ? (
@@ -155,6 +173,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
         </div>
       ) : null}
 
+      {show('route') ? (
       <Section id="route" title={t('route.title')}>
         {view.route ? (
           <div className="flex flex-col gap-3">
@@ -212,8 +231,9 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
           <p className="text-ink-muted">{view.documentType === 'SUPPLIER_REQUEST' ? t('route.none') : t('route.notYet')}</p>
         )}
       </Section>
+      ) : null}
 
-      {purchase || view.lines.length ? (
+      {show('lines') && (purchase || view.lines.length) ? (
         <Section id="lines" title={t('lines.title')}>
           {view.lines.length ? (
             <LineList
@@ -233,7 +253,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
         </Section>
       ) : null}
 
-      {view.fields.length || view.quotations.length ? (
+      {show('details') && (view.fields.length || view.quotations.length) ? (
         <Section id="details" title={t('details.title')}>
           {otherFields.length ? <Facts columns="one" items={otherFields} /> : null}
           {moneyFields.length ? <Amounts heading={t('amounts.unit')} unit={t('amounts.currency')} rows={moneyFields} /> : null}
@@ -262,6 +282,7 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
         </Section>
       ) : null}
 
+      {show('files') ? (
       <Section id="files" title={t('files.title')}>
         {view.attachments.length ? (
           <AttachmentList
@@ -276,8 +297,9 @@ export async function RequestSections({ view, locale, openFile, doaLinks }: { vi
           <p className="text-ink-muted">{t('files.none')}</p>
         )}
       </Section>
+      ) : null}
 
-      {view.infoRequests.length ? (
+      {show('questions') && view.infoRequests.length ? (
         <Section id="questions" title={t('questions.title')}>
           <ul className="flex flex-col divide-y divide-line border-t border-line">
             {view.infoRequests.map((q) => (

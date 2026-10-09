@@ -1,0 +1,172 @@
+{
+  "tabs": {
+    "label": "ส่วนของเอกสาร",
+    "overview": "ภาพรวม",
+    "linesBudget": "รายการและงบ",
+    "documents": "เอกสาร",
+    "poReceiving": "ใบสั่งซื้อและการรับของ",
+    "history": "ประวัติ",
+    "lines": "รายการ",
+    "receiving": "การรับของ",
+    "invoices": "ใบกำกับ"
+  },
+  "rail": {
+    "label": "สรุปและความเห็น",
+    "summary": "สรุป",
+    "comments": "ความเห็น ({count})"
+  },
+  "header": {
+    "backRequests": "คำขอของฉัน",
+    "backPos": "ใบสั่งซื้อ",
+    "menu": "เพิ่มเติม",
+    "pdf": "พิมพ์ PDF",
+    "copy": "คัดลอกลิงก์",
+    "copied": "คัดลอกลิงก์แล้ว",
+    "cancelRequest": "ยกเลิกคำขอ",
+    "cancelPo": "ยกเลิก PO",
+    "total": "ยอดรวม",
+    "totalValue": "{amount} บาท",
+    "totalNotYet": "คำนวณตอนส่ง",
+    "supplier": "ผู้ขาย",
+    "supplierNone": "ฝ่ายจัดซื้อเลือก",
+    "submitted": "ส่งเมื่อ",
+    "notSent": "ยังไม่ได้ส่ง",
+    "taken": "ใช้เวลา",
+    "takenDays": "{days} วันทำการ",
+    "takenUnknown": "-"
+  },
+  "badge": {
+    "request": {
+      "DRAFT": "ร่าง",
+      "PENDING_APPROVAL": "รออนุมัติ",
+      "RETURNED": "ตีกลับให้แก้",
+      "APPROVED": "อนุมัติแล้ว",
+      "PARTIALLY_ORDERED": "สั่งซื้อบางส่วน",
+      "ORDERED": "สั่งซื้อแล้ว",
+      "COMPLETED": "เสร็จสิ้น",
+      "SUBMITTED": "ส่งจัดซื้อแล้ว",
+      "DONE": "เพิ่มผู้ขายแล้ว",
+      "REJECTED": "ไม่อนุมัติ",
+      "CANCELLED": "ยกเลิก"
+    },
+    "po": {
+      "DRAFT": "ร่าง",
+      "PENDING_APPROVAL": "รออนุมัติ",
+      "APPROVED": "อนุมัติแล้ว · ยังไม่ส่ง",
+      "SENT": "ส่งผู้ขายแล้ว",
+      "PARTIALLY_RECEIVED": "รับบางส่วน",
+      "RECEIVED": "รับครบ",
+      "CLOSED": "ปิดแล้ว",
+      "REJECTED": "ไม่อนุมัติ",
+      "CANCELLED": "ยกเลิก"
+    },
+    "urgency": { "NORMAL": "ปกติ", "URGENT": "ด่วน" },
+    "step": {
+      "OPEN": "รอตัดสิน · เหลือ {hours} ชม.ทำการ",
+      "OPEN_PLAIN": "รอตัดสิน",
+      "OVERDUE": "เกินกำหนด {hours} ชม.ทำการ",
+      "INFO_REQUESTED": "รอผู้ขอตอบ",
+      "WAITING": "รอถึงขั้นนี้",
+      "APPROVE": "อนุมัติแล้ว",
+      "RETURN": "ตีกลับให้แก้",
+      "REJECT": "ไม่อนุมัติ",
+      "CANCELLED": "ยกเลิก",
+      "DONE": "เสร็จแล้ว"
+    }
+  },
+  "overview": {
+    "routeNone": "ยังไม่มีเส้นทางอนุมัติ",
+    "budgetTitle": "งบของเอกสารนี้",
+    "poTitle": "ใบสั่งซื้อ"
+  },
+  "steps": {
+    "list": "ขั้นอนุมัติ",
+    "open": "ดูประวัติของขั้นนี้",
+    "title": "ขั้นที่ {no} · {role}",
+    "titlePlain": "ขั้นที่ {no}",
+    "due": "กำหนด {time}",
+    "sla": "ใช้ไป {used} จาก {target} ชม.ทำการ",
+    "slaUsed": "ใช้ไป {used} ชม.ทำการ",
+    "panelHistory": "ประวัติของงาน",
+    "panelWhy": "ทำไมเส้นทางไปทางนี้",
+    "panelNoHistory": "ขั้นนี้ยังไม่เริ่ม",
+    "history": {
+      "ASSIGNED": "มอบงานให้ {name}",
+      "REMINDED": "เตือน {name}",
+      "OVERDUE": "เลยกำหนดของขั้นนี้",
+      "ESCALATED": "ส่งต่อเมื่อเลยกำหนด ผู้อนุมัติระดับถัดไปร่วมพิจารณา",
+      "REASSIGNED": "ย้ายงานจาก {from} ไปที่ {name}",
+      "DELEGATED": "{name} รับงานแทน {from} ระหว่างรักษาการ",
+      "INFO_REQUESTED": "{name} ขอข้อมูลเพิ่ม",
+      "INFO_PROVIDED": "{name} ตอบข้อมูลเพิ่ม",
+      "DECIDED_APPROVE": "{name} อนุมัติ",
+      "DECIDED_RETURN": "{name} ตีกลับให้แก้",
+      "DECIDED_REJECT": "{name} ไม่อนุมัติ",
+      "CLOSED": "ปิดงานของ {name} เพราะขั้นนี้ตัดสินแล้วหรือเส้นทางสิ้นสุด"
+    }
+  },
+  "pos": {
+    "none": "ยังไม่มีใบสั่งซื้อของคำขอนี้ ฝ่ายจัดซื้อออกใบสั่งซื้อหลังคำขออนุมัติ",
+    "list": "ใบสั่งซื้อของคำขอนี้",
+    "gross": "ยอดรวม VAT {amount} บาท",
+    "receipts": "การรับของ",
+    "noReceipts": "ยังไม่ได้รับของ",
+    "receipt": "{number} · รับเมื่อ {time}",
+    "receiptStatus": { "POSTED": "บันทึกแล้ว", "REVERSED": "กลับรายการแล้ว" },
+    "open": "เปิดใบสั่งซื้อ {number}",
+    "receiveHere": "บันทึกการรับของ"
+  },
+  "invoices": {
+    "list": "ใบกำกับของใบสั่งซื้อนี้",
+    "none": "ยังไม่มีใบกำกับที่ยืนยันแล้ว ฝ่ายการเงินบันทึกเมื่อได้รับใบกำกับจากผู้ขาย",
+    "row": "เลขที่ {number} · ลงวันที่ {date}",
+    "final": "ใบสุดท้าย",
+    "gross": "{amount} บาท"
+  },
+  "history": {
+    "table": "ประวัติของเอกสาร",
+    "filter": "กรองตามชนิด",
+    "all": "ทั้งหมด",
+    "kinds": { "DECISION": "การตัดสิน", "DOCUMENT": "เอกสาร", "QUESTION": "คำถามและคำตอบ", "GOODS": "การส่งและรับของ" },
+    "columns": { "when": "วันที่", "actor": "ผู้กระทำ", "event": "เหตุการณ์", "channel": "ช่องทาง" },
+    "empty": "ยังไม่มีเหตุการณ์ของชนิดนี้",
+    "noChannel": "-"
+  },
+  "comments": {
+    "list": "ความเห็นและเหตุผล",
+    "empty": "ยังไม่มีความเห็น เหตุผลของการตัดสินและคำถามคำตอบระหว่างผู้อนุมัติกับผู้ขอจะแสดงที่นี่",
+    "by": "{name} · {time}",
+    "kind": { "REASON": "เหตุผล", "QUESTION": "คำถาม", "ANSWER": "คำตอบ" }
+  },
+  "summary": {
+    "list": "สรุปเอกสาร",
+    "net": "ยอดก่อน VAT",
+    "vat": "VAT",
+    "gross": "ยอดรวม",
+    "money": "{amount} บาท",
+    "type": "ประเภท",
+    "charged": "แผนกที่ตั้งเบิก",
+    "budgetLine": "บรรทัดงบ",
+    "requester": "ผู้ขอ",
+    "neededBy": "ต้องการภายใน",
+    "site": "สถานที่ส่ง",
+    "doa": "DOA",
+    "files": "ไฟล์แนบ",
+    "none": "-",
+    "kind": "ชนิด",
+    "createdBy": "ผู้สร้าง",
+    "payment": "เงื่อนไขชำระ",
+    "paymentDays": "{days} วัน"
+  },
+  "bar": {
+    "amount": "ยอดตามฐาน DOA",
+    "amountValue": "{amount} บาท ({basis})",
+    "budget": "งบ",
+    "doa": "DOA",
+    "ask": "ขอข้อมูลเพิ่ม",
+    "return": "ตีกลับให้แก้",
+    "returnPo": "ตีกลับให้จัดซื้อแก้",
+    "reject": "ไม่อนุมัติ",
+    "cancel": "กลับไปตรวจก่อน"
+  }
+}

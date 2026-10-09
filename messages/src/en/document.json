@@ -1,0 +1,172 @@
+{
+  "tabs": {
+    "label": "Parts of the document",
+    "overview": "Overview",
+    "linesBudget": "Items and budget",
+    "documents": "Documents",
+    "poReceiving": "Purchase orders and receiving",
+    "history": "History",
+    "lines": "Items",
+    "receiving": "Receiving",
+    "invoices": "Invoices"
+  },
+  "rail": {
+    "label": "Summary and comments",
+    "summary": "Summary",
+    "comments": "Comments ({count})"
+  },
+  "header": {
+    "backRequests": "My requests",
+    "backPos": "Purchase orders",
+    "menu": "More",
+    "pdf": "Print PDF",
+    "copy": "Copy link",
+    "copied": "Link copied",
+    "cancelRequest": "Cancel request",
+    "cancelPo": "Cancel PO",
+    "total": "Total",
+    "totalValue": "{amount} baht",
+    "totalNotYet": "Worked out when sent",
+    "supplier": "Supplier",
+    "supplierNone": "Chosen by procurement",
+    "submitted": "Sent on",
+    "notSent": "Not sent yet",
+    "taken": "Time taken",
+    "takenDays": "{days} business days",
+    "takenUnknown": "-"
+  },
+  "badge": {
+    "request": {
+      "DRAFT": "Draft",
+      "PENDING_APPROVAL": "Awaiting approval",
+      "RETURNED": "Returned for changes",
+      "APPROVED": "Approved",
+      "PARTIALLY_ORDERED": "Partly ordered",
+      "ORDERED": "Ordered",
+      "COMPLETED": "Completed",
+      "SUBMITTED": "Sent to procurement",
+      "DONE": "Supplier added",
+      "REJECTED": "Not approved",
+      "CANCELLED": "Cancelled"
+    },
+    "po": {
+      "DRAFT": "Draft",
+      "PENDING_APPROVAL": "Awaiting approval",
+      "APPROVED": "Approved · not sent",
+      "SENT": "Sent to supplier",
+      "PARTIALLY_RECEIVED": "Partly received",
+      "RECEIVED": "Fully received",
+      "CLOSED": "Closed",
+      "REJECTED": "Not approved",
+      "CANCELLED": "Cancelled"
+    },
+    "urgency": { "NORMAL": "Normal", "URGENT": "Urgent" },
+    "step": {
+      "OPEN": "Awaiting decision · {hours} business hours left",
+      "OPEN_PLAIN": "Awaiting decision",
+      "OVERDUE": "Overdue by {hours} business hours",
+      "INFO_REQUESTED": "Waiting for the requester",
+      "WAITING": "Not reached yet",
+      "APPROVE": "Approved",
+      "RETURN": "Returned for changes",
+      "REJECT": "Not approved",
+      "CANCELLED": "Cancelled",
+      "DONE": "Done"
+    }
+  },
+  "overview": {
+    "routeNone": "No approval route yet",
+    "budgetTitle": "Budget of this document",
+    "poTitle": "Purchase orders"
+  },
+  "steps": {
+    "list": "Approval steps",
+    "open": "see the history of this step",
+    "title": "Step {no} · {role}",
+    "titlePlain": "Step {no}",
+    "due": "Due {time}",
+    "sla": "Used {used} of {target} business hours",
+    "slaUsed": "Used {used} business hours",
+    "panelHistory": "History of the task",
+    "panelWhy": "Why the route goes this way",
+    "panelNoHistory": "This step has not started",
+    "history": {
+      "ASSIGNED": "Assigned to {name}",
+      "REMINDED": "{name} was reminded",
+      "OVERDUE": "The step went past its due time",
+      "ESCALATED": "Escalated past its due time; the next band's approver joined",
+      "REASSIGNED": "Moved from {from} to {name}",
+      "DELEGATED": "{name} took it over for {from} as their delegate",
+      "INFO_REQUESTED": "{name} asked for more information",
+      "INFO_PROVIDED": "{name} answered",
+      "DECIDED_APPROVE": "{name} approved",
+      "DECIDED_RETURN": "{name} returned it for changes",
+      "DECIDED_REJECT": "{name} did not approve",
+      "CLOSED": "{name}'s task was closed: the step was decided or the route ended"
+    }
+  },
+  "pos": {
+    "none": "No purchase order for this request yet. Procurement issues it once the request is approved",
+    "list": "Purchase orders of this request",
+    "gross": "Total incl. VAT {amount} baht",
+    "receipts": "Receiving",
+    "noReceipts": "Nothing received yet",
+    "receipt": "{number} · received {time}",
+    "receiptStatus": { "POSTED": "Posted", "REVERSED": "Reversed" },
+    "open": "Open purchase order {number}",
+    "receiveHere": "Record receiving"
+  },
+  "invoices": {
+    "list": "Invoices of this purchase order",
+    "none": "No confirmed invoice yet. Finance records it when the supplier's invoice arrives",
+    "row": "No. {number} · dated {date}",
+    "final": "Final invoice",
+    "gross": "{amount} baht"
+  },
+  "history": {
+    "table": "History of the document",
+    "filter": "Filter by kind",
+    "all": "All",
+    "kinds": { "DECISION": "Decisions", "DOCUMENT": "Document", "QUESTION": "Questions and answers", "GOODS": "Sending and receiving" },
+    "columns": { "when": "Date", "actor": "By", "event": "What happened", "channel": "Channel" },
+    "empty": "Nothing of this kind yet",
+    "noChannel": "-"
+  },
+  "comments": {
+    "list": "Comments and reasons",
+    "empty": "No comments yet. Reasons for decisions, and questions and answers between approvers and the requester, appear here",
+    "by": "{name} · {time}",
+    "kind": { "REASON": "Reason", "QUESTION": "Question", "ANSWER": "Answer" }
+  },
+  "summary": {
+    "list": "Document summary",
+    "net": "Before VAT",
+    "vat": "VAT",
+    "gross": "Total",
+    "money": "{amount} baht",
+    "type": "Type",
+    "charged": "Charged to",
+    "budgetLine": "Budget line",
+    "requester": "Requester",
+    "neededBy": "Needed by",
+    "site": "Delivery site",
+    "doa": "DOA",
+    "files": "Attachments",
+    "none": "-",
+    "kind": "Kind",
+    "createdBy": "Created by",
+    "payment": "Payment terms",
+    "paymentDays": "{days} days"
+  },
+  "bar": {
+    "amount": "Amount on the DOA basis",
+    "amountValue": "{amount} baht ({basis})",
+    "budget": "Budget",
+    "doa": "DOA",
+    "ask": "Ask for more information",
+    "return": "Return for changes",
+    "returnPo": "Return to procurement",
+    "reject": "Do not approve",
+    "cancel": "Go back and check"
+  }
+}

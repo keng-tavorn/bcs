@@ -2408,6 +2408,198 @@
     },
     "title": "Workspace components"
   },
+  "document": {
+    "badge": {
+      "po": {
+        "APPROVED": "Approved · not sent",
+        "CANCELLED": "Cancelled",
+        "CLOSED": "Closed",
+        "DRAFT": "Draft",
+        "PARTIALLY_RECEIVED": "Partly received",
+        "PENDING_APPROVAL": "Awaiting approval",
+        "RECEIVED": "Fully received",
+        "REJECTED": "Not approved",
+        "SENT": "Sent to supplier"
+      },
+      "request": {
+        "APPROVED": "Approved",
+        "CANCELLED": "Cancelled",
+        "COMPLETED": "Completed",
+        "DONE": "Supplier added",
+        "DRAFT": "Draft",
+        "ORDERED": "Ordered",
+        "PARTIALLY_ORDERED": "Partly ordered",
+        "PENDING_APPROVAL": "Awaiting approval",
+        "REJECTED": "Not approved",
+        "RETURNED": "Returned for changes",
+        "SUBMITTED": "Sent to procurement"
+      },
+      "step": {
+        "APPROVE": "Approved",
+        "CANCELLED": "Cancelled",
+        "DONE": "Done",
+        "INFO_REQUESTED": "Waiting for the requester",
+        "OPEN": "Awaiting decision · {hours} business hours left",
+        "OPEN_PLAIN": "Awaiting decision",
+        "OVERDUE": "Overdue by {hours} business hours",
+        "REJECT": "Not approved",
+        "RETURN": "Returned for changes",
+        "WAITING": "Not reached yet"
+      },
+      "urgency": {
+        "NORMAL": "Normal",
+        "URGENT": "Urgent"
+      }
+    },
+    "bar": {
+      "amount": "Amount on the DOA basis",
+      "amountValue": "{amount} baht ({basis})",
+      "ask": "Ask for more information",
+      "budget": "Budget",
+      "cancel": "Go back and check",
+      "doa": "DOA",
+      "reject": "Do not approve",
+      "return": "Return for changes",
+      "returnPo": "Return to procurement"
+    },
+    "comments": {
+      "by": "{name} · {time}",
+      "empty": "No comments yet. Reasons for decisions, and questions and answers between approvers and the requester, appear here",
+      "kind": {
+        "ANSWER": "Answer",
+        "QUESTION": "Question",
+        "REASON": "Reason"
+      },
+      "list": "Comments and reasons"
+    },
+    "header": {
+      "backPos": "Purchase orders",
+      "backRequests": "My requests",
+      "cancelPo": "Cancel PO",
+      "cancelRequest": "Cancel request",
+      "copied": "Link copied",
+      "copy": "Copy link",
+      "menu": "More",
+      "notSent": "Not sent yet",
+      "pdf": "Print PDF",
+      "submitted": "Sent on",
+      "supplier": "Supplier",
+      "supplierNone": "Chosen by procurement",
+      "taken": "Time taken",
+      "takenDays": "{days} business days",
+      "takenUnknown": "-",
+      "total": "Total",
+      "totalNotYet": "Worked out when sent",
+      "totalValue": "{amount} baht"
+    },
+    "history": {
+      "all": "All",
+      "columns": {
+        "actor": "By",
+        "channel": "Channel",
+        "event": "What happened",
+        "when": "Date"
+      },
+      "empty": "Nothing of this kind yet",
+      "filter": "Filter by kind",
+      "kinds": {
+        "DECISION": "Decisions",
+        "DOCUMENT": "Document",
+        "GOODS": "Sending and receiving",
+        "QUESTION": "Questions and answers"
+      },
+      "noChannel": "-",
+      "table": "History of the document"
+    },
+    "invoices": {
+      "final": "Final invoice",
+      "gross": "{amount} baht",
+      "list": "Invoices of this purchase order",
+      "none": "No confirmed invoice yet. Finance records it when the supplier's invoice arrives",
+      "row": "No. {number} · dated {date}"
+    },
+    "overview": {
+      "budgetTitle": "Budget of this document",
+      "poTitle": "Purchase orders",
+      "routeNone": "No approval route yet"
+    },
+    "pos": {
+      "gross": "Total incl. VAT {amount} baht",
+      "list": "Purchase orders of this request",
+      "noReceipts": "Nothing received yet",
+      "none": "No purchase order for this request yet. Procurement issues it once the request is approved",
+      "open": "Open purchase order {number}",
+      "receipt": "{number} · received {time}",
+      "receiptStatus": {
+        "POSTED": "Posted",
+        "REVERSED": "Reversed"
+      },
+      "receipts": "Receiving",
+      "receiveHere": "Record receiving"
+    },
+    "rail": {
+      "comments": "Comments ({count})",
+      "label": "Summary and comments",
+      "summary": "Summary"
+    },
+    "steps": {
+      "due": "Due {time}",
+      "history": {
+        "ASSIGNED": "Assigned to {name}",
+        "CLOSED": "{name}'s task was closed: the step was decided or the route ended",
+        "DECIDED_APPROVE": "{name} approved",
+        "DECIDED_REJECT": "{name} did not approve",
+        "DECIDED_RETURN": "{name} returned it for changes",
+        "DELEGATED": "{name} took it over for {from} as their delegate",
+        "ESCALATED": "Escalated past its due time; the next band's approver joined",
+        "INFO_PROVIDED": "{name} answered",
+        "INFO_REQUESTED": "{name} asked for more information",
+        "OVERDUE": "The step went past its due time",
+        "REASSIGNED": "Moved from {from} to {name}",
+        "REMINDED": "{name} was reminded"
+      },
+      "list": "Approval steps",
+      "open": "see the history of this step",
+      "panelHistory": "History of the task",
+      "panelNoHistory": "This step has not started",
+      "panelWhy": "Why the route goes this way",
+      "sla": "Used {used} of {target} business hours",
+      "slaUsed": "Used {used} business hours",
+      "title": "Step {no} · {role}",
+      "titlePlain": "Step {no}"
+    },
+    "summary": {
+      "budgetLine": "Budget line",
+      "charged": "Charged to",
+      "createdBy": "Created by",
+      "doa": "DOA",
+      "files": "Attachments",
+      "gross": "Total",
+      "kind": "Kind",
+      "list": "Document summary",
+      "money": "{amount} baht",
+      "neededBy": "Needed by",
+      "net": "Before VAT",
+      "none": "-",
+      "payment": "Payment terms",
+      "paymentDays": "{days} days",
+      "requester": "Requester",
+      "site": "Delivery site",
+      "type": "Type",
+      "vat": "VAT"
+    },
+    "tabs": {
+      "documents": "Documents",
+      "history": "History",
+      "invoices": "Invoices",
+      "label": "Parts of the document",
+      "lines": "Items",
+      "linesBudget": "Items and budget",
+      "overview": "Overview",
+      "poReceiving": "Purchase orders and receiving",
+      "receiving": "Receiving"
+    }
+  },
   "errors": {
     "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
     "ATTACHMENT_RULE_FAILED": "Required attachments missing under rule {rule}: {missing}",

@@ -1113,6 +1113,20 @@ export const stepHeading = (page: Page, n: number, step: 'details' | 'items' | '
 /** Goes on to the next step of the form */
 export const nextStep = (page: Page, step: 'items' | 'documents' | 'review') => page.getByRole('button', { name: th('requestForm.steps.next', { name: th(`requestForm.steps.${step}`) }) }).click()
 
+/**
+ * The workspace's step-by-step form (S16-05, FR-INT-011): a step's heading, "ขั้นที่ 2 จาก 5: รายการ ราคา และงบ", whatever
+ * the number of steps the type has (§9.10 skips the steps with nothing to show)
+ */
+export type WizardStep = 'details' | 'items' | 'supplier' | 'questions' | 'documents' | 'review'
+export const wizardHeading = (page: Page, n: number, step: WizardStep) =>
+  page.getByRole('heading', { level: 2, name: new RegExp(`^${literally(th('requestForm.steps.heading', { n, total: 0, name: th(`requestForm.wizard.${step}`) })).replace(` 0: `, String.raw` \d+: `)}$`) })
+
+/** "ถัดไป" in the bar at the foot of the workspace's form, named with the step it goes to */
+export const wizardNext = (page: Page, step: Exclude<WizardStep, 'details'>) => page.getByRole('button', { name: `${th('requestForm.wizard.next')}: ${th(`requestForm.wizard.${step}`)}`, exact: true }).click()
+
+/** The step shown, without the "ก่อนส่ง" panel beside it on a wide screen */
+export const wizardStepBody = (page: Page): Locator => page.locator('section[aria-labelledby="step-heading"]')
+
 /** What is left on the chosen budget line, as the form says it (FR-INT-004 AC1) */
 export const remainingOf = (page: Page): Locator => page.locator('div[aria-live="polite"]').filter({ hasText: th('requestForm.budget.remaining') })
 

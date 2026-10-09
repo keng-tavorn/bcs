@@ -32,7 +32,6 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
     formDefaultsOf,
     literally,
     nameIn,
-    nextStep,
     nowLine,
     openTaskOf,
     remainingOf,
@@ -44,9 +43,11 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
     sheetDoaRef,
     signInAs,
     spokenBaht,
-    stepHeading,
     th,
     typed,
+    wizardHeading,
+    wizardNext,
+    wizardStepBody,
     userOf,
     waitingFor,
   } = await import('./support')
@@ -92,7 +93,16 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
   await checkWebScreen(page, testInfo, 'scene5-catalog')
   await page.getByRole('link', { name: new RegExp(`เริ่มคำขอ ${literally(typeName)}$`) }).click()
   await expect(page).toHaveURL(new RegExp(`/requests/new/${scene.requestType}$`))
-  await expect(stepHeading(page, 1, 'details', 4)).toBeVisible()
+  await expect(wizardHeading(page, 1, 'details')).toBeVisible()
+  await page.getByLabel(th('requestForm.details.title')).fill(`วัสดุซ่อมบำรุง ${siteName}`)
+  // The latest site, filled; the row's site, chosen (the same here, or changed) — a detail of the request (§9.10)
+  await expect(chosenIn(page, th('requestForm.site.label'))).toHaveText(`${filled.site} · ${nameIn(sheet.sites, filled.site, 'site')}`)
+  await page.getByLabel(th('requestForm.site.label')).selectOption({ label: `${scene.site} · ${siteName}` })
+  await expect(chosenIn(page, th('requestForm.site.label'))).toHaveText(`${scene.site} · ${siteName}`)
+  await checkWebScreen(page, testInfo, 'scene5-form-details')
+
+  await wizardNext(page, 'items')
+  await expect(wizardHeading(page, 2, 'items')).toBeVisible()
   // FR-INT-003 AC1: filled — the line the requester used last for this type, its department and cost center — and the
   // requester changes the line to the row's, whose department, cost center and balance follow
   const lineLabel = (code: string) => `${code} · ${nameIn(sheet.budgetLines, code, 'budget line')}`
@@ -104,28 +114,22 @@ test('@demo [FR-INT-003/AC1] [FR-INT-004/AC1] [FR-DOA-003/AC2] scene 5: on the w
   await expect(chargedDepartmentOf(page)).toHaveText(nameIn(sheet.departments, scene.chargedDept, 'department'))
   await expect(costCenterOf(page)).toHaveText(new RegExp(`^${literally(costCenter)} `))
   await expect(remainingOf(page)).toContainText(th('requestForm.budget.baht', { amount: baht(available) }))
-  await page.getByLabel(th('requestForm.details.title')).fill(`วัสดุซ่อมบำรุง ${siteName}`)
-  await checkWebScreen(page, testInfo, 'scene5-form-details')
-
-  await nextStep(page, 'items')
-  await expect(stepHeading(page, 2, 'items', 4)).toBeVisible()
-  // The latest site, filled; the row's site, chosen (the same here, or changed)
-  await expect(chosenIn(page, th('requestForm.site.label'))).toHaveText(`${filled.site} · ${nameIn(sheet.sites, filled.site, 'site')}`)
-  await page.getByLabel(th('requestForm.site.label')).selectOption({ label: `${scene.site} · ${siteName}` })
-  await expect(chosenIn(page, th('requestForm.site.label'))).toHaveText(`${scene.site} · ${siteName}`)
   // The row's amount as a price before VAT
   await expect(page.getByLabel(th('requestForm.lines.pricesIncludeVat'))).not.toBeChecked()
   await fillLine(page.getByRole('group', { name: 'รายการที่ 1', exact: true }), { description: 'วัสดุซ่อมบำรุงไซต์งาน', quantity: '1', uom: 'ชุด', price: typed(net) })
   // Before VAT, the VAT and with VAT: the row's three amounts
   for (const amount of [net, vat, gross]) await expect(page.getByText(th('requestForm.totals.baht', { amount: baht(amount) })).first()).toBeVisible()
-  await expect(page.getByText(th('requestForm.budget.enough'), { exact: true })).toBeVisible()
+  await expect(wizardStepBody(page).getByText(th('requestForm.budget.enough'), { exact: true })).toBeVisible()
   await checkWebScreen(page, testInfo, 'scene5-form-items')
 
-  await nextStep(page, 'documents')
-  await expect(stepHeading(page, 3, 'documents', 4)).toBeVisible()
+  await wizardNext(page, 'supplier')
+  await expect(wizardHeading(page, 3, 'supplier')).toBeVisible()
+  await checkWebScreen(page, testInfo, 'scene5-form-supplier')
+  await wizardNext(page, 'documents')
+  await expect(wizardHeading(page, 4, 'documents')).toBeVisible()
   await checkWebScreen(page, testInfo, 'scene5-form-documents')
-  await nextStep(page, 'review')
-  await expect(stepHeading(page, 4, 'review', 4)).toBeVisible()
+  await wizardNext(page, 'review')
+  await expect(wizardHeading(page, 5, 'review')).toBeVisible()
   // FR-DOA-003 AC2: the row's approver at the position of the band with VAT, under the row's rule, for the amount the DOA
   // counts — not the holder of the band before VAT
   const route = page.getByRole('region', { name: th('requestForm.route.title') })

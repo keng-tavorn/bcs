@@ -275,6 +275,8 @@
       "doa_gap_reported": "DOA has no rule for this request",
       "draft_expiry_notified": "Expiring draft notified",
       "drafted": "Request drafted",
+      "follower_added": "Follower added",
+      "follower_removed": "Follower removed",
       "info_provided": "Requester answered",
       "info_requested": "More information asked of the requester",
       "rejected": "Request rejected",

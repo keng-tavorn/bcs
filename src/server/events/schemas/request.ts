@@ -47,6 +47,9 @@ defineEvents('Request', {
   'request.draft_expiry_notified': { schema: z.object({ deleteOn: z.iso.datetime({ offset: true }) }) },
   'request.info_requested': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
   'request.info_provided': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
+  // FR-INT-013 AC1 (S16-06): a member follows or stops following a request, by themselves (SELF) or by the requester
+  'request.follower_added': { schema: z.object({ memberId: z.uuid(), by: z.enum(['SELF', 'REQUESTER']) }).strict() },
+  'request.follower_removed': { schema: z.object({ memberId: z.uuid(), by: z.enum(['SELF', 'REQUESTER']) }).strict() },
   // FR-DOA-003 AC3 (§10.1 admin.doa_gap): a submit refused because the DOA names nobody who can approve; the refusal
   // itself is rolled back, so this is recorded and ORG_ADMIN told by a command of its own right after it. Not in the
   // §10.2 catalog yet: the orchestrator records it in an ADR and adds it to §10.2 (see unit a's needs)

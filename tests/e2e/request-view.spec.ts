@@ -241,3 +241,57 @@ test('[FR-INT-008/AC2] the requester, a follower and the approver see the same s
   await expect(approver.viewer.getByText('ยกเลิกคำขอ', { exact: true })).toHaveCount(0)
   await approver.context.close()
 })
+
+test('[FR-INT-013/AC1] the requester adds and removes a follower; a follower stops following and follows again', async ({ page, browser }, testInfo) => {
+  const cast = castOf(testInfo)
+  const r = requests(testInfo)
+  const followers = (p: Page) => p.getByRole('region', { name: /^ผู้ติดตาม/ })
+  const star = (p: Page, name: 'ติดตาม' | 'กำลังติดตาม') => heading(p).getByRole('button', { name, exact: true })
+  const as = async (code: string, withTotp: boolean) => {
+    const context = await browser.newContext()
+    const viewer = await context.newPage()
+    await signIn(viewer, code, withTotp)
+    await viewer.goto(`/requests/${r.pending.requestId}`)
+    return { context, viewer }
+  }
+
+  await signIn(page, cast.requester, false)
+  await page.goto(`/requests/${r.pending.requestId}`)
+  await expect(followers(page).getByRole('heading')).toHaveText('ผู้ติดตาม (1)')
+  // The requester does not follow their own request: no star in the header
+  await expect(heading(page).getByRole('button', { name: /ติดตาม/ })).toHaveCount(0)
+  // Only members who already see the request are offered (OQ-39): the approver who holds its task is one
+  await followers(page).getByRole('combobox', { name: 'เพิ่มผู้ติดตาม' }).click()
+  await page.getByRole('option', { name: cast.approverName, exact: true }).click()
+  await followers(page).getByRole('button', { name: 'เพิ่มเป็นผู้ติดตาม' }).click()
+  await expect(followers(page).getByRole('status')).toHaveText(`เพิ่ม ${cast.approverName} เป็นผู้ติดตามแล้ว และแจ้งให้ทราบแล้ว`)
+  await expect(followers(page).getByRole('heading')).toHaveText('ผู้ติดตาม (2)')
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'request-followers-requester')
+
+  // The approver now follows it: the star is pressed; they stop and follow again, and never manage the list (AC3)
+  const approver = await as(cast.approver, true)
+  await expect(star(approver.viewer, 'กำลังติดตาม')).toHaveAttribute('aria-pressed', 'true')
+  await expect(followers(approver.viewer).getByRole('combobox')).toHaveCount(0)
+  await expect(followers(approver.viewer).getByRole('button', { name: /ออกจากผู้ติดตาม/ })).toHaveCount(0)
+  await star(approver.viewer, 'กำลังติดตาม').click()
+  await expect(star(approver.viewer, 'ติดตาม')).toHaveAttribute('aria-pressed', 'false')
+  await expect(followers(approver.viewer).getByRole('heading')).toHaveText('ผู้ติดตาม (1)')
+  await expectNoBlockingAxe(approver.viewer)
+  await shot(approver.viewer, testInfo, 'request-followers-viewer')
+  await star(approver.viewer, 'ติดตาม').click()
+  await expect(star(approver.viewer, 'กำลังติดตาม')).toHaveAttribute('aria-pressed', 'true')
+  await approver.context.close()
+
+  // The requester takes them off again
+  await page.reload()
+  await followers(page).getByRole('button', { name: `เอา ${cast.approverName} ออกจากผู้ติดตาม` }).click()
+  await expect(followers(page).getByRole('status')).toHaveText(`เอา ${cast.approverName} ออกจากผู้ติดตามแล้ว`)
+  await expect(followers(page).getByRole('heading')).toHaveText('ผู้ติดตาม (1)')
+
+  // The colleague who follows it sees the star pressed and no way to change anybody else
+  const follower = await as(cast.follower, false)
+  await expect(star(follower.viewer, 'กำลังติดตาม')).toHaveAttribute('aria-pressed', 'true')
+  await expect(followers(follower.viewer).getByRole('combobox')).toHaveCount(0)
+  await follower.context.close()
+})

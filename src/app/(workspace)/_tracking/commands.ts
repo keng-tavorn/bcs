@@ -7,6 +7,7 @@ import { getRequestAccess } from '@/server/queries/requests'
 import { getTaskAccess, POLICY_SUBJECTS, taskDecision, type TaskAccessDto } from '@/server/queries/tasks'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { cancelRequest, resubmitRequest } from '@/server/services/requests'
+import { followRequest, manageFollowers } from '@/server/services/requests/followers'
 import { toActionFailure, type ActionFailure, type ActionOutcome } from '@/ui/tasks/outcome'
 import { taskRight } from './access'
 import { memberName, type Locale } from './present'
@@ -210,4 +211,23 @@ export async function cancelOwnRequest(ctx: Ctx, input: unknown, idempotencyKey:
   if (!access) return NOT_FOUND
   if (ctx.actor.type !== 'USER' || ctx.actor.memberId !== access.requesterMemberId) return FORBIDDEN
   return outcomeOf(await cancelRequest(ctx, { requestId: parsed.data.requestId, reason }, { idempotencyKey: idempotencyKey as string }))
+}
+
+const FollowInput = z.object({ requestId: Id, follow: z.boolean() })
+const ManageFollowerInput = z.object({ requestId: Id, memberId: Id, follow: z.boolean() })
+
+/** The viewer follows the request or stops following it (FR-INT-013 AC1); the service checks request.follow */
+export async function followOrUnfollow(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ActionOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const parsed = FollowInput.safeParse(input)
+  if (!parsed.success) return invalid('requestId')
+  return outcomeOf(await followRequest(ctx, parsed.data, { idempotencyKey: idempotencyKey as string }))
+}
+
+/** The requester adds or removes a follower (FR-INT-013 AC1, OQ-39); the service checks request.followers.manage */
+export async function addOrRemoveFollower(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ActionOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const parsed = ManageFollowerInput.safeParse(input)
+  if (!parsed.success) return invalid('memberId')
+  return outcomeOf(await manageFollowers(ctx, parsed.data, { idempotencyKey: idempotencyKey as string }))
 }

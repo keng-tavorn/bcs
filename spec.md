@@ -409,6 +409,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `request.create` · `request.submit` | ทุก member (OWN) |
 | `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
 | `request.cancel` | ผู้ขอ (OWN, ก่อนมี PO) · PROCUREMENT (ORG, สถานะ APPROVED ที่ยังไม่สั่ง, ต้องระบุเหตุผล) |
+| `request.follow` | ผู้ที่มี `request.view` ของคำขอนั้น: ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) — ติดตามหรือเลิกติดตามตนเองเท่านั้น และผู้ขอไม่ต้องติดตามคำขอของตนเอง (FR-INT-013 AC1) |
+| `request.followers.manage` | ผู้ขอ (OWN) — เพิ่มหรือเอาผู้ติดตามออก โดยเพิ่มได้เฉพาะสมาชิกที่มี `request.view` ของคำขอนั้นอยู่แล้ว เพราะการติดตามไม่ขยายสิทธิ์ดู (OQ-39 · FR-INT-013 AC1) |
 | `approval.decide` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ |
 | `approval.reassign` | ORG_ADMIN (ORG) · ระบบยอมรับเฉพาะผู้รับใหม่ที่ DOA ฉบับเดิมให้อำนาจในข้อเดิมหรือช่วงวงเงินที่สูงกว่าและไม่ขัด SoD · ต้องระบุเหตุผล |
 | `delegation.manage` | ผู้มอบ (OWN) · ORG_ADMIN ตั้งแทนผู้อื่นได้ผ่าน `admin.orgAuthority.propose` ชนิด `DELEGATION_ON_BEHALF` เท่านั้น |
@@ -435,6 +437,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
+
+**OWN ของคำขอ (S16-06 · FR-INT-013 AC3):** `request.view` และ `request.follow` นับผู้ขอและผู้ติดตามเป็น OWN · `request.create` (แก้ร่างและไฟล์แนบ) `request.submit` `request.cancel` และ `request.followers.manage` นับเฉพาะผู้ขอเป็น OWN ผู้ติดตามจึงส่ง แก้ ยกเลิก หรือเพิ่มผู้ติดตามไม่ได้ · service ส่ง `ownerMemberIds` ตามนี้ และเทสต์ปฏิเสธทุกคำสั่ง
 
 ### 2.5 กฎสิทธิ์
 
@@ -3140,6 +3144,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `approval_task.escalated` | ผู้รับร่วมคนใหม่ · ผู้รับเดิม · ผู้ขอ | LINE → อีเมล | IMMEDIATE | `task.escalated` |
 | `request.approved` | ผู้ขอ · ผู้ติดตาม | LINE → อีเมล | IMMEDIATE | `request.approved` |
 | `request.rejected` · `request.returned` | ผู้ขอ · ผู้ติดตาม | LINE → อีเมล | IMMEDIATE | `request.decided` |
+| `request.follower_added` (S16-06) | ผู้ถูกเพิ่ม เมื่อผู้ขอเพิ่ม (ไม่แจ้งเมื่อติดตามเอง) | LINE → อีเมล | IMMEDIATE | `request.follower_added` |
 | `request.info_requested` | ผู้ขอ | LINE → อีเมล | IMMEDIATE | `request.info_requested` |
 | `request.info_provided` | ผู้อนุมัติที่ถาม | LINE → อีเมล | IMMEDIATE | `request.info_provided` |
 | `po.approved` | PROCUREMENT ผู้สร้าง PO | ในระบบ · LINE | IMMEDIATE | `po.approved` |
@@ -3178,7 +3183,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` |
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
@@ -4145,6 +4150,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **NEW-73** `[demo]` ตัวเลขข้างเมนูตามตาราง §9.10 (งานอนุมัติ = งานที่เปิดของฉัน · กองรอจัดซื้อ = บรรทัดที่รอ · ตรวจรับ = PO ที่รอตรวจรับ) ใช้ query ของ `src/server/queries/home.ts` ตัวเดียวกับการ์ด "สิ่งที่ต้องทำ" ของ S16-09 · S16-04 ทำช่องตัวเลขของแถบเมนู (`NavEntry.count`) ไว้แล้วแต่ยังไม่ส่งค่า เพื่อไม่ให้มีสูตรนับสองชุด (พบใน S16-04) · ทำหลัง S16-09
   - เสร็จเมื่อ: เทสต์ว่าตัวเลขข้างเมนูเท่ากับจำนวนในรายการปลายทางของผู้ใช้ seed ทุกบทบาท ผ่าน · e2e `@demo` ผ่าน
   - แยกงาน: ทำเองได้
+- [ ] **NEW-74** `[go-live]` ผู้ติดตามที่ถูกถอดบทบาทหรือย้ายแผนกจนไม่เห็นคำขอแล้ว ยังเห็นคำขอต่อในฐานะผู้ติดตาม เพราะ §2.4 นับผู้ติดตามเป็น OWN ของ `request.view` ขณะที่ OQ-39 ตั้งใจให้การติดตามไม่ขยายสิทธิ์ดู · ทางเลือก: ไม่นับผู้ติดตามใน OWN ของ `request.view` (ผู้ติดตามเห็นจากสิทธิ์อื่นเท่านั้น) หรือเอาผู้ติดตามออกอัตโนมัติเมื่อสิทธิ์อื่นหมด · ต้องให้ผู้ใช้ตัดสินเพราะเปลี่ยนสิทธิ์ดู (พบใน S16-06)
+  - เสร็จเมื่อ: ผู้ใช้เลือกทางแล้ว §2.4 และโค้ดตรงกัน · เทสต์ว่าผู้ติดตามที่หมดสิทธิ์อื่นเปิดคำขอไม่ได้หรือถูกเอาออก
+  - แยกงาน: ทำเองได้หลังผู้ใช้ตัดสิน
 
 ### 16.12 S16 · หน้าจอใหม่แบบใกล้ Zip ในโทนเขียว (รอบเส้นชัย A2)
 

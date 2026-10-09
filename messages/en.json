@@ -1420,6 +1420,8 @@
         "doa_gap_reported": "DOA has no rule for this request",
         "draft_expiry_notified": "Expiring draft notified",
         "drafted": "Request drafted",
+        "follower_added": "Follower added",
+        "follower_removed": "Follower removed",
         "info_provided": "Requester answered",
         "info_requested": "More information asked of the requester",
         "rejected": "Request rejected",
@@ -5156,6 +5158,31 @@
       "searchHint": "Part of it is enough, e.g. 00012",
       "status": "Status",
       "submit": "Show matching requests"
+    },
+    "followers": {
+      "add": "Add as follower",
+      "addHint": "Followers are told when the request is approved, returned or not approved · only people who can already see this request can be chosen",
+      "addLabel": "Add a follower",
+      "added": "{name} now follows this request and has been told",
+      "empty": "No followers yet",
+      "emptyRequester": "No followers yet. Add colleagues who need to know how this request ends below.",
+      "errors": {
+        "CANNOT_VIEW": "This member cannot see the request yet, so they cannot follow it",
+        "FAILED": "That did not work. Try again",
+        "FORBIDDEN": "You may not do this on this request",
+        "NO_ANSWER": "No answer came back. Press again; it will be done only once",
+        "STATE": "The followers changed meanwhile. Reload the page to see the latest list",
+        "TOO_MANY": "This request has as many followers as it can take. Remove someone first"
+      },
+      "follow": "Follow",
+      "following": "Following",
+      "noCandidates": "No member who can see this request is left to add",
+      "pick": "Choose a member",
+      "remove": "Remove",
+      "removeLabel": "Remove {name} from the followers",
+      "removed": "{name} no longer follows this request",
+      "search": "Type a name to search",
+      "title": "Followers ({n})"
     },
     "following": "You follow this request",
     "lines": {

@@ -58,7 +58,7 @@ export interface DoaRefDto {
 }
 
 type MemberRow = { readonly id: string; readonly displayNameTh: string; readonly displayNameEn: string | null }
-const memberRef = (m: MemberRow): MemberRefDto => ({ id: m.id, name: { th: m.displayNameTh, en: m.displayNameEn } })
+export const memberRef = (m: MemberRow): MemberRefDto => ({ id: m.id, name: { th: m.displayNameTh, en: m.displayNameEn } })
 const present = <T>(v: T | null | undefined): v is T => v !== null && v !== undefined
 
 /** Names of the members with these ids (actors, assignees, delegators) */

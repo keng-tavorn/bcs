@@ -936,8 +936,11 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-013:
-    status: planned
+    status: in_progress
     step: S16
-    evidence: []
+    evidence:
+      - tests/integration/request-followers.test.ts
+      - tests/e2e/request-view.spec.ts
+      - tests/generated/permissions.test.ts
     verifiedBy: null
-    notes: ""
+    notes: "AC1–AC3 ผู้ติดตาม เสร็จใน S16-06 · AC4–AC5 การกล่าวถึงด้วย @ และสวิตช์แสดงกิจกรรม อยู่ใน S16-14 [go-live]"

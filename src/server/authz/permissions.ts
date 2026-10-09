@@ -2,7 +2,8 @@
 // that is not listed is refused. "Approver" is never a role (§2.2): approval.decide and variance.decide come only
 // from the DOA assignment of the task (incl. a delegate). tests/generated/permissions.test.ts parses §2.4 from
 // spec.md itself and checks this file and isAllowed() against it, allow and deny for every capability.
-// FROZEN after S1-08: changing this file is a permission change and needs the user's approval.
+// FROZEN after S1-08: changing this file is a permission change and needs the user's approval. S16-06 (spec §16.12, approved
+// with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -31,6 +32,8 @@ export const CONDITIONS = {
   CONTRACT_REF_AND_REASON: 'contractRef and a reason are required (BR-AUTH-08)',
   APPROVED_BY_ORG_AUTHORITY_CHANGE: 'takes effect only after approval under DOA rule ORG_AUTHORITY_CHANGE (BR-DOA-17)',
   APPROVED_BY_DOA_CHANGE: 'publishing needs approval under DOA rule DOA_CHANGE; submitter != approver',
+  SELF_ONLY_NOT_REQUESTER: 'follows or unfollows only themselves; the requester does not follow their own request',
+  ADDED_MEMBER_ALREADY_VIEWS: 'the member added must already have request.view of the request (OQ-39)',
 } as const
 export type Condition = keyof typeof CONDITIONS
 
@@ -50,13 +53,20 @@ const platformAdmin = (condition: Condition): Grant => ({ grantee: { kind: 'PLAT
 const PROCUREMENT_ONLY = [role('PROCUREMENT', 'ORG')]
 const ORG_ADMIN_ONLY = [role('ORG_ADMIN', 'ORG')]
 const SELF = [anyMember('OWN')]
+/** request.view (§2.4). OWN of a request is the requester and its followers here; for the commands that change the
+ *  request (request.create on a draft, request.submit, request.cancel, request.followers.manage) the services pass
+ *  the requester alone as owner, so a follower never sends, edits, cancels or adds followers (FR-INT-013 AC3). */
+const REQUEST_VIEWERS = [anyMember('OWN'), anyMember('ASSIGNED'), deptHead(), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'], 'ORG')]
 
 export const PERMISSIONS = {
   // Requests
   'request.create': SELF,
   'request.submit': SELF,
-  'request.view': [anyMember('OWN'), anyMember('ASSIGNED'), deptHead(), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'], 'ORG')],
+  'request.view': REQUEST_VIEWERS,
   'request.cancel': [anyMember('OWN', 'NO_PO_YET'), role('PROCUREMENT', 'ORG', 'APPROVED_NOT_ORDERED_WITH_REASON')],
+  // FR-INT-013 AC1: whoever may view the request follows it; only the requester adds or removes others
+  'request.follow': REQUEST_VIEWERS.map((g) => ({ ...g, condition: 'SELF_ONLY_NOT_REQUESTER' as const })),
+  'request.followers.manage': [anyMember('OWN', 'ADDED_MEMBER_ALREADY_VIEWS')],
   // Approvals and delegation
   'approval.decide': [doaAssignee()],
   'approval.reassign': [role('ORG_ADMIN', 'ORG', 'DOA_EQUIVALENT_ASSIGNEE_WITH_REASON')],

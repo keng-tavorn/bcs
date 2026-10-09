@@ -92,6 +92,22 @@ const notifyRequester = (requesterMemberId: string, templateKey: string, request
   subjectId: request.id,
 })
 
+/**
+ * §10.1 rows request.approved, request.rejected · request.returned: the requester and the followers (FR-INT-013 AC2).
+ * The requester's notice keeps its key; each follower's adds their id. The member deciding is not told of their own act.
+ */
+async function notifyRequesterAndFollowers(tx: TenantTx, ctx: Ctx, templateKey: string, request: { id: string; number: string | null; title: string; requesterMemberId: string }, extra: Record<string, unknown>): Promise<NotificationDraft[]> {
+  const followers = await tx.requestFollower.findMany({ where: { requestId: request.id }, select: { memberId: true }, orderBy: { createdAt: 'asc' } })
+  const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+  const toRequester = notifyRequester(request.requesterMemberId, templateKey, request, extra)
+  return [
+    toRequester,
+    ...followers
+      .filter((f) => f.memberId !== request.requesterMemberId && f.memberId !== actor)
+      .map((f) => ({ ...toRequester, recipientMemberId: f.memberId, data: { ...toRequester.data, asFollower: true }, dedupeKey: `${toRequester.dedupeKey}:${f.memberId}` })),
+  ]
+}
+
 // ---------- decide ----------
 
 const DecideInput = z.strictObject({
@@ -247,7 +263,7 @@ export const decideCommand = defineCommand({
     await tx.request.update({ where: { id: request.id }, data: { status: moved.to, ...(input.decision === 'APPROVE' ? { approvedAt: ctx.now } : {}), version: { increment: 1 } } })
     if (input.decision === 'APPROVE') {
       events.push({ type: 'request.approved', aggregateType: 'Request', aggregateId: request.id, data: { routeId: route.id, doaVersionId: route.doaVersionId, doaRuleCode: route.ruleCode } })
-      notifications.push(notifyRequester(request.requesterMemberId, 'request.approved', request, { taskId: task.id }))
+      notifications.push(...(await notifyRequesterAndFollowers(tx, ctx, 'request.approved', request, { taskId: task.id })))
     } else {
       const type = input.decision === 'RETURN' ? 'request.returned' : 'request.rejected'
       events.push({ type, aggregateType: 'Request', aggregateId: request.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } })
@@ -259,7 +275,7 @@ export const decideCommand = defineCommand({
         events.push(...released.events)
       }
       // §10.1: a return and a rejection share the template request.decided
-      notifications.push(notifyRequester(request.requesterMemberId, 'request.decided', request, { taskId: task.id, decision: input.decision }))
+      notifications.push(...(await notifyRequesterAndFollowers(tx, ctx, 'request.decided', request, { taskId: task.id, decision: input.decision })))
     }
     return { ok: true, result: { taskId: task.id, documentStatus: moved.to }, events, notifications }
   },

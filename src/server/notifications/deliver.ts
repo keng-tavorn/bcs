@@ -65,6 +65,7 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'request.decided',
   'request.info_requested',
   'request.info_provided',
+  'request.follower_added',
   'po.approved',
   'po.send_bounced',
   'delegation.window',

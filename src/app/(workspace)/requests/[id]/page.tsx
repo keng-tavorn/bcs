@@ -5,9 +5,11 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { getRequestAccess, getRequestView, type RequestViewDto } from '@/server/queries/requests'
+import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
+import { FollowButton, FollowersPanel } from '@/ui/request-view/followers'
 import { CancelRequest, RequesterActions } from '@/ui/request-view/requester-actions'
 import { RequestStatus, StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
@@ -16,7 +18,7 @@ import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canViewRequest } from '../../_tracking/access'
 import { doaHref, doaRefText, dueText, localeOf, memberName, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
-import { answerInfoAction, cancelRequestAction } from './actions'
+import { answerInfoAction, cancelRequestAction, followAction, manageFollowerAction } from './actions'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -54,7 +56,8 @@ function placeFacts(tv: ViewT, locale: Locale, view: RequestViewDto): PlaceFact[
 // One request (spec §9.1 /requests/[id], FR-INT-008 AC1, FR-DOA-003 AC2, FR-DOA-005 AC2, FR-PLT-003 AC3, FR-INT-009):
 // where it is now and for how long, what the requester has to do, the totals and the budget it holds, the route the DOA
 // engine chose and why, the lines, details and attachments, and the timeline as stamps. request.view is checked before
-// anything is read: the requester and followers, everyone who had a task on it, and the organization-wide roles.
+// anything is read: the requester and followers, everyone who had a task on it, and the organization-wide roles. Anybody
+// who may view it but the requester follows it from the header; the requester adds and removes followers (FR-INT-013).
 export default async function RequestPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const state = await getSession()
@@ -77,8 +80,9 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
     )
   }
 
-  const view = await getRequestView(ctx, id)
+  const [view, follow] = await Promise.all([getRequestView(ctx, id), getRequestFollowers(ctx, id)])
   if (!view) notFound()
+  const named = (m: { id: string; name: { th: string; en: string | null } }) => ({ id: m.id, name: memberName(locale, m) })
   const mine = view.requester.id === state.member.id
   const stage = view.stage
   const rejection = view.status === 'REJECTED' ? (view.track.filter((e) => e.what === 'REJECTED').at(-1)?.note ?? null) : null
@@ -97,9 +101,12 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
       </Link>
 
       <header className="flex max-w-4xl flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <p className="font-medium text-ink-muted">{view.number ?? tv('detail.draftLabel')}</p>
-          <h1 className="text-2xl font-semibold break-words">{view.title}</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-1">
+            <p className="font-medium text-ink-muted">{view.number ?? tv('detail.draftLabel')}</p>
+            <h1 className="text-2xl font-semibold break-words">{view.title}</h1>
+          </div>
+          {follow?.canFollow ? <FollowButton requestId={view.id} following={follow.following} follow={followAction} /> : null}
         </div>
         <div className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
           <RequestStatus status={view.status} label={tv(`status.${view.status}`)} />
@@ -142,7 +149,16 @@ export default async function RequestPage({ params }: { params: Promise<{ id: st
           <RequestSections view={view} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
           {mine ? <CancelRequest requestId={view.id} canCancel={view.actions.canCancel} cancel={cancelRequestAction} /> : null}
         </div>
-        <aside className="flex min-w-0 flex-col gap-3">
+        <aside className="flex min-w-0 flex-col gap-6">
+          {follow ? (
+            <FollowersPanel
+              requestId={view.id}
+              followers={follow.followers.map(named)}
+              canManage={follow.canManage}
+              candidates={follow.candidates.map(named)}
+              manage={manageFollowerAction}
+            />
+          ) : null}
           <section aria-labelledby="timeline" className="flex flex-col gap-3">
             <h2 id="timeline" className="text-lg font-semibold text-ink">
               {tv('timeline.title')}

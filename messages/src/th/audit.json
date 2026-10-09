@@ -275,6 +275,8 @@
       "doa_gap_reported": "แจ้งว่า DOA ไม่มีข้อสำหรับคำขอนี้",
       "draft_expiry_notified": "เตือนร่างคำขอที่ใกล้หมดอายุ",
       "drafted": "สร้างร่างคำขอ",
+      "follower_added": "เพิ่มผู้ติดตามคำขอ",
+      "follower_removed": "เอาผู้ติดตามคำขอออก",
       "info_provided": "ผู้ขอตอบคำถาม",
       "info_requested": "ขอข้อมูลเพิ่มจากผู้ขอ",
       "rejected": "ไม่อนุมัติคำขอ",

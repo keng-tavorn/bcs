@@ -50,6 +50,12 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'เปิดคำขอเพื่อดูเหตุผลจากผู้อนุมัติ', en: 'Open the request to read the approver’s reason' },
     href: `/requests/${str(d.requestId)}`,
   }),
+  // FR-INT-013 AC2: the requester added this member as a follower of the request
+  'request.follower_added': (d) => ({
+    title: { th: `คุณถูกเพิ่มเป็นผู้ติดตามคำขอ ${ref(d)}`, en: `You were added as a follower of request ${ref(d)}` },
+    body: { th: 'คุณจะได้แจ้งเตือนเมื่อคำขอนี้อนุมัติ ตีกลับ หรือไม่อนุมัติ', en: 'You will be told when this request is approved, returned or not approved' },
+    href: `/requests/${str(d.requestId)}`,
+  }),
   'request.info_requested': (d) => ({
     title: { th: `ผู้อนุมัติขอข้อมูลเพิ่มเติมของคำขอ ${ref(d)}`, en: `The approver asked for more information on request ${ref(d)}` },
     href: `/requests/${str(d.requestId)}`,

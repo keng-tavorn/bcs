@@ -318,5 +318,30 @@
     "INTERNAL": "It could not be saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
     "NO_ANSWER": "No answer came back, perhaps because of the connection. Check it and press the same button again; it is done only once.",
     "FAILED": "It could not be saved. Try again, or tell your administrator."
+  },
+  "followers": {
+    "follow": "Follow",
+    "following": "Following",
+    "title": "Followers ({n})",
+    "empty": "No followers yet",
+    "emptyRequester": "No followers yet. Add colleagues who need to know how this request ends below.",
+    "remove": "Remove",
+    "removeLabel": "Remove {name} from the followers",
+    "addLabel": "Add a follower",
+    "addHint": "Followers are told when the request is approved, returned or not approved · only people who can already see this request can be chosen",
+    "pick": "Choose a member",
+    "search": "Type a name to search",
+    "noCandidates": "No member who can see this request is left to add",
+    "add": "Add as follower",
+    "added": "{name} now follows this request and has been told",
+    "removed": "{name} no longer follows this request",
+    "errors": {
+      "NO_ANSWER": "No answer came back. Press again; it will be done only once",
+      "CANNOT_VIEW": "This member cannot see the request yet, so they cannot follow it",
+      "TOO_MANY": "This request has as many followers as it can take. Remove someone first",
+      "STATE": "The followers changed meanwhile. Reload the page to see the latest list",
+      "FORBIDDEN": "You may not do this on this request",
+      "FAILED": "That did not work. Try again"
+    }
   }
 }

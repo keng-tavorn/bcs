@@ -1,34 +1,91 @@
 {
   "title": "Home",
-  "greeting": "Hello {name}",
-  "myTasks": "Waiting for your decision",
-  "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
-  "myTasksAll": "See all tasks waiting for approval ({count})",
-  "toMyRequests": "Follow your own requests",
-  "pool": {
-    "list": "Requests to purchase",
-    "title": "Requests to purchase: {requests} ({lines, plural, one {# line} other {# lines}})",
-    "needSupplier": "{count, plural, one {# line needs} other {# lines need}} a supplier",
-    "ready": "{count, plural, one {# line is} other {# lines are}} ready for a draft PO",
-    "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet"
+  "greeting": "Hello {name}. What would you like to do today?",
+  "search": "Search documents, suppliers or pages",
+  "chips": {
+    "label": "Home shortcuts",
+    "mine": "My work",
+    "newRequest": "New request",
+    "suppliers": "Suppliers and prices"
   },
-  "po": {
-    "list": "Purchase orders waiting for procurement",
-    "drafts": "{count, plural, one {# draft PO waits} other {# draft POs wait}} to be checked and sent for approval",
-    "approved": "{count, plural, one {# approved PO waits} other {# approved POs wait}} to be sent to the supplier"
+  "cards": {
+    "todo": "To do",
+    "onTime": "On-time approval tasks",
+    "following": "Requests I follow",
+    "approvals": "Waiting for my approval"
   },
-  "myRequests": "My requests",
-  "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
-  "myRequestsAll": "See all requests ({count})",
-  "startRequest": "Start a purchase or hiring request",
-  "budget": {
-    "title": "Budgets",
-    "list": "Budget left and budget lines running low",
-    "scope": "Fiscal year {code} · {scope}",
-    "amountHeading": "Available (baht)",
-    "planned": "Planned {amount} baht",
-    "noneLow": "No budget line is running low",
-    "all": "See all budgets",
-    "allLow": "See all budgets ({count, plural, one {# line} other {# lines}} running low)"
-  }
+  "todo": {
+    "list": "What you need to do",
+    "OVERDUE_TASKS": "{count, plural, one {# overdue approval task} other {# overdue approval tasks}}",
+    "RETURNED": "{count, plural, one {# returned request} other {# returned requests}} to fix",
+    "QUESTIONS": "{count, plural, one {# approver question} other {# approver questions}} to answer",
+    "RECEIVING": "{count, plural, one {# PO} other {# POs}} to receive",
+    "POOL": "{count, plural, one {# request line} other {# request lines}} to order",
+    "PO_APPROVED": "{count, plural, one {# approved PO} other {# approved POs}} to send to suppliers",
+    "INVOICES": "Invoices to confirm on {count, plural, one {# PO} other {# POs}}",
+    "EXPORTS": "{count, plural, one {# invoice} other {# invoices}} ready for Express",
+    "DRAFTS": "{count, plural, one {# draft request} other {# draft requests}}",
+    "more": "See all ({count})",
+    "less": "Show fewer",
+    "empty": "Nothing to do right now",
+    "emptyHint": "When work comes to you, it shows here with its count and a link to it",
+    "start": "Start a new request",
+    "myRequests": "See my requests",
+    "noneUrgent": "Nothing overdue or waiting for you to fix. Tasks waiting for your decision are in the card Waiting for my approval."
+  },
+  "onTime": {
+    "list": "On-time approval tasks in the last 30 days",
+    "MINE": "My tasks",
+    "DEPARTMENT": "My department",
+    "ORG": "Whole organization",
+    "QUEUE": "Procurement queue",
+    "percent": "{pct}%",
+    "up": "Up {points, plural, one {# point} other {# points}} from the 30 days before",
+    "down": "Down {points, plural, one {# point} other {# points}} from the 30 days before",
+    "same": "Same as the 30 days before",
+    "counts": "On time {onTime} · late {late}",
+    "none": "No tasks in these 30 days yet",
+    "empty": "You have had no approval tasks in the last 60 days. The figures show once tasks come to you."
+  },
+  "following": {
+    "summary": "{total, plural, one {# request} other {# requests}} · {open} open",
+    "list": "Requests I follow that moved last",
+    "all": "See all requests I follow",
+    "empty": "No request you sent or follow yet"
+  },
+  "approvals": {
+    "tabs": "My approval tasks by state",
+    "all": "All ({count})",
+    "overdue": "Overdue ({count})",
+    "info": "Waiting for requester ({count})",
+    "listAll": "All tasks waiting for my approval",
+    "listOverdue": "My overdue approval tasks",
+    "listInfo": "Tasks waiting for the requester's answer",
+    "seeAll": "See all approval tasks ({count})",
+    "seeOverdue": "See all overdue tasks ({count})",
+    "seeInfo": "See all tasks waiting for an answer ({count})",
+    "forName": "For {name}",
+    "amount": "DOA amount {amount} baht",
+    "due": "Due {time}",
+    "overdueBadge": "Overdue",
+    "infoBadge": "Waiting for requester",
+    "onTimeBadge": "Not due yet",
+    "empty": "Nothing waits for your approval",
+    "emptyOverdue": "No task is overdue",
+    "emptyInfo": "No task waits for a requester's answer",
+    "kind": {
+      "REQUEST": "Request",
+      "PURCHASE_ORDER": "Purchase order",
+      "VARIANCE": "Receiving variance",
+      "DOA_VERSION": "DOA version",
+      "ORG_AUTHORITY_CHANGE": "Authority change",
+      "OTHER": "Approval task"
+    }
+  },
+  "error": {
+    "title": "The card {card} did not load",
+    "hint": "The other cards still work. Load it again, and tell your administrator if it still fails.",
+    "retry": "Load this card again"
+  },
+  "loading": "Loading {card}"
 }

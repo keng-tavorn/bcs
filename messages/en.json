@@ -2870,6 +2870,7 @@
       "intro": "Record the tax invoices suppliers send for their purchase orders. The amount is shared over the order's lines and the budget moves from held to actual.",
       "limited": "Showing the first {shown}. Search a PO number or supplier to see others.",
       "metaTitle": "Confirm invoices",
+      "receivedOnly": "Only POs with goods received",
       "recorded": {
         "by": "Recorded by {name} {time}",
         "columns": {
@@ -2894,6 +2895,7 @@
       "search": "Search a PO number, supplier or invoice number",
       "searchHint": "Part of it is enough, such as the PO number or the company's name",
       "searchSubmit": "Show matching items",
+      "showAll": "See every PO waiting for an invoice",
       "title": "Confirm invoices",
       "toExports": "Express export ({count, plural, one {# invoice} other {# invoices}} not exported yet)",
       "waiting": {
@@ -2974,38 +2976,95 @@
     "unit": "baht"
   },
   "home": {
-    "budget": {
-      "all": "See all budgets",
-      "allLow": "See all budgets ({count, plural, one {# line} other {# lines}} running low)",
-      "amountHeading": "Available (baht)",
-      "list": "Budget left and budget lines running low",
-      "noneLow": "No budget line is running low",
-      "planned": "Planned {amount} baht",
-      "scope": "Fiscal year {code} · {scope}",
-      "title": "Budgets"
+    "approvals": {
+      "all": "All ({count})",
+      "amount": "DOA amount {amount} baht",
+      "due": "Due {time}",
+      "empty": "Nothing waits for your approval",
+      "emptyInfo": "No task waits for a requester's answer",
+      "emptyOverdue": "No task is overdue",
+      "forName": "For {name}",
+      "info": "Waiting for requester ({count})",
+      "infoBadge": "Waiting for requester",
+      "kind": {
+        "DOA_VERSION": "DOA version",
+        "ORG_AUTHORITY_CHANGE": "Authority change",
+        "OTHER": "Approval task",
+        "PURCHASE_ORDER": "Purchase order",
+        "REQUEST": "Request",
+        "VARIANCE": "Receiving variance"
+      },
+      "listAll": "All tasks waiting for my approval",
+      "listInfo": "Tasks waiting for the requester's answer",
+      "listOverdue": "My overdue approval tasks",
+      "onTimeBadge": "Not due yet",
+      "overdue": "Overdue ({count})",
+      "overdueBadge": "Overdue",
+      "seeAll": "See all approval tasks ({count})",
+      "seeInfo": "See all tasks waiting for an answer ({count})",
+      "seeOverdue": "See all overdue tasks ({count})",
+      "tabs": "My approval tasks by state"
     },
-    "greeting": "Hello {name}",
-    "myRequests": "My requests",
-    "myRequestsAll": "See all requests ({count})",
-    "myRequestsEmpty": "You have no requests yet. Requests you send appear here with their latest status.",
-    "myTasks": "Waiting for your decision",
-    "myTasksAll": "See all tasks waiting for approval ({count})",
-    "myTasksEmpty": "Nothing is waiting for your decision. Requests sent to you appear here and in the notification bell.",
-    "po": {
-      "approved": "{count, plural, one {# approved PO waits} other {# approved POs wait}} to be sent to the supplier",
-      "drafts": "{count, plural, one {# draft PO waits} other {# draft POs wait}} to be checked and sent for approval",
-      "list": "Purchase orders waiting for procurement"
+    "cards": {
+      "approvals": "Waiting for my approval",
+      "following": "Requests I follow",
+      "onTime": "On-time approval tasks",
+      "todo": "To do"
     },
-    "pool": {
-      "blocked": "{count, plural, one {# line has} other {# lines have}} prices including VAT and cannot go on a draft PO yet",
-      "list": "Requests to purchase",
-      "needSupplier": "{count, plural, one {# line needs} other {# lines need}} a supplier",
-      "ready": "{count, plural, one {# line is} other {# lines are}} ready for a draft PO",
-      "title": "Requests to purchase: {requests} ({lines, plural, one {# line} other {# lines}})"
+    "chips": {
+      "label": "Home shortcuts",
+      "mine": "My work",
+      "newRequest": "New request",
+      "suppliers": "Suppliers and prices"
     },
-    "startRequest": "Start a purchase or hiring request",
+    "error": {
+      "hint": "The other cards still work. Load it again, and tell your administrator if it still fails.",
+      "retry": "Load this card again",
+      "title": "The card {card} did not load"
+    },
+    "following": {
+      "all": "See all requests I follow",
+      "empty": "No request you sent or follow yet",
+      "list": "Requests I follow that moved last",
+      "summary": "{total, plural, one {# request} other {# requests}} · {open} open"
+    },
+    "greeting": "Hello {name}. What would you like to do today?",
+    "loading": "Loading {card}",
+    "onTime": {
+      "DEPARTMENT": "My department",
+      "MINE": "My tasks",
+      "ORG": "Whole organization",
+      "QUEUE": "Procurement queue",
+      "counts": "On time {onTime} · late {late}",
+      "down": "Down {points, plural, one {# point} other {# points}} from the 30 days before",
+      "empty": "You have had no approval tasks in the last 60 days. The figures show once tasks come to you.",
+      "list": "On-time approval tasks in the last 30 days",
+      "none": "No tasks in these 30 days yet",
+      "percent": "{pct}%",
+      "same": "Same as the 30 days before",
+      "up": "Up {points, plural, one {# point} other {# points}} from the 30 days before"
+    },
+    "search": "Search documents, suppliers or pages",
     "title": "Home",
-    "toMyRequests": "Follow your own requests"
+    "todo": {
+      "DRAFTS": "{count, plural, one {# draft request} other {# draft requests}}",
+      "EXPORTS": "{count, plural, one {# invoice} other {# invoices}} ready for Express",
+      "INVOICES": "Invoices to confirm on {count, plural, one {# PO} other {# POs}}",
+      "OVERDUE_TASKS": "{count, plural, one {# overdue approval task} other {# overdue approval tasks}}",
+      "POOL": "{count, plural, one {# request line} other {# request lines}} to order",
+      "PO_APPROVED": "{count, plural, one {# approved PO} other {# approved POs}} to send to suppliers",
+      "QUESTIONS": "{count, plural, one {# approver question} other {# approver questions}} to answer",
+      "RECEIVING": "{count, plural, one {# PO} other {# POs}} to receive",
+      "RETURNED": "{count, plural, one {# returned request} other {# returned requests}} to fix",
+      "empty": "Nothing to do right now",
+      "emptyHint": "When work comes to you, it shows here with its count and a link to it",
+      "less": "Show fewer",
+      "list": "What you need to do",
+      "more": "See all ({count})",
+      "myRequests": "See my requests",
+      "noneUrgent": "Nothing overdue or waiting for you to fix. Tasks waiting for your decision are in the card Waiting for my approval.",
+      "start": "Start a new request"
+    }
   },
   "insights": {
     "asOf": "Data as of {time}",
@@ -5518,7 +5577,10 @@
       "allStatuses": "All statuses",
       "clear": "Clear filters",
       "count": "{matched} of {total} requests",
+      "infoOpen": "Only requests with an approver's question waiting for your answer",
       "limited": "Showing the newest {shown}. Search by document number or choose a status to find older requests.",
+      "scopeFollowing": "Your requests and the ones you follow, without drafts",
+      "scopeMine": "Only requests you made",
       "search": "Document number or request title",
       "searchHint": "Part of it is enough, e.g. 00012",
       "status": "Status",
@@ -5964,6 +6026,7 @@
         "search": "Search suppliers",
         "searchHintBasic": "Name or supplier code",
         "searchHintFull": "Name, tax ID (with or without dashes) or supplier code",
+        "searchHintItems": "You can also search by an item bought before, such as cement.",
         "searchHintMasked": "Name, tax ID (with or without dashes) or supplier code. An individual's tax ID is found only when all 13 digits are typed",
         "status": "Status",
         "submit": "Show matching suppliers"
@@ -6071,6 +6134,13 @@
       "taxIdShape": "Use 13 digits only",
       "taxIdTyping": "{digits} of 13 digits typed",
       "title": "Add a supplier"
+    },
+    "prices": {
+      "intro": "Latest prices are the unit prices before VAT on the last approved PO of each item.",
+      "label": "Latest prices",
+      "none": "No approved PO yet",
+      "price": "{amount} baht/{uom}",
+      "source": "{number} · approved {date}"
     },
     "row": {
       "code": "Code {code}",
@@ -6218,6 +6288,13 @@
       "STEP_UP": "Every decision on this task needs your PIN. Enter it and try again.",
       "SUBJECT": "Information can be asked on request approvals only. A policy change is approved or rejected.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again and retry."
+    },
+    "filter": {
+      "all": "See all my approval tasks",
+      "emptyInfo": "No task waits for a requester's answer",
+      "emptyOverdue": "No task is overdue",
+      "info": "{count, plural, one {# task waits} other {# tasks wait}} for the requester's answer",
+      "overdue": "{count, plural, one {# overdue task} other {# overdue tasks}}"
     },
     "intro": "Tasks waiting for your decision, the ones due first at the top",
     "item": {

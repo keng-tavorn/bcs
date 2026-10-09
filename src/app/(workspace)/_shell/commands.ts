@@ -1,4 +1,5 @@
 import type { MenuKey } from './menu'
+import { tasksHref } from '../_tracking/list-filters'
 
 // The ⌘K palette's "ไปที่หน้า" and "คำสั่ง" groups (FR-PLT-014 AC4, §9.10): pages are exactly the entries of the
 // member's menu (visibleMenu), and a command is offered only when the page it opens is in that menu — "เริ่มคำขอ
@@ -31,7 +32,7 @@ export function paletteCommands(nav: readonly PaletteNavEntry[], requestTypes: R
     ...(has('newRequest') ? requestTypes.map((t) => ({ id: `start:${t.code}`, label: labels.startRequest(t.name), href: `/requests/new/${encodeURIComponent(t.code)}` })) : []),
     ...(has('delegation') ? [{ id: 'delegate', label: labels.delegate, href: '/settings/delegation' }] : []),
     ...(has('lineLink') ? [{ id: 'linkLine', label: labels.linkLine, href: '/settings/line' }] : []),
-    // The inbox lists the tasks due first at the top, with how long each has waited
-    ...(has('tasks') ? [{ id: 'overdue', label: labels.overdue, href: '/tasks' }] : []),
+    // The inbox narrowed to the tasks past their due time (../_tracking/list-filters.ts), as the home's row opens it
+    ...(has('tasks') ? [{ id: 'overdue', label: labels.overdue, href: tasksHref('/tasks', { due: 'overdue' }) }] : []),
   ]
 }

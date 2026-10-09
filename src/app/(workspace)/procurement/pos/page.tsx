@@ -8,6 +8,7 @@ import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { PoList, type PoRow } from '@/ui/purchase-order/po-list'
 import { getSession } from '../../../_lib/session'
+import { loadPoFilters, posHref } from '../../_tracking/list-filters'
 import { localeOf, money, when } from '../../_tracking/present'
 import { canListPos } from './_parts/access'
 import { waitingOf } from './_parts/present'
@@ -18,7 +19,6 @@ export async function generateMetadata() {
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 const SEARCH_MAX = 60
 
 // Purchase orders (spec §9.1 /procurement/pos): every PO of the organization, the ones changed last first, by status —
@@ -41,18 +41,13 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
       </div>
     )
   }
-  const params = await searchParams
-  const q = (one(params.q) ?? '').trim().slice(0, SEARCH_MAX)
-  const status = isPoStatus(one(params.status)) ? one(params.status)! : ''
+  // The filters live in the address (../../_tracking/list-filters.ts): a status in any case, written in lower case
+  const filters = await loadPoFilters(searchParams)
+  const q = (filters.q ?? '').trim().slice(0, SEARCH_MAX)
+  const status = filters.status ?? ''
   const list = await listPurchaseOrders(ctx, { q, status })
   const allCount = Object.values(list.counts).reduce((sum, n) => sum + n, 0)
-  const query = (next: { status?: string }) => {
-    const p = new URLSearchParams()
-    if (q) p.set('q', q)
-    if (next.status) p.set('status', next.status)
-    const s = p.toString()
-    return s ? `/procurement/pos?${s}` : '/procurement/pos'
-  }
+  const query = (next: { status?: string }) => posHref('/procurement/pos', { q: q || null, status: isPoStatus(next.status) ? next.status : null })
 
   const rows: PoRow[] = list.rows.map((po) => {
     const waiting = waitingOf(t, tv, locale, po.waiting)
@@ -105,7 +100,7 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
             </ul>
           </nav>
           <form key={`${status}|${q}`} method="get" action="/procurement/pos" className="flex flex-col gap-3 border-y border-line py-4 md:flex-row md:items-start">
-            {status ? <input type="hidden" name="status" value={status} /> : null}
+            {status ? <input type="hidden" name="status" value={status.toLowerCase()} /> : null}
             <div className="flex flex-1 flex-col gap-1.5">
               <label htmlFor="po-search" className="font-medium text-ink">
                 {t('list.search')}

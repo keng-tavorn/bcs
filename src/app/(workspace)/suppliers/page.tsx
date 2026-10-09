@@ -8,6 +8,7 @@ import { Notice } from '@/ui/form/notice'
 import { formatTaxId, HEAD_OFFICE } from '@/ui/suppliers/model'
 import { SupplierList, type SupplierRow } from '@/ui/suppliers/supplier-list'
 import { getSession } from '../../_lib/session'
+import { day, money } from '../_tracking/present'
 
 export async function generateMetadata() {
   const t = await getTranslations('suppliers.list')
@@ -41,11 +42,25 @@ function rowOf(t: T, locale: 'th' | 'en', s: SupplierListRowDto): SupplierRow {
           check: s.isForeign ? t('check.FOREIGN') : t(`check.${full.registrySource ?? 'NONE'}`),
         }
       : null,
+    prices: s.prices
+      ? {
+          label: t('prices.label'),
+          items: s.prices.map((p) => ({
+            key: `${p.poId}|${p.description}`,
+            text: p.description,
+            price: t('prices.price', { amount: money(p.unitPriceSatang), uom: p.uom }),
+            source: t('prices.source', { number: p.poNumber ?? '-', date: day(locale, p.approvedAt) }),
+          })),
+          none: t('prices.none'),
+        }
+      : null,
   }
 }
 
 // The supplier register (spec §9.1 /suppliers, S4-02, §2.4 supplier.view): every member sees names and basic details;
 // PROCUREMENT, FINANCE and AUDITOR also the tax id, the Express vendor code (BR-EXP-04) and how the identity was checked.
+// Readers of every PO (po.view ORG) see each supplier's latest prices and find suppliers by an item they sold — the
+// home's chip "ผู้ขายและราคา" opens it (FR-VIS-006 AC1).
 // Searched and filtered with a plain GET form (it changes nothing). PROCUREMENT adds suppliers from here.
 export default async function SuppliersPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
@@ -77,6 +92,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
         <div className="flex max-w-3xl flex-col gap-1">
           <h1 className="text-2xl font-semibold">{t('list.title')}</h1>
           <p className="text-ink-muted">{full ? t('list.introFull') : t('list.introBasic')}</p>
+          {list.seesPrices ? <p className="text-ink-muted">{t('prices.intro')}</p> : null}
         </div>
         {list.canManage ? (
           <Link href="/suppliers/new" className={primaryLink}>
@@ -102,6 +118,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
             />
             <p id="supplier-search-hint" className="text-base text-ink-muted md:text-sm">
               {list.taxIdMatch === 'WHOLE_FOR_INDIVIDUALS' ? t('list.filter.searchHintMasked') : full ? t('list.filter.searchHintFull') : t('list.filter.searchHintBasic')}
+              {list.seesPrices ? ` ${t('list.filter.searchHintItems')}` : null}
             </p>
           </div>
           <div className="flex flex-col gap-1.5 md:w-48">

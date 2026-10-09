@@ -100,6 +100,8 @@ export interface InboxTaskDto {
   readonly holding: { readonly kind: 'FOR'; readonly member: MemberRefDto } | { readonly kind: 'BY'; readonly member: MemberRefDto } | null
   /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
+  /** The amount the DOA counted for the route (its basis, BR-DOA-02); null for a route without one, such as a policy */
+  readonly amountSatang: bigint | null
   /**
    * INFO_REQUESTED: the question that waits for the requester's answer — when it was asked, and the business minutes it
    * has waited since, counted as the request page counts its ANSWER step (§9.9 principle 4; null without a business
@@ -110,8 +112,36 @@ export interface InboxTaskDto {
 
 export interface InboxDto {
   readonly items: readonly InboxTaskDto[]
-  /** All open tasks of the member, also when `items` is cut at the limit */
+  /** All open tasks of the member the filter keeps, also when `items` is cut at the limit */
   readonly total: number
+}
+
+/**
+ * Which of the member's open tasks: OVERDUE — waiting for their decision past the due time (the home's to-do row and
+ * /tasks?due=overdue); INFO — waiting for the requester's answer (the home's tab "รอผู้ขอตอบ"); null — all of them
+ */
+export type InboxDue = 'OVERDUE' | 'INFO' | null
+
+/** The member's open tasks in a filter: assigned to them, or held for them by their delegate (BR-DLG-04) */
+function inboxWhere(me: string, due: InboxDue | 'DECIDING', now: Date) {
+  const mine = [{ assigneeMemberId: me }, { principalMemberId: me }]
+  if (due === 'OVERDUE') return { status: 'OPEN' as const, dueAt: { lt: now }, OR: mine }
+  if (due === 'INFO') return { status: 'INFO_REQUESTED' as const, OR: mine }
+  if (due === 'DECIDING') return { status: 'OPEN' as const, OR: mine }
+  return { status: { in: [...OPEN] }, OR: mine }
+}
+
+/** How many open tasks the member has, in each filter of the inbox: one read for the home and the menu (§9.10) */
+export async function countMyTasks(ctx: Ctx): Promise<{ readonly all: number; readonly overdue: number; readonly info: number }> {
+  if (ctx.actor.type !== 'USER') return { all: 0, overdue: 0, info: 0 }
+  const db = forTenant(ctx.organizationId)
+  const me = ctx.actor.memberId
+  const [all, overdue, info] = await Promise.all([
+    db.approvalTask.count({ where: inboxWhere(me, null, ctx.now) }),
+    db.approvalTask.count({ where: inboxWhere(me, 'OVERDUE', ctx.now) }),
+    db.approvalTask.count({ where: inboxWhere(me, 'INFO', ctx.now) }),
+  ])
+  return { all, overdue, info }
 }
 
 const INBOX_LIMIT = 200
@@ -208,28 +238,32 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
  * task's due time says nothing of its place, so it never comes before — nor, cut at the limit, pushes off the home page —
  * a task the member can decide. The order is all that changes; the tasks and their SLA are read as they are.
  */
-export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number } = {}): Promise<InboxDto> {
+export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number; readonly due?: InboxDue } = {}): Promise<InboxDto> {
   if (ctx.actor.type !== 'USER') return { items: [], total: 0 }
   const me = ctx.actor.memberId
   const db = forTenant(ctx.organizationId)
   const limit = Math.min(options.limit ?? INBOX_LIMIT, INBOX_LIMIT)
-  const mine = [{ assigneeMemberId: me }, { principalMemberId: me }]
+  const due = options.due ?? null
   const [total, deciding, questions, calendar] = await Promise.all([
-    db.approvalTask.count({ where: { status: { in: [...OPEN] }, OR: mine } }),
-    db.approvalTask.findMany({
-      where: { status: 'OPEN', OR: mine },
-      select: INBOX_TASK,
-      orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { assignedAt: 'asc' }, { id: 'asc' }],
-      take: limit,
-    }),
+    db.approvalTask.count({ where: inboxWhere(me, due, ctx.now) }),
+    due === 'INFO'
+      ? Promise.resolve([])
+      : db.approvalTask.findMany({
+          where: inboxWhere(me, due ?? 'DECIDING', ctx.now),
+          select: INBOX_TASK,
+          orderBy: [{ dueAt: { sort: 'asc', nulls: 'last' } }, { assignedAt: 'asc' }, { id: 'asc' }],
+          take: limit,
+        }),
     // The tasks waiting for an answer, by their open question: each has one, from approval.requestInfo until
     // request.provideInfo (a task moved to another approver took it along), so the one asked first comes first
-    db.infoRequest.findMany({
-      where: { answeredAt: null, task: { status: 'INFO_REQUESTED', OR: mine } },
-      select: { askedAt: true, task: { select: INBOX_TASK } },
-      orderBy: [{ askedAt: 'asc' }, { id: 'asc' }],
-      take: limit,
-    }),
+    due === 'OVERDUE'
+      ? Promise.resolve([])
+      : db.infoRequest.findMany({
+          where: { answeredAt: null, task: inboxWhere(me, 'INFO', ctx.now) },
+          select: { askedAt: true, task: { select: INBOX_TASK } },
+          orderBy: [{ askedAt: 'asc' }, { id: 'asc' }],
+          take: limit,
+        }),
     businessCalendarOf(db, ctx.organizationId),
   ])
   const tasks = [...deciding, ...questions.map((q) => q.task)].slice(0, limit)
@@ -262,6 +296,7 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number }
         overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
         holding,
         stepUp: needsStepUp(t.step.route),
+        amountSatang: t.step.route.amountSatang,
         question: asked ? { askedAt: asked, waitingMinutes: businessMinutesSince(calendar, asked, ctx.now) } : null,
       }
     }),

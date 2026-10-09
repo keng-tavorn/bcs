@@ -8,7 +8,7 @@ import { consolidateInTx } from './consolidate'
 import { freeLines } from './pool'
 
 export { consolidateNow, runScheduledConsolidation } from './consolidate'
-export { listPool, type PoolFilter, type PoolLineDto } from './pool-view'
+export { countPoolLines, listPool, type PoolFilter, type PoolLineDto } from './pool-view'
 
 // The procurement pool (spec FR-P2P-001): PROCUREMENT chooses the supplier of approved request lines, many at once
 // (AC2), or takes the choice back. Only lines with something left to order can change: a line already on a draft PO

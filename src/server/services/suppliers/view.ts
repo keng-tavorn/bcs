@@ -2,10 +2,11 @@ import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
 import { getEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
-import { authorize, loadPrincipal } from '@/server/authz'
+import { authorize, loadPrincipal, scopesFor } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { describeError } from '@/server/errors/describe'
+import { latestPricesBySupplier, suppliersSellingItem } from '@/server/queries/purchase-orders'
 import {
   findSupplierByTaxId,
   getSupplierRecord,
@@ -44,7 +45,19 @@ export interface SupplierBasicDto {
   readonly isForeign: boolean
 }
 
+export interface SupplierPriceDto {
+  readonly description: string
+  readonly uom: string
+  /** Before VAT, as approved on the PO */
+  readonly unitPriceSatang: bigint
+  readonly approvedAt: Date
+  readonly poId: string
+  readonly poNumber: string | null
+}
+
 export interface SupplierListRowDto extends SupplierBasicDto {
+  /** The last approved price of its latest items, for readers of every PO (po.view ORG, FR-VIS-006 AC1); left out for others */
+  readonly prices?: readonly SupplierPriceDto[]
   /** Readers who see the register in full only */
   readonly full: {
     readonly taxId: string | null
@@ -66,6 +79,8 @@ export interface SupplierListDto {
   readonly matched: number
   /** The list stops at SUPPLIER_LIST_LIMIT; the search reaches the rest */
   readonly limit: number
+  /** The reader sees prices (po.view over the organization): the rows carry them and the search finds items too */
+  readonly seesPrices: boolean
 }
 
 /** What the registries said when the supplier was saved (Supplier.registryData, BR-SUP-01) */
@@ -111,6 +126,13 @@ async function accessOf(ctx: Ctx): Promise<SupplierAccess | null> {
   return supplierAccess(principal)
 }
 
+/** The access and whether the reader sees prices: the PO lists of the whole organization (po.view ORG), as FR-P2P-003 AC1 */
+async function readerOf(ctx: Ctx): Promise<{ access: SupplierAccess; seesPrices: boolean } | null> {
+  const principal = await forTenant(ctx.organizationId).$transaction((tx) => loadPrincipal(tx, ctx))
+  const access = supplierAccess(principal)
+  return access ? { access, seesPrices: scopesFor(principal, 'po.view').has('ORG') } : null
+}
+
 const forbidden = () => err('FORBIDDEN', 'missing capability supplier.view', { capability: 'supplier.view' })
 
 function basicOf(s: SupplierRecordDto): SupplierBasicDto {
@@ -125,19 +147,37 @@ const byStatusThenName = (a: SupplierBasicDto, b: SupplierBasicDto) => STATUSES.
  */
 export const taxIdMatchOf = (access: SupplierAccess): TaxIdMatch | null => (access.level !== 'FULL' ? null : access.maskIndividualTaxIds ? 'WHOLE_FOR_INDIVIDUALS' : 'ANY_PART')
 
-/** /suppliers: search by name or code, and by tax id for those who may see it; filter by status and a missing Express code */
+/**
+ * /suppliers: search by name or code, and by tax id for those who may see it; filter by status and a missing Express
+ * code. A reader of every PO (po.view ORG) also finds a supplier by an item it sold and sees each supplier's latest
+ * prices, the searched item first (FR-VIS-006 AC1 "ผู้ขายและราคา"); nobody else reads a price here.
+ */
 export async function listSuppliersForScreen(ctx: Ctx, filter: { q?: string; status?: string; missingExpressCode?: boolean }): Promise<Result<SupplierListDto>> {
-  const access = await accessOf(ctx)
-  if (!access) return forbidden()
+  const reader = await readerOf(ctx)
+  if (!reader) return forbidden()
+  const { access, seesPrices } = reader
   const full = access.level === 'FULL'
   const taxIdMatch = taxIdMatchOf(access)
   const status = STATUSES.find((s) => s === filter.status) ?? null
-  const found = await searchSuppliers(ctx, { q: filter.q, status, missingExpressCode: full && filter.missingExpressCode === true, taxIdMatch })
+  const q = (filter.q ?? '').trim()
+  const alsoIds = seesPrices && q ? await suppliersSellingItem(ctx, q) : []
+  const found = await searchSuppliers(ctx, { q, status, missingExpressCode: full && filter.missingExpressCode === true, taxIdMatch, alsoIds })
+  const prices = seesPrices
+    ? await latestPricesBySupplier(
+        ctx,
+        found.rows.map((s) => s.id),
+        q,
+      )
+    : null
   const rows = found.rows.map((s): SupplierListRowDto => {
     const taxId = visibleTaxId(access, s)
-    return { ...basicOf(s), full: taxId ? { taxId: taxId.taxId, taxIdMasked: taxId.masked, expressVendorCode: s.expressVendorCode, registrySource: s.registrySource } : null }
+    return {
+      ...basicOf(s),
+      ...(prices ? { prices: prices.get(s.id) ?? [] } : {}),
+      full: taxId ? { taxId: taxId.taxId, taxIdMasked: taxId.masked, expressVendorCode: s.expressVendorCode, registrySource: s.registrySource } : null,
+    }
   })
-  return ok({ level: access.level, canManage: access.canManage, taxIdMatch, rows: rows.sort(byStatusThenName), total: found.total, matched: found.matched, limit: SUPPLIER_LIST_LIMIT })
+  return ok({ level: access.level, canManage: access.canManage, taxIdMatch, rows: rows.sort(byStatusThenName), total: found.total, matched: found.matched, limit: SUPPLIER_LIST_LIMIT, seesPrices })
 }
 
 const RegistryRecord = z.object({

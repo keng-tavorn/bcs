@@ -55,7 +55,19 @@ export const OrgSettingsSchema = z
       .strict(), // OQ-10, BR-EXP-01
     retention: z.object({ documentYears: z.number().int().min(1), accessLogYears: z.number().int().min(1) }).strict(), // OQ-30
     features: z.object({ parallelApproval: z.boolean(), lineChannel: z.boolean() }).strict(),
+    // Optional, so an organization saved before it (staging) needs no new seed: missing reads as the default (OQ-38)
+    procurement: z.object({ queueTargetBusinessMinutes: z.number().int().min(1).optional() }).strict().optional(),
   })
   .strict()
 
 export type OrgSettings = z.infer<typeof OrgSettingsSchema>
+
+/** How soon procurement sends a PO for approval after its request is approved, in business minutes (§11.5) */
+export const DEFAULT_QUEUE_TARGET_MINUTES = 960 // TODO(OQ-38)
+
+/** settings.procurement.queueTargetBusinessMinutes of stored settings, or the default of OQ-38 when it is not set */
+export function queueTargetMinutesOf(settings: unknown): number {
+  const procurement = settings !== null && typeof settings === 'object' ? (settings as { procurement?: unknown }).procurement : undefined
+  const parsed = OrgSettingsSchema.shape.procurement.safeParse(procurement)
+  return (parsed.success ? parsed.data?.queueTargetBusinessMinutes : undefined) ?? DEFAULT_QUEUE_TARGET_MINUTES
+}

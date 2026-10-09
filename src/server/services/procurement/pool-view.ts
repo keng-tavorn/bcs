@@ -54,6 +54,14 @@ export interface PoolLineDto {
   readonly ageDays: number
 }
 
+/** The home's row "บรรทัดรอจัดซื้อ" (§9.10): every line of the pool, as /procurement/pool lists it unfiltered; null for a non-buyer */
+export async function countPoolLines(ctx: Ctx): Promise<number | null> {
+  const db = forTenant(ctx.organizationId)
+  const allowed = await db.$transaction((tx) => authorize(tx, ctx, 'procurement.pool.view'))
+  if (!allowed.ok) return null
+  return (await db.$transaction((tx) => freeLines(tx))).length
+}
+
 export async function listPool(ctx: Ctx, filter: PoolFilter = {}): Promise<Result<PoolLineDto[]>> {
   const db = forTenant(ctx.organizationId)
   const allowed = await db.$transaction((tx) => authorize(tx, ctx, 'procurement.pool.view'))

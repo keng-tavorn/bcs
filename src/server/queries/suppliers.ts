@@ -75,6 +75,8 @@ export interface SupplierSearch {
   readonly missingExpressCode?: boolean
   /** Match the tax id too: only for readers who may see it */
   readonly taxIdMatch?: TaxIdMatch | null
+  /** Suppliers the text also finds by what they sold (the register's search for readers of prices) */
+  readonly alsoIds?: readonly string[]
   readonly limit?: number
 }
 
@@ -110,6 +112,7 @@ function supplierWhere(search: SupplierSearch) {
             { nameEn: { contains: escapeLike(q), mode: 'insensitive' as const } },
             { code: { contains: escapeLike(q), mode: 'insensitive' as const } },
             ...taxIdClauses(search.taxIdMatch, digits),
+            ...(search.alsoIds?.length ? [{ id: { in: [...search.alsoIds] } }] : []),
           ],
         },
       ]

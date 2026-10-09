@@ -8,6 +8,7 @@ import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
 import { escapeLike } from '@/server/db/like'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { REQUEST_STATUSES } from './statuses'
 
 // Read-only views of purchase requests for the screens of S2-12 (spec FR-INT-008, FR-DOA-003 AC2, FR-DOA-005 AC2,
 // FR-PLT-003 AC3, FR-INT-009): "my requests" with where each one is now, and one request with its lines, totals, budget,
@@ -189,7 +190,7 @@ export async function getRequestAccess(ctx: Ctx, requestId: string): Promise<Req
 
 // ---------- where a request is now ----------
 
-export const REQUEST_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'RETURNED', 'APPROVED', 'PARTIALLY_ORDERED', 'ORDERED', 'COMPLETED', 'REJECTED', 'CANCELLED', 'SUBMITTED', 'DONE'] as const
+export { REQUEST_STATUSES }
 export type RequestStatusDto = (typeof REQUEST_STATUSES)[number]
 const isRequestStatus = (value: string | undefined): value is RequestStatusDto => value !== undefined && (REQUEST_STATUSES as readonly string[]).includes(value)
 
@@ -486,8 +487,23 @@ export interface MyRequestsFilter {
   readonly status?: string | undefined
   /** Part of the document number or of the title */
   readonly q?: string | undefined
+  /**
+   * Whose: ALL (default) — the member's own and the ones they follow · MINE — the member is the requester (the home's
+   * to-do rows: what waits for the requester) · FOLLOWING — own or followed and not a draft (the home's card "ที่ฉันติดตาม")
+   */
+  readonly scope?: MyRequestsScope
+  /** Only requests with an approver's question that waits for its answer (the home's row "คำถามจากผู้อนุมัติรอคำตอบ") */
+  readonly openQuestion?: boolean
+  /** NEWEST (default): created last first · ACTIVITY: changed last first (the home's card "ที่ฉันติดตาม") */
+  readonly order?: 'NEWEST' | 'ACTIVITY'
   readonly limit?: number
 }
+
+export const MY_REQUESTS_SCOPES = ['ALL', 'MINE', 'FOLLOWING'] as const
+export type MyRequestsScope = (typeof MY_REQUESTS_SCOPES)[number]
+
+/** Open, as the home's card "ที่ฉันติดตาม" counts it (§11.5): still on its way, a new-supplier request in the queue too */
+export const FOLLOWING_OPEN_STATUSES = ['PENDING_APPROVAL', 'RETURNED', 'APPROVED', 'PARTIALLY_ORDERED', 'ORDERED', 'SUBMITTED'] as const
 
 export interface MyRequestRowDto {
   readonly id: string
@@ -514,26 +530,41 @@ export interface MyRequestsDto {
 const LIST_LIMIT = 100
 const SEARCH_MAX = 60
 
+/** The requests of a filter, for one member: the list and every count of it read the same condition */
+function myRequestsWhere(me: string, filter: MyRequestsFilter) {
+  const ownOrFollowed = { OR: [{ requesterMemberId: me }, { followers: { some: { memberId: me } } }] }
+  const scope = filter.scope ?? 'ALL'
+  const q = (filter.q ?? '').trim().slice(0, SEARCH_MAX)
+  return {
+    AND: [
+      scope === 'MINE' ? { requesterMemberId: me } : ownOrFollowed,
+      ...(scope === 'FOLLOWING' ? [{ status: { not: 'DRAFT' as const } }] : []),
+      ...(isRequestStatus(filter.status) ? [{ status: filter.status }] : []),
+      // a question waits while its task does (INFO_REQUESTED) and nobody has answered it, as the inbox counts it
+      ...(filter.openQuestion ? [{ infoRequests: { some: { answeredAt: null, task: { status: 'INFO_REQUESTED' as const } } } }] : []),
+      ...(q ? [{ OR: [{ number: { contains: escapeLike(q), mode: 'insensitive' as const } }, { title: { contains: escapeLike(q), mode: 'insensitive' as const } }] }] : []),
+    ],
+  }
+}
+
+/** How many of the member's requests a filter keeps: the number the home shows for the list it links to */
+export async function countMyRequests(ctx: Ctx, filter: MyRequestsFilter): Promise<number> {
+  if (ctx.actor.type !== 'USER') return 0
+  return forTenant(ctx.organizationId).request.count({ where: myRequestsWhere(ctx.actor.memberId, filter) })
+}
+
 export async function listMyRequests(ctx: Ctx, filter: MyRequestsFilter = {}): Promise<MyRequestsDto> {
   if (ctx.actor.type !== 'USER') return { rows: [], total: 0, matched: 0 }
   const me = ctx.actor.memberId
   const db = forTenant(ctx.organizationId)
-  const mine = { OR: [{ requesterMemberId: me }, { followers: { some: { memberId: me } } }] }
-  const q = (filter.q ?? '').trim().slice(0, SEARCH_MAX)
-  const where = {
-    AND: [
-      mine,
-      ...(isRequestStatus(filter.status) ? [{ status: filter.status }] : []),
-      ...(q ? [{ OR: [{ number: { contains: escapeLike(q), mode: 'insensitive' as const } }, { title: { contains: escapeLike(q), mode: 'insensitive' as const } }] }] : []),
-    ],
-  }
+  const where = myRequestsWhere(me, filter)
   const [total, matched, rows] = await Promise.all([
-    db.request.count({ where: mine }),
+    db.request.count({ where: myRequestsWhere(me, {}) }),
     db.request.count({ where }),
     db.request.findMany({
       where,
       select: { id: true, number: true, title: true, status: true, documentType: true, requesterMemberId: true, grossSatang: true, createdAt: true, submittedAt: true, approvedAt: true, currentRouteId: true },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      orderBy: filter.order === 'ACTIVITY' ? [{ updatedAt: 'desc' }, { id: 'desc' }] : [{ createdAt: 'desc' }, { id: 'desc' }],
       take: Math.min(filter.limit ?? LIST_LIMIT, LIST_LIMIT),
     }),
   ])

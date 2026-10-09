@@ -350,5 +350,12 @@
     "photosTitle": "Photos and documents of the receipt",
     "photosNone": "This goods receipt has no photos or documents",
     "photosNoGr": "There is no goods receipt, so no photos: this is a request to close a shortfall"
+  },
+  "filter": {
+    "overdue": "{count, plural, one {# overdue task} other {# overdue tasks}}",
+    "info": "{count, plural, one {# task waits} other {# tasks wait}} for the requester's answer",
+    "all": "See all my approval tasks",
+    "emptyOverdue": "No task is overdue",
+    "emptyInfo": "No task waits for a requester's answer"
   }
 }

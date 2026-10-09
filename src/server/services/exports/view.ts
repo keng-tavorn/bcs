@@ -45,14 +45,25 @@ async function exporterOnly(ctx: Ctx): Promise<Result<true>> {
   return ok(true)
 }
 
+async function layoutOf(ctx: Ctx): Promise<ExpressLayoutDto | null> {
+  const settings = await readExpressSettings(ctx)
+  return settings && settings.mapping.length > 0
+    ? { fileType: settings.fileType, encoding: settings.encoding, dateFormat: settings.dateFormat, columns: settings.mapping, needsVendorCode: settings.mapping.some((c) => c.field === 'expressVendorCode') }
+    : null
+}
+
+/** The home's row "พร้อมส่งออก Express" (§9.10): the invoices the next file takes, as /finance/exports counts them; null for a non-exporter */
+export async function countReadyForExport(ctx: Ctx): Promise<number | null> {
+  const allowed = await exporterOnly(ctx)
+  if (!allowed.ok) return null
+  const layout = await layoutOf(ctx)
+  return (await listPendingExport(ctx, layout?.needsVendorCode ?? false)).ready.count
+}
+
 export async function getExportOverview(ctx: Ctx): Promise<Result<ExportOverviewDto>> {
   const allowed = await exporterOnly(ctx)
   if (!allowed.ok) return allowed
-  const settings = await readExpressSettings(ctx)
-  const layout: ExpressLayoutDto | null =
-    settings && settings.mapping.length > 0
-      ? { fileType: settings.fileType, encoding: settings.encoding, dateFormat: settings.dateFormat, columns: settings.mapping, needsVendorCode: settings.mapping.some((c) => c.field === 'expressVendorCode') }
-      : null
+  const layout = await layoutOf(ctx)
   const [pending, jobs] = await Promise.all([listPendingExport(ctx, layout?.needsVendorCode ?? false), listExpressJobs(ctx)])
   return ok({ layout, ready: pending.ready, readyFingerprint: pendingFingerprint(pending.readyIds), heldBack: pending.heldBack, jobs })
 }

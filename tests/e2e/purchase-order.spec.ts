@@ -201,7 +201,7 @@ test('the purchase orders by status say whom each waits for; a requester sees on
   await page.goto('/procurement/pos')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('ใบสั่งซื้อ (PO)')
   await page.getByRole('navigation', { name: 'ใบสั่งซื้อตามสถานะ' }).getByRole('link', { name: /^รออนุมัติ \(\d+\)$/ }).click()
-  await expect(page).toHaveURL(/status=PENDING_APPROVAL/)
+  await expect(page).toHaveURL(/status=pending_approval/)
   const list = page.getByRole('list', { name: 'ใบสั่งซื้อ' })
   const row = rowWith(list, made.number)
   await expect(row).toContainText('รออนุมัติ')

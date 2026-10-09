@@ -31,7 +31,7 @@ describe('[FR-PLT-014/AC4] commands and pages follow the menu the member sees', 
       const nav = navOf(roles)
       const hrefs = new Set(nav.map((n) => n.href))
       for (const c of paletteCommands(nav, TYPES, LABELS)) {
-        const page = c.id.startsWith('start:') ? '/requests/new' : c.href
+        const page = c.id.startsWith('start:') ? '/requests/new' : c.href.split('?')[0]!
         expect(hrefs.has(page), `${roles.join(',') || 'member'} · ${c.id}`).toBe(true)
       }
     }

@@ -6,6 +6,7 @@ import { listMyRequests, REQUEST_STATUSES } from '@/server/queries/requests'
 import { Button } from '@/ui/form/button'
 import { RequestList } from '@/ui/request-view/request-list'
 import { getSession } from '../../_lib/session'
+import { loadRequestFilters } from '../_tracking/list-filters'
 import { localeOf } from '../_tracking/present'
 import { requestRows } from '../_tracking/rows'
 
@@ -15,20 +16,28 @@ export async function generateMetadata() {
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
 // "My requests" (spec §9.1 /requests, FR-INT-008 AC3): the member's own and followed requests, newest first, each with
 // its status, where it is now and for how long, and its total; filtered by status and searched by document number with
-// a plain GET form (it changes nothing). The query reads only the member's own and followed requests.
+// a plain GET form (it changes nothing). The query reads only the member's own and followed requests. The home's rows
+// and cards open it narrowed (§9.10, the filters in the address: ../_tracking/list-filters.ts): ?scope=mine to the
+// requests the member made, ?scope=following to theirs and followed without drafts, ?info=open to those with a question
+// waiting for the requester's answer; the search keeps them, and "clear" lets them go.
 export default async function RequestsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
-  const params = await searchParams
-  const q = (one(params.q) ?? '').trim()
-  const status = one(params.status) ?? ''
+  const filters = await loadRequestFilters(searchParams)
+  const q = (filters.q ?? '').trim()
+  const status = filters.status ?? ''
   const [tv, locale] = await Promise.all([getTranslations('requestView'), getLocale().then(localeOf)])
-  const list = await listMyRequests(ctx, { q, status })
-  const filtered = Boolean(q) || (REQUEST_STATUSES as readonly string[]).includes(status)
+  const list = await listMyRequests(ctx, {
+    q,
+    status,
+    scope: filters.scope === 'mine' ? 'MINE' : filters.scope === 'following' ? 'FOLLOWING' : 'ALL',
+    openQuestion: filters.info === 'open',
+  })
+  const filtered = Boolean(q) || status !== '' || filters.scope !== null || filters.info !== null
+  const narrowed = [filters.scope === 'mine' ? tv('filter.scopeMine') : filters.scope === 'following' ? tv('filter.scopeFollowing') : null, filters.info === 'open' ? tv('filter.infoOpen') : null].filter((x) => x !== null)
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,6 +49,8 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
 
       {list.total > 0 ? (
         <form method="get" action="/requests" className="flex flex-col gap-3 border-y border-line py-4 md:flex-row md:items-start">
+          {filters.scope ? <input type="hidden" name="scope" value={filters.scope} /> : null}
+          {filters.info ? <input type="hidden" name="info" value={filters.info} /> : null}
           <div className="flex flex-1 flex-col gap-1.5">
             <label htmlFor="request-search" className="font-medium text-ink">
               {tv('filter.search')}
@@ -61,10 +72,10 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
             <label htmlFor="request-status" className="font-medium text-ink">
               {tv('filter.status')}
             </label>
-            <select id="request-status" name="status" defaultValue={status} className="h-11 w-full rounded-md border border-input bg-bg px-3 text-base text-ink">
+            <select id="request-status" name="status" defaultValue={status.toLowerCase()} className="h-11 w-full rounded-md border border-input bg-bg px-3 text-base text-ink">
               <option value="">{tv('filter.allStatuses')}</option>
               {REQUEST_STATUSES.map((s) => (
-                <option key={s} value={s}>
+                <option key={s} value={s.toLowerCase()}>
                   {tv(`status.${s}`)}
                 </option>
               ))}
@@ -84,6 +95,11 @@ export default async function RequestsPage({ searchParams }: { searchParams: Pro
 
       {list.total > 0 ? (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+          {narrowed.map((text) => (
+            <p key={text} className="basis-full font-medium text-ink">
+              {text}
+            </p>
+          ))}
           <p className="text-ink" role="status">
             {tv('filter.count', { matched: list.matched, total: list.total })}
           </p>

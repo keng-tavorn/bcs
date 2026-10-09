@@ -120,7 +120,7 @@ const unique = <T>(values: Iterable<T>): T[] => [...new Set(values)]
  * line's department and its PO's types. With no department and no type every document counts — the same rule as the
  * KPI view, which counts decisions on DOA versions and authority changes only for the whole organization.
  */
-async function scopeOf(tx: TenantTx, scope: InsightsScope, refs: ReadonlyArray<{ subjectType: string; subjectId: string }>): Promise<(subjectType: string, subjectId: string) => boolean> {
+export async function scopeOf(tx: TenantTx, scope: InsightsScope, refs: ReadonlyArray<{ subjectType: string; subjectId: string }>): Promise<(subjectType: string, subjectId: string) => boolean> {
   if (scope.departmentIds === null && scope.requestTypeId === null) return () => true
   const ids = (type: string) => unique(refs.filter((r) => r.subjectType === type).map((r) => r.subjectId))
   const variances = await tx.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, poId: true, poLine: { select: { budgetLine: { select: { departmentId: true } } } } } })

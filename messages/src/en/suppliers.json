@@ -21,7 +21,8 @@
       "submit": "Show matching suppliers",
       "count": "{matched} of {total} found",
       "clear": "Clear filters",
-      "limited": "Showing the first {shown}. Search by name or code to find the others"
+      "limited": "Showing the first {shown}. Search by name or code to find the others",
+      "searchHintItems": "You can also search by an item bought before, such as cement."
     },
     "emptyNone": "There are no suppliers in the register yet",
     "emptyNoneManage": "Add the first supplier with its 13-digit tax ID. The name and address are filled in from the Revenue Department and DBD",
@@ -277,5 +278,12 @@
     "BUSY": "The system is busy with another action. Try again in a moment",
     "INTERNAL": "Something went wrong in the system. Try again; if it keeps failing, tell your administrator the reference {requestId}",
     "FAILED": "It did not work. Try again"
+  },
+  "prices": {
+    "label": "Latest prices",
+    "price": "{amount} baht/{uom}",
+    "source": "{number} · approved {date}",
+    "none": "No approved PO yet",
+    "intro": "Latest prices are the unit prices before VAT on the last approved PO of each item."
   }
 }

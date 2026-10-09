@@ -8,6 +8,7 @@ import type { Ctx } from '@/server/context'
 import { escapeLike } from '@/server/db/like'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { PO_STATUSES } from './statuses'
 import {
   approverRoles,
   businessCalendarOf,
@@ -40,7 +41,7 @@ import {
 // check po.view (or the task's deciders) with src/server/authz before they read anything else, and request.view
 // (canViewRequest) before they link a source request or list its files.
 
-export const PO_STATUSES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'CANCELLED', 'REJECTED'] as const
+export { PO_STATUSES }
 export type PoStatusDto = (typeof PO_STATUSES)[number]
 export const isPoStatus = (value: string | undefined | null): value is PoStatusDto => typeof value === 'string' && (PO_STATUSES as readonly string[]).includes(value)
 
@@ -523,6 +524,68 @@ export async function priceHistoryOf(db: TenantDb, organizationId: string, poId:
       return { poLineId: line.id, previous, alert: previous.length > 0 && exceedsByMoreThan(line.unitPriceSatang, previous[0]!.unitPriceSatang, alertBp) }
     }),
   }
+}
+
+// ---------- latest prices by supplier (the register, FR-VIS-006 AC1) ----------
+
+export interface LatestPriceDto {
+  readonly description: string
+  readonly uom: string
+  /** Before VAT, as approved on the PO */
+  readonly unitPriceSatang: Satang
+  readonly approvedAt: Date
+  readonly poId: string
+  readonly poNumber: string | null
+}
+
+/** Items a supplier row shows: the latest ones, as the PO page's history keeps three (FR-P2P-003 AC1) */
+export const LATEST_PRICE_ITEMS = PRICE_HISTORY_SIZE
+
+/**
+ * The last approved unit price of each item each supplier sold, the latest items first, three per supplier — items
+ * whose description holds `prefer` first (a search for an item shows its price). "The same item" is the price
+ * history's (itemKey); "approved" is a PO that was approved and not cancelled. Read only; the caller checks po.view.
+ */
+export async function latestPricesBySupplier(ctx: Ctx, supplierIds: readonly string[], prefer = ''): Promise<Map<string, LatestPriceDto[]>> {
+  const out = new Map<string, LatestPriceDto[]>()
+  if (supplierIds.length === 0) return out
+  const lines = await forTenant(ctx.organizationId).poLine.findMany({
+    where: { po: { supplierId: { in: [...supplierIds] }, status: { in: [...APPROVED_STATUSES] }, approvedAt: { not: null } } },
+    select: { description: true, categoryCode: true, uom: true, unitPriceSatang: true, po: { select: { id: true, number: true, supplierId: true, approvedAt: true } } },
+    orderBy: [{ po: { approvedAt: 'desc' } }, { lineNo: 'asc' }],
+  })
+  const wanted = prefer.trim().toLowerCase()
+  const seen = new Set<string>()
+  const bySupplier = new Map<string, Array<{ preferred: boolean; price: LatestPriceDto }>>()
+  for (const l of lines) {
+    const key = `${l.po.supplierId}|${itemKey(l.categoryCode, l.description)}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const list = bySupplier.get(l.po.supplierId) ?? []
+    list.push({ preferred: wanted !== '' && l.description.toLowerCase().includes(wanted), price: { description: l.description, uom: l.uom, unitPriceSatang: l.unitPriceSatang as Satang, approvedAt: l.po.approvedAt!, poId: l.po.id, poNumber: l.po.number } })
+    bySupplier.set(l.po.supplierId, list)
+  }
+  for (const [supplierId, list] of bySupplier) {
+    // stable: the latest first within the preferred ones and within the rest
+    const ordered = [...list.filter((x) => x.preferred), ...list.filter((x) => !x.preferred)]
+    out.set(
+      supplierId,
+      ordered.slice(0, LATEST_PRICE_ITEMS).map((x) => x.price),
+    )
+  }
+  return out
+}
+
+/** Suppliers that sold an item whose description holds `q` on an approved PO (the register's search, for price readers) */
+export async function suppliersSellingItem(ctx: Ctx, q: string): Promise<string[]> {
+  const text = q.trim().slice(0, SEARCH_MAX)
+  if (!text) return []
+  const pos = await forTenant(ctx.organizationId).purchaseOrder.findMany({
+    where: { status: { in: [...APPROVED_STATUSES] }, lines: { some: { description: { contains: escapeLike(text), mode: 'insensitive' } } } },
+    select: { supplierId: true },
+    distinct: ['supplierId'],
+  })
+  return pos.map((p) => p.supplierId)
 }
 
 // ---------- the timeline of a PO or a variance ----------

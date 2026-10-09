@@ -116,34 +116,64 @@ function listOrder(a: { id: string; status: string; number: string | null; sentA
   return (closedA ? ascNullsLast(a.closedAt, b.closedAt) : ascNullsLast(a.sentAt, b.sentAt)) || ascNullsLast(a.number, b.number) || ascNullsLast(a.id, b.id)
 }
 
+/** What the list of POs waiting for an invoice is filtered by: a search, and only POs with goods received (?gr=posted) */
+export interface InvoiceableFilter {
+  readonly q?: string
+  /** Only POs with a posted goods receipt: the home's row "ใบกำกับรอยืนยัน" (§9.10) */
+  readonly received?: boolean
+}
+
+/** The PO lines that hold budget now: the work in progress only (open POs, and closed ones with goods received and not invoiced), never the history of settled POs */
+async function holdingLineIds(db: TenantDb): Promise<string[]> {
+  return [...new Set((await db.budgetAllocation.findMany({ where: { sourceType: 'PO_LINE', committedSatang: { gt: 0n } }, select: { sourceId: true } })).map((h) => h.sourceId))]
+}
+
+/** The condition of the list for some of the holding lines: the list and its count read the same one */
+function invoiceableWhere(filter: InvoiceableFilter, lineIds: readonly string[]) {
+  const q = searchText(filter.q)
+  return {
+    ...(q
+      ? {
+          OR: [
+            { number: { contains: escapeLike(q), mode: 'insensitive' as const } },
+            { supplier: { is: { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+            { supplier: { is: { code: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
+          ],
+        }
+      : {}),
+    ...(filter.received ? { goodsReceipts: { some: { status: 'POSTED' as const } } } : {}),
+    lines: { some: { id: { in: [...lineIds] } } },
+    invoices: { none: { isFinal: true } },
+  }
+}
+
+/** How many POs the list of a filter holds, on every page: the number the home shows for /finance/invoices?gr=posted */
+export async function countInvoiceablePos(ctx: Ctx, filter: InvoiceableFilter = {}): Promise<number> {
+  const db = forTenant(ctx.organizationId)
+  const found = new Set<string>()
+  for (const ids of chunks(await holdingLineIds(db), ID_CHUNK)) {
+    const rows = await db.purchaseOrder.findMany({ where: { ...invoiceableWhere(filter, ids), status: { in: [...INVOICE_OPEN_STATUSES, 'CLOSED'] } }, select: { id: true } })
+    for (const r of rows) found.add(r.id)
+  }
+  return found.size
+}
+
 /**
  * POs that wait for an invoice: open ones (sent, partly or fully received) and closed ones that still hold budget for
  * goods received and not invoiced — none with its last invoice in, and only while a line still holds something (an
- * invoice takes nothing more from a PO that holds nothing, BR-IVC-02). Searched by PO number, supplier name or code.
- * Open ones the longest waiting first, then the closed ones.
+ * invoice takes nothing more from a PO that holds nothing, BR-IVC-02). Searched by PO number, supplier name or code,
+ * and narrowed to POs with goods received when asked. Open ones the longest waiting first, then the closed ones.
  */
-export async function listInvoiceablePos(ctx: Ctx, filter: { readonly q?: string } = {}): Promise<InvoiceablePoListDto> {
+export async function listInvoiceablePos(ctx: Ctx, filter: InvoiceableFilter = {}): Promise<InvoiceablePoListDto> {
   const db = forTenant(ctx.organizationId)
-  const q = searchText(filter.q)
-  const search = q
-    ? {
-        OR: [
-          { number: { contains: escapeLike(q), mode: 'insensitive' as const } },
-          { supplier: { is: { nameTh: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
-          { supplier: { is: { code: { contains: escapeLike(q), mode: 'insensitive' as const } } } },
-        ],
-      }
-    : {}
-  // The PO lines that hold budget now: the work in progress only (open POs, and closed ones with goods received and not
-  // invoiced), never the history of settled POs
-  const holding = [...new Set((await db.budgetAllocation.findMany({ where: { sourceType: 'PO_LINE', committedSatang: { gt: 0n } }, select: { sourceId: true } })).map((h) => h.sourceId))]
+  const holding = await holdingLineIds(db)
   if (holding.length === 0) return { rows: [], limited: false }
   const take = LIST_LIMIT + 1
   const holdingIn = (ids: string[]) => {
-    const holds = { lines: { some: { id: { in: ids } } }, invoices: { none: { isFinal: true } } }
+    const where = invoiceableWhere(filter, ids)
     return Promise.all([
-      db.purchaseOrder.findMany({ where: { ...search, ...holds, status: { in: [...INVOICE_OPEN_STATUSES] } }, orderBy: [{ sentAt: 'asc' }, { number: 'asc' }, { id: 'asc' }], take, select: PO_ROW_SELECT }),
-      db.purchaseOrder.findMany({ where: { ...search, ...holds, status: 'CLOSED' }, orderBy: [{ closedAt: 'asc' }, { number: 'asc' }, { id: 'asc' }], take, select: PO_ROW_SELECT }),
+      db.purchaseOrder.findMany({ where: { ...where, status: { in: [...INVOICE_OPEN_STATUSES] } }, orderBy: [{ sentAt: 'asc' }, { number: 'asc' }, { id: 'asc' }], take, select: PO_ROW_SELECT }),
+      db.purchaseOrder.findMany({ where: { ...where, status: 'CLOSED' }, orderBy: [{ closedAt: 'asc' }, { number: 'asc' }, { id: 'asc' }], take, select: PO_ROW_SELECT }),
     ])
   }
   type PoRow = Awaited<ReturnType<typeof holdingIn>>[0][number]

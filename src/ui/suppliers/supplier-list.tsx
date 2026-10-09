@@ -5,7 +5,8 @@ import { Flag, SupplierStatusLabel } from './status'
 // Rows of the supplier register (/suppliers, S4-02): the supplier (a link) with its code, branch and category, its
 // status and VAT registration, and — for readers who see the register in full — its tax id, Express vendor code
 // (BR-EXP-04) and how its identity was checked. Wide screens line the parts up in columns under one header row; phones
-// stack them, never a table that scrolls sideways (§9.9). Strings arrive translated and formatted.
+// stack them, never a table that scrolls sideways (§9.9). Strings arrive translated and formatted. For a reader of every
+// PO, each supplier also shows the last approved price of its latest items (FR-VIS-006 AC1 "ผู้ขายและราคา").
 
 export interface SupplierRow {
   readonly id: string
@@ -20,6 +21,13 @@ export interface SupplierRow {
     readonly taxId: string | null
     readonly express: { readonly text: string; readonly missing: boolean }
     readonly check: string
+  } | null
+  /** Readers of prices only: the latest items, each its price and the PO it came from */
+  readonly prices?: {
+    readonly label: string
+    readonly items: ReadonlyArray<{ readonly key: string; readonly text: string; readonly price: string; readonly source: string }>
+    /** Said when the supplier has no approved PO yet */
+    readonly none: string
   } | null
 }
 
@@ -52,6 +60,26 @@ export function SupplierList({ rows, labels, full }: { rows: readonly SupplierRo
                 </span>
               ))}
               {row.full?.taxId ? <span className="tabular text-base text-ink-muted md:text-sm">{row.full.taxId}</span> : null}
+              {row.prices ? (
+                <div className="mt-1.5 flex flex-col gap-1">
+                  <span className="text-base font-medium text-ink md:text-sm">{row.prices.label}</span>
+                  {row.prices.items.length ? (
+                    <ul aria-label={`${row.prices.label} ${row.name}`} className="flex flex-col gap-1">
+                      {row.prices.items.map((item) => (
+                        <li key={item.key} className="flex flex-col text-base md:text-sm">
+                          <span className="flex flex-wrap justify-between gap-x-3">
+                            <span className="break-words text-ink">{item.text}</span>
+                            <span className="text-right text-ink tabular-nums">{item.price}</span>
+                          </span>
+                          <span className="text-ink-muted">{item.source}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <span className="text-base text-ink-muted md:text-sm">{row.prices.none}</span>
+                  )}
+                </div>
+              ) : null}
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="sr-only">{labels.status}: </span>

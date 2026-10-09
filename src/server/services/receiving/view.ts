@@ -139,19 +139,31 @@ export interface ReceivingListDto {
   readonly total: number
 }
 
-export async function listReceivable(ctx: Ctx, input: { readonly page?: number } = {}): Promise<Result<ReceivingListDto>> {
+/** Who receives and what the read of candidates may cover for them, or null for a member who receives nothing */
+async function receiverOf(ctx: Ctx): Promise<Result<{ principal: Principal; sodPolicy: SodPolicy; filter: { departmentIds: string[]; requesterMemberId: string | null } } | null>> {
   const memberId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
   if (!memberId) return err('FORBIDDEN', 'only a member receives goods')
   const { principal, sodPolicy } = await principalAndPolicy(ctx)
   if (principal.kind !== 'member') return err('FORBIDDEN', 'only an active member receives goods')
-  if (!receivesAtAll(principal, sodPolicy)) return ok({ receives: false, rows: [], blocked: [], page: 1, pageCount: 1, pageSize: RECEIVING_PAGE_SIZE, total: 0 })
+  if (!receivesAtAll(principal, sodPolicy)) return ok(null)
   // Narrow the read to what a grant of gr.post can cover: the departments of a DEPT grant, and the member's own requests
-  // while the DOA in effect lets requesters receive (OQ-04); the decision is still made per PO below
+  // while the DOA in effect lets requesters receive (OQ-04); the decision is still made per PO
   const scopes = scopesFor(principal, 'gr.post')
-  const filter = {
-    departmentIds: scopes.has('DEPT') ? [...principal.departmentIds] : [],
-    requesterMemberId: scopes.has('OWN') && sodPolicy.requesterMayReceive ? memberId : null,
-  }
+  return ok({
+    principal,
+    sodPolicy,
+    filter: {
+      departmentIds: scopes.has('DEPT') ? [...principal.departmentIds] : [],
+      requesterMemberId: scopes.has('OWN') && sodPolicy.requesterMayReceive ? memberId : null,
+    },
+  })
+}
+
+export async function listReceivable(ctx: Ctx, input: { readonly page?: number } = {}): Promise<Result<ReceivingListDto>> {
+  const receiver = await receiverOf(ctx)
+  if (!receiver.ok) return receiver
+  if (!receiver.data) return ok({ receives: false, rows: [], blocked: [], page: 1, pageCount: 1, pageSize: RECEIVING_PAGE_SIZE, total: 0 })
+  const { principal, sodPolicy, filter } = receiver.data
   let page = input.page && Number.isInteger(input.page) && input.page > 0 ? input.page : 1
   let candidates = await listReceivingCandidates(ctx, { ...filter, page })
   const pageCount = Math.max(1, Math.ceil(candidates.total / RECEIVING_PAGE_SIZE))
@@ -168,6 +180,22 @@ export async function listReceivable(ctx: Ctx, input: { readonly page?: number }
     else if (decision.kind === 'SOD') blocked.push({ ...c, rule: decision.rule })
   }
   return ok({ receives: true, rows, blocked, page, pageCount, pageSize: RECEIVING_PAGE_SIZE, total: candidates.total })
+}
+
+/**
+ * How many POs the member may receive now, on every page of /receiving (the home's row "PO รอตรวจรับ", §9.10): the rows
+ * the list shows, decided the same way — never the ones separation of duties refuses. null: the member receives nothing.
+ */
+export async function countReceivable(ctx: Ctx): Promise<number | null> {
+  const receiver = await receiverOf(ctx)
+  if (!receiver.ok || !receiver.data) return null
+  const { principal, sodPolicy, filter } = receiver.data
+  let count = 0
+  for (let page = 1; ; page++) {
+    const candidates = await listReceivingCandidates(ctx, { ...filter, page })
+    count += candidates.rows.filter((c) => receivingDecision(principal, sodPolicy, c.parties).kind === 'RECEIVE').length
+    if (page * RECEIVING_PAGE_SIZE >= candidates.total) return count
+  }
 }
 
 // ---------- one PO (/receiving/[poId]) ----------

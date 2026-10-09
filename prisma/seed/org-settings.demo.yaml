@@ -18,3 +18,4 @@ numbering:
 express: { fileType: xlsx, encoding: UTF-8-BOM, dateFormat: BE, mapping: [] }  # OQ-10
 retention: { documentYears: 5, accessLogYears: 1 }  # OQ-30
 features: { parallelApproval: false, lineChannel: true }
+# procurement: { queueTargetBusinessMinutes: 960 }  # OQ-38, optional: left out, the home reads 960 (S16-09)

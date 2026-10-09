@@ -50,6 +50,7 @@ function task(over: Partial<InboxTaskDto> = {}): InboxTaskDto {
     overdue: false,
     holding: null,
     stepUp: false,
+    amountSatang: 4_205_607n,
     question: null,
     ...over,
   }

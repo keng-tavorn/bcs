@@ -9,6 +9,7 @@ import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
+import { invoicesHref, loadInvoiceFilters } from '../../_tracking/list-filters'
 import { day, localeOf, memberName, when } from '../../_tracking/present'
 import { invoiceStates, money, nameIn } from '../present'
 
@@ -19,19 +20,21 @@ export async function generateMetadata() {
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
 const SEARCH_MAX = 60
-const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 
 // Invoices (spec §9.1 /finance/invoices, S4-08, FR-P2P-008): the POs that wait for their supplier's invoice — sent,
 // received in part or in full, and closed ones still holding budget for goods received and not invoiced — with what was
 // received, invoiced and is still held, the longest waiting first; then the invoices recorded lately; searched with a
 // plain GET form (it changes nothing). FINANCE's page (invoiceConfirmation.record, checked by the service before
-// anything is read); recording happens on each PO's page.
+// anything is read); recording happens on each PO's page. ?gr=posted keeps the POs with goods received — the home's row
+// "ใบกำกับรอยืนยัน" links here with it (§9.10) — and the search keeps it.
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
   const [t, locale] = await Promise.all([getTranslations('finance'), getLocale().then(localeOf)])
-  const q = (one((await searchParams).q) ?? '').trim().slice(0, SEARCH_MAX)
-  const result = await listInvoiceWork(ctx, { q })
+  const filters = await loadInvoiceFilters(searchParams)
+  const q = (filters.q ?? '').trim().slice(0, SEARCH_MAX)
+  const received = filters.gr === 'posted'
+  const result = await listInvoiceWork(ctx, { q, received })
   if (!result.ok) {
     return (
       <div className="flex max-w-2xl flex-col gap-6">
@@ -43,7 +46,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       </div>
     )
   }
-  const { waiting, recorded, notExported } = result.data
+  const { waiting, waitingCount, recorded, notExported } = result.data
 
   const waitingRows: WaitingRowView[] = waiting.rows.map((po) => ({
     id: po.id,
@@ -87,7 +90,17 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         </Link>
       </div>
 
+      {received ? (
+        <div className="flex flex-col gap-1">
+          <p className="font-medium text-ink">{t('invoices.receivedOnly')}</p>
+          <Link href={invoicesHref('/finance/invoices', { q: q || null })} className={linkClass}>
+            {t('invoices.showAll')}
+          </Link>
+        </div>
+      ) : null}
+
       <form method="get" action="/finance/invoices" className="flex flex-col gap-3 border-y border-line py-4 md:flex-row md:items-start">
+        {received ? <input type="hidden" name="gr" value="posted" /> : null}
         <div className="flex flex-1 flex-col gap-1.5">
           <label htmlFor="finance-search" className="font-medium text-ink">
             {t('invoices.search')}
@@ -107,7 +120,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         </div>
       </form>
       {q ? (
-        <Link href="/finance/invoices" className={linkClass}>
+        <Link href={invoicesHref('/finance/invoices', { gr: filters.gr })} className={linkClass}>
           {t('invoices.clearSearch')}
         </Link>
       ) : null}
@@ -115,7 +128,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       <section aria-labelledby="finance-waiting" className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <h2 id="finance-waiting" className="text-lg font-semibold text-ink">
-            {t('invoices.waiting.title', { count: waitingRows.length })}
+            {t('invoices.waiting.title', { count: waitingCount })}
           </h2>
           <p className="text-ink-muted">{t('invoices.waiting.hint')}</p>
         </div>

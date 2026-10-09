@@ -9,9 +9,11 @@ import { forTenant } from '@/server/db/tenant'
 import {
   countInvoicesNotExported,
   getInvoicePo,
+  countInvoiceablePos,
   listInvoiceablePos,
   listRecordedInvoices,
   supplierInvoiceNumbers,
+  type InvoiceableFilter,
   type InvoiceablePoListDto,
   type InvoicePoDto,
   type RecordedInvoiceDto,
@@ -43,17 +45,31 @@ async function financeOnly(ctx: Ctx): Promise<Result<string>> {
 export interface InvoiceWorkDto {
   /** POs that wait for an invoice */
   readonly waiting: InvoiceablePoListDto
+  /** How many POs wait for an invoice in the filter, on every page (the home's to-do row counts the same) */
+  readonly waitingCount: number
   /** Invoices recorded, last first */
   readonly recorded: { readonly rows: readonly RecordedInvoiceDto[]; readonly limited: boolean }
   /** Invoices not in an Express file yet (the export page's work) */
   readonly notExported: number
 }
 
-export async function listInvoiceWork(ctx: Ctx, filter: { readonly q?: string } = {}): Promise<Result<InvoiceWorkDto>> {
+/** /finance/invoices: `received` narrows the POs waiting for an invoice to those with goods received (?gr=posted) */
+export async function listInvoiceWork(ctx: Ctx, filter: InvoiceableFilter = {}): Promise<Result<InvoiceWorkDto>> {
   const allowed = await financeOnly(ctx)
   if (!allowed.ok) return allowed
-  const [waiting, recorded, notExported] = await Promise.all([listInvoiceablePos(ctx, filter), listRecordedInvoices(ctx, filter), countInvoicesNotExported(ctx)])
-  return ok({ waiting, recorded, notExported })
+  const [waiting, waitingCount, recorded, notExported] = await Promise.all([
+    listInvoiceablePos(ctx, filter),
+    countInvoiceablePos(ctx, filter),
+    listRecordedInvoices(ctx, { q: filter.q }),
+    countInvoicesNotExported(ctx),
+  ])
+  return ok({ waiting, waitingCount, recorded, notExported })
+}
+
+/** The home's row "ใบกำกับรอยืนยัน" (§9.10): POs with goods received and no last invoice, as /finance/invoices?gr=posted lists them */
+export async function countInvoicesToConfirm(ctx: Ctx): Promise<number | null> {
+  const allowed = await financeOnly(ctx)
+  return allowed.ok ? countInvoiceablePos(ctx, { received: true }) : null
 }
 
 // ---------- one PO (/finance/invoices/[poId]) ----------

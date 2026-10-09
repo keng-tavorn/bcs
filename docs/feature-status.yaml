@@ -884,8 +884,11 @@ features:
       - tests/unit/design-system.test.ts
       - tests/unit/liff-classes.test.tsx
       - tests/e2e/dev-ui.spec.ts
+      - tests/unit/menu.test.ts
+      - tests/unit/shell-door.test.tsx
+      - tests/e2e/shell.spec.ts
     verifiedBy: null
-    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); AC2 to AC4 come with the new shell in S16-04"
+    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); S16-04: AC2 to AC4 (sidebar, top bar, phone sheet); done once the S16-12 review closes the step"
   FR-PLT-014:
     status: done
     step: S16

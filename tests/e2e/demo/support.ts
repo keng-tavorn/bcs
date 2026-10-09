@@ -14,7 +14,7 @@ import { attachmentOf, type MailpitMessage } from '../../support/mailpit'
 import { expect } from '../fixtures'
 import { checkScreen as checkWorkspaceScreen, exportedFile, percent, sha256, sheetRows, shownChecksum, signIn } from '../insight-support'
 import { anotherPhone, BARS_IN_PLACE, checkScreen as checkPhoneScreen, openAsLineUser, pointerAway } from '../liff-support'
-import { actions, budgetRegion, chooseSupplier, consolidateNow, expectPdfLink, header, poMails, poNumberOf, poolGroup, poTimeline, requestsRegion } from '../procurement-support'
+import { actions, budgetRegion, chooseSupplier, closeMenu, consolidateNow, expectPdfLink, header, nowBlock, openTab, pdfMenuItem, poHistory, poMails, poNumberOf, poolGroup, poTimeline, requestsRegion } from '../procurement-support'
 import { rowWith } from '../tasks-support'
 
 // Shared steps of the demo scenes (D-04, spec §16.10, docs/DEMO_RUNBOOK.md, docs/sub-specs/D.md). The scenes read who
@@ -1441,7 +1441,7 @@ export const liffEntryOf = (liffPage: string) => `/liff?liff.state=${encodeURICo
 
 // ---------- the purchase-to-pay scenes and the executive's: the screens ----------
 
-export { actions as poActions, budgetRegion as poBudget, chooseSupplier, consolidateNow, expectPdfLink, exportedFile, header as poHeader, poNumberOf, poolGroup, poTimeline, requestsRegion as poRequests, rowWith, sha256, sheetRows, shownChecksum }
+export { actions as poActions, budgetRegion as poBudget, chooseSupplier, closeMenu, consolidateNow, expectPdfLink, exportedFile, header as poHeader, nowBlock as poNow, openTab as poTab, pdfMenuItem, poHistory, poNumberOf, poolGroup, poTimeline, requestsRegion as poRequests, rowWith, sha256, sheetRows, shownChecksum }
 
 /**
  * Signs the member in on the web as signInAs does, each page of the way checked and photographed at the scene's 1440 px

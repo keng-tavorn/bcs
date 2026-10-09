@@ -47,7 +47,11 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
     poolGroup,
     poOrdering,
     poRequests,
-    poTimeline,
+    poHistory,
+    poNow,
+    poTab,
+    pdfMenuItem,
+    closeMenu,
     prepareTheDay,
     rowWith,
     ruleNamedIn,
@@ -162,6 +166,8 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(drafted.requests.map((r) => r.number).sort()).toEqual([...numbers].sort())
   await expect(poHeader(page)).toContainText(th('purchaseOrder.detail.draftLabel'))
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(supplier.nameTh)
+  // The PO's items tab: its amounts, budget, lines and facts (FR-INT-012 AC6)
+  await poTab(page, 'รายการ')
   // FR-P2P-003 AC3: the totals the server worked out with core — the draft was made by the server's round, so nothing of
   // them came from a browser — are the rows' amounts before VAT and the VAT at the sheet's rate, once for the document
   // and rounded half up (BR-MONEY-02)
@@ -198,8 +204,10 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
     const above = BigInt(line.unitPrice) * 10_000n > BigInt(line.earlierPrices[0]!.unitPrice) * (10_000n + alertBp)
     await expect(item, `line ${line.lineNo}: its price against the newest paid before`).toContainText(th(above ? 'purchaseOrder.lines.priceAlert' : 'purchaseOrder.lines.priceOk', { pct: alertPct }))
   }
-  for (const r of requests) await expect(poRequests(page).getByRole('link', { name: th('purchaseOrder.requests.title', { number: r.number!, title: r.title }) })).toBeVisible()
   await expect(page.getByRole('region', { name: th('purchaseOrder.facts.title') })).toContainText(new RegExp(`${literally(th('purchaseOrder.facts.createdBy'))}\\s*${literally(buyer.nameTh)}`))
+  // Its source requests, in the documents tab
+  await poTab(page, 'เอกสาร')
+  for (const r of requests) await expect(poRequests(page).getByRole('link', { name: th('purchaseOrder.requests.title', { number: r.number!, title: r.title }) })).toBeVisible()
   // FR-P2P-004 AC1: before sending, the route the DOA expects — the approver under the rule
   await expect(poActions(page)).toContainText(th('purchaseOrder.actions.submit.step', { no: 1, name: approver.nameTh }))
   await expect(poActions(page)).toContainText(doaRef)
@@ -209,9 +217,11 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   await poActions(page).getByRole('button', { name: th('purchaseOrder.actions.submit.button') }).click()
   await expect(page.getByRole('status').filter({ hasText: th('purchaseOrder.actions.submit.done') })).toBeVisible()
   await expect(poHeader(page)).toContainText(th('purchaseOrder.status.PENDING_APPROVAL'))
-  await expect(poHeader(page)).toContainText(th('purchaseOrder.waiting.APPROVER', { name: `${approver.nameTh} (${stampRoleOf(role)})` }))
   const number = await poNumberOf(page)
+  await poTab(page, 'ภาพรวม')
+  await expect(poNow(page)).toContainText(th('purchaseOrder.waiting.APPROVER', { name: `${approver.nameTh} (${stampRoleOf(role)})` }))
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText(doaRef)
+  await poTab(page, 'รายการ')
   await expect(page.getByRole('region', { name: th('purchaseOrder.facts.title') })).toContainText(new RegExp(`${literally(th('purchaseOrder.facts.submittedBy'))}\\s*${literally(buyer.nameTh)}`))
   const pending = poOrdering(first.number)!
   expect(pending).toMatchObject({ id: drafted.id, number, status: 'PENDING_APPROVAL', net: net.toString(), vat: vat.toString(), gross: gross.toString() })
@@ -265,7 +275,8 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   // Procurement sends it (FR-P2P-005 AC1): the address of sheet Suppliers, asked a second time, then the PO is sent
   await page.reload()
   await expect(poHeader(page)).toContainText(th('purchaseOrder.status.APPROVED'))
-  await expect(poHeader(page)).toContainText(th('purchaseOrder.waiting.SEND'))
+  await poTab(page, 'ภาพรวม')
+  await expect(poNow(page)).toContainText(th('purchaseOrder.waiting.SEND'))
   await expect(poBudget(page)).toContainText(new RegExp(`${literally(th('purchaseOrder.budget.committed'))}\\s*${literally(baht(net))}`))
   const send = page.getByRole('region', { name: th('purchaseOrder.actions.send.title') })
   await expect(send).toContainText(supplier.email)
@@ -277,9 +288,10 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   await page.getByRole('button', { name: th('purchaseOrder.actions.send.confirm') }).click()
   await expect(page.getByRole('status').filter({ hasText: th('purchaseOrder.actions.send.sent') })).toBeVisible()
   await expect(poHeader(page)).toContainText(th('purchaseOrder.status.SENT'))
-  await expect(poHeader(page)).toContainText(`ส่งถึง ${supplier.email} เมื่อ`)
-  await expect(poTimeline(page)).toContainText(th('purchaseOrder.track.what.SENT'))
+  await expect(poNow(page)).toContainText(`ส่งถึง ${supplier.email} เมื่อ`)
   await checkWebScreen(page, testInfo, 'scene7-po-sent')
+  await poTab(page, 'ประวัติ')
+  await expect(poHistory(page)).toContainText(th('purchaseOrder.track.what.SENT'))
 
   // Sent and recorded: when and to which address, with the PDF named after its number (FR-PLT-009), by procurement on
   // the web; Mailpit holds the e-mail to the supplier with that very PDF, and the page opens it too
@@ -289,7 +301,8 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(sent.events.filter((e) => e.type === 'po.sent')).toEqual([{ type: 'po.sent', channel: 'WEB', by: buyer.code }])
   const mail = await supplierMail(supplier.email, number, before, sent.pdf!)
   expect(mail.Subject).toContain(`ใบสั่งซื้อ ${number}`)
-  await expectPdfLink(page, page.getByRole('link', { name: th('purchaseOrder.detail.pdf', { label: number }) }))
+  await expectPdfLink(page, await pdfMenuItem(page))
+  await closeMenu(page)
   // The requesters and the department's receiver hear of it in their next digest; the receiver's notice opens the
   // receiving of the PO (/receiving/<id>, in LINE /gr/<id>: scene 8)
   const told = sent.notices.filter((n) => n.templateKey === 'po.sent')

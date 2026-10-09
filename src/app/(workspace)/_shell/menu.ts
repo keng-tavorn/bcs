@@ -27,7 +27,6 @@ export type MenuKey =
   | 'insights'
   | 'board'
   | 'reports'
-  | 'kpi'
   | 'audit'
   | 'settings'
   | 'admin'
@@ -75,10 +74,9 @@ export const MENU: readonly MenuItem[] = [
   { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true },
   { key: 'exports', href: '/finance/exports', group: 'finance', capability: 'export.express', module: 'CORE', ready: true },
   { key: 'budgets', href: '/budgets', group: 'finance', capability: 'budget.view', scopes: ['DEPT', 'ORG'], module: 'CORE', ready: true },
-  // The executive summary (FR-VIS-007, S16-08) takes the KPI entry's place once its page exists
-  { key: 'insights', href: '/insights', group: 'insight', capability: 'report.view', module: 'CORE', ready: false },
-  // KPI G-1..G-5 are organization-wide figures for executives (FR-VIS-003 AC2), so the page needs an ORG-scoped report.view
-  { key: 'kpi', href: '/kpi', group: 'insight', capability: 'report.view', scopes: ['ORG'], module: 'CORE', ready: true },
+  // The executive summary (FR-VIS-007, S16-08) took the KPI entry's place: /kpi still opens, from the control card and
+  // its own link to /insights (FR-VIS-007 AC4), and is no longer a menu of its own (§9.10)
+  { key: 'insights', href: '/insights', group: 'insight', capability: 'report.view', module: 'CORE', ready: true },
   { key: 'board', href: '/board/pending', group: 'insight', capability: 'board.pending.view', module: 'CORE', ready: true },
   { key: 'reports', href: '/reports', group: 'insight', capability: 'report.view', module: 'CORE', ready: true },
   { key: 'audit', href: '/audit', group: 'insight', capability: 'audit.view', module: 'CORE', ready: true },

@@ -1,6 +1,7 @@
 {
   "title": "KPI",
   "intro": "The organization's measures for goals G-1 to G-5, computed from the event log and the documents in the system. Each shows its formula in words, its value for the chosen period, the baseline and the proposed target.",
+  "toInsights": "See the executive summary: spending, budget, speed and control",
   "forbidden": "The KPI page is for executives, finance, procurement and auditors. If you need it, contact your organization admin.",
   "forbiddenHead": "The KPI page shows the whole organization's figures. Department heads read the KPI report of the departments they head on the reports page.",
   "toReports": "Go to reports",

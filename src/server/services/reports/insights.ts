@@ -43,6 +43,8 @@ export const INSIGHT_LISTS = [
 ] as const
 export type InsightList = (typeof INSIGHT_LISTS)[number]
 
+/** Departments the spending chart names; the rest is one bar (§9.10) */
+export const SPEND_CHART_DEPARTMENTS = 5
 /** Weeks of the speed chart (§9.10) */
 export const INSIGHT_WEEKS = 12
 /** poIdleDays: no setting yet, the default of OQ-36 */
@@ -100,6 +102,11 @@ export interface InsightsDto extends InsightsBaseDto {
     readonly poCount: number
     /** Every department with spending, the largest first */
     readonly byDepartment: ReadonlyArray<DepartmentAmountDto & { readonly net: MoneyDto; readonly netSatang: string }>
+    /**
+     * The chart: the first five departments and the rest added up as one bar (department null), each bar's length its
+     * share of the longest in basis points, for drawing only
+     */
+    readonly chart: ReadonlyArray<{ readonly department: DepartmentAmountDto | null; readonly net: MoneyDto; readonly barBp: number }>
     readonly priceAlerts: number
     readonly alertPct: number
   } | null
@@ -110,6 +117,8 @@ export interface InsightsDto extends InsightsBaseDto {
     readonly lowPct: number
     readonly total: BudgetFiguresDto
     readonly byDepartment: ReadonlyArray<DepartmentAmountDto & BudgetFiguresDto & { readonly reservedBp: number; readonly committedBp: number; readonly actualBp: number }>
+    /** How long the chart's axis needs to be: 100 %, or more when a department holds more than it planned (basis points) */
+    readonly chartMaxBp: number
     readonly lineCount: number
     readonly lowLines: number
     /** The request type filter does not apply to budget lines */
@@ -141,7 +150,10 @@ export interface InsightItemDto {
   readonly document: { readonly type: 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE' | 'BUDGET_LINE' | 'SUPPLIER'; readonly id: string; readonly label: string; readonly poId: string | null } | null
   /** Who decided, who holds the task, or who asked */
   readonly person: { readonly nameTh: string; readonly nameEn: string | null } | null
+  readonly personKind: 'ASSIGNEE' | 'DECIDER' | 'REQUESTER' | null
   readonly at: string | null
+  /** What `at` is */
+  readonly atKind: 'DECIDED' | 'ASSIGNED' | 'APPROVED' | 'FIRST_PO' | 'LAST_ACTIVITY' | 'CHANGED' | null
   readonly dueAt: string | null
   readonly amount: MoneyDto | null
   readonly minutes: number | null
@@ -305,14 +317,16 @@ export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Re
     const departmentIds = unique([...data.spend.byDepartment.keys(), ...(data.budget?.lines.map((l) => l.departmentId) ?? [])])
     const departments = new Map((await tx.department.findMany({ where: { id: { in: departmentIds } }, select: { id: true, code: true, nameTh: true, nameEn: true } })).map((d) => [d.id, d]))
 
+    const spent = [...data.spend.byDepartment].filter(([, net]) => net !== 0n).sort(([, a], [, b]) => (a === b ? 0 : a > b ? -1 : 1))
+    const rest = spent.slice(SPEND_CHART_DEPARTMENTS).reduce((n, [, net]) => n + net, 0n)
+    const bars = [...spent.slice(0, SPEND_CHART_DEPARTMENTS).map(([id, net]) => ({ department: departments.get(id)!, net })), ...(rest !== 0n ? [{ department: null, net: rest }] : [])]
+    const longest = bars.reduce((m, b) => (b.net > m ? b.net : m), 0n)
     const spend: InsightsDto['spend'] = r.orgPos
       ? {
           total: toMoneyDto(data.spend.pos.reduce((sum, p) => sum + p.netSatang, 0n)),
           poCount: data.spend.pos.length,
-          byDepartment: [...data.spend.byDepartment]
-            .filter(([, net]) => net !== 0n)
-            .sort(([, a], [, b]) => (a === b ? 0 : a > b ? -1 : 1))
-            .map(([id, net]) => ({ ...departments.get(id)!, net: toMoneyDto(net), netSatang: net.toString() })),
+          byDepartment: spent.map(([id, net]) => ({ ...departments.get(id)!, net: toMoneyDto(net), netSatang: net.toString() })),
+          chart: bars.map((b) => ({ department: b.department, net: toMoneyDto(b.net), barBp: shareBp(b.net, longest) })),
           priceAlerts: data.spend.pos.filter((p) => p.priceAlert).length,
           alertPct,
         }
@@ -322,14 +336,14 @@ export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Re
     if (data.budget && fiscalYearCode) {
       const byDepartment = new Map<string, BudgetAmounts>()
       for (const l of data.budget.lines) byDepartment.set(l.departmentId, addAmounts(byDepartment.get(l.departmentId) ?? NO_AMOUNTS, amountsOf(l)))
+      const rows = [...byDepartment].map(([id, a]) => ({ ...departments.get(id)!, ...budgetFigures(a, lowBp), reservedBp: shareBp(a.reserved, a.planned), committedBp: shareBp(a.committed, a.planned), actualBp: shareBp(a.actual, a.planned) }))
       budget = {
         fiscalYearCode,
         asOf: base.filters.to,
         lowPct,
         total: budgetFigures(data.budget.lines.map(amountsOf).reduce(addAmounts, NO_AMOUNTS), lowBp),
-        byDepartment: [...byDepartment]
-          .map(([id, a]) => ({ ...departments.get(id)!, ...budgetFigures(a, lowBp), reservedBp: shareBp(a.reserved, a.planned), committedBp: shareBp(a.committed, a.planned), actualBp: shareBp(a.actual, a.planned) }))
-          .sort((a, b) => a.code.localeCompare(b.code)),
+        byDepartment: rows.sort((a, b) => a.code.localeCompare(b.code)),
+        chartMaxBp: Math.max(Number(BP_PER_WHOLE), ...rows.map((x) => x.reservedBp + x.committedBp + x.actualBp)),
         lineCount: data.budget.lines.length,
         lowLines: data.budget.lines.filter((l) => budgetFigures(amountsOf(l), lowBp).low).length,
         typeIgnored: base.filters.requestTypeId !== null,
@@ -367,7 +381,7 @@ export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Re
 
 const unique = <T>(values: Iterable<T>): T[] => [...new Set(values)]
 const name = (m: { displayNameTh: string; displayNameEn: string | null } | undefined) => (m ? { nameTh: m.displayNameTh, nameEn: m.displayNameEn } : null)
-const BLANK = { person: null, at: null, dueAt: null, amount: null, minutes: null, channel: null, budget: null, status: null, mark: null } as const
+const BLANK = { person: null, personKind: null, at: null, atKind: null, dueAt: null, amount: null, minutes: null, channel: null, budget: null, status: null, mark: null } as const
 
 /** The documents behind one figure, for the same filters (FR-VIS-007 AC3): the list's length is the figure */
 export async function insightsList(ctx: Ctx, params: InsightsParams, list: string): Promise<Result<InsightsListDto>> {
@@ -435,18 +449,18 @@ export async function insightsList(ctx: Ctx, params: InsightsParams, list: strin
     const requesterOf = new Map(requests.map((x) => [x.id, x.requester]))
 
     let items: InsightItemDto[] = []
-    if (tasks.length) items = tasks.map((t, i) => ({ ...BLANK, key: `${i}:${t.taskId}`, document: docs.get(t.subjectId) ?? null, person: name(person.get(t.assigneeMemberId)), at: (t.decidedAt ?? t.assignedAt).toISOString(), dueAt: t.dueAt?.toISOString() ?? null, minutes: t.minutes }))
+    if (tasks.length) items = tasks.map((t, i) => ({ ...BLANK, key: `${i}:${t.taskId}`, document: docs.get(t.subjectId) ?? null, person: name(person.get(t.assigneeMemberId)), personKind: 'ASSIGNEE', at: (t.decidedAt ?? t.assignedAt).toISOString(), atKind: t.decidedAt ? 'DECIDED' : 'ASSIGNED', dueAt: t.dueAt?.toISOString() ?? null, minutes: t.minutes }))
     if (decisions.length)
-      items = decisions.map((d) => ({ ...BLANK, key: d.taskId, document: docs.get(d.subjectId) ?? null, person: name(person.get(d.actorMemberId)), at: d.decidedAt.toISOString(), channel: d.channel, mark: d.withDoaReference ? 'WITH_DOA' : 'WITHOUT_DOA' }))
+      items = decisions.map((d) => ({ ...BLANK, key: d.taskId, document: docs.get(d.subjectId) ?? null, person: name(person.get(d.actorMemberId)), personKind: 'DECIDER', at: d.decidedAt.toISOString(), atKind: 'DECIDED', channel: d.channel, mark: d.withDoaReference ? 'WITH_DOA' : 'WITHOUT_DOA' }))
     if (spendPos.length)
       items = [...spendPos]
         .sort((a, b) => b.approvedAt.getTime() - a.approvedAt.getTime())
-        .map((p) => ({ ...BLANK, key: p.poId, document: docs.get(p.poId) ?? null, at: p.approvedAt.toISOString(), amount: toMoneyDto(p.netSatang), mark: p.priceAlert ? 'PRICE_ALERT' : null }))
-    if (which === 'idle-pos') items = data.speed.idlePos.map((p) => ({ ...BLANK, key: p.poId, document: docs.get(p.poId) ?? null, at: p.lastActivityAt.toISOString() }))
+        .map((p) => ({ ...BLANK, key: p.poId, document: docs.get(p.poId) ?? null, at: p.approvedAt.toISOString(), atKind: 'APPROVED', amount: toMoneyDto(p.netSatang), mark: p.priceAlert ? 'PRICE_ALERT' : null }))
+    if (which === 'idle-pos') items = data.speed.idlePos.map((p) => ({ ...BLANK, key: p.poId, document: docs.get(p.poId) ?? null, at: p.lastActivityAt.toISOString(), atKind: 'LAST_ACTIVITY' }))
     if (which === 'submit-to-po')
       items = [...data.speed.submitToPo]
         .sort((a, b) => b.firstPoApprovedAt.getTime() - a.firstPoApprovedAt.getTime())
-        .map((s) => ({ ...BLANK, key: s.requestId, document: docs.get(s.requestId) ?? null, person: name(requesterOf.get(s.requestId)), at: s.firstPoApprovedAt.toISOString(), minutes: s.minutes }))
+        .map((s) => ({ ...BLANK, key: s.requestId, document: docs.get(s.requestId) ?? null, person: name(requesterOf.get(s.requestId)), personKind: 'REQUESTER', at: s.firstPoApprovedAt.toISOString(), atKind: 'FIRST_PO', minutes: s.minutes }))
     if (lines.length)
       items = lines.map((l) => {
         const figures = budgetFigures(amountsOf(l), lowBp)
@@ -456,7 +470,7 @@ export async function insightsList(ctx: Ctx, params: InsightsParams, list: strin
     if (which === 'supplier-changes')
       items = data.control.supplierChanges.map((c, i) => {
         const s = supplierOf.get(c.supplierId)
-        return { ...BLANK, key: `${i}:${c.supplierId}`, document: { type: 'SUPPLIER', id: c.supplierId, label: s ? `${s.code} ${s.nameTh}` : c.supplierId, poId: null }, at: c.at.toISOString(), status: { from: c.from, to: c.to } }
+        return { ...BLANK, key: `${i}:${c.supplierId}`, document: { type: 'SUPPLIER', id: c.supplierId, label: s ? `${s.code} ${s.nameTh}` : c.supplierId, poId: null }, at: c.at.toISOString(), atKind: 'CHANGED', status: { from: c.from, to: c.to } }
       })
     return ok({ ...base, list: which, channel, week, items: items.slice(0, INSIGHT_LIST_MAX), total: items.length })
   })

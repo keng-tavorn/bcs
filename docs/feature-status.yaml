@@ -905,11 +905,14 @@ features:
     verifiedBy: null
     notes: ""
   FR-VIS-007:
-    status: planned
+    status: done
     step: S16
-    evidence: []
+    evidence:
+      - tests/integration/insights.test.ts
+      - tests/unit/insights-charts-lazy.test.ts
+      - tests/e2e/insights.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-08: AC1 to AC5 · poIdleDays uses the OQ-36 default (30 days) until a setting exists · the supplier registry recheck that writes supplier.registry_status_changed is S4-16 [go-live], so that count stays 0 until then"
   FR-INT-010:
     status: done
     step: S16

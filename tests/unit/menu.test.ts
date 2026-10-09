@@ -21,13 +21,13 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
   })
 
   it.each<[StoredRole, MenuKey[]]>([
-    ['PROCUREMENT', ['pool', 'pos', 'insights', 'kpi', 'reports']],
-    ['FINANCE', ['invoices', 'exports', 'budgets', 'insights', 'kpi', 'reports']],
+    ['PROCUREMENT', ['pool', 'pos', 'insights', 'reports']],
+    ['FINANCE', ['invoices', 'exports', 'budgets', 'insights', 'reports']],
     ['BUDGET_ADMIN', ['budgets']],
     ['RECEIVER', ['receiving']],
-    ['EXECUTIVE', ['budgets', 'insights', 'kpi', 'reports']],
+    ['EXECUTIVE', ['budgets', 'insights', 'reports']],
     // The policy history is an admin page, so its hub shows with it
-    ['AUDITOR', ['budgets', 'insights', 'kpi', 'reports', 'audit', 'admin', 'policyHistory']],
+    ['AUDITOR', ['budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
     ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
@@ -60,17 +60,17 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     // the board (every member sees their own documents), reports, KPI and the audit
     const ready = (...roles: StoredRole[]) => visibleMenu(member(...roles), CORE, true).map((i) => i.key)
     // S5 (wave 4): /admin/line for the ORG_ADMIN, and /settings/pin, /settings/line and /settings/notifications for every member
-    // S16-04: the hubs /settings and /admin; the executive summary /insights waits for its page (S16-08), and the
-    // admin hub hides with no ready admin page (the AUDITOR's policy history is not built yet)
+    // S16-04: the hubs /settings and /admin, and the admin hub hides with no ready admin page (the AUDITOR's policy
+    // history is not built yet) · S16-08: the executive summary /insights in place of the KPI entry (§9.10)
     const own = ['settings', 'delegation', 'security', 'pin', 'lineLink', 'notifications']
     const admin = ['admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'modules']
     expect(ready('ORG_ADMIN')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', 'audit', 'settings', ...admin, ...own.slice(1)])
     expect(ready()).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', ...own])
-    expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'kpi', 'board', 'reports', ...own])
+    expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'insights', 'board', 'reports', ...own])
     expect(ready('RECEIVER')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'receiving', 'suppliers', 'board', ...own])
-    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'invoices', 'exports', 'budgets', 'kpi', 'board', 'reports', ...own])
-    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'kpi', 'board', 'reports', ...own])
-    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'kpi', 'board', 'reports', 'audit', ...own])
+    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
   })
 })
 
@@ -95,10 +95,10 @@ describe('[FR-PLT-013/AC2] [FR-PLT-002/AC1] the sidebar follows the table of §9
     ['footer', 'admin', '/admin'],
   ]
 
-  it('holds the table entries in its groups and order, with the KPI page until /insights replaces it (S16-08)', () => {
+  it('holds the table entries in its groups and order, and nothing else', () => {
     const sidebar = MENU.filter((item) => (SIDEBAR_GROUPS as readonly string[]).includes(item.group))
     expect(SIDEBAR_GROUPS).toEqual(['main', 'procurement', 'finance', 'insight', 'footer'])
-    expect(sidebar.filter((item) => item.key !== 'kpi').map((item) => [item.group, item.key, item.href])).toEqual(TABLE)
+    expect(sidebar.map((item) => [item.group, item.key, item.href])).toEqual(TABLE)
     // The door is the top bar's main button, not a sidebar entry (§9.10 "แถบบน")
     expect(MENU.find((item) => item.key === 'newRequest')?.group).toBe('door')
   })

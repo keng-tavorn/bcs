@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
@@ -45,6 +46,10 @@ export default async function KpiPage({ searchParams }: { searchParams: Promise<
       <div className="flex max-w-4xl flex-col gap-2">
         <h1 className="text-2xl font-semibold">{t('title')}</h1>
         <p className="text-ink-muted">{t('intro')}</p>
+        {/* FR-VIS-007 AC4: the KPI page leads to the executive summary, which leads back here from its control card */}
+        <Link href="/insights" className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
+          {t('toInsights')}
+        </Link>
         <p className="font-medium text-ink">{t('periodLine', { from: dayText(locale, period.from), to: dayText(locale, period.to), days: daysInPeriod(period.from, period.to) })}</p>
         <p className="text-base text-ink-muted md:text-sm">{t('asOf', { time: formatDateTime(locale, asOf) })}</p>
       </div>

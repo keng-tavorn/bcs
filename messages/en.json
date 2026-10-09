@@ -5292,23 +5292,28 @@
   "shell": {
     "account": "My account",
     "groups": {
-      "account": "My account",
       "admin": "Organization admin",
       "finance": "Finance",
-      "insight": "Tracking and reports",
+      "insight": "Overview",
       "platform": "BCS team",
       "procurement": "Procurement",
-      "work": "My work"
+      "settings": "My settings"
+    },
+    "hub": {
+      "adminIntro": "Organization settings, structure and approval authority",
+      "settingsIntro": "Your account, security, LINE and notifications"
     },
     "items": {
+      "admin": "Organization admin",
       "audit": "Audit trail",
-      "board": "Who is holding what",
+      "board": "Pending documents",
       "budgets": "Budgets",
       "calendar": "Business calendar",
       "delegation": "Acting approver",
       "doa": "Approval authority (DOA)",
       "exports": "Express export",
       "home": "Home",
+      "insights": "Executive summary",
       "invoices": "Confirm invoices",
       "kpi": "KPI",
       "line": "LINE settings",
@@ -5322,20 +5327,20 @@
       "orgAuthority": "Authority changes",
       "pin": "Transaction PIN",
       "policyHistory": "Policy history",
-      "pool": "Requests to purchase",
-      "pos": "Purchase orders (PO)",
+      "pool": "Purchasing queue",
+      "pos": "Purchase orders",
       "receiving": "Receiving",
       "reports": "Reports",
       "requestTypes": "Request types",
       "requests": "Requests",
       "security": "Account security",
+      "settings": "My settings",
       "suppliers": "Suppliers",
       "tasks": "Approvals",
       "tenants": "Customer organizations"
     },
     "language": "Language",
     "mainNav": "Main menu",
-    "menu": "Menu",
     "notifications": {
       "button": "Notifications",
       "empty": "No notifications yet",

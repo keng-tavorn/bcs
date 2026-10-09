@@ -201,11 +201,14 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
         onClick={() => onOpenChange(true)}
         aria-haspopup="dialog"
         aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
-        className="min-h-11 w-full justify-start text-base font-normal text-ink-muted md:text-sm lg:max-w-sm"
+        // A magnifier alone on a small screen (its words stay for screen readers); a field up to 480 px wide from md (§9.10)
+        className="size-11 justify-center rounded-full border-0 text-base font-normal text-ink-muted shadow-none md:h-10 md:w-full md:max-w-120 md:justify-start md:rounded-md md:border md:text-sm"
       >
         <Search aria-hidden="true" />
-        <span className="flex-1 truncate text-left">{labels.trigger}</span>
-        <Kbd aria-hidden="true">{mac ? labels.shortcutMac : labels.shortcutOther}</Kbd>
+        <span className="sr-only flex-1 truncate text-left md:not-sr-only">{labels.trigger}</span>
+        <Kbd aria-hidden="true" className="hidden md:inline-flex">
+          {mac ? labels.shortcutMac : labels.shortcutOther}
+        </Kbd>
       </Button>
       <CommandDialog open={open} onOpenChange={onOpenChange} title={labels.title} description={labels.description}>
         <Command shouldFilter={false} loop value={selected} onValueChange={(value) => setChoice({ first, value })}>

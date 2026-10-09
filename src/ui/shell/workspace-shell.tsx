@@ -1,22 +1,30 @@
-import { ChevronDown } from 'lucide-react'
 import type { ReactNode } from 'react'
+import { Sidebar, SidebarHeader, SidebarTrigger } from '../shadcn/sidebar'
 import { NavLinks, type NavEntry } from './nav-links'
 import { NewRequestDoor } from './new-request-door'
-import { SHELL_PANELS } from './panels'
+import { ShellBreadcrumb, type TrailEntry } from './shell-breadcrumb'
+import { ShellFrame } from './shell-frame'
+import { UserMenu } from './user-menu'
 
-// Workspace frame (§9.9): menu on the left on wide screens, a menu button on phones; content at most 1280 px wide; the
-// one door "ขอซื้อ / ขอจ้าง" as the main button on every page (principle 2): in the bar above the content beside the
-// bell on a wide screen, in a row of its own under the header on a phone. Flat surfaces separated by rules — no cards,
-// shadows or decoration. Strings arrive translated.
+// Workspace frame (§9.9 §9.10, FR-PLT-013 AC2–AC4): the dark green sidebar on the left (256 px, collapsed to 64 px of
+// icons; a sheet from the left below 1024 px), and a 56 px top bar over the content — the sidebar's toggle, the trail of
+// a deeper page, the ⌘K search, the bell, the one door "ขอซื้อ / ขอจ้าง" and the user menu. A phone's bar has room for
+// the door but not the user menu, which moves to the foot of the menu sheet (§9.10 puts it at the sidebar's foot).
+// Content is at most 1280 px wide with 24 px sides (16 px on a phone). Strings arrive translated.
 
 export interface WorkspaceShellProps {
   readonly brand: string
   readonly orgName: string
-  readonly userLine: string
-  readonly labels: { readonly skipToContent: string; readonly menu: string; readonly mainNav: string }
+  readonly labels: { readonly skipToContent: string; readonly mainNav: string; readonly account: string }
+  /** The sidebar's entries, in their groups (menu.ts SIDEBAR_GROUPS) */
   readonly nav: readonly NavEntry[]
+  /** Every page of the member's menu, for the trail of a deeper page */
+  readonly pages?: readonly TrailEntry[]
+  /** Whether the sidebar starts open: the member's last choice (FR-PLT-013 AC2) */
+  readonly sidebarOpen: boolean
+  readonly user: { readonly name: string; readonly detail?: string }
+  /** The user menu's content below the name: language, install, sign out */
   readonly account: ReactNode
-  /** The notification bell, shown in the phone header and in the bar above the content on wide screens */
   readonly bell?: ReactNode
   /** The door to a new request, for a member who may create one (the menu's newRequest entry) */
   readonly newRequest?: { readonly href: string; readonly label: string }
@@ -25,18 +33,9 @@ export interface WorkspaceShellProps {
   readonly children: ReactNode
 }
 
-function Brand({ brand, orgName }: { brand: string; orgName: string }) {
+export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sidebarOpen, user, account, bell, newRequest, search, children }: WorkspaceShellProps) {
   return (
-    <div className="flex flex-col">
-      <span className="text-xl font-bold text-ink">{brand}</span>
-      <span className="text-base text-ink-muted md:text-sm">{orgName}</span>
-    </div>
-  )
-}
-
-export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account, bell, newRequest, search, children }: WorkspaceShellProps) {
-  return (
-    <div className="min-h-dvh bg-bg lg:grid lg:grid-cols-[17rem_1fr]">
+    <ShellFrame defaultOpen={sidebarOpen}>
       <a
         href="#content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-bg focus:px-3 focus:py-2"
@@ -44,57 +43,47 @@ export function WorkspaceShell({ brand, orgName, userLine, labels, nav, account,
         {labels.skipToContent}
       </a>
 
-      <aside className="hidden border-r border-line bg-surface lg:flex lg:min-h-dvh lg:flex-col lg:gap-6 lg:px-3 lg:py-5">
-        <div className="px-3">
-          <Brand brand={brand} orgName={orgName} />
-        </div>
-        <nav aria-label={labels.mainNav} className="flex-1">
-          <NavLinks entries={nav} />
-        </nav>
-        <div className="flex flex-col gap-3 border-t border-line px-3 pt-4">
-          <p className="text-base text-ink-muted md:text-sm">{userLine}</p>
-          {account}
-        </div>
-      </aside>
-
-      <div className="flex min-w-0 flex-col">
-        <header className="relative flex items-center gap-2 border-b border-line bg-surface pr-4 lg:hidden">
-          {/* The menu and the bell are one group (SHELL_PANELS): opening one closes the other, so no panel opens over another */}
-          <details name={SHELL_PANELS} className="group min-w-0 flex-1">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 [&::-webkit-details-marker]:hidden">
-              <Brand brand={brand} orgName={orgName} />
-              <span className="inline-flex min-h-11 items-center gap-1 rounded-md border border-input bg-bg px-3 font-medium text-ink">
-                {labels.menu}
-                <ChevronDown className="size-4 transition-transform duration-150 group-open:rotate-180" aria-hidden="true" />
-              </span>
-            </summary>
-            <div className="absolute inset-x-0 top-full z-20 flex max-h-[80dvh] flex-col gap-5 overflow-y-auto border-b border-line bg-surface px-3 py-4">
-              <nav aria-label={labels.mainNav}>
-                <NavLinks entries={nav} />
-              </nav>
-              <div className="flex flex-col gap-3 border-t border-line px-3 pt-4">
-                <p className="text-ink-muted">{userLine}</p>
-                {account}
-              </div>
-            </div>
-          </details>
-          {bell}
-        </header>
-        {/* A phone has no room for the door beside the menu and the bell: it gets a row of its own, outside the menu */}
-        {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} className="border-b border-line bg-surface px-4 py-2 lg:hidden" linkClassName="w-full" /> : null}
-        {/* One search for every width (its ⌘K listener must exist once): a row of its own on a phone, left of the door on a wide screen */}
-        {search || bell || newRequest ? (
-          <div className="flex items-center gap-3 border-b border-line px-4 py-2 lg:px-8 lg:py-3">
-            <div className="min-w-0 flex-1">{search}</div>
-            {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} className="hidden lg:block" /> : null}
-            {bell ? <div className="hidden lg:block">{bell}</div> : null}
+      <Sidebar collapsible="icon">
+        <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4 group-data-[collapsible=icon]:px-2">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-bold text-sidebar-primary-foreground" aria-hidden="true">
+              {brand.slice(0, 1)}
+            </span>
+            <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:sr-only">
+              <span className="font-bold">{brand}</span>
+              <span className="truncate text-sm text-nav-ink-muted">{orgName}</span>
+            </span>
           </div>
-        ) : null}
+        </SidebarHeader>
+        <NavLinks entries={nav} label={labels.mainNav} />
+        {/* The user menu of a phone, at the foot of the sheet, on the page's light surface */}
+        <section aria-label={labels.account} className="m-2 flex flex-col gap-3 rounded-md bg-bg p-3 text-ink md:hidden">
+          <div className="flex flex-col gap-1">
+            <p className="font-semibold">{user.name}</p>
+            {user.detail ? <p className="text-ink-muted">{user.detail}</p> : null}
+          </div>
+          {account}
+        </section>
+      </Sidebar>
 
-        <main id="content" className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-8 lg:py-8">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-2 sm:px-4 lg:px-6">
+          <SidebarTrigger className="size-11 shrink-0 lg:size-10" />
+          <ShellBreadcrumb entries={pages} />
+          <div className="flex min-w-0 flex-1 justify-end md:justify-start lg:px-2">{search}</div>
+          {bell}
+          {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} /> : null}
+          <div className="hidden md:block">
+            <UserMenu label={labels.account} name={user.name} detail={user.detail}>
+              {account}
+            </UserMenu>
+          </div>
+        </header>
+
+        <main id="content" className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-6 lg:py-8">
           {children}
         </main>
       </div>
-    </div>
+    </ShellFrame>
   )
 }

@@ -44,7 +44,8 @@ test('[FR-AUTH-002/AC1] a seeded user signs in with password and TOTP', async ({
   await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
 
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(`สวัสดี ${name}`)
-  if (isMobile) await page.getByText('เมนู', { exact: true }).click()
+  if (isMobile) await page.getByRole('button', { name: 'ยุบหรือขยายเมนู' }).click()
+  await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name: 'ตั้งค่าของฉัน' }).click()
   await page.getByRole('link', { name: 'ความปลอดภัยของบัญชี' }).click()
   await expect(page.getByRole('heading', { level: 2, name: 'อุปกรณ์ที่เข้าระบบอยู่' })).toBeVisible()
   await expectNoBlockingAxe(page)

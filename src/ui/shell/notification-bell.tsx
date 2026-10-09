@@ -34,14 +34,15 @@ export interface NotificationBellProps {
 
 export function NotificationBell({ items, unread, labels, openAction, markAllReadAction }: NotificationBellProps) {
   return (
-    // One group with the phone's menu (SHELL_PANELS): opening the bell closes the menu, and the other way round
-    <details name={SHELL_PANELS} className="group relative">
+    // One group with the user menu (SHELL_PANELS): opening the bell closes that menu, and the other way round
+    <details name={SHELL_PANELS} className="group md:relative">
       <summary
-        className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md border border-input bg-bg px-3 font-medium text-ink [&::-webkit-details-marker]:hidden"
+        className="inline-flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-full px-2.5 font-medium text-ink transition-colors duration-150 hover:bg-surface lg:min-h-10 [&::-webkit-details-marker]:hidden"
         aria-label={unread > 0 ? `${labels.button} · ${labels.unreadCount}` : labels.button}
       >
         <Bell className="size-5" aria-hidden="true" />
-        <span>{labels.button}</span>
+        {/* The top bar has room for the word on a wide screen only; the summary's aria-label says it at every width */}
+        <span className="hidden xl:inline">{labels.button}</span>
         {unread > 0 ? (
           // The count of new notifications, in the colour of the "new" mark inside (danger is kept for overdue, not approved
           // and short budget, §9.9); one 26 px line box at both sizes, at least 1.6 times its text (1.63 at 16 px)
@@ -50,7 +51,8 @@ export function NotificationBell({ items, unread, labels, openAction, markAllRea
           </span>
         ) : null}
       </summary>
-      <div className="absolute right-0 z-30 mt-2 flex max-h-[70dvh] w-[min(26rem,calc(100vw-2rem))] flex-col overflow-y-auto rounded-md border border-line bg-bg">
+      {/* Under the top bar across a phone's width; beside the bell from a medium screen */}
+      <div className="fixed inset-x-4 top-14 z-30 mt-2 flex max-h-[70dvh] flex-col md:absolute md:inset-x-auto md:top-auto md:right-0 md:w-[26rem] shadow-md overflow-y-auto rounded-md border border-line bg-bg">
         <div className="flex flex-col items-start gap-1 border-b border-line px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <h2 className="text-lg font-semibold text-ink">{labels.panelTitle}</h2>
           {unread > 0 ? (

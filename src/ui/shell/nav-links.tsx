@@ -1,86 +1,36 @@
 'use client'
 
-import {
-  Blocks,
-  Building,
-  Building2,
-  ClipboardList,
-  FileDown,
-  FilePlus2,
-  FileText,
-  Gauge,
-  GitBranch,
-  History,
-  House,
-  Inbox,
-  KeyRound,
-  Layers,
-  Network,
-  PackageCheck,
-  Receipt,
-  ShieldCheck,
-  ShoppingCart,
-  ChartColumn,
-  Users,
-  Wallet,
-  type LucideIcon,
-  CalendarDays,
-  Hash,
-  LayoutList,
-  ListTree,
-  UserCheck,
-  BellRing,
-  MessageCircle,
-  MessagesSquare,
-  RectangleEllipsis,
-} from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { cn } from '../cn'
+import {
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from '../shadcn/sidebar'
+import { menuIcon } from './menu-icons'
 
-// Menu links with an icon and a label (never icon-only); the current page is marked with aria-current, a rule and
-// bold text, not colour alone (NFR-A11Y-03).
-
-const ICONS: Record<string, LucideIcon> = {
-  home: House,
-  newRequest: FilePlus2,
-  requests: FileText,
-  tasks: Inbox,
-  receiving: PackageCheck,
-  pool: Layers,
-  pos: ShoppingCart,
-  suppliers: Building2,
-  invoices: Receipt,
-  exports: FileDown,
-  budgets: Wallet,
-  board: ClipboardList,
-  reports: ChartColumn,
-  kpi: Gauge,
-  audit: ShieldCheck,
-  members: Users,
-  org: ListTree,
-  calendar: CalendarDays,
-  numbering: Hash,
-  requestTypes: LayoutList,
-  doa: GitBranch,
-  orgAuthority: Network,
-  policyHistory: History,
-  modules: Blocks,
-  tenants: Building,
-  delegation: UserCheck,
-  security: KeyRound,
-  line: MessagesSquare,
-  pin: RectangleEllipsis,
-  lineLink: MessageCircle,
-  notifications: BellRing,
-}
+// The sidebar's menu (§9.10, FR-PLT-013 AC2): the groups in the order the shell passes them, a heading over each named
+// group, the `footer` group at the bottom. Every entry has an icon and its words; collapsed to icons, each keeps its
+// words as aria-label and shows them in a tooltip. The current page is marked with aria-current, a 3 px rule and bold
+// text, not colour alone (NFR-A11Y-03). On a small screen the menu is a sheet, which a chosen page closes.
 
 export interface NavEntry {
   readonly key: string
   readonly href: string
   readonly label: string
   readonly group: string
+  /** The group's heading; empty for a group without one */
   readonly groupLabel: string
+  /** The number beside the entry (§9.10 "ตัวเลขข้างเมนู"), with what it counts in words for screen readers */
+  readonly count?: { readonly value: number; readonly label: string }
 }
 
 function isCurrent(pathname: string, href: string): boolean {
@@ -97,45 +47,75 @@ export function currentHref(pathname: string, entries: readonly Pick<NavEntry, '
   return best
 }
 
-export function NavLinks({ entries }: { entries: readonly NavEntry[] }) {
-  const pathname = usePathname()
-  const current = currentHref(pathname, entries)
+/** Entries grouped in their order, each group once */
+function grouped(entries: readonly NavEntry[]) {
   const groups: Array<{ key: string; label: string; items: NavEntry[] }> = []
   for (const entry of entries) {
     const last = groups.at(-1)
     if (last?.key === entry.group) last.items.push(entry)
     else groups.push({ key: entry.group, label: entry.groupLabel, items: [entry] })
   }
+  return groups
+}
+
+function NavGroup({ label, items, current }: { label: string; items: readonly NavEntry[]; current: string | null }) {
+  const { setOpenMobile } = useSidebar()
   return (
-    <div className="flex flex-col gap-5">
-      {groups.map((group) => (
-        <div key={group.key} className="flex flex-col gap-1">
-          {groups.length > 1 ? <p className="px-3 text-base font-medium text-ink-muted md:text-sm">{group.label}</p> : null}
-          <ul className="flex flex-col gap-0.5">
-            {group.items.map((item) => {
-              const here = item.href === current
-              const Icon = ICONS[item.key] ?? FileText
-              return (
-                <li key={item.key}>
-                  <Link
-                    href={item.href}
-                    aria-current={here ? 'page' : undefined}
-                    // On phones the menu sits in a <details> over the page; close it once a page is chosen
-                    onClick={(event) => event.currentTarget.closest('details')?.removeAttribute('open')}
-                    className={cn(
-                      'flex min-h-11 items-center gap-3 rounded-md border-l-2 px-3 py-2 text-ink transition-colors duration-150 hover:bg-bg',
-                      here ? 'border-primary bg-bg font-semibold' : 'border-transparent',
-                    )}
-                  >
-                    <Icon className="size-4 shrink-0" aria-hidden="true" />
+    <SidebarGroup>
+      {label ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
+      <SidebarGroupContent>
+        <SidebarMenu className="gap-0.5">
+          {items.map((item) => {
+            const here = item.href === current
+            const Icon = menuIcon(item.key)
+            const name = item.count ? `${item.label} · ${item.count.label}` : item.label
+            return (
+              <SidebarMenuItem key={item.key}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={here}
+                  tooltip={item.label}
+                  className={cn(
+                    'relative h-10 text-base text-sidebar-foreground lg:text-sm',
+                    here && 'font-semibold before:absolute before:inset-y-1.5 before:left-0 before:w-0.75 before:rounded-full before:bg-sidebar-primary',
+                  )}
+                >
+                  <Link href={item.href} aria-current={here ? 'page' : undefined} aria-label={name} onClick={() => setOpenMobile(false)}>
+                    <Icon aria-hidden="true" />
                     <span>{item.label}</span>
                   </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ))}
-    </div>
+                </SidebarMenuButton>
+                {item.count && item.count.value > 0 ? <SidebarMenuBadge aria-hidden="true">{item.count.value}</SidebarMenuBadge> : null}
+              </SidebarMenuItem>
+            )
+          })}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
+  )
+}
+
+/** The menu: every group but `footer` in the scrolling middle, `footer` pinned to the bottom */
+export function NavLinks({ entries, label }: { entries: readonly NavEntry[]; label: string }) {
+  const pathname = usePathname()
+  const current = currentHref(pathname, entries)
+  const groups = grouped(entries)
+  const body = groups.filter((g) => g.key !== 'footer')
+  const footer = groups.filter((g) => g.key === 'footer')
+  return (
+    <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
+      <SidebarContent>
+        {body.map((g) => (
+          <NavGroup key={g.key} label={g.label} items={g.items} current={current} />
+        ))}
+      </SidebarContent>
+      {footer.length > 0 ? (
+        <SidebarFooter className="border-t border-sidebar-border p-0">
+          {footer.map((g) => (
+            <NavGroup key={g.key} label={g.label} items={g.items} current={current} />
+          ))}
+        </SidebarFooter>
+      ) : null}
+    </nav>
   )
 }

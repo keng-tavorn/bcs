@@ -152,3 +152,7 @@ export const LINE_RICH_MENU_IMAGE_MAX_BYTES = 1000 * 1000
 // ---------- Workspace screens (S16) ----------
 /** How long the browser remembers the menu collapsed or expanded (FR-PLT-013 AC2): the sidebar's cookie, 7 days */
 export const SIDEBAR_STATE_MAX_AGE_S = (7 * MS_PER_DAY) / MS_PER_SECOND
+/** The sidebar's cookie: "true" open, "false" collapsed; read by the workspace layout to draw the first page the same way */
+export const SIDEBAR_STATE_COOKIE = 'sidebar_state'
+/** Below this width (px) the workspace menu opens as a sheet from the left (§9.10 layout sizes) */
+export const SIDEBAR_SHEET_BELOW_PX = 1024

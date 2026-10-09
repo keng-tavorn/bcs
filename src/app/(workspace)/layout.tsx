@@ -1,9 +1,11 @@
+import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
 import { systemClock } from '@/lib/clock'
+import { SIDEBAR_STATE_COOKIE } from '@/lib/constants'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { listEnabledModules } from '@/server/queries/organization'
@@ -21,7 +23,7 @@ import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
 import { paletteCommands } from './_shell/commands'
-import { visibleMenu } from './_shell/menu'
+import { SIDEBAR_GROUPS, visibleMenu, type MenuGroup } from './_shell/menu'
 import { markAllNotificationsReadAction, openNotificationAction } from './_shell/notification-actions'
 
 // Every workspace page: signed in, a member, and 2FA set up when the role needs it (FR-AUTH-002 AC1) — otherwise
@@ -39,7 +41,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     if (platform.kind === 'platform-admin' || platform.kind === 'needs-2fa-setup') redirect('/platform/tenants')
   }
 
-  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, tSearch, locale] = await Promise.all([
+  const [t, tItems, tGroups, tAuth, tSecurity, tApp, tPwa, tBell, tSearch, tRoles, locale] = await Promise.all([
     getTranslations('shell'),
     getTranslations('shell.items'),
     getTranslations('shell.groups'),
@@ -49,6 +51,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     getTranslations('pwa'),
     getTranslations('shell.notifications'),
     getTranslations('shell.search'),
+    getTranslations('admin.roles'),
     getLocale(),
   ])
   const languageSwitch = (
@@ -98,23 +101,28 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   }
 
   const modules = await listEnabledModules(state.member.organizationId)
-  const nav = visibleMenu(memberPrincipal(state.member.id, state.roles), modules, true).map((item) => ({
+  const menu = visibleMenu(memberPrincipal(state.member.id, state.roles), modules, true).map((item) => ({
     key: item.key,
     href: item.href,
     group: item.group,
     label: tItems(item.key),
-    groupLabel: tGroups(item.group),
   }))
+  // The sidebar holds the groups of §9.10, a heading over the named ones; the hub pages list the rest (/settings, /admin)
+  const headingOf = (group: MenuGroup) => (group === 'procurement' || group === 'finance' || group === 'insight' ? tGroups(group) : '')
+  const sidebarGroups: readonly MenuGroup[] = SIDEBAR_GROUPS
+  const nav = menu.filter((item) => sidebarGroups.includes(item.group)).map((item) => ({ ...item, groupLabel: headingOf(item.group) }))
   // The one door (§9.9 principle 2): only for a member whose menu has it — one who may create requests
-  const door = nav.find((item) => item.key === 'newRequest')
+  const door = menu.find((item) => item.key === 'newRequest')
   const name = locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh
+  // The sidebar opens as the member last left it (FR-PLT-013 AC2): its cookie says "false" once collapsed
+  const sidebarOpen = (await cookies()).get(SIDEBAR_STATE_COOKIE)?.value !== 'false'
   // The bell (FR-NOTI-001): the member's own notifications in their language
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   const notifications = ctx ? await listMyNotifications(ctx, locale === 'en' ? 'en' : 'th') : { items: [], unread: 0 }
   // The ⌘K search (FR-PLT-014): pages are the member's menu; commands only reach what that menu holds (AC4)
   const screen = locale === 'en' ? 'en' : 'th'
   const requestTypes = door && ctx ? await listRequestCatalog(ctx, screen) : []
-  const commands = paletteCommands(nav, requestTypes, {
+  const commands = paletteCommands(menu, requestTypes, {
     startRequest: (type) => tSearch('startRequest', { type }),
     delegate: tSearch('delegate'),
     linkLine: tSearch('linkLine'),
@@ -123,7 +131,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   const search = (
     <CommandPalette
       locale={screen}
-      pages={nav.map((item) => ({ id: item.key, label: item.label, href: item.href }))}
+      pages={menu.map((item) => ({ id: item.key, label: item.label, href: item.href }))}
       commands={commands}
       labels={{
         trigger: tSearch('trigger'),
@@ -164,9 +172,11 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     <WorkspaceShell
       brand={tAuth('brand')}
       orgName={state.member.organizationName}
-      userLine={t('signedInAs', { name })}
-      labels={{ skipToContent: t('skipToContent'), menu: t('menu'), mainNav: t('mainNav') }}
+      labels={{ skipToContent: t('skipToContent'), mainNav: t('mainNav'), account: t('account') }}
       nav={nav}
+      pages={menu}
+      sidebarOpen={sidebarOpen}
+      user={{ name: t('signedInAs', { name }), detail: [state.member.organizationName, ...state.roles.map((r) => tRoles(r))].join(' · ') }}
       bell={bell}
       newRequest={door ? { href: door.href, label: door.label } : undefined}
       search={search}

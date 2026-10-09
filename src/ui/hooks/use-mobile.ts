@@ -1,6 +1,8 @@
 import * as React from "react"
 
-const MOBILE_BREAKPOINT = 768
+import { SIDEBAR_SHEET_BELOW_PX } from "@/lib/constants"
+
+const MOBILE_BREAKPOINT = SIDEBAR_SHEET_BELOW_PX
 const QUERY = `(max-width: ${MOBILE_BREAKPOINT - 1}px)`
 
 function subscribe(onChange: () => void): () => void {
@@ -9,7 +11,7 @@ function subscribe(onChange: () => void): () => void {
   return () => mql.removeEventListener("change", onChange)
 }
 
-/** Whether the screen is narrower than 768 px: read from the browser, false while the server draws the page */
+/** Whether the screen is narrower than 1024 px: read from the browser, false while the server draws the page */
 export function useIsMobile(): boolean {
   return React.useSyncExternalStore(
     subscribe,

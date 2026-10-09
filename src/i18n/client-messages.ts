@@ -39,7 +39,8 @@ const each = <const N extends string, const K extends string>(namespace: N, keys
 export const CLIENT_MESSAGES = {
   root: ['app.error'],
   auth: ['actionLink', 'auth'],
-  platform: ['auth.security', 'platform.modules'],
+  // The shared workspace shell's sidebar and trail read 'ui'
+  platform: ['auth.security', 'platform.modules', 'ui'],
   /** /liff, /liff/help, /liff/tasks and /liff/track: the gate only */
   liff: [...LIFF_GATE],
   /**

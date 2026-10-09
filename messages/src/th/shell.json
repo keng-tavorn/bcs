@@ -1,35 +1,33 @@
 {
   "skipToContent": "ข้ามไปเนื้อหา",
-  "menu": "เมนู",
   "mainNav": "เมนูหลัก",
   "account": "บัญชีของฉัน",
   "language": "ภาษา",
   "signedInAs": "เข้าระบบในชื่อ {name}",
   "groups": {
-    "work": "งานของฉัน",
     "procurement": "จัดซื้อ",
-    "finance": "บัญชีและการเงิน",
-    "insight": "ติดตามและรายงาน",
+    "finance": "การเงิน",
+    "insight": "ภาพรวม",
+    "settings": "ตั้งค่าของฉัน",
     "admin": "ผู้ดูแลองค์กร",
-    "platform": "ทีม BCS",
-    "account": "บัญชีของฉัน"
+    "platform": "ทีม BCS"
   },
   "items": {
     "home": "หน้าแรก",
     "newRequest": "ขอซื้อ / ขอจ้าง",
     "requests": "คำขอ",
-    "tasks": "งานรออนุมัติ",
+    "tasks": "งานอนุมัติ",
     "receiving": "ตรวจรับ",
-    "pool": "กองคำขอรอจัดซื้อ",
-    "pos": "ใบสั่งซื้อ (PO)",
+    "pool": "กองรอจัดซื้อ",
+    "pos": "ใบสั่งซื้อ",
     "suppliers": "ผู้ขาย",
     "invoices": "ยืนยันใบกำกับ",
-    "exports": "ส่งออกไฟล์ Express",
+    "exports": "ส่งออก Express",
     "budgets": "งบประมาณ",
-    "board": "เอกสารค้างที่ใคร",
+    "board": "เอกสารค้าง",
     "reports": "รายงาน",
     "kpi": "ตัวชี้วัด (KPI)",
-    "audit": "บันทึกการตรวจสอบ",
+    "audit": "ร่องรอยการตรวจสอบ",
     "members": "สมาชิกและบทบาท",
     "org": "ผังองค์กร",
     "calendar": "ปฏิทินทำการและวันหยุด",
@@ -45,7 +43,10 @@
     "security": "ความปลอดภัยของบัญชี",
     "pin": "PIN ยืนยันธุรกรรม",
     "lineLink": "บัญชี LINE",
-    "notifications": "ตั้งค่าการแจ้งเตือน"
+    "notifications": "ตั้งค่าการแจ้งเตือน",
+    "insights": "สรุปผู้บริหาร",
+    "settings": "ตั้งค่าของฉัน",
+    "admin": "ผู้ดูแลองค์กร"
   },
   "notifications": {
     "button": "แจ้งเตือน",
@@ -84,5 +85,9 @@
     "overdue": "ดูงานเกินกำหนด",
     "shortcutMac": "⌘K",
     "shortcutOther": "Ctrl K"
+  },
+  "hub": {
+    "settingsIntro": "บัญชี ความปลอดภัย LINE และการแจ้งเตือนของคุณ",
+    "adminIntro": "ตั้งค่าขององค์กร ผังองค์กร และอำนาจอนุมัติ"
   }
 }

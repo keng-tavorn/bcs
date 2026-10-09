@@ -46,12 +46,11 @@ async function signInPlatform(page: Page) {
   await expect(page).toHaveURL(/\/platform\/tenants$/)
 }
 
+/** An admin page from the sidebar's "ผู้ดูแลองค์กร" hub (§9.10); on a phone the sidebar is a sheet behind the menu button */
 async function openMenuItem(page: Page, isMobile: boolean, name: string) {
-  if (isMobile) {
-    const menu = page.locator('header details:has(nav)')
-    if (!(await menu.evaluate((d) => (d as HTMLDetailsElement).open))) await page.getByText('เมนู', { exact: true }).click()
-  }
-  await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name }).click()
+  if (isMobile) await page.getByRole('button', { name: 'ยุบหรือขยายเมนู' }).click()
+  await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name: 'ผู้ดูแลองค์กร' }).click()
+  await page.getByRole('navigation', { name: 'ผู้ดูแลองค์กร' }).getByRole('link', { name }).click()
 }
 
 const success = (page: Page, text: string | RegExp) => page.getByRole('status').filter({ hasText: text })

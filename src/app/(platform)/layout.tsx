@@ -1,6 +1,8 @@
+import { cookies } from 'next/headers'
 import { notFound, redirect } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
+import { SIDEBAR_STATE_COOKIE } from '@/lib/constants'
 import { SignOutButton } from '@/ui/auth/sign-out-button'
 import { TwoFactorSetup } from '@/ui/auth/two-factor-setup'
 import { Notice } from '@/ui/form/notice'
@@ -69,9 +71,10 @@ export default async function PlatformLayout({ children }: { children: ReactNode
       <WorkspaceShell
         brand={tAuth('brand')}
         orgName={t('teamName')}
-        userLine={tShell('signedInAs', { name: state.displayName })}
-        labels={{ skipToContent: tShell('skipToContent'), menu: tShell('menu'), mainNav: tShell('mainNav') }}
+        labels={{ skipToContent: tShell('skipToContent'), mainNav: tShell('mainNav'), account: tShell('account') }}
         nav={[{ key: 'tenants', href: '/platform/tenants', group: 'platform', label: tItems('tenants'), groupLabel: tGroups('platform') }]}
+        sidebarOpen={(await cookies()).get(SIDEBAR_STATE_COOKIE)?.value !== 'false'}
+        user={{ name: tShell('signedInAs', { name: state.displayName }), detail: t('teamName') }}
         account={
           <div className="flex flex-col items-start gap-3">
             {languageSwitch}

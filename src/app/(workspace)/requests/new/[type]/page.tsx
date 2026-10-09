@@ -38,12 +38,10 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
     )
   }
   return (
-    <div className="flex flex-col gap-4">
       <RequestForm
         data={result.data}
         locale={screen}
         autosaveUrl="/requests/new/autosave"
-        backLink="otherType"
         actions={{
           preview: previewRequestAction,
           attach: attachFileAction,
@@ -54,6 +52,5 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
           downloadUrl: downloadUrlAction,
         }}
       />
-    </div>
   )
 }

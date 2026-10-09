@@ -45,6 +45,8 @@ export interface DocumentsProps extends StepProps {
   /** Why the last attach or detach failed */
   readonly fileError: string | null
   readonly busy: boolean
+  /** The upload control: the workspace's form takes files dropped on it too (./drop-upload.tsx); LIFF keeps the button */
+  readonly Upload?: typeof UploadButton
 }
 
 export function kindLabelOf(t: ReturnType<typeof useTranslations<'requestForm'>>, kind: string): string {
@@ -67,61 +69,13 @@ export function kindLabelOf(t: ReturnType<typeof useTranslations<'requestForm'>>
 
 export function DocumentsStep(props: DocumentsProps) {
   const t = useTranslations('requestForm')
-  const tr = useTranslations('requestForm.rules')
-  const { data, input, locale, rules, values, update, visible, showErrors, fieldErrors } = props
+  const { data } = props
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
-  const shown = visibleInput(data.form, input)
-  // The questions the rules ask to be answered, asked here under the rules rather than with the details
-  // (./document-fields.ts): the single-source reason of ATT-QUOTES beside the rule that takes it
-  const documentFields = documentFieldIds(data.form.rules)
-  const asked = data.form.fields.filter((f) => visible.has(f.id) && documentFields.has(f.id))
   // Its pairs split by the step's own width (@container), not the screen's: inside the LIFF column (34rem of content,
   // §9.9 "LIFF เป็นคอลัมน์เดียว") each pair stacks at every width; the workspace's wider step keeps them side by side
   return (
     <div className="@container flex flex-col gap-10">
-      <section aria-labelledby="required-documents" className="flex flex-col gap-3">
-        <h3 id="required-documents" className="subheading font-semibold">
-          {t('documents.requiredTitle')}
-        </h3>
-        {rules.length === 0 ? (
-          <p className="text-ink-muted">{t('documents.noneRequired')}</p>
-        ) : (
-          <ul className="flex flex-col divide-y divide-line border-y border-line">
-            {rules.map((rule) => (
-              <li key={rule.id} className="flex flex-col gap-2 py-3" data-rule={rule.id}>
-                <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                  <span className="font-semibold">{t('documents.rule', { rule: rule.id })}</span>
-                  {rule.met ? (
-                    // A rule met on a request not sent yet: supporting information — the info icon in --info beside
-                    // words in ink — never the approved mark of --primary (§9.9 tokens)
-                    <span className="inline-flex items-center gap-1 text-ink">
-                      <Info className="size-4 text-info" aria-hidden="true" />
-                      {t('documents.met')}
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-danger">
-                      <CircleAlert className="size-4" aria-hidden="true" />
-                      {t('documents.notMet')}
-                    </span>
-                  )}
-                </p>
-                <p className="text-ink-muted">{t('documents.because', { condition: conditionText(rule.when, data.form.fields, locale, tr) })}</p>
-                <RequirementList requirement={rule.require} input={shown} fields={data.form.fields} locale={locale} kindLabel={kindLabel} ruleMet={rule.met} />
-              </li>
-            ))}
-          </ul>
-        )}
-        {asked.map((def) => (
-          <FieldInput
-            key={def.id}
-            def={def}
-            locale={locale}
-            value={values.fields[def.id]}
-            onChange={(value) => update({ type: 'field', id: def.id, value })}
-            error={fieldErrors[def.id] ?? (showErrors && def.required && blank(values.fields[def.id]) ? t('fields.missing') : undefined)}
-          />
-        ))}
-      </section>
+      <RulesSection {...props} />
       {data.type.documentType === 'PURCHASE_REQUEST' ? (
         <>
           {/* Optional: the requester's suggestion; PROCUREMENT chooses the supplier of each line (FR-P2P-001 AC2) */}
@@ -134,7 +88,67 @@ export function DocumentsStep(props: DocumentsProps) {
   )
 }
 
-function Quotations(props: DocumentsProps) {
+/**
+ * The attachments the rules ask for at the current amount and answers, with the questions those rules ask to be
+ * answered (the single-source reason of ATT-QUOTES, ./document-fields.ts) asked under them rather than with the details
+ */
+export function RulesSection(props: DocumentsProps) {
+  const t = useTranslations('requestForm')
+  const tr = useTranslations('requestForm.rules')
+  const { data, input, locale, rules, values, update, visible, showErrors, fieldErrors } = props
+  const kindLabel = (kind: string) => kindLabelOf(t, kind)
+  const shown = visibleInput(data.form, input)
+  const documentFields = documentFieldIds(data.form.rules)
+  const asked = data.form.fields.filter((f) => visible.has(f.id) && documentFields.has(f.id))
+  return (
+    <section aria-labelledby="required-documents" className="flex flex-col gap-3">
+      <h3 id="required-documents" className="subheading font-semibold">
+        {t('documents.requiredTitle')}
+      </h3>
+      {rules.length === 0 ? (
+        <p className="text-ink-muted">{t('documents.noneRequired')}</p>
+      ) : (
+        <ul className="flex flex-col divide-y divide-line border-y border-line">
+          {rules.map((rule) => (
+            <li key={rule.id} className="flex flex-col gap-2 py-3" data-rule={rule.id}>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="font-semibold">{t('documents.rule', { rule: rule.id })}</span>
+                {rule.met ? (
+                  // A rule met on a request not sent yet: supporting information — the info icon in --info beside
+                  // words in ink — never the approved mark of --primary (§9.9 tokens)
+                  <span className="inline-flex items-center gap-1 text-ink">
+                    <Info className="size-4 text-info" aria-hidden="true" />
+                    {t('documents.met')}
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-danger">
+                    <CircleAlert className="size-4" aria-hidden="true" />
+                    {t('documents.notMet')}
+                  </span>
+                )}
+              </p>
+              <p className="text-ink-muted">{t('documents.because', { condition: conditionText(rule.when, data.form.fields, locale, tr) })}</p>
+              <RequirementList requirement={rule.require} input={shown} fields={data.form.fields} locale={locale} kindLabel={kindLabel} ruleMet={rule.met} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {asked.map((def) => (
+        <FieldInput
+          key={def.id}
+          def={def}
+          locale={locale}
+          value={values.fields[def.id]}
+          onChange={(value) => update({ type: 'field', id: def.id, value })}
+          error={fieldErrors[def.id] ?? (showErrors && def.required && blank(values.fields[def.id]) ? t('fields.missing') : undefined)}
+        />
+      ))}
+    </section>
+  )
+}
+
+/** The quotations as data, compared before VAT as they are typed, with a reason when the chosen one is not the lowest */
+export function Quotations(props: DocumentsProps) {
   const t = useTranslations('requestForm.quotations')
   const tf = useTranslations('requestForm.fields')
   const tFiles = useTranslations('requestForm.files')
@@ -183,7 +197,7 @@ function Quotations(props: DocumentsProps) {
   )
 }
 
-function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, showErrors, busy }: DocumentsProps & { q: FormQuotation; n: number; net: Satang | undefined; isLowest: boolean }) {
+function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, showErrors, busy, Upload = UploadButton }: DocumentsProps & { q: FormQuotation; n: number; net: Satang | undefined; isLowest: boolean }) {
   const t = useTranslations('requestForm.quotations')
   const tf = useTranslations('requestForm.fields')
   const p = `quote-${n}`
@@ -237,7 +251,7 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
             </Button>
           </p>
         ) : null}
-        <UploadButton
+        <Upload
           label={q.fileId ? t('replaceFile', { n }) : t('attachFile', { n })}
           actions={uploads}
           disabled={busy}
@@ -280,7 +294,8 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
   )
 }
 
-function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onOpenFile, fileError, busy, kindLabel }: DocumentsProps & { kindLabel: (kind: string) => string }) {
+/** The other files of the request, each of a kind */
+export function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onOpenFile, fileError, busy, kindLabel, Upload = UploadButton }: DocumentsProps & { kindLabel: (kind: string) => string }) {
   const t = useTranslations('requestForm.attachments')
   // The kind most needed now comes first: a rule not met that asks for a kind the requester attaches one by one
   const wanted = rules.filter((r) => !r.met).flatMap((r) => kindsIn(r.require)).find((k) => data.attachmentKinds.includes(k))
@@ -301,7 +316,7 @@ function OtherFiles({ data, rules, attachments, uploads, onAttach, onDetach, onO
             ))}
           </select>
         </Labelled>
-        <UploadButton className="@min-[40rem]:pt-8" label={t('upload', { kind: kindLabel(kind) })} actions={uploads} disabled={busy} onUploaded={(f) => onAttach(f, kind)} />
+        <Upload className="@min-[40rem]:pt-8" label={t('upload', { kind: kindLabel(kind) })} actions={uploads} disabled={busy} onUploaded={(f) => onAttach(f, kind)} />
       </div>
       {fileError ? <Notice tone="danger">{fileError}</Notice> : null}
       {attachments.length === 0 ? (

@@ -6,6 +6,7 @@ import { RequestCatalog } from '@/ui/request-form/catalog'
 import { RequestForm, SentConfirmation, type RequestFormActions } from '@/ui/request-form/request-form'
 import type { RequestFormData } from '@/ui/request-form/types'
 import { currentHref, type NavEntry } from '@/ui/shell/nav-links'
+import { FORM_PAGE, SHELL_HIDDEN } from '@/ui/shell/form-page'
 import { DOOR_ASIDE, DOOR_HIDDEN } from '@/ui/shell/new-request-door'
 import { NotificationBell } from '@/ui/shell/notification-bell'
 import { trailOf } from '@/ui/shell/shell-breadcrumb'
@@ -21,7 +22,7 @@ import th from '../../messages/th.json'
 // the door is back. The bell and the user menu open one at a time.
 
 const path = vi.hoisted(() => ({ now: '/' }))
-vi.mock('next/navigation', () => ({ usePathname: () => path.now }))
+vi.mock('next/navigation', () => ({ usePathname: () => path.now, useRouter: () => ({ push: () => undefined, back: () => undefined }) }))
 
 const entry = (key: string, href: string, label: string, group = 'main', groupLabel = ''): NavEntry => ({ key, href, label, group, groupLabel })
 const NAV: NavEntry[] = [entry('home', '/', 'หน้าแรก'), entry('newRequest', '/requests/new', 'ขอซื้อ / ขอจ้าง'), entry('requests', '/requests', 'คำขอ'), entry('tasks', '/tasks', 'งานอนุมัติ')]
@@ -33,7 +34,7 @@ const SIDEBAR: NavEntry[] = [
   entry('pool', '/procurement/pool', 'กองรอจัดซื้อ', 'procurement', 'จัดซื้อ'),
   entry('settings', '/settings', 'ตั้งค่าของฉัน', 'footer'),
 ]
-const DOOR = { href: '/requests/new', label: 'ขอซื้อ / ขอจ้าง' }
+const DOOR = { href: '/requests/new', label: 'ขอซื้อ / ขอจ้าง', types: [], countDrafts: async () => 0 }
 
 /** The links of the markup, each with whether it is marked as the current page */
 const links = (html: string) =>
@@ -49,7 +50,7 @@ const classesOf = (html: string, href: string) =>
 const NAV_RE = /<nav aria-label="เมนูหลัก"[^>]*>[\s\S]*?<\/nav>/g
 const headerOf = (html: string) => /<header[^>]*>[\s\S]*?<\/header>/.exec(html)?.[0] ?? ''
 
-const shell = (newRequest?: { href: string; label: string }, extra: { bell?: ReactNode; search?: ReactNode } = {}) =>
+const shell = (newRequest?: typeof DOOR, extra: { bell?: ReactNode; search?: ReactNode } = {}) =>
   intl(
     <WorkspaceShell
       brand="BCS"
@@ -182,6 +183,12 @@ describe('[FR-PLT-002/AC1] the door to a new request is the main button of every
     expect(outside.map((c) => ['bg-primary', 'text-primary-foreground', 'rounded-full', 'min-h-11'].every((name) => c.has(name)))).toEqual([true])
   })
 
+  it('[FR-INT-010/AC1] [FR-INT-010/AC4] opens the dialog that starts a new request, and stays a link to the catalogue page', () => {
+    path.now = '/tasks'
+    const door = /<a [^>]*href="\/requests\/new"[^>]*>/.exec(headerOf(shell(DOOR)))?.[0] ?? ''
+    expect(door).toContain('aria-haspopup="dialog"')
+  })
+
   it('is not drawn for a member whose menu has no door (one who may not create requests)', () => {
     path.now = '/tasks'
     expect(links(shell()).filter((l) => l.href === '/requests/new')).toEqual([])
@@ -212,6 +219,20 @@ describe('[FR-PLT-002/AC1] the door to a new request is the main button of every
     const sent = intl(<SentConfirmation ref={null} sent={{ requestId: DRAFT_ID, view: { number: 'PR-2569-00001', waitingFor: [] } }} title="วัสดุ" kind="send" />)
     expect(sent).toContain('ส่งขออนุมัติแล้ว')
     expect(aside(sent)).toBe(false)
+  })
+})
+
+describe('[FR-INT-011/AC1] the step-by-step form has the screen to itself', () => {
+  it('the sidebar, the top bar and the content frame step aside while the page holds FORM_PAGE; the form holds it', () => {
+    path.now = '/tasks'
+    const html = shell(DOOR).replaceAll('&amp;', '&')
+    const header = /<header class="([^"]*)"/.exec(html)?.[1]?.split(/\s+/) ?? []
+    expect(header).toContain(SHELL_HIDDEN)
+    expect(html).toMatch(new RegExp(`<div class="contents ${SHELL_HIDDEN.replace(/[[\]()&_:]/g, '\\$&')}"`))
+    expect(/<main id="content" class="([^"]*)"/.exec(html)?.[1]).toContain('[body:has([data-form-page])_&]:max-w-none')
+    expect(SHELL_HIDDEN).toBe(`[body:has([${Object.keys(FORM_PAGE)[0]}])_&]:hidden`)
+    expect(form(null)).toContain(' data-form-page=""')
+    expect(form(DRAFT)).toContain(' data-form-page=""')
   })
 })
 
@@ -261,7 +282,7 @@ const ACTIONS: RequestFormActions = {
 }
 
 /** The request form as it first draws: a new one, or a draft opened again */
-const form = (draft: RequestFormData['draft']) => intl(<RequestForm data={{ ...DATA, draft }} actions={ACTIONS} autosaveUrl="/requests/new/autosave" locale="th" backLink={draft ? 'toCatalog' : 'otherType'} />)
+const form = (draft: RequestFormData['draft']) => intl(<RequestForm data={{ ...DATA, draft }} actions={ACTIONS} autosaveUrl="/requests/new/autosave" locale="th" />)
 
 describe('[FR-NOTI-001/AC1] [FR-PLT-013/AC3] the shell’s panels open one at a time (§9.9: no modal over a modal)', () => {
   it('the bell and the user menu of the top bar are one group of details, so opening one closes the other', () => {

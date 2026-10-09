@@ -28,8 +28,9 @@ async function check(page: Page, testInfo: TestInfo, name: string) {
   await shot(page, testInfo, name)
 }
 
-const nextStep = (page: Page, name: string) => page.getByRole('button', { name: `ไปขั้นถัดไป: ${name}` }).click()
-const stepHeading = (page: Page, n: number, name: string) => expect(page.getByRole('heading', { level: 2, name: `ขั้นที่ ${n} จาก 4: ${name}` })).toBeVisible()
+/** "ถัดไป" in the bar at the foot of the form, named with the step it goes to (FR-INT-011 AC1) */
+const nextStep = (page: Page, name: string) => page.getByRole('button', { name: `ถัดไป: ${name}`, exact: true }).click()
+const stepHeading = (page: Page, n: number, name: string) => expect(page.getByRole('heading', { level: 2, name: `ขั้นที่ ${n} จาก 5: ${name}` })).toBeVisible()
 const status = (page: Page, text: string | RegExp) => page.getByRole('status').filter({ hasText: text })
 
 /** Empty controls the requester must fill on the step shown (FR-INT-003 AC3) */
@@ -45,16 +46,9 @@ test('@demo [FR-INT-003/AC1] [FR-INT-003/AC3] the form fills the delivery site f
   scene('site-draft', requester, 'SITE-B')
   await signIn(page, requester, false)
   await page.goto('/requests/new/BUY_GOODS')
-  await stepHeading(page, 1, 'รายละเอียดคำขอ')
-  // The department and cost center follow the budget line (BR-FORM-02), as before
-  await expect(page.getByText('ฝ่ายก่อสร้าง', { exact: true })).toBeVisible()
+  await stepHeading(page, 1, 'รายละเอียด')
   let typed = await emptyRequired(page)
   await page.getByLabel('ชื่อคำขอ').fill(`ไม้แบบและตะปู (${testInfo.project.name})`)
-  await page.getByLabel('บรรทัดงบที่ใช้').selectOption({ label: 'CON-OPEX-2569 · ค่าใช้จ่ายดำเนินงาน ฝ่ายก่อสร้าง' })
-
-  await nextStep(page, 'รายการที่ขอ')
-  await stepHeading(page, 2, 'รายการที่ขอ')
-  typed += await emptyRequired(page)
   // BR-FORM-02 "สถานที่ส่งล่าสุด": filled in, with its address, and not a field the requester must type
   const site = page.getByLabel('สถานที่ส่ง')
   await expect(site.locator('option:checked')).toHaveText('SITE-B · ไซต์งานตัวอย่าง B')
@@ -65,13 +59,20 @@ test('@demo [FR-INT-003/AC1] [FR-INT-003/AC3] the form fills the delivery site f
   // The requester changes it
   await site.selectOption({ label: 'SITE-A · ไซต์งานตัวอย่าง A' })
   await expect(page.getByText('ที่อยู่: ไซต์ก่อสร้างสมมติ A')).toBeVisible()
+
+  await nextStep(page, 'รายการ ราคา และงบ')
+  await stepHeading(page, 2, 'รายการ ราคา และงบ')
+  typed += await emptyRequired(page)
+  // The department and cost center follow the budget line (BR-FORM-02), as before
+  await page.getByLabel('บรรทัดงบที่ใช้').selectOption({ label: 'CON-OPEX-2569 · ค่าใช้จ่ายดำเนินงาน ฝ่ายก่อสร้าง' })
+  await expect(page.getByText('ฝ่ายก่อสร้าง', { exact: true })).toBeVisible()
   const item = page.getByRole('group', { name: 'รายการที่ 1' })
   await item.getByLabel('สิ่งที่ขอ').fill('ไม้อัด')
   await item.getByLabel(/^จำนวน/).fill('20')
   await item.getByLabel(/^หน่วย/).fill('แผ่น')
   await item.getByLabel(/^ราคาต่อหน่วย/).fill('450')
 
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
   typed += await emptyRequired(page)
   // FR-INT-003 AC3: title, then item, quantity, unit and price; the site and the supplier are not asked for
   expect(typed).toBeLessThanOrEqual(6)
@@ -82,6 +83,9 @@ test('@demo [FR-INT-003/AC1] [FR-INT-003/AC3] the form fills the delivery site f
   await expect(suggestion).toContainText('ฝ่ายจัดซื้อเป็นผู้เลือกผู้ขายจริงของแต่ละรายการ')
   await check(page, testInfo, 'form-supplier')
 
+  await nextStep(page, 'เอกสาร')
+  typed += await emptyRequired(page)
+  expect(typed).toBeLessThanOrEqual(6)
   await nextStep(page, 'ตรวจและส่ง')
   const summary = page.getByRole('region', { name: 'สรุปคำขอ' })
   await expect(summary).toContainText('SITE-A · ไซต์งานตัวอย่าง A')
@@ -94,9 +98,9 @@ test('@demo [FR-INT-003/AC1] [FR-INT-003/AC3] the form fills the delivery site f
   await expect(page).toHaveURL(/\/requests\/[0-9a-f-]{36}\/edit$/)
   const requestId = /\/requests\/([0-9a-f-]{36})\/edit$/.exec(page.url())![1]!
   await page.reload()
-  await nextStep(page, 'รายการที่ขอ')
   await expect(page.getByLabel('สถานที่ส่ง').locator('option:checked')).toHaveText('SITE-A · ไซต์งานตัวอย่าง A')
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
+  await nextStep(page, 'รายการ ราคา และงบ')
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
   await expect(page.getByLabel('ผู้ขายในทะเบียน (ไม่บังคับ)').locator('option:checked')).toHaveText('S1 · บริษัท วัสดุก่อสร้างทดสอบ จำกัด')
 
   // The request's page names them with the request's other facts

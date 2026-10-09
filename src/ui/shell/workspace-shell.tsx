@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react'
 import { Sidebar, SidebarHeader, SidebarTrigger } from '../shadcn/sidebar'
 import { NavLinks, type NavEntry } from './nav-links'
-import { NewRequestDoor } from './new-request-door'
+import type { CatalogEntry } from '../request-form/types'
+import { NewRequestDoorDialog } from './new-request-door-dialog'
+import { SHELL_HIDDEN, SHELL_UNFRAMED } from './form-page'
 import { ShellBreadcrumb, type TrailEntry } from './shell-breadcrumb'
 import { ShellFrame } from './shell-frame'
 import { UserMenu } from './user-menu'
@@ -27,7 +29,7 @@ export interface WorkspaceShellProps {
   readonly account: ReactNode
   readonly bell?: ReactNode
   /** The door to a new request, for a member who may create one (the menu's newRequest entry) */
-  readonly newRequest?: { readonly href: string; readonly label: string }
+  readonly newRequest?: { readonly href: string; readonly label: string; readonly types: readonly CatalogEntry[]; readonly countDrafts: () => Promise<number> }
   /** The ⌘K search (FR-PLT-014): rendered once, as its keyboard shortcut listens on the whole page */
   readonly search?: ReactNode
   readonly children: ReactNode
@@ -43,36 +45,39 @@ export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sideba
         {labels.skipToContent}
       </a>
 
-      <Sidebar collapsible="icon">
-        <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4 group-data-[collapsible=icon]:px-2">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-bold text-sidebar-primary-foreground" aria-hidden="true">
-              {brand.slice(0, 1)}
-            </span>
-            <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:sr-only">
-              <span className="font-bold">{brand}</span>
-              <span className="truncate text-sm text-nav-ink-muted">{orgName}</span>
-            </span>
-          </div>
-        </SidebarHeader>
-        <NavLinks entries={nav} label={labels.mainNav} />
-        {/* The user menu of a phone, at the foot of the sheet, on the page's light surface */}
-        <section aria-label={labels.account} className="m-2 flex flex-col gap-3 rounded-md bg-bg p-3 text-ink md:hidden">
-          <div className="flex flex-col gap-1">
-            <p className="font-semibold">{user.name}</p>
-            {user.detail ? <p className="text-ink-muted">{user.detail}</p> : null}
-          </div>
-          {account}
-        </section>
-      </Sidebar>
+      {/* The step-by-step request form has the screen to itself (./form-page.ts) */}
+      <div className={`contents ${SHELL_HIDDEN}`}>
+        <Sidebar collapsible="icon">
+          <SidebarHeader className="h-14 justify-center border-b border-sidebar-border px-4 group-data-[collapsible=icon]:px-2">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-sidebar-primary font-bold text-sidebar-primary-foreground" aria-hidden="true">
+                {brand.slice(0, 1)}
+              </span>
+              <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:sr-only">
+                <span className="font-bold">{brand}</span>
+                <span className="truncate text-sm text-nav-ink-muted">{orgName}</span>
+              </span>
+            </div>
+          </SidebarHeader>
+          <NavLinks entries={nav} label={labels.mainNav} />
+          {/* The user menu of a phone, at the foot of the sheet, on the page's light surface */}
+          <section aria-label={labels.account} className="m-2 flex flex-col gap-3 rounded-md bg-bg p-3 text-ink md:hidden">
+            <div className="flex flex-col gap-1">
+              <p className="font-semibold">{user.name}</p>
+              {user.detail ? <p className="text-ink-muted">{user.detail}</p> : null}
+            </div>
+            {account}
+          </section>
+        </Sidebar>
+      </div>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-2 sm:px-4 lg:px-6">
+        <header className={`sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-2 sm:px-4 lg:px-6 ${SHELL_HIDDEN}`}>
           <SidebarTrigger className="size-11 shrink-0 lg:size-10" />
           <ShellBreadcrumb entries={pages} />
           <div className="flex min-w-0 flex-1 justify-end md:justify-start lg:px-2">{search}</div>
           {bell}
-          {newRequest ? <NewRequestDoor href={newRequest.href} label={newRequest.label} /> : null}
+          {newRequest ? <NewRequestDoorDialog {...newRequest} /> : null}
           <div className="hidden md:block">
             <UserMenu label={labels.account} name={user.name} detail={user.detail}>
               {account}
@@ -80,7 +85,7 @@ export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sideba
           </div>
         </header>
 
-        <main id="content" className="mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-6 lg:py-8">
+        <main id="content" className={`mx-auto w-full max-w-[1280px] px-4 py-6 lg:px-6 lg:py-8 ${SHELL_UNFRAMED}`}>
           {children}
         </main>
       </div>

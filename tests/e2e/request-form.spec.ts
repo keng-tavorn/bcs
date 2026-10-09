@@ -4,8 +4,9 @@ import { type Browser, type Locator, type Page, type TestInfo } from '@playwrigh
 import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 
-// S2-11 · S3-06 · the screens of S2-17 and of the budget-line choice of S3-07: the catalog, the request form in four
-// steps, drafts that save themselves and meet on two devices, quotations and attachments, the budget line's balance and
+// S2-11 · S3-06 · the screens of S2-17 and of the budget-line choice of S3-07: the catalog, the request form step by
+// step (FR-INT-011: details · items, prices and budget · supplier and quotations · further questions · documents · check
+// and send, each shown when it has something to ask), drafts that save themselves and meet on two devices, quotations and attachments, the budget line's balance and
 // the expected route before sending, the confirmation once sent, and a returned request that keeps its reservation.
 // Requesters without a role sign in with their password only (FR-AUTH-002 AC1). Screenshots at 375 px (mobile project)
 // and 1440 px (desktop project) go to the test output (§9.9 step 4); every screen is checked with axe (step 5).
@@ -38,8 +39,16 @@ async function expectNoSidewaysScroll(page: Page) {
   expect(scroll).toBeLessThanOrEqual(client)
 }
 
-const nextStep = (page: Page, name: string) => page.getByRole('button', { name: `ไปขั้นถัดไป: ${name}` }).click()
-const stepHeading = (page: Page, n: number, name: string, total = 4) => expect(page.getByRole('heading', { level: 2, name: `ขั้นที่ ${n} จาก ${total}: ${name}` })).toBeVisible()
+/** "ถัดไป" in the bar at the foot of the form, named with the step it goes to (FR-INT-011 AC1) */
+const nextStep = (page: Page, name: string) => page.getByRole('button', { name: `ถัดไป: ${name}`, exact: true }).click()
+/** The requester's budget line: the one the form chose (BR-FORM-02), or the first offered when it chose none */
+async function chooseBudgetLine(page: Page) {
+  const line = page.getByLabel('บรรทัดงบที่ใช้')
+  if ((await line.inputValue()) === '') await line.selectOption({ index: 1 })
+}
+const stepHeading = (page: Page, n: number, name: string, total = 5) => expect(page.getByRole('heading', { level: 2, name: `ขั้นที่ ${n} จาก ${total}: ${name}` })).toBeVisible()
+/** The step shown, without the "ก่อนส่ง" panel beside it */
+const stepBody = (page: Page) => page.locator('section[aria-labelledby="step-heading"]')
 const status = (page: Page, text: string | RegExp) => page.getByRole('status').filter({ hasText: text })
 const alert = (page: Page, text: string | RegExp) => page.getByRole('alert').filter({ hasText: text })
 const money = (text: string) => BigInt(text.replace(/[^\d]/g, ''))
@@ -144,10 +153,17 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
   await signIn(page, 'req_con')
   await page.goto('/requests/new/BUY_GOODS')
   await expect(page.getByRole('heading', { level: 1, name: 'คำขอใหม่: ซื้อของ' })).toBeVisible()
-  await stepHeading(page, 1, 'รายละเอียดคำขอ')
+  await stepHeading(page, 1, 'รายละเอียด')
   // The form is the door's own content: the door steps aside while it shows
   await expect(visibleDoor(page)).toHaveCount(0)
+  await page.getByLabel('ชื่อคำขอ').fill(`วัสดุก่อสร้างโครงการบางนา (${testInfo.project.name})`)
+  // BR-FORM-02 "สถานที่ส่งล่าสุด": the delivery site of req_con's latest request, which they may change (S4-02)
+  await expect(page.getByLabel('สถานที่ส่ง').locator('option:checked')).toHaveText('SITE-A · ไซต์งานตัวอย่าง A')
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'form-details')
 
+  await nextStep(page, 'รายการ ราคา และงบ')
+  await stepHeading(page, 2, 'รายการ ราคา และงบ')
   // BR-FORM-02: the line req_con used last for this type (other tests may have sent requests of req_con on another
   // line), the department that pays; only CON's own lines are offered; the requester may change the line
   const budgetLine = page.getByLabel('บรรทัดงบที่ใช้')
@@ -161,28 +177,21 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
   await expect(page.getByText('ฝ่ายก่อสร้าง', { exact: true })).toBeVisible()
   await expect(page.getByText('งบคงเหลือของบรรทัดนี้')).toBeVisible()
   await expect(page.getByText(/^[\d,]+\.\d{2} บาท$/).first()).toBeVisible()
-
-  await page.getByLabel('ชื่อคำขอ').fill(`วัสดุก่อสร้างโครงการบางนา (${testInfo.project.name})`)
-  await expectNoBlockingAxe(page)
-  await shot(page, testInfo, 'form-details')
-
-  await nextStep(page, 'รายการที่ขอ')
-  await stepHeading(page, 2, 'รายการที่ขอ')
-  // BR-FORM-02 "สถานที่ส่งล่าสุด": the delivery site of req_con's latest request, which they may change (S4-02)
-  await expect(page.getByLabel('สถานที่ส่ง').locator('option:checked')).toHaveText('SITE-A · ไซต์งานตัวอย่าง A')
   await page.getByLabel('ราคาที่กรอกรวม VAT แล้ว').check()
   await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'ปูนซีเมนต์', quantity: '1', uom: 'งาน', price: '45000' })
   // VAT inside a price that includes it = round(45,000 × 700 / 10,700) = 2,943.93 (BR-VAT-03)
   await expect(page.getByText('42,056.07 บาท').first()).toBeVisible()
   await expect(page.getByText('45,000.00 บาท').first()).toBeVisible()
-  await expect(page.getByText('งบพอ', { exact: true })).toBeVisible()
+  // The step's own; a wide screen says it again in "ก่อนส่ง" (FR-INT-011 AC4)
+  await expect(stepBody(page).getByText('งบพอ', { exact: true })).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'form-items')
 
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
-  await expect(page.getByText('ยอดและคำตอบตอนนี้ยังไม่ต้องแนบเอกสาร')).toBeVisible()
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
+  await nextStep(page, 'เอกสาร')
+  await expect(page.getByText('ยอดและคำตอบตอนนี้ยังไม่ต้องแนบเอกสาร').first()).toBeVisible()
   await nextStep(page, 'ตรวจและส่ง')
-  await stepHeading(page, 4, 'ตรวจและส่ง')
+  await stepHeading(page, 5, 'ตรวจและส่ง')
   // FR-DOA-003 AC2: the expected approver with the engine's Thai explanation, before pressing send
   const route = page.getByRole('region', { name: 'เส้นทางอนุมัติที่คาดไว้' })
   await expect(route.getByText('วีระ ปฏิบัติการ')).toBeVisible()
@@ -208,20 +217,20 @@ test('[FR-INT-004/AC2] over budget, the send button says why and by how much, an
   await signIn(page, 'req_con2')
   await page.goto('/requests/new/BUY_GOODS')
   await page.getByLabel('ชื่อคำขอ').fill('รถขุดเล็ก')
+  await nextStep(page, 'รายการ ราคา และงบ')
   // CON has two lines and req_con2 has used none: the requester chooses
   await page.getByLabel('บรรทัดงบที่ใช้').selectOption({ label: 'CON-OPEX-2569 · ค่าใช้จ่ายดำเนินงาน ฝ่ายก่อสร้าง' })
   const remaining = page.locator('div[aria-live="polite"]').filter({ hasText: 'งบคงเหลือของบรรทัดนี้' })
   await expect(remaining).toContainText(/[\d,]+\.\d{2} บาท/)
   const available = money((await remaining.textContent())!.replace('งบคงเหลือของบรรทัดนี้', ''))
-
-  await nextStep(page, 'รายการที่ขอ')
   await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'รถขุดเล็ก', quantity: '1', uom: 'คัน', price: '900,000' })
   const shortfall = 90_000_000n - available
   const shown = (s: bigint) => `${(s / 100n).toLocaleString('en-US')}.${String(s % 100n).padStart(2, '0')}`
-  await expect(page.getByText(`งบไม่พอ ขาด ${shown(shortfall)} บาท ลดยอดหรือเลือกบรรทัดงบอื่น`)).toBeVisible()
+  await expect(stepBody(page).getByText(`งบไม่พอ ขาด ${shown(shortfall)} บาท ลดยอดหรือเลือกบรรทัดงบอื่น`)).toBeVisible()
   await shot(page, testInfo, 'items-over-budget')
 
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
+  await nextStep(page, 'เอกสาร')
   await nextStep(page, 'ตรวจและส่ง')
   const send = page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true })
   await expect(send).toBeDisabled()
@@ -250,10 +259,34 @@ test('[FR-INT-002/AC1] [FR-INT-002/AC3] [FR-INT-005/AC5] [FR-PLT-004/AC2] IT: fi
   await page.goto('/requests/new/IT_PURCHASE')
   await page.getByLabel('ชื่อคำขอ').fill(`ไลเซนส์ระบบบัญชี (${testInfo.project.name})`)
   const category = page.getByRole('group', { name: /^หมวด/ })
-  await expect(page.getByLabel('เลขทะเบียนทรัพย์สิน')).toHaveCount(0)
   await category.getByLabel('ฮาร์ดแวร์').check()
+  await expectNoSidewaysScroll(page)
+  await expectNoBlockingAxe(page)
+  await shot(page, testInfo, 'it-details')
+  // Six steps: the screening questions and the asset tag shown for hardware are further questions (§9.10)
+  await nextStep(page, 'รายการ ราคา และงบ')
+  await stepHeading(page, 2, 'รายการ ราคา และงบ', 6)
+  await chooseBudgetLine(page)
+  const item = page.getByRole('group', { name: 'รายการที่ 1' })
+  await fillLine(item, { description: 'ไลเซนส์ระบบบัญชี 1 ปี', quantity: '1', uom: 'ชุด', price: '24000' })
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
+  await nextStep(page, 'คำถามเพิ่มเติม')
   await expect(page.getByLabel('เลขทะเบียนทรัพย์สิน')).toBeVisible()
+  // Back to the details, the answers kept (AC3): software has no asset tag
+  await page.getByRole('button', { name: 'ย้อนกลับ: ผู้ขายและใบเสนอราคา', exact: true }).click()
+  await page.getByRole('button', { name: 'ย้อนกลับ: รายการ ราคา และงบ', exact: true }).click()
+  await page.getByRole('button', { name: 'ย้อนกลับ: รายละเอียด', exact: true }).click()
+  await expect(category.getByLabel('ฮาร์ดแวร์')).toBeChecked()
   await category.getByLabel('ซอฟต์แวร์และไลเซนส์').check()
+  await nextStep(page, 'รายการ ราคา และงบ')
+  // Software lines carry the day the service ends: "ถัดไป" asks for it first (FR-INT-011 AC3)
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
+  await expect(item.getByLabel('วันสิ้นสุดบริการ')).toBeFocused()
+  await item.getByLabel('วันสิ้นสุดบริการ').fill('2027-10-31')
+  await expectNoSidewaysScroll(page)
+  await shot(page, testInfo, 'it-items')
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
+  await nextStep(page, 'คำถามเพิ่มเติม')
   await expect(page.getByLabel('เลขทะเบียนทรัพย์สิน')).toHaveCount(0)
   // BR-FORM-05: three screening questions
   const personal = page.getByRole('group', { name: /ผู้ขายจะประมวลผลข้อมูลส่วนบุคคลแทนบริษัทหรือไม่/ })
@@ -264,17 +297,9 @@ test('[FR-INT-002/AC1] [FR-INT-002/AC3] [FR-INT-005/AC5] [FR-PLT-004/AC2] IT: fi
   await page.getByRole('group', { name: /ผู้ขายจะเข้าพื้นที่ทำงานหรือไซต์งานหรือไม่/ }).getByLabel('ไม่ใช่', { exact: true }).check()
   await expectNoSidewaysScroll(page)
   await expectNoBlockingAxe(page)
-  await shot(page, testInfo, 'it-details')
+  await shot(page, testInfo, 'it-questions')
 
-  await nextStep(page, 'รายการที่ขอ')
-  const item = page.getByRole('group', { name: 'รายการที่ 1' })
-  await fillLine(item, { description: 'ไลเซนส์ระบบบัญชี 1 ปี', quantity: '1', uom: 'ชุด', price: '24000' })
-  // Software lines carry the day the service ends
-  await item.getByLabel('วันสิ้นสุดบริการ').fill('2027-10-31')
-  await expectNoSidewaysScroll(page)
-  await shot(page, testInfo, 'it-items')
-
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
+  await nextStep(page, 'เอกสาร')
   const dpaRule = page.locator('[data-rule="ATT-DPA"]')
   await expect(dpaRule).toContainText('ยังไม่ครบ')
   await expect(dpaRule).toContainText('ข้อตกลงการประมวลผลข้อมูล (DPA) อย่างน้อย 1 ไฟล์ (แนบแล้ว 0)')
@@ -315,16 +340,11 @@ test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quo
   await signIn(page, 'req_con2')
   await page.goto('/requests/new/BUY_GOODS')
   await page.getByLabel('ชื่อคำขอ').fill(`เครื่องผสมปูน (${testInfo.project.name})`)
+  await nextStep(page, 'รายการ ราคา และงบ')
   await page.getByLabel('บรรทัดงบที่ใช้').selectOption({ label: 'CON-CAPEX-2569 · ลงทุนเครื่องมือและอุปกรณ์ ฝ่ายก่อสร้าง' })
-  await nextStep(page, 'รายการที่ขอ')
   await page.getByLabel('ราคาที่กรอกรวม VAT แล้ว').check()
   await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'เครื่องผสมปูน', quantity: '1', uom: 'เครื่อง', price: '107000' })
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
-
-  // FR-INT-005 AC1: the rule that applies at this amount, why, and what it asks for
-  const quotesRule = page.locator('[data-rule="ATT-QUOTES"]')
-  await expect(quotesRule).toContainText('ใช้เพราะ ยอดรวม VAT มากกว่า 100,000.00 บาท')
-  await expect(quotesRule).toContainText('ยังไม่ครบ')
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
 
   const quotation = async (n: number, supplier: string, amount: string, includesVat: boolean) => {
     await page.getByRole('button', { name: 'เพิ่มใบเสนอราคา' }).click()
@@ -339,13 +359,18 @@ test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quo
   // One quotation only: the server refuses with the rule's code (AC2)
   const a = await quotation(1, 'ผู้ขาย A', '107000', true)
   await a.getByLabel('เลือกใช้ใบเสนอราคาที่ 1').check()
+  await nextStep(page, 'เอกสาร')
+  // FR-INT-005 AC1: the rule that applies at this amount, why, and what it asks for
+  const quotesRule = page.locator('[data-rule="ATT-QUOTES"]')
+  await expect(quotesRule).toContainText('ใช้เพราะ ยอดรวม VAT มากกว่า 100,000.00 บาท')
+  await expect(quotesRule).toContainText('ยังไม่ครบ')
   await nextStep(page, 'ตรวจและส่ง')
   // §9.9 principle 3 and rule 7: "ตรวจก่อนส่ง" marks the rule not met as a point to fix before sending, as it marks the
   // budget, beside its way to the documents; the button still sends, so that the server answers with the rule's code
   const quotesPoint = page.getByRole('region', { name: 'ตรวจก่อนส่ง' }).getByRole('listitem').filter({ hasText: 'เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES' })
   await expect(quotesPoint).toBeVisible()
   await expect(quotesPoint).toContainText('เอกสารแนบยังไม่ครบตามกฎ ATT-QUOTES (ต้องแก้ก่อนส่ง)')
-  await expect(quotesPoint.getByRole('button', { name: 'ไปแก้ที่ขั้น ใบเสนอราคาและเอกสาร' })).toBeVisible()
+  await expect(quotesPoint.getByRole('button', { name: 'ไปแก้ที่ขั้น เอกสาร' })).toBeVisible()
   const send = page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true })
   await expect(send).toBeEnabled()
   await send.click()
@@ -354,7 +379,8 @@ test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quo
   await shot(page, testInfo, 'review-attachment-rule')
 
   // GC-FORM-09: A 107,000 incl. VAT, B 101,000 without, C 105,000 incl. VAT — compared before VAT as they are typed
-  await page.getByRole('button', { name: 'ไปแก้ที่ขั้น ใบเสนอราคาและเอกสาร' }).first().click()
+  await page.getByRole('button', { name: 'ไปแก้ที่ขั้น เอกสาร' }).first().click()
+  await page.getByRole('button', { name: 'ย้อนกลับ: ผู้ขายและใบเสนอราคา', exact: true }).click()
   const b = await quotation(2, 'ผู้ขาย B', '101000', false)
   const c = await quotation(3, 'ผู้ขาย C', '105000', true)
   await expect(a).toContainText('ยอดก่อน VAT 100,000.00 บาท')
@@ -362,19 +388,21 @@ test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quo
   await expect(c).toContainText('ยอดก่อน VAT 98,130.84 บาท')
   await expect(c).toContainText('ต่ำสุดก่อน VAT')
   await expect(a).not.toContainText('ต่ำสุดก่อน VAT')
-  await expect(quotesRule).toContainText('ครบแล้ว')
   // A is chosen but is not the lowest: a reason is asked for (BR-FORM-06)
   await expect(page.getByLabel('เหตุผลที่ไม่เลือกรายที่ต่ำสุด')).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'quotations')
 
-  // GC-FORM-10: sent without the reason, the server refuses with QUOTE-LOWEST
-  await nextStep(page, 'ตรวจและส่ง')
-  await page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true }).click()
-  await expect(alert(page, 'ใบเสนอราคาที่เลือกไม่ใช่ยอดก่อน VAT ต่ำสุด (กฎ QUOTE-LOWEST)')).toBeVisible()
+  // GC-FORM-10 (FR-INT-011 AC3): without the reason, "ถัดไป" stops on the step and says so under the field; the server
+  // refuses the same with QUOTE-LOWEST (tests/integration/quotations.test.ts)
+  await nextStep(page, 'เอกสาร')
+  await expect(page.getByRole('heading', { level: 2, name: /: ผู้ขายและใบเสนอราคา$/ })).toBeVisible()
+  await expect(alert(page, 'ยังมี 1 ข้อในขั้นนี้ที่ต้องกรอกหรือแก้')).toBeVisible()
+  await expect(page.getByLabel('เหตุผลที่ไม่เลือกรายที่ต่ำสุด')).toBeFocused()
   // GC-FORM-11: with a reason it goes
-  await page.getByRole('button', { name: 'ไปแก้ที่ขั้น ใบเสนอราคาและเอกสาร' }).first().click()
   await page.getByLabel('เหตุผลที่ไม่เลือกรายที่ต่ำสุด').fill('ส่งของได้เร็วกว่า 2 สัปดาห์')
+  await nextStep(page, 'เอกสาร')
+  await expect(quotesRule).toContainText('ครบแล้ว')
   await nextStep(page, 'ตรวจและส่ง')
   await page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true }).click()
   await expectSent(page, null)
@@ -386,7 +414,7 @@ test('[FR-INT-006/AC1] [FR-INT-009/AC2] a returned request keeps its reservation
   await page.goto(`/requests/${requestId}/edit`)
   await expect(page.getByRole('heading', { level: 1, name: 'แก้ไขคำขอที่ถูกตีกลับ: ซื้อของ' })).toBeVisible()
   await expect(page.getByText('ผู้อนุมัติตีกลับให้แก้ไข: แยกรายการปูนออกเป็นคำขอใหม่')).toBeVisible()
-  await nextStep(page, 'รายการที่ขอ')
+  await nextStep(page, 'รายการ ราคา และงบ')
   const cement = page.getByRole('group', { name: 'รายการที่ 1', exact: true })
   await expect(cement.getByLabel('สิ่งที่ขอ')).toHaveValue('ปูนซีเมนต์')
 
@@ -410,7 +438,7 @@ test('[FR-INT-006/AC1] [FR-INT-009/AC2] a returned request keeps its reservation
   await expect(status(page, /^บันทึกร่างแล้ว/)).toBeVisible()
   // Opened again: only the sand is left, and it is still a returned request to send again
   await page.reload()
-  await nextStep(page, 'รายการที่ขอ')
+  await nextStep(page, 'รายการ ราคา และงบ')
   await expect(page.getByRole('group', { name: /^รายการที่ \d+$/ })).toHaveCount(1)
   await expect(page.getByRole('group', { name: 'รายการที่ 1', exact: true }).getByLabel('สิ่งที่ขอ')).toHaveValue('ทราย')
 })
@@ -440,10 +468,10 @@ test('[FR-INT-006/AC1] a draft saves itself 10 seconds after typing stops, and w
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'draft-saved')
 
-  // Leaving at once, without waiting: the change is saved on the way out
+  // Closing at once, without waiting (FR-INT-011 AC1): the change is saved first, then the form goes back
   await page.getByLabel('ชื่อคำขอ').fill(`${title} แก้ก่อนออก`)
-  await page.getByRole('link', { name: 'กลับไปหน้าเลือกประเภทคำขอ' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'ขอซื้อ / ขอจ้าง' })).toBeVisible()
+  await page.getByRole('button', { name: 'บันทึกร่างและปิด' }).click()
+  await expect(page).not.toHaveURL(/\/edit$/)
   await expect(async () => {
     await page.goto(editUrl)
     await expect(page.getByLabel('ชื่อคำขอ')).toHaveValue(`${title} แก้ก่อนออก`, { timeout: 1_000 })
@@ -505,11 +533,15 @@ test('[FR-INT-006/AC2] the same draft open on two devices: the second save is re
 test('[FR-INT-003/AC3] a purchase of general goods asks the requester to fill in at most 6 fields', async ({ page }) => {
   await signIn(page, 'req_con')
   await page.goto('/requests/new/BUY_GOODS')
-  await stepHeading(page, 1, 'รายละเอียดคำขอ')
+  await stepHeading(page, 1, 'รายละเอียด')
   let fields = await emptyRequired(page)
-  await nextStep(page, 'รายการที่ขอ')
+  await page.getByLabel('ชื่อคำขอ').fill('ปูน')
+  await nextStep(page, 'รายการ ราคา และงบ')
   fields += await emptyRequired(page)
-  await nextStep(page, 'ใบเสนอราคาและเอกสาร')
+  await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'ปูน', quantity: '1', uom: 'ถุง', price: '100' })
+  await nextStep(page, 'ผู้ขายและใบเสนอราคา')
+  fields += await emptyRequired(page)
+  await nextStep(page, 'เอกสาร')
   fields += await emptyRequired(page)
   // Title, then item, quantity, unit and price; the budget line and the department are filled from the context
   expect(fields).toBe(5)

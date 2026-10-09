@@ -243,6 +243,8 @@
       "DUPLICATE_FIELD": "{path} the field name {field} is used by another field",
       "DUPLICATE_RULE": "{path} the rule code {rule} is used by another rule",
       "UNKNOWN_FIELD": "{path} the form has no field named {field}",
+      "DUPLICATE_STEP": "{path} the step key {step} is used by another step",
+      "FIELD_IN_TWO_STEPS": "{path} the field {field} is in another step already; each field is in one step at most",
       "UNKNOWN_ATTACHMENT": "{path} there is no attachment kind {attachment}",
       "schema": {
         "TYPE": "{path} wrong kind of value, or missing",

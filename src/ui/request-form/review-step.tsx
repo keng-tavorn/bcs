@@ -108,7 +108,11 @@ export interface ReviewProps extends StepProps {
   readonly problems: readonly Problem[]
   readonly route: RouteView | null
   readonly attachmentCount: number
-  readonly onGoTo: (step: StepId) => void
+  readonly onGoTo: (step: string) => void
+  /** Where each point is fixed, by step key and name; the four steps of before when absent */
+  readonly locate?: StepLocator
+  /** The send button is drawn by the page's bar (the workspace's step-by-step form), not under the step */
+  readonly submitInBar?: boolean
   readonly onSubmit: () => void
   /** Load the latest version of the draft (after CONFLICT_VERSION) */
   readonly onReload: () => void
@@ -122,16 +126,22 @@ export interface ReviewProps extends StepProps {
   readonly requestHref?: string | null
 }
 
-export function ReviewStep(props: ReviewProps) {
-  const t = useTranslations('requestForm')
-  const { data, values, totals, budget, previewLoading, rules, problems, route, onGoTo, locale, submitError } = props
+/** The step that fixes a point of "ตรวจก่อนส่ง" or a refusal of the server, by its key and its name */
+export interface StepLocator {
+  readonly problem: (p: Problem) => { readonly key: string; readonly name: string }
+  readonly failure: (f: FormFailure) => { readonly key: string; readonly name: string } | null
+}
+
+type SendInput = Pick<ReviewProps, 'data' | 'values' | 'totals' | 'budget' | 'problems' | 'saveStop' | 'closedWhy'>
+
+/**
+ * What the send button says and whether it may send: over budget (before VAT, BR-BUD-03, FR-INT-004 AC2) it cannot,
+ * and says why and by how much; nor with a problem that would send something other than what is on screen (BLOCKING),
+ * nor while saving is stopped. Shared by the review step and the bar of the workspace's form.
+ */
+export function sendStateOf(t: T, { data, values, totals, budget, problems, saveStop, closedWhy }: SendInput): { block: SendBlock | null; blockedReason: string | null; submitLabel: string } {
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
-  const line = data.budgetLines.find((l) => l.id === values.budgetLineId) ?? null
-  const place = placeAndSupplierText(data, values)
-  const kindLabel = (kind: string) => kindLabelOf(t, kind)
-  const stepName = (s: StepId) => t(`steps.${s}`)
   const blocking = problems.filter((p) => BLOCKING.has(p.kind))
-  // FR-INT-004 AC2: over budget (before VAT, BR-BUD-03) the button cannot send and says why and by how much
   const available = budget?.kind === 'LINE' && budget.budgetLineId === values.budgetLineId ? amountToSatang(budget.available.amount) : null
   const shortfall = available !== null && totals !== null && totals.net > available ? totals.net - available : null
   const block: SendBlock | null =
@@ -139,8 +149,8 @@ export function ReviewStep(props: ReviewProps) {
       ? { kind: 'BUDGET', available, shortfall }
       : blocking.length
         ? { kind: 'PROBLEMS' }
-        : props.saveStop
-          ? { kind: 'SAVE', stop: props.saveStop, ...(props.closedWhy ? { why: props.closedWhy } : {}) }
+        : saveStop
+          ? { kind: 'SAVE', stop: saveStop, ...(closedWhy ? { why: closedWhy } : {}) }
           : null
   // Saving stopped: load the latest version (a conflict), or nothing to do on this page (closed to it — sent or
   // cancelled elsewhere, gone, not this account's — where loading would not make the request sendable, as its point and
@@ -155,13 +165,36 @@ export function ReviewStep(props: ReviewProps) {
             ? t(closedKeys(block.why).button)
             : t('submit.blockedSave')
           : null
+  const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
+  return { block, blockedReason, submitLabel }
+}
+
+export function ReviewStep(props: ReviewProps) {
+  const t = useTranslations('requestForm')
+  const { data, values, totals, budget, previewLoading, rules, problems, route, onGoTo, locale, submitError } = props
+  const purchase = data.type.documentType === 'PURCHASE_REQUEST'
+  const line = data.budgetLines.find((l) => l.id === values.budgetLineId) ?? null
+  const place = placeAndSupplierText(data, values)
+  const kindLabel = (kind: string) => kindLabelOf(t, kind)
+  const stepName = (s: StepId) => t(`steps.${s}`)
+  const { block, blockedReason, submitLabel } = sendStateOf(t, props)
   // "ตรวจก่อนส่ง" leads with what stops the button, and is ready only when nothing does (§9.9 principle 3)
   const blockPoint = sendBlockPoint(t, block)
-  const submitLabel = !purchase ? t('submit.toProcurement') : data.draft?.status === 'RETURNED' ? t('submit.resubmit') : t('submit.send')
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
   // A question the attachment rules ask for is fixed beside the documents, in step 3 (./document-fields.ts)
   const documentFields = documentFieldIds(data.form.rules)
-  const failedStep = submitError ? failureStep(submitError, documentFields) : null
+  // Where each point is fixed: the workspace's step-by-step form names its own steps (./form-steps.ts)
+  const locate: StepLocator = props.locate ?? {
+    problem: (p) => {
+      const step = problemStep(p, documentFields)
+      return { key: step, name: stepName(step) }
+    },
+    failure: (f) => {
+      const step = failureStep(f, documentFields)
+      return step ? { key: step, name: stepName(step) } : null
+    },
+  }
+  const failedStep = submitError ? locate.failure(submitError) : null
 
   return (
     <div className="flex flex-col gap-10">
@@ -265,7 +298,7 @@ export function ReviewStep(props: ReviewProps) {
               </li>
             ) : null}
             {problems.map((p, i) => {
-              const step = problemStep(p, documentFields)
+              const step = locate.problem(p)
               return (
                 <li key={i} className="flex flex-col gap-1 py-2 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
                   <p className="flex items-start gap-2">
@@ -275,8 +308,8 @@ export function ReviewStep(props: ReviewProps) {
                       {mustFixBeforeSending(p) ? <span className="text-ink-muted"> {t('review.mustFix')}</span> : null}
                     </span>
                   </p>
-                  <Button variant="link" className="shrink-0 self-start sm:self-auto" onClick={() => onGoTo(step)}>
-                    {t('review.goTo', { step: stepName(step) })}
+                  <Button variant="link" className="shrink-0 self-start sm:self-auto" onClick={() => onGoTo(step.key)}>
+                    {t('review.goTo', { step: step.name })}
                   </Button>
                 </li>
               )
@@ -290,8 +323,8 @@ export function ReviewStep(props: ReviewProps) {
           <Notice tone="danger">
             <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
             {failedStep ? (
-              <Button variant="link" onClick={() => onGoTo(failedStep)}>
-                {t('review.goTo', { step: stepName(failedStep) })}
+              <Button variant="link" onClick={() => onGoTo(failedStep.key)}>
+                {t('review.goTo', { step: failedStep.name })}
               </Button>
             ) : null}
             {/* FR-INT-006 AC2: saved elsewhere since this page opened — offer the latest version right here */}
@@ -314,9 +347,12 @@ export function ReviewStep(props: ReviewProps) {
             <span>{blockedReason}</span>
           </p>
         ) : null}
-        <Button className="self-start" onClick={props.onSubmit} disabled={Boolean(blockedReason) || props.submitting} aria-describedby={blockedReason ? 'submit-blocked' : 'submit-after'}>
-          {props.submitting ? t('submit.sending') : submitLabel}
-        </Button>
+        {/* The step-by-step form of the workspace has its send button in the bar at the foot of the page (FR-INT-011 AC1) */}
+        {props.submitInBar ? null : (
+          <Button className="self-start" onClick={props.onSubmit} disabled={Boolean(blockedReason) || props.submitting} aria-describedby={blockedReason ? 'submit-blocked' : 'submit-after'}>
+            {props.submitting ? t('submit.sending') : submitLabel}
+          </Button>
+        )}
         {/* What sending does, read before pressing it: content at the body's size (§9.9 principle 3, 15 px on the web) */}
         <p id="submit-after" className="text-ink-muted">
           {purchase ? t('submit.after') : t('submit.afterSupplier')}

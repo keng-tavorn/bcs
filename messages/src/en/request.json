@@ -19,5 +19,14 @@
     "statusDraft": "Draft",
     "statusReturned": "Returned for changes",
     "continue": "Continue: {title}"
+  },
+  "newDialog": {
+    "title": "Start a new request",
+    "description": "Choose the type of request that fits what you need, then press Continue.",
+    "drafts": "{count, plural, one {You have # draft request} other {You have # draft requests}}",
+    "viewDrafts": "View drafts",
+    "typesLabel": "Request types",
+    "chooseFirst": "Choose one type of request first, then press Continue.",
+    "continue": "Continue"
   }
 }

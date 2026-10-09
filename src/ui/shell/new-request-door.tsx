@@ -1,5 +1,6 @@
 import { FilePlus2 } from 'lucide-react'
 import Link from 'next/link'
+import type { MouseEventHandler } from 'react'
 import { cn } from '../cn'
 
 // The one door (§9.9 principle 2, FR-PLT-013 AC3 AC4): "ขอซื้อ / ขอจ้าง" as the main button, a capsule in the top bar
@@ -22,10 +23,23 @@ export const DOOR_HIDDEN = '[body:has([data-door-aside])_&]:hidden'
 const DOOR_CLASS =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-3 text-center font-medium whitespace-nowrap text-primary-foreground transition-colors duration-150 hover:bg-primary-hover active:bg-primary-hover sm:px-4 lg:min-h-10'
 
-export function NewRequestDoor({ href, label, className, linkClassName }: { href: string; label: string; className?: string; linkClassName?: string }) {
+export function NewRequestDoor({
+  href,
+  label,
+  className,
+  linkClassName,
+  onClick,
+}: {
+  href: string
+  label: string
+  className?: string
+  linkClassName?: string
+  /** Opens the dialog that starts a new request in place of the page (./new-request-door-dialog.tsx, FR-INT-010) */
+  onClick?: MouseEventHandler<HTMLAnchorElement>
+}) {
   return (
     <div data-door="" className={cn(className, DOOR_HIDDEN)}>
-      <Link href={href} className={cn(DOOR_CLASS, linkClassName)}>
+      <Link href={href} className={cn(DOOR_CLASS, linkClassName)} onClick={onClick} aria-haspopup={onClick ? 'dialog' : undefined}>
         <FilePlus2 className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
         <span>{label}</span>
       </Link>

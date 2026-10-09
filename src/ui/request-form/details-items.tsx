@@ -43,31 +43,48 @@ export interface StepProps {
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
 
 export function DetailsStep(props: StepProps) {
-  const t = useTranslations('requestForm')
-  const { data, values, update, locale, visible, showErrors, fieldErrors } = props
+  const { data, visible } = props
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
-  const titleError = showErrors && !values.title.trim() ? t('details.titleMissing') : undefined
   // A question the attachment rules ask for is asked beside the documents, in step 3 (./document-fields.ts)
   const documentFields = documentFieldIds(data.form.rules)
   return (
     <div className="flex flex-col gap-6">
-      <Labelled id="request-title" label={t('details.title')} requiredText={t('fields.required')} hint={t('details.titleHint')} error={titleError}>
-        <input
-          id="request-title"
-          name="title"
-          className={inputClass}
-          value={values.title}
-          maxLength={TITLE_MAX}
-          required
-          aria-required
-          aria-invalid={titleError ? true : undefined}
-          aria-describedby={describedBy('request-title', true, Boolean(titleError))}
-          onChange={(e) => update({ type: 'title', value: e.currentTarget.value })}
-        />
-      </Labelled>
+      <TitleField {...props} />
       {purchase ? <BudgetLineField {...props} /> : null}
+      <FormFields {...props} ids={data.form.fields.filter((f) => visible.has(f.id) && !documentFields.has(f.id)).map((f) => f.id)} />
+    </div>
+  )
+}
+
+/** The request's title, every request's first question */
+export function TitleField({ values, update, showErrors }: StepProps) {
+  const t = useTranslations('requestForm')
+  const titleError = showErrors && !values.title.trim() ? t('details.titleMissing') : undefined
+  return (
+    <Labelled id="request-title" label={t('details.title')} requiredText={t('fields.required')} hint={t('details.titleHint')} error={titleError}>
+      <input
+        id="request-title"
+        name="title"
+        className={inputClass}
+        value={values.title}
+        maxLength={TITLE_MAX}
+        required
+        aria-required
+        aria-invalid={titleError ? true : undefined}
+        aria-describedby={describedBy('request-title', true, Boolean(titleError))}
+        onChange={(e) => update({ type: 'title', value: e.currentTarget.value })}
+      />
+    </Labelled>
+  )
+}
+
+/** Fields of the request type's form, by id in the form's order: shown when visible (BR-FORM-01), missing ones said under each */
+export function FormFields({ data, values, update, locale, visible, showErrors, fieldErrors, ids }: StepProps & { readonly ids: readonly string[] }) {
+  const t = useTranslations('requestForm')
+  return (
+    <>
       {data.form.fields
-        .filter((f) => visible.has(f.id) && !documentFields.has(f.id))
+        .filter((f) => visible.has(f.id) && ids.includes(f.id))
         .map((def) => (
           <FieldInput
             key={def.id}
@@ -78,11 +95,11 @@ export function DetailsStep(props: StepProps) {
             error={fieldErrors[def.id] ?? (showErrors && def.required && blank(values.fields[def.id]) ? t('fields.missing') : undefined)}
           />
         ))}
-    </div>
+    </>
   )
 }
 
-function BudgetLineField({ data, values, update, showErrors, budget, previewLoading }: StepProps) {
+export function BudgetLineField({ data, values, update, showErrors, budget, previewLoading }: StepProps) {
   const t = useTranslations('requestForm.budget')
   const tf = useTranslations('requestForm.fields')
   if (data.budgetLines.length === 0) return <Notice tone="warning">{t('noLines')}</Notice>
@@ -128,15 +145,24 @@ function BudgetLineField({ data, values, update, showErrors, budget, previewLoad
 }
 
 export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean }) {
-  const t = useTranslations('requestForm')
-  const { data, values, update, totals, budget, previewLoading } = props
-  const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
   // The parts of a line split by the step's own width (@container), not the screen's: the LIFF column (34rem of content,
   // §9.9 "LIFF เป็นคอลัมน์เดียว") keeps its phone layout at every width, and the workspace's wider form splits as before
   return (
     <div className="@container flex flex-col gap-6">
       {/* Where every line of the request goes (S4-02): prefilled, changeable */}
       <DeliverySiteField {...props} />
+      <LinesSection {...props} />
+    </div>
+  )
+}
+
+/** The lines with their amounts, the totals and the budget check as the amounts change (inside an @container parent) */
+export function LinesSection(props: StepProps & { readonly endDateRequired: boolean }) {
+  const t = useTranslations('requestForm')
+  const { data, values, update, totals, budget, previewLoading } = props
+  const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
+  return (
+    <>
       <label className="flex min-h-11 items-center gap-3">
         <input type="checkbox" name="priceIncludesVat" className={checkboxClass} checked={values.priceIncludesVat} onChange={(e) => update({ type: 'priceIncludesVat', value: e.currentTarget.checked })} />
         <span>{t('lines.pricesIncludeVat')}</span>
@@ -167,7 +193,7 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
         </h3>
         <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
       </section>
-    </div>
+    </>
   )
 }
 

@@ -70,12 +70,10 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
     )
   }
   return (
-    <div className="flex flex-col gap-4">
       <RequestForm
         data={result.data}
         locale={screen}
         autosaveUrl="/requests/new/autosave"
-        backLink="toCatalog"
         actions={{
           preview: previewRequestAction,
           attach: attachFileAction,
@@ -86,6 +84,5 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
           downloadUrl: downloadUrlAction,
         }}
       />
-    </div>
   )
 }

@@ -29,6 +29,8 @@ export interface FormDefinition {
   readonly visibility: readonly VisibilityRule[]
   readonly rules: readonly AttachmentRule[]
   readonly lines: { readonly serviceEndDate?: { readonly when: Condition } }
+  /** The form's own steps (FormVersion.schema.steps, FR-INT-011 AC2); absent: the screen groups the fields itself */
+  readonly steps?: ReadonlyArray<{ readonly key: string; readonly titleTh: string; readonly titleEn: string; readonly fields: readonly string[]; readonly optional: boolean }>
 }
 
 export interface BudgetLineOption {

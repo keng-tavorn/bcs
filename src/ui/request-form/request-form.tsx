@@ -1,7 +1,8 @@
 'use client'
 
-import { CircleAlert } from 'lucide-react'
+import { CircleAlert, X } from 'lucide-react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState, type Ref } from 'react'
 import { v4 as uuidv4 } from 'uuid'
@@ -9,9 +10,12 @@ import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
 import { formatDateTime } from '../format'
+import { Button as UiButton } from '../shadcn/button'
+import { FORM_PAGE } from '../shell/form-page'
 import { DOOR_ASIDE } from '../shell/new-request-door'
-import { DetailsStep, ItemsStep, type StepProps } from './details-items'
-import { DocumentsStep, kindLabelOf } from './documents-step'
+import type { StepProps } from './details-items'
+import { kindLabelOf, type DocumentsProps } from './documents-step'
+import { DropUploadButton } from './drop-upload'
 import { fieldLabel } from './field-input'
 import {
   applicableRules,
@@ -28,13 +32,14 @@ import {
   visibleFieldIds,
   type FormAction,
 } from './model'
-import { failureKey, failureTarget, STEP_IDS, toFormFailure, type ClosedWhy, type FormFailure, type FormOutcome, type StepId } from './outcome'
-import { failureText, ReviewStep, type SaveStop } from './review-step'
-import { Stepper } from './stepper'
+import { planSteps, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from './form-steps'
+import { failureKey, failureTarget, toFormFailure, type ClosedWhy, type FormFailure, type FormOutcome } from './outcome'
+import { failureText, ReviewStep, sendStateOf, type SaveStop, type StepLocator } from './review-step'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
 import { useAutosave, type SaveState } from './use-autosave'
 import { usePreview, type PreviewAction } from './use-preview'
 import type { UploadActions } from './upload-button'
+import { BeforeSendPanel, StepBar, StepBody, StepList } from './wizard'
 
 // The request form (S2-11, S2-17 screen, S3-06, the budget-line choice of S3-07): one form for a new request and for a
 // draft or returned request, in four real steps — details, items, quotations and documents, check and send — so no page
@@ -83,14 +88,11 @@ export function RequestForm({
   actions,
   autosaveUrl,
   locale,
-  backLink,
 }: {
   data: RequestFormData
   actions: RequestFormActions
   autosaveUrl: string
   locale: ScreenLocale
-  /** The link above the form back to the catalog: "choose another type" on a new form, "back to the types" on a draft */
-  backLink: 'otherType' | 'toCatalog'
 }) {
   const t = useTranslations('requestForm')
   const [values, dispatch] = useReducer(formReducer, data, initialValues)
@@ -99,8 +101,16 @@ export function RequestForm({
     valuesRef.current = values
   })
   const [attachments, setAttachments] = useState<readonly Attachment[]>(data.draft?.attachments ?? [])
-  const [step, setStep] = useState<StepId>('details')
-  const [showErrors, setShowErrors] = useState(false)
+  const [stepKey, setStepKey] = useState<string>('details')
+  // Steps opened so far (those passed may be opened again, AC3), steps whose missing fields "ถัดไป" pointed out, and
+  // whether the requester reached "ตรวจและส่ง" — from then on every step says what is missing, as before
+  const [visited, setVisited] = useState<ReadonlySet<string>>(() => new Set(['details']))
+  const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set())
+  const [reviewed, setReviewed] = useState(false)
+  // `at` counts the presses, so each press that stops moves the focus again
+  const [stopped, setStopped] = useState<{ readonly count: number; readonly at: number } | null>(null)
+  const [closing, setClosing] = useState<'saving' | 'failed' | null>(null)
+  const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<FormFailure | null>(null)
   const [sent, setSent] = useState<{ requestId: string; view: SentView } | null>(null)
@@ -108,6 +118,8 @@ export function RequestForm({
   const [fileError, setFileError] = useState<string | null>(null)
   const submission = useSubmissionKey()
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const sectionRef = useRef<HTMLElement>(null)
+  const stoppedRef = useRef<HTMLParagraphElement>(null)
   const sentRef = useRef<HTMLDivElement>(null)
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
 
@@ -152,14 +164,45 @@ export function RequestForm({
   // The balance shown is always the chosen line's: an answer about the line chosen before is not shown
   const budget = preview && (preview.budget.kind !== 'LINE' || preview.budget.budgetLineId === values.budgetLineId) ? preview.budget : null
 
-  // A new-supplier request has no items: its steps are details, documents, and check and send
-  const stepIds: readonly StepId[] = purchase ? STEP_IDS : STEP_IDS.filter((s) => s !== 'items')
-  const steps = stepIds.map((id) => ({ id, label: t(`steps.${id}`) }))
-  const index = Math.max(0, stepIds.indexOf(step))
-  const goTo = useCallback((next: StepId) => {
-    setStep(next)
-    if (next === 'review') setShowErrors(true)
+  // The steps (./form-steps.ts): the form's own, or the six of §9.10, without those that have nothing to show now
+  const plan = planSteps({ form: data.form, purchase, visible, filesAllowed: data.attachmentKinds.length > 0 || attachments.length > 0, applicableRules: rules.map((r) => r.id) })
+  const nameOf = (s: PlannedStep) => (s.title ? (locale === 'en' ? s.title.en : s.title.th) : t(`wizard.${s.auto ?? 'details'}`))
+  const named = plan.map((step) => ({ step, name: nameOf(step) }))
+  const found = plan.findIndex((s) => s.key === stepKey)
+  // A step that has nothing to show any more (its only questions hidden by an answer) gives way to the one before it
+  const index = found >= 0 ? found : Math.max(0, plan.findIndex((s) => !visited.has(s.key)) - 1)
+  const current = plan[index]!
+  const furthest = plan.reduce((max, s, i) => (visited.has(s.key) ? i : max), 0)
+  const showErrors = reviewed || checked.has(current.key)
+  const goTo = useCallback((next: string) => {
+    setStepKey(next)
+    setStopped(null)
+    setVisited((v) => new Set(v).add(next))
+    if (next === 'review') setReviewed(true)
   }, [])
+  /** "ถัดไป" checks the step's own fields first and says what is missing under each (AC3); the server checks all on send */
+  function next() {
+    const missing = problems.filter((p) => stopsNext(p, data.budgetLines.length > 0) && stepOfTarget(plan, targetOfProblem(p)).key === current.key)
+    if (missing.length > 0) {
+      setChecked((c) => new Set(c).add(current.key))
+      setStopped((was) => ({ count: missing.length, at: (was?.at ?? 0) + 1 }))
+      return
+    }
+    const following = plan[index + 1]
+    if (following) goTo(following.key)
+  }
+  const locate: StepLocator = {
+    problem: (p) => {
+      const s = stepOfTarget(plan, targetOfProblem(p))
+      return { key: s.key, name: nameOf(s) }
+    },
+    failure: (f) => {
+      const target = targetOfFailure(f)
+      if (!target) return null
+      const s = stepOfTarget(plan, target)
+      return { key: s.key, name: nameOf(s) }
+    },
+  }
   // Moving between steps: the new step's heading takes focus, so keyboard and screen reader users start at the top
   const firstRender = useRef(true)
   useEffect(() => {
@@ -169,7 +212,27 @@ export function RequestForm({
     }
     headingRef.current?.focus()
     headingRef.current?.scrollIntoView({ block: 'start' })
-  }, [step])
+  }, [current.key])
+  // Stopped by "ถัดไป": the first field it points out takes focus, its error under it
+  useEffect(() => {
+    if (!stopped) return
+    const first = sectionRef.current?.querySelector<HTMLElement>('[aria-invalid="true"]')
+    if (first) first.focus()
+    else stoppedRef.current?.focus()
+  }, [stopped])
+
+  /** Closes the form (AC1): the draft is saved first, then the requester goes back to where they came from */
+  async function close() {
+    const unsaved = autosave.state.kind === 'dirty' || autosave.state.kind === 'saving' || autosave.state.kind === 'error'
+    if (unsaved) {
+      setClosing('saving')
+      const saved = await autosave.saveNow()
+      if (!saved) return setClosing('failed')
+    }
+    setClosing(null)
+    if (window.history.length > 1) router.back()
+    else router.push('/requests')
+  }
   // Sent: the confirmation takes focus, so it is the first thing read
   useEffect(() => {
     if (sent) sentRef.current?.focus()
@@ -226,7 +289,7 @@ export function RequestForm({
   }
 
   async function submit() {
-    setShowErrors(true)
+    setReviewed(true)
     setSubmitError(null)
     setSubmitting(true)
     try {
@@ -274,91 +337,151 @@ export function RequestForm({
   const titleKey = data.draft?.status === 'RETURNED' ? 'page.returnedTitle' : data.draft ? 'page.draftTitle' : 'page.newTitle'
   const saveError = autosave.state.kind === 'error' ? (autosave.state.failure ? t('save.failed', { reason: failureText(t, autosave.state.failure, data.form.fields, locale, (k) => kindLabelOf(t, k)) }) : t('save.error')) : null
 
+  const documentsProps: DocumentsProps = {
+    ...stepProps,
+    rules,
+    nets,
+    lowest,
+    attachments,
+    uploads: { requestUpload: actions.requestUpload, completeUpload: actions.completeUpload },
+    onAttach: attach,
+    onDetach: detach,
+    onOpenFile: openFile,
+    fileError,
+    busy: fileBusy || blockedSave,
+    Upload: DropUploadButton,
+  }
+  const send = sendStateOf(t, { data, values, totals, budget, problems, saveStop, ...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {}) })
+  const review = current.auto === 'review'
+  const previous = plan[index - 1]
+  const following = plan[index + 1]
+
+  // Full screen without the menu (AC1, §9.10): the shell steps aside while the page holds FORM_PAGE, and so does the door
   return (
-    <div className="flex max-w-4xl flex-col gap-6" {...DOOR_ASIDE}>
-      <Link href="/requests/new" className={linkClass}>
-        {t(`page.${backLink}`)}
-      </Link>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t(titleKey, { type: data.type.name })}</h1>
-        {data.type.description ? <p className="text-ink-muted">{data.type.description}</p> : null}
-        <SaveLine state={autosave.state} errorText={saveError} isNew={!autosave.requestId} locale={locale} onSaveNow={() => void autosave.saveNow()} />
-      </div>
+    <div className="flex min-h-dvh flex-col bg-bg" {...FORM_PAGE} {...DOOR_ASIDE}>
+      <header className="sticky top-0 z-20 border-b border-line bg-bg">
+        <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 lg:px-6">
+          <UiButton type="button" variant="outline" className="h-11 gap-2 text-base md:text-sm" onClick={() => void close()} disabled={closing === 'saving'}>
+            <X aria-hidden="true" />
+            {closing === 'saving' ? t('save.saving') : t('wizard.close')}
+          </UiButton>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <h1 className="text-xl font-semibold break-words">{t(titleKey, { type: data.type.name })}</h1>
+            {data.type.description ? <p className="hidden text-ink-muted md:block">{data.type.description}</p> : null}
+          </div>
+          <SaveLine state={autosave.state} errorText={saveError} isNew={!autosave.requestId} locale={locale} onSaveNow={() => void autosave.saveNow()} />
+        </div>
+        {closing === 'failed' ? (
+          <p role="alert" className="mx-auto flex w-full max-w-[1280px] items-start gap-2 px-4 pb-3 font-medium text-danger lg:px-6">
+            <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" />
+            <span>{t('wizard.closeFailed')}</span>
+          </p>
+        ) : null}
+      </header>
 
-      {autosave.state.kind === 'conflict' ? (
-        <Notice tone="danger">
-          <p>{t('save.conflict')}</p>
-          <Button variant="secondary" className="mt-2" onClick={() => window.location.reload()}>
-            {t('save.reload')}
-          </Button>
-        </Notice>
-      ) : null}
-      {autosave.state.kind === 'closed' ? (
-        <Notice tone="warning">
-          {/* What closed it, as the server said (§9.9 rule 7): where it happened, what was not saved, what to do next */}
-          <p>{t(closedNoticeKey(autosave.state.why))}</p>
-          {/* Its page says where it stands — a request not found, or not this account's, has none to open */}
-          {autosave.requestId && closedLinksToRequest(autosave.state.why) ? (
-            <a href={`/requests/${autosave.requestId}`} className={linkClass}>
-              {t('save.openRequest')}
-            </a>
+      <div className="mx-auto flex w-full max-w-[1280px] flex-1 gap-8 px-4 py-6 lg:px-6">
+        <div className="hidden w-50 shrink-0 lg:block">
+          <div className="sticky top-28">
+            <StepList steps={named} current={index} furthest={furthest} onSelect={(i) => goTo(plan[i]!.key)} />
+          </div>
+        </div>
+
+        <div className="flex max-w-160 min-w-0 flex-1 flex-col gap-6">
+          <div className="lg:hidden">
+            <StepBar current={index} total={plan.length} name={named[index]!.name} />
+          </div>
+          {autosave.state.kind === 'conflict' ? (
+            <Notice tone="danger">
+              <p>{t('save.conflict')}</p>
+              <Button variant="secondary" className="mt-2" onClick={() => window.location.reload()}>
+                {t('save.reload')}
+              </Button>
+            </Notice>
           ) : null}
-        </Notice>
-      ) : null}
-      {data.draft?.status === 'RETURNED' ? <Notice tone="warning">{data.draft.returnReason ? t('page.returnedReason', { reason: data.draft.returnReason }) : t('page.returned')}</Notice> : null}
+          {autosave.state.kind === 'closed' ? (
+            <Notice tone="warning">
+              {/* What closed it, as the server said (§9.9 rule 7): where it happened, what was not saved, what to do next */}
+              <p>{t(closedNoticeKey(autosave.state.why))}</p>
+              {/* Its page says where it stands — a request not found, or not this account's, has none to open */}
+              {autosave.requestId && closedLinksToRequest(autosave.state.why) ? (
+                <a href={`/requests/${autosave.requestId}`} className={linkClass}>
+                  {t('save.openRequest')}
+                </a>
+              ) : null}
+            </Notice>
+          ) : null}
+          {data.draft?.status === 'RETURNED' ? <Notice tone="warning">{data.draft.returnReason ? t('page.returnedReason', { reason: data.draft.returnReason }) : t('page.returned')}</Notice> : null}
 
-      <Stepper steps={steps} current={step} onSelect={goTo} />
+          <section ref={sectionRef} aria-labelledby="step-heading" className="flex flex-col gap-6">
+            <h2 id="step-heading" ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">
+              {t('steps.heading', { n: index + 1, total: plan.length, name: named[index]!.name })}
+            </h2>
+            {review ? (
+              <ReviewStep
+                {...stepProps}
+                rules={rules}
+                problems={problems}
+                route={preview?.route ?? null}
+                attachmentCount={attachments.length + values.quotations.filter((q) => q.fileId).length}
+                onGoTo={goTo}
+                locate={locate}
+                submitInBar
+                onSubmit={() => void submit()}
+                onReload={() => window.location.reload()}
+                submitting={submitting}
+                submitError={submitError}
+                saveStop={saveStop}
+                {...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {})}
+                requestHref={autosave.requestId ? `/requests/${autosave.requestId}` : null}
+              />
+            ) : (
+              <StepBody step={current} props={stepProps} documents={documentsProps} endDateRequired={endDateRequired} />
+            )}
+            {stopped ? (
+              <p ref={stoppedRef} tabIndex={-1} role="alert" className="flex items-start gap-2 font-medium text-danger outline-none">
+                <CircleAlert className="mt-1 size-4 shrink-0" aria-hidden="true" />
+                <span>{t('wizard.fixFirst', { count: stopped.count })}</span>
+              </p>
+            ) : null}
+          </section>
+        </div>
 
-      <section aria-labelledby="step-heading" className="flex flex-col gap-6">
-        <h2 id="step-heading" ref={headingRef} tabIndex={-1} className="text-xl font-semibold outline-none">
-          {t('steps.heading', { n: index + 1, total: stepIds.length, name: t(`steps.${step}`) })}
-        </h2>
-        {step === 'details' ? <DetailsStep {...stepProps} /> : null}
-        {step === 'items' && purchase ? <ItemsStep {...stepProps} endDateRequired={endDateRequired} /> : null}
-        {step === 'documents' ? (
-          <DocumentsStep
-            {...stepProps}
-            rules={rules}
-            nets={nets}
-            lowest={lowest}
-            attachments={attachments}
-            uploads={{ requestUpload: actions.requestUpload, completeUpload: actions.completeUpload }}
-            onAttach={attach}
-            onDetach={detach}
-            onOpenFile={openFile}
-            fileError={fileError}
-            busy={fileBusy || blockedSave}
-          />
-        ) : null}
-        {step === 'review' ? (
-          <ReviewStep
-            {...stepProps}
-            rules={rules}
-            problems={problems}
-            route={preview?.route ?? null}
-            attachmentCount={attachments.length + values.quotations.filter((q) => q.fileId).length}
-            onGoTo={goTo}
-            onSubmit={() => void submit()}
-            onReload={() => window.location.reload()}
-            submitting={submitting}
-            submitError={submitError}
-            saveStop={saveStop}
-            {...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {})}
-            requestHref={autosave.requestId ? `/requests/${autosave.requestId}` : null}
-          />
-        ) : null}
-      </section>
-
-      <div className="flex flex-col-reverse gap-3 border-t border-line pt-6 sm:flex-row sm:justify-between">
-        {index > 0 ? (
-          <Button variant="secondary" onClick={() => goTo(stepIds[index - 1]!)}>
-            {t('steps.back', { name: t(`steps.${stepIds[index - 1]!}`) })}
-          </Button>
-        ) : (
-          <span />
+        {/* "ก่อนส่ง" beside every step of a wide screen; the check step says it all itself (AC4) */}
+        {review ? null : (
+          <div className="hidden w-80 shrink-0 xl:block">
+            <div className="sticky top-28">
+              <BeforeSendPanel props={stepProps} rules={rules} route={preview?.route ?? null} purchase={purchase} />
+            </div>
+          </div>
         )}
-        {index < stepIds.length - 1 ? <Button onClick={() => goTo(stepIds[index + 1]!)}>{t('steps.next', { name: t(`steps.${stepIds[index + 1]!}`) })}</Button> : null}
       </div>
+
+      <footer className="sticky bottom-0 z-20 border-t border-line bg-bg">
+        <div className="mx-auto flex min-h-18 w-full max-w-[1280px] items-center justify-between gap-3 px-4 py-3 lg:px-6">
+          {previous ? (
+            <UiButton type="button" variant="outline" className="h-11 text-base md:text-sm" aria-label={`${t('wizard.back')}: ${nameOf(previous)}`} onClick={() => goTo(previous.key)}>
+              {t('wizard.back')}
+            </UiButton>
+          ) : (
+            <span />
+          )}
+          {following ? (
+            <UiButton type="button" className="h-11 px-5 text-base hover:bg-primary-hover md:text-sm" aria-label={`${t('wizard.next')}: ${nameOf(following)}`} onClick={next}>
+              {t('wizard.next')}
+            </UiButton>
+          ) : (
+            <UiButton
+              type="button"
+              className="h-11 px-5 text-base hover:bg-primary-hover md:text-sm"
+              onClick={() => void submit()}
+              disabled={Boolean(send.blockedReason) || submitting}
+              aria-describedby={send.blockedReason ? 'submit-blocked' : 'submit-after'}
+            >
+              {submitting ? t('submit.sending') : send.submitLabel}
+            </UiButton>
+          )}
+        </div>
+      </footer>
     </div>
   )
 }

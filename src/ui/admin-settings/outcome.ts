@@ -32,6 +32,8 @@ export type FormProblemView =
   | { readonly reason: 'DUPLICATE_RULE'; readonly rule: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_FIELD'; readonly field: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_ATTACHMENT'; readonly attachment: string; readonly path: string }
+  | { readonly reason: 'DUPLICATE_STEP'; readonly step: string; readonly path: string }
+  | { readonly reason: 'FIELD_IN_TWO_STEPS'; readonly field: string; readonly path: string }
 
 /** Why a number pattern cannot be saved (src/server/services/numbering/admin.ts) */
 export const NUMBERING_REFUSALS = ['UNKNOWN_TOKEN', 'SEQ_MISSING', 'SEQ_REPEATED', 'SEQ_WIDTH', 'YEAR_MISSING', 'MONTH_MISSING', 'NUMBER_COLLISION', 'OVERLAPS_OTHER_DOCUMENT'] as const

@@ -24,6 +24,7 @@ import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
 import { paletteCommands } from './_shell/commands'
 import { SIDEBAR_GROUPS, visibleMenu, type MenuGroup } from './_shell/menu'
+import { countMyDraftsAction } from './_shell/new-request-actions'
 import { markAllNotificationsReadAction, openNotificationAction } from './_shell/notification-actions'
 
 // Every workspace page: signed in, a member, and 2FA set up when the role needs it (FR-AUTH-002 AC1) — otherwise
@@ -178,7 +179,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       sidebarOpen={sidebarOpen}
       user={{ name: t('signedInAs', { name }), detail: [state.member.organizationName, ...state.roles.map((r) => tRoles(r))].join(' · ') }}
       bell={bell}
-      newRequest={door ? { href: door.href, label: door.label } : undefined}
+      newRequest={door ? { href: door.href, label: door.label, types: requestTypes, countDrafts: countMyDraftsAction } : undefined}
       search={search}
       account={
         <div className="flex flex-col items-start gap-3">

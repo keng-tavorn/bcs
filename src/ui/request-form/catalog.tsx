@@ -85,7 +85,7 @@ export function RequestCatalog({ types, drafts, locale }: { types: readonly Cata
         </section>
       )}
 
-      <section aria-labelledby={`${id}-drafts`} className="flex flex-col gap-3">
+      <section id="drafts" aria-labelledby={`${id}-drafts`} className="flex scroll-mt-20 flex-col gap-3">
         <h2 id={`${id}-drafts`} className="text-xl font-semibold">
           {t('draftsTitle')}
         </h2>

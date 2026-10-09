@@ -37,6 +37,9 @@ export type FormProblem =
   | { readonly reason: 'DUPLICATE_RULE'; readonly rule: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_FIELD'; readonly field: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_ATTACHMENT'; readonly attachment: string; readonly path: string }
+  /** FR-INT-011: two steps of the form have one key, or one field is in two steps */
+  | { readonly reason: 'DUPLICATE_STEP'; readonly step: string; readonly path: string }
+  | { readonly reason: 'FIELD_IN_TWO_STEPS'; readonly field: string; readonly path: string }
 
 /** A place in the form's JSON: ['fields', 2, 'options'] */
 type JsonPath = ReadonlyArray<PropertyKey>
@@ -144,6 +147,19 @@ function meaningProblems(form: FormJson): FormProblem[] {
   for (const [i, r] of form.rules.entries()) {
     for (const a of attachmentKinds(r.require, `rules[${i}].require`)) {
       if (!(ATTACHMENT_KINDS as readonly string[]).includes(a.attachment)) problems.push({ reason: 'UNKNOWN_ATTACHMENT', attachment: a.attachment, path: a.path })
+    }
+  }
+  // Its own steps (FR-INT-011 AC2): each key once, each field a field of the form and in one step at most
+  const stepKeys = new Set<string>()
+  const placed = new Set<string>()
+  for (const [i, step] of (form.steps ?? []).entries()) {
+    if (stepKeys.has(step.key)) problems.push({ reason: 'DUPLICATE_STEP', step: step.key, path: `steps[${i}].key` })
+    stepKeys.add(step.key)
+    for (const [j, field] of step.fields.entries()) {
+      const path = `steps[${i}].fields[${j}]`
+      if (!ids.has(field)) problems.push({ reason: 'UNKNOWN_FIELD', field, path })
+      else if (placed.has(field)) problems.push({ reason: 'FIELD_IN_TWO_STEPS', field, path })
+      placed.add(field)
     }
   }
   problems.push(...moneyValueProblems(form))

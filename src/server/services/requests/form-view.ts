@@ -7,7 +7,7 @@ import { authorize, isAllowed, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
-import { formDefinition } from '@/server/forms/schema'
+import { formDefinition, type FormStep } from '@/server/forms/schema'
 import {
   defaultBudgetLineId,
   defaultDeliverySiteId,
@@ -32,6 +32,8 @@ export interface RequestFormDefinitionDto {
   readonly rules: readonly AttachmentRule[]
   /** serviceEndDate.when: lines must carry the day the service ends while it holds (BR-FORM-05) */
   readonly lines: { readonly serviceEndDate?: { readonly when: Condition } }
+  /** The form's own steps, when it has them (FR-INT-011 AC2) */
+  readonly steps?: readonly FormStep[]
 }
 
 export interface DraftLineDto {
@@ -114,7 +116,7 @@ async function todaysRate(ctx: Ctx): Promise<number | null> {
 
 function definitionOf(schema: unknown): RequestFormDefinitionDto {
   const form = formDefinition(schema)
-  return { fields: form.fields, visibility: form.visibility, rules: form.rules, lines: form.lines }
+  return { fields: form.fields, visibility: form.visibility, rules: form.rules, lines: form.lines, ...(form.steps ? { steps: form.steps } : {}) }
 }
 
 async function departmentName(tx: TenantTx, memberId: string, locale: ScreenLocale): Promise<string | null> {

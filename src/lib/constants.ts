@@ -156,3 +156,9 @@ export const SIDEBAR_STATE_MAX_AGE_S = (7 * MS_PER_DAY) / MS_PER_SECOND
 export const SIDEBAR_STATE_COOKIE = 'sidebar_state'
 /** Below this width (px) the workspace menu opens as a sheet from the left (§9.10 layout sizes) */
 export const SIDEBAR_SHEET_BELOW_PX = 1024
+
+/** Below this width the dialog that starts a new request opens as a drawer from the bottom (FR-INT-010 AC1) */
+export const NEW_REQUEST_DRAWER_BELOW_PX = 768
+
+/** More request types than this and the dialog that starts a new request offers a keyword search (FR-INT-010 AC3) */
+export const NEW_REQUEST_SEARCH_OVER = 6

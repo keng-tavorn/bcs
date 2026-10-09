@@ -1083,7 +1083,9 @@
       "problems": {
         "DUPLICATE_FIELD": "{path} the field name {field} is used by another field",
         "DUPLICATE_RULE": "{path} the rule code {rule} is used by another rule",
+        "DUPLICATE_STEP": "{path} the step key {step} is used by another step",
         "EMPTY": "Paste the form JSON or choose a file first",
+        "FIELD_IN_TWO_STEPS": "{path} the field {field} is in another step already; each field is in one step at most",
         "JSON_SYNTAX": "The JSON cannot be read; check brackets, quotes and commas",
         "TOO_DEEP": "The JSON nests deeper than any form does; check that it is the right form file",
         "TOO_LARGE": "The text is longer than 200 KB; check that it is the right form file",
@@ -4564,6 +4566,15 @@
       "title": "Buy or hire",
       "typesHeading": "Request types",
       "whenToUse": "Use it for: {description}"
+    },
+    "newDialog": {
+      "chooseFirst": "Choose one type of request first, then press Continue.",
+      "continue": "Continue",
+      "description": "Choose the type of request that fits what you need, then press Continue.",
+      "drafts": "{count, plural, one {You have # draft request} other {You have # draft requests}}",
+      "title": "Start a new request",
+      "typesLabel": "Request types",
+      "viewDrafts": "View drafts"
     }
   },
   "requestForm": {
@@ -4965,6 +4976,27 @@
       "pending": "{count, plural, one {# item is} other {# items are}} not complete yet: not in these totals and not saved",
       "title": "Totals",
       "vat": "VAT {rate}%"
+    },
+    "wizard": {
+      "back": "Back",
+      "beforeSend": "Before sending",
+      "close": "Save draft and close",
+      "closeFailed": "The form is not closed: the draft could not be saved. Check the internet connection, then press Save draft and close again.",
+      "details": "Details",
+      "documents": "Documents",
+      "dropHere": "Drop a file here, or press the button to choose one",
+      "dropNow": "Drop the file to attach it",
+      "fixFirst": "{count, plural, one {# point on this step must be filled in or fixed. See the message under the field, then press Next again.} other {# points on this step must be filled in or fixed. See the message under each field, then press Next again.}}",
+      "items": "Items, prices and budget",
+      "label": "Steps of the request",
+      "next": "Next",
+      "number": "Step {n}",
+      "optional": "Optional",
+      "passed": "done",
+      "progress": "Step {n} of {total}",
+      "questions": "Further questions",
+      "review": "Check and send",
+      "supplier": "Supplier and quotations"
     }
   },
   "requestView": {

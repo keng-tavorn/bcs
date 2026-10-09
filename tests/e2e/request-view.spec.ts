@@ -162,8 +162,8 @@ test('[FR-INT-009/AC2] [FR-INT-009/AC1] a returned request shows the reason; the
   await expect(page.getByText('กด แก้ไขคำขอ แล้วตรวจงบคงเหลือ เส้นทางอนุมัติใหม่ และเอกสารที่ต้องแนบในขั้นตรวจและส่ง ก่อนกด ส่งขออนุมัติอีกครั้ง')).toBeVisible()
   await page.getByRole('link', { name: 'แก้ไขคำขอ' }).click()
   await expect(page).toHaveURL(new RegExp(`/requests/${r.returned.requestId}/edit$`))
-  for (const step of ['รายการที่ขอ', 'ใบเสนอราคาและเอกสาร', 'ตรวจและส่ง']) await page.getByRole('button', { name: `ไปขั้นถัดไป: ${step}` }).click()
-  await expect(page.getByRole('heading', { level: 2, name: 'ขั้นที่ 4 จาก 4: ตรวจและส่ง' })).toBeVisible()
+  for (const step of ['รายการ ราคา และงบ', 'ผู้ขายและใบเสนอราคา', 'เอกสาร', 'ตรวจและส่ง']) await page.getByRole('button', { name: `ถัดไป: ${step}`, exact: true }).click()
+  await expect(page.getByRole('heading', { level: 2, name: /^ขั้นที่ \d จาก \d: ตรวจและส่ง$/ })).toBeVisible()
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติที่คาดไว้' })).toContainText(cast.approverName)
   await page.getByRole('button', { name: 'ส่งขออนุมัติอีกครั้ง', exact: true }).click()
   // §9.9 rule 7: the confirmation repeats the button's words, with who decides it now

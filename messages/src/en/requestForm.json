@@ -397,5 +397,26 @@
     "open": "Open request {number} and follow its status",
     "openNoNumber": "Open the request and follow its status",
     "another": "Start another request"
+  },
+  "wizard": {
+    "label": "Steps of the request",
+    "details": "Details",
+    "items": "Items, prices and budget",
+    "supplier": "Supplier and quotations",
+    "questions": "Further questions",
+    "documents": "Documents",
+    "review": "Check and send",
+    "number": "Step {n}",
+    "passed": "done",
+    "optional": "Optional",
+    "progress": "Step {n} of {total}",
+    "next": "Next",
+    "back": "Back",
+    "close": "Save draft and close",
+    "closeFailed": "The form is not closed: the draft could not be saved. Check the internet connection, then press Save draft and close again.",
+    "fixFirst": "{count, plural, one {# point on this step must be filled in or fixed. See the message under the field, then press Next again.} other {# points on this step must be filled in or fixed. See the message under each field, then press Next again.}}",
+    "beforeSend": "Before sending",
+    "dropHere": "Drop a file here, or press the button to choose one",
+    "dropNow": "Drop the file to attach it"
   }
 }

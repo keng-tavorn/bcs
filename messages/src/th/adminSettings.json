@@ -243,6 +243,8 @@
       "DUPLICATE_FIELD": "{path} ชื่อช่อง {field} ซ้ำกับช่องอื่น",
       "DUPLICATE_RULE": "{path} รหัสกฎ {rule} ซ้ำกับกฎอื่น",
       "UNKNOWN_FIELD": "{path} ไม่มีช่องชื่อ {field} ในฟอร์มนี้",
+      "DUPLICATE_STEP": "{path} รหัสขั้น {step} ซ้ำกับขั้นอื่น",
+      "FIELD_IN_TWO_STEPS": "{path} ช่อง {field} อยู่ในขั้นอื่นแล้ว แต่ละช่องอยู่ได้ขั้นเดียว",
       "UNKNOWN_ATTACHMENT": "{path} ไม่มีประเภทไฟล์แนบ {attachment}",
       "schema": {
         "TYPE": "{path} ชนิดข้อมูลไม่ถูกต้องหรือไม่มีค่า",

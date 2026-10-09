@@ -57,6 +57,12 @@ export async function listMyOpenDrafts(ctx: Ctx, locale: ScreenLocale, limit: nu
   }))
 }
 
+/** How many drafts and returned requests the member has open: the dialog that starts a new request says so (FR-INT-010 AC2) */
+export async function countMyOpenDrafts(ctx: Ctx): Promise<number> {
+  if (ctx.actor.type !== 'USER') return 0
+  return forTenant(ctx.organizationId).request.count({ where: { requesterMemberId: ctx.actor.memberId, status: { in: ['DRAFT', 'RETURNED'] } } })
+}
+
 export interface FormBudgetLineDto {
   readonly id: string
   readonly code: string

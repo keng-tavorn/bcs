@@ -911,17 +911,24 @@ features:
     verifiedBy: null
     notes: ""
   FR-INT-010:
-    status: planned
+    status: done
     step: S16
-    evidence: []
+    evidence:
+      - tests/unit/request-form-steps.test.tsx
+      - tests/unit/shell-door.test.tsx
+      - tests/e2e/request-wizard.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-05: AC1 to AC4; the home page's chip opens the same dialog in S16-09"
   FR-INT-011:
-    status: planned
+    status: done
     step: S16
-    evidence: []
+    evidence:
+      - tests/unit/request-form-steps.test.tsx
+      - tests/unit/shell-door.test.tsx
+      - tests/e2e/request-wizard.spec.ts
+      - tests/e2e/request-form.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-05: AC1 to AC6 on the workspace form; the LIFF form keeps its three steps (S16-11 changes only its colours); step 0 with AI comes with S13 (FR-AI-302)"
   FR-INT-012:
     status: planned
     step: S16

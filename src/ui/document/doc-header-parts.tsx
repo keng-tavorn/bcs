@@ -92,8 +92,9 @@ export function CompactHeader({ targetId, children }: { targetId: string; childr
       aria-hidden="true"
       data-compact-header=""
       className={cn(
-        'fixed inset-x-0 top-14 z-10 flex min-h-11 items-center gap-2 border-b border-line bg-bg px-4 py-1.5 transition-opacity duration-150 motion-reduce:transition-none lg:left-(--sidebar-width-icon) lg:px-6 lg:group-has-[[data-slot=sidebar][data-state=expanded]]/sidebar-wrapper:left-(--sidebar-width)',
-        shown ? 'opacity-100' : 'pointer-events-none invisible opacity-0',
+        'fixed inset-x-0 top-14 z-10 flex min-h-11 items-center gap-2 border-b border-line bg-bg px-4 py-1.5 lg:left-(--sidebar-width-icon) lg:px-6 lg:group-has-[[data-slot=sidebar][data-state=expanded]]/sidebar-wrapper:left-(--sidebar-width)',
+        // Shown or not at once: no fade, which is decoration (§9.9) and would read as low contrast while it runs
+        shown ? 'visible' : 'pointer-events-none invisible',
       )}
     >
       {children}

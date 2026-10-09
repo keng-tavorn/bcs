@@ -30,6 +30,12 @@ export const poolGroup = (page: Page, number: string) => poolList(page).getByRol
 export const header = (page: Page) => page.locator('#content header')
 export const actions = (page: Page) => page.getByRole('region', { name: 'สิ่งที่ทำได้ตอนนี้' })
 export const poTimeline = (page: Page) => page.getByRole('list', { name: 'ไทม์ไลน์ของใบสั่งซื้อ' })
+/** Whom the PO waits for now and since when: the first block of the PO page's overview tab (FR-INT-012 AC6) */
+export const nowBlock = (page: Page) => page.locator('[data-doc-now]')
+/** Opens a tab of the PO page (ภาพรวม · รายการ · การรับของ · ใบกำกับ · เอกสาร · ประวัติ) */
+export const openTab = (page: Page, name: string) => page.getByRole('tablist', { name: 'ส่วนของเอกสาร' }).getByRole('tab', { name, exact: true }).click()
+/** The PO's history from its Events (the history tab: a table, a list on phones) */
+export const poHistory = (page: Page) => page.getByRole('table', { name: 'ประวัติของเอกสาร' }).or(page.getByRole('list', { name: 'ประวัติของเอกสาร' })).locator('visible=true')
 export const S1 = 'S1 · บริษัท วัสดุก่อสร้างทดสอบ จำกัด'
 export const S2 = 'S2 · บริษัท ไอทีทดสอบ จำกัด'
 
@@ -75,6 +81,18 @@ export async function expectPoMail(to: string, number: string, sinceMs: number, 
 }
 
 /** The link "เปิด PDF ของ …" downloads the printed PO (FR-PLT-009) */
+/** The PDF of the PO: an item of the header's menu ⋯ (FR-INT-012 AC1), opened here; closeMenu closes it again */
+export async function pdfMenuItem(page: Page) {
+  await header(page).getByRole('button', { name: 'เพิ่มเติม' }).click()
+  return page.getByRole('menuitem', { name: 'พิมพ์ PDF' })
+}
+
+/** Closes the header's menu and waits until it is gone (while it is open the rest of the page is hidden from readers) */
+export async function closeMenu(page: Page) {
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
+}
+
 export async function expectPdfLink(page: Page, link: Locator) {
   const href = await link.getAttribute('href')
   expect(href).toMatch(/^\/procurement\/pos\/[0-9a-f-]{36}\/pdf$/)

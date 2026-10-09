@@ -105,7 +105,8 @@ test('@demo [FR-INT-003/AC1] [FR-INT-003/AC3] the form fills the delivery site f
 
   // The request's page names them with the request's other facts
   await page.goto(`/requests/${requestId}`)
-  const facts = page.locator('#content dl').filter({ hasText: 'สถานที่ส่ง' })
+  await page.getByRole('tablist', { name: 'ส่วนของเอกสาร' }).getByRole('tab', { name: 'รายการและงบ' }).click()
+  const facts = page.getByRole('tabpanel', { name: 'รายการและงบ' }).locator('dl').filter({ hasText: 'สถานที่ส่ง' })
   await expect(facts).toContainText('SITE-A · ไซต์งานตัวอย่าง A')
   await expect(facts).toContainText('ไซต์ก่อสร้างสมมติ A')
   await expect(facts).toContainText('ผู้ขายที่แนะนำ')

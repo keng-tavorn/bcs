@@ -930,11 +930,16 @@ features:
     verifiedBy: null
     notes: "S16-05: AC1 to AC6 on the workspace form; the LIFF form keeps its three steps (S16-11 changes only its colours); step 0 with AI comes with S13 (FR-AI-302)"
   FR-INT-012:
-    status: planned
+    status: done
     step: S16
-    evidence: []
+    evidence:
+      - tests/integration/document-page.test.ts
+      - tests/unit/document-present.test.ts
+      - tests/e2e/document-page.spec.ts
+      - tests/e2e/request-view.spec.ts
+      - tests/e2e/purchase-order.spec.ts
     verifiedBy: null
-    notes: ""
+    notes: "S16-07: AC1 to AC6 on /requests/[id] and /procurement/pos/[id]; /tasks/[id] keeps its page. Writing comments: NEW-78; the budget line's balance and the budget badge: NEW-79"
   FR-INT-013:
     status: in_progress
     step: S16

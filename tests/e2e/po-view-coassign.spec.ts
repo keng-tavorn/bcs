@@ -4,7 +4,7 @@ import { localeCookieName } from '../../src/i18n/locales'
 import { E2E_BASE_URL, e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 import { checkScreen } from './insight-support'
-import { header, poTimeline } from './procurement-support'
+import { poTimeline } from './procurement-support'
 import { rowWith, signIn } from './tasks-support'
 
 // NEW-46 on a purchase order (FR-INT-008 AC1, FR-NOTI-003 AC2, BR-SLA-04): a PO's approval step past its escalation
@@ -34,7 +34,10 @@ function scene<T>(...args: string[]): T {
   return JSON.parse(r.stdout.trim().split(/\r?\n/).at(-1)!) as T
 }
 
-const current = (page: Page) => poTimeline(page).locator('[aria-current="step"]')
+/** Whom the PO waits for now (the overview's first block), and its route as step cards (FR-INT-012 AC3, AC6) */
+const nowBlock = (page: Page) => page.locator('[data-doc-now]')
+const routeSteps = (page: Page) => page.getByRole('list', { name: 'ขั้นอนุมัติ' })
+const current = (page: Page) => routeSteps(page).locator('[aria-current="step"]')
 
 test('[FR-INT-008/AC1] [FR-NOTI-003/AC2] an escalated PO step names the COO and the CEO wherever the PO says whom it waits for; the CEO’s approval is stamped PO-01 with the flag', async ({ page, browser }, testInfo) => {
   // a scene of its own (a separate process through the services), run twice, three people and axe on five screens
@@ -49,29 +52,29 @@ test('[FR-INT-008/AC1] [FR-NOTI-003/AC2] an escalated PO step names the COO and 
   await expect(row).toContainText(`หรือ ${s.coAssignee.name} (`)
   await checkScreen(page, testInfo, 'po-list-escalated')
 
-  // The PO's page: the same words under its status, past the COO's due time, and a current entry for each approver
+  // The PO's page: the same words in its overview, past the COO's due time, and one step card naming both approvers
   await page.goto(`/procurement/pos/${s.po.id}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('บริษัท บริการทำความสะอาดทดสอบ จำกัด')
-  await expect(header(page)).toContainText(`รอ ${s.first.name} (`)
-  await expect(header(page)).toContainText(`หรือ ${s.coAssignee.name} (`)
-  await expect(header(page)).toContainText('เกินกำหนด')
-  await expect(current(page)).toHaveCount(2)
-  await expect(current(page).first()).toContainText(s.first.name)
-  await expect(current(page).last()).toContainText(s.coAssignee.name)
+  await expect(nowBlock(page)).toContainText(`รอ ${s.first.name} (`)
+  await expect(nowBlock(page)).toContainText(`หรือ ${s.coAssignee.name} (`)
+  await expect(nowBlock(page)).toContainText('เกินกำหนด')
+  // Step 1's card names both approvers who may decide it now
+  await expect(current(page)).toHaveCount(1)
+  await expect(current(page)).toContainText(s.first.name)
+  await expect(current(page)).toContainText(`หรือ ${s.coAssignee.name}`)
   await checkScreen(page, testInfo, 'po-escalated')
 
   // The CEO decides first: nobody waits for an approval any more, and the stamp names the CEO under the route's own
   // rule with the escalated flag
   scene('decide', testInfo.project.name, s.coAssignee.taskId, s.request.id)
   await page.reload()
-  await expect(header(page)).toContainText('รอจัดซื้อส่ง PO ให้ผู้ขาย')
-  await expect(header(page)).not.toContainText(s.first.name)
-  const stamp = poTimeline(page).getByRole('listitem').filter({ hasText: s.doaRef })
+  await expect(nowBlock(page)).toContainText('รอจัดซื้อส่ง PO ให้ผู้ขาย')
+  await expect(nowBlock(page)).not.toContainText(s.first.name)
+  const stamp = routeSteps(page).getByRole('listitem').filter({ hasText: s.doaRef })
   await expect(stamp).toHaveCount(1)
   await expect(stamp).toContainText(s.coAssignee.name)
   await expect(stamp).toContainText('ขั้นนี้ส่งต่อเมื่อเลยกำหนด')
-  await expect(current(page)).toHaveCount(1)
-  await expect(current(page)).toContainText('รอส่ง PO ให้ผู้ขาย')
+  await expect(current(page)).toHaveCount(0)
   await checkScreen(page, testInfo, 'po-escalated-decided')
 
   // The COO's task was cancelled with the CEO's decision: its page says why, who decided the step and when, and its

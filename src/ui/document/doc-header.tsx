@@ -24,9 +24,11 @@ export interface DocHeaderProps {
   readonly summary: readonly SummaryItem[]
   /** The status badge again, for the one-row header */
   readonly compactBadge: ReactNode
+  /** What the document's state says beyond its badge (cancelled with a reason, a bounced e-mail), under the summary */
+  readonly notices?: ReactNode
 }
 
-export function DocHeader({ back, number, title, badges, actions, summary, compactBadge }: DocHeaderProps) {
+export function DocHeader({ back, number, title, badges, actions, summary, compactBadge, notices }: DocHeaderProps) {
   return (
     <>
       <header id={DOC_HEADER_ID} className="flex flex-col gap-3">
@@ -54,6 +56,7 @@ export function DocHeader({ back, number, title, badges, actions, summary, compa
             ))}
           </dl>
         ) : null}
+        {notices}
       </header>
       <CompactHeader targetId={DOC_HEADER_ID}>
         <span className="shrink-0 font-medium text-ink-muted">{number}</span>

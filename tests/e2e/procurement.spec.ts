@@ -3,12 +3,16 @@ import {
   actions,
   budgetRegion,
   chooseSupplier,
+  closeMenu,
   consolidateNow,
   expectPdfLink,
   expectPoMail,
   header,
+  nowBlock,
+  openTab,
+  pdfMenuItem,
+  poHistory,
   poNumberOf,
-  poTimeline,
   poolGroup,
   poolList,
   requestsRegion,
@@ -64,7 +68,7 @@ test('[FR-P2P-001/AC1] [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC2] [FR-P2
   await expect(poolGroup(page, made.c.number)).toBeVisible()
   await expect(poolList(page)).not.toContainText(made.b.number)
   await page.getByLabel('ความด่วน').selectOption({ label: 'ทุกความด่วน' })
-  await page.getByLabel('ผู้ขาย', { exact: true }).selectOption({ label: 'ต้องเลือกผู้ขาย' })
+  await page.locator('#content').getByLabel('ผู้ขาย', { exact: true }).selectOption({ label: 'ต้องเลือกผู้ขาย' })
   await page.getByLabel('อายุนับจากอนุมัติ').selectOption({ label: 'ตั้งแต่ 1 วันขึ้นไป' })
   await page.getByRole('button', { name: 'กรองรายการ' }).click()
   // Approved today: none of them is a day old yet
@@ -118,6 +122,7 @@ test('[FR-P2P-001/AC1] [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC2] [FR-P2
   await draftA.getByRole('link').click()
   await expect(page).toHaveURL(/\/procurement\/pos\/[0-9a-f-]{36}$/)
   await expect(header(page)).toContainText('ร่าง PO ยังไม่มีเลขที่')
+  await openTab(page, 'รายการ')
   await expect(page.getByRole('list', { name: 'รายการของใบสั่งซื้อ' })).toContainText(`จากคำขอ ${made.a.number} บรรทัด 1`)
 })
 
@@ -143,7 +148,8 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
   await draft.getByRole('link').click()
   await expect(page).toHaveURL(/\/procurement\/pos\/[0-9a-f-]{36}$/)
 
-  // One PO for both requests; the totals come from the server (FR-P2P-003 AC3)
+  // One PO for both requests; the totals come from the server (FR-P2P-003 AC3), beside its lines
+  await openTab(page, 'รายการ')
   const amounts = page.getByRole('region', { name: 'ยอดเงิน' })
   await expect(amounts).toContainText(/ยอดก่อน VAT\s*54,000\.00/)
   await expect(amounts).toContainText(/VAT 7%\s*3,780\.00/)
@@ -164,10 +170,11 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
     const text = (await item.textContent()) ?? ''
     expect(text.includes('ราคาที่เคยซื้อรายการนี้'), text).not.toBe(text.includes('ยังไม่เคยซื้อรายการนี้ใน PO ที่อนุมัติแล้ว'))
   }
-  await expect(requestsRegion(page).getByRole('link', { name: `${made.h11.number} · อุปกรณ์ความปลอดภัย PPE` })).toBeVisible()
   // Made by whoever ran the round; nobody has sent it for approval yet
   await expect(page.getByRole('region', { name: 'รายละเอียดใบสั่งซื้อ' })).toContainText(/สร้างโดย\s*พิมพ์ใจ จัดหา/)
   await expect(page.getByRole('region', { name: 'รายละเอียดใบสั่งซื้อ' })).not.toContainText('ส่งขออนุมัติโดย')
+  await openTab(page, 'เอกสาร')
+  await expect(requestsRegion(page).getByRole('link', { name: `${made.h11.number} · อุปกรณ์ความปลอดภัย PPE` })).toBeVisible()
   // Before sending: the route the DOA expects (§9.9 principle 3)
   await expect(actions(page)).toContainText('ขั้นที่ 1: ชัยวัฒน์ ปฏิบัติการใหญ่')
   await expect(actions(page)).toContainText('DOA-DEMO ฉบับ 1 ข้อ PO-01')
@@ -176,9 +183,11 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
   await actions(page).getByRole('button', { name: 'ส่งขออนุมัติ' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติแล้ว' })).toBeVisible()
   await expect(header(page)).toContainText('รออนุมัติ')
-  await expect(header(page)).toContainText('รอ ชัยวัฒน์ ปฏิบัติการใหญ่')
   const number = await poNumberOf(page)
+  await openTab(page, 'ภาพรวม')
+  await expect(nowBlock(page)).toContainText('รอ ชัยวัฒน์ ปฏิบัติการใหญ่')
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('DOA-DEMO ฉบับ 1 ข้อ PO-01')
+  await openTab(page, 'รายการ')
   await expect(page.getByRole('region', { name: 'รายละเอียดใบสั่งซื้อ' })).toContainText(/ส่งขออนุมัติโดย\s*พิมพ์ใจ จัดหา/)
   await topShot(page, testInfo, 'demo-po-pending', { whole: false })
 
@@ -214,7 +223,8 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
   // Procurement sends it to the supplier: the e-mail carries the PDF; the page says when and to whom (FR-P2P-005 AC1)
   await page.reload()
   await expect(header(page)).toContainText('อนุมัติแล้ว')
-  await expect(header(page)).toContainText('รอจัดซื้อส่ง PO ให้ผู้ขาย')
+  await openTab(page, 'ภาพรวม')
+  await expect(nowBlock(page)).toContainText('รอจัดซื้อส่ง PO ให้ผู้ขาย')
   await expect(budgetRegion(page)).toContainText(/PO ถือไว้\s*54,000\.00/)
   const send = page.getByRole('region', { name: 'ส่ง PO ให้ผู้ขาย' })
   await expect(send).toContainText('s1@supplier.demo.local')
@@ -225,10 +235,12 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-002/AC3] [FR-P2P-004/AC1] [FR-P2P-005/AC1] 
   await page.getByRole('button', { name: 'ยืนยันส่ง PO' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ส่ง PO ให้ผู้ขายแล้ว' })).toBeVisible()
   await expect(header(page)).toContainText('ส่งผู้ขายแล้ว')
-  await expect(header(page)).toContainText('ส่งถึง s1@supplier.demo.local เมื่อ')
-  await expect(poTimeline(page)).toContainText('ส่ง PO ให้ผู้ขาย')
+  await expect(nowBlock(page)).toContainText('ส่งถึง s1@supplier.demo.local เมื่อ')
   await expectPoMail('s1@supplier.demo.local', number, before)
-  await expectPdfLink(page, page.getByRole('link', { name: `เปิด PDF ของ ${number}` }))
+  await expectPdfLink(page, await pdfMenuItem(page))
+  await closeMenu(page)
+  await openTab(page, 'ประวัติ')
+  await expect(poHistory(page)).toContainText('ส่ง PO ให้ผู้ขาย')
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'demo-po-sent')
 })

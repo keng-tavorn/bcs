@@ -42,6 +42,7 @@ test('@demo [FR-INT-012/AC1] [FR-INT-012/AC2] [FR-INT-012/AC3] [FR-INT-012/AC4] 
   // Only the requester cancels (FR-INT-009 AC1)
   await expect(page.getByRole('menuitem', { name: 'ยกเลิกคำขอ' })).toHaveCount(0)
   await page.keyboard.press('Escape')
+  await expect(page.getByRole('menu')).toHaveCount(0)
 
   // AC2: the tabs of a request without a PO, and the right column's summary with the attachment
   await expect(tabs(page).getByRole('tab')).toHaveText(['ภาพรวม', 'รายการและงบ', 'เอกสาร', 'ประวัติ'])

@@ -1,6 +1,6 @@
 import { expectLinesFitLaptops } from './document-lines'
 import { expect, test } from './fixtures'
-import { actions, budgetRegion, expectPdfLink, expectPoMail, header, poolGroup, poTimeline, requestsRegion, scene, tagOf, type Made, type MadePo, topShot } from './procurement-support'
+import { actions, budgetRegion, closeMenu, expectPdfLink, expectPoMail, header, nowBlock, openTab, pdfMenuItem, poHistory, poolGroup, requestsRegion, scene, tagOf, type Made, type MadePo, topShot } from './procurement-support'
 import { expectNoBlockingAxe, expectNoSideways, rowWith, signIn } from './tasks-support'
 
 // Unit e, the purchase-order pages (S4-04, S4-05 screen, S4-06 · spec §9.1 /procurement/pos, FR-P2P-003 to FR-P2P-005,
@@ -18,6 +18,7 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await page.goto(`/procurement/pos/${made.poId}`)
   await expect(header(page)).toContainText('ร่าง PO ยังไม่มีเลขที่')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('สำนักงานบัญชีทดสอบ จำกัด')
+  await openTab(page, 'รายการ')
 
   // AC1: the last approved prices of the same item, newest first, and the warning above 10 %
   const lines = page.getByRole('list', { name: 'รายการของใบสั่งซื้อ' })
@@ -95,9 +96,10 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   const facts = page.getByRole('region', { name: 'รายละเอียดใบสั่งซื้อ' })
   await expect(facts).toContainText('เครดิต 30 วัน')
   await expect(facts).toContainText('ส่งของก่อน 10 โมง ติดต่อผู้รับที่คลัง')
-  await expect(poTimeline(page)).toContainText('แก้ไขร่าง')
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'po-draft-edited')
+  await openTab(page, 'ประวัติ')
+  await expect(poHistory(page)).toContainText('แก้ไขร่าง')
 
   // FR-P2P-004 AC1: the route the DOA expects, then the route it took
   await expect(actions(page)).toContainText('ขั้นที่ 1: ชัยวัฒน์ ปฏิบัติการใหญ่')
@@ -106,6 +108,7 @@ test('[FR-P2P-003/AC1] [FR-P2P-003/AC2] [FR-P2P-003/AC3] [FR-P2P-004/AC1] the dr
   await actions(page).getByRole('button', { name: 'ส่งขออนุมัติ' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติแล้ว' })).toBeVisible()
   await expect(header(page)).toContainText(/ใบสั่งซื้อ PO\S*\d/)
+  await openTab(page, 'ภาพรวม')
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('ชัยวัฒน์ ปฏิบัติการใหญ่')
   await expect(page.getByRole('region', { name: 'แก้ไขร่าง' })).toHaveCount(0)
   await expect(budgetRegion(page)).toContainText('จองไว้แล้ว รอผู้อนุมัติตัดสิน')
@@ -129,11 +132,12 @@ test('[FR-P2P-005/AC2] [FR-P2P-005/AC3] a bounced e-mail leaves the PO approved 
   await signIn(page, 'proc_officer', true)
   await page.goto(`/procurement/pos/${made.poId}`)
   await expect(header(page)).toContainText('อนุมัติแล้ว')
-  await expect(header(page)).toContainText('อีเมลถึงผู้ขายตีกลับ รอจัดซื้อส่งอีกครั้ง')
+  await expect(nowBlock(page)).toContainText('อีเมลถึงผู้ขายตีกลับ รอจัดซื้อส่งอีกครั้ง')
   await expect(header(page).getByRole('status').filter({ hasText: /อีเมลที่ส่งเมื่อ .+ ตีกลับ \(รหัส SMTP_550\)/ })).toBeVisible()
-  await expect(poTimeline(page).getByRole('listitem').filter({ hasText: 'อีเมลถึงผู้ขายตีกลับ' })).toContainText('รหัส SMTP_550')
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'po-bounced')
+  await openTab(page, 'ประวัติ')
+  await expect(poHistory(page)).toContainText('รหัส SMTP_550')
 
   // AC3: sending again needs a reason, then a second press that names the address
   const again = page.getByRole('region', { name: 'ส่ง PO อีกครั้ง' })
@@ -146,9 +150,10 @@ test('[FR-P2P-005/AC2] [FR-P2P-005/AC3] a bounced e-mail leaves the PO approved 
   await again.getByRole('button', { name: 'ยืนยันส่ง PO' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ส่ง PO ให้ผู้ขายอีกครั้งแล้ว' })).toBeVisible()
   await expect(header(page)).toContainText('ส่งผู้ขายแล้ว')
-  await expect(poTimeline(page).getByRole('listitem').filter({ hasText: 'ส่ง PO ให้ผู้ขายอีกครั้ง' })).toContainText('แก้อีเมลผู้ขายในทะเบียนแล้ว')
+  await expect(poHistory(page).getByRole(testInfo.project.name === 'mobile' ? 'listitem' : 'row').filter({ hasText: 'ส่ง PO ให้ผู้ขายอีกครั้ง' })).toContainText('แก้อีเมลผู้ขายในทะเบียนแล้ว')
   await expectPoMail('s3@supplier.demo.local', made.number, before, true)
-  await expectPdfLink(page, page.getByRole('link', { name: `เปิด PDF ของ ${made.number}` }))
+  await expectPdfLink(page, await pdfMenuItem(page))
+  await closeMenu(page)
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'po-resent')
 })
@@ -172,7 +177,7 @@ test('[FR-P2P-010/AC1] an approved PO is cancelled with what happens to its requ
   await topShot(page, testInfo, 'po-cancel-form', { whole: false })
   await cancelButton.click()
   await expect(page.getByRole('status').filter({ hasText: 'ยกเลิก PO แล้ว' })).toBeVisible()
-  await expect(header(page)).toContainText('ยกเลิกแล้ว')
+  await expect(header(page)).toContainText('ยกเลิก')
   await expect(header(page)).toContainText('บรรทัดคำขอกลับเข้ากองรอจัดซื้อ')
   await expect(header(page)).toContainText('เหตุผล: ผู้ขายแจ้งว่าของหมด สั่งใหม่กับรายอื่น')
   await expect(page.getByRole('button', { name: 'ส่ง PO ให้ผู้ขาย' })).toHaveCount(0)
@@ -206,7 +211,7 @@ test('the purchase orders by status say whom each waits for; a requester sees on
   await expectNoBlockingAxe(page)
   await topShot(page, testInfo, 'po-list')
   await page.getByLabel('ค้นหาเลขที่ PO หรือผู้ขาย').fill(made.number)
-  await page.getByRole('button', { name: 'ค้นหา', exact: true }).click()
+  await page.locator('#content').getByRole('button', { name: 'ค้นหา', exact: true }).click()
   await expect(page.getByText(/^พบ 1 จาก \d+ ใบ$/)).toBeVisible()
   await row.getByRole('link').click()
   await expect(page).toHaveURL(new RegExp(`/procurement/pos/${made.poId}$`))
@@ -224,7 +229,8 @@ test('the purchase orders by status say whom each waits for; a requester sees on
   // The supplier's address is a field of the full register: not for a requester
   await expect(requester.getByText('อีเมลรับ PO')).toHaveCount(0)
   await expect(requester.getByText('s3@supplier.demo.local')).toHaveCount(0)
-  // Their own request opens from the PO, with its attachment
+  // Their own request opens from the PO's documents tab, with its attachment
+  await openTab(requester, 'เอกสาร')
   await expect(requestsRegion(requester).getByRole('link', { name: new RegExp(`^${made.request.number} · `) })).toBeVisible()
   await expect(requestsRegion(requester).getByRole('button', { name: /^เปิดไฟล์ justification-/ })).toBeVisible()
   await expectNoBlockingAxe(requester)

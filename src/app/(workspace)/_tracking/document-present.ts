@@ -84,6 +84,10 @@ export function stepCards(
       current: active,
       ...(sla?.overdue ? { overdue: true } : {}),
       people: people.filter(Boolean),
+      // BR-SLA-04, NEW-46: the band above joined the step past its time, and whoever decides first decides
+      ...(active && (step.escalation === 'CO_ASSIGNED' || open.length > 1)
+        ? { notes: [...(step.escalation === 'CO_ASSIGNED' ? [tv('route.escalated')] : []), ...(open.length > 1 ? [tv('route.firstDecides')] : [])] }
+        : {}),
       ...(sla?.dueAt ? { due: t('steps.due', { time: when(locale, sla.dueAt) }) } : {}),
       ...(sla ? { sla: sla.targetMinutes !== null ? t('steps.sla', { used: hoursText(locale, sla.usedMinutes), target: hoursText(locale, sla.targetMinutes) }) : t('steps.slaUsed', { used: hoursText(locale, sla.usedMinutes) }) } : {}),
       ...(decided

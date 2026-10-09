@@ -270,7 +270,8 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
       await webPage.goto(`/requests/${requestId}`)
       await expect(webPage.getByText('อนุมัติแล้ว', { exact: true }).first()).toBeVisible()
       expect((await nowLine(webPage).textContent())?.trim()).toBe(liffNow)
-      await expect(webPage.getByRole('list', { name: 'ไทม์ไลน์ของคำขอ' }).getByRole('listitem').filter({ hasText: 'แชท LINE' })).toContainText('DOA-DEMO ฉบับ 1 ข้อ PR-02')
+      // The web page stamps the step with the channel it was decided through (FR-INT-012 AC3)
+      await expect(webPage.getByRole('list', { name: 'ขั้นอนุมัติ' }).getByRole('listitem').filter({ hasText: 'แชท LINE' })).toContainText('DOA-DEMO ฉบับ 1 ข้อ PR-02')
     } finally {
       await web.close()
     }

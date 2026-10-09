@@ -39,6 +39,8 @@ export interface StepCardView {
   readonly overdue?: boolean
   /** Who has the step (or may decide it, an escalated step's co-assignee too), or who the rule expects later */
   readonly people: readonly string[]
+  /** Muted lines under the people: why a step waits for two (escalated past its time) and that the first to decide decides */
+  readonly notes?: readonly string[]
   readonly due?: string
   readonly sla?: string
   readonly stamp?: StepStampView
@@ -56,14 +58,18 @@ export interface StepCardsLabels {
 
 const STAMP_FRAME = { ok: 'border-primary', warn: 'border-warn', danger: 'border-danger' } as const
 
-export function StepCards({ steps, explanation, labels }: { steps: readonly StepCardView[]; explanation: string; labels: StepCardsLabels }) {
+/**
+ * `next`: what comes once the route is through (procurement issues the PO), shown after the last card while the route
+ * still runs, so the steps left read to the end (FR-INT-008 AC1)
+ */
+export function StepCards({ steps, explanation, labels, next }: { steps: readonly StepCardView[]; explanation: string; labels: StepCardsLabels; next?: string }) {
   const [openKey, setOpenKey] = useState<string | null>(null)
   const open = steps.find((s) => s.key === openKey) ?? null
   return (
     <>
       <ol aria-label={labels.list} className="flex flex-col">
         {steps.map((step, index) => {
-          const last = index === steps.length - 1
+          const last = index === steps.length - 1 && !next
           const frame = step.current ? cn('border-2', step.overdue ? 'border-danger' : 'border-primary') : step.stamp && step.stampTone ? STAMP_FRAME[step.stampTone] : 'border-line'
           return (
             <li key={step.key} className="relative flex gap-3 pb-4" aria-current={step.current ? 'step' : undefined} data-step-card="">
@@ -89,6 +95,11 @@ export function StepCards({ steps, explanation, labels }: { steps: readonly Step
                     {p}
                   </p>
                 ))}
+                {(step.notes ?? []).map((n) => (
+                  <p key={n} className="text-ink-muted">
+                    {n}
+                  </p>
+                ))}
                 {step.due ? <p className={cn('tabular', step.overdue ? 'font-medium text-danger' : 'text-ink-muted')}>{step.due}</p> : null}
                 {step.sla ? <p className="tabular text-ink-muted">{step.sla}</p> : null}
                 {step.stamp ? <Stamp stamp={step.stamp} /> : null}
@@ -96,6 +107,12 @@ export function StepCards({ steps, explanation, labels }: { steps: readonly Step
             </li>
           )
         })}
+        {next ? (
+          <li className="relative flex gap-3">
+            <span aria-hidden="true" className="relative mt-1.5 size-3 shrink-0 rounded-full border-2 border-line-strong bg-bg" />
+            <p className="text-ink-muted">{next}</p>
+          </li>
+        ) : null}
       </ol>
       <Sheet open={open !== null} onOpenChange={(next) => (next ? null : setOpenKey(null))}>
         <SheetContent side="right" className="w-full overflow-y-auto data-[side=right]:sm:max-w-[27.5rem]">

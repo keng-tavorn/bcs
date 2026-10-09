@@ -133,6 +133,8 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const budget = requestBudgetState(view)
   const statusBadge = <StatusBadge look={REQUEST_BADGES[view.status]} label={td(`badge.request.${view.status}`)} />
   const waited = waitingText(tv, stageWaitingMinutes(stage))
+  // While the route runs, what comes after it: procurement issues the PO (the timeline's own last step)
+  const nextAfterRoute = route?.status === 'ACTIVE' && view.track.some((e) => e.what === 'NEXT_PROCUREMENT') ? tv('timeline.what.NEXT_PROCUREMENT') : null
   const comments = commentViews(td, locale, view.track, tv('system'))
   const kb = (bytes: number) => new Intl.NumberFormat(locale === 'en' ? 'en' : 'th').format(Math.max(1, Math.ceil(bytes / BYTES_PER_KIB)))
   const files = view.attachments.map((f) => ({ fileId: f.fileId, fileName: f.fileName, detail: `${tv(`files.kind.${fileKind(f.kind)}`)} · ${tv('files.size', { size: kb(f.sizeBytes) })}` }))
@@ -147,7 +149,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
 
   const overview = (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
+      <div data-doc-now="" className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
         <p className="text-ink">
           <span className="text-ink-muted">{tv('detail.nowTitle')}: </span>
           {stageText(tv, locale, stage, mine)}
@@ -172,11 +174,16 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
               <span className="text-ink-muted">{tv('route.rule')}</span>
               <DoaRef label={doaRefText(tl, route.doa)} href={doaLinks ? doaHref(route.doa.versionId) : null} />
             </p>
+            <div className="flex flex-col gap-1">
+              <h3 className="font-semibold text-ink">{tv('route.why')}</h3>
+              <p className="break-words text-ink">{routeWhy(tv, tl, locale, route, 'REQUEST')}</p>
+            </div>
             {route.routeNo > 1 ? <p className="text-ink-muted">{tv('route.round', { no: route.routeNo })}</p> : null}
             <StepCards
               steps={stepCards(td, tv, tl, locale, route, details, { doaLinks })}
               explanation={routeWhy(tv, tl, locale, route, 'REQUEST')}
               labels={{ list: td('steps.list'), open: td('steps.open'), panelHistory: td('steps.panelHistory'), panelWhy: td('steps.panelWhy'), panelNoHistory: td('steps.panelNoHistory') }}
+              {...(nextAfterRoute ? { next: nextAfterRoute } : {})}
             />
           </div>
         ) : (

@@ -16,12 +16,19 @@ function requests(testInfo: TestInfo): Requests {
   return fixtureOnce<Requests>(testInfo, 'requests', 'requests', cast.requester, cast.approver, cast.follower)
 }
 
-const timeline = (page: Page) => page.getByRole('list', { name: 'ไทม์ไลน์ของคำขอ' })
+/** The route as step cards in the overview tab (FR-INT-012 AC3), with what comes after it as its last item */
+const steps = (page: Page) => page.getByRole('list', { name: 'ขั้นอนุมัติ' })
 const mine = (page: Page) => page.getByRole('list', { name: 'คำขอของฉัน' })
 /** The page's own heading block (the workspace shell has a header of its own) */
 const heading = (page: Page) => page.locator('#content header')
+/** Where the request is now, at the top of the overview tab */
+const nowBlock = (page: Page) => page.locator('[data-doc-now]')
 /** "ตอนนี้: …" — where the request is now, in one line */
-const nowLine = (page: Page) => heading(page).locator('p', { hasText: 'ตอนนี้:' })
+const nowLine = (page: Page) => nowBlock(page).locator('p', { hasText: 'ตอนนี้:' })
+/** A tab of the document (FR-INT-012 AC2) */
+const openTab = (page: Page, name: string) => page.getByRole('tablist', { name: 'ส่วนของเอกสาร' }).getByRole('tab', { name }).click()
+/** The history tab's table (a list on phones), from the request's Events (FR-INT-012 AC5, FR-PLT-003 AC3) */
+const history = (page: Page) => page.getByRole('table', { name: 'ประวัติของเอกสาร' }).or(page.getByRole('list', { name: 'ประวัติของเอกสาร' })).locator('visible=true')
 const DOA_REF = 'DOA-DEMO ฉบับ 1 ข้อ PR-02'
 
 test('[FR-INT-008/AC3] "my requests" filters by status and finds a request by its document number', async ({ page }, testInfo) => {
@@ -74,17 +81,17 @@ test('[FR-INT-008/AC1] [FR-DOA-003/AC2] a waiting request shows who it waits for
   await page.goto(`/requests/${r.pending.requestId}`)
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('วัสดุสิ้นเปลือง (รออนุมัติ)')
   await expect(heading(page)).toContainText('รออนุมัติ')
-  await expect(heading(page)).toContainText(`รอ ${cast.approverName} (${cast.approverRole}) อนุมัติ`)
-  await expect(heading(page)).toContainText(/ค้างมา/)
-  await expect(heading(page)).toContainText(/ครบกำหนด|เกินกำหนด/)
+  await expect(nowBlock(page)).toContainText(`รอ ${cast.approverName} (${cast.approverRole}) อนุมัติ`)
+  await expect(nowBlock(page)).toContainText(/ค้างมา/)
+  await expect(nowBlock(page)).toContainText(/ครบกำหนด|เกินกำหนด/)
 
-  // The current step stands out with name, position and the business hours waited; the steps left follow
-  const current = timeline(page).locator('[aria-current="step"]')
-  await expect(current).toContainText('รออนุมัติ')
+  // The current step stands out with name, position and the business hours used; the steps left follow
+  const current = steps(page).locator('[aria-current="step"]')
+  await expect(current).toContainText('รอตัดสิน')
   await expect(current).toContainText(cast.approverName)
   await expect(current).toContainText(cast.approverRole)
-  await expect(current).toContainText(/ค้างมา/)
-  await expect(timeline(page).getByRole('listitem').last()).toContainText('ฝ่ายจัดซื้อออกใบสั่งซื้อ')
+  await expect(current).toContainText(/ใช้ไป/)
+  await expect(steps(page).getByRole('listitem').last()).toContainText('ฝ่ายจัดซื้อออกใบสั่งซื้อ')
 
   // The actual route after submitting, with the rule and why (FR-DOA-003 AC2); a requester reads the rule as text
   const route = page.getByRole('region', { name: 'เส้นทางอนุมัติ' })
@@ -92,11 +99,13 @@ test('[FR-INT-008/AC1] [FR-DOA-003/AC2] a waiting request shows who it waits for
   await expect(route.getByRole('link', { name: DOA_REF })).toHaveCount(0)
   await expect(route).toContainText('ทำไมไปทางนี้')
   await expect(route).toContainText(`${DOA_REF}: คำขอซื้อยอด 23,000.00 บาท (รวม VAT) อยู่ในช่วงมากกว่า 20,000.00 ถึงไม่เกิน 100,000.00`)
-  await expect(route).toContainText(`ขั้นที่ 1 · ${cast.approverName}`)
-  await expect(route).toContainText('กำลังรออนุมัติ')
-  await expect(page.getByRole('region', { name: 'ยอดเงิน' })).toContainText(/ยอดรวม VAT\s*23,000\.00/)
+  await expect(route).toContainText(`ขั้นที่ 1 · ${cast.approverRole}`)
+  await expect(route).toContainText(cast.approverName)
+  await expect(route).toContainText('รอตัดสิน')
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'request-waiting')
+  await openTab(page, 'รายการและงบ')
+  await expect(page.getByRole('region', { name: 'ยอดเงิน' })).toContainText(/ยอดรวม VAT\s*23,000\.00/)
   // At laptop widths, where the request's column is narrow, its lines still fit it (§9.9)
   await expectLinesFitLaptops(page, testInfo, page.getByRole('region', { name: 'รายการ', exact: true }).getByRole('list'), 'request-waiting-lines')
 })
@@ -107,32 +116,36 @@ test('@demo [FR-DOA-005/AC2] [FR-PLT-003/AC3] an approved request names the DOA 
   await signIn(page, cast.requester, false)
   await page.goto(`/requests/${r.approved.requestId}`)
   await expect(heading(page)).toContainText('อนุมัติแล้ว')
-  await expect(heading(page)).toContainText('อนุมัติภายใต้')
-  await expect(heading(page).getByText(DOA_REF, { exact: true })).toBeVisible()
+  await expect(nowBlock(page)).toContainText('อนุมัติภายใต้')
+  await expect(nowBlock(page).getByText(DOA_REF, { exact: true })).toBeVisible()
   // The requester may not open the DOA admin page, so the reference is text rather than a link that ends in a refusal
-  await expect(heading(page).getByRole('link', { name: DOA_REF })).toHaveCount(0)
-  await expect(heading(page)).toContainText('รอฝ่ายจัดซื้อออกใบสั่งซื้อ')
+  await expect(nowBlock(page).getByRole('link', { name: DOA_REF })).toHaveCount(0)
+  await expect(nowBlock(page)).toContainText('รอฝ่ายจัดซื้อออกใบสั่งซื้อ')
 
-  // Who, what, which channel, when, and the DOA version and rule (FR-PLT-003 AC3)
-  const items = timeline(page).getByRole('listitem')
-  await expect(items.filter({ hasText: /ส่งขออนุมัติ ได้เลขที่ PR-2569-\d{5}/ })).toContainText(cast.requesterName)
-  const stamp = items.filter({ hasText: DOA_REF })
-  await expect(stamp).toContainText('อนุมัติ')
+  // The step is a stamp: decision, who, position, when, channel and the DOA version and rule (FR-PLT-003 AC3)
+  const stamp = steps(page).getByRole('listitem').filter({ hasText: DOA_REF })
+  await expect(stamp).toContainText('อนุมัติแล้ว')
   await expect(stamp).toContainText(cast.approverName)
   await expect(stamp).toContainText(cast.approverRole)
   await expect(stamp).toContainText(/\d{1,2} \S+ 25\d\d \d\d:\d\d น\. · เว็บ/)
-  await expect(page.getByRole('region', { name: 'งบประมาณ' })).toContainText('จองงบแล้ว')
+  await expect(page.getByRole('region', { name: 'งบของเอกสารนี้' })).toContainText('จองงบแล้ว')
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'request-approved')
+  // Who did what, through which channel and when, from the Events (FR-PLT-003 AC3)
+  await openTab(page, 'ประวัติ')
+  await expect(history(page)).toContainText(/ส่งขออนุมัติ ได้เลขที่ PR-2569-\d{5}/)
+  await expect(history(page)).toContainText(cast.requesterName)
+  await expect(history(page)).toContainText(`อนุมัติ · ${DOA_REF}`)
+  await expect(history(page)).toContainText('เว็บ')
 
   // An organization admin may open DOA versions: the same reference links to the version it cites (FR-DOA-005 AC2)
   const adminContext = await browser.newContext()
   const admin = await adminContext.newPage()
   await signIn(admin, cast.proposer, true)
   await admin.goto(`/requests/${r.approved.requestId}`)
-  const link = heading(admin).getByRole('link', { name: DOA_REF })
+  const link = nowBlock(admin).getByRole('link', { name: DOA_REF })
   await expect(link).toHaveAttribute('href', /^\/admin\/doa\/[0-9a-f-]{36}$/)
-  await expect(timeline(admin).getByRole('listitem').filter({ hasText: DOA_REF }).getByRole('link', { name: DOA_REF })).toHaveAttribute('href', /^\/admin\/doa\/[0-9a-f-]{36}$/)
+  await expect(steps(admin).getByRole('listitem').filter({ hasText: DOA_REF }).getByRole('link', { name: DOA_REF })).toHaveAttribute('href', /^\/admin\/doa\/[0-9a-f-]{36}$/)
   await link.click()
   await expect(admin.getByRole('heading', { level: 1, name: 'DOA-DEMO ฉบับ 1' })).toBeVisible()
   await shot(admin, testInfo, 'request-approved-doa-version')
@@ -147,11 +160,11 @@ test('[FR-INT-009/AC2] [FR-INT-009/AC1] a returned request shows the reason; the
   await expect(page.getByRole('heading', { level: 3, name: 'ผู้อนุมัติตีกลับให้แก้ไข' })).toBeVisible()
   await expect(page.getByText('เหตุผล: แยกรายการให้ชัดเจนก่อนส่งอีกครั้ง')).toBeVisible()
   await expect(page.getByRole('link', { name: 'แก้ไขคำขอ' })).toHaveAttribute('href', `/requests/${r.returned.requestId}/edit`)
-  const returnedStamp = timeline(page).getByRole('listitem').filter({ hasText: 'แยกรายการให้ชัดเจนก่อนส่งอีกครั้ง' })
-  await expect(returnedStamp).toContainText('ตีกลับให้แก้ไข')
+  // The step is stamped as returned, by whom; the reason is in the comments of the right column
+  const returnedStamp = steps(page).getByRole('listitem').filter({ hasText: 'ตีกลับให้แก้' })
   await expect(returnedStamp).toContainText(cast.approverName)
-  // The route says the step was returned, in words and with the return icon of the timeline
-  await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('ตีกลับ')
+  await page.getByRole('tab', { name: /^ความเห็น \(\d+\)$/ }).click()
+  await expect(page.getByRole('list', { name: 'ความเห็นและเหตุผล' })).toContainText('แยกรายการให้ชัดเจนก่อนส่งอีกครั้ง')
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'request-returned')
 
@@ -169,9 +182,11 @@ test('[FR-INT-009/AC2] [FR-INT-009/AC1] a returned request shows the reason; the
   // §9.9 rule 7: the confirmation repeats the button's words, with who decides it now
   await expect(page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติอีกครั้งแล้ว' })).toContainText(`ส่งขออนุมัติอีกครั้งแล้ว รอ ${cast.approverName}`)
   await page.goto(`/requests/${r.returned.requestId}`)
-  await expect(heading(page)).toContainText(`รอ ${cast.approverName}`)
-  await expect(timeline(page)).toContainText('ส่งขออนุมัติอีกครั้ง')
+  await expect(nowBlock(page)).toContainText(`รอ ${cast.approverName}`)
   await expect(page.getByRole('region', { name: 'เส้นทางอนุมัติ' })).toContainText('รอบที่ 2')
+  await openTab(page, 'ประวัติ')
+  await expect(history(page)).toContainText('ส่งขออนุมัติอีกครั้ง')
+  await openTab(page, 'ภาพรวม')
 
   // Cancelling cannot be undone: a reason and a tick first; each message goes once its field is fixed
   await page.getByText('ยกเลิกคำขอ', { exact: true }).click()
@@ -185,8 +200,8 @@ test('[FR-INT-009/AC2] [FR-INT-009/AC1] a returned request shows the reason; the
   await shot(page, testInfo, 'request-cancel-form')
   await page.getByRole('button', { name: 'ยกเลิกคำขอนี้' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ยกเลิกคำขอแล้ว' })).toBeVisible()
-  await expect(heading(page)).toContainText('ยกเลิกแล้ว เหตุผล: ใช้ของที่มีอยู่แทน')
-  await expect(page.getByRole('region', { name: 'งบประมาณ' })).toContainText('คืนงบแล้ว')
+  await expect(nowBlock(page)).toContainText('ยกเลิกแล้ว เหตุผล: ใช้ของที่มีอยู่แทน')
+  await expect(page.getByRole('region', { name: 'งบของเอกสารนี้' })).toContainText('คืนงบแล้ว')
   // Nothing is left to do: the box of the requester's actions is gone with its old message
   await expect(page.getByRole('heading', { name: 'สิ่งที่ต้องทำ' })).toHaveCount(0)
   await expect(page.getByText('ส่งขออนุมัติอีกครั้งแล้ว')).toHaveCount(0)
@@ -214,7 +229,7 @@ test('[FR-INT-008/AC2] the requester, a follower and the approver see the same s
     await viewer.goto(`/requests/${r.pending.requestId}`)
     await expect(viewer.getByRole('heading', { level: 1 })).toHaveText('วัสดุสิ้นเปลือง (รออนุมัติ)')
     // The step's title and who it waits for (the minutes waited move on while the test runs)
-    const step = await timeline(viewer).locator('[aria-current="step"] p').evaluateAll((lines) => lines.slice(0, 2).map((p) => p.textContent))
+    const step = await steps(viewer).locator('[aria-current="step"]').locator('h3, p').evaluateAll((lines) => lines.slice(0, 2).map((p) => p.textContent))
     const seen = { now: await nowLine(viewer).innerText(), step }
     return { context, viewer, seen }
   }

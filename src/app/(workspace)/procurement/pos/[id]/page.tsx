@@ -198,7 +198,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
 
   const overview = (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1 border-l-4 border-line pl-3">
+      <div data-doc-now="" className="flex flex-col gap-1 border-l-4 border-line pl-3">
         <StateLine kind={po.waiting.kind === 'APPROVER' ? 'person' : po.waiting.kind === 'NONE' ? 'closed' : 'team'}>{waiting.now}</StateLine>
         {waiting.states.map((s) => (
           <StateLine key={s.text} kind={s.kind}>
@@ -218,6 +218,10 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
               <span className="text-ink-muted">{tv('route.rule')}</span>
               <DoaRef label={doaRefText(tl, route.doa)} href={doaLinks ? doaHref(route.doa.versionId) : null} />
             </p>
+            <div className="flex flex-col gap-1">
+              <h3 className="font-semibold text-ink">{tv('route.why')}</h3>
+              <p className="break-words text-ink">{routeWhy(tv, tl, locale, route, 'PURCHASE_ORDER')}</p>
+            </div>
             {route.routeNo > 1 ? <p className="text-ink-muted">{tv('route.round', { no: route.routeNo })}</p> : null}
             <StepCards
               steps={stepCards(td, tv, tl, locale, route, details, { doaLinks })}
@@ -235,7 +239,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
 
   const tabs: DocTab[] = [
     { value: 'overview', label: td('tabs.overview'), content: overview },
-    { value: 'lines', label: td('tabs.lines'), content: <PoBody po={po} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} parts={['lines', 'facts']} /> },
+    { value: 'lines', label: td('tabs.lines'), content: <PoBody po={po} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} parts={['money', 'lines', 'facts']} /> },
     {
       value: 'receiving',
       label: td('tabs.receiving'),
@@ -336,8 +340,8 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
           { label: td('header.taken'), value: daysTaken !== null ? td('header.takenDays', { days: digits.format(daysTaken) }) : td('header.takenUnknown') },
         ]}
         compactBadge={statusBadge}
+        notices={<StateNotices po={po} t={t} locale={locale} />}
       />
-      <StateNotices po={po} t={t} locale={locale} />
 
       <DocBody
         main={

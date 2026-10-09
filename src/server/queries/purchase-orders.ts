@@ -47,7 +47,7 @@ export const isPoStatus = (value: string | undefined | null): value is PoStatusD
 /** POs whose sources still order their request lines (the same list as services/procurement/pool.ts ORDERING_PO_STATUSES) */
 const ORDERING: readonly PoStatusDto[] = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED']
 /** POs approved at some point: the price history reads their prices (FR-P2P-003 AC1) */
-const APPROVED_STATUSES: readonly PoStatusDto[] = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED']
+export const APPROVED_STATUSES: readonly PoStatusDto[] = ['APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED']
 const OPEN_TASK = ['OPEN', 'INFO_REQUESTED'] as const
 const PRICE_HISTORY_SIZE = 3
 const PERCENT_TO_BP = 100

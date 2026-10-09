@@ -123,16 +123,15 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(poOrdering(first.number), 'no PO orders scene 1\'s request yet').toBeNull()
   const lineCount = first.lines.length + second.lines.length
 
-  // Procurement signs in (password and authenticator code). Work first (§9.9 principle 1): the home shows the pool as work
-  // waiting for procurement, with lines that need a supplier, and opens it. Both requests wait there, every line needing
-  // its supplier, the history's with the supplier its requester suggested
+  // Procurement signs in (password and authenticator code). Work first (§9.9 principle 1, §9.10): the home's "สิ่งที่ต้องทำ"
+  // shows the lines waiting in the pool, and the row opens it. Both requests wait there, every line needing its supplier,
+  // the history's with the supplier its requester suggested
   await signInChecked(page, sheet, buyer.code, testInfo, 'scene7-procurement')
-  const poolWork = page.getByRole('list', { name: th('home.pool.list'), exact: true })
+  const todo = page.getByRole('list', { name: th('home.todo.list'), exact: true })
   /** A message whose counts may be any number, as a whole text */
   const anyCounts = (key: string, names: readonly string[]) =>
     new RegExp(`^${names.reduce((text, name) => text.replace(`__${name}__`, '\\d+'), literally(th(key, Object.fromEntries(names.map((name) => [name, `__${name}__`])))))}$`)
-  await expect(poolWork.getByText(anyCounts('home.pool.needSupplier', ['count']))).toBeVisible()
-  await poolWork.getByRole('link', { name: anyCounts('home.pool.title', ['requests', 'lines']) }).click()
+  await todo.getByRole('link', { name: anyCounts('home.todo.POOL', ['count']) }).click()
   await expect(page).toHaveURL(/\/procurement\/pool$/)
   await expect(page.getByRole('heading', { level: 1, name: th('procurement.pool.title') })).toBeVisible()
   for (const r of requests) {

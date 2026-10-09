@@ -37,7 +37,8 @@ const WRONG_PIN = '480263'
 const inbox = (page: Page) => page.getByRole('list', { name: 'งานรออนุมัติของคุณ' })
 const timeline = (page: Page) => page.getByRole('list', { name: 'ไทม์ไลน์ของคำขอ' })
 /** The page's own heading block (the workspace shell has a header of its own) */
-const heading = (page: Page) => page.locator('#content header')
+/** The request page's "ตอนนี้" block (S16-07): whom it waits for, and the DOA rule it was approved under */
+const nowBlock = (page: Page) => page.locator('[data-doc-now]')
 const approveButton = (page: Page) => page.getByRole('button', { name: 'อนุมัติ', exact: true })
 const DOA_REF = 'DOA-DEMO ฉบับ 1 ข้อ PR-02'
 
@@ -58,9 +59,10 @@ test('[FR-DOA-004/AC1] the approver’s inbox lists their tasks, the ones due fi
   const cast = castOf(testInfo)
   await signIn(page, cast.approver, true)
 
-  // Home: work first — the tasks waiting for me, each a link to its decision page
-  await expect(page.getByRole('heading', { level: 2, name: 'งานรอคุณตัดสิน' })).toBeVisible()
-  const homeTasks = page.getByRole('list', { name: 'งานรอคุณตัดสิน' })
+  // Home: work first — "รอฉันอนุมัติ" lists the tasks waiting for me, each a link to its decision page with the amount
+  // the DOA counted (DOA-DEMO counts with VAT)
+  await expect(page.getByRole('heading', { level: 2, name: 'รอฉันอนุมัติ' })).toBeVisible()
+  const homeTasks = page.getByRole('list', { name: 'งานรอฉันอนุมัติทั้งหมด' })
   await expect(rowWith(homeTasks, '45,000.00').first().getByRole('link', { name: /PR-2569-\d{5} · วัสดุสำหรับงานทดสอบ/ })).toBeVisible()
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, 'home-approver')
@@ -140,8 +142,8 @@ test('@demo [FR-DOA-005/AC2] [FR-PLT-003/AC3] [FR-DOA-004/AC2] the approver appr
 
   // The request page says under which DOA rule it was approved
   await page.getByRole('link', { name: /เปิดหน้าคำขอ PR-2569-\d{5}/ }).click()
-  await expect(heading(page)).toContainText('อนุมัติภายใต้')
-  await expect(heading(page).getByText(DOA_REF, { exact: true })).toBeVisible()
+  await expect(nowBlock(page)).toContainText('อนุมัติภายใต้')
+  await expect(nowBlock(page).getByText(DOA_REF, { exact: true })).toBeVisible()
 })
 
 test('[FR-DOA-004/AC1] [FR-INT-009/AC3] the approver asks for information, the requester answers, then the approver returns it with a reason', async ({ page, browser }, testInfo) => {
@@ -193,7 +195,7 @@ test('[FR-DOA-004/AC1] [FR-INT-009/AC3] the approver asks for information, the r
   await shot(requester, testInfo, 'info-answer')
   await requester.getByRole('button', { name: 'ส่งคำตอบให้ผู้อนุมัติ' }).click()
   await expect(requester.getByRole('status').filter({ hasText: 'ส่งคำตอบให้ผู้อนุมัติแล้ว' })).toBeVisible()
-  await expect(heading(requester)).toContainText(`รอ ${cast.approverName}`)
+  await expect(nowBlock(requester)).toContainText(`รอ ${cast.approverName}`)
   await requesterContext.close()
 
   // Back with the approver: a return needs a reason and a tick

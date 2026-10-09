@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { RequestList, type RequestRow } from '@/ui/request-view/request-list'
 import th from '../../messages/th.json'
 
-// D-05 / and /requests (§9.9 "เนื้อหา 15 px บนเว็บและ 16 px บนมือถือ"): the rows of "my requests" read at the body's size —
+// D-05 /requests (§9.9 "เนื้อหา 15 px บนเว็บและ 16 px บนมือถือ"): the rows of "my requests" read at the body's size —
 // the title, the lines under it (when the request was sent or made, that the reader follows it), where it is now and
 // how long it has waited — as the task rows beside them on the home page do (tests/unit/tasks-inbox-rows.test.tsx). Only
 // the column headings, shown on wide screens, are smaller on the web.
 
 const LABELS = {
-  list: th.home.myRequests,
+  list: th.requestView.listTitle,
   request: th.requestView.columns.request,
   status: th.requestView.columns.status,
   now: th.requestView.columns.now,

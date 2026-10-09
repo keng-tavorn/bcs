@@ -8,6 +8,7 @@ import { SEARCH_GROUP_LIMIT, SEARCH_MIN_LENGTH } from '@/lib/constants'
 import { Button } from '../shadcn/button'
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../shadcn/command'
 import { Kbd } from '../shadcn/kbd'
+import { onShellEvent } from './shell-events'
 
 // ⌘K / Ctrl K from every page of the workspace (FR-PLT-014 AC1, §9.10): one palette with the groups ล่าสุด · เอกสาร ·
 // ผู้ขาย · ไปที่หน้า · คำสั่ง, worked by keyboard alone (cmdk: ↑ ↓ choose, Enter opens; the dialog: Esc closes).
@@ -120,6 +121,11 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [])
+  // The home's search field opens the same palette (shell-events.ts)
+  const onAsked = useEffectEvent(() => {
+    if (!open) onOpenChange(true)
+  })
+  useEffect(() => onShellEvent('palette', () => onAsked()), [])
 
   // Recent documents when it opens or the text is under two characters; a search 200 ms after the last key otherwise.
   // Only a change of what is asked calls the server (each call counts toward NFR-SEC-05), not every key.

@@ -43,7 +43,7 @@ test('[FR-AUTH-002/AC1] a seeded user signs in with password and TOTP', async ({
   await page.getByLabel('รหัส 6 หลักจากแอป').fill(totp(deriveSeedTotpSecret(process.env.SEED_TOTP_KEY!, code)))
   await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
 
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`สวัสดี ${name}`)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(`สวัสดี คุณ${name.split(' ')[0]} วันนี้ต้องการทำอะไร`)
   if (isMobile) await page.getByRole('button', { name: 'ยุบหรือขยายเมนู' }).click()
   await page.getByRole('navigation', { name: 'เมนูหลัก' }).getByRole('link', { name: 'ตั้งค่าของฉัน' }).click()
   await page.getByRole('link', { name: 'ความปลอดภัยของบัญชี' }).click()

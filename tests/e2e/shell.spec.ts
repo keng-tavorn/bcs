@@ -20,7 +20,7 @@ async function signInAsRequester(page: Page) {
   await page.getByLabel('อีเมลบริษัท').fill('req_con@demo.bcs.local')
   await page.getByLabel('รหัสผ่าน').fill(process.env.SEED_DEV_PASSWORD!)
   await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click()
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('สวัสดี สมชาย ใจดี')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('สวัสดี คุณสมชาย วันนี้ต้องการทำอะไร')
 }
 
 /** The user menu: in the top bar from 768 px, at the foot of the menu sheet on a phone (§9.10) */
@@ -45,7 +45,7 @@ async function openMenuOnPhone(page: Page, isMobile: boolean, label = 'ยุบ
 
 test('[FR-PLT-002/AC2] Thai by default, English on request; the menu lists what the member may open', async ({ page, isMobile }, testInfo) => {
   await signInAsRequester(page)
-  await expect(page.getByRole('heading', { level: 2, name: 'งานรอคุณตัดสิน' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'รอฉันอนุมัติ' })).toBeVisible()
   await expectNoBlockingAxe(page)
   await page.screenshot({ path: testInfo.outputPath('home-th.png'), fullPage: true })
 
@@ -61,7 +61,7 @@ test('[FR-PLT-002/AC2] Thai by default, English on request; the menu lists what 
   await page.getByRole('button', { name: 'English' }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await closeUserMenu(page, isMobile)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Hello สมชาย ใจดี')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Hello สมชาย. What would you like to do today?')
   await expect(page.locator('html')).toHaveAttribute('lang', 'en')
   await expectNoBlockingAxe(page)
   await page.screenshot({ path: testInfo.outputPath('home-en.png'), fullPage: true })
@@ -70,7 +70,7 @@ test('[FR-PLT-002/AC2] Thai by default, English on request; the menu lists what 
   await page.getByRole('button', { name: 'ไทย' }).click()
   await expect(page.locator('html')).toHaveAttribute('lang', 'th')
   await closeUserMenu(page, isMobile)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('สวัสดี สมชาย ใจดี')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('สวัสดี คุณสมชาย วันนี้ต้องการทำอะไร')
   await expect(page.locator('html')).toHaveAttribute('lang', 'th')
 })
 

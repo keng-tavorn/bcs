@@ -1,119 +1,188 @@
 import Link from 'next/link'
+import { Suspense, type ReactNode } from 'react'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
+import { logger } from '@/lib/logger'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
-import { procurementPoCounts } from '@/server/queries/purchase-orders'
-import { listMyRequests } from '@/server/queries/requests'
-import { listMyTasks } from '@/server/queries/tasks'
-import { listPool } from '@/server/services/procurement'
-import { RequestList } from '@/ui/request-view/request-list'
-import { TaskList } from '@/ui/tasks/task-list'
+import type { Ctx } from '@/server/context'
+import { homeApprovals, homeFollowing, homeOnTime, homeTodo } from '@/server/services/home'
+import { ApprovalsTabs } from '@/ui/home/approvals-tabs'
+import { CardError } from '@/ui/home/card-error'
+import { FollowingRows, HomeCard, HomeCardSkeleton, OnTimeRows } from '@/ui/home/home-cards'
+import { HomeHero } from '@/ui/home/home-hero'
+import { TodoList } from '@/ui/home/todo-list'
+import { Button } from '@/ui/shadcn/button'
+import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from '@/ui/shadcn/empty'
 import { getSession } from '../_lib/session'
-import { loadHomeBudget } from './_tracking/home-budget-load'
-import { HomeBudgetSection } from './_tracking/home-budget-section'
-import { poRows } from './_tracking/po-rows'
-import { poolRow } from './_tracking/pool-row'
+import { approvalsView, firstName, FOLLOWING_HREF, followingView, onTimeView, todoView, type HomeT } from './_tracking/home-present'
 import { localeOf } from './_tracking/present'
-import { requestRows, taskRows } from './_tracking/rows'
 
 export async function generateMetadata() {
   const t = await getTranslations('home')
   return { title: t('title') }
 }
 
-/** How many tasks and requests the home page shows before "see all" */
-const HOME_ROWS = 5
-const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
+// Home, "งานของฉัน" (spec §9.10 "หน้าแรก", FR-VIS-006, §9.9 principle 1): the greeting with the search field and three
+// chips on the page's white, then the cards on --surface — on wide screens two columns, the left 7/12 "สิ่งที่ต้องทำ" then
+// "รอฉันอนุมัติ", the right 5/12 "งานอนุมัติทันเวลา" then "ที่ฉันติดตาม"; under 1024 px one column in the order to do,
+// waiting for me, following, on time. Each card loads on its own behind a skeleton and says in itself when it cannot
+// (AC6), so the greeting — the largest text — paints first. The services decide what each member may see.
 
-// Home, work first (§9.9 principle 1): what waits for my decision — the ones due first, and for procurement the pool of
-// approved requests nobody has ordered yet and the POs waiting on them (a draft to send for approval, an approved PO to
-// send out) — then my requests with where each one is now; every count links to its list. The budget comes after the
-// work, for members who may view budgets (§9.1 "/"): what is left in their budget.view scope and the lines running low,
-// from the dashboard of /budgets, every amount a link to what makes it up — a short list, never a chart before the work.
+type Texts = { readonly t: HomeT; readonly locale: 'th' | 'en' }
+
+/** One card's body, or its error inside the card (AC6) */
+async function guarded(t: HomeT, title: string, body: () => Promise<ReactNode>): Promise<ReactNode> {
+  try {
+    return await body()
+  } catch (error) {
+    logger.error({ err: error, card: title }, 'a home card could not load')
+    return <CardError title={t('error.title', { card: title })} hint={t('error.hint')} retry={t('error.retry')} />
+  }
+}
+
+async function TodoCard({ ctx, texts, canRequest }: { ctx: Ctx; texts: Texts; canRequest: boolean }) {
+  const { t } = texts
+  const title = t('cards.todo')
+  const body = await guarded(t, title, async () => {
+    const result = await homeTodo(ctx)
+    if (!result.ok) throw new Error(result.error.code)
+    const { rows: todo, openTasks } = result.data
+    // Nothing urgent, but tasks wait for a decision: they are in "รอฉันอนุมัติ" below
+    if (todo.length === 0 && openTasks > 0) return <p className="text-ink-muted">{t('todo.noneUrgent')}</p>
+    if (todo.length === 0) {
+      // Nothing waits at all: the next steps the member can take (§9.9 principle 8)
+      return (
+        <Empty className="border-0 p-4">
+          <EmptyHeader>
+            <EmptyTitle className="text-base">{t('todo.empty')}</EmptyTitle>
+            <EmptyDescription className="text-base md:text-sm">{t('todo.emptyHint')}</EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent className="flex-row flex-wrap justify-center">
+            {canRequest ? (
+              <Button asChild className="min-h-11 lg:min-h-10">
+                <Link href="/requests/new">{t('todo.start')}</Link>
+              </Button>
+            ) : null}
+            <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+              <Link href="/requests">{t('todo.myRequests')}</Link>
+            </Button>
+          </EmptyContent>
+        </Empty>
+      )
+    }
+    const rows = todoView(t, todo)
+    return <TodoList rows={rows} label={t('todo.list')} more={t('todo.more', { count: rows.length })} less={t('todo.less')} />
+  })
+  return (
+    <HomeCard id="home-todo" title={title}>
+      {body}
+    </HomeCard>
+  )
+}
+
+async function ApprovalsCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
+  const { t, locale } = texts
+  const title = t('cards.approvals')
+  const body = await guarded(t, title, async () => {
+    const [result, tt, tv] = await Promise.all([homeApprovals(ctx), getTranslations('tasks'), getTranslations('requestView')])
+    if (!result.ok) throw new Error(result.error.code)
+    return <ApprovalsTabs label={t('approvals.tabs')} tabs={approvalsView(t, tt, tv, locale, result.data)} />
+  })
+  return (
+    <HomeCard id="home-approvals" title={title}>
+      {body}
+    </HomeCard>
+  )
+}
+
+async function OnTimeCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
+  const { t } = texts
+  const title = t('cards.onTime')
+  const body = await guarded(t, title, async () => {
+    const result = await homeOnTime(ctx)
+    if (!result.ok) throw new Error(result.error.code)
+    if (result.data.length === 0) return <p className="text-ink-muted">{t('onTime.empty')}</p>
+    return <OnTimeRows rows={onTimeView(t, result.data)} label={t('onTime.list')} />
+  })
+  return (
+    <HomeCard id="home-on-time" title={title}>
+      {body}
+    </HomeCard>
+  )
+}
+
+async function FollowingCard({ ctx, texts }: { ctx: Ctx; texts: Texts }) {
+  const { t, locale } = texts
+  const title = t('cards.following')
+  const body = await guarded(t, title, async () => {
+    const [result, tv] = await Promise.all([homeFollowing(ctx), getTranslations('requestView')])
+    if (!result.ok) throw new Error(result.error.code)
+    const f = result.data
+    if (f.total === 0) return <p className="text-ink-muted">{t('following.empty')}</p>
+    return (
+      <>
+        <p className="font-medium text-ink">{t('following.summary', { total: f.total, open: f.open })}</p>
+        <FollowingRows rows={followingView(tv, locale, f)} label={t('following.list')} all={{ href: FOLLOWING_HREF, text: t('following.all') }} />
+      </>
+    )
+  })
+  return (
+    <HomeCard id="home-following" title={title}>
+      {body}
+    </HomeCard>
+  )
+}
+
 export default async function HomePage() {
   const state = await getSession()
   if (state.kind !== 'member') return null
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, tt, tv, tb, locale] = await Promise.all([getTranslations('home'), getTranslations('tasks'), getTranslations('requestView'), getTranslations('budgets'), getLocale().then(localeOf)])
-  // The pool is read only by those whose menu has it (the same check, §2.4 procurement.pool.view); listPool checks again.
-  // So are the POs waiting on procurement: by those whose menu lists POs (po.create, the menu's entry). The budget's
-  // service checks budget.view itself, with the departments a member heads, and answers no one else (loadHomeBudget)
-  const principal = memberPrincipal(state.member.id, state.roles)
-  const seesPool = isAllowed(principal, 'procurement.pool.view')
-  const seesPos = isAllowed(principal, 'po.create')
-  const [tasks, requests, pool, pos, budget] = await Promise.all([
-    listMyTasks(ctx, { limit: HOME_ROWS }),
-    listMyRequests(ctx, { limit: HOME_ROWS }),
-    seesPool ? listPool(ctx) : null,
-    seesPos ? procurementPoCounts(ctx) : null,
-    loadHomeBudget(ctx, t, tb),
-  ])
-  const poolWork = pool?.ok ? poolRow(t, pool.data) : null
-  const poWork = pos ? poRows(t, pos) : []
-  // One answer for both sections, so they never disagree: only a member whose requests are listed below has progress to
-  // follow; one with none is not sent to an empty list, and their next step is the start link of "my requests" (§9.9
-  // principle 8)
-  const hasRequests = requests.rows.length > 0
-  const name = locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh
+  const [t, tSearch, locale] = await Promise.all([getTranslations('home'), getTranslations('shell.search'), getLocale().then(localeOf)])
+  const texts: Texts = { t, locale }
+  const name = firstName(locale === 'en' && state.member.displayNameEn ? state.member.displayNameEn : state.member.displayNameTh)
+  // The chip opens the same door as the shell's button, for the same members (request.create, FR-INT-010)
+  const canRequest = isAllowed(memberPrincipal(state.member.id, state.roles), 'request.create')
+  const skeleton = (id: string, title: string) => <HomeCardSkeleton id={id} title={title} loading={t('loading', { card: title })} />
 
   return (
-    <div className="flex max-w-5xl flex-col gap-8">
-      {/* The door to a new request is the shell's, on every page (§9.9 principle 2) */}
-      <h1 className="text-2xl font-semibold">{t('greeting', { name })}</h1>
-
-      <section aria-labelledby="my-tasks" className="flex flex-col gap-3">
-        <h2 id="my-tasks" className="text-xl font-semibold">
-          {t('myTasks')}
-        </h2>
-        {tasks.items.length ? (
-          <>
-            <TaskList label={t('myTasks')} rows={taskRows(tt, tv, locale, tasks.items)} />
-            <Link href="/tasks" className={linkClass}>
-              {t('myTasksAll', { count: tasks.total })}
-            </Link>
-          </>
-        ) : null}
-        {poolWork ? <TaskList label={t('pool.list')} rows={[poolWork]} /> : null}
-        {poWork.length ? <TaskList label={t('po.list')} rows={poWork} /> : null}
-        {!tasks.items.length && !poolWork && !poWork.length ? (
-          <div className="flex flex-col gap-1 border-y border-line py-4">
-            <p className="text-ink-muted">{t('myTasksEmpty')}</p>
-            {hasRequests ? (
-              <Link href="/requests" className={linkClass}>
-                {t('toMyRequests')}
-              </Link>
-            ) : null}
+    <div className="flex flex-col gap-6">
+      <HomeHero
+        canRequest={canRequest}
+        texts={{
+          greeting: t('greeting', { name }),
+          search: t('search'),
+          shortcutMac: tSearch('shortcutMac'),
+          shortcutOther: tSearch('shortcutOther'),
+          chips: { label: t('chips.label'), mine: t('chips.mine'), newRequest: t('chips.newRequest'), suppliers: t('chips.suppliers') },
+        }}
+      />
+      <div className="-mx-4 bg-surface px-4 py-4 lg:mx-0 lg:rounded-lg lg:p-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-6">
+          <div className="flex min-w-0 flex-col gap-4 lg:col-span-7 lg:gap-6">
+            <Suspense fallback={skeleton('home-todo', t('cards.todo'))}>
+              <TodoCard ctx={ctx} texts={texts} canRequest={canRequest} />
+            </Suspense>
+            <Suspense fallback={skeleton('home-approvals', t('cards.approvals'))}>
+              <ApprovalsCard ctx={ctx} texts={texts} />
+            </Suspense>
           </div>
-        ) : null}
-      </section>
-
-      <section aria-labelledby="my-requests" className="flex flex-col gap-3">
-        <h2 id="my-requests" className="text-xl font-semibold">
-          {t('myRequests')}
-        </h2>
-        {hasRequests ? (
-          <>
-            <RequestList
-              rows={requestRows(tv, locale, requests.rows)}
-              labels={{ list: t('myRequests'), request: tv('columns.request'), status: tv('columns.status'), now: tv('columns.now'), amount: tv('columns.amount'), unit: tv('amounts.currency') }}
-            />
-            <Link href="/requests" className={linkClass}>
-              {t('myRequestsAll', { count: requests.total })}
-            </Link>
-          </>
-        ) : (
-          <div className="flex flex-col gap-1 border-y border-line py-4">
-            <p className="text-ink-muted">{t('myRequestsEmpty')}</p>
-            <Link href="/requests/new" className={linkClass}>
-              {t('startRequest')}
-            </Link>
+          <div className="flex min-w-0 flex-col gap-4 lg:col-span-5 lg:gap-6">
+            {/* One column: following before on time (§9.10); two columns: on time on top */}
+            <div className="order-2 lg:order-1">
+              <Suspense fallback={skeleton('home-on-time', t('cards.onTime'))}>
+                <OnTimeCard ctx={ctx} texts={texts} />
+              </Suspense>
+            </div>
+            <div className="order-1 lg:order-2">
+              <Suspense fallback={skeleton('home-following', t('cards.following'))}>
+                <FollowingCard ctx={ctx} texts={texts} />
+              </Suspense>
+            </div>
           </div>
-        )}
-      </section>
-
-      {budget ? <HomeBudgetSection view={budget} /> : null}
+        </div>
+      </div>
     </div>
   )
 }

@@ -71,6 +71,7 @@ function sourceFiles(dir: string): string[] {
 const isComment = (line: string) => /^\s*(\/\/|\/\*|\*)/.test(line)
 
 describe('[§4.10] every LIKE filter in src escapes its value', () => {
+  // It reads every file of src: under verify's coverage run it can outlast the 5 s default (like design-system.test.ts)
   it('passes the value of every startsWith, contains and endsWith through escapeLike()', () => {
     const unescaped: string[] = []
     for (const file of sourceFiles(SRC)) {
@@ -89,5 +90,5 @@ describe('[§4.10] every LIKE filter in src escapes its value', () => {
       })
     }
     expect(unescaped).toEqual([])
-  })
+  }, 60_000)
 })

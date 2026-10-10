@@ -303,6 +303,7 @@ describe('[NFR-I18N-01] [FR-PLT-002/AC2] [§9.4] every client component finds it
     expect(unreadable).toEqual([])
   })
 
+  // It reads every file of src: under verify's coverage run it can outlast the 5 s default (like design-system.test.ts)
   it('passes every client component of every page and layout what it reads', () => {
     const problems: string[] = []
     for (const entry of entries) {
@@ -315,7 +316,7 @@ describe('[NFR-I18N-01] [FR-PLT-002/AC2] [§9.4] every client component finds it
       }
     }
     expect([...new Set(problems)]).toEqual([])
-  })
+  }, 60_000)
 
   it('sees what a client component reads: whole namespaces, messages read by name, and translators used any other way', () => {
     expect(

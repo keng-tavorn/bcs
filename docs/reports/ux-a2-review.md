@@ -30,4 +30,5 @@
 ## ผลหลังแก้
 
 - `tests/unit/request-form-steps.test.tsx` ผ่าน 21 จาก 21 · `tests/integration/search.test.ts` ผ่าน 11 จาก 11
-- `pnpm verify` และ e2e `@demo` หลังแก้: ดูบรรทัดผลใน [docs/design-review/a2.md](../design-review/a2.md) และ commit ติ๊ก S16-12
+- `pnpm verify --e2e` หลังแก้ทั้งรีวิวโค้ดและดีไซน์ (commit `9576a1f`): 18 ด่านผ่าน · e2e ผ่าน 396 จาก 398 อีก 2 เทสต์ล้มเพราะเครื่องหนัก
+  (⌘K กับแป้นพิมพ์ไทย · อนุมัติที่เกณฑ์ step-up หมดเวลา 30 วินาที) และผ่าน 6 จาก 6 เมื่อรันแยก 3 รอบ · ฉาก demo ผ่าน 9 จาก 9

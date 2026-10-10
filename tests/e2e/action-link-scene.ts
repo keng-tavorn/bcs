@@ -4,7 +4,9 @@ import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { emailLinkSecret } from '@/server/tokens/action-tokens'
+import { amountToSatang } from '@/core/money/dto'
 import { E2E_DB } from '../support/e2e-env'
+import { makeRoom } from './budget-room'
 
 // Run by tests/e2e/action-link.spec.ts against the e2e database only (S4-06, FR-NOTI-002): the requester named in
 // SCENE_REQUESTER submits a request of four cartridges at SCENE_UNIT_PRICE (2,000 baht unless given: 8,000 baht)
@@ -17,7 +19,10 @@ const requester = process.env.SCENE_REQUESTER ?? 'proc_officer'
 const unitPrice = process.env.SCENE_UNIT_PRICE ?? '2000.00'
 const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: requester }, select: { id: true, organizationId: true, primaryDepartment: { select: { code: true } } } })
 const ctx = makeCtx({ organizationId: member.organizationId, actor: { type: 'USER', memberId: member.id }, channel: 'WEB', now: systemClock.now() })
-const line = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId: member.organizationId, code: `${member.primaryDepartment!.code}-OPEX-2569` }, select: { id: true } })
+const line = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId: member.organizationId, code: `${member.primaryDepartment!.code}-OPEX-2569` }, select: { id: true, code: true } })
+// the specs of a run spend the same lines: a budget admin tops this one up when they have left less (./budget-room.ts)
+// four at the unit price, with VAT on top: room for five
+await makeRoom(line.code, amountToSatang(unitPrice) * 5n)
 const draft = await createDraft(
   ctx,
   { requestTypeCode: 'BUY_GOODS', title: 'อุปกรณ์สำนักงาน', budgetLineId: line.id, lines: [{ description: 'หมึกพิมพ์', quantity: '4', uom: 'ตลับ', unitPrice }] },

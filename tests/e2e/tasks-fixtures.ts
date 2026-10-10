@@ -11,7 +11,9 @@ import { completeUpload, requestUpload } from '@/server/services/files'
 import { proposeOrgChange } from '@/server/services/org-authority'
 import { createDraft, submitRequest } from '@/server/services/requests'
 import { attachFile } from '@/server/services/requests/attachments'
+import { amountToSatang } from '@/core/money/dto'
 import { E2E_DB } from '../support/e2e-env'
+import { makeRoom } from './budget-room'
 import { ATTACHMENT_NAME, ATTACHMENT_PDF } from './tasks-attachment'
 
 // Activity for the S2-12 screens, created through the services in the e2e database only (like seed-activity.ts) and
@@ -84,6 +86,8 @@ async function attachPdf(m: { id: string; organizationId: string }, requestId: s
 async function request(requesterCode: string, gross: string, title: string, withFile = false) {
   const m = await member(requesterCode)
   const line = await budgetLineOf(m)
+  // the specs of a run spend the same lines: a budget admin tops this one up when they have left less (./budget-room.ts)
+  await makeRoom(line.code, amountToSatang(gross))
   const draft = await createDraft(
     ctxOf(m),
     { requestTypeCode: 'BUY_GOODS', title, priceIncludesVat: true, budgetLineId: line.id, lines: [{ description: 'วัสดุและอุปกรณ์', quantity: '1', uom: 'ชุด', unitPrice: gross }] },

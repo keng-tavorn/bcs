@@ -241,6 +241,13 @@ describe('[NFR-SEC-02] shared environments use https on real hosts, never this m
     }
   })
 
+  it('trims SEED_TOTP_KEY, so a key pasted with a trailing space or line break seeds the codes its copy gives', () => {
+    const key = 'k'.repeat(43)
+    expect(parseEnv({ ...staging, SEED_TOTP_KEY: `${key}
+` }).SEED_TOTP_KEY).toBe(key)
+    expect(parseEnv({ ...staging, SEED_TOTP_KEY: ` ${key} ` }).SEED_TOTP_KEY).toBe(key)
+  })
+
   it('refuses LINE_API_BASE_URL on http or a loopback host, and accepts the real LINE API', () => {
     for (const url of ['http://localhost:4010', 'https://localhost:4010', 'https://127.0.0.1:4010', 'http://api.line.me']) {
       expect(issuesFor('LINE_API_BASE_URL', { ...staging, LINE_API_BASE_URL: url }), url).not.toEqual([])

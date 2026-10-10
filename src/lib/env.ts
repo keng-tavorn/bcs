@@ -274,7 +274,9 @@ const schema = z
     ANTHROPIC_API_KEY: optional(z.string()),
     AI_MODEL_DEFAULT: optional(z.string()),
 
-    SEED_TOTP_KEY: optional(z.string().min(32, 'ต้องยาวอย่างน้อย 32 ตัวอักษร')),
+    // Trimmed: a key pasted into Vercel with a trailing space or line break would otherwise seed codes that no copy of
+    // the key (scripts/seed-totp.ts) reproduces
+    SEED_TOTP_KEY: optional(z.string().trim().min(32, 'ต้องยาวอย่างน้อย 32 ตัวอักษร')),
     // The transaction PIN of every demo approver (S5-05, src/server/seed/pins.ts), local and staging only (below); the
     // seed refuses an easy one with the rule of src/core/pin, which this file cannot import.
     SEED_DEV_PIN: optional(z.string().regex(/^[0-9]{6}$/, 'ต้องเป็นตัวเลข 6 หลัก — PIN ยืนยันธุรกรรมของผู้ใช้ตัวอย่างที่ดำรงตำแหน่งใน DOA')),

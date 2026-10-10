@@ -8,7 +8,8 @@ if (!['local', 'staging'].includes(process.env.APP_ENV ?? '')) {
   console.error('seed-totp: ใช้ได้เฉพาะ APP_ENV=local หรือ staging')
   process.exit(1)
 }
-const key = process.env.SEED_TOTP_KEY
+// Trimmed like src/lib/env.ts, so a key pasted with a space or line break gives the codes the app seeded
+const key = process.env.SEED_TOTP_KEY?.trim()
 if (!key) {
   console.error('seed-totp: ไม่มี SEED_TOTP_KEY ใน .env')
   process.exit(1)

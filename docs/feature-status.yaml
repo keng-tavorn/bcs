@@ -887,8 +887,9 @@ features:
       - tests/unit/menu.test.ts
       - tests/unit/shell-door.test.tsx
       - tests/e2e/shell.spec.ts
+      - tests/integration/home.test.ts
     verifiedBy: null
-    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); S16-04: AC2 to AC4 (sidebar, top bar, phone sheet); done once the S16-12 review closes the step"
+    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); S16-04: AC2 to AC4 (sidebar, top bar, phone sheet); NEW-73: the numbers beside the menu (AC2); done once the S16-12 review closes the step"
   FR-PLT-014:
     status: done
     step: S16

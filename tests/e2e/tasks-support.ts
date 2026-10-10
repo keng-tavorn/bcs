@@ -136,7 +136,7 @@ export async function sessionCookie(context: BrowserContext): Promise<string | u
 export async function expectPageEndAboveBar(page: Page) {
   const bar = page.locator('[data-decision-bar]')
   if ((await bar.evaluate((el) => getComputedStyle(el).position)) !== 'fixed') return
-  const end = page.locator('section[aria-labelledby="timeline"]')
+  const end = page.locator('[aria-labelledby="timeline"]')
   await expect
     .poll(async () => {
       await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))

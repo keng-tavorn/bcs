@@ -48,7 +48,7 @@ test('[FR-INT-008/AC3] "my requests" filters by status and finds a request by it
   await shot(page, testInfo, 'requests')
 
   // By status: only returned requests
-  await page.getByLabel('สถานะ').selectOption({ label: 'ตีกลับให้แก้ไข' })
+  await page.getByLabel('สถานะ').selectOption({ label: 'ตีกลับให้แก้' })
   await page.getByRole('button', { name: 'แสดงคำขอที่ตรงกัน' }).click()
   await expect(page).toHaveURL(/status=returned/)
   await expect(rowWith(mine(page), r.returned.number)).toHaveCount(1)

@@ -184,6 +184,8 @@
   html {
     /* 16 px on mobile (§9.9, NFR-A11Y-02) */
     font-size: 16px;
+    /* A step or section scrolled into view starts under the workspace's 56 px top bar, not beneath it (S16-12) */
+    scroll-padding-top: 5rem;
   }
   body {
     background: var(--bg);

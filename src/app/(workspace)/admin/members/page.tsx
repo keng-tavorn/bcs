@@ -46,7 +46,7 @@ export default async function MembersPage() {
                       {m.displayNameTh}
                       {m.isSelf ? <span className="ml-2 font-normal text-ink-muted">({t('you')})</span> : null}
                     </p>
-                    <p className="text-base break-all text-ink-muted md:text-sm">
+                    <p className="text-base break-words text-ink-muted md:text-sm">
                       {m.email}
                       {m.employeeCode ? ` · ${m.employeeCode}` : ''}
                     </p>

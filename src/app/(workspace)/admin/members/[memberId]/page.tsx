@@ -36,7 +36,7 @@ export default async function MemberPage({ params }: { params: Promise<{ memberI
         {t('back')}
       </Link>
       <PageHeader title={m.isSelf ? `${m.displayNameTh} (${t('you')})` : m.displayNameTh}>
-        <p className="break-all text-ink-muted">
+        <p className="break-words text-ink-muted">
           {m.email}
           {m.employeeCode ? ` · ${m.employeeCode}` : ''}
         </p>

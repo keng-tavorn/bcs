@@ -29,8 +29,9 @@ export function DocTabs({ tabs, initial, label, param, className }: { tabs: read
   }
   return (
     <Tabs value={value} onValueChange={change} className={cn('gap-4', className)}>
-      <div className="-mx-1 overflow-x-auto border-b border-line px-1">
-        <TabsList aria-label={label} variant="line" className="h-auto gap-0 p-0">
+      {/* On a phone the tabs wrap to a second line: every tab stays in sight, the chosen one too (no hidden scroll) */}
+      <div className="border-b border-line">
+        <TabsList aria-label={label} variant="line" className="h-auto flex-wrap justify-start gap-0 p-0 group-data-horizontal/tabs:h-auto">
           {tabs.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value} className={TRIGGER}>
               {tab.label}

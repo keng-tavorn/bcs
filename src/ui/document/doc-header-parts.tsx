@@ -46,7 +46,7 @@ export function DocMenu({ pdfHref, cancel, labels }: { pdfHref: string | null; c
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="h-11 gap-2 px-3 text-base md:text-sm" aria-label={labels.menu}>
           <Ellipsis aria-hidden="true" />
-          <span className="hidden sm:inline">{labels.menu}</span>
+          <span>{labels.menu}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52">

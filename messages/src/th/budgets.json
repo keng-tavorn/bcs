@@ -116,7 +116,7 @@
   },
   "line": {
     "metaTitle": "งบ {code}",
-    "facts": "{department} · cost center {costCenter} · ปีงบ {fiscalYear}",
+    "facts": "{department} · ศูนย์ต้นทุน {costCenter} · ปีงบ {fiscalYear}",
     "account": "รหัสบัญชี {code}",
     "figuresTitle": "ยอดของบรรทัดงบนี้",
     "reservedTitle": "เอกสารที่จองงบ",

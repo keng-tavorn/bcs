@@ -69,6 +69,9 @@ const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text
  * (ELSEWHERE) does it say "sent or cancelled elsewhere", all that is known then. The request's page, linked under the
  * notice when this account may open it, says where it stands, so the words never repeat the link.
  */
+/** Room between the form's sticky header and a step's heading scrolled up to it */
+const HEADING_GAP_PX = 16
+
 const CLOSED_NOTICE = {
   SENT: 'save.closedBy.SENT',
   CANCELLED: 'save.closedBy.CANCELLED',
@@ -118,6 +121,7 @@ export function RequestForm({
   const [fileError, setFileError] = useState<string | null>(null)
   const submission = useSubmissionKey()
   const headingRef = useRef<HTMLHeadingElement>(null)
+  const headerRef = useRef<HTMLElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
   const stoppedRef = useRef<HTMLParagraphElement>(null)
   const sentRef = useRef<HTMLDivElement>(null)
@@ -210,8 +214,10 @@ export function RequestForm({
       firstRender.current = false
       return
     }
-    headingRef.current?.focus()
-    headingRef.current?.scrollIntoView({ block: 'start' })
+    const heading = headingRef.current
+    heading?.focus({ preventScroll: true })
+    // Under the form's sticky header, whose height changes with the screen and the save line (S16-12)
+    if (heading) window.scrollTo({ top: heading.getBoundingClientRect().top + window.scrollY - (headerRef.current?.offsetHeight ?? 0) - HEADING_GAP_PX })
   }, [current.key])
   // Stopped by "ถัดไป": the first field it points out takes focus, its error under it
   useEffect(() => {
@@ -359,7 +365,7 @@ export function RequestForm({
   // Full screen without the menu (AC1, §9.10): the shell steps aside while the page holds FORM_PAGE, and so does the door
   return (
     <div className="flex min-h-dvh flex-col bg-bg" {...FORM_PAGE} {...DOOR_ASIDE}>
-      <header className="sticky top-0 z-20 border-b border-line bg-bg">
+      <header ref={headerRef} className="sticky top-0 z-20 border-b border-line bg-bg">
         <div className="mx-auto flex w-full max-w-[1280px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 lg:px-6">
           <UiButton type="button" variant="outline" className="h-11 gap-2 text-base md:text-sm" onClick={() => void close()} disabled={closing === 'saving'}>
             <X aria-hidden="true" />

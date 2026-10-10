@@ -44,31 +44,76 @@ const SERIES_COLORS = ['var(--chart-1)', 'var(--chart-2)', 'var(--chart-3)', 'va
 /** A stacked segment carries its number on the bar when it is at least this wide (basis points); the table has them all */
 const LABEL_MIN_BP = 800
 const PERCENT_BP = 100
-/** Room for a category's name beside its bar: wide enough for most department names, never more than a third of a phone */
-const LABEL_MAX = 136
-const LABEL_MIN = 64
-const PX_PER_CHAR = 8
 /** A name longer than fits ends in "…"; the table view and the tooltip have it whole */
-const LABEL_CHARS = Math.floor(LABEL_MAX / PX_PER_CHAR)
+const LABEL_CHARS = 17
+/**
+ * Each category is a line naming it (and, for the spending bars, its amount) above a bar as wide as the card: a card is
+ * about 240 px wide in the four columns of a 1280 px screen (§9.10), too narrow for names beside the bars as well.
+ */
+const ROW_PX = 52
+const BAR_PX = 22
+const NAME_GAP_PX = 6
+/** Room above the first bar for its name */
+const TOP_PX = 12
+const LEGEND_PX = 40
+const AXIS_PX = 24
+/** A segment carries its percentage only when it is wide enough on screen to hold it */
+const SEGMENT_LABEL_MIN_PX = 40
+const HALF = 2
 
-const labelWidth = (labels: readonly string[]) => Math.min(LABEL_MAX, Math.max(LABEL_MIN, ...labels.map((l) => l.length * PX_PER_CHAR)))
 const shortLabel = (label: string) => (label.length > LABEL_CHARS ? `${label.slice(0, LABEL_CHARS - 1)}…` : label)
 
 const percentLabel = (value: unknown) => (typeof value === 'number' && value >= LABEL_MIN_BP ? `${Math.floor(value / PERCENT_BP)}%` : '')
+
+/** Where recharts draws a label: the box of its bar, and which row it is */
+interface LabelBox {
+  readonly x?: number | string
+  readonly y?: number | string
+  readonly width?: number | string
+  readonly height?: number | string
+  readonly index?: number
+  readonly value?: unknown
+}
+
+/**
+ * The line above a category's bar, from the start of the plot: its name, and its amount when it has one. Drawn as the
+ * category axis's tick (mirrored into the plot, the axis 1 px wide), so every row has it whatever its values.
+ */
+function rowName(rows: ReadonlyArray<{ readonly name: string; readonly text?: string }>) {
+  return function RowName({ x, y, index }: LabelBox) {
+    const row = rows[index ?? 0]
+    if (!row) return null
+    return (
+      <text x={Number(x)} y={Number(y) - BAR_PX / HALF - NAME_GAP_PX} className="fill-ink tabular">
+        {row.text ? `${shortLabel(row.name)} · ${row.text}` : shortLabel(row.name)}
+      </text>
+    )
+  }
+}
+
+/** A stacked segment's percentage, inside it, only when the segment is wide enough on screen */
+function SegmentPercent({ x, y, width, height, value }: LabelBox) {
+  const text = percentLabel(value)
+  if (!text || Number(width) < SEGMENT_LABEL_MIN_PX) return null
+  return (
+    <text x={Number(x) + Number(width) / HALF} y={Number(y) + Number(height) / HALF} textAnchor="middle" dominantBaseline="central" className="fill-ink tabular">
+      {text}
+    </text>
+  )
+}
 
 function Bars({ spec }: { spec: BarsSpec }) {
   const config = { value: { label: spec.series, color: SERIES_COLORS[0] } } satisfies ChartConfig
   const data = spec.rows.map((r) => ({ name: r.label, value: r.value, text: r.text }))
   return (
-    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: `${Math.max(2, data.length) * 40 + 40}px` }}>
-      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 112 }} barCategoryGap={8}>
+    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: `${Math.max(2, data.length) * ROW_PX + LEGEND_PX + TOP_PX}px` }}>
+      <BarChart data={data} layout="vertical" margin={{ top: TOP_PX, left: 0, right: 0 }} barSize={BAR_PX}>
         <CartesianGrid horizontal={false} />
         <XAxis type="number" hide domain={[0, 'dataMax']} />
-        <YAxis type="category" dataKey="name" width={labelWidth(data.map((d) => d.name))} tickFormatter={shortLabel} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" width={1} mirror tick={rowName(data)} tickLine={false} axisLine={false} interval={0} />
         <ChartTooltip content={<ChartTooltipContent hideIndicator formatter={(_, __, item) => (item.payload as { text: string }).text} />} />
         <ChartLegend content={<ChartLegendContent />} />
         <Bar dataKey="value" fill="var(--color-value)" radius={4} isAnimationActive={false}>
-          <LabelList dataKey="text" position="right" className="fill-ink tabular" />
         </Bar>
       </BarChart>
     </ChartContainer>
@@ -79,16 +124,16 @@ function Stacked({ spec }: { spec: StackedSpec }) {
   const config = Object.fromEntries(spec.series.map((s) => [s.key, { label: s.label, color: s.color }])) satisfies ChartConfig
   const data = spec.rows.map((r) => ({ name: r.label, ...r.values, texts: r.texts }))
   return (
-    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: `${Math.max(2, data.length) * 40 + 64}px` }}>
-      <BarChart data={data} layout="vertical" margin={{ left: 0, right: 16 }} barCategoryGap={8}>
+    <ChartContainer config={config} className="aspect-auto w-full" style={{ height: `${Math.max(2, data.length) * ROW_PX + LEGEND_PX + AXIS_PX + TOP_PX}px` }}>
+      <BarChart data={data} layout="vertical" margin={{ top: TOP_PX, left: 0, right: 16 }} barSize={BAR_PX}>
         <CartesianGrid horizontal={false} />
         <XAxis type="number" domain={[0, spec.max]} tickFormatter={(v: number) => `${Math.round(v / PERCENT_BP)}%`} tickLine={false} axisLine={false} />
-        <YAxis type="category" dataKey="name" width={labelWidth(data.map((d) => d.name))} tickFormatter={shortLabel} tickLine={false} axisLine={false} />
+        <YAxis type="category" dataKey="name" width={1} mirror tick={rowName(data)} tickLine={false} axisLine={false} interval={0} />
         <ChartTooltip content={<ChartTooltipContent formatter={(_, key, item) => `${config[key as string]?.label ?? ''} ${(item.payload as { texts: Record<string, string> }).texts[key as string] ?? ''}`} />} />
         <ChartLegend content={<ChartLegendContent />} />
         {spec.series.map((s, i) => (
           <Bar key={s.key} dataKey={s.key} stackId="budget" fill={`var(--color-${s.key})`} stroke="var(--bg)" strokeWidth={2} radius={i === spec.series.length - 1 ? [0, 4, 4, 0] : 0} isAnimationActive={false}>
-            <LabelList dataKey={s.key} position="center" formatter={percentLabel} className="fill-ink tabular" />
+            <LabelList dataKey={s.key} content={SegmentPercent} />
           </Bar>
         ))}
       </BarChart>

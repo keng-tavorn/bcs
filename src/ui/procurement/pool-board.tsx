@@ -305,7 +305,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                       {r.title}
                     </Link>
                     {r.urgent ? (
-                      <StatusBadge look={URGENCY_BADGES.URGENT} label={t('urgency.URGENT')} className="text-base" />
+                      <StatusBadge look={URGENCY_BADGES.URGENT} label={t('urgency.URGENT')} className="text-base md:text-base" />
                     ) : null}
                   </p>
                   {/* What procurement reads before choosing a supplier — who asked, where it goes, since when it was

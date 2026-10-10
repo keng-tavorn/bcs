@@ -196,7 +196,7 @@ export function FollowersPanel({ requestId, followers, canManage, candidates, ma
             emptyText={t('noCandidates')}
             className="min-h-11 text-base"
           />
-          <Button type="button" disabled={!picked || action.pending} className="min-h-11 self-start px-4 text-base disabled:bg-surface disabled:text-ink-muted disabled:opacity-100 disabled:ring-1 disabled:ring-line disabled:ring-inset" onClick={() => picked && void change(picked.id, true, picked.name)}>
+          <Button type="button" disabled={!picked || action.pending} className="min-h-11 self-start px-4 text-base md:text-base disabled:bg-surface disabled:text-ink-muted disabled:opacity-100 disabled:ring-1 disabled:ring-line disabled:ring-inset" onClick={() => picked && void change(picked.id, true, picked.name)}>
             {t('add')}
           </Button>
         </div>

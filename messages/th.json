@@ -2066,7 +2066,7 @@
       },
       "committedIntro": "ใบสั่งซื้อที่อนุมัติแล้วและยังรอใบกำกับ",
       "committedTitle": "ใบสั่งซื้อที่ถืองบ",
-      "facts": "{department} · cost center {costCenter} · ปีงบ {fiscalYear}",
+      "facts": "{department} · ศูนย์ต้นทุน {costCenter} · ปีงบ {fiscalYear}",
       "figuresTitle": "ยอดของบรรทัดงบนี้",
       "forbidden": "บรรทัดงบนี้เป็นของแผนกที่คุณไม่ได้ดูแล หัวหน้าแผนกเห็นเฉพาะงบของแผนกตน",
       "importFile": "ไฟล์ {name}",

@@ -105,6 +105,11 @@ describe('[FR-PLT-013/AC1] the theme reads the tokens of §9.9 and §9.10 only',
     expect(small).toEqual([])
   })
 
+  it('no shadcn/ui component draws text under 16 px on a phone (§9.10 "ตัวอักษร"): every 14 px text-sm starts at md', () => {
+    const phoneSmall = COMPONENTS.flatMap(({ name, text }) => [...text.matchAll(/(?<=[\s"'`])text-sm(?=[\s"'`])/g)].map(() => name))
+    expect(phoneSmall).toEqual([])
+  })
+
   it('no shadcn/ui component draws its text translucent: a faded token fails the 4.5:1 of §9.9 (the muted ink is the token for quieter words)', () => {
     const faded = COMPONENTS.flatMap(({ name, text }) =>
       [...text.matchAll(/(?:^|[\s"'`])([^\s"'`]*:)?text-(?!sm\b|base\b|lg\b|xl\b|\dxl\b)[a-z-]+\/\d+/g)].filter((m) => !/dark:/.test(m[1] ?? '')).map((m) => `${name}: ${m[0].trim()}`),

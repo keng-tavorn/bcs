@@ -4186,6 +4186,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-85** `[demo]` e2e ทั้งชุดล้ม 2 ฉากเพราะงบ `CON-OPEX-2569` หมดระหว่างรอบ (ฉากอื่นของรอบเดียวกันใช้บรรทัดเดียวกัน): fixture `at-threshold` ของ `tests/e2e/step-up-fixtures.ts` ได้ `BUDGET_INSUFFICIENT` และปุ่ม "ส่งขออนุมัติ" ของฟอร์มทีละขั้นกดไม่ได้ และงบที่หมดทำให้ fixture อื่นล้มต่อเป็นลูกโซ่ (`tasks-fixtures.ts` `delegation-scene.ts` แล้วรักษาการค้างจน `OVERLAPPING_DELEGATION`) · แก้ให้ fixture ที่ส่งคำขอบนบรรทัด OPEX ของแผนก (`step-up-fixtures.ts` `tasks-fixtures.ts` `delegation-scene.ts` `action-link-scene.ts` และฟอร์มทีละขั้น) เติมงบก่อนด้วย `tests/e2e/budget-room.ts` แบบเดียวกับฉากอื่น · ฉากที่นับยอดงบเองไม่แตะ (พบใน NEW-73) — เสร็จ 2026-10-10 · 2ba67b2
   - เสร็จเมื่อ: `pnpm verify --e2e` ผ่านด่าน e2e
   - แยกงาน: ทำเองได้
+- [ ] **NEW-86** `[go-live]` ย้ายคอมโพเนนต์ฟอร์มเดิมใน `src/ui/form/` (Button Field Notice DateField) และปุ่มของฟอร์มใน `src/ui/<ส่วน>/` ไปใช้ Button Field Input Alert และ Calendar ของ shadcn/ui ตาม §9.10 · S16-10 ย้ายเฉพาะโครงหน้า ตัวกรอง ป้ายสถานะ และหน้าว่าง แล้ววางฟอร์มเดิมในการ์ด เพราะฟอร์มเหล่านี้ส่ง server action ที่แตะเงิน สิทธิ์ และ DOA และมี e2e ผูกอยู่มาก (พบใน S16-10)
+  - เสร็จเมื่อ: `grep -rl "ui/form/button" src` ไม่พบไฟล์ · e2e และ a11y เดิมผ่าน
+  - แยกงาน: แยก subagent ต่อกลุ่มหน้าแบบ S16-10 แล้วตรวจ screenshot เอง
 
 ### 16.12 S16 · หน้าจอใหม่แบบใกล้ Zip ในโทนเขียว (รอบเส้นชัย A2)
 

@@ -891,7 +891,7 @@ features:
       - tests/unit/request-list-rows.test.tsx
       - tests/integration/procurement-screens.test.ts
     verifiedBy: null
-    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); S16-04: AC2 to AC4 (sidebar, top bar, phone sheet); NEW-73: the numbers beside the menu (AC2); S16-10: every other Workspace page on the page frame (src/ui/page), §9.10 badges, filters in the address, empty states, /procurement/pos for po.view ORG; done once the S16-12 review closes the step"
+    notes: "S16-02: AC1 and AC5 (tokens, components, lint, /dev/ui); S16-04: AC2 to AC4 (sidebar, top bar, phone sheet); NEW-73: the numbers beside the menu (AC2); S16-10: every other Workspace page on the page frame (src/ui/page), §9.10 badges, filters in the address, empty states, /procurement/pos for po.view ORG; S16-11: LIFF pages draw the same §9.10 badges without workspace code (src/ui/liff/status-badge.tsx, AC5 kept); done once the S16-12 review closes the step"
   FR-PLT-014:
     status: done
     step: S16

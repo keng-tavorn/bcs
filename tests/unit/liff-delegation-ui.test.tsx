@@ -98,12 +98,12 @@ describe('[FR-DOA-006/AC2] cancelling a delegation in LIFF', () => {
   })
 
   it.each([
-    ['ACTIVE', 'กำลังรักษาการ', 'text-primary'],
-    ['SCHEDULED', 'รอเริ่ม', 'text-warn'],
-    ['ENDED', 'สิ้นสุดแล้ว', 'text-ink-muted'],
-    ['REVOKED', 'ยกเลิกแล้ว', 'text-ink-muted'],
-  ] as const)('shows %s as an icon and words, never colour alone', (state, label, tone) => {
+    ['ACTIVE', 'กำลังรักษาการ', 'ok'],
+    ['SCHEDULED', 'รอเริ่ม', 'warn'],
+    ['ENDED', 'สิ้นสุดแล้ว', 'neutral'],
+    ['REVOKED', 'ยกเลิกแล้ว', 'neutral'],
+  ] as const)('shows %s as a status badge of §9.10: its tone, an icon and words, never colour alone', (state, label, tone) => {
     const page = html(<LiffDelegationStateMark state={state} label={label} />)
-    expect(page).toMatch(new RegExp(`<svg[^>]*class="[^"]*${tone}[^"]*" aria-hidden="true"[^>]*>.*</svg><span>${label}</span>`))
+    expect(page).toMatch(new RegExp(`^<span data-slot="badge" data-tone="${tone}" class="[^"]*bg-${tone}-bg text-${tone}-ink[^"]*"><svg[^>]*aria-hidden="true"[^>]*>.*</svg><span>${label}</span></span>$`))
   })
 })

@@ -99,7 +99,7 @@ export interface LiffBadgeLook {
 export function LiffStatusBadge({ look, label, className }: { readonly look: LiffBadgeLook | undefined; readonly label: string; readonly className?: string }) {
   const { tone, icon } = look ?? FALLBACK_BADGE
   return (
-    <span data-slot="badge" data-tone={tone} className={cn('inline-flex w-fit max-w-full items-center gap-1.5 rounded-4xl px-2.5 py-0.5 text-base font-medium', TONES[tone], className)}>
+    <span data-slot="badge" data-tone={tone} className={cn('inline-flex w-fit max-w-full items-center gap-1.5 rounded-4xl px-2.5 py-0.5 text-base font-medium break-words', TONES[tone], className)}>
       {icon ? (
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -117,7 +117,7 @@ export function LiffStatusBadge({ look, label, className }: { readonly look: Lif
           {(ICONS[icon] as readonly Shape[]).map(([tag, attributes], i) => createElement(tag, { key: i, ...attributes }))}
         </svg>
       ) : null}
-      <span className="min-w-0 break-words">{label}</span>
+      <span>{label}</span>
     </span>
   )
 }

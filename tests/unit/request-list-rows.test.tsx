@@ -39,9 +39,11 @@ describe('[§9.9] [FR-INT-008/AC1] the rows of "my requests" read at the body’
     expect(markup).toMatch(/<span class="inline-flex items-start gap-1\.5 text-ink"><svg[^>]*>(?:(?!<\/svg>)[\s\S])*<\/svg><span>ค้างมา 107\.6 ชั่วโมงทำการ<\/span><\/span>/)
   })
 
-  it('only the column headings are smaller on the web; the label under a phone’s amount is the phones’ 16 px', () => {
+  it('only the column headings and the status badge are smaller on the web; the label under a phone’s amount is the phones’ 16 px', () => {
     const markup = renderToStaticMarkup(<RequestList rows={[ROW]} labels={LABELS} />)
-    expect(markup.match(/text-sm/g)).toHaveLength(1)
+    // The badge of §9.10 is 14 px on the web and 16 px on a phone (md:text-sm); nothing else is smaller than the body
+    expect(markup.match(/(?<![:\w-])text-sm/g)).toHaveLength(1)
+    expect(markup).toMatch(/<span(?=[^>]*data-tone="warn")(?=[^>]*text-base md:text-sm)[^>]*>/)
     expect(markup).toMatch(/^<div class="flex flex-col"><div class="hidden border-b border-line pb-2 text-sm text-ink-muted md:grid /)
     expect(markup).toContain(`<span class="text-base text-ink-muted md:hidden" aria-hidden="true">${LABELS.amount}</span>`)
   })

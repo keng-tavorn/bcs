@@ -413,11 +413,15 @@ describe('the purchase-order list and who may open a PO (po.view)', () => {
     expect(approved.counts.APPROVED).toBe(approved.matched)
   })
 
-  it('lets procurement list them; the PO opens for its creator, its requesters, its approver and org-wide roles, and nobody else', async () => {
+  it('lists them for whoever sees every PO (po.view ORG, §9.10); the PO opens for its creator, its requesters, its approver and org-wide roles, and nobody else', async () => {
     const { poId } = await approvedPo()
     expect(canListPos(principalOf('proc_officer', ['PROCUREMENT']))).toBe(true)
+    expect(canListPos(principalOf('fin_officer', ['FINANCE']))).toBe(true)
+    expect(canListPos(principalOf('coo', ['EXECUTIVE']))).toBe(true)
+    expect(canListPos(principalOf('auditor', ['AUDITOR']))).toBe(true)
+    // A requester and an approver see their own POs only (OWN, ASSIGNED): not the list of all of them
     expect(canListPos(principalOf('req_con'))).toBe(false)
-    expect(canListPos(principalOf('fin_officer', ['FINANCE']))).toBe(false)
+    expect(canListPos(principalOf('coo'))).toBe(false)
     const access = (await getPoAccess(proc(), poId))!
     expect(canViewPo(principalOf('proc_officer', ['PROCUREMENT']), access)).toBe(true)
     expect(canViewPo(principalOf('req_con'), access)).toBe(true)

@@ -57,7 +57,11 @@ export function poRights(principal: Principal) {
   }
 }
 
-/** /procurement/pos lists every PO of the organization for PROCUREMENT (menu: po.create) */
+/**
+ * /procurement/pos lists every PO of the organization, so it opens for whoever may see every one of them (§9.10: po.view
+ * at ORG scope — PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR); a requester or an approver opens their own PO from its request
+ * or task, never the list
+ */
 export function canListPos(principal: Principal): boolean {
-  return isAllowed(principal, 'po.create')
+  return scopesFor(principal, 'po.view').has('ORG')
 }

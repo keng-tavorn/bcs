@@ -5578,6 +5578,7 @@
       "clear": "Clear filters",
       "count": "{matched} of {total} requests",
       "infoOpen": "Only requests with an approver's question waiting for your answer",
+      "label": "Request filters",
       "limited": "Showing the newest {shown}. Search by document number or choose a status to find older requests.",
       "scopeFollowing": "Your requests and the ones you follow, without drafts",
       "scopeMine": "Only requests you made",

@@ -67,8 +67,8 @@ export const MENU: readonly MenuItem[] = [
   { key: 'requests', href: '/requests', group: 'main', capability: 'request.view', module: 'CORE', ready: true },
   { key: 'newRequest', href: '/requests/new', group: 'door', capability: 'request.create', module: 'CORE', ready: true },
   { key: 'pool', href: '/procurement/pool', group: 'procurement', capability: 'procurement.pool.view', module: 'CORE', ready: true },
-  // §9.10 names po.view at ORG scope; the list page opens for po.create only until S16-10 moves it to the new layout
-  { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.create', module: 'CORE', ready: true },
+  // Every PO of the organization: for whoever may see all of them (§9.10, po.view at ORG scope); others open their own
+  { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.view', scopes: ['ORG'], module: 'CORE', ready: true },
   { key: 'receiving', href: '/receiving', group: 'procurement', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
   { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true },

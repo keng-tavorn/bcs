@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { RequestStatus, StateLine, type StateKind } from './status'
+import { REQUEST_BADGES, StatusBadge } from '../document/badges'
+import { StateLine, type StateKind } from './status'
 
-// Rows of "my requests" (FR-INT-008): the request (a link), its status, where it is now and for how long, and the total
+// Rows of "my requests" (FR-INT-008): the request (a link), its status badge (§9.10), where it is now and for how long, and the total
 // right-aligned in tabular digits. Wide screens line the parts up in columns under one header row; phones stack them —
 // never a table that scrolls sideways (§9.9) — and name the amount under it. The title, the lines under it (when it was
 // sent or made, that the reader follows it), where it is and its states are content, at the body's size (§9.9: 15 px on
@@ -57,7 +58,7 @@ export function RequestList({ rows, labels }: { rows: readonly RequestRow[]; lab
             </div>
             <div>
               <span className="sr-only">{labels.status}: </span>
-              <RequestStatus status={row.status} label={row.statusLabel} />
+              <StatusBadge look={REQUEST_BADGES[row.status]} label={row.statusLabel} className="text-base md:text-sm" />
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="sr-only">{labels.now}: </span>

@@ -22,12 +22,12 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
 
   it.each<[StoredRole, MenuKey[]]>([
     ['PROCUREMENT', ['pool', 'pos', 'insights', 'reports']],
-    ['FINANCE', ['invoices', 'exports', 'budgets', 'insights', 'reports']],
+    ['FINANCE', ['pos', 'invoices', 'exports', 'budgets', 'insights', 'reports']],
     ['BUDGET_ADMIN', ['budgets']],
     ['RECEIVER', ['receiving']],
-    ['EXECUTIVE', ['budgets', 'insights', 'reports']],
+    ['EXECUTIVE', ['pos', 'budgets', 'insights', 'reports']],
     // The policy history is an admin page, so its hub shows with it
-    ['AUDITOR', ['budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
+    ['AUDITOR', ['pos', 'budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
     ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
@@ -68,9 +68,9 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     expect(ready()).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', ...own])
     expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'insights', 'board', 'reports', ...own])
     expect(ready('RECEIVER')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'receiving', 'suppliers', 'board', ...own])
-    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
-    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'insights', 'board', 'reports', ...own])
-    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
+    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
   })
 })
 

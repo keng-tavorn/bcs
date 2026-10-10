@@ -16,7 +16,8 @@
     "type": "Kind of document",
     "allTypes": "All kinds",
     "submit": "Apply filters",
-    "clear": "Clear filters"
+    "clear": "Clear filters",
+    "label": "Board filters"
   },
   "subject": {
     "REQUEST": "Request",

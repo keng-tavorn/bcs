@@ -1,9 +1,10 @@
 'use client'
 
-import { AlarmClock, CircleAlert, CirclePause, Store } from 'lucide-react'
+import { CircleAlert, CirclePause, Store } from 'lucide-react'
 import Link from 'next/link'
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
+import { URGENCY_BADGES, StatusBadge } from '../document/badges'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { announcePoolAction, useOtherPoolAction } from './activity'
@@ -15,13 +16,13 @@ import { useOutcomeAction } from './use-outcome-action'
 // "ต้องเลือกผู้ขาย" with an icon (BR-CONS-03, never colour alone). PROCUREMENT ticks lines (all of a request at once if
 // they like) and chooses one supplier for all of them (AC2). The bar that does it heads the list and stays at the top of
 // wide screens while the list scrolls; on phones a small bar at the bottom says how many lines are ticked and leads back
-// to it. No cards: requests and lines are separated by rules; numbers are right-aligned in tabular digits. Choosing the
-// supplier of an urgent request drafts its PO at once (BR-CONS-02), and a draft cannot be thrown away or given another
-// supplier yet, so that choice asks a second time, naming how many urgent requests it drafts (§9.9). A request no round
-// drafts yet says why under its name, with an icon (a request whose prices include VAT, NEW-50); its prices are shown
-// as it states them, marked "รวม VAT", and choosing its supplier drafts nothing at once even when it is urgent — the
-// notice of the choice says so. While such a request is listed, the amount column names no VAT basis and every line
-// states its own ("รวม VAT" or "ก่อน VAT"). While a choice is sent, the button pressed says so in its own words
+// to it. Inside the page's card, requests and lines are separated by rules; an urgent request carries the urgency
+// badge of §9.10; numbers are right-aligned in tabular digits. Choosing the supplier of an urgent request drafts its PO
+// at once (BR-CONS-02), and a draft cannot be thrown away or given another supplier yet, so that choice asks a second
+// time, naming how many urgent requests it drafts (§9.9). A request no round drafts yet says why under its name, with
+// an icon (a request whose prices include VAT, NEW-50); its prices are shown as it states them, marked "รวม VAT", and
+// choosing its supplier drafts nothing at once even when it is urgent — the notice of the choice says so. While such
+// a request is listed, the amount column names no VAT basis and every line states its own ("รวม VAT" or "ก่อน VAT"). While a choice is sent, the button pressed says so in its own words
 // ("กำลังใช้ผู้ขายนี้", "กำลังเอาผู้ขายออก"); a choice that got no answer says it is not certain it was made, and to
 // press the same button again without changing the lines or the supplier (POOL_NO_ANSWER). Strings and amounts arrive
 // translated and formatted; the service checks permissions again.
@@ -205,7 +206,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
       <section
         id={`${id}-assign`}
         aria-labelledby={`${id}-assign-title`}
-        className="z-20 flex scroll-mt-4 flex-col gap-3 border-y border-line bg-bg py-4 lg:sticky lg:top-0"
+        className="z-20 flex scroll-mt-4 flex-col gap-3 border-b border-line bg-bg pb-4 lg:sticky lg:top-0 lg:pt-2"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h2 id={`${id}-assign-title`} className="text-lg font-semibold text-ink">
@@ -304,10 +305,7 @@ export function PoolBoard({ requests, suppliers, assign }: PoolBoardProps) {
                       {r.title}
                     </Link>
                     {r.urgent ? (
-                      <span className="inline-flex items-center gap-1 rounded-sm border border-warn px-1.5 font-medium text-warn">
-                        <AlarmClock className="size-4 shrink-0" aria-hidden="true" />
-                        {t('urgency.URGENT')}
-                      </span>
+                      <StatusBadge look={URGENCY_BADGES.URGENT} label={t('urgency.URGENT')} className="text-base" />
                     ) : null}
                   </p>
                   {/* What procurement reads before choosing a supplier — who asked, where it goes, since when it was

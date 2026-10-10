@@ -6,6 +6,8 @@ import { getExportOverview } from '@/server/services/exports/view'
 import { ExportJobs, type ExportJobView } from '@/ui/finance/export-jobs'
 import { ExportPanel } from '@/ui/finance/export-panel'
 import { Notice } from '@/ui/form/notice'
+import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { Button } from '@/ui/shadcn/button'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { day, localeOf, memberName, when } from '../../_tracking/present'
@@ -32,13 +34,15 @@ export default async function ExportsPage() {
   const result = await getExportOverview(ctx)
   if (!result.ok) {
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{tf('forbiddenTitle')}</h1>
-        <Notice tone="warning">{tf('forbiddenHint')}</Notice>
-        <Link href="/" className={linkClass}>
-          {tf('home')}
-        </Link>
-      </div>
+      <Page>
+        <PageHeader title={tf('forbiddenTitle')} />
+        <div className="flex max-w-2xl flex-col gap-4">
+          <Notice tone="warning">{tf('forbiddenHint')}</Notice>
+          <Link href="/" className={linkClass}>
+            {tf('home')}
+          </Link>
+        </div>
+      </Page>
     )
   }
   const { layout, ready, readyFingerprint, heldBack, jobs } = result.data
@@ -55,122 +59,105 @@ export default async function ExportsPage() {
   }))
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex max-w-3xl flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{t('title')}</h1>
-          <p className="text-ink-muted">{t('intro')}</p>
-        </div>
-        <Link href="/finance/invoices" className={linkClass}>
-          {t('toInvoices')}
-        </Link>
-      </div>
+    <Page>
+      <PageHeader
+        title={t('title')}
+        intro={t('intro')}
+        actions={
+          <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+            <Link href="/finance/invoices">{t('toInvoices')}</Link>
+          </Button>
+        }
+      />
+      <PageBody>
 
-      {layout ? null : <Notice tone="warning">{t('layout.notSet')}</Notice>}
+        {layout ? null : <Notice tone="warning">{t('layout.notSet')}</Notice>}
 
-      <section aria-labelledby="export-ready" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 id="export-ready" className="text-lg font-semibold text-ink">
-            {t('ready.title', { count: ready.count })}
-          </h2>
-          <p className="text-ink-muted">{ready.count ? t('ready.hint', { total: money(ready.totalSatang) }) : t('ready.emptyHint')}</p>
-        </div>
-        {ready.count ? (
-          <>
-            <ul aria-label={t('ready.list')} className="flex flex-col divide-y divide-line border-y border-line">
-              {ready.shown.map((inv) => (
-                <li key={inv.id} className="flex flex-col gap-1 py-3 md:grid md:grid-cols-[minmax(0,1fr)_10rem] md:items-start md:gap-4">
-                  <div className="flex min-w-0 flex-col">
-                    <span className="font-semibold break-words text-ink">{tf('invoices.recorded.number', { number: inv.invoiceNo })}</span>
-                    <span className="break-words text-ink">{tf('supplierWithCode', { name: nameIn(locale, inv.supplier.name), code: inv.supplier.code })}</span>
-                    <span className="text-base break-words text-ink-muted md:text-sm">{t('ready.meta', { po: inv.po.number ?? '-', date: day(locale, inv.invoiceDate), code: inv.supplier.expressVendorCode || '-' })}</span>
-                  </div>
-                  <p className="flex items-baseline justify-between gap-3 md:flex-col md:items-end md:gap-0">
-                    <span className="text-base text-ink-muted md:text-sm">{t('ready.gross')}</span>
-                    <span className="money block font-semibold text-ink">
-                      {money(inv.grossSatang)}
-                      <span className="sr-only"> {tf('unit')}</span>
-                    </span>
-                  </p>
-                </li>
-              ))}
-            </ul>
-            {ready.count > ready.shown.length ? <p className="text-ink-muted">{t('ready.limited', { shown: ready.shown.length, count: ready.count })}</p> : null}
-          </>
-        ) : (
-          <div className="flex flex-col gap-2 border-y border-line py-6">
-            <p className="font-medium text-ink">{t('ready.empty')}</p>
-            <Link href="/finance/invoices" className={linkClass}>
-              {t('ready.emptyLink')}
-            </Link>
-          </div>
-        )}
-        {/* Kept in place whatever the list shows, so the file it made stays on screen after the page refreshes */}
-        <ExportPanel count={ready.count} total={money(ready.totalSatang)} fingerprint={readyFingerprint} blocked={layout === null} make={exportNowAction} open={downloadUrlAction} />
-      </section>
-
-      {heldBack.count > 0 ? (
-        <section aria-labelledby="export-held" className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <h2 id="export-held" className="text-lg font-semibold text-ink">
-              {t('held.title', { count: heldBack.count })}
-            </h2>
-            <p className="text-ink-muted">{t('held.hint')}</p>
-          </div>
-          <ul aria-label={t('held.list')} className="flex flex-col divide-y divide-line border-y border-line">
-            {heldBack.suppliers.map((s) => {
-              const name = nameIn(locale, s.supplier.name)
-              return (
-                <li key={s.supplier.id} className="flex flex-col gap-1 py-3">
-                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
-                    <span className="font-semibold break-words text-ink">{tf('supplierWithCode', { name, code: s.supplier.code })}</span>
-                    <span className="flex shrink-0 items-baseline justify-between gap-3 sm:flex-col sm:items-end sm:gap-0">
+        <Panel title={t('ready.title', { count: ready.count })} id="export-ready">
+            <p className="text-ink-muted">{ready.count ? t('ready.hint', { total: money(ready.totalSatang) }) : t('ready.emptyHint')}</p>
+          {ready.count ? (
+            <>
+              <ul aria-label={t('ready.list')} className="flex flex-col divide-y divide-line border-y border-line">
+                {ready.shown.map((inv) => (
+                  <li key={inv.id} className="flex flex-col gap-1 py-3 md:grid md:grid-cols-[minmax(0,1fr)_10rem] md:items-start md:gap-4">
+                    <div className="flex min-w-0 flex-col">
+                      <span className="font-semibold break-words text-ink">{tf('invoices.recorded.number', { number: inv.invoiceNo })}</span>
+                      <span className="break-words text-ink">{tf('supplierWithCode', { name: nameIn(locale, inv.supplier.name), code: inv.supplier.code })}</span>
+                      <span className="text-base break-words text-ink-muted md:text-sm">{t('ready.meta', { po: inv.po.number ?? '-', date: day(locale, inv.invoiceDate), code: inv.supplier.expressVendorCode || '-' })}</span>
+                    </div>
+                    <p className="flex items-baseline justify-between gap-3 md:flex-col md:items-end md:gap-0">
                       <span className="text-base text-ink-muted md:text-sm">{t('ready.gross')}</span>
-                      <span className="money text-ink">
-                        {money(s.totalSatang)}
+                      <span className="money block font-semibold text-ink">
+                        {money(inv.grossSatang)}
                         <span className="sr-only"> {tf('unit')}</span>
                       </span>
-                    </span>
-                  </div>
-                  <span className="text-ink">{t('held.count', { count: s.count })}</span>
-                  <span className="text-base break-words text-ink-muted md:text-sm">{t('held.invoices', { numbers: s.invoices.map((i) => (i.poNumber ? t('held.invoiceOfPo', { number: i.invoiceNo, po: i.poNumber }) : i.invoiceNo)).join(', ') })}</span>
-                  <Link href={`/suppliers/${s.supplier.id}`} className={linkClass}>
-                    {t('held.openSupplier', { name })}
-                  </Link>
-                </li>
-              )
-            })}
-          </ul>
-        </section>
-      ) : null}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {ready.count > ready.shown.length ? <p className="text-ink-muted">{t('ready.limited', { shown: ready.shown.length, count: ready.count })}</p> : null}
+            </>
+          ) : (
+            <ListEmpty
+              title={t('ready.empty')}
+              actions={
+                <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+                  <Link href="/finance/invoices">{t('ready.emptyLink')}</Link>
+                </Button>
+              }
+            />
+          )}
+          {/* Kept in place whatever the list shows, so the file it made stays on screen after the page refreshes */}
+          <ExportPanel count={ready.count} total={money(ready.totalSatang)} fingerprint={readyFingerprint} blocked={layout === null} make={exportNowAction} open={downloadUrlAction} />
+        </Panel>
 
-      {layout ? (
-        <section aria-labelledby="export-layout" className="flex flex-col gap-2">
-          <h2 id="export-layout" className="text-lg font-semibold text-ink">
-            {t('layout.title')}
-          </h2>
-          <p className="text-ink">{t('layout.summary', { fileType: t(`layout.fileType.${layout.fileType}`), encoding: t(`layout.encoding.${layout.encoding}`), dateFormat: t(`layout.dateFormat.${layout.dateFormat}`) })}</p>
-          <p className="break-words text-ink">{t('layout.columns', { count: layout.columns.length, columns: layout.columns.map((c) => c.header).join(' · ') })}</p>
-          <p className="text-base text-ink-muted md:text-sm">{layout.needsVendorCode ? t('layout.vendorCodeNeeded') : t('layout.vendorCodeNotNeeded')}</p>
-        </section>
-      ) : null}
+        {heldBack.count > 0 ? (
+          <Panel title={t('held.title', { count: heldBack.count })} id="export-held">
+              <p className="text-ink-muted">{t('held.hint')}</p>
+            <ul aria-label={t('held.list')} className="flex flex-col divide-y divide-line border-y border-line">
+              {heldBack.suppliers.map((s) => {
+                const name = nameIn(locale, s.supplier.name)
+                return (
+                  <li key={s.supplier.id} className="flex flex-col gap-1 py-3">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                      <span className="font-semibold break-words text-ink">{tf('supplierWithCode', { name, code: s.supplier.code })}</span>
+                      <span className="flex shrink-0 items-baseline justify-between gap-3 sm:flex-col sm:items-end sm:gap-0">
+                        <span className="text-base text-ink-muted md:text-sm">{t('ready.gross')}</span>
+                        <span className="money text-ink">
+                          {money(s.totalSatang)}
+                          <span className="sr-only"> {tf('unit')}</span>
+                        </span>
+                      </span>
+                    </div>
+                    <span className="text-ink">{t('held.count', { count: s.count })}</span>
+                    <span className="text-base break-words text-ink-muted md:text-sm">{t('held.invoices', { numbers: s.invoices.map((i) => (i.poNumber ? t('held.invoiceOfPo', { number: i.invoiceNo, po: i.poNumber }) : i.invoiceNo)).join(', ') })}</span>
+                    <Link href={`/suppliers/${s.supplier.id}`} className={linkClass}>
+                      {t('held.openSupplier', { name })}
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          </Panel>
+        ) : null}
 
-      <section aria-labelledby="export-jobs" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 id="export-jobs" className="text-lg font-semibold text-ink">
-            {t('jobs.heading')}
-          </h2>
-          <p className="text-ink-muted">{t('jobs.hint')}</p>
-        </div>
-        {jobViews.length ? (
-          <ExportJobs jobs={jobViews} again={exportAgainAction} open={downloadUrlAction} />
-        ) : (
-          <div className="flex flex-col gap-2 border-y border-line py-6">
-            <p className="font-medium text-ink">{t('jobs.empty')}</p>
-            <p className="text-ink-muted">{t('jobs.emptyHint')}</p>
-          </div>
-        )}
-      </section>
-    </div>
+        {layout ? (
+          <Panel title={t('layout.title')} id="export-layout">
+            <p className="text-ink">{t('layout.summary', { fileType: t(`layout.fileType.${layout.fileType}`), encoding: t(`layout.encoding.${layout.encoding}`), dateFormat: t(`layout.dateFormat.${layout.dateFormat}`) })}</p>
+            <p className="break-words text-ink">{t('layout.columns', { count: layout.columns.length, columns: layout.columns.map((c) => c.header).join(' · ') })}</p>
+            <p className="text-base text-ink-muted md:text-sm">{layout.needsVendorCode ? t('layout.vendorCodeNeeded') : t('layout.vendorCodeNotNeeded')}</p>
+          </Panel>
+        ) : null}
+
+        <Panel title={t('jobs.heading')} id="export-jobs">
+            <p className="text-ink-muted">{t('jobs.hint')}</p>
+          {jobViews.length ? (
+            <ExportJobs jobs={jobViews} again={exportAgainAction} open={downloadUrlAction} />
+          ) : (
+            <ListEmpty title={t('jobs.empty')} hint={t('jobs.emptyHint')} />
+          )}
+        </Panel>
+      </PageBody>
+    </Page>
   )
 }

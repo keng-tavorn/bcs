@@ -1,18 +1,19 @@
 import Link from 'next/link'
+import { PO_BADGES, StatusBadge, URGENCY_BADGES } from '../document/badges'
 import { StateLine, type StateKind } from '../request-view/status'
-import { PoStatus } from './status'
 
 // Rows of purchase orders (spec §9.1 /procurement/pos): the PO (a link) with its supplier, site and source requests, its
-// status as icon and words, whom it waits for now and for how long, and the total with VAT right-aligned in tabular
-// digits. Wide screens line the parts up in columns under one header row; phones stack them — never a table that
-// scrolls sideways (§9.9). Strings arrive translated and formatted.
+// status as the badge of §9.10 (icon and words, never colour alone), an urgent PO's urgency badge, whom it waits for
+// now and for how long, and the total with VAT right-aligned in tabular digits. Wide screens line the parts up in
+// columns under one header row; phones stack them — never a table that scrolls sideways (§9.9). Strings arrive translated and formatted.
 
 export interface PoRow {
   readonly id: string
   readonly href: string
   readonly title: string
   readonly meta: readonly string[]
-  readonly tags: readonly string[]
+  /** The urgency badge's word when the PO is urgent */
+  readonly urgent: string | null
   readonly status: string
   readonly statusLabel: string
   readonly now: string
@@ -40,7 +41,7 @@ export function PoList({ rows, labels }: { rows: readonly PoRow[]; labels: PoLis
         <span>{labels.now}</span>
         <span className="text-right">{labels.amount}</span>
       </div>
-      <ul aria-label={labels.list} className="flex flex-col divide-y divide-line border-b border-line">
+      <ul aria-label={labels.list} className="flex flex-col divide-y divide-line">
         {rows.map((row) => (
           <li key={row.id} className={`flex flex-col gap-1.5 py-3 ${GRID}`}>
             <div className="flex min-w-0 flex-col">
@@ -52,19 +53,15 @@ export function PoList({ rows, labels }: { rows: readonly PoRow[]; labels: PoLis
                   {m}
                 </span>
               ))}
-              {row.tags.length ? (
+              {row.urgent ? (
                 <span className="mt-0.5 flex flex-wrap gap-2">
-                  {row.tags.map((tag) => (
-                    <span key={tag} className="rounded-sm border border-line px-1.5 text-base text-ink md:text-sm">
-                      {tag}
-                    </span>
-                  ))}
+                  <StatusBadge look={URGENCY_BADGES.URGENT} label={row.urgent} className="text-base md:text-sm" />
                 </span>
               ) : null}
             </div>
             <div>
               <span className="sr-only">{labels.status}: </span>
-              <PoStatus status={row.status} label={row.statusLabel} />
+              <StatusBadge look={PO_BADGES[row.status]} label={row.statusLabel} className="text-base md:text-sm" />
             </div>
             <div className="flex min-w-0 flex-col gap-0.5">
               <span className="sr-only">{labels.now}: </span>

@@ -6,6 +6,7 @@ import { getCalendarAdminView, type CalendarHolidayDto } from '@/server/services
 import { BusinessHoursForm } from '@/ui/admin-settings/business-hours-form'
 import { HolidayImportForm } from '@/ui/admin-settings/holiday-import-form'
 import { NoAccess } from '@/ui/admin-settings/no-access'
+import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { checkHolidayImportAction, importHolidaysAction, saveBusinessHoursAction } from './actions'
 
@@ -32,59 +33,48 @@ export default async function CalendarPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex max-w-3xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-ink-muted">{t('intro')}</p>
-      </div>
+    <Page>
+      <PageHeader title={t('title')} intro={t('intro')} />
+      <PageBody>
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-6">
+          <Panel title={t('hoursTitle')} id="hours" className="lg:col-start-1 lg:row-start-1">
+            <BusinessHoursForm initial={{ workdays: hours.workdays, start: hours.start, end: hours.end }} timezone={hours.timezone} save={saveBusinessHoursAction} />
+          </Panel>
 
-      <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-12">
-        <section aria-labelledby="hours" className="flex flex-col gap-4 lg:col-start-1 lg:row-start-1">
-          <h2 id="hours" className="text-xl font-semibold">
-            {t('hoursTitle')}
-          </h2>
-          <BusinessHoursForm initial={{ workdays: hours.workdays, start: hours.start, end: hours.end }} timezone={hours.timezone} save={saveBusinessHoursAction} />
-        </section>
+          <Panel title={t('importTitle')} id="import" className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
+            <HolidayImportForm
+              templateHref="/admin/calendar/template"
+              years={{ from: beYear(importYears.from), to: beYear(importYears.to) }}
+              check={checkHolidayImportAction}
+              importRows={importHolidaysAction}
+            />
+          </Panel>
 
-        <section aria-labelledby="import" className="flex flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <h2 id="import" className="text-xl font-semibold">
-            {t('importTitle')}
-          </h2>
-          <HolidayImportForm
-            templateHref="/admin/calendar/template"
-            years={{ from: beYear(importYears.from), to: beYear(importYears.to) }}
-            check={checkHolidayImportAction}
-            importRows={importHolidaysAction}
-          />
-        </section>
-
-        <section aria-labelledby="holidays" className="flex flex-col gap-4 border-t border-line pt-6 lg:col-start-1 lg:row-start-2">
-          <h2 id="holidays" className="text-xl font-semibold">
-            {t('holidaysTitle', { year: beYear(fromYear) })}
-          </h2>
-          {holidays.length === 0 ? (
-            <p className="text-ink-muted">{t('holidaysEmpty')}</p>
-          ) : (
-            [...byYear.entries()].map(([year, items]) => (
-              <section key={year} aria-labelledby={`year-${year}`} className="flex flex-col gap-2">
-                <h3 id={`year-${year}`} className="text-lg font-semibold">
-                  {t('yearHeading', { year, count: items.length })}
-                </h3>
-                <ul className="flex flex-col divide-y divide-line border-y border-line">
-                  {items.map((h) => (
-                    <li key={h.date} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-baseline sm:gap-6">
-                      <span className="tabular shrink-0 font-medium sm:w-56">
-                        {formatDate(h.date)} <span className="font-normal text-ink-muted">· {t('holidayDay', { weekday: t(`weekdays.${h.weekday}`) })}</span>
-                      </span>
-                      <span>{h.nameTh}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))
-          )}
-        </section>
-      </div>
-    </div>
+          <Panel title={t('holidaysTitle', { year: beYear(fromYear) })} id="holidays" className="lg:col-start-1 lg:row-start-2">
+            {holidays.length === 0 ? (
+              <ListEmpty title={t('holidaysEmpty')} />
+            ) : (
+              [...byYear.entries()].map(([year, items]) => (
+                <section key={year} aria-labelledby={`year-${year}`} className="flex flex-col gap-2">
+                  <h3 id={`year-${year}`} className="text-base font-semibold">
+                    {t('yearHeading', { year, count: items.length })}
+                  </h3>
+                  <ul className="flex flex-col divide-y divide-line border-y border-line">
+                    {items.map((h) => (
+                      <li key={h.date} className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:items-baseline sm:gap-6">
+                        <span className="tabular shrink-0 font-medium sm:w-56">
+                          {formatDate(h.date)} <span className="font-normal text-ink-muted">· {t('holidayDay', { weekday: t(`weekdays.${h.weekday}`) })}</span>
+                        </span>
+                        <span>{h.nameTh}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ))
+            )}
+          </Panel>
+        </div>
+      </PageBody>
+    </Page>
   )
 }

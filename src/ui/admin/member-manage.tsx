@@ -58,7 +58,7 @@ function useRun() {
 
 function Section({ id, title, hint, children }: { id: string; title: string; hint?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4 border-t border-line pt-6">
+    <section aria-labelledby={id} className="flex flex-col gap-4 border-t border-line pt-6 first:border-t-0 first:pt-0">
       <h2 id={id} className="text-xl font-semibold">
         {title}
       </h2>

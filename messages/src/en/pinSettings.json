@@ -68,5 +68,6 @@
     "BUSY": "Something else of yours is being saved. Try again in a moment.",
     "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
     "FAILED": "It was not saved. Try again."
-  }
+  },
+  "setupLabel": "Set or change the PIN"
 }

@@ -2,6 +2,7 @@ import { CircleCheck, CircleMinus, CirclePlus, Scale, TriangleAlert } from 'luci
 import type { ReactNode } from 'react'
 import { Notice } from '@/ui/form/notice'
 import { LightLink } from '@/ui/light-link'
+import { Panel } from '@/ui/page/page'
 import type { VersionDiff } from '@/server/services/doa/diff'
 import type { BoundarySideView, BoundaryTableView, CompareView, RuleView } from '@/server/services/doa/view'
 import type { DoaT, DoaWords } from './words'
@@ -13,14 +14,14 @@ import type { DoaT, DoaWords } from './words'
 // is said in words, with an icon where it helps, never by colour alone (NFR-A11Y-03). Wide screens get columns, phones
 // a stacked list.
 
+/** One section of the page as a white card (S16-10), named by its title; the wrapper keeps the id links jump to */
 export function Section({ id, title, children }: { id: string; title: ReactNode; children: ReactNode }) {
   return (
-    <section id={id} aria-labelledby={`${id}-title`} className="flex scroll-mt-4 flex-col gap-3">
-      <h2 id={`${id}-title`} className="text-xl font-semibold">
-        {title}
-      </h2>
-      {children}
-    </section>
+    <div id={id} className="flex min-w-0 scroll-mt-4 flex-col">
+      <Panel title={title} id={`${id}-title`}>
+        {children}
+      </Panel>
+    </div>
   )
 }
 

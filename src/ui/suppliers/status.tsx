@@ -1,23 +1,19 @@
-import { CircleCheck, CircleSlash, Info, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { CircleCheck, Info, ShieldCheck, TriangleAlert, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { cn } from '../cn'
+import { StatusBadge, type BadgeLook } from '../document/badges'
 
 // Supplier states as an icon and words, never colour alone (NFR-A11Y-03). Labels arrive translated.
 
-const STATUS_LOOK = {
-  ACTIVE: { Icon: CircleCheck, tone: 'text-primary' },
-  INACTIVE: { Icon: CircleSlash, tone: 'text-ink-muted' },
-} as const
+/** A supplier's status as a badge of §9.10 (S16-10): in use in the tone of "ready", no longer used in the neutral one */
+const STATUS_LOOK: Readonly<Record<'ACTIVE' | 'INACTIVE', BadgeLook>> = {
+  ACTIVE: { tone: 'ok', icon: 'CircleCheck' },
+  INACTIVE: { tone: 'neutral', icon: 'Ban' },
+}
 
 /** "ใช้งานอยู่" / "เลิกใช้แล้ว" */
 export function SupplierStatusLabel({ status, label, className }: { status: keyof typeof STATUS_LOOK; label: string; className?: string }) {
-  const { Icon, tone } = STATUS_LOOK[status]
-  return (
-    <span className={cn('inline-flex items-center gap-1.5 font-medium', className)}>
-      <Icon className={cn('size-4 shrink-0', tone)} aria-hidden="true" />
-      <span>{label}</span>
-    </span>
-  )
+  return <StatusBadge look={STATUS_LOOK[status]} label={label} className={cn('text-base md:text-sm', className)} />
 }
 
 const FLAG_LOOK: Readonly<Record<'ok' | 'warn' | 'info' | 'checked', { Icon: LucideIcon; tone: string }>> = {

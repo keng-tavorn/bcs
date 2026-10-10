@@ -8,10 +8,12 @@ import { ctxFromSession } from '@/server/auth/session'
 import { SIMULATION_FIELDS, getDoaSimulation, type SimulatedRouteView, type SimulationQuery } from '@/server/services/doa/simulate'
 import { versionLook } from '@/ui/admin-doa/version-status'
 import { departmentOption, memberLabel, nameIn } from '@/ui/admin-org/names'
+import { NoAccess } from '@/ui/admin-settings/no-access'
 import { SelectField } from '@/ui/admin-org/select-field'
 import { Button } from '@/ui/form/button'
 import { Field } from '@/ui/form/field'
 import { Notice } from '@/ui/form/notice'
+import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../../../_lib/session'
 import { keepTogether } from '../../_parts/sections'
 import { DOCUMENT_TYPES, doaWords, type DoaT, type DoaWords } from '../../_parts/words'
@@ -26,8 +28,8 @@ const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary un
 /** One version's route: the rule, each approver with where they were found, and the Thai explanation of the engine */
 function RouteResult({ id, title, route, t, words, locale }: { id: string; title: ReactNode; route: SimulatedRouteView; t: DoaT; words: DoaWords; locale: string }) {
   return (
-    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3 border-t-4 border-line pt-3">
-      <h3 id={id} className="text-lg font-semibold">
+    <section aria-labelledby={id} className="flex min-w-0 flex-col gap-3 rounded-lg border border-line p-4">
+      <h3 id={id} className="text-base font-semibold">
         {title}
       </h3>
       {route.ok ? (
@@ -86,17 +88,7 @@ export default async function DoaSimulatePage({ params, searchParams }: { params
   const query: SimulationQuery = Object.fromEntries(SIMULATION_FIELDS.map((f) => [f, typeof raw[f] === 'string' ? raw[f] : undefined]))
   const result = await getDoaSimulation(ctx, versionId, query)
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
-  if (!result.ok) {
-    return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <Notice tone="danger">{t('simulate.forbidden')}</Notice>
-        <Link href="/" className={`${linkClass} self-start`}>
-          {t('homeLink')}
-        </Link>
-      </div>
-    )
-  }
+  if (!result.ok) return <NoAccess title={t('title')} message={t('simulate.forbidden')} homeLabel={t('homeLink')} />
   const view = result.data
   const words = doaWords(t, locale)
   const name = words.versionName(view.version)
@@ -109,94 +101,90 @@ export default async function DoaSimulatePage({ params, searchParams }: { params
   const isInEffect = view.inEffect?.id === view.version.id
 
   return (
-    <div className="flex flex-col gap-8">
-      <Link href={`/admin/doa/${view.version.id}`} className={`${linkClass} self-start`}>
+    <Page>
+      <Link href={`/admin/doa/${view.version.id}`} className={`${linkClass} -mb-4 self-start`}>
         {t('simulate.back', { name })}
       </Link>
-      <div className="flex max-w-3xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('simulate.title', { name })}</h1>
-        <p className="text-ink-muted">{t('simulate.intro')}</p>
-      </div>
+      <PageHeader title={t('simulate.title', { name })} intro={t('simulate.intro')} />
 
-      <section aria-labelledby="try" className="flex max-w-4xl flex-col gap-4">
-        <h2 id="try" className="text-xl font-semibold">
-          {t('simulate.formTitle')}
-        </h2>
-        <form method="get" className="flex flex-col gap-5" noValidate>
-          <div className="grid gap-5 md:grid-cols-2">
-            <SelectField
-              id="sim-type"
-              name="type"
-              label={t('simulate.type')}
-              defaultValue={view.input.type}
-              options={DOCUMENT_TYPES.map((d) => ({ value: d, label: words.documentType(d) }))}
-              error={fieldError('type')}
-            />
-            <SelectField
-              id="sim-department"
-              name="department"
-              label={t('simulate.department')}
-              hint={t('simulate.departmentHint')}
-              placeholder={t('choose')}
-              defaultValue={view.input.department}
-              options={view.departments.map((d) => ({ value: d.id, label: departmentOption(locale, d) }))}
-              error={fieldError('department')}
-            />
-            <Field id="sim-net" name="net" label={t('simulate.net')} hint={t('simulate.netHint')} inputMode="decimal" defaultValue={view.input.net} error={netError} className="money" />
-            <Field id="sim-vat" name="vat" label={t('simulate.vat')} hint={t('simulate.vatHint')} inputMode="decimal" defaultValue={view.input.vat} error={fieldError('vat')} className="money" />
-            <SelectField
-              id="sim-requester"
-              name="requester"
-              label={t('simulate.requester')}
-              hint={t('simulate.requesterHint')}
-              placeholder={t('choose')}
-              defaultValue={view.input.requester}
-              options={view.members.map((m) => ({ value: m.id, label: memberLabel(locale, m) }))}
-              error={fieldError('requester')}
-            />
-          </div>
-          <Button type="submit" className="self-start">
-            {t('simulate.submit')}
-          </Button>
-        </form>
-      </section>
-
-      <section aria-labelledby="result" aria-live="polite" className="flex flex-col gap-4">
-        <h2 id="result" className="text-xl font-semibold">
-          {t('simulate.resultTitle')}
-        </h2>
-        {outcome === null ? (
-          <p className="border-y border-line py-4 text-ink-muted">{t('simulate.empty')}</p>
-        ) : (
-          <>
-            {outcome.inEffect === null ? (
-              <Notice tone="info">{t('simulate.noInEffect')}</Notice>
-            ) : isInEffect ? (
-              <Notice tone="info">{t('simulate.isInEffect')}</Notice>
-            ) : outcome.sameApprovers ? (
-              <p className="flex items-start gap-2 font-medium">
-                <CircleCheck className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
-                <span>{t('simulate.same', { names: names(outcome.version) ?? '' })}</span>
-              </p>
-            ) : (
-              <p className="flex items-start gap-2 font-medium">
-                <TriangleAlert className="mt-1 size-4 shrink-0 text-warn" aria-hidden="true" />
-                <span>
-                  {names(outcome.inEffect) !== null && names(outcome.version) !== null
-                    ? t('simulate.different', { before: names(outcome.inEffect)!, after: names(outcome.version)! })
-                    : t('simulate.differentError')}
-                </span>
-              </p>
-            )}
-            <div className="grid gap-8 lg:grid-cols-2">
-              {outcome.inEffect && view.inEffect ? (
-                <RouteResult id="route-in-effect" title={t.rich('simulate.inEffectTitle', { name: words.versionName(view.inEffect), now: keepTogether })} route={outcome.inEffect} t={t} words={words} locale={locale} />
-              ) : null}
-              <RouteResult id="route-version" title={t('simulate.versionTitle', { name, status })} route={outcome.version} t={t} words={words} locale={locale} />
+      <PageBody>
+        <Panel title={t('simulate.formTitle')} id="try" className="max-w-4xl">
+          <form method="get" className="flex flex-col gap-5" noValidate>
+            <div className="grid gap-5 md:grid-cols-2">
+              <SelectField
+                id="sim-type"
+                name="type"
+                label={t('simulate.type')}
+                defaultValue={view.input.type}
+                options={DOCUMENT_TYPES.map((d) => ({ value: d, label: words.documentType(d) }))}
+                error={fieldError('type')}
+              />
+              <SelectField
+                id="sim-department"
+                name="department"
+                label={t('simulate.department')}
+                hint={t('simulate.departmentHint')}
+                placeholder={t('choose')}
+                defaultValue={view.input.department}
+                options={view.departments.map((d) => ({ value: d.id, label: departmentOption(locale, d) }))}
+                error={fieldError('department')}
+              />
+              <Field id="sim-net" name="net" label={t('simulate.net')} hint={t('simulate.netHint')} inputMode="decimal" defaultValue={view.input.net} error={netError} className="money" />
+              <Field id="sim-vat" name="vat" label={t('simulate.vat')} hint={t('simulate.vatHint')} inputMode="decimal" defaultValue={view.input.vat} error={fieldError('vat')} className="money" />
+              <SelectField
+                id="sim-requester"
+                name="requester"
+                label={t('simulate.requester')}
+                hint={t('simulate.requesterHint')}
+                placeholder={t('choose')}
+                defaultValue={view.input.requester}
+                options={view.members.map((m) => ({ value: m.id, label: memberLabel(locale, m) }))}
+                error={fieldError('requester')}
+              />
             </div>
-          </>
-        )}
-      </section>
-    </div>
+            <Button type="submit" className="self-start">
+              {t('simulate.submit')}
+            </Button>
+          </form>
+        </Panel>
+
+        {/* The result is announced when it changes (a new GET of the same page) */}
+        <div aria-live="polite" className="flex flex-col">
+          <Panel title={t('simulate.resultTitle')} id="result">
+            {outcome === null ? (
+              <ListEmpty title={t('simulate.empty')} />
+            ) : (
+              <>
+                {outcome.inEffect === null ? (
+                  <Notice tone="info">{t('simulate.noInEffect')}</Notice>
+                ) : isInEffect ? (
+                  <Notice tone="info">{t('simulate.isInEffect')}</Notice>
+                ) : outcome.sameApprovers ? (
+                  <p className="flex items-start gap-2 font-medium">
+                    <CircleCheck className="mt-1 size-4 shrink-0 text-primary" aria-hidden="true" />
+                    <span>{t('simulate.same', { names: names(outcome.version) ?? '' })}</span>
+                  </p>
+                ) : (
+                  <p className="flex items-start gap-2 font-medium">
+                    <TriangleAlert className="mt-1 size-4 shrink-0 text-warn" aria-hidden="true" />
+                    <span>
+                      {names(outcome.inEffect) !== null && names(outcome.version) !== null
+                        ? t('simulate.different', { before: names(outcome.inEffect)!, after: names(outcome.version)! })
+                        : t('simulate.differentError')}
+                    </span>
+                  </p>
+                )}
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {outcome.inEffect && view.inEffect ? (
+                    <RouteResult id="route-in-effect" title={t.rich('simulate.inEffectTitle', { name: words.versionName(view.inEffect), now: keepTogether })} route={outcome.inEffect} t={t} words={words} locale={locale} />
+                  ) : null}
+                  <RouteResult id="route-version" title={t('simulate.versionTitle', { name, status })} route={outcome.version} t={t} words={words} locale={locale} />
+                </div>
+              </>
+            )}
+          </Panel>
+        </div>
+      </PageBody>
+    </Page>
   )
 }

@@ -78,7 +78,9 @@
       "noMatchHint": "Type a shorter part of the invoice number, PO number or supplier's name."
     },
     "receivedOnly": "Only POs with goods received",
-    "showAll": "See every PO waiting for an invoice"
+    "showAll": "See every PO waiting for an invoice",
+    "filterLabel": "Search POs and invoices",
+    "filterCount": "{count, plural, one {# PO waits} other {# POs wait}} for an invoice"
   },
   "po": {
     "metaTitle": "Record the invoice of {number}",

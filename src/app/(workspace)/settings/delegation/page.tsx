@@ -11,6 +11,7 @@ import { DelegationState } from '@/ui/delegation/delegation-state'
 import { RevokeDelegation } from '@/ui/delegation/revoke-delegation'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { createDelegationAction, revokeDelegationAction } from './actions'
 
@@ -22,6 +23,7 @@ export async function generateMetadata() {
 // Acting approver (NEW-06, FR-DOA-006 AC2 web, §7.6, §9.1 /settings/*): who acts for me, when, for what and up to how
 // much, and whom I act for. Wide screens: the lists on the left, the form on the right; phones: the form first.
 // A member without a position learns why they have nothing to hand over instead of seeing the form (BR-DLG-01).
+// Each part is a white card on --surface under the page's title (the frame of S16-10).
 export default async function DelegationPage() {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   const [t, tSettings, locale] = await Promise.all([getTranslations('delegation'), getTranslations('adminSettings'), getLocale()])
@@ -58,22 +60,17 @@ export default async function DelegationPage() {
   )
 
   return (
-    <div className="flex flex-col gap-8">
-      <div className="flex max-w-3xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-ink-muted">{t('intro')}</p>
+    <Page>
+      <PageHeader title={t('title')} intro={t('intro')}>
         {canDelegate ? (
           <p className="text-ink-muted">
             {t('positionsLine', { positions: positions.map((p) => t('positionItem', { position: en && p.positionEn ? p.positionEn : p.positionTh, department: en && p.departmentEn ? p.departmentEn : p.departmentTh })).join(', ') })}
           </p>
         ) : null}
-      </div>
+      </PageHeader>
 
-      <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-12">
-        <section aria-labelledby="new-delegation" className="flex flex-col gap-4 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-          <h2 id="new-delegation" className="text-xl font-semibold">
-            {t('formTitle')}
-          </h2>
+      <PageBody className="lg:grid lg:grid-cols-[minmax(0,1fr)_26rem] lg:grid-rows-[auto_1fr] lg:items-start">
+        <Panel id="new-delegation" title={t('formTitle')} className="lg:col-start-2 lg:row-span-2 lg:row-start-1">
           {canDelegate ? (
             <DelegationForm
               candidates={candidates.map((c) => {
@@ -88,26 +85,23 @@ export default async function DelegationPage() {
           ) : (
             <Notice tone="info">{t('noPosition')}</Notice>
           )}
-        </section>
+        </Panel>
 
         {/* Someone with nothing to hand over and nothing handed over sees only what they act for */}
         {showGiven ? (
-          <section aria-labelledby="given" className="flex flex-col gap-4 lg:col-start-1 lg:row-start-1">
-            <h2 id="given" className="text-xl font-semibold">
-              {t('givenTitle')}
-            </h2>
+          <Panel id="given" title={t('givenTitle')} className="lg:col-start-1 lg:row-start-1">
             {given.length === 0 ? (
               <p className="text-ink-muted">{t('givenEmpty')}</p>
             ) : (
-              <ul className="flex flex-col divide-y divide-line border-y border-line">
+              <ul className="flex flex-col divide-y divide-line">
                 {given.map((row) => (
-                  <li key={row.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                  <li key={row.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                     <div className="flex min-w-0 flex-col gap-1">
                       <p className="font-medium">{nameOf(row.delegate)}</p>
                       {rowDetails(row)}
                     </div>
                     <div className="flex shrink-0 flex-col gap-2 sm:max-w-xs sm:items-end">
-                      <DelegationState state={row.state} label={t(`state.${row.state}`)} className="text-base md:text-sm" />
+                      <DelegationState state={row.state} label={t(`state.${row.state}`)} className="self-start text-base sm:self-end md:text-sm" />
                       <RevokeDelegation
                         delegationId={row.id}
                         delegateName={nameOf(row.delegate)}
@@ -119,30 +113,27 @@ export default async function DelegationPage() {
                 ))}
               </ul>
             )}
-          </section>
+          </Panel>
         ) : null}
 
-        <section aria-labelledby="received" className={showGiven ? 'flex flex-col gap-4 border-t border-line pt-6 lg:col-start-1 lg:row-start-2' : 'flex flex-col gap-4 lg:col-start-1 lg:row-start-1'}>
-          <h2 id="received" className="text-xl font-semibold">
-            {t('receivedTitle')}
-          </h2>
+        <Panel id="received" title={t('receivedTitle')} className={showGiven ? 'lg:col-start-1 lg:row-start-2' : 'lg:col-start-1 lg:row-start-1'}>
           {received.length === 0 ? (
             <p className="text-ink-muted">{t('receivedEmpty')}</p>
           ) : (
-            <ul className="flex flex-col divide-y divide-line border-y border-line">
+            <ul className="flex flex-col divide-y divide-line">
               {received.map((row) => (
-                <li key={row.id} className="flex flex-col gap-3 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                <li key={row.id} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
                   <div className="flex min-w-0 flex-col gap-1">
                     <p className="font-medium">{nameOf(row.delegator)}</p>
                     {rowDetails(row)}
                   </div>
-                  <DelegationState state={row.state} label={t(`state.${row.state}`)} className="text-base md:text-sm" />
+                  <DelegationState state={row.state} label={t(`state.${row.state}`)} className="self-start text-base md:text-sm" />
                 </li>
               ))}
             </ul>
           )}
-        </section>
-      </div>
-    </div>
+        </Panel>
+      </PageBody>
+    </Page>
   )
 }

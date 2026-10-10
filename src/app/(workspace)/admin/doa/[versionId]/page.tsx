@@ -10,8 +10,10 @@ import { InitialPackageForm } from '@/ui/admin-doa/initial-package-form'
 import { LintIssueText } from '@/ui/admin-doa/lint-issue'
 import { SubmitDoaPanel } from '@/ui/admin-doa/submit-panel'
 import { VersionStatus, versionLook } from '@/ui/admin-doa/version-status'
+import { NoAccess } from '@/ui/admin-settings/no-access'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../../_lib/session'
 import { AuthorityList, BoundaryCompare, DiffList, Section, diffIsEmpty, keepTogether, type Baseline } from '../_parts/sections'
 import { DOCUMENT_TYPES, doaWords } from '../_parts/words'
@@ -49,17 +51,7 @@ export default async function DoaVersionPage({ params }: { params: Promise<{ ver
   if (!ctx) return null
   const result = await getDoaVersionForAdmin(ctx, versionId)
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
-  if (!result.ok) {
-    return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{tVersions('title')}</h1>
-        <Notice tone="danger">{tVersions('forbidden')}</Notice>
-        <Link href="/" className={`${linkClass} self-start`}>
-          {tVersions('homeLink')}
-        </Link>
-      </div>
-    )
-  }
+  if (!result.ok) return <NoAccess title={tVersions('title')} message={tVersions('forbidden')} homeLabel={tVersions('homeLink')} />
   const view = result.data
   const v = view.version
   const look = versionLook(v)
@@ -152,15 +144,12 @@ export default async function DoaVersionPage({ params }: { params: Promise<{ ver
     ) : null
 
   return (
-    <div className="flex flex-col gap-8">
-      <Link href="/admin/doa" className={`${linkClass} self-start`}>
+    <Page>
+      <Link href="/admin/doa" className={`${linkClass} -mb-4 self-start`}>
         {t('back')}
       </Link>
-      <div className="flex flex-col gap-2">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-          <h1 className="text-2xl font-semibold">{name}</h1>
-          <VersionStatus look={look} label={tVersions(`status.${look}`)} />
-        </div>
+      <PageHeader title={name}>
+        <VersionStatus look={look} label={tVersions(`status.${look}`)} className="self-start" />
         <p className="tabular">
           {v.status === 'PUBLISHED' || v.status === 'SUPERSEDED'
             ? v.effectiveTo
@@ -168,197 +157,201 @@ export default async function DoaVersionPage({ params }: { params: Promise<{ ver
               : tVersions('periodOpen', { from: when(v.effectiveFrom) })
             : tVersions('planned', { from: when(v.effectiveFrom) })}
         </p>
-      </div>
+      </PageHeader>
 
-      {initial ? (
-        <div className="max-w-4xl border-t border-line pt-6">
-          <Section id="submit" title={t('initial.title')}>
-            <p className="text-ink-muted">{t('initial.intro')}</p>
-            {initial.effectiveInPast ? <Notice tone="danger">{t('effectiveInPast', { time: when(v.effectiveFrom) })}</Notice> : null}
-            {initial.signatory === null ? <Notice tone="warning">{t('initial.noSignatory')}</Notice> : null}
-            {initial.submitterIsSignatory ? <Notice tone="warning">{t('initial.youAreSignatory')}</Notice> : null}
-            {initial.effectiveInPast || initial.submitterIsSignatory || !initial.allowed ? null : (
-              <InitialPackageForm
-                versionId={v.id}
-                positions={initial.positions}
-                departments={initial.departments}
-                members={initial.members}
-                holders={initial.holders}
-                signatory={initial.signatory}
-                boundaryTableId={boundaryTableId}
-                submit={submitInitialPackageAction}
-              />
-            )}
-          </Section>
-        </div>
-      ) : null}
-
-      {/* Wide screens: the content on the left; status, tools and the send on the right. Phones: status and tools, then
-          the content, then the send (DOM order), so the boundary table is read before it is ticked. The content spans
-          both rows on the left; the second row is flexible, so the first is only as tall as the status beside it. */}
-      <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-10">
-        <aside aria-label={t('asideLabel')} className="flex flex-col gap-6 lg:col-start-2 lg:row-start-1">
-          <dl className="flex flex-col gap-2 border-y border-line py-4">
-            <dt className="font-medium">{t('reasonLabel')}</dt>
-            <dd className="break-words text-ink-muted">{v.changeReason ?? tVersions('noReason')}</dd>
-            {view.importedBy && view.importedAt ? (
-              <>
-                <dt className="font-medium">{t('importedLabel')}</dt>
-                <dd className="text-ink-muted">{t('byAt', { name: person(view.importedBy), time: when(view.importedAt) })}</dd>
-              </>
-            ) : null}
-            {v.submittedBy && v.submittedAt ? (
-              <>
-                <dt className="font-medium">{t('submittedLabel')}</dt>
-                <dd className="text-ink-muted">{t('byAt', { name: person(v.submittedBy), time: when(v.submittedAt) })}</dd>
-              </>
-            ) : null}
-            {v.approvedBy && v.approvedAt ? (
-              <>
-                <dt className="font-medium">{t('approvedLabel')}</dt>
-                <dd className="text-ink-muted">{t('byAt', { name: person(v.approvedBy), time: when(v.approvedAt) })}</dd>
-              </>
-            ) : null}
-          </dl>
-
-          <nav aria-label={t('toolsTitle')} className="flex flex-col">
-            <Link href={simulateHref} className={`${linkClass} self-start`}>
-              {t('simulateLink')}
-            </Link>
-            <Link href={`/admin/doa/${v.id}/edit`} className={`${linkClass} self-start`}>
-              {t('editLink')}
-            </Link>
-            <a href={`/admin/doa/${v.id}/export`} download className={`${linkClass} self-start`}>
-              {tVersions('download', { name })}
-            </a>
-          </nav>
-
-          {view.route && v.status !== 'DRAFT' ? (
-            <Section id="route" title={t('routeTitle')}>
-              {routeLines(view.route).map((line) => (
-                <p key={line}>{line}</p>
-              ))}
-            </Section>
-          ) : null}
-
-          {submit === null ? (
-            v.status === 'PENDING_APPROVAL' ? (
-              // Sent: the same words as the send's own confirmation (§9.9 rule 7) — the initial package's own, when it
-              // went as one — and it cannot change any more
-              <Notice tone="success">
-                {view.route?.initialPackage
-                  ? waiting.length
-                    ? t('initial.sent', { name: waiting.join(', ') })
-                    : t('initial.sentNoName')
-                  : waiting.length
-                    ? t('submitted', { name: waiting.join(', ') })
-                    : t('submittedNoName')}
-              </Notice>
-            ) : (
-              <Notice tone="info">{t('readOnly')}</Notice>
-            )
-          ) : blocked ? (
-            sendSection
-          ) : null}
-        </aside>
-
-        <div className="flex min-w-0 flex-col gap-10 lg:col-start-1 lg:row-span-2 lg:row-start-1">
-          {compare && baseline ? (
-            <>
-              <Section id="diff" title={t.rich(compareWords('compareTitle'), { name: baseline.name, now: keepTogether })}>
-                {baseline.next ? <p className="text-base text-ink-muted md:text-sm">{t('compareNextNote', { name: baseline.name, time: when(compare.baseline.effectiveFrom) })}</p> : null}
-                {diffIsEmpty(compare.diff) ? (
-                  <p className="text-ink-muted">{t.rich(compareWords('compareNone'), { name: baseline.name, now: keepTogether })}</p>
-                ) : (
-                  <DiffList diff={compare.diff} before={compare.baseline.rules} after={view.rules} t={tVersions} words={words} />
-                )}
-              </Section>
-              <Section id="authority" title={t('authorityTitle')}>
-                <AuthorityList compare={compare} baseline={baseline} simulateHref={simulateHref} t={tVersions} words={words} />
-              </Section>
-            </>
-          ) : (
-            <Section id="diff" title={view.previous ? t('diffTitle', { name: previousName }) : t('diffTitleFirst')}>
-              {view.previous === null || view.diff === null ? (
-                <p className="text-ink-muted">{t('diffFirst', { code: v.code })}</p>
-              ) : diffIsEmpty(view.diff) ? (
-                <p className="text-ink-muted">{t('diffNone', { name: previousName })}</p>
-              ) : (
-                <DiffList diff={view.diff} before={view.previous.rules} after={view.rules} t={tVersions} words={words} />
+      <PageBody>
+        {initial ? (
+          <div className="max-w-4xl">
+            <Section id="submit" title={t('initial.title')}>
+              <p className="text-ink-muted">{t('initial.intro')}</p>
+              {initial.effectiveInPast ? <Notice tone="danger">{t('effectiveInPast', { time: when(v.effectiveFrom) })}</Notice> : null}
+              {initial.signatory === null ? <Notice tone="warning">{t('initial.noSignatory')}</Notice> : null}
+              {initial.submitterIsSignatory ? <Notice tone="warning">{t('initial.youAreSignatory')}</Notice> : null}
+              {initial.effectiveInPast || initial.submitterIsSignatory || !initial.allowed ? null : (
+                <InitialPackageForm
+                  versionId={v.id}
+                  positions={initial.positions}
+                  departments={initial.departments}
+                  members={initial.members}
+                  holders={initial.holders}
+                  signatory={initial.signatory}
+                  boundaryTableId={boundaryTableId}
+                  submit={submitInitialPackageAction}
+                />
               )}
             </Section>
-          )}
+          </div>
+        ) : null}
 
-          {boundaryTables.length ? (
-            <Section id={BOUNDARY_SECTION} title={t('boundaryTitle')}>
-              <BoundaryCompare tables={boundaryTables} baseline={baseline} basis={compare?.basis ?? null} simulateHref={simulateHref} t={tVersions} words={words} />
-            </Section>
-          ) : null}
+        {/* Wide screens: the content on the left; status, tools and the send on the right. Phones: status and tools, then
+            the content, then the send (DOM order), so the boundary table is read before it is ticked. The content spans
+            both rows on the left; the second row is flexible, so the first is only as tall as the status beside it. */}
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_22rem] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-6">
+          <aside aria-label={t('asideLabel')} className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1 lg:gap-6">
+            <Panel>
+              <dl className="flex flex-col gap-2">
+                <dt className="font-medium">{t('reasonLabel')}</dt>
+                <dd className="break-words text-ink-muted">{v.changeReason ?? tVersions('noReason')}</dd>
+                {view.importedBy && view.importedAt ? (
+                  <>
+                    <dt className="font-medium">{t('importedLabel')}</dt>
+                    <dd className="text-ink-muted">{t('byAt', { name: person(view.importedBy), time: when(view.importedAt) })}</dd>
+                  </>
+                ) : null}
+                {v.submittedBy && v.submittedAt ? (
+                  <>
+                    <dt className="font-medium">{t('submittedLabel')}</dt>
+                    <dd className="text-ink-muted">{t('byAt', { name: person(v.submittedBy), time: when(v.submittedAt) })}</dd>
+                  </>
+                ) : null}
+                {v.approvedBy && v.approvedAt ? (
+                  <>
+                    <dt className="font-medium">{t('approvedLabel')}</dt>
+                    <dd className="text-ink-muted">{t('byAt', { name: person(v.approvedBy), time: when(v.approvedAt) })}</dd>
+                  </>
+                ) : null}
+              </dl>
 
-          <Section id="rules" title={t('rulesTitle', { count: view.rules.length })}>
-            {rulesByType.map((group) => (
-              <div key={group.documentType} className="flex flex-col gap-1">
-                <h3 className="text-lg font-semibold">{words.documentType(group.documentType)}</h3>
-                <div className={`hidden border-b border-line pb-2 text-sm font-medium text-ink-muted md:grid md:gap-x-4 ${hasAmount(group.documentType) ? RULE_GRID : RULE_GRID_NO_AMOUNT}`} aria-hidden="true">
-                  <span>{t('ruleHeaders.rule')}</span>
-                  {hasAmount(group.documentType) ? (
-                    <>
-                      <span className="text-right">{t('ruleHeaders.above')}</span>
-                      <span className="text-right">{t('ruleHeaders.upTo')}</span>
-                    </>
-                  ) : null}
-                  <span>{t('ruleHeaders.approverSla')}</span>
-                </div>
-                <ul className="flex flex-col divide-y divide-line border-b border-line">
-                  {group.rules.map((r) => (
-                    <li key={r.code} className={`grid grid-cols-1 gap-1 py-3 md:items-baseline md:gap-x-4 ${hasAmount(group.documentType) ? RULE_GRID : RULE_GRID_NO_AMOUNT}`}>
-                      <p className="font-semibold">
-                        <span className="md:sr-only">{t('ruleHeaders.rule')} </span>
-                        {r.code}
-                      </p>
-                      {!hasAmount(group.documentType) ? null : r.band ? (
-                        <>
-                          <p className="flex justify-between gap-4 md:block md:text-right">
-                            <span className="shrink-0 text-ink-muted md:sr-only">{t('ruleHeaders.above')}</span>
-                            <span className="tabular">{lowerCell(r)}</span>
-                          </p>
-                          <p className="flex justify-between gap-4 md:block md:text-right">
-                            <span className="shrink-0 text-ink-muted md:sr-only">{t('ruleHeaders.upTo')}</span>
-                            <span className="tabular">{upperCell(r)}</span>
-                          </p>
-                        </>
-                      ) : (
-                        <p className="md:col-span-2 md:text-right">{t('anyAmount')}</p>
-                      )}
-                      <div className="flex flex-col">
-                        <span className="text-ink-muted md:sr-only">{t('ruleHeaders.approver')}</span>
-                        <span>{words.rulesApprover(r)}</span>
-                        <span className="text-base text-ink-muted md:text-sm">
-                          <span className="md:sr-only">{t('ruleHeaders.sla')} </span>
-                          {words.rulesSla(r)}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </Section>
+              <nav aria-label={t('toolsTitle')} className="flex flex-col border-t border-line pt-2">
+                <Link href={simulateHref} className={`${linkClass} self-start`}>
+                  {t('simulateLink')}
+                </Link>
+                <Link href={`/admin/doa/${v.id}/edit`} className={`${linkClass} self-start`}>
+                  {t('editLink')}
+                </Link>
+                <a href={`/admin/doa/${v.id}/export`} download className={`${linkClass} self-start`}>
+                  {tVersions('download', { name })}
+                </a>
+              </nav>
+            </Panel>
 
-          <Section id="policy" title={t('policyTitle')}>
-            <dl className="grid gap-x-6 gap-y-2 border-y border-line py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
-              {(Object.keys(view.policy) as PolicyField[]).map((field) => (
-                <div key={field} className="contents">
-                  <dt className="text-ink-muted">{t(`policy.${field}`)}</dt>
-                  <dd className={field === 'stepUpThreshold' ? 'money font-medium' : 'font-medium'}>{words.policyText(field, view.policy[field])}</dd>
+            {view.route && v.status !== 'DRAFT' ? (
+              <Section id="route" title={t('routeTitle')}>
+                {routeLines(view.route).map((line) => (
+                  <p key={line}>{line}</p>
+                ))}
+              </Section>
+            ) : null}
+
+            {submit === null ? (
+              v.status === 'PENDING_APPROVAL' ? (
+                // Sent: the same words as the send's own confirmation (§9.9 rule 7) — the initial package's own, when it
+                // went as one — and it cannot change any more
+                <Notice tone="success">
+                  {view.route?.initialPackage
+                    ? waiting.length
+                      ? t('initial.sent', { name: waiting.join(', ') })
+                      : t('initial.sentNoName')
+                    : waiting.length
+                      ? t('submitted', { name: waiting.join(', ') })
+                      : t('submittedNoName')}
+                </Notice>
+              ) : (
+                <Notice tone="info">{t('readOnly')}</Notice>
+              )
+            ) : blocked ? (
+              sendSection
+            ) : null}
+          </aside>
+
+          <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:gap-6">
+            {compare && baseline ? (
+              <>
+                <Section id="diff" title={t.rich(compareWords('compareTitle'), { name: baseline.name, now: keepTogether })}>
+                  {baseline.next ? <p className="text-base text-ink-muted md:text-sm">{t('compareNextNote', { name: baseline.name, time: when(compare.baseline.effectiveFrom) })}</p> : null}
+                  {diffIsEmpty(compare.diff) ? (
+                    <p className="text-ink-muted">{t.rich(compareWords('compareNone'), { name: baseline.name, now: keepTogether })}</p>
+                  ) : (
+                    <DiffList diff={compare.diff} before={compare.baseline.rules} after={view.rules} t={tVersions} words={words} />
+                  )}
+                </Section>
+                <Section id="authority" title={t('authorityTitle')}>
+                  <AuthorityList compare={compare} baseline={baseline} simulateHref={simulateHref} t={tVersions} words={words} />
+                </Section>
+              </>
+            ) : (
+              <Section id="diff" title={view.previous ? t('diffTitle', { name: previousName }) : t('diffTitleFirst')}>
+                {view.previous === null || view.diff === null ? (
+                  <p className="text-ink-muted">{t('diffFirst', { code: v.code })}</p>
+                ) : diffIsEmpty(view.diff) ? (
+                  <p className="text-ink-muted">{t('diffNone', { name: previousName })}</p>
+                ) : (
+                  <DiffList diff={view.diff} before={view.previous.rules} after={view.rules} t={tVersions} words={words} />
+                )}
+              </Section>
+            )}
+
+            {boundaryTables.length ? (
+              <Section id={BOUNDARY_SECTION} title={t('boundaryTitle')}>
+                <BoundaryCompare tables={boundaryTables} baseline={baseline} basis={compare?.basis ?? null} simulateHref={simulateHref} t={tVersions} words={words} />
+              </Section>
+            ) : null}
+
+            <Section id="rules" title={t('rulesTitle', { count: view.rules.length })}>
+              {rulesByType.map((group) => (
+                <div key={group.documentType} className="flex flex-col gap-1">
+                  <h3 className="text-base font-semibold">{words.documentType(group.documentType)}</h3>
+                  <div className={`hidden border-b border-line pb-2 text-sm font-medium text-ink-muted md:grid md:gap-x-4 ${hasAmount(group.documentType) ? RULE_GRID : RULE_GRID_NO_AMOUNT}`} aria-hidden="true">
+                    <span>{t('ruleHeaders.rule')}</span>
+                    {hasAmount(group.documentType) ? (
+                      <>
+                        <span className="text-right">{t('ruleHeaders.above')}</span>
+                        <span className="text-right">{t('ruleHeaders.upTo')}</span>
+                      </>
+                    ) : null}
+                    <span>{t('ruleHeaders.approverSla')}</span>
+                  </div>
+                  <ul className="flex flex-col divide-y divide-line border-b border-line">
+                    {group.rules.map((r) => (
+                      <li key={r.code} className={`grid grid-cols-1 gap-1 py-3 md:items-baseline md:gap-x-4 ${hasAmount(group.documentType) ? RULE_GRID : RULE_GRID_NO_AMOUNT}`}>
+                        <p className="font-semibold">
+                          <span className="md:sr-only">{t('ruleHeaders.rule')} </span>
+                          {r.code}
+                        </p>
+                        {!hasAmount(group.documentType) ? null : r.band ? (
+                          <>
+                            <p className="flex justify-between gap-4 md:block md:text-right">
+                              <span className="shrink-0 text-ink-muted md:sr-only">{t('ruleHeaders.above')}</span>
+                              <span className="tabular">{lowerCell(r)}</span>
+                            </p>
+                            <p className="flex justify-between gap-4 md:block md:text-right">
+                              <span className="shrink-0 text-ink-muted md:sr-only">{t('ruleHeaders.upTo')}</span>
+                              <span className="tabular">{upperCell(r)}</span>
+                            </p>
+                          </>
+                        ) : (
+                          <p className="md:col-span-2 md:text-right">{t('anyAmount')}</p>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="text-ink-muted md:sr-only">{t('ruleHeaders.approver')}</span>
+                          <span>{words.rulesApprover(r)}</span>
+                          <span className="text-base text-ink-muted md:text-sm">
+                            <span className="md:sr-only">{t('ruleHeaders.sla')} </span>
+                            {words.rulesSla(r)}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
-            </dl>
-          </Section>
-        </div>
+            </Section>
 
-        {submit?.mode === 'NORMAL' && !blocked ? <div className="flex flex-col lg:col-start-2 lg:row-start-2">{sendSection}</div> : null}
-      </div>
-    </div>
+            <Section id="policy" title={t('policyTitle')}>
+              <dl className="grid gap-x-6 gap-y-2 border-y border-line py-3 sm:grid-cols-[minmax(0,1fr)_auto]">
+                {(Object.keys(view.policy) as PolicyField[]).map((field) => (
+                  <div key={field} className="contents">
+                    <dt className="text-ink-muted">{t(`policy.${field}`)}</dt>
+                    <dd className={field === 'stepUpThreshold' ? 'money font-medium' : 'font-medium'}>{words.policyText(field, view.policy[field])}</dd>
+                  </div>
+                ))}
+              </dl>
+            </Section>
+          </div>
+
+          {submit?.mode === 'NORMAL' && !blocked ? <div className="flex flex-col lg:col-start-2 lg:row-start-2">{sendSection}</div> : null}
+        </div>
+      </PageBody>
+    </Page>
   )
 }

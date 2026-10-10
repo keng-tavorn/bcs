@@ -106,16 +106,17 @@ describe('[FR-BUD-005/AC1] [FR-BUD-005/AC2] a department and the total running l
         // next/link writes the address last
         expect(part).toContain(`aria-label="สัดส่วนที่ใช้ของ ${of}" class="tabular self-start text-primary underline underline-offset-4 hover:no-underline" href="${page}#committed">ใช้แล้ว 0.0%</a>`)
         expect(part).toContain(`aria-label="สัดส่วนที่จองของ ${of}" class="tabular self-start text-primary underline underline-offset-4 hover:no-underline" href="${page}#reserved">รวมที่จองแล้ว 91.7%</a>`)
-        // the warning: its icon in the warning colour, then its words, all one link to the movements behind what is left
-        expect(part).toMatch(new RegExp(`<a aria-label="คำเตือนของ ${of}" class="[^"]*underline[^"]*" href="${page.replace(/[?]/g, '\\?')}#movements"><svg[^>]*class="[^"]*text-warn[^"]*"[^>]*>(?:(?!</svg>)[\\s\\S])*</svg><span>ใกล้หมด เหลือ 8\\.3%</span></a>`))
+        // the warning: the badge งบใกล้หมด of §9.10 (warn, the wallet icon, then its words), all one link to the movements
+        // behind what is left
+        expect(part).toMatch(new RegExp(`<a aria-label="คำเตือนของ ${of}" class="[^"]*underline[^"]*" href="${page.replace(/[?]/g, '\\?')}#movements"><span[^>]*data-tone="warn"[^>]*><svg[^>]*data-icon="Wallet"[^>]*>(?:(?!</svg>)[\\s\\S])*</svg>ใกล้หมด เหลือ 8\\.3%</span></a>`))
       }
       // so no share or warning is left as plain text beside the links
       expect(part.match(/>ใช้แล้ว [\d.]+%</g)).toHaveLength(3)
       expect(part.match(/>ใช้แล้ว [\d.]+%<\/a>/g)).toHaveLength(3)
       expect(part.match(/>รวมที่จองแล้ว [\d.]+%<\/a>/g)).toHaveLength(3)
-      expect(part.match(/<span>ใกล้หมด เหลือ 8\.3%<\/span><\/a>/g)).toHaveLength(3)
+      expect(part.match(/<\/svg>ใกล้หมด เหลือ 8\.3%<\/span><\/a>/g)).toHaveLength(3)
       // each warning is a link in the colour of every other link of the page (§9.9 tokens: --primary), never the ink of
-      // plain text; its icon in front keeps the warning's colour (above)
+      // plain text; the badge inside keeps the warning's colours (above)
       const warnings = [...part.matchAll(/<a aria-label="คำเตือนของ [^"]*" class="([^"]*)"/g)].map((m) => m[1]!.split(' '))
       expect(warnings).toHaveLength(3)
       for (const classes of warnings) {
@@ -276,8 +277,8 @@ describe('[FR-BUD-005/AC1] [§9.9] a budget with nothing left says it is used up
   // Plenty left
   const fine: BudgetFiguresDto = { planned: baht('40000.00'), available: baht('32000.00'), reserved: baht('0.00'), committed: baht('8000.00'), actual: baht('0.00'), usedBp: 2_000, heldBp: 2_000, availableBp: 8_000, low: false }
   const row = (f: BudgetFiguresDto, of: string, page: string): FigureView => figureView(t, f, figureLinks(t, f, of, page))
-  /** A warning's words beside its icon, in the tone given */
-  const badge = (tone: string, words: string) => new RegExp(`<svg[^>]*class="[^"]*${tone}[^"]*"[^>]*>(?:(?!</svg>)[\\s\\S])*</svg><span>${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</span>`)
+  /** A warning as the status badge of §9.10: its tone (warn: งบใกล้หมด, danger: งบไม่พอ), the wallet icon, then its words */
+  const badge = (tone: 'warn' | 'danger', words: string) => new RegExp(`<span[^>]*data-tone="${tone}"[^>]*><svg[^>]*data-icon="Wallet"[^>]*>(?:(?!</svg>)[\\s\\S])*</svg>${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}</span>`)
 
   it('words the warning by the amount left: used up at 0.00, running low while a satang is left', () => {
     expect(figureView(t, out, figureLinks(t, out, 'IT-OPEX-2569', '/budgets/l1'))).toMatchObject({ low: 'งบหมด เหลือ 0.00 บาท', out: true })
@@ -299,16 +300,16 @@ describe('[FR-BUD-005/AC1] [§9.9] a budget with nothing left says it is used up
     expect(lowBadge(t, fine, 'IT-OPEX-2569')).toBeNull()
     const html = renderToStaticMarkup(<LowBadge label={header!.label} out={header!.out} link={header!.link} />)
     expect(html).toMatch(/^<a aria-label="งบหมด เหลือ 0\.00 บาท ของ IT-OPEX-2569: ดูความเคลื่อนไหวในบัญชีงบ" class="[^"]*underline[^"]*" href="#movements">/)
-    expect(html).toMatch(badge('text-danger', 'งบหมด เหลือ 0.00 บาท'))
+    expect(html).toMatch(badge('danger', 'งบหมด เหลือ 0.00 บาท'))
     // a link like every other one of the page: its words in --primary (§9.9 tokens), never the ink of plain text
     const linkClasses = /^<a [^>]*class="([^"]*)"/.exec(html)![1]!.split(' ')
     expect(linkClasses).toContain('text-primary')
     expect(linkClasses).not.toContain('text-ink')
-    // the warning running low keeps its triangle in --warn in front of the same link colour
+    // the warning running low is the warn badge inside the same link colour
     const running = renderToStaticMarkup(<LowBadge label="ใกล้หมด เหลือ 8.3%" link={{ href: '/budgets/l1#movements', label: 'ใกล้หมด เหลือ 8.3% ของ IT-OPEX-2569: ดูความเคลื่อนไหวในบัญชีงบ' }} />)
     expect(/^<a [^>]*class="([^"]*)"/.exec(running)![1]!.split(' ')).toContain('text-primary')
-    expect(running).toMatch(badge('text-warn', 'ใกล้หมด เหลือ 8.3%'))
-    expect(running).toContain('lucide-triangle-alert')
+    expect(running).toMatch(badge('warn', 'ใกล้หมด เหลือ 8.3%'))
+    expect(running).toContain('lucide-wallet')
     // without a link it is the words and the icon alone, as before
     expect(renderToStaticMarkup(<LowBadge label="ใกล้หมด เหลือ 8.3%" />)).not.toContain('<a ')
   })
@@ -328,12 +329,12 @@ describe('[FR-BUD-005/AC1] [§9.9] a budget with nothing left says it is used up
     const total: BudgetTotalView = { label: 'รวมทั้งองค์กร', href: '/budgets/total?fy=fy', ...row(fine, 'ทั้งองค์กร', '/budgets/total?fy=fy') }
     const html = renderToStaticMarkup(<BudgetTable departments={[department]} total={total} labels={LABELS} />)
     for (const part of [html.slice(html.indexOf('<table'), html.indexOf('</table>')), html.slice(html.indexOf('</table>'))]) {
-      expect(part).toMatch(badge('text-danger', 'งบหมด เหลือ 0.00 บาท'))
-      expect(part).toMatch(badge('text-warn', 'ใกล้หมด เหลือ 0.0%'))
-      expect(part).not.toMatch(badge('text-warn', 'งบหมด เหลือ 0.00 บาท'))
+      expect(part).toMatch(badge('danger', 'งบหมด เหลือ 0.00 บาท'))
+      expect(part).toMatch(badge('warn', 'ใกล้หมด เหลือ 0.0%'))
+      expect(part).not.toMatch(badge('warn', 'งบหมด เหลือ 0.00 บาท'))
       // one danger bar (the used-up line), one warning bar (the line running low)
-      expect(part.match(/bg-danger/g)).toHaveLength(1)
-      expect(part.match(/bg-warn/g)).toHaveLength(1)
+      expect(part.match(/bg-danger(?!-)/g)).toHaveLength(1)
+      expect(part.match(/bg-warn(?!-)/g)).toHaveLength(1)
     }
   })
 })

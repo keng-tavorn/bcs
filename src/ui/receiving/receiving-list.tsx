@@ -2,13 +2,14 @@
 
 import Link from 'next/link'
 import { useLocale, useTranslations } from 'next-intl'
+import { PO_BADGES, StatusBadge } from '../document/badges'
 import { StateLine } from '../request-view/status'
-import { StatusMark } from './status'
 import { nameIn, type NameView } from './types'
 
 // The POs waiting for goods (spec §9.1 /receiving): each one with its number (a link to receive it), supplier and
-// delivery site, who asked, when it was sent, its status, and how many lines are still to come. Wide screens line the
-// parts up under one header row; phones stack them — never a table that scrolls sideways (§9.9). No amounts: it is the
+// delivery site, who asked, when it was sent, its status as the PO badge of §9.10, and how many lines are still to
+// come. Wide screens line the parts up under one header row; phones stack them — never a table that scrolls sideways
+// (§9.9). No amounts: it is the
 // list of what to receive, and a RECEIVER sees a PO's prices only once po.view covers them (the receiving page decides).
 
 export interface ReceivingRowView {
@@ -32,6 +33,7 @@ const GRID = 'md:grid md:grid-cols-[minmax(0,1.2fr)_minmax(0,1.4fr)_minmax(0,0.9
 /** `blocked`: POs separation of duties refuses the member; the last column then says why */
 export function ReceivingList({ rows, label, blocked = false }: { rows: readonly ReceivingRowView[]; label: string; blocked?: boolean }) {
   const t = useTranslations('receiving')
+  const td = useTranslations('document.badge')
   const locale = useLocale()
   return (
     <div className="flex flex-col">
@@ -41,7 +43,7 @@ export function ReceivingList({ rows, label, blocked = false }: { rows: readonly
         <span>{t('list.columns.status')}</span>
         <span>{blocked ? t('list.columns.why') : t('list.columns.outstanding')}</span>
       </div>
-      <ul aria-label={label} className="flex flex-col divide-y divide-line border-b border-line">
+      <ul aria-label={label} className="flex flex-col divide-y divide-line">
         {rows.map((row) => {
           const number = row.number ?? t('list.noNumber')
           return (
@@ -65,7 +67,7 @@ export function ReceivingList({ rows, label, blocked = false }: { rows: readonly
               </div>
               <div>
                 <span className="sr-only">{t('list.columns.status')}: </span>
-                <StatusMark of="po" status={row.status} label={t(`status.po.${row.status}`)} />
+                <StatusBadge look={PO_BADGES[row.status]} label={td(`po.${row.status}`)} className="text-base md:text-sm" />
               </div>
               <div className="flex flex-col">
                 <span className="sr-only">{blocked ? t('list.columns.why') : t('list.columns.outstanding')}: </span>

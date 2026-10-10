@@ -7,6 +7,7 @@ import { settle } from '../admin-settings/outcome'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
+import { Panel } from '../page/page'
 import { GrantState, type GrantStateName } from './badges'
 import { grantErrorKey, type GrantOutcome } from './outcome'
 
@@ -123,11 +124,8 @@ export function GrantLists({ current, past, revoke }: { current: readonly GrantR
   const t = useTranslations('budgets.grants')
   const [done, setDone] = useState<string | null>(null)
   return (
-    <div className="flex flex-col gap-8">
-      <section aria-labelledby="grants-current" className="flex flex-col gap-4">
-        <h2 id="grants-current" className="text-xl font-semibold">
-          {t('currentTitle')}
-        </h2>
+    <div className="flex flex-col gap-4 lg:gap-6">
+      <Panel title={t('currentTitle')} id="grants-current">
         {done ? <Notice tone="success">{done}</Notice> : null}
         {current.length === 0 ? (
           <p className="text-ink-muted">{t('currentEmpty')}</p>
@@ -138,11 +136,8 @@ export function GrantLists({ current, past, revoke }: { current: readonly GrantR
             ))}
           </ul>
         )}
-      </section>
-      <section aria-labelledby="grants-past" className="flex flex-col gap-4 border-t border-line pt-6">
-        <h2 id="grants-past" className="text-xl font-semibold">
-          {t('pastTitle')}
-        </h2>
+      </Panel>
+      <Panel title={t('pastTitle')} id="grants-past">
         {past.length === 0 ? (
           <p className="text-ink-muted">{t('pastEmpty')}</p>
         ) : (
@@ -152,7 +147,7 @@ export function GrantLists({ current, past, revoke }: { current: readonly GrantR
             ))}
           </ul>
         )}
-      </section>
+      </Panel>
     </div>
   )
 }

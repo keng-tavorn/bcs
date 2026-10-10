@@ -8,6 +8,7 @@ import { memberPrincipal } from '@/server/authz'
 import { getRequestAccess } from '@/server/queries/requests'
 import { getRequestForEdit } from '@/server/services/requests/form-view'
 import { Notice } from '@/ui/form/notice'
+import { Page, PageHeader } from '@/ui/page/page'
 import { RequestForm } from '@/ui/request-form/request-form'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
@@ -40,13 +41,15 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
     // The service names the status: a cancelled request says so, as it may never have been sent (DRAFT → CANCELLED, §6.4)
     const cancelled = result.error.details?.status === 'CANCELLED'
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{cancelled ? t('cancelledTitle') : t('sentTitle')}</h1>
-        <Notice tone="info">{cancelled ? t('cancelled') : t('sent')}</Notice>
-        <Link href={`/requests/${id}`} className={link}>
-          {t('openRequest')}
-        </Link>
-      </div>
+      <Page>
+        <PageHeader title={cancelled ? t('cancelledTitle') : t('sentTitle')} />
+        <div className="flex max-w-2xl flex-col gap-3">
+          <Notice tone="info">{cancelled ? t('cancelled') : t('sent')}</Notice>
+          <Link href={`/requests/${id}`} className={link}>
+            {t('openRequest')}
+          </Link>
+        </div>
+      </Page>
     )
   }
   if (!result.ok) {
@@ -54,35 +57,38 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
     const access = await getRequestAccess(ctx, id)
     const refusal = access ? editRefusal(memberPrincipal(state.member.id, state.roles), access) : ({ who: 'NONE', canOpen: false } as const)
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{refusal.who === 'REQUESTER' ? t('lostEditTitle') : t('notYoursTitle')}</h1>
-        <Notice tone="warning">{refusal.who === 'REQUESTER' ? t('lostEdit') : refusal.who === 'VIEWER' ? t('viewOnly') : t('noAccess')}</Notice>
-        {refusal.canOpen ? (
-          <Link href={`/requests/${id}`} className={link}>
-            {t('openRequest')}
-          </Link>
-        ) : (
-          <Link href="/" className={link}>
-            {t('home')}
-          </Link>
-        )}
-      </div>
+      <Page>
+        <PageHeader title={refusal.who === 'REQUESTER' ? t('lostEditTitle') : t('notYoursTitle')} />
+        <div className="flex max-w-2xl flex-col gap-3">
+          <Notice tone="warning">{refusal.who === 'REQUESTER' ? t('lostEdit') : refusal.who === 'VIEWER' ? t('viewOnly') : t('noAccess')}</Notice>
+          {refusal.canOpen ? (
+            <Link href={`/requests/${id}`} className={link}>
+              {t('openRequest')}
+            </Link>
+          ) : (
+            <Link href="/" className={link}>
+              {t('home')}
+            </Link>
+          )}
+        </div>
+      </Page>
     )
   }
+  // The form is a step-by-step screen of its own, with its title and the way out at its top (RequestForm)
   return (
-      <RequestForm
-        data={result.data}
-        locale={screen}
-        autosaveUrl="/requests/new/autosave"
-        actions={{
-          preview: previewRequestAction,
-          attach: attachFileAction,
-          detach: detachFileAction,
-          submit: submitRequestAction,
-          requestUpload: requestUploadAction,
-          completeUpload: completeUploadAction,
-          downloadUrl: downloadUrlAction,
-        }}
-      />
+    <RequestForm
+      data={result.data}
+      locale={screen}
+      autosaveUrl="/requests/new/autosave"
+      actions={{
+        preview: previewRequestAction,
+        attach: attachFileAction,
+        detach: detachFileAction,
+        submit: submitRequestAction,
+        requestUpload: requestUploadAction,
+        completeUpload: completeUploadAction,
+        downloadUrl: downloadUrlAction,
+      }}
+    />
   )
 }

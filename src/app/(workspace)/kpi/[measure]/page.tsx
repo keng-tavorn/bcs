@@ -6,6 +6,7 @@ import { KPI_LISTS, kpiDetail, type KpiList } from '@/server/services/reports/sc
 import { daysInPeriod } from '@/ui/insight/format'
 import { KpiItems } from '@/ui/insight/kpi-items'
 import { EmptyState, Refused } from '@/ui/insight/refused'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { linkRights } from '../../board/_rights'
 import { periodFrom } from '../../reports/_present'
@@ -40,11 +41,15 @@ export default async function KpiItemsPage({ params, searchParams }: { params: P
   )
   if (!(KPI_LISTS as readonly string[]).includes(measure)) {
     return (
-      <div className="flex max-w-3xl flex-col gap-6">
+      <Page>
         {backLink}
-        <h1 className="text-2xl font-semibold">{t('items.metaTitle')}</h1>
-        <EmptyState title={t('items.unknown')} hint={t('items.unknownHint')} href={back} linkLabel={t('items.back')} />
-      </div>
+        <PageHeader title={t('items.metaTitle')} />
+        <PageBody>
+          <Panel>
+            <EmptyState title={t('items.unknown')} hint={t('items.unknownHint')} href={back} linkLabel={t('items.back')} />
+          </Panel>
+        </PageBody>
+      </Page>
     )
   }
   const m = measure as KpiList
@@ -58,20 +63,22 @@ export default async function KpiItemsPage({ params, searchParams }: { params: P
   const items = kpiItemViews(t, tl, locale, m, d.items, linkRights(state.member.id, state.roles))
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <Page>
       {backLink}
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{name}</h1>
-        <p className="text-ink-muted">{formula}</p>
+      <PageHeader title={name} intro={formula}>
         <p className="font-medium text-ink">{t('periodLine', { from: dayText(locale, period.from), to: dayText(locale, period.to), days: daysInPeriod(period.from, period.to) })}</p>
         <p className="text-ink">{detailSentence(t, d)}</p>
         {cappedSentence(t, d) ? <p className="text-base text-ink-muted md:text-sm">{cappedSentence(t, d)}</p> : null}
-      </div>
-      {items.length === 0 ? (
-        <EmptyState title={t('items.none')} hint={t('items.noneHint')} href={back} linkLabel={t('items.back')} />
-      ) : (
-        <KpiItems items={items} label={t('items.listLabel', { name })} />
-      )}
-    </div>
+      </PageHeader>
+      <PageBody>
+        <Panel className="max-w-4xl">
+          {items.length === 0 ? (
+            <EmptyState title={t('items.none')} hint={t('items.noneHint')} href={back} linkLabel={t('items.back')} />
+          ) : (
+            <KpiItems items={items} label={t('items.listLabel', { name })} />
+          )}
+        </Panel>
+      </PageBody>
+    </Page>
   )
 }

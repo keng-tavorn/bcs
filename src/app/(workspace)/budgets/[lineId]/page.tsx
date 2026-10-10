@@ -10,6 +10,7 @@ import { LineStatusBadge, LowBadge } from '@/ui/budgets/badges'
 import { LineFigures } from '@/ui/budgets/line-detail'
 import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
+import { Page, PageBody, PageHeader } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { BudgetDocumentSections } from '../_documents'
 import { figureStrip, localeOf, lowBadge, nameIn, shareStrip } from '../_present'
@@ -51,28 +52,30 @@ export default async function BudgetLinePage({ params }: { params: Promise<{ lin
   const low = lowBadge(t, line, line.code)
 
   return (
-    <div className="flex flex-col gap-8">
+    <Page>
       <Link href={`/budgets?fy=${line.fiscalYear.id}`} className={linkClass}>
         {t('back')}
       </Link>
 
-      <header className="flex max-w-4xl flex-col gap-2">
-        <p className="font-medium text-ink-muted">{line.code}</p>
-        <h1 className="text-2xl font-semibold break-words">{line.nameTh}</h1>
+      <PageHeader title={line.nameTh}>
+        {/* The code under the name, never a small label above the title (§9.10) */}
+        <p className="font-medium text-ink">{line.code}</p>
         <p className="text-ink">{t('line.facts', { department: nameIn(locale, line.department), costCenter: line.costCenter.code, fiscalYear: line.fiscalYear.code })}</p>
         {line.accountCode ? <p className="text-ink-muted">{t('line.account', { code: line.accountCode })}</p> : null}
         {low || line.status !== 'OPEN' ? (
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
             {low ? <LowBadge label={low.label} out={low.out} link={low.link} /> : null}
             {line.status !== 'OPEN' ? <LineStatusBadge status={line.status} label={t(`status.${line.status}`)} /> : null}
           </div>
         ) : null}
         <p className="text-ink-muted">{t('asOf', { time: formatDateTime(locale, d.asOf) })}</p>
-      </header>
+      </PageHeader>
 
-      <LineFigures title={t('line.figuresTitle')} figures={figureStrip(t, line, line.code)} shares={shareStrip(t, line, line.code)} unit={t('unit')} />
+      <PageBody>
+        <LineFigures title={t('line.figuresTitle')} figures={figureStrip(t, line, line.code)} shares={shareStrip(t, line, line.code)} unit={t('unit')} />
 
-      <BudgetDocumentSections t={t} locale={locale} docs={d} many={false} />
-    </div>
+        <BudgetDocumentSections t={t} locale={locale} docs={d} many={false} />
+      </PageBody>
+    </Page>
   )
 }

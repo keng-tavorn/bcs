@@ -7,6 +7,7 @@ import { GrantForm } from '@/ui/budgets/grant-form'
 import { GrantLists, type GrantRowView } from '@/ui/budgets/grant-lists'
 import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { dayText, localeOf, nameIn, type Locale } from '../_present'
 import { createBudgetGrantAction, revokeBudgetGrantAction } from './actions'
@@ -62,43 +63,39 @@ export default async function BudgetGrantsPage() {
   const v = view.data
 
   return (
-    <div className="flex flex-col gap-8">
+    <Page>
       <Link href="/budgets" className={linkClass}>
         {tb('back')}
       </Link>
-      <div className="flex max-w-3xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-ink-muted">{t('intro')}</p>
-      </div>
+      <PageHeader title={t('title')} intro={t('intro')} />
 
-      <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-x-12">
-        <section aria-labelledby="grant-form" className="flex flex-col gap-4 lg:col-start-2 lg:row-start-1">
-          <h2 id="grant-form" className="text-xl font-semibold">
-            {t('formTitle')}
-          </h2>
-          <GrantForm
-            lines={v.lines.map((l) => ({ id: l.id, code: l.code, label: t('lineOption', { code: l.code, name: l.nameTh, department: nameIn(locale, l.department) }), departmentId: l.departmentId, fiscalYearEnds: l.fiscalYearEnds }))}
-            departments={v.departments.map((d) => ({ id: d.id, name: nameIn(locale, d.name), label: t('departmentOption', { name: nameIn(locale, d.name), code: d.code }) }))}
-            members={v.members.map((m) => {
-              const name = nameIn(locale, m.name)
-              const department = m.department ? nameIn(locale, m.department) : null
-              const label = m.employeeCode
-                ? department
-                  ? t('memberOption', { name, code: m.employeeCode, department })
-                  : t('memberOptionShort', { name, code: m.employeeCode })
-                : department
-                  ? `${name} · ${department}`
-                  : name
-              return { id: m.id, name, label }
-            })}
-            today={v.today}
-            create={createBudgetGrantAction}
-          />
-        </section>
-        <div className="lg:col-start-1 lg:row-start-1">
-          <GrantLists current={v.current.map((g) => rowView(t, locale, g))} past={v.past.map((g) => rowView(t, locale, g))} revoke={revokeBudgetGrantAction} />
+      <PageBody>
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-6">
+          <Panel title={t('formTitle')} id="grant-form" className="lg:col-start-2 lg:row-start-1">
+            <GrantForm
+              lines={v.lines.map((l) => ({ id: l.id, code: l.code, label: t('lineOption', { code: l.code, name: l.nameTh, department: nameIn(locale, l.department) }), departmentId: l.departmentId, fiscalYearEnds: l.fiscalYearEnds }))}
+              departments={v.departments.map((d) => ({ id: d.id, name: nameIn(locale, d.name), label: t('departmentOption', { name: nameIn(locale, d.name), code: d.code }) }))}
+              members={v.members.map((m) => {
+                const name = nameIn(locale, m.name)
+                const department = m.department ? nameIn(locale, m.department) : null
+                const label = m.employeeCode
+                  ? department
+                    ? t('memberOption', { name, code: m.employeeCode, department })
+                    : t('memberOptionShort', { name, code: m.employeeCode })
+                  : department
+                    ? `${name} · ${department}`
+                    : name
+                return { id: m.id, name, label }
+              })}
+              today={v.today}
+              create={createBudgetGrantAction}
+            />
+          </Panel>
+          <div className="lg:col-start-1 lg:row-start-1">
+            <GrantLists current={v.current.map((g) => rowView(t, locale, g))} past={v.past.map((g) => rowView(t, locale, g))} revoke={revokeBudgetGrantAction} />
+          </div>
         </div>
-      </div>
-    </div>
+      </PageBody>
+    </Page>
   )
 }

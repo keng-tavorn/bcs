@@ -6,6 +6,7 @@ import { INSIGHT_LISTS, insightsList, type InsightList } from '@/server/services
 import { daysInPeriod } from '@/ui/insight/format'
 import { KpiItems } from '@/ui/insight/kpi-items'
 import { EmptyState, Refused } from '@/ui/insight/refused'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { linkRights } from '../../board/_rights'
 import { channelText, dayText, itemViews, listTitle, queryOf } from '../_present'
@@ -28,13 +29,17 @@ export default async function InsightListPage({ params, searchParams }: { params
   const [t, locale, { list }, sp] = await Promise.all([getTranslations('insights'), getLocale(), params, searchParams])
   if (!(INSIGHT_LISTS as readonly string[]).includes(list)) {
     return (
-      <div className="flex max-w-3xl flex-col gap-6">
+      <Page>
         <Link href="/insights" className={linkClass}>
           {t('list.back')}
         </Link>
-        <h1 className="text-2xl font-semibold">{t('list.metaTitle')}</h1>
-        <EmptyState title={t('list.unknown')} hint={t('list.noneHint')} href="/insights" linkLabel={t('list.back')} />
-      </div>
+        <PageHeader title={t('list.metaTitle')} />
+        <PageBody>
+          <Panel>
+            <EmptyState title={t('list.unknown')} hint={t('list.noneHint')} href="/insights" linkLabel={t('list.back')} />
+          </Panel>
+        </PageBody>
+      </Page>
     )
   }
   const result = await insightsList(ctx, sp, list)
@@ -49,20 +54,23 @@ export default async function InsightListPage({ params, searchParams }: { params
   const items = itemViews(t, locale, d.items, linkRights(state.member.id, state.roles))
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
+    <Page>
       <Link href={back} className={linkClass}>
         {t('list.back')}
       </Link>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+      <PageHeader title={title}>
         <p className="font-medium text-ink">
           {t('periodLine', { from: dayText(locale, d.filters.from), to: dayText(locale, d.filters.to), days: daysInPeriod(d.filters.from, d.filters.to) })}
           {department ? ` · ${locale === 'en' ? (department.nameEn ?? department.nameTh) : department.nameTh}` : ''}
         </p>
         <p className="text-ink">{t('list.total', { count: d.total })}</p>
         {d.total > d.items.length ? <p className="text-base text-ink-muted md:text-sm">{t('list.capped', { shown: d.items.length, total: d.total })}</p> : null}
-      </div>
-      {items.length === 0 ? <EmptyState title={t('list.none')} hint={t('list.noneHint')} href={back} linkLabel={t('list.back')} /> : <KpiItems items={items} label={title} />}
-    </div>
+      </PageHeader>
+      <PageBody>
+        <Panel className="max-w-4xl">
+          {items.length === 0 ? <EmptyState title={t('list.none')} hint={t('list.noneHint')} href={back} linkLabel={t('list.back')} /> : <KpiItems items={items} label={title} />}
+        </Panel>
+      </PageBody>
+    </Page>
   )
 }

@@ -6,6 +6,7 @@ import { useState, type FormEvent, type ReactNode } from 'react'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
+import { Panel } from '../page/page'
 import { checkboxClass, Choices, describedBy, inputClass, Labelled, textareaClass } from '../request-form/controls'
 import { ConfirmRemove } from '../request-form/confirm-remove'
 import { looksLikeEmail, optionalText, SUPPLIER_LIMITS } from './model'
@@ -16,7 +17,8 @@ import type { SupplierEditInput, SupplierStatus } from './types'
 // its Express vendor code (BR-EXP-04) and contacts — each with a button that says what it saves, and the supplier's
 // status. Every save names the version it was based on (§6.1): a save after someone else's is refused with a way to
 // load the latest. Deactivating asks first and says what follows; activating again needs no question. The tax id,
-// branch and registry check are not edited here: they were checked against the registries (BR-SUP-01).
+// branch and registry check are not edited here: they were checked against the registries (BR-SUP-01). Each part is a
+// white card of the page's frame (S16-10), named by its title.
 
 export interface SupplierManageActions {
   readonly update: (input: SupplierEditInput, idempotencyKey: string) => Promise<SupplierOutcome<{ version: number }>>
@@ -94,13 +96,10 @@ function ResultNotice({ result }: { result: Result }) {
 
 function Part({ id, title, hint, children }: { id: string; title: string; hint?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="flex flex-col gap-4 border-t border-line pt-5">
-      <h2 id={id} className="text-lg font-semibold text-ink">
-        {title}
-      </h2>
+    <Panel id={id} title={title}>
       {hint ? <p className="text-ink-muted">{hint}</p> : null}
       {children}
-    </section>
+    </Panel>
   )
 }
 
@@ -109,7 +108,7 @@ export function SupplierManage({ supplier, actions }: SupplierManageProps) {
   const [version, setVersion] = useState(supplier.version)
   // The container the question of "ปิดใช้งานผู้ขาย" splits by (src/ui/request-form/confirm-remove.tsx)
   return (
-    <div className="@container flex flex-col gap-8">
+    <div className="@container flex flex-col gap-4 lg:gap-6">
       <DetailsForm supplier={supplier} version={version} onSaved={setVersion} actions={actions} />
       <CodesForm supplier={supplier} version={version} onSaved={setVersion} actions={actions} />
       <StatusPart supplier={supplier} version={version} onSaved={setVersion} actions={actions} />

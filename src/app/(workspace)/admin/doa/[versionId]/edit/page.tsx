@@ -6,7 +6,8 @@ import { ctxFromSession } from '@/server/auth/session'
 import { getDoaEditor } from '@/server/services/doa/editor'
 import { DoaEditor } from '@/ui/admin-doa/editor'
 import { versionLook } from '@/ui/admin-doa/version-status'
-import { Notice } from '@/ui/form/notice'
+import { NoAccess } from '@/ui/admin-settings/no-access'
+import { Page, PageBody, PageHeader } from '@/ui/page/page'
 import { getSession } from '../../../../../_lib/session'
 import { saveDoaDraftAction } from '../../actions'
 
@@ -28,44 +29,35 @@ export default async function DoaEditPage({ params }: { params: Promise<{ versio
   if (!ctx) return null
   const result = await getDoaEditor(ctx, versionId)
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
-  if (!result.ok) {
-    return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <Notice tone="danger">{t('forbidden')}</Notice>
-        <Link href="/" className={`${linkClass} self-start`}>
-          {t('homeLink')}
-        </Link>
-      </div>
-    )
-  }
+  if (!result.ok) return <NoAccess title={t('title')} message={t('forbidden')} homeLabel={t('homeLink')} />
   const view = result.data
   const source = view.source
   const sourceName = t('versionName', { code: source.code, version: source.versionNo })
   const draftName = t('versionName', { code: source.code, version: view.nextVersionNo })
 
   return (
-    <div className="flex max-w-6xl flex-col gap-8">
-      <Link href={`/admin/doa/${source.id}`} className={`${linkClass} self-start`}>
+    <Page>
+      <Link href={`/admin/doa/${source.id}`} className={`${linkClass} -mb-4 self-start`}>
         {t('editor.back', { name: sourceName })}
       </Link>
-      <div className="flex max-w-3xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('editor.pageTitle', { name: draftName })}</h1>
-        <p className="text-ink-muted">{t('editor.pageIntro', { source: sourceName, status: t(`status.${versionLook(source)}`), name: draftName })}</p>
-      </div>
-      <DoaEditor
-        sourceVersionId={source.id}
-        code={source.code}
-        sourceVersionNo={source.versionNo}
-        nextVersionNo={view.nextVersionNo}
-        defaultEffectiveDate={view.defaultEffectiveDate}
-        minEffectiveDate={view.minEffectiveDate}
-        policy={view.policy}
-        rules={view.rules}
-        positions={view.positions}
-        members={view.members}
-        save={saveDoaDraftAction}
-      />
-    </div>
+      <PageHeader title={t('editor.pageTitle', { name: draftName })} intro={t('editor.pageIntro', { source: sourceName, status: t(`status.${versionLook(source)}`), name: draftName })} />
+      <PageBody>
+        <div className="flex max-w-6xl min-w-0 flex-col">
+          <DoaEditor
+            sourceVersionId={source.id}
+            code={source.code}
+            sourceVersionNo={source.versionNo}
+            nextVersionNo={view.nextVersionNo}
+            defaultEffectiveDate={view.defaultEffectiveDate}
+            minEffectiveDate={view.minEffectiveDate}
+            policy={view.policy}
+            rules={view.rules}
+            positions={view.positions}
+            members={view.members}
+            save={saveDoaDraftAction}
+          />
+        </div>
+      </PageBody>
+    </Page>
   )
 }

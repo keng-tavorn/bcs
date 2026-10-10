@@ -1703,6 +1703,7 @@
       "allTypes": "All kinds",
       "clear": "Clear filters",
       "department": "Holder's department",
+      "label": "Board filters",
       "submit": "Apply filters",
       "type": "Kind of document"
     },
@@ -2867,6 +2868,8 @@
     },
     "invoices": {
       "clearSearch": "Clear the search",
+      "filterCount": "{count, plural, one {# PO waits} other {# POs wait}} for an invoice",
+      "filterLabel": "Search POs and invoices",
       "intro": "Record the tax invoices suppliers send for their purchase orders. The amount is shared over the order's lines and the budget moves from held to actual.",
       "limited": "Showing the first {shown}. Search a PO number or supplier to see others.",
       "metaTitle": "Confirm invoices",
@@ -3368,6 +3371,7 @@
       }
     },
     "periodInvalid": "The chosen period cannot be used (it must start on or before its last day), so the last {days} days are shown instead.",
+    "periodLabel": "The KPI period",
     "periodLine": "{from} to {to} ({days, plural, one {# day} other {# days}})",
     "show": "Show this period",
     "stepsLinkLabel": "See every step assigned in the period: {name} {detail}",
@@ -3987,6 +3991,7 @@
       "submitting": "Saving…",
       "title": "Step 2 of 2: set the new PIN"
     },
+    "setupLabel": "Set or change the PIN",
     "status": {
       "attemptsLeft": "{count, plural, one {# more wrong PIN locks it for a while.} other {# more wrong PINs lock it for a while.}}",
       "locked": "Your PIN is locked until {time} after too many wrong tries in a row.",
@@ -4480,6 +4485,7 @@
       "empty": "No purchase orders yet",
       "emptyHint": "Purchase orders come from approved requests put together in the procurement pool.",
       "emptyLink": "Go to the procurement pool",
+      "filterLabel": "Search and filter purchase orders",
       "forbidden": "This page is for procurement. If you think you should open it, contact your organization's administrator.",
       "homeLink": "Back to home",
       "intro": "Every purchase order of the organization, the ones changed last at the top, each with whom it waits for.",
@@ -6027,6 +6033,7 @@
         "allStatuses": "All statuses",
         "clear": "Clear filters",
         "count": "{matched} of {total} found",
+        "label": "Supplier filters",
         "limited": "Showing the first {shown}. Search by name or code to find the others",
         "missingExpress": "Only those without an Express vendor code",
         "search": "Search suppliers",
@@ -6297,10 +6304,16 @@
     },
     "filter": {
       "all": "See all my approval tasks",
+      "allTasks": "All tasks",
+      "due": "Show",
       "emptyInfo": "No task waits for a requester's answer",
       "emptyOverdue": "No task is overdue",
       "info": "{count, plural, one {# task waits} other {# tasks wait}} for the requester's answer",
-      "overdue": "{count, plural, one {# overdue task} other {# overdue tasks}}"
+      "label": "Task filters",
+      "optionInfo": "Waiting for the requester's answer",
+      "optionOverdue": "Overdue",
+      "overdue": "{count, plural, one {# overdue task} other {# overdue tasks}}",
+      "submit": "Show matching tasks"
     },
     "intro": "Tasks waiting for your decision, the ones due first at the top",
     "item": {

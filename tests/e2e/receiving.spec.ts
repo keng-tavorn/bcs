@@ -173,7 +173,7 @@ test('[FR-P2P-006/AC1] [FR-P2P-006/AC2] @demo scene 8 — on site with a phone t
   // What waits for goods: this PO, with nothing received yet and no amounts (a RECEIVER sees quantities)
   await receivingListWithNewest(page)
   const row = page.getByRole('list', { name: 'ใบสั่งซื้อรอตรวจรับ' }).getByRole('listitem').filter({ hasText: s.number })
-  await expect(row).toContainText('ส่งให้ผู้ขายแล้ว รอของ')
+  await expect(row).toContainText('ส่งผู้ขายแล้ว')
   await expect(row).toContainText('ค้างรับ 3 จาก 3 รายการ')
   await expect(row).toContainText(`${s.requestNumber} ขอโดย ผู้ขอ ทดสอบตรวจรับ · ฝ่ายก่อสร้าง`)
   await check(page, testInfo, 'receiving-list')

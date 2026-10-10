@@ -7,7 +7,8 @@ import { getInvoicePoView, type InvoicePoViewDto } from '@/server/services/invoi
 import { InvoiceForm } from '@/ui/finance/invoice-form'
 import { InvoiceList } from '@/ui/finance/invoice-list'
 import { Notice } from '@/ui/form/notice'
-import { PoStatus } from '@/ui/purchase-order/status'
+import { PO_BADGES, StatusBadge } from '@/ui/document/badges'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
 import { HEAD_OFFICE } from '@/ui/suppliers/model'
 import { downloadUrlAction } from '../../../../_lib/file-actions'
@@ -72,18 +73,20 @@ export default async function InvoicePoPage({ params }: { params: Promise<{ poId
   const { poId } = await params
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, locale] = await Promise.all([getTranslations('finance'), getLocale().then(localeOf)])
+  const [t, td, locale] = await Promise.all([getTranslations('finance'), getTranslations('document.badge'), getLocale().then(localeOf)])
   const result = await getInvoicePoView(ctx, poId)
   if (!result.ok) {
     if (result.error.code === 'NOT_FOUND') notFound()
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('forbiddenTitle')}</h1>
-        <Notice tone="warning">{t('forbiddenHint')}</Notice>
-        <Link href="/" className={linkClass}>
-          {t('home')}
-        </Link>
-      </div>
+      <Page>
+        <PageHeader title={t('forbiddenTitle')} />
+        <div className="flex max-w-2xl flex-col gap-4">
+          <Notice tone="warning">{t('forbiddenHint')}</Notice>
+          <Link href="/" className={linkClass}>
+            {t('home')}
+          </Link>
+        </div>
+      </Page>
     )
   }
   const po = result.data
@@ -96,10 +99,7 @@ export default async function InvoicePoPage({ params }: { params: Promise<{ poId
 
   /** The invoices recorded on the PO: beside the form while it takes invoices, the main content once it does not */
   const invoicesSection = (side: boolean) => (
-    <section aria-labelledby="po-invoices" className="flex flex-col gap-2">
-      <h2 id="po-invoices" className="text-lg font-semibold text-ink">
-        {t('po.invoicesTitle')}
-      </h2>
+    <Panel title={t('po.invoicesTitle')} id="po-invoices">
       {po.invoices.length ? (
         <InvoiceList
           rows={po.invoices.map((inv) => ({
@@ -130,18 +130,17 @@ export default async function InvoicePoPage({ params }: { params: Promise<{ poId
       ) : (
         <StateLine kind="waiting">{t('po.noInvoices')}</StateLine>
       )}
-    </section>
+    </Panel>
   )
 
   return (
-    <div className="flex flex-col gap-6">
+    <Page>
       <Link href="/finance/invoices" className={linkClass}>
         {t('po.back')}
       </Link>
 
-      <header className="flex max-w-4xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold break-words">{t('po.title', { number })}</h1>
-        <PoStatus status={po.status} label={t(`poStatus.${po.status as 'SENT'}`)} />
+      <PageHeader title={t('po.title', { number })}>
+        <StatusBadge look={PO_BADGES[po.status]} label={td(`po.${po.status}` as 'po.DRAFT')} className="self-start text-base md:text-sm" />
         <div className="flex flex-col text-ink-muted">
           <span className="break-words text-ink">{t('supplierWithCode', { name: supplierName, code: po.supplier.code })}</span>
           <span className="break-words">
@@ -156,97 +155,92 @@ export default async function InvoicePoPage({ params }: { params: Promise<{ poId
         <Link href={`/procurement/pos/${po.id}`} className={linkClass}>
           {t('po.openPo', { number })}
         </Link>
-      </header>
+      </PageHeader>
 
-      <Blocked po={po} t={t} locale={locale} />
+      <PageBody>
+        <Blocked po={po} t={t} locale={locale} />
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-6">
-          {/* Kept in the same place whatever the PO's state, so its confirmation stays after the page refreshes */}
-          <InvoiceForm
-            poId={po.id}
-            open={open}
-            supplier={{ name: supplierName, taxId, branch: po.supplier.branchCode }}
-            vatRate={rate}
-            etaxUrl={`/finance/invoices/${po.id}/etax`}
-            listHref="/finance/invoices"
-            actions={{ preview: previewInvoiceAction, record: recordInvoiceAction }}
-          />
-          {/* A PO that takes no more invoices: what was recorded is the page's main content */}
-          {open ? null : invoicesSection(false)}
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-6">
+          <div className="flex min-w-0 flex-col gap-4 lg:gap-6">
+            {/* Kept in the same place whatever the PO's state, so its confirmation stays after the page refreshes */}
+            <Panel>
+              <InvoiceForm
+                poId={po.id}
+                open={open}
+                supplier={{ name: supplierName, taxId, branch: po.supplier.branchCode }}
+                vatRate={rate}
+                etaxUrl={`/finance/invoices/${po.id}/etax`}
+                listHref="/finance/invoices"
+                actions={{ preview: previewInvoiceAction, record: recordInvoiceAction }}
+              />
+            </Panel>
+            {/* A PO that takes no more invoices: what was recorded is the page's main content */}
+            {open ? null : invoicesSection(false)}
+          </div>
+
+          <aside className="flex min-w-0 flex-col gap-4 lg:gap-6">
+            <Panel title={t('po.figuresTitle')} id="po-figures">
+              <dl className="flex flex-col divide-y divide-line border-y border-line">
+                <Figure label={t('po.net')} value={money(po.totals.netSatang)} />
+                <Figure label={rate ? t('po.vatRate', { rate }) : t('po.vat')} value={money(po.totals.vatSatang)} />
+                <Figure label={t('po.gross')} value={money(po.totals.grossSatang)} strong />
+                <Figure label={t('po.received')} value={money(po.receivedSatang)} />
+                <Figure label={t('po.invoiced')} value={money(po.invoicedSatang)} />
+                <Figure label={t('po.held')} value={money(po.heldSatang)} strong />
+              </dl>
+              <p className="text-base text-ink-muted md:text-sm">{t('po.figuresHint')}</p>
+            </Panel>
+
+            <Panel title={t('po.budgetTitle')} id="po-budget">
+              <p className="text-base text-ink-muted md:text-sm">{t('po.budgetHint')}</p>
+              <ul aria-label={t('po.budgetTitle')} className="flex flex-col divide-y divide-line border-y border-line">
+                {budget.map((b) => (
+                  <li key={b.id} className="flex flex-col gap-1 py-2">
+                    <span className="break-words font-medium text-ink">{b.text}</span>
+                    <dl className="flex flex-col">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-ink-muted">{t('po.committed')}</dt>
+                        <dd className="money text-ink">{money(b.committed)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-ink-muted">{t('po.actual')}</dt>
+                        <dd className="money text-ink">{money(b.actual)}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+
+            <Panel title={t('po.linesTitle')} id="po-lines">
+              <ul aria-label={t('po.linesTitle')} className="flex flex-col divide-y divide-line border-y border-line">
+                {po.lines.map((l) => (
+                  <li key={l.id} className="flex flex-col gap-1 py-2">
+                    <span className="break-words font-medium text-ink">{l.description}</span>
+                    <span className="text-base text-ink-muted md:text-sm">{t('po.lineQuantities', { ordered: l.quantity, received: l.receivedQuantity, uom: l.uom })}</span>
+                    <dl className="flex flex-col">
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-ink-muted">{t('po.lineAmount')}</dt>
+                        <dd className="money text-ink">{money(l.netSatang)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-ink-muted">{t('po.lineInvoiced')}</dt>
+                        <dd className="money text-ink">{money(l.invoicedSatang)}</dd>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-4">
+                        <dt className="text-ink-muted">{t('po.lineHeld')}</dt>
+                        <dd className="money font-semibold text-ink">{money(l.committedSatang)}</dd>
+                      </div>
+                    </dl>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+
+            {open ? invoicesSection(true) : null}
+          </aside>
         </div>
-
-        <aside className="flex min-w-0 flex-col gap-8">
-          <section aria-labelledby="po-figures" className="flex flex-col gap-2">
-            <h2 id="po-figures" className="text-lg font-semibold text-ink">
-              {t('po.figuresTitle')}
-            </h2>
-            <dl className="flex flex-col divide-y divide-line border-y border-line">
-              <Figure label={t('po.net')} value={money(po.totals.netSatang)} />
-              <Figure label={rate ? t('po.vatRate', { rate }) : t('po.vat')} value={money(po.totals.vatSatang)} />
-              <Figure label={t('po.gross')} value={money(po.totals.grossSatang)} strong />
-              <Figure label={t('po.received')} value={money(po.receivedSatang)} />
-              <Figure label={t('po.invoiced')} value={money(po.invoicedSatang)} />
-              <Figure label={t('po.held')} value={money(po.heldSatang)} strong />
-            </dl>
-            <p className="text-base text-ink-muted md:text-sm">{t('po.figuresHint')}</p>
-          </section>
-
-          <section aria-labelledby="po-budget" className="flex flex-col gap-2">
-            <h2 id="po-budget" className="text-lg font-semibold text-ink">
-              {t('po.budgetTitle')}
-            </h2>
-            <p className="text-base text-ink-muted md:text-sm">{t('po.budgetHint')}</p>
-            <ul aria-label={t('po.budgetTitle')} className="flex flex-col divide-y divide-line border-y border-line">
-              {budget.map((b) => (
-                <li key={b.id} className="flex flex-col gap-1 py-2">
-                  <span className="break-words font-medium text-ink">{b.text}</span>
-                  <dl className="flex flex-col">
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="text-ink-muted">{t('po.committed')}</dt>
-                      <dd className="money text-ink">{money(b.committed)}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="text-ink-muted">{t('po.actual')}</dt>
-                      <dd className="money text-ink">{money(b.actual)}</dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section aria-labelledby="po-lines" className="flex flex-col gap-2">
-            <h2 id="po-lines" className="text-lg font-semibold text-ink">
-              {t('po.linesTitle')}
-            </h2>
-            <ul aria-label={t('po.linesTitle')} className="flex flex-col divide-y divide-line border-y border-line">
-              {po.lines.map((l) => (
-                <li key={l.id} className="flex flex-col gap-1 py-2">
-                  <span className="break-words font-medium text-ink">{l.description}</span>
-                  <span className="text-base text-ink-muted md:text-sm">{t('po.lineQuantities', { ordered: l.quantity, received: l.receivedQuantity, uom: l.uom })}</span>
-                  <dl className="flex flex-col">
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="text-ink-muted">{t('po.lineAmount')}</dt>
-                      <dd className="money text-ink">{money(l.netSatang)}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="text-ink-muted">{t('po.lineInvoiced')}</dt>
-                      <dd className="money text-ink">{money(l.invoicedSatang)}</dd>
-                    </div>
-                    <div className="flex items-baseline justify-between gap-4">
-                      <dt className="text-ink-muted">{t('po.lineHeld')}</dt>
-                      <dd className="money font-semibold text-ink">{money(l.committedSatang)}</dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          {open ? invoicesSection(true) : null}
-        </aside>
-      </div>
-    </div>
+      </PageBody>
+    </Page>
   )
 }

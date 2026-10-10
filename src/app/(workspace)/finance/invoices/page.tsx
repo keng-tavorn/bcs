@@ -5,8 +5,10 @@ import { ctxFromSession } from '@/server/auth/session'
 import { listInvoiceWork } from '@/server/services/invoices/view'
 import { InvoiceList, type InvoiceRowView } from '@/ui/finance/invoice-list'
 import { WaitingList, type WaitingRowView } from '@/ui/finance/waiting-list'
-import { Button } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
+import { FilterBar, FilterSearch, FilterSummary } from '@/ui/page/filters'
+import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { Button } from '@/ui/shadcn/button'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { invoicesHref, loadInvoiceFilters } from '../../_tracking/list-filters'
@@ -30,20 +32,22 @@ const SEARCH_MAX = 60
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
-  const [t, locale] = await Promise.all([getTranslations('finance'), getLocale().then(localeOf)])
+  const [t, td, locale] = await Promise.all([getTranslations('finance'), getTranslations('document.badge'), getLocale().then(localeOf)])
   const filters = await loadInvoiceFilters(searchParams)
   const q = (filters.q ?? '').trim().slice(0, SEARCH_MAX)
   const received = filters.gr === 'posted'
   const result = await listInvoiceWork(ctx, { q, received })
   if (!result.ok) {
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('forbiddenTitle')}</h1>
-        <Notice tone="warning">{t('forbiddenHint')}</Notice>
-        <Link href="/" className={linkClass}>
-          {t('home')}
-        </Link>
-      </div>
+      <Page>
+        <PageHeader title={t('forbiddenTitle')} />
+        <div className="flex max-w-2xl flex-col gap-4">
+          <Notice tone="warning">{t('forbiddenHint')}</Notice>
+          <Link href="/" className={linkClass}>
+            {t('home')}
+          </Link>
+        </div>
+      </Page>
     )
   }
   const { waiting, waitingCount, recorded, notExported } = result.data
@@ -58,7 +62,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
       t('invoices.waiting.invoiceCount', { count: po.invoiceCount }),
     ].filter((m): m is string => m !== null),
     status: po.status,
-    statusLabel: t(`poStatus.${po.status}`),
+    statusLabel: td(`po.${po.status}` as 'po.DRAFT'),
     po: money(po.netSatang),
     received: money(po.receivedSatang),
     invoiced: money(po.invoicedSatang),
@@ -79,116 +83,99 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   }))
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex max-w-3xl flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{t('invoices.title')}</h1>
-          <p className="text-ink-muted">{t('invoices.intro')}</p>
-        </div>
-        <Link href="/finance/exports" className={linkClass}>
-          {t('invoices.toExports', { count: notExported })}
-        </Link>
-      </div>
-
-      {received ? (
-        <div className="flex flex-col gap-1">
-          <p className="font-medium text-ink">{t('invoices.receivedOnly')}</p>
-          <Link href={invoicesHref('/finance/invoices', { q: q || null })} className={linkClass}>
-            {t('invoices.showAll')}
-          </Link>
-        </div>
-      ) : null}
-
-      <form method="get" action="/finance/invoices" className="flex flex-col gap-3 border-y border-line py-4 md:flex-row md:items-start">
-        {received ? <input type="hidden" name="gr" value="posted" /> : null}
-        <div className="flex flex-1 flex-col gap-1.5">
-          <label htmlFor="finance-search" className="font-medium text-ink">
-            {t('invoices.search')}
-          </label>
-          <input id="finance-search" name="q" type="search" defaultValue={q} maxLength={SEARCH_MAX} aria-describedby="finance-search-hint" className="h-11 w-full rounded-md border border-input bg-bg px-3 text-base text-ink" />
-          <p id="finance-search-hint" className="text-base text-ink-muted md:text-sm">
-            {t('invoices.searchHint')}
-          </p>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <span aria-hidden="true" className="hidden font-medium md:block">
-            &nbsp;
-          </span>
-          <Button type="submit" variant="secondary">
-            {t('invoices.searchSubmit')}
+    <Page>
+      <PageHeader
+        title={t('invoices.title')}
+        intro={t('invoices.intro')}
+        actions={
+          <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+            <Link href="/finance/exports">{t('invoices.toExports', { count: notExported })}</Link>
           </Button>
-        </div>
-      </form>
-      {q ? (
-        <Link href={invoicesHref('/finance/invoices', { gr: filters.gr })} className={linkClass}>
-          {t('invoices.clearSearch')}
-        </Link>
-      ) : null}
+        }
+      />
+      <PageBody>
+        <FilterBar
+          action="/finance/invoices"
+          label={t('invoices.filterLabel')}
+          submit={t('invoices.searchSubmit')}
+          hidden={{ gr: received ? 'posted' : null }}
+          footer={
+            <>
+              <FilterSummary
+                count={t('invoices.filterCount', { count: waitingCount })}
+                notes={received ? [t('invoices.receivedOnly')] : []}
+                clear={q ? { href: invoicesHref('/finance/invoices', { gr: filters.gr }), label: t('invoices.clearSearch') } : null}
+              />
+              {received ? (
+                <Link href={invoicesHref('/finance/invoices', { q: q || null })} className={linkClass}>
+                  {t('invoices.showAll')}
+                </Link>
+              ) : null}
+            </>
+          }
+        >
+          <FilterSearch id="finance-search" label={t('invoices.search')} hint={t('invoices.searchHint')} defaultValue={q} maxLength={SEARCH_MAX} />
+        </FilterBar>
 
-      <section aria-labelledby="finance-waiting" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 id="finance-waiting" className="text-lg font-semibold text-ink">
-            {t('invoices.waiting.title', { count: waitingCount })}
-          </h2>
+        <Panel title={t('invoices.waiting.title', { count: waitingCount })} id="finance-waiting">
           <p className="text-ink-muted">{t('invoices.waiting.hint')}</p>
-        </div>
-        {waitingRows.length ? (
-          <>
-            <WaitingList
-              rows={waitingRows}
-              labels={{
-                list: t('invoices.waiting.list'),
-                poColumn: t('invoices.waiting.columns.po'),
-                statusColumn: t('invoices.waiting.columns.status'),
-                po: t('invoices.waiting.columns.amount'),
-                received: t('invoices.waiting.columns.received'),
-                invoiced: t('invoices.waiting.columns.invoiced'),
-                held: t('invoices.waiting.columns.held'),
-                unit: t('unit'),
-              }}
+          {waitingRows.length ? (
+            <>
+              <WaitingList
+                rows={waitingRows}
+                labels={{
+                  list: t('invoices.waiting.list'),
+                  poColumn: t('invoices.waiting.columns.po'),
+                  statusColumn: t('invoices.waiting.columns.status'),
+                  po: t('invoices.waiting.columns.amount'),
+                  received: t('invoices.waiting.columns.received'),
+                  invoiced: t('invoices.waiting.columns.invoiced'),
+                  held: t('invoices.waiting.columns.held'),
+                  unit: t('unit'),
+                }}
+              />
+              {waiting.limited ? <p className="text-ink-muted">{t('invoices.limited', { shown: waitingRows.length })}</p> : null}
+            </>
+          ) : (
+            <ListEmpty
+              title={q ? t('invoices.waiting.noMatch') : t('invoices.waiting.empty')}
+              hint={q ? t('invoices.waiting.noMatchHint') : t('invoices.waiting.emptyHint')}
+              actions={
+                q ? (
+                  <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+                    <Link href={invoicesHref('/finance/invoices', { gr: filters.gr })}>{t('invoices.clearSearch')}</Link>
+                  </Button>
+                ) : null
+              }
             />
-            {waiting.limited ? <p className="text-ink-muted">{t('invoices.limited', { shown: waitingRows.length })}</p> : null}
-          </>
-        ) : (
-          <div className="flex flex-col gap-2 border-y border-line py-6">
-            <p className="font-medium text-ink">{q ? t('invoices.waiting.noMatch') : t('invoices.waiting.empty')}</p>
-            <p className="text-ink-muted">{q ? t('invoices.waiting.noMatchHint') : t('invoices.waiting.emptyHint')}</p>
-          </div>
-        )}
-      </section>
+          )}
+        </Panel>
 
-      <section aria-labelledby="finance-recorded" className="flex flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          <h2 id="finance-recorded" className="text-lg font-semibold text-ink">
-            {t('invoices.recorded.title')}
-          </h2>
+        <Panel title={t('invoices.recorded.title')} id="finance-recorded">
           <p className="text-ink-muted">{t('invoices.recorded.hint')}</p>
-        </div>
-        {invoiceRows.length ? (
-          <>
-            <InvoiceList
-              rows={invoiceRows}
-              open={downloadUrlAction}
-              labels={{
-                list: t('invoices.recorded.list'),
-                invoiceColumn: t('invoices.recorded.columns.invoice'),
-                stateColumn: t('invoices.recorded.columns.state'),
-                net: t('invoices.recorded.columns.net'),
-                vat: t('invoices.recorded.columns.vat'),
-                gross: t('invoices.recorded.columns.gross'),
-                unit: t('unit'),
-                fileFailed: t('fileFailed'),
-              }}
-            />
-            {recorded.limited ? <p className="text-ink-muted">{t('invoices.recorded.limited', { shown: invoiceRows.length })}</p> : null}
-          </>
-        ) : (
-          <div className="flex flex-col gap-2 border-y border-line py-6">
-            <p className="font-medium text-ink">{q ? t('invoices.recorded.noMatch') : t('invoices.recorded.empty')}</p>
-            <p className="text-ink-muted">{q ? t('invoices.recorded.noMatchHint') : t('invoices.recorded.emptyHint')}</p>
-          </div>
-        )}
-      </section>
-    </div>
+          {invoiceRows.length ? (
+            <>
+              <InvoiceList
+                rows={invoiceRows}
+                open={downloadUrlAction}
+                labels={{
+                  list: t('invoices.recorded.list'),
+                  invoiceColumn: t('invoices.recorded.columns.invoice'),
+                  stateColumn: t('invoices.recorded.columns.state'),
+                  net: t('invoices.recorded.columns.net'),
+                  vat: t('invoices.recorded.columns.vat'),
+                  gross: t('invoices.recorded.columns.gross'),
+                  unit: t('unit'),
+                  fileFailed: t('fileFailed'),
+                }}
+              />
+              {recorded.limited ? <p className="text-ink-muted">{t('invoices.recorded.limited', { shown: invoiceRows.length })}</p> : null}
+            </>
+          ) : (
+            <ListEmpty title={q ? t('invoices.recorded.noMatch') : t('invoices.recorded.empty')} hint={q ? t('invoices.recorded.noMatchHint') : t('invoices.recorded.emptyHint')} />
+          )}
+        </Panel>
+      </PageBody>
+    </Page>
   )
 }

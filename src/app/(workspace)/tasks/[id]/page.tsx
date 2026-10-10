@@ -8,6 +8,7 @@ import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/que
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { Notice } from '@/ui/form/notice'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
 import { DecisionPanel } from '@/ui/tasks/decision-panel'
 import { PolicyDecision } from '@/ui/tasks/policy-decision'
@@ -104,13 +105,15 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const right = taskRight(principal, access)
   if (right === 'NONE') {
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('detail.notYours')}</h1>
-        <Notice tone="warning">{t('detail.notYoursHint')}</Notice>
-        <Link href="/tasks" className={linkClass}>
-          {t('detail.toInbox')}
-        </Link>
-      </div>
+      <Page>
+        <PageHeader title={t('detail.notYours')} />
+        <div className="flex max-w-2xl flex-col gap-3">
+          <Notice tone="warning">{t('detail.notYoursHint')}</Notice>
+          <Link href="/tasks" className={linkClass}>
+            {t('detail.toInbox')}
+          </Link>
+        </div>
+      </Page>
     )
   }
 
@@ -198,27 +201,28 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         {t('detail.back')}
       </Link>
 
-      <header className="flex max-w-4xl flex-col gap-3">
-        <div className="flex flex-col gap-1">
-          {request?.number ? <p className="font-medium text-ink-muted">{t('detail.requestLabel', { number: request.number })}</p> : null}
-          {po?.number ? <p className="font-medium text-ink-muted">{t('detail.poLabel', { number: po.number })}</p> : null}
-          {variance ? <p className="font-medium text-ink-muted">{t('detail.varianceLabel', { number: variance.po.number ?? '-' })}</p> : null}
-          <h1 className="text-2xl font-semibold break-words">{heading}</h1>
-          {request ? (
-            <p className="text-ink-muted">
+      <PageHeader
+        title={heading}
+        intro={
+          request ? (
+            <>
               {memberName(locale, request.requester)}
               {request.chargedDepartment ? ` · ${nameIn(locale, request.chargedDepartment.name)}` : ''}
               {` · ${nameIn(locale, request.requestType.name)}`}
-            </p>
-          ) : null}
-          {po ? (
-            <p className="text-ink-muted">
+            </>
+          ) : po ? (
+            <>
               {t('detail.poMeta', { site: po.deliverySite?.nameTh ?? tp('detail.noSite'), kind: tp(`kind.${po.kind}`) })}
               {po.submittedBy ? ` · ${t('item.poMeta', { name: memberName(locale, po.submittedBy) })}` : ''}
-            </p>
-          ) : null}
-          {variance ? <p className="text-ink-muted">{variance.po.supplier.nameTh}</p> : null}
-        </div>
+            </>
+          ) : variance ? (
+            variance.po.supplier.nameTh
+          ) : undefined
+        }
+      >
+        {request?.number ? <p className="font-medium text-ink-muted">{t('detail.requestLabel', { number: request.number })}</p> : null}
+        {po?.number ? <p className="font-medium text-ink-muted">{t('detail.poLabel', { number: po.number })}</p> : null}
+        {variance ? <p className="font-medium text-ink-muted">{t('detail.varianceLabel', { number: variance.po.number ?? '-' })}</p> : null}
         <TaskState task={task} t={t} tv={tv} locale={locale} mine={state.member.id} />
         {!open ? (
           <div className="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:gap-x-6">
@@ -232,59 +236,63 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             </Link>
           </div>
         ) : null}
-      </header>
+      </PageHeader>
 
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start">
-        <div className="flex min-w-0 flex-col gap-6">
-          {request ? (
-            <>
-              <RequestFacts view={request} locale={locale} brief />
-              <RequestSections view={request} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
-              <Link href={`/requests/${request.id}`} className={linkClass}>
-                {t('detail.openRequest', { label: request.number ?? request.title })}
-              </Link>
-            </>
-          ) : po && reader ? (
-            <>
-              {/* The route of this task, also after a return took the PO back to a draft without one */}
-              <PoBody po={{ ...po, route: task.route ?? po.route }} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} />
-              {poHref ? (
-                <Link href={poHref} className={linkClass}>
-                  {t('detail.openPo', { label })}
-                </Link>
-              ) : null}
-            </>
-          ) : variance ? (
-            <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
-          ) : (
-            <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
-          )}
+      <PageBody>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-6">
+          <Panel label={heading}>
+            <div className="flex min-w-0 flex-col gap-6">
+              {request ? (
+                <>
+                  <RequestFacts view={request} locale={locale} brief />
+                  <RequestSections view={request} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
+                  <Link href={`/requests/${request.id}`} className={linkClass}>
+                    {t('detail.openRequest', { label: request.number ?? request.title })}
+                  </Link>
+                </>
+              ) : po && reader ? (
+                <>
+                  {/* The route of this task, also after a return took the PO back to a draft without one */}
+                  <PoBody po={{ ...po, route: task.route ?? po.route }} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} />
+                  {poHref ? (
+                    <Link href={poHref} className={linkClass}>
+                      {t('detail.openPo', { label })}
+                    </Link>
+                  ) : null}
+                </>
+              ) : variance ? (
+                <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
+              ) : (
+                <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
+              )}
+            </div>
+          </Panel>
+
+          <aside className="flex min-w-0 flex-col gap-4 lg:gap-6">
+            {/* The decision in its own card; on phones its buttons stay fixed to the bottom of the screen */}
+            <Panel>
+              {policyTask ? (
+                <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} />
+              ) : (
+                <DecisionPanel
+                  taskId={task.id}
+                  open={open}
+                  locale={locale}
+                  label={label}
+                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : '-'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
+                  stepUp={task.stepUp}
+                  {...(variance ? { disposition: variance.disposition } : {})}
+                  actions={po || variance ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
+                />
+              )}
+            </Panel>
+            <Panel title={tv('timeline.title')} id="timeline">
+              <Timeline items={items} label={timelineLabel} />
+            </Panel>
+          </aside>
         </div>
-
-        <aside className="flex min-w-0 flex-col gap-8">
-          {policyTask ? (
-            <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} />
-          ) : (
-            <DecisionPanel
-              taskId={task.id}
-              open={open}
-              locale={locale}
-              label={label}
-              amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : '-'}
-              kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
-              stepUp={task.stepUp}
-              {...(variance ? { disposition: variance.disposition } : {})}
-              actions={po || variance ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
-            />
-          )}
-          <section aria-labelledby="timeline" className="flex flex-col gap-3">
-            <h2 id="timeline" className="text-lg font-semibold text-ink">
-              {tv('timeline.title')}
-            </h2>
-            <Timeline items={items} label={timelineLabel} />
-          </section>
-        </aside>
-      </div>
+      </PageBody>
     </div>
   )
 }

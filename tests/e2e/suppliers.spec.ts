@@ -256,10 +256,10 @@ test('[S4-02] the register: search by name, tax id or code; procurement adds the
   await check(page, testInfo, 'supplier-deactivate-question')
   await question.getByRole('button', { name: 'ยืนยันเลิกใช้ผู้ขาย' }).click()
   await expect(status.getByRole('status').filter({ hasText: 'เลิกใช้ผู้ขายแล้ว' })).toBeVisible()
-  await expect(page.locator('#content header').getByText('เลิกใช้แล้ว', { exact: true })).toBeVisible()
+  await expect(page.locator('#content h1').locator('..').getByText('เลิกใช้แล้ว', { exact: true })).toBeVisible()
   await status.getByRole('button', { name: 'เปิดใช้ผู้ขายรายนี้อีกครั้ง' }).click()
   await expect(status.getByRole('status').filter({ hasText: 'เปิดใช้ผู้ขายอีกครั้งแล้ว' })).toBeVisible()
-  await expect(page.locator('#content header').getByText('ใช้งานอยู่', { exact: true })).toBeVisible()
+  await expect(page.locator('#content h1').locator('..').getByText('ใช้งานอยู่', { exact: true })).toBeVisible()
 })
 
 test('[S4-02] every member sees names and basic details only; finance sees the Express code gaps; an auditor sees an individual’s tax id masked', async ({ page, browser }, testInfo) => {

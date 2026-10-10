@@ -1,21 +1,21 @@
-import { CalendarClock, CircleCheck, CircleX, Clock, FilePen, History, Undo2 } from 'lucide-react'
+import { StatusBadge, type BadgeLook } from '../document/badges'
 import { cn } from '../cn'
 
-// A DOA version's status as an icon and words, never colour alone (NFR-A11Y-03). A published version is shown as in
-// effect, or as approved and waiting for its start. The label arrives translated.
+// A DOA version's status as a status badge of §9.10: a tone, an icon and words, never colour alone (NFR-A11Y-03). A
+// published version is shown as in effect, or as approved and waiting for its start. The label arrives translated.
 
 export type VersionLook = 'DRAFT' | 'PENDING_APPROVAL' | 'IN_EFFECT' | 'UPCOMING' | 'PUBLISHED' | 'SUPERSEDED' | 'REJECTED' | 'WITHDRAWN'
 
 const LOOK = {
-  DRAFT: { Icon: FilePen, tone: 'text-ink-muted' },
-  PENDING_APPROVAL: { Icon: Clock, tone: 'text-warn' },
-  IN_EFFECT: { Icon: CircleCheck, tone: 'text-primary' },
-  UPCOMING: { Icon: CalendarClock, tone: 'text-info' },
-  PUBLISHED: { Icon: CircleCheck, tone: 'text-primary' },
-  SUPERSEDED: { Icon: History, tone: 'text-ink-muted' },
-  REJECTED: { Icon: CircleX, tone: 'text-danger' },
-  WITHDRAWN: { Icon: Undo2, tone: 'text-ink-muted' },
-} as const
+  DRAFT: { tone: 'neutral', icon: 'FilePen' },
+  PENDING_APPROVAL: { tone: 'warn', icon: 'Clock' },
+  IN_EFFECT: { tone: 'ok', icon: 'CircleCheck' },
+  UPCOMING: { tone: 'info', icon: 'Hourglass' },
+  PUBLISHED: { tone: 'ok', icon: 'CircleCheck' },
+  SUPERSEDED: { tone: 'neutral', icon: 'Lock' },
+  REJECTED: { tone: 'danger', icon: 'CircleX' },
+  WITHDRAWN: { tone: 'neutral', icon: 'Undo2' },
+} as const satisfies Record<VersionLook, BadgeLook>
 
 /** Which look a version gets: in effect and upcoming are kinds of PUBLISHED */
 export function versionLook(v: { readonly status: string; readonly inEffect: boolean; readonly upcoming: boolean }): VersionLook {
@@ -24,11 +24,5 @@ export function versionLook(v: { readonly status: string; readonly inEffect: boo
 }
 
 export function VersionStatus({ look, label, className }: { look: VersionLook; label: string; className?: string }) {
-  const { Icon, tone } = LOOK[look]
-  return (
-    <span className={cn('inline-flex items-center gap-1.5 font-medium', className)}>
-      <Icon className={cn('size-4 shrink-0', tone)} aria-hidden="true" />
-      <span>{label}</span>
-    </span>
-  )
+  return <StatusBadge look={LOOK[look]} label={label} className={cn('text-base md:text-sm', className)} />
 }

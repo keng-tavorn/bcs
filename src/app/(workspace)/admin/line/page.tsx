@@ -5,6 +5,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { getLineChannelSettings, LINE_CONNECTION_TEST_BUDGET_MS } from '@/server/services/line-channel'
 import { NoAccess } from '@/ui/admin-settings/no-access'
 import { LineChannelPanel } from '@/ui/admin-line/line-channel-panel'
+import { Page, PageBody, PageHeader } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { replaceRichMenusAction, saveLineChannelAction, testLineConnectionAction } from './actions'
 import { toLineChannelView } from './view'
@@ -26,18 +27,17 @@ export default async function LineSettingsPage() {
   if (!settings.ok) return <NoAccess title={t('title')} message={tCommon('forbidden')} homeLabel={tCommon('homeLink')} />
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex max-w-3xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-ink-muted">{t('intro')}</p>
-      </div>
-      <LineChannelPanel
-        initial={toLineChannelView(settings.data)}
-        testSeconds={Math.ceil(LINE_CONNECTION_TEST_BUDGET_MS / MS_PER_SECOND)}
-        save={saveLineChannelAction}
-        test={testLineConnectionAction}
-        replaceMenus={replaceRichMenusAction}
-      />
-    </div>
+    <Page>
+      <PageHeader title={t('title')} intro={t('intro')} />
+      <PageBody>
+        <LineChannelPanel
+          initial={toLineChannelView(settings.data)}
+          testSeconds={Math.ceil(LINE_CONNECTION_TEST_BUDGET_MS / MS_PER_SECOND)}
+          save={saveLineChannelAction}
+          test={testLineConnectionAction}
+          replaceMenus={replaceRichMenusAction}
+        />
+      </PageBody>
+    </Page>
   )
 }

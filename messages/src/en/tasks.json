@@ -356,6 +356,12 @@
     "info": "{count, plural, one {# task waits} other {# tasks wait}} for the requester's answer",
     "all": "See all my approval tasks",
     "emptyOverdue": "No task is overdue",
-    "emptyInfo": "No task waits for a requester's answer"
+    "emptyInfo": "No task waits for a requester's answer",
+    "label": "Task filters",
+    "due": "Show",
+    "allTasks": "All tasks",
+    "optionOverdue": "Overdue",
+    "optionInfo": "Waiting for the requester's answer",
+    "submit": "Show matching tasks"
   }
 }

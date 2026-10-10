@@ -7,8 +7,10 @@ import { listOrgChangesForAdmin, type ChangeDetails, type OrgChangeView } from '
 import { ChangeStatus } from '@/ui/admin-org/change-status'
 import { ChangeSummary, type ChangeSummaryInput } from '@/ui/admin-org/change-summary'
 import { nameIn } from '@/ui/admin-org/names'
-import { Notice } from '@/ui/form/notice'
+import { NoAccess } from '@/ui/admin-settings/no-access'
 import { formatDateTime } from '@/ui/format'
+import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { Button } from '@/ui/shadcn/button'
 import { getSession } from '../../../_lib/session'
 
 export async function generateMetadata() {
@@ -16,7 +18,6 @@ export async function generateMetadata() {
   return { title: t('title') }
 }
 
-const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
 const IN_PROGRESS = new Set<OrgChangeView['status']>(['PENDING_APPROVAL', 'SCHEDULED', 'DRAFT'])
 
 // Authority changes (FR-DOA-010, §9.1 /admin/org-authority): those waiting for approval or for their effective time
@@ -28,17 +29,7 @@ export default async function OrgAuthorityPage() {
   const [t, locale] = await Promise.all([getTranslations('adminOrg.authority'), getLocale()])
   if (!ctx) return null
   const changes = await listOrgChangesForAdmin(ctx)
-  if (!changes.ok) {
-    return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <Notice tone="danger">{t('forbidden')}</Notice>
-        <Link href="/" className={`${linkClass} self-start`}>
-          {t('homeLink')}
-        </Link>
-      </div>
-    )
-  }
+  if (!changes.ok) return <NoAccess title={t('title')} message={t('forbidden')} homeLabel={t('homeLink')} />
   const inProgress = changes.data.filter((c) => IN_PROGRESS.has(c.status))
   const history = changes.data.filter((c) => !IN_PROGRESS.has(c.status))
   const when = (iso: string) => formatDateTime(locale, iso)
@@ -88,7 +79,7 @@ export default async function OrgAuthorityPage() {
         ? t('impactTasksStay', { count: c.impact.openTasksStay, names: loses.length ? loses.join(', ') : t('formerHolder') })
         : null
     return (
-      <li key={c.id} className="flex flex-col gap-2 py-4">
+      <li key={c.id} className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           {c.details ? <ChangeSummary input={summaryOf(c.details)} className="min-w-0 font-medium break-words" /> : <p className="font-medium">{t('summary.unreadableKind', { kind: t(`kinds.${c.kind}`) })}</p>}
           <ChangeStatus status={c.status} label={t(`status.${c.status}`)} className="shrink-0" />
@@ -123,34 +114,31 @@ export default async function OrgAuthorityPage() {
     )
   }
 
-  return (
-    <div className="flex max-w-4xl flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-ink-muted">{t('intro')}</p>
-      </div>
-      <Link href="/admin/org-authority/new" className="inline-flex h-11 items-center justify-center self-start rounded-md bg-primary px-4 font-medium text-primary-foreground underline-offset-4 transition-colors duration-150 hover:underline">
-        {t('propose')}
-      </Link>
+  const propose = (
+    <Button asChild className="min-h-11 lg:min-h-10">
+      <Link href="/admin/org-authority/new">{t('propose')}</Link>
+    </Button>
+  )
 
-      {changes.data.length === 0 ? (
-        <p className="border-y border-line py-4 text-ink-muted">{t('empty')}</p>
-      ) : (
-        <>
-          <section aria-labelledby="in-progress" className="flex flex-col gap-3">
-            <h2 id="in-progress" className="text-xl font-semibold">
-              {t('inProgressTitle', { count: inProgress.length })}
-            </h2>
-            {inProgress.length ? <ul className="flex flex-col divide-y divide-line border-y border-line">{inProgress.map(item)}</ul> : <p className="border-y border-line py-4 text-ink-muted">{t('inProgressEmpty')}</p>}
-          </section>
-          <section aria-labelledby="history" className="flex flex-col gap-3">
-            <h2 id="history" className="text-xl font-semibold">
-              {t('historyTitle', { count: history.length })}
-            </h2>
-            {history.length ? <ul className="flex flex-col divide-y divide-line border-y border-line">{history.map(item)}</ul> : <p className="border-y border-line py-4 text-ink-muted">{t('historyEmpty')}</p>}
-          </section>
-        </>
-      )}
-    </div>
+  return (
+    <Page>
+      <PageHeader title={t('title')} intro={t('intro')} actions={propose} />
+      <PageBody>
+        {changes.data.length === 0 ? (
+          <Panel label={t('title')} className="max-w-4xl">
+            <ListEmpty title={t('empty')} />
+          </Panel>
+        ) : (
+          <>
+            <Panel title={t('inProgressTitle', { count: inProgress.length })} id="in-progress" className="max-w-4xl">
+              {inProgress.length ? <ul className="flex flex-col divide-y divide-line">{inProgress.map(item)}</ul> : <ListEmpty title={t('inProgressEmpty')} />}
+            </Panel>
+            <Panel title={t('historyTitle', { count: history.length })} id="history" className="max-w-4xl">
+              {history.length ? <ul className="flex flex-col divide-y divide-line">{history.map(item)}</ul> : <ListEmpty title={t('historyEmpty')} />}
+            </Panel>
+          </>
+        )}
+      </PageBody>
+    </Page>
   )
 }

@@ -119,8 +119,8 @@ describe('[FR-P2P-002/AC3] a round’s explanation and the lines priced with VAT
     expect(supplier![1]).toContain('lucide-store')
     expect(supplier![1]).toContain('text-info')
     expect(supplier![1]).not.toContain('text-primary')
-    // The urgent tag beside the title reads at the title's size
-    expect(html).toMatch(new RegExp(`<span class="inline-flex items-center gap-1 rounded-sm border border-warn px-1\\.5 font-medium text-warn"><svg[^>]*>(?:(?!</svg>)[\\s\\S])*</svg>${pool.urgency.URGENT}</span>`))
+    // The urgent tag beside the title reads at the title's size: the urgency badge of §9.10, its icon and its word
+    expect(html).toMatch(new RegExp(`<span data-slot="badge" data-variant="warn" class="[^"]* text-base" data-tone="warn"><svg[^>]*data-icon="Zap"[^>]*>(?:(?!</svg>)[\\s\\S])*</svg>${pool.urgency.URGENT}</span>`))
     // Nothing is smaller on the web but the column headings over the lines
     expect(html.match(/text-sm/g)).toHaveLength(1)
     expect(html).toMatch(/<div class="mt-2 hidden border-b border-line pb-2 text-sm text-ink-muted md:ml-8 md:grid /)

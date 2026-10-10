@@ -22,7 +22,8 @@
       "count": "{matched} of {total} found",
       "clear": "Clear filters",
       "limited": "Showing the first {shown}. Search by name or code to find the others",
-      "searchHintItems": "You can also search by an item bought before, such as cement."
+      "searchHintItems": "You can also search by an item bought before, such as cement.",
+      "label": "Supplier filters"
     },
     "emptyNone": "There are no suppliers in the register yet",
     "emptyNoneManage": "Add the first supplier with its 13-digit tax ID. The name and address are filled in from the Revenue Department and DBD",

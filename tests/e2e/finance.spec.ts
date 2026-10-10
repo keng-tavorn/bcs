@@ -39,7 +39,7 @@ test('@demo [FR-P2P-008/AC4] [FR-P2P-008/AC2] demo scene 13: finance uploads the
   await expect(h1(page)).toHaveText('ยืนยันใบกำกับ')
   const row = page.getByRole('list', { name: 'ใบสั่งซื้อรอใบกำกับ' }).getByRole('listitem').filter({ hasText: s.number })
   await expect(row).toContainText('บริษัท วัสดุก่อสร้างทดสอบ จำกัด (S1)')
-  await expect(row).toContainText('รับของบางส่วน')
+  await expect(row).toContainText('รับบางส่วน')
   await expect(row).toContainText('54,000.00')
   await expect(row).toContainText('30,000.00')
   await check(page, testInfo, 'invoices-list')
@@ -180,7 +180,7 @@ test('[FR-P2P-008/AC1] [FR-P2P-008/AC3] typed invoices: the VAT warning, a numbe
   const s = scene<Po>('received', tag)
   await signIn(page, 'fin_officer', true)
   await page.goto(`/finance/invoices/${s.poId}`)
-  await expect(page.getByText('รับของครบ', { exact: true })).toBeVisible()
+  await expect(page.getByText('รับครบ', { exact: true })).toBeVisible()
 
   // BR-IVC-01: a VAT more than 1.00 baht from the PO's 7 % is a warning, never a refusal
   const first = `A-${tag}`

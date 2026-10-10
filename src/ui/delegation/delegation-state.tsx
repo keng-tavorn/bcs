@@ -1,22 +1,25 @@
 import { CircleCheck, CircleMinus, CircleSlash, Clock } from 'lucide-react'
-import { cn } from '../cn'
+import type { BadgeTone } from '../document/badges'
+import { Badge } from '../shadcn/badge'
 
 // The state of a delegation as an icon and words, never colour alone (NFR-A11Y-03). The label arrives translated.
+// A status badge of §9.10 (S16-10): the tone in the badge's light background, the same icons as before, so the LIFF
+// copy (src/ui/liff/delegation/state-mark.tsx) still draws the same marks.
 const LOOK = {
-  ACTIVE: { Icon: CircleCheck, tone: 'text-primary' },
-  SCHEDULED: { Icon: Clock, tone: 'text-warn' },
-  ENDED: { Icon: CircleMinus, tone: 'text-ink-muted' },
-  REVOKED: { Icon: CircleSlash, tone: 'text-ink-muted' },
-} as const
+  ACTIVE: { Icon: CircleCheck, tone: 'ok' },
+  SCHEDULED: { Icon: Clock, tone: 'warn' },
+  ENDED: { Icon: CircleMinus, tone: 'neutral' },
+  REVOKED: { Icon: CircleSlash, tone: 'neutral' },
+} as const satisfies Record<string, { Icon: typeof CircleCheck; tone: BadgeTone }>
 
 export type DelegationStateName = keyof typeof LOOK
 
 export function DelegationState({ state, label, className }: { state: DelegationStateName; label: string; className?: string }) {
   const { Icon, tone } = LOOK[state]
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1.5', className)}>
-      <Icon className={cn('size-4 shrink-0', tone)} aria-hidden="true" />
-      <span>{label}</span>
-    </span>
+    <Badge variant={tone} data-tone={tone} className={className}>
+      <Icon aria-hidden="true" />
+      {label}
+    </Badge>
   )
 }

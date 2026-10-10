@@ -171,7 +171,7 @@ test('[FR-DOA-004/AC1] [FR-INT-009/AC3] the approver asks for information, the r
   const taskUrl = page.url()
   await page.goto('/tasks')
   const askedRow = rowWith(inbox(page), number)
-  await expect(askedRow).toContainText('รอผู้ขอตอบคำถาม')
+  await expect(askedRow).toContainText('รอผู้ขอตอบ')
   await expect(askedRow).toContainText(/ค้างมา/)
   await expect(askedRow).not.toContainText(/ครบกำหนด|เกินกำหนด/)
   const listed = await inbox(page).getByRole('listitem').allInnerTexts()

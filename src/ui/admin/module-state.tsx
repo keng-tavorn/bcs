@@ -1,13 +1,11 @@
-import { CircleCheck, CircleMinus } from 'lucide-react'
+import { StatusBadge, type BadgeLook } from '../document/badges'
 import { cn } from '../cn'
 
-// On/off of a module as an icon and words, never colour alone (NFR-A11Y-03). The label arrives translated.
+// On/off of a module (or of a request type) as a status badge of §9.10: a tone, an icon and words, never colour alone
+// (NFR-A11Y-03). The label arrives translated.
+const ON: BadgeLook = { tone: 'ok', icon: 'CircleCheck' }
+const OFF: BadgeLook = { tone: 'neutral', icon: 'Ban' }
+
 export function ModuleState({ enabled, label, className }: { enabled: boolean; label: string; className?: string }) {
-  const Icon = enabled ? CircleCheck : CircleMinus
-  return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1.5', className)}>
-      <Icon className={cn('size-4 shrink-0', enabled ? 'text-primary' : 'text-ink-muted')} aria-hidden="true" />
-      <span>{label}</span>
-    </span>
-  )
+  return <StatusBadge look={enabled ? ON : OFF} label={label} className={cn('text-base md:text-sm', className)} />
 }

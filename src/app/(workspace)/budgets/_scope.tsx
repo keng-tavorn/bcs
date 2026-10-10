@@ -11,6 +11,7 @@ import { LowBadge } from '@/ui/budgets/badges'
 import { LineFigures } from '@/ui/budgets/line-detail'
 import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
+import { Page, PageBody, PageHeader } from '@/ui/page/page'
 import { getSession } from '../../_lib/session'
 import { BudgetDocumentSections } from './_documents'
 import { dayText, figureStrip, localeOf, lowBadge, nameIn, shareStrip, type BudgetsT } from './_present'
@@ -69,23 +70,24 @@ export async function BudgetScopePage({ departmentId, fiscalYearId }: { departme
   const low = lowBadge(t, d.figures, of)
 
   return (
-    <div className="flex flex-col gap-8">
+    <Page>
       <Link href={`/budgets?fy=${year.id}`} className={linkClass}>
         {t('back')}
       </Link>
 
-      <header className="flex max-w-4xl flex-col gap-2">
-        <h1 className="text-2xl font-semibold break-words">{heading(t, d, locale)}</h1>
+      <PageHeader title={heading(t, d, locale)}>
         {/* The heading names what is added up; the year says which */}
         <p className="text-ink">{t('detail.yearLine', { code: year.code, from: dayText(locale, year.startsOn), to: dayText(locale, year.endsOn) })}</p>
         <p className="text-ink">{d.department ? t('detail.lineCount', { count: d.lineCount }) : t('detail.lineAndDepartmentCount', { lines: d.lineCount, departments: d.departmentCount })}</p>
         {low ? <LowBadge label={low.label} out={low.out} link={low.link} /> : null}
         <p className="text-ink-muted">{t('asOf', { time: formatDateTime(locale, d.asOf) })}</p>
-      </header>
+      </PageHeader>
 
-      <LineFigures title={t('detail.figuresTitle')} figures={figureStrip(t, d.figures, of)} shares={shareStrip(t, d.figures, of)} unit={t('unit')} />
+      <PageBody>
+        <LineFigures title={t('detail.figuresTitle')} figures={figureStrip(t, d.figures, of)} shares={shareStrip(t, d.figures, of)} unit={t('unit')} />
 
-      <BudgetDocumentSections t={t} locale={locale} docs={d} many />
-    </div>
+        <BudgetDocumentSections t={t} locale={locale} docs={d} many />
+      </PageBody>
+    </Page>
   )
 }

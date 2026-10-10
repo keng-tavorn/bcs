@@ -154,5 +154,6 @@
       "NO_DUE_TIME": "Not counted: this step has no due time",
       "CLOSED_UNDECIDED": "Not counted: closed without a decision (cancelled or reassigned)"
     }
-  }
+  },
+  "periodLabel": "The KPI period"
 }

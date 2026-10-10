@@ -8,6 +8,7 @@ import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { useHydrated } from '../form/hydrated'
 import { Notice } from '../form/notice'
+import { Panel } from '../page/page'
 import { useSubmissionKey } from '../form/submission-key'
 import { CopyButton } from '../settings-line/copy-button'
 import { Switch } from '../settings-notifications/switch'
@@ -168,14 +169,11 @@ export function LineChannelPanel({
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-4 lg:gap-6">
       <ChannelState view={view} />
 
-      <div className="flex flex-col gap-10 lg:grid lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start lg:gap-x-12">
-        <section aria-labelledby="line-form" className="flex flex-col gap-4">
-          <h2 id="line-form" className="text-xl font-semibold">
-            {t('formTitle')}
-          </h2>
+      <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-start lg:gap-6">
+        <Panel title={t('formTitle')} id="line-form">
           {/* method="post": a submission before hydration never puts the values in the address (see the top) */}
           <form method="post" onSubmit={onSave} className="flex flex-col gap-5" noValidate>
             {saveMessage ? <MessageNotice message={saveMessage} /> : null}
@@ -264,13 +262,10 @@ export function LineChannelPanel({
               {saving ? t('saving') : t('save')}
             </Button>
           </form>
-        </section>
+        </Panel>
 
-        <div className="flex flex-col gap-8">
-          <section aria-labelledby="line-webhook" className="flex flex-col gap-3 border-t border-line pt-6 lg:border-t-0 lg:pt-0">
-            <h2 id="line-webhook" className="text-xl font-semibold">
-              {t('fields.webhookUrl')}
-            </h2>
+        <div className="flex flex-col gap-4 lg:gap-6">
+          <Panel title={t('fields.webhookUrl')} id="line-webhook">
             {view.webhookUrl ? (
               <>
                 <p className="text-base break-all md:text-sm">{view.webhookUrl}</p>
@@ -280,12 +275,9 @@ export function LineChannelPanel({
             ) : (
               <p className="text-ink-muted">{t('webhookUrlNotYet')}</p>
             )}
-          </section>
+          </Panel>
 
-          <section aria-labelledby="line-test" className="flex flex-col gap-3 border-t border-line pt-6">
-            <h2 id="line-test" className="text-xl font-semibold">
-              {t('test.title')}
-            </h2>
+          <Panel title={t('test.title')} id="line-test">
             <p className="text-ink-muted">{t('test.intro', { seconds: testSeconds })}</p>
             <Button variant="secondary" onClick={onTest} disabled={waiting || testBlocked !== null} aria-describedby={testBlocked ? 'line-test-blocked' : undefined} className="self-start">
               {testing ? t('test.running') : t('test.button')}
@@ -296,12 +288,9 @@ export function LineChannelPanel({
               </p>
             ) : null}
             {report ? <TestReport report={report} /> : null}
-          </section>
+          </Panel>
 
-          <section aria-labelledby="line-menus" className="flex flex-col gap-3 border-t border-line pt-6">
-            <h2 id="line-menus" className="text-xl font-semibold">
-              {t('richMenus.title')}
-            </h2>
+          <Panel title={t('richMenus.title')} id="line-menus">
             <p className="flex items-center gap-2 font-medium">
               {view.richMenus ? <CircleCheck className="size-5 shrink-0 text-primary" aria-hidden="true" /> : <CircleMinus className="size-5 shrink-0 text-ink-muted" aria-hidden="true" />}
               <span>{view.richMenus ? t('richMenus.stored') : t('richMenus.notStored')}</span>
@@ -316,7 +305,7 @@ export function LineChannelPanel({
               </p>
             ) : null}
             {menusMessage ? <MessageNotice message={menusMessage} /> : null}
-          </section>
+          </Panel>
         </div>
       </div>
     </div>

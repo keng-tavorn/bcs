@@ -8,7 +8,7 @@ import { visibleMenu } from './menu'
 
 // The hub pages of the sidebar's footer (/settings, /admin · §9.10): the pages of the group this member may open, from
 // the same menu as the sidebar (FR-PLT-002 AC1). A member who may open none of them gets "not found", as the sidebar
-// shows no hub to them; every page checks permissions again.
+// shows no hub to them; every page checks permissions again. MenuHub draws the page in the frame of S16-10.
 export async function HubPage({ group }: { group: 'settings' | 'admin' }) {
   const state = await getSession()
   if (state.kind !== 'member') notFound()

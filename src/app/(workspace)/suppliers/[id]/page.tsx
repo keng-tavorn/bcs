@@ -7,7 +7,8 @@ import { ctxFromSession } from '@/server/auth/session'
 import { getSupplierForScreen, type SupplierDetailDto } from '@/server/services/suppliers/view'
 import { formatDateTime } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
-import { Facts, Section, type Fact } from '@/ui/request-view/facts'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { Facts, type Fact } from '@/ui/request-view/facts'
 import { formatTaxId, HEAD_OFFICE } from '@/ui/suppliers/model'
 import { SupplierManage } from '@/ui/suppliers/manage'
 import { ProofList } from '@/ui/suppliers/proof-list'
@@ -86,7 +87,8 @@ function registryFacts(t: T, f: Full, s: SupplierDetailDto['supplier'], locale: 
 // One supplier (spec §9.1 /suppliers/[id], S4-02, FR-SUP-001): every member sees its name and basic details; PROCUREMENT,
 // FINANCE and AUDITOR also its tax id (masked for an individual when read only as AUDITOR, BR-AUTH-04), contacts,
 // Express vendor code and how its identity was checked, with the proof when a person confirmed it. PROCUREMENT edits it
-// and deactivates it here (supplier.manage, checked again by the service).
+// and deactivates it here (supplier.manage, checked again by the service). The page's frame (S16-10): the name, code and
+// status on the page's white, then one white card per part — the details, the identity check, and each of the editing forms.
 export default async function SupplierPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params
   const created = one((await searchParams).created) === '1'
@@ -97,13 +99,13 @@ export default async function SupplierPage({ params, searchParams }: { params: P
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
   if (!result.ok) {
     return (
-      <div className="flex max-w-2xl flex-col gap-6">
-        <h1 className="text-2xl font-semibold">{t('list.forbiddenTitle')}</h1>
+      <Page>
+        <PageHeader title={t('list.forbiddenTitle')} />
         <Notice tone="warning">{t('list.forbidden')}</Notice>
         <Link href="/" className={linkClass}>
           {t('list.home')}
         </Link>
-      </div>
+      </Page>
     )
   }
   const v = result.data
@@ -114,62 +116,64 @@ export default async function SupplierPage({ params, searchParams }: { params: P
   const stub = f?.registry.source === 'STUB' || f?.registry.recorded?.mode === 'stub'
 
   return (
-    <div className="flex max-w-4xl flex-col gap-6">
-      <Link href="/suppliers" className={linkClass}>
-        {t('detail.back')}
-      </Link>
-      <header className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold break-words">{name}</h1>
-        <p className="text-ink-muted">{t('row.code', { code: s.code })}</p>
-        <SupplierStatusLabel status={s.status} label={t(`status.${s.status}`)} />
-      </header>
+    <Page>
+      <div className="flex flex-col gap-3">
+        <Link href="/suppliers" className={linkClass}>
+          {t('detail.back')}
+        </Link>
+        <PageHeader title={name} intro={t('row.code', { code: s.code })}>
+          <SupplierStatusLabel status={s.status} label={t(`status.${s.status}`)} className="self-start" />
+        </PageHeader>
+      </div>
       {created ? <Notice tone="success">{t('detail.created')}</Notice> : null}
 
-      <Section id="supplier-info" title={t('detail.infoTitle')}>
-        <Facts items={factsOf(t, v, locale)} />
-        {!f ? <p className="text-base text-ink-muted md:text-sm">{t('detail.basicNote')}</p> : null}
-      </Section>
+      <PageBody>
+        <Panel id="supplier-info" title={t('detail.infoTitle')}>
+          <Facts items={factsOf(t, v, locale)} />
+          {!f ? <p className="text-base text-ink-muted md:text-sm">{t('detail.basicNote')}</p> : null}
+        </Panel>
 
-      {f ? (
-        <Section id="supplier-registry" title={t('detail.registryTitle')}>
-          <Facts items={registryFacts(t, f, s, locale)} />
-          {stub ? <p className="text-base text-ink-muted md:text-sm">{t('detail.stubNote')}</p> : null}
-          {f.proofs.length ? (
-            <div className="flex flex-col gap-2">
-              <h3 className="font-medium text-ink">{t('detail.proofs')}</h3>
-              <ProofList proofs={f.proofs.map((p) => ({ fileId: p.fileId, fileName: p.fileName, detail: t('detail.size', { size: kb(p.sizeBytes) }) }))} open={supplierProofUrlAction} />
-            </div>
-          ) : f.taxIdMasked && f.registry.source === 'MANUAL' ? (
-            <p className="text-ink-muted">{t('detail.proofHidden')}</p>
-          ) : null}
-        </Section>
-      ) : null}
+        {f ? (
+          <Panel id="supplier-registry" title={t('detail.registryTitle')}>
+            <Facts items={registryFacts(t, f, s, locale)} />
+            {stub ? <p className="text-base text-ink-muted md:text-sm">{t('detail.stubNote')}</p> : null}
+            {f.proofs.length ? (
+              <div className="flex flex-col gap-2">
+                <h3 className="font-medium text-ink">{t('detail.proofs')}</h3>
+                <ProofList proofs={f.proofs.map((p) => ({ fileId: p.fileId, fileName: p.fileName, detail: t('detail.size', { size: kb(p.sizeBytes) }) }))} open={supplierProofUrlAction} />
+              </div>
+            ) : f.taxIdMasked && f.registry.source === 'MANUAL' ? (
+              <p className="text-ink-muted">{t('detail.proofHidden')}</p>
+            ) : null}
+          </Panel>
+        ) : null}
 
-      {v.canManage && f ? (
-        <>
-          {!f.expressVendorCode ? (
-            <Notice tone="warning">
-              <p>{t('detail.expressMissingManage')}</p>
-            </Notice>
-          ) : null}
-          <SupplierManage
-            supplier={{
-              id: s.id,
-              nameTh: s.nameTh,
-              nameEn: s.nameEn,
-              address: f.address,
-              isVatRegistered: s.isVatRegistered,
-              category: s.category,
-              expressVendorCode: f.expressVendorCode,
-              email: f.email,
-              phone: f.phone,
-              status: s.status,
-              version: s.version,
-            }}
-            actions={{ update: updateSupplierAction }}
-          />
-        </>
-      ) : null}
-    </div>
+        {v.canManage && f ? (
+          <>
+            {!f.expressVendorCode ? (
+              <Notice tone="warning">
+                <p>{t('detail.expressMissingManage')}</p>
+              </Notice>
+            ) : null}
+            <SupplierManage
+              supplier={{
+                id: s.id,
+                nameTh: s.nameTh,
+                nameEn: s.nameEn,
+                address: f.address,
+                isVatRegistered: s.isVatRegistered,
+                category: s.category,
+                expressVendorCode: f.expressVendorCode,
+                email: f.email,
+                phone: f.phone,
+                status: s.status,
+                version: s.version,
+              }}
+              actions={{ update: updateSupplierAction }}
+            />
+          </>
+        ) : null}
+      </PageBody>
+    </Page>
   )
 }

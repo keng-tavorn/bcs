@@ -47,7 +47,7 @@ export function SupplierList({ rows, labels, full }: { rows: readonly SupplierRo
         <span>{labels.status}</span>
         {full ? <span>{labels.account}</span> : null}
       </div>
-      <ul aria-label={labels.list} className="flex flex-col divide-y divide-line border-b border-line">
+      <ul aria-label={labels.list} className="flex flex-col divide-y divide-line">
         {rows.map((row) => (
           <li key={row.id} className={cn('flex flex-col gap-1.5 py-3', grid)}>
             <div className="flex min-w-0 flex-col">
@@ -83,7 +83,7 @@ export function SupplierList({ rows, labels, full }: { rows: readonly SupplierRo
             </div>
             <div className="flex flex-col gap-0.5">
               <span className="sr-only">{labels.status}: </span>
-              <SupplierStatusLabel status={row.status} label={row.statusLabel} />
+              <SupplierStatusLabel status={row.status} label={row.statusLabel} className="self-start" />
               <span className="text-base text-ink md:text-sm">{row.vat}</span>
             </div>
             {row.full ? (

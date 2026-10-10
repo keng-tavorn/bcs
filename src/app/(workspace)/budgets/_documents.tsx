@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server'
 import type { BudgetDocumentsDto, BudgetLineRefDto, BudgetMovementDto, BudgetPoDocDto } from '@/server/services/budget/documents'
 import { moneyText } from '@/ui/budgets/format'
 import { DocumentSection, MovementSection, type DocumentRowView } from '@/ui/budgets/line-detail'
@@ -9,7 +10,7 @@ import { budgetHref, dayText, nameIn, type BudgetsT, type Locale } from './_pres
 // ledger's movements behind what is available — each section the anchor the matching amount links to. On the pages of
 // several lines (`many`) each document and movement names the line it holds money on.
 
-// The statuses and buckets the budgets namespace names (the services return them as text)
+// The statuses document.badge names and the buckets the budgets namespace names (the services return them as text)
 type RequestStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'CANCELLED' | 'PARTIALLY_ORDERED' | 'ORDERED' | 'COMPLETED' | 'SUBMITTED' | 'DONE'
 type PoStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'SENT' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CLOSED' | 'CANCELLED' | 'REJECTED'
 type Bucket = 'OUTSIDE' | 'AVAILABLE' | 'RESERVED' | 'COMMITTED' | 'ACTUAL'
@@ -17,7 +18,9 @@ type Bucket = 'OUTSIDE' | 'AVAILABLE' | 'RESERVED' | 'COMMITTED' | 'ACTUAL'
 /** A document's lines are named one by one up to this many, then counted */
 const LINES_NAMED = 3
 
-export function BudgetDocumentSections({ t, locale, docs, many }: { t: BudgetsT; locale: Locale; docs: BudgetDocumentsDto; many: boolean }) {
+export async function BudgetDocumentSections({ t, locale, docs, many }: { t: BudgetsT; locale: Locale; docs: BudgetDocumentsDto; many: boolean }) {
+  // The words of the status badges of §9.10, the same as on the documents' own pages and lists
+  const td = await getTranslations('document.badge')
   const when = (at: string) => formatDateTime(locale, at)
   const scope = many ? 'many' : 'one'
   const unit = t('unit')
@@ -33,7 +36,7 @@ export function BudgetDocumentSections({ t, locale, docs, many }: { t: BudgetsT;
     href: po.canOpen ? `/procurement/pos/${po.id}` : null,
     detail: po.supplier ? t('line.supplier', { name: nameIn(locale, po.supplier) }) : null,
     meta: linesMeta(po.lines),
-    status: { kind: po.status, label: t(`poStatus.${po.status as PoStatus}`) },
+    status: { kind: po.status, label: td(`po.${po.status as PoStatus}`) },
     note,
     amount: moneyText(po.amount),
     invoices: null,
@@ -61,7 +64,7 @@ export function BudgetDocumentSections({ t, locale, docs, many }: { t: BudgetsT;
         ...(r.submittedAt ? [t('line.submittedAt', { time: when(r.submittedAt) })] : []),
         ...(r.requester ? [t('line.requester', { name: nameIn(locale, r.requester) })] : []),
       ],
-      status: { kind: r.status, label: t(`requestStatus.${r.status as RequestStatus}`) },
+      status: { kind: r.status, label: td(`request.${r.status as RequestStatus}`) },
       note: null,
       amount: moneyText(r.amount),
       invoices: null,

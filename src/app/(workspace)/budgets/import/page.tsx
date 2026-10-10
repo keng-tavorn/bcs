@@ -8,6 +8,7 @@ import { moneyText } from '@/ui/budgets/format'
 import { ImportBudgetForm } from '@/ui/budgets/import-form'
 import { Refused } from '@/ui/budgets/refused'
 import { formatDateTime } from '@/ui/format'
+import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { getSession } from '../../../_lib/session'
 import { localeOf, nameIn } from '../_present'
 import { checkBudgetFileAction, importBudgetFileAction } from './actions'
@@ -31,45 +32,43 @@ export default async function BudgetImportPage() {
   if (!history.ok) return <Refused title={t('title')} message={t('forbidden')} href="/" linkLabel={tb('home')} />
 
   return (
-    <div className="flex max-w-4xl flex-col gap-8">
+    <Page>
       <Link href="/budgets" className={linkClass}>
         {tb('back')}
       </Link>
-      <div className="flex flex-col gap-2">
-        <h1 className="text-2xl font-semibold">{t('title')}</h1>
-        <p className="text-ink-muted">{t('intro')}</p>
-      </div>
+      <PageHeader title={t('title')} intro={t('intro')} />
 
-      <ImportBudgetForm
-        templateHref="/budgets/import/template"
-        dashboardHref="/budgets"
-        maxBytes={MEMBER_IMPORT_MAX_BYTES}
-        maxRows={BUDGET_IMPORT_MAX_ROWS}
-        check={checkBudgetFileAction}
-        importFile={importBudgetFileAction}
-      />
+      <PageBody>
+        <Panel className="max-w-4xl">
+          <ImportBudgetForm
+            templateHref="/budgets/import/template"
+            dashboardHref="/budgets"
+            maxBytes={MEMBER_IMPORT_MAX_BYTES}
+            maxRows={BUDGET_IMPORT_MAX_ROWS}
+            check={checkBudgetFileAction}
+            importFile={importBudgetFileAction}
+          />
+        </Panel>
 
-      <section aria-labelledby="import-history" className="flex flex-col gap-3 border-t border-line pt-6">
-        <h2 id="import-history" className="text-xl font-semibold">
-          {t('historyTitle')}
-        </h2>
-        {history.data.length === 0 ? (
-          <p className="text-ink-muted">{t('historyEmpty')}</p>
-        ) : (
-          <ul aria-labelledby="import-history" className="flex flex-col divide-y divide-line border-y border-line">
-            {history.data.map((h) => (
-              <li key={h.id} className="flex flex-col gap-0.5 py-3">
-                <p className="font-medium break-all">{h.fileName}</p>
-                <p className="tabular">{t('historyRow', { rows: h.rows, total: moneyText(h.total), fiscalYear: h.fiscalYearCode })}</p>
-                <p className="text-base text-ink-muted md:text-sm">
-                  {h.importedBy ? t('historyWhenBy', { time: formatDateTime(locale, h.importedAt), name: nameIn(locale, h.importedBy) }) : t('historyWhen', { time: formatDateTime(locale, h.importedAt) })}
-                </p>
-                {h.confirmedDuplicate ? <p className="text-base text-ink-muted md:text-sm">{t('historyDuplicate')}</p> : null}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-    </div>
+        <Panel title={t('historyTitle')} id="import-history" className="max-w-4xl">
+          {history.data.length === 0 ? (
+            <p className="text-ink-muted">{t('historyEmpty')}</p>
+          ) : (
+            <ul aria-labelledby="import-history" className="flex flex-col divide-y divide-line border-y border-line">
+              {history.data.map((h) => (
+                <li key={h.id} className="flex flex-col gap-0.5 py-3">
+                  <p className="font-medium break-all">{h.fileName}</p>
+                  <p className="tabular">{t('historyRow', { rows: h.rows, total: moneyText(h.total), fiscalYear: h.fiscalYearCode })}</p>
+                  <p className="text-base text-ink-muted md:text-sm">
+                    {h.importedBy ? t('historyWhenBy', { time: formatDateTime(locale, h.importedAt), name: nameIn(locale, h.importedBy) }) : t('historyWhen', { time: formatDateTime(locale, h.importedAt) })}
+                  </p>
+                  {h.confirmedDuplicate ? <p className="text-base text-ink-muted md:text-sm">{t('historyDuplicate')}</p> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
+      </PageBody>
+    </Page>
   )
 }

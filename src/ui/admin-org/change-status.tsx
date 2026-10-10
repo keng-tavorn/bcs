@@ -1,24 +1,19 @@
-import { CalendarClock, CircleCheck, CircleSlash, CircleX, Clock, FilePen } from 'lucide-react'
+import { StatusBadge, type BadgeLook } from '../document/badges'
 import { cn } from '../cn'
 
-// An authority change's status as an icon and words, never colour alone (NFR-A11Y-03). The label arrives translated.
+// An authority change's status as a status badge of §9.10: a tone, an icon and words, never colour alone
+// (NFR-A11Y-03). The label arrives translated.
 const LOOK = {
-  DRAFT: { Icon: FilePen, tone: 'text-ink-muted' },
-  PENDING_APPROVAL: { Icon: Clock, tone: 'text-warn' },
-  SCHEDULED: { Icon: CalendarClock, tone: 'text-info' },
-  APPLIED: { Icon: CircleCheck, tone: 'text-primary' },
-  REJECTED: { Icon: CircleX, tone: 'text-danger' },
-  CANCELLED: { Icon: CircleSlash, tone: 'text-ink-muted' },
-} as const
+  DRAFT: { tone: 'neutral', icon: 'FilePen' },
+  PENDING_APPROVAL: { tone: 'warn', icon: 'Clock' },
+  SCHEDULED: { tone: 'info', icon: 'Hourglass' },
+  APPLIED: { tone: 'ok', icon: 'CircleCheck' },
+  REJECTED: { tone: 'danger', icon: 'CircleX' },
+  CANCELLED: { tone: 'neutral', icon: 'Ban' },
+} as const satisfies Record<string, BadgeLook>
 
 export type ChangeStatusValue = keyof typeof LOOK
 
 export function ChangeStatus({ status, label, className }: { status: ChangeStatusValue; label: string; className?: string }) {
-  const { Icon, tone } = LOOK[status]
-  return (
-    <span className={cn('inline-flex items-center gap-1.5 font-medium', className)}>
-      <Icon className={cn('size-4 shrink-0', tone)} aria-hidden="true" />
-      <span>{label}</span>
-    </span>
-  )
+  return <StatusBadge look={LOOK[status]} label={label} className={cn('text-base md:text-sm', className)} />
 }

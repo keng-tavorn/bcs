@@ -24,7 +24,13 @@ const PRIMARY_LINK =
 // with its timeline. The query reads only the member's own and followed requests. A member only: without a session the
 // gate signs in with LINE first and shows nothing of the page.
 export default async function LiffTrackPage() {
-  const [tv, tl, locale, page] = await Promise.all([getTranslations('requestView'), getTranslations('liffRequests.track'), getLocale(), liffPage()])
+  const [tv, tl, td, locale, page] = await Promise.all([
+    getTranslations('requestView'),
+    getTranslations('liffRequests.track'),
+    getTranslations('document.badge'),
+    getLocale(),
+    liffPage(),
+  ])
   if (page.kind !== 'member') {
     return (
       <LiffFrame title={tv('listTitle')}>
@@ -36,8 +42,9 @@ export default async function LiffTrackPage() {
   }
   const screen = localeOf(locale)
   const list = await listMyRequests(page.ctx, {})
-  // The rows of the workspace's list, each leading to the request's LIFF page instead of the workspace's
-  const rows = requestRows(tv, screen, list.rows).map((row) => ({ ...row, href: liffHref(row.href) ?? row.href }))
+  // The rows of the workspace's list with the words of its badges (§9.10), each leading to the request's LIFF page
+  // instead of the workspace's
+  const rows = requestRows(tv, screen, list.rows).map((row) => ({ ...row, statusLabel: td(`request.${row.status}` as 'request.DRAFT'), href: liffHref(row.href) ?? row.href }))
   const newRequest = liffHref('/requests/new')
   return (
     <LiffFrame title={tv('listTitle')}>

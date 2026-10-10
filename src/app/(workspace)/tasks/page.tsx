@@ -4,8 +4,7 @@ import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
 import { listMyRequests } from '@/server/queries/requests'
-import { listMyTasks, type InboxTaskDto } from '@/server/queries/tasks'
-import type { StepBadgeKey } from '@/ui/document/badges'
+import { listMyTasks } from '@/server/queries/tasks'
 import { FilterBar, FilterSelect, FilterSummary } from '@/ui/page/filters'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
@@ -13,20 +12,11 @@ import { TaskList } from '@/ui/tasks/task-list'
 import { getSession } from '../../_lib/session'
 import { localeOf } from '../_tracking/present'
 import { loadTaskFilters } from '../_tracking/list-filters'
-import { taskRows } from '../_tracking/rows'
+import { taskRows, withSlaBadges } from '../_tracking/rows'
 
 export async function generateMetadata() {
   const t = await getTranslations('tasks')
   return { title: t('title') }
-}
-
-/**
- * A task's SLA as the step badge of §9.10, as the home's "รอฉันอนุมัติ" reads it (../_tracking/home-present.ts): waiting
- * for the requester's answer, past its due time, or waiting for the decision. The inbox does not carry how much of the
- * SLA is used, so a task on time stays OPEN (never OPEN_HALF).
- */
-function slaKey(task: InboxTaskDto): Extract<StepBadgeKey, 'OPEN' | 'OVERDUE' | 'INFO_REQUESTED'> {
-  return task.status === 'INFO_REQUESTED' ? 'INFO_REQUESTED' : task.overdue ? 'OVERDUE' : 'OPEN'
 }
 
 // The approver's inbox (spec §9.1 /tasks, §9.9 principle 1): every task waiting for this member — theirs and the ones
@@ -52,12 +42,7 @@ export default async function TasksPage({ searchParams }: { searchParams: Promis
     loadTaskFilters(searchParams),
   ])
   const inbox = await listMyTasks(ctx, { due: due === 'overdue' ? 'OVERDUE' : due === 'info' ? 'INFO' : null })
-  const badgeLabel = { OPEN: td('step.OPEN_PLAIN'), OVERDUE: td('step.OVERDUE_PLAIN'), INFO_REQUESTED: td('step.INFO_REQUESTED') } as const
-  // The badge says "waiting for the requester's answer"; the row keeps how long it has waited
-  const rows = taskRows(t, tv, locale, inbox.items).map((row, i) => {
-    const key = slaKey(inbox.items[i]!)
-    return { ...row, badge: { key, label: badgeLabel[key] }, states: row.states.filter((s) => s.kind !== 'question') }
-  })
+  const rows = withSlaBadges(td, taskRows(t, tv, locale, inbox.items), inbox.items)
   // Only an empty inbox with no filter asks whether the member has requests to follow
   const hasRequests = inbox.items.length || due ? true : (await listMyRequests(ctx, { limit: 1 })).rows.length > 0
   const canRequest = isAllowed(memberPrincipal(state.member.id, state.roles), 'request.create')

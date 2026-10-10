@@ -94,6 +94,8 @@ const timeline = (page: Page) => page.getByRole('list', { name: 'ไทม์ไ
 const nowLine = (page: Page) => page.locator('p').filter({ hasText: /^ตอนนี้: / })
 /** What the requester has to do on their request page, under its heading */
 const toDo = (page: Page) => page.getByRole('region', { name: 'สิ่งที่ต้องทำ' })
+/** The request's status badge of §9.10 (S16-11) with exactly this word */
+const statusBadge = (page: Page, word: string) => page.locator('[data-slot="badge"]').filter({ hasText: new RegExp(`^${word}$`) }).first()
 /** The bar at the bottom of the requester's page with the one main action (§9.9: LIFF's main button at the bottom) */
 const requesterBar = (page: Page) => page.getByRole('region', { name: 'สิ่งที่ทำได้กับคำขอนี้' })
 
@@ -369,7 +371,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await page.getByLabel('ฉันต้องการยกเลิกคำขอนี้ และเข้าใจว่าย้อนกลับไม่ได้').check()
     await cancel.click()
     await expect(page.getByRole('status').filter({ hasText: 'ยกเลิกคำขอแล้ว' })).toBeVisible()
-    await expect(page.getByText('ยกเลิกแล้ว', { exact: true }).first()).toBeVisible()
+    await expect(statusBadge(page, 'ยกเลิก')).toBeVisible()
     // The budget the request held went back at once
     await expect(page.getByText('คืนงบแล้ว')).toBeVisible()
     await expect(timeline(page).getByRole('listitem').filter({ hasText: 'ยกเลิกคำขอ' })).toContainText('หน้าจอใน LINE')
@@ -385,7 +387,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     // The LINE message about the return opens the request's LIFF page
     await page.goto(`/liff/requests/${requestId}`)
     await expect(page.getByRole('heading', { level: 1, name: number })).toBeVisible()
-    await expect(page.getByText('ตีกลับให้แก้ไข', { exact: true }).first()).toBeVisible()
+    await expect(statusBadge(page, 'ตีกลับให้แก้')).toBeVisible()
     await expect(nowLine(page)).toContainText('รอคุณแก้ไขแล้วส่งอีกครั้ง')
     await expect(toDo(page)).toContainText('ผู้อนุมัติตีกลับให้แก้ไข')
     await expect(toDo(page)).toContainText('เหตุผล: แยกรายการไม้อัดตามความหนาก่อนส่งอีกครั้ง')
@@ -513,7 +515,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] the request pages in the LINE app', () 
     await page.getByLabel('ฉันต้องการยกเลิกคำขอนี้ และเข้าใจว่าย้อนกลับไม่ได้').check()
     await page.getByRole('button', { name: 'ยกเลิกคำขอนี้' }).click()
     await expect(page.getByRole('status').filter({ hasText: 'ยกเลิกคำขอแล้ว' })).toBeVisible()
-    await expect(page.getByText('ยกเลิกแล้ว', { exact: true }).first()).toBeVisible()
+    await expect(statusBadge(page, 'ยกเลิก')).toBeVisible()
     await expect(toDo(page)).toHaveCount(0)
     await expect(page.getByRole('heading', { name: 'สิ่งที่ต้องทำ' })).toHaveCount(0)
     await expect(requesterBar(page)).toHaveCount(0)

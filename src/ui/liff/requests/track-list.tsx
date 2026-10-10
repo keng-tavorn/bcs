@@ -1,11 +1,13 @@
 import type { RequestRow } from '../../request-view/request-list'
-import { RequestStatus, StateLine } from '../../request-view/status'
+import { REQUEST_BADGES } from '../../document/badge-looks'
+import { StateLine } from '../../request-view/status'
 import { LiffLink } from '../liff-link'
+import { LiffStatusBadge } from '../status-badge'
 
 // "My requests" in LINE (§9.4 /liff/track, FR-INT-008 AC2: the requester and followers see the same status on every
 // channel): the rows of the workspace's list (src/app/(workspace)/_tracking/rows.ts: the same status, the same "where it
 // is now" with who it waits for and for how long, the same total), one column for a phone. Each title opens the
-// request's LIFF page with its timeline. Status is an icon and words, never colour alone (NFR-A11Y-03); money is
+// request's LIFF page with its timeline. Status is the badge of §9.10: icon and words, never colour alone (NFR-A11Y-03); money is
 // right-aligned with tabular digits (§9.9 principle 6). Server-rendered: no JavaScript of its own beyond the link.
 
 export interface LiffTrackLabels {
@@ -36,7 +38,7 @@ export function LiffTrackList({ rows, labels }: { readonly rows: readonly Reques
           </div>
           <p>
             <span className="sr-only">{labels.status}: </span>
-            <RequestStatus status={row.status} label={row.statusLabel} />
+            <LiffStatusBadge look={REQUEST_BADGES[row.status]} label={row.statusLabel} />
           </p>
           <div className="flex min-w-0 flex-col gap-0.5">
             <p className="break-words text-ink">

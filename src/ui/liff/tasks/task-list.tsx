@@ -1,13 +1,15 @@
+import { STEP_BADGES } from '../../document/badge-looks'
 import { StateLine } from '../../request-view/status'
 import type { TaskRow } from '../../tasks/task-list'
 import { LiffLink } from '../liff-link'
+import { LiffStatusBadge } from '../status-badge'
 
 // The member's tasks on /liff/tasks (§9.4, §9.9 principle 1): the rows of the web inbox (src/ui/tasks/task-list.tsx,
 // built by the same row builder) laid out for a phone in the LINE app. Each row: what it is — the document number and
 // title, a link to its LIFF decision page at least 44 px high (§9.4) — who asked and for which department, the amount
-// right-aligned in tabular digits with what it is, how long it has waited and when it is due, an overdue one marked with
-// an icon and words (never colour alone, NFR-A11Y-03), and its tags (the PIN it needs, whom the member holds it for).
-// No cards: rows separated by rules. The links are LIFF links (no next/link in a LIFF page's first JavaScript, §9.4).
+// right-aligned in tabular digits with what it is, its SLA as the step badge of §9.10, how long it has waited and when it
+// is due, an overdue one marked with an icon and words (never colour alone, NFR-A11Y-03), and its tags (the PIN it needs,
+// whom the member holds it for). No cards: rows separated by rules. The links are LIFF links (no next/link in a LIFF page's first JavaScript, §9.4).
 
 export function LiffTaskList({ rows, label }: { readonly rows: readonly TaskRow[]; readonly label: string }) {
   return (
@@ -27,8 +29,9 @@ export function LiffTaskList({ rows, label }: { readonly rows: readonly TaskRow[
               </span>
             </p>
           ) : null}
-          {row.states.length ? (
-            <div className="flex flex-col gap-0.5">
+          {row.badge || row.states.length ? (
+            <div className="flex flex-col gap-1">
+              {row.badge ? <LiffStatusBadge look={STEP_BADGES[row.badge.key]} label={row.badge.label} /> : null}
               {row.states.map((s) => (
                 <StateLine key={s.text} kind={s.kind}>
                   {s.text}

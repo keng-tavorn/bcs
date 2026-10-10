@@ -99,7 +99,7 @@ test('@demo [FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2
   await expect(page).toHaveURL(new RegExp(`/liff/gr/${po.id}$`))
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(th('receiving.detail.title', { number: po.number }))
   const main = page.getByRole('main')
-  await expect(main.getByText(th('receiving.status.po.SENT'), { exact: true })).toBeVisible()
+  await expect(main.getByText(th('document.badge.po.SENT'), { exact: true })).toBeVisible()
   // Which PO: its supplier and site (sheets Suppliers and Sites), the requests it orders, who asked from which department
   await expect(main).toContainText(th('receiving.detail.supplier', { name: supplierOf(sheet, po.supplier.code).nameTh }))
   await expect(main).toContainText(th('receiving.detail.site', { name: nameIn(sheet.sites, po.site, 'site') }))
@@ -139,7 +139,8 @@ test('@demo [FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2
   const doneTitle = new RegExp(`^${literally(th('receiving.form.doneTitle', { number: '__N__' })).replace('__N__', '(\\S+)')}$`)
   await expect(page.getByText(doneTitle)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(th('receiving.form.donePo', { status: partly }))).toBeVisible()
-  await expect(main.getByText(partly, { exact: true })).toBeVisible()
+  // The PO's badge (§9.10) says the same in its own word
+  await expect(main.getByText(th('document.badge.po.PARTIALLY_RECEIVED'), { exact: true })).toBeVisible()
   const receipts = page.getByRole('list', { name: th('receiving.history.label') })
   for (const line of [part, whole]) {
     const got = shownQuantity(taken.get(line.id)!)

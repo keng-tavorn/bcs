@@ -7,6 +7,7 @@ import { twMerge } from 'tailwind-merge'
 import ts from 'typescript'
 import { describe, expect, it, vi } from 'vitest'
 import { BoundaryConfirm } from '@/ui/admin-doa/boundary-confirm'
+import { PO_BADGES, REQUEST_BADGES, STEP_BADGES } from '@/ui/document/badge-looks'
 import { Button as WorkspaceButton } from '@/ui/form/button'
 import { Notice } from '@/ui/form/notice'
 import { LiffActionBar } from '@/ui/liff/action-bar'
@@ -24,6 +25,7 @@ import { CameraIcon } from '@/ui/liff/receiving/camera-icon'
 import { FieldError, LiffField, LiffTextArea } from '@/ui/liff/receiving/fields'
 import { LiffStatusMark, MARK_SHAPES, MarkIcon, type MarkShape } from '@/ui/liff/receiving/marks'
 import { LiffCameraAttach } from '@/ui/liff/requests/camera-attach'
+import { LiffStatusBadge } from '@/ui/liff/status-badge'
 import { LIFF_FORBIDDEN_PACKAGES, LIFF_FORBIDDEN_PATHS } from '../../eslint/liff-forbidden.mjs'
 import th from '../../messages/th.json'
 
@@ -406,10 +408,15 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
     const icons: readonly LiffIconName[] = ['chevronLeft', 'shoppingCart', 'clipboardCheck', 'packageSearch', 'circleHelp']
     const states: readonly LiffDelegationState[] = ['ACTIVE', 'SCHEDULED', 'ENDED', 'REVOKED']
     const statuses = {
-      po: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED', 'CANCELLED', 'REJECTED', 'UNKNOWN'],
       receipt: ['DRAFT', 'POSTED', 'REVERSED'],
       variance: ['RECORDED', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED'],
     } as const
+    const badgeLooks = [
+      ...Object.entries(REQUEST_BADGES).map(([k, look]) => [`request ${k}`, look] as const),
+      ...Object.entries(PO_BADGES).map(([k, look]) => [`po ${k}`, look] as const),
+      ...Object.entries(STEP_BADGES).map(([k, look]) => [`step ${k}`, look] as const),
+      ['unknown', undefined] as const,
+    ]
     const noop = async () => ({ ok: false as const, reason: 'FAILED' as const })
     const screens: ReadonlyArray<readonly [string, ReactElement]> = [
       ...tones.map((tone) => [`notice ${tone}`, <LiffNotice key={tone} tone={tone}>ข้อความ</LiffNotice>] as const),
@@ -428,6 +435,7 @@ describe('[§9.4] the LIFF components join their classes without tailwind-merge'
         list.map((status) => [`status ${of} ${status}`, <LiffStatusMark key={status} of={of} status={status} label="สถานะ" />] as const),
       ),
       ...states.map((state) => [`delegation ${state}`, <LiffDelegationStateMark key={state} state={state} label="สถานะ" />] as const),
+      ...badgeLooks.flatMap(([name, look]) => [undefined, 'self-start'].map((className) => [`badge ${name} ${className ?? ''}`, <LiffStatusBadge key={name} look={look} label="สถานะ" className={className} />] as const)),
       ...[undefined, 'money', 'tabular text-right'].map((className) => [`field ${className ?? ''}`, <LiffField key={className ?? '-'} id="f" label="จำนวน" error="ใส่จำนวน" hint="ช่วย" className={className} />] as const),
       ...[undefined, 'tabular tracking-widest'].map((className) => [`sign-in field ${className ?? ''}`, <SignInField key={className ?? '-'} id="s" label="อีเมลบริษัท" error="ใส่อีเมลบริษัท" hint="ช่วย" className={className} />] as const),
       ['text area', <LiffTextArea key="area" id="a" label="หมายเหตุ" hint="ช่วย" />],

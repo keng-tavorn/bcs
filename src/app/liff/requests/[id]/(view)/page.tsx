@@ -1,15 +1,17 @@
 import { getLocale, getTranslations } from 'next-intl/server'
 import { cache, type ReactNode } from 'react'
 import { getRequestAccess, getRequestView, isUuid, type RequestViewDto } from '@/server/queries/requests'
+import { REQUEST_BADGES } from '@/ui/document/badge-looks'
 import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
 import { LiffGate } from '@/ui/liff/liff-gate'
 import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffNotice } from '@/ui/liff/notice'
 import { LiffCancelRequest } from '@/ui/liff/requests/cancel'
 import { LiffRequestScreen } from '@/ui/liff/requests/requester'
+import { LiffStatusBadge } from '@/ui/liff/status-badge'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
-import { RequestStatus, StateLine } from '@/ui/request-view/status'
+import { StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
 import { canViewRequest } from '../../../../(workspace)/_tracking/access'
 import { doaRefText, dueText, localeOf, memberName, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../../(workspace)/_tracking/present'
@@ -66,7 +68,14 @@ function placeFacts(tv: ViewT, locale: Locale, view: RequestViewDto): PlaceFact[
 // the DOA version's page is a workspace page for administrators.
 export default async function LiffRequestPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [tv, tl, tlr, locale, page] = await Promise.all([getTranslations('requestView'), getTranslations('timeline'), getTranslations('liffRequests.view'), getLocale().then(localeOf), liffPage()])
+  const [tv, tl, tlr, td, locale, page] = await Promise.all([
+    getTranslations('requestView'),
+    getTranslations('timeline'),
+    getTranslations('liffRequests.view'),
+    getTranslations('document.badge'),
+    getLocale().then(localeOf),
+    liffPage(),
+  ])
   const track = liffHref('/requests') ?? '/liff/track'
   const back = { href: track, label: tv('detail.back') }
   const screen = (title: string, content: ReactNode) => (
@@ -119,7 +128,7 @@ export default async function LiffRequestPage({ params }: { params: Promise<{ id
     <header className="flex flex-col gap-3">
       <h2 className="text-lg font-semibold break-words">{view.title}</h2>
       <div className="flex flex-col gap-1.5 border-l-4 border-line pl-3">
-        <RequestStatus status={view.status} label={tv(`status.${view.status}`)} />
+        <LiffStatusBadge look={REQUEST_BADGES[view.status]} label={td(`request.${view.status}` as 'request.DRAFT')} />
         <p className="text-ink">
           <span className="text-ink-muted">{tv('detail.nowTitle')}: </span>
           {stageText(tv, locale, stage, mine)}

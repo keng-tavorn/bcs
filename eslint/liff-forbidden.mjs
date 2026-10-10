@@ -18,5 +18,6 @@ export const LIFF_FORBIDDEN_PACKAGES = [
   '@radix-ui/*',
 ]
 
-/** Modules of src (repo paths without extension): the shadcn/ui components, the class merger, the workspace's button */
-export const LIFF_FORBIDDEN_PATHS = ['src/ui/shadcn/**', 'src/ui/cn', 'src/ui/form/button']
+/** Modules of src (repo paths without extension): the shadcn/ui components, the class merger, the workspace's button,
+ * and the workspace's status badge (LIFF draws the same table with src/ui/liff/status-badge.tsx) */
+export const LIFF_FORBIDDEN_PATHS = ['src/ui/shadcn/**', 'src/ui/cn', 'src/ui/form/button', 'src/ui/document/badges']

@@ -166,7 +166,7 @@ test('[FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2] demo
   await expect(page).toHaveURL(new RegExp(`/liff/gr/${s.poId}$`))
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(`ตรวจรับ ${s.number}`)
   const main = page.getByRole('main')
-  await expect(main.getByText('ส่งให้ผู้ขายแล้ว รอของ', { exact: true })).toBeVisible()
+  await expect(main.getByText('ส่งผู้ขายแล้ว', { exact: true })).toBeVisible()
   await expect(main).toContainText(`${s.requestNumber} ขอโดย ผู้ขอ ทดสอบตรวจรับ · ฝ่ายก่อสร้าง`)
   await expect(page.getByText('ขั้น 1 จาก 2')).toBeVisible()
   // 16 px text (§9.4); the bar with the step's button at the bottom of the screen
@@ -506,7 +506,7 @@ test('[FR-P2P-006/AC3] in LINE, separation of duties is said in plain words with
   await expect(own.getByText('หลังบันทึก ใบสั่งซื้อจะเป็น "รับครบแล้ว"')).toBeVisible()
   await own.getByRole('button', { name: 'ยืนยันบันทึกการตรวจรับ' }).click()
   await expect(own.getByText('ใบสั่งซื้อเป็น "รับครบแล้ว"')).toBeVisible()
-  await expect(own.getByRole('main').getByText('รับครบแล้ว', { exact: true })).toBeVisible()
+  await expect(own.getByRole('main').getByText('รับครบ', { exact: true })).toBeVisible()
   await checkScreen(own, testInfo, 'liff-gr-requester-done')
   await phone.close()
   expect(liffGrScene<RecordedReceipt>('receipt', s.poId)).toMatchObject({ poStatus: 'RECEIVED', receipt: { channel: 'LIFF', photos: [] } })

@@ -1,6 +1,7 @@
 import type { getTranslations } from 'next-intl/server'
 import type { MyRequestRowDto } from '@/server/queries/requests'
 import type { InboxTaskDto } from '@/server/queries/tasks'
+import type { StepBadgeKey } from '@/ui/document/badge-looks'
 import type { RequestRow } from '@/ui/request-view/request-list'
 import type { StateKind } from '@/ui/request-view/status'
 import type { TaskRow } from '@/ui/tasks/task-list'
@@ -9,6 +10,7 @@ import { day, dueText, memberName, money, nameIn, stageText, stageWaitingMinutes
 // Rows of the inbox, the home page and "my requests", translated and formatted for the reader.
 
 export type TasksT = Awaited<ReturnType<typeof getTranslations<'tasks'>>>
+export type BadgeT = Awaited<ReturnType<typeof getTranslations<'document.badge'>>>
 
 /** What a task is about, in one line */
 export function taskTitle(t: TasksT, task: InboxTaskDto): string {
@@ -75,6 +77,27 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       states,
       tags,
     }
+  })
+}
+
+/**
+ * A task's SLA as the step badge of §9.10, as the home's "รอฉันอนุมัติ" reads it (./home-present.ts): waiting for the
+ * requester's answer, past its due time, or waiting for the decision. The inbox does not carry how much of the SLA is
+ * used, so a task on time stays OPEN (never OPEN_HALF).
+ */
+function slaKey(task: InboxTaskDto): Extract<StepBadgeKey, 'OPEN' | 'OVERDUE' | 'INFO_REQUESTED'> {
+  return task.status === 'INFO_REQUESTED' ? 'INFO_REQUESTED' : task.overdue ? 'OVERDUE' : 'OPEN'
+}
+
+/**
+ * The rows of taskRows() led by their SLA badge, as the web inbox and LIFF's /liff/tasks show them (§9.10 งานอนุมัติ):
+ * the badge says "waiting for the requester's answer", so the row keeps only how long it has waited
+ */
+export function withSlaBadges(td: BadgeT, rows: readonly TaskRow[], tasks: readonly InboxTaskDto[]): TaskRow[] {
+  const label = { OPEN: td('step.OPEN_PLAIN'), OVERDUE: td('step.OVERDUE_PLAIN'), INFO_REQUESTED: td('step.INFO_REQUESTED') } as const
+  return rows.map((row, i) => {
+    const key = slaKey(tasks[i]!)
+    return { ...row, badge: { key, label: label[key] }, states: row.states.filter((s) => s.kind !== 'question') }
   })
 }
 

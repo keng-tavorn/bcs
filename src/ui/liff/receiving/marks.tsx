@@ -1,11 +1,12 @@
 import { createElement } from 'react'
 import { cn } from '../cn'
 
-// The status of a purchase order, a goods receipt or a variance on the LIFF receiving page (/liff/gr/[poId]): an icon and
+// The status of a goods receipt or a variance on the LIFF receiving page (/liff/gr/[poId]): an icon and
 // words, never colour alone (NFR-A11Y-03), with the same icons and tones as the workspace's src/ui/receiving/status.tsx.
 // The icons are plain SVG from Lucide's path data (lucide-react 1.49, ISC License, Copyright (c) Lucide Icons and
 // Contributors): lucide-react draws through its Icon client component, which a LIFF page would carry in its first
-// JavaScript (§9.4: 200 KB gzip). Markup only: rendered by a server component it costs the page no JavaScript.
+// JavaScript (§9.4: 200 KB gzip). Markup only: rendered by a server component it costs the page no JavaScript. The PO's
+// own status is the badge of §9.10 (../status-badge.tsx), as on the workspace's page.
 
 type Shape =
   | readonly ['path', { readonly d: string }]
@@ -24,13 +25,6 @@ export const MARK_SHAPES = {
   circleCheck: [CIRCLE, ['path', { d: 'm16 9-5.5 5.5L8 12' }]],
   circleX: [CIRCLE, ['path', { d: 'm15 9-6 6' }], ['path', { d: 'm9 9 6 6' }]],
   ban: [CIRCLE, ['path', { d: 'M4.929 4.929 19.07 19.071' }]],
-  truck: [
-    ['path', { d: 'M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2' }],
-    ['path', { d: 'M15 18H9' }],
-    ['path', { d: 'M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14' }],
-    ['circle', { cx: '17', cy: '18', r: '2' }],
-    ['circle', { cx: '7', cy: '18', r: '2' }],
-  ],
   packageOpen: [
     ['path', { d: 'M12 22v-9' }],
     ['path', { d: 'M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z' }],
@@ -76,18 +70,7 @@ export function MarkIcon({ shape, className }: { readonly shape: MarkShape; read
 type Look = { readonly shape: MarkShape; readonly tone: string }
 const FALLBACK: Look = { shape: 'filePen', tone: 'text-ink-muted' }
 
-const LOOKS: Readonly<Record<'po' | 'receipt' | 'variance', Readonly<Record<string, Look>>>> = {
-  po: {
-    DRAFT: { shape: 'filePen', tone: 'text-ink-muted' },
-    PENDING_APPROVAL: { shape: 'clock', tone: 'text-warn' },
-    APPROVED: { shape: 'circleCheck', tone: 'text-primary' },
-    SENT: { shape: 'truck', tone: 'text-info' },
-    PARTIALLY_RECEIVED: { shape: 'packageOpen', tone: 'text-warn' },
-    RECEIVED: { shape: 'packageCheck', tone: 'text-primary' },
-    CLOSED: { shape: 'circleCheck', tone: 'text-ink-muted' },
-    CANCELLED: { shape: 'ban', tone: 'text-ink-muted' },
-    REJECTED: { shape: 'circleX', tone: 'text-danger' },
-  },
+const LOOKS: Readonly<Record<'receipt' | 'variance', Readonly<Record<string, Look>>>> = {
   receipt: {
     DRAFT: { shape: 'filePen', tone: 'text-ink-muted' },
     POSTED: { shape: 'packageCheck', tone: 'text-primary' },
@@ -102,7 +85,7 @@ const LOOKS: Readonly<Record<'po' | 'receipt' | 'variance', Readonly<Record<stri
 }
 
 /** A status: its icon in the status's tone, and the translated label */
-export function LiffStatusMark({ of, status, label, className }: { readonly of: 'po' | 'receipt' | 'variance'; readonly status: string; readonly label: string; readonly className?: string }) {
+export function LiffStatusMark({ of, status, label, className }: { readonly of: 'receipt' | 'variance'; readonly status: string; readonly label: string; readonly className?: string }) {
   const look = LOOKS[of][status] ?? FALLBACK
   return (
     <span className={cn('inline-flex items-start gap-1.5 font-medium', className)}>

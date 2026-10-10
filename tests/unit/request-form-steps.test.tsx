@@ -3,10 +3,10 @@ import type { ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import type { FieldDef } from '@/core/forms/fields'
-import { formDefinition, FormSchemaJson } from '@/server/forms/schema'
+import { formDefinition, FormSchemaJson, RESERVED_STEP_KEYS } from '@/server/forms/schema'
 import { loadSeedForms } from '@/server/seed/forms'
 import { parseFormJson } from '@/server/services/request-types/form-import'
-import { planSteps, SCREENING_FIELDS, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from '@/ui/request-form/form-steps'
+import { AUTO_STEPS, planSteps, SCREENING_FIELDS, stepIndexOf, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from '@/ui/request-form/form-steps'
 import { applicableRules, formInput, initialValues, problemsOf, totalsOf, visibleFieldIds, type FormValues } from '@/ui/request-form/model'
 import { ChooseType, matchesType } from '@/ui/request-form/new-request-dialog'
 import { toFormFailure } from '@/ui/request-form/outcome'
@@ -129,6 +129,36 @@ describe('[FR-INT-011/AC2] the steps of every form seeded for the demo, without 
     // Not in a step of its own: on the details step
     expect(plan.find((s) => s.key === 'details')?.fields).toEqual(expect.arrayContaining(['processesPersonalData', 'accessesPremises']))
   })
+
+  it('with steps of its own, the question the attachment rules ask is still asked once, beside the rules on the documents step', () => {
+    const base = SEED.get('IT_PURCHASE')!
+    for (const steps of [
+      [{ key: 'kind', titleTh: 'ประเภท', titleEn: 'Kind', fields: ['category'], optional: false }],
+      [{ key: 'kind', titleTh: 'ประเภท', titleEn: 'Kind', fields: ['category', 'singleSourceJustification'], optional: false }],
+    ]) {
+      const form = formDefinition(FormSchemaJson.parse({ ...base, steps }))
+      const { plan } = planOf(dataOf('IT_PURCHASE', 'PURCHASE_REQUEST', form), { category: 'HARDWARE' }, '150000.00')
+      const placed = plan.flatMap((s) => s.fields)
+      expect(placed.filter((id) => id === 'singleSourceJustification')).toHaveLength(1)
+      expect(stepWith(plan, 'singleSourceJustification')).toBe('documents')
+      expect(plan.find((s) => s.key === 'documents')?.sections).toContain('rules')
+    }
+  })
+
+  it('a step that has nothing to show any more gives way to the step before it, though every step was visited', () => {
+    const fields: FieldDef[] = [
+      { id: 'kind', type: 'select', required: true, options: ['A', 'B'] },
+      { id: 'detailB', type: 'text', required: true },
+    ]
+    const form: FormDefinition = { fields, visibility: [{ field: 'detailB', when: { field: 'kind', op: 'eq', value: 'B' } }], rules: [], lines: {} }
+    const data = dataOf('X', 'PURCHASE_REQUEST', form)
+    const every = planOf(data, { kind: 'B' }).plan
+    const now = planOf(data, { kind: 'A' }).plan
+    expect(keys(every)).toContain('questions')
+    expect(stepIndexOf(now, every, 'questions')).toBe(keys(now).indexOf('supplier'))
+    expect(stepIndexOf(now, every, 'documents')).toBe(keys(now).indexOf('documents'))
+    expect(stepIndexOf(now, every, 'gone')).toBe(0)
+  })
 })
 
 describe('[FR-INT-011/AC2] the stored steps: optional in FormVersion.schema, checked on import (FR-ADM-005)', () => {
@@ -153,6 +183,16 @@ describe('[FR-INT-011/AC2] the stored steps: optional in FormVersion.schema, che
       ],
     })
     expect(parseFormJson(JSON.stringify({ ...form, steps: [{ key: 's1', titleTh: 'หนึ่ง', titleEn: 'One', fields: ['b'], optional: true }] }))).toMatchObject({ ok: true })
+  })
+
+  it('an import is refused for a step that takes the key of an automatic step, which the screen finds steps by', () => {
+    expect(RESERVED_STEP_KEYS).toEqual([...AUTO_STEPS])
+    for (const key of AUTO_STEPS) {
+      expect(parseFormJson(JSON.stringify({ ...form, steps: [{ key, titleTh: 'หนึ่ง', titleEn: 'One', fields: ['a'] }] }))).toEqual({
+        ok: false,
+        problems: [{ reason: 'RESERVED_STEP', step: key, path: 'steps[0].key' }],
+      })
+    }
   })
 })
 

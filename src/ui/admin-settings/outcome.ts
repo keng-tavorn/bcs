@@ -33,6 +33,7 @@ export type FormProblemView =
   | { readonly reason: 'UNKNOWN_FIELD'; readonly field: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_ATTACHMENT'; readonly attachment: string; readonly path: string }
   | { readonly reason: 'DUPLICATE_STEP'; readonly step: string; readonly path: string }
+  | { readonly reason: 'RESERVED_STEP'; readonly step: string; readonly path: string }
   | { readonly reason: 'FIELD_IN_TWO_STEPS'; readonly field: string; readonly path: string }
 
 /** Why a number pattern cannot be saved (src/server/services/numbering/admin.ts) */

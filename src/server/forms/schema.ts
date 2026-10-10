@@ -25,6 +25,12 @@ const RequirementJson: z.ZodType<AttachmentRule['require']> = z.lazy(() =>
   ]),
 ) as z.ZodType<AttachmentRule['require']>
 
+/**
+ * The keys of the screen's automatic steps (AUTO_STEPS in src/ui/request-form/form-steps.ts, kept equal by
+ * tests/unit/request-form-steps.test.tsx): the screen finds a step by its key, so a form's own step may not take one.
+ */
+export const RESERVED_STEP_KEYS: readonly string[] = ['details', 'items', 'supplier', 'questions', 'documents', 'review']
+
 /** One step of a form: its key, its title in both languages, the ids of its fields, and whether it may be skipped */
 const FormStepJson = z.strictObject({
   key: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),

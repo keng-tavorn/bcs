@@ -288,3 +288,19 @@ describe('[FR-PLT-014/AC1] "ล่าสุด" keeps the other documents when o
     expect(ids.slice(1)).toEqual(before.filter((d) => d.id !== flooded.id).map((d) => d.id).slice(0, SEARCH_GROUP_LIMIT - 1))
   })
 })
+
+describe('[FR-PLT-014/AC3] the whole number finds its document though newer ones hold it too', () => {
+  it('ranks the request whose number was typed first, when more than five newer requests quote that number in their title', async () => {
+    const executive = members.find((m) => m.principal.kind === 'member' && m.principal.roles.has('EXECUTIVE'))!
+    const db = forTenant(organizationId)
+    const numbered = await db.request.findMany({ where: { number: { not: null } }, select: { id: true, number: true }, orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }] })
+    const oldest = numbered[0]!
+    const quoting = numbered.slice(1, SEARCH_GROUP_LIMIT + 2)
+    expect(quoting.length).toBeGreaterThan(SEARCH_GROUP_LIMIT)
+    // Newer requests that quote the old number (a request set up after it, say) crowd its group
+    for (const [i, r] of quoting.entries()) await db.request.update({ where: { id: r.id }, data: { title: `ต่อจาก ${oldest.number!} ${i}`, updatedAt: new Date(NOW.getTime() + (i + 1) * 60_000) } })
+    const found = await search(executive, oldest.number!)
+    expect(found.documents[0]?.id).toBe(oldest.id)
+    expect(found.documents.length).toBeLessThanOrEqual(SEARCH_GROUP_LIMIT)
+  })
+})

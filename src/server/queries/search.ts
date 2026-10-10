@@ -120,35 +120,53 @@ const poHref = (id: string) => `/procurement/pos/${id}`
 
 type Ranked = SearchDocumentDto & { readonly at: Date }
 
+/**
+ * The rows of one kind whose number is `text`, then the latest that hold it: read apart, so that newer documents holding
+ * the typed number in a longer one cannot crowd the exact one out of the group before it is ranked first. Prisma reads
+ * an insensitive `equals` with ILIKE, so the exact read escapes % and _ too (NEW-61), and its rows are checked here.
+ */
+async function exactThenPartial<T extends { readonly id: string; readonly number: string | null }>(text: string, read: (match: 'exact' | 'part') => Promise<T[]>): Promise<T[]> {
+  const [read1, part] = await Promise.all([read('exact'), read('part')])
+  const exact = read1.filter((r) => r.number?.toLowerCase() === text.toLowerCase())
+  return [...exact, ...part.filter((r) => !exact.some((e) => e.id === r.id))]
+}
+
 /** Documents whose number holds `text` (any part), and requests whose title does; at most SEARCH_GROUP_LIMIT */
 async function findDocuments(db: TenantDb, scope: SearchScope, text: string): Promise<SearchDocumentDto[]> {
   const [requestScope, poScope] = await Promise.all([requestsWhere(db, scope), purchaseOrdersWhere(db, scope)])
   const take = SEARCH_GROUP_LIMIT
+  const number = (match: 'exact' | 'part') => (match === 'exact' ? { equals: escapeLike(text), mode: 'insensitive' as const } : contains(text))
   const [requests, pos, grs] = await Promise.all([
     requestScope
-      ? db.request.findMany({
-          where: { AND: [requestScope, { OR: [{ number: contains(text) }, { title: contains(text) }] }] },
-          select: { id: true, number: true, title: true, status: true, updatedAt: true },
-          orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-          take,
-        })
+      ? exactThenPartial(text, (match) =>
+          db.request.findMany({
+            where: { AND: [requestScope, match === 'exact' ? { number: number(match) } : { OR: [{ number: number(match) }, { title: contains(text) }] }] },
+            select: { id: true, number: true, title: true, status: true, updatedAt: true },
+            orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+            take,
+          }),
+        )
       : [],
     poScope
-      ? db.purchaseOrder.findMany({
-          where: { AND: [poScope, { number: contains(text) }] },
-          select: { id: true, number: true, status: true, updatedAt: true },
-          orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-          take,
-        })
+      ? exactThenPartial(text, (match) =>
+          db.purchaseOrder.findMany({
+            where: { AND: [poScope, { number: number(match) }] },
+            select: { id: true, number: true, status: true, updatedAt: true },
+            orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+            take,
+          }),
+        )
       : [],
     // A receipt is seen with its PO (§9.1: a GR opens on its PO's page)
     poScope
-      ? db.goodsReceipt.findMany({
-          where: { number: contains(text), status: { not: 'DRAFT' }, po: { is: poScope } },
-          select: { id: true, number: true, status: true, poId: true, updatedAt: true },
-          orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
-          take,
-        })
+      ? exactThenPartial(text, (match) =>
+          db.goodsReceipt.findMany({
+            where: { number: number(match), status: { not: 'DRAFT' }, po: { is: poScope } },
+            select: { id: true, number: true, status: true, poId: true, updatedAt: true },
+            orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+            take,
+          }),
+        )
       : [],
   ])
   const ranked: Ranked[] = [

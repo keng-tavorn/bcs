@@ -35,6 +35,8 @@ function useProblemText(): (p: FormProblemView) => string {
         return t('UNKNOWN_ATTACHMENT', { path: p.path, attachment: p.attachment })
       case 'DUPLICATE_STEP':
         return t('DUPLICATE_STEP', { path: p.path, step: p.step })
+      case 'RESERVED_STEP':
+        return t('RESERVED_STEP', { path: p.path, step: p.step })
       case 'FIELD_IN_TWO_STEPS':
         return t('FIELD_IN_TWO_STEPS', { path: p.path, field: p.field })
     }

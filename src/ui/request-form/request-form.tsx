@@ -32,7 +32,7 @@ import {
   visibleFieldIds,
   type FormAction,
 } from './model'
-import { planSteps, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from './form-steps'
+import { planSteps, stepIndexOf, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from './form-steps'
 import { failureKey, failureTarget, toFormFailure, type ClosedWhy, type FormFailure, type FormOutcome } from './outcome'
 import { failureText, ReviewStep, sendStateOf, type SaveStop, type StepLocator } from './review-step'
 import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
@@ -165,12 +165,12 @@ export function RequestForm({
   const budget = preview && (preview.budget.kind !== 'LINE' || preview.budget.budgetLineId === values.budgetLineId) ? preview.budget : null
 
   // The steps (./form-steps.ts): the form's own, or the six of §9.10, without those that have nothing to show now
-  const plan = planSteps({ form: data.form, purchase, visible, filesAllowed: data.attachmentKinds.length > 0 || attachments.length > 0, applicableRules: rules.map((r) => r.id) })
+  const stepInput = { form: data.form, purchase, filesAllowed: data.attachmentKinds.length > 0 || attachments.length > 0, applicableRules: rules.map((r) => r.id) }
+  const plan = planSteps({ ...stepInput, visible })
   const nameOf = (s: PlannedStep) => (s.title ? (locale === 'en' ? s.title.en : s.title.th) : t(`wizard.${s.auto ?? 'details'}`))
   const named = plan.map((step) => ({ step, name: nameOf(step) }))
-  const found = plan.findIndex((s) => s.key === stepKey)
   // A step that has nothing to show any more (its only questions hidden by an answer) gives way to the one before it
-  const index = found >= 0 ? found : Math.max(0, plan.findIndex((s) => !visited.has(s.key)) - 1)
+  const index = stepIndexOf(plan, planSteps({ ...stepInput, visible: new Set(data.form.fields.map((f) => f.id)) }), stepKey)
   const current = plan[index]!
   const furthest = plan.reduce((max, s, i) => (visited.has(s.key) ? i : max), 0)
   const showErrors = reviewed || checked.has(current.key)

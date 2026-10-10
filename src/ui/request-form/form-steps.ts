@@ -95,7 +95,8 @@ export interface StepPlanInput {
 /**
  * The steps the requester goes through, in order, with the fields and parts each holds. Without steps of its own the
  * form gets the automatic ones; with them, the fields they list are asked there, every other field on the details step
- * (§9.10), and the parts that are not fields keep their automatic steps around them: details, the form's own steps,
+ * (§9.10) — but a question the attachment rules ask stays beside the rules on the documents step either way, so it is
+ * asked once — and the parts that are not fields keep their automatic steps around them: details, the form's own steps,
  * items, supplier, documents, check and send. A step with no field and no part to show is skipped. The documents step
  * stays while the request may hold files — a new-supplier request attaches its registry proof there although no rule
  * asks for one (S2-11) — and is "ไม่บังคับ" while no rule applies and no file field is required.
@@ -103,11 +104,11 @@ export interface StepPlanInput {
 export function planSteps({ form, purchase, visible, filesAllowed, applicableRules }: StepPlanInput): PlannedStep[] {
   const asked = documentFieldIds(form.rules)
   const own = form.steps ?? []
-  const listed = new Set(own.flatMap((s) => s.fields))
+  const listed = new Set(own.flatMap((s) => s.fields).filter((id) => !asked.has(id)))
   const autoFields = new Map<AutoStep, string[]>(AUTO_STEPS.map((s) => [s, []]))
   for (const def of form.fields) {
     if (!visible.has(def.id) || listed.has(def.id)) continue
-    autoFields.get(own.length ? 'details' : autoStepOf(def, form, asked))!.push(def.id)
+    autoFields.get(own.length && !asked.has(def.id) ? 'details' : autoStepOf(def, form, asked))!.push(def.id)
   }
   const sections = new Map<AutoStep, Section[]>(AUTO_STEPS.map((s) => [s, []]))
   const parts: readonly Section[] = purchase ? ['title', 'deliverySite', 'budgetLine', 'lines', 'supplier', 'quotations', 'rules', 'files'] : ['title', 'rules', 'files']
@@ -123,7 +124,7 @@ export function planSteps({ form, purchase, visible, filesAllowed, applicableRul
     key: s.key,
     auto: null,
     title: { th: s.titleTh, en: s.titleEn },
-    fields: form.fields.filter((f) => s.fields.includes(f.id) && visible.has(f.id)).map((f) => f.id),
+    fields: form.fields.filter((f) => s.fields.includes(f.id) && visible.has(f.id) && !asked.has(f.id)).map((f) => f.id),
     sections: [],
     optional: s.optional,
   }))
@@ -131,6 +132,18 @@ export function planSteps({ form, purchase, visible, filesAllowed, applicableRul
     ? [autoStep('details'), ...ownSteps, autoStep('items'), autoStep('supplier'), autoStep('documents'), autoStep('review')]
     : AUTO_STEPS.map(autoStep)
   return order.filter((s) => s.auto === 'review' || s.fields.length > 0 || s.sections.length > 0)
+}
+
+/**
+ * The place of the step `key` in `plan`. A step that has nothing to show any more (its only questions hidden by an
+ * answer) gives way to the step before it in `every` — the plan with every field shown — or to the first step.
+ */
+export function stepIndexOf(plan: readonly PlannedStep[], every: readonly PlannedStep[], key: string): number {
+  const found = plan.findIndex((s) => s.key === key)
+  if (found >= 0) return found
+  const order = every.map((s) => s.key)
+  const at = order.indexOf(key)
+  return plan.reduce((before, s, i) => (order.indexOf(s.key) >= 0 && order.indexOf(s.key) < at ? i : before), 0)
 }
 
 /** What a problem or a refusal is about: a field of the form, or one of the parts that are not fields */

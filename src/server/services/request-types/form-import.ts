@@ -4,7 +4,7 @@ import type { FormText } from '@/core/forms/fields'
 import { MONEY_TEXT } from '@/core/forms/money-text'
 import { BYTES_PER_KIB } from '@/lib/constants'
 import { stableStringify } from '@/lib/json'
-import { FormSchemaJson, moneyFieldIds } from '@/server/forms/schema'
+import { FormSchemaJson, moneyFieldIds, RESERVED_STEP_KEYS } from '@/server/forms/schema'
 
 // A request form imported as JSON (FR-ADM-005 AC1, spec §7.9): the shape is checked with the same schema the server
 // reads forms with (src/server/forms/schema.ts), then what the shape cannot say: field and rule ids are unique, every
@@ -37,8 +37,9 @@ export type FormProblem =
   | { readonly reason: 'DUPLICATE_RULE'; readonly rule: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_FIELD'; readonly field: string; readonly path: string }
   | { readonly reason: 'UNKNOWN_ATTACHMENT'; readonly attachment: string; readonly path: string }
-  /** FR-INT-011: two steps of the form have one key, or one field is in two steps */
+  /** FR-INT-011: two steps of the form have one key, a step takes an automatic step's key, or one field is in two steps */
   | { readonly reason: 'DUPLICATE_STEP'; readonly step: string; readonly path: string }
+  | { readonly reason: 'RESERVED_STEP'; readonly step: string; readonly path: string }
   | { readonly reason: 'FIELD_IN_TWO_STEPS'; readonly field: string; readonly path: string }
 
 /** A place in the form's JSON: ['fields', 2, 'options'] */
@@ -149,11 +150,13 @@ function meaningProblems(form: FormJson): FormProblem[] {
       if (!(ATTACHMENT_KINDS as readonly string[]).includes(a.attachment)) problems.push({ reason: 'UNKNOWN_ATTACHMENT', attachment: a.attachment, path: a.path })
     }
   }
-  // Its own steps (FR-INT-011 AC2): each key once, each field a field of the form and in one step at most
+  // Its own steps (FR-INT-011 AC2): each key once and none an automatic step's, each field a field of the form and in
+  // one step at most
   const stepKeys = new Set<string>()
   const placed = new Set<string>()
   for (const [i, step] of (form.steps ?? []).entries()) {
     if (stepKeys.has(step.key)) problems.push({ reason: 'DUPLICATE_STEP', step: step.key, path: `steps[${i}].key` })
+    else if (RESERVED_STEP_KEYS.includes(step.key)) problems.push({ reason: 'RESERVED_STEP', step: step.key, path: `steps[${i}].key` })
     stepKeys.add(step.key)
     for (const [j, field] of step.fields.entries()) {
       const path = `steps[${i}].fields[${j}]`

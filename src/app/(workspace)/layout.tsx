@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from 'next-intl'
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
 import { systemClock } from '@/lib/clock'
+import { logger } from '@/lib/logger'
 import { SIDEBAR_STATE_COOKIE } from '@/lib/constants'
 import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
@@ -121,8 +122,12 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   // The bell (FR-NOTI-001): the member's own notifications in their language
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   // The numbers beside the menu (§9.10): the same counts as the home's "สิ่งที่ต้องทำ" (services/home), beside an entry
-  // only when it has something
-  const [notifications, counts] = ctx ? await Promise.all([listMyNotifications(ctx, locale === 'en' ? 'en' : 'th'), navCounts(ctx)]) : [{ items: [], unread: 0 }, null]
+  // only when it has something. A count that cannot be read leaves the menu without numbers, never the page unshown.
+  const noCounts = (error: unknown) => {
+    logger.error({ err: error }, 'the menu counts could not load')
+    return null
+  }
+  const [notifications, counts] = ctx ? await Promise.all([listMyNotifications(ctx, locale === 'en' ? 'en' : 'th'), navCounts(ctx).catch(noCounts)]) : [{ items: [], unread: 0 }, null]
   const countOf = (key: string) => {
     const counted = NAV_COUNT_KEYS.find((k) => k === key)
     const value = counted && counts?.ok ? counts.data[counted] : null

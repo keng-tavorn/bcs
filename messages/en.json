@@ -1087,6 +1087,7 @@
         "EMPTY": "Paste the form JSON or choose a file first",
         "FIELD_IN_TWO_STEPS": "{path} the field {field} is in another step already; each field is in one step at most",
         "JSON_SYNTAX": "The JSON cannot be read; check brackets, quotes and commas",
+        "RESERVED_STEP": "{path} the step key {step} is the name of an automatic step: choose another key",
         "TOO_DEEP": "The JSON nests deeper than any form does; check that it is the right form file",
         "TOO_LARGE": "The text is longer than 200 KB; check that it is the right form file",
         "UNKNOWN_ATTACHMENT": "{path} there is no attachment kind {attachment}",

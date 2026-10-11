@@ -15,7 +15,7 @@ description: Procedure for BCS parallel lanes of round P1 (git worktrees .worktr
   - `p1/l3` ใน `.worktrees/l3` = สาย 3: S13 (§16.17) · เส้นชัย F
   - `main` ใน `E:\BCS` = ข้อ P1-nn (§16.13) · ไม่ใช่แชตของสาย
   - อย่างอื่น (เช่น branch ของสายแต่อยู่ใน `E:\BCS` หรือโฟลเดอร์ที่ app สร้างใน `.claude/worktrees`) → หยุดถามผู้ใช้
-- ตรวจ `.env` ของสายโดยไม่พิมพ์ค่าลับ: `grep -oE "^(DATABASE_URL|DIRECT_URL)=.*/[a-z0-9_]+" .env | sed -E 's#//[^@]*@#//***@#'` ต้องจบด้วย `bcs_lN` และ `grep -E "^(APP_URL|BCS_TEST_DB|BCS_VERIFY_DB|BCS_E2E_DB|E2E_PORT|E2E_FAKE_LINE_PORT|FAKE_LINE_PORT)=" .env` ต้องตรงตารางสาย · ไม่ตรง → หยุดและบอกผู้ใช้ให้สร้างสายด้วยเครื่องมือของ P1-01 (`docs/runbooks/parallel-lanes.md`)
+- `pnpm lane:check` ตรวจว่า branch โฟลเดอร์ และ `.env` (ฐานข้อมูล พอร์ต) ตรงตารางสาย โดยไม่พิมพ์ค่าลับ · ล้ม → หยุดและบอกผู้ใช้ให้แชต main รัน `pnpm lane:create <เลขสาย>` (`docs/runbooks/parallel-lanes.md`)
 - แชตหนึ่งทำสายเดียว · ถ้าผู้ใช้สั่งงานของขั้นอื่นในแชตนี้ ให้บอกว่าต้องเปิดแชตในโฟลเดอร์ของสายนั้น
 
 ## 2. ก่อนเริ่มทุกข้อ: รวม main เข้าสาย
@@ -32,7 +32,7 @@ description: Procedure for BCS parallel lanes of round P1 (git worktrees .worktr
 - งานที่พบ → ข้อใหม่ท้ายส่วนของขั้นนี้ใน spec (เลขต่อจากข้อสุดท้ายของขั้น · ไม่ใช้ NEW) · ADR และ OQ ใหม่ใช้ช่วงเลขของขั้นในตารางสาย · OQ ใหม่ต้องเพิ่มคำถามใน `scripts/inputs_p1/p1_texts.py` แล้วรัน `node scripts/py.mjs scripts/inputs_p1/make.py` และ `pnpm inputs:check`
 - แก้ spec เฉพาะส่วนของขั้นตัวเอง แถว ADR OQ ของช่วงตัวเอง และตารางที่ข้อของตัวเองต้องเพิ่ม (§2.4 §10 §14.2 §7 เมื่อสร้างโค้ดนั้น)
 - `pnpm verify --e2e` และ `pnpm test:e2e` เต็มชุด รันได้ทีละสาย: ถ้าไม่แน่ใจว่าสายอื่นรันอยู่ ให้ถามผู้ใช้ก่อน · `pnpm test:e2e --grep @demo` รันพร้อมกันได้
-- เปิดเว็บด้วยพอร์ตของสาย (`pnpm dev --port <พอร์ตเว็บของสาย>`) · ห้ามปิดโปรเซสบนพอร์ตของสายอื่นหรือของ main
+- `pnpm dev` เปิดที่พอร์ตของสายเอง (อ่านจาก `APP_URL` ใน `.env`) · ห้ามปิดโปรเซสบนพอร์ตของสายอื่นหรือของ main
 
 ## 4. ส่งงานของขั้นเข้า main (ข้อรีวิวท้ายขั้น)
 

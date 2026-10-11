@@ -794,10 +794,11 @@ cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate 
 
 | script | ทำอะไร |
 | --- | --- |
-| `dev` | Next.js dev (Turbopack) + Inngest Dev Server พร้อมกัน |
+| `dev` | Next.js dev (Turbopack) ที่พอร์ตของ `APP_URL` ใน `.env` (main 3000 · สาย 3001–3003) · Inngest Dev Server อยู่ใน Docker |
 | `db:migrate` | local ใช้ `prisma migrate dev` · CI และ production ใช้ `prisma migrate deploy` |
 | `db:seed` | ใส่ข้อมูลตามภาคผนวก A รันซ้ำได้ |
-| `db:reset` | ล้าง + migrate + seed ปฏิเสธถ้า `APP_ENV` ไม่ใช่ `local` |
+| `db:reset` | ล้าง + migrate + seed ปฏิเสธถ้า `APP_ENV` ไม่ใช่ `local` · ในสายปฏิเสธฐานของ main และบน main ปฏิเสธฐานของสาย · สร้างฐานของสายเมื่อยังไม่มี |
+| `lane:create <1\|2\|3>` · `lane:check` | สร้างหรือตั้งสายขนานใหม่ตามตารางสาย §16.13 (worktree branch `.env` ของสาย ติดตั้ง และ seed) · ตรวจว่าสายที่อยู่ตรงตาราง (P1-01) |
 | `test` · `test:int` · `test:golden` · `test:e2e` | unit · integration กับ Postgres จริง · golden · Playwright |
 | `lint` · `typecheck` | ESLint (รวมกฎ boundaries) · `tsc --noEmit` |
 | `verify` | รวมทุกด่านและรายงาน PASS/FAIL ทีละข้อ (§15.5) |

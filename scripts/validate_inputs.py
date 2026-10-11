@@ -3,8 +3,8 @@
 """
 validate_inputs.py — ตรวจไฟล์ input ของ BCS (ไฟล์ demo · ไฟล์ข้อมูลสังเคราะห์ระยะ 1 · ข้อมูลจริง v2) แบบรันจริง ทั้งโครงสร้างและการคำนวณ
 ใช้:  python3 validate_inputs.py BCS_inputs_v1_demo.xlsx [--spec spec.md] [--profile demo|p1]
-- --profile demo (ค่าเริ่มต้นเมื่อไม่มีชีต History): ไฟล์ของฉาก demo เดิม (§16.10) ต้องตรง fixture §7.4 และมี Demo_History Demo_Script
-- --profile p1 (ค่าเริ่มต้นเมื่อมีชีต History): ไฟล์ระยะ 1 (§16.13 · ADR-065) งานสองปีงบ ประวัติอ้าง budgetKey และชีตของ S6 S8 S9 S13
+- --profile demo (ค่าเริ่มต้นเมื่อไม่มีชีต Request_History): ไฟล์ของฉาก demo เดิม (§16.10) ต้องตรง fixture §7.4 และมี Demo_History Demo_Script
+- --profile p1 (ค่าเริ่มต้นเมื่อมีชีต Request_History): ไฟล์ระยะ 1 (§16.13 · ADR-065) งานสองปีงบ ประวัติอ้าง budgetKey และชีตของ S6 S8 S9 S13
 - อ่านค่าที่คำนวณแล้วของสูตร จึงต้องบันทึกไฟล์จาก Excel หรือ LibreOffice ก่อนตรวจ (ไฟล์ระยะ 1 เขียนเป็นค่าจากสคริปต์ ไม่มีสูตร)
 - --spec: เทียบกับรายการ OQ ใน spec.md (ต้องมี PyYAML) และกับ fixture เฉพาะไฟล์ demo
 - นับจำนวนแถวเองทุกชีต ไม่ hardcode · exit 0 = ไม่มี FAIL
@@ -22,7 +22,7 @@ if '--profile' in argv:
     k = argv.index('--profile'); PROFILE = argv[k + 1]; del argv[k:k + 2]
 PATH = argv[0] if argv else 'BCS_inputs_v1_demo.xlsx'
 wb = openpyxl.load_workbook(PATH, data_only=True)
-PROFILE = PROFILE or ('p1' if 'History' in wb.sheetnames else 'demo')
+PROFILE = PROFILE or ('p1' if 'Request_History' in wb.sheetnames else 'demo')
 if PROFILE not in ('demo', 'p1'): print(f'FAIL  --profile ต้องเป็น demo หรือ p1 (ได้ {PROFILE})'); sys.exit(2)
 DEMO_LAST_OQ = 39  # the demo workbook stopped taking questions at OQ-39 (ADR-065); newer OQs live in the phase-1 workbook
 RES = []
@@ -57,7 +57,7 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'Items': ['code','nameTh','unit','refUnitPrice','category','isService','accountCode','whtIncomeType','agreementSupplier','agreedUnitPrice'],
  'DOA_P1_Draft': ['documentType','ruleCode','gt','lte','approverKind','approverPosition','slaBusinessHours'],
  'Workflow_Reviewers': ['ruleCode','requestType','reviewerPosition','reviewerDepartment','mode','slaBusinessHours'],
- 'History': ['ref','daysAgo','requester','chargedDept','requestType','title','site','supplier','budgetKey','itemCode','qty','unitPrice','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel','form','invoiceScenario','invoiceNo','whtIncomeType','paymentStatus'],
+ 'Request_History': ['ref','daysAgo','requester','chargedDept','requestType','title','site','supplier','budgetKey','itemCode','qty','unitPrice','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel','form','invoiceScenario','invoiceNo','whtIncomeType','paymentStatus'],
  'DocSamples': ['sampleId','docType','historyRef','supplierCode','docNo','priceIncludesVat','linesJson','net','vat','gross','expectedWhtBp','expectedWht'],
  'Scenarios': ['id','area','descriptionTh','where']}
 REQ = {**COMMON, **(DEMO_ONLY if PROFILE == 'demo' else P1_ONLY)}
@@ -275,7 +275,7 @@ STAT = {'COMPLETED','ORDERED','APPROVED','PENDING_APPROVAL','RETURNED','REJECTED
 low_pct = SET.get('digest.budgetLowPct', (0.1, 0))[0]
 
 def history_route_checks(ref, d, sheet, req, dept, st, net, rbad, chbad, overdue, counters):
-    """Route, channel and hour rules shared by Demo_History and History (BR-DOA-02..06, BR-TOK-05)."""
+    """Route, channel and hour rules shared by Demo_History and Request_History (BR-DOA-02..06, BR-TOK-05)."""
     vat = rhu(net * RATE_BP, 10000); gross = net + vat; amt = gross if BASIS == 'GROSS' else net
     rt = route('PURCHASE_REQUEST', amt, req, dept); exp = (s_(d['expectedRule']), s_(d['expectedApprover']), s_(d['escalated']) or 'N')
     if 'error' in rt or (rt['rule'], rt['approver'], rt['escalated']) != exp:
@@ -451,7 +451,7 @@ if PROFILE == 'p1':
     check(not dr, 'ร่าง DOA ของระยะ 1 และผู้ตรวจคู่ขนาน', f'{len(draft)} ข้อ ครอบคลุม (0, ∞) ทุกชนิดเอกสาร · ผู้ตรวจมีผู้ดำรงทุกข้อ', '; '.join(dr[:8]),
           'sub-spec ของ S6 S8 S9 จะเริ่มจากร่างที่ใช้ไม่ได้', 'แก้ชีต DOA_P1_Draft หรือ Workflow_Reviewers')
 
-    # ---------- ประวัติคำขอ (History) ----------
+    # ---------- ประวัติคำขอ (Request_History) ----------
     EXTRA = {'APPROVED': 1, 'REJECTED': 1, 'RETURNED': 1, 'CANCELLED': 1, 'ORDERED': 6, 'COMPLETED': 34}  # = scripts/inputs_p1/p1_history.py
     def safe_hours(days):  # = scripts/inputs_p1/p1_common.py guaranteed_business_hours
         return max(0, 9 * (days - 2 * ((days + 6) // 7) - 3) - 9) if days > 0 else 0
@@ -461,10 +461,10 @@ if PROFILE == 'p1':
     SCEN = {'MATCH', 'PRICE_WITHIN_TOL', 'PRICE_OVER', 'QTY_OVER', 'DUPLICATE', 'SERVICE_2WAY', 'MISSING'}
     used = {k: 0 for k in KEYS}; refs, titles = set(), set()
     refp, arith, rbad, chbad, overdue, timing, inv = [], [], [], [], [], [], []; cnts = {'decided': 0, 'viachat': 0}
-    for r, d in table('History'):
+    for r, d in table('Request_History'):
         d['_r'] = r
         ref, req, dept, key, st = s_(d['ref']), s_(d['requester']), s_(d['chargedDept']), s_(d['budgetKey']), s_(d['status'])
-        if not re.fullmatch(r'H\d{3}', ref) or ref in refs: refp.append(f'{at("History","ref",r)} ต้องเป็น Hnnn และไม่ซ้ำ')
+        if not re.fullmatch(r'H\d{3}', ref) or ref in refs: refp.append(f'{at("Request_History","ref",r)} ต้องเป็น Hnnn และไม่ซ้ำ')
         refs.add(ref)
         if s_(d['title']) in titles: refp.append(f'{ref}: ชื่อเรื่องซ้ำ (เทสต์จับคู่คำขอด้วยชื่อเรื่อง)')
         titles.add(s_(d['title']))
@@ -477,18 +477,18 @@ if PROFILE == 'p1':
         elif st == 'PENDING_APPROVAL' and STATUS.get(s_(d['supplier'])) == 'CEASED': refp.append(f'{ref}: คำขอที่ยังค้างใช้ผู้ขายที่เลิกกิจการ')
         if s_(d['site']) not in SITE: refp.append(f'{ref}: ไม่มีสถานที่ {s_(d["site"])}')
         if s_(d['itemCode']) not in ITEMS: refp.append(f'{ref}: ไม่มีรายการ {s_(d["itemCode"])}')
-        if st not in STAT: refp.append(f'{at("History","status",r)} สถานะ {st}')
+        if st not in STAT: refp.append(f'{at("Request_History","status",r)} สถานะ {st}')
         days = d['daysAgo']
-        if not isinstance(days, (int, float)) or not 0 <= days <= 366 or int(days) != days: refp.append(f'{at("History","daysAgo",r)} ต้องเป็นจำนวนเต็ม 0–366')
-        if Decimal(str(d['net'])) % 1 != 0: refp.append(f'{at("History","net",r)} ยอดก่อน VAT ต้องเป็นบาทเต็ม (BR-MONEY-02)')
+        if not isinstance(days, (int, float)) or not 0 <= days <= 366 or int(days) != days: refp.append(f'{at("Request_History","daysAgo",r)} ต้องเป็นจำนวนเต็ม 0–366')
+        if Decimal(str(d['net'])) % 1 != 0: refp.append(f'{at("Request_History","net",r)} ยอดก่อน VAT ต้องเป็นบาทเต็ม (BR-MONEY-02)')
         net = sat(d['net'])
         try:
             if sat(Decimal(str(d['qty'])) * Decimal(str(d['unitPrice']))) != net: arith.append(f'{ref}: จำนวน × ราคาต่อหน่วย ไม่เท่ายอดก่อน VAT')
         except Exception: arith.append(f'{ref}: จำนวนหรือราคาต่อหน่วยไม่ใช่ตัวเลข')
-        vat, gross = history_route_checks(ref, d, 'History', req, dept, st, net, rbad, chbad, overdue, cnts)
+        vat, gross = history_route_checks(ref, d, 'Request_History', req, dept, st, net, rbad, chbad, overdue, cnts)
         cnt = 0 if st in ('REJECTED', 'CANCELLED') else net
         for k2, want in (('vat', vat), ('gross', gross), ('countsAgainstBudget', cnt)):
-            if d[k2] is None or sat(d[k2]) != want: arith.append(f'{at("History",k2,r)} ควรเป็น {baht(want)}')
+            if d[k2] is None or sat(d[k2]) != want: arith.append(f'{at("Request_History",k2,r)} ควรเป็น {baht(want)}')
         hrs = d['hours'] if isinstance(d['hours'], (int, float)) else 0
         if st in EXTRA and isinstance(days, (int, float)) and hrs + EXTRA[st] > safe_hours(int(days)):
             timing.append(f'{ref}: {st} {hrs} ชม. ไม่พอดีใน {int(days)} วัน (ใช้ได้ {safe_hours(int(days)) - EXTRA[st]} ชม.)')
@@ -498,7 +498,7 @@ if PROFILE == 'p1':
                 f = json.loads(s_(d['form']))
                 lack_f = [x for x in REQ_FIELDS.get(rt, ()) if not s_(f.get(x))]
                 if lack_f: refp.append(f'{ref}: ฟอร์มขาด {lack_f}')
-            except Exception: refp.append(f'{at("History","form",r)} ไม่ใช่ JSON')
+            except Exception: refp.append(f'{at("Request_History","form",r)} ไม่ใช่ JSON')
         elif rt in REQ_FIELDS: refp.append(f'{ref}: {rt} ต้องมีคำตอบในฟอร์ม')
         sc = s_(d['invoiceScenario'])
         if sc and sc not in SCEN: inv.append(f'{ref}: invoiceScenario {sc}')

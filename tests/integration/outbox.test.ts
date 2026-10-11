@@ -579,14 +579,25 @@ describe('[FR-PLT-012/AC3] the send right after commit is bounded and never fail
     } finally {
       await api.close()
     }
-    // Nothing listens: the command answers without waiting for a deadline, and the cause is recorded
-    const sender = createInngestSender({ baseUrl: `http://127.0.0.1:${await closedPort()}/`, isDev: true })
-    const started = performance.now()
+    // Nothing listens: the command answers without waiting for a deadline, and the cause is recorded. The request itself
+    // is timed, not the whole command, whose transaction a busy machine slows (P1-03); a request that had waited for
+    // the deadline would also have recorded "no answer from Inngest", not the refusal
+    const refusing = createInngestSender({ baseUrl: `http://127.0.0.1:${await closedPort()}/`, isDev: true })
+    let requestMs = Number.POSITIVE_INFINITY
+    const sender: typeof refusing = async (messages, options) => {
+      const started = performance.now()
+      try {
+        await refusing(messages, options)
+      } finally {
+        requestMs = performance.now() - started
+      }
+    }
     expect(await runCommand(ctx, touch, { label: 'Refused' }, { idempotencyKey: randomUUID(), sender })).toEqual({ ok: true, data: { label: 'Refused' } })
-    expect(performance.now() - started).toBeLessThan(OUTBOX_DISPATCH_TIMEOUT_MS / 2)
+    expect(requestMs).toBeLessThan(OUTBOX_DISPATCH_TIMEOUT_MS / 2)
     const refused = await rowOf('Refused')
     expect(refused).toMatchObject({ sentAt: null, attempts: 0 })
     expect(refused.lastError).toContain('ECONNREFUSED')
+    expect(refused.lastError).not.toContain('no answer from Inngest')
   })
 
   it('gives up on an Inngest event API that accepts the connection but never answers, and closes the request', async () => {

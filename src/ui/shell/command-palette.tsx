@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react'
 import { HTTP_STATUS } from '@/core/result'
 import { SEARCH_GROUP_LIMIT, SEARCH_MIN_LENGTH } from '@/lib/constants'
+import { useHydrated } from '../form/hydrated'
 import { Button } from '../shadcn/button'
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../shadcn/command'
 import { Kbd } from '../shadcn/kbd'
@@ -100,6 +101,9 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
   const [answered, setAnswered] = useState<Answered | null>(null)
   const [choice, setChoice] = useState({ first: '', value: '' })
   const mac = useSyncExternalStore(noSubscription, isMac, notMac)
+  // The shortcut is announced once it works: the keydown listener below is attached by the commit that hydrates the
+  // page, before the one that turns this true (a shortcut pressed while the server's HTML still shows is the browser's)
+  const hydrated = useHydrated()
   const seq = useRef(0)
 
   const onOpenChange = (next: boolean) => {
@@ -206,7 +210,7 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
         variant="outline"
         onClick={() => onOpenChange(true)}
         aria-haspopup="dialog"
-        aria-keyshortcuts={mac ? 'Meta+K' : 'Control+K'}
+        aria-keyshortcuts={hydrated ? (mac ? 'Meta+K' : 'Control+K') : undefined}
         // A magnifier alone on a small screen (its words stay for screen readers); a field up to 480 px wide from md (§9.10)
         className="size-11 justify-center rounded-full border-0 text-base font-normal text-ink-muted shadow-none md:h-10 md:w-full md:max-w-120 md:justify-start md:rounded-md md:border md:text-sm"
       >

@@ -75,7 +75,8 @@ export function WorkspaceShell({ brand, orgName, labels, nav, pages = [], sideba
         <header className={`sticky top-0 z-20 flex h-14 items-center gap-1 border-b border-line bg-bg px-3 sm:gap-2 sm:px-4 lg:px-6 ${SHELL_HIDDEN}`}>
           <SidebarTrigger className="size-11 shrink-0 lg:size-10" />
           <ShellBreadcrumb entries={pages} />
-          <div className="flex min-w-0 flex-1 justify-end md:justify-start lg:px-2">{search}</div>
+          {/* Never narrower than the magnifier on a phone: squeezed, it would spill left over the menu button */}
+          <div className="flex min-w-11 flex-1 justify-end md:min-w-0 md:justify-start lg:px-2">{search}</div>
           {bell}
           {newRequest ? <NewRequestDoorDialog {...newRequest} /> : null}
           <div className="hidden md:block">

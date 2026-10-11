@@ -1,3 +1,4 @@
+import { type Page } from '@playwright/test'
 import { expect, test } from './fixtures'
 import { checkScreen, settleNoticesAfterEachTest, signInAs } from './insight-support'
 
@@ -10,9 +11,16 @@ settleNoticesAfterEachTest(test)
 
 const DIALOG = 'ค้นหาและคำสั่ง'
 
+/**
+ * The shortcut works once the page's script runs: the search field announces it (aria-keyshortcuts) only then. A key
+ * pressed while the server's HTML still shows goes to the browser, which a slow machine (CI) shows right after goto.
+ */
+const shortcutReady = (page: Page) => expect(page.locator('[aria-haspopup="dialog"][aria-keyshortcuts]')).toBeAttached()
+
 test('[FR-PLT-014/AC1] Ctrl K opens the palette on any page; the keyboard alone finds and opens a supplier, a page and a command, and Esc closes it', async ({ page }, testInfo) => {
   await signInAs(page, 'req_con', false)
   await page.goto('/requests')
+  await shortcutReady(page)
   const dialog = page.getByRole('dialog', { name: DIALOG })
 
   // A supplier: typed, the first result chosen, Enter opens its page
@@ -65,6 +73,7 @@ test('[FR-PLT-014/AC1] Ctrl K opens the palette on any page; the keyboard alone 
 test('[FR-PLT-014/AC1] the shortcut works with the Thai keyboard layout on, and closing with it opens empty next time', async ({ page }) => {
   await signInAs(page, 'req_con', false)
   await page.goto('/')
+  await shortcutReady(page)
   const dialog = page.getByRole('dialog', { name: DIALOG })
   // With the Thai layout the K key types "า": the physical key (code KeyK) is what counts
   const thaiShortcut = () =>

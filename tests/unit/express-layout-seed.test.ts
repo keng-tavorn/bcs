@@ -21,6 +21,7 @@ function settingsSheet(rows: ReadonlyArray<readonly [key: string, value: string 
     if (sheet !== 'Settings') throw new Error(`the Express layout reads sheet Settings only, not ${sheet}`)
   }
   return {
+    hasSheet: (sheet) => sheet === 'Settings',
     table: (sheet) => {
       only(sheet)
       return table

@@ -394,7 +394,7 @@ describe('[FR-PLT-001/AC1] D-01 a history an earlier seed stopped half way is re
     const cancelled: DemoHistoryRow = { ...pending, ref: 'H98', title: `${pending.title} (ยกเลิก)`, status: 'CANCELLED', channel: null, daysAgo: 7, hours: 1, note: 'ซื้อจากร้านใกล้ไซต์งานแทน' }
 
     // The last row names a budget line the organization does not have: the seed stops before making it
-    await expect(seedDemoHistory(organizationId, [completed, cancelled, { ...pending, budgetLine: 'NO-SUCH-LINE' }], NOW, { pin: PIN })).rejects.toThrow(`Demo_History ${pending.ref}: unknown`)
+    await expect(seedDemoHistory(organizationId, [completed, cancelled, { ...pending, budget: { line: 'NO-SUCH-LINE' } }], NOW, { pin: PIN })).rejects.toThrow(`Demo_History ${pending.ref}: unknown`)
     const db = forTenant(organizationId)
     const made = new Map((await db.request.findMany({ select: { id: true, title: true, status: true } })).map((r) => [r.title, r]))
     expect([completed, cancelled, pending].map((r) => made.get(r.title)?.status ?? null)).toEqual(['COMPLETED', 'CANCELLED', null])

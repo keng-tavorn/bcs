@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""Synthetic purchase history (sheet History) and the ground truth of the AI evaluation documents (sheet DocSamples).
+"""Synthetic purchase history (sheet Request_History) and the ground truth of the AI evaluation documents (sheet DocSamples).
 
-History rows follow the shape of the demo sheet Demo_History (spec §16.10 · D-01) with phase-1 columns added:
+Request_History rows follow the shape of the demo sheet Demo_History (spec §16.10 · D-01) with phase-1 columns added:
 line detail (item, quantity, unit price), the form answers, a FY-free budget key, and invoice and payment hints for
 S8/S9. Dates are relative (daysAgo) so the data always looks current; every decided row leaves enough business time
 before "now" (p1_common.guaranteed_business_hours) for the seed to replay it on any run date.

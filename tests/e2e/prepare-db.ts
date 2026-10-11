@@ -8,8 +8,8 @@ import { E2E_DB, E2E_DEMO, e2eEnv, withDatabase } from '../support/e2e-env'
 async function prepareE2eDatabase(): Promise<void> {
   // The screens' e2e database has no demo history (D-01): their tests count tasks, notifications and budget themselves.
   // The demo scenes' database (E2E_DEMO) has the history and nothing else, so the board, dashboard and KPI show the
-  // figures of the Demo_History sheet as on the day.
-  const env: NodeJS.ProcessEnv = { ...process.env, ...e2eEnv(), SEED_DEMO_HISTORY: process.env.SEED_DEMO_HISTORY ?? (E2E_DEMO ? '1' : '0') }
+  // figures of the Demo_History sheet as on the day. Both read the demo workbook, whatever SEED_INPUTS .env holds (P1-02).
+  const env: NodeJS.ProcessEnv = { ...process.env, ...e2eEnv(), SEED_DEMO_HISTORY: process.env.SEED_DEMO_HISTORY ?? (E2E_DEMO ? '1' : '0'), SEED_INPUTS: 'demo' }
   const admin = new pg.Client({ connectionString: withDatabase(process.env.DIRECT_URL!, 'postgres') })
   await admin.connect()
   try {

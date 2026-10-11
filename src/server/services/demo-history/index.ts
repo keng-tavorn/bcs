@@ -3,6 +3,7 @@ import { satangToAmount } from '@/core/money/dto'
 import { stepUpNeeded } from '@/core/pin'
 import type { Result } from '@/core/result'
 import { addBusinessMinutes, subtractBusinessMinutes, type BusinessCalendar } from '@/core/sla'
+import { taxDateOf } from '@/core/vat'
 import { systemClock } from '@/lib/clock'
 import { MS_PER_DAY } from '@/lib/constants'
 import { setEmailProvider } from '@/integrations/email-provider'
@@ -25,6 +26,7 @@ import { sendPurchaseOrder } from '../purchase-orders/send'
 import { postGoodsReceipt } from '../receiving'
 import { departmentReceivers } from '../receiving/receivers'
 import { cancelRequest, createDraft, editRequest, submitRequest } from '../requests'
+import { attachFile } from '../requests/attachments'
 import { quotationAmounts } from './quotations'
 
 export { DemoHistoryNetError } from './quotations'
@@ -47,6 +49,10 @@ export { DemoHistoryNetError } from './quotations'
 // approvers without a PIN hold a one-time PIN while the history runs, taken back before it returns, whatever happens.
 // The step-up runs on the real clock, as its 5-minute window is a security timer; the decision keeps its backdated
 // business time. Before anything is written, every demo approver must hold that PIN.
+// P1-02: the phase-1 sheet Request_History names a budget key rather than a line: a request uses the key's line of the fiscal
+// year of the day it is sent (its tax date, as the request service checks it), so the history may span two fiscal years.
+// Its rows also give their line (item, quantity, unit price) and their form's answers; a form that answers Y to
+// processesPersonalData is sent with a DPA (ATT-DPA), as quotations go with an amount above ATT-QUOTES.
 
 /** Business minutes between steps of the purchase-to-pay chain of a row (after its approval) */
 const STEP_MINUTES = 30
@@ -71,6 +77,10 @@ interface Context {
   readonly suppliers: ReadonlyMap<string, string>
   readonly sites: ReadonlyMap<string, string>
   readonly budgetLines: ReadonlyMap<string, string>
+  /** The fiscal years of the organization, YYYY-MM-DD */
+  readonly fiscalYears: ReadonlyArray<{ readonly code: string; readonly startsOn: string; readonly endsOn: string }>
+  /** Budget key → fiscal year code → line code (sheet Budget of phase 1) */
+  readonly budgetKeys: ReadonlyMap<string, ReadonlyMap<string, string>>
   /** The transaction PIN of the demo approvers, for the step-ups of their decisions (never logged or printed) */
   readonly pin: string
 }
@@ -81,6 +91,23 @@ export interface DemoHistoryOptions {
    * the approvers without a PIN then hold a one-time PIN while the history runs (giveOneTimePins), and none afterwards.
    */
   readonly pin: string | null
+  /**
+   * Phase 1 (P1-02): the lines of each budget key by fiscal year code, from sheet Budget (its columns budgetKey,
+   * fiscalYear and code); needed when the rows name a budget key rather than a line
+   */
+  readonly budgetKeys?: ReadonlyMap<string, ReadonlyMap<string, string>>
+}
+
+/** The lines of each budget key by fiscal year, from sheet Budget, for seedDemoHistory's budgetKeys */
+export function budgetKeyLines(sheet: ReadonlyArray<{ readonly budgetKey: string | null; readonly fiscalYear: string; readonly code: string }>): Map<string, Map<string, string>> {
+  const keys = new Map<string, Map<string, string>>()
+  for (const line of sheet) {
+    if (line.budgetKey === null) continue
+    const years = keys.get(line.budgetKey) ?? new Map<string, string>()
+    years.set(line.fiscalYear, line.code)
+    keys.set(line.budgetKey, years)
+  }
+  return keys
 }
 
 /**
@@ -201,8 +228,15 @@ async function upload(row: DemoHistoryRow, ctx: Ctx, step: string, fileName: str
   return must(row, `${step} record`, await completeUpload(ctx, { ticket: asked.ticket }, { sender: null, suppressOutbox: true })).fileId
 }
 
-/** Answers the request type's form asks for; IT purchases of licences are software (their lines need an end date) */
+/**
+ * Answers the request type's form asks for: the sheet's own (phase 1), or for the demo sheet derived from the title, IT
+ * purchases of licences being software. Services and software lines need the day the service ends (forms.yaml).
+ */
 function formOf(row: DemoHistoryRow): { formData: Record<string, string>; needsEndDate: boolean } {
+  if (row.form) {
+    const formData = { ...row.form }
+    return { formData, needsEndDate: row.requestType === 'HIRE_SERVICE' || (row.requestType === 'IT_PURCHASE' && formData.category === 'SOFTWARE') }
+  }
   const screening = { processesPersonalData: 'N', accessesSystems: 'N', accessesPremises: 'N' }
   if (row.requestType === 'IT_PURCHASE') {
     const software = /ไลเซนส์|ซอฟต์แวร์/.test(row.title)
@@ -269,6 +303,30 @@ function timesOf(c: Context, row: DemoHistoryRow): { draftAt: Date; submitAt: Da
  * its budget line cannot be made — requests are refused outside the year of their line — so the history stops before
  * it writes anything and says which year the sheets need.
  */
+/**
+ * A phase-1 row is sent on a day for which sheet Budget has no line of its budget key (no fiscal year holds the day,
+ * or the key has no line in it): the history stops before it writes anything and names the day and the key
+ */
+export class DemoHistoryNoBudgetLineError extends Error {
+  constructor(
+    readonly ref: string,
+    readonly day: string,
+    readonly budgetKey: string,
+  ) {
+    super(`Request_History ${ref}: sheet Budget has no line of ${budgetKey} in the fiscal year of ${day}`)
+    this.name = 'DemoHistoryNoBudgetLineError'
+  }
+}
+
+/** The budget line a row is sent with: the sheet's line, or the line of its key in the fiscal year of the send day */
+function budgetLineOf(c: Context, row: DemoHistoryRow, submitAt: Date): string | undefined {
+  if ('line' in row.budget) return c.budgetLines.get(row.budget.line)
+  const day = taxDateOf(submitAt)
+  const year = c.fiscalYears.find((y) => y.startsOn <= day && day <= y.endsOn)
+  const code = year ? c.budgetKeys.get(row.budget.key)?.get(year.code) : undefined
+  return code === undefined ? undefined : c.budgetLines.get(code)
+}
+
 export class DemoHistoryOutOfYearError extends Error {
   constructor(
     readonly ref: string,
@@ -292,8 +350,10 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   const requester = (at: Date, step: string) => memberCtx(c, row.requester, at, 'WEB', keyOf(row, step))
   const site = row.site ? c.sites.get(row.site) : undefined
   const supplier = row.supplier ? c.suppliers.get(row.supplier) : undefined
-  const budgetLineId = c.budgetLines.get(row.budgetLine)
+  const budgetLineId = budgetLineOf(c, row, submitAt)
   if ((row.site && !site) || (row.supplier && !supplier) || !budgetLineId) throw new Error(`Demo_History ${row.ref}: unknown site, supplier or budget line`)
+  const serviceEnd = needsEndDate ? localDate(row.serviceEndInDays === null ? new Date(draftAt.getTime() + 30 * MS_PER_DAY) : new Date(c.now.getTime() + row.serviceEndInDays * MS_PER_DAY), c.calendar.timezone) : null
+  const line = row.line ?? { description: row.title, quantity: '1', uom: row.requestType === 'BUY_GOODS' || row.requestType === 'IT_PURCHASE' ? 'รายการ' : 'งาน', unitPrice: row.net }
   const draft = must(
     row,
     'draft',
@@ -307,16 +367,24 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
         ...(site ? { deliverySiteId: site } : {}),
         // APPROVED rows wait in the pool: the supplier is only suggested (FR-P2P-001 AC2)
         ...(supplier ? { suggestedSupplierId: supplier } : {}),
-        lines: [{ description: row.title, quantity: '1', uom: row.requestType === 'BUY_GOODS' || row.requestType === 'IT_PURCHASE' ? 'รายการ' : 'งาน', unitPrice: row.net, ...(needsEndDate ? { serviceEndDate: localDate(new Date(draftAt.getTime() + 30 * MS_PER_DAY), c.calendar.timezone) } : {}) }],
+        lines: [{ ...line, ...(serviceEnd ? { serviceEndDate: serviceEnd } : {}) }],
       },
       optionsOf(row, 'draft'),
     ),
   )
   const requestId = draft.requestId
 
-  // Send; when the form's attachment rule asks for quotations (ATT-QUOTES above its amount), add three and send again
+  // Send; when the form's attachment rules ask for files — quotations above ATT-QUOTES' amount, a DPA when the supplier
+  // processes personal data (ATT-DPA) — add them and send again
   let sent = await submitRequest(requester(submitAt, 'submit'), { requestId }, optionsOf(row, 'submit'))
-  if (!sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED') {
+  const unmet = !sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED' ? new Set(((sent.error.details?.failures ?? []) as ReadonlyArray<{ rule: string }>).map((f) => f.rule)) : new Set<string>()
+  const unknownRule = [...unmet].find((rule) => rule !== 'ATT-QUOTES' && rule !== 'ATT-DPA')
+  if (unknownRule) throw new Error(`Demo_History ${row.ref}: the history cannot meet attachment rule ${unknownRule}`)
+  if (unmet.has('ATT-DPA')) {
+    const fileId = await upload(row, requester(draftAt, 'dpa'), 'dpa', `dpa-${row.ref}.pdf`, quotationPdf(['BCS demo data processing agreement', `${row.ref} ${row.supplier ?? ''}`]))
+    must(row, 'attach DPA', await attachFile(requester(draftAt, 'dpa-attach'), { requestId, fileId, kind: 'DPA' }, optionsOf(row, 'dpa-attach')))
+  }
+  if (unmet.has('ATT-QUOTES')) {
     const names = [row.supplier ?? 'S0', 'ALT-1', 'ALT-2']
     // The chosen quotation at the row's net and two comparisons at exactly 104 % and 107 % of it, never rounded
     const amounts = quotationAmounts(row)
@@ -326,6 +394,8 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
       quotations.push({ supplierName: i === 0 ? names[0]! : `ผู้เสนอราคาเปรียบเทียบ ${i}`, amount: satangToAmount(amount), includesVat: false, fileId, selected: i === 0 })
     }
     must(row, 'quotations', await editRequest(requester(draftAt, 'quotations'), { requestId, quotations }, optionsOf(row, 'quotations')))
+  }
+  if (unmet.size > 0) {
     sent = await submitRequest(requester(submitAt, 'submit-with-quotations'), { requestId }, optionsOf(row, 'submit-with-quotations'))
   }
   must(row, 'submit', sent)
@@ -443,15 +513,23 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     suppliers: new Map(suppliers.map((s) => [s.code, s.id])),
     sites: new Map(sites.map((s) => [s.code, s.id])),
     budgetLines: new Map(fiscal.map((b) => [b.code, b.id])),
+    fiscalYears: (await db.fiscalYear.findMany({ select: { code: true, startsOn: true, endsOn: true } })).map((y) => ({ code: y.code, startsOn: y.startsOn.toISOString().slice(0, 10), endsOn: y.endsOn.toISOString().slice(0, 10) })),
+    budgetKeys: options.budgetKeys ?? new Map(),
     // The seed's PIN, or a one-time PIN when the seed gave none (see above)
     pin: options.pin ?? randomDemoPin(),
   }
 
-  // Every row lies inside the fiscal year of its budget line, from its first day to today
+  // Every row of the demo sheet lies inside the fiscal year of its budget line, from its first day to today; every row
+  // of phase 1 has its key's line in the fiscal year of the day it is sent
   const yearOf = new Map(fiscal.map((b) => [b.code, b.fiscalYear]))
   const dateText = (day: Date) => day.toISOString().slice(0, 10)
   for (const row of rows) {
-    const year = yearOf.get(row.budgetLine)
+    if ('key' in row.budget) {
+      const { submitAt } = timesOf(c, row)
+      if (!budgetLineOf(c, row, submitAt)) throw new DemoHistoryNoBudgetLineError(row.ref, taxDateOf(submitAt), row.budget.key)
+      continue
+    }
+    const year = yearOf.get(row.budget.line)
     if (!year) continue
     for (const at of [timesOf(c, row).draftAt, now]) {
       const day = localDate(at, calendar.timezone)

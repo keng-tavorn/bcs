@@ -11,11 +11,11 @@ import { restoreLineChannelRow } from '@/server/seed/line-channel-restore'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
-import { parseBudget, parseDemoHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { parseBudget, parseCostCenters, parseDemoHistory, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
-import { loadInputWorkbook } from '@/server/seed/workbook'
-import { demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
+import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
+import { budgetKeyLines, demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { seedLineChannel } from '@/server/services/line-channel'
 import { openLineSecret, sealLineSecret } from '@/server/services/line-channel/secrets'
 
@@ -24,18 +24,20 @@ import { openLineSecret, sealLineSecret } from '@/server/services/line-channel/s
 // structure, DOA version 1, forms, holidays, budget, suppliers, delivery sites, LINE channel and PINs from
 // docs/inputs/BCS_inputs_v1_demo.xlsx — then the requests of the past of sheet Demo_History through the real services
 // (D-01). The base is safe to run again (nothing is duplicated); the history refuses to finish one a run left half done.
-// The callers check APP_ENV and SEED_DEV_PASSWORD and turn errors into words.
+// The callers check APP_ENV and SEED_DEV_PASSWORD and turn errors into words. `pnpm db:seed` may name the synthetic
+// workbook of phase 1 instead (profile p1, P1-02: organization SIMEC, two fiscal years, sheet Request_History); the staging job
+// keeps the demo workbook.
 
 export type DemoSeedBase = Awaited<ReturnType<typeof seedDemoBase>>
 
-export async function seedDemoBase(env: Env, password: string, clock: Clock) {
+export async function seedDemoBase(env: Env, password: string, clock: Clock, profile: InputProfile = 'demo') {
   const taxRates = await seedTaxRates()
-  const workbook = await loadInputWorkbook()
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
   const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
   const totpKey = env.SEED_TOTP_KEY
   const report = await seedDemoOrganization(input, { password, ...(totpKey ? { totpKey } : {}), now: clock.now() })
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), clock.now())
-  const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now())
+  const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now(), parseCostCenters(workbook))
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
   // The LINE channel from the LINE_* values of the environment, when they are set (S5-01)
   const lineChannel = await seedLineChannel(report.organizationId, env, clock.now())
@@ -48,10 +50,10 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock) {
   return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, budget, suppliers, lineChannel, pins, pinless }
 }
 
-/** The requests of the past of sheet Demo_History, made through the real services for the organization of the base */
-export async function seedDemoHistoryFromInputs(organizationId: string, env: Env, clock: Clock): Promise<DemoHistoryReport> {
-  const workbook = await loadInputWorkbook()
-  return seedDemoHistory(organizationId, parseDemoHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null })
+/** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */
+export async function seedDemoHistoryFromInputs(organizationId: string, env: Env, clock: Clock, profile: InputProfile = 'demo'): Promise<DemoHistoryReport> {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
+  return seedDemoHistory(organizationId, parseHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
 }
 
 /** What the staging seed job looks at before it writes anything (ADR-055) */
@@ -104,7 +106,7 @@ export async function firstSeedPreflight(now: Date): Promise<void> {
   const yearOfLine = new Map(parseBudget(workbook).map((line) => [line.code, line.fiscalYear]))
   const today = thaiDay(now)
   for (const row of history) {
-    const code = yearOfLine.get(row.budgetLine)
+    const code = 'line' in row.budget ? yearOfLine.get(row.budget.line) : undefined
     if (!code) continue
     const { startsOn, endsOn } = fiscalYearDates(code)
     const [first, last] = [startsOn.toISOString().slice(0, 10), endsOn.toISOString().slice(0, 10)]

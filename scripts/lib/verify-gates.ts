@@ -14,6 +14,8 @@ export interface VerifyArgs {
   strict: boolean
   e2e: boolean
   only: string[] | null
+  /** --docs-only=<base>: the e2e gate may skip when every file changed since that commit is a document (CI, P1-03) */
+  docsOnlySince: string | null
 }
 
 /**
@@ -28,17 +30,22 @@ export const GATE_REQUIRES: Readonly<Record<string, readonly string[]>> = {
   trace: ['unit', 'golden', 'property', 'integration'],
 }
 
-/** `--strict`, `--e2e`, `--only=a,b`. Unknown flags and gate names are errors, never a silent "nothing to run". */
+/** `--strict`, `--e2e`, `--only=a,b`, `--docs-only=<commit>`. Unknown flags and gate names are errors, never a silent "nothing to run". */
 export function parseVerifyArgs(
   argv: readonly string[],
   gateNames: readonly string[],
   requires: Readonly<Record<string, readonly string[]>> = {},
 ): { args: VerifyArgs } | { error: string } {
-  const args: VerifyArgs = { strict: false, e2e: false, only: null }
+  const args: VerifyArgs = { strict: false, e2e: false, only: null, docsOnlySince: null }
   for (const arg of argv) {
     if (arg === '--') continue
     if (arg === '--strict') args.strict = true
     else if (arg === '--e2e') args.e2e = true
+    else if (arg.startsWith('--docs-only=')) {
+      const base = arg.slice('--docs-only='.length).trim()
+      if (!/^[0-9a-f]{7,40}$/i.test(base)) return { error: '--docs-only= ต้องตามด้วยเลข commit ฐาน (7 ถึง 40 ตัว 0-9 a-f)' }
+      args.docsOnlySince = base
+    }
     else if (arg.startsWith('--only=')) {
       const names = arg
         .slice('--only='.length)
@@ -49,7 +56,7 @@ export function parseVerifyArgs(
       const unknown = names.filter((n) => !gateNames.includes(n))
       if (unknown.length) return { error: `ไม่รู้จักด่าน ${unknown.join(', ')} — ด่านที่มี: ${gateNames.join(' ')}` }
       args.only = [...new Set([...(args.only ?? []), ...names])]
-    } else return { error: `ไม่รู้จักตัวเลือก ${arg} — ใช้ได้: --strict --e2e --only=<ด่าน,ด่าน>` }
+    } else return { error: `ไม่รู้จักตัวเลือก ${arg} — ใช้ได้: --strict --e2e --only=<ด่าน,ด่าน> --docs-only=<commit>` }
   }
   if (args.only) {
     const selected = [...args.only]

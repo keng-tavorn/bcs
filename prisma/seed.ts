@@ -6,12 +6,15 @@
 // Demo users with passwords exist only in local and staging (Appendix A); production is refused. The demo approvers get
 // the transaction PIN SEED_DEV_PIN when it is set (FR-AUTH-005, ADR-047 item 9); without it nobody gets a PIN, and the
 // history steps up with a one-time PIN it takes back.
+// SEED_INPUTS=p1 (P1-02, `pnpm db:reset:p1`) reads the synthetic workbook of phase 1 instead, docs/inputs/BCS_inputs_p1.xlsx:
+// organization SIMEC, its budget of two fiscal years and the 240 requests of sheet Request_History. Unset, the demo workbook.
 import { systemClock } from '@/lib/clock'
 import { PASSWORD_MIN_LENGTH } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { prisma } from '@/server/db/client'
 import type { SeedPinsReport } from '@/server/seed/pins'
-import { DemoHistoryIncompleteError, DemoHistoryNetError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError } from '@/server/services/demo-history'
+import { INPUT_WORKBOOKS, inputProfileOf, type InputProfile } from '@/server/seed/workbook'
+import { DemoHistoryIncompleteError, DemoHistoryNetError, DemoHistoryNoBudgetLineError, DemoHistoryOutOfYearError, DemoHistoryPinError, DemoHistoryStorageError } from '@/server/services/demo-history'
 import { seedDemoBase, seedDemoHistoryFromInputs } from '@/server/services/demo-seed'
 import { describeLineSeed } from '@/server/services/line-channel'
 import { ensureBucket } from '../scripts/storage-init'
@@ -48,14 +51,25 @@ const password = env.SEED_DEV_PASSWORD
 if (!password || password.length < PASSWORD_MIN_LENGTH) stop(`ใส่ SEED_DEV_PASSWORD ใน .env ยาวอย่างน้อย ${PASSWORD_MIN_LENGTH} ตัวอักษร`)
 // Optional: without it, members who need 2FA set up their authenticator at first sign-in (FR-AUTH-002 AC1)
 const totpKey = env.SEED_TOTP_KEY
+let profile: InputProfile = 'demo'
+try {
+  profile = inputProfileOf(process.env.SEED_INPUTS)
+} catch {
+  stop(`SEED_INPUTS ต้องว่างหรือเป็นค่าใดค่าหนึ่งของ ${Object.keys(INPUT_WORKBOOKS).join(' ')} (ตอนนี้ ${process.env.SEED_INPUTS})`)
+}
+const startedAt = performance.now()
+/** Seconds since the seed started, one decimal (P1-02 measures the seed for db:reset on this machine) */
+const seconds = () => ((performance.now() - startedAt) / 1000).toFixed(1)
 
 try {
-  const { orgCode, taxRates, report, structure, budget, suppliers, lineChannel, pins, pinless, organizationId } = await seedDemoBase(env, password, systemClock)
+  console.log(`db:seed อ่าน ${INPUT_WORKBOOKS[profile]}`)
+  const { orgCode, taxRates, report, structure, budget, suppliers, lineChannel, pins, pinless, organizationId } = await seedDemoBase(env, password, systemClock, profile)
+  const baseSeconds = seconds()
   // On this machine the seed makes the local bucket itself (scripts/storage-init.ts); elsewhere the bucket is set up by people (P0-06)
   if (process.env.SEED_DEMO_HISTORY !== '0' && env.APP_ENV === 'local') await ensureBucket()
-  const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistoryFromInputs(organizationId, env, systemClock)
+  const history = process.env.SEED_DEMO_HISTORY === '0' ? null : await seedDemoHistoryFromInputs(organizationId, env, systemClock, profile)
   console.log(
-    `db:seed เสร็จ: อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${orgCode} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
+    `db:seed เสร็จใน ${seconds()} วินาที (ข้อมูลตั้งต้น ${baseSeconds} วินาที): อัตรา VAT ใหม่ ${taxRates} ช่วง · องค์กร ${orgCode} (${report.organizationCreated ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) · ` +
       `สมาชิกใหม่ ${report.members.created} มีอยู่แล้ว ${report.members.existing} · บทบาทใหม่ ${report.rolesGranted} · ` +
       (totpKey ? `ตั้ง 2FA ใหม่ ${report.twoFactorEnabled}` : 'ไม่มี SEED_TOTP_KEY: ผู้ใช้ที่ต้องใช้ 2FA จะตั้งแอปยืนยันตัวตนตอนเข้าระบบครั้งแรก') +
       ` · แผนกใหม่ ${structure.departments} · ตำแหน่งใหม่ ${structure.positions} · ผู้ดำรงตำแหน่งใหม่ ${structure.assignments}` +
@@ -71,6 +85,12 @@ try {
     stop(
       `ข้อมูลตัวอย่างใช้ปีงบ ${error.fiscalYear} (${error.startsOn} ถึง ${error.endsOn}) แต่ประวัติ demo แถว ${error.ref} ต้องใช้วันที่ ${error.day} ซึ่งอยู่นอกปีงบนั้น จึงไม่ได้สร้างประวัติ demo · ` +
         `แก้ชีต Budget Holidays และ Demo_History ในไฟล์ inputs ให้เป็นปีปัจจุบัน (ช่วงต้นปีงบให้ daysAgo ของทุกแถวไม่ย้อนไปก่อนวันเริ่มปีงบ) แล้วรัน pnpm inputs:check และ pnpm db:reset · หรือ seed โดยไม่มีประวัติด้วย SEED_DEMO_HISTORY=0`,
+    )
+  }
+  if (error instanceof DemoHistoryNoBudgetLineError) {
+    stop(
+      `ประวัติแถว ${error.ref} ส่งคำขอวันที่ ${error.day} แต่ชีต Budget ไม่มีบรรทัดงบของกุญแจ ${error.budgetKey} ในปีงบของวันนั้น จึงยังไม่ได้สร้างประวัติ · ` +
+        `ไฟล์ระยะ 1 มีงบสองปีงบ และประวัติย้อนหลัง 150 วัน วันที่รัน seed ต้องให้ทุกแถวอยู่ในปีงบที่มีในชีต Budget · แก้ scripts/inputs_p1/ แล้วสร้างไฟล์ใหม่ หรือ seed โดยไม่มีประวัติด้วย SEED_DEMO_HISTORY=0`,
     )
   }
   if (error instanceof DemoHistoryNetError) {

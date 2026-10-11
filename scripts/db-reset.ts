@@ -3,6 +3,7 @@
 // (Prisma refuses `migrate reset` when an AI agent runs it, so the schema is dropped with SQL as the migrator.)
 // Parallel lanes (spec §16.13 · P1-01): inside a lane's worktree it refuses main's databases, on main it refuses a
 // lane's, and the lane's own database is created when missing.
+// `--inputs=p1` (pnpm db:reset:p1, P1-02) seeds the synthetic workbook of phase 1: it sets SEED_INPUTS for the seed.
 import { spawnSync } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import path from 'node:path'
@@ -74,7 +75,16 @@ function run(command: string): void {
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
+/** The workbook `--inputs=<profile>` names, if any (the seed checks the value) */
+export function inputsArgument(argv: readonly string[]): string | null {
+  const arg = argv.find((a) => a.startsWith('--inputs='))
+  return arg ? arg.slice('--inputs='.length) : null
+}
+
 async function main(): Promise<void> {
+  const inputs = inputsArgument(process.argv.slice(2))
+  // The seed reads SEED_INPUTS; a value in the environment wins over .env, which the seed loads after it
+  if (inputs !== null) process.env.SEED_INPUTS = inputs
   const refusal = resetRefusal(process.env, { inLaneWorktree: inLinkedWorktree(process.cwd()) })
   if (refusal) stop(refusal)
   await ensureDatabase(process.env.DIRECT_URL!)

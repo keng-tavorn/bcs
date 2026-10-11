@@ -29,6 +29,7 @@
     "db:check-role": "tsx scripts/check-runtime-role.ts",
     "db:seed": "tsx --env-file-if-exists=.env prisma/seed.ts",
     "db:reset": "tsx --env-file-if-exists=.env scripts/db-reset.ts",
+    "db:reset:p1": "tsx --env-file-if-exists=.env scripts/db-reset.ts --inputs=p1",
     "line:fake": "tsx --env-file-if-exists=.env scripts/fake-line.ts",
     "line:simulate": "tsx --env-file-if-exists=.env scripts/line-simulate.ts",
     "line:richmenu": "tsx --env-file-if-exists=.env scripts/line-richmenu.ts",

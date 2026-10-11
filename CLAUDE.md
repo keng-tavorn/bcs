@@ -108,6 +108,7 @@ pnpm test:e2e --grep @demo      # ฉาก demo เดิม (ต้องผ�
 pnpm inputs:check               # ตรวจไฟล์ input ทั้งไฟล์ demo และไฟล์ระยะ 1
 pnpm spec:check                 # ตรวจ spec และดูความคืบหน้า
 pnpm db:reset                   # ล้างและ seed ใหม่ (บนเครื่องเท่านั้น)
+pnpm db:reset:p1                # ล้างแล้ว seed ด้วยไฟล์ข้อมูลระยะ 1 (SIMEC · ราว 2 นาที)
 node scripts/py.mjs scripts/inputs_p1/make.py   # สร้างไฟล์ข้อมูลระยะ 1 ใหม่หลังแก้ scripts/inputs_p1
 git log --reverse --format=%h --grep=S8-03      # commit แรกของข้อ (ฐานของ "ตรวจก่อน:" = ตัวแรก~1)
 ```
@@ -126,7 +127,7 @@ git log --reverse --format=%h --grep=S8-03      # commit แรกของข�
 - เปลี่ยน schema ผ่าน Prisma migration เท่านั้น SQL เพิ่มเติม (trigger และ CHECK) ทำตาม spec §6.3 ด้วย `prisma migrate dev --create-only`
 - `pnpm db:reset` ใช้ได้เฉพาะบนเครื่อง ห้ามรัน `prisma migrate reset` หรือคำสั่งลบข้อมูลกับ staging หรือ production
 - ยังไม่ใช้ Postgres RLS (ทำเมื่อเปิด multi-tenant เต็มรูปแบบ · ADR-029) แยกข้อมูลแต่ละองค์กรด้วย `db.forTenant()` เท่านั้น (spec §4.8)
-- seed อ่านจาก `docs/inputs/BCS_inputs_v1_demo.xlsx` เป็นค่าเริ่มต้น และอ่านไฟล์ระยะ 1 (องค์กร `SIMEC` อีเมล `@simec.bcs.local`) เมื่อเลือกตามข้อ P1-02 · รัน `pnpm inputs:check` ก่อน · รหัสผ่านผู้ใช้ตัวอย่างมาจาก `SEED_DEV_PASSWORD` ใน `.env` ห้ามเขียนรหัสผ่านในโค้ด ผู้ดูแลตัวอย่างคือ `admin@demo.bcs.local`
+- seed อ่านจาก `docs/inputs/BCS_inputs_v1_demo.xlsx` เป็นค่าเริ่มต้น และอ่านไฟล์ระยะ 1 (องค์กร `SIMEC` อีเมล `@simec.bcs.local`) เมื่อรัน `pnpm db:reset:p1` หรือตั้ง `SEED_INPUTS=p1` (เทสต์และ e2e ใช้ไฟล์ demo เสมอ) · รัน `pnpm inputs:check` ก่อน · รหัสผ่านผู้ใช้ตัวอย่างมาจาก `SEED_DEV_PASSWORD` ใน `.env` ห้ามเขียนรหัสผ่านในโค้ด ผู้ดูแลตัวอย่างคือ `admin@demo.bcs.local`
 
 ## 9. เทสต์และการปิดข้อใน checklist
 

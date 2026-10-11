@@ -9,9 +9,12 @@ features:
       - tests/generated/tenant-isolation.test.ts
       - tests/integration/demo-history.test.ts
       - tests/integration/org-settings.test.ts
+      - tests/integration/seed-p1-year-end.test.ts
+      - tests/integration/seed-p1-year-start.test.ts
       - tests/integration/seed.test.ts
+      - tests/unit/seed-inputs.test.ts
     verifiedBy: null
-    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01)"
+    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01) และไฟล์ข้อมูลระยะ 1 ที่ seed ด้วย SEED_INPUTS=p1 (P1-02)"
   FR-PLT-002:
     status: done
     step: S1

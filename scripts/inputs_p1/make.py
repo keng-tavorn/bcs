@@ -125,7 +125,7 @@ def main():
     table(sheet('Workflow_Reviewers'), REAL, [('ruleCode', 'รหัสข้อ'), ('requestType', 'ประเภทคำขอ'), ('conditionTh', 'เงื่อนไข'),
           ('reviewerPosition', 'ตำแหน่งผู้ตรวจ'), ('reviewerDepartment', 'ฝ่ายของผู้ตรวจ'), ('mode', 'ALL = ต้องครบ · ANY = คนใดคนหนึ่ง'),
           ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย (ร่าง)'), ('ref', 'FR')], none(WORKFLOW_REVIEWERS))
-    table(sheet('Budget'), REAL, [('fiscalYear', 'ปีงบ'), ('code', 'รหัสบรรทัดงบ (budgetKey-ปี พ.ศ.)'), ('budgetKey', 'กุญแจงบที่ไม่มีปี (คำขอใน History อ้างคอลัมน์นี้)'),
+    table(sheet('Budget'), REAL, [('fiscalYear', 'ปีงบ'), ('code', 'รหัสบรรทัดงบ (budgetKey-ปี พ.ศ.)'), ('budgetKey', 'กุญแจงบที่ไม่มีปี (คำขอใน Request_History อ้างคอลัมน์นี้)'),
           ('nameTh', 'ชื่อ'), ('department', 'แผนกเจ้าของงบ'), ('costCenter', 'cost center'), ('accountCode', 'รหัสบัญชี'),
           ('planned', 'งบตั้งต้น (บาท ก่อน VAT)'), ('note', 'หมายเหตุ')], none(budget_rows()))
     table(sheet('CostCenters'), REAL, [('code', 'รหัส cost center'), ('nameTh', 'ชื่อ'), ('department', 'แผนกเจ้าของ')], none(cost_center_rows(dept_names)))
@@ -161,8 +161,8 @@ def main():
                  ('invoiceNo', 'เลขที่ใบแจ้งหนี้ของผู้ขาย'), ('invoiceDaysAfterGr', 'ใบแจ้งหนี้มาหลังตรวจรับกี่วัน'),
                  ('whtIncomeType', 'ประเภทหัก ณ ที่จ่าย'), ('paymentStatus', 'การจ่าย (S9): PAID DUE OVERDUE NOT_DUE'),
                  ('pattern', 'สถานการณ์ทดสอบ (ชีต Scenarios)'), ('note', 'หมายเหตุ')]
-    table(sheet('History'), SYNTH, hist_cols, none(history))
-    table(sheet('DocSamples'), SYNTH, [('sampleId', 'รหัส'), ('docType', 'QUOTATION DELIVERY_NOTE TAX_INVOICE ETAX_XML'), ('historyRef', 'คำขอใน History'),
+    table(sheet('Request_History'), SYNTH, hist_cols, none(history))
+    table(sheet('DocSamples'), SYNTH, [('sampleId', 'รหัส'), ('docType', 'QUOTATION DELIVERY_NOTE TAX_INVOICE ETAX_XML'), ('historyRef', 'คำขอใน Request_History'),
           ('supplierCode', 'ผู้ขาย'), ('sellerNameTh', 'ชื่อผู้ขายบนเอกสาร'), ('sellerTaxId', 'เลขผู้เสียภาษีผู้ขาย'), ('sellerBranch', 'สาขาผู้ขาย'),
           ('buyerTaxId', 'เลขผู้เสียภาษีผู้ซื้อ'), ('docNo', 'เลขที่เอกสาร'), ('docDaysAgo', 'วันที่เอกสาร (กี่วันก่อน)'),
           ('priceIncludesVat', 'ราคารวม VAT (Y/N)'), ('linesJson', 'รายการ (JSON)'), ('net', 'ยอดก่อน VAT'), ('vat', 'VAT'), ('gross', 'รวม'),

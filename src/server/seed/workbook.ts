@@ -4,8 +4,21 @@ import ExcelJS from 'exceljs'
 // column keys, row 2 the Thai labels for people editing the sheet, data starts on row 3 and ends at the
 // first row whose first cell is empty. Values are normalized to trimmed strings (or null) so Zod can parse
 // and report them with the sheet!cell position.
+// P1-02 (ADR-065): `pnpm db:seed` and the scripts may read the synthetic phase-1 workbook instead (SEED_INPUTS=p1);
+// tests and e2e keep the demo workbook, so the default here never reads the environment (.env reaches the tests).
 
 export const INPUT_WORKBOOK_PATH = 'docs/inputs/BCS_inputs_v1_demo.xlsx'
+
+/** The input workbooks the seed reads: the demo scenes, and the synthetic data of phase 1 (spec §16.13) */
+export const INPUT_WORKBOOKS = { demo: INPUT_WORKBOOK_PATH, p1: 'docs/inputs/BCS_inputs_p1.xlsx' } as const
+export type InputProfile = keyof typeof INPUT_WORKBOOKS
+
+/** SEED_INPUTS of `pnpm db:seed` and the scripts: unset or empty is the demo workbook, anything unknown is refused */
+export function inputProfileOf(value: string | undefined): InputProfile {
+  const profile = (value ?? '').trim() || 'demo'
+  if (!Object.hasOwn(INPUT_WORKBOOKS, profile)) throw new Error(`SEED_INPUTS=${profile} is not one of ${Object.keys(INPUT_WORKBOOKS).join(', ')}`)
+  return profile as InputProfile
+}
 
 export interface SheetRow {
   /** 1-based row number in the sheet, for error messages */
@@ -14,6 +27,7 @@ export interface SheetRow {
 }
 
 export interface InputWorkbook {
+  hasSheet(sheet: string): boolean
   table(sheet: string): SheetRow[]
   keyValues(sheet: string): Map<string, { value: string | null; row: number }>
 }
@@ -75,5 +89,5 @@ export async function loadInputWorkbook(path: string = INPUT_WORKBOOK_PATH): Pro
     return out
   }
 
-  return { table, keyValues }
+  return { hasSheet: (name) => workbook.getWorksheet(name) !== undefined, table, keyValues }
 }

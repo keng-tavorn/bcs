@@ -29,6 +29,7 @@ type Row = readonly [key: string, value: string]
 /** `workbook` with sheet Settings made of `settings`, its other sheets as they are */
 function withSettings(workbook: InputWorkbook, settings: readonly SheetRow[]): InputWorkbook {
   return {
+    hasSheet: (sheet) => sheet === 'Settings' || workbook.hasSheet(sheet),
     table: (sheet) => (sheet === 'Settings' ? [...settings] : workbook.table(sheet)),
     keyValues: (sheet) => {
       if (sheet !== 'Settings') return workbook.keyValues(sheet)

@@ -95,3 +95,33 @@ describe('[FR-PLT-007/AC2] pnpm db:reset outside APP_ENV=local is refused', () =
     }
   })
 })
+
+describe('[FR-PLT-007/AC2] pnpm db:reset keeps main and the parallel lanes apart (spec §16.13)', () => {
+  const lane1 = {
+    ...local,
+    DATABASE_URL: 'postgresql://bcs_app:bcs_app@localhost:5432/bcs_l1',
+    DIRECT_URL: 'postgresql://bcs_migrator:bcs_migrator@localhost:5432/bcs_l1',
+  }
+  const inLane = { inLaneWorktree: true }
+
+  it('allows a lane its own database', () => {
+    expect(resetRefusal(env(lane1), inLane)).toBeNull()
+  })
+
+  it.each(['bcs', 'bcs_test', 'bcs_verify', 'bcs_e2e', 'bcs_e2e_demo'])('refuses main database %s from inside a lane', (db) => {
+    for (const key of ['DATABASE_URL', 'DIRECT_URL'] as const) {
+      const url = lane1[key].replace(/bcs_l1$/, db)
+      expect(resetRefusal(env({ ...lane1, [key]: url }), inLane), `${key} → ${db}`).toMatch(/ของ main/)
+    }
+  })
+
+  it('refuses a lane database from main', () => {
+    expect(resetRefusal(env(lane1))).toMatch(/ของสาย/)
+    expect(resetRefusal(env({ ...local, DIRECT_URL: lane1.DIRECT_URL }))).toMatch(/ของสาย/)
+  })
+
+  it('reads the database of a URL without a host too', () => {
+    expect(resetRefusal(env({ ...local, DIRECT_URL: 'postgresql://bcs_migrator:pw@/bcs' }), inLane)).toMatch(/ของ main/)
+    expect(resetRefusal(env({ ...local, DIRECT_URL: 'postgresql://bcs_migrator:pw@localhost:5432/' }))).toMatch(/ชื่อฐานข้อมูล/)
+  })
+})

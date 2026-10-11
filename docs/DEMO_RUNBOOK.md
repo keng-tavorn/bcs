@@ -12,6 +12,8 @@
 5. **รหัสยืนยันตัวตน (TOTP)** — ผู้ใช้ที่มีบทบาทหรือตำแหน่งต้องใส่รหัส 6 หลักตอน login เพิ่มเข้าแอป authenticator ครั้งเดียวด้วย
    `pnpm exec tsx --env-file-if-exists=.env scripts/seed-totp.ts ceo coo vp_ops vp_sup dm_con proc_officer fin_officer receiver_con auditor admin`
    (คำสั่งพิมพ์ลิงก์ตั้งค่าและรหัสปัจจุบัน ใช้ได้เฉพาะ local และ staging เพราะคำนวณจาก `SEED_TOTP_KEY`)
+   - คำสั่งข้างบนใช้ค่าใน `.env` ของเครื่องนี้ ซึ่งเป็นคนละค่ากับ staging · สำหรับ staging รันใน PowerShell ที่โฟลเดอร์โปรเจกต์ แล้ววางค่า `SEED_TOTP_KEY` ของ staging จากโปรแกรมจัดการรหัสผ่านเมื่อถูกถาม (ค่าไม่แสดงบนจอและไม่ผ่านแชต · ใช้ได้กับข้อมูลที่ reset หลังตั้งค่านี้ใน Vercel):
+     `$k = Read-Host "วาง SEED_TOTP_KEY ของ staging" -AsSecureString; $env:SEED_TOTP_KEY = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($k)); $env:APP_ENV = "staging"; pnpm exec tsx scripts/seed-totp.ts admin ceo coo vp_ops proc_officer; Remove-Item Env:SEED_TOTP_KEY`
 6. **PIN ยืนยันธุรกรรม** — ยอดตั้งแต่ 100,000 บาทขึ้นไปต้องใส่ PIN (ฉาก 3) ถ้าตั้ง `SEED_DEV_PIN` (6 หลัก ไม่ใช่เลขเดาง่าย) ใน `.env` หรือ Environment Variables ของ staging ผู้อนุมัติตัวอย่างจะได้ PIN นี้ตอน seed ไม่เช่นนั้นตั้งเองที่ `/settings/pin`
 7. **ซ้อม 1 รอบบนมือถือจริง** (D-08) และอัดวิดีโอสำรองฉาก 1–3
 

@@ -27,6 +27,7 @@ playwright/.cache/
 # Local tooling
 .vercel/
 .worktrees/
+.claude/worktrees/
 .DS_Store
 
 # Pictures a failed PDF snapshot comparison leaves to look at (tests/support/pdf-raster.ts)

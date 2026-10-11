@@ -130,7 +130,7 @@ report("PASS" if not mer_err else "FAIL", "mermaid (ตรวจโครงส�
        "แผนภาพไม่ render", "แก้ตามรายละเอียด")
 
 # ---------- IDs ----------
-ID_PAT = r"(?:(?:FR|NFR|BR|INV|GC)-[A-Z0-9]+-\d{2,3}|(?:EG|NG|ADR|OQ|G|P|A|R)-\d{1,3}|S\d{1,2}-\d{2}|P0-\d{2}|D-\d{2}|NEW-\d{2})"
+ID_PAT = r"(?:(?:FR|NFR|BR|INV|GC)-[A-Z0-9]+-\d{2,3}|(?:EG|NG|ADR|OQ|G|P|A|R)-\d{1,3}|S\d{1,2}-\d{2}|P0-\d{2}|P1-\d{2}|D-\d{2}|NEW-\d{2,3})"
 ID_RE = re.compile(r"(?<![A-Za-z0-9_\-/])" + ID_PAT + r"(?![A-Za-z0-9_])")
 FULL = re.compile("^" + ID_PAT + "$")
 defs = {}
@@ -146,7 +146,7 @@ for ln, l in heads:
 for path, (data, ln) in golden.items():
     for c in (data or {}).get("cases", []) or []:
         add_def(c["id"], ln)
-CHECK_RE = re.compile(r"^- \[([ x])\] \*\*((?:S\d{1,2}|P0|D|NEW)-\d{2})\*\*(.*)$")
+CHECK_RE = re.compile(r"^- \[([ x])\] \*\*((?:S\d{1,2}|P0|P1|D)-\d{2}|NEW-\d{2,3})\*\*(.*)$")
 ITEMS = []
 for i, line in enumerate(LINES):
     if code_line[i]: continue
@@ -173,10 +173,32 @@ for k in defs:
     if m:
         n = int(m.group(3)); key = f"{m.group(1)}-{m.group(2)}" + (f" ชุด {n//100}xx" if m.group(1) == "FR" else "")
         groups.setdefault(key, [(n // 100) * 100 if m.group(1) == "FR" else 0, []])[1].append(n); continue
-    m = re.match(r"^(S\d+|P0|EG|NG|ADR|OQ|G|P|A|R|D|NEW)-(\d+)$", k)
+    m = re.match(r"^(S\d+|P0|P1|EG|NG|ADR|OQ|G|P|A|R|D|NEW)-(\d+)$", k)
     if m: groups.setdefault(m.group(1), [0, []])[1].append(int(m.group(2)))
+# ADR and OQ numbers reserved per step so parallel lanes never pick the same number (spec 0.4 §16.13 · ADR-066):
+# the table whose header has the columns "เลข ADR" and "เลข OQ" lists ranges like 101–119 (bare numbers, no prefix)
+RANGES = {"ADR": [], "OQ": []}
+for rows in tables:
+    hdr = [c.strip() for c in rows[0][1]]
+    cols = {p: hdr.index(f"เลข {p}") for p in RANGES if f"เลข {p}" in hdr}
+    if len(cols) != 2: continue
+    for ln, cells in rows[2:]:
+        for p, j in cols.items():
+            for a, b in re.findall(r"(\d+)\s*[–-]\s*(\d+)", cells[j] if j < len(cells) else ""):
+                RANGES[p].append((int(a), int(b)))
 gaps = []
 for key, (base, nums) in sorted(groups.items()):
+    if RANGES.get(key):
+        rs = sorted(RANGES[key]); floor = rs[0][0]
+        legacy = sorted(n for n in nums if n < floor)
+        miss = sorted(set(range(1, max(legacy) + 1)) - set(legacy)) if legacy else []
+        outside = sorted(n for n in nums if n >= floor and not any(a <= n <= b for a, b in rs))
+        for a, b in rs:
+            inr = sorted(n for n in nums if a <= n <= b)
+            if inr: miss += sorted(set(range(a, max(inr) + 1)) - set(inr))
+        if outside: gaps.append(f"{key} เลข {outside} อยู่นอกช่วงที่จองไว้ในตารางสายของ §16.13")
+        if miss: gaps.append(f"{key} ขาด {miss}")
+        continue
     exp = set(range(base + 1, max(nums) + 1)); miss = sorted(exp - set(nums))
     if miss: gaps.append(f"{key} ขาด {miss}")
 report("PASS" if not gaps else "FAIL", "เลข ID ต่อเนื่อง", f"{len(groups)} กลุ่ม ไม่มีเลขกระโดด" if not gaps else "; ".join(gaps),
@@ -221,26 +243,28 @@ report("PASS" if not nodate else "FAIL", "checklist: ข้อที่ติ๊
 # §16 subsection of every item ("16.11"), from the nearest "### 16.x" heading above it
 sec16 = [(ln, re.match(r"^### (16\.\d+) ", l).group(1)) for ln, l in heads if re.match(r"^### 16\.\d+ ", l)]
 for it in ITEMS: it["sec"] = next((s for ln, s in reversed(sec16) if ln < it["ln"]), "")
-A2_FIRST_NEW = 72  # spec 0.3.1: §16.11 items found during round A2 start at NEW-72
+A2_FIRST_NEW, A3_FIRST_NEW = 72, 89  # §16.11 items found during round A2 are NEW-72 to NEW-88; round P1 (A3) starts at NEW-89
 def subsec(it): return int(it["sec"].split(".")[1]) if it["sec"] else 0
-def is_a2(it): return it["sec"] == "16.12" or (it["id"].startswith("NEW-") and int(it["id"][4:]) >= A2_FIRST_NEW)
+def is_a2(it): return it["sec"] == "16.12" or (it["id"].startswith("NEW-") and A2_FIRST_NEW <= int(it["id"][4:]) < A3_FIRST_NEW)
+def is_a3(it): return 13 <= subsec(it) <= 18 or (it["id"].startswith("NEW-") and int(it["id"][4:]) >= A3_FIRST_NEW)
 def agent_demo(it): return "`[demo]`" in it["head"] and "`[คน]`" not in it["head"]
-def step_items(*steps): return [it for it in ITEMS if re.match(r"^S(\d+)-", it["id"]) and int(it["id"].split("-")[0][1:]) in steps]
+def step_items(*steps): return [it for it in ITEMS if re.match(r"^S(\d+)-", it["id"]) and int(it["id"].split("-")[0][1:]) in steps and agent_demo(it)]
 def progress(items, what):
     return f"{what} เสร็จ {sum(it['done'] for it in items)}/{len(items)}" if items else f"{what}: ยังไม่มีข้อใน checklist (ข้อแรกของขั้นคือเขียน sub-spec และ checklist · §16.0)"
 lines_ = {
-    "A": progress([it for it in ITEMS if agent_demo(it) and 3 <= subsec(it) <= 11 and not is_a2(it)], "ข้อ [demo] ของ agent ใน §16.3 ถึง §16.11 (ถึง NEW-71)"),
-    "A2": progress([it for it in ITEMS if agent_demo(it) and is_a2(it)], "ข้อ [demo] ของ agent ใน §16.12 และ NEW-72 ขึ้นไป"),
+    "A3": progress([it for it in ITEMS if agent_demo(it) and is_a3(it)], "ข้อ [demo] ของ agent ใน §16.13 ถึง §16.18 และ NEW-89 ขึ้นไป"),
+    "A": progress([it for it in ITEMS if agent_demo(it) and 3 <= subsec(it) <= 11 and not is_a2(it) and not is_a3(it)], "ข้อ [demo] ของ agent ใน §16.3 ถึง §16.11 (ถึง NEW-71)"),
+    "A2": progress([it for it in ITEMS if agent_demo(it) and is_a2(it)], "ข้อ [demo] ของ agent ใน §16.12 และ NEW-72 ถึง NEW-88"),
     "B": "ไม่มีข้อใน checklist: เสร็จเมื่อผู้ใช้ส่งไฟล์ input จริงและคำตอบในชีต Questions แล้ว spec ถูกปรับ",
-    "C": progress([it for it in ITEMS if "`[go-live]`" in it["head"] and 3 <= subsec(it) <= 12], "ข้อ [go-live] ใน §16.3 ถึง §16.12"),
-    "D": progress(step_items(6), "ข้อของ S6"),
-    "E": progress(step_items(8, 9), "ข้อของ S8 S9"),
-    "F": progress(step_items(13), "ข้อของ S13"),
-    "G": progress(step_items(17), "ข้อของ S17"),
-    "H": progress(step_items(7, 10, 11), "ข้อของ S7 S10 S11"),
+    "C": progress([it for it in ITEMS if "`[go-live]`" in it["head"] and subsec(it) >= 3], "ข้อ [go-live] ใน §16.3 ขึ้นไป"),
+    "D": progress(step_items(6), "ข้อ [demo] ของ agent ใน S6"),
+    "E": progress(step_items(8, 9), "ข้อ [demo] ของ agent ใน S8 S9"),
+    "F": progress(step_items(13), "ข้อ [demo] ของ agent ใน S13"),
+    "G": progress(step_items(17), "ข้อ [demo] ของ agent ใน S17"),
+    "H": progress(step_items(7, 10, 11), "ข้อ [demo] ของ agent ใน S7 S10 S11"),
 }
-for k in ("A2", "A", "B", "C", "D", "E", "F", "G", "H"):
-    report("PASS", f"ความคืบหน้าสู่เส้นชัย {k}", lines_[k] + (f" · ทั้ง checklist เสร็จ {sum(it['done'] for it in ITEMS)}/{len(ITEMS)}" if k == "A2" else ""))
+for k in ("A3", "A2", "A", "B", "C", "D", "E", "F", "G", "H"):
+    report("PASS", f"ความคืบหน้าสู่เส้นชัย {k}", lines_[k] + (f" · ทั้ง checklist เสร็จ {sum(it['done'] for it in ITEMS)}/{len(ITEMS)}" if k == "A3" else ""))
 start_ok = "## เริ่มที่นี่" in TEXT and "เส้นชัย A" in TEXT and "ทำตาม spec.md" in TEXT and "### หยุดและถามเมื่อ" in TEXT
 report("PASS" if start_ok else "FAIL", "ส่วนเริ่มที่นี่: คำสั่ง เส้นชัย และวิธีทำงาน", "ครบ" if start_ok else "ขาดคำสั่ง เส้นชัย หรือรายการหยุดถาม",
        "ผู้ใช้สั่งสั้น ๆ แล้ว agent ไม่รู้งานทั้งหมดหรือเส้นชัย", "คืนส่วน '## เริ่มที่นี่' ไว้บนสุดของไฟล์")

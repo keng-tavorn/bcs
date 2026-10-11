@@ -160,6 +160,7 @@ export default defineConfig([
     'test-results/**',
     'scratch/**',
     '.worktrees/**',
+    '.claude/worktrees/**',
     'next-env.d.ts',
     'src/server/db/generated/**',
   ]),

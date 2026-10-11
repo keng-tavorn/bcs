@@ -24,6 +24,7 @@ blob-report/
 playwright/.cache/
 .vercel/
 .worktrees/
+.claude/worktrees/
 .DS_Store
 tests/snapshots/pdf/*.actual.png
 

@@ -292,8 +292,8 @@ const gates: Gate[] = [
     name: 'spec',
     run: () => {
       const r = sh('pnpm spec:check')
-      // the line of the current round (spec_check prints A2 first, then A to H)
-      const progress = r.out.split(/\r?\n/).find((l) => l.includes('ความคืบหน้าสู่เส้นชัย A2')) ?? ''
+      // the line of the current round (spec_check prints A3 first, then A2, A to H)
+      const progress = r.out.split(/\r?\n/).find((l) => l.includes('ความคืบหน้าสู่เส้นชัย A3')) ?? ''
       const summary = r.out.split(/\r?\n/).find((l) => l.startsWith('สรุป:')) ?? ''
       if (r.code === 0) return { status: 'PASS', detail: `${summary}\n      ${progress.replace(/^PASS\s+/, '')}` }
       const fails = r.out.split(/\r?\n/).filter((l) => l.startsWith('FAIL'))
@@ -303,11 +303,17 @@ const gates: Gate[] = [
   {
     name: 'inputs',
     run: () => {
+      // two workbooks: the frozen demo file, then the phase-1 file (spec §16.13 · ADR-065)
       const r = sh('pnpm inputs:check')
-      const summary = r.out.split(/\r?\n/).find((l) => l.startsWith('สรุป:')) ?? ''
+      const summaries = r.out.split(/\r?\n/).filter((l) => l.startsWith('สรุป:'))
       return r.code === 0
-        ? { status: 'PASS', detail: summary }
-        : { status: 'FAIL', detail: r.out.split(/\r?\n/).filter((l) => l.startsWith('FAIL')).slice(0, 6).join('\n      ') || lastLines(r.out), impact: 'seed จะสร้างข้อมูล demo ผิดจากไฟล์ input', fix: 'แก้ไฟล์ docs/inputs/BCS_inputs_v1_demo.xlsx ใน Excel ตามรายการ FAIL' }
+        ? { status: 'PASS', detail: summaries.join(' · ') }
+        : {
+            status: 'FAIL',
+            detail: r.out.split(/\r?\n/).filter((l) => l.startsWith('FAIL') || l.startsWith('validate_inputs')).slice(0, 8).join('\n      ') || lastLines(r.out),
+            impact: 'seed จะสร้างข้อมูลผิดจากไฟล์ input',
+            fix: 'demo: docs/inputs/BCS_inputs_v1_demo.xlsx (Excel) · p1: scripts/inputs_p1/*.py then node scripts/py.mjs scripts/inputs_p1/make.py',
+          }
     },
   },
   {

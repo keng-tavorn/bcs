@@ -29,7 +29,7 @@ export interface ChecklistItem {
 }
 
 // Same item pattern as scripts/spec_check.py, so both tools agree on which items exist and which are ticked
-const ITEM = /^- \[([ x])\] \*\*((?:S\d{1,2}|P0|D|NEW)-\d{2})\*\*(.*)$/
+const ITEM = /^- \[([ x])\] \*\*((?:S\d{1,2}|P0|P1|D)-\d{2}|NEW-\d{2,3})\*\*(.*)$/
 const TAG = /`\[(demo|go-live|คน)\]`/g
 
 /** Checklist items of spec §16 (code blocks skipped, so the NEW-nn template is not an item). */

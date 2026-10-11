@@ -1,29 +1,36 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-validate_inputs.py — ตรวจไฟล์ input ของ BCS (demo และข้อมูลจริง v2) แบบรันจริง ทั้งโครงสร้างและการคำนวณ
-ใช้:  python3 validate_inputs.py BCS_inputs_v1_demo.xlsx [--spec spec.md]
-- อ่านค่าที่คำนวณแล้วของสูตร จึงต้องบันทึกไฟล์จาก Excel หรือ LibreOffice ก่อนตรวจ
-- --spec: เทียบกับ fixture และรายการ OQ ใน spec.md (ต้องมี PyYAML)
+validate_inputs.py — ตรวจไฟล์ input ของ BCS (ไฟล์ demo · ไฟล์ข้อมูลสังเคราะห์ระยะ 1 · ข้อมูลจริง v2) แบบรันจริง ทั้งโครงสร้างและการคำนวณ
+ใช้:  python3 validate_inputs.py BCS_inputs_v1_demo.xlsx [--spec spec.md] [--profile demo|p1]
+- --profile demo (ค่าเริ่มต้นเมื่อไม่มีชีต History): ไฟล์ของฉาก demo เดิม (§16.10) ต้องตรง fixture §7.4 และมี Demo_History Demo_Script
+- --profile p1 (ค่าเริ่มต้นเมื่อมีชีต History): ไฟล์ระยะ 1 (§16.13 · ADR-065) งานสองปีงบ ประวัติอ้าง budgetKey และชีตของ S6 S8 S9 S13
+- อ่านค่าที่คำนวณแล้วของสูตร จึงต้องบันทึกไฟล์จาก Excel หรือ LibreOffice ก่อนตรวจ (ไฟล์ระยะ 1 เขียนเป็นค่าจากสคริปต์ ไม่มีสูตร)
+- --spec: เทียบกับรายการ OQ ใน spec.md (ต้องมี PyYAML) และกับ fixture เฉพาะไฟล์ demo
 - นับจำนวนแถวเองทุกชีต ไม่ hardcode · exit 0 = ไม่มี FAIL
 """
-import re, sys
+import re, sys, json
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, date
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-argv = sys.argv[1:]; SPEC = None
+argv = sys.argv[1:]; SPEC = None; PROFILE = None
 if '--spec' in argv:
     k = argv.index('--spec'); SPEC = argv[k + 1]; del argv[k:k + 2]
+if '--profile' in argv:
+    k = argv.index('--profile'); PROFILE = argv[k + 1]; del argv[k:k + 2]
 PATH = argv[0] if argv else 'BCS_inputs_v1_demo.xlsx'
 wb = openpyxl.load_workbook(PATH, data_only=True)
+PROFILE = PROFILE or ('p1' if 'History' in wb.sheetnames else 'demo')
+if PROFILE not in ('demo', 'p1'): print(f'FAIL  --profile ต้องเป็น demo หรือ p1 (ได้ {PROFILE})'); sys.exit(2)
+DEMO_LAST_OQ = 39  # the demo workbook stopped taking questions at OQ-39 (ADR-065); newer OQs live in the phase-1 workbook
 RES = []
 def rep(st, name, detail='', impact='', fix=''): RES.append((st, name, detail, impact, fix))
 def check(cond, name, good, bad, impact, fix): rep('PASS' if cond else 'FAIL', name, good if cond else bad, impact, fix)
 def finish():
     n = {'PASS': 0, 'FAIL': 0}
-    print(f'validate_inputs — {PATH}')
+    print(f'validate_inputs — {PATH}' + (' (profile p1)' if PROFILE == 'p1' else ''))
     for st, name, d, imp, fix in RES:
         n[st] += 1; print(f'{st:5} {name} — {d}')
         if st == 'FAIL':
@@ -31,18 +38,31 @@ def finish():
             if fix: print(f'      วิธีแก้: {fix}')
     print(f"สรุป: {n['PASS']} PASS · {n['FAIL']} FAIL"); sys.exit(1 if n['FAIL'] else 0)
 
-REQ = {'Inputs': ['id','group','item','usedFor','demoValue','provider','neededBefore','ref','sheet','status'],
+COMMON = {'Inputs': ['id','group','item','usedFor','demoValue','provider','neededBefore','ref','sheet','status'],
  'Questions': ['id','meeting','askWhom','question','whyItMatters','demoDefault','ref','answer','docsToRequest'],
  'Org': ['key','value'], 'Departments': ['code','nameTh','parent','kind'], 'Positions': ['code','nameTh','scope'],
  'Users': ['code','displayNameTh','email','department','roles','positions'],
  'DOA': ['version','ruleCode','documentType','gt','lte','approverKind','approverPosition','approverMember','slaBusinessHours'],
- 'DOA_Policy': ['key','value'], 'Budget': ['fiscalYear','code','department','planned','usedDemo','remaining'],
+ 'DOA_Policy': ['key','value'],
  'Suppliers': ['code','nameTh','taxId','branchCode','vatRegistered','email'], 'Sites': ['code','nameTh'],
- 'RequestTypes': ['code','nameTh','documentType','active'], 'Holidays': ['date','nameTh'], 'Settings': ['key','value'],
+ 'RequestTypes': ['code','nameTh','documentType','active'], 'Holidays': ['date','nameTh'], 'Settings': ['key','value']}
+DEMO_ONLY = {'Budget': ['fiscalYear','code','department','planned','usedDemo','remaining'],
  'Demo_History': ['ref','daysAgo','requester','chargedDept','requestType','site','supplier','budgetLine','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel'],
  'Demo_Script': ['scene','core','actor','channel','chargedDept','budgetLine','net','vat','gross','expectedOutcome','expectedRule','expectedApprover','escalated','delegation','minutes']}
+P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter','accountCode','planned'],
+ 'CostCenters': ['code','nameTh','department'], 'GL_Accounts': ['code','nameTh','type'],
+ 'SupplierPayment': ['supplierCode','payeeType','whtIncomeType','paymentTermDays','bankCode','accountNo','accountName','eTaxIssuer','registryStatus'],
+ 'Banks': ['code','shortName','nameTh'], 'WHT_Types': ['code','nameTh','rateBp','form'],
+ 'CompanyBankAccounts': ['code','bankCode','accountNo'],
+ 'Items': ['code','nameTh','unit','refUnitPrice','category','isService','accountCode','whtIncomeType','agreementSupplier','agreedUnitPrice'],
+ 'DOA_P1_Draft': ['documentType','ruleCode','gt','lte','approverKind','approverPosition','slaBusinessHours'],
+ 'Workflow_Reviewers': ['ruleCode','requestType','reviewerPosition','reviewerDepartment','mode','slaBusinessHours'],
+ 'History': ['ref','daysAgo','requester','chargedDept','requestType','title','site','supplier','budgetKey','itemCode','qty','unitPrice','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel','form','invoiceScenario','invoiceNo','whtIncomeType','paymentStatus'],
+ 'DocSamples': ['sampleId','docType','historyRef','supplierCode','docNo','priceIncludesVat','linesJson','net','vat','gross','expectedWhtBp','expectedWht'],
+ 'Scenarios': ['id','area','descriptionTh','where']}
+REQ = {**COMMON, **(DEMO_ONLY if PROFILE == 'demo' else P1_ONLY)}
 miss = [s for s in REQ if s not in wb.sheetnames]
-check(not miss, 'ชีตครบ', f'{len(REQ)} ชีตข้อมูล', f'ขาด {miss}', 'ข้อมูลส่วนนั้นจะไม่ถูกนำเข้า', 'เพิ่มชีตที่ขาดโดยคัดลอกหัวตารางจากไฟล์ v1')
+check(not miss, 'ชีตครบ', f'{len(REQ)} ชีตข้อมูล', f'ขาด {miss}', 'ข้อมูลส่วนนั้นจะไม่ถูกนำเข้า', 'เพิ่มชีตที่ขาดโดยคัดลอกหัวตารางจากไฟล์ v1' if PROFILE == 'demo' else 'สร้างไฟล์ใหม่ด้วย scripts/inputs_p1/make.py')
 if miss: finish()
 bad = []
 for sname, keys in REQ.items():
@@ -76,6 +96,9 @@ def taxid_ok(x):
     x = re.sub(r'[\s-]', '', s_(x))
     if not re.fullmatch(r'\d{13}', x): return False
     return (11 - sum(int(x[i]) * (13 - i) for i in range(12)) % 11) % 10 == int(x[12])
+def money_ok(x):
+    try: return Decimal(str(x)) == Decimal(str(x)).quantize(Decimal('0.01'))
+    except Exception: return False
 
 # ---------- องค์กร ----------
 ORG, SET, POL = kv('Org'), kv('Settings'), kv('DOA_Policy')
@@ -111,6 +134,7 @@ for r, d in table('Users'):
     c, em, dep = s_(d['code']), s_(d['email']).lower(), s_(d['department'])
     roles = {x.strip() for x in s_(d['roles']).split(',') if x.strip()}
     if c in USR: probs.append(f'{c} ซ้ำ (แถว {r})')
+    if PROFILE == 'p1' and not re.fullmatch(r'[a-z0-9_]+', c): probs.append(f'{at("Users","code",r)} รหัสต้องเป็นตัวเล็ก ตัวเลข และ _ เท่านั้น')
     if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', em): probs.append(f'{at("Users","email",r)} อีเมลไม่ถูกรูปแบบ')
     if dep not in DEP: probs.append(f'{at("Users","department",r)} ไม่มีแผนก {dep}')
     if roles - ROLES: probs.append(f'{at("Users","roles",r)} role ไม่รู้จัก {sorted(roles - ROLES)}')
@@ -180,21 +204,25 @@ def route(doc, amt, requester, dept, delegation=None):
     res['approver'] = ap
     if delegation and delegation[0] == ap and delegation[1] not in conf: res['approver'] = delegation[1]; res['principal'] = ap
     return res
-errs, warns, docs = [], [], []
-for r in RS:
-    if r['doc'] not in docs: docs.append(r['doc'])
-for doc in docs:
-    rs = sorted([r for r in RS if r['doc'] == doc and is_amt(r)], key=lower)
-    if not rs: continue
-    prev, inf = 0, False
-    for r in rs:
-        lo = lower(r)
-        if inf: errs.append(f'{doc} ทับกันหลังช่วงสุดท้าย ({r["code"]})'); continue
-        if lo > prev: errs.append(f'{doc} มีช่องว่าง {baht(prev)}–{baht(lo)} (ก่อน {r["code"]})')
-        elif lo < prev: errs.append(f'{doc} ทับกัน {baht(lo)}–{baht(prev)} ({r["code"]})')
-        if r['lte'] is None: inf = True
-        else: prev = max(prev, r['lte'])
-    if not inf: errs.append(f'{doc} ไม่ครอบคลุมยอดที่เกิน {baht(prev)}')
+def band_lint(rules):
+    """Gaps and overlaps of the amount bands per document type (BR-DOA-08 ก)."""
+    errs, docs = [], []
+    for r in rules:
+        if r['doc'] not in docs: docs.append(r['doc'])
+    for doc in docs:
+        rs = sorted([r for r in rules if r['doc'] == doc and is_amt(r)], key=lower)
+        if not rs: continue
+        prev, inf = 0, False
+        for r in rs:
+            lo = lower(r)
+            if inf: errs.append(f'{doc} ทับกันหลังช่วงสุดท้าย ({r["code"]})'); continue
+            if lo > prev: errs.append(f'{doc} มีช่องว่าง {baht(prev)}–{baht(lo)} (ก่อน {r["code"]})')
+            elif lo < prev: errs.append(f'{doc} ทับกัน {baht(lo)}–{baht(prev)} ({r["code"]})')
+            if r['lte'] is None: inf = True
+            else: prev = max(prev, r['lte'])
+        if not inf: errs.append(f'{doc} ไม่ครอบคลุมยอดที่เกิน {baht(prev)}')
+    return errs
+errs, warns = band_lint(RS), []
 for g in ('DOA_CHANGE', 'ORG_AUTHORITY_CHANGE'):
     gr = [r for r in RS if r['doc'] == g]
     if not gr: errs.append(f'ไม่มีข้อ {g}')
@@ -243,87 +271,276 @@ if len(set(hol)) != len(hol): hp.append('วันหยุดซ้ำ')
 wk = [str(x) for x in hol if x.weekday() >= 5]
 check(not hp, 'วันหยุด', f'{len(hol)} วัน' + (f' · ตรงเสาร์อาทิตย์ {wk} (ตรวจว่าตั้งใจ)' if wk else ''), '; '.join(hp), 'นับ SLA ผิด', 'ใส่วันที่ในรูปแบบวันที่ของ Excel')
 
-# ---------- คำขอย้อนหลัง ----------
-BUD = {}
-for r, d in table('Budget'): BUD[s_(d['code'])] = {'dept': s_(d['department']), 'planned': sat(d['planned']), 'row': r, 'used': d['usedDemo'], 'rem': d['remaining']}
 STAT = {'COMPLETED','ORDERED','APPROVED','PENDING_APPROVAL','RETURNED','REJECTED','CANCELLED'}; DECIDED = STAT - {'PENDING_APPROVAL','CANCELLED'}
-used = {k: 0 for k in BUD}; refp, arith, rbad, chbad, overdue, decided, viachat = [], [], [], [], [], 0, 0
-for r, d in table('Demo_History'):
-    ref, req, dept, line, st = s_(d['ref']), s_(d['requester']), s_(d['chargedDept']), s_(d['budgetLine']), s_(d['status'])
-    if req not in USR: refp.append(f'{ref}: ไม่มีผู้ใช้ {req}')
-    elif USR[req]['dept'] != dept: refp.append(f'{ref}: {req} อยู่ {USR[req]["dept"]} แต่ตั้งเบิก {dept} (ต้องมีสิทธิ์ใช้งบข้ามฝ่าย)')
-    if line not in BUD: refp.append(f'{ref}: ไม่มีบรรทัดงบ {line}'); continue
-    if BUD[line]['dept'] != dept: refp.append(f'{ref}: บรรทัดงบ {line} เป็นของ {BUD[line]["dept"]}')
-    if s_(d['requestType']) not in TYPES: refp.append(f'{ref}: ไม่มีประเภท {s_(d["requestType"])}')
-    if s_(d['supplier']) not in SUP: refp.append(f'{ref}: ไม่มีผู้ขาย {s_(d["supplier"])}')
-    if s_(d['site']) not in SITE: refp.append(f'{ref}: ไม่มีสถานที่ {s_(d["site"])}')
-    if st not in STAT: refp.append(f'{at("Demo_History","status",r)} สถานะ {st}')
-    if Decimal(str(d['net'])) % 1 != 0: refp.append(f'{at("Demo_History","net",r)} ยอดก่อน VAT ต้องเป็นบาทเต็ม (ใบเสนอราคาเปรียบเทียบ 104% และ 107% ต้องลงตัวที่สตางค์ และห้ามปัด BR-MONEY-02)')
-    net = sat(d['net']); vat = rhu(net * RATE_BP, 10000); gross = net + vat; cnt = 0 if st in ('REJECTED', 'CANCELLED') else net
-    for key, want in (('vat', vat), ('gross', gross), ('countsAgainstBudget', cnt)):
-        if d[key] is None: arith.append(f'{at("Demo_History",key,r)} ยังไม่มีค่าที่คำนวณ (บันทึกไฟล์จาก Excel ก่อน)')
-        elif sat(d[key]) != want: arith.append(f'{at("Demo_History",key,r)} ได้ {baht(sat(d[key]))} ควรเป็น {baht(want)}')
-    used[line] += cnt; amt = gross if BASIS == 'GROSS' else net
+low_pct = SET.get('digest.budgetLowPct', (0.1, 0))[0]
+
+def history_route_checks(ref, d, sheet, req, dept, st, net, rbad, chbad, overdue, counters):
+    """Route, channel and hour rules shared by Demo_History and History (BR-DOA-02..06, BR-TOK-05)."""
+    vat = rhu(net * RATE_BP, 10000); gross = net + vat; amt = gross if BASIS == 'GROSS' else net
     rt = route('PURCHASE_REQUEST', amt, req, dept); exp = (s_(d['expectedRule']), s_(d['expectedApprover']), s_(d['escalated']) or 'N')
     if 'error' in rt or (rt['rule'], rt['approver'], rt['escalated']) != exp:
         rbad.append(f'{ref} (รวม VAT {baht(gross)}): คาด {exp} แต่ engine ได้ {rt}')
     ch = s_(d['channel'])
     if st in DECIDED:
-        decided += 1; viachat += ch in ('LINE_CHAT', 'LIFF')
-        if ch not in ('LINE_CHAT', 'LIFF', 'WEB'): chbad.append(f'{at("Demo_History","channel",r)} ตัดสินแล้วต้องมีช่องทาง')
+        counters['decided'] += 1; counters['viachat'] += ch in ('LINE_CHAT', 'LIFF')
+        if ch not in ('LINE_CHAT', 'LIFF', 'WEB'): chbad.append(f'{at(sheet,"channel",d["_r"])} ตัดสินแล้วต้องมีช่องทาง')
         if ch == 'LINE_CHAT' and amt >= STEPUP: chbad.append(f'{ref}: ยอด {baht(amt)} ต้องยืนยัน PIN จึงอนุมัติจากปุ่มในแชทไม่ได้ (BR-TOK-05)')
         if ch == 'LINE_CHAT' and st in ('REJECTED', 'RETURNED'): chbad.append(f'{ref}: ไม่อนุมัติหรือตีกลับต้องกรอกเหตุผลใน LIFF หรือเว็บ')
     elif ch: chbad.append(f'{ref}: ยังค้างอยู่แต่มีช่องทาง')
     hrs = d['hours']
-    if not isinstance(hrs, (int, float)) or hrs < 0: chbad.append(f'{at("Demo_History","hours",r)} ต้องเป็นตัวเลข ≥ 0')
+    if not isinstance(hrs, (int, float)) or hrs < 0: chbad.append(f'{at(sheet,"hours",d["_r"])} ต้องเป็นตัวเลข ≥ 0')
     elif st == 'PENDING_APPROVAL' and 'rule' in rt:
         sla = next(x['sla'] for x in RS if x['code'] == rt['rule'])
         if hrs > sla: overdue.append(f'{ref} ค้าง {hrs} ชม. ที่ {rt.get("approver")} (SLA {sla})')
-nh = len(table('Demo_History'))
-check(not refp, 'คำขอย้อนหลัง: ข้อมูลอ้างอิง', f'{nh} รายการ อ้างผู้ใช้ แผนก งบ ผู้ขาย สถานที่ได้ครบ', '; '.join(refp[:8]), 'seed สร้างคำขอไม่ได้', 'แก้รหัสในแถวที่ระบุของชีต Demo_History')
-check(not arith, 'คำขอย้อนหลัง: VAT ยอดรวม และยอดที่นับเข้างบ', f'{nh} รายการ ตรงกับการคำนวณ half-up ระดับเอกสาร', '; '.join(arith[:8]), 'dashboard งบและ DOA ใช้ยอดผิด', 'แก้ตามค่าที่ระบุ (สูตรต้องอ้าง Settings!$B$3)')
-check(not rbad, 'คำขอย้อนหลัง: เส้นทาง DOA ตรงกับ engine', f'{nh} รายการ ข้อ ผู้อนุมัติ และการยกระดับตรงทุกแถว', '; '.join(rbad[:6]), 'ข้อมูล demo ขัดกับกฎ DOA ที่กำลังโชว์', 'แก้ expectedRule expectedApprover หรือ escalated ตามค่าที่ engine ได้')
-check(not chbad, 'คำขอย้อนหลัง: ช่องทางและเวลา', 'สอดคล้องกับกติกา step-up และการกรอกเหตุผล', '; '.join(chbad[:6]), 'ข้อมูล audit ใน demo ขัดกับกติกาของระบบ', 'แก้คอลัมน์ channel หรือ hours ในแถวที่ระบุ')
+    return vat, gross
 
-# ---------- งบ ----------
-bp = []
-for k, b in BUD.items():
-    if b['planned'] <= 0: bp.append(f'{at("Budget","planned",b["row"])} ต้องมากกว่า 0')
-    if used[k] > b['planned']: bp.append(f'{k}: ใช้ {baht(used[k])} เกินงบ {baht(b["planned"])}')
-    for key, want in (('used', used[k]), ('rem', b['planned'] - used[k])):
-        col = 'usedDemo' if key == 'used' else 'remaining'
-        if b[key] is None: bp.append(f'{at("Budget",col,b["row"])} ยังไม่มีค่าที่คำนวณ')
-        elif sat(b[key]) != want: bp.append(f'{at("Budget",col,b["row"])} ได้ {baht(sat(b[key]))} ควรเป็น {baht(want)}')
-low_pct = SET.get('digest.budgetLowPct', (0.1, 0))[0]
-low = [f'{k} เหลือ {(b["planned"] - used[k]) / b["planned"]:.1%}' for k, b in BUD.items() if b['planned'] and (b['planned'] - used[k]) / b['planned'] < low_pct]
-check(not bp, 'งบ: ยอดใช้และคงเหลือ', f'{len(BUD)} บรรทัด รวม {baht(sum(b["planned"] for b in BUD.values()))} · ตรงกับคำขอย้อนหลัง', '; '.join(bp), 'dashboard งบแสดงตัวเลขผิดต่อหน้าลูกค้า', 'แก้ตามช่องที่ระบุ')
-share = viachat / decided if decided else 0
-story = bool(overdue) and bool(low) and share >= 0.6
-check(story, 'ข้อมูลพอสำหรับฉาก dashboard', f'ค้างเกิน SLA: {overdue} · งบใกล้หมด: {low} · อนุมัติผ่าน LINE {share:.0%}',
-      f'ค้างเกิน SLA {overdue or "ไม่มี"} · งบใกล้หมด {low or "ไม่มี"} · LINE {share:.0%}', 'ฉาก 9 ไม่มีอะไรให้โชว์', 'เพิ่มคำขอที่ค้างเกิน SLA หรือปรับยอดให้มีบรรทัดงบเหลือต่ำกว่าเกณฑ์')
+if PROFILE == 'demo':
+    # ---------- คำขอย้อนหลัง ----------
+    BUD = {}
+    for r, d in table('Budget'): BUD[s_(d['code'])] = {'dept': s_(d['department']), 'planned': sat(d['planned']), 'row': r, 'used': d['usedDemo'], 'rem': d['remaining']}
+    used = {k: 0 for k in BUD}; refp, arith, rbad, chbad, overdue = [], [], [], [], []; cnts = {'decided': 0, 'viachat': 0}
+    for r, d in table('Demo_History'):
+        d['_r'] = r
+        ref, req, dept, line, st = s_(d['ref']), s_(d['requester']), s_(d['chargedDept']), s_(d['budgetLine']), s_(d['status'])
+        if req not in USR: refp.append(f'{ref}: ไม่มีผู้ใช้ {req}')
+        elif USR[req]['dept'] != dept: refp.append(f'{ref}: {req} อยู่ {USR[req]["dept"]} แต่ตั้งเบิก {dept} (ต้องมีสิทธิ์ใช้งบข้ามฝ่าย)')
+        if line not in BUD: refp.append(f'{ref}: ไม่มีบรรทัดงบ {line}'); continue
+        if BUD[line]['dept'] != dept: refp.append(f'{ref}: บรรทัดงบ {line} เป็นของ {BUD[line]["dept"]}')
+        if s_(d['requestType']) not in TYPES: refp.append(f'{ref}: ไม่มีประเภท {s_(d["requestType"])}')
+        if s_(d['supplier']) not in SUP: refp.append(f'{ref}: ไม่มีผู้ขาย {s_(d["supplier"])}')
+        if s_(d['site']) not in SITE: refp.append(f'{ref}: ไม่มีสถานที่ {s_(d["site"])}')
+        if st not in STAT: refp.append(f'{at("Demo_History","status",r)} สถานะ {st}')
+        if Decimal(str(d['net'])) % 1 != 0: refp.append(f'{at("Demo_History","net",r)} ยอดก่อน VAT ต้องเป็นบาทเต็ม (ใบเสนอราคาเปรียบเทียบ 104% และ 107% ต้องลงตัวที่สตางค์ และห้ามปัด BR-MONEY-02)')
+        net = sat(d['net'])
+        vat, gross = history_route_checks(ref, d, 'Demo_History', req, dept, st, net, rbad, chbad, overdue, cnts)
+        cnt = 0 if st in ('REJECTED', 'CANCELLED') else net
+        for key, want in (('vat', vat), ('gross', gross), ('countsAgainstBudget', cnt)):
+            if d[key] is None: arith.append(f'{at("Demo_History",key,r)} ยังไม่มีค่าที่คำนวณ (บันทึกไฟล์จาก Excel ก่อน)')
+            elif sat(d[key]) != want: arith.append(f'{at("Demo_History",key,r)} ได้ {baht(sat(d[key]))} ควรเป็น {baht(want)}')
+        used[line] += cnt
+    nh = len(table('Demo_History'))
+    check(not refp, 'คำขอย้อนหลัง: ข้อมูลอ้างอิง', f'{nh} รายการ อ้างผู้ใช้ แผนก งบ ผู้ขาย สถานที่ได้ครบ', '; '.join(refp[:8]), 'seed สร้างคำขอไม่ได้', 'แก้รหัสในแถวที่ระบุของชีต Demo_History')
+    check(not arith, 'คำขอย้อนหลัง: VAT ยอดรวม และยอดที่นับเข้างบ', f'{nh} รายการ ตรงกับการคำนวณ half-up ระดับเอกสาร', '; '.join(arith[:8]), 'dashboard งบและ DOA ใช้ยอดผิด', 'แก้ตามค่าที่ระบุ (สูตรต้องอ้าง Settings!$B$3)')
+    check(not rbad, 'คำขอย้อนหลัง: เส้นทาง DOA ตรงกับ engine', f'{nh} รายการ ข้อ ผู้อนุมัติ และการยกระดับตรงทุกแถว', '; '.join(rbad[:6]), 'ข้อมูล demo ขัดกับกฎ DOA ที่กำลังโชว์', 'แก้ expectedRule expectedApprover หรือ escalated ตามค่าที่ engine ได้')
+    check(not chbad, 'คำขอย้อนหลัง: ช่องทางและเวลา', 'สอดคล้องกับกติกา step-up และการกรอกเหตุผล', '; '.join(chbad[:6]), 'ข้อมูล audit ใน demo ขัดกับกติกาของระบบ', 'แก้คอลัมน์ channel หรือ hours ในแถวที่ระบุ')
 
-# ---------- สคริปต์ demo ----------
-remain = {k: BUD[k]['planned'] - used[k] for k in BUD}; sp, mins, ns = [], 0, 0
-for r, d in table('Demo_Script'):
-    ns += 1; sc, actor = s_(d['scene']), s_(d['actor']); mins += d['minutes'] or 0
-    if actor not in USR: sp.append(f'ฉาก {sc}: ไม่มีผู้ใช้ {actor}')
-    if d['net'] in (None, ''): continue
-    line, dept = s_(d['budgetLine']), s_(d['chargedDept'])
-    if line not in BUD: sp.append(f'ฉาก {sc}: ไม่มีบรรทัดงบ {line}'); continue
-    net = sat(d['net']); vat = rhu(net * RATE_BP, 10000); gross = net + vat
-    for key, want in (('vat', vat), ('gross', gross)):
-        if d[key] is None or sat(d[key]) != want: sp.append(f'{at("Demo_Script",key,r)} ควรเป็น {baht(want)}')
-    out = s_(d['expectedOutcome'])
-    if out == 'BLOCKED':
-        if net <= remain[line]: sp.append(f'ฉาก {sc}: คาดว่างบไม่พอ แต่ {line} ยังเหลือ {baht(remain[line])}')
-        continue
-    if net > remain[line]: sp.append(f'ฉาก {sc}: งบ {line} เหลือ {baht(remain[line])} ไม่พอ {baht(net)}')
-    remain[line] -= net
-    dl = tuple(s_(d['delegation']).split('>')) if s_(d['delegation']) else None
-    rt = route('PURCHASE_REQUEST', gross if BASIS == 'GROSS' else net, actor, dept, dl)
-    exp = (s_(d['expectedRule']), s_(d['expectedApprover']), s_(d['escalated']) or 'N')
-    if 'error' in rt or (rt['rule'], rt['approver'], rt['escalated']) != exp: sp.append(f'ฉาก {sc} (รวม VAT {baht(gross)}): คาด {exp} แต่ engine ได้ {rt}')
-check(not sp, 'สคริปต์ demo: เส้นทาง งบ และสูตรของทุกฉาก', f'{ns} ฉาก · {mins} นาที · ยอดและผู้รับงานตรงกับ engine และงบพอเรียงตามลำดับฉาก', '; '.join(sp), 'ฉากที่เล่นจริงจะได้ผลไม่ตรงกับที่พูด', 'แก้ยอดหรือผลที่คาดของฉากที่ระบุ')
+    # ---------- งบ ----------
+    bp = []
+    for k, b in BUD.items():
+        if b['planned'] <= 0: bp.append(f'{at("Budget","planned",b["row"])} ต้องมากกว่า 0')
+        if used[k] > b['planned']: bp.append(f'{k}: ใช้ {baht(used[k])} เกินงบ {baht(b["planned"])}')
+        for key, want in (('used', used[k]), ('rem', b['planned'] - used[k])):
+            col = 'usedDemo' if key == 'used' else 'remaining'
+            if b[key] is None: bp.append(f'{at("Budget",col,b["row"])} ยังไม่มีค่าที่คำนวณ')
+            elif sat(b[key]) != want: bp.append(f'{at("Budget",col,b["row"])} ได้ {baht(sat(b[key]))} ควรเป็น {baht(want)}')
+    low = [f'{k} เหลือ {(b["planned"] - used[k]) / b["planned"]:.1%}' for k, b in BUD.items() if b['planned'] and (b['planned'] - used[k]) / b['planned'] < low_pct]
+    check(not bp, 'งบ: ยอดใช้และคงเหลือ', f'{len(BUD)} บรรทัด รวม {baht(sum(b["planned"] for b in BUD.values()))} · ตรงกับคำขอย้อนหลัง', '; '.join(bp), 'dashboard งบแสดงตัวเลขผิดต่อหน้าลูกค้า', 'แก้ตามช่องที่ระบุ')
+    share = cnts['viachat'] / cnts['decided'] if cnts['decided'] else 0
+    story = bool(overdue) and bool(low) and share >= 0.6
+    check(story, 'ข้อมูลพอสำหรับฉาก dashboard', f'ค้างเกิน SLA: {overdue} · งบใกล้หมด: {low} · อนุมัติผ่าน LINE {share:.0%}',
+          f'ค้างเกิน SLA {overdue or "ไม่มี"} · งบใกล้หมด {low or "ไม่มี"} · LINE {share:.0%}', 'ฉาก 9 ไม่มีอะไรให้โชว์', 'เพิ่มคำขอที่ค้างเกิน SLA หรือปรับยอดให้มีบรรทัดงบเหลือต่ำกว่าเกณฑ์')
+
+    # ---------- สคริปต์ demo ----------
+    remain = {k: BUD[k]['planned'] - used[k] for k in BUD}; sp, mins, ns = [], 0, 0
+    for r, d in table('Demo_Script'):
+        ns += 1; sc, actor = s_(d['scene']), s_(d['actor']); mins += d['minutes'] or 0
+        if actor not in USR: sp.append(f'ฉาก {sc}: ไม่มีผู้ใช้ {actor}')
+        if d['net'] in (None, ''): continue
+        line, dept = s_(d['budgetLine']), s_(d['chargedDept'])
+        if line not in BUD: sp.append(f'ฉาก {sc}: ไม่มีบรรทัดงบ {line}'); continue
+        net = sat(d['net']); vat = rhu(net * RATE_BP, 10000); gross = net + vat
+        for key, want in (('vat', vat), ('gross', gross)):
+            if d[key] is None or sat(d[key]) != want: sp.append(f'{at("Demo_Script",key,r)} ควรเป็น {baht(want)}')
+        out = s_(d['expectedOutcome'])
+        if out == 'BLOCKED':
+            if net <= remain[line]: sp.append(f'ฉาก {sc}: คาดว่างบไม่พอ แต่ {line} ยังเหลือ {baht(remain[line])}')
+            continue
+        if net > remain[line]: sp.append(f'ฉาก {sc}: งบ {line} เหลือ {baht(remain[line])} ไม่พอ {baht(net)}')
+        remain[line] -= net
+        dl = tuple(s_(d['delegation']).split('>')) if s_(d['delegation']) else None
+        rt = route('PURCHASE_REQUEST', gross if BASIS == 'GROSS' else net, actor, dept, dl)
+        exp = (s_(d['expectedRule']), s_(d['expectedApprover']), s_(d['escalated']) or 'N')
+        if 'error' in rt or (rt['rule'], rt['approver'], rt['escalated']) != exp: sp.append(f'ฉาก {sc} (รวม VAT {baht(gross)}): คาด {exp} แต่ engine ได้ {rt}')
+    check(not sp, 'สคริปต์ demo: เส้นทาง งบ และสูตรของทุกฉาก', f'{ns} ฉาก · {mins} นาที · ยอดและผู้รับงานตรงกับ engine และงบพอเรียงตามลำดับฉาก', '; '.join(sp), 'ฉากที่เล่นจริงจะได้ผลไม่ตรงกับที่พูด', 'แก้ยอดหรือผลที่คาดของฉากที่ระบุ')
+
+if PROFILE == 'p1':
+    # ---------- งบสองปีงบ ศูนย์ต้นทุน และผังบัญชี ----------
+    CC = {s_(d['code']): s_(d['department']) for r, d in table('CostCenters')}
+    GL = {s_(d['code']) for r, d in table('GL_Accounts')}
+    KEYS, BCODES, bp = {}, set(), []
+    for r, d in table('Budget'):
+        code, key, fy, dept = s_(d['code']), s_(d['budgetKey']), s_(d['fiscalYear']), s_(d['department'])
+        if code in BCODES: bp.append(f'{code} ซ้ำ')
+        BCODES.add(code)
+        if not re.fullmatch(r'FY\d{4}', fy): bp.append(f'{at("Budget","fiscalYear",r)} ต้องเป็น FYปปปป')
+        elif code != f'{key}-{fy[2:]}': bp.append(f'{at("Budget","code",r)} ต้องเป็น {key}-{fy[2:]}')
+        if dept not in DEP: bp.append(f'{at("Budget","department",r)} ไม่มีแผนก {dept}')
+        if s_(d['costCenter']) not in CC: bp.append(f'{at("Budget","costCenter",r)} ไม่มีในชีต CostCenters')
+        elif CC[s_(d['costCenter'])] != dept: bp.append(f'{at("Budget","costCenter",r)} เป็นของ {CC[s_(d["costCenter"])]} ไม่ใช่ {dept}')
+        if s_(d['accountCode']) not in GL: bp.append(f'{at("Budget","accountCode",r)} ไม่มีในชีต GL_Accounts')
+        if not money_ok(d['planned']) or sat(d['planned']) <= 0: bp.append(f'{at("Budget","planned",r)} ต้องเป็นเงินบวกไม่เกิน 2 ตำแหน่ง')
+        ent = KEYS.setdefault(key, {'dept': dept, 'fy': {}})
+        if ent['dept'] != dept: bp.append(f'{key}: แต่ละปีงบอยู่คนละแผนก')
+        if fy in ent['fy']: bp.append(f'{key} {fy} ซ้ำ')
+        ent['fy'][fy] = sat(d['planned']) if money_ok(d['planned']) else 0
+    badcc = [c for c, dep in CC.items() if dep not in DEP]
+    if badcc: bp.append(f'CostCenters อ้างแผนกที่ไม่มี: {badcc}')
+    fys = sorted({fy for e in KEYS.values() for fy in e['fy']})
+    check(not bp, 'งบ ศูนย์ต้นทุน และผังบัญชี', f'{len(KEYS)} กุญแจงบ × {len(fys)} ปีงบ ({", ".join(fys)}) · {len(CC)} ศูนย์ต้นทุน · {len(GL)} บัญชี', '; '.join(bp[:8]),
+          'seed สร้างบรรทัดงบไม่ได้ หรือไฟล์ส่ง Express อ้างบัญชีผิด', 'แก้ชีต Budget CostCenters หรือ GL_Accounts ตามช่องที่ระบุ')
+
+    # ---------- ธนาคาร ภาษีหัก ณ ที่จ่าย และการจ่ายผู้ขาย ----------
+    BANKS = {s_(d['code']) for r, d in table('Banks')}
+    WHT, pp = {}, []
+    for r, d in table('WHT_Types'):
+        c, bpv = s_(d['code']), d['rateBp']
+        if not isinstance(bpv, (int, float)) or not 0 < bpv <= 1500 or int(bpv) != bpv: pp.append(f'{at("WHT_Types","rateBp",r)} ต้องเป็นจำนวนเต็ม 1–1500')
+        if s_(d['form']) not in ('PND3', 'PND53', 'PND3_53'): pp.append(f'{at("WHT_Types","form",r)} ต้องเป็น PND3 PND53 หรือ PND3_53')
+        WHT[c] = int(bpv) if isinstance(bpv, (int, float)) else 0
+    seen = {}
+    for r, d in table('SupplierPayment'):
+        c = s_(d['supplierCode'])
+        if c not in SUP: pp.append(f'{at("SupplierPayment","supplierCode",r)} ไม่มีผู้ขาย {c}'); continue
+        seen[c] = seen.get(c, 0) + 1
+        if s_(d['payeeType']) not in ('JURISTIC', 'INDIVIDUAL'): pp.append(f'{at("SupplierPayment","payeeType",r)} ต้องเป็น JURISTIC หรือ INDIVIDUAL')
+        if s_(d['whtIncomeType']) and s_(d['whtIncomeType']) not in WHT: pp.append(f'{at("SupplierPayment","whtIncomeType",r)} ไม่มีในชีต WHT_Types')
+        t = d['paymentTermDays']
+        if not isinstance(t, (int, float)) or not 0 <= t <= 180: pp.append(f'{at("SupplierPayment","paymentTermDays",r)} ต้องเป็น 0–180 วัน')
+        if s_(d['bankCode']) not in BANKS: pp.append(f'{at("SupplierPayment","bankCode",r)} ไม่มีในชีต Banks')
+        if not re.fullmatch(r'\d{10,12}', re.sub(r'-', '', s_(d['accountNo']))): pp.append(f'{at("SupplierPayment","accountNo",r)} เลขบัญชีต้องเป็นตัวเลข 10–12 หลัก')
+        if not s_(d['accountName']): pp.append(f'{at("SupplierPayment","accountName",r)} ว่าง')
+        if s_(d['eTaxIssuer']) not in ('NONE', 'EMAIL', 'FULL'): pp.append(f'{at("SupplierPayment","eTaxIssuer",r)} ต้องเป็น NONE EMAIL หรือ FULL')
+        if s_(d['registryStatus']) not in ('ACTIVE', 'CEASED', 'VAT_CANCELLED'): pp.append(f'{at("SupplierPayment","registryStatus",r)} ต้องเป็น ACTIVE CEASED หรือ VAT_CANCELLED')
+    pp += [f'{c} มีข้อมูลการจ่าย {n} แถว' for c, n in seen.items() if n != 1] + [f'{c} ไม่มีข้อมูลการจ่าย' for c in SUP if c not in seen]
+    for r, d in table('CompanyBankAccounts'):
+        if s_(d['bankCode']) not in BANKS: pp.append(f'{at("CompanyBankAccounts","bankCode",r)} ไม่มีในชีต Banks')
+    STATUS = {s_(d['supplierCode']): s_(d['registryStatus']) for r, d in table('SupplierPayment')}
+    check(not pp, 'การจ่ายผู้ขาย ธนาคาร และภาษีหัก ณ ที่จ่าย', f'{len(seen)} ผู้ขายมีบัญชีรับเงิน · {len(BANKS)} ธนาคาร · {len(WHT)} ประเภทเงินได้ · ไม่ใช้งาน {sum(1 for v in STATUS.values() if v != "ACTIVE")} ราย',
+          '; '.join(pp[:8]), 'รอบจ่ายและไฟล์ธนาคารของ S9 หรือภาษีหัก ณ ที่จ่ายของ S8 ใช้ข้อมูลผิด', 'แก้ชีต SupplierPayment WHT_Types Banks หรือ CompanyBankAccounts')
+
+    # ---------- รายการสินค้า ----------
+    ITEMS, ip_ = {}, []
+    for r, d in table('Items'):
+        c = s_(d['code'])
+        if c in ITEMS: ip_.append(f'{c} ซ้ำ')
+        if not money_ok(d['refUnitPrice']) or sat(d['refUnitPrice']) <= 0: ip_.append(f'{at("Items","refUnitPrice",r)} ต้องเป็นเงินบวกไม่เกิน 2 ตำแหน่ง')
+        if s_(d['accountCode']) not in GL: ip_.append(f'{at("Items","accountCode",r)} ไม่มีในชีต GL_Accounts')
+        if s_(d['isService']) not in ('Y', 'N'): ip_.append(f'{at("Items","isService",r)} ต้องเป็น Y หรือ N')
+        if s_(d['whtIncomeType']) and s_(d['whtIncomeType']) not in WHT: ip_.append(f'{at("Items","whtIncomeType",r)} ไม่มีในชีต WHT_Types')
+        if s_(d['agreementSupplier']):
+            if s_(d['agreementSupplier']) not in SUP: ip_.append(f'{at("Items","agreementSupplier",r)} ไม่มีผู้ขาย')
+            if not money_ok(d['agreedUnitPrice']) or sat(d['agreedUnitPrice']) <= 0: ip_.append(f'{at("Items","agreedUnitPrice",r)} ต้องเป็นเงินบวก')
+        ITEMS[c] = {'unit': s_(d['unit'])}
+    check(not ip_, 'รายการสินค้าและราคาที่ตกลง', f'{len(ITEMS)} รายการ', '; '.join(ip_[:8]), 'แคตตาล็อกและราคาอ้างอิงผิด', 'แก้ชีต Items ตามช่องที่ระบุ')
+
+    # ---------- ร่างของระยะ 1: DOA ชนิดใหม่และผู้ตรวจคู่ขนาน ----------
+    dr, draft = [], []
+    for r, d in table('DOA_P1_Draft'):
+        rule = {'code': s_(d['ruleCode']), 'doc': s_(d['documentType']), 'gt': None if d['gt'] in (None, '') else sat(d['gt']),
+                'lte': None if d['lte'] in (None, '') else sat(d['lte']), 'kind': s_(d['approverKind']), 'pos': s_(d['approverPosition']), 'mem': ''}
+        if rule['doc'] in DOCS: dr.append(f'{at("DOA_P1_Draft","documentType",r)} {rule["doc"]} มีในชีต DOA อยู่แล้ว')
+        if rule['kind'] not in ('POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG'): dr.append(f'{at("DOA_P1_Draft","approverKind",r)} {rule["kind"]}')
+        if rule['pos'] not in POS: dr.append(f'{at("DOA_P1_Draft","approverPosition",r)} ไม่มีตำแหน่ง {rule["pos"]}')
+        elif not any(p == rule['pos'] for (p, _) in HOLD): dr.append(f'{rule["code"]}: ตำแหน่ง {rule["pos"]} ไม่มีผู้ดำรง')
+        draft.append(rule)
+    dr += band_lint(draft)
+    for r, d in table('Workflow_Reviewers'):
+        if s_(d['requestType']) not in TYPES: dr.append(f'{at("Workflow_Reviewers","requestType",r)} ไม่มีประเภทคำขอ')
+        if (s_(d['reviewerPosition']), s_(d['reviewerDepartment'])) not in HOLD: dr.append(f'{at("Workflow_Reviewers","reviewerPosition",r)} ไม่มีผู้ดำรง {s_(d["reviewerPosition"])}@{s_(d["reviewerDepartment"])}')
+        if s_(d['mode']) not in ('ALL', 'ANY'): dr.append(f'{at("Workflow_Reviewers","mode",r)} ต้องเป็น ALL หรือ ANY')
+    check(not dr, 'ร่าง DOA ของระยะ 1 และผู้ตรวจคู่ขนาน', f'{len(draft)} ข้อ ครอบคลุม (0, ∞) ทุกชนิดเอกสาร · ผู้ตรวจมีผู้ดำรงทุกข้อ', '; '.join(dr[:8]),
+          'sub-spec ของ S6 S8 S9 จะเริ่มจากร่างที่ใช้ไม่ได้', 'แก้ชีต DOA_P1_Draft หรือ Workflow_Reviewers')
+
+    # ---------- ประวัติคำขอ (History) ----------
+    EXTRA = {'APPROVED': 1, 'REJECTED': 1, 'RETURNED': 1, 'CANCELLED': 1, 'ORDERED': 6, 'COMPLETED': 34}  # = scripts/inputs_p1/p1_history.py
+    def safe_hours(days):  # = scripts/inputs_p1/p1_common.py guaranteed_business_hours
+        return max(0, 9 * (days - 2 * ((days + 6) // 7) - 3) - 9) if days > 0 else 0
+    REQ_FIELDS = {'HIRE_SERVICE': ('scopeOfWork', 'servicePeriod', 'processesPersonalData', 'accessesSystems', 'accessesPremises'),
+                  'CONTRACT_WORK': ('scopeOfWork', 'milestones', 'site'),
+                  'IT_PURCHASE': ('category', 'processesPersonalData', 'accessesSystems', 'accessesPremises')}
+    SCEN = {'MATCH', 'PRICE_WITHIN_TOL', 'PRICE_OVER', 'QTY_OVER', 'DUPLICATE', 'SERVICE_2WAY', 'MISSING'}
+    used = {k: 0 for k in KEYS}; refs, titles = set(), set()
+    refp, arith, rbad, chbad, overdue, timing, inv = [], [], [], [], [], [], []; cnts = {'decided': 0, 'viachat': 0}
+    for r, d in table('History'):
+        d['_r'] = r
+        ref, req, dept, key, st = s_(d['ref']), s_(d['requester']), s_(d['chargedDept']), s_(d['budgetKey']), s_(d['status'])
+        if not re.fullmatch(r'H\d{3}', ref) or ref in refs: refp.append(f'{at("History","ref",r)} ต้องเป็น Hnnn และไม่ซ้ำ')
+        refs.add(ref)
+        if s_(d['title']) in titles: refp.append(f'{ref}: ชื่อเรื่องซ้ำ (เทสต์จับคู่คำขอด้วยชื่อเรื่อง)')
+        titles.add(s_(d['title']))
+        if req not in USR: refp.append(f'{ref}: ไม่มีผู้ใช้ {req}')
+        elif USR[req]['dept'] != dept: refp.append(f'{ref}: {req} อยู่ {USR[req]["dept"]} แต่ตั้งเบิก {dept}')
+        if key not in KEYS: refp.append(f'{ref}: ไม่มีกุญแจงบ {key}'); continue
+        if KEYS[key]['dept'] != dept: refp.append(f'{ref}: งบ {key} เป็นของ {KEYS[key]["dept"]}')
+        if TYPES.get(s_(d['requestType'])) != 'PURCHASE_REQUEST': refp.append(f'{ref}: ประเภท {s_(d["requestType"])} ไม่ใช่คำขอซื้อ')
+        if s_(d['supplier']) not in SUP: refp.append(f'{ref}: ไม่มีผู้ขาย {s_(d["supplier"])}')
+        elif st == 'PENDING_APPROVAL' and STATUS.get(s_(d['supplier'])) == 'CEASED': refp.append(f'{ref}: คำขอที่ยังค้างใช้ผู้ขายที่เลิกกิจการ')
+        if s_(d['site']) not in SITE: refp.append(f'{ref}: ไม่มีสถานที่ {s_(d["site"])}')
+        if s_(d['itemCode']) not in ITEMS: refp.append(f'{ref}: ไม่มีรายการ {s_(d["itemCode"])}')
+        if st not in STAT: refp.append(f'{at("History","status",r)} สถานะ {st}')
+        days = d['daysAgo']
+        if not isinstance(days, (int, float)) or not 0 <= days <= 366 or int(days) != days: refp.append(f'{at("History","daysAgo",r)} ต้องเป็นจำนวนเต็ม 0–366')
+        if Decimal(str(d['net'])) % 1 != 0: refp.append(f'{at("History","net",r)} ยอดก่อน VAT ต้องเป็นบาทเต็ม (BR-MONEY-02)')
+        net = sat(d['net'])
+        try:
+            if sat(Decimal(str(d['qty'])) * Decimal(str(d['unitPrice']))) != net: arith.append(f'{ref}: จำนวน × ราคาต่อหน่วย ไม่เท่ายอดก่อน VAT')
+        except Exception: arith.append(f'{ref}: จำนวนหรือราคาต่อหน่วยไม่ใช่ตัวเลข')
+        vat, gross = history_route_checks(ref, d, 'History', req, dept, st, net, rbad, chbad, overdue, cnts)
+        cnt = 0 if st in ('REJECTED', 'CANCELLED') else net
+        for k2, want in (('vat', vat), ('gross', gross), ('countsAgainstBudget', cnt)):
+            if d[k2] is None or sat(d[k2]) != want: arith.append(f'{at("History",k2,r)} ควรเป็น {baht(want)}')
+        hrs = d['hours'] if isinstance(d['hours'], (int, float)) else 0
+        if st in EXTRA and isinstance(days, (int, float)) and hrs + EXTRA[st] > safe_hours(int(days)):
+            timing.append(f'{ref}: {st} {hrs} ชม. ไม่พอดีใน {int(days)} วัน (ใช้ได้ {safe_hours(int(days)) - EXTRA[st]} ชม.)')
+        rt = s_(d['requestType'])
+        if s_(d['form']):
+            try:
+                f = json.loads(s_(d['form']))
+                lack_f = [x for x in REQ_FIELDS.get(rt, ()) if not s_(f.get(x))]
+                if lack_f: refp.append(f'{ref}: ฟอร์มขาด {lack_f}')
+            except Exception: refp.append(f'{at("History","form",r)} ไม่ใช่ JSON')
+        elif rt in REQ_FIELDS: refp.append(f'{ref}: {rt} ต้องมีคำตอบในฟอร์ม')
+        sc = s_(d['invoiceScenario'])
+        if sc and sc not in SCEN: inv.append(f'{ref}: invoiceScenario {sc}')
+        if sc and st != 'COMPLETED': inv.append(f'{ref}: มีใบแจ้งหนี้แต่สถานะ {st}')
+        if st == 'COMPLETED' and not sc: inv.append(f'{ref}: COMPLETED ต้องระบุ invoiceScenario')
+        if sc and sc != 'MISSING' and not (s_(d['invoiceNo']) and s_(d['paymentStatus']) in ('PAID', 'DUE', 'OVERDUE', 'NOT_DUE')): inv.append(f'{ref}: ต้องมีเลขใบแจ้งหนี้และสถานะการจ่าย')
+        if s_(d['whtIncomeType']) and s_(d['whtIncomeType']) not in WHT: inv.append(f'{ref}: ไม่มีประเภทหัก ณ ที่จ่าย {s_(d["whtIncomeType"])}')
+        used[key] += cnt
+    nh = len(refs)
+    over = [f'{k}: ใช้ {baht(used[k])} เกินงบปีที่น้อยที่สุด {baht(min(e["fy"].values()))}' for k, e in KEYS.items() if e['fy'] and used[k] > min(e['fy'].values())]
+    check(not refp, 'ประวัติคำขอ: ข้อมูลอ้างอิงและฟอร์ม', f'{nh} รายการ อ้างผู้ใช้ งบ ผู้ขาย สถานที่ รายการ และคำตอบในฟอร์มครบ', '; '.join(refp[:8]), 'seed สร้างคำขอไม่ได้', 'แก้ scripts/inputs_p1/p1_history.py แล้วสร้างไฟล์ใหม่')
+    check(not arith, 'ประวัติคำขอ: จำนวน ราคา VAT ยอดรวม และยอดที่นับเข้างบ', f'{nh} รายการ ตรงกับการคำนวณ half-up ระดับเอกสาร', '; '.join(arith[:8]), 'dashboard งบและ DOA ใช้ยอดผิด', 'แก้ตัวสร้างข้อมูลแล้วสร้างไฟล์ใหม่')
+    check(not rbad, 'ประวัติคำขอ: เส้นทาง DOA ตรงกับ engine', f'{nh} รายการ ข้อ ผู้อนุมัติ และการยกระดับตรงทุกแถว', '; '.join(rbad[:6]), 'ข้อมูลขัดกับกฎ DOA', 'แก้ตัวสร้างข้อมูลแล้วสร้างไฟล์ใหม่')
+    check(not chbad and not timing, 'ประวัติคำขอ: ช่องทาง เวลา และการ seed ได้ทุกวันที่รัน', f'สอดคล้องกับ step-up การกรอกเหตุผล และเวลาทำการที่มีแน่ ๆ ใน daysAgo วัน',
+          '; '.join((chbad + timing)[:6]), 'ข้อมูล audit ขัดกับกติกา หรือ seed ล้มในบางวัน', 'ลด hours หรือเพิ่ม daysAgo ของแถวที่ระบุในตัวสร้างข้อมูล')
+    check(not inv and not over, 'ประวัติคำขอ: ใบแจ้งหนี้ การจ่าย และงบพอทุกปีงบ', f'{sum(1 for x in used.values() if x)} กุญแจงบถูกใช้ ไม่เกินงบของปีที่น้อยที่สุด', '; '.join((inv + over)[:8]),
+          'S8 S9 seed ใบแจ้งหนี้หรือรอบจ่ายไม่ได้ หรือคำขอเกินงบ', 'แก้ตัวสร้างข้อมูลแล้วสร้างไฟล์ใหม่')
+    low = [f'{k} เหลือ {(min(e["fy"].values()) - used[k]) / min(e["fy"].values()):.1%}' for k, e in KEYS.items() if e['fy'] and (min(e['fy'].values()) - used[k]) / min(e['fy'].values()) < low_pct]
+    share = cnts['viachat'] / cnts['decided'] if cnts['decided'] else 0
+    story = bool(overdue) and bool(low) and share >= 0.6
+    check(story, 'ข้อมูลพอสำหรับฉาก dashboard', f'ค้างเกิน SLA: {overdue} · งบใกล้หมด: {low} · อนุมัติผ่าน LINE {share:.0%}',
+          f'ค้างเกิน SLA {overdue or "ไม่มี"} · งบใกล้หมด {low or "ไม่มี"} · LINE {share:.0%}', 'หน้า dashboard และกระดานค้างไม่มีอะไรให้โชว์', 'เพิ่มคำขอค้างเกิน SLA หรือปรับยอดให้มีงบเหลือต่ำกว่าเกณฑ์')
+
+    # ---------- คำตอบของเอกสารชุดประเมิน AI ----------
+    ds, ndoc = [], 0
+    for r, d in table('DocSamples'):
+        ndoc += 1; sid = s_(d['sampleId'])
+        if s_(d['docType']) not in ('QUOTATION', 'DELIVERY_NOTE', 'TAX_INVOICE', 'ETAX_XML'): ds.append(f'{sid}: docType {s_(d["docType"])}')
+        if s_(d['historyRef']) not in refs: ds.append(f'{sid}: ไม่มีคำขอ {s_(d["historyRef"])}')
+        if s_(d['supplierCode']) not in SUP: ds.append(f'{sid}: ไม่มีผู้ขาย')
+        try: lines = json.loads(s_(d['linesJson']))
+        except Exception: ds.append(f'{sid}: linesJson ไม่ใช่ JSON'); continue
+        if d['net'] in (None, ''): continue
+        amts = [rhu(int(Decimal(str(l['qty'])) * 10000) * sat(l['unitPrice']), 10000) for l in lines]
+        tot = sum(amts)
+        if s_(d['priceIncludesVat']) == 'Y': vat = rhu(tot * RATE_BP, 10000 + RATE_BP); net, gross = tot - vat, tot
+        else: net, vat = tot, rhu(tot * RATE_BP, 10000); gross = net + vat
+        for k2, want in (('net', net), ('vat', vat), ('gross', gross)):
+            if sat(d[k2]) != want: ds.append(f'{sid}: {k2} ควรเป็น {baht(want)}')
+        if d['expectedWhtBp'] not in (None, '') and sat(d['expectedWht']) != rhu(net * int(d['expectedWhtBp']), 10000): ds.append(f'{sid}: ภาษีหัก ณ ที่จ่ายที่คาดผิด (BR-WHT-01 ฐานก่อน VAT)')
+    check(not ds, 'คำตอบของเอกสารชุดประเมิน AI', f'{ndoc} ฉบับ ยอดตรงกับการคำนวณ (VAT ระดับเอกสาร ราคารวม VAT และหัก ณ ที่จ่าย)', '; '.join(ds[:8]),
+          'ชุดประเมินของ S13 วัดผลด้วยคำตอบที่ผิด', 'แก้ doc_samples ใน scripts/inputs_p1/p1_history.py')
 
 # ---------- รายการข้อมูลและคำถาม ----------
 def contiguous(ids, prefix):
@@ -341,13 +558,19 @@ if SPEC:
     try: import yaml
     except ImportError: yaml = None
     text = open(SPEC, encoding='utf-8').read()
-    oq_spec = set(re.findall(r'^\| (OQ-\d+) \|', text, re.M)); defined = set(re.findall(r'^\| ((?:OQ|P0|A|ADR)-\d+) \|', text, re.M)) | set(re.findall(r'^- \[[ x]\] \*\*((?:P0|S\d+|D|NEW)-\d+)\*\*', text, re.M))
+    oq_spec = set(re.findall(r'^\| (OQ-\d+) \|', text, re.M)); defined = set(re.findall(r'^\| ((?:OQ|P0|A|ADR)-\d+) \|', text, re.M)) | set(re.findall(r'^- \[[ x]\] \*\*((?:P0|P1|S\d+|D|NEW)-\d+)\*\*', text, re.M))
     qrefs = set(re.findall(r'OQ-\d+', ' '.join(s_(d['ref']) for r, d in qs)))
     irefs = set(re.findall(r'(?:OQ|P0|A)-\d+', ' '.join(s_(d['ref']) for r, d in inp)))
-    unknown = sorted((qrefs | irefs) - defined); notcov = sorted(oq_spec - qrefs)
-    check(not unknown and not notcov, 'คำถามครอบคลุม OQ ทุกข้อใน spec', f'{len(oq_spec)} OQ มีคำถามรองรับครบ',
-          f'OQ ที่ยังไม่มีคำถาม: {notcov} · อ้างถึงแต่ไม่มีใน spec: {unknown}', 'จะลืมถามเรื่องที่ spec ยังต้องการคำตอบ', 'เพิ่มแถวในชีต Questions หรือแก้คอลัมน์ ref')
-    if yaml:
+    unknown = sorted((qrefs | irefs) - defined)
+    if PROFILE == 'p1':
+        notcov = sorted(oq_spec - qrefs)
+        check(not unknown and not notcov, 'คำถามครอบคลุม OQ ทุกข้อใน spec', f'{len(oq_spec)} OQ มีคำถามรองรับครบ',
+              f'OQ ที่ยังไม่มีคำถาม: {notcov} · อ้างถึงแต่ไม่มีใน spec: {unknown}', 'จะลืมถามเรื่องที่ spec ยังต้องการคำตอบ', 'เพิ่มคำถามใน scripts/inputs_p1/p1_texts.py แล้วสร้างไฟล์ใหม่ หรือแก้คอลัมน์ ref')
+    else:
+        notcov = sorted(x for x in oq_spec - qrefs if int(x.split('-')[1]) <= DEMO_LAST_OQ)
+        check(not unknown and not notcov, 'คำถามครอบคลุม OQ ทุกข้อใน spec', f'{len([x for x in oq_spec if int(x.split("-")[1]) <= DEMO_LAST_OQ])} OQ มีคำถามรองรับครบ' + (' (OQ ใหม่กว่า OQ-39 อยู่ในไฟล์ระยะ 1)' if len(oq_spec) > DEMO_LAST_OQ else ''),
+              f'OQ ที่ยังไม่มีคำถาม: {notcov} · อ้างถึงแต่ไม่มีใน spec: {unknown}', 'จะลืมถามเรื่องที่ spec ยังต้องการคำตอบ', 'เพิ่มแถวในชีต Questions หรือแก้คอลัมน์ ref')
+    if yaml and PROFILE == 'demo':
         fx = {}
         for b in re.findall(r'```yaml\n(.*?)```', text, re.S):
             m = re.match(r'#\s*tests/golden/fixtures/(\S+)\.yaml', b.splitlines()[0])

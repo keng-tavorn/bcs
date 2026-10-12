@@ -564,7 +564,7 @@ describe('pnpm verify arguments', () => {
     expect(parseVerifyArgs(['--only=goldne,intergration'], names)).toHaveProperty('error')
     expect(parseVerifyArgs(['--only='], names)).toHaveProperty('error')
     expect(parseVerifyArgs(['--stirct'], names)).toHaveProperty('error')
-    expect(parseVerifyArgs(['--strict', '--only=lint,golden'], names)).toEqual({ args: { strict: true, e2e: false, only: ['lint', 'golden'] } })
+    expect(parseVerifyArgs(['--strict', '--only=lint,golden'], names)).toEqual({ args: { strict: true, e2e: false, only: ['lint', 'golden'], docsOnlySince: null } })
   })
   it('[EG-7] pnpm verify --only=<typo> exits non-zero', () => {
     const r = spawnSync('pnpm exec tsx scripts/verify.ts --only=goldne,intergration', { cwd: ROOT, shell: true, encoding: 'utf8' })
@@ -579,14 +579,14 @@ describe('pnpm verify arguments', () => {
   it('[EG-7] a gate selected with --only also runs the gates whose reports it reads', () => {
     const all = [...names, 'golden-ids']
     expect(GATE_REQUIRES['golden-ids']).toEqual(['golden', 'integration'])
-    expect(parseVerifyArgs(['--only=golden-ids'], all, GATE_REQUIRES)).toEqual({ args: { strict: false, e2e: false, only: ['golden-ids', 'golden', 'integration'] } })
-    expect(parseVerifyArgs(['--only=lint'], all, GATE_REQUIRES)).toEqual({ args: { strict: false, e2e: false, only: ['lint'] } })
+    expect(parseVerifyArgs(['--only=golden-ids'], all, GATE_REQUIRES)).toEqual({ args: { strict: false, e2e: false, only: ['golden-ids', 'golden', 'integration'], docsOnlySince: null } })
+    expect(parseVerifyArgs(['--only=lint'], all, GATE_REQUIRES)).toEqual({ args: { strict: false, e2e: false, only: ['lint'], docsOnlySince: null } })
   })
   it('[EG-7] --only=trace runs every Vitest gate whose report the traceability check reads', () => {
     const all = ['unit', 'golden', 'property', 'integration', 'e2e', 'trace']
     expect(GATE_REQUIRES.trace).toEqual(['unit', 'golden', 'property', 'integration'])
     expect(parseVerifyArgs(['--only=trace'], all, GATE_REQUIRES)).toEqual({
-      args: { strict: false, e2e: false, only: ['trace', 'unit', 'golden', 'property', 'integration'] },
+      args: { strict: false, e2e: false, only: ['trace', 'unit', 'golden', 'property', 'integration'], docsOnlySince: null },
     })
   })
   it('[EG-7] the trace gate is the last gate, after every gate that writes a report it reads', () => {

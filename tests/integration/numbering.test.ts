@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
+import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS } from '@/lib/constants'
 import { toJsonSafe } from '@/lib/json'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import { makeCtx } from '@/server/context'
@@ -20,7 +21,11 @@ async function orgWithNumbering(numbering?: Record<string, { pattern: string; re
   const settings = OrgSettingsSchema.parse(parseYaml(loadOrgSettingsYaml()))
   await prisma.organization.update({ where: { id: org.id }, data: { settings: toJsonSafe({ ...settings, numbering: { ...settings.numbering, ...numbering } }) as object } })
   const ctx = makeCtx({ organizationId: org.id, actor: { type: 'SYSTEM', job: 'test' }, channel: 'SYSTEM', now: NOW })
-  const issue = (document: NumberedDocument, department?: string) => forTenant(org.id).$transaction((tx) => issueDocumentNumber(tx, ctx, { document, department }))
+  // A number is issued inside a command, so with runCommand's transaction limits (src/server/services/_pipeline.ts):
+  // Prisma's default 2 s wait for a pooled connection gave up on the last of the 50 issuers queued behind a pool of 10
+  // when a busy machine slowed each locked issue (P1-03)
+  const issue = (document: NumberedDocument, department?: string) =>
+    forTenant(org.id).$transaction((tx) => issueDocumentNumber(tx, ctx, { document, department }), { isolationLevel: 'ReadCommitted', maxWait: COMMAND_TX_MAX_WAIT_MS, timeout: COMMAND_TX_TIMEOUT_MS })
   return { org, ctx, issue }
 }
 

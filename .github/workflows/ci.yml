@@ -8,12 +8,16 @@ on:
   push:
     branches: [main]
 
+# A newer push replaces the run still going on the same ref, main included (P1-03): GitHub Free has 2,000 minutes a
+# month and one full run takes 75 to 100 of them; the newest commit's run is the one that counts and deploys staging
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
+  # gh run list: the last commit of main whose run went green (the "Documents only?" step)
+  actions: read
 
 jobs:
   verify:
@@ -58,7 +62,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - run: pnpm exec playwright install --with-deps chromium
+      # A change of documents only leaves out the e2e gate (scripts/lib/ci-changes.ts): a pull request compared with its
+      # base, a push to main with the last commit of main whose run went green, not the push before it, whose run a newer
+      # push may have cancelled. No green run yet, or any other file changed since: the full run. pnpm verify
+      # --docs-only checks the same files again, and runs e2e after all if anything else changed.
+      - name: Documents only?
+        id: changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="$PR_BASE"
+          else
+            base=$(gh run list --repo "${{ github.repository }}" --workflow ci.yml --branch main --event push --status success --limit 1 --json headSha --jq '.[0].headSha // ""' || true)
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          pnpm exec tsx scripts/ci-changes.ts "$base" | tee -a "$GITHUB_OUTPUT"
+
+      - if: steps.changes.outputs.docs_only != 'true'
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Storage bucket and database
         run: |
@@ -66,7 +89,14 @@ jobs:
           pnpm db:migrate
 
       - name: pnpm verify --strict --e2e
-        run: pnpm verify --strict --e2e
+        env:
+          BASE: ${{ steps.changes.outputs.base }}
+        run: |
+          if [ "${{ steps.changes.outputs.docs_only }}" = "true" ]; then
+            pnpm verify --strict --e2e --docs-only="$BASE"
+          else
+            pnpm verify --strict --e2e
+          fi
 
       - name: Test reports
         if: always()

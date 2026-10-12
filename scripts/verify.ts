@@ -2,7 +2,9 @@
 // A FAIL prints its real-world impact and a concrete fix, and the process exits non-zero.
 // A gate may SKIP only when the thing it checks does not exist in the repo yet (never because Docker or the
 // database is down). `--strict` (finish line A) turns every SKIP into FAIL except the documented allowlist.
-// Flags: --strict  --e2e (run the Playwright gate)  --only=<gate,gate>   Unknown flags or gate names are a FAIL.
+// Flags: --strict  --e2e (run the Playwright gate)  --only=<gate,gate>  --docs-only=<commit> (CI: the e2e gate, and the
+// traceability gate's wait for its results, may skip in strict when every file changed since that commit is a document,
+// scripts/lib/ci-changes.ts)   Unknown flags or gate names are a FAIL.
 // Reports of this run live in a private folder under .vitest/ and are deleted at the end, so a gate never reads
 // a file left behind by an earlier run (or by another run going on at the same time). BCS_VITEST_REPORTS lists them
 // for the gates and checkers that read them; a value inherited from the shell is dropped first.
@@ -11,6 +13,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync
 import path from 'node:path'
 import { parse as parseYaml } from 'yaml'
 import vitestConfig from '../vitest.config'
+import { changedSince, isDocumentsOnly } from './lib/ci-changes'
 import {
   COVERAGE_ENGINES,
   GATE_REQUIRES,
@@ -351,6 +354,7 @@ const gates: Gate[] = [
   {
     name: 'e2e',
     run: () => {
+      if (DOCS_ONLY) return { status: 'SKIP', detail: DOCS_ONLY_REASON }
       if (!WITH_E2E) return { status: 'SKIP', detail: 'รันเมื่อสั่ง pnpm verify --e2e (เฉพาะก่อน merge เข้า main และที่เส้นชัย)' }
       // playwright.config.ts writes this JSON report; remove the previous run's copy so nothing reads it as this run's
       const e2eReport = path.join(ROOT, 'test-results/e2e-results.json')
@@ -411,10 +415,17 @@ if ('error' in parsed) {
   console.log('สรุป: 1 FAIL · 0 PASS · 0 SKIP → ห้าม merge (ไม่ได้รันด่านใด)')
   process.exit(1)
 }
-const { strict: STRICT, e2e: WITH_E2E, only: ONLY } = parsed.args
+const { strict: STRICT, only: ONLY, docsOnlySince } = parsed.args
+// Checked here again, whatever the caller decided: a code change since the base runs the e2e gate as asked
+const changed = docsOnlySince ? changedSince(docsOnlySince) : null
+const DOCS_ONLY = changed !== null && isDocumentsOnly(changed)
+const WITH_E2E = parsed.args.e2e && !DOCS_ONLY
+const DOCS_ONLY_REASON = `แก้เฉพาะเอกสารตั้งแต่ ${docsOnlySince} (${changed?.length ?? 0} ไฟล์ · scripts/lib/ci-changes.ts)`
+const strictSkipAllowed: Record<string, string> = DOCS_ONLY ? { ...STRICT_SKIP_ALLOWED, e2e: DOCS_ONLY_REASON, trace: DOCS_ONLY_REASON } : STRICT_SKIP_ALLOWED
 
 const sha = sh('git rev-parse --short HEAD').stdout.trim() || 'no-commit'
 console.log(`BCS verify — commit ${sha}${STRICT ? ' (strict)' : ''}${ONLY ? ` · เฉพาะ ${ONLY.join(', ')}` : ''}`)
+if (docsOnlySince) console.log(DOCS_ONLY ? `      ${DOCS_ONLY_REASON}: ไม่รันด่าน e2e` : `      --docs-only: มีไฟล์ที่ไม่ใช่เอกสารตั้งแต่ ${docsOnlySince} (หรืออ่าน git ไม่ได้) จึงรันตามที่สั่ง`)
 const results: Array<{ name: string } & GateResult> = []
 try {
   for (const gate of gates) {
@@ -426,7 +437,7 @@ try {
       result = { status: 'FAIL', detail: `ด่านนี้ล้มเอง: ${(error as Error).message}`, impact: 'ตรวจด่านนี้ไม่ได้', fix: 'แก้ scripts/verify.ts หรือสิ่งที่ด่านนี้อ่าน' }
     }
     if (STRICT && result.status === 'SKIP') {
-      const allowed = STRICT_SKIP_ALLOWED[gate.name]
+      const allowed = strictSkipAllowed[gate.name]
       result = allowed
         ? { ...result, detail: `${result.detail} · อนุญาตใน strict: ${allowed}` }
         : { status: 'FAIL', detail: `SKIP ไม่ได้ในโหมด strict: ${result.detail}`, impact: 'ยังตรวจไม่ครบทุกด่านที่เส้นชัยต้องการ', fix: 'ทำสิ่งที่ด่านนี้ต้องตรวจให้มีอยู่จริง' }

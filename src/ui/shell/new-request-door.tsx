@@ -21,7 +21,7 @@ export const DOOR_ASIDE = { 'data-door-aside': '' } as const
 export const DOOR_HIDDEN = '[body:has([data-door-aside])_&]:hidden'
 
 const DOOR_CLASS =
-  'inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-3 text-center font-medium whitespace-nowrap text-primary-foreground transition-colors duration-150 hover:bg-primary-hover active:bg-primary-hover sm:px-4 lg:min-h-10'
+  'inline-flex max-w-full min-h-11 items-center justify-center gap-2 rounded-full bg-primary px-3 text-center font-medium whitespace-nowrap text-primary-foreground transition-colors duration-150 hover:bg-primary-hover active:bg-primary-hover sm:px-4 lg:min-h-10'
 
 export function NewRequestDoor({
   href,
@@ -38,10 +38,12 @@ export function NewRequestDoor({
   onClick?: MouseEventHandler<HTMLAnchorElement>
 }) {
   return (
-    <div data-door="" className={cn(className, DOOR_HIDDEN)}>
+    // The last thing in the top bar to give way: on a phone with a long count on the bell its words shorten (its name stays
+    // whole for screen readers) rather than push the bar wider than the screen or over the menu button
+    <div data-door="" className={cn('min-w-0', className, DOOR_HIDDEN)}>
       <Link href={href} className={cn(DOOR_CLASS, linkClassName)} onClick={onClick} aria-haspopup={onClick ? 'dialog' : undefined}>
         <FilePlus2 className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
-        <span>{label}</span>
+        <span className="truncate">{label}</span>
       </Link>
     </div>
   )

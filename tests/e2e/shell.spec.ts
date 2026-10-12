@@ -182,4 +182,23 @@ test('[FR-PLT-013/AC4] on a 375 px phone the menu is a sheet from the left, the 
     expect(overflow, address).toBeLessThanOrEqual(0)
     await expectNoBlockingAxe(page, address)
   }
+
+  // The top bar holds a four-digit count on the bell in either language: nothing spills past the screen or over the
+  // menu button (on CI a two-digit count in English once pushed the search over it). The count is written into the page,
+  // since how many notices the member has depends on the tests run before this one.
+  for (const locale of ['th', 'en']) {
+    await page.context().addCookies([{ name: 'NEXT_LOCALE', value: locale, url: page.url() }])
+    await page.goto('/')
+    await expect(page.locator('html')).toHaveAttribute('lang', locale)
+    const bar = await page.locator('header').first().evaluate((header) => {
+      const summary = header.querySelector('summary')!
+      const count = summary.querySelector('span.rounded-full') ?? summary.appendChild(Object.assign(document.createElement('span'), { className: 'rounded-full px-2 text-base tabular-nums' }))
+      count.textContent = '1234'
+      const trigger = header.querySelector('[data-sidebar="trigger"]')!.getBoundingClientRect()
+      const atTrigger = document.elementFromPoint(trigger.left + trigger.width / 2, trigger.top + trigger.height / 2)
+      const door = header.querySelector('[data-door]')!.getBoundingClientRect()
+      return { spill: header.scrollWidth - header.clientWidth, triggerFree: !!atTrigger?.closest('[data-sidebar="trigger"]'), doorInside: door.right <= window.innerWidth }
+    })
+    expect(bar, locale).toEqual({ spill: 0, triggerFree: true, doorInside: true })
+  }
 })

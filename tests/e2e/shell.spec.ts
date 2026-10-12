@@ -186,19 +186,40 @@ test('[FR-PLT-013/AC4] on a 375 px phone the menu is a sheet from the left, the 
   // The top bar holds a four-digit count on the bell in either language: nothing spills past the screen or over the
   // menu button (on CI a two-digit count in English once pushed the search over it). The count is written into the page,
   // since how many notices the member has depends on the tests run before this one.
+  // The cookie on the site's root, whatever page is open: a cookie set from a page's URL gets that page's folder as its path
+  const site = new URL('/', page.url()).href
   for (const locale of ['th', 'en']) {
-    await page.context().addCookies([{ name: 'NEXT_LOCALE', value: locale, url: page.url() }])
+    await page.context().addCookies([{ name: 'NEXT_LOCALE', value: locale, url: site }])
     await page.goto('/')
     await expect(page.locator('html')).toHaveAttribute('lang', locale)
-    const bar = await page.locator('header').first().evaluate((header) => {
-      const summary = header.querySelector('summary')!
-      const count = summary.querySelector('span.rounded-full') ?? summary.appendChild(Object.assign(document.createElement('span'), { className: 'rounded-full px-2 text-base tabular-nums' }))
-      count.textContent = '1234'
-      const trigger = header.querySelector('[data-sidebar="trigger"]')!.getBoundingClientRect()
-      const atTrigger = document.elementFromPoint(trigger.left + trigger.width / 2, trigger.top + trigger.height / 2)
-      const door = header.querySelector('[data-door]')!.getBoundingClientRect()
-      return { spill: header.scrollWidth - header.clientWidth, triggerFree: !!atTrigger?.closest('[data-sidebar="trigger"]'), doorInside: door.right <= window.innerWidth }
-    })
+    const { doorWhole: _, ...bar } = await topBarWith(page, '1234')
     expect(bar, locale).toEqual({ spill: 0, triggerFree: true, doorInside: true })
   }
+  // From 768 px the door keeps its words whole: on a deep page with a long breadcrumb, the breadcrumb gives way (a
+  // phone's door is the one that may shorten, and a phone has no breadcrumb)
+  if (!isMobile) {
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await page.goto('/settings/security')
+    await page.locator('header [data-slot="breadcrumb-page"]').evaluate((crumb) => (crumb.textContent = 'การตั้งค่าความปลอดภัยของบัญชีผู้ใช้งานและการยืนยันตัวตนสองขั้นตอน'))
+    expect(await topBarWith(page, '1234')).toEqual({ spill: 0, triggerFree: true, doorInside: true, doorWhole: true })
+  }
 })
+
+/** The top bar with this text as the bell's count: what spills, whether the menu button is clear and the door whole */
+function topBarWith(page: Page, count: string) {
+  return page.locator('header').first().evaluate((header, count) => {
+    const summary = header.querySelector('summary')!
+    const badge = summary.querySelector('span.rounded-full') ?? summary.appendChild(Object.assign(document.createElement('span'), { className: 'rounded-full px-2 text-base tabular-nums' }))
+    badge.textContent = count
+    const trigger = header.querySelector('[data-sidebar="trigger"]')!.getBoundingClientRect()
+    const atTrigger = document.elementFromPoint(trigger.left + trigger.width / 2, trigger.top + trigger.height / 2)
+    const door = header.querySelector('[data-door]')!
+    const label = door.querySelector('a span')!
+    return {
+      spill: header.scrollWidth - header.clientWidth,
+      triggerFree: !!atTrigger?.closest('[data-sidebar="trigger"]'),
+      doorInside: door.getBoundingClientRect().right <= window.innerWidth,
+      doorWhole: label.scrollWidth <= label.clientWidth,
+    }
+  }, count)
+}

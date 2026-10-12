@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
@@ -34,8 +35,44 @@ describe('documents only (scripts/lib/ci-changes.ts)', () => {
     expect(changedSince('HEAD~1')).toBeNull()
     expect(changedSince('--output=x')).toBeNull()
     expect(changedSince('deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')).toBeNull()
-    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim()
-    expect(changedSince(head)).toEqual([])
+  })
+
+  it('[FR-PLT-006/AC1] code moved into docs/ and code not committed yet both count as code', () => {
+    const repo = mkdtempSync(path.join(tmpdir(), 'bcs-ci-changes-'))
+    const git = (...args: string[]) => {
+      const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd: repo, encoding: 'utf8' })
+      expect(r.status, r.stderr).toBe(0)
+      return r.stdout.trim()
+    }
+    const write = (file: string, text: string) => {
+      mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+      writeFileSync(path.join(repo, file), text)
+    }
+    try {
+      git('init', '-q')
+      write('src/a.ts', 'export const a = 1')
+      write('docs/notes.md', 'notes')
+      git('add', '.')
+      git('commit', '-q', '-m', 'base')
+      const base = git('rev-parse', 'HEAD')
+      // A rename is read as the deleted code file and the new document, so it is not documents only
+      git('mv', 'src/a.ts', 'docs/a.ts')
+      git('commit', '-q', '-m', 'move')
+      expect(changedSince(base, repo)?.sort()).toEqual(['docs/a.ts', 'src/a.ts'])
+      expect(isDocumentsOnly(changedSince(base, repo)!)).toBe(false)
+
+      // A documents-only commit, then work not committed yet: an edited code file and a new one
+      const moved = git('rev-parse', 'HEAD')
+      write('docs/notes.md', 'more notes')
+      git('commit', '-q', '-am', 'notes')
+      expect(changedSince(moved, repo)).toEqual(['docs/notes.md'])
+      write('docs/a.ts', 'export const a = 2')
+      write('src/new.ts', 'export {}')
+      expect(changedSince(moved, repo)?.sort()).toEqual(['docs/a.ts', 'docs/notes.md', 'src/new.ts'])
+      expect(isDocumentsOnly(changedSince(moved, repo)!)).toBe(false)
+    } finally {
+      rmSync(repo, { recursive: true, force: true })
+    }
   })
 })
 
@@ -51,15 +88,18 @@ describe('pnpm verify --docs-only=<commit>', () => {
 
 describe('the CI workflow (.github/workflows/ci.yml)', () => {
   const workflow = parseYaml(readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8')) as {
-    concurrency: { 'cancel-in-progress': unknown }
+    concurrency?: unknown
     permissions: Record<string, string>
-    jobs: { verify: { steps: Array<{ id?: string; name?: string; if?: string; run?: string }> } }
+    jobs: Record<'verify' | 'deploy-staging', { concurrency?: { group: string; 'cancel-in-progress': unknown }; steps: Array<{ id?: string; name?: string; if?: string; run?: string }> }>
   }
   const steps = workflow.jobs.verify.steps
   const verify = steps.find((s) => s.name === 'pnpm verify --strict --e2e')
 
-  it('[FR-PLT-006/AC1] a newer push cancels the run still going on the same branch, main included', () => {
-    expect(workflow.concurrency['cancel-in-progress']).toBe(true)
+  it('[FR-PLT-006/AC1] a newer push cancels the checks still going on the same branch, main included, but never a deploy under way', () => {
+    // At the workflow level a cancel would stop deploy-staging too, while Vercel's build goes on migrating staging
+    expect(workflow.concurrency).toBeUndefined()
+    expect(workflow.jobs.verify.concurrency).toEqual({ group: 'ci-verify-${{ github.ref }}', 'cancel-in-progress': true })
+    expect(workflow.jobs['deploy-staging'].concurrency).toEqual({ group: 'deploy-staging', 'cancel-in-progress': false })
   })
 
   it('[FR-PLT-006/AC1] every run is pnpm verify --strict --e2e; only a change of documents since the last green main adds --docs-only', () => {

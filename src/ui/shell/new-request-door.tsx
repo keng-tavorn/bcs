@@ -38,9 +38,10 @@ export function NewRequestDoor({
   onClick?: MouseEventHandler<HTMLAnchorElement>
 }) {
   return (
-    // The last thing in the top bar to give way: on a phone with a long count on the bell its words shorten (its name stays
-    // whole for screen readers) rather than push the bar wider than the screen or over the menu button
-    <div data-door="" className={cn('min-w-0', className, DOOR_HIDDEN)}>
+    // The last thing in the top bar to give way, on a phone only: with a long count on the bell its words shorten (its
+    // name stays whole for screen readers) rather than push the bar wider than the screen or over the menu button. From
+    // 768 px it keeps its width and the breadcrumb shortens instead.
+    <div data-door="" className={cn('min-w-0 md:shrink-0', className, DOOR_HIDDEN)}>
       <Link href={href} className={cn(DOOR_CLASS, linkClassName)} onClick={onClick} aria-haspopup={onClick ? 'dialog' : undefined}>
         <FilePlus2 className="hidden size-4 shrink-0 sm:block" aria-hidden="true" />
         <span className="truncate">{label}</span>

@@ -8,12 +8,6 @@ on:
   push:
     branches: [main]
 
-# A newer push replaces the run still going on the same ref, main included (P1-03): GitHub Free has 2,000 minutes a
-# month and one full run takes 75 to 100 of them; the newest commit's run is the one that counts and deploys staging
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
   # gh run list: the last commit of main whose run went green (the "Documents only?" step)
@@ -22,6 +16,11 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # A newer push replaces the checks still going on the same ref, main included (P1-03): GitHub Free has 2,000
+    # minutes a month and one full run takes 75 to 100 of them; the newest commit's run is the one that counts
+    concurrency:
+      group: ci-verify-${{ github.ref }}
+      cancel-in-progress: true
     # The full e2e suite takes some 50 minutes on a 2-core runner
     timeout-minutes: 120
     env:
@@ -112,6 +111,11 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-latest
+    # Never cut short: Vercel's build migrates staging and goes on server-side whatever happens to this job. A newer
+    # commit's deploy waits for it (one waiting deploy at most, the newest)
+    concurrency:
+      group: deploy-staging
+      cancel-in-progress: false
     timeout-minutes: 30
     environment: staging
     env:

@@ -21,12 +21,21 @@ export function isDocumentsOnly(files: readonly string[]): boolean {
   return changed.length > 0 && changed.every(isDocument)
 }
 
+const git = (args: readonly string[], cwd: string) => spawnSync('git', [...args], { cwd, encoding: 'utf8' })
+
 /**
- * The files changed between <base> and HEAD (git diff base...HEAD), or null when that cannot be known for sure: no
- * base, the all-zero base of a new branch, or a base git does not have (a force push). Null means: run everything.
+ * The files changed since <base>: committed (git diff base...HEAD), and what the working tree holds that is not
+ * committed yet, tracked or new. Renames are listed as a deletion and an addition (--no-renames), so moving code into
+ * docs/ still names the code file. Null when that cannot be known for sure: no base, the all-zero base of a new
+ * branch, a base git does not have (a force push), or git failing. Null means: run everything.
  */
-export function changedSince(base: string | undefined): string[] | null {
+export function changedSince(base: string | undefined, cwd = process.cwd()): string[] | null {
   if (!base || !/^[0-9a-f]{7,40}$/i.test(base) || /^0+$/.test(base)) return null
-  const diff = spawnSync('git', ['diff', '--name-only', `${base}...HEAD`], { encoding: 'utf8' })
-  return diff.status === 0 ? diff.stdout.split(/\r?\n/).filter(Boolean) : null
+  const runs = [
+    git(['diff', '--no-renames', '--name-only', `${base}...HEAD`], cwd),
+    git(['diff', '--no-renames', '--name-only', 'HEAD'], cwd),
+    git(['ls-files', '--others', '--exclude-standard'], cwd),
+  ]
+  if (runs.some((r) => r.status !== 0)) return null
+  return [...new Set(runs.flatMap((r) => r.stdout.split(/\r?\n/)).filter(Boolean))]
 }

@@ -95,10 +95,12 @@ describe('the CI workflow (.github/workflows/ci.yml)', () => {
   const steps = workflow.jobs.verify.steps
   const verify = steps.find((s) => s.name === 'pnpm verify --strict --e2e')
 
-  it('[FR-PLT-006/AC1] a newer push cancels the checks still going on the same branch, main included, but never a deploy under way', () => {
+  it('[FR-PLT-006/AC1] one run at a time per branch: on main the run under way finishes and only the newest push waits; a deploy under way is never cut', () => {
     // At the workflow level a cancel would stop deploy-staging too, while Vercel's build goes on migrating staging
     expect(workflow.concurrency).toBeUndefined()
-    expect(workflow.jobs.verify.concurrency).toEqual({ group: 'ci-verify-${{ github.ref }}', 'cancel-in-progress': true })
+    // A pull request's newer commit replaces its run under way; on main the newer push waits (GitHub keeps only the newest
+    // waiting run), so a full run finishes even while several chats push
+    expect(workflow.jobs.verify.concurrency).toEqual({ group: 'ci-verify-${{ github.ref }}', 'cancel-in-progress': "${{ github.event_name == 'pull_request' }}" })
     expect(workflow.jobs['deploy-staging'].concurrency).toEqual({ group: 'deploy-staging', 'cancel-in-progress': false })
   })
 

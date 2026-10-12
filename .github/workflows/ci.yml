@@ -16,11 +16,13 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # A newer push replaces the checks still going on the same ref, main included (P1-03): GitHub Free has 2,000
-    # minutes a month and one full run takes 75 to 100 of them; the newest commit's run is the one that counts
+    # One run at a time per ref (P1-03): GitHub Free has 2,000 minutes a month and one full run takes 75 to 100 of
+    # them. On main the run under way always finishes, and of the pushes made meanwhile only the newest waits (GitHub
+    # drops the older waiting run); cancelling the run under way too meant that, with several chats pushing, no full run
+    # ever finished (run 38257852567 cut at 41 minutes). A pull request's newer commit replaces its run under way.
     concurrency:
       group: ci-verify-${{ github.ref }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
     # The full e2e suite takes some 50 minutes on a 2-core runner
     timeout-minutes: 120
     env:

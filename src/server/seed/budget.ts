@@ -50,22 +50,26 @@ export async function seedBudget(organizationId: string, sheet: BudgetSheet, now
       years.set(code, year.id)
     }
 
+    // Every cost center of sheet CostCenters (phase 1), named and placed as the sheet says, then those the lines name;
+    // a line's cost center must be in that sheet when the workbook has one, and belong to the line's department
     const named = new Map(costCenterSheet.map((c) => [c.code, c]))
-    const costCenters = new Map<string, string>()
     for (const l of sheet) {
-      if (costCenters.has(l.costCenter)) continue
-      const department = departmentOf(l.department)
       const listed = named.get(l.costCenter)
       if (costCenterSheet.length > 0 && !listed) throw new Error(`Budget: cost center ${l.costCenter} is not in the CostCenters sheet`)
       if (listed && listed.department !== l.department) throw new Error(`Budget: cost center ${l.costCenter} belongs to ${listed.department} in the CostCenters sheet, not ${l.department}`)
-      let cc = await tx.costCenter.findFirst({ where: { code: l.costCenter }, select: { id: true, departmentId: true } })
+    }
+    const wanted = new Map<string, { departmentCode: string; nameTh: string | null }>(costCenterSheet.map((c) => [c.code, { departmentCode: c.department, nameTh: c.nameTh }]))
+    for (const l of sheet) if (!wanted.has(l.costCenter)) wanted.set(l.costCenter, { departmentCode: l.department, nameTh: null })
+    const costCenters = new Map<string, string>()
+    for (const [code, want] of wanted) {
+      const department = departmentOf(want.departmentCode)
+      let cc = await tx.costCenter.findFirst({ where: { code }, select: { id: true, departmentId: true } })
       if (!cc) {
-        const nameTh = listed?.nameTh ?? `ศูนย์ต้นทุน${department.nameTh}`
-        cc = await tx.costCenter.create({ data: { organizationId, code: l.costCenter, nameTh, departmentId: department.id }, select: { id: true, departmentId: true } })
+        cc = await tx.costCenter.create({ data: { organizationId, code, nameTh: want.nameTh ?? `ศูนย์ต้นทุน${department.nameTh}`, departmentId: department.id }, select: { id: true, departmentId: true } })
         report.costCenters++
       }
-      if (cc.departmentId !== department.id) throw new Error(`Budget: cost center ${l.costCenter} belongs to another department than ${l.department}`)
-      costCenters.set(l.costCenter, cc.id)
+      if (cc.departmentId !== department.id) throw new Error(`Budget: cost center ${code} belongs to another department than ${want.departmentCode}`)
+      costCenters.set(code, cc.id)
     }
 
     const created: Array<{ id: string; amount: bigint }> = []

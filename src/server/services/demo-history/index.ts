@@ -14,6 +14,7 @@ import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 import { effectiveSodPolicy, loadBusinessCalendar } from '@/server/doa/policy'
 import { approversWithoutPin, giveOneTimePins, randomDemoPin, takeBackOneTimePins, type OneTimePins } from '@/server/seed/pins'
+import { budgetLineOn, type HistoryBudgetLines } from '@/server/seed/budget-keys'
 import type { DemoHistoryRow } from '@/server/seed/sheets'
 import type { RunOptions } from '../_pipeline'
 import { decideTask } from '../approvals/decide'
@@ -29,6 +30,7 @@ import { cancelRequest, createDraft, editRequest, submitRequest } from '../reque
 import { attachFile } from '../requests/attachments'
 import { quotationAmounts } from './quotations'
 
+export { budgetKeyLines } from '@/server/seed/budget-keys'
 export { DemoHistoryNetError } from './quotations'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
@@ -76,11 +78,10 @@ interface Context {
   readonly members: ReadonlyMap<string, string>
   readonly suppliers: ReadonlyMap<string, string>
   readonly sites: ReadonlyMap<string, string>
-  readonly budgetLines: ReadonlyMap<string, string>
-  /** The fiscal years of the organization, YYYY-MM-DD */
-  readonly fiscalYears: ReadonlyArray<{ readonly code: string; readonly startsOn: string; readonly endsOn: string }>
-  /** Budget key → fiscal year code → line code (sheet Budget of phase 1) */
-  readonly budgetKeys: ReadonlyMap<string, ReadonlyMap<string, string>>
+  readonly budgetLines: HistoryBudgetLines['budgetLines']
+  readonly linesByYear: HistoryBudgetLines['linesByYear']
+  readonly fiscalYears: HistoryBudgetLines['fiscalYears']
+  readonly budgetKeys: HistoryBudgetLines['budgetKeys']
   /** The transaction PIN of the demo approvers, for the step-ups of their decisions (never logged or printed) */
   readonly pin: string
 }
@@ -96,18 +97,6 @@ export interface DemoHistoryOptions {
    * fiscalYear and code); needed when the rows name a budget key rather than a line
    */
   readonly budgetKeys?: ReadonlyMap<string, ReadonlyMap<string, string>>
-}
-
-/** The lines of each budget key by fiscal year, from sheet Budget, for seedDemoHistory's budgetKeys */
-export function budgetKeyLines(sheet: ReadonlyArray<{ readonly budgetKey: string | null; readonly fiscalYear: string; readonly code: string }>): Map<string, Map<string, string>> {
-  const keys = new Map<string, Map<string, string>>()
-  for (const line of sheet) {
-    if (line.budgetKey === null) continue
-    const years = keys.get(line.budgetKey) ?? new Map<string, string>()
-    years.set(line.fiscalYear, line.code)
-    keys.set(line.budgetKey, years)
-  }
-  return keys
 }
 
 /**
@@ -320,12 +309,9 @@ export class DemoHistoryNoBudgetLineError extends Error {
 
 /** The budget line a row is sent with: the sheet's line, or the line of its key in the fiscal year of the send day */
 function budgetLineOf(c: Context, row: DemoHistoryRow, submitAt: Date): string | undefined {
-  if ('line' in row.budget) return c.budgetLines.get(row.budget.line)
-  const day = taxDateOf(submitAt)
-  const year = c.fiscalYears.find((y) => y.startsOn <= day && day <= y.endsOn)
-  const code = year ? c.budgetKeys.get(row.budget.key)?.get(year.code) : undefined
-  return code === undefined ? undefined : c.budgetLines.get(code)
+  return budgetLineOn(c, row.budget, taxDateOf(submitAt))
 }
+
 
 export class DemoHistoryOutOfYearError extends Error {
   constructor(
@@ -352,7 +338,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   const supplier = row.supplier ? c.suppliers.get(row.supplier) : undefined
   const budgetLineId = budgetLineOf(c, row, submitAt)
   if ((row.site && !site) || (row.supplier && !supplier) || !budgetLineId) throw new Error(`Demo_History ${row.ref}: unknown site, supplier or budget line`)
-  const serviceEnd = needsEndDate ? localDate(row.serviceEndInDays === null ? new Date(draftAt.getTime() + 30 * MS_PER_DAY) : new Date(c.now.getTime() + row.serviceEndInDays * MS_PER_DAY), c.calendar.timezone) : null
+  const serviceEnd = needsEndDate ? localDate('daysAfterSeed' in row.serviceEnd ? new Date(c.now.getTime() + row.serviceEnd.daysAfterSeed * MS_PER_DAY) : new Date(draftAt.getTime() + row.serviceEnd.daysAfterDraft * MS_PER_DAY), c.calendar.timezone) : null
   const line = row.line ?? { description: row.title, quantity: '1', uom: row.requestType === 'BUY_GOODS' || row.requestType === 'IT_PURCHASE' ? 'รายการ' : 'งาน', unitPrice: row.net }
   const draft = must(
     row,
@@ -496,11 +482,15 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
   }
 
   const calendar = await db.$transaction((tx) => loadBusinessCalendar(tx, organizationId))
-  const [members, suppliers, sites, fiscal] = await Promise.all([
+  // A row that names a budget key needs the lines of each key by fiscal year: without them every row would be refused
+  // as if sheet Budget lacked its line
+  if (!options.budgetKeys && rows.some((row) => 'key' in row.budget)) throw new TypeError('seedDemoHistory: rows name budget keys but options.budgetKeys is missing (budgetKeyLines of sheet Budget)')
+  const [members, suppliers, sites, fiscal, years] = await Promise.all([
     db.member.findMany({ where: { status: 'ACTIVE', employeeCode: { not: null } }, select: { id: true, employeeCode: true } }),
     db.supplier.findMany({ select: { id: true, code: true } }),
     db.deliverySite.findMany({ select: { id: true, code: true } }),
     db.budgetLine.findMany({ select: { id: true, code: true, fiscalYear: { select: { code: true, startsOn: true, endsOn: true } } } }),
+    db.fiscalYear.findMany({ select: { code: true, startsOn: true, endsOn: true } }),
   ])
   const [startH, startM] = calendar.start.split(':').map(Number)
   const [endH, endM] = calendar.end.split(':').map(Number)
@@ -513,7 +503,8 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     suppliers: new Map(suppliers.map((s) => [s.code, s.id])),
     sites: new Map(sites.map((s) => [s.code, s.id])),
     budgetLines: new Map(fiscal.map((b) => [b.code, b.id])),
-    fiscalYears: (await db.fiscalYear.findMany({ select: { code: true, startsOn: true, endsOn: true } })).map((y) => ({ code: y.code, startsOn: y.startsOn.toISOString().slice(0, 10), endsOn: y.endsOn.toISOString().slice(0, 10) })),
+    linesByYear: new Map(fiscal.map((b) => [`${b.fiscalYear.code}|${b.code}`, b.id])),
+    fiscalYears: years.map((y) => ({ code: y.code, startsOn: y.startsOn.toISOString().slice(0, 10), endsOn: y.endsOn.toISOString().slice(0, 10) })),
     budgetKeys: options.budgetKeys ?? new Map(),
     // The seed's PIN, or a one-time PIN when the seed gave none (see above)
     pin: options.pin ?? randomDemoPin(),

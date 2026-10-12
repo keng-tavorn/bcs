@@ -75,14 +75,28 @@ function run(command: string): void {
   if (r.status !== 0) process.exit(r.status ?? 1)
 }
 
-/** The workbook `--inputs=<profile>` names, if any (the seed checks the value) */
+/**
+ * The workbook `--inputs=<profile>` or `--inputs <profile>` names, if any (the seed checks the value); any other
+ * argument is refused rather than ignored, so a mistyped option never resets the database with the wrong workbook
+ */
 export function inputsArgument(argv: readonly string[]): string | null {
-  const arg = argv.find((a) => a.startsWith('--inputs='))
-  return arg ? arg.slice('--inputs='.length) : null
+  let inputs: string | null = null
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i]!
+    if (arg.startsWith('--inputs=')) inputs = arg.slice('--inputs='.length)
+    else if (arg === '--inputs' && argv[i + 1] !== undefined) inputs = argv[++i]!
+    else throw new Error(`ไม่รู้จัก ${arg} (ใช้ --inputs=p1 หรือไม่ใส่อะไรสำหรับไฟล์ demo)`)
+  }
+  return inputs
 }
 
 async function main(): Promise<void> {
-  const inputs = inputsArgument(process.argv.slice(2))
+  let inputs: string | null = null
+  try {
+    inputs = inputsArgument(process.argv.slice(2))
+  } catch (error) {
+    stop((error as Error).message)
+  }
   // The seed reads SEED_INPUTS; a value in the environment wins over .env, which the seed loads after it
   if (inputs !== null) process.env.SEED_INPUTS = inputs
   const refusal = resetRefusal(process.env, { inLaneWorktree: inLinkedWorktree(process.cwd()) })

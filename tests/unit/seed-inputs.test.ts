@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { parseBudget, parseCostCenters, parseHistory, parseP1History } from '@/server/seed/sheets'
 import { INPUT_WORKBOOK_PATH, INPUT_WORKBOOKS, inputProfileOf, loadInputWorkbook, type InputWorkbook, type SheetRow } from '@/server/seed/workbook'
+import { budgetKeyLines, budgetLineOn, type HistoryBudgetLines } from '@/server/seed/budget-keys'
 import { inputsArgument } from '../../scripts/db-reset'
 
 // P1-02: the seed reads the phase-1 workbook only when pnpm db:seed or a script asks for it (SEED_INPUTS=p1, or
@@ -38,7 +39,11 @@ describe('[FR-PLT-001/AC1] P1-02 choosing the input workbook', () => {
 
   it('takes pnpm db:reset --inputs=<profile> for the seed it runs', () => {
     expect(inputsArgument(['--inputs=p1'])).toBe('p1')
+    expect(inputsArgument(['--inputs', 'p1'])).toBe('p1')
     expect(inputsArgument([])).toBeNull()
+    // A mistyped option is refused before anything is wiped, never ignored
+    expect(() => inputsArgument(['--input=p1'])).toThrow('--input=p1')
+    expect(() => inputsArgument(['p1'])).toThrow('p1')
   })
 })
 
@@ -76,5 +81,34 @@ describe('[FR-PLT-001/AC1] P1-02 sheets of the phase-1 workbook', () => {
     expect(parseCostCenters(p1)).toHaveLength(p1.table('CostCenters').length)
     expect(parseCostCenters(await loadInputWorkbook())).toEqual([])
     expect(parseBudget(await loadInputWorkbook()).every((l) => l.budgetKey === null)).toBe(true)
+  })
+})
+
+describe('[FR-PLT-001/AC1] P1-02 the budget line a history row is sent with', () => {
+  // The same line code in both fiscal years (parseBudget allows it): the year of the day decides, never the code alone
+  const lines: HistoryBudgetLines = {
+    budgetLines: new Map([['OPEX', 'line-2570']]),
+    linesByYear: new Map([
+      ['FY2569|OPEX', 'line-2569'],
+      ['FY2570|OPEX', 'line-2570'],
+    ]),
+    fiscalYears: [
+      { code: 'FY2569', startsOn: '2026-01-01', endsOn: '2026-12-31' },
+      { code: 'FY2570', startsOn: '2027-01-01', endsOn: '2027-12-31' },
+    ],
+    budgetKeys: budgetKeyLines([
+      { budgetKey: 'OPEX', fiscalYear: 'FY2569', code: 'OPEX' },
+      { budgetKey: 'OPEX', fiscalYear: 'FY2570', code: 'OPEX' },
+    ]),
+  }
+
+  it('takes the key line of the fiscal year holding the day, on both sides of the year end', () => {
+    expect(budgetLineOn(lines, { key: 'OPEX' }, '2026-12-31')).toBe('line-2569')
+    expect(budgetLineOn(lines, { key: 'OPEX' }, '2027-01-01')).toBe('line-2570')
+  })
+
+  it('finds no line on a day outside every fiscal year, or for a key the sheet lacks', () => {
+    expect(budgetLineOn(lines, { key: 'OPEX' }, '2025-12-31')).toBeUndefined()
+    expect(budgetLineOn(lines, { key: 'CAPEX' }, '2026-06-01')).toBeUndefined()
   })
 })

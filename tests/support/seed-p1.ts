@@ -28,6 +28,8 @@ const TOTP_KEY = 'seed-p1-test-totp-key-000000000001'
 const PIN = '739164'
 /** Seeding 240 requests through the services takes about two minutes on this machine */
 const SEED_TIMEOUT_MS = 900_000
+/** FR-INT-101 reminds 60 and 30 days before a service line ends */
+const RENEWAL_WINDOW_DAYS = 60
 
 type Row = Readonly<Record<string, string>>
 
@@ -175,7 +177,10 @@ export function describeP1Seed(clock: SeedP1Clock): void {
         const personal = form.processesPersonalData === 'Y'
         expect(dpa.has(request.id), row.ref).toBe(personal)
         if (personal) withDpa++
-        if (row.serviceEndInDays) expect(request.lines[0]!.serviceEndDate?.toISOString().slice(0, 10), row.ref).toBe(dayOf(new Date(clock.now.getTime() + Number(row.serviceEndInDays) * MS_PER_DAY)))
+        const end = request.lines[0]!.serviceEndDate?.toISOString().slice(0, 10)
+        if (row.serviceEndInDays) expect(end, row.ref).toBe(dayOf(new Date(clock.now.getTime() + Number(row.serviceEndInDays) * MS_PER_DAY)))
+        // Only the renewal rows remind: any other service ends after FR-INT-101's 60-day reminder window
+        else if (end) expect(end > dayOf(new Date(clock.now.getTime() + RENEWAL_WINDOW_DAYS * MS_PER_DAY)), `${row.ref} ends ${end}`).toBe(true)
       }
       // The sheet has rows that need a DPA (ATT-DPA), so the path above was taken
       expect(withDpa).toBeGreaterThan(0)

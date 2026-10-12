@@ -331,9 +331,20 @@ export interface DemoHistoryRow {
   readonly line: { readonly description: string; readonly quantity: string; readonly uom: string; readonly unitPrice: string } | null
   /** The form's answers (phase 1: column form); null: the seed derives them from the request type and title */
   readonly form: Readonly<Record<string, string>> | null
-  /** A service that runs out this many days after the seed (a renewal, FR-INT-101); null: 30 days after the draft */
-  readonly serviceEndInDays: number | null
+  /**
+   * When a service line ends (lines that need serviceEndDate): days after the seed for a renewal the sheet sets up
+   * (serviceEndInDays, FR-INT-101 reminds 60 and 30 days ahead), otherwise days after the draft
+   */
+  readonly serviceEnd: { readonly daysAfterSeed: number } | { readonly daysAfterDraft: number }
 }
+
+/** A service of the demo sheet runs a month from its draft, as it always has */
+const DEMO_SERVICE_DAYS = 30
+/**
+ * A phase-1 service the sheet sets no renewal for runs a year from its draft: with 150 days of history it ends after
+ * the 60-day reminder window of FR-INT-101, so only the renewal rows of sheet Scenarios remind
+ */
+const P1_SERVICE_DAYS = 365
 
 /** The rules every history sheet keeps, whatever its workbook */
 function checkHistory(sheet: string, history: readonly DemoHistoryRow[]): void {
@@ -350,7 +361,7 @@ function checkHistory(sheet: string, history: readonly DemoHistoryRow[]): void {
 
 /** Sheet Demo_History (D-01): requests of the past, created by the seed through the services with the clock set back */
 export function parseDemoHistory(workbook: InputWorkbook): DemoHistoryRow[] {
-  const history = rows(workbook, 'Demo_History', DemoHistorySheetRow).map(({ budgetLine, ...row }): DemoHistoryRow => ({ ...row, budget: { line: budgetLine }, line: null, form: null, serviceEndInDays: null }))
+  const history = rows(workbook, 'Demo_History', DemoHistorySheetRow).map(({ budgetLine, ...row }): DemoHistoryRow => ({ ...row, budget: { line: budgetLine }, line: null, form: null, serviceEnd: { daysAfterDraft: DEMO_SERVICE_DAYS } }))
   checkHistory('Demo_History', history)
   return history
 }
@@ -361,11 +372,12 @@ export function parseDemoHistory(workbook: InputWorkbook): DemoHistoryRow[] {
  */
 export function parseP1History(workbook: InputWorkbook): DemoHistoryRow[] {
   const items = new Map(rows(workbook, 'Items', ItemRow).map((i) => [i.code, i.nameTh]))
-  const history = rows(workbook, 'Request_History', P1HistorySheetRow).map(({ budgetKey, itemCode, qty, unit, unitPrice, ...row }): DemoHistoryRow => {
+  const history = rows(workbook, 'Request_History', P1HistorySheetRow).map(({ budgetKey, itemCode, qty, unit, unitPrice, serviceEndInDays, ...row }): DemoHistoryRow => {
     const description = items.get(itemCode)
     if (!description) throw new Error(`Request_History ${row.ref}: item ${itemCode} is not in sheet Items`)
     if (lineNet(qty, amountToSatang(unitPrice)) !== amountToSatang(row.net)) throw new Error(`Request_History ${row.ref}: ${qty} × ${unitPrice} is not the net ${row.net}`)
-    return { ...row, budget: { key: budgetKey }, line: { description, quantity: qty, uom: unit, unitPrice } }
+    const serviceEnd = serviceEndInDays === null ? { daysAfterDraft: P1_SERVICE_DAYS } : { daysAfterSeed: serviceEndInDays }
+    return { ...row, budget: { key: budgetKey }, line: { description, quantity: qty, uom: unit, unitPrice }, serviceEnd }
   })
   checkHistory('Request_History', history)
   return history

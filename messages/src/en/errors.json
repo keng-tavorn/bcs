@@ -29,6 +29,7 @@
   "VARIANCE_NOT_ACCEPTABLE": "A {type} difference cannot be approved: fix it at its cause or reject the invoice",
   "WHT_TYPE_NOT_CONFIGURED": "Income type {code} or its rate is not set up",
   "WHT_FORM_PAYEE_MISMATCH": "Income type {code} cannot be used for a {payeeType} payee",
+  "RETENTION_NOT_DUE": "The retention can be released from {date}",
   "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
   "STEP_UP_REQUIRED": "This action requires PIN confirmation",
   "RATE_LIMITED": "Too many attempts. Please try again later",

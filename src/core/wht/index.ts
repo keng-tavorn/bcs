@@ -136,3 +136,19 @@ export function whtBases(input: { readonly doc: string; readonly lines: readonly
   })
   return [...bases.values()]
 }
+
+/**
+ * BR-WHT-05: the bases of a released retention paid: the retention shared over the invoice's lines as whtBases shares
+ * it, so each (income type, rate) of the invoice withholds on its own part — nothing when the PO is below the minimum
+ */
+export function retentionWhtBases(input: { readonly doc: string; readonly lines: readonly InvoiceWhtLine[]; readonly retentionSatang: Satang; readonly poNetSatang: Satang; readonly minimumBaseSatang: Satang }): WhtLine[] {
+  if (input.poNetSatang < input.minimumBaseSatang) return []
+  const shares = allocateLargestRemainder(input.retentionSatang, input.lines.map((l) => l.netSatang))
+  const bases = new Map<string, WhtLine>()
+  input.lines.forEach((l, i) => {
+    if (l.incomeType === null) return
+    const key = `${l.incomeType}\u0000${l.rateBp}`
+    bases.set(key, { doc: input.doc, incomeType: l.incomeType, rateBp: l.rateBp, baseSatang: (bases.get(key)?.baseSatang ?? 0n) + shares[i]! })
+  })
+  return [...bases.values()]
+}

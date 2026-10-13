@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { paymentWithholding, returnForm, whtBases, whtForPayment, type WhtForPaymentInput } from '@/core/wht'
+import { paymentWithholding, retentionWhtBases, returnForm, whtBases, whtForPayment, type WhtForPaymentInput } from '@/core/wht'
 
 // src/core/wht beyond the golden cases of tests/golden/wht.yaml (BR-WHT-04 to BR-WHT-06, BR-WHT-10): the refusals of
 // bad input, the forms of each payee, and the bases of one invoice with its retention shared over its lines.
@@ -59,5 +59,18 @@ describe('[BR-WHT-05] [BR-WHT-06] whtBases of one invoice', () => {
   })
   it('a PO below the minimum has no base at all', () => {
     expect(whtBases({ doc: 'INV-1', lines, retentionSatang: 0n, poNetSatang: 99_999n, minimumBaseSatang: 100_000n })).toEqual([])
+  })
+})
+
+describe('[BR-WHT-05] retentionWhtBases of a released retention', () => {
+  const lines = [
+    { incomeType: 'CONTRACT', rateBp: 300, netSatang: 70_000n },
+    { incomeType: null, rateBp: 0, netSatang: 50_000n },
+    { incomeType: 'CONTRACT', rateBp: 300, netSatang: 30_000n },
+  ]
+  it('the retention as whtBases shares it: the same lines and types, goods withhold nothing (GC-WHT-21 by its parts)', () => {
+    // 75.00 over 700 / 500 / 300: 35.00 25.00 15.00 → CONTRACT 50.00
+    expect(retentionWhtBases({ doc: 'RET-1', lines, retentionSatang: 7_500n, poNetSatang: 1_000_000n, minimumBaseSatang: 100_000n })).toEqual([{ doc: 'RET-1', incomeType: 'CONTRACT', rateBp: 300, baseSatang: 5_000n }])
+    expect(retentionWhtBases({ doc: 'RET-1', lines, retentionSatang: 7_500n, poNetSatang: 99_999n, minimumBaseSatang: 100_000n })).toEqual([])
   })
 })

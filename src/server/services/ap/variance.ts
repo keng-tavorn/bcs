@@ -12,6 +12,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import type { SubjectDecided, SubjectDecision } from '../approvals/subjects'
 import { readyNotice } from './exceptions'
 import { expectedWhtOf } from './wht'
+import { holdRetentionOfInvoice } from './retention'
 
 // The decision on a price variance (BR-MATCH-11, FR-AP-105 AC3 AC4), called by the INVOICE subject adapter once the
 // route has its result. Approved: under the PO's lock, every line holds what it lacks beyond what it holds — the
@@ -100,6 +101,7 @@ export async function decideVariance(tx: TenantTx, ctx: Ctx, invoiceId: string, 
     },
     ...budget.events,
     ...notice.events,
+    ...(await holdRetentionOfInvoice(tx, ctx, { id: invoiceId, poId: invoice.poId, supplierId: invoice.supplierId, retentionSatang: invoice.retentionSatang })),
   ]
   return { ok: true, documentStatus: 'READY_FOR_PAYMENT', events, notifications: [...notifications('APPROVED'), ...notice.notifications] }
 }

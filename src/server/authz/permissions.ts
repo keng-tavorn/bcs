@@ -99,6 +99,8 @@ export const PERMISSIONS = {
   'wht.export': [role('FINANCE', 'ORG')],
   'wht.configure': [role('FINANCE', 'ORG')],
   'supplier.taxProfile.manage': [role('FINANCE', 'ORG')],
+  // S8-09 (BR-RET-04): FINANCE releases a performance retention from its due date
+  'retention.release': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

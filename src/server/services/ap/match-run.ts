@@ -6,6 +6,8 @@ import type { Satang } from '@/core/money/math'
 import { rateFor } from '@/core/vat'
 import { apPolicyOf } from '@/lib/org-settings'
 import { expectedWhtOf } from './wht'
+import { holdRetentionOfInvoice } from './retention'
+import { retentionOf } from '@/core/retention'
 import { applyBudget, lockBudgetLines, type BudgetOperation } from '@/server/budget/ledger'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
@@ -205,7 +207,8 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   // takes its VAT out at that rate): what the ledger moves and what is owed (INV-AP-02, BR-VAT-07)
   const netSatang = result.lines.reduce((a, l) => a + l.netSatang, 0n)
   const grossSatang = netSatang + invoice.statedVatSatang
-  await tx.invoice.update({ where: { id: invoice.id }, data: { netSatang, grossSatang, payableSatang: grossSatang - invoice.retentionSatang } })
+  const retentionSatang = retentionOf(netSatang, invoice.retentionBp)
+  await tx.invoice.update({ where: { id: invoice.id }, data: { netSatang, grossSatang, retentionSatang, payableSatang: grossSatang - retentionSatang } })
   // An earlier run's open differences are settled by this one; what is still wrong is raised again
   await tx.matchException.updateMany({ where: { invoiceId: invoice.id, status: 'OPEN' }, data: { status: 'RESOLVED', resolvedAt: ctx.now, version: { increment: 1 } } })
   if (exceptions.length > 0) {
@@ -251,7 +254,7 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
 
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { paymentTermDays: true } })
   const due = dueDate({ invoiceDate, poTermDays: po.paymentTermDays, supplierTermDays: supplier.paymentTermDays, defaultTermDays: policy.defaultTermDays })
-  const payable = grossSatang - invoice.retentionSatang
+  const payable = grossSatang - retentionSatang
   // BR-WHT-05: the tax expected when it is paid alone, from the lines' income types (the lines carry their amounts now)
   const expectedWht = await expectedWhtOf(tx, org.settings, invoice.id)
   await tx.invoice.update({
@@ -285,6 +288,8 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
       },
     },
     ...budget.events,
+    // BR-RET-04: the retention is held from now on
+    ...(await holdRetentionOfInvoice(tx, ctx, { id: invoice.id, poId: invoice.poId, supplierId: invoice.supplierId, retentionSatang })),
   ]
   return { ok: true, data: { matchId: match.id, runNo, status: 'READY_FOR_PAYMENT', exceptions: [], events, notifications: [], doaAmount: null } }
 }

@@ -18,6 +18,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { AiAssistInput, applyAiAssist } from '../ai/assist-contract'
 import { recheckRequest } from '../ap/exceptions'
+import { setRetentionsDue } from '../ap/retention'
 import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { unsettledLines } from '../purchase-orders/close'
@@ -305,6 +306,8 @@ export const postGrCommand = defineCommand({
     }
     // pendingApproval: the variances of this receipt that wait for the GR_VARIANCE approver, for the screen's confirmation
     const pendingApproval = planned.reduce((n, p) => n + p.variances.filter((v) => v.needsApproval).length, 0)
+    // S8-09 (BR-RET-04): received in full, the PO's held retentions are due its hold days after this receipt
+    if (moved.to === 'RECEIVED') await setRetentionsDue(tx, po.id)
     // S8 (BR-MATCH-10): the PO's invoices waiting in EXCEPTION are matched again after this receipt
     const outbox = await recheckRequest(tx, ctx.organizationId, po.id, `gr:${grId}`)
     return { ok: true, result: { grId, number, poStatus: moved.to, varianceIds, pendingApproval }, events, notifications, outbox }

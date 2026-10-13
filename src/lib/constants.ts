@@ -164,3 +164,9 @@ export const NEW_REQUEST_DRAWER_BELOW_PX = 768
 export const NEW_REQUEST_SEARCH_OVER = 6
 /** Basis points in a whole (100 % = 10000 bp): a technical constant, not money */
 export const BASIS_POINTS_WHOLE = 10_000
+
+// S8-09 (ADR-124): a basis point per percent, the longest hold of a retention, and the lift that keeps PO line numbers
+// unique while a split moves the lines after it
+export const BP_PER_PERCENT = 100
+export const RETENTION_HOLD_MAX_DAYS = 3_650
+export const LINE_NO_SHIFT = 10_000

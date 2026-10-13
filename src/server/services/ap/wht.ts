@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { paymentWithholding, returnForm, whtBases, type WhtLine } from '@/core/wht'
+import { paymentWithholding, retentionWhtBases, returnForm, whtBases, type WhtLine } from '@/core/wht'
 import { BASIS_POINTS_WHOLE } from '@/lib/constants'
 import { apPolicyOf } from '@/lib/org-settings'
 import { authorize } from '@/server/authz'
@@ -124,6 +124,23 @@ export function defaultIncomeType(po: { readonly kind: string }, supplier: { rea
  * minimum (BR-WHT-06). The doc of each line is the invoice id.
  */
 export async function invoiceWhtLines(tx: TenantTx, organizationSettings: unknown, invoiceIds: readonly string[]): Promise<Map<string, WhtLine[]>> {
+  const coded = await codedInvoices(tx, organizationSettings, invoiceIds)
+  return new Map(coded.map((c) => [c.id, whtBases({ doc: c.id, lines: c.lines, retentionSatang: c.retentionSatang, poNetSatang: c.poNetSatang, minimumBaseSatang: c.minimum })]))
+}
+
+/** The bases of released retentions paid (BR-WHT-05): each retention by the income types and rates of its invoice */
+export async function retentionWhtLines(tx: TenantTx, organizationSettings: unknown, retentions: ReadonlyArray<{ readonly id: string; readonly invoiceId: string; readonly amountSatang: bigint }>): Promise<Map<string, WhtLine[]>> {
+  const coded = await codedInvoices(tx, organizationSettings, retentions.map((r) => r.invoiceId))
+  return new Map(
+    retentions.map((r) => {
+      const c = coded.find((x) => x.id === r.invoiceId)!
+      return [r.id, retentionWhtBases({ doc: r.id, lines: c.lines, retentionSatang: r.amountSatang, poNetSatang: c.poNetSatang, minimumBaseSatang: c.minimum })]
+    }),
+  )
+}
+
+/** Invoices with each line's income type and the organization's rate now (an inactive type keeps its rate) */
+async function codedInvoices(tx: TenantTx, organizationSettings: unknown, invoiceIds: readonly string[]) {
   const invoices = await tx.invoice.findMany({
     where: { id: { in: [...invoiceIds] } },
     select: { id: true, retentionSatang: true, po: { select: { netSatang: true } }, lines: { orderBy: { lineNo: 'asc' }, select: { netSatang: true, whtIncomeTypeCode: true } } },
@@ -131,16 +148,17 @@ export async function invoiceWhtLines(tx: TenantTx, organizationSettings: unknow
   const codes = [...new Set(invoices.flatMap((i) => i.lines.map((l) => l.whtIncomeTypeCode)).filter((c): c is string => !!c))]
   const types = codes.length ? await tx.whtIncomeType.findMany({ where: { code: { in: codes } }, select: { code: true, rateBp: true } }) : []
   const minimum = apPolicyOf(organizationSettings).whtMinimumBaseSatang
-  const out = new Map<string, WhtLine[]>()
-  for (const invoice of invoices) {
-    const lines = invoice.lines.map((l) => {
-      const type = l.whtIncomeTypeCode ? types.find((t) => t.code === l.whtIncomeTypeCode) : undefined
+  return invoices.map((invoice) => ({
+    id: invoice.id,
+    retentionSatang: invoice.retentionSatang,
+    poNetSatang: invoice.po.netSatang,
+    minimum,
+    lines: invoice.lines.map((l) => {
+      const type = l.whtIncomeTypeCode ? types.find((x) => x.code === l.whtIncomeTypeCode) : undefined
       if (l.whtIncomeTypeCode && !type) throw new Error(`income type ${l.whtIncomeTypeCode} of a coded invoice line is gone`)
       return { incomeType: type ? type.code : null, rateBp: type?.rateBp ?? 0, netSatang: l.netSatang }
-    })
-    out.set(invoice.id, whtBases({ doc: invoice.id, lines, retentionSatang: invoice.retentionSatang, poNetSatang: invoice.po.netSatang, minimumBaseSatang: minimum }))
-  }
-  return out
+    }),
+  }))
 }
 
 /** The tax expected on an invoice paid alone (BR-WHT-05): written on the invoice when it is ready for payment */

@@ -72,13 +72,30 @@ defineEvents('WhtIncomeType', {
 })
 // never a payee's tax id (BR-WHT-09)
 defineEvents('WithholdingTax', {
-  'withholding_tax.recorded': { schema: z.object({ invoiceId: z.uuid().nullable(), incomeTypeCode: z.string().min(1), rateBp: z.number().int().min(0), baseSatang: satang, taxSatang: satang, certificateId: z.uuid().nullable() }) },
+  'withholding_tax.recorded': { schema: z.object({ invoiceId: z.uuid().nullable(), retentionId: z.uuid().nullable(), incomeTypeCode: z.string().min(1), rateBp: z.number().int().min(0), baseSatang: satang, taxSatang: satang, certificateId: z.uuid().nullable() }) },
 })
 defineEvents('WhtCertificate', {
   'wht_certificate.issued': { schema: z.object({ number: z.string().min(1), supplierId: z.uuid(), form: z.enum(['PND3', 'PND53']), paidOn: z.iso.date(), totalBaseSatang: satang, totalTaxSatang: satang, fileId: z.uuid(), paymentRunItemId: z.uuid() }) },
 })
 defineEvents('Supplier', {
   'supplier.tax_profile_updated': { schema: z.object({ payeeType: z.enum(['JURISTIC', 'INDIVIDUAL', 'FOREIGN']), defaultWhtIncomeTypeCode: z.string().nullable() }) },
+})
+
+// S8-09 (ADR-124): performance retention held from an invoice until its due date, released by FINANCE, paid by S9
+const day = z.iso.date()
+defineEvents('Retention', {
+  'retention.held': { schema: z.object({ invoiceId: z.uuid(), amountSatang: satang, releaseDueOn: day.nullable() }) },
+  'retention.released': { schema: z.object({ invoiceId: z.uuid(), amountSatang: satang, releaseDueOn: day }) },
+  'retention.release_due': { schema: z.object({ invoiceId: z.uuid(), amountSatang: satang, releaseDueOn: day }) },
+  'retention.payment_held': { schema: z.object({ paymentRunId: z.uuid() }) },
+  'retention.payment_released': { schema: z.object({ reason: z.string().min(1) }) },
+  'retention.paid': { schema: z.object({ paymentRunItemId: z.uuid(), paidOn: day, amountSatang: satang, whtSatang: satang, transferSatang: satang }) },
+})
+
+// S8-09 (ADR-124, BR-RET-01, BR-RET-03): a draft service PO's milestones and retention
+defineEvents('PurchaseOrder', {
+  'po.milestones_set': { schema: z.object({ poLineId: z.uuid(), sharesBp: z.array(z.number().int().min(1)).min(2), lineIds: z.array(z.uuid()).min(2), driftSatang: z.string().regex(/^-?\d+$/) }) },
+  'po.retention_set': { schema: z.object({ retentionBp: z.number().int().min(0), retentionHoldDays: z.number().int().min(0).nullable() }) },
 })
 
 // The invoice inbox (ADR-123, BR-AP-02): what came in, never the body; skipped files are named with the reason

@@ -14,6 +14,7 @@ import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { draftBlock, freeLines, POOL_REQUEST_STATUSES, releasableFor, type FreeLine } from './pool'
+import { defaultRetentionOf } from '../ap/milestones'
 
 // The consolidation round (spec §7.10, BR-CONS-01 to BR-CONS-05, FR-P2P-002): the free request lines PROCUREMENT has
 // chosen a supplier for become draft POs, one per (supplier, delivery site, goods or service) and in the order of
@@ -123,8 +124,11 @@ async function createDraft(
     options.rateBp ?? 0,
     false,
   )
+  // S8-09 (BR-RET-03): the retention of its request type, changed while the PO is a draft
+  const retention = await defaultRetentionOf(tx, lines.map((l) => l.requestLineId))
   await tx.purchaseOrder.create({
     data: {
+      ...retention,
       id: poId,
       organizationId: ctx.organizationId,
       status: 'DRAFT',

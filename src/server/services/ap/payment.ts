@@ -14,14 +14,16 @@ import { renderWhtCertificatePdf } from '@/server/pdf/render'
 import { issueDocumentNumber } from '../numbering'
 import { requireModule } from '../modules'
 import { fail, type Fail } from './common'
-import { invoiceWhtLines } from './wht'
+import { lockRetentions } from './retention'
+import { invoiceWhtLines, retentionWhtLines } from './wht'
 
 // What S9 does to tier-2 invoices, inside the transaction of its own command (ADR-127, BR-AP-12, docs/sub-specs/S8.md
 // "interface"): a payment run holds READY_FOR_PAYMENT invoices (IN_PAYMENT_RUN) and lets them go again; a paid payment
 // item records the payment of its invoices once — recordInvoicePayment is the only function that does, so the tax and
 // its 50 ทวิ are written exactly once per payment item. The tax is withheld at payment (OQ-122): S9 sends the lines it
 // worked out, and they must be the ones paymentWithholding gives for the documents (WHT_MISMATCH otherwise). Each
-// function returns the events of S8; S9 appends them with its own. Retentions come with S8-09.
+// function returns the events of S8; S9 appends them with its own. Released retentions are paid in the same function
+// (./retention.ts holds and lets them go).
 
 const HEAD_OFFICE = '00000'
 const FORM_TEXT = { PND3: 'ภ.ง.ด.3', PND53: 'ภ.ง.ด.53' } as const
@@ -94,17 +96,23 @@ export interface RecordedPayment {
  * its PDF. The sum of the rows is the certificate's tax to the satang.
  */
 export async function recordInvoicePayment(tx: TenantTx, ctx: Ctx, input: RecordInvoicePaymentInput): Promise<RecordedPayment | Fail> {
-  if (input.retentionIds.length > 0) return fail('VALIDATION_FAILED', 'retentions are paid from S8-09', { field: 'retentionIds', reason: 'NOT_YET' })
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.paidOn)) return fail('VALIDATION_FAILED', 'the date paid is a calendar day', { field: 'paidOn', reason: 'FORMAT' })
-  const locked = await lockInvoices(tx, ctx, input.invoiceIds, 'invoice.record_payment')
-  if (!locked.ok) return locked
-  const invoices = locked.invoices
-  const supplierId = invoices[0]!.supplierId
-  if (invoices.some((i) => i.supplierId !== supplierId)) return fail('VALIDATION_FAILED', 'one payment item pays one supplier', { field: 'invoiceIds', reason: 'SUPPLIERS' })
+  if (input.invoiceIds.length === 0 && input.retentionIds.length === 0) return fail('VALIDATION_FAILED', 'a payment item pays at least one document', { field: 'invoiceIds', reason: 'REQUIRED' })
+  const lockedInvoices = input.invoiceIds.length ? await lockInvoices(tx, ctx, input.invoiceIds, 'invoice.record_payment') : { ok: true as const, invoices: [] }
+  if (!lockedInvoices.ok) return lockedInvoices
+  const lockedRetentions = input.retentionIds.length ? await lockRetentions(tx, ctx, input.retentionIds, 'retention.record_payment') : { ok: true as const, rows: [] }
+  if (!lockedRetentions.ok) return lockedRetentions
+  const invoices = lockedInvoices.invoices
+  // the order of the documents in the payment: invoices by number, then retentions by their invoice's number
+  const retentions = [...lockedRetentions.rows].sort((a, b) => ((a.invoice.number ?? '') < (b.invoice.number ?? '') ? -1 : 1))
+  const supplierId = invoices[0]?.supplierId ?? retentions[0]!.supplierId
+  if ([...invoices, ...retentions].some((d) => d.supplierId !== supplierId)) return fail('VALIDATION_FAILED', 'one payment item pays one supplier', { field: 'invoiceIds', reason: 'SUPPLIERS' })
 
   const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true, legalNameTh: true, taxId: true, branchCode: true, address: true } })
   const bases = await invoiceWhtLines(tx, org.settings, invoices.map((i) => i.id))
-  const lines: WhtLine[] = invoices.flatMap((i) => bases.get(i.id) ?? [])
+  const retentionBases = await retentionWhtLines(tx, org.settings, retentions)
+  const lines: WhtLine[] = [...invoices.flatMap((i) => bases.get(i.id) ?? []), ...retentions.flatMap((r) => retentionBases.get(r.id) ?? [])]
+  const retentionIds = new Set(retentions.map((r) => r.id))
   const tax = paymentWithholding(lines)
   if (!tax.ok) return fail('VALIDATION_FAILED', 'a withholding base is below zero', { reason: tax.reason })
   const expected = tax.groups.map((g) => `${g.incomeType}|${g.rateBp}|${g.baseSatang}|${g.whtSatang}`).sort()
@@ -162,17 +170,24 @@ export async function recordInvoicePayment(tx: TenantTx, ctx: Ctx, input: Record
     for (const d of g.docs) {
       const id = newId()
       const base = lines.find((l) => l.doc === d.doc && l.incomeType === g.incomeType && l.rateBp === g.rateBp)!.baseSatang
+      const document = retentionIds.has(d.doc) ? { invoiceId: null, retentionId: d.doc } : { invoiceId: d.doc, retentionId: null }
       await tx.withholdingTax.create({
-        data: { id, organizationId: ctx.organizationId, invoiceId: d.doc, supplierId, payeeType: supplier.payeeType, incomeTypeCode: g.incomeType, form, rateBp: g.rateBp, baseSatang: base, taxSatang: d.whtSatang, paidOn, certificateId },
+        data: { id, organizationId: ctx.organizationId, ...document, supplierId, payeeType: supplier.payeeType, incomeTypeCode: g.incomeType, form, rateBp: g.rateBp, baseSatang: base, taxSatang: d.whtSatang, paidOn, certificateId },
       })
-      events.push({ type: 'withholding_tax.recorded', aggregateType: 'WithholdingTax', aggregateId: id, data: { invoiceId: d.doc, incomeTypeCode: g.incomeType, rateBp: g.rateBp, baseSatang: base.toString(), taxSatang: d.whtSatang.toString(), certificateId } })
+      events.push({ type: 'withholding_tax.recorded', aggregateType: 'WithholdingTax', aggregateId: id, data: { ...document, incomeTypeCode: g.incomeType, rateBp: g.rateBp, baseSatang: base.toString(), taxSatang: d.whtSatang.toString(), certificateId } })
     }
   }
 
-  await tx.invoice.updateMany({ where: { id: { in: invoices.map((i) => i.id) } }, data: { status: 'PAID', version: { increment: 1 } } })
+  const withheldFrom = (doc: string) => tax.groups.flatMap((g) => g.docs).filter((d) => d.doc === doc).reduce((a, d) => a + d.whtSatang, 0n)
+  if (invoices.length) await tx.invoice.updateMany({ where: { id: { in: invoices.map((i) => i.id) } }, data: { status: 'PAID', version: { increment: 1 } } })
   for (const i of invoices) {
-    const withheld = tax.groups.flatMap((g) => g.docs).filter((d) => d.doc === i.id).reduce((a, d) => a + d.whtSatang, 0n)
+    const withheld = withheldFrom(i.id)
     events.push({ type: 'invoice.paid', aggregateType: 'Invoice', aggregateId: i.id, data: { paymentRunItemId: input.paymentRunItemId, paidOn: input.paidOn, payableSatang: i.payableSatang.toString(), whtSatang: withheld.toString(), transferSatang: (i.payableSatang - withheld).toString() } })
+  }
+  if (retentions.length) await tx.retention.updateMany({ where: { id: { in: retentions.map((r) => r.id) } }, data: { status: 'PAID', paidAt: ctx.now, version: { increment: 1 } } })
+  for (const r of retentions) {
+    const withheld = withheldFrom(r.id)
+    events.push({ type: 'retention.paid', aggregateType: 'Retention', aggregateId: r.id, data: { paymentRunItemId: input.paymentRunItemId, paidOn: input.paidOn, amountSatang: r.amountSatang.toString(), whtSatang: withheld.toString(), transferSatang: (r.amountSatang - withheld).toString() } })
   }
   return { ok: true, events, whtSatang: tax.whtSatang, certificateId }
 }

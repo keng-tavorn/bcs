@@ -395,6 +395,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `wht.revealTaxId` | FINANCE (ORG) — ดูเลขบัตรเต็มและดาวน์โหลด 50 ทวิ หรือไฟล์ ภ.ง.ด.3 ที่มีเลขเต็ม · บันทึก `SensitiveAccessLog` ทุกครั้ง (BR-WHT-09) |
 | `wht.export` | FINANCE (ORG) — ไฟล์สรุป ภ.ง.ด.3 และ ภ.ง.ด.53 รายเดือน (BR-WHT-08) |
 | `wht.configure` | FINANCE (ORG) — แก้และยืนยันประเภทเงินได้และอัตรา (ผู้ยืนยัน ≠ ผู้แก้ล่าสุด · BR-WHT-03) |
+| `retention.release` | FINANCE (ORG) — คืนเงินประกันผลงานตั้งแต่วันครบกำหนด (BR-RET-04) · แบ่งงวดและตั้งเงินประกันของ PO ร่างใช้ `po.edit` เดิม (`po.setMilestones` `po.setRetention`) |
 | `supplier.taxProfile.manage` | FINANCE (ORG) — ประเภทผู้รับเงินและประเภทเงินได้ตั้งต้นของผู้ขาย |
 | `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
@@ -3627,6 +3628,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
 | `invoice.exception_raised` (S8) | ผู้รับตามชนิดของรายการไม่ตรง (BR-MATCH-09) | ในระบบ · LINE | IMMEDIATE | `invoice.exception` |
+| `retention.release_due` (S8-09) | FINANCE | ในระบบ | DIGEST | `retention.due` |
 | `inbound_email.processed` (S8 · ร่างใหม่หรือไฟล์ที่รอเลือก PO) | FINANCE | ในระบบ | DIGEST | `invoice.inbox_digest` |
 | `invoice.variance_approved` · `invoice.variance_rejected` (S8) | ผู้ขออนุมัติส่วนต่าง · FINANCE | ในระบบ · LINE | IMMEDIATE | `invoice.variance_decided` |
 | ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
@@ -3663,6 +3665,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` `invoice.rechecked` `invoice.reopened` `invoice.rejected` `invoice.variance_submitted` `invoice.variance_approved` `invoice.variance_rejected` `match_exception.dismissed` `invoice.payment_held` `invoice.payment_released` `invoice.paid` (สามตัวท้ายมาจากคำสั่งของ S9 ผ่าน src/server/services/ap/payment.ts) |
+| retention · po (S8-09) | `retention.held` `retention.released` `retention.release_due` `retention.payment_held` `retention.payment_released` `retention.paid` `po.milestones_set` `po.retention_set` |
 | ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
 | inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
@@ -3893,6 +3896,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `VARIANCE_NOT_ACCEPTABLE` | 422 | รายการไม่ตรงชนิด {type} ขออนุมัติไม่ได้ ต้องแก้ที่ต้นเหตุหรือปฏิเสธใบ |
 | `WHT_TYPE_NOT_CONFIGURED` | 422 | ยังไม่ได้ตั้งประเภทเงินได้ {code} หรืออัตรา |
 | `WHT_FORM_PAYEE_MISMATCH` | 422 | ประเภทเงินได้ {code} ใช้กับผู้รับเงินแบบ {payeeType} ไม่ได้ |
+| `RETENTION_NOT_DUE` | 422 | คืนเงินประกันผลงานได้ตั้งแต่ {date} |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |

@@ -118,6 +118,7 @@
     "report_schedule": "Reports",
     "request": "Requests",
     "request_type": "Request types",
+    "retention": "Performance retention",
     "security": "Security",
     "supplier": "Suppliers",
     "supplier_notice": "E-mails to suppliers",
@@ -153,6 +154,7 @@
     "ReportSchedule": "Report schedule",
     "Request": "Request",
     "RequestType": "Request type",
+    "Retention": "Performance retention",
     "Security": "Security",
     "Supplier": "Supplier",
     "SupplierNotice": "E-mail to a supplier",
@@ -301,7 +303,9 @@
       "cancelled": "Purchase order cancelled",
       "closed": "Purchase order closed",
       "drafted": "Purchase order drafted",
+      "milestones_set": "Purchase order split into milestones",
       "rejected": "Purchase order rejected",
+      "retention_set": "Purchase order retention set",
       "returned": "Purchase order returned",
       "send_bounced": "Purchase order e-mail bounced",
       "sent": "Purchase order sent to the supplier",
@@ -334,6 +338,14 @@
     },
     "request_type": {
       "updated": "Request type changed"
+    },
+    "retention": {
+      "held": "Retention held",
+      "paid": "Retention paid",
+      "payment_held": "Retention taken into a payment run",
+      "payment_released": "Retention let go from a payment run",
+      "release_due": "Retention due for release",
+      "released": "Retention released"
     },
     "security": {
       "pin_locked": "Transaction PIN locked for a while",

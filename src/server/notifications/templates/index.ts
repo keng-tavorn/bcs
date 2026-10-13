@@ -1,3 +1,4 @@
+import { formatSatang } from '@/core/money/format'
 import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
 import { SLA_TEMPLATES } from './sla'
 
@@ -21,6 +22,8 @@ type Template = (data: Data, subject: { readonly type: string | null; readonly i
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : fallback)
 /** A request's number once it has one, else its title */
 const ref = (d: Data) => str(d.number) || str(d.title) || str(d.label)
+/** Satang as text to baht with two decimals, or nothing */
+const money = (v: unknown) => (typeof v === 'string' && /^\d+$/.test(v) ? formatSatang(BigInt(v)) : '')
 
 const CHANGE_KIND: Readonly<Record<string, Text>> = {
   POSITION_ASSIGN: { th: 'แต่งตั้งผู้ดำรงตำแหน่ง', en: 'an appointment' },
@@ -220,6 +223,11 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   'invoice.inbox_digest': (d) => ({
     title: { th: `กล่องอีเมลใบแจ้งหนี้: ร่างใหม่ ${str(d.draftCount, '0')} ใบ รอเลือก PO ${str(d.pendingCount, '0')} ไฟล์`, en: `Invoice inbox: ${str(d.draftCount, '0')} new drafts, ${str(d.pendingCount, '0')} files waiting for a PO` },
     href: '/finance/invoices/inbox',
+  }),
+  // S8-09 (BR-RET-04): a performance retention may be released from today (the digest; the amount, no supplier detail)
+  'retention.due': (d) => ({
+    title: { th: `เงินประกันผลงาน ${money(d.amountSatang)} บาท ครบกำหนดคืนแล้ว`, en: `A performance retention of THB ${money(d.amountSatang)} is due for release` },
+    href: '/finance/retentions',
   }),
   // BR-AP-08: a supplier without an e-mail address is not told; FINANCE is, to tell them another way
   'supplier.no_email': (d) => ({

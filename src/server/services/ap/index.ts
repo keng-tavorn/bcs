@@ -4,6 +4,7 @@ import { invoiceLineNets } from '@/core/matching'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, parseQuantity } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
+import { retentionOf } from '@/core/retention'
 import { taxDateOf } from '@/core/vat'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -179,7 +180,9 @@ async function recalculate(tx: TenantTx, invoiceId: string, money: { discountSat
   }
   const net = nets.reduce((a, b) => a + b, 0n)
   const gross = net + invoice.statedVatSatang
-  await tx.invoice.update({ where: { id: invoiceId }, data: { discountSatang: discount, statedVatSatang: invoice.statedVatSatang, netSatang: net, grossSatang: gross, payableSatang: gross - invoice.retentionSatang } })
+  // BR-RET-03: the retention of the amount before VAT, held back from what is owed
+  const retention = retentionOf(net, invoice.retentionBp)
+  await tx.invoice.update({ where: { id: invoiceId }, data: { discountSatang: discount, statedVatSatang: invoice.statedVatSatang, netSatang: net, grossSatang: gross, retentionSatang: retention, payableSatang: gross - retention } })
   return true
 }
 

@@ -56,10 +56,10 @@ const INTAKE_DRAFT = {
 
 if (mode === 'on') {
   await setModule(true)
-  for (const agent of ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF'] as const) {
+  for (const agent of ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT'] as const) {
     const setting = await prisma.aiAgentSetting.findFirst({ where: { organizationId: org.id, agent }, select: { id: true } })
     if (setting) await prisma.aiAgentSetting.update({ where: { id: setting.id }, data: { enabled: true } })
-    else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: agent === 'APPROVAL_BRIEF' ? 'L0' : 'L1', minConfidenceBp: 9000 } })
+    else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: agent === 'APPROVAL_BRIEF' || agent === 'INSIGHT' ? 'L0' : 'L1', minConfidenceBp: 9000 } })
   }
   const grant = await runMonthlyGrant(org.id, now)
   if (!grant.ok) throw new Error(JSON.stringify(grant.error))

@@ -4,6 +4,19 @@
 
 const OPEN_PALETTE = 'bcs:open-palette'
 const OPEN_NEW_REQUEST = 'bcs:open-new-request'
+const ASK_AI = 'bcs:ask-ai'
+
+/** Asks BCS AI from ⌘K (FR-AI-309): the chat sheet of the shell listens while it is mounted */
+export function askAi(question: string): void {
+  window.dispatchEvent(new CustomEvent<string>(ASK_AI, { detail: question }))
+}
+
+/** For the chat sheet: the question asked from ⌘K; returns the cleanup */
+export function onAskAi(listener: (question: string) => void): () => void {
+  const handler = (e: Event) => listener((e as CustomEvent<string>).detail)
+  window.addEventListener(ASK_AI, handler)
+  return () => window.removeEventListener(ASK_AI, handler)
+}
 
 /** Opens the ⌘K palette (FR-PLT-014) */
 export function openPalette(): void {

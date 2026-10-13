@@ -180,3 +180,25 @@ test('[FR-AI-301/AC1] [FR-AI-301/AC3] the decider sees the Brief apart on the de
   await expect(box.getByRole('button')).toHaveCount(0)
   await check(page, testInfo, 'brief-web')
 })
+
+test('[FR-AI-309/AC1] [FR-AI-309/AC2] [FR-AI-309/AC5] ⌘K asks BCS AI only while it is on; the answer streams into its sheet', async ({ page }, testInfo) => {
+  const question = 'ช่วยแต่งกลอนเรื่องทะเลให้หน่อย'
+  ai('off')
+  await signIn(page, 'req_con2')
+  const openPalette = async () => {
+    await page.getByRole('button', { name: /ค้นหา/ }).first().click()
+    await page.getByRole('combobox').fill(question)
+  }
+  await openPalette()
+  await expect(page.getByRole('option', { name: `ถาม BCS AI: ${question}` })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  ai('on')
+  await page.reload()
+  await openPalette()
+  await page.getByRole('option', { name: `ถาม BCS AI: ${question}` }).click()
+  const sheet = page.getByRole('dialog', { name: 'ถาม BCS AI' })
+  await expect(sheet.getByText('ถาม BCS AI ตอบได้เฉพาะเรื่องคำขอ งานอนุมัติ งบ ใบสั่งซื้อ และผู้ขายในสิทธิ์ของคุณ')).toBeVisible({ timeout: 20_000 })
+  await expect(sheet.getByText(question)).toBeVisible()
+  await check(page, testInfo, 'ask-ai')
+})

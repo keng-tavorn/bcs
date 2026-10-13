@@ -126,5 +126,47 @@
       "NET": "Before VAT",
       "baht": "{amount} baht"
     }
+  },
+  "ask": {
+    "title": "Ask BCS AI",
+    "description": "The AI answers from the data you may see; every figure comes from the system. AI can be wrong: check against the document",
+    "paletteRow": "Ask BCS AI: {question}",
+    "paletteGroup": "Ask BCS AI",
+    "thinking": "Finding the answer…",
+    "notFound": "Nothing found within your access",
+    "scope": "Ask BCS AI answers about requests, approval tasks, budgets, purchase orders and suppliers within your access",
+    "tableNote": "The AI could not word this answer, so here is the data from the system",
+    "sources": "Data from the system",
+    "open": "Open",
+    "inputLabel": "Ask more",
+    "send": "Send the question",
+    "you": "You",
+    "ai": "BCS AI",
+    "errors": {
+      "FAILED": "The question did not go through; try again",
+      "RATE_LIMITED": "Too many questions; wait a moment and ask again",
+      "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up",
+      "AI_AGENT_DISABLED": "The AI assistant is switched off",
+      "VALIDATION_FAILED": "A question is 1 to 500 characters"
+    },
+    "cells": {
+      "number": "Number",
+      "title": "Title",
+      "status": "Status",
+      "gross": "Total",
+      "amount": "Amount",
+      "name": "Name",
+      "code": "Code",
+      "open": "Open tasks",
+      "overdue": "Overdue",
+      "remainingBp": "Budget left",
+      "available": "Available",
+      "low": "Running low",
+      "department": "Department",
+      "net": "Before VAT",
+      "supplier": "Supplier",
+      "category": "Category",
+      "taxId": "Tax id"
+    }
   }
 }

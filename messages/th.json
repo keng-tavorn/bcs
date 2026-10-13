@@ -1276,6 +1276,48 @@
   },
   "aiAssist": {
     "allConfirmed": "ยืนยันค่าที่ AI เติมครบแล้ว",
+    "ask": {
+      "ai": "BCS AI",
+      "cells": {
+        "amount": "ยอด",
+        "available": "คงเหลือ",
+        "category": "หมวด",
+        "code": "รหัส",
+        "department": "ฝ่าย",
+        "gross": "ยอดรวม",
+        "low": "ใกล้หมด",
+        "name": "ชื่อ",
+        "net": "ยอดก่อน VAT",
+        "number": "เลขที่",
+        "open": "งานค้าง",
+        "overdue": "เกินกำหนด",
+        "remainingBp": "งบคงเหลือ",
+        "status": "สถานะ",
+        "supplier": "ผู้ขาย",
+        "taxId": "เลขผู้เสียภาษี",
+        "title": "ชื่อ"
+      },
+      "description": "AI ตอบจากข้อมูลที่คุณมีสิทธิ์เห็น ตัวเลขทุกตัวมาจากระบบ AI อาจผิดพลาด ตรวจกับเอกสาร",
+      "errors": {
+        "AI_AGENT_DISABLED": "ผู้ช่วย AI ปิดอยู่",
+        "AI_CREDITS_EXHAUSTED": "credits ของ AI เดือนนี้หมดแล้ว",
+        "FAILED": "ถามไม่สำเร็จ ลองใหม่อีกครั้ง",
+        "RATE_LIMITED": "ถามบ่อยเกินไป รอสักครู่แล้วถามใหม่",
+        "VALIDATION_FAILED": "คำถามต้องยาว 1 ถึง 500 ตัวอักษร"
+      },
+      "inputLabel": "ถามต่อ",
+      "notFound": "ไม่พบข้อมูลในสิทธิ์ของคุณ",
+      "open": "เปิด",
+      "paletteGroup": "ถาม BCS AI",
+      "paletteRow": "ถาม BCS AI: {question}",
+      "scope": "ถาม BCS AI ตอบได้เฉพาะเรื่องคำขอ งานอนุมัติ งบ ใบสั่งซื้อ และผู้ขายในสิทธิ์ของคุณ",
+      "send": "ส่งคำถาม",
+      "sources": "ข้อมูลจากระบบ",
+      "tableNote": "AI สรุปคำตอบนี้ไม่ได้ จึงแสดงข้อมูลจากระบบแทน",
+      "thinking": "กำลังหาคำตอบ…",
+      "title": "ถาม BCS AI",
+      "you": "คุณ"
+    },
     "badge": "เติมโดย AI โปรดตรวจ",
     "brief": {
       "facts": {

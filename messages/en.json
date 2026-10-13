@@ -1276,6 +1276,48 @@
   },
   "aiAssist": {
     "allConfirmed": "Everything the AI filled in is confirmed",
+    "ask": {
+      "ai": "BCS AI",
+      "cells": {
+        "amount": "Amount",
+        "available": "Available",
+        "category": "Category",
+        "code": "Code",
+        "department": "Department",
+        "gross": "Total",
+        "low": "Running low",
+        "name": "Name",
+        "net": "Before VAT",
+        "number": "Number",
+        "open": "Open tasks",
+        "overdue": "Overdue",
+        "remainingBp": "Budget left",
+        "status": "Status",
+        "supplier": "Supplier",
+        "taxId": "Tax id",
+        "title": "Title"
+      },
+      "description": "The AI answers from the data you may see; every figure comes from the system. AI can be wrong: check against the document",
+      "errors": {
+        "AI_AGENT_DISABLED": "The AI assistant is switched off",
+        "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up",
+        "FAILED": "The question did not go through; try again",
+        "RATE_LIMITED": "Too many questions; wait a moment and ask again",
+        "VALIDATION_FAILED": "A question is 1 to 500 characters"
+      },
+      "inputLabel": "Ask more",
+      "notFound": "Nothing found within your access",
+      "open": "Open",
+      "paletteGroup": "Ask BCS AI",
+      "paletteRow": "Ask BCS AI: {question}",
+      "scope": "Ask BCS AI answers about requests, approval tasks, budgets, purchase orders and suppliers within your access",
+      "send": "Send the question",
+      "sources": "Data from the system",
+      "tableNote": "The AI could not word this answer, so here is the data from the system",
+      "thinking": "Finding the answer…",
+      "title": "Ask BCS AI",
+      "you": "You"
+    },
     "badge": "Filled by AI, please check",
     "brief": {
       "facts": {

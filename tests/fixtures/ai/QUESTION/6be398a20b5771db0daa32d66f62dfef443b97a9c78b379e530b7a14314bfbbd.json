@@ -1,0 +1,15 @@
+{
+  "promptVersion": "QUESTION@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "E2E",
+  "output": {
+    "tools": [],
+    "sentences": [
+      "ถาม BCS AI ตอบได้เฉพาะเรื่องคำขอ งานอนุมัติ งบ ใบสั่งซื้อ และผู้ขายในสิทธิ์ของคุณ"
+    ]
+  },
+  "usage": {
+    "input": 600,
+    "output": 60
+  }
+}

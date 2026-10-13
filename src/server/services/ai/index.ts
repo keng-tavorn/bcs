@@ -15,6 +15,8 @@ export {
 } from './actions'
 export { DOCUMENT_PURPOSES, readDocument, ReadDocumentInput, runDocumentRead } from './agents/document'
 export { approvalBriefOf, BRIEF_PROFILE, briefFacts, runBrief, type ApprovalBriefDto, type BriefFacts } from './agents/brief'
+export { AskInput, askInsight, INSIGHT_PROFILE, insightResponse, type InsightAnswer } from './agents/insight'
+export { findSuppliersForAsker, listPurchaseOrdersForAsker, runTool, type ToolResult } from './tools'
 export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartIntakeInput } from './agents/intake'
 export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
 export { aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'

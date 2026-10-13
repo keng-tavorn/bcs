@@ -35,8 +35,19 @@ export interface BacktestDocumentRef {
   readonly sentAt: string
 }
 
+/** The names of the members a result names (approvers and reviewers), Thai always and English when given */
+export type BacktestMembers = Readonly<Record<string, { readonly th: string; readonly en: string | null }>>
+
 export type BacktestView =
-  | { readonly status: 'DONE'; readonly from: string; readonly to: string; readonly documentCount: number; readonly result: BacktestResult; readonly documents: readonly BacktestDocumentRef[] }
+  | {
+      readonly status: 'DONE'
+      readonly from: string
+      readonly to: string
+      readonly documentCount: number
+      readonly result: BacktestResult
+      readonly documents: readonly BacktestDocumentRef[]
+      readonly members: BacktestMembers
+    }
   | { readonly status: 'PENDING'; readonly runId: string; readonly documentCount: number }
   | { readonly status: 'FAILED'; readonly runId: string; readonly documentCount: number }
 
@@ -137,7 +148,10 @@ async function compute(tx: TenantTx, kind: BacktestKind, versionId: string, at: 
     }
     result = backtestWorkflow(docs, { ...policy, workflows: await loadWorkflowVersions(tx) }, workflowVersionFromRows(version, version.rules))
   }
-  return { from, result, documents }
+  const ids = [...new Set(result.rows.flatMap((r) => [...r.current.approvers, ...r.current.reviewers, ...r.draft.approvers, ...r.draft.reviewers]))]
+  const named = ids.length ? await tx.member.findMany({ where: { id: { in: ids } }, select: { id: true, displayNameTh: true, displayNameEn: true } }) : []
+  const members: BacktestMembers = Object.fromEntries(named.map((m) => [m.id, { th: m.displayNameTh, en: m.displayNameEn }]))
+  return { from, result, documents, members }
 }
 
 const RunInput = z.strictObject({ kind: z.enum(['DOA_VERSION', 'WORKFLOW_VERSION']), versionId: z.uuid() })
@@ -186,8 +200,8 @@ export async function backtestDraft(ctx: Ctx, input: z.input<typeof RunInput>, o
     if (!exists) return err('NOT_FOUND', 'version not found')
     const { routes } = await sentInWindow(tx, kind, ctx.now)
     if (routes.length > BACKTEST_SYNC_LIMIT) return ok({ later: true as const })
-    const { from, result, documents } = await compute(tx, kind, versionId, ctx.now)
-    return ok({ later: false as const, view: { status: 'DONE' as const, from: from.toISOString(), to: ctx.now.toISOString(), documentCount: result.summary.total, result, documents } })
+    const { from, result, documents, members } = await compute(tx, kind, versionId, ctx.now)
+    return ok({ later: false as const, view: { status: 'DONE' as const, from: from.toISOString(), to: ctx.now.toISOString(), documentCount: result.summary.total, result, documents, members } })
   })
   if (!first.ok) return first
   if (!first.data.later) return ok(first.data.view)
@@ -225,8 +239,8 @@ export async function completeBacktestRun(organizationId: string, runId: string,
   if (!run || run.status !== 'PENDING') return { status: run?.status ?? 'NOT_FOUND' }
   let input: z.input<typeof CompleteInput>
   try {
-    const { from, result, documents } = await readOnly(ctx, (tx) => compute(tx, run.subjectType as BacktestKind, run.subjectId, run.createdAt))
-    input = { runId, status: 'DONE', result: { from: from.toISOString(), to: run.createdAt.toISOString(), result, documents }, error: null }
+    const { from, result, documents, members } = await readOnly(ctx, (tx) => compute(tx, run.subjectType as BacktestKind, run.subjectId, run.createdAt))
+    input = { runId, status: 'DONE', result: { from: from.toISOString(), to: run.createdAt.toISOString(), result, documents, members }, error: null }
   } catch (error) {
     input = { runId, status: 'FAILED', result: null, error: (error as Error).name || 'Error' }
   }
@@ -243,7 +257,7 @@ export async function getBacktestRun(ctx: Ctx, runId: string): Promise<BacktestV
     const kind = run.subjectType as BacktestKind
     if (await mayTry(tx, ctx, kind, run.subjectId)) return null
     if (run.status === 'PENDING' || run.status === 'FAILED') return { status: run.status, runId: run.id, documentCount: run.documentCount }
-    const stored = run.result as unknown as { from: string; to: string; result: BacktestResult; documents: BacktestDocumentRef[] }
-    return { status: 'DONE', from: stored.from, to: stored.to, documentCount: run.documentCount, result: stored.result, documents: stored.documents }
+    const stored = run.result as unknown as { from: string; to: string; result: BacktestResult; documents: BacktestDocumentRef[]; members: BacktestMembers }
+    return { status: 'DONE', from: stored.from, to: stored.to, documentCount: run.documentCount, result: stored.result, documents: stored.documents, members: stored.members }
   })
 }

@@ -1,11 +1,11 @@
 import { err, ok, type Result } from '@/core/result'
-import { isAllowed, loadPrincipal, matchingGrants } from '@/server/authz'
+import { isAllowed, loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { isUuid } from '@/server/queries/requests'
 import { requireModule } from '../modules'
 import { suggestionsFor } from './coding'
-import { mayReadInvoice as mayRead } from './file-policy'
+import { invoiceScopes, mayReadInvoice as mayRead, resolvesInvoice } from './file-policy'
 
 // What the screens of one tier-2 invoice read (S8-13, docs/sub-specs/S8.md "หน้าจอ", FR-AP-101 AC5, FR-AP-102,
 // FR-AP-103, FR-AP-105 AC2, FR-AP-108): the page /finance/invoices/[id] — its header with where each value came from
@@ -158,7 +158,8 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     if (!invoice) return err('NOT_FOUND', 'invoice not found')
     const principal = await loadPrincipal(tx, ctx)
     const openRoles: ReadonlySet<string> = new Set(invoice.exceptions.filter((e) => e.status === 'OPEN').map((e) => e.assigneeRole))
-    if (!mayRead(principal, openRoles)) return err('FORBIDDEN', 'you do not read this invoice', { capability: 'invoice.record' })
+    const scopes = await invoiceScopes(tx, invoice.po.id)
+    if (!mayRead(principal, openRoles, scopes)) return err('FORBIDDEN', 'you do not read this invoice', { capability: 'invoice.record' })
     const pay = await requireModule(ctx, 'PAY', tx)
     if (!pay.ok) return pay
 
@@ -166,7 +167,7 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     const draft = invoice.status === 'DRAFT'
     const exception = invoice.status === 'EXCEPTION'
     const open = invoice.exceptions.filter((e) => e.status === 'OPEN')
-    const resolves = matchingGrants(principal, 'invoice.exception.resolve').some((g) => g.grantee.kind === 'ROLE' && openRoles.has(g.grantee.role))
+    const resolves = resolvesInvoice(principal, openRoles, scopes)
     const coding = draft && record
     // One query after another: a transaction runs on one connection
     const suggestions = coding ? await suggestionsFor(tx, invoice.id, ctx.now) : []

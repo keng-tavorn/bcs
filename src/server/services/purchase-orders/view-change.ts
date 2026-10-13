@@ -60,7 +60,7 @@ export interface PoS8ViewDto {
   readonly revisionNo: number
   /** Module PAY is on (BR-AP-13) */
   readonly pay: boolean
-  /** The tier-2 invoices of the PO, oldest first; null with PAY off */
+  /** The tier-2 invoices of the PO, oldest first; null with PAY off or for a member who does not read invoices */
   readonly invoices: readonly PoApInvoiceRowDto[] | null
   /** A draft with PAY on, to whoever edits POs (po.edit): its retention and the service lines that split into milestones */
   readonly draft: {
@@ -98,8 +98,11 @@ export async function getPoS8View(ctx: Ctx, poId: string): Promise<Result<PoS8Vi
   const { principal, po, pay, rule } = facts
   if (!(await canViewPo(ctx, principal, po.id))) return err('FORBIDDEN', 'missing capability po.view', { capability: 'po.view' })
 
+  // the PO's invoices for who may open them (FINANCE, PROCUREMENT · the invoice page's rule): a requester or an approver
+  // who views the PO is never sent to an invoice that refuses them
+  const readsInvoices = isAllowed(principal, 'invoice.record') || isAllowed(principal, 'invoice.reject')
   const [invoices, changes] = await Promise.all([
-    pay
+    pay && readsInvoices
       ? db.invoice.findMany({ where: { poId: po.id }, orderBy: { createdAt: 'asc' }, select: { id: true, number: true, supplierInvoiceNo: true, status: true, grossSatang: true, payableSatang: true } })
       : Promise.resolve(null),
     listPoChanges(ctx, po.id),

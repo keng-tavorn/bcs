@@ -86,7 +86,8 @@ export type InboxSubjectDto =
       readonly amountSatang: bigint
     }
   /** S8: the price variance of an invoice (INVOICE) and a change of a sent PO (PO_CHANGE), with their supplier */
-  | { readonly kind: 'INVOICE'; readonly invoiceId: string; readonly number: string | null; readonly poNumber: string | null; readonly supplierName: string }
+  /** supplierName only for a juristic person (BR-AP-09: an individual payee's name is not on approval cards) */
+  | { readonly kind: 'INVOICE'; readonly invoiceId: string; readonly number: string | null; readonly poNumber: string | null; readonly supplierName: string | null }
   | { readonly kind: 'PO_CHANGE'; readonly poChangeId: string; readonly poNumber: string | null; readonly changeNo: number; readonly supplierName: string; readonly grossSatang: bigint }
   | { readonly kind: 'OTHER' }
 
@@ -184,7 +185,7 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
       ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
       : Promise.resolve([]),
     ids('INVOICE').length
-      ? db.invoice.findMany({ where: { id: { in: ids('INVOICE') } }, select: { id: true, number: true, po: { select: { number: true } }, supplier: { select: { nameTh: true } } } })
+      ? db.invoice.findMany({ where: { id: { in: ids('INVOICE') } }, select: { id: true, number: true, po: { select: { number: true } }, supplier: { select: { nameTh: true, payeeType: true } } } })
       : Promise.resolve([]),
     ids('PO_CHANGE').length
       ? db.poChange.findMany({ where: { id: { in: ids('PO_CHANGE') } }, select: { id: true, changeNo: true, newGrossSatang: true, po: { select: { number: true, supplier: { select: { nameTh: true } } } } } })
@@ -221,7 +222,7 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     }
     if (type === 'INVOICE' && invoice.has(id)) {
       const i = invoice.get(id)!
-      return { kind: 'INVOICE', invoiceId: i.id, number: i.number, poNumber: i.po.number, supplierName: i.supplier.nameTh }
+      return { kind: 'INVOICE', invoiceId: i.id, number: i.number, poNumber: i.po.number, supplierName: i.supplier.payeeType === 'JURISTIC' ? i.supplier.nameTh : null }
     }
     if (type === 'PO_CHANGE' && poChange.has(id)) {
       const c = poChange.get(id)!

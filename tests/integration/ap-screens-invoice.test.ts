@@ -13,10 +13,11 @@ import {
 import { prisma } from '@/server/db/client'
 import { listMyTasks } from '@/server/queries/tasks'
 import { createDraftFromReading, createInvoice } from '@/server/services/ap'
+import { recheckInvoice } from '@/server/services/ap/exceptions'
 import { getApInvoicePage, listVarianceExceptions } from '@/server/services/ap/view-invoice'
 import { getDownloadUrl } from '@/server/services/files'
 import { apErrorKey } from '@/ui/ap/invoice/outcome'
-import { AP_NOW, apOrg, codedDraft, fin, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
+import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 
 // S8-13, the screens of one tier-2 invoice and PROCUREMENT's list of differences (docs/sub-specs/S8.md "หน้าจอ"
 // /finance/invoices/[id] and /procurement/invoice-exceptions): the read model the page draws — who reads it (FINANCE,
@@ -180,6 +181,30 @@ describe('[FR-AP-103/AC1] [FR-AP-103/AC2] the differences and the ways to settle
     expect(await getApInvoicePage(as('receiver_con'), invoiceId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     // checking again with nothing changed keeps it in EXCEPTION
     expect(await recheckApInvoiceFor(as('proc_officer'), { invoiceId, version: forProcurement.version }, randomUUID())).toEqual({ ok: true, status: 'EXCEPTION' })
+  })
+
+  it('S8-14 review: a RECEIVER of another department neither reads the invoice nor downloads its file nor checks it again; with PAY off nobody downloads it', async () => {
+    const po = await sentPo(ap, [{ quantity: '2', unitPrice: '650.00' }])
+    await receive(ap, po, { 0: '1' })
+    const draft = await codedDraft(ap, po, { no: `QS-${randomUUID().slice(0, 6)}`, date: nextDate(), vat: '91.00', lines: [{ line: 0, quantity: '2', unitPrice: '650.00' }] })
+    expect(ok(await submit(ap, draft))).toMatchObject({ status: 'EXCEPTION' })
+    const fileId = (await prisma.fileObject.create({ data: { organizationId: ap.org.organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: 'invoice.pdf', mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: ap.org.member.fin_officer! } })).id
+    await prisma.fileLink.create({ data: { organizationId: ap.org.organizationId, fileId, subjectType: 'Invoice', subjectId: draft.invoiceId, kind: 'INVOICE' } })
+    // a receiver of another department, who received nothing of this PO
+    const other = Object.entries(ap.org.department).find(([code]) => code !== 'CON')![1]
+    await prisma.roleAssignment.create({ data: { organizationId: ap.org.organizationId, memberId: ap.org.member.vp_sup!, role: 'RECEIVER', scopeDepartmentId: other, grantedAt: AP_NOW } })
+    expect(await getApInvoicePage(as('vp_sup'), draft.invoiceId)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await getDownloadUrl(as('vp_sup'), { fileId })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(await recheckInvoice(as('vp_sup'), { invoiceId: draft.invoiceId, version: await versionOf(draft.invoiceId) }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // the receiver of the department that asked for the goods does
+    expect((await getDownloadUrl(as('receiver_con'), { fileId })).ok).toBe(true)
+    // PAY switched off: not even FINANCE downloads it (BR-AP-13)
+    await prisma.orgModule.updateMany({ where: { organizationId: ap.org.organizationId, module: 'PAY' }, data: { enabled: false } })
+    try {
+      expect(await getDownloadUrl(fin(ap), { fileId })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    } finally {
+      await prisma.orgModule.updateMany({ where: { organizationId: ap.org.organizationId, module: 'PAY' }, data: { enabled: true } })
+    }
   })
 
   it('a quantity not received is sent to the receiver, who reads the invoice and may check it again', async () => {

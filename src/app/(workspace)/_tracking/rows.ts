@@ -69,7 +69,9 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
             : s.kind === 'VARIANCE'
               ? t('item.varianceMeta', { number: s.poNumber ?? '-' })
               : s.kind === 'INVOICE'
-                ? t('item.invoiceMeta', { supplier: s.supplierName, number: s.poNumber ?? '-' })
+                ? s.supplierName
+                  ? t('item.invoiceMeta', { supplier: s.supplierName, number: s.poNumber ?? '-' })
+                  : t('item.varianceMeta', { number: s.poNumber ?? '-' })
                 : s.kind === 'PO_CHANGE'
                   ? s.supplierName
                   : undefined

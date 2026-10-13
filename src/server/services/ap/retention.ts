@@ -76,7 +76,8 @@ export const releaseRetentionCommand = defineCommand({
 
 // ---------- retention-due (the job) ----------
 
-const DueInput = z.strictObject({ retentionIds: z.array(z.uuid()).min(1).max(200) })
+const RETENTION_DUE_BATCH = 200
+const DueInput = z.strictObject({ retentionIds: z.array(z.uuid()).min(1).max(RETENTION_DUE_BATCH) })
 
 /** SYSTEM marks retentions whose day has come, once each, and FINANCE hears of them in the digest */
 export const markRetentionsDueCommand = defineCommand({
@@ -104,8 +105,12 @@ export async function markDueRetentions(now: Date): Promise<number> {
   const byOrg = new Map<string, string[]>()
   for (const r of due) byOrg.set(r.organizationId, [...(byOrg.get(r.organizationId) ?? []), r.id])
   for (const [organizationId, ids] of byOrg) {
-    const r = await runCommand(systemCtx(organizationId, now, 'retention-due'), markRetentionsDueCommand, { retentionIds: ids.slice(0, 200) }, { idempotencyKey: `retention-due:${taxDateOf(now)}:${organizationId}` })
-    if (r.ok) marked += r.data.marked
+    // in batches the command takes, every one of them each day
+    for (let from = 0; from < ids.length; from += RETENTION_DUE_BATCH) {
+      const batch = ids.slice(from, from + RETENTION_DUE_BATCH)
+      const r = await runCommand(systemCtx(organizationId, now, 'retention-due'), markRetentionsDueCommand, { retentionIds: batch }, { idempotencyKey: `retention-due:${taxDateOf(now)}:${organizationId}:${batch[0]}` })
+      if (r.ok) marked += r.data.marked
+    }
   }
   return marked
 }

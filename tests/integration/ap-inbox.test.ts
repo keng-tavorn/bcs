@@ -58,6 +58,20 @@ describe('[FR-AP-101/AC2] the inbox makes a draft per invoice file with the supp
     expect(await prisma.notification.count({ where: { templateKey: 'invoice.inbox_digest', organizationId: ap.org.organizationId } })).toBeGreaterThan(0)
   })
 
+  it('S8-14 review: a subject longer than its column is kept cut to 300 characters, and the messages after it are still read', async () => {
+    const po = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00' }])
+    await receive(ap, po, { 0: '1' })
+    const longId = `<${randomUUID()}@supplier.test>`
+    const nextId = `<${randomUUID()}@supplier.test>`
+    await send({ subject: `ใบแจ้งหนี้ตาม ${po.number} ${'ย'.repeat(400)}`, messageId: longId, attachments: [{ filename: 'invoice.xml', content: etaxXml({ invoiceNo: `LONG-${randomUUID().slice(0, 6)}` }), contentType: 'application/xml' }] })
+    await send({ subject: 'ไม่มีไฟล์', messageId: nextId })
+    ok(await pollInvoiceInbox(fin(ap)))
+    const long = (await emailOf(longId))!
+    expect(long).toMatchObject({ status: 'PROCESSED', poRefsFound: [po.number] })
+    expect(long.subject).toHaveLength(300)
+    expect(await emailOf(nextId)).toMatchObject({ status: 'IGNORED' })
+  })
+
   it('the same mail sent twice (the same Message-ID) is one message and one draft, however often the inbox is read', async () => {
     const po = await sentPo(ap, [{ quantity: '1', unitPrice: '500.00' }])
     await receive(ap, po, { 0: '1' })

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { satangToAmount } from '@/core/money/dto'
-import { authorize, matchingGrants } from '@/server/authz'
+import { authorize } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
@@ -10,6 +10,7 @@ import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from 
 import { startRoute } from '../approvals/route'
 import { requireModule } from '../modules'
 import { fail, guard, lockedInvoice } from './common'
+import { invoiceScopes, openRolesOf, resolvesInvoice } from './file-policy'
 import { runMatch, type MatchRunOutcome } from './match-run'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES, type SupplierNoticeEffects } from '@/server/notifications/supplier-notices'
 
@@ -62,10 +63,10 @@ async function mayRecheck(tx: TenantTx, ctx: Ctx, invoiceId: string): Promise<{ 
   if (!resolve.ok) return { ok: false, error: resolve.error }
   const principal = resolve.data
   if (principal.kind !== 'member') return fail('FORBIDDEN', 'members only')
-  const open = await tx.matchException.findMany({ where: { invoiceId, status: 'OPEN' }, select: { assigneeRole: true } })
-  const roles = new Set(open.map((e) => e.assigneeRole))
-  const holds = (role: 'PROCUREMENT' | 'RECEIVER' | 'FINANCE') => matchingGrants(principal, 'invoice.exception.resolve').some((g) => g.grantee.kind === 'ROLE' && g.grantee.role === role)
-  if ([...roles].some((r) => holds(r))) return { ok: true }
+  const invoice = await tx.invoice.findFirst({ where: { id: invoiceId }, select: { poId: true } })
+  if (!invoice) return fail('NOT_FOUND', 'invoice not found')
+  // a RECEIVER within their grant's scope: a department that asked for the goods, or one who received them
+  if (resolvesInvoice(principal, await openRolesOf(tx, invoiceId), await invoiceScopes(tx, invoice.poId))) return { ok: true }
   return fail('FORBIDDEN', 'the invoice’s differences are not sent to you', { capability: 'invoice.exception.resolve' })
 }
 

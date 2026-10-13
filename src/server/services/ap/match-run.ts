@@ -321,7 +321,8 @@ async function exceptionNotices(tx: TenantTx, ctx: Ctx, invoice: { id: string; n
         templateKey: 'invoice.exception',
         data: { number: invoice.number, invoiceId: invoice.id, poNumber: po.number, types, totalSatang: total.toString() },
         urgency: 'IMMEDIATE',
-        dedupeKey: `invoice.exception:${matchId}:${memberId}`,
+        // per role: a member who is both PROCUREMENT and FINANCE hears of the differences of each, not of one only
+        dedupeKey: `invoice.exception:${matchId}:${role}:${memberId}`,
         subjectType: 'INVOICE',
         subjectId: invoice.id,
       })

@@ -144,6 +144,9 @@ describe('tier-2 invoices on the PO page (module PAY)', () => {
     const draft = await codedDraft(ap, po, { no: `SCR-${randomUUID().slice(0, 6)}`, vat: '70.00', lines: [{ line: 0, quantity: '1', unitPrice: '1000.00' }] })
     const view = ok(await getPoS8View(fin(ap), po.id))
     expect(view.invoices).toEqual([expect.objectContaining({ id: draft.invoiceId, status: 'DRAFT', number: null })])
+    // S8-14 review: an executive views the PO but does not open invoices, so the tab is not offered
+    await prisma.roleAssignment.create({ data: { organizationId: ap.org.organizationId, memberId: ap.org.member.vp_sup!, role: 'EXECUTIVE', grantedAt: AP_NOW } })
+    expect(ok(await getPoS8View(ap.org.ctxOf('vp_sup', AP_NOW), po.id)).invoices).toBeNull()
   })
 })
 

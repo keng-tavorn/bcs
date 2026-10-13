@@ -285,11 +285,12 @@ async function storeMessage(ctx: Ctx, inbox: EmailInbox, message: InboundMessage
   return {
     provider: inbox.name,
     messageId: message.messageId,
-    fromAddress: message.from,
-    toAddress: message.to,
-    subject: message.subject,
+    // what the supplier wrote is kept to the columns' sizes: a long subject never stops the inbox
+    fromAddress: message.from.slice(0, 320),
+    toAddress: message.to.slice(0, 320),
+    subject: message.subject.slice(0, 300),
     receivedAt: message.receivedAt.toISOString(),
-    poRefsFound: [...allRefs].slice(0, 50),
+    poRefsFound: [...allRefs].filter((r) => r.length <= 60).slice(0, 50),
     files,
     skipped,
   }
@@ -321,7 +322,7 @@ export async function pollInvoiceInbox(ctx: Ctx, options: { inbox?: EmailInbox }
     const k = known.get(message.messageId)
     if (k && (k.status !== 'FAILED' || k.attempts >= INBOX_MAX_ATTEMPTS)) continue
     const attempt = (k?.attempts ?? 0) + 1
-    const header = { messageId: message.messageId, provider: inbox.name, fromAddress: message.from, toAddress: message.to, subject: message.subject.slice(0, 300), receivedAt: message.receivedAt.toISOString() }
+    const header = { messageId: message.messageId, provider: inbox.name, fromAddress: message.from.slice(0, 320), toAddress: message.to.slice(0, 320), subject: message.subject.slice(0, 300), receivedAt: message.receivedAt.toISOString() }
     let input: z.input<typeof ReceiveInput>
     try {
       input = await storeMessage(ctx, inbox, message, poPattern)
@@ -335,7 +336,12 @@ export async function pollInvoiceInbox(ctx: Ctx, options: { inbox?: EmailInbox }
     const received = await runCommand(ctx, receiveInboundEmailCommand, input, { idempotencyKey: `inbox:${message.messageId}:${attempt}` })
     if (!received.ok) {
       if (alreadyKept(received.error)) continue
-      return received
+      // a message the command refuses is FAILED with the refusal, and the next ones are still read
+      if (received.error.code !== 'VALIDATION_FAILED') return received
+      const failed = await runCommand(ctx, failInboundEmailCommand, { ...header, code: 'INVALID_MESSAGE' }, { idempotencyKey: `inbox-fail:${message.messageId}:${attempt}` })
+      if (!failed.ok && !alreadyKept(failed.error)) return failed
+      summary.failed++
+      continue
     }
     summary.received++
     summary.drafts += received.data.draftIds.length

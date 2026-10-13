@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { confirmInvoiceCoding } from '@/server/services/ap'
 import { suggestInvoiceCoding, updateAccountCode } from '@/server/services/ap/coding'
+import { listPendingExport } from '@/server/queries/finance'
 import { exportExpress } from '@/server/services/exports/express'
 import { getDownloadUrl } from '@/server/services/files'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
@@ -113,5 +114,17 @@ describe('[FR-AP-108/AC4] [BR-EXP-03] one Express file of tier-1 confirmations a
     expect(sum).toBe(246_100n)
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: draft.invoiceId } })).exportJobId).toBe(file.exportJobId)
     expect((await prisma.invoiceConfirmation.findUniqueOrThrow({ where: { id: confirmation.id } })).exportJobId).toBe(file.exportJobId)
+  })
+
+  it('S8-14 review: a tier-2 invoice of a supplier without an Express code is held back with the tier-1 ones, not lost between the two lists', async () => {
+    const org = await apOrg({ modules: ['PAY'] })
+    await setExpressLayout(org.org.organizationId, TEST_EXPRESS_LAYOUT)
+    const po = await sentPo(org, [{ quantity: '1', unitPrice: '500.00' }])
+    await receive(org, po, { 0: '1' })
+    const draft = await codedDraft(org, po, { no: 'T2-HB', date: '2026-10-06', vat: '35.00', lines: [{ line: 0, quantity: '1', unitPrice: '500.00' }] })
+    expect(ok(await submit(org, draft)).status).toBe('READY_FOR_PAYMENT')
+    const pending = await listPendingExport(fin(org), true)
+    expect(pending.ready.count).toBe(0)
+    expect(pending.heldBack).toMatchObject({ count: 1, totalSatang: 53_500n, suppliers: [{ supplier: { id: org.supplierId }, count: 1, invoices: [{ invoiceNo: 'T2-HB', poNumber: po.number }] }] })
   })
 })

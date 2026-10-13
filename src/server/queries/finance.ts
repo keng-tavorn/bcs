@@ -559,35 +559,45 @@ const HELD_READ_MAX = 500
 
 async function heldBackGroup(db: TenantDb): Promise<HeldBackDto> {
   const where = { exportedAt: null, supplier: { is: MISSING_CODE } }
-  const [bySupplier, totals] = await Promise.all([
-    db.invoiceConfirmation.groupBy({ by: ['supplierId'], where, _count: { _all: true }, _sum: { grossSatang: true } }),
-    db.invoiceConfirmation.aggregate({ where, _count: { _all: true }, _sum: { grossSatang: true } }),
-  ])
-  if (bySupplier.length === 0) return { count: 0, totalSatang: 0n, suppliers: [] }
-  const ids = bySupplier.map((g) => g.supplierId)
-  const [suppliers, invoices] = await Promise.all([
-    db.supplier.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameTh: true, nameEn: true } }),
+  // S8-14: the tier-2 invoices the file would take are held back by the same rule (BR-EXP-04), so the person hears of
+  // every invoice the missing code keeps out, and the count matches countInvoicesNotExported
+  const apWhere = { ...where, ...EXPORTABLE_AP_INVOICE }
+  const [tier1, tier2] = await Promise.all([
     db.invoiceConfirmation.findMany({ where, orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }], take: HELD_READ_MAX, select: { id: true, supplierId: true, invoiceNo: true, grossSatang: true, po: { select: { number: true } } } }),
+    db.invoice.findMany({ where: apWhere, orderBy: [{ readyAt: 'asc' }, { id: 'asc' }], take: HELD_READ_MAX, select: { id: true, supplierId: true, supplierInvoiceNo: true, number: true, grossSatang: true, po: { select: { number: true } } } }),
   ])
-  const byId = new Map(suppliers.map((s) => [s.id, s]))
+  const [g1, g2, t1, t2] = await Promise.all([
+    db.invoiceConfirmation.groupBy({ by: ['supplierId'], where, _count: { _all: true }, _sum: { grossSatang: true } }),
+    db.invoice.groupBy({ by: ['supplierId'], where: apWhere, _count: { _all: true }, _sum: { grossSatang: true } }),
+    db.invoiceConfirmation.aggregate({ where, _count: { _all: true }, _sum: { grossSatang: true } }),
+    db.invoice.aggregate({ where: apWhere, _count: { _all: true }, _sum: { grossSatang: true } }),
+  ])
+  const groups = new Map<string, { count: number; totalSatang: Satang }>()
+  for (const g of [...g1, ...g2]) {
+    const was = groups.get(g.supplierId) ?? { count: 0, totalSatang: 0n }
+    groups.set(g.supplierId, { count: was.count + g._count._all, totalSatang: was.totalSatang + (g._sum.grossSatang ?? 0n) })
+  }
+  if (groups.size === 0) return { count: 0, totalSatang: 0n, suppliers: [] }
+  const suppliers = await db.supplier.findMany({ where: { id: { in: [...groups.keys()] } }, select: { id: true, code: true, nameTh: true, nameEn: true } })
+  const invoices = [
+    ...tier1.map((i) => ({ id: i.id, supplierId: i.supplierId, invoiceNo: i.invoiceNo, poNumber: i.po.number, grossSatang: i.grossSatang })),
+    ...tier2.map((i) => ({ id: i.id, supplierId: i.supplierId, invoiceNo: i.supplierInvoiceNo ?? i.number ?? '-', poNumber: i.po.number, grossSatang: i.grossSatang })),
+  ]
   return {
-    count: totals._count._all,
-    totalSatang: totals._sum.grossSatang ?? 0n,
-    suppliers: bySupplier
-      .flatMap((g) => {
-        const s = byId.get(g.supplierId)
-        if (!s) return []
-        return [
-          {
-            supplier: { id: s.id, code: s.code, name: nameOf(s.nameTh, s.nameEn) },
-            count: g._count._all,
-            totalSatang: g._sum.grossSatang ?? 0n,
-            invoices: invoices
-              .filter((i) => i.supplierId === s.id)
-              .slice(0, HELD_SHOWN_PER_SUPPLIER)
-              .map((i) => ({ id: i.id, invoiceNo: i.invoiceNo, poNumber: i.po.number, grossSatang: i.grossSatang })),
-          },
-        ]
+    count: t1._count._all + t2._count._all,
+    totalSatang: (t1._sum.grossSatang ?? 0n) + (t2._sum.grossSatang ?? 0n),
+    suppliers: suppliers
+      .map((s) => {
+        const g = groups.get(s.id)!
+        return {
+          supplier: { id: s.id, code: s.code, name: nameOf(s.nameTh, s.nameEn) },
+          count: g.count,
+          totalSatang: g.totalSatang,
+          invoices: invoices
+            .filter((i) => i.supplierId === s.id)
+            .slice(0, HELD_SHOWN_PER_SUPPLIER)
+            .map(({ id, invoiceNo, poNumber, grossSatang }) => ({ id, invoiceNo, poNumber, grossSatang })),
+        }
       })
       .sort((a, b) => b.count - a.count || a.supplier.code.localeCompare(b.supplier.code)),
   }

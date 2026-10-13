@@ -3,6 +3,7 @@ import { satangToAmount } from '@/core/money/dto'
 import type { InsightTool } from '@/lib/ai-schemas/agents'
 import { isAllowed, loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant } from '@/server/db/tenant'
 import { poViewFacts } from '@/server/queries/receiving'
 import { listMyRequests } from '@/server/queries/requests'
@@ -181,7 +182,7 @@ export async function findSuppliersForAsker(ctx: Ctx, question: string) {
   const words = question.split(/\s+/).map((w) => w.trim()).filter((w) => w.length >= 2).slice(0, 8)
   if (words.length === 0) return []
   const found = await db.supplier.findMany({
-    where: { OR: words.flatMap((w) => [{ code: w }, { nameTh: { contains: w } }]) },
+    where: { OR: words.flatMap((w) => [{ code: w }, { nameTh: { contains: escapeLike(w), mode: 'insensitive' as const } }]) },
     select: { id: true, code: true, nameTh: true, status: true, category: true, taxId: true, isForeign: true },
     orderBy: { code: 'asc' },
     take: TOOL_ROWS,

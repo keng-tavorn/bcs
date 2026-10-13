@@ -15,6 +15,7 @@ import { loadRequestTypeFields, loadWorkflowVersions } from '@/server/workflow/p
 import { ConditionJson, ReviewerJson, workflowRuleJson, workflowVersionFromRows } from '@/server/workflow/snapshot'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { startRoute } from '../approvals/route'
+import { cancelWithdrawalOnEffect } from '../policy-withdrawal'
 import { THAI_DATE, thaiDateStart } from '../doa/dates'
 import { SLA_MAX_HOURS } from '../doa/editor'
 
@@ -474,16 +475,17 @@ export const activateWorkflowCommand = defineCommand({
     const version = await tx.workflowVersion.findFirst({ where: { id: input.versionId, status: 'PUBLISHED' }, select: { code: true, versionNo: true, effectiveFrom: true } })
     if (!version) return fail('NOT_FOUND', 'published version not found')
     if (version.effectiveFrom.getTime() > ctx.now.getTime()) return fail('VALIDATION_FAILED', 'not in effect yet', { reason: 'NOT_DUE' })
+    // S6-07: a withdrawal still asked is cancelled with its route now that the version is in effect (ALREADY_EFFECTIVE)
+    const events: EventDraft[] = await cancelWithdrawalOnEffect(tx, 'WORKFLOW_VERSION', input.versionId)
     const ended = await tx.workflowVersion.findMany({ where: { code: version.code, status: 'PUBLISHED', id: { not: input.versionId }, effectiveTo: { lte: ctx.now } }, select: { id: true, versionNo: true, status: true } })
-    if (ended.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
-    const events: EventDraft[] = []
+    if (ended.length === 0 && events.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
     for (const p of ended) {
       const t = transition(WORKFLOW_VERSION_MACHINE, p.status as WorkflowVersionState, 'workflowVersion.supersede')
       if (!t.ok) continue
       await tx.workflowVersion.update({ where: { id: p.id }, data: { status: t.to, version: { increment: 1 } } })
       events.push({ type: 'workflow_version.superseded', aggregateType: 'WorkflowVersion', aggregateId: p.id, data: { code: version.code, versionNo: p.versionNo, supersededBy: input.versionId } })
     }
-    return { ok: true, result: { superseded: events.length }, events }
+    return { ok: true, result: { superseded: events.filter((e) => e.type === 'workflow_version.superseded').length }, events }
   },
 })
 

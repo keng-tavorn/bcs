@@ -1811,7 +1811,11 @@
         "published": "DOA published",
         "rejected": "DOA version rejected",
         "submitted": "DOA sent for approval",
-        "superseded": "DOA version superseded"
+        "superseded": "DOA version superseded",
+        "withdrawal_cancelled": "DOA withdrawal cancelled: in effect already",
+        "withdrawal_rejected": "DOA withdrawal not approved",
+        "withdrawal_requested": "DOA withdrawal asked",
+        "withdrawn": "DOA withdrawn"
       },
       "export": {
         "generated": "Export file generated"
@@ -1936,7 +1940,11 @@
         "rejected": "Workflow version not approved",
         "submitted": "Workflow version submitted",
         "superseded": "Workflow version superseded",
-        "updated": "Workflow draft edited"
+        "updated": "Workflow draft edited",
+        "withdrawal_cancelled": "Withdrawal of parallel reviewers cancelled: in effect already",
+        "withdrawal_rejected": "Withdrawal of parallel reviewers not approved",
+        "withdrawal_requested": "Withdrawal of parallel reviewers asked",
+        "withdrawn": "Parallel reviewers withdrawn"
       }
     },
     "export": {

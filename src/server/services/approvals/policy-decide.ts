@@ -14,6 +14,7 @@ import { laterVersionScheduled, publishApprovedDoaVersion } from '../doa'
 import { boundaryTableRequiredFor } from '../doa/boundary'
 import { isInitialPackageRoute } from '../doa/initial-package'
 import { approveOrgChange, rejectOrgChange } from '../org-authority'
+import { rejectWithdrawal, withdrawalPending, withdrawalTooLate, withdrawApprovedVersion } from '../policy-withdrawal'
 import { closeRoute } from './route'
 import { completeStep, decidedEvent } from './step-complete'
 
@@ -25,7 +26,9 @@ import { completeStep, decidedEvent } from './step-complete'
 // ticked as checked whenever it has one — the table the drafter ticked to send it (FR-DOA-009 AC3) — and a tick given
 // for a table compared with another version than the one compared now (another version approved in between) is
 // refused; rejecting needs no tick, and authority changes have no table. The first decision on a step decides it: its
-// other open tasks are cancelled with it (step-complete.ts, BR-SLA-04, NEW-47).
+// other open tasks are cancelled with it (step-complete.ts, BR-SLA-04, NEW-47). A DOA version still PUBLISHED that was
+// asked to be withdrawn (S6-07 · FR-DOA-104 · BR-DOA-18) is on the route of its withdrawal: who asked never decides it,
+// it has no boundary table, it is decided only before the version takes effect, and approving withdraws it.
 
 export interface PolicyTask {
   readonly id: string
@@ -56,10 +59,21 @@ export async function decidePolicyTask(
   const table = subjectType === 'DOA_VERSION' ? 'DoaVersion' : 'OrgAuthorityChange'
   const [locked] = await lockRowsForUpdate(tx, table, ctx.organizationId, [route.subjectId])
   if (!locked) return { ok: false, error: { code: 'NOT_FOUND', message: 'subject not found' } }
-  const submitter =
+  const doa =
     subjectType === 'DOA_VERSION'
-      ? (await tx.doaVersion.findUniqueOrThrow({ where: { id: route.subjectId }, select: { submittedById: true } })).submittedById
-      : (await tx.orgAuthorityChange.findUniqueOrThrow({ where: { id: route.subjectId }, select: { submittedById: true } })).submittedById
+      ? await tx.doaVersion.findUniqueOrThrow({ where: { id: route.subjectId }, select: { submittedById: true, status: true, effectiveFrom: true, withdrawalRequestedAt: true, withdrawalRequestedById: true } })
+      : null
+  const withdrawal = doa !== null && withdrawalPending(doa)
+  // The conflict of the decision: who sent the version or the change, or who asked for the withdrawal
+  const submitter = doa
+    ? withdrawal
+      ? doa.withdrawalRequestedById
+      : doa.submittedById
+    : (await tx.orgAuthorityChange.findUniqueOrThrow({ where: { id: route.subjectId }, select: { submittedById: true } })).submittedById
+  if (withdrawal) {
+    const late = withdrawalTooLate(doa, ctx.now)
+    if (late) return late
+  }
 
   // The submitter never decides their own policy change, nor does the delegator of a delegate who decides
   for (const who of [actor, task.principalMemberId].filter((m): m is string => Boolean(m))) {
@@ -76,7 +90,7 @@ export async function decidePolicyTask(
   // FR-DOA-009 AC3: the approver's tick of the boundary table, read only when approving a DOA version; recorded on the
   // decision when the version has a table to tick
   let boundaryTicked = false
-  if (subjectType === 'DOA_VERSION' && input.decision === 'APPROVE') {
+  if (subjectType === 'DOA_VERSION' && input.decision === 'APPROVE' && !withdrawal) {
     const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.subjectId }, select: { id: true, code: true, effectiveFrom: true } })
     const startsAt = version.effectiveFrom.getTime() < ctx.now.getTime() ? ctx.now : version.effectiveFrom
     const later = await laterVersionScheduled(tx, version, startsAt)
@@ -137,6 +151,13 @@ export async function decidePolicyTask(
   }
   events.push(...(await closeRoute(tx, { type: subjectType, id: route.subjectId }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
   let documentStatus: string
+  if (withdrawal) {
+    // S6-07: the withdrawal's outcome tells who it concerns (ORG_ADMIN, AUDITOR, the submitter, who asked) by itself
+    const done = outcome === 'APPROVED' ? await withdrawApprovedVersion(tx, ctx, 'DOA_VERSION', route.subjectId) : await rejectWithdrawal(tx, 'DOA_VERSION', route.subjectId, reasonCommentId)
+    events.push(...done.events)
+    notifications.push(...done.notifications)
+    return { ok: true, result: { taskId: task.id, documentStatus: outcome === 'APPROVED' ? 'WITHDRAWN' : 'PUBLISHED' }, events, notifications }
+  }
   if (subjectType === 'DOA_VERSION') {
     const packageChanges = isInitialPackageRoute(route)
       ? await tx.orgAuthorityChange.findMany({ where: { routeId: route.id, status: 'PENDING_APPROVAL' }, select: { id: true }, orderBy: { id: 'asc' } })

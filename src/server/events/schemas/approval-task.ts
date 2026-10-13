@@ -62,9 +62,10 @@ defineEvents('ApprovalTask', {
   // §6.4: the route ended (the request cancelled, a new route replaced it, the document decided), or another task of
   // the same step was decided first — the co-assignee of an escalated step, or the first assignee when the co-assignee
   // decided (BR-SLA-04, NEW-47: CO_ASSIGNEE_DECIDED, src/server/services/approvals/step-complete.ts) · S6 (BR-WF-01): a
-  // group of a REVIEW step came to its result (GROUP_DECIDED) or a step of several slots did (STEP_DECIDED)
+  // group of a REVIEW step came to its result (GROUP_DECIDED) or a step of several slots did (STEP_DECIDED) · S6-07: a
+  // withdrawal still asked when its version took effect (ALREADY_EFFECTIVE)
   'approval_task.cancelled': {
-    schema: z.object({ subjectId: z.uuid(), why: z.enum(['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED', 'CO_ASSIGNEE_DECIDED', 'GROUP_DECIDED', 'STEP_DECIDED']) }),
+    schema: z.object({ subjectId: z.uuid(), why: z.enum(['REQUEST_CANCELLED', 'ROUTE_REPLACED', 'DOCUMENT_DECIDED', 'CO_ASSIGNEE_DECIDED', 'GROUP_DECIDED', 'STEP_DECIDED', 'ALREADY_EFFECTIVE']) }),
   },
   // BR-SLA-02, BR-SLA-04, FR-NOTI-003 AC1 (S5-07): the SLA job marks an open task past its due time; the assignee and,
   // for acknowledgement, the approver of the next amount band are told (nextBandMemberId, null when there is none)

@@ -1811,7 +1811,11 @@
         "published": "เผยแพร่ DOA",
         "rejected": "ไม่อนุมัติ DOA ฉบับนี้",
         "submitted": "ส่ง DOA ขออนุมัติ",
-        "superseded": "DOA ฉบับนี้ถูกแทนที่"
+        "superseded": "DOA ฉบับนี้ถูกแทนที่",
+        "withdrawal_cancelled": "ยกเลิกการถอน DOA เพราะมีผลแล้ว",
+        "withdrawal_rejected": "ไม่อนุมัติการถอน DOA",
+        "withdrawal_requested": "ขอถอน DOA",
+        "withdrawn": "ถอน DOA"
       },
       "export": {
         "generated": "สร้างไฟล์ส่งออก"
@@ -1936,7 +1940,11 @@
         "rejected": "ไม่อนุมัติผู้ตรวจคู่ขนาน",
         "submitted": "ส่งผู้ตรวจคู่ขนานขออนุมัติ",
         "superseded": "ผู้ตรวจคู่ขนานฉบับเดิมสิ้นผล",
-        "updated": "แก้ร่างผู้ตรวจคู่ขนาน"
+        "updated": "แก้ร่างผู้ตรวจคู่ขนาน",
+        "withdrawal_cancelled": "ยกเลิกการถอนผู้ตรวจคู่ขนานเพราะมีผลแล้ว",
+        "withdrawal_rejected": "ไม่อนุมัติการถอนผู้ตรวจคู่ขนาน",
+        "withdrawal_requested": "ขอถอนผู้ตรวจคู่ขนาน",
+        "withdrawn": "ถอนผู้ตรวจคู่ขนาน"
       }
     },
     "export": {

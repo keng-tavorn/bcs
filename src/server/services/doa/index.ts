@@ -15,6 +15,7 @@ import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
+import { cancelWithdrawalOnEffect } from '../policy-withdrawal'
 import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
 
@@ -236,9 +237,10 @@ export const activateDoaVersionCommand = defineCommand({
     const version = await tx.doaVersion.findFirst({ where: { id: input.versionId, status: 'PUBLISHED' }, select: { code: true, versionNo: true, effectiveFrom: true } })
     if (!version) return fail('NOT_FOUND', 'published version not found')
     if (version.effectiveFrom.getTime() > ctx.now.getTime()) return fail('VALIDATION_FAILED', 'not in effect yet', { reason: 'NOT_DUE' })
+    // S6-07 (FR-DOA-104 AC2): a withdrawal still asked is cancelled with its route now that the version is in effect
+    const events: EventDraft[] = await cancelWithdrawalOnEffect(tx, 'DOA_VERSION', input.versionId)
     const ended = await tx.doaVersion.findMany({ where: { code: version.code, status: 'PUBLISHED', id: { not: input.versionId }, effectiveTo: { lte: ctx.now } }, select: { id: true, versionNo: true } })
-    if (ended.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
-    const events: EventDraft[] = []
+    if (ended.length === 0 && events.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
     for (const p of ended) {
       const t = transition(DOA_VERSION_MACHINE, 'PUBLISHED', 'doa.supersede')
       await tx.doaVersion.update({ where: { id: p.id }, data: { status: t.ok ? t.to : 'SUPERSEDED', version: { increment: 1 } } })

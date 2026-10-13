@@ -348,7 +348,8 @@ export async function closeRoute(
   tx: TenantTx,
   subject: { readonly type: ApprovalSubject; readonly id: string },
   routeStatus: 'COMPLETED' | 'CANCELLED',
-  why: 'REQUEST_CANCELLED' | 'ROUTE_REPLACED' | 'DOCUMENT_DECIDED',
+  // ALREADY_EFFECTIVE (S6-07): a withdrawal still asked when its version took effect
+  why: 'REQUEST_CANCELLED' | 'ROUTE_REPLACED' | 'DOCUMENT_DECIDED' | 'ALREADY_EFFECTIVE',
 ): Promise<EventDraft[]> {
   const routes = await tx.approvalRoute.findMany({ where: { subjectType: subject.type, subjectId: subject.id, status: 'ACTIVE' }, select: { id: true } })
   const events: EventDraft[] = []

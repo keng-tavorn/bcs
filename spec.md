@@ -403,8 +403,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.modules.view` | ORG_ADMIN (ORG) |
 | `platform.modules.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass (BR-AUTH-08) |
 | `admin.orgAuthority.propose` | ORG_ADMIN (ORG) — แต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น รีเซ็ตตัวตนของผู้มีอำนาจ · อนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` (BR-DOA-17) |
-| `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
-| `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN (ORG) — ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) · ผู้ถืองานอนุมัติของฉบับนั้นอ่านหน้าฉบับและทดลองส่งได้โดยไม่มีสิทธิ์นี้ (FR-WF-103 AC3) |
+| `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) · `admin.doa.submitForPublish` ขอถอนฉบับที่อนุมัติแล้วแต่ยังไม่มีผลได้ด้วย (S6-07 · FR-DOA-104 · คนที่ขอถอนอนุมัติการถอนนั้นเองไม่ได้) |
+| `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN (ORG) — ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) · ผู้ถืองานอนุมัติของฉบับนั้นอ่านหน้าฉบับและทดลองส่งได้โดยไม่มีสิทธิ์นี้ (FR-WF-103 AC3) · `admin.workflow.submitForPublish` ขอถอนฉบับที่ยังไม่มีผลด้วยกติกาเดียวกับ DOA (S6-07) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
 
@@ -3806,6 +3806,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `export.generated` | ผู้สั่งส่งออก | ในระบบ | IMMEDIATE | `export.ready` |
 | `organization.module_enabled` · `organization.module_disabled` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.module_changed` |
 | DOA ฉบับใหม่หรือการเปลี่ยนโครงสร้างอำนาจมีผล | ผู้ที่ได้หรือเสียอำนาจ · ORG_ADMIN | LINE → อีเมล | IMMEDIATE | `doa.authority_changed` |
+| `doa_version.withdrawn` · `workflow_version.withdrawn` (S6-07) | ORG_ADMIN · AUDITOR · ผู้ส่งฉบับ · ผู้ขอถอน | อีเมล · ในระบบ | IMMEDIATE | `policy.withdrawn` |
+| `doa_version.withdrawal_rejected` · `workflow_version.withdrawal_rejected` (S6-07) | ผู้ขอถอน | อีเมล · ในระบบ | IMMEDIATE | `policy.withdrawal_rejected` |
 | `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
@@ -3827,8 +3829,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | --- | --- |
 | organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
-| doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
-| workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` (S6 · FR-WF-103 · การถอนเพิ่มใน S6-07) |
+| doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` `doa_version.withdrawal_requested` `doa_version.withdrawal_rejected` `doa_version.withdrawal_cancelled` (S6-07 · FR-DOA-104 · `doa_version.withdrawn` มี schema แล้ว) |
+| workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` `workflow_version.withdrawal_requested` `workflow_version.withdrawn` `workflow_version.withdrawal_rejected` `workflow_version.withdrawal_cancelled` (S6 · FR-WF-103 · การถอน S6-07) |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |

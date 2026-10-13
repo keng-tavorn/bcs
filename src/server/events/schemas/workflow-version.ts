@@ -3,7 +3,7 @@ import { defineEvents } from '../registry'
 
 // Workflow version events (spec §10.2 "workflow_version", S6-04 · FR-WF-103): the parallel reviewers of an organization,
 // versioned like the DOA. The rules are on WorkflowVersion and WorkflowRule; events name the version. The seed of the
-// phase-1 organization publishes version 1 directly (local and staging only; NG-12). Withdrawal comes with S6-07.
+// phase-1 organization publishes version 1 directly (local and staging only; NG-12).
 
 const version = { code: z.string().min(1), versionNo: z.number().int().positive() }
 
@@ -23,4 +23,12 @@ defineEvents('WorkflowVersion', {
     schema: z.object({ ...version, effectiveFrom: z.iso.datetime({ offset: true }), via: z.enum(['SEED', 'APPROVAL']), rules: z.number().int().nonnegative() }),
   },
   'workflow_version.superseded': { schema: z.object({ ...version, supersededBy: z.uuid() }) },
+  // S6-07 (FR-DOA-104 · BR-DOA-18, one rule for DOA and workflow versions): a version approved but not yet in effect is
+  // asked to be withdrawn on a DOA_CHANGE route of its own; approved, it is WITHDRAWN and the version before it runs on
+  // (previousVersionId, effectiveTo: its new end, null for none); rejected, it stays PUBLISHED; reaching its effective
+  // time while asked, the request is cancelled (ALREADY_EFFECTIVE)
+  'workflow_version.withdrawal_requested': { schema: z.object({ ...version, routeId: z.uuid(), reasonCommentId: z.uuid() }) },
+  'workflow_version.withdrawn': { schema: z.object({ ...version, previousVersionId: z.uuid().nullable(), effectiveTo: z.iso.datetime({ offset: true }).nullable() }) },
+  'workflow_version.withdrawal_rejected': { schema: z.object({ ...version, reasonCommentId: z.uuid().nullable() }) },
+  'workflow_version.withdrawal_cancelled': { schema: z.object({ ...version, reason: z.literal('ALREADY_EFFECTIVE') }) },
 })

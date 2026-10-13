@@ -48,6 +48,23 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `คำขอ ${ref(d)} อนุมัติแล้ว`, en: `Request ${ref(d)} is approved` },
     href: `/requests/${str(d.requestId)}`,
   }),
+  // S6-07 (FR-DOA-104 AC3): a version approved but not yet in effect was withdrawn, or its withdrawal was not approved
+  'policy.withdrawn': (d) => ({
+    title:
+      d.kind === 'WORKFLOW_VERSION'
+        ? { th: `ถอนผู้ตรวจคู่ขนาน ${str(d.code)} ฉบับ ${str(d.versionNo)} แล้ว`, en: `Parallel reviewers ${str(d.code)} version ${str(d.versionNo)} was withdrawn` }
+        : { th: `ถอน DOA ${str(d.code)} ฉบับ ${str(d.versionNo)} แล้ว`, en: `DOA ${str(d.code)} version ${str(d.versionNo)} was withdrawn` },
+    body: { th: 'ฉบับนี้จะไม่มีผล ฉบับก่อนหน้ามีผลต่อไป', en: 'It will not take effect; the version before it stays in effect' },
+    href: d.kind === 'WORKFLOW_VERSION' ? `/admin/workflows/${str(d.versionId)}` : `/admin/doa/${str(d.versionId)}`,
+  }),
+  'policy.withdrawal_rejected': (d) => ({
+    title:
+      d.kind === 'WORKFLOW_VERSION'
+        ? { th: `คำขอถอนผู้ตรวจคู่ขนาน ${str(d.code)} ฉบับ ${str(d.versionNo)} ไม่ได้รับอนุมัติ`, en: `The withdrawal of parallel reviewers ${str(d.code)} version ${str(d.versionNo)} was not approved` }
+        : { th: `คำขอถอน DOA ${str(d.code)} ฉบับ ${str(d.versionNo)} ไม่ได้รับอนุมัติ`, en: `The withdrawal of DOA ${str(d.code)} version ${str(d.versionNo)} was not approved` },
+    body: { th: 'ฉบับนี้ยังมีผลตามวันที่กำหนด', en: 'It still takes effect on its date' },
+    href: d.kind === 'WORKFLOW_VERSION' ? `/admin/workflows/${str(d.versionId)}` : `/admin/doa/${str(d.versionId)}`,
+  }),
   // S6 (§10.1): every reviewer passed the request; it goes on to the DOA approver
   'request.reviews_done': (d) => ({
     title: { th: `คำขอ ${ref(d)} ผ่านผู้ตรวจครบแล้ว`, en: `Request ${ref(d)} passed every reviewer` },

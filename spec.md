@@ -2524,6 +2524,10 @@ cases:
     expect:
       rows: [{ ref: D1, current: { rule: PR-02, approvers: [vp_ops] }, draft: { rule: PR-01, approvers: [dm_con] }, changed: true }, { ref: D2, changed: false }, { ref: D3, changed: false }]
       summary: { total: 3, changed: 1, load: { vp_ops: -1, dm_con: 1 } }
+  # S6-08 · ผังเปลี่ยน (BR-WF-14)
+  - { id: GC-WF-43, title: ย้าย CON ไปอยู่ใต้ SUP งานของ VP ย้ายตาม, fn: reresolveOpenTasks, input: { change: { reparent: { CON: SUP } }, tasks: [{ id: T1, resolvedFrom: "POSITION:VP@OPS", approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, chargedDepartment: CON, assignee: vp_ops }] }, expect: { reassign: [{ task: T1, to: vp_sup, resolvedFrom: "POSITION:VP@SUP" }] } }
+  - { id: GC-WF-44, title: งานระดับองค์กรไม่เปลี่ยน, fn: reresolveOpenTasks, input: { change: { reparent: { CON: SUP } }, tasks: [{ id: T2, resolvedFrom: "POSITION:CEO@HQ", approver: { kind: POSITION_OF_ORG, position: CEO }, chargedDepartment: CON, assignee: ceo }] }, expect: { reassign: [] } }
+  - { id: GC-WF-45, title: ขั้นที่รออยู่ใช้ผู้ดำรงคนปัจจุบัน, fn: activateStep, input: { routeCreatedAt: "2026-10-06T03:00:00Z", activateAt: "2026-10-08T03:00:00Z", holders: [{ position: VP, department: OPS, member: vp_ops, validTo: "2026-10-07T00:00:00+07:00" }, { position: VP, department: OPS, member: vp_new, validFrom: "2026-10-07T00:00:00+07:00" }], step: { rule: PR-02, approver: { kind: POSITION_OF_DEPARTMENT, position: VP } } }, expect: { assignee: vp_new, rule: PR-02, version: 1 } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -4212,7 +4216,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       26 ไฟล์ · 272 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       26 ไฟล์ · 275 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

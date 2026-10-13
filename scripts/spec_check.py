@@ -977,12 +977,39 @@ def wf_backtest(d, i):
             for m in g["approvers"]: load[m] = load.get(m, 0) + 1
         rows.append({"ref": doc["ref"], "current": {"rule": c["rule"], "approvers": c["approvers"]}, "draft": {"rule": g["rule"], "approvers": g["approvers"]}, "changed": ch})
     return {"rows": rows, "summary": {"total": len(rows), "changed": sum(r["changed"] for r in rows), "load": {k: n for k, n in sorted(load.items()) if n}}}
+def wf_reresolve(i):
+    # BR-WF-14: the departments of `reparent` sit under their new parent; a task found by its department moves when the
+    # walk up now meets another holder; organization-wide positions and named members stay
+    old = dict(PARENT); PARENT.update(i["change"]["reparent"]); out = []
+    for t in i["tasks"]:
+        a = t["approver"]
+        if a["kind"] != "POSITION_OF_DEPARTMENT": continue
+        dd = t["chargedDepartment"]
+        while dd and (a["position"], dd) not in HOLD: dd = PARENT.get(dd)
+        if dd and HOLD[(a["position"], dd)] != t["assignee"]: out.append({"task": t["id"], "to": HOLD[(a["position"], dd)], "resolvedFrom": f"POSITION:{a['position']}@{dd}"})
+    PARENT.clear(); PARENT.update(old)
+    return {"reassign": out}
+def wf_activate(d, i):
+    # GC-WF-45: the route's version and rule, the holders valid when the step starts
+    global HOLD
+    at = dt(i["activateAt"]); saved = HOLD; HOLD = dict(HOLD)
+    for h in i["holders"]:
+        if dt(h.get("validFrom", "2020-01-01T00:00:00Z")) <= at and ("validTo" not in h or at < dt(h["validTo"])): HOLD[(h["position"], h["department"])] = h["member"]
+    vs = [v for v in wf_versions(d, i["doa"], None) if dt(v["effectiveFrom"]) <= dt(i["routeCreatedAt"])]
+    v = vs[-1]; rule = next(r for r in v["rules"] if r["code"] == i["step"]["rule"])
+    amt = baht(sat(rule["when"]["amount"]["gt"]) + 1)
+    res = wf_resolve(d, {**i, "amount": amt, "at": i["routeCreatedAt"]}, [v]); HOLD = saved
+    if "error" in res: return res
+    return {"assignee": res["steps"][0]["approvers"][0], "rule": res.get("escalatedTo", res["rule"]), "version": v["version"]}
 def run_workflow(d):
     global HOLD
     use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
     for c in d["cases"]:
         i = {**d["defaults"], **c["input"]}
         HOLD = {**base, **{tuple(k.split("@")): m for k, m in (i.get("replaceHolders") or {}).items()}}
+        if c["fn"] in ("reresolveOpenTasks", "activateStep"):
+            got = wf_reresolve(i) if c["fn"] == "reresolveOpenTasks" else wf_activate(d, i)
+            out.append((c["id"], all(got.get(k) == x for k, x in c["expect"].items()), got)); continue
         if c["fn"] == "withdrawVersion":
             ok, got = wf_withdraw_ok(d, i, c["expect"]); out.append((c["id"], ok, got)); continue
         if c["fn"] == "backtestPolicy":

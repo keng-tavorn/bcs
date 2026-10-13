@@ -2,15 +2,15 @@ import { readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { amountToSatang } from '@/core/money/dto'
 import { isCommitteeStep, lintDoaVersion, resolveRoute, versionAt, type ApproverSpec, type CommitteeQuorum, type DoaDocumentType, type DoaVersionSnapshot, type LintIssue, type OrgSnapshot, type RouteStep } from '@/core/doa'
-import { backtestPolicy, lintWorkflowVersion, resolveRequestRoute, stepOutcome, withdrawVersion, type Quorum, type SlotDecision, type SlotGroup, type WorkflowLintIssue, type WorkflowRuleSnapshot } from '@/core/workflow'
+import { activateStep, backtestPolicy, lintWorkflowVersion, reresolveOpenTasks, resolveRequestRoute, stepOutcome, withdrawVersion, type Quorum, type SlotDecision, type SlotGroup, type WorkflowLintIssue, type WorkflowRuleSnapshot } from '@/core/workflow'
 import { baht, GOLDEN_DIR, loadYaml, orgSnapshot, pick, versionSnapshots } from './doa-fixtures'
 import { workflowFixture, workflowRuleOf, type WorkflowRuleFixture } from './workflow-fixtures'
 
 // Every golden file of suite workflow (spec §7.17): committees, the outcome of a step of several slots and the DOA lint
 // of BR-WF-05 (S6-02); the route of a request with its parallel reviewers and the workflow lint (S6-03). Each file names
 // its own fixtures (ADR-069): one org file, the DOA version files (versions told apart by code) and the workflow
-// versions; withdrawing a version not yet in effect and the 90-day backtest of a draft (S6-07). The runner finds and counts
-// the cases itself; every test name carries the case id.
+// versions; withdrawing a version not yet in effect and the 90-day backtest of a draft (S6-07); the approval line after
+// the organization changed (S6-08). The runner finds and counts the cases itself; every test name carries the case id.
 
 interface Suite {
   suite: string
@@ -22,7 +22,7 @@ interface Suite {
 interface Case {
   id: string
   title?: string
-  fn: 'resolveRoute' | 'stepOutcome' | 'lintDoaVersion' | 'resolveRequestRoute' | 'lintWorkflowVersion' | 'withdrawVersion' | 'backtestPolicy'
+  fn: 'resolveRoute' | 'stepOutcome' | 'lintDoaVersion' | 'resolveRequestRoute' | 'lintWorkflowVersion' | 'withdrawVersion' | 'backtestPolicy' | 'reresolveOpenTasks' | 'activateStep'
   input: Record<string, unknown>
   expect: Record<string, unknown>
 }
@@ -141,6 +141,56 @@ describe.each(files)('golden %s (workflow)', (file) => {
             approvers: approval.steps.map((s) => s.assigneeMemberId),
           },
         }
+        expect(pick(actual, c.expect)).toEqual(c.expect)
+        return
+      }
+      if (c.fn === 'reresolveOpenTasks') {
+        // The organization after the change: each department of `reparent` sits under its new parent
+        const input = c.input as {
+          change: { reparent: Record<string, string> }
+          tasks: Array<{ id: string; resolvedFrom: string; approver: ApproverSpec; chargedDepartment: string; assignee: string }>
+        }
+        const byCode = (code: string) => org.departments.find((d) => d.code === code)!.id
+        const moved = { ...org, departments: org.departments.map((d) => (input.change.reparent[d.code] ? { ...d, parentId: byCode(input.change.reparent[d.code]!) } : d)) }
+        const result = reresolveOpenTasks(
+          input.tasks.map((t) => ({ id: t.id, resolvedFrom: t.resolvedFrom, approver: t.approver, chargedDepartmentId: byCode(t.chargedDepartment), assigneeMemberId: t.assignee, principalMemberId: null, conflictMemberIds: [i.requester] })),
+          moved,
+          new Date(i.at),
+        )
+        expect(pick({ reassign: result.reassign }, c.expect)).toEqual(c.expect)
+        return
+      }
+      if (c.fn === 'activateStep') {
+        // The holders of the input replace the fixture's of the same position and department; the amount is one that
+        // falls in the step's rule (its lower bound and one satang), as the route was made with
+        const input = c.input as {
+          routeCreatedAt: string
+          activateAt: string
+          holders: Array<{ position: string; department: string; member: string; validFrom?: string; validTo?: string }>
+          step: { rule: string }
+        }
+        const byCode = (code: string) => org.departments.find((d) => d.code === code)!.id
+        const replaced = new Set(input.holders.map((h) => `${h.position}@${byCode(h.department)}`))
+        const newcomers = input.holders.map((h) => h.member).filter((m) => !org.members.some((x) => x.id === m))
+        const changed = {
+          ...org,
+          members: [...org.members, ...newcomers.map((id) => ({ ...org.members[0]!, id, active: true }))],
+          holders: [
+            ...org.holders.filter((h) => !replaced.has(`${h.positionCode}@${h.departmentId}`)),
+            ...input.holders.map((h) => ({ positionCode: h.position, departmentId: byCode(h.department), memberId: h.member, validFrom: new Date(h.validFrom ?? '2020-01-01T00:00:00Z'), validTo: h.validTo ? new Date(h.validTo) : null })),
+          ],
+        }
+        const version = versionAt(versions, new Date(input.routeCreatedAt))!
+        const rule = version.rules.find((r) => r.code === input.step.rule)!
+        const net = (rule.when.amount?.gt ?? 0n) + 1n
+        const result = activateStep(
+          { documentType: i.documentType, amount: { netSatang: net, vatSatang: 0n }, requesterMemberId: i.requester, chargedDepartmentId: i.department, conflictMemberIds: [i.requester], at: new Date(input.routeCreatedAt) },
+          version,
+          changed,
+          [],
+          new Date(input.activateAt),
+        )
+        const actual = result.ok ? { assignee: result.data.steps[0]!.assigneeMemberId, rule: result.data.ruleCode, version: version.versionNo } : { error: result.error.code }
         expect(pick(actual, c.expect)).toEqual(c.expect)
         return
       }

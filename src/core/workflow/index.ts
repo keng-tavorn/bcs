@@ -33,3 +33,4 @@ export {
   type BacktestSummary,
   type WorkflowBacktestDocument,
 } from './backtest'
+export { activateStep, reresolveOpenTasks, type OpenTaskOnTree, type Reresolved } from './org-change'

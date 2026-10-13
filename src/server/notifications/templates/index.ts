@@ -194,6 +194,16 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     },
     href: '/admin/org-authority',
   }),
+  // §10.1 (FR-DOA-011 AC3 · S6-09 BR-WF-16): a change the AUDITOR hears of at once. S6-09 sends the role DOA_ADMIN given or
+  // taken; S6-14 and S4-13 add the attachment rules of a published form
+  'audit.policy_changed': (d) => ({
+    title:
+      d.change === 'DOA_ADMIN_REVOKED'
+        ? { th: `ถอนบทบาทผู้ดูแลผังอำนาจของ ${str(d.name)} แล้ว`, en: `${str(d.name)} is no longer a DOA administrator` }
+        : { th: `${str(d.name)} ได้รับบทบาทผู้ดูแลผังอำนาจ`, en: `${str(d.name)} was made a DOA administrator` },
+    body: { th: 'ผู้ดูแลผังอำนาจร่างผังอำนาจอนุมัติและผู้ตรวจคู่ขนานได้ แต่ไม่ได้สิทธิ์อนุมัติ', en: 'A DOA administrator drafts the delegation of authority and the parallel reviewers, but approves nothing' },
+    href: d.memberId ? `/admin/members/${str(d.memberId)}` : null,
+  }),
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
     href: '/admin/modules',

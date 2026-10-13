@@ -56,7 +56,8 @@ const VersionYaml = z.strictObject({
   selfApprovalPolicy: z.enum(['ESCALATE_NEXT_BAND', 'BLOCK']),
   collapseDuplicateApprovers: z.boolean(),
   stepUpThreshold: Baht.nullable().optional(),
-  sodPolicy: z.strictObject({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() }),
+  // doaAdminSeparated: S6-09 (BR-WF-17), false when left out
+  sodPolicy: z.strictObject({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean(), doaAdminSeparated: z.boolean().optional() }),
   rules: z.array(RuleYaml).min(1),
 })
 
@@ -71,7 +72,7 @@ export interface DoaVersionData {
   readonly selfApprovalPolicy: 'ESCALATE_NEXT_BAND' | 'BLOCK'
   readonly collapseDuplicateApprovers: boolean
   readonly stepUpThresholdSatang: bigint | null
-  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean }
+  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean; readonly doaAdminSeparated?: boolean }
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
@@ -181,7 +182,11 @@ export function doaYaml(versions: readonly DoaVersionData[], memberCodes: Readon
       selfApprovalPolicy: v.selfApprovalPolicy,
       collapseDuplicateApprovers: v.collapseDuplicateApprovers,
       stepUpThreshold: v.stepUpThresholdSatang === null ? null : satangToAmount(v.stepUpThresholdSatang),
-      sodPolicy: { approverMayReceive: v.sodPolicy.approverMayReceive, requesterMayReceive: v.sodPolicy.requesterMayReceive },
+      sodPolicy: {
+        approverMayReceive: v.sodPolicy.approverMayReceive,
+        requesterMayReceive: v.sodPolicy.requesterMayReceive,
+        ...(v.sodPolicy.doaAdminSeparated ? { doaAdminSeparated: true } : {}),
+      },
       rules: v.rules.map((r) => {
         if (r.steps.length !== 1) throw new RangeError(`rule ${r.code} has ${r.steps.length} steps; the YAML shape holds one approver per rule`)
         const step = r.steps[0]!
@@ -217,7 +222,7 @@ export function doaYaml(versions: readonly DoaVersionData[], memberCodes: Readon
   return stringify(doc, { lineWidth: 0 })
 }
 
-const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() })
+const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean(), doaAdminSeparated: z.boolean().optional() })
 
 /** A stored version (DoaVersion row with its policy columns, and its DoaRule rows) as YAML data, for export. */
 export function doaVersionDataFromRows(
@@ -234,7 +239,7 @@ export function doaVersionDataFromRows(
     selfApprovalPolicy: snapshot.selfApprovalPolicy,
     collapseDuplicateApprovers: snapshot.collapseDuplicateApprovers,
     stepUpThresholdSatang: version.stepUpThresholdSatang,
-    sodPolicy: { approverMayReceive: sod.approverMayReceive, requesterMayReceive: sod.requesterMayReceive },
+    sodPolicy: { approverMayReceive: sod.approverMayReceive, requesterMayReceive: sod.requesterMayReceive, ...(sod.doaAdminSeparated ? { doaAdminSeparated: true } : {}) },
     rules: snapshot.rules,
   }
 }

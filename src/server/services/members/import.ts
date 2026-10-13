@@ -10,7 +10,9 @@ import { sendInvitationEmail } from '@/server/auth/emails'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { doaAdminNotices, roleGrantRefusal } from './role-rules'
 
 // Import members from the Excel template (FR-ADM-001 AC3). Every row is checked first; if any row is wrong the
 // answer lists each wrong row and field and nothing is saved. Otherwise all members are invited in one transaction
@@ -186,9 +188,13 @@ function importCommand(tokenHashes: readonly string[]) {
       const actorId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
       const expiresAt = new Date(ctx.now.getTime() + INVITATION_TTL_MS)
       const events: EventDraft[] = []
+      const notifications: NotificationDraft[] = []
       const memberIds: string[] = []
       for (const [i, row] of input.rows.entries()) {
         const memberId = newId()
+        // S6-09 (BR-WF-17): a row may not give both DOA_ADMIN and ORG_ADMIN once the DOA administrators are separated
+        const refused = await roleGrantRefusal(tx, ctx, memberId, row.roles, new Set())
+        if (refused) return refused
         const invitationId = newId()
         await tx.member.create({
           data: {
@@ -206,10 +212,11 @@ function importCommand(tokenHashes: readonly string[]) {
         for (const role of row.roles) {
           await tx.roleAssignment.create({ data: { organizationId: ctx.organizationId, memberId, role, grantedById: actorId, grantedAt: ctx.now } })
           events.push({ type: 'member.role_granted', aggregateType: 'Member', aggregateId: memberId, data: { role, scopeDepartmentId: null } })
+          if (role === 'DOA_ADMIN') notifications.push(...(await doaAdminNotices(tx, memberId, 'GRANTED', ctx.now)))
         }
         memberIds.push(memberId)
       }
-      return { ok: true, result: { memberIds, tokenHashes: [...tokenHashes] }, events }
+      return { ok: true, result: { memberIds, tokenHashes: [...tokenHashes] }, events, notifications }
     },
   })
 }

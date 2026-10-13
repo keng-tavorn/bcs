@@ -129,14 +129,14 @@ describe('[FR-DOA-001/AC1] the editor table keeps money exact and bands joined',
     if (!edited.ok) throw new Error('expected ok')
     expect(changedParts(rules[0], edited.rules[0]!)).toEqual(['band', 'approver', 'sla'])
     expect(changedParts(rules[2], edited.rules[2]!)).toEqual([])
-    const policy: PolicyState = { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: '100,000.00', approverMayReceive: false, requesterMayReceive: true }
+    const policy: PolicyState = { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: '100,000.00', approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false }
     expect(changedPolicies(policy, { ...policy, stepUpThreshold: '100000' })).toEqual([])
     expect(changedPolicies(policy, { ...policy, stepUpThreshold: '', amountBasis: 'NET' })).toEqual(['amountBasis', 'stepUpThreshold'])
     expect(draftInput('v1', edited.rules, { ...policy, stepUpThreshold: '50,000' }, '2026-11-01', '  ขยายวงเงิน  ')).toEqual({
       sourceVersionId: 'v1',
       effectiveDate: '2026-11-01',
       changeReason: 'ขยายวงเงิน',
-      policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: baht('50000.00'), approverMayReceive: false, requesterMayReceive: true },
+      policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: baht('50000.00'), approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false },
       rules: edited.rules.map((r) => ({ code: r.code, documentType: r.documentType, band: r.band, steps: r.steps })),
     })
     expect(draftInput('v1', rules, { ...policy, stepUpThreshold: 'lots' }, '2026-11-01', 'x')).toEqual({ error: 'STEP_UP' })
@@ -248,7 +248,7 @@ describe('[FR-DOA-009/AC1] a change of amount basis is named, since the same amo
     const dm = { kind: 'POSITION_OF_DEPARTMENT' as const, position: 'DM', positionNameTh: 'ผู้จัดการฝ่าย', positionNameEn: null }
     const side = { ruleCode: 'PR-01', approvers: [dm] }
     const compare: CompareView = {
-      baseline: { id: 'v1', code: 'DOA-DEMO', versionNo: 1, inEffectNow: true, effectiveFrom: '2025-12-31T17:00:00.000Z', policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: null, approverMayReceive: false, requesterMayReceive: true }, rules: [] },
+      baseline: { id: 'v1', code: 'DOA-DEMO', versionNo: 1, inEffectNow: true, effectiveFrom: '2025-12-31T17:00:00.000Z', policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: null, approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false }, rules: [] },
       diff: { policy: [{ field: 'amountBasis', before: 'GROSS', after: 'NET' }], added: [], removed: [], changed: [] },
       authority: [],
       boundaries: [{ documentType: 'PURCHASE_REQUEST', rows: [{ amount: baht('20000.00'), before: side, after: side, changed: false }] }],
@@ -294,7 +294,7 @@ describe('[FR-DOA-009/AC3] the same comparison on the approver’s decision page
   const dm = { kind: 'POSITION_OF_DEPARTMENT' as const, position: 'DM', positionNameTh: 'ผู้จัดการฝ่าย', positionNameEn: null }
   const side = { ruleCode: 'PR-01', approvers: [dm] }
   const compare: CompareView = {
-    baseline: { id: 'v1', code: 'DOA-DEMO', versionNo: 1, inEffectNow: false, effectiveFrom: '2025-12-31T17:00:00.000Z', policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: null, approverMayReceive: false, requesterMayReceive: true }, rules: [] },
+    baseline: { id: 'v1', code: 'DOA-DEMO', versionNo: 1, inEffectNow: false, effectiveFrom: '2025-12-31T17:00:00.000Z', policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: null, approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false }, rules: [] },
     diff: { policy: [{ field: 'amountBasis', before: 'GROSS', after: 'NET' }], added: [], removed: [], changed: [] },
     authority: [],
     boundaries: [{ documentType: 'PURCHASE_REQUEST', rows: [{ amount: baht('20000.00'), before: side, after: side, changed: false }] }],
@@ -371,7 +371,7 @@ const props: DoaEditorProps = {
   nextVersionNo: 2,
   defaultEffectiveDate: '2026-11-01',
   minEffectiveDate: '2026-10-05',
-  policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: baht('100000.00'), approverMayReceive: false, requesterMayReceive: true },
+  policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: baht('100000.00'), approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false },
   rules: table().map(({ code, documentType, band, steps }) => ({ code, documentType, band, steps })),
   positions: [
     { code: 'CEO', nameTh: 'ประธานเจ้าหน้าที่บริหาร', nameEn: null, scope: 'ORG' },

@@ -3,7 +3,8 @@ import { defineEvents } from '../registry'
 
 // Member events (spec §10.2 + additions recorded in §16.11). Data holds ids, codes and counts only —
 // free-text reasons live in Comment and are referenced by id (spec §4.5).
-const role = z.enum(['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'])
+// S6-09 added DOA_ADMIN (FR-ADM-101)
+const role = z.enum(['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN', 'DOA_ADMIN'])
 
 defineEvents('Member', {
   'member.invited': { schema: z.object({ invitationId: z.uuid(), roles: z.array(role), resent: z.boolean() }) },

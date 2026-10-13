@@ -29,6 +29,8 @@ export type LintCode =
   | 'DOA_LINT_AMOUNT_NOT_ALLOWED'
   | 'DOA_LINT_VACANT_POSITION'
   | 'DOA_LINT_MEMBER_APPROVER'
+  | 'DOA_LINT_NO_DOA_ADMIN'
+  | 'DOA_LINT_ADMIN_ROLES_COMBINED'
 
 export interface LintIssue {
   readonly code: LintCode
@@ -117,6 +119,11 @@ function badQuorum(step: DoaStepSpec): boolean {
 export interface LintOptions {
   /** The organisation's modules that are on; each may make more document types required (BR-DOA-23). None by default */
   readonly modules?: readonly string[]
+  /**
+   * S6-09 (BR-WF-17 · OQ-109): the version separates the DOA administrators from ORG_ADMIN (sodPolicy.doaAdminSeparated),
+   * with the members who hold the roles now. Left out when the version does not separate them
+   */
+  readonly doaAdmins?: { readonly active: number; readonly alsoOrgAdmin: number }
 }
 
 export function lintDoaVersion(version: DoaVersionSnapshot, org: OrgSnapshot, at: Date, options: LintOptions = {}): LintResult {
@@ -149,6 +156,11 @@ export function lintDoaVersion(version: DoaVersionSnapshot, org: OrgSnapshot, at
   for (const rule of version.rules) {
     if (rule.steps.some(badParallel)) errors.push({ code: 'DOA_LINT_PARALLEL_STEP', rule: rule.code })
     else if (rule.steps.some(badQuorum)) errors.push({ code: 'DOA_LINT_QUORUM_INVALID', rule: rule.code })
+  }
+  // BR-WF-17: once separated nobody but a DOA_ADMIN drafts the DOA, so one must be there, and nobody holds both roles
+  if (options.doaAdmins) {
+    if (options.doaAdmins.active === 0) errors.push({ code: 'DOA_LINT_NO_DOA_ADMIN' })
+    if (options.doaAdmins.alsoOrgAdmin > 0) errors.push({ code: 'DOA_LINT_ADMIN_ROLES_COMBINED' })
   }
 
   const warnings: LintIssue[] = []

@@ -14,7 +14,7 @@ import { parseDoaYaml } from '@/server/doa/yaml'
 import type { EventDraft } from '@/server/events/append'
 import { AiAssistInput, applyAiAssist } from '../ai/assist-contract'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { enabledModules } from '../modules'
+import { doaLintOptions } from './lint-options'
 import { startRoute } from '../approvals/route'
 import { cancelWithdrawalOnEffect } from '../policy-withdrawal'
 import { boundaryTableRequired } from './boundary'
@@ -142,7 +142,7 @@ export const submitDoaVersionCommand = defineCommand({
     // BR-DOA-08: the full lint against the organization as it will be on the effective date, with the modules that are
     // on (BR-DOA-23); the approval runs no lint again
     const version = versionSnapshotFromRows(row, row.rules)
-    const lint = lintDoaVersion(version, await loadOrgSnapshot(tx), row.effectiveFrom, { modules: await enabledModules(tx) })
+    const lint = lintDoaVersion(version, await loadOrgSnapshot(tx), row.effectiveFrom, await doaLintOptions(tx, row.sodPolicy))
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
     const unacknowledged = lint.warnings.map(warningKey).filter((k) => !input.acknowledgedWarnings.includes(k))
     if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })

@@ -59,7 +59,9 @@
     "DOA_LINT_PARALLEL_STEP": "Rule {rule}: a parallel step must be a committee of at least 2 positions",
     "DOA_LINT_AMOUNT_NOT_ALLOWED": "Rule {rule}: this document type has no amount, so it cannot have an amount band",
     "OTHER": "Check {code}",
-    "DOA_LINT_QUORUM_INVALID": "Rule {rule}: the committee votes needed must be from 1 to the number of members, and only for a count"
+    "DOA_LINT_QUORUM_INVALID": "Rule {rule}: the committee votes needed must be from 1 to the number of members, and only for a count",
+    "DOA_LINT_NO_DOA_ADMIN": "This version separates the DOA administrators but nobody active holds that role yet; give it to at least one member on the Members page first",
+    "DOA_LINT_ADMIN_ROLES_COMBINED": "This version separates the DOA administrators but someone holds both organization administrator and DOA administrator; take one of the roles away on the Members page first"
   },
   "import": {
     "title": "Import a new version from YAML",
@@ -219,7 +221,10 @@
       "on": "Yes",
       "off": "No",
       "none": "Not set",
-      "amount": "{amount} baht"
+      "amount": "{amount} baht",
+      "doaAdminSeparated": "DOA administrators separated from organization administrators",
+      "doaAdminTogether": "Not separated: organization administrators also draft the DOA and the parallel reviewers",
+      "doaAdminApart": "Separated: DOA administrators only, and nobody holds both roles"
     },
     "initial": {
       "title": "Send the organization’s initial package",

@@ -19,7 +19,7 @@ const rows = section
   .map((l) => l.split('|').map((c) => c.trim()))
   .map((cells) => ({ caps: [...cells[1]!.matchAll(/`([a-z][A-Za-z]*(?:\.[A-Za-z]+)+)`/g)].map((m) => m[1]!), grantees: cells[2]! }))
 
-const ROLE_RE = /(?<![A-Z_])(PROCUREMENT|FINANCE|BUDGET_ADMIN|RECEIVER|EXECUTIVE|AUDITOR|ORG_ADMIN|DEPT_HEAD|PLATFORM_ADMIN)(?![A-Z_])/g
+const ROLE_RE = /(?<![A-Z_])(PROCUREMENT|FINANCE|BUDGET_ADMIN|RECEIVER|EXECUTIVE|AUDITOR|ORG_ADMIN|DOA_ADMIN|DEPT_HEAD|PLATFORM_ADMIN)(?![A-Z_])/g
 const SCOPE_RE = /(?<![A-Z_])(OWN|ASSIGNED|DEPT|ORG)(?![A-Z_])/g
 // Phrases in §2.4 that mean "a member, by relation to the document" (requester, follower, assignee, delegator…)
 const MEMBER_PHRASES = ['ทุก member', 'ผู้ขอ', 'ผู้ติดตาม', 'ผู้ได้รับงาน', 'ผู้มอบ', 'ผู้ตรวจรับที่ได้รับมอบหมาย']

@@ -232,7 +232,8 @@
       "collapseDuplicateApprovers": "Merge steps with the same approver",
       "stepUpThreshold": "Amount from which the approver confirms identity again",
       "approverMayReceive": "The approver may receive the goods",
-      "requesterMayReceive": "The requester may receive the goods"
+      "requesterMayReceive": "The requester may receive the goods",
+      "doaAdminSeparated": "DOA administrators separated from organization administrators"
     },
     "doaValue": {
       "GROSS": "incl. VAT",

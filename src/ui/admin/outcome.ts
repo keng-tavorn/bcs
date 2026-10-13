@@ -87,6 +87,8 @@ export const MEMBER_ERROR_KEYS = [
   'SELF_GRANT',
   'SHARED_IDENTITY',
   'LAST_ORG_ADMIN',
+  'LAST_DOA_ADMIN',
+  'ADMIN_ROLES_COMBINED',
   'ALREADY_GRANTED',
   'ALREADY_MEMBER',
   'SELF',
@@ -109,7 +111,7 @@ export const MEMBER_ERROR_KEYS = [
 ] as const
 export type MemberErrorKey = (typeof MEMBER_ERROR_KEYS)[number]
 
-const REASON_KEYS: readonly MemberErrorKey[] = ['SELF_GRANT', 'SHARED_IDENTITY', 'LAST_ORG_ADMIN', 'ALREADY_GRANTED', 'ALREADY_MEMBER', 'SELF', 'FILE_MISSING', 'FILE_TOO_LARGE']
+const REASON_KEYS: readonly MemberErrorKey[] = ['SELF_GRANT', 'SHARED_IDENTITY', 'LAST_ORG_ADMIN', 'LAST_DOA_ADMIN', 'ADMIN_ROLES_COMBINED', 'ALREADY_GRANTED', 'ALREADY_MEMBER', 'SELF', 'FILE_MISSING', 'FILE_TOO_LARGE']
 
 /** Message key under admin.members.errors for a failed member action. */
 export function memberErrorKey(failure: AdminFailure): MemberErrorKey {

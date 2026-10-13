@@ -232,7 +232,8 @@
       "collapseDuplicateApprovers": "รวมขั้นที่ผู้อนุมัติซ้ำกัน",
       "stepUpThreshold": "ยอดที่ผู้อนุมัติต้องยืนยันตัวตนอีกครั้ง",
       "approverMayReceive": "ผู้อนุมัติตรวจรับของเองได้",
-      "requesterMayReceive": "ผู้ขอตรวจรับของเองได้"
+      "requesterMayReceive": "ผู้ขอตรวจรับของเองได้",
+      "doaAdminSeparated": "แยกผู้ดูแลผังอำนาจจากผู้ดูแลองค์กร"
     },
     "doaValue": {
       "GROSS": "รวม VAT",

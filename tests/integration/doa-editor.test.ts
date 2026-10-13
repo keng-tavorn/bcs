@@ -77,7 +77,7 @@ describe('[FR-DOA-001/AC1] a draft starts from a copy of the latest version and 
     // The first day of next month, and never before tomorrow (Thai calendar)
     expect(view.defaultEffectiveDate).toBe('2026-11-01')
     expect(view.minEffectiveDate).toBe('2026-10-06')
-    expect(view.policy).toEqual({ amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: baht('100000.00'), approverMayReceive: false, requesterMayReceive: true })
+    expect(view.policy).toEqual({ amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: baht('100000.00'), approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false })
     expect(view.rules.map((r) => r.code)).toEqual(['PR-01', 'PR-02', 'PR-03', 'PO-01', 'PO-02', 'GRV-01', 'DOA-CHG-01', 'ORG-CHG-01'])
     expect(view.rules[0]).toEqual({ code: 'PR-01', documentType: 'PURCHASE_REQUEST', band: { lowerKind: 'gt', lower: '0', upper: baht('20000.00') }, steps: [{ approver: { kind: 'POSITION_OF_DEPARTMENT', position: 'DM' }, slaMinutes: 480 }] })
     expect(view.rules.find((r) => r.code === 'GRV-01')!.band).toBeNull()

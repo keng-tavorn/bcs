@@ -131,3 +131,26 @@ export async function effectiveSodPolicy(tx: TenantTx, now: Date): Promise<SodPo
   })
   return (version?.sodPolicy as unknown as SodPolicy | undefined) ?? { approverMayReceive: false, requesterMayReceive: true }
 }
+
+/**
+ * S6-09 (BR-WF-17 · OQ-109): whether the DOA administrators are separated from ORG_ADMIN — by the version in effect at
+ * `now`, or, with `scheduled`, also by a published version that takes effect later (a role given now must not leave
+ * someone holding both roles on that day).
+ */
+export async function doaAdminSeparated(tx: TenantTx, now: Date, options: { readonly scheduled?: boolean } = {}): Promise<boolean> {
+  if ((await effectiveSodPolicy(tx, now)).doaAdminSeparated === true) return true
+  if (!options.scheduled) return false
+  const later = await tx.doaVersion.findFirst({ where: { status: 'PUBLISHED', effectiveFrom: { gt: now }, sodPolicy: { path: ['doaAdminSeparated'], equals: true } }, select: { id: true } })
+  return later !== null
+}
+
+/** The active members holding DOA_ADMIN now, and how many of them hold ORG_ADMIN too (the lint of BR-WF-17) */
+export async function doaAdminFacts(tx: TenantTx): Promise<{ active: number; alsoOrgAdmin: number }> {
+  const held = await tx.roleAssignment.findMany({ where: { role: { in: ['DOA_ADMIN', 'ORG_ADMIN'] }, revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true, role: true } })
+  const doaAdmins = new Set(held.filter((r) => r.role === 'DOA_ADMIN').map((r) => r.memberId))
+  const orgAdmins = new Set(held.filter((r) => r.role === 'ORG_ADMIN').map((r) => r.memberId))
+  return { active: doaAdmins.size, alsoOrgAdmin: [...doaAdmins].filter((m) => orgAdmins.has(m)).length }
+}
+
+/** sodPolicy.doaAdminSeparated of a stored version (a version stored without the key = false) */
+export const separatesDoaAdmins = (sodPolicy: unknown): boolean => (sodPolicy as { doaAdminSeparated?: unknown } | null)?.doaAdminSeparated === true

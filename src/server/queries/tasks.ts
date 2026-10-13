@@ -417,7 +417,7 @@ export interface DoaVersionContentDto {
   readonly selfApprovalPolicy: 'ESCALATE_NEXT_BAND' | 'BLOCK'
   readonly collapseDuplicateApprovers: boolean
   readonly stepUpThresholdSatang: bigint | null
-  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean }
+  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean; readonly doaAdminSeparated?: boolean }
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
@@ -614,7 +614,7 @@ const StoredRule = z.object({
   // One approver or a committee (S6 · FR-WF-102), as src/server/doa/snapshot.ts reads them (queries do not import it)
   steps: z.array(z.union([z.object({ approver: StoredApprover, slaBusinessMinutes: SlaMinutes, mode: z.enum(['SEQUENTIAL', 'PARALLEL']) }), StoredCommittee])).min(1),
 })
-const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() })
+const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean(), doaAdminSeparated: z.boolean().optional() })
 
 /** A version's policy and rules in the order they were written; null when the version or one of its rules cannot be read */
 async function doaContentOf(db: TenantDb, versionId: string): Promise<DoaVersionContentDto | null> {

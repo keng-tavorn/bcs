@@ -26,7 +26,7 @@ import { doaVersionDataFromRows, type DoaVersionData } from '@/server/doa/yaml'
 import { getDoaVersionRow, listDoaVersions } from '@/server/queries/doa'
 import { listMembers, listPositions } from '@/server/queries/org'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { enabledModules } from '../modules'
+import { doaLintOptions } from './lint-options'
 import { stepKey } from './compare'
 import { THAI_DATE, effectiveDates, thaiDateStart } from './dates'
 import { diffVersions } from './diff'
@@ -101,6 +101,8 @@ export interface EditorPolicy {
   readonly stepUpThreshold: string | null
   readonly approverMayReceive: boolean
   readonly requesterMayReceive: boolean
+  /** S6-09 (BR-WF-17): only DOA_ADMIN drafts the DOA and the workflow once this version is in effect */
+  readonly doaAdminSeparated: boolean
 }
 
 export interface DoaEditorView {
@@ -137,6 +139,7 @@ export function editorPolicy(data: DoaVersionData): EditorPolicy {
     stepUpThreshold: data.stepUpThresholdSatang === null ? null : data.stepUpThresholdSatang.toString(),
     approverMayReceive: data.sodPolicy.approverMayReceive,
     requesterMayReceive: data.sodPolicy.requesterMayReceive,
+    doaAdminSeparated: data.sodPolicy.doaAdminSeparated === true,
   }
 }
 
@@ -213,6 +216,7 @@ const PolicyInput = z.strictObject({
   stepUpThreshold: SatangText.nullable(),
   approverMayReceive: z.boolean(),
   requesterMayReceive: z.boolean(),
+  doaAdminSeparated: z.boolean().default(false),
 })
 
 export const DraftCopyInput = z.strictObject({
@@ -346,12 +350,16 @@ export const draftDoaCopyCommand = defineCommand({
       collapseDuplicateApprovers: input.policy.collapseDuplicateApprovers,
       rules,
     }
-    const lint = lintDoaVersion(snapshot, await loadOrgSnapshot(tx), effectiveFrom, { modules: await enabledModules(tx) })
+    const sod = {
+      approverMayReceive: input.policy.approverMayReceive,
+      requesterMayReceive: input.policy.requesterMayReceive,
+      ...(input.policy.doaAdminSeparated ? { doaAdminSeparated: true } : {}),
+    }
+    const lint = lintDoaVersion(snapshot, await loadOrgSnapshot(tx), effectiveFrom, await doaLintOptions(tx, sod))
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
 
     const last = await tx.doaVersion.aggregate({ where: { code: source.code }, _max: { versionNo: true } })
     const versionNo = (last._max.versionNo ?? 0) + 1
-    const sod = { approverMayReceive: input.policy.approverMayReceive, requesterMayReceive: input.policy.requesterMayReceive }
     const stepUpThresholdSatang = input.policy.stepUpThreshold === null ? null : BigInt(input.policy.stepUpThreshold)
     // What changed from the version it was copied from, kept with the draft (FR-DOA-001 AC3 history)
     const sourceData = doaVersionDataFromRows(source, source.rules)

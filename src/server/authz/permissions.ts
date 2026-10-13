@@ -5,10 +5,12 @@
 // FROZEN after S1-08: changing this file is a permission change and needs the user's approval. S16-06 (spec §16.12, approved
 // with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
+// S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
+// in P1-06 (OQ-109, docs/reports/p1-decisions.md §20).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
-export const STORED_ROLES = ['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'] as const
+export const STORED_ROLES = ['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN', 'DOA_ADMIN'] as const
 export type StoredRole = (typeof STORED_ROLES)[number]
 
 export const SCOPES = ['OWN', 'ASSIGNED', 'DEPT', 'ORG'] as const
@@ -57,6 +59,8 @@ const platformAdmin = (condition: Condition): Grant => ({ grantee: { kind: 'PLAT
 
 const PROCUREMENT_ONLY = [role('PROCUREMENT', 'ORG')]
 const ORG_ADMIN_ONLY = [role('ORG_ADMIN', 'ORG')]
+/** S6-09 (BR-WF-16): the DOA and the workflow are drafted by ORG_ADMIN and DOA_ADMIN — ORG_ADMIN only until separated */
+const DOA_ADMINS = roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG')
 const SELF = [anyMember('OWN')]
 /** request.view (§2.4). OWN of a request is the requester and its followers here; for the commands that change the
  *  request (request.create on a draft, request.submit, request.cancel, request.followers.manage) the services pass
@@ -119,13 +123,13 @@ export const PERMISSIONS = {
   'admin.modules.view': ORG_ADMIN_ONLY,
   'platform.modules.manage': [platformAdmin('CONTRACT_REF_AND_REASON')],
   'admin.orgAuthority.propose': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_ORG_AUTHORITY_CHANGE')],
-  'admin.doa.draft': ORG_ADMIN_ONLY,
-  'admin.doa.simulate': ORG_ADMIN_ONLY,
-  'admin.doa.submitForPublish': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_DOA_CHANGE')],
+  'admin.doa.draft': DOA_ADMINS,
+  'admin.doa.simulate': DOA_ADMINS,
+  'admin.doa.submitForPublish': roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG', 'APPROVED_BY_DOA_CHANGE'),
   // S6 (FR-WF-103, BR-WF-12): the parallel reviewers, published through the DOA_CHANGE rule with a step-up every time
-  'admin.workflow.draft': ORG_ADMIN_ONLY,
-  'admin.workflow.simulate': ORG_ADMIN_ONLY,
-  'admin.workflow.submitForPublish': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_DOA_CHANGE')],
+  'admin.workflow.draft': DOA_ADMINS,
+  'admin.workflow.simulate': DOA_ADMINS,
+  'admin.workflow.submitForPublish': roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG', 'APPROVED_BY_DOA_CHANGE'),
   'admin.policyHistory.view': roles(['AUDITOR', 'ORG_ADMIN'], 'ORG'),
   'admin.policyHistory.export': roles(['AUDITOR', 'ORG_ADMIN'], 'ORG'),
   // Self-service
@@ -145,3 +149,9 @@ export const PERMISSIONS = {
 
 export type Capability = keyof typeof PERMISSIONS
 export const CAPABILITIES = Object.keys(PERMISSIONS) as Capability[]
+
+/**
+ * S6-09 (BR-WF-17 · OQ-109): what ORG_ADMIN no longer gets once the DOA version in effect separates the DOA
+ * administrators (sodPolicy.doaAdminSeparated); DOA_ADMIN keeps them. The table above stays the same (OQ-34).
+ */
+export const DOA_ADMIN_SEPARABLE: ReadonlySet<Capability> = new Set(CAPABILITIES.filter((c) => c.startsWith('admin.doa.') || c.startsWith('admin.workflow.')))

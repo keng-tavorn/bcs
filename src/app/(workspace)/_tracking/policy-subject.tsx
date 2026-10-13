@@ -152,7 +152,7 @@ function doaWords(t: TasksT, locale: Locale, names: { positions: ReadonlyMap<str
   return { documentType, band, step, policyValue, ruleField }
 }
 
-const POLICY_ORDER: readonly PolicyField[] = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive']
+const POLICY_ORDER: readonly PolicyField[] = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive', 'doaAdminSeparated']
 
 function policyValues(c: DoaVersionContentDto): Record<PolicyField, PolicyValue> {
   return {
@@ -162,6 +162,7 @@ function policyValues(c: DoaVersionContentDto): Record<PolicyField, PolicyValue>
     stepUpThreshold: c.stepUpThresholdSatang === null ? null : c.stepUpThresholdSatang.toString(),
     approverMayReceive: c.sodPolicy.approverMayReceive,
     requesterMayReceive: c.sodPolicy.requesterMayReceive,
+    doaAdminSeparated: c.sodPolicy.doaAdminSeparated === true,
   }
 }
 

@@ -304,9 +304,11 @@ export interface PolicyState {
   readonly stepUpThreshold: string
   readonly approverMayReceive: boolean
   readonly requesterMayReceive: boolean
+  /** S6-09 (BR-WF-17): only DOA_ADMIN drafts the DOA and the workflow once the version is in effect */
+  readonly doaAdminSeparated: boolean
 }
 
-export const POLICY_KEYS = ['amountBasis', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive', 'selfApprovalPolicy', 'collapseDuplicateApprovers'] as const
+export const POLICY_KEYS = ['amountBasis', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'doaAdminSeparated'] as const
 export type PolicyKey = (typeof POLICY_KEYS)[number]
 
 /** Policies whose value differs from the source's (the step-up amount compared in satang) */
@@ -326,6 +328,7 @@ export interface DraftInput {
     stepUpThreshold: string | null
     approverMayReceive: boolean
     requesterMayReceive: boolean
+    doaAdminSeparated: boolean
   }
   rules: Array<{
     code: string
@@ -349,6 +352,7 @@ export function draftInput(sourceVersionId: string, rules: readonly RuleState[],
       stepUpThreshold: stepUp,
       approverMayReceive: policy.approverMayReceive,
       requesterMayReceive: policy.requesterMayReceive,
+      doaAdminSeparated: policy.doaAdminSeparated,
     },
     rules: rules.map((r) => ({
       code: r.code,

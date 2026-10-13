@@ -30,6 +30,10 @@ export function LintIssueText({ issue }: { issue: IssueView }) {
     case 'DOA_LINT_QUORUM_INVALID':
       text = t(`lint.${issue.code}`, { rule: issue.rule ?? '' })
       break
+    case 'DOA_LINT_NO_DOA_ADMIN':
+    case 'DOA_LINT_ADMIN_ROLES_COMBINED':
+      text = t(`lint.${issue.code}`)
+      break
     default:
       text = t('lint.OTHER', { code: issue.code })
   }

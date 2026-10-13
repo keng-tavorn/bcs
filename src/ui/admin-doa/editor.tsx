@@ -71,6 +71,7 @@ export interface EditorPolicyInput {
   readonly stepUpThreshold: string | null
   readonly approverMayReceive: boolean
   readonly requesterMayReceive: boolean
+  readonly doaAdminSeparated: boolean
 }
 
 export interface DoaEditorProps {
@@ -624,6 +625,7 @@ export function DoaEditor(props: DoaEditorProps) {
             policy.selfApprovalPolicy,
             (v) => setP('selfApprovalPolicy', v),
           )}
+          {radios('doaAdminSeparated', [{ value: false, label: tDetail('policy.doaAdminTogether') }, { value: true, label: tDetail('policy.doaAdminApart') }], policy.doaAdminSeparated, (v) => setP('doaAdminSeparated', v))}
           {radios('collapseDuplicateApprovers', [{ value: true, label: tDetail('policy.on') }, { value: false, label: tDetail('policy.off') }], policy.collapseDuplicateApprovers, (v) => setP('collapseDuplicateApprovers', v))}
         </div>
         <div className="flex flex-wrap gap-3">

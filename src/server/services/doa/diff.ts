@@ -6,7 +6,7 @@ import { stepKey } from './compare'
 // before it). Rules are matched by code; a rule is changed when its document type, priority, amount band, approvers or
 // SLA differ. Policies are the version-wide settings (BR-DOA-11, BR-SOD-02, OQ-04, OQ-07). Pure: rows in, data out.
 
-export const POLICY_FIELDS = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive'] as const
+export const POLICY_FIELDS = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive', 'doaAdminSeparated'] as const
 export type PolicyField = (typeof POLICY_FIELDS)[number]
 export type PolicyValue = string | boolean | null
 
@@ -31,6 +31,7 @@ export function policyValues(v: DoaVersionData): Record<PolicyField, PolicyValue
     stepUpThreshold: v.stepUpThresholdSatang === null ? null : v.stepUpThresholdSatang.toString(),
     approverMayReceive: v.sodPolicy.approverMayReceive,
     requesterMayReceive: v.sodPolicy.requesterMayReceive,
+    doaAdminSeparated: v.sodPolicy.doaAdminSeparated === true,
   }
 }
 

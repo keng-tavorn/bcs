@@ -61,7 +61,7 @@ describe('[FR-WF-102/AC3] the editor row of a committee', () => {
   })
 
   it('sends the committee to the server action as the service reads it', () => {
-    const policy: PolicyState = { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: '100,000.00', approverMayReceive: false, requesterMayReceive: true }
+    const policy: PolicyState = { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: '100,000.00', approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false }
     const input = draftInput('00000000-0000-7000-8000-000000000000', rules(), policy, '2026-11-01', 'เพิ่มคณะกรรมการ')
     expect('rules' in input && input.rules[1]!.steps).toEqual([{ approver: PC(1), slaMinutes: 960, committee: { approvers: [PC(1), PC(2), PC(3)], quorum: 'MAJORITY', quorumCount: null } }])
     expect('rules' in input && input.rules[0]!.steps).toEqual([{ approver: DM, slaMinutes: 480 }])
@@ -76,7 +76,7 @@ describe('[FR-WF-102/AC3] the editor table says a committee in words, in Thai an
     nextVersionNo: 2,
     defaultEffectiveDate: '2026-11-01',
     minEffectiveDate: '2026-10-14',
-    policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: '10000000', approverMayReceive: false, requesterMayReceive: true },
+    policy: { amountBasis: 'GROSS', selfApprovalPolicy: 'ESCALATE_NEXT_BAND', collapseDuplicateApprovers: true, stepUpThreshold: '10000000', approverMayReceive: false, requesterMayReceive: true, doaAdminSeparated: false },
     rules: rules().map(({ key: _key, isNew: _isNew, ...r }) => r),
     positions: [...[1, 2, 3].map((n) => ({ code: `PC${n}`, nameTh: `กรรมการ ${n}`, nameEn: `Member ${n}`, scope: 'ORG' as const })), { code: 'DM', nameTh: 'ผู้จัดการฝ่าย', nameEn: 'Department manager', scope: 'DEPARTMENT' as const }],
     members: [],

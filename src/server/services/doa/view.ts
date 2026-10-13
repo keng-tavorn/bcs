@@ -24,7 +24,7 @@ import {
 import { listCurrentHolders, listDepartments, listMembers, listPositions, type MemberOptionRow, type RouteRow } from '@/server/queries/org'
 import { treeOrder } from '../org-structure/tree'
 import { amountBasisChange, authorityChanges, boundaryComparison, type AuthorityChangeKind, type BoundaryCompareTable, type BoundarySide } from './compare'
-import { enabledModules } from '../modules'
+import { doaLintOptions } from './lint-options'
 import { diffVersions, policyValues, type PolicyField, type PolicyValue, type VersionDiff } from './diff'
 import { INITIAL_PACKAGE_RULE } from './initial-package'
 import { issueView, warningKey } from './lint-view'
@@ -445,7 +445,7 @@ async function submitView(ctx: Ctx, row: DoaVersionFullRow, members: readonly Me
 
     // The full lint against the organization as it will be on the effective date (BR-DOA-08), as the submit runs it
     const org = await loadOrgSnapshot(tx)
-    const lint = lintDoaVersion(snapshot, org, row.effectiveFrom, { modules: await enabledModules(tx) })
+    const lint = lintDoaVersion(snapshot, org, row.effectiveFrom, await doaLintOptions(tx, row.sodPolicy))
     const later = await tx.doaVersion.findFirst({
       where: { code: row.code, status: 'PUBLISHED', id: { not: row.id }, effectiveFrom: { gte: row.effectiveFrom } },
       select: { versionNo: true },

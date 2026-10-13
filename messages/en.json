@@ -65,6 +65,7 @@
       "downloadTemplate": "Download the Excel template",
       "email": "Work e-mail",
       "errors": {
+        "ADMIN_ROLES_COMBINED": "The DOA separates its administrators from the organization administrators; nobody can hold both roles.",
         "ALREADY_GRANTED": "The member already has this role.",
         "ALREADY_MEMBER": "This e-mail is already a member.",
         "BUSY": "Another change to this member is being saved. Try again in a moment.",
@@ -77,6 +78,7 @@
         "FORBIDDEN": "You are not allowed to do this.",
         "INPUT": "Some fields are missing or wrong. Check them and try again.",
         "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps happening, give this reference to the BCS team.",
+        "LAST_DOA_ADMIN": "The DOA separates its administrators, so it needs at least one DOA administrator. Give the role to someone else first.",
         "LAST_ORG_ADMIN": "The organization needs at least one admin. Add a new admin first.",
         "NAME": "Enter the display name (Thai).",
         "NOT_FOUND": "This member is not in the organization. Reload the page and try again.",
@@ -194,6 +196,7 @@
     "roles": {
       "AUDITOR": "Auditor",
       "BUDGET_ADMIN": "Budget admin",
+      "DOA_ADMIN": "DOA administrator",
       "EXECUTIVE": "Executive",
       "FINANCE": "Finance",
       "ORG_ADMIN": "Organization admin",
@@ -344,6 +347,9 @@
         "amountBasis": "Amount basis",
         "approverMayReceive": "The approver may receive the goods",
         "collapseDuplicateApprovers": "Merge steps with the same approver",
+        "doaAdminApart": "Separated: DOA administrators only, and nobody holds both roles",
+        "doaAdminSeparated": "DOA administrators separated from organization administrators",
+        "doaAdminTogether": "Not separated: organization administrators also draft the DOA and the parallel reviewers",
         "no": "No",
         "none": "Not set",
         "off": "No",
@@ -587,9 +593,11 @@
     "initialNotice": "The organization has no DOA in effect yet. Import the first version and send it as the initial package, with the holders of its positions, for the contract signatory to approve.",
     "intro": "The DOA decides who approves which documents up to which amount. A published version never changes: a change is a new draft, edited on this screen or imported, and approved by the authority under the DOA, never by the person who sends it.",
     "lint": {
+      "DOA_LINT_ADMIN_ROLES_COMBINED": "This version separates the DOA administrators but someone holds both organization administrator and DOA administrator; take one of the roles away on the Members page first",
       "DOA_LINT_AMOUNT_NOT_ALLOWED": "Rule {rule}: this document type has no amount, so it cannot have an amount band",
       "DOA_LINT_GAP": "{documentType}: no rule covers amounts {band}",
       "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule, an authority-change rule and a rule for every document type a module that is on requires.",
+      "DOA_LINT_NO_DOA_ADMIN": "This version separates the DOA administrators but nobody active holds that role yet; give it to at least one member on the Members page first",
       "DOA_LINT_OVERLAP": "{documentType}: amounts {band} fall under more than one rule",
       "DOA_LINT_PARALLEL_STEP": "Rule {rule}: a parallel step must be a committee of at least 2 positions",
       "DOA_LINT_QUORUM_INVALID": "Rule {rule}: the committee votes needed must be from 1 to the number of members, and only for a count",
@@ -7140,6 +7148,7 @@
         "amountBasis": "Amount basis",
         "approverMayReceive": "The approver may receive the goods",
         "collapseDuplicateApprovers": "Merge steps with the same approver",
+        "doaAdminSeparated": "DOA administrators separated from organization administrators",
         "requesterMayReceive": "The requester may receive the goods",
         "selfApprovalPolicy": "When the approver is the requester",
         "stepUpThreshold": "Amount from which the approver confirms identity again"

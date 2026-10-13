@@ -112,6 +112,11 @@ defineEvents('PurchaseOrder', {
   'po.revision_sent': { schema: z.object({ revisionNo: z.number().int().min(1), poChangeId: z.uuid(), pdfFileId: z.uuid() }) },
 })
 
+// S8-11 (FR-AP-108): the organization's account codes
+defineEvents('AccountCode', {
+  'account_code.updated': { schema: z.object({ code: z.string().min(1), type: z.enum(['COST', 'EXPENSE', 'ASSET', 'LIABILITY']), active: z.boolean() }) },
+})
+
 // The invoice inbox (ADR-123, BR-AP-02): what came in, never the body; skipped files are named with the reason
 const skipped = z.array(z.object({ fileName: z.string(), reason: z.enum(['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'OVER_LIMIT']) }))
 defineEvents('InboundEmail', {

@@ -1261,6 +1261,7 @@
       "unknown": "Member without a name"
     },
     "aggregate": {
+      "AccountCode": "Account code",
       "AgentAction": "AI assistant call",
       "AiAgentSetting": "AI assistant setting",
       "AiCredit": "AI credits",
@@ -1326,6 +1327,9 @@
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
+      "account_code": {
+        "updated": "Account code changed"
+      },
       "agent_action": {
         "accepted": "AI values all confirmed",
         "applied": "AI values taken into a document",
@@ -1586,6 +1590,7 @@
     },
     "forbidden": "The audit trail is open to auditors and organization admins only. If you need something from it, contact your organization's auditor.",
     "groups": {
+      "account_code": "Account codes",
       "agent_action": "AI assistant",
       "ai_agent": "AI assistant settings",
       "ai_credit": "AI credits",

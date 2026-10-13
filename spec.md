@@ -398,6 +398,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `po.change` | PROCUREMENT (ORG) — ร่าง ส่ง ยกเลิกใบแก้ไข PO และส่งฉบับแก้ไขถึงผู้ขาย (โมดูล CORE · ต้องมีข้อ `PO_CHANGE` ใน DOA ตาม BR-POC-05) |
 | `retention.release` | FINANCE (ORG) — คืนเงินประกันผลงานตั้งแต่วันครบกำหนด (BR-RET-04) · แบ่งงวดและตั้งเงินประกันของ PO ร่างใช้ `po.edit` เดิม (`po.setMilestones` `po.setRetention`) |
 | `supplier.taxProfile.manage` | FINANCE (ORG) — ประเภทผู้รับเงินและประเภทเงินได้ตั้งต้นของผู้ขาย |
+| `accountCode.manage` | FINANCE (ORG) — เพิ่มและแก้รหัสบัญชีขององค์กร (เลิกใช้ด้วย active ไม่ลบ · FR-AP-108) |
 | `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
@@ -2380,6 +2381,12 @@ cases:
   - { id: GC-AP-03, fn: dueDate, title: PO ไม่มีเครดิต ใช้ของผู้ขาย, input: { invoiceDate: "2026-10-30", poTermDays: null, supplierTermDays: 15, defaultTermDays: 30 }, expect: { dueDate: "2026-11-14" } }
   - { id: GC-AP-04, fn: dueDate, title: ไม่มีทั้งสองใช้ค่าตั้งต้น, input: { invoiceDate: "2027-01-30", poTermDays: null, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
   - { id: GC-AP-05, fn: dueDate, title: เครดิต 0 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 0, supplierTermDays: 30, defaultTermDays: 30 }, expect: { dueDate: "2026-10-30" } }
+  - { id: GC-AP-06, fn: suggestCoding, title: ใช้รหัสที่ใช้บ่อยสุดในประวัติ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: SAFETY, budgetLine: { accountCode: "530101", costCenter: CC-QSE }, history: [{ taxId: TAX-A, categoryCode: SAFETY, accountCode: "530601", invoiceDate: "2026-09-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530601", invoiceDate: "2026-08-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530601", invoiceDate: "2026-07-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530101", invoiceDate: "2026-10-01" }] }, expect: { accountCode: "530601", source: HISTORY, count: 3, costCenter: CC-QSE } }
+  - { id: GC-AP-07, fn: suggestCoding, title: เท่ากันใช้ครั้งล่าสุด, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: SAFETY, budgetLine: { accountCode: "530101", costCenter: CC-QSE }, history: [{ taxId: TAX-A, categoryCode: SAFETY, accountCode: "530101", invoiceDate: "2026-06-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530101", invoiceDate: "2026-03-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530201", invoiceDate: "2026-09-20" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530201", invoiceDate: "2025-12-20" }] }, expect: { accountCode: "530201", source: HISTORY, count: 2, costCenter: CC-QSE } }
+  - { id: GC-AP-08, fn: suggestCoding, title: ย้อนหลัง 365 วันพอดียังนับ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: LAB, budgetLine: { accountCode: "510101", costCenter: CC-P05 }, history: [{ taxId: TAX-A, categoryCode: LAB, accountCode: "530301", invoiceDate: "2025-10-11" }] }, expect: { accountCode: "530301", source: HISTORY, count: 1, costCenter: CC-P05 } }
+  - { id: GC-AP-09, fn: suggestCoding, title: 366 วันไม่นับ ใช้รหัสของบรรทัดงบ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: LAB, budgetLine: { accountCode: "510101", costCenter: CC-P05 }, history: [{ taxId: TAX-A, categoryCode: LAB, accountCode: "530301", invoiceDate: "2025-10-10" }] }, expect: { accountCode: "510101", source: BUDGET_LINE, count: 0, costCenter: CC-P05 } }
+  - { id: GC-AP-10, fn: suggestCoding, title: ผู้ขายอื่นหรือหมวดอื่นไม่นับ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: MAT, budgetLine: { accountCode: "510101", costCenter: CC-P01 }, history: [{ taxId: TAX-B, categoryCode: MAT, accountCode: "530201", invoiceDate: "2026-10-01" }, { taxId: TAX-A, categoryCode: STEEL, accountCode: "530201", invoiceDate: "2026-10-01" }] }, expect: { accountCode: "510101", source: BUDGET_LINE, count: 0, costCenter: CC-P01 } }
+  - { id: GC-AP-11, fn: suggestCoding, title: ไม่มีประวัติและบรรทัดงบไม่มีรหัส, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: MAT, budgetLine: { accountCode: null, costCenter: CC-P01 }, history: [] }, expect: { accountCode: null, source: NONE, count: 0, costCenter: CC-P01 } }
 ```
 
 งวดงานและเงินประกันผลงาน (BR-RET-01 BR-RET-03 BR-WHT-05 · engine `src/core/retention` · S8-09):
@@ -3751,6 +3758,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` `invoice.rechecked` `invoice.reopened` `invoice.rejected` `invoice.variance_submitted` `invoice.variance_approved` `invoice.variance_rejected` `match_exception.dismissed` `invoice.payment_held` `invoice.payment_released` `invoice.paid` (สามตัวท้ายมาจากคำสั่งของ S9 ผ่าน src/server/services/ap/payment.ts) |
 | po_change · po (S8-10) | `po_change.drafted` `po_change.submitted` `po_change.approved` `po_change.rejected` `po_change.returned` `po_change.cancelled` `po.revised` `po.revision_sent` |
 | retention · po (S8-09) | `retention.held` `retention.released` `retention.release_due` `retention.payment_held` `retention.payment_released` `retention.paid` `po.milestones_set` `po.retention_set` |
+| account_code (S8-11) | `account_code.updated` |
 | ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
 | inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
@@ -4114,7 +4122,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       27 ไฟล์ · 274 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       27 ไฟล์ · 280 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

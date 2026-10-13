@@ -1261,6 +1261,7 @@
       "unknown": "สมาชิกที่ไม่พบชื่อ"
     },
     "aggregate": {
+      "AccountCode": "รหัสบัญชี",
       "AgentAction": "งานของผู้ช่วย AI",
       "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
       "AiCredit": "credits ของ AI",
@@ -1326,6 +1327,9 @@
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
+      "account_code": {
+        "updated": "แก้รหัสบัญชี"
+      },
       "agent_action": {
         "accepted": "ยืนยันค่าจาก AI ครบ",
         "applied": "นำค่าจาก AI เข้าเอกสาร",
@@ -1586,6 +1590,7 @@
     },
     "forbidden": "หน้าบันทึกการตรวจสอบเปิดได้เฉพาะผู้ตรวจสอบและผู้ดูแลองค์กร ถ้าต้องการข้อมูลจากบันทึก ติดต่อผู้ตรวจสอบขององค์กร",
     "groups": {
+      "account_code": "รหัสบัญชี",
       "agent_action": "ผู้ช่วย AI",
       "ai_agent": "ตั้งค่าผู้ช่วย AI",
       "ai_credit": "credits ของ AI",

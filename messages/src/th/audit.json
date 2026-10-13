@@ -89,6 +89,7 @@
     "newest": "กลับไปรายการล่าสุด"
   },
   "groups": {
+    "account_code": "รหัสบัญชี",
     "agent_action": "ผู้ช่วย AI",
     "ai_agent": "ตั้งค่าผู้ช่วย AI",
     "ai_credit": "credits ของ AI",
@@ -132,6 +133,7 @@
     "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
   },
   "aggregate": {
+    "AccountCode": "รหัสบัญชี",
     "AgentAction": "งานของผู้ช่วย AI",
     "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
     "AiCredit": "credits ของ AI",
@@ -172,6 +174,9 @@
     "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
   },
   "events": {
+    "account_code": {
+      "updated": "แก้รหัสบัญชี"
+    },
     "agent_action": {
       "requested": "เรียกผู้ช่วย AI",
       "drafted": "ผู้ช่วย AI ร่างผลแล้ว",

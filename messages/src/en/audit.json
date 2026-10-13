@@ -89,6 +89,7 @@
     "newest": "Back to the latest events"
   },
   "groups": {
+    "account_code": "Account codes",
     "agent_action": "AI assistant",
     "ai_agent": "AI assistant settings",
     "ai_credit": "AI credits",
@@ -132,6 +133,7 @@
     "withholding_tax": "Withholding tax"
   },
   "aggregate": {
+    "AccountCode": "Account code",
     "AgentAction": "AI assistant call",
     "AiAgentSetting": "AI assistant setting",
     "AiCredit": "AI credits",
@@ -172,6 +174,9 @@
     "WithholdingTax": "Withholding tax"
   },
   "events": {
+    "account_code": {
+      "updated": "Account code changed"
+    },
     "agent_action": {
       "requested": "AI assistant called",
       "drafted": "AI assistant drafted a result",

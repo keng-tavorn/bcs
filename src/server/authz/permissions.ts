@@ -100,6 +100,8 @@ export const PERMISSIONS = {
   'invoice.exception.resolve': [...roles(['FINANCE', 'PROCUREMENT'], 'ORG'), role('RECEIVER', 'DEPT'), role('RECEIVER', 'ASSIGNED')],
   'invoice.variance.request': [role('PROCUREMENT', 'ORG')],
   'invoice.inbox.manage': [role('FINANCE', 'ORG')],
+  // S8-11 (FR-AP-108): the organization's account codes
+  'accountCode.manage': [role('FINANCE', 'ORG')],
   // S8-08 withholding tax (BR-WHT-03 to BR-WHT-09): the full national id of an individual payee needs wht.revealTaxId
   'wht.view': roles(['FINANCE', 'AUDITOR'], 'ORG'),
   'wht.revealTaxId': [role('FINANCE', 'ORG')],

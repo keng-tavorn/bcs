@@ -20,6 +20,7 @@ import { readyNotice } from './exceptions'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
 import { claimTrack } from './track'
 import { checkIncomeTypes, defaultIncomeType } from './wht'
+import { suggestionsFor } from './coding'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
 import type { EtaxContentReading } from '../invoices/etax'
 
@@ -327,7 +328,9 @@ export const confirmCodingCommand = defineCommand({
     const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { payeeType: true } })
     const types = await checkIncomeTypes(tx, input.lines.map((l) => l.whtIncomeTypeCode).filter((c): c is string => !!c), supplier.payeeType)
     if (!types.ok) return types
-    const confirmed: Array<{ invoiceLineId: string; accountCode: string; costCenterId: string; source: 'BUDGET_LINE' | 'MANUAL'; whtIncomeTypeCode: string | null }> = []
+    // BR-AP-10: a code chosen as the history offered it says so
+    const offered = await suggestionsFor(tx, invoice.id, ctx.now)
+    const confirmed: Array<{ invoiceLineId: string; accountCode: string; costCenterId: string; source: 'HISTORY' | 'BUDGET_LINE' | 'MANUAL'; whtIncomeTypeCode: string | null }> = []
     for (const l of input.lines) {
       const line = invoice.lines.find((x) => x.id === l.invoiceLineId)
       if (!line) return fail('VALIDATION_FAILED', 'the line is not on this invoice', { field: 'lines', reason: 'NOT_A_LINE', invoiceLineId: l.invoiceLineId })
@@ -336,7 +339,8 @@ export const confirmCodingCommand = defineCommand({
       const budget = poLines.find((p) => p.id === line.poLineId)!.budgetLine
       // BR-AP-10: another cost center than the budget line's needs a reason; the budget does not change
       if (l.costCenterId !== budget.costCenterId && !l.costCenterReason) return fail('VALIDATION_FAILED', 'a reason is needed for another cost center than the budget line’s', { field: 'costCenterReason', reason: 'COST_CENTER_REASON_REQUIRED' })
-      const source = l.accountCode === budget.accountCode ? 'BUDGET_LINE' : 'MANUAL'
+      const suggestion = offered.find((s) => s.invoiceLineId === line.id)
+      const source = suggestion?.source === 'HISTORY' && suggestion.accountCode === l.accountCode ? 'HISTORY' : l.accountCode === budget.accountCode ? 'BUDGET_LINE' : 'MANUAL'
       await tx.invoiceLine.update({
         where: { id: line.id },
         data: { accountCode: l.accountCode, costCenterId: l.costCenterId, costCenterReason: l.costCenterId === budget.costCenterId ? null : l.costCenterReason!, codingSource: source, codingConfirmedById: who.memberId, codingConfirmedAt: ctx.now, ...(l.whtIncomeTypeCode !== undefined ? { whtIncomeTypeCode: l.whtIncomeTypeCode } : {}) },

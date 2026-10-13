@@ -912,6 +912,18 @@ def run_ap(d):  # BR-AP-07 วันครบกำหนด (S8-03) · BR-AP-10
         if c["fn"] == "dueDate":
             days = next(x for x in (i["poTermDays"], i["supplierTermDays"], i["defaultTermDays"]) if x is not None)
             got = {"dueDate": (datetime.fromisoformat(i["invoiceDate"]) + timedelta(days=days)).date().isoformat()}
+        elif c["fn"] == "suggestCoding":  # BR-AP-10 · OQ-128 ย้อนหลัง 365 วัน (วันที่ 365 นับ) · บ่อยสุด เท่ากันใช้ครั้งล่าสุด
+            day = datetime.fromisoformat(i["invoiceDate"]).date(); uses = {}
+            for h in i["history"]:
+                at = datetime.fromisoformat(h["invoiceDate"]).date()
+                if h["taxId"] != i["taxId"] or h["categoryCode"] != i["categoryCode"] or at > day or (day - at).days > 365: continue
+                n, last = uses.get(h["accountCode"], (0, None)); uses[h["accountCode"]] = (n + 1, max(last, at) if last else at)
+            bl = i["budgetLine"]
+            if uses:
+                code, (n, _) = sorted(uses.items(), key=lambda kv: (-kv[1][0], -kv[1][1].toordinal()))[0]
+                got = {"accountCode": code, "source": "HISTORY", "count": n, "costCenter": bl["costCenter"]}
+            elif bl["accountCode"]: got = {"accountCode": bl["accountCode"], "source": "BUDGET_LINE", "count": 0, "costCenter": bl["costCenter"]}
+            else: got = {"accountCode": None, "source": "NONE", "count": 0, "costCenter": bl["costCenter"]}
         else:
             got = {"error": f"fn {c['fn']} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))

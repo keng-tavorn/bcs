@@ -173,3 +173,6 @@ export const BASIS_POINTS_WHOLE = 10_000
 export const BP_PER_PERCENT = 100
 export const RETENTION_HOLD_MAX_DAYS = 3_650
 export const LINE_NO_SHIFT = 10_000
+
+// S8-11 (FR-AP-108 AC4): tier-2 invoices the Express file takes, once ready for payment
+export const AP_EXPORTABLE_STATUSES = ['READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'PAID'] as const

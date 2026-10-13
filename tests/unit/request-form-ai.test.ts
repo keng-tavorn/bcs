@@ -59,3 +59,31 @@ describe('[FR-AI-303/AC3] the quotation the AI filled waits for the requester, a
     expect(aiUnsent(unsaved, new Map())).toBe(false)
   })
 })
+
+describe('[FR-AI-302/AC1] what the Intake Agent filled at step 0 waits for the requester, and goes with a save of its own lines', () => {
+  const intake = { agentActionId: 'i1', proposed: { title: 'ปูน', 'lines.0.description': 'ปูนซีเมนต์', 'lines.0.quantity': '20', 'lines.0.uom': 'ถุง', 'lines.0.unitPrice': '150.00' }, requiredPaths: ['lines.0.quantity', 'lines.0.unitPrice'], confirmed: [] }
+  const line = { key: 'l1', id: null, reserved: null, description: 'ปูนซีเมนต์', quantity: '20', uom: 'ถุง', unitPrice: '150.00', vatable: true, serviceEndDate: '' }
+  const filled = formReducer(base, { type: 'intakeFilled', review: intake, patch: { title: 'ปูน', lines: [line] } })
+
+  it('takes the values in and sends the reading before any quotation, with its lines', () => {
+    expect(filled).toMatchObject({ title: 'ปูน', lines: [line], intakeAi: intake })
+    const withQuote = formReducer(filled, { type: 'aiFilled', key: 'q1', review, patch: { supplierName: 'บริษัท ก', amount: '1500.00' } })
+    const save = draftPayload(withQuote, 'ขอซื้อ', false, new Map())
+    expect(save.draft.aiAssist).toEqual({ agentActionId: 'i1', confirmedPaths: [] })
+    expect(save.draft.lines).toHaveLength(1)
+    // Once the server has it, the quotation's reading goes next
+    expect(draftPayload(withQuote, 'ขอซื้อ', false, new Map([['i1', '[]']])).draft.aiAssist).toEqual({ agentActionId: 'a1', confirmedPaths: [] })
+  })
+
+  it('confirms and takes back; a reading with lines waits while a line cannot be saved', () => {
+    const confirmed = formReducer(filled, { type: 'intakeConfirm', paths: ['lines.0.quantity', 'title'], checked: true })
+    expect(confirmed.intakeAi!.confirmed).toEqual(['lines.0.quantity', 'title'])
+    expect(formReducer(confirmed, { type: 'intakeConfirm', paths: ['title'], checked: false }).intakeAi!.confirmed).toEqual(['lines.0.quantity'])
+    expect(formReducer(base, { type: 'intakeConfirm', paths: ['title'], checked: true })).toBe(base)
+    const halfTyped = { ...filled, lines: [{ ...line, id: 'saved-1', unitPrice: 'abc' }] }
+    expect(draftPayload(halfTyped, 'ขอซื้อ', false, new Map()).draft).not.toHaveProperty('aiAssist')
+    // A reading without lines goes with any save
+    const titleOnly = formReducer(base, { type: 'intakeFilled', review: { ...intake, proposed: { title: 'ปูน' } }, patch: { title: 'ปูน' } })
+    expect(draftPayload(titleOnly, 'ขอซื้อ', false, new Map()).draft.aiAssist).toEqual({ agentActionId: 'i1', confirmedPaths: [] })
+  })
+})

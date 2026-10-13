@@ -91,6 +91,8 @@ export interface RequestDraftDto {
   readonly deliverySiteId: string | null
   /** The supplier the requester suggests (FR-P2P-001 AC2) */
   readonly suggestedSupplierId: string | null
+  /** What the Intake Agent filled at step 0, still waiting for the requester (S13-08) */
+  readonly intakeAi: OpenAssist | null
 }
 
 export interface RequestFormDto {
@@ -257,6 +259,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       returnReason: loaded.returnReason,
       deliverySiteId: request.deliverySiteId,
       suggestedSupplierId: request.suggestedSupplierId,
+      intakeAi: assists.find((a) => a.purpose === 'INTAKE') ?? null,
     },
   })
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MS_PER_SECOND } from '@/lib/constants'
-import type { AiReadActions, AiResultView } from './types'
+import type { AiResultOutcome, AiResultView, AiStartOutcome } from './types'
 
 // Reading a file with the Document Agent from a screen (FR-AI-303 AC1): start, then ask for the result every
 // POLL_MS until it is a draft or failed, at most POLL_LIMIT times (the hourly sweep fails a call that never ends). The
@@ -18,7 +18,13 @@ export type AiReadState =
   /** code: a refusal of the start (a gate, AI_FILE_UNSUPPORTED with its reason) or the failed result's errorCode */
   | { readonly kind: 'failed'; readonly code: string; readonly reason?: string }
 
-export function useAiRead(actions: AiReadActions | undefined) {
+/** What starts a reading and follows its result: the Document Agent's or the Intake Agent's */
+export interface AiStarter<I> {
+  readonly start: (input: I, idempotencyKey: string) => Promise<AiStartOutcome>
+  readonly result: (agentActionId: string) => Promise<AiResultOutcome>
+}
+
+export function useAiRead<I>(actions: AiStarter<I> | undefined) {
   const [state, setState] = useState<AiReadState>({ kind: 'idle' })
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const alive = useRef(true)
@@ -31,7 +37,7 @@ export function useAiRead(actions: AiReadActions | undefined) {
   }, [])
 
   const read = useCallback(
-    async (input: Parameters<AiReadActions['start']>[0], idempotencyKey: string): Promise<AiResultView | null> => {
+    async (input: I, idempotencyKey: string): Promise<AiResultView | null> => {
       if (!actions) return null
       setState({ kind: 'reading' })
       const started = await actions.start(input, idempotencyKey).catch(() => ({ ok: false as const, code: 'NETWORK' }))

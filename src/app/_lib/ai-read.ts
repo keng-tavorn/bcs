@@ -1,7 +1,8 @@
 import type { Ctx } from '@/server/context'
 import { isAgentAvailable } from '@/server/services/ai'
 import type { AiReadActions } from '@/ui/ai/types'
-import { aiResultAction, readDocumentAction } from './ai-actions'
+import type { IntakeActions } from '@/ui/request-form/intake-ai'
+import { aiResultAction, readDocumentAction, startIntakeAction } from './ai-actions'
 import { downloadUrlAction } from './file-actions'
 
 /**
@@ -12,4 +13,10 @@ import { downloadUrlAction } from './file-actions'
 export async function documentAiFor(ctx: Ctx): Promise<AiReadActions | undefined> {
   const availability = await isAgentAvailable(ctx, 'DOCUMENT')
   return availability.available ? { start: readDocumentAction, result: aiResultAction, fileUrl: downloadUrlAction } : undefined
+}
+
+/** The Intake Agent's step 0 for the request form, only when it is available to this member now (FR-AI-302, EG-1) */
+export async function intakeAiFor(ctx: Ctx): Promise<IntakeActions | undefined> {
+  const availability = await isAgentAvailable(ctx, 'INTAKE')
+  return availability.available ? { start: startIntakeAction, result: aiResultAction, fileUrl: downloadUrlAction } : undefined
 }

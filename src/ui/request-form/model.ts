@@ -50,6 +50,8 @@ export interface FormValues {
   readonly lines: readonly FormLine[]
   readonly quotations: readonly FormQuotation[]
   readonly nonLowestQuoteReason: string
+  /** What the Intake Agent put into the request at step 0, until the requester confirmed it (FR-AI-302) */
+  readonly intakeAi?: AiReview | null
 }
 
 export type FormAction =
@@ -69,6 +71,10 @@ export type FormAction =
   | { readonly type: 'reason'; readonly value: string }
   /** The Document Agent read the quotation's file: its values go into the quotation, waiting for the requester */
   | { readonly type: 'aiFilled'; readonly key: string; readonly review: AiReview; readonly patch: Partial<Pick<FormQuotation, 'supplierName' | 'supplierId' | 'amount' | 'includesVat'>> }
+  /** The Intake Agent read what the requester wrote: its values go into the request, waiting for the requester */
+  | { readonly type: 'intakeFilled'; readonly review: AiReview; readonly patch: Partial<Pick<FormValues, 'title' | 'deliverySiteId' | 'suggestedSupplierId' | 'lines'>> }
+  /** The requester confirmed (or took back) fields the Intake Agent filled */
+  | { readonly type: 'intakeConfirm'; readonly paths: readonly string[]; readonly checked: boolean }
   /** The requester confirmed (or took back) fields the AI filled */
   | { readonly type: 'aiConfirm'; readonly key: string; readonly paths: readonly string[]; readonly checked: boolean }
   /** A save went through: lines it carried get their ids, quotations it carried count as stored */
@@ -127,6 +133,7 @@ export function initialValues(data: RequestFormData): FormValues {
       ai: ai ? { agentActionId: ai.agentActionId, proposed: ai.proposed, requiredPaths: ai.requiredPaths, confirmed: ai.confirmedPaths } : null,
     })),
     nonLowestQuoteReason: d.nonLowestQuoteReason,
+    ...(d.intakeAi ? { intakeAi: { agentActionId: d.intakeAi.agentActionId, proposed: d.intakeAi.proposed, requiredPaths: d.intakeAi.requiredPaths, confirmed: d.intakeAi.confirmedPaths } } : {}),
   }
 }
 
@@ -158,6 +165,17 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
       }
     case 'aiFilled':
       return { ...state, quotations: state.quotations.map((q) => (q.key === action.key ? { ...q, supplierId: null, ...action.patch, ai: action.review } : q)) }
+    case 'intakeFilled':
+      return { ...state, ...action.patch, intakeAi: action.review }
+    case 'intakeConfirm': {
+      if (!state.intakeAi) return state
+      const confirmed = new Set(state.intakeAi.confirmed)
+      for (const p of action.paths) {
+        if (action.checked) confirmed.add(p)
+        else confirmed.delete(p)
+      }
+      return { ...state, intakeAi: { ...state.intakeAi, confirmed: [...confirmed].sort() } }
+    }
     case 'aiConfirm':
       return {
         ...state,
@@ -312,7 +330,9 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
   }
   // One AI reading per save, and only with its quotation: the server compares what the AI proposed with what is saved.
   // Only a form that shows the AI's values (the workspace's, which passes aiSent) says anything of them
-  const ai = aiSent ? ((sentQuotes ?? []).find((q) => q.ai && aiSent.get(q.ai.agentActionId) !== aiSentMark(q.ai))?.ai ?? null) : null
+  // The Intake reading goes first, with the lines it filled when it filled any
+  const intake = values.intakeAi && aiSent && aiSent.get(values.intakeAi.agentActionId) !== aiSentMark(values.intakeAi) && (sentLines !== null || !Object.keys(values.intakeAi.proposed).some((p) => p.startsWith('lines.'))) ? values.intakeAi : null
+  const ai = intake ?? (aiSent ? ((sentQuotes ?? []).find((q) => q.ai && aiSent.get(q.ai.agentActionId) !== aiSentMark(q.ai))?.ai ?? null) : null)
   return {
     draft: ai ? { ...draft, aiAssist: { agentActionId: ai.agentActionId, confirmedPaths: [...ai.confirmed] } } : draft,
     lineKeys: sentLines ? sentLines.map((l) => l.key) : null,

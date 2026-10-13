@@ -93,6 +93,8 @@ export interface RequestDraft {
   readonly deliverySiteId?: string | null
   /** The supplier the requester suggests (FR-P2P-001 AC2) */
   readonly suggestedSupplierId?: string | null
+  /** What the Intake Agent filled at step 0, still waiting for the requester (S13-08) */
+  readonly intakeAi?: AiReviewDraft | null
 }
 
 export interface DeliverySiteOption {

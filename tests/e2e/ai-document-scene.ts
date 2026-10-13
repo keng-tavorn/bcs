@@ -5,7 +5,7 @@ import { systemClock } from '@/lib/clock'
 import { prisma } from '@/server/db/client'
 import { getReceivingPo } from '@/server/queries/receiving'
 import { makeCtx } from '@/server/context'
-import { runDocumentRead, runMonthlyGrant } from '@/server/services/ai'
+import { runDocumentRead, runIntake, runMonthlyGrant } from '@/server/services/ai'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/ai-document.spec.ts against the e2e database only (S13-07, FR-AI-303 AC1 AC3 AC4). The e2e app sends
@@ -42,11 +42,24 @@ async function readingFor(purpose: AiPurposeName, subjectType: string | null, su
   return { ...base, docType: 'QUOTATION', priceIncludesVat: false, lines: [{ description: 'สินค้าตามใบเสนอราคา', qty: '1', unit: 'งาน', unitPrice: '5000.00', amount: '5000.00' }], net: '5000.00', vat: '350.00', gross: '5350.00' }
 }
 
+/** What the Intake Agent answers in the e2e: a title, one line and nothing else (FR-AI-302) */
+const INTAKE_DRAFT = {
+  requestTypeCode: 'BUY_GOODS',
+  title: 'ปูนซีเมนต์สำหรับไซต์งาน',
+  siteCode: null,
+  neededBy: null,
+  lines: [{ description: 'ปูนซีเมนต์ 50 กก.', itemCode: null, qty: '20', unit: 'ถุง', unitPrice: '150' }],
+  supplier: { name: null, taxId: null, branch: null },
+  confidence: [{ field: 'title', value: 96 }, { field: 'lines.0.description', value: 97 }, { field: 'lines.0.unit', value: 95 }],
+}
+
 if (mode === 'on') {
   await setModule(true)
-  const setting = await prisma.aiAgentSetting.findFirst({ where: { organizationId: org.id, agent: 'DOCUMENT' }, select: { id: true } })
-  if (setting) await prisma.aiAgentSetting.update({ where: { id: setting.id }, data: { enabled: true } })
-  else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent: 'DOCUMENT', enabled: true, level: 'L1', minConfidenceBp: 9000 } })
+  for (const agent of ['DOCUMENT', 'INTAKE'] as const) {
+    const setting = await prisma.aiAgentSetting.findFirst({ where: { organizationId: org.id, agent }, select: { id: true } })
+    if (setting) await prisma.aiAgentSetting.update({ where: { id: setting.id }, data: { enabled: true } })
+    else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: 'L1', minConfidenceBp: 9000 } })
+  }
   const grant = await runMonthlyGrant(org.id, now)
   if (!grant.ok) throw new Error(JSON.stringify(grant.error))
   console.log(JSON.stringify({ on: true }))
@@ -54,22 +67,22 @@ if (mode === 'on') {
   await setModule(false)
   console.log(JSON.stringify({ on: false }))
 } else if (mode === 'run') {
-  const pending = await prisma.agentAction.findMany({ where: { organizationId: org.id, agent: 'DOCUMENT', status: 'PENDING' }, select: { id: true, purpose: true, subjectType: true, subjectId: true } })
+  const pending = await prisma.agentAction.findMany({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE'] }, status: 'PENDING' }, select: { id: true, purpose: true, subjectType: true, subjectId: true } })
   let drafted = 0
   for (const action of pending) {
-    const output = await readingFor(action.purpose, action.subjectType, action.subjectId)
+    const output = action.purpose === 'INTAKE' ? INTAKE_DRAFT : await readingFor(action.purpose, action.subjectType, action.subjectId)
     const client: AiClient = {
       mode: 'fixture',
       extract: async (request) => ({ ok: true, promptVersion: PROMPT_VERSIONS[request.purpose], model: request.model, output: request.schema.parse(output), usage: { input: 2400, output: 500, cacheRead: 0, cacheWrite: 0 }, latencyMs: 900 }),
       write: async (request) => ({ ok: false, errorCode: 'FIXTURE_MISSING', promptVersion: PROMPT_VERSIONS[request.purpose], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, latencyMs: 0 }),
     }
     setAiClientForTests(client)
-    if ((await runDocumentRead(org.id, action.id, now)) === 'DRAFT') drafted++
+    if ((await (action.purpose === 'INTAKE' ? runIntake(org.id, action.id, now) : runDocumentRead(org.id, action.id, now))) === 'DRAFT') drafted++
   }
   console.log(JSON.stringify({ drafted }))
 } else {
   const id = process.env.SCENE_ACTION
-  const action = await prisma.agentAction.findFirstOrThrow({ where: { organizationId: org.id, agent: 'DOCUMENT', ...(id ? { id } : {}) }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, review: true, subjectType: true } })
+  const action = await prisma.agentAction.findFirstOrThrow({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE'] }, ...(id ? { id } : {}) }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, review: true, subjectType: true } })
   console.log(JSON.stringify({ id: action.id, status: action.status, subjectType: action.subjectType, confirmed: (action.review as { confirmedPaths?: string[] } | null)?.confirmedPaths ?? [] }))
 }
 await prisma.$disconnect()

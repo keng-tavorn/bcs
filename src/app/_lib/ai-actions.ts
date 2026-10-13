@@ -2,7 +2,7 @@
 
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { getAgentAction, readDocument } from '@/server/services/ai'
+import { getAgentAction, readDocument, startIntake } from '@/server/services/ai'
 import type { AiReadActions, AiResultOutcome, AiStartOutcome } from '@/ui/ai/types'
 import { presentAiResult } from './ai-present'
 import { getSession } from './session'
@@ -28,4 +28,13 @@ export async function aiResultAction(agentActionId: string): Promise<AiResultOut
   if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
   const r = await getAgentAction(ctx, agentActionId)
   return r.ok ? { ok: true, result: presentAiResult(r.data) } : { ok: false, code: r.error.code }
+}
+
+export async function startIntakeAction(input: { requestTypeCode: string; text: string; fileIds: string[]; requestId?: string }, idempotencyKey: string): Promise<AiStartOutcome> {
+  const ctx = await currentCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  const r = await startIntake(ctx, input, { idempotencyKey })
+  if (r.ok) return { ok: true, agentActionId: r.data.agentActionId }
+  const reason = r.error.details?.reason
+  return { ok: false, code: r.error.code, ...(typeof reason === 'string' ? { reason } : {}) }
 }

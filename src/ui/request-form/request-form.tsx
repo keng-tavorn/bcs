@@ -17,6 +17,7 @@ import { DOOR_ASIDE } from '../shell/new-request-door'
 import type { StepProps } from './details-items'
 import { kindLabelOf, type DocumentsProps } from './documents-step'
 import { DropUploadButton } from './drop-upload'
+import { IntakeAi, type IntakeActions } from './intake-ai'
 import { QuotationAi } from './quotation-ai'
 import { fieldLabel } from './field-input'
 import {
@@ -61,6 +62,8 @@ export interface RequestFormActions extends UploadActions {
   readonly downloadUrl: (fileId: string) => Promise<string | null>
   /** The Document Agent, when it is available to this member now (FR-AI-303 AC8: otherwise no AI button at all) */
   readonly ai?: AiReadActions
+  /** The Intake Agent's step 0, when it is available to this member now (FR-AI-302: otherwise no step 0) */
+  readonly intake?: IntakeActions
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
@@ -461,7 +464,13 @@ export function RequestForm({
                 requestHref={autosave.requestId ? `/requests/${autosave.requestId}` : null}
               />
             ) : (
-              <StepBody step={current} props={stepProps} documents={documentsProps} endDateRequired={endDateRequired} />
+              <>
+                {/* Step 0 (FR-AI-302): only on the first step, only when the Intake Agent is available to this member */}
+                {actions.intake && index === 0 ? (
+                  <IntakeAi data={data} values={values} requestId={autosave.requestId} actions={actions.intake} uploads={{ requestUpload: actions.requestUpload, completeUpload: actions.completeUpload }} update={update} />
+                ) : null}
+                <StepBody step={current} props={stepProps} documents={documentsProps} endDateRequired={endDateRequired} />
+              </>
             )}
             {stopped ? (
               <p ref={stoppedRef} tabIndex={-1} role="alert" className="flex items-start gap-2 font-medium text-danger outline-none">

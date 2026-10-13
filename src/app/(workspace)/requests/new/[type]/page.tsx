@@ -5,7 +5,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { getNewRequestForm } from '@/server/services/requests/form-view'
 import { Notice } from '@/ui/form/notice'
 import { RequestForm } from '@/ui/request-form/request-form'
-import { documentAiFor } from '../../../../_lib/ai-read'
+import { documentAiFor, intakeAiFor } from '../../../../_lib/ai-read'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { attachFileAction, detachFileAction, previewRequestAction, submitRequestAction } from '../actions'
@@ -39,7 +39,7 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
     )
   }
   // The Document Agent reads quotations into the form when it is available to this member (FR-AI-303 AC8)
-  const ai = await documentAiFor(ctx)
+  const [ai, intake] = await Promise.all([documentAiFor(ctx), intakeAiFor(ctx)])
   return (
       <RequestForm
         data={result.data}
@@ -54,6 +54,7 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
           completeUpload: completeUploadAction,
           downloadUrl: downloadUrlAction,
           ...(ai ? { ai } : {}),
+          ...(intake ? { intake } : {}),
         }}
       />
   )

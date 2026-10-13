@@ -40,6 +40,10 @@ export interface AiResultView {
   readonly requiredPaths: readonly string[]
   readonly reading: AiReadingView | null
   readonly notes: readonly AiNote[]
+  /** Intake: a type that fits better than the form opened (FR-AI-302 AC2) */
+  readonly suggestedType: { readonly code: string; readonly name: string } | null
+  /** Intake: the supplier named but not in the register, as text */
+  readonly supplierText: string | null
 }
 
 export type AiStartOutcome = { readonly ok: true; readonly agentActionId: string } | { readonly ok: false; readonly code: string; readonly reason?: string }

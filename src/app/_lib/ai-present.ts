@@ -57,5 +57,7 @@ export function presentAiResult(dto: AgentActionDto): AiResultView {
     requiredPaths: strings(review.requiredPaths),
     reading: content ? readingOf(content.output) : null,
     notes: content ? notesOf(content.verification, content.output) : [],
+    suggestedType: text(obj(content?.output).suggestedType) ? { code: text(obj(content?.output).suggestedType)!, name: text(obj(content?.output).suggestedTypeName) ?? text(obj(content?.output).suggestedType)! } : null,
+    supplierText: text(obj(content?.output).supplierText),
   }
 }

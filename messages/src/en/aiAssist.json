@@ -73,5 +73,29 @@
     "yes": "Yes",
     "no": "No",
     "line": "{description} · {qty} {unit} · {amount}"
+  },
+  "intake": {
+    "title": "Let the AI fill this in (optional)",
+    "hint": "Write what you need, or attach a quotation or a photo: the AI fills in the title, the lines, quantities, prices, the delivery site and the supplier for you to check. The lines it fills replace those typed so far. It never fills budget lines, screening questions or approvers.",
+    "textLabel": "What you need",
+    "attach": "Attach a quotation or a photo",
+    "fileAttached": "{name} attached",
+    "start": "Let the AI fill this in",
+    "empty": "Write what you need or attach a file first",
+    "boxTitle": "What the AI filled in from what you wrote",
+    "suggestType": "A type that fits better: {name}",
+    "changeType": "Change the type",
+    "supplierText": "The AI found the supplier \"{name}\", who is not in the register yet: you can use this name on the quotation",
+    "fields": {
+      "title": "Title",
+      "deliverySiteId": "Delivery site",
+      "suggestedSupplierId": "Suggested supplier",
+      "line": {
+        "description": "Line {n}: item",
+        "quantity": "Line {n}: quantity",
+        "uom": "Line {n}: unit",
+        "unitPrice": "Line {n}: unit price"
+      }
+    }
   }
 }

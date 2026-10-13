@@ -1300,6 +1300,30 @@
     "fileHint": "Compare what the AI filled in with this file before confirming",
     "fileMissing": "The file could not be opened; try again",
     "fileTitle": "Original file",
+    "intake": {
+      "attach": "Attach a quotation or a photo",
+      "boxTitle": "What the AI filled in from what you wrote",
+      "changeType": "Change the type",
+      "empty": "Write what you need or attach a file first",
+      "fields": {
+        "deliverySiteId": "Delivery site",
+        "line": {
+          "description": "Line {n}: item",
+          "quantity": "Line {n}: quantity",
+          "unitPrice": "Line {n}: unit price",
+          "uom": "Line {n}: unit"
+        },
+        "suggestedSupplierId": "Suggested supplier",
+        "title": "Title"
+      },
+      "fileAttached": "{name} attached",
+      "hint": "Write what you need, or attach a quotation or a photo: the AI fills in the title, the lines, quantities, prices, the delivery site and the supplier for you to check. The lines it fills replace those typed so far. It never fills budget lines, screening questions or approvers.",
+      "start": "Let the AI fill this in",
+      "suggestType": "A type that fits better: {name}",
+      "supplierText": "The AI found the supplier \"{name}\", who is not in the register yet: you can use this name on the quotation",
+      "textLabel": "What you need",
+      "title": "Let the AI fill this in (optional)"
+    },
     "mustConfirm": "Confirm this field on its own",
     "notes": {
       "AMOUNT_UNVERIFIED": "The amounts did not pass the checks: no amount was filled in; type it from the file",

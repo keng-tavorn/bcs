@@ -229,7 +229,7 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   return finish({
     outcome: 'DRAFT',
     model: answer.model,
-    output: { draft, suggestedType, supplierText: outcome.supplierText, channel },
+    output: { draft, suggestedType, suggestedTypeName: suggestedType ? (types.find((t) => t.code === suggestedType)?.nameTh ?? null) : null, supplierText: outcome.supplierText, channel },
     fieldConfidence: Object.fromEntries(draft.confidence.map((c) => [c.field, Math.min(100, Math.max(0, Math.trunc(c.value))) * 100])),
     review: { requiredPaths: outcome.requiredPaths, confirmedPaths: [], proposed },
     usage: answer.usage,

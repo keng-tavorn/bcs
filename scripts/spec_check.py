@@ -450,8 +450,9 @@ def matches(r, amt):
     if amt is None: return False
     return (("gt" not in am or amt > sat(am["gt"])) and ("gte" not in am or amt >= sat(am["gte"])) and
             ("lte" not in am or amt <= sat(am["lte"])) and ("lt" not in am or amt < sat(am["lt"])))
-def approver(r, dept, vac):
-    a = r["approver"]
+def rule_approvers(r): return r["step"]["approvers"] if "step" in r else [r["approver"]]
+def approver(r, dept, vac): return approver_spec(r["approver"], dept, vac)
+def approver_spec(a, dept, vac):
     if a["kind"] == "MEMBER": return None if a["member"] in vac else a["member"]
     pos = a["position"]
     d = dept if a["kind"] == "POSITION_OF_DEPARTMENT" else ROOT
@@ -717,13 +718,19 @@ def lint_version(v, vac=frozenset(), modules=()):
     required = set(GOV) | {x for m in modules for x in MODULE_DOCS.get(m, ())}
     errs += [{"code": "DOA_LINT_MISSING_DOCTYPE", "documentType": g} for g in DOC_ORDER if g in required and g not in present]
     for r in v["rules"]:
-        a = r["approver"]
+        aps = rule_approvers(r)
         if r["documentType"] in GOV:
-            if approver(r, ROOT, vac) is None: errs.append({"code": "DOA_LINT_UNRESOLVABLE_GOVERNANCE", "rule": r["code"]})
-        elif a["kind"] == "MEMBER": warns.append({"code": "DOA_LINT_MEMBER_APPROVER", "rule": r["code"]})
-        elif not any(p == a["position"] and f"{p}@{dd}" not in vac and (a["kind"] != "POSITION_OF_ORG" or dd == ROOT) for (p, dd) in HOLD):
+            if any(approver_spec(a, ROOT, vac) is None for a in aps): errs.append({"code": "DOA_LINT_UNRESOLVABLE_GOVERNANCE", "rule": r["code"]})
+        elif any(a["kind"] == "MEMBER" for a in aps): warns.append({"code": "DOA_LINT_MEMBER_APPROVER", "rule": r["code"]})
+        elif any(not any(p == a["position"] and f"{p}@{dd}" not in vac and (a["kind"] != "POSITION_OF_ORG" or dd == ROOT) for (p, dd) in HOLD) for a in aps):
             warns.append({"code": "DOA_LINT_VACANT_POSITION", "rule": r["code"]})
     errs += [{"code": "DOA_LINT_AMOUNT_NOT_ALLOWED", "rule": r["code"]} for r in v["rules"] if r["documentType"] in AMOUNT_NONE and (r.get("when") or {}).get("amount")]
+    # BR-WF-05 (S6): PARALLEL = a committee of two or more · COUNT names quorumCount in 1..N, the other quorums none
+    for r in v["rules"]:
+        st = r.get("step")
+        if (st and len(st["approvers"]) < 2) or (not st and r.get("mode") == "PARALLEL"): errs.append({"code": "DOA_LINT_PARALLEL_STEP", "rule": r["code"]})
+        elif st and ((st["quorum"] == "COUNT") != ("quorumCount" in st) or ("quorumCount" in st and not 1 <= st["quorumCount"] <= len(st["approvers"]))):
+            errs.append({"code": "DOA_LINT_QUORUM_INVALID", "rule": r["code"]})
     errs += [{"code": "UNKNOWN_DOCUMENT_TYPE", "rule": r["code"]} for r in v["rules"] if r["documentType"] not in DOC_ORDER]
     return {"errors": errs, "warnings": warns}
 def boundary_table(v, doc):
@@ -767,6 +774,72 @@ def run_grni(d):
         got = {"lines": lines, "byCostCenter": {k: baht(v) for k, v in by.items()}}
         out.append((c["id"], got == c["expect"], got))
     return out
+# ---------- suite workflow (§7.17 · S6): committees, the outcome of a step of slots, the lint of BR-WF-05 ----------
+def wf_outcome(i):
+    # BR-WF-01, BR-WF-09: a group's result from the first decision of each slot; a REVIEW step's from its groups
+    sl = i["slots"]; opens = [n + 1 for n, x in enumerate(sl) if x is None]
+    def group(q, qc, nos):
+        ds = [sl[n - 1] for n in nos]
+        if "RETURN" in ds: return "RETURNED"
+        a, r = ds.count("APPROVE"), ds.count("REJECT")
+        if q == "ALL": return "REJECTED" if r else ("APPROVED" if a == len(ds) else "OPEN")
+        if q == "ANY": return next(({"APPROVE": "APPROVED", "REJECT": "REJECTED"}[x] for x in ds if x is not None), "OPEN")
+        need = qc if qc is not None else len(ds)
+        return "APPROVED" if a >= need else ("REJECTED" if r > len(ds) - need else "OPEN")
+    if i.get("kind") == "REVIEW":
+        if "REJECT" in sl: return {"error": "VALIDATION_FAILED", "reason": "REVIEW_CANNOT_REJECT"}
+        gs = [(g, group(g["quorum"], g.get("quorumCount"), g["slots"])) for g in i["groups"]]
+        if any(o == "RETURNED" for _, o in gs) or all(o == "APPROVED" for _, o in gs):
+            return {"outcome": "RETURNED" if any(o == "RETURNED" for _, o in gs) else "APPROVED", "cancel": opens}
+        waiting = {n for g, o in gs if o != "APPROVED" for n in g["slots"]}; done = {n for g, o in gs if o == "APPROVED" for n in g["slots"]}
+        return {"outcome": "OPEN", "cancel": [n for n in opens if n in done and n not in waiting]}
+    o = group(i.get("quorum", "ALL"), i.get("quorumCount"), list(range(1, len(sl) + 1)))
+    return {"outcome": o, "cancel": [] if o == "OPEN" else opens}
+def wf_versions(d, code, rep_step):
+    vs = [copy.deepcopy(v) for f in d["fixtures"] if "/doa-" in f for v in golden["tests/golden/" + f][0]["versions"] if v["code"] == code]
+    for v in vs:
+        for r in v["rules"]:
+            if rep_step and r["code"] == rep_step["rule"]:
+                st = r["step"]
+                for k in ("quorum", "quorumCount", "approvers"):
+                    if k in rep_step: st[k] = rep_step[k]
+                if st["quorum"] != "COUNT": st.pop("quorumCount", None)
+    return vs
+def wf_resolve(d, i):
+    at = dt(i["at"]); vs = [v for v in wf_versions(d, i["doa"], i.get("replaceStep")) if dt(v["effectiveFrom"]) <= at]
+    if not vs: return {"error": "DOA_NOT_CONFIGURED"}
+    v = vs[-1]; amt = sat(i["amount"]); doc = i["documentType"]
+    band = sorted([r for r in v["rules"] if r["documentType"] == doc and amount_only(r)], key=lower)
+    top = next((r for r in band if matches(r, amt)), None)
+    if top is None: return {"error": "DOA_NOT_CONFIGURED"}
+    conf = {i["requester"]} | set(i.get("alsoConflicting", [])); vac = set(i.get("vacate", [])); res = {"rule": top["code"]}
+    for r in band[band.index(top):]:
+        found = [approver_spec(a, i["department"], vac) for a in rule_approvers(r)]
+        if None in found: return {"error": "APPROVER_NOT_FOUND"}
+        if r is not top: res["escalatedTo"] = r["code"]
+        if "step" not in r:
+            if found[0] not in conf: res["steps"] = [{"mode": "SEQUENTIAL", "approvers": found}]; return res
+            continue
+        st = r["step"]; q = "COUNT" if st["quorum"] == "MAJORITY" else st["quorum"]
+        qc = len(st["approvers"]) // 2 + 1 if st["quorum"] == "MAJORITY" else st.get("quorumCount")
+        cut = [a for a in found if a in conf]; rest = list(dict.fromkeys(a for a in found if a not in conf))
+        if (q == "ALL" and cut) or (q == "ANY" and not rest) or (q == "COUNT" and len(rest) < qc): continue
+        res["steps"] = [{"mode": "PARALLEL", "quorum": q, **({"quorumCount": qc} if q == "COUNT" else {}), "approvers": rest}]; return res
+    return {"error": "NO_HIGHER_AUTHORITY"}
+def run_workflow(d):
+    global HOLD
+    use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
+    for c in d["cases"]:
+        i = {**d["defaults"], **c["input"]}
+        HOLD = {**base, **{tuple(k.split("@")): m for k, m in (i.get("replaceHolders") or {}).items()}}
+        if c["fn"] == "stepOutcome": got = wf_outcome(c["input"])
+        elif c["fn"] == "lintDoaVersion": got = lint_version(wf_versions(d, i["doa"], i.get("replaceStep"))[0], frozenset(i.get("vacate") or []))
+        else: got = wf_resolve(d, i)
+        exp = c["expect"]
+        ok = got == exp if c["fn"] == "lintDoaVersion" else all(got.get(k) == x for k, x in exp.items()) and ("escalatedTo" in exp) == ("escalatedTo" in got)
+        out.append((c["id"], ok, got))
+    HOLD = base; use_fixtures()
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "budget": run_budget,
@@ -788,6 +861,7 @@ RUNNERS = {
     "thai": run_thai,
     "vat-rate": run_vat,
     "wht": run_wht,
+    "workflow": run_workflow,
 }
 n_suites = n_cases = 0
 for path, (data, ln) in sorted(golden.items()):

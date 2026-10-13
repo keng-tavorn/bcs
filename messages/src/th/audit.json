@@ -89,6 +89,7 @@
     "newest": "กลับไปรายการล่าสุด"
   },
   "groups": {
+    "approval_step": "ขั้นอนุมัติ",
     "approval_task": "งานอนุมัติ",
     "audit": "บันทึกการตรวจสอบ",
     "auth": "การเข้าระบบ",
@@ -120,6 +121,7 @@
     "variance": "ผลต่างจากการตรวจรับ"
   },
   "aggregate": {
+    "ApprovalStep": "ขั้นอนุมัติ",
     "ApprovalTask": "งานอนุมัติ",
     "Auth": "การเข้าระบบ",
     "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
@@ -149,6 +151,9 @@
     "Variance": "ผลต่างจากการตรวจรับ"
   },
   "events": {
+    "approval_step": {
+      "completed": "ขั้นอนุมัติแบบหลายคนได้ผลแล้ว"
+    },
     "approval_task": {
       "assigned": "มอบงานอนุมัติ",
       "cancelled": "ยกเลิกงานอนุมัติ",

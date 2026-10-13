@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { validateNewDelegation } from '@/core/delegation'
-import { DOA_DOCUMENT_TYPES, lintDoaVersion, resolveRoute, versionAt, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, lintDoaVersion, resolveRoute, stepApprovers, versionAt, type DoaVersionSnapshot, type OrgSnapshot } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { checkSod, type OrgAuthorityChangeKind } from '@/core/sod'
@@ -85,7 +85,7 @@ function beneficiaryOf(p: Proposal): string | null {
 
 /** Whether a rule of the version names the position as approver */
 const namesPosition = (version: DoaVersionSnapshot, positionCode: string) =>
-  version.rules.some((r) => r.steps.some((s) => s.approver.kind !== 'MEMBER' && s.approver.position === positionCode))
+  version.rules.some((r) => r.steps.some((s) => stepApprovers(s).some((a) => a.kind !== 'MEMBER' && a.position === positionCode)))
 
 /**
  * The pending approval tasks of one position slot (BR-DOA-17): open, or waiting for the requester's answer, whoever
@@ -505,6 +505,9 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
         data: {
           organizationId: ctx.organizationId,
           stepId: task.stepId,
+          // The moved task fills the same slot (BR-WF-01)
+          slotNo: task.slotNo,
+          workflowRuleCodes: task.workflowRuleCodes,
           assigneeMemberId: toMember,
           resolvedFrom: task.resolvedFrom,
           status: task.status,

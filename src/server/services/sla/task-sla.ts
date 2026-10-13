@@ -281,8 +281,11 @@ export const escalateTaskCommand = defineCommand({
     if (blocked) return blocked
     const times = await timesOf(tx, ctx.organizationId, task)
     if (ctx.now.getTime() < times.escalateAt.getTime()) return notDue('not time to escalate yet', times.escalateAt)
-    // Once per step: the escalated flag stays on the tasks of the step even after one of them moved (BR-DOA-17)
-    if (await stepEscalated(tx, task.stepId)) return refuse('INVALID_STATE_TRANSITION', 'ALREADY_ESCALATED', 'the step was escalated already')
+    // A committee or a reviewer step (BR-WF-15) counts per task and adds no co-assignee: no band above stands for a slot
+    const slotted = task.step.mode === 'PARALLEL' || task.step.kind === 'REVIEW'
+    // Once per step: the escalated flag stays on the tasks of the step even after one of them moved (BR-DOA-17); once per
+    // task of a step of several slots
+    if (slotted ? task.escalatedAt !== null : await stepEscalated(tx, task.stepId)) return refuse('INVALID_STATE_TRANSITION', 'ALREADY_ESCALATED', 'the step was escalated already')
     const route = task.step.route
     const subject = await subjectFacts(tx, route.subjectType as ApprovalSubject, route.subjectId)
 
@@ -290,7 +293,7 @@ export const escalateTaskCommand = defineCommand({
     // (§6.4 "ผู้รับร่วมอีกคนตัดสินแล้ว", src/server/services/approvals/step-complete.ts), so neither task can act on
     // the document after the step moved on; and nobody with a part in another step of the route is added, so no one
     // approves two of its steps (next-band.ts)
-    const next: NextBand = await nextBandOf(tx, ctx, task, subject)
+    const next: NextBand = slotted ? { kind: 'NONE', reason: 'SLOTTED_STEP', ruleCode: null } : await nextBandOf(tx, ctx, task, subject)
 
     await tx.approvalTask.update({ where: { id: task.id }, data: { escalatedAt: ctx.now, escalateAt: times.escalateAt, version: { increment: 1 } } })
     const told = new Map<string, { role: Role; taskId: string }>()
@@ -355,7 +358,9 @@ export const escalateTaskCommand = defineCommand({
         }
       }
     } else {
-      // No band above, or its position is vacant: ORG_ADMIN and the requester are told (BR-SLA-04), with the reason
+      // No band above, or its position is vacant: ORG_ADMIN and the requester are told (BR-SLA-04), with the reason; the
+      // holder of a slot too (BR-WF-15)
+      if (slotted) tell(task.assigneeMemberId, 'ASSIGNEE', task.id)
       tell(subject.ownerMemberId, 'REQUESTER', task.id)
       for (const admin of await orgAdmins(tx)) tell(admin, 'ADMIN', task.id)
     }

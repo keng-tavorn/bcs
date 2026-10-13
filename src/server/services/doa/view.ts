@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, boundaryTable, lintDoaVersion, resolveRoute, versionAt, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot } from '@/core/doa'
+import { boundaryTable, DOA_DOCUMENT_TYPES, isCommitteeStep, lintDoaVersion, resolveRoute, stepApprovers, versionAt, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot } from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { logger } from '@/lib/logger'
 import { authorize } from '@/server/authz'
@@ -85,7 +85,15 @@ export interface RuleView {
   readonly priority: number
   /** Satang text; null = a rule without an amount condition */
   readonly band: { readonly gt?: string; readonly gte?: string; readonly lte?: string } | null
-  readonly steps: ReadonlyArray<{ readonly approver: ApproverView; readonly slaMinutes: number }>
+  /** approver: the step's approver, or a committee's first; committee: every approver and the quorum (S6 · FR-WF-102) */
+  readonly steps: ReadonlyArray<{ readonly approver: ApproverView; readonly slaMinutes: number; readonly committee?: CommitteeView }>
+}
+
+export interface CommitteeView {
+  readonly quorum: 'ALL' | 'ANY' | 'COUNT' | 'MAJORITY'
+  /** COUNT only */
+  readonly quorumCount: number | null
+  readonly approvers: readonly ApproverView[]
 }
 
 export type PolicyView = Record<PolicyField, PolicyValue>
@@ -298,7 +306,14 @@ function ruleViews(rules: readonly DoaRuleSnapshot[], positions: PositionNames, 
     band: r.when.amount
       ? Object.fromEntries(Object.entries({ gt: text(r.when.amount.gt), gte: text(r.when.amount.gte), lte: text(r.when.amount.lte) }).filter(([, v]) => v !== undefined))
       : null,
-    steps: r.steps.map((s) => ({ slaMinutes: s.slaBusinessMinutes, approver: approverView(s.approver, positions, person) })),
+    steps: r.steps.map((s) => {
+      const approvers = stepApprovers(s).map((a) => approverView(a, positions, person))
+      return {
+        slaMinutes: s.slaBusinessMinutes,
+        approver: approvers[0]!,
+        ...(isCommitteeStep(s) ? { committee: { quorum: s.quorum, quorumCount: s.quorumCount ?? null, approvers } } : {}),
+      }
+    }),
   }))
 }
 
@@ -405,7 +420,7 @@ async function submitView(ctx: Ctx, row: DoaVersionFullRow, members: readonly Me
   return forTenant(ctx.organizationId).$transaction(async (tx): Promise<SubmitView> => {
     const allowed = (await authorize(tx, ctx, 'admin.doa.submitForPublish')).ok
     if (initial) {
-      const named = new Set(snapshot.rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [] : [s.approver.position]))))
+      const named = new Set(snapshot.rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position]))))
       const [signatoryId, departments, holders] = await Promise.all([verifiedSignatoryId(ctx), listDepartments(ctx), listCurrentHolders(ctx, ctx.now)])
       return {
         mode: 'INITIAL',

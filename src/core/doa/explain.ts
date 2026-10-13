@@ -37,6 +37,18 @@ export interface ExplainedStep {
   readonly resolvedFrom: string
   readonly assigneeMemberId: string
   readonly principalMemberId: string | null
+  /** A committee step (S6): its slots and quorum */
+  readonly committee?: { readonly quorum: 'ALL' | 'ANY' | 'COUNT'; readonly quorumCount: number | null; readonly slots: readonly ExplainedStep[] }
+}
+
+const QUORUM_TH = { ALL: 'ต้องได้ทุกเสียง', ANY: 'คนใดคนหนึ่ง' } as const
+
+/** "คณะกรรมการ (COO, CFO, ผู้จัดการฝ่ายของฝ่ายบัญชี) ต้องได้ 2 เสียง" (BR-WF-04: MAJORITY is already a count here) */
+function stepTh(step: ExplainedStep, org: OrgSnapshot): string {
+  const c = step.committee
+  if (!c) return approverTh(step, org)
+  const quorum = c.quorum === 'COUNT' ? `ต้องได้ ${c.quorumCount ?? c.slots.length} เสียง` : QUORUM_TH[c.quorum]
+  return `คณะกรรมการ (${c.slots.map((x) => approverTh(x, org)).join(', ')}) ${quorum}`
 }
 
 function approverTh(step: ExplainedStep, org: OrgSnapshot): string {
@@ -79,6 +91,6 @@ export function explainRouteTh(input: {
     const to = escalations[i + 1]?.rule ?? rule
     parts.push(`→ ${who} มีส่วนเกี่ยวข้องกับเอกสารนี้ จึงยกไปข้อ ${to.code} ของช่วงวงเงินถัดไป`)
   })
-  parts.push(`→ ${steps.map((s) => approverTh(s, org)).join(' → ')}`)
+  parts.push(`→ ${steps.map((s) => stepTh(s, org)).join(' → ')}`)
   return parts.join(' ')
 }

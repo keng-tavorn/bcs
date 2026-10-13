@@ -193,7 +193,9 @@ export async function collectKpis(
       checked++
       const again = resolveRoute(input, policy)
       const step = again.ok ? again.data.steps.find((s) => s.stepNo === task.step.stepNo) : undefined
-      const allowed = new Set([step?.assigneeMemberId, step?.principalMemberId].filter((m): m is string => Boolean(m)))
+      // A committee step allows every slot's holder (S6 · FR-WF-102): each decides their own slot
+      const holders = step ? (step.committee?.slots ?? [step]) : []
+      const allowed = new Set(holders.flatMap((h) => [h.assigneeMemberId, h.principalMemberId]).filter((m): m is string => Boolean(m)))
       // the decider: the delegate who acted, or the approver themself; a delegator acting on their own task counts
       wrong = !allowed.has(d.data.actorMemberId)
       if (wrong) misrouted++

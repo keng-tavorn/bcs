@@ -37,6 +37,7 @@ describe('documents only (scripts/lib/ci-changes.ts)', () => {
     expect(changedSince('deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')).toBeNull()
   })
 
+  // A dozen git processes in a temporary repository take longer than the 5 s default on a busy Windows machine
   it('[FR-PLT-006/AC1] code moved into docs/ and code not committed yet both count as code', () => {
     const repo = mkdtempSync(path.join(tmpdir(), 'bcs-ci-changes-'))
     const git = (...args: string[]) => {
@@ -73,7 +74,7 @@ describe('documents only (scripts/lib/ci-changes.ts)', () => {
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
-  })
+  }, 30_000)
 })
 
 describe('pnpm verify --docs-only=<commit>', () => {

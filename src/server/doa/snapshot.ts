@@ -1,7 +1,9 @@
 import { z } from 'zod'
 import {
   DOA_DOCUMENT_TYPES,
+  isCommitteeStep,
   type DoaDocumentType,
+  type DoaStepSpec,
   type DoaRuleSnapshot,
   type DoaVersionSnapshot,
   type DoaVersionStatus,
@@ -28,10 +30,20 @@ const ApproverJson = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('MEMBER'), memberId: z.uuid() }),
 ])
 
-/** DoaRule.steps as stored */
-export const RuleStepsJson = z
-  .array(z.strictObject({ approver: ApproverJson, slaBusinessMinutes: z.number().int().positive(), mode: z.enum(['SEQUENTIAL', 'PARALLEL']) }))
-  .min(1)
+const SingleStepJson = z.strictObject({ approver: ApproverJson, slaBusinessMinutes: z.number().int().positive(), mode: z.enum(['SEQUENTIAL', 'PARALLEL']) })
+
+/** A committee (S6 · FR-WF-102): { approvers, mode: PARALLEL, quorum, quorumCount?, slaBusinessMinutes }; lint checks the
+ * quorum against the number of approvers (BR-WF-05), the shape only that it is one */
+const CommitteeStepJson = z.strictObject({
+  approvers: z.array(ApproverJson).min(1),
+  slaBusinessMinutes: z.number().int().positive(),
+  mode: z.literal('PARALLEL'),
+  quorum: z.enum(['ALL', 'ANY', 'COUNT', 'MAJORITY']),
+  quorumCount: z.number().int().positive().optional(),
+})
+
+/** DoaRule.steps as stored: each step has one approver or a committee of approvers, never both */
+export const RuleStepsJson = z.array(z.union([SingleStepJson, CommitteeStepJson])).min(1)
 
 export interface DoaRuleRow {
   readonly code: string
@@ -71,7 +83,7 @@ export function ruleSnapshotFromRow(row: DoaRuleRow): DoaRuleSnapshot {
     documentType: parsed.data.documentType,
     priority: row.priority,
     when: amount ? { amount: { ...amount } } : {},
-    steps: parsed.data.steps.map((s) => ({ ...s, approver: { ...s.approver } })),
+    steps: parsed.data.steps.map((s): DoaStepSpec => ('approvers' in s ? { ...s, approvers: s.approvers.map((a) => ({ ...a })) } : { ...s, approver: { ...s.approver } })),
     ...(row.descriptionTh ? { descriptionTh: row.descriptionTh } : {}),
   }
 }
@@ -95,13 +107,25 @@ export function versionSnapshotFromRows(version: DoaVersionRow, rules: readonly 
 
 const satangText = (v: bigint | undefined) => (v === undefined ? undefined : v.toString())
 
+/** One step as DoaRule.steps stores it, keys in a fixed order */
+function stepJson(step: DoaStepSpec): object {
+  if (!isCommitteeStep(step)) return { approver: { ...step.approver }, slaBusinessMinutes: step.slaBusinessMinutes, mode: step.mode }
+  return {
+    approvers: step.approvers.map((a) => ({ ...a })),
+    slaBusinessMinutes: step.slaBusinessMinutes,
+    mode: step.mode,
+    quorum: step.quorum,
+    ...(step.quorumCount !== undefined ? { quorumCount: step.quorumCount } : {}),
+  }
+}
+
 /** The JSON columns of DoaRule for one engine rule (the inverse of ruleSnapshotFromRow). */
 export function ruleJson(rule: DoaRuleSnapshot): { documentType: DoaDocumentType; when: object; steps: object[] } {
   const amount = rule.when.amount
   const when = amount
     ? { amount: Object.fromEntries(Object.entries({ gt: satangText(amount.gt), gte: satangText(amount.gte), lte: satangText(amount.lte) }).filter(([, v]) => v !== undefined)) }
     : {}
-  return { documentType: rule.documentType, when, steps: rule.steps.map((s) => ({ approver: { ...s.approver }, slaBusinessMinutes: s.slaBusinessMinutes, mode: s.mode })) }
+  return { documentType: rule.documentType, when, steps: rule.steps.map(stepJson) }
 }
 
 export interface OrgRows {

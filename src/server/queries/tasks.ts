@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, stepApprovers, type DoaRuleSnapshot, type DoaStepSpec } from '@/core/doa'
 import type { ApprovalSubject } from '@/core/sod'
 import { stepUpNeeded } from '@/core/pin'
 import type { Ctx } from '@/server/context'
@@ -542,25 +542,27 @@ async function orgChangeOf(db: TenantDb, changeId: string, departments: { byId: 
 }
 
 const SatangText = z.string().regex(/^\d{1,18}$/).transform((v) => BigInt(v))
+const StoredApprover = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('POSITION_OF_DEPARTMENT'), position: z.string().min(1) }),
+  z.object({ kind: z.literal('POSITION_OF_ORG'), position: z.string().min(1) }),
+  z.object({ kind: z.literal('MEMBER'), memberId: z.string().min(1) }),
+])
+const SlaMinutes = z.number().int().positive()
+const StoredCommittee = z.object({
+  approvers: z.array(StoredApprover).min(1),
+  slaBusinessMinutes: SlaMinutes,
+  mode: z.literal('PARALLEL'),
+  quorum: z.enum(['ALL', 'ANY', 'COUNT', 'MAJORITY']),
+  quorumCount: z.number().int().positive().optional(),
+})
 /** DoaRule as stored (when and steps are JSON with satang as text), read as the engine reads it */
 const StoredRule = z.object({
   code: z.string().min(1),
   documentType: z.enum(DOA_DOCUMENT_TYPES),
   priority: z.number().int(),
   when: z.object({ amount: z.object({ gt: SatangText.optional(), gte: SatangText.optional(), lte: SatangText.optional() }).optional() }),
-  steps: z
-    .array(
-      z.object({
-        approver: z.discriminatedUnion('kind', [
-          z.object({ kind: z.literal('POSITION_OF_DEPARTMENT'), position: z.string().min(1) }),
-          z.object({ kind: z.literal('POSITION_OF_ORG'), position: z.string().min(1) }),
-          z.object({ kind: z.literal('MEMBER'), memberId: z.string().min(1) }),
-        ]),
-        slaBusinessMinutes: z.number().int().positive(),
-        mode: z.enum(['SEQUENTIAL', 'PARALLEL']),
-      }),
-    )
-    .min(1),
+  // One approver or a committee (S6 · FR-WF-102), as src/server/doa/snapshot.ts reads them (queries do not import it)
+  steps: z.array(z.union([z.object({ approver: StoredApprover, slaBusinessMinutes: SlaMinutes, mode: z.enum(['SEQUENTIAL', 'PARALLEL']) }), StoredCommittee])).min(1),
 })
 const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() })
 
@@ -600,7 +602,7 @@ async function doaContentOf(db: TenantDb, versionId: string): Promise<DoaVersion
             },
           }
         : {},
-      steps: parsed.data.steps.map((s) => ({ approver: s.approver, slaBusinessMinutes: s.slaBusinessMinutes, mode: s.mode })),
+      steps: parsed.data.steps.map((s): DoaStepSpec => ('approvers' in s ? { ...s, approvers: s.approvers.map((a) => ({ ...a })) } : { ...s, approver: { ...s.approver } })),
     })
   }
   return {
@@ -648,7 +650,7 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
   // What the approver publishes, and the version it is compared with (FR-DOA-002 AC2, FR-DOA-009 AC1, AC3)
   const baseline = await baselineOf(db, version, now)
   const [content, baselineContent] = await Promise.all([doaContentOf(db, version.id), baseline ? doaContentOf(db, baseline.versionId) : Promise.resolve(null)])
-  const approvers = [...(content?.rules ?? []), ...(baselineContent?.rules ?? [])].flatMap((r) => r.steps.map((s) => s.approver))
+  const approvers = [...(content?.rules ?? []), ...(baselineContent?.rules ?? [])].flatMap((r) => r.steps.flatMap(stepApprovers))
   const positionCodes = [...new Set(approvers.flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position])))]
   const [positionRows, memberNames] = await Promise.all([
     positionCodes.length ? db.position.findMany({ where: { code: { in: positionCodes } }, select: { code: true, nameTh: true, nameEn: true } }) : Promise.resolve([]),

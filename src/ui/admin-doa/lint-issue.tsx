@@ -27,6 +27,7 @@ export function LintIssueText({ issue }: { issue: IssueView }) {
     case 'DOA_LINT_UNRESOLVABLE_GOVERNANCE':
     case 'DOA_LINT_AMOUNT_NOT_ALLOWED':
     case 'DOA_LINT_PARALLEL_STEP':
+    case 'DOA_LINT_QUORUM_INVALID':
       text = t(`lint.${issue.code}`, { rule: issue.rule ?? '' })
       break
     default:

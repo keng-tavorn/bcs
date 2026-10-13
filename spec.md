@@ -1364,7 +1364,7 @@ export function resolveRoute(
 | BR-DOA-05 | แผนกที่ใช้หาผู้อนุมัติคือแผนกเจ้าของงบที่ถูกตั้งเบิก (`chargedDepartmentId`) ไม่ใช่แผนกของผู้ขอ (OQ-27) |
 | BR-DOA-06 | ถ้าผู้อนุมัติที่หาได้อยู่ใน `conflictMemberIds`: policy `ESCALATE_NEXT_BAND` ไล่ไปข้อของช่วงวงเงินถัดไปของ documentType เดียวกัน (เรียงตามขอบล่างของวงเงิน) จนเจอผู้อนุมัติที่ไม่ขัดแย้ง หมดช่วงแล้ว → `NO_HIGHER_AUTHORITY` · policy `BLOCK` → `SOD_VIOLATION` ทันที · บันทึก `escalatedFromRuleCode` และเหตุผลในคำอธิบาย วิธีนี้ไม่ให้อำนาจแก่ตำแหน่งที่ DOA ไม่ได้ให้ไว้ |
 | BR-DOA-07 | เมื่อ route มีหลาย step และคนเดียวกันปรากฏใน step ติดกัน เก็บเฉพาะ step หลัง (OQ-05) |
-| BR-DOA-08 | lint ก่อนส่งเผยแพร่ ผลเป็นรายการ error และ warning ที่มีรหัส: (ก) documentType ที่มีข้อแบบวงเงินล้วนต้องครอบคลุมช่วง (0, ∞) ไม่มีช่องว่าง (`DOA_LINT_GAP`) และไม่ทับกัน (`DOA_LINT_OVERLAP`) (ข) ตำแหน่งที่อ้างต้องมีอยู่ ตำแหน่งที่ไม่มีผู้ดำรงเป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_VACANT_POSITION`) (ค) ไม่มี step แบบ `PARALLEL` ก่อน S6 (ง) `DoaTestCase` ของฉบับนั้นผ่านทั้งหมด (จ) ทุกฉบับต้องมีข้อ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` (`DOA_LINT_MISSING_DOCTYPE`) ที่หาผู้อนุมัติได้ ณ วันมีผล (`DOA_LINT_UNRESOLVABLE_GOVERNANCE`) กันลูกค้าล็อกตัวเองออกจากระบบ (ฉ) ผู้อนุมัติแบบ `MEMBER` ใช้ได้แต่เป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_MEMBER_APPROVER`) (ช) ระบบสร้างตารางผลที่ขอบของทุกช่วง (ขอบบน และขอบบน + 0.01) ให้ผู้ร่างและผู้อนุมัติเห็นและติ๊กยืนยัน · มี error ใด → `DOA_LINT_FAILED` |
+| BR-DOA-08 | lint ก่อนส่งเผยแพร่ ผลเป็นรายการ error และ warning ที่มีรหัส: (ก) documentType ที่มีข้อแบบวงเงินล้วนต้องครอบคลุมช่วง (0, ∞) ไม่มีช่องว่าง (`DOA_LINT_GAP`) และไม่ทับกัน (`DOA_LINT_OVERLAP`) (ข) ตำแหน่งที่อ้างต้องมีอยู่ ตำแหน่งที่ไม่มีผู้ดำรงเป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_VACANT_POSITION`) (ค) step แบบ `PARALLEL` ต้องเป็นคณะกรรมการตาม BR-WF-05 (ผู้อนุมัติ ≥ 2 คน · `DOA_LINT_PARALLEL_STEP` · องค์ประชุมผิด `DOA_LINT_QUORUM_INVALID`) · ก่อน S6 ไม่มี step แบบ `PARALLEL` (ง) `DoaTestCase` ของฉบับนั้นผ่านทั้งหมด (จ) ทุกฉบับต้องมีข้อ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` (`DOA_LINT_MISSING_DOCTYPE`) ที่หาผู้อนุมัติได้ ณ วันมีผล (`DOA_LINT_UNRESOLVABLE_GOVERNANCE`) กันลูกค้าล็อกตัวเองออกจากระบบ (ฉ) ผู้อนุมัติแบบ `MEMBER` ใช้ได้แต่เป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_MEMBER_APPROVER`) (ช) ระบบสร้างตารางผลที่ขอบของทุกช่วง (ขอบบน และขอบบน + 0.01) ให้ผู้ร่างและผู้อนุมัติเห็นและติ๊กยืนยัน · มี error ใด → `DOA_LINT_FAILED` |
 | BR-DOA-09 | ส่งซ้ำหลังตีกลับ → คำนวณเส้นทางใหม่ทั้งหมดด้วยฉบับที่มีผล ณ เวลาส่งซ้ำ การอนุมัติเดิมไม่นับ |
 | BR-DOA-10 | ทุกการตัดสินบันทึก doaVersionId และ ruleCode · route เก็บคำอธิบายภาษาไทย เช่น "DOA-DEMO ฉบับ 1 ข้อ PR-02: คำขอซื้อยอด 45,000.00 บาท (รวม VAT) อยู่ในช่วงมากกว่า 20,000.00 ถึงไม่เกิน 100,000.00 → VP ของสายปฏิบัติการ" |
 | BR-DOA-11 | ฐานวงเงิน (`GROSS` หรือ `NET`) กำหนดต่อฉบับ (OQ-02) |
@@ -2193,6 +2193,109 @@ cases:
 | INV-WF-02 | สมาชิกคนเดียวไม่มีงานเปิดสองงานใน step เดียว | integration test ตำแหน่งซ้อน + รักษาการ |
 | INV-WF-03 | step ที่ DONE ไม่มีงาน OPEN หรือ INFO_REQUESTED และผลไม่เปลี่ยน | integration test ตัดสินพร้อมกัน 3 slot (แบบ INV-PLT-01) |
 | INV-WF-04 | ทุก `approval_task.decided` ของงาน REVIEW มี doaVersionId ruleCode ของ route และ workflowVersionId workflowRuleCodes | เทสต์ schema event (INV-DOA-01 ยังผ่าน) |
+
+**Golden ของคณะกรรมการ ผลของขั้นแบบ slot และ lint ของ BR-WF-05 (S6-02 · suite `workflow` · S6-03 เพิ่มผู้ตรวจ):**
+
+```yaml
+# tests/golden/fixtures/org-s6.yaml
+# org-p1.yaml + ฝ่ายกฎหมาย (LEG) และความปลอดภัย (QSE) + ตำแหน่งกรรมการ PC1 ถึง PC3 ระดับองค์กร (S6 · ไม่ใช้ extends)
+departments:
+  - { code: HQ, nameTh: สำนักงานใหญ่, parent: null }
+  - { code: OPS, nameTh: สายปฏิบัติการ, parent: HQ }
+  - { code: CON, nameTh: ฝ่ายก่อสร้าง, parent: OPS }
+  - { code: PROC, nameTh: ฝ่ายจัดซื้อ, parent: OPS }
+  - { code: SUP, nameTh: สายสนับสนุน, parent: HQ }
+  - { code: FIN, nameTh: ฝ่ายบัญชีและการเงิน, parent: SUP }
+  - { code: IT, nameTh: ฝ่ายไอที, parent: SUP }
+  - { code: LEG, nameTh: ฝ่ายกฎหมาย, parent: SUP }
+  - { code: QSE, nameTh: ฝ่ายความปลอดภัย, parent: OPS }
+positions:
+  - { position: DM, department: CON, member: dm_con }
+  - { position: DM, department: PROC, member: dm_proc }
+  - { position: DM, department: FIN, member: dm_fin }
+  - { position: DM, department: IT, member: dm_it }
+  - { position: DM, department: LEG, member: dm_leg }
+  - { position: DM, department: QSE, member: dm_qse }
+  - { position: VP, department: OPS, member: vp_ops }
+  - { position: VP, department: SUP, member: vp_sup }
+  - { position: PROC_MGR, department: HQ, member: dm_proc }
+  - { position: COO, department: HQ, member: coo }
+  - { position: CFO, department: HQ, member: cfo }
+  - { position: CEO, department: HQ, member: ceo }
+  - { position: PC1, department: HQ, member: coo }
+  - { position: PC2, department: HQ, member: dm_fin }
+  - { position: PC3, department: HQ, member: dm_proc }
+members:
+  req_con: CON
+  asst_con: CON
+  receiver_con: CON
+  dm_con: CON
+  proc_officer: PROC
+  dm_proc: PROC
+  fin_officer: FIN
+  dm_fin: FIN
+  auditor: FIN
+  dm_it: IT
+  admin: IT
+  admin2: FIN
+  vp_ops: OPS
+  vp_sup: SUP
+  coo: HQ
+  ceo: HQ
+  cfo: HQ
+  dm_leg: LEG
+  dm_qse: QSE
+```
+
+```yaml
+# tests/golden/fixtures/doa-committee.yaml
+# DOA-WF: คำขอซื้อเกิน 100,000.00 ไปคณะกรรมการ 3 คน เสียงข้างมาก (S6 · FR-WF-102)
+versions:
+  - code: DOA-WF
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, step: { mode: PARALLEL, quorum: MAJORITY, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }, { kind: POSITION_OF_ORG, position: PC2 }, { kind: POSITION_OF_ORG, position: PC3 }] }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+```
+
+```yaml
+# tests/golden/workflow.yaml
+suite: workflow
+fixtures: [fixtures/org-s6.yaml, fixtures/doa-versions.yaml, fixtures/doa-committee.yaml]
+defaults: { documentType: PURCHASE_REQUEST, doa: DOA-DEMO, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+cases:
+  # คณะกรรมการ (BR-WF-02 ถึง BR-WF-04)
+  - { id: GC-WF-01, title: กรรมการ 3 คน เสียงข้างมาก, fn: resolveRoute, input: { doa: DOA-WF, amount: "100000.01" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin, dm_proc] }] } }
+  - { id: GC-WF-02, title: กรรมการคนหนึ่งเป็นผู้ขอ ตัด slot ออก, fn: resolveRoute, input: { doa: DOA-WF, requester: dm_fin, department: FIN, amount: "150000.00" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_proc] }] } }
+  - { id: GC-WF-03, title: เหลือกรรมการไม่พอและไม่มีช่วงถัดไป, fn: resolveRoute, input: { doa: DOA-WF, requester: dm_fin, department: FIN, amount: "150000.00", alsoConflicting: [coo] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-WF-04, title: คนเดียวถือสองตำแหน่งกรรมการ รวมเป็น slot เดียว, fn: resolveRoute, input: { doa: DOA-WF, amount: "150000.00", replaceHolders: { "PC3@HQ": coo } }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin] }] } }
+  - { id: GC-WF-05, title: ALL และคนเดียวถือสองตำแหน่งกรรมการ รวมแล้วไม่ยกช่วง, fn: resolveRoute, input: { doa: DOA-WF, amount: "150000.00", replaceStep: { rule: PR-02, quorum: ALL }, replaceHolders: { "PC3@HQ": coo } }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: ALL, approvers: [coo, dm_fin] }] } }
+  # stepOutcome ของขั้นกลุ่มเดียว (BR-WF-01) · slots เรียงตาม slotNo · null = ยังไม่ตัดสิน
+  - { id: GC-WF-06, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, APPROVE, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-07, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, APPROVE, APPROVE] }, expect: { outcome: APPROVED, cancel: [] } }
+  - { id: GC-WF-08, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, RETURN, null] }, expect: { outcome: RETURNED, cancel: [3] } }
+  - { id: GC-WF-09, fn: stepOutcome, input: { quorum: ALL, slots: [REJECT, null, null] }, expect: { outcome: REJECTED, cancel: [2, 3] } }
+  - { id: GC-WF-10, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [APPROVE, null, APPROVE] }, expect: { outcome: APPROVED, cancel: [2] } }
+  - { id: GC-WF-11, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [REJECT, REJECT, null] }, expect: { outcome: REJECTED, cancel: [3] } }
+  - { id: GC-WF-12, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [REJECT, APPROVE, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-13, fn: stepOutcome, input: { quorum: ANY, slots: [null, REJECT] }, expect: { outcome: REJECTED, cancel: [1] } }
+  - { id: GC-WF-14, title: เสียงข้างมากของ 4 คือ 3, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 3, slots: [APPROVE, APPROVE, REJECT, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-15, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 3, slots: [APPROVE, APPROVE, REJECT, REJECT] }, expect: { outcome: REJECTED, cancel: [] } }
+  # lint DOA (BR-WF-05)
+  - { id: GC-WF-16, fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, quorum: COUNT, quorumCount: 4 } }, expect: { errors: [{ code: DOA_LINT_QUORUM_INVALID, rule: PR-02 }], warnings: [] } }
+  - { id: GC-WF-17, title: PARALLEL ผู้อนุมัติคนเดียว (เข้ากับเทสต์เดิมใน tests/unit/doa.test.ts), fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }] } }, expect: { errors: [{ code: DOA_LINT_PARALLEL_STEP, rule: PR-02 }], warnings: [] } }
+  - { id: GC-WF-18, title: คณะกรรมการที่ถูกต้องผ่าน lint หลัง S6, fn: lintDoaVersion, input: { doa: DOA-WF }, expect: { errors: [], warnings: [] } }
+```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
 
@@ -3446,6 +3549,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
+| approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
@@ -3747,7 +3851,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       21 ไฟล์ · 173 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       22 ไฟล์ · 191 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

@@ -1,11 +1,23 @@
 import { anyHolderAt, departmentPath, resolveApprover, rootDepartment } from './approvers'
 import { bandOf, chooseRule, isAmountOnly } from './band'
-import { DOA_DOCUMENT_TYPES, DOC_TYPE_TRAITS, GOVERNANCE_DOCUMENT_TYPES, requiredDocumentTypes, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot } from './types'
+import {
+  DOA_DOCUMENT_TYPES,
+  DOC_TYPE_TRAITS,
+  GOVERNANCE_DOCUMENT_TYPES,
+  isCommitteeStep,
+  requiredDocumentTypes,
+  stepApprovers,
+  type DoaDocumentType,
+  type DoaRuleSnapshot,
+  type DoaStepSpec,
+  type DoaVersionSnapshot,
+  type OrgSnapshot,
+} from './types'
 
 // lintDoaVersion and boundaryTable (spec §7.4, BR-DOA-08, BR-DOA-22, BR-DOA-23, FR-DOA-002, FR-DOA-009). Errors come in
 // this order: gaps and overlaps per document type → missing required document types → governance rules nobody can
-// approve on the effective date → amount bands on types without an amount → PARALLEL steps; warnings follow the order
-// of the rules in the version.
+// approve on the effective date → amount bands on types without an amount → PARALLEL steps that are not a committee of
+// two or more, and committees whose quorum is out of range (BR-WF-05); warnings follow the order of the rules.
 
 export type LintCode =
   | 'DOA_LINT_GAP'
@@ -13,6 +25,7 @@ export type LintCode =
   | 'DOA_LINT_MISSING_DOCTYPE'
   | 'DOA_LINT_UNRESOLVABLE_GOVERNANCE'
   | 'DOA_LINT_PARALLEL_STEP'
+  | 'DOA_LINT_QUORUM_INVALID'
   | 'DOA_LINT_AMOUNT_NOT_ALLOWED'
   | 'DOA_LINT_VACANT_POSITION'
   | 'DOA_LINT_MEMBER_APPROVER'
@@ -74,18 +87,31 @@ function governanceResolvable(rule: DoaRuleSnapshot, org: OrgSnapshot, at: Date)
   const root = rootDepartment(org)
   if (!root) return false
   const departments = org.departments.filter((d) => departmentPath(org, d.id).some((p) => p.id === root.id))
-  return rule.steps.every((step) => departments.every((d) => resolveApprover(step.approver, d.id, org, at).found))
+  return rule.steps.every((step) => stepApprovers(step).every((approver) => departments.every((d) => resolveApprover(approver, d.id, org, at).found)))
 }
 
 function vacant(rule: DoaRuleSnapshot, org: OrgSnapshot, at: Date): boolean {
-  return rule.steps.some((step) => {
-    if (step.approver.kind === 'MEMBER') return false
-    if (step.approver.kind === 'POSITION_OF_ORG') {
-      const root = rootDepartment(org)
-      return !root || !resolveApprover(step.approver, root.id, org, at).found
-    }
-    return !anyHolderAt(org, step.approver.position, at)
-  })
+  return rule.steps.some((step) =>
+    stepApprovers(step).some((approver) => {
+      if (approver.kind === 'MEMBER') return false
+      if (approver.kind === 'POSITION_OF_ORG') {
+        const root = rootDepartment(org)
+        return !root || !resolveApprover(approver, root.id, org, at).found
+      }
+      return !anyHolderAt(org, approver.position, at)
+    }),
+  )
+}
+
+/** BR-WF-05: a PARALLEL step is a committee of two or more approvers; a single approver is SEQUENTIAL */
+const badParallel = (step: DoaStepSpec) => step.mode === 'PARALLEL' && (!isCommitteeStep(step) || step.approvers.length < 2)
+
+/** BR-WF-05: COUNT names its quorumCount in 1..N; ALL ANY MAJORITY name none */
+function badQuorum(step: DoaStepSpec): boolean {
+  if (!isCommitteeStep(step)) return false
+  const n = step.quorumCount
+  if (step.quorum !== 'COUNT') return n !== undefined
+  return n === undefined || !Number.isInteger(n) || n < 1 || n > step.approvers.length
 }
 
 export interface LintOptions {
@@ -121,14 +147,15 @@ export function lintDoaVersion(version: DoaVersionSnapshot, org: OrgSnapshot, at
     if (DOC_TYPE_TRAITS[rule.documentType].amount === 'NONE' && rule.when.amount) errors.push({ code: 'DOA_LINT_AMOUNT_NOT_ALLOWED', rule: rule.code })
   }
   for (const rule of version.rules) {
-    if (rule.steps.some((s) => s.mode === 'PARALLEL')) errors.push({ code: 'DOA_LINT_PARALLEL_STEP', rule: rule.code })
+    if (rule.steps.some(badParallel)) errors.push({ code: 'DOA_LINT_PARALLEL_STEP', rule: rule.code })
+    else if (rule.steps.some(badQuorum)) errors.push({ code: 'DOA_LINT_QUORUM_INVALID', rule: rule.code })
   }
 
   const warnings: LintIssue[] = []
   for (const rule of version.rules) {
     // A vacant governance approver is already an error above
     if (!GOVERNANCE_DOCUMENT_TYPES.includes(rule.documentType) && vacant(rule, org, at)) warnings.push({ code: 'DOA_LINT_VACANT_POSITION', rule: rule.code })
-    if (rule.steps.some((s) => s.approver.kind === 'MEMBER')) warnings.push({ code: 'DOA_LINT_MEMBER_APPROVER', rule: rule.code })
+    if (rule.steps.some((s) => stepApprovers(s).some((a) => a.kind === 'MEMBER'))) warnings.push({ code: 'DOA_LINT_MEMBER_APPROVER', rule: rule.code })
   }
   return { errors, warnings }
 }

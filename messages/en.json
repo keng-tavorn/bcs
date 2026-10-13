@@ -261,6 +261,12 @@
       "boundarySame": "Same approver",
       "boundaryTitle": "Results at the band edges",
       "byAt": "{name} on {time}",
+      "committee": {
+        "ALL": "Committee {approvers}, every vote needed",
+        "ANY": "Committee {approvers}, any one of them",
+        "COUNT": "Committee {approvers}, {count, plural, one {# vote} other {# votes}} needed",
+        "MAJORITY": "Committee {approvers}, majority vote"
+      },
       "compareNextNote": "{name} is approved and in effect from {time} until this version starts, so this version is compared with {name}, the version it replaces, not with the version in effect today.",
       "compareNone": "Rules and policies are the same as {name}, <now>in effect now</now>",
       "compareNoneNext": "Rules and policies are the same as {name}, <now>in effect just before this one</now>",
@@ -413,6 +419,7 @@
       "changedFrom": "Differs from {name}",
       "code": "Rule code",
       "codeHint": "Capital letters, digits, - or _, e.g. PR-04",
+      "committee": "Approved by a committee (several at once)",
       "dateErrors": {
         "DATE": "Choose a valid date",
         "EFFECTIVE_IN_PAST": "The effective date must not have come yet. Choose tomorrow or later.",
@@ -437,6 +444,8 @@
       "lowerGt": "Above (baht)",
       "lowerGte": "From (baht)",
       "lowerHint": "Leave empty to start from 0",
+      "members": "Committee members",
+      "membersHint": "Each position gets the task at the same time; one person holding several positions has one vote",
       "multiStep": "This rule has {count} approval steps. This screen edits its amount band only; the steps stay as they are.",
       "nextPolicy": "Next: policies of the version",
       "nextSave": "Next: effective date and save",
@@ -447,6 +456,15 @@
       "pageTitle": "Draft {name}",
       "policyHint": "The policies apply to every rule of this version",
       "policyTitle": "Policies of the version",
+      "quorum": "Votes needed",
+      "quorumCount": "Votes needed",
+      "quorumCountHint": "{count, plural, one {Only 1 vote} other {1 to # votes}}",
+      "quorums": {
+        "ALL": "Everyone",
+        "ANY": "Any one",
+        "COUNT": "A set number",
+        "MAJORITY": "Majority"
+      },
       "removeRow": "Remove this rule",
       "removeRule": "Remove this rule: {rule}",
       "removed": "Rule {rule} is removed from the draft; this takes effect when the draft is saved",
@@ -457,7 +475,9 @@
         "BAND_ORDER": "The upper end must be above the start of the band",
         "CODE": "Use capital letters, digits, - or _ for the rule code, up to 40 characters",
         "CODE_TAKEN": "This rule code is in the version already. Use another code.",
+        "MEMBERS": "Choose at least 2 positions for the committee",
         "MONEY": "Enter an amount in baht with at most 2 decimals, e.g. 30,000.00",
+        "QUORUM_COUNT": "Enter the votes needed as a whole number from 1 to the number of members chosen",
         "SLA": "Enter the business hours as a whole number from 1 to 999"
       },
       "ruleProblem": "Rule {rule}: {problem}",
@@ -571,7 +591,8 @@
       "DOA_LINT_GAP": "{documentType}: no rule covers amounts {band}",
       "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule, an authority-change rule and a rule for every document type a module that is on requires.",
       "DOA_LINT_OVERLAP": "{documentType}: amounts {band} fall under more than one rule",
-      "DOA_LINT_PARALLEL_STEP": "Rule {rule}: has a parallel approval step, which is not supported yet",
+      "DOA_LINT_PARALLEL_STEP": "Rule {rule}: a parallel step must be a committee of at least 2 positions",
+      "DOA_LINT_QUORUM_INVALID": "Rule {rule}: the committee votes needed must be from 1 to the number of members, and only for a count",
       "DOA_LINT_UNRESOLVABLE_GOVERNANCE": "Rule {rule}: no approver can be found on the effective date, so nobody could approve policy changes",
       "OTHER": "Check {code}"
     },
@@ -588,6 +609,11 @@
       "acting": "acting for {principal}",
       "back": "Back to {name}",
       "basis": "Amount compared: {amount} baht ({basis})",
+      "committee": {
+        "ALL": "Committee, every vote needed",
+        "ANY": "Committee, any one member",
+        "COUNT": "Committee, {count, plural, one {# vote} other {# votes}} needed"
+      },
       "department": "Charged department",
       "departmentHint": "The department that owns the budget; approvers are looked for from it upwards",
       "different": "The results differ: the version in effect sends it to {before}, this version to {after}",
@@ -1261,6 +1287,7 @@
       "unknown": "Member without a name"
     },
     "aggregate": {
+      "ApprovalStep": "Approval step",
       "ApprovalTask": "Approval task",
       "Auth": "Sign-in",
       "BudgetGrant": "Cross-department budget grant",
@@ -1315,6 +1342,9 @@
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
+      "approval_step": {
+        "completed": "Approval step of several approvers completed"
+      },
       "approval_task": {
         "assigned": "Approval task assigned",
         "cancelled": "Approval task cancelled",
@@ -1489,6 +1519,7 @@
     },
     "forbidden": "The audit trail is open to auditors and organization admins only. If you need something from it, contact your organization's auditor.",
     "groups": {
+      "approval_step": "Approval steps",
       "approval_task": "Approval tasks",
       "audit": "Audit trail",
       "auth": "Sign-in",
@@ -6433,6 +6464,12 @@
         "fromTo": "from {from} up to {to} baht",
         "range": "above {from} up to {to} baht",
         "upTo": "up to {to} baht"
+      },
+      "doaCommittee": {
+        "ALL": "Committee {approvers}, every vote needed",
+        "ANY": "Committee {approvers}, any one of them",
+        "COUNT": "Committee {approvers}, {count, plural, one {# vote} other {# votes}} needed",
+        "MAJORITY": "Committee {approvers}, majority vote"
       },
       "doaCurrent": "Version in effect now",
       "doaDiffAdded": "Rule {rule} is added",

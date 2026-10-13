@@ -92,12 +92,33 @@ export type ApproverSpec =
   | { readonly kind: 'POSITION_OF_ORG'; readonly position: string }
   | { readonly kind: 'MEMBER'; readonly memberId: string }
 
-export interface DoaStepSpec {
+/** One approver: the step of tier 1 */
+export interface SingleStepSpec {
   readonly approver: ApproverSpec
   readonly slaBusinessMinutes: number
-  /** Tier 1 uses SEQUENTIAL only; lint refuses PARALLEL until S6 (BR-DOA-08 (ค)) */
+  /** SEQUENTIAL; a PARALLEL step of one approver is a lint error (BR-WF-05) */
   readonly mode: 'SEQUENTIAL' | 'PARALLEL'
 }
+
+/** MAJORITY = floor(N ÷ 2) + 1 of the N approvers named, kept on the route as COUNT (BR-WF-04) */
+export type CommitteeQuorum = 'ALL' | 'ANY' | 'COUNT' | 'MAJORITY'
+
+/** A committee (S6 · FR-WF-102 · BR-WF-02 to BR-WF-05): several approvers decide at once, each in a slot of their own */
+export interface CommitteeStepSpec {
+  readonly approvers: readonly ApproverSpec[]
+  readonly slaBusinessMinutes: number
+  readonly mode: 'PARALLEL'
+  readonly quorum: CommitteeQuorum
+  /** COUNT only: how many approvals the step needs */
+  readonly quorumCount?: number
+}
+
+export type DoaStepSpec = SingleStepSpec | CommitteeStepSpec
+
+export const isCommitteeStep = (step: DoaStepSpec): step is CommitteeStepSpec => 'approvers' in step
+
+/** Every approver a step names, in order */
+export const stepApprovers = (step: DoaStepSpec): readonly ApproverSpec[] => (isCommitteeStep(step) ? step.approvers : [step.approver])
 
 export interface DoaRuleSnapshot {
   readonly code: string
@@ -179,6 +200,23 @@ export interface RouteInput {
   readonly at: Date
 }
 
+/** One slot of a committee step (BR-WF-01): a person, or the delegate who holds it for them */
+export interface RouteSlot {
+  readonly slotNo: number
+  readonly assigneeMemberId: string
+  readonly principalMemberId: string | null
+  readonly resolvedFrom: string
+  readonly notifyOrgAdmin: boolean
+}
+
+/** A committee step on a route: the quorum it needs over its slots (MAJORITY already counted as COUNT) */
+export interface RouteCommittee {
+  readonly quorum: 'ALL' | 'ANY' | 'COUNT'
+  /** COUNT only */
+  readonly quorumCount: number | null
+  readonly slots: readonly RouteSlot[]
+}
+
 export interface RouteStep {
   readonly stepNo: number
   readonly assigneeMemberId: string
@@ -189,6 +227,8 @@ export interface RouteStep {
   readonly slaBusinessMinutes: number
   /** The delegate conflicts with the document, so the task stays with the delegator; ORG_ADMIN is told (BR-DLG-05) */
   readonly notifyOrgAdmin: boolean
+  /** A committee step: every slot (the fields above repeat slot 1); absent for a step of one approver */
+  readonly committee?: RouteCommittee
 }
 
 export interface RouteResult {

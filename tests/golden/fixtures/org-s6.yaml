@@ -1,0 +1,48 @@
+# tests/golden/fixtures/org-s6.yaml
+# org-p1.yaml + ฝ่ายกฎหมาย (LEG) และความปลอดภัย (QSE) + ตำแหน่งกรรมการ PC1 ถึง PC3 ระดับองค์กร (S6 · ไม่ใช้ extends)
+departments:
+  - { code: HQ, nameTh: สำนักงานใหญ่, parent: null }
+  - { code: OPS, nameTh: สายปฏิบัติการ, parent: HQ }
+  - { code: CON, nameTh: ฝ่ายก่อสร้าง, parent: OPS }
+  - { code: PROC, nameTh: ฝ่ายจัดซื้อ, parent: OPS }
+  - { code: SUP, nameTh: สายสนับสนุน, parent: HQ }
+  - { code: FIN, nameTh: ฝ่ายบัญชีและการเงิน, parent: SUP }
+  - { code: IT, nameTh: ฝ่ายไอที, parent: SUP }
+  - { code: LEG, nameTh: ฝ่ายกฎหมาย, parent: SUP }
+  - { code: QSE, nameTh: ฝ่ายความปลอดภัย, parent: OPS }
+positions:
+  - { position: DM, department: CON, member: dm_con }
+  - { position: DM, department: PROC, member: dm_proc }
+  - { position: DM, department: FIN, member: dm_fin }
+  - { position: DM, department: IT, member: dm_it }
+  - { position: DM, department: LEG, member: dm_leg }
+  - { position: DM, department: QSE, member: dm_qse }
+  - { position: VP, department: OPS, member: vp_ops }
+  - { position: VP, department: SUP, member: vp_sup }
+  - { position: PROC_MGR, department: HQ, member: dm_proc }
+  - { position: COO, department: HQ, member: coo }
+  - { position: CFO, department: HQ, member: cfo }
+  - { position: CEO, department: HQ, member: ceo }
+  - { position: PC1, department: HQ, member: coo }
+  - { position: PC2, department: HQ, member: dm_fin }
+  - { position: PC3, department: HQ, member: dm_proc }
+members:
+  req_con: CON
+  asst_con: CON
+  receiver_con: CON
+  dm_con: CON
+  proc_officer: PROC
+  dm_proc: PROC
+  fin_officer: FIN
+  dm_fin: FIN
+  auditor: FIN
+  dm_it: IT
+  admin: IT
+  admin2: FIN
+  vp_ops: OPS
+  vp_sup: SUP
+  coo: HQ
+  ceo: HQ
+  cfo: HQ
+  dm_leg: LEG
+  dm_qse: QSE

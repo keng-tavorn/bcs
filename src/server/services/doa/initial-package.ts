@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { lintDoaVersion, type OrgSnapshot, type RouteResult } from '@/core/doa'
+import { lintDoaVersion, stepApprovers, type OrgSnapshot, type RouteResult } from '@/core/doa'
 import { checkSod, type SodPolicy } from '@/core/sod'
 import { DOA_VERSION_MACHINE, transition, type DoaVersionState } from '@/core/state-machines'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
@@ -96,7 +96,7 @@ export const submitInitialPackageCommand = defineCommand({
 
     // The holders: positions this version names, one per position and department, active members, never the submitter
     const version = versionSnapshotFromRows(row, row.rules)
-    const named = new Set(version.rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [] : [s.approver.position]))))
+    const named = new Set(version.rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position]))))
     const structure = await loadOrgSnapshot(tx)
     const root = structure.departments.find((d) => d.parentId === null)
     const seen = new Set<string>()

@@ -1,0 +1,26 @@
+# tests/golden/workflow.yaml
+suite: workflow
+fixtures: [fixtures/org-s6.yaml, fixtures/doa-versions.yaml, fixtures/doa-committee.yaml]
+defaults: { documentType: PURCHASE_REQUEST, doa: DOA-DEMO, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+cases:
+  # คณะกรรมการ (BR-WF-02 ถึง BR-WF-04)
+  - { id: GC-WF-01, title: กรรมการ 3 คน เสียงข้างมาก, fn: resolveRoute, input: { doa: DOA-WF, amount: "100000.01" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin, dm_proc] }] } }
+  - { id: GC-WF-02, title: กรรมการคนหนึ่งเป็นผู้ขอ ตัด slot ออก, fn: resolveRoute, input: { doa: DOA-WF, requester: dm_fin, department: FIN, amount: "150000.00" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_proc] }] } }
+  - { id: GC-WF-03, title: เหลือกรรมการไม่พอและไม่มีช่วงถัดไป, fn: resolveRoute, input: { doa: DOA-WF, requester: dm_fin, department: FIN, amount: "150000.00", alsoConflicting: [coo] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-WF-04, title: คนเดียวถือสองตำแหน่งกรรมการ รวมเป็น slot เดียว, fn: resolveRoute, input: { doa: DOA-WF, amount: "150000.00", replaceHolders: { "PC3@HQ": coo } }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin] }] } }
+  - { id: GC-WF-05, title: ALL และคนเดียวถือสองตำแหน่งกรรมการ รวมแล้วไม่ยกช่วง, fn: resolveRoute, input: { doa: DOA-WF, amount: "150000.00", replaceStep: { rule: PR-02, quorum: ALL }, replaceHolders: { "PC3@HQ": coo } }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: ALL, approvers: [coo, dm_fin] }] } }
+  # stepOutcome ของขั้นกลุ่มเดียว (BR-WF-01) · slots เรียงตาม slotNo · null = ยังไม่ตัดสิน
+  - { id: GC-WF-06, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, APPROVE, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-07, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, APPROVE, APPROVE] }, expect: { outcome: APPROVED, cancel: [] } }
+  - { id: GC-WF-08, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, RETURN, null] }, expect: { outcome: RETURNED, cancel: [3] } }
+  - { id: GC-WF-09, fn: stepOutcome, input: { quorum: ALL, slots: [REJECT, null, null] }, expect: { outcome: REJECTED, cancel: [2, 3] } }
+  - { id: GC-WF-10, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [APPROVE, null, APPROVE] }, expect: { outcome: APPROVED, cancel: [2] } }
+  - { id: GC-WF-11, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [REJECT, REJECT, null] }, expect: { outcome: REJECTED, cancel: [3] } }
+  - { id: GC-WF-12, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [REJECT, APPROVE, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-13, fn: stepOutcome, input: { quorum: ANY, slots: [null, REJECT] }, expect: { outcome: REJECTED, cancel: [1] } }
+  - { id: GC-WF-14, title: เสียงข้างมากของ 4 คือ 3, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 3, slots: [APPROVE, APPROVE, REJECT, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-15, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 3, slots: [APPROVE, APPROVE, REJECT, REJECT] }, expect: { outcome: REJECTED, cancel: [] } }
+  # lint DOA (BR-WF-05)
+  - { id: GC-WF-16, fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, quorum: COUNT, quorumCount: 4 } }, expect: { errors: [{ code: DOA_LINT_QUORUM_INVALID, rule: PR-02 }], warnings: [] } }
+  - { id: GC-WF-17, title: PARALLEL ผู้อนุมัติคนเดียว (เข้ากับเทสต์เดิมใน tests/unit/doa.test.ts), fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }] } }, expect: { errors: [{ code: DOA_LINT_PARALLEL_STEP, rule: PR-02 }], warnings: [] } }
+  - { id: GC-WF-18, title: คณะกรรมการที่ถูกต้องผ่าน lint หลัง S6, fn: lintDoaVersion, input: { doa: DOA-WF }, expect: { errors: [], warnings: [] } }

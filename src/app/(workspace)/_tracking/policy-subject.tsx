@@ -25,7 +25,10 @@ type TasksT = Awaited<ReturnType<typeof getTranslations<'tasks'>>>
 // The engine's shapes, as the query hands them over (screens import core only for formatting, §4.10)
 type DoaRuleSnapshot = DoaVersionContentDto['rules'][number]
 type DoaStepSpec = DoaRuleSnapshot['steps'][number]
-type ApproverSpec = DoaStepSpec['approver']
+type ApproverSpec = Extract<DoaStepSpec, { approver: unknown }>['approver']
+/** A committee step (S6 · FR-WF-102) */
+type CommitteeStep = Extract<DoaStepSpec, { approvers: unknown }>
+const isCommittee = (s: DoaStepSpec): s is CommitteeStep => 'approvers' in s
 type AmountCondition = NonNullable<DoaRuleSnapshot['when']['amount']>
 type DoaDocumentType = DoaRuleSnapshot['documentType']
 type DoaPolicy = Extract<PolicySubjectDto, { kind: 'DOA_VERSION' }>
@@ -114,7 +117,13 @@ function doaWords(t: TasksT, locale: Locale, names: { positions: ReadonlyMap<str
     return t(`policy.doaApprover.${a.kind}`, { position })
   }
   const sla = (minutes: number) => (minutes % 60 === 0 ? t('policy.doaSla', { hours: minutes / 60 }) : t('policy.doaSlaMinutes', { minutes }))
-  const step = (s: DoaStepSpec) => t('policy.doaRuleStep', { approver: approver(s.approver), sla: sla(s.slaBusinessMinutes) })
+  /** One approver, or a committee with its quorum: "คณะกรรมการ COO, CFO ต้องได้ 2 เสียง" */
+  const who = (s: DoaStepSpec): string => {
+    if (!isCommittee(s)) return approver(s.approver)
+    const approvers = s.approvers.map(approver).join(', ')
+    return s.quorum === 'COUNT' ? t('policy.doaCommittee.COUNT', { approvers, count: s.quorumCount ?? s.approvers.length }) : t(`policy.doaCommittee.${s.quorum}`, { approvers })
+  }
+  const step = (s: DoaStepSpec) => t('policy.doaRuleStep', { approver: who(s), sla: sla(s.slaBusinessMinutes) })
   const policyValue = (field: PolicyField, value: PolicyValue): string => {
     if (value === null) return t('policy.doaValue.none')
     if (field === 'stepUpThreshold') return t('policy.doaValue.amount', { amount: money(BigInt(String(value))) })
@@ -132,7 +141,7 @@ function doaWords(t: TasksT, locale: Locale, names: { positions: ReadonlyMap<str
       case 'band':
         return band(rule.when.amount)
       case 'approver':
-        return rule.steps.map((s) => approver(s.approver)).join(', ')
+        return rule.steps.map(who).join(', ')
       case 'sla':
         return rule.steps.map((s) => sla(s.slaBusinessMinutes)).join(', ')
     }
@@ -184,7 +193,11 @@ function comparisonViews(policy: DoaPolicy, comparison: NonNullable<ReturnType<t
             ...(amount.lte !== undefined ? { lte: amount.lte.toString() } : {}),
           }
         : null,
-      steps: r.steps.map((s) => ({ approver: approver(s.approver), slaMinutes: s.slaBusinessMinutes })),
+      steps: r.steps.map((s) =>
+        isCommittee(s)
+          ? { approver: approver(s.approvers[0]!), slaMinutes: s.slaBusinessMinutes, committee: { quorum: s.quorum, quorumCount: s.quorumCount ?? null, approvers: s.approvers.map(approver) } }
+          : { approver: approver(s.approver), slaMinutes: s.slaBusinessMinutes },
+      ),
     }
   }
   const baseline = policy.baseline

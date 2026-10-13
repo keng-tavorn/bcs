@@ -1,4 +1,4 @@
-import { DOC_TYPE_TRAITS, resolveRoute, type RouteInput, type RouteResult } from '@/core/doa'
+import { DOC_TYPE_TRAITS, resolveRoute, type RouteInput, type RouteResult, type RouteSlot, type RouteStep } from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { addBusinessMinutes, remindAt, type BusinessCalendar } from '@/core/sla'
 import type { ApprovalSubject } from '@/core/sod'
@@ -10,7 +10,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 
 // Approval routes (spec §7.4, §6.2, BR-DOA-01..11): every submit or resubmit resolves a new route with the DOA engine
 // and stores it as ApprovalRoute → ApprovalStep → ApprovalTask. An old route is never edited; a replaced route is
-// CANCELLED. Tier 1 routes are SEQUENTIAL with one approver per step, so only the first step gets a task at once.
+// CANCELLED. Steps follow one another; the first step gets its tasks at once — one, or one per slot of a committee.
 
 /** APPROVAL_SUBJECTS of src/core/sod: the one list of subjects */
 export type { ApprovalSubject }
@@ -103,26 +103,75 @@ export async function storeRoute(
   for (const step of route.steps) {
     const isFirst: boolean = first === null
     const stepRow: { id: string } = await tx.approvalStep.create({
-      // A DOA step: its doaStepNo is the step number resolveRoute gave it (BR-WF-06)
-      data: { organizationId: ctx.organizationId, routeId: created.id, stepNo: step.stepNo, doaStepNo: step.stepNo, slaBusinessMinutes: step.slaBusinessMinutes, status: isFirst ? 'ACTIVE' : 'WAITING' },
+      // A DOA step: its doaStepNo is the step number resolveRoute gave it (BR-WF-06); a committee keeps its quorum
+      data: {
+        organizationId: ctx.organizationId,
+        routeId: created.id,
+        stepNo: step.stepNo,
+        doaStepNo: step.stepNo,
+        slaBusinessMinutes: step.slaBusinessMinutes,
+        status: isFirst ? 'ACTIVE' : 'WAITING',
+        ...stepModeOf(step),
+      },
       select: { id: true },
     })
     if (!isFirst) continue
-    const times = taskTimes(ctx.now, step.slaBusinessMinutes, remindShare, calendar)
+    const assigned = await assignStepTasks(tx, ctx, { stepId: stepRow.id, stepNo: step.stepNo, routeId: created.id, slaBusinessMinutes: step.slaBusinessMinutes }, step, subject, { remindShare, calendar })
+    first = assigned.first
+    events.push(...assigned.events)
+    notifications.push(...assigned.notifications)
+  }
+  return ok({ route, routeId: created.id, firstTask: first!, events, notifications })
+}
+
+/** The mode and quorum an ApprovalStep row keeps: a committee's (BR-WF-01), or the defaults of a step of one approver */
+export function stepModeOf(step: RouteStep): { mode: 'SEQUENTIAL' | 'PARALLEL'; quorum: 'ALL' | 'ANY' | 'COUNT'; quorumCount: number | null } {
+  return step.committee ? { mode: 'PARALLEL', quorum: step.committee.quorum, quorumCount: step.committee.quorumCount } : { mode: 'SEQUENTIAL', quorum: 'ALL', quorumCount: null }
+}
+
+/** The slots a step's tasks fill: a committee's, or the one approver of a step of one approver as slot 1 */
+export const slotsOf = (step: RouteStep): readonly RouteSlot[] =>
+  step.committee?.slots ?? [{ slotNo: 1, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, resolvedFrom: step.resolvedFrom, notifyOrgAdmin: step.notifyOrgAdmin }]
+
+export interface AssignedStep {
+  /** The task of slot 1 */
+  readonly first: StartedRoute['firstTask']
+  readonly events: EventDraft[]
+  readonly notifications: NotificationDraft[]
+}
+
+/**
+ * The tasks of a step that starts: one per slot, all at once (§6.4 ApprovalStep with slots), each told to its holder.
+ * A step of one approver is slot 1 and its events say what they said before S6; a committee's add slotNo.
+ */
+export async function assignStepTasks(
+  tx: TenantTx,
+  ctx: Ctx,
+  row: { readonly stepId: string; readonly stepNo: number; readonly routeId: string; readonly slaBusinessMinutes: number },
+  step: RouteStep,
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  timing: { readonly remindShare: number; readonly calendar: BusinessCalendar },
+): Promise<AssignedStep> {
+  const times = taskTimes(ctx.now, row.slaBusinessMinutes, timing.remindShare, timing.calendar)
+  const events: EventDraft[] = []
+  const notifications: NotificationDraft[] = []
+  let first: StartedRoute['firstTask'] | null = null
+  for (const slot of slotsOf(step)) {
     const task: { id: string } = await tx.approvalTask.create({
       data: {
         organizationId: ctx.organizationId,
-        stepId: stepRow.id,
-        assigneeMemberId: step.assigneeMemberId,
-        principalMemberId: step.principalMemberId,
-        resolvedFrom: step.resolvedFrom,
+        stepId: row.stepId,
+        slotNo: slot.slotNo,
+        assigneeMemberId: slot.assigneeMemberId,
+        principalMemberId: slot.principalMemberId,
+        resolvedFrom: slot.resolvedFrom,
         assignedAt: ctx.now,
         dueAt: times.dueAt,
         remindAt: times.remindAt,
       },
       select: { id: true },
     })
-    first = { id: task.id, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, dueAt: times.dueAt }
+    first ??= { id: task.id, assigneeMemberId: slot.assigneeMemberId, principalMemberId: slot.principalMemberId, dueAt: times.dueAt }
     events.push({
       type: 'approval_task.assigned',
       aggregateType: 'ApprovalTask',
@@ -130,16 +179,17 @@ export async function storeRoute(
       data: {
         subjectType: subject.type,
         subjectId: subject.id,
-        routeId: created.id,
-        stepNo: step.stepNo,
-        assigneeMemberId: step.assigneeMemberId,
-        principalMemberId: step.principalMemberId,
-        resolvedFrom: step.resolvedFrom,
+        routeId: row.routeId,
+        stepNo: row.stepNo,
+        assigneeMemberId: slot.assigneeMemberId,
+        principalMemberId: slot.principalMemberId,
+        resolvedFrom: slot.resolvedFrom,
         dueAt: times.dueAt.toISOString(),
+        ...(step.committee ? { slotNo: slot.slotNo } : {}),
       },
     })
     notifications.push({
-      recipientMemberId: step.assigneeMemberId,
+      recipientMemberId: slot.assigneeMemberId,
       templateKey: 'task.assigned',
       data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: task.id, dueAt: times.dueAt.toISOString() },
       urgency: 'IMMEDIATE',
@@ -148,7 +198,7 @@ export async function storeRoute(
       subjectId: subject.id,
     })
     // BR-DLG-05: the delegate conflicts with the document, so the task stayed with the delegator; ORG_ADMIN is told
-    if (step.notifyOrgAdmin) {
+    if (slot.notifyOrgAdmin) {
       const admins = await tx.roleAssignment.findMany({ where: { role: 'ORG_ADMIN', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true } })
       for (const memberId of new Set(admins.map((a) => a.memberId))) {
         notifications.push({
@@ -163,7 +213,7 @@ export async function storeRoute(
       }
     }
   }
-  return ok({ route, routeId: created.id, firstTask: first!, events, notifications })
+  return { first: first!, events, notifications }
 }
 
 /** Cancels the open tasks and the active route of a document (cancel, resubmit, final decision). */

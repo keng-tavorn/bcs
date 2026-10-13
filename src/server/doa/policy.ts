@@ -1,4 +1,4 @@
-import type { DelegationSnapshot, DelegationStatus, DoaDocumentType, OrgSnapshot, RoutePolicy } from '@/core/doa'
+import { stepApprovers, type DelegationSnapshot, type DelegationStatus, type DoaDocumentType, type OrgSnapshot, type RoutePolicy } from '@/core/doa'
 import type { BusinessCalendar, Weekday } from '@/core/sla'
 import type { SodPolicy } from '@/core/sod'
 import { OrgSettingsSchema } from '@/lib/org-settings'
@@ -88,9 +88,9 @@ export async function doaNamedApprovers(tx: TenantTx, now: Date): Promise<{ posi
   const members = new Set<string>()
   for (const v of versions) {
     for (const rule of versionSnapshotFromRows(v, v.rules).rules) {
-      for (const step of rule.steps) {
-        if (step.approver.kind === 'MEMBER') members.add(step.approver.memberId)
-        else positions.add(step.approver.position)
+      for (const approver of rule.steps.flatMap(stepApprovers)) {
+        if (approver.kind === 'MEMBER') members.add(approver.memberId)
+        else positions.add(approver.position)
       }
     }
   }

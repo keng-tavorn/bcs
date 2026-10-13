@@ -5,10 +5,10 @@ import type { TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
-import { remindShareOf, taskTimes, type ApprovalSubject } from './route'
+import { assignStepTasks, remindShareOf, type ApprovalSubject } from './route'
 
-// The next step of a route after one is approved (spec §7.4, tier 1 SEQUENTIAL with one approver per step): its
-// approver is the one the engine chose when the route was made, resolved again with the route's own time and input.
+// The next step of a route after one is approved (spec §7.4): its approvers — one, or a committee's slots — are the ones
+// the engine chose when the route was made, resolved again with the route's own time and input.
 
 export type NextStep = { ok: true; assigned: false } | { ok: true; assigned: true; events: EventDraft[]; notifications: NotificationDraft[] } | { ok: false; error: AppError }
 
@@ -25,33 +25,9 @@ export async function assignNextStep(
   const step = again.ok ? again.data.steps.find((s) => s.stepNo === next.stepNo) : undefined
   if (!step) return { ok: false, error: { code: 'APPROVER_NOT_FOUND', message: 'the next step has no approver', details: { stepNo: next.stepNo } } }
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { escalationPolicy: true } })
-  const times = taskTimes(ctx.now, next.slaBusinessMinutes, remindShareOf(version.escalationPolicy), await loadBusinessCalendar(tx, ctx.organizationId))
-  const created = await tx.approvalTask.create({
-    data: { organizationId: ctx.organizationId, stepId: next.id, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, resolvedFrom: step.resolvedFrom, assignedAt: ctx.now, dueAt: times.dueAt, remindAt: times.remindAt },
-    select: { id: true },
-  })
+  const timing = { remindShare: remindShareOf(version.escalationPolicy), calendar: await loadBusinessCalendar(tx, ctx.organizationId) }
+  // Every slot of a committee step gets its task at once (BR-WF-01); a step of one approver gets one
+  const assigned = await assignStepTasks(tx, ctx, { stepId: next.id, stepNo: next.stepNo, routeId: route.id, slaBusinessMinutes: next.slaBusinessMinutes }, step, subject, timing)
   await tx.approvalStep.update({ where: { id: next.id }, data: { status: 'ACTIVE' } })
-  return {
-    ok: true,
-    assigned: true,
-    events: [
-      {
-        type: 'approval_task.assigned',
-        aggregateType: 'ApprovalTask',
-        aggregateId: created.id,
-        data: { subjectType: subject.type, subjectId: subject.id, routeId: route.id, stepNo: next.stepNo, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, resolvedFrom: step.resolvedFrom, dueAt: times.dueAt.toISOString() },
-      },
-    ],
-    notifications: [
-      {
-        recipientMemberId: step.assigneeMemberId,
-        templateKey: 'task.assigned',
-        data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: created.id, dueAt: times.dueAt.toISOString() },
-        urgency: 'IMMEDIATE',
-        dedupeKey: `task.assigned:${created.id}`,
-        subjectType: subject.type,
-        subjectId: subject.id,
-      },
-    ],
-  }
+  return { ok: true, assigned: true, events: assigned.events, notifications: assigned.notifications }
 }

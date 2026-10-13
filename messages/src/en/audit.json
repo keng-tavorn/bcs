@@ -89,6 +89,7 @@
     "newest": "Back to the latest events"
   },
   "groups": {
+    "approval_step": "Approval steps",
     "approval_task": "Approval tasks",
     "audit": "Audit trail",
     "auth": "Sign-in",
@@ -120,6 +121,7 @@
     "variance": "Receiving variances"
   },
   "aggregate": {
+    "ApprovalStep": "Approval step",
     "ApprovalTask": "Approval task",
     "Auth": "Sign-in",
     "BudgetGrant": "Cross-department budget grant",
@@ -149,6 +151,9 @@
     "Variance": "Receiving variance"
   },
   "events": {
+    "approval_step": {
+      "completed": "Approval step of several approvers completed"
+    },
     "approval_task": {
       "assigned": "Approval task assigned",
       "cancelled": "Approval task cancelled",

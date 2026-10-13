@@ -102,7 +102,8 @@ describe('[FR-DOA-001/AC1] the editor table keeps money exact and bands joined',
   it('a new rule starts where the last band of its type ends, goes after it, and a policy rule has no band', () => {
     const rules = table()
     const draft = emptyDraft(rules, 'PURCHASE_REQUEST')
-    expect(draft).toEqual({ code: '', lower: '100,000.00', upper: '', approver: '', slaHours: '8' })
+    // S6: a new row is one approver until the committee switch is on
+    expect(draft).toEqual({ code: '', lower: '100,000.00', upper: '', approver: '', slaHours: '8', committee: false, members: [], quorum: 'MAJORITY', quorumCount: '' })
     const added = applyDraft(rules, { key: 'new', documentType: 'DOA_CHANGE', newKey: 9 }, { ...emptyDraft(rules, 'DOA_CHANGE'), code: 'doa-chg-02', lower: '5', approver: 'POSITION_OF_ORG:COO', slaHours: '16' })
     if (!added.ok) throw new Error(JSON.stringify(added.errors))
     expect(added.rules.map((r) => r.code)).toEqual(['PR-01', 'PR-02', 'PR-03', 'DOA-CHG-01', 'DOA-CHG-02'])

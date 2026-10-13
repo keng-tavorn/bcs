@@ -262,7 +262,13 @@
       "position": "{name} ({code})"
     },
     "doaSla": "{hours} ชั่วโมงทำการ",
-    "doaSlaMinutes": "{minutes} นาทีทำการ"
+    "doaSlaMinutes": "{minutes} นาทีทำการ",
+    "doaCommittee": {
+      "ALL": "คณะกรรมการ {approvers} ต้องได้ทุกเสียง",
+      "ANY": "คณะกรรมการ {approvers} คนใดคนหนึ่ง",
+      "COUNT": "คณะกรรมการ {approvers} ต้องได้ {count} เสียง",
+      "MAJORITY": "คณะกรรมการ {approvers} เสียงข้างมาก"
+    }
   },
   "errors": {
     "DECIDED": "ดำเนินการแล้วโดย {name} เมื่อ {time}",

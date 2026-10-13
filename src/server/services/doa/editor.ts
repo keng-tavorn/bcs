@@ -1,5 +1,17 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, NO_AMOUNT_DOCUMENT_TYPES, lintDoaVersion, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot } from '@/core/doa'
+import {
+  DOA_DOCUMENT_TYPES,
+  NO_AMOUNT_DOCUMENT_TYPES,
+  isCommitteeStep,
+  lintDoaVersion,
+  stepApprovers,
+  type ApproverSpec,
+  type CommitteeQuorum,
+  type DoaDocumentType,
+  type DoaRuleSnapshot,
+  type DoaStepSpec,
+  type DoaVersionSnapshot,
+} from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -15,7 +27,7 @@ import { getDoaVersionRow, listDoaVersions } from '@/server/queries/doa'
 import { listMembers, listPositions } from '@/server/queries/org'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { enabledModules } from '../modules'
-import { approverKey } from './compare'
+import { stepKey } from './compare'
 import { THAI_DATE, effectiveDates, thaiDateStart } from './dates'
 import { diffVersions } from './diff'
 import { laterVersionScheduled } from './index'
@@ -53,12 +65,32 @@ export interface EditorBand {
   readonly upper: string | null
 }
 
+/** A committee step (S6 · FR-WF-102): the approvers and the quorum; quorumCount for COUNT only */
+export interface EditorCommittee {
+  readonly approvers: readonly ApproverSpec[]
+  readonly quorum: CommitteeQuorum
+  readonly quorumCount: number | null
+}
+
+/** One step: one approver, or a committee (then `approver` repeats its first approver for the screens of one) */
+export interface EditorStep {
+  readonly approver: ApproverSpec
+  readonly slaMinutes: number
+  readonly committee?: EditorCommittee
+}
+
 export interface EditorRule {
   readonly code: string
   readonly documentType: DoaDocumentType
   /** null = the rule has no amount condition */
   readonly band: EditorBand | null
-  readonly steps: ReadonlyArray<{ readonly approver: ApproverSpec; readonly slaMinutes: number }>
+  readonly steps: readonly EditorStep[]
+}
+
+/** A step of the engine as the editor holds it */
+export function editorStep(s: DoaStepSpec): EditorStep {
+  if (!isCommitteeStep(s)) return { approver: s.approver, slaMinutes: s.slaBusinessMinutes }
+  return { approver: s.approvers[0]!, slaMinutes: s.slaBusinessMinutes, committee: { approvers: s.approvers, quorum: s.quorum, quorumCount: s.quorumCount ?? null } }
 }
 
 export interface EditorPolicy {
@@ -121,14 +153,14 @@ export async function getDoaEditor(ctx: Ctx, versionId: string): Promise<Result<
   const sameCode = versions.filter((v) => v.code === row.code)
   const latestStart = sameCode.filter((v) => v.status === 'PUBLISHED').reduce<Date | null>((latest, v) => (latest && latest >= v.effectiveFrom ? latest : v.effectiveFrom), null)
   const dates = effectiveDates(ctx.now, latestStart)
-  const named = [...new Set(data.rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [s.approver.memberId] : []))))]
+  const named = [...new Set(data.rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [a.memberId] : []))))]
   return ok({
     source: summaryOf(row, person, ctx.now),
     nextVersionNo: Math.max(row.versionNo, ...sameCode.map((v) => v.versionNo)) + 1,
     defaultEffectiveDate: dates.defaultDate,
     minEffectiveDate: dates.minDate,
     policy: editorPolicy(data),
-    rules: data.rules.map((r) => ({ code: r.code, documentType: r.documentType, band: editorBand(r), steps: r.steps.map((s) => ({ approver: s.approver, slaMinutes: s.slaBusinessMinutes })) })),
+    rules: data.rules.map((r) => ({ code: r.code, documentType: r.documentType, band: editorBand(r), steps: r.steps.map(editorStep) })),
     positions: positions.map((p) => ({ code: p.code, nameTh: p.nameTh, nameEn: p.nameEn, scope: p.scope })),
     members: named.map((id) => person(id)!),
   })
@@ -145,14 +177,33 @@ const ApproverInput = z.discriminatedUnion('kind', [
   z.strictObject({ kind: z.literal('MEMBER'), memberId: z.uuid() }),
 ])
 
+/** At most this many approvers in one committee */
+const MAX_COMMITTEE = 20
+const SlaMinutes = z.number().int().positive().max(SLA_MAX_MINUTES)
+// A step names one approver; with `committee` it is a committee (FR-WF-102) and `approver` is its first approver. Lint
+// checks the number of approvers and the quorum (BR-WF-05) as the send does
+const StepInput = z
+  .strictObject({
+    approver: ApproverInput,
+    slaMinutes: SlaMinutes,
+    committee: z
+      .strictObject({
+        approvers: z.array(ApproverInput).min(1).max(MAX_COMMITTEE),
+        quorum: z.enum(['ALL', 'ANY', 'COUNT', 'MAJORITY']),
+        quorumCount: z.number().int().positive().max(MAX_COMMITTEE).nullable(),
+      })
+      .optional(),
+  })
+  .refine((s) => !s.committee || JSON.stringify(s.committee.approvers[0]) === JSON.stringify(s.approver), {
+    message: 'a committee step names its first approver as approver',
+    path: ['approver'],
+  })
+
 const RuleInput = z.strictObject({
   code: Code,
   documentType: z.enum(DOA_DOCUMENT_TYPES),
   band: z.strictObject({ lowerKind: z.enum(['gt', 'gte']), lower: SatangText.nullable(), upper: SatangText.nullable() }).nullable(),
-  steps: z
-    .array(z.strictObject({ approver: ApproverInput, slaMinutes: z.number().int().positive().max(SLA_MAX_MINUTES) }))
-    .min(1)
-    .max(MAX_STEPS),
+  steps: z.array(StepInput).min(1).max(MAX_STEPS),
 })
 
 const PolicyInput = z.strictObject({
@@ -183,8 +234,8 @@ const bandKey = (rule: DoaRuleSnapshot) => {
   const a = rule.when.amount
   return a ? `gt:${a.gt ?? '-'}|gte:${a.gte ?? '-'}|lte:${a.lte ?? '-'}` : 'none'
 }
-/** Steps as a comparable key: each approver with its time under the SLA and its mode, in order */
-const stepsKey = (rule: DoaRuleSnapshot) => rule.steps.map((s) => `${approverKey(s.approver)}@${s.slaBusinessMinutes}@${s.mode}`).join('>')
+/** Steps as a comparable key: each approver (or committee) with its time under the SLA and its mode, in order */
+const stepsKey = (rule: DoaRuleSnapshot) => rule.steps.map((s) => `${stepKey(s)}@${s.slaBusinessMinutes}@${s.mode}`).join('>')
 
 /** The two rules hold the same band and the same steps (what a rule's description puts in words) */
 export const sameBandAndSteps = (a: DoaRuleSnapshot, b: DoaRuleSnapshot) => bandKey(a) === bandKey(b) && stepsKey(a) === stepsKey(b)
@@ -249,7 +300,18 @@ export const draftDoaCopyCommand = defineCommand({
               },
             }
           : {},
-        steps: r.steps.map((s) => ({ approver: { ...s.approver }, slaBusinessMinutes: s.slaMinutes, mode: 'SEQUENTIAL' as const })),
+        steps: r.steps.map(
+          (s): DoaStepSpec =>
+            s.committee
+              ? {
+                  approvers: s.committee.approvers.map((a) => ({ ...a })),
+                  slaBusinessMinutes: s.slaMinutes,
+                  mode: 'PARALLEL',
+                  quorum: s.committee.quorum,
+                  ...(s.committee.quorumCount !== null ? { quorumCount: s.committee.quorumCount } : {}),
+                }
+              : { approver: { ...s.approver }, slaBusinessMinutes: s.slaMinutes, mode: 'SEQUENTIAL' },
+        ),
       }
       // A description says the rule's band and approver in words ("ขอซื้อไม่เกิน 20,000 บาท → ผู้จัดการฝ่าย"): it travels
       // only with a rule whose band and steps did not change, never into a rule it would contradict
@@ -257,14 +319,16 @@ export const draftDoaCopyCommand = defineCommand({
     }
 
     // Approvers are positions of this organization, or its members
-    const positionCodes = [...new Set(rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [] : [s.approver.position]))))]
+    const positionCodes = [...new Set(rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position]))))]
     const known = new Set((await tx.position.findMany({ where: { code: { in: positionCodes } }, select: { code: true } })).map((p) => p.code))
-    const memberIds = [...new Set(rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [s.approver.memberId] : []))))]
+    const memberIds = [...new Set(rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [a.memberId] : []))))]
     const members = new Set((await tx.member.findMany({ where: { id: { in: memberIds } }, select: { id: true } })).map((m) => m.id))
     for (const [i, r] of rules.entries()) {
       for (const [j, s] of r.steps.entries()) {
-        const missing = s.approver.kind === 'MEMBER' ? !members.has(s.approver.memberId) : !known.has(s.approver.position)
-        if (missing) return fail('VALIDATION_FAILED', 'unknown approver', { field: `rules.${i}.steps.${j}.approver`, reason: s.approver.kind === 'MEMBER' ? 'MEMBER' : 'POSITION', rule: r.code })
+        for (const a of stepApprovers(s)) {
+          const missing = a.kind === 'MEMBER' ? !members.has(a.memberId) : !known.has(a.position)
+          if (missing) return fail('VALIDATION_FAILED', 'unknown approver', { field: `rules.${i}.steps.${j}.approver`, reason: a.kind === 'MEMBER' ? 'MEMBER' : 'POSITION', rule: r.code })
+        }
       }
     }
 

@@ -262,7 +262,13 @@
       "position": "{name} ({code})"
     },
     "doaSla": "{hours, plural, one {# business hour} other {# business hours}}",
-    "doaSlaMinutes": "{minutes, plural, one {# business minute} other {# business minutes}}"
+    "doaSlaMinutes": "{minutes, plural, one {# business minute} other {# business minutes}}",
+    "doaCommittee": {
+      "ALL": "Committee {approvers}, every vote needed",
+      "ANY": "Committee {approvers}, any one of them",
+      "COUNT": "Committee {approvers}, {count, plural, one {# vote} other {# votes}} needed",
+      "MAJORITY": "Committee {approvers}, majority vote"
+    }
   },
   "errors": {
     "DECIDED": "Already decided by {name} {time}",

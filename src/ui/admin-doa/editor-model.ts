@@ -36,9 +36,22 @@ export interface Band {
   readonly upper: string | null
 }
 
+export const QUORUMS = ['MAJORITY', 'ALL', 'ANY', 'COUNT'] as const
+export type Quorum = (typeof QUORUMS)[number]
+
+/** A committee (S6 · FR-WF-102): two or more approvers and how many of them must approve (BR-WF-04, BR-WF-05) */
+export interface EditorCommittee {
+  readonly approvers: readonly ApproverValue[]
+  readonly quorum: Quorum
+  /** COUNT only */
+  readonly quorumCount: number | null
+}
+
+/** One step: one approver, or a committee (then `approver` is its first approver) */
 export interface EditorStep {
   readonly approver: ApproverValue
   readonly slaMinutes: number
+  readonly committee?: EditorCommittee
 }
 
 export interface RuleState {
@@ -59,10 +72,17 @@ export interface RowDraft {
   /** approverKey of the chosen approver */
   readonly approver: string
   readonly slaHours: string
+  /** A committee instead of one approver (FR-WF-102) */
+  readonly committee: boolean
+  /** approverKey of each committee member, in order */
+  readonly members: readonly string[]
+  readonly quorum: Quorum
+  /** COUNT only, as typed */
+  readonly quorumCount: string
 }
 
 export type RowField = keyof RowDraft
-export type RowError = 'CODE' | 'CODE_TAKEN' | 'MONEY' | 'BAND_ORDER' | 'APPROVER' | 'SLA'
+export type RowError = 'CODE' | 'CODE_TAKEN' | 'MONEY' | 'BAND_ORDER' | 'APPROVER' | 'SLA' | 'MEMBERS' | 'QUORUM_COUNT'
 
 export const MINUTES_PER_HOUR = 60
 const CODE = /^[A-Z0-9][A-Z0-9_-]{0,39}$/
@@ -70,6 +90,9 @@ const MONEY = /^\d{1,13}(\.\d{1,2})?$/
 const HOURS = /^\d{1,3}$/
 
 export const approverKey = (a: ApproverValue) => (a.kind === 'MEMBER' ? `MEMBER:${a.memberId}` : `${a.kind}:${a.position}`)
+
+/** One step as a comparable key: its approver, or a committee's quorum and members in order */
+export const stepKey = (s: EditorStep) => (s.committee ? `PARALLEL:${s.committee.quorum}:${s.committee.quorumCount ?? ''}:${s.committee.approvers.map(approverKey).join('+')}` : approverKey(s.approver))
 
 export function approverFromKey(key: string): ApproverValue | null {
   const at = key.indexOf(':')
@@ -99,12 +122,17 @@ export const hasAmount = (documentType: DocType) => !NO_AMOUNT_TYPES.includes(do
 
 export function draftOf(rule: RuleState): RowDraft {
   const step = rule.steps[0]
+  const committee = step?.committee
   return {
     code: rule.code,
     lower: rule.band ? textFromSatang(rule.band.lower) : '',
     upper: rule.band ? textFromSatang(rule.band.upper) : '',
     approver: step ? approverKey(step.approver) : '',
     slaHours: step ? hoursText(step.slaMinutes) : '',
+    committee: committee !== undefined,
+    members: committee ? committee.approvers.map(approverKey) : [],
+    quorum: committee?.quorum ?? 'MAJORITY',
+    quorumCount: committee?.quorumCount ? String(committee.quorumCount) : '',
   }
 }
 
@@ -112,7 +140,17 @@ export function emptyDraft(rules: readonly RuleState[], documentType: DocType): 
   // A new band usually starts where the last one ended; its upper end is left for the user to set
   const last = [...rules].reverse().find((r) => r.documentType === documentType && r.band && r.band.upper !== null)
   const sla = rules.find((r) => r.documentType === documentType)?.steps[0]?.slaMinutes
-  return { code: '', lower: hasAmount(documentType) && last?.band ? textFromSatang(last.band.upper) : '', upper: '', approver: '', slaHours: sla ? hoursText(sla) : '' }
+  return {
+    code: '',
+    lower: hasAmount(documentType) && last?.band ? textFromSatang(last.band.upper) : '',
+    upper: '',
+    approver: '',
+    slaHours: sla ? hoursText(sla) : '',
+    committee: false,
+    members: [],
+    quorum: 'MAJORITY',
+    quorumCount: '',
+  }
 }
 
 export interface FollowNote {
@@ -165,14 +203,27 @@ export function applyDraft(
   // Rules of more than one step keep their steps (the table edits one approver per rule, tier 1)
   let steps: readonly EditorStep[] = before?.steps ?? []
   if (!before || before.steps.length <= 1) {
-    const approver = approverFromKey(draft.approver)
-    if (!approver) errors.approver = 'APPROVER'
     const original = before?.steps[0]
     let minutes: number | null = null
     if (original && draft.slaHours.trim() === hoursText(original.slaMinutes)) minutes = original.slaMinutes
     else if (HOURS.test(draft.slaHours.trim()) && Number(draft.slaHours.trim()) > 0) minutes = Number(draft.slaHours.trim()) * MINUTES_PER_HOUR
     else errors.slaHours = 'SLA'
-    if (approver && minutes !== null) steps = [{ approver, slaMinutes: minutes }]
+    if (draft.committee) {
+      // A committee of two or more different members (BR-WF-05); COUNT names how many of them, 1..N
+      const members = [...new Set(draft.members)].map(approverFromKey).filter((a): a is ApproverValue => a !== null)
+      if (members.length < 2) errors.members = 'MEMBERS'
+      const count = draft.quorumCount.trim()
+      let quorumCount: number | null = null
+      if (draft.quorum === 'COUNT') {
+        if (/^\d{1,2}$/.test(count) && Number(count) >= 1 && Number(count) <= Math.max(members.length, 1)) quorumCount = Number(count)
+        else errors.quorumCount = 'QUORUM_COUNT'
+      }
+      if (members.length >= 2 && minutes !== null && !errors.quorumCount) steps = [{ approver: members[0]!, slaMinutes: minutes, committee: { approvers: members, quorum: draft.quorum, quorumCount } }]
+    } else {
+      const approver = approverFromKey(draft.approver)
+      if (!approver) errors.approver = 'APPROVER'
+      if (approver && minutes !== null) steps = [{ approver, slaMinutes: minutes }]
+    }
   }
   if (Object.keys(errors).length) return { ok: false, errors }
 
@@ -240,7 +291,7 @@ export function changedParts(source: RuleState | undefined, rule: RuleState): Ar
   const parts: Array<'band' | 'approver' | 'sla'> = []
   const bandKey = (b: Band | null) => (b ? `${startsAfter(b) ?? '-'}:${b.upper ?? '-'}` : 'none')
   if (bandKey(source.band) !== bandKey(rule.band)) parts.push('band')
-  if (source.steps.map((s) => approverKey(s.approver)).join('|') !== rule.steps.map((s) => approverKey(s.approver)).join('|')) parts.push('approver')
+  if (source.steps.map(stepKey).join('|') !== rule.steps.map(stepKey).join('|')) parts.push('approver')
   if (source.steps.map((s) => s.slaMinutes).join('|') !== rule.steps.map((s) => s.slaMinutes).join('|')) parts.push('sla')
   return parts
 }
@@ -280,7 +331,7 @@ export interface DraftInput {
     code: string
     documentType: DocType
     band: { lowerKind: 'gt' | 'gte'; lower: string | null; upper: string | null } | null
-    steps: Array<{ approver: ApproverValue; slaMinutes: number }>
+    steps: Array<{ approver: ApproverValue; slaMinutes: number; committee?: { approvers: ApproverValue[]; quorum: Quorum; quorumCount: number | null } }>
   }>
 }
 
@@ -303,7 +354,11 @@ export function draftInput(sourceVersionId: string, rules: readonly RuleState[],
       code: r.code,
       documentType: r.documentType,
       band: r.band ? { lowerKind: r.band.lowerKind, lower: r.band.lower, upper: r.band.upper } : null,
-      steps: r.steps.map((s) => ({ approver: s.approver, slaMinutes: s.slaMinutes })),
+      steps: r.steps.map((s) => ({
+        approver: s.approver,
+        slaMinutes: s.slaMinutes,
+        ...(s.committee ? { committee: { approvers: [...s.committee.approvers], quorum: s.committee.quorum, quorumCount: s.committee.quorumCount } } : {}),
+      })),
     })),
   }
 }

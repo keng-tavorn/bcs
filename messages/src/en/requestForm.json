@@ -363,7 +363,8 @@
     "NO_FORM": "This request type no longer has a form in use. Choose another type on the Buy or hire page",
     "LINE_ID": "Some items were removed or changed elsewhere. Load the latest version and continue from it",
     "SITE_UNKNOWN": "The delivery site you chose is no longer in use. Choose another one in Items",
-    "SUPPLIER_UNKNOWN": "The suggested supplier is no longer in use. Choose another supplier or none in Quotations and documents"
+    "SUPPLIER_UNKNOWN": "The suggested supplier is no longer in use. Choose another supplier or none in Quotations and documents",
+    "REVIEWER_NOT_FOUND": "Cannot send: no reviewer {position} of {departments} nor a fallback for rule {rule}. Contact your organization's administrators"
   },
   "site": {
     "label": "Delivery site",

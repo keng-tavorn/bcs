@@ -56,6 +56,12 @@ type LoadedTask = NonNullable<Awaited<ReturnType<typeof lockedTask>>>
 const deciders = (task: LoadedTask) => [task.assigneeMemberId, task.principalMemberId].filter((m): m is string => Boolean(m))
 
 /**
+ * The capability a task is acted on with: review.decide for a reviewer's task of a REVIEW step (S6 · BR-WF-09: only who
+ * the workflow in effect names in the task, with whoever acts for them), approval.decide for every other
+ */
+const capabilityOf = (task: LoadedTask) => (task.step.kind === 'REVIEW' ? ('review.decide' as const) : ('approval.decide' as const))
+
+/**
  * FR-DOA-004 AC2: a task decided already is refused with who decided it and when. A task closed because another task of
  * its step was decided — cancelled when the co-assignee of an escalated step decided first (BR-SLA-04), or moved to a
  * delegate who decided it — names that decision, as its LINE button does (line-postback.ts); a task closed with
@@ -146,12 +152,14 @@ export const decideCommand = defineCommand({
     const task = await lockedTask(tx, ctx, input.taskId)
     if (!task) return fail('NOT_FOUND', 'task not found')
     // BR-DLG-04: the delegate and the delegator both may decide; whoever acts first decides
-    const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: deciders(task) })
+    const allowed = await authorize(tx, ctx, capabilityOf(task), { deciderMemberIds: deciders(task) })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const command = COMMAND_OF[input.decision]
     const taskTo = moveTask(task, command)
     if (!taskTo) return alreadyDecided(tx, task, command)
     if (input.decision !== 'APPROVE' && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason' })
+    // BR-WF-09 (OQ-101): a reviewer passes, returns or asks; never rejects
+    if (task.step.kind === 'REVIEW' && input.decision === 'REJECT') return fail('VALIDATION_FAILED', 'a reviewer cannot reject', { field: 'decision', reason: 'REVIEW_CANNOT_REJECT' })
     const route = task.step.route
     if (isRegisteredSubject(route.subjectType)) return decideRegisteredTask(tx, ctx, task, input, taskTo, route.subjectType)
     if (input.subjectInput !== undefined) return fail('VALIDATION_FAILED', `${route.subjectType} tasks take no subjectInput`, { field: 'subjectInput' })
@@ -182,12 +190,15 @@ export const decideCommand = defineCommand({
       }
     }
     // FR-AUTH-005 AC2: at or above the version's stepUpThreshold, every decision takes the actor's PIN grant for this
-    // request (security clock), used once; a refusal rolls the use back with the rest
-    const stepUp = await requireStepUp(
-      tx,
-      { memberId: actorMemberId, route: { subjectType: 'REQUEST', subjectId: request.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: DECISION_STEP_UP_METHODS },
-      systemClock.now(),
-    )
+    // request (security clock), used once; a refusal rolls the use back with the rest. A reviewer needs none (BR-WF-09)
+    const review = task.step.kind === 'REVIEW'
+    const stepUp = review
+      ? { ok: true as const, grantId: null }
+      : await requireStepUp(
+          tx,
+          { memberId: actorMemberId, route: { subjectType: 'REQUEST', subjectId: request.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: DECISION_STEP_UP_METHODS },
+          systemClock.now(),
+        )
     if (!stepUp.ok) return { ok: false, error: stepUp.error }
 
     const reasonCommentId = input.reason && input.decision !== 'APPROVE' ? await addReason(tx, ctx, 'Request', request.id, input.reason) : null
@@ -206,6 +217,8 @@ export const decideCommand = defineCommand({
     events.push(...step.data.events)
     const outcome = step.data.outcome
     if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: request.status }, events, notifications }
+    // §10.1 request.reviews_done: every reviewer passed; the request goes on to the DOA approver
+    if (review && outcome === 'APPROVED') notifications.push({ ...notifyRequester(request.requesterMemberId, 'request.reviews_done', request), urgency: 'DIGEST' })
 
     if (outcome === 'APPROVED') {
       // A later step of the same route: its approver is the one the engine chose when the route was made
@@ -378,7 +391,7 @@ export const requestInfoCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ infoRequestId: string }>> {
     const task = await lockedTask(tx, ctx, input.taskId)
     if (!task) return fail('NOT_FOUND', 'task not found')
-    const allowed = await authorize(tx, ctx, 'approval.decide', { deciderMemberIds: deciders(task) })
+    const allowed = await authorize(tx, ctx, capabilityOf(task), { deciderMemberIds: deciders(task) })
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const to = moveTask(task, 'approval.requestInfo')
     if (!to) return alreadyDecided(tx, task, 'approval.requestInfo')

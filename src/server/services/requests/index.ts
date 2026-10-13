@@ -16,6 +16,7 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { requestReviewFacts } from '@/server/workflow/policy'
 import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { formDefinition, type FormDefinition } from '@/server/forms/schema'
@@ -346,6 +347,15 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
   const reserved = await reserveForRequest(tx, ctx, request.id, budgetLine.line.id, request.lines.map((l, i) => ({ requestLineId: l.id, netSatang: nets[i]! })))
   if (!reserved.ok) return reserved
   const chargedDepartmentId = budgetLine.line.departmentId
+  // BR-WF-06: the reviewers of the workflow version in effect read the request as it is sent (S6)
+  const review = await requestReviewFacts(tx, {
+    requestTypeCode: request.requestType.code,
+    grossSatang: totals.gross,
+    netSatang: totals.net,
+    formData: checked.data,
+    budgetLineId: budgetLine.line.id,
+    lines: request.lines,
+  })
   const route = await startRoute(
     tx,
     ctx,
@@ -358,6 +368,7 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
       conflictMemberIds: [request.requesterMemberId],
       at: ctx.now,
     },
+    review,
   )
   if (!route.ok) return { ok: false as const, error: route.error }
   return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget: reserved, budgetLineId: budgetLine.line.id, chargedDepartmentId }

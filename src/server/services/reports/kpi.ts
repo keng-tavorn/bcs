@@ -1,8 +1,10 @@
 import { resolveRoute, type DoaDocumentType, type RouteInput } from '@/core/doa'
 import { vatFromNet } from '@/core/money/math'
 import { businessMinutesBetween } from '@/core/sla'
+import { resolveRequestRoute } from '@/core/workflow'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
+import { loadWorkflowVersions, requestReviewFacts } from '@/server/workflow/policy'
 
 // The KPIs of the first tier (spec §11.4, §1 G-1 to G-5, FR-VIS-003 AC1), computed from Event and the transaction
 // tables only (P-8), over a period [from, to). Ratios are kept as numerator and denominator (no floating point); times
@@ -10,12 +12,14 @@ import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
 // report.view for a department head); null is the whole organization.
 //  G-1  POs approved ÷ purchase documents in the accounting system — the denominator comes from the monthly Express
 //       import, not available yet (S4-14), so only the numerator is known
-//  G-2  (a) decisions whose decider is not who the DOA engine gives for that step at the route's time (re-run)
+//  G-2  (a) decisions whose decider is not who the DOA engine gives for that step at the route's time (re-run); a
+//       reviewer's decision (S6) against who the workflow engine gives for its slot (OQ-101)
 //       (b) decision events that name the DOA version and rule in their columns ÷ all decisions
 //  G-3  median business time from a request's submit to its first PO approval · median business time a task waited
 //       for its decision · tasks decided after their due time, or open past it at the end, ÷ all tasks assigned
 //  G-4  tasks assigned on requests whose budget check did not pass
-//  G-5  decisions on LINE (chat or LIFF) ÷ all decisions, in all and per kind of document
+//  G-5  decisions on LINE (chat or LIFF) ÷ all decisions of approval steps, in all and per kind of document; a
+//       reviewer's decision is no approval and is not counted (S6 · OQ-101)
 
 export interface Ratio {
   readonly numerator: number
@@ -94,6 +98,8 @@ export interface KpiDecisionItem {
   readonly doaRuleCode: string | null
   /** G-2 (a): the decider is not who the DOA engine gives for the step; null when the document could not be re-run */
   readonly misrouted: boolean | null
+  /** A reviewer's decision of a REVIEW step (S6): G-2 counts it, G-5 does not */
+  readonly review: boolean
 }
 
 /** One approval task counted by G-3 (its decision time, or because it went past its due time) or by G-4 */
@@ -176,12 +182,15 @@ export async function collectKpis(
 
   // ----- decisions (G-2, G-5) -----
   const decisionEvents = await tx.event.findMany({ where: { type: 'approval_task.decided', occurredAt }, orderBy: { seq: 'asc' } })
-  const decisions: Array<{ data: DecisionData; channel: string; doaVersionId: string | null; doaRuleCode: string | null; taskId: string; occurredAt: Date }> = []
+  const decisions: Array<{ data: DecisionData; channel: string; doaVersionId: string | null; doaRuleCode: string | null; taskId: string; occurredAt: Date; review: boolean }> = []
   for (const e of decisionEvents) {
     const data = e.data as unknown as DecisionData
-    if (await inScope(data.subjectType, data.subjectId)) decisions.push({ data, channel: e.channel, doaVersionId: e.doaVersionId, doaRuleCode: e.doaRuleCode, taskId: e.aggregateId, occurredAt: e.occurredAt })
+    // A reviewer's decision names its workflow version (INV-WF-04)
+    const review = typeof (e.data as { workflowVersionId?: unknown }).workflowVersionId === 'string'
+    if (await inScope(data.subjectType, data.subjectId)) decisions.push({ data, channel: e.channel, doaVersionId: e.doaVersionId, doaRuleCode: e.doaRuleCode, taskId: e.aggregateId, occurredAt: e.occurredAt, review })
   }
   const policy = await loadRoutePolicy(tx)
+  const workflows = decisions.some((d) => d.review) ? await loadWorkflowVersions(tx) : []
   let misrouted = 0
   let checked = 0
   const decisionItems: KpiDecisionItem[] = []
@@ -191,10 +200,20 @@ export async function collectKpis(
     const input = task ? await routeInput(tx, d.data.subjectType, d.data.subjectId, task.step.route.createdAt) : null
     if (task && input) {
       checked++
-      const again = resolveRoute(input, policy)
-      const step = again.ok ? again.data.steps.find((s) => s.stepNo === task.step.stepNo) : undefined
-      // A committee step allows every slot's holder (S6 · FR-WF-102): each decides their own slot
-      const holders = step ? (step.committee?.slots ?? [step]) : []
+      let holders: ReadonlyArray<{ readonly assigneeMemberId: string; readonly principalMemberId: string | null }> = []
+      if (task.step.kind === 'REVIEW') {
+        // A reviewer: the holders of their slot, as the workflow engine gives them for the request at the route's time
+        const request = await tx.request.findUniqueOrThrow({ where: { id: d.data.subjectId }, include: { requestType: { select: { code: true } }, lines: { select: { categoryCode: true, budgetLineId: true } } } })
+        const facts = await requestReviewFacts(tx, { requestTypeCode: request.requestType.code, grossSatang: request.grossSatang, netSatang: request.netSatang, formData: request.formData, budgetLineId: request.budgetLineId, lines: request.lines })
+        const again = resolveRequestRoute(input, facts, { ...policy, workflows })
+        holders = again.ok ? (again.data.review?.slots.find((s) => s.slotNo === task.slotNo)?.assignees ?? []) : []
+      } else {
+        // A DOA step is the engine's step of its DOA step number (BR-WF-06): a route with reviewers numbers it one on
+        const again = resolveRoute(input, policy)
+        const step = again.ok ? again.data.steps.find((s) => s.stepNo === (task.step.doaStepNo ?? task.step.stepNo)) : undefined
+        // A committee step allows every slot's holder (S6 · FR-WF-102): each decides their own slot
+        holders = step ? (step.committee?.slots ?? [step]) : []
+      }
       const allowed = new Set(holders.flatMap((h) => [h.assigneeMemberId, h.principalMemberId]).filter((m): m is string => Boolean(m)))
       // the decider: the delegate who acted, or the approver themself; a delegator acting on their own task counts
       wrong = !allowed.has(d.data.actorMemberId)
@@ -212,6 +231,7 @@ export async function collectKpis(
       doaVersionId: d.doaVersionId,
       doaRuleCode: d.doaRuleCode,
       misrouted: wrong,
+      review: d.review,
     })
   }
   const withReference = decisions.filter((d) => d.doaVersionId !== null && d.doaRuleCode !== null).length
@@ -287,8 +307,9 @@ export async function collectKpis(
   }
 
   // ----- G-5 -----
+  const approvals = decisions.filter((d) => !d.review)
   const bySubject: Record<string, { numerator: number; denominator: number }> = {}
-  for (const d of decisions) {
+  for (const d of approvals) {
     const kind = d.data.subjectType === 'REQUEST' ? ('PURCHASE_REQUEST' satisfies DoaDocumentType) : d.data.subjectType
     bySubject[kind] ??= { numerator: 0, denominator: 0 }
     bySubject[kind].denominator++
@@ -303,7 +324,7 @@ export async function collectKpis(
       g2: { misrouted, checked, withDoaReference: { numerator: withReference, denominator: decisions.length } },
       g3: { submitToPoMedianMinutes: median(submitToPo), decisionMedianMinutes: median(decisionMinutes), pastDue: { numerator: pastDue, denominator: assignedInScope } },
       g4: { tasksOnFailedBudgetCheck: g4 },
-      g5: { total: { numerator: decisions.filter((d) => MOBILE.has(d.channel)).length, denominator: decisions.length }, bySubject },
+      g5: { total: { numerator: approvals.filter((d) => MOBILE.has(d.channel)).length, denominator: approvals.length }, bySubject },
     },
     items: { g1: g1Items, decisions: decisionItems, g3SubmitToPo: submitToPoItems, g3Decisions: decidedItems, g3PastDue: pastDueItems, g3Assigned: assignedItems, g4: g4Items },
   }

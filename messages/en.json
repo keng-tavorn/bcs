@@ -5202,6 +5202,7 @@
       "QUOTE_LOWEST": "The chosen quotation is not the lowest before VAT (rule QUOTE-LOWEST). Say why you did not choose the lowest, then send again",
       "QUOTE_MORE_THAN_ONE": "Only one quotation can be chosen",
       "QUOTE_SELECTED": "Choose the one quotation you will use, then send again",
+      "REVIEWER_NOT_FOUND": "Cannot send: no reviewer {position} of {departments} nor a fallback for rule {rule}. Contact your organization's administrators",
       "SERVICE_END_DATE": "Item {n} needs its service end date",
       "SITE_UNKNOWN": "The delivery site you chose is no longer in use. Choose another one in Items",
       "SOD_VIOLATION": "It cannot be sent because the DOA names you as its approver. Contact your organization's administrator",

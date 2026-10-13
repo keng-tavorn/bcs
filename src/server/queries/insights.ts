@@ -78,6 +78,8 @@ export interface InsightsDecision {
   readonly channel: string
   readonly decidedAt: Date
   readonly withDoaReference: boolean
+  /** A reviewer's decision (S6): counted by G-2 (b), not by the channels of G-5 */
+  readonly review: boolean
 }
 
 export interface InsightsData {
@@ -382,6 +384,8 @@ export async function loadInsights(tx: TenantTx, input: InsightsInput): Promise<
           channel: d.e.channel,
           decidedAt: d.e.occurredAt,
           withDoaReference: d.e.doaVersionId !== null && d.e.doaRuleCode !== null,
+          // A reviewer's decision names its workflow version (INV-WF-04)
+          review: typeof (d.e.data as { workflowVersionId?: unknown } | null)?.workflowVersionId === 'string',
         })),
       overBudget,
       supplierChanges: supplierEvents.map((e) => {

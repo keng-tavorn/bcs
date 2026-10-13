@@ -73,7 +73,7 @@ export async function submitRequestAction(input: { requestId: string; expectedVe
     return { ok: true, requestId: input.requestId, sent: sent ?? { number: null, waitingFor: [] } }
   }
   const failure = toFormFailure(result.error)
-  if (['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS'].includes(failure.code)) {
+  if (['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS', 'REVIEWER_NOT_FOUND'].includes(failure.code)) {
     const names = await doaGapNames(ctx, { position: failure.position ?? null, departments: failure.departments ?? [] }, screen)
     return { ...failure, ...(names.position ? { position: names.position } : {}), departments: names.departments }
   }

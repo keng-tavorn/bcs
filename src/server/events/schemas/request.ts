@@ -61,7 +61,7 @@ defineEvents('Request', {
   // §10.2 catalog yet: the orchestrator records it in an ADR and adds it to §10.2 (see unit a's needs)
   'request.doa_gap_reported': {
     schema: z.object({
-      code: z.enum(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY']),
+      code: z.enum(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'REVIEWER_NOT_FOUND']),
       ruleCode: z.string().min(1).nullable(),
       position: z.string().min(1).nullable(),
       departments: z.array(z.string().min(1)),

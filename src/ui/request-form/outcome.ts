@@ -60,7 +60,8 @@ export function toFormFailure(error: { code: string; details?: Readonly<Record<s
   if (failures) out.failures = failures
   const lowest = numbers(d.lowest)
   if (lowest) out.lowest = lowest
-  const departments = strings(d.departments)
+  // REVIEWER_NOT_FOUND names the one department of the reviewer's position (S6 · BR-WF-08)
+  const departments = strings(d.departments) ?? (typeof d.department === 'string' && d.department ? [d.department] : undefined)
   if (departments) out.departments = departments
   if (typeof d.adminsNotified === 'number') out.adminsNotified = d.adminsNotified
   return out as unknown as FormFailure
@@ -107,6 +108,7 @@ export const FAILURE_KEYS = [
   'DOA_NOT_CONFIGURED',
   'APPROVER_NOT_FOUND',
   'NO_HIGHER_AUTHORITY',
+  'REVIEWER_NOT_FOUND',
   'DOA_AMBIGUOUS',
   'SOD_VIOLATION',
   'TAX_RATE_NOT_CONFIGURED',
@@ -144,6 +146,7 @@ const BY_CODE: readonly FailureKey[] = [
   'DOA_NOT_CONFIGURED',
   'APPROVER_NOT_FOUND',
   'NO_HIGHER_AUTHORITY',
+  'REVIEWER_NOT_FOUND',
   'DOA_AMBIGUOUS',
   'SOD_VIOLATION',
   'TAX_RATE_NOT_CONFIGURED',

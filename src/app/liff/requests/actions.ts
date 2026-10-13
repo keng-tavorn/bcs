@@ -32,7 +32,7 @@ const NO_SESSION: FormFailure = { ok: false, code: 'UNAUTHENTICATED' }
 const BAD_KEY: FormFailure = { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
 const Key = z.uuid()
 /** DOA gaps whose answer names the position and departments in words (FR-DOA-003 AC3) */
-const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS'])
+const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS', 'REVIEWER_NOT_FOUND'])
 const FILE_REFUSALS: readonly FileRefusal[] = ['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'CONTENT_MISMATCH']
 
 type MemberPage = Extract<LiffPage, { kind: 'member' }>

@@ -23,7 +23,7 @@ const ROLE_RE = /(?<![A-Z_])(PROCUREMENT|FINANCE|BUDGET_ADMIN|RECEIVER|EXECUTIVE
 const SCOPE_RE = /(?<![A-Z_])(OWN|ASSIGNED|DEPT|ORG)(?![A-Z_])/g
 // Phrases in §2.4 that mean "a member, by relation to the document" (requester, follower, assignee, delegator…)
 const MEMBER_PHRASES = ['ทุก member', 'ผู้ขอ', 'ผู้ติดตาม', 'ผู้ได้รับงาน', 'ผู้มอบ', 'ผู้ตรวจรับที่ได้รับมอบหมาย']
-const DOA_PHRASES = ['เฉพาะผู้ที่ DOA กำหนด', 'ตาม DOA ข้อ']
+const DOA_PHRASES = ['เฉพาะผู้ที่ DOA กำหนด', 'ตาม DOA ข้อ', 'เฉพาะผู้ที่ workflow ฉบับที่มีผลกำหนด']
 
 // Reading rules for cells written as prose (each documented against the spec text):
 // - a member segment without a scope in parentheses:

@@ -48,7 +48,7 @@ import type { LiffReadiness } from './ready'
 // "sign in again".
 
 /** A refusal because the DOA names nobody who can approve (FR-DOA-003 AC3) */
-const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
+const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'REVIEWER_NOT_FOUND'])
 
 /** The steps of the LIFF form: the workspace's four, with quotations and documents inside the last one */
 export type LiffStep = 'details' | 'items' | 'review'

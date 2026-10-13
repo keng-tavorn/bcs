@@ -38,8 +38,20 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `มีงานรออนุมัติ: ${ref(d)}`, en: `Waiting for your approval: ${ref(d)}` },
     href: d.taskId ? `/tasks/${str(d.taskId)}` : null,
   }),
+  // S6 (§10.1 · BR-WF-09): a reviewer's task of the REVIEW step — pass, return or ask; never reject
+  'task.review_assigned': (d) => ({
+    title: { th: `มีงานรอตรวจ: ${ref(d)}`, en: `Waiting for your review: ${ref(d)}` },
+    body: { th: 'ผ่าน ตีกลับ หรือขอข้อมูลเพิ่ม ก่อนถึงผู้อนุมัติตาม DOA', en: 'Pass, return or ask for more information before it reaches the DOA approver' },
+    href: d.taskId ? `/tasks/${str(d.taskId)}` : null,
+  }),
   'request.approved': (d) => ({
     title: { th: `คำขอ ${ref(d)} อนุมัติแล้ว`, en: `Request ${ref(d)} is approved` },
+    href: `/requests/${str(d.requestId)}`,
+  }),
+  // S6 (§10.1): every reviewer passed the request; it goes on to the DOA approver
+  'request.reviews_done': (d) => ({
+    title: { th: `คำขอ ${ref(d)} ผ่านผู้ตรวจครบแล้ว`, en: `Request ${ref(d)} passed every reviewer` },
+    body: { th: 'คำขอไปถึงผู้อนุมัติตาม DOA แล้ว', en: 'It is now with the DOA approver' },
     href: `/requests/${str(d.requestId)}`,
   }),
   'request.decided': (d) => ({
@@ -118,6 +130,18 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   // FR-DOA-003 AC3 (§10.1): a requester could not submit because the DOA names nobody who can approve the request
   'admin.doa_gap': (d) => {
     const code = str(d.code)
+    // REVIEWER_NOT_FOUND (S6 · BR-WF-08): neither the reviewer of a workflow rule nor its fallback can review
+    if (code === 'REVIEWER_NOT_FOUND') {
+      const dept = Array.isArray(d.departments) ? d.departments.filter((x): x is string => typeof x === 'string').join(', ') : ''
+      return {
+        title: {
+          th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะไม่พบผู้ตรวจ ${str(d.position)} ของ ${dept} และผู้สำรองตามข้อ ${str(d.ruleCode)}`,
+          en: `Request ${ref(d)} cannot be sent: no reviewer ${str(d.position)} of ${dept} nor a fallback for rule ${str(d.ruleCode)}`,
+        },
+        body: { th: 'เสนอแต่งตั้งผู้ดำรงตำแหน่งนี้ หรือแก้ข้อผู้ตรวจใน workflow ฉบับใหม่ แล้วแจ้งผู้ขอให้ส่งอีกครั้ง', en: 'Propose a holder for this position, or change the reviewer rule in a new workflow version, then ask the requester to send it again' },
+        href: '/admin/org-authority',
+      }
+    }
     const title: Text =
       code === 'APPROVER_NOT_FOUND'
         ? { th: `คำขอ ${ref(d)} ส่งไม่ได้ เพราะไม่มีผู้ดำรงตำแหน่ง ${str(d.position)} ตาม DOA ข้อ ${str(d.ruleCode)}`, en: `Request ${ref(d)} cannot be sent: nobody holds ${str(d.position)} for DOA rule ${str(d.ruleCode)}` }

@@ -275,7 +275,9 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
       counted = decisions.filter((d) => d.doaVersionId && d.doaRuleCode).length
       decisionMark = (d) => (d.doaVersionId && d.doaRuleCode ? 'WITH_DOA' : 'WITHOUT_DOA')
     } else if (m === 'g5') {
-      decisions = kind ? items.decisions.filter((d) => kpiDocumentKind(d.subjectType) === kind) : items.decisions
+      // G-5 counts the decisions of approval steps: a reviewer's is no approval (S6 · OQ-101)
+      const approvals = items.decisions.filter((d) => !d.review)
+      decisions = kind ? approvals.filter((d) => kpiDocumentKind(d.subjectType) === kind) : approvals
       counted = decisions.filter((d) => isMobileChannel(d.channel)).length
       decisionMark = (d) => (isMobileChannel(d.channel) ? 'MOBILE' : 'NOT_MOBILE')
     } else if (m === 'g3b') {

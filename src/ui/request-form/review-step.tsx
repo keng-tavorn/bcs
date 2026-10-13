@@ -20,7 +20,7 @@ import type { RouteView } from './types'
 import type { SaveState } from './use-autosave'
 
 /** Refusals because the DOA names nobody who can approve (FR-DOA-003 AC3) */
-const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY'])
+const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'REVIEWER_NOT_FOUND'])
 
 // Step 4, "check and send" (§9.9 principle 3, FR-INT-004, FR-INT-005 AC1, FR-DOA-003 AC2): the request in short, the
 // budget line against its amount, the approval route the DOA expects with its explanation, the attachments the rules ask
@@ -413,6 +413,8 @@ export function failureText(t: T, f: FormFailure, fields: readonly FieldDef[], l
       return t('errors.QUOTE_FILE', { n: (Number((f.field ?? '').split('.')[1]) || 0) + 1 })
     case 'APPROVER_NOT_FOUND':
       return t('errors.APPROVER_NOT_FOUND', { position: f.position ?? '-', departments: f.departments?.join(', ') || '-' }) + told
+    case 'REVIEWER_NOT_FOUND':
+      return t('errors.REVIEWER_NOT_FOUND', { position: f.position ?? '-', departments: f.departments?.join(', ') || '-', rule: f.rule ?? '-' }) + told
     case 'NO_HIGHER_AUTHORITY':
     case 'DOA_NOT_CONFIGURED':
       return t(`errors.${key}`) + told

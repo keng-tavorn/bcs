@@ -58,6 +58,7 @@ export const LINE_DELIVERY_MAX_TRIES = 6
  */
 export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'task.assigned',
+  'task.review_assigned',
   'task.reminder',
   'task.overdue',
   'task.escalated',
@@ -78,9 +79,12 @@ type Data = Readonly<Record<string, unknown>>
 /** task.escalated to ORG_ADMIN (nobody to escalate to) is an administrator's notice, like admin.*: e-mail only */
 const goesByLine = (templateKey: string, data: Data) => LINE_TEMPLATES.has(templateKey) && !(templateKey === 'task.escalated' && data.role === 'ADMIN')
 
-/** The notice that gives the recipient an approval task: task.assigned, and task.escalated to the co-assignee (BR-SLA-04) */
+/**
+ * The notice that gives the recipient an approval task: task.assigned, a reviewer's task.review_assigned (S6) and
+ * task.escalated to the co-assignee (BR-SLA-04)
+ */
 const assignedTaskOf = (templateKey: string, data: Data): string | null =>
-  typeof data.taskId === 'string' && (templateKey === 'task.assigned' || (templateKey === 'task.escalated' && data.role === 'CO_ASSIGNEE')) ? data.taskId : null
+  typeof data.taskId === 'string' && (templateKey === 'task.assigned' || templateKey === 'task.review_assigned' || (templateKey === 'task.escalated' && data.role === 'CO_ASSIGNEE')) ? data.taskId : null
 
 /** Notification.error of a notice that was not sent because its task no longer waits (FR-NOTI-003 AC3) */
 export const TASK_CLOSED = 'TASK_CLOSED'
@@ -95,6 +99,7 @@ function taskNoticeOf(templateKey: string, data: Data): { readonly taskId: strin
   if (typeof data.taskId !== 'string') return null
   switch (templateKey) {
     case 'task.assigned':
+    case 'task.review_assigned':
     case 'task.reminder':
       return { taskId: data.taskId, toAssignee: true }
     case 'task.overdue':

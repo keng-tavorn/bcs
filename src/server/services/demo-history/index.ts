@@ -167,6 +167,32 @@ async function stepUpIfNeeded(
   if (!granted.ok) throw new Error(`Demo_History ${row.ref}: the PIN step-up of ${approverCode} for ${route.subjectType} was refused (${granted.reason})`)
 }
 
+/**
+ * S6 (BR-WF-06): a request whose facts match rules of the workflow in effect waits for its reviewers first. The history's
+ * reviewers pass it on the web a business half hour after it is sent — never after the row's decision or the seed — one
+ * task per slot (a slot's other tasks and a decided group's close with it), so its DOA step starts as the sheet expects.
+ */
+async function passReviewers(c: Context, row: DemoHistoryRow, requestId: string, submitAt: Date, decideAt: Date): Promise<void> {
+  const db = forTenant(c.organizationId)
+  const open = await db.approvalTask.findMany({
+    where: { status: 'OPEN', step: { kind: 'REVIEW', status: 'ACTIVE', route: { subjectType: 'REQUEST', subjectId: requestId, status: 'ACTIVE' } } },
+    select: { id: true, slotNo: true, assignee: { select: { employeeCode: true } } },
+    orderBy: [{ slotNo: 'asc' }, { id: 'asc' }],
+  })
+  if (open.length === 0) return
+  const soon = addBusinessMinutes(submitAt, STEP_MINUTES, c.calendar)
+  const at = new Date(Math.min(soon.getTime(), decideAt.getTime(), c.now.getTime()))
+  const done = new Set<number>()
+  for (const task of open) {
+    if (done.has(task.slotNo)) continue
+    done.add(task.slotNo)
+    // closed meanwhile by the result of its group (GROUP_DECIDED)
+    if ((await db.approvalTask.findUnique({ where: { id: task.id }, select: { status: true } }))?.status !== 'OPEN') continue
+    const step = `review-${task.slotNo}`
+    must(row, step, await decideTask(memberCtx(c, task.assignee.employeeCode ?? '', at, 'WEB', keyOf(row, step)), { taskId: task.id, decision: 'APPROVE' }, optionsOf(row, step)))
+  }
+}
+
 /** A member's context for one step; `step` names the events the step writes (Event.requestId), which are kept for good */
 function memberCtx(c: Context, code: string, now: Date, channel: Ctx['channel'] = 'WEB', step?: string): Ctx {
   const memberId = c.members.get(code)
@@ -385,6 +411,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     sent = await submitRequest(requester(submitAt, 'submit-with-quotations'), { requestId }, optionsOf(row, 'submit-with-quotations'))
   }
   must(row, 'submit', sent)
+  await passReviewers(c, row, requestId, submitAt, decideAt)
 
   // The route is the one the sheet expects (BR-DOA-01..06)
   const route = await routeOf(c, requestId)

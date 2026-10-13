@@ -965,6 +965,7 @@ export async function historyOf(
   taskRoleById: Map<string, string>,
   roleOf: (resolvedFrom: string | null | undefined) => ApproverRoleDto,
   escalatedTaskIds: ReadonlySet<string> = new Set(),
+  hiddenReasonTaskIds: ReadonlySet<string> = new Set(),
 ): Promise<TrackEntryDto[]> {
   const dataOf = (e: EventRow) => (e.data && typeof e.data === 'object' ? (e.data as Record<string, unknown>) : {})
   const commentIds = events.flatMap((e) => [str(dataOf(e).reasonCommentId)]).filter(present)
@@ -1041,7 +1042,7 @@ export async function historyOf(
           onBehalfOf: behalf ? (members.get(behalf) ?? null) : null,
           role: roleOf(taskRoleById.get(e.aggregateId)),
           doa: version && ruleCode ? { versionId: version.id, code: version.code, versionNo: version.versionNo, ruleCode } : null,
-          note: reasonId ? (comment.get(reasonId) ?? null) : null,
+          note: reasonId && !hiddenReasonTaskIds.has(e.aggregateId) ? (comment.get(reasonId) ?? null) : null,
           ...(escalatedTaskIds.has(e.aggregateId) ? { escalated: true } : {}),
         })
         break
@@ -1172,7 +1173,8 @@ export async function routeOf(
         approver: task ? who(task.assigneeMemberId) : null,
         onBehalfOf: task ? who(task.principalMemberId) : null,
         role: task ? roleOf(task.resolvedFrom) : null,
-        expected: task ? null : expectedOf(s.stepNo),
+        // The DOA rule's approver of a later step, by its DOA step number (a REVIEW step has none, BR-WF-06)
+        expected: task || s.doaStepNo === null ? null : expectedOf(s.doaStepNo),
         taskStatus: task?.status ?? null,
         decision: task?.decision ?? null,
         decidedAt: task?.decidedAt ?? null,
@@ -1249,6 +1251,28 @@ function liveSteps(request: { status: string; requester: MemberRefDto }, stage: 
   }
 }
 
+/**
+ * BR-WF-09 (S6): the tasks of a REVIEW step whose reasons the reader may not read. A reviewer's reason is read by the
+ * requester, the approvers of the request's DOA steps, AUDITOR and the reviewers of that slot (with whoever acts for
+ * them); everyone else — a reviewer of another slot among them — sees the decision and not its reason.
+ */
+export async function hiddenReviewReasons(
+  db: TenantDb,
+  ctx: Ctx,
+  requesterMemberId: string,
+  tasks: ReadonlyArray<{ readonly id: string; readonly stepId: string; readonly slotNo: number; readonly assigneeMemberId: string; readonly principalMemberId: string | null; readonly step: { readonly kind: string } }>,
+): Promise<Set<string>> {
+  const reviews = tasks.filter((t) => t.step.kind === 'REVIEW')
+  if (reviews.length === 0) return new Set()
+  const reader = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+  if (reader === requesterMemberId) return new Set()
+  const holds = (t: (typeof tasks)[number]) => reader !== null && (t.assigneeMemberId === reader || t.principalMemberId === reader)
+  if (tasks.some((t) => t.step.kind !== 'REVIEW' && holds(t))) return new Set()
+  if (reader && (await db.roleAssignment.count({ where: { memberId: reader, role: 'AUDITOR', revokedAt: null } })) > 0) return new Set()
+  const ownSlots = new Set(reviews.filter(holds).map((t) => `${t.stepId}:${t.slotNo}`))
+  return new Set(reviews.filter((t) => !ownSlots.has(`${t.stepId}:${t.slotNo}`)).map((t) => t.id))
+}
+
 export async function getRequestView(ctx: Ctx, requestId: string): Promise<RequestViewDto | null> {
   if (!isUuid(requestId)) return null
   const db = forTenant(ctx.organizationId)
@@ -1271,7 +1295,10 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
   const departments = await departmentsOf(db)
   const roleOf = await approverRoles(db, departments.byCode)
   const [allTasks, allocations, links] = await Promise.all([
-    db.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: request.id } } }, select: { id: true, stepId: true, status: true, resolvedFrom: true, reason: true, decision: true, decidedAt: true } }),
+    db.approvalTask.findMany({
+      where: { step: { route: { subjectType: 'REQUEST', subjectId: request.id } } },
+      select: { id: true, stepId: true, slotNo: true, status: true, resolvedFrom: true, reason: true, decision: true, decidedAt: true, assigneeMemberId: true, principalMemberId: true, step: { select: { kind: true } } },
+    }),
     request.lines.length
       ? db.budgetAllocation.findMany({ where: { sourceType: 'REQUEST_LINE', sourceId: { in: request.lines.map((l) => l.id) } }, select: { budgetLineId: true, reservedSatang: true, committedSatang: true, actualSatang: true } })
       : Promise.resolve([]),
@@ -1307,11 +1334,12 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
   const openInfoRequest = stage.kind === 'ANSWER' ? (infoRequests.find((i) => i.id === stage.infoRequestId) ?? infoRequests.filter((i) => !i.answeredAt && !i.noLongerNeeded).at(-1) ?? null) : null
 
   const events = await documentEvents(db, 'Request', request.id, allTasks.map((t) => t.id))
-  const history = await historyOf(db, events, new Map(allTasks.map((t) => [t.id, t.resolvedFrom])), roleOf, escalatedTaskIdsOf(events, allTasks))
+  const hidden = await hiddenReviewReasons(db, ctx, request.requesterMemberId, allTasks)
+  const history = await historyOf(db, events, new Map(allTasks.map((t) => [t.id, t.resolvedFrom])), roleOf, escalatedTaskIdsOf(events, allTasks), hidden)
 
   const held = allocations.filter((a) => a.budgetLineId === request.budgetLineId)
   const sum = (pick: (a: (typeof held)[number]) => bigint) => held.reduce((total, a) => total + pick(a), 0n)
-  const lastReturn = allTasks.filter((t) => t.decision === 'RETURN' && t.decidedAt).sort((a, b) => b.decidedAt!.getTime() - a.decidedAt!.getTime())[0]
+  const lastReturn = allTasks.filter((t) => t.decision === 'RETURN' && t.decidedAt && !hidden.has(t.id)).sort((a, b) => b.decidedAt!.getTime() - a.decidedAt!.getTime())[0]
   const approvedUnder = (DONE_STATUSES as readonly string[]).includes(request.status) && route?.status === 'COMPLETED' ? route.doa : null
 
   return {

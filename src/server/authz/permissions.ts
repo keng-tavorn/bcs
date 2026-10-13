@@ -69,6 +69,8 @@ export const PERMISSIONS = {
   'request.followers.manage': [anyMember('OWN', 'ADDED_MEMBER_ALREADY_VIEWS')],
   // Approvals and delegation
   'approval.decide': [doaAssignee()],
+  // S6 (BR-WF-09): only who the workflow version in effect names in the reviewer's task (with whoever acts for them)
+  'review.decide': [doaAssignee()],
   'approval.reassign': [role('ORG_ADMIN', 'ORG', 'DOA_EQUIVALENT_ASSIGNEE_WITH_REASON')],
   // ORG_ADMIN sets a delegation for someone else only through admin.orgAuthority.propose (DELEGATION_ON_BEHALF)
   'delegation.manage': SELF,

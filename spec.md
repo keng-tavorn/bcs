@@ -379,6 +379,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `request.follow` | ผู้ที่มี `request.view` ของคำขอนั้น: ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) — ติดตามหรือเลิกติดตามตนเองเท่านั้น และผู้ขอไม่ต้องติดตามคำขอของตนเอง (FR-INT-013 AC1) |
 | `request.followers.manage` | ผู้ขอ (OWN) — เพิ่มหรือเอาผู้ติดตามออก โดยเพิ่มได้เฉพาะสมาชิกที่มี `request.view` ของคำขอนั้นอยู่แล้ว เพราะการติดตามไม่ขยายสิทธิ์ดู (OQ-39 · FR-INT-013 AC1) |
 | `approval.decide` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ |
+| `review.decide` | **เฉพาะผู้ที่ workflow ฉบับที่มีผลกำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ · ผ่าน ตีกลับ หรือขอข้อมูล ไม่มีไม่อนุมัติ และไม่ต้อง step-up · เหตุผลของผู้ตรวจเห็นได้โดยผู้ขอ ผู้อนุมัติตาม DOA ของเส้นทาง ผู้ตรวจของ slot นั้น และ AUDITOR ผู้ตรวจ slot อื่นเห็นเฉพาะสถานะ (S6 · FR-WF-101 · BR-WF-09) |
 | `approval.reassign` | ORG_ADMIN (ORG) · ระบบยอมรับเฉพาะผู้รับใหม่ที่ DOA ฉบับเดิมให้อำนาจในข้อเดิมหรือช่วงวงเงินที่สูงกว่าและไม่ขัด SoD · ต้องระบุเหตุผล |
 | `delegation.manage` | ผู้มอบ (OWN) · ORG_ADMIN ตั้งแทนผู้อื่นได้ผ่าน `admin.orgAuthority.propose` ชนิด `DELEGATION_ON_BEHALF` เท่านั้น |
 | `procurement.pool.view` · `po.create` · `po.edit` · `po.submit` · `po.send` · `po.cancel` · `po.close` | PROCUREMENT (ORG) |
@@ -3550,6 +3551,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | เหตุ | ผู้รับ | ช่องทาง | ความด่วน | แม่แบบ |
 | --- | --- | --- | --- | --- |
 | `approval_task.assigned` | ผู้รับงาน · ผู้มอบ (รับทราบ เมื่อเป็นงานรักษาการ) | การ์ด LINE → อีเมล | IMMEDIATE | `task.assigned` |
+| `approval_task.assigned` ของขั้น REVIEW (S6) | ผู้ตรวจ | การ์ด LINE (ผ่าน · ตีกลับเปิด LIFF) → อีเมล (ลิงก์ผ่านเท่านั้น) | IMMEDIATE | `task.review_assigned` |
+| `approval_step.completed` ของขั้น REVIEW ที่ผ่าน (S6) | ผู้ขอ | ในระบบ | DIGEST | `request.reviews_done` |
 | `approval_task.reminded` | ผู้รับงาน | LINE → อีเมล | IMMEDIATE | `task.reminder` |
 | `approval_task.overdue` | ผู้รับงาน · ผู้อนุมัติช่วงถัดไป (รับทราบ) | LINE → อีเมล | IMMEDIATE | `task.overdue` |
 | `approval_task.escalated` | ผู้รับร่วมคนใหม่ · ผู้รับเดิม · ผู้ขอ | LINE → อีเมล | IMMEDIATE | `task.escalated` |
@@ -3564,7 +3567,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
 | ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
-| ส่งคำขอไม่ได้เพราะ `DOA_NOT_CONFIGURED` · `APPROVER_NOT_FOUND` · `NO_HIGHER_AUTHORITY` (NEW-27) | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
+| ส่งคำขอไม่ได้เพราะ `DOA_NOT_CONFIGURED` · `APPROVER_NOT_FOUND` · `NO_HIGHER_AUTHORITY` (NEW-27) · `REVIEWER_NOT_FOUND` (S6 · BR-WF-08) | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
 | โควตา LINE ถึง 80% | ORG_ADMIN · PLATFORM_ADMIN | อีเมล | IMMEDIATE | `admin.line_quota` |
 | `export.generated` | ผู้สั่งส่งออก | ในระบบ | IMMEDIATE | `export.ready` |
 | `organization.module_enabled` · `organization.module_disabled` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.module_changed` |
@@ -3652,10 +3655,10 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | เป้าหมาย | สูตร | หมายเหตุ |
 | --- | --- | --- |
 | G-1 | จำนวน PO ที่อนุมัติในช่วง ÷ จำนวนเอกสารซื้อทั้งหมดในช่วงจากข้อมูลที่นำเข้าจาก Express รายเดือน | ใน BCS ทุก PO มีคำขอต้นทาง (OQ-24) ตัวหารจึงต้องมาจากระบบบัญชีเพื่อจับการซื้อนอกระบบ |
-| G-2 | (ก) จำนวนการตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ DOA engine คำนวณได้ ณ เวลานั้น (ตรวจย้อนด้วย engine) (ข) การตัดสินที่มี doaVersionId และ ruleCode ÷ การตัดสินทั้งหมด | (ก) ต้องเป็น 0 · (ข) ต้องเป็น 100% |
+| G-2 | (ก) จำนวนการตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ DOA engine คำนวณได้ ณ เวลานั้น (ตรวจย้อนด้วย engine · ขั้น APPROVAL หาด้วย doaStepNo · การตัดสินของผู้ตรวจตรวจกับผู้ถือ slot ที่ engine workflow คำนวณได้ · S6) (ข) การตัดสินที่มี doaVersionId และ ruleCode ÷ การตัดสินทั้งหมด (รวมผู้ตรวจ) | (ก) ต้องเป็น 0 · (ข) ต้องเป็น 100% |
 | G-3 | มัธยฐานของ (เวลาอนุมัติ PO แรก − เวลาส่งคำขอ) · มัธยฐานของ (decidedAt − assignedAt) · งานที่ตัดสินหลัง dueAt หรือยังเปิดอยู่และเลย dueAt ÷ งานทั้งหมด | |
 | G-4 | จำนวน `approval_task.assigned` ของคำขอที่ `budgetCheck` ไม่ใช่ PASS | ต้องเป็น 0 |
-| G-5 | การตัดสินที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินทั้งหมด | แสดงทั้งรวมและแยกตามประเภทเอกสาร · ฉาก 9 ของ demo และ D-01 ใช้ตัวเลขของคำขอซื้อ (`PURCHASE_REQUEST`) ซึ่งตรงกับบรรทัดของ `pnpm inputs:check` (ADR-038) |
+| G-5 | การตัดสินของขั้น APPROVAL ที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินของขั้น APPROVAL ทั้งหมด (การตัดสินของผู้ตรวจไม่ใช่การอนุมัติ ไม่นับ · S6 · OQ-101) | แสดงทั้งรวมและแยกตามประเภทเอกสาร · ฉาก 9 ของ demo และ D-01 ใช้ตัวเลขของคำขอซื้อ (`PURCHASE_REQUEST`) ซึ่งตรงกับบรรทัดของ `pnpm inputs:check` (ADR-038) |
 | G-6 ถึง G-9 | นิยามใน sub-spec ของ S7 ถึง S11 | |
 | G-10 | จำนวนจุดในโค้ดที่ lint พบว่าอ้างรหัสองค์กรหรือเงื่อนไขเฉพาะลูกค้า | ต้องเป็น 0 |
 | G-11 | (ก) ฉบับ DOA และ `OrgAuthorityChange` ที่มีผลแล้วโดยไม่มี event ที่ actorType เป็น `PLATFORM_ADMIN` ในวงจรนั้น ÷ ทั้งหมด (ข) มัธยฐานเวลาทำการจาก `doa_version.drafted` ถึง `doa_version.published` | (ก) ต้องเป็น 100% |

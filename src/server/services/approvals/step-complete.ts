@@ -163,8 +163,9 @@ export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask,
 /** What approval_task.decided says (FR-DOA-005 AC1, INV-DOA-01) */
 export interface DecidedEventInput {
   /** slotNo and the step's mode and kind (as the decide flows load the task) add the slot of a step of several slots */
-  readonly task: { readonly id: string; readonly principalMemberId: string | null; readonly slotNo?: number; readonly step?: unknown }
-  readonly route: { readonly doaVersionId: string; readonly ruleCode: string }
+  readonly task: { readonly id: string; readonly principalMemberId: string | null; readonly slotNo?: number; readonly step?: unknown; readonly workflowRuleCodes?: readonly string[] }
+  /** workflowVersionId: the reviewer version of a route with a REVIEW step (S6) */
+  readonly route: { readonly doaVersionId: string; readonly ruleCode: string; readonly workflowVersionId?: string | null }
   readonly subjectType: string
   readonly subjectId: string
   readonly decision: TaskDecision
@@ -181,9 +182,12 @@ function slottedStep(step: unknown): boolean {
   return s?.mode === 'PARALLEL' || s?.kind === 'REVIEW'
 }
 
+/** The step of a task is the reviewers' (S6): as the decide flows load it */
+const reviewStep = (step: unknown): boolean => (step as { readonly kind?: unknown } | null | undefined)?.kind === 'REVIEW'
+
 /**
  * The approval_task.decided event of every decide flow, built in one place: the DOA version and rule of the route, the
- * channel, the actor and whom they act for. S6 adds the parallel reviewer's fields here.
+ * channel, the actor and whom they act for; a reviewer's adds the workflow version and the rules of the slot (INV-WF-04).
  */
 export function decidedEvent(ctx: Ctx, e: DecidedEventInput): EventDraft {
   const onBehalf = e.task.principalMemberId && e.actorMemberId !== e.task.principalMemberId ? e.task.principalMemberId : null
@@ -206,6 +210,7 @@ export function decidedEvent(ctx: Ctx, e: DecidedEventInput): EventDraft {
       reasonCommentId: e.reasonCommentId,
       ...(e.stepUpGrantId ? { stepUpGrantId: e.stepUpGrantId } : {}),
       ...(e.task.slotNo !== undefined && slottedStep(e.task.step) ? { slotNo: e.task.slotNo } : {}),
+      ...(reviewStep(e.task.step) && e.route.workflowVersionId ? { workflowVersionId: e.route.workflowVersionId, workflowRuleCodes: [...(e.task.workflowRuleCodes ?? [])] } : {}),
       ...e.extra,
     },
   }

@@ -12,7 +12,7 @@ import { expect, test } from './fixtures'
 // or the receiver confirms them, and the save or the receipt that carries the confirmations closes the AI action.
 // Every state is checked with axe and photographed at the project's width (375 px or 1440 px, §9.9 step 4).
 
-type SceneMode = 'on' | 'off' | 'run' | 'state'
+type SceneMode = 'on' | 'off' | 'run' | 'state' | 'brief'
 
 function scene<T>(file: 'ai-document-scene' | 'receiving-scene', env: Record<string, string>): T {
   const r = spawnSync(`pnpm exec tsx tests/e2e/${file}.ts`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), ...env } })
@@ -165,4 +165,18 @@ test('[FR-AI-302/AC1] [FR-AI-302/AC5] step 0: what the requester wrote fills the
   await check(page, testInfo, 'intake-ai-confirmed')
   await page.getByRole('button', { name: 'บันทึกร่างตอนนี้' }).click()
   await expect.poll(() => ai<{ status: string }>('state').status, { timeout: 30_000 }).toBe('ACCEPTED')
+})
+
+test('[FR-AI-301/AC1] [FR-AI-301/AC3] the decider sees the Brief apart on the decision bar, with the facts and no button of its own', async ({ page }, testInfo) => {
+  ai('on')
+  const brief = ai<{ taskId: string; assignee: string; result: string }>('brief')
+  expect(brief.result).toBe('DRAFT')
+  await signIn(page, brief.assignee, true)
+  await page.goto(`/tasks/${brief.taskId}`)
+  const box = page.getByRole('region', { name: 'สรุปจาก AI' })
+  await expect(box.getByText('AI อาจผิดพลาด ตรวจกับเอกสาร')).toBeVisible()
+  await expect(box.getByText('ยังไม่มีราคาอ้างอิงของรายการนี้')).toBeVisible()
+  await expect(box.getByText(/คำขอนี้ยอด [\d,]+\.\d{2} บาท ตามข้อ /)).toBeVisible()
+  await expect(box.getByRole('button')).toHaveCount(0)
+  await check(page, testInfo, 'brief-web')
 })

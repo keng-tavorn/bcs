@@ -5,7 +5,7 @@ import { systemClock } from '@/lib/clock'
 import { prisma } from '@/server/db/client'
 import { getReceivingPo } from '@/server/queries/receiving'
 import { makeCtx } from '@/server/context'
-import { runDocumentRead, runIntake, runMonthlyGrant } from '@/server/services/ai'
+import { runBrief, runDocumentRead, runIntake, runMonthlyGrant } from '@/server/services/ai'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/ai-document.spec.ts against the e2e database only (S13-07, FR-AI-303 AC1 AC3 AC4). The e2e app sends
@@ -17,9 +17,10 @@ import { E2E_DB } from '../support/e2e-env'
 //               off    AI module off again
 //               run    answer every PENDING Document read; prints how many
 //               state  prints the status and confirmed paths of SCENE_ACTION (the newest read when empty)
+//               brief  writes the Approval Brief of an open approval task of a request (the job's work); prints it
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the AI scene runs in the e2e database only')
 const mode = process.env.SCENE_MODE ?? ''
-if (!['on', 'off', 'run', 'state'].includes(mode)) throw new Error('SCENE_MODE must be on, off, run or state')
+if (!['on', 'off', 'run', 'state', 'brief'].includes(mode)) throw new Error('SCENE_MODE must be on, off, run, state or brief')
 
 const now = systemClock.now()
 const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }, select: { id: true, taxId: true } })
@@ -55,10 +56,10 @@ const INTAKE_DRAFT = {
 
 if (mode === 'on') {
   await setModule(true)
-  for (const agent of ['DOCUMENT', 'INTAKE'] as const) {
+  for (const agent of ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF'] as const) {
     const setting = await prisma.aiAgentSetting.findFirst({ where: { organizationId: org.id, agent }, select: { id: true } })
     if (setting) await prisma.aiAgentSetting.update({ where: { id: setting.id }, data: { enabled: true } })
-    else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: 'L1', minConfidenceBp: 9000 } })
+    else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: agent === 'APPROVAL_BRIEF' ? 'L0' : 'L1', minConfidenceBp: 9000 } })
   }
   const grant = await runMonthlyGrant(org.id, now)
   if (!grant.ok) throw new Error(JSON.stringify(grant.error))
@@ -80,6 +81,17 @@ if (mode === 'on') {
     if ((await (action.purpose === 'INTAKE' ? runIntake(org.id, action.id, now) : runDocumentRead(org.id, action.id, now))) === 'DRAFT') drafted++
   }
   console.log(JSON.stringify({ drafted }))
+} else if (mode === 'brief') {
+  // An open task of a request whose assignee signs in with a password and TOTP (every approver of the demo does)
+  const task = await prisma.approvalTask.findFirstOrThrow({ where: { organizationId: org.id, status: 'OPEN', principalMemberId: null, step: { route: { subjectType: 'REQUEST' } } }, orderBy: { assignedAt: 'desc' }, select: { id: true, assignee: { select: { employeeCode: true } } } })
+  const client: AiClient = {
+    mode: 'fixture',
+    extract: async (request) => ({ ok: false, errorCode: 'FIXTURE_MISSING', promptVersion: PROMPT_VERSIONS[request.purpose], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, latencyMs: 0 }),
+    write: async (request) => ({ ok: true, promptVersion: PROMPT_VERSIONS[request.purpose], model: request.model, output: request.schema.parse({ sentences: ['คำขอนี้ยอด {{v:amount}} บาท ตามข้อ {{v:doaRule}}', 'ยังไม่มีราคาอ้างอิงของรายการนี้'] }), usage: { input: 900, output: 120, cacheRead: 0, cacheWrite: 0 }, latencyMs: 400 }),
+  }
+  setAiClientForTests(client)
+  const result = await runBrief(org.id, task.id, now, task.id)
+  console.log(JSON.stringify({ taskId: task.id, assignee: task.assignee.employeeCode, result }))
 } else {
   const id = process.env.SCENE_ACTION
   const action = await prisma.agentAction.findFirstOrThrow({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE'] }, ...(id ? { id } : {}) }, orderBy: { createdAt: 'desc' }, select: { id: true, status: true, review: true, subjectType: true } })

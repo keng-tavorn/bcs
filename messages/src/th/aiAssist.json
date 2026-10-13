@@ -97,5 +97,34 @@
         "unitPrice": "รายการที่ {n}: ราคาต่อหน่วย"
       }
     }
+  },
+  "brief": {
+    "title": "สรุปจาก AI",
+    "note": "AI อาจผิดพลาด ตรวจกับเอกสาร",
+    "pending": "กำลังสรุป",
+    "factsTitle": "ข้อเท็จจริงจากระบบ",
+    "factsOnly": "แสดงเฉพาะข้อเท็จจริงจากระบบ",
+    "facts": {
+      "amount": "ยอดตามฐาน DOA",
+      "amountBasis": "ฐานของยอด",
+      "doaRule": "ข้อ DOA ที่ใช้",
+      "budgetRemaining": "งบคงเหลือหลังคำขอ",
+      "quoteCount": "จำนวนใบเสนอราคา",
+      "quoteChosenLowest": "เลือกรายที่ถูกที่สุด",
+      "nonLowestReason": "เหตุผลที่ไม่เลือกรายถูกที่สุด",
+      "priceReference": "ราคาอ้างอิง",
+      "supplierPoCount": "PO กับผู้ขายนี้ใน 12 เดือน",
+      "supplierLastPoAmount": "ยอด PO ล่าสุดกับผู้ขายนี้",
+      "slaHoursLeft": "เวลาที่เหลือ (ชั่วโมง)",
+      "slaOverdue": "เกินกำหนดแล้ว"
+    },
+    "values": {
+      "YES": "ใช่",
+      "NO": "ไม่ใช่",
+      "NONE": "ไม่มีราคาอ้างอิง",
+      "GROSS": "รวม VAT",
+      "NET": "ก่อน VAT",
+      "baht": "{amount} บาท"
+    }
   }
 }

@@ -10,9 +10,11 @@ import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskView
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
+import { AiBrief } from '@/ui/tasks/ai-brief'
 import { DecisionPanel } from '@/ui/tasks/decision-panel'
 import { PolicyDecision } from '@/ui/tasks/policy-decision'
 import { Timeline } from '@/ui/timeline/timeline'
+import { briefView } from '../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
@@ -128,6 +130,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   // The approver decides on the prices too: the prices paid before for the same items (FR-P2P-003 AC1)
   const reader = po ? poReader(principal, poAccess, po, { prices: true }) : null
   const open = right === 'DECIDE' && task.status === 'OPEN'
+  // The Approval Brief for the one who decides it now (FR-AI-301): none when there is no Brief for this task
+  const brief = open ? await briefView(ctx, task.id) : null
   // A DOA version or an authority change (BR-DOA-15): approved or rejected with the PIN, on a page of its own
   const policyTask = POLICY_SUBJECTS.includes(task.subjectType)
   // A DOA version with a boundary table: the approver ticks it before approving (FR-DOA-009 AC3)
@@ -269,6 +273,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
           </Panel>
 
           <aside className="flex min-w-0 flex-col gap-4 lg:gap-6">
+            {brief ? <AiBrief brief={brief} /> : null}
             {/* The decision in its own card; on phones its buttons stay fixed to the bottom of the screen */}
             <Panel>
               {policyTask ? (

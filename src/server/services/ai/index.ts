@@ -14,6 +14,7 @@ export {
   type RequestedAction,
 } from './actions'
 export { DOCUMENT_PURPOSES, readDocument, ReadDocumentInput, runDocumentRead } from './agents/document'
+export { approvalBriefOf, BRIEF_PROFILE, briefFacts, runBrief, type ApprovalBriefDto, type BriefFacts } from './agents/brief'
 export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartIntakeInput } from './agents/intake'
 export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
 export { aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'

@@ -20,6 +20,7 @@ import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, type AmountRow, type Fact } from '@/ui/request-view/facts'
 import { StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
+import { AiBriefBox } from '@/ui/liff/ai-brief-box'
 import { taskRight } from '../../../(workspace)/_tracking/access'
 import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
@@ -31,6 +32,7 @@ import { PoBody } from '../../../(workspace)/procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../../(workspace)/procurement/pos/_parts/present'
 import { ClosedTaskText } from '../../../(workspace)/tasks/_parts/closed-task'
 import { VarianceBody } from '../../../(workspace)/tasks/_parts/variance-body'
+import { briefView } from '../../../_lib/brief-present'
 import { liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
 import { liffSignedIn } from '../_lib/signed-in'
@@ -269,6 +271,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
 
   const details: ReactNode = (
     <>
+      <AiBriefBox brief={open ? await briefView(ctx, id) : null} />
       <header className="flex flex-col gap-2">
         {request?.number ? <p className="font-medium text-ink-muted">{t('detail.requestLabel', { number: request.number })}</p> : null}
         {po?.number ? <p className="font-medium text-ink-muted">{t('detail.poLabel', { number: po.number })}</p> : null}

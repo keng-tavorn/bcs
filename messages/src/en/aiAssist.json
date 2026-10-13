@@ -97,5 +97,34 @@
         "unitPrice": "Line {n}: unit price"
       }
     }
+  },
+  "brief": {
+    "title": "Summary by AI",
+    "note": "AI can be wrong: check against the document",
+    "pending": "Summarizing",
+    "factsTitle": "Facts from the system",
+    "factsOnly": "Showing the facts from the system only",
+    "facts": {
+      "amount": "Amount on the DOA's basis",
+      "amountBasis": "Basis of the amount",
+      "doaRule": "DOA rule applied",
+      "budgetRemaining": "Budget left after this request",
+      "quoteCount": "Quotations",
+      "quoteChosenLowest": "The lowest was chosen",
+      "nonLowestReason": "Why not the lowest",
+      "priceReference": "Reference price",
+      "supplierPoCount": "POs with this supplier in 12 months",
+      "supplierLastPoAmount": "Latest PO with this supplier",
+      "slaHoursLeft": "Time left (hours)",
+      "slaOverdue": "Overdue"
+    },
+    "values": {
+      "YES": "Yes",
+      "NO": "No",
+      "NONE": "No reference price",
+      "GROSS": "With VAT",
+      "NET": "Before VAT",
+      "baht": "{amount} baht"
+    }
   }
 }

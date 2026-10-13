@@ -1277,6 +1277,35 @@
   "aiAssist": {
     "allConfirmed": "Everything the AI filled in is confirmed",
     "badge": "Filled by AI, please check",
+    "brief": {
+      "facts": {
+        "amount": "Amount on the DOA's basis",
+        "amountBasis": "Basis of the amount",
+        "budgetRemaining": "Budget left after this request",
+        "doaRule": "DOA rule applied",
+        "nonLowestReason": "Why not the lowest",
+        "priceReference": "Reference price",
+        "quoteChosenLowest": "The lowest was chosen",
+        "quoteCount": "Quotations",
+        "slaHoursLeft": "Time left (hours)",
+        "slaOverdue": "Overdue",
+        "supplierLastPoAmount": "Latest PO with this supplier",
+        "supplierPoCount": "POs with this supplier in 12 months"
+      },
+      "factsOnly": "Showing the facts from the system only",
+      "factsTitle": "Facts from the system",
+      "note": "AI can be wrong: check against the document",
+      "pending": "Summarizing",
+      "title": "Summary by AI",
+      "values": {
+        "GROSS": "With VAT",
+        "NET": "Before VAT",
+        "NO": "No",
+        "NONE": "No reference price",
+        "YES": "Yes",
+        "baht": "{amount} baht"
+      }
+    },
     "confirmField": "{field} confirmed",
     "confirmRest": "Confirm all the rest ({count})",
     "confirmed": "Confirmed",

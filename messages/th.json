@@ -1277,6 +1277,35 @@
   "aiAssist": {
     "allConfirmed": "ยืนยันค่าที่ AI เติมครบแล้ว",
     "badge": "เติมโดย AI โปรดตรวจ",
+    "brief": {
+      "facts": {
+        "amount": "ยอดตามฐาน DOA",
+        "amountBasis": "ฐานของยอด",
+        "budgetRemaining": "งบคงเหลือหลังคำขอ",
+        "doaRule": "ข้อ DOA ที่ใช้",
+        "nonLowestReason": "เหตุผลที่ไม่เลือกรายถูกที่สุด",
+        "priceReference": "ราคาอ้างอิง",
+        "quoteChosenLowest": "เลือกรายที่ถูกที่สุด",
+        "quoteCount": "จำนวนใบเสนอราคา",
+        "slaHoursLeft": "เวลาที่เหลือ (ชั่วโมง)",
+        "slaOverdue": "เกินกำหนดแล้ว",
+        "supplierLastPoAmount": "ยอด PO ล่าสุดกับผู้ขายนี้",
+        "supplierPoCount": "PO กับผู้ขายนี้ใน 12 เดือน"
+      },
+      "factsOnly": "แสดงเฉพาะข้อเท็จจริงจากระบบ",
+      "factsTitle": "ข้อเท็จจริงจากระบบ",
+      "note": "AI อาจผิดพลาด ตรวจกับเอกสาร",
+      "pending": "กำลังสรุป",
+      "title": "สรุปจาก AI",
+      "values": {
+        "GROSS": "รวม VAT",
+        "NET": "ก่อน VAT",
+        "NO": "ไม่ใช่",
+        "NONE": "ไม่มีราคาอ้างอิง",
+        "YES": "ใช่",
+        "baht": "{amount} บาท"
+      }
+    },
     "confirmField": "ยืนยัน {field} แล้ว",
     "confirmRest": "ยืนยันค่าที่เหลือทั้งหมด ({count} ช่อง)",
     "confirmed": "ยืนยันแล้ว",

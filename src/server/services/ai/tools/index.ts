@@ -1,5 +1,5 @@
 import type { TextValue } from '@/core/ai-checks'
-import { satangToAmount } from '@/core/money/dto'
+import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import type { InsightTool } from '@/lib/ai-schemas/agents'
 import { isAllowed, loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -110,7 +110,7 @@ async function budgetStatus(ctx: Ctx): Promise<ToolResult> {
   const lines = [...dash.data.lines].filter((l) => l.availableBp !== null).sort((a, b) => a.availableBp! - b.availableBp!)
   return {
     tool: 'budget_status',
-    rows: lines.slice(0, TOOL_ROWS).map((l) => row(`/budgets/${l.id}`, { code: ref(l.code), name: text(l.nameTh), remainingBp: { kind: 'bp', value: l.availableBp! }, available: money(BigInt(l.available.amount.replace('.', ''))), low: { kind: 'enum', value: l.low ? 'YES' : 'NO' } })),
+    rows: lines.slice(0, TOOL_ROWS).map((l) => row(`/budgets/${l.id}`, { code: ref(l.code), name: text(l.nameTh), remainingBp: { kind: 'bp', value: l.availableBp! }, available: money(amountToSatang(l.available.amount)), low: { kind: 'enum', value: l.low ? 'YES' : 'NO' } })),
     values: { lowThresholdBp: { kind: 'bp', value: dash.data.lowPct * BP_PER_PERCENT } },
   }
 }
@@ -122,7 +122,7 @@ async function spendSummary(ctx: Ctx): Promise<ToolResult> {
   return {
     tool: 'spend_summary',
     rows: spend.byDepartment.slice(0, TOOL_ROWS).map((d) => row('/insights', { department: text(d.nameTh), net: money(BigInt(d.netSatang)) })),
-    values: { total: money(BigInt(spend.total.amount.replace('.', '')))!, poCount: { kind: 'integer', value: spend.poCount } },
+    values: { total: money(amountToSatang(spend.total.amount))!, poCount: { kind: 'integer', value: spend.poCount } },
   }
 }
 

@@ -144,3 +144,14 @@ describe('[FR-AI-307/AC2] every member of every role finds nothing outside their
     expect(someoneSawThePo && someoneDidNot).toBe(true)
   })
 })
+
+describe('[BR-AI-11] S13-15 review: a key used again never asks the AI again', () => {
+  it('[BR-AI-11] the second call with the same Idempotency-Key is IDEMPOTENCY_CONFLICT and makes no AI call', async () => {
+    const sent = answering({ tools: [], sentences: ['ถาม BCS AI ตอบได้เฉพาะเรื่องจัดซื้อในสิทธิ์ของคุณ'] })
+    const once = { idempotencyKey: randomUUID(), sender: null }
+    expect(await askInsight(org.ctxOf('dm_it', NOW), { question: 'ช่วยแต่งกลอนให้หน่อย' }, once)).toMatchObject({ ok: true, data: { kind: 'SCOPE' } })
+    const calls = sent.length
+    expect(await askInsight(org.ctxOf('dm_it', NOW), { question: 'ช่วยแต่งกลอนให้หน่อย' }, once)).toMatchObject({ ok: false, error: { code: 'IDEMPOTENCY_CONFLICT' } })
+    expect(sent.length).toBe(calls)
+  })
+})

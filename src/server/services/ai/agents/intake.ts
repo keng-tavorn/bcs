@@ -197,12 +197,13 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   const suggestedType = formType && known && known !== formType ? known : null
   if (!formType) put('requestTypeCode', known, 'requestType', true)
   put('title', draft.title?.trim().slice(0, 200) || null, 'title')
-  const lines = draft.lines.filter((l) => l.description?.trim())
+  // A line without words is left out; each line kept reads its confidence at the place the model gave it (`read`)
+  const lines = draft.lines.flatMap((l, read) => (l.description?.trim() ? [{ ...l, read }] : []))
   lines.forEach((l, i) => {
-    put(`lines.${i}.description`, l.description!.trim().slice(0, 500), `lines.${i}.description`)
-    put(`lines.${i}.quantity`, quantity(l.qty), `lines.${i}.qty`, true)
-    put(`lines.${i}.uom`, l.unit?.trim() || null, `lines.${i}.unit`)
-    put(`lines.${i}.unitPrice`, money(l.unitPrice), `lines.${i}.unitPrice`, true)
+    put(`lines.${i}.description`, l.description!.trim().slice(0, 500), `lines.${l.read}.description`)
+    put(`lines.${i}.quantity`, quantity(l.qty), `lines.${l.read}.qty`, true)
+    put(`lines.${i}.uom`, l.unit?.trim() || null, `lines.${l.read}.unit`)
+    put(`lines.${i}.unitPrice`, money(l.unitPrice), `lines.${l.read}.unitPrice`, true)
   })
   const site = draft.siteCode ? sites.find((s) => s.code === draft.siteCode) : undefined
   put('deliverySiteId', site?.id ?? null, 'siteCode')

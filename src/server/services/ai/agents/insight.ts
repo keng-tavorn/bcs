@@ -6,6 +6,7 @@ import { AI_LIMITS, DECISION_ADVICE_WORDS, modelFor } from '@/lib/ai-config'
 import { BriefText, INSIGHT_TOOLS, QuestionPlan, insightAnswerText, questionInputText, type InsightTool } from '@/lib/ai-schemas/agents'
 import { getEnv } from '@/lib/env'
 import type { Ctx } from '@/server/context'
+import { forTenant } from '@/server/db/tenant'
 import type { RunOptions } from '../../_pipeline'
 import { completeAgentAction, requestAgentAction } from '../actions'
 import { aiRuntime } from '../gate'
@@ -46,6 +47,9 @@ export async function askInsight(ctx: Ctx, rawInput: z.input<typeof AskInput>, o
   const started = await requestAgentAction(ctx, { purpose: 'QUESTION', inputText: question, ...(conversationId ? { conversationId } : {}) }, options)
   if (!started.ok) return started
   const agentActionId = started.data.agentActionId
+  // A key used before replays its action, already answered: the AI is never asked again without credits (BR-AI-11)
+  const row = await forTenant(ctx.organizationId).agentAction.findFirst({ where: { id: agentActionId }, select: { status: true } })
+  if (row?.status !== 'PENDING') return err('IDEMPOTENCY_CONFLICT', 'this question was asked with this key already', { field: 'idempotencyKey' })
   const model = modelFor('INSIGHT', aiRuntime().modelEnv)
   const client = getAiClient(getEnv())
   const finish = (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => completeAgentAction(ctx.organizationId, ctx.now, started.data.promptVersion, { agentActionId, requestedModel: model, ...input })
@@ -57,7 +61,9 @@ export async function askInsight(ctx: Ctx, rawInput: z.input<typeof AskInput>, o
   }
   const tools = [...new Set(plan.output.tools.filter((t) => (INSIGHT_TOOLS as readonly string[]).includes(t)))].slice(0, AI_LIMITS.insightMaxToolCalls)
   const answer = async (kind: InsightAnswer['kind'], sentences: readonly string[], results: readonly ToolResult[], usage: AiUsage, latencyMs: number, reason?: string) => {
-    await finish({ outcome: 'DRAFT', model: plan.model, output: { tools, kind, ...(reason ? { reason } : {}) }, usage, latencyMs })
+    // An answer is shown only once its usage and credits are recorded
+    const done = await finish({ outcome: 'DRAFT', model: plan.model, output: { tools, kind, ...(reason ? { reason } : {}) }, usage, latencyMs })
+    if (!done.ok) return done
     return ok({ agentActionId, kind, sentences, tables: tablesOf(results) })
   }
   // Outside procurement: no tool, and the AI's words checked like any (no value of its own)

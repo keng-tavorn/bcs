@@ -194,6 +194,10 @@ describe('[FR-AI-303/AC5] [FR-AI-303/AC6] who reads an invoice, and what is neve
     const fileId = await upload(PNG('refused'), 'image/png')
     expect(await readDocument(fin(ap), { fileId, purpose: 'INVOICE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'subject' } } })
     expect(await readDocument(fin(ap), { fileId, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: randomUUID() } }, key())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    // No credits for a PO that takes no invoice
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { status: 'CANCELLED' } })
+    expect(await readDocument(fin(ap), { fileId, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po.id } }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION', details: { from: 'CANCELLED' } } })
+    await prisma.purchaseOrder.update({ where: { id: po.id }, data: { status: 'RECEIVED' } })
     const own = await prisma.fileObject.update({ where: { id: fileId }, data: { uploadedById: ap.org.member.proc_officer! } })
     expect(await readDocument(ap.org.ctxOf('proc_officer', AP_NOW), { fileId: own.id, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po.id } }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
   })

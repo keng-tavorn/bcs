@@ -17,6 +17,7 @@ import { listTaxRates } from '@/server/db/lookups'
 import { forTenant } from '@/server/db/tenant'
 import { getReceivingPo } from '@/server/queries/receiving'
 import type { RunOptions } from '../../_pipeline'
+import { INVOICEABLE_PO_STATUSES } from '../../ap'
 import { mayViewFile } from '../../files'
 import { readEtaxContent } from '../../invoices/etax'
 import { getReceivingView } from '../../receiving/view'
@@ -58,7 +59,10 @@ async function subjectRefusal(ctx: Ctx, input: z.output<typeof ReadDocumentInput
     return forTenant(ctx.organizationId).$transaction(async (tx) => {
       const allowed = await authorize(tx, ctx, 'invoice.record')
       if (!allowed.ok) return allowed
-      return (await tx.purchaseOrder.count({ where: { id: subject.id } })) ? ok(true) : err('NOT_FOUND', 'purchase order not found')
+      const po = await tx.purchaseOrder.findFirst({ where: { id: subject.id }, select: { status: true } })
+      if (!po) return err('NOT_FOUND', 'purchase order not found')
+      // No credits for a PO that takes no invoice (BR-MATCH-05, as invoice.createDraftFromReading decides)
+      return (INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status) ? ok(true) : err('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status })
     })
   }
   if (input.purpose === 'DELIVERY_NOTE') {

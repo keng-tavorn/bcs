@@ -87,7 +87,7 @@ export async function briefFacts(ctx: Ctx, task: TaskOfBrief): Promise<BriefFact
     const balance = await budgetLineAvailable(ctx, budgetLineId)
     if (balance.ok) facts.budgetRemaining = { kind: 'money', value: balance.data.available.amount }
   }
-  // TODO(S6): getPriceReference and listRequestFlags of S6 once in main (FR-AI-301 AC6); until then no reference
+  // No reference price until getPriceReference and listRequestFlags of S6 are in main (FR-AI-301 AC6, S13-09)
   facts.priceReference = { kind: 'enum', value: 'NONE' }
   if (supplierId) {
     const since = new Date(ctx.now.getTime() - SUPPLIER_HISTORY_DAYS * MS_PER_DAY)

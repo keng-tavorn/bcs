@@ -195,3 +195,29 @@ describe('[FR-AI-302/AC5] [FR-AI-303/AC9] the chat path of S17: in the caller’
     }
   })
 })
+
+describe('[BR-AI-16] S13-15 review: a line left out does not move the confidence of the others', () => {
+  it('[BR-AI-16] each line kept reads its confidence where the model gave it', async () => {
+    answering(
+      draftOf({
+        lines: [
+          { description: null, itemCode: null, qty: null, unit: 'ชิ้น', unitPrice: null },
+          { description: 'ทรายหยาบ', itemCode: null, qty: '5', unit: 'คิว', unitPrice: '300' },
+        ],
+        confidence: [
+          { field: 'title', value: 95 },
+          { field: 'lines.0.unit', value: 10 },
+          { field: 'lines.1.description', value: 96 },
+          { field: 'lines.1.unit', value: 97 },
+        ],
+      }),
+    )
+    const started = await startIntake(org.ctxOf('req_con', NOW), { requestTypeCode: 'BUY_GOODS', text: 'ขอทรายหยาบ 5 คิว' }, key())
+    if (!started.ok) throw new Error(JSON.stringify(started.error))
+    expect(await runIntake(org.organizationId, started.data.agentActionId, NOW)).toBe('DRAFT')
+    const review = (await action(started.data.agentActionId)).review as { proposed: Record<string, string>; requiredPaths: string[] }
+    expect(review.proposed).toMatchObject({ 'lines.0.description': 'ทรายหยาบ', 'lines.0.uom': 'คิว' })
+    // The sure description and unit of the model's line 1 are not waiting; quantity and price always are
+    expect(review.requiredPaths).toEqual(['lines.0.quantity', 'lines.0.unitPrice'])
+  })
+})

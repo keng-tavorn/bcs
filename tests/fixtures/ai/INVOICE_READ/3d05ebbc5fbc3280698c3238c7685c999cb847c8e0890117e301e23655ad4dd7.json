@@ -1,0 +1,71 @@
+{
+  "promptVersion": "INVOICE_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "TAX_INVOICE",
+    "docNo": "INV-00475",
+    "docDate": "2026-08-06",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท เกียรติไพศาลเครื่องเขียน จำกัด",
+      "taxId": "0999998011461",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "กระดาษ A4 80 แกรม",
+        "qty": "36",
+        "unit": "รีม",
+        "unitPrice": "126.00",
+        "amount": "4536.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "4536.00",
+    "vat": "317.52",
+    "gross": "4853.52",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

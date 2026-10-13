@@ -28,6 +28,7 @@ import {
   RectangleEllipsis,
   Settings,
   ShieldCheck,
+  Sparkles,
   ShoppingCart,
   UserCheck,
   UserCog,
@@ -65,6 +66,8 @@ export const MENU_ICONS: Record<string, LucideIcon> = {
   orgAuthority: Network,
   policyHistory: History,
   modules: Blocks,
+  // The AI's own sign (§12.5: AI is marked with the info colour and Sparkles)
+  ai: Sparkles,
   tenants: Building,
   delegation: UserCheck,
   security: KeyRound,

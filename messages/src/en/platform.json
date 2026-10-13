@@ -10,7 +10,8 @@
     "intro": "The BCS team sees only the name, code and status of each organization, never the customer's business data.",
     "forbidden": "This page is for active members of the BCS team.",
     "empty": "There are no customer organizations yet. A new organization is created when its contract starts, following the BCS team guide, and then appears here.",
-    "manageModules": "Manage modules of {name}"
+    "manageModules": "Manage modules of {name}",
+    "manageAi": "AI credits of {name}"
   },
   "modules": {
     "titleShort": "Customer modules",
@@ -45,5 +46,43 @@
       "INTERNAL": "Something went wrong (reference {requestId}). Try again."
     },
     "code": "code {code}"
+  },
+  "ai": {
+    "titleShort": "AI credits",
+    "title": "AI credits of {name}",
+    "intro": "Grant credits only as the contract says. Every grant needs a contract reference and a reason. This page shows no business data of the customer.",
+    "back": "Back to customer organizations",
+    "balance": "This month {used} of {granted} credits used, {remaining} left · {monthly} arrive each month",
+    "grantsTitle": "Credits granted this month",
+    "noGrants": "No credits for this month yet",
+    "columns": {
+      "when": "When",
+      "source": "Source",
+      "credits": "Credits",
+      "contractRef": "Contract reference"
+    },
+    "sources": {
+      "MONTHLY": "Monthly",
+      "TOPUP": "Top-up by the BCS team"
+    },
+    "formTitle": "Grant credits or change the monthly amount",
+    "topUp": "Add credits for this month",
+    "topUpHint": "Usable at once until the month ends",
+    "monthly": "Credits a month",
+    "monthlyHint": "Used from the next grant at the start of a month",
+    "contractRef": "Contract reference",
+    "reason": "Reason (kept in the history)",
+    "submit": "Save credits",
+    "granted": "Credits saved",
+    "errors": {
+      "AMOUNTS": "Enter a whole number of credits above zero in at least one field",
+      "CONTRACT_REF": "Enter the contract reference",
+      "REASON": "Enter a reason of at least 3 characters",
+      "FORBIDDEN": "This page is for active members of the BCS team",
+      "UNAUTHENTICATED": "Please sign in again",
+      "INPUT": "Something is not right. Check the amounts and the reference and try again",
+      "INTERNAL": "Not saved. Reference {requestId}",
+      "FAILED": "Not saved. Try again"
+    }
   }
 }

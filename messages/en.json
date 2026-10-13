@@ -51,6 +51,56 @@
     "workspaceOnly": "This task needs an extra identity check, so it cannot be decided from e-mail. Open it in BCS"
   },
   "admin": {
+    "ai": {
+      "agents": {
+        "APPROVAL_BRIEF": {
+          "description": "A short summary on the approval task; every number comes from the system and it never advises a decision",
+          "name": "AI summary for approvers"
+        },
+        "DOA_DRAFTER": {
+          "description": "Drafts approval rules from a regulation document for the admin to check one by one",
+          "name": "DOA draft from a regulation"
+        },
+        "DOCUMENT": {
+          "description": "Reads quotations, delivery notes and invoices and fills the form for a person to check and confirm",
+          "name": "Document reader"
+        },
+        "INSIGHT": {
+          "description": "Answers questions about procurement data in Thai, only from what the asking person may see",
+          "name": "Ask BCS AI"
+        },
+        "INTAKE": {
+          "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending",
+          "name": "Request helper"
+        }
+      },
+      "agentsTitle": "Assistants",
+      "confidence": "Lowest confidence (%)",
+      "confidenceHint": "Fields the AI is less sure of are confirmed one by one; amounts, quantities and tax ids always are",
+      "creditsNote": "{monthly} credits arrive at the start of each month, and the admins are told at {alert}%. Ask the BCS team for more.",
+      "creditsProgress": "{percent}% of the credits used",
+      "creditsTitle": "This month's credits",
+      "creditsUsed": "{used} of {granted} credits used, {remaining} left",
+      "errors": {
+        "CONFIDENCE": "Enter a number from 0 to 100",
+        "CONFLICT_VERSION": "Someone changed this setting before you. Reload the page and try again.",
+        "FAILED": "Not saved. Try again",
+        "FORBIDDEN": "You may not change the AI settings",
+        "INTERNAL": "Not saved. Tell your administrator the reference {requestId}",
+        "NO_CHANGE": "This is set already; nothing changed",
+        "UNAUTHENTICATED": "Please sign in again"
+      },
+      "forbidden": "This page is for organization admins. To change the AI settings, ask your organization admin.",
+      "intro": "Switch each AI assistant on or off; it takes effect for new calls at once. Everything else works when they are off, and a person always confirms what the AI fills in.",
+      "moduleOff": "The AI module is not switched on for your organization yet. You may set things up now; the assistants start working when the BCS team switches the module on under the contract.",
+      "off": "Off",
+      "on": "On",
+      "saveConfidence": "Save lowest confidence",
+      "savedConfidence": "Lowest confidence of {name} saved",
+      "switchedOff": "{name} switched off; its drafts can still be confirmed or changed",
+      "switchedOn": "{name} switched on",
+      "title": "AI assistants"
+    },
     "members": {
       "back": "Back to all members",
       "cancel": "Cancel",
@@ -1223,6 +1273,83 @@
       "switchedOn": "{name} is on. Requesters see it on the new request page.",
       "title": "Request types"
     }
+  },
+  "aiAssist": {
+    "allConfirmed": "Everything the AI filled in is confirmed",
+    "badge": "Filled by AI, please check",
+    "confirmField": "{field} confirmed",
+    "confirmRest": "Confirm all the rest ({count})",
+    "confirmed": "Confirmed",
+    "deliveryNoteHint": "Take a photo of the delivery note or upload it: the AI fills in what came for each line for you to check",
+    "deliveryNoteRule": "PDF, JPG or PNG up to 20 MB",
+    "deliveryNoteTitle": "Quantities the AI read from the delivery note",
+    "discard": "Do not use what the AI read",
+    "documentAgent": "Document reader",
+    "failed": {
+      "etax": "This file is an electronic tax invoice (e-Tax): use the e-Tax import instead of the AI",
+      "general": "The AI could not read this file; fill in the form yourself as usual",
+      "unsupported": "The AI cannot read this file: PDF, JPEG, PNG or WebP up to 20 MB; fill in the form yourself as usual"
+    },
+    "fields": {
+      "amount": "Amount",
+      "includesVat": "Price includes VAT",
+      "received": "Received {description}",
+      "supplierId": "Supplier in the register",
+      "supplierName": "Supplier"
+    },
+    "fileHint": "Compare what the AI filled in with this file before confirming",
+    "fileMissing": "The file could not be opened; try again",
+    "fileTitle": "Original file",
+    "mustConfirm": "Confirm this field on its own",
+    "notes": {
+      "AMOUNT_UNVERIFIED": "The amounts did not pass the checks: no amount was filled in; type it from the file",
+      "BUYER_MATCH": "The buyer's tax id is not the organization's",
+      "CURRENCY": "The document is in another currency: the AI filled nothing in; fill it in yourself",
+      "DISCOUNT_AMBIGUOUS": "The discount reads two ways: no amount was filled in; check the file",
+      "DISCOUNT_NOT_MAPPABLE": "The document has a discount: only the total was filled in",
+      "DOC_DATE_FUTURE": "The document is dated in the future",
+      "DOC_DATE_OLD": "The document is more than a year old",
+      "DUPLICATE_PO_LINE": "The delivery note has more than one line for item {line}: fill it in yourself",
+      "GROSS_TOTAL": "The total is not the amount before VAT plus VAT",
+      "LINE_AMOUNT": "The amount of some lines is not quantity × price",
+      "NET_TOTAL": "The amount before VAT is not the sum of the lines",
+      "NON_VAT_SELLER": "The seller is not VAT-registered but the document shows VAT",
+      "OVER_OPEN": "Item {line} is more than what is still to come: check before confirming",
+      "PO_LINE_UNKNOWN": "Line {line} of the delivery note matches no line of the purchase order: fill it in yourself",
+      "SELLER_BRANCH": "The seller's branch differs from the register",
+      "SELLER_MATCH": "The seller on the document is not the purchase order's supplier",
+      "SUPPLIER_NOT_REGISTERED": "The supplier is not in the register yet: the name as read was filled in",
+      "TAXID_CHECKSUM": "The seller's tax id fails its check digit",
+      "UOM_MISMATCH": "Line {line} of the delivery note uses another unit than the purchase order: fill it in yourself",
+      "VAT_AMOUNT": "The VAT read differs from the VAT the system computed",
+      "VAT_RATE_MISSING": "No VAT rate for the document's date: check the VAT yourself"
+    },
+    "openFile": "View the original file",
+    "quotationTitle": "What the AI read from quotation {n}",
+    "read": {
+      "docDate": "Date",
+      "docNo": "Document number",
+      "gross": "Total",
+      "includesVat": "Price includes VAT",
+      "line": "{description} · {qty} {unit} · {amount}",
+      "net": "Before VAT",
+      "no": "No",
+      "seller": "Seller",
+      "sellerBranch": "Branch",
+      "sellerTaxId": "Seller's tax id",
+      "title": "What the AI read ({lines} lines)",
+      "vat": "VAT",
+      "yes": "Yes"
+    },
+    "readButton": "Read from file",
+    "readDeliveryNote": "Read the delivery note",
+    "readQuotation": "Read quotation {n} from its file",
+    "reading": "Reading the document…",
+    "values": {
+      "no": "Excludes VAT",
+      "yes": "Includes VAT"
+    },
+    "waiting": "{count, plural, one {# field waits} other {# fields wait}} for you to confirm"
   },
   "app": {
     "comingSoon": "The system is being built. This page will become your work home page.",
@@ -2686,6 +2813,7 @@
   "errors": {
     "AI_AGENT_DISABLED": "The AI assistant {agent} is switched off; fill in the form yourself as usual",
     "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up; fill in the form yourself as usual",
+    "AI_FILE_UNSUPPORTED": "The AI cannot read this file ({reason}): PDF, JPEG, PNG or WebP up to 20 MB; an e-Tax file uses the e-Tax import",
     "AI_NOT_EVALUATED": "This version of the AI assistant {agent} has not passed its evaluation yet, so it cannot be used",
     "AI_REVIEW_PENDING": "{count} fields the AI filled in are not confirmed yet",
     "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
@@ -4112,6 +4240,44 @@
     "title": "Transaction PIN"
   },
   "platform": {
+    "ai": {
+      "back": "Back to customer organizations",
+      "balance": "This month {used} of {granted} credits used, {remaining} left · {monthly} arrive each month",
+      "columns": {
+        "contractRef": "Contract reference",
+        "credits": "Credits",
+        "source": "Source",
+        "when": "When"
+      },
+      "contractRef": "Contract reference",
+      "errors": {
+        "AMOUNTS": "Enter a whole number of credits above zero in at least one field",
+        "CONTRACT_REF": "Enter the contract reference",
+        "FAILED": "Not saved. Try again",
+        "FORBIDDEN": "This page is for active members of the BCS team",
+        "INPUT": "Something is not right. Check the amounts and the reference and try again",
+        "INTERNAL": "Not saved. Reference {requestId}",
+        "REASON": "Enter a reason of at least 3 characters",
+        "UNAUTHENTICATED": "Please sign in again"
+      },
+      "formTitle": "Grant credits or change the monthly amount",
+      "granted": "Credits saved",
+      "grantsTitle": "Credits granted this month",
+      "intro": "Grant credits only as the contract says. Every grant needs a contract reference and a reason. This page shows no business data of the customer.",
+      "monthly": "Credits a month",
+      "monthlyHint": "Used from the next grant at the start of a month",
+      "noGrants": "No credits for this month yet",
+      "reason": "Reason (kept in the history)",
+      "sources": {
+        "MONTHLY": "Monthly",
+        "TOPUP": "Top-up by the BCS team"
+      },
+      "submit": "Save credits",
+      "title": "AI credits of {name}",
+      "titleShort": "AI credits",
+      "topUp": "Add credits for this month",
+      "topUpHint": "Usable at once until the month ends"
+    },
     "modules": {
       "back": "Back to customer organizations",
       "code": "code {code}",
@@ -4155,6 +4321,7 @@
       "empty": "There are no customer organizations yet. A new organization is created when its contract starts, following the BCS team guide, and then appears here.",
       "forbidden": "This page is for active members of the BCS team.",
       "intro": "The BCS team sees only the name, code and status of each organization, never the customer's business data.",
+      "manageAi": "AI credits of {name}",
       "manageModules": "Manage modules of {name}",
       "title": "Customer organizations"
     },
@@ -4761,6 +4928,7 @@
       "viewOnly": "You can see this purchase order; recording what came is the work of the receivers of the requesting department."
     },
     "errors": {
+      "AI_REVIEW_PENDING": "Quantities the AI read from the delivery note still wait for you: confirm every line in the AI box, or change the quantity yourself, then record again",
       "BUDGET_INSUFFICIENT": "Not enough budget for what came above the order ({available} baht left, {shortfall} baht short). Receive less, or tell the budget administrator.",
       "BUDGET_INSUFFICIENT_PLAIN": "There is not enough budget for what came above the order. Receive less, or tell the budget administrator.",
       "BUDGET_LINE_CLOSED": "The budget line of this item is closed. Tell the budget administrator.",
@@ -5922,6 +6090,7 @@
     },
     "items": {
       "admin": "Organization admin",
+      "ai": "AI assistants",
       "audit": "Audit trail",
       "board": "Pending documents",
       "budgets": "Budgets",

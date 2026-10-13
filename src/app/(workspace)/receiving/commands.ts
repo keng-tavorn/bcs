@@ -36,6 +36,8 @@ const ReceiptInput = z.object({
   notes: z.string().max(REASON_MAX_LENGTH),
   photoFileIds: z.array(z.uuid()).max(MAX_PHOTOS),
   lines: z.array(LineInput).min(1).max(200),
+  // What the receiver confirmed of a delivery note the AI read (FR-AI-303 AC4); gr.post checks it last (BR-AI-17)
+  aiAssist: z.object({ agentActionId: z.uuid(), confirmedPaths: z.array(z.string().min(1).max(200)).max(500) }).optional(),
 })
 const PreviewInput = ReceiptInput.pick({ poId: true, photoFileIds: true, lines: true })
 const CloseShortInput = z.object({ poId: z.uuid(), reason: z.string().max(REASON_MAX_LENGTH), confirmed: z.boolean() })
@@ -111,6 +113,7 @@ export async function postReceipt(ctx: Ctx, input: unknown, idempotencyKey: unkn
       deliveryNoteNo: deliveryNoteNo || null,
       notes: notes || null,
       photoFileIds: [...new Set(parsed.data.photoFileIds)],
+      ...(parsed.data.aiAssist ? { aiAssist: parsed.data.aiAssist } : {}),
       lines: lines.lines.map((l) => ({
         poLineId: l.poLineId,
         received: l.received,

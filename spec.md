@@ -807,6 +807,7 @@ cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate 
 | `db:seed` | ใส่ข้อมูลตามภาคผนวก A รันซ้ำได้ · `SEED_INPUTS=p1` อ่านไฟล์ข้อมูลสังเคราะห์ระยะ 1 แทนไฟล์ demo (P1-02 · เทสต์และ e2e ใช้ไฟล์ demo เสมอ) |
 | `db:reset` · `db:reset:p1` | ล้าง + migrate + seed ปฏิเสธถ้า `APP_ENV` ไม่ใช่ `local` · ในสายปฏิเสธฐานของ main และบน main ปฏิเสธฐานของสาย · สร้างฐานของสายเมื่อยังไม่มี · `db:reset:p1` seed ด้วยไฟล์ระยะ 1 (องค์กร SIMEC ประวัติ 240 คำขอ ราว 2 นาทีบนเครื่อง · P1-02) |
 | `lane:create <1\|2\|3>` · `lane:check` | สร้างหรือตั้งสายขนานใหม่ตามตารางสาย §16.13 (worktree branch `.env` ของสาย ติดตั้ง และ seed) · ตรวจว่าสายที่อยู่ตรงตาราง (P1-01) |
+| `ai:docs` · `ai:eval` | วาดเอกสารสังเคราะห์ของชุดประเมิน AI ลง `tests/fixtures/ai-docs/` · วัดผลชุดประเมิน §12.4 (โหมด fixture ไม่ต้องมี key · `--live` เรียก Claude จริง · `--record` เขียนรายงาน) (S13-05 · ADR-146) |
 | `test` · `test:int` · `test:golden` · `test:e2e` | unit · integration กับ Postgres จริง · golden · Playwright |
 | `lint` · `typecheck` | ESLint (รวมกฎ boundaries) · `tsc --noEmit` |
 | `verify` | รวมทุกด่านและรายงาน PASS/FAIL ทีละข้อ (§15.5) |
@@ -3803,6 +3804,144 @@ cases:
   - { id: GC-AI-11, title: คงเหลือ 1 เรียกได้ ติดลบแล้วเรียกไม่ได้, input: { grant: 20000, used: 19999, calls: [32, 1] }, expect: { results: [ok, AI_CREDITS_EXHAUSTED], remaining: -31 } }
 ```
 
+**ให้คะแนนชุดประเมิน (S13-05 · BR-AI-26 · golden ai-eval-score):** ตัวให้คะแนน `matchField` `normalizeAnswer` `fieldScore` ใน `src/core/ai-checks/eval-score.ts` · ชุดประเมินชั้น demo อยู่ใน `tests/fixtures/ai-docs/` และ `tests/fixtures/ai-eval/` · คำสั่ง `pnpm ai:eval`
+
+```yaml
+# tests/golden/ai-eval-score.yaml
+suite: ai-eval-score
+cases:
+  - { id: GC-AI-12, fn: matchField, input: { field: seller.taxId, expected: "0999998010561", actual: "0-9999-98010-56-1" }, expect: { match: true } }
+  - { id: GC-AI-13, fn: matchField, input: { field: docNo, expected: "INV-00373", actual: " inv-00373 " }, expect: { match: true } }
+  - { id: GC-AI-14, fn: matchField, input: { field: gross, expected: "5970.60", actual: "5,970.6" }, expect: { match: true } }
+  - { id: GC-AI-15, fn: matchField, input: { field: docNo, expected: null, actual: "-" }, expect: { match: false } }
+  - { id: GC-AI-16, title: คำตอบ "ไม่มีเลขที่" ของ DocSamples เทียบเป็น null, fn: matchField, input: { field: docNo, expected: "ไม่มีเลขที่", actual: null }, expect: { match: true } }
+  - { id: GC-AI-17, title: บรรทัดส่วนลดติดลบในคำตอบแปลงเป็น discountTotal (DOC-057), fn: normalizeAnswer, input: { lines: [{ qty: "20000", unitPrice: "32.50" }, { qty: "1", unitPrice: "-13000.00" }] }, expect: { lines: 1, discountTotal: "13000.00" } }
+  - { id: GC-AI-18, fn: fieldScore, input: { correct: 21, total: 22, thresholdBp: 9800, missed: 0 }, expect: { scoreBp: 9545, pass: false } }
+  - { id: GC-AI-19, fn: fieldScore, input: { correct: 49, total: 50, thresholdBp: 9800, missed: 0 }, expect: { scoreBp: 9800, pass: true } }
+  - { id: GC-AI-20, title: แม่นเท่าเกณฑ์แต่ค่าผิดค่าเดียวไม่ถูกไฮไลต์ (ฟิลด์สำคัญ), fn: fieldScore, input: { correct: 49, total: 50, thresholdBp: 9800, missed: 1, critical: true }, expect: { scoreBp: 9800, pass: false } }
+  - { id: GC-AI-21, title: ฟิลด์รองไม่นับกฎหลุด, fn: fieldScore, input: { correct: 46, total: 50, thresholdBp: 9000, missed: 1, critical: false }, expect: { scoreBp: 9200, pass: true } }
+```
+
+**ตรวจผลอ่านของ AI (S13-06 · BR-AI-14 BR-AI-15 BR-AI-16 BR-AI-25 · golden ai-verify ai-confidence ai-quotation-map ai-dn-map):** `verifyReading` `fieldConfidence` `mapQuotation` `mapDeliveryNote` ใน `src/core/ai-checks` · ใช้ `src/core/money` `vat` `thai` เดิม · runner เทียบเฉพาะคีย์ที่อยู่ใน expect และเทียบ `flagged` `fail` `warn` `skip` แบบไม่สนลำดับ
+
+```yaml
+# tests/golden/ai-verify.yaml
+suite: ai-verify
+note: supplier = ผู้ขายของบริบท (ที่ผู้ใช้เลือกหรือของ PO) ไม่ใช่ค่าที่ AI อ่าน · null = ไม่มีบริบท · set เปลี่ยนค่าตาม path (null = ไม่มีช่องนั้น) · suppliers คือทะเบียน
+fixture:
+  rates:
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2025-10-01", effectiveTo: "2026-09-30" }
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2026-10-01", effectiveTo: "2027-09-30" }
+  orgTaxId: "0999997000015"
+  now: "2026-10-11T03:00:00Z"
+  suppliers:
+    SP0056: { taxId: "0999998010561", branch: "00000", vatRegistered: true }
+    SP0058: { taxId: "0999998010588", branch: "00000", vatRegistered: true }
+    SP0175: { taxId: "0999998011657", branch: "00000", vatRegistered: true }
+    SP0109: { taxId: "3999998020014", branch: "00000", vatRegistered: false }
+  bases:
+    DOC-001: { docType: QUOTATION, supplier: SP0056, docDate: "2026-10-01", currency: THB, priceIncludesVat: false, seller: { taxId: "0999998010561", branch: "00000" }, lines: [{ qty: "18", unit: ท่อน, unitPrice: "310.00", amount: "5580.00" }], net: "5580.00", vat: "390.60", gross: "5970.60" }
+    DOC-010: { docType: QUOTATION, supplier: SP0058, docDate: "2026-10-01", currency: THB, priceIncludesVat: true, seller: { taxId: "0999998010588", branch: "00000" }, lines: [{ qty: "26", unit: ถัง, unitPrice: "2514.50", amount: "65377.00" }], net: "61100.00", vat: "4277.00", gross: "65377.00" }
+    DOC-057: { docType: TAX_INVOICE, supplier: SP0175, docDate: "2026-10-01", currency: THB, priceIncludesVat: false, seller: { taxId: "0999998011657", branch: "00000" }, buyer: { taxId: "0999997000015" }, lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }], discountTotal: "13000.00", net: "637000.00", vat: "44590.00", gross: "681590.00" }
+    DOC-002: { docType: DELIVERY_NOTE, supplier: SP0056, docDate: "2026-10-03", currency: THB, seller: { taxId: "0999998010561", branch: "00000" }, lines: [{ qty: "18", unit: ท่อน }] }
+cases:
+  - { id: GC-AI-22, title: ใบเสนอราคาตรงทุกยอด, input: { base: DOC-001 }, expect: { status: PASS, computed: { net: "5580.00", vat: "390.60", gross: "5970.60" } } }
+  - { id: GC-AI-23, title: ยอดบรรทัดเกิน 1 สตางค์, input: { base: DOC-001, set: { lines.0.amount: "5580.01" } }, expect: { status: FAIL, fail: [LINE_AMOUNT], flagged: [lines.0.amount] } }
+  - { id: GC-AI-24, title: จำนวนทศนิยม 2502.5 สตางค์ปัดเป็น 2503 แต่ AI อ่าน 25.02, input: { base: DOC-001, set: { lines: [{ qty: "2.5", unit: ท่อน, unitPrice: "10.01", amount: "25.02" }], net: "25.02", vat: "1.75", gross: "26.77" } }, expect: { status: FAIL, fail: [LINE_AMOUNT, NET_TOTAL], flagged: [lines.0.amount, net], computed: { net: "25.03", vat: "1.75", gross: "26.78" } } }
+  - { id: GC-AI-25, title: VAT ต่าง 1.00 พอดี เตือน, input: { base: DOC-001, set: { vat: "391.60", gross: "5971.60" } }, expect: { status: WARN, warn: [VAT_AMOUNT], flagged: [vat], vatDiff: "1.00" } }
+  - { id: GC-AI-26, title: VAT ต่าง 1.01 ไม่ผ่าน, input: { base: DOC-001, set: { vat: "391.61", gross: "5971.61" } }, expect: { status: FAIL, fail: [VAT_AMOUNT], flagged: [vat], vatDiff: "1.01" } }
+  - { id: GC-AI-27, title: ยอดรวมไม่เท่าก่อน VAT บวก VAT, input: { base: DOC-001, set: { gross: "5970.06" } }, expect: { status: FAIL, fail: [GROSS_TOTAL], flagged: [gross] } }
+  - { id: GC-AI-28, title: VAT 8753.5 สตางค์ปัดขึ้น, input: { base: DOC-001, set: { lines: [{ qty: "1", unit: งาน, unitPrice: "1250.50", amount: "1250.50" }], net: "1250.50", vat: "87.54", gross: "1338.04" } }, expect: { status: PASS, computed: { net: "1250.50", vat: "87.54", gross: "1338.04" } } }
+  - { id: GC-AI-29, title: AI ปัด VAT ลง ต่าง 1 สตางค์ เตือน, input: { base: DOC-001, set: { lines: [{ qty: "1", unit: งาน, unitPrice: "1250.50", amount: "1250.50" }], net: "1250.50", vat: "87.53", gross: "1338.03" } }, expect: { status: WARN, warn: [VAT_AMOUNT], flagged: [vat], vatDiff: "0.01" } }
+  - { id: GC-AI-30, title: ราคารวม VAT ตรงทุกยอด, input: { base: DOC-010 }, expect: { status: PASS, computed: { gross: "65377.00", vat: "4277.00", net: "61100.00" } } }
+  - { id: GC-AI-31, title: ราคารวม VAT · VAT ต่าง 0.01 เตือน, input: { base: DOC-010, set: { vat: "4277.01", net: "61099.99" } }, expect: { status: WARN, warn: [VAT_AMOUNT], flagged: [vat], vatDiff: "0.01" } }
+  - { id: GC-AI-32, title: ราคารวม VAT · VAT ต่าง 1.01 ไม่ผ่าน, input: { base: DOC-010, set: { vat: "4278.01", net: "61098.99" } }, expect: { status: FAIL, fail: [VAT_AMOUNT], flagged: [vat], vatDiff: "1.01" } }
+  - { id: GC-AI-33, title: ราคารวม VAT · ยอดรวมอ่านผิด 1 สตางค์, input: { base: DOC-010, set: { gross: "65377.01", net: "61100.01" } }, expect: { status: FAIL, fail: [GROSS_TOTAL], flagged: [gross] } }
+  - { id: GC-AI-34, title: ราคารวม VAT · ก่อน VAT ไม่เท่ายอดรวมลบ VAT, input: { base: DOC-010, set: { net: "61100.10" } }, expect: { status: FAIL, fail: [NET_TOTAL], flagged: [net] } }
+  - { id: GC-AI-35, title: ส่วนลดในช่อง discountTotal ก่อนคิด VAT, input: { base: DOC-057 }, expect: { status: PASS, computed: { net: "637000.00", vat: "44590.00", gross: "681590.00" } } }
+  - { id: GC-AI-36, title: บรรทัดส่วนลดติดลบแปลงเป็น discountTotal, input: { base: DOC-057, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }], discountTotal: null } }, expect: { status: PASS, normalized: { lines: 1, discountTotal: "13000.00" }, computed: { net: "637000.00", vat: "44590.00", gross: "681590.00" } } }
+  - { id: GC-AI-37, title: มีทั้ง discountTotal และบรรทัดติดลบ, input: { base: DOC-057, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }] } }, expect: { status: FAIL, fail: [DISCOUNT_AMBIGUOUS], skip: [NET_TOTAL, VAT_AMOUNT, GROSS_TOTAL], flagged: [discountTotal, lines.1.amount, net, vat, gross] } }
+  - { id: GC-AI-38, title: เลขผู้เสียภาษีหลักตรวจผิด, input: { base: DOC-001, set: { seller.taxId: "0999998010562" } }, expect: { status: FAIL, fail: [TAXID_CHECKSUM, SELLER_MATCH], flagged: [seller.taxId] } }
+  - { id: GC-AI-39, title: เลขถูกแต่เป็นผู้ขายอื่น, input: { base: DOC-001, set: { seller.taxId: "0999998010081" } }, expect: { status: FAIL, fail: [SELLER_MATCH], flagged: [seller.taxId] } }
+  - { id: GC-AI-40, title: เลขมีขีดยังตรง, input: { base: DOC-001, set: { seller.taxId: "0-9999-98010-56-1" } }, expect: { status: PASS } }
+  - { id: GC-AI-41, title: ไม่มีผู้ขายของบริบท ข้ามการเทียบผู้ขาย, input: { base: DOC-001, set: { supplier: null } }, expect: { status: PASS, skip: [SELLER_MATCH, SELLER_BRANCH] } }
+  - { id: GC-AI-42, title: ใบกำกับสาขาไม่ตรง, input: { base: DOC-057, set: { seller.branch: "00001" } }, expect: { status: FAIL, fail: [SELLER_BRANCH], flagged: [seller.branch] } }
+  - { id: GC-AI-43, title: ใบกำกับออกให้บริษัทอื่น, input: { base: DOC-057, set: { buyer.taxId: "0999997000023" } }, expect: { status: FAIL, fail: [BUYER_MATCH], flagged: [buyer.taxId] } }
+  - { id: GC-AI-44, title: ใบเสนอราคาระบุผู้ซื้ออื่น เตือน, input: { base: DOC-001, set: { buyer.taxId: "0999997000023" } }, expect: { status: WARN, warn: [BUYER_MATCH], flagged: [buyer.taxId] } }
+  - { id: GC-AI-45, title: ผู้ขายไม่จด VAT แต่มี VAT, input: { base: DOC-001, set: { supplier: SP0109, seller.taxId: "3999998020014", lines: [{ qty: "1", unit: งาน, unitPrice: "1000.00", amount: "1000.00" }], net: "1000.00", vat: "70.00", gross: "1070.00" } }, expect: { status: FAIL, fail: [NON_VAT_SELLER], skip: [VAT_AMOUNT], flagged: [vat] } }
+  - { id: GC-AI-46, title: ผู้ขายไม่จด VAT ไม่มี VAT, input: { base: DOC-001, set: { supplier: SP0109, seller.taxId: "3999998020014", lines: [{ qty: "1", unit: งาน, unitPrice: "1000.00", amount: "1000.00" }], net: "1000.00", vat: "0.00", gross: "1000.00" } }, expect: { status: PASS, skip: [VAT_AMOUNT], computed: { net: "1000.00", vat: "0.00", gross: "1000.00" } } }
+  - { id: GC-AI-47, title: วันที่เอกสารพรุ่งนี้, input: { base: DOC-001, set: { docDate: "2026-10-12" } }, expect: { status: FAIL, fail: [DOC_DATE_FUTURE], flagged: [docDate] } }
+  - { id: GC-AI-48, title: 17:30Z เป็นวันที่ 12 ตามเวลาไทยแล้ว, input: { base: DOC-001, now: "2026-10-11T17:30:00Z", set: { docDate: "2026-10-12" } }, expect: { status: PASS } }
+  - { id: GC-AI-49, title: ปี พ.ศ. ที่ไม่ได้แปลง, input: { base: DOC-001, set: { docDate: "2569-10-01" } }, expect: { status: FAIL, fail: [DOC_DATE_FUTURE, VAT_RATE_MISSING], skip: [VAT_AMOUNT], flagged: [docDate, vat, gross] } }
+  - { id: GC-AI-50, title: อายุ 365 วันพอดี ไม่เตือน, input: { base: DOC-001, set: { docDate: "2025-10-11" } }, expect: { status: PASS } }
+  - { id: GC-AI-51, title: อายุ 366 วัน เตือน, input: { base: DOC-001, set: { docDate: "2025-10-10" } }, expect: { status: WARN, warn: [DOC_DATE_OLD], flagged: [docDate] } }
+  - { id: GC-AI-52, title: ไม่มีอัตรา VAT ณ วันที่เอกสาร, input: { base: DOC-001, now: "2027-10-02T03:00:00Z", set: { docDate: "2027-10-01" } }, expect: { status: FAIL, fail: [VAT_RATE_MISSING], skip: [VAT_AMOUNT], flagged: [vat, gross] } }
+  - { id: GC-AI-53, title: สกุลเงินไม่ใช่บาท, input: { base: DOC-001, set: { currency: USD } }, expect: { status: FAIL, fail: [CURRENCY], flagged: ["*"] } }
+  - { id: GC-AI-54, title: ใบส่งของไม่มียอดเงิน, input: { base: DOC-002 }, expect: { status: PASS, skip: [LINE_AMOUNT, NET_TOTAL, VAT_AMOUNT, GROSS_TOTAL] } }
+```
+
+```yaml
+# tests/golden/ai-confidence.yaml
+suite: ai-confidence
+note: modelConfidence คือจำนวนเต็มที่โมเดลคืน (schema ไม่จำกัดช่วง โค้ดตัดให้อยู่ใน 0–100) · check คือผลตรวจของช่องนั้น (null = ไม่มีการตรวจ)
+fixture:
+  minConfidenceBp: 9000
+  critical: [net, vat, gross, discountTotal, "lines.*.qty", "lines.*.unitPrice", "lines.*.amount", seller.taxId, seller.branch, buyer.taxId, requestType]
+cases:
+  - { id: GC-AI-55, title: เท่าเกณฑ์พอดีไม่ต้องยืนยันทีละช่อง, input: { field: lines.0.description, modelConfidence: 90, check: null }, expect: { confidenceBp: 9000, mustConfirm: false } }
+  - { id: GC-AI-56, title: ต่ำกว่าเกณฑ์ 100 bp, input: { field: lines.0.description, modelConfidence: 89, check: null }, expect: { confidenceBp: 8900, mustConfirm: true } }
+  - { id: GC-AI-57, title: ผลตรวจเตือนเพดาน 5000, input: { field: docDate, modelConfidence: 100, check: WARN }, expect: { confidenceBp: 5000, mustConfirm: true } }
+  - { id: GC-AI-58, title: ผลตรวจไม่ผ่านเพดาน 0, input: { field: gross, modelConfidence: 100, check: FAIL }, expect: { confidenceBp: 0, mustConfirm: true } }
+  - { id: GC-AI-59, title: ฟิลด์เงินต้องยืนยันแม้มั่นใจเต็ม, input: { field: gross, modelConfidence: 100, check: PASS }, expect: { confidenceBp: 10000, mustConfirm: true } }
+  - { id: GC-AI-60, title: ค่าเกิน 100 ตัดเหลือ 100, input: { field: lines.0.description, modelConfidence: 130, check: null }, expect: { confidenceBp: 10000, mustConfirm: false } }
+```
+
+```yaml
+# tests/golden/ai-quotation-map.yaml
+suite: ai-quotation-map
+note: checks คือผลตรวจของ ai-verify ที่ส่งเข้ามา (ไม่มี = ผ่านทั้งหมด) · ทุกเคสอ่านจากไฟล์ FILE-1 · quoteNet คำนวณด้วยสูตรเดิมของ BR-FORM-06 · set เปลี่ยนค่าตาม path
+fixture:
+  vatRateBp: 700
+  fileId: FILE-1
+  registry:
+    SP0056: { taxId: "0999998010561", branch: "00000", nameTh: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด }
+    SP0058: { taxId: "0999998010588", branch: "00000", nameTh: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด }
+    SP0068: { taxId: "0999998010685", branch: "00000", nameTh: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด }
+    SP0132: { taxId: "0999998011223", branch: "00000", nameTh: บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด }
+    SP0175: { taxId: "0999998011657", branch: "00000", nameTh: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด }
+  readings:
+    DOC-001: { docType: QUOTATION, priceIncludesVat: false, seller: { taxId: "0999998010561", branch: "00000", name: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด }, lines: [{ qty: "18", unit: ท่อน, unitPrice: "310.00", amount: "5580.00" }], net: "5580.00", vat: "390.60", gross: "5970.60" }
+    DOC-010: { docType: QUOTATION, priceIncludesVat: true, seller: { taxId: "0999998010588", branch: "00000", name: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด }, lines: [{ qty: "26", unit: ถัง, unitPrice: "2514.50", amount: "65377.00" }], net: "61100.00", vat: "4277.00", gross: "65377.00" }
+    DOC-049: { docType: QUOTATION, priceIncludesVat: true, seller: { taxId: "0999998010685", branch: "00000", name: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด }, lines: [{ qty: "25", unit: วัน, unitPrice: "5187.36", amount: "129684.00" }], net: "121200.00", vat: "8484.00", gross: "129684.00" }
+    DOC-055: { docType: QUOTATION, docNo: null, priceIncludesVat: false, seller: { taxId: "0999998011223", branch: "00000", name: บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด }, lines: [{ qty: "24", unit: คน-เดือน, unitPrice: "18500.00", amount: "444000.00" }], net: "444000.00", vat: "31080.00", gross: "475080.00" }
+    QT-DISC: { docType: QUOTATION, priceIncludesVat: false, seller: { taxId: "0999998011657", branch: "00000", name: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด }, lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }], discountTotal: "13000.00", net: "637000.00", vat: "44590.00", gross: "681590.00" }
+cases:
+  - { id: GC-AI-61, input: { reading: DOC-001 }, expect: { quotation: { supplierId: SP0056, supplierName: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด, amount: "5580.00", includesVat: false, fileId: FILE-1 }, quoteNet: "5580.00", priceIncludesVat: false, lines: [{ qty: "18", uom: ท่อน, unitPrice: "310.00" }], flags: [] } }
+  - { id: GC-AI-62, input: { reading: DOC-010 }, expect: { quotation: { supplierId: SP0058, supplierName: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด, amount: "65377.00", includesVat: true, fileId: FILE-1 }, quoteNet: "61100.00", priceIncludesVat: true, lines: [{ qty: "26", uom: ถัง, unitPrice: "2514.50" }], flags: [] } }
+  - { id: GC-AI-63, title: DOC-049 เช่าแบ็คโฮราคารวม VAT, input: { reading: DOC-049 }, expect: { quotation: { supplierId: SP0068, amount: "129684.00", includesVat: true, fileId: FILE-1 }, quoteNet: "121200.00", flags: [] } }
+  - { id: GC-AI-64, title: มีส่วนลด เติมเฉพาะยอด, input: { reading: QT-DISC }, expect: { quotation: { supplierId: SP0175, amount: "637000.00", includesVat: false }, quoteNet: "637000.00", lines: null, flags: [DISCOUNT_NOT_MAPPABLE] } }
+  - { id: GC-AI-65, title: ใบเขียนมือไม่มีเลขที่ (DOC-055), input: { reading: DOC-055 }, expect: { quotation: { supplierId: SP0132, amount: "444000.00", includesVat: false }, quoteNet: "444000.00", flags: [] } }
+  - { id: GC-AI-66, title: ยอดไม่ผ่านการตรวจ ไม่เติมยอด, input: { reading: DOC-001, set: { lines: [{ qty: "2.5", unit: ท่อน, unitPrice: "10.01", amount: "25.02" }], net: "25.02", vat: "1.75", gross: "26.77" }, checks: { fail: [LINE_AMOUNT, NET_TOTAL] } }, expect: { quotation: { supplierId: SP0056, amount: null, includesVat: false, fileId: FILE-1 }, lines: [{ qty: "2.5", uom: ท่อน, unitPrice: "10.01" }], flags: [AMOUNT_UNVERIFIED] } }
+  - { id: GC-AI-67, title: VAT เตือนไม่กระทบยอดก่อน VAT, input: { reading: DOC-001, set: { vat: "391.60", gross: "5971.60" }, checks: { warn: [VAT_AMOUNT] } }, expect: { quotation: { supplierId: SP0056, amount: "5580.00", includesVat: false }, quoteNet: "5580.00", flags: [] } }
+  - { id: GC-AI-68, title: ส่วนลดกำกวม ไม่เติมยอด, input: { reading: QT-DISC, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }] }, checks: { fail: [DISCOUNT_AMBIGUOUS] } }, expect: { quotation: { supplierId: SP0175, amount: null, includesVat: false }, lines: null, flags: [AMOUNT_UNVERIFIED, DISCOUNT_NOT_MAPPABLE] } }
+  - { id: GC-AI-69, title: เลขผู้เสียภาษีถูกแต่ไม่อยู่ในทะเบียน, input: { reading: DOC-001, set: { seller.taxId: "0999998019992", seller.name: ร้านตัวอย่างวัสดุ } }, expect: { quotation: { supplierId: null, supplierName: ร้านตัวอย่างวัสดุ, amount: "5580.00", includesVat: false, fileId: FILE-1 }, flags: [SUPPLIER_NOT_REGISTERED] } }
+```
+
+```yaml
+# tests/golden/ai-dn-map.yaml
+suite: ai-dn-map
+fixture:
+  poLines:
+    - { lineNo: 1, description: ท่อ PPR 1 นิ้ว, uom: ท่อน, openQty: "18" }
+    - { lineNo: 2, description: ข้อต่อ PPR 1 นิ้ว, uom: ตัว, openQty: "40" }
+cases:
+  - { id: GC-AI-70, input: { dnLines: [{ qty: "18", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18" }], flags: [] } }
+  - { id: GC-AI-71, title: หน่วยไม่ตรง, input: { dnLines: [{ qty: "3", unit: เส้น, poLineNo: 1 }] }, expect: { prefill: [], flags: [{ code: UOM_MISMATCH, dnLine: 0 }] } }
+  - { id: GC-AI-72, title: บรรทัดที่ไม่มีใน PO, input: { dnLines: [{ qty: "5", unit: ตัว, poLineNo: 3 }] }, expect: { prefill: [], flags: [{ code: PO_LINE_UNKNOWN, dnLine: 0 }] } }
+  - { id: GC-AI-73, title: สองบรรทัดชี้บรรทัด PO เดียว, input: { dnLines: [{ qty: "10", unit: ตัว, poLineNo: 2 }, { qty: "30", unit: ตัว, poLineNo: 2 }] }, expect: { prefill: [], flags: [{ code: DUPLICATE_PO_LINE, lineNo: 2 }] } }
+  - { id: GC-AI-74, title: เกินยอดค้างรับ เติมแต่ไฮไลต์, input: { dnLines: [{ qty: "18.5", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18.5" }], flags: [{ code: OVER_OPEN, lineNo: 1 }] } }
+```
+
 ---
 
 ## 13. Non-functional requirements
@@ -3886,6 +4025,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `AI_AGENT_DISABLED` | 403 | ผู้ช่วย AI {agent} ปิดอยู่ กรอกข้อมูลเองได้ตามปกติ |
 | `AI_NOT_EVALUATED` | 403 | ผู้ช่วย AI {agent} รุ่นนี้ยังไม่ผ่านชุดประเมิน จึงยังใช้ไม่ได้ |
 | `AI_CREDITS_EXHAUSTED` | 422 | credits ของ AI เดือนนี้หมดแล้ว กรอกข้อมูลเองได้ตามปกติ |
+| `AI_FILE_UNSUPPORTED` | 400 | AI อ่านไฟล์นี้ไม่ได้ ({reason}) รองรับ PDF JPEG PNG WebP ไม่เกิน 20 MB · ไฟล์ e-Tax ใช้การนำเข้า e-Tax |
 | `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
@@ -3970,7 +4110,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       25 ไฟล์ · 230 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       30 ไฟล์ · 293 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -5185,6 +5325,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S13-16 | `[go-live]` ชุดประเมินเอกสารจริงและข้อมูลส่วนบุคคล | `high` | หลัง P0-02 OQ-142 OQ-144 | ตรวจ |
 | S13-17 | `[go-live]` ประเมินรายคืนและ key production | `medium` | หลัง P0-13 | — |
 | S13-18 | `[go-live]` แจ้งทีม BCS เมื่อ credits ของ AI ถึงเกณฑ์หรือหมด (พบใน S13-02) | `medium` | หลัง S13-15 | — |
+| S13-19 | `[go-live]` แจ้งผู้เรียกในระบบเมื่อการอ่านเอกสารเบื้องหลังเสร็จหรือล้ม (พบใน S13-07) | `medium` | หลัง S13-15 | — |
 
 - [x] **S13-01** `[demo]` ฐานของโมดูล AI ตามหัวข้อ "สถาปัตยกรรม" ของ `docs/sub-specs/S13.md` (ADR-141 ADR-142 ADR-143): ติดตั้ง `ai` `@ai-sdk/anthropic` `@ai-sdk/react` และ `@shadcn/helpers` (§5.5) แล้วตรวจกับเอกสารปัจจุบันว่า structured outputs ใช้ `output_config.format` ได้โดยไม่ใช้ tool แบบบังคับ ปิด fallback ของรุ่นได้ และอัตราราคาปัจจุบัน · `src/lib/ai-config.ts` (รุ่น prompt ต่อ purpose รุ่นโมเดลต่อ agent ตาม OQ-145 ตารางราคา gate) · adapter `src/integrations/ai` (`AiClient` โหมด fixture และ live · ข้อความ prompt · คืนรุ่นที่ตอบจริง) · `src/lib/env.ts` เลิกบังคับ `AI_ENABLED=false` และเพิ่มกติกาของ `AI_MODE` · ESLint ห้าม import `src/integrations/ai` นอก `src/server/services/ai/agents` `src/server/jobs/ai-*` และ `scripts/ai-eval*` และห้าม `@ai-sdk/react` นอก client component ของหน้าจอแชท Workspace (P-3) · แก้ `.env.example` และภาคผนวก B · เพิ่มกฎและ invariant ทั้งหมดในหัวข้อ "กฎ" ของ sub-spec ลง spec ครั้งเดียว: BR-AI ต่อท้ายตารางกฎ AI ของ §12.1 · ตาราง INV-AI ใต้หัวข้อ golden ของ AI ที่ P1-07 จองไว้ท้าย §12 · ตรวจกับโค้ดของ provider แล้ว: `structuredOutputMode: 'outputFormat'` ส่ง `output_config.format` ไม่มี tool บังคับ และ fallback ของรุ่นเปิดเฉพาะเมื่อส่ง `fallbacks` (adapter ไม่ส่ง) · ราคาตรวจ 2026-10-13 · เทสต์ `tests/unit/ai-adapter.test.ts` (10) `tests/unit/env.test.ts` และ `[INV-AI-05]` ใน `tests/unit/lint-rules.test.ts` · `pnpm test:e2e --grep @demo` 9 ผ่าน · `pnpm verify` ผ่าน (ด่าน coverage ล้มครั้งเดียวที่ `tests/unit/line-client.test.ts` ซึ่งไม่เกี่ยวกับข้อนี้ รันซ้ำผ่าน 1930/1930) — เสร็จ 2026-10-13 · d3617ab
   - เสร็จเมื่อ: เทสต์ของ adapter ผ่านในโหมด fixture โดยไม่มี key รวมเทสต์ว่าคำขอไม่เปิด fallback และรุ่นใน response ที่ไม่ตรงรุ่นที่ขอถูกปฏิเสธ · เทสต์ว่ารุ่นของข้อความ prompt ตรง `ai-config` · เริ่มแอปด้วย `APP_ENV=staging` กับ `AI_MODE=fixture` ถูกปฏิเสธ และ `AI_MODE=live` ที่ไม่มี key ถูกปฏิเสธ · เทสต์ lint ยืนยันว่า service คำขอ PO ตรวจรับ อนุมัติ งบ DOA และหน้า LIFF import adapter ไม่ได้ · `pnpm spec:check` ผ่านด่านเลข ID ต่อเนื่อง · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
@@ -5195,16 +5336,16 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **S13-03** `[demo]` ด่านยืนยันตามหัวข้อ "กฎ" และ "interface" ของ `docs/sub-specs/S13.md` (ADR-148): เปลี่ยนตัวว่าง `applyAiAssist` และ `assertNoPendingAiReview` ใน `src/server/services/ai/assist-contract.ts` ที่ P1-07 วางไว้เป็นของจริงโดยไม่เปลี่ยน signature · `aiAssist` แบบไม่บังคับใน `request.create_draft` `request.edit` `request.submit` `request.resubmit` `doa.import_draft` เป็น hook บรรทัดเดียวต่อคำสั่ง · `gr.post` ใช้ฟิลด์ `aiAssist` ที่ P1-07 เพิ่มไว้แล้ว และเรียก `applyAiAssist` ท้ายลำดับตรวจ: `capturedByMemberId` ของ `offline` → สิทธิ์และ SoD → สถานะ PO → version → `capturedAt` → ตรรกะเดิม → `aiAssist` · event `request.drafted` ใส่ `agentActionId` ของ schemaVersion ที่ P1-07 นิยาม ไม่ bump เอง · ใช้รหัส `AI_REVIEW_PENDING` ที่ P1-07 เพิ่มใน §14.2 แล้ว (ไม่เพิ่มแถวเอง) — เสร็จ 2026-10-14 · f6c0c47
   - เสร็จเมื่อ: เทสต์ว่าคำขอที่มีค่าของ AI ยังไม่ยืนยันส่งไม่ได้ (`AI_REVIEW_PENDING`) และช่องที่คนแก้หรือลบนับว่ายืนยันแล้ว · เทสต์ว่า AgentAction ต่างองค์กร สถานะผิด หรือ purpose ไม่ตรงถูกปฏิเสธ · เทสต์ว่า `gr.post` ที่ไม่มีสิทธิ์หรือสถานะ PO ผิดได้รหัสเดิมก่อนตรวจ `aiAssist` · ปิด AI แล้วเทสต์เดิมของคำสั่งที่รับ `aiAssist` ผ่านไม่เปลี่ยน (EG-1) · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง (ด่านของคำสั่งเดิม) · หลังแก้ตามผลตรวจของข้อนี้ ส่งงานถึงข้อนี้เข้า main ตาม skill `bcs-lane` ก่อนทำข้อถัดไป
-- [ ] **S13-04** `[demo]` หน้าตั้งค่าตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S13.md`: `/admin/ai` (ORG_ADMIN เปิดปิด agent ตั้ง `minConfidenceBp` ดู credits ที่ใช้) และ `/platform/tenants/[orgId]/ai` (PLATFORM_ADMIN ให้ credits พร้อม `contractRef` โดยไม่เห็นข้อมูลธุรกิจ) เรียกคำสั่งของ S13-02 · ข้อความไทยและอังกฤษ
+- [x] **S13-04** `[demo]` หน้าตั้งค่าตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S13.md`: `/admin/ai` (ORG_ADMIN เปิดปิด agent ตั้ง `minConfidenceBp` ดู credits ที่ใช้) และ `/platform/tenants/[orgId]/ai` (PLATFORM_ADMIN ให้ credits พร้อม `contractRef` โดยไม่เห็นข้อมูลธุรกิจ) เรียกคำสั่งของ S13-02 · ข้อความไทยและอังกฤษ — เสร็จ 2026-10-13 · 239e43b
   - เสร็จเมื่อ: เทสต์หน้าจอของ AC1 AC2 ในหัวข้อ "ฐานของโมดูล" ของ sub-spec ผ่าน · ผู้ไม่มีสิทธิ์ได้ FORBIDDEN จาก service · หน้าใหม่ผ่านขั้นตอนงานหน้าจอ §9.9 (screenshot 375 และ 1440 px และ axe) · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S13-05** `[demo]` ชุดประเมินชั้น demo ตามหัวข้อ "ชุดประเมิน" ของ `docs/sub-specs/S13.md` (ADR-146): เคสเพิ่มอย่างน้อย 12 ฉบับใน `tests/fixtures/ai-docs/cases.yaml` (ไม่แก้ไฟล์ระยะ 1) · สคริปต์สร้างไฟล์เอกสารสังเคราะห์จาก DocSamples และ `cases.yaml` ลง `tests/fixtures/ai-docs/` พร้อม manifest · เคสของ Intake Brief Insight และระเบียบ REG-A REG-B · คำสั่ง `pnpm ai:eval` และคำตอบที่บันทึกสำหรับโหมด fixture · เพิ่ม golden ชุด ai-eval-score ลง spec พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py`
+- [x] **S13-05** `[demo]` ชุดประเมินชั้น demo ตามหัวข้อ "ชุดประเมิน" ของ `docs/sub-specs/S13.md` (ADR-146): เคสเพิ่มอย่างน้อย 12 ฉบับใน `tests/fixtures/ai-docs/cases.yaml` (ไม่แก้ไฟล์ระยะ 1) · สคริปต์สร้างไฟล์เอกสารสังเคราะห์จาก DocSamples และ `cases.yaml` ลง `tests/fixtures/ai-docs/` พร้อม manifest · เคสของ Intake Brief Insight และระเบียบ REG-A REG-B · คำสั่ง `pnpm ai:eval` และคำตอบที่บันทึกสำหรับโหมด fixture · เพิ่ม golden ชุด ai-eval-score ลง spec พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` — เสร็จ 2026-10-13 · 83142d0
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:ai-eval-score ผ่านครบ และเทสต์ของชุดเดียวกันผ่าน · ชุด Document มีอย่างน้อย 67 ฉบับที่อ่านด้วย AI และเทสต์ยืนยันยอดของเคสเพิ่มด้วย `src/core/money` · เทสต์ว่าไฟล์ใน `tests/fixtures/ai-docs/` ตรง sha256 ใน manifest · `pnpm inputs:check` ผ่านและไฟล์ระยะ 1 ไม่เปลี่ยน · `pnpm ai:eval` โหมด fixture รันครบทุก agent และรายงานเมตริกต่อฟิลด์ต่อชนิดเอกสาร · `pnpm verify` ผ่าน
   - แยกงาน: แยก subagent ได้ 2 ส่วน (สคริปต์สร้างไฟล์ · ตัวให้คะแนนและเคส) แล้วตรวจว่าคำตอบในเคสมาจากชีต DocSamples Request_History และ `cases.yaml` ก่อนรับ
-- [ ] **S13-06** `[demo]` ตัวตรวจผลอ่านของ AI ใน `src/core/ai-checks` ตามหัวข้อ "กฎ" และ "ร่าง golden case" ของ `docs/sub-specs/S13.md` (FR-AI-303 AC2–AC4 ส่วนการตรวจ): normalize ส่วนลด ตรวจยอดและ VAT ทั้งราคาไม่รวมและรวม VAT ตรวจตัวตนและวันที่ ความมั่นใจและช่องที่ต้องยืนยัน แปลงเป็นใบเสนอราคาและบรรทัดตรวจรับ · pure function ใช้ `src/core/money` `vat` `thai` เดิม เขียนเทสต์ก่อนโค้ด · เพิ่ม golden ชุด ai-verify ai-confidence ai-quotation-map ai-dn-map ลง spec พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · เพิ่ม `src/core/ai-checks` ใน branch coverage 100% ของ §7.0
+- [x] **S13-06** `[demo]` ตัวตรวจผลอ่านของ AI ใน `src/core/ai-checks` ตามหัวข้อ "กฎ" และ "ร่าง golden case" ของ `docs/sub-specs/S13.md` (FR-AI-303 AC2–AC4 ส่วนการตรวจ): normalize ส่วนลด ตรวจยอดและ VAT ทั้งราคาไม่รวมและรวม VAT ตรวจตัวตนและวันที่ ความมั่นใจและช่องที่ต้องยืนยัน แปลงเป็นใบเสนอราคาและบรรทัดตรวจรับ · pure function ใช้ `src/core/money` `vat` `thai` เดิม เขียนเทสต์ก่อนโค้ด · เพิ่ม golden ชุด ai-verify ai-confidence ai-quotation-map ai-dn-map ลง spec พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · เพิ่ม `src/core/ai-checks` ใน branch coverage 100% ของ §7.0 — เสร็จ 2026-10-13 · 4a52c2a
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:ai-verify golden:ai-confidence golden:ai-quotation-map golden:ai-dn-map ผ่านครบ และเทสต์ของชุดเดียวกันผ่าน · branch coverage ของ `src/core/ai-checks` 100% · ผลการคำนวณของ `src/core/money` เดิมไม่เปลี่ยน (golden เดิมผ่าน) · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง (เงินและการตรวจยอด)
-- [ ] **S13-07** `[demo]` Document Agent ใบเสนอราคาและใบส่งของ (FR-AI-303 AC1–AC5 AC8): prompt และ schema · `readDocument` และ job `ai-agent-run` ที่ใช้ตัวตรวจของ S13-06 · ไฟล์ e-Tax ไม่เรียก AI · `QuotationInput` รับ `supplierId` · ปุ่มอ่านจากไฟล์ในขั้นใบเสนอราคาและ `/receiving/[poId]` และกล่องค่าที่ AI เติมที่ให้ยืนยันทีละช่องตาม OQ-147 (§12.5)
+- [x] **S13-07** `[demo]` Document Agent ใบเสนอราคาและใบส่งของ (FR-AI-303 AC1–AC5 AC8): prompt และ schema · `readDocument` และ job `ai-agent-run` ที่ใช้ตัวตรวจของ S13-06 · ไฟล์ e-Tax ไม่เรียก AI · `QuotationInput` รับ `supplierId` · ปุ่มอ่านจากไฟล์ในขั้นใบเสนอราคาและ `/receiving/[poId]` และกล่องค่าที่ AI เติมที่ให้ยืนยันทีละช่องตาม OQ-147 (§12.5) — เสร็จ 2026-10-13 · ec96d09
   - เสร็จเมื่อ: เทสต์ AC1–AC5 AC8 ของ FR-AI-303 ผ่านในโหมด fixture รวมเทสต์ว่าไฟล์ e-Tax ไม่เรียก AI และไม่คิด credits · ใบเสนอราคาที่ยืนยันแล้วบันทึกพร้อม `supplierId` และ `fileId` · GC-FORM-09 ถึง GC-FORM-11 ยังผ่าน · หน้าใหม่ผ่านขั้นตอนงานหน้าจอ §9.9 · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 - [ ] **S13-08** `[demo]` Intake Agent (FR-AI-302 AC1–AC5 · FR-AI-303 AC9 · OQ-148): ขั้น 0 ของฟอร์มทีละขั้น (FR-INT-011) · schema จาก FormVersion (BR-AI-10) · เสนอเปลี่ยนประเภท · จับคู่รายการกับแคตตาล็อกของ S6 เมื่ออยู่ใน main · ช่องทางซื้อที่แนะนำ · ไม่เติมคำถามคัดกรอง · `intakeFromMessage` (รวม `idempotencyKey`) และ `isAgentAvailable` ให้ S17 (FR-LINE-301) ตามหัวข้อ "interface" ของ `docs/sub-specs/S13.md` · เพิ่ม golden ชุด ai-intake-channel ลง spec พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py`
@@ -5239,6 +5380,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้
 - [ ] **S13-18** `[go-live]` แจ้งทีม BCS (PLATFORM_ADMIN) ทางอีเมลเมื่อ credits ของ AI ขององค์กรถึงเกณฑ์แจ้งหรือหมด ตามแถว `admin.ai_credits` ของ §10.1 และ AC2 ของ "ฐานของโมดูล" ใน `docs/sub-specs/S13.md` · พบใน S13-02: การแจ้งเตือนในระบบผูกกับ Member จึงยังไม่มีช่องทางถึงทีม BCS (ตอนนี้ ORG_ADMIN ได้แจ้งเตือน และทีม BCS ดูยอดที่หน้า platform) · ใช้ช่องทางเดียวกับการแจ้งโควตา LINE ถึง 80% เมื่อมี
   - เสร็จเมื่อ: เทสต์ว่า `ai_credit.threshold_reached` และ `ai_credit.exhausted` ส่งอีเมลถึง PLATFORM_ADMIN ที่ใช้งานอยู่ครั้งเดียวต่อเดือนต่อชนิด โดยไม่มีข้อมูลธุรกิจในอีเมล · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S13-19** `[go-live]` แจ้งผู้เรียกในระบบเมื่อการอ่านเอกสารเบื้องหลังเสร็จหรือล้ม ตามแถว `ai.result_ready` `ai.result_failed` ในหัวข้อ "สิทธิ์ event error และการแจ้งเตือน" ของ `docs/sub-specs/S13.md` · พบใน S13-07: หน้าจอรอผลเองขณะผู้เรียกยังอยู่ที่หน้า (ถามผลทุก 1.5 วินาที) และร่างที่เปิดใหม่แสดงผลอ่านที่ยังรอยืนยันกลับมา แต่ผู้ที่ออกจากหน้าไปแล้วยังไม่ได้รับแจ้ง
+  - เสร็จเมื่อ: เทสต์ว่า `agent_action.drafted` และ `agent_action.failed` ของ Document Agent สร้างการแจ้งเตือนในระบบถึงผู้เรียกครั้งเดียวต่อ AgentAction พร้อมลิงก์กลับไปหน้าเอกสาร และไม่มีเนื้อหาที่อ่านได้ในข้อความแจ้ง · ข้อความไทยและอังกฤษ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 
 ### 16.18 S17 · LINE และแอป BCS Go (สาย 1 ต่อจาก S6 · เส้นชัย G)

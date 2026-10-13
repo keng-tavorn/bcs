@@ -22,6 +22,8 @@
     "test:property": "vitest run --project property",
     "test:int": "vitest run --project int",
     "test:e2e": "playwright test",
+    "ai:docs": "tsx scripts/ai-docs.ts",
+    "ai:eval": "tsx scripts/ai-eval.ts",
     "verify": "tsx scripts/verify.ts",
     "spec:check": "node scripts/py.mjs scripts/spec_check.py spec.md",
     "inputs:check": "node scripts/py.mjs scripts/validate_inputs.py docs/inputs/BCS_inputs_v1_demo.xlsx --spec spec.md && node scripts/py.mjs scripts/validate_inputs.py docs/inputs/BCS_inputs_p1.xlsx --profile p1 --spec spec.md",

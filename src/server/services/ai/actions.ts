@@ -457,6 +457,7 @@ export interface AgentActionDto {
  */
 export async function getAgentAction(ctx: Ctx, id: string): Promise<Result<AgentActionDto>> {
   if (ctx.actor.type !== 'USER') return err('FORBIDDEN', 'only a member of the organization reads AI results')
+  if (!z.uuid().safeParse(id).success) return err('NOT_FOUND', 'no such AgentAction')
   const memberId = ctx.actor.memberId
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
     const row = await tx.agentAction.findFirst({ where: { id } })

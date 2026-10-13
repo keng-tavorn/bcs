@@ -19,6 +19,7 @@ import {
   type FormSupplierDto,
   type ScreenLocale,
 } from '@/server/queries/request-form'
+import { openAssists, type OpenAssist } from '../ai/assist-contract'
 import { attachableKinds, type FileLinkKind } from './attachments'
 
 // What the request form shows (S2-11, spec §7.9, FR-INT-002, FR-INT-003, BR-FORM-02): the form of the request type as
@@ -53,11 +54,15 @@ export interface DraftLineDto {
 
 export interface DraftQuotationDto {
   readonly supplierName: string
+  /** The supplier of the register (S13-07: the Document Agent matches it by tax id and branch) */
+  readonly supplierId: string | null
   readonly amount: string
   readonly includesVat: boolean
   readonly fileId: string | null
   readonly fileName: string | null
   readonly selected: boolean
+  /** An AI reading of this quotation's file still open: the form shows it again until everything is confirmed */
+  readonly ai: OpenAssist | null
 }
 
 export interface AttachmentDto {
@@ -203,12 +208,14 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       const held = await tx.budgetAllocation.findMany({ where: { sourceType: 'REQUEST_LINE', sourceId: { in: request.lines.map((l) => l.id) }, reservedSatang: { gt: 0n } }, select: { sourceId: true, reservedSatang: true } })
       for (const h of held) reserved.set(h.sourceId, (reserved.get(h.sourceId) ?? 0n) + h.reservedSatang)
     }
-    return { kind: 'ok' as const, request, links, nameOf, returnReason, reserved, principal: allowed.data, requesterDepartmentName: await departmentName(tx, request.requesterMemberId, locale) }
+    // AI readings of the quotations' files still waiting for the requester (BR-AI-17), shown again with their quotation
+    const assists = await openAssists(tx, { type: 'REQUEST', id: request.id })
+    return { kind: 'ok' as const, request, links, nameOf, returnReason, reserved, assists, principal: allowed.data, requesterDepartmentName: await departmentName(tx, request.requesterMemberId, locale) }
   })
   if (loaded.kind === 'missing') return err('NOT_FOUND', 'request not found')
   if (loaded.kind === 'forbidden') return err('FORBIDDEN', 'only the requester edits a request')
   if (loaded.kind === 'sent') return err('INVALID_STATE_TRANSITION', 'the request was sent already', { status: loaded.status })
-  const { request, links, nameOf, reserved } = loaded
+  const { request, links, nameOf, reserved, assists } = loaded
   const type = request.requestType
   const form = definitionOf(request.formVersion.schema)
   return ok({
@@ -237,11 +244,13 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       })),
       quotations: request.quotations.map((q) => ({
         supplierName: q.supplierName,
+        supplierId: q.supplierId,
         amount: satangToAmount(q.amountSatang),
         includesVat: q.includesVat,
         fileId: q.fileId,
         fileName: q.fileId ? (nameOf.get(q.fileId) ?? null) : null,
         selected: q.isSelected,
+        ai: (q.fileId && assists.find((a) => a.purpose === 'QUOTATION_READ' && a.fileId === q.fileId)) || null,
       })),
       nonLowestQuoteReason: request.nonLowestQuoteReason ?? '',
       attachments: links.filter((l) => l.kind !== 'QUOTATION').map((l) => ({ fileId: l.fileId, fileName: nameOf.get(l.fileId) ?? '', kind: l.kind as FileLinkKind })),

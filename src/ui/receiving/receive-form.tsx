@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useLocale, useTranslations } from 'next-intl'
 import { useId, useState, type FormEvent, type ReactNode } from 'react'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
+import type { AiReadActions } from '../ai/types'
 import { FileUpload, type FileUploadProps } from '../files/file-upload'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
@@ -13,6 +14,7 @@ import { useSubmissionKey } from '../form/submission-key'
 import { StateLine } from '../request-view/status'
 import { TextArea } from '../request-view/text-area'
 import { ApproverText } from './approver-text'
+import { DeliveryNoteReader, DeliveryNoteReview, type DeliveryNoteRead } from './delivery-note-ai'
 import { NO_ANSWER, type ReceivingAction } from './failed'
 import { receivingErrorKey, receivingErrorValues, type PostOutcome, type PreviewOutcome, type ReceivingFailure } from './outcome'
 import { cleanQuantity, compareQuantity, isZeroQuantity } from './quantity'
@@ -38,6 +40,8 @@ export interface ReceiveFormActions {
   readonly post: (input: ReceiptInput, idempotencyKey: string) => Promise<PostOutcome>
   readonly requestUpload: FileUploadProps['requestUpload']
   readonly completeUpload: FileUploadProps['completeUpload']
+  /** The Document Agent, when it is available to this member now (FR-AI-303 AC4 AC8) */
+  readonly ai?: AiReadActions
 }
 
 export interface ReceiveFormProps {
@@ -107,6 +111,8 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
   /** A photo is on its way (FileUpload's onBusyChange): the receipt waits for it */
   const [uploading, setUploading] = useState(false)
   const [posted, setPosted] = useState<Posted | null>(null)
+  /** A delivery note the AI read into the quantities, until the receiver confirmed them (FR-AI-303 AC4) */
+  const [dnRead, setDnRead] = useState<DeliveryNoteRead | null>(null)
 
   const lineOf = (lineId: string): LineState => state[lineId] ?? EMPTY_LINE
   function update(lineId: string, patch: Partial<LineState>) {
@@ -203,7 +209,8 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
     setFailure(null)
     let outcome: PostOutcome
     try {
-      outcome = await actions.post({ poId, deliveryNoteNo, notes, photoFileIds: photos.map((p) => p.fileId), lines: collected.lines }, submission.key)
+      const aiAssist = dnRead ? { aiAssist: { agentActionId: dnRead.review.agentActionId, confirmedPaths: dnRead.review.confirmed } } : {}
+      outcome = await actions.post({ poId, deliveryNoteNo, notes, photoFileIds: photos.map((p) => p.fileId), lines: collected.lines, ...aiAssist }, submission.key)
       submission.next()
     } catch {
       // No answer: the key stays, so trying again is the same submission (spec §4.3)
@@ -227,6 +234,7 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
     setNotes('')
     setPhotos([])
     setChoices({})
+    setDnRead(null)
     setPreview(null)
     setPosted(null)
     setFailure(null)
@@ -355,6 +363,38 @@ export function ReceiveForm({ poId, lines, open, listHref, actions }: ReceiveFor
         </h2>
         <p className="text-ink-muted">{t('enterHint')}</p>
       </div>
+
+      {actions.ai && !dnRead ? (
+        <DeliveryNoteReader
+          poId={poId}
+          ai={actions.ai}
+          uploads={{ requestUpload: actions.requestUpload, completeUpload: actions.completeUpload }}
+          disabled={pending}
+          onRead={(read, received) => {
+            for (const [lineId, quantity] of Object.entries(received)) update(lineId, { received: quantity })
+            setDnRead(read)
+          }}
+        />
+      ) : null}
+      {actions.ai && dnRead ? (
+        <DeliveryNoteReview
+          read={dnRead}
+          lines={lines}
+          receivedOf={(lineId) => lineOf(lineId).received}
+          onConfirm={(paths, checked) =>
+            setDnRead((r) => {
+              if (!r) return r
+              const confirmed = new Set(r.review.confirmed)
+              for (const p of paths) {
+                if (checked) confirmed.add(p)
+                else confirmed.delete(p)
+              }
+              return { ...r, review: { ...r.review, confirmed: [...confirmed].sort() } }
+            })
+          }
+          fileUrl={() => actions.ai!.fileUrl(dnRead.fileId)}
+        />
+      ) : null}
 
       <ol className="flex flex-col divide-y divide-line border-y border-line">
         {lines.map((line) => {

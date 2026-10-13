@@ -13,6 +13,7 @@ import { PoLines } from '@/ui/receiving/po-lines'
 import { ReceiptHistory } from '@/ui/receiving/receipt-history'
 import { ReceiveForm } from '@/ui/receiving/receive-form'
 import { nameIn } from '@/ui/receiving/types'
+import { documentAiFor } from '../../../_lib/ai-read'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { closeShortAction, postReceiptAction, previewReceiptAction } from '../actions'
@@ -66,6 +67,8 @@ export default async function ReceivingPoPage({ params }: { params: Promise<{ po
   const lines = lineViews(po.lines)
   const receives = view.decision.kind === 'RECEIVE'
   const outstanding = lines.some((l) => l.outstanding !== '0')
+  // "อ่านใบส่งของ" for a receiver who may post this PO now, when the Document Agent is available (FR-AI-303 AC4 AC8)
+  const ai = receives && view.receivable ? await documentAiFor(ctx) : undefined
 
   // Whether and why this member may receive, and what waits on the PO: plain words above the work
   const notices = [
@@ -117,7 +120,7 @@ export default async function ReceivingPoPage({ params }: { params: Promise<{ po
                   lines={lines}
                   open={view.receivable}
                   listHref="/receiving"
-                  actions={{ preview: previewReceiptAction, post: postReceiptAction, requestUpload: requestUploadAction, completeUpload: completeUploadAction }}
+                  actions={{ preview: previewReceiptAction, post: postReceiptAction, requestUpload: requestUploadAction, completeUpload: completeUploadAction, ...(ai ? { ai } : {}) }}
                 />
               </Panel>
             ) : null}

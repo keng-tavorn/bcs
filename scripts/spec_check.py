@@ -1103,6 +1103,37 @@ def run_ai_intake_channel(d):
             got = {"channel": "STANDARD", "requiredRules": req}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_ai_text(d):
+    import re as _re
+    fx, out = d["fixture"], []
+    months = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."]
+    def render(v):
+        k, x = v["kind"], v["value"]
+        if k == "money":
+            s = _ai_amt(_ai_sat(str(x))); w, f = s.split(".")
+            return f"{int(w):,}.{f}"
+        if k == "bp":
+            w, r = int(x) // 100, str(int(x) % 100).rjust(2, "0").rstrip("0")
+            return f"{w}{'.' + r if r else ''}%"
+        if k == "date":
+            y, m, dd = (int(p) for p in str(x).split("-")); return f"{dd} {months[m - 1]} {y + 543}"
+        return str(x)
+    ph = _re.compile(r"\{\{v:([^}]+)\}\}")
+    for c in d["cases"]:
+        prof, vals, got = fx["profiles"][c["input"]["profile"]], fx["values"], None
+        rendered = []
+        for i, s in enumerate(c["input"]["sentences"]):
+            keys = ph.findall(s)
+            if any(k not in vals for k in keys): got = {"ok": False, "reason": "UNKNOWN_VALUE"}; break
+            if _re.search(r"[0-9๐-๙]", ph.sub("", s)): got = {"ok": False, "reason": "DIGIT_OUTSIDE_PLACEHOLDER"}; break
+            if any(w.lower() in s.lower() for w in fx["decisionAdvice"]): got = {"ok": False, "reason": "DECISION_ADVICE"}; break
+            if i >= prof["maxSentences"]: got = {"ok": False, "reason": "TOO_MANY_SENTENCES"}; break
+            t = ph.sub(lambda m: render(vals[m.group(1)]), s)
+            if len(t) > prof["maxChars"]: got = {"ok": False, "reason": "SENTENCE_TOO_LONG"}; break
+            rendered.append(t)
+        if got is None: got = {"ok": True, "rendered": rendered}
+        out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1111,6 +1142,7 @@ RUNNERS = {
     "ai-eval-score": run_ai_eval_score,
     "ai-intake-channel": run_ai_intake_channel,
     "ai-quotation-map": run_ai_quotation_map,
+    "ai-text": run_ai_text,
     "ai-verify": run_ai_verify,
     "ap": run_ap,
     "budget": run_budget,

@@ -3961,6 +3961,38 @@ cases:
   - { id: GC-AI-79, title: เกินเกณฑ์ 1 สตางค์, input: { lines: [{ itemCode: null, qty: "1" }], amountGross: "100000.01" }, expect: { channel: STANDARD, requiredRules: [ATT-QUOTES] } }
 ```
 
+```yaml
+# tests/golden/ai-text.yaml
+suite: ai-text
+note: ลำดับการตรวจและการแทนค่าตาม BR-AI-27 · rendered คือข้อความหลังแทนค่า
+fixture:
+  profiles:
+    BRIEF: { maxSentences: 4, maxChars: 120 }
+    INSIGHT: { maxSentences: 8, maxChars: 200 }
+  decisionAdvice: [ควรอนุมัติ, แนะนำให้อนุมัติ, ควรปฏิเสธ, แนะนำให้ปฏิเสธ, ควรตีกลับ, should approve, should reject, recommend approv, recommend reject]
+  values:
+    budgetRemainingAfter: { kind: money, value: "12345.50" }
+    quoteCount: { kind: integer, value: 1 }
+    priceAlert: { kind: enum, value: HIGH }
+    t1.0.name: { kind: text, value: งบดำเนินงานฝ่ายการตลาด }
+    t1.0.remainingBp: { kind: bp, value: 850 }
+    t1.lowThresholdBp: { kind: bp, value: 1000 }
+    t2.0.number: { kind: ref, value: PR-2569-00120 }
+cases:
+  - { id: GC-AI-80, input: { profile: BRIEF, sentences: ["งบคงเหลือหลังคำขอนี้ {{v:budgetRemainingAfter}} บาท"] }, expect: { ok: true, rendered: ["งบคงเหลือหลังคำขอนี้ 12,345.50 บาท"] } }
+  - { id: GC-AI-81, title: ตัวเลขอารบิกนอก placeholder, input: { profile: BRIEF, sentences: ["งบเหลือ 12,345.50 บาท"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
+  - { id: GC-AI-82, title: เลขไทยนอก placeholder, input: { profile: BRIEF, sentences: ["มีใบเสนอราคา ๑ ราย"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
+  - { id: GC-AI-83, title: อ้างค่าที่ไม่มี, input: { profile: BRIEF, sentences: ["ผู้ขายเคยส่งของช้า {{v:supplierLateCount}} ครั้ง"] }, expect: { ok: false, reason: UNKNOWN_VALUE } }
+  - { id: GC-AI-84, title: เกิน 4 ประโยค, input: { profile: BRIEF, sentences: ["ก", "ข", "ค", "ง", "จ"] }, expect: { ok: false, reason: TOO_MANY_SENTENCES } }
+  - { id: GC-AI-85, title: แนะนำให้ตัดสิน, input: { profile: BRIEF, sentences: ["ราคาอยู่ในช่วงอ้างอิง ควรอนุมัติ"] }, expect: { ok: false, reason: DECISION_ADVICE } }
+  - { id: GC-AI-86, title: ประโยคยาว 120 ตัวพอดี, input: { profile: BRIEF, sentences: ["กขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคง"] }, expect: { ok: true } }
+  - { id: GC-AI-87, title: ประโยคยาว 121 ตัว, input: { profile: BRIEF, sentences: ["กขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงกขคงก"] }, expect: { ok: false, reason: SENTENCE_TOO_LONG } }
+  - { id: GC-AI-88, title: Insight แทนชื่อและร้อยละ, input: { profile: INSIGHT, sentences: ["{{v:t1.0.name}} เหลือ {{v:t1.0.remainingBp}} ต่ำกว่าเกณฑ์ {{v:t1.lowThresholdBp}}"] }, expect: { ok: true, rendered: ["งบดำเนินงานฝ่ายการตลาด เหลือ 8.5% ต่ำกว่าเกณฑ์ 10%"] } }
+  - { id: GC-AI-89, title: เลขเอกสารผ่าน placeholder, input: { profile: INSIGHT, sentences: ["คำขอ {{v:t2.0.number}} รออนุมัติ"] }, expect: { ok: true, rendered: ["คำขอ PR-2569-00120 รออนุมัติ"] } }
+  - { id: GC-AI-90, title: ร้อยละที่ AI เขียนเอง, input: { profile: INSIGHT, sentences: ["งบการตลาดเหลือต่ำกว่า 10%"] }, expect: { ok: false, reason: DIGIT_OUTSIDE_PLACEHOLDER } }
+  - { id: GC-AI-91, title: คำแนะนำภาษาอังกฤษ, input: { profile: INSIGHT, sentences: ["You should approve {{v:t2.0.number}}"] }, expect: { ok: false, reason: DECISION_ADVICE } }
+```
+
 ---
 
 ## 13. Non-functional requirements
@@ -4129,7 +4161,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       31 ไฟล์ · 298 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       32 ไฟล์ · 310 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

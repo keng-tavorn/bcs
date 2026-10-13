@@ -248,6 +248,12 @@ if not isinstance(rate, (int, float)) or not 0 < rate < 1: sp.append(f'{at("Sett
 for k, (v, r) in SET.items():
     if k.startswith('numbering.') and k != 'numbering.reset' and not re.search(r'\{SEQ\d+\}', s_(v)): sp.append(f'{at("Settings","value",r)} {k} ต้องมี {{SEQn}}')
     if k.endswith('Pct') and (not isinstance(v, (int, float)) or not 0 <= v <= 1): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นเศษส่วน 0–1')
+    # S8-12 (BR-MATCH-13): thresholds in basis points, money as baht text, the one timing of phase 1, the inbox address
+    if k.endswith('Bp') and k.startswith('matching.') and (not isinstance(v, (int, float)) or int(v) != v or not 0 <= v <= 10000): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม 0–10000')
+    if k in ('matching.priceTolAmount', 'matching.vatTolAmount', 'wht.minimumBase') and not re.fullmatch(r'\d{1,13}\.\d{2}', s_(v)): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นบาทแบบข้อความ เช่น 1000.00')
+    if k == 'wht.timing' and s_(v) != 'AT_PAYMENT': sp.append(f'{at("Settings","value",r)} wht.timing ระยะ 1 ต้องเป็น AT_PAYMENT')
+    if k == 'ap.defaultTermDays' and (not isinstance(v, (int, float)) or int(v) != v or not 0 <= v <= 180): sp.append(f'{at("Settings","value",r)} ap.defaultTermDays ต้องเป็น 0–180 วัน')
+    if k == 'ap.inboxAddress' and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', s_(v)): sp.append(f'{at("Settings","value",r)} ap.inboxAddress ต้องเป็นอีเมล')
 hs, he = s_(SET.get('businessHoursStart', ('', 0))[0]), s_(SET.get('businessHoursEnd', ('', 0))[0])
 if not (re.fullmatch(r'\d\d:\d\d', hs) and re.fullmatch(r'\d\d:\d\d', he) and hs < he): sp.append('businessHoursStart/End ต้องเป็น HH:MM และเริ่มก่อนเลิก')
 check(not sp, 'ค่าตั้งต้น (Settings)', f'{len(SET)} ค่า', '; '.join(sp), 'ระบบคำนวณ VAT เลขเอกสาร หรือ SLA ผิด', 'แก้ช่องที่ระบุในชีต Settings')
@@ -267,6 +273,12 @@ check(not sup_p, 'ผู้ขาย', f'{len(SUP)} ราย เลขผู้
 SITE = {s_(d['code']) for r, d in table('Sites')}
 TYPES = {s_(d['code']): s_(d['documentType']) for r, d in table('RequestTypes')}
 tp = [c for c, t in TYPES.items() if t not in ('PURCHASE_REQUEST', 'SUPPLIER_REQUEST')]
+# S8-12 (BR-RET-03 · OQ-125): the retention a PO of the type starts with, when the sheet has the columns
+for r, d in table('RequestTypes'):
+    if 'defaultRetentionBp' not in d: continue
+    bp, days = d['defaultRetentionBp'], d.get('defaultRetentionHoldDays')
+    if not isinstance(bp, (int, float)) or int(bp) != bp or not 0 <= bp <= 10000: tp.append(f'{at("RequestTypes","defaultRetentionBp",r)} ต้องเป็นจำนวนเต็ม 0–10000')
+    elif bp > 0 and (not isinstance(days, (int, float)) or int(days) != days or not 0 <= days <= 3650): tp.append(f'{at("RequestTypes","defaultRetentionHoldDays",r)} ต้องเป็น 0–3650 วันเมื่อมีเงินประกัน')
 check(SITE and TYPES and not tp, 'สถานที่ส่งและประเภทคำขอ', f'{len(SITE)} สถานที่ · {len(TYPES)} ประเภท', f'documentType ไม่ถูกต้อง: {tp}', 'ฟอร์มหรือการรวม PR ทำงานผิด', 'ใส่ documentType เป็น PURCHASE_REQUEST หรือ SUPPLIER_REQUEST')
 hol, hp = [], []
 for r, d in table('Holidays'):

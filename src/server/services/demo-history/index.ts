@@ -1,5 +1,10 @@
+import { createHash } from 'node:crypto'
 import { TZDate } from '@date-fns/tz'
 import { satangToAmount } from '@/core/money/dto'
+import { BP_PER_WHOLE as BASIS_POINTS, QUANTITY_SCALE } from '@/core/money/constants'
+import { documentTotals, parseQuantity, roundHalfUpDiv } from '@/core/money/math'
+import { formatQuantity } from '@/core/receiving'
+import { apPolicyOf } from '@/lib/org-settings'
 import { stepUpNeeded } from '@/core/pin'
 import type { Result } from '@/core/result'
 import { addBusinessMinutes, subtractBusinessMinutes, type BusinessCalendar } from '@/core/sla'
@@ -7,7 +12,7 @@ import { taxDateOf } from '@/core/vat'
 import { systemClock } from '@/lib/clock'
 import { MS_PER_DAY } from '@/lib/constants'
 import { setEmailProvider } from '@/integrations/email-provider'
-import { checkBucket } from '@/integrations/storage'
+import { checkBucket, putObject } from '@/integrations/storage'
 import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx, type Ctx } from '@/server/context'
 import { escapeLike } from '@/server/db/like'
@@ -15,17 +20,21 @@ import { forTenant } from '@/server/db/tenant'
 import { effectiveSodPolicy, loadBusinessCalendar } from '@/server/doa/policy'
 import { approversWithoutPin, giveOneTimePins, randomDemoPin, takeBackOneTimePins, type OneTimePins } from '@/server/seed/pins'
 import { budgetLineOn, type HistoryBudgetLines } from '@/server/seed/budget-keys'
+import { etaxSampleXml, scannedInvoicePdf } from '@/server/seed/etax-sample'
 import type { DemoHistoryRow } from '@/server/seed/sheets'
 import type { RunOptions } from '../_pipeline'
 import { decideTask } from '../approvals/decide'
 import { completeUpload, requestUpload } from '../files'
 import { confirmInvoiceCoding, createInvoice, submitInvoice, updateInvoice } from '../ap'
+import { recheckPoInvoices, requestVarianceApproval } from '../ap/exceptions'
+import { inboxFilePrefix } from '../ap/files'
+import { receiveInboundEmail } from '../ap/inbox'
 import { recordInvoice } from '../invoices'
 import { markNotificationsRead } from '../notifications'
 import { assignSupplier, consolidateNow } from '../procurement'
 import { closePurchaseOrder, submitPo } from '../purchase-orders'
 import { sendPurchaseOrder } from '../purchase-orders/send'
-import { postGoodsReceipt } from '../receiving'
+import { postGoodsReceipt, requestCloseShort } from '../receiving'
 import { departmentReceivers } from '../receiving/receivers'
 import { cancelRequest, createDraft, editRequest, submitRequest } from '../requests'
 import { attachFile } from '../requests/attachments'
@@ -126,7 +135,8 @@ function lastSteps(row: DemoHistoryRow): readonly string[] {
   if (row.status === 'PENDING_APPROVAL') return ['submit', 'submit-with-quotations']
   if (row.status === 'CANCELLED') return ['cancel']
   if (row.status === 'ORDERED') return ['po-send']
-  if (row.status === 'COMPLETED') return ['po-close']
+  // a PO closed short ends at the approval of the close (S8-12 QTY_OVER)
+  if (row.status === 'COMPLETED') return ['po-close', 'close-short-approve']
   return ['decide']
 }
 
@@ -154,7 +164,7 @@ async function stepUpIfNeeded(
   c: Context,
   row: DemoHistoryRow,
   approverCode: string,
-  route: { readonly subjectType: 'REQUEST' | 'PURCHASE_ORDER'; readonly subjectId: string; readonly amountSatang: bigint | null; readonly stepUpThresholdSatang: bigint | null },
+  route: { readonly subjectType: 'REQUEST' | 'PURCHASE_ORDER' | 'INVOICE'; readonly subjectId: string; readonly amountSatang: bigint | null; readonly stepUpThresholdSatang: bigint | null },
   channel: Ctx['channel'],
 ): Promise<void> {
   if (!stepUpNeeded(route)) return
@@ -168,18 +178,28 @@ async function stepUpIfNeeded(
   if (!granted.ok) throw new Error(`Demo_History ${row.ref}: the PIN step-up of ${approverCode} for ${route.subjectType} was refused (${granted.reason})`)
 }
 
+/** S8-12: the invoice price of a scenario over the PO price (docs/inputs scripts/inputs_p1/p1_history.py doc_samples) */
+const PRICE_OVER_BP = 300n
+const PRICE_WITHIN_TOL_BP = 50n
+
 /**
- * S8-04: the supplier's invoice of a completed row as a tier-2 invoice, through the real commands — a draft of what was
- * received at the PO's prices, the number and date of the history and the PO's VAT, every line coded with its budget
- * line's account code and cost center, then submitted and matched. The recorder is fin_officer, or the first other
- * FINANCE member when fin_officer created the PO or received its goods (BR-AP-05). What does not match stays EXCEPTION
- * until S8-12 plays every invoice scenario of the sheet.
+ * S8-04, S8-12: the supplier's invoice of a completed row as a tier-2 invoice, through the real commands — a draft of
+ * what was received, the number and date of the history, every line coded with its budget line's account code and cost
+ * center (and the row's income type to withhold), then submitted and matched. The scenario of the sheet decides what the
+ * supplier bills: the PO's prices and what was received (MATCH, SERVICE_2WAY, DUPLICATE); 0.5% over, kept within the
+ * organization's tolerance (PRICE_WITHIN_TOL); 3% over (PRICE_OVER → EXCEPTION); everything ordered while part of it is
+ * still to come (QTY_OVER → EXCEPTION QTY_NOT_RECEIVED). A supplier not registered for VAT bills no VAT (BR-VAT-04,
+ * S8-20). The recorder is fin_officer, or the first other FINANCE member when fin_officer created the PO or received
+ * its goods (BR-AP-05). Returns the invoice.
  */
-async function matchedInvoice(c: Context, row: DemoHistoryRow, poId: string, receiverId: string, at: Date, vatSatang: bigint): Promise<void> {
+async function historyInvoice(c: Context, row: DemoHistoryRow, poId: string, receiverId: string, at: Date, scenario: NonNullable<DemoHistoryRow['invoice']>['scenario']): Promise<{ invoiceId: string; recorder: string }> {
   const db = forTenant(c.organizationId)
-  const po = await db.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, select: { createdById: true, supplier: { select: { isVatRegistered: true } } } })
-  // A supplier not registered for VAT bills no VAT (BR-VAT-04), whatever the PO says (S8-20)
-  const statedVat = po.supplier.isVatRegistered ? vatSatang : 0n
+  const po = await db.purchaseOrder.findUniqueOrThrow({
+    where: { id: poId },
+    select: { createdById: true, vatRateBp: true, kind: true, supplier: { select: { isVatRegistered: true } }, lines: { orderBy: { lineNo: 'asc' }, select: { id: true, quantity: true, receivedQuantity: true, unitPriceSatang: true, vatable: true } } },
+  })
+  const settings = await db.organization.findUniqueOrThrow({ where: { id: c.organizationId }, select: { settings: true } })
+  const policy = apPolicyOf(settings.settings)
   const conflicts = new Set([po.createdById, receiverId])
   const finance = await db.roleAssignment.findMany({ where: { role: 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { member: { select: { id: true, employeeCode: true } } } })
   const codes = finance.map((f) => f.member).filter((m) => m.employeeCode && !conflicts.has(m.id)).map((m) => m.employeeCode!).sort()
@@ -188,19 +208,140 @@ async function matchedInvoice(c: Context, row: DemoHistoryRow, poId: string, rec
   const ctx = (step: string) => memberCtx(c, recorder, at, 'WEB', keyOf(row, step))
   const { invoiceId } = must(row, 'invoice draft', await createInvoice(ctx('invoice-draft'), { poId }, optionsOf(row, 'invoice-draft')))
   const draft = await db.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { version: true } })
+
+  // What the supplier bills, line by line
+  const billed = po.lines.map((l) => {
+    const qty = scenario === 'QTY_OVER' ? l.quantity.toString() : l.receivedQuantity.toString()
+    let price = l.unitPriceSatang
+    if (scenario === 'PRICE_OVER') price = roundHalfUpDiv(l.unitPriceSatang * (BASIS_POINTS + PRICE_OVER_BP), BASIS_POINTS)
+    if (scenario === 'PRICE_WITHIN_TOL') {
+      // 0.5% over, never more than the tolerance in baht of the line (BR-MATCH-07), so it matches within the tolerance
+      const units = parseQuantity(qty)
+      const most = l.unitPriceSatang + ((policy.priceTolSatang - 1n) * QUANTITY_SCALE) / (units > 0n ? units : QUANTITY_SCALE)
+      const target = roundHalfUpDiv(l.unitPriceSatang * (BASIS_POINTS + PRICE_WITHIN_TOL_BP), BASIS_POINTS)
+      price = target < most ? target : most
+    }
+    return { poLineId: l.id, quantity: qty, unitPriceSatang: price, vatable: l.vatable }
+  })
+  const totals = documentTotals(billed.map((b) => ({ quantity: b.quantity, unitPriceSatang: b.unitPriceSatang, vatable: b.vatable })), po.supplier.isVatRegistered ? (po.vatRateBp ?? 0) : 0, false)
+  const changedLines = scenario === 'QTY_OVER' || scenario === 'PRICE_OVER' || scenario === 'PRICE_WITHIN_TOL'
   const edited = must(
     row,
     'invoice edit',
-    await updateInvoice(ctx('invoice-edit'), { invoiceId, version: draft.version, supplierInvoiceNo: `INV-${row.ref}`, invoiceDate: localDate(at, c.calendar.timezone), statedVat: satangToAmount(statedVat), isFinal: true }, optionsOf(row, 'invoice-edit')),
+    await updateInvoice(
+      ctx('invoice-edit'),
+      {
+        invoiceId,
+        version: draft.version,
+        supplierInvoiceNo: row.invoice?.invoiceNo ?? `INV-${row.ref}`,
+        invoiceDate: localDate(at, c.calendar.timezone),
+        statedVat: satangToAmount(totals.vat),
+        isFinal: true,
+        ...(changedLines ? { lines: billed.map((b) => ({ poLineId: b.poLineId, quantity: b.quantity, unitPrice: satangToAmount(b.unitPriceSatang), vatable: b.vatable })) } : {}),
+      },
+      optionsOf(row, 'invoice-edit'),
+    ),
   )
   const lines = await db.invoiceLine.findMany({ where: { invoiceId }, select: { id: true, poLine: { select: { budgetLine: { select: { code: true, accountCode: true, costCenterId: true } } } } } })
+  // the income type to withhold of a service row (BR-WHT-03); goods withhold nothing
+  const whtIncomeTypeCode = po.kind === 'SERVICE' ? (row.invoice?.whtIncomeType ?? null) : null
   const coding = lines.map((l) => {
     const budget = l.poLine.budgetLine
     if (!budget.accountCode) throw new Error(`Demo_History ${row.ref}: budget line ${budget.code} has no account code to code the invoice with`)
-    return { invoiceLineId: l.id, accountCode: budget.accountCode, costCenterId: budget.costCenterId }
+    return { invoiceLineId: l.id, accountCode: budget.accountCode, costCenterId: budget.costCenterId, ...(row.invoice ? { whtIncomeTypeCode } : {}) }
   })
   const coded = must(row, 'invoice coding', await confirmInvoiceCoding(ctx('invoice-coding'), { invoiceId, version: edited.version, lines: coding }, optionsOf(row, 'invoice-coding')))
   must(row, 'invoice submit', await submitInvoice(ctx('invoice-submit'), { invoiceId, version: coded.version }, optionsOf(row, 'invoice-submit')))
+  return { invoiceId, recorder }
+}
+
+/** S8-12 PRICE_OVER paid: PROCUREMENT asks for the variance and the DOA approver of INVOICE_EXCEPTION approves it */
+async function approvedVariance(c: Context, row: DemoHistoryRow, invoiceId: string, askAt: Date, decideAt: Date): Promise<void> {
+  const db = forTenant(c.organizationId)
+  const version = (await db.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { version: true } })).version
+  must(row, 'variance', await requestVarianceApproval(memberCtx(c, 'proc_officer', askAt, 'WEB', keyOf(row, 'variance')), { invoiceId, version, reason: 'ราคาวัสดุขึ้นตามที่ผู้ขายแจ้ง' }, optionsOf(row, 'variance')))
+  const task = await db.approvalTask.findFirstOrThrow({
+    where: { status: 'OPEN', step: { route: { subjectType: 'INVOICE', subjectId: invoiceId } } },
+    select: { id: true, assignee: { select: { employeeCode: true } }, step: { select: { route: { select: { amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+  })
+  const approver = task.assignee.employeeCode!
+  await stepUpIfNeeded(c, row, approver, { subjectType: 'INVOICE', subjectId: invoiceId, amountSatang: task.step.route.amountSatang, stepUpThresholdSatang: task.step.route.doaVersion.stepUpThresholdSatang }, 'WEB')
+  must(row, 'variance approve', await decideTask(memberCtx(c, approver, decideAt, 'WEB', keyOf(row, 'variance-approve')), { taskId: task.id, decision: 'APPROVE' }, optionsOf(row, 'variance-approve')))
+}
+
+/**
+ * S8-12: the invoice inbox of an organization with PAY after its history — the second copy of each DUPLICATE row's
+ * invoice that the supplier e-mailed again (a draft on the PO whose number the supplier already used: DUPLICATE_INVOICE
+ * when submitted), and one e-Tax invoice of a MISSING row whose subject names no PO, waiting for FINANCE to choose it.
+ * e-Tax issuers send their XML (synthesized from the history), the others a scanned PDF. Stored and received through
+ * invoice.inbox.receive as the job would, once per Message-ID.
+ */
+async function historyInbox(c: Context, rows: readonly DemoHistoryRow[]): Promise<number> {
+  const db = forTenant(c.organizationId)
+  const settings = await db.organization.findUniqueOrThrow({ where: { id: c.organizationId }, select: { settings: true } })
+  const address = (settings.settings as { ap?: { inboxAddress?: string } } | null)?.ap?.inboxAddress
+  if (!address) return 0
+  let received = 0
+  const mail = async (row: DemoHistoryRow, poId: string, invoiceNo: string, withPoNumber: boolean) => {
+    const po = await db.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, select: { number: true, netSatang: true, vatSatang: true, grossSatang: true, closedAt: true, supplier: { select: { nameTh: true, taxId: true, branchCode: true, email: true, eTaxIssuer: true, isVatRegistered: true } } } })
+    const at = po.closedAt ?? c.now
+    const vat = po.supplier.isVatRegistered ? po.vatSatang : 0n
+    const issueDate = localDate(at, c.calendar.timezone)
+    const etax = po.supplier.eTaxIssuer !== 'NONE' && po.supplier.taxId
+    const content = etax
+      ? etaxSampleXml({ invoiceNo, issueDate, sellerName: po.supplier.nameTh, sellerTaxId: po.supplier.taxId!, sellerBranch: po.supplier.branchCode, net: satangToAmount(po.netSatang), vat: satangToAmount(vat), gross: satangToAmount(po.netSatang + vat) })
+      : scannedInvoicePdf([po.supplier.nameTh, invoiceNo, satangToAmount(po.netSatang + vat)])
+    const mimeType = etax ? 'application/xml' : 'application/pdf'
+    const key = `${inboxFilePrefix(c.organizationId)}${row.ref}-${invoiceNo.replace(/[^A-Za-z0-9-]/g, '')}.${etax ? 'xml' : 'pdf'}`
+    await putObject(key, content, mimeType)
+    const ctx = makeCtx({ organizationId: c.organizationId, actor: { type: 'SYSTEM', job: 'invoice-inbox-poll' }, channel: 'SYSTEM', now: at, requestId: keyOf(row, 'inbox') })
+    must(
+      row,
+      'inbox',
+      await receiveInboundEmail(
+        ctx,
+        {
+          provider: 'seed',
+          messageId: `${row.ref}.${invoiceNo}@history.bcs.local`,
+          fromAddress: po.supplier.email ?? '',
+          toAddress: address,
+          subject: withPoNumber ? `ใบแจ้งหนี้ ${invoiceNo} ตาม ${po.number}` : `ใบแจ้งหนี้ ${invoiceNo}`,
+          receivedAt: at.toISOString(),
+          poRefsFound: withPoNumber && po.number ? [po.number] : [],
+          files: [{ key, fileName: `${invoiceNo}.${etax ? 'xml' : 'pdf'}`, mimeType, sizeBytes: content.length, sha256: createHash('sha256').update(content).digest('hex'), poId: withPoNumber ? poId : null }],
+          skipped: [],
+        },
+        optionsOf(row, 'inbox'),
+      ),
+    )
+    received++
+  }
+  for (const row of rows.filter((r) => r.status === 'COMPLETED' && r.invoice?.scenario === 'DUPLICATE')) {
+    const invoice = await db.invoice.findFirst({ where: { supplierInvoiceNo: row.invoice!.invoiceNo ?? `INV-${row.ref}`, status: { notIn: ['CANCELLED', 'REJECTED'] } }, select: { poId: true, supplierInvoiceNo: true } })
+    if (!invoice) throw new Error(`Demo_History ${row.ref}: the first invoice of a DUPLICATE row is missing`)
+    await mail(row, invoice.poId, invoice.supplierInvoiceNo!, true)
+  }
+  // one MISSING row of an e-Tax issuer: its invoice comes now, by e-mail without a PO number
+  const missing = rows.filter((r) => r.status === 'COMPLETED' && r.invoice?.scenario === 'MISSING')
+  for (const row of missing) {
+    const po = await db.purchaseOrder.findFirst({ where: { lines: { some: { sources: { some: { requestLine: { request: { title: row.title } } } } } }, supplier: { eTaxIssuer: { not: 'NONE' } } }, select: { id: true } })
+    if (!po) continue
+    await mail(row, po.id, `INV-${row.ref}`, false)
+    break
+  }
+  return received
+}
+
+/** S8-12 QTY_OVER: the first receipt is a tenth short (at least one whole unit) of each line of more than one unit */
+function shortOf(lines: ReadonlyArray<{ id: string; quantity: { toString(): string } }>): Map<string, bigint> {
+  const out = new Map<string, bigint>()
+  for (const l of lines) {
+    const units = parseQuantity(l.quantity.toString()) / QUANTITY_SCALE
+    if (units < 2n) continue
+    const short = units / 10n > 1n ? units / 10n : 1n
+    out.set(l.id, short * QUANTITY_SCALE)
+  }
+  return out
 }
 
 /** A member's context for one step; `step` names the events the step writes (Event.requestId), which are kept for good */
@@ -475,18 +616,50 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
 
   const grAt = next('gr', DELIVERY_DAYS * c.businessDayMinutes)
   const receiverId = await receiverOf(c, requestId, po.id, grAt)
-  const receiver = makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId: receiverId }, channel: 'WEB', now: grAt, requestId: keyOf(row, 'gr') })
-  must(row, 'receive', await postGoodsReceipt(receiver, { poId: po.id, deliveryNoteNo: `DN-${row.ref}`, lines: po.lines.map((l) => ({ poLineId: l.id, received: l.quantity.toString() })) }, optionsOf(row, 'gr')))
+  const receiver = (at: Date, step: string) => makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId: receiverId }, channel: 'WEB', now: at, requestId: keyOf(row, step) })
+  // S8-04 (BR-IVC-06): an organization with PAY on records the supplier's invoice as a tier-2 invoice and matches it;
+  // S8-12 plays the scenario of the row (a row of the demo sheet, or without one, matches)
+  const pay = (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) > 0
+  const scenario = pay ? (row.invoice?.scenario ?? 'MATCH') : null
+  const paid = row.invoice?.paymentStatus === 'PAID'
+  const short = scenario === 'QTY_OVER' ? shortOf(po.lines) : new Map<string, bigint>()
+  must(
+    row,
+    'receive',
+    await postGoodsReceipt(receiver(grAt, 'gr'), { poId: po.id, deliveryNoteNo: `DN-${row.ref}`, lines: po.lines.map((l) => ({ poLineId: l.id, received: formatQuantity(parseQuantity(l.quantity.toString()) - (short.get(l.id) ?? 0n)) })) }, optionsOf(row, 'gr')),
+  )
   const invoiceAt = next('invoice', c.businessDayMinutes)
-  const totals = await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, select: { netSatang: true, vatSatang: true } })
-  // S8-04 (BR-IVC-06): an organization with PAY on records the supplier's invoice as a tier-2 invoice and matches it
-  if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) await matchedInvoice(c, row, po.id, receiverId, invoiceAt, totals.vatSatang)
-  else
+  if (!pay) {
+    const totals = await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, select: { netSatang: true, vatSatang: true } })
     must(
       row,
       'invoice',
       await recordInvoice(memberCtx(c, 'fin_officer', invoiceAt, 'WEB', keyOf(row, 'invoice')), { poId: po.id, invoiceNo: `INV-${row.ref}`, invoiceDate: localDate(invoiceAt, c.calendar.timezone), net: satangToAmount(totals.netSatang), vat: satangToAmount(totals.vatSatang), isFinal: true }, optionsOf(row, 'invoice')),
     )
+  } else if (scenario !== 'MISSING') {
+    // MISSING: no invoice ever came; the PO keeps holding what was received (BR-BUD-06)
+    const { invoiceId } = await historyInvoice(c, row, po.id, receiverId, invoiceAt, scenario!)
+    // PRICE_OVER paid by S9: the variance was approved under DOA INVOICE_EXCEPTION; the others wait in EXCEPTION
+    if (scenario === 'PRICE_OVER' && paid) await approvedVariance(c, row, invoiceId, next('variance', STEP_MINUTES), next('variance-approve', PO_DECISION_MINUTES))
+    if (scenario === 'QTY_OVER' && short.size > 0) {
+      if (paid) {
+        // the rest came later and the invoice matched again by SYSTEM (job invoice-auto-recheck, BR-MATCH-10)
+        const restAt = next('gr-rest', DELIVERY_DAYS * c.businessDayMinutes)
+        const rest = must(row, 'receive rest', await postGoodsReceipt(receiver(restAt, 'gr-rest'), { poId: po.id, deliveryNoteNo: `DN-${row.ref}-2`, lines: [...short].map(([poLineId, q]) => ({ poLineId, received: formatQuantity(q) })) }, optionsOf(row, 'gr-rest')))
+        const [rechecked] = await recheckPoInvoices(c.organizationId, po.id, `gr:${rest.grId}`, restAt)
+        if (!rechecked?.ok || rechecked.data.status !== 'READY_FOR_PAYMENT') throw new Error(`Demo_History ${row.ref}: the invoice did not match after the rest came`)
+      } else {
+        // the rest never comes: PROCUREMENT closes the PO short and its approver approves; the invoice stays EXCEPTION
+        must(row, 'close short', await requestCloseShort(proc(next('close-short', MINUTES_PER_HOUR), 'close-short'), { poId: po.id, reason: 'ผู้ขายส่งไม่ครบและจะไม่ส่งส่วนที่เหลือ' }, optionsOf(row, 'close-short')))
+        const task = await db.approvalTask.findFirstOrThrow({
+          where: { status: 'OPEN', step: { route: { subjectType: 'VARIANCE', subjectId: { in: (await db.variance.findMany({ where: { poId: po.id, disposition: 'CLOSE_SHORT' }, select: { id: true } })).map((v) => v.id) } } } },
+          select: { id: true, assignee: { select: { employeeCode: true } } },
+        })
+        must(row, 'close short approve', await decideTask(memberCtx(c, task.assignee.employeeCode!, next('close-short-approve', PO_DECISION_MINUTES), 'WEB', keyOf(row, 'close-short-approve')), { taskId: task.id, decision: 'APPROVE' }, optionsOf(row, 'close-short-approve')))
+        return
+      }
+    }
+  }
   must(row, 'close PO', await closePurchaseOrder(proc(next('po-close', MINUTES_PER_HOUR), 'po-close'), { poId: po.id }, optionsOf(row, 'po-close')))
 }
 
@@ -602,6 +775,8 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
         await replay(c, row)
         byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
       }
+      // S8-12: what waits in the invoice inbox, after the history so FINANCE sees it as new
+      if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) await historyInbox(c, done)
     } finally {
       setEmailProvider(null)
     }

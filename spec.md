@@ -3819,6 +3819,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `MODULE_IN_USE` | 409 | ปิดโมดูลไม่ได้: {reason} |
 | `TOKEN_USED` | 409 | รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time} |
 | `DUPLICATE_INVOICE` | 409 | เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้ |
+| `INVOICE_TRACK_MISMATCH` | 409 | PO นี้บันทึกใบกำกับแบบ {track} อยู่แล้ว |
 | `AI_REVIEW_PENDING` | 409 | ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง |
 | `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
@@ -4952,6 +4953,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S8-17 | ทดสอบกับใบแจ้งหนี้จริงและอ่านบรรทัด e-Tax `[go-live]` | `high` | หลังได้ P0-02 และคำตอบ OQ-35 | ตรวจ |
 | S8-18 | ยกเลิกใบพร้อมจ่าย ใบลดหนี้และเพิ่มหนี้ `[go-live]` | `high` | หลังคำตอบ OQ-129 | ตรวจ |
 | S8-19 | GRNI อ่านใบชั้น 2 `[go-live]` | `high` | พร้อม S4-18 | ตรวจ |
+| S8-20 | PO ของผู้ขายไม่จด VAT ใช้อัตรา 0 `[go-live]` | `high` | หลังผู้ใช้ยืนยัน | ตรวจ |
 
 - [x] **S8-01** `[demo]` migration ของขั้นตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S8.md`: ตาราง `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `Retention` `PoChange` `PoChangeLine` `SupplierNotice` และ `SensitiveAccessLog` ตามแถวเดิมของ §6.2 พร้อม helper บันทึกการเปิดดู (S9 ใช้ต่อ) · คอลัมน์ใหม่ของ `PurchaseOrder` `PoLine` `Supplier` (รวม `registryFlag` `registryFlaggedAt`) `RequestType` วางใต้ comment บล็อก `// --- S8 S9 ---` · enum ใหม่ของขั้น (ไม่แก้ `ApprovalSubjectType` และ `DoaDocumentType` ที่ P1-07 เพิ่มแล้ว) · `numbering.AP` `numbering.WHT_CERT` (คีย์ละบรรทัดต่อท้ายส่วน `numbering` ที่ P1-07 แยกไว้) และส่วน `matching` `wht` `ap` แบบไม่บังคับใน `OrgSettingsSchema` (ไม่เพิ่มหน้าแก้) · CHECK ≥ 0 ทุก `*Satang` · FK คู่ (organizationId, id) ตาม ADR-039 · partial unique ของเลขใบแจ้งหนี้และใบแก้ไขที่เปิดอยู่ · ตาราง state machine ของ Invoice MatchException Retention PoChange ใน `src/core/state-machines` · เพิ่มแถว Entity ใน §6.5 · เพิ่มกฎ BR และ invariant ทั้งหมดของขั้นลง §7 ครั้งเดียวตามหัวข้อ "กฎ" ของ sub-spec ตารางเดียวต่อตระกูล (BR-VAT ต่อท้ายตารางของ §7.1 · BR-IVC ต่อท้ายตารางของ §7.12 · BR-MATCH BR-WHT ต่อท้ายตารางของ §7.14 · BR-AP BR-RET BR-POC และ INV-AP เป็นตารางใหม่ใต้หัวข้อที่ P1-07 จองให้ S8 ท้าย §7) · migration s8_invoices 14 ตารางใหม่ CHECK เงินและ partial unique · state machine 4 ตาราง (เทสต์วนทุกคู่) · settings ใหม่แบบไม่บังคับ ค่าเริ่มต้นของ OQ เก็บเป็นข้อมูลใน src/lib/ap-defaults.json เพราะ bcs/no-money-literal ห้ามเงินในโค้ด · partial unique เขียน predicate แบบที่ Postgres เก็บไว้เพื่อไม่ให้ prisma เห็น drift · เทสต์ P1-07 ของคีย์ numbering ปรับให้รับคีย์ไม่บังคับและชื่อที่มีขีดล่าง (WHT_CERT) — เสร็จ 2026-10-13 · 27a3944
   - เสร็จเมื่อ: `pnpm db:reset` ของสายผ่าน · เทสต์วนทุกคู่ (สถานะ, คำสั่ง) ของ 4 ตารางใหม่ผ่าน · เทสต์ FK ข้ามองค์กรถูกปฏิเสธ · CHECK ปฏิเสธเงินติดลบและ payable ที่ไม่เท่าสูตร · settings ของ DEMO ยังผ่าน `OrgSettingsSchema` และ `wht.timing` ค่าอื่นนอกจาก `AT_PAYMENT` ถูกปฏิเสธ · `pnpm spec:check` ไม่มี ID ที่อ้างแต่ไม่มีนิยาม · `pnpm verify` ผ่าน
@@ -5010,6 +5012,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **S8-19** `[go-live]` รายงานรับของแล้วยังไม่มีใบกำกับ (S4-18) อ่านใบชั้น 2 และบรรทัดงวดงาน
   - เสร็จเมื่อ: เคสของ `grni.yaml` ผ่าน และเทสต์ที่มีใบชั้น 1 และชั้น 2 ปนกันได้ยอดตรงต่อ cost center · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
+- [ ] **S8-20** `[go-live]` PO ของผู้ขายที่ไม่จด VAT ยังคิด VAT ตามอัตราขององค์กร (ขัด BR-VAT-04 ที่ให้ใช้อัตรา 0 บน PO) · พบใน S8-04 ตอนเล่นประวัติของ SIMEC (ใบของผู้ขายไม่จด VAT 13 ใบติด `VAT_SUPPLIER_NOT_REGISTERED` เพราะใบอ้าง VAT ของ PO) · การแก้เปลี่ยนผลของ service เงินเดิม (§16.13 ของเดิม) จึงต้องให้ผู้ใช้ยืนยันก่อน · ระหว่างนี้การเล่นประวัติให้ใบของผู้ขายไม่จด VAT ไม่มี VAT
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันแล้ว PO ใหม่ของผู้ขายไม่จด VAT ได้ VAT 0 (เทสต์) · PO เดิมไม่เปลี่ยน · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
 
 ### 16.16 S9 · รอบจ่ายเงินและไฟล์ธนาคาร (สาย 2 ต่อจาก S8 · เส้นชัย E)
 

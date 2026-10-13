@@ -388,3 +388,13 @@ export function parseP1History(workbook: InputWorkbook): DemoHistoryRow[] {
 export function parseHistory(workbook: InputWorkbook): DemoHistoryRow[] {
   return workbook.hasSheet('Request_History') ? parseP1History(workbook) : parseDemoHistory(workbook)
 }
+
+const GlAccountRow = z.object({ code: z.string().regex(/^[0-9A-Z-]{1,20}$/), nameTh: text, type: z.enum(['COST', 'EXPENSE', 'ASSET', 'LIABILITY']) })
+
+/** Sheet GL_Accounts of the phase-1 workbook (S8-04): the account codes an invoice line is coded with (AccountCode) */
+export function parseGlAccounts(workbook: InputWorkbook): z.infer<typeof GlAccountRow>[] {
+  if (!workbook.hasSheet('GL_Accounts')) return []
+  const accounts = rows(workbook, 'GL_Accounts', GlAccountRow)
+  if (new Set(accounts.map((a) => a.code)).size !== accounts.length) throw new Error('GL_Accounts: duplicate code')
+  return accounts
+}

@@ -19,6 +19,7 @@ import type { DemoHistoryRow } from '@/server/seed/sheets'
 import type { RunOptions } from '../_pipeline'
 import { decideTask } from '../approvals/decide'
 import { completeUpload, requestUpload } from '../files'
+import { confirmInvoiceCoding, createInvoice, submitInvoice, updateInvoice } from '../ap'
 import { recordInvoice } from '../invoices'
 import { markNotificationsRead } from '../notifications'
 import { assignSupplier, consolidateNow } from '../procurement'
@@ -165,6 +166,41 @@ async function stepUpIfNeeded(
     { sender: null },
   )
   if (!granted.ok) throw new Error(`Demo_History ${row.ref}: the PIN step-up of ${approverCode} for ${route.subjectType} was refused (${granted.reason})`)
+}
+
+/**
+ * S8-04: the supplier's invoice of a completed row as a tier-2 invoice, through the real commands — a draft of what was
+ * received at the PO's prices, the number and date of the history and the PO's VAT, every line coded with its budget
+ * line's account code and cost center, then submitted and matched. The recorder is fin_officer, or the first other
+ * FINANCE member when fin_officer created the PO or received its goods (BR-AP-05). What does not match stays EXCEPTION
+ * until S8-12 plays every invoice scenario of the sheet.
+ */
+async function matchedInvoice(c: Context, row: DemoHistoryRow, poId: string, receiverId: string, at: Date, vatSatang: bigint): Promise<void> {
+  const db = forTenant(c.organizationId)
+  const po = await db.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, select: { createdById: true, supplier: { select: { isVatRegistered: true } } } })
+  // A supplier not registered for VAT bills no VAT (BR-VAT-04), whatever the PO says (S8-20)
+  const statedVat = po.supplier.isVatRegistered ? vatSatang : 0n
+  const conflicts = new Set([po.createdById, receiverId])
+  const finance = await db.roleAssignment.findMany({ where: { role: 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { member: { select: { id: true, employeeCode: true } } } })
+  const codes = finance.map((f) => f.member).filter((m) => m.employeeCode && !conflicts.has(m.id)).map((m) => m.employeeCode!).sort()
+  const recorder = codes.includes('fin_officer') ? 'fin_officer' : codes[0]
+  if (!recorder) throw new Error(`Demo_History ${row.ref}: no FINANCE member may record the invoice (BR-AP-05)`)
+  const ctx = (step: string) => memberCtx(c, recorder, at, 'WEB', keyOf(row, step))
+  const { invoiceId } = must(row, 'invoice draft', await createInvoice(ctx('invoice-draft'), { poId }, optionsOf(row, 'invoice-draft')))
+  const draft = await db.invoice.findUniqueOrThrow({ where: { id: invoiceId }, select: { version: true } })
+  const edited = must(
+    row,
+    'invoice edit',
+    await updateInvoice(ctx('invoice-edit'), { invoiceId, version: draft.version, supplierInvoiceNo: `INV-${row.ref}`, invoiceDate: localDate(at, c.calendar.timezone), statedVat: satangToAmount(statedVat), isFinal: true }, optionsOf(row, 'invoice-edit')),
+  )
+  const lines = await db.invoiceLine.findMany({ where: { invoiceId }, select: { id: true, poLine: { select: { budgetLine: { select: { code: true, accountCode: true, costCenterId: true } } } } } })
+  const coding = lines.map((l) => {
+    const budget = l.poLine.budgetLine
+    if (!budget.accountCode) throw new Error(`Demo_History ${row.ref}: budget line ${budget.code} has no account code to code the invoice with`)
+    return { invoiceLineId: l.id, accountCode: budget.accountCode, costCenterId: budget.costCenterId }
+  })
+  const coded = must(row, 'invoice coding', await confirmInvoiceCoding(ctx('invoice-coding'), { invoiceId, version: edited.version, lines: coding }, optionsOf(row, 'invoice-coding')))
+  must(row, 'invoice submit', await submitInvoice(ctx('invoice-submit'), { invoiceId, version: coded.version }, optionsOf(row, 'invoice-submit')))
 }
 
 /** A member's context for one step; `step` names the events the step writes (Event.requestId), which are kept for good */
@@ -443,11 +479,14 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
   must(row, 'receive', await postGoodsReceipt(receiver, { poId: po.id, deliveryNoteNo: `DN-${row.ref}`, lines: po.lines.map((l) => ({ poLineId: l.id, received: l.quantity.toString() })) }, optionsOf(row, 'gr')))
   const invoiceAt = next('invoice', c.businessDayMinutes)
   const totals = await db.purchaseOrder.findUniqueOrThrow({ where: { id: po.id }, select: { netSatang: true, vatSatang: true } })
-  must(
-    row,
-    'invoice',
-    await recordInvoice(memberCtx(c, 'fin_officer', invoiceAt, 'WEB', keyOf(row, 'invoice')), { poId: po.id, invoiceNo: `INV-${row.ref}`, invoiceDate: localDate(invoiceAt, c.calendar.timezone), net: satangToAmount(totals.netSatang), vat: satangToAmount(totals.vatSatang), isFinal: true }, optionsOf(row, 'invoice')),
-  )
+  // S8-04 (BR-IVC-06): an organization with PAY on records the supplier's invoice as a tier-2 invoice and matches it
+  if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) await matchedInvoice(c, row, po.id, receiverId, invoiceAt, totals.vatSatang)
+  else
+    must(
+      row,
+      'invoice',
+      await recordInvoice(memberCtx(c, 'fin_officer', invoiceAt, 'WEB', keyOf(row, 'invoice')), { poId: po.id, invoiceNo: `INV-${row.ref}`, invoiceDate: localDate(invoiceAt, c.calendar.timezone), net: satangToAmount(totals.netSatang), vat: satangToAmount(totals.vatSatang), isFinal: true }, optionsOf(row, 'invoice')),
+    )
   must(row, 'close PO', await closePurchaseOrder(proc(next('po-close', MINUTES_PER_HOUR), 'po-close'), { poId: po.id }, optionsOf(row, 'po-close')))
 }
 

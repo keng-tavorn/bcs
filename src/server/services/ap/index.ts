@@ -17,6 +17,7 @@ import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/ass
 import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
 import { INVOICED_STATUSES, runMatch } from './match-run'
+import { claimTrack } from './track'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
 
 // Tier-2 invoices (spec FR-AP-101 FR-AP-102 FR-AP-105 FR-AP-108, docs/sub-specs/S8.md, §7.18 BR-AP-01 to BR-AP-13):
@@ -90,6 +91,9 @@ export const createInvoiceCommand = defineCommand({
     if (!poId) return fail('NOT_FOUND', 'purchase order not found')
     const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true } } } })
     if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command: 'invoice.create' })
+    // BR-IVC-06: the PO takes tier-2 invoices from now on (PAY is on: guard)
+    const track = await claimTrack(tx, po, 'MATCHING', true)
+    if (!track.ok) return track
     if (file && (await fileInUse(tx, file.file.fileId))) return fail('VALIDATION_FAILED', 'the invoice file is already the file of another invoice', { field: 'sourceFileId', reason: 'FILE_IN_USE' })
 
     // BR-IVC-07: an e-Tax file of the PO's supplier fills the header; the lines come from what is still to invoice
@@ -441,6 +445,114 @@ export const cancelInvoiceCommand = defineCommand({
     return { ok: true, result: { invoiceId: input.invoiceId }, events: [{ type: 'invoice.cancelled', aggregateType: 'Invoice', aggregateId: input.invoiceId, data: { reason: input.reason } }] }
   },
 })
+
+// ---------- invoice.createDraftFromReading (for S13, BR-AP-03) ----------
+
+const ReadingInput = z.strictObject({
+  /** The file the AI read (stored by S13 or uploaded) */
+  fileId: z.uuid(),
+  poId: z.uuid(),
+  /** When the reading names the supplier: it must be the PO's */
+  supplierId: z.uuid().optional(),
+  /** The AgentAction of S13 whose reading this is (no foreign key until S13 adds the table) */
+  agentActionId: z.uuid(),
+  supplierInvoiceNo: z.string().trim().min(1).max(60).optional(),
+  invoiceDate: z.iso.date().optional(),
+  statedVat: Amount.optional(),
+  discount: Amount.optional(),
+  priceIncludesVat: z.boolean().optional(),
+  lines: z.array(z.strictObject({ poLineId: z.uuid(), quantity: Quantity, unitPrice: Amount, vatable: z.boolean().optional() })).min(1).max(200).optional(),
+  aiAssist: AiAssistInput.optional(),
+})
+
+/**
+ * A draft from the values an AI read off an invoice (FR-AP-101 AC5): the actor is the member who accepted the reading,
+ * never the agent (BR-AI-01); prefill AI_READING, and fieldSources names each value the AI gave, for the labels only.
+ * What the member confirmed of the AI's values goes through applyAiAssist in this transaction (S13 makes it real); the
+ * submit stops while values wait for review (assertNoPendingAiReview). An e-Tax file uses the upload path instead.
+ */
+export const createDraftFromReadingCommand = defineCommand({
+  name: 'invoice.createDraftFromReading',
+  capability: 'invoice.record',
+  input: ReadingInput,
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ invoiceId: string }>> {
+    const who = await guard(tx, ctx, 'invoice.record')
+    if (!who.ok) return who
+    const file = await tx.fileObject.findFirst({ where: { id: input.fileId, status: 'AVAILABLE' }, select: { id: true } })
+    if (!file) return fail('VALIDATION_FAILED', 'the file is not available', { field: 'fileId', reason: 'FILE' })
+    const [poId] = await lockRowsForUpdate(tx, 'PurchaseOrder', ctx.organizationId, [input.poId])
+    if (!poId) return fail('NOT_FOUND', 'purchase order not found')
+    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, include: { lines: { orderBy: { lineNo: 'asc' } } } })
+    if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command: 'invoice.createDraftFromReading' })
+    if (input.supplierId && input.supplierId !== po.supplierId) return fail('VALIDATION_FAILED', 'the supplier is not the supplier of the purchase order', { field: 'supplierId', reason: 'SUPPLIER_NOT_PO' })
+    const track = await claimTrack(tx, po, 'MATCHING', true)
+    if (!track.ok) return track
+    if (await fileInUse(tx, file.id)) return fail('VALIDATION_FAILED', 'the invoice file is already the file of another invoice', { field: 'fileId', reason: 'FILE_IN_USE' })
+
+    let lines: Array<{ poLineId: string; description: string; quantity: string; uom: string; unitPriceSatang: bigint; vatable: boolean }>
+    if (input.lines) {
+      const ids = input.lines.map((l) => l.poLineId)
+      if (new Set(ids).size !== ids.length) return fail('VALIDATION_FAILED', 'a PO line appears twice on the invoice', { field: 'lines', reason: 'PO_LINE_TWICE' })
+      if (input.lines.some((l) => parseQuantity(l.quantity) <= 0n)) return fail('VALIDATION_FAILED', 'a quantity above zero is needed', { field: 'lines', reason: 'QUANTITY_NOT_POSITIVE' })
+      const resolved = []
+      for (const l of input.lines) {
+        const pl = po.lines.find((p) => p.id === l.poLineId)
+        if (!pl) return fail('VALIDATION_FAILED', 'every line must be a line of the invoice’s purchase order', { field: 'lines', reason: 'NOT_A_PO_LINE' })
+        resolved.push({ poLineId: pl.id, description: pl.description, quantity: l.quantity, uom: pl.uom, unitPriceSatang: amountToSatang(l.unitPrice), vatable: l.vatable ?? pl.vatable })
+      }
+      lines = resolved
+    } else {
+      const left = await invoiceableQuantities(tx, po)
+      lines = po.lines
+        .filter((l) => (left.get(l.id) ?? 0n) > 0n)
+        .map((l) => ({ poLineId: l.id, description: l.description, quantity: formatQuantity(left.get(l.id)!), uom: l.uom, unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
+    }
+    const fieldSources: Record<string, string> = {}
+    for (const field of ['supplierInvoiceNo', 'invoiceDate', 'statedVat', 'discount', 'priceIncludesVat', 'lines'] as const) if (input[field] !== undefined) fieldSources[field] = 'AI_READING'
+
+    const invoice = await tx.invoice.create({
+      data: {
+        organizationId: ctx.organizationId,
+        poId: po.id,
+        supplierId: po.supplierId,
+        channel: 'UPLOAD',
+        prefill: 'AI_READING',
+        fieldSources,
+        agentActionId: input.agentActionId,
+        sourceFileId: file.id,
+        supplierInvoiceNo: input.supplierInvoiceNo ?? null,
+        supplierInvoiceNoNormalized: input.supplierInvoiceNo ? normalizeInvoiceNo(input.supplierInvoiceNo) : null,
+        invoiceDate: input.invoiceDate ? new Date(`${input.invoiceDate}T00:00:00Z`) : null,
+        priceIncludesVat: input.priceIncludesVat ?? false,
+        vatRateBp: po.vatRateBp,
+        retentionBp: po.retentionBp,
+        createdById: who.memberId,
+      },
+      select: { id: true },
+    })
+    if (lines.length > 0) await tx.invoiceLine.createMany({ data: lines.map((l, i) => ({ organizationId: ctx.organizationId, invoiceId: invoice.id, lineNo: i + 1, ...l })) })
+    const money = { ...(input.statedVat ? { statedVatSatang: amountToSatang(input.statedVat) } : {}), ...(input.discount ? { discountSatang: amountToSatang(input.discount) } : {}) }
+    if (!(await recalculate(tx, invoice.id, money))) return fail('VALIDATION_FAILED', 'the discount is above the invoice amount', { field: 'discount', reason: 'DISCOUNT_ABOVE_AMOUNT' })
+    await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: file.id, subjectType: 'Invoice', subjectId: invoice.id, kind: 'INVOICE' } })
+    // BR-AP-03: in this transaction; before S13 an aiAssist is MODULE_DISABLED and nothing is made
+    const assist = await applyAiAssist(tx, ctx, SUBJECT(invoice.id), input.aiAssist)
+    if (!assist.ok) return { ok: false, error: assist.error }
+    const events: EventDraft[] = [
+      {
+        type: 'invoice.drafted',
+        aggregateType: 'Invoice',
+        aggregateId: invoice.id,
+        data: { poId: po.id, supplierId: po.supplierId, channel: 'UPLOAD', prefill: 'AI_READING', agentActionId: input.agentActionId, sourceFileId: file.id, lineCount: lines.length },
+      },
+      ...assist.data,
+    ]
+    return { ok: true, result: { invoiceId: invoice.id }, events }
+  },
+})
+
+export function createDraftFromReading(ctx: Ctx, input: z.input<typeof ReadingInput>, options: RunOptions) {
+  return runCommand(ctx, createDraftFromReadingCommand, input, options)
+}
 
 export function createInvoice(ctx: Ctx, input: z.input<typeof CreateInput>, options: RunOptions) {
   return runCommand(ctx, createInvoiceCommand, input, options)

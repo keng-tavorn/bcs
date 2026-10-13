@@ -10,6 +10,7 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { openInvoiceNumbers } from '../ap/track'
 
 // Modules (spec §4.11, FR-PLT-011, FR-ADM-006 AC1, BR-AUTH-08, ADR-034). Only the BCS team switches modules, with a
 // contract reference and a reason, at /platform/tenants/[orgId]/modules; ORG_ADMIN sees the state at /admin/modules
@@ -71,6 +72,8 @@ export async function missingModuleRules(tx: TenantTx, module: Module, now: Date
 /** Lists open documents of the module that must be closed before it can be switched off (e.g. "PR-2569-00012"). */
 export type ModuleUsageCheck = (tx: TenantTx, ctx: Ctx) => Promise<string[]>
 const usageChecks = new Map<Module, ModuleUsageCheck>()
+// S8 (BR-IVC-06): PAY stays on while an invoice is not yet paid, rejected or cancelled
+usageChecks.set('PAY', (tx) => openInvoiceNumbers(tx))
 
 /** Each optional module registers its check when it is built (S7 onwards); tier 1 has none. */
 export function registerModuleUsageCheck(module: Module, check: ModuleUsageCheck): void {

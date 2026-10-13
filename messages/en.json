@@ -2672,6 +2672,7 @@
     "INTERNAL": "Something went wrong (reference {requestId})",
     "INVALID_STATE_TRANSITION": "The document is in a status that does not allow this action",
     "INVOICE_EXCEEDS_COMMITTED": "The invoice exceeds the remaining PO commitment ({remaining} baht)",
+    "INVOICE_TRACK_MISMATCH": "This purchase order already takes {track} invoices",
     "MODULE_DISABLED": "Your organization has not enabled the {module} module",
     "MODULE_IN_USE": "Cannot disable the module: {reason}",
     "NOT_FOUND": "Not found",

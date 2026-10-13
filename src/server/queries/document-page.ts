@@ -261,12 +261,22 @@ export interface PoInvoiceRowDto {
 
 export async function listPoInvoices(ctx: Ctx, poId: string): Promise<PoInvoiceRowDto[]> {
   if (!isUuid(poId)) return []
-  const rows = await forTenant(ctx.organizationId).invoiceConfirmation.findMany({
+  const db = forTenant(ctx.organizationId)
+  const rows = await db.invoiceConfirmation.findMany({
     where: { poId },
     orderBy: [{ invoiceDate: 'asc' }, { id: 'asc' }],
     select: { id: true, invoiceNo: true, invoiceDate: true, grossSatang: true, isFinal: true },
   })
-  return rows.map((r) => ({ id: r.id, invoiceNo: r.invoiceNo, invoiceDate: r.invoiceDate.toISOString().slice(0, 10), grossSatang: r.grossSatang, isFinal: r.isFinal }))
+  // Tier-2 invoices of S8 that were sent on (BR-AP-11); a PO has one kind or the other (BR-IVC-06)
+  const matched = await db.invoice.findMany({
+    where: { poId, status: { notIn: ['DRAFT', 'CANCELLED', 'REJECTED'] } },
+    orderBy: [{ invoiceDate: 'asc' }, { id: 'asc' }],
+    select: { id: true, supplierInvoiceNo: true, invoiceDate: true, grossSatang: true, isFinal: true },
+  })
+  return [
+    ...rows.map((r) => ({ id: r.id, invoiceNo: r.invoiceNo, invoiceDate: r.invoiceDate.toISOString().slice(0, 10), grossSatang: r.grossSatang, isFinal: r.isFinal })),
+    ...matched.map((r) => ({ id: r.id, invoiceNo: r.supplierInvoiceNo ?? '', invoiceDate: r.invoiceDate ? r.invoiceDate.toISOString().slice(0, 10) : '', grossSatang: r.grossSatang, isFinal: r.isFinal })),
+  ]
 }
 
 /**

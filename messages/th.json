@@ -2672,6 +2672,7 @@
     "INTERNAL": "เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId})",
     "INVALID_STATE_TRANSITION": "เอกสารอยู่ในสถานะที่ทำรายการนี้ไม่ได้",
     "INVOICE_EXCEEDS_COMMITTED": "ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท)",
+    "INVOICE_TRACK_MISMATCH": "PO นี้บันทึกใบกำกับแบบ {track} อยู่แล้ว",
     "MODULE_DISABLED": "องค์กรยังไม่ได้เปิดใช้โมดูล {module}",
     "MODULE_IN_USE": "ปิดโมดูลไม่ได้: {reason}",
     "NOT_FOUND": "ไม่พบข้อมูล",

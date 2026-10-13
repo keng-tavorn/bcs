@@ -103,7 +103,8 @@ export async function storeRoute(
   for (const step of route.steps) {
     const isFirst: boolean = first === null
     const stepRow: { id: string } = await tx.approvalStep.create({
-      data: { organizationId: ctx.organizationId, routeId: created.id, stepNo: step.stepNo, slaBusinessMinutes: step.slaBusinessMinutes, status: isFirst ? 'ACTIVE' : 'WAITING' },
+      // A DOA step: its doaStepNo is the step number resolveRoute gave it (BR-WF-06)
+      data: { organizationId: ctx.organizationId, routeId: created.id, stepNo: step.stepNo, doaStepNo: step.stepNo, slaBusinessMinutes: step.slaBusinessMinutes, status: isFirst ? 'ACTIVE' : 'WAITING' },
       select: { id: true },
     })
     if (!isFirst) continue

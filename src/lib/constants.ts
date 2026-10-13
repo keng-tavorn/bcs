@@ -162,3 +162,12 @@ export const NEW_REQUEST_DRAWER_BELOW_PX = 768
 
 /** More request types than this and the dialog that starts a new request offers a keyword search (FR-INT-010 AC3) */
 export const NEW_REQUEST_SEARCH_OVER = 6
+
+// ---------- S6 settings (src/lib/org-settings.ts) ----------
+/** The longest window or lapse an S6 day setting takes: about ten years */
+export const SETTINGS_MAX_DAYS = 3660
+/** One hundred percent in basis points, and the highest budget alert threshold (ten times the current budget) */
+export const BP_PER_WHOLE = 10_000
+export const BUDGET_ALERT_MAX_BP = 10 * BP_PER_WHOLE
+/** BR-BUD-17 default thresholds: 80 % and 100 % of the current budget */
+export const BUDGET_ALERT_DEFAULT_BP: readonly number[] = [8 * (BP_PER_WHOLE / 10), BP_PER_WHOLE]

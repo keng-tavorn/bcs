@@ -8,7 +8,8 @@ import type { Satang } from '../money/math'
 
 export const BUCKETS = ['OUTSIDE', 'AVAILABLE', 'RESERVED', 'COMMITTED', 'ACTUAL'] as const
 export type Bucket = (typeof BUCKETS)[number]
-export type SourceType = 'REQUEST_LINE' | 'PO_LINE' | 'IMPORT'
+// BUDGET_TRANSFER and BUDGET_OVERRUN (S6): the reservation of a transfer's source line and the earmark of an overrun
+export type SourceType = 'REQUEST_LINE' | 'PO_LINE' | 'IMPORT' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
 export type BudgetLineStatus = 'OPEN' | 'FROZEN' | 'CLOSED'
 
 export interface Buckets {

@@ -101,7 +101,7 @@ export const TASK_MACHINE = machine<TaskState, TaskCommand>('ApprovalTask', TASK
 
 export const DOA_VERSION_STATES = ['DRAFT', 'PENDING_APPROVAL', 'PUBLISHED', 'SUPERSEDED', 'REJECTED', 'WITHDRAWN'] as const
 export type DoaVersionState = (typeof DOA_VERSION_STATES)[number]
-export const DOA_VERSION_COMMANDS = ['doa.submit', 'doa.approve', 'doa.reject', 'doa.supersede', 'doa.withdraw'] as const
+export const DOA_VERSION_COMMANDS = ['doa.submit', 'doa.approve', 'doa.reject', 'doa.supersede', 'doa.withdraw', 'doa.requestWithdrawal', 'doa.rejectWithdrawal'] as const
 export type DoaVersionCommand = (typeof DOA_VERSION_COMMANDS)[number]
 
 export const DOA_VERSION_MACHINE = machine<DoaVersionState, DoaVersionCommand>('DoaVersion', DOA_VERSION_STATES, DOA_VERSION_COMMANDS, [
@@ -111,6 +111,129 @@ export const DOA_VERSION_MACHINE = machine<DoaVersionState, DoaVersionCommand>('
   { from: ['PUBLISHED'], command: 'doa.supersede', to: 'SUPERSEDED' },
   // S6 (BR-DOA-18): an approved version not yet in effect may be withdrawn; the service refuses it before S6
   { from: ['PUBLISHED'], command: 'doa.withdraw', to: 'WITHDRAWN' },
+  // S6 (FR-DOA-104): the withdrawal waits for its own DOA_CHANGE route; the version stays PUBLISHED until it is decided
+  // (the service checks effectiveFrom > now: ALREADY_EFFECTIVE)
+  { from: ['PUBLISHED'], command: 'doa.requestWithdrawal', to: 'PUBLISHED' },
+  { from: ['PUBLISHED'], command: 'doa.rejectWithdrawal', to: 'PUBLISHED' },
+])
+
+// ---------- workflow version (S6 · FR-WF-103 · BR-WF-12) ----------
+
+// Created DRAFT by workflowVersion.draft (a copy of the latest version), like a DOA version
+export const WORKFLOW_VERSION_STATES = DOA_VERSION_STATES
+export type WorkflowVersionState = DoaVersionState
+export const WORKFLOW_VERSION_COMMANDS = [
+  'workflowVersion.update',
+  'workflowVersion.submit',
+  'workflowVersion.approve',
+  'workflowVersion.reject',
+  'workflowVersion.supersede',
+  'workflowVersion.requestWithdrawal',
+  'workflowVersion.withdraw',
+  'workflowVersion.rejectWithdrawal',
+] as const
+export type WorkflowVersionCommand = (typeof WORKFLOW_VERSION_COMMANDS)[number]
+
+export const WORKFLOW_VERSION_MACHINE = machine<WorkflowVersionState, WorkflowVersionCommand>('WorkflowVersion', WORKFLOW_VERSION_STATES, WORKFLOW_VERSION_COMMANDS, [
+  // an update clears dryRunAt; submit needs lint, test cases and a dry-run of the latest draft (the service checks)
+  { from: ['DRAFT'], command: 'workflowVersion.update', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'workflowVersion.submit', to: 'PENDING_APPROVAL' },
+  // the last step of the DOA_CHANGE route, with step-up, by someone other than the submitter
+  { from: ['PENDING_APPROVAL'], command: 'workflowVersion.approve', to: 'PUBLISHED' },
+  { from: ['PENDING_APPROVAL'], command: 'workflowVersion.reject', to: 'REJECTED' },
+  // job workflow-version-activate at the next version's effectiveFrom
+  { from: ['PUBLISHED'], command: 'workflowVersion.supersede', to: 'SUPERSEDED' },
+  // not yet in effect (the service checks): the withdrawal has its own route, as a DOA version's (BR-DOA-18)
+  { from: ['PUBLISHED'], command: 'workflowVersion.requestWithdrawal', to: 'PUBLISHED' },
+  { from: ['PUBLISHED'], command: 'workflowVersion.withdraw', to: 'WITHDRAWN' },
+  { from: ['PUBLISHED'], command: 'workflowVersion.rejectWithdrawal', to: 'PUBLISHED' },
+])
+
+// ---------- form version (S6 · FR-INT-104 · BR-FORM-09) ----------
+
+// Created DRAFT by formVersion.draft or config.import (one draft per request type); a draft is never thrown away
+export const FORM_VERSION_STATES = ['DRAFT', 'PUBLISHED', 'RETIRED'] as const
+export type FormVersionState = (typeof FORM_VERSION_STATES)[number]
+export const FORM_VERSION_COMMANDS = ['formVersion.update', 'formVersion.publish', 'formVersion.retire'] as const
+export type FormVersionCommand = (typeof FORM_VERSION_COMMANDS)[number]
+
+export const FORM_VERSION_MACHINE = machine<FormVersionState, FormVersionCommand>('FormVersion', FORM_VERSION_STATES, FORM_VERSION_COMMANDS, [
+  { from: ['DRAFT'], command: 'formVersion.update', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'formVersion.publish', to: 'PUBLISHED' },
+  // the next version of the same request type is published in the same transaction
+  { from: ['PUBLISHED'], command: 'formVersion.retire', to: 'RETIRED' },
+])
+
+// ---------- approval step with slots (S6 · BR-WF-01) ----------
+
+export const STEP_STATES = ['WAITING', 'ACTIVE', 'DONE', 'CANCELLED'] as const
+export type StepState = (typeof STEP_STATES)[number]
+export const STEP_COMMANDS = ['step.activate', 'step.group_decided', 'step.decided', 'step.cancel'] as const
+export type StepCommand = (typeof STEP_COMMANDS)[number]
+
+export const STEP_MACHINE = machine<StepState, StepCommand>('ApprovalStep', STEP_STATES, STEP_COMMANDS, [
+  // the step before is APPROVED, or this is the first step: a task for every slot at once
+  { from: ['WAITING'], command: 'step.activate', to: 'ACTIVE' },
+  // a group of a REVIEW step is APPROVED while the step is still OPEN: the group's other open tasks are cancelled
+  { from: ['ACTIVE'], command: 'step.group_decided', to: 'ACTIVE' },
+  // stepOutcome is no longer OPEN: the step's open tasks are cancelled
+  { from: ['ACTIVE'], command: 'step.decided', to: 'DONE' },
+  // the route is cancelled
+  { from: ['WAITING', 'ACTIVE'], command: 'step.cancel', to: 'CANCELLED' },
+])
+
+// ---------- budget transfer (S6 · FR-BUD-103 · BR-BUD-10) ----------
+
+export const BUDGET_TRANSFER_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'RETURNED', 'CANCELLED'] as const
+export type BudgetTransferState = (typeof BUDGET_TRANSFER_STATES)[number]
+export const BUDGET_TRANSFER_COMMANDS = ['budgetTransfer.submit', 'budgetTransfer.final_approval', 'approval.reject', 'approval.return', 'budgetTransfer.cancel'] as const
+export type BudgetTransferCommand = (typeof BUDGET_TRANSFER_COMMANDS)[number]
+
+// Created DRAFT by budgetTransfer.create
+export const BUDGET_TRANSFER_MACHINE = machine<BudgetTransferState, BudgetTransferCommand>('BudgetTransfer', BUDGET_TRANSFER_STATES, BUDGET_TRANSFER_COMMANDS, [
+  // reserves the source line (TRANSFER, DECREASE), issues the number and starts the BUDGET_TRANSFER route
+  { from: ['DRAFT', 'RETURNED'], command: 'budgetTransfer.submit', to: 'PENDING_APPROVAL' },
+  // releases the reservation and moves the amount out of the source and into the target in one transaction
+  { from: ['PENDING_APPROVAL'], command: 'budgetTransfer.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
+  { from: ['DRAFT', 'RETURNED', 'PENDING_APPROVAL'], command: 'budgetTransfer.cancel', to: 'CANCELLED' },
+])
+
+// ---------- over-budget approval (S6 · FR-BUD-101 · BR-BUD-12 to 18) ----------
+
+export const BUDGET_OVERRUN_STATES = ['PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'RETURNED', 'CANCELLED', 'CONSUMED', 'LAPSED'] as const
+export type BudgetOverrunState = (typeof BUDGET_OVERRUN_STATES)[number]
+export const BUDGET_OVERRUN_COMMANDS = [
+  'budgetOverrun.final_approval',
+  'approval.reject',
+  'approval.return',
+  'budgetOverrun.cancel',
+  'request.cancel',
+  'budgetOverrun.lapse',
+  'budgetOverrun.consume',
+  'budgetOverrun.returnUnused',
+] as const
+export type BudgetOverrunCommand = (typeof BUDGET_OVERRUN_COMMANDS)[number]
+
+// Created PENDING_APPROVAL by budgetOverrun.submit with its OVER_BUDGET route; REJECTED and RETURNED are final (the
+// requester asks again with a new overrun)
+export const BUDGET_OVERRUN_MACHINE = machine<BudgetOverrunState, BudgetOverrunCommand>('BudgetOverrun', BUDGET_OVERRUN_STATES, BUDGET_OVERRUN_COMMANDS, [
+  // funds X and earmarks it for the request (BR-BUD-13)
+  { from: ['PENDING_APPROVAL'], command: 'budgetOverrun.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'RETURNED' },
+  // by the requester, or with its request: before approval nothing moved; after, X goes back outside (BR-BUD-15)
+  { from: ['PENDING_APPROVAL'], command: 'budgetOverrun.cancel', to: 'CANCELLED' },
+  { from: ['APPROVED'], command: 'budgetOverrun.cancel', to: 'LAPSED' },
+  { from: ['PENDING_APPROVAL'], command: 'request.cancel', to: 'CANCELLED' },
+  { from: ['APPROVED'], command: 'request.cancel', to: 'LAPSED' },
+  // job budget-overrun-lapse at lapsesAt
+  { from: ['APPROVED'], command: 'budgetOverrun.lapse', to: 'LAPSED' },
+  // the request's submit or resubmit succeeds (BR-BUD-14)
+  { from: ['APPROVED'], command: 'budgetOverrun.consume', to: 'CONSUMED' },
+  // a later command gives the request's budget back: the unused part goes outside (BR-BUD-18)
+  { from: ['CONSUMED'], command: 'budgetOverrun.returnUnused', to: 'CONSUMED' },
 ])
 
 // ---------- organization authority change ----------
@@ -193,4 +316,20 @@ export const VARIANCE_MACHINE = machine<VarianceState, VarianceCommand>('Varianc
   { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
 ])
 
-export const MACHINES = [REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, TASK_MACHINE, DOA_VERSION_MACHINE, ORG_CHANGE_MACHINE, DELEGATION_MACHINE, PO_MACHINE, GR_MACHINE, VARIANCE_MACHINE] as const
+export const MACHINES = [
+  REQUEST_MACHINE,
+  SUPPLIER_REQUEST_MACHINE,
+  TASK_MACHINE,
+  DOA_VERSION_MACHINE,
+  ORG_CHANGE_MACHINE,
+  DELEGATION_MACHINE,
+  PO_MACHINE,
+  GR_MACHINE,
+  VARIANCE_MACHINE,
+  // S6
+  WORKFLOW_VERSION_MACHINE,
+  FORM_VERSION_MACHINE,
+  STEP_MACHINE,
+  BUDGET_TRANSFER_MACHINE,
+  BUDGET_OVERRUN_MACHINE,
+] as const

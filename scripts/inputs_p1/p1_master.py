@@ -181,6 +181,16 @@ SETTINGS = [
     ('express.encoding', 'UTF-8-BOM', 'encoding ไฟล์ส่ง Express (รอไฟล์ตัวอย่าง)', 'OQ-10'),
     ('poIdleDays', 30, 'PO ไม่มีความเคลื่อนไหวกี่วันจึงเตือนให้ปิด', 'OQ-36'),
     ('registry.mode', 'stub', 'ตรวจผู้ขายกับสรรพากรและ DBD: stub = ข้อมูลจำลอง', 'OQ-37'),
+    # S6
+    ('duplicateCheck.windowDays', 7, 'ตรวจคำขอซ้ำและการแตกยอดย้อนหลังกี่วัน', 'OQ-103'),
+    ('priceRef.windowDays', 365, 'ราคาอ้างอิงใช้ PO ที่อนุมัติย้อนหลังกี่วัน', 'FR-DOA-101'),
+    ('priceRef.minSamples', 3, 'ราคาอ้างอิงต้องมีอย่างน้อยกี่รายการจึงไม่ขึ้น "ข้อมูลน้อย"', 'FR-DOA-101'),
+    ('budget.alertThresholdsBp', '8000,10000', 'เตือนเมื่อใช้งบถึง (หน่วย 0.01% คั่นด้วยจุลภาค: 8000 = 80%)', 'OQ-113'),
+    ('budget.forecastMinElapsedDays', 30, 'พยากรณ์การใช้งบเมื่อผ่านปีงบไปแล้วกี่วัน', 'OQ-113'),
+    ('budget.overrunLapseDays', 14, 'การอนุมัติเกินงบมีอายุกี่วัน', 'OQ-104'),
+    ('renewal.milestoneDays', '60,30', 'เตือนต่ออายุบริการก่อนหมดกี่วัน (คั่นด้วยจุลภาค)', 'FR-INT-101'),
+    ('numbering.BT', 'BT-{BE}-{SEQ5}', 'รูปแบบเลขใบโอนและปรับงบ', 'OQ-12'),
+    ('numbering.OB', 'OB-{BE}-{SEQ5}', 'รูปแบบเลขใบขออนุมัติเกินงบ', 'OQ-12'),
 ]
 
 # DOA version 1: the proposal v1.2 bands (OQ-01 default, the best evidence of the customer's real DOA) on a bigger org

@@ -56,7 +56,8 @@ describe('[P1-07] lists the lanes add to keep one entry per line', () => {
   it('numbering in org-settings.ts has one key per line, sorted', () => {
     const text = readFileSync(path.join(ROOT, 'src/lib/org-settings.ts'), 'utf8')
     const block = /numbering: z\n\s+\.object\(\{\n([\s\S]*?)\n\s+\}\)/.exec(text)![1]!
-    const keys = block.split('\n').map((l) => /^\s+([A-Z]+): numberingRule,$/.exec(l)?.[1])
+    // A key a lane adds is optional (S6 BT OB): numberingRule.optional()
+    const keys = block.split('\n').map((l) => /^\s+([A-Z_]+): numberingRule(?:\.optional\(\))?,$/.exec(l)?.[1])
     expect(keys.every(Boolean)).toBe(true)
     expect(keys).toEqual([...keys].sort())
   })

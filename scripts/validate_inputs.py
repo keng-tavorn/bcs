@@ -248,6 +248,20 @@ if not isinstance(rate, (int, float)) or not 0 < rate < 1: sp.append(f'{at("Sett
 for k, (v, r) in SET.items():
     if k.startswith('numbering.') and k != 'numbering.reset' and not re.search(r'\{SEQ\d+\}', s_(v)): sp.append(f'{at("Settings","value",r)} {k} ต้องมี {{SEQn}}')
     if k.endswith('Pct') and (not isinstance(v, (int, float)) or not 0 <= v <= 1): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นเศษส่วน 0–1')
+# S6 keys: the same ranges as OrgSettingsSchema in src/lib/org-settings.ts · the phase-1 file must have them all
+S6_SET = {'duplicateCheck.windowDays': (1, 3660), 'priceRef.windowDays': (1, 3660), 'priceRef.minSamples': (1, None),
+          'budget.forecastMinElapsedDays': (1, 3660), 'budget.overrunLapseDays': (1, 3660)}
+S6_LIST = {'budget.alertThresholdsBp': (1, 100000), 'renewal.milestoneDays': (1, 3660)}
+def whole_in(v, lo, hi): return isinstance(v, int) and not isinstance(v, bool) and v >= lo and (hi is None or v <= hi)
+for k in [*S6_SET, *S6_LIST, 'numbering.BT', 'numbering.OB']:
+    if k not in SET:
+        if PROFILE == 'p1': sp.append(f'ชีต Settings ไม่มีแถว {k} (ค่าตั้งของ S6)')
+        continue
+    v, r = SET[k]
+    if k in S6_SET and not whole_in(v, *S6_SET[k]): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม {S6_SET[k][0]}' + (f'–{S6_SET[k][1]}' if S6_SET[k][1] else ' ขึ้นไป'))
+    if k in S6_LIST:
+        parts = s_(v).split(',')
+        if not all(re.fullmatch(r'\s*\d+\s*', p_) and whole_in(int(p_), *S6_LIST[k]) for p_ in parts): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม {S6_LIST[k][0]}–{S6_LIST[k][1]} คั่นด้วยจุลภาค')
 hs, he = s_(SET.get('businessHoursStart', ('', 0))[0]), s_(SET.get('businessHoursEnd', ('', 0))[0])
 if not (re.fullmatch(r'\d\d:\d\d', hs) and re.fullmatch(r'\d\d:\d\d', he) and hs < he): sp.append('businessHoursStart/End ต้องเป็น HH:MM และเริ่มก่อนเลิก')
 check(not sp, 'ค่าตั้งต้น (Settings)', f'{len(SET)} ค่า', '; '.join(sp), 'ระบบคำนวณ VAT เลขเอกสาร หรือ SLA ผิด', 'แก้ช่องที่ระบุในชีต Settings')

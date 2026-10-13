@@ -12,6 +12,7 @@ import { systemDb } from '@/server/db/system'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents, type EventDraft } from '@/server/events/append'
 import { expressLayoutFromSheet } from './express-layout'
+import { s6SettingsFromSheet } from './settings-s6'
 import type { InputWorkbook } from './workbook'
 
 // Demo organization loader (spec Appendix A, S1-13): sheets Org and Users of docs/inputs/BCS_inputs_v1_demo.xlsx
@@ -92,7 +93,8 @@ export function parseDemoOrgInput(workbook: InputWorkbook, settingsYaml: string)
   const settings = OrgSettingsSchema.safeParse(parseYaml(settingsYaml))
   if (!settings.success) throw new Error(`${ORG_SETTINGS_DEMO_PATH}: ${issueText(settings.error)}`)
   // The Express columns are whatever the person filling in the workbook wrote, never a guess (§7.13, §17.3)
-  return { org: org.data, settings: { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }, users }
+  const withExpress = { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }
+  return { org: org.data, settings: s6SettingsFromSheet(workbook, withExpress), users }
 }
 
 export function loadOrgSettingsYaml(path: string = ORG_SETTINGS_DEMO_PATH): string {

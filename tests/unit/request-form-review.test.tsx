@@ -348,7 +348,7 @@ describe('[FR-INT-005/AC2] [§9.9] every point of "ตรวจก่อนส�
    * (FILE_REQUIRED), none chosen (QUOTE-SELECTED), a dearer one without its reason (QUOTE-LOWEST), a rule not met
    * (ATTACHMENT_RULE_FAILED)
    */
-  const SENT_BUT_REFUSED: ReviewProps['problems'] = [
+  const SENT_BUT_REFUSED: LiffReviewProps['problems'] = [
     { kind: 'BUDGET_LINE' },
     { kind: 'FIELD_REQUIRED', fieldId: 'category' },
     { kind: 'SERVICE_END_DATE', lineNo: 1 },

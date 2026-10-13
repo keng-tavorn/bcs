@@ -1,6 +1,7 @@
 import { compareQuotations, evaluateCondition, evaluateForm, type FormInput } from '@/core/forms'
 import { amountToSatang } from '@/core/money/dto'
 import { documentTotals, lineNet, type Satang } from '@/core/money/math'
+import { catalogIndex, pickCatalogLine, unlinkCatalogLine, withAgreedPrices, type CatalogPick, type CatalogProblem } from './catalog-lines'
 import type { FormDefinition, RequestFormData } from './types'
 
 // The request form's state and the rules the screen runs as the requester types (S2-11, §7.9): which fields show, which
@@ -19,6 +20,8 @@ export interface FormLine {
   readonly unitPrice: string
   readonly vatable: boolean
   readonly serviceEndDate: string
+  /** S6-10: the catalogue item the line is (BR-PRC-06); absent or null: typed freely */
+  readonly catalogItemId?: string | null
 }
 
 export interface FormQuotation {
@@ -45,6 +48,13 @@ export interface FormValues {
   readonly lines: readonly FormLine[]
   readonly quotations: readonly FormQuotation[]
   readonly nonLowestQuoteReason: string
+  /**
+   * S6-10: the catalogue items the form knows (those its lines name, and those chosen since), by id — absent in a form
+   * that does not offer the catalogue (the LIFF form), whose catalogue lines the server alone checks (./catalog-lines.ts)
+   */
+  readonly catalog?: Readonly<Record<string, CatalogPick>>
+  /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one; absent where the catalogue is not offered */
+  readonly offAgreementReason?: string
 }
 
 export type FormAction =
@@ -62,6 +72,10 @@ export type FormAction =
   | { readonly type: 'removeQuotation'; readonly key: string }
   | { readonly type: 'selectQuotation'; readonly key: string }
   | { readonly type: 'reason'; readonly value: string }
+  /** S6-10: a line takes an item of the catalogue; `offered`: the suppliers the form offers to suggest */
+  | { readonly type: 'pickCatalog'; readonly key: string; readonly item: CatalogPick; readonly offered: readonly string[] }
+  | { readonly type: 'unlinkCatalog'; readonly key: string }
+  | { readonly type: 'offAgreementReason'; readonly value: string }
   /** A save went through: lines it carried get their ids, quotations it carried count as stored */
   | { readonly type: 'saved'; readonly lines: ReadonlyArray<{ readonly key: string; readonly id: string }>; readonly quotations: readonly string[] }
 
@@ -83,6 +97,12 @@ export function droppedChoice(saved: string | null | undefined, options: Readonl
  * delivery site prefilled (BR-FORM-02)
  */
 export function initialValues(data: RequestFormData): FormValues {
+  const opened = openingValues(data)
+  // A form that offers the catalogue knows the items of its lines, and their lines take today's agreed prices (S6-10)
+  return data.catalogItems ? withAgreedPrices({ ...opened, catalog: catalogIndex(data.catalogItems), offAgreementReason: data.draft?.offAgreementReason ?? '' }) : opened
+}
+
+function openingValues(data: RequestFormData): FormValues {
   const d = data.draft
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   if (!d) {
@@ -124,7 +144,8 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
     case 'deliverySite':
       return { ...state, deliverySiteId: action.value }
     case 'suggestedSupplier':
-      return { ...state, suggestedSupplierId: action.value }
+      // The suggested supplier is the supplier of the lines: its agreed prices apply (BR-PRC-06)
+      return withAgreedPrices({ ...state, suggestedSupplierId: action.value })
     case 'priceIncludesVat':
       return { ...state, priceIncludesVat: action.value }
     case 'field':
@@ -146,6 +167,12 @@ export function formReducer(state: FormValues, action: FormAction): FormValues {
       return { ...state, quotations: state.quotations.map((q) => ({ ...q, selected: q.key === action.key })) }
     case 'reason':
       return { ...state, nonLowestQuoteReason: action.value }
+    case 'pickCatalog':
+      return pickCatalogLine(state, action.key, action.item, action.offered)
+    case 'unlinkCatalog':
+      return unlinkCatalogLine(state, action.key)
+    case 'offAgreementReason':
+      return { ...state, offAgreementReason: action.value }
     case 'saved': {
       const ids = new Map(action.lines.map((l) => [l.key, l.id]))
       const stored = new Set(action.quotations)
@@ -198,9 +225,10 @@ export interface DraftPayload {
   readonly suggestedSupplierId?: string | null
   readonly priceIncludesVat: boolean
   readonly formData: Record<string, unknown>
-  readonly lines?: Array<{ id: string | null; description: string; quantity: string; uom: string; unitPrice: string; vatable: boolean; serviceEndDate?: string }>
+  readonly lines?: Array<{ id: string | null; description: string; quantity: string; uom: string; unitPrice: string; vatable: boolean; serviceEndDate?: string; catalogItemId: string | null; categoryCode?: string }>
   readonly quotations?: Array<{ supplierName: string; amount: string; includesVat: boolean; fileId?: string; selected: boolean }>
   readonly nonLowestQuoteReason?: string | null
+  readonly offAgreementReason?: string | null
 }
 
 /** One save: what it sends, and which lines and quotations of the screen it carries (in order) */
@@ -231,6 +259,7 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
   const quotesReady = values.quotations.every((q) => !q.saved || savableQuotation(q))
   const sentQuotes = quotesReady ? values.quotations.filter(savableQuotation) : null
   const reason = values.nonLowestQuoteReason.trim()
+  const offReason = (values.offAgreementReason ?? '').trim()
   const draft: DraftPayload = {
     ...(title ? { title } : isNew ? { title: typeName.slice(0, TITLE_MAX) } : {}),
     ...(values.budgetLineId ? { budgetLineId: values.budgetLineId } : isNew ? {} : { budgetLineId: null }),
@@ -249,6 +278,9 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
             unitPrice: plainNumber(l.unitPrice),
             vatable: l.vatable,
             ...(validDate(l.serviceEndDate) ? { serviceEndDate: l.serviceEndDate } : {}),
+            // S6-10: every line says whether it is a catalogue item; one the form knows brings the item's category
+            catalogItemId: l.catalogItemId ?? null,
+            ...(l.catalogItemId && values.catalog?.[l.catalogItemId] ? { categoryCode: values.catalog[l.catalogItemId]!.categoryCode } : {}),
           })),
         }
       : {}),
@@ -264,6 +296,8 @@ export function draftPayload(values: FormValues, typeName: string, isNew: boolea
         }
       : {}),
     ...(reason ? { nonLowestQuoteReason: reason } : isNew ? {} : { nonLowestQuoteReason: null }),
+    // Only a form that offers the catalogue asks it, so only such a form clears it (the LIFF form leaves it as saved)
+    ...(offReason ? { offAgreementReason: offReason } : isNew || values.offAgreementReason === undefined ? {} : { offAgreementReason: null }),
   }
   return { draft, lineKeys: sentLines ? sentLines.map((l) => l.key) : null, quotationKeys: sentQuotes ? sentQuotes.map((q) => q.key) : null }
 }
@@ -371,6 +405,9 @@ export type Problem =
   | { readonly kind: 'QUOTATION_REASON' }
   | { readonly kind: 'ATTACHMENTS'; readonly ruleId: string }
 
+/** A problem the workspace's form lists: those of every form, and the catalogue's (S6-10, ./catalog-lines.ts) */
+export type FormProblem = Problem | CatalogProblem
+
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
 
 /**
@@ -412,7 +449,7 @@ const NO_DOCUMENT_FIELDS: ReadonlySet<string> = new Set()
  * The step where each problem is fixed. A field the attachment rules ask to be filled is asked beside the documents
  * (`documentFields`, ./document-fields.ts), every other field with the request's details.
  */
-export function problemStep(p: Problem, documentFields: ReadonlySet<string> = NO_DOCUMENT_FIELDS): 'details' | 'items' | 'documents' {
+export function problemStep(p: FormProblem, documentFields: ReadonlySet<string> = NO_DOCUMENT_FIELDS): 'details' | 'items' | 'documents' {
   switch (p.kind) {
     case 'FIELD_REQUIRED':
       return documentFields.has(p.fieldId) ? 'documents' : 'details'
@@ -422,6 +459,9 @@ export function problemStep(p: Problem, documentFields: ReadonlySet<string> = NO
     case 'NO_LINES':
     case 'LINE_INCOMPLETE':
     case 'SERVICE_END_DATE':
+    case 'AGREEMENT_REASON':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return 'items'
     default:
       return 'documents'

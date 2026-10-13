@@ -13,7 +13,8 @@ import { RequestForm } from '@/ui/request-form/request-form'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { editRefusal } from '../../../_tracking/access'
-import { attachFileAction, detachFileAction, previewRequestAction, submitRequestAction } from '../../new/actions'
+import { attachFileAction, detachFileAction, previewRequestAction, searchCatalogAction, submitRequestAction } from '../../new/actions'
+import { draftCatalogItems } from '../../new/catalog-options'
 
 export async function generateMetadata() {
   const t = await getTranslations('requestForm.page')
@@ -74,10 +75,12 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
       </Page>
     )
   }
+  // S6-10: the catalogue items its lines name, with today's agreed prices
+  const catalogItems = await draftCatalogItems(ctx, result.data.draft?.lines ?? [])
   // The form is a step-by-step screen of its own, with its title and the way out at its top (RequestForm)
   return (
     <RequestForm
-      data={result.data}
+      data={{ ...result.data, catalogItems }}
       locale={screen}
       autosaveUrl="/requests/new/autosave"
       actions={{
@@ -88,6 +91,7 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
         requestUpload: requestUploadAction,
         completeUpload: completeUploadAction,
         downloadUrl: downloadUrlAction,
+        catalog: searchCatalogAction,
       }}
     />
   )

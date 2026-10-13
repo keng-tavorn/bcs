@@ -1,13 +1,16 @@
 'use client'
 
-import { Plus } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import type { ComponentType } from 'react'
+import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { v4 as uuidv4 } from 'uuid'
 import type { FormInput } from '@/core/forms'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { ConfirmRemove } from './confirm-remove'
-import { checkboxClass, describedBy, inputClass, Labelled } from './controls'
+import { asksOffAgreementReason, catalogProblems, lineAgreement, type CatalogPick } from './catalog-lines'
+import { checkboxClass, describedBy, inputClass, Labelled, textareaClass } from './controls'
 import { documentFieldIds } from './document-fields'
 import { FieldInput, showDay } from './field-input'
 import { lineAmount, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
@@ -15,7 +18,7 @@ import { showMoney, showSatang } from './money'
 import { MoneyInput } from './money-input'
 import { DeliverySiteField } from './place-supplier'
 import { BudgetStatus, TotalsList } from './summary'
-import type { BudgetView, RequestFormData, ScreenLocale } from './types'
+import type { BudgetView, CatalogSearch, RequestFormData, ScreenLocale } from './types'
 
 // Steps 1 and 2 of the request form (FR-INT-002, FR-INT-003, FR-INT-004): the title, the budget line (prefilled,
 // BR-FORM-02; only the requester's own or granted lines, BR-BUD-04) with what is left on it, the questions of the
@@ -38,6 +41,22 @@ export interface StepProps {
   readonly previewLoading: boolean
   /** Errors the server reported for fields of the form (by field id) */
   readonly fieldErrors: Readonly<Record<string, string>>
+  /** S6-10: the catalogue the workspace's form offers each line; absent, lines are typed only (the LIFF form) */
+  readonly catalog?: CatalogOffer
+}
+
+/** The picker of a line (./catalog-picker.tsx, drawn with the workspace's components) and the search it calls */
+export interface CatalogOffer {
+  readonly Picker: ComponentType<CatalogPickerProps>
+  readonly search: CatalogSearch
+}
+
+export interface CatalogPickerProps {
+  readonly lineNo: number
+  /** The line is a catalogue item already: the picker changes it */
+  readonly linked: boolean
+  readonly search: CatalogSearch
+  readonly onPick: (item: CatalogPick) => void
 }
 
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
@@ -178,6 +197,7 @@ export function LinesSection(props: StepProps & { readonly endDateRequired: bool
         <Plus className="size-4" aria-hidden="true" />
         {t('lines.add')}
       </Button>
+      <OffAgreementReason {...props} />
       <section aria-labelledby="totals-heading" className="flex flex-col gap-2">
         <h3 id="totals-heading" className="subheading font-semibold">
           {t('totals.title')}
@@ -197,7 +217,76 @@ export function LinesSection(props: StepProps & { readonly endDateRequired: bool
   )
 }
 
-function LineFields({ line, n, canRemove, update, values, showErrors, endDateRequired, locale }: StepProps & { line: FormLine; n: number; canRemove: boolean; endDateRequired: boolean }) {
+/**
+ * S6-10 (BR-PRC-06): why the request goes to another supplier than the agreed one of a catalogue item, asked under the
+ * lines while one of them is off its agreed prices (or a reason is kept). Required before sending; the server refuses
+ * the send without it (AGREEMENT_OFF).
+ */
+function OffAgreementReason({ values, update, showErrors, data }: StepProps) {
+  const t = useTranslations('requestForm.catalog')
+  const tf = useTranslations('requestForm.fields')
+  if (!asksOffAgreementReason(values)) return null
+  const missing = catalogProblems(values).some((p) => p.kind === 'AGREEMENT_REASON')
+  const error = showErrors && missing ? t('reasonMissing') : undefined
+  const supplier = (data.suppliers ?? []).find((s) => s.id === values.suggestedSupplierId)
+  return (
+    <Labelled
+      id="off-agreement-reason"
+      label={t('reasonLabel')}
+      requiredText={missing ? tf('required') : undefined}
+      hint={supplier ? t('reasonHint', { supplier: supplier.name }) : t('reasonHintNoSupplier')}
+      error={error}
+      className="max-w-xl"
+    >
+      <textarea
+        id="off-agreement-reason"
+        name="offAgreementReason"
+        className={textareaClass}
+        value={values.offAgreementReason ?? ''}
+        maxLength={REASON_MAX_LENGTH}
+        aria-required={missing || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy('off-agreement-reason', true, Boolean(error))}
+        onChange={(e) => update({ type: 'offAgreementReason', value: e.currentTarget.value })}
+      />
+    </Labelled>
+  )
+}
+
+/** S6-10: where a line stands with the catalogue — the picker, the item it is, and what its agreed prices ask */
+function CatalogLine({ line, n, values, update, data, catalog }: StepProps & { line: FormLine; n: number; catalog: CatalogOffer }) {
+  const t = useTranslations('requestForm.catalog')
+  const state = lineAgreement(line, values)
+  const offered = (data.suppliers ?? []).map((s) => s.id)
+  const { Picker } = catalog
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Picker lineNo={n} linked={Boolean(line.catalogItemId)} search={catalog.search} onPick={(item) => update({ type: 'pickCatalog', key: line.key, item, offered })} />
+        {line.catalogItemId ? (
+          <Button variant="link" onClick={() => update({ type: 'unlinkCatalog', key: line.key })}>
+            {t('unlink', { n })}
+          </Button>
+        ) : null}
+      </div>
+      {state.kind === 'LISTED' || state.kind === 'LOCKED' || state.kind === 'OFF' ? (
+        <p className="text-base text-ink-muted md:text-sm">{t('fromCatalog', { code: state.item.code, name: state.item.nameTh })}</p>
+      ) : null}
+      {state.kind === 'OFF' ? (
+        <Notice tone="warning">{t('offNote', { suppliers: state.item.agreements.map((a) => a.supplierName).join(t('join')) })}</Notice>
+      ) : null}
+      {state.kind === 'UNLISTED' ? <Notice tone="danger">{t('unlisted', { n })}</Notice> : null}
+      {state.kind === 'LOCKED' && values.priceIncludesVat ? <Notice tone="danger">{t('beforeVat')}</Notice> : null}
+    </div>
+  )
+}
+
+function LineFields(props: StepProps & { line: FormLine; n: number; canRemove: boolean; endDateRequired: boolean }) {
+  const { line, n, canRemove, update, values, showErrors, endDateRequired, locale, catalog } = props
+  const tc = useTranslations('requestForm.catalog')
+  // S6-10: a catalogue item with an agreed price with the suggested supplier takes that price, which cannot be changed
+  const agreement = lineAgreement(line, values)
+  const locked = agreement.kind === 'LOCKED' ? agreement.agreement : null
   const t = useTranslations('requestForm.lines')
   const tf = useTranslations('requestForm.fields')
   const p = `line-${n}`
@@ -217,6 +306,7 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
   return (
     <fieldset className="flex min-w-0 flex-col gap-4">
       <legend className="mb-1 subheading font-semibold">{t('line', { n })}</legend>
+      {catalog ? <CatalogLine {...props} catalog={catalog} /> : null}
       <Labelled id={`${p}-description`} label={t('description')} requiredText={tf('required')} error={shown.description}>
         <input id={`${p}-description`} className={inputClass} value={line.description} maxLength={500} required aria-required onChange={(e) => set({ description: e.currentTarget.value })} {...control(`${p}-description`, shown.description)} />
       </Labelled>
@@ -227,8 +317,31 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
         <Labelled id={`${p}-uom`} label={t('uom')} requiredText={tf('required')} hint={t('uomHint')} error={shown.uom}>
           <input id={`${p}-uom`} className={inputClass} value={line.uom} maxLength={30} required aria-required onChange={(e) => set({ uom: e.currentTarget.value })} {...control(`${p}-uom`, shown.uom, true)} />
         </Labelled>
-        <Labelled id={`${p}-price`} className="col-span-2 @min-[40rem]:col-span-1" label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')} requiredText={tf('required')} error={shown.unitPrice}>
-          <MoneyInput id={`${p}-price`} className={`${inputClass} tabular text-right`} value={line.unitPrice} required aria-required onChange={(e) => set({ unitPrice: e.currentTarget.value })} {...control(`${p}-price`, shown.unitPrice)} />
+        <Labelled
+          id={`${p}-price`}
+          className="col-span-2 @min-[40rem]:col-span-1"
+          label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')}
+          requiredText={tf('required')}
+          hint={
+            locked ? (
+              <span className="inline-flex items-start gap-1.5">
+                <Lock className="mt-1 size-4 shrink-0" aria-hidden="true" />
+                <span>{tc('locked', { supplier: locked.supplierName })}</span>
+              </span>
+            ) : undefined
+          }
+          error={shown.unitPrice}
+        >
+          <MoneyInput
+            id={`${p}-price`}
+            className={`${inputClass} tabular text-right read-only:bg-surface`}
+            value={line.unitPrice}
+            required
+            aria-required
+            readOnly={locked !== null}
+            onChange={(e) => set({ unitPrice: e.currentTarget.value })}
+            {...control(`${p}-price`, shown.unitPrice, locked !== null)}
+          />
         </Labelled>
       </div>
       <label className="flex min-h-11 items-center gap-3">

@@ -21,6 +21,7 @@
     "pool": "Purchasing queue",
     "pos": "Purchase orders",
     "suppliers": "Suppliers",
+    "catalog": "Catalogue",
     "invoices": "Confirm invoices",
     "exports": "Express export",
     "budgets": "Budgets",

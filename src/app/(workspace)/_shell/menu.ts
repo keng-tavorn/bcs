@@ -21,6 +21,7 @@ export type MenuKey =
   | 'pool'
   | 'pos'
   | 'suppliers'
+  | 'catalog'
   | 'invoices'
   | 'exports'
   | 'budgets'
@@ -72,6 +73,8 @@ export const MENU: readonly MenuItem[] = [
   { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.view', scopes: ['ORG'], module: 'CORE', ready: true },
   { key: 'receiving', href: '/receiving', group: 'procurement', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
+  // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page
+  { key: 'catalog', href: '/catalog', group: 'procurement', capability: 'catalog.view', module: 'CORE', ready: true },
   { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true },
   { key: 'exports', href: '/finance/exports', group: 'finance', capability: 'export.express', module: 'CORE', ready: true },
   { key: 'budgets', href: '/budgets', group: 'finance', capability: 'budget.view', scopes: ['DEPT', 'ORG'], module: 'CORE', ready: true },

@@ -54,6 +54,8 @@ export interface DraftLine {
   readonly unitPrice: string
   readonly vatable: boolean
   readonly serviceEndDate: string | null
+  /** S6-10: the catalogue item the line is (BR-PRC-06); absent or null: typed freely */
+  readonly catalogItemId?: string | null
 }
 
 export interface DraftQuotation {
@@ -88,6 +90,8 @@ export interface RequestDraft {
   readonly deliverySiteId?: string | null
   /** The supplier the requester suggests (FR-P2P-001 AC2) */
   readonly suggestedSupplierId?: string | null
+  /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one; absent: none */
+  readonly offAgreementReason?: string
 }
 
 export interface DeliverySiteOption {
@@ -104,6 +108,21 @@ export interface SupplierOption {
   readonly name: string
 }
 
+/**
+ * An item of the catalogue as the request form offers it (S6-10, FR-INT-102): the active items with the agreed prices in
+ * effect today (src/server/services/catalog/view.ts CatalogItemDto). Money as satang text, before VAT.
+ */
+export interface CatalogItemOption {
+  readonly id: string
+  readonly code: string
+  readonly nameTh: string
+  readonly nameEn: string | null
+  readonly uom: string
+  readonly categoryCode: string
+  readonly refUnitPriceSatang: string
+  readonly agreements: ReadonlyArray<{ readonly supplierId: string; readonly supplierCode: string; readonly supplierName: string; readonly unitPriceSatang: string }>
+}
+
 export interface RequestFormData {
   readonly type: { readonly code: string; readonly name: string; readonly description: string | null; readonly documentType: DocumentType }
   readonly form: FormDefinition
@@ -118,6 +137,8 @@ export interface RequestFormData {
   readonly defaultDeliverySiteId?: string | null
   /** Active suppliers of the register a requester may suggest (absent: none offered) */
   readonly suppliers?: readonly SupplierOption[]
+  /** S6-10: the catalogue items the draft's lines name, with today's agreed prices (absent: none, or not offered) */
+  readonly catalogItems?: readonly CatalogItemOption[]
   readonly draft: RequestDraft | null
 }
 
@@ -178,3 +199,10 @@ export interface PreviewRequestInput {
   readonly priceIncludesVat: boolean
   readonly lines: ReadonlyArray<{ readonly quantity: string; readonly unitPrice: string; readonly vatable: boolean }>
 }
+
+/** S6-10: what the request form's catalogue search answers (src/app/(workspace)/requests/new/actions.ts) */
+export type CatalogSearchOutcome =
+  | { readonly ok: true; readonly items: readonly CatalogItemOption[]; readonly total: number; readonly limit: number }
+  | { readonly ok: false; readonly code: string }
+
+export type CatalogSearch = (q: string) => Promise<CatalogSearchOutcome>

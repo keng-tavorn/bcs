@@ -11,7 +11,7 @@ import type { StepProps } from './details-items'
 import { documentFieldIds } from './document-fields'
 import { kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
-import { problemStep, savableLine, type Problem, type RuleStatus } from './model'
+import { problemStep, savableLine, type FormProblem, type RuleStatus } from './model'
 import { showMoney, showSatang } from './money'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type ClosedWhy, type FormFailure, type StepId } from './outcome'
 import { placeAndSupplierText } from './place-supplier'
@@ -32,7 +32,8 @@ const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_N
 // The budget point has no such way: its two fixes, a lower amount (items) or another line (details), are in its words.
 
 /** Problems that would send something other than what is on screen: an unfinished line or quotation is not saved */
-const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE'])
+// A catalogue line before VAT on a request priced with VAT, or an item no longer in the catalogue: no save goes through (S6-10)
+const BLOCKING: ReadonlySet<FormProblem['kind']> = new Set(['TITLE', 'NO_LINES', 'LINE_INCOMPLETE', 'QUOTATION_INCOMPLETE', 'AGREEMENT_BEFORE_VAT', 'CATALOG_UNLISTED'])
 
 /**
  * The problems "ตรวจก่อนส่ง" marks "(ต้องแก้ก่อนส่ง)", as it marks the budget point (§9.9 principle 3 and rule 7): every
@@ -46,7 +47,7 @@ const BLOCKING: ReadonlySet<Problem['kind']> = new Set(['TITLE', 'NO_LINES', 'LI
  * that it must be fixed first, beside its way to the place that fixes it. Both forms mark the same points (the LIFF one
  * in src/ui/liff/requests/review-step.tsx). A new kind of problem does not compile until it is placed here.
  */
-export function mustFixBeforeSending(p: Problem): boolean {
+export function mustFixBeforeSending(p: FormProblem): boolean {
   switch (p.kind) {
     case 'TITLE':
     case 'NO_LINES':
@@ -59,6 +60,9 @@ export function mustFixBeforeSending(p: Problem): boolean {
     case 'QUOTATION_CHOOSE':
     case 'QUOTATION_REASON':
     case 'ATTACHMENTS':
+    case 'AGREEMENT_REASON':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return true
   }
 }
@@ -105,7 +109,7 @@ export function sendBlockPoint(t: T, block: SendBlock | null): { readonly text: 
 
 export interface ReviewProps extends StepProps {
   readonly rules: readonly RuleStatus[]
-  readonly problems: readonly Problem[]
+  readonly problems: readonly FormProblem[]
   readonly route: RouteView | null
   readonly attachmentCount: number
   readonly onGoTo: (step: string) => void
@@ -128,7 +132,7 @@ export interface ReviewProps extends StepProps {
 
 /** The step that fixes a point of "ตรวจก่อนส่ง" or a refusal of the server, by its key and its name */
 export interface StepLocator {
-  readonly problem: (p: Problem) => { readonly key: string; readonly name: string }
+  readonly problem: (p: FormProblem) => { readonly key: string; readonly name: string }
   readonly failure: (f: FormFailure) => { readonly key: string; readonly name: string } | null
 }
 
@@ -364,16 +368,19 @@ export function ReviewStep(props: ReviewProps) {
 
 type T = ReturnType<typeof useTranslations<'requestForm'>>
 
-function problemText(t: T, p: Problem, fields: readonly FieldDef[], locale: 'th' | 'en'): string {
+function problemText(t: T, p: FormProblem, fields: readonly FieldDef[], locale: 'th' | 'en'): string {
   switch (p.kind) {
     case 'TITLE':
     case 'BUDGET_LINE':
     case 'NO_LINES':
     case 'QUOTATION_CHOOSE':
     case 'QUOTATION_REASON':
+    case 'AGREEMENT_REASON':
       return t(`problems.${p.kind}`)
     case 'LINE_INCOMPLETE':
     case 'SERVICE_END_DATE':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return t(`problems.${p.kind}`, { n: p.lineNo })
     case 'QUOTATION_INCOMPLETE':
     case 'QUOTATION_FILE':
@@ -408,7 +415,9 @@ export function failureText(t: T, f: FormFailure, fields: readonly FieldDef[], l
       return t('errors.FORM_FIELD', { field: target.fieldId ? labelOf(fields, target.fieldId, locale) : '-' })
     }
     case 'SERVICE_END_DATE':
-      return t('errors.SERVICE_END_DATE', { n: failureTarget(f).lineNo ?? 1 })
+    case 'AGREEMENT_PRICE_LOCKED':
+    case 'CATALOG_UNKNOWN':
+      return t(`errors.${key}`, { n: failureTarget(f).lineNo ?? 1 })
     case 'QUOTE_FILE':
       return t('errors.QUOTE_FILE', { n: (Number((f.field ?? '').split('.')[1]) || 0) + 1 })
     case 'APPROVER_NOT_FOUND':

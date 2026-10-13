@@ -1,6 +1,7 @@
 import {
   BellRing,
   Blocks,
+  BookOpen,
   Building,
   Building2,
   CalendarDays,
@@ -46,6 +47,7 @@ export const MENU_ICONS: Record<string, LucideIcon> = {
   pool: Layers,
   pos: ShoppingCart,
   suppliers: Building2,
+  catalog: BookOpen,
   invoices: Receipt,
   exports: FileDown,
   budgets: Wallet,

@@ -13,6 +13,8 @@ import { formatDateTime } from '../format'
 import { Button as UiButton } from '../shadcn/button'
 import { FORM_PAGE } from '../shell/form-page'
 import { DOOR_ASIDE } from '../shell/new-request-door'
+import { catalogProblems } from './catalog-lines'
+import { CatalogPicker } from './catalog-picker'
 import type { StepProps } from './details-items'
 import { kindLabelOf, type DocumentsProps } from './documents-step'
 import { DropUploadButton } from './drop-upload'
@@ -31,11 +33,12 @@ import {
   totalsOf,
   visibleFieldIds,
   type FormAction,
+  type FormProblem,
 } from './model'
 import { planSteps, stepIndexOf, stepOfTarget, stopsNext, targetOfFailure, targetOfProblem, type PlannedStep } from './form-steps'
 import { failureKey, failureTarget, toFormFailure, type ClosedWhy, type FormFailure, type FormOutcome } from './outcome'
 import { failureText, ReviewStep, sendStateOf, type SaveStop, type StepLocator } from './review-step'
-import type { Attachment, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
+import type { Attachment, CatalogSearch, PreviewRequestInput, RequestFormData, ScreenLocale, SentView } from './types'
 import { useAutosave, type SaveState } from './use-autosave'
 import { usePreview, type PreviewAction } from './use-preview'
 import type { UploadActions } from './upload-button'
@@ -56,6 +59,8 @@ export interface RequestFormActions extends UploadActions {
   readonly detach: (requestId: string, fileId: string, idempotencyKey: string) => Promise<FormOutcome>
   readonly submit: (input: { requestId: string; expectedVersion: number; resubmit: boolean }, idempotencyKey: string) => Promise<FormOutcome<{ requestId: string; sent: SentView }>>
   readonly downloadUrl: (fileId: string) => Promise<string | null>
+  /** S6-10: the catalogue search of a line's picker (FR-INT-102); absent, lines are typed only */
+  readonly catalog?: CatalogSearch
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
@@ -154,7 +159,8 @@ export function RequestForm({
   const endDateRequired = purchase && needsServiceEndDate(data.form, input)
   const rules = applicableRules(data.form, input)
   const { nets, lowest } = compareFormQuotations(values, data.vatRateBp)
-  const problems = problemsOf(data, values, input, lowest)
+  // S6-10: and what the catalogue's agreed prices still ask (./catalog-lines.ts)
+  const problems: FormProblem[] = [...problemsOf(data, values, input, lowest), ...(purchase ? catalogProblems(values) : [])]
 
   // The server's view: the chosen line's balance and the expected route, shortly after amounts or the line change
   const previewLines = values.lines.filter(savableLine).map((l) => ({ quantity: plainNumber(l.quantity), unitPrice: plainNumber(l.unitPrice), vatable: l.vatable }))
@@ -336,7 +342,20 @@ export function RequestForm({
     return <SentConfirmation ref={sentRef} sent={sent} title={title} kind={!purchase ? 'procurement' : data.draft?.status === 'RETURNED' ? 'resubmit' : 'send'} />
   }
 
-  const stepProps: StepProps = { data, values, update, locale, input, visible, totals, showErrors, budget, previewLoading, fieldErrors }
+  const stepProps: StepProps = {
+    data,
+    values,
+    update,
+    locale,
+    input,
+    visible,
+    totals,
+    showErrors,
+    budget,
+    previewLoading,
+    fieldErrors,
+    ...(actions.catalog && purchase ? { catalog: { Picker: CatalogPicker, search: actions.catalog } } : {}),
+  }
   // Why saving is stopped, which the review step says in its "ตรวจก่อนส่ง" (sendBlockPoint)
   const saveStop: SaveStop | null = autosave.state.kind === 'conflict' ? 'conflict' : autosave.state.kind === 'closed' ? 'closed' : null
   const blockedSave = saveStop !== null

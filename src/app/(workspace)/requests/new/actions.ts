@@ -5,12 +5,14 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { doaGapNames, sentRequestSummary } from '@/server/queries/request-form'
+import { listCatalog } from '@/server/services/catalog/view'
 import { resubmitRequest, submitRequest } from '@/server/services/requests'
 import { attachFile, detachFile } from '@/server/services/requests/attachments'
 import { previewRequest } from '@/server/services/requests/preview'
 import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
-import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
+import type { CatalogSearchOutcome, PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
 import { getSession } from '../../../_lib/session'
+import { catalogOption } from './catalog-options'
 
 // Browser-facing adapters of the request form (S2-11). Each one builds ctx from the session and calls a service, which
 // checks the permission (request.create / request.submit, OWN) and every rule again (BR-AUTH-05) — the screen hides
@@ -78,4 +80,17 @@ export async function submitRequestAction(input: { requestId: string; expectedVe
     return { ...failure, ...(names.position ? { position: names.position } : {}), departments: names.departments }
   }
   return failure
+}
+
+/**
+ * S6-10 (FR-INT-102 AC1): the catalogue a line of the form is picked from — the active items matching the words, with the
+ * agreed prices in effect today. It changes nothing (a POST only because server actions are); listCatalog checks
+ * catalog.view. The words come from the browser: anything but text of up to 100 characters is refused.
+ */
+export async function searchCatalogAction(q: string): Promise<CatalogSearchOutcome> {
+  const ctx = await currentCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (typeof q !== 'string' || q.length > 100) return { ok: false, code: 'VALIDATION_FAILED' }
+  const result = await listCatalog(ctx, { q })
+  return result.ok ? { ok: true, items: result.data.items.map(catalogOption), total: result.data.total, limit: result.data.limit } : { ok: false, code: result.error.code }
 }

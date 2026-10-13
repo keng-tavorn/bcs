@@ -1,4 +1,5 @@
 import { agreementDay } from '@/core/pricing'
+import { MS_PER_DAY } from '@/lib/constants'
 import { systemCtx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents, type EventDraft } from '@/server/events/append'
@@ -24,7 +25,7 @@ export async function seedCatalog(organizationId: string, items: readonly Catalo
     const year = await tx.fiscalYear.findFirst({ where: { startsOn: { lte: today }, endsOn: { gte: today } }, select: { startsOn: true, endsOn: true } })
     if (!year) throw new Error('ชีต Items: ไม่มีปีงบที่ครอบวันนี้ ราคาตกลงจึงไม่มีช่วงที่ใช้ได้ (seed งบก่อนแคตตาล็อก)')
     const validFrom = year.startsOn
-    const validTo = new Date(year.endsOn.getTime() + 24 * 60 * 60 * 1000)
+    const validTo = new Date(year.endsOn.getTime() + MS_PER_DAY)
     const suppliers = new Map((await tx.supplier.findMany({ select: { id: true, code: true } })).map((s) => [s.code, s.id]))
     const existing = new Set((await tx.catalogItem.findMany({ select: { code: true } })).map((i) => i.code))
     const events: EventDraft[] = []

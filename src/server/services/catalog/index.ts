@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
 import { agreementDay, checkAgreement } from '@/core/pricing'
 import type { AppError } from '@/core/result'
+import { MS_PER_DAY } from '@/lib/constants'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -31,7 +32,7 @@ const ItemFields = {
   /** Before VAT, baht text */
   refUnitPrice: Baht,
 }
-const DAY_MS = 24 * 60 * 60 * 1000
+const DAY_MS = MS_PER_DAY
 const dateOf = (yyyyMmDd: string) => new Date(`${yyyyMmDd}T00:00:00Z`)
 const dayOf = (d: Date) => d.toISOString().slice(0, 10)
 

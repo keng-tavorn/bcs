@@ -3332,6 +3332,7 @@ cases:
 | `/finance/invoices` · `/finance/exports` | FINANCE | ยืนยันใบกำกับ ส่งออก Express | S4 |
 | `/budgets` · `/budgets/[lineId]` | ตามสิทธิ์ | dashboard งบ | S3 |
 | `/suppliers` | ตามสิทธิ์ | ทะเบียนผู้ขายขั้นต้น · ค้นหาผู้ขายและราคาล่าสุด (chip ที่ 3 ของหน้าแรก) | S4 · S16 |
+| `/catalog` · `/catalog/manage` | ทุก member · PROCUREMENT | ค้นหาแคตตาล็อก ราคาอ้างอิงและราคาตกลง · จัดการสินค้าและราคาตกลง (FR-INT-102) | S6 |
 | `/board/pending` | ตามสิทธิ์ | กระดานเอกสารค้าง | S4 |
 | `/reports` · `/kpi` | ตามสิทธิ์ | รายงานและ KPI · `/kpi` พาไป `/insights` | S4 · S5 · S16 |
 | `/insights` | `report.view` | สรุปผู้บริหาร (FR-VIS-007) | S16 |
@@ -3652,6 +3653,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | จัดซื้อ | ใบสั่งซื้อ | `/procurement/pos` | `po.view` ระดับองค์กร | — |
 | จัดซื้อ | ตรวจรับ | `/receiving` | `gr.post` | PO ที่รอตรวจรับ |
 | จัดซื้อ | ผู้ขาย | `/suppliers` | ทุกคน | — |
+| จัดซื้อ | แคตตาล็อก | `/catalog` | `catalog.view` (ทุกคน · S6-10) | — |
 | การเงิน | ยืนยันใบกำกับ | `/finance/invoices` | `invoiceConfirmation.record` | — |
 | การเงิน | ส่งออก Express | `/finance/exports` | `export.express` | — |
 | การเงิน | งบประมาณ | `/budgets` | `budget.view` (dashboard) | — |

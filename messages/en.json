@@ -1716,6 +1716,7 @@
       "BacktestRun": "Backtest run",
       "BudgetGrant": "Cross-department budget grant",
       "BudgetLine": "Budget line",
+      "CatalogItem": "Catalogue item",
       "ChannelIdentity": "LINE account",
       "ConsolidationRun": "Consolidation round",
       "CostCenter": "Cost center",
@@ -1733,6 +1734,7 @@
       "OrgAuthorityChange": "Authority change",
       "Organization": "Organization",
       "PositionAssignment": "Position holding",
+      "PriceAgreement": "Agreed price",
       "PurchaseOrder": "Purchase order",
       "ReportSchedule": "Report schedule",
       "Request": "Request",
@@ -1829,6 +1831,10 @@
       "budget_grant": {
         "created": "Cross-department budget granted",
         "revoked": "Cross-department budget grant revoked"
+      },
+      "catalog_item": {
+        "created": "Catalogue item added",
+        "updated": "Catalogue item edited"
       },
       "consolidation_run": {
         "completed": "Requests consolidated into draft POs"
@@ -1934,6 +1940,10 @@
         "assigned": "Position holder appointed",
         "unassigned": "Position holding ended"
       },
+      "price_agreement": {
+        "created": "Agreed price set",
+        "ended": "Agreed price ended"
+      },
       "report_schedule": {
         "created": "Report e-mail schedule set"
       },
@@ -2010,6 +2020,7 @@
       "backtest": "Backtest",
       "budget": "Budget",
       "budget_grant": "Cross-department budget grants",
+      "catalog_item": "Catalogue",
       "consolidation_run": "Consolidation rounds",
       "cost_center": "Cost centers",
       "delegation": "Delegations",
@@ -2029,6 +2040,7 @@
       "organization": "Organization",
       "po": "Purchase orders",
       "position": "Positions",
+      "price_agreement": "Agreed prices",
       "report_schedule": "Reports",
       "request": "Requests",
       "request_type": "Request types",
@@ -2786,6 +2798,148 @@
       "submit": "Show the chosen fiscal year"
     },
     "yearLine": "Fiscal year {code} ({from} to {to}) · {scope}"
+  },
+  "catalog": {
+    "agreement": {
+      "chosen": "{date}",
+      "intro": "An agreed price is before VAT. Requests that suggest this supplier take this price and cannot change it during the period.",
+      "lastDay": "Last day of this price",
+      "lastDayHint": "Applies until the end of this day",
+      "noSuppliers": "The register has no active supplier yet. Add one on the suppliers page first.",
+      "reference": "Reference price {amount} baht",
+      "save": "Save agreed price",
+      "sourceRef": "Contract or quotation number (optional)",
+      "supplier": "Supplier",
+      "supplierChoose": "Choose a supplier",
+      "supplierOption": "{code} · {name}",
+      "title": "Add an agreed price for {name}",
+      "unitPrice": "Agreed price per {uom} (baht, before VAT)",
+      "validFrom": "First day of this price",
+      "validFromHint": "Applies from the start of this day"
+    },
+    "agreementState": {
+      "IN_EFFECT": "In effect",
+      "LAST_DAY": "Applies until today",
+      "UPCOMING": "Not started"
+    },
+    "end": {
+      "confirm": "End the agreed price today",
+      "keep": "Do not end it",
+      "text": "This price applies until the end of today ({today}). From tomorrow, requests for {name} that suggest this supplier no longer take it. This cannot be undone: to use a price again, add a new agreed price.",
+      "title": "End the agreed price with {supplier}?"
+    },
+    "errors": {
+      "AGREEMENT_NOT_STARTED": "This price has not started yet, so it cannot be ended.",
+      "AGREEMENT_OVER": "This price ends today or tomorrow already. Reload the page to see where it stands.",
+      "AGREEMENT_OVERLAP": "These days overlap an agreed price this supplier already has. Choose days that do not overlap, or end the earlier price first.",
+      "BUSY": "The system is still working on the same command. Wait a moment and try again.",
+      "CATEGORY": "Enter the category code.",
+      "CODE": "Use capital letters, digits, - or _, at most 40 characters, for example CEM-01.",
+      "CODE_EXISTS": "This code is in the catalogue already. Use another code.",
+      "DATE": "Choose a date.",
+      "FAILED": "It could not be saved. Try again.",
+      "FORBIDDEN": "This account may not manage the catalogue.",
+      "INPUT": "Some fields are not valid. Check them and try again.",
+      "INTERNAL": "Something went wrong. Tell your administrator the reference {requestId}.",
+      "INVALID_PERIOD": "The last day cannot be before the first day.",
+      "NAME": "Enter the Thai name.",
+      "NOT_FOUND": "This item is no longer found. Reload the page to see the latest items.",
+      "NO_ANSWER": "No answer came from the system. Check your connection and try again.",
+      "NO_CHANGE": "Nothing has changed. Change a value before saving.",
+      "PERIOD_OVER": "These days are over already. Choose a last day from today on.",
+      "PRICE": "Enter the price as a number with at most 2 decimals, for example 180 or 1,250.50.",
+      "PRICE_ZERO": "An agreed price must be above 0.",
+      "SUPPLIER": "Choose a supplier.",
+      "SUPPLIER_UNKNOWN": "This supplier is out of use or not in the register. Choose another supplier.",
+      "UNAUTHENTICATED": "Your session has ended. Sign in again and try again.",
+      "UOM": "Enter the unit."
+    },
+    "item": {
+      "accountCode": "Account code",
+      "accounting": "Accounting and tax (optional)",
+      "active": "Use this item",
+      "activeHint": "Out of use, the item no longer shows in searches and request forms. Requests that already have it do not change.",
+      "cancel": "Cancel",
+      "categoryCode": "Category code",
+      "categoryHint": "The category reviewer conditions use, for example CEMENT",
+      "code": "Item code",
+      "codeHint": "Capital letters, digits, - or _, for example CEM-01. Set once; it cannot be changed later.",
+      "intro": "Requesters see the name, unit and reference price when they choose this item in a request.",
+      "isService": "This is a service",
+      "nameEn": "English name (optional)",
+      "nameTh": "Thai name",
+      "refUnitPrice": "Reference price per unit (baht, before VAT)",
+      "refUnitPriceHint": "For example 180 or 1,250.50",
+      "save": "Save item",
+      "saveEdit": "Save changes",
+      "saving": "Saving…",
+      "titleAdd": "Add a catalogue item",
+      "titleEdit": "Edit item {code}",
+      "uom": "Unit",
+      "uomHint": "For example bag, piece, month",
+      "whtIncomeType": "Withholding tax income type"
+    },
+    "list": {
+      "columns": {
+        "agreed": "Agreed prices in effect",
+        "item": "Item",
+        "reference": "Reference price (before VAT)"
+      },
+      "emptyNoMatch": "No item matches “{query}”",
+      "emptyNoMatchHint": "Try other words or part of a code. If it is not in the catalogue, type what you need in your request.",
+      "emptyNone": "The catalogue has no items yet",
+      "emptyNoneManage": "Add the first item with “Add item” on the catalogue management page.",
+      "emptyNoneOther": "Procurement adds the items. Meanwhile, type what you need in your request.",
+      "filter": {
+        "clear": "Clear the search and see every item",
+        "count": "{count, plural, one {# item} other {# items}}",
+        "hint": "For example cement or CEM",
+        "label": "Search the catalogue",
+        "limited": "Showing the first {shown}. Narrow the search to see the others.",
+        "search": "Search by code or name",
+        "submit": "Search"
+      },
+      "forbidden": "This account may not view the catalogue yet. Contact your organization's administrator.",
+      "forbiddenTitle": "The catalogue cannot be opened",
+      "home": "Back to home",
+      "intro": "Goods and services Procurement keeps, with their reference prices and the prices agreed with suppliers. All prices are before VAT.",
+      "listLabel": "Catalogue items",
+      "manage": "Manage the catalogue",
+      "title": "Catalogue"
+    },
+    "manage": {
+      "add": "Add item",
+      "addAgreement": "Add agreed price",
+      "addAgreementLabel": "Add an agreed price for {name}",
+      "agreementsLabel": "Agreed prices of {name}",
+      "back": "Go to the catalogue",
+      "edit": "Edit",
+      "editLabel": "Edit item {code}",
+      "emptyNoMatchHint": "Try other words or part of a code, or add a new item.",
+      "end": "End agreed price",
+      "endLabel": "End the agreed price with {supplier} for {name}",
+      "forbidden": "Only Procurement manages the catalogue and its agreed prices. See the items and prices on the catalogue page.",
+      "forbiddenTitle": "This page is for Procurement",
+      "intro": "Add and edit items and set the prices agreed with suppliers. Every change is recorded for audit. All prices are before VAT.",
+      "listLabel": "Items to manage",
+      "rowLabel": "{code} {name}",
+      "title": "Manage the catalogue"
+    },
+    "row": {
+      "agreed": "{supplier} · {amount} baht/{uom}",
+      "agreedBadge": "Agreed price",
+      "meta": "Code {code} · category {category} · unit {uom}",
+      "noAgreement": "No agreed price yet",
+      "period": "{from} to {to}",
+      "reference": "{amount} baht/{uom}",
+      "referenceLine": "Reference price {amount} baht/{uom} (before VAT)",
+      "source": "Reference {ref}",
+      "until": "Applies until {date}"
+    },
+    "status": {
+      "ACTIVE": "In use",
+      "INACTIVE": "Out of use"
+    }
   },
   "delegation": {
     "candidate": "{name} · {department}",
@@ -5743,6 +5897,41 @@
       "title": "Budget",
       "unknown": "What is left cannot be shown right now. Try again later"
     },
+    "catalog": {
+      "agreed": "{supplier} · {amount} baht/{uom}",
+      "agreedBadge": "Agreed price",
+      "beforeVat": "An agreed price is before VAT. Untick “The prices I enter include VAT” before saving.",
+      "change": "Change the catalogue item",
+      "changeLabel": "Change line {n} from the catalogue",
+      "choose": "Choose",
+      "chooseLabel": "Choose {name} ({code})",
+      "codeUnit": "Code {code} · unit {uom}",
+      "dialogText": "Search by code or name. All prices are before VAT. When an item has an agreed price with the suggested supplier, the line takes that price and it cannot be changed.",
+      "dialogTitle": "Choose from the catalogue for line {n}",
+      "empty": "The catalogue has no items yet. Close this window and type the item yourself.",
+      "failed": "The catalogue cannot be searched right now. Try again, or type the item yourself.",
+      "found": "{count, plural, one {# item found} other {# items found}}",
+      "foundLimited": "Showing {shown} of {total} items. Narrow the search to see the others.",
+      "fromCatalog": "From the catalogue: {code} {name}",
+      "join": ", ",
+      "loading": "Searching…",
+      "locked": "Agreed price with {supplier} (before VAT); it cannot be changed",
+      "noMatch": "No item matches “{query}”. Try other words, or close this window and type the item yourself.",
+      "offNote": "This item has agreed prices with {suppliers}, but this request suggests another supplier or none. Choose a supplier with an agreed price on the supplier step, or give a reason under the lines.",
+      "pick": "Choose from the catalogue",
+      "pickLabel": "Choose line {n} from the catalogue",
+      "reasonHint": "This request suggests {supplier}, which has no agreed price for some catalogue items. Tell the approvers and Procurement why.",
+      "reasonHintNoSupplier": "No supplier is suggested yet, and some catalogue items have agreed prices. Choose a supplier with an agreed price on the supplier step, or give a reason.",
+      "reasonLabel": "Why not the supplier with the agreed price",
+      "reasonMissing": "Give a reason, or suggest the supplier with the agreed price.",
+      "reference": "Reference price {amount} baht/{uom}",
+      "resultsLabel": "Catalogue search results",
+      "search": "Search the catalogue",
+      "searchSubmit": "Search",
+      "supplierOff": "{count, plural, one {# catalogue item has} other {# catalogue items have}} an agreed price with another supplier. Choose the supplier with the agreed price, or give a reason on the items step.",
+      "unlink": "Stop using the catalogue item on line {n}",
+      "unlisted": "Line {n} is no longer in the catalogue. Choose another item, or press “Stop using the catalogue item” and type it yourself."
+    },
     "details": {
       "title": "Request title",
       "titleHint": "A short name the approver sees, for example Building materials for the Bang Na project",
@@ -5757,6 +5946,9 @@
       "rule": "Rule {rule}"
     },
     "errors": {
+      "AGREEMENT_OFF": "A catalogue item has an agreed price with another supplier. Give the reason for not using that supplier on the items step, or suggest the supplier with the agreed price.",
+      "AGREEMENT_PRICE_BEFORE_VAT": "An agreed price is before VAT. Untick “The prices I enter include VAT” and try again.",
+      "AGREEMENT_PRICE_LOCKED": "The unit price of line {n} must be the price agreed with the suggested supplier. Choose the catalogue item again to take the agreed price.",
       "ALREADY_ATTACHED": "This file is attached to the request already",
       "APPROVER_NOT_FOUND": "It cannot be sent because nobody holds {position} in {departments}. Contact your organization's administrator",
       "ATTACHMENT_RULE_FAILED": "Documents are missing under rule {rule}: {missing}. Attach them in Quotations and documents, then send again",
@@ -5765,6 +5957,7 @@
       "BUDGET_LINE_NOT_ALLOWED": "This budget line belongs to another department and you have no grant to use it. Choose a line of your department",
       "BUDGET_LINE_YEAR": "This budget line belongs to another fiscal year. Choose a line of this year",
       "BUSY": "Something else is being done to this request. Try again in a moment",
+      "CATALOG_UNKNOWN": "Line {n} is no longer in the catalogue. Choose another item or type it yourself.",
       "CHOOSE_BUDGET_LINE": "Your department has several budget lines. Choose the one this request uses",
       "CONFLICT_VERSION": "This draft was changed elsewhere after you opened it. Load the latest version and check it again",
       "DOA_AMBIGUOUS": "It cannot be sent because more than one DOA rule applies. Contact your organization's administrator",
@@ -5887,8 +6080,11 @@
       "viewOnly": "Only the requester who created this request can change it. Your account may open it, but not change it"
     },
     "problems": {
+      "AGREEMENT_BEFORE_VAT": "Line {n} takes an agreed price, which is before VAT: untick “The prices I enter include VAT”",
+      "AGREEMENT_REASON": "A catalogue item has an agreed price with another supplier: give the reason for not using that supplier",
       "ATTACHMENTS": "Documents are missing under rule {rule}",
       "BUDGET_LINE": "No budget line chosen yet",
+      "CATALOG_UNLISTED": "Line {n} is no longer in the catalogue: choose another item or type it yourself",
       "FIELD_REQUIRED": "“{field}” is not answered",
       "LINE_INCOMPLETE": "Item {n} is not complete",
       "NO_LINES": "No complete item yet",
@@ -6530,6 +6726,7 @@
       "board": "Pending documents",
       "budgets": "Budgets",
       "calendar": "Business calendar",
+      "catalog": "Catalogue",
       "delegation": "Acting approver",
       "doa": "Approval authority (DOA)",
       "exports": "Express export",

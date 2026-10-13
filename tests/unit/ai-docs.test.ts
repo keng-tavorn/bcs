@@ -30,8 +30,10 @@ describe('[BR-AI-26] the evaluation documents and their files', () => {
   })
 
   it('[BR-AI-26] every document has its file, and every file is byte for byte the one the manifest names', () => {
-    const byId = new Map(manifest.files.map((f) => [f.id, f]))
-    expect([...byId.keys()].sort()).toEqual(docs.map((d) => d.id).sort())
+    const read = manifest.files.filter((f) => f.purpose !== 'DOA_DRAFT')
+    expect(read.map((f) => f.id).sort()).toEqual(docs.map((d) => d.id).sort())
+    // The two synthetic regulations of the DOA drafter (FR-AI-308)
+    expect(manifest.files.filter((f) => f.purpose === 'DOA_DRAFT').map((f) => f.id)).toEqual(['REG-A', 'REG-B'])
     for (const f of manifest.files) {
       const bytes = readFileSync(path.join(AI_DOCS_DIR, f.file))
       expect(createHash('sha256').update(bytes).digest('hex'), f.file).toBe(f.sha256)
@@ -41,7 +43,7 @@ describe('[BR-AI-26] the evaluation documents and their files', () => {
   })
 
   it('[BR-AI-26] every file has a recorded answer of the current prompt that fits the reading schema', () => {
-    for (const f of manifest.files) {
+    for (const f of manifest.files.filter((x) => x.purpose !== 'DOA_DRAFT')) {
       const answer = JSON.parse(readFileSync(path.join(AI_ANSWERS_DIR, f.purpose, `${f.sha256}.json`), 'utf8'))
       expect(DocumentReading.safeParse(answer.output).success, f.id).toBe(true)
       expect(answer.promptVersion, f.id).toBe(`${f.purpose}@1`)

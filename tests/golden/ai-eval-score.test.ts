@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fieldKind, fieldScore, matchField, normalizeAnswer, normalizeValue } from '@/core/ai-checks'
+import { fieldKind, fieldScore, matchField, normalizeAnswer, normalizeValue, type AnswerLine } from '@/core/ai-checks'
 import { loadGolden } from './support'
 
 // tests/golden/ai-eval-score.yaml (spec §12.6, BR-AI-26): GC-AI-12 to GC-AI-21. The runner only adapts shapes.
@@ -15,7 +15,7 @@ interface Case {
 const suite = loadGolden('ai-eval-score') as unknown as { cases: Case[] }
 
 function run(c: Case): Record<string, unknown> {
-  const i = c.input as never as Record<string, never>
+  const i = c.input as { field: string; expected: unknown; actual: unknown; lines: AnswerLine[] }
   if (c.fn === 'matchField') return { match: matchField(i.field, i.expected, i.actual) }
   if (c.fn === 'normalizeAnswer') {
     const r = normalizeAnswer({ lines: i.lines })

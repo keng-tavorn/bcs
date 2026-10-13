@@ -5,7 +5,7 @@
       "id": "DOC-001",
       "file": "DOC-001.pdf",
       "mediaType": "application/pdf",
-      "sha256": "c59dea0b63facfd5a9901234a961de990b853985f202388206b15dfc57d82072",
+      "sha256": "96a57ad170f88265e8d04cc742d7beef68fd2f3355c2a212fe257d5f0c4bd933",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -26,7 +26,7 @@
       "id": "DOC-004",
       "file": "DOC-004.pdf",
       "mediaType": "application/pdf",
-      "sha256": "ae86c05eb98a5aba03cfb2ea5e854728ad428afc99f445df9b4d57fcdf0b218e",
+      "sha256": "832c9b4ceb6313dd977b8079f7d8d20aac01b51fd9dabe8e292f345eea2301db",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -82,7 +82,7 @@
       "id": "DOC-012",
       "file": "DOC-012.pdf",
       "mediaType": "application/pdf",
-      "sha256": "22d191f8d105b3e95090bf595a6b78e5a5307406bbff460e228eb2abf8ba4807",
+      "sha256": "c7a7339d593badf74591199c3963a5490b0733d7704cd509f32d0fb167ffe66d",
       "purpose": "INVOICE_READ"
     },
     {
@@ -103,14 +103,14 @@
       "id": "DOC-015",
       "file": "DOC-015.pdf",
       "mediaType": "application/pdf",
-      "sha256": "eb914e70a32532ece406e92d8b39bad8d2cf9f8c2d5b760e51a985e24608a7b3",
+      "sha256": "f72d2f330a36376d0df5f149359ca221df1843b2d03367affabb8950838c770e",
       "purpose": "INVOICE_READ"
     },
     {
       "id": "DOC-016",
       "file": "DOC-016.pdf",
       "mediaType": "application/pdf",
-      "sha256": "05a00cf3a98351354ee9d002bb5e616d67f275bde57945ad08ab4f39aa6cdf9f",
+      "sha256": "b6cd6aa3a93678c7eb3d6b7e6609f1cd63931a40717ab5f0ed337610d780af00",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -124,14 +124,14 @@
       "id": "DOC-018",
       "file": "DOC-018.pdf",
       "mediaType": "application/pdf",
-      "sha256": "2c4faa99c4fbf4c8df35ddbc38a555834766141dc60564d4357588a5d81499f5",
+      "sha256": "651c3ba1b6b2b184bf8a99a38919c2dbf7ee888befc0a608211f8142bda54383",
       "purpose": "INVOICE_READ"
     },
     {
       "id": "DOC-019",
       "file": "DOC-019.pdf",
       "mediaType": "application/pdf",
-      "sha256": "8e6dc96a91af2a0a21a6d08723b5fe7323c12a7fe79bcd1376c4ab49389168ae",
+      "sha256": "0938ba3d3613af04e689a96bd412ed6846343ad9fca280bb2f18001b7b54ae04",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -152,7 +152,7 @@
       "id": "DOC-022",
       "file": "DOC-022.pdf",
       "mediaType": "application/pdf",
-      "sha256": "19da7feda3ac717af86b9f7a871ae5f92495e3707b106633f9ccde7dd20c8e47",
+      "sha256": "79e2dc7127a0fd42a3a4ddd7c7995a159533ea48f80028bac843801979396084",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -208,7 +208,7 @@
       "id": "DOC-030",
       "file": "DOC-030.pdf",
       "mediaType": "application/pdf",
-      "sha256": "ab0d91e028beccae157f5b741011f0552b9418933b5e912a5f2b497f2f12d12c",
+      "sha256": "1d74fc6cc41af029053c58b87770e8c37654bc8faa8c4064099256c7cd166204",
       "purpose": "INVOICE_READ"
     },
     {
@@ -229,7 +229,7 @@
       "id": "DOC-034",
       "file": "DOC-034.pdf",
       "mediaType": "application/pdf",
-      "sha256": "8973c0c05c832efed909b3eec155ec1b2ba68991679614217ae51d005ef14320",
+      "sha256": "a12e9adeee18f072bd2d52d19691693fb67d50015a2c053ed7529e6c3b94eb0c",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -243,14 +243,14 @@
       "id": "DOC-036",
       "file": "DOC-036.pdf",
       "mediaType": "application/pdf",
-      "sha256": "32080ff5be2080c55139f3418258e316169f31c88425d887a3a9ec3ce1d6dfd3",
+      "sha256": "50c58a93be3ccae3d6ce476a4c8684c354a12916b2f7f0775ee24f3d15105a85",
       "purpose": "INVOICE_READ"
     },
     {
       "id": "DOC-037",
       "file": "DOC-037.pdf",
       "mediaType": "application/pdf",
-      "sha256": "a9f6b347a589d12dfc7b0b84d608060769048b99d2175b283831f54e99274717",
+      "sha256": "1f1c257684d0daa93093616aa50fc2929ae9893cd2e832bb031d4e31a01a99bc",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -271,7 +271,7 @@
       "id": "DOC-040",
       "file": "DOC-040.pdf",
       "mediaType": "application/pdf",
-      "sha256": "1ea4a08d4e73841377fcd6dedf3aed4fcf1dd367af34a21949efb6519629f9e7",
+      "sha256": "79dd3662f94093271f2bc40cec3b56a26ccb3e4ebc6e8412cf60a08b4c478ae9",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -313,7 +313,7 @@
       "id": "DOC-046",
       "file": "DOC-046.pdf",
       "mediaType": "application/pdf",
-      "sha256": "e4bb5ce5061778708bc6aeb8d300d2ffa04ea3918100a0a65ff99e41c7667d11",
+      "sha256": "87b446b1491ac48b19f617b2ee6b6ad3392819ef16d836aa848bd283456e2ae0",
       "purpose": "INVOICE_READ"
     },
     {
@@ -327,28 +327,28 @@
       "id": "DOC-048",
       "file": "DOC-048.pdf",
       "mediaType": "application/pdf",
-      "sha256": "207618e98fb3ff362be60289041d0a020c0287a6f0cd675d352da9e8b2e6cd0f",
+      "sha256": "44f180616a0052bf0412f3022093ef362dbafa2e22354aec9418f5f67838a56e",
       "purpose": "INVOICE_READ"
     },
     {
       "id": "DOC-049",
       "file": "DOC-049.pdf",
       "mediaType": "application/pdf",
-      "sha256": "3fc2c1d4354a38c3d9efffc7a6c2cecb4c5dadf84189eec0ad9791f197cbf417",
+      "sha256": "1ecebb8e43ff2ae537be8d50c15893bf082636ce6671b4c9e7a5002d630c3de4",
       "purpose": "QUOTATION_READ"
     },
     {
       "id": "DOC-050",
       "file": "DOC-050.pdf",
       "mediaType": "application/pdf",
-      "sha256": "56825bf3e5489a3ad5bd1b3a02499b4fdc05cd33f4df7b6b85e348a6e41f1935",
+      "sha256": "3789d35e3e347de01ae2a7f7ec15bb0314e51e156c77bd086d861998343f7e65",
       "purpose": "INVOICE_READ"
     },
     {
       "id": "DOC-051",
       "file": "DOC-051.pdf",
       "mediaType": "application/pdf",
-      "sha256": "754de6da748c88964dc736c4c8e0d62d21117bfcf5d157e5b86330123c511f64",
+      "sha256": "531592e4a57df818d73ccb2f60a01a9470f51214f1360f745a4e8a73209a6975",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -362,7 +362,7 @@
       "id": "DOC-053",
       "file": "DOC-053.pdf",
       "mediaType": "application/pdf",
-      "sha256": "e6969987416e002509cd81b323bf56b1209867db28a25993ef538635e8246bdf",
+      "sha256": "85f978f9d9b97a53e977ef4c10cd186240acf5a70a522f0ee00df850425f549e",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -383,14 +383,14 @@
       "id": "DOC-057",
       "file": "DOC-057.pdf",
       "mediaType": "application/pdf",
-      "sha256": "d17d500a622b9e6f8df9eeab71f69cba58cfd4fa369f38c0e545b7f0c35753b0",
+      "sha256": "eee1f3247ac359e4a8aec2eeb4861c12ed5add92340a0ffef9a8f54096d2139e",
       "purpose": "INVOICE_READ"
     },
     {
       "id": "CASE-01",
       "file": "CASE-01.pdf",
       "mediaType": "application/pdf",
-      "sha256": "8433b4292ac6416e40aaca1a855851a69012c96c44dbe241f01da18b5fb4ca8d",
+      "sha256": "d4862c273472a2697a8d8f0de689cb53fd514ae36d082a181c98714ce1d205d7",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -411,7 +411,7 @@
       "id": "CASE-04",
       "file": "CASE-04.pdf",
       "mediaType": "application/pdf",
-      "sha256": "20460a48c08da589113b1cffa31db27c93c868e48666a9727f5dc7edcb631142",
+      "sha256": "f32636e5e0cdff881a59d15c6c98ff78249c54ac64a5db5eec9fce17e913abb3",
       "purpose": "INVOICE_READ"
     },
     {
@@ -432,7 +432,7 @@
       "id": "CASE-07",
       "file": "CASE-07.pdf",
       "mediaType": "application/pdf",
-      "sha256": "4cf6e056c068d65fa9f24fa107dc70c81167b7d954ebd384e16f4c153cc05443",
+      "sha256": "f248c2f81f5e7714756b3e705539f88f776568bde76010f2fa15a2cf062859b7",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -446,7 +446,7 @@
       "id": "CASE-09",
       "file": "CASE-09.pdf",
       "mediaType": "application/pdf",
-      "sha256": "e586280a20daa0632ff0a539f0f9152b7b8a5a7290c82a3401e79950eb26ba8b",
+      "sha256": "dd98c2ddd907476bf0002a6f52539ce259ae0153455b71bb9c9522de660f1700",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -460,7 +460,7 @@
       "id": "CASE-11",
       "file": "CASE-11.pdf",
       "mediaType": "application/pdf",
-      "sha256": "e73da15812313b0e7b7cc093a4c8223ae9d2a3d94ee8ad28bcebe565a48b4482",
+      "sha256": "95c9663dfb212bb0ee5443d526cdea799ec5306336021d3dd3b3dce97fa1631d",
       "purpose": "QUOTATION_READ"
     },
     {
@@ -474,8 +474,22 @@
       "id": "CASE-13",
       "file": "CASE-13.pdf",
       "mediaType": "application/pdf",
-      "sha256": "885a78e9c7e3508c513980b17ea212039b92642497e0112e79c26ef0705328e6",
+      "sha256": "375054d4c94c44a6436bf1e2e4db3ab57486a6194d1283609c233f19ba28d4b0",
       "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "REG-A",
+      "file": "REG-A.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "698d037bc607561b0d39241ec26583161253eea4ae8fa8d2c3e01b5c128e479c",
+      "purpose": "DOA_DRAFT"
+    },
+    {
+      "id": "REG-B",
+      "file": "REG-B.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "e7034d7be58902da815a1fcf99d3e1cab9f0583b49ef3119c688793731b4b1a0",
+      "purpose": "DOA_DRAFT"
     }
   ]
 }

@@ -1,0 +1,35 @@
+{
+  "promptVersion": "INTAKE@1",
+  "model": "claude-haiku-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": null,
+    "siteCode": null,
+    "neededBy": null,
+    "lines": [
+      {
+        "description": null,
+        "itemCode": "ELE-005",
+        "qty": "58",
+        "unit": "ชุด",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

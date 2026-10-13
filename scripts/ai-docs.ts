@@ -2,15 +2,15 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { chromium } from '@playwright/test'
-import { PROMPT_VERSIONS } from '../src/lib/ai-config'
-import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, ROOT, truthReading, type EvalDocument } from './lib/ai-eval-cases'
+import { loadDoaRows, REG_PAGE_SIZE, regulationSentence } from './lib/ai-eval-agents'
+import { AI_DOCS_DIR, loadEvalDocuments, ROOT, type EvalDocument } from './lib/ai-eval-cases'
 
 // `pnpm ai:docs` (S13-05, ADR-146): draws every document of the AI evaluation set as the file an AI reads — a typed
 // A4 PDF, an English template, a scan, a phone photo or a handwritten note — from DocSamples and
 // tests/fixtures/ai-docs/cases.yaml, with Sarabun (OFL) from assets/fonts and CSS for skew, blur and stamps. Writes
 // tests/fixtures/ai-docs/<id>.<pdf|jpg> and manifest.json (sha256 of each file, which a test holds the files to).
-// `--answers` also writes the recorded answers of fixture mode (tests/fixtures/ai/<purpose>/<sha256>.json) from the
-// truth, so pnpm ai:eval and the tests run without a key; S13-13 replaces them with what Claude really answered.
+// The DOA drafter's two synthetic regulations (REG-A REG-B, FR-AI-308) are drawn too. The recorded answers of fixture
+// mode come from `pnpm ai:eval --write-answers`.
 // The PDF renderer stamps its own creation time, so drawing again changes the bytes: the committed files and their
 // manifest are the evaluation set, and they are drawn again only when cases change.
 
@@ -99,8 +99,24 @@ function html(d: EvalDocument): string {
 
 const sha256 = (b: Buffer) => createHash('sha256').update(b).digest('hex')
 
+function regulationHtml(id: string, clauses: readonly string[]): string {
+  const pages = [clauses.slice(0, REG_PAGE_SIZE), clauses.slice(REG_PAGE_SIZE)]
+  return `<!doctype html><html lang=th><head><meta charset=utf-8><style>${FONTS}
+    body{margin:0;font-family:Sarabun,sans-serif;font-size:16px;line-height:1.7;color:#111}
+    .p{width:794px;height:1100px;padding:64px 72px;box-sizing:border-box;position:relative;page-break-after:always}
+    h1{font-size:22px;text-align:center;margin:0 0 4px} .sub{text-align:center;margin-bottom:24px} .no{position:absolute;bottom:40px;width:100%;left:0;text-align:center}
+    li{margin-bottom:8px}
+  </style></head><body>${pages
+    .map(
+      (list, p) =>
+        `<div class=p>${p === 0 ? `<h1>ระเบียบบริษัท สยามเมกะคอนสตรัคชั่น จำกัด</h1><div class=sub>ว่าด้วยอำนาจอนุมัติ (สังเคราะห์ ${id}) พ.ศ. 2569</div>` : ''}<ol start=${p * REG_PAGE_SIZE + 1}>${list
+          .map((c) => `<li>${esc(c)}</li>`)
+          .join('')}</ol><div class=no>หน้า ${p + 1} / ${pages.length}</div></div>`,
+    )
+    .join('')}</body></html>`
+}
+
 async function main() {
-  const answers = process.argv.includes('--answers')
   const docs = await loadEvalDocuments()
   mkdirSync(AI_DOCS_DIR, { recursive: true })
   const browser = await chromium.launch()
@@ -116,16 +132,18 @@ async function main() {
     const file = `${d.id}.${pdf ? 'pdf' : 'jpg'}`
     writeFileSync(path.join(AI_DOCS_DIR, file), bytes)
     manifest.push({ id: d.id, file, mediaType: pdf ? 'application/pdf' : 'image/jpeg', sha256: sha256(bytes), purpose: d.purpose })
-    if (answers) {
-      const dir = path.join(AI_ANSWERS_DIR, d.purpose)
-      mkdirSync(dir, { recursive: true })
-      const answer = { promptVersion: PROMPT_VERSIONS[d.purpose], model: 'claude-sonnet-5-5', recorded: 'TRUTH', output: truthReading(d), usage: { input: 1800, output: 420 } }
-      writeFileSync(path.join(dir, `${sha256(bytes)}.json`), `${JSON.stringify(answer, null, 2)}\n`)
-    }
+  }
+  // The regulations of the DOA drafter (FR-AI-308): two numbered pages of clauses; REG-B starts the second band at 20,001
+  const doaRows = await loadDoaRows()
+  for (const [id, regB] of [['REG-A', false], ['REG-B', true]] as const) {
+    await page.setContent(regulationHtml(id, doaRows.map((r) => regulationSentence(r, regB))), { waitUntil: 'load' })
+    const bytes = Buffer.from(await page.pdf({ format: 'A4', printBackground: true }))
+    writeFileSync(path.join(AI_DOCS_DIR, `${id}.pdf`), bytes)
+    manifest.push({ id, file: `${id}.pdf`, mediaType: 'application/pdf', sha256: sha256(bytes), purpose: 'DOA_DRAFT' })
   }
   await browser.close()
   writeFileSync(path.join(AI_DOCS_DIR, 'manifest.json'), `${JSON.stringify({ baseDate: '2026-10-01', files: manifest }, null, 2)}\n`)
-  console.log(`ai:docs ${manifest.length} files${answers ? ' and their recorded answers' : ''} → ${path.relative(ROOT, AI_DOCS_DIR)}`)
+  console.log(`ai:docs ${manifest.length} files → ${path.relative(ROOT, AI_DOCS_DIR)}`)
 }
 
 void main()

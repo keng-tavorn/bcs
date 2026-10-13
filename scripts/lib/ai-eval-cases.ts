@@ -75,6 +75,32 @@ function lineOf(l: { description: string; qty: string | number; unit: string; un
 
 const NO_NUMBER = 'ไม่มีเลขที่'
 
+/** A document of tests/fixtures/ai-docs/cases.yaml as written */
+interface CaseRow {
+  sampleId: string
+  docType: EvalDocType
+  note?: string
+  supplierCode: string
+  sellerNameTh: string
+  sellerTaxId: string
+  sellerBranch: string
+  docNo: string
+  docDaysAgo: number
+  priceIncludesVat: 'Y' | 'N'
+  vatRegistered?: 'Y' | 'N'
+  currency?: string
+  lines: Array<{ description: string; qty: string; unit: string; unitPrice?: string }>
+  discountTotal?: string
+  net?: string
+  vat?: string
+  gross?: string
+  layout: string
+  quality: string
+  language: string
+  dateStyle?: EvalDocument['dateStyle']
+  digits?: EvalDocument['digits']
+}
+
 export async function loadEvalDocuments(): Promise<EvalDocument[]> {
   const workbook = await loadInputWorkbook(path.join(ROOT, INPUT_WORKBOOKS.p1))
   const fromSheet = workbook
@@ -93,7 +119,7 @@ export async function loadEvalDocuments(): Promise<EvalDocument[]> {
         sellerTaxId: v.sellerTaxId!,
         sellerBranch: v.sellerBranch!,
         buyerTaxId: v.buyerTaxId!,
-        docNo: v.docNo === NO_NUMBER ? null : v.docNo,
+        docNo: v.docNo === NO_NUMBER ? null : (v.docNo ?? null),
         docDate: docDateOf(Number(v.docDaysAgo)),
         currency: 'THB',
         priceIncludesVat: v.priceIncludesVat === 'Y',
@@ -108,12 +134,12 @@ export async function loadEvalDocuments(): Promise<EvalDocument[]> {
         language: v.language!,
         dateStyle: 'BE',
         digits: 'ARABIC',
-        note: v.notes,
+        note: v.notes ?? null,
       }
     })
-  const file = parse(readFileSync(path.join(AI_DOCS_DIR, 'cases.yaml'), 'utf8')) as { buyerTaxId: string; cases: Array<Record<string, never>> }
+  const file = parse(readFileSync(path.join(AI_DOCS_DIR, 'cases.yaml'), 'utf8')) as { buyerTaxId: string; cases: CaseRow[] }
   const extra = file.cases.map((c): EvalDocument => {
-    const docType = c.docType as EvalDocType
+    const docType = c.docType
     return {
       id: c.sampleId,
       source: 'cases.yaml',
@@ -129,7 +155,7 @@ export async function loadEvalDocuments(): Promise<EvalDocument[]> {
       currency: c.currency ?? 'THB',
       priceIncludesVat: c.priceIncludesVat === 'Y',
       vatRegistered: c.vatRegistered !== 'N',
-      lines: (c.lines as Array<{ description: string; qty: string; unit: string; unitPrice?: string }>).map(lineOf),
+      lines: c.lines.map(lineOf),
       discountTotal: money(c.discountTotal),
       net: money(c.net),
       vat: money(c.vat),
@@ -164,3 +190,4 @@ export function truthReading(d: EvalDocument) {
     confidence: fields.map((field) => ({ field, value: 95 })),
   }
 }
+

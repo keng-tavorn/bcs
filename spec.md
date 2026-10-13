@@ -806,6 +806,7 @@ cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate 
 | `db:seed` | ใส่ข้อมูลตามภาคผนวก A รันซ้ำได้ · `SEED_INPUTS=p1` อ่านไฟล์ข้อมูลสังเคราะห์ระยะ 1 แทนไฟล์ demo (P1-02 · เทสต์และ e2e ใช้ไฟล์ demo เสมอ) |
 | `db:reset` · `db:reset:p1` | ล้าง + migrate + seed ปฏิเสธถ้า `APP_ENV` ไม่ใช่ `local` · ในสายปฏิเสธฐานของ main และบน main ปฏิเสธฐานของสาย · สร้างฐานของสายเมื่อยังไม่มี · `db:reset:p1` seed ด้วยไฟล์ระยะ 1 (องค์กร SIMEC ประวัติ 240 คำขอ ราว 2 นาทีบนเครื่อง · P1-02) |
 | `lane:create <1\|2\|3>` · `lane:check` | สร้างหรือตั้งสายขนานใหม่ตามตารางสาย §16.13 (worktree branch `.env` ของสาย ติดตั้ง และ seed) · ตรวจว่าสายที่อยู่ตรงตาราง (P1-01) |
+| `ai:docs` · `ai:eval` | วาดเอกสารสังเคราะห์ของชุดประเมิน AI ลง `tests/fixtures/ai-docs/` · วัดผลชุดประเมิน §12.4 (โหมด fixture ไม่ต้องมี key · `--live` เรียก Claude จริง · `--record` เขียนรายงาน) (S13-05 · ADR-146) |
 | `test` · `test:int` · `test:golden` · `test:e2e` | unit · integration กับ Postgres จริง · golden · Playwright |
 | `lint` · `typecheck` | ESLint (รวมกฎ boundaries) · `tsc --noEmit` |
 | `verify` | รวมทุกด่านและรายงาน PASS/FAIL ทีละข้อ (§15.5) |

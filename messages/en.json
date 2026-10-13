@@ -1257,6 +1257,7 @@
     "anyInHint": "Enters this rule when at least one line or budget line has one of these codes",
     "approvedBy": "Approved by {name} on {time}",
     "back": "Back to workflow versions",
+    "backtestSavedOnly": "The backtest uses the saved draft; unsaved changes are not counted",
     "baht": "{amount} baht",
     "byAt": "{name} on {time}",
     "choose": "Choose",
@@ -1616,6 +1617,7 @@
     },
     "submittedBy": "Sent for approval by {name} on {time}",
     "tabs": {
+      "backtest": "90-day backtest",
       "check": "Check and send for approval",
       "diff": "Compare with earlier",
       "dryRun": "Dry run",
@@ -1700,6 +1702,7 @@
       "ApprovalStep": "Approval step",
       "ApprovalTask": "Approval task",
       "Auth": "Sign-in",
+      "BacktestRun": "Backtest run",
       "BudgetGrant": "Cross-department budget grant",
       "BudgetLine": "Budget line",
       "ChannelIdentity": "LINE account",
@@ -1776,6 +1779,10 @@
         "login_locked": "Sign-in locked for a while",
         "login_succeeded": "Signed in",
         "pin_set": "Transaction PIN set or changed"
+      },
+      "backtest": {
+        "completed": "90-day backtest done",
+        "requested": "90-day backtest asked as a background job"
       },
       "budget": {
         "actualized": "Budget moved to actual",
@@ -1963,6 +1970,7 @@
       "approval_task": "Approval tasks",
       "audit": "Audit trail",
       "auth": "Sign-in",
+      "backtest": "Backtest",
       "budget": "Budget",
       "budget_grant": "Cross-department budget grants",
       "consolidation_run": "Consolidation rounds",
@@ -2167,6 +2175,72 @@
       "useApp": "Use a code from the app instead",
       "useBackup": "Use a backup code instead"
     }
+  },
+  "backtest": {
+    "approvers": "Approvers: {names}",
+    "changedCount": "{changed, plural, =0 {none changes route} one {# changes route} other {# change route}}",
+    "current": "Actually used",
+    "draft": "Under this version",
+    "errors": {
+      "BUSY": "Too many requests. Wait a moment and try again.",
+      "CONFLICT": "This was sent already. Reload this page.",
+      "FAILED": "The backtest did not run. Try again.",
+      "FORBIDDEN": "You may not run the backtest of this version. Only organization admins and this version's approver can.",
+      "INPUT": "Something was missing. Reload this page and try again.",
+      "INTERNAL": "Something went wrong. Try again; if it keeps failing, tell your system administrator the code {requestId}.",
+      "NOT_FOUND": "This version is gone. Reload this page.",
+      "NO_ANSWER": "No answer came back. Check your connection and try again.",
+      "NO_APPROVER": "No approver could be found. Check the DOA in effect.",
+      "RUN_GONE": "This result is no longer there. Press \"Run the backtest again\".",
+      "STATE": "The backtest cannot run now. Reload this page and try again.",
+      "UNAUTHENTICATED": "Your sign-in has expired. Sign in again and retry."
+    },
+    "failed": "The backtest of {count} documents did not finish. Press \"Run the backtest again\"; if it still fails, tell your system administrator.",
+    "intro": {
+      "draft": "Try {name} on every document sent in the last 90 days with the real routing engine, beside the route each one actually took. Nothing is changed.",
+      "withdrawal": "See how {name} would change the route of the documents sent in the last 90 days, beside the version they actually used. Withdrawing this version means none of these changes happen."
+    },
+    "loadDelta": "{text} tasks",
+    "loadTitle": "Tasks per person under this version",
+    "noChange": "No document changes route: this version gives the same result as the one actually used for every document in the period",
+    "noDocuments": "No documents were sent in the last 90 days, so there is nothing to compare yet. Try again once documents come in.",
+    "noReviewers": "No reviewers",
+    "pending": "This period holds {count} documents, so the backtest runs in the background. Press \"Look again\" in a moment.",
+    "reread": "Look again",
+    "rereading": "Reading the result…",
+    "reviewers": "Reviewers: {names}",
+    "rowsLabel": "Documents that change route",
+    "rowsTitle": "Documents that change route ({count})",
+    "rule": "Rule {rule}",
+    "run": "Run the 90-day backtest",
+    "runAgain": "Run the backtest again",
+    "running": "Running the backtest…",
+    "sentAt": "Sent {time}",
+    "sideErrors": {
+      "APPROVER_NOT_FOUND": "No approver found: the position this rule names is vacant",
+      "DOA_AMBIGUOUS": "More than one DOA rule applies to this document",
+      "DOA_NOT_CONFIGURED": "No DOA rule applies to this document",
+      "NO_HIGHER_AUTHORITY": "Nobody has higher authority than the requester",
+      "OTHER": "The route could not be worked out (code {code})",
+      "REVIEWER_NOT_FOUND": "No reviewer found: the position this rule names is vacant and has no fallback",
+      "SOD_VIOLATION": "The approver is the requester and nobody can approve instead"
+    },
+    "stillPending": "Not finished yet. Press \"Look again\" in a moment.",
+    "subjectType": {
+      "BANK_ACCOUNT_CHANGE": "Supplier bank account change",
+      "BUDGET_OVERRUN": "Over-budget approval",
+      "BUDGET_TRANSFER": "Budget transfer",
+      "INVOICE": "Invoice",
+      "OTHER": "Document",
+      "PAYMENT_RUN": "Payment run",
+      "PO_CHANGE": "PO change",
+      "PURCHASE_ORDER": "Purchase order",
+      "REQUEST": "Purchase request",
+      "VARIANCE": "Receiving variance"
+    },
+    "summary": "{total, plural, =0 {No documents were sent in this period} one {# document} other {# documents}}",
+    "title": "90-day backtest",
+    "window": "Documents sent from {from} to {to}"
   },
   "board": {
     "asOf": "Counted up to {time} · ages count business hours only",
@@ -4593,6 +4667,45 @@
     },
     "twoFactorRequired": "The BCS team must set up two-step verification before switching customer modules. Set up the authenticator app below."
   },
+  "policyWithdrawal": {
+    "cancel": "Cancel",
+    "dialogText": "The request goes to the approver of the DOA_CHANGE rule. Meanwhile this version keeps its date; if that date comes before the approval, the request is cancelled.",
+    "dialogTitle": "Ask to withdraw {name}",
+    "errors": {
+      "ALREADY_EFFECTIVE": "This version is in effect already, so it cannot be withdrawn. Make a new draft to change it.",
+      "BUSY": "Too many requests. Wait a moment and try again.",
+      "CONFLICT": "This was sent already. Reload this page.",
+      "FAILED": "The withdrawal request was not sent. Try again.",
+      "FORBIDDEN": "You may not ask to withdraw this version. Only who may send versions for approval can.",
+      "INPUT": "Something is missing. Check the reason and try again.",
+      "INTERNAL": "Something went wrong. Try again; if it keeps failing, tell your system administrator the code {requestId}.",
+      "NOT_FOUND": "This version is gone. Reload this page.",
+      "NOT_PUBLISHED": "Only a version approved but not yet in effect can be withdrawn. Reload this page to see its status.",
+      "NO_ANSWER": "No answer came back. Check your connection and send again.",
+      "NO_APPROVER": "No approver of the DOA_CHANGE rule could be found. Check the DOA in effect and its holders.",
+      "NO_DEPARTMENT": "The organization has no departments, so no approver can be found. Set up the organization first.",
+      "SOD_VIOLATION": "You would approve your own request. Ask another admin to request the withdrawal.",
+      "STATE": "This version has changed. Reload this page.",
+      "UNAUTHENTICATED": "Your sign-in has expired. Sign in again and retry.",
+      "WITHDRAWAL_PENDING": "A withdrawal of this version is already waiting. Reload this page to see where it stands."
+    },
+    "intro": "{name} is approved but not yet in effect (it takes effect {time}). If it is no longer wanted, ask to withdraw it. The withdrawal is approved under the DOA_CHANGE rule, never by who asks. Once withdrawn, the version before it stays in effect.",
+    "open": "Ask to withdraw this version",
+    "pending": "{name} asked to withdraw this version on {time}",
+    "pendingTitle": "Withdrawal request sent; waiting for the approver's decision",
+    "pendingWaiting": "Waiting for {names}. Approve = withdraw this version; reject = keep it.",
+    "reason": "Why withdraw it",
+    "reasonHint": "The approver reads this before deciding",
+    "reasonLine": "Reason: {reason}",
+    "reasonRequired": "Enter a reason of at least 3 characters",
+    "reasonTooLong": "The reason is longer than {max} characters",
+    "sending": "Sending…",
+    "sent": "Withdrawal request sent; waiting for the approver's decision",
+    "submit": "Send the withdrawal request",
+    "title": "Withdraw this version",
+    "withdrawn": "Withdrawn on {time}: this version will not take effect",
+    "withdrawnBy": "Asked by {name} on {time}"
+  },
   "procurement": {
     "pool": {
       "assign": {
@@ -6910,7 +7023,8 @@
       "variance": "{type} · {description}",
       "varianceAmountLabel": "Before VAT",
       "varianceMeta": "From {number}",
-      "workflow": "Publish parallel reviewers {code} version {version}"
+      "workflow": "Publish parallel reviewers {code} version {version}",
+      "workflowWithdrawal": "Withdraw parallel reviewers {code} version {version}"
     },
     "listLabel": "Your tasks waiting for approval",
     "policy": {
@@ -7025,6 +7139,7 @@
         "yes": "yes"
       },
       "doaVersionRef": "{code} version {version}",
+      "doaWithdrawalHeadline": "Withdraw {code} version {version}",
       "facts": {
         "effective": "In effect from",
         "gains": "Gains authority",
@@ -7128,6 +7243,15 @@
       "DAMAGED": "Damaged goods",
       "OVER": "Excess",
       "SHORT": "Shortfall"
+    },
+    "withdrawal": {
+      "asked": "{name} asked on {at} to withdraw {version}, approved but not yet in effect (due {effective})",
+      "askedNoName": "A withdrawal of {version} is asked: it is approved but not yet in effect (due {effective})",
+      "backtestTitle": "90-day backtest",
+      "effect": "Approve = withdraw this version; the version before it stays in effect · Reject = keep this version on its date",
+      "reason": "Reason for the withdrawal: {reason}",
+      "title": "Request to withdraw this version",
+      "withdrawn": "Withdrawn on {time}"
     },
     "workflow": {
       "effective": "In effect from",

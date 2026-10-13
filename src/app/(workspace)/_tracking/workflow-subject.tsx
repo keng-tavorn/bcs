@@ -3,11 +3,13 @@ import { getTranslations } from 'next-intl/server'
 import type { WorkflowTaskDto } from '@/server/queries/tasks'
 import { Facts, Section } from '@/ui/request-view/facts'
 import { day, memberName, type Locale } from './present'
+import { WithdrawalNotice } from './withdrawal-notice'
 
 // The body of a WORKFLOW_VERSION task (S6 · FR-WF-103 AC3): what the approver publishes — the version, from when, why,
 // who sent it and how many reviewer rules it has — and the way to its page, where its approver reads the rules, the
 // comparison with the version in effect and the checks, and tries a document out on both (read only). Decided on the
-// web only, approved or rejected with the PIN (BR-WF-12).
+// web only, approved or rejected with the PIN (BR-WF-12). A task on the route of a withdrawal says so first: approving
+// withdraws the version, rejecting keeps it (FR-DOA-104 · S6-07).
 
 const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline'
 
@@ -16,6 +18,9 @@ export async function WorkflowSubject({ workflow, locale, pageLink = true }: { w
   return (
     <Section id="workflow" title={t('title')}>
       <div className="flex flex-col gap-4">
+        {workflow.withdrawal ? (
+          <WithdrawalNotice withdrawal={workflow.withdrawal} version={t('versionValue', { code: workflow.code, version: workflow.versionNo })} effectiveFrom={workflow.effectiveFrom} locale={locale} />
+        ) : null}
         <Facts
           items={[
             { label: t('version'), value: t('versionValue', { code: workflow.code, version: workflow.versionNo }) },

@@ -26,7 +26,8 @@
     "varianceMeta": "จาก {number}",
     "varianceAmountLabel": "ยอดก่อน VAT",
     "review": "งานตรวจก่อนอนุมัติ",
-    "workflow": "อนุมัติเผยแพร่ผู้ตรวจคู่ขนาน {code} ฉบับ {version}"
+    "workflow": "อนุมัติเผยแพร่ผู้ตรวจคู่ขนาน {code} ฉบับ {version}",
+    "workflowWithdrawal": "ขอถอนผู้ตรวจคู่ขนาน {code} ฉบับ {version}"
   },
   "changeKind": {
     "POSITION_ASSIGN": "แต่งตั้งผู้ดำรงตำแหน่ง",
@@ -279,7 +280,8 @@
       "ANY": "คณะกรรมการ {approvers} คนใดคนหนึ่ง",
       "COUNT": "คณะกรรมการ {approvers} ต้องได้ {count} เสียง",
       "MAJORITY": "คณะกรรมการ {approvers} เสียงข้างมาก"
-    }
+    },
+    "doaWithdrawalHeadline": "ถอน {code} ฉบับ {version}"
   },
   "errors": {
     "DECIDED": "ดำเนินการแล้วโดย {name} เมื่อ {time}",
@@ -398,5 +400,14 @@
     "version": "ฉบับ",
     "versionValue": "{code} ฉบับ {version}",
     "webOnly": "อนุมัติหรือไม่อนุมัติได้บนเว็บเท่านั้น และต้องยืนยันด้วย PIN ทุกครั้ง"
+  },
+  "withdrawal": {
+    "title": "คำขอถอนฉบับนี้",
+    "asked": "{name} ขอถอน {version} ซึ่งอนุมัติแล้วแต่ยังไม่มีผล (กำหนดมีผล {effective}) เมื่อ {at}",
+    "askedNoName": "มีคำขอถอน {version} ซึ่งอนุมัติแล้วแต่ยังไม่มีผล (กำหนดมีผล {effective})",
+    "reason": "เหตุผลที่ขอถอน: {reason}",
+    "effect": "อนุมัติ = ถอนฉบับนี้ และฉบับก่อนหน้ามีผลต่อไป · ไม่อนุมัติ = คงฉบับนี้ไว้และมีผลตามวันเดิม",
+    "withdrawn": "ถอนฉบับนี้แล้วเมื่อ {time}",
+    "backtestTitle": "ย้อนทดสอบ 90 วัน"
   }
 }

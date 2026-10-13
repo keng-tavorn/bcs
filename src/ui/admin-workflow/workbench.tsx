@@ -25,7 +25,8 @@ import { useWorkflowWords, type WorkflowContext } from './words'
 // rule at a time in a Dialog, moved up or down with buttons (no dragging), removed with one press and brought back
 // with another; its test cases, effective date and reason sit under them, and one save sends the whole draft. Any save
 // means the dry-run must run again before the send (the service clears it); while changes are unsaved the dry-run and
-// the send say to save first. Any other version is read only: a change is a new draft.
+// the send say to save first. Any other version is read only: a change is a new draft. The 90-day backtest (BR-WF-13,
+// S6-07) is a tab of its own when the page gives one: it runs on the saved draft, so with unsaved changes it says so.
 
 export type SaveWorkflowResult = { readonly ok: true; readonly version: number } | WorkflowFailure
 export type SaveWorkflowAction = (input: SaveInput, idempotencyKey: string) => Promise<SaveWorkflowResult>
@@ -53,9 +54,11 @@ export interface WorkbenchProps {
   readonly dryRunDefaults: { readonly requesterMemberId: string | null; readonly chargedDepartmentId: string | null }
   readonly submit: Omit<SubmitPanelProps, 'versionId' | 'draftName' | 'errors' | 'warnings' | 'unsaved' | 'words' | 'submit'> | null
   readonly actions: { readonly save: SaveWorkflowAction; readonly dryRun: DryRunAction; readonly submit: SubmitWorkflowAction }
+  /** The 90-day backtest panel (src/ui/backtest/panel.tsx), for a version it applies to and a reader who may run it */
+  readonly backtest?: ReactNode
 }
 
-type Tab = 'rules' | 'dry-run' | 'diff' | 'check'
+type Tab = 'rules' | 'dry-run' | 'backtest' | 'diff' | 'check'
 type Removed = { readonly rule: RuleValue; readonly index: number }
 type DateError = 'DATE' | 'MIN' | 'EFFECTIVE_IN_PAST' | 'LATER_VERSION_SCHEDULED'
 
@@ -355,6 +358,20 @@ export function Workbench(props: WorkbenchProps) {
                 accountCodes={props.accountCodes}
                 run={props.actions.dryRun}
               />
+            ),
+          },
+        ]
+      : []),
+    ...(props.backtest
+      ? [
+          {
+            value: 'backtest' as const,
+            label: t('tabs.backtest'),
+            content: (
+              <div className="flex flex-col gap-3">
+                {dirty ? <Notice tone="info">{t('backtestSavedOnly')}</Notice> : null}
+                {props.backtest}
+              </div>
             ),
           },
         ]

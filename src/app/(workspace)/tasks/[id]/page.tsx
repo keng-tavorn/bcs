@@ -11,8 +11,11 @@ import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
 import { DecisionPanel } from '@/ui/tasks/decision-panel'
+import { BacktestPanel } from '@/ui/backtest/panel'
+import { Section } from '@/ui/request-view/facts'
 import { PolicyDecision } from '@/ui/tasks/policy-decision'
 import { Timeline } from '@/ui/timeline/timeline'
+import { readBacktestRunAction, runBacktestAction } from '../../../_lib/backtest-actions'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
@@ -184,7 +187,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         : task.policy
           ? policyHeadline(t, locale, task.policy)
           : task.workflow
-            ? t('item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
+            ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
             : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
@@ -197,6 +200,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
     : task.stepUp
       ? 'pb-[calc(var(--task-bar-space,19rem)_+_1rem)]'
       : 'pb-[calc(var(--task-bar-space,13rem)_+_1rem)]'
+  // The approver of a DOA or workflow version runs its 90-day backtest before deciding (BR-DOA-14 · FR-DOA-103 AC3)
+  const backtest =
+    (task.status === 'OPEN' || task.status === 'INFO_REQUESTED') && (task.policy?.kind === 'DOA_VERSION' || task.workflow)
+      ? task.policy?.kind === 'DOA_VERSION'
+        ? { kind: 'DOA_VERSION' as const, versionId: task.policy.versionId, name: t('policy.doaVersionRef', { code: task.policy.code, version: task.policy.versionNo }), withdrawal: task.policy.withdrawal !== null }
+        : { kind: 'WORKFLOW_VERSION' as const, versionId: task.workflow!.versionId, name: t('workflow.versionValue', { code: task.workflow!.code, version: task.workflow!.versionNo }), withdrawal: task.workflow!.withdrawal !== null }
+      : null
   const pageClass = open ? `flex flex-col gap-6 ${barSpace} lg:pb-0` : 'flex flex-col gap-6'
 
   return (
@@ -271,6 +281,18 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
+              {backtest ? (
+                <Section id="backtest" title={t('withdrawal.backtestTitle')}>
+                  <BacktestPanel
+                    kind={backtest.kind}
+                    versionId={backtest.versionId}
+                    versionName={backtest.name}
+                    purpose={backtest.withdrawal ? 'withdrawal' : 'draft'}
+                    run={runBacktestAction}
+                    reread={readBacktestRunAction}
+                  />
+                </Section>
+              ) : null}
             </div>
           </Panel>
 

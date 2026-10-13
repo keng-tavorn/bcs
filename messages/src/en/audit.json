@@ -93,6 +93,7 @@
     "approval_task": "Approval tasks",
     "audit": "Audit trail",
     "auth": "Sign-in",
+    "backtest": "Backtest",
     "budget": "Budget",
     "budget_grant": "Cross-department budget grants",
     "consolidation_run": "Consolidation rounds",
@@ -126,6 +127,7 @@
     "ApprovalStep": "Approval step",
     "ApprovalTask": "Approval task",
     "Auth": "Sign-in",
+    "BacktestRun": "Backtest run",
     "BudgetGrant": "Cross-department budget grant",
     "BudgetLine": "Budget line",
     "ChannelIdentity": "LINE account",
@@ -177,6 +179,10 @@
       "login_locked": "Sign-in locked for a while",
       "login_succeeded": "Signed in",
       "pin_set": "Transaction PIN set or changed"
+    },
+    "backtest": {
+      "completed": "90-day backtest done",
+      "requested": "90-day backtest asked as a background job"
     },
     "budget": {
       "actualized": "Budget moved to actual",

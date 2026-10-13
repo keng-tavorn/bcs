@@ -5,6 +5,7 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { ctxFromSession } from '@/server/auth/session'
+import { requestWithdrawal } from '@/server/services/policy-withdrawal'
 import { draftWorkflowVersion, dryRunWorkflowVersion, submitWorkflowVersion, updateWorkflowVersion } from '@/server/services/workflow'
 import type { ActionFailure } from '@/ui/admin-org/outcome'
 import type { DraftWorkflowResult } from '@/ui/admin-workflow/create-draft'
@@ -13,9 +14,10 @@ import type { SaveInput } from '@/ui/admin-workflow/model'
 import { toWorkflowFailure } from '@/ui/admin-workflow/outcome'
 import type { SubmitWorkflowResult } from '@/ui/admin-workflow/submit-panel'
 import type { SaveWorkflowResult } from '@/ui/admin-workflow/workbench'
+import type { RequestWithdrawalResult } from '@/ui/policy-withdrawal/request-withdrawal'
 import { getSession } from '../../../_lib/session'
 
-// Browser-facing adapters for /admin/workflows (FR-WF-103 AC1 AC2, S6-06). Each checks the session and the shape of
+// Browser-facing adapters for /admin/workflows (FR-WF-103 AC1 AC2, S6-06; the withdrawal of FR-DOA-104, S6-07). Each checks the session and the shape of
 // what arrives (server actions are public endpoints, BR-AUTH-05); the services check admin.workflow.draft, simulate
 // or submitForPublish, every value, the lint of BR-WF-11 and the rules of BR-WF-12, and record the events. The
 // idempotencyKey comes from the form (spec §4.3).
@@ -80,4 +82,17 @@ export async function submitWorkflowAction(versionId: string, acknowledgedWarnin
   if (!result.ok) return toWorkflowFailure(result.error)
   revalidatePath('/admin/workflows', 'layout')
   return { ok: true, assigneeMemberId: result.data.assigneeMemberId }
+}
+
+/** Asks to withdraw a version approved but not yet in effect (FR-WF-103 · FR-DOA-104 AC1); the service checks every rule */
+export async function requestWorkflowWithdrawalAction(input: { versionId: string; reason: string }, idempotencyKey: string): Promise<RequestWithdrawalResult> {
+  const ctx = await currentCtx()
+  if (!ctx) return NO_SESSION
+  if (!submissionKey.safeParse(idempotencyKey).success) return BAD_KEY
+  const shape = z.object({ versionId: Id, reason: z.string().max(REASON_MAX_LENGTH * 2) }).safeParse(input)
+  if (!shape.success) return BAD_INPUT
+  const result = await requestWithdrawal(ctx, 'WORKFLOW_VERSION', shape.data, { idempotencyKey })
+  if (!result.ok) return toWorkflowFailure(result.error)
+  revalidatePath('/admin/workflows', 'layout')
+  return { ok: true }
 }

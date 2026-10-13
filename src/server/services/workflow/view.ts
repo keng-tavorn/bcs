@@ -15,6 +15,7 @@ import { effectiveDates } from '../doa/dates'
 import { SLA_MAX_HOURS } from '../doa/editor'
 import { routeView, type PersonView, type RouteView } from '../doa/view'
 import { treeOrder } from '../org-structure/tree'
+import { withdrawalView, type WithdrawalView } from '../policy-withdrawal/view'
 import { holdsWorkflowTask, matchedRuleCodes, workflowWarningKey } from './index'
 
 // The screens of the workflow versions (spec FR-WF-103 AC1 AC2, S6-06): /admin/workflows lists every version with its
@@ -143,8 +144,10 @@ export interface WorkflowEditorView {
   readonly dryRunDefaults: { readonly requesterMemberId: string | null; readonly chargedDepartmentId: string | null }
   /** Only for a draft */
   readonly submit: WorkflowSubmitView | null
-  /** The approval of the latest sending, once sent */
+  /** The approval of the latest sending (the withdrawal's, once one is asked), once sent */
   readonly route: RouteView | null
+  /** The withdrawal of a version approved but not yet in effect (FR-WF-103 · FR-DOA-104) */
+  readonly withdrawal: WithdrawalView
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
@@ -340,7 +343,7 @@ export async function getWorkflowEditor(ctx: Ctx, versionId: string): Promise<Re
     const row = await tx.workflowVersion.findFirst({ where: { id: versionId }, include: { rules: true, testCases: { orderBy: { createdAt: 'asc' } } } })
     if (!row) return err('NOT_FOUND', 'workflow version not found')
 
-    const [{ person, members }, positionRows, departmentRows, typeRows, org, typeFields, catalog, accounts, baseline, route, canSimulate] = await Promise.all([
+    const [{ person, members }, positionRows, departmentRows, typeRows, org, typeFields, catalog, accounts, baseline, route, canSimulate, canWithdraw] = await Promise.all([
       people(tx),
       tx.position.findMany({ select: { code: true, nameTh: true, nameEn: true, scope: true }, orderBy: { code: 'asc' } }),
       tx.department.findMany({ select: { id: true, code: true, nameTh: true, nameEn: true, parentId: true, active: true } }),
@@ -352,6 +355,7 @@ export async function getWorkflowEditor(ctx: Ctx, versionId: string): Promise<Re
       baselineOf(tx, row, ctx.now),
       tx.approvalRoute.findFirst({ where: { subjectType: 'WORKFLOW_VERSION', subjectId: row.id }, select: ROUTE_SELECT, orderBy: { routeNo: 'desc' } }),
       authorize(tx, ctx, 'admin.workflow.simulate').then((r) => r.ok || approver),
+      authorize(tx, ctx, 'admin.workflow.submitForPublish').then((r) => r.ok),
     ])
 
     const snapshot = workflowVersionFromRows(row, row.rules)
@@ -388,6 +392,7 @@ export async function getWorkflowEditor(ctx: Ctx, versionId: string): Promise<Re
       dryRunDefaults: { requesterMemberId: actorMember?.id ?? null, chargedDepartmentId: actorMember?.primaryDepartmentId ?? null },
       submit: row.status === 'DRAFT' ? await submitView(tx, ctx, row, snapshot, row.testCases, person) : null,
       route: route ? routeView(routeRow(route), (id) => person(id)) : null,
+      withdrawal: withdrawalView(row, person, ctx.now, canWithdraw),
     })
   })
 }

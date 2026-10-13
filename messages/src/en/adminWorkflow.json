@@ -65,7 +65,8 @@
     "rules": "Reviewer rules",
     "dryRun": "Dry run",
     "diff": "Compare with earlier",
-    "check": "Check and send for approval"
+    "check": "Check and send for approval",
+    "backtest": "90-day backtest"
   },
   "headers": {
     "rule": "Rule",
@@ -406,5 +407,6 @@
     "NO_APPROVER": "No approver found under the DOA_CHANGE rule; check the DOA in effect and the position holders",
     "NO_ANSWER": "No answer came back; check the connection and press again",
     "FAILED": "This did not work; try again"
-  }
+  },
+  "backtestSavedOnly": "The backtest uses the saved draft; unsaved changes are not counted"
 }

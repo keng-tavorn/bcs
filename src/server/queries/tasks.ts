@@ -57,6 +57,19 @@ export interface WorkflowTaskDto {
   readonly changeReason: string | null
   readonly submittedBy: MemberRefDto | null
   readonly rules: number
+  /** The task decides a withdrawal of the version rather than its publishing (FR-WF-103 · FR-DOA-104); null otherwise */
+  readonly withdrawal: WithdrawalTaskDto | null
+}
+
+/**
+ * A task on the route of a withdrawal (FR-DOA-104 · BR-DOA-18): approving withdraws the version, rejecting keeps it. Who
+ * asked, when and why while it waits or once it is withdrawn (a rejected withdrawal clears them: null then)
+ */
+export interface WithdrawalTaskDto {
+  readonly requestedBy: MemberRefDto | null
+  readonly requestedAt: Date | null
+  readonly reason: string | null
+  readonly withdrawnAt: Date | null
 }
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
 
@@ -436,6 +449,8 @@ export type PolicySubjectDto =
       /** The version in effect now, and its open tasks that keep its route to the end (BR-DOA-13) */
       readonly current: { readonly versionId: string; readonly code: string; readonly versionNo: number } | null
       readonly openTasksUnderCurrent: number
+      /** The task decides a withdrawal of the version rather than its publishing (FR-DOA-104); null otherwise */
+      readonly withdrawal: WithdrawalTaskDto | null
       /** The holders approved together with an organization's first version (BR-DOA-19) */
       readonly holders: ReadonlyArray<{ readonly position: PositionNameDto; readonly department: DepartmentRefDto | null; readonly member: MemberRefDto | null }>
       /** The rules and policy the approver is asked to publish; null when a stored rule cannot be read */
@@ -673,6 +688,30 @@ async function baselineOf(db: TenantDb, version: { readonly id: string; readonly
   return { versionId: row.id, code: row.code, versionNo: row.versionNo, effectiveFrom: row.effectiveFrom, relation }
 }
 
+interface WithdrawableRow {
+  readonly status: string
+  readonly approvedAt: Date | null
+  readonly publishedAt: Date | null
+  readonly withdrawalRequestedAt: Date | null
+  readonly withdrawalRequestedById: string | null
+  readonly withdrawalReason: string | null
+  readonly withdrawnAt: Date | null
+}
+
+/**
+ * Whether a route of a version is its withdrawal's: made after the version was approved (its publishing route was made
+ * before), and what the approver reads of it — who asked, when and why, kept while it waits and once it is withdrawn
+ */
+async function withdrawalOf(db: TenantDb, version: WithdrawableRow, routeId: string): Promise<WithdrawalTaskDto | null> {
+  const approved = version.approvedAt ?? version.publishedAt
+  if (!approved) return null
+  const route = await db.approvalRoute.findUnique({ where: { id: routeId }, select: { createdAt: true } })
+  if (!route || route.createdAt.getTime() <= approved.getTime()) return null
+  const asked = (version.status === 'PUBLISHED' && version.withdrawalRequestedAt !== null) || version.status === 'WITHDRAWN'
+  const by = asked && version.withdrawalRequestedById ? (await membersById(db, [version.withdrawalRequestedById])).get(version.withdrawalRequestedById) ?? null : null
+  return { requestedBy: by, requestedAt: asked ? version.withdrawalRequestedAt : null, reason: asked ? version.withdrawalReason : null, withdrawnAt: version.status === 'WITHDRAWN' ? version.withdrawnAt : null }
+}
+
 async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: string, departments: { byId: Map<string, DepartmentRefDto> }): Promise<PolicySubjectDto | null> {
   const version = await db.doaVersion.findUnique({ where: { id: versionId }, include: { _count: { select: { rules: true } } } })
   if (!version) return null
@@ -714,6 +753,7 @@ async function doaVersionOf(db: TenantDb, ctx: Ctx, versionId: string, routeId: 
     ruleCount: version._count.rules,
     current: current && current.id !== version.id ? { versionId: current.id, code: current.code, versionNo: current.versionNo } : null,
     openTasksUnderCurrent: current && current.id !== version.id ? openTasksUnderCurrent : 0,
+    withdrawal: await withdrawalOf(db, version, routeId),
     holders: payloads.map((p) => {
       const code = text(p.positionCode) ?? ''
       const position = positions.find((x) => x.code === code)
@@ -829,10 +869,20 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
 
   let workflow: WorkflowTaskDto | null = null
   if (subjectType === 'WORKFLOW_VERSION') {
-    const v = await db.workflowVersion.findFirst({ where: { id: subjectId }, select: { id: true, code: true, versionNo: true, status: true, effectiveFrom: true, changeReason: true, submittedById: true, _count: { select: { rules: true } } } })
+    const v = await db.workflowVersion.findFirst({ where: { id: subjectId }, include: { _count: { select: { rules: true } } } })
     if (v) {
       const by = await membersById(db, [v.submittedById])
-      workflow = { versionId: v.id, code: v.code, versionNo: v.versionNo, status: v.status, effectiveFrom: v.effectiveFrom, changeReason: v.changeReason, submittedBy: v.submittedById ? (by.get(v.submittedById) ?? null) : null, rules: v._count.rules }
+      workflow = {
+        versionId: v.id,
+        code: v.code,
+        versionNo: v.versionNo,
+        status: v.status,
+        effectiveFrom: v.effectiveFrom,
+        changeReason: v.changeReason,
+        submittedBy: v.submittedById ? (by.get(v.submittedById) ?? null) : null,
+        rules: v._count.rules,
+        withdrawal: await withdrawalOf(db, v, task.step.routeId),
+      }
     }
   }
 

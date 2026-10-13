@@ -68,6 +68,7 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   // document_verification_*_hash: lower-case hex; tokenHash is unique in the whole table, so each row draws its own
   DocumentVerification: { tokenHash: () => createHash('sha256').update(randomUUID()).digest('hex'), contentSha256: 'b'.repeat(64) },
   PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
+  BacktestRun: { subjectType: 'DOA_VERSION' }, // backtest_run_subject: a backtest tries a DOA or a workflow draft
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {

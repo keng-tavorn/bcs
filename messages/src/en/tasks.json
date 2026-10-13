@@ -26,7 +26,8 @@
     "varianceMeta": "From {number}",
     "varianceAmountLabel": "Before VAT",
     "review": "Review before approval",
-    "workflow": "Publish parallel reviewers {code} version {version}"
+    "workflow": "Publish parallel reviewers {code} version {version}",
+    "workflowWithdrawal": "Withdraw parallel reviewers {code} version {version}"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",
@@ -279,7 +280,8 @@
       "ANY": "Committee {approvers}, any one of them",
       "COUNT": "Committee {approvers}, {count, plural, one {# vote} other {# votes}} needed",
       "MAJORITY": "Committee {approvers}, majority vote"
-    }
+    },
+    "doaWithdrawalHeadline": "Withdraw {code} version {version}"
   },
   "errors": {
     "DECIDED": "Already decided by {name} {time}",
@@ -398,5 +400,14 @@
     "version": "Version",
     "versionValue": "{code} version {version}",
     "webOnly": "Approve or reject on the web only, every time with your PIN"
+  },
+  "withdrawal": {
+    "title": "Request to withdraw this version",
+    "asked": "{name} asked on {at} to withdraw {version}, approved but not yet in effect (due {effective})",
+    "askedNoName": "A withdrawal of {version} is asked: it is approved but not yet in effect (due {effective})",
+    "reason": "Reason for the withdrawal: {reason}",
+    "effect": "Approve = withdraw this version; the version before it stays in effect · Reject = keep this version on its date",
+    "withdrawn": "Withdrawn on {time}",
+    "backtestTitle": "90-day backtest"
   }
 }

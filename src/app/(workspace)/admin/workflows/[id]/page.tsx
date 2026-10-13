@@ -9,11 +9,15 @@ import { VersionStatus, versionLook } from '@/ui/admin-doa/version-status'
 import { nameIn } from '@/ui/admin-org/names'
 import { NoAccess } from '@/ui/admin-settings/no-access'
 import { Workbench } from '@/ui/admin-workflow/workbench'
+import { BacktestPanel } from '@/ui/backtest/panel'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { RequestWithdrawal } from '@/ui/policy-withdrawal/request-withdrawal'
+import { WithdrawalState } from '@/ui/policy-withdrawal/withdrawal-state'
+import { readBacktestRunAction, runBacktestAction } from '../../../../_lib/backtest-actions'
 import { getSession } from '../../../../_lib/session'
-import { dryRunWorkflowAction, saveWorkflowAction, submitWorkflowAction } from '../actions'
+import { dryRunWorkflowAction, requestWorkflowWithdrawalAction, saveWorkflowAction, submitWorkflowAction } from '../actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('adminWorkflow')
@@ -26,11 +30,14 @@ const linkClass = 'inline-flex min-h-11 items-center font-medium text-primary un
 // stands, then the workbench — the rules (edited in a Dialog for a draft), the dry-run beside the version in effect,
 // the comparison and, for a draft, the lint and the send. A version that was sent or published is read only; a change
 // is a new draft from the list. admin.workflow.draft (ORG_ADMIN), and the version's approver reading it before deciding
-// (FR-WF-103 AC3): the service refuses anyone else and this page then says whose page it is.
+// (FR-WF-103 AC3): the service refuses anyone else and this page then says whose page it is. S6-07: the 90-day
+// backtest of a draft, a version waiting for approval or one approved for later (BR-WF-13), for whoever may try it out
+// — its approver too; a version approved for later may be withdrawn by who may send versions (FR-DOA-104 AC1), and a
+// withdrawal asked or done is stated with who asked, when and why.
 export default async function WorkflowVersionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
-  const [t, locale] = await Promise.all([getTranslations('adminWorkflow'), getLocale()])
+  const [t, tWithdrawal, locale] = await Promise.all([getTranslations('adminWorkflow'), getTranslations('policyWithdrawal'), getLocale()])
   if (!ctx) return null
   const result = await getWorkflowEditor(ctx, id)
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
@@ -55,6 +62,8 @@ export default async function WorkflowVersionPage({ params }: { params: Promise<
       })
   }
   const submit = view.submit
+  const withdrawal = view.withdrawal
+  const backtestable = view.canSimulate && (v.status === 'DRAFT' || v.status === 'PENDING_APPROVAL' || v.upcoming)
   const waiting = (view.route?.tasks ?? []).filter((task) => task.status === 'OPEN' || task.status === 'INFO_REQUESTED').map((task) => person(task.assignee))
   const approver =
     submit && !('error' in submit.approver)
@@ -116,6 +125,21 @@ export default async function WorkflowVersionPage({ params }: { params: Promise<
             <Notice tone="success">{waiting.length ? t('submit.sent', { name: waiting.join(', ') }) : t('submit.sentNoName')}</Notice>
           ) : null}
           {view.editable ? null : <Notice tone="info">{v.status === 'PENDING_APPROVAL' ? t('readOnlyPending') : t('readOnly')}</Notice>}
+          <WithdrawalState
+            pending={withdrawal.pending}
+            withdrawnAt={withdrawal.withdrawnAt}
+            requestedBy={withdrawal.requestedBy}
+            requestedAt={withdrawal.requestedAt}
+            reason={withdrawal.reason}
+            waiting={withdrawal.pending ? waiting : []}
+          />
+          {withdrawal.requestable && withdrawal.allowed ? (
+            <div className="flex flex-col gap-2 border-t border-line pt-3">
+              <p className="font-medium">{tWithdrawal('title')}</p>
+              <p className="text-ink-muted">{tWithdrawal('intro', { name, time: when(v.effectiveFrom) })}</p>
+              <RequestWithdrawal versionId={v.id} versionName={name} request={requestWorkflowWithdrawalAction} />
+            </div>
+          ) : null}
         </Panel>
 
         <Panel label={name}>
@@ -152,6 +176,9 @@ export default async function WorkflowVersionPage({ params }: { params: Promise<
                 : null
             }
             actions={{ save: saveWorkflowAction, dryRun: dryRunWorkflowAction, submit: submitWorkflowAction }}
+            backtest={
+              backtestable ? <BacktestPanel kind="WORKFLOW_VERSION" versionId={v.id} versionName={name} purpose={withdrawal.pending ? 'withdrawal' : 'draft'} run={runBacktestAction} reread={readBacktestRunAction} /> : undefined
+            }
           />
         </Panel>
       </PageBody>

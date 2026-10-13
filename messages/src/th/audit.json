@@ -93,6 +93,7 @@
     "approval_task": "งานอนุมัติ",
     "audit": "บันทึกการตรวจสอบ",
     "auth": "การเข้าระบบ",
+    "backtest": "ย้อนทดสอบ",
     "budget": "งบประมาณ",
     "budget_grant": "สิทธิ์ใช้งบข้ามฝ่าย",
     "consolidation_run": "รวมคำขอเป็นใบสั่งซื้อ",
@@ -126,6 +127,7 @@
     "ApprovalStep": "ขั้นอนุมัติ",
     "ApprovalTask": "งานอนุมัติ",
     "Auth": "การเข้าระบบ",
+    "BacktestRun": "การย้อนทดสอบ",
     "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
     "BudgetLine": "บรรทัดงบ",
     "ChannelIdentity": "บัญชี LINE",
@@ -177,6 +179,10 @@
       "login_locked": "ล็อกการเข้าระบบชั่วคราว",
       "login_succeeded": "เข้าระบบสำเร็จ",
       "pin_set": "ตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม"
+    },
+    "backtest": {
+      "completed": "ย้อนทดสอบ 90 วันเสร็จ",
+      "requested": "ขอย้อนทดสอบ 90 วันเป็นงานเบื้องหลัง"
     },
     "budget": {
       "actualized": "ตัดงบเป็นจ่ายจริง",

@@ -28,6 +28,7 @@ import { enabledModules } from '../modules'
 import { diffVersions, policyValues, type PolicyField, type PolicyValue, type VersionDiff } from './diff'
 import { INITIAL_PACKAGE_RULE } from './initial-package'
 import { issueView, warningKey } from './lint-view'
+import { withdrawalView, type WithdrawalView } from '../policy-withdrawal/view'
 
 // The DOA pages of ORG_ADMIN (spec §9.1 /admin/doa, FR-DOA-001 AC1–AC3, FR-DOA-002 AC1, FR-DOA-009 AC1 and AC3,
 // BR-DOA-19): every version with its status and effective period and where the editor starts, one version with its
@@ -223,6 +224,10 @@ export interface DoaVersionDetailView {
   readonly route: RouteView | null
   /** Only for a draft */
   readonly submit: SubmitView | null
+  /** The withdrawal of a version approved but not yet in effect (FR-DOA-104) */
+  readonly withdrawal: WithdrawalView
+  /** admin.doa.simulate: the 90-day backtest of a draft (FR-DOA-103) */
+  readonly canBacktest: boolean
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
@@ -385,6 +390,7 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
     comparable ? comparisonBaselineId(forTenant(ctx.organizationId), row, ctx.now) : Promise.resolve(null),
   ])
   const person = personOf(members)
+  const may = async (capability: 'admin.doa.submitForPublish' | 'admin.doa.simulate') => (await forTenant(ctx.organizationId).$transaction((tx) => authorize(tx, ctx, capability))).ok
   const positions = new Map(positionRows.map((p) => [p.code, { nameTh: p.nameTh, nameEn: p.nameEn }]))
   const data = dataOf(row)
   const snapshot = versionSnapshotFromRows(row, row.ruleRows)
@@ -407,6 +413,8 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
     compare: baselineRow ? compareView(baselineRow, data, positions, person, ctx.now) : null,
     route: route ? routeView(route, person) : null,
     submit: row.status === 'DRAFT' ? await submitView(ctx, row, members, positionRows) : null,
+    withdrawal: withdrawalView(row, person, ctx.now, await may('admin.doa.submitForPublish')),
+    canBacktest: await may('admin.doa.simulate'),
   })
 }
 

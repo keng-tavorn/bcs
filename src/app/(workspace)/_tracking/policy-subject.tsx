@@ -11,6 +11,7 @@ import type { BoundaryTick } from '@/ui/tasks/policy-decision'
 import { AuthorityList, BoundaryCompare, type Baseline } from '../admin/doa/_parts/sections'
 import { doaWords as adminDoaWords, type DoaT } from '../admin/doa/_parts/words'
 import { doaHref, doaRefText, memberName, money, nameIn, routeSentence, when, type Locale } from './present'
+import { WithdrawalNotice } from './withdrawal-notice'
 
 // What a policy task asks the approver to approve (BR-DOA-15, FR-DOA-010 AC1–AC2, FR-DOA-002 AC2, BR-DOA-13): the
 // change as one sentence with names, who proposed it and when it takes effect, the reason, and who gains or loses
@@ -38,7 +39,7 @@ export const DOA_BOUNDARY_SECTION = 'doa-boundaries'
 
 /** The change as one sentence, e.g. "แต่งตั้ง สมหญิง รักงาน เป็นผู้จัดการฝ่าย ฝ่ายก่อสร้าง" */
 export function policyHeadline(t: TasksT, locale: Locale, policy: PolicySubjectDto): string {
-  if (policy.kind === 'DOA_VERSION') return t('policy.doaHeadline', { code: policy.code, version: policy.versionNo })
+  if (policy.kind === 'DOA_VERSION') return t(policy.withdrawal ? 'policy.doaWithdrawalHeadline' : 'policy.doaHeadline', { code: policy.code, version: policy.versionNo })
   const d = policy.details
   const unknown = t('policy.unknown')
   const member = (m: { name: { th: string; en: string | null } } | null) => (m ? nameIn(locale, m.name) : unknown)
@@ -90,6 +91,8 @@ export function doaComparison(policy: DoaPolicy) {
  */
 export function boundaryTickOf(task: TaskViewDto): BoundaryTick | null {
   if (task.policy?.kind !== 'DOA_VERSION') return null
+  // A withdrawal publishes nothing: there is no table to tick (the service reads no tick for it)
+  if (task.policy.withdrawal) return null
   if ((doaComparison(task.policy)?.boundaries.length ?? 0) === 0) return null
   return { tableId: DOA_BOUNDARY_SECTION, baselineId: task.policy.baseline?.versionId ?? null }
 }
@@ -425,6 +428,9 @@ export async function PolicySubject({
   return (
     <div className="flex flex-col gap-6">
       <Section id="what" title={t('policy.whatTitle')}>
+        {policy.kind === 'DOA_VERSION' && policy.withdrawal ? (
+          <WithdrawalNotice withdrawal={policy.withdrawal} version={t('policy.doaVersionRef', { code: policy.code, version: policy.versionNo })} effectiveFrom={policy.effectiveFrom} locale={locale} />
+        ) : null}
         <Facts columns={2} items={facts} />
         {/* What publishing would leave running under the version in effect (BR-DOA-13): only while it waits for approval */}
         {policy.kind === 'DOA_VERSION' && policy.status === 'PENDING_APPROVAL' && policy.openTasksUnderCurrent > 0 ? <p className="text-ink">{t('policy.doaOpenTasks', { count: policy.openTasksUnderCurrent })}</p> : null}

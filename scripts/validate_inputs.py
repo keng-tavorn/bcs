@@ -55,7 +55,6 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'Banks': ['code','shortName','nameTh'], 'WHT_Types': ['code','nameTh','rateBp','form'],
  'CompanyBankAccounts': ['code','bankCode','accountNo'],
  'Items': ['code','nameTh','unit','refUnitPrice','category','isService','accountCode','whtIncomeType','agreementSupplier','agreedUnitPrice'],
- 'DOA_P1_Draft': ['documentType','ruleCode','gt','lte','approverKind','approverPosition','slaBusinessHours'],
  'Workflow_Reviewers': ['ruleCode','requestType','reviewerPosition','reviewerDepartment','mode','slaBusinessHours'],
  'Request_History': ['ref','daysAgo','requester','chargedDept','requestType','title','site','supplier','budgetKey','itemCode','qty','unitPrice','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel','form','invoiceScenario','invoiceNo','whtIncomeType','paymentStatus'],
  'DocSamples': ['sampleId','docType','historyRef','supplierCode','docNo','priceIncludesVat','linesJson','net','vat','gross','expectedWhtBp','expectedWht'],
@@ -157,11 +156,17 @@ check(sig in USR, 'ผู้มีอำนาจลงนามมีบัญ�
 
 # ---------- DOA ----------
 RULES, rprob = {}, []
-DOCS = {'PURCHASE_REQUEST','PURCHASE_ORDER','GR_VARIANCE','DOA_CHANGE','ORG_AUTHORITY_CHANGE'}
+# The DOA document types of src/core/doa (DOA_DOCUMENT_TYPES · P1-07): a type without an amount takes no band (BR-DOA-22)
+DOCS = {'PURCHASE_REQUEST','PURCHASE_ORDER','GR_VARIANCE','DOA_CHANGE','ORG_AUTHORITY_CHANGE',
+        'BUDGET_TRANSFER','OVER_BUDGET','INVOICE_EXCEPTION','PO_CHANGE','PAYMENT_RUN','BANK_ACCOUNT_CHANGE'}
+NO_AMOUNT_DOCS = {'BANK_ACCOUNT_CHANGE'}
+# The seed of the phase-1 file switches PAY on (ADR-070), so its DOA needs PAY's types (BR-DOA-23 BR-DOA-24)
+PAY_DOCS = ('INVOICE_EXCEPTION', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE')
 for r, d in table('DOA'):
     rule = {'code': s_(d['ruleCode']), 'doc': s_(d['documentType']), 'gt': None if d['gt'] in (None, '') else sat(d['gt']),
             'lte': None if d['lte'] in (None, '') else sat(d['lte']), 'kind': s_(d['approverKind']), 'pos': s_(d['approverPosition']), 'mem': s_(d['approverMember']), 'sla': d['slaBusinessHours']}
     if rule['doc'] not in DOCS: rprob.append(f'{at("DOA","documentType",r)} {rule["doc"]}')
+    if rule['doc'] in NO_AMOUNT_DOCS and (rule['gt'] is not None or rule['lte'] is not None): rprob.append(f'{at("DOA","gt",r)} {rule["doc"]} ไม่มียอดเงิน จึงตั้งช่วงวงเงินไม่ได้')
     if rule['kind'] not in ('POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG', 'MEMBER'): rprob.append(f'{at("DOA","approverKind",r)} {rule["kind"]}')
     if rule['kind'] != 'MEMBER' and rule['pos'] not in POS: rprob.append(f'{at("DOA","approverPosition",r)} ไม่มีตำแหน่ง {rule["pos"]}')
     if rule['kind'] == 'MEMBER' and rule['mem'] not in USR: rprob.append(f'{at("DOA","approverMember",r)} ไม่มีผู้ใช้ {rule["mem"]}')
@@ -173,6 +178,7 @@ STEPUP = sat(POL.get('stepUpThreshold', (0, 0))[0])
 if BASIS not in ('GROSS', 'NET'): rprob.append('DOA_Policy amountBasis ต้องเป็น GROSS หรือ NET')
 if SELF not in ('ESCALATE_NEXT_BAND', 'BLOCK'): rprob.append('DOA_Policy selfApprovalPolicy ต้องเป็น ESCALATE_NEXT_BAND หรือ BLOCK')
 if not RS: rprob.append(f'ไม่มีข้อ DOA ของฉบับ {VER}')
+if PROFILE == 'p1': rprob += [f'ฉบับ {VER} ไม่มีข้อของ {d} ที่โมดูล PAY ต้องมี' for d in PAY_DOCS if not any(r['doc'] == d for r in RS)]
 check(not rprob, 'ข้อมูล DOA และนโยบาย', f'ฉบับ {VER}: {len(RS)} ข้อ · ฐาน {BASIS} · step-up {baht(STEPUP)}', '; '.join(rprob), 'engine คำนวณเส้นทางไม่ได้', 'แก้ช่องที่ระบุในชีต DOA หรือ DOA_Policy')
 def is_amt(r): return r['gt'] is not None or r['lte'] is not None
 def lower(r): return r['gt'] or 0
@@ -433,23 +439,14 @@ if PROFILE == 'p1':
         ITEMS[c] = {'unit': s_(d['unit'])}
     check(not ip_, 'รายการสินค้าและราคาที่ตกลง', f'{len(ITEMS)} รายการ', '; '.join(ip_[:8]), 'แคตตาล็อกและราคาอ้างอิงผิด', 'แก้ชีต Items ตามช่องที่ระบุ')
 
-    # ---------- ร่างของระยะ 1: DOA ชนิดใหม่และผู้ตรวจคู่ขนาน ----------
-    dr, draft = [], []
-    for r, d in table('DOA_P1_Draft'):
-        rule = {'code': s_(d['ruleCode']), 'doc': s_(d['documentType']), 'gt': None if d['gt'] in (None, '') else sat(d['gt']),
-                'lte': None if d['lte'] in (None, '') else sat(d['lte']), 'kind': s_(d['approverKind']), 'pos': s_(d['approverPosition']), 'mem': ''}
-        if rule['doc'] in DOCS: dr.append(f'{at("DOA_P1_Draft","documentType",r)} {rule["doc"]} มีในชีต DOA อยู่แล้ว')
-        if rule['kind'] not in ('POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG'): dr.append(f'{at("DOA_P1_Draft","approverKind",r)} {rule["kind"]}')
-        if rule['pos'] not in POS: dr.append(f'{at("DOA_P1_Draft","approverPosition",r)} ไม่มีตำแหน่ง {rule["pos"]}')
-        elif not any(p == rule['pos'] for (p, _) in HOLD): dr.append(f'{rule["code"]}: ตำแหน่ง {rule["pos"]} ไม่มีผู้ดำรง')
-        draft.append(rule)
-    dr += band_lint(draft)
+    # ---------- ร่างผู้ตรวจคู่ขนานของระยะ 1 (S6 อ่านเอง) ----------
+    dr = []
     for r, d in table('Workflow_Reviewers'):
         if s_(d['requestType']) not in TYPES: dr.append(f'{at("Workflow_Reviewers","requestType",r)} ไม่มีประเภทคำขอ')
         if (s_(d['reviewerPosition']), s_(d['reviewerDepartment'])) not in HOLD: dr.append(f'{at("Workflow_Reviewers","reviewerPosition",r)} ไม่มีผู้ดำรง {s_(d["reviewerPosition"])}@{s_(d["reviewerDepartment"])}')
         if s_(d['mode']) not in ('ALL', 'ANY'): dr.append(f'{at("Workflow_Reviewers","mode",r)} ต้องเป็น ALL หรือ ANY')
-    check(not dr, 'ร่าง DOA ของระยะ 1 และผู้ตรวจคู่ขนาน', f'{len(draft)} ข้อ ครอบคลุม (0, ∞) ทุกชนิดเอกสาร · ผู้ตรวจมีผู้ดำรงทุกข้อ', '; '.join(dr[:8]),
-          'sub-spec ของ S6 S8 S9 จะเริ่มจากร่างที่ใช้ไม่ได้', 'แก้ชีต DOA_P1_Draft หรือ Workflow_Reviewers')
+    check(not dr, 'ร่างผู้ตรวจคู่ขนานของระยะ 1', f'{len(table("Workflow_Reviewers"))} ข้อ · ผู้ตรวจมีผู้ดำรงทุกข้อ', '; '.join(dr[:8]),
+          'S6 จะเริ่มจากร่างที่ใช้ไม่ได้', 'แก้ชีต Workflow_Reviewers ใน scripts/inputs_p1/p1_master.py')
 
     # ---------- ประวัติคำขอ (Request_History) ----------
     EXTRA = {'APPROVED': 1, 'REJECTED': 1, 'RETURNED': 1, 'CANCELLED': 1, 'ORDERED': 6, 'COMPLETED': 34}  # = scripts/inputs_p1/p1_history.py

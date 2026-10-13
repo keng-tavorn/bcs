@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { amountToSatang } from '@/core/money/dto'
 import { lineNet } from '@/core/money/math'
 import { isValidThaiTaxId } from '@/core/thai/taxid'
-import type { DoaRuleSnapshot, DoaVersionSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot, type DoaVersionSnapshot } from '@/core/doa'
 import type { InputWorkbook } from './workbook'
 
 // S2-15: the sheets Departments, Positions, DOA, DOA_Policy, RequestTypes and Holidays of
@@ -58,7 +58,8 @@ const PositionRow = z.object({ code: z.string().regex(/^[A-Z_]{2,20}$/), nameTh:
 const DoaRow = z.object({
   version: z.coerce.number().int().min(1),
   ruleCode: z.string().regex(/^[A-Z0-9-]{2,20}$/),
-  documentType: z.enum(['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE']),
+  // Every type of the engine (P1-07): the phase-1 workbook carries the six new ones in DOA-SIMEC version 1
+  documentType: z.enum(DOA_DOCUMENT_TYPES),
   gt: bahtOrNull,
   lte: bahtOrNull,
   approverKind: z.enum(['POSITION_OF_DEPARTMENT', 'POSITION_OF_ORG', 'MEMBER']),

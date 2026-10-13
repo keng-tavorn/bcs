@@ -17,7 +17,7 @@ from openpyxl.utils import get_column_letter  # noqa: E402
 
 from p1_org import ORG, DEPARTMENTS, POSITIONS, USERS  # noqa: E402
 from p1_master import (GL_ACCOUNTS, cost_center_rows, budget_rows, SITES, REQUEST_TYPES, HOLIDAYS, SETTINGS, DOA_POLICY,  # noqa: E402
-                       DOA_RULES, DOA_P1_DRAFT, WORKFLOW_REVIEWERS, BANKS, WHT_TYPES, COMPANY_BANK_ACCOUNTS)
+                       DOA_RULES, WORKFLOW_REVIEWERS, BANKS, WHT_TYPES, COMPANY_BANK_ACCOUNTS)
 from p1_suppliers import SUPPLIERS, SUPPLIER_PAYMENT, ITEMS  # noqa: E402
 from p1_history import build, doc_samples  # noqa: E402
 from p1_texts import README, INPUTS, QUESTIONS_Q, QUESTIONS_B, SCENARIOS  # noqa: E402
@@ -119,9 +119,6 @@ def main():
           ('lte', 'ไม่เกิน (บาท) ว่าง = ไม่มีขอบบน'), ('approverKind', 'วิธีหาผู้อนุมัติ'), ('approverPosition', 'ตำแหน่ง'),
           ('approverMember', 'ผู้ใช้ (ถ้าระบุตัว)'), ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย')], none(DOA_RULES))
     kv_sheet(sheet('DOA_Policy'), DEFAULT, DOA_POLICY if not blank else [(k, None, l, r) for k, _, l, r in DOA_POLICY])
-    table(sheet('DOA_P1_Draft'), REAL, [('documentType', 'ประเภทเอกสารใหม่ของระยะ 1'), ('ruleCode', 'รหัสข้อ'), ('gt', 'มากกว่า (บาท)'),
-          ('lte', 'ไม่เกิน (บาท)'), ('approverKind', 'วิธีหาผู้อนุมัติ'), ('approverPosition', 'ตำแหน่ง'), ('slaBusinessHours', 'SLA ชั่วโมงทำการ'),
-          ('descriptionTh', 'คำอธิบาย (ร่าง รอลูกค้ายืนยัน · seed ยังไม่อ่าน)'), ('ref', 'FR')], none(DOA_P1_DRAFT))
     table(sheet('Workflow_Reviewers'), REAL, [('ruleCode', 'รหัสข้อ'), ('requestType', 'ประเภทคำขอ'), ('conditionTh', 'เงื่อนไข'),
           ('reviewerPosition', 'ตำแหน่งผู้ตรวจ'), ('reviewerDepartment', 'ฝ่ายของผู้ตรวจ'), ('mode', 'ALL = ต้องครบ · ANY = คนใดคนหนึ่ง'),
           ('slaBusinessHours', 'SLA ชั่วโมงทำการ'), ('descriptionTh', 'คำอธิบาย (ร่าง)'), ('ref', 'FR')], none(WORKFLOW_REVIEWERS))

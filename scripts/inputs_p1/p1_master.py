@@ -206,25 +206,21 @@ DOA_RULES = [  # version, ruleCode, documentType, gt, lte, approverKind, approve
     (1, 'GRV-01', 'GR_VARIANCE', None, None, 'POSITION_OF_DEPARTMENT', 'DM', None, 8, 'variance ตรวจรับ → ผู้จัดการฝ่ายเจ้าของงบ (OQ-21)'),
     (1, 'DOA-CHG-01', 'DOA_CHANGE', None, None, 'POSITION_OF_ORG', 'CEO', None, 16, 'แก้ DOA → กรรมการผู้จัดการ (4 ตา + PIN)'),
     (1, 'ORG-CHG-01', 'ORG_AUTHORITY_CHANGE', None, None, 'POSITION_OF_ORG', 'CEO', None, 16, 'เปลี่ยนผู้ดำรงตำแหน่ง ย้ายแผนก รักษาการแทน → กรรมการผู้จัดการ'),
-]
-
-# Draft rules for the document types phase 1 adds (S6 S8 S9). Not loaded by the seed: the sub-specs decide them
-# with the user, and the customer confirms the amounts (rule "stop and ask" for new money or authority rules).
-DOA_P1_DRAFT = [  # documentType, ruleCode, gt, lte, approverKind, approverPosition, sla, descriptionTh, ref
-    ('BUDGET_TRANSFER', 'BT-01', 0, 100000, 'POSITION_OF_DEPARTMENT', 'DM', 8, 'โอนงบระหว่างบรรทัดไม่เกิน 100,000 → ผู้จัดการฝ่ายเจ้าของงบต้นทาง', 'FR-BUD-103'),
-    ('BUDGET_TRANSFER', 'BT-02', 100000, 500000, 'POSITION_OF_DEPARTMENT', 'VP', 8, 'โอนงบเกิน 100,000 ถึง 500,000 → รองกรรมการผู้จัดการสายงาน', 'FR-BUD-103'),
-    ('BUDGET_TRANSFER', 'BT-03', 500000, None, 'POSITION_OF_ORG', 'CFO', 16, 'โอนงบเกิน 500,000 → CFO', 'FR-BUD-103'),
-    ('OVER_BUDGET', 'OB-01', 0, 50000, 'POSITION_OF_DEPARTMENT', 'VP', 8, 'อนุมัติเกินงบไม่เกิน 50,000 → รองกรรมการผู้จัดการสายงาน', 'FR-BUD-101'),
-    ('OVER_BUDGET', 'OB-02', 50000, 500000, 'POSITION_OF_ORG', 'CFO', 16, 'อนุมัติเกินงบเกิน 50,000 ถึง 500,000 → CFO', 'FR-BUD-101'),
-    ('OVER_BUDGET', 'OB-03', 500000, None, 'POSITION_OF_ORG', 'CEO', 16, 'อนุมัติเกินงบเกิน 500,000 → กรรมการผู้จัดการ', 'FR-BUD-101'),
-    ('INVOICE_EXCEPTION', 'IE-01', 0, 20000, 'POSITION_OF_DEPARTMENT', 'DM', 8, 'ใบแจ้งหนี้ต่างจาก PO นอกเกณฑ์ ส่วนต่างไม่เกิน 20,000 → ผู้จัดการฝ่ายเจ้าของงบ', 'FR-AP-103'),
-    ('INVOICE_EXCEPTION', 'IE-02', 20000, 200000, 'POSITION_OF_DEPARTMENT', 'VP', 8, 'ส่วนต่างเกิน 20,000 ถึง 200,000 → รองกรรมการผู้จัดการสายงาน', 'FR-AP-103'),
-    ('INVOICE_EXCEPTION', 'IE-03', 200000, None, 'POSITION_OF_ORG', 'CFO', 16, 'ส่วนต่างเกิน 200,000 → CFO', 'FR-AP-103'),
-    ('PO_CHANGE', 'PC-01', 0, 1000000, 'POSITION_OF_ORG', 'COO', 8, 'แก้ PO ที่ยอดใหม่ไม่เกิน 1,000,000 → COO', 'FR-AP-107'),
-    ('PO_CHANGE', 'PC-02', 1000000, None, 'POSITION_OF_ORG', 'CEO', 16, 'แก้ PO ที่ยอดใหม่เกิน 1,000,000 → กรรมการผู้จัดการ', 'FR-AP-107'),
-    ('PAYMENT_RUN', 'PAY-01', 0, 5000000, 'POSITION_OF_ORG', 'CFO', 8, 'รอบจ่ายไม่เกิน 5,000,000 → CFO (ผู้เตรียมห้ามอนุมัติ BR-SOD-04)', 'FR-PAY-101'),
-    ('PAYMENT_RUN', 'PAY-02', 5000000, None, 'POSITION_OF_ORG', 'CEO', 16, 'รอบจ่ายเกิน 5,000,000 → กรรมการผู้จัดการ', 'FR-PAY-101'),
-    ('BANK_ACCOUNT_CHANGE', 'BA-01', None, None, 'POSITION_OF_ORG', 'CFO', 8, 'เพิ่มหรือเปลี่ยนบัญชีรับเงินของผู้ขาย → CFO (ผู้แก้ห้ามอนุมัติ BR-SOD-05)', 'FR-PAY-102'),
+    # Phase 1 (P1-07, ADR-070): the six new document types, a draft the customer confirms in finish line B (OQ-40)
+    (1, 'BT-01', 'BUDGET_TRANSFER', 0, 100000, 'POSITION_OF_DEPARTMENT', 'DM', None, 8, 'โอนงบระหว่างบรรทัดไม่เกิน 100,000 → ผู้จัดการฝ่ายเจ้าของงบต้นทาง (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'BT-02', 'BUDGET_TRANSFER', 100000, 500000, 'POSITION_OF_DEPARTMENT', 'VP', None, 8, 'โอนงบเกิน 100,000 ถึง 500,000 → รองกรรมการผู้จัดการสายงาน (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'BT-03', 'BUDGET_TRANSFER', 500000, None, 'POSITION_OF_ORG', 'CFO', None, 16, 'โอนงบเกิน 500,000 → CFO (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'OB-01', 'OVER_BUDGET', 0, 50000, 'POSITION_OF_DEPARTMENT', 'VP', None, 8, 'อนุมัติเกินงบไม่เกิน 50,000 → รองกรรมการผู้จัดการสายงาน (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'OB-02', 'OVER_BUDGET', 50000, 500000, 'POSITION_OF_ORG', 'CFO', None, 16, 'อนุมัติเกินงบเกิน 50,000 ถึง 500,000 → CFO (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'OB-03', 'OVER_BUDGET', 500000, None, 'POSITION_OF_ORG', 'CEO', None, 16, 'อนุมัติเกินงบเกิน 500,000 → กรรมการผู้จัดการ (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'IE-01', 'INVOICE_EXCEPTION', 0, 20000, 'POSITION_OF_DEPARTMENT', 'DM', None, 8, 'ใบแจ้งหนี้ต่างจาก PO นอกเกณฑ์ ส่วนต่างไม่เกิน 20,000 → ผู้จัดการฝ่ายเจ้าของงบ (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'IE-02', 'INVOICE_EXCEPTION', 20000, 200000, 'POSITION_OF_DEPARTMENT', 'VP', None, 8, 'ส่วนต่างเกิน 20,000 ถึง 200,000 → รองกรรมการผู้จัดการสายงาน (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'IE-03', 'INVOICE_EXCEPTION', 200000, None, 'POSITION_OF_ORG', 'CFO', None, 16, 'ส่วนต่างเกิน 200,000 → CFO (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'PC-01', 'PO_CHANGE', 0, 1000000, 'POSITION_OF_ORG', 'COO', None, 8, 'แก้ PO ที่ยอดใหม่ไม่เกิน 1,000,000 → COO (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'PC-02', 'PO_CHANGE', 1000000, None, 'POSITION_OF_ORG', 'CEO', None, 16, 'แก้ PO ที่ยอดใหม่เกิน 1,000,000 → กรรมการผู้จัดการ (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'PAY-01', 'PAYMENT_RUN', 0, 5000000, 'POSITION_OF_ORG', 'CFO', None, 8, 'รอบจ่ายไม่เกิน 5,000,000 → CFO (ผู้เตรียมห้ามอนุมัติ BR-SOD-04) (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'PAY-02', 'PAYMENT_RUN', 5000000, None, 'POSITION_OF_ORG', 'CEO', None, 16, 'รอบจ่ายเกิน 5,000,000 → กรรมการผู้จัดการ (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
+    (1, 'BA-01', 'BANK_ACCOUNT_CHANGE', None, None, 'POSITION_OF_ORG', 'CFO', None, 8, 'เพิ่มหรือเปลี่ยนบัญชีรับเงินของผู้ขาย → CFO (ผู้แก้ห้ามอนุมัติ BR-SOD-05) (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
 ]
 
 WORKFLOW_REVIEWERS = [  # ruleCode, requestType, conditionTh, reviewerPosition, reviewerDepartment, mode, sla, descriptionTh, ref

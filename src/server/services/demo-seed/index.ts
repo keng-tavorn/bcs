@@ -10,6 +10,7 @@ import { fiscalYearDates, seedBudget } from '@/server/seed/budget'
 import { restoreLineChannelRow } from '@/server/seed/line-channel-restore'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
+import { seedP1Modules } from '@/server/seed/p1-modules'
 import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
 import { parseBudget, parseCostCenters, parseDemoHistory, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
@@ -37,6 +38,8 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const totpKey = env.SEED_TOTP_KEY
   const report = await seedDemoOrganization(input, { password, ...(totpKey ? { totpKey } : {}), now: clock.now() })
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), clock.now())
+  // The phase-1 organization switches PAY AI BCS_GO on once its DOA has their rules (ADR-070); the demo keeps CORE alone
+  const modules = profile === 'p1' ? await seedP1Modules(report.organizationId, clock.now()) : { enabled: 0 }
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now(), parseCostCenters(workbook))
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
   // The LINE channel from the LINE_* values of the environment, when they are set (S5-01)
@@ -47,7 +50,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const seedPin = env.SEED_DEV_PIN ?? null
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, budget, suppliers, lineChannel, pins, pinless }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, budget, suppliers, lineChannel, pins, pinless }
 }
 
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */

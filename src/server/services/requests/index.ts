@@ -20,6 +20,7 @@ import { requestReviewFacts } from '@/server/workflow/policy'
 import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { formDefinition, type FormDefinition } from '@/server/forms/schema'
+import { checkCatalogLines } from './catalog-lines'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
 import { reportDoaGap } from './doa-gap'
@@ -67,6 +68,8 @@ const LineInput = z.strictObject({
   vatable: z.boolean().default(true),
   categoryCode: z.string().trim().max(50).optional(),
   serviceEndDate: z.iso.date().optional(),
+  /** S6-10: the catalogue item the line is; its agreed price is checked on every save and at submit (BR-PRC-06) */
+  catalogItemId: z.uuid().nullable().optional(),
 })
 type LineRow = z.output<typeof LineInput>
 
@@ -103,6 +106,8 @@ const DraftInput = z.strictObject({
   deliverySiteId: z.uuid().nullable().optional(),
   /** The supplier the requester suggests; PROCUREMENT chooses per line in the pool (FR-P2P-001 AC2) */
   suggestedSupplierId: z.uuid().nullable().optional(),
+  /** S6-10 (BR-PRC-06): why a catalogue item with an agreed price goes to another supplier */
+  offAgreementReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
   /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
   aiAssist: AiAssistInput.optional(),
 })
@@ -145,7 +150,7 @@ function move(from: RequestState, command: RequestCommand) {
  * goes (docs/sub-specs/S3.md). Lines are matched by the ids the save names; a save that names no id matches them by
  * their order. Returns the id of every line, in the order given.
  */
-async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: readonly LineRow[]): Promise<{ ok: true; events: EventDraft[]; lineIds: string[] } | { ok: false; error: AppError }> {
+async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: readonly LineRow[], agreementIds: ReadonlyArray<string | null>): Promise<{ ok: true; events: EventDraft[]; lineIds: string[] } | { ok: false; error: AppError }> {
   const existing = await tx.requestLine.findMany({ where: { requestId }, orderBy: { lineNo: 'asc' }, select: { id: true, lineNo: true } })
   let targets: Array<string | null>
   if (lines.some((l) => l.id !== undefined)) {
@@ -182,6 +187,8 @@ async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: read
       vatable: line.vatable,
       categoryCode: line.categoryCode ?? null,
       serviceEndDate: line.serviceEndDate ? new Date(`${line.serviceEndDate}T00:00:00Z`) : null,
+      catalogItemId: line.catalogItemId ?? null,
+      priceAgreementId: agreementIds[i] ?? null,
     }
     const target = targets[i]
     if (target) {
@@ -216,6 +223,7 @@ function answersToKeep(
 
 const unknownField = (field: string) => fail('VALIDATION_FAILED', 'the answer is not a field of this form', { field: `formData.${field}`, reason: 'FORM_FIELD_UNKNOWN' })
 
+const catalogFacts = (lines: readonly LineRow[]) => lines.map((l) => ({ catalogItemId: l.catalogItemId ?? null, unitPriceSatang: amountToSatang(l.unitPrice) }))
 const amountsOf = (lines: readonly LineRow[]) => lines.map((l) => ({ quantity: l.quantity, unitPriceSatang: amountToSatang(l.unitPrice), vatable: l.vatable }))
 
 // ---------- draft ----------
@@ -242,6 +250,8 @@ export const createDraftCommand = defineCommand({
     }
     const place = await checkSiteAndSupplier(tx, input)
     if (place) return place
+    const agreed = await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId: input.suggestedSupplierId ?? null, priceIncludesVat: input.priceIncludesVat, offAgreementReason: input.offAgreementReason ?? null, submit: false })
+    if (!agreed.ok) return agreed
     // A new draft has no saved lines yet: a line naming an id belongs to another request
     const named = input.lines.findIndex((l) => l.id)
     if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
@@ -268,9 +278,10 @@ export const createDraftCommand = defineCommand({
         ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
         ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
         ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
+        ...(input.offAgreementReason ? { offAgreementReason: input.offAgreementReason } : {}),
       },
     })
-    const written = await writeLines(tx, ctx, id, input.lines)
+    const written = await writeLines(tx, ctx, id, input.lines, agreed.agreementIds)
     if (!written.ok) return written
     const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
     if (quotes) return quotes
@@ -310,6 +321,12 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
   // BR-FORM-01 and BR-FORM-03: hidden fields are dropped, visible ones checked, attachment rules met
   const form = formDefinition(request.formVersion.schema)
   if (request.lines.length === 0) return fail('VALIDATION_FAILED', 'a request needs at least one line', { field: 'lines', reason: 'NO_LINES' })
+  // BR-PRC-06 (S6-10): the agreed prices in effect today, the reason for another supplier, and each line's agreement
+  const agreed = await checkCatalogLines(tx, ctx, { lines: request.lines, supplierId: request.suggestedSupplierId, priceIncludesVat: request.priceIncludesVat, offAgreementReason: request.offAgreementReason, submit: true })
+  if (!agreed.ok) return agreed
+  for (const [i, line] of request.lines.entries()) {
+    if (line.priceAgreementId !== agreed.agreementIds[i]) await tx.requestLine.update({ where: { id: line.id }, data: { priceAgreementId: agreed.agreementIds[i] ?? null } })
+  }
   const rates = await listTaxRates()
   const taxDate = taxDateOf(ctx.now)
   const rate = rateFor(taxDate, rates)
@@ -600,6 +617,8 @@ const EditInput = z.strictObject({
   /** null clears */
   deliverySiteId: z.uuid().nullable().optional(),
   suggestedSupplierId: z.uuid().nullable().optional(),
+  /** S6-10 (BR-PRC-06): null clears */
+  offAgreementReason: z.string().trim().max(REASON_MAX_LENGTH).nullable().optional(),
   /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
   aiAssist: AiAssistInput.optional(),
 })
@@ -622,6 +641,10 @@ export const editCommand = defineCommand({
     const rateBp = await todaysRate(ctx)
     const form = formDefinition(request.formVersion.schema)
     const priceIncludesVat = input.priceIncludesVat ?? request.priceIncludesVat
+    const supplierId = input.suggestedSupplierId !== undefined ? input.suggestedSupplierId : request.suggestedSupplierId
+    const offAgreementReason = input.offAgreementReason !== undefined ? input.offAgreementReason : request.offAgreementReason
+    const agreed = input.lines ? await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId, priceIncludesVat, offAgreementReason, submit: false }) : null
+    if (agreed && !agreed.ok) return agreed
     const lines = input.lines ? amountsOf(input.lines) : request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
     // Answers sent now must be fields of the form; answers kept from an earlier save are only checked again
     const fieldIds = new Set(form.fields.map((f) => f.id))
@@ -641,13 +664,14 @@ export const editCommand = defineCommand({
         ...(input.budgetLineId !== undefined ? { budgetLineId: input.budgetLineId } : {}),
         ...(input.deliverySiteId !== undefined ? { deliverySiteId: input.deliverySiteId } : {}),
         ...(input.suggestedSupplierId !== undefined ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
+        ...(input.offAgreementReason !== undefined ? { offAgreementReason: input.offAgreementReason || null } : {}),
         version: { increment: 1 },
       },
     })
     let lineIds = request.lines.map((l) => l.id)
     const events: EventDraft[] = []
     if (input.lines) {
-      const written = await writeLines(tx, ctx, request.id, input.lines)
+      const written = await writeLines(tx, ctx, request.id, input.lines, agreed?.ok ? agreed.agreementIds : [])
       if (!written.ok) return written
       lineIds = written.lineIds
       events.push(...written.events)

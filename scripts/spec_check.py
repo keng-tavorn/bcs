@@ -1149,6 +1149,26 @@ def run_ap(d):  # BR-AP-07 วันครบกำหนด (S8-03) · BR-AP-10
             got = {"error": f"fn {c['fn']} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_price_reference(d):
+    # BR-PRC-06 (S6-10): periods [validFrom, validTo) of one item and supplier never overlap; a catalogue line takes the
+    # agreed price of its supplier, or needs a reason when the item has an agreement with another supplier
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        if c["fn"] == "checkAgreement":
+            a = i["add"]
+            clash = any(e["item"] == a["item"] and e["supplier"] == a["supplier"] and a["validFrom"] < e["validTo"] and e["validFrom"] < a["validTo"] for e in i["existing"])
+            got = {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_OVERLAP"} if clash else {"ok": True}
+        elif c["fn"] == "checkAgreementLine":
+            ag, ln = i["agreement"], i["line"]
+            if ag["item"] != ln["item"]: got = {"ok": True}
+            elif ag["supplier"] == ln["supplier"]:
+                got = {"ok": True} if sat(ag["unitPrice"]) == sat(ln["unitPrice"]) else {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_PRICE_LOCKED"}
+            else:
+                got = {"ok": True} if (i.get("offAgreementReason") or "").strip() else {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_OFF"}
+        else: got = None
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-credits": run_ai_credits,
@@ -1166,6 +1186,7 @@ RUNNERS = {
     "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,
+    "price-reference": run_price_reference,
     "quotations": run_quotes,
     "receiving": run_gr,
     "sla": run_sla,

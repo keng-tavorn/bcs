@@ -394,6 +394,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
 | `supplier.manage` | PROCUREMENT (ORG) |
+| `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
+| `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
 | `export.express` | FINANCE (ORG) |
 | `report.view` | FINANCE, PROCUREMENT, EXECUTIVE, AUDITOR (ORG) · DEPT_HEAD (DEPT) |
 | `report.schedule` | FINANCE, EXECUTIVE |
@@ -2350,7 +2352,7 @@ cases:
 | BR-PRC-03 | deviationBp = (ราคาคำขอ − ค่ากลาง) × 10000 ÷ ค่ากลาง ตัดเศษเข้าหาศูนย์ · ป้าย HIGH เมื่อ (ราคา − ค่ากลาง) × 10000 > ค่ากลาง × เกณฑ์ (เทียบจำนวนเต็ม) · LOW แบบเดียวกันด้านต่ำ · คำขอที่ราคารวม VAT ไม่คำนวณ deviation |
 | BR-PRC-04 | ช่วงใบเสนอราคาบนการ์ด: จาก `RequestQuotation.netSatang` (BR-FORM-06) count lowest highest selected และเหตุผลถ้าไม่ใช่ต่ำสุด |
 | BR-PRC-05 | การ์ดอนุมัติใน LINE มีป้ายราคาแบบรวมไม่ระบุรายการเท่านั้น: จำนวนบรรทัดที่มีป้าย HIGH กับส่วนต่างสูงสุด และจำนวนบรรทัดที่มีป้าย LOW กับส่วนต่างต่ำสุด (เช่น "ราคาสูงกว่าค่ากลางย้อนหลัง 1 รายการ สูงสุด +8%") · % = deviationBp ÷ 100 ตัดเศษเข้าหาศูนย์ · ไม่มีป้ายเมื่อไม่มีบรรทัด HIGH หรือ LOW · ไม่มีชื่อสินค้า ราคาต่อหน่วย หรือสรุปจาก AI (BR-NOTI-01 · OQ-107) · push บนหน้าจอล็อกของแอปมีชนิดงานและเลขเอกสารเท่านั้น (S17) · หน้างาน LIFF เว็บ และแอปแสดงตัวเลขครบ |
-| BR-PRC-06 | ราคาตกลง: ต่อ (สินค้า ผู้ขาย) ช่วง [validFrom, validTo) ห้ามทับกัน (`VALIDATION_FAILED` reason `AGREEMENT_OVERLAP`) · บรรทัดจากแคตตาล็อกที่ผู้ขายมีราคาตกลงที่มีผล ใช้ราคาตกลงเท่านั้น (`AGREEMENT_PRICE_LOCKED`) · สินค้าที่มีราคาตกลงแต่เลือกผู้ขายอื่น ต้องมี offAgreementReason (`AGREEMENT_OFF`) · PROCUREMENT จัดการ (OQ-114) |
+| BR-PRC-06 | ราคาตกลง: ต่อ (สินค้า ผู้ขาย) ช่วง [validFrom, validTo) ห้ามทับกัน (`VALIDATION_FAILED` reason `AGREEMENT_OVERLAP`) · บรรทัดจากแคตตาล็อกที่ผู้ขายมีราคาตกลงที่มีผล ใช้ราคาตกลงเท่านั้น (`AGREEMENT_PRICE_LOCKED`) · สินค้าที่มีราคาตกลงแต่เลือกผู้ขายอื่น ต้องมี offAgreementReason (`AGREEMENT_OFF`) · PROCUREMENT จัดการ (OQ-114) · S6-10: ผู้ขายของบรรทัดคือผู้ขายที่แนะนำของคำขอ (`suggestedSupplierId`) ไม่ได้เลือกผู้ขาย = ผู้ขายอื่น · บันทึกร่างตรวจราคา ส่งและส่งซ้ำตรวจทั้งหมดอีกครั้งด้วยราคาตกลงที่มีผลวันนั้นแล้วเก็บ `priceAgreementId` ของบรรทัด · ราคาตกลงเป็นราคาก่อน VAT คำขอที่ราคารวม VAT ใช้ราคาตกลงไม่ได้ (`AGREEMENT_PRICE_BEFORE_VAT`) · สิ้นสุดราคาตกลง = วันนี้เป็นวันสุดท้าย (validTo = พรุ่งนี้) ราคาตกลงที่ยังไม่เริ่มสิ้นสุดไม่ได้ (`AGREEMENT_NOT_STARTED`) ไม่มีการลบ |
 | BR-PRC-07 | ผู้เห็นแผงราคาอ้างอิง (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นที่เปิดอยู่หรือเคยได้ (ASSIGNED รวมผู้รักษาการ) และผู้มี `po.view` ระดับ ORG · ผู้ขอ ผู้ติดตาม และ DEPT_HEAD ที่ไม่ได้รับงานไม่เห็น (ราคาย้อนหลังมาจาก PO ทั้งองค์กร · OQ-116) · ปฏิเสธด้วย `FORBIDDEN` |
 | BR-QR-01 | PDF ของ PR และ PO มี QR ของ `<APP_URL>/verify/<token>` · แถว `DocumentVerification` เกิดเฉพาะในธุรกรรมของคำสั่ง POST ที่ทำให้เนื้อหาที่พิมพ์เปลี่ยน: การส่งและส่งซ้ำของ PR และ PO และการอนุมัติใบแก้ไข PO ของ S8 (เรียก `issueDocumentVerification`) · contentSha256 = sha256 ของเนื้อหาที่พิมพ์ (บรรทัด ยอด ผู้ขาย เงื่อนไข ไม่รวมสถานะและส่วนการอนุมัติ) เท่ากับแถวล่าสุด → ไม่ออกใหม่ · ต่างกัน → แถวใหม่และตั้ง supersededAt ของแถวก่อน · token = base64url(HMAC-SHA256(K, id ของแถว)) โดย K = HMAC-SHA256(`ENCRYPTION_KEY`, "bcs:document-verification:v1") แบบ pepper ของ PIN (keyId บอกกุญแจ) · ฐานข้อมูลเก็บเฉพาะ `tokenHash` = sha256 ของสตริง token (ไบต์ UTF-8) เป็น hex ตัวพิมพ์เล็ก 64 ตัว (รูปเดียวที่ `/verify` และ S17 ใช้ค้น) · GET PDF คิด token จากแถวล่าสุดจึงดาวน์โหลดซ้ำได้ QR เดิม · GET PDF และ GET `/verify` ไม่เพิ่มหรือแก้แถวใด (ไม่มี GET ที่เปลี่ยนสถานะ) · เอกสารที่ยังไม่เคยส่งไม่มี QR |
 | BR-QR-02 | `GET /verify/<token>` ไม่ต้อง login อ่านอย่างเดียว: ชื่อองค์กร ชนิด เลขที่ สถานะล่าสุดและวันที่ ฉบับนี้เป็นฉบับล่าสุดหรือไม่ (supersededAt ว่าง) · ไม่แสดงยอดเงินและชื่อคน (OQ-112) · token ไม่มีหรือผิด → หน้าเดียวกับ "ไม่พบเอกสาร" · จำกัดอัตราต่อ IP · ผู้ login ที่มี `request.view` หรือ `po.view` เห็นลิงก์ไปเอกสาร |
@@ -2529,6 +2531,21 @@ cases:
   - { id: GC-WF-43, title: ย้าย CON ไปอยู่ใต้ SUP งานของ VP ย้ายตาม, fn: reresolveOpenTasks, input: { change: { reparent: { CON: SUP } }, tasks: [{ id: T1, resolvedFrom: "POSITION:VP@OPS", approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, chargedDepartment: CON, assignee: vp_ops }] }, expect: { reassign: [{ task: T1, to: vp_sup, resolvedFrom: "POSITION:VP@SUP" }] } }
   - { id: GC-WF-44, title: งานระดับองค์กรไม่เปลี่ยน, fn: reresolveOpenTasks, input: { change: { reparent: { CON: SUP } }, tasks: [{ id: T2, resolvedFrom: "POSITION:CEO@HQ", approver: { kind: POSITION_OF_ORG, position: CEO }, chargedDepartment: CON, assignee: ceo }] }, expect: { reassign: [] } }
   - { id: GC-WF-45, title: ขั้นที่รออยู่ใช้ผู้ดำรงคนปัจจุบัน, fn: activateStep, input: { routeCreatedAt: "2026-10-06T03:00:00Z", activateAt: "2026-10-08T03:00:00Z", holders: [{ position: VP, department: OPS, member: vp_ops, validTo: "2026-10-07T00:00:00+07:00" }, { position: VP, department: OPS, member: vp_new, validFrom: "2026-10-07T00:00:00+07:00" }], step: { rule: PR-02, approver: { kind: POSITION_OF_DEPARTMENT, position: VP } } }, expect: { assignee: vp_new, rule: PR-02, version: 1 } }
+```
+
+```yaml
+# tests/golden/price-reference.yaml
+suite: price-reference
+settings: { windowDays: 365, minSamples: 3, alertBp: 1000 }
+defaults: { at: "2026-10-06T03:00:00Z", approvedAt: "2026-09-01T03:00:00Z", priceIncludesVat: false }
+# samples: บรรทัด PO ที่กุญแจเดียวกัน { unitPrice, approvedAt, priceIncludesVat } · ค่าที่ไม่ระบุใช้ defaults
+cases:
+  # S6-10 · ราคาตกลง (BR-PRC-06)
+  - { id: GC-PRC-01, fn: checkAgreement, input: { existing: [{ item: MAT-004, supplier: S1, validFrom: "2026-01-01", validTo: "2027-01-01" }], add: { item: MAT-004, supplier: S1, validFrom: "2026-06-01", validTo: "2027-06-01" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OVERLAP } }
+  - { id: GC-PRC-02, title: ช่วงต่อกันพอดีไม่ทับ, fn: checkAgreement, input: { existing: [{ item: MAT-004, supplier: S1, validFrom: "2026-01-01", validTo: "2027-01-01" }], add: { item: MAT-004, supplier: S1, validFrom: "2027-01-01", validTo: "2028-01-01" } }, expect: { ok: true } }
+  - { id: GC-PRC-03, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S1, unitPrice: "185.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_PRICE_LOCKED } }
+  - { id: GC-PRC-04, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OFF } }
+  - { id: GC-PRC-05, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" }, offAgreementReason: "ผู้ขายรายเดิมส่งไม่ทัน" }, expect: { ok: true } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -3848,6 +3865,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` `doa_version.withdrawal_requested` `doa_version.withdrawal_rejected` `doa_version.withdrawal_cancelled` (S6-07 · FR-DOA-104 · `doa_version.withdrawn` มี schema แล้ว) |
 | workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` `workflow_version.withdrawal_requested` `workflow_version.withdrawn` `workflow_version.withdrawal_rejected` `workflow_version.withdrawal_cancelled` (S6 · FR-WF-103 · การถอน S6-07) |
 | backtest | `backtest.requested` `backtest.completed` (S6-07 · ย้อนทดสอบที่เกิน 500 เอกสาร · ADR-111) |
+| catalog | `catalog_item.created` `catalog_item.updated` `price_agreement.created` `price_agreement.ended` (S6-10 · FR-INT-102 · BR-PRC-06) |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
@@ -4218,7 +4236,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       26 ไฟล์ · 275 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       27 ไฟล์ · 280 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

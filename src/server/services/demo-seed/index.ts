@@ -13,7 +13,8 @@ import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-stru
 import { seedP1Ai } from '@/server/seed/p1-ai'
 import { seedP1Modules } from '@/server/seed/p1-modules'
 import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
-import { parseBudget, parseCostCenters, parseDemoHistory, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
+import { parseBudget, parseCatalogItems, parseCostCenters, parseDemoHistory, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { seedTaxRates } from '@/server/seed/tax-rates'
@@ -52,6 +53,8 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
   // The account codes invoice lines are coded with (S8-04, sheet GL_Accounts of phase 1; the demo workbook has none)
   const accountCodes = await seedAccountCodes(report.organizationId, parseGlAccounts(workbook))
+  // The catalogue and its agreed prices for this fiscal year (S6-10, sheet Items of phase 1; the demo workbook has none)
+  const catalog = await seedCatalog(report.organizationId, parseCatalogItems(workbook), clock.now())
   // The LINE channel from the LINE_* values of the environment, when they are set (S5-01)
   const lineChannel = await seedLineChannel(report.organizationId, env, clock.now())
   // The transaction PIN of the demo approvers (S5-05, FR-AUTH-005, ADR-047 item 9): SEED_DEV_PIN when it is set, and the
@@ -60,13 +63,16 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const seedPin = env.SEED_DEV_PIN ?? null
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, lineChannel, pins, pinless }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, lineChannel, pins, pinless }
 }
 
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */
 export async function seedDemoHistoryFromInputs(organizationId: string, env: Env, clock: Clock, profile: InputProfile = 'demo'): Promise<DemoHistoryReport> {
   const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
-  return seedDemoHistory(organizationId, parseHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
+  const report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
+  // The history's lines of catalogue items point at them (S6-10); the demo has no catalogue
+  await linkHistoryToCatalog(organizationId)
+  return report
 }
 
 /** What the staging seed job looks at before it writes anything (ADR-055) */

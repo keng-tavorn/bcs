@@ -124,7 +124,9 @@
     "workflow_version": "Parallel reviewers",
     "agent_action": "AI assistant",
     "ai_agent": "AI assistant settings",
-    "ai_credit": "AI credits"
+    "ai_credit": "AI credits",
+    "catalog_item": "Catalogue",
+    "price_agreement": "Agreed prices"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -160,7 +162,9 @@
     "WorkflowVersion": "Workflow version",
     "AgentAction": "AI assistant call",
     "AiAgentSetting": "AI assistant setting",
-    "AiCredit": "AI credits"
+    "AiCredit": "AI credits",
+    "CatalogItem": "Catalogue item",
+    "PriceAgreement": "Agreed price"
   },
   "events": {
     "approval_step": {
@@ -381,6 +385,14 @@
       "monthly_set": "Monthly AI credits set",
       "threshold_reached": "AI credits reached the alert level",
       "exhausted": "AI credits used up"
+    },
+    "catalog_item": {
+      "created": "Catalogue item added",
+      "updated": "Catalogue item edited"
+    },
+    "price_agreement": {
+      "created": "Agreed price set",
+      "ended": "Agreed price ended"
     }
   }
 }

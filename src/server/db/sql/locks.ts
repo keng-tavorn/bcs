@@ -31,6 +31,8 @@ const LOCKABLE = [
   'WorkflowVersion',
   'BudgetTransfer',
   'BudgetOverrun',
+  // S6-10: the agreed prices of one item are added one at a time (BR-PRC-06)
+  'CatalogItem',
   // S13-03: an AI action taken into a document (assist-contract.ts)
   'AgentAction',
   // S8

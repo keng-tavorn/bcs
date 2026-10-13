@@ -124,7 +124,9 @@
     "workflow_version": "ผู้ตรวจคู่ขนาน",
     "agent_action": "ผู้ช่วย AI",
     "ai_agent": "ตั้งค่าผู้ช่วย AI",
-    "ai_credit": "credits ของ AI"
+    "ai_credit": "credits ของ AI",
+    "catalog_item": "แคตตาล็อก",
+    "price_agreement": "ราคาตกลง"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -160,7 +162,9 @@
     "WorkflowVersion": "ฉบับผู้ตรวจคู่ขนาน",
     "AgentAction": "งานของผู้ช่วย AI",
     "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
-    "AiCredit": "credits ของ AI"
+    "AiCredit": "credits ของ AI",
+    "CatalogItem": "สินค้าในแคตตาล็อก",
+    "PriceAgreement": "ราคาตกลง"
   },
   "events": {
     "approval_step": {
@@ -381,6 +385,14 @@
       "monthly_set": "ตั้ง credits ต่อเดือนของ AI",
       "threshold_reached": "ใช้ credits ของ AI ถึงเกณฑ์แจ้ง",
       "exhausted": "credits ของ AI หมด"
+    },
+    "catalog_item": {
+      "created": "เพิ่มสินค้าในแคตตาล็อก",
+      "updated": "แก้สินค้าในแคตตาล็อก"
+    },
+    "price_agreement": {
+      "created": "ตั้งราคาตกลง",
+      "ended": "สิ้นสุดราคาตกลง"
     }
   }
 }

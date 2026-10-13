@@ -49,6 +49,8 @@ export interface DraftLineDto {
   readonly vatable: boolean
   /** YYYY-MM-DD */
   readonly serviceEndDate: string | null
+  /** S6-10: the catalogue item the line is (BR-PRC-06) */
+  readonly catalogItemId: string | null
 }
 
 export interface DraftQuotationDto {
@@ -86,6 +88,8 @@ export interface RequestDraftDto {
   readonly deliverySiteId: string | null
   /** The supplier the requester suggests (FR-P2P-001 AC2) */
   readonly suggestedSupplierId: string | null
+  /** S6-10 (BR-PRC-06): why a catalogue item goes to another supplier than the agreed one */
+  readonly offAgreementReason: string
 }
 
 export interface RequestFormDto {
@@ -234,6 +238,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
         unitPrice: satangToAmount(l.unitPriceSatang),
         vatable: l.vatable,
         serviceEndDate: l.serviceEndDate ? day(l.serviceEndDate) : null,
+        catalogItemId: l.catalogItemId,
       })),
       quotations: request.quotations.map((q) => ({
         supplierName: q.supplierName,
@@ -248,6 +253,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
       returnReason: loaded.returnReason,
       deliverySiteId: request.deliverySiteId,
       suggestedSupplierId: request.suggestedSupplierId,
+      offAgreementReason: request.offAgreementReason ?? '',
     },
   })
 }

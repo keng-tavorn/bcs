@@ -389,6 +389,55 @@ export function parseHistory(workbook: InputWorkbook): DemoHistoryRow[] {
   return workbook.hasSheet('Request_History') ? parseP1History(workbook) : parseDemoHistory(workbook)
 }
 
+const moneyText = z.string().regex(/^\d+(\.\d{1,2})?$/)
+const CatalogItemRow = z.object({
+  code: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,39}$/),
+  nameTh: text,
+  unit: text,
+  refUnitPrice: moneyText,
+  category: text,
+  isService: yesNo,
+  accountCode: z.string().nullable(),
+  whtIncomeType: z.string().nullable(),
+  agreementSupplier: z.string().nullable(),
+  agreedUnitPrice: moneyText.nullable(),
+  agreementNote: z.string().nullable(),
+})
+
+/** One row of sheet Items with money as satang; the agreement of the row when it names a supplier */
+export interface CatalogSheetItem {
+  readonly code: string
+  readonly nameTh: string
+  readonly uom: string
+  readonly categoryCode: string
+  readonly isService: boolean
+  readonly accountCode: string | null
+  readonly whtIncomeType: string | null
+  readonly refUnitPriceSatang: bigint
+  readonly agreement: { readonly supplierCode: string; readonly unitPriceSatang: bigint; readonly note: string | null } | null
+}
+
+/** Sheet Items of the phase-1 workbook (S6-10, FR-INT-102 AC1): the catalogue and its agreed prices; none without the sheet */
+export function parseCatalogItems(workbook: InputWorkbook): CatalogSheetItem[] {
+  if (!workbook.hasSheet('Items')) return []
+  const items = rows(workbook, 'Items', CatalogItemRow).map((r): CatalogSheetItem => {
+    if ((r.agreementSupplier === null) !== (r.agreedUnitPrice === null)) throw new Error(`Items ${r.code}: agreementSupplier and agreedUnitPrice go together`)
+    return {
+      code: r.code,
+      nameTh: r.nameTh,
+      uom: r.unit,
+      categoryCode: r.category,
+      isService: r.isService,
+      accountCode: r.accountCode,
+      whtIncomeType: r.whtIncomeType,
+      refUnitPriceSatang: amountToSatang(r.refUnitPrice),
+      agreement: r.agreementSupplier && r.agreedUnitPrice ? { supplierCode: r.agreementSupplier, unitPriceSatang: amountToSatang(r.agreedUnitPrice), note: r.agreementNote } : null,
+    }
+  })
+  if (new Set(items.map((i) => i.code)).size !== items.length) throw new Error('Items: duplicate code')
+  return items
+}
+
 const GlAccountRow = z.object({ code: z.string().regex(/^[0-9A-Z-]{1,20}$/), nameTh: text, type: z.enum(['COST', 'EXPENSE', 'ASSET', 'LIABILITY']) })
 
 /** Sheet GL_Accounts of the phase-1 workbook (S8-04): the account codes an invoice line is coded with (AccountCode) */

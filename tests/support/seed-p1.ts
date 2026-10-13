@@ -16,8 +16,9 @@ import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { seedDevPins } from '@/server/seed/pins'
 import { seedAccountCodes } from '@/server/seed/account-codes'
+import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
 import { seedP1Modules } from '@/server/seed/p1-modules'
-import { parseBudget, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOKS, loadInputWorkbook } from '@/server/seed/workbook'
@@ -108,8 +109,10 @@ export function describeP1Seed(clock: SeedP1Clock): void {
     await seedBudget(organizationId, budget, clock.now, parseCostCenters(workbook))
     await seedSuppliers(organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now)
     await seedAccountCodes(organizationId, parseGlAccounts(workbook))
+    await seedCatalog(organizationId, parseCatalogItems(workbook), clock.now)
     await seedDevPins(organizationId, PIN, clock.now)
     report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(budget) })
+    await linkHistoryToCatalog(organizationId)
   }, SEED_TIMEOUT_MS)
 
   describe(`[FR-PLT-001/AC1] P1-02 seed of the phase-1 workbook ${clock.label}`, () => {
@@ -243,6 +246,25 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       // Every request the CEO lost is one the COO gained: the load per person is that move and nothing else
       expect(view.data.result.summary.load[ceo]).toBeLessThanOrEqual(-fuel.length)
       expect(view.data.result.summary.load[cooId]).toBe(-view.data.result.summary.load[ceo]!)
+    })
+
+    it('[FR-INT-102/AC1] S6-10: one catalogue item per row of Items, one agreed price per row naming a supplier, in effect for the fiscal year of the seed, and the history lines point at their items', async () => {
+      const db = forTenant(organizationId)
+      const agreed = sheets.items.filter((i) => i.agreementSupplier)
+      expect(await db.catalogItem.count()).toBe(sheets.items.length)
+      const agreements = await db.priceAgreement.findMany({ select: { unitPriceSatang: true, validFrom: true, validTo: true, catalogItem: { select: { code: true } }, supplier: { select: { code: true } } } })
+      expect(new Map(agreements.map((a) => [a.catalogItem.code, `${a.supplier.code} ${a.unitPriceSatang}`]))).toEqual(new Map(agreed.map((i) => [i.code!, `${i.agreementSupplier} ${amountToSatang(i.agreedUnitPrice!)}`])))
+      const year = clock.now.toISOString().slice(0, 4)
+      for (const a of agreements) expect([a.validFrom.toISOString().slice(0, 10), a.validTo.toISOString().slice(0, 10)]).toEqual([`${year}-01-01`, `${Number(year) + 1}-01-01`])
+      expect(await db.event.count({ where: { type: 'catalog_item.created' } })).toBe(sheets.items.length)
+      expect(await db.event.count({ where: { type: 'price_agreement.created' } })).toBe(agreed.length)
+      // Every line of the history is a row of Items (its item column), so every line points at its item
+      const lines = await db.requestLine.findMany({ select: { description: true, catalogItem: { select: { nameTh: true } } } })
+      expect(lines.length).toBeGreaterThan(0)
+      for (const l of lines) expect(l.catalogItem?.nameTh, l.description).toBe(l.description)
+      // A second run adds nothing
+      const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
+      expect(await seedCatalog(organizationId, parseCatalogItems(workbook), clock.now)).toEqual({ items: 0, agreements: 0 })
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

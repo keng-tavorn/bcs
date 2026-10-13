@@ -1,0 +1,12 @@
+# tests/golden/price-reference.yaml
+suite: price-reference
+settings: { windowDays: 365, minSamples: 3, alertBp: 1000 }
+defaults: { at: "2026-10-06T03:00:00Z", approvedAt: "2026-09-01T03:00:00Z", priceIncludesVat: false }
+# samples: บรรทัด PO ที่กุญแจเดียวกัน { unitPrice, approvedAt, priceIncludesVat } · ค่าที่ไม่ระบุใช้ defaults
+cases:
+  # S6-10 · ราคาตกลง (BR-PRC-06)
+  - { id: GC-PRC-01, fn: checkAgreement, input: { existing: [{ item: MAT-004, supplier: S1, validFrom: "2026-01-01", validTo: "2027-01-01" }], add: { item: MAT-004, supplier: S1, validFrom: "2026-06-01", validTo: "2027-06-01" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OVERLAP } }
+  - { id: GC-PRC-02, title: ช่วงต่อกันพอดีไม่ทับ, fn: checkAgreement, input: { existing: [{ item: MAT-004, supplier: S1, validFrom: "2026-01-01", validTo: "2027-01-01" }], add: { item: MAT-004, supplier: S1, validFrom: "2027-01-01", validTo: "2028-01-01" } }, expect: { ok: true } }
+  - { id: GC-PRC-03, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S1, unitPrice: "185.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_PRICE_LOCKED } }
+  - { id: GC-PRC-04, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OFF } }
+  - { id: GC-PRC-05, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" }, offAgreementReason: "ผู้ขายรายเดิมส่งไม่ทัน" }, expect: { ok: true } }

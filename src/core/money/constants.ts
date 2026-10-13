@@ -18,3 +18,5 @@ export const MAX_CALENDAR_SEARCH_DAYS = 3660
 export const FORM_TEXT_MAX_LENGTH = 2_000
 /** Longest text a multi-line form field takes (BR-FORM-01) */
 export const FORM_TEXTAREA_MAX_LENGTH = 10_000
+/** AI credits (BR-AI-23): prices are micro-USD per million tokens and 1 credit = 1,000 micro-USD */
+export const AI_PRICE_UNITS_PER_CREDIT = 1_000_000_000n

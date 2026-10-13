@@ -143,6 +143,27 @@ export function isGated(gates: readonly EvalGate[], call: { agent: AiAgentName; 
   )
 }
 
+/** The level each agent works at in phase 1 (§12.3, ADR-004): L0 suggests, L1 drafts for a person to confirm */
+export const LEVEL_OF_AGENT: Readonly<Record<AiAgentName, 'L0' | 'L1'>> = {
+  DOCUMENT: 'L1',
+  INTAKE: 'L1',
+  APPROVAL_BRIEF: 'L0',
+  INSIGHT: 'L0',
+  DOA_DRAFTER: 'L1',
+}
+
+/** Below this confidence a field is confirmed one by one (OQ-147, BR-AI-16) */
+export const DEFAULT_MIN_CONFIDENCE_BP = 9000 // TODO(OQ-147)
+
+// TODO(OQ-143): credits of an organization a month (1 credit = 0.001 USD) and the share of them that alerts
+export const AI_CREDIT_DEFAULTS = { monthlyCredits: 20_000, alertAtBp: 8000 } as const
+
+/**
+ * How long the content of an AgentAction nobody applied is kept (BR-AI-18): a chat intake as long as the chat text of
+ * S17; Insight, a Brief whose task closed, and L1 results REJECTED EXPIRED or FAILED as long as CommandLog.
+ */
+export const CONTENT_RETENTION_DAYS = { chatIntake: 7, unused: 90 } as const // TODO(OQ-144)
+
 /** Limits of BR-AI-11 BR-AI-12 BR-AI-21 and the state machine of AgentAction */
 export const AI_LIMITS = {
   /** Calls one member may start per minute (RATE_LIMITED reason AI) */

@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { AI_CREDIT_DEFAULTS } from './ai-config'
+import { BP_WHOLE } from './constants'
 
 // Organization.settings (spec §6.2, Appendix A "ค่าตั้งต้นขององค์กร"): every save must pass this schema
 // (FR-PLT-001 AC2). Defaults for the demo org live in prisma/seed/org-settings.demo.yaml; each comment names
@@ -65,6 +67,8 @@ export const OrgSettingsSchema = z
     features: z.object({ parallelApproval: z.boolean(), lineChannel: z.boolean() }).strict(),
     // Optional, so an organization saved before it (staging) needs no new seed: missing reads as the default (OQ-38)
     procurement: z.object({ queueTargetBusinessMinutes: z.number().int().min(1).optional() }).strict().optional(),
+    // S13: AI credits of the organization, set by the BCS team only (BR-AI-23); missing reads as the defaults of OQ-143
+    ai: z.object({ monthlyCredits: z.number().int().min(1), alertAtBp: z.number().int().min(1).max(BP_WHOLE) }).strict().optional(),
   })
   .strict()
 
@@ -78,4 +82,11 @@ export function queueTargetMinutesOf(settings: unknown): number {
   const procurement = settings !== null && typeof settings === 'object' ? (settings as { procurement?: unknown }).procurement : undefined
   const parsed = OrgSettingsSchema.shape.procurement.safeParse(procurement)
   return (parsed.success ? parsed.data?.queueTargetBusinessMinutes : undefined) ?? DEFAULT_QUEUE_TARGET_MINUTES
+}
+
+/** settings.ai of stored settings, or the defaults of OQ-143 (20,000 credits a month, alert at 80%) */
+export function aiCreditSettingsOf(settings: unknown): { monthlyCredits: number; alertAtBp: number } {
+  const ai = settings !== null && typeof settings === 'object' ? (settings as { ai?: unknown }).ai : undefined
+  const parsed = OrgSettingsSchema.shape.ai.safeParse(ai)
+  return (parsed.success ? parsed.data : undefined) ?? { ...AI_CREDIT_DEFAULTS }
 }

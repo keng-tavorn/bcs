@@ -1,0 +1,18 @@
+// The public API of the AI module (docs/sub-specs/S13.md "interface"): what routes, screens and other steps call.
+// The agents (./agents) join as they are built; the assist contract (./assist-contract) is imported by the services of
+// the documents directly and never reaches the adapter (ADR-148).
+export {
+  getAgentAction,
+  giveAgentFeedback,
+  rejectAgentAction,
+  requestAgentAction,
+  completeAgentAction,
+  expireAgentAction,
+  runAgentActionSweep,
+  SUBJECT_TYPES,
+  type AgentActionDto,
+  type RequestedAction,
+} from './actions'
+export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
+export { aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'
+export { activeOrgAdminIds, listAgentSettings, updateAgentSetting, type AgentSettingDto } from './settings'

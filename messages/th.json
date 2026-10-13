@@ -1261,6 +1261,9 @@
       "unknown": "สมาชิกที่ไม่พบชื่อ"
     },
     "aggregate": {
+      "AgentAction": "งานของผู้ช่วย AI",
+      "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
+      "AiCredit": "credits ของ AI",
       "ApprovalTask": "งานอนุมัติ",
       "Auth": "การเข้าระบบ",
       "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
@@ -1315,6 +1318,29 @@
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
+      "agent_action": {
+        "accepted": "ยืนยันค่าจาก AI ครบ",
+        "applied": "นำค่าจาก AI เข้าเอกสาร",
+        "content_purged": "ล้างเนื้อหาของผลจาก AI",
+        "drafted": "ผู้ช่วย AI ร่างผลแล้ว",
+        "edited": "ยืนยันค่าจาก AI พร้อมแก้ไข",
+        "expired": "ผลของ AI หมดอายุ",
+        "failed": "ผู้ช่วย AI ทำไม่สำเร็จ",
+        "feedback_given": "ให้ความเห็นต่อผลของ AI",
+        "rejected": "ทิ้งผลของ AI",
+        "requested": "เรียกผู้ช่วย AI"
+      },
+      "ai_agent": {
+        "disabled": "ปิดผู้ช่วย AI",
+        "enabled": "เปิดผู้ช่วย AI",
+        "updated": "แก้การตั้งค่าผู้ช่วย AI"
+      },
+      "ai_credit": {
+        "exhausted": "credits ของ AI หมด",
+        "granted": "ให้ credits ของ AI",
+        "monthly_set": "ตั้ง credits ต่อเดือนของ AI",
+        "threshold_reached": "ใช้ credits ของ AI ถึงเกณฑ์แจ้ง"
+      },
       "approval_task": {
         "assigned": "มอบงานอนุมัติ",
         "cancelled": "ยกเลิกงานอนุมัติ",
@@ -1489,6 +1515,9 @@
     },
     "forbidden": "หน้าบันทึกการตรวจสอบเปิดได้เฉพาะผู้ตรวจสอบและผู้ดูแลองค์กร ถ้าต้องการข้อมูลจากบันทึก ติดต่อผู้ตรวจสอบขององค์กร",
     "groups": {
+      "agent_action": "ผู้ช่วย AI",
+      "ai_agent": "ตั้งค่าผู้ช่วย AI",
+      "ai_credit": "credits ของ AI",
       "approval_task": "งานอนุมัติ",
       "audit": "บันทึกการตรวจสอบ",
       "auth": "การเข้าระบบ",
@@ -2643,6 +2672,9 @@
     }
   },
   "errors": {
+    "AI_AGENT_DISABLED": "ผู้ช่วย AI {agent} ปิดอยู่ กรอกข้อมูลเองได้ตามปกติ",
+    "AI_CREDITS_EXHAUSTED": "credits ของ AI เดือนนี้หมดแล้ว กรอกข้อมูลเองได้ตามปกติ",
+    "AI_NOT_EVALUATED": "ผู้ช่วย AI {agent} รุ่นนี้ยังไม่ผ่านชุดประเมิน จึงยังใช้ไม่ได้",
     "AI_REVIEW_PENDING": "ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง",
     "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
     "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",

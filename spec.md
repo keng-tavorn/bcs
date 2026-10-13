@@ -404,6 +404,13 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
+| `ai.assist` | ทุก member (OWN) — ใช้ AI เติมเอกสารของตน และ service ตรวจสิทธิ์ของเอกสารปลายทางซ้ำ (`request.create` `gr.post` สิทธิ์บันทึกใบแจ้งหนี้) (S13) |
+| `ai.ask` | ทุก member (OWN) — ถาม BCS AI ผลอยู่ใน scope ของตนเท่านั้น (BR-AI-21) |
+| `ai.brief.view` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (ผู้รับงานหรือผู้รักษาการที่ตัดสินงานได้ตอนนี้) — ดูสรุปจาก AI ของงานอนุมัติ (BR-AI-20) |
+| `ai.doaDraft` | ORG_ADMIN (ORG) — ผู้มี `admin.doa.draft` เท่านั้น ทีม BCS ใช้ไม่ได้ (NG-12 · OQ-146) |
+| `ai.actions.view` | AUDITOR (ORG) ดูเนื้อหาทั้งหมด · ทุก member (OWN) ดูเนื้อหาของ AgentAction ที่ตนเรียก · ORG_ADMIN (ORG) — metadata เท่านั้น (agent purpose สถานะ เวลา credits เครื่องมือ) ไม่เห็น `inputText` `output` ของผู้อื่น |
+| `admin.ai.manage` | ORG_ADMIN (ORG) — เปิดปิด agent รายตัวและตั้ง `minConfidenceBp` (BR-AI-24) |
+| `platform.ai.credits` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass และไม่เห็นข้อมูลธุรกิจ (BR-AI-23) |
 
 **OWN ของคำขอ (S16-06 · FR-INT-013 AC3):** `request.view` และ `request.follow` นับผู้ขอและผู้ติดตามเป็น OWN · `request.create` (แก้ร่างและไฟล์แนบ) `request.submit` `request.cancel` และ `request.followers.manage` นับเฉพาะผู้ขอเป็น OWN ผู้ติดตามจึงส่ง แก้ ยกเลิก หรือเพิ่มผู้ติดตามไม่ได้ · service ส่ง `ownerMemberIds` ตามนี้ และเทสต์ปฏิเสธทุกคำสั่ง
 
@@ -1129,7 +1136,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}`
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks}` (ai-checks เพิ่มใน S13-02)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -3354,6 +3361,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
+| `ai_credit.threshold_reached` · `ai_credit.exhausted` (S13 · ครั้งเดียวต่อเดือนต่อชนิด) | ORG_ADMIN (ทีม BCS ดูที่หน้า platform) | อีเมล · ในระบบ | IMMEDIATE | `admin.ai_credits` |
+| `ai_agent.enabled` · `ai_agent.disabled` (S13) | ORG_ADMIN | ในระบบ | IMMEDIATE | `admin.ai_agent_changed` |
 
 | ID | กฎ |
 | --- | --- |
@@ -3388,6 +3397,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
+| agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
+| ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
 
 **ระยะ 1 (P1-07):** `approval_task.*` และ event ของ step-up ใน `auth` รับ `subjectType` ครบ 12 ค่าของ `APPROVAL_SUBJECTS` (ค่าใหม่ `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · `request.drafted` schemaVersion 2 เพิ่ม `source` (`MANUAL` เป็นค่าเริ่มต้น · `REORDER` `RENEWAL` ของ S6 · `CHAT_INTAKE` ของ S17) และ `agentActionId` ไม่บังคับ (S13) · event ฉบับ 1 ยังอ่านได้ (source = `MANUAL`) · สายไม่เพิ่มฉบับของ event นี้เอง
 
@@ -3544,6 +3555,30 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | INV-AI-04 | Insight ไม่คืน ref หรือฟิลด์นอก scope ของผู้ถาม | เทสต์ที่วนผู้ใช้ seed ทุกบทบาท (นับเอง) กับชุดคำถามสิทธิ์ ตรวจทุก ref ด้วย `get*Access` ของผู้ถาม รวมผู้ขอทั่วไปที่ถาม PO ของผู้อื่นและข้อมูลติดต่อหรือเลขผู้เสียภาษีของผู้ขาย |
 | INV-AI-05 | service ที่แตะเงินหรือการอนุมัติ โค้ดของ `src/app/liff` และ webhook ไม่ import `src/integrations/ai` และ `src/server/services/ai/agents` (P-3) | ESLint boundary + เทสต์ |
 
+**credits ของการเรียก (S13-02 · BR-AI-23 · golden ai-credits):** ราคาเป็น micro-USD ต่อ 1 ล้าน token และ 1 credit = 1,000 micro-USD · ตัวคำนวณ `creditsForCall` ใน `src/core/ai-checks/credits.ts` · ราคาจริงอยู่ใน `src/lib/ai-config.ts` · เคส GC-AI-10 GC-AI-11 คือยอดคงเหลือของเดือนและการแจ้งเตือนครั้งเดียว
+
+```yaml
+# tests/golden/ai-credits.yaml
+suite: ai-credits
+note: ราคาเป็น micro-USD ต่อ 1 ล้าน token (ค่าในเคสเป็น fixture · ค่าจริงอยู่ใน src/lib/ai-config.ts ที่ S13-01 ตรวจ) · 1 credit = 1,000 micro-USD · prompt = input + cacheWrite + cacheRead · prompt เกิน longPromptAbove → ทั้งการเรียกใช้อัตรา long
+fixture:
+  prices:
+    A: { input: 2000000, output: 10000000, cacheWrite: 2500000, cacheRead: 200000 }
+    H: { input: 100000, output: 500000, cacheWrite: 125000, cacheRead: 10000, longPromptAbove: 100000, long: { input: 500000, output: 2500000, cacheWrite: 625000, cacheRead: 50000 } }
+cases:
+  - { id: GC-AI-01, input: { model: A, tokens: { input: 12000, output: 800 } }, expect: { credits: 32 } }
+  - { id: GC-AI-02, title: 0.002 credit ปัดขึ้น, input: { model: A, tokens: { input: 1 } }, expect: { credits: 1 } }
+  - { id: GC-AI-03, title: 1 credit พอดี, input: { model: A, tokens: { input: 500 } }, expect: { credits: 1 } }
+  - { id: GC-AI-04, title: เกิน 1 credit ไป 0.002, input: { model: A, tokens: { input: 501 } }, expect: { credits: 2 } }
+  - { id: GC-AI-05, title: รวม cache ปัดครั้งเดียว 33.5 → 34, input: { model: A, tokens: { input: 3000, cacheWrite: 1000, cacheRead: 100000, output: 500 } }, expect: { credits: 34 } }
+  - { id: GC-AI-06, input: { model: H, tokens: { input: 4000, output: 300 } }, expect: { credits: 1 } }
+  - { id: GC-AI-07, title: prompt 100000 พอดี ใช้อัตราปกติ 10.5 → 11, input: { model: H, tokens: { input: 100000, output: 1000 } }, expect: { credits: 11 } }
+  - { id: GC-AI-08, title: prompt เกินไป 1 token ใช้อัตรา long ทั้งการเรียก, input: { model: H, tokens: { input: 100001, output: 1000 } }, expect: { credits: 53 } }
+  - { id: GC-AI-09, title: ล้มก่อนได้ token, input: { model: A, tokens: {} }, expect: { credits: 0, ledgerRow: false } }
+  - { id: GC-AI-10, title: แจ้งเมื่อใช้ถึง 80% ครั้งเดียว, input: { grant: 20000, alertAtBp: 8000, uses: [15999, 1, 5] }, expect: { remaining: [4001, 4000, 3995], alertAfterUse: 1 } }
+  - { id: GC-AI-11, title: คงเหลือ 1 เรียกได้ ติดลบแล้วเรียกไม่ได้, input: { grant: 20000, used: 19999, calls: [32, 1] }, expect: { results: [ok, AI_CREDITS_EXHAUSTED], remaining: -31 } }
+```
+
 ---
 
 ## 13. Non-functional requirements
@@ -3623,6 +3658,9 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `TOKEN_USED` | 409 | รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time} |
 | `DUPLICATE_INVOICE` | 409 | เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้ |
 | `AI_REVIEW_PENDING` | 409 | ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง |
+| `AI_AGENT_DISABLED` | 403 | ผู้ช่วย AI {agent} ปิดอยู่ กรอกข้อมูลเองได้ตามปกติ |
+| `AI_NOT_EVALUATED` | 403 | ผู้ช่วย AI {agent} รุ่นนี้ยังไม่ผ่านชุดประเมิน จึงยังใช้ไม่ได้ |
+| `AI_CREDITS_EXHAUSTED` | 422 | credits ของ AI เดือนนี้หมดแล้ว กรอกข้อมูลเองได้ตามปกติ |
 | `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
@@ -3706,7 +3744,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       21 ไฟล์ · 173 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       22 ไฟล์ · 184 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

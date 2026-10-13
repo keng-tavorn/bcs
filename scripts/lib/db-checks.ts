@@ -2,7 +2,7 @@
 // unit tests. Inputs are rows read from the Postgres catalogs.
 
 /** Tables whose rows are never updated or deleted (INV-EVT-01), each guarded by a bcs_forbid_mutation trigger. */
-export const APPEND_ONLY = ['Event', 'BudgetLedgerEntry', 'EventSeal'] as const
+export const APPEND_ONLY = ['Event', 'BudgetLedgerEntry', 'EventSeal', 'AiCreditLedger'] as const
 
 // Tables finish line A needs (spec §16.10), checked with --strict. EventSeal belongs to S5-14 [go-live]:
 // "seal audit" is in the list of things a demo build may skip.

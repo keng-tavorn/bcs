@@ -1,0 +1,19 @@
+# tests/golden/ai-credits.yaml
+suite: ai-credits
+note: ราคาเป็น micro-USD ต่อ 1 ล้าน token (ค่าในเคสเป็น fixture · ค่าจริงอยู่ใน src/lib/ai-config.ts ที่ S13-01 ตรวจ) · 1 credit = 1,000 micro-USD · prompt = input + cacheWrite + cacheRead · prompt เกิน longPromptAbove → ทั้งการเรียกใช้อัตรา long
+fixture:
+  prices:
+    A: { input: 2000000, output: 10000000, cacheWrite: 2500000, cacheRead: 200000 }
+    H: { input: 100000, output: 500000, cacheWrite: 125000, cacheRead: 10000, longPromptAbove: 100000, long: { input: 500000, output: 2500000, cacheWrite: 625000, cacheRead: 50000 } }
+cases:
+  - { id: GC-AI-01, input: { model: A, tokens: { input: 12000, output: 800 } }, expect: { credits: 32 } }
+  - { id: GC-AI-02, title: 0.002 credit ปัดขึ้น, input: { model: A, tokens: { input: 1 } }, expect: { credits: 1 } }
+  - { id: GC-AI-03, title: 1 credit พอดี, input: { model: A, tokens: { input: 500 } }, expect: { credits: 1 } }
+  - { id: GC-AI-04, title: เกิน 1 credit ไป 0.002, input: { model: A, tokens: { input: 501 } }, expect: { credits: 2 } }
+  - { id: GC-AI-05, title: รวม cache ปัดครั้งเดียว 33.5 → 34, input: { model: A, tokens: { input: 3000, cacheWrite: 1000, cacheRead: 100000, output: 500 } }, expect: { credits: 34 } }
+  - { id: GC-AI-06, input: { model: H, tokens: { input: 4000, output: 300 } }, expect: { credits: 1 } }
+  - { id: GC-AI-07, title: prompt 100000 พอดี ใช้อัตราปกติ 10.5 → 11, input: { model: H, tokens: { input: 100000, output: 1000 } }, expect: { credits: 11 } }
+  - { id: GC-AI-08, title: prompt เกินไป 1 token ใช้อัตรา long ทั้งการเรียก, input: { model: H, tokens: { input: 100001, output: 1000 } }, expect: { credits: 53 } }
+  - { id: GC-AI-09, title: ล้มก่อนได้ token, input: { model: A, tokens: {} }, expect: { credits: 0, ledgerRow: false } }
+  - { id: GC-AI-10, title: แจ้งเมื่อใช้ถึง 80% ครั้งเดียว, input: { grant: 20000, alertAtBp: 8000, uses: [15999, 1, 5] }, expect: { remaining: [4001, 4000, 3995], alertAfterUse: 1 } }
+  - { id: GC-AI-11, title: คงเหลือ 1 เรียกได้ ติดลบแล้วเรียกไม่ได้, input: { grant: 20000, used: 19999, calls: [32, 1] }, expect: { results: [ok, AI_CREDITS_EXHAUSTED], remaining: -31 } }

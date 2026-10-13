@@ -1290,7 +1290,10 @@
       "Security": "Security",
       "Supplier": "Supplier",
       "SupplierNotice": "E-mail to a supplier",
-      "Variance": "Receiving variance"
+      "Variance": "Receiving variance",
+      "WhtCertificate": "Withholding tax certificate",
+      "WhtIncomeType": "Income type",
+      "WithholdingTax": "Withholding tax"
     },
     "decision": {
       "APPROVE": "approved",
@@ -1403,6 +1406,9 @@
         "drafted": "Invoice drafted",
         "exception_raised": "Invoice has differences",
         "matched": "Invoice matched",
+        "paid": "Invoice paid",
+        "payment_held": "Invoice taken into a payment run",
+        "payment_released": "Invoice let go from a payment run",
         "ready": "Invoice ready for payment",
         "rechecked": "Invoice checked again",
         "rejected": "Invoice rejected",
@@ -1497,6 +1503,7 @@
         "created": "Supplier added",
         "registry_checked": "Supplier checked with the government registers",
         "registry_status_changed": "Supplier's register status changed",
+        "tax_profile_updated": "Supplier's tax profile changed",
         "updated": "Supplier details changed"
       },
       "supplier_notice": {
@@ -1507,6 +1514,16 @@
         "approved": "Receiving variance approved",
         "recorded": "Receiving variance recorded",
         "rejected": "Receiving variance rejected"
+      },
+      "wht_certificate": {
+        "issued": "Withholding tax certificate issued"
+      },
+      "wht_income_type": {
+        "confirmed": "Income type rate confirmed",
+        "updated": "Income type changed"
+      },
+      "withholding_tax": {
+        "recorded": "Withholding tax recorded"
       }
     },
     "export": {
@@ -1553,7 +1570,10 @@
       "security": "Security",
       "supplier": "Suppliers",
       "supplier_notice": "E-mails to suppliers",
-      "variance": "Receiving variances"
+      "variance": "Receiving variances",
+      "wht_certificate": "Withholding tax certificates",
+      "wht_income_type": "Income types",
+      "withholding_tax": "Withholding tax"
     },
     "home": "Back to home",
     "intro": "Every change in the system: who did it, on whose behalf, when, through which channel, and which DOA version and rule each decision cites. Search by document, actor, period, type and channel.",
@@ -2711,7 +2731,9 @@
     "TOKEN_USED": "Already done by {name} at {time}",
     "UNAUTHENTICATED": "Please sign in",
     "VALIDATION_FAILED": "Invalid data: {field}",
-    "VARIANCE_NOT_ACCEPTABLE": "A {type} difference cannot be approved: fix it at its cause or reject the invoice"
+    "VARIANCE_NOT_ACCEPTABLE": "A {type} difference cannot be approved: fix it at its cause or reject the invoice",
+    "WHT_FORM_PAYEE_MISMATCH": "Income type {code} cannot be used for a {payeeType} payee",
+    "WHT_TYPE_NOT_CONFIGURED": "Income type {code} or its rate is not set up"
   },
   "files": {
     "chooseFile": "Choose a file",

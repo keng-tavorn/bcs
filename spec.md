@@ -391,6 +391,11 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `invoice.reject` | FINANCE, PROCUREMENT (ORG) — ต้องมีเหตุผล ผู้ขายได้อีเมลแจ้ง |
 | `invoice.exception.resolve` | FINANCE, PROCUREMENT (ORG) · RECEIVER (DEPT หรือ ASSIGNED) — ตรวจซ้ำเฉพาะใบที่มีรายการไม่ตรงชนิดที่ส่งถึงบทบาทของตน (BR-MATCH-09) |
 | `invoice.variance.request` | PROCUREMENT (ORG) — ขออนุมัติส่วนต่างเมื่อรายการไม่ตรงทุกข้อเป็น `PRICE_OVER` |
+| `wht.view` | FINANCE, AUDITOR (ORG) — ภาษีหัก ณ ที่จ่าย 50 ทวิ และไฟล์สรุป · เลขบัตรประชาชนแสดงแบบ mask |
+| `wht.revealTaxId` | FINANCE (ORG) — ดูเลขบัตรเต็มและดาวน์โหลด 50 ทวิ หรือไฟล์ ภ.ง.ด.3 ที่มีเลขเต็ม · บันทึก `SensitiveAccessLog` ทุกครั้ง (BR-WHT-09) |
+| `wht.export` | FINANCE (ORG) — ไฟล์สรุป ภ.ง.ด.3 และ ภ.ง.ด.53 รายเดือน (BR-WHT-08) |
+| `wht.configure` | FINANCE (ORG) — แก้และยืนยันประเภทเงินได้และอัตรา (ผู้ยืนยัน ≠ ผู้แก้ล่าสุด · BR-WHT-03) |
+| `supplier.taxProfile.manage` | FINANCE (ORG) — ประเภทผู้รับเงินและประเภทเงินได้ตั้งต้นของผู้ขาย |
 | `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
@@ -3637,7 +3642,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
-| invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` `invoice.rechecked` `invoice.reopened` `invoice.rejected` `invoice.variance_submitted` `invoice.variance_approved` `invoice.variance_rejected` `match_exception.dismissed` |
+| invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` `invoice.rechecked` `invoice.reopened` `invoice.rejected` `invoice.variance_submitted` `invoice.variance_approved` `invoice.variance_rejected` `match_exception.dismissed` `invoice.payment_held` `invoice.payment_released` `invoice.paid` (สามตัวท้ายมาจากคำสั่งของ S9 ผ่าน src/server/services/ap/payment.ts) |
+| ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
 | inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
 | ช่องทาง | `line.linked` `line.unlinked` |
@@ -3865,6 +3871,8 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `INVOICE_EXCEEDS_COMMITTED` | 422 | ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท) |
 | `CODING_NOT_CONFIRMED` | 422 | ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines} |
 | `VARIANCE_NOT_ACCEPTABLE` | 422 | รายการไม่ตรงชนิด {type} ขออนุมัติไม่ได้ ต้องแก้ที่ต้นเหตุหรือปฏิเสธใบ |
+| `WHT_TYPE_NOT_CONFIGURED` | 422 | ยังไม่ได้ตั้งประเภทเงินได้ {code} หรืออัตรา |
+| `WHT_FORM_PAYEE_MISMATCH` | 422 | ประเภทเงินได้ {code} ใช้กับผู้รับเงินแบบ {payeeType} ไม่ได้ |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |

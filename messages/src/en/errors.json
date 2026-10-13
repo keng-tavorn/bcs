@@ -27,6 +27,8 @@
   "INVOICE_EXCEEDS_COMMITTED": "The invoice exceeds the remaining PO commitment ({remaining} baht)",
   "CODING_NOT_CONFIRMED": "The account code of line {lines} is not confirmed yet",
   "VARIANCE_NOT_ACCEPTABLE": "A {type} difference cannot be approved: fix it at its cause or reject the invoice",
+  "WHT_TYPE_NOT_CONFIGURED": "Income type {code} or its rate is not set up",
+  "WHT_FORM_PAYEE_MISMATCH": "Income type {code} cannot be used for a {payeeType} payee",
   "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
   "STEP_UP_REQUIRED": "This action requires PIN confirmation",
   "RATE_LIMITED": "Too many attempts. Please try again later",

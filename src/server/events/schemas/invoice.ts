@@ -23,7 +23,7 @@ defineEvents('Invoice', {
   },
   'invoice.updated': { schema: z.object({ changed: z.array(z.string()).min(1), netSatang: satang, statedVatSatang: satang }) },
   'invoice.coding_confirmed': {
-    schema: z.object({ lines: z.array(z.object({ invoiceLineId: z.uuid(), accountCode: z.string().min(1), costCenterId: z.uuid(), source: z.enum(['HISTORY', 'BUDGET_LINE', 'MANUAL']) })).min(1) }),
+    schema: z.object({ lines: z.array(z.object({ invoiceLineId: z.uuid(), accountCode: z.string().min(1), costCenterId: z.uuid(), source: z.enum(['HISTORY', 'BUDGET_LINE', 'MANUAL']), whtIncomeTypeCode: z.string().nullable() })).min(1) }),
   },
   'invoice.submitted': {
     schema: z.object({
@@ -57,6 +57,28 @@ defineEvents('Invoice', {
   'invoice.variance_approved': { schema: z.object({ holdMoreSatang: satang }) },
   'invoice.variance_rejected': { schema: z.object({ decision: z.enum(['RETURNED', 'REJECTED']), reasonCommentId: z.uuid().nullable() }) },
   'match_exception.dismissed': { schema: z.object({ exceptionId: z.uuid(), type: exceptionType, reason: z.string().min(1) }) },
+})
+
+// S8-08 (ADR-127): what S9's commands do to an invoice through ./services/ap/payment.ts, and the withholding tax
+defineEvents('Invoice', {
+  'invoice.payment_held': { schema: z.object({ paymentRunId: z.uuid() }) },
+  'invoice.payment_released': { schema: z.object({ reason: z.string().min(1) }) },
+  'invoice.paid': { schema: z.object({ paymentRunItemId: z.uuid(), paidOn: z.iso.date(), payableSatang: satang, whtSatang: satang, transferSatang: satang }) },
+})
+const whtForm = z.enum(['PND3_53', 'PND53', 'PND3'])
+defineEvents('WhtIncomeType', {
+  'wht_income_type.updated': { schema: z.object({ code: z.string().min(1), rateBp: z.number().int().min(0), form: whtForm, active: z.boolean() }) },
+  'wht_income_type.confirmed': { schema: z.object({ code: z.string().min(1), rateBp: z.number().int().min(0) }) },
+})
+// never a payee's tax id (BR-WHT-09)
+defineEvents('WithholdingTax', {
+  'withholding_tax.recorded': { schema: z.object({ invoiceId: z.uuid().nullable(), incomeTypeCode: z.string().min(1), rateBp: z.number().int().min(0), baseSatang: satang, taxSatang: satang, certificateId: z.uuid().nullable() }) },
+})
+defineEvents('WhtCertificate', {
+  'wht_certificate.issued': { schema: z.object({ number: z.string().min(1), supplierId: z.uuid(), form: z.enum(['PND3', 'PND53']), paidOn: z.iso.date(), totalBaseSatang: satang, totalTaxSatang: satang, fileId: z.uuid(), paymentRunItemId: z.uuid() }) },
+})
+defineEvents('Supplier', {
+  'supplier.tax_profile_updated': { schema: z.object({ payeeType: z.enum(['JURISTIC', 'INDIVIDUAL', 'FOREIGN']), defaultWhtIncomeTypeCode: z.string().nullable() }) },
 })
 
 // The invoice inbox (ADR-123, BR-AP-02): what came in, never the body; skipped files are named with the reason

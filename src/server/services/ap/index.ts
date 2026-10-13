@@ -18,6 +18,7 @@ export { INVOICEABLE_PO_STATUSES } from './common'
 import { readyNotice } from './exceptions'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
 import { claimTrack } from './track'
+import { checkIncomeTypes, defaultIncomeType } from './wht'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
 import type { EtaxContentReading } from '../invoices/etax'
 
@@ -49,7 +50,7 @@ async function invoiceableQuantities(tx: TenantTx, po: { lines: ReadonlyArray<{ 
 export async function lockPoForDraft(tx: TenantTx, ctx: Ctx, poId: string, command: string) {
   const [id] = await lockRowsForUpdate(tx, 'PurchaseOrder', ctx.organizationId, [poId])
   if (!id) return fail('NOT_FOUND', 'purchase order not found')
-  const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true } } } })
+  const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true, defaultWhtIncomeTypeCode: true } } } })
   if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command })
   // BR-IVC-06: the PO takes tier-2 invoices from now on (PAY is on: the caller's guard)
   const track = await claimTrack(tx, po, 'MATCHING', true)
@@ -116,6 +117,7 @@ export async function draftOnPo(tx: TenantTx, ctx: Ctx, po: PoForDraft, source: 
         uom: l.uom,
         unitPriceSatang: l.unitPriceSatang,
         vatable: l.vatable,
+        whtIncomeTypeCode: defaultIncomeType(po, po.supplier),
       })),
     })
   }
@@ -300,7 +302,7 @@ export const updateInvoiceCommand = defineCommand({
 const CodingInput = z.strictObject({
   invoiceId: z.uuid(),
   version: z.number().int().min(0),
-  lines: z.array(z.strictObject({ invoiceLineId: z.uuid(), accountCode: z.string().trim().min(1).max(40), costCenterId: z.uuid(), costCenterReason: z.string().trim().min(1).max(500).optional() })).min(1).max(200),
+  lines: z.array(z.strictObject({ invoiceLineId: z.uuid(), accountCode: z.string().trim().min(1).max(40), costCenterId: z.uuid(), costCenterReason: z.string().trim().min(1).max(500).optional(), whtIncomeTypeCode: z.string().trim().min(1).max(40).nullable().optional() })).min(1).max(200),
 })
 
 export const confirmCodingCommand = defineCommand({
@@ -318,7 +320,11 @@ export const confirmCodingCommand = defineCommand({
     const poLines = await tx.poLine.findMany({ where: { id: { in: invoice.lines.map((l) => l.poLineId) } }, select: { id: true, budgetLine: { select: { accountCode: true, costCenterId: true } } } })
     const codes = await tx.accountCode.findMany({ where: { code: { in: input.lines.map((l) => l.accountCode) }, active: true }, select: { code: true } })
     const centers = await tx.costCenter.findMany({ where: { id: { in: input.lines.map((l) => l.costCenterId) }, active: true }, select: { id: true } })
-    const confirmed: Array<{ invoiceLineId: string; accountCode: string; costCenterId: string; source: 'BUDGET_LINE' | 'MANUAL' }> = []
+    // BR-WHT-03: FINANCE may change a line's income type with its coding
+    const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { payeeType: true } })
+    const types = await checkIncomeTypes(tx, input.lines.map((l) => l.whtIncomeTypeCode).filter((c): c is string => !!c), supplier.payeeType)
+    if (!types.ok) return types
+    const confirmed: Array<{ invoiceLineId: string; accountCode: string; costCenterId: string; source: 'BUDGET_LINE' | 'MANUAL'; whtIncomeTypeCode: string | null }> = []
     for (const l of input.lines) {
       const line = invoice.lines.find((x) => x.id === l.invoiceLineId)
       if (!line) return fail('VALIDATION_FAILED', 'the line is not on this invoice', { field: 'lines', reason: 'NOT_A_LINE', invoiceLineId: l.invoiceLineId })
@@ -330,9 +336,9 @@ export const confirmCodingCommand = defineCommand({
       const source = l.accountCode === budget.accountCode ? 'BUDGET_LINE' : 'MANUAL'
       await tx.invoiceLine.update({
         where: { id: line.id },
-        data: { accountCode: l.accountCode, costCenterId: l.costCenterId, costCenterReason: l.costCenterId === budget.costCenterId ? null : l.costCenterReason!, codingSource: source, codingConfirmedById: who.memberId, codingConfirmedAt: ctx.now },
+        data: { accountCode: l.accountCode, costCenterId: l.costCenterId, costCenterReason: l.costCenterId === budget.costCenterId ? null : l.costCenterReason!, codingSource: source, codingConfirmedById: who.memberId, codingConfirmedAt: ctx.now, ...(l.whtIncomeTypeCode !== undefined ? { whtIncomeTypeCode: l.whtIncomeTypeCode } : {}) },
       })
-      confirmed.push({ invoiceLineId: line.id, accountCode: l.accountCode, costCenterId: l.costCenterId, source })
+      confirmed.push({ invoiceLineId: line.id, accountCode: l.accountCode, costCenterId: l.costCenterId, source, whtIncomeTypeCode: l.whtIncomeTypeCode !== undefined ? l.whtIncomeTypeCode : line.whtIncomeTypeCode })
     }
     const after = await tx.invoice.update({ where: { id: invoice.id }, data: { version: { increment: 1 } }, select: { version: true } })
     return { ok: true, result: { invoiceId: invoice.id, version: after.version }, events: [{ type: 'invoice.coding_confirmed', aggregateType: 'Invoice', aggregateId: invoice.id, data: { lines: confirmed } }] }
@@ -379,6 +385,10 @@ export const submitInvoiceCommand = defineCommand({
     const active = await tx.accountCode.findMany({ where: { code: { in: invoice.lines.map((l) => l.accountCode!) }, active: true }, select: { code: true } })
     const inactive = invoice.lines.filter((l) => !active.some((a) => a.code === l.accountCode)).map((l) => l.lineNo)
     if (inactive.length) return fail('CODING_NOT_CONFIRMED', 'an account code is no longer active', { lines: inactive.join(', ') })
+    // BR-WHT-03, BR-WHT-04: every income type of the lines is set up, active, and fits the payee
+    const payee = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { payeeType: true } })
+    const types = await checkIncomeTypes(tx, invoice.lines.map((l) => l.whtIncomeTypeCode).filter((c): c is string => !!c), payee.payeeType)
+    if (!types.ok) return types
     // BR-AP-03: values the AI filled in and nobody confirmed yet stop the invoice
     const pending = await assertNoPendingAiReview(tx, ctx, SUBJECT(invoice.id))
     if (!pending.ok) return { ok: false, error: pending.error }

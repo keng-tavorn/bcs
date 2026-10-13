@@ -5,6 +5,7 @@ import { satangToAmount } from '@/core/money/dto'
 import type { Satang } from '@/core/money/math'
 import { rateFor } from '@/core/vat'
 import { apPolicyOf } from '@/lib/org-settings'
+import { expectedWhtOf } from './wht'
 import { applyBudget, lockBudgetLines, type BudgetOperation } from '@/server/budget/ledger'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
@@ -251,10 +252,13 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { paymentTermDays: true } })
   const due = dueDate({ invoiceDate, poTermDays: po.paymentTermDays, supplierTermDays: supplier.paymentTermDays, defaultTermDays: policy.defaultTermDays })
   const payable = grossSatang - invoice.retentionSatang
+  // BR-WHT-05: the tax expected when it is paid alone, from the lines' income types (the lines carry their amounts now)
+  const expectedWht = await expectedWhtOf(tx, org.settings, invoice.id)
   await tx.invoice.update({
     where: { id: invoice.id },
     data: {
       status: 'READY_FOR_PAYMENT',
+      expectedWhtSatang: expectedWht,
       matchResult: 'MATCHED',
       computedVatSatang: vat.computedVatSatang,
       vatRateBp: rate.rateBp,
@@ -274,7 +278,7 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
       data: {
         dueDate: due,
         payableSatang: payable.toString(),
-        expectedWhtSatang: invoice.expectedWhtSatang.toString(),
+        expectedWhtSatang: expectedWht.toString(),
         actualSatang: sum((m) => m.actualSatang),
         holdMoreSatang: sum((m) => m.holdMoreSatang),
         releasedSatang: invoice.isFinal && po.status === 'CLOSED' ? sum((m) => m.releaseSatang) : '0',

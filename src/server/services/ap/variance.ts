@@ -11,6 +11,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import type { SubjectDecided, SubjectDecision } from '../approvals/subjects'
 import { readyNotice } from './exceptions'
+import { expectedWhtOf } from './wht'
 
 // The decision on a price variance (BR-MATCH-11, FR-AP-105 AC3 AC4), called by the INVOICE subject adapter once the
 // route has its result. Approved: under the PO's lock, every line holds what it lacks beyond what it holds — the
@@ -82,8 +83,9 @@ export async function decideVariance(tx: TenantTx, ctx: Ctx, invoiceId: string, 
   const invoiceDate = invoice.invoiceDate!.toISOString().slice(0, 10)
   const due = dueDate({ invoiceDate, poTermDays: po.paymentTermDays, supplierTermDays: supplier.paymentTermDays, defaultTermDays: apPolicyOf(org.settings).defaultTermDays })
   const payable = invoice.grossSatang - invoice.retentionSatang
+  const expectedWht = await expectedWhtOf(tx, org.settings, invoiceId)
   await tx.matchException.updateMany({ where: { invoiceId, status: 'ACCEPT_REQUESTED' }, data: { status: 'APPROVED', resolvedAt: ctx.now, version: { increment: 1 } } })
-  await tx.invoice.update({ where: { id: invoiceId }, data: { status: 'READY_FOR_PAYMENT', payableSatang: payable, dueDate: new Date(`${due}T00:00:00Z`), readyAt: ctx.now, version: { increment: 1 } } })
+  await tx.invoice.update({ where: { id: invoiceId }, data: { status: 'READY_FOR_PAYMENT', payableSatang: payable, expectedWhtSatang: expectedWht, dueDate: new Date(`${due}T00:00:00Z`), readyAt: ctx.now, version: { increment: 1 } } })
   // the outbox of the e-mail is left to the sweep (an approval decision carries no outbox)
   const notice = await readyNotice(tx, ctx, invoiceId)
   const moves = approved.poLineMoves
@@ -94,7 +96,7 @@ export async function decideVariance(tx: TenantTx, ctx: Ctx, invoiceId: string, 
       type: 'invoice.ready',
       aggregateType: 'Invoice',
       aggregateId: invoiceId,
-      data: { dueDate: due, payableSatang: payable.toString(), expectedWhtSatang: invoice.expectedWhtSatang.toString(), actualSatang: sum((m) => m.actualSatang), holdMoreSatang: sum((m) => m.holdMoreSatang), releasedSatang: invoice.isFinal && po.status === 'CLOSED' ? sum((m) => m.releaseSatang) : '0' },
+      data: { dueDate: due, payableSatang: payable.toString(), expectedWhtSatang: expectedWht.toString(), actualSatang: sum((m) => m.actualSatang), holdMoreSatang: sum((m) => m.holdMoreSatang), releasedSatang: invoice.isFinal && po.status === 'CLOSED' ? sum((m) => m.releaseSatang) : '0' },
     },
     ...budget.events,
     ...notice.events,

@@ -121,7 +121,10 @@
     "security": "ความปลอดภัย",
     "supplier": "ผู้ขาย",
     "supplier_notice": "อีเมลถึงผู้ขาย",
-    "variance": "ผลต่างจากการตรวจรับ"
+    "variance": "ผลต่างจากการตรวจรับ",
+    "wht_certificate": "50 ทวิ",
+    "wht_income_type": "ประเภทเงินได้",
+    "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
   },
   "aggregate": {
     "ApprovalTask": "งานอนุมัติ",
@@ -153,7 +156,10 @@
     "Security": "ความปลอดภัย",
     "Supplier": "ผู้ขาย",
     "SupplierNotice": "อีเมลถึงผู้ขาย",
-    "Variance": "ผลต่างจากการตรวจรับ"
+    "Variance": "ผลต่างจากการตรวจรับ",
+    "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
+    "WhtIncomeType": "ประเภทเงินได้",
+    "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
   },
   "events": {
     "approval_task": {
@@ -241,6 +247,9 @@
       "drafted": "ร่างใบแจ้งหนี้",
       "exception_raised": "ใบแจ้งหนี้มีรายการไม่ตรง",
       "matched": "ใบแจ้งหนี้จับคู่ตรง",
+      "paid": "จ่ายใบแจ้งหนี้แล้ว",
+      "payment_held": "ใบแจ้งหนี้เข้ารอบจ่าย",
+      "payment_released": "ใบแจ้งหนี้ออกจากรอบจ่าย",
       "ready": "ใบแจ้งหนี้พร้อมจ่าย",
       "rechecked": "ตรวจใบแจ้งหนี้ซ้ำ",
       "rejected": "ปฏิเสธใบแจ้งหนี้",
@@ -335,6 +344,7 @@
       "created": "เพิ่มผู้ขาย",
       "registry_checked": "ตรวจผู้ขายกับทะเบียนของรัฐ",
       "registry_status_changed": "สถานะผู้ขายในทะเบียนเปลี่ยน",
+      "tax_profile_updated": "แก้ข้อมูลภาษีของผู้ขาย",
       "updated": "แก้ไขข้อมูลผู้ขาย"
     },
     "supplier_notice": {
@@ -345,6 +355,16 @@
       "approved": "อนุมัติผลต่างจากการตรวจรับ",
       "recorded": "บันทึกผลต่างจากการตรวจรับ",
       "rejected": "ไม่อนุมัติผลต่างจากการตรวจรับ"
+    },
+    "wht_certificate": {
+      "issued": "ออกหนังสือรับรองการหักภาษี (50 ทวิ)"
+    },
+    "wht_income_type": {
+      "confirmed": "ยืนยันอัตราประเภทเงินได้",
+      "updated": "แก้ประเภทเงินได้"
+    },
+    "withholding_tax": {
+      "recorded": "บันทึกภาษีหัก ณ ที่จ่าย"
     }
   }
 }

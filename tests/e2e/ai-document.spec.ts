@@ -202,3 +202,21 @@ test('[FR-AI-309/AC1] [FR-AI-309/AC2] [FR-AI-309/AC5] ⌘K asks BCS AI only whil
   await expect(sheet.getByText(question)).toBeVisible()
   await check(page, testInfo, 'ask-ai')
 })
+
+test('[FR-AI-308/AC1] [FR-AI-308/AC3] the DOA drafter: each rule with its source and page, confirmed one by one, then a draft of the admin\'s own', async ({ page }, testInfo) => {
+  ai('on')
+  const code = testInfo.project.name === 'mobile' ? 'admin2' : 'admin'
+  await signIn(page, code, true)
+  await page.goto('/admin/doa/ai-draft')
+  await expect(page.getByRole('heading', { level: 1, name: 'ร่าง DOA จากระเบียบ' })).toBeVisible()
+  await page.locator('input[type="file"]').first().setInputFiles({ name: 'ระเบียบ.pdf', mimeType: 'application/pdf', buffer: PDF })
+  await expect(page.getByRole('status').filter({ hasText: 'กำลังอ่านระเบียบ' })).toBeVisible()
+  expect(ai<{ drafted: number }>('run').drafted).toBeGreaterThanOrEqual(1)
+  await expect(page.getByRole('heading', { name: /ข้อที่ AI ร่าง/ })).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('ไม่พบปัญหา')).toBeVisible()
+  await check(page, testInfo, 'doa-ai-draft')
+  const boxes = page.getByRole('checkbox', { name: /ยืนยันข้อ/ })
+  for (let n = await boxes.count(), i = 0; i < n; i++) await boxes.nth(i).click()
+  await page.getByRole('button', { name: 'สร้างฉบับร่าง' }).click()
+  await expect(page).toHaveURL(/\/admin\/doa\/[0-9a-f-]{36}$/, { timeout: 20_000 })
+})

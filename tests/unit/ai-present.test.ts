@@ -47,7 +47,7 @@ describe('[FR-AI-303/AC1] the screen gets what was read, what is proposed and wh
     ])
   })
   it('shows nothing of the content to whoever does not get it, and a failed read by its code', () => {
-    expect(presentAiResult({ ...base, status: 'FAILED', errorCode: 'FIXTURE_MISSING', content: null })).toEqual({ id: 'a1', status: 'FAILED', errorCode: 'FIXTURE_MISSING', proposed: {}, requiredPaths: [], reading: null, notes: [], suggestedType: null, supplierText: null })
+    expect(presentAiResult({ ...base, status: 'FAILED', errorCode: 'FIXTURE_MISSING', content: null })).toEqual({ id: 'a1', status: 'FAILED', errorCode: 'FIXTURE_MISSING', proposed: {}, requiredPaths: [], reading: null, notes: [], suggestedType: null, supplierText: null, doa: null })
     const empty = presentAiResult({ ...base, content: { ...base.content!, output: { reading: { seller: null, priceIncludesVat: true } }, verification: null, review: null } })
     expect(empty).toMatchObject({ proposed: {}, requiredPaths: [], notes: [], reading: { sellerName: null, priceIncludesVat: true, lines: [] } })
     expect(presentAiResult({ ...base, content: { ...base.content!, output: null } }).reading).toBeNull()

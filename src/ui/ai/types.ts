@@ -44,6 +44,26 @@ export interface AiResultView {
   readonly suggestedType: { readonly code: string; readonly name: string } | null
   /** Intake: the supplier named but not in the register, as text */
   readonly supplierText: string | null
+  /** The DOA drafter: the draft version, each rule with its source and page and what code found, and the lint */
+  readonly doa: AiDoaDraftView | null
+}
+
+export interface AiDoaDraftView {
+  readonly yaml: string
+  readonly versionCode: string
+  readonly versionNo: number
+  readonly rules: ReadonlyArray<{
+    readonly code: string
+    readonly documentType: string
+    readonly gt: string | null
+    readonly lte: string | null
+    readonly approverKind: string
+    readonly approverPosition: string | null
+    readonly sourceText: string
+    readonly page: number
+    readonly problems: readonly string[]
+  }>
+  readonly lint: { readonly errors: ReadonlyArray<{ readonly code: string; readonly documentType?: string; readonly rule?: string; readonly gt?: string; readonly lte?: string | null }>; readonly warnings: ReadonlyArray<{ readonly code: string; readonly rule?: string }> }
 }
 
 export type AiStartOutcome = { readonly ok: true; readonly agentActionId: string } | { readonly ok: false; readonly code: string; readonly reason?: string }

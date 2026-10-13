@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { inngest } from '@/server/inngest'
 import { DOCUMENT_PURPOSES, runDocumentRead } from '@/server/services/ai/agents/document'
+import { runDoaDraft } from '@/server/services/ai/agents/doa-drafter'
 import { runIntake } from '@/server/services/ai/agents/intake'
 
 // Job `ai-agent-run` (docs/sub-specs/S13.md "งานเบื้องหลัง", ADR-145): every agent_action.requested of an agent that
@@ -28,6 +29,7 @@ export async function aiAgentRunRun(event: { data: unknown }, step: AiAgentRunSt
   if (DOCUMENT_PURPOSES.includes(data.purpose as never)) return step.run('read-document', () => runDocumentRead(organizationId, aggregateId, systemClock.now()))
   // The web's step 0; a chat intake (S17) runs in its caller's job and is no longer PENDING here (SKIPPED)
   if (data.purpose === 'INTAKE') return step.run('intake', () => runIntake(organizationId, aggregateId, systemClock.now()))
+  if (data.purpose === 'DOA_DRAFT') return step.run('doa-draft', () => runDoaDraft(organizationId, aggregateId, systemClock.now()))
   return 'IGNORED'
 }
 

@@ -1,5 +1,5 @@
 import type { AgentActionDto } from '@/server/services/ai'
-import type { AiNote, AiReadingView, AiResultView } from '@/ui/ai/types'
+import type { AiDoaDraftView, AiNote, AiReadingView, AiResultView } from '@/ui/ai/types'
 
 // An AgentAction of the Document Agent as its screen shows it (FR-AI-303 AC1): the values proposed for the form and
 // which must be confirmed one by one, what was read, and what the checks and the mapping found. The content is the
@@ -59,5 +59,6 @@ export function presentAiResult(dto: AgentActionDto): AiResultView {
     notes: content ? notesOf(content.verification, content.output) : [],
     suggestedType: text(obj(content?.output).suggestedType) ? { code: text(obj(content?.output).suggestedType)!, name: text(obj(content?.output).suggestedTypeName) ?? text(obj(content?.output).suggestedType)! } : null,
     supplierText: text(obj(content?.output).supplierText),
+    doa: content && typeof obj(content.output).yaml === 'string' ? (content.output as AiDoaDraftView) : null,
   }
 }

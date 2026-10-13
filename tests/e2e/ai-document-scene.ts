@@ -5,7 +5,7 @@ import { systemClock } from '@/lib/clock'
 import { prisma } from '@/server/db/client'
 import { getReceivingPo } from '@/server/queries/receiving'
 import { makeCtx } from '@/server/context'
-import { runBrief, runDocumentRead, runIntake, runMonthlyGrant } from '@/server/services/ai'
+import { runBrief, runDoaDraft, runDocumentRead, runIntake, runMonthlyGrant } from '@/server/services/ai'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/ai-document.spec.ts against the e2e database only (S13-07, FR-AI-303 AC1 AC3 AC4). The e2e app sends
@@ -54,9 +54,22 @@ const INTAKE_DRAFT = {
   confidence: [{ field: 'title', value: 96 }, { field: 'lines.0.description', value: 97 }, { field: 'lines.0.unit', value: 95 }],
 }
 
+/** The regulation of the e2e: the organization's DOA in force, each rule with its sentence on page 1 (FR-AI-308) */
+async function regulationOf() {
+  const version = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: org.id, status: 'PUBLISHED' }, include: { rules: true }, orderBy: { versionNo: 'desc' } })
+  const baht = (s: unknown) => (typeof s === 'string' || typeof s === 'number' ? (Number(s) / 100).toFixed(2) : null)
+  return {
+    rules: version.rules.map((r) => {
+      const amount = ((r.when ?? {}) as { amount?: { gt?: unknown; lte?: unknown } }).amount ?? {}
+      const approver = ((r.steps as Array<{ approver: { kind: string; position?: string } }>)[0] ?? { approver: { kind: 'POSITION_OF_ORG' } }).approver
+      return { code: r.code, documentType: r.documentType, gt: baht(amount.gt), lte: baht(amount.lte), approverKind: approver.kind, approverPosition: approver.position ?? null, sourceText: `ข้อ ${r.code} ของระเบียบอำนาจอนุมัติ`, page: 1 }
+    }),
+  }
+}
+
 if (mode === 'on') {
   await setModule(true)
-  for (const agent of ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT'] as const) {
+  for (const agent of ['DOCUMENT', 'INTAKE', 'APPROVAL_BRIEF', 'INSIGHT', 'DOA_DRAFTER'] as const) {
     const setting = await prisma.aiAgentSetting.findFirst({ where: { organizationId: org.id, agent }, select: { id: true } })
     if (setting) await prisma.aiAgentSetting.update({ where: { id: setting.id }, data: { enabled: true } })
     else await prisma.aiAgentSetting.create({ data: { organizationId: org.id, agent, enabled: true, level: agent === 'APPROVAL_BRIEF' || agent === 'INSIGHT' ? 'L0' : 'L1', minConfidenceBp: 9000 } })
@@ -68,17 +81,18 @@ if (mode === 'on') {
   await setModule(false)
   console.log(JSON.stringify({ on: false }))
 } else if (mode === 'run') {
-  const pending = await prisma.agentAction.findMany({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE'] }, status: 'PENDING' }, select: { id: true, purpose: true, subjectType: true, subjectId: true } })
+  const pending = await prisma.agentAction.findMany({ where: { organizationId: org.id, agent: { in: ['DOCUMENT', 'INTAKE', 'DOA_DRAFTER'] }, status: 'PENDING' }, select: { id: true, purpose: true, subjectType: true, subjectId: true } })
   let drafted = 0
   for (const action of pending) {
-    const output = action.purpose === 'INTAKE' ? INTAKE_DRAFT : await readingFor(action.purpose, action.subjectType, action.subjectId)
+    const output = action.purpose === 'INTAKE' ? INTAKE_DRAFT : action.purpose === 'DOA_DRAFT' ? await regulationOf() : await readingFor(action.purpose, action.subjectType, action.subjectId)
     const client: AiClient = {
       mode: 'fixture',
       extract: async (request) => ({ ok: true, promptVersion: PROMPT_VERSIONS[request.purpose], model: request.model, output: request.schema.parse(output), usage: { input: 2400, output: 500, cacheRead: 0, cacheWrite: 0 }, latencyMs: 900 }),
       write: async (request) => ({ ok: false, errorCode: 'FIXTURE_MISSING', promptVersion: PROMPT_VERSIONS[request.purpose], usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }, latencyMs: 0 }),
     }
     setAiClientForTests(client)
-    if ((await (action.purpose === 'INTAKE' ? runIntake(org.id, action.id, now) : runDocumentRead(org.id, action.id, now))) === 'DRAFT') drafted++
+    const run = action.purpose === 'INTAKE' ? runIntake : action.purpose === 'DOA_DRAFT' ? runDoaDraft : runDocumentRead
+    if ((await run(org.id, action.id, now)) === 'DRAFT') drafted++
   }
   console.log(JSON.stringify({ drafted }))
 } else if (mode === 'brief') {

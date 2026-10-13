@@ -1082,12 +1082,34 @@ def run_ai_dn_map(d):
         got = {"prefill": pre, "flags": flags}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_ai_intake_channel(d):
+    from decimal import Decimal as D
+    fx, out = d["fixture"], []
+    cat = {i["itemCode"]: i["agreements"] for i in fx["catalog"]}
+    def inforce(a): return a["validFrom"] <= fx["asOf"] and (a.get("validTo") is None or fx["asOf"] < a["validTo"])
+    for c in d["cases"]:
+        codes = [l["itemCode"] for l in c["input"]["lines"]]
+        known = bool(codes) and all(x is not None for x in codes)
+        recent = [p for p in fx["pastRequests"] if p["daysAgo"] <= fx["reorderLookbackDays"]]
+        if known and all(any(inforce(a) for a in cat.get(x, [])) for x in codes): got = {"channel": "CATALOG", "requiredRules": []}
+        elif known and all(any(p["itemCode"] == x for p in recent) for x in codes):
+            latest = sorted([p for p in recent if p["itemCode"] in codes], key=lambda p: p["daysAgo"])[0]
+            got = {"channel": "REORDER", "reorderFrom": latest["number"], "requiredRules": []}
+        else:
+            g, req = D(c["input"]["amountGross"]), []
+            for r in fx["rules"]:
+                v, op = D(r["when"]["value"]), r["when"]["op"]
+                if {"gt": g > v, "gte": g >= v, "lt": g < v, "lte": g <= v, "eq": g == v}[op]: req.append(r["id"])
+            got = {"channel": "STANDARD", "requiredRules": req}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
     "ai-credits": run_ai_credits,
     "ai-dn-map": run_ai_dn_map,
     "ai-eval-score": run_ai_eval_score,
+    "ai-intake-channel": run_ai_intake_channel,
     "ai-quotation-map": run_ai_quotation_map,
     "ai-verify": run_ai_verify,
     "ap": run_ap,

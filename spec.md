@@ -3942,6 +3942,25 @@ cases:
   - { id: GC-AI-74, title: เกินยอดค้างรับ เติมแต่ไฮไลต์, input: { dnLines: [{ qty: "18.5", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18.5" }], flags: [{ code: OVER_OPEN, lineNo: 1 }] } }
 ```
 
+```yaml
+# tests/golden/ai-intake-channel.yaml
+suite: ai-intake-channel
+fixture:
+  asOf: "2026-10-11"
+  rules: [{ id: ATT-QUOTES, when: { field: $amountGross, op: gt, value: "100000.00" } }]
+  catalog:
+    - { itemCode: PLB-002, agreements: [{ supplier: SP0056, unitPrice: "300.00", validFrom: "2026-10-01", validTo: "2027-10-01" }] }
+    - { itemCode: PLB-003, agreements: [{ supplier: SP0056, unitPrice: "3250.00", validFrom: "2025-10-01", validTo: "2026-10-11" }] }
+  pastRequests: [{ itemCode: MAT-011, number: PR-2569-00120, daysAgo: 40 }]   # คำขอของผู้ขอคนนี้เอง (คำขอของผู้อื่นไม่อยู่ในรายการนี้ · BR-AI-19)
+  reorderLookbackDays: 180
+cases:
+  - { id: GC-AI-75, input: { lines: [{ itemCode: PLB-002, qty: "18" }], amountGross: "5970.60" }, expect: { channel: CATALOG, requiredRules: [] } }
+  - { id: GC-AI-76, title: ราคาตกลงสิ้นสุดวันนี้ (validTo ไม่รวมวันนั้น), input: { lines: [{ itemCode: PLB-003, qty: "4" }], amountGross: "13910.00" }, expect: { channel: STANDARD, requiredRules: [] } }
+  - { id: GC-AI-77, input: { lines: [{ itemCode: MAT-011, qty: "47" }], amountGross: "19864.55" }, expect: { channel: REORDER, reorderFrom: PR-2569-00120, requiredRules: [] } }
+  - { id: GC-AI-78, title: เท่าเกณฑ์พอดี, input: { lines: [{ itemCode: null, qty: "1" }], amountGross: "100000.00" }, expect: { channel: STANDARD, requiredRules: [] } }
+  - { id: GC-AI-79, title: เกินเกณฑ์ 1 สตางค์, input: { lines: [{ itemCode: null, qty: "1" }], amountGross: "100000.01" }, expect: { channel: STANDARD, requiredRules: [ATT-QUOTES] } }
+```
+
 ---
 
 ## 13. Non-functional requirements
@@ -4110,7 +4129,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       30 ไฟล์ · 293 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       31 ไฟล์ · 298 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

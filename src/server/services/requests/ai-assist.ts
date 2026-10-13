@@ -6,7 +6,7 @@ import type { EventDraft } from '@/server/events/append'
 import { applyAiAssist, assertNoPendingAiReview, decimalText, registerAssistSubject, type AiAssist } from '../ai/assist-contract'
 
 // The values of a request by form path (BR-AI-17 of S13, ADR-148): what an AI action may propose for a request and
-// what the person ended up with. Paths: title · requestTypeCode · priceIncludesVat · suggestedSupplierId ·
+// what the person ended up with. Paths: title · requestTypeCode · priceIncludesVat · suggestedSupplierId · deliverySiteId ·
 // formData.<field> · lines.<i>.description|quantity|uom|unitPrice|categoryCode · quotations.<q>.supplierName|supplierId|
 // amount|includesVat, where <q> is the quotation's file (the file the Document Agent read: it stays the same however the
 // quotations are reordered) or its place for one without a file. Quantities and amounts are written as the form writes
@@ -19,6 +19,7 @@ export async function readRequestForAssist(tx: TenantTx, id: string): Promise<Re
       title: true,
       priceIncludesVat: true,
       suggestedSupplierId: true,
+      deliverySiteId: true,
       formData: true,
       requestType: { select: { code: true } },
       lines: { orderBy: { lineNo: 'asc' }, select: { description: true, quantity: true, uom: true, unitPriceSatang: true, categoryCode: true } },
@@ -33,6 +34,7 @@ export async function readRequestForAssist(tx: TenantTx, id: string): Promise<Re
     priceIncludesVat: String(r.priceIncludesVat),
   }
   if (r.suggestedSupplierId) out.suggestedSupplierId = r.suggestedSupplierId
+  if (r.deliverySiteId) out.deliverySiteId = r.deliverySiteId
   for (const [key, value] of Object.entries((r.formData ?? {}) as Record<string, unknown>)) {
     if (typeof value === 'string' || typeof value === 'boolean') out[`formData.${key}`] = String(value)
   }

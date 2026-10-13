@@ -14,6 +14,7 @@ export {
   type RequestedAction,
 } from './actions'
 export { DOCUMENT_PURPOSES, readDocument, ReadDocumentInput, runDocumentRead } from './agents/document'
+export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartIntakeInput } from './agents/intake'
 export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
 export { aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'
 export { activeOrgAdminIds, listAgentSettings, updateAgentSetting, type AgentSettingDto } from './settings'

@@ -195,4 +195,8 @@ export const AI_LIMITS = {
   insightMaxTurns: 10,
   /** Characters of text a member typed that an AgentAction keeps (inputText) */
   maxInputTextChars: 2_000,
+  /** Files one Intake call reads with the requester's words */
+  intakeMaxFiles: 5,
+  /** A requester's own requests this recent make a reorder (BR-AI-19 · no organization setting for it yet) */
+  reorderLookbackDays: 180,
 } as const

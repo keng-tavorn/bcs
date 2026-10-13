@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { inngest } from '@/server/inngest'
 import { DOCUMENT_PURPOSES, runDocumentRead } from '@/server/services/ai/agents/document'
+import { runIntake } from '@/server/services/ai/agents/intake'
 
 // Job `ai-agent-run` (docs/sub-specs/S13.md "งานเบื้องหลัง", ADR-145): every agent_action.requested of an agent that
 // works in the background — the Document Agent now, Intake and the DOA drafter as they come — calls the AI outside any
@@ -25,6 +26,8 @@ export async function aiAgentRunRun(event: { data: unknown }, step: AiAgentRunSt
   if (!payload.success) return 'IGNORED'
   const { organizationId, aggregateId, data } = payload.data
   if (DOCUMENT_PURPOSES.includes(data.purpose as never)) return step.run('read-document', () => runDocumentRead(organizationId, aggregateId, systemClock.now()))
+  // The web's step 0; a chat intake (S17) runs in its caller's job and is no longer PENDING here (SKIPPED)
+  if (data.purpose === 'INTAKE') return step.run('intake', () => runIntake(organizationId, aggregateId, systemClock.now()))
   return 'IGNORED'
 }
 

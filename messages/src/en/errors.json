@@ -17,6 +17,7 @@
   "AI_AGENT_DISABLED": "The AI assistant {agent} is switched off; fill in the form yourself as usual",
   "AI_NOT_EVALUATED": "This version of the AI assistant {agent} has not passed its evaluation yet, so it cannot be used",
   "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up; fill in the form yourself as usual",
+  "AI_FILE_UNSUPPORTED": "The AI cannot read this file ({reason}): PDF, JPEG, PNG or WebP up to 20 MB; an e-Tax file uses the e-Tax import",
   "TOKEN_EXPIRED": "This link has expired. Please open it from the system",
   "DOA_NOT_CONFIGURED": "No delegation of authority is in effect for this document. Please contact your administrator",
   "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",

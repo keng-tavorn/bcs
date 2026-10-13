@@ -122,7 +122,14 @@ describe('[BR-AI-14] the checks of a reading that the golden suites leave out', 
       { docType: 'QUOTATION', docDate: '2026-10-10', seller: { taxId: '3999998020014', branch: null }, lines: [{ qty: '1', unitPrice: '100.00', amount: '100.00' }], net: '100.00', vat: '7.00', gross: '107.00' },
       { ...ctx, registry: [{ taxId: '3999998020014', branch: '00000', vatRegistered: false }] },
     )
-    expect(headOffice).toMatchObject({ fail: ['NON_VAT_SELLER'], computed: { net: '100.00', vat: '0.00', gross: '100.00' } })
+    expect(headOffice).toMatchObject({ fail: ['NON_VAT_SELLER'], computed: { net: '100.00', vat: '0.00', gross: '100.00' }, fieldStatus: { vat: 'FAIL' } })
+    // The check of each flagged path: a warning on one, a failure on another
+    const mixed = verifyReading(
+      { docType: 'QUOTATION', docDate: '2026-10-10', buyer: { taxId: '0105512345677' }, lines: [{ qty: '1', unitPrice: '100.00', amount: '100.00' }], net: '100.00', vat: '7.50', gross: '107.50' },
+      ctx,
+    )
+    expect(mixed.fieldStatus).toEqual({ vat: 'WARN', 'buyer.taxId': 'WARN' })
+    expect(bad.fieldStatus).toMatchObject({ 'seller.taxId': 'FAIL' })
   })
   it('maps nothing of another currency, and a quotation without a seller or a total', () => {
     expect(mapQuotation({ docType: 'QUOTATION', lines: [] }, { fail: ['CURRENCY'] }, { fileId: 'F', vatRateBp: 700, registry: [], normalized: { lines: [], discountTotal: null } })).toMatchObject({ quotation: null, lines: null })

@@ -7,8 +7,10 @@ import { applyAiAssist, assertNoPendingAiReview, decimalText, registerAssistSubj
 
 // The values of a request by form path (BR-AI-17 of S13, ADR-148): what an AI action may propose for a request and
 // what the person ended up with. Paths: title · requestTypeCode · priceIncludesVat · suggestedSupplierId ·
-// formData.<field> · lines.<i>.description|quantity|uom|unitPrice|categoryCode · quotations.<i>.supplierName|supplierId|
-// amount|includesVat. Quantities and amounts are written as the form writes them (decimalText, satangToAmount).
+// formData.<field> · lines.<i>.description|quantity|uom|unitPrice|categoryCode · quotations.<q>.supplierName|supplierId|
+// amount|includesVat, where <q> is the quotation's file (the file the Document Agent read: it stays the same however the
+// quotations are reordered) or its place for one without a file. Quantities and amounts are written as the form writes
+// them (decimalText, satangToAmount).
 
 export async function readRequestForAssist(tx: TenantTx, id: string): Promise<Record<string, string> | null> {
   const r = await tx.request.findFirst({
@@ -21,7 +23,7 @@ export async function readRequestForAssist(tx: TenantTx, id: string): Promise<Re
       requestType: { select: { code: true } },
       lines: { orderBy: { lineNo: 'asc' }, select: { description: true, quantity: true, uom: true, unitPriceSatang: true, categoryCode: true } },
       // Saved together, quotations share one createdAt: the id (UUID v7, made in order) breaks the tie
-      quotations: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { supplierName: true, supplierId: true, amountSatang: true, includesVat: true } },
+      quotations: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { supplierName: true, supplierId: true, amountSatang: true, includesVat: true, fileId: true } },
     },
   })
   if (!r) return null
@@ -42,10 +44,11 @@ export async function readRequestForAssist(tx: TenantTx, id: string): Promise<Re
     if (l.categoryCode) out[`lines.${i}.categoryCode`] = l.categoryCode
   })
   r.quotations.forEach((q, i) => {
-    out[`quotations.${i}.supplierName`] = q.supplierName
-    if (q.supplierId) out[`quotations.${i}.supplierId`] = q.supplierId
-    out[`quotations.${i}.amount`] = satangToAmount(q.amountSatang)
-    out[`quotations.${i}.includesVat`] = String(q.includesVat)
+    const at = `quotations.${q.fileId ?? i}`
+    out[`${at}.supplierName`] = q.supplierName
+    if (q.supplierId) out[`${at}.supplierId`] = q.supplierId
+    out[`${at}.amount`] = satangToAmount(q.amountSatang)
+    out[`${at}.includesVat`] = String(q.includesVat)
   })
   return out
 }

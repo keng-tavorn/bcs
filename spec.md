@@ -3800,6 +3800,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `AI_AGENT_DISABLED` | 403 | ผู้ช่วย AI {agent} ปิดอยู่ กรอกข้อมูลเองได้ตามปกติ |
 | `AI_NOT_EVALUATED` | 403 | ผู้ช่วย AI {agent} รุ่นนี้ยังไม่ผ่านชุดประเมิน จึงยังใช้ไม่ได้ |
 | `AI_CREDITS_EXHAUSTED` | 422 | credits ของ AI เดือนนี้หมดแล้ว กรอกข้อมูลเองได้ตามปกติ |
+| `AI_FILE_UNSUPPORTED` | 400 | AI อ่านไฟล์นี้ไม่ได้ ({reason}) รองรับ PDF JPEG PNG WebP ไม่เกิน 20 MB · ไฟล์ e-Tax ใช้การนำเข้า e-Tax |
 | `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |

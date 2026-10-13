@@ -1,5 +1,6 @@
 import { getEnv } from '@/lib/env'
 import { aiActionsExpire } from './ai-actions-expire'
+import { aiAgentRun } from './ai-agent-run'
 import { aiCreditMonthly } from './ai-credit-monthly'
 import { approvalTaskResume } from './approval-task-resume'
 import { approvalTaskSla } from './approval-task-sla'
@@ -40,6 +41,8 @@ export const functions = [
   // S13-02: AI results that expire or are cleared, and the month's AI credits (ADR-145)
   aiActionsExpire,
   aiCreditMonthly,
+  // S13-07: the background call of the Document Agent (and of Intake and the DOA drafter as they come)
+  aiAgentRun,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

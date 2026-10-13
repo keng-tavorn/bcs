@@ -72,6 +72,8 @@ export interface CheckResult {
   readonly skip: readonly CheckCode[]
   /** Paths the person must confirm one by one because of a check ("*" = the whole document) */
   readonly flagged: readonly string[]
+  /** The check of each flagged path: FAIL when any check failed on it, otherwise WARN (BR-AI-16 caps its confidence) */
+  readonly fieldStatus: Readonly<Record<string, 'WARN' | 'FAIL'>>
   readonly computed: { readonly net?: string; readonly vat?: string; readonly gross?: string }
   /** |VAT read − VAT computed| when VAT_AMOUNT ran */
   readonly vatDiff?: string
@@ -111,22 +113,32 @@ export function verifyReading(reading: ReadingToCheck, ctx: CheckContext): Check
   const warn = new Set<CheckCode>()
   const skip = new Set<CheckCode>()
   const flagged = new Set<string>()
+  const failedPaths = new Set<string>()
+  const warnedPaths = new Set<string>()
   const computed: { net?: string; vat?: string; gross?: string } = {}
   let vatDiff: string | undefined
   const failOn = (code: CheckCode, ...paths: string[]) => {
     fail.add(code)
-    paths.forEach((p) => flagged.add(p))
+    paths.forEach((p) => {
+      flagged.add(p)
+      failedPaths.add(p)
+    })
   }
   const warnOn = (code: CheckCode, ...paths: string[]) => {
     warn.add(code)
-    paths.forEach((p) => flagged.add(p))
+    paths.forEach((p) => {
+      flagged.add(p)
+      warnedPaths.add(p)
+    })
   }
+  // FAIL wins over WARN on a path that both touched
+  const statusOfFields = () => Object.fromEntries([...[...warnedPaths].map((p) => [p, 'WARN'] as const), ...[...failedPaths].map((p) => [p, 'FAIL'] as const)])
   const invoice = reading.docType === 'TAX_INVOICE'
 
   // A document in another currency is never turned into values of a form (NG-9)
   if (has(reading.currency) && reading.currency.trim().toUpperCase() !== 'THB') {
     failOn('CURRENCY', '*')
-    return { status: 'FAIL', fail: [...fail], warn: [], skip: [], flagged: [...flagged], computed, normalized: { lines: reading.lines, discountTotal: reading.discountTotal ?? null } }
+    return { status: 'FAIL', fail: [...fail], warn: [], skip: [], flagged: [...flagged], fieldStatus: statusOfFields(), computed, normalized: { lines: reading.lines, discountTotal: reading.discountTotal ?? null } }
   }
 
   // BR-AI-14: a negative line is a discount; a discount in both places is ambiguous and stops the totals
@@ -224,5 +236,5 @@ export function verifyReading(reading: ReadingToCheck, ctx: CheckContext): Check
   }
 
   const status = fail.size ? 'FAIL' : warn.size ? 'WARN' : 'PASS'
-  return { status, fail: [...fail], warn: [...warn], skip: [...skip], flagged: [...flagged], computed, ...(vatDiff === undefined ? {} : { vatDiff }), normalized }
+  return { status, fail: [...fail], warn: [...warn], skip: [...skip], flagged: [...flagged], fieldStatus: statusOfFields(), computed, ...(vatDiff === undefined ? {} : { vatDiff }), normalized }
 }

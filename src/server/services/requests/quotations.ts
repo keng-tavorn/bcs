@@ -14,6 +14,8 @@ export const MAX_QUOTATIONS = 20
 
 export const QuotationInput = z.strictObject({
   supplierName: z.string().trim().min(1).max(200),
+  /** The supplier of the register, when the quotation is theirs (the Document Agent matches it by tax id and branch, BR-AI-25) */
+  supplierId: z.uuid().optional(),
   amount: z.string().regex(/^\d{1,13}(\.\d{1,2})?$/),
   includesVat: z.boolean(),
   fileId: z.uuid().optional(),
@@ -40,6 +42,10 @@ export async function writeQuotations(tx: TenantTx, ctx: Ctx, request: { id: str
     const own = await tx.fileObject.count({ where: { id: { in: fileIds }, uploadedById: request.requesterMemberId, status: 'AVAILABLE' } })
     if (own !== fileIds.length) return refuse('a quotation file must be one you uploaded', { field: 'quotations', reason: 'FILE' })
   }
+  const supplierIds = [...new Set(quotations.flatMap((q) => (q.supplierId ? [q.supplierId] : [])))]
+  if (supplierIds.length && (await tx.supplier.count({ where: { id: { in: supplierIds } } })) !== supplierIds.length) {
+    return refuse('a quotation names a supplier that is not in the register', { field: 'quotations', reason: 'SUPPLIER' })
+  }
   const previous = await tx.requestQuotation.findMany({ where: { requestId: request.id }, select: { fileId: true } })
   await tx.requestQuotation.deleteMany({ where: { requestId: request.id } })
   for (const q of quotations) {
@@ -49,6 +55,7 @@ export async function writeQuotations(tx: TenantTx, ctx: Ctx, request: { id: str
         organizationId: ctx.organizationId,
         requestId: request.id,
         supplierName: q.supplierName,
+        ...(q.supplierId ? { supplierId: q.supplierId } : {}),
         amountSatang,
         includesVat: q.includesVat,
         vatRateBp: rateBp ?? 0,

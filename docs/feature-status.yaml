@@ -1,6 +1,6 @@
 # docs/feature-status.yaml — the only place that says what works (spec §0.5, §15.6).
 # Sales material may cite only `verified` and `live`. status: planned | in_progress | done | verified | live
-updatedAt: 2026-10-11
+updatedAt: 2026-10-13
 features:
   FR-PLT-001:
     status: done
@@ -69,6 +69,7 @@ features:
     status: done
     step: S1
     evidence:
+      - tests/integration/seed-p1-modules.test.ts
       - tests/integration/seed.test.ts
       - tests/unit/db-reset.test.ts
     verifiedBy: null
@@ -163,23 +164,24 @@ features:
     status: done
     step: S5
     evidence:
-      - tests/integration/pin.test.ts
-      - tests/integration/step-up-pin.test.ts
-      - tests/unit/pin-env.test.ts
-      - tests/unit/pin-hash.test.ts
-      - tests/unit/pin.test.ts
       - tests/e2e/liff-tasks.spec.ts
       - tests/e2e/settings-pin.spec.ts
       - tests/e2e/tasks.spec.ts
+      - tests/integration/approval-subjects.test.ts
       - tests/integration/demo-history.test.ts
       - tests/integration/liff-tasks.test.ts
       - tests/integration/line-delivery.test.ts
       - tests/integration/pin-proof-totp.test.ts
+      - tests/integration/pin.test.ts
       - tests/integration/step-up-decisions.test.ts
+      - tests/integration/step-up-pin.test.ts
       - tests/integration/tasks-step-up.test.ts
       - tests/unit/liff-tasks-result.test.ts
       - tests/unit/liff-tasks-screens.test.tsx
+      - tests/unit/pin-env.test.ts
+      - tests/unit/pin-hash.test.ts
       - tests/unit/pin-paste.test.tsx
+      - tests/unit/pin.test.ts
       - tests/unit/settings-fields.test.tsx
       - tests/unit/settings-screens.test.ts
       - tests/unit/tasks-outcome.test.ts
@@ -257,13 +259,15 @@ features:
     status: done
     step: S2
     evidence:
-      - tests/unit/doa-yaml.test.ts
       - tests/e2e/admin-doa-editor.spec.ts
       - tests/e2e/admin-doa.spec.ts
       - tests/integration/admin-org-screens-doa.test.ts
       - tests/integration/doa-editor-boundary.test.ts
       - tests/integration/doa-editor.test.ts
+      - tests/integration/doa-p1-screens.test.ts
       - tests/unit/admin-doa-editor.test.tsx
+      - tests/unit/doa-p1-types.test.ts
+      - tests/unit/doa-yaml.test.ts
     verifiedBy: null
     notes: "ทุก AC มีเทสต์ที่ผ่านใน pnpm verify --e2e 2026-10-06 และข้อใน §16 ที่เป็นเจ้าของติ๊กแล้ว"
   FR-DOA-002:
@@ -272,9 +276,11 @@ features:
     evidence:
       - tests/golden/doa.test.ts
       - tests/integration/doa-lint-gate.test.ts
+      - tests/integration/doa-p1-submit.test.ts
       - tests/integration/doa-versions.test.ts
       - tests/integration/initial-package.test.ts
       - tests/integration/org-authority.test.ts
+      - tests/unit/doa-p1-types.test.ts
       - tests/unit/doa.test.ts
     verifiedBy: null
     notes: "AC3 ชุดตั้งต้นตาม ADR-042 · การยืนยันผู้ลงนามโดย PLATFORM_ADMIN อยู่ใน NEW-15"
@@ -288,6 +294,7 @@ features:
       - tests/integration/request-form.test.ts
       - tests/integration/requests.test.ts
       - tests/integration/tasks-view.test.ts
+      - tests/unit/doa-p1-types.test.ts
       - tests/unit/doa.test.ts
       - tests/unit/request-form.test.ts
       - tests/unit/tasks-present.test.ts
@@ -299,8 +306,10 @@ features:
     evidence:
       - tests/e2e/tasks-po.spec.ts
       - tests/e2e/tasks.spec.ts
+      - tests/integration/approval-subjects.test.ts
       - tests/integration/procurement-screens.test.ts
       - tests/integration/requests.test.ts
+      - tests/integration/step-outcome.test.ts
       - tests/integration/tasks-view-actions.test.ts
       - tests/integration/tasks-view.test.ts
       - tests/unit/tasks-outcome.test.ts
@@ -310,7 +319,6 @@ features:
     status: done
     step: S2
     evidence:
-      - tests/integration/requests.test.ts
       - tests/e2e/audit.spec.ts
       - tests/e2e/board-demo.spec.ts
       - tests/e2e/demo/02-approve-in-chat.spec.ts
@@ -318,8 +326,11 @@ features:
       - tests/e2e/demo/09-executive-overview.spec.ts
       - tests/e2e/request-view.spec.ts
       - tests/e2e/tasks.spec.ts
+      - tests/integration/approval-subjects.test.ts
+      - tests/integration/doa-p1-screens.test.ts
       - tests/integration/insight-screens.test.ts
       - tests/integration/line-postback.test.ts
+      - tests/integration/requests.test.ts
       - tests/integration/tasks-view.test.ts
       - tests/unit/tasks-present.test.ts
       - tests/unit/tasks-timeline-stamp.test.tsx
@@ -367,15 +378,17 @@ features:
     step: S3
     evidence:
       - tests/e2e/admin-doa-editor.spec.ts
+      - tests/e2e/liff-tasks.spec.ts
+      - tests/e2e/tasks.spec.ts
       - tests/integration/doa-editor-approve.test.ts
       - tests/integration/doa-editor-boundary.test.ts
       - tests/integration/doa-editor-simulate.test.ts
       - tests/integration/doa-editor.test.ts
+      - tests/integration/doa-p1-screens.test.ts
+      - tests/integration/liff-tasks.test.ts
       - tests/integration/tasks-view-doa.test.ts
       - tests/unit/admin-doa-editor.test.tsx
-      - tests/e2e/liff-tasks.spec.ts
-      - tests/e2e/tasks.spec.ts
-      - tests/integration/liff-tasks.test.ts
+      - tests/unit/doa-p1-types.test.ts
       - tests/unit/liff-tasks-result.test.ts
       - tests/unit/liff-tasks-screens.test.tsx
     verifiedBy: null

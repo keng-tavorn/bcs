@@ -50,6 +50,8 @@ frs:
       AC1: { owner: S1-13, demo: true, basis: named, text: "seed สร้างผู้ใช้ทุกบทบาทที่ใช้ในชั้น 1 พร้อมรหัสผ่านสำหรับ dev และ login ได้" }
       AC2: { owner: S1-13, demo: true, basis: named, text: "pnpm db:reset เมื่อ APP_ENV ไม่ใช่ local ถูกปฏิเสธ", note: "D-07 ต้องมีคำสั่ง reset ที่รันบน staging ได้ แต่ AC นี้ห้าม db:reset นอก local — spec ไม่ได้ระบุว่า D-07 ใช้คำสั่งใด · การ reset ข้อมูล staging ต้องขออนุญาตผู้ใช้ก่อน (ตัดสิน 2026-10-02)" }
       AC3: { owner: S2-15, demo: true, basis: named, text: "seed ใช้ DOA ฉบับ 1 และโครงองค์กรเดียวกับ fixture ใน §7.4 (มีเทสต์ยืนยัน เทียบทุกค่ายกเว้น effectiveFrom ของ DOA ฉบับ 1 และผู้ใช้ที่มีเฉพาะใน demo ซึ่งไม่ได้ดำรงตำแหน่ง)", note: "S1-13 ระบุ FR นี้ทั้งข้อ แต่ S2-15 ระบุ AC3 ตรง ๆ และเป็นข้อที่ seed โครงองค์กรกับ DOA" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "seed ด้วยไฟล์ระยะ 1 ได้ DOA-SIMEC ฉบับ 1 มี 22 ข้อตรงชีต DOA และโมดูล CORE PAY AI BCS_GO เปิดพร้อม event organization.module_enabled ต่อโมดูล · องค์กร DEMO ม…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "seed ซ้ำไม่สร้างข้อหรือโมดูลซ้ำ", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-PLT-008:
     title: "Health และ observability"
     acs:
@@ -74,6 +76,8 @@ frs:
       AC1: { owner: S1-12, demo: true, basis: named, text: "เรียก service ของโมดูลที่ปิดอยู่ได้ MODULE_DISABLED", note: "ชั้น 1 มีเฉพาะ CORE ที่เปิดเสมอ โมดูลเสริมเปิดได้ตั้งแต่ S7 (§4.11) · spec ไม่ได้ระบุว่าเทสต์ใช้ service ใดเป็นตัวอย่าง" }
       AC2: { owner: S1-12, demo: true, basis: named, text: "เปิดโมดูลที่ dependency ยังปิดอยู่ถูกปฏิเสธพร้อมบอก dependency ที่ขาด", note: "§14.2 ไม่มีรหัส error เฉพาะของกรณีนี้" }
       AC3: { owner: S1-12, demo: true, basis: named, text: "เทสต์ gating วนทุกโมดูลที่มี service โดยนับเอง", note: "ชั้น 1 ยังไม่มีโมดูลเสริมที่มี service ระวังเทสต์ที่ผ่านเพราะวนศูนย์รอบ" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "เปิด PAY ให้องค์กรที่ DOA (ฉบับที่มีผล รอมีผล หรือรออนุมัติ) ขาดข้อของ PAY → DOA_NOT_CONFIGURED reason MODULE_RULES_MISSING พร้อมรายชื่อชนิด ไม่มี event และไ…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "องค์กรที่มีข้อครบ → เปิดได้ตามกติกาเดิมของ §4.11 และ event organization.module_enabled", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-PLT-012:
     title: "Command pipeline, idempotency และ outbox"
     acs:
@@ -110,6 +114,8 @@ frs:
       AC1: { owner: S5-05, demo: true, basis: named, text: "ผู้ใช้ตั้ง PIN 6 หลัก เก็บด้วย argon2id และห้าม PIN ที่เดาง่าย (เช่น 123456 000000)" }
       AC2: { owner: S5-05, demo: true, basis: named, text: "ตัดสินงานที่ยอดตามฐาน DOA ≥ stepUpThreshold และงาน DOA_CHANGE ORG_AUTHORITY_CHANGE ทุกงาน ต้องยืนยันด้วย PIN (หรือ passkey) ไม่ยืนยันได้ STEP_UP_REQUIRED", note: "การใส่ PIN ใน LIFF ทดสอบใน FR-LINE-003 AC2 (S5-06) · spec ไม่ได้ระบุรายละเอียดของ passkey ('ถ้าอุปกรณ์รองรับ') · ก่อน S5 step-up ของงานเชิงนโยบายใช้ TOTP (BR-DOA-15)" }
       AC3: { owner: S5-05, demo: true, basis: named, text: "ใส่ PIN ผิด 5 ครั้งล็อก 15 นาที (STEP_UP_LOCKED) แจ้งผู้ใช้ทางอีเมล และบันทึก event" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "งาน BANK_ACCOUNT_CHANGE และ WORKFLOW_VERSION ต้อง step-up ทุกงานไม่ขึ้นกับยอด (BR-DOA-25 · BR-DOA-15) ไม่ยืนยัน → STEP_UP_REQUIRED · การ์ด LINE และอีเมลของงา…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "คำสั่งตัดสินทุกตัว (คำขอ PO variance นโยบาย และ subject ใหม่) อ่านวิธี step-up จาก DECISION_STEP_UP_METHODS ที่เดียว (= PIN จนถึง S17-15) · STEP_UP_SUBJECT_T…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-ADM-001:
     title: "จัดการสมาชิกและบทบาท"
     acs:
@@ -158,6 +164,8 @@ frs:
       AC1: { owner: S3-09, demo: true, basis: named, text: "หน้าจอแก้แบบตารางต่อ documentType: ช่วงวงเงิน ตำแหน่งผู้อนุมัติจาก dropdown SLA และนโยบายของฉบับ (ฐานวงเงิน เกณฑ์ step-up sodPolicy) · ฉบับร่างเริ่มจากการคัดลอกฉบับล่าสุด" }
       AC2: { owner: S2-13, demo: true, basis: named, text: "นำเข้าและส่งออก YAML รูปแบบเดียวกับ fixture ใน §7.4 และนำเข้าแล้วส่งออกกลับได้ข้อมูลชุดเดียวกัน (round-trip)" }
       AC3: { owner: S2-13, demo: true, basis: named, text: "ฉบับที่เผยแพร่แล้วแก้ไม่ได้ ดูย้อนหลังได้ทุกฉบับพร้อมช่วงเวลามีผล เหตุผลการเปลี่ยน และ diff กับฉบับก่อนหน้า", note: "diff เทียบฉบับที่มีผลก่อนส่งเผยแพร่เป็นของ FR-DOA-009 (S3-09)" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "หน้าแก้แบบตารางมีแท็บของทั้ง 11 ชนิด · ชนิด NONE ไม่มีช่องวงเงิน → แก้และบันทึกได้ · ส่งออกแล้วนำเข้า YAML ที่มีชนิดใหม่ได้ข้อมูลชุดเดียวกัน (round-trip)", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "นำเข้า YAML ที่มีชนิดเอกสารที่ไม่รู้จัก → VALIDATION_FAILED พร้อม path ของข้อ", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-DOA-002:
     title: "ส่งเผยแพร่ DOA ผ่าน lint, test case และ 4-eyes"
     acs:
@@ -165,24 +173,34 @@ frs:
       AC2: { owner: S2-16, demo: true, basis: later, text: "ฉบับที่ผ่านถูกส่งให้ผู้อนุมัติตามข้อ DOA_CHANGE ของฉบับที่มีผล ผู้ส่งอนุมัติเองไม่ได้ (GC-SOD-04) และผู้อนุมัติต้อง step-up ทุกครั้ง (BR-DOA-15)", note: "การส่งตามข้อ DOA_CHANGE และ GC-SOD-04 ทดสอบได้ใน S2-10 · step-up ของการอนุมัติเชิงนโยบาย (TOTP ก่อน S5) สร้างใน S2-16" }
       AC3: { owner: S2-16, demo: true, basis: later, text: "ชุดตั้งต้นขององค์กร (ผู้ดำรงตำแหน่งที่ DOA อ้าง + ฉบับแรก) อนุมัติโดยผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19 OQ-31) และ PLATFORM_ADMIN ไม่เห็นเนื้อหา", note: "ชุดตั้งต้น (BR-DOA-19) สร้างใน S2-16 · ใช้ค่าเริ่มต้นของ OQ-31 จนกว่าจะได้คำตอบ" }
       AC4: { owner: S2-10, demo: true, basis: named, text: "วันมีผลไม่ย้อนหลัง (BR-DOA-12) และฉบับก่อนหน้าเป็น SUPERSEDED เมื่อฉบับใหม่มีผล", note: "job doa-version-activate อยู่ในขั้น S2 (§4.6) ทดสอบด้วย clock ปลอม" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "ผล lint ของชนิดใหม่ตรงกับ GC-DOA-56 และ GC-DOA-63 ถึง GC-DOA-68 · องค์กรที่เปิด PAY ส่งฉบับที่ขาดข้อของ PAY → DOA_LINT_FAILED รหัส DOA_LINT_MISSING_DOCTYPE ·…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC6: { owner: P1-07, demo: true, basis: builder, text: "ข้อของ BANK_ACCOUNT_CHANGE ที่มีวงเงิน → DOA_LINT_FAILED รหัส DOA_LINT_AMOUNT_NOT_ALLOWED", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC7: { owner: P1-07, demo: true, basis: builder, text: "ด่าน db ของ pnpm verify lint ฉบับ PUBLISHED ด้วยโมดูลที่องค์กรเปิดอยู่ (DOA-SIMEC ฉบับ 1 ผ่านเมื่อเปิด PAY) และฉบับ SUPERSEDED โดยไม่ส่งโมดูล → องค์กรที่ฉบับ…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-DOA-003:
     title: "คำนวณเส้นทางอนุมัติ"
     acs:
       AC1: { owner: S2-05, demo: true, basis: builder, text: "ผลของ engine ตรงกับ GC-DOA-01 ถึง GC-DOA-19 และ GC-DOA-27 ทุกเคส", note: "ไม่มีข้อใดระบุ FR-DOA-003 ในเสร็จเมื่อ · S2-05 สร้าง resolveRoute และต้องผ่าน doa.yaml" }
       AC2: { owner: S2-12, demo: true, basis: builder, text: "ผู้ขอเห็นเส้นทางที่คาดไว้พร้อมคำอธิบายภาษาไทยก่อนกดส่ง และเห็นเส้นทางจริงหลังส่ง", note: "ไม่มีข้อใดระบุ · เส้นทางก่อนส่งอยู่ในฟอร์ม (S2-11) เส้นทางจริงหลังส่งอยู่ในหน้ารายละเอียดและไทม์ไลน์ (S2-12)" }
       AC3: { owner: S2-11, demo: true, basis: builder, text: "DOA_NOT_CONFIGURED APPROVER_NOT_FOUND NO_HIGHER_AUTHORITY แสดงข้อความไทยที่บอกว่าต้องติดต่อใคร และแจ้ง ORG_ADMIN", note: "ไม่มีข้อใดระบุ · service ส่งคำขอ (S2-10) คืน error และหน้าฟอร์ม (S2-11) แสดงข้อความ · §10.1 มีแม่แบบ admin.doa_gap เฉพาะ APPROVER_NOT_FOUND" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "ผลของ engine ตรงกับ GC-DOA-28 ถึง GC-DOA-55 ทุกเคส และ GC-DOA-01 ถึง GC-DOA-27 ไม่เปลี่ยน", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "ชนิดที่ไม่บังคับและฉบับไม่มีข้อ → DOA_NOT_CONFIGURED ก่อนจองงบหรือเปลี่ยนอะไร และแสดงข้อความไทยว่า DOA ยังไม่มีข้อของชนิดนั้นและให้ติดต่อ ORG_ADMIN · startRo…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-DOA-004:
     title: "ตัดสินงานอนุมัติ"
     acs:
       AC1: { owner: S2-10, demo: true, basis: named, text: "ผู้รับงานเลือก อนุมัติ ตีกลับ ไม่อนุมัติ หรือขอข้อมูลเพิ่มได้ ตีกลับและไม่อนุมัติต้องมีเหตุผล", note: "S2-10 และ S2-12 ระบุ FR นี้ทั้งคู่ · AC นี้ทดสอบได้ครบที่ service ใน S2-10 หน้าตัดสินอยู่ใน S2-12" }
       AC2: { owner: S4-04, demo: true, basis: later, text: "ตอนตัดสินตรวจสิทธิ์และ SoD ซ้ำ (GC-SOD-01 GC-SOD-03) และตรวจว่างานยัง OPEN · กดซ้ำได้ INVALID_STATE_TRANSITION พร้อมข้อความ 'ดำเนินการแล้วโดย … เมื่อ …'", note: "GC-SOD-01 และการกดซ้ำทดสอบได้ใน S2-10 · GC-SOD-03 (ผู้สร้าง PO อนุมัติ PO) ต้องมีงานอนุมัติ PO ซึ่งสร้างใน S4-04" }
       AC3: { owner: S2-10, demo: true, basis: named, text: "ขั้นสุดท้ายอนุมัติแล้วเอกสารเปลี่ยนสถานะตาม §6.4 และผู้ขอได้แจ้งภายใน 1 นาที", note: "ตรวจว่ามี Notification ของผู้ขอในธุรกรรมเดียวกัน · การส่งทางอีเมลและ LINE ทดสอบใน FR-NOTI-002 (S4-06) และ FR-LINE-002 (S5-05)" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "งานของ subject ใหม่ทั้ง 7 ตัดสินผ่าน approval.decide approval.decide_by_link approval.decide_by_line ตัวเดิมที่เรียก adapter จากทะเบียน · adapter ตัวว่าง → V…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "approval.requestInfo ของ subject ที่ allowsRequestInfo = false → VALIDATION_FAILED reason SUBJECT · subjectInput ที่ adapter ไม่รับ → VALIDATION_FAILED · เทส…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC6: { owner: P1-07, demo: true, basis: builder, text: "ทุก decide flow (คำขอ นโยบาย PO variance และ subject ใหม่) เปลี่ยนสถานะเอกสารตามผลของ step ที่ completeStep คืน ไม่ใช่การตัดสินของงาน · completeStep ทดสอบที่…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-DOA-005:
     title: "อ้างอิง DOA ทุกการตัดสิน"
     acs:
       AC1: { owner: S2-10, demo: true, basis: builder, text: "event approval_task.decided ทุกตัวมี doaVersionId doaRuleCode channel ผู้กระทำ และ onBehalfOf (ถ้ามี)", note: "ไม่มีข้อใดระบุ FR-DOA-005 · S2-10 สร้าง service ตัดสิน · AC ครอบทุกช่องทาง: การตัดสินทาง LINE และ LIFF ใน S5 ต้องมีเทสต์แท็กนี้เพิ่ม" }
       AC2: { owner: S2-12, demo: true, basis: builder, text: "หน้ารายละเอียดแสดง 'อนุมัติภายใต้ DOA-DEMO ฉบับ 1 ข้อ PR-02' พร้อมลิงก์ไปฉบับนั้น", note: "ไม่มีข้อใดระบุ · หน้ารายละเอียดและไทม์ไลน์สร้างใน S2-12" }
       AC3: { owner: S4-10, demo: true, basis: builder, text: "การส่งออก audit มีฟิลด์ doaVersionId doaRuleCode channel ผู้กระทำ และ onBehalfOf ครบ (FR-VIS-004)", note: "ไม่มีข้อใดระบุ · การค้นและส่งออก audit สร้างใน S4-10" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "approval_task.assigned และ approval_task.decided ของ subject ใหม่มี subjectType ใหม่ doaVersionId และ doaRuleCode ของเส้นทาง (INV-DOA-01) · schema ของ event …", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "การ์ดงานทั่วไปของ subject ใหม่แสดง 'อนุมัติภายใต้ DOA-SIMEC ฉบับ 1 ข้อ PAY-01' พร้อมลิงก์ไปฉบับนั้น เหมือนงานเดิม", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-DOA-006:
     title: "รักษาการ"
     acs:
@@ -207,6 +225,8 @@ frs:
       AC1: { owner: S3-09, demo: true, basis: named, text: "ก่อนส่งเผยแพร่แสดง diff เทียบฉบับที่มีผล: ช่วงวงเงินที่เปลี่ยน ตำแหน่งที่ได้หรือเสียอำนาจ และนโยบายที่เปลี่ยน" }
       AC2: { owner: S3-09, demo: true, basis: named, text: "หน้าทดลองส่ง: ใส่ประเภทเอกสาร ยอด แผนก และผู้ขอ แล้วเห็นเส้นทางและคำอธิบายของฉบับที่มีผลและฉบับร่าง ด้วย engine ตัวเดียวกับของจริง" }
       AC3: { owner: S3-09, demo: true, basis: named, text: "ตารางผลที่ขอบตรงกับ GC-DOA-22 และผู้ร่างกับผู้อนุมัติต้องติ๊กยืนยันก่อนส่งและก่อนอนุมัติ" }
+      AC4: { owner: P1-07, demo: true, basis: builder, text: "หน้าทดลองส่งเลือกชนิดใหม่ได้ทั้ง 6 · ชนิด NONE ซ่อนช่องยอด · ผลใช้ engine ตัวเดียวกับของจริง", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC5: { owner: P1-07, demo: true, basis: builder, text: "ตารางผลที่ขอบของชนิดใหม่ตรงกับ GC-DOA-57 ถึง GC-DOA-62 · ชนิด NONE ไม่มีตาราง", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
   FR-DOA-010:
     title: "เสนอและอนุมัติการเปลี่ยนโครงสร้างอำนาจ"
     acs:
@@ -541,6 +561,6 @@ frs:
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 84, acs: 278, demo: 252, goLive: 26, unowned: 0 }
+counts: { frs: 84, acs: 298, demo: 272, goLive: 26, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
-basisCounts: { named: 232, later: 30, builder: 16, none: 0 }
+basisCounts: { named: 232, later: 30, builder: 36, none: 0 }

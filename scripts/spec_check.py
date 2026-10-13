@@ -940,6 +940,70 @@ def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงิ�
             got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))
     return out
+def po_change_totals(i):  # BR-POC-01 BR-POC-02 · ยอดใหม่ของ PO หนึ่งบรรทัดและยอดสำหรับ DOA
+    l, ch, r = i["line"], i["change"], i["vatRateBp"]
+    ordered, received, invoiced, left = q4(l["ordered"]), q4(l["received"]), q4(l["invoiced"]), q4(l["requestLeft"])
+    qty = q4(ch["newQty"]) if "newQty" in ch else ordered
+    if qty < received: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "RECEIVED"}
+    if qty < invoiced: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "INVOICED"}
+    if "newUnitPrice" in ch and invoiced > 0: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "LINE_INVOICED"}
+    if qty > ordered + left: return {"error": "PO_CHANGE_EXCEEDS_REQUEST", "left": q4s(left)}
+    net = line_net(q4s(qty), sat(ch.get("newUnitPrice", l.get("unitPrice", "0.00")))); vat = rhu(net * r, 10000)
+    return {"net": baht(net), "vat": baht(vat), "gross": baht(net + vat), "doaAmount": {"net": baht(net), "vat": baht(vat)}}
+def run_po_change(d):  # ADR-125 BR-POC-03 · ประกอบจาก submitPo approvePo rejectPo releaseHold reserve (ไม่แก้ run_budget)
+    out = []
+    for c in d["cases"]:
+        if c.get("fn") == "changeTotals":
+            got = po_change_totals(c["input"]); out.append((c["id"], got == c["expect"], got)); continue
+        B = {"available": 0, "reserved": 0, "committed": 0, "actual": 0}; res, po, funded, ok, why = {}, {}, 0, True, ""
+        def mv(a, b, amt):
+            if amt < 0 or B[a] < amt: raise BudgetErr("BUDGET_INSUFFICIENT" if a == "available" else "INVARIANT")
+            B[a] -= amt; B[b] += amt
+        for n, s in enumerate(c["steps"], 1):
+            snap = (dict(B), dict(res), {k: dict(v) for k, v in po.items()}); err = None
+            try:
+                op = s["op"]
+                if op == "fund": B["available"] += sat(s["amount"]); funded += sat(s["amount"])
+                elif op == "reserve": mv("available", "reserved", sat(s["amount"])); res[s["source"]] = res.get(s["source"], 0) + sat(s["amount"])
+                elif op == "submitPo":
+                    need = sat(s["need"]); rel = sum(sat(x["releasable"]) for x in s["sources"]); delta = max(need - rel, 0)
+                    po[s["po"]] = {"need": need, "src": [(x["source"], sat(x["releasable"])) for x in s["sources"]], "delta": delta, "com": 0, "chg": None}
+                    if delta: mv("available", "reserved", delta)
+                elif op == "approvePo":
+                    p = po[s["po"]]
+                    for src, r in p["src"]: mv("reserved", "available", r); res[src] -= r
+                    if p["delta"]: mv("reserved", "available", p["delta"]); p["delta"] = 0
+                    mv("available", "committed", p["need"]); p["com"] = p["need"]
+                elif op == "submitChange":  # จอง max(Δ − releasable ของจำนวนที่เพิ่ม, 0) ในนามบรรทัด PO
+                    p = po[s["po"]]; dlt = sat(s["newNet"]) - p["com"]; add = sat(s["addedReleasable"])
+                    rsv = max(dlt - add, 0) if dlt > 0 else 0
+                    if rsv: mv("available", "reserved", rsv)
+                    p["chg"] = {"delta": dlt, "rsv": rsv, "add": add, "src": p["src"][0][0]}
+                elif op == "approveChange":
+                    p = po[s["po"]]; ch = p["chg"]
+                    if ch["delta"] > 0:  # คืนการจองของใบแก้ไขและ releasable ของส่วนที่เพิ่ม แล้วถือ Δ
+                        if ch["add"]: mv("reserved", "available", ch["add"]); res[ch["src"]] -= ch["add"]
+                        if ch["rsv"]: mv("reserved", "available", ch["rsv"])
+                        mv("available", "committed", ch["delta"]); p["com"] += ch["delta"]
+                    elif ch["delta"] < 0:  # คืนถือเท่าขนาดของ Δ แล้วจัดการจำนวนที่ลดตาม disposition
+                        mv("committed", "available", -ch["delta"]); p["com"] += ch["delta"]
+                        if s.get("disposition") == "RETURN_TO_POOL":
+                            back = sat(s["removedReleasable"]); mv("available", "reserved", back); res[ch["src"]] = res.get(ch["src"], 0) + back
+                    p["chg"] = None
+                elif op == "rejectChange":
+                    p = po[s["po"]]; ch = p["chg"]
+                    if ch["rsv"]: mv("reserved", "available", ch["rsv"])
+                    p["chg"] = None
+            except BudgetErr as e:
+                err = str(e); B, res, po = snap[0], snap[1], snap[2]
+            if err != s.get("expectError"): ok, why = False, f"step {n}: error คาด {s.get('expectError')} ได้ {err}"
+            if "expect" in s:
+                gotb = {k: baht(v) for k, v in B.items()}
+                if gotb != s["expect"]: ok, why = False, f"step {n}: คาด {s['expect']} ได้ {gotb}"
+            if sum(B.values()) != funded: ok, why = False, f"step {n}: INV-BUD-01 ผลรวม {baht(sum(B.values()))} ≠ {baht(funded)}"
+            if not ok: break
+        out.append((c["id"], ok, why or "ok"))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-credits": run_ai_credits,
@@ -957,6 +1021,7 @@ RUNNERS = {
     "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,
+    "po-change": run_po_change,
     "quotations": run_quotes,
     "receiving": run_gr,
     "retention": run_retention,

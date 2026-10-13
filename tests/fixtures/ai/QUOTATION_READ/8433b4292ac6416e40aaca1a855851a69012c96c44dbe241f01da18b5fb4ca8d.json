@@ -1,0 +1,85 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": "QT-24001",
+    "docDate": "2026-09-26",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท สามพรานวัสดุค้าวัสดุ จำกัด",
+      "taxId": "0999998010081",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ปูนซีเมนต์ปอร์ตแลนด์ประเภท 1 ถุง 50 กก.",
+        "qty": "120",
+        "unit": "ถุง",
+        "unitPrice": "145.00",
+        "amount": "17400.00"
+      },
+      {
+        "description": "ทรายหยาบ",
+        "qty": "12",
+        "unit": "ลบ.ม.",
+        "unitPrice": "480.00",
+        "amount": "5760.00"
+      },
+      {
+        "description": "หินย่อย 3/4 นิ้ว",
+        "qty": "8",
+        "unit": "ลบ.ม.",
+        "unitPrice": "590.00",
+        "amount": "4720.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "27880.00",
+    "vat": "1951.60",
+    "gross": "29831.60",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

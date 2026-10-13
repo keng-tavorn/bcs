@@ -1,0 +1,71 @@
+{
+  "promptVersion": "INVOICE_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "TAX_INVOICE",
+    "docNo": "INV-00213",
+    "docDate": "2026-06-01",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท กิจไพบูลย์นั่งร้าน จำกัด",
+      "taxId": "0999998010766",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ค่าเช่านั่งร้านเหล็ก",
+        "qty": "1261",
+        "unit": "ชุด-เดือน",
+        "unitPrice": "85.00",
+        "amount": "107185.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "107185.00",
+    "vat": "7502.95",
+    "gross": "114687.95",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

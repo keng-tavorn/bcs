@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": "QT-18506",
+    "docDate": "2026-09-02",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "ห้างหุ้นส่วนจำกัด สยามพัฒนกิจอีเล็คทริค",
+      "taxId": "0999998010472",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "เบรกเกอร์ 3 เฟส 100A",
+        "qty": "6",
+        "unit": "ตัว",
+        "unitPrice": "3168.00",
+        "amount": "19008.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "19008.00",
+    "vat": "1330.56",
+    "gross": "20338.56",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

@@ -1,0 +1,481 @@
+{
+  "baseDate": "2026-10-01",
+  "files": [
+    {
+      "id": "DOC-001",
+      "file": "DOC-001.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "c59dea0b63facfd5a9901234a961de990b853985f202388206b15dfc57d82072",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-002",
+      "file": "DOC-002.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "5a86841325d2a4fdbddfcaed0df4e9ee2c0f3f49aa171b66fafb0a95420dda58",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-003",
+      "file": "DOC-003.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "50cca6a1cb597f569ca9bb2e172b7bd50ae643a4d6a6f3e119988f1c293f54da",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-004",
+      "file": "DOC-004.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "ae86c05eb98a5aba03cfb2ea5e854728ad428afc99f445df9b4d57fcdf0b218e",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-005",
+      "file": "DOC-005.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "b036af132bb92d28034eeac30d3854288dcd41480c15b4f53b758ba25545bde3",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-006",
+      "file": "DOC-006.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "14c5bffcf02f06accaae667e3ebfa750c5784135fd7b252e0bf5a162dfd8e339",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-007",
+      "file": "DOC-007.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "83b13fc086b05802dba44f1021bd4f00b5f8d98d54cc5b7325ebf8f6e7e279ba",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-008",
+      "file": "DOC-008.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "b5b1c3803d95c35f70659f0f35cc6b184e05f6fc0328f9a3a4c1b4f90d6d9a9f",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-009",
+      "file": "DOC-009.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "060e421d7bfd705202cb27e9d5ec197879b8778b47e111542371f983713c5d8c",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-010",
+      "file": "DOC-010.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "1aaa3196744050ca169baca6cc5949c063d4882320e77cbe06d727ef42c62fd1",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-011",
+      "file": "DOC-011.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "6d308f0027f7e89781c1772796bc9e71ac68ae18e0fe6546914dbf1b331f9cb0",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-012",
+      "file": "DOC-012.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "22d191f8d105b3e95090bf595a6b78e5a5307406bbff460e228eb2abf8ba4807",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-013",
+      "file": "DOC-013.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "30c424e0c4d3e3e9f39f2d117b798db61f905f4020e3b57d8869c10663f333c2",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-014",
+      "file": "DOC-014.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "32f5785bceebc2bbb5f5759ccd691f10831134eb1bed49c1b0e6ac009ea05709",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-015",
+      "file": "DOC-015.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "eb914e70a32532ece406e92d8b39bad8d2cf9f8c2d5b760e51a985e24608a7b3",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-016",
+      "file": "DOC-016.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "05a00cf3a98351354ee9d002bb5e616d67f275bde57945ad08ab4f39aa6cdf9f",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-017",
+      "file": "DOC-017.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "023d929baf2f1250b4765ead3eee8e735e38667985ad9c8b3515ea604bdeb6a8",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-018",
+      "file": "DOC-018.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "2c4faa99c4fbf4c8df35ddbc38a555834766141dc60564d4357588a5d81499f5",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-019",
+      "file": "DOC-019.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "8e6dc96a91af2a0a21a6d08723b5fe7323c12a7fe79bcd1376c4ab49389168ae",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-020",
+      "file": "DOC-020.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "1ee5f8336fa7c717ab86492e2562d893bd358c012e7ef9e651a53bf8b1863d35",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-021",
+      "file": "DOC-021.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "a978463465826aa01d7615ba89df3ca24a08ecc539cc147655ef1ab2dc3ec90e",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-022",
+      "file": "DOC-022.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "19da7feda3ac717af86b9f7a871ae5f92495e3707b106633f9ccde7dd20c8e47",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-023",
+      "file": "DOC-023.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "2f002b6f3193d566347518618c2b67807ee4004d5cc81bda0dc2efc067d89334",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-024",
+      "file": "DOC-024.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "1a727dbdcf842106c2ccb308cdb545218b1da16e3fdad154c0581c9f3d933508",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-025",
+      "file": "DOC-025.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "2d315ba218b9533a4bb98c9a201e55419d80923aecfec41bfc31ca6529e50730",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-026",
+      "file": "DOC-026.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "d48049448f179e85cefbd67b3fa33481e4ca5fbbe84603ee5bfb2c3e083ad464",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-027",
+      "file": "DOC-027.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "2d2da41280034adf97733300ab07a7284e64322265681b516ac2c04669267ced",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-028",
+      "file": "DOC-028.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "e003952e37f04daef575a2f0136d72416bc29a7f56a7e635dc73d14f35af889b",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-029",
+      "file": "DOC-029.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "b912f6fa7a018e70446329777e6d3052af3d96ddf56c78c06051522dbbd67747",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-030",
+      "file": "DOC-030.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "ab0d91e028beccae157f5b741011f0552b9418933b5e912a5f2b497f2f12d12c",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-031",
+      "file": "DOC-031.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "03ffe350f784b2e83a216c4522cb37c4dc5122f34a0eda31ddf745adba9114ce",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-032",
+      "file": "DOC-032.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "29b1848a17e2a0d625efcdaf0322a586426338da410d230426bc6fb9b93e02ae",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-034",
+      "file": "DOC-034.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "8973c0c05c832efed909b3eec155ec1b2ba68991679614217ae51d005ef14320",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-035",
+      "file": "DOC-035.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "08a1c095782422ae86162c6e890c135092bfbbddca2a2552f800f254a7e41752",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-036",
+      "file": "DOC-036.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "32080ff5be2080c55139f3418258e316169f31c88425d887a3a9ec3ce1d6dfd3",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-037",
+      "file": "DOC-037.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "a9f6b347a589d12dfc7b0b84d608060769048b99d2175b283831f54e99274717",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-038",
+      "file": "DOC-038.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "74fb0ffbc7e73c495d0acf29c9d3e5654e41e9b578163c719b44a2153c03f4b9",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-039",
+      "file": "DOC-039.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "d8de3ac43ca00f36931be41634a0ce76b2c8c0515419cb26f0d74a4f617569fd",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-040",
+      "file": "DOC-040.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "1ea4a08d4e73841377fcd6dedf3aed4fcf1dd367af34a21949efb6519629f9e7",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-041",
+      "file": "DOC-041.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "fae837ef265559ef5fa97689237d646d4b72296e050f9da797a3398f21467373",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "DOC-042",
+      "file": "DOC-042.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "3d05ebbc5fbc3280698c3238c7685c999cb847c8e0890117e301e23655ad4dd7",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-043",
+      "file": "DOC-043.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "f712d5c40ead7ac6414e48ee068add4b72ee43f961f82b9d711adc48426d4341",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-044",
+      "file": "DOC-044.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "b8706be0cb53887cc8396fe6675fb69d16f467d05accc2c1155601472ee7bbca",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-045",
+      "file": "DOC-045.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "4377c20e5f6153fa26946a4c52ec70918e2a7b2ef748bf5f515a2a68427dd33b",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-046",
+      "file": "DOC-046.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "e4bb5ce5061778708bc6aeb8d300d2ffa04ea3918100a0a65ff99e41c7667d11",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-047",
+      "file": "DOC-047.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "55900052bb12da3ca8e38bd0f4dd544c272bf2651049792d06ff690ae1e81ad1",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-048",
+      "file": "DOC-048.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "207618e98fb3ff362be60289041d0a020c0287a6f0cd675d352da9e8b2e6cd0f",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-049",
+      "file": "DOC-049.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "3fc2c1d4354a38c3d9efffc7a6c2cecb4c5dadf84189eec0ad9791f197cbf417",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-050",
+      "file": "DOC-050.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "56825bf3e5489a3ad5bd1b3a02499b4fdc05cd33f4df7b6b85e348a6e41f1935",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-051",
+      "file": "DOC-051.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "754de6da748c88964dc736c4c8e0d62d21117bfcf5d157e5b86330123c511f64",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-052",
+      "file": "DOC-052.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "dea39002fc11a00c041302289627dfd088dc229fed3ca4d181dc92fe40c4c6a8",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "DOC-053",
+      "file": "DOC-053.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "e6969987416e002509cd81b323bf56b1209867db28a25993ef538635e8246bdf",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-055",
+      "file": "DOC-055.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "0d394ba26eacd7d322091287cbbabc80f370d758aae95040ff415ff088444f10",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-056",
+      "file": "DOC-056.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "135312110e2143e966ead5f32eb4738ece37a3cc85399504126ac7dd7562391f",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "DOC-057",
+      "file": "DOC-057.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "d17d500a622b9e6f8df9eeab71f69cba58cfd4fa369f38c0e545b7f0c35753b0",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "CASE-01",
+      "file": "CASE-01.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "8433b4292ac6416e40aaca1a855851a69012c96c44dbe241f01da18b5fb4ca8d",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-02",
+      "file": "CASE-02.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "42685fec62dd3842a45226af539a0e16eb1ac099b1ee5a4b8b138c11cdbd7cd6",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "CASE-03",
+      "file": "CASE-03.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "56fc9941d235f6c7f66765abb24f0157898d9d162080fb3bbf436086a38cea7b",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-04",
+      "file": "CASE-04.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "20460a48c08da589113b1cffa31db27c93c868e48666a9727f5dc7edcb631142",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "CASE-05",
+      "file": "CASE-05.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "cf2805d0a584ab196f41cccd82dba4255450d1a1cbf60b316fc2fa6d8905a436",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-06",
+      "file": "CASE-06.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "d207f8f93fc35036cf1f6e75ad68b026d1d156e3c1d40a1798b4d325ec455b9c",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-07",
+      "file": "CASE-07.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "4cf6e056c068d65fa9f24fa107dc70c81167b7d954ebd384e16f4c153cc05443",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-08",
+      "file": "CASE-08.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "75e3237df16e23df7879c0da64b6e70b57552835f9fc6d81cb5eb415630316c9",
+      "purpose": "INVOICE_READ"
+    },
+    {
+      "id": "CASE-09",
+      "file": "CASE-09.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "e586280a20daa0632ff0a539f0f9152b7b8a5a7290c82a3401e79950eb26ba8b",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-10",
+      "file": "CASE-10.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "2b2d09a94a1909070f9796e4233782303243af89a70fa3f9e50807baf724fef1",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "CASE-11",
+      "file": "CASE-11.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "e73da15812313b0e7b7cc093a4c8223ae9d2a3d94ee8ad28bcebe565a48b4482",
+      "purpose": "QUOTATION_READ"
+    },
+    {
+      "id": "CASE-12",
+      "file": "CASE-12.jpg",
+      "mediaType": "image/jpeg",
+      "sha256": "b7303c7bcc0c30686b5e815a9d5f8397655345276f1088dfdea274ba6a9aff54",
+      "purpose": "DELIVERY_NOTE_READ"
+    },
+    {
+      "id": "CASE-13",
+      "file": "CASE-13.pdf",
+      "mediaType": "application/pdf",
+      "sha256": "885a78e9c7e3508c513980b17ea212039b92642497e0112e79c26ef0705328e6",
+      "purpose": "INVOICE_READ"
+    }
+  ]
+}

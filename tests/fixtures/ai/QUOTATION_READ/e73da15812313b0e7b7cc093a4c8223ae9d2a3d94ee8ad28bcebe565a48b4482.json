@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": "QT-US-0007",
+    "docDate": "2026-09-23",
+    "currency": "USD",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "Poonphol Machinery Rental Co., Ltd.",
+      "taxId": "0999998010685",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "Excavator PC200 rental with operator",
+        "qty": "5",
+        "unit": "day",
+        "unitPrice": "150.00",
+        "amount": "750.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "750.00",
+    "vat": "52.50",
+    "gross": "802.50",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

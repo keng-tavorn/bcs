@@ -794,9 +794,42 @@ def run_ai_credits(d):
         exp = c["expect"]
         out.append((c["id"], all(got.get(k) == v for k, v in exp.items()), got))
     return out
+def run_ai_eval_score(d):
+    from decimal import Decimal as D, InvalidOperation
+    def norm(field, v):
+        if v is None or str(v).strip() == "": return None
+        t, last = str(v).strip(), field.split(".")[-1]
+        try:
+            if last == "taxId": return re.sub(r"[\s-]", "", t)
+            if last == "docNo": return None if t == "ไม่มีเลขที่" else re.sub(r"\s+", "", t).upper()
+            if last in ("net", "vat", "gross", "discountTotal", "unitPrice", "amount"):
+                x = D(t.replace(",", ""))
+                return None if x != x.quantize(D("0.01")) else str(int(x * 100))
+            if last == "qty": return str(int(D(t.replace(",", "")) * 10000))
+            return re.sub(r"\s+", " ", t)
+        except InvalidOperation: return "\0bad"
+    out = []
+    for c in d["cases"]:
+        i, fn = c["input"], c["fn"]
+        if fn == "matchField":
+            e, a = norm(i["field"], i["expected"]), norm(i["field"], i["actual"])
+            got = {"match": e == a and e != "\0bad"}
+        elif fn == "normalizeAnswer":
+            kept, disc = 0, 0
+            for l in i["lines"]:
+                amt = D(str(l["qty"])) * D(str(l["unitPrice"]))
+                if amt < 0: disc += -amt
+                else: kept += 1
+            got = {"lines": kept, "discountTotal": f"{disc:.2f}"}
+        else:
+            score = i["correct"] * 10000 // i["total"]
+            got = {"scoreBp": score, "pass": score >= i["thresholdBp"] and not (i.get("critical") and i["missed"] > 0)}
+        out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-credits": run_ai_credits,
+    "ai-eval-score": run_ai_eval_score,
     "budget": run_budget,
     "consolidation": run_cons,
     "dates": run_dates,

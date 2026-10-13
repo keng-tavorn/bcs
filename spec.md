@@ -3579,6 +3579,24 @@ cases:
   - { id: GC-AI-11, title: คงเหลือ 1 เรียกได้ ติดลบแล้วเรียกไม่ได้, input: { grant: 20000, used: 19999, calls: [32, 1] }, expect: { results: [ok, AI_CREDITS_EXHAUSTED], remaining: -31 } }
 ```
 
+**ให้คะแนนชุดประเมิน (S13-05 · BR-AI-26 · golden ai-eval-score):** ตัวให้คะแนน `matchField` `normalizeAnswer` `fieldScore` ใน `src/core/ai-checks/eval-score.ts` · ชุดประเมินชั้น demo อยู่ใน `tests/fixtures/ai-docs/` และ `tests/fixtures/ai-eval/` · คำสั่ง `pnpm ai:eval`
+
+```yaml
+# tests/golden/ai-eval-score.yaml
+suite: ai-eval-score
+cases:
+  - { id: GC-AI-12, fn: matchField, input: { field: seller.taxId, expected: "0999998010561", actual: "0-9999-98010-56-1" }, expect: { match: true } }
+  - { id: GC-AI-13, fn: matchField, input: { field: docNo, expected: "INV-00373", actual: " inv-00373 " }, expect: { match: true } }
+  - { id: GC-AI-14, fn: matchField, input: { field: gross, expected: "5970.60", actual: "5,970.6" }, expect: { match: true } }
+  - { id: GC-AI-15, fn: matchField, input: { field: docNo, expected: null, actual: "-" }, expect: { match: false } }
+  - { id: GC-AI-16, title: คำตอบ "ไม่มีเลขที่" ของ DocSamples เทียบเป็น null, fn: matchField, input: { field: docNo, expected: "ไม่มีเลขที่", actual: null }, expect: { match: true } }
+  - { id: GC-AI-17, title: บรรทัดส่วนลดติดลบในคำตอบแปลงเป็น discountTotal (DOC-057), fn: normalizeAnswer, input: { lines: [{ qty: "20000", unitPrice: "32.50" }, { qty: "1", unitPrice: "-13000.00" }] }, expect: { lines: 1, discountTotal: "13000.00" } }
+  - { id: GC-AI-18, fn: fieldScore, input: { correct: 21, total: 22, thresholdBp: 9800, missed: 0 }, expect: { scoreBp: 9545, pass: false } }
+  - { id: GC-AI-19, fn: fieldScore, input: { correct: 49, total: 50, thresholdBp: 9800, missed: 0 }, expect: { scoreBp: 9800, pass: true } }
+  - { id: GC-AI-20, title: แม่นเท่าเกณฑ์แต่ค่าผิดค่าเดียวไม่ถูกไฮไลต์ (ฟิลด์สำคัญ), fn: fieldScore, input: { correct: 49, total: 50, thresholdBp: 9800, missed: 1, critical: true }, expect: { scoreBp: 9800, pass: false } }
+  - { id: GC-AI-21, title: ฟิลด์รองไม่นับกฎหลุด, fn: fieldScore, input: { correct: 46, total: 50, thresholdBp: 9000, missed: 1, critical: false }, expect: { scoreBp: 9200, pass: true } }
+```
+
 ---
 
 ## 13. Non-functional requirements
@@ -3744,7 +3762,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       22 ไฟล์ · 184 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       23 ไฟล์ · 194 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

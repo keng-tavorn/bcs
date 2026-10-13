@@ -3,3 +3,4 @@
 export * from './agent-action'
 export * from './credits'
 export * from './redact'
+export * from './eval-score'

@@ -682,11 +682,39 @@ def run_ivc(d):
         got = {"results": res, "actualByLine": [baht(x) for x in act], "remaining": [baht(x) for x in rem]}
         out.append((c["id"], got == c["expect"], got))
     return out
-def run_wht(d):
+WHT_MINIMUM_BASE = "1000.00"  # BR-WHT-06 · settings.wht.minimumBase ค่าเริ่มต้นของ OQ-122 (ตามหมายเหตุใน wht.yaml)
+def wht_for_payment(i):  # BR-WHT-03 BR-WHT-04 BR-WHT-06 · ภาษีของการจ่ายครั้งเดียว
+    if i["incomeType"] is None: return {"form": None, "wht": "0.00", "reason": "NOT_APPLICABLE"}  # GOODS ไม่หัก
+    if i["payeeType"] == "FOREIGN": return {"error": "VALIDATION_FAILED", "reason": "FOREIGN_PAYEE"}
+    form = "PND3" if i["payeeType"] == "INDIVIDUAL" else "PND53"
+    if i["typeForm"] not in ("PND3_53", form): return {"error": "WHT_FORM_PAYEE_MISMATCH"}
+    if sat(i["poNet"]) < sat(WHT_MINIMUM_BASE): return {"form": form, "wht": "0.00", "reason": "BELOW_MINIMUM"}
+    return {"form": form, "wht": baht(rhu(sat(i["base"]) * i["rateBp"], 10000))}
+def payment_withholding(lines):  # BR-WHT-10 · รวมฐานต่อ (ประเภท, อัตรา) ปัดครั้งเดียวต่อกลุ่ม แล้วปันกลับต่อเอกสาร
+    order, groups = [], {}
+    for l in lines:
+        k = (l["incomeType"], l["rateBp"])
+        if k not in groups: order.append(k); groups[k] = []
+        groups[k].append((l["doc"], sat(l["base"])))
+    if any(sum(b for _, b in groups[k]) < 0 for k in order): return {"error": "VALIDATION_FAILED", "reason": "WHT_BASE_NEGATIVE"}
+    out, total = [], 0
+    for k in order:
+        base = sum(b for _, b in groups[k]); w = rhu(base * k[1], 10000); total += w
+        shares = lr_split(w, [b for _, b in groups[k]])
+        out.append({"incomeType": k[0], "rateBp": k[1], "base": baht(base), "wht": baht(w),
+                    "docs": [{"doc": d, "wht": baht(s)} for (d, _), s in zip(groups[k], shares)]})
+    return {"groups": out, "wht": baht(total)}
+def run_wht(d):  # BR-WHT-01 (ไม่มี fn) · whtForPayment · paymentWithholding (S8-08)
     out = []
     for c in d["cases"]:
-        i = c["input"]; n = sat(i["net"]); v = rhu(n * i["vatRateBp"], 10000); w = rhu(n * i["whtRateBp"], 10000)
-        got = {"vat": baht(v), "wht": baht(w), "payable": baht(n + v - w)}; out.append((c["id"], got == c["expect"], got))
+        i = c["input"]; fn = c.get("fn")
+        if fn is None:
+            n = sat(i["net"]); v = rhu(n * i["vatRateBp"], 10000); w = rhu(n * i["whtRateBp"], 10000)
+            got = {"vat": baht(v), "wht": baht(w), "payable": baht(n + v - w)}
+        elif fn == "whtForPayment": got = wht_for_payment(i)
+        elif fn == "paymentWithholding": got = payment_withholding(i["lines"])
+        else: got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
     return out
 GOV = ("DOA_CHANGE", "ORG_AUTHORITY_CHANGE")
 def amount_only(r): return set((r.get("when") or {}).keys()) == {"amount"}

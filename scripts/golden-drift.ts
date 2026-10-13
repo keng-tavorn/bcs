@@ -9,7 +9,6 @@ const ROOT = path.resolve(import.meta.dirname, '..')
 
 // Blocks that finish line A does not need, with the reason printed in strict mode
 export const GOLDEN_STRICT_OPTIONAL: Record<string, string> = {
-  'tests/golden/wht.yaml': 'ตัวอย่างชั้น 2 (status: preview-T2) engine มาใน sub-spec S8–S9 (§7.14)',
   'tests/golden/grni.yaml': 'รายงาน GRNI อยู่ในข้อ S4-18 ที่เป็น [go-live] ไม่ใช่ [demo] (§7.16)',
 }
 

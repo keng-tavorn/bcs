@@ -10,7 +10,9 @@ import { seedBudget } from '@/server/seed/budget'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-structure'
 import { seedDevPins } from '@/server/seed/pins'
-import { parseBudget, parseCostCenters, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { seedAccountCodes } from '@/server/seed/account-codes'
+import { seedP1Modules } from '@/server/seed/p1-modules'
+import { parseBudget, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOKS, loadInputWorkbook } from '@/server/seed/workbook'
@@ -95,9 +97,12 @@ export function describeP1Seed(clock: SeedP1Clock): void {
     const org = await seedDemoOrganization(renamed, { password: PASSWORD, totpKey: TOTP_KEY, now: clock.now })
     organizationId = org.organizationId
     await seedOrgStructure(organizationId, renamed.users, parseOrgStructureInput(workbook), clock.now)
+    // As pnpm db:reset:p1 seeds it (seedDemoBase): PAY AI BCS_GO on, and the account codes of sheet GL_Accounts (S8-04)
+    await seedP1Modules(organizationId, clock.now)
     const budget = parseBudget(workbook)
     await seedBudget(organizationId, budget, clock.now, parseCostCenters(workbook))
     await seedSuppliers(organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now)
+    await seedAccountCodes(organizationId, parseGlAccounts(workbook))
     await seedDevPins(organizationId, PIN, clock.now)
     report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(budget) })
   }, SEED_TIMEOUT_MS)
@@ -184,6 +189,20 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       }
       // The sheet has rows that need a DPA (ATT-DPA), so the path above was taken
       expect(withDpa).toBeGreaterThan(0)
+    })
+
+    it('[FR-AP-102/AC3] S8-04: with PAY on, every completed row’s invoice is a tier-2 invoice, matched and ready for payment', async () => {
+      const db = forTenant(organizationId)
+      const completed = sheets.history.filter((r) => r.status === 'COMPLETED').length
+      expect(await db.invoiceConfirmation.count()).toBe(0)
+      expect(await db.invoice.count()).toBe(completed)
+      expect(await db.invoice.count({ where: { status: 'READY_FOR_PAYMENT' } })).toBe(completed)
+      expect(await db.accountCode.count()).toBe(parseGlAccounts(await loadInputWorkbook(INPUT_WORKBOOKS.p1)).length)
+      // every PO of a completed row is closed with nothing held: the last invoice took what it held
+      const held = await db.budgetAllocation.aggregate({ where: { sourceType: 'PO_LINE' }, _sum: { committedSatang: true } })
+      const open = await db.purchaseOrder.findMany({ where: { status: { not: 'CLOSED' } }, select: { lines: { select: { id: true } } } })
+      const openHeld = await db.budgetAllocation.aggregate({ where: { sourceType: 'PO_LINE', sourceId: { in: open.flatMap((p) => p.lines.map((l) => l.id)) } }, _sum: { committedSatang: true } })
+      expect(held._sum.committedSatang ?? 0n).toBe(openHeld._sum.committedSatang ?? 0n)
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

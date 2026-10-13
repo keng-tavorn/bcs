@@ -67,6 +67,7 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PriceAgreement: { validTo: new Date('2026-10-06T00:00:00Z') }, // price_agreement_period: validTo > validFrom
   // document_verification_*_hash: lower-case hex; tokenHash is unique in the whole table, so each row draws its own
   DocumentVerification: { tokenHash: () => createHash('sha256').update(randomUUID()).digest('hex'), contentSha256: 'b'.repeat(64) },
+  PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
@@ -76,6 +77,7 @@ const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
 const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   BudgetGrant: new Set(['granteeDepartment']),
   BudgetTransfer: new Set(['toBudgetLine']), // budget_transfer_lines: an INCREASE names the line that receives
+  WithholdingTax: new Set(['invoice']), // withholding_tax_one_document: an invoice or a retention
 }
 // Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
 const EXISTING_ROWS: Record<string, Record<string, string>> = {

@@ -288,9 +288,20 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
         select: { netSatang: true, invoice: { select: { id: true, poId: true, invoiceNo: true, invoiceDate: true } } },
       })
     : []
+  // and the tier-2 invoices of S8 that moved to ACTUAL (ready for payment or later), each line's amount before VAT
+  const matchedParts = actualLineIds.length
+    ? await tx.invoiceLine.findMany({
+        where: { poLineId: { in: actualLineIds }, invoice: { status: { in: ['READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'PAID'] } } },
+        select: { netSatang: true, invoice: { select: { id: true, poId: true, supplierInvoiceNo: true, invoiceDate: true } } },
+      })
+    : []
+  const allParts = [
+    ...invoiceParts,
+    ...matchedParts.map((p) => ({ netSatang: p.netSatang, invoice: { id: p.invoice.id, poId: p.invoice.poId, invoiceNo: p.invoice.supplierInvoiceNo ?? '', invoiceDate: p.invoice.invoiceDate! } })),
+  ]
   const invoicesOf = (poId: string): BudgetInvoiceDocDto[] => {
-    const parts = new Map<string, { invoice: (typeof invoiceParts)[number]['invoice']; net: bigint }>()
-    for (const p of invoiceParts.filter((x) => x.invoice.poId === poId)) {
+    const parts = new Map<string, { invoice: (typeof allParts)[number]['invoice']; net: bigint }>()
+    for (const p of allParts.filter((x) => x.invoice.poId === poId)) {
       parts.set(p.invoice.id, { invoice: p.invoice, net: (parts.get(p.invoice.id)?.net ?? 0n) + p.netSatang })
     }
     return [...parts.values()]

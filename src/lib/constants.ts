@@ -171,3 +171,5 @@ export const BP_PER_WHOLE = 10_000
 export const BUDGET_ALERT_MAX_BP = 10 * BP_PER_WHOLE
 /** BR-BUD-17 default thresholds: 80 % and 100 % of the current budget */
 export const BUDGET_ALERT_DEFAULT_BP: readonly number[] = [8 * (BP_PER_WHOLE / 10), BP_PER_WHOLE]
+/** Basis points in a whole (100 % = 10000 bp): a technical constant, not money */
+export const BASIS_POINTS_WHOLE = 10_000

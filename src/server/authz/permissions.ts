@@ -88,6 +88,8 @@ export const PERMISSIONS = {
   'gr.reverse': [role('PROCUREMENT', 'ORG', 'WITH_REASON_BEFORE_INVOICE')],
   'variance.decide': [doaAssignee('GR_VARIANCE_RULE')],
   'invoiceConfirmation.record': [role('FINANCE', 'ORG')],
+  // S8 tier-2 invoices (module PAY, BR-AP-13): draft, edit, code, submit and throw away
+  'invoice.record': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

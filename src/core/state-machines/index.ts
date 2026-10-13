@@ -316,6 +316,114 @@ export const VARIANCE_MACHINE = machine<VarianceState, VarianceCommand>('Varianc
   { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
 ])
 
+// ---------- invoice, tier 2 (S8 · docs/sub-specs/S8.md "State machine") ----------
+
+export const INVOICE_STATES = ['DRAFT', 'EXCEPTION', 'PENDING_APPROVAL', 'READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'PAID', 'REJECTED', 'CANCELLED'] as const
+export type InvoiceState = (typeof INVOICE_STATES)[number]
+export const INVOICE_COMMANDS = [
+  'invoice.update',
+  'invoice.submit_matched',
+  'invoice.submit_exception',
+  'invoice.recheck_matched',
+  'invoice.recheck_exception',
+  'invoice.requestVarianceApproval',
+  'invoice.final_approval',
+  'approval.reject',
+  'approval.return',
+  'invoice.reopen',
+  'invoice.reject',
+  'invoice.cancel',
+  'invoice.hold_for_payment',
+  'invoice.release_from_payment',
+  'invoice.record_payment',
+] as const
+export type InvoiceCommand = (typeof INVOICE_COMMANDS)[number]
+
+export const INVOICE_MACHINE = machine<InvoiceState, InvoiceCommand>('Invoice', INVOICE_STATES, INVOICE_COMMANDS, [
+  // invoice.update and invoice.confirmCoding change a draft only
+  { from: ['DRAFT'], command: 'invoice.update', to: 'DRAFT' },
+  // invoice.submit: the match decides where it goes
+  { from: ['DRAFT'], command: 'invoice.submit_matched', to: 'READY_FOR_PAYMENT' },
+  { from: ['DRAFT'], command: 'invoice.submit_exception', to: 'EXCEPTION' },
+  // invoice.recheck by FINANCE, the assignee of an exception, or SYSTEM after a GR or an approved PO change
+  { from: ['EXCEPTION'], command: 'invoice.recheck_matched', to: 'READY_FOR_PAYMENT' },
+  { from: ['EXCEPTION'], command: 'invoice.recheck_exception', to: 'EXCEPTION' },
+  // BR-MATCH-10: every open exception of a fresh match is PRICE_OVER (the service checks it)
+  { from: ['EXCEPTION'], command: 'invoice.requestVarianceApproval', to: 'PENDING_APPROVAL' },
+  { from: ['PENDING_APPROVAL'], command: 'invoice.final_approval', to: 'READY_FOR_PAYMENT' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'EXCEPTION' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'EXCEPTION' },
+  { from: ['EXCEPTION'], command: 'invoice.reopen', to: 'DRAFT' },
+  { from: ['DRAFT', 'EXCEPTION'], command: 'invoice.reject', to: 'REJECTED' },
+  { from: ['DRAFT'], command: 'invoice.cancel', to: 'CANCELLED' },
+  // BR-AP-12: only the functions S9 calls inside its own commands
+  { from: ['READY_FOR_PAYMENT'], command: 'invoice.hold_for_payment', to: 'IN_PAYMENT_RUN' },
+  { from: ['IN_PAYMENT_RUN'], command: 'invoice.release_from_payment', to: 'READY_FOR_PAYMENT' },
+  { from: ['IN_PAYMENT_RUN'], command: 'invoice.record_payment', to: 'PAID' },
+])
+
+// ---------- match exception (BR-MATCH-09, BR-MATCH-10) ----------
+
+export const MATCH_EXCEPTION_STATES = ['OPEN', 'ACCEPT_REQUESTED', 'APPROVED', 'RESOLVED', 'DISMISSED', 'CLOSED'] as const
+export type MatchExceptionState = (typeof MATCH_EXCEPTION_STATES)[number]
+export const MATCH_EXCEPTION_COMMANDS = [
+  'match_exception.resolve',
+  'match_exception.dismiss',
+  'match_exception.request_acceptance',
+  'match_exception.approve',
+  'match_exception.decline',
+  'match_exception.close',
+] as const
+export type MatchExceptionCommand = (typeof MATCH_EXCEPTION_COMMANDS)[number]
+
+export const MATCH_EXCEPTION_MACHINE = machine<MatchExceptionState, MatchExceptionCommand>('MatchException', MATCH_EXCEPTION_STATES, MATCH_EXCEPTION_COMMANDS, [
+  // a recheck no longer finds it
+  { from: ['OPEN'], command: 'match_exception.resolve', to: 'RESOLVED' },
+  // POSSIBLE_DUPLICATE only, by FINANCE with a reason (the service checks it)
+  { from: ['OPEN'], command: 'match_exception.dismiss', to: 'DISMISSED' },
+  // the variance is sent for approval, then approved or not
+  { from: ['OPEN'], command: 'match_exception.request_acceptance', to: 'ACCEPT_REQUESTED' },
+  { from: ['ACCEPT_REQUESTED'], command: 'match_exception.approve', to: 'APPROVED' },
+  { from: ['ACCEPT_REQUESTED'], command: 'match_exception.decline', to: 'OPEN' },
+  // the invoice is rejected or reopened
+  { from: ['OPEN', 'ACCEPT_REQUESTED'], command: 'match_exception.close', to: 'CLOSED' },
+])
+
+// ---------- performance retention (ADR-124, BR-RET-04, BR-AP-12) ----------
+
+export const RETENTION_STATES = ['HELD', 'RELEASABLE', 'IN_PAYMENT_RUN', 'PAID'] as const
+export type RetentionState = (typeof RETENTION_STATES)[number]
+export const RETENTION_COMMANDS = ['retention.release', 'retention.hold_for_payment', 'retention.release_from_payment', 'retention.record_payment'] as const
+export type RetentionCommand = (typeof RETENTION_COMMANDS)[number]
+
+export const RETENTION_MACHINE = machine<RetentionState, RetentionCommand>('Retention', RETENTION_STATES, RETENTION_COMMANDS, [
+  // FINANCE from releaseDueOn (RETENTION_NOT_DUE before it)
+  { from: ['HELD'], command: 'retention.release', to: 'RELEASABLE' },
+  // only the functions S9 calls inside its own commands
+  { from: ['RELEASABLE'], command: 'retention.hold_for_payment', to: 'IN_PAYMENT_RUN' },
+  { from: ['IN_PAYMENT_RUN'], command: 'retention.release_from_payment', to: 'RELEASABLE' },
+  { from: ['IN_PAYMENT_RUN'], command: 'retention.record_payment', to: 'PAID' },
+])
+
+// ---------- PO change (ADR-125, BR-POC-01 to BR-POC-05) ----------
+
+export const PO_CHANGE_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'] as const
+export type PoChangeState = (typeof PO_CHANGE_STATES)[number]
+export const PO_CHANGE_COMMANDS = ['po_change.update', 'po_change.submit', 'po_change.submit_auto', 'po_change.final_approval', 'approval.reject', 'approval.return', 'po_change.cancel'] as const
+export type PoChangeCommand = (typeof PO_CHANGE_COMMANDS)[number]
+
+export const PO_CHANGE_MACHINE = machine<PoChangeState, PoChangeCommand>('PoChange', PO_CHANGE_STATES, PO_CHANGE_COMMANDS, [
+  { from: ['DRAFT'], command: 'po_change.update', to: 'DRAFT' },
+  // a price or a quantity changed: DOA PO_CHANGE
+  { from: ['DRAFT'], command: 'po_change.submit', to: 'PENDING_APPROVAL' },
+  // only the delivery date or the notes changed: approved at submit, no task, no budget move (BR-POC-02)
+  { from: ['DRAFT'], command: 'po_change.submit_auto', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'po_change.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'DRAFT' },
+  { from: ['DRAFT', 'PENDING_APPROVAL'], command: 'po_change.cancel', to: 'CANCELLED' },
+])
+
 export const MACHINES = [
   REQUEST_MACHINE,
   SUPPLIER_REQUEST_MACHINE,
@@ -332,4 +440,8 @@ export const MACHINES = [
   STEP_MACHINE,
   BUDGET_TRANSFER_MACHINE,
   BUDGET_OVERRUN_MACHINE,
+  INVOICE_MACHINE,
+  MATCH_EXCEPTION_MACHINE,
+  RETENTION_MACHINE,
+  PO_CHANGE_MACHINE,
 ] as const

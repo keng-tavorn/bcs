@@ -1,0 +1,6 @@
+{
+  "comment": "Defaults of open questions for S8 settings an organization leaves out (BR-MATCH-13): money as baht strings. Data, not code (P-2): seed sets the real values from the Settings sheet. OQ-121 matching · OQ-122 wht · OQ-129 ap",
+  "matching": { "priceTolBp": 100, "priceTolAmount": "1000.00", "qtyTolBp": 0, "vatTolAmount": "1.00" },
+  "wht": { "minimumBase": "1000.00", "timing": "AT_PAYMENT" },
+  "ap": { "defaultTermDays": 30 }
+}

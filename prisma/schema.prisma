@@ -127,6 +127,20 @@ model Organization {
   configPackages          ConfigPackage[]
 
   // --- S8 S9 ---
+  invoices            Invoice[]
+  invoiceLines        InvoiceLine[]
+  invoiceMatches      InvoiceMatch[]
+  matchExceptions     MatchException[]
+  inboundEmails       InboundEmail[]
+  whtIncomeTypes      WhtIncomeType[]
+  accountCodes        AccountCode[]
+  withholdingTaxes    WithholdingTax[]
+  whtCertificates     WhtCertificate[]
+  retentions          Retention[]
+  sensitiveAccessLogs SensitiveAccessLog[]
+  poChanges           PoChange[]
+  poChangeLines       PoChangeLine[]
+  supplierNotices     SupplierNotice[]
 
   // --- S13 ---
 
@@ -249,6 +263,17 @@ model Member {
   configPackagesCreated     ConfigPackage[]   @relation("ConfigPackageCreatedBy")
 
   // --- S8 S9 ---
+  apInvoicesCreated     Invoice[]            @relation("ApInvoiceCreatedBy")
+  apInvoicesRecorded    Invoice[]            @relation("ApInvoiceRecordedBy")
+  apInvoicesRejected    Invoice[]            @relation("ApInvoiceRejectedBy")
+  invoiceLinesCoded     InvoiceLine[]        @relation("InvoiceLineCodingConfirmedBy")
+  matchExceptionsClosed MatchException[]     @relation("MatchExceptionResolvedBy")
+  whtTypesUpdated       WhtIncomeType[]      @relation("WhtIncomeTypeUpdatedBy")
+  whtTypesConfirmed     WhtIncomeType[]      @relation("WhtIncomeTypeConfirmedBy")
+  retentionsReleased    Retention[]          @relation("RetentionReleasedBy")
+  sensitiveAccessLogs   SensitiveAccessLog[] @relation("SensitiveAccessLogMember")
+  poChangesCreated      PoChange[]           @relation("PoChangeCreatedBy")
+  poChangesSubmitted    PoChange[]           @relation("PoChangeSubmittedBy")
 
   // --- S13 ---
 
@@ -482,6 +507,9 @@ model FileObject {
   configPackages ConfigPackage[]
 
   // --- S8 S9 ---
+  apInvoiceSources Invoice[]        @relation("ApInvoiceSourceFile")
+  whtCertificates  WhtCertificate[] @relation("WhtCertificateFile")
+  poChangePdfs     PoChange[]       @relation("PoChangePdf")
 
   // --- S13 ---
 
@@ -502,6 +530,7 @@ enum FileLinkKind {
   ETAX
   REGISTRY_PROOF
   OTHER
+  WHT_CERT
 }
 
 model FileLink {
@@ -775,6 +804,8 @@ model CostCenter {
   requests     Request[]
   budgetLines  BudgetLine[]
 
+  invoiceLines InvoiceLine[]
+
   @@unique([organizationId, id])
   @@unique([organizationId, code])
 }
@@ -911,6 +942,9 @@ model RequestType {
   // --- S6 ---
 
   // --- S8 S9 ---
+  /// Performance retention a PO of this type starts with (BR-RET-03, OQ-125); data of the organization, never a code in the program
+  defaultRetentionBp       Int  @default(0)
+  defaultRetentionHoldDays Int?
 
   // --- S13 ---
 
@@ -1468,6 +1502,8 @@ model ApprovalRoute {
   currentForBudgetOverruns  BudgetOverrun[]  @relation("BudgetOverrunCurrentRoute")
 
   // --- S8 S9 ---
+  currentForInvoices  Invoice[]  @relation("InvoiceCurrentRoute")
+  currentForPoChanges PoChange[] @relation("PoChangeCurrentRoute")
 
   // --- S13 ---
 
@@ -2081,6 +2117,19 @@ model Supplier {
   priceAgreements PriceAgreement[]
 
   // --- S8 S9 ---
+  /// Withholding tax and payment profile (BR-WHT-03, BR-WHT-04, BR-AP-07); bank accounts are S9
+  payeeType                PayeeType        @default(JURISTIC)
+  defaultWhtIncomeTypeCode String?
+  paymentTermDays          Int?
+  eTaxIssuer               ETaxIssuer       @default(NONE)
+  /// BR-SUP-04 as a flag the system reads (BR-VAT-06)
+  registryFlag             RegistryFlag     @default(NONE)
+  registryFlaggedAt        DateTime?        @db.Timestamptz(6)
+  apInvoices               Invoice[]
+  withholdingTaxes         WithholdingTax[]
+  whtCertificates          WhtCertificate[]
+  retentions               Retention[]
+  supplierNotices          SupplierNotice[]
 
   // --- S13 ---
 
@@ -2303,6 +2352,16 @@ model PurchaseOrder {
   // --- S6 ---
 
   // --- S8 S9 ---
+  /// null until the first invoice (BR-IVC-06, ADR-121)
+  invoiceTrack      PoInvoiceTrack?
+  /// PO changes applied (ADR-125)
+  revisionNo        Int             @default(0)
+  /// Performance retention per invoice and the days it is held after the last milestone (ADR-124)
+  retentionBp       Int             @default(0)
+  retentionHoldDays Int?
+  apInvoices        Invoice[]
+  retentions        Retention[]
+  changes           PoChange[]
 
   // --- S13 ---
 
@@ -2345,6 +2404,12 @@ model PoLine {
   grLines      GrLine[]
   variances    Variance[]
   invoiceParts InvoiceLineAllocation[]
+
+  /// Milestone of a service PO (ADR-124, BR-RET-01)
+  milestoneNo      Int?
+  milestoneShareBp Int?
+  invoiceLines     InvoiceLine[]
+  changeLines      PoChangeLine[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, poId, lineNo])
@@ -2585,6 +2650,7 @@ enum ExportKind {
   EXPRESS_AP
   REPORT
   AUDIT
+  WHT_RETURN
 }
 
 enum ExportStatus {
@@ -2617,6 +2683,8 @@ model ExportJob {
   file         FileObject?           @relation("ExportJobFile", fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   requestedBy  Member                @relation("ExportJobRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   invoices     InvoiceConfirmation[]
+
+  apInvoices Invoice[] @relation("ApInvoiceExportJob")
 
   @@unique([organizationId, id])
   @@index([organizationId, kind, createdAt])
@@ -2783,4 +2851,619 @@ model LineWebhookEvent {
   @@unique([organizationId, id])
   @@unique([organizationId, webhookEventId])
   @@index([organizationId, status, receivedAt])
+}
+
+// ===== S8 · invoices tier 2, three-way matching, withholding tax, retention, PO changes (S8-01 · docs/sub-specs/S8.md) =====
+
+enum InvoiceChannel {
+  EMAIL
+  UPLOAD
+  /// Reserved for the supplier portal (S7)
+  PORTAL
+}
+
+enum InvoicePrefill {
+  MANUAL
+  ETAX_XML
+  AI_READING
+}
+
+/// Phase 1 has invoices only; CREDIT_NOTE comes with OQ-129
+enum InvoiceKind {
+  INVOICE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  EXCEPTION
+  PENDING_APPROVAL
+  READY_FOR_PAYMENT
+  /// Only S9 moves an invoice in and out of a payment run, and to PAID (BR-AP-12)
+  IN_PAYMENT_RUN
+  PAID
+  REJECTED
+  CANCELLED
+}
+
+enum InvoiceMatchResult {
+  MATCHED
+  EXCEPTION
+}
+
+enum InvoiceLineMatchStatus {
+  PENDING
+  MATCHED
+  EXCEPTION
+}
+
+/// Where the account code of an invoice line came from (BR-AP-10)
+enum CodingSource {
+  HISTORY
+  BUDGET_LINE
+  MANUAL
+  NONE
+}
+
+enum MatchTrigger {
+  USER
+  SYSTEM
+}
+
+/// The order is the order of the exceptions of one line (BR-MATCH-09)
+enum MatchExceptionType {
+  PRICE_OVER
+  QTY_NOT_RECEIVED
+  QTY_OVER_ORDERED
+  ACCEPTANCE_PENDING
+  VAT_MISMATCH
+  VAT_SUPPLIER_NOT_REGISTERED
+  POSSIBLE_DUPLICATE
+  BUDGET_SHORT
+}
+
+enum ExceptionAssigneeRole {
+  PROCUREMENT
+  RECEIVER
+  FINANCE
+}
+
+enum MatchExceptionStatus {
+  OPEN
+  ACCEPT_REQUESTED
+  APPROVED
+  RESOLVED
+  DISMISSED
+  CLOSED
+}
+
+enum InboundEmailStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+}
+
+/// The return an income type is filed on: PND3_53 follows the payee (BR-WHT-04)
+enum WhtIncomeTypeForm {
+  PND3_53
+  PND53
+  PND3
+}
+
+enum WhtReturnForm {
+  PND3
+  PND53
+}
+
+/// A list of codes to choose from, not a general ledger (P-4)
+enum AccountCodeType {
+  COST
+  EXPENSE
+  ASSET
+  LIABILITY
+}
+
+enum PayeeType {
+  JURISTIC
+  INDIVIDUAL
+  FOREIGN
+}
+
+/// The flag the system reads from the registry status (BR-SUP-04); registryStatus keeps the registry's own words
+enum RegistryFlag {
+  NONE
+  CEASED
+  VAT_CANCELLED
+  NOT_FOUND
+}
+
+enum ETaxIssuer {
+  NONE
+  EMAIL
+  FULL
+}
+
+/// Which invoices a PO takes, fixed by its first invoice (BR-IVC-06, ADR-121)
+enum PoInvoiceTrack {
+  CONFIRMATION
+  MATCHING
+}
+
+enum RetentionStatus {
+  HELD
+  RELEASABLE
+  IN_PAYMENT_RUN
+  PAID
+}
+
+enum PoChangeStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum SupplierNoticeStatus {
+  PENDING
+  SENT
+  FAILED
+  NO_EMAIL
+}
+
+/// A supplier invoice matched against its PO (FR-AP-101, FR-AP-102). payableSatang is what is owed before withholding
+/// tax (gross - retention), not withholding().payableSatang of core/wht; the expected transfer (payable - expected WHT)
+/// is not stored. grossSatang = netSatang + statedVatSatang (BR-VAT-07).
+model Invoice {
+  id                          String              @id @default(uuid(7)) @db.Uuid
+  organizationId              String              @db.Uuid
+  /// AP-{BE}-{SEQ5}: issued at submit (numbering.AP)
+  number                      String?
+  poId                        String              @db.Uuid
+  supplierId                  String              @db.Uuid
+  channel                     InvoiceChannel
+  prefill                     InvoicePrefill      @default(MANUAL)
+  /// Where each field's value came from, for the labels only (BR-AP-03)
+  fieldSources                Json                @default("{}")
+  /// AgentAction of S13; no foreign key until that table exists
+  agentActionId               String?             @db.Uuid
+  inboundEmailId              String?             @db.Uuid
+  sourceFileId                String?             @db.Uuid
+  supplierInvoiceNo           String?
+  /// Spaces removed, upper case (BR-IVC-03)
+  supplierInvoiceNoNormalized String?
+  invoiceDate                 DateTime?           @db.Date
+  priceIncludesVat            Boolean             @default(false)
+  vatRateBp                   Int?
+  discountSatang              BigInt              @default(0)
+  netSatang                   BigInt              @default(0)
+  statedVatSatang             BigInt              @default(0)
+  computedVatSatang           BigInt              @default(0)
+  grossSatang                 BigInt              @default(0)
+  retentionBp                 Int                 @default(0)
+  retentionSatang             BigInt              @default(0)
+  payableSatang               BigInt              @default(0)
+  /// 0 until S8-08 computes it
+  expectedWhtSatang           BigInt              @default(0)
+  dueDate                     DateTime?           @db.Date
+  isFinal                     Boolean             @default(false)
+  kind                        InvoiceKind         @default(INVOICE)
+  status                      InvoiceStatus       @default(DRAFT)
+  matchResult                 InvoiceMatchResult?
+  /// null when the inbox made the draft
+  createdById                 String?             @db.Uuid
+  /// Who submitted it (BR-AP-05, BR-SOD-04)
+  recordedById                String?             @db.Uuid
+  submittedAt                 DateTime?           @db.Timestamptz(6)
+  readyAt                     DateTime?           @db.Timestamptz(6)
+  rejectedById                String?             @db.Uuid
+  rejectedAt                  DateTime?           @db.Timestamptz(6)
+  rejectReason                String?
+  cancelledAt                 DateTime?           @db.Timestamptz(6)
+  cancelReason                String?
+  currentRouteId              String?             @db.Uuid
+  exportedAt                  DateTime?           @db.Timestamptz(6)
+  exportJobId                 String?             @db.Uuid
+  version                     Int                 @default(0)
+  createdAt                   DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt                   DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po               PurchaseOrder    @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier         @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  inboundEmail     InboundEmail?    @relation(fields: [organizationId, inboundEmailId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceFile       FileObject?      @relation("ApInvoiceSourceFile", fields: [organizationId, sourceFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy        Member?          @relation("ApInvoiceCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy       Member?          @relation("ApInvoiceRecordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  rejectedBy       Member?          @relation("ApInvoiceRejectedBy", fields: [organizationId, rejectedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute     ApprovalRoute?   @relation("InvoiceCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  exportJob        ExportJob?       @relation("ApInvoiceExportJob", fields: [organizationId, exportJobId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines            InvoiceLine[]
+  matches          InvoiceMatch[]
+  exceptions       MatchException[]
+  retention        Retention?
+  withholdingTaxes WithholdingTax[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  /// INV-AP-06: a draft may repeat a number (it is labelled DUPLICATE_INVOICE and cannot be submitted)
+  @@unique([organizationId, supplierId, supplierInvoiceNoNormalized], map: "invoice_live_supplier_number", where: raw("status <> ALL (ARRAY['DRAFT'::\"InvoiceStatus\", 'CANCELLED'::\"InvoiceStatus\", 'REJECTED'::\"InvoiceStatus\"])"))
+  @@index([organizationId, status])
+  @@index([organizationId, poId])
+  @@index([organizationId, dueDate])
+  @@index([organizationId, supplierId, supplierInvoiceNoNormalized])
+}
+
+/// One line of an invoice on one PO line (BR-MATCH-05, BR-MATCH-06)
+model InvoiceLine {
+  id                  String                 @id @default(uuid(7)) @db.Uuid
+  organizationId      String                 @db.Uuid
+  invoiceId           String                 @db.Uuid
+  lineNo              Int
+  poLineId            String                 @db.Uuid
+  description         String
+  quantity            Decimal                @db.Decimal(18, 4)
+  uom                 String
+  unitPriceSatang     BigInt
+  amountSatang        BigInt                 @default(0)
+  discountSatang      BigInt                 @default(0)
+  netSatang           BigInt                 @default(0)
+  vatable             Boolean                @default(true)
+  expectedNetSatang   BigInt                 @default(0)
+  overSatang          BigInt                 @default(0)
+  matchStatus         InvoiceLineMatchStatus @default(PENDING)
+  /// e.g. PRICE_UNDER
+  flags               String[]
+  whtIncomeTypeCode   String?
+  accountCode         String?
+  costCenterId        String?                @db.Uuid
+  codingSource        CodingSource           @default(NONE)
+  /// Required when the cost center differs from the budget line's (BR-AP-10)
+  costCenterReason    String?
+  codingConfirmedById String?                @db.Uuid
+  codingConfirmedAt   DateTime?              @db.Timestamptz(6)
+  createdAt           DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime               @updatedAt @db.Timestamptz(6)
+
+  organization      Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice           Invoice          @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine            PoLine           @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  costCenter        CostCenter?      @relation(fields: [organizationId, costCenterId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  codingConfirmedBy Member?          @relation("InvoiceLineCodingConfirmedBy", fields: [organizationId, codingConfirmedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  exceptions        MatchException[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceId, lineNo])
+  @@unique([organizationId, invoiceId, poLineId])
+  @@index([organizationId, poLineId])
+}
+
+/// Every run of the matching engine on an invoice, with the policy it used (BR-MATCH-13)
+model InvoiceMatch {
+  id             String             @id @default(uuid(7)) @db.Uuid
+  organizationId String             @db.Uuid
+  invoiceId      String             @db.Uuid
+  runNo          Int
+  ranAt          DateTime           @db.Timestamptz(6)
+  result         InvoiceMatchResult
+  policy         Json
+  snapshot       Json
+  triggeredBy    MatchTrigger
+  createdAt      DateTime           @default(now()) @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice      Invoice          @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  exceptions   MatchException[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceId, runNo])
+}
+
+/// A difference the match found, sent to who can resolve it (BR-MATCH-09, BR-MATCH-10)
+model MatchException {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @db.Uuid
+  invoiceId      String                @db.Uuid
+  invoiceMatchId String                @db.Uuid
+  /// null for a whole-invoice exception (VAT, duplicate)
+  invoiceLineId  String?               @db.Uuid
+  type           MatchExceptionType
+  amountSatang   BigInt
+  quantity       Decimal?              @db.Decimal(18, 4)
+  assigneeRole   ExceptionAssigneeRole
+  status         MatchExceptionStatus  @default(OPEN)
+  resolvedById   String?               @db.Uuid
+  resolvedAt     DateTime?             @db.Timestamptz(6)
+  reason         String?
+  version        Int                   @default(0)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice      Invoice      @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  invoiceMatch InvoiceMatch @relation(fields: [organizationId, invoiceMatchId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  invoiceLine  InvoiceLine? @relation(fields: [organizationId, invoiceLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  resolvedBy   Member?      @relation("MatchExceptionResolvedBy", fields: [organizationId, resolvedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, status, assigneeRole])
+  @@index([organizationId, invoiceId])
+}
+
+/// An email that reached the invoice inbox (BR-AP-02, ADR-123): the body is never kept; attachments are FileLinks of
+/// subjectType InboundEmail
+model InboundEmail {
+  id              String             @id @default(uuid(7)) @db.Uuid
+  organizationId  String             @db.Uuid
+  provider        String
+  messageId       String
+  fromAddress     String
+  toAddress       String
+  /// Cut at 300 characters
+  subject         String
+  receivedAt      DateTime           @db.Timestamptz(6)
+  status          InboundEmailStatus @default(RECEIVED)
+  ignoreReason    String?
+  attachmentCount Int                @default(0)
+  poRefsFound     String[]
+  /// Tries of a FAILED email (the job stops after 3)
+  attempts        Int                @default(0)
+  processedAt     DateTime?          @db.Timestamptz(6)
+  createdAt       DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoices     Invoice[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, messageId])
+  @@index([organizationId, status])
+}
+
+/// Income types of withholding tax and their rates, confirmed by the customer's accountant (BR-WHT-01, BR-WHT-03)
+model WhtIncomeType {
+  id             String            @id @default(uuid(7)) @db.Uuid
+  organizationId String            @db.Uuid
+  code           String
+  nameTh         String
+  nameEn         String?
+  rateBp         Int
+  form           WhtIncomeTypeForm
+  legalRefTh     String?
+  active         Boolean           @default(true)
+  updatedById    String?           @db.Uuid
+  /// Never the member who changed it last
+  confirmedById  String?           @db.Uuid
+  confirmedAt    DateTime?         @db.Timestamptz(6)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedBy    Member?      @relation("WhtIncomeTypeUpdatedBy", fields: [organizationId, updatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  confirmedBy  Member?      @relation("WhtIncomeTypeConfirmedBy", fields: [organizationId, confirmedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// Account codes an invoice line is coded with (FR-AP-108)
+model AccountCode {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  code           String
+  nameTh         String
+  type           AccountCodeType
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+}
+
+/// Tax withheld from one document (an invoice or a retention) per (income type, rate) of one payment (BR-WHT-10):
+/// written only by recordInvoicePayment; paymentRunItemId comes with S9-01
+model WithholdingTax {
+  id             String        @id @default(uuid(7)) @db.Uuid
+  organizationId String        @db.Uuid
+  invoiceId      String?       @db.Uuid
+  retentionId    String?       @db.Uuid
+  supplierId     String        @db.Uuid
+  payeeType      PayeeType
+  incomeTypeCode String
+  form           WhtReturnForm
+  rateBp         Int
+  baseSatang     BigInt
+  taxSatang      BigInt
+  paidOn         DateTime      @db.Date
+  certificateId  String?       @db.Uuid
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+
+  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice      Invoice?        @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  retention    Retention?      @relation(fields: [organizationId, retentionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier        @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  certificate  WhtCertificate? @relation(fields: [organizationId, certificateId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, supplierId, paidOn])
+  @@index([organizationId, certificateId])
+}
+
+/// 50 ทวิ: one per payment item of S9 (BR-WHT-07); paymentRunItemId and its unique come with S9-01. The payee snapshot
+/// holds the full national id of an individual: shown masked unless wht.revealTaxId (BR-WHT-09)
+model WhtCertificate {
+  id              String        @id @default(uuid(7)) @db.Uuid
+  organizationId  String        @db.Uuid
+  number          String
+  supplierId      String        @db.Uuid
+  form            WhtReturnForm
+  paidOn          DateTime      @db.Date
+  totalBaseSatang BigInt
+  totalTaxSatang  BigInt
+  payeeSnapshot   Json
+  payerSnapshot   Json
+  fileId          String?       @db.Uuid
+  issuedAt        DateTime      @db.Timestamptz(6)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
+
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier         @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  file             FileObject?      @relation("WhtCertificateFile", fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  withholdingTaxes WithholdingTax[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, supplierId])
+}
+
+/// Performance retention held from an invoice (ADR-124, BR-RET-03, BR-RET-04); not retention.documentYears (OQ-30)
+model Retention {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  organizationId String          @db.Uuid
+  invoiceId      String          @db.Uuid
+  poId           String          @db.Uuid
+  supplierId     String          @db.Uuid
+  amountSatang   BigInt
+  status         RetentionStatus @default(HELD)
+  /// Set when the PO's last milestone is received
+  releaseDueOn   DateTime?       @db.Date
+  releasedById   String?         @db.Uuid
+  releasedAt     DateTime?       @db.Timestamptz(6)
+  paidAt         DateTime?       @db.Timestamptz(6)
+  version        Int             @default(0)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
+
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice          Invoice          @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  po               PurchaseOrder    @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier         @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  releasedBy       Member?          @relation("RetentionReleasedBy", fields: [organizationId, releasedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  withholdingTaxes WithholdingTax[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceId])
+  @@index([organizationId, status, releaseDueOn])
+}
+
+/// Who opened a personal value in full (spec §6.2, NFR-PRIV-03, BR-WHT-09): append-only, the app inserts and reads
+model SensitiveAccessLog {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  organizationId String   @db.Uuid
+  memberId       String   @db.Uuid
+  subjectType    String
+  subjectId      String   @db.Uuid
+  fields         String[]
+  purpose        String
+  at             DateTime @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("SensitiveAccessLogMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, subjectType, subjectId])
+}
+
+/// A change to a sent PO approved by DOA PO_CHANGE (ADR-125, BR-POC-01 to BR-POC-05)
+model PoChange {
+  id                  String               @id @default(uuid(7)) @db.Uuid
+  organizationId      String               @db.Uuid
+  poId                String               @db.Uuid
+  changeNo            Int
+  status              PoChangeStatus       @default(DRAFT)
+  /// Only the delivery date or the notes changed (BR-POC-02)
+  autoApproved        Boolean              @default(false)
+  reason              String?
+  oldNetSatang        BigInt
+  oldVatSatang        BigInt
+  oldGrossSatang      BigInt
+  newNetSatang        BigInt
+  newVatSatang        BigInt
+  newGrossSatang      BigInt
+  notesToSupplier     String?
+  deliveryDate        DateTime?            @db.Date
+  quantityDisposition PoCancelDisposition?
+  createdById         String               @db.Uuid
+  submittedById       String?              @db.Uuid
+  submittedAt         DateTime?            @db.Timestamptz(6)
+  currentRouteId      String?              @db.Uuid
+  decidedAt           DateTime?            @db.Timestamptz(6)
+  appliedRevisionNo   Int?
+  pdfFileId           String?              @db.Uuid
+  sentAt              DateTime?            @db.Timestamptz(6)
+  version             Int                  @default(0)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po           PurchaseOrder  @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy    Member         @relation("PoChangeCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy  Member?        @relation("PoChangeSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute ApprovalRoute? @relation("PoChangeCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  pdfFile      FileObject?    @relation("PoChangePdf", fields: [organizationId, pdfFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  lines        PoChangeLine[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, poId, changeNo])
+  /// One open change per PO (PO_CHANGE_OPEN)
+  @@unique([organizationId, poId], map: "po_change_one_open", where: raw("status = ANY (ARRAY['DRAFT'::\"PoChangeStatus\", 'PENDING_APPROVAL'::\"PoChangeStatus\"])"))
+}
+
+model PoChangeLine {
+  id                 String   @id @default(uuid(7)) @db.Uuid
+  organizationId     String   @db.Uuid
+  poChangeId         String   @db.Uuid
+  poLineId           String   @db.Uuid
+  oldQuantity        Decimal  @db.Decimal(18, 4)
+  newQuantity        Decimal  @db.Decimal(18, 4)
+  oldUnitPriceSatang BigInt
+  newUnitPriceSatang BigInt
+  oldNetSatang       BigInt
+  newNetSatang       BigInt
+  /// Reserved at submit for the increase (BR-POC-03)
+  reservedSatang     BigInt   @default(0)
+  createdAt          DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  poChange     PoChange     @relation(fields: [organizationId, poChangeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  poLine       PoLine       @relation(fields: [organizationId, poLineId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, poChangeId, poLineId])
+}
+
+/// An email to a supplier (ADR-126): made only by enqueueSupplierNotice inside the caller's transaction; the same
+/// dedupeKey never makes a second row; no supplier email -> NO_EMAIL and nothing is sent
+model SupplierNotice {
+  id             String               @id @default(uuid(7)) @db.Uuid
+  organizationId String               @db.Uuid
+  supplierId     String               @db.Uuid
+  templateKey    String
+  subjectType    String
+  subjectId      String               @db.Uuid
+  toEmail        String?
+  locale         String               @default("th")
+  /// What the template shows
+  data           Json                 @default("{}")
+  status         SupplierNoticeStatus @default(PENDING)
+  dedupeKey      String
+  attempts       Int                  @default(0)
+  sentAt         DateTime?            @db.Timestamptz(6)
+  error          String?
+  createdAt      DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier     @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, status])
 }

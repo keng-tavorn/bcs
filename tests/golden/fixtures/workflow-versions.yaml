@@ -1,0 +1,21 @@
+# tests/golden/fixtures/workflow-versions.yaml
+# requestTypes = field ของฟอร์มฉบับปัจจุบันตาม prisma/seed/forms.yaml (lint BR-WF-11 ใช้)
+requestTypes:
+  BUY_GOODS: [singleSourceJustification]
+  HIRE_SERVICE: [scopeOfWork, servicePeriod, singleSourceJustification, processesPersonalData, accessesSystems, accessesPremises]
+  CONTRACT_WORK: [scopeOfWork, milestones, site, singleSourceJustification]
+  IT_PURCHASE: [category, assetTag, singleSourceJustification, processesPersonalData, accessesSystems, accessesPremises]
+versions:
+  - code: WF-DEMO
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    rules:
+      - { code: RV-01, requestTypes: [IT_PURCHASE], when: {}, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-02, requestTypes: [HIRE_SERVICE], when: { field: processesPersonalData, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-03, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-04, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-05, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-06, requestTypes: [BUY_GOODS], when: { field: $lineCategories, op: anyIn, value: [SAFETY, FUEL] }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ANY, slaBusinessHours: 8 }
+      - { code: RV-07, requestTypes: [BUY_GOODS], when: { all: [{ field: $budgetAccountCodes, op: anyIn, value: ["121101", "121201", "121301"] }, { field: $amountGross, op: gt, value: "500000.00" }] }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-08, requestTypes: [BUY_GOODS], when: { field: $lineCategories, op: anyIn, value: [FUEL] }, reviewers: [{ kind: POSITION_AT, position: DM, department: PROC }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ANY, slaBusinessHours: 8 }
+      - { code: RV-09, requestTypes: [IT_PURCHASE], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }, { kind: POSITION_AT, position: DM, department: PROC }, { kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: COUNT, quorumCount: 2, slaBusinessHours: 16 }

@@ -2,25 +2,26 @@ import { readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { amountToSatang } from '@/core/money/dto'
 import { isCommitteeStep, lintDoaVersion, resolveRoute, type ApproverSpec, type CommitteeQuorum, type DoaDocumentType, type DoaVersionSnapshot, type LintIssue, type OrgSnapshot, type RouteStep } from '@/core/doa'
-import { stepOutcome, type Quorum, type SlotDecision, type SlotGroup } from '@/core/workflow'
+import { lintWorkflowVersion, resolveRequestRoute, stepOutcome, type Quorum, type SlotDecision, type SlotGroup, type WorkflowLintIssue, type WorkflowRuleSnapshot } from '@/core/workflow'
 import { baht, GOLDEN_DIR, loadYaml, orgSnapshot, pick, versionSnapshots } from './doa-fixtures'
+import { workflowFixture, workflowRuleOf, type WorkflowRuleFixture } from './workflow-fixtures'
 
 // Every golden file of suite workflow (spec §7.17): committees, the outcome of a step of several slots and the DOA lint
-// of BR-WF-05 (S6-02); reviewer routes and the workflow lint come with S6-03. Each file names its own fixtures (ADR-069):
-// one org file and the DOA version files, whose versions are told apart by code. The runner finds and counts the
-// cases itself; every test name carries the case id.
+// of BR-WF-05 (S6-02); the route of a request with its parallel reviewers and the workflow lint (S6-03). Each file names
+// its own fixtures (ADR-069): one org file, the DOA version files (versions told apart by code) and the workflow
+// versions. The runner finds and counts the cases itself; every test name carries the case id.
 
 interface Suite {
   suite: string
   fixtures: string[]
-  defaults: { documentType: DoaDocumentType; doa: string; requester: string; department: string; at: string }
+  defaults: { documentType: DoaDocumentType; doa: string; workflow: string; requester: string; department: string; at: string }
   cases: Case[]
 }
 
 interface Case {
   id: string
   title?: string
-  fn: 'resolveRoute' | 'stepOutcome' | 'lintDoaVersion'
+  fn: 'resolveRoute' | 'stepOutcome' | 'lintDoaVersion' | 'resolveRequestRoute' | 'lintWorkflowVersion'
   input: Record<string, unknown>
   expect: Record<string, unknown>
 }
@@ -74,6 +75,8 @@ const stepOut = (s: RouteStep) =>
     ? { mode: 'PARALLEL', quorum: s.committee.quorum, ...(s.committee.quorumCount !== null ? { quorumCount: s.committee.quorumCount } : {}), approvers: s.committee.slots.map((x) => x.assigneeMemberId) }
     : { mode: 'SEQUENTIAL', approvers: [s.assigneeMemberId] }
 
+const wfIssueOut = (issue: WorkflowLintIssue) => ({ code: issue.code, rule: issue.rule, ...(issue.field ? { field: issue.field } : {}) })
+
 const issueOut = (issue: LintIssue) => ({
   code: issue.code,
   ...(issue.documentType ? { documentType: issue.documentType } : {}),
@@ -97,6 +100,49 @@ describe.each(files)('golden %s (workflow)', (file) => {
       }
       const org = orgOf(orgFile, i.vacate ?? [], i.replaceHolders ?? {})
       const versions = versionsOf(suite, i.doa, i.replaceStep)
+      const workflow = workflowFixture(suite.fixtures)
+      if (c.fn === 'lintWorkflowVersion') {
+        const input = c.input as { addRules?: WorkflowRuleFixture[]; replaceWhen?: { rule: string; when: WorkflowRuleSnapshot['when'] }; removeFallback?: string[] }
+        const base = workflow.versions.find((v) => v.code === i.workflow)!
+        const rules = [...base.rules, ...(input.addRules ?? []).map((r, n) => workflowRuleOf(r, base.rules.length + n))].map((r) => ({
+          ...r,
+          ...(input.replaceWhen?.rule === r.code ? { when: input.replaceWhen.when } : {}),
+          ...((input.removeFallback ?? []).includes(r.code) ? { fallback: null } : {}),
+        }))
+        const result = lintWorkflowVersion({ ...base, rules }, org, workflow.requestTypes, base.effectiveFrom)
+        expect({ errors: result.errors.map(wfIssueOut), warnings: result.warnings.map(wfIssueOut) }).toEqual(c.expect)
+        return
+      }
+      if (c.fn === 'resolveRequestRoute') {
+        const r = c.input as { requestType: string; amount?: string; net?: string; vat?: string; lineCategories?: string[]; budgetAccountCodes?: string[]; fields?: Record<string, unknown> }
+        const net = r.net !== undefined ? amountToSatang(r.net) : amountToSatang(r.amount!)
+        const vat = r.vat !== undefined ? amountToSatang(r.vat) : 0n
+        const result = resolveRequestRoute(
+          { documentType: 'PURCHASE_REQUEST', amount: { netSatang: net, vatSatang: vat }, requesterMemberId: i.requester, chargedDepartmentId: i.department, conflictMemberIds: [i.requester, ...(i.alsoConflicting ?? [])], at: new Date(i.at) },
+          { requestType: r.requestType, amountGross: net + vat, amountNet: net, lineCategories: r.lineCategories ?? [], budgetAccountCodes: r.budgetAccountCodes ?? [], fields: r.fields ?? {} },
+          { versions, org, delegations: [], workflows: workflow.versions },
+        )
+        if (!result.ok) {
+          expect(pick({ error: result.error.code, rule: result.error.details?.rule }, c.expect)).toEqual(c.expect)
+          return
+        }
+        const { review, approval } = result.data
+        const counts = review?.groups.filter((g) => g.quorum === 'COUNT') ?? []
+        const actual = {
+          review: review && {
+            quorum: 'ALL',
+            slots: review.slots.map((s) => ({ rules: s.ruleCodes, reviewers: s.assignees.map((a) => a.assigneeMemberId), ...(s.fallback ? { fallback: s.fallback } : {}) })),
+            ...(counts.length ? { groups: counts.map((g) => ({ rules: g.ruleCodes, quorum: g.quorum, quorumCount: g.quorumCount, slots: g.slotNos })) } : {}),
+          },
+          approval: {
+            rule: approval.escalatedFromRuleCode ?? approval.ruleCode,
+            ...(approval.escalatedFromRuleCode ? { escalatedTo: approval.ruleCode } : {}),
+            approvers: approval.steps.map((s) => s.assigneeMemberId),
+          },
+        }
+        expect(pick(actual, c.expect)).toEqual(c.expect)
+        return
+      }
       if (c.fn === 'stepOutcome') {
         const input = c.input as { kind?: 'APPROVAL' | 'REVIEW'; quorum?: Quorum; quorumCount?: number; groups?: SlotGroup[]; slots: (SlotDecision | null)[] }
         const result = stepOutcome(input)

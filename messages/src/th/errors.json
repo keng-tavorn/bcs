@@ -19,6 +19,7 @@
   "DOA_AMBIGUOUS": "DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ",
   "DOA_LINT_FAILED": "DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",
   "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
+  "REVIEWER_NOT_FOUND": "ไม่พบผู้ตรวจ {position} ของ {department} ตามข้อ {rule} กรุณาติดต่อผู้ดูแลระบบ",
   "NO_HIGHER_AUTHORITY": "DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้",
   "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
   "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",

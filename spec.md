@@ -352,7 +352,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `AUDITOR` | ผู้ตรวจสอบ | อ่านอย่างเดียวทั้งองค์กร ส่งออก audit trail |
 | `ORG_ADMIN` | ผู้ดูแลองค์กร | ผู้ใช้ ชื่อแผนก cost center ประเภทคำขอ ปฏิทิน เลขเอกสาร · ร่าง DOA และเสนอการเปลี่ยนโครงสร้างอำนาจ ซึ่งมีผลหลังผ่าน 4-eyes · ดูสถานะโมดูล · ควรมีอย่างน้อย 2 คนต่อองค์กร |
 | `PLATFORM_ADMIN` | ทีม BCS | สร้าง tenant · เปิดปิดโมดูลตามสัญญา (BR-AUTH-08) · ยืนยันตัวตนผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19) · สองเรื่องหลังไม่ต้อง break-glass เพราะไม่อ่านข้อมูลธุรกิจ · ไม่มีสิทธิ์ทางธุรกิจ และไม่ร่าง แก้ หรืออนุมัติ DOA ของลูกค้า (NG-12) · เข้าข้อมูล tenant ได้เฉพาะ break-glass (BR-AUTH-03) |
-| `REVIEWER_IT` / `_LEGAL` / `_FINANCE` / `_INFOSEC` | ผู้ตรวจข้ามแผนก | ชั้น 2 (อนุมัติคู่ขนาน) และชั้น 3 (ความเสี่ยง) |
+| `REVIEWER_IT` / `_LEGAL` / `_FINANCE` / `_INFOSEC` | ผู้ตรวจข้ามแผนก | ชั้น 3 (ความเสี่ยง) · ไม่ใช้ในอนุมัติคู่ขนานของชั้น 2: ผู้ตรวจคู่ขนานมาจากตำแหน่งใน `WorkflowVersion` ที่ผ่าน 4-eyes ไม่ใช่ role ที่ ORG_ADMIN ให้ได้คนเดียว (OQ-101 · BR-WF-08) |
 | `SUPPLIER_CONTACT` | ผู้ติดต่อของผู้ขาย | ชั้น 2 ใช้ session แยกจากผู้ใช้ภายในโดยสิ้นเชิง |
 | `SYSTEM` · `AI_AGENT:<name>` | ผู้กระทำที่ไม่ใช่คน | งานตามเวลา (ชั้น 1) · AI (ชั้น 4) บันทึก `actorType` แยกเสมอ |
 
@@ -2194,7 +2194,7 @@ cases:
 | INV-WF-03 | step ที่ DONE ไม่มีงาน OPEN หรือ INFO_REQUESTED และผลไม่เปลี่ยน | integration test ตัดสินพร้อมกัน 3 slot (แบบ INV-PLT-01) |
 | INV-WF-04 | ทุก `approval_task.decided` ของงาน REVIEW มี doaVersionId ruleCode ของ route และ workflowVersionId workflowRuleCodes | เทสต์ schema event (INV-DOA-01 ยังผ่าน) |
 
-**Golden ของคณะกรรมการ ผลของขั้นแบบ slot และ lint ของ BR-WF-05 (S6-02 · suite `workflow` · S6-03 เพิ่มผู้ตรวจ):**
+**Golden ของคณะกรรมการ ผลของขั้นแบบ slot lint ของ BR-WF-05 (S6-02) ผู้ตรวจคู่ขนานและ lint workflow (S6-03) · suite `workflow`:**
 
 ```yaml
 # tests/golden/fixtures/org-s6.yaml
@@ -2269,10 +2269,34 @@ versions:
 ```
 
 ```yaml
+# tests/golden/fixtures/workflow-versions.yaml
+# requestTypes = field ของฟอร์มฉบับปัจจุบันตาม prisma/seed/forms.yaml (lint BR-WF-11 ใช้)
+requestTypes:
+  BUY_GOODS: [singleSourceJustification]
+  HIRE_SERVICE: [scopeOfWork, servicePeriod, singleSourceJustification, processesPersonalData, accessesSystems, accessesPremises]
+  CONTRACT_WORK: [scopeOfWork, milestones, site, singleSourceJustification]
+  IT_PURCHASE: [category, assetTag, singleSourceJustification, processesPersonalData, accessesSystems, accessesPremises]
+versions:
+  - code: WF-DEMO
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    rules:
+      - { code: RV-01, requestTypes: [IT_PURCHASE], when: {}, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-02, requestTypes: [HIRE_SERVICE], when: { field: processesPersonalData, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-03, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-04, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-05, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-06, requestTypes: [BUY_GOODS], when: { field: $lineCategories, op: anyIn, value: [SAFETY, FUEL] }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ANY, slaBusinessHours: 8 }
+      - { code: RV-07, requestTypes: [BUY_GOODS], when: { all: [{ field: $budgetAccountCodes, op: anyIn, value: ["121101", "121201", "121301"] }, { field: $amountGross, op: gt, value: "500000.00" }] }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-08, requestTypes: [BUY_GOODS], when: { field: $lineCategories, op: anyIn, value: [FUEL] }, reviewers: [{ kind: POSITION_AT, position: DM, department: PROC }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ANY, slaBusinessHours: 8 }
+      - { code: RV-09, requestTypes: [IT_PURCHASE], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }, { kind: POSITION_AT, position: DM, department: PROC }, { kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: COUNT, quorumCount: 2, slaBusinessHours: 16 }
+```
+
+```yaml
 # tests/golden/workflow.yaml
 suite: workflow
-fixtures: [fixtures/org-s6.yaml, fixtures/doa-versions.yaml, fixtures/doa-committee.yaml]
-defaults: { documentType: PURCHASE_REQUEST, doa: DOA-DEMO, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+fixtures: [fixtures/org-s6.yaml, fixtures/doa-versions.yaml, fixtures/workflow-versions.yaml, fixtures/doa-committee.yaml]
+defaults: { documentType: PURCHASE_REQUEST, doa: DOA-DEMO, workflow: WF-DEMO, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
 cases:
   # คณะกรรมการ (BR-WF-02 ถึง BR-WF-04)
   - { id: GC-WF-01, title: กรรมการ 3 คน เสียงข้างมาก, fn: resolveRoute, input: { doa: DOA-WF, amount: "100000.01" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin, dm_proc] }] } }
@@ -2295,6 +2319,29 @@ cases:
   - { id: GC-WF-16, fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, quorum: COUNT, quorumCount: 4 } }, expect: { errors: [{ code: DOA_LINT_QUORUM_INVALID, rule: PR-02 }], warnings: [] } }
   - { id: GC-WF-17, title: PARALLEL ผู้อนุมัติคนเดียว (เข้ากับเทสต์เดิมใน tests/unit/doa.test.ts), fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }] } }, expect: { errors: [{ code: DOA_LINT_PARALLEL_STEP, rule: PR-02 }], warnings: [] } }
   - { id: GC-WF-18, title: คณะกรรมการที่ถูกต้องผ่าน lint หลัง S6, fn: lintDoaVersion, input: { doa: DOA-WF }, expect: { errors: [], warnings: [] } }
+  # resolveRequestRoute = ขั้น REVIEW จาก workflow + ขั้นของ DOA (BR-WF-06 ถึง BR-WF-10) · review.groups แสดงเฉพาะกลุ่ม COUNT (กลุ่มอื่นคือ slot ละกลุ่ม)
+  - { id: GC-WF-19, title: งานเหมาเท่าเกณฑ์พอดี ไม่มีผู้ตรวจ, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1000000.00" }, expect: { review: null, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-20, title: เกินเกณฑ์ 1 สตางค์ ผู้ตรวจ 3 ฝ่ายพร้อมกัน, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1000000.01" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-03], reviewers: [dm_leg] }, { rules: [RV-04], reviewers: [dm_qse] }, { rules: [RV-05], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-21, title: DM ไอทีขอเอง ผู้ตรวจไปสำรอง และ VP เป็นทั้งผู้ตรวจและผู้อนุมัติ, fn: resolveRequestRoute, input: { requestType: IT_PURCHASE, requester: dm_it, department: IT, net: "15750.00", vat: "1102.50" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-01], reviewers: [vp_sup], fallback: CONFLICT }] }, approval: { rule: PR-01, escalatedTo: PR-02, approvers: [vp_sup] } } }
+  - { id: GC-WF-22, title: ของความปลอดภัย ข้อ ANY ข้อเดียว, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [SAFETY], amount: "5000.00" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-06], reviewers: [dm_qse] }] }, approval: { rule: PR-01, approvers: [dm_con] } } }
+  - { id: GC-WF-23, title: ข้อ ANY สองข้อรวมเป็น slot เดียว, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [FUEL], amount: "5000.00" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-06, RV-08], reviewers: [dm_qse, dm_proc] }] }, approval: { rule: PR-01, approvers: [dm_con] } } }
+  - { id: GC-WF-24, title: งบลงทุนเกิน 500,000 1 สตางค์, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [IT], budgetAccountCodes: ["121201"], amount: "500000.01" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-07], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-25, title: งบลงทุนเท่าเกณฑ์พอดี, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [IT], budgetAccountCodes: ["121201"], amount: "500000.00" }, expect: { review: null, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-26, title: ผู้ตรวจว่าง ใช้สำรอง, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1500000.00", vacate: ["DM@LEG"] }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-03], reviewers: [vp_sup], fallback: VACANT }, { rules: [RV-04], reviewers: [dm_qse] }, { rules: [RV-05], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-27, title: ผู้ตรวจและสำรองว่าง, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1500000.00", vacate: ["DM@LEG", "VP@SUP"] }, expect: { error: REVIEWER_NOT_FOUND, rule: RV-03 } }
+  - { id: GC-WF-28, title: ผู้ตรวจเป็นผู้ขอเอง, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, requester: dm_leg, amount: "1500000.00" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-03], reviewers: [vp_sup], fallback: CONFLICT }, { rules: [RV-04], reviewers: [dm_qse] }, { rules: [RV-05], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-29, title: ไอทีเกินเกณฑ์ 1 สตางค์ ผู้ตรวจ 2 ใน 3 ฝ่าย, fn: resolveRequestRoute, input: { requestType: IT_PURCHASE, amount: "1000000.01" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-01], reviewers: [dm_it] }, { rules: [RV-09], reviewers: [dm_fin] }, { rules: [RV-09], reviewers: [dm_proc] }, { rules: [RV-09], reviewers: [dm_qse] }], groups: [{ rules: [RV-09], quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-30, title: ผู้ตรวจของข้อ COUNT ว่างจนสำรองคนเดียวกันเหลือ slot ไม่พอ, fn: resolveRequestRoute, input: { requestType: IT_PURCHASE, amount: "1500000.00", vacate: ["DM@FIN", "DM@PROC", "DM@QSE"] }, expect: { error: REVIEWER_NOT_FOUND, rule: RV-09 } }
+  # stepOutcome ของขั้น REVIEW (BR-WF-01 BR-WF-09) · groups = กลุ่มของขั้น (slotNo ของแต่ละกลุ่ม)
+  - { id: GC-WF-31, title: ผู้ตรวจไม่อนุมัติไม่ได้, fn: stepOutcome, input: { kind: REVIEW, quorum: ALL, slots: [APPROVE, REJECT] }, expect: { error: VALIDATION_FAILED, reason: REVIEW_CANNOT_REJECT } }
+  - { id: GC-WF-32, title: กลุ่ม 2 ใน 3 ครบ ยกเลิกงานที่เหลือของกลุ่ม แต่ขั้นยังรอข้อ ALL, fn: stepOutcome, input: { kind: REVIEW, groups: [{ quorum: ALL, slots: [1] }, { quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }], slots: [null, APPROVE, APPROVE, null] }, expect: { outcome: OPEN, cancel: [4] } }
+  - { id: GC-WF-33, title: ทุกกลุ่มครบ กลุ่ม COUNT ได้เท่าจำนวนพอดี, fn: stepOutcome, input: { kind: REVIEW, groups: [{ quorum: ALL, slots: [1] }, { quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }], slots: [APPROVE, APPROVE, null, APPROVE] }, expect: { outcome: APPROVED, cancel: [3] } }
+  - { id: GC-WF-34, title: กลุ่ม COUNT ขาด 1 เสียง, fn: stepOutcome, input: { kind: REVIEW, groups: [{ quorum: ALL, slots: [1] }, { quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }], slots: [APPROVE, APPROVE, null, null] }, expect: { outcome: OPEN } }
+  # lint workflow (BR-WF-11)
+  - { id: GC-WF-35, fn: lintWorkflowVersion, input: { addRules: [{ code: RV-99, requestTypes: [NO_SUCH_TYPE], when: {}, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }] }, expect: { errors: [{ code: WF_LINT_UNKNOWN_REQUEST_TYPE, rule: RV-99 }], warnings: [] } }
+  - { id: GC-WF-36, fn: lintWorkflowVersion, input: { replaceWhen: { rule: RV-03, when: { field: notAField, op: eq, value: "Y" } } }, expect: { errors: [{ code: WF_LINT_UNKNOWN_FIELD, rule: RV-03, field: notAField }], warnings: [] } }
+  - { id: GC-WF-37, fn: lintWorkflowVersion, input: { vacate: ["DM@LEG"] }, expect: { errors: [], warnings: [{ code: WF_LINT_VACANT_REVIEWER, rule: RV-02 }, { code: WF_LINT_VACANT_REVIEWER, rule: RV-03 }] } }
+  - { id: GC-WF-38, fn: lintWorkflowVersion, input: { removeFallback: [RV-03] }, expect: { errors: [], warnings: [{ code: WF_LINT_NO_FALLBACK, rule: RV-03 }] } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -3773,6 +3820,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_LINT_FAILED` | 422 | DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes} |
 | `APPROVER_NOT_FOUND` | 422 | ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ |
+| `REVIEWER_NOT_FOUND` | 422 | ไม่พบผู้ตรวจ {position} ของ {department} ตามข้อ {rule} กรุณาติดต่อผู้ดูแลระบบ |
 | `NO_HIGHER_AUTHORITY` | 422 | DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้ |
 | `BUDGET_INSUFFICIENT` | 422 | งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท |
 | `BUDGET_LINE_CLOSED` | 422 | บรรทัดงบนี้ถูกระงับหรือปิดแล้ว |
@@ -3851,7 +3899,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       22 ไฟล์ · 191 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       22 ไฟล์ · 211 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

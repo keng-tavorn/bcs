@@ -2695,6 +2695,7 @@
     "NOT_FOUND": "Not found",
     "NO_HIGHER_AUTHORITY": "The DOA has no authority above the requester for this amount",
     "RATE_LIMITED": "Too many attempts. Please try again later",
+    "REVIEWER_NOT_FOUND": "No reviewer {position} of {department} for rule {rule}. Please contact your administrator",
     "SOD_VIOLATION": "Not allowed because it breaks segregation of duties ({rule})",
     "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
     "STEP_UP_REQUIRED": "This action requires PIN confirmation",

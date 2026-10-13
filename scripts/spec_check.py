@@ -826,6 +826,120 @@ def wf_resolve(d, i):
         if (q == "ALL" and cut) or (q == "ANY" and not rest) or (q == "COUNT" and len(rest) < qc): continue
         res["steps"] = [{"mode": "PARALLEL", "quorum": q, **({"quorumCount": qc} if q == "COUNT" else {}), "approvers": rest}]; return res
     return {"error": "NO_HIGHER_AUTHORITY"}
+WF_VARS = ("$amountGross", "$amountNet", "$requestType", "$lineCategories", "$budgetAccountCodes")
+def wf_holds(w, i):
+    # BR-WF-07: all/any, anyIn over the set variables, money in satang for $amountGross, the ops of §7.9 otherwise
+    if "all" in w: return all(wf_holds(x, i) for x in w["all"])
+    if "any" in w: return any(wf_holds(x, i) for x in w["any"])
+    if "field" not in w: return True
+    f, op, v = w["field"], w["op"], w.get("value")
+    if op == "anyIn": return bool(set(map(str, v)) & set(i.get(f[1:], []) if f.startswith("$") else i.get("fields", {}).get(f, [])))
+    if f == "$amountGross":
+        a, b = i["_gross"], sat(v)
+        return {"gt": a > b, "gte": a >= b, "lt": a < b, "lte": a <= b, "eq": a == b, "ne": a != b}[op]
+    x = i.get("requestType") if f == "$requestType" else i.get("fields", {}).get(f)
+    return {"eq": str(x) == str(v), "ne": str(x) != str(v), "in": str(x) in [str(y) for y in (v or [])]}[op]
+def wf_reviewer(spec, vac):
+    # BR-WF-08: POSITION_AT walks up from its department to the root
+    if spec["kind"] == "MEMBER": return None if spec["member"] in vac else spec["member"]
+    d = spec["department"]
+    while d:
+        h = HOLD.get((spec["position"], d))
+        if h and f"{spec['position']}@{d}" not in vac: return h
+        d = PARENT.get(d)
+    return None
+def wf_one(rule, spec, conf, vac):
+    own = wf_reviewer(spec, vac)
+    if own is not None and own not in conf: return own, None
+    fb = wf_reviewer(rule["fallback"], vac) if rule.get("fallback") else None
+    if fb is None or fb in conf: return None, None
+    return fb, ("CONFLICT" if own is not None else "VACANT")
+def wf_review(d, i):
+    at = dt(i["at"]); wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "workflow-versions" in f]
+    vs = sorted([v for w in wfs for v in w["versions"] if v["code"] == i.get("workflow") and dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
+    if not vs: return None
+    rules = [r for r in vs[-1]["rules"] if i["requestType"] in r["requestTypes"] and wf_holds(r["when"], i)]
+    if not rules: return None
+    conf = {i["requester"]} | set(i.get("alsoConflicting", [])); vac = set(i.get("vacate", []))
+    slots, groups = [], []   # slot = {rules, people: [(who, fallback)], groups: set}
+    for r in [x for x in rules if x["mode"] == "ALL"]:
+        who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+        if who is None: return {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}
+        groups.append(("ALL", None, [r["code"]])); slots.append({"rules": [r["code"]], "people": [(who, fb)], "groups": {len(groups) - 1}})
+    anys = [x for x in rules if x["mode"] == "ANY"]
+    if anys:
+        people = []
+        for r in anys:
+            who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+            if who is None: return {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}
+            if who not in [p for p, _ in people]: people.append((who, fb))
+        groups.append(("ANY", None, [r["code"] for r in anys])); slots.append({"rules": [r["code"] for r in anys], "people": people, "groups": {len(groups) - 1}})
+    for r in [x for x in rules if x["mode"] == "COUNT"]:
+        own = []
+        for spec in r["reviewers"]:
+            who, fb = wf_one(r, spec, conf, vac)
+            if who is not None and who not in [o["people"][0][0] for o in own]: own.append({"rules": [r["code"]], "people": [(who, fb)], "groups": set()})
+        if len(own) < r["quorumCount"]: return {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}
+        groups.append(("COUNT", r["quorumCount"], [r["code"]]))
+        for o in own: o["groups"].add(len(groups) - 1)
+        slots += own
+    merged = []
+    for sl in slots:
+        if len(sl["people"]) == 1:
+            p = sl["people"][0][0]; into = next((m for m in merged if len(m["people"]) == 1 and m["people"][0][0] == p), None)
+            if into:
+                into["rules"] += [c for c in sl["rules"] if c not in into["rules"]]; into["groups"] |= sl["groups"]; continue
+        merged.append(sl)
+    out = {"quorum": "ALL", "slots": []}
+    for m in merged:
+        x = {"rules": m["rules"], "reviewers": [p for p, _ in m["people"]]}
+        if len(m["people"]) == 1 and m["people"][0][1]: x["fallback"] = m["people"][0][1]
+        out["slots"].append(x)
+    counts = [{"rules": g[2], "quorum": "COUNT", "quorumCount": g[1], "slots": [n + 1 for n, m in enumerate(merged) if gi in m["groups"]]} for gi, g in enumerate(groups) if g[0] == "COUNT"]
+    if counts: out["groups"] = counts
+    return out
+def wf_request_route(d, i):
+    i = dict(i)
+    i["_gross"] = sat(i["amount"]) if "amount" in i else sat(i["net"]) + sat(i.get("vat", "0"))
+    use_doa = {**i, "doa": i["doa"]}
+    appr = resolve_doa_code(d, use_doa)
+    if "error" in appr: return appr
+    rv = wf_review(d, i)
+    if rv is not None and "error" in rv: return rv
+    return {"review": rv, "approval": appr}
+def resolve_doa_code(d, i):
+    # the DOA route of a purchase request by the version of one code (resolve() reads DOAV: the file's versions of that code)
+    global DOAV
+    keep = DOAV
+    DOAV = {"versions": [v for f in d["fixtures"] if "/doa-" in f for v in golden["tests/golden/" + f][0]["versions"] if v["code"] == i["doa"]]}
+    try:
+        got = resolve(i)
+    finally:
+        DOAV = keep
+    return {k: v for k, v in got.items() if k in ("rule", "escalatedTo", "approvers", "error")}
+def wf_lint(d, i):
+    wfx = next(golden["tests/golden/" + f][0] for f in d["fixtures"] if "workflow-versions" in f)
+    v = copy.deepcopy(next(x for x in wfx["versions"] if x["code"] == d["defaults"].get("workflow")))
+    v["rules"] += copy.deepcopy(i.get("addRules") or [])
+    for r in v["rules"]:
+        if r["code"] == (i.get("replaceWhen") or {}).get("rule"): r["when"] = i["replaceWhen"]["when"]
+        if r["code"] in (i.get("removeFallback") or []): r.pop("fallback", None)
+    types, vac = wfx["requestTypes"], set(i.get("vacate") or [])
+    errs, warns, seen = [], [], set()
+    def fields(w): return [x for c in w.get("all", []) + w.get("any", []) for x in fields(c)] + ([w["field"]] if "field" in w else [])
+    for r in v["rules"]:
+        errs += [{"code": "WF_LINT_UNKNOWN_REQUEST_TYPE", "rule": r["code"]} for t in r["requestTypes"] if t not in types]
+        known = [t for t in r["requestTypes"] if t in types]
+        for f in dict.fromkeys(fields(r["when"])):
+            if f not in WF_VARS and (not known or any(f not in types[t] for t in known)): errs.append({"code": "WF_LINT_UNKNOWN_FIELD", "rule": r["code"], "field": f})
+        n, qc = len(r["reviewers"]), r.get("quorumCount")
+        if not ((r["mode"] == "COUNT" and n >= 2 and qc is not None and 1 <= qc <= n) or (r["mode"] != "COUNT" and n == 1 and qc is None)): errs.append({"code": "WF_LINT_QUORUM_INVALID", "rule": r["code"]})
+        if r["code"] in seen: errs.append({"code": "WF_LINT_DUPLICATE_CODE", "rule": r["code"]})
+        seen.add(r["code"])
+        if any(x["kind"] != "MEMBER" and wf_reviewer(x, vac) is None for x in r["reviewers"]): warns.append({"code": "WF_LINT_VACANT_REVIEWER", "rule": r["code"]})
+        if not r.get("fallback"): warns.append({"code": "WF_LINT_NO_FALLBACK", "rule": r["code"]})
+        if any(x["kind"] == "MEMBER" for x in r["reviewers"]): warns.append({"code": "WF_LINT_MEMBER_REVIEWER", "rule": r["code"]})
+    return {"errors": errs, "warnings": warns}
 def run_workflow(d):
     global HOLD
     use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
@@ -834,9 +948,13 @@ def run_workflow(d):
         HOLD = {**base, **{tuple(k.split("@")): m for k, m in (i.get("replaceHolders") or {}).items()}}
         if c["fn"] == "stepOutcome": got = wf_outcome(c["input"])
         elif c["fn"] == "lintDoaVersion": got = lint_version(wf_versions(d, i["doa"], i.get("replaceStep"))[0], frozenset(i.get("vacate") or []))
+        elif c["fn"] == "lintWorkflowVersion": got = wf_lint(d, i)
+        elif c["fn"] == "resolveRequestRoute": got = wf_request_route(d, i)
         else: got = wf_resolve(d, i)
         exp = c["expect"]
-        ok = got == exp if c["fn"] == "lintDoaVersion" else all(got.get(k) == x for k, x in exp.items()) and ("escalatedTo" in exp) == ("escalatedTo" in got)
+        if c["fn"] in ("lintDoaVersion", "lintWorkflowVersion"): ok = got == exp
+        elif c["fn"] == "resolveRequestRoute": ok = all(got.get(k) == x for k, x in exp.items()) and ("escalatedTo" in exp.get("approval", {})) == ("escalatedTo" in (got.get("approval") or {}))
+        else: ok = all(got.get(k) == x for k, x in exp.items()) and ("escalatedTo" in exp) == ("escalatedTo" in got)
         out.append((c["id"], ok, got))
     HOLD = base; use_fixtures()
     return out

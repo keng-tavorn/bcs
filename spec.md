@@ -387,6 +387,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `gr.reverse` | PROCUREMENT (ORG, ต้องระบุเหตุผล, ก่อนยืนยันใบกำกับ) |
 | `variance.decide` | ตาม DOA ข้อ `GR_VARIANCE` เท่านั้น |
 | `invoiceConfirmation.record` | FINANCE (ORG) |
+| `invoice.record` | FINANCE (ORG) — สร้าง แก้ ยืนยันรหัสบัญชี ส่ง และทิ้งร่างใบแจ้งหนี้ชั้น 2 · ใช้ได้เมื่อเปิดโมดูล `PAY` (BR-AP-13) |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
@@ -1797,7 +1798,7 @@ cases:
 | นำเข้าหรือเพิ่มงบ | OUTSIDE → AVAILABLE | BUDGET_ADMIN นำเข้า |
 | จอง | AVAILABLE → RESERVED | ส่ง PR · ส่ง PO ที่แพงกว่าส่วนที่จะคืน (จองเฉพาะส่วนต่าง) |
 | คืนจอง | RESERVED → AVAILABLE | PR ถูกปฏิเสธหรือยกเลิก · PO อนุมัติ (คืนส่วนของ PR) · PO ถูกปฏิเสธหรือตีกลับ (คืนส่วนต่าง) |
-| ถือ | AVAILABLE → COMMITTED | PO อนุมัติ · รับเกินที่อนุมัติแล้ว |
+| ถือ | AVAILABLE → COMMITTED | PO อนุมัติ · รับเกินที่อนุมัติแล้ว · ใบแจ้งหนี้ชั้น 2 ราคาเกินในเกณฑ์หรือส่วนต่างที่อนุมัติ (BR-MATCH-11) |
 | คืนถือ | COMMITTED → AVAILABLE | ยกเลิก PO · ปิด PO ที่รับไม่ครบ (เฉพาะส่วนที่ไม่ได้รับ) หรือใบกำกับน้อยกว่า PO · ใบกำกับใบสุดท้ายของ PO ที่ปิดแล้ว (BR-BUD-06) |
 | ตัด | COMMITTED → ACTUAL | ยืนยันใบกำกับ (ชั้น 1) · ใบแจ้งหนี้ผ่านการจับคู่ (ชั้น 2) |
 
@@ -1813,7 +1814,7 @@ cases:
 | BR-BUD-08 | บรรทัดงบ `FROZEN` หรือ `CLOSED` จองใหม่ไม่ได้ แต่ถือและตัดจากรายการเดิมได้ |
 | INV-BUD-01 | ต่อบรรทัดงบ available + reserved + committed + actual = ยอดที่นำเข้าสุทธิเสมอ |
 | INV-BUD-02 | ไม่มี bucket ใดติดลบ (CHECK ในฐานข้อมูล + ตรวจใน core) |
-| INV-BUD-03 | ต่อเอกสาร: ยอดจองของบรรทัดคำขอ ≤ ยอดบรรทัดคำขอ · ยอดถือของ PO บรรทัด ≤ ยอด PO บรรทัด + ส่วนเกินที่อนุมัติ · ยอดตัด ≤ ยอดถือที่เคยมี |
+| INV-BUD-03 | ต่อเอกสาร: ยอดจองของบรรทัดคำขอ ≤ ยอดบรรทัดคำขอ · ยอดถือของ PO บรรทัด ≤ ยอด PO บรรทัด + ส่วนเกินที่อนุมัติ + ส่วนเกินของใบแจ้งหนี้ชั้น 2 ที่อยู่ในเกณฑ์การจับคู่หรือที่อนุมัติส่วนต่างแล้ว (BR-MATCH-11) · ยอดตัด ≤ ยอดถือที่เคยมี |
 | INV-BUD-04 | ledger ทุกแถวอ้าง Event ที่สร้างในธุรกรรมเดียวกัน |
 | INV-BUD-05 | การจองพร้อมกันไม่ทำให้เกินงบ: ล็อก `BudgetLineBalance` ด้วย `SELECT … FOR UPDATE` ตามลำดับ id |
 | INV-BUD-06 | ledger แก้หรือลบไม่ได้ (INV-EVT-01) การแก้ไขทำด้วยรายการย้อนกลับเท่านั้น |
@@ -2325,6 +2326,21 @@ cases:
 | BR-POC-03 | งบ (ADR-125): ต่อบรรทัด Δ = ยอดใหม่ − ยอดเดิม · ตอนส่ง จอง max(Δ − releasable ของจำนวนที่เพิ่ม, 0) ในนามบรรทัด PO (AVAILABLE → RESERVED) ไม่พอ → `BUDGET_INSUFFICIENT` · ตอนอนุมัติ คืนการจองของใบแก้ไขและ releasable ของจำนวนที่เพิ่มจากคำขอ แล้วถือ Δ · Δ < 0 คืนถือเท่าขนาดของ Δ และจำนวนที่ลดใช้ disposition: `RETURN_TO_POOL` จอง releasable คืนให้คำขอ หรือ `CANCEL_REQUEST_LINES` · ไม่อนุมัติหรือยกเลิก คืนการจองของใบแก้ไข · ทุกการย้ายประกอบจาก `submitPo` `approvePo` `rejectPo` `releaseHold` `reserve` เดิมของ `src/core/budget` (ไม่เพิ่มหรือแก้ฟังก์ชันงบ) |
 | BR-POC-04 | ตอนขั้นสุดท้ายอนุมัติ `decide` ของ adapter ล็อก PO แล้วตรวจ BR-POC-01 ซ้ำกับจำนวนรับและแจ้งหนี้ ณ ตอนนั้น (ระหว่างรออนุมัติ GR หรือใบแจ้งหนี้ของ PO ยังเกิดได้) ไม่ผ่าน → `decide` คืน `PO_CHANGE_BELOW_PROGRESS` ธุรกรรมย้อน งานยังเปิดให้ไม่อนุมัติหรือตีกลับ · อนุมัติแล้ว: แก้ `PoLine` `PoLineSource` และยอดของ PO ในธุรกรรมเดียว · `revisionNo` + 1 · PDF ฉบับใหม่ "แก้ไขครั้งที่ n" (ฉบับเดิมคงอยู่) · เรียก `issueDocumentVerification(tx, ctx, { subjectType, subjectId })` ของ S6 สำหรับ PO นั้นในธุรกรรมเดียวกัน ให้ QR บน PDF ฉบับแก้ไขตรวจได้ (สายที่รวมเข้า main ทีหลังระหว่าง S6 กับ S8 เพิ่มการเรียกพร้อมเทสต์) · ตรวจซ้ำใบที่ `EXCEPTION` ของ PO นั้น |
 | BR-POC-05 | ใบแก้ไข PO อยู่ในโมดูล CORE (ไม่เรียก `requireModule`) · DOA ฉบับที่มีผลไม่มีข้อ `PO_CHANGE` → ไม่แสดงปุ่ม "แก้ไข PO" และ `po_change.create` `po_change.submit` ได้ `DOA_NOT_CONFIGURED` พร้อมข้อความ "DOA ยังไม่มีข้อสำหรับแก้ PO" โดยไม่จองงบ (องค์กร DEMO ไม่มีข้อนี้ ฉาก `@demo` จึงไม่เปลี่ยน) |
+
+วันครบกำหนดของใบ (BR-AP-07 · S8-03) และการเสนอรหัสบัญชี (BR-AP-10 · เพิ่มใน S8-11):
+
+```yaml
+# tests/golden/ap.yaml
+suite: ap
+# fn: dueDate (BR-AP-07 · OQ-129 · ข้อ S8-03) | suggestCoding (BR-AP-10 · OQ-128 · ข้อ S8-11)
+# history = บรรทัดที่ยืนยันแล้วของใบ READY_FOR_PAYMENT ขึ้นไป { taxId, categoryCode, accountCode, invoiceDate }
+cases:
+  - { id: GC-AP-01, fn: dueDate, title: เครดิตของ PO 30 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 30, supplierTermDays: 45, defaultTermDays: 30 }, expect: { dueDate: "2026-11-29" } }
+  - { id: GC-AP-02, fn: dueDate, title: ข้ามปีและเดือนกุมภาพันธ์, input: { invoiceDate: "2026-12-31", poTermDays: 60, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
+  - { id: GC-AP-03, fn: dueDate, title: PO ไม่มีเครดิต ใช้ของผู้ขาย, input: { invoiceDate: "2026-10-30", poTermDays: null, supplierTermDays: 15, defaultTermDays: 30 }, expect: { dueDate: "2026-11-14" } }
+  - { id: GC-AP-04, fn: dueDate, title: ไม่มีทั้งสองใช้ค่าตั้งต้น, input: { invoiceDate: "2027-01-30", poTermDays: null, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
+  - { id: GC-AP-05, fn: dueDate, title: เครดิต 0 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 0, supplierTermDays: 30, defaultTermDays: 30 }, expect: { dueDate: "2026-10-30" } }
+```
 
 **Invariant ของใบแจ้งหนี้ชั้น 2**
 
@@ -3591,6 +3607,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
+| invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
@@ -3813,6 +3830,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `BUDGET_LINE_CLOSED` | 422 | บรรทัดงบนี้ถูกระงับหรือปิดแล้ว |
 | `TAX_RATE_NOT_CONFIGURED` | 422 | ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม |
 | `INVOICE_EXCEEDS_COMMITTED` | 422 | ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท) |
+| `CODING_NOT_CONFIRMED` | 422 | ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines} |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
@@ -3886,7 +3904,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       23 ไฟล์ · 214 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       24 ไฟล์ · 219 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

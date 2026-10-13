@@ -1,0 +1,10 @@
+# tests/golden/ap.yaml
+suite: ap
+# fn: dueDate (BR-AP-07 · OQ-129 · ข้อ S8-03) | suggestCoding (BR-AP-10 · OQ-128 · ข้อ S8-11)
+# history = บรรทัดที่ยืนยันแล้วของใบ READY_FOR_PAYMENT ขึ้นไป { taxId, categoryCode, accountCode, invoiceDate }
+cases:
+  - { id: GC-AP-01, fn: dueDate, title: เครดิตของ PO 30 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 30, supplierTermDays: 45, defaultTermDays: 30 }, expect: { dueDate: "2026-11-29" } }
+  - { id: GC-AP-02, fn: dueDate, title: ข้ามปีและเดือนกุมภาพันธ์, input: { invoiceDate: "2026-12-31", poTermDays: 60, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
+  - { id: GC-AP-03, fn: dueDate, title: PO ไม่มีเครดิต ใช้ของผู้ขาย, input: { invoiceDate: "2026-10-30", poTermDays: null, supplierTermDays: 15, defaultTermDays: 30 }, expect: { dueDate: "2026-11-14" } }
+  - { id: GC-AP-04, fn: dueDate, title: ไม่มีทั้งสองใช้ค่าตั้งต้น, input: { invoiceDate: "2027-01-30", poTermDays: null, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
+  - { id: GC-AP-05, fn: dueDate, title: เครดิต 0 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 0, supplierTermDays: 30, defaultTermDays: 30 }, expect: { dueDate: "2026-10-30" } }

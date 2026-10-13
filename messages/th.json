@@ -1275,6 +1275,7 @@
       "File": "ไฟล์",
       "FormVersion": "ฟอร์มของประเภทคำขอ",
       "GoodsReceipt": "ใบตรวจรับ",
+      "Invoice": "ใบแจ้งหนี้",
       "InvoiceConfirmation": "ใบกำกับ",
       "Member": "สมาชิก",
       "Notification": "การแจ้งเตือน",
@@ -1387,6 +1388,16 @@
       },
       "holiday": {
         "imported": "นำเข้าวันหยุด"
+      },
+      "invoice": {
+        "cancelled": "ทิ้งร่างใบแจ้งหนี้",
+        "coding_confirmed": "ยืนยันรหัสบัญชีของใบแจ้งหนี้",
+        "drafted": "ร่างใบแจ้งหนี้",
+        "exception_raised": "ใบแจ้งหนี้มีรายการไม่ตรง",
+        "matched": "ใบแจ้งหนี้จับคู่ตรง",
+        "ready": "ใบแจ้งหนี้พร้อมจ่าย",
+        "submitted": "ส่งใบแจ้งหนี้",
+        "updated": "แก้ร่างใบแจ้งหนี้"
       },
       "invoice_confirmation": {
         "recorded": "บันทึกยืนยันใบกำกับ"
@@ -1504,6 +1515,7 @@
       "form_version": "ฟอร์ม",
       "gr": "ตรวจรับ",
       "holiday": "วันหยุด",
+      "invoice": "ใบแจ้งหนี้",
       "invoice_confirmation": "ใบกำกับ",
       "line": "บัญชี LINE",
       "member": "สมาชิก",
@@ -2648,6 +2660,7 @@
     "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",
     "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
     "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
+    "CODING_NOT_CONFIRMED": "ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines}",
     "CONFLICT_VERSION": "เอกสารถูกแก้ไขโดยผู้อื่น กรุณาโหลดใหม่",
     "DOA_AMBIGUOUS": "DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ",
     "DOA_LINT_FAILED": "DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",

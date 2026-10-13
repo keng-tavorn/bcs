@@ -24,6 +24,7 @@
   "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
   "TAX_RATE_NOT_CONFIGURED": "ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม",
   "INVOICE_EXCEEDS_COMMITTED": "ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท)",
+  "CODING_NOT_CONFIRMED": "ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines}",
   "STEP_UP_LOCKED": "ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time}",
   "STEP_UP_REQUIRED": "รายการนี้ต้องยืนยันด้วย PIN",
   "RATE_LIMITED": "ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง",

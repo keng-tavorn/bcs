@@ -1275,6 +1275,7 @@
       "File": "File",
       "FormVersion": "Request type form",
       "GoodsReceipt": "Goods receipt",
+      "Invoice": "Invoice",
       "InvoiceConfirmation": "Invoice",
       "Member": "Member",
       "Notification": "Notification",
@@ -1387,6 +1388,16 @@
       },
       "holiday": {
         "imported": "Holidays imported"
+      },
+      "invoice": {
+        "cancelled": "Invoice draft thrown away",
+        "coding_confirmed": "Invoice account codes confirmed",
+        "drafted": "Invoice drafted",
+        "exception_raised": "Invoice has differences",
+        "matched": "Invoice matched",
+        "ready": "Invoice ready for payment",
+        "submitted": "Invoice submitted",
+        "updated": "Invoice draft edited"
       },
       "invoice_confirmation": {
         "recorded": "Invoice confirmation recorded"
@@ -1504,6 +1515,7 @@
       "form_version": "Forms",
       "gr": "Receiving",
       "holiday": "Holidays",
+      "invoice": "Invoices",
       "invoice_confirmation": "Invoices",
       "line": "LINE accounts",
       "member": "Members",
@@ -2648,6 +2660,7 @@
     "ATTACHMENT_RULE_FAILED": "Required attachments missing under rule {rule}: {missing}",
     "BUDGET_INSUFFICIENT": "Insufficient budget: {available} baht available, {shortfall} baht short",
     "BUDGET_LINE_CLOSED": "This budget line is frozen or closed",
+    "CODING_NOT_CONFIRMED": "The account code of line {lines} is not confirmed yet",
     "CONFLICT_VERSION": "Someone else changed this document. Please reload",
     "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",
     "DOA_LINT_FAILED": "This DOA version has not passed its checks: {codes}",

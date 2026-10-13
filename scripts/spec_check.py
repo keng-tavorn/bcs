@@ -850,8 +850,20 @@ def run_invoice_vat(d):
         got = {"rateBp": r, "net": baht(net), "computedVat": baht(v), "computedGross": baht(net + v), "invoiceGross": baht(net + st), "diff": baht(diff), "status": status}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_ap(d):  # BR-AP-07 วันครบกำหนด (S8-03) · BR-AP-10 เสนอรหัสบัญชี (S8-11)
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        if c["fn"] == "dueDate":
+            days = next(x for x in (i["poTermDays"], i["supplierTermDays"], i["defaultTermDays"]) if x is not None)
+            got = {"dueDate": (datetime.fromisoformat(i["invoiceDate"]) + timedelta(days=days)).date().isoformat()}
+        else:
+            got = {"error": f"fn {c['fn']} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
+    "ap": run_ap,
     "budget": run_budget,
     "consolidation": run_cons,
     "dates": run_dates,

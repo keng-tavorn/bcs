@@ -7,7 +7,7 @@ import { createDraftFromReading, createInvoice } from '@/server/services/ap'
 import { recordInvoice } from '@/server/services/invoices'
 import { setModule } from '@/server/services/modules'
 import { closePurchaseOrder } from '@/server/services/purchase-orders'
-import { AP_NOW, apOrg, balanceOf, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
+import { AP_NOW, apOrg, balanceOf, codedDraft, fin, invoiceReading, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 
 // S8-04 (ADR-121, BR-IVC-06, BR-AP-11, BR-AP-03): a PO takes tier-1 confirmations or tier-2 invoices, never both; what
 // reads invoices counts tier 2 too (closing a PO, the document page); PAY cannot be switched off under open invoices;
@@ -104,7 +104,7 @@ describe('[FR-AP-101/AC5] a draft from what an AI read (invoice.createDraftFromR
 
   it('makes a draft labelled AI_READING by the member who accepted the reading', async () => {
     const po = await sentPo(ap, [{ quantity: '3', unitPrice: '500.00' }])
-    const agentActionId = randomUUID()
+    const agentActionId = await invoiceReading(ap, po.id)
     const { invoiceId } = ok(
       await createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, supplierId: ap.supplierId, agentActionId, supplierInvoiceNo: 'AI-77', invoiceDate: '2026-10-09', statedVat: '105.00', lines: [{ poLineId: po.lines[0]!.id, quantity: '3', unitPrice: '500.00' }] }, key()),
     )
@@ -115,10 +115,16 @@ describe('[FR-AP-101/AC5] a draft from what an AI read (invoice.createDraftFromR
     expect(drafted).toMatchObject({ actorType: 'USER', actorMemberId: ap.org.member.fin_officer, data: { prefill: 'AI_READING', agentActionId } })
   })
 
-  it('with aiAssist it is MODULE_DISABLED until S13 and no draft is made', async () => {
+  it('[FR-AI-303/AC6] refuses an AI action that is not this PO’s invoice reading, and no draft is made', async () => {
     const po = await sentPo(ap, [{ quantity: '1', unitPrice: '500.00' }])
-    const r = await createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, agentActionId: randomUUID(), aiAssist: { agentActionId: randomUUID(), confirmedPaths: ['lines.0.unitPrice'] } }, key())
-    expect(r).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED', details: { module: 'AI' } } })
+    const other = await sentPo(ap, [{ quantity: '1', unitPrice: '500.00' }])
+    const reading = await invoiceReading(ap, po.id)
+    const withFile = async (agentActionId: string, aiAssist?: { agentActionId: string; confirmedPaths: string[] }) => createDraftFromReading(fin(ap), { fileId: await file(), poId: po.id, agentActionId, ...(aiAssist ? { aiAssist } : {}) }, key())
+    expect(await withFile(randomUUID())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND', details: { field: 'agentActionId' } } })
+    expect(await withFile(reading, { agentActionId: randomUUID(), confirmedPaths: [] })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'AGENT_ACTION_MISMATCH' } } })
+    expect(await withFile(await invoiceReading(ap, other.id))).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT_MISMATCH' } } })
+    await prisma.agentAction.update({ where: { id: reading }, data: { purpose: 'DELIVERY_NOTE_READ' } })
+    expect(await withFile(reading)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'PURPOSE_MISMATCH' } } })
     expect(await prisma.invoice.count({ where: { poId: po.id } })).toBe(0)
   })
 

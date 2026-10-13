@@ -5,8 +5,8 @@ import { ctxFromSession, resolveSession } from '@/server/auth/session'
 import { readDocument } from '@/server/services/ai'
 import { sameOrigin } from '../../../_lib/same-origin'
 
-// POST /api/ai/read { fileId, purpose: QUOTATION | DELIVERY_NOTE, subject? } — starts reading a file with the Document
-// Agent (FR-AI-303 AC1 AC5 AC8, docs/sub-specs/S13.md "route"). Answers 202 { agentActionId } of a PENDING action that
+// POST /api/ai/read { fileId, purpose: QUOTATION | DELIVERY_NOTE | INVOICE, subject? } — starts reading a file with the Document
+// Agent (FR-AI-303 AC1 AC5 AC6 AC8, docs/sub-specs/S13.md "route"). Answers 202 { agentActionId } of a PENDING action that
 // GET /api/ai/actions/[id] follows · 400 AI_FILE_UNSUPPORTED (reason ETAX for an e-Tax file: no AI call, no credits) ·
 // 401 · 403 the gate that refused (AI_AGENT_DISABLED, MODULE_DISABLED, AI_NOT_EVALUATED) · 422 AI_CREDITS_EXHAUSTED ·
 // 429 RATE_LIMITED. The service decides everything; the route only reads the session and the body.

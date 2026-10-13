@@ -70,7 +70,7 @@ export type AiStartOutcome = { readonly ok: true; readonly agentActionId: string
 export type AiResultOutcome = { readonly ok: true; readonly result: AiResultView } | { readonly ok: false; readonly code: string }
 
 export interface AiReadActions {
-  readonly start: (input: { fileId: string; purpose: 'QUOTATION' | 'DELIVERY_NOTE'; subject?: { type: 'REQUEST' | 'PURCHASE_ORDER'; id: string } }, idempotencyKey: string) => Promise<AiStartOutcome>
+  readonly start: (input: { fileId: string; purpose: 'QUOTATION' | 'DELIVERY_NOTE' | 'INVOICE'; subject?: { type: 'REQUEST' | 'PURCHASE_ORDER'; id: string } }, idempotencyKey: string) => Promise<AiStartOutcome>
   readonly result: (agentActionId: string) => Promise<AiResultOutcome>
   readonly fileUrl: (fileId: string) => Promise<string | null>
 }

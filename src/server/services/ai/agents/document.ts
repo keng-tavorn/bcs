@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { fieldConfidence, mapDeliveryNote, mapQuotation, matchPoLine, verifyReading, type CheckResult, type ReadingToCheck } from '@/core/ai-checks'
 import { parseQuantity } from '@/core/money/math'
+import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { normalizeTaxId } from '@/core/thai/taxid'
 import { rateFor, taxDateOf } from '@/core/vat'
@@ -10,7 +11,7 @@ import { AGENT_OF_PURPOSE, AI_LIMITS, modelFor, type AiPurposeName } from '@/lib
 import { DocumentReading } from '@/lib/ai-schemas/document'
 import { getEnv } from '@/lib/env'
 import { contentMatchesType, isAllowedMimeType } from '@/lib/file-types'
-import { loadPrincipal } from '@/server/authz'
+import { authorize, loadPrincipal } from '@/server/authz'
 import { systemCtx, type Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { forTenant } from '@/server/db/tenant'
@@ -23,20 +24,20 @@ import { completeAgentAction, requestAgentAction } from '../actions'
 import { decimalText } from '../assist-contract'
 import { aiRuntime } from '../gate'
 
-// Document Agent for quotations and delivery notes (FR-AI-303 AC1–AC5 AC8, docs/sub-specs/S13.md BR-AI-12 to BR-AI-17
+// Document Agent for quotations, delivery notes and invoices (FR-AI-303 AC1–AC6 AC8, docs/sub-specs/S13.md BR-AI-12 to BR-AI-17
 // BR-AI-25). readDocument checks the file, its kind and the document it is read for, refuses an e-Tax file before any
 // AI call (BR-AI-12: no AgentAction, no credits), and starts a PENDING AgentAction. The job ai-agent-run then reads the
 // file with the adapter, checks every amount and identity in core (S13-06) and records a DRAFT whose review proposes form
 // values by path (assist-contract.ts): a quotation's fields at quotations.<fileId>.*, a receipt's received quantity at
-// lines.<poLineId>.received. Nothing is written into a document here: the person's own command takes the values in.
+// lines.<poLineId>.received, an invoice's header and lines.<poLineId>.quantity|unitPrice. Nothing is written into a document here: the person's own command takes the values in.
 
-export const READ_PURPOSE = { QUOTATION: 'QUOTATION_READ', DELIVERY_NOTE: 'DELIVERY_NOTE_READ' } as const satisfies Record<string, AiPurposeName>
+export const READ_PURPOSE = { QUOTATION: 'QUOTATION_READ', DELIVERY_NOTE: 'DELIVERY_NOTE_READ', INVOICE: 'INVOICE_READ' } as const satisfies Record<string, AiPurposeName>
 export const DOCUMENT_PURPOSES: readonly AiPurposeName[] = Object.values(READ_PURPOSE)
 
 export const ReadDocumentInput = z.strictObject({
   fileId: z.uuid(),
-  purpose: z.enum(['QUOTATION', 'DELIVERY_NOTE']),
-  /** The request a quotation is read for (none while a new request has no draft yet); the PO a delivery note is for */
+  purpose: z.enum(['QUOTATION', 'DELIVERY_NOTE', 'INVOICE']),
+  /** The request a quotation is read for (none while a new request has no draft yet); the PO a delivery note or an invoice is for */
   subject: z.strictObject({ type: z.enum(['REQUEST', 'PURCHASE_ORDER']), id: z.uuid() }).optional(),
 })
 
@@ -51,6 +52,15 @@ const unsupported = (reason: FileRefusal) => err('AI_FILE_UNSUPPORTED', `the AI 
 /** May this member read a file for this document? A request: its requester while it is a draft or returned; a PO: a receiver who may post it now */
 async function subjectRefusal(ctx: Ctx, input: z.output<typeof ReadDocumentInput>): Promise<Result<true>> {
   const subject = input.subject
+  if (input.purpose === 'INVOICE') {
+    // FINANCE reads an invoice for a purchase order (S13-12, FR-AI-303 AC6); invoice.createDraftFromReading checks the rest
+    if (subject?.type !== 'PURCHASE_ORDER') return err('VALIDATION_FAILED', 'an invoice is read for a purchase order', { field: 'subject' })
+    return forTenant(ctx.organizationId).$transaction(async (tx) => {
+      const allowed = await authorize(tx, ctx, 'invoice.record')
+      if (!allowed.ok) return allowed
+      return (await tx.purchaseOrder.count({ where: { id: subject.id } })) ? ok(true) : err('NOT_FOUND', 'purchase order not found')
+    })
+  }
   if (input.purpose === 'DELIVERY_NOTE') {
     if (subject?.type !== 'PURCHASE_ORDER') return err('VALIDATION_FAILED', 'a delivery note is read for a purchase order', { field: 'subject' })
     const view = await getReceivingView(ctx, subject.id)
@@ -187,6 +197,60 @@ async function deliveryNoteProposal(organizationId: string, now: Date, poId: str
 }
 
 /**
+ * An invoice of S8 from its reading (FR-AI-303 AC6): the header as read and each line of the PO it names by its words, at
+ * the quantity and price read. Every value waits for FINANCE one by one; the template is what
+ * invoice.createDraftFromReading takes, with the action as its agentActionId.
+ */
+async function invoiceProposal(organizationId: string, now: Date, poId: string, reading: Reading): Promise<Proposal> {
+  const po = await getReceivingPo(systemCtx(organizationId, now), poId)
+  const poLines = (po?.lines ?? []).map((l) => ({ id: l.id, lineNo: l.lineNo, description: l.description }))
+  const proposed: Record<string, string> = {}
+  const put = (path: string, value: string | null | undefined) => {
+    if (value !== null && value !== undefined && value !== '') proposed[path] = value
+  }
+  const amount = (v: string | null) => {
+    try {
+      return v === null ? null : satangToAmount(amountToSatang(v.replace(/,/g, '')))
+    } catch {
+      return null
+    }
+  }
+  put('supplierInvoiceNo', reading.docNo?.trim().slice(0, 60))
+  put('invoiceDate', reading.docDate && /^\d{4}-\d{2}-\d{2}$/.test(reading.docDate) ? reading.docDate : null)
+  put('statedVat', amount(reading.vat))
+  put('discount', amount(reading.discountTotal))
+  if (reading.priceIncludesVat !== null) put('priceIncludesVat', String(reading.priceIncludesVat))
+  const lines: Array<{ poLineId: string; quantity: string; unitPrice: string }> = []
+  const unmatched: number[] = []
+  reading.lines.forEach((l, i) => {
+    const lineNo = matchPoLine(l.description, poLines)
+    const poLine = poLines.find((p) => p.lineNo === lineNo)
+    let quantity: string | null = null
+    try {
+      quantity = l.qty !== null && parseQuantity(l.qty) > 0n ? decimalText(l.qty) : null
+    } catch {
+      quantity = null
+    }
+    const price = amount(l.unitPrice)
+    if (!poLine || quantity === null || price === null || lines.some((x) => x.poLineId === poLine.id)) return void unmatched.push(i + 1)
+    lines.push({ poLineId: poLine.id, quantity, unitPrice: price })
+    put(`lines.${poLine.id}.quantity`, quantity)
+    put(`lines.${poLine.id}.unitPrice`, price)
+  })
+  const template = {
+    poId,
+    ...(proposed.supplierInvoiceNo ? { supplierInvoiceNo: proposed.supplierInvoiceNo } : {}),
+    ...(proposed.invoiceDate ? { invoiceDate: proposed.invoiceDate } : {}),
+    ...(proposed.statedVat ? { statedVat: proposed.statedVat } : {}),
+    ...(proposed.discount ? { discount: proposed.discount } : {}),
+    ...(proposed.priceIncludesVat ? { priceIncludesVat: proposed.priceIncludesVat === 'true' } : {}),
+    ...(lines.length ? { lines } : {}),
+  }
+  // Every value of an invoice is confirmed by FINANCE one by one (FR-AI-303 AC6)
+  return { proposed, requiredPaths: Object.keys(proposed), mapping: { invoice: template, unmatchedLines: unmatched } }
+}
+
+/**
  * Reads the file of one PENDING Document action and records the answer (agent_action.complete, actor AI_AGENT): a DRAFT
  * with the reading, the checks, the confidence and the values proposed for the form, or FAILED with the reason. An
  * action that is no longer PENDING, or not the Document Agent's, is left as it is (a retry of the job repeats nothing).
@@ -217,7 +281,7 @@ export async function runDocumentRead(organizationId: string, agentActionId: str
   const sellerTaxId = reading.seller.taxId ? normalizeTaxId(reading.seller.taxId) : null
   const suppliers = sellerTaxId ? await db.supplier.findMany({ where: { taxId: sellerTaxId }, select: { id: true, taxId: true, branchCode: true, isVatRegistered: true, nameTh: true } }) : []
   const registry = suppliers.map((s) => ({ id: s.id, taxId: s.taxId!, branch: s.branchCode, vatRegistered: s.isVatRegistered, nameTh: s.nameTh }))
-  // The supplier of the context: the PO's for a delivery note (never the one the AI read: BR-AI-15)
+  // The supplier of the context: the PO's for a delivery note or an invoice (never the one the AI read: BR-AI-15)
   const poSupplier =
     action.subjectType === 'PURCHASE_ORDER' && action.subjectId
       ? (await db.purchaseOrder.findFirst({ where: { id: action.subjectId }, select: { supplier: { select: { taxId: true, branchCode: true, isVatRegistered: true } } } }))?.supplier
@@ -233,7 +297,9 @@ export async function runDocumentRead(organizationId: string, agentActionId: str
   const proposal =
     purpose === 'DELIVERY_NOTE_READ'
       ? await deliveryNoteProposal(organizationId, now, action.subjectId ?? '', reading)
-      : await quotationProposal(now, fileId, reading, checks, confidence, registry)
+      : purpose === 'INVOICE_READ'
+        ? await invoiceProposal(organizationId, now, action.subjectId ?? '', reading)
+        : await quotationProposal(now, fileId, reading, checks, confidence, registry)
   const { normalized: _normalized, fieldStatus: _fieldStatus, ...checkSummary } = checks
   return finish({
     outcome: 'DRAFT',

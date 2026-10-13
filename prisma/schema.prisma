@@ -2543,6 +2543,8 @@ model AgentAction {
   appliedBy    Member?          @relation("AgentActionAppliedBy", fields: [organizationId, appliedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   decidedBy    Member?          @relation("AgentActionDecidedBy", fields: [organizationId, decidedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   creditUses   AiCreditLedger[]
+  /// Invoices drafted from its reading (S13-12)
+  invoices     Invoice[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, idempotencyKey])
@@ -2773,7 +2775,7 @@ model Invoice {
   prefill                     InvoicePrefill      @default(MANUAL)
   /// Where each field's value came from, for the labels only (BR-AP-03)
   fieldSources                Json                @default("{}")
-  /// AgentAction of S13; no foreign key until that table exists
+  /// AgentAction of S13 whose reading this draft is (foreign key since S13-12)
   agentActionId               String?             @db.Uuid
   inboundEmailId              String?             @db.Uuid
   sourceFileId                String?             @db.Uuid
@@ -2831,6 +2833,10 @@ model Invoice {
   exceptions       MatchException[]
   retention        Retention?
   withholdingTaxes WithholdingTax[]
+
+  // --- S13 ---
+  /// The reading of the Document Agent this draft came from (S13-12)
+  agentAction AgentAction? @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])

@@ -12,9 +12,10 @@ features:
       - tests/integration/seed-p1-year-end.test.ts
       - tests/integration/seed-p1-year-start.test.ts
       - tests/integration/seed.test.ts
+      - tests/unit/org-settings-s6.test.ts
       - tests/unit/seed-inputs.test.ts
     verifiedBy: null
-    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01) และไฟล์ข้อมูลระยะ 1 ที่ seed ด้วย SEED_INPUTS=p1 (P1-02)"
+    notes: "AC1 รวมประวัติ demo ที่ seed สร้างครั้งเดียว (D-01) และไฟล์ข้อมูลระยะ 1 ที่ seed ด้วย SEED_INPUTS=p1 (P1-02) · AC2 รวมค่าตั้งของ S6 ที่ไม่บังคับพร้อมค่าเริ่มต้น (S6-01)"
   FR-PLT-002:
     status: done
     step: S1

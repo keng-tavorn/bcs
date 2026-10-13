@@ -49,6 +49,27 @@ export function formatDocumentNumber(pattern: string, context: NumberContext): s
   })
 }
 
+const LITERAL = /[.*+?^${}()|[\]\\]/g
+const TOKEN_TEXT: Readonly<Record<string, string>> = { BE: '\\d{4}', CE: '\\d{4}', YY: '\\d{2}', MM: '\\d{2}', DEPT: '[A-Za-z0-9]+' }
+
+/**
+ * BR-AP-02: the numbers of a pattern written inside a text (an e-mail subject, a file name), as a global regular
+ * expression: {SEQn} is at least n digits, and a number is never part of a longer word or number.
+ */
+export function numberPatternRegex(pattern: string): RegExp {
+  const problems = patternProblems(pattern)
+  if (problems.length > 0) throw new RangeError(`invalid number pattern ${pattern}: ${problems.join('; ')}`)
+  let source = ''
+  let last = 0
+  for (const m of pattern.matchAll(TOKEN)) {
+    source += pattern.slice(last, m.index).replace(LITERAL, '\\$&')
+    source += m[2] !== undefined ? `\\d{${m[2]},}` : TOKEN_TEXT[m[1]!]
+    last = m.index + m[0].length
+  }
+  source += pattern.slice(last).replace(LITERAL, '\\$&')
+  return new RegExp(`(?<![A-Za-z0-9])${source}(?![0-9])`, 'g')
+}
+
 /** BR-NUM-03: "<type>:<period>[:<department>]" — the period is the BE year, BE year-month, or NEVER. */
 export function scopeKey(documentType: string, pattern: string, reset: ResetPeriod, context: Omit<NumberContext, 'seq'>): string {
   const { be, month } = localParts(context.at)

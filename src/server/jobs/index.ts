@@ -7,6 +7,7 @@ import { delegationRevoked, delegationWindow } from './delegation-window'
 import { doaVersionActivate } from './doa-version-activate'
 import { draftExpiry } from './draft-expiry'
 import { invoiceAutoRecheck } from './invoice-auto-recheck'
+import { invoiceInboxPoll } from './invoice-inbox-poll'
 import { lineRichMenu } from './line-rich-menu'
 import { lineWebhook, lineWebhookSweep } from './line-webhook'
 import { notificationDeliver } from './notification-deliver'
@@ -41,6 +42,8 @@ export const functions = [
   invoiceAutoRecheck,
   supplierNoticeSend,
   supplierNoticeSweep,
+  // S8-07: the invoice inbox (ADR-123)
+  invoiceInboxPoll,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

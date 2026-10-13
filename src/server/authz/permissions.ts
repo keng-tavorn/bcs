@@ -92,6 +92,7 @@ export const PERMISSIONS = {
   // BR-MATCH-09: each holder checks again only the differences sent to their role (the service checks the role)
   'invoice.exception.resolve': [...roles(['FINANCE', 'PROCUREMENT'], 'ORG'), role('RECEIVER', 'DEPT'), role('RECEIVER', 'ASSIGNED')],
   'invoice.variance.request': [role('PROCUREMENT', 'ORG')],
+  'invoice.inbox.manage': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

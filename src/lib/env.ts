@@ -233,6 +233,9 @@ const schema = z
     EMAIL_PROVIDER: z.enum(['smtp', 'resend', 'ses']),
     EMAIL_SMTP_URL: optional(z.string().regex(/^smtps?:\/\//, 'ต้องขึ้นต้นด้วย smtp:// หรือ smtps://')),
     EMAIL_FROM: z.string().min(3),
+    // The invoice inbox (ADR-123): Mailpit on a local machine, nothing elsewhere until OQ-124; unset = by APP_ENV
+    INVOICE_INBOX_PROVIDER: optional(z.enum(['mailpit', 'disabled'])),
+    MAILPIT_API_URL: optional(urlSchema()).transform((v) => v ?? 'http://localhost:8025'),
 
     REGISTRY_MODE: z.enum(['stub', 'live']).default('stub'),
     RD_VAT_SERVICE_URL: optional(urlSchema()),
@@ -292,6 +295,7 @@ const schema = z
     const local = e.APP_ENV === 'local'
 
     if (e.EMAIL_PROVIDER === 'smtp' && !e.EMAIL_SMTP_URL) issue('EMAIL_SMTP_URL', 'ต้องตั้งเมื่อ EMAIL_PROVIDER=smtp')
+    if (e.INVOICE_INBOX_PROVIDER === 'mailpit' && !local) issue('INVOICE_INBOX_PROVIDER', 'mailpit ใช้ได้เฉพาะบนเครื่อง (ADR-123) — staging และ production ใช้ disabled จนกว่า OQ-124 ได้คำตอบ')
     // Tier 1–3 never call AI (EG-1, NG-5); AI stays off until S13.
     if (e.AI_ENABLED) issue('AI_ENABLED', 'ต้องเป็น false จนถึงขั้น S13 (EG-1)')
     // liff.ts appends the verify path to this value, locally too (the fake LINE server).

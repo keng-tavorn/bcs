@@ -1275,6 +1275,7 @@
       "File": "File",
       "FormVersion": "Request type form",
       "GoodsReceipt": "Goods receipt",
+      "InboundEmail": "Invoice inbox",
       "Invoice": "Invoice",
       "InvoiceConfirmation": "Invoice",
       "Member": "Member",
@@ -1389,6 +1390,12 @@
       },
       "holiday": {
         "imported": "Holidays imported"
+      },
+      "inbound_email": {
+        "failed": "Invoice inbox mail could not be read",
+        "ignored": "Invoice inbox mail skipped",
+        "processed": "Drafts made from invoice inbox mail",
+        "received": "Mail received in the invoice inbox"
       },
       "invoice": {
         "cancelled": "Invoice draft thrown away",
@@ -1529,6 +1536,7 @@
       "form_version": "Forms",
       "gr": "Receiving",
       "holiday": "Holidays",
+      "inbound_email": "Invoice inbox",
       "invoice": "Invoices",
       "invoice_confirmation": "Invoices",
       "line": "LINE accounts",

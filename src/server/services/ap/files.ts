@@ -79,6 +79,9 @@ export async function uploadInvoiceFile(ctx: Ctx, input: { poId: string; fileNam
   return ok({ fileId: stored.data.fileId })
 }
 
+/** Attachments of the invoice inbox (./inbox.ts): no PO yet, so any PO of the organization may take one (once) */
+export const inboxFilePrefix = (organizationId: string): string => `org/${organizationId}/invoice-inbox/`
+
 export type StoredFileRefusal = 'FILE' | 'FILE_OTHER_PO'
 
 const notFound = (error: unknown): boolean => {
@@ -88,7 +91,8 @@ const notFound = (error: unknown): boolean => {
 
 /**
  * The stored file of an invoice of `poId`, read again: refused when it is not available, belongs to another PO, is not
- * the bytes that were uploaded, or (with memberId) was uploaded by someone else. Reads storage.
+ * the bytes that were uploaded, or (with memberId) was uploaded by someone else. A file of the invoice inbox belongs to
+ * no PO until an invoice takes it. Reads storage.
  */
 export async function readStoredInvoiceFile(
   tx: Pick<TenantTx, 'fileObject'>,
@@ -99,7 +103,7 @@ export async function readStoredInvoiceFile(
     select: { id: true, storageKey: true, sha256: true },
   })
   if (!file) return { ok: false, reason: 'FILE' }
-  if (!file.storageKey.startsWith(invoiceFilePrefix(input.organizationId, input.poId))) return { ok: false, reason: 'FILE_OTHER_PO' }
+  if (!file.storageKey.startsWith(invoiceFilePrefix(input.organizationId, input.poId)) && !file.storageKey.startsWith(inboxFilePrefix(input.organizationId))) return { ok: false, reason: 'FILE_OTHER_PO' }
   let bytes: Uint8Array
   try {
     bytes = await readObject(file.storageKey)

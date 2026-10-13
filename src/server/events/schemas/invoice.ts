@@ -59,6 +59,15 @@ defineEvents('Invoice', {
   'match_exception.dismissed': { schema: z.object({ exceptionId: z.uuid(), type: exceptionType, reason: z.string().min(1) }) },
 })
 
+// The invoice inbox (ADR-123, BR-AP-02): what came in, never the body; skipped files are named with the reason
+const skipped = z.array(z.object({ fileName: z.string(), reason: z.enum(['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'OVER_LIMIT']) }))
+defineEvents('InboundEmail', {
+  'inbound_email.received': { schema: z.object({ provider: z.string().min(1), attachmentCount: z.number().int().min(0), skippedCount: z.number().int().min(0) }) },
+  'inbound_email.processed': { schema: z.object({ draftCount: z.number().int().min(0), pendingCount: z.number().int().min(0), skipped }) },
+  'inbound_email.ignored': { schema: z.object({ reason: z.string().min(1), skipped }) },
+  'inbound_email.failed': { schema: z.object({ code: z.string().min(1), attempts: z.number().int().min(1) }) },
+})
+
 // E-mails to a supplier (ADR-126): sent or refused, naming the template and the document (S9 reads payment.advice's)
 const noticeData = z.object({ noticeId: z.uuid(), templateKey: z.string().min(1), subjectType: z.string().min(1), subjectId: z.uuid() })
 defineEvents('SupplierNotice', {

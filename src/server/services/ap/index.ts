@@ -12,13 +12,14 @@ import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/assist-contract'
 import { issueDocumentNumber } from '../numbering'
-import { fail, guard, INVOICEABLE_PO_STATUSES, lockedInvoice, SUBJECT } from './common'
+import { fail, guard, INVOICEABLE_PO_STATUSES, lockedInvoice, SUBJECT, type Fail } from './common'
 import { INVOICED_STATUSES, runMatch } from './match-run'
 export { INVOICEABLE_PO_STATUSES } from './common'
 import { readyNotice } from './exceptions'
 import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
 import { claimTrack } from './track'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
+import type { EtaxContentReading } from '../invoices/etax'
 
 // Tier-2 invoices (spec FR-AP-101 FR-AP-102 FR-AP-105 FR-AP-108, docs/sub-specs/S8.md, §7.18 BR-AP-01 to BR-AP-13):
 // FINANCE makes a draft from an uploaded file against a PO, edits it, confirms the account code and cost center of
@@ -44,6 +45,91 @@ async function invoiceableQuantities(tx: TenantTx, po: { lines: ReadonlyArray<{ 
 
 // ---------- invoice.create (FR-AP-101 AC1) ----------
 
+/** The PO a draft is made on, locked: it must be able to take a tier-2 invoice (BR-MATCH-05, BR-IVC-06) */
+export async function lockPoForDraft(tx: TenantTx, ctx: Ctx, poId: string, command: string) {
+  const [id] = await lockRowsForUpdate(tx, 'PurchaseOrder', ctx.organizationId, [poId])
+  if (!id) return fail('NOT_FOUND', 'purchase order not found')
+  const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true } } } })
+  if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command })
+  // BR-IVC-06: the PO takes tier-2 invoices from now on (PAY is on: the caller's guard)
+  const track = await claimTrack(tx, po, 'MATCHING', true)
+  if (!track.ok) return track
+  return { ok: true as const, po }
+}
+
+type PoForDraft = Extract<Awaited<ReturnType<typeof lockPoForDraft>>, { ok: true }>['po']
+
+export interface DraftSource {
+  readonly channel: 'UPLOAD' | 'EMAIL'
+  /** The stored file read again (./files.ts readStoredInvoiceFile), or none */
+  readonly file: { readonly fileId: string; readonly reading: EtaxContentReading } | null
+  readonly inboundEmailId: string | null
+  /** The member who made it; null when the inbox job did */
+  readonly createdById: string | null
+}
+
+/**
+ * A draft on a PO locked by lockPoForDraft (FR-AP-101 AC1 AC2, BR-IVC-07): an e-Tax file of the PO's supplier fills the
+ * header; the lines come from what is still to invoice. The same file read the same way gives the same draft whether it
+ * was uploaded or came by e-mail (FR-AP-101 AC4).
+ */
+export async function draftOnPo(tx: TenantTx, ctx: Ctx, po: PoForDraft, source: DraftSource): Promise<{ ok: true; invoiceId: string; prefill: 'MANUAL' | 'ETAX_XML'; event: EventDraft } | Fail> {
+  const { file } = source
+  if (file && (await fileInUse(tx, file.fileId))) return fail('VALIDATION_FAILED', 'the invoice file is already the file of another invoice', { field: 'sourceFileId', reason: 'FILE_IN_USE' })
+  const prefill = file && 'prefill' in file.reading && file.reading.prefill.sellerTaxId === po.supplier.taxId ? file.reading.prefill : null
+  // the row is whole from its first write (gross = net + stated VAT, INV-AP-04); recalculate adds the lines
+  const statedVatSatang = prefill ? amountToSatang(prefill.vat) : 0n
+  const left = await invoiceableQuantities(tx, po)
+  const lines = po.lines.filter((l) => (left.get(l.id) ?? 0n) > 0n)
+  const invoice = await tx.invoice.create({
+    data: {
+      organizationId: ctx.organizationId,
+      poId: po.id,
+      supplierId: po.supplierId,
+      channel: source.channel,
+      prefill: prefill ? 'ETAX_XML' : 'MANUAL',
+      fieldSources: prefill ? { supplierInvoiceNo: 'ETAX_XML', invoiceDate: 'ETAX_XML', statedVat: 'ETAX_XML' } : {},
+      inboundEmailId: source.inboundEmailId,
+      sourceFileId: file ? file.fileId : null,
+      supplierInvoiceNo: prefill?.invoiceNo ?? null,
+      supplierInvoiceNoNormalized: prefill ? normalizeInvoiceNo(prefill.invoiceNo) : null,
+      invoiceDate: prefill ? new Date(`${prefill.invoiceDate}T00:00:00Z`) : null,
+      priceIncludesVat: false,
+      vatRateBp: po.vatRateBp,
+      statedVatSatang,
+      grossSatang: statedVatSatang,
+      payableSatang: statedVatSatang,
+      retentionBp: po.retentionBp,
+      createdById: source.createdById,
+    },
+    select: { id: true },
+  })
+  if (lines.length > 0) {
+    await tx.invoiceLine.createMany({
+      data: lines.map((l, i) => ({
+        organizationId: ctx.organizationId,
+        invoiceId: invoice.id,
+        lineNo: i + 1,
+        poLineId: l.id,
+        description: l.description,
+        quantity: formatQuantity(left.get(l.id)!),
+        uom: l.uom,
+        unitPriceSatang: l.unitPriceSatang,
+        vatable: l.vatable,
+      })),
+    })
+  }
+  await recalculate(tx, invoice.id)
+  if (file) await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: file.fileId, subjectType: 'Invoice', subjectId: invoice.id, kind: prefill ? 'ETAX' : 'INVOICE' } })
+  const kind = prefill ? ('ETAX_XML' as const) : ('MANUAL' as const)
+  return {
+    ok: true,
+    invoiceId: invoice.id,
+    prefill: kind,
+    event: { type: 'invoice.drafted', aggregateType: 'Invoice', aggregateId: invoice.id, data: { poId: po.id, supplierId: po.supplierId, channel: source.channel, prefill: kind, agentActionId: null, sourceFileId: file ? file.fileId : null, lineCount: lines.length } },
+  }
+}
+
 const CreateInput = z.strictObject({
   poId: z.uuid(),
   /** A file the member uploaded for this PO (./files.ts uploadInvoiceFile) */
@@ -59,65 +145,11 @@ export const createInvoiceCommand = defineCommand({
     if (!who.ok) return who
     const file = input.sourceFileId ? await readStoredInvoiceFile(tx, { organizationId: ctx.organizationId, memberId: who.memberId, fileId: input.sourceFileId, poId: input.poId }) : null
     if (file && !file.ok) return fail('VALIDATION_FAILED', 'the invoice file must be one you uploaded for this purchase order, unchanged', { field: 'sourceFileId', reason: file.reason })
-    const [poId] = await lockRowsForUpdate(tx, 'PurchaseOrder', ctx.organizationId, [input.poId])
-    if (!poId) return fail('NOT_FOUND', 'purchase order not found')
-    const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true } } } })
-    if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command: 'invoice.create' })
-    // BR-IVC-06: the PO takes tier-2 invoices from now on (PAY is on: guard)
-    const track = await claimTrack(tx, po, 'MATCHING', true)
-    if (!track.ok) return track
-    if (file && (await fileInUse(tx, file.file.fileId))) return fail('VALIDATION_FAILED', 'the invoice file is already the file of another invoice', { field: 'sourceFileId', reason: 'FILE_IN_USE' })
-
-    // BR-IVC-07: an e-Tax file of the PO's supplier fills the header; the lines come from what is still to invoice
-    const prefill = file && 'prefill' in file.file.reading && file.file.reading.prefill.sellerTaxId === po.supplier.taxId ? file.file.reading.prefill : null
-    const left = await invoiceableQuantities(tx, po)
-    const lines = po.lines.filter((l) => (left.get(l.id) ?? 0n) > 0n)
-    const invoice = await tx.invoice.create({
-      data: {
-        organizationId: ctx.organizationId,
-        poId: po.id,
-        supplierId: po.supplierId,
-        channel: 'UPLOAD',
-        prefill: prefill ? 'ETAX_XML' : 'MANUAL',
-        fieldSources: prefill ? { supplierInvoiceNo: 'ETAX_XML', invoiceDate: 'ETAX_XML', statedVat: 'ETAX_XML' } : {},
-        sourceFileId: file ? file.file.fileId : null,
-        supplierInvoiceNo: prefill?.invoiceNo ?? null,
-        supplierInvoiceNoNormalized: prefill ? normalizeInvoiceNo(prefill.invoiceNo) : null,
-        invoiceDate: prefill ? new Date(`${prefill.invoiceDate}T00:00:00Z`) : null,
-        priceIncludesVat: false,
-        vatRateBp: po.vatRateBp,
-        statedVatSatang: prefill ? amountToSatang(prefill.vat) : 0n,
-        retentionBp: po.retentionBp,
-        createdById: who.memberId,
-      },
-      select: { id: true },
-    })
-    if (lines.length > 0) {
-      await tx.invoiceLine.createMany({
-        data: lines.map((l, i) => ({
-          organizationId: ctx.organizationId,
-          invoiceId: invoice.id,
-          lineNo: i + 1,
-          poLineId: l.id,
-          description: l.description,
-          quantity: formatQuantity(left.get(l.id)!),
-          uom: l.uom,
-          unitPriceSatang: l.unitPriceSatang,
-          vatable: l.vatable,
-        })),
-      })
-    }
-    await recalculate(tx, invoice.id)
-    if (file) await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: file.file.fileId, subjectType: 'Invoice', subjectId: invoice.id, kind: prefill ? 'ETAX' : 'INVOICE' } })
-    const events: EventDraft[] = [
-      {
-        type: 'invoice.drafted',
-        aggregateType: 'Invoice',
-        aggregateId: invoice.id,
-        data: { poId: po.id, supplierId: po.supplierId, channel: 'UPLOAD', prefill: prefill ? 'ETAX_XML' : 'MANUAL', agentActionId: null, sourceFileId: file ? file.file.fileId : null, lineCount: lines.length },
-      },
-    ]
-    return { ok: true, result: { invoiceId: invoice.id, prefill: prefill ? 'ETAX_XML' : 'MANUAL' }, events }
+    const locked = await lockPoForDraft(tx, ctx, input.poId, 'invoice.create')
+    if (!locked.ok) return locked
+    const draft = await draftOnPo(tx, ctx, locked.po, { channel: 'UPLOAD', file: file ? file.file : null, inboundEmailId: null, createdById: who.memberId })
+    if (!draft.ok) return draft
+    return { ok: true, result: { invoiceId: draft.invoiceId, prefill: draft.prefill }, events: [draft.event] }
   },
 })
 

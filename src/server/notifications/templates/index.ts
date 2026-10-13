@@ -216,6 +216,11 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
         : { th: `ส่วนต่างราคาของใบแจ้งหนี้ ${ref(d)} ไม่ได้รับอนุมัติ`, en: `The price variance of invoice ${ref(d)} was not approved` },
     href: `/finance/invoices/${str(d.invoiceId)}`,
   }),
+  // S8-07: new drafts and files waiting for a PO in the invoice inbox (the digest; no file name, no amount)
+  'invoice.inbox_digest': (d) => ({
+    title: { th: `กล่องอีเมลใบแจ้งหนี้: ร่างใหม่ ${str(d.draftCount, '0')} ใบ รอเลือก PO ${str(d.pendingCount, '0')} ไฟล์`, en: `Invoice inbox: ${str(d.draftCount, '0')} new drafts, ${str(d.pendingCount, '0')} files waiting for a PO` },
+    href: '/finance/invoices/inbox',
+  }),
   // BR-AP-08: a supplier without an e-mail address is not told; FINANCE is, to tell them another way
   'supplier.no_email': (d) => ({
     title: { th: `ผู้ขายไม่มีอีเมล ระบบจึงไม่ได้แจ้งเรื่องเอกสาร ${ref(d)}`, en: `The supplier has no e-mail address, so it was not told about ${ref(d) || 'the document'}` },

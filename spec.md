@@ -391,6 +391,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `invoice.reject` | FINANCE, PROCUREMENT (ORG) — ต้องมีเหตุผล ผู้ขายได้อีเมลแจ้ง |
 | `invoice.exception.resolve` | FINANCE, PROCUREMENT (ORG) · RECEIVER (DEPT หรือ ASSIGNED) — ตรวจซ้ำเฉพาะใบที่มีรายการไม่ตรงชนิดที่ส่งถึงบทบาทของตน (BR-MATCH-09) |
 | `invoice.variance.request` | PROCUREMENT (ORG) — ขออนุมัติส่วนต่างเมื่อรายการไม่ตรงทุกข้อเป็น `PRICE_OVER` |
+| `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
@@ -3579,6 +3580,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
 | `invoice.exception_raised` (S8) | ผู้รับตามชนิดของรายการไม่ตรง (BR-MATCH-09) | ในระบบ · LINE | IMMEDIATE | `invoice.exception` |
+| `inbound_email.processed` (S8 · ร่างใหม่หรือไฟล์ที่รอเลือก PO) | FINANCE | ในระบบ | DIGEST | `invoice.inbox_digest` |
 | `invoice.variance_approved` · `invoice.variance_rejected` (S8) | ผู้ขออนุมัติส่วนต่าง · FINANCE | ในระบบ · LINE | IMMEDIATE | `invoice.variance_decided` |
 | ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
@@ -3614,6 +3616,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
 | invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` `invoice.rechecked` `invoice.reopened` `invoice.rejected` `invoice.variance_submitted` `invoice.variance_approved` `invoice.variance_rejected` `match_exception.dismissed` |
+| inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |

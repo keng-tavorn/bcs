@@ -95,7 +95,7 @@ export function AiAgentRow({
         </div>
       </div>
       <form onSubmit={onConfidence} className="flex flex-col gap-2 sm:flex-row sm:items-end" noValidate>
-        <div className="sm:w-56">
+        <div className="sm:w-96">
           <Field
             id={`ai-${agent}-confidence`}
             name="confidence"

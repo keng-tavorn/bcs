@@ -890,9 +890,9 @@ cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate 
 | Entity | ฟิลด์หลัก | กฎและข้อจำกัด | ขั้น |
 | --- | --- | --- | --- |
 | `DoaVersion` | code, version, status (`DRAFT` `PENDING_APPROVAL` `PUBLISHED` `SUPERSEDED` `REJECTED` `WITHDRAWN`), effectiveFrom, effectiveTo, amountBasis (`GROSS` `NET`), selfApprovalPolicy (`ESCALATE_NEXT_BAND` `BLOCK`), collapseDuplicateApprovers, stepUpThresholdSatang, escalationPolicy (jsonb), sodPolicy (jsonb: approverMayReceive, requesterMayReceive), changeReason, diffSummary (jsonb), sourceYaml, checksum, submittedById, approvedById, publishedAt, withdrawnAt, version | ฉบับที่เผยแพร่แล้วแก้ไม่ได้ แก้ด้วยการสร้างฉบับใหม่ · ช่วงเวลามีผลห้ามทับกัน (§6.3) · การผ่อน SoD อยู่ใน `sodPolicy` จึงเปลี่ยนได้ผ่าน 4-eyes เท่านั้น · `WITHDRAWN` ใช้ใน S6 (BR-DOA-18) | S2 |
-| `DoaRule` | doaVersionId, code, documentType (`PURCHASE_REQUEST` `PURCHASE_ORDER` `GR_VARIANCE` `DOA_CHANGE` `ORG_AUTHORITY_CHANGE`), priority, when (jsonb), steps (jsonb), descriptionTh | unique (doaVersionId, code) · ชั้น 1 ทุก step เป็น `SEQUENTIAL` ผู้อนุมัติ 1 คน โหมดคู่ขนานมีในโครงข้อมูลแต่ lint ปฏิเสธจนถึง S6 | S2 |
+| `DoaRule` | doaVersionId, code, documentType (`PURCHASE_REQUEST` `PURCHASE_ORDER` `GR_VARIANCE` `DOA_CHANGE` `ORG_AUTHORITY_CHANGE` และของระยะ 1 `BUDGET_TRANSFER` `OVER_BUDGET` `INVOICE_EXCEPTION` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE` · P1-07 · คุณสมบัติตาม §7.4), priority, when (jsonb), steps (jsonb), descriptionTh | unique (doaVersionId, code) · ชั้น 1 ทุก step เป็น `SEQUENTIAL` ผู้อนุมัติ 1 คน โหมดคู่ขนานมีในโครงข้อมูลแต่ lint ปฏิเสธจนถึง S6 | S2 |
 | `DoaTestCase` | doaVersionId, name, input, expected | ต้องผ่านทั้งหมดก่อนส่งเผยแพร่ (BR-DOA-08) | S2 |
-| `ApprovalRoute` | subjectType (`REQUEST` `PURCHASE_ORDER` `VARIANCE` `DOA_VERSION` `ORG_AUTHORITY_CHANGE`), subjectId, routeNo, doaVersionId, ruleCode, escalatedFromRuleCode, amountBasis, amountSatang, explanationTh, status (`ACTIVE` `COMPLETED` `CANCELLED`) | สร้างใหม่ทุกครั้งที่ส่งหรือส่งซ้ำ ไม่แก้ของเดิม | S2 |
+| `ApprovalRoute` | subjectType (`REQUEST` `PURCHASE_ORDER` `VARIANCE` `DOA_VERSION` `ORG_AUTHORITY_CHANGE` และของระยะ 1 `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE` · P1-07 · ADR-068), subjectId, routeNo, doaVersionId, ruleCode, escalatedFromRuleCode, amountBasis, amountSatang, explanationTh, status (`ACTIVE` `COMPLETED` `CANCELLED`) | สร้างใหม่ทุกครั้งที่ส่งหรือส่งซ้ำ ไม่แก้ของเดิม | S2 |
 | `ApprovalStep` | routeId, stepNo, mode (`SEQUENTIAL` `PARALLEL`), quorum (`ALL` `ANY` `COUNT`), quorumCount, slaBusinessMinutes, status | | S2 |
 | `ApprovalTask` | stepId, assigneeMemberId, principalMemberId, resolvedFrom, status (`OPEN` `INFO_REQUESTED` `APPROVED` `REJECTED` `RETURNED` `CANCELLED` `REASSIGNED`), assignedAt, dueAt, remindAt, escalateAt, remainingBusinessMinutes, overdueAt, escalatedAt, decidedAt, decidedByMemberId, decision, reason, channel, version | `resolvedFrom` เก็บที่มา เช่น `POSITION:VP@OPS` · ตัดสินแล้วแก้ไม่ได้ | S2 |
 | `OrgAuthorityChange` | kind (`POSITION_ASSIGN` `POSITION_END` `DEPARTMENT_REPARENT` `DELEGATION_ON_BEHALF` `IDENTITY_RESET`), payload (jsonb), reason, effectiveFrom, submittedById, routeId, status (`DRAFT` `PENDING_APPROVAL` `SCHEDULED` `APPLIED` `REJECTED` `CANCELLED`), impactSummary (jsonb), appliedAt | BR-DOA-17 BR-SOD-08 BR-AUTH-07 · ห้ามย้อนหลัง · `IDENTITY_RESET` มีผลทันทีที่อนุมัติ | S2 |
@@ -2121,6 +2121,23 @@ cases:
   - { id: GC-RPT-05, title: รวมตาม cost center, input: { lines: [{ costCenter: CC-CON, accepted: "6", unitPrice: "1100.00", invoiced: "0.00" }, { costCenter: CC-CON, accepted: "1", unitPrice: "500.00", invoiced: "500.00" }, { costCenter: CC-IT, accepted: "2", unitPrice: "1000.00", invoiced: "500.00" }] }, expect: { lines: [{ grni: "6600.00", invoicedNotReceived: "0.00" }, { grni: "0.00", invoicedNotReceived: "0.00" }, { grni: "1500.00", invoicedNotReceived: "0.00" }], byCostCenter: { CC-CON: "6600.00", CC-IT: "1500.00" } } }
 ```
 
+
+### 7.17 S6 · อนุมัติคู่ขนาน งบ และ workflow (จองโดย P1-07)
+
+หัวข้อนี้จองให้ขั้น S6 (สาย 1): กฎ BR INV และ golden ของ S6 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S6.md`) · ตระกูลที่มีตารางเดิมต่อท้ายตารางเดิม · ยังไม่มีเนื้อหา
+
+### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
+
+หัวข้อนี้จองให้ขั้น S8 (สาย 2): กฎ BR INV และ golden ของ S8 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S8.md`) · ยังไม่มีเนื้อหา
+
+### 7.19 S9 · รอบจ่ายเงินและบัญชีผู้ขาย (จองโดย P1-07)
+
+หัวข้อนี้จองให้ขั้น S9 (สาย 2 ต่อจาก S8): กฎ BR INV และ golden ของ S9 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S9.md`) · ยังไม่มีเนื้อหา
+
+### 7.20 S17 · LINE และแอป BCS Go (จองโดย P1-07)
+
+หัวข้อนี้จองให้ขั้น S17 (สาย 1 ต่อจาก S6): กฎ BR INV และ golden ของ S17 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S17.md`) · ยังไม่มีเนื้อหา
+
 ---
 
 ## 8. Functional requirements
@@ -2170,6 +2187,8 @@ cases:
 - AC1 — seed สร้างผู้ใช้ทุกบทบาทที่ใช้ในชั้น 1 พร้อมรหัสผ่านสำหรับ dev และ login ได้
 - AC2 — `pnpm db:reset` เมื่อ `APP_ENV` ไม่ใช่ `local` → ปฏิเสธ
 - AC3 — seed ใช้ DOA ฉบับ 1 และโครงองค์กรเดียวกับ fixture ใน §7.4 (มีเทสต์ยืนยัน โดยเทียบทุกค่ายกเว้น `effectiveFrom` ของ DOA ฉบับ 1 (ADR-038) และผู้ใช้ที่มีเฉพาะใน demo ซึ่งไม่ได้ดำรงตำแหน่ง (ภาคผนวก A))
+- AC4 — seed ด้วยไฟล์ระยะ 1 ได้ DOA-SIMEC ฉบับ 1 มี 22 ข้อตรงชีต DOA และโมดูล CORE PAY AI BCS_GO เปิดพร้อม event `organization.module_enabled` ต่อโมดูล · องค์กร DEMO มี CORE อย่างเดียวเหมือนเดิม
+- AC5 — seed ซ้ำไม่สร้างข้อหรือโมดูลซ้ำ
 
 #### FR-PLT-008 — Health และ observability
 ขั้น S1 · NFR-OBS-01 NFR-SEC-09
@@ -2194,6 +2213,8 @@ cases:
 - AC1 — เรียก service ของโมดูลที่ปิดอยู่ → `MODULE_DISABLED`
 - AC2 — เปิดโมดูลที่ dependency ยังปิดอยู่ → ปฏิเสธพร้อมบอก dependency ที่ขาด
 - AC3 — เทสต์ gating วนทุกโมดูลที่มี service โดยนับเอง
+- AC4 — เปิด PAY ให้องค์กรที่ DOA (ฉบับที่มีผล รอมีผล หรือรออนุมัติ) ขาดข้อของ PAY → `DOA_NOT_CONFIGURED` reason `MODULE_RULES_MISSING` พร้อมรายชื่อชนิด ไม่มี event และไม่มีแถวเปลี่ยน
+- AC5 — องค์กรที่มีข้อครบ → เปิดได้ตามกติกาเดิมของ §4.11 และ event `organization.module_enabled`
 
 #### FR-PLT-012 — Command pipeline, idempotency และ outbox
 ขั้น S1 · §4.3 §4.4
@@ -2232,6 +2253,8 @@ cases:
 - AC1 — ผู้ใช้ตั้ง PIN 6 หลัก เก็บด้วย argon2id และห้าม PIN ที่เดาง่าย (เช่น 123456 000000)
 - AC2 — ตัดสินงานที่ยอดตามฐาน DOA ≥ `stepUpThreshold` ต้องยืนยันด้วย PIN (หรือ passkey ถ้าอุปกรณ์รองรับ) และงาน `DOA_CHANGE` `ORG_AUTHORITY_CHANGE` ทุกงาน (BR-DOA-15) ไม่ยืนยัน → `STEP_UP_REQUIRED`
 - AC3 — ผิด 5 ครั้ง → ล็อก 15 นาที (`STEP_UP_LOCKED`) แจ้งผู้ใช้ทางอีเมลและบันทึก event
+- AC4 — งาน `BANK_ACCOUNT_CHANGE` และ `WORKFLOW_VERSION` ต้อง step-up ทุกงานไม่ขึ้นกับยอด (BR-DOA-25 · BR-DOA-15) ไม่ยืนยัน → `STEP_UP_REQUIRED` · การ์ด LINE และอีเมลของงาน `BANK_ACCOUNT_CHANGE` และ `WORKFLOW_VERSION` ไม่มีปุ่มหรือลิงก์ตัดสิน และ postback หรือลิงก์ที่ส่งมาถูกปฏิเสธ `STEP_UP_REQUIRED`
+- AC5 — คำสั่งตัดสินทุกตัว (คำขอ PO variance นโยบาย และ subject ใหม่) อ่านวิธี step-up จาก `DECISION_STEP_UP_METHODS` ที่เดียว (= PIN จนถึง S17-15) · `STEP_UP_SUBJECT_TYPES` รับ subject ใหม่ทั้ง 7
 
 ### 8.3 ผู้ดูแลองค์กร (ADM)
 
@@ -2284,6 +2307,8 @@ cases:
 - AC1 — หน้าจอแก้แบบตารางต่อ documentType: ช่วงวงเงิน ตำแหน่งผู้อนุมัติจาก dropdown SLA และนโยบายของฉบับ (ฐานวงเงิน เกณฑ์ step-up `sodPolicy`) · ฉบับร่างเริ่มจากการคัดลอกฉบับล่าสุด
 - AC2 — นำเข้าและส่งออก YAML รูปแบบเดียวกับ fixture ใน §7.4 ได้ และนำเข้าแล้วส่งออกกลับได้ข้อมูลชุดเดียวกัน (round-trip test)
 - AC3 — ฉบับที่เผยแพร่แล้วแก้ไม่ได้ ดูย้อนหลังได้ทุกฉบับพร้อมช่วงเวลามีผล เหตุผลการเปลี่ยน และ diff กับฉบับก่อนหน้า
+- AC4 — หน้าแก้แบบตารางมีแท็บของทั้ง 11 ชนิด · ชนิด NONE ไม่มีช่องวงเงิน → แก้และบันทึกได้ · ส่งออกแล้วนำเข้า YAML ที่มีชนิดใหม่ได้ข้อมูลชุดเดียวกัน (round-trip)
+- AC5 — นำเข้า YAML ที่มีชนิดเอกสารที่ไม่รู้จัก → `VALIDATION_FAILED` พร้อม path ของข้อ
 
 #### FR-DOA-002 — ส่งเผยแพร่ DOA ผ่าน lint, test case และ 4-eyes
 ขั้น S2 · Web · LIFF (อนุมัติ) · BR-DOA-08 BR-DOA-12 BR-DOA-15 BR-DOA-19 BR-SOD-06
@@ -2291,24 +2316,34 @@ cases:
 - AC2 — ฉบับที่ผ่านถูกส่งให้ผู้อนุมัติตามข้อ `DOA_CHANGE` ของฉบับที่มีผลอยู่ ผู้ส่งอนุมัติเองไม่ได้ (GC-SOD-04) และผู้อนุมัติต้อง step-up ทุกครั้ง (BR-DOA-15)
 - AC3 — ชุดตั้งต้นขององค์กร (ผู้ดำรงตำแหน่งที่ DOA อ้าง + ฉบับแรก) อนุมัติโดยผู้มีอำนาจลงนามตามสัญญาตาม BR-DOA-19 (OQ-31) PLATFORM_ADMIN ไม่เห็นเนื้อหา
 - AC4 — วันมีผลไม่ย้อนหลัง (BR-DOA-12) และฉบับก่อนหน้าเป็น SUPERSEDED เมื่อฉบับใหม่มีผล
+- AC5 — ผล lint ของชนิดใหม่ตรงกับ GC-DOA-56 และ GC-DOA-63 ถึง GC-DOA-68 · องค์กรที่เปิด PAY ส่งฉบับที่ขาดข้อของ PAY → `DOA_LINT_FAILED` รหัส `DOA_LINT_MISSING_DOCTYPE` · องค์กรที่ไม่เปิด PAY ส่งได้
+- AC6 — ข้อของ `BANK_ACCOUNT_CHANGE` ที่มีวงเงิน → `DOA_LINT_FAILED` รหัส `DOA_LINT_AMOUNT_NOT_ALLOWED`
+- AC7 — ด่าน db ของ `pnpm verify` lint ฉบับ `PUBLISHED` ด้วยโมดูลที่องค์กรเปิดอยู่ (DOA-SIMEC ฉบับ 1 ผ่านเมื่อเปิด PAY) และฉบับ `SUPERSEDED` โดยไม่ส่งโมดูล → องค์กรที่ฉบับเก่าไม่มีข้อของ PAY แล้วเปิด PAY ภายหลัง ด่านยังผ่าน (เทสต์ของด่าน)
 
 #### FR-DOA-003 — คำนวณเส้นทางอนุมัติ
 ขั้น S2 · ระบบ · BR-DOA-01 ถึง BR-DOA-11
 - AC1 — ผลของ engine ตรงกับ GC-DOA-01 ถึง GC-DOA-19 และ GC-DOA-27 ทุกเคส
 - AC2 — ผู้ขอเห็นเส้นทางที่คาดไว้พร้อมคำอธิบายภาษาไทยก่อนกดส่ง และเห็นเส้นทางจริงหลังส่ง
 - AC3 — `DOA_NOT_CONFIGURED` `APPROVER_NOT_FOUND` `NO_HIGHER_AUTHORITY` แสดงข้อความไทยที่บอกว่าต้องติดต่อใคร และแจ้ง ORG_ADMIN
+- AC4 — ผลของ engine ตรงกับ GC-DOA-28 ถึง GC-DOA-55 ทุกเคส และ GC-DOA-01 ถึง GC-DOA-27 ไม่เปลี่ยน
+- AC5 — ชนิดที่ไม่บังคับและฉบับไม่มีข้อ → `DOA_NOT_CONFIGURED` ก่อนจองงบหรือเปลี่ยนอะไร และแสดงข้อความไทยว่า DOA ยังไม่มีข้อของชนิดนั้นและให้ติดต่อ ORG_ADMIN · `startRoute` ด้วยคู่ subject กับชนิดที่ไม่อยู่ใน traits → `VALIDATION_FAILED` reason `SUBJECT`
 
 #### FR-DOA-004 — ตัดสินงานอนุมัติ
 ขั้น S2 · Web (S5 เพิ่ม LINE และ LIFF) · §6.4
 - AC1 — ผู้รับงานเลือก อนุมัติ · ตีกลับ · ไม่อนุมัติ · ขอข้อมูลเพิ่ม ได้ ตีกลับและไม่อนุมัติต้องมีเหตุผล
 - AC2 — ตอนตัดสินตรวจสิทธิ์และ SoD ซ้ำ (GC-SOD-01 GC-SOD-03) และตรวจว่างานยัง OPEN กดซ้ำ → `INVALID_STATE_TRANSITION` พร้อมข้อความ "ดำเนินการแล้วโดย … เมื่อ …"
 - AC3 — ขั้นสุดท้ายอนุมัติ → เอกสารเปลี่ยนสถานะตาม §6.4 และผู้ขอได้แจ้งภายใน 1 นาที
+- AC4 — งานของ subject ใหม่ทั้ง 7 ตัดสินผ่าน `approval.decide` `approval.decide_by_link` `approval.decide_by_line` ตัวเดิมที่เรียก adapter จากทะเบียน · adapter ตัวว่าง → `VALIDATION_FAILED` reason `SUBJECT` และงานยัง OPEN · adapter ทดสอบที่ `decide` คืน error → ทั้งธุรกรรม rollback งานยัง OPEN ไม่มี event (SoD และ step-up ตรวจก่อนเรียก adapter)
+- AC5 — `approval.requestInfo` ของ subject ที่ `allowsRequestInfo` = false → `VALIDATION_FAILED` reason `SUBJECT` · `subjectInput` ที่ adapter ไม่รับ → `VALIDATION_FAILED` · เทสต์ยืนยันว่า `decide.ts` `action-link.ts` `line-postback.ts` ไม่มีชื่อ subject ใหม่
+- AC6 — ทุก decide flow (คำขอ นโยบาย PO variance และ subject ใหม่) เปลี่ยนสถานะเอกสารตามผลของ step ที่ `completeStep` คืน ไม่ใช่การตัดสินของงาน · `completeStep` ทดสอบที่คืน OPEN → เอกสารไม่เปลี่ยนและไม่มีงานใหม่ · งานขั้นถัดไปสร้างผ่าน `assignNextStep` ที่เดียว · เทสต์เดิมของการตัดสินทั้ง 4 flow ผ่านโดยไม่แก้ expect
 
 #### FR-DOA-005 — อ้างอิง DOA ทุกการตัดสิน
 ขั้น S2 · ทุกช่องทาง · INV-DOA-01
 - AC1 — event `approval_task.decided` ทุกตัวมี doaVersionId doaRuleCode channel ผู้กระทำ และ onBehalfOf (ถ้ามี)
 - AC2 — หน้ารายละเอียดแสดง "อนุมัติภายใต้ DOA-DEMO ฉบับ 1 ข้อ PR-02" พร้อมลิงก์ไปฉบับนั้น
 - AC3 — การส่งออก audit มีฟิลด์เหล่านี้ครบ (FR-VIS-004)
+- AC4 — `approval_task.assigned` และ `approval_task.decided` ของ subject ใหม่มี `subjectType` ใหม่ `doaVersionId` และ `doaRuleCode` ของเส้นทาง (INV-DOA-01) · schema ของ event รับค่าจาก `APPROVAL_SUBJECTS`
+- AC5 — การ์ดงานทั่วไปของ subject ใหม่แสดง "อนุมัติภายใต้ DOA-SIMEC ฉบับ 1 ข้อ PAY-01" พร้อมลิงก์ไปฉบับนั้น เหมือนงานเดิม
 
 #### FR-DOA-006 — รักษาการ
 ขั้น S2 (มอบงานใหม่ให้ผู้รักษาการ) · S5 (ย้ายงานค้างตามเวลา) · Web · LIFF · BR-DLG-01 ถึง BR-DLG-05
@@ -2333,6 +2368,8 @@ cases:
 - AC1 — ก่อนส่งเผยแพร่แสดง diff เทียบฉบับที่มีผล: ช่วงวงเงินที่เปลี่ยน ตำแหน่งที่ได้หรือเสียอำนาจ และนโยบายที่เปลี่ยน
 - AC2 — หน้าทดลองส่ง: ใส่ประเภทเอกสาร ยอด แผนก และผู้ขอ แล้วเห็นเส้นทางและคำอธิบายของทั้งฉบับที่มีผลและฉบับร่าง โดยใช้ engine ตัวเดียวกับของจริง
 - AC3 — ตารางผลที่ขอบตรงกับ GC-DOA-22 และผู้ร่างกับผู้อนุมัติต้องติ๊กยืนยันก่อนส่งและก่อนอนุมัติ
+- AC4 — หน้าทดลองส่งเลือกชนิดใหม่ได้ทั้ง 6 · ชนิด NONE ซ่อนช่องยอด · ผลใช้ engine ตัวเดียวกับของจริง
+- AC5 — ตารางผลที่ขอบของชนิดใหม่ตรงกับ GC-DOA-57 ถึง GC-DOA-62 · ชนิด NONE ไม่มีตาราง
 
 #### FR-DOA-010 — เสนอและอนุมัติการเปลี่ยนโครงสร้างอำนาจ
 ขั้น S2 · Web · LIFF (อนุมัติ) · BR-DOA-15 BR-DOA-17 BR-SOD-08 BR-AUTH-07
@@ -3352,6 +3389,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 
+**ระยะ 1 (P1-07):** `approval_task.*` และ event ของ step-up ใน `auth` รับ `subjectType` ครบ 12 ค่าของ `APPROVAL_SUBJECTS` (ค่าใหม่ `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · `request.drafted` schemaVersion 2 เพิ่ม `source` (`MANUAL` เป็นค่าเริ่มต้น · `REORDER` `RENEWAL` ของ S6 · `CHAT_INTAKE` ของ S17) และ `agentActionId` ไม่บังคับ (S13) · event ฉบับ 1 ยังอ่านได้ (source = `MANUAL`) · สายไม่เพิ่มฉบับของ event นี้เอง
+
 ### 10.3 สรุปรายวันและข้อความ
 
 สรุปรายวันส่ง 08:00 วันทำการ เฉพาะคนที่มีเรื่องต้องรายงาน · ผู้มีงานค้าง: จำนวนงานรออนุมัติ 5 รายการที่ค้างนานที่สุดพร้อมอายุ และจำนวนที่เกิน SLA · DEPT_HEAD และ EXECUTIVE: งานค้างในขอบเขต งานเกิน SLA บรรทัดงบที่เหลือต่ำกว่า `digest.budgetLowPct` และลิงก์ไปกระดาน `/board/pending` · ข้อความสั้น สุภาพ ใช้คำกลาง เช่น "โปรดพิจารณา" และไม่มีข้อมูลต้องห้ามตาม BR-NOTI-01
@@ -3472,6 +3511,11 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | แถบตัดสินและการ์ด LINE (FR-AI-301) | สรุปสั้นให้ผู้อนุมัติ | แสดงในกล่องแยกที่บอกว่ามาจาก AI · ตัวเลขดึงจากฐาน (BR-AI-03) · ไม่มีปุ่มให้ AI ตัดสินแทน (BR-AI-01) |
 
 หน้าจอแชทใช้ Message Bubble และ Marker ของ shadcn/ui · ระหว่างรอคำตอบแสดงสถานะด้วย `role="status"` · ป้าย AI ใช้สี info กับไอคอน Sparkles และห้ามปุ่มสีม่วงหรือพื้นไล่สี · เทสต์หน้าจอแชทใช้ `@shadcn/helpers` จำลองบทสนทนาโดยไม่ใช้ key (ADR-060) ส่วนความแม่นวัดด้วยชุดประเมิน §12.4
+
+
+### 12.6 S13 · golden ของ AI ระยะ 1 (จองโดย P1-07)
+
+หัวข้อนี้จองให้ขั้น S13 (สาย 3): ชุดประเมินและ golden ของ AI ระยะ 1 วางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S13.md`) · กฎ BR-AI ต่อท้ายตารางเดิมของ §12 · ยังไม่มีเนื้อหา
 
 ---
 
@@ -3696,7 +3740,7 @@ features:
 
 ข้อ P0-05 ถึง P0-08 เป็นของฝั่ง BCS ที่ต้องมีก่อน deploy staging สำหรับ demo ข้ออื่นทำหลัง demo (เส้นชัย B และ C) เมื่อ agent ต้องใช้ข้อที่ยังไม่เสร็จ ให้หยุดถามแล้วทำข้ออื่นต่อ
 
-- [ ] **P0-01** `[คน]` `[go-live]` เอกสาร DOA ผังองค์กร และรายชื่อผู้ใช้ตามบทบาท (ใช้ตอบ OQ-01 OQ-02 OQ-27) · ลูกค้า + BCS
+- [ ] **P0-01** `[คน]` `[go-live]` เอกสาร DOA ผังองค์กร และรายชื่อผู้ใช้ตามบทบาท (ใช้ตอบ OQ-01 OQ-02 OQ-27 OQ-40) · ลูกค้า + BCS
   - เสร็จเมื่อ: ข้อมูลอยู่ในชีต Departments Positions Users DOA ของไฟล์ input และ `pnpm inputs:check` ผ่าน
 - [ ] **P0-02** `[คน]` `[go-live]` ตัวอย่างใบเสนอราคา ใบส่งของ ใบแจ้งหนี้จริงที่ลบข้อมูลอ่อนไหวแล้ว · ลูกค้า · ก่อน S13
   - เสร็จเมื่อ: ได้ไฟล์ตามจำนวนที่ตกลงในที่เก็บที่ปลอดภัย (ใช้ทำชุดประเมิน §12.4)

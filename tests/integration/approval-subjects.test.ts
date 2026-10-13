@@ -85,7 +85,7 @@ describe('[FR-DOA-004/AC4] tasks of the new subjects decide through the same com
     expect(await decidedEvents(t.taskId)).toBe(0)
   })
 
-  it('an adapter that decides gets the route result once; the decision is recorded under the route DOA rule (FR-DOA-005 AC4)', async () => {
+  it('[FR-DOA-005/AC4] an adapter that decides gets the route result once; the decision is recorded under the route DOA rule', async () => {
     const t = await routed('BUDGET_TRANSFER', 'BUDGET_TRANSFER', { amount: '70000' })
     const decide = vi.spyOn(SUBJECT_ADAPTERS.BUDGET_TRANSFER, 'decide').mockResolvedValue({ ok: true, documentStatus: 'APPROVED', events: [] })
     expect(await decideTask(org.ctxOf('dm_con', NOW), { taskId: t.taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: true, data: { documentStatus: 'APPROVED' } })

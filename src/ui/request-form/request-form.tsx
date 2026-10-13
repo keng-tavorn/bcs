@@ -17,6 +17,7 @@ import { DOOR_ASIDE } from '../shell/new-request-door'
 import type { StepProps } from './details-items'
 import { kindLabelOf, type DocumentsProps } from './documents-step'
 import { DropUploadButton } from './drop-upload'
+import { QuotationAi } from './quotation-ai'
 import { fieldLabel } from './field-input'
 import {
   aiUnsent,
@@ -374,7 +375,7 @@ export function RequestForm({
     fileError,
     busy: fileBusy || blockedSave,
     Upload: DropUploadButton,
-    ...(actions.ai ? { ai: { actions: actions.ai, requestId: autosave.requestId } } : {}),
+    ...(actions.ai ? { ai: { actions: actions.ai, requestId: autosave.requestId, Reader: QuotationAi } } : {}),
   }
   const send = sendStateOf(t, { data, values, totals, budget, problems, saveStop, ...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {}) })
   const review = current.auto === 'review'

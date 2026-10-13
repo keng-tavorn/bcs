@@ -28,7 +28,14 @@ function currentValue(q: FormQuotation, field: (typeof FIELDS)[number]): string 
   return validMoney(q.amount) ? satangToAmount(amountToSatang(plainNumber(q.amount))) : q.amount
 }
 
-export function QuotationAi({ q, n, ai, update }: { q: FormQuotation; n: number; ai: { actions: AiReadActions; requestId: string | null }; update: (action: FormAction) => void }) {
+export interface QuotationAiProps {
+  readonly q: FormQuotation
+  readonly n: number
+  readonly ai: { readonly actions: AiReadActions; readonly requestId: string | null }
+  readonly update: (action: FormAction) => void
+}
+
+export function QuotationAi({ q, n, ai, update }: QuotationAiProps) {
   const t = useTranslations('aiAssist')
   const { state, read } = useAiRead(ai.actions)
   const noteText = useAiNoteText()

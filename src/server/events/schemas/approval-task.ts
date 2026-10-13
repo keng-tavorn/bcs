@@ -31,6 +31,8 @@ defineEvents('ApprovalTask', {
       // S6 (INV-WF-04): the reviewer version and rules of a REVIEW task
       workflowVersionId: z.uuid().optional(),
       workflowRuleCodes: z.array(z.string().min(1)).optional(),
+      // S6-08 (BR-WF-14): the step went to the holder of now, not to whom the route would have given it when made
+      holderChangedFrom: z.uuid().optional(),
     }),
   },
   'approval_task.decided': {

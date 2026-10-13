@@ -177,6 +177,15 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   // FR-AUTH-003 AC2, BR-AUTH-06: a deactivated member still had approval tasks. No command moves a task by hand: an
   // appointment through the authority changes page moves the position's open tasks to the new holder when it takes
   // effect (BR-DOA-17, NEW-28), so that is what the notice offers — and opens
+  // S6-08 (BR-WF-14): a department move left open tasks with their holders: the new holder is missing or conflicts
+  'admin.reparent_tasks_stay': (d) => ({
+    title: { th: `ย้ายแผนกแล้ว มีงานอนุมัติ ${str(d.openTasks)} งานที่ยังอยู่กับผู้ถือเดิม`, en: `A department moved; ${str(d.openTasks)} approval tasks stay with their holders` },
+    body: {
+      th: 'ผู้ดำรงตำแหน่งตามผังใหม่ว่างหรือเกี่ยวข้องกับเอกสารนั้น แต่งตั้งผู้ดำรงตำแหน่งได้ที่หน้าเปลี่ยนโครงสร้างอำนาจ',
+      en: 'The holder by the new tree is missing or has a part in the document; appoint a holder on the Authority changes page',
+    },
+    href: '/admin/org-authority',
+  }),
   'admin.reassign_needed': (d) => ({
     title: { th: `${str(d.name)} ถูกปิดใช้งานและมีงานอนุมัติค้าง ${str(d.openTasks)} งาน`, en: `${str(d.name)} was deactivated with ${str(d.openTasks)} approval tasks open` },
     body: {

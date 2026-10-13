@@ -101,9 +101,16 @@ export function stepCards(
       current: active,
       ...(sla?.overdue ? { overdue: true } : {}),
       people: people.filter(Boolean),
-      // BR-SLA-04, NEW-46: the band above joined the step past its time, and whoever decides first decides
-      ...(active && (step.escalation === 'CO_ASSIGNED' || open.length > 1)
-        ? { notes: [...(step.escalation === 'CO_ASSIGNED' ? [tv('route.escalated')] : []), ...(open.length > 1 ? [tv('route.firstDecides')] : [])] }
+      // BR-SLA-04, NEW-46: the band above joined the step past its time, and whoever decides first decides; S6-08: the
+      // holder of the position changed after the submit, so the step went to the holder of the time it started
+      ...((active && (step.escalation === 'CO_ASSIGNED' || open.length > 1)) || step.holderChanged
+        ? {
+            notes: [
+              ...(step.holderChanged ? [tv('route.holderChanged')] : []),
+              ...(active && step.escalation === 'CO_ASSIGNED' ? [tv('route.escalated')] : []),
+              ...(active && open.length > 1 ? [tv('route.firstDecides')] : []),
+            ],
+          }
         : {}),
       ...(sla?.dueAt ? { due: t('steps.due', { time: when(locale, sla.dueAt) }) } : {}),
       ...(sla && sla.usedMinutes !== null

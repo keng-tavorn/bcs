@@ -730,6 +730,8 @@ export interface RouteStepDto {
    * groups; a step made elsewhere (a preview) has none of them
    */
   readonly stepType?: 'APPROVAL' | 'REVIEW' | 'COMMITTEE'
+  /** S6-08 (BR-WF-14): the holder of the step's position changed after the submit; the step went to the holder of then */
+  readonly holderChanged?: boolean
   /** The step number of resolveRoute; null for the REVIEW step */
   readonly doaStepNo?: number | null
   readonly quorum?: 'ALL' | 'ANY' | 'COUNT'
@@ -1178,11 +1180,14 @@ export async function routeOf(
   const named = specs.success ? await membersById(db, specs.data.flatMap((s) => ('memberId' in s.approver ? [s.approver.memberId] : []))) : new Map<string, MemberRefDto>()
   const missing = route.steps.flatMap((s) => s.tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId, t.decidedByMemberId])).filter((id): id is string => Boolean(id) && !members.has(id!))
   const taskIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id))
-  const [more, escalatedEvents] = await Promise.all([
+  const [more, escalatedEvents, assignedEvents] = await Promise.all([
     membersById(db, missing),
     taskIds.length ? db.event.findMany({ where: { type: 'approval_task.escalated', aggregateType: 'ApprovalTask', aggregateId: { in: taskIds } }, select: { type: true, data: true }, orderBy: { seq: 'asc' } }) : Promise.resolve([]),
+    taskIds.length ? db.event.findMany({ where: { type: 'approval_task.assigned', aggregateType: 'ApprovalTask', aggregateId: { in: taskIds } }, select: { aggregateId: true, data: true } }) : Promise.resolve([]),
   ])
   const escalations = escalationsOf(escalatedEvents)
+  // S6-08 (BR-WF-14): the tasks that went to the holder of the time their step started, not to the one of the submit
+  const holderChanged = new Set(assignedEvents.filter((e) => typeof (e.data as { holderChangedFrom?: unknown } | null)?.holderChangedFrom === 'string').map((e) => e.aggregateId))
   const who = (id: string | null) => (id ? (members.get(id) ?? more.get(id) ?? null) : null)
   const expectedOf = (stepNo: number): ExpectedApproverDto | null => {
     const spec = specs.success ? specs.data[stepNo - 1] : undefined
@@ -1236,6 +1241,7 @@ export async function routeOf(
         escalation: escalations.get(s.id) ?? null,
         ruleApprover: first ? { approver: who(first.assigneeMemberId), onBehalfOf: who(first.principalMemberId), role: roleOf(first.resolvedFrom) } : null,
         stepType: s.kind === 'REVIEW' ? 'REVIEW' : s.mode === 'PARALLEL' ? 'COMMITTEE' : 'APPROVAL',
+        ...(s.tasks.some((t) => holderChanged.has(t.id)) ? { holderChanged: true } : {}),
         doaStepNo: s.doaStepNo,
         quorum: s.quorum,
         quorumCount: s.quorumCount,

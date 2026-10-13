@@ -6381,6 +6381,7 @@
         "to": "goes to {approvers}"
       },
       "firstDecides": "Whoever decides first decides this step",
+      "holderChanged": "The holder of the position changed after the request was sent, so this step went to the current holder under the same DOA rule",
       "none": "This request type does not go through the DOA; it goes straight to procurement",
       "notYet": "The approval route is worked out when the request is sent, then shown here with the reason",
       "orApprover": "or {name}",

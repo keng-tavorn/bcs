@@ -144,8 +144,8 @@ describe('[FR-WF-101/AC1] [FR-WF-101/AC2] the reviewers of pm_p07\'s contract wo
     expect(ok(await decide(ceoTask.id, 'ceo', 'APPROVE'))).toMatchObject({ documentStatus: 'APPROVED' })
   })
 
-  it('OQ-111: the DOA step is the engine\'s step of its doaStepNo whether the holders are read at the route\'s time (way ข) or later (way ก)', async () => {
-    for (const holdersAt of [null, LATER]) {
+  it('OQ-111: the DOA step is the engine\'s step of its doaStepNo whether it starts at the route time or later (S6-08 takes the holders of then)', async () => {
+    for (const startsAt of [NOW, LATER]) {
       const requestId = await contractWork()
       ok(await submitRequest(org.ctxOf('req_con', NOW), { requestId }, key()))
       const { route } = await routeOf(requestId)
@@ -154,11 +154,10 @@ describe('[FR-WF-101/AC1] [FR-WF-101/AC2] the reviewers of pm_p07\'s contract wo
       const next = await forTenant(org.organizationId).$transaction((tx) =>
         assignNextStep(
           tx,
-          makeCtx({ organizationId: org.organizationId, actor: { type: 'SYSTEM', job: 'test' }, channel: 'SYSTEM', now: LATER }),
+          makeCtx({ organizationId: org.organizationId, actor: { type: 'SYSTEM', job: 'test' }, channel: 'SYSTEM', now: startsAt }),
           route,
           { type: 'REQUEST', id: requestId, label: request.number! },
           { documentType: 'PURCHASE_REQUEST', amount: { netSatang: request.netSatang, vatSatang: request.vatSatang }, requesterMemberId: request.requesterMemberId, chargedDepartmentId: request.chargedDepartmentId, conflictMemberIds: [request.requesterMemberId], at: route.createdAt },
-          ...(holdersAt ? [holdersAt] : []),
         ),
       )
       expect(next).toMatchObject({ ok: true, assigned: true })

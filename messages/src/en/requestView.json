@@ -199,7 +199,8 @@
       "QUESTION": "Waiting for the requester’s answer",
       "REJECT": "Not approved",
       "RETURN": "Returned"
-    }
+    },
+    "holderChanged": "The holder of the position changed after the request was sent, so this step went to the current holder under the same DOA rule"
   },
   "lines": {
     "title": "Lines",

@@ -106,6 +106,8 @@ export async function storeRoute(
       amountBasis: route.amountBasis,
       amountSatang: route.basisAmountSatang,
       explanationTh: route.explanationTh,
+      // The time the route was made by the command's clock: a later step reads the holders of then against it (S6-08)
+      createdAt: ctx.now,
       workflowVersionId: review?.workflowVersionId ?? null,
     },
     select: { id: true },

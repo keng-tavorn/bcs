@@ -142,7 +142,8 @@ const CompleteInput = z.strictObject({
   output: z.unknown().optional(),
   verification: z.unknown().optional(),
   fieldConfidence: z.record(z.string(), z.number().int().min(0).max(BP_WHOLE)).optional(),
-  review: z.strictObject({ requiredPaths: z.array(z.string().min(1)), confirmedPaths: z.array(z.string().min(1)) }).optional(),
+  // proposed: what the AI put into the form by path, as text (assist-contract.ts); requiredPaths: confirmed one by one (BR-AI-16)
+  review: z.strictObject({ requiredPaths: z.array(z.string().min(1)), confirmedPaths: z.array(z.string().min(1)), proposed: z.record(z.string().min(1), z.string()).default({}) }).optional(),
   errorCode: z.string().min(1).max(60).optional(),
   usage: Usage,
   latencyMs: z.number().int().nonnegative().nullable(),

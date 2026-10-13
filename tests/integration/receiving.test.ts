@@ -272,10 +272,10 @@ describe('[FR-P2P-006/AC1] the optional fields P1-07 lays on gr.post (aiAssist o
     expect(await poStatus(po.poId)).toBe('SENT')
   })
 
-  it('values of an AI action are MODULE_DISABLED until S13, and the whole receipt rolls back', async () => {
+  it('values of an AI action that does not exist are refused (S13-03), and the whole receipt rolls back', async () => {
     const po = await sentPo('3', '100.00')
     const aiAssist = { agentActionId: randomUUID(), confirmedPaths: ['lines.0.received'] }
-    expect(await postGoodsReceipt(receiver(), { poId: po.poId, lines: [{ poLineId: po.poLineId, received: '3' }], aiAssist }, key())).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
+    expect(await postGoodsReceipt(receiver(), { poId: po.poId, lines: [{ poLineId: po.poLineId, received: '3' }], aiAssist }, key())).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
     expect(await poStatus(po.poId)).toBe('SENT')
     expect(await prisma.goodsReceipt.count({ where: { poId: po.poId } })).toBe(0)
   })

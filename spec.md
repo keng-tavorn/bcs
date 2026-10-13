@@ -387,6 +387,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `gr.reverse` | PROCUREMENT (ORG, ต้องระบุเหตุผล, ก่อนยืนยันใบกำกับ) |
 | `variance.decide` | ตาม DOA ข้อ `GR_VARIANCE` เท่านั้น |
 | `invoiceConfirmation.record` | FINANCE (ORG) |
+| `invoice.record` | FINANCE (ORG) — สร้าง แก้ ยืนยันรหัสบัญชี ส่ง และทิ้งร่างใบแจ้งหนี้ชั้น 2 · ใช้ได้เมื่อเปิดโมดูล `PAY` (BR-AP-13) |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
@@ -1114,7 +1115,7 @@ stateDiagram-v2
 
 | ชั้น | Entities |
 | --- | --- |
-| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `WithholdingTax` `WhtCertificate` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `MilestoneReceipt` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
+| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `SupplierNotice` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `PoChangeLine` `MilestoneReceipt` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
 | 3 | `RfxEvent` `RfxInvite` `RfxQuestion` `Bid` `BidLine` `Scorecard` `ScoreCriterion` `AwardDecision` `RiskQuestionnaire` `RiskAssessment` `RiskTier` `ReviewTask` `Contract` `ContractVersion` `Obligation` `RenewalReminder` `PreferredSupplier` `RiskReview` |
 | 4 | `AgentAction` `PromptVersion` `AiEvalRun` `AiCreditLedger` `ApiClient` `WebhookSubscription` `WebhookDelivery` `McpSession` `ConnectorConfig` |
 
@@ -1126,6 +1127,15 @@ stateDiagram-v2
 | `SupplierDocumentType` (S7) | code, nameTh, validityDays (ว่าง = ใช้วันหมดอายุบนเอกสาร), reminderDaysBefore, linkedRiskQuestionCodes | องค์กรตั้งอายุเอกสารที่นับจากวันออกได้ เช่น หนังสือรับรองบริษัท |
 | `PreferredSupplier` (S10) | categoryCode, supplierId, validFrom, validTo, source (`SOURCING` `MANUAL`), awardDecisionId | ใช้เติมผู้ขายตาม BR-FORM-02 |
 | `RiskReview` (S11) | supplierId, tier, dueAt, completedAt, reason (`SCHEDULED` `STATUS_CHANGED` `OVERRIDE_EXPIRED`) | FR-RSK-205 |
+| `Invoice` (S8) | number (`AP-{BE}-{SEQ5}` ตอนส่ง), poId, supplierId, channel (`EMAIL` `UPLOAD` `PORTAL`), prefill (`MANUAL` `ETAX_XML` `AI_READING`), fieldSources, agentActionId, inboundEmailId, sourceFileId, supplierInvoiceNo(Normalized), invoiceDate, priceIncludesVat, vatRateBp, discountSatang, netSatang, statedVatSatang, computedVatSatang, grossSatang, retentionBp, retentionSatang, payableSatang, expectedWhtSatang, dueDate, isFinal, kind (`INVOICE`), status, matchResult, createdById, recordedById, version | CHECK grossSatang = netSatang + statedVatSatang และ payableSatang = grossSatang − retentionSatang ≥ expectedWhtSatang (INV-AP-04) · partial unique (org, supplierId, เลขหลัง normalize) เมื่อไม่ใช่ `DRAFT` `CANCELLED` `REJECTED` (INV-AP-06) · state machine ใน `src/core/state-machines` |
+| `InvoiceLine` `InvoiceMatch` `MatchException` (S8) | บรรทัดต่อบรรทัด PO (ยอด ส่วนลดที่ปัน ยอดที่คาด ส่วนเกิน ผลจับคู่ รหัสบัญชี cost center ผู้ยืนยัน) · ทุกการจับคู่หนึ่งแถวพร้อมเกณฑ์ที่ใช้ · รายการไม่ตรง (type amountSatang quantity assigneeRole status) | BR-MATCH-05 ถึง BR-MATCH-13 · state machine ของ `MatchException` |
+| `InboundEmail` (S8) | provider, messageId, fromAddress, toAddress, subject (≤ 300 ตัวอักษร), receivedAt, status, ignoreReason, attachmentCount, poRefsFound, attempts | ไม่เก็บเนื้อความ · unique (org, messageId) · BR-AP-02 |
+| `WhtIncomeType` `AccountCode` (S8) | code, nameTh, rateBp, form (`PND3_53` `PND53` `PND3`), updatedById, confirmedById · code, nameTh, type, active | ผู้ยืนยันอัตรา ≠ ผู้แก้ล่าสุด (CHECK) · รหัสบัญชีเป็นรายการอ้างอิง ไม่ใช่บัญชีแยกประเภท (P-4) |
+| `WithholdingTax` `WhtCertificate` (S8 · S9-01 เพิ่ม paymentRunItemId) | เอกสารเดียวต่อแถว (invoiceId หรือ retentionId) ประเภทเงินได้ อัตรา ฐาน ภาษี วันจ่าย · 50 ทวิ เลข `WHT_CERT` ผู้รับ ผู้จ่าย ยอดรวม | สร้างโดย `recordInvoicePayment` เท่านั้น (BR-WHT-07 BR-WHT-10) |
+| `Retention` (S8) | invoiceId (unique), poId, supplierId, amountSatang, status (`HELD` `RELEASABLE` `IN_PAYMENT_RUN` `PAID`), releaseDueOn | BR-RET-03 BR-RET-04 · `IN_PAYMENT_RUN` `PAID` เปลี่ยนได้เฉพาะฟังก์ชันที่ S9 เรียก (BR-AP-12) |
+| `PoChange` `PoChangeLine` (S8) | poId, changeNo, status, autoApproved, ยอดเดิมและยอดใหม่ {net, vat, gross}, deliveryDate, quantityDisposition, currentRouteId, appliedRevisionNo · ก่อนหลังต่อบรรทัดและยอดที่จอง | partial unique ใบที่เปิดอยู่ต่อ PO · BR-POC-01 ถึง BR-POC-05 |
+| `SupplierNotice` (S8 · S9 ใช้ต่อ) | supplierId, templateKey, subjectType, subjectId, toEmail, data, status (`PENDING` `SENT` `FAILED` `NO_EMAIL`), dedupeKey, attempts | unique (org, dedupeKey) · สร้างผ่าน `enqueueSupplierNotice` ในธุรกรรมของผู้เรียก (ADR-126) |
+| คอลัมน์ใหม่ของตารางชั้น 1 (S8) | `PurchaseOrder` invoiceTrack revisionNo retentionBp retentionHoldDays · `PoLine` milestoneNo milestoneShareBp · `Supplier` payeeType defaultWhtIncomeTypeCode paymentTermDays eTaxIssuer registryFlag registryFlaggedAt · `RequestType` defaultRetentionBp defaultRetentionHoldDays | `SensitiveAccessLog` ตามแถวของ §6.2 สร้างใน S8-01 (แอปเพิ่มแถวได้อย่างเดียว) |
 
 ---
 
@@ -1136,7 +1146,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks}` (ai-checks เพิ่มใน S13-02)
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching}` (ai-checks เพิ่มใน S13-02)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -1151,6 +1161,9 @@ stateDiagram-v2
 | BR-VAT-02 | VAT คำนวณระดับเอกสารจากผลรวมของบรรทัดที่ `vatable` (OQ-17) |
 | BR-VAT-03 | ราคารวม VAT: VAT = round(gross × rate ÷ (10000 + rate)) และ net = gross − VAT |
 | BR-VAT-04 | ผู้ขายที่ไม่ได้จดทะเบียน VAT → อัตรา 0 บน PO · คำขอใช้อัตราขององค์กรเป็นค่าประมาณ |
+| BR-VAT-05 | VAT ที่คำนวณของใบ = VAT ระดับเอกสารจากบรรทัด `vatable` หลังหักส่วนลด (BR-VAT-02 BR-VAT-03) ด้วยอัตรา ณ วันที่ใบตามเวลาไทย (BR-VAT-01) · ผู้ขายที่ไม่จด VAT (`isVatRegistered = false` หรือ `Supplier.registryFlag = VAT_CANCELLED` · GC-VAT-13) ใช้อัตรา 0 (BR-VAT-04) · VAT ในใบต่างจากที่คำนวณเกิน `settings.matching.vatTolAmount` (ค่าเริ่มต้น "1.00" เท่ากับ BR-IVC-01) → `VAT_MISMATCH` (OQ-121) |
+| BR-VAT-06 | VAT ในใบ > 0 ขณะผู้ขาย `isVatRegistered = false` หรือ `Supplier.registryFlag` เป็น `VAT_CANCELLED` หรือ `CEASED` (BR-SUP-04) → `VAT_SUPPLIER_NOT_REGISTERED` แทน `VAT_MISMATCH` (ไม่ออกทั้งสองชนิดกับใบเดียว · GC-VAT-09 GC-VAT-13) · ขออนุมัติไม่ได้ ต้องปฏิเสธหรือเปิดแก้ |
+| BR-VAT-07 | ยอดรวมของใบ (`grossSatang`) = ยอดก่อน VAT + VAT ในใบ และเป็นฐานของยอดที่ต้องจ่ายเมื่อผ่าน BR-VAT-05 (`invoiceGross` ใน golden) · ยอดที่ระบบคำนวณ (`computedGross`) ใช้ตรวจเท่านั้น · งบไม่รวม VAT เสมอ (BR-BUD-03) |
 
 ข้อมูลตั้งต้นของ `TaxRate` (ต้องให้ PLATFORM_ADMIN ยืนยันก่อน go-live):
 
@@ -1792,7 +1805,7 @@ cases:
 | นำเข้าหรือเพิ่มงบ | OUTSIDE → AVAILABLE | BUDGET_ADMIN นำเข้า |
 | จอง | AVAILABLE → RESERVED | ส่ง PR · ส่ง PO ที่แพงกว่าส่วนที่จะคืน (จองเฉพาะส่วนต่าง) |
 | คืนจอง | RESERVED → AVAILABLE | PR ถูกปฏิเสธหรือยกเลิก · PO อนุมัติ (คืนส่วนของ PR) · PO ถูกปฏิเสธหรือตีกลับ (คืนส่วนต่าง) |
-| ถือ | AVAILABLE → COMMITTED | PO อนุมัติ · รับเกินที่อนุมัติแล้ว |
+| ถือ | AVAILABLE → COMMITTED | PO อนุมัติ · รับเกินที่อนุมัติแล้ว · ใบแจ้งหนี้ชั้น 2 ราคาเกินในเกณฑ์หรือส่วนต่างที่อนุมัติ (BR-MATCH-11) |
 | คืนถือ | COMMITTED → AVAILABLE | ยกเลิก PO · ปิด PO ที่รับไม่ครบ (เฉพาะส่วนที่ไม่ได้รับ) หรือใบกำกับน้อยกว่า PO · ใบกำกับใบสุดท้ายของ PO ที่ปิดแล้ว (BR-BUD-06) |
 | ตัด | COMMITTED → ACTUAL | ยืนยันใบกำกับ (ชั้น 1) · ใบแจ้งหนี้ผ่านการจับคู่ (ชั้น 2) |
 
@@ -1808,7 +1821,7 @@ cases:
 | BR-BUD-08 | บรรทัดงบ `FROZEN` หรือ `CLOSED` จองใหม่ไม่ได้ แต่ถือและตัดจากรายการเดิมได้ |
 | INV-BUD-01 | ต่อบรรทัดงบ available + reserved + committed + actual = ยอดที่นำเข้าสุทธิเสมอ |
 | INV-BUD-02 | ไม่มี bucket ใดติดลบ (CHECK ในฐานข้อมูล + ตรวจใน core) |
-| INV-BUD-03 | ต่อเอกสาร: ยอดจองของบรรทัดคำขอ ≤ ยอดบรรทัดคำขอ · ยอดถือของ PO บรรทัด ≤ ยอด PO บรรทัด + ส่วนเกินที่อนุมัติ · ยอดตัด ≤ ยอดถือที่เคยมี |
+| INV-BUD-03 | ต่อเอกสาร: ยอดจองของบรรทัดคำขอ ≤ ยอดบรรทัดคำขอ · ยอดถือของ PO บรรทัด ≤ ยอด PO บรรทัด + ส่วนเกินที่อนุมัติ + ส่วนเกินของใบแจ้งหนี้ชั้น 2 ที่อยู่ในเกณฑ์การจับคู่หรือที่อนุมัติส่วนต่างแล้ว (BR-MATCH-11) · ยอดตัด ≤ ยอดถือที่เคยมี |
 | INV-BUD-04 | ledger ทุกแถวอ้าง Event ที่สร้างในธุรกรรมเดียวกัน |
 | INV-BUD-05 | การจองพร้อมกันไม่ทำให้เกินงบ: ล็อก `BudgetLineBalance` ด้วย `SELECT … FOR UPDATE` ตามลำดับ id |
 | INV-BUD-06 | ledger แก้หรือลบไม่ได้ (INV-EVT-01) การแก้ไขทำด้วยรายการย้อนกลับเท่านั้น |
@@ -2055,6 +2068,8 @@ cases:
 | BR-IVC-03 | เลขใบกำกับซ้ำกับของผู้ขายรายเดิม → `DUPLICATE_INVOICE` โดยเทียบหลังตัดช่องว่างทั้งหมดและแปลงเป็นตัวพิมพ์ใหญ่ |
 | BR-IVC-04 | ปันยอดลงบรรทัด PO ตามสัดส่วนยอดถือที่เหลือ ปัดลงเป็นสตางค์ แล้วแจกเศษที่เหลือทีละสตางค์ให้บรรทัดที่เศษมากที่สุด (เสมอกันให้เลขบรรทัดน้อยก่อน) แล้วย้าย COMMITTED → ACTUAL ของแต่ละบรรทัดงบ · ใบสุดท้ายทำให้ PO พร้อมปิดและคืนถือที่เหลือ (BR-BUD-06) |
 | BR-IVC-05 | อ่านไฟล์ e-Tax โดยไม่ใช้ AI: ไฟล์ของระบบ e-Tax Invoice by Email เป็น PDF/A-3 ที่ฝัง XML ตามมาตรฐาน ขมธอ. 3-2560 ส่วนระบบ e-Tax Invoice & e-Receipt เต็มรูปแบบส่งเป็น XML หรือรูปแบบอื่นที่ตกลงกัน · ระบบหา XML จากรายการไฟล์แนบใน PDF โดยไม่ยึดชื่อไฟล์ แล้วอ่านเลขที่ วันที่ เลขผู้เสียภาษีและสาขาของผู้ขาย ยอดก่อน VAT VAT และยอดรวม มาเติมฟอร์มให้ FINANCE ยืนยัน · เลขผู้เสียภาษีไม่ตรงผู้ขายของ PO หรืออ่าน XML ไม่ได้ → แจ้งเหตุผลและให้กรอกเอง · ค่าที่อ่านได้ผ่าน BR-IVC-01 ถึง BR-IVC-04 เหมือนกรอกมือ · เก็บไฟล์ต้นฉบับเป็น FileLink kind `ETAX` |
+| BR-IVC-06 | ทางของใบต่อ PO (ADR-121): ใบแรกกำหนด `invoiceTrack` · `PAY` เปิด → `MATCHING` · ปิด → `CONFIRMATION` · ทางไม่ตรง → `INVOICE_TRACK_MISMATCH` · ปิด `PAY` ขณะมีใบที่ยังไม่ `PAID` `REJECTED` `CANCELLED` → `MODULE_IN_USE` (OQ-33) |
+| BR-IVC-07 | ไฟล์ e-Tax ทั้งจากอัปโหลดและกล่องอีเมลอ่านด้วยฟังก์ชันเดียวกับ BR-IVC-05 (`readEtaxContent`) เติมเฉพาะค่าหัวเอกสาร · บรรทัดเติมจากบรรทัด PO ที่ยังแจ้งหนี้ได้ให้คนแก้ · ตอนส่ง แหล่งค่าตัดสินจากไฟล์ที่เก็บแล้วแบบ `source.ts` เดิม · เลขผู้เสียภาษีในไฟล์ไม่ตรงผู้ขายของ PO → ไม่ติดป้าย `ETAX_XML` |
 
 ```yaml
 # tests/golden/invoice-confirmation.yaml
@@ -2086,8 +2101,25 @@ golden case ของไฟล์ Express (`GC-EXP-*`) จะเพิ่มเ�
 | BR-MATCH-02 | เกณฑ์ความคลาดเคลื่อนตั้งได้ต่อองค์กร ทั้งราคา (% และจำนวนเงิน) และจำนวน นอกเกณฑ์ → exception ส่งให้จัดซื้อหรือผู้ตรวจรับ |
 | BR-MATCH-03 | ใบแจ้งหนี้ซ้ำตรวจจาก (ผู้ขาย, เลขที่หลัง normalize) และเตือนเมื่อยอดเท่ากันและวันที่ห่างกันไม่เกิน 3 วัน |
 | BR-MATCH-04 | ตัดงบจริงเมื่อผ่านการจับคู่หรือ exception ได้รับอนุมัติ |
+| BR-MATCH-05 | ใบแจ้งหนี้หนึ่งใบผูก PO เดียวของผู้ขายเดียวกัน · ทุกบรรทัดต้องอ้างบรรทัด PO ของ PO นั้น และบรรทัด PO หนึ่งบรรทัดปรากฏได้ครั้งเดียวต่อใบ (`VALIDATION_FAILED`) · PO ต้องอยู่ใน `SENT` `PARTIALLY_RECEIVED` `RECEIVED` หรือ `CLOSED` |
+| BR-MATCH-06 | ยอดของบรรทัดใบ = `lineNet(จำนวน, ราคาต่อหน่วยในใบ)` (ใบที่ราคารวม VAT ใช้ `lineNetsBeforeVat` ของ ADR-038) แล้วหักส่วนลดท้ายบิลที่ปันลงบรรทัดด้วย largest remainder ตามยอด (BR-MONEY-02 ข้อ 4 · เสมอกันให้บรรทัดแรกก่อน) · ยอดที่คาด = `lineNet(จำนวนในใบ, ราคาต่อหน่วยของ PO)` · ส่วนเกิน = max(ยอดใบ − ยอดที่คาด, 0) · เทียบเป็นยอดก่อน VAT ต่อบรรทัด |
+| BR-MATCH-07 | เกณฑ์ราคา (`settings.matching.priceTolBp` และ `settings.matching.priceTolAmount` เป็นสตริงบาทที่แปลงเป็นสตางค์ · ค่าเริ่มต้น OQ-121 = 100 bp และ "1000.00"): ในเกณฑ์เมื่อ ส่วนเกิน × 10000 ≤ ยอดที่คาด × priceTolBp **และ** ส่วนเกิน ≤ priceTolAmount · เท่าเกณฑ์พอดีถือว่าในเกณฑ์ · นอกเกณฑ์ → `PRICE_OVER` จำนวนเงิน = ส่วนเกิน · ราคาต่ำกว่า PO ผ่านพร้อมป้าย `PRICE_UNDER` · ห้ามมีตัวเลขเกณฑ์ในโค้ด |
+| BR-MATCH-08 | จำนวน (นับจำนวนในใบอื่นที่ `PENDING_APPROVAL` ขึ้นไปเป็น "แจ้งหนี้แล้ว"): **สินค้า** จำนวนในใบ ≤ (รับแล้วจาก GR ที่ POSTED รวมส่วนเกินที่รับไว้ − แจ้งหนี้แล้ว) × (10000 + `settings.matching.qtyTolBp`) ÷ 10000 ไม่เช่นนั้น `QTY_NOT_RECEIVED` จำนวน = จำนวนในใบ − (รับแล้ว − แจ้งหนี้แล้ว) · **บริการ** ตรวจสองข้อตามลำดับ: (1) จำนวนในใบ > สั่ง − แจ้งหนี้แล้ว → `QTY_OVER_ORDERED` จำนวน = ส่วนที่เกินจำนวนสั่ง (2) ส่วนที่อยู่ในจำนวนสั่ง = min(จำนวนในใบ, สั่ง − แจ้งหนี้แล้ว) ถ้า > ยืนยันรับงานแล้ว − แจ้งหนี้แล้ว → `ACCEPTANCE_PENDING` จำนวน = ผลต่างนั้น (ส่วนที่เกินจำนวนสั่งไม่นับซ้ำ) · จำนวนเงินของรายการ = `lineNet(จำนวนของรายการ, ราคา PO)` · qtyTolBp ค่าเริ่มต้น 0 และไม่ใช้กับบริการ · OQ-20 ใช้กับการรับเกินที่ GR เท่านั้น |
+| BR-MATCH-09 | ส่งรายการไม่ตรงตามชนิด: `PRICE_OVER` `QTY_OVER_ORDERED` → PROCUREMENT · `QTY_NOT_RECEIVED` `ACCEPTANCE_PENDING` → ผู้ที่ `gr.post` ของ PO นั้นได้ (ผู้ตรวจรับและผู้ขอตาม OQ-04) · `VAT_*` `POSSIBLE_DUPLICATE` `BUDGET_SHORT` → FINANCE · ลำดับรายการในผล: เลขบรรทัด แล้วลำดับชนิดตาม enum `MatchException.type` |
+| BR-MATCH-10 | ทางแก้: ตรวจซ้ำ (หลัง GR ใบแก้ไข PO หรือโอนงบ · ระบบตรวจซ้ำเองเมื่อมี `gr.posted` หรือ `po_change.approved` ของ PO นั้น) · ขออนุมัติส่วนต่างได้เฉพาะเมื่อรายการเปิดทุกข้อเป็น `PRICE_OVER` ไม่เช่นนั้น `VARIANCE_NOT_ACCEPTABLE` · `invoice.requestVarianceApproval` จับคู่ใหม่ใต้ล็อก PO (`InvoiceMatch` triggeredBy `USER`) ก่อนตรวจ เพราะใบ `EXCEPTION` ไม่นับเป็น "แจ้งหนี้แล้ว" ของใบอื่น (BR-MATCH-08) จำนวนจึงอาจถูกใบอื่นที่พร้อมจ่ายไปก่อนใช้แล้ว · ผลใหม่มีชนิดอื่น → `VARIANCE_NOT_ACCEPTABLE` ธุรกรรมย้อน ใบคง `EXCEPTION` (กดตรวจซ้ำเพื่อบันทึกรายการใหม่) · ยอด DOA มาจากผลใหม่ (INV-AP-01) · ปัดตกได้เฉพาะ `POSSIBLE_DUPLICATE` · เปิดแก้ (กลับ DRAFT) · ปฏิเสธใบ |
+| BR-MATCH-11 | ผลต่องบเมื่อใบพร้อมจ่าย (BR-MATCH-04): ต่อบรรทัด ถ้ายอดใบ > ยอดถือที่เหลือของบรรทัด PO ให้ถือเพิ่มส่วนขาด (AVAILABLE → COMMITTED ด้วย `holdMore` เดิม) แล้วตัดยอดใบ (COMMITTED → ACTUAL) · ส่วนเกินในเกณฑ์ใช้งบเพิ่มโดยไม่มีคนอนุมัติ (OQ-121) · `BUDGET_SHORT` ตรวจเฉพาะเมื่อไม่มีรายการไม่ตรงชนิดอื่น: งบว่างไม่พอส่วนขาด → `BUDGET_SHORT` ต่อบรรทัดงบ (ไม่มีเงินขยับ) · ตอนอนุมัติส่วนต่าง ถือเพิ่มส่วนขาดของทุกบรรทัด (ทั้ง `PRICE_OVER` และส่วนเกินในเกณฑ์) งบไม่พอ → ปฏิเสธการตัดสินด้วย `BUDGET_INSUFFICIENT` งานยังเปิด · ใบสุดท้าย (`isFinal`) ของ PO ที่ปิดแล้วคืนถือที่เหลือทุกบรรทัด (BR-BUD-06) · ราคาต่ำกว่า PO ไม่คืนจนใบสุดท้ายหรือปิด PO |
+| BR-MATCH-12 | ใบซ้ำ (ขยาย BR-MATCH-03): ซ้ำแน่ = ผู้ขายเดียวกันและเลขหลัง normalize (BR-IVC-03) ตรงกับ `Invoice` ที่ไม่ใช่ `CANCELLED` `REJECTED` หรือกับ `InvoiceConfirmation` → `DUPLICATE_INVOICE` ตอนส่งและติดป้ายตั้งแต่ร่าง · น่าจะซ้ำ = เลขผู้เสียภาษีเดียวกัน (ทุกสาขา) ยอดรวม VAT เท่ากันทุกสตางค์ และวันที่ใบห่างกันไม่เกิน 3 วัน แต่เลขต่างกัน → `POSSIBLE_DUPLICATE` |
+| BR-MATCH-13 | ค่าตั้ง `settings.matching` `settings.wht` `settings.ap` ระยะ 1 มาจาก seed (ชีต Settings) เท่านั้น ไม่มีหน้าหรือคำสั่งแก้ใน app แบบเดียวกับ `receiving.overTolerancePct` (ไม่อยู่ใน `SECTION_CAPABILITY`) เพราะเกณฑ์คือวงเงินที่จ่ายเกิน PO ได้โดยไม่มีคนอนุมัติ · ส่วนที่ไม่มีใน settings ใช้ค่าเริ่มต้นของ OQ-121 OQ-122 (`// TODO(OQ-121)` `// TODO(OQ-122)`) · การจับคู่บันทึกเกณฑ์ที่ใช้ใน `InvoiceMatch.policy` |
 | BR-WHT-01 | ฐานภาษีหัก ณ ที่จ่าย = ยอดก่อน VAT · อัตราตามประเภทเงินได้เป็นข้อมูลที่ผู้ทำบัญชีของลูกค้ายืนยัน · ปัด half-up |
 | BR-WHT-02 | หนังสือรับรองการหักภาษี (50 ทวิ) และไฟล์ ภ.ง.ด.3 / ภ.ง.ด.53 ทำตามรูปแบบของกรมสรรพากรใน sub-spec |
+| BR-WHT-03 | ประเภทเงินได้ต่อบรรทัด: ค่าเริ่มต้น = `Supplier.defaultWhtIncomeTypeCode` เมื่อ PO เป็น `SERVICE` · `GOODS` = ไม่หัก · FINANCE แก้ได้พร้อมการยืนยันรหัสบัญชี · อัตราและแบบจาก `WhtIncomeType` ขององค์กร ไม่มีหรือไม่ active → `WHT_TYPE_NOT_CONFIGURED` · อัตราที่ยังไม่ยืนยันใช้ได้ใน demo พร้อมป้ายเตือน |
+| BR-WHT-04 | แบบ: ผู้รับเงิน `INDIVIDUAL` → ภ.ง.ด.3 · `JURISTIC` → ภ.ง.ด.53 · ประเภทที่แบบเป็น `PND53` จ่ายให้บุคคลธรรมดา หรือ `PND3` จ่ายให้นิติบุคคล → `WHT_FORM_PAYEE_MISMATCH` · `FOREIGN` → `VALIDATION_FAILED` reason `FOREIGN_PAYEE` (นอกขอบเขต) |
+| BR-WHT-05 | ฐานและจังหวะ: ระยะ 1 หักตอนจ่ายเท่านั้น (Zod ของ `settings.wht.timing` รับ `AT_PAYMENT` ค่าเดียว · `// TODO(OQ-122)`) · ฐานต่อบรรทัด = ยอดก่อน VAT ของบรรทัด − เงินประกันที่ปันลงบรรทัด (largest remainder) · `whtBases()` ของใบ = ผลรวมฐานต่อ (ประเภท, อัตรา) หลังเกณฑ์ขั้นต่ำ (BR-WHT-06) หนึ่งรายการต่อกลุ่ม · `expectedWhtSatang` ของใบ = `paymentWithholding(whtBases())` ของใบเดียว (ค่าคาดการณ์) · ภาษีจริงคิดตอนจ่ายตาม BR-WHT-10 จึงอาจต่างจากผลรวมค่าคาดการณ์ได้ไม่เกิน 1 สตางค์ต่อใบ · คืนเงินประกันมีฐาน = ยอดเงินประกัน ประเภทและอัตราเดียวกับใบ (`retentionWhtBases()`) |
+| BR-WHT-06 | เกณฑ์ขั้นต่ำ (OQ-122): ไม่หักเมื่อยอดก่อน VAT รวมของ PO (สัญญาเดียวกัน) < `settings.wht.minimumBase` (สตริงบาท · ค่าเริ่มต้น "1000.00") · เท่าเกณฑ์พอดีหัก · ถ้าถึงเกณฑ์ หักทุกการจ่ายของ PO นั้นแม้จ่ายครั้งละน้อย |
+| BR-WHT-07 | 50 ทวิ (OQ-123): หนึ่งฉบับต่อรายการจ่ายของ S9 (ผู้ขายเดียว · `WhtCertificate.paymentRunItemId` unique) รวมใบและเงินประกันที่คืนในรายการนั้น ออกใน `recordInvoicePayment` (ฟังก์ชันบันทึกการจ่ายตัวเดียว) · แสดงผู้จ่าย (Organization) ผู้รับ (ชื่อ เลขผู้เสียภาษี สาขา ที่อยู่) ประเภทเงินได้ วันที่จ่าย ยอดที่จ่าย ภาษีที่หัก เงื่อนไข "หัก ณ ที่จ่าย" และลำดับในแบบ · เลข `WHT_CERT` · PDF ผ่านตัวสร้าง PDF เดิม · ชั้น demo มีป้าย "รูปแบบรอผู้ทำบัญชีตรวจ" |
+| BR-WHT-08 | สรุป ภ.ง.ด.3 และ ภ.ง.ด.53 รายเดือนตามวันที่จ่าย (`ExportJob` ชนิด `WHT_RETURN`): ไฟล์ CSV แบบกลางที่บรรทัดแรกระบุว่า "ไม่ใช่รูปแบบยื่นของกรมสรรพากร" · มีจำนวนแถว ยอดรวม และ sha256 (BR-EXP-03) · ยอดรวมในไฟล์เท่าผลรวมรายการ (เทสต์) · รูปแบบยื่นจริงรอ OQ-123 |
+| BR-WHT-09 | เลขบัตรประชาชนของผู้รับเงินบุคคลธรรมดา (OQ-123): หน้าจอแสดงแบบ mask เสมอ · ดูเลขเต็ม ดาวน์โหลด 50 ทวิ หรือไฟล์ ภ.ง.ด.3 ที่มีเลขเต็ม ต้องมีความสามารถ `wht.revealTaxId` (FINANCE) และบันทึก `SensitiveAccessLog` ทุกครั้ง (NFR-PRIV-03) · AUDITOR เห็นแบบ mask (BR-AUTH-04) · ห้ามอยู่ใน log (NFR-SEC-09) และในเนื้อความ LINE หรืออีเมล · ไฟล์ 50 ทวิ ส่งถึงผู้รับเงินคนนั้นเองได้ (แนบในอีเมลแจ้งผลการจ่ายของ S9) |
+| BR-WHT-10 | `paymentWithholding(lines)` (pure · `src/core/wht`): แต่ละบรรทัดมีเอกสาร (ใบหรือเงินประกัน) ประเภทเงินได้ อัตรา และฐาน · รวมฐานของทุกเอกสารในรายการจ่ายเดียวต่อ (ประเภทเงินได้, อัตรา) แล้วปัด half-up ครั้งเดียวต่อกลุ่ม (BR-MONEY-02 ข้อ 3) · ฐานของกลุ่มติดลบ → `VALIDATION_FAILED` reason `WHT_BASE_NEGATIVE` · ภาษีของกลุ่มปันกลับลงเอกสารด้วย largest remainder ตามฐาน (BR-MONEY-02 ข้อ 4 · เศษเท่ากันให้เอกสารที่มาก่อนตามลำดับในรายการ ซึ่งเรียงตามเลขเอกสาร) เป็น `WithholdingTax` หนึ่งแถวต่อกลุ่มต่อเอกสาร ผลรวมจึงตรง 50 ทวิ ทุกสตางค์ |
 | BR-BANK-01 | ตัวสร้างไฟล์แยกต่อธนาคาร golden test เป็นแบบ byte-exact + sha256 เทียบกับไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคารแล้ว |
 | BR-BANK-02 | ก่อนส่งออกตรวจว่า บัญชีผู้รับตรงกับบัญชีที่อนุมัติในทะเบียนผู้ขาย ยอดรวมตรงรอบจ่าย และไม่มีรายการซ้ำ |
 | BR-BANK-03 | ไฟล์ที่สร้างแล้วแก้ไม่ได้ สร้างใหม่ต้องระบุเหตุผลและเป็นเวอร์ชันใหม่ |
@@ -2098,6 +2130,134 @@ suite: wht
 status: preview-T2
 cases:
   - { id: GC-WHT-01, title: ค่าบริการ 10,000 VAT 7% หัก 3%, input: { net: "10000.00", vatRateBp: 700, whtRateBp: 300 }, expect: { vat: "700.00", wht: "300.00", payable: "10400.00" } }
+```
+
+การจับคู่ของใบแจ้งหนี้ชั้น 2 (BR-MATCH-05 ถึง BR-MATCH-13 · engine `src/core/matching` · S8-02):
+
+```yaml
+# tests/golden/matching.yaml
+suite: matching
+# fn: match (ค่าเริ่มต้น) | duplicates | approveVariance
+# policy ทุกเคส = ค่าเริ่มต้นของ OQ-121 เว้นแต่เคสระบุเอง · vatRateBp ใช้คิด VAT ของส่วนต่างใน doaAmount
+policy: { priceTolBp: 100, priceTolAmount: "1000.00", qtyTolBp: 0, vatRateBp: 700 }
+# poLines: accepted = จำนวนที่ GR POSTED ยอมรับ (บริการ = ยืนยันรับงาน) · invoiced = จำนวนในใบอื่นที่ PENDING_APPROVAL ขึ้นไป
+#          held = ยอดถือที่เหลือของบรรทัด PO · available = AVAILABLE ของบรรทัดงบ
+# budget: holdMore = AVAILABLE → COMMITTED · actual = COMMITTED → ACTUAL · release = COMMITTED → AVAILABLE
+# exceptions เรียงตามเลขบรรทัด แล้วตามลำดับชนิด PRICE_OVER QTY_NOT_RECEIVED QTY_OVER_ORDERED ACCEPTANCE_PENDING · BUDGET_SHORT เกิดเมื่อไม่มีชนิดอื่นเท่านั้น
+# doaAmount มีเมื่อรายการไม่ตรงทุกข้อเป็น PRICE_OVER (ขออนุมัติส่วนต่างได้)
+cases:
+  - id: GC-MATCH-01
+    title: สินค้าตรง 3 ทาง (แบบ H009)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "9", unitPrice: "2863.00", accepted: "9", invoiced: "0", held: "25767.00", budgetLine: P05-MAT }], available: { P05-MAT: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "9", unitPrice: "2863.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "25767.00", expected: "25767.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: P05-MAT, holdMore: "0.00", actual: "25767.00", release: "0.00" }] }
+  - id: GC-MATCH-02
+    title: ราคาเกินในเกณฑ์ 0.5% ถือเพิ่มส่วนขาด (แบบ H011)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "23500.00", accepted: "1", invoiced: "0", held: "23500.00", budgetLine: P06-MAT }], available: { P06-MAT: "500000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "23617.50" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "23617.50", expected: "23500.00", over: "117.50", flags: [PRICE_OVER_WITHIN] }], exceptions: [], budget: [{ budgetLine: P06-MAT, holdMore: "117.50", actual: "23617.50", release: "0.00" }] }
+  - id: GC-MATCH-03
+    title: เกินพอดี 1% ถือว่าในเกณฑ์
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "100.00", accepted: "10", invoiced: "0", held: "1000.00", budgetLine: BL-A }], available: { BL-A: "1000.00" }, invoice: { lines: [{ poLine: 1, qty: "10", unitPrice: "101.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "1010.00", expected: "1000.00", over: "10.00", flags: [PRICE_OVER_WITHIN] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "10.00", actual: "1010.00", release: "0.00" }] }
+  - id: GC-MATCH-04
+    title: เกิน 1% ไป 1 สตางค์
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "1000.00", accepted: "1", invoiced: "0", held: "1000.00", budgetLine: BL-A }], available: { BL-A: "1000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "1010.01" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "1010.01", expected: "1000.00", over: "10.01", flags: [] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "10.01" }], doaAmount: { net: "10.01", vat: "0.70" } }
+  - id: GC-MATCH-05
+    title: เพดานจำนวนเงินพอดี 1,000.00 (0.5%)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "200000.00", accepted: "1", invoiced: "0", held: "200000.00", budgetLine: BL-A }], available: { BL-A: "5000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "201000.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "201000.00", expected: "200000.00", over: "1000.00", flags: [PRICE_OVER_WITHIN] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "1000.00", actual: "201000.00", release: "0.00" }] }
+  - id: GC-MATCH-06
+    title: อยู่ใน 1% แต่เกินเพดาน 1 สตางค์ (เกณฑ์ที่เข้มกว่าชนะ)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "200000.00", accepted: "1", invoiced: "0", held: "200000.00", budgetLine: BL-A }], available: { BL-A: "5000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "201000.01" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "201000.01", expected: "200000.00", over: "1000.01", flags: [] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "1000.01" }], doaAmount: { net: "1000.01", vat: "70.00" } }
+  - id: GC-MATCH-07
+    title: ราคาเกินนอกเกณฑ์ 3% (H001 น้ำมันดีเซล 32.50 → 33.48)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "20000", unitPrice: "32.50", accepted: "20000", invoiced: "0", held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "900000.00" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "669600.00", expected: "650000.00", over: "19600.00", flags: [] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "19600.00" }], doaAmount: { net: "19600.00", vat: "1372.00" } }
+  - id: GC-MATCH-08
+    title: แจ้งหนี้เต็มจำนวนแต่รับแล้ว 90 จาก 100 (แบบ H041)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "100", unitPrice: "240.00", accepted: "90", invoiced: "0", held: "21600.00", budgetLine: QSE-OPEX }], available: { QSE-OPEX: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "100", unitPrice: "240.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "24000.00", expected: "24000.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_NOT_RECEIVED, line: 1, qty: "10", amount: "2400.00" }] }
+  - id: GC-MATCH-09
+    title: รับบางส่วนแล้วแจ้งหนี้ตามที่รับ
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "1100.00", accepted: "6", invoiced: "0", held: "11000.00", budgetLine: CC-CON }], available: { CC-CON: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "6", unitPrice: "1100.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "6600.00", expected: "6600.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: CC-CON, holdMore: "0.00", actual: "6600.00", release: "0.00" }] }
+  - id: GC-MATCH-10
+    title: ใบที่สองเกินที่รับลบที่แจ้งหนี้แล้ว 1 หน่วย
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "1100.00", accepted: "10", invoiced: "6", held: "4400.00", budgetLine: CC-CON }], available: { CC-CON: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "5", unitPrice: "1100.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "5500.00", expected: "5500.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_NOT_RECEIVED, line: 1, qty: "1", amount: "1100.00" }] }
+  - id: GC-MATCH-11
+    title: รับเกินในเกณฑ์ OQ-20 (104 จาก 100) แล้วแจ้งหนี้ 104
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "100", unitPrice: "10.00", accepted: "104", invoiced: "0", held: "1040.00", budgetLine: BL-A }], available: { BL-A: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "104", unitPrice: "10.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "1040.00", expected: "1040.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "0.00", actual: "1040.00", release: "0.00" }] }
+  - id: GC-MATCH-12
+    title: งานบริการ 2 ทาง ยืนยันรับงานแล้ว (H002 รปภ.)
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "24", unitPrice: "18500.00", accepted: "24", invoiced: "0", held: "444000.00", budgetLine: HRA-GA-OPEX }], available: { HRA-GA-OPEX: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "24", unitPrice: "18500.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "444000.00", expected: "444000.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: HRA-GA-OPEX, holdMore: "0.00", actual: "444000.00", release: "0.00" }] }
+  - id: GC-MATCH-13
+    title: งานบริการยังไม่ยืนยันรับงาน (แบบ H012)
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "1", unitPrice: "420000.00", accepted: "0", invoiced: "0", held: "420000.00", budgetLine: MKT-OPEX }], available: { MKT-OPEX: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "420000.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "420000.00", expected: "420000.00", over: "0.00", flags: [] }], exceptions: [{ type: ACCEPTANCE_PENDING, line: 1, qty: "1", amount: "420000.00" }] }
+  - id: GC-MATCH-14
+    title: งานบริการแจ้งหนี้เกินที่สั่ง
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "8", unitPrice: "2744.00", accepted: "8", invoiced: "0", held: "21952.00", budgetLine: P01-RENT }], available: { P01-RENT: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "9", unitPrice: "2744.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "24696.00", expected: "24696.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_OVER_ORDERED, line: 1, qty: "1", amount: "2744.00" }] }
+  - id: GC-MATCH-15
+    title: ส่วนลดท้ายบิล 100.00 ปันลงสองบรรทัดงบด้วย largest remainder
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "3333.33", accepted: "1", invoiced: "0", held: "3333.33", budgetLine: BL-A }, { line: 2, ordered: "1", unitPrice: "6666.67", accepted: "1", invoiced: "0", held: "6666.67", budgetLine: BL-B }], available: { BL-A: "0.00", BL-B: "0.00" }, invoice: { discount: "100.00", lines: [{ poLine: 1, qty: "1", unitPrice: "3333.33" }, { poLine: 2, qty: "1", unitPrice: "6666.67" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, discount: "33.33", net: "3300.00", expected: "3333.33", over: "0.00", flags: [PRICE_UNDER] }, { line: 2, discount: "66.67", net: "6600.00", expected: "6666.67", over: "0.00", flags: [PRICE_UNDER] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "0.00", actual: "3300.00", release: "0.00" }, { budgetLine: BL-B, holdMore: "0.00", actual: "6600.00", release: "0.00" }] }
+  - id: GC-MATCH-16
+    title: ราคาต่ำกว่า PO ในใบสุดท้ายของ PO ที่ปิดแล้ว คืนถือที่เหลือ
+    input: { kind: GOODS, poClosed: true, poLines: [{ line: 1, ordered: "10", unitPrice: "100.00", accepted: "10", invoiced: "0", held: "1000.00", budgetLine: BL-A }], available: { BL-A: "0.00" }, invoice: { isFinal: true, lines: [{ poLine: 1, qty: "10", unitPrice: "98.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "980.00", expected: "1000.00", over: "0.00", flags: [PRICE_UNDER] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "0.00", actual: "980.00", release: "20.00" }] }
+  - id: GC-MATCH-17
+    title: เกินในเกณฑ์แต่งบว่างไม่พอส่วนขาด
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "23500.00", accepted: "1", invoiced: "0", held: "23500.00", budgetLine: P06-MAT }], available: { P06-MAT: "100.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "23617.50" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "23617.50", expected: "23500.00", over: "117.50", flags: [PRICE_OVER_WITHIN] }], exceptions: [{ type: BUDGET_SHORT, budgetLine: P06-MAT, amount: "17.50" }] }
+  - id: GC-MATCH-18
+    title: สองบรรทัดสองบรรทัดงบ บรรทัดแรกเกินในเกณฑ์
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "1100.00", accepted: "10", invoiced: "0", held: "11000.00", budgetLine: BL-A }, { line: 2, ordered: "5", unitPrice: "2000.00", accepted: "5", invoiced: "0", held: "10000.00", budgetLine: BL-B }], available: { BL-A: "100.00", BL-B: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "10", unitPrice: "1105.00" }, { poLine: 2, qty: "5", unitPrice: "2000.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "11050.00", expected: "11000.00", over: "50.00", flags: [PRICE_OVER_WITHIN] }, { line: 2, net: "10000.00", expected: "10000.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "50.00", actual: "11050.00", release: "0.00" }, { budgetLine: BL-B, holdMore: "0.00", actual: "10000.00", release: "0.00" }] }
+  - { id: GC-MATCH-19, fn: duplicates, title: เลขซ้ำหลัง normalize, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: " iv 000496", invoiceDate: "2026-10-05", gross: "27570.69" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000496", invoiceDate: "2026-09-01", gross: "27570.69", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: DUPLICATE_INVOICE, soft: [] } }
+  - { id: GC-MATCH-20, fn: duplicates, title: ซ้ำกับใบกำกับชั้น 1, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000497", invoiceDate: "2026-10-05", gross: "1070.00" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000497", invoiceDate: "2026-09-20", gross: "2140.00", table: CONFIRMATION, status: RECORDED }] }, expect: { hard: DUPLICATE_INVOICE, soft: [] } }
+  - { id: GC-MATCH-21, fn: duplicates, title: เลขเดียวกันต่างผู้ขาย ไม่ซ้ำ, input: { candidate: { supplier: SP-B, taxId: TAX-B, invoiceNo: "INV-00140", invoiceDate: "2026-10-05", gross: "500.00" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "INV-00140", invoiceDate: "2026-10-05", gross: "500.00", table: INVOICE, status: PAID }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-22, fn: duplicates, title: เลขเดียวกับใบที่ถูกปฏิเสธ ไม่ซ้ำ, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: "TX0000755", invoiceDate: "2026-10-05", gross: "398572.86" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "TX0000755", invoiceDate: "2026-10-01", gross: "398572.86", table: INVOICE, status: REJECTED }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-23, fn: duplicates, title: น่าจะซ้ำ ต่างสาขา ยอดเท่ากัน ห่าง 3 วัน, input: { candidate: { supplier: SP-BR, taxId: TAX-C, invoiceNo: "INV-00140", invoiceDate: "2026-10-05", gross: "61099.14" }, existing: [{ supplier: SP-HQ, taxId: TAX-C, invoiceNo: "INV-00139", invoiceDate: "2026-10-02", gross: "61099.14", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: null, soft: [{ invoiceNo: "INV-00139", days: 3 }] } }
+  - { id: GC-MATCH-24, fn: duplicates, title: ห่าง 4 วัน ไม่เตือน, input: { candidate: { supplier: SP-BR, taxId: TAX-C, invoiceNo: "INV-00140", invoiceDate: "2026-10-06", gross: "61099.14" }, existing: [{ supplier: SP-HQ, taxId: TAX-C, invoiceNo: "INV-00139", invoiceDate: "2026-10-02", gross: "61099.14", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-25, fn: duplicates, title: ยอดต่าง 0.01 ไม่เตือน, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000500", invoiceDate: "2026-10-02", gross: "61099.15" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000499", invoiceDate: "2026-10-02", gross: "61099.14", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-26, fn: approveVariance, title: อนุมัติส่วนต่างของ GC-MATCH-07, input: { poLines: [{ line: 1, held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "900000.00" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }, expect: { budget: [{ budgetLine: EQP-OPEX, holdMore: "19600.00", actual: "669600.00", release: "0.00" }] } }
+  - { id: GC-MATCH-27, fn: approveVariance, title: อนุมัติส่วนต่างแต่งบขาด 0.01, input: { poLines: [{ line: 1, held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "19599.99" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }, expect: { error: BUDGET_INSUFFICIENT, budgetLine: EQP-OPEX, shortfall: "0.01" } }
+  - { id: GC-MATCH-28, fn: approveVariance, title: อนุมัติส่วนต่างงบพอดี, input: { poLines: [{ line: 1, held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "19600.00" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }, expect: { budget: [{ budgetLine: EQP-OPEX, holdMore: "19600.00", actual: "669600.00", release: "0.00" }] } }
+  - id: GC-MATCH-29
+    title: งานบริการแจ้งหนี้เกินที่สั่งและเกินที่ยืนยันรับงาน นับส่วนที่อยู่ในจำนวนสั่งครั้งเดียว
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "10", unitPrice: "1500.00", accepted: "6", invoiced: "0", held: "15000.00", budgetLine: BL-A }], available: { BL-A: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "12", unitPrice: "1500.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "18000.00", expected: "18000.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_OVER_ORDERED, line: 1, qty: "2", amount: "3000.00" }, { type: ACCEPTANCE_PENDING, line: 1, qty: "4", amount: "6000.00" }] }
+  - id: GC-MATCH-30
+    title: ราคาเกินนอกเกณฑ์บรรทัดหนึ่ง อีกบรรทัดเกินในเกณฑ์และงบขาด ไม่ติด BUDGET_SHORT
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "10000.00", accepted: "1", invoiced: "0", held: "10000.00", budgetLine: BL-A }, { line: 2, ordered: "1", unitPrice: "5000.00", accepted: "1", invoiced: "0", held: "5000.00", budgetLine: BL-B }], available: { BL-A: "1000.00", BL-B: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "10500.00" }, { poLine: 2, qty: "1", unitPrice: "5025.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "10500.00", expected: "10000.00", over: "500.00", flags: [] }, { line: 2, net: "5025.00", expected: "5000.00", over: "25.00", flags: [PRICE_OVER_WITHIN] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "500.00" }], doaAmount: { net: "500.00", vat: "35.00" } }
+  - { id: GC-MATCH-31, fn: approveVariance, title: อนุมัติส่วนต่างของ GC-MATCH-30 งบของบรรทัดในเกณฑ์ขาด, input: { poLines: [{ line: 1, held: "10000.00", budgetLine: BL-A }, { line: 2, held: "5000.00", budgetLine: BL-B }], available: { BL-A: "1000.00", BL-B: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "10500.00" }, { poLine: 2, qty: "1", unitPrice: "5025.00" }] } }, expect: { error: BUDGET_INSUFFICIENT, budgetLine: BL-B, shortfall: "25.00" } }
+```
+
+VAT ของใบแจ้งหนี้ (BR-VAT-05 ถึง BR-VAT-07 ใน §7.1):
+
+```yaml
+# tests/golden/invoice-vat.yaml
+suite: invoice-vat
+# fn: checkInvoiceVat · vatTolAmount "1.00" (OQ-121) · rateBp = อัตรา ณ วันที่ใบ (BR-VAT-01)
+# supplierVat: REGISTERED | NOT_REGISTERED | REGISTRY_VAT_CANCELLED (isVatRegistered ยังเป็น true แต่ Supplier.registryFlag = VAT_CANCELLED) · status เป็นค่าเดียว: VAT_SUPPLIER_NOT_REGISTERED มาก่อน VAT_MISMATCH (BR-VAT-06)
+# computedVat computedGross = ค่าที่ระบบคำนวณใช้ตรวจ (BR-VAT-05) · invoiceGross = ยอดก่อน VAT + VAT ในใบ = Invoice.grossSatang ที่ใช้จ่าย (BR-VAT-07)
+cases:
+  - { id: GC-VAT-05, title: VAT ตรงที่คำนวณ, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1803.69" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27570.69", diff: "0.00", status: OK } }
+  - { id: GC-VAT-06, title: ต่าง 1.00 พอดี ผ่าน, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1804.69" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27571.69", diff: "1.00", status: OK } }
+  - { id: GC-VAT-07, title: สูงกว่า 1.01, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1804.70" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27571.70", diff: "1.01", status: VAT_MISMATCH } }
+  - { id: GC-VAT-08, title: ต่ำกว่า 1.01, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1802.68" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27569.68", diff: "-1.01", status: VAT_MISMATCH } }
+  - { id: GC-VAT-09, title: ผู้ขายไม่จด VAT แต่เก็บ VAT (แบบ H041), input: { rateBp: 700, supplierVat: NOT_REGISTERED, lines: [{ qty: "100", unitPrice: "240.00" }], statedVat: "1680.00" }, expect: { rateBp: 0, net: "24000.00", computedVat: "0.00", computedGross: "24000.00", invoiceGross: "25680.00", diff: "1680.00", status: VAT_SUPPLIER_NOT_REGISTERED } }
+  - { id: GC-VAT-10, title: ผู้ขายไม่จด VAT ใบไม่มี VAT, input: { rateBp: 700, supplierVat: NOT_REGISTERED, lines: [{ qty: "100", unitPrice: "240.00" }], statedVat: "0.00" }, expect: { rateBp: 0, net: "24000.00", computedVat: "0.00", computedGross: "24000.00", invoiceGross: "24000.00", diff: "0.00", status: OK } }
+  - { id: GC-VAT-11, title: ใบราคารวม VAT, input: { rateBp: 700, supplierVat: REGISTERED, priceIncludesVat: true, lines: [{ qty: "3", unitPrice: "107.00" }], statedVat: "21.00" }, expect: { rateBp: 700, net: "300.00", computedVat: "21.00", computedGross: "321.00", invoiceGross: "321.00", diff: "0.00", status: OK } }
+  - { id: GC-VAT-12, title: บรรทัดที่ไม่มี VAT ไม่อยู่ในฐาน, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "1", unitPrice: "1000.00" }, { qty: "1", unitPrice: "500.00", vatable: false }], statedVat: "70.00" }, expect: { rateBp: 700, net: "1500.00", computedVat: "70.00", computedGross: "1570.00", invoiceGross: "1570.00", diff: "0.00", status: OK } }
+  - { id: GC-VAT-13, title: ทะเบียนเก่ายังเป็น Y แต่ผลตรวจออกจาก VAT แล้ว, input: { rateBp: 700, supplierVat: REGISTRY_VAT_CANCELLED, lines: [{ qty: "307", unitPrice: "186.00" }], statedVat: "3997.14" }, expect: { rateBp: 0, net: "57102.00", computedVat: "0.00", computedGross: "57102.00", invoiceGross: "61099.14", diff: "3997.14", status: VAT_SUPPLIER_NOT_REGISTERED } }
+  - { id: GC-VAT-14, title: VAT หลังหักส่วนลดท้ายบิล, input: { rateBp: 700, supplierVat: REGISTERED, discount: "100.00", lines: [{ qty: "1", unitPrice: "3333.33" }, { qty: "1", unitPrice: "6666.67" }], statedVat: "693.00" }, expect: { rateBp: 700, net: "9900.00", computedVat: "693.00", computedGross: "10593.00", invoiceGross: "10593.00", diff: "0.00", status: OK } }
 ```
 
 ### 7.15 ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
@@ -2135,7 +2295,70 @@ cases:
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
 
-หัวข้อนี้จองให้ขั้น S8 (สาย 2): กฎ BR INV และ golden ของ S8 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S8.md`) · ยังไม่มีเนื้อหา
+หัวข้อนี้จองให้ขั้น S8 (สาย 2): กฎ BR INV และ golden ของ S8 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S8.md`) · กฎของตระกูลเดิม (BR-VAT BR-IVC BR-MATCH BR-WHT) อยู่ในตารางของ §7.1 §7.12 และ §7.14
+
+**ใบแจ้งหนี้ชั้น 2 (BR-AP)**
+
+| ID | กฎ |
+| --- | --- |
+| BR-AP-01 | ช่องทางระยะ 1: `UPLOAD` (PDF XML JPEG PNG ไม่เกิน `MAX_UPLOAD_BYTES`) และ `EMAIL` · `PORTAL` สงวนให้ S7 · engine จับคู่ไม่รับช่องทางเป็น input |
+| BR-AP-02 | กล่องอีเมล (ADR-123): หนึ่งร่างต่อไฟล์แนบที่รับ (สูงสุด 10 ไฟล์ต่ออีเมล) · เสนอผู้ขายจากเลขผู้เสียภาษีและสาขาใน e-Tax ก่อน แล้วจากอีเมลผู้ส่งที่ตรง `Supplier.email` · เสนอ PO จากเลข PO ตามรูปแบบ `numbering.PO` ในหัวเรื่องหรือชื่อไฟล์ · ค่าที่เสนอต้องให้ FINANCE ยืนยัน · ไม่ส่งจับคู่เอง · Message-ID เดิม → ไม่สร้างซ้ำ · ไฟล์ชนิดอื่นถูกข้ามพร้อมเหตุผล |
+| BR-AP-03 | `invoice.createDraftFromReading` (ให้ S13 · input: fileId · supplierId? · poId? · ค่าหัวเอกสาร · บรรทัด? · agentActionId · aiAssist?): ผู้กระทำเป็น member ที่ยอมรับผลของ AI (ไม่ใช่ agent · BR-AI-01) · ได้ร่าง `prefill = AI_READING` และ `fieldSources` บอกแหล่งของแต่ละช่องเพื่อแสดงป้าย "เติมโดย AI โปรดตรวจ" เท่านั้น · `invoice.createDraftFromReading` และ `invoice.update` รับ `aiAssist?: AiAssistInput` แล้วเรียก `applyAiAssist(tx, ctx, subject, aiAssist)` จาก `src/server/services/ai/assist-contract.ts` ในธุรกรรมเดียวกับคำสั่ง (ตัว stub ของ P1-07: ไม่ส่ง = ไม่ทำอะไร · ส่งก่อน S13 = `MODULE_DISABLED` ธุรกรรมย้อน · S13-12 ทำให้ใช้งานจริงฝั่ง AI) · การยืนยันค่าของ AI ใช้กลไกกลางของ S13 (AgentAction review ของ S13) ไม่เก็บผู้ยืนยันต่อช่องใน `Invoice` · `invoice.submit` และคำสั่งที่ยืนยันใบ เรียก `assertNoPendingAiReview(tx, ctx, subject)` จากไฟล์เดียวกัน (stub คืน ok · S13-03 เติมตัวจริง) → `AI_REVIEW_PENDING` · ไฟล์ e-Tax ไม่ผ่านทางนี้ ใช้ทางอัปโหลด (`prefill = ETAX_XML` · BR-IVC-07) |
+| BR-AP-04 | ส่งได้เมื่อ: ผู้ขายและ PO ตรงกัน (BR-MATCH-05) · วันที่ใบไม่เกินวันนี้ตามเวลาองค์กร · มีอัตรา VAT (`TAX_RATE_NOT_CONFIGURED`) · ทุกบรรทัดยืนยันรหัสบัญชีและ cost center แล้วด้วย `invoice.confirmCoding` (`CODING_NOT_CONFIRMED` · รหัสต้องเป็น `AccountCode` ที่ active) · ไม่มีค่าของ AI ที่รอตรวจ (BR-AP-03) · ไม่ซ้ำแน่ (BR-MATCH-12) · ออกเลขตอนส่ง |
+| BR-AP-05 | แบ่งแยกหน้าที่ (OQ-127): ผู้ส่งใบ (`recordedById`) ห้ามเป็นผู้สร้าง PO หรือผู้บันทึก GR ของ PO นั้น · ผู้อนุมัติ `INVOICE_EXCEPTION` ห้ามเป็นผู้ส่งใบหรือผู้ขออนุมัติส่วนต่าง (ส่งเป็น `conflictMemberIds`) · ขัด → `SOD_VIOLATION` |
+| BR-AP-06 | DOA ของส่วนต่าง (OQ-127): ยอด = { net: ผลรวมส่วนเกินของบรรทัด `PRICE_OVER`, vat: VAT ของ net นั้นด้วยอัตราของใบแบบ VAT ระดับเอกสาร } แล้ว engine ใช้ฐานของฉบับ (BR-DOA-11) · แผนกเจ้าของงบ = แผนกของบรรทัดงบของบรรทัดที่ส่วนเกินมากที่สุด (เท่ากันใช้เลขบรรทัดน้อย) · step-up ตาม OQ-07 จากยอดนี้ |
+| BR-AP-07 | วันครบกำหนด = วันที่ใบ + `PurchaseOrder.paymentTermDays` (ไม่มีใช้ `Supplier.paymentTermDays` แล้ว `settings.ap.defaultTermDays` ค่าเริ่มต้น 30) เป็นวันปฏิทิน · ตั้งตอนใบพร้อมจ่าย (OQ-129) |
+| BR-AP-08 | อีเมลถึงผู้ขาย (FR-AP-103 · §8.12): เมื่อส่งใบ (รับแล้ว พร้อมเลข BCS) · ปฏิเสธ (พร้อมเหตุผล) · พร้อมจ่าย (วันครบกำหนด ยอดที่ต้องจ่าย และภาษีหักคาดการณ์เมื่อมากกว่า 0) ถึง `Supplier.email` ผ่าน `enqueueSupplierNotice` ในธุรกรรมของคำสั่ง (แถว `SupplierNotice` · dedupeKey ต่อเหตุต่อใบ) · ไม่มีชื่อผู้อนุมัติภายใน · ไม่ส่ง LINE ถึงผู้ขาย · ไม่มีอีเมลผู้ขาย → `NO_EMAIL` ไม่ส่งและแจ้ง FINANCE ในระบบ |
+| BR-AP-09 | ข้อความ LINE ของรายการไม่ตรงและการ์ดอนุมัติ (BR-NOTI-01): เลขใบ BCS เลข PO ชนิดรายการ และยอดส่วนต่างรวม · ไม่มีรายการสินค้า ราคาต่อหน่วย ไฟล์ · ชื่อผู้ขายแสดงเฉพาะ `payeeType = JURISTIC` · push บนหน้าจอล็อกของแอปตามค่าเริ่มต้นของ OQ-107 (ชนิดงานและเลขเอกสารเท่านั้น) |
+| BR-AP-10 | เสนอรหัสบัญชี (FR-AP-108 · OQ-128 · ไม่ใช้ AI): ประวัติ = บรรทัดของใบที่ `READY_FOR_PAYMENT` ขึ้นไปที่ยืนยันแล้ว ของผู้ขายเลขผู้เสียภาษีเดียวกันและ `categoryCode` ของบรรทัด PO เดียวกัน วันที่ใบภายใน 365 วันก่อนวันที่ใบนี้ (วันที่ 365 นับ) · เลือกรหัสที่ใช้บ่อยสุด เท่ากันใช้ครั้งล่าสุด · ไม่มี → รหัสของบรรทัดงบ · ไม่มี → ว่างให้กรอก · cost center = ของบรรทัดงบ แก้ได้พร้อมเหตุผล (งบไม่เปลี่ยน) · คนต้องยืนยันทุกบรรทัด |
+| BR-AP-11 | สิ่งที่อ่านใบแจ้งหนี้ชั้น 2 ต้องนับเหมือนใบกำกับชั้น 1: ปิด PO และใบสุดท้าย (BR-BUD-06 · `purchase-orders/close.ts`) · กลับรายการ GR ห้ามเมื่อมีใบของ PO ที่ `PENDING_APPROVAL` ขึ้นไป · ส่งออก Express (BR-EXP-02 ถึง BR-EXP-04 ใช้รหัสบัญชีที่ยืนยัน) · หน้าเอกสารและหน้าแรก |
+| BR-AP-12 | สถานะ `IN_PAYMENT_RUN` และ `PAID` ของใบและเงินประกันเปลี่ยนได้เฉพาะฟังก์ชันที่ S9 เรียกในธุรกรรมของคำสั่ง S9 · คำสั่งของ S8 กับใบหรือเงินประกันสองสถานะนี้ → `INVALID_STATE_TRANSITION` |
+| BR-AP-13 | โมดูล: ทุกคำสั่งและ job ของใบแจ้งหนี้ ภาษีหัก ณ ที่จ่าย งวดงาน และเงินประกัน (`invoice.*` `match_exception.*` `po.setMilestones` `retention.*` `wht.*` `accountCode.*` `supplier.taxProfile.*`) เรียก `requireModule(ctx, 'PAY')` ปิดอยู่ → `MODULE_DISABLED` · หน้าจอซ่อนเมนูการเงินชั้น 2 แท็บใบแจ้งหนี้ ช่องแบ่งงวด และช่องเงินประกันบนหน้า PO เมื่อปิด `PAY` (ซ่อนเพื่อความสะอาด การตรวจอยู่ใน service) · ใบแก้ไข PO อยู่ใน CORE (BR-POC-05) |
+
+**งวดงานและเงินประกันผลงาน (BR-RET)**
+
+| ID | กฎ |
+| --- | --- |
+| BR-RET-01 | งวดงาน (ADR-124): `po.setMilestones` ขณะ PO เป็น DRAFT กับบรรทัดของ PO `SERVICE` ที่มีคำขอต้นทางบรรทัดเดียว · sharesBp 2–12 ค่า แต่ละค่า > 0 รวม 10000 · จำนวนต่องวด = ปันจำนวน (หน่วย 0.0001) ด้วย largest remainder · ยอดต่องวด = `lineNet(จำนวนงวด, ราคาเดิม)` · ทุกงวดคงบรรทัดงบและมี `PoLineSource` ตามจำนวนของตน · คำอธิบายต่อท้าย "งวดที่ n (x%)" |
+| BR-RET-02 | ตรวจรับงวด = GR ของบรรทัดงวดนั้นด้วย `gr.post` เดิม (BR-GR-05 BR-SOD-02 BR-SOD-07) · ใบของงวดจับคู่แบบบริการ (BR-MATCH-08) |
+| BR-RET-03 | เงินประกันต่อใบ = ส่วนแรกของ `allocateLargestRemainder(ยอดก่อน VAT ของใบ, [retentionBp, 10000 − retentionBp])` (เท่ากับ half-up · ไม่เพิ่มจุดปัด) · `retentionBp` ของ PO ตั้งจาก `RequestType.defaultRetentionBp` แก้ได้ตอน DRAFT · ฐานเป็นยอดก่อน VAT (OQ-125) · ยอดที่ต้องจ่าย = ยอดรวม VAT − เงินประกัน · ยอดโอนคาดการณ์ = ยอดที่ต้องจ่าย − ภาษีคาดการณ์ |
+| BR-RET-04 | `Retention` สร้าง `HELD` ตอนใบพร้อมจ่าย · releaseDueOn = วันตรวจรับงวดสุดท้ายของ PO (`GoodsReceipt.postedAt` · OQ-170 ของ S17 ไม่ใช่ `receivedAt` ที่มาจากนาฬิกาของมือถือ) + `retentionHoldDays` (ค่าเริ่มต้นจากประเภทคำขอ OQ-125 = 365) ตั้งเมื่อรับครบ · คืนก่อนวัน → `RETENTION_NOT_DUE` · เงินประกันไม่ขยับงบ (ตัดเต็มยอดไปกับใบแล้ว) · job รายวันแจ้ง FINANCE เมื่อถึงวัน |
+
+**ใบแก้ไข PO (BR-POC)**
+
+| ID | กฎ |
+| --- | --- |
+| BR-POC-01 | แก้ได้ (OQ-126): ราคาของบรรทัดที่ยังไม่มีจำนวนแจ้งหนี้ · จำนวน (≥ max(รับแล้ว, แจ้งหนี้แล้ว) และไม่เกินจำนวนที่ยังไม่สั่งของคำขอต้นทาง + จำนวนเดิม) · วันส่ง · หมายเหตุถึงผู้ขาย · เพิ่มหรือลบบรรทัดไม่ได้ · บรรทัดที่รวมหลายคำขอแก้จำนวนไม่ได้ (เหมือน `MERGED_LINE` เดิม) · ผิด → `PO_CHANGE_BELOW_PROGRESS` (reason `RECEIVED` `INVOICED` `LINE_INVOICED`) หรือ `PO_CHANGE_EXCEEDS_REQUEST` · ใบเปิดซ้อน → `PO_CHANGE_OPEN` |
+| BR-POC-02 | ยอดใหม่คำนวณด้วย `documentTotals` ที่อัตราของ PO · DOA `PO_CHANGE` ยอด = ยอดรวมใหม่ทั้ง PO {net, vat} · แผนกและผู้ขัดแย้งแบบเดียวกับ `po.submit` (BR-SOD-01 BR-SOD-03) และเพิ่มผู้เสนอ · ทุกการแก้ราคาหรือจำนวนต้องอนุมัติ · ใบแก้ไขที่แก้เฉพาะวันส่งหรือหมายเหตุ อนุมัติอัตโนมัติตอนส่ง (`autoApproved` · ไม่เข้า DOA · ไม่ขยับงบ) แต่ยังเพิ่ม `revisionNo` และออก PDF ใหม่ตาม BR-POC-04 |
+| BR-POC-03 | งบ (ADR-125): ต่อบรรทัด Δ = ยอดใหม่ − ยอดเดิม · ตอนส่ง จอง max(Δ − releasable ของจำนวนที่เพิ่ม, 0) ในนามบรรทัด PO (AVAILABLE → RESERVED) ไม่พอ → `BUDGET_INSUFFICIENT` · ตอนอนุมัติ คืนการจองของใบแก้ไขและ releasable ของจำนวนที่เพิ่มจากคำขอ แล้วถือ Δ · Δ < 0 คืนถือเท่าขนาดของ Δ และจำนวนที่ลดใช้ disposition: `RETURN_TO_POOL` จอง releasable คืนให้คำขอ หรือ `CANCEL_REQUEST_LINES` · ไม่อนุมัติหรือยกเลิก คืนการจองของใบแก้ไข · ทุกการย้ายประกอบจาก `submitPo` `approvePo` `rejectPo` `releaseHold` `reserve` เดิมของ `src/core/budget` (ไม่เพิ่มหรือแก้ฟังก์ชันงบ) |
+| BR-POC-04 | ตอนขั้นสุดท้ายอนุมัติ `decide` ของ adapter ล็อก PO แล้วตรวจ BR-POC-01 ซ้ำกับจำนวนรับและแจ้งหนี้ ณ ตอนนั้น (ระหว่างรออนุมัติ GR หรือใบแจ้งหนี้ของ PO ยังเกิดได้) ไม่ผ่าน → `decide` คืน `PO_CHANGE_BELOW_PROGRESS` ธุรกรรมย้อน งานยังเปิดให้ไม่อนุมัติหรือตีกลับ · อนุมัติแล้ว: แก้ `PoLine` `PoLineSource` และยอดของ PO ในธุรกรรมเดียว · `revisionNo` + 1 · PDF ฉบับใหม่ "แก้ไขครั้งที่ n" (ฉบับเดิมคงอยู่) · เรียก `issueDocumentVerification(tx, ctx, { subjectType, subjectId })` ของ S6 สำหรับ PO นั้นในธุรกรรมเดียวกัน ให้ QR บน PDF ฉบับแก้ไขตรวจได้ (สายที่รวมเข้า main ทีหลังระหว่าง S6 กับ S8 เพิ่มการเรียกพร้อมเทสต์) · ตรวจซ้ำใบที่ `EXCEPTION` ของ PO นั้น |
+| BR-POC-05 | ใบแก้ไข PO อยู่ในโมดูล CORE (ไม่เรียก `requireModule`) · DOA ฉบับที่มีผลไม่มีข้อ `PO_CHANGE` → ไม่แสดงปุ่ม "แก้ไข PO" และ `po_change.create` `po_change.submit` ได้ `DOA_NOT_CONFIGURED` พร้อมข้อความ "DOA ยังไม่มีข้อสำหรับแก้ PO" โดยไม่จองงบ (องค์กร DEMO ไม่มีข้อนี้ ฉาก `@demo` จึงไม่เปลี่ยน) |
+
+วันครบกำหนดของใบ (BR-AP-07 · S8-03) และการเสนอรหัสบัญชี (BR-AP-10 · เพิ่มใน S8-11):
+
+```yaml
+# tests/golden/ap.yaml
+suite: ap
+# fn: dueDate (BR-AP-07 · OQ-129 · ข้อ S8-03) | suggestCoding (BR-AP-10 · OQ-128 · ข้อ S8-11)
+# history = บรรทัดที่ยืนยันแล้วของใบ READY_FOR_PAYMENT ขึ้นไป { taxId, categoryCode, accountCode, invoiceDate }
+cases:
+  - { id: GC-AP-01, fn: dueDate, title: เครดิตของ PO 30 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 30, supplierTermDays: 45, defaultTermDays: 30 }, expect: { dueDate: "2026-11-29" } }
+  - { id: GC-AP-02, fn: dueDate, title: ข้ามปีและเดือนกุมภาพันธ์, input: { invoiceDate: "2026-12-31", poTermDays: 60, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
+  - { id: GC-AP-03, fn: dueDate, title: PO ไม่มีเครดิต ใช้ของผู้ขาย, input: { invoiceDate: "2026-10-30", poTermDays: null, supplierTermDays: 15, defaultTermDays: 30 }, expect: { dueDate: "2026-11-14" } }
+  - { id: GC-AP-04, fn: dueDate, title: ไม่มีทั้งสองใช้ค่าตั้งต้น, input: { invoiceDate: "2027-01-30", poTermDays: null, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
+  - { id: GC-AP-05, fn: dueDate, title: เครดิต 0 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 0, supplierTermDays: 30, defaultTermDays: 30 }, expect: { dueDate: "2026-10-30" } }
+```
+
+**Invariant ของใบแจ้งหนี้ชั้น 2**
+
+| ID | Invariant | ทดสอบด้วย |
+| --- | --- | --- |
+| INV-AP-01 | ต่อบรรทัด PO: ผลรวมจำนวนในบรรทัดใบที่ `PENDING_APPROVAL` ขึ้นไป ≤ รับแล้ว × (10000 + qtyTolBp) ÷ 10000 (สินค้า) หรือ ≤ min(สั่ง, ยืนยันรับงาน) (บริการ) | property test + ส่ง 2 ใบพร้อมกัน (ล็อก PO ด้วย `SELECT … FOR UPDATE`) |
+| INV-AP-02 | ใบที่ `READY_FOR_PAYMENT` ขึ้นไป: ผลรวม ledger COMMITTED → ACTUAL ของใบ = `Invoice.netSatang` และถือเพิ่ม = ผลรวมส่วนขาดตาม BR-MATCH-11 · INV-BUD-01 ถึง INV-BUD-03 ยังจริงหลังทุกคำสั่งของใบ (INV-BUD-03 ฉบับที่นับส่วนเกินในเกณฑ์การจับคู่) | integration test ต่อ golden + property test ใน `tests/property/invoice-budget.property.test.ts` |
+| INV-AP-03 | ใบที่ `READY_FOR_PAYMENT` ขึ้นไปไม่มี `MatchException` สถานะ `OPEN` หรือ `ACCEPT_REQUESTED` | เทสต์ state machine |
+| INV-AP-04 | `payableSatang = grossSatang − retentionSatang ≥ 0` และ `expectedWhtSatang ≤ payableSatang` | CHECK ในฐานข้อมูล |
+| INV-AP-05 | ไม่มี PO ที่มีทั้ง `InvoiceConfirmation` และ `Invoice` ที่ไม่ใช่ `CANCELLED` | เทสต์ BR-IVC-06 |
+| INV-AP-06 | (ผู้ขาย, เลขหลัง normalize) ไม่ซ้ำใน `Invoice` ที่มีผล (ส่งแล้วและไม่ใช่ `CANCELLED` `REJECTED`) และ `InvoiceConfirmation` รวมกัน · ร่างที่เลขซ้ำมีได้แต่ส่งไม่ได้ (BR-MATCH-12) | partial unique + เทสต์ข้ามตาราง |
 
 ### 7.19 S9 · รอบจ่ายเงินและบัญชีผู้ขาย (จองโดย P1-07)
 
@@ -3393,6 +3616,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
+| invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
@@ -3657,6 +3881,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `MODULE_IN_USE` | 409 | ปิดโมดูลไม่ได้: {reason} |
 | `TOKEN_USED` | 409 | รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time} |
 | `DUPLICATE_INVOICE` | 409 | เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้ |
+| `INVOICE_TRACK_MISMATCH` | 409 | PO นี้บันทึกใบกำกับแบบ {track} อยู่แล้ว |
 | `AI_REVIEW_PENDING` | 409 | ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง |
 | `AI_AGENT_DISABLED` | 403 | ผู้ช่วย AI {agent} ปิดอยู่ กรอกข้อมูลเองได้ตามปกติ |
 | `AI_NOT_EVALUATED` | 403 | ผู้ช่วย AI {agent} รุ่นนี้ยังไม่ผ่านชุดประเมิน จึงยังใช้ไม่ได้ |
@@ -3671,6 +3896,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `BUDGET_LINE_CLOSED` | 422 | บรรทัดงบนี้ถูกระงับหรือปิดแล้ว |
 | `TAX_RATE_NOT_CONFIGURED` | 422 | ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม |
 | `INVOICE_EXCEEDS_COMMITTED` | 422 | ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท) |
+| `CODING_NOT_CONFIRMED` | 422 | ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines} |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
@@ -3744,7 +3970,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       22 ไฟล์ · 184 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       25 ไฟล์ · 230 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -4792,20 +5018,21 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S8-17 | ทดสอบกับใบแจ้งหนี้จริงและอ่านบรรทัด e-Tax `[go-live]` | `high` | หลังได้ P0-02 และคำตอบ OQ-35 | ตรวจ |
 | S8-18 | ยกเลิกใบพร้อมจ่าย ใบลดหนี้และเพิ่มหนี้ `[go-live]` | `high` | หลังคำตอบ OQ-129 | ตรวจ |
 | S8-19 | GRNI อ่านใบชั้น 2 `[go-live]` | `high` | พร้อม S4-18 | ตรวจ |
+| S8-20 | PO ของผู้ขายไม่จด VAT ใช้อัตรา 0 `[go-live]` | `high` | หลังผู้ใช้ยืนยัน | ตรวจ |
 
-- [ ] **S8-01** `[demo]` migration ของขั้นตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S8.md`: ตาราง `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `Retention` `PoChange` `PoChangeLine` `SupplierNotice` และ `SensitiveAccessLog` ตามแถวเดิมของ §6.2 พร้อม helper บันทึกการเปิดดู (S9 ใช้ต่อ) · คอลัมน์ใหม่ของ `PurchaseOrder` `PoLine` `Supplier` (รวม `registryFlag` `registryFlaggedAt`) `RequestType` วางใต้ comment บล็อก `// --- S8 S9 ---` · enum ใหม่ของขั้น (ไม่แก้ `ApprovalSubjectType` และ `DoaDocumentType` ที่ P1-07 เพิ่มแล้ว) · `numbering.AP` `numbering.WHT_CERT` (คีย์ละบรรทัดต่อท้ายส่วน `numbering` ที่ P1-07 แยกไว้) และส่วน `matching` `wht` `ap` แบบไม่บังคับใน `OrgSettingsSchema` (ไม่เพิ่มหน้าแก้) · CHECK ≥ 0 ทุก `*Satang` · FK คู่ (organizationId, id) ตาม ADR-039 · partial unique ของเลขใบแจ้งหนี้และใบแก้ไขที่เปิดอยู่ · ตาราง state machine ของ Invoice MatchException Retention PoChange ใน `src/core/state-machines` · เพิ่มแถว Entity ใน §6.5 · เพิ่มกฎ BR และ invariant ทั้งหมดของขั้นลง §7 ครั้งเดียวตามหัวข้อ "กฎ" ของ sub-spec ตารางเดียวต่อตระกูล (BR-VAT ต่อท้ายตารางของ §7.1 · BR-IVC ต่อท้ายตารางของ §7.12 · BR-MATCH BR-WHT ต่อท้ายตารางของ §7.14 · BR-AP BR-RET BR-POC และ INV-AP เป็นตารางใหม่ใต้หัวข้อที่ P1-07 จองให้ S8 ท้าย §7)
+- [x] **S8-01** `[demo]` migration ของขั้นตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S8.md`: ตาราง `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `Retention` `PoChange` `PoChangeLine` `SupplierNotice` และ `SensitiveAccessLog` ตามแถวเดิมของ §6.2 พร้อม helper บันทึกการเปิดดู (S9 ใช้ต่อ) · คอลัมน์ใหม่ของ `PurchaseOrder` `PoLine` `Supplier` (รวม `registryFlag` `registryFlaggedAt`) `RequestType` วางใต้ comment บล็อก `// --- S8 S9 ---` · enum ใหม่ของขั้น (ไม่แก้ `ApprovalSubjectType` และ `DoaDocumentType` ที่ P1-07 เพิ่มแล้ว) · `numbering.AP` `numbering.WHT_CERT` (คีย์ละบรรทัดต่อท้ายส่วน `numbering` ที่ P1-07 แยกไว้) และส่วน `matching` `wht` `ap` แบบไม่บังคับใน `OrgSettingsSchema` (ไม่เพิ่มหน้าแก้) · CHECK ≥ 0 ทุก `*Satang` · FK คู่ (organizationId, id) ตาม ADR-039 · partial unique ของเลขใบแจ้งหนี้และใบแก้ไขที่เปิดอยู่ · ตาราง state machine ของ Invoice MatchException Retention PoChange ใน `src/core/state-machines` · เพิ่มแถว Entity ใน §6.5 · เพิ่มกฎ BR และ invariant ทั้งหมดของขั้นลง §7 ครั้งเดียวตามหัวข้อ "กฎ" ของ sub-spec ตารางเดียวต่อตระกูล (BR-VAT ต่อท้ายตารางของ §7.1 · BR-IVC ต่อท้ายตารางของ §7.12 · BR-MATCH BR-WHT ต่อท้ายตารางของ §7.14 · BR-AP BR-RET BR-POC และ INV-AP เป็นตารางใหม่ใต้หัวข้อที่ P1-07 จองให้ S8 ท้าย §7) · migration s8_invoices 14 ตารางใหม่ CHECK เงินและ partial unique · state machine 4 ตาราง (เทสต์วนทุกคู่) · settings ใหม่แบบไม่บังคับ ค่าเริ่มต้นของ OQ เก็บเป็นข้อมูลใน src/lib/ap-defaults.json เพราะ bcs/no-money-literal ห้ามเงินในโค้ด · partial unique เขียน predicate แบบที่ Postgres เก็บไว้เพื่อไม่ให้ prisma เห็น drift · เทสต์ P1-07 ของคีย์ numbering ปรับให้รับคีย์ไม่บังคับและชื่อที่มีขีดล่าง (WHT_CERT) — เสร็จ 2026-10-13 · 27a3944
   - เสร็จเมื่อ: `pnpm db:reset` ของสายผ่าน · เทสต์วนทุกคู่ (สถานะ, คำสั่ง) ของ 4 ตารางใหม่ผ่าน · เทสต์ FK ข้ามองค์กรถูกปฏิเสธ · CHECK ปฏิเสธเงินติดลบและ payable ที่ไม่เท่าสูตร · settings ของ DEMO ยังผ่าน `OrgSettingsSchema` และ `wht.timing` ค่าอื่นนอกจาก `AT_PAYMENT` ถูกปฏิเสธ · `pnpm spec:check` ไม่มี ID ที่อ้างแต่ไม่มีนิยาม · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็นฐานของทุกข้อในขั้น
-- [ ] **S8-02** `[demo]` engine จับคู่ (ADR-122) และ VAT ของใบใน `src/core/matching` แบบ pure พร้อม `tests/golden/matching.yaml` และ `tests/golden/invoice-vat.yaml` ตามหัวข้อ "ร่าง golden case" ของ `docs/sub-specs/S8.md` (เขียนเทสต์ก่อนโค้ด) · BR-MATCH-01 ถึง BR-MATCH-04 · เกณฑ์ค่าเริ่มต้นของ OQ-121 · เพิ่ม `matching` ในรายการ branch coverage 100% ของ §7.0 ข้อ 4 · คัดบล็อก golden ทั้งสองลง §7.14 และเพิ่มตัวคำนวณอ้างอิงอิสระ `run_matching` `run_invoice_vat` ใน `scripts/spec_check.py` (หนึ่งบรรทัดต่อ suite ใน `RUNNERS`) · FR-AP-102 FR-AP-104 (ส่วน VAT) FR-AP-105 (ส่วนตรวจซ้ำ)
+- [x] **S8-02** `[demo]` engine จับคู่ (ADR-122) และ VAT ของใบใน `src/core/matching` แบบ pure พร้อม `tests/golden/matching.yaml` และ `tests/golden/invoice-vat.yaml` ตามหัวข้อ "ร่าง golden case" ของ `docs/sub-specs/S8.md` (เขียนเทสต์ก่อนโค้ด) · BR-MATCH-01 ถึง BR-MATCH-04 · เกณฑ์ค่าเริ่มต้นของ OQ-121 · เพิ่ม `matching` ในรายการ branch coverage 100% ของ §7.0 ข้อ 4 · คัดบล็อก golden ทั้งสองลง §7.14 และเพิ่มตัวคำนวณอ้างอิงอิสระ `run_matching` `run_invoice_vat` ใน `scripts/spec_check.py` (หนึ่งบรรทัดต่อ suite ใน `RUNNERS`) · FR-AP-102 FR-AP-104 (ส่วน VAT) FR-AP-105 (ส่วนตรวจซ้ำ) · golden matching 31 เคส invoice-vat 10 เคส ผ่านทั้ง Vitest และตัวคำนวณอ้างอิง Python · property 3,000 รอบต่อเทสต์ · coverage ของ matching 100% · pnpm verify ผ่านทุกด่านยกเว้นเทสต์ tenant 2 เคสของ PoChange ที่แก้ตัวอย่างแล้วรันซ้ำผ่าน 945/945 — เสร็จ 2026-10-13 · 7a3596a
   - เสร็จเมื่อ: golden ทั้งสองไฟล์ผ่านทุกเคส · `pnpm spec:check` รายงาน golden:matching และ golden:invoice-vat ผ่านครบ · property test สุ่มหลายพันใบ: ผลรวมตัดจริงเท่ายอดก่อน VAT ของใบที่ตรง และส่วนลดที่ปันรวมเท่าส่วนลดท้ายบิล · coverage 100% · ด่าน golden-drift ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: subagent เขียนเทสต์จาก golden โดยไม่เห็นโค้ด แล้วตรวจหลักฐาน (ผลรัน) ก่อนรับ
-- [ ] **S8-03** `[demo]` service ใบแจ้งหนี้ผ่าน `runCommand()` บนองค์กรที่เปิด `PAY` (`requireModule` ตามหัวข้อ "กฎ" ของ sub-spec): ร่างจากอัปโหลด (ตัวอ่านของ BR-IVC-05) · แก้ร่าง (`invoice.update` รับ `aiAssist?` แล้วเรียก `applyAiAssist` ของ `assist-contract.ts` ในธุรกรรมเดียวกัน) · `invoice.confirmCoding` ยืนยันรหัสบัญชีและ cost center ต่อบรรทัด (ยังไม่มีการเสนอจากประวัติ) · ส่ง (เลข `numbering.AP` · ตรวจซ้ำแน่และน่าจะซ้ำรวมใบกำกับชั้น 1 ตาม BR-IVC-03 · ด่าน `assertNoPendingAiReview` จาก `src/server/services/ai/assist-contract.ts` ของ P1-07) · จับคู่ด้วย engine ของ S8-02 แล้วพร้อมจ่ายพร้อม ledger ผ่าน `holdMore` `actualize` `closePo` เดิม (BR-MATCH-04 BR-BUD-06) และวันครบกำหนด · ล็อก PO ตอนจับคู่ · golden `tests/golden/ap.yaml` เฉพาะเคสวันครบกำหนดตามหัวข้อ "ร่าง golden case" คัดบล็อกลงใต้หัวข้อที่ P1-07 จองให้ S8 พร้อมตัวคำนวณอ้างอิง `run_ap` ใน `scripts/spec_check.py` · เพิ่มเหตุ "ใบแจ้งหนี้ชั้น 2 ราคาเกินในเกณฑ์หรือส่วนต่างที่อนุมัติ" ในแถว "ถือ" ของตาราง §7.7 และแก้ INV-BUD-03 ให้นับส่วนเกินที่อยู่ในเกณฑ์การจับคู่ ตามที่ผู้ใช้อนุมัติใน P1-06 (OQ-121 · ไม่แก้ `src/core/budget`) · `expectedWhtSatang` เป็น 0 จนข้อ S8-08 · เพิ่มแถว §2.4 §10.2 §14.2 ของข้อนี้ (ไม่รวม `AI_REVIEW_PENDING` ที่ P1-07 เพิ่มแล้ว) · FR-AP-101 FR-AP-102 FR-AP-105 FR-AP-108 (ส่วนยืนยันรหัส)
+- [x] **S8-03** `[demo]` service ใบแจ้งหนี้ผ่าน `runCommand()` บนองค์กรที่เปิด `PAY` (`requireModule` ตามหัวข้อ "กฎ" ของ sub-spec): ร่างจากอัปโหลด (ตัวอ่านของ BR-IVC-05) · แก้ร่าง (`invoice.update` รับ `aiAssist?` แล้วเรียก `applyAiAssist` ของ `assist-contract.ts` ในธุรกรรมเดียวกัน) · `invoice.confirmCoding` ยืนยันรหัสบัญชีและ cost center ต่อบรรทัด (ยังไม่มีการเสนอจากประวัติ) · ส่ง (เลข `numbering.AP` · ตรวจซ้ำแน่และน่าจะซ้ำรวมใบกำกับชั้น 1 ตาม BR-IVC-03 · ด่าน `assertNoPendingAiReview` จาก `src/server/services/ai/assist-contract.ts` ของ P1-07) · จับคู่ด้วย engine ของ S8-02 แล้วพร้อมจ่ายพร้อม ledger ผ่าน `holdMore` `actualize` `closePo` เดิม (BR-MATCH-04 BR-BUD-06) และวันครบกำหนด · ล็อก PO ตอนจับคู่ · golden `tests/golden/ap.yaml` เฉพาะเคสวันครบกำหนดตามหัวข้อ "ร่าง golden case" คัดบล็อกลงใต้หัวข้อที่ P1-07 จองให้ S8 พร้อมตัวคำนวณอ้างอิง `run_ap` ใน `scripts/spec_check.py` · เพิ่มเหตุ "ใบแจ้งหนี้ชั้น 2 ราคาเกินในเกณฑ์หรือส่วนต่างที่อนุมัติ" ในแถว "ถือ" ของตาราง §7.7 และแก้ INV-BUD-03 ให้นับส่วนเกินที่อยู่ในเกณฑ์การจับคู่ ตามที่ผู้ใช้อนุมัติใน P1-06 (OQ-121 · ไม่แก้ `src/core/budget`) · `expectedWhtSatang` เป็น 0 จนข้อ S8-08 · เพิ่มแถว §2.4 §10.2 §14.2 ของข้อนี้ (ไม่รวม `AI_REVIEW_PENDING` ที่ P1-07 เพิ่มแล้ว) · FR-AP-101 FR-AP-102 FR-AP-105 FR-AP-108 (ส่วนยืนยันรหัส) · service ใน src/server/services/ap (create update confirmCoding submit cancel และอัปโหลดไฟล์) · integration 27 เคส (ตรง เกินในเกณฑ์ เกินนอกเกณฑ์ ขาด VAT ซ้ำแน่ น่าจะซ้ำ บริการ ส่งพร้อมกัน ใบสุดท้าย PO ที่ปิด SoD AI gate สิทธิ์และ PAY ปิด) · property invoice-budget 2,000 รอบ · golden ap 5 เคส · pnpm verify 0 FAIL · @demo 9/9 — เสร็จ 2026-10-13 · 0df0328
   - เสร็จเมื่อ: integration test กับ Postgres จริงครบกรณีตรง เกินในเกณฑ์ เกินนอกเกณฑ์ ขาด ซ้ำ และงานบริการ (แท็ก `[FR-AP-102/ACn]`) · ส่ง 2 ใบพร้อมกันบนบรรทัด PO เดียวได้ผ่านใบเดียว · ใบสุดท้ายของ PO ที่ปิดคืนถือที่เหลือ · ส่งใบที่ยังไม่ยืนยันรหัสได้ `CODING_NOT_CONFIRMED` · ด่านที่คืน error ทำให้ส่งไม่ได้ด้วย `AI_REVIEW_PENDING` · `invoice.update` ที่ส่ง `aiAssist` ได้ `MODULE_DISABLED` จากตัว stub และร่างไม่เปลี่ยน · golden `ap.yaml` ผ่าน และ `pnpm spec:check` รายงาน golden:ap ผ่านครบ · property test ใหม่ `tests/property/invoice-budget.property.test.ts` สุ่มลำดับส่ง จับคู่ และใบสุดท้าย แล้ว INV-BUD-01 ถึง INV-BUD-03 ยังจริง · เทสต์สิทธิ์ปฏิเสธทุกคำสั่ง และปิด `PAY` ได้ `MODULE_DISABLED` · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง (ธุรกรรมเงินต่อเนื่องกันทั้งข้อ)
-- [ ] **S8-04** `[demo]` ใบชั้น 2 อยู่คู่กับใบกำกับชั้น 1 (ADR-121) และทางเข้าของ S13: ทางของ PO ตามหัวข้อ "กฎ" ของ sub-spec (`invoiceTrack` · `INVOICE_TRACK_MISMATCH` ทั้งสองทาง · ปิด `PAY` ขณะมีใบค้าง → `MODULE_IN_USE`) · `purchase-orders/close.ts` การกลับรายการ GR และหน้าเอกสารอ่านใบชั้น 2 (ส่งออก Express อยู่ใน S8-11) · `invoice.createDraftFromReading` สำหรับ S13 (`prefill = AI_READING` · `fieldSources` ใช้แสดงป้ายเท่านั้น · `aiAssist?` → `applyAiAssist` ในธุรกรรมเดียวกัน) · การเล่นประวัติขององค์กรที่เปิด `PAY` ใช้ใบชั้น 2 ตามหัวข้อ "การอ่านชีตของไฟล์ระยะ 1" ของ `docs/sub-specs/S8.md` และ seed `AccountCode` จากชีต GL_Accounts พร้อมด่านใน `validate_inputs.py --profile p1` · แก้เทสต์ของ P1-02 ที่นับใบกำกับชั้น 1 ของ SIMEC · FR-AP-101 FR-AP-102
+- [x] **S8-04** `[demo]` ใบชั้น 2 อยู่คู่กับใบกำกับชั้น 1 (ADR-121) และทางเข้าของ S13: ทางของ PO ตามหัวข้อ "กฎ" ของ sub-spec (`invoiceTrack` · `INVOICE_TRACK_MISMATCH` ทั้งสองทาง · ปิด `PAY` ขณะมีใบค้าง → `MODULE_IN_USE`) · `purchase-orders/close.ts` การกลับรายการ GR และหน้าเอกสารอ่านใบชั้น 2 (ส่งออก Express อยู่ใน S8-11) · `invoice.createDraftFromReading` สำหรับ S13 (`prefill = AI_READING` · `fieldSources` ใช้แสดงป้ายเท่านั้น · `aiAssist?` → `applyAiAssist` ในธุรกรรมเดียวกัน) · การเล่นประวัติขององค์กรที่เปิด `PAY` ใช้ใบชั้น 2 ตามหัวข้อ "การอ่านชีตของไฟล์ระยะ 1" ของ `docs/sub-specs/S8.md` และ seed `AccountCode` จากชีต GL_Accounts พร้อมด่านใน `validate_inputs.py --profile p1` · แก้เทสต์ของ P1-02 ที่นับใบกำกับชั้น 1 ของ SIMEC · FR-AP-101 FR-AP-102 · ทางของ PO ใน src/server/services/ap/track.ts (ทั้งสองทาง และ PAY ปิดไม่ได้เมื่อมีใบค้าง) · close.ts หน้าเอกสาร และหน้างบรายเอกสารอ่านใบชั้น 2 · invoice.createDraftFromReading · การเล่นประวัติของ SIMEC ใช้ใบชั้น 2 (db:reset:p1 ได้ใบพร้อมจ่าย 136 ใบ ไม่มีใบกำกับชั้น 1) และ seed AccountCode 18 รหัส · การกลับรายการ GR ยังไม่มีในระบบจึงไม่มีจุดให้แก้ · ใบของผู้ขายไม่จด VAT ใน seed ไม่มี VAT และเปิดข้อ S8-20 เรื่อง PO ของผู้ขายไม่จด VAT ที่ยังคิด VAT · pnpm verify 0 FAIL · @demo 9/9 · db:reset ผ่าน — เสร็จ 2026-10-13 · 2247525
   - เสร็จเมื่อ: เทสต์ทางของ PO ทั้งสองทางผ่าน และไม่มี PO ที่มีทั้งใบกำกับชั้น 1 และใบชั้น 2 · ปิด PO ที่มีใบชั้น 2 คืนถือถูกต้อง (เทสต์) · ปิด `PAY` แล้ว `invoice_confirmation.record` ทำงานเหมือนเดิม · `invoice.createDraftFromReading` สร้างร่างที่มีป้ายแหล่งที่มาและผู้กระทำเป็น member และเมื่อส่ง `aiAssist` ได้ `MODULE_DISABLED` จากตัว stub โดยไม่มีร่างเกิด · `pnpm db:reset` ด้วยไฟล์ระยะ 1 (ตัวเลือกของ P1-02) ผ่านและใบของแถวที่ตรงเป็น `READY_FOR_PAYMENT` · `pnpm db:reset` แบบเดิมและ `pnpm test:e2e --grep @demo` ผ่าน · `pnpm inputs:check` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S8-05** `[demo]` ส่ง entity ใบแจ้งหนี้และคำสั่งสร้างร่างจากค่าที่อ่านได้เข้า main ก่อนจบขั้น เพื่อให้สาย 3 ทำส่วนอ่านใบแจ้งหนี้ของ S13 (§16.15): รวม main เข้าสาย แล้วเรียก `/code-review high main...HEAD` (งานของ S8-01 ถึง S8-04) แก้ข้อที่กระทบความถูกต้อง เงิน หรือสิทธิ์ แล้วส่งเข้า main ตาม skill `bcs-lane` หัวข้อ 4
+- [x] **S8-05** `[demo]` ส่ง entity ใบแจ้งหนี้และคำสั่งสร้างร่างจากค่าที่อ่านได้เข้า main ก่อนจบขั้น เพื่อให้สาย 3 ทำส่วนอ่านใบแจ้งหนี้ของ S13 (§16.15): รวม main เข้าสาย แล้วเรียก `/code-review high main...HEAD` (งานของ S8-01 ถึง S8-04) แก้ข้อที่กระทบความถูกต้อง เงิน หรือสิทธิ์ แล้วส่งเข้า main ตาม skill `bcs-lane` หัวข้อ 4 · /code-review high main...HEAD 7 ข้อ แก้ 5 ข้อใน d0c7ec4 (อีก 2 ข้อบันทึกใน docs/reports/p1-review-S8-part1.md) · pnpm verify --strict --e2e ผ่าน (admin.spec ล้มครั้งแรกเพราะเครื่องรันสาย 3 พร้อมกัน รันซ้ำผ่าน 12/12) · @demo 9/9 · db:reset:p1 ผ่าน — เสร็จ 2026-10-13 · d0c7ec4
   - เสร็จเมื่อ: ไม่มีข้อที่กระทบความถูกต้องค้าง · `pnpm verify --strict --e2e` ผ่าน · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm db:reset` ด้วยไฟล์ระยะ 1 ผ่านบน main · commit ของ S8-01 ถึง S8-04 อยู่ใน main
   - แยกงาน: ใช้คำสั่งรีวิวเดียว ไม่แตกเพิ่ม
 - [ ] **S8-06** `[demo]` รายการไม่ตรงและอนุมัติส่วนต่าง: ส่งตามชนิด ตรวจซ้ำ (รวมตรวจซ้ำเองหลัง `gr.posted`) เปิดแก้ ปฏิเสธ ปัดตกคำเตือนซ้ำ · ขออนุมัติส่วนต่างตาม DOA `INVOICE_EXCEPTION` (subject `INVOICE`) โดยเติม adapter `src/server/services/approvals/subjects/invoice.ts` ของ P1-07 (`decide` คืน `BUDGET_INSUFFICIENT` แล้วธุรกรรมย้อนโดยงานยังเปิด · ผู้ขัดกันตาม OQ-127 · ไม่แก้ `decide.ts` `action-link.ts` `line-postback.ts`) พร้อม SoD และถืองบส่วนขาดตอนอนุมัติตามค่าเริ่มต้นของ OQ-127 · การแจ้งเตือนในระบบและ LINE ตาม BR-NOTI-01 · อีเมลถึงผู้ขาย (รับใบ ปฏิเสธ พร้อมจ่าย) ผ่าน `enqueueSupplierNotice(tx, ctx, { templateKey, supplierId, subjectType, subjectId, dedupeKey, data })` ในธุรกรรมของผู้เรียก (S9 เรียกตัวเดียวกัน) ตาราง `SupplierNotice` และงาน `supplier-notice-send` (ADR-126) · event `supplier_notice.sent` `supplier_notice.failed` มี templateKey subjectType subjectId · renderer ของงานอนุมัติบนเว็บและ LIFF ในไฟล์ของ S8 (แทรกบรรทัดเดียวในหน้า `/liff/tasks/[id]` ของ S6) · เพิ่มแถว §2.4 §10 §14.2 ของข้อนี้ · FR-AP-103 FR-AP-105
@@ -4850,6 +5077,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **S8-19** `[go-live]` รายงานรับของแล้วยังไม่มีใบกำกับ (S4-18) อ่านใบชั้น 2 และบรรทัดงวดงาน
   - เสร็จเมื่อ: เคสของ `grni.yaml` ผ่าน และเทสต์ที่มีใบชั้น 1 และชั้น 2 ปนกันได้ยอดตรงต่อ cost center · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
+- [ ] **S8-20** `[go-live]` PO ของผู้ขายที่ไม่จด VAT ยังคิด VAT ตามอัตราขององค์กร (ขัด BR-VAT-04 ที่ให้ใช้อัตรา 0 บน PO) · พบใน S8-04 ตอนเล่นประวัติของ SIMEC (ใบของผู้ขายไม่จด VAT 13 ใบติด `VAT_SUPPLIER_NOT_REGISTERED` เพราะใบอ้าง VAT ของ PO) · การแก้เปลี่ยนผลของ service เงินเดิม (§16.13 ของเดิม) จึงต้องให้ผู้ใช้ยืนยันก่อน · ระหว่างนี้การเล่นประวัติให้ใบของผู้ขายไม่จด VAT ไม่มี VAT
+  - เสร็จเมื่อ: ผู้ใช้ยืนยันแล้ว PO ใหม่ของผู้ขายไม่จด VAT ได้ VAT 0 (เทสต์) · PO เดิมไม่เปลี่ยน · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
 
 ### 16.16 S9 · รอบจ่ายเงินและไฟล์ธนาคาร (สาย 2 ต่อจาก S8 · เส้นชัย E)
 

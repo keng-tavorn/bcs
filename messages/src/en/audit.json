@@ -107,6 +107,7 @@
     "form_version": "Forms",
     "gr": "Receiving",
     "holiday": "Holidays",
+    "invoice": "Invoices",
     "invoice_confirmation": "Invoices",
     "line": "LINE accounts",
     "member": "Members",
@@ -140,6 +141,7 @@
     "File": "File",
     "FormVersion": "Request type form",
     "GoodsReceipt": "Goods receipt",
+    "Invoice": "Invoice",
     "InvoiceConfirmation": "Invoice",
     "Member": "Member",
     "Notification": "Notification",
@@ -250,6 +252,16 @@
     },
     "holiday": {
       "imported": "Holidays imported"
+    },
+    "invoice": {
+      "cancelled": "Invoice draft thrown away",
+      "coding_confirmed": "Invoice account codes confirmed",
+      "drafted": "Invoice drafted",
+      "exception_raised": "Invoice has differences",
+      "matched": "Invoice matched",
+      "ready": "Invoice ready for payment",
+      "submitted": "Invoice submitted",
+      "updated": "Invoice draft edited"
     },
     "invoice_confirmation": {
       "recorded": "Invoice confirmation recorded"

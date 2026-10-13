@@ -10,6 +10,8 @@ import { applyBudget, type BudgetOperation } from '@/server/budget/ledger'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { claimTrack } from '../ap/track'
+import { requireModule } from '../modules'
 import { invoiceFileInUse, loadInvoiceFile, sourceOf, type InvoiceFileRefusal, type InvoiceSource } from './source'
 
 export { readEtaxFile, readEtaxXml, type EtaxPrefill, type EtaxProblem, type EtaxReading } from './etax'
@@ -92,6 +94,9 @@ export const recordInvoiceCommand = defineCommand({
     if (!locked) return fail('NOT_FOUND', 'purchase order not found')
     const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: input.poId }, include: { lines: { orderBy: { lineNo: 'asc' } }, supplier: { select: { taxId: true } } } })
     if (!INVOICEABLE.includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not recorded on a ${po.status} purchase order`, { from: po.status, command: 'invoice_confirmation.record' })
+    // BR-IVC-06: a PO takes tier-1 confirmations or tier-2 invoices, never both
+    const track = await claimTrack(tx, po, 'CONFIRMATION', (await requireModule(ctx, 'PAY', tx)).ok)
+    if (!track.ok) return track
     if (await tx.invoiceConfirmation.count({ where: { poId: po.id, isFinal: true } })) return fail('INVALID_STATE_TRANSITION', 'the last invoice of this purchase order is in', { from: po.status, command: 'invoice_confirmation.record', reason: 'FINAL_RECORDED' })
     // BR-IVC-05: where the values came from, from the file itself; under the PO's lock no other invoice takes the file
     let source: InvoiceSource = { parsedFrom: 'MANUAL', kind: 'INVOICE' }

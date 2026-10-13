@@ -29,6 +29,8 @@ const LOCKABLE = [
   'Delegation',
   // S13-03: an AI action taken into a document (assist-contract.ts)
   'AgentAction',
+  // S8
+  'Invoice',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */
@@ -55,4 +57,13 @@ export async function lockRowsForUpdate(
     WHERE ${orgColumn} = ${organizationId}::uuid AND ${keyColumn} = ANY(${sorted}::uuid[])
     ORDER BY ${keyColumn} FOR UPDATE`
   return rows.map((r) => r.id)
+}
+
+/**
+ * Serializes the submits of invoices that carry the same supplier number (S8, INV-AP-06): two invoices on different
+ * POs lock different POs, so without this both could pass the duplicate check before either commits.
+ */
+export async function lockSupplierInvoiceNumber(tx: TenantTx, organizationId: string, supplierId: string, normalizedNo: string): Promise<void> {
+  const lockKey = `${organizationId}:supplier-invoice:${supplierId}:${normalizedNo}`
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`
 }

@@ -115,7 +115,8 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
   // A person takes the values in (BR-AI-01): the AI and the system never write a document through this
   if (ctx.actor.type !== 'USER') return err('FORBIDDEN', 'only a person confirms what the AI filled in')
   const kind = kinds.get(subject.type)
-  if (!kind) return err('VALIDATION_FAILED', 'this document does not take AI values', { field: 'aiAssist', reason: 'SUBJECT_NOT_ASSISTED' })
+  // A document whose AI part is not built yet (the invoice until S13-12) keeps P1-07's answer: the AI is not there for it
+  if (!kind) return err('MODULE_DISABLED', `AI values do not reach a ${subject.type} yet`, { module: 'AI', field: 'aiAssist' })
   const [locked] = await lockRowsForUpdate(tx, 'AgentAction', ctx.organizationId, [input.agentActionId])
   // Another organization's action is not found through this tenant (§4.8)
   if (!locked) return err('NOT_FOUND', 'no such AI action', { field: 'aiAssist.agentActionId' })

@@ -31,12 +31,18 @@ export async function unsettledLines(tx: TenantTx, poId: string) {
 
 /** Received and not yet invoiced, per PO line, before VAT (BR-RPT-01 at today's date) */
 async function receivedNotInvoiced(tx: TenantTx, poId: string): Promise<Map<string, Satang>> {
+  // A tier-2 invoice counts once it moved to ACTUAL (ready for payment or later, BR-AP-11); one track per PO (BR-IVC-06)
+  const actualized = { status: { in: ['READY_FOR_PAYMENT' as const, 'IN_PAYMENT_RUN' as const, 'PAID' as const] } }
   if (await tx.invoiceConfirmation.count({ where: { poId, isFinal: true } })) return new Map()
-  const lines = await tx.poLine.findMany({ where: { poId }, select: { id: true, receivedQuantity: true, unitPriceSatang: true, invoiceParts: { select: { netSatang: true } } } })
+  if (await tx.invoice.count({ where: { poId, isFinal: true, ...actualized } })) return new Map()
+  const lines = await tx.poLine.findMany({
+    where: { poId },
+    select: { id: true, receivedQuantity: true, unitPriceSatang: true, invoiceParts: { select: { netSatang: true } }, invoiceLines: { where: { invoice: actualized }, select: { netSatang: true } } },
+  })
   const keep = new Map<string, Satang>()
   for (const l of lines) {
     const received = lineNet(formatQuantity(scaled(l.receivedQuantity)), l.unitPriceSatang)
-    const invoiced = l.invoiceParts.reduce((sum, p) => sum + p.netSatang, 0n)
+    const invoiced = l.invoiceParts.reduce((sum, p) => sum + p.netSatang, 0n) + l.invoiceLines.reduce((sum, p) => sum + p.netSatang, 0n)
     if (received > invoiced) keep.set(l.id, received - invoiced)
   }
   return keep

@@ -264,7 +264,7 @@ export function orphanTestFiles(files: readonly string[], runnerPatterns: readon
 
 // ---------- Coverage ----------
 /** spec §7.0 item 4 and NFR-MNT-02: the engines of money and authority whose every branch needs a test */
-export const COVERAGE_ENGINES = ['money', 'vat', 'thai', 'numbering', 'doa', 'sod', 'delegation', 'budget', 'sla', 'invoice', 'grni', 'ai-checks'] as const
+export const COVERAGE_ENGINES = ['money', 'vat', 'thai', 'numbering', 'doa', 'sod', 'delegation', 'budget', 'sla', 'invoice', 'grni', 'ai-checks', 'matching'] as const
 
 export interface CoverageCount {
   total: number

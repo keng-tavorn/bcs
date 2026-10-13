@@ -121,6 +121,9 @@ model Organization {
   supplierNotices     SupplierNotice[]
 
   // --- S13 ---
+  agentActions    AgentAction[]
+  aiAgentSettings AiAgentSetting[]
+  aiCreditEntries AiCreditLedger[]
 
   // --- S17 ---
 }
@@ -245,6 +248,10 @@ model Member {
   poChangesSubmitted    PoChange[]           @relation("PoChangeSubmittedBy")
 
   // --- S13 ---
+  agentActionsRequested AgentAction[]    @relation("AgentActionRequestedBy")
+  agentActionsApplied   AgentAction[]    @relation("AgentActionAppliedBy")
+  agentActionsDecided   AgentAction[]    @relation("AgentActionDecidedBy")
+  aiAgentSettingsSet    AiAgentSetting[] @relation("AiAgentSettingUpdatedBy")
 
   // --- S17 ---
 
@@ -311,6 +318,7 @@ model PlatformAdmin {
   rolesGranted       RoleAssignment[]
   breakGlassSessions BreakGlassSession[]
   taxRatesConfirmed  TaxRate[]
+  aiCreditsGranted   AiCreditLedger[]
 }
 
 /// Global table (spec §4.8) even though it records the tenant it opens (BR-AUTH-03)
@@ -2416,6 +2424,181 @@ model LineWebhookEvent {
   @@unique([organizationId, id])
   @@unique([organizationId, webhookEventId])
   @@index([organizationId, status, receivedAt])
+}
+
+// ===== S13 · AI agents of phase 1 (docs/sub-specs/S13.md "Entity และ migration", spec §12) =====
+
+enum AiAgent {
+  DOCUMENT
+  INTAKE
+  APPROVAL_BRIEF
+  INSIGHT
+  DOA_DRAFTER
+}
+
+enum AiPurpose {
+  QUOTATION_READ
+  DELIVERY_NOTE_READ
+  INVOICE_READ
+  INTAKE
+  BRIEF
+  QUESTION
+  DOA_DRAFT
+}
+
+/// Phase 1 opens L0 (suggests) and L1 (drafts for a person to confirm) only (§12.3, ADR-004)
+enum AiLevel {
+  L0
+  L1
+}
+
+enum AgentActionStatus {
+  PENDING
+  DRAFT
+  ACCEPTED
+  EDITED
+  REJECTED
+  FAILED
+  EXPIRED
+}
+
+enum AgentActionFeedback {
+  HELPFUL
+  NOT_HELPFUL
+}
+
+enum AgentActionExpireReason {
+  SUPERSEDED
+  SUBJECT_CLOSED
+  STALE
+}
+
+enum AiCreditKind {
+  GRANT
+  USE
+}
+
+enum AiCreditSource {
+  MONTHLY
+  TOPUP
+  CALL
+}
+
+/// One call of an AI agent and what became of its result (§12.2, BR-AI-04): which prompt and model answered, what it
+/// read (references only, never a copy of the document), its draft, what the person confirmed or changed, its credits.
+model AgentAction {
+  id               String                   @id @default(uuid(7)) @db.Uuid
+  organizationId   String                   @db.Uuid
+  agent            AiAgent
+  purpose          AiPurpose
+  level            AiLevel
+  status           AgentActionStatus        @default(PENDING)
+  /// REQUEST PURCHASE_ORDER GOODS_RECEIPT INVOICE APPROVAL_TASK DOA_VERSION CHAT_INTAKE; empty until applied (step 0, Insight)
+  subjectType      String?
+  subjectId        String?                  @db.Uuid
+  /// Empty when SYSTEM calls (Approval Brief)
+  requestedById    String?                  @db.Uuid
+  channel          Channel
+  /// Follow-up questions of one Insight conversation
+  conversationId   String?                  @db.Uuid
+  /// `<purpose>@<n>` (ADR-143)
+  promptVersion    String
+  /// The model that really answered; empty only when the call failed before an answer
+  model            String?
+  inputRefs        Json                     @default("{}")
+  /// What the member typed on the web, after the redactor (BR-AI-18); never the text of a chat
+  inputText        String?
+  /// Duplicate guard of intakeFromMessage (S17 sends chat_intake:<chatIntakeId>:<message no>)
+  idempotencyKey   String?
+  output           Json?
+  verification     Json?
+  /// Confidence per field in bp (0 to 10000, BR-AI-16)
+  fieldConfidence  Json?
+  /// { requiredPaths, confirmedPaths }
+  review           Json?
+  /// The value of the AI against the final value of each field the person changed
+  diff             Json?
+  appliedAt        DateTime?                @db.Timestamptz(6)
+  appliedById      String?                  @db.Uuid
+  decidedById      String?                  @db.Uuid
+  decidedAt        DateTime?                @db.Timestamptz(6)
+  feedback         AgentActionFeedback?
+  feedbackNote     String?
+  errorCode        String?
+  expireReason     AgentActionExpireReason?
+  /// When inputText and output were cleared (BR-AI-18); the row and its metadata stay
+  contentPurgedAt  DateTime?                @db.Timestamptz(6)
+  inputTokens      Int                      @default(0)
+  outputTokens     Int                      @default(0)
+  cacheReadTokens  Int                      @default(0)
+  cacheWriteTokens Int                      @default(0)
+  costCredits      Int                      @default(0)
+  latencyMs        Int?
+  version          Int                      @default(0)
+  createdAt        DateTime                 @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime                 @updatedAt @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy  Member?          @relation("AgentActionRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  appliedBy    Member?          @relation("AgentActionAppliedBy", fields: [organizationId, appliedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  decidedBy    Member?          @relation("AgentActionDecidedBy", fields: [organizationId, decidedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  creditUses   AiCreditLedger[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId, subjectType, subjectId, status])
+  @@index([organizationId, agent, createdAt])
+  @@index([organizationId, requestedById, createdAt])
+  @@index([organizationId, status, createdAt])
+}
+
+/// An agent switched on or off by the ORG_ADMIN of the organization (BR-AI-05, BR-AI-24); no row = off
+model AiAgentSetting {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @db.Uuid
+  agent           AiAgent
+  enabled         Boolean  @default(false)
+  level           AiLevel
+  /// Below this confidence a field must be confirmed one by one (OQ-147, BR-AI-16)
+  minConfidenceBp Int      @default(9000)
+  updatedById     String?  @db.Uuid
+  version         Int      @default(0)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  updatedBy    Member?      @relation("AiAgentSettingUpdatedBy", fields: [organizationId, updatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, agent])
+}
+
+/// AI credits of an organization, append-only (BR-AI-23, §6.3): GRANT rows from the BCS team or the monthly job, one USE
+/// row per AgentAction that used tokens. Left in a month = Σ GRANT − Σ USE of that month.
+model AiCreditLedger {
+  id              String         @id @default(uuid(7)) @db.Uuid
+  organizationId  String         @db.Uuid
+  kind            AiCreditKind
+  source          AiCreditSource
+  credits         Int
+  /// The first day of the month, Thai time
+  periodMonth     DateTime       @db.Date
+  agentActionId   String?        @db.Uuid
+  platformAdminId String?        @db.Uuid
+  contractRef     String?
+  reason          String?
+  occurredAt      DateTime       @db.Timestamptz(6)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(6)
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  agentAction   AgentAction?   @relation(fields: [organizationId, agentActionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  platformAdmin PlatformAdmin? @relation(fields: [platformAdminId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, agentActionId])
+  /// One monthly grant per organization and month (ai_credit.grant_monthly)
+  @@unique([organizationId, periodMonth], map: "AiCreditLedger_monthly_once", where: raw("\"source\" = 'MONTHLY'"))
+  @@index([organizationId, periodMonth])
 }
 
 // ===== S8 · invoices tier 2, three-way matching, withholding tax, retention, PO changes (S8-01 · docs/sub-specs/S8.md) =====

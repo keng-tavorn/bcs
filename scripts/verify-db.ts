@@ -39,6 +39,9 @@ const NAMED_CHECKS: Record<string, string[]> = {
   BudgetLedgerEntry: ['ledger_amount_positive', 'ledger_buckets_differ'],
   BudgetLineBalance: ['balance_non_negative'],
   RequestLine: ['request_line_qty'],
+  // S13-02: credits are positive and a use names its AgentAction (BR-AI-23)
+  AiCreditLedger: ['ai_credit_positive', 'ai_credit_kind_source'],
+  AgentAction: ['agent_action_tokens_non_negative'],
 }
 // S2 adds this module: it lints every seeded and published DOA version with the full BR-DOA-08 rule set
 const DOA_LINT_GATE = 'scripts/lib/doa-lint-gate.ts'

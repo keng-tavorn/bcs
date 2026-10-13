@@ -89,6 +89,9 @@
     "newest": "Back to the latest events"
   },
   "groups": {
+    "agent_action": "AI assistant",
+    "ai_agent": "AI assistant settings",
+    "ai_credit": "AI credits",
     "approval_task": "Approval tasks",
     "audit": "Audit trail",
     "auth": "Sign-in",
@@ -128,6 +131,9 @@
     "withholding_tax": "Withholding tax"
   },
   "aggregate": {
+    "AgentAction": "AI assistant call",
+    "AiAgentSetting": "AI assistant setting",
+    "AiCredit": "AI credits",
     "ApprovalTask": "Approval task",
     "Auth": "Sign-in",
     "BudgetGrant": "Cross-department budget grant",
@@ -164,6 +170,29 @@
     "WithholdingTax": "Withholding tax"
   },
   "events": {
+    "agent_action": {
+      "requested": "AI assistant called",
+      "drafted": "AI assistant drafted a result",
+      "failed": "AI assistant call failed",
+      "applied": "AI values taken into a document",
+      "accepted": "AI values all confirmed",
+      "edited": "AI values confirmed with changes",
+      "rejected": "AI result thrown away",
+      "expired": "AI result expired",
+      "feedback_given": "Feedback on an AI result",
+      "content_purged": "Content of an AI result cleared"
+    },
+    "ai_agent": {
+      "enabled": "AI assistant switched on",
+      "disabled": "AI assistant switched off",
+      "updated": "AI assistant setting changed"
+    },
+    "ai_credit": {
+      "granted": "AI credits granted",
+      "monthly_set": "Monthly AI credits set",
+      "threshold_reached": "AI credits reached the alert level",
+      "exhausted": "AI credits used up"
+    },
     "approval_task": {
       "assigned": "Approval task assigned",
       "cancelled": "Approval task cancelled",

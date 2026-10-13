@@ -9,7 +9,13 @@ import { apOrg, codedDraft, receive, sentPo, submit } from '../support/ap'
 
 vi.mock('@/server/services/ai/assist-contract', async (importOriginal) => {
   const original = await importOriginal<typeof import('@/server/services/ai/assist-contract')>()
-  return { ...original, assertNoPendingAiReview: vi.fn(async () => err('AI_REVIEW_PENDING', 'values wait for review', { count: 2 })) }
+  // Only the invoice's gate answers so: the request and the PO of the setup go through the real one (S13-03)
+  return {
+    ...original,
+    assertNoPendingAiReview: vi.fn(async (...args: Parameters<typeof original.assertNoPendingAiReview>) =>
+      args[2].type === 'INVOICE' ? err('AI_REVIEW_PENDING', 'values wait for review', { count: 2 }) : original.assertNoPendingAiReview(...args),
+    ),
+  }
 })
 
 describe('[FR-AP-101/AC5] values the AI filled in and nobody confirmed stop the submit (AI_REVIEW_PENDING)', () => {

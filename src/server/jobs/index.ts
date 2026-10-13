@@ -1,4 +1,6 @@
 import { getEnv } from '@/lib/env'
+import { aiActionsExpire } from './ai-actions-expire'
+import { aiCreditMonthly } from './ai-credit-monthly'
 import { approvalTaskResume } from './approval-task-resume'
 import { approvalTaskSla } from './approval-task-sla'
 import { consolidationRound } from './consolidation'
@@ -47,6 +49,9 @@ export const functions = [
   invoiceInboxPoll,
   // S8-09: retentions whose day has come (ADR-124)
   retentionDue,
+  // S13-02: AI results that expire or are cleared, and the month's AI credits (ADR-145)
+  aiActionsExpire,
+  aiCreditMonthly,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

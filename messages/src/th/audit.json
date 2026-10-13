@@ -89,6 +89,9 @@
     "newest": "กลับไปรายการล่าสุด"
   },
   "groups": {
+    "agent_action": "ผู้ช่วย AI",
+    "ai_agent": "ตั้งค่าผู้ช่วย AI",
+    "ai_credit": "credits ของ AI",
     "approval_task": "งานอนุมัติ",
     "audit": "บันทึกการตรวจสอบ",
     "auth": "การเข้าระบบ",
@@ -128,6 +131,9 @@
     "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
   },
   "aggregate": {
+    "AgentAction": "งานของผู้ช่วย AI",
+    "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
+    "AiCredit": "credits ของ AI",
     "ApprovalTask": "งานอนุมัติ",
     "Auth": "การเข้าระบบ",
     "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
@@ -164,6 +170,29 @@
     "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
   },
   "events": {
+    "agent_action": {
+      "requested": "เรียกผู้ช่วย AI",
+      "drafted": "ผู้ช่วย AI ร่างผลแล้ว",
+      "failed": "ผู้ช่วย AI ทำไม่สำเร็จ",
+      "applied": "นำค่าจาก AI เข้าเอกสาร",
+      "accepted": "ยืนยันค่าจาก AI ครบ",
+      "edited": "ยืนยันค่าจาก AI พร้อมแก้ไข",
+      "rejected": "ทิ้งผลของ AI",
+      "expired": "ผลของ AI หมดอายุ",
+      "feedback_given": "ให้ความเห็นต่อผลของ AI",
+      "content_purged": "ล้างเนื้อหาของผลจาก AI"
+    },
+    "ai_agent": {
+      "enabled": "เปิดผู้ช่วย AI",
+      "disabled": "ปิดผู้ช่วย AI",
+      "updated": "แก้การตั้งค่าผู้ช่วย AI"
+    },
+    "ai_credit": {
+      "granted": "ให้ credits ของ AI",
+      "monthly_set": "ตั้ง credits ต่อเดือนของ AI",
+      "threshold_reached": "ใช้ credits ของ AI ถึงเกณฑ์แจ้ง",
+      "exhausted": "credits ของ AI หมด"
+    },
     "approval_task": {
       "assigned": "มอบงานอนุมัติ",
       "cancelled": "ยกเลิกงานอนุมัติ",

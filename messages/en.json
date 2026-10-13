@@ -1261,6 +1261,9 @@
       "unknown": "Member without a name"
     },
     "aggregate": {
+      "AgentAction": "AI assistant call",
+      "AiAgentSetting": "AI assistant setting",
+      "AiCredit": "AI credits",
       "ApprovalTask": "Approval task",
       "Auth": "Sign-in",
       "BudgetGrant": "Cross-department budget grant",
@@ -1322,6 +1325,29 @@
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
+      "agent_action": {
+        "accepted": "AI values all confirmed",
+        "applied": "AI values taken into a document",
+        "content_purged": "Content of an AI result cleared",
+        "drafted": "AI assistant drafted a result",
+        "edited": "AI values confirmed with changes",
+        "expired": "AI result expired",
+        "failed": "AI assistant call failed",
+        "feedback_given": "Feedback on an AI result",
+        "rejected": "AI result thrown away",
+        "requested": "AI assistant called"
+      },
+      "ai_agent": {
+        "disabled": "AI assistant switched off",
+        "enabled": "AI assistant switched on",
+        "updated": "AI assistant setting changed"
+      },
+      "ai_credit": {
+        "exhausted": "AI credits used up",
+        "granted": "AI credits granted",
+        "monthly_set": "Monthly AI credits set",
+        "threshold_reached": "AI credits reached the alert level"
+      },
       "approval_task": {
         "assigned": "Approval task assigned",
         "cancelled": "Approval task cancelled",
@@ -1549,6 +1575,9 @@
     },
     "forbidden": "The audit trail is open to auditors and organization admins only. If you need something from it, contact your organization's auditor.",
     "groups": {
+      "agent_action": "AI assistant",
+      "ai_agent": "AI assistant settings",
+      "ai_credit": "AI credits",
       "approval_task": "Approval tasks",
       "audit": "Audit trail",
       "auth": "Sign-in",
@@ -2711,6 +2740,9 @@
     }
   },
   "errors": {
+    "AI_AGENT_DISABLED": "The AI assistant {agent} is switched off; fill in the form yourself as usual",
+    "AI_CREDITS_EXHAUSTED": "This month's AI credits are used up; fill in the form yourself as usual",
+    "AI_NOT_EVALUATED": "This version of the AI assistant {agent} has not passed its evaluation yet, so it cannot be used",
     "AI_REVIEW_PENDING": "{count} fields the AI filled in are not confirmed yet",
     "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
     "ATTACHMENT_RULE_FAILED": "Required attachments missing under rule {rule}: {missing}",

@@ -795,6 +795,33 @@ def run_grni(d):
         got = {"lines": lines, "byCostCenter": {k: baht(v) for k, v in by.items()}}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_ai_credits(d):
+    import math
+    prices, out = (d.get("fixture") or {}).get("prices", {}), []
+    for c in d["cases"]:
+        i = c["input"]
+        if "model" in i:
+            p, t = prices[i["model"]], i["tokens"]
+            n = {k: t.get(k, 0) for k in ("input", "output", "cacheWrite", "cacheRead")}
+            if sum(n.values()) == 0: got = {"credits": 0, "ledgerRow": False}
+            else:
+                r = p["long"] if "long" in p and n["input"] + n["cacheWrite"] + n["cacheRead"] > p["longPromptAbove"] else p
+                got = {"credits": -(-sum(n[k] * r[k] for k in n) // 1_000_000_000), "ledgerRow": True}
+        elif "uses" in i:
+            used, rem, alert = 0, [], None
+            for k, u in enumerate(i["uses"]):
+                before, used = used, used + u; rem.append(i["grant"] - used)
+                if alert is None and before * 10000 < i["grant"] * i["alertAtBp"] <= used * 10000: alert = k
+            got = {"remaining": rem, "alertAfterUse": alert}
+        else:
+            used, res = i["used"], []
+            for cost in i["calls"]:
+                if i["grant"] - used > 0: res.append("ok"); used += cost
+                else: res.append("AI_CREDITS_EXHAUSTED")
+            got = {"results": res, "remaining": i["grant"] - used}
+        exp = c["expect"]
+        out.append((c["id"], all(got.get(k) == v for k, v in exp.items()), got))
+    return out
 def q4(q):  # quantity ×10⁴ as int
     qs = Decimal(str(q)) * 10000; assert qs == qs.to_integral_value(), "จำนวนเกิน 4 ตำแหน่ง"; return int(qs)
 def q4s(n): return str((Decimal(n) / 10000).normalize()) if n % 10000 else str(n // 10000)
@@ -915,6 +942,7 @@ def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงิ�
     return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
+    "ai-credits": run_ai_credits,
     "ap": run_ap,
     "budget": run_budget,
     "consolidation": run_cons,

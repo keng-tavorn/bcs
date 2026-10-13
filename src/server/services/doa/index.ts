@@ -12,6 +12,7 @@ import { loadOrgSnapshot } from '@/server/doa/policy'
 import { ruleJson, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { parseDoaYaml } from '@/server/doa/yaml'
 import type { EventDraft } from '@/server/events/append'
+import { AiAssistInput, applyAiAssist } from '../ai/assist-contract'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
@@ -36,7 +37,12 @@ const actorOf = (ctx: Ctx) => (ctx.actor.type === 'USER' ? ctx.actor.memberId : 
 // ---------- import a draft (FR-DOA-001 AC2) ----------
 
 // changeReason: why the organization changes its DOA, kept on the version for its history (FR-DOA-001 AC3)
-const ImportInput = z.strictObject({ yaml: z.string().min(1).max(DOA_YAML_MAX_CHARS), changeReason: z.string().trim().min(3).max(REASON_MAX_LENGTH).optional() })
+const ImportInput = z.strictObject({
+  yaml: z.string().min(1).max(DOA_YAML_MAX_CHARS),
+  changeReason: z.string().trim().min(3).max(REASON_MAX_LENGTH).optional(),
+  /** A draft the DOA drafter read from the regulation, every rule confirmed by the person (BR-AI-22 of S13 · assist-contract.ts) */
+  aiAssist: AiAssistInput.optional(),
+})
 
 export const importDoaDraftCommand = defineCommand({
   name: 'doa.import_draft',
@@ -79,9 +85,17 @@ export const importDoaDraftCommand = defineCommand({
         await tx.doaRule.create({ data: { organizationId: ctx.organizationId, doaVersionId: id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
       }
       versionIds.push(id)
-      events.push({ type: 'doa_version.drafted', aggregateType: 'DoaVersion', aggregateId: id, data: { code: v.code, versionNo: v.versionNo, via: 'YAML', rules: v.rules.length } })
+      events.push({
+        type: 'doa_version.drafted',
+        aggregateType: 'DoaVersion',
+        aggregateId: id,
+        data: { code: v.code, versionNo: v.versionNo, via: 'YAML', rules: v.rules.length, ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) },
+      })
     }
-    return { ok: true, result: { versionIds }, events }
+    // BR-AI-17 (S13): an import from an AI draft names it, and every rule of it must be confirmed in this call
+    const ai = await applyAiAssist(tx, ctx, { type: 'DOA_VERSION', id: versionIds[0]! }, input.aiAssist)
+    if (!ai.ok) return ai
+    return { ok: true, result: { versionIds }, events: [...events, ...ai.data] }
   },
 })
 

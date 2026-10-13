@@ -18,6 +18,22 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     organization: { model: 'Organization', list: false },
     task: { model: 'ApprovalTask', list: false },
   },
+  AgentAction: {
+    appliedBy: { model: 'Member', list: false },
+    creditUses: { model: 'AiCreditLedger', list: true },
+    decidedBy: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+    requestedBy: { model: 'Member', list: false },
+  },
+  AiAgentSetting: {
+    organization: { model: 'Organization', list: false },
+    updatedBy: { model: 'Member', list: false },
+  },
+  AiCreditLedger: {
+    agentAction: { model: 'AgentAction', list: false },
+    organization: { model: 'Organization', list: false },
+    platformAdmin: { model: 'PlatformAdmin', list: false },
+  },
   ApprovalRoute: {
     currentForInvoices: { model: 'Invoice', list: true },
     currentForPoChanges: { model: 'PoChange', list: true },
@@ -280,6 +296,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   },
   Member: {
     actionTokens: { model: 'ActionToken', list: true },
+    agentActionsApplied: { model: 'AgentAction', list: true },
+    agentActionsDecided: { model: 'AgentAction', list: true },
+    agentActionsRequested: { model: 'AgentAction', list: true },
+    aiAgentSettingsSet: { model: 'AiAgentSetting', list: true },
     apInvoicesCreated: { model: 'Invoice', list: true },
     apInvoicesRecorded: { model: 'Invoice', list: true },
     apInvoicesRejected: { model: 'Invoice', list: true },
@@ -344,6 +364,9 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   Organization: {
     accountCodes: { model: 'AccountCode', list: true },
     actionTokens: { model: 'ActionToken', list: true },
+    agentActions: { model: 'AgentAction', list: true },
+    aiAgentSettings: { model: 'AiAgentSetting', list: true },
+    aiCreditEntries: { model: 'AiCreditLedger', list: true },
     approvalRoutes: { model: 'ApprovalRoute', list: true },
     approvalSteps: { model: 'ApprovalStep', list: true },
     approvalTasks: { model: 'ApprovalTask', list: true },
@@ -431,6 +454,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     organization: { model: 'Organization', list: false },
   },
   PlatformAdmin: {
+    aiCreditsGranted: { model: 'AiCreditLedger', list: true },
     breakGlassSessions: { model: 'BreakGlassSession', list: true },
     moduleChanges: { model: 'OrgModule', list: true },
     rolesGranted: { model: 'RoleAssignment', list: true },

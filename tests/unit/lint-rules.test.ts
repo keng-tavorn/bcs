@@ -247,6 +247,58 @@ describe('layer boundaries', () => {
   })
 })
 
+describe('[INV-AI-05] the AI adapter and agents stay out of money, approvals, LIFF and webhooks (P-3)', () => {
+  const ADAPTER = "import { getAiClient } from '@/integrations/ai'\nexport const a = getAiClient\n"
+  const AGENT = "import { readDocument } from '@/server/services/ai/agents/document'\nexport const a = readDocument\n"
+  const RESTRICTED = 'bcs/restricted-imports'
+  // Services of requests, POs, receiving, approvals, budgets and DOA, the LIFF pages, the LINE webhook and channels
+  const REFUSED_FILES = [
+    'src/server/services/requests/canary.ts',
+    'src/server/services/purchase-orders/canary.ts',
+    'src/server/services/receiving/canary.ts',
+    'src/server/services/approvals/canary.ts',
+    'src/server/services/budget/canary.ts',
+    'src/server/services/doa/canary.ts',
+    'src/server/services/invoices/canary.ts',
+    'src/server/services/ai/assist-contract.ts',
+    'src/app/liff/gr/canary/page.tsx',
+    'src/app/api/webhooks/line/route.ts',
+    'src/channels/line/canary.ts',
+    'src/server/jobs/outbox-canary.ts',
+  ]
+
+  it('[INV-AI-05] refuses the adapter and the agents everywhere outside the agents, the ai-* jobs and the evaluation script', async () => {
+    for (const file of REFUSED_FILES) {
+      expect(await ruleIds(file, ADAPTER), `${file} adapter`).toContain(RESTRICTED)
+      expect(await ruleIds(file, AGENT), `${file} agent`).toContain(RESTRICTED)
+    }
+  })
+
+  it('[INV-AI-05] allows the adapter in the agents, the ai-* jobs and scripts/ai-eval, and the agents through the AI module', async () => {
+    for (const file of ['src/server/services/ai/agents/canary.ts', 'src/server/jobs/ai-agent-run.ts', 'scripts/ai-eval.ts']) {
+      const ids = await ruleIds(file, ADAPTER)
+      expect(ids, file).not.toContain(RESTRICTED)
+      expect(ids, file).not.toContain('boundaries/dependencies')
+    }
+    expect(await ruleIds('src/server/services/ai/index.ts', AGENT)).not.toContain(RESTRICTED)
+  })
+
+  it('[INV-AI-05] keeps the AI SDK inside src/integrations/ai and the chat hook inside src/ui/ai-chat (§5.5, ADR-052)', async () => {
+    for (const pkg of ['ai', '@ai-sdk/anthropic']) {
+      const code = `import * as sdk from '${pkg}'\nexport const a = sdk\n`
+      for (const file of ['src/server/services/ai/agents/canary.ts', 'src/server/services/requests/canary.ts', 'src/app/api/canary/route.ts']) {
+        expect(await ruleIds(file, code), `${file} ${pkg}`).toContain(RESTRICTED)
+      }
+      expect(await ruleIds('src/integrations/ai/canary.ts', code), pkg).not.toContain(RESTRICTED)
+    }
+    const hook = "'use client'\nimport { useChat } from '@ai-sdk/react'\nexport const a = useChat\n"
+    for (const file of ['src/app/liff/gr/canary/page.tsx', 'src/ui/liff/canary.tsx', 'src/ui/canary.tsx', 'src/app/(workspace)/canary/page.tsx']) {
+      expect(await ruleIds(file, hook), file).toContain(RESTRICTED)
+    }
+    expect(await ruleIds('src/ui/ai-chat/canary.tsx', hook)).not.toContain(RESTRICTED)
+  })
+})
+
 describe('tenant scoping and database access', () => {
   const SYSTEM = "import { systemDb } from '@/server/db/system'\n"
   const AUTH = 'src/server/auth/canary.ts'

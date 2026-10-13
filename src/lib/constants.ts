@@ -162,6 +162,9 @@ export const NEW_REQUEST_DRAWER_BELOW_PX = 768
 
 /** More request types than this and the dialog that starts a new request offers a keyword search (FR-INT-010 AC3) */
 export const NEW_REQUEST_SEARCH_OVER = 6
+
+/** Basis points per 100% (700 bp = 7%): AI confidence and credit alert levels are written in bp (S13) */
+export const BP_WHOLE = 10_000
 /** Basis points in a whole (100 % = 10000 bp): a technical constant, not money */
 export const BASIS_POINTS_WHOLE = 10_000
 

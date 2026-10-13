@@ -27,6 +27,8 @@ const LOCKABLE = [
   'DocumentSequence',
   'OrgAuthorityChange',
   'Delegation',
+  // S13-03: an AI action taken into a document (assist-contract.ts)
+  'AgentAction',
   // S8
   'Invoice',
   'Retention',

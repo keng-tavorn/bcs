@@ -143,6 +143,19 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },
     href: '/admin/modules',
   }),
+  // S13 (§10.1): AI credits at the alert share or used up, and an agent switched on or off (docs/sub-specs/S13.md)
+  'admin.ai_credits': (d) => ({
+    title:
+      d.kind === 'EXHAUSTED'
+        ? { th: `credits ของ AI เดือนนี้หมดแล้ว (ใช้ ${str(d.used)} จาก ${str(d.granted)})`, en: `This month's AI credits are used up (${str(d.used)} of ${str(d.granted)})` }
+        : { th: `ใช้ credits ของ AI เดือนนี้แล้ว ${str(d.used)} จาก ${str(d.granted)}`, en: `${str(d.used)} of ${str(d.granted)} AI credits used this month` },
+    body: { th: 'ฟีเจอร์อื่นทำงานตามปกติ ติดต่อทีม BCS เพื่อเพิ่ม credits', en: 'Everything else works as usual; contact the BCS team for more credits' },
+    href: '/admin/ai',
+  }),
+  'admin.ai_agent_changed': (d) => ({
+    title: d.enabled ? { th: `เปิดผู้ช่วย AI ${str(d.agent)} แล้ว`, en: `AI assistant ${str(d.agent)} was switched on` } : { th: `ปิดผู้ช่วย AI ${str(d.agent)} แล้ว`, en: `AI assistant ${str(d.agent)} was switched off` },
+    href: '/admin/ai',
+  }),
   'task.reminder': (d) => ({
     title: { th: `เตือน: ${ref(d)} รอคุณตัดสิน`, en: `Reminder: ${ref(d)} is waiting for your decision` },
     href: d.taskId ? `/tasks/${str(d.taskId)}` : null,

@@ -34,11 +34,13 @@ describe('[P1-07] request.drafted version 2 (source, agentActionId)', () => {
   })
 })
 
-describe('[P1-07] the empty AI-assist contract until S13 (assist-contract.ts)', () => {
-  it('no input changes nothing; an input before S13 is MODULE_DISABLED; nothing is ever pending', async () => {
+describe('[P1-07] the AI-assist contract (assist-contract.ts, the real one since S13-03)', () => {
+  // The signature P1-07 laid stays; what the real one does with the database is in tests/integration/ai-assist.test.ts
+  it('no input changes nothing and reads nothing; only a person takes AI values in; the input is strict', async () => {
     expect(await applyAiAssist(tx, ctx, subject)).toEqual({ ok: true, data: [] })
-    expect(await applyAiAssist(tx, ctx, subject, assist)).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED', details: { module: 'AI' } } })
-    expect(await assertNoPendingAiReview(tx, ctx, subject)).toEqual({ ok: true, data: true })
+    const system = { actor: { type: 'SYSTEM' } } as Ctx
+    expect(await applyAiAssist(tx, system, subject, assist)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    expect(assertNoPendingAiReview.length).toBe(3)
     expect(AiAssistInput.safeParse({ ...assist, extra: 1 }).success).toBe(false)
   })
 

@@ -415,6 +415,13 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
+| `ai.assist` | ทุก member (OWN) — ใช้ AI เติมเอกสารของตน และ service ตรวจสิทธิ์ของเอกสารปลายทางซ้ำ (`request.create` `gr.post` สิทธิ์บันทึกใบแจ้งหนี้) (S13) |
+| `ai.ask` | ทุก member (OWN) — ถาม BCS AI ผลอยู่ใน scope ของตนเท่านั้น (BR-AI-21) |
+| `ai.brief.view` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (ผู้รับงานหรือผู้รักษาการที่ตัดสินงานได้ตอนนี้) — ดูสรุปจาก AI ของงานอนุมัติ (BR-AI-20) |
+| `ai.doaDraft` | ORG_ADMIN (ORG) — ผู้มี `admin.doa.draft` เท่านั้น ทีม BCS ใช้ไม่ได้ (NG-12 · OQ-146) |
+| `ai.actions.view` | AUDITOR (ORG) ดูเนื้อหาทั้งหมด · ทุก member (OWN) ดูเนื้อหาของ AgentAction ที่ตนเรียก · ORG_ADMIN (ORG) — metadata เท่านั้น (agent purpose สถานะ เวลา credits เครื่องมือ) ไม่เห็น `inputText` `output` ของผู้อื่น |
+| `admin.ai.manage` | ORG_ADMIN (ORG) — เปิดปิด agent รายตัวและตั้ง `minConfidenceBp` (BR-AI-24) |
+| `platform.ai.credits` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass และไม่เห็นข้อมูลธุรกิจ (BR-AI-23) |
 
 **OWN ของคำขอ (S16-06 · FR-INT-013 AC3):** `request.view` และ `request.follow` นับผู้ขอและผู้ติดตามเป็น OWN · `request.create` (แก้ร่างและไฟล์แนบ) `request.submit` `request.cancel` และ `request.followers.manage` นับเฉพาะผู้ขอเป็น OWN ผู้ติดตามจึงส่ง แก้ ยกเลิก หรือเพิ่มผู้ติดตามไม่ได้ · service ส่ง `ownerMemberIds` ตามนี้ และเทสต์ปฏิเสธทุกคำสั่ง
 
@@ -750,7 +757,7 @@ sequenceDiagram
 | PDF | ตัดสินหลัง spike ใน S4 (OQ-18): headless Chromium หรือ `@react-pdf/renderer` + ฟอนต์ไทย | ตัดคำไทย สระ และวรรณยุกต์ถูกต้อง ตรวจด้วย snapshot ภาพ |
 | Excel | ExcelJS | รายงานและไฟล์ Express |
 | LINE | `@line/bot-sdk` · `@line/liff` | ตรวจ signature กับ raw body ก่อน parse JSON |
-| AI (S13) | Claude API ผ่าน AI SDK (`ai` `@ai-sdk/anthropic` `@ai-sdk/react`) · ADR-060 | อยู่ใน `src/integrations/ai` เท่านั้น · structured outputs จาก Zod (BR-AI-10) · ตรวจเวอร์ชันและเอกสารตอนเริ่ม S13 · `AI_ENABLED=false` จนถึง S13 |
+| AI (S13) | Claude API ผ่าน AI SDK (`ai` `@ai-sdk/anthropic` `@ai-sdk/react`) · ADR-060 | อยู่ใน `src/integrations/ai` เท่านั้น · structured outputs จาก Zod (BR-AI-10) · โหมด `fixture` และ `live` (`AI_MODE` · ADR-142) · ไม่มี fallback ของรุ่น (ADR-141) |
 | แอปมือถือ (S17) | Capacitor 8 ห่อเว็บเดิม · ADR-061 | ไม่มีโค้ดธุรกิจในแอป · ปลั๊กอินตาม §5.5 |
 | CI/CD | GitHub Actions | `pnpm verify` ทุก PR · merge `main` → deploy staging อัตโนมัติ (EG-3) |
 | Hosting | staging ใช้ Vercel ภูมิภาคสิงคโปร์ (sin1) ตาม ADR-032 · production ยังไม่ตัดสิน | ภูมิภาคเดียวกับฐานข้อมูล · เปิด `/api/inngest` ให้ Inngest เรียกได้ · staging ใช้ได้เฉพาะ seed และข้อมูลสังเคราะห์จนกว่า OQ-19 ปิด (§4.12) |
@@ -833,7 +840,7 @@ cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate 
 | `react-day-picker` (มากับ Calendar) | เลือกวันที่และช่วงวันที่ | S16 | แสดงปี พ.ศ. ผ่าน `src/core/thai` และ locale ไทยของ date-fns |
 | skill `shadcn` ของ shadcn/ui | กติกาการใช้ shadcn/ui ให้ Claude Code | S16 | ติดตั้งด้วย `npx -y skills add shadcn/ui --skill shadcn --agent claude-code` ลง `.claude/skills` · ไม่ใช่ dependency ของแอป · token และรายการห้ามใน §9.9 มาก่อนเสมอ |
 | `@xyflow/react` 12 | กราฟเส้นทางอนุมัติที่มีสายคู่ขนาน | S6 ถ้า sub-spec เลือก | แสดงอย่างเดียว ไม่ใช่ตัวสร้าง workflow (NG-4) |
-| `ai` 7 · `@ai-sdk/anthropic` 4 · `@ai-sdk/react` 4 | เรียก Claude และหน้าจอแชทแบบ stream | S13 | ใน `src/integrations/ai` เท่านั้น (P-3) · structured outputs จาก Zod (BR-AI-10) · ตรวจเวอร์ชันและเอกสารตอนเริ่ม S13 |
+| `ai` 7 · `@ai-sdk/anthropic` 4 · `@ai-sdk/react` 4 | เรียก Claude และหน้าจอแชทแบบ stream | S13 | `ai` `@ai-sdk/anthropic` ใน `src/integrations/ai` เท่านั้น (P-3) · `@ai-sdk/react` ใช้ได้เฉพาะ client component ของหน้าจอแชท Workspace (`src/ui/ai-chat`) ที่เรียก `POST /api/ai/ask` ไม่ใช่ LIFF (ADR-052) · structured outputs จาก Zod ผ่าน `output_config.format` (BR-AI-10 · ADR-141) · ตรวจแล้วใน S13-01 (ai 7.0.137 · @ai-sdk/anthropic 4.0.78) |
 | `@shadcn/helpers` | จำลองบทสนทนาในเทสต์หน้าจอ AI โดยไม่ใช้ key | S13 | dev dependency |
 | Capacitor 8 (`@capacitor/core` `@capacitor/cli` `@capacitor/ios` `@capacitor/android`) | แอป BCS Go ที่ห่อเว็บเดิม | S17 | ไม่มีโค้ดธุรกิจในแอป (ADR-017 ADR-061) |
 | `@capacitor/push-notifications` · `@capacitor/camera` · `@capacitor-mlkit/barcode-scanning` | push ถ่ายรูปตรวจรับ และสแกน barcode | S17 | push เป็นช่องทางแจ้งเตือนที่สามต่อจาก LINE และอีเมล (§4.7) |
@@ -1149,7 +1156,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,matching}`
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching}` (ai-checks เพิ่มใน S13-02)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -3634,6 +3641,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
+| `ai_credit.threshold_reached` · `ai_credit.exhausted` (S13 · ครั้งเดียวต่อเดือนต่อชนิด) | ORG_ADMIN (ทีม BCS ดูที่หน้า platform) | อีเมล · ในระบบ | IMMEDIATE | `admin.ai_credits` |
+| `ai_agent.enabled` · `ai_agent.disabled` (S13) | ORG_ADMIN | ในระบบ | IMMEDIATE | `admin.ai_agent_changed` |
 
 | ID | กฎ |
 | --- | --- |
@@ -3673,6 +3682,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
+| agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
+| ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
 
 **ระยะ 1 (P1-07):** `approval_task.*` และ event ของ step-up ใน `auth` รับ `subjectType` ครบ 12 ค่าของ `APPROVAL_SUBJECTS` (ค่าใหม่ `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · `request.drafted` schemaVersion 2 เพิ่ม `source` (`MANUAL` เป็นค่าเริ่มต้น · `REORDER` `RENEWAL` ของ S6 · `CHAT_INTAKE` ของ S17) และ `agentActionId` ไม่บังคับ (S13) · event ฉบับ 1 ยังอ่านได้ (source = `MANUAL`) · สายไม่เพิ่มฉบับของ event นี้เอง
 
@@ -3759,6 +3770,23 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | BR-AI-08 | ส่งข้อมูลให้ AI เท่าที่จำเป็น ปิดบังเลขบัญชีและเลขบัตรประชาชน ใช้ API ที่ไม่นำข้อมูลไปเทรน ไม่ fine-tune (NG-6) และบันทึกใน ROPA |
 | BR-AI-09 | รุ่นโมเดลเลือกผ่าน config (`AI_MODEL_DEFAULT` และค่าต่อ agent) การเปลี่ยนรุ่นหรือ prompt ต้องรันชุดประเมินใหม่และผ่านเกณฑ์เดิม |
 | BR-AI-10 | ใช้ structured outputs ของ Claude API กับ JSON schema ที่สร้างจาก Zod schema ชุดเดียวกับฟอร์ม schema รับประกันรูปแบบแต่ไม่รับประกันว่าค่าถูก |
+| BR-AI-11 | เรียก agent ได้เมื่อผ่านทุกด่านตามลำดับ: `AI_ENABLED` · `requireModule(ctx, 'AI')` · `AiAgentSetting.enabled` · โหมด live: ชุด (agent, purpose, promptVersion, model) อยู่ใน gate ของชั้นที่ env ต้องการ (production = `REAL` · อื่น = `SYNTHETIC`) · โหมด fixture ข้ามด่าน gate (ใช้ได้เฉพาะ local และเทสต์ · ADR-142) · credits คงเหลือ > 0 · ไม่เกิน 10 ครั้งต่อนาทีต่อสมาชิก · ไม่ผ่านด่านใด → ปฏิเสธด้วยรหัสของด่านนั้น (`AI_AGENT_DISABLED` `MODULE_DISABLED` `AI_NOT_EVALUATED` `AI_CREDITS_EXHAUSTED` `RATE_LIMITED`) หน้าจอไม่แสดงปุ่ม AI และฟีเจอร์เดิมทำงานต่อ (EG-1) · ไม่ใช้ fallback ของรุ่น · รุ่นใน response ไม่ตรงรุ่นที่ขอ → FAILED (`AI_MODEL_MISMATCH`) |
+| BR-AI-12 | Document Agent รับไฟล์ที่ผู้เรียกมีสิทธิ์เห็นและสถานะ `AVAILABLE` ชนิด PDF JPEG PNG WebP ตรวจ magic bytes ไม่เกิน 20 MB ไม่เช่นนั้น `AI_FILE_UNSUPPORTED` · ระยะ 1 ไม่นับหน้าเอง (ไม่มีตัวอ่าน PDF ใน §5.5 · เรื่องที่ผู้ใช้ต้องตัดสิน) API ปฏิเสธเพราะเอกสารยาวเกิน → FAILED (`AI_FILE_TOO_LONG`) · ไฟล์ e-Tax (PDF/A-3 ที่ฝัง XML หรือ XML) ตรวจด้วย `readEtaxContent` (BR-IVC-05) ก่อนเสมอ ไม่ส่ง AI ไม่สร้าง AgentAction ไม่คิด credits และปฏิเสธด้วย `AI_FILE_UNSUPPORTED` reason `ETAX` ให้หน้าจอพาไปทางนำเข้า e-Tax ของ S8 (prefill `ETAX_XML`) |
+| BR-AI-13 | ผลของ AI ต้องผ่าน Zod schema ก่อนเป็น DRAFT ไม่ผ่าน → FAILED (`AI_OUTPUT_INVALID`) · ผลที่ผ่าน schema ทุกฉบับผ่านการตรวจของระบบ (BR-AI-14 BR-AI-15) ผลตรวจไม่ทำให้ FAILED แต่ทำให้ฟิลด์ที่เกี่ยวข้องถูกไฮไลต์และต้องยืนยันทีละช่อง |
+| BR-AI-14 | การตรวจยอด (ชุด ai-verify): ส่วนลดอยู่ในช่อง `discountTotal` ไม่ติดลบ · บรรทัดที่ยอดติดลบตรวจ `LINE_AMOUNT` แล้วโค้ดย้ายไปรวมเป็น `discountTotal` (normalize) · มีทั้ง `discountTotal` และบรรทัดติดลบ → `DISCOUNT_AMBIGUOUS` FAIL และข้ามการตรวจยอดรวม · ยอดต่อบรรทัด = จำนวน × ราคาต่อหน่วยปัด half-up (BR-MONEY-02) ต้องเท่ายอดบรรทัดที่อ่านได้ทุกสตางค์ (`LINE_AMOUNT`) · ยอดฐาน = Σ ยอดต่อบรรทัดที่คำนวณ − ส่วนลด · ราคาไม่รวม VAT: ยอดก่อน VAT ที่อ่านได้ต้องเท่ายอดฐาน (`NET_TOTAL`) · VAT ที่คำนวณ = `vatFromNet(ยอดฐาน)` · ยอดรวมที่อ่านได้ต้องเท่ายอดก่อน VAT + VAT ที่อ่านได้ (`GROSS_TOTAL`) · ราคารวม VAT: ยอดรวมที่อ่านได้ต้องเท่ายอดฐาน (`GROSS_TOTAL`) · VAT ที่คำนวณ = `vatFromGross(ยอดฐาน)` (BR-VAT-03) · ยอดก่อน VAT ที่อ่านได้ต้องเท่ายอดรวม − VAT ที่อ่านได้ (`NET_TOTAL`) · ทั้งสองแบบ: VAT ที่อ่านได้เทียบ VAT ที่คำนวณ เท่ากัน PASS · ต่างไม่เกิน 1.00 บาท WARN · เกิน FAIL (`VAT_AMOUNT` · เกณฑ์เดียวกับ BR-IVC-01) · อัตรามาจาก `TaxRate` ณ วันที่เอกสารตามเวลาไทย ไม่มีอัตรา → `VAT_RATE_MISSING` FAIL และข้าม `VAT_AMOUNT` · ผู้ขายไม่จด VAT (BR-VAT-04): VAT ต้องเป็น 0 ตรวจด้วย `NON_VAT_SELLER` แทน `VAT_AMOUNT` · ผลอ่านระยะ 1 ไม่มีบรรทัดยกเว้น VAT (BR-VAT-02) ทุกบรรทัดถือว่าคิด VAT เอกสารที่มีบรรทัดยกเว้นจึงได้ `VAT_AMOUNT` FAIL แล้วคนแก้ · ใบส่งของไม่มียอดจึงข้ามการตรวจยอด |
+| BR-AI-15 | การตรวจตัวตนและวันที่: ผู้ขายของบริบท = ผู้ขายที่ผู้ใช้เลือกหรือของ PO (ไม่ใช่ค่าที่ AI อ่าน) · เลขผู้เสียภาษีผู้ขายผ่าน BR-TAXID-01 (`TAXID_CHECKSUM`) และตรงผู้ขายของบริบท (`SELLER_MATCH`) · สาขาไม่ตรง: ใบกำกับ FAIL อื่น WARN (`SELLER_BRANCH`) · ไม่มีผู้ขายของบริบท → ข้าม `SELLER_MATCH` `SELLER_BRANCH` และดูการจด VAT จากผู้ขายในทะเบียนที่เลขและสาขาตรง (ไม่พบถือว่าจด) · เลขผู้ซื้อที่อ่านได้ไม่ตรงองค์กร: ใบกำกับ FAIL อื่น WARN (`BUYER_MATCH`) · วันที่เอกสารหลังวันนี้ตามเวลาไทยของ `ctx.now` → FAIL (`DOC_DATE_FUTURE` · จับปี พ.ศ. ที่ไม่ได้แปลงด้วย) · อายุเอกสารเกิน 365 วัน (366 ขึ้นไป) → WARN (`DOC_DATE_OLD`) · สกุลเงินไม่ใช่ THB → FAIL ทั้งเอกสารและไม่แปลงเป็นค่าในฟอร์ม (`CURRENCY` · NG-9) |
+| BR-AI-16 | ความมั่นใจ (ชุด ai-confidence): โมเดลคืนจำนวนเต็มต่อฟิลด์ โค้ดตัดให้อยู่ใน 0–100 · ความมั่นใจของฟิลด์ (bp) = min(ค่านั้น × 100, เพดานจากผลตรวจ: FAIL → 0 · WARN → 5000 · PASS หรือไม่มีการตรวจ → 10000) · ช่องที่ต้องยืนยันทีละช่อง = กลุ่มสำคัญทุกค่า (เงิน จำนวน เลขผู้เสียภาษี สาขา ประเภทคำขอ) + ค่าที่ความมั่นใจต่ำกว่า `minConfidenceBp` (เท่าเกณฑ์ไม่ต้อง) · ช่องอื่นยืนยันรวมด้วยปุ่ม "ยืนยันค่าที่เหลือทั้งหมด" ที่ผู้ใช้ต้องกดเอง (OQ-147 · BR-AI-02) |
+| BR-AI-17 | ค่าของ AI เข้าเอกสารผ่านคำสั่งเดิมของเอกสารนั้นที่รับ `aiAssist = { agentActionId, confirmedPaths }` โดยผู้กระทำเป็นคน (actor USER) ในธุรกรรมเดียวกัน (`applyAiAssist`) · AgentAction ต้องเป็นขององค์กรเดียวกัน สถานะ DRAFT ระดับ L1 และ purpose ตรงเอกสาร (`QUOTATION_READ` `INTAKE` → คำขอ · `DELIVERY_NOTE_READ` → ตรวจรับ · `INVOICE_READ` → ใบแจ้งหนี้ · `DOA_DRAFT` → DOA) · subject ที่ว่างหรือเป็น `CHAT_INTAKE` เปลี่ยนเป็นเอกสารที่รับค่า · ช่องที่ต้องยืนยันนับว่ายืนยันแล้วเมื่ออยู่ใน `confirmedPaths` หรือค่าสุดท้ายต่างจากค่าของ AI (คนแก้) หรือไม่มีในเอกสารแล้ว (คนลบ) · คำสั่งที่ส่งหรือบันทึกขั้นถัดไป (`request.submit` `request.resubmit` `gr.post` `invoice.submit` ของ S8 `doa.import_draft`) เรียก `assertNoPendingAiReview` และปฏิเสธด้วย `AI_REVIEW_PENDING` เมื่อมี AgentAction สถานะ DRAFT ที่ apply แล้วผูกกับเอกสารและยังยืนยันไม่ครบ หรือ `aiAssist` ที่ส่งมายืนยันไม่ครบ · `gr.post` ตรวจตามลำดับของการบันทึกตรวจรับออฟไลน์ของ S17 (`docs/sub-specs/S17.md`): `capturedByMemberId` ของ `offline` → สิทธิ์และ SoD → สถานะ PO → version → `capturedAt` → ตรรกะเดิม → `aiAssist` |
+| BR-AI-18 | ข้อมูลส่วนบุคคล: schema ของผลอ่านไม่มีเลขบัญชีธนาคาร · ข้อความที่ระบบประกอบส่งให้ AI (Brief Insight Intake) ผ่าน redactor ที่แทนเลขบัญชี (รูปแบบ 10–12 หลักและแบบมีขีด) และเลข 13 หลักของบุคคลธรรมดาด้วย `[ปิดบัง]` · ผลเครื่องมือของ Insight ไม่มีเลขผู้เสียภาษีของบุคคลธรรมดา อีเมล โทรศัพท์ และที่อยู่ · log มีเฉพาะ id ของ AgentAction ไม่มี input output (NFR-SEC-09) · Intake จากแชทไม่เก็บ `inputText` · `output` ของ AgentAction ที่ subject ยังเป็น `CHAT_INTAKE` (ไม่ถูก apply) ถูกล้างเมื่ออายุเกิน 7 วัน (ค่าคงที่ใน `ai-config` · OQ-144) · `inputText` และ `output` ของ AgentAction อื่นที่ไม่ถูก apply (Insight ทุกครั้ง · Brief หลังงานอนุมัติปิด · ระดับ L1 ที่ REJECTED EXPIRED หรือ FAILED) ล้างตามระยะในตาราง "เรื่องที่ผู้ใช้ต้องตัดสิน" (ค่าคงที่ใน `ai-config` · `// TODO(OQ-144)`) ที่ apply แล้วเก็บตามอายุเอกสารที่รับค่า (NFR-PRIV-04) · ไฟล์ภาพและ PDF ส่งทั้งไฟล์เพราะปิดบังพิกเซลไม่ได้ จึงใช้ได้กับข้อมูลจริงเมื่อ OQ-144 ปิดเท่านั้น |
+| BR-AI-19 | Intake Agent: เสนอประเภทได้เฉพาะประเภทที่องค์กรเปิดและผู้ขอสร้างได้ · ไม่เติมคำถามคัดกรอง BR-FORM-05 (OQ-148) บรรทัดงบ cost center แผนกที่ตั้งเบิก ผู้อนุมัติ และไฟล์แนบอื่น (มาจาก BR-FORM-02 และ DOA · ไฟล์ใบเสนอราคาที่อ่านผูกกับ `RequestQuotation.fileId` ตาม BR-AI-25) · schema ของผลสร้างจาก FormVersion ของประเภทนั้น (BR-AI-10) · ไฟล์ที่แนบไป Intake อ่านด้วย Document Agent ในการเรียกเดียวกัน (AgentAction ต่อไฟล์ อ้างใน `inputRefs` ของ INTAKE · `applyAiAssist` ของ INTAKE ปิดทั้งชุด) · รายการจับคู่ `CatalogItem` ด้วยรหัสที่โค้ดตรวจว่ามีจริง · ผู้ขายจับคู่ด้วยเลขผู้เสียภาษีและสาขา หรือชื่อตรงทะเบียน ไม่พบ → ใส่ชื่อเป็นข้อความ ไม่สร้างผู้ขาย · ช่องทางซื้อที่แนะนำคำนวณด้วยโค้ด (ชุด ai-intake-channel): ทุกบรรทัดมี `PriceAgreement` ที่มีผล ณ วันนี้ (FR-INT-102 · `validTo` ไม่รวมวันนั้น) → CATALOG · ไม่เช่นนั้นทุกบรรทัดมีคำขอเดิมที่ผู้ขอคนนี้เป็นผู้ขอเองใน 180 วัน (FR-INT-101 · ขอซ้ำได้เฉพาะคำขอของตนตามกฎขอซ้ำของ S6 (`docs/sub-specs/S6.md`) · คำขอของผู้อื่นไม่นับและเลขของมันไม่ถูกแสดง · 180 เป็นค่าคงที่ `reorderLookbackDays` ใน `ai-config` เพราะยังไม่มีค่าตั้งนี้ในองค์กร) → REORDER · ไม่เช่นนั้น STANDARD พร้อมกฎแนบไฟล์ตามยอด (BR-FORM-04) |
+| BR-AI-20 | Approval Brief: สร้างเฉพาะงานของขั้นชนิด APPROVAL ตามชนิดขั้นจาก `getRouteView` ของ S6 (งานของขั้น REVIEW และ COMMITTEE ไม่มีสรุปและไม่ใช้ credits) บนเส้นทางที่ subject เป็น `REQUEST` หรือ `PURCHASE_ORDER` · facts สร้างด้วยโค้ดทุกครั้งที่อ่าน ภายใต้ `ctx` ของผู้ดู (ผู้ที่ตัดสินงานนั้นได้ตอนนี้: ผู้รับงานหรือผู้รักษาการ) ได้แก่ ยอดตามฐาน DOA และข้อที่ใช้ (`ApprovalRoute.amountBasis` `amountSatang` `ruleCode`) · งบคงเหลือหลังคำขอ (เฉพาะผู้มี `budget.view` ของบรรทัดนั้น) · จำนวนใบเสนอราคา รายถูกสุดหรือไม่ และเหตุผล · ป้ายราคาอ้างอิงต่อบรรทัด (alert HIGH LOW หรือไม่มีป้าย · FEW_SAMPLES · deviationBp ว่างเมื่อราคารวม VAT) จาก `getPriceReference` ของ S6 · จำนวน PO กับผู้ขายใน 12 เดือนและราคาล่าสุด (นับเฉพาะ PO ที่ผู้ดูเห็นตาม `po.view` ด้วย query เดียวกับ `listPurchaseOrdersForAsker` · ไม่เห็นสักใบ → ไม่มี fact นี้) · ธงคำขอซ้ำและแตกยอดจาก `listRequestFlags` ของ S6 (ชนิดและจำนวน · เลขคำขอที่ซ้ำแสดงเฉพาะคำขอที่ผู้ดูมี `request.view`) · เวลาที่เหลือของ SLA · งาน PURCHASE_ORDER ใช้คำขอต้นทางของบรรทัด PO ไม่มีหรือไม่มีสิทธิ์ → ไม่มี fact นั้น · AI เขียนประโยคครั้งเดียวต่องาน (job) จาก facts ของผู้รับงาน เก็บเฉพาะประโยคที่มี placeholder พร้อมรายการ key ของ facts ทั้งหมดที่ส่งให้ AI ตอนเขียน · ตอนอ่านแทนค่าจาก facts ของผู้ดู และแสดงประโยคเฉพาะเมื่อ facts ของผู้ดูมี key ครบทุกตัวที่ส่งให้ AI ตอนเขียน (ไม่ใช่เฉพาะ key ที่ประโยคอ้าง เพราะประโยคอาจสรุปค่าด้วยคำโดยไม่มี placeholder เช่น "งบใกล้หมด") ไม่ครบ → ไม่แสดงประโยคทั้งหมด แสดง facts อย่างเดียว · ข้อความไม่ผ่าน BR-AI-27 (โปรไฟล์ BRIEF) → ทิ้ง · ไม่อยู่ในการ์ด LINE และ push (OQ-107 ของ S6) |
+| BR-AI-21 | Insight Agent เรียกได้เฉพาะเครื่องมือในตาราง "เครื่องมือของ Insight" ภายใต้ `ctx` ของผู้ถาม ทุกเครื่องมือตรวจสิทธิ์และ scope ในตัว (ADR-147) ไม่มีเครื่องมือที่เขียน ไม่มี SQL ที่ AI เขียน (BR-AI-07) · ไม่เกิน 6 การเรียกต่อคำถาม คำถามไม่เกิน 500 ตัวอักษร คุยต่อเนื่องไม่เกิน 10 รอบ · ตัวเลข เลขเอกสาร รหัส วันที่ และร้อยละในคำตอบใส่ด้วย placeholder ของค่าที่เครื่องมือคืน (BR-AI-27 โปรไฟล์ INSIGHT) · server ตรวจทีละประโยคก่อน stream ประโยคที่ไม่ผ่าน → หยุดข้อความ แสดงผลเครื่องมือเป็นตารางพร้อมลิงก์ และบันทึกเหตุใน AgentAction · ทุกคำตอบที่อ้างข้อมูลมีลิงก์ที่เครื่องมือคืน · ไม่มีผลในสิทธิ์ → "ไม่พบข้อมูลในสิทธิ์ของคุณ" ไม่เดา |
+| BR-AI-22 | ร่าง DOA: ผู้เรียกต้องมี `admin.doa.draft` และเป็น Member ขององค์กร (PLATFORM_ADMIN เรียกไม่ได้ · NG-12 · OQ-146) · ผลอยู่ในรูปแบบนำเข้าของ FR-DOA-001 AC2 ทุกข้อมีข้อความต้นทางและเลขหน้า · โค้ดตรวจว่าวงเงินเป็นสตริงบาท และชนิดเอกสาร หน่วยงาน ตำแหน่งที่อ้างมีอยู่ในองค์กร · ระยะ 1 ไม่ตรวจข้อความต้นทางด้วยโค้ด (ไม่มีตัวอ่าน PDF ใน §5.5): หน้าจอแสดงข้อความต้นทางคู่กับ PDF ที่เปิดหน้านั้นให้คนยืนยันทีละข้อ · แสดงผล lint ของ BR-DOA-08 คู่กับร่าง · สร้างฉบับร่างด้วย `doa.import_draft` + `aiAssist` โดยผู้เรียกหลังยืนยันทุกข้อ ไม่ส่งเผยแพร่เอง |
+| BR-AI-23 | credits (ชุด ai-credits): credits ของการเรียก = ceil(Σ token × ราคาต่อล้าน token หน่วย micro-USD ÷ (1,000,000 × 1,000)) ปัดครั้งเดียวที่ท้าย (1 credit = 0.001 USD · OQ-143) · รุ่นที่มีอัตรา prompt ยาว: prompt (input + cacheWrite + cacheRead) เกิน `longPromptAbove` ของรุ่น → ทั้งการเรียกใช้อัตราที่สอง · ราคา cacheWrite ของ TTL 5 นาทีค่าเดียว · บันทึก USE หนึ่งแถวต่อ AgentAction ในธุรกรรมของ `agent_action.complete` · ไม่มี token → ไม่คิด · คงเหลือของเดือน = Σ GRANT − Σ USE · ก่อนเรียกต้องคงเหลือ > 0 (การเรียกสุดท้ายทำให้ติดลบได้) · ใช้ถึง `alertAtBp` ของ GRANT ของเดือน → แจ้งครั้งเดียวต่อเดือน · ตารางราคาอยู่ใน `ai-config` พร้อมวันที่ตรวจ |
+| BR-AI-24 | ORG_ADMIN ปิด agent รายตัวมีผลกับการเรียกใหม่ทันที (BR-AI-05) · การเรียกที่ PENDING อยู่ทำต่อจนจบ · DRAFT เดิมยังยืนยันหรือแก้ได้เพราะไม่เรียก AI · `AI_ENABLED=false` ปิดทุก agent ทั้งระบบ · ระดับที่ตั้งได้ในระยะ 1 คือ L0 และ L1 เท่านั้น |
+| BR-AI-25 | แปลงผลอ่านเป็นใบเสนอราคา (BR-FORM-06 · ชุด ai-quotation-map): ผู้ขายจับคู่ด้วยเลขผู้เสียภาษีและสาขาในทะเบียน พบ → `supplierId` และ `supplierName` = ชื่อในทะเบียน · ไม่พบ → `supplierId` ว่าง `supplierName` = ชื่อที่อ่านได้ (`SUPPLIER_NOT_REGISTERED`) · `fileId` = ไฟล์ที่อ่าน · ไม่รวม VAT → `amount` = ยอดก่อน VAT ที่อ่านได้ `includesVat` = false · รวม VAT → `amount` = ยอดรวมที่อ่านได้ `includesVat` = true · `NET_TOTAL` `GROSS_TOTAL` หรือ `DISCOUNT_AMBIGUOUS` FAIL → ไม่เติม `amount` (`AMOUNT_UNVERIFIED`) · `CURRENCY` FAIL → ไม่เติมอะไรเลย · มีส่วนลด → เติมเฉพาะ `amount` ไม่เติมบรรทัดคำขอ (`DISCOUNT_NOT_MAPPABLE`) · ใบส่งของ (ชุด ai-dn-map) → จำนวนรับต่อบรรทัด PO ที่ AI เสนอ เติมเฉพาะบรรทัดที่มีจริงใน PO หน่วยตรงกัน และไม่ซ้ำ (`PO_LINE_UNKNOWN` `UOM_MISMATCH` `DUPLICATE_PO_LINE`) · เกินยอดค้างรับเติมได้แต่ไฮไลต์ (`OVER_OPEN` · gr.post ตัดสินตามกฎเดิม) |
+| BR-AI-26 | ให้คะแนนชุดประเมิน (ชุด ai-eval-score): เทียบหลัง normalize (เลขผู้เสียภาษีตาม BR-TAXID-01 · เลขเอกสารตัดช่องว่างหัวท้ายและเทียบแบบ BR-IVC-03 · คำตอบ "ไม่มีเลขที่" ใน DocSamples = null · บรรทัดติดลบในคำตอบแปลงเป็น `discountTotal` แบบ BR-AI-14 · เงินเป็นสตางค์ · จำนวนเป็นทศนิยม 4 ตำแหน่ง · วันที่ ISO) · ความแม่นต่อฟิลด์ = floor(ถูก × 10000 ÷ ทั้งหมด) bp · ผ่านเมื่อ ≥ เกณฑ์ (เท่ากันผ่าน) · "หลุด" = ค่าผิดที่ความมั่นใจ ≥ `minConfidenceBp` และผลตรวจ PASS · ฟิลด์สำคัญที่หลุดแม้ค่าเดียวไม่ผ่าน · เกณฑ์ตาม OQ-141 (demo) และ OQ-142 (ของจริง) |
+| BR-AI-27 | ตัวตรวจข้อความของ AI (ชุด ai-text · ADR-144): ค่าในข้อความใส่ด้วย `{{v:<key>}}` ของ facts หรือผลเครื่องมือ · ตรวจทีละประโยคตามลำดับและคืนเหตุแรก: key ไม่มีอยู่ (`UNKNOWN_VALUE`) · ตัวเลขอารบิกหรือเลขไทยนอก placeholder (`DIGIT_OUTSIDE_PLACEHOLDER`) · คำแนะนำให้ตัดสินตามรายการคำไทยและอังกฤษใน `ai-config` เทียบแบบไม่สนตัวพิมพ์ (`DECISION_ADVICE`) · จำนวนประโยคเกินโปรไฟล์ (`TOO_MANY_SENTENCES`) · ประโยคยาวเกินโปรไฟล์ นับ code point หลังแทนค่า (`SENTENCE_TOO_LONG`) · โปรไฟล์ BRIEF 4 ประโยค 120 ตัว · INSIGHT 8 ประโยค 200 ตัว · แทนค่า: money คั่นหลักพันทศนิยม 2 ตำแหน่ง · bp เป็นร้อยละทศนิยมไม่เกิน 2 ตำแหน่งตัดศูนย์ท้าย · date เป็นวันที่ไทยปี พ.ศ. · ref เป็นลิงก์ของเอกสาร |
 
 ### 12.2 AgentAction
 
@@ -3800,7 +3828,41 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 
 ### 12.6 S13 · golden ของ AI ระยะ 1 (จองโดย P1-07)
 
-หัวข้อนี้จองให้ขั้น S13 (สาย 3): ชุดประเมินและ golden ของ AI ระยะ 1 วางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S13.md`) · กฎ BR-AI ต่อท้ายตารางเดิมของ §12 · ยังไม่มีเนื้อหา
+หัวข้อนี้จองให้ขั้น S13 (สาย 3): ชุดประเมินและ golden ของ AI ระยะ 1 วางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S13.md`) · กฎ BR-AI-11 ถึง BR-AI-27 ต่อท้ายตาราง §12.1 (S13-01)
+
+**Invariant ของ AI (S13-01)**
+
+| ID | Invariant | ทดสอบด้วย |
+| --- | --- | --- |
+| INV-AI-01 | event ที่ `actorType = AI_AGENT` มี `aggregateType = 'AgentAction'` เท่านั้น · ไม่มี AgentAction สถานะอื่นนอก enum ระยะ 1 | integration test สแกน Event หลังรันชุด AI ทั้งหมด |
+| INV-AI-02 | AgentAction ที่ไม่ใช่ PENDING มี `promptVersion` · ทุกแถว USE อ้าง AgentAction เดียว · `costCredits` เท่า USE ของมัน | integration test ใน S13-02 |
+| INV-AI-03 | `AI_ENABLED=false` หรือปิดโมดูล `AI` แล้ว `@demo` และเทสต์ของคำสั่งที่รับ `aiAssist` ผ่านเหมือนเดิม (EG-1) | เทสต์ใน `pnpm verify` |
+| INV-AI-04 | Insight ไม่คืน ref หรือฟิลด์นอก scope ของผู้ถาม | เทสต์ที่วนผู้ใช้ seed ทุกบทบาท (นับเอง) กับชุดคำถามสิทธิ์ ตรวจทุก ref ด้วย `get*Access` ของผู้ถาม รวมผู้ขอทั่วไปที่ถาม PO ของผู้อื่นและข้อมูลติดต่อหรือเลขผู้เสียภาษีของผู้ขาย |
+| INV-AI-05 | service ที่แตะเงินหรือการอนุมัติ โค้ดของ `src/app/liff` และ webhook ไม่ import `src/integrations/ai` และ `src/server/services/ai/agents` (P-3) | ESLint boundary + เทสต์ |
+
+**credits ของการเรียก (S13-02 · BR-AI-23 · golden ai-credits):** ราคาเป็น micro-USD ต่อ 1 ล้าน token และ 1 credit = 1,000 micro-USD · ตัวคำนวณ `creditsForCall` ใน `src/core/ai-checks/credits.ts` · ราคาจริงอยู่ใน `src/lib/ai-config.ts` · เคส GC-AI-10 GC-AI-11 คือยอดคงเหลือของเดือนและการแจ้งเตือนครั้งเดียว
+
+```yaml
+# tests/golden/ai-credits.yaml
+suite: ai-credits
+note: ราคาเป็น micro-USD ต่อ 1 ล้าน token (ค่าในเคสเป็น fixture · ค่าจริงอยู่ใน src/lib/ai-config.ts ที่ S13-01 ตรวจ) · 1 credit = 1,000 micro-USD · prompt = input + cacheWrite + cacheRead · prompt เกิน longPromptAbove → ทั้งการเรียกใช้อัตรา long
+fixture:
+  prices:
+    A: { input: 2000000, output: 10000000, cacheWrite: 2500000, cacheRead: 200000 }
+    H: { input: 100000, output: 500000, cacheWrite: 125000, cacheRead: 10000, longPromptAbove: 100000, long: { input: 500000, output: 2500000, cacheWrite: 625000, cacheRead: 50000 } }
+cases:
+  - { id: GC-AI-01, input: { model: A, tokens: { input: 12000, output: 800 } }, expect: { credits: 32 } }
+  - { id: GC-AI-02, title: 0.002 credit ปัดขึ้น, input: { model: A, tokens: { input: 1 } }, expect: { credits: 1 } }
+  - { id: GC-AI-03, title: 1 credit พอดี, input: { model: A, tokens: { input: 500 } }, expect: { credits: 1 } }
+  - { id: GC-AI-04, title: เกิน 1 credit ไป 0.002, input: { model: A, tokens: { input: 501 } }, expect: { credits: 2 } }
+  - { id: GC-AI-05, title: รวม cache ปัดครั้งเดียว 33.5 → 34, input: { model: A, tokens: { input: 3000, cacheWrite: 1000, cacheRead: 100000, output: 500 } }, expect: { credits: 34 } }
+  - { id: GC-AI-06, input: { model: H, tokens: { input: 4000, output: 300 } }, expect: { credits: 1 } }
+  - { id: GC-AI-07, title: prompt 100000 พอดี ใช้อัตราปกติ 10.5 → 11, input: { model: H, tokens: { input: 100000, output: 1000 } }, expect: { credits: 11 } }
+  - { id: GC-AI-08, title: prompt เกินไป 1 token ใช้อัตรา long ทั้งการเรียก, input: { model: H, tokens: { input: 100001, output: 1000 } }, expect: { credits: 53 } }
+  - { id: GC-AI-09, title: ล้มก่อนได้ token, input: { model: A, tokens: {} }, expect: { credits: 0, ledgerRow: false } }
+  - { id: GC-AI-10, title: แจ้งเมื่อใช้ถึง 80% ครั้งเดียว, input: { grant: 20000, alertAtBp: 8000, uses: [15999, 1, 5] }, expect: { remaining: [4001, 4000, 3995], alertAfterUse: 1 } }
+  - { id: GC-AI-11, title: คงเหลือ 1 เรียกได้ ติดลบแล้วเรียกไม่ได้, input: { grant: 20000, used: 19999, calls: [32, 1] }, expect: { results: [ok, AI_CREDITS_EXHAUSTED], remaining: -31 } }
+```
 
 ---
 
@@ -3882,6 +3944,9 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `DUPLICATE_INVOICE` | 409 | เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้ |
 | `INVOICE_TRACK_MISMATCH` | 409 | PO นี้บันทึกใบกำกับแบบ {track} อยู่แล้ว |
 | `AI_REVIEW_PENDING` | 409 | ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง |
+| `AI_AGENT_DISABLED` | 403 | ผู้ช่วย AI {agent} ปิดอยู่ กรอกข้อมูลเองได้ตามปกติ |
+| `AI_NOT_EVALUATED` | 403 | ผู้ช่วย AI {agent} รุ่นนี้ยังไม่ผ่านชุดประเมิน จึงยังใช้ไม่ได้ |
+| `AI_CREDITS_EXHAUSTED` | 422 | credits ของ AI เดือนนี้หมดแล้ว กรอกข้อมูลเองได้ตามปกติ |
 | `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
@@ -3970,7 +4035,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       25 ไฟล์ · 250 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       26 ไฟล์ · 261 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -5184,14 +5249,15 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S13-15 | รีวิวทั้งขั้นและส่งเข้า main | `high` | หลัง S13-01 ถึง S13-14 | อยู่ในข้อ |
 | S13-16 | `[go-live]` ชุดประเมินเอกสารจริงและข้อมูลส่วนบุคคล | `high` | หลัง P0-02 OQ-142 OQ-144 | ตรวจ |
 | S13-17 | `[go-live]` ประเมินรายคืนและ key production | `medium` | หลัง P0-13 | — |
+| S13-18 | `[go-live]` แจ้งทีม BCS เมื่อ credits ของ AI ถึงเกณฑ์หรือหมด (พบใน S13-02) | `medium` | หลัง S13-15 | — |
 
-- [ ] **S13-01** `[demo]` ฐานของโมดูล AI ตามหัวข้อ "สถาปัตยกรรม" ของ `docs/sub-specs/S13.md` (ADR-141 ADR-142 ADR-143): ติดตั้ง `ai` `@ai-sdk/anthropic` `@ai-sdk/react` และ `@shadcn/helpers` (§5.5) แล้วตรวจกับเอกสารปัจจุบันว่า structured outputs ใช้ `output_config.format` ได้โดยไม่ใช้ tool แบบบังคับ ปิด fallback ของรุ่นได้ และอัตราราคาปัจจุบัน · `src/lib/ai-config.ts` (รุ่น prompt ต่อ purpose รุ่นโมเดลต่อ agent ตาม OQ-145 ตารางราคา gate) · adapter `src/integrations/ai` (`AiClient` โหมด fixture และ live · ข้อความ prompt · คืนรุ่นที่ตอบจริง) · `src/lib/env.ts` เลิกบังคับ `AI_ENABLED=false` และเพิ่มกติกาของ `AI_MODE` · ESLint ห้าม import `src/integrations/ai` นอก `src/server/services/ai/agents` `src/server/jobs/ai-*` และ `scripts/ai-eval*` และห้าม `@ai-sdk/react` นอก client component ของหน้าจอแชท Workspace (P-3) · แก้ `.env.example` และภาคผนวก B · เพิ่มกฎและ invariant ทั้งหมดในหัวข้อ "กฎ" ของ sub-spec ลง spec ครั้งเดียว: BR-AI ต่อท้ายตารางกฎ AI ของ §12.1 · ตาราง INV-AI ใต้หัวข้อ golden ของ AI ที่ P1-07 จองไว้ท้าย §12
+- [x] **S13-01** `[demo]` ฐานของโมดูล AI ตามหัวข้อ "สถาปัตยกรรม" ของ `docs/sub-specs/S13.md` (ADR-141 ADR-142 ADR-143): ติดตั้ง `ai` `@ai-sdk/anthropic` `@ai-sdk/react` และ `@shadcn/helpers` (§5.5) แล้วตรวจกับเอกสารปัจจุบันว่า structured outputs ใช้ `output_config.format` ได้โดยไม่ใช้ tool แบบบังคับ ปิด fallback ของรุ่นได้ และอัตราราคาปัจจุบัน · `src/lib/ai-config.ts` (รุ่น prompt ต่อ purpose รุ่นโมเดลต่อ agent ตาม OQ-145 ตารางราคา gate) · adapter `src/integrations/ai` (`AiClient` โหมด fixture และ live · ข้อความ prompt · คืนรุ่นที่ตอบจริง) · `src/lib/env.ts` เลิกบังคับ `AI_ENABLED=false` และเพิ่มกติกาของ `AI_MODE` · ESLint ห้าม import `src/integrations/ai` นอก `src/server/services/ai/agents` `src/server/jobs/ai-*` และ `scripts/ai-eval*` และห้าม `@ai-sdk/react` นอก client component ของหน้าจอแชท Workspace (P-3) · แก้ `.env.example` และภาคผนวก B · เพิ่มกฎและ invariant ทั้งหมดในหัวข้อ "กฎ" ของ sub-spec ลง spec ครั้งเดียว: BR-AI ต่อท้ายตารางกฎ AI ของ §12.1 · ตาราง INV-AI ใต้หัวข้อ golden ของ AI ที่ P1-07 จองไว้ท้าย §12 · ตรวจกับโค้ดของ provider แล้ว: `structuredOutputMode: 'outputFormat'` ส่ง `output_config.format` ไม่มี tool บังคับ และ fallback ของรุ่นเปิดเฉพาะเมื่อส่ง `fallbacks` (adapter ไม่ส่ง) · ราคาตรวจ 2026-10-13 · เทสต์ `tests/unit/ai-adapter.test.ts` (10) `tests/unit/env.test.ts` และ `[INV-AI-05]` ใน `tests/unit/lint-rules.test.ts` · `pnpm test:e2e --grep @demo` 9 ผ่าน · `pnpm verify` ผ่าน (ด่าน coverage ล้มครั้งเดียวที่ `tests/unit/line-client.test.ts` ซึ่งไม่เกี่ยวกับข้อนี้ รันซ้ำผ่าน 1930/1930) — เสร็จ 2026-10-13 · d3617ab
   - เสร็จเมื่อ: เทสต์ของ adapter ผ่านในโหมด fixture โดยไม่มี key รวมเทสต์ว่าคำขอไม่เปิด fallback และรุ่นใน response ที่ไม่ตรงรุ่นที่ขอถูกปฏิเสธ · เทสต์ว่ารุ่นของข้อความ prompt ตรง `ai-config` · เริ่มแอปด้วย `APP_ENV=staging` กับ `AI_MODE=fixture` ถูกปฏิเสธ และ `AI_MODE=live` ที่ไม่มี key ถูกปฏิเสธ · เทสต์ lint ยืนยันว่า service คำขอ PO ตรวจรับ อนุมัติ งบ DOA และหน้า LIFF import adapter ไม่ได้ · `pnpm spec:check` ผ่านด่านเลข ID ต่อเนื่อง · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S13-02** `[demo]` AgentAction และการควบคุมตามหัวข้อ "Entity และ migration" "State machine" และ "กฎ" ของ `docs/sub-specs/S13.md` (BR-AI-04 BR-AI-05 BR-AI-09): migration `AgentAction` `AiAgentSetting` `AiCreditLedger` (trigger ห้าม UPDATE และ DELETE ของ ledger · relation ใต้บล็อกของ S13 ใน `schema.prisma`) · คำสั่งของ AgentAction ตั้งค่า agent และ credits ผ่าน `runCommand()` พร้อม event · ด่านของการเรียกและ `isAgentAvailable` (โหมด fixture ข้าม gate) · credits ตาม OQ-143 · job `ai-actions-expire` และ `ai-credit-monthly` · seed `AiAgentSetting` และ GRANT รายเดือนของ SIMEC (local และ staging · โมดูล AI มาจาก P1-07 ไม่ seed ซ้ำ) · เพิ่มแถว §2.4 §10.1 §10.2 §14.2 ของข้อนี้ · เพิ่ม golden ชุด ai-credits ใต้หัวข้อ golden ของ AI ที่ P1-07 จองไว้ท้าย §12 พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py`
+- [x] **S13-02** `[demo]` AgentAction และการควบคุมตามหัวข้อ "Entity และ migration" "State machine" และ "กฎ" ของ `docs/sub-specs/S13.md` (BR-AI-04 BR-AI-05 BR-AI-09): migration `AgentAction` `AiAgentSetting` `AiCreditLedger` (trigger ห้าม UPDATE และ DELETE ของ ledger · relation ใต้บล็อกของ S13 ใน `schema.prisma`) · คำสั่งของ AgentAction ตั้งค่า agent และ credits ผ่าน `runCommand()` พร้อม event · ด่านของการเรียกและ `isAgentAvailable` (โหมด fixture ข้าม gate) · credits ตาม OQ-143 · job `ai-actions-expire` และ `ai-credit-monthly` · seed `AiAgentSetting` และ GRANT รายเดือนของ SIMEC (local และ staging · โมดูล AI มาจาก P1-07 ไม่ seed ซ้ำ) · เพิ่มแถว §2.4 §10.1 §10.2 §14.2 ของข้อนี้ · เพิ่ม golden ชุด ai-credits ใต้หัวข้อ golden ของ AI ที่ P1-07 จองไว้ท้าย §12 พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · golden:ai-credits 11/11 และ `tests/golden/ai-credits.test.ts` · `tests/integration/ai-base.test.ts` 16 เคส (ด่านทุกด่าน ledger ห้ามแก้ INV-AI-02 สิทธิ์ดูเนื้อหา event ทุก transition) · เทสต์สิทธิ์ที่สร้างจาก §2.4 ผ่าน · `complete` ใช้ actor AI_AGENT และแจ้งเตือน credits ด้วยคำสั่ง SYSTEM แยก (INV-AI-01) · การแจ้ง PLATFORM_ADMIN ทางอีเมลยังไม่มีช่องทาง (ข้อ S13-18) · `pnpm test:e2e --grep @demo` 9 ผ่าน · `pnpm verify` ผ่าน — เสร็จ 2026-10-13 · fe05062
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:ai-credits ผ่านครบ และเทสต์ของชุดเดียวกันผ่าน · เทสต์สิทธิ์ที่สร้างจาก §2.4 ครอบความสามารถใหม่รวมกรณี PLATFORM_ADMIN ถูกปฏิเสธ · ทุก transition ของ AgentAction มี event · เทสต์ทุกด่านของการเรียกได้รหัสปฏิเสธของด่านนั้น รวมโหมด live ที่ไม่มี gate ได้ `AI_NOT_EVALUATED` · เทสต์ว่า ledger ห้าม UPDATE และ DELETE · invariant ของ AgentAction กับแถว USE และ credits ตาม sub-spec S13 ผ่าน (integration test) · ORG_ADMIN ไม่เห็น `inputText` `output` ของผู้อื่น (เทสต์กรณีปฏิเสธ) · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้ (ฐานของทุกข้อถัดไป)
-- [ ] **S13-03** `[demo]` ด่านยืนยันตามหัวข้อ "กฎ" และ "interface" ของ `docs/sub-specs/S13.md` (ADR-148): เปลี่ยนตัวว่าง `applyAiAssist` และ `assertNoPendingAiReview` ใน `src/server/services/ai/assist-contract.ts` ที่ P1-07 วางไว้เป็นของจริงโดยไม่เปลี่ยน signature · `aiAssist` แบบไม่บังคับใน `request.create_draft` `request.edit` `request.submit` `request.resubmit` `doa.import_draft` เป็น hook บรรทัดเดียวต่อคำสั่ง · `gr.post` ใช้ฟิลด์ `aiAssist` ที่ P1-07 เพิ่มไว้แล้ว และเรียก `applyAiAssist` ท้ายลำดับตรวจ: `capturedByMemberId` ของ `offline` → สิทธิ์และ SoD → สถานะ PO → version → `capturedAt` → ตรรกะเดิม → `aiAssist` · event `request.drafted` ใส่ `agentActionId` ของ schemaVersion ที่ P1-07 นิยาม ไม่ bump เอง · ใช้รหัส `AI_REVIEW_PENDING` ที่ P1-07 เพิ่มใน §14.2 แล้ว (ไม่เพิ่มแถวเอง)
+- [x] **S13-03** `[demo]` ด่านยืนยันตามหัวข้อ "กฎ" และ "interface" ของ `docs/sub-specs/S13.md` (ADR-148): เปลี่ยนตัวว่าง `applyAiAssist` และ `assertNoPendingAiReview` ใน `src/server/services/ai/assist-contract.ts` ที่ P1-07 วางไว้เป็นของจริงโดยไม่เปลี่ยน signature · `aiAssist` แบบไม่บังคับใน `request.create_draft` `request.edit` `request.submit` `request.resubmit` `doa.import_draft` เป็น hook บรรทัดเดียวต่อคำสั่ง · `gr.post` ใช้ฟิลด์ `aiAssist` ที่ P1-07 เพิ่มไว้แล้ว และเรียก `applyAiAssist` ท้ายลำดับตรวจ: `capturedByMemberId` ของ `offline` → สิทธิ์และ SoD → สถานะ PO → version → `capturedAt` → ตรรกะเดิม → `aiAssist` · event `request.drafted` ใส่ `agentActionId` ของ schemaVersion ที่ P1-07 นิยาม ไม่ bump เอง · ใช้รหัส `AI_REVIEW_PENDING` ที่ P1-07 เพิ่มใน §14.2 แล้ว (ไม่เพิ่มแถวเอง) — เสร็จ 2026-10-14 · f6c0c47
   - เสร็จเมื่อ: เทสต์ว่าคำขอที่มีค่าของ AI ยังไม่ยืนยันส่งไม่ได้ (`AI_REVIEW_PENDING`) และช่องที่คนแก้หรือลบนับว่ายืนยันแล้ว · เทสต์ว่า AgentAction ต่างองค์กร สถานะผิด หรือ purpose ไม่ตรงถูกปฏิเสธ · เทสต์ว่า `gr.post` ที่ไม่มีสิทธิ์หรือสถานะ PO ผิดได้รหัสเดิมก่อนตรวจ `aiAssist` · ปิด AI แล้วเทสต์เดิมของคำสั่งที่รับ `aiAssist` ผ่านไม่เปลี่ยน (EG-1) · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง (ด่านของคำสั่งเดิม) · หลังแก้ตามผลตรวจของข้อนี้ ส่งงานถึงข้อนี้เข้า main ตาม skill `bcs-lane` ก่อนทำข้อถัดไป
 - [ ] **S13-04** `[demo]` หน้าตั้งค่าตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S13.md`: `/admin/ai` (ORG_ADMIN เปิดปิด agent ตั้ง `minConfidenceBp` ดู credits ที่ใช้) และ `/platform/tenants/[orgId]/ai` (PLATFORM_ADMIN ให้ credits พร้อม `contractRef` โดยไม่เห็นข้อมูลธุรกิจ) เรียกคำสั่งของ S13-02 · ข้อความไทยและอังกฤษ
@@ -5235,6 +5301,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเอง
 - [ ] **S13-17** `[go-live]` ประเมินรายคืนและ key production (P0-13 · OQ-143): workflow ตามเวลาของ CI รัน `pnpm ai:eval --live` ด้วย secret ของ BCS แล้วแจ้งทีม BCS ทางอีเมลเมื่อไม่ผ่าน · วงเงินใช้จ่ายรายเดือนในบัญชี Anthropic · credits ต่อองค์กรตามสัญญา
   - เสร็จเมื่อ: workflow รันผ่าน 2 คืนติด และแจ้งเตือนเมื่อจำลองให้ไม่ผ่าน · key production อยู่ใน secret ของ hosting · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S13-18** `[go-live]` แจ้งทีม BCS (PLATFORM_ADMIN) ทางอีเมลเมื่อ credits ของ AI ขององค์กรถึงเกณฑ์แจ้งหรือหมด ตามแถว `admin.ai_credits` ของ §10.1 และ AC2 ของ "ฐานของโมดูล" ใน `docs/sub-specs/S13.md` · พบใน S13-02: การแจ้งเตือนในระบบผูกกับ Member จึงยังไม่มีช่องทางถึงทีม BCS (ตอนนี้ ORG_ADMIN ได้แจ้งเตือน และทีม BCS ดูยอดที่หน้า platform) · ใช้ช่องทางเดียวกับการแจ้งโควตา LINE ถึง 80% เมื่อมี
+  - เสร็จเมื่อ: เทสต์ว่า `ai_credit.threshold_reached` และ `ai_credit.exhausted` ส่งอีเมลถึง PLATFORM_ADMIN ที่ใช้งานอยู่ครั้งเดียวต่อเดือนต่อชนิด โดยไม่มีข้อมูลธุรกิจในอีเมล · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 
 ### 16.18 S17 · LINE และแอป BCS Go (สาย 1 ต่อจาก S6 · เส้นชัย G)
@@ -5917,10 +5986,16 @@ MICROSOFT_TENANT_ID=common
 LOG_LEVEL=info
 SENTRY_DSN=
 
-# --- AI (ชั้น 4 เท่านั้น) ---
-AI_ENABLED=false
-ANTHROPIC_API_KEY=
-AI_MODEL_DEFAULT=claude-sonnet-5-5   # ตัวอย่าง รุ่นจริงเลือกจากผลชุดประเมิน (§12.4)
+# --- AI (ชั้น 4 เท่านั้น · S13 · ADR-142) ---
+AI_ENABLED=false            # false = ปิดทุก agent ทั้งระบบ (EG-1) · true ต้องตั้ง AI_MODE
+AI_MODE=fixture             # fixture = คำตอบที่บันทึกไว้ (local และเทสต์เท่านั้น) · live = เรียก Claude จริง ต้องมี key และ gate
+ANTHROPIC_API_KEY=          # key ของ BCS (P0-13 · OQ-143)
+AI_MODEL_DEFAULT=           # ว่าง = ค่าตาม OQ-145 ใน src/lib/ai-config.ts · รุ่นจริงเลือกจากผลชุดประเมิน (§12.4)
+AI_MODEL_DOCUMENT=
+AI_MODEL_INTAKE=
+AI_MODEL_BRIEF=
+AI_MODEL_INSIGHT=
+AI_MODEL_DOA_DRAFTER=
 ```
 
 ## ภาคผนวก C — แผนผังเอกสารต้นทาง → spec

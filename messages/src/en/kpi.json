@@ -123,6 +123,13 @@
       "VARIANCE": "Receiving variance of {label}",
       "DOA_VERSION": "DOA version {label}",
       "ORG_AUTHORITY_CHANGE": "Authority change",
+      "BUDGET_TRANSFER": "Budget transfer",
+      "BUDGET_OVERRUN": "Over-budget approval",
+      "WORKFLOW_VERSION": "Workflow change",
+      "INVOICE": "Invoice",
+      "PO_CHANGE": "PO change",
+      "PAYMENT_RUN": "Payment run",
+      "BANK_ACCOUNT_CHANGE": "Bank account change",
       "unknown": "Document not found"
     },
     "decision": {

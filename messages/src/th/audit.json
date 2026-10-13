@@ -26,6 +26,12 @@
     "EXPORT": "ไฟล์ส่งออก{label}",
     "DOA_VERSION": "{label} ฉบับ {version}",
     "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+    "BUDGET_TRANSFER": "การโอนงบ",
+    "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+    "WORKFLOW_VERSION": "การเปลี่ยน workflow",
+    "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
+    "PAYMENT_RUN": "รอบจ่ายเงิน",
+    "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
     "BUDGET_LINE": "บรรทัดงบ {label}",
     "MEMBER": "สมาชิก {label}",
     "SUPPLIER": "ผู้ขาย {label}"

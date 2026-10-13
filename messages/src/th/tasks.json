@@ -239,7 +239,13 @@
       "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
       "GR_VARIANCE": "ผลต่างจากการตรวจรับ",
       "DOA_CHANGE": "การเปลี่ยน DOA",
-      "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ"
+      "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "BUDGET_TRANSFER": "การโอนงบ",
+      "OVER_BUDGET": "การขออนุมัติเกินงบ",
+      "INVOICE_EXCEPTION": "ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ",
+      "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
+      "PAYMENT_RUN": "รอบจ่ายเงิน",
+      "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร"
     },
     "doaBand": {
       "range": "มากกว่า {from} ถึงไม่เกิน {to} บาท",

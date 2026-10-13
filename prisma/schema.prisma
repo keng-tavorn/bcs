@@ -101,6 +101,14 @@ model Organization {
   channelLinkCodes       ChannelLinkCode[]
   lineChannelConfig      LineChannelConfig?
   lineWebhookEvents      LineWebhookEvent[]
+
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
 }
 
 enum ModuleKey {
@@ -206,6 +214,14 @@ model Member {
   actionTokens          ActionToken[]         @relation("ActionTokenMember")
   channelIdentities     ChannelIdentity[]     @relation("ChannelIdentityMember")
   channelLinkCodes      ChannelLinkCode[]     @relation("ChannelLinkCodeMember")
+
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -428,6 +444,14 @@ model FileObject {
   purchaseOrderPdfs PurchaseOrder[]       @relation("PurchaseOrderPdf")
   invoiceSources    InvoiceConfirmation[] @relation("InvoiceSourceFile")
   exportJobs        ExportJob[]           @relation("ExportJobFile")
+
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
 
   @@unique([organizationId, id])
   @@index([organizationId])
@@ -850,6 +874,14 @@ model RequestType {
   formVersions       FormVersion[] @relation("FormVersionRequestType")
   requests           Request[]
 
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, code])
 }
@@ -961,6 +993,14 @@ model Request {
 
   deliverySite      DeliverySite? @relation(fields: [organizationId, deliverySiteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   suggestedSupplier Supplier?     @relation("RequestSuggestedSupplier", fields: [organizationId, suggestedSupplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
@@ -1095,6 +1135,12 @@ enum DoaDocumentType {
   GR_VARIANCE
   DOA_CHANGE
   ORG_AUTHORITY_CHANGE
+  BUDGET_TRANSFER
+  OVER_BUDGET
+  INVOICE_EXCEPTION
+  PO_CHANGE
+  PAYMENT_RUN
+  BANK_ACCOUNT_CHANGE
 }
 
 /// A published version never changes; the next one is a new row. versionNo is the edition (ฉบับ); `version` is the
@@ -1184,6 +1230,13 @@ enum ApprovalSubjectType {
   VARIANCE
   DOA_VERSION
   ORG_AUTHORITY_CHANGE
+  BUDGET_TRANSFER
+  BUDGET_OVERRUN
+  WORKFLOW_VERSION
+  INVOICE
+  PO_CHANGE
+  PAYMENT_RUN
+  BANK_ACCOUNT_CHANGE
 }
 
 enum ApprovalRouteStatus {
@@ -1217,6 +1270,14 @@ model ApprovalRoute {
 
   currentForPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderCurrentRoute")
   currentForVariances      Variance[]      @relation("VarianceCurrentRoute")
+
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, subjectType, subjectId, routeNo])
@@ -1501,6 +1562,14 @@ model BudgetLine {
 
   poLines PoLine[]
 
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, fiscalYearId, code])
   @@index([organizationId, departmentId])
@@ -1687,6 +1756,14 @@ model Supplier {
   purchaseOrders       PurchaseOrder[]
   invoiceConfirmations InvoiceConfirmation[]
 
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
+
   @@unique([organizationId, id])
   @@unique([organizationId, code])
   @@unique([organizationId, taxId, branchCode])
@@ -1787,6 +1864,14 @@ model PurchaseOrder {
   goodsReceipts    GoodsReceipt[]
   variances        Variance[]
   invoices         InvoiceConfirmation[]
+
+  // --- S6 ---
+
+  // --- S8 S9 ---
+
+  // --- S13 ---
+
+  // --- S17 ---
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])

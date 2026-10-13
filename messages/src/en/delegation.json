@@ -13,7 +13,7 @@
   "periodHint": "Starts at 00:00 on the first day and ends when the last day ends, Thai time",
   "periodPreview": "Acting {period}",
   "coverage": "Approval tasks covered",
-  "coverageAll": "Every kind of approval task of your positions",
+  "coverageAll": "Every kind of approval task of your positions, including kinds added later",
   "coverageAllHint": "Includes approving DOA changes and authority changes; the separation-of-duties checks still apply",
   "coverageSome": "Only the kinds I choose",
   "documentTypes": {
@@ -21,7 +21,13 @@
     "PURCHASE_ORDER": "Purchase order (PO)",
     "GR_VARIANCE": "Receiving difference",
     "DOA_CHANGE": "DOA change",
-    "ORG_AUTHORITY_CHANGE": "Authority change"
+    "ORG_AUTHORITY_CHANGE": "Authority change",
+    "BUDGET_TRANSFER": "Budget transfer",
+    "OVER_BUDGET": "Over budget",
+    "INVOICE_EXCEPTION": "Invoice exception",
+    "PO_CHANGE": "PO change",
+    "PAYMENT_RUN": "Payment run",
+    "BANK_ACCOUNT_CHANGE": "Bank account change"
   },
   "maxAmount": "Highest amount handed over (baht)",
   "maxAmountHint": "Leave blank for no cap, still within your position's authority. With a cap, tasks without an amount, such as DOA changes, do not go to the acting approver.",

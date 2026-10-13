@@ -1,13 +1,71 @@
 // DOA engine types (spec §7.4, §6.2). Snapshots are plain data built by the server from the database (or from YAML
 // fixtures in tests); the engine never reads anything itself. Money is BigInt satang throughout (ADR-018).
 
-export const DOA_DOCUMENT_TYPES = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE'] as const
+import type { ApprovalSubject } from '../sod'
+
+/** The order lint reports in (BR-DOA-23); the first five are the tier-1 types, the rest came with phase 1 (P1-07). */
+export const DOA_DOCUMENT_TYPES = [
+  'PURCHASE_REQUEST',
+  'PURCHASE_ORDER',
+  'GR_VARIANCE',
+  'DOA_CHANGE',
+  'ORG_AUTHORITY_CHANGE',
+  'BUDGET_TRANSFER',
+  'OVER_BUDGET',
+  'INVOICE_EXCEPTION',
+  'PO_CHANGE',
+  'PAYMENT_RUN',
+  'BANK_ACCOUNT_CHANGE',
+] as const
 export type DoaDocumentType = (typeof DOA_DOCUMENT_TYPES)[number]
 
-/** Purchase documents must carry an amount above zero (BR-DOA-02). */
-export const PURCHASE_DOCUMENT_TYPES: readonly DoaDocumentType[] = ['PURCHASE_REQUEST', 'PURCHASE_ORDER']
+/** REQUIRED: an amount above zero (BR-DOA-02, BR-DOA-21) · OPTIONAL: either way (tier-1 behaviour) · NONE: never (BR-DOA-22). */
+export type AmountRequirement = 'REQUIRED' | 'OPTIONAL' | 'NONE'
+
+/**
+ * What a document type is (BR-DOA-20): data only, never a limit, a position or a route (P-2). A type is switched on
+ * for an organisation by having rules in its DOA, not by a flag.
+ */
+export interface DocTypeTraits {
+  readonly amount: AmountRequirement
+  /** false: the owner routes it with vatSatang = 0, so GROSS and NET give the same result (BR-DOA-21) */
+  readonly vat: boolean
+  /** A policy change every version must be able to approve (BR-DOA-08 (จ)) */
+  readonly governance: boolean
+  /** Every version needs a rule of this type while one of these modules is on (BR-DOA-23) */
+  readonly requiredWithModules: readonly string[]
+  /** The approval subjects that may route with this type (BR-DOA-20) */
+  readonly subjects: readonly ApprovalSubject[]
+}
+
+export const DOC_TYPE_TRAITS: Readonly<Record<DoaDocumentType, DocTypeTraits>> = {
+  PURCHASE_REQUEST: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: [], subjects: ['REQUEST'] },
+  PURCHASE_ORDER: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: [], subjects: ['PURCHASE_ORDER'] },
+  GR_VARIANCE: { amount: 'OPTIONAL', vat: false, governance: false, requiredWithModules: [], subjects: ['VARIANCE'] },
+  DOA_CHANGE: { amount: 'OPTIONAL', vat: false, governance: true, requiredWithModules: [], subjects: ['DOA_VERSION', 'WORKFLOW_VERSION'] },
+  ORG_AUTHORITY_CHANGE: { amount: 'OPTIONAL', vat: false, governance: true, requiredWithModules: [], subjects: ['ORG_AUTHORITY_CHANGE'] },
+  BUDGET_TRANSFER: { amount: 'REQUIRED', vat: false, governance: false, requiredWithModules: [], subjects: ['BUDGET_TRANSFER'] },
+  OVER_BUDGET: { amount: 'REQUIRED', vat: false, governance: false, requiredWithModules: [], subjects: ['BUDGET_OVERRUN'] },
+  INVOICE_EXCEPTION: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: ['PAY'], subjects: ['INVOICE'] },
+  PO_CHANGE: { amount: 'REQUIRED', vat: true, governance: false, requiredWithModules: [], subjects: ['PO_CHANGE'] },
+  PAYMENT_RUN: { amount: 'REQUIRED', vat: false, governance: false, requiredWithModules: ['PAY'], subjects: ['PAYMENT_RUN'] },
+  BANK_ACCOUNT_CHANGE: { amount: 'NONE', vat: false, governance: false, requiredWithModules: ['PAY'], subjects: ['BANK_ACCOUNT_CHANGE'] },
+}
+
 /** Policy changes every version must be able to approve (BR-DOA-08 (จ)). */
-export const GOVERNANCE_DOCUMENT_TYPES: readonly DoaDocumentType[] = ['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE']
+export const GOVERNANCE_DOCUMENT_TYPES: readonly DoaDocumentType[] = DOA_DOCUMENT_TYPES.filter((t) => DOC_TYPE_TRAITS[t].governance)
+/** Types whose rules carry no amount band: the editor hides the limit and the simulator the amount. */
+export const NO_AMOUNT_DOCUMENT_TYPES: readonly DoaDocumentType[] = DOA_DOCUMENT_TYPES.filter((t) => DOC_TYPE_TRAITS[t].governance || DOC_TYPE_TRAITS[t].amount === 'NONE')
+
+/** BR-DOA-23: the types every version must have rules for while these modules are on, in DOA_DOCUMENT_TYPES order. */
+export function requiredDocumentTypes(modules: readonly string[] = []): DoaDocumentType[] {
+  return DOA_DOCUMENT_TYPES.filter((t) => DOC_TYPE_TRAITS[t].governance || DOC_TYPE_TRAITS[t].requiredWithModules.some((m) => modules.includes(m)))
+}
+
+/** The modules that make a type required, each with the types it requires (BR-DOA-24). */
+export function moduleRequiredDocumentTypes(module: string): DoaDocumentType[] {
+  return DOA_DOCUMENT_TYPES.filter((t) => DOC_TYPE_TRAITS[t].requiredWithModules.includes(module))
+}
 
 export type AmountBasis = 'GROSS' | 'NET'
 export type SelfApprovalPolicy = 'ESCALATE_NEXT_BAND' | 'BLOCK'
@@ -105,7 +163,7 @@ export interface DelegationSnapshot {
 
 export interface RouteInput {
   readonly documentType: DoaDocumentType
-  /** Documents without an amount (DOA_CHANGE, ORG_AUTHORITY_CHANGE) leave it out */
+  /** Types whose amount is NONE leave it out; OPTIONAL types may (DOC_TYPE_TRAITS) */
   readonly amount?: { readonly netSatang: bigint; readonly vatSatang: bigint }
   readonly requesterMemberId: string
   /** The department that pays (BR-DOA-05, OQ-27), not the requester's own */

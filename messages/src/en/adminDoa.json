@@ -34,7 +34,13 @@
     "PURCHASE_ORDER": "Purchase order (PO)",
     "GR_VARIANCE": "Receiving variance",
     "DOA_CHANGE": "DOA change",
-    "ORG_AUTHORITY_CHANGE": "Authority change"
+    "ORG_AUTHORITY_CHANGE": "Authority change",
+    "BUDGET_TRANSFER": "Budget transfer",
+    "OVER_BUDGET": "Over budget",
+    "INVOICE_EXCEPTION": "Invoice exception",
+    "PO_CHANGE": "PO change",
+    "PAYMENT_RUN": "Payment run",
+    "BANK_ACCOUNT_CHANGE": "Bank account change"
   },
   "band": {
     "range": "above {from} up to {to} baht",
@@ -48,9 +54,10 @@
   "lint": {
     "DOA_LINT_GAP": "{documentType}: no rule covers amounts {band}",
     "DOA_LINT_OVERLAP": "{documentType}: amounts {band} fall under more than one rule",
-    "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule and an authority-change rule.",
+    "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule, an authority-change rule and a rule for every document type a module that is on requires.",
     "DOA_LINT_UNRESOLVABLE_GOVERNANCE": "Rule {rule}: no approver can be found on the effective date, so nobody could approve policy changes",
     "DOA_LINT_PARALLEL_STEP": "Rule {rule}: has a parallel approval step, which is not supported yet",
+    "DOA_LINT_AMOUNT_NOT_ALLOWED": "Rule {rule}: this document type has no amount, so it cannot have an amount band",
     "OTHER": "Check {code}"
   },
   "import": {

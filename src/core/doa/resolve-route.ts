@@ -3,7 +3,7 @@ import { delegateFor } from '../delegation'
 import { bandOf, chooseRule, higherBandLowers, type RuleChoice } from './band'
 import { resolveApprover, type ApproverFound } from './approvers'
 import { explainRouteTh, type ExplainedStep } from './explain'
-import { PURCHASE_DOCUMENT_TYPES, type DelegationSnapshot, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot, type RouteInput, type RouteResult, type RouteStep } from './types'
+import { DOC_TYPE_TRAITS, type DelegationSnapshot, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot, type RouteInput, type RouteResult, type RouteStep } from './types'
 
 // resolveRoute (spec §7.4, FR-DOA-003): which DOA version and rule apply to a document and who approves it, with the
 // reason in Thai. Pure and deterministic (INV-DOA-02): same input and snapshots, same result.
@@ -52,11 +52,16 @@ function ruleChoiceError(choice: Exclude<RuleChoice, { kind: 'rule' }>, input: R
 export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<RouteResult> {
   const version = versionAt(policy.versions, input.at)
   const basisAmount = version ? basisAmountOf(input, version) : null
-  // BR-DOA-02: purchase documents need an amount above zero
-  if (PURCHASE_DOCUMENT_TYPES.includes(input.documentType)) {
+  const traits = DOC_TYPE_TRAITS[input.documentType]
+  // BR-DOA-22: a type without an amount never takes one, so no band can be chosen by it
+  if (traits.amount === 'NONE' && input.amount) {
+    return err('VALIDATION_FAILED', 'this document type has no amount', { field: 'amount', reason: 'AMOUNT_NOT_ALLOWED' })
+  }
+  // BR-DOA-02, BR-DOA-21: a type that needs an amount needs one above zero, in total and on the version's basis
+  if (traits.amount === 'REQUIRED') {
     const amount = input.amount ? input.amount.netSatang + input.amount.vatSatang : null
     if (amount === null || amount <= 0n || (basisAmount !== null && basisAmount <= 0n)) {
-      return err('VALIDATION_FAILED', 'a purchase document needs an amount above zero', { field: 'amount', reason: amount === null ? 'AMOUNT_REQUIRED' : 'AMOUNT_NOT_POSITIVE' })
+      return err('VALIDATION_FAILED', 'this document needs an amount above zero', { field: 'amount', reason: amount === null ? 'AMOUNT_REQUIRED' : 'AMOUNT_NOT_POSITIVE' })
     }
   }
   if (!version) return err('DOA_NOT_CONFIGURED', 'no DOA version is in effect', { documentType: input.documentType, reason: 'NO_VERSION', at: input.at.toISOString() })

@@ -1342,8 +1342,8 @@ cases:
 // src/core/doa/resolve-route.ts
 export function resolveRoute(
   input: {
-    documentType: 'PURCHASE_REQUEST' | 'PURCHASE_ORDER' | 'GR_VARIANCE' | 'DOA_CHANGE' | 'ORG_AUTHORITY_CHANGE'
-    amount?: { netSatang: bigint; vatSatang: bigint } // เอกสารที่ไม่มีวงเงินไม่ต้องส่ง
+    documentType: DoaDocumentType // 11 ชนิดใน DOA_DOCUMENT_TYPES ตามตาราง DOC_TYPE_TRAITS ท้ายหัวข้อนี้
+    amount?: { netSatang: bigint; vatSatang: bigint } // ชนิด NONE ห้ามส่ง · ชนิดที่ไม่มี VAT ส่ง vatSatang = 0
     requesterMemberId: string
     chargedDepartmentId: string
     conflictMemberIds: string[] // ผู้ขอ + ผู้ขอของ PR ต้นทาง + ผู้สร้าง PO + ผู้ส่ง DOA
@@ -1376,8 +1376,15 @@ export function resolveRoute(
 | BR-DOA-17 | การแต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA ฉบับที่มีผลหรือรอมีผลอ้างถึง การย้าย parent ของแผนก และการตั้งรักษาการแทนผู้อื่น ต้องอนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` มีวันมีผลและห้ามย้อนหลัง · ทำให้ตำแหน่งที่ DOA อ้างว่าง → warning ที่ต้องยืนยัน · ทำให้ผู้อนุมัติของข้อ `DOA_CHANGE` หรือ `ORG_AUTHORITY_CHANGE` หาไม่ได้ → ปฏิเสธ เว้นแต่แต่งตั้งผู้แทนในคำขอเดียวกัน (OQ-32) · เมื่อมีผล งานค้างที่ `resolvedFrom` ตรงตำแหน่งนั้นย้ายไปผู้ดำรงคนใหม่ (`REASSIGNED`) โดยใช้ DOA ref เดิม ถ้าตำแหน่งว่างแจ้ง ORG_ADMIN |
 | BR-DOA-18 | (S6) ฉบับที่อนุมัติแล้วแต่ยังไม่ถึงวันมีผลถอนได้ด้วยการอนุมัติตามข้อ `DOA_CHANGE` → `WITHDRAWN` (FR-DOA-104) |
 | BR-DOA-19 | ชุดตั้งต้นขององค์กร (ผู้ดำรงตำแหน่งที่ DOA อ้าง + DOA ฉบับแรก) ส่งเป็นแพ็กเกจเดียวให้ผู้มีอำนาจลงนามตามสัญญา (`Organization.contractSignatoryMemberId`) อนุมัติพร้อม step-up · PLATFORM_ADMIN ยืนยันแค่ว่าบัญชีนั้นเป็นคนในสัญญา ไม่เห็นและไม่ตรวจเนื้อหา · ผู้ส่ง ≠ ผู้ลงนาม (OQ-31) |
+| BR-DOA-20 | ชนิดเอกสารมีคุณสมบัติเป็นข้อมูลใน core (`DOC_TYPE_TRAITS`): ยอด REQUIRED OPTIONAL NONE · เป็นข้อกำกับ (governance) หรือไม่ · โมดูลที่ทำให้บังคับ · รายการ subject ที่ใช้ได้ · ไม่มีวงเงิน ชื่อตำแหน่ง หรือเส้นทาง (P-2) · `startRoute` ด้วยคู่ subject กับชนิดที่ไม่อยู่ในรายการ → `VALIDATION_FAILED` reason `SUBJECT` · การมีข้อของชนิดใดใน DOA คือตัวเปิดการอนุมัติของชนิดนั้นในองค์กร ไม่มี flag แยก |
+| BR-DOA-21 | ชนิด REQUIRED ต้องมียอดรวมและยอดตามฐาน > 0 ไม่เช่นนั้น `VALIDATION_FAILED` reason `AMOUNT_REQUIRED` หรือ `AMOUNT_NOT_POSITIVE` (ขยาย BR-DOA-02 จากเอกสารจัดซื้อ) · ชนิดที่ไม่มี VAT ส่ง `vatSatang = 0` ผลจึงไม่ขึ้นกับฐาน GROSS หรือ NET |
+| BR-DOA-22 | ชนิด NONE ห้ามส่งยอด → `VALIDATION_FAILED` reason `AMOUNT_NOT_ALLOWED` · ข้อของชนิด NONE ที่มีเงื่อนไขวงเงิน → lint error `DOA_LINT_AMOUNT_NOT_ALLOWED` ต่อข้อ · lint ไม่ตรวจช่วง (0, ∞) ของชนิด NONE และ `boundaryTable` ได้แถวว่าง · ผู้อนุมัติขัดกัน → `NO_HIGHER_AUTHORITY` เพราะไม่มีช่วงถัดไป |
+| BR-DOA-23 | ชนิดที่ทุกฉบับต้องมี = `DOA_CHANGE` `ORG_AUTHORITY_CHANGE` เสมอ (BR-DOA-08 จ) + ชนิดของโมดูลที่เปิดอยู่ (`PAY` → `INVOICE_EXCEPTION` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · ขาด → `DOA_LINT_MISSING_DOCTYPE` เรียงตามลำดับชนิด · ชนิดอื่นไม่บังคับ: ไม่มีข้อ → คำสั่งของชนิดนั้นได้ `DOA_NOT_CONFIGURED` · ใช้โมดูลที่เปิด ณ ตอนตรวจเมื่อ lint ฉบับ DRAFT ในตัวแก้และตอนส่ง (`doa.submit`) หน้าของฉบับที่ผู้อนุมัติเห็น (`view.ts` · ตอนอนุมัติไม่มี lint ซ้ำ) ชุดตั้งต้น การเปลี่ยนโครงสร้างอำนาจ และฉบับ `PUBLISHED` (มีผลหรือรอมีผล) ในด่าน db ของ `pnpm verify` · ฉบับ `SUPERSEDED` ในด่าน db ตรวจโดยไม่ส่งโมดูล (ถูกต้อง ณ เวลาที่มีผล · INV-DOA-03) · ลำดับ error: ช่องว่างและทับกันต่อชนิด → ชนิดที่ขาด → ข้อกำกับที่หาผู้อนุมัติไม่ได้ → ข้อที่มีวงเงินในชนิด NONE → step `PARALLEL` |
+| BR-DOA-24 | เปิดโมดูลที่มีชนิดบังคับ: ฉบับที่มีผล ฉบับที่รอมีผล และฉบับ `PENDING_APPROVAL` ต้องมีข้อของทุกชนิดบังคับ ไม่เช่นนั้นปฏิเสธ `DOA_NOT_CONFIGURED` details `{ reason: MODULE_RULES_MISSING, module, documentTypes, versions }` และไม่เปลี่ยนอะไร · องค์กรที่ยังไม่มี DOA เปิดโมดูลนั้นไม่ได้ · กันการแทรก: `organization.set_module` ล็อกแถว `Organization` อยู่แล้ว และ `doa.submit` ต้องล็อกแถวเดียวกันก่อนอ่านโมดูล เพราะตอนอนุมัติไม่มี lint ซ้ำ (ไม่เช่นนั้นการเปิดโมดูลที่แทรกระหว่างส่งได้ฉบับรออนุมัติที่ขาดข้อ) · PLATFORM_ADMIN ไม่แก้ DOA แทนลูกค้า (NG-12) จึงต้องรอลูกค้าเผยแพร่ข้อก่อน · เปลี่ยนพฤติกรรมเดิมของ `organization.set_module` (ผู้ใช้อนุมัติใน P1-06 · ADR-067) |
+| BR-DOA-25 | อนุมัติ `BANK_ACCOUNT_CHANGE` ต้อง step-up ทุกครั้งไม่ขึ้นกับยอด ตัดสินบนเว็บ (รวมแอป BCS Go ของ S17) หรือ LIFF เท่านั้น ไม่มีปุ่มในแชทและลิงก์ตัดสินทางอีเมล (`WORKFLOW_VERSION` step-up ทุกครั้งและไม่มีปุ่มในแชทหรือลิงก์อีเมลเช่นกัน แต่ตัดสินบนเว็บเท่านั้นตาม OQ-110 และ sub-spec S6 · แอป BCS Go นับเป็นเว็บเมื่อผู้ใช้อนุมัติใน P1-06) การ์ด LINE ไม่มีชื่อบัญชีหรือเลขบัญชี · step-up คือ PIN หรือ passkey เมื่อ S17 เปิด (`DECISION_STEP_UP_METHODS`) · P1-07 เป็นเจ้าของกฎนี้ผู้เดียว (S9 อ้าง ไม่เขียนซ้ำ) |
 | INV-DOA-01 | ทุก event `approval_task.decided` มี `doaVersionId` และ `doaRuleCode` |
 | INV-DOA-02 | `resolveRoute` ด้วย input และ snapshot เดิมให้ผลเดิมทุกครั้ง (property test) |
+| INV-DOA-03 | ฉบับที่ไม่มีข้อของชนิดใหม่ และตรวจโดยไม่ส่งโมดูล ให้ผล `resolveRoute` `lintDoaVersion` `boundaryTable` เท่าก่อน P1-07 (GC-DOA-01 ถึง GC-DOA-27 และ fixture เดิมไม่แก้) |
 
 DOA ฉบับ 1 ด้านล่างคือวงเงินใน proposal แบบตรงตัว (ผู้อนุมัติคนเดียวต่อช่วง OQ-01) ใช้ทั้งเป็น fixture ของเทสต์และเป็น seed ขององค์กรตัวอย่าง (seed ใช้ `effectiveFrom` 2026-01-01 จากชีต `DOA_Policy` เพื่อให้คำขอย้อนหลังของ demo อยู่ใต้ฉบับนี้ ส่วน golden ใช้วันของ fixture · ADR-038) ฉบับ 2 มีไว้ทดสอบการเปลี่ยนฉบับตามเวลาเท่านั้น · ทุกฉบับมีข้อกำกับการเปลี่ยนนโยบาย `DOA-CHG-01` และ `ORG-CHG-01` ตามที่ BR-DOA-08 (จ) บังคับ และมี `sodPolicy` ของฉบับ
 
@@ -1532,6 +1539,185 @@ cases:
     fn: lintDoaVersion
     input: { base: 1, replaceRules: [{ code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: MEMBER, member: dm_con }, slaBusinessHours: 8 }] }
     expect: { errors: [], warnings: [{ code: DOA_LINT_MEMBER_APPROVER, rule: GRV-01 }] }
+```
+
+**ชนิดเอกสารของระยะ 1 (P1-07 · ADR-067 ADR-068 ADR-069):** ชนิดใหม่ 6 ชนิดใช้ engine lint และตารางผลที่ขอบตัวเดียวกับชนิดเดิม (BR-DOA-20 ถึง BR-DOA-25) · golden ของชนิดใหม่ใช้ fixture แยก: `org-p1.yaml` คือ `org-demo.yaml` บวกตำแหน่ง CFO@HQ และสมาชิก `cfo` · `doa-versions-p1.yaml` คือข้อของ DOA-DEMO ฉบับ 1 บวก 14 ข้อของชนิดใหม่ (วงเงินเป็นร่างของข้อมูลสังเคราะห์ SIMEC รอลูกค้ายืนยัน OQ-40) จึงไม่เปลี่ยนผลของเทสต์ที่ใช้ fixture เดิม (INV-DOA-03 · ADR-069) · ไฟล์ golden บอก fixture ของตัวเองในบรรทัด `fixtures:` · เคส lint ใส่ `modules` = โมดูลที่เปิด (ชนิดบังคับตาม BR-DOA-23)
+
+**คุณสมบัติของชนิด (ข้อมูลใน core · `DOC_TYPE_TRAITS` · ไม่มีวงเงินหรือชื่อตำแหน่ง):** ลำดับในตารางคือลำดับของ `DOA_DOCUMENT_TYPES` ที่ lint ใช้เรียง error
+
+| ชนิด | ยอด | ภาษี | subject ที่ใช้ได้ | บังคับมีข้อเมื่อ | หมายเหตุ |
+| --- | --- | --- | --- | --- | --- |
+| `PURCHASE_REQUEST` (เดิม) | REQUIRED | มี VAT | `REQUEST` | — | |
+| `PURCHASE_ORDER` (เดิม) | REQUIRED | มี VAT | `PURCHASE_ORDER` | — | |
+| `GR_VARIANCE` (เดิม) | OPTIONAL | — | `VARIANCE` | — | พฤติกรรมเดิม · ตัวแก้ยังมีช่องวงเงิน |
+| `DOA_CHANGE` (เดิม · ข้อกำกับ) | OPTIONAL | — | `DOA_VERSION` `WORKFLOW_VERSION` | ทุกฉบับ (BR-DOA-08 จ) | พฤติกรรมเดิม · `WORKFLOW_VERSION` ของ S6 (FR-WF-103) |
+| `ORG_AUTHORITY_CHANGE` (เดิม · ข้อกำกับ) | OPTIONAL | — | `ORG_AUTHORITY_CHANGE` | ทุกฉบับ | พฤติกรรมเดิม |
+| `BUDGET_TRANSFER` | REQUIRED | ไม่มี (vat = 0) | `BUDGET_TRANSFER` | ไม่บังคับ | S6 · FR-BUD-103 · โมดูล CORE |
+| `OVER_BUDGET` | REQUIRED | ไม่มี (vat = 0) | `BUDGET_OVERRUN` | ไม่บังคับ | S6 · FR-BUD-101 · เอกสารแยกที่อนุมัติก่อนคำขอเข้าเส้นทาง (ADR-105) |
+| `INVOICE_EXCEPTION` | REQUIRED | มี VAT ของส่วนต่าง | `INVOICE` | เมื่อเปิด `PAY` | S8 · FR-AP-103 FR-AP-105 |
+| `PO_CHANGE` | REQUIRED | มี VAT | `PO_CHANGE` | ไม่บังคับ | S8 · FR-AP-107 · โมดูล CORE |
+| `PAYMENT_RUN` | REQUIRED | ไม่มี (vat = 0) | `PAYMENT_RUN` | เมื่อเปิด `PAY` | S9 · FR-PAY-101 |
+| `BANK_ACCOUNT_CHANGE` | NONE | — | `BANK_ACCOUNT_CHANGE` | เมื่อเปิด `PAY` | S9 · FR-PAY-102 (S9 · บัญชีผู้ขายและบัญชีผู้จ่ายขององค์กร) · step-up ทุกครั้ง เว็บหรือ LIFF เท่านั้น (BR-DOA-25) |
+
+REQUIRED = ต้องส่งยอด > 0 · NONE = ห้ามส่งยอด · OPTIONAL = ส่งหรือไม่ก็ได้ (คงพฤติกรรมของชนิดเดิมทุกอย่าง จึงไม่เปลี่ยนผลของ golden เดิม) · ตัวแก้ DOA ซ่อนช่องวงเงินของชนิด NONE และชนิดข้อกำกับ (`NO_AMOUNT_TYPES` = NONE ∪ ข้อกำกับ เท่ากับของเดิมบวก `BANK_ACCOUNT_CHANGE`)
+
+```yaml
+# tests/golden/fixtures/org-p1.yaml
+departments:
+  - { code: HQ, nameTh: สำนักงานใหญ่, parent: null }
+  - { code: OPS, nameTh: สายปฏิบัติการ, parent: HQ }
+  - { code: CON, nameTh: ฝ่ายก่อสร้าง, parent: OPS }
+  - { code: PROC, nameTh: ฝ่ายจัดซื้อ, parent: OPS }
+  - { code: SUP, nameTh: สายสนับสนุน, parent: HQ }
+  - { code: FIN, nameTh: ฝ่ายบัญชีและการเงิน, parent: SUP }
+  - { code: IT, nameTh: ฝ่ายไอที, parent: SUP }
+positions:
+  - { position: DM, department: CON, member: dm_con }
+  - { position: DM, department: PROC, member: dm_proc }
+  - { position: DM, department: FIN, member: dm_fin }
+  - { position: DM, department: IT, member: dm_it }
+  - { position: VP, department: OPS, member: vp_ops }
+  - { position: VP, department: SUP, member: vp_sup }
+  - { position: PROC_MGR, department: HQ, member: dm_proc }
+  - { position: COO, department: HQ, member: coo }
+  - { position: CFO, department: HQ, member: cfo }
+  - { position: CEO, department: HQ, member: ceo }
+members:
+  req_con: CON
+  asst_con: CON
+  receiver_con: CON
+  dm_con: CON
+  proc_officer: PROC
+  dm_proc: PROC
+  fin_officer: FIN
+  dm_fin: FIN
+  auditor: FIN
+  dm_it: IT
+  admin: IT
+  admin2: FIN
+  vp_ops: OPS
+  vp_sup: SUP
+  coo: HQ
+  cfo: HQ
+  ceo: HQ
+```
+
+```yaml
+# tests/golden/fixtures/doa-versions-p1.yaml
+versions:
+  - code: DOA-P1
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: BT-01, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "0.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: BT-02, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "100000.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: BT-03, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: OB-01, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "0.00", lte: "50000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: OB-02, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "50000.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: OB-03, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: IE-01, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: IE-02, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "20000.00", lte: "200000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: IE-03, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "200000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: PC-01, documentType: PO_CHANGE, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PC-02, documentType: PO_CHANGE, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PAY-01, documentType: PAYMENT_RUN, priority: 100, when: { amount: { gt: "0.00", lte: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }
+      - { code: PAY-02, documentType: PAYMENT_RUN, priority: 100, when: { amount: { gt: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: BA-01, documentType: BANK_ACCOUNT_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }
+```
+
+```yaml
+# tests/golden/doa-p1.yaml
+suite: doa
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p1.yaml]
+defaults: { documentType: PURCHASE_REQUEST, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+# รูปแบบเดียวกับ doa.yaml: amount = ยอดตามฐาน · net vat amountBasis เมื่อทดสอบฐาน · alsoConflicting = ผู้ขัดกันเพิ่มจากผู้ขอ
+cases:
+  - { id: GC-DOA-28, title: โอนงบขอบบนของช่วง DM, input: { documentType: BUDGET_TRANSFER, amount: "100000.00" }, expect: { version: 1, rule: BT-01, approvers: [dm_con] } }
+  - { id: GC-DOA-29, title: โอนงบเกินขอบ 1 สตางค์, input: { documentType: BUDGET_TRANSFER, amount: "100000.01" }, expect: { version: 1, rule: BT-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-30, title: โอนงบเกินช่วง VP 1 สตางค์ไป CFO, input: { documentType: BUDGET_TRANSFER, amount: "500000.01" }, expect: { version: 1, rule: BT-03, approvers: [cfo] } }
+  - { id: GC-DOA-31, title: โอนงบไม่มี VAT ฐาน NET ได้ผลเดียวกับ GROSS, input: { documentType: BUDGET_TRANSFER, net: "100000.01", vat: "0.00", amountBasis: NET }, expect: { version: 1, rule: BT-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-32, title: โอนงบยอดศูนย์, input: { documentType: BUDGET_TRANSFER, amount: "0.00" }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-DOA-33, title: DM โอนงบของฝ่ายตัวเอง ยกไปช่วงถัดไป, input: { documentType: BUDGET_TRANSFER, amount: "30000.00", requester: dm_fin, department: FIN }, expect: { version: 1, rule: BT-01, escalatedTo: BT-02, approvers: [vp_sup] } }
+  - { id: GC-DOA-34, title: เกินงบขอบบนของช่วง VP, input: { documentType: OVER_BUDGET, amount: "50000.00" }, expect: { version: 1, rule: OB-01, approvers: [vp_ops] } }
+  - { id: GC-DOA-35, title: เกินงบเกินขอบ 1 สตางค์ไป CFO, input: { documentType: OVER_BUDGET, amount: "50000.01" }, expect: { version: 1, rule: OB-02, approvers: [cfo] } }
+  - { id: GC-DOA-36, title: เกินงบเกิน 500000 ไป CEO, input: { documentType: OVER_BUDGET, amount: "500000.01" }, expect: { version: 1, rule: OB-03, approvers: [ceo] } }
+  - { id: GC-DOA-37, title: VP ขอเกินงบเอง ยกไป CFO, input: { documentType: OVER_BUDGET, amount: "30000.00", requester: vp_ops, department: OPS }, expect: { version: 1, rule: OB-01, escalatedTo: OB-02, approvers: [cfo] } }
+  - { id: GC-DOA-38, title: ใบแจ้งหนี้ไม่ตรงขอบบนของช่วง DM, input: { documentType: INVOICE_EXCEPTION, amount: "20000.00", requester: fin_officer }, expect: { version: 1, rule: IE-01, approvers: [dm_con] } }
+  - { id: GC-DOA-39, title: ใบแจ้งหนี้ไม่ตรงเกินขอบ 1 สตางค์, input: { documentType: INVOICE_EXCEPTION, amount: "20000.01", requester: fin_officer }, expect: { version: 1, rule: IE-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-40, title: ใบแจ้งหนี้ไม่ตรงเกิน 200000 ไป CFO, input: { documentType: INVOICE_EXCEPTION, amount: "200000.01", requester: fin_officer }, expect: { version: 1, rule: IE-03, approvers: [cfo] } }
+  - { id: GC-DOA-41, title: ส่วนต่างฐาน GROSS นับ VAT ของส่วนต่าง, input: { documentType: INVOICE_EXCEPTION, net: "19000.00", vat: "1330.00", requester: fin_officer }, expect: { version: 1, rule: IE-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-42, title: ส่วนต่างเดียวกันฐาน NET, input: { documentType: INVOICE_EXCEPTION, net: "19000.00", vat: "1330.00", amountBasis: NET, requester: fin_officer }, expect: { version: 1, rule: IE-01, approvers: [dm_con] } }
+  - { id: GC-DOA-43, title: ผู้บันทึกใบแจ้งหนี้เป็น DM ฝ่ายเจ้าของงบ ยกไปช่วงถัดไป, input: { documentType: INVOICE_EXCEPTION, amount: "5000.00", requester: dm_fin, department: FIN }, expect: { version: 1, rule: IE-01, escalatedTo: IE-02, approvers: [vp_sup] } }
+  - { id: GC-DOA-44, title: แก้ PO ยอดใหม่ขอบบนของช่วง COO, input: { documentType: PO_CHANGE, amount: "1000000.00", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PC-01, approvers: [coo] } }
+  - { id: GC-DOA-45, title: แก้ PO ยอดใหม่เกินขอบ 1 สตางค์, input: { documentType: PO_CHANGE, amount: "1000000.01", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PC-02, approvers: [ceo] } }
+  - { id: GC-DOA-46, title: แก้ PO ที่ COO เป็นผู้ขอ PR ต้นทาง, input: { documentType: PO_CHANGE, amount: "500000.00", requester: proc_officer, alsoConflicting: [coo] }, expect: { version: 1, rule: PC-01, escalatedTo: PC-02, approvers: [ceo] } }
+  - { id: GC-DOA-47, title: แก้ PO ยอดใหม่ศูนย์, input: { documentType: PO_CHANGE, amount: "0.00", requester: proc_officer }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-DOA-48, title: รอบจ่ายขอบบนของช่วง CFO, input: { documentType: PAYMENT_RUN, amount: "5000000.00", requester: fin_officer, department: HQ }, expect: { version: 1, rule: PAY-01, approvers: [cfo] } }
+  - { id: GC-DOA-49, title: รอบจ่ายเกินขอบ 1 สตางค์, input: { documentType: PAYMENT_RUN, amount: "5000000.01", requester: fin_officer, department: HQ }, expect: { version: 1, rule: PAY-02, approvers: [ceo] } }
+  - { id: GC-DOA-50, title: CFO บันทึกใบแจ้งหนี้ในรอบ ยกไป CEO, input: { documentType: PAYMENT_RUN, amount: "1200000.00", requester: fin_officer, department: HQ, alsoConflicting: [cfo] }, expect: { version: 1, rule: PAY-01, escalatedTo: PAY-02, approvers: [ceo] } }
+  - { id: GC-DOA-51, title: CEO อยู่ในรอบช่วงบนสุด, input: { documentType: PAYMENT_RUN, amount: "6000000.00", requester: fin_officer, department: HQ, alsoConflicting: [ceo] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-52, title: ตำแหน่ง CFO ว่าง, input: { documentType: PAYMENT_RUN, amount: "1000000.00", requester: fin_officer, department: HQ, vacate: ["CFO@HQ"] }, expect: { error: APPROVER_NOT_FOUND } }
+  - { id: GC-DOA-53, title: เปลี่ยนบัญชีรับเงินของผู้ขาย, input: { documentType: BANK_ACCOUNT_CHANGE, requester: fin_officer, department: HQ }, expect: { version: 1, rule: BA-01, approvers: [cfo] } }
+  - { id: GC-DOA-54, title: CFO แก้บัญชีเอง ไม่มีช่วงถัดไป, input: { documentType: BANK_ACCOUNT_CHANGE, requester: cfo, department: HQ }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-55, title: ชนิดที่ไม่มียอดแต่ส่งยอดมา, input: { documentType: BANK_ACCOUNT_CHANGE, amount: "1.00", requester: fin_officer, department: HQ }, expect: { error: VALIDATION_FAILED } }
+```
+
+```yaml
+# tests/golden/doa-p1-lint.yaml
+suite: doa-lint
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p1.yaml]
+# input.base = ฉบับใน fixture · replaceRules removeRules vacate เหมือน doa-lint.yaml · modules = โมดูลที่เปิด (ชนิดบังคับตาม BR-DOA-23)
+cases:
+  - { id: GC-DOA-56, title: ฉบับที่มีชนิดเอกสารของระยะ 1 ครบ ผ่าน lint, fn: lintDoaVersion, input: { base: 1, modules: [PAY] }, expect: { errors: [], warnings: [] } }
+  - { id: GC-DOA-57, title: ตารางผลที่ขอบของโอนงบ, fn: boundaryTable, input: { base: 1, documentType: BUDGET_TRANSFER }, expect: { rows: [{ amount: "100000.00", rule: BT-01 }, { amount: "100000.01", rule: BT-02 }, { amount: "500000.00", rule: BT-02 }, { amount: "500000.01", rule: BT-03 }] } }
+  - { id: GC-DOA-58, title: ตารางผลที่ขอบของเกินงบ, fn: boundaryTable, input: { base: 1, documentType: OVER_BUDGET }, expect: { rows: [{ amount: "50000.00", rule: OB-01 }, { amount: "50000.01", rule: OB-02 }, { amount: "500000.00", rule: OB-02 }, { amount: "500000.01", rule: OB-03 }] } }
+  - { id: GC-DOA-59, title: ตารางผลที่ขอบของใบแจ้งหนี้ไม่ตรง, fn: boundaryTable, input: { base: 1, documentType: INVOICE_EXCEPTION }, expect: { rows: [{ amount: "20000.00", rule: IE-01 }, { amount: "20000.01", rule: IE-02 }, { amount: "200000.00", rule: IE-02 }, { amount: "200000.01", rule: IE-03 }] } }
+  - { id: GC-DOA-60, title: ตารางผลที่ขอบของแก้ PO, fn: boundaryTable, input: { base: 1, documentType: PO_CHANGE }, expect: { rows: [{ amount: "1000000.00", rule: PC-01 }, { amount: "1000000.01", rule: PC-02 }] } }
+  - { id: GC-DOA-61, title: ตารางผลที่ขอบของรอบจ่าย, fn: boundaryTable, input: { base: 1, documentType: PAYMENT_RUN }, expect: { rows: [{ amount: "5000000.00", rule: PAY-01 }, { amount: "5000000.01", rule: PAY-02 }] } }
+  - { id: GC-DOA-62, title: ชนิดที่ไม่มียอดไม่มีตารางผลที่ขอบ, fn: boundaryTable, input: { base: 1, documentType: BANK_ACCOUNT_CHANGE }, expect: { rows: [] } }
+  - id: GC-DOA-63
+    title: ช่องว่างแบบเขียน 20,001 ในใบแจ้งหนี้ไม่ตรง
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: IE-02, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "20001.00", lte: "200000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_GAP, documentType: INVOICE_EXCEPTION, gt: "20000.00", lte: "20001.00" }], warnings: [] }
+  - id: GC-DOA-64
+    title: ลบช่วงบนสุดของรอบจ่าย
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [PAY-02] }
+    expect: { errors: [{ code: DOA_LINT_GAP, documentType: PAYMENT_RUN, gt: "5000000.00", lte: null }], warnings: [] }
+  - id: GC-DOA-65
+    title: ใส่วงเงินให้ชนิดที่ไม่มียอด
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: BA-01, documentType: BANK_ACCOUNT_CHANGE, priority: 100, when: { amount: { gt: "0.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_AMOUNT_NOT_ALLOWED, rule: BA-01 }], warnings: [] }
+  - id: GC-DOA-66
+    title: ไม่ได้เปิด PAY จึงไม่บังคับข้อของ PAY
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [IE-01, IE-02, IE-03, PAY-01, PAY-02, BA-01] }
+    expect: { errors: [], warnings: [] }
+  - id: GC-DOA-67
+    title: เปิด PAY แต่ไม่มีข้อของ PAY
+    fn: lintDoaVersion
+    input: { base: 1, modules: [PAY], removeRules: [IE-01, IE-02, IE-03, PAY-01, PAY-02, BA-01] }
+    expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: INVOICE_EXCEPTION }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: PAYMENT_RUN }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: BANK_ACCOUNT_CHANGE }], warnings: [] }
+  - id: GC-DOA-68
+    title: CFO ว่าง เป็น warning ของทุกข้อที่อ้าง CFO
+    fn: lintDoaVersion
+    input: { base: 1, modules: [PAY], vacate: ["CFO@HQ"] }
+    expect: { errors: [], warnings: [{ code: DOA_LINT_VACANT_POSITION, rule: BT-03 }, { code: DOA_LINT_VACANT_POSITION, rule: OB-02 }, { code: DOA_LINT_VACANT_POSITION, rule: IE-03 }, { code: DOA_LINT_VACANT_POSITION, rule: PAY-01 }, { code: DOA_LINT_VACANT_POSITION, rule: BA-01 }] }
 ```
 
 ### 7.5 แบ่งแยกหน้าที่ (SoD)
@@ -3448,7 +3634,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       19 ไฟล์ · 132 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       21 ไฟล์ · 173 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

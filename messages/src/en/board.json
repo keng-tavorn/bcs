@@ -24,7 +24,14 @@
     "PURCHASE_ORDER": "Purchase order",
     "VARIANCE": "Receiving variance",
     "DOA_VERSION": "DOA version",
-    "ORG_AUTHORITY_CHANGE": "Authority change"
+    "ORG_AUTHORITY_CHANGE": "Authority change",
+    "BUDGET_TRANSFER": "Budget transfer",
+    "BUDGET_OVERRUN": "Over-budget approval",
+    "WORKFLOW_VERSION": "Workflow change",
+    "INVOICE": "Invoice",
+    "PO_CHANGE": "PO change",
+    "PAYMENT_RUN": "Payment run",
+    "BANK_ACCOUNT_CHANGE": "Bank account change"
   },
   "empty": {
     "title": "No pending documents within your scope",

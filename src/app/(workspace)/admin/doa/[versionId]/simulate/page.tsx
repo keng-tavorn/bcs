@@ -6,6 +6,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { SIMULATION_FIELDS, getDoaSimulation, type SimulatedRouteView, type SimulationQuery } from '@/server/services/doa/simulate'
+import { hasAmount, type DocType } from '@/ui/admin-doa/editor-model'
 import { versionLook } from '@/ui/admin-doa/version-status'
 import { departmentOption, memberLabel, nameIn } from '@/ui/admin-org/names'
 import { NoAccess } from '@/ui/admin-settings/no-access'
@@ -129,8 +130,13 @@ export default async function DoaSimulatePage({ params, searchParams }: { params
                 options={view.departments.map((d) => ({ value: d.id, label: departmentOption(locale, d) }))}
                 error={fieldError('department')}
               />
-              <Field id="sim-net" name="net" label={t('simulate.net')} hint={t('simulate.netHint')} inputMode="decimal" defaultValue={view.input.net} error={netError} className="money" />
-              <Field id="sim-vat" name="vat" label={t('simulate.vat')} hint={t('simulate.vatHint')} inputMode="decimal" defaultValue={view.input.vat} error={fieldError('vat')} className="money" />
+              {/* A type without an amount takes none (BR-DOA-22, FR-DOA-009 AC4) */}
+              {hasAmount(view.input.type as DocType) ? (
+                <>
+                  <Field id="sim-net" name="net" label={t('simulate.net')} hint={t('simulate.netHint')} inputMode="decimal" defaultValue={view.input.net} error={netError} className="money" />
+                  <Field id="sim-vat" name="vat" label={t('simulate.vat')} hint={t('simulate.vatHint')} inputMode="decimal" defaultValue={view.input.vat} error={fieldError('vat')} className="money" />
+                </>
+              ) : null}
               <SelectField
                 id="sim-requester"
                 name="requester"

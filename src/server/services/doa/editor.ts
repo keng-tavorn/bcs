@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, GOVERNANCE_DOCUMENT_TYPES, lintDoaVersion, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, NO_AMOUNT_DOCUMENT_TYPES, lintDoaVersion, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot } from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
@@ -227,7 +227,7 @@ export const draftDoaCopyCommand = defineCommand({
       if (seen.has(r.code)) return fail('VALIDATION_FAILED', `rule code ${r.code} is used twice`, { field: `rules.${i}.code`, reason: 'DUPLICATE_RULE', rule: r.code })
       seen.add(r.code)
       const band = r.band && (r.band.lower !== null || r.band.upper !== null) ? r.band : null
-      if (band && GOVERNANCE_DOCUMENT_TYPES.includes(r.documentType)) return fail('VALIDATION_FAILED', 'a policy change has no amount', { field: `rules.${i}.band`, reason: 'BAND_NOT_ALLOWED', rule: r.code })
+      if (band && NO_AMOUNT_DOCUMENT_TYPES.includes(r.documentType)) return fail('VALIDATION_FAILED', 'this document type has no amount', { field: `rules.${i}.band`, reason: 'BAND_NOT_ALLOWED', rule: r.code })
       if (band && band.lower !== null && band.upper !== null) {
         const lower = BigInt(band.lower)
         const upper = BigInt(band.upper)

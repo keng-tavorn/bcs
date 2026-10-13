@@ -29,11 +29,18 @@
     "signIn": "เข้าสู่ระบบอีกครั้ง แล้วเปิดลิงก์จากอีเมลใหม่",
     "sod": "คุณตัดสินงานนี้ไม่ได้ตามกติกาแบ่งแยกหน้าที่ โปรดเปิดงานในระบบ",
     "subject": {
+      "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+      "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+      "BUDGET_TRANSFER": "การโอนงบ",
       "DOA_VERSION": "นโยบายอำนาจอนุมัติ",
+      "INVOICE": "ใบแจ้งหนี้",
       "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "PAYMENT_RUN": "รอบจ่ายเงิน",
+      "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ",
       "REQUEST": "คำขอซื้อ",
-      "VARIANCE": "ผลต่างการรับของของใบสั่งซื้อ"
+      "VARIANCE": "ผลต่างการรับของของใบสั่งซื้อ",
+      "WORKFLOW_VERSION": "การเปลี่ยน workflow"
     },
     "submitting": "กำลังบันทึก…",
     "titleLabel": "เรื่อง",
@@ -381,9 +388,15 @@
     },
     "doaRef": "{code} ฉบับ {version} ข้อ {rule}",
     "documentTypes": {
+      "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+      "BUDGET_TRANSFER": "การโอนงบ",
       "DOA_CHANGE": "การเปลี่ยน DOA",
       "GR_VARIANCE": "ผลต่างจากการตรวจรับ",
+      "INVOICE_EXCEPTION": "ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ",
       "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "OVER_BUDGET": "การขออนุมัติเกินงบ",
+      "PAYMENT_RUN": "รอบจ่ายเงิน",
+      "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
       "PURCHASE_REQUEST": "คำขอซื้อ (PR)"
     },
@@ -554,8 +567,9 @@
     "initialNotice": "องค์กรยังไม่มี DOA ที่มีผล นำเข้าฉบับแรก แล้วส่งเป็นชุดตั้งต้นพร้อมรายชื่อผู้ดำรงตำแหน่ง ให้ผู้มีอำนาจลงนามตามสัญญาอนุมัติ",
     "intro": "DOA กำหนดว่าใครอนุมัติเอกสารแบบไหนที่ยอดเท่าไร ฉบับที่เผยแพร่แล้วแก้ไม่ได้ การเปลี่ยนทำโดยแก้บนหน้าจอหรือนำเข้าฉบับใหม่เป็นฉบับร่าง แล้วส่งให้ผู้มีอำนาจตาม DOA อนุมัติ ผู้ส่งอนุมัติเองไม่ได้",
     "lint": {
+      "DOA_LINT_AMOUNT_NOT_ALLOWED": "ข้อ {rule}: ประเภทเอกสารนี้ไม่มียอดเงิน จึงตั้งช่วงวงเงินไม่ได้",
       "DOA_LINT_GAP": "{documentType}: ยอด{band} ไม่มีข้อใดครอบคลุม",
-      "DOA_LINT_MISSING_DOCTYPE": "ไม่มีข้อสำหรับ{documentType} ทุกฉบับต้องมีข้อการเปลี่ยน DOA และข้อการเปลี่ยนโครงสร้างอำนาจ",
+      "DOA_LINT_MISSING_DOCTYPE": "ไม่มีข้อสำหรับ{documentType} ทุกฉบับต้องมีข้อการเปลี่ยน DOA ข้อการเปลี่ยนโครงสร้างอำนาจ และข้อของทุกประเภทเอกสารที่โมดูลซึ่งเปิดอยู่บังคับ",
       "DOA_LINT_OVERLAP": "{documentType}: ยอด{band} อยู่ในมากกว่าหนึ่งข้อ",
       "DOA_LINT_PARALLEL_STEP": "ข้อ {rule}: มีขั้นอนุมัติแบบคู่ขนาน ซึ่งยังไม่รองรับ",
       "DOA_LINT_UNRESOLVABLE_GOVERNANCE": "ข้อ {rule}: หาผู้อนุมัติไม่ได้ ณ วันมีผล จะไม่มีใครอนุมัติการเปลี่ยนนโยบายได้",
@@ -650,9 +664,15 @@
     "authority": {
       "doaRef": "{code} ฉบับ {version} ข้อ {rule}",
       "documentTypes": {
+        "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+        "BUDGET_TRANSFER": "การโอนงบ",
         "DOA_CHANGE": "การเปลี่ยน DOA",
         "GR_VARIANCE": "ผลต่างจากการตรวจรับ",
+        "INVOICE_EXCEPTION": "ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ",
         "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+        "OVER_BUDGET": "การขออนุมัติเกินงบ",
+        "PAYMENT_RUN": "รอบจ่ายเงิน",
+        "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
         "PURCHASE_REQUEST": "คำขอซื้อ (PR)"
       },
@@ -706,7 +726,7 @@
           "delegationEffective": "บันทึกรักษาการทันทีเมื่อผู้มีอำนาจอนุมัติ และเริ่มมีผลตามเวลาเริ่มรักษาการ",
           "delegator": "ผู้มอบ (ผู้มีอำนาจที่ไม่อยู่)",
           "department": "แผนก",
-          "documentTypes": "ประเภทเอกสารที่รักษาการ (ไม่เลือก = ทุกประเภท)",
+          "documentTypes": "ประเภทเอกสารที่รักษาการ (ไม่เลือก = ทุกประเภท รวมประเภทที่เพิ่มภายหลัง)",
           "effective": "วันมีผล",
           "effectiveAt": "กำหนดวันและเวลา (เวลาไทย)",
           "effectiveAtLabel": "วันและเวลามีผล",
@@ -1275,17 +1295,23 @@
       "RETURN": "ตีกลับให้แก้ไข"
     },
     "document": {
+      "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
       "BUDGET_LINE": "บรรทัดงบ {label}",
+      "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+      "BUDGET_TRANSFER": "การโอนงบ",
       "DOA_VERSION": "{label} ฉบับ {version}",
       "EXPORT": "ไฟล์ส่งออก{label}",
       "GOODS_RECEIPT": "ใบตรวจรับ {label}",
       "INVOICE": "ใบกำกับ {label}",
       "MEMBER": "สมาชิก {label}",
       "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "PAYMENT_RUN": "รอบจ่ายเงิน",
+      "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
       "REQUEST": "คำขอ {label}",
       "SUPPLIER": "ผู้ขาย {label}",
-      "VARIANCE": "ผลต่างจากการตรวจรับของ {label}"
+      "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
+      "WORKFLOW_VERSION": "การเปลี่ยน workflow"
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
@@ -1742,11 +1768,18 @@
       "OWN": "แสดงงานของคุณและเอกสารที่คุณขอ"
     },
     "subject": {
+      "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+      "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+      "BUDGET_TRANSFER": "การโอนงบ",
       "DOA_VERSION": "ฉบับ DOA",
+      "INVOICE": "ใบแจ้งหนี้",
       "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "PAYMENT_RUN": "รอบจ่ายเงิน",
+      "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ",
       "REQUEST": "คำขอ",
-      "VARIANCE": "ผลต่างจากการตรวจรับ"
+      "VARIANCE": "ผลต่างจากการตรวจรับ",
+      "WORKFLOW_VERSION": "การเปลี่ยน workflow"
     },
     "table": {
       "average": "เฉลี่ย (ชม. ทำการ)",
@@ -2178,15 +2211,21 @@
     "coverAll": "ทุกประเภทงานอนุมัติ",
     "coverSome": "เฉพาะ {types}",
     "coverage": "ครอบคลุมงานอนุมัติ",
-    "coverageAll": "ทุกประเภทงานอนุมัติของตำแหน่งคุณ",
+    "coverageAll": "ทุกประเภทงานอนุมัติของตำแหน่งคุณ รวมประเภทที่เพิ่มภายหลัง",
     "coverageAllHint": "รวมการอนุมัติการเปลี่ยน DOA และโครงสร้างอำนาจ ระบบยังตรวจการแบ่งแยกหน้าที่เหมือนเดิม",
     "coverageSome": "เฉพาะประเภทที่เลือก",
     "created": "ตั้งผู้รักษาการแล้ว {name} รักษาการแทนคุณ {period}",
     "delegate": "ผู้รักษาการ",
     "documentTypes": {
+      "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+      "BUDGET_TRANSFER": "การโอนงบ",
       "DOA_CHANGE": "การเปลี่ยน DOA",
       "GR_VARIANCE": "ผลต่างจากการตรวจรับ",
+      "INVOICE_EXCEPTION": "ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ",
       "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+      "OVER_BUDGET": "การขออนุมัติเกินงบ",
+      "PAYMENT_RUN": "รอบจ่ายเงิน",
+      "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
       "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
       "PURCHASE_REQUEST": "ใบขอซื้อ (PR)"
     },
@@ -2991,12 +3030,19 @@
       "info": "รอผู้ขอตอบ ({count})",
       "infoBadge": "รอผู้ขอตอบ",
       "kind": {
+        "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+        "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+        "BUDGET_TRANSFER": "การโอนงบ",
         "DOA_VERSION": "ฉบับ DOA",
+        "INVOICE": "ใบแจ้งหนี้",
         "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
         "OTHER": "งานอนุมัติ",
+        "PAYMENT_RUN": "รอบจ่ายเงิน",
+        "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ",
         "REQUEST": "คำขอ",
-        "VARIANCE": "ผลต่างการตรวจรับ"
+        "VARIANCE": "ผลต่างการตรวจรับ",
+        "WORKFLOW_VERSION": "การเปลี่ยน workflow"
       },
       "listAll": "งานรอฉันอนุมัติทั้งหมด",
       "listInfo": "งานที่รอผู้ขอตอบคำถาม",
@@ -3143,13 +3189,20 @@
       "capped": "แสดง {shown} รายการแรกจาก {total}",
       "channelOf": "การตัดสินทาง{channel}",
       "document": {
+        "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
         "BUDGET_LINE": "บรรทัดงบ {label}",
+        "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+        "BUDGET_TRANSFER": "การโอนงบ",
         "DOA_VERSION": "ฉบับ DOA {label}",
+        "INVOICE": "ใบแจ้งหนี้",
         "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+        "PAYMENT_RUN": "รอบจ่ายเงิน",
+        "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
         "REQUEST": "คำขอ {label}",
         "SUPPLIER": "ผู้ขาย {label}",
         "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
+        "WORKFLOW_VERSION": "การเปลี่ยน workflow",
         "unknown": "เอกสารที่ไม่พบ"
       },
       "forbidden": "รายการนี้เปิดได้เฉพาะผู้ที่ดูเอกสารทั้งหมดของรายการได้",
@@ -3284,11 +3337,18 @@
         "RETURN": "ตีกลับให้แก้ไข"
       },
       "document": {
+        "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+        "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+        "BUDGET_TRANSFER": "การโอนงบ",
         "DOA_VERSION": "ฉบับ DOA {label}",
+        "INVOICE": "ใบแจ้งหนี้",
         "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+        "PAYMENT_RUN": "รอบจ่ายเงิน",
+        "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ {label}",
         "REQUEST": "คำขอ {label}",
         "VARIANCE": "ผลต่างจากการตรวจรับของ {label}",
+        "WORKFLOW_VERSION": "การเปลี่ยน workflow",
         "unknown": "เอกสารที่ไม่พบ"
       },
       "dueAt": "ครบกำหนด {time}",
@@ -5673,11 +5733,18 @@
           "NET": "ก่อน VAT"
         },
         "document": {
+          "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+          "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+          "BUDGET_TRANSFER": "การโอนงบ",
           "DOA_VERSION": "การเปลี่ยน DOA",
+          "INVOICE": "ใบแจ้งหนี้",
           "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+          "PAYMENT_RUN": "รอบจ่ายเงิน",
+          "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
           "PURCHASE_ORDER": "ใบสั่งซื้อ",
           "REQUEST": "คำขอซื้อ",
-          "VARIANCE": "ผลต่างจากการตรวจรับ"
+          "VARIANCE": "ผลต่างจากการตรวจรับ",
+          "WORKFLOW_VERSION": "การเปลี่ยน workflow"
         },
         "escalated": "ผู้อนุมัติของข้อ {from} มีส่วนเกี่ยวข้องกับเอกสารนี้ จึงยกไปข้อ {rule} ของช่วงวงเงินถัดไป",
         "subject": "{document}ยอด {amount} บาท ({basis})",
@@ -6381,9 +6448,15 @@
       "doaDiffTitleReplaced": "เปลี่ยนจาก {name} ซึ่งเป็นฉบับก่อนหน้า",
       "doaDiffValues": "เดิม {before} · ใหม่ {after}",
       "doaDocumentType": {
+        "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร",
+        "BUDGET_TRANSFER": "การโอนงบ",
         "DOA_CHANGE": "การเปลี่ยน DOA",
         "GR_VARIANCE": "ผลต่างจากการตรวจรับ",
+        "INVOICE_EXCEPTION": "ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ",
         "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+        "OVER_BUDGET": "การขออนุมัติเกินงบ",
+        "PAYMENT_RUN": "รอบจ่ายเงิน",
+        "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
         "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
         "PURCHASE_REQUEST": "คำขอซื้อ (PR)"
       },

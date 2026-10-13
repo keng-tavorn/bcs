@@ -29,11 +29,18 @@
     "signIn": "Sign in again, then open the link from the e-mail",
     "sod": "Separation of duties does not let you decide this task. Open it in BCS",
     "subject": {
+      "BANK_ACCOUNT_CHANGE": "bank account change",
+      "BUDGET_OVERRUN": "over-budget approval",
+      "BUDGET_TRANSFER": "budget transfer",
       "DOA_VERSION": "approval policy",
+      "INVOICE": "invoice",
       "ORG_AUTHORITY_CHANGE": "authority change",
+      "PAYMENT_RUN": "payment run",
+      "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "purchase order",
       "REQUEST": "purchase request",
-      "VARIANCE": "the receiving variance of purchase order"
+      "VARIANCE": "the receiving variance of purchase order",
+      "WORKFLOW_VERSION": "workflow change"
     },
     "submitting": "Saving…",
     "titleLabel": "Subject",
@@ -381,9 +388,15 @@
     },
     "doaRef": "{code} version {version} rule {rule}",
     "documentTypes": {
+      "BANK_ACCOUNT_CHANGE": "Bank account change",
+      "BUDGET_TRANSFER": "Budget transfer",
       "DOA_CHANGE": "DOA change",
       "GR_VARIANCE": "Receiving variance",
+      "INVOICE_EXCEPTION": "Invoice exception",
       "ORG_AUTHORITY_CHANGE": "Authority change",
+      "OVER_BUDGET": "Over budget",
+      "PAYMENT_RUN": "Payment run",
+      "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)"
     },
@@ -554,8 +567,9 @@
     "initialNotice": "The organization has no DOA in effect yet. Import the first version and send it as the initial package, with the holders of its positions, for the contract signatory to approve.",
     "intro": "The DOA decides who approves which documents up to which amount. A published version never changes: a change is a new draft, edited on this screen or imported, and approved by the authority under the DOA, never by the person who sends it.",
     "lint": {
+      "DOA_LINT_AMOUNT_NOT_ALLOWED": "Rule {rule}: this document type has no amount, so it cannot have an amount band",
       "DOA_LINT_GAP": "{documentType}: no rule covers amounts {band}",
-      "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule and an authority-change rule.",
+      "DOA_LINT_MISSING_DOCTYPE": "No rule for {documentType}. Every version needs a DOA-change rule, an authority-change rule and a rule for every document type a module that is on requires.",
       "DOA_LINT_OVERLAP": "{documentType}: amounts {band} fall under more than one rule",
       "DOA_LINT_PARALLEL_STEP": "Rule {rule}: has a parallel approval step, which is not supported yet",
       "DOA_LINT_UNRESOLVABLE_GOVERNANCE": "Rule {rule}: no approver can be found on the effective date, so nobody could approve policy changes",
@@ -650,9 +664,15 @@
     "authority": {
       "doaRef": "{code} version {version} rule {rule}",
       "documentTypes": {
+        "BANK_ACCOUNT_CHANGE": "Bank account change",
+        "BUDGET_TRANSFER": "Budget transfer",
         "DOA_CHANGE": "DOA change",
         "GR_VARIANCE": "Receiving variance",
+        "INVOICE_EXCEPTION": "Invoice exception",
         "ORG_AUTHORITY_CHANGE": "Authority change",
+        "OVER_BUDGET": "Over budget",
+        "PAYMENT_RUN": "Payment run",
+        "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)"
       },
@@ -706,7 +726,7 @@
           "delegationEffective": "The acting arrangement is recorded as soon as the authority approves and starts at its start time.",
           "delegator": "Delegator (the absent approver)",
           "department": "Department",
-          "documentTypes": "Document types to act for (none chosen = all)",
+          "documentTypes": "Document types to act for (none chosen = all, including types added later)",
           "effective": "Effective",
           "effectiveAt": "At a date and time (Thai time)",
           "effectiveAtLabel": "Effective date and time",
@@ -1275,17 +1295,23 @@
       "RETURN": "returned for changes"
     },
     "document": {
+      "BANK_ACCOUNT_CHANGE": "Bank account change",
       "BUDGET_LINE": "Budget line {label}",
+      "BUDGET_OVERRUN": "Over-budget approval",
+      "BUDGET_TRANSFER": "Budget transfer",
       "DOA_VERSION": "{label} version {version}",
       "EXPORT": "Export file: {label}",
       "GOODS_RECEIPT": "Goods receipt {label}",
       "INVOICE": "Invoice {label}",
       "MEMBER": "Member {label}",
       "ORG_AUTHORITY_CHANGE": "Authority change",
+      "PAYMENT_RUN": "Payment run",
+      "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order {label}",
       "REQUEST": "Request {label}",
       "SUPPLIER": "Supplier {label}",
-      "VARIANCE": "Receiving variance of {label}"
+      "VARIANCE": "Receiving variance of {label}",
+      "WORKFLOW_VERSION": "Workflow change"
     },
     "eventWithDecision": "{event}: {decision}",
     "events": {
@@ -1742,11 +1768,18 @@
       "OWN": "Showing your tasks and the documents you requested"
     },
     "subject": {
+      "BANK_ACCOUNT_CHANGE": "Bank account change",
+      "BUDGET_OVERRUN": "Over-budget approval",
+      "BUDGET_TRANSFER": "Budget transfer",
       "DOA_VERSION": "DOA version",
+      "INVOICE": "Invoice",
       "ORG_AUTHORITY_CHANGE": "Authority change",
+      "PAYMENT_RUN": "Payment run",
+      "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order",
       "REQUEST": "Request",
-      "VARIANCE": "Receiving variance"
+      "VARIANCE": "Receiving variance",
+      "WORKFLOW_VERSION": "Workflow change"
     },
     "table": {
       "average": "Average (business hrs)",
@@ -2178,15 +2211,21 @@
     "coverAll": "Every kind of approval task",
     "coverSome": "Only {types}",
     "coverage": "Approval tasks covered",
-    "coverageAll": "Every kind of approval task of your positions",
+    "coverageAll": "Every kind of approval task of your positions, including kinds added later",
     "coverageAllHint": "Includes approving DOA changes and authority changes; the separation-of-duties checks still apply",
     "coverageSome": "Only the kinds I choose",
     "created": "Acting approver named: {name} acts for you {period}",
     "delegate": "Acting approver",
     "documentTypes": {
+      "BANK_ACCOUNT_CHANGE": "Bank account change",
+      "BUDGET_TRANSFER": "Budget transfer",
       "DOA_CHANGE": "DOA change",
       "GR_VARIANCE": "Receiving difference",
+      "INVOICE_EXCEPTION": "Invoice exception",
       "ORG_AUTHORITY_CHANGE": "Authority change",
+      "OVER_BUDGET": "Over budget",
+      "PAYMENT_RUN": "Payment run",
+      "PO_CHANGE": "PO change",
       "PURCHASE_ORDER": "Purchase order (PO)",
       "PURCHASE_REQUEST": "Purchase request (PR)"
     },
@@ -2991,12 +3030,19 @@
       "info": "Waiting for requester ({count})",
       "infoBadge": "Waiting for requester",
       "kind": {
+        "BANK_ACCOUNT_CHANGE": "Bank account change",
+        "BUDGET_OVERRUN": "Over-budget approval",
+        "BUDGET_TRANSFER": "Budget transfer",
         "DOA_VERSION": "DOA version",
+        "INVOICE": "Invoice",
         "ORG_AUTHORITY_CHANGE": "Authority change",
         "OTHER": "Approval task",
+        "PAYMENT_RUN": "Payment run",
+        "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order",
         "REQUEST": "Request",
-        "VARIANCE": "Receiving variance"
+        "VARIANCE": "Receiving variance",
+        "WORKFLOW_VERSION": "Workflow change"
       },
       "listAll": "All tasks waiting for my approval",
       "listInfo": "Tasks waiting for the requester's answer",
@@ -3143,13 +3189,20 @@
       "capped": "Showing the first {shown} of {total}",
       "channelOf": "Decisions by {channel}",
       "document": {
+        "BANK_ACCOUNT_CHANGE": "Bank account change",
         "BUDGET_LINE": "Budget line {label}",
+        "BUDGET_OVERRUN": "Over-budget approval",
+        "BUDGET_TRANSFER": "Budget transfer",
         "DOA_VERSION": "DOA version {label}",
+        "INVOICE": "Invoice",
         "ORG_AUTHORITY_CHANGE": "Authority change",
+        "PAYMENT_RUN": "Payment run",
+        "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
         "SUPPLIER": "Supplier {label}",
         "VARIANCE": "Receiving variance of {label}",
+        "WORKFLOW_VERSION": "Workflow change",
         "unknown": "Document not found"
       },
       "forbidden": "This list is only for people who can open every document in it.",
@@ -3284,11 +3337,18 @@
         "RETURN": "Returned for changes"
       },
       "document": {
+        "BANK_ACCOUNT_CHANGE": "Bank account change",
+        "BUDGET_OVERRUN": "Over-budget approval",
+        "BUDGET_TRANSFER": "Budget transfer",
         "DOA_VERSION": "DOA version {label}",
+        "INVOICE": "Invoice",
         "ORG_AUTHORITY_CHANGE": "Authority change",
+        "PAYMENT_RUN": "Payment run",
+        "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order {label}",
         "REQUEST": "Request {label}",
         "VARIANCE": "Receiving variance of {label}",
+        "WORKFLOW_VERSION": "Workflow change",
         "unknown": "Document not found"
       },
       "dueAt": "Due {time}",
@@ -5673,11 +5733,18 @@
           "NET": "before VAT"
         },
         "document": {
+          "BANK_ACCOUNT_CHANGE": "bank account change",
+          "BUDGET_OVERRUN": "over-budget approval",
+          "BUDGET_TRANSFER": "budget transfer",
           "DOA_VERSION": "DOA change",
+          "INVOICE": "invoice",
           "ORG_AUTHORITY_CHANGE": "authority change",
+          "PAYMENT_RUN": "payment run",
+          "PO_CHANGE": "PO change",
           "PURCHASE_ORDER": "purchase order",
           "REQUEST": "purchase request",
-          "VARIANCE": "receiving variance"
+          "VARIANCE": "receiving variance",
+          "WORKFLOW_VERSION": "workflow change"
         },
         "escalated": "the approver of rule {from} is part of this document, so it moves to rule {rule} of the next band",
         "subject": "a {document} of {amount} baht ({basis})",
@@ -6381,9 +6448,15 @@
       "doaDiffTitleReplaced": "Changes from {name}, the version before this one",
       "doaDiffValues": "was {before} · now {after}",
       "doaDocumentType": {
+        "BANK_ACCOUNT_CHANGE": "Bank account change",
+        "BUDGET_TRANSFER": "Budget transfer",
         "DOA_CHANGE": "DOA change",
         "GR_VARIANCE": "Receiving variance",
+        "INVOICE_EXCEPTION": "Invoice exception",
         "ORG_AUTHORITY_CHANGE": "Authority change",
+        "OVER_BUDGET": "Over budget",
+        "PAYMENT_RUN": "Payment run",
+        "PO_CHANGE": "PO change",
         "PURCHASE_ORDER": "Purchase order (PO)",
         "PURCHASE_REQUEST": "Purchase request (PR)"
       },

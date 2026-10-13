@@ -1,0 +1,42 @@
+# tests/golden/doa-p1-lint.yaml
+suite: doa-lint
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p1.yaml]
+# input.base = ฉบับใน fixture · replaceRules removeRules vacate เหมือน doa-lint.yaml · modules = โมดูลที่เปิด (ชนิดบังคับตาม BR-DOA-23)
+cases:
+  - { id: GC-DOA-56, title: ฉบับที่มีชนิดเอกสารของระยะ 1 ครบ ผ่าน lint, fn: lintDoaVersion, input: { base: 1, modules: [PAY] }, expect: { errors: [], warnings: [] } }
+  - { id: GC-DOA-57, title: ตารางผลที่ขอบของโอนงบ, fn: boundaryTable, input: { base: 1, documentType: BUDGET_TRANSFER }, expect: { rows: [{ amount: "100000.00", rule: BT-01 }, { amount: "100000.01", rule: BT-02 }, { amount: "500000.00", rule: BT-02 }, { amount: "500000.01", rule: BT-03 }] } }
+  - { id: GC-DOA-58, title: ตารางผลที่ขอบของเกินงบ, fn: boundaryTable, input: { base: 1, documentType: OVER_BUDGET }, expect: { rows: [{ amount: "50000.00", rule: OB-01 }, { amount: "50000.01", rule: OB-02 }, { amount: "500000.00", rule: OB-02 }, { amount: "500000.01", rule: OB-03 }] } }
+  - { id: GC-DOA-59, title: ตารางผลที่ขอบของใบแจ้งหนี้ไม่ตรง, fn: boundaryTable, input: { base: 1, documentType: INVOICE_EXCEPTION }, expect: { rows: [{ amount: "20000.00", rule: IE-01 }, { amount: "20000.01", rule: IE-02 }, { amount: "200000.00", rule: IE-02 }, { amount: "200000.01", rule: IE-03 }] } }
+  - { id: GC-DOA-60, title: ตารางผลที่ขอบของแก้ PO, fn: boundaryTable, input: { base: 1, documentType: PO_CHANGE }, expect: { rows: [{ amount: "1000000.00", rule: PC-01 }, { amount: "1000000.01", rule: PC-02 }] } }
+  - { id: GC-DOA-61, title: ตารางผลที่ขอบของรอบจ่าย, fn: boundaryTable, input: { base: 1, documentType: PAYMENT_RUN }, expect: { rows: [{ amount: "5000000.00", rule: PAY-01 }, { amount: "5000000.01", rule: PAY-02 }] } }
+  - { id: GC-DOA-62, title: ชนิดที่ไม่มียอดไม่มีตารางผลที่ขอบ, fn: boundaryTable, input: { base: 1, documentType: BANK_ACCOUNT_CHANGE }, expect: { rows: [] } }
+  - id: GC-DOA-63
+    title: ช่องว่างแบบเขียน 20,001 ในใบแจ้งหนี้ไม่ตรง
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: IE-02, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "20001.00", lte: "200000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_GAP, documentType: INVOICE_EXCEPTION, gt: "20000.00", lte: "20001.00" }], warnings: [] }
+  - id: GC-DOA-64
+    title: ลบช่วงบนสุดของรอบจ่าย
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [PAY-02] }
+    expect: { errors: [{ code: DOA_LINT_GAP, documentType: PAYMENT_RUN, gt: "5000000.00", lte: null }], warnings: [] }
+  - id: GC-DOA-65
+    title: ใส่วงเงินให้ชนิดที่ไม่มียอด
+    fn: lintDoaVersion
+    input: { base: 1, replaceRules: [{ code: BA-01, documentType: BANK_ACCOUNT_CHANGE, priority: 100, when: { amount: { gt: "0.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }] }
+    expect: { errors: [{ code: DOA_LINT_AMOUNT_NOT_ALLOWED, rule: BA-01 }], warnings: [] }
+  - id: GC-DOA-66
+    title: ไม่ได้เปิด PAY จึงไม่บังคับข้อของ PAY
+    fn: lintDoaVersion
+    input: { base: 1, removeRules: [IE-01, IE-02, IE-03, PAY-01, PAY-02, BA-01] }
+    expect: { errors: [], warnings: [] }
+  - id: GC-DOA-67
+    title: เปิด PAY แต่ไม่มีข้อของ PAY
+    fn: lintDoaVersion
+    input: { base: 1, modules: [PAY], removeRules: [IE-01, IE-02, IE-03, PAY-01, PAY-02, BA-01] }
+    expect: { errors: [{ code: DOA_LINT_MISSING_DOCTYPE, documentType: INVOICE_EXCEPTION }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: PAYMENT_RUN }, { code: DOA_LINT_MISSING_DOCTYPE, documentType: BANK_ACCOUNT_CHANGE }], warnings: [] }
+  - id: GC-DOA-68
+    title: CFO ว่าง เป็น warning ของทุกข้อที่อ้าง CFO
+    fn: lintDoaVersion
+    input: { base: 1, modules: [PAY], vacate: ["CFO@HQ"] }
+    expect: { errors: [], warnings: [{ code: DOA_LINT_VACANT_POSITION, rule: BT-03 }, { code: DOA_LINT_VACANT_POSITION, rule: OB-02 }, { code: DOA_LINT_VACANT_POSITION, rule: IE-03 }, { code: DOA_LINT_VACANT_POSITION, rule: PAY-01 }, { code: DOA_LINT_VACANT_POSITION, rule: BA-01 }] }

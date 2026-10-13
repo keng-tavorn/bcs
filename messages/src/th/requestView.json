@@ -170,7 +170,14 @@
         "PURCHASE_ORDER": "ใบสั่งซื้อ",
         "VARIANCE": "ผลต่างจากการตรวจรับ",
         "DOA_VERSION": "การเปลี่ยน DOA",
-        "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ"
+        "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+        "BUDGET_TRANSFER": "การโอนงบ",
+        "BUDGET_OVERRUN": "การขออนุมัติเกินงบ",
+        "WORKFLOW_VERSION": "การเปลี่ยน workflow",
+        "INVOICE": "ใบแจ้งหนี้",
+        "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
+        "PAYMENT_RUN": "รอบจ่ายเงิน",
+        "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร"
       },
       "basis": {
         "GROSS": "รวม VAT",

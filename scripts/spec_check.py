@@ -420,11 +420,23 @@ def run_numbering(d):
         got = {"number": num, "scopeKey": scope}; out.append((c["id"], cmp(c["expect"], got), got))
     return out
 
-ORG = golden.get("tests/golden/fixtures/org-demo.yaml", ({}, 0))[0] or {}
-DOAV = golden.get("tests/golden/fixtures/doa-versions.yaml", ({}, 0))[0] or {}
-PARENT = {x["code"]: x["parent"] for x in ORG.get("departments", [])}
-ROOT = next((k for k, v in PARENT.items() if v is None), None)
-HOLD = {(x["position"], x["department"]): x["member"] for x in ORG.get("positions", [])}
+# DOA document types in lint order and their traits (BR-DOA-20 to BR-DOA-23 · src/core/doa/types.ts DOC_TYPE_TRAITS)
+DOC_ORDER = ("PURCHASE_REQUEST", "PURCHASE_ORDER", "GR_VARIANCE", "DOA_CHANGE", "ORG_AUTHORITY_CHANGE", "BUDGET_TRANSFER",
+             "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE")
+AMOUNT_REQUIRED = {"PURCHASE_REQUEST", "PURCHASE_ORDER", "BUDGET_TRANSFER", "OVER_BUDGET", "INVOICE_EXCEPTION", "PO_CHANGE", "PAYMENT_RUN"}
+AMOUNT_NONE = {"BANK_ACCOUNT_CHANGE"}
+MODULE_DOCS = {"PAY": ("INVOICE_EXCEPTION", "PAYMENT_RUN", "BANK_ACCOUNT_CHANGE")}
+DEFAULT_FIXTURES = ["fixtures/org-demo.yaml", "fixtures/doa-versions.yaml"]
+def use_fixtures(files=None):
+    # Each DOA golden file names its own fixtures (`fixtures:` line · ADR-069); the helpers below read these globals
+    global ORG, DOAV, PARENT, ROOT, HOLD
+    files = files or DEFAULT_FIXTURES
+    ORG = next((golden.get("tests/golden/" + f, ({}, 0))[0] for f in files if "org-" in f), None) or {}
+    DOAV = next((golden.get("tests/golden/" + f, ({}, 0))[0] for f in files if "doa-versions" in f), None) or {}
+    PARENT = {x["code"]: x["parent"] for x in ORG.get("departments", [])}
+    ROOT = next((k for k, v in PARENT.items() if v is None), None)
+    HOLD = {(x["position"], x["department"]): x["member"] for x in ORG.get("positions", [])}
+use_fixtures()
 def versions():
     vs = sorted(DOAV.get("versions", []), key=lambda v: dt(v["effectiveFrom"]))
     for a, b in zip(vs, vs[1:] + [None]): a["_to"] = dt(b["effectiveFrom"]) if b else None
@@ -456,7 +468,8 @@ def resolve(inp):
     if "amount" in inp: amt = sat(inp["amount"])
     elif "net" in inp: amt = sat(inp["net"]) + (sat(inp["vat"]) if basis == "GROSS" else 0)
     else: amt = None
-    if doc in ("PURCHASE_REQUEST", "PURCHASE_ORDER") and (amt is None or amt <= 0): return {"error": "VALIDATION_FAILED"}
+    if doc in AMOUNT_NONE and ("amount" in inp or "net" in inp): return {"error": "VALIDATION_FAILED"}
+    if doc in AMOUNT_REQUIRED and (amt is None or amt <= 0): return {"error": "VALIDATION_FAILED"}
     cand = sorted([r for r in v["rules"] if r["documentType"] == doc and matches(r, amt)], key=lambda r: (r["priority"], -len(r.get("when") or {})))
     if not cand: return {"error": "DOA_NOT_CONFIGURED"}
     if len(cand) > 1 and (cand[0]["priority"], len(cand[0].get("when") or {})) == (cand[1]["priority"], len(cand[1].get("when") or {})):
@@ -475,14 +488,14 @@ def resolve(inp):
         else: return {"error": "NO_HIGHER_AUTHORITY"}
     res["approvers"] = [ap]; res["_amt"] = amt; res["_conf"] = conf; return res
 def run_doa(d):
-    out = []
+    use_fixtures(d.get("fixtures")); out = []
     for c in d["cases"]:
         got = resolve({**d["defaults"], **c["input"]}); g = {k: v for k, v in got.items() if not k.startswith("_")}
         exp = c["expect"]; ok = all(g.get(k) == v for k, v in exp.items()) and ("escalatedTo" in exp) == ("escalatedTo" in g)
         out.append((c["id"], ok, g))
     return out
 def run_delegation(d):
-    out, D = [], d["delegations"]
+    use_fixtures(d.get("fixtures")); out, D = [], d["delegations"]
     for c in d["cases"]:
         if "create" in c:
             n = c["create"]; holds = any(m == n["delegator"] for m in HOLD.values())
@@ -684,10 +697,9 @@ def build_version(inp):
     drop = set(inp.get("removeRules") or [])
     v["rules"] = [x for x in v["rules"] if x["code"] not in drop]
     return v
-def lint_version(v, vac=frozenset()):
-    errs, warns, docs = [], [], []
-    for r in v["rules"]:
-        if r["documentType"] not in docs: docs.append(r["documentType"])
+def lint_version(v, vac=frozenset(), modules=()):
+    errs, warns = [], []
+    docs = [x for x in DOC_ORDER if x not in AMOUNT_NONE]
     for doc in docs:
         rs = sorted([r for r in v["rules"] if r["documentType"] == doc and amount_only(r)], key=lower)
         if not rs: continue
@@ -701,7 +713,8 @@ def lint_version(v, vac=frozenset()):
             else: inf = True
         if not inf: errs.append({"code": "DOA_LINT_GAP", "documentType": doc, "gt": baht(prev), "lte": None})
     present = {r["documentType"] for r in v["rules"]}
-    errs += [{"code": "DOA_LINT_MISSING_DOCTYPE", "documentType": g} for g in GOV if g not in present]
+    required = set(GOV) | {x for m in modules for x in MODULE_DOCS.get(m, ())}
+    errs += [{"code": "DOA_LINT_MISSING_DOCTYPE", "documentType": g} for g in DOC_ORDER if g in required and g not in present]
     for r in v["rules"]:
         a = r["approver"]
         if r["documentType"] in GOV:
@@ -709,8 +722,10 @@ def lint_version(v, vac=frozenset()):
         elif a["kind"] == "MEMBER": warns.append({"code": "DOA_LINT_MEMBER_APPROVER", "rule": r["code"]})
         elif not any(p == a["position"] and f"{p}@{dd}" not in vac and (a["kind"] != "POSITION_OF_ORG" or dd == ROOT) for (p, dd) in HOLD):
             warns.append({"code": "DOA_LINT_VACANT_POSITION", "rule": r["code"]})
+    errs += [{"code": "DOA_LINT_AMOUNT_NOT_ALLOWED", "rule": r["code"]} for r in v["rules"] if r["documentType"] in AMOUNT_NONE and (r.get("when") or {}).get("amount")]
     return {"errors": errs, "warnings": warns}
 def boundary_table(v, doc):
+    if doc in AMOUNT_NONE: return {"rows": []}
     rs = sorted([r for r in v["rules"] if r["documentType"] == doc and amount_only(r)], key=lower); rows = []
     for r in rs:
         am = r["when"]["amount"]
@@ -720,10 +735,10 @@ def boundary_table(v, doc):
             rows.append({"amount": baht(amt), "rule": hit[0] if len(hit) == 1 else hit})
     return {"rows": rows}
 def run_doa_lint(d):
-    out = []
+    use_fixtures(d.get("fixtures")); out = []
     for c in d["cases"]:
         i = c["input"]; v = build_version(i)
-        got = lint_version(v, frozenset(i.get("vacate") or [])) if c["fn"] == "lintDoaVersion" else boundary_table(v, i["documentType"])
+        got = lint_version(v, frozenset(i.get("vacate") or []), tuple(i.get("modules") or ())) if c["fn"] == "lintDoaVersion" else boundary_table(v, i["documentType"])
         out.append((c["id"], got == c["expect"], got))
     return out
 def run_quotes(d):
@@ -750,10 +765,28 @@ def run_grni(d):
         got = {"lines": lines, "byCostCenter": {k: baht(v) for k, v in by.items()}}
         out.append((c["id"], got == c["expect"], got))
     return out
-RUNNERS = {"quotations": run_quotes, "grni": run_grni, "doa-lint": run_doa_lint, "money": run_money, "vat-rate": run_vat, "thai": run_thai, "taxid": run_taxid, "dates": run_dates,
-           "numbering": run_numbering, "doa": run_doa, "delegation": run_delegation, "sod": run_sod, "budget": run_budget,
-           "sla": run_sla, "forms": run_forms, "consolidation": run_cons, "receiving": run_gr,
-           "invoice-confirmation": run_ivc, "wht": run_wht}
+# One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
+RUNNERS = {
+    "budget": run_budget,
+    "consolidation": run_cons,
+    "dates": run_dates,
+    "delegation": run_delegation,
+    "doa": run_doa,
+    "doa-lint": run_doa_lint,
+    "forms": run_forms,
+    "grni": run_grni,
+    "invoice-confirmation": run_ivc,
+    "money": run_money,
+    "numbering": run_numbering,
+    "quotations": run_quotes,
+    "receiving": run_gr,
+    "sla": run_sla,
+    "sod": run_sod,
+    "taxid": run_taxid,
+    "thai": run_thai,
+    "vat-rate": run_vat,
+    "wht": run_wht,
+}
 n_suites = n_cases = 0
 for path, (data, ln) in sorted(golden.items()):
     if "/fixtures/" in path: continue
@@ -778,13 +811,16 @@ report("PASS" if m and (int(m.group(1)), int(m.group(2))) == (n_suites, n_cases)
        "ตัวอย่างผลลัพธ์ขัดกับจำนวนจริง ทำให้คนตรวจเข้าใจผิด", f"แก้เป็น '{n_suites} ไฟล์ · {n_cases} เคส'")
 
 # ---------- DOA fixture lint (BR-DOA-08 ชุดเต็ม) ----------
-issues = []
-for v in DOAV.get("versions", []):
-    res = lint_version(v)
-    if res["errors"]: issues.append(f"ฉบับ {v['version']}: {res['errors']}")
-report("PASS" if DOAV and not issues else "FAIL", "DOA fixture ผ่าน lint ชุดเต็ม (BR-DOA-08)",
-       f"{len(DOAV.get('versions', []))} ฉบับ ไม่มี error: ครอบคลุม (0, ∞) ไม่มีช่องว่าง ไม่ทับกัน และมีข้อ DOA_CHANGE กับ ORG_AUTHORITY_CHANGE ที่หาผู้อนุมัติได้" if not issues else "; ".join(issues),
-       "DOA ตั้งต้นมีช่วงวงเงินที่ไม่มีผู้อนุมัติ หรือลูกค้าล็อกตัวเองออกจากการแก้ DOA", "แก้ข้อที่ระบุใน tests/golden/fixtures/doa-versions.yaml")
+# doa-versions.yaml with no module on · doa-versions-p1.yaml with PAY on (BR-DOA-23)
+for fx, modules in ((DEFAULT_FIXTURES, ()), (["fixtures/org-p1.yaml", "fixtures/doa-versions-p1.yaml"], ("PAY",))):
+    use_fixtures(fx); issues = []
+    for v in DOAV.get("versions", []):
+        res = lint_version(v, modules=modules)
+        if res["errors"]: issues.append(f"ฉบับ {v['version']}: {res['errors']}")
+    report("PASS" if DOAV and not issues else "FAIL", f"DOA fixture ผ่าน lint ชุดเต็ม (BR-DOA-08) {fx[1]}",
+           f"{len(DOAV.get('versions', []))} ฉบับ ไม่มี error" + (f" เมื่อเปิด {', '.join(modules)}" if modules else "") + ": ครอบคลุม (0, ∞) ไม่มีช่องว่าง ไม่ทับกัน และมีข้อของชนิดที่บังคับซึ่งหาผู้อนุมัติได้" if not issues else "; ".join(issues),
+           "DOA ตั้งต้นมีช่วงวงเงินที่ไม่มีผู้อนุมัติ หรือลูกค้าล็อกตัวเองออกจากการแก้ DOA", f"แก้ข้อที่ระบุใน tests/golden/{fx[1]}")
+use_fixtures()
 
 # ---------- seed tax IDs ----------
 appA = TEXT[TEXT.find("## ภาคผนวก A"):TEXT.find("## ภาคผนวก B")]

@@ -239,7 +239,13 @@
       "PURCHASE_ORDER": "Purchase order (PO)",
       "GR_VARIANCE": "Receiving variance",
       "DOA_CHANGE": "DOA change",
-      "ORG_AUTHORITY_CHANGE": "Authority change"
+      "ORG_AUTHORITY_CHANGE": "Authority change",
+      "BUDGET_TRANSFER": "Budget transfer",
+      "OVER_BUDGET": "Over budget",
+      "INVOICE_EXCEPTION": "Invoice exception",
+      "PO_CHANGE": "PO change",
+      "PAYMENT_RUN": "Payment run",
+      "BANK_ACCOUNT_CHANGE": "Bank account change"
     },
     "doaBand": {
       "range": "above {from} up to {to} baht",

@@ -3,6 +3,7 @@ import { formatSatang } from '@/core/money/format'
 import type { PolicyField, PolicyValue } from '@/server/services/doa/diff'
 import type { ApproverView, RuleView } from '@/server/services/doa/view'
 import { bandText } from '@/ui/admin-doa/band'
+import { DOC_TYPES as DOCUMENT_TYPES, type DocType } from '@/ui/admin-doa/editor-model'
 import { nameIn } from '@/ui/admin-org/names'
 
 // Words for the DOA pages in the reader's language: document types, amount bands, approvers, times under the SLA and
@@ -11,8 +12,8 @@ import { nameIn } from '@/ui/admin-org/names'
 
 export type DoaT = Awaited<ReturnType<typeof getTranslations<'adminDoa'>>>
 
-export const DOCUMENT_TYPES = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE'] as const
-type DocumentType = (typeof DOCUMENT_TYPES)[number]
+export { DOCUMENT_TYPES }
+type DocumentType = DocType
 const MINUTES_PER_HOUR = 60
 
 export function doaWords(t: DoaT, locale: string) {

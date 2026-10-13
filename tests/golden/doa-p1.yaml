@@ -1,0 +1,34 @@
+# tests/golden/doa-p1.yaml
+suite: doa
+fixtures: [fixtures/org-p1.yaml, fixtures/doa-versions-p1.yaml]
+defaults: { documentType: PURCHASE_REQUEST, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+# รูปแบบเดียวกับ doa.yaml: amount = ยอดตามฐาน · net vat amountBasis เมื่อทดสอบฐาน · alsoConflicting = ผู้ขัดกันเพิ่มจากผู้ขอ
+cases:
+  - { id: GC-DOA-28, title: โอนงบขอบบนของช่วง DM, input: { documentType: BUDGET_TRANSFER, amount: "100000.00" }, expect: { version: 1, rule: BT-01, approvers: [dm_con] } }
+  - { id: GC-DOA-29, title: โอนงบเกินขอบ 1 สตางค์, input: { documentType: BUDGET_TRANSFER, amount: "100000.01" }, expect: { version: 1, rule: BT-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-30, title: โอนงบเกินช่วง VP 1 สตางค์ไป CFO, input: { documentType: BUDGET_TRANSFER, amount: "500000.01" }, expect: { version: 1, rule: BT-03, approvers: [cfo] } }
+  - { id: GC-DOA-31, title: โอนงบไม่มี VAT ฐาน NET ได้ผลเดียวกับ GROSS, input: { documentType: BUDGET_TRANSFER, net: "100000.01", vat: "0.00", amountBasis: NET }, expect: { version: 1, rule: BT-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-32, title: โอนงบยอดศูนย์, input: { documentType: BUDGET_TRANSFER, amount: "0.00" }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-DOA-33, title: DM โอนงบของฝ่ายตัวเอง ยกไปช่วงถัดไป, input: { documentType: BUDGET_TRANSFER, amount: "30000.00", requester: dm_fin, department: FIN }, expect: { version: 1, rule: BT-01, escalatedTo: BT-02, approvers: [vp_sup] } }
+  - { id: GC-DOA-34, title: เกินงบขอบบนของช่วง VP, input: { documentType: OVER_BUDGET, amount: "50000.00" }, expect: { version: 1, rule: OB-01, approvers: [vp_ops] } }
+  - { id: GC-DOA-35, title: เกินงบเกินขอบ 1 สตางค์ไป CFO, input: { documentType: OVER_BUDGET, amount: "50000.01" }, expect: { version: 1, rule: OB-02, approvers: [cfo] } }
+  - { id: GC-DOA-36, title: เกินงบเกิน 500000 ไป CEO, input: { documentType: OVER_BUDGET, amount: "500000.01" }, expect: { version: 1, rule: OB-03, approvers: [ceo] } }
+  - { id: GC-DOA-37, title: VP ขอเกินงบเอง ยกไป CFO, input: { documentType: OVER_BUDGET, amount: "30000.00", requester: vp_ops, department: OPS }, expect: { version: 1, rule: OB-01, escalatedTo: OB-02, approvers: [cfo] } }
+  - { id: GC-DOA-38, title: ใบแจ้งหนี้ไม่ตรงขอบบนของช่วง DM, input: { documentType: INVOICE_EXCEPTION, amount: "20000.00", requester: fin_officer }, expect: { version: 1, rule: IE-01, approvers: [dm_con] } }
+  - { id: GC-DOA-39, title: ใบแจ้งหนี้ไม่ตรงเกินขอบ 1 สตางค์, input: { documentType: INVOICE_EXCEPTION, amount: "20000.01", requester: fin_officer }, expect: { version: 1, rule: IE-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-40, title: ใบแจ้งหนี้ไม่ตรงเกิน 200000 ไป CFO, input: { documentType: INVOICE_EXCEPTION, amount: "200000.01", requester: fin_officer }, expect: { version: 1, rule: IE-03, approvers: [cfo] } }
+  - { id: GC-DOA-41, title: ส่วนต่างฐาน GROSS นับ VAT ของส่วนต่าง, input: { documentType: INVOICE_EXCEPTION, net: "19000.00", vat: "1330.00", requester: fin_officer }, expect: { version: 1, rule: IE-02, approvers: [vp_ops] } }
+  - { id: GC-DOA-42, title: ส่วนต่างเดียวกันฐาน NET, input: { documentType: INVOICE_EXCEPTION, net: "19000.00", vat: "1330.00", amountBasis: NET, requester: fin_officer }, expect: { version: 1, rule: IE-01, approvers: [dm_con] } }
+  - { id: GC-DOA-43, title: ผู้บันทึกใบแจ้งหนี้เป็น DM ฝ่ายเจ้าของงบ ยกไปช่วงถัดไป, input: { documentType: INVOICE_EXCEPTION, amount: "5000.00", requester: dm_fin, department: FIN }, expect: { version: 1, rule: IE-01, escalatedTo: IE-02, approvers: [vp_sup] } }
+  - { id: GC-DOA-44, title: แก้ PO ยอดใหม่ขอบบนของช่วง COO, input: { documentType: PO_CHANGE, amount: "1000000.00", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PC-01, approvers: [coo] } }
+  - { id: GC-DOA-45, title: แก้ PO ยอดใหม่เกินขอบ 1 สตางค์, input: { documentType: PO_CHANGE, amount: "1000000.01", requester: proc_officer, alsoConflicting: [req_con] }, expect: { version: 1, rule: PC-02, approvers: [ceo] } }
+  - { id: GC-DOA-46, title: แก้ PO ที่ COO เป็นผู้ขอ PR ต้นทาง, input: { documentType: PO_CHANGE, amount: "500000.00", requester: proc_officer, alsoConflicting: [coo] }, expect: { version: 1, rule: PC-01, escalatedTo: PC-02, approvers: [ceo] } }
+  - { id: GC-DOA-47, title: แก้ PO ยอดใหม่ศูนย์, input: { documentType: PO_CHANGE, amount: "0.00", requester: proc_officer }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-DOA-48, title: รอบจ่ายขอบบนของช่วง CFO, input: { documentType: PAYMENT_RUN, amount: "5000000.00", requester: fin_officer, department: HQ }, expect: { version: 1, rule: PAY-01, approvers: [cfo] } }
+  - { id: GC-DOA-49, title: รอบจ่ายเกินขอบ 1 สตางค์, input: { documentType: PAYMENT_RUN, amount: "5000000.01", requester: fin_officer, department: HQ }, expect: { version: 1, rule: PAY-02, approvers: [ceo] } }
+  - { id: GC-DOA-50, title: CFO บันทึกใบแจ้งหนี้ในรอบ ยกไป CEO, input: { documentType: PAYMENT_RUN, amount: "1200000.00", requester: fin_officer, department: HQ, alsoConflicting: [cfo] }, expect: { version: 1, rule: PAY-01, escalatedTo: PAY-02, approvers: [ceo] } }
+  - { id: GC-DOA-51, title: CEO อยู่ในรอบช่วงบนสุด, input: { documentType: PAYMENT_RUN, amount: "6000000.00", requester: fin_officer, department: HQ, alsoConflicting: [ceo] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-52, title: ตำแหน่ง CFO ว่าง, input: { documentType: PAYMENT_RUN, amount: "1000000.00", requester: fin_officer, department: HQ, vacate: ["CFO@HQ"] }, expect: { error: APPROVER_NOT_FOUND } }
+  - { id: GC-DOA-53, title: เปลี่ยนบัญชีรับเงินของผู้ขาย, input: { documentType: BANK_ACCOUNT_CHANGE, requester: fin_officer, department: HQ }, expect: { version: 1, rule: BA-01, approvers: [cfo] } }
+  - { id: GC-DOA-54, title: CFO แก้บัญชีเอง ไม่มีช่วงถัดไป, input: { documentType: BANK_ACCOUNT_CHANGE, requester: cfo, department: HQ }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-DOA-55, title: ชนิดที่ไม่มียอดแต่ส่งยอดมา, input: { documentType: BANK_ACCOUNT_CHANGE, amount: "1.00", requester: fin_officer, department: HQ }, expect: { error: VALIDATION_FAILED } }

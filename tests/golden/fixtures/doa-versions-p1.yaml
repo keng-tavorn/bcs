@@ -1,0 +1,33 @@
+# tests/golden/fixtures/doa-versions-p1.yaml
+versions:
+  - code: DOA-P1
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "20000.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: PR-03, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PO-02, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: BT-01, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "0.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: BT-02, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "100000.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: BT-03, documentType: BUDGET_TRANSFER, priority: 100, when: { amount: { gt: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: OB-01, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "0.00", lte: "50000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: OB-02, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "50000.00", lte: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: OB-03, documentType: OVER_BUDGET, priority: 100, when: { amount: { gt: "500000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: IE-01, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "0.00", lte: "20000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: IE-02, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "20000.00", lte: "200000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, slaBusinessHours: 8 }
+      - { code: IE-03, documentType: INVOICE_EXCEPTION, priority: 100, when: { amount: { gt: "200000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 16 }
+      - { code: PC-01, documentType: PO_CHANGE, priority: 100, when: { amount: { gt: "0.00", lte: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: PC-02, documentType: PO_CHANGE, priority: 100, when: { amount: { gt: "1000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: PAY-01, documentType: PAYMENT_RUN, priority: 100, when: { amount: { gt: "0.00", lte: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }
+      - { code: PAY-02, documentType: PAYMENT_RUN, priority: 100, when: { amount: { gt: "5000000.00" } }, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: BA-01, documentType: BANK_ACCOUNT_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CFO }, slaBusinessHours: 8 }

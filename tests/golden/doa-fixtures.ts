@@ -40,8 +40,17 @@ interface VersionFixture {
 
 const EPOCH = new Date('1970-01-01T00:00:00Z')
 
-export function orgSnapshot(vacate: readonly string[] = []): OrgSnapshot {
-  const fx = loadYaml<OrgFixture>('fixtures/org-demo.yaml')
+/** The fixtures a golden file names on its `fixtures:` line (ADR-069); the demo pair when it names none. */
+export const DEMO_FIXTURES = { org: 'fixtures/org-demo.yaml', versions: 'fixtures/doa-versions.yaml' } as const
+export type FixturePair = { readonly org: string; readonly versions: string }
+
+export function fixturesOf(files: readonly string[] | undefined): FixturePair {
+  if (!files) return DEMO_FIXTURES
+  return { org: files.find((f) => f.includes('/org-'))!, versions: files.find((f) => f.includes('/doa-versions'))! }
+}
+
+export function orgSnapshot(vacate: readonly string[] = [], file: string = DEMO_FIXTURES.org): OrgSnapshot {
+  const fx = loadYaml<OrgFixture>(file)
   return {
     departments: fx.departments.map((d) => ({ id: d.code, code: d.code, nameTh: d.nameTh, parentId: d.parent })),
     holders: fx.positions
@@ -72,8 +81,8 @@ export function ruleSnapshot(r: RuleFixture): DoaRuleSnapshot {
   }
 }
 
-export function versionSnapshots(): DoaVersionSnapshot[] {
-  const fx = loadYaml<{ versions: VersionFixture[] }>('fixtures/doa-versions.yaml')
+export function versionSnapshots(file: string = DEMO_FIXTURES.versions): DoaVersionSnapshot[] {
+  const fx = loadYaml<{ versions: VersionFixture[] }>(file)
   return fx.versions.map((v) => ({
     id: `${v.code}@${v.version}`,
     code: v.code,

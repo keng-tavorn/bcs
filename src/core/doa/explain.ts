@@ -12,6 +12,12 @@ const DOCUMENT_TH: Record<DoaDocumentType, string> = {
   GR_VARIANCE: 'ผลต่างจากการตรวจรับ',
   DOA_CHANGE: 'การเปลี่ยน DOA',
   ORG_AUTHORITY_CHANGE: 'การเปลี่ยนโครงสร้างอำนาจ',
+  BUDGET_TRANSFER: 'การโอนงบ',
+  OVER_BUDGET: 'การขออนุมัติเกินงบ',
+  INVOICE_EXCEPTION: 'ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ',
+  PO_CHANGE: 'การแก้ไขใบสั่งซื้อ',
+  PAYMENT_RUN: 'รอบจ่ายเงิน',
+  BANK_ACCOUNT_CHANGE: 'การเปลี่ยนบัญชีธนาคาร',
 }
 
 const BASIS_TH: Record<AmountBasis, string> = { GROSS: 'รวม VAT', NET: 'ก่อน VAT' }

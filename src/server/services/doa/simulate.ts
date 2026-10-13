@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, GOVERNANCE_DOCUMENT_TYPES, PURCHASE_DOCUMENT_TYPES, resolveRoute, versionAt, type DoaDocumentType, type RouteInput, type RouteResult } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, DOC_TYPE_TRAITS, NO_AMOUNT_DOCUMENT_TYPES, resolveRoute, versionAt, type DoaDocumentType, type RouteInput, type RouteResult } from '@/core/doa'
 import { amountToSatang } from '@/core/money/dto'
 import { err, ok, type AppError, type ErrorCode, type Result } from '@/core/result'
 import { authorize } from '@/server/authz'
@@ -119,15 +119,16 @@ export async function getDoaSimulation(ctx: Ctx, versionId: string, query: Simul
   const errors: Partial<Record<SimulationField, SimulationFieldError>> = {}
   const documentType = (DOA_DOCUMENT_TYPES as readonly string[]).includes(input.type) ? (input.type as DoaDocumentType) : null
   if (!documentType) errors.type = 'INVALID'
-  const governance = documentType !== null && GOVERNANCE_DOCUMENT_TYPES.includes(documentType)
-  // A policy change has no amount; a purchase document needs one above zero (BR-DOA-02)
-  const net = governance ? null : moneyOf(input.net)
-  const vat = governance ? null : moneyOf(input.vat)
+  const noAmount = documentType !== null && NO_AMOUNT_DOCUMENT_TYPES.includes(documentType)
+  // A policy change or a type without an amount takes none (BR-DOA-22); a type that needs one needs it above zero
+  // (BR-DOA-02, BR-DOA-21)
+  const net = noAmount ? null : moneyOf(input.net)
+  const vat = noAmount ? null : moneyOf(input.vat)
   if (net === undefined) errors.net = 'INVALID'
   if (vat === undefined) errors.vat = 'INVALID'
-  const purchase = documentType !== null && PURCHASE_DOCUMENT_TYPES.includes(documentType)
-  if (purchase && net === null) errors.net = 'REQUIRED'
-  else if (purchase && typeof net === 'bigint' && net + (vat ?? 0n) <= 0n) errors.net = 'AMOUNT_NOT_POSITIVE'
+  const required = documentType !== null && DOC_TYPE_TRAITS[documentType].amount === 'REQUIRED'
+  if (required && net === null) errors.net = 'REQUIRED'
+  else if (required && typeof net === 'bigint' && net + (vat ?? 0n) <= 0n) errors.net = 'AMOUNT_NOT_POSITIVE'
   if (!input.department) errors.department = 'REQUIRED'
   else if (!departmentRows.some((d) => d.id === input.department)) errors.department = 'INVALID'
   if (!input.requester) errors.requester = 'REQUIRED'

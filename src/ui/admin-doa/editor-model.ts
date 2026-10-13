@@ -7,10 +7,24 @@ import { formatSatang } from '@/core/money/format'
 // the lower end of the band that started there (and the other way round), so a table without gaps stays without gaps.
 // The server checks everything again (src/server/services/doa/editor.ts); this only keeps the screen honest. Pure.
 
-export const DOC_TYPES = ['PURCHASE_REQUEST', 'PURCHASE_ORDER', 'GR_VARIANCE', 'DOA_CHANGE', 'ORG_AUTHORITY_CHANGE'] as const
+/** DOA_DOCUMENT_TYPES of src/core/doa in the same order (screens may not import it; tests/unit/admin-doa-editor.test.tsx compares) */
+export const DOC_TYPES = [
+  'PURCHASE_REQUEST',
+  'PURCHASE_ORDER',
+  'GR_VARIANCE',
+  'DOA_CHANGE',
+  'ORG_AUTHORITY_CHANGE',
+  'BUDGET_TRANSFER',
+  'OVER_BUDGET',
+  'INVOICE_EXCEPTION',
+  'PO_CHANGE',
+  'PAYMENT_RUN',
+  'BANK_ACCOUNT_CHANGE',
+] as const
 export type DocType = (typeof DOC_TYPES)[number]
-/** Policy changes have no amount (BR-DOA-08 (จ)): their rules hold for any document */
-export const NO_AMOUNT_TYPES: readonly DocType[] = ['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE']
+/** Policy changes (BR-DOA-08 (จ)) and types without an amount (BR-DOA-22) have no band: their rules hold for any document.
+ * NO_AMOUNT_DOCUMENT_TYPES of src/core/doa */
+export const NO_AMOUNT_TYPES: readonly DocType[] = ['DOA_CHANGE', 'ORG_AUTHORITY_CHANGE', 'BANK_ACCOUNT_CHANGE']
 
 export type ApproverValue = { readonly kind: 'POSITION_OF_DEPARTMENT' | 'POSITION_OF_ORG'; readonly position: string } | { readonly kind: 'MEMBER'; readonly memberId: string }
 

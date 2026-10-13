@@ -1,6 +1,6 @@
 import {
   DOA_DOCUMENT_TYPES,
-  GOVERNANCE_DOCUMENT_TYPES,
+  NO_AMOUNT_DOCUMENT_TYPES,
   bandOf,
   boundaryTable,
   chooseRule,
@@ -103,7 +103,7 @@ function bandEdges(versions: readonly DoaVersionSnapshot[], documentType: DoaDoc
 /**
  * Who gains and who loses authority from `before` to `after`: for every document type, the amounts are cut at every
  * band end of both versions, and in each piece the approvers the two versions name are compared. Adjacent pieces with
- * the same change are joined. Documents without an amount (DOA_CHANGE, ORG_AUTHORITY_CHANGE) are compared once.
+ * the same change are joined. Documents without an amount (NO_AMOUNT_DOCUMENT_TYPES) are compared once.
  * Ordered by document type, then amount, gains before losses.
  */
 export function authorityChanges(before: VersionRules, after: VersionRules): AuthorityChange[] {
@@ -111,7 +111,7 @@ export function authorityChanges(before: VersionRules, after: VersionRules): Aut
   const now = snapshotOf(after)
   const changes: AuthorityChange[] = []
   for (const documentType of DOA_DOCUMENT_TYPES) {
-    if (GOVERNANCE_DOCUMENT_TYPES.includes(documentType)) {
+    if (NO_AMOUNT_DOCUMENT_TYPES.includes(documentType)) {
       const a = sideAt(old, documentType, null)
       const b = sideAt(now, documentType, null)
       const was = new Set(a.approvers.map(approverKey))

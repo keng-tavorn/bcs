@@ -49,6 +49,8 @@ description: Procedure for BCS parallel lanes of round P1 (git worktrees .worktr
 
 - เพิ่มต่อท้ายทั้งสองฝั่ง → เก็บทั้งคู่ เรียงตามเลข: บรรทัดติ๊กใน spec · แถว ADR และ OQ · แถวใน §2.4 §10 §14.2 · entry ใน `docs/feature-status.yaml` (`updatedAt` ใช้วันที่ใหม่กว่า) · คีย์ใน `messages/src/**` · model ใหม่ใน `prisma/schema.prisma`
 - ไฟล์ที่สร้างอัตโนมัติ → เลือกฝั่งใดก็ได้แล้วสร้างใหม่: `pnpm messages:build` · `pnpm exec tsx scripts/verify-db.ts lock` (`scripts/migrations.lock.json`) · `pnpm exec tsx scripts/gen-db-relations.ts` · `node scripts/py.mjs scripts/inputs_p1/make.py` (ไฟล์ข้อมูลระยะ 1)
+- `prisma/schema.prisma`: คอลัมน์และ relation ที่แต่ละสายเพิ่มใต้บล็อกจองของตัวเอง (`// --- S6 ---` `// --- S8 S9 ---` `// --- S13 ---` `// --- S17 ---` ท้าย model ที่หลายสายแก้ · P1-07) นับเป็นการเพิ่มต่อท้ายทั้งสองฝั่ง → เก็บทั้งคู่ แล้วรัน `pnpm exec prisma validate` และ `pnpm exec tsx scripts/gen-db-relations.ts` · สองฝั่งแก้คอลัมน์ index หรือ CHECK ของตารางเดียวกันนอกบล็อกของตัวเอง หรือ prisma drift → หยุดถาม
+- ตัวเลข "golden N ไฟล์ · M เคส" ใน spec §15.5 เป็นค่าที่สร้างใหม่: รัน `pnpm spec:check` แล้วใส่ตัวเลขที่นับได้ (ไม่เลือกฝั่ง)
 - migration: ห้ามแก้ไฟล์ migration ที่ apply แล้ว · ถ้าสองฝั่งแก้ตารางเดียวกัน หรือด่าน prisma ของ `pnpm verify` เจอ drift หลังรวม → หยุดถาม
 - โค้ดเงิน สิทธิ์ DOA (`src/core/**` `permissions.ts` service ที่แตะเงินหรือการอนุมัติ) ที่ไม่ใช่การเพิ่มต่อท้ายทั้งสองฝั่ง → หยุดถาม ห้ามเลือกฝั่งเอง
 - หลังแก้ทุกครั้ง `pnpm verify` ต้องผ่านก่อน commit merge

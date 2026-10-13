@@ -6,7 +6,14 @@
     "PURCHASE_ORDER": "purchase order",
     "VARIANCE": "the receiving variance of purchase order",
     "DOA_VERSION": "approval policy",
-    "ORG_AUTHORITY_CHANGE": "authority change"
+    "ORG_AUTHORITY_CHANGE": "authority change",
+    "BUDGET_TRANSFER": "budget transfer",
+    "BUDGET_OVERRUN": "over-budget approval",
+    "WORKFLOW_VERSION": "workflow change",
+    "INVOICE": "invoice",
+    "PO_CHANGE": "PO change",
+    "PAYMENT_RUN": "payment run",
+    "BANK_ACCOUNT_CHANGE": "bank account change"
   },
   "titleLabel": "Subject",
   "requesterLabel": "Requested by",

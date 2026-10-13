@@ -2,6 +2,7 @@ import type { getTranslations } from 'next-intl/server'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai'
 import { formatSatang } from '@/core/money/format'
 import type { ApproverRoleDto, ExpectedApproverDto, MemberRefDto, NameDto, RouteDto, RouteStepDto, StageDto, TrackEntryDto } from '@/server/queries/requests'
+import type { TaskSubjectType } from '@/server/queries/tasks'
 import { formatDateTime } from '@/ui/format'
 import type { TimelineItem, TimelineOutcome } from '@/ui/timeline/timeline'
 
@@ -229,7 +230,7 @@ function ruleApproverText(t: ViewT, locale: Locale, step: RouteStepDto): string 
  * rule gave each step as the Thai record does (BR-DOA-10) — never whoever decided an escalated step in their place
  * (BR-SLA-04, NEW-46: the co-assignee who decided first is the step's `approver`)
  */
-export function routeSentence(t: ViewT, tl: TimelineT, locale: Locale, route: RouteDto, subjectType: 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'): string {
+export function routeSentence(t: ViewT, tl: TimelineT, locale: Locale, route: RouteDto, subjectType: TaskSubjectType): string {
   if (locale === 'th') return route.explanationTh
   const parts = [`${doaRefText(tl, route.doa)}:`]
   const document = t(`route.explain.document.${subjectType}`)

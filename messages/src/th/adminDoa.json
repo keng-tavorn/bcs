@@ -34,7 +34,13 @@
     "PURCHASE_ORDER": "ใบสั่งซื้อ (PO)",
     "GR_VARIANCE": "ผลต่างจากการตรวจรับ",
     "DOA_CHANGE": "การเปลี่ยน DOA",
-    "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ"
+    "ORG_AUTHORITY_CHANGE": "การเปลี่ยนโครงสร้างอำนาจ",
+    "BUDGET_TRANSFER": "การโอนงบ",
+    "OVER_BUDGET": "การขออนุมัติเกินงบ",
+    "INVOICE_EXCEPTION": "ใบแจ้งหนี้ที่ไม่ตรงกับใบสั่งซื้อ",
+    "PO_CHANGE": "การแก้ไขใบสั่งซื้อ",
+    "PAYMENT_RUN": "รอบจ่ายเงิน",
+    "BANK_ACCOUNT_CHANGE": "การเปลี่ยนบัญชีธนาคาร"
   },
   "band": {
     "range": "มากกว่า {from} ถึงไม่เกิน {to} บาท",
@@ -48,9 +54,10 @@
   "lint": {
     "DOA_LINT_GAP": "{documentType}: ยอด{band} ไม่มีข้อใดครอบคลุม",
     "DOA_LINT_OVERLAP": "{documentType}: ยอด{band} อยู่ในมากกว่าหนึ่งข้อ",
-    "DOA_LINT_MISSING_DOCTYPE": "ไม่มีข้อสำหรับ{documentType} ทุกฉบับต้องมีข้อการเปลี่ยน DOA และข้อการเปลี่ยนโครงสร้างอำนาจ",
+    "DOA_LINT_MISSING_DOCTYPE": "ไม่มีข้อสำหรับ{documentType} ทุกฉบับต้องมีข้อการเปลี่ยน DOA ข้อการเปลี่ยนโครงสร้างอำนาจ และข้อของทุกประเภทเอกสารที่โมดูลซึ่งเปิดอยู่บังคับ",
     "DOA_LINT_UNRESOLVABLE_GOVERNANCE": "ข้อ {rule}: หาผู้อนุมัติไม่ได้ ณ วันมีผล จะไม่มีใครอนุมัติการเปลี่ยนนโยบายได้",
     "DOA_LINT_PARALLEL_STEP": "ข้อ {rule}: มีขั้นอนุมัติแบบคู่ขนาน ซึ่งยังไม่รองรับ",
+    "DOA_LINT_AMOUNT_NOT_ALLOWED": "ข้อ {rule}: ประเภทเอกสารนี้ไม่มียอดเงิน จึงตั้งช่วงวงเงินไม่ได้",
     "OTHER": "ผลตรวจ {code}"
   },
   "import": {

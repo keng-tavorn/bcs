@@ -187,7 +187,13 @@
       "PURCHASE_ORDER": "Purchase order (PO)",
       "GR_VARIANCE": "Receiving variance",
       "DOA_CHANGE": "DOA change",
-      "ORG_AUTHORITY_CHANGE": "Authority change"
+      "ORG_AUTHORITY_CHANGE": "Authority change",
+      "BUDGET_TRANSFER": "Budget transfer",
+      "OVER_BUDGET": "Over budget",
+      "INVOICE_EXCEPTION": "Invoice exception",
+      "PO_CHANGE": "PO change",
+      "PAYMENT_RUN": "Payment run",
+      "BANK_ACCOUNT_CHANGE": "Bank account change"
     },
     "effectiveLabel": "Effective",
     "effectiveOnApproval": "As soon as it is approved",
@@ -232,7 +238,7 @@
         "delegate": "Acting person",
         "startsAt": "Acting from (Thai time)",
         "endsAt": "Acting until (Thai time)",
-        "documentTypes": "Document types to act for (none chosen = all)",
+        "documentTypes": "Document types to act for (none chosen = all, including types added later)",
         "maxAmount": "Highest amount to act for (baht, optional)",
         "maxAmountHint": "Leave empty for no limit",
         "identityMember": "Member whose two-step sign-in is reset",

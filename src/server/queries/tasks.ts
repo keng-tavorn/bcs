@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { DOA_DOCUMENT_TYPES, type DoaRuleSnapshot } from '@/core/doa'
+import type { ApprovalSubject } from '@/core/sod'
 import { stepUpNeeded } from '@/core/pin'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantDb, type TenantTx } from '@/server/db/tenant'
@@ -33,7 +34,8 @@ import {
 // when" (FR-DOA-004 AC2, §9.3): the decision page, the refusal of a late decision, the LINE button and the e-mail link
 // all name the decider through it, the services with the transaction that holds the task's lock.
 
-export type TaskSubjectType = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'
+/** APPROVAL_SUBJECTS of src/core/sod (P1-07): one list for every subject */
+export type TaskSubjectType = ApprovalSubject
 export type TaskStatusDto = 'OPEN' | 'INFO_REQUESTED' | 'APPROVED' | 'REJECTED' | 'RETURNED' | 'CANCELLED' | 'REASSIGNED'
 export type OrgChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'
 

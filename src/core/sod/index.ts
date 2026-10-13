@@ -9,7 +9,25 @@ export interface SodPolicy {
   readonly requesterMayReceive: boolean
 }
 
-export type ApprovalSubject = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'
+/**
+ * Every subject an approval route can be for: the single source of the list (P1-07). The first five are tier 1; the
+ * rest belong to the phase-1 steps (S6 S8 S9) and route through the subject registry (ADR-068).
+ */
+export const APPROVAL_SUBJECTS = [
+  'REQUEST',
+  'PURCHASE_ORDER',
+  'VARIANCE',
+  'DOA_VERSION',
+  'ORG_AUTHORITY_CHANGE',
+  'BUDGET_TRANSFER',
+  'BUDGET_OVERRUN',
+  'WORKFLOW_VERSION',
+  'INVOICE',
+  'PO_CHANGE',
+  'PAYMENT_RUN',
+  'BANK_ACCOUNT_CHANGE',
+] as const
+export type ApprovalSubject = (typeof APPROVAL_SUBJECTS)[number]
 export type OrgAuthorityChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REPARENT' | 'DELEGATION_ON_BEHALF' | 'IDENTITY_RESET'
 
 export type SodAction =

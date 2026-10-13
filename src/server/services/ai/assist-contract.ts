@@ -183,6 +183,30 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
   ])
 }
 
+/** An AI result still open on a document: what it proposed, what waits one by one and what the person confirmed */
+export interface OpenAssist {
+  readonly agentActionId: string
+  readonly purpose: string
+  /** The file it read (the Document Agent), to show it beside its document part */
+  readonly fileId: string | null
+  readonly proposed: Readonly<Record<string, string>>
+  readonly requiredPaths: readonly string[]
+  readonly confirmedPaths: readonly string[]
+}
+
+/**
+ * The AI results of a document that are still DRAFT — read for it or applied to it — so its form shows them again after
+ * a reload and the person can finish confirming (BR-AI-17). The content is the document owner's to see, as the form is.
+ */
+export async function openAssists(tx: TenantTx, subject: AssistSubject): Promise<readonly OpenAssist[]> {
+  const rows = await tx.agentAction.findMany({ where: { subjectType: subject.type, subjectId: subject.id, status: 'DRAFT', level: 'L1' }, select: { id: true, purpose: true, review: true, inputRefs: true }, orderBy: { id: 'asc' } })
+  return rows.map((r) => {
+    const review = reviewOf(r.review)
+    const fileId = (r.inputRefs as { fileId?: unknown } | null)?.fileId
+    return { agentActionId: r.id, purpose: r.purpose, fileId: typeof fileId === 'string' ? fileId : null, proposed: review.proposed, requiredPaths: review.requiredPaths, confirmedPaths: review.confirmedPaths }
+  })
+}
+
 /** A decimal as a form path holds it: no sign, no trailing zeros after the point ("18.0000" → "18", "2.50" → "2.5") */
 export function decimalText(value: { toString(): string } | string): string {
   const s = String(value).trim().replace(/^\+/, '')

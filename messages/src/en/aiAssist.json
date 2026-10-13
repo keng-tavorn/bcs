@@ -1,7 +1,10 @@
 {
   "documentAgent": "Document reader",
+  "readButton": "Read from file",
   "readQuotation": "Read quotation {n} from its file",
   "readDeliveryNote": "Read the delivery note",
+  "deliveryNoteHint": "Take a photo of the delivery note or upload it: the AI fills in what came for each line for you to check",
+  "deliveryNoteRule": "PDF, JPG or PNG up to 20 MB",
   "reading": "Reading the document…",
   "badge": "Filled by AI, please check",
   "waiting": "{count, plural, one {# field waits} other {# fields wait}} for you to confirm",

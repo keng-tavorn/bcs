@@ -56,7 +56,14 @@ export interface AiReview {
   readonly agentActionId: string
   readonly proposed: Readonly<Record<string, string>>
   readonly requiredPaths: readonly string[]
+  /** The paths the person confirmed; a value they changed counts as confirmed on the server (BR-AI-17) */
   readonly confirmed: readonly string[]
-  /** Not yet sent with a save: the next save carries it as aiAssist */
-  readonly unsent: boolean
+}
+
+/** The same, as a saved draft brings it back (src/server/services/ai/assist-contract.ts openAssists) */
+export interface AiReviewDraft {
+  readonly agentActionId: string
+  readonly proposed: Readonly<Record<string, string>>
+  readonly requiredPaths: readonly string[]
+  readonly confirmedPaths: readonly string[]
 }

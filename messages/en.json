@@ -1280,6 +1280,8 @@
     "confirmField": "{field} confirmed",
     "confirmRest": "Confirm all the rest ({count})",
     "confirmed": "Confirmed",
+    "deliveryNoteHint": "Take a photo of the delivery note or upload it: the AI fills in what came for each line for you to check",
+    "deliveryNoteRule": "PDF, JPG or PNG up to 20 MB",
     "deliveryNoteTitle": "Quantities the AI read from the delivery note",
     "discard": "Do not use what the AI read",
     "documentAgent": "Document reader",
@@ -1339,6 +1341,7 @@
       "vat": "VAT",
       "yes": "Yes"
     },
+    "readButton": "Read from file",
     "readDeliveryNote": "Read the delivery note",
     "readQuotation": "Read quotation {n} from its file",
     "reading": "Reading the document…",
@@ -4911,6 +4914,7 @@
       "viewOnly": "You can see this purchase order; recording what came is the work of the receivers of the requesting department."
     },
     "errors": {
+      "AI_REVIEW_PENDING": "Quantities the AI read from the delivery note still wait for you: confirm every line in the AI box, or change the quantity yourself, then record again",
       "BUDGET_INSUFFICIENT": "Not enough budget for what came above the order ({available} baht left, {shortfall} baht short). Receive less, or tell the budget administrator.",
       "BUDGET_INSUFFICIENT_PLAIN": "There is not enough budget for what came above the order. Receive less, or tell the budget administrator.",
       "BUDGET_LINE_CLOSED": "The budget line of this item is closed. Tell the budget administrator.",

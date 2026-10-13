@@ -7,6 +7,7 @@ import { aiAgentRunRun } from '@/server/jobs/ai-agent-run'
 import { readDocument, runDocumentRead, runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
 import { postGoodsReceipt } from '@/server/services/receiving'
 import { createDraft, editRequest, submitRequest } from '@/server/services/requests'
+import { getRequestForEdit } from '@/server/services/requests/form-view'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { etaxXml, pdfWithEmbedded } from '../support/etax-files'
 import { p2p } from '../support/p2p'
@@ -133,6 +134,10 @@ describe('[FR-AI-303/AC1] [FR-AI-303/AC2] [FR-AI-303/AC3] a quotation read for a
     expect(await prisma.requestQuotation.findFirstOrThrow({ where: { requestId: draft.data.requestId } })).toMatchObject({ supplierId: supplier.id, fileId, amountSatang: 150000n, includesVat: false })
     const refused = await submitRequest(org.ctxOf('req_con', NOW), { requestId: draft.data.requestId }, key())
     expect(refused).toMatchObject({ ok: false, error: { code: 'AI_REVIEW_PENDING', details: { count: 2 } } })
+    // The draft opened again brings the AI reading back with its quotation, so the requester can finish confirming
+    const reopened = await getRequestForEdit(org.ctxOf('req_con', NOW), draft.data.requestId, 'th')
+    if (!reopened.ok) throw new Error(JSON.stringify(reopened.error))
+    expect(reopened.data.draft!.quotations[0]).toMatchObject({ supplierId: supplier.id, ai: { agentActionId, fileId, confirmedPaths: [`${at}.includesVat`, `${at}.supplierName`] } })
     const confirmed = await editRequest(org.ctxOf('req_con', NOW), { requestId: draft.data.requestId, aiAssist: { agentActionId, confirmedPaths: [`${at}.amount`, `${at}.supplierId`] } }, key())
     expect(confirmed.ok, JSON.stringify(confirmed)).toBe(true)
     expect(await action(agentActionId)).toMatchObject({ status: 'ACCEPTED', decidedById: org.member.req_con })

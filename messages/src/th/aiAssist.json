@@ -1,7 +1,10 @@
 {
   "documentAgent": "อ่านเอกสาร",
+  "readButton": "อ่านจากไฟล์",
   "readQuotation": "อ่านใบเสนอราคาที่ {n} จากไฟล์",
   "readDeliveryNote": "อ่านใบส่งของ",
+  "deliveryNoteHint": "ถ่ายรูปหรืออัปโหลดใบส่งของ AI จะเติมจำนวนรับของแต่ละรายการให้ตรวจ",
+  "deliveryNoteRule": "PDF JPG PNG ไม่เกิน 20 MB",
   "reading": "กำลังอ่านเอกสาร…",
   "badge": "เติมโดย AI โปรดตรวจ",
   "waiting": "รอคุณยืนยัน {count} ช่อง",

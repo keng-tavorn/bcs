@@ -976,3 +976,13 @@ features:
       - tests/generated/permissions.test.ts
     verifiedBy: null
     notes: "AC1–AC3 ผู้ติดตาม เสร็จใน S16-06 · AC4–AC5 การกล่าวถึงด้วย @ และสวิตช์แสดงกิจกรรม อยู่ใน S16-14 [go-live]"
+  FR-AI-303:
+    status: in_progress
+    step: S13
+    evidence:
+      - tests/integration/ai-document.test.ts
+      - tests/golden/ai-checks.test.ts
+      - tests/unit/request-form-ai.test.ts
+      - tests/e2e/ai-document.spec.ts
+    verifiedBy: null
+    notes: "S13-07: AC1 to AC5 and AC8 for quotations and delivery notes in fixture mode · AC6 (invoices) waits for S8 in main (S13-12) · AC7 needs a key in .env (S13-13 S13-14) · AC9 comes with Intake (S13-08)"

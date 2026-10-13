@@ -199,7 +199,9 @@ export function stageText(t: ViewT, locale: Locale, stage: StageDto, mine: boole
     case 'APPROVER': {
       // An escalated step waits for its co-assignee too, whoever decides first: "A (…) หรือ B (…)" (BR-SLA-04, NEW-46)
       const approvers = stage.approvers?.length ? stage.approvers : [stage]
-      return t('stage.APPROVER', { name: new Intl.ListFormat(locale, { type: 'disjunction' }).format(approvers.map((a) => approverText(t, locale, a))) })
+      // The reviewers' step or a committee waits for each of them (S6 · BR-WF-01): "A, B และ C"
+      const names = new Intl.ListFormat(locale, { type: stage.together ? 'conjunction' : 'disjunction' }).format(approvers.map((a) => approverText(t, locale, a)))
+      return t(stage.together === 'REVIEW' ? 'stage.REVIEWERS' : 'stage.APPROVER', { name: names })
     }
     case 'ANSWER':
       return t(mine ? 'stage.ANSWER_MINE' : 'stage.ANSWER')
@@ -245,7 +247,8 @@ export function routeSentence(t: ViewT, tl: TimelineT, locale: Locale, route: Ro
   }
   if (route.escalatedFromRuleCode) parts.push(`(${t('route.explain.escalated', { from: route.escalatedFromRuleCode, rule: route.doa.ruleCode })})`)
   const sentence = parts.join(' ')
-  const approvers = route.steps.map((s) => ruleApproverText(t, locale, s)).filter(Boolean)
+  // The DOA's approvers: a reviewer of the REVIEW step (S6) approves nothing
+  const approvers = route.steps.filter((s) => s.stepType !== 'REVIEW').map((s) => ruleApproverText(t, locale, s)).filter(Boolean)
   // "…, goes to …": a comma ends the amount and its band before the approvers
   return approvers.length ? `${sentence}, ${t('route.explain.to', { approvers: approvers.join(', ') })}` : sentence
 }

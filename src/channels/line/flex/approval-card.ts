@@ -12,6 +12,8 @@ import type { CardLocale, FlexAction, FlexButton, FlexComponent, FlexMessage } f
 //  - "อนุมัติ (ยืนยัน PIN)": the LIFF page /liff/tasks/<taskId>?action=approve when a step-up is needed; without a token
 //    the same page opens with the plain "อนุมัติ" label;
 //  - "ตีกลับ / ไม่อนุมัติ" and "ดูรายละเอียด": always, on the LIFF page (a reason is typed there).
+// A reviewer's task (S6 · BR-WF-09) says so in its header with the workflow rules it answers for, and its buttons are
+// "ผ่าน" (the same postback; a reviewer needs no PIN) and "ตีกลับ" on the LIFF page: a reviewer never rejects.
 // Pure: the caller passes what to show; the card never reads the database or the clock.
 
 const TOKEN_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -41,6 +43,8 @@ export interface ApprovalCardData {
   readonly stepUp: boolean
   /** The reader's live LINE ActionToken of this task; null when none (the approve button then opens LIFF) */
   readonly tokenId: string | null
+  /** A reviewer's task: the workflow rules it answers for (S6); null for every other task */
+  readonly review?: { readonly ruleCodes: readonly string[] } | null
   readonly links: {
     /** /liff/tasks/<taskId>?action=approve */
     readonly approve: string
@@ -64,10 +68,10 @@ const label = (text: string) => clip(text, ACTION_LABEL_MAX_LENGTH)
 function approveAction(data: ApprovalCardData, documentLabel: string): FlexAction {
   const t = data.locale
   if (approvesInChat(data)) {
-    const verb = cardLabel('approve', t)
+    const verb = cardLabel(data.review ? 'pass' : 'approve', t)
     return { type: 'postback', label: label(verb), data: approvePostbackData(data.tokenId!), displayText: `${verb} ${documentLabel}` }
   }
-  return { type: 'uri', label: label(cardLabel(data.stepUp ? 'approveWithPin' : 'approve', t)), uri: data.links.approve }
+  return { type: 'uri', label: label(cardLabel(data.review ? 'pass' : data.stepUp ? 'approveWithPin' : 'approve', t)), uri: data.links.approve }
 }
 
 export function approvalCard(data: ApprovalCardData): FlexMessage {
@@ -95,12 +99,13 @@ export function approvalCard(data: ApprovalCardData): FlexMessage {
     const due = dateTimeOf(data.dueAt, t)
     rows.push(data.overdue ? row(cardLabel('due', t), `${due} · ${cardLabel('overdue', t)}`, DANGER) : row(cardLabel('due', t), due))
   }
+  if (data.review?.ruleCodes.length) rows.push(row(cardLabel('reviewRules', t), clip(data.review.ruleCodes.join(', '), CARD_NAME_MAX_LENGTH)))
   rows.push(row(cardLabel('doa', t), doaReference(data.doa, t)))
   if (data.stepUp) rows.push({ type: 'text', text: cardLabel('pinNeeded', t), size: 'md', color: WARN, wrap: true, margin: 'md' })
 
   const buttons: FlexButton[] = [
     { type: 'button', style: 'primary', color: PRIMARY, height: 'md', action: approveAction(data, documentLabel) },
-    { type: 'button', style: 'secondary', height: 'md', action: { type: 'uri', label: label(cardLabel('decline', t)), uri: data.links.decline } },
+    { type: 'button', style: 'secondary', height: 'md', action: { type: 'uri', label: label(cardLabel(data.review ? 'returnOnly' : 'decline', t)), uri: data.links.decline } },
     { type: 'button', style: 'link', height: 'md', color: PRIMARY, action: { type: 'uri', label: label(cardLabel('details', t)), uri: data.links.details } },
   ]
 
@@ -110,7 +115,7 @@ export function approvalCard(data: ApprovalCardData): FlexMessage {
     contents: {
       type: 'bubble',
       size: 'mega',
-      header: vertical([heading(cardLabel('header', t), INK), ...badges], { paddingAll: '16px', backgroundColor: SURFACE, spacing: 'sm' }),
+      header: vertical([heading(cardLabel(data.review ? 'reviewHeader' : 'header', t), INK), ...badges], { paddingAll: '16px', backgroundColor: SURFACE, spacing: 'sm' }),
       body: vertical(rows, { spacing: 'md', paddingAll: '16px' }),
       footer: vertical(buttons, { spacing: 'md', paddingAll: '16px' }),
     },

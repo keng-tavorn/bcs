@@ -4,7 +4,7 @@ import { grantStepUp, stepUpRefusalError, type StepUpChannel, type StepUpOptions
 import { memberPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { getRequestAccess } from '@/server/queries/requests'
-import { getTaskAccess, POLICY_SUBJECTS, taskDecision, type TaskAccessDto } from '@/server/queries/tasks'
+import { getTaskAccess, PIN_DECISION_SUBJECTS, taskDecision, type TaskAccessDto } from '@/server/queries/tasks'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { cancelRequest, resubmitRequest } from '@/server/services/requests'
 import { followRequest, manageFollowers } from '@/server/services/requests/followers'
@@ -168,7 +168,7 @@ export async function decidePolicy(ctx: Ctx, principal: Principal, input: unknow
   if (principal.kind !== 'member' || ctx.actor.type !== 'USER' || ctx.actor.memberId !== principal.memberId) return FORBIDDEN
   const access = await getTaskAccess(ctx, taskId)
   if (!access) return NOT_FOUND
-  if (!POLICY_SUBJECTS.includes(access.subjectType) || taskRight(principal, access) !== 'DECIDE') return FORBIDDEN
+  if (!PIN_DECISION_SUBJECTS.includes(access.subjectType) || taskRight(principal, access) !== 'DECIDE') return FORBIDDEN
   const refused = await stepUpFor(ctx, access, pin, stepUp)
   if (refused) return refused
   // The tick goes with the version its table compared with, so the service approves only the table that was ticked

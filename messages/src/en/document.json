@@ -60,7 +60,10 @@
       "REJECTED": "Not approved",
       "CANCELLED": "Cancelled"
     },
-    "urgency": { "NORMAL": "Normal", "URGENT": "Urgent" },
+    "urgency": {
+      "NORMAL": "Normal",
+      "URGENT": "Urgent"
+    },
     "step": {
       "OPEN": "Awaiting decision · {hours} business hours left",
       "OPEN_PLAIN": "Awaiting decision",
@@ -104,7 +107,9 @@
       "DECIDED_RETURN": "{name} returned it for changes",
       "DECIDED_REJECT": "{name} did not approve",
       "CLOSED": "{name}'s task was closed: the step was decided or the route ended"
-    }
+    },
+    "reviewTitle": "Step {no} · Reviewers",
+    "committeeTitle": "Step {no} · Committee"
   },
   "pos": {
     "none": "No purchase order for this request yet. Procurement issues it once the request is approved",
@@ -113,7 +118,10 @@
     "receipts": "Receiving",
     "noReceipts": "Nothing received yet",
     "receipt": "{number} · received {time}",
-    "receiptStatus": { "POSTED": "Posted", "REVERSED": "Reversed" },
+    "receiptStatus": {
+      "POSTED": "Posted",
+      "REVERSED": "Reversed"
+    },
     "open": "Open purchase order {number}",
     "receiveHere": "Record receiving"
   },
@@ -128,8 +136,18 @@
     "table": "History of the document",
     "filter": "Filter by kind",
     "all": "All",
-    "kinds": { "DECISION": "Decisions", "DOCUMENT": "Document", "QUESTION": "Questions and answers", "GOODS": "Sending and receiving" },
-    "columns": { "when": "Date", "actor": "By", "event": "What happened", "channel": "Channel" },
+    "kinds": {
+      "DECISION": "Decisions",
+      "DOCUMENT": "Document",
+      "QUESTION": "Questions and answers",
+      "GOODS": "Sending and receiving"
+    },
+    "columns": {
+      "when": "Date",
+      "actor": "By",
+      "event": "What happened",
+      "channel": "Channel"
+    },
     "empty": "Nothing of this kind yet",
     "noChannel": "-"
   },
@@ -137,7 +155,11 @@
     "list": "Comments and reasons",
     "empty": "No comments yet. Reasons for decisions, and questions and answers between approvers and the requester, appear here",
     "by": "{name} · {time}",
-    "kind": { "REASON": "Reason", "QUESTION": "Question", "ANSWER": "Answer" }
+    "kind": {
+      "REASON": "Reason",
+      "QUESTION": "Question",
+      "ANSWER": "Answer"
+    }
   },
   "summary": {
     "list": "Document summary",

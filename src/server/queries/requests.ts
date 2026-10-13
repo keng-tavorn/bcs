@@ -4,6 +4,7 @@ import { FieldDefSchema, type FieldDef } from '@/core/forms/fields'
 import { amountToSatang } from '@/core/money/dto'
 import { businessMinutesBetween, type BusinessCalendar, type Weekday } from '@/core/sla'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
+import { stepOutcome, type SlotDecision } from '@/core/workflow'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
 import { escapeLike } from '@/server/db/like'
@@ -231,6 +232,11 @@ export type StageDto =
        * step. Always set by the queries; a stage made elsewhere without it waits for the approver above alone
        */
       readonly approvers?: readonly WaitingApproverDto[]
+      /**
+       * The step waits for every one of them, each for their own slot — the reviewers' step or a committee (S6 ·
+       * BR-WF-01) — not for whoever decides first. Absent: the first to decide decides
+       */
+      readonly together?: 'REVIEW' | 'COMMITTEE'
     }
   /**
    * The approver asked a question; the task's SLA has stopped until the requester answers (BR-SLA-03). `approvers`: the
@@ -283,7 +289,7 @@ type TaskRow = {
   readonly dueAt: Date | null
   readonly decidedAt: Date | null
   readonly decision: string | null
-  readonly step: { readonly routeId: string; readonly stepNo: number }
+  readonly step: { readonly routeId: string; readonly stepNo: number; readonly kind: string; readonly mode: string }
 }
 
 interface StageContext {
@@ -359,6 +365,7 @@ function stageOf(r: StageInput, s: StageContext): StageDto {
         stepNo: first.step.stepNo,
         stepCount: s.stepCountByRoute.get(first.step.routeId) ?? first.step.stepNo,
         approvers,
+        ...(first.step.kind === 'REVIEW' ? { together: 'REVIEW' as const } : first.step.mode === 'PARALLEL' ? { together: 'COMMITTEE' as const } : {}),
       }
     }
     case 'RETURNED': {
@@ -441,7 +448,7 @@ async function stageContext(
     routeIds.length
       ? db.approvalTask.findMany({
           where: { step: { routeId: { in: routeIds } } },
-          select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, assignedAt: true, dueAt: true, decidedAt: true, decision: true, step: { select: { routeId: true, stepNo: true } } },
+          select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, assignedAt: true, dueAt: true, decidedAt: true, decision: true, step: { select: { routeId: true, stepNo: true, kind: true, mode: true } } },
           orderBy: { assignedAt: 'asc' },
         })
       : Promise.resolve([]),
@@ -717,6 +724,36 @@ export interface RouteStepDto {
    * elsewhere without it (a preview of the engine's route) has its rule's approver in `approver`
    */
   readonly ruleApprover?: { readonly approver: MemberRefDto | null; readonly onBehalfOf: MemberRefDto | null; readonly role: ApproverRoleDto } | null
+  /**
+   * S6 (getRouteView): APPROVAL — a DOA step of one approver · REVIEW — the reviewers' step (BR-WF-06) · COMMITTEE — a
+   * DOA step of several slots (BR-WF-01). Always set by routeOf, with the step's mode, its slots and, for REVIEW, its
+   * groups; a step made elsewhere (a preview) has none of them
+   */
+  readonly stepType?: 'APPROVAL' | 'REVIEW' | 'COMMITTEE'
+  /** The step number of resolveRoute; null for the REVIEW step */
+  readonly doaStepNo?: number | null
+  readonly quorum?: 'ALL' | 'ANY' | 'COUNT'
+  readonly quorumCount?: number | null
+  /** REVIEW: the groups that decide the step (one per ALL or COUNT rule, one for the ANY rules) */
+  readonly groups?: ReadonlyArray<{ readonly ruleCodes: readonly string[]; readonly quorum: 'ALL' | 'ANY' | 'COUNT'; readonly quorumCount: number | null; readonly slotNos: readonly number[] }>
+  readonly slots?: readonly RouteSlotDto[]
+}
+
+/** A slot of a step (BR-WF-01): who holds it, and what its first decision was */
+export interface RouteSlotDto {
+  readonly slotNo: number
+  /** The rules the slot answers for: a reviewer's workflow rules, or the route's DOA rule */
+  readonly ruleCodes: readonly string[]
+  readonly status: 'OPEN' | 'QUESTION' | 'APPROVE' | 'RETURN' | 'REJECT' | 'CLOSED'
+  /** Every task of the slot in the order they were made: a reviewer of the ANY rules each, a co-assignee, a moved task */
+  readonly holders: ReadonlyArray<{ readonly taskId: string; readonly approver: MemberRefDto | null; readonly onBehalfOf: MemberRefDto | null; readonly role: ApproverRoleDto; readonly status: string }>
+  /** Who decided the slot, and whom a delegate acted for */
+  readonly decidedBy: MemberRefDto | null
+  readonly decidedOnBehalfOf: MemberRefDto | null
+  readonly decision: 'APPROVE' | 'RETURN' | 'REJECT' | null
+  readonly decidedAt: Date | null
+  /** The task that decided the slot (its reason is read with the reader's scope, BR-WF-09) */
+  readonly decidedTaskId: string | null
 }
 
 /** The route the DOA engine chose, and why (FR-DOA-003 AC2, BR-DOA-10) */
@@ -1121,7 +1158,15 @@ export async function routeOf(
       doaVersion: { select: { id: true, code: true, versionNo: true } },
       // A step's tasks in the order they were made: by assignedAt, and by id (uuid v7, made in time order) when two share
       // the business time a fixed clock gave them
-      steps: { orderBy: { stepNo: 'asc' }, include: { tasks: { orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }], select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, resolvedFrom: true, decision: true, decidedAt: true } } } },
+      steps: {
+        orderBy: { stepNo: 'asc' },
+        include: {
+          tasks: {
+            orderBy: [{ assignedAt: 'asc' }, { id: 'asc' }],
+            select: { id: true, status: true, slotNo: true, workflowRuleCodes: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, resolvedFrom: true, decision: true, decidedAt: true },
+          },
+        },
+      },
     },
   })
   if (!route) return null
@@ -1131,7 +1176,7 @@ export async function routeOf(
   const specs = RuleSteps.safeParse(rule?.steps)
   const positions = specs.success ? await db.position.findMany({ where: { code: { in: specs.data.flatMap((s) => ('position' in s.approver ? [s.approver.position] : [])) } }, select: { code: true, nameTh: true, nameEn: true } }) : []
   const named = specs.success ? await membersById(db, specs.data.flatMap((s) => ('memberId' in s.approver ? [s.approver.memberId] : []))) : new Map<string, MemberRefDto>()
-  const missing = route.steps.flatMap((s) => s.tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId])).filter((id): id is string => Boolean(id) && !members.has(id!))
+  const missing = route.steps.flatMap((s) => s.tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId, t.decidedByMemberId])).filter((id): id is string => Boolean(id) && !members.has(id!))
   const taskIds = route.steps.flatMap((s) => s.tasks.map((t) => t.id))
   const [more, escalatedEvents] = await Promise.all([
     membersById(db, missing),
@@ -1159,9 +1204,18 @@ export async function routeOf(
     band: amountRule ? bandOfRule(amountRule.when) : null,
     createdAt: route.createdAt,
     steps: route.steps.map((s) => {
+      const slotted = s.kind === 'REVIEW' || s.mode === 'PARALLEL'
+      const slots = slotsOfStep(s, route.ruleCode, who, roleOf)
+      const groups = s.kind === 'REVIEW' ? ReviewGroups.safeParse(s.reviewGroups) : null
+      // A step of several slots comes to what its slots come to (BR-WF-01), not to its first decision
+      const outcome =
+        slotted && s.tasks.length
+          ? stepOutcome({ kind: s.kind, quorum: s.quorum, quorumCount: s.quorumCount, ...(groups?.success ? { groups: groups.data.map((g) => ({ quorum: g.quorum, quorumCount: g.quorumCount ?? null, slots: g.slotNos })) } : {}), slots: slotDecisions(slots) })
+          : null
+      const slottedDecision = outcome?.ok ? DECISION_OF[outcome.data.outcome] : null
       // The task that decided the step names it — not the co-assignee's task its decision cancelled (BR-SLA-04,
       // NEW-46); while nobody has decided, the open ones; a step closed with nothing decided shows its latest task
-      const decided = s.tasks.find((t) => t.decision !== null)
+      const decided = slotted ? (slottedDecision ? s.tasks.find((t) => t.decision === slottedDecision) : undefined) : s.tasks.find((t) => t.decision !== null)
       const open = decided ? [] : s.tasks.filter((t) => isOpenTask(t.status))
       const task = decided ?? open[0] ?? s.tasks.at(-1) ?? null
       // The rule's own approver of the step: its first task, assigned when the step started (a co-assignee or a moved
@@ -1181,9 +1235,68 @@ export async function routeOf(
         open: open.map((t) => ({ taskId: t.id, approver: who(t.assigneeMemberId), onBehalfOf: who(t.principalMemberId), role: roleOf(t.resolvedFrom), status: t.status as StepTaskDto['status'] })),
         escalation: escalations.get(s.id) ?? null,
         ruleApprover: first ? { approver: who(first.assigneeMemberId), onBehalfOf: who(first.principalMemberId), role: roleOf(first.resolvedFrom) } : null,
-      }
+        stepType: s.kind === 'REVIEW' ? 'REVIEW' : s.mode === 'PARALLEL' ? 'COMMITTEE' : 'APPROVAL',
+        doaStepNo: s.doaStepNo,
+        quorum: s.quorum,
+        quorumCount: s.quorumCount,
+        ...(groups?.success ? { groups: groups.data.map((g) => ({ ruleCodes: g.ruleCodes, quorum: g.quorum, quorumCount: g.quorumCount ?? null, slotNos: g.slotNos })) } : {}),
+        slots,
+      } satisfies RouteStepDto
     }),
   }
+}
+
+const ReviewGroups = z.array(
+  z.object({ ruleCodes: z.array(z.string()).default([]), quorum: z.enum(['ALL', 'ANY', 'COUNT']), quorumCount: z.number().int().positive().nullable().optional(), slotNos: z.array(z.number().int().positive()).min(1) }),
+)
+const DECISION_OF = { OPEN: null, APPROVED: 'APPROVE', RETURNED: 'RETURN', REJECTED: 'REJECT' } as const
+
+type SlotTask = {
+  id: string
+  status: string
+  slotNo: number
+  workflowRuleCodes: string[]
+  assigneeMemberId: string
+  principalMemberId: string | null
+  decidedByMemberId: string | null
+  resolvedFrom: string | null
+  decision: string | null
+  decidedAt: Date | null
+}
+
+/** The slots of a stored step from its tasks: the first decision of a slot is its result (§6.4, BR-WF-01) */
+function slotsOfStep(
+  step: { readonly kind: string; readonly tasks: readonly SlotTask[] },
+  routeRuleCode: string,
+  who: (id: string | null) => MemberRefDto | null,
+  roleOf: (resolvedFrom: string | null | undefined) => ApproverRoleDto,
+): RouteSlotDto[] {
+  const numbers = [...new Set(step.tasks.map((t) => t.slotNo))].sort((a, b) => a - b)
+  return numbers.map((slotNo) => {
+    const tasks = step.tasks.filter((t) => t.slotNo === slotNo)
+    const decided = tasks.filter((t) => t.decision !== null && t.decidedAt !== null).sort((a, b) => a.decidedAt!.getTime() - b.decidedAt!.getTime())[0]
+    const decision = (decided?.decision ?? null) as RouteSlotDto['decision']
+    const status: RouteSlotDto['status'] = decision ?? (tasks.some((t) => t.status === 'OPEN') ? 'OPEN' : tasks.some((t) => t.status === 'INFO_REQUESTED') ? 'QUESTION' : 'CLOSED')
+    const decider = decided?.decidedByMemberId ?? null
+    const onBehalf = decided && decider && decided.principalMemberId && decided.principalMemberId !== decider ? decided.principalMemberId : null
+    return {
+      slotNo,
+      ruleCodes: step.kind === 'REVIEW' ? [...new Set(tasks.flatMap((t) => t.workflowRuleCodes))] : [routeRuleCode],
+      status,
+      holders: tasks.map((t) => ({ taskId: t.id, approver: who(t.assigneeMemberId), onBehalfOf: who(t.principalMemberId), role: roleOf(t.resolvedFrom), status: t.status })),
+      decidedBy: who(decider),
+      decidedOnBehalfOf: who(onBehalf),
+      decision,
+      decidedAt: decided?.decidedAt ?? null,
+      decidedTaskId: decided?.id ?? null,
+    }
+  })
+}
+
+/** What each slot came to, slot 1 first, for stepOutcome (a slot number with no task counts as not decided) */
+function slotDecisions(slots: readonly RouteSlotDto[]): (SlotDecision | null)[] {
+  const last = Math.max(0, ...slots.map((s) => s.slotNo))
+  return Array.from({ length: last }, (_, i) => slots.find((s) => s.slotNo === i + 1)?.decision ?? null)
 }
 
 /** The live part of the timeline: where the request waits now and what comes after (FR-INT-008 AC1) */

@@ -37,6 +37,7 @@ export type MenuKey =
   | 'requestTypes'
   | 'line'
   | 'doa'
+  | 'workflows'
   | 'orgAuthority'
   | 'policyHistory'
   | 'modules'
@@ -90,6 +91,7 @@ export const MENU: readonly MenuItem[] = [
   // The organization's LINE channel (FR-ADM-006 AC2 AC3; §9.1 lists the channels after the request types)
   { key: 'line', href: '/admin/line', group: 'admin', capability: 'admin.channels', module: 'CORE', ready: true },
   { key: 'doa', href: '/admin/doa', group: 'admin', capability: 'admin.doa.draft', module: 'CORE', ready: true },
+  { key: 'workflows', href: '/admin/workflows', group: 'admin', capability: 'admin.workflow.draft', module: 'CORE', ready: true },
   { key: 'orgAuthority', href: '/admin/org-authority', group: 'admin', capability: 'admin.orgAuthority.propose', module: 'CORE', ready: true },
   { key: 'policyHistory', href: '/admin/policy-history', group: 'admin', capability: 'admin.policyHistory.view', module: 'CORE', ready: false },
   { key: 'modules', href: '/admin/modules', group: 'admin', capability: 'admin.modules.view', module: 'CORE', ready: true },

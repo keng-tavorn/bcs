@@ -403,7 +403,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `platform.modules.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass (BR-AUTH-08) |
 | `admin.orgAuthority.propose` | ORG_ADMIN (ORG) — แต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น รีเซ็ตตัวตนของผู้มีอำนาจ · อนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` (BR-DOA-17) |
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
-| `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN (ORG) — ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) |
+| `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN (ORG) — ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) · ผู้ถืองานอนุมัติของฉบับนั้นอ่านหน้าฉบับและทดลองส่งได้โดยไม่มีสิทธิ์นี้ (FR-WF-103 AC3) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
 

@@ -143,8 +143,10 @@ export async function approvalCardMessage(
       dueAt: true,
       overdueAt: true,
       escalatedAt: true,
+      workflowRuleCodes: true,
       step: {
         select: {
+          kind: true,
           route: {
             select: {
               subjectType: true,
@@ -181,7 +183,9 @@ export async function approvalCardMessage(
     doa: { code: route.doaVersion.code, versionNo: route.doaVersion.versionNo, ruleCode: route.ruleCode },
     acting: row.principalMemberId !== null,
     escalated: row.escalatedAt !== null,
-    stepUp: stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
+    // A reviewer needs no PIN, whatever the amount (BR-WF-09)
+    stepUp: row.step.kind !== 'REVIEW' && stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
+    review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
     tokenId: token?.id ?? null,
     links: { approve: taskLink(cards, task.taskId, 'approve'), decline: taskLink(cards, task.taskId, 'reject'), details: taskLink(cards, task.taskId) },
   })
@@ -192,7 +196,7 @@ export async function decisionConfirmationMessage(organizationId: string, taskId
   const db = forTenant(organizationId)
   const task = await db.approvalTask.findFirst({
     where: { id: taskId },
-    select: { decidedAt: true, step: { select: { route: { select: { status: true, subjectType: true, subjectId: true, ruleCode: true, doaVersion: { select: { code: true, versionNo: true } } } } } } },
+    select: { decidedAt: true, step: { select: { kind: true, route: { select: { status: true, subjectType: true, subjectId: true, ruleCode: true, doaVersion: { select: { code: true, versionNo: true } } } } } } },
   })
   if (!task?.decidedAt) return null
   const route = task.step.route
@@ -205,6 +209,7 @@ export async function decisionConfirmationMessage(organizationId: string, taskId
     doa: { code: route.doaVersion.code, versionNo: route.doaVersion.versionNo, ruleCode: route.ruleCode },
     decidedAt: task.decidedAt,
     stage: route.status === 'ACTIVE' ? 'NEXT_STEP' : 'DONE',
+    review: task.step.kind === 'REVIEW',
     detailsUrl: route.subjectType === 'REQUEST' ? documentLink(cards, `/requests/${route.subjectId}`) : taskLink(cards, taskId),
   })
 }

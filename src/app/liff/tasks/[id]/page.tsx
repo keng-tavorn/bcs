@@ -23,6 +23,7 @@ import { Timeline } from '@/ui/timeline/timeline'
 import { taskRight } from '../../../(workspace)/_tracking/access'
 import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
+import { WorkflowSubject } from '../../../(workspace)/_tracking/workflow-subject'
 import { doaRefText, dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../(workspace)/_tracking/request-sections'
 import { taskTitle } from '../../../(workspace)/_tracking/rows'
@@ -302,6 +303,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <PoBody po={{ ...po, route: task.route ?? po.route }} locale={locale} doaLinks={false} reader={reader} openFile={openFile} requestHref={NO_LINK} />
       ) : variance ? (
         <VarianceBody variance={variance} locale={locale} doaLinks={false} poHref={null} openFile={openFile} />
+      ) : task.workflow ? (
+        <WorkflowSubject workflow={task.workflow} locale={locale} pageLink={false} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}
@@ -311,6 +314,15 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
       </LiffSection>
     </>
   )
+
+  // A workflow version is decided on the web only (BR-WF-12): LIFF shows what it is, with no decision
+  if (task.workflow) {
+    return (
+      <LiffFrame title={heading} back={back}>
+        {details}
+      </LiffFrame>
+    )
+  }
 
   const { pinLength } = liffFacts()
   const common = { taskId: task.id, open, pinLength, initial: open ? initial : null, pinSettingsHref: WEB_PIN_SETTINGS_PATH, helpHref: LIFF_HELP_PATH }
@@ -323,7 +335,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
       ) : (
         <LiffTaskDecisionLoader
           {...common}
-          kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
+          kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : task.review ? 'REVIEW' : 'REQUEST'}
           label={label}
           amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : '-'}
           stepUp={task.stepUp}

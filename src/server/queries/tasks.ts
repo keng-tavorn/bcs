@@ -41,6 +41,23 @@ export type OrgChangeKind = 'POSITION_ASSIGN' | 'POSITION_END' | 'DEPARTMENT_REP
 
 /** BR-DOA-15: DOA versions and authority changes are approved or rejected with a step-up, on the web or LIFF only */
 export const POLICY_SUBJECTS: readonly TaskSubjectType[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE']
+/**
+ * The subjects decided on the policy decision panel: approved or rejected, every time with the PIN — the policies and a
+ * workflow version to publish (S6 · BR-WF-12, decided on the web only)
+ */
+export const PIN_DECISION_SUBJECTS: readonly TaskSubjectType[] = [...POLICY_SUBJECTS, 'WORKFLOW_VERSION']
+
+/** A workflow version sent to be published, as its approver reads it on the task (FR-WF-103 AC3) */
+export interface WorkflowTaskDto {
+  readonly versionId: string
+  readonly code: string
+  readonly versionNo: number
+  readonly status: string
+  readonly effectiveFrom: Date
+  readonly changeReason: string | null
+  readonly submittedBy: MemberRefDto | null
+  readonly rules: number
+}
 const OPEN = ['OPEN', 'INFO_REQUESTED'] as const
 
 /** What a task's route says about the step-up its decision needs: the amount the DOA counted and the version's threshold */
@@ -65,6 +82,8 @@ export type InboxSubjectDto =
       readonly netSatang: bigint
     }
   | { readonly kind: 'DOA_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
+  /** A workflow version sent to be published (S6 · FR-WF-103 AC3) */
+  | { readonly kind: 'WORKFLOW_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
   | { readonly kind: 'ORG_AUTHORITY_CHANGE'; readonly changeKind: OrgChangeKind; readonly effectiveFrom: Date }
   /** A purchase order sent for approval (FR-P2P-004): its number, supplier, who sent it and its total with VAT */
   | {
@@ -102,6 +121,8 @@ export interface InboxTaskDto {
   readonly holding: { readonly kind: 'FOR'; readonly member: MemberRefDto } | { readonly kind: 'BY'; readonly member: MemberRefDto } | null
   /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
+  /** A reviewer's task of a REVIEW step (S6): pass, return or ask — no rejection, no PIN */
+  readonly review: boolean
   /** The amount the DOA counted for the route (its basis, BR-DOA-02); null for a route without one, such as a policy */
   readonly amountSatang: bigint | null
   /**
@@ -156,12 +177,15 @@ const INBOX_TASK = {
   principalMemberId: true,
   assignedAt: true,
   dueAt: true,
-  step: { select: { route: { select: STEP_UP_ROUTE } } },
+  step: { select: { kind: true, route: { select: STEP_UP_ROUTE } } },
 } as const
+
+/** A reviewer's task (S6 · BR-WF-09) needs no step-up, whatever the amount; every other as its route says */
+const stepUpOf = (step: { readonly kind: string; readonly route: Parameters<typeof needsStepUp>[0] }) => step.kind !== 'REVIEW' && needsStepUp(step.route)
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments, pos, variances] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances, workflows] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -180,7 +204,9 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     ids('VARIANCE').length
       ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
       : Promise.resolve([]),
+    ids('WORKFLOW_VERSION').length ? db.workflowVersion.findMany({ where: { id: { in: ids('WORKFLOW_VERSION') } }, select: { id: true, code: true, versionNo: true, effectiveFrom: true } }) : Promise.resolve([]),
   ])
+  const workflow = new Map(workflows.map((w) => [w.id, w]))
   const request = new Map(requests.map((r) => [r.id, r]))
   const version = new Map(versions.map((v) => [v.id, v]))
   const change = new Map(changes.map((c) => [c.id, c]))
@@ -228,6 +254,10 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     if (type === 'ORG_AUTHORITY_CHANGE' && change.has(id)) {
       const c = change.get(id)!
       return { kind: 'ORG_AUTHORITY_CHANGE', changeKind: c.kind, effectiveFrom: c.effectiveFrom }
+    }
+    if (type === 'WORKFLOW_VERSION' && workflow.has(id)) {
+      const w = workflow.get(id)!
+      return { kind: 'WORKFLOW_VERSION', code: w.code, versionNo: w.versionNo, effectiveFrom: w.effectiveFrom }
     }
     return { kind: 'OTHER' }
   }
@@ -297,7 +327,8 @@ export async function listMyTasks(ctx: Ctx, options: { readonly limit?: number; 
         waitingMinutes: businessMinutesWaited(calendar, t.assignedAt, ctx.now, pauses.get(t.id) ?? []),
         overdue: t.status === 'OPEN' && t.dueAt !== null && t.dueAt.getTime() < ctx.now.getTime(),
         holding,
-        stepUp: needsStepUp(t.step.route),
+        stepUp: stepUpOf(t.step),
+        review: t.step.kind === 'REVIEW',
         amountSatang: t.step.route.amountSatang,
         question: asked ? { askedAt: asked, waitingMinutes: businessMinutesSince(calendar, asked, ctx.now) } : null,
       }
@@ -325,7 +356,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
   const db = forTenant(ctx.organizationId)
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
-    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { route: { select: STEP_UP_ROUTE } } } },
+    select: { id: true, status: true, assigneeMemberId: true, principalMemberId: true, decidedByMemberId: true, step: { select: { kind: true, route: { select: STEP_UP_ROUTE } } } },
   })
   if (!task) return null
   return {
@@ -336,7 +367,7 @@ export async function getTaskAccess(ctx: Ctx, taskId: string): Promise<TaskAcces
     assigneeMemberId: task.assigneeMemberId,
     principalMemberId: task.principalMemberId,
     decidedByMemberId: task.decidedByMemberId,
-    stepUp: needsStepUp(task.step.route),
+    stepUp: stepUpOf(task.step),
   }
 }
 
@@ -469,8 +500,12 @@ export interface TaskViewDto {
   readonly openQuestion: { readonly id: string; readonly question: string; readonly askedAt: Date } | null
   /** Deciding it needs the PIN (FR-AUTH-005 AC2): a policy task, or an amount at or above the version's stepUpThreshold */
   readonly stepUp: boolean
+  /** A reviewer's task of a REVIEW step (S6): pass, return or ask — no rejection, no PIN */
+  readonly review: boolean
   readonly route: RouteDto | null
   readonly policy: PolicySubjectDto | null
+  /** WORKFLOW_VERSION tasks: the version to publish */
+  readonly workflow: WorkflowTaskDto | null
   /** The timeline of a policy document (a request's comes with getRequestView) */
   readonly track: readonly TrackEntryDto[]
 }
@@ -763,7 +798,7 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
   const task = await db.approvalTask.findUnique({
     where: { id: taskId },
     include: {
-      step: { select: { routeId: true, route: { select: STEP_UP_ROUTE } } },
+      step: { select: { routeId: true, kind: true, route: { select: STEP_UP_ROUTE } } },
       reassignedTo: { select: { assigneeMemberId: true }, orderBy: { assignedAt: 'desc' }, take: 1 },
       // Every question of the task: the open one waits for the requester, and all of them paused its SLA (BR-SLA-03)
       infoRequests: { orderBy: { askedAt: 'desc' }, select: { id: true, question: true, askedAt: true, answeredAt: true } },
@@ -792,6 +827,15 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     track = await historyOf(db, events, new Map(tasks.map((t) => [t.id, t.resolvedFrom])), roleOf)
   }
 
+  let workflow: WorkflowTaskDto | null = null
+  if (subjectType === 'WORKFLOW_VERSION') {
+    const v = await db.workflowVersion.findFirst({ where: { id: subjectId }, select: { id: true, code: true, versionNo: true, status: true, effectiveFrom: true, changeReason: true, submittedById: true, _count: { select: { rules: true } } } })
+    if (v) {
+      const by = await membersById(db, [v.submittedById])
+      workflow = { versionId: v.id, code: v.code, versionNo: v.versionNo, status: v.status, effectiveFrom: v.effectiveFrom, changeReason: v.changeReason, submittedBy: v.submittedById ? (by.get(v.submittedById) ?? null) : null, rules: v._count.rules }
+    }
+  }
+
   const open = task.status === 'OPEN' || task.status === 'INFO_REQUESTED'
   const unanswered = task.infoRequests.find((i) => i.answeredAt === null)
   return {
@@ -815,9 +859,11 @@ export async function getTaskView(ctx: Ctx, taskId: string): Promise<TaskViewDto
     cancelledWhy: why && (CANCELLED_WHY as readonly string[]).includes(why) ? (why as (typeof CANCELLED_WHY)[number]) : null,
     stepDecision,
     openQuestion: task.status === 'INFO_REQUESTED' && unanswered ? { id: unanswered.id, question: unanswered.question, askedAt: unanswered.askedAt } : null,
-    stepUp: needsStepUp(task.step.route),
+    stepUp: stepUpOf(task.step),
+    review: task.step.kind === 'REVIEW',
     route,
     policy,
+    workflow,
     track,
   }
 }

@@ -24,7 +24,9 @@
     "poMeta": "Sent for approval by {name}",
     "variance": "{type} · {description}",
     "varianceMeta": "From {number}",
-    "varianceAmountLabel": "Before VAT"
+    "varianceAmountLabel": "Before VAT",
+    "review": "Review before approval",
+    "workflow": "Publish parallel reviewers {code} version {version}"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",
@@ -133,11 +135,20 @@
       "noReturn": "A variance is approved or rejected; it is not returned",
       "reasonError": "Type a reason of at least 3 characters, so whoever recorded the variance knows why",
       "stepUpHint": "The amount of this task needs your 6-digit PIN to approve or reject it"
+    },
+    "review": {
+      "approve": "Pass",
+      "approved": "Passed",
+      "confirm": "Confirm pass",
+      "confirmText": "Pass {label}, {amount} baht with VAT, on to the approver. The decision cannot be changed later",
+      "otherLink": "Return or ask for more information",
+      "otherTitle": "Return",
+      "returnHint": "A reviewer may return the request for changes or ask for more information, but does not approve or reject in place of the DOA approver"
     }
   },
   "policy": {
     "title": "Decide this policy change",
-    "stepUpHint": "Approving or rejecting a DOA or authority change needs your 6-digit PIN, every time",
+    "stepUpHint": "Approving or rejecting a DOA, authority or parallel reviewer change needs your 6-digit PIN, every time",
     "pin": "6-digit PIN",
     "approve": "Approve this change",
     "approved": "Change approved",
@@ -375,5 +386,17 @@
     "optionOverdue": "Overdue",
     "optionInfo": "Waiting for the requester's answer",
     "submit": "Show matching tasks"
+  },
+  "workflow": {
+    "effective": "In effect from",
+    "open": "Open this version: rules, comparison with the version in effect, checks and try-out",
+    "reason": "Reason for the change",
+    "rules": "Reviewer rules",
+    "rulesValue": "{count} rules",
+    "submittedBy": "Sent by",
+    "title": "Parallel reviewer version to publish",
+    "version": "Version",
+    "versionValue": "{code} version {version}",
+    "webOnly": "Approve or reject on the web only, every time with your PIN"
   }
 }

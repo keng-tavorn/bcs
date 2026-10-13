@@ -6,7 +6,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
 import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
-import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
+import { getTaskAccess, getTaskView, listMyTasks, PIN_DECISION_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
@@ -17,6 +17,7 @@ import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../_tracking/policy-subject'
+import { WorkflowSubject } from '../../_tracking/workflow-subject'
 import { dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { taskTitle } from '../../_tracking/rows'
@@ -128,8 +129,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   // The approver decides on the prices too: the prices paid before for the same items (FR-P2P-003 AC1)
   const reader = po ? poReader(principal, poAccess, po, { prices: true }) : null
   const open = right === 'DECIDE' && task.status === 'OPEN'
-  // A DOA version or an authority change (BR-DOA-15): approved or rejected with the PIN, on a page of its own
-  const policyTask = POLICY_SUBJECTS.includes(task.subjectType)
+  // A DOA version or an authority change (BR-DOA-15), or a workflow version to publish (BR-WF-12): approved or rejected
+  // with the PIN, on a page of its own
+  const policyTask = PIN_DECISION_SUBJECTS.includes(task.subjectType)
   // A DOA version with a boundary table: the approver ticks it before approving (FR-DOA-009 AC3)
   const boundary = open ? boundaryTickOf(task) : null
   const inbox = open ? null : await listMyTasks(ctx, { limit: 2 })
@@ -181,7 +183,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         ? `${variance.po.number ?? '-'} · ${variance.line.description}`
         : task.policy
           ? policyHeadline(t, locale, task.policy)
-          : t('item.untitled')
+          : task.workflow
+            ? t('item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
+            : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
   // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
@@ -262,6 +266,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 </>
               ) : variance ? (
                 <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
+              ) : task.workflow ? (
+                <WorkflowSubject workflow={task.workflow} locale={locale} />
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
@@ -280,7 +286,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   locale={locale}
                   label={label}
                   amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   {...(variance ? { disposition: variance.disposition } : {})}
                   actions={po || variance ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}

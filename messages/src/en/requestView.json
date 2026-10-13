@@ -59,7 +59,8 @@
     "UNKNOWN": "Being passed to the approver",
     "QUEUE": "Waiting for procurement to add this supplier",
     "actingForRole": "acting for {name} · {role}",
-    "actingFor": "acting for {name}"
+    "actingFor": "acting for {name}",
+    "REVIEWERS": "Waiting for {name} to review it before the approver"
   },
   "waiting": {
     "hours": "Waiting {hours, plural, one {# business hour} other {# business hours}}",
@@ -183,6 +184,21 @@
         "GROSS": "incl. VAT",
         "NET": "before VAT"
       }
+    },
+    "reviewStep": "Reviewers",
+    "committeeStep": "Committee",
+    "reviewProgress": "{done} of {total} passed; all must pass before the approver",
+    "committeeProgress": "{done} of {total} votes; {need} needed",
+    "slotRules": "Rule {rules}",
+    "decidedFor": "{name} decided for {principal}",
+    "slotState": {
+      "APPROVE": "Approved",
+      "CLOSED": "No longer needed",
+      "OPEN": "Waiting",
+      "PASS": "Passed",
+      "QUESTION": "Waiting for the requester’s answer",
+      "REJECT": "Not approved",
+      "RETURN": "Returned"
     }
   },
   "lines": {

@@ -255,13 +255,25 @@ export interface DryRunRow {
   readonly changed: boolean
 }
 
+/**
+ * FR-WF-103 AC3: the approver of a version — who holds a task on its approval route, or whom a delegate holds it for —
+ * reads the version and tries documents out on it before deciding, without admin.workflow.* (read only: nothing they
+ * do there changes the version)
+ */
+export async function holdsWorkflowTask(tx: TenantTx, ctx: Ctx, versionId: string): Promise<boolean> {
+  if (ctx.actor.type !== 'USER') return false
+  const me = ctx.actor.memberId
+  const held = await tx.approvalTask.count({ where: { OR: [{ assigneeMemberId: me }, { principalMemberId: me }], step: { route: { subjectType: 'WORKFLOW_VERSION', subjectId: versionId } } } })
+  return held > 0
+}
+
 export const dryRunWorkflowCommand = defineCommand({
   name: 'workflowVersion.dry_run',
   capability: 'admin.workflow.simulate',
   input: DryRunInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ rows: DryRunRow[] }>> {
     const allowed = await authorize(tx, ctx, 'admin.workflow.simulate')
-    if (!allowed.ok) return { ok: false, error: allowed.error }
+    if (!allowed.ok && !(await holdsWorkflowTask(tx, ctx, input.versionId))) return { ok: false, error: allowed.error }
     const [locked] = await lockRowsForUpdate(tx, 'WorkflowVersion', ctx.organizationId, [input.versionId])
     if (!locked) return fail('NOT_FOUND', 'workflow version not found')
     const row = await tx.workflowVersion.findUniqueOrThrow({ where: { id: input.versionId }, include: { rules: true } })

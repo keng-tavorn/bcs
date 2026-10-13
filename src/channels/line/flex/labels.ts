@@ -41,6 +41,11 @@ const CARD = {
   approveWithPin: { th: 'อนุมัติ (ยืนยัน PIN)', en: 'Approve (PIN)' },
   decline: { th: 'ตีกลับ / ไม่อนุมัติ', en: 'Return / Reject' },
   details: { th: 'ดูรายละเอียด', en: 'View details' },
+  // S6 · BR-WF-09: a reviewer's card — pass in the chat, return with its reason in LIFF; a reviewer never rejects
+  reviewHeader: { th: 'โปรดตรวจก่อนอนุมัติ', en: 'Waiting for your review' },
+  reviewRules: { th: 'ตรวจตามข้อ', en: 'Review rule' },
+  pass: { th: 'ผ่าน', en: 'Pass' },
+  returnOnly: { th: 'ตีกลับ', en: 'Return' },
 } as const satisfies Record<string, Text>
 
 const CONFIRMATION = {
@@ -49,6 +54,10 @@ const CONFIRMATION = {
   at: { th: 'เมื่อ', en: 'On' },
   nextStep: { th: 'ส่งต่อผู้อนุมัติขั้นถัดไปแล้ว', en: 'It has gone on to the next approver' },
   done: { th: 'อนุมัติครบทุกขั้นแล้ว', en: 'Every approval step is done' },
+  // S6: a reviewer's pass (BR-WF-09) is no approval
+  reviewHeader: { th: 'ผ่านแล้ว', en: 'Passed' },
+  reviewUnder: { th: 'ตรวจในเส้นทางของ', en: 'Reviewed on the route of' },
+  reviewNext: { th: 'รอผู้ตรวจคนอื่นหรือส่งต่อผู้อนุมัติแล้ว', en: 'Waiting for the other reviewers, or gone on to the approver' },
 } as const satisfies Record<string, Text>
 
 export type CardLabel = keyof typeof CARD

@@ -20,6 +20,8 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return s.number ? `${s.number} · ${s.title}` : s.title
     case 'DOA_VERSION':
       return t('item.doa', { code: s.code, version: s.versionNo })
+    case 'WORKFLOW_VERSION':
+      return t('item.workflow', { code: s.code, version: s.versionNo })
     case 'ORG_AUTHORITY_CHANGE':
       return t('item.change', { kind: t(`changeKind.${s.changeKind}`) })
     case 'PURCHASE_ORDER':
@@ -50,13 +52,15 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       ...(task.holding?.kind === 'FOR' ? [t('item.for', { name: memberName(locale, task.holding.member) })] : []),
       ...(task.holding?.kind === 'BY' ? [t('item.by', { name: memberName(locale, task.holding.member) })] : []),
       ...(task.stepUp ? [t('item.stepUp')] : []),
+      // S6: a reviewer's task — pass, return or ask before the DOA approver
+      ...(task.review ? [t('item.review')] : []),
     ]
     const meta =
       s.kind === 'REQUEST'
         ? s.department
           ? t('item.requester', { name: memberName(locale, s.requester), department: nameIn(locale, s.department.name) })
           : memberName(locale, s.requester)
-        : s.kind === 'DOA_VERSION' || s.kind === 'ORG_AUTHORITY_CHANGE'
+        : s.kind === 'DOA_VERSION' || s.kind === 'ORG_AUTHORITY_CHANGE' || s.kind === 'WORKFLOW_VERSION'
           ? t('item.effective', { date: day(locale, s.effectiveFrom) })
           : s.kind === 'PURCHASE_ORDER'
             ? s.submittedBy

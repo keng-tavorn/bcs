@@ -59,7 +59,8 @@
     "UNKNOWN": "กำลังส่งต่อให้ผู้อนุมัติ",
     "QUEUE": "รอฝ่ายจัดซื้อพิจารณาเพิ่มผู้ขายรายนี้",
     "actingForRole": "รักษาการแทน {name} · {role}",
-    "actingFor": "รักษาการแทน {name}"
+    "actingFor": "รักษาการแทน {name}",
+    "REVIEWERS": "รอ {name} ตรวจ ก่อนถึงผู้อนุมัติ"
   },
   "waiting": {
     "hours": "ค้างมา {hours} ชั่วโมงทำการ",
@@ -183,6 +184,21 @@
         "GROSS": "รวม VAT",
         "NET": "ก่อน VAT"
       }
+    },
+    "reviewStep": "ผู้ตรวจ",
+    "committeeStep": "คณะกรรมการ",
+    "reviewProgress": "ผ่านแล้ว {done} ใน {total} ฝ่าย ต้องผ่านครบก่อนถึงผู้อนุมัติ",
+    "committeeProgress": "อนุมัติแล้ว {done} ใน {total} เสียง ต้องได้ {need} เสียง",
+    "slotRules": "ตามข้อ {rules}",
+    "decidedFor": "{name} ตัดสินแทน {principal}",
+    "slotState": {
+      "APPROVE": "อนุมัติ",
+      "CLOSED": "ไม่ต้องตัดสินแล้ว",
+      "OPEN": "รอตัดสิน",
+      "PASS": "ผ่าน",
+      "QUESTION": "รอผู้ขอตอบคำถาม",
+      "REJECT": "ไม่อนุมัติ",
+      "RETURN": "ตีกลับ"
     }
   },
   "lines": {

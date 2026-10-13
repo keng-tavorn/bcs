@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../shadcn/tabs'
 export const APPROVAL_TABS = ['all', 'overdue', 'info'] as const
 const TAB = parseAsStringLiteral(APPROVAL_TABS).withDefault('all').withOptions({ shallow: true, scroll: false, history: 'replace' })
 
-const KIND_ICONS = { REQUEST: FileText, PURCHASE_ORDER: ShoppingCart, VARIANCE: PackageX, DOA_VERSION: FileCheck2, ORG_AUTHORITY_CHANGE: Network, OTHER: SquareCheckBig } as const
+const KIND_ICONS = { REQUEST: FileText, PURCHASE_ORDER: ShoppingCart, VARIANCE: PackageX, DOA_VERSION: FileCheck2, WORKFLOW_VERSION: FileCheck2, ORG_AUTHORITY_CHANGE: Network, OTHER: SquareCheckBig } as const
 
 export interface ApprovalRowView {
   readonly id: string

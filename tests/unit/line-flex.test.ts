@@ -282,3 +282,42 @@ describe('[FR-LINE-002/AC1] a LINE message opens the LIFF page of the same thing
     expect(liffTaskPath(TASK)).toBe(`/tasks/${TASK}`)
   })
 })
+
+describe('[FR-WF-101/AC5] a reviewer\'s card: "ผ่าน" in the chat, "ตีกลับ" in LIFF, no rejection (S6 · BR-WF-09)', () => {
+  const review = { ...base, review: { ruleCodes: ['RV-03'] } }
+  it('says it waits for a review under its rules; passes with the same postback and returns on the LIFF page', () => {
+    const card = approvalCard(review)
+    const texts = textsOf(card)
+    expect(texts).toEqual(expect.arrayContaining(['โปรดตรวจก่อนอนุมัติ', 'ตรวจตามข้อ', 'RV-03']))
+    expect(texts).not.toContain('โปรดพิจารณาอนุมัติ')
+    expect(actionsOf(card).map((a) => [a.type, a.label])).toEqual([
+      ['postback', 'ผ่าน'],
+      ['uri', 'ตีกลับ'],
+      ['uri', 'ดูรายละเอียด'],
+    ])
+    expect(actionsOf(card)[0]).toMatchObject({ data: approvePostbackData(TOKEN), displayText: 'ผ่าน PR-2569-00012' })
+    expect(actionsOf(approvalCard({ ...review, tokenId: null })).map((a) => [a.type, a.label])[0]).toEqual(['uri', 'ผ่าน'])
+    expect(actionsOf(approvalCard({ ...review, locale: 'en' })).map((a) => a.label)).toEqual(['Pass', 'Return', 'View details'])
+  })
+
+  it('fits LINE\'s limits with long rule lists and names, by the size of its texts', () => {
+    fc.assert(
+      fc.property(fc.array(fc.string({ unit: 'grapheme', minLength: 1, maxLength: 40 }), { minLength: 1, maxLength: 20 }), fc.string({ unit: 'grapheme', maxLength: 300 }), (codes, name) => {
+        const card = approvalCard({ ...review, review: { ruleCodes: codes }, label: `PR ${name}`, requester: { name, department: name } })
+        expectWithinLineLimits(card)
+        expect(jsonByteLength(card.contents)).toBeLessThan(LINE_FLEX_BUBBLE_MAX_BYTES / 4)
+        for (const text of [card.altText, ...textsOf(card)]) expect(wellFormed(text)).toBe(true)
+      }),
+      { numRuns: 200 },
+    )
+  })
+})
+
+describe('[FR-WF-101/AC5] the answer to a reviewer\'s pass says passed, not approved (S6 · BR-WF-09)', () => {
+  it('"ผ่านแล้ว" and the route it was reviewed on', () => {
+    const card = decisionConfirmationCard({ locale: 'th', subjectType: 'REQUEST', typeName: 'จ้างเหมา', label: 'PR-2569-00099', doa: base.doa, decidedAt: new Date('2026-10-06T02:00:00Z'), stage: 'NEXT_STEP', detailsUrl: LIFF, review: true })
+    expect(textsOf(card)).toEqual(expect.arrayContaining(['ผ่านแล้ว', 'ตรวจในเส้นทางของ DOA-DEMO ฉบับ 1 ข้อ PR-02']))
+    expect(textsOf(card)).not.toContain('อนุมัติแล้ว')
+    expectWithinLineLimits(card)
+  })
+})

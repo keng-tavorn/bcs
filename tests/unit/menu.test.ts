@@ -28,7 +28,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     ['EXECUTIVE', ['pos', 'budgets', 'insights', 'reports']],
     // The policy history is an admin page, so its hub shows with it
     ['AUDITOR', ['pos', 'budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
-    ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
+    ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'workflows', 'orgAuthority', 'policyHistory', 'modules']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
     const order = visibleMenu(member(...['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'] as StoredRole[]), CORE).map((i) => i.key)
@@ -63,7 +63,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     // S16-04: the hubs /settings and /admin, and the admin hub hides with no ready admin page (the AUDITOR's policy
     // history is not built yet) · S16-08: the executive summary /insights in place of the KPI entry (§9.10)
     const own = ['settings', 'delegation', 'security', 'pin', 'lineLink', 'notifications']
-    const admin = ['admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'modules']
+    const admin = ['admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'workflows', 'orgAuthority', 'modules']
     expect(ready('ORG_ADMIN')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', 'audit', 'settings', ...admin, ...own.slice(1)])
     expect(ready()).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', ...own])
     expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'insights', 'board', 'reports', ...own])

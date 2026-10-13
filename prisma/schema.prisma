@@ -2528,5 +2528,7 @@ model AiCreditLedger {
 
   @@unique([organizationId, id])
   @@unique([organizationId, agentActionId])
+  /// One monthly grant per organization and month (ai_credit.grant_monthly)
+  @@unique([organizationId, periodMonth], map: "AiCreditLedger_monthly_once", where: raw("\"source\" = 'MONTHLY'"))
   @@index([organizationId, periodMonth])
 }

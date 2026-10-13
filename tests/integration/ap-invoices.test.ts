@@ -241,3 +241,25 @@ describe('[FR-AP-101/AC1] the draft from the PO', () => {
     expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).toEqual(before)
   })
 })
+
+describe('S8-05 review fixes', () => {
+  it('an edit of the lines keeps a PO line that is not VAT-able so', async () => {
+    const po = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00' }])
+    await prisma.poLine.update({ where: { id: po.lines[0]!.id }, data: { vatable: false } })
+    const { invoiceId } = ok(await createInvoice(fin(ap), { poId: po.id }, key()))
+    const v = (await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).version
+    ok(await updateInvoice(fin(ap), { invoiceId, version: v, lines: [{ poLineId: po.lines[0]!.id, quantity: '1', unitPrice: '1000.00' }] }, key()))
+    expect((await prisma.invoiceLine.findFirstOrThrow({ where: { invoiceId } })).vatable).toBe(false)
+  })
+
+  it('[INV-AP-06] the same supplier number submitted at once on two POs: one passes, the other is DUPLICATE_INVOICE', async () => {
+    const [p1, p2] = [await sentPo(ap, [{ quantity: '1', unitPrice: '700.00' }]), await sentPo(ap, [{ quantity: '1', unitPrice: '800.00' }])]
+    await receive(ap, p1, { 0: '1' })
+    await receive(ap, p2, { 0: '1' })
+    const a = await codedDraft(ap, p1, { no: 'SAME-1', vat: '49.00', lines: [{ line: 0, quantity: '1', unitPrice: '700.00' }] })
+    const b = await codedDraft(ap, p2, { no: 'SAME-1', vat: '56.00', lines: [{ line: 0, quantity: '1', unitPrice: '800.00' }] }, 'dm_fin')
+    const results = await Promise.all([submit(ap, a), submit(ap, b, 'dm_fin')])
+    expect(results.filter((r) => r.ok)).toHaveLength(1)
+    expect(results.find((r) => !r.ok)).toMatchObject({ ok: false, error: { code: 'DUPLICATE_INVOICE' } })
+  })
+})

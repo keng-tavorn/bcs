@@ -151,7 +151,7 @@ export const createInvoiceCommand = defineCommand({
 
 /** A file is the paper of one invoice only, tier 1 or tier 2; run under the PO's lock */
 async function fileInUse(tx: TenantTx, fileId: string): Promise<boolean> {
-  const [tier1, tier2] = await Promise.all([tx.invoiceConfirmation.count({ where: { sourceFileId: fileId } }), tx.invoice.count({ where: { sourceFileId: fileId, status: { not: 'CANCELLED' } } })])
+  const [tier1, tier2] = await Promise.all([tx.invoiceConfirmation.count({ where: { sourceFileId: fileId } }), tx.invoice.count({ where: { sourceFileId: fileId, status: { notIn: ['CANCELLED', 'REJECTED'] } } })])
   return tier1 + tier2 > 0
 }
 
@@ -239,14 +239,15 @@ export const updateInvoiceCommand = defineCommand({
     }
     if (input.lines !== undefined) {
       // BR-MATCH-05: lines of the invoice's PO, each PO line once
-      const poLines = await tx.poLine.findMany({ where: { poId: invoice.poId }, select: { id: true, description: true, uom: true } })
+      const poLines = await tx.poLine.findMany({ where: { poId: invoice.poId }, select: { id: true, description: true, uom: true, vatable: true } })
       const ids = input.lines.map((l) => l.poLineId)
       if (new Set(ids).size !== ids.length) return fail('VALIDATION_FAILED', 'a PO line appears twice on the invoice', { field: 'lines', reason: 'PO_LINE_TWICE' })
       if (ids.some((id) => !poLines.some((p) => p.id === id))) return fail('VALIDATION_FAILED', 'every line must be a line of the invoice’s purchase order', { field: 'lines', reason: 'NOT_A_PO_LINE' })
       if (input.lines.some((l) => parseQuantity(l.quantity) <= 0n)) return fail('VALIDATION_FAILED', 'a quantity above zero is needed', { field: 'lines', reason: 'QUANTITY_NOT_POSITIVE' })
       // The coding of a PO line stays with it (FR-AP-108: confirmed once per line)
       const coding = new Map(invoice.lines.map((l) => [l.poLineId, l]))
-      await tx.matchException.deleteMany({ where: { invoiceId: invoice.id } })
+      // The differences of earlier runs stay as history; they no longer point at the lines that are replaced
+      await tx.matchException.updateMany({ where: { invoiceId: invoice.id, invoiceLineId: { not: null } }, data: { invoiceLineId: null } })
       await tx.invoiceLine.deleteMany({ where: { invoiceId: invoice.id } })
       await tx.invoiceLine.createMany({
         data: input.lines.map((l, i) => {
@@ -261,7 +262,7 @@ export const updateInvoiceCommand = defineCommand({
             quantity: l.quantity,
             uom: po.uom,
             unitPriceSatang: amountToSatang(l.unitPrice),
-            vatable: l.vatable ?? true,
+            vatable: l.vatable ?? po.vatable,
             whtIncomeTypeCode: kept?.whtIncomeTypeCode ?? null,
             accountCode: kept?.accountCode ?? null,
             costCenterId: kept?.costCenterId ?? null,

@@ -8,7 +8,7 @@ import { apPolicyOf } from '@/lib/org-settings'
 import { applyBudget, lockBudgetLines, type BudgetOperation } from '@/server/budget/ledger'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
-import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import { lockRowsForUpdate, lockSupplierInvoiceNumber } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 
@@ -79,6 +79,8 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   const rate = rateFor(invoiceDate, await listTaxRates())
   if (!rate.ok) return { ok: false, refusal: { code: 'TAX_RATE_NOT_CONFIGURED', date: invoiceDate } }
 
+  // INV-AP-06: one submit at a time per (supplier, number), so the check below sees an invoice submitted just before
+  await lockSupplierInvoiceNumber(tx, ctx.organizationId, invoice.supplierId, invoice.supplierInvoiceNoNormalized!)
   // BR-MATCH-12 against tier-2 invoices in effect and tier-1 confirmations, of the supplier or its tax id
   const sameSeller = po.supplier.taxId ? { OR: [{ supplierId: po.supplierId }, { supplier: { taxId: po.supplier.taxId } }] } : { supplierId: po.supplierId }
   const [others, confirmations] = await Promise.all([
@@ -192,6 +194,11 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
       data: { discountSatang: l.discountSatang, netSatang: l.netSatang, expectedNetSatang: l.expectedSatang, overSatang: l.overSatang, matchStatus: status, flags: [...l.flags] },
     })
   }
+  // The invoice's amount before VAT is what the lines came to with the rate of its date (a price with VAT included
+  // takes its VAT out at that rate): what the ledger moves and what is owed (INV-AP-02, BR-VAT-07)
+  const netSatang = result.lines.reduce((a, l) => a + l.netSatang, 0n)
+  const grossSatang = netSatang + invoice.statedVatSatang
+  await tx.invoice.update({ where: { id: invoice.id }, data: { netSatang, grossSatang, payableSatang: grossSatang - invoice.retentionSatang } })
   // An earlier run's open differences are settled by this one; what is still wrong is raised again
   await tx.matchException.updateMany({ where: { invoiceId: invoice.id, status: 'OPEN' }, data: { status: 'RESOLVED', resolvedAt: ctx.now, version: { increment: 1 } } })
   if (exceptions.length > 0) {
@@ -235,7 +242,7 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
 
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { paymentTermDays: true } })
   const due = dueDate({ invoiceDate, poTermDays: po.paymentTermDays, supplierTermDays: supplier.paymentTermDays, defaultTermDays: policy.defaultTermDays })
-  const payable = invoice.grossSatang - invoice.retentionSatang
+  const payable = grossSatang - invoice.retentionSatang
   await tx.invoice.update({
     where: { id: invoice.id },
     data: {

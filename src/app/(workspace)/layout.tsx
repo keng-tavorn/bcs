@@ -25,7 +25,7 @@ import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
 import { paletteCommands } from './_shell/commands'
-import { SIDEBAR_GROUPS, visibleMenu, type MenuGroup } from './_shell/menu'
+import { menuLabelKey, SIDEBAR_GROUPS, visibleMenu, type MenuGroup } from './_shell/menu'
 import { countMyDraftsAction } from './_shell/new-request-actions'
 import { markAllNotificationsReadAction, openNotificationAction } from './_shell/notification-actions'
 
@@ -109,7 +109,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     key: item.key,
     href: item.href,
     group: item.group,
-    label: tItems(item.key),
+    label: tItems(menuLabelKey(item, modules)),
   }))
   // The sidebar holds the groups of §9.10, a heading over the named ones; the hub pages list the rest (/settings, /admin)
   const headingOf = (group: MenuGroup) => (group === 'procurement' || group === 'finance' || group === 'insight' ? tGroups(group) : '')

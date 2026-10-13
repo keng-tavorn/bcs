@@ -1,5 +1,6 @@
-import { getTranslations } from 'next-intl/server'
+import { getLocale, getTranslations } from 'next-intl/server'
 import { formatSatang } from '@/core/money/format'
+import { formatEnglishBeDate, formatThaiDate } from '@/core/thai/date'
 import { Amounts, Facts, Section, type Fact } from '@/ui/request-view/facts'
 
 // The body of an approval task on an invoice's price variance (S8-06, FR-AP-105 AC2, BR-AP-06): the invoice and its PO,
@@ -19,13 +20,15 @@ export interface InvoiceTaskView {
 }
 
 export async function InvoiceVarianceBody({ invoice, brief = false }: { invoice: InvoiceTaskView; brief?: boolean }) {
-  const t = await getTranslations('tasks.invoice')
+  const [t, locale] = await Promise.all([getTranslations('tasks.invoice'), getLocale()])
+  // "YYYY-MM-DD" as the reader's language writes a day: "12 ต.ค. 2569" · "12 Oct 2569" (BR-DATE-01)
+  const day = (d: string) => (locale === 'en' ? formatEnglishBeDate : formatThaiDate)(`${d}T00:00:00+07:00`)
   const money = (s: bigint) => formatSatang(s)
   const facts: Fact[] = [
     { label: t('number'), value: invoice.number ?? '-' },
     { label: t('po'), value: invoice.po.number ?? '-' },
     ...(brief ? [] : [{ label: t('supplierInvoiceNo'), value: invoice.supplierInvoiceNo ?? '-' }, { label: t('supplier'), value: invoice.supplier.nameTh }]),
-    ...(brief || !invoice.invoiceDate ? [] : [{ label: t('invoiceDate'), value: invoice.invoiceDate }]),
+    ...(brief || !invoice.invoiceDate ? [] : [{ label: t('invoiceDate'), value: day(invoice.invoiceDate) }]),
   ]
   const variance = invoice.variance
   return (

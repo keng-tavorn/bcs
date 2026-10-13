@@ -26,6 +26,10 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return t('item.po', { number: s.number ?? '-', supplier: s.supplierName })
     case 'VARIANCE':
       return t('item.variance', { type: t(`varianceType.${s.varianceType}`), description: s.description })
+    case 'INVOICE':
+      return t('item.invoice', { number: s.number ?? '-' })
+    case 'PO_CHANGE':
+      return t('poChangeTask.label', { number: s.poNumber ?? '-', changeNo: s.changeNo })
     default:
       return t('item.untitled')
   }
@@ -64,7 +68,11 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
               : undefined
             : s.kind === 'VARIANCE'
               ? t('item.varianceMeta', { number: s.poNumber ?? '-' })
-              : undefined
+              : s.kind === 'INVOICE'
+                ? t('item.invoiceMeta', { supplier: s.supplierName, number: s.poNumber ?? '-' })
+                : s.kind === 'PO_CHANGE'
+                  ? s.supplierName
+                  : undefined
     return {
       id: task.id,
       href: `/tasks/${task.id}`,
@@ -74,6 +82,9 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       // A PO is decided on its total with VAT; a variance on its amount before VAT, as recorded
       ...(s.kind === 'PURCHASE_ORDER' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
       ...(s.kind === 'VARIANCE' ? { amount: money(s.amountSatang), amountLabel: t('item.varianceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      // An invoice's variance is decided on the amount the DOA counted (the variance with its VAT); a PO change on the PO's new total
+      ...(s.kind === 'INVOICE' && task.amountSatang !== null ? { amount: money(task.amountSatang), amountLabel: t('item.invoiceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      ...(s.kind === 'PO_CHANGE' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
       states,
       tags,
     }

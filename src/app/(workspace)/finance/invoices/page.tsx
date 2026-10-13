@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { listInvoiceWork } from '@/server/services/invoices/view'
+import { apInvoicesOn } from '@/server/services/ap/view-list'
 import { InvoiceList, type InvoiceRowView } from '@/ui/finance/invoice-list'
 import { WaitingList, type WaitingRowView } from '@/ui/finance/waiting-list'
 import { Notice } from '@/ui/form/notice'
@@ -11,6 +12,7 @@ import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
+import { ApInvoicesPage } from './ap-list-page'
 import { invoicesHref, loadInvoiceFilters } from '../../_tracking/list-filters'
 import { day, localeOf, memberName, when } from '../../_tracking/present'
 import { invoiceStates, money, nameIn } from '../present'
@@ -32,6 +34,8 @@ const SEARCH_MAX = 60
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
+  // S8-13: with module PAY on the organization's invoices are tier 2 (BR-IVC-06) and this page lists them instead
+  if (await apInvoicesOn(ctx)) return <ApInvoicesPage ctx={ctx} searchParams={await searchParams} />
   const [t, td, locale] = await Promise.all([getTranslations('finance'), getTranslations('document.badge'), getLocale().then(localeOf)])
   const filters = await loadInvoiceFilters(searchParams)
   const q = (filters.q ?? '').trim().slice(0, SEARCH_MAX)

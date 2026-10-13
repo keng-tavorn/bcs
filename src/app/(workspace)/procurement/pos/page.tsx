@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
+import { mayListVarianceExceptions } from '@/server/services/ap/view-invoice'
 import { isPoStatus, listPurchaseOrders, PO_STATUSES } from '@/server/queries/purchase-orders'
 import { Notice } from '@/ui/form/notice'
 import { FilterBar, FilterSearch, FilterSummary } from '@/ui/page/filters'
@@ -58,6 +59,8 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
   // The pool is procurement's (procurement.pool.view): FINANCE, EXECUTIVE and AUDITOR read this list but are never
   // sent to a page that refuses them
   const canPool = isAllowed(principal, 'procurement.pool.view')
+  // S8-13: with PAY on, the invoices whose price or quantity is over the PO wait for procurement on a page of their own
+  const canExceptions = await mayListVarianceExceptions(ctx)
   const statusLabel = (s: string) => td(`po.${s}` as 'po.DRAFT')
 
   const rows: PoRow[] = list.rows.map((po) => {
@@ -87,10 +90,19 @@ export default async function PurchaseOrdersPage({ searchParams }: { searchParam
         title={t('list.title')}
         intro={t('list.intro')}
         actions={
-          canPool ? (
-            <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
-              <Link href="/procurement/pool">{t('list.poolLink')}</Link>
-            </Button>
+          canPool || canExceptions ? (
+            <>
+              {canExceptions ? (
+                <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+                  <Link href="/procurement/invoice-exceptions">{t('list.invoiceExceptionsLink')}</Link>
+                </Button>
+              ) : null}
+              {canPool ? (
+                <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+                  <Link href="/procurement/pool">{t('list.poolLink')}</Link>
+                </Button>
+              ) : null}
+            </>
           ) : undefined
         }
       />

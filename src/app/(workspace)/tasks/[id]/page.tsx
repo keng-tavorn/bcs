@@ -27,6 +27,8 @@ import { ClosedTaskText } from '../_parts/closed-task'
 import { VarianceBody } from '../_parts/variance-body'
 import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { InvoiceVarianceBody } from '@/ui/tasks/subjects/invoice'
+import { getPoChangeTaskView } from '@/server/queries/po-changes'
+import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
 import { askForInformationAction, decidePolicyTaskAction, decideTaskAction } from '../actions'
 
 export async function generateMetadata() {
@@ -126,6 +128,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
   // S8-06: the price variance of an invoice (subject INVOICE)
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
+  // S8-13: a change of a sent PO (subject PO_CHANGE)
+  const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
   // The PO opens for whoever may see it (po.view); otherwise its number is plain text, never a link that ends in a refusal
   const poHref = poAccess && canViewPo(principal, poAccess) ? `/procurement/pos/${poAccess.poId}` : null
@@ -185,10 +189,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         ? `${variance.po.number ?? '-'} · ${variance.line.description}`
         : invoice
           ? (invoice.number ?? '-')
+          : poChange
+          ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
           : task.policy
           ? policyHeadline(t, locale, task.policy)
           : t('item.untitled')
-  const heading = request ? request.title : po ? po.supplier.nameTh : invoice ? t('invoice.heading') : (varianceTitle ?? label)
+  const heading = request ? request.title : po ? po.supplier.nameTh : invoice ? t('invoice.heading') : poChange ? poChange.supplier.nameTh : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
   // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
   // the boundary table's tick; until then a guess of it for the first paint, taller with the PIN and with the tick
@@ -270,6 +276,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
               ) : invoice ? (
                 <InvoiceVarianceBody invoice={invoice} />
+              ) : poChange ? (
+                <PoChangeBody change={poChange} />
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
@@ -287,7 +295,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   open={open}
                   locale={locale}
                   label={label}
-                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : '-'}
+                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : '-'}
                   kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
                   stepUp={task.stepUp}
                   {...(variance ? { disposition: variance.disposition } : {})}

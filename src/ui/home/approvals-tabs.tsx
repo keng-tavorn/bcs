@@ -1,6 +1,6 @@
 'use client'
 
-import { FileCheck2, FileText, Network, PackageX, ShoppingCart, SquareCheckBig, UserRoundCheck } from 'lucide-react'
+import { FileCheck2, FilePen, FileText, Network, PackageX, ReceiptText, ShoppingCart, SquareCheckBig, UserRoundCheck } from 'lucide-react'
 import Link from 'next/link'
 import { parseAsStringLiteral, useQueryState } from 'nuqs'
 import { NuqsAdapter } from 'nuqs/adapters/next/app'
@@ -18,7 +18,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../shadcn/tabs'
 export const APPROVAL_TABS = ['all', 'overdue', 'info'] as const
 const TAB = parseAsStringLiteral(APPROVAL_TABS).withDefault('all').withOptions({ shallow: true, scroll: false, history: 'replace' })
 
-const KIND_ICONS = { REQUEST: FileText, PURCHASE_ORDER: ShoppingCart, VARIANCE: PackageX, DOA_VERSION: FileCheck2, ORG_AUTHORITY_CHANGE: Network, OTHER: SquareCheckBig } as const
+const KIND_ICONS = { REQUEST: FileText, PURCHASE_ORDER: ShoppingCart, VARIANCE: PackageX, INVOICE: ReceiptText, PO_CHANGE: FilePen, DOA_VERSION: FileCheck2, ORG_AUTHORITY_CHANGE: Network, OTHER: SquareCheckBig } as const
 
 export interface ApprovalRowView {
   readonly id: string

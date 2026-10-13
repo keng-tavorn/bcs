@@ -17,6 +17,7 @@ import { fileSubjectPolicy } from './policies'
 import './request-policy'
 import './receipt-policy'
 import '../suppliers/file-policy'
+import '../ap/file-policy'
 
 // Upload and download through presigned URLs (FR-PLT-004, NFR-SEC-08).
 // 1. requestUpload checks the declared type and size and returns a PUT URL bound to that type and exact length,

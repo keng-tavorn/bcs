@@ -24,7 +24,10 @@
     "poMeta": "ส่งขออนุมัติโดย {name}",
     "variance": "{type} · {description}",
     "varianceMeta": "จาก {number}",
-    "varianceAmountLabel": "ยอดก่อน VAT"
+    "varianceAmountLabel": "ยอดก่อน VAT",
+    "invoice": "{number} · ส่วนต่างราคาของใบแจ้งหนี้",
+    "invoiceMeta": "{supplier} · จาก {number}",
+    "invoiceAmountLabel": "ส่วนต่างรวม VAT"
   },
   "changeKind": {
     "POSITION_ASSIGN": "แต่งตั้งผู้ดำรงตำแหน่ง",
@@ -386,5 +389,8 @@
     "gross": "รวม",
     "approveHint": "อนุมัติแล้วงบของบรรทัดที่ราคาเกินถูกถือเพิ่มและใบพร้อมจ่าย ถ้างบไม่พอจะอนุมัติไม่ได้",
     "heading": "ส่วนต่างราคาของใบแจ้งหนี้"
+  },
+  "poChangeTask": {
+    "label": "{number} · ขอแก้ไขครั้งที่ {changeNo}"
   }
 }

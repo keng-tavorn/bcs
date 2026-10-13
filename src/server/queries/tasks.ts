@@ -85,6 +85,9 @@ export type InboxSubjectDto =
       readonly varianceType: 'SHORT' | 'OVER' | 'DAMAGED'
       readonly amountSatang: bigint
     }
+  /** S8: the price variance of an invoice (INVOICE) and a change of a sent PO (PO_CHANGE), with their supplier */
+  | { readonly kind: 'INVOICE'; readonly invoiceId: string; readonly number: string | null; readonly poNumber: string | null; readonly supplierName: string }
+  | { readonly kind: 'PO_CHANGE'; readonly poChangeId: string; readonly poNumber: string | null; readonly changeNo: number; readonly supplierName: string; readonly grossSatang: bigint }
   | { readonly kind: 'OTHER' }
 
 export interface InboxTaskDto {
@@ -161,7 +164,7 @@ const INBOX_TASK = {
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments, pos, variances] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances, invoices, poChanges] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -180,12 +183,20 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     ids('VARIANCE').length
       ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
       : Promise.resolve([]),
+    ids('INVOICE').length
+      ? db.invoice.findMany({ where: { id: { in: ids('INVOICE') } }, select: { id: true, number: true, po: { select: { number: true } }, supplier: { select: { nameTh: true } } } })
+      : Promise.resolve([]),
+    ids('PO_CHANGE').length
+      ? db.poChange.findMany({ where: { id: { in: ids('PO_CHANGE') } }, select: { id: true, changeNo: true, newGrossSatang: true, po: { select: { number: true, supplier: { select: { nameTh: true } } } } } })
+      : Promise.resolve([]),
   ])
   const request = new Map(requests.map((r) => [r.id, r]))
   const version = new Map(versions.map((v) => [v.id, v]))
   const change = new Map(changes.map((c) => [c.id, c]))
   const po = new Map(pos.map((p) => [p.id, p]))
   const variance = new Map(variances.map((v) => [v.id, v]))
+  const invoice = new Map(invoices.map((i) => [i.id, i]))
+  const poChange = new Map(poChanges.map((c) => [c.id, c]))
   // Who sent each PO for approval: the actor of its latest po.submitted Event
   const submitted = pos.length
     ? await db.event.findMany({ where: { type: 'po.submitted', aggregateType: 'PurchaseOrder', aggregateId: { in: pos.map((p) => p.id) }, actorType: 'USER' }, orderBy: { seq: 'asc' }, select: { aggregateId: true, actorMemberId: true } })
@@ -207,6 +218,14 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     if (type === 'VARIANCE' && variance.has(id)) {
       const v = variance.get(id)!
       return { kind: 'VARIANCE', varianceId: v.id, poNumber: v.po.number, description: v.poLine.description, varianceType: v.type, amountSatang: v.amountSatang }
+    }
+    if (type === 'INVOICE' && invoice.has(id)) {
+      const i = invoice.get(id)!
+      return { kind: 'INVOICE', invoiceId: i.id, number: i.number, poNumber: i.po.number, supplierName: i.supplier.nameTh }
+    }
+    if (type === 'PO_CHANGE' && poChange.has(id)) {
+      const c = poChange.get(id)!
+      return { kind: 'PO_CHANGE', poChangeId: c.id, poNumber: c.po.number, changeNo: c.changeNo, supplierName: c.po.supplier.nameTh, grossSatang: c.newGrossSatang }
     }
     if (type === 'REQUEST' && request.has(id)) {
       const r = request.get(id)!

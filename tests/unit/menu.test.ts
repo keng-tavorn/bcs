@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MENU, SIDEBAR_GROUPS, visibleMenu, type MenuKey } from '@/app/(workspace)/_shell/menu'
+import { MENU, menuLabelKey, SIDEBAR_GROUPS, visibleMenu, type MenuKey } from '@/app/(workspace)/_shell/menu'
 import { memberPrincipal, type Principal } from '@/server/authz'
 import type { StoredRole } from '@/server/authz/permissions'
 
@@ -52,6 +52,13 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     // The member's own account settings belong to no module; the LINE channel page belongs to CORE like the other admin pages
     expect(keys(member('ORG_ADMIN'), [])).toEqual(['home', 'settings', 'security', 'pin', 'lineLink', 'notifications'])
     expect(keys(member('ORG_ADMIN'), ['PAY'])).toEqual(['home', 'settings', 'security', 'pin', 'lineLink', 'notifications'])
+  })
+
+  it('[FR-PLT-013/AC2] S8-13: with PAY on the invoices of the finance group are named "ใบแจ้งหนี้" (§9.10), the rest keep their names', () => {
+    const invoices = MENU.find((item) => item.key === 'invoices')!
+    expect(menuLabelKey(invoices, ['CORE'])).toBe('invoices')
+    expect(menuLabelKey(invoices, ['CORE', 'PAY'])).toBe('invoicesAp')
+    for (const item of MENU.filter((i) => i.key !== 'invoices')) expect(menuLabelKey(item, ['CORE', 'PAY']), item.key).toBe(item.key)
   })
 
   it('the screen renders only menus whose pages exist', () => {

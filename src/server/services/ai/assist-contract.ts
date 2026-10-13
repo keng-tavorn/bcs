@@ -36,6 +36,8 @@ export type AssistReader = (tx: TenantTx, id: string) => Promise<Readonly<Record
 interface SubjectKind {
   /** The purposes whose results this document takes in */
   readonly purposes: readonly string[]
+  /** For an action read for another document first (a delivery note for its PO): that document must be this one's */
+  readonly belongsTo?: (tx: TenantTx, id: string, other: AssistSubject) => Promise<boolean>
   /** true: the command that takes the values in also sends the document on (gr.post, doa.import_draft), so every field
    *  must be confirmed in that call; false: a draft may keep fields waiting until it is sent */
   readonly final: boolean
@@ -130,7 +132,11 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
   // An action that waits for its document, or was read for the purchase order a receipt belongs to, moves to the
   // document that takes the values; one already taken into another document stays there
   const movable = action.subjectType === null || action.subjectType === 'CHAT_INTAKE' || (action.appliedAt === null && action.subjectType !== subject.type)
-  if (!movable && (action.subjectType !== subject.type || action.subjectId !== subject.id)) {
+  const elsewhere =
+    action.subjectType !== null && action.subjectType !== 'CHAT_INTAKE' && action.subjectType !== subject.type && action.subjectId !== null
+      ? !(kind.belongsTo && (await kind.belongsTo(tx, subject.id, { type: action.subjectType, id: action.subjectId })))
+      : false
+  if ((!movable && (action.subjectType !== subject.type || action.subjectId !== subject.id)) || elsewhere) {
     return err('VALIDATION_FAILED', 'the AI action belongs to another document', { field: 'aiAssist.agentActionId', reason: 'SUBJECT_MISMATCH' })
   }
 

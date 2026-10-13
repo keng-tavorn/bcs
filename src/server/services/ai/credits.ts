@@ -27,11 +27,9 @@ async function readSettings(tx: TenantTx, organizationId: string) {
   return { raw: org?.settings ?? {}, ai: aiCreditSettingsOf(org?.settings) }
 }
 
-async function platformActor(ctx: Ctx): Promise<CommandOutcome<never> | null> {
-  if (ctx.actor.type !== 'PLATFORM_ADMIN' || !(await isActivePlatformAdmin(ctx.actor.platformAdminId))) {
-    return { ok: false, error: { code: 'FORBIDDEN', message: 'only the BCS team grants AI credits' } }
-  }
-  return null
+/** The platform admin behind the call when it is an active one, else null */
+async function platformActor(ctx: Ctx): Promise<string | null> {
+  return ctx.actor.type === 'PLATFORM_ADMIN' && (await isActivePlatformAdmin(ctx.actor.platformAdminId)) ? ctx.actor.platformAdminId : null
 }
 
 // ---------- the BCS team: a top-up, and the monthly amount ----------
@@ -51,11 +49,10 @@ export const grantCreditsCommand = defineCommand({
   capability: 'platform.ai.credits',
   input: GrantInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ periodMonth: string; ledgerEntryId: string | null; monthlyCredits: number; alertAtBp: number }>> {
-    const refused = await platformActor(ctx)
-    if (refused) return refused
+    const platformAdminId = await platformActor(ctx)
+    if (!platformAdminId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only the BCS team grants AI credits' } }
     const allowed = await authorize(tx, ctx, 'platform.ai.credits')
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    if (ctx.actor.type !== 'PLATFORM_ADMIN') return { ok: false, error: { code: 'FORBIDDEN', message: 'only the BCS team grants AI credits' } }
     const periodMonth = creditPeriodMonth(ctx.now)
     const events: EventDraft[] = []
     const settings = await readSettings(tx, ctx.organizationId)
@@ -74,7 +71,7 @@ export const grantCreditsCommand = defineCommand({
           source: 'TOPUP',
           credits: input.topUpCredits,
           periodMonth: dateOf(periodMonth),
-          platformAdminId: ctx.actor.platformAdminId,
+          platformAdminId,
           contractRef: input.contractRef,
           reason: input.reason,
           occurredAt: ctx.now,
@@ -120,7 +117,8 @@ export const grantMonthlyCommand = defineCommand({
 
 /** What the job ai-credit-monthly (and the seed) runs for one organization; the month is the idempotency key */
 export function runMonthlyGrant(organizationId: string, now: Date, job = 'ai-credit-monthly') {
-  return runCommand(systemCtx(organizationId, now, job), grantMonthlyCommand, {}, { idempotencyKey: `ai-credit-monthly:${creditPeriodMonth(now)}` })
+  // The day is the key: the daily run of a month that is granted already is refused (NOT_FOUND) and tried again tomorrow
+  return runCommand(systemCtx(organizationId, now, job), grantMonthlyCommand, {}, { idempotencyKey: `ai-credit-monthly:${now.toISOString().slice(0, 10)}` })
 }
 
 // ---------- after a use: the 80% notice and the exhausted notice, once a month each ----------

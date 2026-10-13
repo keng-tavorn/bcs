@@ -11,4 +11,10 @@ export async function readReceiptForAssist(tx: TenantTx, id: string): Promise<Re
   return Object.fromEntries(lines.map((l) => [`lines.${l.poLineId}.received`, decimalText(l.receivedQuantity)]))
 }
 
-registerAssistSubject('GOODS_RECEIPT', { purposes: ['DELIVERY_NOTE_READ'], final: true, read: readReceiptForAssist })
+registerAssistSubject('GOODS_RECEIPT', {
+  purposes: ['DELIVERY_NOTE_READ'],
+  final: true,
+  read: readReceiptForAssist,
+  // A delivery note is read for a purchase order; it fills a receipt of that order only
+  belongsTo: async (tx, grId, other) => other.type === 'PURCHASE_ORDER' && (await tx.goodsReceipt.count({ where: { id: grId, poId: other.id } })) === 1,
+})

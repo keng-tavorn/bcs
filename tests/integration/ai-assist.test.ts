@@ -146,6 +146,12 @@ describe('[BR-AI-17] gr.post checks who, the PO and the version first, and the A
     const missing = await postGoodsReceipt(org.ctxOf('receiver_con', NOW), { poId: po.id, lines: [{ poLineId, received: '3' }], aiAssist: bogus }, key())
     expect(missing.ok ? null : missing.error.code).toBe('NOT_FOUND')
 
+    // A delivery note read for another PO does not fill this one's receipt
+    const elsewhere = await aiAction(org, { [`lines.${poLineId}.received`]: '3' }, { purpose: 'DELIVERY_NOTE_READ', subjectType: 'PURCHASE_ORDER', subjectId: randomUUID() })
+    const wrongPo = await postGoodsReceipt(org.ctxOf('receiver_con', NOW), { poId: po.id, lines: [{ poLineId, received: '3' }], aiAssist: { agentActionId: elsewhere, confirmedPaths: [`lines.${poLineId}.received`] } }, key())
+    expect(wrongPo).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT_MISMATCH' } } })
+    expect(await prisma.goodsReceipt.count({ where: { poId: po.id } })).toBe(0)
+
     // A delivery note read for the PO: every proposed quantity must be confirmed in the same post (final)
     const dn = await aiAction(org, { [`lines.${poLineId}.received`]: '3' }, { purpose: 'DELIVERY_NOTE_READ', subjectType: 'PURCHASE_ORDER', subjectId: po.id })
     const waiting = await postGoodsReceipt(org.ctxOf('receiver_con', NOW), { poId: po.id, lines: [{ poLineId, received: '3' }], aiAssist: { agentActionId: dn, confirmedPaths: [] } }, key())

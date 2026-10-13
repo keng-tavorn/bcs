@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { agentActionTransition, creditPeriodMonth, creditsForCall, redactForAi, type AgentActionState } from '@/core/ai-checks'
 import { err, ok, type Result } from '@/core/result'
-import { AI_LIMITS, AI_PURPOSES, CONTENT_RETENTION_DAYS, priceOf, type AiPurposeName } from '@/lib/ai-config'
+import { AI_LIMITS, AI_PURPOSES, CONTENT_RETENTION_DAYS, DEFAULT_MIN_CONFIDENCE_BP, priceOf, type AiPurposeName } from '@/lib/ai-config'
 import { BP_WHOLE, MS_PER_DAY, MS_PER_HOUR, MS_PER_MINUTE } from '@/lib/constants'
 import { authorize } from '@/server/authz'
 import type { Capability } from '@/server/authz/permissions'
@@ -116,17 +116,39 @@ export const requestAgentActionCommand = defineCommand({
  */
 export async function requestAgentAction(ctx: Ctx, input: z.input<typeof RequestInput>, options: RunOptions): Promise<Result<RequestedAction & { readonly existing: boolean }>> {
   if (input.idempotencyKey) {
-    const existing = await forTenant(ctx.organizationId).agentAction.findFirst({
-      where: { idempotencyKey: input.idempotencyKey },
-      select: { id: true, agent: true, purpose: true, level: true, promptVersion: true, model: true, requestedById: true },
-    })
-    if (existing) {
-      if (ctx.actor.type !== 'USER' || existing.requestedById !== ctx.actor.memberId) return err('FORBIDDEN', 'the key belongs to another member')
-      return ok({ agentActionId: existing.id, agent: existing.agent, purpose: existing.purpose, level: existing.level, minConfidenceBp: 0, model: existing.model ?? '', promptVersion: existing.promptVersion, existing: true })
-    }
+    const existing = await findByKey(ctx, input.idempotencyKey)
+    if (existing) return replayOf(ctx, input, existing)
   }
   const r = await runCommand(ctx, requestAgentActionCommand, input, options)
-  return r.ok ? ok({ ...r.data, existing: false }) : r
+  if (r.ok) return ok({ ...r.data, existing: false })
+  // Two calls with one key at the same time: the second meets the unique key and answers with the first one's action
+  if (input.idempotencyKey && r.error.code === 'INTERNAL') {
+    const winner = await findByKey(ctx, input.idempotencyKey)
+    if (winner) return replayOf(ctx, input, winner)
+  }
+  return r
+}
+
+const findByKey = (ctx: Ctx, idempotencyKey: string) =>
+  forTenant(ctx.organizationId).agentAction.findFirst({
+    where: { idempotencyKey },
+    select: { id: true, agent: true, purpose: true, level: true, promptVersion: true, model: true, requestedById: true },
+  })
+
+async function replayOf(ctx: Ctx, input: z.input<typeof RequestInput>, existing: NonNullable<Awaited<ReturnType<typeof findByKey>>>): Promise<Result<RequestedAction & { readonly existing: boolean }>> {
+  if (ctx.actor.type !== 'USER' || existing.requestedById !== ctx.actor.memberId) return err('FORBIDDEN', 'the key belongs to another member')
+  if (existing.purpose !== input.purpose) return err('IDEMPOTENCY_CONFLICT', 'the key was used for another purpose', { field: 'idempotencyKey' })
+  const setting = await forTenant(ctx.organizationId).aiAgentSetting.findFirst({ where: { agent: existing.agent }, select: { minConfidenceBp: true } })
+  return ok({
+    agentActionId: existing.id,
+    agent: existing.agent,
+    purpose: existing.purpose,
+    level: existing.level,
+    minConfidenceBp: setting?.minConfidenceBp ?? DEFAULT_MIN_CONFIDENCE_BP,
+    model: existing.model ?? '',
+    promptVersion: existing.promptVersion,
+    existing: true,
+  })
 }
 
 // ---------- agent_action.complete ----------
@@ -154,13 +176,16 @@ export const completeAgentActionCommand = defineCommand({
   capability: 'ai.assist',
   input: CompleteInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ status: AgentActionState; costCredits: number }>> {
-    const row = await tx.agentAction.findFirst({ where: { id: input.agentActionId }, select: { id: true, status: true, promptVersion: true, version: true } })
+    const row = await tx.agentAction.findFirst({ where: { id: input.agentActionId }, select: { id: true, status: true, promptVersion: true, version: true, errorCode: true, costCredits: true } })
     if (!row) return fail('NOT_FOUND', 'no such AgentAction')
     // The answer is recorded by the agent that ran the prompt of this action, never by a person (INV-AI-01)
     if (ctx.actor.type !== 'AI_AGENT' || ctx.actor.agentId !== row.promptVersion) return fail('FORBIDDEN', 'only the agent of the action records its answer')
     if (input.outcome === 'DRAFT' && (input.output === undefined || input.model === null)) return fail('VALIDATION_FAILED', 'a draft needs the output and the model', { field: 'output' })
     if (input.outcome === 'FAILED' && !input.errorCode) return fail('VALIDATION_FAILED', 'a failure needs its code', { field: 'errorCode' })
-    const move = agentActionTransition(row.status, input.outcome === 'DRAFT' ? 'agent_action.complete' : 'agent_action.fail')
+    // An answer that comes after the sweep failed the call (TIMEOUT) is not used, but its tokens were spent: they are
+    // recorded and charged on the FAILED row once (BR-AI-23)
+    const late = row.status === 'FAILED' && row.errorCode === 'TIMEOUT' && row.costCredits === 0
+    const move = late ? ({ ok: true, to: 'FAILED' } as const) : agentActionTransition(row.status, input.outcome === 'DRAFT' ? 'agent_action.complete' : 'agent_action.fail')
     if (!move.ok) return fail('INVALID_STATE_TRANSITION', `AgentAction is ${row.status}`)
 
     // A model without a price is possible in fixture mode only: live mode calls gated models, and every gate names a
@@ -172,7 +197,9 @@ export const completeAgentActionCommand = defineCommand({
       data: {
         status: move.to,
         model: input.model,
-        ...(input.outcome === 'DRAFT'
+        ...(late
+          ? {}
+          : input.outcome === 'DRAFT'
           ? {
               output: input.output as object,
               ...(input.verification === undefined ? {} : { verification: input.verification as object }),
@@ -209,8 +236,9 @@ export const completeAgentActionCommand = defineCommand({
       cacheWriteTokens: input.usage.cacheWrite,
       costCredits: charge.credits,
     }
-    const event: EventDraft =
-      input.outcome === 'DRAFT'
+    const event: EventDraft = late
+      ? { type: 'agent_action.failed', aggregateType: 'AgentAction', aggregateId: row.id, data: { errorCode: 'TIMEOUT', model: input.model, ...tokens } }
+      : input.outcome === 'DRAFT'
         ? { type: 'agent_action.drafted', aggregateType: 'AgentAction', aggregateId: row.id, data: { model: input.model, latencyMs: input.latencyMs, ...tokens } }
         : { type: 'agent_action.failed', aggregateType: 'AgentAction', aggregateId: row.id, data: { errorCode: input.errorCode, model: input.model, ...tokens } }
     return { ok: true, result: { status: move.to, costCredits: charge.credits }, events: [event] }
@@ -328,6 +356,8 @@ export const expireAgentActionsCommand = defineCommand({
 })
 
 const SWEEP_BATCH = 500
+/** What a cleared JSON column holds (BR-AI-18): the row keeps its shape, not its content */
+const PURGED = { purged: true } as const
 
 export function expireAgentAction(organizationId: string, now: Date, agentActionId: string, reason: 'SUPERSEDED' | 'SUBJECT_CLOSED') {
   return runCommand(systemCtx(organizationId, now, 'ai-actions'), expireAgentActionsCommand, { agentActionId, reason }, { idempotencyKey: `agent_action.expire:${agentActionId}` })
@@ -346,6 +376,7 @@ export const purgeContentCommand = defineCommand({
     // A chat intake nobody turned into a request: as long as the chat text of S17 (OQ-144)
     const chat = await tx.agentAction.findMany({ where: { ...unpurged, subjectType: 'CHAT_INTAKE', createdAt: { lt: day(CONTENT_RETENTION_DAYS.chatIntake) } }, select: { id: true }, take: SWEEP_BATCH })
     // Insight always, L1 results nobody used, and Briefs whose task is no longer open: as long as CommandLog
+    const openTaskIds = (await tx.approvalTask.findMany({ where: { status: { in: ['OPEN', 'INFO_REQUESTED'] } }, select: { id: true } })).map((t) => t.id)
     const old = await tx.agentAction.findMany({
       where: {
         ...unpurged,
@@ -354,24 +385,28 @@ export const purgeContentCommand = defineCommand({
         AND: [
           { OR: [{ subjectType: null }, { subjectType: { not: 'CHAT_INTAKE' } }] },
           { OR: [{ purpose: 'QUESTION' }, { level: 'L1', status: { in: ['REJECTED', 'EXPIRED', 'FAILED'] } }, { purpose: 'BRIEF' }] },
+          // A Brief stays while its task is open; filtered here, so open ones never fill the batch
+          { OR: [{ NOT: { purpose: 'BRIEF' } }, { subjectId: null }, { NOT: { subjectId: { in: openTaskIds } } }] },
         ],
       },
-      select: { id: true, purpose: true, subjectId: true },
+      select: { id: true },
+      orderBy: { id: 'asc' },
       take: SWEEP_BATCH,
     })
-    const briefTasks = old.filter((r) => r.purpose === 'BRIEF' && r.subjectId).map((r) => r.subjectId!)
-    const openTasks = new Set(
-      briefTasks.length ? (await tx.approvalTask.findMany({ where: { id: { in: briefTasks }, status: { in: ['OPEN', 'INFO_REQUESTED'] } }, select: { id: true } })).map((t) => t.id) : [],
-    )
     const targets = [
       ...chat.map((r) => ({ id: r.id, reason: 'CHAT_INTAKE_UNUSED' as const })),
-      ...old.filter((r) => !(r.purpose === 'BRIEF' && r.subjectId && openTasks.has(r.subjectId))).map((r) => ({ id: r.id, reason: 'UNUSED_AFTER_RETENTION' as const })),
+      ...old.map((r) => ({ id: r.id, reason: 'UNUSED_AFTER_RETENTION' as const })),
     ]
     if (targets.length === 0) return fail('NOT_FOUND', 'nothing to clear')
     const events: EventDraft[] = []
     for (const t of targets) {
       // The row stays with its metadata, credits and diff (BR-AI-04); what was typed and answered goes
-      await tx.agentAction.update({ where: { id: t.id }, data: { inputText: null, output: { purged: true }, contentPurgedAt: ctx.now } })
+      // review.proposed, verification and fieldConfidence repeat what the AI read, so they go too (an unapplied action
+      // has no diff to keep)
+      await tx.agentAction.update({
+        where: { id: t.id },
+        data: { inputText: null, output: PURGED, review: PURGED, verification: PURGED, fieldConfidence: PURGED, contentPurgedAt: ctx.now },
+      })
       events.push({ type: 'agent_action.content_purged', aggregateType: 'AgentAction', aggregateId: t.id, data: { reason: t.reason } })
     }
     return { ok: true, result: { purged: targets.length }, events }

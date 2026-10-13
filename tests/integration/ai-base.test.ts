@@ -316,8 +316,9 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     // 91 days later the content of what nobody used is cleared; the metadata and credits stay (BR-AI-18)
     await runAgentActionSweep(org.organizationId, new Date(NOW.getTime() + 91 * 86_400_000))
     const cleared = await prisma.agentAction.findUniqueOrThrow({ where: { id: insight.data.agentActionId } })
-    expect(cleared).toMatchObject({ inputText: null, costCredits: 1 })
+    expect(cleared).toMatchObject({ inputText: null, costCredits: 1, output: { purged: true }, fieldConfidence: { purged: true }, review: { purged: true } })
     expect(cleared.contentPurgedAt).not.toBeNull()
+    expect(JSON.stringify(cleared)).not.toMatch(/QT-1|129684/)
 
     const byAction = async (id: string) => (await prisma.event.findMany({ where: { aggregateType: 'AgentAction', aggregateId: id }, orderBy: { seq: 'asc' }, select: { type: true } })).map((e) => e.type)
     expect(await byAction(draft.data.agentActionId)).toEqual(['agent_action.requested', 'agent_action.drafted', 'agent_action.rejected', 'agent_action.content_purged'])
@@ -363,6 +364,26 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     expect((await prisma.agentAction.findUniqueOrThrow({ where: { id: a.data.agentActionId } })).status).toBe('DRAFT')
   })
 
+  it('[BR-AI-23] an answer that comes after the call timed out is not used, but its tokens are charged once', async () => {
+    const org = await setup()
+    const a = await ask(org)
+    if (!a.ok) throw new Error(a.error.code)
+    await runAgentActionSweep(org.organizationId, new Date(NOW.getTime() + 16 * 60_000))
+    const late = await completeAgentAction(org.organizationId, new Date(NOW.getTime() + 17 * 60_000), 'QUOTATION_READ@1', {
+      agentActionId: a.data.agentActionId,
+      outcome: 'DRAFT',
+      model: SONNET,
+      requestedModel: SONNET,
+      output: { docNo: 'QT-1' },
+      usage: { input: 12_000, output: 800, cacheRead: 0, cacheWrite: 0 },
+      latencyMs: 1_020_000,
+    })
+    expect(late.ok && late.data).toEqual({ status: 'FAILED', costCredits: 32 })
+    const row = await prisma.agentAction.findUniqueOrThrow({ where: { id: a.data.agentActionId } })
+    expect(row).toMatchObject({ status: 'FAILED', errorCode: 'TIMEOUT', costCredits: 32, output: null })
+    expect(await prisma.aiCreditLedger.count({ where: { agentActionId: row.id, kind: 'USE', credits: 32 } })).toBe(1)
+  })
+
   it('[BR-AI-18] what a member typed is redacted before it is kept, and an idempotency key returns the same action', async () => {
     const org = await setup()
     const first = await requestAgentAction(org.ctx('req_con'), { purpose: 'QUESTION', inputText: 'โอนเข้าบัญชี 1234567890 ให้ผู้ขาย', idempotencyKey: 'chat_intake:x:1' }, key())
@@ -370,7 +391,9 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     const row = await prisma.agentAction.findUniqueOrThrow({ where: { id: first.data.agentActionId } })
     expect(row.inputText).toBe('โอนเข้าบัญชี [ปิดบัง] ให้ผู้ขาย')
     const again = await requestAgentAction(org.ctx('req_con'), { purpose: 'QUESTION', inputText: 'อีกครั้ง', idempotencyKey: 'chat_intake:x:1' }, key())
-    expect(again.ok && again.data).toMatchObject({ agentActionId: first.data.agentActionId, existing: true })
+    expect(again.ok && again.data).toMatchObject({ agentActionId: first.data.agentActionId, existing: true, minConfidenceBp: 9000, model: '' })
+    const otherPurpose = await requestAgentAction(org.ctx('req_con'), { purpose: 'QUOTATION_READ', idempotencyKey: 'chat_intake:x:1' }, key())
+    expect(otherPurpose.ok ? null : otherPurpose.error.code).toBe('IDEMPOTENCY_CONFLICT')
     expect(await prisma.agentAction.count({ where: { organizationId: org.organizationId } })).toBe(1)
     const stranger = await requestAgentAction(org.ctx('asst_con'), { purpose: 'QUESTION', idempotencyKey: 'chat_intake:x:1' }, key())
     expect(stranger.ok ? null : stranger.error.code).toBe('FORBIDDEN')

@@ -20,7 +20,8 @@ export async function readRequestForAssist(tx: TenantTx, id: string): Promise<Re
       formData: true,
       requestType: { select: { code: true } },
       lines: { orderBy: { lineNo: 'asc' }, select: { description: true, quantity: true, uom: true, unitPriceSatang: true, categoryCode: true } },
-      quotations: { orderBy: { createdAt: 'asc' }, select: { supplierName: true, supplierId: true, amountSatang: true, includesVat: true } },
+      // Saved together, quotations share one createdAt: the id (UUID v7, made in order) breaks the tie
+      quotations: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { supplierName: true, supplierId: true, amountSatang: true, includesVat: true } },
     },
   })
   if (!r) return null

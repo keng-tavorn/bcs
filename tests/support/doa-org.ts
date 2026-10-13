@@ -12,7 +12,7 @@ import { ruleJson } from '@/server/doa/snapshot'
 import { loadOrgSettingsYaml } from '@/server/seed/demo-org'
 import { loadSeedForms } from '@/server/seed/forms'
 import { seedTaxRates } from '@/server/seed/tax-rates'
-import { loadYaml, versionSnapshots } from '../golden/doa-fixtures'
+import { DEMO_FIXTURES, loadYaml, versionSnapshots, type FixturePair } from '../golden/doa-fixtures'
 import { TEST_EXPRESS_LAYOUT } from './express-layout'
 
 // An organization built from the §7.4 fixtures for service tests: the departments and position holders of
@@ -50,10 +50,12 @@ const FORM_SCHEMA = {
 /**
  * options.doa false: no DOA version yet, as before an organization's initial package (BR-DOA-19).
  * options.express: the Express layout instead of the test fixture's (a mapping of [] is the demo's: none yet, OQ-10).
+ * options.fixtures: another pair of §7.4 fixtures, e.g. org-p1.yaml and doa-versions-p1.yaml (createP1Org, ADR-070).
  */
-export async function createDoaOrg(options: { doa?: boolean; express?: OrgSettings['express'] } = {}): Promise<DoaOrg> {
+export async function createDoaOrg(options: { doa?: boolean; express?: OrgSettings['express']; fixtures?: FixturePair } = {}): Promise<DoaOrg> {
   await seedTaxRates()
-  const fixture = loadYaml<OrgFixture>('fixtures/org-demo.yaml')
+  const fixtures = options.fixtures ?? DEMO_FIXTURES
+  const fixture = loadYaml<OrgFixture>(fixtures.org)
   const settings = OrgSettingsSchema.parse({ ...(parseYaml(loadOrgSettingsYaml()) as object), express: options.express ?? TEST_EXPRESS_LAYOUT })
   const org = await prisma.organization.create({
     data: { code: `D-${randomUUID().slice(0, 8)}`, legalNameTh: 'องค์กรทดสอบ DOA', taxId: '0999999000055', timezone: 'Asia/Bangkok', settings: toJsonSafe(settings) as object },
@@ -85,7 +87,7 @@ export async function createDoaOrg(options: { doa?: boolean; express?: OrgSettin
     })
   }
 
-  const v1 = versionSnapshots().find((v) => v.versionNo === 1)!
+  const v1 = versionSnapshots(fixtures.versions).find((v) => v.versionNo === 1)!
   if (options.doa !== false) await publishVersion1(organizationId, v1)
 
   const type = await prisma.requestType.create({ data: { organizationId, code: 'BUY_GOODS', nameTh: 'ซื้อของ', documentType: 'PURCHASE_REQUEST' } })

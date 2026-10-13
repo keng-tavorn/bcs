@@ -43,6 +43,8 @@ export type AdminOutcome =
       readonly rows?: readonly ImportRowErrorView[]
       readonly modules?: readonly string[]
       readonly documents?: readonly string[]
+      // DOA document types a module needs before it is switched on (BR-DOA-24)
+      readonly documentTypes?: readonly string[]
       // the reference of an unexpected error (§14.2 INTERNAL), so support can find it in the logs
       readonly requestId?: string
     }
@@ -67,6 +69,7 @@ export function toFailure(error: { code: string; details?: Record<string, unknow
     : undefined
   const modules = strings(d.missing) ?? strings(d.modules)
   const documents = strings(d.documents)
+  const documentTypes = strings(d.documentTypes)
   return {
     ok: false,
     code: error.code,
@@ -75,6 +78,7 @@ export function toFailure(error: { code: string; details?: Record<string, unknow
     ...(rows ? { rows } : {}),
     ...(modules ? { modules } : {}),
     ...(documents ? { documents } : {}),
+    ...(documentTypes ? { documentTypes } : {}),
     ...(typeof d.requestId === 'string' ? { requestId: d.requestId } : {}),
   }
 }

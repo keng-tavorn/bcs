@@ -4083,6 +4083,7 @@
         "FORBIDDEN": "This page is for active members of the BCS team. Sign in again and try again.",
         "INPUT": "Some fields are missing or wrong. Check them and try again.",
         "INTERNAL": "Something went wrong (reference {requestId}). Try again.",
+        "MODULE_RULES_MISSING": "The organization's DOA has no rule for {documentTypes} yet. The customer must publish a DOA with these rules first, then this module can be switched on.",
         "NOT_FOUND": "This organization was not found. Go back to customer organizations and choose again.",
         "NO_CHANGE": "The module is already in this state. Reload the page to see the latest state.",
         "OPEN_DOCUMENTS": "Documents are still open in this module: {documents}. The customer must close them first.",

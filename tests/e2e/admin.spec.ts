@@ -177,7 +177,7 @@ async function orgAdminModulesPage(browser: Browser, testInfo: TestInfo, clientI
 
 test('[FR-ADM-006/AC1] the BCS team switches a module with a contract reference and a reason; the organization admin sees it read-only', async ({ page, browser, clientIp }, testInfo) => {
   // Customer screens show the module name alone; the BCS team's page adds the code (รหัส …) beside it
-  const [moduleName, code] = testInfo.project.name === 'mobile' ? ['สัญญา', 'CONTRACTS'] : ['จ่ายเงิน', 'PAY']
+  const [moduleName, code] = testInfo.project.name === 'mobile' ? ['สัญญา', 'CONTRACTS'] : ['เชื่อมระบบอื่น', 'INTEGRATION']
   const contractRef = `E2E-${testInfo.project.name.toUpperCase()}-001`
   await signInPlatform(page)
   await expect(page.getByRole('heading', { level: 1, name: 'องค์กรลูกค้า' })).toBeVisible()

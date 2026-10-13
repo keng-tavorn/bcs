@@ -13,6 +13,7 @@ import { ruleJson, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { parseDoaYaml } from '@/server/doa/yaml'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
 import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
@@ -110,6 +111,9 @@ export const submitDoaVersionCommand = defineCommand({
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const submitter = actorOf(ctx)
     if (!submitter) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member submits' } }
+    // BR-DOA-24: the organization row first (as organization.set_module and initial-package.ts), so a module switched
+    // on while this runs cannot leave a version waiting for approval without the rules the module needs
+    await lockRowsForUpdate(tx, 'Organization', ctx.organizationId, [ctx.organizationId])
     const [locked] = await lockRowsForUpdate(tx, 'DoaVersion', ctx.organizationId, [input.versionId])
     if (!locked) return fail('NOT_FOUND', 'DOA version not found')
     const row = await tx.doaVersion.findUniqueOrThrow({ where: { id: input.versionId }, include: { rules: true } })
@@ -120,9 +124,10 @@ export const submitDoaVersionCommand = defineCommand({
     const later = await laterVersionScheduled(tx, row, row.effectiveFrom)
     if (later) return later
 
-    // BR-DOA-08: the full lint against the organization as it will be on the effective date
+    // BR-DOA-08: the full lint against the organization as it will be on the effective date, with the modules that are
+    // on (BR-DOA-23); the approval runs no lint again
     const version = versionSnapshotFromRows(row, row.rules)
-    const lint = lintDoaVersion(version, await loadOrgSnapshot(tx), row.effectiveFrom)
+    const lint = lintDoaVersion(version, await loadOrgSnapshot(tx), row.effectiveFrom, { modules: await enabledModules(tx) })
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
     const unacknowledged = lint.warnings.map(warningKey).filter((k) => !input.acknowledgedWarnings.includes(k))
     if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })

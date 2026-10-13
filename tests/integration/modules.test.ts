@@ -7,7 +7,9 @@ import { MODULES } from '@/core/modules'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { listModules, registerModuleUsageCheck, requireModule, setModule } from '@/server/services/modules'
+import { createDoaOrg } from '../support/doa-org'
 import { createMember, createOrg } from '../support/factory'
+import { createP1Org } from '../support/p1-org'
 
 // FR-PLT-011 (module gate and rules) and FR-ADM-006 AC1 (the BCS team switches modules; ORG_ADMIN sees and is told).
 
@@ -37,11 +39,11 @@ describe('[FR-PLT-011/AC1] a switched-off module refuses its services', () => {
   it('requireModule answers MODULE_DISABLED until the module is on; CORE is always on', async () => {
     const { platform } = await setup()
     expect(await requireModule(platform, 'CORE')).toMatchObject({ ok: true })
-    expect(await requireModule(platform, 'PAY')).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED', details: { module: 'PAY' } } })
-    expect(await setModule(platform, change('PAY', true), key())).toMatchObject({ ok: true })
-    expect(await requireModule(platform, 'PAY')).toMatchObject({ ok: true })
-    expect(await setModule(platform, change('PAY', false), key())).toMatchObject({ ok: true })
-    expect(await requireModule(platform, 'PAY')).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
+    expect(await requireModule(platform, 'CONTRACTS')).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED', details: { module: 'CONTRACTS' } } })
+    expect(await setModule(platform, change('CONTRACTS', true), key())).toMatchObject({ ok: true })
+    expect(await requireModule(platform, 'CONTRACTS')).toMatchObject({ ok: true })
+    expect(await setModule(platform, change('CONTRACTS', false), key())).toMatchObject({ ok: true })
+    expect(await requireModule(platform, 'CONTRACTS')).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
   })
 })
 
@@ -129,5 +131,68 @@ describe('[FR-ADM-006/AC1] the BCS team switches modules; ORG_ADMIN sees the sta
     expect(await listModules(plainCtx)).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     await prisma.platformAdmin.update({ where: { id: platformAdmin.id }, data: { active: false } })
     expect(await setModule(platform, change('AI', true), key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+})
+
+async function platformCtxFor(organizationId: string) {
+  const platformAdmin = await prisma.platformAdmin.create({ data: { displayName: 'ทีม BCS', active: true } })
+  return makeCtx({ organizationId, actor: { type: 'PLATFORM_ADMIN', platformAdminId: platformAdmin.id }, channel: 'WEB', now: new Date() })
+}
+const payTypes = ['INVOICE_EXCEPTION', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE']
+const moduleEvents = (organizationId: string) => prisma.event.count({ where: { organizationId, type: 'organization.module_enabled' } })
+
+describe('[FR-PLT-011/AC4] PAY is switched on only when the DOA has its rules (§4.11 rule 7, BR-DOA-24)', () => {
+  it('a DOA in effect without the PAY rules: DOA_NOT_CONFIGURED naming the types and the version, nothing changes', async () => {
+    const org = await createDoaOrg()
+    const platform = await platformCtxFor(org.organizationId)
+    const refused = await setModule(platform, change('PAY', true), key())
+    expect(refused).toMatchObject({
+      ok: false,
+      error: { code: 'DOA_NOT_CONFIGURED', details: { reason: 'MODULE_RULES_MISSING', module: 'PAY', documentTypes: payTypes, versions: [{ code: 'DOA-DEMO', versionNo: 1 }] } },
+    })
+    expect(await prisma.orgModule.count({ where: { organizationId: org.organizationId, module: 'PAY' } })).toBe(0)
+    expect(await moduleEvents(org.organizationId)).toBe(0)
+    expect(await requireModule(platform, 'PAY')).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
+  })
+
+  it('an organization without a DOA cannot switch PAY on; one without the PAY rules may still switch on a module that needs none', async () => {
+    const none = await createDoaOrg({ doa: false })
+    const platform = await platformCtxFor(none.organizationId)
+    expect(await setModule(platform, change('PAY', true), key())).toMatchObject({ ok: false, error: { code: 'DOA_NOT_CONFIGURED', details: { documentTypes: payTypes, versions: [] } } })
+    expect(await setModule(platform, change('AI', true), key())).toMatchObject({ ok: true })
+  })
+
+  it('a version waiting for approval without the PAY rules blocks it too, though the version in effect has them', async () => {
+    const org = await createP1Org({ modules: [] })
+    const live = await prisma.doaVersion.findFirstOrThrow({ where: { organizationId: org.organizationId, status: 'PUBLISHED' }, include: { rules: true } })
+    const pending = await prisma.doaVersion.create({
+      data: {
+        organizationId: org.organizationId,
+        code: live.code,
+        versionNo: 2,
+        status: 'PENDING_APPROVAL',
+        effectiveFrom: new Date('2027-01-01T00:00:00+07:00'),
+        amountBasis: live.amountBasis,
+        selfApprovalPolicy: live.selfApprovalPolicy,
+        sodPolicy: live.sodPolicy as object,
+      },
+    })
+    const keep = live.rules.filter((r) => !['PAYMENT_RUN'].includes(r.documentType))
+    await prisma.doaRule.createMany({ data: keep.map((r) => ({ organizationId: org.organizationId, doaVersionId: pending.id, code: r.code, documentType: r.documentType, priority: r.priority, when: r.when as object, steps: r.steps as object })) })
+    const platform = await platformCtxFor(org.organizationId)
+    expect(await setModule(platform, change('PAY', true), key())).toMatchObject({
+      ok: false,
+      error: { code: 'DOA_NOT_CONFIGURED', details: { reason: 'MODULE_RULES_MISSING', documentTypes: ['PAYMENT_RUN'], versions: [{ code: live.code, versionNo: 2 }] } },
+    })
+  })
+})
+
+describe('[FR-PLT-011/AC5] with every rule in place PAY switches on as before', () => {
+  it('records the module and the event organization.module_enabled', async () => {
+    const org = await createP1Org({ modules: [] })
+    const platform = await platformCtxFor(org.organizationId)
+    expect(await setModule(platform, change('PAY', true), key())).toMatchObject({ ok: true, data: { module: 'PAY', enabled: true } })
+    expect(await requireModule(platform, 'PAY')).toMatchObject({ ok: true })
+    expect(await moduleEvents(org.organizationId)).toBe(1)
   })
 })

@@ -19,6 +19,7 @@ import { describeError } from '@/server/errors/describe'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, isBusyTxError, runCommand, type CommandFailure, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
 import { warningKey } from '../doa/lint-view'
 
@@ -211,8 +212,10 @@ async function assess(tx: TenantTx, ctx: Ctx, input: Proposal, proposer: string,
   const version = versionAt(policy.versions, effectiveFrom)
   const warnings: string[] = []
   if (version) {
-    const lintBefore = lintDoaVersion(version, org, effectiveFrom)
-    const lintAfter = lintDoaVersion(version, orgAfter(org, input, effectiveFrom), effectiveFrom)
+    // The same modules on both sides (BR-DOA-23), so only the change of holders can make a difference
+    const modules = await enabledModules(tx)
+    const lintBefore = lintDoaVersion(version, org, effectiveFrom, { modules })
+    const lintAfter = lintDoaVersion(version, orgAfter(org, input, effectiveFrom), effectiveFrom, { modules })
     const before = new Set(lintBefore.errors.map((e) => e.rule))
     const broken = lintAfter.errors.filter((e) => e.code === 'DOA_LINT_UNRESOLVABLE_GOVERNANCE' && !before.has(e.rule))
     if (broken.length) return fail('VALIDATION_FAILED', 'nobody could approve policy changes after this change', { reason: 'GOVERNANCE_UNRESOLVABLE', rules: broken.map((e) => e.rule) })

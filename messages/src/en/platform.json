@@ -34,6 +34,7 @@
       "REQUIRES": "Switch on {modules} first, then this module.",
       "REQUIRED_BY": "These modules still use this one: {modules}. Switch them off first.",
       "OPEN_DOCUMENTS": "Documents are still open in this module: {documents}. The customer must close them first.",
+      "MODULE_RULES_MISSING": "The organization's DOA has no rule for {documentTypes} yet. The customer must publish a DOA with these rules first, then this module can be switched on.",
       "NO_CHANGE": "The module is already in this state. Reload the page to see the latest state.",
       "CORE_ALWAYS_ON": "Core cannot be switched off.",
       "INPUT": "Some fields are missing or wrong. Check them and try again.",

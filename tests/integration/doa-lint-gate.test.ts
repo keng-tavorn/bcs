@@ -22,8 +22,9 @@ const rule = (code: string, documentType: DoaRuleSnapshot['documentType'], amoun
 })
 const governance = [rule('DOA-CHG-01', 'DOA_CHANGE'), rule('ORG-CHG-01', 'ORG_AUTHORITY_CHANGE')]
 
-async function orgWithDoa(rules: DoaRuleSnapshot[], status: 'PUBLISHED' | 'DRAFT') {
+async function orgWithDoa(rules: DoaRuleSnapshot[], status: 'PUBLISHED' | 'DRAFT' | 'SUPERSEDED', options: { modules?: ('PAY' | 'AI')[] } = {}) {
   const org = await createOrg()
+  for (const key of options.modules ?? []) await prisma.orgModule.create({ data: { organizationId: org.id, module: key, enabled: true, enabledAt: new Date('2026-01-01T00:00:00Z') } })
   const root = await prisma.department.create({ data: { organizationId: org.id, code: 'HQ', nameTh: 'สำนักงานใหญ่', kind: 'COMPANY' } })
   const position = await prisma.position.create({ data: { organizationId: org.id, code: 'CEO', nameTh: 'ประธานเจ้าหน้าที่บริหาร', scope: 'ORG' } })
   const member = await createMember(org.id, 'ประธาน บริษัท')
@@ -65,5 +66,30 @@ describe('[FR-DOA-002/AC1] pnpm verify lints every seeded or published DOA versi
     // The draft has no governance rules and only one band, yet it is not linted: only seeded or published versions are
     expect(about(draft.orgCode)).toEqual([])
     expect(result.checked).toBeGreaterThanOrEqual(2)
+  })
+})
+
+const pay = [
+  rule('IE-01', 'INVOICE_EXCEPTION', { gt: 0n }),
+  rule('PAY-01', 'PAYMENT_RUN', { gt: 0n }),
+  rule('BA-01', 'BANK_ACCOUNT_CHANGE'),
+]
+const purchase = [rule('PR-01', 'PURCHASE_REQUEST', { gt: 0n }), ...governance]
+
+describe('[FR-DOA-002/AC7] the db gate lints with the modules that are on (BR-DOA-23)', () => {
+  it('a published version is linted with the modules on now; a superseded one without modules (INV-DOA-03)', async () => {
+    const lacking = await orgWithDoa(purchase, 'PUBLISHED', { modules: ['PAY'] })
+    const complete = await orgWithDoa([...purchase, ...pay], 'PUBLISHED', { modules: ['PAY'] })
+    const old = await orgWithDoa(purchase, 'SUPERSEDED', { modules: ['PAY'] })
+    const off = await orgWithDoa(purchase, 'PUBLISHED')
+
+    const result = await lintSeededAndPublishedDoa({ verifyDatabaseUrl: migratorUrl(process.env.BCS_TEST_DB ?? 'bcs_test') })
+    const about = (code: string) => result.problems.filter((p) => p.includes(`องค์กร ${code}`))
+    const where = `DOA ${lacking.version.code} ฉบับ 1 ขององค์กร ${lacking.orgCode}`
+    expect(about(lacking.orgCode)).toEqual(['INVOICE_EXCEPTION', 'PAYMENT_RUN', 'BANK_ACCOUNT_CHANGE'].map((t) => `${where}: DOA_LINT_MISSING_DOCTYPE ${t}`))
+    expect(about(complete.orgCode)).toEqual([])
+    // Switching PAY on after a version was superseded never fails it: it was right while it was in effect
+    expect(about(old.orgCode)).toEqual([])
+    expect(about(off.orgCode)).toEqual([])
   })
 })

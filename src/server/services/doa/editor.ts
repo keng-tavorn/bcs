@@ -14,6 +14,7 @@ import { doaVersionDataFromRows, type DoaVersionData } from '@/server/doa/yaml'
 import { getDoaVersionRow, listDoaVersions } from '@/server/queries/doa'
 import { listMembers, listPositions } from '@/server/queries/org'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { enabledModules } from '../modules'
 import { approverKey } from './compare'
 import { THAI_DATE, effectiveDates, thaiDateStart } from './dates'
 import { diffVersions } from './diff'
@@ -267,7 +268,8 @@ export const draftDoaCopyCommand = defineCommand({
       }
     }
 
-    // BR-DOA-08: the full lint against the organization on the effective date, as the send will run it
+    // BR-DOA-08: the full lint against the organization on the effective date with the modules on now (BR-DOA-23), as
+    // the send will run it
     const snapshot: DoaVersionSnapshot = {
       id,
       code: source.code,
@@ -280,7 +282,7 @@ export const draftDoaCopyCommand = defineCommand({
       collapseDuplicateApprovers: input.policy.collapseDuplicateApprovers,
       rules,
     }
-    const lint = lintDoaVersion(snapshot, await loadOrgSnapshot(tx), effectiveFrom)
+    const lint = lintDoaVersion(snapshot, await loadOrgSnapshot(tx), effectiveFrom, { modules: await enabledModules(tx) })
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
 
     const last = await tx.doaVersion.aggregate({ where: { code: source.code }, _max: { versionNo: true } })

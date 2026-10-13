@@ -805,8 +805,8 @@ def wf_versions(d, code, rep_step):
                     if k in rep_step: st[k] = rep_step[k]
                 if st["quorum"] != "COUNT": st.pop("quorumCount", None)
     return vs
-def wf_resolve(d, i):
-    at = dt(i["at"]); vs = [v for v in wf_versions(d, i["doa"], i.get("replaceStep")) if dt(v["effectiveFrom"]) <= at]
+def wf_resolve(d, i, versions=None):
+    at = dt(i["at"]); vs = [v for v in (versions if versions is not None else wf_versions(d, i["doa"], i.get("replaceStep"))) if dt(v["effectiveFrom"]) <= at]
     if not vs: return {"error": "DOA_NOT_CONFIGURED"}
     v = vs[-1]; amt = sat(i["amount"]); doc = i["documentType"]
     band = sorted([r for r in v["rules"] if r["documentType"] == doc and amount_only(r)], key=lower)
@@ -940,12 +940,55 @@ def wf_lint(d, i):
         if not r.get("fallback"): warns.append({"code": "WF_LINT_NO_FALLBACK", "rule": r["code"]})
         if any(x["kind"] == "MEMBER" for x in r["reviewers"]): warns.append({"code": "WF_LINT_MEMBER_REVIEWER", "rule": r["code"]})
     return {"errors": errs, "warnings": warns}
+def wf_withdraw(i, vs):
+    # FR-DOA-104 · BR-DOA-18: the version must still wait; the one it was to follow runs until the next waiting one
+    at = dt(i["at"]); t = next(v for v in vs if v["no"] == i["withdraw"])
+    if t["from"] <= at: return {"error": "INVALID_STATE_TRANSITION", "reason": "ALREADY_EFFECTIVE"}
+    nxt = min((v for v in vs if v is not t and v["from"] > t["from"]), key=lambda v: v["from"], default=None)
+    for v in vs:
+        if v is not t and v["to"] == t["from"]: v["to"] = nxt["from"] if nxt else None
+    t["status"] = "WITHDRAWN"
+    def at_time(x):
+        live = [v for v in vs if v["status"] != "WITHDRAWN" and v["from"] <= x and (v["to"] is None or x < v["to"])]
+        return max(live, key=lambda v: v["from"])["no"] if live else None
+    return {"ok": True, "to": {v["no"]: v["to"] for v in vs}, "at": at_time}
+def wf_withdraw_ok(d, i, exp):
+    vs = [{"no": v["version"], "from": dt(v["effectiveFrom"]), "status": "PUBLISHED"} for v in wf_versions(d, i["doa"], None)]
+    if i.get("extraVersion"): vs.append({"no": i["extraVersion"]["version"], "from": dt(i["extraVersion"]["effectiveFrom"]), "status": "PUBLISHED"})
+    vs.sort(key=lambda v: v["from"])
+    for k, v in enumerate(vs): v["to"] = vs[k + 1]["from"] if k + 1 < len(vs) else None
+    got = wf_withdraw(i, vs)
+    if "error" in got: return got == exp, got
+    ok = exp.get("ok") is True and all((got["to"][int(n)] is None) if w is None else got["to"][int(n)] == dt(w) for n, w in (exp.get("effectiveTo") or {}).items())
+    ok = ok and all(got["at"](dt(t)) == n for t, n in (exp.get("versionAt") or {}).items())
+    return ok, {"ok": True, "effectiveTo": {n: (z(x) if x else None) for n, x in got["to"].items()}}
+def wf_backtest(d, i):
+    # BR-WF-13: each document twice — by the version in effect when it was sent, and by the draft as if in effect then
+    vs = wf_versions(d, i["doa"], None)
+    cur = [v for v in vs if v["version"] == i["current"]]; dra = [dict(v, effectiveFrom="1970-01-01T00:00:00Z") for v in vs if v["version"] == i["draft"]]
+    def side(r): return {"rule": None, "approvers": [], "error": r["error"]} if "error" in r else {"rule": r.get("escalatedTo", r["rule"]), "approvers": [a for s in r["steps"] for a in s["approvers"]], "error": None}
+    rows, load = [], {}
+    for doc in i["documents"]:
+        base = {**i, "amount": doc["amount"], "at": doc["submittedAt"]}
+        c, g = side(wf_resolve(d, base, cur)), side(wf_resolve(d, base, dra))
+        ch = c != g
+        if ch:
+            for m in c["approvers"]: load[m] = load.get(m, 0) - 1
+            for m in g["approvers"]: load[m] = load.get(m, 0) + 1
+        rows.append({"ref": doc["ref"], "current": {"rule": c["rule"], "approvers": c["approvers"]}, "draft": {"rule": g["rule"], "approvers": g["approvers"]}, "changed": ch})
+    return {"rows": rows, "summary": {"total": len(rows), "changed": sum(r["changed"] for r in rows), "load": {k: n for k, n in sorted(load.items()) if n}}}
 def run_workflow(d):
     global HOLD
     use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
     for c in d["cases"]:
         i = {**d["defaults"], **c["input"]}
         HOLD = {**base, **{tuple(k.split("@")): m for k, m in (i.get("replaceHolders") or {}).items()}}
+        if c["fn"] == "withdrawVersion":
+            ok, got = wf_withdraw_ok(d, i, c["expect"]); out.append((c["id"], ok, got)); continue
+        if c["fn"] == "backtestPolicy":
+            got = wf_backtest(d, i); exp = c["expect"]; rows = {r["ref"]: r for r in got["rows"]}
+            ok = got["summary"] == exp["summary"] and all(all(rows[w["ref"]].get(k) == x for k, x in w.items()) for w in exp["rows"])
+            out.append((c["id"], ok, got)); continue
         if c["fn"] == "stepOutcome": got = wf_outcome(c["input"])
         elif c["fn"] == "lintDoaVersion": got = lint_version(wf_versions(d, i["doa"], i.get("replaceStep"))[0], frozenset(i.get("vacate") or []))
         elif c["fn"] == "lintWorkflowVersion": got = wf_lint(d, i)

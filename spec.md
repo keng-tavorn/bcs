@@ -2505,6 +2505,17 @@ cases:
   - { id: GC-WF-36, fn: lintWorkflowVersion, input: { replaceWhen: { rule: RV-03, when: { field: notAField, op: eq, value: "Y" } } }, expect: { errors: [{ code: WF_LINT_UNKNOWN_FIELD, rule: RV-03, field: notAField }], warnings: [] } }
   - { id: GC-WF-37, fn: lintWorkflowVersion, input: { vacate: ["DM@LEG"] }, expect: { errors: [], warnings: [{ code: WF_LINT_VACANT_REVIEWER, rule: RV-02 }, { code: WF_LINT_VACANT_REVIEWER, rule: RV-03 }] } }
   - { id: GC-WF-38, fn: lintWorkflowVersion, input: { removeFallback: [RV-03] }, expect: { errors: [], warnings: [{ code: WF_LINT_NO_FALLBACK, rule: RV-03 }] } }
+  # S6-07 · ถอนฉบับ (FR-DOA-104 · BR-DOA-18) ฉบับ 1 และ 2 ของ fixture เดิม · ฉบับ 2 เผยแพร่แล้วจึงตั้ง effectiveTo ของฉบับ 1
+  - { id: GC-WF-39, fn: withdrawVersion, input: { withdraw: 2, at: "2026-10-15T03:00:00Z" }, expect: { ok: true, effectiveTo: { 1: null }, versionAt: { "2026-11-02T03:00:00Z": 1 } } }
+  - { id: GC-WF-40, title: ถึงวันมีผลแล้ว, fn: withdrawVersion, input: { withdraw: 2, at: "2026-10-31T17:00:00Z" }, expect: { error: INVALID_STATE_TRANSITION, reason: ALREADY_EFFECTIVE } }
+  - { id: GC-WF-41, title: มีฉบับ 3 รอมีผลอยู่หลังฉบับ 2, fn: withdrawVersion, input: { withdraw: 2, at: "2026-10-15T03:00:00Z", extraVersion: { version: 3, effectiveFrom: "2026-12-01T00:00:00+07:00" } }, expect: { ok: true, effectiveTo: { 1: "2026-12-01T00:00:00+07:00" } } }
+  # S6-07 · ย้อนทดสอบ (BR-WF-13): ฉบับ 1 = ปัจจุบัน · ฉบับ 2 = ร่าง
+  - id: GC-WF-42
+    fn: backtestPolicy
+    input: { current: 1, draft: 2, documents: [{ ref: D1, amount: "25000.00", submittedAt: "2026-10-06T03:00:00Z" }, { ref: D2, amount: "15000.00", submittedAt: "2026-10-06T03:00:00Z" }, { ref: D3, amount: "150000.00", submittedAt: "2026-10-06T03:00:00Z" }] }
+    expect:
+      rows: [{ ref: D1, current: { rule: PR-02, approvers: [vp_ops] }, draft: { rule: PR-01, approvers: [dm_con] }, changed: true }, { ref: D2, changed: false }, { ref: D3, changed: false }]
+      summary: { total: 3, changed: 1, load: { vp_ops: -1, dm_con: 1 } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -4132,7 +4143,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       25 ไฟล์ · 257 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       25 ไฟล์ · 261 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

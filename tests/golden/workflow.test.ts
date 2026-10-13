@@ -1,15 +1,16 @@
 import { readdirSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { amountToSatang } from '@/core/money/dto'
-import { isCommitteeStep, lintDoaVersion, resolveRoute, type ApproverSpec, type CommitteeQuorum, type DoaDocumentType, type DoaVersionSnapshot, type LintIssue, type OrgSnapshot, type RouteStep } from '@/core/doa'
-import { lintWorkflowVersion, resolveRequestRoute, stepOutcome, type Quorum, type SlotDecision, type SlotGroup, type WorkflowLintIssue, type WorkflowRuleSnapshot } from '@/core/workflow'
+import { isCommitteeStep, lintDoaVersion, resolveRoute, versionAt, type ApproverSpec, type CommitteeQuorum, type DoaDocumentType, type DoaVersionSnapshot, type LintIssue, type OrgSnapshot, type RouteStep } from '@/core/doa'
+import { backtestPolicy, lintWorkflowVersion, resolveRequestRoute, stepOutcome, withdrawVersion, type Quorum, type SlotDecision, type SlotGroup, type WorkflowLintIssue, type WorkflowRuleSnapshot } from '@/core/workflow'
 import { baht, GOLDEN_DIR, loadYaml, orgSnapshot, pick, versionSnapshots } from './doa-fixtures'
 import { workflowFixture, workflowRuleOf, type WorkflowRuleFixture } from './workflow-fixtures'
 
 // Every golden file of suite workflow (spec §7.17): committees, the outcome of a step of several slots and the DOA lint
 // of BR-WF-05 (S6-02); the route of a request with its parallel reviewers and the workflow lint (S6-03). Each file names
 // its own fixtures (ADR-069): one org file, the DOA version files (versions told apart by code) and the workflow
-// versions. The runner finds and counts the cases itself; every test name carries the case id.
+// versions; withdrawing a version not yet in effect and the 90-day backtest of a draft (S6-07). The runner finds and counts
+// the cases itself; every test name carries the case id.
 
 interface Suite {
   suite: string
@@ -21,7 +22,7 @@ interface Suite {
 interface Case {
   id: string
   title?: string
-  fn: 'resolveRoute' | 'stepOutcome' | 'lintDoaVersion' | 'resolveRequestRoute' | 'lintWorkflowVersion'
+  fn: 'resolveRoute' | 'stepOutcome' | 'lintDoaVersion' | 'resolveRequestRoute' | 'lintWorkflowVersion' | 'withdrawVersion' | 'backtestPolicy'
   input: Record<string, unknown>
   expect: Record<string, unknown>
 }
@@ -141,6 +142,53 @@ describe.each(files)('golden %s (workflow)', (file) => {
           },
         }
         expect(pick(actual, c.expect)).toEqual(c.expect)
+        return
+      }
+      if (c.fn === 'withdrawVersion') {
+        // Version 2 was published, so version 1 ends where it starts; an extra version 3 waits after version 2
+        const input = c.input as { withdraw: number; at: string; extraVersion?: { version: number; effectiveFrom: string } }
+        const extra = input.extraVersion
+        const published = versions.map((v) => ({ ...v, status: 'PUBLISHED' as const }))
+        const all = extra ? [...published, { ...published.find((v) => v.versionNo === 2)!, versionNo: extra.version, effectiveFrom: new Date(extra.effectiveFrom) }] : published
+        const chained = all.map((v) => {
+          const next = all.filter((n) => n.effectiveFrom.getTime() > v.effectiveFrom.getTime()).sort((a, b) => a.effectiveFrom.getTime() - b.effectiveFrom.getTime())[0]
+          return { ...v, effectiveTo: next ? next.effectiveFrom : null }
+        })
+        const result = withdrawVersion(chained, input.withdraw, new Date(input.at))
+        if (!result.ok) {
+          expect(pick({ error: result.error.code, reason: result.error.details?.reason }, c.expect)).toEqual(c.expect)
+          return
+        }
+        const exp = c.expect as { effectiveTo?: Record<string, string | null>; versionAt?: Record<string, number> }
+        const to = Object.fromEntries(
+          Object.entries(exp.effectiveTo ?? {}).map(([no, want]) => {
+            const got = result.data.versions.find((v) => v.versionNo === Number(no))!.effectiveTo
+            return [no, got && want && got.getTime() === new Date(want).getTime() ? want : got === null ? null : got.toISOString()]
+          }),
+        )
+        const at = Object.fromEntries(Object.keys(exp.versionAt ?? {}).map((t) => [t, versionAt(result.data.versions, new Date(t))?.versionNo ?? null]))
+        expect(pick({ ok: true, ...(exp.effectiveTo ? { effectiveTo: to } : {}), ...(exp.versionAt ? { versionAt: at } : {}) }, c.expect)).toEqual(c.expect)
+        return
+      }
+      if (c.fn === 'backtestPolicy') {
+        const input = c.input as { current: number; draft: number; documents: Array<{ ref: string; amount: string; submittedAt: string }> }
+        const current = versions.find((v) => v.versionNo === input.current)!
+        const draft = versions.find((v) => v.versionNo === input.draft)!
+        const result = backtestPolicy(
+          input.documents.map((d) => ({
+            ref: d.ref,
+            route: { documentType: i.documentType, amount: { netSatang: amountToSatang(d.amount), vatSatang: 0n }, requesterMemberId: i.requester, chargedDepartmentId: i.department, conflictMemberIds: [i.requester], at: new Date(d.submittedAt) },
+          })),
+          { versions: [{ ...current, effectiveTo: null }], org, delegations: [] },
+          { ...draft, status: 'DRAFT' },
+        )
+        const exp = c.expect as { rows: Array<Record<string, unknown> & { ref: string }>; summary: unknown }
+        const side = (s: { rule: string | null; approvers: readonly string[] }) => ({ rule: s.rule, approvers: [...s.approvers] })
+        const rows = exp.rows.map((want) => {
+          const row = result.rows.find((r) => r.ref === want.ref)!
+          return pick({ ref: row.ref, current: side(row.current), draft: side(row.draft), changed: row.changed }, want)
+        })
+        expect({ rows, summary: result.summary }).toEqual(c.expect)
         return
       }
       if (c.fn === 'stepOutcome') {

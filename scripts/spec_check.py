@@ -767,6 +767,89 @@ def run_grni(d):
         got = {"lines": lines, "byCostCenter": {k: baht(v) for k, v in by.items()}}
         out.append((c["id"], got == c["expect"], got))
     return out
+def q4(q):  # quantity ×10⁴ as int
+    qs = Decimal(str(q)) * 10000; assert qs == qs.to_integral_value(), "จำนวนเกิน 4 ตำแหน่ง"; return int(qs)
+def q4s(n): return str((Decimal(n) / 10000).normalize()) if n % 10000 else str(n // 10000)
+def lr_split(total, weights):  # BR-MONEY-02 ข้อ 4 · เศษเท่ากันให้ตำแหน่งแรกก่อน
+    W = sum(weights)
+    if W == 0: return [0] * len(weights)
+    fl = [total * w // W for w in weights]; rm = [total * w % W for w in weights]
+    for k in sorted(range(len(weights)), key=lambda k: (-rm[k], k))[: total - sum(fl)]: fl[k] += 1
+    return fl
+def ivc_nets(inv):  # BR-MATCH-06: ยอดต่อบรรทัดหักส่วนลดท้ายบิลที่ปันตามยอด
+    amts = [line_net(l["qty"], sat(l["unitPrice"])) for l in inv["lines"]]
+    disc = lr_split(sat(inv.get("discount", "0.00")), amts)
+    return [a - d for a, d in zip(amts, disc)], disc
+def bud_moves(polines, avail, nets_by_pl, release):  # BR-MATCH-11 ต่อบรรทัดงบตามลำดับที่บรรทัด PO อ้าง
+    order, mv = [], {}
+    for p in polines:
+        net = nets_by_pl.get(p["line"], 0); held = sat(p["held"]); hm = max(net - held, 0); rl = held + hm - net if release else 0
+        if p["budgetLine"] not in mv: order.append(p["budgetLine"]); mv[p["budgetLine"]] = [0, 0, 0]
+        m = mv[p["budgetLine"]]; m[0] += hm; m[1] += net; m[2] += rl
+    short = [(b, mv[b][0] - sat(avail.get(b, "0.00"))) for b in order if mv[b][0] > sat(avail.get(b, "0.00"))]
+    return [{"budgetLine": b, "holdMore": baht(mv[b][0]), "actual": baht(mv[b][1]), "release": baht(mv[b][2])} for b in order], short
+def run_matching(d):
+    pol0, out = d["policy"], []
+    for c in d["cases"]:
+        i, fn = c["input"], c.get("fn", "match")
+        if fn == "duplicates":
+            norm = lambda s: re.sub(r"\s+", "", s).upper(); cd = i["candidate"]; no = norm(cd["invoiceNo"])
+            live = [e for e in i["existing"] if e["table"] == "CONFIRMATION" or e["status"] not in ("DRAFT", "CANCELLED", "REJECTED")]
+            hard = "DUPLICATE_INVOICE" if any(e["supplier"] == cd["supplier"] and norm(e["invoiceNo"]) == no for e in live) else None
+            day = lambda s: datetime.fromisoformat(s).toordinal()
+            soft = [{"invoiceNo": e["invoiceNo"], "days": abs(day(cd["invoiceDate"]) - day(e["invoiceDate"]))} for e in live
+                    if e["taxId"] == cd["taxId"] and sat(e["gross"]) == sat(cd["gross"]) and norm(e["invoiceNo"]) != no]
+            got = {"hard": hard, "soft": [s for s in soft if s["days"] <= 3]}
+        elif fn == "approveVariance":
+            nets, _ = ivc_nets(i["invoice"]); by = {l["poLine"]: n for l, n in zip(i["invoice"]["lines"], nets)}
+            budget, short = bud_moves(i["poLines"], i["available"], by, False)
+            got = {"error": "BUDGET_INSUFFICIENT", "budgetLine": short[0][0], "shortfall": baht(short[0][1])} if short else {"budget": budget}
+        else:
+            pol = {**pol0, **i.get("policy", {})}; inv = i["invoice"]; nets, disc = ivc_nets(inv); pls = {p["line"]: p for p in i["poLines"]}
+            lines, exc = [], []
+            for n, (l, net, dc) in enumerate(zip(inv["lines"], nets, disc), 1):
+                p = pls[l["poLine"]]; pu = sat(p["unitPrice"]); exp = line_net(l["qty"], pu); over = max(net - exp, 0); fl = []
+                if over > 0:
+                    if over * 10000 <= exp * pol["priceTolBp"] and over <= sat(pol["priceTolAmount"]): fl.append("PRICE_OVER_WITHIN")
+                    else: exc.append({"type": "PRICE_OVER", "line": n, "amount": baht(over)})
+                elif net < exp: fl.append("PRICE_UNDER")
+                q, acc, inv_q = q4(l["qty"]), q4(p["accepted"]), q4(p["invoiced"])
+                def add(t, x): exc.append({"type": t, "line": n, "qty": q4s(x), "amount": baht(line_net(q4s(x), pu))})
+                if i["kind"] == "GOODS":
+                    left = max(acc - inv_q, 0)
+                    if q * 10000 > left * (10000 + pol["qtyTolBp"]): add("QTY_NOT_RECEIVED", q - left)
+                else:
+                    oleft = max(q4(p["ordered"]) - inv_q, 0); aleft = max(acc - inv_q, 0)
+                    if q > oleft: add("QTY_OVER_ORDERED", q - oleft)
+                    if min(q, oleft) > aleft: add("ACCEPTANCE_PENDING", min(q, oleft) - aleft)
+                row = {"line": n, "net": baht(net), "expected": baht(exp), "over": baht(over), "flags": fl}
+                if "discount" in inv: row["discount"] = baht(dc)
+                lines.append(row)
+            got = {"lines": lines}
+            if exc:
+                got.update(result="EXCEPTION", exceptions=exc)
+                if all(e["type"] == "PRICE_OVER" for e in exc):
+                    dn = sum(sat(e["amount"]) for e in exc); got["doaAmount"] = {"net": baht(dn), "vat": baht(rhu(dn * pol["vatRateBp"], 10000))}
+            else:
+                by = {l["poLine"]: n for l, n in zip(inv["lines"], nets)}
+                budget, short = bud_moves(i["poLines"], i["available"], by, bool(i.get("poClosed")) and bool(inv.get("isFinal")))
+                if short: got.update(result="EXCEPTION", exceptions=[{"type": "BUDGET_SHORT", "budgetLine": b, "amount": baht(a)} for b, a in short])
+                else: got.update(result="MATCHED", exceptions=[], budget=budget)
+        out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
+    return out
+def run_invoice_vat(d):
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; zero = i["supplierVat"] in ("NOT_REGISTERED", "REGISTRY_VAT_CANCELLED"); r = 0 if zero else i["rateBp"]
+        amts = [line_net(l["qty"], sat(l["unitPrice"])) for l in i["lines"]]; disc = lr_split(sat(i.get("discount", "0.00")), amts)
+        after = [a - x for a, x in zip(amts, disc)]; base = sum(a for a, l in zip(after, i["lines"]) if l.get("vatable", True))
+        if i.get("priceIncludesVat"): v = rhu(base * r, 10000 + r); net = sum(after) - v
+        else: v = rhu(base * r, 10000); net = sum(after)
+        st = sat(i["statedVat"]); diff = st - v
+        status = "VAT_SUPPLIER_NOT_REGISTERED" if i["supplierVat"] != "REGISTERED" and st > 0 else ("VAT_MISMATCH" if abs(diff) > sat("1.00") else "OK")
+        got = {"rateBp": r, "net": baht(net), "computedVat": baht(v), "computedGross": baht(net + v), "invoiceGross": baht(net + st), "diff": baht(diff), "status": status}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "budget": run_budget,
@@ -778,6 +861,8 @@ RUNNERS = {
     "forms": run_forms,
     "grni": run_grni,
     "invoice-confirmation": run_ivc,
+    "invoice-vat": run_invoice_vat,
+    "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,
     "quotations": run_quotes,

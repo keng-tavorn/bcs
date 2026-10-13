@@ -61,6 +61,7 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
   Supplier: { isForeign: true }, // supplier_tax_id_shape: a Thai supplier needs a 13-digit tax id, a foreign one may have none
   InvoiceConfirmation: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n }, // invoice_money_non_negative: gross = net + VAT
+  PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {

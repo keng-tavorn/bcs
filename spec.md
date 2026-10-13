@@ -1138,7 +1138,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni}`
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,matching}`
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -1153,8 +1153,8 @@ stateDiagram-v2
 | BR-VAT-02 | VAT คำนวณระดับเอกสารจากผลรวมของบรรทัดที่ `vatable` (OQ-17) |
 | BR-VAT-03 | ราคารวม VAT: VAT = round(gross × rate ÷ (10000 + rate)) และ net = gross − VAT |
 | BR-VAT-04 | ผู้ขายที่ไม่ได้จดทะเบียน VAT → อัตรา 0 บน PO · คำขอใช้อัตราขององค์กรเป็นค่าประมาณ |
-| BR-VAT-05 | VAT ที่คำนวณของใบ = VAT ระดับเอกสารจากบรรทัด `vatable` หลังหักส่วนลด (BR-VAT-02 BR-VAT-03) ด้วยอัตรา ณ วันที่ใบตามเวลาไทย (BR-VAT-01) · ผู้ขายที่ไม่จด VAT (`isVatRegistered = false` หรือ `Supplier.registryFlag = VAT_CANCELLED`) ใช้อัตรา 0 (BR-VAT-04) · VAT ในใบต่างจากที่คำนวณเกิน `settings.matching.vatTolAmount` (ค่าเริ่มต้น "1.00" เท่ากับ BR-IVC-01) → `VAT_MISMATCH` (OQ-121) |
-| BR-VAT-06 | VAT ในใบ > 0 ขณะผู้ขาย `isVatRegistered = false` หรือ `Supplier.registryFlag` เป็น `VAT_CANCELLED` หรือ `CEASED` (BR-SUP-04) → `VAT_SUPPLIER_NOT_REGISTERED` แทน `VAT_MISMATCH` (ไม่ออกทั้งสองชนิดกับใบเดียว) · ขออนุมัติไม่ได้ ต้องปฏิเสธหรือเปิดแก้ |
+| BR-VAT-05 | VAT ที่คำนวณของใบ = VAT ระดับเอกสารจากบรรทัด `vatable` หลังหักส่วนลด (BR-VAT-02 BR-VAT-03) ด้วยอัตรา ณ วันที่ใบตามเวลาไทย (BR-VAT-01) · ผู้ขายที่ไม่จด VAT (`isVatRegistered = false` หรือ `Supplier.registryFlag = VAT_CANCELLED` · GC-VAT-13) ใช้อัตรา 0 (BR-VAT-04) · VAT ในใบต่างจากที่คำนวณเกิน `settings.matching.vatTolAmount` (ค่าเริ่มต้น "1.00" เท่ากับ BR-IVC-01) → `VAT_MISMATCH` (OQ-121) |
+| BR-VAT-06 | VAT ในใบ > 0 ขณะผู้ขาย `isVatRegistered = false` หรือ `Supplier.registryFlag` เป็น `VAT_CANCELLED` หรือ `CEASED` (BR-SUP-04) → `VAT_SUPPLIER_NOT_REGISTERED` แทน `VAT_MISMATCH` (ไม่ออกทั้งสองชนิดกับใบเดียว · GC-VAT-09 GC-VAT-13) · ขออนุมัติไม่ได้ ต้องปฏิเสธหรือเปิดแก้ |
 | BR-VAT-07 | ยอดรวมของใบ (`grossSatang`) = ยอดก่อน VAT + VAT ในใบ และเป็นฐานของยอดที่ต้องจ่ายเมื่อผ่าน BR-VAT-05 (`invoiceGross` ใน golden) · ยอดที่ระบบคำนวณ (`computedGross`) ใช้ตรวจเท่านั้น · งบไม่รวม VAT เสมอ (BR-BUD-03) |
 
 ข้อมูลตั้งต้นของ `TaxRate` (ต้องให้ PLATFORM_ADMIN ยืนยันก่อน go-live):
@@ -2122,6 +2122,134 @@ suite: wht
 status: preview-T2
 cases:
   - { id: GC-WHT-01, title: ค่าบริการ 10,000 VAT 7% หัก 3%, input: { net: "10000.00", vatRateBp: 700, whtRateBp: 300 }, expect: { vat: "700.00", wht: "300.00", payable: "10400.00" } }
+```
+
+การจับคู่ของใบแจ้งหนี้ชั้น 2 (BR-MATCH-05 ถึง BR-MATCH-13 · engine `src/core/matching` · S8-02):
+
+```yaml
+# tests/golden/matching.yaml
+suite: matching
+# fn: match (ค่าเริ่มต้น) | duplicates | approveVariance
+# policy ทุกเคส = ค่าเริ่มต้นของ OQ-121 เว้นแต่เคสระบุเอง · vatRateBp ใช้คิด VAT ของส่วนต่างใน doaAmount
+policy: { priceTolBp: 100, priceTolAmount: "1000.00", qtyTolBp: 0, vatRateBp: 700 }
+# poLines: accepted = จำนวนที่ GR POSTED ยอมรับ (บริการ = ยืนยันรับงาน) · invoiced = จำนวนในใบอื่นที่ PENDING_APPROVAL ขึ้นไป
+#          held = ยอดถือที่เหลือของบรรทัด PO · available = AVAILABLE ของบรรทัดงบ
+# budget: holdMore = AVAILABLE → COMMITTED · actual = COMMITTED → ACTUAL · release = COMMITTED → AVAILABLE
+# exceptions เรียงตามเลขบรรทัด แล้วตามลำดับชนิด PRICE_OVER QTY_NOT_RECEIVED QTY_OVER_ORDERED ACCEPTANCE_PENDING · BUDGET_SHORT เกิดเมื่อไม่มีชนิดอื่นเท่านั้น
+# doaAmount มีเมื่อรายการไม่ตรงทุกข้อเป็น PRICE_OVER (ขออนุมัติส่วนต่างได้)
+cases:
+  - id: GC-MATCH-01
+    title: สินค้าตรง 3 ทาง (แบบ H009)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "9", unitPrice: "2863.00", accepted: "9", invoiced: "0", held: "25767.00", budgetLine: P05-MAT }], available: { P05-MAT: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "9", unitPrice: "2863.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "25767.00", expected: "25767.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: P05-MAT, holdMore: "0.00", actual: "25767.00", release: "0.00" }] }
+  - id: GC-MATCH-02
+    title: ราคาเกินในเกณฑ์ 0.5% ถือเพิ่มส่วนขาด (แบบ H011)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "23500.00", accepted: "1", invoiced: "0", held: "23500.00", budgetLine: P06-MAT }], available: { P06-MAT: "500000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "23617.50" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "23617.50", expected: "23500.00", over: "117.50", flags: [PRICE_OVER_WITHIN] }], exceptions: [], budget: [{ budgetLine: P06-MAT, holdMore: "117.50", actual: "23617.50", release: "0.00" }] }
+  - id: GC-MATCH-03
+    title: เกินพอดี 1% ถือว่าในเกณฑ์
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "100.00", accepted: "10", invoiced: "0", held: "1000.00", budgetLine: BL-A }], available: { BL-A: "1000.00" }, invoice: { lines: [{ poLine: 1, qty: "10", unitPrice: "101.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "1010.00", expected: "1000.00", over: "10.00", flags: [PRICE_OVER_WITHIN] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "10.00", actual: "1010.00", release: "0.00" }] }
+  - id: GC-MATCH-04
+    title: เกิน 1% ไป 1 สตางค์
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "1000.00", accepted: "1", invoiced: "0", held: "1000.00", budgetLine: BL-A }], available: { BL-A: "1000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "1010.01" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "1010.01", expected: "1000.00", over: "10.01", flags: [] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "10.01" }], doaAmount: { net: "10.01", vat: "0.70" } }
+  - id: GC-MATCH-05
+    title: เพดานจำนวนเงินพอดี 1,000.00 (0.5%)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "200000.00", accepted: "1", invoiced: "0", held: "200000.00", budgetLine: BL-A }], available: { BL-A: "5000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "201000.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "201000.00", expected: "200000.00", over: "1000.00", flags: [PRICE_OVER_WITHIN] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "1000.00", actual: "201000.00", release: "0.00" }] }
+  - id: GC-MATCH-06
+    title: อยู่ใน 1% แต่เกินเพดาน 1 สตางค์ (เกณฑ์ที่เข้มกว่าชนะ)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "200000.00", accepted: "1", invoiced: "0", held: "200000.00", budgetLine: BL-A }], available: { BL-A: "5000.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "201000.01" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "201000.01", expected: "200000.00", over: "1000.01", flags: [] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "1000.01" }], doaAmount: { net: "1000.01", vat: "70.00" } }
+  - id: GC-MATCH-07
+    title: ราคาเกินนอกเกณฑ์ 3% (H001 น้ำมันดีเซล 32.50 → 33.48)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "20000", unitPrice: "32.50", accepted: "20000", invoiced: "0", held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "900000.00" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "669600.00", expected: "650000.00", over: "19600.00", flags: [] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "19600.00" }], doaAmount: { net: "19600.00", vat: "1372.00" } }
+  - id: GC-MATCH-08
+    title: แจ้งหนี้เต็มจำนวนแต่รับแล้ว 90 จาก 100 (แบบ H041)
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "100", unitPrice: "240.00", accepted: "90", invoiced: "0", held: "21600.00", budgetLine: QSE-OPEX }], available: { QSE-OPEX: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "100", unitPrice: "240.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "24000.00", expected: "24000.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_NOT_RECEIVED, line: 1, qty: "10", amount: "2400.00" }] }
+  - id: GC-MATCH-09
+    title: รับบางส่วนแล้วแจ้งหนี้ตามที่รับ
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "1100.00", accepted: "6", invoiced: "0", held: "11000.00", budgetLine: CC-CON }], available: { CC-CON: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "6", unitPrice: "1100.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "6600.00", expected: "6600.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: CC-CON, holdMore: "0.00", actual: "6600.00", release: "0.00" }] }
+  - id: GC-MATCH-10
+    title: ใบที่สองเกินที่รับลบที่แจ้งหนี้แล้ว 1 หน่วย
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "1100.00", accepted: "10", invoiced: "6", held: "4400.00", budgetLine: CC-CON }], available: { CC-CON: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "5", unitPrice: "1100.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "5500.00", expected: "5500.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_NOT_RECEIVED, line: 1, qty: "1", amount: "1100.00" }] }
+  - id: GC-MATCH-11
+    title: รับเกินในเกณฑ์ OQ-20 (104 จาก 100) แล้วแจ้งหนี้ 104
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "100", unitPrice: "10.00", accepted: "104", invoiced: "0", held: "1040.00", budgetLine: BL-A }], available: { BL-A: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "104", unitPrice: "10.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "1040.00", expected: "1040.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "0.00", actual: "1040.00", release: "0.00" }] }
+  - id: GC-MATCH-12
+    title: งานบริการ 2 ทาง ยืนยันรับงานแล้ว (H002 รปภ.)
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "24", unitPrice: "18500.00", accepted: "24", invoiced: "0", held: "444000.00", budgetLine: HRA-GA-OPEX }], available: { HRA-GA-OPEX: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "24", unitPrice: "18500.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "444000.00", expected: "444000.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: HRA-GA-OPEX, holdMore: "0.00", actual: "444000.00", release: "0.00" }] }
+  - id: GC-MATCH-13
+    title: งานบริการยังไม่ยืนยันรับงาน (แบบ H012)
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "1", unitPrice: "420000.00", accepted: "0", invoiced: "0", held: "420000.00", budgetLine: MKT-OPEX }], available: { MKT-OPEX: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "420000.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "420000.00", expected: "420000.00", over: "0.00", flags: [] }], exceptions: [{ type: ACCEPTANCE_PENDING, line: 1, qty: "1", amount: "420000.00" }] }
+  - id: GC-MATCH-14
+    title: งานบริการแจ้งหนี้เกินที่สั่ง
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "8", unitPrice: "2744.00", accepted: "8", invoiced: "0", held: "21952.00", budgetLine: P01-RENT }], available: { P01-RENT: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "9", unitPrice: "2744.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "24696.00", expected: "24696.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_OVER_ORDERED, line: 1, qty: "1", amount: "2744.00" }] }
+  - id: GC-MATCH-15
+    title: ส่วนลดท้ายบิล 100.00 ปันลงสองบรรทัดงบด้วย largest remainder
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "3333.33", accepted: "1", invoiced: "0", held: "3333.33", budgetLine: BL-A }, { line: 2, ordered: "1", unitPrice: "6666.67", accepted: "1", invoiced: "0", held: "6666.67", budgetLine: BL-B }], available: { BL-A: "0.00", BL-B: "0.00" }, invoice: { discount: "100.00", lines: [{ poLine: 1, qty: "1", unitPrice: "3333.33" }, { poLine: 2, qty: "1", unitPrice: "6666.67" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, discount: "33.33", net: "3300.00", expected: "3333.33", over: "0.00", flags: [PRICE_UNDER] }, { line: 2, discount: "66.67", net: "6600.00", expected: "6666.67", over: "0.00", flags: [PRICE_UNDER] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "0.00", actual: "3300.00", release: "0.00" }, { budgetLine: BL-B, holdMore: "0.00", actual: "6600.00", release: "0.00" }] }
+  - id: GC-MATCH-16
+    title: ราคาต่ำกว่า PO ในใบสุดท้ายของ PO ที่ปิดแล้ว คืนถือที่เหลือ
+    input: { kind: GOODS, poClosed: true, poLines: [{ line: 1, ordered: "10", unitPrice: "100.00", accepted: "10", invoiced: "0", held: "1000.00", budgetLine: BL-A }], available: { BL-A: "0.00" }, invoice: { isFinal: true, lines: [{ poLine: 1, qty: "10", unitPrice: "98.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "980.00", expected: "1000.00", over: "0.00", flags: [PRICE_UNDER] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "0.00", actual: "980.00", release: "20.00" }] }
+  - id: GC-MATCH-17
+    title: เกินในเกณฑ์แต่งบว่างไม่พอส่วนขาด
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "23500.00", accepted: "1", invoiced: "0", held: "23500.00", budgetLine: P06-MAT }], available: { P06-MAT: "100.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "23617.50" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "23617.50", expected: "23500.00", over: "117.50", flags: [PRICE_OVER_WITHIN] }], exceptions: [{ type: BUDGET_SHORT, budgetLine: P06-MAT, amount: "17.50" }] }
+  - id: GC-MATCH-18
+    title: สองบรรทัดสองบรรทัดงบ บรรทัดแรกเกินในเกณฑ์
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "10", unitPrice: "1100.00", accepted: "10", invoiced: "0", held: "11000.00", budgetLine: BL-A }, { line: 2, ordered: "5", unitPrice: "2000.00", accepted: "5", invoiced: "0", held: "10000.00", budgetLine: BL-B }], available: { BL-A: "100.00", BL-B: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "10", unitPrice: "1105.00" }, { poLine: 2, qty: "5", unitPrice: "2000.00" }] } }
+    expect: { result: MATCHED, lines: [{ line: 1, net: "11050.00", expected: "11000.00", over: "50.00", flags: [PRICE_OVER_WITHIN] }, { line: 2, net: "10000.00", expected: "10000.00", over: "0.00", flags: [] }], exceptions: [], budget: [{ budgetLine: BL-A, holdMore: "50.00", actual: "11050.00", release: "0.00" }, { budgetLine: BL-B, holdMore: "0.00", actual: "10000.00", release: "0.00" }] }
+  - { id: GC-MATCH-19, fn: duplicates, title: เลขซ้ำหลัง normalize, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: " iv 000496", invoiceDate: "2026-10-05", gross: "27570.69" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000496", invoiceDate: "2026-09-01", gross: "27570.69", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: DUPLICATE_INVOICE, soft: [] } }
+  - { id: GC-MATCH-20, fn: duplicates, title: ซ้ำกับใบกำกับชั้น 1, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000497", invoiceDate: "2026-10-05", gross: "1070.00" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000497", invoiceDate: "2026-09-20", gross: "2140.00", table: CONFIRMATION, status: RECORDED }] }, expect: { hard: DUPLICATE_INVOICE, soft: [] } }
+  - { id: GC-MATCH-21, fn: duplicates, title: เลขเดียวกันต่างผู้ขาย ไม่ซ้ำ, input: { candidate: { supplier: SP-B, taxId: TAX-B, invoiceNo: "INV-00140", invoiceDate: "2026-10-05", gross: "500.00" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "INV-00140", invoiceDate: "2026-10-05", gross: "500.00", table: INVOICE, status: PAID }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-22, fn: duplicates, title: เลขเดียวกับใบที่ถูกปฏิเสธ ไม่ซ้ำ, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: "TX0000755", invoiceDate: "2026-10-05", gross: "398572.86" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "TX0000755", invoiceDate: "2026-10-01", gross: "398572.86", table: INVOICE, status: REJECTED }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-23, fn: duplicates, title: น่าจะซ้ำ ต่างสาขา ยอดเท่ากัน ห่าง 3 วัน, input: { candidate: { supplier: SP-BR, taxId: TAX-C, invoiceNo: "INV-00140", invoiceDate: "2026-10-05", gross: "61099.14" }, existing: [{ supplier: SP-HQ, taxId: TAX-C, invoiceNo: "INV-00139", invoiceDate: "2026-10-02", gross: "61099.14", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: null, soft: [{ invoiceNo: "INV-00139", days: 3 }] } }
+  - { id: GC-MATCH-24, fn: duplicates, title: ห่าง 4 วัน ไม่เตือน, input: { candidate: { supplier: SP-BR, taxId: TAX-C, invoiceNo: "INV-00140", invoiceDate: "2026-10-06", gross: "61099.14" }, existing: [{ supplier: SP-HQ, taxId: TAX-C, invoiceNo: "INV-00139", invoiceDate: "2026-10-02", gross: "61099.14", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-25, fn: duplicates, title: ยอดต่าง 0.01 ไม่เตือน, input: { candidate: { supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000500", invoiceDate: "2026-10-02", gross: "61099.15" }, existing: [{ supplier: SP-A, taxId: TAX-A, invoiceNo: "IV000499", invoiceDate: "2026-10-02", gross: "61099.14", table: INVOICE, status: READY_FOR_PAYMENT }] }, expect: { hard: null, soft: [] } }
+  - { id: GC-MATCH-26, fn: approveVariance, title: อนุมัติส่วนต่างของ GC-MATCH-07, input: { poLines: [{ line: 1, held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "900000.00" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }, expect: { budget: [{ budgetLine: EQP-OPEX, holdMore: "19600.00", actual: "669600.00", release: "0.00" }] } }
+  - { id: GC-MATCH-27, fn: approveVariance, title: อนุมัติส่วนต่างแต่งบขาด 0.01, input: { poLines: [{ line: 1, held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "19599.99" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }, expect: { error: BUDGET_INSUFFICIENT, budgetLine: EQP-OPEX, shortfall: "0.01" } }
+  - { id: GC-MATCH-28, fn: approveVariance, title: อนุมัติส่วนต่างงบพอดี, input: { poLines: [{ line: 1, held: "650000.00", budgetLine: EQP-OPEX }], available: { EQP-OPEX: "19600.00" }, invoice: { lines: [{ poLine: 1, qty: "20000", unitPrice: "33.48" }] } }, expect: { budget: [{ budgetLine: EQP-OPEX, holdMore: "19600.00", actual: "669600.00", release: "0.00" }] } }
+  - id: GC-MATCH-29
+    title: งานบริการแจ้งหนี้เกินที่สั่งและเกินที่ยืนยันรับงาน นับส่วนที่อยู่ในจำนวนสั่งครั้งเดียว
+    input: { kind: SERVICE, poLines: [{ line: 1, ordered: "10", unitPrice: "1500.00", accepted: "6", invoiced: "0", held: "15000.00", budgetLine: BL-A }], available: { BL-A: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "12", unitPrice: "1500.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "18000.00", expected: "18000.00", over: "0.00", flags: [] }], exceptions: [{ type: QTY_OVER_ORDERED, line: 1, qty: "2", amount: "3000.00" }, { type: ACCEPTANCE_PENDING, line: 1, qty: "4", amount: "6000.00" }] }
+  - id: GC-MATCH-30
+    title: ราคาเกินนอกเกณฑ์บรรทัดหนึ่ง อีกบรรทัดเกินในเกณฑ์และงบขาด ไม่ติด BUDGET_SHORT
+    input: { kind: GOODS, poLines: [{ line: 1, ordered: "1", unitPrice: "10000.00", accepted: "1", invoiced: "0", held: "10000.00", budgetLine: BL-A }, { line: 2, ordered: "1", unitPrice: "5000.00", accepted: "1", invoiced: "0", held: "5000.00", budgetLine: BL-B }], available: { BL-A: "1000.00", BL-B: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "10500.00" }, { poLine: 2, qty: "1", unitPrice: "5025.00" }] } }
+    expect: { result: EXCEPTION, lines: [{ line: 1, net: "10500.00", expected: "10000.00", over: "500.00", flags: [] }, { line: 2, net: "5025.00", expected: "5000.00", over: "25.00", flags: [PRICE_OVER_WITHIN] }], exceptions: [{ type: PRICE_OVER, line: 1, amount: "500.00" }], doaAmount: { net: "500.00", vat: "35.00" } }
+  - { id: GC-MATCH-31, fn: approveVariance, title: อนุมัติส่วนต่างของ GC-MATCH-30 งบของบรรทัดในเกณฑ์ขาด, input: { poLines: [{ line: 1, held: "10000.00", budgetLine: BL-A }, { line: 2, held: "5000.00", budgetLine: BL-B }], available: { BL-A: "1000.00", BL-B: "0.00" }, invoice: { lines: [{ poLine: 1, qty: "1", unitPrice: "10500.00" }, { poLine: 2, qty: "1", unitPrice: "5025.00" }] } }, expect: { error: BUDGET_INSUFFICIENT, budgetLine: BL-B, shortfall: "25.00" } }
+```
+
+VAT ของใบแจ้งหนี้ (BR-VAT-05 ถึง BR-VAT-07 ใน §7.1):
+
+```yaml
+# tests/golden/invoice-vat.yaml
+suite: invoice-vat
+# fn: checkInvoiceVat · vatTolAmount "1.00" (OQ-121) · rateBp = อัตรา ณ วันที่ใบ (BR-VAT-01)
+# supplierVat: REGISTERED | NOT_REGISTERED | REGISTRY_VAT_CANCELLED (isVatRegistered ยังเป็น true แต่ Supplier.registryFlag = VAT_CANCELLED) · status เป็นค่าเดียว: VAT_SUPPLIER_NOT_REGISTERED มาก่อน VAT_MISMATCH (BR-VAT-06)
+# computedVat computedGross = ค่าที่ระบบคำนวณใช้ตรวจ (BR-VAT-05) · invoiceGross = ยอดก่อน VAT + VAT ในใบ = Invoice.grossSatang ที่ใช้จ่าย (BR-VAT-07)
+cases:
+  - { id: GC-VAT-05, title: VAT ตรงที่คำนวณ, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1803.69" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27570.69", diff: "0.00", status: OK } }
+  - { id: GC-VAT-06, title: ต่าง 1.00 พอดี ผ่าน, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1804.69" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27571.69", diff: "1.00", status: OK } }
+  - { id: GC-VAT-07, title: สูงกว่า 1.01, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1804.70" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27571.70", diff: "1.01", status: VAT_MISMATCH } }
+  - { id: GC-VAT-08, title: ต่ำกว่า 1.01, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "9", unitPrice: "2863.00" }], statedVat: "1802.68" }, expect: { rateBp: 700, net: "25767.00", computedVat: "1803.69", computedGross: "27570.69", invoiceGross: "27569.68", diff: "-1.01", status: VAT_MISMATCH } }
+  - { id: GC-VAT-09, title: ผู้ขายไม่จด VAT แต่เก็บ VAT (แบบ H041), input: { rateBp: 700, supplierVat: NOT_REGISTERED, lines: [{ qty: "100", unitPrice: "240.00" }], statedVat: "1680.00" }, expect: { rateBp: 0, net: "24000.00", computedVat: "0.00", computedGross: "24000.00", invoiceGross: "25680.00", diff: "1680.00", status: VAT_SUPPLIER_NOT_REGISTERED } }
+  - { id: GC-VAT-10, title: ผู้ขายไม่จด VAT ใบไม่มี VAT, input: { rateBp: 700, supplierVat: NOT_REGISTERED, lines: [{ qty: "100", unitPrice: "240.00" }], statedVat: "0.00" }, expect: { rateBp: 0, net: "24000.00", computedVat: "0.00", computedGross: "24000.00", invoiceGross: "24000.00", diff: "0.00", status: OK } }
+  - { id: GC-VAT-11, title: ใบราคารวม VAT, input: { rateBp: 700, supplierVat: REGISTERED, priceIncludesVat: true, lines: [{ qty: "3", unitPrice: "107.00" }], statedVat: "21.00" }, expect: { rateBp: 700, net: "300.00", computedVat: "21.00", computedGross: "321.00", invoiceGross: "321.00", diff: "0.00", status: OK } }
+  - { id: GC-VAT-12, title: บรรทัดที่ไม่มี VAT ไม่อยู่ในฐาน, input: { rateBp: 700, supplierVat: REGISTERED, lines: [{ qty: "1", unitPrice: "1000.00" }, { qty: "1", unitPrice: "500.00", vatable: false }], statedVat: "70.00" }, expect: { rateBp: 700, net: "1500.00", computedVat: "70.00", computedGross: "1570.00", invoiceGross: "1570.00", diff: "0.00", status: OK } }
+  - { id: GC-VAT-13, title: ทะเบียนเก่ายังเป็น Y แต่ผลตรวจออกจาก VAT แล้ว, input: { rateBp: 700, supplierVat: REGISTRY_VAT_CANCELLED, lines: [{ qty: "307", unitPrice: "186.00" }], statedVat: "3997.14" }, expect: { rateBp: 0, net: "57102.00", computedVat: "0.00", computedGross: "57102.00", invoiceGross: "61099.14", diff: "3997.14", status: VAT_SUPPLIER_NOT_REGISTERED } }
+  - { id: GC-VAT-14, title: VAT หลังหักส่วนลดท้ายบิล, input: { rateBp: 700, supplierVat: REGISTERED, discount: "100.00", lines: [{ qty: "1", unitPrice: "3333.33" }, { qty: "1", unitPrice: "6666.67" }], statedVat: "693.00" }, expect: { rateBp: 700, net: "9900.00", computedVat: "693.00", computedGross: "10593.00", invoiceGross: "10593.00", diff: "0.00", status: OK } }
 ```
 
 ### 7.15 ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
@@ -3758,7 +3886,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       21 ไฟล์ · 173 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       23 ไฟล์ · 214 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

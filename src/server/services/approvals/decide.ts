@@ -253,6 +253,14 @@ export const decideCommand = defineCommand({
   },
 })
 
+/** The model a subject's document lives in, as Comment.subjectType names it elsewhere: BUDGET_TRANSFER → BudgetTransfer */
+const modelNameOf = (type: string) =>
+  type
+    .toLowerCase()
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join('')
+
 /** What a decision of a phase-1 subject's task returns while its route goes on: the document still waits for approval */
 const STILL_PENDING = 'PENDING_APPROVAL'
 
@@ -286,6 +294,11 @@ async function decideRegisteredTask(
   }
 
   const facts = await adapter.facts(tx, route.subjectId)
+  // BR-DOA-25: where the subject may be decided — the web and the BCS Go app always, the rest as its adapter says
+  const open = adapter.channels
+  const channelOpen =
+    ctx.channel === 'WEB' || ctx.channel === 'PWA' || (ctx.channel === 'LIFF' && open.liff) || (ctx.channel === 'LINE_CHAT' && open.chatButton(facts)) || (ctx.channel === 'EMAIL' && open.emailLink)
+  if (!channelOpen) return { ok: false, error: { code: 'FORBIDDEN', message: `${type} tasks are not decided on ${ctx.channel}`, details: { reason: 'CHANNEL' } } }
   const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { sodPolicy: true, stepUpThresholdSatang: true } })
   const sod = adapter.sodContext(facts)
   for (const who of [actorMemberId, task.principalMemberId].filter((m): m is string => Boolean(m))) {
@@ -306,7 +319,7 @@ async function decideRegisteredTask(
   )
   if (!stepUp.ok) return { ok: false, error: stepUp.error }
 
-  const reasonCommentId = input.reason && input.decision !== 'APPROVE' ? await addReason(tx, ctx, type, route.subjectId, input.reason) : null
+  const reasonCommentId = input.reason && input.decision !== 'APPROVE' ? await addReason(tx, ctx, modelNameOf(type), route.subjectId, input.reason) : null
   await tx.approvalTask.update({
     where: { id: task.id },
     data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actorMemberId, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },

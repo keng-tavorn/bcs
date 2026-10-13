@@ -699,7 +699,8 @@ def build_version(inp):
     return v
 def lint_version(v, vac=frozenset(), modules=()):
     errs, warns = [], []
-    docs = [x for x in DOC_ORDER if x not in AMOUNT_NONE]
+    # The known types in lint order, then any other type a rule names (a typo is linted, and refused below)
+    docs = [x for x in DOC_ORDER if x not in AMOUNT_NONE] + list(dict.fromkeys(r["documentType"] for r in v["rules"] if r["documentType"] not in DOC_ORDER))
     for doc in docs:
         rs = sorted([r for r in v["rules"] if r["documentType"] == doc and amount_only(r)], key=lower)
         if not rs: continue
@@ -723,6 +724,7 @@ def lint_version(v, vac=frozenset(), modules=()):
         elif not any(p == a["position"] and f"{p}@{dd}" not in vac and (a["kind"] != "POSITION_OF_ORG" or dd == ROOT) for (p, dd) in HOLD):
             warns.append({"code": "DOA_LINT_VACANT_POSITION", "rule": r["code"]})
     errs += [{"code": "DOA_LINT_AMOUNT_NOT_ALLOWED", "rule": r["code"]} for r in v["rules"] if r["documentType"] in AMOUNT_NONE and (r.get("when") or {}).get("amount")]
+    errs += [{"code": "UNKNOWN_DOCUMENT_TYPE", "rule": r["code"]} for r in v["rules"] if r["documentType"] not in DOC_ORDER]
     return {"errors": errs, "warnings": warns}
 def boundary_table(v, doc):
     if doc in AMOUNT_NONE: return {"rows": []}

@@ -47,7 +47,14 @@ describe('[FR-DOA-003/AC4] the phase-1 types through resolveRoute', () => {
 
   it('the route explains the new types in Thai with their name', () => {
     const r = route({ documentType: 'PAYMENT_RUN', amount: { netSatang: 320_000_000n, vatSatang: 0n } })
-    expect(r.ok && r.data.explanationTh).toContain('DOA-P1 ฉบับ 1 ข้อ PAY-01: รอบจ่ายเงินยอด 3,200,000.00 บาท')
+    expect(r.ok && r.data.explanationTh).toContain('DOA-P1 ฉบับ 1 ข้อ PAY-01: รอบจ่ายเงินยอด 3,200,000.00 บาท อยู่ในช่วง')
+    // A payment run carries no VAT, so the record never claims the amount includes it
+    expect(r.ok && r.data.explanationTh).not.toContain('VAT')
+  })
+
+  it('a type with VAT keeps the basis in its explanation', () => {
+    const r = route({ documentType: 'INVOICE_EXCEPTION', amount: { netSatang: 1_900_000n, vatSatang: 133_000n }, chargedDepartmentId: 'CON' })
+    expect(r.ok && r.data.explanationTh).toContain('ยอด 20,330.00 บาท (รวม VAT)')
   })
 
   it('every tier-1 type keeps its amount rule, so GC-DOA-01 to GC-DOA-27 cannot move (INV-DOA-03)', () => {

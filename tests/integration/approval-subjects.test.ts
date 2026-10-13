@@ -170,6 +170,23 @@ describe('[FR-AUTH-005/AC4] bank account and workflow changes take a step-up eve
   })
 })
 
+describe('[FR-AUTH-005/AC4] where each new subject is decided (BR-DOA-25)', () => {
+  it('a workflow version is refused in LIFF (web only); a bank account change is taken in LIFF up to its step-up', async () => {
+    const liff = (code: string) => makeCtx({ organizationId: org.organizationId, actor: { type: 'USER', memberId: org.member[code]! }, channel: 'LIFF', now: NOW })
+    const workflow = await routed('WORKFLOW_VERSION', 'DOA_CHANGE', { department: 'IT', requester: 'admin' })
+    expect(await decideTask(liff('ceo'), { taskId: workflow.taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'CHANNEL' } } })
+    const bank = await routed('BANK_ACCOUNT_CHANGE', 'BANK_ACCOUNT_CHANGE', { department: 'HQ' })
+    expect(await decideTask(liff('cfo'), { taskId: bank.taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
+  })
+
+  it('the reason of a rejection is kept under the document model name, as every other flow keeps it', async () => {
+    const t = await routed('BUDGET_TRANSFER', 'BUDGET_TRANSFER', { amount: '12000' })
+    vi.spyOn(SUBJECT_ADAPTERS.BUDGET_TRANSFER, 'decide').mockResolvedValue({ ok: true, documentStatus: 'REJECTED', events: [] })
+    expect(await decideTask(org.ctxOf('dm_con', NOW), { taskId: t.taskId, decision: 'REJECT', reason: 'ไม่มีเหตุผลพอ' }, key())).toMatchObject({ ok: true })
+    expect(await prisma.comment.findFirstOrThrow({ where: { subjectId: t.subjectId } })).toMatchObject({ subjectType: 'BudgetTransfer', body: 'ไม่มีเหตุผลพอ' })
+  })
+})
+
 describe('[FR-AUTH-005/AC5] one list of step-up proofs and subjects for every deciding command', () => {
   it('DECISION_STEP_UP_METHODS is the PIN until S17-15; policy reads it too; the grant subjects are all twelve', () => {
     expect(DECISION_STEP_UP_METHODS).toEqual(PIN_ONLY)

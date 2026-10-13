@@ -4402,6 +4402,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **NEW-89** `[demo]` บนเครื่องนี้ `pnpm typecheck` (ขั้น next typegen) `pnpm dev` `next build` และ e2e ล้มด้วย `ERR_SWC_NATIVE_CACHE`: `@swc/core` ที่ปลั๊กอิน next-intl ใน `next.config.ts` ใช้ ไม่ยอมโหลดจากโฟลเดอร์ cache ใต้โฟลเดอร์ AppData ของผู้ใช้ เพราะ AppData มีสิทธิ์ Full control ของ AppContainer SID ขึ้นต้น `S-1-15-3-3557520199` ที่เพิ่งถูกเพิ่ม (หลัง verify ผ่านเช้า 2026-10-11 · น่าจะมาจาก sandbox ของ Claude Code) · ทางเลือก: (ก) ผู้ใช้เอาสิทธิ์นั้นออกหรือปิด sandbox (ข) ตั้ง `SWC_NATIVE_BINDING_CACHE` ไปโฟลเดอร์ที่ทุกชั้นมีสิทธิ์เฉพาะผู้ใช้ SYSTEM และ Administrators (ค) pin `@swc/core` รุ่นที่ไม่ใช้ cache นี้ · เป็นการตั้งค่าความปลอดภัยของเครื่อง จึงต้องให้ผู้ใช้เลือก · CI บน Linux ไม่โดน · พบระหว่างรอบปรับ spec 0.4 · ผู้ใช้เลือก (ข) 2026-10-11: `.env` บนเครื่องนี้ตั้ง `SWC_NATIVE_BINDING_CACHE=C:\Users\User\.swc-native-cache` (ใต้โฟลเดอร์ผู้ใช้ซึ่งมีสิทธิ์เฉพาะผู้ใช้ SYSTEM และ Administrators) และ `.env.example` อธิบายค่านี้ (ว่าง = cache ปกติ) · next โหลด `.env` ก่อนแปลง `next.config.ts` จึงไม่ต้องแก้สคริปต์ · `.env` ของสายต้องมีบรรทัดนี้ด้วย — เสร็จ 2026-10-11 · 30a90e4
   - เสร็จเมื่อ: `pnpm typecheck` และ `pnpm dev` บนเครื่องนี้ทำงาน และ `pnpm verify` ผ่านทุกด่าน
   - แยกงาน: ทำเองได้
+- [ ] **NEW-90** `[go-live]` เทสต์ล้มครั้งคราว: `tests/integration/outbox.test.ts` สองเคสของ `[FR-PLT-012/AC3]` (relay ผ่าน fake event API ของ Inngest) ล้มใน `pnpm verify` ที่รันต่อจาก e2e ทันทีบนเครื่องนี้ (2026-10-13 · พบตอนแก้ผลตรวจของ P1-07) แต่ผ่าน 3 รอบติดเมื่อรันเดี่ยว และ `pnpm verify` รอบถัดไปผ่าน · หาสาเหตุ (พอร์ตของ fake event API ที่ยังค้างจาก e2e หรือเวลารอที่สั้นเมื่อเครื่องโหลดหนัก) แล้วแก้ให้ไม่ขึ้นกับลำดับการรัน
+  - เสร็จเมื่อ: รัน `pnpm verify` ต่อจาก `pnpm test:e2e` ทันที 3 รอบแล้วเทสต์ outbox ผ่านทุกรอบ · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
 
 ### 16.12 S16 · หน้าจอใหม่แบบใกล้ Zip ในโทนเขียว (รอบเส้นชัย A2)
 

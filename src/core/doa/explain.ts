@@ -1,6 +1,6 @@
 import { formatSatang } from '@/core/money/format'
 import { bandOf } from './band'
-import type { AmountBasis, DoaDocumentType, DoaRuleSnapshot, DoaVersionSnapshot, OrgSnapshot } from './types'
+import { DOC_TYPE_TRAITS, type AmountBasis, type DoaDocumentType, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot } from './types'
 
 // The Thai explanation stored on every route (BR-DOA-10), e.g. "DOA-DEMO ฉบับ 1 ข้อ PR-02: คำขอซื้อยอด 45,000.00 บาท
 // (รวม VAT) อยู่ในช่วงมากกว่า 20,000.00 ถึงไม่เกิน 100,000.00 → VP ของสายปฏิบัติการ". Screens in English build their
@@ -66,8 +66,11 @@ export function explainRouteTh(input: {
 }): string {
   const { version, documentType, basisAmount, amountBasis, rule, escalations, steps, org } = input
   const amountRule = escalations[0]?.rule ?? rule
-  // Thai joins the document name and its amount without a space: "คำขอซื้อยอด 45,000.00 บาท (รวม VAT)"
-  const subject = basisAmount !== null ? `${DOCUMENT_TH[documentType]}ยอด ${formatSatang(basisAmount)} บาท (${BASIS_TH[amountBasis]})` : DOCUMENT_TH[documentType]
+  // Thai joins the document name and its amount without a space: "คำขอซื้อยอด 45,000.00 บาท (รวม VAT)". A type whose
+  // amount never carries VAT (BR-DOA-21: transfers, over-budget, payment runs) names no basis: both give the same amount
+  const traits = DOC_TYPE_TRAITS[documentType]
+  const basis = traits.amount === 'REQUIRED' && !traits.vat ? '' : ` (${BASIS_TH[amountBasis]})`
+  const subject = basisAmount !== null ? `${DOCUMENT_TH[documentType]}ยอด ${formatSatang(basisAmount)} บาท${basis}` : DOCUMENT_TH[documentType]
   const parts = [`${version.code} ฉบับ ${version.versionNo} ข้อ ${rule.code}:`, subject]
   const band = bandTextTh(amountRule)
   if (band) parts.push(escalations.length ? `${band} ของข้อ ${amountRule.code}` : band)

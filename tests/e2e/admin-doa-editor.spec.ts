@@ -288,7 +288,7 @@ test('@demo [FR-DOA-001/AC1] [FR-DOA-009/AC1] [FR-DOA-009/AC3] [FR-DOA-002/AC2] 
   await review(page, testInfo, 'doa-simulate-approved')
 })
 
-test('@demo [FR-DOA-009/AC2] the try-out routes a document with both versions and explains each route in Thai', async ({ page }, testInfo) => {
+test('@demo [FR-DOA-009/AC2] [FR-DOA-009/AC4] the try-out routes a document with both versions and explains each route in Thai', async ({ page }, testInfo) => {
   test.setTimeout(120_000)
   const s = scene<Scene>('org', testInfo.project.name)
   const draft = scene<{ versionId: string; versionNo: number }>('draft', s.orgCode)
@@ -331,6 +331,12 @@ test('@demo [FR-DOA-009/AC2] the try-out routes a document with both versions an
   await page.getByRole('button', { name: 'ทดลองหาเส้นทาง' }).click()
   await expect(page.getByText(`ทั้งสองฉบับส่งไปหาผู้อนุมัติคนเดียวกัน: ${s.names.vp_ops}`)).toBeVisible()
   await expect(proposed).toContainText('ยกมาจากข้อ PR-01 เพราะผู้อนุมัติของข้อนั้นเป็นผู้ขอ')
+
+  // [FR-DOA-009/AC4] a type without an amount hides the amount fields as soon as it is picked, and they come back
+  await page.locator('#sim-type').selectOption('BANK_ACCOUNT_CHANGE')
+  await expect(page.getByLabel('ยอดก่อน VAT (บาท)')).toBeHidden()
+  await page.locator('#sim-type').selectOption('PURCHASE_REQUEST')
+  await expect(page.getByLabel('ยอดก่อน VAT (บาท)')).toBeVisible()
 })
 
 test('[GC-DOA-22] the boundary table of version 1 is the golden case, with the approver at each edge', async ({ page }, testInfo) => {

@@ -77,10 +77,12 @@ export interface SubjectAdapter {
   /** Questions go to a request's requester only (FR-INT-009 AC3): approval.requestInfo refuses every other subject */
   readonly allowsRequestInfo: false
   /**
-   * Decided outside the workspace: off → no button in the chat and no link in the e-mail, and using one is
-   * STEP_UP_REQUIRED. On, a task that needs a step-up is still refused there (stepUpNeeded, checked by the central files).
+   * Where the task may be decided besides the web and the BCS Go app (BR-DOA-25): chatButton and emailLink off → no
+   * button in the chat and no link in the e-mail, and using one is STEP_UP_REQUIRED; liff off → LIFF is refused
+   * FORBIDDEN reason CHANNEL (a workflow version is decided on the web only). On, a task that needs a step-up is still
+   * refused in the chat and by e-mail (stepUpNeeded, checked by the central files).
    */
-  readonly channels: { chatButton(facts: SubjectFacts): boolean; readonly emailLink: boolean }
+  readonly channels: { chatButton(facts: SubjectFacts): boolean; readonly emailLink: boolean; readonly liff: boolean }
   sodContext(facts: SubjectFacts): SubjectSod
 }
 

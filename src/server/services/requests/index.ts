@@ -23,6 +23,8 @@ import { formDefinition, type FormDefinition } from '@/server/forms/schema'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
 import { reportDoaGap } from './doa-gap'
+import { aiAssisted, aiReviewed } from './ai-assist'
+import { AiAssistInput } from '../ai/assist-contract'
 
 // Purchase requests (spec §6.4, FR-INT-007, FR-INT-009): a draft with lines, then submit as one transaction — form
 // check (BR-FORM-01/03), totals from core/money with the VAT rate of the tax date (BR-VAT-01..03), budget check and
@@ -101,6 +103,8 @@ const DraftInput = z.strictObject({
   deliverySiteId: z.uuid().nullable().optional(),
   /** The supplier the requester suggests; PROCUREMENT chooses per line in the pool (FR-P2P-001 AC2) */
   suggestedSupplierId: z.uuid().nullable().optional(),
+  /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
+  aiAssist: AiAssistInput.optional(),
 })
 
 /** A delivery site and a suggested supplier must exist, the site active and the supplier ACTIVE (S4-02) */
@@ -270,11 +274,16 @@ export const createDraftCommand = defineCommand({
     if (!written.ok) return written
     const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
     if (quotes) return quotes
+    const ai = await aiAssisted(tx, ctx, id, input.aiAssist)
+    if (!ai.ok) return ai
     return {
       ok: true,
       // A new request starts at version 0 (§6.1); every later save names the version it was based on and the lines' ids
       result: { requestId: id, version: 0, lineIds: written.lineIds },
-      events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: id, data: { requestTypeCode: type.code, lines: input.lines.length } }],
+      events: [
+        { type: 'request.drafted', aggregateType: 'Request', aggregateId: id, data: { requestTypeCode: type.code, lines: input.lines.length, ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) } },
+        ...ai.data,
+      ],
     }
   },
 })
@@ -285,7 +294,7 @@ export function createDraft(ctx: Ctx, input: z.input<typeof DraftInput>, options
 
 // ---------- submit and resubmit ----------
 
-const SubmitInput = z.strictObject({ requestId: z.uuid(), expectedVersion: ExpectedVersion.optional() })
+const SubmitInput = z.strictObject({ requestId: z.uuid(), expectedVersion: ExpectedVersion.optional(), aiAssist: AiAssistInput.optional() })
 
 /** Loads the request locked, with what the requester (OWN) owns, for submit, resubmit and cancel. */
 async function lockedRequest(tx: TenantTx, ctx: Ctx, requestId: string) {
@@ -386,7 +395,10 @@ export const submitCommand = defineCommand({
     // The requester sends what they reviewed: a save from another device since then is refused (FR-INT-006 AC2)
     const conflict = versionConflict(input.expectedVersion, request.version)
     if (conflict) return conflict
-    if (request.documentType === 'SUPPLIER_REQUEST') return submitSupplierRequest(tx, ctx, request)
+    // BR-AI-17 (S13): nothing an AI action filled in may still wait for the person (AI_REVIEW_PENDING)
+    const ai = await aiReviewed(tx, ctx, request.id, input.aiAssist)
+    if (!ai.ok) return ai
+    if (request.documentType === 'SUPPLIER_REQUEST') return withEvents(await submitSupplierRequest(tx, ctx, request), ai.data)
     const moved = move(request.status as RequestState, 'request.submit')
     if (!moved.ok) return moved
     // The number comes first so the approver's task names it; a refusal below rolls it back with everything else
@@ -434,10 +446,16 @@ export const submitCommand = defineCommand({
       },
       ...prepared.budget.events,
       ...route.events,
+      ...ai.data,
     ]
     return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: route.notifications }
   },
 })
+
+/** The outcome with events added (the AI events of a submit that goes another way) */
+function withEvents<R>(outcome: CommandOutcome<R>, events: readonly EventDraft[]): CommandOutcome<R> {
+  return outcome.ok && events.length ? { ...outcome, events: [...outcome.events, ...events] } : outcome
+}
 
 /**
  * A new-supplier request (OQ-23, FR-INT-007 AC3): no amount and no DOA route; its form is checked, it gets an RQ number
@@ -500,6 +518,9 @@ export const resubmitCommand = defineCommand({
     if (!allowed.ok) return { ok: false, error: allowed.error }
     const conflict = versionConflict(input.expectedVersion, request.version)
     if (conflict) return conflict
+    // BR-AI-17 (S13): nothing an AI action filled in may still wait for the person (AI_REVIEW_PENDING)
+    const ai = await aiReviewed(tx, ctx, request.id, input.aiAssist)
+    if (!ai.ok) return ai
     const moved = move(request.status as RequestState, 'request.resubmit')
     if (!moved.ok) return moved
     // BR-DOA-09: a new route with the version in effect now; earlier approvals do not count
@@ -545,6 +566,7 @@ export const resubmitCommand = defineCommand({
         },
         ...prepared.budget.events,
         ...route.events,
+        ...ai.data,
       ],
       notifications: route.notifications,
     }
@@ -578,6 +600,8 @@ const EditInput = z.strictObject({
   /** null clears */
   deliverySiteId: z.uuid().nullable().optional(),
   suggestedSupplierId: z.uuid().nullable().optional(),
+  /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
+  aiAssist: AiAssistInput.optional(),
 })
 
 export const editCommand = defineCommand({
@@ -632,10 +656,21 @@ export const editCommand = defineCommand({
       const quotes = await writeQuotations(tx, ctx, request, input.quotations, rateBp)
       if (quotes) return quotes
     }
+    const ai = await aiAssisted(tx, ctx, request.id, input.aiAssist)
+    if (!ai.ok) return ai
     return {
       ok: true,
       result: { requestId: request.id, version: request.version + 1, lineIds },
-      events: [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: request.id, data: { requestTypeCode: request.requestType.code, lines: lineIds.length } }, ...events],
+      events: [
+        {
+          type: 'request.drafted',
+          aggregateType: 'Request',
+          aggregateId: request.id,
+          data: { requestTypeCode: request.requestType.code, lines: lineIds.length, ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) },
+        },
+        ...events,
+        ...ai.data,
+      ],
     }
   },
 })

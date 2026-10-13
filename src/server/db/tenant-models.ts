@@ -77,6 +77,10 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'ConfigPackage',
   // S6-07
   'BacktestRun',
+  // S13-02
+  'AgentAction',
+  'AiAgentSetting',
+  'AiCreditLedger',
   // S8-01
   'Invoice',
   'InvoiceLine',

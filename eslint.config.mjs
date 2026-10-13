@@ -73,6 +73,9 @@ const POLICIES = [
   { from: { element: { type: 'ui' } }, allow: coreForUi },
   { from: { element: { type: 'integrations' } }, allow: to('integrations', 'lib') },
   { from: { element: { type: 'ai' } }, allow: to('ai', 'integrations', 'lib') },
+  // The AI adapter is a layer of its own (P-3): services and jobs may reach it, and bcs/restricted-imports below narrows
+  // that to the agents and the ai-* jobs (INV-AI-05)
+  { from: { element: { types: { anyOf: ['services', 'jobs'] } } }, allow: to('ai') },
   { from: { element: { type: 'i18n' } }, allow: to('i18n', 'lib') },
   { from: { element: { type: 'lib' } }, allow: to('lib') },
   { from: { element: { type: 'context' } }, allow: to('lib') },
@@ -83,6 +86,8 @@ const POLICIES = [
 const UNSCOPED_CLIENT_MODULES = ['src/server/db/client', 'src/server/db/system', 'src/server/db']
 // src cannot import these, so a module handed on there never reaches application code
 const OUTSIDE_SRC = ['scripts/**', 'prisma/**', 'tests/**']
+// Who may call the AI adapter and the agents (P-3, INV-AI-05; docs/sub-specs/S13.md "สถาปัตยกรรม")
+const AI_ADAPTER_USERS = ['src/server/services/ai/agents/**', 'src/server/jobs/ai-*', 'scripts/ai-eval*', 'tests/**']
 const IMPORT_POLICY = {
   entries: [
     {
@@ -119,6 +124,36 @@ const IMPORT_POLICY = {
       allow: ['src/server/db/**', 'scripts/**', 'tests/**'],
       reexportAllow: ['src/server/db/client.ts', ...OUTSIDE_SRC],
       message: 'driver ฐานข้อมูลใช้ได้เฉพาะ src/server/db (§4.10 §17.3)',
+    },
+    {
+      // The AI adapter calls Claude (P-3, INV-AI-05): only the agents, the ai-* jobs and the evaluation script use it,
+      // so the services of requests, POs, receiving, approvals, budgets and DOA, the LIFF pages and the webhooks cannot
+      paths: ['src/integrations/ai/**'],
+      allow: [...AI_ADAPTER_USERS, 'src/integrations/ai/**'],
+      reexportAllow: [...AI_ADAPTER_USERS, 'src/integrations/ai/**'],
+      message: 'adapter ของ AI ใช้ได้เฉพาะ src/server/services/ai/agents · src/server/jobs/ai-* · scripts/ai-eval* (P-3 · INV-AI-05)',
+    },
+    {
+      // The agents are reached through the module's public API (src/server/services/ai/index.ts), never by the
+      // services that move money or approvals, nor by the assist contract those services import (ADR-148)
+      paths: ['src/server/services/ai/agents/**'],
+      allow: [...AI_ADAPTER_USERS, 'src/server/services/ai/index.ts'],
+      reexportAllow: [...AI_ADAPTER_USERS, 'src/server/services/ai/index.ts'],
+      message: 'agent ของ AI ใช้ผ่าน src/server/services/ai เท่านั้น (P-3 · INV-AI-05)',
+    },
+    {
+      // The AI SDK itself stays inside the adapter (ADR-060, §5.5)
+      packages: ['ai', '@ai-sdk/anthropic', '@ai-sdk/provider', '@ai-sdk/provider-utils'],
+      allow: ['src/integrations/ai/**', 'tests/**'],
+      reexportAllow: ['src/integrations/ai/**', 'tests/**'],
+      message: 'ai และ @ai-sdk/anthropic ใช้ได้เฉพาะ src/integrations/ai (P-3 · §5.5)',
+    },
+    {
+      // The chat hook runs in the browser and only talks to POST /api/ai/ask (§5.5, ADR-052: never LIFF)
+      packages: ['@ai-sdk/react'],
+      allow: ['src/ui/ai-chat/**', 'tests/**'],
+      reexportAllow: ['src/ui/ai-chat/**', 'tests/**'],
+      message: '@ai-sdk/react ใช้ได้เฉพาะ client component ของหน้าจอแชท Workspace ใน src/ui/ai-chat (§5.5 · ADR-052)',
     },
     {
       // createRequire() loads modules by names that no rule can check
@@ -220,8 +255,9 @@ export default defineConfig([
     files: SRC,
     plugins: { bcs },
     rules: {
-      // src/lib/encoding.ts is a character table (Windows-874 code points), not amounts
-      'bcs/no-money-literal': ['error', { allowFiles: ['src/lib/constants.ts', 'src/core/money/constants.ts', 'src/lib/encoding.ts'] }],
+      // src/lib/encoding.ts is a character table (Windows-874 code points), not amounts; src/lib/ai-config.ts holds
+      // Anthropic's token prices in micro-USD and token limits (ADR-143), which are not baht amounts or approval limits
+      'bcs/no-money-literal': ['error', { allowFiles: ['src/lib/constants.ts', 'src/core/money/constants.ts', 'src/lib/encoding.ts', 'src/lib/ai-config.ts'] }],
       'bcs/no-org-code': 'error',
       'bcs/no-raw-sql': ['error', { allowFiles: ['src/server/db/sql/**'] }],
       'no-console': 'error',

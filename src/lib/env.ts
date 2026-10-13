@@ -17,6 +17,9 @@ const flag = optional(z.enum(['0', '1', 'true', 'false']).transform((v) => v ===
 
 const urlSchema = () => z.url('ต้องเป็น URL เต็ม เช่น https://example.com')
 
+// A Claude model id as the API names it, e.g. claude-sonnet-5-5 (no date suffix)
+const aiModel = z.string().regex(/^claude-[a-z0-9-]+$/, 'ต้องเป็นชื่อรุ่นของ Claude เช่น claude-sonnet-5-5')
+
 // liff.ts sends LIFF ID tokens here and trusts the claims that come back, so outside local only LINE itself may
 // answer (BR-LINE-02); the fake LINE server is local-only (docs/runbooks/p0-08-vercel.md).
 const LINE_API_ORIGIN = 'https://api.line.me'
@@ -271,8 +274,16 @@ const schema = z
     SENTRY_DSN: optional(urlSchema()),
 
     AI_ENABLED: flag,
+    // fixture answers from results recorded in tests/fixtures/ai (local and tests only) · live calls Claude (ADR-142)
+    AI_MODE: optional(z.enum(['fixture', 'live'])),
     ANTHROPIC_API_KEY: optional(z.string()),
-    AI_MODEL_DEFAULT: optional(z.string()),
+    // The model of every agent without its own variable, then one per agent (src/lib/ai-config.ts · BR-AI-09 · OQ-145)
+    AI_MODEL_DEFAULT: optional(aiModel),
+    AI_MODEL_DOCUMENT: optional(aiModel),
+    AI_MODEL_INTAKE: optional(aiModel),
+    AI_MODEL_BRIEF: optional(aiModel),
+    AI_MODEL_INSIGHT: optional(aiModel),
+    AI_MODEL_DOA_DRAFTER: optional(aiModel),
 
     // Trimmed: a key pasted into Vercel with a trailing space or line break would otherwise seed codes that no copy of
     // the key (scripts/seed-totp.ts) reproduces
@@ -292,8 +303,11 @@ const schema = z
     const local = e.APP_ENV === 'local'
 
     if (e.EMAIL_PROVIDER === 'smtp' && !e.EMAIL_SMTP_URL) issue('EMAIL_SMTP_URL', 'ต้องตั้งเมื่อ EMAIL_PROVIDER=smtp')
-    // Tier 1–3 never call AI (EG-1, NG-5); AI stays off until S13.
-    if (e.AI_ENABLED) issue('AI_ENABLED', 'ต้องเป็น false จนถึงขั้น S13 (EG-1)')
+    // AI (S13, ADR-142): on needs a mode; live needs the key; recorded answers never reach a shared environment, where
+    // the demo must show the real model and the evaluation gate applies (BR-AI-11)
+    if (e.AI_ENABLED && !e.AI_MODE) issue('AI_MODE', 'ต้องตั้งเมื่อ AI_ENABLED=true — fixture (คำตอบที่บันทึกไว้ ใช้บนเครื่องและในเทสต์) หรือ live (เรียก Claude จริง ต้องมี ANTHROPIC_API_KEY)')
+    if (e.AI_MODE === 'live' && !e.ANTHROPIC_API_KEY) issue('ANTHROPIC_API_KEY', 'ต้องตั้งเมื่อ AI_MODE=live — สร้าง key ใน Claude Console แล้วใส่ในไฟล์ .env (ห้ามวางในแชท)')
+    if (e.AI_MODE === 'fixture' && !local) issue('AI_MODE', 'fixture ใช้ได้เฉพาะ APP_ENV=local และเทสต์ — environment นี้ต้องใช้ live กับ key ของ environment นี้ (ADR-142)')
     // liff.ts appends the verify path to this value, locally too (the fake LINE server).
     if (parseUrl(e.LINE_API_BASE_URL) && lineApiBase(e.LINE_API_BASE_URL) === undefined) {
       issue('LINE_API_BASE_URL', 'ต้องเป็น URL ฐานแบบ http(s) เช่น https://api.line.me ไม่มี user:password, ? หรือ # — ระบบต่อ /oauth2/v2.1/verify ท้ายค่านี้ (BR-LINE-02)')

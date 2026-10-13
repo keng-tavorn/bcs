@@ -121,7 +121,10 @@
     "security": "Security",
     "supplier": "Suppliers",
     "variance": "Receiving variances",
-    "workflow_version": "Parallel reviewers"
+    "workflow_version": "Parallel reviewers",
+    "agent_action": "AI assistant",
+    "ai_agent": "AI assistant settings",
+    "ai_credit": "AI credits"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -154,7 +157,10 @@
     "Security": "Security",
     "Supplier": "Supplier",
     "Variance": "Receiving variance",
-    "WorkflowVersion": "Workflow version"
+    "WorkflowVersion": "Workflow version",
+    "AgentAction": "AI assistant call",
+    "AiAgentSetting": "AI assistant setting",
+    "AiCredit": "AI credits"
   },
   "events": {
     "approval_step": {
@@ -352,6 +358,29 @@
       "withdrawal_rejected": "Withdrawal of parallel reviewers not approved",
       "withdrawal_requested": "Withdrawal of parallel reviewers asked",
       "withdrawn": "Parallel reviewers withdrawn"
+    },
+    "agent_action": {
+      "requested": "AI assistant called",
+      "drafted": "AI assistant drafted a result",
+      "failed": "AI assistant call failed",
+      "applied": "AI values taken into a document",
+      "accepted": "AI values all confirmed",
+      "edited": "AI values confirmed with changes",
+      "rejected": "AI result thrown away",
+      "expired": "AI result expired",
+      "feedback_given": "Feedback on an AI result",
+      "content_purged": "Content of an AI result cleared"
+    },
+    "ai_agent": {
+      "enabled": "AI assistant switched on",
+      "disabled": "AI assistant switched off",
+      "updated": "AI assistant setting changed"
+    },
+    "ai_credit": {
+      "granted": "AI credits granted",
+      "monthly_set": "Monthly AI credits set",
+      "threshold_reached": "AI credits reached the alert level",
+      "exhausted": "AI credits used up"
     }
   }
 }

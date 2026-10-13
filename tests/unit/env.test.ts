@@ -110,8 +110,22 @@ describe('env schema (spec Appendix B)', () => {
     expect(issues({ ...local, ENCRYPTION_KEY: 'base64:REPLACE_WITH_32_RANDOM_BYTES_BASE64' }).join()).toMatch(/ENCRYPTION_KEY/)
   })
 
-  it('keeps AI off until S13 (EG-1)', () => {
-    expect(issues({ ...local, AI_ENABLED: 'true' }).join()).toMatch(/AI_ENABLED/)
+  it('[BR-AI-11] AI on needs a mode, live needs the key, and fixture stays on this machine (ADR-142)', () => {
+    expect(issues({ ...local, AI_ENABLED: 'true' }).join()).toMatch(/^AI_MODE:/)
+    expect(issues({ ...local, AI_ENABLED: 'true', AI_MODE: 'fixture' })).toEqual([])
+    expect(issues({ ...local, AI_ENABLED: 'true', AI_MODE: 'live' }).join()).toMatch(/^ANTHROPIC_API_KEY:/)
+    expect(issues({ ...local, AI_ENABLED: 'true', AI_MODE: 'live', ANTHROPIC_API_KEY: 'sk-ant-local-dev' })).toEqual([])
+    expect(issues({ ...local, AI_MODE: 'live' }).join(), 'live without a key even while AI is off').toMatch(/^ANTHROPIC_API_KEY:/)
+    expect(issues({ ...local, AI_MODEL_DOCUMENT: 'gpt-5' }).join()).toMatch(/^AI_MODEL_DOCUMENT:/)
+  })
+
+  it('[BR-AI-11] a shared environment refuses AI_MODE=fixture, and live without a key, at start-up (ADR-142)', () => {
+    for (const APP_ENV of ['staging', 'production', 'preview']) {
+      expect(issues({ ...staging, APP_ENV, AI_ENABLED: 'true', AI_MODE: 'fixture' }).join(), APP_ENV).toMatch(/^AI_MODE:/)
+      expect(issues({ ...staging, APP_ENV, AI_ENABLED: 'true', AI_MODE: 'live' }).join(), APP_ENV).toMatch(/^ANTHROPIC_API_KEY:/)
+    }
+    expect(issues({ ...staging, AI_ENABLED: 'true', AI_MODE: 'live', ANTHROPIC_API_KEY: 'sk-ant-staging-key' })).toEqual([])
+    expect(() => parseEnv({ ...staging, AI_ENABLED: 'true', AI_MODE: 'fixture' })).toThrow(/AI_MODE/)
   })
 
   it('accepts a correctly configured staging environment', () => {
@@ -791,8 +805,7 @@ describe('[NFR-SEC-07] values published in .env.example never reach a shared env
     DBD_JURISTIC_API_URL: 'the real DBD service',
     MICROSOFT_TENANT_ID: 'the Microsoft multi-tenant endpoint',
     LOG_LEVEL: 'B1',
-    AI_ENABLED: 'stays false until S13',
-    AI_MODEL_DEFAULT: 'a model id',
+    AI_ENABLED: 'off until the customer turns AI on (EG-1)',
     LINE_API_BASE_URL: 'the real LINE API',
   }
 

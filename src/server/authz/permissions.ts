@@ -4,6 +4,7 @@
 // spec.md itself and checks this file and isAllowed() against it, allow and deny for every capability.
 // FROZEN after S1-08: changing this file is a permission change and needs the user's approval. S16-06 (spec §16.12, approved
 // with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
+// S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -34,6 +35,10 @@ export const CONDITIONS = {
   APPROVED_BY_DOA_CHANGE: 'publishing needs approval under DOA rule DOA_CHANGE; submitter != approver',
   SELF_ONLY_NOT_REQUESTER: 'follows or unfollows only themselves; the requester does not follow their own request',
   ADDED_MEMBER_ALREADY_VIEWS: 'the member added must already have request.view of the request (OQ-39)',
+  AI_TARGET_DOCUMENT_RIGHTS: "the service also checks the right of the document the AI fills (request.create, gr.post, the invoice's)",
+  AI_OWN_SCOPE_ONLY: 'tools answer within the asking member\'s own scopes only (BR-AI-21)',
+  AI_DOA_DRAFT_HOLDER: 'only a member holding admin.doa.draft; never PLATFORM_ADMIN (NG-12, OQ-146)',
+  AI_METADATA_ONLY: "agent, purpose, status, time, credits and tools only; never another member's inputText or output",
 } as const
 export type Condition = keyof typeof CONDITIONS
 
@@ -128,6 +133,14 @@ export const PERMISSIONS = {
   'self.pin': SELF,
   'self.twoFactor': SELF,
   'self.notificationPrefs': SELF,
+  // AI (S13, docs/sub-specs/S13.md "สิทธิ์ event error และการแจ้งเตือน"): no grant to PLATFORM_ADMIN except credits
+  'ai.assist': [anyMember('OWN', 'AI_TARGET_DOCUMENT_RIGHTS')],
+  'ai.ask': [anyMember('OWN', 'AI_OWN_SCOPE_ONLY')],
+  'ai.brief.view': [doaAssignee()],
+  'ai.doaDraft': [role('ORG_ADMIN', 'ORG', 'AI_DOA_DRAFT_HOLDER')],
+  'ai.actions.view': [role('AUDITOR', 'ORG'), anyMember('OWN'), role('ORG_ADMIN', 'ORG', 'AI_METADATA_ONLY')],
+  'admin.ai.manage': ORG_ADMIN_ONLY,
+  'platform.ai.credits': [platformAdmin('CONTRACT_REF_AND_REASON')],
 } as const satisfies Record<string, readonly Grant[]>
 
 export type Capability = keyof typeof PERMISSIONS

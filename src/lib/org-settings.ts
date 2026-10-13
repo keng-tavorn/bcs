@@ -1,4 +1,6 @@
 import { z } from 'zod'
+import { AI_CREDIT_DEFAULTS } from './ai-config'
+import { BP_WHOLE } from './constants'
 import AP_DEFAULTS from './ap-defaults.json'
 import { BASIS_POINTS_WHOLE, BUDGET_ALERT_DEFAULT_BP, BUDGET_ALERT_MAX_BP, SETTINGS_MAX_DAYS } from './constants'
 
@@ -91,6 +93,8 @@ export const OrgSettingsSchema = z
       .strict()
       .optional(),
     renewal: z.object({ milestoneDays: z.array(positiveDays).min(1).optional() }).strict().optional(),
+    // S13: AI credits of the organization, set by the BCS team only (BR-AI-23); missing reads as the defaults of OQ-143
+    ai: z.object({ monthlyCredits: z.number().int().min(1), alertAtBp: z.number().int().min(1).max(BP_WHOLE) }).strict().optional(),
     // S8 (BR-MATCH-13): set by seed only, no page or command edits them in phase 1 (not in SECTION_CAPABILITY);
     // a key that is missing reads as the default of its OQ (apPolicyOf below)
     matching: z
@@ -190,6 +194,13 @@ export function s6SettingsOf(settings: unknown): S6Settings {
     numberingBT: part(numberingRule, numbering.BT) ?? d.numberingBT,
     numberingOB: part(numberingRule, numbering.OB) ?? d.numberingOB,
   }
+}
+
+/** settings.ai of stored settings, or the defaults of OQ-143 (20,000 credits a month, alert at 80%) */
+export function aiCreditSettingsOf(settings: unknown): { monthlyCredits: number; alertAtBp: number } {
+  const ai = settings !== null && typeof settings === 'object' ? (settings as { ai?: unknown }).ai : undefined
+  const parsed = OrgSettingsSchema.shape.ai.safeParse(ai)
+  return (parsed.success ? parsed.data : undefined) ?? { ...AI_CREDIT_DEFAULTS }
 }
 
 /** The S8 thresholds and terms of an organization (BR-MATCH-13): money in satang, rates in basis points */

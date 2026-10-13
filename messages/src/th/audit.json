@@ -121,7 +121,10 @@
     "security": "ความปลอดภัย",
     "supplier": "ผู้ขาย",
     "variance": "ผลต่างจากการตรวจรับ",
-    "workflow_version": "ผู้ตรวจคู่ขนาน"
+    "workflow_version": "ผู้ตรวจคู่ขนาน",
+    "agent_action": "ผู้ช่วย AI",
+    "ai_agent": "ตั้งค่าผู้ช่วย AI",
+    "ai_credit": "credits ของ AI"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -154,7 +157,10 @@
     "Security": "ความปลอดภัย",
     "Supplier": "ผู้ขาย",
     "Variance": "ผลต่างจากการตรวจรับ",
-    "WorkflowVersion": "ฉบับผู้ตรวจคู่ขนาน"
+    "WorkflowVersion": "ฉบับผู้ตรวจคู่ขนาน",
+    "AgentAction": "งานของผู้ช่วย AI",
+    "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
+    "AiCredit": "credits ของ AI"
   },
   "events": {
     "approval_step": {
@@ -352,6 +358,29 @@
       "withdrawal_rejected": "ไม่อนุมัติการถอนผู้ตรวจคู่ขนาน",
       "withdrawal_requested": "ขอถอนผู้ตรวจคู่ขนาน",
       "withdrawn": "ถอนผู้ตรวจคู่ขนาน"
+    },
+    "agent_action": {
+      "requested": "เรียกผู้ช่วย AI",
+      "drafted": "ผู้ช่วย AI ร่างผลแล้ว",
+      "failed": "ผู้ช่วย AI ทำไม่สำเร็จ",
+      "applied": "นำค่าจาก AI เข้าเอกสาร",
+      "accepted": "ยืนยันค่าจาก AI ครบ",
+      "edited": "ยืนยันค่าจาก AI พร้อมแก้ไข",
+      "rejected": "ทิ้งผลของ AI",
+      "expired": "ผลของ AI หมดอายุ",
+      "feedback_given": "ให้ความเห็นต่อผลของ AI",
+      "content_purged": "ล้างเนื้อหาของผลจาก AI"
+    },
+    "ai_agent": {
+      "enabled": "เปิดผู้ช่วย AI",
+      "disabled": "ปิดผู้ช่วย AI",
+      "updated": "แก้การตั้งค่าผู้ช่วย AI"
+    },
+    "ai_credit": {
+      "granted": "ให้ credits ของ AI",
+      "monthly_set": "ตั้ง credits ต่อเดือนของ AI",
+      "threshold_reached": "ใช้ credits ของ AI ถึงเกณฑ์แจ้ง",
+      "exhausted": "credits ของ AI หมด"
     }
   }
 }

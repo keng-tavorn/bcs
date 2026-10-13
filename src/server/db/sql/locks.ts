@@ -31,6 +31,8 @@ const LOCKABLE = [
   'WorkflowVersion',
   'BudgetTransfer',
   'BudgetOverrun',
+  // S13-03: an AI action taken into a document (assist-contract.ts)
+  'AgentAction',
   // S8
   'Invoice',
 ] as const

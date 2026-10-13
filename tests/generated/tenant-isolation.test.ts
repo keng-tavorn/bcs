@@ -67,6 +67,7 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PriceAgreement: { validTo: new Date('2026-10-06T00:00:00Z') }, // price_agreement_period: validTo > validFrom
   // document_verification_*_hash: lower-case hex; tokenHash is unique in the whole table, so each row draws its own
   DocumentVerification: { tokenHash: () => createHash('sha256').update(randomUUID()).digest('hex'), contentSha256: 'b'.repeat(64) },
+  AiCreditLedger: { periodMonth: new Date('2026-10-01T00:00:00Z') }, // ai_credit_period_first_day: the first day of a month
   PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
   BacktestRun: { subjectType: 'DOA_VERSION' }, // backtest_run_subject: a backtest tries a DOA or a workflow draft
 }

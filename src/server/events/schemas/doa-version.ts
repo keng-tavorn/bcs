@@ -16,6 +16,8 @@ defineEvents('DoaVersion', {
       rules: z.number().int().positive(),
       fromVersionId: z.uuid().optional(),
       fromVersionNo: z.number().int().positive().optional(),
+      // S13: the AI action whose draft the person confirmed and imported (BR-AI-22); the actor is still the person
+      agentActionId: z.uuid().optional(),
     }),
   },
   // initialPackageHolders: the holders sent with the first version to the contract signatory (BR-DOA-19);

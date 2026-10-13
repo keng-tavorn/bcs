@@ -117,6 +117,7 @@
     "org_authority_change": "Authority structure",
     "organization": "Organization",
     "po": "Purchase orders",
+    "po_change": "PO changes",
     "position": "Positions",
     "report_schedule": "Reports",
     "request": "Requests",
@@ -155,6 +156,7 @@
     "Notification": "Notification",
     "OrgAuthorityChange": "Authority change",
     "Organization": "Organization",
+    "PoChange": "PO change",
     "PositionAssignment": "Position holding",
     "PurchaseOrder": "Purchase order",
     "ReportSchedule": "Report schedule",
@@ -336,10 +338,20 @@
       "rejected": "Purchase order rejected",
       "retention_set": "Purchase order retention set",
       "returned": "Purchase order returned",
+      "revised": "Purchase order revised",
+      "revision_sent": "Revised purchase order sent to the supplier",
       "send_bounced": "Purchase order e-mail bounced",
       "sent": "Purchase order sent to the supplier",
       "submitted": "Purchase order sent for approval",
       "updated": "Draft purchase order changed"
+    },
+    "po_change": {
+      "approved": "PO change approved",
+      "cancelled": "PO change cancelled",
+      "drafted": "PO change drafted",
+      "rejected": "PO change rejected",
+      "returned": "PO change returned",
+      "submitted": "PO change submitted"
     },
     "position": {
       "assigned": "Position holder appointed",

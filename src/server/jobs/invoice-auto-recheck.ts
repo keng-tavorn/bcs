@@ -9,7 +9,13 @@ import { INVOICE_RECHECK_EVENT, recheckPoInvoices } from '@/server/services/ap/e
 
 export const InvoiceRecheckRequested = z.object({ organizationId: z.uuid(), poId: z.uuid(), cause: z.string().min(1).max(200) })
 
-export const invoiceAutoRecheck = inngest.createFunction({ id: 'invoice-auto-recheck', triggers: [{ event: INVOICE_RECHECK_EVENT }] }, async ({ event, step }) => {
-  const { organizationId, poId, cause } = InvoiceRecheckRequested.parse(event.data)
+const PoChangeApproved = z.object({ organizationId: z.uuid(), aggregateId: z.uuid(), data: z.object({ poId: z.uuid() }) })
+
+export const invoiceAutoRecheck = inngest.createFunction({ id: 'invoice-auto-recheck', triggers: [{ event: INVOICE_RECHECK_EVENT }, { event: 'bcs/po_change.approved' }] }, async ({ event, step }) => {
+  // S8-10: an approved PO change (BR-POC-04) as well as a goods receipt
+  const { organizationId, poId, cause } =
+    event.name === 'bcs/po_change.approved'
+      ? (({ organizationId, aggregateId, data }) => ({ organizationId, poId: data.poId, cause: `po_change:${aggregateId}` }))(PoChangeApproved.parse(event.data))
+      : InvoiceRecheckRequested.parse(event.data)
   return step.run('recheck', async () => (await recheckPoInvoices(organizationId, poId, cause, systemClock.now())).map((r) => r.ok))
 })

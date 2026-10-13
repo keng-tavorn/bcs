@@ -85,6 +85,8 @@ export const PERMISSIONS = {
   'po.send': PROCUREMENT_ONLY,
   'po.cancel': PROCUREMENT_ONLY,
   'po.close': PROCUREMENT_ONLY,
+  // S8-10 (ADR-125): changes to a sent PO, module CORE, under DOA PO_CHANGE
+  'po.change': PROCUREMENT_ONLY,
   'po.view': [...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG'), anyMember('OWN'), anyMember('ASSIGNED')],
   // Receiving and invoices
   'gr.post': [role('RECEIVER', 'DEPT'), role('RECEIVER', 'ASSIGNED'), anyMember('OWN', 'REQUESTER_MAY_RECEIVE')],

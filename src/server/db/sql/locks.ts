@@ -32,6 +32,7 @@ const LOCKABLE = [
   // S8
   'Invoice',
   'Retention',
+  'PoChange',
 ] as const
 export type LockableTable = (typeof LOCKABLE)[number]
 /** Tables whose key is not "id": a budget line's balance is keyed by the line (§6.2) */

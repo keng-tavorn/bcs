@@ -98,6 +98,20 @@ defineEvents('PurchaseOrder', {
   'po.retention_set': { schema: z.object({ retentionBp: z.number().int().min(0), retentionHoldDays: z.number().int().min(0).nullable() }) },
 })
 
+// S8-10 (ADR-125, BR-POC-01 to BR-POC-05): a change to a sent PO and the revision it makes
+defineEvents('PoChange', {
+  'po_change.drafted': { schema: z.object({ poId: z.uuid(), changeNo: z.number().int().min(1), lineCount: z.number().int().min(0), newNetSatang: satang, autoApproved: z.boolean() }) },
+  'po_change.submitted': { schema: z.object({ poId: z.uuid(), routeId: z.uuid().nullable(), autoApproved: z.boolean() }) },
+  'po_change.approved': { schema: z.object({ poId: z.uuid(), revisionNo: z.number().int().min(1), autoApproved: z.boolean() }) },
+  'po_change.rejected': { schema: z.object({ poId: z.uuid(), reasonCommentId: z.uuid().nullable() }) },
+  'po_change.returned': { schema: z.object({ poId: z.uuid(), reasonCommentId: z.uuid().nullable() }) },
+  'po_change.cancelled': { schema: z.object({ poId: z.uuid(), reason: z.string().min(1), from: z.enum(['DRAFT', 'PENDING_APPROVAL']) }) },
+})
+defineEvents('PurchaseOrder', {
+  'po.revised': { schema: z.object({ poChangeId: z.uuid(), revisionNo: z.number().int().min(1), netSatang: satang }) },
+  'po.revision_sent': { schema: z.object({ revisionNo: z.number().int().min(1), poChangeId: z.uuid(), pdfFileId: z.uuid() }) },
+})
+
 // The invoice inbox (ADR-123, BR-AP-02): what came in, never the body; skipped files are named with the reason
 const skipped = z.array(z.object({ fileName: z.string(), reason: z.enum(['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'OVER_LIMIT']) }))
 defineEvents('InboundEmail', {

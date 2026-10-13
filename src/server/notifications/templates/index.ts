@@ -237,6 +237,16 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `กล่องอีเมลใบแจ้งหนี้: ร่างใหม่ ${str(d.draftCount, '0')} ใบ รอเลือก PO ${str(d.pendingCount, '0')} ไฟล์`, en: `Invoice inbox: ${str(d.draftCount, '0')} new drafts, ${str(d.pendingCount, '0')} files waiting for a PO` },
     href: '/finance/invoices/inbox',
   }),
+  // S8-10 (§10.1): the proposer of a PO change hears the decision
+  'po_change.decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} อนุมัติแล้ว ส่งฉบับแก้ไขให้ผู้ขายได้`, en: `PO change #${str(d.changeNo)} approved; send the revision to the supplier` }
+        : d.outcome === 'RETURNED'
+          ? { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} ถูกส่งกลับให้แก้`, en: `PO change #${str(d.changeNo)} was returned for changes` }
+          : { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} ไม่ได้รับอนุมัติ`, en: `PO change #${str(d.changeNo)} was not approved` },
+    href: `/procurement/purchase-orders/${str(d.poId)}`,
+  }),
   // S8-09 (BR-RET-04): a performance retention may be released from today (the digest; the amount, no supplier detail)
   'retention.due': (d) => ({
     title: { th: `เงินประกันผลงาน ${money(d.amountSatang)} บาท ครบกำหนดคืนแล้ว`, en: `A performance retention of THB ${money(d.amountSatang)} is due for release` },

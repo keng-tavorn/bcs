@@ -1,6 +1,7 @@
 import { err, ok, type Result } from '@/core/result'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
+import { escapeLike } from '@/server/db/like'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { requireModule } from '../modules'
 import { guard, INVOICEABLE_PO_STATUSES } from './common'
@@ -77,7 +78,8 @@ export interface ApInvoiceListDto {
 
 function searchWhere(q: string) {
   if (!q) return {}
-  const contains = { contains: q, mode: 'insensitive' as const }
+  // % and _ in what the member typed are letters, not wildcards (§4.10)
+  const contains = { contains: escapeLike(q), mode: 'insensitive' as const }
   return { OR: [{ number: contains }, { supplierInvoiceNo: contains }, { po: { number: contains } }, { supplier: { nameTh: contains } }, { supplier: { nameEn: contains } }, { supplier: { code: contains } }] }
 }
 

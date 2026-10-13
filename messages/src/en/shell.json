@@ -46,7 +46,8 @@
     "notifications": "Notification settings",
     "insights": "Executive summary",
     "settings": "My settings",
-    "admin": "Organization admin"
+    "admin": "Organization admin",
+    "ai": "AI assistants"
   },
   "counts": {
     "tasks": "{count, plural, one {# open task} other {# open tasks}}",

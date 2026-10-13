@@ -147,5 +147,55 @@
       "DOA_EVERYWHERE": "DOA for every document",
       "BCS_GO": "BCS Go app"
     }
+  },
+  "ai": {
+    "title": "AI assistants",
+    "intro": "Switch each AI assistant on or off; it takes effect for new calls at once. Everything else works when they are off, and a person always confirms what the AI fills in.",
+    "forbidden": "This page is for organization admins. To change the AI settings, ask your organization admin.",
+    "moduleOff": "The AI module is not switched on for your organization yet. You may set things up now; the assistants start working when the BCS team switches the module on under the contract.",
+    "creditsTitle": "This month's credits",
+    "creditsUsed": "{used} of {granted} credits used, {remaining} left",
+    "creditsProgress": "{percent}% of the credits used",
+    "creditsNote": "{monthly} credits arrive at the start of each month, and the admins are told at {alert}%. Ask the BCS team for more.",
+    "agentsTitle": "Assistants",
+    "on": "On",
+    "off": "Off",
+    "confidence": "Lowest confidence (%)",
+    "confidenceHint": "Fields the AI is less sure of are confirmed one by one; amounts, quantities and tax ids always are",
+    "saveConfidence": "Save lowest confidence",
+    "savedConfidence": "Lowest confidence of {name} saved",
+    "switchedOn": "{name} switched on",
+    "switchedOff": "{name} switched off; its drafts can still be confirmed or changed",
+    "errors": {
+      "CONFIDENCE": "Enter a number from 0 to 100",
+      "CONFLICT_VERSION": "Someone changed this setting before you. Reload the page and try again.",
+      "FORBIDDEN": "You may not change the AI settings",
+      "UNAUTHENTICATED": "Please sign in again",
+      "NO_CHANGE": "This is set already; nothing changed",
+      "INTERNAL": "Not saved. Tell your administrator the reference {requestId}",
+      "FAILED": "Not saved. Try again"
+    },
+    "agents": {
+      "DOCUMENT": {
+        "name": "Document reader",
+        "description": "Reads quotations, delivery notes and invoices and fills the form for a person to check and confirm"
+      },
+      "INTAKE": {
+        "name": "Request helper",
+        "description": "Picks the request type and drafts the request from what the requester wrote or attached; the requester confirms before sending"
+      },
+      "APPROVAL_BRIEF": {
+        "name": "AI summary for approvers",
+        "description": "A short summary on the approval task; every number comes from the system and it never advises a decision"
+      },
+      "INSIGHT": {
+        "name": "Ask BCS AI",
+        "description": "Answers questions about procurement data in Thai, only from what the asking person may see"
+      },
+      "DOA_DRAFTER": {
+        "name": "DOA draft from a regulation",
+        "description": "Drafts approval rules from a regulation document for the admin to check one by one"
+      }
+    }
   }
 }

@@ -26,6 +26,7 @@
   "TAX_RATE_NOT_CONFIGURED": "No VAT rate is configured for {date}. Please contact the platform administrator",
   "INVOICE_EXCEEDS_COMMITTED": "The invoice exceeds the remaining PO commitment ({remaining} baht)",
   "CODING_NOT_CONFIRMED": "The account code of line {lines} is not confirmed yet",
+  "VARIANCE_NOT_ACCEPTABLE": "A {type} difference cannot be approved: fix it at its cause or reject the invoice",
   "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
   "STEP_UP_REQUIRED": "This action requires PIN confirmation",
   "RATE_LIMITED": "Too many attempts. Please try again later",

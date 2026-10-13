@@ -71,6 +71,9 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'delegation.window',
   'doa.authority_changed',
   'digest.daily',
+  // S8: differences of an invoice and the decision on its price variance (§10.1, BR-AP-09)
+  'invoice.exception',
+  'invoice.variance_decided',
 ])
 
 type Data = Readonly<Record<string, unknown>>

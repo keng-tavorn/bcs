@@ -4,19 +4,19 @@ import { invoiceLineNets } from '@/core/matching'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, parseQuantity } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
-import type { AppError, ErrorCode } from '@/core/result'
-import { INVOICE_MACHINE, transition, type InvoiceCommand, type InvoiceState } from '@/core/state-machines'
 import { taxDateOf } from '@/core/vat'
-import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { AiAssistInput, applyAiAssist, assertNoPendingAiReview } from '../ai/assist-contract'
-import { requireModule } from '../modules'
 import { issueDocumentNumber } from '../numbering'
+import { fail, guard, INVOICEABLE_PO_STATUSES, lockedInvoice, SUBJECT } from './common'
 import { INVOICED_STATUSES, runMatch } from './match-run'
+export { INVOICEABLE_PO_STATUSES } from './common'
+import { readyNotice } from './exceptions'
+import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-notices'
 import { claimTrack } from './track'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
 
@@ -25,34 +25,6 @@ import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
 // every line, and submits it. Submitting numbers it (numbering.AP) and matches it (./match-run.ts): a match moves it
 // to READY_FOR_PAYMENT with the budget, a difference to EXCEPTION. Every command needs module PAY (BR-AP-13) and goes
 // through runCommand. A draft moves no money (FR-AP-101 AC6).
-
-type Fail = { ok: false; error: AppError }
-const fail = (code: ErrorCode, message: string, details?: Record<string, unknown>): Fail => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } })
-
-/** POs an invoice can be made on (BR-MATCH-05) */
-export const INVOICEABLE_PO_STATUSES = ['SENT', 'PARTIALLY_RECEIVED', 'RECEIVED', 'CLOSED'] as const
-const SUBJECT = (id: string) => ({ type: 'INVOICE', id })
-
-/** Authorized member of an organization with PAY switched on */
-async function guard(tx: TenantTx, ctx: Ctx, capability: 'invoice.record'): Promise<{ ok: true; memberId: string } | Fail> {
-  const allowed = await authorize(tx, ctx, capability)
-  if (!allowed.ok) return { ok: false, error: allowed.error }
-  if (allowed.data.kind !== 'member') return fail('FORBIDDEN', 'only a member records an invoice')
-  const pay = await requireModule(ctx, 'PAY', tx)
-  if (!pay.ok) return { ok: false, error: pay.error }
-  return { ok: true, memberId: allowed.data.memberId }
-}
-
-/** Locks the invoice and checks the command against its state and the version the screen read */
-async function lockedInvoice(tx: TenantTx, ctx: Ctx, invoiceId: string, command: InvoiceCommand, version?: number) {
-  const [id] = await lockRowsForUpdate(tx, 'Invoice', ctx.organizationId, [invoiceId])
-  if (!id) return fail('NOT_FOUND', 'invoice not found')
-  const invoice = await tx.invoice.findUniqueOrThrow({ where: { id }, include: { lines: { orderBy: { lineNo: 'asc' } } } })
-  const moved = transition(INVOICE_MACHINE, invoice.status as InvoiceState, command)
-  if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `${command} is not allowed from ${invoice.status}`, { from: invoice.status, command })
-  if (version !== undefined && version !== invoice.version) return fail('CONFLICT_VERSION', 'the invoice changed since it was read', { version: invoice.version })
-  return { ok: true as const, invoice, to: moved.to }
-}
 
 /** What each PO line can still be invoiced: goods what was received, services what was confirmed, less other invoices */
 async function invoiceableQuantities(tx: TenantTx, po: { lines: ReadonlyArray<{ id: string; receivedQuantity: { toString(): string } }> }) {
@@ -397,7 +369,8 @@ export const submitInvoiceCommand = defineCommand({
       prefill = stored.ok && sourceOfStoredFile(stored.file, po.supplier.taxId, invoice) ? 'ETAX_XML' : 'MANUAL'
     }
 
-    const number = await issueDocumentNumber(tx, ctx, { document: 'AP' })
+    // A number is never used twice (BR-NUM-01): an invoice reopened and submitted again keeps its own
+    const number = invoice.number ?? (await issueDocumentNumber(tx, ctx, { document: 'AP' }))
     await tx.invoice.update({ where: { id: invoice.id }, data: { number, prefill, recordedById: who.memberId, submittedAt: ctx.now } })
     const run = await runMatch(tx, ctx, invoice.id, 'USER')
     if (!run.ok) {
@@ -421,8 +394,21 @@ export const submitInvoiceCommand = defineCommand({
       },
       ...run.data.events,
     ]
+    // BR-AP-08: the supplier hears the invoice was received, and when it is ready for payment
+    const received = await enqueueSupplierNotice(tx, ctx, {
+      templateKey: SUPPLIER_TEMPLATES.invoiceReceived,
+      supplierId: invoice.supplierId,
+      subjectType: 'Invoice',
+      subjectId: invoice.id,
+      dedupeKey: `invoice_received:${invoice.id}`,
+      data: { number, supplierInvoiceNo: invoice.supplierInvoiceNo },
+    })
+    const ready = run.data.status === 'READY_FOR_PAYMENT' ? await readyNotice(tx, ctx, invoice.id) : null
+    events.push(...received.events, ...(ready?.events ?? []))
     return {
       ok: true,
+      notifications: [...run.data.notifications, ...received.notifications, ...(ready?.notifications ?? [])],
+      outbox: [...received.outbox, ...(ready?.outbox ?? [])],
       result: { invoiceId: invoice.id, number, status: run.data.status, exceptions: run.data.exceptions.map((e) => ({ type: e.type, amount: satangToAmount(e.amountSatang), lineNo: e.lineNo })) },
       events,
     }

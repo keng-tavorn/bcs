@@ -88,6 +88,10 @@ export const PERMISSIONS = {
   'invoiceConfirmation.record': [role('FINANCE', 'ORG')],
   // S8 tier-2 invoices (module PAY, BR-AP-13): draft, edit, code, submit and throw away
   'invoice.record': [role('FINANCE', 'ORG')],
+  'invoice.reject': roles(['FINANCE', 'PROCUREMENT'], 'ORG'),
+  // BR-MATCH-09: each holder checks again only the differences sent to their role (the service checks the role)
+  'invoice.exception.resolve': [...roles(['FINANCE', 'PROCUREMENT'], 'ORG'), role('RECEIVER', 'DEPT'), role('RECEIVER', 'ASSIGNED')],
+  'invoice.variance.request': [role('PROCUREMENT', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

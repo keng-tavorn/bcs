@@ -47,4 +47,21 @@ defineEvents('Invoice', {
     schema: z.object({ dueDate: z.iso.date(), payableSatang: satang, expectedWhtSatang: satang, actualSatang: satang, holdMoreSatang: satang, releasedSatang: satang }),
   },
   'invoice.cancelled': { schema: z.object({ reason: z.string().min(1) }) },
+  // S8-06 (BR-MATCH-10): the match again, a reopened draft, a rejection, and the approval of a price variance
+  'invoice.rechecked': { schema: z.object({ matchId: z.uuid(), runNo: z.number().int().min(1), triggeredBy: z.enum(['USER', 'SYSTEM']), status: z.enum(['READY_FOR_PAYMENT', 'EXCEPTION']) }) },
+  'invoice.reopened': { schema: z.object({}) },
+  'invoice.rejected': { schema: z.object({ from: z.enum(['DRAFT', 'EXCEPTION']), reason: z.string().min(1) }) },
+  'invoice.variance_submitted': {
+    schema: z.object({ routeId: z.uuid(), netSatang: satang, vatSatang: satang, reason: z.string().min(1), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1) }),
+  },
+  'invoice.variance_approved': { schema: z.object({ holdMoreSatang: satang }) },
+  'invoice.variance_rejected': { schema: z.object({ decision: z.enum(['RETURNED', 'REJECTED']), reasonCommentId: z.uuid().nullable() }) },
+  'match_exception.dismissed': { schema: z.object({ exceptionId: z.uuid(), type: exceptionType, reason: z.string().min(1) }) },
+})
+
+// E-mails to a supplier (ADR-126): sent or refused, naming the template and the document (S9 reads payment.advice's)
+const noticeData = z.object({ noticeId: z.uuid(), templateKey: z.string().min(1), subjectType: z.string().min(1), subjectId: z.uuid() })
+defineEvents('SupplierNotice', {
+  'supplier_notice.sent': { schema: noticeData },
+  'supplier_notice.failed': { schema: noticeData.extend({ reason: z.enum(['PROVIDER_REFUSED', 'TEMPLATE_UNKNOWN', 'NO_EMAIL']) }) },
 })

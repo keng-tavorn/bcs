@@ -203,6 +203,25 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
         }
     }
   },
+  // S8 (BR-MATCH-09, BR-AP-09): the invoice, the PO and the kinds of difference only, never a line or a unit price
+  'invoice.exception': (d) => ({
+    title: { th: `ใบแจ้งหนี้ ${ref(d) || 'ใหม่'} ของ PO ${str(d.poNumber)} มีรายการไม่ตรง`, en: `Invoice ${ref(d) || 'new'} of PO ${str(d.poNumber)} has differences` },
+    body: { th: 'เปิดใบแจ้งหนี้เพื่อดูรายการไม่ตรงที่ส่งถึงคุณ', en: 'Open the invoice to see the differences sent to you' },
+    href: `/finance/invoices/${str(d.invoiceId)}`,
+  }),
+  'invoice.variance_decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `ส่วนต่างราคาของใบแจ้งหนี้ ${ref(d)} อนุมัติแล้ว ใบพร้อมจ่าย`, en: `The price variance of invoice ${ref(d)} is approved; the invoice is ready for payment` }
+        : { th: `ส่วนต่างราคาของใบแจ้งหนี้ ${ref(d)} ไม่ได้รับอนุมัติ`, en: `The price variance of invoice ${ref(d)} was not approved` },
+    href: `/finance/invoices/${str(d.invoiceId)}`,
+  }),
+  // BR-AP-08: a supplier without an e-mail address is not told; FINANCE is, to tell them another way
+  'supplier.no_email': (d) => ({
+    title: { th: `ผู้ขายไม่มีอีเมล ระบบจึงไม่ได้แจ้งเรื่องเอกสาร ${ref(d)}`, en: `The supplier has no e-mail address, so it was not told about ${ref(d) || 'the document'}` },
+    body: { th: 'โปรดแจ้งผู้ขายทางอื่น และเพิ่มอีเมลในข้อมูลผู้ขาย', en: 'Please tell the supplier another way and add an e-mail address to the supplier' },
+    href: d.subjectType === 'Invoice' ? `/finance/invoices/${str(d.subjectId)}` : `/suppliers/${str(d.supplierId)}`,
+  }),
   // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
   ...SLA_TEMPLATES,
 }

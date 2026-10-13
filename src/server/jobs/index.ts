@@ -6,6 +6,7 @@ import { dailyDigest } from './daily-digest'
 import { delegationRevoked, delegationWindow } from './delegation-window'
 import { doaVersionActivate } from './doa-version-activate'
 import { draftExpiry } from './draft-expiry'
+import { invoiceAutoRecheck } from './invoice-auto-recheck'
 import { lineRichMenu } from './line-rich-menu'
 import { lineWebhook, lineWebhookSweep } from './line-webhook'
 import { notificationDeliver } from './notification-deliver'
@@ -14,6 +15,7 @@ import { outboxSweeper } from './outbox-sweeper'
 import { reportSchedules } from './report-schedules'
 import { stagingDemoReset } from './staging-demo-reset'
 import { stagingFirstSeed } from './staging-first-seed'
+import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
 export const functions = [
@@ -35,6 +37,10 @@ export const functions = [
   lineWebhookSweep,
   // S5-04: the rich menu of a LINE user follows their link (FR-LINE-004 AC3)
   lineRichMenu,
+  // S8-06: invoices matched again after a goods receipt, and the e-mails to suppliers (ADR-126)
+  invoiceAutoRecheck,
+  supplierNoticeSend,
+  supplierNoticeSweep,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

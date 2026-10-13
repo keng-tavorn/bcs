@@ -31,6 +31,8 @@ import { PoBody } from '../../../(workspace)/procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../../(workspace)/procurement/pos/_parts/present'
 import { ClosedTaskText } from '../../../(workspace)/tasks/_parts/closed-task'
 import { VarianceBody } from '../../../(workspace)/tasks/_parts/variance-body'
+import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
+import { LiffInvoiceSummary } from '@/ui/liff/tasks/subjects/invoice'
 import { liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
 import { liffSignedIn } from '../_lib/signed-in'
@@ -302,6 +304,8 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <PoBody po={{ ...po, route: task.route ?? po.route }} locale={locale} doaLinks={false} reader={reader} openFile={openFile} requestHref={NO_LINK} />
       ) : variance ? (
         <VarianceBody variance={variance} locale={locale} doaLinks={false} poHref={null} openFile={openFile} />
+      ) : task.subjectType === 'INVOICE' ? (
+        <LiffInvoiceSummary invoice={await getInvoiceTaskView(ctx, task.subjectId)} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}

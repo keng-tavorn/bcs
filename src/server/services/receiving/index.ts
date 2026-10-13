@@ -17,6 +17,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { AiAssistInput, applyAiAssist } from '../ai/assist-contract'
+import { recheckRequest } from '../ap/exceptions'
 import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { unsettledLines } from '../purchase-orders/close'
@@ -304,7 +305,9 @@ export const postGrCommand = defineCommand({
     }
     // pendingApproval: the variances of this receipt that wait for the GR_VARIANCE approver, for the screen's confirmation
     const pendingApproval = planned.reduce((n, p) => n + p.variances.filter((v) => v.needsApproval).length, 0)
-    return { ok: true, result: { grId, number, poStatus: moved.to, varianceIds, pendingApproval }, events, notifications }
+    // S8 (BR-MATCH-10): the PO's invoices waiting in EXCEPTION are matched again after this receipt
+    const outbox = await recheckRequest(tx, ctx.organizationId, po.id, `gr:${grId}`)
+    return { ok: true, result: { grId, number, poStatus: moved.to, varianceIds, pendingApproval }, events, notifications, outbox }
   },
 })
 

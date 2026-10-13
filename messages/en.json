@@ -1288,6 +1288,7 @@
       "RequestType": "Request type",
       "Security": "Security",
       "Supplier": "Supplier",
+      "SupplierNotice": "E-mail to a supplier",
       "Variance": "Receiving variance"
     },
     "decision": {
@@ -1396,8 +1397,14 @@
         "exception_raised": "Invoice has differences",
         "matched": "Invoice matched",
         "ready": "Invoice ready for payment",
+        "rechecked": "Invoice checked again",
+        "rejected": "Invoice rejected",
+        "reopened": "Invoice reopened as a draft",
         "submitted": "Invoice submitted",
-        "updated": "Invoice draft edited"
+        "updated": "Invoice draft edited",
+        "variance_approved": "Invoice price variance approved",
+        "variance_rejected": "Invoice price variance not approved or returned",
+        "variance_submitted": "Invoice price variance sent for approval"
       },
       "invoice_confirmation": {
         "recorded": "Invoice confirmation recorded"
@@ -1405,6 +1412,9 @@
       "line": {
         "linked": "LINE account linked",
         "unlinked": "LINE account unlinked"
+      },
+      "match_exception": {
+        "dismissed": "Possible duplicate invoice dismissed"
       },
       "member": {
         "activated": "Member activated",
@@ -1482,6 +1492,10 @@
         "registry_status_changed": "Supplier's register status changed",
         "updated": "Supplier details changed"
       },
+      "supplier_notice": {
+        "failed": "E-mail to the supplier failed",
+        "sent": "E-mail sent to the supplier"
+      },
       "variance": {
         "approved": "Receiving variance approved",
         "recorded": "Receiving variance recorded",
@@ -1518,6 +1532,7 @@
       "invoice": "Invoices",
       "invoice_confirmation": "Invoices",
       "line": "LINE accounts",
+      "match_exception": "Invoice differences",
       "member": "Members",
       "notification": "Notifications",
       "org_authority_change": "Authority structure",
@@ -1529,6 +1544,7 @@
       "request_type": "Request types",
       "security": "Security",
       "supplier": "Suppliers",
+      "supplier_notice": "E-mails to suppliers",
       "variance": "Receiving variances"
     },
     "home": "Back to home",
@@ -2686,7 +2702,8 @@
     "TOKEN_INVALID": "This link is not valid",
     "TOKEN_USED": "Already done by {name} at {time}",
     "UNAUTHENTICATED": "Please sign in",
-    "VALIDATION_FAILED": "Invalid data: {field}"
+    "VALIDATION_FAILED": "Invalid data: {field}",
+    "VARIANCE_NOT_ACCEPTABLE": "A {type} difference cannot be approved: fix it at its cause or reject the invoice"
   },
   "files": {
     "chooseFile": "Choose a file",
@@ -6400,6 +6417,23 @@
       "submit": "Show matching tasks"
     },
     "intro": "Tasks waiting for your decision, the ones due first at the top",
+    "invoice": {
+      "amountsTitle": "Variance to approve",
+      "approveHint": "Approving holds more budget for the lines priced over and makes the invoice ready for payment; without enough budget it cannot be approved",
+      "gross": "Total",
+      "heading": "Price variance of an invoice",
+      "invoiceDate": "Invoice date",
+      "line": "Line {no} · {description}",
+      "lineValue": "{quantity} {uom} · PO price {poPrice} → invoice price {price} · over by {over} baht",
+      "linesTitle": "Lines priced above the purchase order",
+      "net": "Variance before VAT",
+      "number": "Invoice number",
+      "po": "Purchase order",
+      "supplier": "Supplier",
+      "supplierInvoiceNo": "Supplier’s invoice number",
+      "unit": "baht",
+      "vat": "VAT on the variance"
+    },
     "item": {
       "amount": "{amount} baht",
       "amountLabel": "Total incl. VAT",

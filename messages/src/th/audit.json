@@ -107,6 +107,7 @@
     "invoice": "ใบแจ้งหนี้",
     "invoice_confirmation": "ใบกำกับ",
     "line": "บัญชี LINE",
+    "match_exception": "รายการไม่ตรงของใบแจ้งหนี้",
     "member": "สมาชิก",
     "notification": "การแจ้งเตือน",
     "org_authority_change": "โครงสร้างอำนาจ",
@@ -118,6 +119,7 @@
     "request_type": "ประเภทคำขอ",
     "security": "ความปลอดภัย",
     "supplier": "ผู้ขาย",
+    "supplier_notice": "อีเมลถึงผู้ขาย",
     "variance": "ผลต่างจากการตรวจรับ"
   },
   "aggregate": {
@@ -148,6 +150,7 @@
     "RequestType": "ประเภทคำขอ",
     "Security": "ความปลอดภัย",
     "Supplier": "ผู้ขาย",
+    "SupplierNotice": "อีเมลถึงผู้ขาย",
     "Variance": "ผลต่างจากการตรวจรับ"
   },
   "events": {
@@ -231,8 +234,14 @@
       "exception_raised": "ใบแจ้งหนี้มีรายการไม่ตรง",
       "matched": "ใบแจ้งหนี้จับคู่ตรง",
       "ready": "ใบแจ้งหนี้พร้อมจ่าย",
+      "rechecked": "ตรวจใบแจ้งหนี้ซ้ำ",
+      "rejected": "ปฏิเสธใบแจ้งหนี้",
+      "reopened": "เปิดใบแจ้งหนี้กลับเป็นร่าง",
       "submitted": "ส่งใบแจ้งหนี้",
-      "updated": "แก้ร่างใบแจ้งหนี้"
+      "updated": "แก้ร่างใบแจ้งหนี้",
+      "variance_approved": "อนุมัติส่วนต่างราคาของใบแจ้งหนี้",
+      "variance_rejected": "ไม่อนุมัติหรือตีกลับส่วนต่างราคาของใบแจ้งหนี้",
+      "variance_submitted": "ขออนุมัติส่วนต่างราคาของใบแจ้งหนี้"
     },
     "invoice_confirmation": {
       "recorded": "บันทึกยืนยันใบกำกับ"
@@ -240,6 +249,9 @@
     "line": {
       "linked": "ผูกบัญชี LINE",
       "unlinked": "ยกเลิกการผูกบัญชี LINE"
+    },
+    "match_exception": {
+      "dismissed": "ปัดตกคำเตือนใบแจ้งหนี้น่าจะซ้ำ"
     },
     "member": {
       "activated": "เปิดใช้งานสมาชิก",
@@ -316,6 +328,10 @@
       "registry_checked": "ตรวจผู้ขายกับทะเบียนของรัฐ",
       "registry_status_changed": "สถานะผู้ขายในทะเบียนเปลี่ยน",
       "updated": "แก้ไขข้อมูลผู้ขาย"
+    },
+    "supplier_notice": {
+      "failed": "ส่งอีเมลถึงผู้ขายไม่สำเร็จ",
+      "sent": "ส่งอีเมลถึงผู้ขาย"
     },
     "variance": {
       "approved": "อนุมัติผลต่างจากการตรวจรับ",

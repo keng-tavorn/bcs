@@ -107,6 +107,7 @@
     "invoice": "Invoices",
     "invoice_confirmation": "Invoices",
     "line": "LINE accounts",
+    "match_exception": "Invoice differences",
     "member": "Members",
     "notification": "Notifications",
     "org_authority_change": "Authority structure",
@@ -118,6 +119,7 @@
     "request_type": "Request types",
     "security": "Security",
     "supplier": "Suppliers",
+    "supplier_notice": "E-mails to suppliers",
     "variance": "Receiving variances"
   },
   "aggregate": {
@@ -148,6 +150,7 @@
     "RequestType": "Request type",
     "Security": "Security",
     "Supplier": "Supplier",
+    "SupplierNotice": "E-mail to a supplier",
     "Variance": "Receiving variance"
   },
   "events": {
@@ -231,8 +234,14 @@
       "exception_raised": "Invoice has differences",
       "matched": "Invoice matched",
       "ready": "Invoice ready for payment",
+      "rechecked": "Invoice checked again",
+      "rejected": "Invoice rejected",
+      "reopened": "Invoice reopened as a draft",
       "submitted": "Invoice submitted",
-      "updated": "Invoice draft edited"
+      "updated": "Invoice draft edited",
+      "variance_approved": "Invoice price variance approved",
+      "variance_rejected": "Invoice price variance not approved or returned",
+      "variance_submitted": "Invoice price variance sent for approval"
     },
     "invoice_confirmation": {
       "recorded": "Invoice confirmation recorded"
@@ -240,6 +249,9 @@
     "line": {
       "linked": "LINE account linked",
       "unlinked": "LINE account unlinked"
+    },
+    "match_exception": {
+      "dismissed": "Possible duplicate invoice dismissed"
     },
     "member": {
       "activated": "Member activated",
@@ -316,6 +328,10 @@
       "registry_checked": "Supplier checked with the government registers",
       "registry_status_changed": "Supplier's register status changed",
       "updated": "Supplier details changed"
+    },
+    "supplier_notice": {
+      "failed": "E-mail to the supplier failed",
+      "sent": "E-mail sent to the supplier"
     },
     "variance": {
       "approved": "Receiving variance approved",

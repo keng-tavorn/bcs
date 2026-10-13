@@ -889,6 +889,30 @@ def run_ap(d):  # BR-AP-07 วันครบกำหนด (S8-03) · BR-AP-10
             got = {"error": f"fn {c['fn']} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; fn = c["fn"]
+        if fn == "splitMilestones":
+            s = i["sharesBp"]
+            if not (2 <= len(s) <= 12) or any(x <= 0 for x in s) or sum(s) != 10000:
+                got = {"error": "VALIDATION_FAILED"}
+            else:
+                unit = sat(i["unitPrice"]); parts = lr_split(q4(i["qty"]), s)
+                lines = [{"qty": q4s(p), "net": baht(line_net(q4s(p), unit))} for p in parts]
+                total = sum(line_net(q4s(p), unit) for p in parts)
+                got = {"lines": lines, "total": baht(total), "driftFromSingleLine": baht(total - line_net(i["qty"], unit))}
+        elif fn == "invoicePayment":
+            n = sat(i["net"]); v = rhu(n * i["vatRateBp"], 10000); r = lr_split(n, [i["retentionBp"], 10000 - i["retentionBp"]])[0]
+            base = n - r; w = rhu(base * i["whtRateBp"], 10000)
+            got = {"vat": baht(v), "gross": baht(n + v), "retention": baht(r), "payable": baht(n + v - r), "whtBase": baht(base), "wht": baht(w), "transfer": baht(n + v - r - w)}
+        elif fn == "retentionRelease":
+            r = sat(i["retention"]); w = rhu(r * i["whtRateBp"], 10000)
+            got = {"payable": baht(r), "wht": baht(w), "transfer": baht(r - w)}
+        else:
+            got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ap": run_ap,
@@ -907,6 +931,7 @@ RUNNERS = {
     "numbering": run_numbering,
     "quotations": run_quotes,
     "receiving": run_gr,
+    "retention": run_retention,
     "sla": run_sla,
     "sod": run_sod,
     "taxid": run_taxid,

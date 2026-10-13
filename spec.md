@@ -1117,7 +1117,7 @@ stateDiagram-v2
 
 | ชั้น | Entities |
 | --- | --- |
-| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `SupplierNotice` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `PoChangeLine` `MilestoneReceipt` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
+| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `SupplierNotice` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `PoChangeLine` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
 | 3 | `RfxEvent` `RfxInvite` `RfxQuestion` `Bid` `BidLine` `Scorecard` `ScoreCriterion` `AwardDecision` `RiskQuestionnaire` `RiskAssessment` `RiskTier` `ReviewTask` `Contract` `ContractVersion` `Obligation` `RenewalReminder` `PreferredSupplier` `RiskReview` |
 | 4 | `AgentAction` `PromptVersion` `AiEvalRun` `AiCreditLedger` `ApiClient` `WebhookSubscription` `WebhookDelivery` `McpSession` `ConnectorConfig` |
 
@@ -2371,6 +2371,26 @@ cases:
   - { id: GC-AP-03, fn: dueDate, title: PO ไม่มีเครดิต ใช้ของผู้ขาย, input: { invoiceDate: "2026-10-30", poTermDays: null, supplierTermDays: 15, defaultTermDays: 30 }, expect: { dueDate: "2026-11-14" } }
   - { id: GC-AP-04, fn: dueDate, title: ไม่มีทั้งสองใช้ค่าตั้งต้น, input: { invoiceDate: "2027-01-30", poTermDays: null, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
   - { id: GC-AP-05, fn: dueDate, title: เครดิต 0 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 0, supplierTermDays: 30, defaultTermDays: 30 }, expect: { dueDate: "2026-10-30" } }
+```
+
+งวดงานและเงินประกันผลงาน (BR-RET-01 BR-RET-03 BR-WHT-05 · engine `src/core/retention` · S8-09):
+
+```yaml
+# tests/golden/retention.yaml
+suite: retention
+# fn: splitMilestones | invoicePayment | retentionRelease · ภาษีหักตอนจ่ายตามค่าเริ่มต้น OQ-122 · เงินประกันด้วย largest remainder สองส่วน (ADR-124)
+# payable = ยอดรวม VAT − เงินประกัน = Invoice.payableSatang (ก่อนหักภาษี ต่างจาก payable ของเคส fn เดิมใน wht.yaml ที่หลังหักภาษี) · transfer = payable − wht (ยอดโอนเมื่อใบนี้จ่ายลำพัง)
+cases:
+  - { id: GC-RET-01, fn: splitMilestones, title: "งานถนน 9,500 ตร.ม. × 260 แบ่ง 30/40/30 (H229)", input: { qty: "9500", unitPrice: "260.00", sharesBp: [3000, 4000, 3000] }, expect: { lines: [{ qty: "2850", net: "741000.00" }, { qty: "3800", net: "988000.00" }, { qty: "2850", net: "741000.00" }], total: "2470000.00", driftFromSingleLine: "0.00" } }
+  - { id: GC-RET-02, fn: splitMilestones, title: 1 งาน แบ่ง 33.33/33.34/33.33, input: { qty: "1", unitPrice: "871700.00", sharesBp: [3333, 3334, 3333] }, expect: { lines: [{ qty: "0.3333", net: "290537.61" }, { qty: "0.3334", net: "290624.78" }, { qty: "0.3333", net: "290537.61" }], total: "871700.00", driftFromSingleLine: "0.00" } }
+  - { id: GC-RET-03, fn: splitMilestones, title: ยอดรวมงวดต่างจากบรรทัดเดิม 1 สตางค์จากการปัดต่อบรรทัด, input: { qty: "1", unitPrice: "100.01", sharesBp: [3333, 3334, 3333] }, expect: { lines: [{ qty: "0.3333", net: "33.33" }, { qty: "0.3334", net: "33.34" }, { qty: "0.3333", net: "33.33" }], total: "100.00", driftFromSingleLine: "-0.01" } }
+  - { id: GC-RET-04, fn: splitMilestones, title: สัดส่วนรวมไม่ถึง 10000, input: { qty: "1", unitPrice: "1000.00", sharesBp: [5000, 4999] }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-RET-05, fn: invoicePayment, title: งวด 1 ของงานถนน VAT 7% ประกัน 5% ภาษี 3%, input: { net: "741000.00", vatRateBp: 700, retentionBp: 500, whtRateBp: 300 }, expect: { vat: "51870.00", gross: "792870.00", retention: "37050.00", payable: "755820.00", whtBase: "703950.00", wht: "21118.50", transfer: "734701.50" } }
+  - { id: GC-RET-06, fn: invoicePayment, title: เงินประกัน 0.505 ปัดขึ้น, input: { net: "10.10", vatRateBp: 0, retentionBp: 500, whtRateBp: 0 }, expect: { vat: "0.00", gross: "10.10", retention: "0.51", payable: "9.59", whtBase: "9.59", wht: "0.00", transfer: "9.59" } }
+  - { id: GC-RET-07, fn: invoicePayment, title: เงินประกัน 0.5045 ปัดลง, input: { net: "10.09", vatRateBp: 0, retentionBp: 500, whtRateBp: 0 }, expect: { vat: "0.00", gross: "10.09", retention: "0.50", payable: "9.59", whtBase: "9.59", wht: "0.00", transfer: "9.59" } }
+  - { id: GC-RET-08, fn: invoicePayment, title: ผู้รับเหมาไม่จด VAT (H003), input: { net: "277500.00", vatRateBp: 0, retentionBp: 500, whtRateBp: 300 }, expect: { vat: "0.00", gross: "277500.00", retention: "13875.00", payable: "263625.00", whtBase: "263625.00", wht: "7908.75", transfer: "255716.25" } }
+  - { id: GC-RET-09, fn: retentionRelease, title: คืนเงินประกันงวด 1 หักภาษีส่วนประกัน, input: { retention: "37050.00", whtRateBp: 300 }, expect: { payable: "37050.00", wht: "1111.50", transfer: "35938.50" } }
+  - { id: GC-RET-10, fn: invoicePayment, title: ไม่มีเงินประกัน (ค่าเช่า 5%), input: { net: "21952.00", vatRateBp: 700, retentionBp: 0, whtRateBp: 500 }, expect: { vat: "1536.64", gross: "23488.64", retention: "0.00", payable: "23488.64", whtBase: "21952.00", wht: "1097.60", transfer: "22391.04" } }
 ```
 
 **Invariant ของใบแจ้งหนี้ชั้น 2**
@@ -3946,7 +3966,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       24 ไฟล์ · 240 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       25 ไฟล์ · 250 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

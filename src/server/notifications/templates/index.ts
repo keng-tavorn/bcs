@@ -245,7 +245,7 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
         : d.outcome === 'RETURNED'
           ? { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} ถูกส่งกลับให้แก้`, en: `PO change #${str(d.changeNo)} was returned for changes` }
           : { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} ไม่ได้รับอนุมัติ`, en: `PO change #${str(d.changeNo)} was not approved` },
-    href: `/procurement/purchase-orders/${str(d.poId)}`,
+    href: `/procurement/pos/${str(d.poId)}`,
   }),
   // S8-09 (BR-RET-04): a performance retention may be released from today (the digest; the amount, no supplier detail)
   'retention.due': (d) => ({

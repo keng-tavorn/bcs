@@ -29,7 +29,7 @@ export const poChangeSubject: SubjectAdapter = {
     }
   },
   labels: (facts) => ({ label: facts.number ?? facts.documentType, title: facts.title }),
-  href: (facts) => (facts.poId ? `/procurement/purchase-orders/${facts.poId}` : '/tasks'),
+  href: (facts) => (facts.poId ? `/procurement/pos/${facts.poId}` : '/tasks'),
   decide: (tx, ctx, task, decision) => decidePoChange(tx, ctx, task.step.route.subjectId, decision),
   allowsRequestInfo: false,
   channels: { chatButton: () => true, emailLink: true, liff: true },

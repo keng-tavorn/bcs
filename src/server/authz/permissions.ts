@@ -113,6 +113,10 @@ export const PERMISSIONS = {
   'admin.doa.draft': ORG_ADMIN_ONLY,
   'admin.doa.simulate': ORG_ADMIN_ONLY,
   'admin.doa.submitForPublish': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_DOA_CHANGE')],
+  // S6 (FR-WF-103, BR-WF-12): the parallel reviewers, published through the DOA_CHANGE rule with a step-up every time
+  'admin.workflow.draft': ORG_ADMIN_ONLY,
+  'admin.workflow.simulate': ORG_ADMIN_ONLY,
+  'admin.workflow.submitForPublish': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_DOA_CHANGE')],
   'admin.policyHistory.view': roles(['AUDITOR', 'ORG_ADMIN'], 'ORG'),
   'admin.policyHistory.export': roles(['AUDITOR', 'ORG_ADMIN'], 'ORG'),
   // Self-service

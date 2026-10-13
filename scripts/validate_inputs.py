@@ -27,6 +27,7 @@ if PROFILE not in ('demo', 'p1'): print(f'FAIL  --profile ต้องเป็�
 DEMO_LAST_OQ = 39  # the demo workbook stopped taking questions at OQ-39 (ADR-065); newer OQs live in the phase-1 workbook
 RES = []
 def rep(st, name, detail='', impact='', fix=''): RES.append((st, name, detail, impact, fix))
+def wf_fields(w): return [x for c in w.get('all', []) + w.get('any', []) for x in wf_fields(c)] + ([w['field']] if 'field' in w else [])
 def check(cond, name, good, bad, impact, fix): rep('PASS' if cond else 'FAIL', name, good if cond else bad, impact, fix)
 def finish():
     n = {'PASS': 0, 'FAIL': 0}
@@ -55,7 +56,7 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'Banks': ['code','shortName','nameTh'], 'WHT_Types': ['code','nameTh','rateBp','form'],
  'CompanyBankAccounts': ['code','bankCode','accountNo'],
  'Items': ['code','nameTh','unit','refUnitPrice','category','isService','accountCode','whtIncomeType','agreementSupplier','agreedUnitPrice'],
- 'Workflow_Reviewers': ['ruleCode','requestType','reviewerPosition','reviewerDepartment','mode','slaBusinessHours'],
+ 'Workflow_Reviewers': ['ruleCode','requestType','reviewerPosition','reviewerDepartment','mode','slaBusinessHours','whenJson','fallbackPosition','fallbackDepartment'],
  'Request_History': ['ref','daysAgo','requester','chargedDept','requestType','title','site','supplier','budgetKey','itemCode','qty','unitPrice','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel','form','invoiceScenario','invoiceNo','whtIncomeType','paymentStatus'],
  'DocSamples': ['sampleId','docType','historyRef','supplierCode','docNo','priceIncludesVat','linesJson','net','vat','gross','expectedWhtBp','expectedWht'],
  'Scenarios': ['id','area','descriptionTh','where']}
@@ -459,8 +460,20 @@ if PROFILE == 'p1':
         if s_(d['requestType']) not in TYPES: dr.append(f'{at("Workflow_Reviewers","requestType",r)} ไม่มีประเภทคำขอ')
         if (s_(d['reviewerPosition']), s_(d['reviewerDepartment'])) not in HOLD: dr.append(f'{at("Workflow_Reviewers","reviewerPosition",r)} ไม่มีผู้ดำรง {s_(d["reviewerPosition"])}@{s_(d["reviewerDepartment"])}')
         if s_(d['mode']) not in ('ALL', 'ANY'): dr.append(f'{at("Workflow_Reviewers","mode",r)} ต้องเป็น ALL หรือ ANY')
-    check(not dr, 'ร่างผู้ตรวจคู่ขนานของระยะ 1', f'{len(table("Workflow_Reviewers"))} ข้อ · ผู้ตรวจมีผู้ดำรงทุกข้อ', '; '.join(dr[:8]),
-          'S6 จะเริ่มจากร่างที่ใช้ไม่ได้', 'แก้ชีต Workflow_Reviewers ใน scripts/inputs_p1/p1_master.py')
+        # S6 (BR-WF-07, BR-WF-08): the condition the seed reads, and a fallback that walks up to a holder
+        try:
+            w = json.loads(s_(d['whenJson']) or 'null')
+            if not isinstance(w, dict): raise ValueError('not an object')
+            for x in wf_fields(w):
+                if x.startswith('$') and x not in ('$amountGross', '$amountNet', '$requestType', '$lineCategories', '$budgetAccountCodes'): dr.append(f'{at("Workflow_Reviewers","whenJson",r)} ไม่รู้จักตัวแปร {x}')
+        except ValueError as e: dr.append(f'{at("Workflow_Reviewers","whenJson",r)} ไม่ใช่ JSON ของเงื่อนไข ({e})')
+        fp, fd = s_(d['fallbackPosition']), s_(d['fallbackDepartment'])
+        if fp or fd:
+            dd, held = fd, False
+            while dd and not held: held = (fp, dd) in HOLD; dd = DEP.get(dd)
+            if not held: dr.append(f'{at("Workflow_Reviewers","fallbackPosition",r)} ไม่มีผู้ดำรง {fp}@{fd} ทั้งฝ่ายและสายขึ้นไป')
+    check(not dr, 'ผู้ตรวจคู่ขนานของระยะ 1 (WF-SIMEC ฉบับ 1)', f'{len(table("Workflow_Reviewers"))} ข้อ · ผู้ตรวจและผู้สำรองมีผู้ดำรงทุกข้อ · เงื่อนไขอ่านได้', '; '.join(dr[:8]),
+          'seed สร้าง WF-SIMEC ไม่ได้ หรือได้ผู้ตรวจที่ไม่มีตัวตน', 'แก้ชีต Workflow_Reviewers ใน scripts/inputs_p1/p1_master.py')
 
     # ---------- ประวัติคำขอ (Request_History) ----------
     EXTRA = {'APPROVED': 1, 'REJECTED': 1, 'RETURNED': 1, 'CANCELLED': 1, 'ORDERED': 6, 'COMPLETED': 34}  # = scripts/inputs_p1/p1_history.py

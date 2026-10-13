@@ -18,6 +18,7 @@
   "DOA_NOT_CONFIGURED": "No delegation of authority is in effect for this document. Please contact your administrator",
   "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",
   "DOA_LINT_FAILED": "This DOA version has not passed its checks: {codes}",
+  "WORKFLOW_LINT_FAILED": "This workflow version has not passed its checks: {codes}",
   "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
   "REVIEWER_NOT_FOUND": "No reviewer {position} of {department} for rule {rule}. Please contact your administrator",
   "NO_HIGHER_AUTHORITY": "The DOA has no authority above the requester for this amount",

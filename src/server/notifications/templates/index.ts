@@ -86,7 +86,13 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     href: '/settings/delegation',
   }),
   'doa.authority_changed': (d) =>
-    d.kind === 'DOA_VERSION'
+    d.kind === 'WORKFLOW_VERSION'
+      ? {
+          // S6 (§10.1): a workflow version changes who reviews requests in parallel
+          title: { th: `ผู้ตรวจคู่ขนาน ${str(d.code)} ฉบับ ${str(d.versionNo)} ได้รับอนุมัติแล้ว`, en: `Parallel reviewers ${str(d.code)} version ${str(d.versionNo)} were approved` },
+          href: `/admin/workflows/${str(d.versionId)}`,
+        }
+      : d.kind === 'DOA_VERSION'
       ? {
           title: { th: `DOA ${str(d.code)} ฉบับ ${str(d.versionNo)} มีผลแล้ว`, en: `DOA ${str(d.code)} version ${str(d.versionNo)} is now in effect` },
           href: `/admin/doa/${str(d.versionId)}`,
@@ -104,6 +110,8 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     href: '/admin/org-authority',
   }),
   'doa_version.approved': (d) => ({ title: { th: 'DOA ฉบับที่คุณส่งได้รับอนุมัติแล้ว', en: 'The DOA version you submitted was approved' }, href: policyHref('DOA_VERSION', d.subjectId) }),
+  'workflow_version.approved': (d) => ({ title: { th: 'ผู้ตรวจคู่ขนานฉบับที่คุณส่งได้รับอนุมัติแล้ว', en: 'The workflow version you submitted was approved' }, href: `/admin/workflows/${str(d.subjectId)}` }),
+  'workflow_version.rejected': (d) => ({ title: { th: 'ผู้ตรวจคู่ขนานฉบับที่คุณส่งไม่ได้รับอนุมัติ', en: 'The workflow version you submitted was not approved' }, href: `/admin/workflows/${str(d.subjectId)}` }),
   'doa_version.rejected': (d) => ({ title: { th: 'DOA ฉบับที่คุณส่งไม่ได้รับอนุมัติ', en: 'The DOA version you submitted was not approved' }, href: policyHref('DOA_VERSION', d.subjectId) }),
   'org_authority_change.approved': () => ({ title: { th: 'การเปลี่ยนโครงสร้างอำนาจที่คุณเสนอได้รับอนุมัติแล้ว', en: 'The authority change you proposed was approved' }, href: '/admin/org-authority' }),
   'org_authority_change.rejected': () => ({ title: { th: 'การเปลี่ยนโครงสร้างอำนาจที่คุณเสนอไม่ได้รับอนุมัติ', en: 'The authority change you proposed was not approved' }, href: '/admin/org-authority' }),

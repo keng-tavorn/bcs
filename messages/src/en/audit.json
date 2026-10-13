@@ -118,7 +118,8 @@
     "request_type": "Request types",
     "security": "Security",
     "supplier": "Suppliers",
-    "variance": "Receiving variances"
+    "variance": "Receiving variances",
+    "workflow_version": "Parallel reviewers"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -148,7 +149,8 @@
     "RequestType": "Request type",
     "Security": "Security",
     "Supplier": "Supplier",
-    "Variance": "Receiving variance"
+    "Variance": "Receiving variance",
+    "WorkflowVersion": "Workflow version"
   },
   "events": {
     "approval_step": {
@@ -314,6 +316,16 @@
       "approved": "Receiving variance approved",
       "recorded": "Receiving variance recorded",
       "rejected": "Receiving variance rejected"
+    },
+    "workflow_version": {
+      "approved": "Workflow version approved",
+      "drafted": "Workflow draft created",
+      "dry_run": "Workflow draft tried out",
+      "published": "Workflow version published",
+      "rejected": "Workflow version not approved",
+      "submitted": "Workflow version submitted",
+      "superseded": "Workflow version superseded",
+      "updated": "Workflow draft edited"
     }
   }
 }

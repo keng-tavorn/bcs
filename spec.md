@@ -402,6 +402,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `platform.modules.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass (BR-AUTH-08) |
 | `admin.orgAuthority.propose` | ORG_ADMIN (ORG) — แต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น รีเซ็ตตัวตนของผู้มีอำนาจ · อนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` (BR-DOA-17) |
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
+| `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN (ORG) — ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
 
@@ -586,6 +587,7 @@ sequenceDiagram
 | `line-quota-check` | cron รายวัน 09:00 | ตรวจโควตา push ของเดือน เตือนเมื่อถึง 80% | S5 |
 | `audit-seal-daily` · `audit-verify` | cron รายวัน 00:15 · รายสัปดาห์ | seal และตรวจ hash chain | S5 |
 | `doa-version-activate` | `bcs/doa_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับก่อนหน้าเป็น `SUPERSEDED` และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16) | S2 |
+| `workflow-version-activate` | `bcs/workflow_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับ workflow ก่อนหน้าเป็น `SUPERSEDED` (BR-WF-12) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
 
@@ -3589,6 +3591,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
+| workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` (S6 · FR-WF-103 · การถอนเพิ่มใน S6-07) |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
@@ -3819,6 +3822,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_LINT_FAILED` | 422 | DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes} |
+| `WORKFLOW_LINT_FAILED` | 422 | workflow ฉบับนี้ยังไม่ผ่านการตรวจ: {codes} |
 | `APPROVER_NOT_FOUND` | 422 | ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ |
 | `REVIEWER_NOT_FOUND` | 422 | ไม่พบผู้ตรวจ {position} ของ {department} ตามข้อ {rule} กรุณาติดต่อผู้ดูแลระบบ |
 | `NO_HIGHER_AUTHORITY` | 422 | DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้ |

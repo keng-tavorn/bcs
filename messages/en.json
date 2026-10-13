@@ -1314,7 +1314,8 @@
       "RequestType": "Request type",
       "Security": "Security",
       "Supplier": "Supplier",
-      "Variance": "Receiving variance"
+      "Variance": "Receiving variance",
+      "WorkflowVersion": "Workflow version"
     },
     "decision": {
       "APPROVE": "approved",
@@ -1505,6 +1506,16 @@
         "approved": "Receiving variance approved",
         "recorded": "Receiving variance recorded",
         "rejected": "Receiving variance rejected"
+      },
+      "workflow_version": {
+        "approved": "Workflow version approved",
+        "drafted": "Workflow draft created",
+        "dry_run": "Workflow draft tried out",
+        "published": "Workflow version published",
+        "rejected": "Workflow version not approved",
+        "submitted": "Workflow version submitted",
+        "superseded": "Workflow version superseded",
+        "updated": "Workflow draft edited"
       }
     },
     "export": {
@@ -1548,7 +1559,8 @@
       "request_type": "Request types",
       "security": "Security",
       "supplier": "Suppliers",
-      "variance": "Receiving variances"
+      "variance": "Receiving variances",
+      "workflow_version": "Parallel reviewers"
     },
     "home": "Back to home",
     "intro": "Every change in the system: who did it, on whose behalf, when, through which channel, and which DOA version and rule each decision cites. Search by document, actor, period, type and channel.",
@@ -2704,7 +2716,8 @@
     "TOKEN_INVALID": "This link is not valid",
     "TOKEN_USED": "Already done by {name} at {time}",
     "UNAUTHENTICATED": "Please sign in",
-    "VALIDATION_FAILED": "Invalid data: {field}"
+    "VALIDATION_FAILED": "Invalid data: {field}",
+    "WORKFLOW_LINT_FAILED": "This workflow version has not passed its checks: {codes}"
   },
   "files": {
     "chooseFile": "Choose a file",

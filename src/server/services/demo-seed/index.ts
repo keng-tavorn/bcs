@@ -15,6 +15,7 @@ import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
 import { parseBudget, parseCostCenters, parseDemoHistory, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedTaxRates } from '@/server/seed/tax-rates'
+import { parseWorkflowReviewers, seedWorkflow } from '@/server/seed/workflow'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
 import { budgetKeyLines, demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { seedLineChannel } from '@/server/services/line-channel'
@@ -40,6 +41,9 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), clock.now())
   // The phase-1 organization switches PAY AI BCS_GO on once its DOA has their rules (ADR-070); the demo keeps CORE alone
   const modules = profile === 'p1' ? await seedP1Modules(report.organizationId, clock.now()) : { enabled: 0 }
+  // The parallel reviewers of the phase-1 organization from its sheet Workflow_Reviewers (S6-04); the demo has none
+  const workflowInput = parseWorkflowReviewers(workbook, input.org.code)
+  const workflow = workflowInput ? await seedWorkflow(report.organizationId, workflowInput, clock.now()) : null
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now(), parseCostCenters(workbook))
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
   // The LINE channel from the LINE_* values of the environment, when they are set (S5-01)
@@ -50,7 +54,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const seedPin = env.SEED_DEV_PIN ?? null
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, budget, suppliers, lineChannel, pins, pinless }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, budget, suppliers, lineChannel, pins, pinless }
 }
 
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */

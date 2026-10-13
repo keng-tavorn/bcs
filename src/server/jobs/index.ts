@@ -14,12 +14,15 @@ import { outboxSweeper } from './outbox-sweeper'
 import { reportSchedules } from './report-schedules'
 import { stagingDemoReset } from './staging-demo-reset'
 import { stagingFirstSeed } from './staging-first-seed'
+import { workflowVersionActivate } from './workflow-version-activate'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
 export const functions = [
   outboxSweeper,
   orgAuthorityApply,
   doaVersionActivate,
+  // S6-04: a workflow version published for later supersedes the one before it at its date
+  workflowVersionActivate,
   draftExpiry,
   consolidationRound,
   reportSchedules,

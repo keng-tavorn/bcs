@@ -233,14 +233,15 @@ DOA_RULES = [  # version, ruleCode, documentType, gt, lte, approverKind, approve
     (1, 'BA-01', 'BANK_ACCOUNT_CHANGE', None, None, 'POSITION_OF_ORG', 'CFO', None, 8, 'เพิ่มหรือเปลี่ยนบัญชีรับเงินของผู้ขาย → CFO (ผู้แก้ห้ามอนุมัติ BR-SOD-05) (ร่างระยะ 1 · รอลูกค้ายืนยัน OQ-40)'),
 ]
 
-WORKFLOW_REVIEWERS = [  # ruleCode, requestType, conditionTh, reviewerPosition, reviewerDepartment, mode, sla, descriptionTh, ref
-    ('RV-01', 'IT_PURCHASE', 'ทุกคำขอ', 'DM', 'IT', 'ALL', 8, 'ฝ่ายไอทีตรวจมาตรฐานอุปกรณ์และความปลอดภัยข้อมูล', 'FR-WF-101'),
-    ('RV-02', 'HIRE_SERVICE', 'ผู้ขายประมวลผลข้อมูลส่วนบุคคล (processesPersonalData = Y)', 'DM', 'LEG', 'ALL', 8, 'ฝ่ายกฎหมายตรวจ DPA และ PDPA', 'FR-WF-101'),
-    ('RV-03', 'CONTRACT_WORK', 'ยอดรวม VAT เกิน 1,000,000', 'DM', 'LEG', 'ALL', 16, 'ฝ่ายกฎหมายตรวจร่างสัญญาจ้างเหมา', 'FR-WF-101'),
-    ('RV-04', 'CONTRACT_WORK', 'ยอดรวม VAT เกิน 1,000,000', 'DM', 'QSE', 'ALL', 16, 'ฝ่ายความปลอดภัยตรวจแผนความปลอดภัยของผู้รับเหมา', 'FR-WF-101'),
-    ('RV-05', 'CONTRACT_WORK', 'ยอดรวม VAT เกิน 1,000,000', 'DM', 'FIN', 'ALL', 16, 'ฝ่ายบัญชีตรวจเงื่อนไขชำระเงินและเงินประกันผลงาน', 'FR-WF-101'),
-    ('RV-06', 'BUY_GOODS', 'วัสดุอันตรายหรือสารเคมี (หมวด SAFETY หรือ FUEL)', 'DM', 'QSE', 'ANY', 8, 'ฝ่ายความปลอดภัยตรวจเอกสารความปลอดภัย (SDS)', 'FR-WF-101'),
-    ('RV-07', 'BUY_GOODS', 'งบลงทุน (บรรทัดงบ CAPEX) เกิน 500,000', 'DM', 'FIN', 'ALL', 8, 'ฝ่ายบัญชีตรวจการตั้งเป็นสินทรัพย์', 'FR-WF-101'),
+WORKFLOW_REVIEWERS = [  # ruleCode, requestType, conditionTh, reviewerPosition, reviewerDepartment, mode, sla, descriptionTh, ref,
+    # whenJson (the condition as S6 reads it, BR-WF-07), fallbackPosition, fallbackDepartment (BR-WF-08)
+    ('RV-01', 'IT_PURCHASE', 'ทุกคำขอ', 'DM', 'IT', 'ALL', 8, 'ฝ่ายไอทีตรวจมาตรฐานอุปกรณ์และความปลอดภัยข้อมูล', 'FR-WF-101', '{}', 'VP', 'SUP'),
+    ('RV-02', 'HIRE_SERVICE', 'ผู้ขายประมวลผลข้อมูลส่วนบุคคล (processesPersonalData = Y)', 'DM', 'LEG', 'ALL', 8, 'ฝ่ายกฎหมายตรวจ DPA และ PDPA', 'FR-WF-101', '{"field": "processesPersonalData", "op": "eq", "value": "Y"}', 'VP', 'SUP'),
+    ('RV-03', 'CONTRACT_WORK', 'ยอดรวม VAT เกิน 1,000,000', 'DM', 'LEG', 'ALL', 16, 'ฝ่ายกฎหมายตรวจร่างสัญญาจ้างเหมา', 'FR-WF-101', '{"field": "$amountGross", "op": "gt", "value": "1000000.00"}', 'VP', 'SUP'),
+    ('RV-04', 'CONTRACT_WORK', 'ยอดรวม VAT เกิน 1,000,000', 'DM', 'QSE', 'ALL', 16, 'ฝ่ายความปลอดภัยตรวจแผนความปลอดภัยของผู้รับเหมา', 'FR-WF-101', '{"field": "$amountGross", "op": "gt", "value": "1000000.00"}', 'VP', 'OPS'),
+    ('RV-05', 'CONTRACT_WORK', 'ยอดรวม VAT เกิน 1,000,000', 'DM', 'FIN', 'ALL', 16, 'ฝ่ายบัญชีตรวจเงื่อนไขชำระเงินและเงินประกันผลงาน', 'FR-WF-101', '{"field": "$amountGross", "op": "gt", "value": "1000000.00"}', 'CFO', 'HQ'),
+    ('RV-06', 'BUY_GOODS', 'วัสดุอันตรายหรือสารเคมี (หมวด SAFETY หรือ FUEL)', 'DM', 'QSE', 'ANY', 8, 'ฝ่ายความปลอดภัยตรวจเอกสารความปลอดภัย (SDS)', 'FR-WF-101', '{"field": "$lineCategories", "op": "anyIn", "value": ["SAFETY", "FUEL"]}', 'VP', 'OPS'),
+    ('RV-07', 'BUY_GOODS', 'งบลงทุน (บรรทัดงบ CAPEX) เกิน 500,000', 'DM', 'FIN', 'ALL', 8, 'ฝ่ายบัญชีตรวจการตั้งเป็นสินทรัพย์', 'FR-WF-101', '{"all": [{"field": "$budgetAccountCodes", "op": "anyIn", "value": ["121101", "121201", "121301"]}, {"field": "$amountGross", "op": "gt", "value": "500000.00"}]}', 'CFO', 'HQ'),
 ]
 
 BANKS = [  # code, shortName, nameTh

@@ -64,6 +64,21 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'ChannelLinkCode',
   'LineChannelConfig',
   'LineWebhookEvent',
+  // S8-01
+  'Invoice',
+  'InvoiceLine',
+  'InvoiceMatch',
+  'MatchException',
+  'InboundEmail',
+  'WhtIncomeType',
+  'AccountCode',
+  'WithholdingTax',
+  'WhtCertificate',
+  'Retention',
+  'SensitiveAccessLog',
+  'PoChange',
+  'PoChangeLine',
+  'SupplierNotice',
 ])
 
 // Have an organizationId column but are platform tables reached only through platform code (spec §4.8).

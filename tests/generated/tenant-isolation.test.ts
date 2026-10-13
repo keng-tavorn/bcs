@@ -69,6 +69,7 @@ const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
 // Optional relations a CHECK requires one of: budget_grant_one_grantee (a department or a member)
 const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   BudgetGrant: new Set(['granteeDepartment']),
+  WithholdingTax: new Set(['invoice']), // withholding_tax_one_document: an invoice or a retention
 }
 // Columns that must name an existing row without a relation in the schema: ledger_event_exists (INV-BUD-04)
 const EXISTING_ROWS: Record<string, Record<string, string>> = {

@@ -590,6 +590,7 @@ sequenceDiagram
 | `audit-seal-daily` · `audit-verify` | cron รายวัน 00:15 · รายสัปดาห์ | seal และตรวจ hash chain | S5 |
 | `doa-version-activate` | `bcs/doa_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับก่อนหน้าเป็น `SUPERSEDED` และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16) | S2 |
 | `workflow-version-activate` | `bcs/workflow_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับ workflow ก่อนหน้าเป็น `SUPERSEDED` (BR-WF-12) | S6 |
+| `backtest-run` | `bcs/backtest.requested` | ย้อนทดสอบร่าง DOA หรือ workflow ที่มีเอกสารเกิน 500 ฉบับในช่วง 90 วัน แล้วบันทึกผลลง `BacktestRun` ครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3 · ADR-111) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
 
@@ -3831,6 +3832,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` `doa_version.withdrawal_requested` `doa_version.withdrawal_rejected` `doa_version.withdrawal_cancelled` (S6-07 · FR-DOA-104 · `doa_version.withdrawn` มี schema แล้ว) |
 | workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` `workflow_version.withdrawal_requested` `workflow_version.withdrawn` `workflow_version.withdrawal_rejected` `workflow_version.withdrawal_cancelled` (S6 · FR-WF-103 · การถอน S6-07) |
+| backtest | `backtest.requested` `backtest.completed` (S6-07 · ย้อนทดสอบที่เกิน 500 เอกสาร · ADR-111) |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
@@ -5726,6 +5728,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-108 | ราคาอ้างอิงใช้ค่าตัวกลางล่าง เฉพาะเอกสารราคาก่อน VAT · ส่วนต่างเป็น Bp ตัดเศษเข้าหาศูนย์ และป้ายเตือนเทียบด้วยจำนวนเต็ม · ไม่เพิ่มจุดปัดเงินของ BR-MONEY-02 | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-109 | QR ตรวจสอบเอกสาร: แถว `DocumentVerification` ออกเฉพาะในคำสั่งส่ง ส่งซ้ำ และอนุมัติใบแก้ไข PO เมื่อเนื้อหาที่พิมพ์เปลี่ยน · token = HMAC ของ id แถวด้วยกุญแจที่แยกจาก `ENCRYPTION_KEY` จึงพิมพ์ซ้ำได้ token เดิมโดยเก็บเฉพาะ sha256 · GET PDF และหน้า GET สาธารณะอ่านอย่างเดียว จำกัดอัตรา และตอบเหมือนกันเมื่อ token ผิด | ร่าง P1-04 รออนุมัติ P1-06 (OQ-112) |
 | ADR-110 | ชุดค่าตั้ง (`ConfigPackage`) เป็น JSON มี schemaVersion และ sha256 · นำเข้าสร้างเฉพาะร่างที่ต้องอนุมัติตามเส้นทางปกติ ไม่เผยแพร่เองและไม่มีข้อมูลธุรกิจ (NG-12 EG-8) · sandbox ตั้งต้นแบบ tenant ใหม่โดยคนของลูกค้า | ร่าง P1-04 รออนุมัติ P1-06 (OQ-108) |
+| ADR-111 | ย้อนทดสอบไม่เกิน 500 เอกสารคำนวณทันทีแบบอ่านอย่างเดียว · เกินนั้นสร้าง `BacktestRun` ให้ job `backtest-run` คำนวณและบันทึกผลครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3) | S6-07 |
 | ADR-121 | ใบแจ้งหนี้ชั้น 2 (`Invoice`) อยู่คู่กับ `InvoiceConfirmation` ไม่แทนที่: แต่ละ PO ใช้ทางเดียว (`PurchaseOrder.invoiceTrack`) ตัดสินตอนใบแรก · เปิด `PAY` ใช้การจับคู่ ปิดใช้ชั้น 1 · ตรวจเลขซ้ำข้ามสองตาราง · การเล่นประวัติขององค์กรที่เปิด `PAY` ใช้ใบชั้น 2 · องค์กร demo ไม่เปิด `PAY` ฉาก `@demo` จึงไม่เปลี่ยน | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-122 | engine จับคู่เป็น pure function ใน `src/core/matching`: เทียบยอดก่อน VAT ต่อบรรทัด (ไม่ใช่ราคาต่อหน่วย) หลังปันส่วนลดท้ายบิลด้วย largest remainder · คืนผลต่อบรรทัด รายการไม่ตรงในลำดับคงที่ และแผนงบ (ถือเพิ่ม ตัด คืน) ให้ service ทำตามด้วยฟังก์ชันงบเดิม · branch coverage 100% | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-123 | กล่องอีเมลขาเข้าผ่าน adapter `src/integrations/email-inbound` โหมด `mailpit` (บนเครื่อง เทสต์ demo · อ่าน REST API ของ Mailpit กรองตามที่อยู่ขององค์กร) และ `disabled` · production ตาม OQ-124 · กันซ้ำด้วย Message-ID · ไม่เก็บเนื้อความ · รับเฉพาะ PDF XML JPEG PNG เข้าที่เก็บ private · ไม่ส่งจับคู่เอง | ร่าง P1-04 รออนุมัติ P1-06 |

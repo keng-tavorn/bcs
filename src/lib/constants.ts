@@ -173,3 +173,11 @@ export const BUDGET_ALERT_MAX_BP = 10 * BP_PER_WHOLE
 export const BUDGET_ALERT_DEFAULT_BP: readonly number[] = [8 * (BP_PER_WHOLE / 10), BP_PER_WHOLE]
 /** Basis points in a whole (100 % = 10000 bp): a technical constant, not money */
 export const BASIS_POINTS_WHOLE = 10_000
+
+// ---------- S6-07 backtest (BR-WF-13, FR-DOA-103) ----------
+/** The documents a backtest routes again: those sent in the last 90 days */
+export const BACKTEST_WINDOW_DAYS = 90
+/** FR-DOA-103 AC3: past this many documents the backtest runs as a job instead of while the page waits */
+export const BACKTEST_SYNC_LIMIT = 500
+/** A backtest reads only, up to BACKTEST_SYNC_LIMIT documents, in a transaction that may take longer than a command's */
+export const BACKTEST_TX_TIMEOUT_MS = 120 * MS_PER_SECOND

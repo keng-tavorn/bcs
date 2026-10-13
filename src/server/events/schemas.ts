@@ -3,6 +3,7 @@
 import './schemas/approval-step'
 import './schemas/approval-task'
 import './schemas/auth'
+import './schemas/backtest'
 import './schemas/budget'
 import './schemas/delegation'
 import './schemas/doa-version'

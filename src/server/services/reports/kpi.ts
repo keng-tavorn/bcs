@@ -1,9 +1,9 @@
-import { resolveRoute, type DoaDocumentType, type RouteInput } from '@/core/doa'
-import { vatFromNet } from '@/core/money/math'
+import { resolveRoute, type DoaDocumentType } from '@/core/doa'
 import { businessMinutesBetween } from '@/core/sla'
 import { resolveRequestRoute } from '@/core/workflow'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
+import { routeInputOf } from '@/server/doa/route-inputs'
 import { loadWorkflowVersions, requestReviewFacts } from '@/server/workflow/policy'
 
 // The KPIs of the first tier (spec §11.4, §1 G-1 to G-5, FR-VIS-003 AC1), computed from Event and the transaction
@@ -51,35 +51,6 @@ interface DecisionData {
   subjectId: string
   actorMemberId: string
   onBehalfOfMemberId: string | null
-}
-
-/** The DOA engine's input for a routed document, as it stood when the route was made (G-2 (a)) */
-async function routeInput(tx: TenantTx, subjectType: string, subjectId: string, at: Date): Promise<RouteInput | null> {
-  if (subjectType === 'REQUEST') {
-    const r = await tx.request.findUnique({ where: { id: subjectId } })
-    if (!r) return null
-    return { documentType: 'PURCHASE_REQUEST', amount: { netSatang: r.netSatang, vatSatang: r.vatSatang }, requesterMemberId: r.requesterMemberId, chargedDepartmentId: r.chargedDepartmentId, conflictMemberIds: [r.requesterMemberId], at }
-  }
-  if (subjectType === 'PURCHASE_ORDER') {
-    const po = await tx.purchaseOrder.findUnique({ where: { id: subjectId }, include: { lines: { take: 1, orderBy: { lineNo: 'asc' }, include: { budgetLine: { select: { departmentId: true } } } } } })
-    if (!po?.createdById || !po.lines[0]) return null
-    const requesters = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId: po.id } } } } } }, select: { requesterMemberId: true } })
-    return {
-      documentType: 'PURCHASE_ORDER',
-      amount: { netSatang: po.netSatang, vatSatang: po.vatSatang },
-      requesterMemberId: po.createdById,
-      chargedDepartmentId: po.lines[0].budgetLine.departmentId,
-      conflictMemberIds: [...new Set([po.createdById, ...requesters.map((r) => r.requesterMemberId)])],
-      at,
-    }
-  }
-  if (subjectType === 'VARIANCE') {
-    const v = await tx.variance.findUnique({ where: { id: subjectId }, include: { poLine: { include: { budgetLine: { select: { departmentId: true } } } }, po: { select: { vatRateBp: true } } } })
-    if (!v) return null
-    // the same amount the route was made with: the variance before VAT and its VAT at the PO's rate
-    return { documentType: 'GR_VARIANCE', amount: { netSatang: v.amountSatang, vatSatang: vatFromNet(v.amountSatang, v.po.vatRateBp ?? 0).vat }, requesterMemberId: v.createdById, chargedDepartmentId: v.poLine.budgetLine.departmentId, conflictMemberIds: [v.createdById], at }
-  }
-  return null
 }
 
 // ---------- the documents behind each figure (the KPI page's lists: every number leads to its items, §9.9) ----------
@@ -197,7 +168,7 @@ export async function collectKpis(
   for (const d of decisions) {
     let wrong: boolean | null = null
     const task = await tx.approvalTask.findUnique({ where: { id: d.taskId }, include: { step: { include: { route: true } } } })
-    const input = task ? await routeInput(tx, d.data.subjectType, d.data.subjectId, task.step.route.createdAt) : null
+    const input = task ? await routeInputOf(tx, d.data.subjectType, d.data.subjectId, task.step.route.createdAt) : null
     if (task && input) {
       checked++
       let holders: ReadonlyArray<{ readonly assigneeMemberId: string; readonly principalMemberId: string | null }> = []

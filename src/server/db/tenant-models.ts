@@ -75,6 +75,8 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'PriceAgreement',
   'DocumentVerification',
   'ConfigPackage',
+  // S6-07
+  'BacktestRun',
   // S8-01
   'Invoice',
   'InvoiceLine',

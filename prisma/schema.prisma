@@ -19,7 +19,7 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
-/// S6 (FR-PLT-101): a SANDBOX is a UAT tenant of a production organization in the same deployment (ADR-110)
+/// S6 (FR-PLT-101): a SANDBOX is a UAT tenant of a production organization in the same deployment (ADR-111)
 enum OrganizationKind {
   PRODUCTION
   SANDBOX
@@ -115,6 +115,7 @@ model Organization {
   sandboxOfOrganizationId String?                @db.Uuid
   sandboxOf               Organization?          @relation("OrganizationSandbox", fields: [sandboxOfOrganizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   sandboxes               Organization[]         @relation("OrganizationSandbox")
+  backtestRuns            BacktestRun[]
   workflowVersions        WorkflowVersion[]
   workflowRules           WorkflowRule[]
   workflowTestCases       WorkflowTestCase[]
@@ -256,6 +257,7 @@ model Member {
   workflowVersionsApproved  WorkflowVersion[] @relation("WorkflowVersionApprovedBy")
   workflowWithdrawalsAsked  WorkflowVersion[] @relation("WorkflowVersionWithdrawalRequestedBy")
   doaWithdrawalsAsked       DoaVersion[]      @relation("DoaVersionWithdrawalRequestedBy")
+  backtestRuns              BacktestRun[]     @relation("BacktestRunRequestedBy")
   budgetTransfersSubmitted  BudgetTransfer[]  @relation("BudgetTransferSubmittedBy")
   budgetOverrunsSubmitted   BudgetOverrun[]   @relation("BudgetOverrunSubmittedBy")
   requestFlagsAcknowledged  RequestFlag[]     @relation("RequestFlagAcknowledgedBy")
@@ -3466,4 +3468,35 @@ model SupplierNotice {
   @@unique([organizationId, id])
   @@unique([organizationId, dedupeKey])
   @@index([organizationId, status])
+}
+
+/// S6-07 (FR-DOA-103 AC3 · ADR-111): the 90-day backtest of a DOA or workflow draft with more documents than a page
+/// waits for, run by the job backtest-run. Read only: it writes its own result and no business data
+model BacktestRun {
+  id             String              @id @default(uuid(7)) @db.Uuid
+  organizationId String              @db.Uuid
+  /// DOA_VERSION or WORKFLOW_VERSION: the draft tried
+  subjectType    ApprovalSubjectType
+  subjectId      String              @db.Uuid
+  status         BacktestRunStatus   @default(PENDING)
+  documentCount  Int
+  /// The rows and the summary (BacktestResult of src/core/workflow), once DONE
+  result         Json?
+  error          String?
+  requestedById  String              @db.Uuid
+  completedAt    DateTime?           @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  requestedBy  Member       @relation("BacktestRunRequestedBy", fields: [organizationId, requestedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@index([organizationId, subjectType, subjectId, createdAt])
+}
+
+enum BacktestRunStatus {
+  PENDING
+  DONE
+  FAILED
 }

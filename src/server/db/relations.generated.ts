@@ -49,6 +49,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     step: { model: 'ApprovalStep', list: false },
   },
   AuthAttempt: {},
+  BacktestRun: {
+    organization: { model: 'Organization', list: false },
+    requestedBy: { model: 'Member', list: false },
+  },
   BreakGlassSession: {
     organization: { model: 'Organization', list: false },
     platformAdmin: { model: 'PlatformAdmin', list: false },
@@ -319,6 +323,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     apInvoicesCreated: { model: 'Invoice', list: true },
     apInvoicesRecorded: { model: 'Invoice', list: true },
     apInvoicesRejected: { model: 'Invoice', list: true },
+    backtestRuns: { model: 'BacktestRun', list: true },
     budgetGrantsGiven: { model: 'BudgetGrant', list: true },
     budgetGrantsReceived: { model: 'BudgetGrant', list: true },
     budgetImports: { model: 'BudgetImport', list: true },
@@ -392,6 +397,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     approvalRoutes: { model: 'ApprovalRoute', list: true },
     approvalSteps: { model: 'ApprovalStep', list: true },
     approvalTasks: { model: 'ApprovalTask', list: true },
+    backtestRuns: { model: 'BacktestRun', list: true },
     breakGlassSessions: { model: 'BreakGlassSession', list: true },
     budgetAllocations: { model: 'BudgetAllocation', list: true },
     budgetBalances: { model: 'BudgetLineBalance', list: true },

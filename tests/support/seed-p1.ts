@@ -1,10 +1,15 @@
+import { randomUUID } from 'node:crypto'
 import { execSync } from 'node:child_process'
 import ExcelJS from 'exceljs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { amountToSatang } from '@/core/money/dto'
 import { taxDateOf } from '@/core/vat'
 import { MS_PER_DAY } from '@/lib/constants'
+import type { DoaRuleSnapshot } from '@/core/doa'
+import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
+import { ruleJson, versionSnapshotFromRows } from '@/server/doa/snapshot'
+import { backtestDraft } from '@/server/services/backtest'
 import { forTenant } from '@/server/db/tenant'
 import { seedBudget } from '@/server/seed/budget'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
@@ -203,6 +208,41 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       const open = await db.purchaseOrder.findMany({ where: { status: { not: 'CLOSED' } }, select: { lines: { select: { id: true } } } })
       const openHeld = await db.budgetAllocation.aggregate({ where: { sourceType: 'PO_LINE', sourceId: { in: open.flatMap((p) => p.lines.map((l) => l.id)) } }, _sum: { committedSatang: true } })
       expect(held._sum.committedSatang ?? 0n).toBe(openHeld._sum.committedSatang ?? 0n)
+    })
+
+    it('[FR-DOA-103/AC2] S6-07: a draft with a COO band moves eqp_02\'s monthly fuel from ceo to coo in the 90-day backtest', async () => {
+      const db = forTenant(organizationId)
+      const v1 = await db.doaVersion.findFirstOrThrow({ where: { versionNo: 1 }, include: { rules: true } })
+      const snapshot = versionSnapshotFromRows(v1, v1.rules)
+      // PR-03 (above 100,000.00 to the CEO) becomes the COO up to 1,000,000.00, and PR-04 the CEO above it
+      const pr03 = snapshot.rules.find((r) => r.code === 'PR-03')!
+      const coo = { approver: { kind: 'POSITION_OF_ORG' as const, position: 'COO' }, slaBusinessMinutes: 960, mode: 'SEQUENTIAL' as const }
+      const rules: DoaRuleSnapshot[] = [
+        ...snapshot.rules.map((r) => (r.code === 'PR-03' ? { ...r, when: { ...r.when, amount: { gt: pr03.when.amount!.gt, lte: 100_000_000n } }, steps: [coo] } : r)),
+        { ...pr03, code: 'PR-04', when: { ...pr03.when, amount: { gt: 100_000_000n } } },
+      ]
+      const { id: _id, rules: _r, createdAt: _c, updatedAt: _u, ...rest } = v1
+      const draft = await prisma.doaVersion.create({
+        data: { ...rest, escalationPolicy: rest.escalationPolicy as object, sodPolicy: rest.sodPolicy as object, versionNo: 2, status: 'DRAFT', effectiveFrom: new Date(clock.now.getTime() + 30 * MS_PER_DAY), effectiveTo: null, publishedAt: null } as never,
+      })
+      for (const rule of rules) {
+        const json = ruleJson(rule)
+        await prisma.doaRule.create({ data: { organizationId, doaVersionId: draft.id, code: rule.code, documentType: json.documentType, priority: rule.priority, when: json.when, steps: json.steps } })
+      }
+      const admin = await db.roleAssignment.findFirstOrThrow({ where: { role: 'ORG_ADMIN', revokedAt: null }, select: { memberId: true } })
+      const ctx = makeCtx({ organizationId, actor: { type: 'USER', memberId: admin.memberId }, channel: 'WEB', now: clock.now })
+      const view = await backtestDraft(ctx, { kind: 'DOA_VERSION', versionId: draft.id }, { idempotencyKey: randomUUID(), sender: null })
+      if (!view.ok || view.data.status !== 'DONE') throw new Error(JSON.stringify(view))
+      const member = async (code: string) => (await db.member.findFirstOrThrow({ where: { employeeCode: code }, select: { id: true } })).id
+      const [eqp02, ceo, cooId] = await Promise.all([member('eqp_02'), member('ceo'), member('coo')])
+      const fuel = await db.request.findMany({ where: { requesterMemberId: eqp02, id: { in: view.data.result.rows.map((r) => r.ref) }, lines: { some: { description: { contains: 'ดีเซล' } } } }, select: { id: true } })
+      expect(fuel.length).toBeGreaterThanOrEqual(3)
+      for (const f of fuel) {
+        expect(view.data.result.rows.find((r) => r.ref === f.id), f.id).toMatchObject({ current: { rule: 'PR-03', approvers: [ceo] }, draft: { rule: 'PR-03', approvers: [cooId] }, changed: true })
+      }
+      // Every request the CEO lost is one the COO gained: the load per person is that move and nothing else
+      expect(view.data.result.summary.load[ceo]).toBeLessThanOrEqual(-fuel.length)
+      expect(view.data.result.summary.load[cooId]).toBe(-view.data.result.summary.load[ceo]!)
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

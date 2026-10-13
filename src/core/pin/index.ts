@@ -79,8 +79,18 @@ export function pinAttemptsLeft(failedCount: number): number {
 
 // ---------- which decisions need a step-up (FR-AUTH-005 AC2) ----------
 
-/** BR-DOA-15: every decision on these subjects needs a step-up, whatever the amount (an initial package is a DOA version) */
-export const ALWAYS_STEP_UP_SUBJECTS: readonly string[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE']
+/**
+ * Every decision on these subjects needs a step-up, whatever the amount: DOA versions and authority changes (BR-DOA-15;
+ * an initial package is a DOA version), workflow versions (policy of the same kind, BR-DOA-15) and bank account changes
+ * (BR-DOA-25). The only list of them: the chat button and the e-mail link refuse them through stepUpNeeded too.
+ */
+export const ALWAYS_STEP_UP_SUBJECTS: readonly string[] = ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'WORKFLOW_VERSION', 'BANK_ACCOUNT_CHANGE']
+
+/**
+ * The kind of step a task is on. Every step is an approval until S6 adds the parallel reviewers' steps (BR-WF-09,
+ * INV-WF-04), whose rule for a step-up S6 writes here: the one place every decision, the LINE card and the task list ask.
+ */
+export type StepKind = 'APPROVAL'
 
 /** What the rule reads from an approval route and its DOA version */
 export interface StepUpRoute {
@@ -89,6 +99,8 @@ export interface StepUpRoute {
   readonly amountSatang: bigint | null
   /** The version's stepUpThreshold in satang; null when the version sets none */
   readonly stepUpThresholdSatang: bigint | null
+  /** The kind of the task's step; APPROVAL when left out (StepKind) */
+  readonly stepKind?: StepKind
 }
 
 /**

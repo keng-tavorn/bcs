@@ -1,3 +1,4 @@
+import { ok, type Result } from '@/core/result'
 import { TASK_MACHINE, transition, type TaskState } from '@/core/state-machines'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -47,11 +48,33 @@ export interface DecidedTask {
   readonly step: { readonly route: { readonly subjectId: string } }
 }
 
+export type TaskDecision = 'APPROVE' | 'RETURN' | 'REJECT'
+
 /**
- * Called by every decide flow right after the decided task is written: cancels the step's other open tasks and marks
- * the step DONE. Returns the approval_task.cancelled events, to follow the decision's own event.
+ * What a step comes to after one of its tasks is decided (FR-DOA-004 AC6): OPEN while the step waits for more of its
+ * tasks — the document does not move — otherwise the step's own result. Every decide flow moves its document by this,
+ * never by the decision of the task, and finds the next step through assignNextStep only. Until S6 brings steps of
+ * several tasks (step-complete.ts and next-step.ts are its slot), a step's result is the decision of its first task.
  */
-export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask): Promise<EventDraft[]> {
+export type StepOutcome = 'OPEN' | 'APPROVED' | 'RETURNED' | 'REJECTED'
+
+export interface StepCompletion {
+  readonly outcome: StepOutcome
+  /** approval_task.cancelled of the step's other open tasks, to follow the decision's own event */
+  readonly events: readonly EventDraft[]
+}
+
+const OUTCOME_OF: Readonly<Record<TaskDecision, Exclude<StepOutcome, 'OPEN'>>> = { APPROVE: 'APPROVED', RETURN: 'RETURNED', REJECT: 'REJECTED' }
+
+/** The decision a step's result stands for, for flows that name their document commands by decision */
+export const FINAL_DECISION: Readonly<Record<Exclude<StepOutcome, 'OPEN'>, TaskDecision>> = { APPROVED: 'APPROVE', RETURNED: 'RETURN', REJECTED: 'REJECT' }
+
+/**
+ * Called by every decide flow right after the decided task is written: cancels the step's other open tasks, marks the
+ * step DONE and says what the step came to. A failure rolls the whole command back (the pipeline throws on it), so the
+ * task stays open.
+ */
+export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask, decision: TaskDecision): Promise<Result<StepCompletion>> {
   const events: EventDraft[] = []
   const handled = new Set<string>([decided.id])
   // Every round takes tasks not seen before, and only a move committed while this one waited makes a new one: it ends
@@ -75,7 +98,50 @@ export async function completeStep(tx: TenantTx, ctx: Ctx, decided: DecidedTask)
     }
   }
   await tx.approvalStep.update({ where: { id: decided.stepId }, data: { status: 'DONE' } })
-  return events
+  return ok({ outcome: OUTCOME_OF[decision], events })
+}
+
+/** What approval_task.decided says (FR-DOA-005 AC1, INV-DOA-01) */
+export interface DecidedEventInput {
+  readonly task: { readonly id: string; readonly principalMemberId: string | null }
+  readonly route: { readonly doaVersionId: string; readonly ruleCode: string }
+  readonly subjectType: string
+  readonly subjectId: string
+  readonly decision: TaskDecision
+  readonly actorMemberId: string
+  readonly reasonCommentId: string | null
+  readonly stepUpGrantId?: string | null
+  /** What a flow adds of its own, e.g. the policy flow's boundaryTableConfirmed */
+  readonly extra?: Readonly<Record<string, unknown>>
+}
+
+/**
+ * The approval_task.decided event of every decide flow, built in one place: the DOA version and rule of the route, the
+ * channel, the actor and whom they act for. S6 adds the parallel reviewer's fields here.
+ */
+export function decidedEvent(ctx: Ctx, e: DecidedEventInput): EventDraft {
+  const onBehalf = e.task.principalMemberId && e.actorMemberId !== e.task.principalMemberId ? e.task.principalMemberId : null
+  return {
+    type: 'approval_task.decided',
+    aggregateType: 'ApprovalTask',
+    aggregateId: e.task.id,
+    doaVersionId: e.route.doaVersionId,
+    doaRuleCode: e.route.ruleCode,
+    ...(onBehalf ? { onBehalfOfMemberId: onBehalf } : {}),
+    data: {
+      decision: e.decision,
+      subjectType: e.subjectType,
+      subjectId: e.subjectId,
+      doaVersionId: e.route.doaVersionId,
+      doaRuleCode: e.route.ruleCode,
+      channel: ctx.channel,
+      actorMemberId: e.actorMemberId,
+      onBehalfOfMemberId: onBehalf,
+      reasonCommentId: e.reasonCommentId,
+      ...(e.stepUpGrantId ? { stepUpGrantId: e.stepUpGrantId } : {}),
+      ...e.extra,
+    },
+  }
 }
 
 /** Who decided a step and when; decidedBy is null when the decider's member row is gone */

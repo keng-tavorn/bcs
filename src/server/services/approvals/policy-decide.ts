@@ -15,7 +15,7 @@ import { boundaryTableRequiredFor } from '../doa/boundary'
 import { isInitialPackageRoute } from '../doa/initial-package'
 import { approveOrgChange, rejectOrgChange } from '../org-authority'
 import { closeRoute } from './route'
-import { completeStep } from './step-complete'
+import { completeStep, decidedEvent } from './step-complete'
 
 // Approving policy (spec BR-DOA-15, FR-DOA-002 AC2–AC3, FR-DOA-010 AC2): a DOA version or an authority change is
 // decided by the approver of its DOA_CHANGE or ORG_AUTHORITY_CHANGE rule — or, for the initial package, by the contract
@@ -111,42 +111,37 @@ export async function decidePolicyTask(
     data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actor, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },
   })
   const events: EventDraft[] = [
-    {
-      type: 'approval_task.decided',
-      aggregateType: 'ApprovalTask',
-      aggregateId: task.id,
-      doaVersionId: route.doaVersionId,
-      doaRuleCode: route.ruleCode,
-      ...(task.principalMemberId && actor !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
-      data: {
-        decision: input.decision,
-        subjectType,
-        subjectId: route.subjectId,
-        doaVersionId: route.doaVersionId,
-        doaRuleCode: route.ruleCode,
-        channel: ctx.channel,
-        actorMemberId: actor,
-        onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null,
-        reasonCommentId,
-        stepUpGrantId,
-        ...(boundaryTicked ? { boundaryTableConfirmed: true } : {}),
-      },
-    },
+    decidedEvent(ctx, {
+      task,
+      route,
+      subjectType,
+      subjectId: route.subjectId,
+      decision: input.decision,
+      actorMemberId: actor,
+      reasonCommentId,
+      stepUpGrantId,
+      ...(boundaryTicked ? { extra: { boundaryTableConfirmed: true } } : {}),
+    }),
   ]
-  // BR-SLA-04: the step is decided — its other open tasks are cancelled before the route moves on or closes
-  events.push(...(await completeStep(tx, ctx, task)))
+  // BR-SLA-04, FR-DOA-004 AC6: the step is decided — its other open tasks are cancelled — and the policy moves by what
+  // the step came to, not by this task's decision
+  const step = await completeStep(tx, ctx, task, input.decision)
+  if (!step.ok) return { ok: false, error: step.error }
+  events.push(...step.data.events)
+  const outcome = step.data.outcome
   const notifications: NotificationDraft[] = []
+  if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: 'PENDING_APPROVAL' }, events, notifications }
   const waiting = await tx.approvalStep.count({ where: { routeId: route.id, status: 'WAITING' } })
-  if (input.decision === 'APPROVE' && waiting > 0) {
+  if (outcome === 'APPROVED' && waiting > 0) {
     return { ok: false, error: { code: 'VALIDATION_FAILED', message: 'policy routes with more than one step arrive with parallel approval (S6)', details: { reason: 'MULTI_STEP' } } }
   }
-  events.push(...(await closeRoute(tx, { type: subjectType, id: route.subjectId }, input.decision === 'APPROVE' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
+  events.push(...(await closeRoute(tx, { type: subjectType, id: route.subjectId }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
   let documentStatus: string
   if (subjectType === 'DOA_VERSION') {
     const packageChanges = isInitialPackageRoute(route)
       ? await tx.orgAuthorityChange.findMany({ where: { routeId: route.id, status: 'PENDING_APPROVAL' }, select: { id: true }, orderBy: { id: 'asc' } })
       : []
-    if (input.decision === 'APPROVE') {
+    if (outcome === 'APPROVED') {
       events.push(...(await publishApprovedDoaVersion(tx, ctx, route.subjectId, actor)))
       for (const change of packageChanges) {
         const approved = await approveOrgChange(tx, ctx, change.id)
@@ -160,7 +155,7 @@ export async function decidePolicyTask(
       for (const change of packageChanges) events.push(...(await rejectOrgChange(tx, ctx, change.id)))
       documentStatus = 'REJECTED'
     }
-  } else if (input.decision === 'APPROVE') {
+  } else if (outcome === 'APPROVED') {
     const approved = await approveOrgChange(tx, ctx, route.subjectId)
     events.push(...approved.events)
     notifications.push(...approved.notifications)
@@ -172,7 +167,7 @@ export async function decidePolicyTask(
   if (submitter) {
     notifications.push({
       recipientMemberId: submitter,
-      templateKey: `${subjectType === 'DOA_VERSION' ? 'doa_version' : 'org_authority_change'}.${input.decision === 'APPROVE' ? 'approved' : 'rejected'}`,
+      templateKey: `${subjectType === 'DOA_VERSION' ? 'doa_version' : 'org_authority_change'}.${outcome === 'APPROVED' ? 'approved' : 'rejected'}`,
       data: { subjectId: route.subjectId, taskId: task.id },
       urgency: 'IMMEDIATE',
       dedupeKey: `policy.decided:${task.id}`,

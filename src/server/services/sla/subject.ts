@@ -1,20 +1,19 @@
-import type { DoaDocumentType } from '@/core/doa'
+import { documentTypeOfSubject, type DoaDocumentType } from '@/core/doa'
+import { APPROVAL_SUBJECTS, type ApprovalSubject } from '@/core/sod'
 import type { TenantTx } from '@/server/db/tenant'
-import type { ApprovalSubject } from '../approvals/route'
+import { isRegisteredSubject, SUBJECT_ADAPTERS } from '../approvals/subjects'
 
 // What the timer jobs need to know about the document an approval task is on: its number, title or kind for the message
 // (ids, numbers, titles and codes only, BR-NOTI-01) and the page that settles it (a variance's purchase order), who
 // asked for it (the requester, the PO creator, the person who recorded the variance, the submitter of a policy change),
 // who may not decide it (BR-DOA-06, BR-SOD-01/03/06/08), and the department whose position holders approve it
-// (BR-DOA-05). Read inside the caller's transaction.
+// (BR-DOA-05). Read inside the caller's transaction. The phase-1 subjects answer through their adapter's facts
+// (ADR-068), so this file and the jobs that read it (delegation-window.ts, task-sla.ts, next-band.ts) name none of them.
 
-export const DOCUMENT_TYPE_OF: Readonly<Record<ApprovalSubject, DoaDocumentType>> = {
-  REQUEST: 'PURCHASE_REQUEST',
-  PURCHASE_ORDER: 'PURCHASE_ORDER',
-  VARIANCE: 'GR_VARIANCE',
-  DOA_VERSION: 'DOA_CHANGE',
-  ORG_AUTHORITY_CHANGE: 'ORG_AUTHORITY_CHANGE',
-}
+export const DOCUMENT_TYPE_OF: Readonly<Record<ApprovalSubject, DoaDocumentType>> = Object.fromEntries(APPROVAL_SUBJECTS.map((s) => [s, documentTypeOfSubject(s)])) as Record<
+  ApprovalSubject,
+  DoaDocumentType
+>
 
 export interface SubjectFacts {
   readonly type: ApprovalSubject
@@ -43,6 +42,7 @@ function beneficiaryOf(payload: unknown): string | null {
 }
 
 export async function subjectFacts(tx: TenantTx, type: ApprovalSubject, id: string): Promise<SubjectFacts> {
+  if (isRegisteredSubject(type)) return SUBJECT_ADAPTERS[type].facts(tx, id)
   const base = { type, id, documentType: DOCUMENT_TYPE_OF[type], changeKind: null, poId: null }
   switch (type) {
     case 'REQUEST': {

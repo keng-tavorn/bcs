@@ -2,7 +2,7 @@ import { checkSod, type SodPolicy } from '@/core/sod'
 import { PO_MACHINE, transition, type PoState, type TaskState } from '@/core/state-machines'
 import { systemClock } from '@/lib/clock'
 import { newId } from '@/lib/ids'
-import { PIN_ONLY, requireStepUp } from '@/server/auth/step-up'
+import { DECISION_STEP_UP_METHODS, requireStepUp } from '@/server/auth/step-up'
 import { loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
@@ -12,7 +12,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import type { CommandOutcome } from '../_pipeline'
 import { assignNextStep } from '../approvals/next-step'
 import { closeRoute } from '../approvals/route'
-import { completeStep } from '../approvals/step-complete'
+import { completeStep, decidedEvent, FINAL_DECISION } from '../approvals/step-complete'
 import { budgetRefusalFor, commitForPo, poBudgetLines, releasePoDelta } from './budget'
 import { orderSourceLines } from './requests'
 
@@ -82,7 +82,7 @@ export async function decidePoTask(
   // (security clock), used once; a refusal rolls the use back with the rest
   const stepUp = await requireStepUp(
     tx,
-    { memberId: actor, route: { subjectType: 'PURCHASE_ORDER', subjectId: po.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: PIN_ONLY },
+    { memberId: actor, route: { subjectType: 'PURCHASE_ORDER', subjectId: po.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: DECISION_STEP_UP_METHODS },
     systemClock.now(),
   )
   if (!stepUp.ok) return { ok: false, error: stepUp.error }
@@ -97,32 +97,19 @@ export async function decidePoTask(
     data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actor, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },
   })
   const events: EventDraft[] = [
-    {
-      type: 'approval_task.decided',
-      aggregateType: 'ApprovalTask',
-      aggregateId: task.id,
-      doaVersionId: route.doaVersionId,
-      doaRuleCode: route.ruleCode,
-      ...(task.principalMemberId && actor !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
-      data: {
-        decision: input.decision,
-        subjectType: 'PURCHASE_ORDER',
-        subjectId: po.id,
-        doaVersionId: route.doaVersionId,
-        doaRuleCode: route.ruleCode,
-        channel: ctx.channel,
-        actorMemberId: actor,
-        onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null,
-        reasonCommentId,
-        ...(stepUp.grantId ? { stepUpGrantId: stepUp.grantId } : {}),
-      },
-    },
+    decidedEvent(ctx, { task, route, subjectType: 'PURCHASE_ORDER', subjectId: po.id, decision: input.decision, actorMemberId: actor, reasonCommentId, stepUpGrantId: stepUp.grantId }),
   ]
-  // BR-SLA-04: the step is decided — its other open tasks are cancelled before the route moves on or closes
-  events.push(...(await completeStep(tx, ctx, task)))
+  // BR-SLA-04, FR-DOA-004 AC6: the step is decided — its other open tasks are cancelled — and the PO moves by what the
+  // step came to, not by this task's decision
+  const step = await completeStep(tx, ctx, task, input.decision)
+  if (!step.ok) return { ok: false, error: step.error }
+  events.push(...step.data.events)
+  const outcome = step.data.outcome
   const notifications: NotificationDraft[] = []
+  if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: po.status }, events, notifications }
+  const final = FINAL_DECISION[outcome]
 
-  if (input.decision === 'APPROVE') {
+  if (outcome === 'APPROVED') {
     const chargedDepartmentId = (await tx.budgetLine.findUniqueOrThrow({ where: { id: po.lines[0]!.budgetLineId }, select: { departmentId: true } })).departmentId
     const next = await assignNextStep(
       tx,
@@ -143,9 +130,9 @@ export async function decidePoTask(
   }
 
   // The route ends: approved by the last step, returned or rejected
-  const moved = transition(PO_MACHINE, po.status as PoState, COMMAND[input.decision])
-  if (!moved.ok) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: `${COMMAND[input.decision]} is not allowed from ${po.status}`, details: { from: po.status, command: COMMAND[input.decision] } } }
-  events.push(...(await closeRoute(tx, { type: 'PURCHASE_ORDER', id: po.id }, input.decision === 'APPROVE' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
+  const moved = transition(PO_MACHINE, po.status as PoState, COMMAND[final])
+  if (!moved.ok) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: `${COMMAND[final]} is not allowed from ${po.status}`, details: { from: po.status, command: COMMAND[final] } } }
+  events.push(...(await closeRoute(tx, { type: 'PURCHASE_ORDER', id: po.id }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
   // The requests are locked before the budget lines (INV-PLT-03: the same order as submit)
   await lockRowsForUpdate(
     tx,
@@ -154,7 +141,7 @@ export async function decidePoTask(
     requests.map((r) => r.id),
   )
   const lines = await poBudgetLines(tx, po.id)
-  if (input.decision === 'APPROVE') {
+  if (outcome === 'APPROVED') {
     const budget = await commitForPo(tx, ctx, po.id, lines)
     // What is left and missing only for an approver who may view the budget lines (§2.4 budget.view)
     if (!budget.ok)
@@ -184,8 +171,8 @@ export async function decidePoTask(
   } else {
     const budget = await releasePoDelta(tx, ctx, po.id, lines)
     if (!budget.ok) return budget
-    await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, ...(input.decision === 'RETURN' ? { currentRouteId: null } : {}), version: { increment: 1 } } })
-    events.push({ type: input.decision === 'RETURN' ? 'po.returned' : 'po.rejected', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } }, ...budget.events)
+    await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, ...(outcome === 'RETURNED' ? { currentRouteId: null } : {}), version: { increment: 1 } } })
+    events.push({ type: outcome === 'RETURNED' ? 'po.returned' : 'po.rejected', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } }, ...budget.events)
   }
   return { ok: true, result: { taskId: task.id, documentStatus: moved.to }, events, notifications }
 }

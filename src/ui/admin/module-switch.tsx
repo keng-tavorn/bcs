@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useRef, useState, type FormEvent } from 'react'
-import { DOC_TYPES, type DocType } from '../admin-doa/editor-model'
 import { Button } from '../form/button'
 import { Field } from '../form/field'
 import { Notice } from '../form/notice'
@@ -19,23 +18,23 @@ export type SetModuleAction = (
 // The form sits in a disclosure so the page stays a calm list; refusals explain which modules or documents block it.
 // After a change the form closes and clears, and the confirmation stays outside it: the same form now does the
 // opposite action, so it must never be left open with the old reference and reason.
-
-const isDocType = (d: string): d is DocType => (DOC_TYPES as readonly string[]).includes(d)
 export function ModuleSwitch({
   organizationId,
   module,
   enabled,
   names,
+  documentTypeNames,
   setModule,
 }: {
   organizationId: string
   module: string
   enabled: boolean
   names: Readonly<Record<string, string>>
+  /** The DOA document types in the reader's language, for a refusal that names the rules the DOA lacks (BR-DOA-24) */
+  documentTypeNames: Readonly<Record<string, string>>
   setModule: SetModuleAction
 }) {
   const t = useTranslations('platform.modules')
-  const tDoa = useTranslations('adminDoa')
   const router = useRouter()
   const detailsRef = useRef<HTMLDetailsElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -51,7 +50,7 @@ export function ModuleSwitch({
     const listed = (f.modules ?? []).map((m) => names[m] ?? m).join(', ')
     if (f.code === 'MODULE_DISABLED') return t('errors.REQUIRES', { modules: listed })
     if (f.code === 'DOA_NOT_CONFIGURED' && f.reason === 'MODULE_RULES_MISSING') {
-      const types = (f.documentTypes ?? []).map((d) => (isDocType(d) ? tDoa(`documentTypes.${d}`) : d)).join(', ')
+      const types = (f.documentTypes ?? []).map((d) => documentTypeNames[d] ?? d).join(', ')
       return t('errors.MODULE_RULES_MISSING', { documentTypes: types })
     }
     if (f.code === 'MODULE_IN_USE' && f.reason === 'OPEN_DOCUMENTS') return t('errors.OPEN_DOCUMENTS', { documents: (f.documents ?? []).join(', ') })

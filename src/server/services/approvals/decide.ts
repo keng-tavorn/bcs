@@ -1,17 +1,16 @@
 import { z } from 'zod'
-import { resolveRoute } from '@/core/doa'
 import { checkSod, type SodPolicy } from '@/core/sod'
 import { businessMinutesBetween, addBusinessMinutes } from '@/core/sla'
 import { REQUEST_MACHINE, TASK_MACHINE, transition, type RequestState, type TaskCommand, type TaskState } from '@/core/state-machines'
 import { systemClock } from '@/lib/clock'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
-import { PIN_ONLY, requireStepUp } from '@/server/auth/step-up'
+import { DECISION_STEP_UP_METHODS, requireStepUp } from '@/server/auth/step-up'
 import { authorize, isAllowed, loadMemberPrincipals } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
-import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
+import { loadBusinessCalendar } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
@@ -20,8 +19,10 @@ import { decidePoTask } from '../purchase-orders/decide'
 import { decideVarianceTask } from '../receiving/variance-decide'
 import { releaseForRequest } from '../requests/budget'
 import { requestViewScope } from '../requests/view-scope'
-import { closeRoute, remindShareOf, taskTimes } from './route'
-import { completeStep, decisionOfStep, lockForDecision } from './step-complete'
+import { assignNextStep } from './next-step'
+import { closeRoute } from './route'
+import { completeStep, decidedEvent, decisionOfStep, lockForDecision } from './step-complete'
+import { isRegisteredSubject, SUBJECT_ADAPTERS, type RegisteredSubject } from './subjects'
 
 // Deciding approval tasks (spec §6.4, FR-DOA-004, FR-DOA-005, FR-INT-009 AC3). The task's assignee decides, or the
 // delegator when a delegate holds it (BR-DLG-04); the task must still be OPEN; separation of duties is checked again at the moment of deciding (GC-SOD-01, GC-SOD-03).
@@ -131,6 +132,8 @@ const DecideInput = z.strictObject({
    * by now is refused as BOUNDARY_TABLE_CHANGED (policy-decide.ts). The web's decision page always sends it.
    */
   boundaryBaselineId: z.uuid().nullable().optional(),
+  /** What a phase-1 subject's adapter asks with the decision (its decisionInput, ADR-068); every other task takes none */
+  subjectInput: z.unknown().optional(),
 })
 
 const COMMAND_OF = { APPROVE: 'approval.approve', RETURN: 'approval.return', REJECT: 'approval.reject' } as const satisfies Record<string, TaskCommand>
@@ -150,6 +153,8 @@ export const decideCommand = defineCommand({
     if (!taskTo) return alreadyDecided(tx, task, command)
     if (input.decision !== 'APPROVE' && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'a reason is needed', { field: 'reason' })
     const route = task.step.route
+    if (isRegisteredSubject(route.subjectType)) return decideRegisteredTask(tx, ctx, task, input, taskTo, route.subjectType)
+    if (input.subjectInput !== undefined) return fail('VALIDATION_FAILED', `${route.subjectType} tasks take no subjectInput`, { field: 'subjectInput' })
     if (route.subjectType === 'DOA_VERSION' || route.subjectType === 'ORG_AUTHORITY_CHANGE') return decidePolicyTask(tx, ctx, task, input, taskTo)
     if (route.subjectType === 'PURCHASE_ORDER') return decidePoTask(tx, ctx, task, input, taskTo)
     if (route.subjectType === 'VARIANCE') return decideVarianceTask(tx, ctx, task, input, taskTo)
@@ -180,7 +185,7 @@ export const decideCommand = defineCommand({
     // request (security clock), used once; a refusal rolls the use back with the rest
     const stepUp = await requireStepUp(
       tx,
-      { memberId: actorMemberId, route: { subjectType: 'REQUEST', subjectId: request.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: PIN_ONLY },
+      { memberId: actorMemberId, route: { subjectType: 'REQUEST', subjectId: request.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: DECISION_STEP_UP_METHODS },
       systemClock.now(),
     )
     if (!stepUp.ok) return { ok: false, error: stepUp.error }
@@ -191,101 +196,159 @@ export const decideCommand = defineCommand({
       data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actorMemberId, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },
     })
     const events: EventDraft[] = [
-      {
-        type: 'approval_task.decided',
-        aggregateType: 'ApprovalTask',
-        aggregateId: task.id,
-        doaVersionId: route.doaVersionId,
-        doaRuleCode: route.ruleCode,
-        ...(task.principalMemberId && actorMemberId !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
-        data: {
-          decision: input.decision,
-          subjectType: 'REQUEST',
-          subjectId: request.id,
-          doaVersionId: route.doaVersionId,
-          doaRuleCode: route.ruleCode,
-          channel: ctx.channel,
-          actorMemberId,
-          onBehalfOfMemberId: task.principalMemberId && actorMemberId !== task.principalMemberId ? task.principalMemberId : null,
-          reasonCommentId,
-          ...(stepUp.grantId ? { stepUpGrantId: stepUp.grantId } : {}),
-        },
-      },
+      decidedEvent(ctx, { task, route, subjectType: 'REQUEST', subjectId: request.id, decision: input.decision, actorMemberId, reasonCommentId, stepUpGrantId: stepUp.grantId }),
     ]
     const notifications: NotificationDraft[] = []
-    // BR-SLA-04: the step is decided — its other open tasks are cancelled before anything moves on
-    events.push(...(await completeStep(tx, ctx, task)))
+    // BR-SLA-04, FR-DOA-004 AC6: the step is decided — its other open tasks are cancelled — and the request moves by
+    // what the step came to, not by this task's decision
+    const step = await completeStep(tx, ctx, task, input.decision)
+    if (!step.ok) return { ok: false, error: step.error }
+    events.push(...step.data.events)
+    const outcome = step.data.outcome
+    if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: request.status }, events, notifications }
 
-    if (input.decision === 'APPROVE') {
-      const next = await tx.approvalStep.findFirst({ where: { routeId: route.id, status: 'WAITING' }, orderBy: { stepNo: 'asc' } })
-      if (next) {
-        // A later step of the same route: its approver is the one the engine chose when the route was made
-        const policy = await loadRoutePolicy(tx)
-        const again = resolveRoute(
-          {
-            documentType: 'PURCHASE_REQUEST',
-            amount: { netSatang: request.netSatang, vatSatang: request.vatSatang },
-            requesterMemberId: request.requesterMemberId,
-            chargedDepartmentId: request.chargedDepartmentId,
-            conflictMemberIds: [request.requesterMemberId],
-            at: route.createdAt,
-          },
-          policy,
-        )
-        const step = again.ok ? again.data.steps.find((s) => s.stepNo === next.stepNo) : undefined
-        if (!step) return { ok: false, error: { code: 'APPROVER_NOT_FOUND', message: 'the next step has no approver', details: { stepNo: next.stepNo } } }
-        const calendar = await loadBusinessCalendar(tx, ctx.organizationId)
-        const doaVersion = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { escalationPolicy: true } })
-        const times = taskTimes(ctx.now, next.slaBusinessMinutes, remindShareOf(doaVersion.escalationPolicy), calendar)
-        const created = await tx.approvalTask.create({
-          data: { organizationId: ctx.organizationId, stepId: next.id, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, resolvedFrom: step.resolvedFrom, assignedAt: ctx.now, dueAt: times.dueAt, remindAt: times.remindAt },
-          select: { id: true },
-        })
-        await tx.approvalStep.update({ where: { id: next.id }, data: { status: 'ACTIVE' } })
-        events.push({
-          type: 'approval_task.assigned',
-          aggregateType: 'ApprovalTask',
-          aggregateId: created.id,
-          data: { subjectType: 'REQUEST', subjectId: request.id, routeId: route.id, stepNo: next.stepNo, assigneeMemberId: step.assigneeMemberId, principalMemberId: step.principalMemberId, resolvedFrom: step.resolvedFrom, dueAt: times.dueAt.toISOString() },
-        })
-        notifications.push({
-          recipientMemberId: step.assigneeMemberId,
-          templateKey: 'task.assigned',
-          data: { subjectType: 'REQUEST', subjectId: request.id, label: request.number ?? request.title, taskId: created.id, dueAt: times.dueAt.toISOString() },
-          urgency: 'IMMEDIATE',
-          dedupeKey: `task.assigned:${created.id}`,
-          subjectType: 'REQUEST',
-          subjectId: request.id,
-        })
-        return { ok: true, result: { taskId: task.id, documentStatus: request.status }, events, notifications }
-      }
+    if (outcome === 'APPROVED') {
+      // A later step of the same route: its approver is the one the engine chose when the route was made
+      const next = await assignNextStep(
+        tx,
+        ctx,
+        route,
+        { type: 'REQUEST', id: request.id, label: request.number ?? request.title },
+        {
+          documentType: 'PURCHASE_REQUEST',
+          amount: { netSatang: request.netSatang, vatSatang: request.vatSatang },
+          requesterMemberId: request.requesterMemberId,
+          chargedDepartmentId: request.chargedDepartmentId,
+          conflictMemberIds: [request.requesterMemberId],
+          at: route.createdAt,
+        },
+      )
+      if (!next.ok) return { ok: false, error: next.error }
+      if (next.assigned) return { ok: true, result: { taskId: task.id, documentStatus: request.status }, events: [...events, ...next.events], notifications: [...notifications, ...next.notifications] }
     }
 
     // The route ends: approved by the last step, returned or rejected
-    const documentCommand = input.decision === 'APPROVE' ? 'request.final_approval' : input.decision === 'RETURN' ? 'approval.return' : 'approval.reject'
+    const documentCommand = outcome === 'APPROVED' ? 'request.final_approval' : outcome === 'RETURNED' ? 'approval.return' : 'approval.reject'
     const moved = transition(REQUEST_MACHINE, request.status as RequestState, documentCommand)
     if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `${documentCommand} is not allowed from ${request.status}`, { from: request.status, command: documentCommand })
-    events.push(...(await closeRoute(tx, { type: 'REQUEST', id: request.id }, input.decision === 'APPROVE' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
-    await tx.request.update({ where: { id: request.id }, data: { status: moved.to, ...(input.decision === 'APPROVE' ? { approvedAt: ctx.now } : {}), version: { increment: 1 } } })
-    if (input.decision === 'APPROVE') {
+    events.push(...(await closeRoute(tx, { type: 'REQUEST', id: request.id }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
+    await tx.request.update({ where: { id: request.id }, data: { status: moved.to, ...(outcome === 'APPROVED' ? { approvedAt: ctx.now } : {}), version: { increment: 1 } } })
+    if (outcome === 'APPROVED') {
       events.push({ type: 'request.approved', aggregateType: 'Request', aggregateId: request.id, data: { routeId: route.id, doaVersionId: route.doaVersionId, doaRuleCode: route.ruleCode } })
       notifications.push(...(await notifyRequesterAndFollowers(tx, ctx, 'request.approved', request, { taskId: task.id })))
     } else {
-      const type = input.decision === 'RETURN' ? 'request.returned' : 'request.rejected'
+      const type = outcome === 'RETURNED' ? 'request.returned' : 'request.rejected'
       events.push({ type, aggregateType: 'Request', aggregateId: request.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } })
       // §6.4: a rejection gives back all the budget the request reserved; a return keeps it for the resubmit
-      if (input.decision === 'REJECT') {
+      if (outcome === 'REJECTED') {
         const lines = await tx.requestLine.findMany({ where: { requestId: request.id }, select: { id: true } })
         const released = await releaseForRequest(tx, ctx, request.id, lines.map((l) => l.id))
         if (!released.ok) return released
         events.push(...released.events)
       }
       // §10.1: a return and a rejection share the template request.decided
-      notifications.push(...(await notifyRequesterAndFollowers(tx, ctx, 'request.decided', request, { taskId: task.id, decision: input.decision })))
+      notifications.push(...(await notifyRequesterAndFollowers(tx, ctx, 'request.decided', request, { taskId: task.id, decision: outcome === 'RETURNED' ? 'RETURN' : 'REJECT' })))
     }
     return { ok: true, result: { taskId: task.id, documentStatus: moved.to }, events, notifications }
   },
 })
+
+/** What a decision of a phase-1 subject's task returns while its route goes on: the document still waits for approval */
+const STILL_PENDING = 'PENDING_APPROVAL'
+
+/**
+ * A task of a phase-1 subject (ADR-068), in the order every one of them keeps, so no lane can skip a check: the actor
+ * and the task's state (decideCommand) → the reason → the adapter's decisionInput → separation of duties from its
+ * sodContext, for the actor and the delegator a delegate acts for → the step-up (stepUpNeeded, DECISION_STEP_UP_METHODS)
+ * → the task closed with approval_task.decided (INV-DOA-01) → what the step came to (completeStep): OPEN leaves the
+ * document alone; APPROVED with a step after it assigns that step (assignNextStep, with the route's amount, which
+ * gives the same amount on either basis); the route's result goes to the adapter's decide. Any refusal rolls it all back.
+ */
+async function decideRegisteredTask(
+  tx: TenantTx,
+  ctx: Ctx,
+  task: LoadedTask,
+  input: z.output<typeof DecideInput>,
+  taskTo: TaskState,
+  type: RegisteredSubject,
+): Promise<CommandOutcome<{ taskId: string; documentStatus: string }>> {
+  const adapter = SUBJECT_ADAPTERS[type]
+  const route = task.step.route
+  const actorMemberId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
+  if (!actorMemberId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member decides' } }
+  let subjectInput: unknown = undefined
+  if (adapter.decisionInput) {
+    const parsed = adapter.decisionInput.safeParse(input.subjectInput)
+    if (!parsed.success) return fail('VALIDATION_FAILED', 'subjectInput is not valid for this task', { field: 'subjectInput' })
+    subjectInput = parsed.data
+  } else if (input.subjectInput !== undefined) {
+    return fail('VALIDATION_FAILED', `${type} tasks take no subjectInput`, { field: 'subjectInput' })
+  }
+
+  const facts = await adapter.facts(tx, route.subjectId)
+  const version = await tx.doaVersion.findUniqueOrThrow({ where: { id: route.doaVersionId }, select: { sodPolicy: true, stepUpThresholdSatang: true } })
+  const sod = adapter.sodContext(facts)
+  for (const who of [actorMemberId, task.principalMemberId].filter((m): m is string => Boolean(m))) {
+    const base = checkSod({ kind: 'DECIDE_APPROVAL', subject: type, actorMemberId: who, requesterMemberIds: sod.requesterMemberIds }, version.sodPolicy as unknown as SodPolicy)
+    const rule = base.ok ? (sod.extra ?? []).find((x) => x.memberIds.includes(who))?.rule : base.rule
+    if (rule) {
+      return {
+        ok: false,
+        error: { code: 'SOD_VIOLATION', message: 'separation of duties', details: { rule } },
+        auditEvents: [{ type: 'security.sod_blocked', aggregateType: 'Security', aggregateId: route.subjectId, data: { rule, action: COMMAND_OF[input.decision], subjectType: type, subjectId: route.subjectId, actorMemberId } }],
+      }
+    }
+  }
+  const stepUp = await requireStepUp(
+    tx,
+    { memberId: actorMemberId, route: { subjectType: type, subjectId: route.subjectId, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: DECISION_STEP_UP_METHODS },
+    systemClock.now(),
+  )
+  if (!stepUp.ok) return { ok: false, error: stepUp.error }
+
+  const reasonCommentId = input.reason && input.decision !== 'APPROVE' ? await addReason(tx, ctx, type, route.subjectId, input.reason) : null
+  await tx.approvalTask.update({
+    where: { id: task.id },
+    data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actorMemberId, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },
+  })
+  const events: EventDraft[] = [
+    decidedEvent(ctx, { task, route, subjectType: type, subjectId: route.subjectId, decision: input.decision, actorMemberId, reasonCommentId, stepUpGrantId: stepUp.grantId }),
+  ]
+  const step = await completeStep(tx, ctx, task, input.decision)
+  if (!step.ok) return { ok: false, error: step.error }
+  events.push(...step.data.events)
+  const outcome = step.data.outcome
+  if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: STILL_PENDING }, events }
+
+  if (outcome === 'APPROVED') {
+    const waiting = await tx.approvalStep.count({ where: { routeId: route.id, status: 'WAITING' } })
+    if (waiting > 0) {
+      if (!facts.ownerMemberId || !facts.chargedDepartmentId) return fail('VALIDATION_FAILED', `${type} gives no requester or department for its next step`, { reason: 'SUBJECT' })
+      const next = await assignNextStep(
+        tx,
+        ctx,
+        route,
+        { type, id: route.subjectId, label: adapter.labels(facts).label },
+        {
+          documentType: facts.documentType,
+          ...(route.amountSatang !== null ? { amount: { netSatang: route.amountSatang, vatSatang: 0n } } : {}),
+          requesterMemberId: facts.ownerMemberId,
+          chargedDepartmentId: facts.chargedDepartmentId,
+          conflictMemberIds: facts.conflictMemberIds,
+          at: route.createdAt,
+        },
+      )
+      if (!next.ok) return { ok: false, error: next.error }
+      if (next.assigned) return { ok: true, result: { taskId: task.id, documentStatus: STILL_PENDING }, events: [...events, ...next.events], notifications: next.notifications }
+    }
+  }
+
+  // The route has its result: closed here, the document moved by its adapter
+  events.push(...(await closeRoute(tx, { type, id: route.subjectId }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
+  const decided = await adapter.decide(tx, ctx, task, { outcome, reason: input.reason ?? null, reasonCommentId, subjectInput, facts })
+  if (!decided.ok) return { ok: false, error: decided.error }
+  return { ok: true, result: { taskId: task.id, documentStatus: decided.documentStatus }, events: [...events, ...decided.events], notifications: [...(decided.notifications ?? [])] }
+}
 
 export function decideTask(ctx: Ctx, input: z.input<typeof DecideInput>, options: RunOptions) {
   return runCommand(ctx, decideCommand, input, options)

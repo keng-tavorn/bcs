@@ -116,9 +116,9 @@ describe('[FR-AUTH-005/AC3] five wrong PINs in a row lock the PIN for 15 minutes
 describe('[BR-TOK-05] which decisions need a step-up (BR-DOA-15)', () => {
   const threshold = 10_000_000n // 100,000.00 baht, as the DOA version sets it
 
-  it('every DOA version (the initial package too) and every authority change, whatever the amount', () => {
-    expect([...ALWAYS_STEP_UP_SUBJECTS].sort()).toEqual(['DOA_VERSION', 'ORG_AUTHORITY_CHANGE'])
-    for (const subjectType of ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE']) {
+  it('every DOA version (the initial package too), authority change, workflow version and bank account change, whatever the amount (BR-DOA-25)', () => {
+    expect([...ALWAYS_STEP_UP_SUBJECTS].sort()).toEqual(['BANK_ACCOUNT_CHANGE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'WORKFLOW_VERSION'])
+    for (const subjectType of ['DOA_VERSION', 'ORG_AUTHORITY_CHANGE', 'WORKFLOW_VERSION', 'BANK_ACCOUNT_CHANGE']) {
       expect(stepUpNeeded({ subjectType, amountSatang: null, stepUpThresholdSatang: threshold })).toBe(true)
       expect(stepUpNeeded({ subjectType, amountSatang: null, stepUpThresholdSatang: null })).toBe(true)
     }

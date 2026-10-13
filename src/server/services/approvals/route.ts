@@ -1,6 +1,7 @@
-import { resolveRoute, type RouteInput, type RouteResult } from '@/core/doa'
+import { DOC_TYPE_TRAITS, resolveRoute, type RouteInput, type RouteResult } from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { addBusinessMinutes, remindAt, type BusinessCalendar } from '@/core/sla'
+import type { ApprovalSubject } from '@/core/sod'
 import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
 import { loadBusinessCalendar, loadRoutePolicy } from '@/server/doa/policy'
@@ -11,7 +12,8 @@ import type { NotificationDraft } from '@/server/notifications/create'
 // and stores it as ApprovalRoute → ApprovalStep → ApprovalTask. An old route is never edited; a replaced route is
 // CANCELLED. Tier 1 routes are SEQUENTIAL with one approver per step, so only the first step gets a task at once.
 
-export type ApprovalSubject = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'DOA_VERSION' | 'ORG_AUTHORITY_CHANGE'
+/** APPROVAL_SUBJECTS of src/core/sod: the one list of subjects */
+export type { ApprovalSubject }
 
 /** When the assignee is reminded, as a share of the SLA (BR-SLA-02, OQ-06: half way) */
 const DEFAULT_REMIND_SHARE = 0.5
@@ -51,6 +53,10 @@ export async function startRoute(
   subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
   input: RouteInput,
 ): Promise<Result<StartedRoute>> {
+  // BR-DOA-20: a subject routes only with a document type that lists it (DOC_TYPE_TRAITS)
+  if (!DOC_TYPE_TRAITS[input.documentType].subjects.includes(subject.type)) {
+    return err('VALIDATION_FAILED', `${subject.type} does not route with ${input.documentType}`, { reason: 'SUBJECT', subjectType: subject.type, documentType: input.documentType })
+  }
   const policy = await loadRoutePolicy(tx)
   const resolved = resolveRoute(input, policy)
   if (!resolved.ok) return resolved

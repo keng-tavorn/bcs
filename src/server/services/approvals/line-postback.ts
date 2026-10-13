@@ -8,6 +8,7 @@ import { registerLinePostbackHandler } from '@/server/line/webhook'
 import { defineCommand, runCommand, type CommandFailure, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decideCommand } from './decide'
 import { deciderDetails, lockForDecision, tokenRefusalOf } from './step-complete'
+import { outsideChannels } from './subjects'
 
 // Deciding from the approve button of a LINE card (spec §9.3, BR-TOK-02, BR-TOK-04, BR-TOK-05, INV-TOK-01, FR-LINE-002
 // AC2 AC3) — the e-mail link's path (action-link.ts) for a postback. The actor is the member linked to the LINE user of
@@ -16,7 +17,9 @@ import { deciderDetails, lockForDecision, tokenRefusalOf } from './step-complete
 //  - the token must be a LINE token, issued to the actor: anyone else is refused FORBIDDEN, kept as
 //    security.token_misuse although nothing else is written;
 //  - a decision that needs a step-up (the amount the DOA counted at or above the version's stepUpThreshold, and every
-//    policy task) is refused STEP_UP_REQUIRED — the card shows no approve button for it, and the server says no again;
+//    subject of ALWAYS_STEP_UP_SUBJECTS) is refused STEP_UP_REQUIRED, and so is a task whose subject keeps the chat
+//    closed (its adapter's channels, BR-DOA-25) — the card shows no approve button for either, and the server says no
+//    again;
 //  - the task is locked first, with the other open tasks of its step in one ascending-id lock (lockForDecision,
 //    step-complete.ts, INV-PLT-03), then the token is used by one conditional update. Every deciding path takes that
 //    lock first — the workspace's and LIFF's decisions and the e-mail link's — so a decision anywhere at the same
@@ -67,11 +70,12 @@ export const decideByLinePostbackCommand = defineCommand({
     if (!(await lockForDecision(tx, ctx.organizationId, token.taskId))) return refused('TOKEN_INVALID', 'the task is gone')
     const task = await tx.approvalTask.findUniqueOrThrow({
       where: { id: token.taskId },
-      select: { step: { select: { route: { select: { subjectType: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+      select: { step: { select: { route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
     })
     const route = task.step.route
-    // BR-TOK-05: approved in LIFF with the PIN, never from the chat
-    if (stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })) {
+    // BR-TOK-05, BR-DOA-25: approved in LIFF with the PIN, never from the chat
+    const stepUp = stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })
+    if (stepUp || !(await outsideChannels(tx, route.subjectType, route.subjectId)).chatButton) {
       return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'this task is approved with the PIN in LIFF', details: { taskId: token.taskId } } }
     }
     // BR-TOK-04: one conditional update uses the token; INV-TOK-01 follows, since a second use finds usedAt set

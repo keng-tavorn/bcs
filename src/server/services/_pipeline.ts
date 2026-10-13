@@ -293,7 +293,8 @@ export async function runCommand<I, R>(
               throw new Error(`INV-EVT-02: command ${definition.name} changed state without writing an Event`)
             }
             const events = await appendEvents(tx, ctx, out.events)
-            await applyTokenLifecycle(tx, ctx, out.events)
+            // Loaded when used: the subject registry imports services that are built on this pipeline
+            await applyTokenLifecycle(tx, ctx, out.events, (t, type, id) => import('./approvals/subjects').then((m) => m.outsideChannels(t, type, id)))
             const notificationOutbox = await createNotifications(tx, ctx.organizationId, out.notifications ?? [])
             drafts = [...events.map((e) => eventOutboxDraft(ctx, e)), ...notificationOutbox, ...(out.outbox ?? [])]
             result = { ok: true, data: toJsonSafe(out.result) }

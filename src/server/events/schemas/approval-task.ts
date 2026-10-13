@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { APPROVAL_SUBJECTS } from '@/core/sod'
 import { defineEvents } from '../registry'
 
 // Approval task events (spec §10.2 "approval_task", FR-DOA-005 AC1: every decision names the DOA version and rule, the
@@ -10,14 +11,14 @@ defineEvents('ApprovalTask', {
   // FR-VIS-001 AC2 (MANUAL, from the board) and BR-SLA-02 (SLA, the reminder job of S5)
   'approval_task.reminded': {
     schema: z.object({
-      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectType: z.enum(APPROVAL_SUBJECTS),
       subjectId: z.uuid(),
       via: z.enum(['MANUAL', 'SLA']),
     }),
   },
   'approval_task.assigned': {
     schema: z.object({
-      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectType: z.enum(APPROVAL_SUBJECTS),
       subjectId: z.uuid(),
       routeId: z.uuid(),
       stepNo: z.number().int().positive(),
@@ -30,7 +31,7 @@ defineEvents('ApprovalTask', {
   'approval_task.decided': {
     schema: z.object({
       decision: z.enum(['APPROVE', 'REJECT', 'RETURN']),
-      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectType: z.enum(APPROVAL_SUBJECTS),
       subjectId: z.uuid(),
       doaVersionId: z.uuid(),
       doaRuleCode: z.string().min(1),
@@ -57,7 +58,7 @@ defineEvents('ApprovalTask', {
   // for acknowledgement, the approver of the next amount band are told (nextBandMemberId, null when there is none)
   'approval_task.overdue': {
     schema: z.object({
-      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectType: z.enum(APPROVAL_SUBJECTS),
       subjectId: z.uuid(),
       dueAt: z.iso.datetime({ offset: true }),
       escalateAt: z.iso.datetime({ offset: true }),
@@ -70,7 +71,7 @@ defineEvents('ApprovalTask', {
   // and the requester are told.
   'approval_task.escalated': {
     schema: z.object({
-      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectType: z.enum(APPROVAL_SUBJECTS),
       subjectId: z.uuid(),
       stepId: z.uuid(),
       outcome: z.enum(['CO_ASSIGNED', 'NO_NEXT_BAND']),

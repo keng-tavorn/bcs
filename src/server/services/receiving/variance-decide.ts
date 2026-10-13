@@ -5,7 +5,7 @@ import { checkSod, type SodPolicy } from '@/core/sod'
 import { PO_MACHINE, VARIANCE_MACHINE, transition, type PoState, type TaskState, type VarianceState } from '@/core/state-machines'
 import { systemClock } from '@/lib/clock'
 import { newId } from '@/lib/ids'
-import { PIN_ONLY, requireStepUp } from '@/server/auth/step-up'
+import { DECISION_STEP_UP_METHODS, requireStepUp } from '@/server/auth/step-up'
 import { loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { applyBudget } from '@/server/budget/ledger'
@@ -15,7 +15,7 @@ import type { EventDraft } from '@/server/events/append'
 import type { CommandOutcome } from '../_pipeline'
 import { assignNextStep } from '../approvals/next-step'
 import { closeRoute } from '../approvals/route'
-import { completeStep } from '../approvals/step-complete'
+import { completeStep, decidedEvent } from '../approvals/step-complete'
 import { budgetRefusalFor } from '../purchase-orders/budget'
 import { closePoInTx, unsettledLines } from '../purchase-orders/close'
 import type { DocumentTask } from '../purchase-orders/decide'
@@ -67,7 +67,7 @@ export async function decideVarianceTask(
   // this variance (security clock), used once; a refusal rolls the use back with the rest
   const stepUp = await requireStepUp(
     tx,
-    { memberId: actor, route: { subjectType: 'VARIANCE', subjectId: variance.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: PIN_ONLY },
+    { memberId: actor, route: { subjectType: 'VARIANCE', subjectId: variance.id, amountSatang: route.amountSatang, stepUpThresholdSatang: version.stepUpThresholdSatang }, methods: DECISION_STEP_UP_METHODS },
     systemClock.now(),
   )
   if (!stepUp.ok) return { ok: false, error: stepUp.error }
@@ -82,32 +82,21 @@ export async function decideVarianceTask(
     data: { status: taskTo, decision: input.decision, decidedAt: ctx.now, decidedByMemberId: actor, channel: ctx.channel, reason: input.reason ?? null, version: { increment: 1 } },
   })
   const events: EventDraft[] = [
-    {
-      type: 'approval_task.decided',
-      aggregateType: 'ApprovalTask',
-      aggregateId: task.id,
-      doaVersionId: route.doaVersionId,
-      doaRuleCode: route.ruleCode,
-      ...(task.principalMemberId && actor !== task.principalMemberId ? { onBehalfOfMemberId: task.principalMemberId } : {}),
-      data: {
-        decision: input.decision,
-        subjectType: 'VARIANCE',
-        subjectId: variance.id,
-        doaVersionId: route.doaVersionId,
-        doaRuleCode: route.ruleCode,
-        channel: ctx.channel,
-        actorMemberId: actor,
-        onBehalfOfMemberId: task.principalMemberId && actor !== task.principalMemberId ? task.principalMemberId : null,
-        reasonCommentId,
-        ...(stepUp.grantId ? { stepUpGrantId: stepUp.grantId } : {}),
-      },
-    },
+    decidedEvent(ctx, { task, route, subjectType: 'VARIANCE', subjectId: variance.id, decision: input.decision, actorMemberId: actor, reasonCommentId, stepUpGrantId: stepUp.grantId }),
   ]
-  // BR-SLA-04: the step is decided — its other open tasks are cancelled before the route moves on or closes
-  events.push(...(await completeStep(tx, ctx, task)))
+  // BR-SLA-04, FR-DOA-004 AC6: the step is decided — its other open tasks are cancelled — and the variance moves by what
+  // the step came to, not by this task's decision
+  const step = await completeStep(tx, ctx, task, input.decision)
+  if (!step.ok) return { ok: false, error: step.error }
+  events.push(...step.data.events)
+  const outcome = step.data.outcome
+  if (outcome === 'OPEN') return { ok: true, result: { taskId: task.id, documentStatus: variance.status }, events }
+  // A variance is approved or rejected, never returned: refused above for the task, and a step cannot come to it either
+  if (outcome === 'RETURNED') return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: 'a variance is approved or rejected, not returned', details: { from: variance.status, command: 'approval.return' } } }
+  const final = outcome === 'APPROVED' ? 'APPROVE' : 'REJECT'
   const line = await tx.poLine.findUniqueOrThrow({ where: { id: variance.poLineId } })
 
-  if (input.decision === 'APPROVE') {
+  if (outcome === 'APPROVED') {
     const departmentId = (await tx.budgetLine.findUniqueOrThrow({ where: { id: line.budgetLineId }, select: { departmentId: true } })).departmentId
     const next = await assignNextStep(
       tx,
@@ -121,11 +110,11 @@ export async function decideVarianceTask(
     if (next.assigned) return { ok: true, result: { taskId: task.id, documentStatus: variance.status }, events: [...events, ...next.events], notifications: next.notifications }
   }
 
-  const moved = transition(VARIANCE_MACHINE, variance.status as VarianceState, COMMAND[input.decision])
-  if (!moved.ok) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: `${COMMAND[input.decision]} is not allowed from ${variance.status}`, details: { from: variance.status, command: COMMAND[input.decision] } } }
-  events.push(...(await closeRoute(tx, { type: 'VARIANCE', id: variance.id }, input.decision === 'APPROVE' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
+  const moved = transition(VARIANCE_MACHINE, variance.status as VarianceState, COMMAND[final])
+  if (!moved.ok) return { ok: false, error: { code: 'INVALID_STATE_TRANSITION', message: `${COMMAND[final]} is not allowed from ${variance.status}`, details: { from: variance.status, command: COMMAND[final] } } }
+  events.push(...(await closeRoute(tx, { type: 'VARIANCE', id: variance.id }, outcome === 'APPROVED' ? 'COMPLETED' : 'CANCELLED', 'DOCUMENT_DECIDED')))
   await tx.variance.update({ where: { id: variance.id }, data: { status: moved.to, decidedAt: ctx.now, version: { increment: 1 } } })
-  if (input.decision === 'REJECT') {
+  if (outcome === 'REJECTED') {
     events.push({ type: 'variance.rejected', aggregateType: 'Variance', aggregateId: variance.id, data: { taskId: task.id, reasonCommentId: reasonCommentId! } })
     return { ok: true, result: { taskId: task.id, documentStatus: moved.to }, events }
   }

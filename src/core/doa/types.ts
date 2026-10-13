@@ -57,6 +57,11 @@ export const GOVERNANCE_DOCUMENT_TYPES: readonly DoaDocumentType[] = DOA_DOCUMEN
 /** Types whose rules carry no amount band: the editor hides the limit and the simulator the amount. */
 export const NO_AMOUNT_DOCUMENT_TYPES: readonly DoaDocumentType[] = DOA_DOCUMENT_TYPES.filter((t) => DOC_TYPE_TRAITS[t].governance || DOC_TYPE_TRAITS[t].amount === 'NONE')
 
+/** The one document type a subject routes with (BR-DOA-20: every subject is in exactly one type's list). */
+export function documentTypeOfSubject(subject: ApprovalSubject): DoaDocumentType {
+  return DOA_DOCUMENT_TYPES.find((t) => DOC_TYPE_TRAITS[t].subjects.includes(subject))!
+}
+
 /** BR-DOA-23: the types every version must have rules for while these modules are on, in DOA_DOCUMENT_TYPES order. */
 export function requiredDocumentTypes(modules: readonly string[] = []): DoaDocumentType[] {
   return DOA_DOCUMENT_TYPES.filter((t) => DOC_TYPE_TRAITS[t].governance || DOC_TYPE_TRAITS[t].requiredWithModules.some((m) => modules.includes(m)))

@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { symmetricDecrypt } from 'better-auth/crypto'
 import { z } from 'zod'
 import { afterWrongPin, isPinFormat, isPinLocked, PIN_FAILURE_LIMIT, pinAttemptsLeft, pinLockEndsAt, stepUpNeeded, type StepUpRoute, type WrongPinOutcome } from '@/core/pin'
+import { APPROVAL_SUBJECTS } from '@/core/sod'
 import type { AppError } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, MS_PER_SECOND, STEP_UP_TTL_MS, TOTP_ACCEPTED_DRIFT_STEPS } from '@/lib/constants'
@@ -57,7 +58,7 @@ export type StepUpMethod = 'TOTP' | 'PIN'
 export const STEP_UP_PURPOSE = 'DECIDE'
 
 /** The documents a step-up is for: the subjects of approval routes (ApprovalSubjectType of prisma/schema.prisma) */
-export const STEP_UP_SUBJECT_TYPES = ['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE'] as const
+export const STEP_UP_SUBJECT_TYPES = APPROVAL_SUBJECTS
 
 /** Where the member typed the PIN; kept as the channel of security.pin_locked */
 export type StepUpChannel = 'WEB' | 'LIFF' | 'PWA'
@@ -67,11 +68,17 @@ const STEP_UP_CHANNELS = ['WEB', 'LIFF', 'PWA'] as const
 export const PIN_ONLY: readonly StepUpMethod[] = ['PIN']
 
 /**
+ * What every deciding command accepts as its step-up (FR-AUTH-005 AC5, BR-DOA-25): requests, purchase orders,
+ * variances, policy and the phase-1 subjects read it here and nowhere else. The PIN until S17-15 adds the passkey, here.
+ */
+export const DECISION_STEP_UP_METHODS: readonly StepUpMethod[] = PIN_ONLY
+
+/**
  * The proofs a policy decision (BR-DOA-15) takes: the PIN only, on every channel — the web included since S5-05, when
  * its decision page switched from the authenticator code to the PIN. The channel stays in the signature for the callers.
  */
 export function policyStepUpMethods(_channel?: Channel): readonly StepUpMethod[] {
-  return PIN_ONLY
+  return DECISION_STEP_UP_METHODS
 }
 
 interface StepUpSubject {

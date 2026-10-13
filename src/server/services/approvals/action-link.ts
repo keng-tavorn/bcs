@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { formatSatang } from '@/core/money/format'
+import { stepUpNeeded } from '@/core/pin'
 import { err, ok, type ErrorCode, type Result } from '@/core/result'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
@@ -8,6 +9,7 @@ import { linkSecretMatches, parseEmailLink } from '@/server/tokens/action-tokens
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { decideCommand } from './decide'
 import { deciderDetails, lockForDecision, tokenRefusalOf } from './step-complete'
+import { outsideChannels } from './subjects'
 
 // Deciding from an e-mail link (spec BR-TOK-03, BR-TOK-04, INV-TOK-01, FR-NOTI-002 AC2). Opening the link only shows
 // the task — a GET changes nothing, because an e-mail scanner may open it. The decision is a POST by the member the
@@ -16,8 +18,9 @@ import { deciderDetails, lockForDecision, tokenRefusalOf } from './step-complete
 // used, expired, revoked or someone else's is refused with its reason, and someone else's is kept as
 // security.token_misuse before anything about the task is said. A link whose task was decided — with it or anywhere
 // else, or by the other approver of its step — answers TOKEN_USED with who decided and when, as the LINE button does
-// (§9.3, FR-DOA-004 AC2, ADR-050 item 4). Policy tasks (DOA and authority changes) and anything needing step-up are
-// decided in the workspace, where the second factor is asked.
+// (§9.3, FR-DOA-004 AC2, ADR-050 item 4). Anything needing a step-up (stepUpNeeded: the subjects of
+// ALWAYS_STEP_UP_SUBJECTS, or the amount at or above the version's stepUpThreshold) and any subject whose adapter keeps
+// the e-mail closed (BR-DOA-25) is decided in the workspace, where the second factor is asked.
 
 type LinkError = Extract<ErrorCode, 'TOKEN_INVALID' | 'TOKEN_USED' | 'TOKEN_EXPIRED'>
 const tokenError = (code: LinkError, message: string) => ({ ok: false, error: { code, message } }) as const
@@ -59,7 +62,13 @@ export type ActionLinkView =
   | { readonly state: 'CLOSED'; readonly taskId: string; readonly subjectType: string; readonly subjectId: string; readonly label: string }
   | { readonly state: LinkError | 'NOT_YOURS' }
 
-const WORKSPACE_ONLY = new Set(['DOA_VERSION', 'ORG_AUTHORITY_CHANGE'])
+type LinkRoute = { readonly subjectType: string; readonly subjectId: string; readonly amountSatang: bigint | null; readonly doaVersion: { readonly stepUpThresholdSatang: bigint | null } }
+
+/** Decided in the workspace only: a step-up is needed, or the subject keeps the e-mail link closed */
+async function workspaceOnly(db: TenantTx | ReturnType<typeof forTenant>, route: LinkRoute): Promise<boolean> {
+  if (stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang })) return true
+  return !(await outsideChannels(db as TenantTx, route.subjectType, route.subjectId)).emailLink
+}
 
 /** What the link is about, for the member who opened it. Reads only. */
 export async function viewActionLink(ctx: Ctx, link: string): Promise<Result<ActionLinkView>> {
@@ -77,7 +86,6 @@ export async function viewActionLink(ctx: Ctx, link: string): Promise<Result<Act
   const why = unusable(token, ctx.now)
   if (task.status !== 'OPEN') return ok({ state: 'CLOSED', taskId: task.id, subjectType: route.subjectType, subjectId: route.subjectId, label: subject.label })
   if (why) return ok({ state: why })
-  const threshold = route.doaVersion.stepUpThresholdSatang
   return ok({
     state: 'OPEN',
     taskId: task.id,
@@ -86,7 +94,7 @@ export async function viewActionLink(ctx: Ctx, link: string): Promise<Result<Act
     ...subject,
     amount: route.amountSatang === null ? null : formatSatang(route.amountSatang),
     actions: token.allowedActions,
-    inWorkspaceOnly: WORKSPACE_ONLY.has(route.subjectType) || (threshold !== null && route.amountSatang !== null && route.amountSatang >= threshold),
+    inWorkspaceOnly: await workspaceOnly(db, route),
     expiresAt: token.expiresAt.toISOString(),
   })
 }
@@ -135,10 +143,11 @@ export const decideByLinkCommand = defineCommand({
     // INV-PLT-03; the LINE postback and decideTask do too), so an e-mail link, a chat button and the workspace pressed
     // together — on this task or on the other task of an escalated step — wait for each other instead of deadlocking
     if (!(await lockForDecision(tx, ctx.organizationId, token.taskId))) return tokenError('TOKEN_INVALID', 'the task is gone')
-    const route = await tx.approvalTask.findUniqueOrThrow({ where: { id: token.taskId }, select: { step: { select: { route: { select: { subjectType: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } } })
-    const r = route.step.route
-    const threshold = r.doaVersion.stepUpThresholdSatang
-    if (WORKSPACE_ONLY.has(r.subjectType) || (threshold !== null && r.amountSatang !== null && r.amountSatang >= threshold)) {
+    const route = await tx.approvalTask.findUniqueOrThrow({
+      where: { id: token.taskId },
+      select: { step: { select: { route: { select: { subjectType: true, subjectId: true, amountSatang: true, doaVersion: { select: { stepUpThresholdSatang: true } } } } } } },
+    })
+    if (await workspaceOnly(tx, route.step.route)) {
       return { ok: false, error: { code: 'STEP_UP_REQUIRED', message: 'this task is decided in the workspace with a second factor', details: { taskId: token.taskId } } }
     }
     // BR-TOK-04: one conditional update uses the token; when it does not, the reason is read again (another POST may

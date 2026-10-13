@@ -63,12 +63,15 @@ async function membersOnLine(tx: TenantTx, memberIds: readonly string[]): Promis
   return new Set(links.map((l) => l.memberId))
 }
 
+/** Whether a document's tasks may be decided from the chat or an e-mail link (outsideChannels of the subject registry) */
+export type SubjectChannelsOf = (tx: TenantTx, subjectType: string, subjectId: string) => Promise<{ readonly chatButton: boolean; readonly emailLink: boolean }>
+
 /**
  * BR-TOK-01 from a command's events, in its transaction: for every task assigned (or moved to a new assignee) an e-mail
- * token, and a LINE token when the assignee is linked to LINE; every token of a task decided, cancelled or moved away
- * revoked.
+ * token, and a LINE token when the assignee is linked to LINE — none for a channel its subject keeps closed (BR-DOA-25:
+ * no button, no link); every token of a task decided, cancelled or moved away revoked.
  */
-export async function applyTokenLifecycle(tx: TenantTx, ctx: Ctx, events: readonly EventDraft[]): Promise<void> {
+export async function applyTokenLifecycle(tx: TenantTx, ctx: Ctx, events: readonly EventDraft[], channelsOf: SubjectChannelsOf): Promise<void> {
   const issue: Array<{ taskId: string; memberId: string }> = []
   const revoke = new Set<string>()
   for (const e of events) {
@@ -83,14 +86,17 @@ export async function applyTokenLifecycle(tx: TenantTx, ctx: Ctx, events: readon
   if (issue.length) {
     const expiresAt = new Date(ctx.now.getTime() + ACTION_TOKEN_TTL_MS)
     const onLine = await membersOnLine(tx, issue.map((i) => i.memberId))
+    const routes = await tx.approvalTask.findMany({ where: { id: { in: issue.map((i) => i.taskId) } }, select: { id: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } } })
+    const channels = new Map<string, Awaited<ReturnType<SubjectChannelsOf>>>()
+    for (const t of routes) channels.set(t.id, await channelsOf(tx, t.step.route.subjectType, t.step.route.subjectId))
     await tx.actionToken.createMany({
       data: issue.flatMap(({ taskId, memberId }) => {
+        const open = channels.get(taskId) ?? { chatButton: false, emailLink: false }
         const id = newId()
         const email = { id, organizationId: ctx.organizationId, memberId, taskId, allowedActions: [...EMAIL_LINK_ACTIONS], channel: 'EMAIL' as const, secretHash: hashLinkSecret(emailLinkSecret(id)), expiresAt }
-        if (!onLine.has(memberId)) return [email]
         // BR-TOK-02: no secret; the postback is checked against the LINE user of the signed webhook
         const line = { id: newId(), organizationId: ctx.organizationId, memberId, taskId, allowedActions: [...LINE_BUTTON_ACTIONS], channel: 'LINE' as const, secretHash: null, expiresAt }
-        return [email, line]
+        return [...(open.emailLink ? [email] : []), ...(open.chatButton && onLine.has(memberId) ? [line] : [])]
       }),
     })
   }

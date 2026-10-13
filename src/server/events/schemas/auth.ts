@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { APPROVAL_SUBJECTS } from '@/core/sod'
 import { defineEvents } from '../registry'
 
 // Security events (spec §10.2 auth.*; auth.login_locked added, see §16.11). The aggregate id is the member when
@@ -38,7 +39,7 @@ defineEvents('Security', {
     schema: z.strictObject({
       failedAttempts: z.number().int().positive(),
       lockedUntil: z.iso.datetime({ offset: true }),
-      subjectType: z.enum(['REQUEST', 'PURCHASE_ORDER', 'VARIANCE', 'DOA_VERSION', 'ORG_AUTHORITY_CHANGE']),
+      subjectType: z.enum(APPROVAL_SUBJECTS),
       subjectId: z.uuid(),
     }),
   },

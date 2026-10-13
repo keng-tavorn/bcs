@@ -7,6 +7,7 @@ import { listModules } from '@/server/services/modules'
 import { getTenant } from '@/server/services/platform/tenants'
 import { ModuleState } from '@/ui/admin/module-state'
 import { ModuleSwitch } from '@/ui/admin/module-switch'
+import { DOC_TYPES } from '@/ui/admin-doa/editor-model'
 import { formatDateTime } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
 import { getPlatformSession } from '../../../../../_lib/session'
@@ -22,7 +23,7 @@ export async function generateMetadata() {
 export default async function TenantModulesPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params
   const state = await getPlatformSession()
-  const [t, tModules, locale] = await Promise.all([getTranslations('platform.modules'), getTranslations('admin.modules'), getLocale()])
+  const [t, tModules, tDoa, locale] = await Promise.all([getTranslations('platform.modules'), getTranslations('admin.modules'), getTranslations('adminDoa'), getLocale()])
   if (state.kind !== 'platform-admin') return null
   const tenant = await getTenant(state.platformAdminId, orgId)
   if (!tenant.ok && tenant.error.code === 'NOT_FOUND') notFound()
@@ -37,6 +38,7 @@ export default async function TenantModulesPage({ params }: { params: Promise<{ 
     )
   }
   const names = Object.fromEntries(modules.data.map((m) => [m.module, tModules(`names.${m.module}`)]))
+  const documentTypeNames = Object.fromEntries(DOC_TYPES.map((d) => [d, tDoa(`documentTypes.${d}`)]))
   const when = (iso: string) => formatDateTime(locale, iso)
 
   return (
@@ -71,7 +73,7 @@ export default async function TenantModulesPage({ params }: { params: Promise<{ 
             {m.module === 'CORE' ? (
               <p className="text-base text-ink-muted md:text-sm">{t('coreAlwaysOn')}</p>
             ) : (
-              <ModuleSwitch organizationId={tenant.data.id} module={m.module} enabled={m.enabled} names={names} setModule={setModuleAction} />
+              <ModuleSwitch organizationId={tenant.data.id} module={m.module} enabled={m.enabled} names={names} documentTypeNames={documentTypeNames} setModule={setModuleAction} />
             )}
           </li>
         ))}

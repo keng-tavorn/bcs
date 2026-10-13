@@ -13,6 +13,7 @@
   "MODULE_IN_USE": "Cannot disable the module: {reason}",
   "TOKEN_USED": "Already done by {name} at {time}",
   "DUPLICATE_INVOICE": "This invoice number is already recorded for this supplier",
+  "AI_REVIEW_PENDING": "{count} fields the AI filled in are not confirmed yet",
   "TOKEN_EXPIRED": "This link has expired. Please open it from the system",
   "DOA_NOT_CONFIGURED": "No delegation of authority is in effect for this document. Please contact your administrator",
   "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",

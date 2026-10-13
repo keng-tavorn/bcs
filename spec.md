@@ -3551,6 +3551,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `MODULE_IN_USE` | 409 | ปิดโมดูลไม่ได้: {reason} |
 | `TOKEN_USED` | 409 | รายการนี้ดำเนินการแล้วโดย {name} เมื่อ {time} |
 | `DUPLICATE_INVOICE` | 409 | เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้ |
+| `AI_REVIEW_PENDING` | 409 | ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง |
 | `TOKEN_EXPIRED` | 410 | ลิงก์หมดอายุ กรุณาเปิดจากระบบ |
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |

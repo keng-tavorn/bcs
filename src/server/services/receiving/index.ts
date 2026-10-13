@@ -16,10 +16,12 @@ import { effectiveSodPolicy } from '@/server/doa/policy'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { AiAssistInput, applyAiAssist } from '../ai/assist-contract'
 import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { unsettledLines } from '../purchase-orders/close'
 import { receivingDecision } from './access'
+import { checkOfflineCapture, checkOfflineSender, OfflineCaptureInput } from './offline-input'
 import { photosUsable } from './photos'
 import { keepPendingByLine, receiveOnLine, shortNow, standingOf, stillToCome } from './standing'
 
@@ -146,6 +148,10 @@ const PostInput = z.strictObject({
     )
     .min(1)
     .max(200),
+  /** Values an AI action filled in and the person confirmed (BR-AI-17 of S13 · assist-contract.ts) */
+  aiAssist: AiAssistInput.optional(),
+  /** A receipt captured without a signal in BCS Go and sent later (BR-APP-08 of S17 · offline-input.ts) */
+  offline: OfflineCaptureInput.optional(),
 })
 
 export const postGrCommand = defineCommand({
@@ -153,14 +159,20 @@ export const postGrCommand = defineCommand({
   capability: 'gr.post',
   input: PostInput,
   async execute(tx, input, ctx): Promise<CommandOutcome<{ grId: string; number: string; poStatus: string; varianceIds: string[]; pendingApproval: number }>> {
+    // The checks keep BR-APP-08's order (P1-07): who captured an offline receipt → permission and SoD → the PO's status →
+    // the PO version and the capture time of an offline receipt → everything below as it was → the AI's values (S13)
     const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
     if (!actor) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member receives goods' } }
+    const sender = checkOfflineSender(actor, input.offline)
+    if (!sender.ok) return sender
     const loaded = await loadPo(tx, ctx, input.poId)
     if (!loaded) return fail('NOT_FOUND', 'purchase order not found')
     const { po } = loaded
     const may = await mayReceive(tx, ctx, loaded, actor)
     if (!may.ok) return may
     if (po.status !== 'SENT' && po.status !== 'PARTIALLY_RECEIVED') return fail('INVALID_STATE_TRANSITION', `gr.post is not allowed when the purchase order is ${po.status}`, { from: po.status, command: 'gr.post' })
+    const captured = await checkOfflineCapture(tx, ctx, po, input.offline)
+    if (!captured.ok) return captured
 
     const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
     const tolerancePct = OrgSettingsSchema.shape.receiving.parse((org.settings as { receiving?: unknown } | null)?.receiving).overTolerancePct
@@ -274,6 +286,10 @@ export const postGrCommand = defineCommand({
     const moved = await statusAfterReceipt(tx, po)
     if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `gr.post is not allowed when the purchase order is ${po.status}`, { from: po.status, command: 'gr.post' })
     await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, version: { increment: 1 } } })
+    // BR-AI-17 (S13): what the person confirmed of an AI action, last, in this transaction
+    const assisted = await applyAiAssist(tx, ctx, { type: 'GOODS_RECEIPT', id: grId }, input.aiAssist)
+    if (!assisted.ok) return assisted
+    events.push(...assisted.data)
     events.unshift({
       type: 'gr.posted',
       aggregateType: 'GoodsReceipt',

@@ -10,12 +10,18 @@ const budgetCheck = z.object({ budgetLineId: z.uuid(), availableSatang: satang, 
 
 defineEvents('Request', {
   'request.drafted': {
+    // Version 2 (P1-07, docs/sub-specs/P1.md "สัญญากลางอื่น"): where the draft came from and the AI action that made it.
+    // Defined once for every lane — S6 writes REORDER and RENEWAL, S13 agentActionId, S17 CHAT_INTAKE; none bumps it
+    // again. A version 1 event (neither field) still reads: its source is MANUAL.
+    schemaVersion: 2,
     schema: z.object({
       requestTypeCode: z.string().min(1),
       lines: z.number().int().nonnegative(),
       // S2-11 (FR-INT-005, FR-PLT-004 AC2): the change was a file linked to the draft as a kind of attachment, or taken
       // off it. The file name is free text and stays on FileObject (§4.5).
       file: z.object({ action: z.enum(['ATTACHED', 'DETACHED']), fileId: z.uuid(), kinds: z.array(z.string().min(1)).min(1) }).optional(),
+      source: z.enum(['MANUAL', 'REORDER', 'RENEWAL', 'CHAT_INTAKE']).default('MANUAL'),
+      agentActionId: z.uuid().optional(),
     }),
   },
   'request.submitted': {

@@ -43,7 +43,15 @@ export const OrgSettingsSchema = z
     digest: z.object({ enabled: z.boolean(), budgetLowPct: percent }).strict(),
     email: z.object({ fromAddress: z.email(), actionLinksRequireLogin: z.boolean() }).strict(), // OQ-22
     sso: z.object({ trustIdpMfa: z.boolean(), allowedDomains: z.array(z.string().min(1)) }).strict(),
-    numbering: z.object({ PR: numberingRule, PO: numberingRule, GR: numberingRule, RQ: numberingRule }).strict(), // OQ-12
+    // OQ-12. One key per line, sorted: each lane adds its own document's key on a line of its own (P1-07), e.g. BT OB (S6)
+    numbering: z
+      .object({
+        GR: numberingRule,
+        PO: numberingRule,
+        PR: numberingRule,
+        RQ: numberingRule,
+      })
+      .strict(),
     express: z
       .object({
         fileType: z.enum(['xlsx', 'csv']),

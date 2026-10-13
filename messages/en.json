@@ -2643,6 +2643,7 @@
     }
   },
   "errors": {
+    "AI_REVIEW_PENDING": "{count} fields the AI filled in are not confirmed yet",
     "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
     "ATTACHMENT_RULE_FAILED": "Required attachments missing under rule {rule}: {missing}",
     "BUDGET_INSUFFICIENT": "Insufficient budget: {available} baht available, {shortfall} baht short",

@@ -2643,6 +2643,7 @@
     }
   },
   "errors": {
+    "AI_REVIEW_PENDING": "ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง",
     "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
     "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",
     "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",

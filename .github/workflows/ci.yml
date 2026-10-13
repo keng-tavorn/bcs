@@ -146,12 +146,18 @@ jobs:
       - name: /api/health answers 200 with this commit (FR-PLT-006 AC2)
         env:
           STAGING_URL: ${{ vars.STAGING_URL }}
+        # The staging domain moves to the new deployment a little after vercel deploy returns (run 38269418092 read the
+        # previous commit once and failed): ask again until it answers ok with this commit, for at most 5 minutes
         run: |
           base="${STAGING_URL:-${{ steps.deploy.outputs.url }}}"
-          for attempt in 1 2 3 4 5 6; do
-            body=$(curl -fsS "$base/api/health") && break
+          for attempt in $(seq 1 30); do
+            body=$(curl -fsS "$base/api/health" || true)
+            if echo "$body" | grep -q '"status":"ok"' && echo "$body" | grep -q '"commit":"${{ github.sha }}"'; then
+              echo "$body"
+              exit 0
+            fi
+            echo "attempt $attempt: $body"
             sleep 10
           done
-          echo "$body"
-          echo "$body" | grep -q '"status":"ok"'
-          echo "$body" | grep -q '"commit":"${{ github.sha }}"'
+          echo "/api/health did not answer ok with ${{ github.sha }} within 5 minutes"
+          exit 1

@@ -104,6 +104,14 @@ describe('the CI workflow (.github/workflows/ci.yml)', () => {
     expect(workflow.jobs['deploy-staging'].concurrency).toEqual({ group: 'deploy-staging', 'cancel-in-progress': false })
   })
 
+  it('[FR-PLT-006/AC2] the staging check waits until /api/health answers ok with this very commit, not just any answer', () => {
+    const health = workflow.jobs['deploy-staging'].steps.find((s) => s.name?.startsWith('/api/health'))?.run ?? ''
+    // One answer from the previous deployment is not a failure: the domain moves over a little after the deploy
+    expect(health).toContain('seq 1 30')
+    expect(health).toContain("grep -q '\"status\":\"ok\"' && echo \"$body\" | grep -q '\"commit\":\"${{ github.sha }}\"'; then")
+    expect(health.trim().endsWith('exit 1')).toBe(true)
+  })
+
   it('[FR-PLT-006/AC1] every run is pnpm verify --strict --e2e; only a change of documents since the last green main adds --docs-only', () => {
     const changes = steps.find((s) => s.id === 'changes')
     expect(changes?.run).toContain('--status success')

@@ -20,3 +20,5 @@ export const FORM_TEXT_MAX_LENGTH = 2_000
 export const FORM_TEXTAREA_MAX_LENGTH = 10_000
 /** AI credits (BR-AI-23): prices are micro-USD per million tokens and 1 credit = 1,000 micro-USD */
 export const AI_PRICE_UNITS_PER_CREDIT = 1_000_000_000n
+/** Minutes in a day (the age of a document in days, BR-AI-15) */
+export const MINUTES_PER_DAY = 1_440

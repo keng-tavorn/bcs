@@ -826,10 +826,176 @@ def run_ai_eval_score(d):
             got = {"scoreBp": score, "pass": score >= i["thresholdBp"] and not (i.get("critical") and i["missed"] > 0)}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def _ai_sat(v):
+    from decimal import Decimal as D
+    return None if v is None or str(v).strip() == "" else int((D(str(v).replace(",", "")) * 100).to_integral_value())
+def _ai_amt(x): return f"{'-' if x < 0 else ''}{abs(x) // 100}.{abs(x) % 100:02d}"
+def _ai_div(n, d): return (2 * n + d) // (2 * d) if n >= 0 else -((2 * -n + d) // (2 * d))
+def _ai_line(q, p):
+    from decimal import Decimal as D
+    qs = int(D(str(q)) * 10000); return _ai_div(qs * p, 10000)
+def _ai_taxok(t):
+    t = re.sub(r"[\s-]", "", t)
+    if not re.fullmatch(r"\d{13}", t): return False
+    return (11 - sum(int(t[i]) * (13 - i) for i in range(12)) % 11) % 10 == int(t[12])
+def _ai_set(base, changes):
+    import copy
+    r = copy.deepcopy(base)
+    for k, v in (changes or {}).items():
+        parts, o = k.split("."), r
+        for x in parts[:-1]: o = o[int(x)] if isinstance(o, list) else o.setdefault(x, {})
+        if isinstance(o, list): o[int(parts[-1])] = v
+        else: o[parts[-1]] = v
+    return r
+def _ai_verify(doc, fx, now):
+    import datetime as dt
+    fail, warn, skip, fl, comp = [], [], [], set(), {}
+    def F(c, *p): fail.append(c); fl.update(p)
+    def W(c, *p): warn.append(c); fl.update(p)
+    inv = doc["docType"] == "TAX_INVOICE"
+    if doc.get("currency", "THB") != "THB":
+        return {"status": "FAIL", "fail": ["CURRENCY"], "warn": [], "skip": [], "flagged": ["*"]}
+    sup = fx["suppliers"].get(doc["supplier"]) if doc.get("supplier") else None
+    lines = doc["lines"]
+    neg = [i for i, l in enumerate(lines) if l.get("amount") is not None and _ai_sat(l["amount"]) < 0]
+    disc_read = _ai_sat(doc.get("discountTotal"))
+    amb = bool(neg) and disc_read is not None
+    norm = None
+    if neg and not amb: norm = {"lines": len(lines) - len(neg), "discountTotal": _ai_amt(sum(-_ai_sat(lines[i]["amount"]) for i in neg))}
+    priced = doc["docType"] != "DELIVERY_NOTE" and any(doc.get(k) is not None for k in ("net", "vat", "gross"))
+    if not priced: skip += ["LINE_AMOUNT", "NET_TOTAL", "VAT_AMOUNT", "GROSS_TOTAL"]
+    else:
+        total = 0
+        for i, l in enumerate(lines):
+            c = _ai_line(l["qty"], _ai_sat(l["unitPrice"]))
+            if c != _ai_sat(l["amount"]): F("LINE_AMOUNT", f"lines.{i}.amount")
+            if i not in neg: total += c
+        if amb:
+            F("DISCOUNT_AMBIGUOUS", "discountTotal", *[f"lines.{i}.amount" for i in neg], "net", "vat", "gross"); skip += ["NET_TOTAL", "VAT_AMOUNT", "GROSS_TOTAL"]
+        else:
+            disc = (disc_read or 0) + sum(-_ai_sat(lines[i]["amount"]) for i in neg)
+            base = total - disc
+            net, vat, gross = _ai_sat(doc.get("net")), _ai_sat(doc.get("vat")), _ai_sat(doc.get("gross"))
+            vatreg = sup["vatRegistered"] if sup else True
+            d = doc.get("docDate")
+            rate = next((r["rateBp"] for r in fx["rates"] if r["effectiveFrom"] <= d <= r["effectiveTo"]), None) if d else None
+            vc = 0 if not vatreg else (None if rate is None else (_ai_div(base * rate, 10000 + rate) if doc.get("priceIncludesVat") else _ai_div(base * rate, 10000)))
+            if doc.get("priceIncludesVat"):
+                if gross != base: F("GROSS_TOTAL", "gross")
+                if net != gross - vat: F("NET_TOTAL", "net")
+                comp["gross"] = _ai_amt(base)
+                if vc is not None: comp["vat"] = _ai_amt(vc); comp["net"] = _ai_amt(base - vc)
+            else:
+                if net != base: F("NET_TOTAL", "net")
+                if gross != net + vat: F("GROSS_TOTAL", "gross")
+                comp["net"] = _ai_amt(base)
+                if vc is not None: comp["vat"] = _ai_amt(vc); comp["gross"] = _ai_amt(base + vc)
+            if not vatreg:
+                skip.append("VAT_AMOUNT")
+                if vat != 0: F("NON_VAT_SELLER", "vat")
+            elif rate is None:
+                F("VAT_RATE_MISSING", "vat", "gross"); skip.append("VAT_AMOUNT")
+            else:
+                diff = abs(vat - vc); comp["_diff"] = _ai_amt(diff)
+                if diff > 100: F("VAT_AMOUNT", "vat")
+                elif diff > 0: W("VAT_AMOUNT", "vat")
+    seller = doc.get("seller", {})
+    if seller.get("taxId") and not _ai_taxok(seller["taxId"]): F("TAXID_CHECKSUM", "seller.taxId")
+    if sup is None: skip += ["SELLER_MATCH", "SELLER_BRANCH"]
+    else:
+        if re.sub(r"[\s-]", "", seller.get("taxId") or "") != sup["taxId"]: F("SELLER_MATCH", "seller.taxId")
+        if seller.get("branch") != sup["branch"]: (F if inv else W)("SELLER_BRANCH", "seller.branch")
+    buyer = (doc.get("buyer") or {}).get("taxId")
+    if buyer and re.sub(r"[\s-]", "", buyer) != fx["orgTaxId"]: (F if inv else W)("BUYER_MATCH", "buyer.taxId")
+    today = (dt.datetime.fromisoformat(now.replace("Z", "+00:00")) + dt.timedelta(hours=7)).date()
+    dd = doc.get("docDate")
+    if dd:
+        y, m, dday = map(int, dd.split("-"))
+        try: age = (today - dt.date(y, m, dday)).days
+        except ValueError: age = None
+        if age is None or age < 0: F("DOC_DATE_FUTURE", "docDate")
+        elif age > 365: W("DOC_DATE_OLD", "docDate")
+    out = {"status": "FAIL" if fail else "WARN" if warn else "PASS", "fail": fail, "warn": warn, "skip": skip, "flagged": sorted(fl), "computed": {k: v for k, v in comp.items() if k != "_diff"}}
+    if "_diff" in comp: out["vatDiff"] = comp["_diff"]
+    if norm: out["normalized"] = norm
+    return out
+def _ai_cmp(got, exp):
+    for k, v in exp.items():
+        g = got.get(k)
+        if k in ("fail", "warn", "skip", "flagged"):
+            if sorted(g or []) != sorted(v): return False
+        elif isinstance(v, dict):
+            if not isinstance(g, dict) or any(g.get(a) != b for a, b in v.items()): return False
+        elif g != v: return False
+    return True
+def run_ai_verify(d):
+    fx, out = d["fixture"], []
+    for c in d["cases"]:
+        i = c["input"]
+        doc = _ai_set(fx["bases"][i["base"]], i.get("set"))
+        got = _ai_verify(doc, fx, i.get("now", fx["now"]))
+        out.append((c["id"], _ai_cmp(got, c["expect"]), got))
+    return out
+def run_ai_confidence(d):
+    fx, out = d["fixture"], []
+    for c in d["cases"]:
+        i = c["input"]
+        cap = {"FAIL": 0, "WARN": 5000}.get(i["check"], 10000)
+        bp = min(max(0, min(100, i["modelConfidence"])) * 100, cap)
+        crit = re.sub(r"^lines\.\d+\.", "lines.*.", i["field"]) in fx["critical"]
+        got = {"confidenceBp": bp, "mustConfirm": crit or bp < fx["minConfidenceBp"]}
+        out.append((c["id"], _ai_cmp(got, c["expect"]), got))
+    return out
+def run_ai_quotation_map(d):
+    fx, out = d["fixture"], []
+    for c in d["cases"]:
+        i = c["input"]
+        r = _ai_set(fx["readings"][i["reading"]], i.get("set"))
+        fails = (i.get("checks") or {}).get("fail", [])
+        flags, inc = [], bool(r.get("priceIncludesVat"))
+        reg = next((k for k, v in fx["registry"].items() if v["taxId"] == r["seller"]["taxId"] and v["branch"] == r["seller"].get("branch", "00000")), None)
+        if reg is None: flags.append("SUPPLIER_NOT_REGISTERED")
+        unver = any(x in fails for x in ("NET_TOTAL", "GROSS_TOTAL", "DISCOUNT_AMBIGUOUS"))
+        if unver: flags.append("AMOUNT_UNVERIFIED")
+        amt = None if unver else _ai_amt(_ai_sat(r["gross"] if inc else r["net"]))
+        negs = [l for l in r["lines"] if _ai_sat(l.get("amount")) is not None and _ai_sat(l["amount"]) < 0]
+        disc = "DISCOUNT_AMBIGUOUS" in fails or r.get("discountTotal") is not None or bool(negs)
+        if disc: flags.append("DISCOUNT_NOT_MAPPABLE")
+        qn = None if amt is None else (_ai_amt(_ai_sat(amt) - _ai_div(_ai_sat(amt) * fx["vatRateBp"], 10000 + fx["vatRateBp"])) if inc else amt)
+        got = {"quotation": {"supplierId": reg, "supplierName": fx["registry"][reg]["nameTh"] if reg else r["seller"].get("name"), "amount": amt, "includesVat": inc, "fileId": fx["fileId"]},
+               "quoteNet": qn, "priceIncludesVat": inc, "lines": None if disc else [{"qty": l["qty"], "uom": l["unit"], "unitPrice": l["unitPrice"]} for l in r["lines"]], "flags": flags}
+        ok = _ai_cmp({k: v for k, v in got.items() if k != "lines"}, {k: v for k, v in c["expect"].items() if k != "lines"}) and ("lines" not in c["expect"] or c["expect"]["lines"] == got["lines"])
+        out.append((c["id"], ok, got))
+    return out
+def run_ai_dn_map(d):
+    from decimal import Decimal as D
+    po, out = d["fixture"]["poLines"], []
+    for c in d["cases"]:
+        flags, use = [], []
+        for i, l in enumerate(c["input"]["dnLines"]):
+            p = next((x for x in po if x["lineNo"] == l["poLineNo"]), None)
+            if p is None: flags.append({"code": "PO_LINE_UNKNOWN", "dnLine": i})
+            elif p["uom"] != l["unit"]: flags.append({"code": "UOM_MISMATCH", "dnLine": i})
+            else: use.append((p, l))
+        pre, seen = [], set()
+        for p, l in use:
+            same = [u for u in use if u[0]["lineNo"] == p["lineNo"]]
+            if len(same) > 1:
+                if p["lineNo"] not in seen: flags.append({"code": "DUPLICATE_PO_LINE", "lineNo": p["lineNo"]}); seen.add(p["lineNo"])
+                continue
+            pre.append({"lineNo": p["lineNo"], "received": l["qty"]})
+            if D(l["qty"]) > D(p["openQty"]): flags.append({"code": "OVER_OPEN", "lineNo": p["lineNo"]})
+        got = {"prefill": pre, "flags": flags}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
+    "ai-confidence": run_ai_confidence,
     "ai-credits": run_ai_credits,
+    "ai-dn-map": run_ai_dn_map,
     "ai-eval-score": run_ai_eval_score,
+    "ai-quotation-map": run_ai_quotation_map,
+    "ai-verify": run_ai_verify,
     "budget": run_budget,
     "consolidation": run_cons,
     "dates": run_dates,

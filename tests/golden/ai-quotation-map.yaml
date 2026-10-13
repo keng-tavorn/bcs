@@ -1,0 +1,28 @@
+# tests/golden/ai-quotation-map.yaml
+suite: ai-quotation-map
+note: checks คือผลตรวจของ ai-verify ที่ส่งเข้ามา (ไม่มี = ผ่านทั้งหมด) · ทุกเคสอ่านจากไฟล์ FILE-1 · quoteNet คำนวณด้วยสูตรเดิมของ BR-FORM-06 · set เปลี่ยนค่าตาม path
+fixture:
+  vatRateBp: 700
+  fileId: FILE-1
+  registry:
+    SP0056: { taxId: "0999998010561", branch: "00000", nameTh: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด }
+    SP0058: { taxId: "0999998010588", branch: "00000", nameTh: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด }
+    SP0068: { taxId: "0999998010685", branch: "00000", nameTh: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด }
+    SP0132: { taxId: "0999998011223", branch: "00000", nameTh: บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด }
+    SP0175: { taxId: "0999998011657", branch: "00000", nameTh: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด }
+  readings:
+    DOC-001: { docType: QUOTATION, priceIncludesVat: false, seller: { taxId: "0999998010561", branch: "00000", name: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด }, lines: [{ qty: "18", unit: ท่อน, unitPrice: "310.00", amount: "5580.00" }], net: "5580.00", vat: "390.60", gross: "5970.60" }
+    DOC-010: { docType: QUOTATION, priceIncludesVat: true, seller: { taxId: "0999998010588", branch: "00000", name: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด }, lines: [{ qty: "26", unit: ถัง, unitPrice: "2514.50", amount: "65377.00" }], net: "61100.00", vat: "4277.00", gross: "65377.00" }
+    DOC-049: { docType: QUOTATION, priceIncludesVat: true, seller: { taxId: "0999998010685", branch: "00000", name: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด }, lines: [{ qty: "25", unit: วัน, unitPrice: "5187.36", amount: "129684.00" }], net: "121200.00", vat: "8484.00", gross: "129684.00" }
+    DOC-055: { docType: QUOTATION, docNo: null, priceIncludesVat: false, seller: { taxId: "0999998011223", branch: "00000", name: บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด }, lines: [{ qty: "24", unit: คน-เดือน, unitPrice: "18500.00", amount: "444000.00" }], net: "444000.00", vat: "31080.00", gross: "475080.00" }
+    QT-DISC: { docType: QUOTATION, priceIncludesVat: false, seller: { taxId: "0999998011657", branch: "00000", name: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด }, lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }], discountTotal: "13000.00", net: "637000.00", vat: "44590.00", gross: "681590.00" }
+cases:
+  - { id: GC-AI-61, input: { reading: DOC-001 }, expect: { quotation: { supplierId: SP0056, supplierName: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด, amount: "5580.00", includesVat: false, fileId: FILE-1 }, quoteNet: "5580.00", priceIncludesVat: false, lines: [{ qty: "18", uom: ท่อน, unitPrice: "310.00" }], flags: [] } }
+  - { id: GC-AI-62, input: { reading: DOC-010 }, expect: { quotation: { supplierId: SP0058, supplierName: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด, amount: "65377.00", includesVat: true, fileId: FILE-1 }, quoteNet: "61100.00", priceIncludesVat: true, lines: [{ qty: "26", uom: ถัง, unitPrice: "2514.50" }], flags: [] } }
+  - { id: GC-AI-63, title: DOC-049 เช่าแบ็คโฮราคารวม VAT, input: { reading: DOC-049 }, expect: { quotation: { supplierId: SP0068, amount: "129684.00", includesVat: true, fileId: FILE-1 }, quoteNet: "121200.00", flags: [] } }
+  - { id: GC-AI-64, title: มีส่วนลด เติมเฉพาะยอด, input: { reading: QT-DISC }, expect: { quotation: { supplierId: SP0175, amount: "637000.00", includesVat: false }, quoteNet: "637000.00", lines: null, flags: [DISCOUNT_NOT_MAPPABLE] } }
+  - { id: GC-AI-65, title: ใบเขียนมือไม่มีเลขที่ (DOC-055), input: { reading: DOC-055 }, expect: { quotation: { supplierId: SP0132, amount: "444000.00", includesVat: false }, quoteNet: "444000.00", flags: [] } }
+  - { id: GC-AI-66, title: ยอดไม่ผ่านการตรวจ ไม่เติมยอด, input: { reading: DOC-001, set: { lines: [{ qty: "2.5", unit: ท่อน, unitPrice: "10.01", amount: "25.02" }], net: "25.02", vat: "1.75", gross: "26.77" }, checks: { fail: [LINE_AMOUNT, NET_TOTAL] } }, expect: { quotation: { supplierId: SP0056, amount: null, includesVat: false, fileId: FILE-1 }, lines: [{ qty: "2.5", uom: ท่อน, unitPrice: "10.01" }], flags: [AMOUNT_UNVERIFIED] } }
+  - { id: GC-AI-67, title: VAT เตือนไม่กระทบยอดก่อน VAT, input: { reading: DOC-001, set: { vat: "391.60", gross: "5971.60" }, checks: { warn: [VAT_AMOUNT] } }, expect: { quotation: { supplierId: SP0056, amount: "5580.00", includesVat: false }, quoteNet: "5580.00", flags: [] } }
+  - { id: GC-AI-68, title: ส่วนลดกำกวม ไม่เติมยอด, input: { reading: QT-DISC, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }] }, checks: { fail: [DISCOUNT_AMBIGUOUS] } }, expect: { quotation: { supplierId: SP0175, amount: null, includesVat: false }, lines: null, flags: [AMOUNT_UNVERIFIED, DISCOUNT_NOT_MAPPABLE] } }
+  - { id: GC-AI-69, title: เลขผู้เสียภาษีถูกแต่ไม่อยู่ในทะเบียน, input: { reading: DOC-001, set: { seller.taxId: "0999998019992", seller.name: ร้านตัวอย่างวัสดุ } }, expect: { quotation: { supplierId: null, supplierName: ร้านตัวอย่างวัสดุ, amount: "5580.00", includesVat: false, fileId: FILE-1 }, flags: [SUPPLIER_NOT_REGISTERED] } }

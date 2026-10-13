@@ -3598,6 +3598,126 @@ cases:
   - { id: GC-AI-21, title: ฟิลด์รองไม่นับกฎหลุด, fn: fieldScore, input: { correct: 46, total: 50, thresholdBp: 9000, missed: 1, critical: false }, expect: { scoreBp: 9200, pass: true } }
 ```
 
+**ตรวจผลอ่านของ AI (S13-06 · BR-AI-14 BR-AI-15 BR-AI-16 BR-AI-25 · golden ai-verify ai-confidence ai-quotation-map ai-dn-map):** `verifyReading` `fieldConfidence` `mapQuotation` `mapDeliveryNote` ใน `src/core/ai-checks` · ใช้ `src/core/money` `vat` `thai` เดิม · runner เทียบเฉพาะคีย์ที่อยู่ใน expect และเทียบ `flagged` `fail` `warn` `skip` แบบไม่สนลำดับ
+
+```yaml
+# tests/golden/ai-verify.yaml
+suite: ai-verify
+note: supplier = ผู้ขายของบริบท (ที่ผู้ใช้เลือกหรือของ PO) ไม่ใช่ค่าที่ AI อ่าน · null = ไม่มีบริบท · set เปลี่ยนค่าตาม path (null = ไม่มีช่องนั้น) · suppliers คือทะเบียน
+fixture:
+  rates:
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2025-10-01", effectiveTo: "2026-09-30" }
+    - { code: VAT_STANDARD, rateBp: 700, effectiveFrom: "2026-10-01", effectiveTo: "2027-09-30" }
+  orgTaxId: "0999997000015"
+  now: "2026-10-11T03:00:00Z"
+  suppliers:
+    SP0056: { taxId: "0999998010561", branch: "00000", vatRegistered: true }
+    SP0058: { taxId: "0999998010588", branch: "00000", vatRegistered: true }
+    SP0175: { taxId: "0999998011657", branch: "00000", vatRegistered: true }
+    SP0109: { taxId: "3999998020014", branch: "00000", vatRegistered: false }
+  bases:
+    DOC-001: { docType: QUOTATION, supplier: SP0056, docDate: "2026-10-01", currency: THB, priceIncludesVat: false, seller: { taxId: "0999998010561", branch: "00000" }, lines: [{ qty: "18", unit: ท่อน, unitPrice: "310.00", amount: "5580.00" }], net: "5580.00", vat: "390.60", gross: "5970.60" }
+    DOC-010: { docType: QUOTATION, supplier: SP0058, docDate: "2026-10-01", currency: THB, priceIncludesVat: true, seller: { taxId: "0999998010588", branch: "00000" }, lines: [{ qty: "26", unit: ถัง, unitPrice: "2514.50", amount: "65377.00" }], net: "61100.00", vat: "4277.00", gross: "65377.00" }
+    DOC-057: { docType: TAX_INVOICE, supplier: SP0175, docDate: "2026-10-01", currency: THB, priceIncludesVat: false, seller: { taxId: "0999998011657", branch: "00000" }, buyer: { taxId: "0999997000015" }, lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }], discountTotal: "13000.00", net: "637000.00", vat: "44590.00", gross: "681590.00" }
+    DOC-002: { docType: DELIVERY_NOTE, supplier: SP0056, docDate: "2026-10-03", currency: THB, seller: { taxId: "0999998010561", branch: "00000" }, lines: [{ qty: "18", unit: ท่อน }] }
+cases:
+  - { id: GC-AI-22, title: ใบเสนอราคาตรงทุกยอด, input: { base: DOC-001 }, expect: { status: PASS, computed: { net: "5580.00", vat: "390.60", gross: "5970.60" } } }
+  - { id: GC-AI-23, title: ยอดบรรทัดเกิน 1 สตางค์, input: { base: DOC-001, set: { lines.0.amount: "5580.01" } }, expect: { status: FAIL, fail: [LINE_AMOUNT], flagged: [lines.0.amount] } }
+  - { id: GC-AI-24, title: จำนวนทศนิยม 2502.5 สตางค์ปัดเป็น 2503 แต่ AI อ่าน 25.02, input: { base: DOC-001, set: { lines: [{ qty: "2.5", unit: ท่อน, unitPrice: "10.01", amount: "25.02" }], net: "25.02", vat: "1.75", gross: "26.77" } }, expect: { status: FAIL, fail: [LINE_AMOUNT, NET_TOTAL], flagged: [lines.0.amount, net], computed: { net: "25.03", vat: "1.75", gross: "26.78" } } }
+  - { id: GC-AI-25, title: VAT ต่าง 1.00 พอดี เตือน, input: { base: DOC-001, set: { vat: "391.60", gross: "5971.60" } }, expect: { status: WARN, warn: [VAT_AMOUNT], flagged: [vat], vatDiff: "1.00" } }
+  - { id: GC-AI-26, title: VAT ต่าง 1.01 ไม่ผ่าน, input: { base: DOC-001, set: { vat: "391.61", gross: "5971.61" } }, expect: { status: FAIL, fail: [VAT_AMOUNT], flagged: [vat], vatDiff: "1.01" } }
+  - { id: GC-AI-27, title: ยอดรวมไม่เท่าก่อน VAT บวก VAT, input: { base: DOC-001, set: { gross: "5970.06" } }, expect: { status: FAIL, fail: [GROSS_TOTAL], flagged: [gross] } }
+  - { id: GC-AI-28, title: VAT 8753.5 สตางค์ปัดขึ้น, input: { base: DOC-001, set: { lines: [{ qty: "1", unit: งาน, unitPrice: "1250.50", amount: "1250.50" }], net: "1250.50", vat: "87.54", gross: "1338.04" } }, expect: { status: PASS, computed: { net: "1250.50", vat: "87.54", gross: "1338.04" } } }
+  - { id: GC-AI-29, title: AI ปัด VAT ลง ต่าง 1 สตางค์ เตือน, input: { base: DOC-001, set: { lines: [{ qty: "1", unit: งาน, unitPrice: "1250.50", amount: "1250.50" }], net: "1250.50", vat: "87.53", gross: "1338.03" } }, expect: { status: WARN, warn: [VAT_AMOUNT], flagged: [vat], vatDiff: "0.01" } }
+  - { id: GC-AI-30, title: ราคารวม VAT ตรงทุกยอด, input: { base: DOC-010 }, expect: { status: PASS, computed: { gross: "65377.00", vat: "4277.00", net: "61100.00" } } }
+  - { id: GC-AI-31, title: ราคารวม VAT · VAT ต่าง 0.01 เตือน, input: { base: DOC-010, set: { vat: "4277.01", net: "61099.99" } }, expect: { status: WARN, warn: [VAT_AMOUNT], flagged: [vat], vatDiff: "0.01" } }
+  - { id: GC-AI-32, title: ราคารวม VAT · VAT ต่าง 1.01 ไม่ผ่าน, input: { base: DOC-010, set: { vat: "4278.01", net: "61098.99" } }, expect: { status: FAIL, fail: [VAT_AMOUNT], flagged: [vat], vatDiff: "1.01" } }
+  - { id: GC-AI-33, title: ราคารวม VAT · ยอดรวมอ่านผิด 1 สตางค์, input: { base: DOC-010, set: { gross: "65377.01", net: "61100.01" } }, expect: { status: FAIL, fail: [GROSS_TOTAL], flagged: [gross] } }
+  - { id: GC-AI-34, title: ราคารวม VAT · ก่อน VAT ไม่เท่ายอดรวมลบ VAT, input: { base: DOC-010, set: { net: "61100.10" } }, expect: { status: FAIL, fail: [NET_TOTAL], flagged: [net] } }
+  - { id: GC-AI-35, title: ส่วนลดในช่อง discountTotal ก่อนคิด VAT, input: { base: DOC-057 }, expect: { status: PASS, computed: { net: "637000.00", vat: "44590.00", gross: "681590.00" } } }
+  - { id: GC-AI-36, title: บรรทัดส่วนลดติดลบแปลงเป็น discountTotal, input: { base: DOC-057, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }], discountTotal: null } }, expect: { status: PASS, normalized: { lines: 1, discountTotal: "13000.00" }, computed: { net: "637000.00", vat: "44590.00", gross: "681590.00" } } }
+  - { id: GC-AI-37, title: มีทั้ง discountTotal และบรรทัดติดลบ, input: { base: DOC-057, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }] } }, expect: { status: FAIL, fail: [DISCOUNT_AMBIGUOUS], skip: [NET_TOTAL, VAT_AMOUNT, GROSS_TOTAL], flagged: [discountTotal, lines.1.amount, net, vat, gross] } }
+  - { id: GC-AI-38, title: เลขผู้เสียภาษีหลักตรวจผิด, input: { base: DOC-001, set: { seller.taxId: "0999998010562" } }, expect: { status: FAIL, fail: [TAXID_CHECKSUM, SELLER_MATCH], flagged: [seller.taxId] } }
+  - { id: GC-AI-39, title: เลขถูกแต่เป็นผู้ขายอื่น, input: { base: DOC-001, set: { seller.taxId: "0999998010081" } }, expect: { status: FAIL, fail: [SELLER_MATCH], flagged: [seller.taxId] } }
+  - { id: GC-AI-40, title: เลขมีขีดยังตรง, input: { base: DOC-001, set: { seller.taxId: "0-9999-98010-56-1" } }, expect: { status: PASS } }
+  - { id: GC-AI-41, title: ไม่มีผู้ขายของบริบท ข้ามการเทียบผู้ขาย, input: { base: DOC-001, set: { supplier: null } }, expect: { status: PASS, skip: [SELLER_MATCH, SELLER_BRANCH] } }
+  - { id: GC-AI-42, title: ใบกำกับสาขาไม่ตรง, input: { base: DOC-057, set: { seller.branch: "00001" } }, expect: { status: FAIL, fail: [SELLER_BRANCH], flagged: [seller.branch] } }
+  - { id: GC-AI-43, title: ใบกำกับออกให้บริษัทอื่น, input: { base: DOC-057, set: { buyer.taxId: "0999997000023" } }, expect: { status: FAIL, fail: [BUYER_MATCH], flagged: [buyer.taxId] } }
+  - { id: GC-AI-44, title: ใบเสนอราคาระบุผู้ซื้ออื่น เตือน, input: { base: DOC-001, set: { buyer.taxId: "0999997000023" } }, expect: { status: WARN, warn: [BUYER_MATCH], flagged: [buyer.taxId] } }
+  - { id: GC-AI-45, title: ผู้ขายไม่จด VAT แต่มี VAT, input: { base: DOC-001, set: { supplier: SP0109, seller.taxId: "3999998020014", lines: [{ qty: "1", unit: งาน, unitPrice: "1000.00", amount: "1000.00" }], net: "1000.00", vat: "70.00", gross: "1070.00" } }, expect: { status: FAIL, fail: [NON_VAT_SELLER], skip: [VAT_AMOUNT], flagged: [vat] } }
+  - { id: GC-AI-46, title: ผู้ขายไม่จด VAT ไม่มี VAT, input: { base: DOC-001, set: { supplier: SP0109, seller.taxId: "3999998020014", lines: [{ qty: "1", unit: งาน, unitPrice: "1000.00", amount: "1000.00" }], net: "1000.00", vat: "0.00", gross: "1000.00" } }, expect: { status: PASS, skip: [VAT_AMOUNT], computed: { net: "1000.00", vat: "0.00", gross: "1000.00" } } }
+  - { id: GC-AI-47, title: วันที่เอกสารพรุ่งนี้, input: { base: DOC-001, set: { docDate: "2026-10-12" } }, expect: { status: FAIL, fail: [DOC_DATE_FUTURE], flagged: [docDate] } }
+  - { id: GC-AI-48, title: 17:30Z เป็นวันที่ 12 ตามเวลาไทยแล้ว, input: { base: DOC-001, now: "2026-10-11T17:30:00Z", set: { docDate: "2026-10-12" } }, expect: { status: PASS } }
+  - { id: GC-AI-49, title: ปี พ.ศ. ที่ไม่ได้แปลง, input: { base: DOC-001, set: { docDate: "2569-10-01" } }, expect: { status: FAIL, fail: [DOC_DATE_FUTURE, VAT_RATE_MISSING], skip: [VAT_AMOUNT], flagged: [docDate, vat, gross] } }
+  - { id: GC-AI-50, title: อายุ 365 วันพอดี ไม่เตือน, input: { base: DOC-001, set: { docDate: "2025-10-11" } }, expect: { status: PASS } }
+  - { id: GC-AI-51, title: อายุ 366 วัน เตือน, input: { base: DOC-001, set: { docDate: "2025-10-10" } }, expect: { status: WARN, warn: [DOC_DATE_OLD], flagged: [docDate] } }
+  - { id: GC-AI-52, title: ไม่มีอัตรา VAT ณ วันที่เอกสาร, input: { base: DOC-001, now: "2027-10-02T03:00:00Z", set: { docDate: "2027-10-01" } }, expect: { status: FAIL, fail: [VAT_RATE_MISSING], skip: [VAT_AMOUNT], flagged: [vat, gross] } }
+  - { id: GC-AI-53, title: สกุลเงินไม่ใช่บาท, input: { base: DOC-001, set: { currency: USD } }, expect: { status: FAIL, fail: [CURRENCY], flagged: ["*"] } }
+  - { id: GC-AI-54, title: ใบส่งของไม่มียอดเงิน, input: { base: DOC-002 }, expect: { status: PASS, skip: [LINE_AMOUNT, NET_TOTAL, VAT_AMOUNT, GROSS_TOTAL] } }
+```
+
+```yaml
+# tests/golden/ai-confidence.yaml
+suite: ai-confidence
+note: modelConfidence คือจำนวนเต็มที่โมเดลคืน (schema ไม่จำกัดช่วง โค้ดตัดให้อยู่ใน 0–100) · check คือผลตรวจของช่องนั้น (null = ไม่มีการตรวจ)
+fixture:
+  minConfidenceBp: 9000
+  critical: [net, vat, gross, discountTotal, "lines.*.qty", "lines.*.unitPrice", "lines.*.amount", seller.taxId, seller.branch, buyer.taxId, requestType]
+cases:
+  - { id: GC-AI-55, title: เท่าเกณฑ์พอดีไม่ต้องยืนยันทีละช่อง, input: { field: lines.0.description, modelConfidence: 90, check: null }, expect: { confidenceBp: 9000, mustConfirm: false } }
+  - { id: GC-AI-56, title: ต่ำกว่าเกณฑ์ 100 bp, input: { field: lines.0.description, modelConfidence: 89, check: null }, expect: { confidenceBp: 8900, mustConfirm: true } }
+  - { id: GC-AI-57, title: ผลตรวจเตือนเพดาน 5000, input: { field: docDate, modelConfidence: 100, check: WARN }, expect: { confidenceBp: 5000, mustConfirm: true } }
+  - { id: GC-AI-58, title: ผลตรวจไม่ผ่านเพดาน 0, input: { field: gross, modelConfidence: 100, check: FAIL }, expect: { confidenceBp: 0, mustConfirm: true } }
+  - { id: GC-AI-59, title: ฟิลด์เงินต้องยืนยันแม้มั่นใจเต็ม, input: { field: gross, modelConfidence: 100, check: PASS }, expect: { confidenceBp: 10000, mustConfirm: true } }
+  - { id: GC-AI-60, title: ค่าเกิน 100 ตัดเหลือ 100, input: { field: lines.0.description, modelConfidence: 130, check: null }, expect: { confidenceBp: 10000, mustConfirm: false } }
+```
+
+```yaml
+# tests/golden/ai-quotation-map.yaml
+suite: ai-quotation-map
+note: checks คือผลตรวจของ ai-verify ที่ส่งเข้ามา (ไม่มี = ผ่านทั้งหมด) · ทุกเคสอ่านจากไฟล์ FILE-1 · quoteNet คำนวณด้วยสูตรเดิมของ BR-FORM-06 · set เปลี่ยนค่าตาม path
+fixture:
+  vatRateBp: 700
+  fileId: FILE-1
+  registry:
+    SP0056: { taxId: "0999998010561", branch: "00000", nameTh: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด }
+    SP0058: { taxId: "0999998010588", branch: "00000", nameTh: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด }
+    SP0068: { taxId: "0999998010685", branch: "00000", nameTh: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด }
+    SP0132: { taxId: "0999998011223", branch: "00000", nameTh: บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด }
+    SP0175: { taxId: "0999998011657", branch: "00000", nameTh: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด }
+  readings:
+    DOC-001: { docType: QUOTATION, priceIncludesVat: false, seller: { taxId: "0999998010561", branch: "00000", name: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด }, lines: [{ qty: "18", unit: ท่อน, unitPrice: "310.00", amount: "5580.00" }], net: "5580.00", vat: "390.60", gross: "5970.60" }
+    DOC-010: { docType: QUOTATION, priceIncludesVat: true, seller: { taxId: "0999998010588", branch: "00000", name: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด }, lines: [{ qty: "26", unit: ถัง, unitPrice: "2514.50", amount: "65377.00" }], net: "61100.00", vat: "4277.00", gross: "65377.00" }
+    DOC-049: { docType: QUOTATION, priceIncludesVat: true, seller: { taxId: "0999998010685", branch: "00000", name: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด }, lines: [{ qty: "25", unit: วัน, unitPrice: "5187.36", amount: "129684.00" }], net: "121200.00", vat: "8484.00", gross: "129684.00" }
+    DOC-055: { docType: QUOTATION, docNo: null, priceIncludesVat: false, seller: { taxId: "0999998011223", branch: "00000", name: บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด }, lines: [{ qty: "24", unit: คน-เดือน, unitPrice: "18500.00", amount: "444000.00" }], net: "444000.00", vat: "31080.00", gross: "475080.00" }
+    QT-DISC: { docType: QUOTATION, priceIncludesVat: false, seller: { taxId: "0999998011657", branch: "00000", name: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด }, lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }], discountTotal: "13000.00", net: "637000.00", vat: "44590.00", gross: "681590.00" }
+cases:
+  - { id: GC-AI-61, input: { reading: DOC-001 }, expect: { quotation: { supplierId: SP0056, supplierName: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด, amount: "5580.00", includesVat: false, fileId: FILE-1 }, quoteNet: "5580.00", priceIncludesVat: false, lines: [{ qty: "18", uom: ท่อน, unitPrice: "310.00" }], flags: [] } }
+  - { id: GC-AI-62, input: { reading: DOC-010 }, expect: { quotation: { supplierId: SP0058, supplierName: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด, amount: "65377.00", includesVat: true, fileId: FILE-1 }, quoteNet: "61100.00", priceIncludesVat: true, lines: [{ qty: "26", uom: ถัง, unitPrice: "2514.50" }], flags: [] } }
+  - { id: GC-AI-63, title: DOC-049 เช่าแบ็คโฮราคารวม VAT, input: { reading: DOC-049 }, expect: { quotation: { supplierId: SP0068, amount: "129684.00", includesVat: true, fileId: FILE-1 }, quoteNet: "121200.00", flags: [] } }
+  - { id: GC-AI-64, title: มีส่วนลด เติมเฉพาะยอด, input: { reading: QT-DISC }, expect: { quotation: { supplierId: SP0175, amount: "637000.00", includesVat: false }, quoteNet: "637000.00", lines: null, flags: [DISCOUNT_NOT_MAPPABLE] } }
+  - { id: GC-AI-65, title: ใบเขียนมือไม่มีเลขที่ (DOC-055), input: { reading: DOC-055 }, expect: { quotation: { supplierId: SP0132, amount: "444000.00", includesVat: false }, quoteNet: "444000.00", flags: [] } }
+  - { id: GC-AI-66, title: ยอดไม่ผ่านการตรวจ ไม่เติมยอด, input: { reading: DOC-001, set: { lines: [{ qty: "2.5", unit: ท่อน, unitPrice: "10.01", amount: "25.02" }], net: "25.02", vat: "1.75", gross: "26.77" }, checks: { fail: [LINE_AMOUNT, NET_TOTAL] } }, expect: { quotation: { supplierId: SP0056, amount: null, includesVat: false, fileId: FILE-1 }, lines: [{ qty: "2.5", uom: ท่อน, unitPrice: "10.01" }], flags: [AMOUNT_UNVERIFIED] } }
+  - { id: GC-AI-67, title: VAT เตือนไม่กระทบยอดก่อน VAT, input: { reading: DOC-001, set: { vat: "391.60", gross: "5971.60" }, checks: { warn: [VAT_AMOUNT] } }, expect: { quotation: { supplierId: SP0056, amount: "5580.00", includesVat: false }, quoteNet: "5580.00", flags: [] } }
+  - { id: GC-AI-68, title: ส่วนลดกำกวม ไม่เติมยอด, input: { reading: QT-DISC, set: { lines: [{ qty: "20000", unit: ลิตร, unitPrice: "32.50", amount: "650000.00" }, { qty: "1", unit: รายการ, unitPrice: "-13000.00", amount: "-13000.00" }] }, checks: { fail: [DISCOUNT_AMBIGUOUS] } }, expect: { quotation: { supplierId: SP0175, amount: null, includesVat: false }, lines: null, flags: [AMOUNT_UNVERIFIED, DISCOUNT_NOT_MAPPABLE] } }
+  - { id: GC-AI-69, title: เลขผู้เสียภาษีถูกแต่ไม่อยู่ในทะเบียน, input: { reading: DOC-001, set: { seller.taxId: "0999998019992", seller.name: ร้านตัวอย่างวัสดุ } }, expect: { quotation: { supplierId: null, supplierName: ร้านตัวอย่างวัสดุ, amount: "5580.00", includesVat: false, fileId: FILE-1 }, flags: [SUPPLIER_NOT_REGISTERED] } }
+```
+
+```yaml
+# tests/golden/ai-dn-map.yaml
+suite: ai-dn-map
+fixture:
+  poLines:
+    - { lineNo: 1, description: ท่อ PPR 1 นิ้ว, uom: ท่อน, openQty: "18" }
+    - { lineNo: 2, description: ข้อต่อ PPR 1 นิ้ว, uom: ตัว, openQty: "40" }
+cases:
+  - { id: GC-AI-70, input: { dnLines: [{ qty: "18", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18" }], flags: [] } }
+  - { id: GC-AI-71, title: หน่วยไม่ตรง, input: { dnLines: [{ qty: "3", unit: เส้น, poLineNo: 1 }] }, expect: { prefill: [], flags: [{ code: UOM_MISMATCH, dnLine: 0 }] } }
+  - { id: GC-AI-72, title: บรรทัดที่ไม่มีใน PO, input: { dnLines: [{ qty: "5", unit: ตัว, poLineNo: 3 }] }, expect: { prefill: [], flags: [{ code: PO_LINE_UNKNOWN, dnLine: 0 }] } }
+  - { id: GC-AI-73, title: สองบรรทัดชี้บรรทัด PO เดียว, input: { dnLines: [{ qty: "10", unit: ตัว, poLineNo: 2 }, { qty: "30", unit: ตัว, poLineNo: 2 }] }, expect: { prefill: [], flags: [{ code: DUPLICATE_PO_LINE, lineNo: 2 }] } }
+  - { id: GC-AI-74, title: เกินยอดค้างรับ เติมแต่ไฮไลต์, input: { dnLines: [{ qty: "18.5", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18.5" }], flags: [{ code: OVER_OPEN, lineNo: 1 }] } }
+```
+
 ---
 
 ## 13. Non-functional requirements
@@ -3763,7 +3883,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       23 ไฟล์ · 194 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       27 ไฟล์ · 247 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

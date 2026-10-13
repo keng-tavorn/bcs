@@ -27,7 +27,7 @@ import type { SubjectDecided, SubjectDecision } from '../approvals/subjects'
 import { fail, type Fail } from '../ap/common'
 import { INVOICED_STATUSES } from '../ap/match-run'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
-import { reorderSourceLine } from './requests'
+import { completeFinishedRequests, reorderSourceLine } from './requests'
 
 // Changes to a sent PO (ADR-125, BR-POC-01 to BR-POC-05, OQ-126, FR-AP-107), in module CORE: PROCUREMENT drafts a change
 // of prices, quantities (never below what was received or invoiced, never above what is left of the request line,
@@ -76,6 +76,12 @@ const LineChange = z.strictObject({
 /** BR-POC-01 against the PO as it is now: the new lines and totals, or the refusal */
 function checkChange(locked: Locked, changes: ReadonlyArray<{ poLineId: string; newQuantity: bigint; newUnitPriceSatang: Satang }>) {
   const { po } = locked
+  // A change moves no PO status (S8 sub-spec): a PO received in full takes no more quantity (gr.post never opens it
+  // again), and a PO partly received is not cut down to what came in — po.close_short is the way to stop waiting, and
+  // it makes the PO RECEIVED with its retentions due. TODO(OQ-126): let the status follow if the customer wants that
+  const newQty = (l: (typeof po.lines)[number]) => changes.find((c) => c.poLineId === l.id)?.newQuantity ?? parseQuantity(l.quantity.toString())
+  const raised = po.lines.find((l) => newQty(l) > parseQuantity(l.quantity.toString()))
+  if (po.status === 'RECEIVED' && raised) return fail('PO_CHANGE_BELOW_PROGRESS', 'the purchase order was received in full', { reason: 'RECEIVED_IN_FULL', poLineId: raised.id })
   const lines: ChangeLine[] = []
   for (const l of po.lines) {
     const c = changes.find((x) => x.poLineId === l.id)
@@ -104,6 +110,9 @@ function checkChange(locked: Locked, changes: ReadonlyArray<{ poLineId: string; 
       ? fail('PO_CHANGE_EXCEEDS_REQUEST', 'more than is left of the request line', { left: totals.left, poLineId })
       : fail('PO_CHANGE_BELOW_PROGRESS', 'below what was received or invoiced', { reason: totals.reason, poLineId })
   }
+  const cut = changes.some((c) => c.newQuantity < parseQuantity(po.lines.find((l) => l.id === c.poLineId)!.quantity.toString()))
+  if (po.status === 'PARTIALLY_RECEIVED' && cut && po.lines.every((l) => newQty(l) <= parseQuantity(l.receivedQuantity.toString())))
+    return fail('PO_CHANGE_BELOW_PROGRESS', 'the change would leave nothing to receive', { reason: 'CLOSE_SHORT_INSTEAD', poLineId: po.lines[0]!.id })
   return { ok: true as const, totals }
 }
 
@@ -226,15 +235,20 @@ function budgetLine(locked: Locked, line: { poLineId: string; oldQuantity: { toS
 /** Applies an approved change to the PO (BR-POC-04): lines, sources, request lines, totals and the revision number */
 async function applyChange(tx: TenantTx, ctx: Ctx, locked: Locked, change: Awaited<ReturnType<typeof lockedChange>> extends infer T ? (T extends { change: infer C } ? C : never) : never): Promise<{ revisionNo: number; events: EventDraft[] }> {
   const { po } = locked
+  const statuses = new Map<string, string>()
   for (const line of change.lines) {
     const b = budgetLine(locked, line)
     await tx.poLine.update({ where: { id: line.poLineId }, data: { quantity: line.newQuantity, unitPriceSatang: line.newUnitPriceSatang, netSatang: line.newNetSatang } })
     if (b.quantityDiff !== 0n) {
       const basis = locked.basis.get(b.source.requestLineId)!
       await tx.poLineSource.update({ where: { id: b.source.id }, data: { quantity: line.newQuantity, releasableSatang: releasableFor(basis, parseQuantity(line.newQuantity.toString())) } })
-      await reorderSourceLine(tx, b.source.requestLineId, b.quantityDiff, change.quantityDisposition ?? DEFAULT_DISPOSITION)
+      for (const r of await reorderSourceLine(tx, b.source.requestLineId, b.quantityDiff, change.quantityDisposition ?? DEFAULT_DISPOSITION)) statuses.set(r.requestId, r.status)
     }
   }
+  // a quantity cancelled on its request may finish it, as po.cancel does (BR-BUD-06)
+  const requestIds = [...new Set(po.lines.flatMap((l) => l.sources.map((s) => locked.basis.get(s.requestLineId)?.requestId).filter((id): id is string => !!id)))]
+  const completed = await completeFinishedRequests(tx, requestIds)
+  for (const c of completed) statuses.set(c.requestId, c.status)
   const revisionNo = po.revisionNo + 1
   await tx.purchaseOrder.update({
     where: { id: po.id },
@@ -245,7 +259,8 @@ async function applyChange(tx: TenantTx, ctx: Ctx, locked: Locked, change: Await
     revisionNo,
     events: [
       { type: 'po_change.approved', aggregateType: 'PoChange', aggregateId: change.id, data: { poId: po.id, revisionNo, autoApproved: change.autoApproved } },
-      { type: 'po.revised', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { poChangeId: change.id, revisionNo, netSatang: change.newNetSatang.toString() } },
+      { type: 'po.revised', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { poChangeId: change.id, revisionNo, netSatang: change.newNetSatang.toString(), requests: [...statuses].map(([requestId, status]) => ({ requestId, status })) } },
+      ...completed.map((c): EventDraft => ({ type: 'request.completed', aggregateType: 'Request', aggregateId: c.requestId, data: { purchaseOrderIds: c.purchaseOrderIds } })),
     ],
   }
 }
@@ -344,7 +359,7 @@ export async function decidePoChange(tx: TenantTx, ctx: Ctx, poChangeId: string,
   if (!checked.ok) return { ok: false, error: checked.error as never }
   const operations: BudgetOperation[] = change.lines.map((l) => {
     const b = budgetLine(locked, l)
-    const decrease = b.change.deltaSatang < 0n ? { disposition: change.quantityDisposition ?? DEFAULT_DISPOSITION, removedReleasableSatang: b.removedReleasableSatang } : null
+    const decrease = b.quantityDiff < 0n ? { disposition: change.quantityDisposition ?? DEFAULT_DISPOSITION, removedReleasableSatang: b.removedReleasableSatang } : null
     return { budgetLineId: b.budgetLineId, document, run: (s) => approveChange(s, b.change, decrease) }
   })
   const budget = await applyBudget(tx, ctx, operations)

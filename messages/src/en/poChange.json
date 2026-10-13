@@ -170,6 +170,8 @@
     "PO_CHANGE_BELOW_PROGRESS_RECEIVED": "The new quantity of line {lineNo} is below what was received. Type at least what was received.",
     "PO_CHANGE_BELOW_PROGRESS_INVOICED": "The new quantity of line {lineNo} is below what was invoiced. Type at least what was invoiced.",
     "PO_CHANGE_BELOW_PROGRESS_LINE_INVOICED": "Line {lineNo} has an invoice, so its price stays. Keep the price as it is.",
+    "PO_CHANGE_BELOW_PROGRESS_RECEIVED_IN_FULL": "This purchase order was received in full, so its quantities cannot go up. Issue a new purchase order for more.",
+    "PO_CHANGE_BELOW_PROGRESS_CLOSE_SHORT_INSTEAD": "Every new quantity equals what was received. If you no longer wait for the rest, ask to close the purchase order short instead.",
     "PO_CHANGE_EXCEEDS_REQUEST": "The new quantity of line {lineNo} is more than the source request has left ({left} left). Lower the quantity.",
     "DOA_NOT_CONFIGURED": "The DOA has no rule for PO changes yet. Ask the organization's DOA administrator to add it first.",
     "BUDGET_INSUFFICIENT": "The budget line does not have enough for the increase. Lower the price or quantity, or move budget first.",

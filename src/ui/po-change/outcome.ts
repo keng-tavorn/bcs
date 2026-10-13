@@ -70,7 +70,7 @@ export function failureKey(failure: PoS8Failure): string {
     case 'INTERNAL':
       return failure.code
     case 'PO_CHANGE_BELOW_PROGRESS':
-      return failure.reason === 'INVOICED' || failure.reason === 'LINE_INVOICED' ? `PO_CHANGE_BELOW_PROGRESS_${failure.reason}` : 'PO_CHANGE_BELOW_PROGRESS_RECEIVED'
+      return failure.reason === 'INVOICED' || failure.reason === 'LINE_INVOICED' || failure.reason === 'RECEIVED_IN_FULL' || failure.reason === 'CLOSE_SHORT_INSTEAD' ? `PO_CHANGE_BELOW_PROGRESS_${failure.reason}` : 'PO_CHANGE_BELOW_PROGRESS_RECEIVED'
     case 'VALIDATION_FAILED':
       switch (failure.reason) {
         case 'NO_CHANGE':

@@ -956,8 +956,9 @@ def po_change_totals(i):  # BR-POC-01 BR-POC-02 · ยอดใหม่ขอ�
     l, ch, r = i["line"], i["change"], i["vatRateBp"]
     ordered, received, invoiced, left = q4(l["ordered"]), q4(l["received"]), q4(l["invoiced"]), q4(l["requestLeft"])
     qty = q4(ch["newQty"]) if "newQty" in ch else ordered
-    if qty < received: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "RECEIVED"}
-    if qty < invoiced: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "INVOICED"}
+    # เฉพาะจำนวนที่เปลี่ยนถูกตรวจกับที่รับและแจ้งหนี้แล้ว (บรรทัดที่รับเกินในเกณฑ์ BR-GR-02 แล้วไม่แก้จำนวน คงอยู่ได้)
+    if qty != ordered and qty < received: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "RECEIVED"}
+    if qty != ordered and qty < invoiced: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "INVOICED"}
     if "newUnitPrice" in ch and invoiced > 0: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "LINE_INVOICED"}
     if qty > ordered + left: return {"error": "PO_CHANGE_EXCEEDS_REQUEST", "left": q4s(left)}
     net = line_net(q4s(qty), sat(ch.get("newUnitPrice", l.get("unitPrice", "0.00")))); vat = rhu(net * r, 10000)
@@ -993,14 +994,15 @@ def run_po_change(d):  # ADR-125 BR-POC-03 · ประกอบจาก submit
                     p["chg"] = {"delta": dlt, "rsv": rsv, "add": add, "src": p["src"][0][0]}
                 elif op == "approveChange":
                     p = po[s["po"]]; ch = p["chg"]
-                    if ch["delta"] > 0:  # คืนการจองของใบแก้ไขและ releasable ของส่วนที่เพิ่ม แล้วถือ Δ
-                        if ch["add"]: mv("reserved", "available", ch["add"]); res[ch["src"]] -= ch["add"]
-                        if ch["rsv"]: mv("reserved", "available", ch["rsv"])
-                        mv("available", "committed", ch["delta"]); p["com"] += ch["delta"]
-                    elif ch["delta"] < 0:  # คืนถือเท่าขนาดของ Δ แล้วจัดการจำนวนที่ลดตาม disposition
-                        mv("committed", "available", -ch["delta"]); p["com"] += ch["delta"]
-                        if s.get("disposition") == "RETURN_TO_POOL":
-                            back = sat(s["removedReleasable"]); mv("available", "reserved", back); res[ch["src"]] = res.get(ch["src"], 0) + back
+                    # แต่ละข้อของ BR-POC-03 แยกกัน (เงินกับจำนวนของบรรทัดขยับสวนกันได้): คืนการจองของใบแก้ไขและ releasable
+                    # ของจำนวนที่เพิ่ม แล้วถือ Δ (Δ < 0 คืนถือเท่าขนาด) · จำนวนที่ลดจัดการตาม disposition
+                    if ch["add"]: mv("reserved", "available", ch["add"]); res[ch["src"]] -= ch["add"]
+                    if ch["rsv"]: mv("reserved", "available", ch["rsv"])
+                    if ch["delta"] > 0: mv("available", "committed", ch["delta"])
+                    elif ch["delta"] < 0: mv("committed", "available", -ch["delta"])
+                    p["com"] += ch["delta"]
+                    if s.get("disposition") == "RETURN_TO_POOL":
+                        back = sat(s["removedReleasable"]); mv("available", "reserved", back); res[ch["src"]] = res.get(ch["src"], 0) + back
                     p["chg"] = None
                 elif op == "rejectChange":
                     p = po[s["po"]]; ch = p["chg"]

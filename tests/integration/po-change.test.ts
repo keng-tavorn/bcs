@@ -106,6 +106,41 @@ describe('[FR-AP-107/AC4] the PO moved while the change waited', () => {
   })
 })
 
+describe('[FR-AP-107/AC1] S8-14 review: the money and the quantity of a line moving opposite ways, and the PO received', () => {
+  it('a price rise with fewer units back to the pool: the PO line holds the new amount, the request line gets the removed units reserved again, and the request status moves with an Event', async () => {
+    const po = await sentPo(ap, [{ quantity: '10', unitPrice: '1000.00' }])
+    const line = po.lines[0]!
+    const source = await prisma.poLineSource.findFirstOrThrow({ where: { poLineId: line.id } })
+    const requestReserved = async () => (await prisma.budgetAllocation.findFirst({ where: { sourceType: 'REQUEST_LINE', sourceId: source.requestLineId } }))?.reservedSatang ?? 0n
+    const reservedBefore = await requestReserved()
+    const drafted = ok(await createPoChange(proc(), { poId: po.id, reason: 'ราคาขึ้น สั่งน้อยลง', lines: [{ poLineId: line.id, newQuantity: '8', newUnitPrice: '1300.00' }], quantityDisposition: 'RETURN_TO_POOL' }, key()))
+    ok(await submitPoChange(proc(), { poChangeId: drafted.poChangeId, version: await versionOf(drafted.poChangeId) }, key()))
+    ok(await approveByDoa(drafted.poChangeId))
+    expect(await held(line.id)).toMatchObject({ reservedSatang: 0n, committedSatang: 1_040_000n })
+    const sourceAfter = await prisma.poLineSource.findUniqueOrThrow({ where: { id: source.id } })
+    // the 2 units taken off are the request line's again, reserved at their releasable
+    expect(await requestReserved()).toBe(reservedBefore + (source.releasableSatang - sourceAfter.releasableSatang))
+    const request = await prisma.requestLine.findUniqueOrThrow({ where: { id: source.requestLineId }, select: { requestId: true, request: { select: { status: true } } } })
+    expect(request.request.status).toBe('PARTIALLY_ORDERED')
+    const revised = await prisma.event.findFirstOrThrow({ where: { type: 'po.revised', aggregateId: po.id }, orderBy: { seq: 'desc' } })
+    expect(revised.data).toMatchObject({ requests: [{ requestId: request.requestId, status: 'PARTIALLY_ORDERED' }] })
+  })
+
+  it('a PO received in full takes no more units, and a PO partly received is not cut to what came in (PO_CHANGE_BELOW_PROGRESS)', async () => {
+    const full = await sentPo(ap, [{ quantity: '2', unitPrice: '100.00' }])
+    await receive(ap, full, { 0: '2' })
+    expect(await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: full.id } })).toMatchObject({ status: 'RECEIVED' })
+    expect(await createPoChange(proc(), { poId: full.id, reason: 'เพิ่ม', lines: [{ poLineId: full.lines[0]!.id, newQuantity: '3' }] }, key())).toMatchObject({ ok: false, error: { code: 'PO_CHANGE_BELOW_PROGRESS', details: { reason: 'RECEIVED_IN_FULL' } } })
+    // its price may still change before an invoice comes
+    ok(await createPoChange(proc(), { poId: full.id, reason: 'ราคา', lines: [{ poLineId: full.lines[0]!.id, newUnitPrice: '110.00' }] }, key()))
+
+    const part = await sentPo(ap, [{ quantity: '5', unitPrice: '100.00' }])
+    await receive(ap, part, { 0: '3' })
+    expect(await createPoChange(proc(), { poId: part.id, reason: 'ตัดเหลือที่รับ', lines: [{ poLineId: part.lines[0]!.id, newQuantity: '3' }] }, key())).toMatchObject({ ok: false, error: { code: 'PO_CHANGE_BELOW_PROGRESS', details: { reason: 'CLOSE_SHORT_INSTEAD' } } })
+    ok(await createPoChange(proc(), { poId: part.id, reason: 'ลดเหลือ 4', lines: [{ poLineId: part.lines[0]!.id, newQuantity: '4' }] }, key()))
+  })
+})
+
 describe('[FR-AP-107/AC5] a DOA without a PO_CHANGE rule (as DEMO)', () => {
   it('po_change.create is DOA_NOT_CONFIGURED and nothing is drafted or reserved', async () => {
     const org = await createDoaOrg()

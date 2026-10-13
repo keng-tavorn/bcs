@@ -108,7 +108,8 @@ defineEvents('PoChange', {
   'po_change.cancelled': { schema: z.object({ poId: z.uuid(), reason: z.string().min(1), from: z.enum(['DRAFT', 'PENDING_APPROVAL']) }) },
 })
 defineEvents('PurchaseOrder', {
-  'po.revised': { schema: z.object({ poChangeId: z.uuid(), revisionNo: z.number().int().min(1), netSatang: satang }) },
+  // requests: the requests whose status the change moved (a quantity back to the pool or cancelled on its request)
+  'po.revised': { schema: z.object({ poChangeId: z.uuid(), revisionNo: z.number().int().min(1), netSatang: satang, requests: z.array(z.object({ requestId: z.uuid(), status: z.string().min(1) })) }) },
   'po.revision_sent': { schema: z.object({ revisionNo: z.number().int().min(1), poChangeId: z.uuid(), pdfFileId: z.uuid() }) },
 })
 

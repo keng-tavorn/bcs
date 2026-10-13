@@ -34,8 +34,10 @@ export function changeTotals(lines: readonly ChangeLine[], vatRateBp: number): C
   for (const [i, l] of lines.entries()) {
     const ordered = parseQuantity(l.ordered)
     const qty = l.change?.newQty !== undefined ? parseQuantity(l.change.newQty) : ordered
-    if (qty < parseQuantity(l.received)) return { ok: false, code: 'PO_CHANGE_BELOW_PROGRESS', reason: 'RECEIVED', line: i + 1 }
-    if (qty < parseQuantity(l.invoiced)) return { ok: false, code: 'PO_CHANGE_BELOW_PROGRESS', reason: 'INVOICED', line: i + 1 }
+    // only a quantity that changes is held to the progress: a line left as it is may have been received beyond its
+    // quantity within the tolerance (BR-GR-02), and stays so
+    if (qty !== ordered && qty < parseQuantity(l.received)) return { ok: false, code: 'PO_CHANGE_BELOW_PROGRESS', reason: 'RECEIVED', line: i + 1 }
+    if (qty !== ordered && qty < parseQuantity(l.invoiced)) return { ok: false, code: 'PO_CHANGE_BELOW_PROGRESS', reason: 'INVOICED', line: i + 1 }
     const price = l.change?.newUnitPriceSatang ?? l.unitPriceSatang
     // the price of a line with an invoice stays: the invoice was matched at it
     if (price !== l.unitPriceSatang && parseQuantity(l.invoiced) > 0n) return { ok: false, code: 'PO_CHANGE_BELOW_PROGRESS', reason: 'LINE_INVOICED', line: i + 1 }
@@ -63,17 +65,32 @@ export function submitChange(state: LineState, line: ChangeBudgetLine): BudgetRe
 }
 
 /**
- * At approval: an increase gives back its reservation and the request line's releasable and holds the delta; a
- * decrease gives back what it held of the delta and, RETURN_TO_POOL, reserves the removed quantity's releasable for the
- * request line again
+ * At approval, each clause of BR-POC-03 on its own — the money and the quantity of a line may move opposite ways (a
+ * price cut with more units, a price rise with fewer): the change gives back its reservation and the added quantity's
+ * releasable, then holds the delta (a negative delta gives back as much of the hold); the quantity removed (`decrease`,
+ * whenever the quantity went down) is, RETURN_TO_POOL, reserved for the request line again. An added quantity with a
+ * delta that does not hold more is held through approvePo for its releasable, then given back down to the delta.
  */
 export function approveChange(state: LineState, line: ChangeBudgetLine, decrease: { readonly disposition: 'RETURN_TO_POOL' | 'CANCEL_REQUEST_LINES'; readonly removedReleasableSatang: Satang } | null): BudgetResult {
-  if (line.deltaSatang > 0n) return approvePo(state, { poLineId: line.poLineId, need: line.deltaSatang, sources: [{ requestLineId: line.requestLineId, releasable: line.addedReleasableSatang }] })
-  if (line.deltaSatang === 0n) return rejectPo(state, line.poLineId)
-  const back = releaseHold(state, line.poLineId, -line.deltaSatang)
-  if (!back.ok || decrease?.disposition !== 'RETURN_TO_POOL' || decrease.removedReleasableSatang <= 0n) return back
-  const again = reserve(back.state, [{ requestLineId: line.requestLineId, amount: decrease.removedReleasableSatang }])
-  return again.ok ? { ok: true, state: again.state, movements: [...back.movements, ...again.movements] } : again
+  const steps: Array<(s: LineState) => BudgetResult> = []
+  const added = line.addedReleasableSatang
+  if (line.deltaSatang > 0n) {
+    steps.push((s) => approvePo(s, { poLineId: line.poLineId, need: line.deltaSatang, sources: added > 0n ? [{ requestLineId: line.requestLineId, releasable: added }] : [] }))
+  } else if (added > 0n) {
+    steps.push((s) => approvePo(s, { poLineId: line.poLineId, need: added, sources: [{ requestLineId: line.requestLineId, releasable: added }] }))
+    steps.push((s) => releaseHold(s, line.poLineId, added - line.deltaSatang))
+  } else {
+    steps.push((s) => rejectPo(s, line.poLineId))
+    if (line.deltaSatang < 0n) steps.push((s) => releaseHold(s, line.poLineId, -line.deltaSatang))
+  }
+  if (decrease?.disposition === 'RETURN_TO_POOL' && decrease.removedReleasableSatang > 0n) steps.push((s) => reserve(s, [{ requestLineId: line.requestLineId, amount: decrease.removedReleasableSatang }]))
+  let current: BudgetResult = { ok: true, state, movements: [] }
+  for (const step of steps) {
+    const next = step(current.state)
+    if (!next.ok) return next
+    current = { ok: true, state: next.state, movements: [...current.movements, ...next.movements] }
+  }
+  return current
 }
 
 /** Not approved, returned or cancelled: the reservation of the change comes back */

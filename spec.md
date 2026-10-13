@@ -2480,6 +2480,34 @@ cases:
   - { id: GC-POC-11, fn: changeTotals, title: แก้ราคาบรรทัดที่มีใบแจ้งหนี้แล้ว, input: { vatRateBp: 700, line: { ordered: "10", received: "6", invoiced: "6", requestLeft: "0" }, change: { newUnitPrice: "1000.00" } }, expect: { error: PO_CHANGE_BELOW_PROGRESS, reason: LINE_INVOICED } }
   - { id: GC-POC-12, fn: changeTotals, title: เพิ่มเกินที่เหลือในคำขอ, input: { vatRateBp: 700, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "12" } }, expect: { error: PO_CHANGE_EXCEEDS_REQUEST, left: "0" } }
   - { id: GC-POC-13, fn: changeTotals, title: ผู้ขายไม่จด VAT, input: { vatRateBp: 0, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "10", newUnitPrice: "1210.00" } }, expect: { net: "12100.00", vat: "0.00", gross: "12100.00", doaAmount: { net: "12100.00", vat: "0.00" } } }
+  - id: GC-POC-14
+    title: ลดราคาแต่เพิ่มจำนวน 10 → 12 (Δ ติดลบ) คืน releasable ของจำนวนที่เพิ่มให้คำขอและลดยอดถือ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-14, amount: "12000.00" }
+      - { op: submitPo, po: PO-14, need: "11000.00", sources: [{ source: PR-14, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-14, expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-14, newNet: "10800.00", addedReleasable: "2000.00", expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-14, expect: { available: "89200.00", reserved: "0.00", committed: "10800.00", actual: "0.00" } }
+  - id: GC-POC-15
+    title: ขึ้นราคาแต่ลดจำนวน 10 → 8 (Δ เป็นบวก) แบบคืนเข้ากอง ถือ Δ และจองจำนวนที่ลดคืนให้คำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-15, amount: "10000.00" }
+      - { op: submitPo, po: PO-15, need: "11000.00", sources: [{ source: PR-15, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-15 }
+      - { op: submitChange, po: PO-15, newNet: "11200.00", addedReleasable: "0.00", expect: { available: "88800.00", reserved: "200.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-15, disposition: RETURN_TO_POOL, removedReleasable: "2000.00", expect: { available: "86800.00", reserved: "2000.00", committed: "11200.00", actual: "0.00" } }
+  - id: GC-POC-16
+    title: เพิ่มจำนวน 10 → 11 ที่ยอดเท่าเดิม (Δ = 0) คืน releasable ของจำนวนที่เพิ่มให้คำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-16, amount: "12000.00" }
+      - { op: submitPo, po: PO-16, need: "11000.00", sources: [{ source: PR-16, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-16 }
+      - { op: submitChange, po: PO-16, newNet: "11000.00", addedReleasable: "1000.00", expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-16, expect: { available: "88000.00", reserved: "1000.00", committed: "11000.00", actual: "0.00" } }
+  - { id: GC-POC-17, fn: changeTotals, title: แก้ราคาของบรรทัดที่รับเกินจำนวนในเกณฑ์ (จำนวนไม่เปลี่ยน), input: { vatRateBp: 700, line: { ordered: "10", received: "11", invoiced: "0", requestLeft: "0", unitPrice: "1000.00" }, change: { newUnitPrice: "1050.00" } }, expect: { net: "10500.00", vat: "735.00", gross: "11235.00", doaAmount: { net: "10500.00", vat: "735.00" } } }
 ```
 
 **Invariant ของใบแจ้งหนี้ชั้น 2**
@@ -4122,7 +4150,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       27 ไฟล์ · 280 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       27 ไฟล์ · 284 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

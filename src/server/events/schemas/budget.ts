@@ -26,6 +26,9 @@ defineEvents('BudgetLine', {
   // S6-15 (BR-BUD-09): a transfer or an adjustment moved money out of the line (AVAILABLE → OUTSIDE) or into it
   'budget.transferred_out': { schema: z.object(movement) },
   'budget.transferred_in': { schema: z.object(movement) },
+  // S6-16 (BR-BUD-13 to BR-BUD-15, BR-BUD-18): an approved overrun funded the line, or what it did not use left the line
+  'budget.overrun_funded': { schema: z.object(movement) },
+  'budget.overrun_returned': { schema: z.object(movement) },
 })
 
 // Use of another department's budget line (FR-BUD-004 AC1): to one department or one member, for a period

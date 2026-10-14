@@ -1976,6 +1976,7 @@
       "BacktestRun": "Backtest run",
       "BudgetGrant": "Cross-department budget grant",
       "BudgetLine": "Budget line",
+      "BudgetOverrun": "Over-budget approval",
       "BudgetTransfer": "Budget transfer",
       "CatalogItem": "Catalogue item",
       "ChannelIdentity": "LINE account",
@@ -2086,6 +2087,8 @@
         "commitment_released": "Committed budget released",
         "committed": "Budget committed to a PO",
         "imported": "Budget imported",
+        "overrun_funded": "Funded by an over-budget approval",
+        "overrun_returned": "Over-budget amount returned from the line",
         "reservation_released": "Reserved budget released",
         "reserved": "Budget reserved",
         "transferred_in": "Budget transferred into the line",
@@ -2094,6 +2097,17 @@
       "budget_grant": {
         "created": "Cross-department budget granted",
         "revoked": "Cross-department budget grant revoked"
+      },
+      "budget_overrun": {
+        "approved": "Over-budget approval approved",
+        "cancelled": "Over-budget approval cancelled",
+        "consumed": "Over-budget amount used by the request",
+        "lapse_reminded": "Reminded that an over-budget approval lapses soon",
+        "lapsed": "Over-budget approval lapsed or not used",
+        "rejected": "Over-budget approval rejected",
+        "returned": "Over-budget approval returned",
+        "submitted": "Over-budget approval sent",
+        "unused_returned": "Unused over-budget amount returned after use"
       },
       "budget_transfer": {
         "approved": "Budget transfer approved",
@@ -2296,6 +2310,7 @@
       "backtest": "Backtest",
       "budget": "Budget",
       "budget_grant": "Cross-department budget grants",
+      "budget_overrun": "Over-budget approval",
       "budget_transfer": "Budget transfers",
       "catalog_item": "Catalogue",
       "consolidation_run": "Consolidation rounds",

@@ -1976,6 +1976,7 @@
       "BacktestRun": "การย้อนทดสอบ",
       "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
       "BudgetLine": "บรรทัดงบ",
+      "BudgetOverrun": "การขออนุมัติเกินงบ",
       "BudgetTransfer": "การโอนและปรับงบ",
       "CatalogItem": "สินค้าในแคตตาล็อก",
       "ChannelIdentity": "บัญชี LINE",
@@ -2086,6 +2087,8 @@
         "commitment_released": "คืนงบที่ถือไว้",
         "committed": "ถืองบให้ใบสั่งซื้อ",
         "imported": "นำเข้างบ",
+        "overrun_funded": "เติมงบจากการอนุมัติเกินงบ",
+        "overrun_returned": "คืนยอดเกินงบออกจากบรรทัด",
         "reservation_released": "คืนงบที่จองไว้",
         "reserved": "จองงบ",
         "transferred_in": "โอนงบเข้าบรรทัด",
@@ -2094,6 +2097,17 @@
       "budget_grant": {
         "created": "ให้สิทธิ์ใช้งบข้ามฝ่าย",
         "revoked": "ยกเลิกสิทธิ์ใช้งบข้ามฝ่าย"
+      },
+      "budget_overrun": {
+        "approved": "อนุมัติเกินงบ",
+        "cancelled": "ยกเลิกการขอเกินงบ",
+        "consumed": "ใช้ยอดเกินงบตอนส่งคำขอ",
+        "lapse_reminded": "เตือนว่ายอดเกินงบใกล้หมดอายุ",
+        "lapsed": "ยอดเกินงบหมดอายุหรือไม่ได้ใช้",
+        "rejected": "ไม่อนุมัติเกินงบ",
+        "returned": "ตีกลับการขอเกินงบ",
+        "submitted": "ส่งขออนุมัติเกินงบ",
+        "unused_returned": "คืนยอดเกินงบที่ไม่ได้ใช้หลังใช้"
       },
       "budget_transfer": {
         "approved": "อนุมัติการโอนงบ",
@@ -2296,6 +2310,7 @@
       "backtest": "ย้อนทดสอบ",
       "budget": "งบประมาณ",
       "budget_grant": "สิทธิ์ใช้งบข้ามฝ่าย",
+      "budget_overrun": "ขออนุมัติเกินงบ",
       "budget_transfer": "โอนและปรับงบ",
       "catalog_item": "แคตตาล็อก",
       "consolidation_run": "รวมคำขอเป็นใบสั่งซื้อ",

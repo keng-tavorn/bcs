@@ -19,6 +19,7 @@ import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
 import { budgetRefusalFor, poBudgetLines, releaseCancelledPo, reserveForPo } from './budget'
+import { unmergeableLine } from '../budget/overrun-use'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
 
 export { closePurchaseOrder } from './close'
@@ -193,6 +194,9 @@ export const submitPoCommand = defineCommand({
     const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: po.supplierId }, select: { status: true } })
     if (supplier.status !== 'ACTIVE') return fail('VALIDATION_FAILED', 'the supplier is inactive', { field: 'supplierId', reason: 'SUPPLIER_INACTIVE' })
     if (po.lines.length === 0 || po.lines.some((l) => l.sources.length === 0)) return fail('VALIDATION_FAILED', 'every line needs its source request line', { field: 'lines', reason: 'NO_SOURCE_REQUEST' })
+    // BR-BUD-18 (S6-16): a request with an over-budget amount outstanding never shares a PO line with another request line
+    const unmergeable = await unmergeableLine(tx, po.lines)
+    if (unmergeable !== null) return fail('VALIDATION_FAILED', 'the line orders a request whose over-budget amount is outstanding together with other lines', { field: `lines.${unmergeable}`, reason: 'OVERRUN_LINE_NOT_MERGEABLE' })
     const taxDate = taxDateOf(ctx.now)
     const rate = rateFor(taxDate, await listTaxRates())
     if (!rate.ok) return fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the tax date', { date: taxDate })

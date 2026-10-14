@@ -4,11 +4,13 @@ import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
 import { applyBudget, type BudgetOperation } from '@/server/budget/ledger'
 import type { EventDraft } from '@/server/events/append'
+import { useOverruns } from '../budget/overrun-use'
 
 // The budget side of a purchase request (spec §6.4, BR-BUD-02 to BR-BUD-04, FR-INT-007 AC1, FR-BUD-003): at submit the
 // request's budget line is checked and its lines reserved, all within the submit transaction — a request over budget
 // never reaches an approver; a return keeps the reservation; a resubmit gives back what the lines held and reserves
-// again (the difference is what moves); a rejection or a cancellation gives everything back.
+// again (the difference is what moves); a rejection or a cancellation gives everything back. With an approved
+// over-budget approval of its line, the reservation uses it (S6-16 · BR-BUD-14); one still waiting refuses the submit.
 
 type Fail = { ok: false; error: AppError }
 const fail = (code: AppError['code'], message: string, details: Record<string, unknown>): Fail => ({ ok: false, error: { code, message, details } })
@@ -61,7 +63,10 @@ async function releaseOperations(tx: TenantTx, requestId: string, requestLineIds
 
 export interface BudgetCheck {
   readonly budgetLineId: string
-  /** What the line had available when the request was checked (after giving back its earlier reservation) */
+  /**
+   * What the line had available when the request was checked (after giving back its earlier reservation, and the
+   * earmark of the overrun it uses: BR-BUD-14)
+   */
   readonly availableSatang: string
   readonly reservedSatang: string
 }
@@ -76,18 +81,24 @@ export async function reserveForRequest(
   requestId: string,
   budgetLineId: string,
   lines: ReadonlyArray<{ readonly requestLineId: string; readonly netSatang: bigint }>,
-): Promise<{ ok: true; events: EventDraft[]; check: BudgetCheck } | Fail> {
+): Promise<{ ok: true; events: EventDraft[]; check: BudgetCheck; overrunIds: string[] } | Fail> {
   const releases = await releaseOperations(tx, requestId, lines.map((l) => l.requestLineId))
   const reserving = lines.filter((l) => l.netSatang > 0n)
+  const amounts = reserving.map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang }))
+  const overruns = await useOverruns(tx, ctx, requestId, budgetLineId, amounts)
+  if ('ok' in overruns) return overruns
   const result = await applyBudget(tx, ctx, [
     ...releases,
-    { budgetLineId, document: { type: 'REQUEST', id: requestId }, run: (s) => reserve(s, reserving.map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang }))) },
+    overruns.reserve ?? { budgetLineId, document: { type: 'REQUEST', id: requestId }, run: (s) => reserve(s, amounts) },
+    ...overruns.lapse,
   ])
   if (!result.ok) return result
+  const settled = await overruns.settle()
   const total = reserving.reduce((sum, l) => sum + l.netSatang, 0n)
-  // What the reservation was checked against: the line's available amount after it gave back what the request held
-  const checkedAgainst = result.lines.filter((l) => l.budgetLineId === budgetLineId).at(-1)!.before.available
-  return { ok: true, events: result.events, check: { budgetLineId, availableSatang: checkedAgainst.toString(), reservedSatang: total.toString() } }
+  // What the reservation was checked against: the line's available amount after it gave back what the request held,
+  // and the earmark of the overrun it used (BR-BUD-14); the overruns that lapse are of other lines
+  const checkedAgainst = result.lines.filter((l) => l.budgetLineId === budgetLineId).at(-1)!.before.available + settled.earmark
+  return { ok: true, events: [...result.events, ...settled.events], check: { budgetLineId, availableSatang: checkedAgainst.toString(), reservedSatang: total.toString() }, overrunIds: settled.overrunIds }
 }
 
 /** Gives back everything the request's lines hold (rejection or cancellation) */

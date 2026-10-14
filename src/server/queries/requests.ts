@@ -8,7 +8,7 @@ import { stepOutcome, type SlotDecision } from '@/core/workflow'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
 import { escapeLike } from '@/server/db/like'
-import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { forTenant, type TenantDb, type TenantTx } from '@/server/db/tenant'
 import { REQUEST_STATUSES } from './statuses'
 
 // Read-only views of purchase requests for the screens of S2-12 (spec FR-INT-008, FR-DOA-003 AC2, FR-DOA-005 AC2,
@@ -168,9 +168,25 @@ export interface RequestAccessDto {
   readonly requesterMemberId: string
   /** OWN: followers see what the requester sees (FR-INT-008 AC2) */
   readonly followerMemberIds: readonly string[]
-  /** ASSIGNED: everyone who has or had an approval task on the request, and the delegator a delegate held it for */
+  /**
+   * ASSIGNED: everyone who has or had an approval task on the request or on its over-budget approvals, and the
+   * delegator a delegate held it for
+   */
   readonly taskMemberIds: readonly string[]
   readonly chargedDepartmentId: string
+}
+
+/**
+ * The approval tasks that make a member ASSIGNED on a request (request.view): the tasks of its own routes, and of the
+ * routes of its over-budget approvals — their approvers read the source request (S6-16 · FR-BUD-101)
+ */
+export async function requestTaskMemberIds(db: TenantDb | TenantTx, requestId: string): Promise<string[]> {
+  const overruns = await db.budgetOverrun.findMany({ where: { requestId }, select: { id: true } })
+  const tasks = await db.approvalTask.findMany({
+    where: { step: { route: { OR: [{ subjectType: 'REQUEST', subjectId: requestId }, ...(overruns.length ? [{ subjectType: 'BUDGET_OVERRUN' as const, subjectId: { in: overruns.map((o) => o.id) } }] : [])] } } },
+    select: { assigneeMemberId: true, principalMemberId: true },
+  })
+  return [...new Set(tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId]).filter(present))]
 }
 
 export async function getRequestAccess(ctx: Ctx, requestId: string): Promise<RequestAccessDto | null> {
@@ -178,13 +194,12 @@ export async function getRequestAccess(ctx: Ctx, requestId: string): Promise<Req
   const db = forTenant(ctx.organizationId)
   const request = await db.request.findUnique({ where: { id: requestId }, select: { id: true, number: true, requesterMemberId: true, chargedDepartmentId: true, followers: { select: { memberId: true } } } })
   if (!request) return null
-  const tasks = await db.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: requestId } } }, select: { assigneeMemberId: true, principalMemberId: true } })
   return {
     requestId: request.id,
     number: request.number,
     requesterMemberId: request.requesterMemberId,
     followerMemberIds: request.followers.map((f) => f.memberId),
-    taskMemberIds: [...new Set(tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId]).filter(present))],
+    taskMemberIds: await requestTaskMemberIds(db, requestId),
     chargedDepartmentId: request.chargedDepartmentId,
   }
 }

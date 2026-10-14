@@ -375,7 +375,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | Capability | ผู้ได้รับ (scope) |
 | --- | --- |
 | `request.create` · `request.submit` | ทุก member (OWN) |
-| `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
+| `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) — รวมผู้อนุมัติเกินงบของคำขอนั้น (S6-16) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
 | `request.cancel` | ผู้ขอ (OWN, ก่อนมี PO) · PROCUREMENT (ORG, สถานะ APPROVED ที่ยังไม่สั่ง, ต้องระบุเหตุผล) |
 | `request.follow` | ผู้ที่มี `request.view` ของคำขอนั้น: ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) — ติดตามหรือเลิกติดตามตนเองเท่านั้น และผู้ขอไม่ต้องติดตามคำขอของตนเอง (FR-INT-013 AC1) |
 | `request.reorder` | ผู้ขอ (OWN) — ขอซ้ำหรือต่ออายุจากคำขอของตนเอง ได้ร่างใหม่ตาม BR-FORM-07 ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ (S6-12, FR-INT-101) |
@@ -391,9 +391,10 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `variance.decide` | ตาม DOA ข้อ `GR_VARIANCE` เท่านั้น |
 | `invoiceConfirmation.record` | FINANCE (ORG) |
 | `invoice.record` | FINANCE (ORG) — สร้าง แก้ ยืนยันรหัสบัญชี ส่ง และทิ้งร่างใบแจ้งหนี้ชั้น 2 · ใช้ได้เมื่อเปิดโมดูล `PAY` (BR-AP-13) |
-| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · ผู้ได้รับงาน (ASSIGNED) — ผู้อนุมัติการโอนงบเห็นการโอนนั้น (S6-15) · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
+| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · ผู้ได้รับงาน (ASSIGNED) — ผู้อนุมัติการโอนงบเห็นการโอนนั้น (S6-15) และผู้อนุมัติเกินงบเห็นการขอนั้น (S6-16) · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
 | `budget.transfer.submit` | BUDGET_ADMIN (ORG) · DEPT_HEAD (DEPT) — แผนกของบรรทัดต้นทาง หรือปลายทางเมื่อปรับเพิ่ม · ส่งโอน ปรับเพิ่ม หรือปรับลดงบให้อนุมัติตามข้อ `BUDGET_TRANSFER` ผู้ส่งอนุมัติเองไม่ได้ (S6-15 · FR-BUD-103 · OQ-105) |
+| `budget.overrun.submit` | ผู้ขอ (OWN) — ขออนุมัติเกินงบให้คำขอ DRAFT หรือ RETURNED ของตนที่บรรทัดงบไม่พอ และยกเลิกที่ตนขอ ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ ผู้ขออนุมัติเองไม่ได้ (S6-16 · FR-BUD-101 · OQ-104) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
 | `supplier.manage` | PROCUREMENT (ORG) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
@@ -604,6 +605,7 @@ sequenceDiagram
 | `doa-version-activate` | `bcs/doa_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับก่อนหน้าเป็น `SUPERSEDED` และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16) | S2 |
 | `workflow-version-activate` | `bcs/workflow_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับ workflow ก่อนหน้าเป็น `SUPERSEDED` (BR-WF-12) | S6 |
 | `renewal-reminders` | cron 08:00 ทุกวัน (เวลาไทย) | เตือนบรรทัดบริการก่อนหมดตาม `renewal.milestoneDays` ครั้งเดียวต่อ milestone ทุกองค์กร ไม่ต้องเปิด `CONTRACTS` (S6-12 · FR-INT-101 AC2 · BR-FORM-08) | S6 |
+| `budget-overrun-lapse` | cron ทุกชั่วโมงที่นาที 5 (เวลาไทย) | การขอเกินงบที่อนุมัติแล้วแต่ไม่ได้ใช้จนถึง lapsesAt คืน earmark และยอดที่เติมออกจากบรรทัดงบ · แจ้งผู้ขอครั้งเดียว 2 วันก่อนหมดอายุ ทุกองค์กร (S6-16 · FR-BUD-101 · BR-BUD-15) | S6 |
 | `backtest-run` | `bcs/backtest.requested` | ย้อนทดสอบร่าง DOA หรือ workflow ที่มีเอกสารเกิน 500 ฉบับในช่วง 90 วัน แล้วบันทึกผลลง `BacktestRun` ครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3 · ADR-111) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
@@ -4051,8 +4053,9 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
-| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` |
+| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` |
 | budget_transfer | `budget_transfer.drafted` `budget_transfer.submitted` `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` `budget_transfer.cancelled` (S6-15 · FR-BUD-103) |
+| budget_overrun | `budget_overrun.submitted` `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` `budget_overrun.cancelled` `budget_overrun.consumed` `budget_overrun.lapsed` `budget_overrun.lapse_reminded` `budget_overrun.unused_returned` (S6-16 · FR-BUD-101 · BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18) |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | report_schedule | `report_schedule.created` |

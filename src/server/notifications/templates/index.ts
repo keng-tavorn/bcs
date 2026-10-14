@@ -109,6 +109,25 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: d.outcome === 'APPROVED' ? undefined : { th: 'งบที่จองไว้คืนบรรทัดต้นทางแล้ว', en: 'The reserved budget is back on the source line' },
     href: `/budgets/transfers/${str(d.transferId)}`,
   }),
+  // S6-16 (FR-BUD-101): the requester hears how their over-budget approval was decided, and when it is about to lapse
+  'budget.overrun_decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `ขออนุมัติเกินงบ ${str(d.number)} อนุมัติแล้ว ส่งคำขอได้เลย`, en: `Over-budget approval ${str(d.number)} is approved; you can send the request` }
+        : d.outcome === 'RETURNED'
+          ? { th: `ขออนุมัติเกินงบ ${str(d.number)} ถูกตีกลับ`, en: `Over-budget approval ${str(d.number)} was returned` }
+          : { th: `ขออนุมัติเกินงบ ${str(d.number)} ไม่ได้รับอนุมัติ`, en: `Over-budget approval ${str(d.number)} was not approved` },
+    body:
+      d.outcome === 'APPROVED'
+        ? { th: `ยอดที่เติมกันไว้ให้คำขอนี้ถึง ${str(d.lapsesOn)}`, en: `The amount funded is kept for this request until ${str(d.lapsesOn)}` }
+        : { th: 'แก้คำขอหรือขออนุมัติเกินงบใหม่ได้', en: 'You can change the request or ask again' },
+    href: `/budgets/overruns/${str(d.overrunId)}`,
+  }),
+  'budget.overrun_lapsing': (d) => ({
+    title: { th: `ยอดเกินงบ ${str(d.number)} จะหมดอายุ ${str(d.lapsesOn)}`, en: `Over-budget approval ${str(d.number)} lapses on ${str(d.lapsesOn)}` },
+    body: { th: 'ส่งคำขอก่อนวันนั้น ไม่เช่นนั้นยอดที่เติมจะคืนออกจากบรรทัดงบ', en: 'Send the request before then, or the amount funded goes back' },
+    href: `/requests/${str(d.requestId)}`,
+  }),
   // S6-15 (§10.1 · OQ-105): an import added to a budget line that had budget already
   'audit.budget_topped_up': (d) => ({
     title: { th: `นำเข้างบเพิ่มยอดให้บรรทัดงบที่มีงบแล้ว ${str(d.lines)} บรรทัด`, en: `A budget import added to ${str(d.lines)} budget lines that had budget already` },

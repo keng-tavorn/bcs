@@ -127,7 +127,8 @@
     "ai_credit": "AI credits",
     "catalog_item": "Catalogue",
     "price_agreement": "Agreed prices",
-    "budget_transfer": "Budget transfers"
+    "budget_transfer": "Budget transfers",
+    "budget_overrun": "Over-budget approval"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -166,7 +167,8 @@
     "AiCredit": "AI credits",
     "CatalogItem": "Catalogue item",
     "PriceAgreement": "Agreed price",
-    "BudgetTransfer": "Budget transfer"
+    "BudgetTransfer": "Budget transfer",
+    "BudgetOverrun": "Over-budget approval"
   },
   "events": {
     "approval_step": {
@@ -201,6 +203,8 @@
       "commitment_released": "Committed budget released",
       "committed": "Budget committed to a PO",
       "imported": "Budget imported",
+      "overrun_funded": "Funded by an over-budget approval",
+      "overrun_returned": "Over-budget amount returned from the line",
       "reservation_released": "Reserved budget released",
       "reserved": "Budget reserved",
       "transferred_in": "Budget transferred into the line",
@@ -410,6 +414,17 @@
       "rejected": "Budget transfer rejected",
       "returned": "Budget transfer returned",
       "submitted": "Budget transfer sent for approval"
+    },
+    "budget_overrun": {
+      "approved": "Over-budget approval approved",
+      "cancelled": "Over-budget approval cancelled",
+      "consumed": "Over-budget amount used by the request",
+      "lapse_reminded": "Reminded that an over-budget approval lapses soon",
+      "lapsed": "Over-budget approval lapsed or not used",
+      "rejected": "Over-budget approval rejected",
+      "returned": "Over-budget approval returned",
+      "submitted": "Over-budget approval sent",
+      "unused_returned": "Unused over-budget amount returned after use"
     }
   }
 }

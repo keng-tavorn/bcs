@@ -24,6 +24,7 @@ import { checkCatalogLines } from './catalog-lines'
 import { flagRequest } from './duplicates'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
+import { overrunPending, settleOverrunsOfCancelledRequest } from '../budget/overrun-use'
 import { reportDoaGap } from './doa-gap'
 import { aiAssisted, aiReviewed } from './ai-assist'
 import { AiAssistInput } from '../ai/assist-contract'
@@ -133,6 +134,20 @@ async function todaysRate(ctx: Ctx): Promise<number | null> {
 const amountToSatang = (baht: string) => {
   const [whole, fraction = ''] = baht.split('.')
   return BigInt(whole!) * 100n + BigInt(fraction.padEnd(2, '0'))
+}
+
+/** The edit changes what an over-budget approval waiting for the request was asked for: its amounts or budget line */
+async function amountOrLineChanges(
+  tx: TenantTx,
+  request: LoadedRequest,
+  lines: ReadonlyArray<{ quantity: string; unitPriceSatang: bigint; vatable: boolean }>,
+  priceIncludesVat: boolean,
+  budgetLineId: string | null | undefined,
+): Promise<boolean> {
+  if (!(await tx.budgetOverrun.count({ where: { requestId: request.id, status: 'PENDING_APPROVAL' } }))) return false
+  const before = request.lines.map((l) => [Number(l.quantity.toString()), l.unitPriceSatang.toString(), l.vatable].join('|'))
+  const after = lines.map((l) => [Number(l.quantity), l.unitPriceSatang.toString(), l.vatable].join('|'))
+  return priceIncludesVat !== request.priceIncludesVat || (budgetLineId !== undefined && budgetLineId !== request.budgetLineId) || before.join('/') !== after.join('/')
 }
 
 function requesterOf(ctx: Ctx): string | null {
@@ -492,6 +507,7 @@ export const submitCommand = defineCommand({
           escalatedFromRuleCode: route.route.escalatedFromRuleCode,
           // FR-BUD-003 AC3: the budget check of this submit, for the KPI of G-4
           budgetCheck: prepared.budget.check,
+          ...(prepared.budget.overrunIds.length ? { overrunIds: prepared.budget.overrunIds } : {}),
         },
       },
       ...prepared.budget.events,
@@ -613,6 +629,7 @@ export const resubmitCommand = defineCommand({
             doaVersionId: route.route.doaVersionId,
             doaRuleCode: route.route.ruleCode,
             budgetCheck: prepared.budget.check,
+            ...(prepared.budget.overrunIds.length ? { overrunIds: prepared.budget.overrunIds } : {}),
           },
         },
         ...prepared.budget.events,
@@ -681,6 +698,8 @@ export const editCommand = defineCommand({
     const agreed = input.lines ? await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId, priceIncludesVat, offAgreementReason, submit: false }) : null
     if (agreed && !agreed.ok) return agreed
     const lines = input.lines ? amountsOf(input.lines) : request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
+    // S6-16 (§6.4): while an over-budget approval waits, the amount and the budget line it was asked for stay as they are
+    if (await amountOrLineChanges(tx, request, lines, priceIncludesVat, input.budgetLineId)) return overrunPending()
     // Answers sent now must be fields of the form; answers kept from an earlier save are only checked again
     const fieldIds = new Set(form.fields.map((f) => f.id))
     const stored = Object.fromEntries(Object.entries((request.formData ?? {}) as Record<string, unknown>).filter(([key]) => fieldIds.has(key)))
@@ -767,6 +786,9 @@ export const cancelCommand = defineCommand({
       return fail('INVALID_STATE_TRANSITION', 'a line of the request is on a purchase order', { from: request.status, command: 'request.cancel', reason: 'ON_PO' })
     }
     const closed = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'REQUEST_CANCELLED')
+    // S6-16 (BR-BUD-15): an over-budget approval waiting is cancelled, one approved and not used goes back
+    const overruns = await settleOverrunsOfCancelledRequest(tx, ctx, request.id)
+    if (!overruns.ok) return overruns
     // FR-INT-009 AC1: the budget the request reserved goes back at once (§6.4)
     const released = await releaseForRequest(tx, ctx, request.id, request.lines.map((l) => l.id))
     if (!released.ok) return released
@@ -779,7 +801,7 @@ export const cancelCommand = defineCommand({
     return {
       ok: true,
       result: { requestId: request.id },
-      events: [...closed, { type: 'request.cancelled', aggregateType: 'Request', aggregateId: request.id, data: { from: request.status, reasonCommentId } }, ...released.events],
+      events: [...closed, { type: 'request.cancelled', aggregateType: 'Request', aggregateId: request.id, data: { from: request.status, reasonCommentId } }, ...overruns.events, ...released.events],
     }
   },
 })

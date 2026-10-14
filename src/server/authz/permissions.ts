@@ -8,7 +8,8 @@
 // S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
 // in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
 // (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07). S6-15 added
-// budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105).
+// budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105). S6-16 added budget.overrun.submit
+// (FR-BUD-101, OQ-104).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -111,6 +112,8 @@ export const PERMISSIONS = {
   'budgetGrant.manage': [role('BUDGET_ADMIN', 'ORG')],
   // S6-15 (FR-BUD-103, BR-BUD-10 · OQ-105): a transfer, increase or decrease sent for approval under the BUDGET_TRANSFER rule
   'budget.transfer.submit': [role('BUDGET_ADMIN', 'ORG'), deptHead()],
+  // S6-16 (FR-BUD-101, BR-BUD-12 · OQ-104): the requester asks for the shortfall of their own request under the OVER_BUDGET rule
+  'budget.overrun.submit': [anyMember('OWN')],
   // Suppliers, exports, reports
   'supplier.view': [anyMember('ORG', 'BASIC_FIELDS_ONLY'), ...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG')],
   'supplier.manage': PROCUREMENT_ONLY,

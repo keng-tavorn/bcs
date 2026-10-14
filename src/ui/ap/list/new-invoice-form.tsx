@@ -54,6 +54,10 @@ export function NewInvoiceForm({ pos, create, ai }: { pos: readonly PoChoiceView
   const t = useTranslations('apList.new')
   const tai = useTranslations('aiAssist.invoice')
   const reader = useAiRead(ai?.read)
+  // The draft from a reading has its own submission key, and the reading of a kept file is made once: a retry after no
+  // answer sends the same reading with the same key (spec §4.3), and never pays for the same file twice
+  const aiSubmission = useSubmissionKey()
+  const [readOf, setReadOf] = useState<{ poId: string; fileId: string; agentActionId: string } | null>(null)
   const te = useTranslations('apList.errors')
   const router = useRouter()
   const submission = useSubmissionKey()
@@ -119,15 +123,20 @@ export function NewInvoiceForm({ pos, create, ai }: { pos: readonly PoChoiceView
     if (!po) return setProblem(t('pickPoFirst'))
     const fileId = await keptFile(po)
     if (!fileId) return
-    setStage('reading')
-    const result = await reader.read({ fileId, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po } }, uuidv4())
-    // A refusal or a failed reading says why under the buttons (AiReadingStatus); the file stays kept for the other buttons
-    if (!result) return setStage(null)
+    let agentActionId = readOf && readOf.poId === po && readOf.fileId === fileId ? readOf.agentActionId : null
+    if (!agentActionId) {
+      setStage('reading')
+      const result = await reader.read({ fileId, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po } }, uuidv4())
+      // A refusal or a failed reading says why under the buttons (AiReadingStatus); the file stays kept for the other buttons
+      if (!result) return setStage(null)
+      agentActionId = result.id
+      setReadOf({ poId: po, fileId, agentActionId })
+    }
     setStage('creating')
     let outcome: ApDraftOutcome
     try {
-      outcome = await ai.createFromReading({ agentActionId: result.id }, submission.key)
-      submission.next()
+      outcome = await ai.createFromReading({ agentActionId }, aiSubmission.key)
+      aiSubmission.next()
     } catch {
       outcome = AP_NO_ANSWER
     }
@@ -226,7 +235,7 @@ export function NewInvoiceForm({ pos, create, ai }: { pos: readonly PoChoiceView
         {ai ? (
           <Button type="button" variant="outline" disabled={busy} className="min-h-11 px-4 text-base md:text-base" aria-describedby={`${fileId}-ai`} onClick={() => void readWithAi()}>
             <Sparkles className="size-4 text-info" aria-hidden="true" />
-            {stage === 'reading' ? tai('reading') : tai('read')}
+            {tai('read')}
           </Button>
         ) : null}
         <Button type="button" variant="outline" disabled={busy} className="min-h-11 px-4 text-base md:text-base" onClick={() => void start(false)}>

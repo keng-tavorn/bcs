@@ -1447,7 +1447,6 @@
       "panelTitle": "Confirm what the AI read",
       "read": "Read the file with AI",
       "readHint": "The AI reads the number, date, VAT and lines from the file, then opens the draft for you to confirm each value before you submit. An electronic tax invoice (XML) uses the draft-from-file button as before",
-      "reading": "Reading the file…",
       "save": "Save confirmations",
       "saving": "Saving…",
       "title": "What the AI read from the invoice"

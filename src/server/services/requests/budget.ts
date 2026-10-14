@@ -52,6 +52,49 @@ export async function resolveBudgetLine(
   return { ok: true, line: { id: line.id, departmentId: line.departmentId } }
 }
 
+type BudgetLineRef = { id: string; departmentId: string }
+
+/**
+ * S6-17 (BR-BUD-16): the budget line of each request line — its own, or the request's (resolved as BR-BUD-04 says only
+ * when a line uses it) — each one checked as the request's is: of the tax date's fiscal year, and the requester's own
+ * department's or granted to them. A refusal names the line (`lines.N.budgetLineId`).
+ */
+export async function requestBudgetLines(
+  tx: TenantTx,
+  ctx: Ctx,
+  request: { readonly requesterMemberId: string; readonly budgetLineId: string | null; readonly lines: ReadonlyArray<{ readonly budgetLineId: string | null }> },
+  taxDate: string,
+): Promise<{ ok: true; request: BudgetLineRef | null; byLine: BudgetLineRef[] } | Fail> {
+  let own: BudgetLineRef | null = null
+  if (request.lines.some((l) => !l.budgetLineId)) {
+    const resolved = await resolveBudgetLine(tx, ctx, request, taxDate)
+    if (!resolved.ok) return resolved
+    own = resolved.line
+  }
+  const checked = new Map<string, BudgetLineRef>()
+  const byLine: BudgetLineRef[] = []
+  for (const [i, line] of request.lines.entries()) {
+    if (!line.budgetLineId) {
+      byLine.push(own!)
+      continue
+    }
+    if (!checked.has(line.budgetLineId)) {
+      const resolved = await resolveBudgetLine(tx, ctx, { requesterMemberId: request.requesterMemberId, budgetLineId: line.budgetLineId }, taxDate)
+      if (!resolved.ok) return { ok: false, error: { ...resolved.error, details: { ...resolved.error.details, field: `lines.${i}.budgetLineId` } } }
+      checked.set(line.budgetLineId, resolved.line)
+    }
+    byLine.push(checked.get(line.budgetLineId)!)
+  }
+  return { ok: true, request: own, byLine }
+}
+
+/** The budget line whose request lines add up to the most before VAT; on a tie, the one of the lowest line */
+export function largestLine(groups: readonly ReserveGroup[], byLine: readonly BudgetLineRef[]): BudgetLineRef {
+  const total = (g: ReserveGroup) => g.lines.reduce((sum, l) => sum + l.netSatang, 0n)
+  const best = groups.reduce((a, b) => (total(b) > total(a) ? b : a))
+  return byLine.find((l) => l.id === best.budgetLineId)!
+}
+
 /** Operations that give back what these request lines hold, on whichever budget line holds it */
 async function releaseOperations(tx: TenantTx, requestId: string, requestLineIds: readonly string[]): Promise<BudgetOperation[]> {
   if (requestLineIds.length === 0) return []
@@ -71,34 +114,46 @@ export interface BudgetCheck {
   readonly reservedSatang: string
 }
 
+/** The request's lines on one budget line (S6-17 · BR-BUD-16: each line on its own, or the request's) */
+export interface ReserveGroup {
+  readonly budgetLineId: string
+  readonly lines: ReadonlyArray<{ readonly requestLineId: string; readonly netSatang: bigint }>
+}
+
 /**
- * Reserves the request's lines on the budget line (BR-BUD-02): first what the lines held before is given back (a
- * resubmit, or another budget line chosen), then all lines are reserved against their total, or nothing happens.
+ * Reserves the request's lines on their budget lines (BR-BUD-02, BR-BUD-16): first what the lines held before is given
+ * back (a resubmit, or another budget line chosen), then every budget line reserves its lines against their total — all
+ * budget lines or none, locked in id order by applyBudget (INV-BUD-05). Returns one check per budget line, in the order
+ * of the groups.
  */
 export async function reserveForRequest(
   tx: TenantTx,
   ctx: Ctx,
   requestId: string,
-  budgetLineId: string,
-  lines: ReadonlyArray<{ readonly requestLineId: string; readonly netSatang: bigint }>,
-): Promise<{ ok: true; events: EventDraft[]; check: BudgetCheck; overrunIds: string[] } | Fail> {
-  const releases = await releaseOperations(tx, requestId, lines.map((l) => l.requestLineId))
-  const reserving = lines.filter((l) => l.netSatang > 0n)
-  const amounts = reserving.map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang }))
-  const overruns = await overrunsForReserve(tx, ctx, requestId, budgetLineId, amounts)
+  groups: readonly ReserveGroup[],
+): Promise<{ ok: true; events: EventDraft[]; checks: BudgetCheck[]; overrunIds: string[] } | Fail> {
+  const releases = await releaseOperations(tx, requestId, groups.flatMap((g) => g.lines.map((l) => l.requestLineId)))
+  const reserving = groups.map((g) => ({ budgetLineId: g.budgetLineId, lines: g.lines.filter((l) => l.netSatang > 0n).map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang })) }))
+  const overruns = await overrunsForReserve(tx, ctx, requestId, reserving)
   if ('ok' in overruns) return overruns
+  // Lapses first (an overrun past its lapsesAt may be of a line reserved here), so each line's reservation runs last on it
   const result = await applyBudget(tx, ctx, [
-    ...releases,
-    overruns.reserve ?? { budgetLineId, document: { type: 'REQUEST', id: requestId }, run: (s) => reserve(s, amounts) },
     ...overruns.lapse,
+    ...releases,
+    ...reserving
+      .filter((g) => g.lines.length > 0)
+      .map((g) => overruns.reserve.get(g.budgetLineId) ?? { budgetLineId: g.budgetLineId, document: { type: 'REQUEST' as const, id: requestId }, run: (s: Parameters<typeof reserve>[0]) => reserve(s, g.lines) }),
   ])
   if (!result.ok) return result
   const settled = await overruns.settle()
-  const total = reserving.reduce((sum, l) => sum + l.netSatang, 0n)
-  // What the reservation was checked against: the line's available amount after it gave back what the request held,
-  // and the earmark of the overrun it used (BR-BUD-14); the overruns that lapse are of other lines
-  const checkedAgainst = result.lines.filter((l) => l.budgetLineId === budgetLineId).at(-1)!.before.available + settled.earmark
-  return { ok: true, events: [...result.events, ...settled.events], check: { budgetLineId, availableSatang: checkedAgainst.toString(), reservedSatang: total.toString() }, overrunIds: settled.overrunIds }
+  // What each reservation was checked against: the line's available amount after it gave back what the request held,
+  // and the earmark of the overrun it used (BR-BUD-14)
+  const checks = reserving.map((g) => {
+    const last = result.lines.filter((l) => l.budgetLineId === g.budgetLineId).at(-1)
+    const available = (last ? last.before.available : 0n) + (settled.earmarks.get(g.budgetLineId) ?? 0n)
+    return { budgetLineId: g.budgetLineId, availableSatang: available.toString(), reservedSatang: g.lines.reduce((sum, l) => sum + l.amount, 0n).toString() }
+  })
+  return { ok: true, events: [...result.events, ...settled.events], checks, overrunIds: settled.overrunIds }
 }
 
 /** Gives back everything the request's lines hold (rejection or cancellation) */

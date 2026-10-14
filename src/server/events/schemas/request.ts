@@ -39,13 +39,15 @@ defineEvents('Request', {
       doaRuleCode: z.string().min(1),
       escalatedFromRuleCode: z.string().min(1).nullable(),
       budgetCheck,
+      // S6-17: every budget line of a request split over budget lines (BR-BUD-16)
+      budgetChecks: z.array(budgetCheck).optional(),
       // S6-16: the overruns the submit used (BR-BUD-14)
       overrunIds: z.array(z.uuid()).optional(),
       }),
     ]),
   },
   'request.resubmitted': {
-    schema: z.object({ netSatang: satang, vatSatang: satang, grossSatang: satang, routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1), budgetCheck, overrunIds: z.array(z.uuid()).optional() }),
+    schema: z.object({ netSatang: satang, vatSatang: satang, grossSatang: satang, routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1), budgetCheck, budgetChecks: z.array(budgetCheck).optional(), overrunIds: z.array(z.uuid()).optional() }),
   },
   'request.returned': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
   'request.approved': { schema: z.object({ routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1) }) },

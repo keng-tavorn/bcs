@@ -39,43 +39,49 @@ export const overrunPending = (): Fail => ({
 })
 
 export interface OverrunUse {
-  /** The operation that reserves the request's lines on its budget line: with the approved overrun, BR-BUD-14 */
-  readonly reserve: BudgetOperation | null
-  /** Approved overruns of other lines or past their lapsesAt, which the submit lets lapse (BR-BUD-15) */
+  /**
+   * Per budget line of the submit, the operation that reserves its lines when an approved overrun of that line is used
+   * (BR-BUD-14); a line without one is reserved as usual by the caller
+   */
+  readonly reserve: ReadonlyMap<string, BudgetOperation>
+  /** Approved overruns of lines the submit does not use or past their lapsesAt, which it lets lapse (BR-BUD-15) */
   readonly lapse: BudgetOperation[]
-  /** After applyBudget succeeded: the overruns' new state and their events */
-  readonly settle: () => Promise<{ events: EventDraft[]; overrunIds: string[]; earmark: bigint }>
+  /** After applyBudget succeeded: the overruns' new state and their events, and each used line's earmark */
+  readonly settle: () => Promise<{ events: EventDraft[]; overrunIds: string[]; earmarks: ReadonlyMap<string, bigint> }>
 }
 
 /**
- * The overrun side of a submit or resubmit reserving `lines` on `budgetLineId`: refused while an overrun waits for
- * approval; with an approved overrun of the line, the reservation uses it (needed of X, the rest leaves the line)
+ * The overrun side of a submit or resubmit reserving its lines on one or more budget lines (S6-17): refused while an
+ * overrun waits for approval; on a line with an approved overrun, the reservation uses it (needed of X, the rest leaves
+ * the line)
  */
 export async function overrunsForReserve(
   tx: TenantTx,
   ctx: Ctx,
   requestId: string,
-  budgetLineId: string,
-  lines: ReadonlyArray<{ readonly requestLineId: string; readonly amount: bigint }>,
+  groups: ReadonlyArray<{ readonly budgetLineId: string; readonly lines: ReadonlyArray<{ readonly requestLineId: string; readonly amount: bigint }> }>,
 ): Promise<OverrunUse | Fail> {
   const live = await liveOverruns(tx, ctx, requestId)
   if (live.some((o) => o.status === 'PENDING_APPROVAL')) return overrunPending()
   // Past its lapsesAt an approved overrun is never used, even before the job budget-overrun-lapse lets it lapse
-  const own = live.find((o) => o.budgetLineId === budgetLineId && (!o.lapsesAt || o.lapsesAt > ctx.now)) ?? null
-  const others = live.filter((o) => o !== own)
-  let used: Extract<OverrunResult, { ok: true }> | null = null
+  const usable = (o: OverrunRow) => (!o.lapsesAt || o.lapsesAt > ctx.now) && groups.some((g) => g.budgetLineId === o.budgetLineId)
+  const own = live.filter(usable)
+  const others = live.filter((o) => !usable(o))
+  const used = new Map<string, Extract<OverrunResult, { ok: true }>>()
   const lapsed = new Map<string, bigint>()
-  const reserve: BudgetOperation | null = own
-    ? {
-        budgetLineId,
-        document: { type: 'REQUEST', id: requestId },
-        run: (s) => {
-          const r = consumeOverrun(s, own.id, lines.map((l) => ({ requestLineId: l.requestLineId, amount: l.amount })))
-          if (r.ok) used = r
-          return r
-        },
-      }
-    : null
+  const reserve = new Map<string, BudgetOperation>()
+  for (const o of own) {
+    const lines = groups.find((g) => g.budgetLineId === o.budgetLineId)!.lines
+    reserve.set(o.budgetLineId, {
+      budgetLineId: o.budgetLineId,
+      document: { type: 'REQUEST', id: requestId },
+      run: (s) => {
+        const r = consumeOverrun(s, o.id, lines.map((l) => ({ requestLineId: l.requestLineId, amount: l.amount })))
+        if (r.ok) used.set(o.id, r)
+        return r
+      },
+    })
+  }
   const lapse = others.map(
     (o): BudgetOperation => ({
       budgetLineId: o.budgetLineId,
@@ -92,13 +98,15 @@ export async function overrunsForReserve(
     lapse,
     async settle() {
       const events: EventDraft[] = []
-      if (own && used) {
-        const u = used as Extract<OverrunResult, { ok: true }>
-        await tx.budgetOverrun.update({ where: { id: own.id }, data: { status: moved(own, 'budgetOverrun.consume'), usedSatang: u.used, returnedSatang: u.returned, consumedAt: ctx.now, version: { increment: 1 } } })
-        events.push({ type: 'budget_overrun.consumed', aggregateType: 'BudgetOverrun', aggregateId: own.id, data: { requestId, budgetLineId, number: own.number, usedSatang: u.used.toString(), returnedSatang: u.returned.toString() } })
+      const earmarks = new Map<string, bigint>()
+      for (const o of own) {
+        const u = used.get(o.id)!
+        await tx.budgetOverrun.update({ where: { id: o.id }, data: { status: moved(o, 'budgetOverrun.consume'), usedSatang: u.used, returnedSatang: u.returned, consumedAt: ctx.now, version: { increment: 1 } } })
+        events.push({ type: 'budget_overrun.consumed', aggregateType: 'BudgetOverrun', aggregateId: o.id, data: { requestId, budgetLineId: o.budgetLineId, number: o.number, usedSatang: u.used.toString(), returnedSatang: u.returned.toString() } })
+        earmarks.set(o.budgetLineId, o.shortfallSatang)
       }
       for (const o of others) events.push(...(await markLapsed(tx, ctx, o, lapsed.get(o.id) ?? 0n, 'budgetOverrun.lapse', 'NOT_USED')))
-      return { events, overrunIds: own && used ? [own.id] : [], earmark: own && used ? own.shortfallSatang : 0n }
+      return { events, overrunIds: own.map((o) => o.id), earmarks }
     },
   }
 }

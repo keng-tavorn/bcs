@@ -269,8 +269,11 @@ export async function collectKpis(
   let g4 = 0
   const g4Items: KpiTaskItem[] = []
   for (const s of submits) {
-    const check = (s.data as { budgetCheck?: { availableSatang?: string; reservedSatang?: string } }).budgetCheck
-    const failed = !check || BigInt(check.reservedSatang ?? '0') > BigInt(check.availableSatang ?? '0')
+    type Check = { availableSatang?: string; reservedSatang?: string }
+    const data = s.data as { budgetCheck?: Check; budgetChecks?: Check[] }
+    // S6-17 (FR-BUD-102 AC3): a request split over budget lines passed only if every line's check passed
+    const checks = data.budgetChecks ?? (data.budgetCheck ? [data.budgetCheck] : [])
+    const failed = checks.length === 0 || checks.some((c) => BigInt(c.reservedSatang ?? '0') > BigInt(c.availableSatang ?? '0'))
     if (!failed || !(await inScope('REQUEST', s.aggregateId))) continue
     const tasks = await tx.approvalTask.findMany({ where: { step: { route: { subjectType: 'REQUEST', subjectId: s.aggregateId } } }, include: { step: { include: { route: true } } } })
     g4 += tasks.length

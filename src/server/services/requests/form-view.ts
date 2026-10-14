@@ -52,6 +52,8 @@ export interface DraftLineDto {
   readonly serviceEndDate: string | null
   /** S6-10: the catalogue item the line is (BR-PRC-06) */
   readonly catalogItemId: string | null
+  /** S6-17 (BR-BUD-16): the line's own budget line, or null for the request's */
+  readonly budgetLineId: string | null
 }
 
 export interface DraftQuotationDto {
@@ -248,6 +250,7 @@ export async function getRequestForEdit(ctx: Ctx, requestId: string, locale: Scr
         vatable: l.vatable,
         serviceEndDate: l.serviceEndDate ? day(l.serviceEndDate) : null,
         catalogItemId: l.catalogItemId,
+        budgetLineId: l.budgetLineId,
       })),
       quotations: request.quotations.map((q) => ({
         supplierName: q.supplierName,

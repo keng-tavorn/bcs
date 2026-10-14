@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { evaluateCondition, evaluateForm } from '@/core/forms'
 import { formDataSchema } from '@/core/forms/fields'
 import { FORM_TEXTAREA_MAX_LENGTH, FORM_TEXT_MAX_LENGTH } from '@/core/money/constants'
+import { chargedDepartmentOf } from '@/core/budget'
 import { documentTotals, lineNet, lineNetsBeforeVat } from '@/core/money/math'
 import { REQUEST_MACHINE, SUPPLIER_REQUEST_MACHINE, transition, type RequestCommand, type RequestState, type SupplierRequestState } from '@/core/state-machines'
 import type { AppError, Result } from '@/core/result'
@@ -23,7 +24,7 @@ import { formDefinition, type FormDefinition } from '@/server/forms/schema'
 import { checkCatalogLines } from './catalog-lines'
 import { flagRequest } from './duplicates'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
-import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
+import { largestLine, releaseForRequest, requestBudgetLines, reserveForRequest } from './budget'
 import { overrunPending, settleOverrunsOfCancelledRequest } from '../budget/overrun-use'
 import { reportDoaGap } from './doa-gap'
 import { aiAssisted, aiReviewed } from './ai-assist'
@@ -72,6 +73,11 @@ const LineInput = z.strictObject({
   serviceEndDate: z.iso.date().optional(),
   /** S6-10: the catalogue item the line is; its agreed price is checked on every save and at submit (BR-PRC-06) */
   catalogItemId: z.uuid().nullable().optional(),
+  /**
+   * S6-17 (BR-BUD-16): the line's own budget line, checked at submit like the request's; null uses the request's, and a
+   * save that leaves it out keeps what the line had
+   */
+  budgetLineId: z.uuid().nullable().optional(),
 })
 type LineRow = z.output<typeof LineInput>
 
@@ -143,8 +149,11 @@ async function amountOrLineChanges(
   lines: ReadonlyArray<{ quantity: string; unitPriceSatang: bigint; vatable: boolean }>,
   priceIncludesVat: boolean,
   budgetLineId: string | null | undefined,
+  lineBudgetLineIds: ReadonlyArray<string | null | undefined>,
 ): Promise<boolean> {
   if (!(await tx.budgetOverrun.count({ where: { requestId: request.id, status: 'PENDING_APPROVAL' } }))) return false
+  // S6-17: a line moved to another budget line changes what the overrun was asked for too
+  if (lineBudgetLineIds.some((id, i) => id !== undefined && id !== (request.lines[i]?.budgetLineId ?? null))) return true
   const before = request.lines.map((l) => [Number(l.quantity.toString()), l.unitPriceSatang.toString(), l.vatable].join('|'))
   const after = lines.map((l) => [Number(l.quantity), l.unitPriceSatang.toString(), l.vatable].join('|'))
   return priceIncludesVat !== request.priceIncludesVat || (budgetLineId !== undefined && budgetLineId !== request.budgetLineId) || before.join('/') !== after.join('/')
@@ -208,11 +217,11 @@ async function writeLines(tx: TenantTx, ctx: Ctx, requestId: string, lines: read
     }
     const target = targets[i]
     if (target) {
-      await tx.requestLine.update({ where: { id: target }, data })
+      await tx.requestLine.update({ where: { id: target }, data: { ...data, ...(line.budgetLineId !== undefined ? { budgetLineId: line.budgetLineId } : {}) } })
       lineIds.push(target)
     } else {
       const id = newId()
-      await tx.requestLine.create({ data: { id, organizationId: ctx.organizationId, requestId, ...data } })
+      await tx.requestLine.create({ data: { id, organizationId: ctx.organizationId, requestId, ...data, budgetLineId: line.budgetLineId ?? null } })
       lineIds.push(id)
     }
   }
@@ -406,18 +415,26 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, dupl
   // BR-FORM-06: quotations compared before VAT with the rate of the tax date
   const quotes = await checkQuotations(tx, request, rate.rateBp)
   if (quotes) return quotes
-  // BR-BUD-02 to BR-BUD-04: the budget line, then all lines reserved before VAT against its total, or nothing at all.
-  // The department that owns the budget pays, so its approvers decide (BR-DOA-05, FR-BUD-004 AC3)
-  const budgetLine = await resolveBudgetLine(tx, ctx, request, taxDate)
-  if (!budgetLine.ok) return budgetLine
+  // BR-BUD-02 to BR-BUD-04: the budget lines, then all lines reserved before VAT against each line's total, or nothing
+  // at all. The department that owns the budget pays, so its approvers decide (BR-DOA-05, FR-BUD-004 AC3); a request
+  // split over budget lines (S6-17 · BR-BUD-16) is charged to the department with the most, the DOA on its total
+  const lines = await requestBudgetLines(tx, ctx, request, taxDate)
+  if (!lines.ok) return lines
   const nets = lineNetsBeforeVat(
     request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
     rate.rateBp,
     request.priceIncludesVat,
   )
-  const reserved = await reserveForRequest(tx, ctx, request.id, budgetLine.line.id, request.lines.map((l, i) => ({ requestLineId: l.id, netSatang: nets[i]! })))
+  const groups = [...new Set(lines.byLine.map((l) => l.id))].map((budgetLineId) => ({
+    budgetLineId,
+    lines: request.lines.flatMap((l, i) => (lines.byLine[i]!.id === budgetLineId ? [{ requestLineId: l.id, netSatang: nets[i]! }] : [])),
+  }))
+  const reserved = await reserveForRequest(tx, ctx, request.id, groups)
   if (!reserved.ok) return reserved
-  const chargedDepartmentId = budgetLine.line.departmentId
+  const chargedDepartmentId = chargedDepartmentOf(request.lines.map((l, i) => ({ lineNo: l.lineNo, departmentId: lines.byLine[i]!.departmentId, netSatang: nets[i]! })))
+  // The request's own budget line: the one it names or resolves; with every line on its own, the one with the most
+  const budgetLine = { line: lines.request ?? largestLine(groups, lines.byLine) }
+  const budget = { events: reserved.events, check: reserved.checks.find((c) => c.budgetLineId === budgetLine.line.id)!, checks: reserved.checks, overrunIds: reserved.overrunIds }
   // BR-WF-06: the reviewers of the workflow version in effect read the request as it is sent (S6)
   const review = await requestReviewFacts(tx, {
     requestTypeCode: request.requestType.code,
@@ -445,7 +462,7 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, dupl
   // BR-DUP-05 (S6-13): duplicates and splits under the DOA version of this route; never blocking, never rerouting
   const flagged = await flagRequest(tx, ctx, { ...request, chargedDepartmentId }, totals, { routeId: route.data.routeId, doaVersionId: route.data.route.doaVersionId }, duplicateReason)
   if (!flagged.ok) return flagged
-  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget: reserved, budgetLineId: budgetLine.line.id, chargedDepartmentId, flagged }
+  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget, budgetLineId: budgetLine.line.id, chargedDepartmentId, flagged }
 }
 
 export const submitCommand = defineCommand({
@@ -507,6 +524,8 @@ export const submitCommand = defineCommand({
           escalatedFromRuleCode: route.route.escalatedFromRuleCode,
           // FR-BUD-003 AC3: the budget check of this submit, for the KPI of G-4
           budgetCheck: prepared.budget.check,
+          // S6-17: every budget line of a split request (BR-BUD-16, FR-BUD-102 AC3)
+          ...(prepared.budget.checks.length > 1 ? { budgetChecks: prepared.budget.checks } : {}),
           ...(prepared.budget.overrunIds.length ? { overrunIds: prepared.budget.overrunIds } : {}),
         },
       },
@@ -629,6 +648,7 @@ export const resubmitCommand = defineCommand({
             doaVersionId: route.route.doaVersionId,
             doaRuleCode: route.route.ruleCode,
             budgetCheck: prepared.budget.check,
+            ...(prepared.budget.checks.length > 1 ? { budgetChecks: prepared.budget.checks } : {}),
             ...(prepared.budget.overrunIds.length ? { overrunIds: prepared.budget.overrunIds } : {}),
           },
         },
@@ -699,7 +719,7 @@ export const editCommand = defineCommand({
     if (agreed && !agreed.ok) return agreed
     const lines = input.lines ? amountsOf(input.lines) : request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable }))
     // S6-16 (§6.4): while an over-budget approval waits, the amount and the budget line it was asked for stay as they are
-    if (await amountOrLineChanges(tx, request, lines, priceIncludesVat, input.budgetLineId)) return overrunPending()
+    if (await amountOrLineChanges(tx, request, lines, priceIncludesVat, input.budgetLineId, (input.lines ?? []).map((l) => l.budgetLineId))) return overrunPending()
     // Answers sent now must be fields of the form; answers kept from an earlier save are only checked again
     const fieldIds = new Set(form.fields.map((f) => f.id))
     const stored = Object.fromEntries(Object.entries((request.formData ?? {}) as Record<string, unknown>).filter(([key]) => fieldIds.has(key)))

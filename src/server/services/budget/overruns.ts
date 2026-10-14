@@ -18,7 +18,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
-import { resolveBudgetLine } from '../requests/budget'
+import { requestBudgetLines } from '../requests/budget'
 import { lapse, liveOverruns } from './overrun-use'
 
 // Over-budget approval (S6-16 · FR-BUD-101 · BR-BUD-12 to BR-BUD-15 · ADR-105 · OQ-104): the requester of a draft or a
@@ -51,7 +51,7 @@ export interface OverrunNeed {
 export async function overrunNeed(tx: TenantTx, ctx: Ctx, requestId: string): Promise<{ ok: true; need: OverrunNeed } | { ok: false; error: AppError }> {
   const request = await tx.request.findFirst({
     where: { id: requestId },
-    select: { id: true, status: true, documentType: true, requesterMemberId: true, budgetLineId: true, priceIncludesVat: true, lines: { orderBy: { lineNo: 'asc' }, select: { id: true, quantity: true, unitPriceSatang: true, vatable: true } } },
+    select: { id: true, status: true, documentType: true, requesterMemberId: true, budgetLineId: true, priceIncludesVat: true, lines: { orderBy: { lineNo: 'asc' }, select: { id: true, quantity: true, unitPriceSatang: true, vatable: true, budgetLineId: true } } },
   })
   if (!request) return fail('NOT_FOUND', 'request not found')
   if (request.documentType !== 'PURCHASE_REQUEST' || (request.status !== 'DRAFT' && request.status !== 'RETURNED')) {
@@ -61,26 +61,35 @@ export async function overrunNeed(tx: TenantTx, ctx: Ctx, requestId: string): Pr
   const taxDate = taxDateOf(ctx.now)
   const rate = rateFor(taxDate, await listTaxRates())
   if (!rate.ok) return fail('TAX_RATE_NOT_CONFIGURED', 'no VAT rate covers the tax date', { date: taxDate })
-  const resolved = await resolveBudgetLine(tx, ctx, request, taxDate)
+  // S6-17 (BR-BUD-16): each line on its own budget line or the request's; the line short of the most is the one asked for
+  const resolved = await requestBudgetLines(tx, ctx, request, taxDate)
   if (!resolved.ok) return resolved
-  const line = await tx.budgetLine.findUniqueOrThrow({
-    where: { id: resolved.line.id },
-    select: { id: true, code: true, nameTh: true, status: true, departmentId: true, department: { select: { code: true } }, balance: { select: { availableSatang: true } } },
-  })
-  if (line.status !== 'OPEN') return fail('VALIDATION_FAILED', 'the budget line is not open', { field: 'budgetLineId', reason: 'LINE_NOT_OPEN' })
   const nets = lineNetsBeforeVat(
     request.lines.map((l) => ({ quantity: l.quantity.toString(), unitPriceSatang: l.unitPriceSatang, vatable: l.vatable })),
     rate.rateBp,
     request.priceIncludesVat,
   )
-  const held = await tx.budgetAllocation.aggregate({ where: { budgetLineId: line.id, sourceType: 'REQUEST_LINE', sourceId: { in: request.lines.map((l) => l.id) } }, _sum: { reservedSatang: true } })
-  const needSatang = nets.reduce((a, b) => a + b, 0n) - (held._sum.reservedSatang ?? 0n)
+  type Candidate = { line: { id: string; code: string; nameTh: string; status: string; departmentId: string; department: { code: string } }; needSatang: bigint; availableSatang: bigint }
+  const candidates: Candidate[] = []
+  for (const id of [...new Set(resolved.byLine.map((l) => l.id))]) {
+    const own = request.lines.flatMap((l, i) => (resolved.byLine[i]!.id === id ? [{ id: l.id, net: nets[i]! }] : []))
+    const line = await tx.budgetLine.findUniqueOrThrow({
+      where: { id },
+      select: { id: true, code: true, nameTh: true, status: true, departmentId: true, department: { select: { code: true } }, balance: { select: { availableSatang: true } } },
+    })
+    const held = await tx.budgetAllocation.aggregate({ where: { budgetLineId: id, sourceType: 'REQUEST_LINE', sourceId: { in: own.map((l) => l.id) } }, _sum: { reservedSatang: true } })
+    const needSatang = own.reduce((a, l) => a + l.net, 0n) - (held._sum.reservedSatang ?? 0n)
+    candidates.push({ line, needSatang, availableSatang: line.balance?.availableSatang ?? 0n })
+  }
+  const short = (c: Candidate) => c.needSatang - c.availableSatang
+  const { line, needSatang, availableSatang } = candidates.reduce((a, b) => (short(b) > short(a) ? b : a))
+  if (line.status !== 'OPEN') return fail('VALIDATION_FAILED', 'the budget line is not open', { field: 'budgetLineId', reason: 'LINE_NOT_OPEN' })
   return {
     ok: true,
     need: {
       line: { id: line.id, code: line.code, nameTh: line.nameTh, departmentId: line.departmentId, departmentCode: line.department.code },
       needSatang,
-      availableSatang: line.balance?.availableSatang ?? 0n,
+      availableSatang,
     },
   }
 }

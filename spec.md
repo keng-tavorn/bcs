@@ -2724,6 +2724,12 @@ cases:
   - { id: GC-BUD-26, title: แบ่งครึ่งแล้วปัด half-up ต่อส่วน, fn: splitLine, input: { unitPrice: "100000.01", parts: ["0.5", "0.5"] }, expect: { nets: ["50000.01", "50000.01"], total: "100000.02", original: "100000.01" } }
   - { id: GC-BUD-27, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "50000.00" }, { lineNo: 2, department: IT, net: "70000.00" }] }, expect: { department: IT } }
   - { id: GC-BUD-28, title: ยอดเท่ากันใช้บรรทัดแรก, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "60000.00" }, { lineNo: 2, department: IT, net: "60000.00" }] }, expect: { department: CON } }
+  # S6-18 · budgetBurn (BR-BUD-17) · ปีงบ 365 วัน · thresholds [8000, 10000] · forecastMinElapsedDays 30
+  - { id: GC-BUD-29, fn: budgetBurn, input: { funded: "1200000.00", committed: "300000.00", actual: "330000.00", elapsedDays: 146 }, expect: { usedBp: 5250, forecastBp: 13125, alerts: [FORECAST_OVER] } }
+  - { id: GC-BUD-30, title: ใช้ 80% พอดี, fn: budgetBurn, input: { funded: "1000000.00", committed: "500000.00", actual: "300000.00", elapsedDays: 200 }, expect: { usedBp: 8000, forecastBp: 14600, alerts: [USED_8000, FORECAST_OVER] } }
+  - { id: GC-BUD-31, title: ยังไม่ครบ 30 วัน ไม่พยากรณ์, fn: budgetBurn, input: { funded: "1000000.00", committed: "100000.00", actual: "0.00", elapsedDays: 29 }, expect: { usedBp: 1000, forecastBp: null, alerts: [] } }
+  - { id: GC-BUD-32, fn: budgetBurn, input: { funded: "1000000.00", committed: "400000.00", actual: "0.00", elapsedDays: 200 }, expect: { usedBp: 4000, forecastBp: 7300, alerts: [] } }
+  - { id: GC-BUD-33, fn: budgetBurn, input: { funded: "0.00", committed: "0.00", actual: "0.00", elapsedDays: 200 }, expect: { usedBp: null, forecastBp: null, alerts: [] } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -4614,7 +4620,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       37 ไฟล์ · 415 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       37 ไฟล์ · 420 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

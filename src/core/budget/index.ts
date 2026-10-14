@@ -1,5 +1,5 @@
 import { lineNet, parseQuantity, roundHalfUpDiv, type Satang } from '../money/math'
-import { QUANTITY_SCALE } from '../money/constants'
+import { BP_PER_WHOLE, QUANTITY_SCALE } from '../money/constants'
 
 // Budget ledger engine (spec §7.7, ADR-021): the budget of one line sits in buckets, and every movement moves money
 // from one bucket to another — fund, reserve, hold, actualize, release. The engine is pure: each operation takes the
@@ -435,4 +435,36 @@ export function chargedDepartmentOf(lines: readonly { readonly lineNo: number; r
     totals.set(l.departmentId, { net: (t?.net ?? 0n) + l.netSatang, first: Math.min(t?.first ?? l.lineNo, l.lineNo) })
   }
   return [...totals].sort(([, a], [, b]) => (a.net === b.net ? a.first - b.first : a.net > b.net ? -1 : 1))[0]![0]
+}
+
+// ---------- burn rate and forecast (S6-18 · BR-BUD-17 · OQ-113) ----------
+
+export type BurnAlert = `USED_${number}` | 'FORECAST_OVER'
+
+/**
+ * BR-BUD-17: how much of a line's current budget (funded, after transfers and adjustments) is used — committed and
+ * actual — in basis points, floor((committed + actual) × 10000 ÷ funded); and the forecast for the whole fiscal year at
+ * the pace so far, floor((committed + actual) × yearDays × 10000 ÷ (funded × elapsedDays)), once elapsedDays reaches
+ * forecastMinElapsedDays. A line with nothing funded has neither. Alerts: USED_t for each threshold t the use reached,
+ * FORECAST_OVER when the forecast is above the budget. Indicators, not money: no rounding point of BR-MONEY-02.
+ */
+export function budgetBurn(input: {
+  readonly fundedSatang: Satang
+  readonly committedSatang: Satang
+  readonly actualSatang: Satang
+  readonly elapsedDays: number
+  readonly yearDays: number
+  readonly thresholdsBp: readonly number[]
+  readonly forecastMinElapsedDays: number
+}): { usedBp: number | null; forecastBp: number | null; alerts: BurnAlert[] } {
+  if (input.fundedSatang <= 0n) return { usedBp: null, forecastBp: null, alerts: [] }
+  const used = input.committedSatang + input.actualSatang
+  const usedBp = Number((used * BP_PER_WHOLE) / input.fundedSatang)
+  const forecastBp =
+    input.elapsedDays >= input.forecastMinElapsedDays && input.elapsedDays > 0
+      ? Number((used * BigInt(input.yearDays) * BP_PER_WHOLE) / (input.fundedSatang * BigInt(input.elapsedDays)))
+      : null
+  const alerts: BurnAlert[] = [...input.thresholdsBp].sort((a, b) => a - b).filter((t) => usedBp >= t).map((t): BurnAlert => `USED_${t}`)
+  if (forecastBp !== null && forecastBp > Number(BP_PER_WHOLE)) alerts.push('FORECAST_OVER')
+  return { usedBp, forecastBp, alerts }
 }

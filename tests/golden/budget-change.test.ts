@@ -3,6 +3,7 @@ import {
   actualize,
   allocationKey,
   approvePo,
+  budgetBurn,
   chargedDepartmentOf,
   closePo,
   consumeOverrun,
@@ -263,5 +264,30 @@ describe('[FR-BUD-102/AC2] golden budget-change.yaml: split cost (BR-BUD-16)', (
     expect(() => splitLine(100n, ['1'])).toThrow(RangeError)
     expect(() => splitLine(100n, ['1', '0'])).toThrow(RangeError)
     expect(() => chargedDepartmentOf([])).toThrow(RangeError)
+  })
+})
+
+interface BurnCase {
+  id: string
+  title?: string
+  fn: 'budgetBurn'
+  input: { funded: string; committed: string; actual: string; elapsedDays: number }
+  expect: { usedBp: number | null; forecastBp: number | null; alerts: string[] }
+}
+
+describe('[FR-BUD-104/AC1] golden budget-change.yaml: burn rate and forecast (BR-BUD-17)', () => {
+  const cases = (suite.cases as unknown as BurnCase[]).filter((c) => c.fn === 'budgetBurn')
+  it('has the cases of S6-18', () => expect(cases.map((c) => c.id)).toEqual(['GC-BUD-29', 'GC-BUD-30', 'GC-BUD-31', 'GC-BUD-32', 'GC-BUD-33']))
+  // The suite header: a fiscal year of 365 days, thresholds [8000, 10000], forecast from 30 days
+  for (const c of cases) {
+    it(`[${c.id}] ${c.title ?? c.fn}`, () => {
+      const i = c.input
+      expect(
+        budgetBurn({ fundedSatang: amountToSatang(i.funded), committedSatang: amountToSatang(i.committed), actualSatang: amountToSatang(i.actual), elapsedDays: i.elapsedDays, yearDays: 365, thresholdsBp: [10000, 8000], forecastMinElapsedDays: 30 }),
+      ).toEqual(c.expect)
+    })
+  }
+  it('never forecasts on the fiscal year’s first day, even with no minimum', () => {
+    expect(budgetBurn({ fundedSatang: 100n, committedSatang: 50n, actualSatang: 0n, elapsedDays: 0, yearDays: 365, thresholdsBp: [], forecastMinElapsedDays: 0 })).toEqual({ usedBp: 5000, forecastBp: null, alerts: [] })
   })
 })

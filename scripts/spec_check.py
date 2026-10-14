@@ -1515,6 +1515,16 @@ def run_budget_change(d):
             i = c["input"]; dept = (i["to"] if i["kind"] == "INCREASE" else i["from"])["department"]
             got = {"documentType": "BUDGET_TRANSFER", "net": i["amount"], "vat": "0.00", "department": dept, "conflict": [i["submitter"]]}
             out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "budgetBurn":
+            # BR-BUD-17 (S6-18): fiscal year of 365 days · thresholds [8000, 10000] · forecast from 30 days (the suite header)
+            i = c["input"]; funded = sat(i["funded"]); used = sat(i["committed"]) + sat(i["actual"]); days = i["elapsedDays"]
+            if funded <= 0: got = {"usedBp": None, "forecastBp": None, "alerts": []}
+            else:
+                used_bp = used * 10000 // funded
+                forecast = used * 365 * 10000 // (funded * days) if days >= 30 else None
+                alerts = [f"USED_{t}" for t in (8000, 10000) if used_bp >= t] + (["FORECAST_OVER"] if forecast is not None and forecast > 10000 else [])
+                got = {"usedBp": used_bp, "forecastBp": forecast, "alerts": alerts}
+            out.append((c["id"], got == c["expect"], got)); continue
         if c.get("fn") == "splitLine":
             # BR-BUD-16 (S6-17): each part's quantity × the unit price, rounded once (BR-MONEY-02 (1))
             i = c["input"]; price = sat(i["unitPrice"])

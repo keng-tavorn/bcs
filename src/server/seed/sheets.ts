@@ -298,6 +298,12 @@ const P1HistorySheetRow = z.object({
   unitPrice: z.string().regex(/^\d{1,13}(\.\d{1,2})?$/),
   serviceEndInDays: intOrNull(366),
   form: formAnswers,
+  // S8-12: the supplier's invoice of a COMPLETED row and what happens to it (docs/sub-specs/S8.md)
+  invoiceScenario: z.enum(['MATCH', 'PRICE_WITHIN_TOL', 'PRICE_OVER', 'QTY_OVER', 'DUPLICATE', 'SERVICE_2WAY', 'MISSING']).nullish().transform((v) => v ?? null),
+  invoiceNo: z.string().nullish().transform((v) => v ?? null),
+  invoiceDaysAfterGr: intOrNull(60),
+  whtIncomeType: z.string().nullish().transform((v) => v ?? null),
+  paymentStatus: z.enum(['PAID', 'DUE', 'OVERDUE', 'NOT_DUE']).nullish().transform((v) => v ?? null),
 })
 
 const ItemRow = z.object({ code: z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,39}$/), nameTh: text })
@@ -337,6 +343,19 @@ export interface DemoHistoryRow {
    * (serviceEndInDays, FR-INT-101 reminds 60 and 30 days ahead), otherwise days after the draft
    */
   readonly serviceEnd: { readonly daysAfterSeed: number } | { readonly daysAfterDraft: number }
+  /**
+   * S8-12: the supplier's invoice of a COMPLETED row of phase 1 (null: the demo sheet, or a row without one) — its
+   * scenario, number, days after the goods receipt, income type to withhold and whether S9 paid it
+   */
+  readonly invoice: HistoryInvoice | null
+}
+
+export interface HistoryInvoice {
+  readonly scenario: 'MATCH' | 'PRICE_WITHIN_TOL' | 'PRICE_OVER' | 'QTY_OVER' | 'DUPLICATE' | 'SERVICE_2WAY' | 'MISSING'
+  readonly invoiceNo: string | null
+  readonly daysAfterGr: number
+  readonly whtIncomeType: string | null
+  readonly paymentStatus: 'PAID' | 'DUE' | 'OVERDUE' | 'NOT_DUE' | null
 }
 
 /** A service of the demo sheet runs a month from its draft, as it always has */
@@ -362,7 +381,7 @@ function checkHistory(sheet: string, history: readonly DemoHistoryRow[]): void {
 
 /** Sheet Demo_History (D-01): requests of the past, created by the seed through the services with the clock set back */
 export function parseDemoHistory(workbook: InputWorkbook): DemoHistoryRow[] {
-  const history = rows(workbook, 'Demo_History', DemoHistorySheetRow).map(({ budgetLine, ...row }): DemoHistoryRow => ({ ...row, budget: { line: budgetLine }, line: null, form: null, serviceEnd: { daysAfterDraft: DEMO_SERVICE_DAYS } }))
+  const history = rows(workbook, 'Demo_History', DemoHistorySheetRow).map(({ budgetLine, ...row }): DemoHistoryRow => ({ ...row, budget: { line: budgetLine }, line: null, form: null, serviceEnd: { daysAfterDraft: DEMO_SERVICE_DAYS }, invoice: null }))
   checkHistory('Demo_History', history)
   return history
 }
@@ -373,12 +392,13 @@ export function parseDemoHistory(workbook: InputWorkbook): DemoHistoryRow[] {
  */
 export function parseP1History(workbook: InputWorkbook): DemoHistoryRow[] {
   const items = new Map(rows(workbook, 'Items', ItemRow).map((i) => [i.code, i.nameTh]))
-  const history = rows(workbook, 'Request_History', P1HistorySheetRow).map(({ budgetKey, itemCode, qty, unit, unitPrice, serviceEndInDays, ...row }): DemoHistoryRow => {
+  const history = rows(workbook, 'Request_History', P1HistorySheetRow).map(({ budgetKey, itemCode, qty, unit, unitPrice, serviceEndInDays, invoiceScenario, invoiceNo, invoiceDaysAfterGr, whtIncomeType, paymentStatus, ...row }): DemoHistoryRow => {
     const description = items.get(itemCode)
     if (!description) throw new Error(`Request_History ${row.ref}: item ${itemCode} is not in sheet Items`)
     if (lineNet(qty, amountToSatang(unitPrice)) !== amountToSatang(row.net)) throw new Error(`Request_History ${row.ref}: ${qty} × ${unitPrice} is not the net ${row.net}`)
     const serviceEnd = serviceEndInDays === null ? { daysAfterDraft: P1_SERVICE_DAYS } : { daysAfterSeed: serviceEndInDays }
-    return { ...row, budget: { key: budgetKey }, line: { description, quantity: qty, uom: unit, unitPrice }, serviceEnd }
+    const invoice = invoiceScenario ? { scenario: invoiceScenario, invoiceNo, daysAfterGr: invoiceDaysAfterGr ?? 0, whtIncomeType, paymentStatus } : null
+    return { ...row, budget: { key: budgetKey }, line: { description, quantity: qty, uom: unit, unitPrice }, serviceEnd, invoice }
   })
   checkHistory('Request_History', history)
   return history

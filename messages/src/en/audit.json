@@ -89,6 +89,7 @@
     "newest": "Back to the latest events"
   },
   "groups": {
+    "account_code": "Account codes",
     "agent_action": "AI assistant",
     "ai_agent": "AI assistant settings",
     "ai_credit": "AI credits",
@@ -107,23 +108,32 @@
     "form_version": "Forms",
     "gr": "Receiving",
     "holiday": "Holidays",
+    "inbound_email": "Invoice inbox",
     "invoice": "Invoices",
     "invoice_confirmation": "Invoices",
     "line": "LINE accounts",
+    "match_exception": "Invoice differences",
     "member": "Members",
     "notification": "Notifications",
     "org_authority_change": "Authority structure",
     "organization": "Organization",
     "po": "Purchase orders",
+    "po_change": "PO changes",
     "position": "Positions",
     "report_schedule": "Reports",
     "request": "Requests",
     "request_type": "Request types",
+    "retention": "Performance retention",
     "security": "Security",
     "supplier": "Suppliers",
-    "variance": "Receiving variances"
+    "supplier_notice": "E-mails to suppliers",
+    "variance": "Receiving variances",
+    "wht_certificate": "Withholding tax certificates",
+    "wht_income_type": "Income types",
+    "withholding_tax": "Withholding tax"
   },
   "aggregate": {
+    "AccountCode": "Account code",
     "AgentAction": "AI assistant call",
     "AiAgentSetting": "AI assistant setting",
     "AiCredit": "AI credits",
@@ -141,22 +151,32 @@
     "File": "File",
     "FormVersion": "Request type form",
     "GoodsReceipt": "Goods receipt",
+    "InboundEmail": "Invoice inbox",
     "Invoice": "Invoice",
     "InvoiceConfirmation": "Invoice",
     "Member": "Member",
     "Notification": "Notification",
     "OrgAuthorityChange": "Authority change",
     "Organization": "Organization",
+    "PoChange": "PO change",
     "PositionAssignment": "Position holding",
     "PurchaseOrder": "Purchase order",
     "ReportSchedule": "Report schedule",
     "Request": "Request",
     "RequestType": "Request type",
+    "Retention": "Performance retention",
     "Security": "Security",
     "Supplier": "Supplier",
-    "Variance": "Receiving variance"
+    "SupplierNotice": "E-mail to a supplier",
+    "Variance": "Receiving variance",
+    "WhtCertificate": "Withholding tax certificate",
+    "WhtIncomeType": "Income type",
+    "WithholdingTax": "Withholding tax"
   },
   "events": {
+    "account_code": {
+      "updated": "Account code changed"
+    },
     "agent_action": {
       "requested": "AI assistant called",
       "drafted": "AI assistant drafted a result",
@@ -253,15 +273,30 @@
     "holiday": {
       "imported": "Holidays imported"
     },
+    "inbound_email": {
+      "failed": "Invoice inbox mail could not be read",
+      "ignored": "Invoice inbox mail skipped",
+      "processed": "Drafts made from invoice inbox mail",
+      "received": "Mail received in the invoice inbox"
+    },
     "invoice": {
       "cancelled": "Invoice draft thrown away",
       "coding_confirmed": "Invoice account codes confirmed",
       "drafted": "Invoice drafted",
       "exception_raised": "Invoice has differences",
       "matched": "Invoice matched",
+      "paid": "Invoice paid",
+      "payment_held": "Invoice taken into a payment run",
+      "payment_released": "Invoice let go from a payment run",
       "ready": "Invoice ready for payment",
+      "rechecked": "Invoice checked again",
+      "rejected": "Invoice rejected",
+      "reopened": "Invoice reopened as a draft",
       "submitted": "Invoice submitted",
-      "updated": "Invoice draft edited"
+      "updated": "Invoice draft edited",
+      "variance_approved": "Invoice price variance approved",
+      "variance_rejected": "Invoice price variance not approved or returned",
+      "variance_submitted": "Invoice price variance sent for approval"
     },
     "invoice_confirmation": {
       "recorded": "Invoice confirmation recorded"
@@ -269,6 +304,9 @@
     "line": {
       "linked": "LINE account linked",
       "unlinked": "LINE account unlinked"
+    },
+    "match_exception": {
+      "dismissed": "Possible duplicate invoice dismissed"
     },
     "member": {
       "activated": "Member activated",
@@ -301,12 +339,24 @@
       "cancelled": "Purchase order cancelled",
       "closed": "Purchase order closed",
       "drafted": "Purchase order drafted",
+      "milestones_set": "Purchase order split into milestones",
       "rejected": "Purchase order rejected",
+      "retention_set": "Purchase order retention set",
       "returned": "Purchase order returned",
+      "revised": "Purchase order revised",
+      "revision_sent": "Revised purchase order sent to the supplier",
       "send_bounced": "Purchase order e-mail bounced",
       "sent": "Purchase order sent to the supplier",
       "submitted": "Purchase order sent for approval",
       "updated": "Draft purchase order changed"
+    },
+    "po_change": {
+      "approved": "PO change approved",
+      "cancelled": "PO change cancelled",
+      "drafted": "PO change drafted",
+      "rejected": "PO change rejected",
+      "returned": "PO change returned",
+      "submitted": "PO change submitted"
     },
     "position": {
       "assigned": "Position holder appointed",
@@ -335,6 +385,14 @@
     "request_type": {
       "updated": "Request type changed"
     },
+    "retention": {
+      "held": "Retention held",
+      "paid": "Retention paid",
+      "payment_held": "Retention taken into a payment run",
+      "payment_released": "Retention let go from a payment run",
+      "release_due": "Retention due for release",
+      "released": "Retention released"
+    },
     "security": {
       "pin_locked": "Transaction PIN locked for a while",
       "sod_blocked": "Separation of duties blocked an action",
@@ -344,12 +402,27 @@
       "created": "Supplier added",
       "registry_checked": "Supplier checked with the government registers",
       "registry_status_changed": "Supplier's register status changed",
+      "tax_profile_updated": "Supplier's tax profile changed",
       "updated": "Supplier details changed"
+    },
+    "supplier_notice": {
+      "failed": "E-mail to the supplier failed",
+      "sent": "E-mail sent to the supplier"
     },
     "variance": {
       "approved": "Receiving variance approved",
       "recorded": "Receiving variance recorded",
       "rejected": "Receiving variance rejected"
+    },
+    "wht_certificate": {
+      "issued": "Withholding tax certificate issued"
+    },
+    "wht_income_type": {
+      "confirmed": "Income type rate confirmed",
+      "updated": "Income type changed"
+    },
+    "withholding_tax": {
+      "recorded": "Withholding tax recorded"
     }
   }
 }

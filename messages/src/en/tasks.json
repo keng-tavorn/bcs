@@ -24,7 +24,10 @@
     "poMeta": "Sent for approval by {name}",
     "variance": "{type} · {description}",
     "varianceMeta": "From {number}",
-    "varianceAmountLabel": "Before VAT"
+    "varianceAmountLabel": "Before VAT",
+    "invoice": "{number} · invoice price variance",
+    "invoiceMeta": "{supplier} · from {number}",
+    "invoiceAmountLabel": "Variance incl. VAT"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",
@@ -369,5 +372,25 @@
     "optionOverdue": "Overdue",
     "optionInfo": "Waiting for the requester's answer",
     "submit": "Show matching tasks"
+  },
+  "invoice": {
+    "number": "Invoice number",
+    "po": "Purchase order",
+    "supplierInvoiceNo": "Supplier’s invoice number",
+    "supplier": "Supplier",
+    "invoiceDate": "Invoice date",
+    "linesTitle": "Lines priced above the purchase order",
+    "line": "Line {no} · {description}",
+    "lineValue": "{quantity} {uom} · PO price {poPrice} → invoice price {price} · over by {over} baht",
+    "amountsTitle": "Variance to approve",
+    "unit": "baht",
+    "net": "Variance before VAT",
+    "vat": "VAT on the variance",
+    "gross": "Total",
+    "approveHint": "Approving holds more budget for the lines priced over and makes the invoice ready for payment; without enough budget it cannot be approved",
+    "heading": "Price variance of an invoice"
+  },
+  "poChangeTask": {
+    "label": "{number} · change {changeNo}"
   }
 }

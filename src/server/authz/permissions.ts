@@ -85,6 +85,8 @@ export const PERMISSIONS = {
   'po.send': PROCUREMENT_ONLY,
   'po.cancel': PROCUREMENT_ONLY,
   'po.close': PROCUREMENT_ONLY,
+  // S8-10 (ADR-125): changes to a sent PO, module CORE, under DOA PO_CHANGE
+  'po.change': PROCUREMENT_ONLY,
   'po.view': [...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG'), anyMember('OWN'), anyMember('ASSIGNED')],
   // Receiving and invoices
   'gr.post': [role('RECEIVER', 'DEPT'), role('RECEIVER', 'ASSIGNED'), anyMember('OWN', 'REQUESTER_MAY_RECEIVE')],
@@ -93,6 +95,21 @@ export const PERMISSIONS = {
   'invoiceConfirmation.record': [role('FINANCE', 'ORG')],
   // S8 tier-2 invoices (module PAY, BR-AP-13): draft, edit, code, submit and throw away
   'invoice.record': [role('FINANCE', 'ORG')],
+  'invoice.reject': roles(['FINANCE', 'PROCUREMENT'], 'ORG'),
+  // BR-MATCH-09: each holder checks again only the differences sent to their role (the service checks the role)
+  'invoice.exception.resolve': [...roles(['FINANCE', 'PROCUREMENT'], 'ORG'), role('RECEIVER', 'DEPT'), role('RECEIVER', 'ASSIGNED')],
+  'invoice.variance.request': [role('PROCUREMENT', 'ORG')],
+  'invoice.inbox.manage': [role('FINANCE', 'ORG')],
+  // S8-11 (FR-AP-108): the organization's account codes
+  'accountCode.manage': [role('FINANCE', 'ORG')],
+  // S8-08 withholding tax (BR-WHT-03 to BR-WHT-09): the full national id of an individual payee needs wht.revealTaxId
+  'wht.view': roles(['FINANCE', 'AUDITOR'], 'ORG'),
+  'wht.revealTaxId': [role('FINANCE', 'ORG')],
+  'wht.export': [role('FINANCE', 'ORG')],
+  'wht.configure': [role('FINANCE', 'ORG')],
+  'supplier.taxProfile.manage': [role('FINANCE', 'ORG')],
+  // S8-09 (BR-RET-04): FINANCE releases a performance retention from its due date
+  'retention.release': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

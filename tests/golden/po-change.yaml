@@ -1,0 +1,96 @@
+# tests/golden/po-change.yaml
+suite: po-change
+# เคสแบบ steps ใช้บรรทัดงบเดียว · op fund reserve submitPo approvePo ความหมายเดียวกับ budget.yaml และ op ใหม่ submitChange approveChange rejectChange
+# ตัวรันใหม่ run_po_change ใน scripts/spec_check.py และ tests/golden/po-change.test.ts ประกอบจาก submitPo approvePo rejectPo releaseHold reserve เดิม · ไม่แก้ run_budget และ src/core/budget (S6 เป็นเจ้าของในรอบ P1)
+# submitChange: newNet = ยอดใหม่ของบรรทัด PO · addedReleasable = releasable ของจำนวนที่เพิ่มจากคำขอ (BR-BUD-05)
+# approveChange: disposition ใช้เมื่อจำนวนลด · removedReleasable = releasable ของจำนวนที่ลด
+# fn: changeTotals = ยอดใหม่ ยอดสำหรับ DOA และการตรวจ BR-POC-01 (เส้นทาง DOA อยู่ใน golden ของฐานร่วม)
+cases:
+  - id: GC-POC-01
+    title: ขึ้นราคา 1,100 → 1,150 จองส่วนเพิ่มตอนส่ง ถือตอนอนุมัติ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-1, amount: "10000.00" }
+      - { op: submitPo, po: PO-1, need: "11000.00", sources: [{ source: PR-1, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-1, expect: { available: "89000.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-1, newNet: "11500.00", addedReleasable: "0.00", expect: { available: "88500.00", reserved: "500.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-1, expect: { available: "88500.00", reserved: "0.00", committed: "11500.00", actual: "0.00" } }
+  - id: GC-POC-02
+    title: ใบแก้ไขไม่อนุมัติ คืนการจอง
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-2, amount: "10000.00" }
+      - { op: submitPo, po: PO-2, need: "11000.00", sources: [{ source: PR-2, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-2 }
+      - { op: submitChange, po: PO-2, newNet: "11500.00", addedReleasable: "0.00" }
+      - { op: rejectChange, po: PO-2, expect: { available: "89000.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+  - id: GC-POC-03
+    title: ลดจำนวน 10 → 8 แบบยกเลิกในคำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-3, amount: "10000.00" }
+      - { op: submitPo, po: PO-3, need: "11000.00", sources: [{ source: PR-3, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-3 }
+      - { op: submitChange, po: PO-3, newNet: "8800.00", addedReleasable: "0.00", expect: { available: "89000.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-3, disposition: CANCEL_REQUEST_LINES, removedReleasable: "2000.00", expect: { available: "91200.00", reserved: "0.00", committed: "8800.00", actual: "0.00" } }
+  - id: GC-POC-04
+    title: ลดจำนวน 10 → 8 แบบคืนเข้ากอง
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-4, amount: "10000.00" }
+      - { op: submitPo, po: PO-4, need: "11000.00", sources: [{ source: PR-4, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-4 }
+      - { op: submitChange, po: PO-4, newNet: "8800.00", addedReleasable: "0.00" }
+      - { op: approveChange, po: PO-4, disposition: RETURN_TO_POOL, removedReleasable: "2000.00", expect: { available: "89200.00", reserved: "2000.00", committed: "8800.00", actual: "0.00" } }
+  - id: GC-POC-05
+    title: เพิ่มจำนวน 10 → 12 จากส่วนที่ยังไม่สั่งของคำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-5, amount: "12000.00" }
+      - { op: submitPo, po: PO-5, need: "11000.00", sources: [{ source: PR-5, releasable: "10000.00" }], expect: { available: "87000.00", reserved: "13000.00", committed: "0.00", actual: "0.00" } }
+      - { op: approvePo, po: PO-5, expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-5, newNet: "13200.00", addedReleasable: "2000.00", expect: { available: "86800.00", reserved: "2200.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-5, expect: { available: "86800.00", reserved: "0.00", committed: "13200.00", actual: "0.00" } }
+  - id: GC-POC-06
+    title: ขึ้นราคาแต่งบว่างไม่พอ ปฏิเสธตอนส่ง
+    steps:
+      - { op: fund, amount: "11200.00" }
+      - { op: reserve, source: PR-6, amount: "10000.00" }
+      - { op: submitPo, po: PO-6, need: "11000.00", sources: [{ source: PR-6, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-6, expect: { available: "200.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-6, newNet: "11500.00", addedReleasable: "0.00", expectError: BUDGET_INSUFFICIENT, expect: { available: "200.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+  - { id: GC-POC-07, fn: changeTotals, title: ยอดใหม่และยอดสำหรับ DOA, input: { vatRateBp: 700, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "10", newUnitPrice: "1150.00" } }, expect: { net: "11500.00", vat: "805.00", gross: "12305.00", doaAmount: { net: "11500.00", vat: "805.00" } } }
+  - { id: GC-POC-08, fn: changeTotals, title: "ขอบวงเงิน PC-01 รวม VAT 1,000,000.00 พอดี", input: { vatRateBp: 700, line: { ordered: "1", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "1", newUnitPrice: "934579.44" } }, expect: { net: "934579.44", vat: "65420.56", gross: "1000000.00", doaAmount: { net: "934579.44", vat: "65420.56" } } }
+  - { id: GC-POC-09, fn: changeTotals, title: เกินขอบ 0.01, input: { vatRateBp: 700, line: { ordered: "1", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "1", newUnitPrice: "934579.45" } }, expect: { net: "934579.45", vat: "65420.56", gross: "1000000.01", doaAmount: { net: "934579.45", vat: "65420.56" } } }
+  - { id: GC-POC-10, fn: changeTotals, title: ลดต่ำกว่าที่รับแล้ว, input: { vatRateBp: 700, line: { ordered: "10", received: "6", invoiced: "0", requestLeft: "0" }, change: { newQty: "5" } }, expect: { error: PO_CHANGE_BELOW_PROGRESS, reason: RECEIVED } }
+  - { id: GC-POC-11, fn: changeTotals, title: แก้ราคาบรรทัดที่มีใบแจ้งหนี้แล้ว, input: { vatRateBp: 700, line: { ordered: "10", received: "6", invoiced: "6", requestLeft: "0" }, change: { newUnitPrice: "1000.00" } }, expect: { error: PO_CHANGE_BELOW_PROGRESS, reason: LINE_INVOICED } }
+  - { id: GC-POC-12, fn: changeTotals, title: เพิ่มเกินที่เหลือในคำขอ, input: { vatRateBp: 700, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "12" } }, expect: { error: PO_CHANGE_EXCEEDS_REQUEST, left: "0" } }
+  - { id: GC-POC-13, fn: changeTotals, title: ผู้ขายไม่จด VAT, input: { vatRateBp: 0, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "10", newUnitPrice: "1210.00" } }, expect: { net: "12100.00", vat: "0.00", gross: "12100.00", doaAmount: { net: "12100.00", vat: "0.00" } } }
+  - id: GC-POC-14
+    title: ลดราคาแต่เพิ่มจำนวน 10 → 12 (Δ ติดลบ) คืน releasable ของจำนวนที่เพิ่มให้คำขอและลดยอดถือ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-14, amount: "12000.00" }
+      - { op: submitPo, po: PO-14, need: "11000.00", sources: [{ source: PR-14, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-14, expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-14, newNet: "10800.00", addedReleasable: "2000.00", expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-14, expect: { available: "89200.00", reserved: "0.00", committed: "10800.00", actual: "0.00" } }
+  - id: GC-POC-15
+    title: ขึ้นราคาแต่ลดจำนวน 10 → 8 (Δ เป็นบวก) แบบคืนเข้ากอง ถือ Δ และจองจำนวนที่ลดคืนให้คำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-15, amount: "10000.00" }
+      - { op: submitPo, po: PO-15, need: "11000.00", sources: [{ source: PR-15, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-15 }
+      - { op: submitChange, po: PO-15, newNet: "11200.00", addedReleasable: "0.00", expect: { available: "88800.00", reserved: "200.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-15, disposition: RETURN_TO_POOL, removedReleasable: "2000.00", expect: { available: "86800.00", reserved: "2000.00", committed: "11200.00", actual: "0.00" } }
+  - id: GC-POC-16
+    title: เพิ่มจำนวน 10 → 11 ที่ยอดเท่าเดิม (Δ = 0) คืน releasable ของจำนวนที่เพิ่มให้คำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-16, amount: "12000.00" }
+      - { op: submitPo, po: PO-16, need: "11000.00", sources: [{ source: PR-16, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-16 }
+      - { op: submitChange, po: PO-16, newNet: "11000.00", addedReleasable: "1000.00", expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-16, expect: { available: "88000.00", reserved: "1000.00", committed: "11000.00", actual: "0.00" } }
+  - { id: GC-POC-17, fn: changeTotals, title: แก้ราคาของบรรทัดที่รับเกินจำนวนในเกณฑ์ (จำนวนไม่เปลี่ยน), input: { vatRateBp: 700, line: { ordered: "10", received: "11", invoiced: "0", requestLeft: "0", unitPrice: "1000.00" }, change: { newUnitPrice: "1050.00" } }, expect: { net: "10500.00", vat: "735.00", gross: "11235.00", doaAmount: { net: "10500.00", vat: "735.00" } } }

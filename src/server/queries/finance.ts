@@ -1,6 +1,7 @@
 import { lineNet, parseQuantity, type Satang } from '@/core/money/math'
 import { formatQuantity } from '@/core/receiving'
 import { OrgSettingsSchema, type OrgSettings } from '@/lib/org-settings'
+import { AP_EXPORTABLE_STATUSES } from '@/lib/constants'
 import type { Ctx } from '@/server/context'
 import { escapeLike } from '@/server/db/like'
 import { forTenant, type TenantDb } from '@/server/db/tenant'
@@ -306,7 +307,10 @@ export async function listRecordedInvoices(ctx: Ctx, filter: { readonly q?: stri
 
 /** Invoices recorded and not yet in an Express file */
 export async function countInvoicesNotExported(ctx: Ctx): Promise<number> {
-  return forTenant(ctx.organizationId).invoiceConfirmation.count({ where: { exportedAt: null } })
+  const db = forTenant(ctx.organizationId)
+  // S8-11: tier-2 invoices ready for payment too
+  const [one, two] = await Promise.all([db.invoiceConfirmation.count({ where: { exportedAt: null } }), db.invoice.count({ where: { exportedAt: null, ...EXPORTABLE_AP_INVOICE } })])
+  return one + two
 }
 
 // ---------- one PO (/finance/invoices/[poId]) ----------
@@ -483,6 +487,29 @@ export interface PendingGroupDto {
 const MISSING_CODE = { OR: [{ expressVendorCode: null }, { expressVendorCode: '' }] }
 const HAS_CODE = { AND: [{ expressVendorCode: { not: null } }, { expressVendorCode: { not: '' } }] }
 
+/** S8-11: tier-2 invoices shown in the same shape (the supplier's number, the VAT they state) */
+async function pendingShownAp(db: TenantDb, where: object): Promise<PendingInvoiceDto[]> {
+  const rows = await db.invoice.findMany({
+    where: { ...where, ...EXPORTABLE_AP_INVOICE },
+    orderBy: [{ readyAt: 'asc' }, { id: 'asc' }],
+    take: PENDING_SHOWN,
+    select: { id: true, supplierInvoiceNo: true, invoiceDate: true, readyAt: true, netSatang: true, statedVatSatang: true, grossSatang: true, po: { select: { id: true, number: true } }, supplier: { select: { id: true, code: true, nameTh: true, nameEn: true, expressVendorCode: true } } },
+  })
+  return rows.map((r) => ({
+    id: r.id,
+    invoiceNo: r.supplierInvoiceNo ?? '',
+    invoiceDate: r.invoiceDate ?? r.readyAt ?? new Date(0),
+    netSatang: r.netSatang,
+    vatSatang: r.statedVatSatang,
+    grossSatang: r.grossSatang,
+    po: r.po,
+    supplier: { id: r.supplier.id, code: r.supplier.code, name: nameOf(r.supplier.nameTh, r.supplier.nameEn), expressVendorCode: r.supplier.expressVendorCode },
+  }))
+}
+
+/** S8-11: tier-2 invoices the Express file takes (as src/server/services/exports/express.ts) */
+const EXPORTABLE_AP_INVOICE = { status: { in: [...AP_EXPORTABLE_STATUSES] } }
+
 /** The first invoices of a group, in the order the file takes them */
 async function pendingShown(db: TenantDb, where: object): Promise<PendingInvoiceDto[]> {
   const rows = await db.invoiceConfirmation.findMany({
@@ -532,35 +559,45 @@ const HELD_READ_MAX = 500
 
 async function heldBackGroup(db: TenantDb): Promise<HeldBackDto> {
   const where = { exportedAt: null, supplier: { is: MISSING_CODE } }
-  const [bySupplier, totals] = await Promise.all([
-    db.invoiceConfirmation.groupBy({ by: ['supplierId'], where, _count: { _all: true }, _sum: { grossSatang: true } }),
-    db.invoiceConfirmation.aggregate({ where, _count: { _all: true }, _sum: { grossSatang: true } }),
-  ])
-  if (bySupplier.length === 0) return { count: 0, totalSatang: 0n, suppliers: [] }
-  const ids = bySupplier.map((g) => g.supplierId)
-  const [suppliers, invoices] = await Promise.all([
-    db.supplier.findMany({ where: { id: { in: ids } }, select: { id: true, code: true, nameTh: true, nameEn: true } }),
+  // S8-14: the tier-2 invoices the file would take are held back by the same rule (BR-EXP-04), so the person hears of
+  // every invoice the missing code keeps out, and the count matches countInvoicesNotExported
+  const apWhere = { ...where, ...EXPORTABLE_AP_INVOICE }
+  const [tier1, tier2] = await Promise.all([
     db.invoiceConfirmation.findMany({ where, orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }], take: HELD_READ_MAX, select: { id: true, supplierId: true, invoiceNo: true, grossSatang: true, po: { select: { number: true } } } }),
+    db.invoice.findMany({ where: apWhere, orderBy: [{ readyAt: 'asc' }, { id: 'asc' }], take: HELD_READ_MAX, select: { id: true, supplierId: true, supplierInvoiceNo: true, number: true, grossSatang: true, po: { select: { number: true } } } }),
   ])
-  const byId = new Map(suppliers.map((s) => [s.id, s]))
+  const [g1, g2, t1, t2] = await Promise.all([
+    db.invoiceConfirmation.groupBy({ by: ['supplierId'], where, _count: { _all: true }, _sum: { grossSatang: true } }),
+    db.invoice.groupBy({ by: ['supplierId'], where: apWhere, _count: { _all: true }, _sum: { grossSatang: true } }),
+    db.invoiceConfirmation.aggregate({ where, _count: { _all: true }, _sum: { grossSatang: true } }),
+    db.invoice.aggregate({ where: apWhere, _count: { _all: true }, _sum: { grossSatang: true } }),
+  ])
+  const groups = new Map<string, { count: number; totalSatang: Satang }>()
+  for (const g of [...g1, ...g2]) {
+    const was = groups.get(g.supplierId) ?? { count: 0, totalSatang: 0n }
+    groups.set(g.supplierId, { count: was.count + g._count._all, totalSatang: was.totalSatang + (g._sum.grossSatang ?? 0n) })
+  }
+  if (groups.size === 0) return { count: 0, totalSatang: 0n, suppliers: [] }
+  const suppliers = await db.supplier.findMany({ where: { id: { in: [...groups.keys()] } }, select: { id: true, code: true, nameTh: true, nameEn: true } })
+  const invoices = [
+    ...tier1.map((i) => ({ id: i.id, supplierId: i.supplierId, invoiceNo: i.invoiceNo, poNumber: i.po.number, grossSatang: i.grossSatang })),
+    ...tier2.map((i) => ({ id: i.id, supplierId: i.supplierId, invoiceNo: i.supplierInvoiceNo ?? i.number ?? '-', poNumber: i.po.number, grossSatang: i.grossSatang })),
+  ]
   return {
-    count: totals._count._all,
-    totalSatang: totals._sum.grossSatang ?? 0n,
-    suppliers: bySupplier
-      .flatMap((g) => {
-        const s = byId.get(g.supplierId)
-        if (!s) return []
-        return [
-          {
-            supplier: { id: s.id, code: s.code, name: nameOf(s.nameTh, s.nameEn) },
-            count: g._count._all,
-            totalSatang: g._sum.grossSatang ?? 0n,
-            invoices: invoices
-              .filter((i) => i.supplierId === s.id)
-              .slice(0, HELD_SHOWN_PER_SUPPLIER)
-              .map((i) => ({ id: i.id, invoiceNo: i.invoiceNo, poNumber: i.po.number, grossSatang: i.grossSatang })),
-          },
-        ]
+    count: t1._count._all + t2._count._all,
+    totalSatang: (t1._sum.grossSatang ?? 0n) + (t2._sum.grossSatang ?? 0n),
+    suppliers: suppliers
+      .map((s) => {
+        const g = groups.get(s.id)!
+        return {
+          supplier: { id: s.id, code: s.code, name: nameOf(s.nameTh, s.nameEn) },
+          count: g.count,
+          totalSatang: g.totalSatang,
+          invoices: invoices
+            .filter((i) => i.supplierId === s.id)
+            .slice(0, HELD_SHOWN_PER_SUPPLIER)
+            .map(({ id, invoiceNo, poNumber, grossSatang }) => ({ id, invoiceNo, poNumber, grossSatang })),
+        }
       })
       .sort((a, b) => b.count - a.count || a.supplier.code.localeCompare(b.supplier.code)),
   }
@@ -579,8 +616,11 @@ export async function listPendingExport(ctx: Ctx, needsVendorCode: boolean): Pro
     db.invoiceConfirmation.findMany({ where: readyWhere, orderBy: [{ recordedAt: 'asc' }, { id: 'asc' }], select: { id: true, grossSatang: true } }),
     needsVendorCode ? heldBackGroup(db) : Promise.resolve<HeldBackDto>({ count: 0, totalSatang: 0n, suppliers: [] }),
   ])
+  // S8-11 (FR-AP-108 AC4): the tier-2 invoices the file takes as well, read with the same rule
+  const tier2 = await db.invoice.findMany({ where: { ...readyWhere, ...EXPORTABLE_AP_INVOICE }, orderBy: [{ readyAt: 'asc' }, { id: 'asc' }], select: { id: true, grossSatang: true } })
+  all.push(...tier2)
   const first = all.slice(0, PENDING_SHOWN).map((i) => i.id)
-  const shown = first.length ? await pendingShown(db, { id: { in: first } }) : []
+  const shown = first.length ? [...(await pendingShown(db, { id: { in: first } })), ...(await pendingShownAp(db, { id: { in: first } }))] : []
   return { ready: { count: all.length, totalSatang: sum(all.map((i) => i.grossSatang)), shown }, heldBack, readyIds: all.map((i) => i.id) }
 }
 

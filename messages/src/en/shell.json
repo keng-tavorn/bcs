@@ -22,6 +22,7 @@
     "pos": "Purchase orders",
     "suppliers": "Suppliers",
     "invoices": "Confirm invoices",
+    "invoicesAp": "Invoices",
     "exports": "Express export",
     "budgets": "Budgets",
     "board": "Pending documents",

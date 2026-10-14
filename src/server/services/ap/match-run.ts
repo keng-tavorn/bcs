@@ -5,12 +5,17 @@ import { satangToAmount } from '@/core/money/dto'
 import type { Satang } from '@/core/money/math'
 import { rateFor } from '@/core/vat'
 import { apPolicyOf } from '@/lib/org-settings'
+import { expectedWhtOf } from './wht'
+import { holdRetentionOfInvoice } from './retention'
+import { retentionOf } from '@/core/retention'
 import { applyBudget, lockBudgetLines, type BudgetOperation } from '@/server/budget/ledger'
 import type { Ctx } from '@/server/context'
 import { listTaxRates } from '@/server/db/lookups'
 import { lockRowsForUpdate, lockSupplierInvoiceNumber } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import type { NotificationDraft } from '@/server/notifications/create'
+import { departmentReceivers } from '../receiving/receivers'
 
 // One run of the matching engine on a submitted invoice (spec §7.14 BR-MATCH-05 to BR-MATCH-13, §7.1 BR-VAT-05 to
 // BR-VAT-07), inside the command that asked for it: invoice.submit now, invoice.recheck and the variance approval in
@@ -47,6 +52,10 @@ export interface MatchRunOutcome {
   readonly status: 'READY_FOR_PAYMENT' | 'EXCEPTION'
   readonly exceptions: ReadonlyArray<{ type: string; amountSatang: Satang; lineNo: number | null }>
   readonly events: EventDraft[]
+  /** BR-MATCH-09: the members each new difference is sent to, in the bell and by LINE (BR-AP-09) */
+  readonly notifications: NotificationDraft[]
+  /** When every difference is PRICE_OVER: what the variance approval is sized on, and the line that names the department (BR-AP-06) */
+  readonly doaAmount: { readonly netSatang: Satang; readonly vatSatang: Satang; readonly lineNo: number } | null
 }
 
 type Exception = { type: keyof typeof ASSIGNEE_OF; amountSatang: Satang; quantity: string | null; lineNo: number | null }
@@ -198,7 +207,8 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
   // takes its VAT out at that rate): what the ledger moves and what is owed (INV-AP-02, BR-VAT-07)
   const netSatang = result.lines.reduce((a, l) => a + l.netSatang, 0n)
   const grossSatang = netSatang + invoice.statedVatSatang
-  await tx.invoice.update({ where: { id: invoice.id }, data: { netSatang, grossSatang, payableSatang: grossSatang - invoice.retentionSatang } })
+  const retentionSatang = retentionOf(netSatang, invoice.retentionBp)
+  await tx.invoice.update({ where: { id: invoice.id }, data: { netSatang, grossSatang, retentionSatang, payableSatang: grossSatang - retentionSatang } })
   // An earlier run's open differences are settled by this one; what is still wrong is raised again
   await tx.matchException.updateMany({ where: { invoiceId: invoice.id, status: 'OPEN' }, data: { status: 'RESOLVED', resolvedAt: ctx.now, version: { increment: 1 } } })
   if (exceptions.length > 0) {
@@ -221,7 +231,9 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
     const events: EventDraft[] = [
       { type: 'invoice.exception_raised', aggregateType: 'Invoice', aggregateId: invoice.id, data: { matchId: match.id, runNo, exceptions: summary.map((e) => ({ ...e, amountSatang: e.amountSatang.toString() })) } },
     ]
-    return { ok: true, data: { matchId: match.id, runNo, status: 'EXCEPTION', exceptions: summary, events } }
+    const notifications = await exceptionNotices(tx, ctx, { id: invoice.id, number: invoice.number, poId: po.id }, match.id, exceptions)
+    const doaAmount = result.doaAmount && exceptions.every((e) => e.type === 'PRICE_OVER') ? { netSatang: result.doaAmount.netSatang, vatSatang: result.doaAmount.vatSatang, lineNo: result.doaAmount.line } : null
+    return { ok: true, data: { matchId: match.id, runNo, status: 'EXCEPTION', exceptions: summary, events, notifications, doaAmount } }
   }
 
   // BR-MATCH-11, BR-MATCH-04: per PO line, hold what it lacks, then move the invoice's amount to ACTUAL; the last
@@ -242,11 +254,14 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
 
   const supplier = await tx.supplier.findUniqueOrThrow({ where: { id: invoice.supplierId }, select: { paymentTermDays: true } })
   const due = dueDate({ invoiceDate, poTermDays: po.paymentTermDays, supplierTermDays: supplier.paymentTermDays, defaultTermDays: policy.defaultTermDays })
-  const payable = grossSatang - invoice.retentionSatang
+  const payable = grossSatang - retentionSatang
+  // BR-WHT-05: the tax expected when it is paid alone, from the lines' income types (the lines carry their amounts now)
+  const expectedWht = await expectedWhtOf(tx, org.settings, invoice.id)
   await tx.invoice.update({
     where: { id: invoice.id },
     data: {
       status: 'READY_FOR_PAYMENT',
+      expectedWhtSatang: expectedWht,
       matchResult: 'MATCHED',
       computedVatSatang: vat.computedVatSatang,
       vatRateBp: rate.rateBp,
@@ -266,13 +281,52 @@ export async function runMatch(tx: TenantTx, ctx: Ctx, invoiceId: string, trigge
       data: {
         dueDate: due,
         payableSatang: payable.toString(),
-        expectedWhtSatang: invoice.expectedWhtSatang.toString(),
+        expectedWhtSatang: expectedWht.toString(),
         actualSatang: sum((m) => m.actualSatang),
         holdMoreSatang: sum((m) => m.holdMoreSatang),
         releasedSatang: invoice.isFinal && po.status === 'CLOSED' ? sum((m) => m.releaseSatang) : '0',
       },
     },
     ...budget.events,
+    // BR-RET-04: the retention is held from now on
+    ...(await holdRetentionOfInvoice(tx, ctx, { id: invoice.id, poId: invoice.poId, supplierId: invoice.supplierId, retentionSatang })),
   ]
-  return { ok: true, data: { matchId: match.id, runNo, status: 'READY_FOR_PAYMENT', exceptions: [], events } }
+  return { ok: true, data: { matchId: match.id, runNo, status: 'READY_FOR_PAYMENT', exceptions: [], events, notifications: [], doaAmount: null } }
+}
+
+/**
+ * BR-MATCH-09, FR-AP-103 AC1: each role a difference is sent to hears of the invoice once per run — PROCUREMENT and
+ * FINANCE by role, the receiver side through the receivers of the departments that asked for the goods. The data names
+ * the invoice, the PO and the kinds and total of the differences only, never a line or a unit price (BR-AP-09).
+ */
+async function exceptionNotices(tx: TenantTx, ctx: Ctx, invoice: { id: string; number: string | null; poId: string }, matchId: string, exceptions: readonly Exception[]): Promise<NotificationDraft[]> {
+  const byRole = new Map<string, Exception[]>()
+  for (const e of exceptions) byRole.set(ASSIGNEE_OF[e.type], [...(byRole.get(ASSIGNEE_OF[e.type]) ?? []), e])
+  const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: invoice.poId }, select: { number: true } })
+  const drafts: NotificationDraft[] = []
+  for (const [role, list] of byRole) {
+    let members: string[]
+    if (role === 'RECEIVER') {
+      const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId: invoice.poId } } } } } }, select: { requesterDepartmentId: true } })
+      members = await departmentReceivers(tx, ctx.organizationId, [...new Set(requests.map((r) => r.requesterDepartmentId))], ctx.now)
+    } else {
+      const holders = await tx.roleAssignment.findMany({ where: { role: role as 'PROCUREMENT' | 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true }, distinct: ['memberId'] })
+      members = holders.map((h) => h.memberId)
+    }
+    const types = [...new Set(list.map((e) => e.type))]
+    const total = list.reduce((a, e) => a + e.amountSatang, 0n)
+    for (const memberId of members) {
+      drafts.push({
+        recipientMemberId: memberId,
+        templateKey: 'invoice.exception',
+        data: { number: invoice.number, invoiceId: invoice.id, poNumber: po.number, types, totalSatang: total.toString() },
+        urgency: 'IMMEDIATE',
+        // per role: a member who is both PROCUREMENT and FINANCE hears of the differences of each, not of one only
+        dedupeKey: `invoice.exception:${matchId}:${role}:${memberId}`,
+        subjectType: 'INVOICE',
+        subjectId: invoice.id,
+      })
+    }
+  }
+  return drafts
 }

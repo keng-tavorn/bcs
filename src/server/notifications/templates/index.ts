@@ -1,3 +1,4 @@
+import { formatSatang } from '@/core/money/format'
 import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
 import { SLA_TEMPLATES } from './sla'
 
@@ -21,6 +22,8 @@ type Template = (data: Data, subject: { readonly type: string | null; readonly i
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : fallback)
 /** A request's number once it has one, else its title */
 const ref = (d: Data) => str(d.number) || str(d.title) || str(d.label)
+/** Satang as text to baht with two decimals, or nothing */
+const money = (v: unknown) => (typeof v === 'string' && /^\d+$/.test(v) ? formatSatang(BigInt(v)) : '')
 
 const CHANGE_KIND: Readonly<Record<string, Text>> = {
   POSITION_ASSIGN: { th: 'แต่งตั้งผู้ดำรงตำแหน่ง', en: 'an appointment' },
@@ -216,6 +219,45 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
         }
     }
   },
+  // S8 (BR-MATCH-09, BR-AP-09): the invoice, the PO and the kinds of difference only, never a line or a unit price
+  'invoice.exception': (d) => ({
+    title: { th: `ใบแจ้งหนี้ ${ref(d) || 'ใหม่'} ของ PO ${str(d.poNumber)} มีรายการไม่ตรง`, en: `Invoice ${ref(d) || 'new'} of PO ${str(d.poNumber)} has differences` },
+    body: { th: 'เปิดใบแจ้งหนี้เพื่อดูรายการไม่ตรงที่ส่งถึงคุณ', en: 'Open the invoice to see the differences sent to you' },
+    href: `/finance/invoices/${str(d.invoiceId)}`,
+  }),
+  'invoice.variance_decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `ส่วนต่างราคาของใบแจ้งหนี้ ${ref(d)} อนุมัติแล้ว ใบพร้อมจ่าย`, en: `The price variance of invoice ${ref(d)} is approved; the invoice is ready for payment` }
+        : { th: `ส่วนต่างราคาของใบแจ้งหนี้ ${ref(d)} ไม่ได้รับอนุมัติ`, en: `The price variance of invoice ${ref(d)} was not approved` },
+    href: `/finance/invoices/${str(d.invoiceId)}`,
+  }),
+  // S8-07: new drafts and files waiting for a PO in the invoice inbox (the digest; no file name, no amount)
+  'invoice.inbox_digest': (d) => ({
+    title: { th: `กล่องอีเมลใบแจ้งหนี้: ร่างใหม่ ${str(d.draftCount, '0')} ใบ รอเลือก PO ${str(d.pendingCount, '0')} ไฟล์`, en: `Invoice inbox: ${str(d.draftCount, '0')} new drafts, ${str(d.pendingCount, '0')} files waiting for a PO` },
+    href: '/finance/invoices/inbox',
+  }),
+  // S8-10 (§10.1): the proposer of a PO change hears the decision
+  'po_change.decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} อนุมัติแล้ว ส่งฉบับแก้ไขให้ผู้ขายได้`, en: `PO change #${str(d.changeNo)} approved; send the revision to the supplier` }
+        : d.outcome === 'RETURNED'
+          ? { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} ถูกส่งกลับให้แก้`, en: `PO change #${str(d.changeNo)} was returned for changes` }
+          : { th: `ใบแก้ไข PO ครั้งที่ ${str(d.changeNo)} ไม่ได้รับอนุมัติ`, en: `PO change #${str(d.changeNo)} was not approved` },
+    href: `/procurement/pos/${str(d.poId)}`,
+  }),
+  // S8-09 (BR-RET-04): a performance retention may be released from today (the digest; the amount, no supplier detail)
+  'retention.due': (d) => ({
+    title: { th: `เงินประกันผลงาน ${money(d.amountSatang)} บาท ครบกำหนดคืนแล้ว`, en: `A performance retention of THB ${money(d.amountSatang)} is due for release` },
+    href: '/finance/retentions',
+  }),
+  // BR-AP-08: a supplier without an e-mail address is not told; FINANCE is, to tell them another way
+  'supplier.no_email': (d) => ({
+    title: { th: `ผู้ขายไม่มีอีเมล ระบบจึงไม่ได้แจ้งเรื่องเอกสาร ${ref(d)}`, en: `The supplier has no e-mail address, so it was not told about ${ref(d) || 'the document'}` },
+    body: { th: 'โปรดแจ้งผู้ขายทางอื่น และเพิ่มอีเมลในข้อมูลผู้ขาย', en: 'Please tell the supplier another way and add an e-mail address to the supplier' },
+    href: d.subjectType === 'Invoice' ? `/finance/invoices/${str(d.subjectId)}` : `/suppliers/${str(d.supplierId)}`,
+  }),
   // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
   ...SLA_TEMPLATES,
 }

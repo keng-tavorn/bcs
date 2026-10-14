@@ -789,9 +789,10 @@ describe('golden files against spec', () => {
   const readFile = (f: string) => blocks.get(f) ?? ''
   it('[EG-7] strict mode requires every golden file finish line A needs', () => {
     const { problems, notes } = goldenDriftProblems({ blocks, present: ['tests/golden/money.yaml'], readFile, strict: true })
-    expect(problems).toEqual([expect.stringContaining('tests/golden/budget.yaml')])
-    expect(notes).toHaveLength(2)
-    expect(Object.keys(GOLDEN_STRICT_OPTIONAL).sort()).toEqual(['tests/golden/grni.yaml', 'tests/golden/wht.yaml'])
+    // wht.yaml is required since S8-08 made it a full suite; grni.yaml stays optional (S4-18 is go-live)
+    expect(problems).toEqual([expect.stringContaining('tests/golden/budget.yaml'), expect.stringContaining('tests/golden/wht.yaml')])
+    expect(notes).toHaveLength(1)
+    expect(Object.keys(GOLDEN_STRICT_OPTIONAL).sort()).toEqual(['tests/golden/grni.yaml'])
   })
   it('[EG-7] an edited golden file is a problem in every mode', () => {
     const edited = (f: string) => (f === 'tests/golden/money.yaml' ? 'suite: money\n# edited\n' : readFile(f))

@@ -140,7 +140,8 @@ def main():
           ('agreementSupplier', 'ผู้ขายที่มีราคาตกลง'), ('agreedUnitPrice', 'ราคาที่ตกลง'), ('agreementNote', 'หมายเหตุ')], none(ITEMS))
     table(sheet('Sites'), REAL, [('code', 'รหัส'), ('nameTh', 'ชื่อสถานที่ส่ง'), ('address', 'ที่อยู่ (สมมติ)')], none(SITES))
     table(sheet('RequestTypes'), REAL, [('code', 'รหัส (ต้องมีฟอร์มใน prisma/seed/forms.yaml)'), ('nameTh', 'ชื่อบนการ์ด'), ('documentType', 'ชนิดเอกสาร'),
-          ('descriptionTh', 'ใช้เมื่อไร'), ('keyFields', 'ฟิลด์สำคัญ'), ('attachmentRule', 'กฎเอกสารแนบ'), ('active', 'ใช้งาน (Y/N)')], none(REQUEST_TYPES))
+          ('descriptionTh', 'ใช้เมื่อไร'), ('keyFields', 'ฟิลด์สำคัญ'), ('attachmentRule', 'กฎเอกสารแนบ'), ('active', 'ใช้งาน (Y/N)'),
+          ('defaultRetentionBp', 'เงินประกันผลงานต่อใบ (basis point · 500 = 5% · S8)'), ('defaultRetentionHoldDays', 'ถือเงินประกันกี่วันหลังตรวจรับงวดสุดท้าย')], none(REQUEST_TYPES))
     table(sheet('Holidays'), REAL, [('date', 'วันที่'), ('nameTh', 'ชื่อวันหยุด'), ('source', 'ที่มา')], none(HOLIDAYS))
     kv_sheet(sheet('Settings'), DEFAULT, SETTINGS)
     table(sheet('WHT_Types'), DEFAULT, [('code', 'รหัส'), ('nameTh', 'ประเภทเงินได้'), ('rateBp', 'อัตรา (basis point · 300 = 3%)'),

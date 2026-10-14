@@ -89,6 +89,7 @@
     "newest": "กลับไปรายการล่าสุด"
   },
   "groups": {
+    "account_code": "รหัสบัญชี",
     "agent_action": "ผู้ช่วย AI",
     "ai_agent": "ตั้งค่าผู้ช่วย AI",
     "ai_credit": "credits ของ AI",
@@ -107,23 +108,32 @@
     "form_version": "ฟอร์ม",
     "gr": "ตรวจรับ",
     "holiday": "วันหยุด",
+    "inbound_email": "กล่องอีเมลใบแจ้งหนี้",
     "invoice": "ใบแจ้งหนี้",
     "invoice_confirmation": "ใบกำกับ",
     "line": "บัญชี LINE",
+    "match_exception": "รายการไม่ตรงของใบแจ้งหนี้",
     "member": "สมาชิก",
     "notification": "การแจ้งเตือน",
     "org_authority_change": "โครงสร้างอำนาจ",
     "organization": "องค์กร",
     "po": "ใบสั่งซื้อ",
+    "po_change": "ใบแก้ไขใบสั่งซื้อ",
     "position": "ตำแหน่ง",
     "report_schedule": "รายงาน",
     "request": "คำขอ",
     "request_type": "ประเภทคำขอ",
+    "retention": "เงินประกันผลงาน",
     "security": "ความปลอดภัย",
     "supplier": "ผู้ขาย",
-    "variance": "ผลต่างจากการตรวจรับ"
+    "supplier_notice": "อีเมลถึงผู้ขาย",
+    "variance": "ผลต่างจากการตรวจรับ",
+    "wht_certificate": "50 ทวิ",
+    "wht_income_type": "ประเภทเงินได้",
+    "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
   },
   "aggregate": {
+    "AccountCode": "รหัสบัญชี",
     "AgentAction": "งานของผู้ช่วย AI",
     "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
     "AiCredit": "credits ของ AI",
@@ -141,22 +151,32 @@
     "File": "ไฟล์",
     "FormVersion": "ฟอร์มของประเภทคำขอ",
     "GoodsReceipt": "ใบตรวจรับ",
+    "InboundEmail": "กล่องอีเมลใบแจ้งหนี้",
     "Invoice": "ใบแจ้งหนี้",
     "InvoiceConfirmation": "ใบกำกับ",
     "Member": "สมาชิก",
     "Notification": "การแจ้งเตือน",
     "OrgAuthorityChange": "การเปลี่ยนโครงสร้างอำนาจ",
     "Organization": "องค์กร",
+    "PoChange": "ใบแก้ไขใบสั่งซื้อ",
     "PositionAssignment": "การดำรงตำแหน่ง",
     "PurchaseOrder": "ใบสั่งซื้อ",
     "ReportSchedule": "รอบส่งรายงาน",
     "Request": "คำขอ",
     "RequestType": "ประเภทคำขอ",
+    "Retention": "เงินประกันผลงาน",
     "Security": "ความปลอดภัย",
     "Supplier": "ผู้ขาย",
-    "Variance": "ผลต่างจากการตรวจรับ"
+    "SupplierNotice": "อีเมลถึงผู้ขาย",
+    "Variance": "ผลต่างจากการตรวจรับ",
+    "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
+    "WhtIncomeType": "ประเภทเงินได้",
+    "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
   },
   "events": {
+    "account_code": {
+      "updated": "แก้รหัสบัญชี"
+    },
     "agent_action": {
       "requested": "เรียกผู้ช่วย AI",
       "drafted": "ผู้ช่วย AI ร่างผลแล้ว",
@@ -253,15 +273,30 @@
     "holiday": {
       "imported": "นำเข้าวันหยุด"
     },
+    "inbound_email": {
+      "failed": "อ่านอีเมลในกล่องใบแจ้งหนี้ไม่สำเร็จ",
+      "ignored": "ข้ามอีเมลในกล่องใบแจ้งหนี้",
+      "processed": "สร้างร่างจากอีเมลในกล่องใบแจ้งหนี้",
+      "received": "รับอีเมลเข้ากล่องใบแจ้งหนี้"
+    },
     "invoice": {
       "cancelled": "ทิ้งร่างใบแจ้งหนี้",
       "coding_confirmed": "ยืนยันรหัสบัญชีของใบแจ้งหนี้",
       "drafted": "ร่างใบแจ้งหนี้",
       "exception_raised": "ใบแจ้งหนี้มีรายการไม่ตรง",
       "matched": "ใบแจ้งหนี้จับคู่ตรง",
+      "paid": "จ่ายใบแจ้งหนี้แล้ว",
+      "payment_held": "ใบแจ้งหนี้เข้ารอบจ่าย",
+      "payment_released": "ใบแจ้งหนี้ออกจากรอบจ่าย",
       "ready": "ใบแจ้งหนี้พร้อมจ่าย",
+      "rechecked": "ตรวจใบแจ้งหนี้ซ้ำ",
+      "rejected": "ปฏิเสธใบแจ้งหนี้",
+      "reopened": "เปิดใบแจ้งหนี้กลับเป็นร่าง",
       "submitted": "ส่งใบแจ้งหนี้",
-      "updated": "แก้ร่างใบแจ้งหนี้"
+      "updated": "แก้ร่างใบแจ้งหนี้",
+      "variance_approved": "อนุมัติส่วนต่างราคาของใบแจ้งหนี้",
+      "variance_rejected": "ไม่อนุมัติหรือตีกลับส่วนต่างราคาของใบแจ้งหนี้",
+      "variance_submitted": "ขออนุมัติส่วนต่างราคาของใบแจ้งหนี้"
     },
     "invoice_confirmation": {
       "recorded": "บันทึกยืนยันใบกำกับ"
@@ -269,6 +304,9 @@
     "line": {
       "linked": "ผูกบัญชี LINE",
       "unlinked": "ยกเลิกการผูกบัญชี LINE"
+    },
+    "match_exception": {
+      "dismissed": "ปัดตกคำเตือนใบแจ้งหนี้น่าจะซ้ำ"
     },
     "member": {
       "activated": "เปิดใช้งานสมาชิก",
@@ -301,12 +339,24 @@
       "cancelled": "ยกเลิกใบสั่งซื้อ",
       "closed": "ปิดใบสั่งซื้อ",
       "drafted": "ร่างใบสั่งซื้อ",
+      "milestones_set": "แบ่งงวดงานของใบสั่งซื้อ",
       "rejected": "ไม่อนุมัติใบสั่งซื้อ",
+      "retention_set": "ตั้งเงินประกันผลงานของใบสั่งซื้อ",
       "returned": "ตีกลับใบสั่งซื้อ",
+      "revised": "ใบสั่งซื้อเป็นฉบับแก้ไขใหม่",
+      "revision_sent": "ส่งใบสั่งซื้อฉบับแก้ไขให้ผู้ขาย",
       "send_bounced": "อีเมลใบสั่งซื้อถูกตีกลับ",
       "sent": "ส่งใบสั่งซื้อให้ผู้ขาย",
       "submitted": "ส่งใบสั่งซื้อขออนุมัติ",
       "updated": "แก้ไขร่างใบสั่งซื้อ"
+    },
+    "po_change": {
+      "approved": "อนุมัติใบแก้ไขใบสั่งซื้อ",
+      "cancelled": "ยกเลิกใบแก้ไขใบสั่งซื้อ",
+      "drafted": "ร่างใบแก้ไขใบสั่งซื้อ",
+      "rejected": "ไม่อนุมัติใบแก้ไขใบสั่งซื้อ",
+      "returned": "ส่งกลับใบแก้ไขใบสั่งซื้อ",
+      "submitted": "ส่งใบแก้ไขใบสั่งซื้อ"
     },
     "position": {
       "assigned": "แต่งตั้งผู้ดำรงตำแหน่ง",
@@ -335,6 +385,14 @@
     "request_type": {
       "updated": "แก้ไขประเภทคำขอ"
     },
+    "retention": {
+      "held": "ถือเงินประกันผลงาน",
+      "paid": "จ่ายคืนเงินประกันผลงาน",
+      "payment_held": "เงินประกันเข้ารอบจ่าย",
+      "payment_released": "เงินประกันออกจากรอบจ่าย",
+      "release_due": "เงินประกันครบกำหนดคืน",
+      "released": "อนุมัติคืนเงินประกันผลงาน"
+    },
     "security": {
       "pin_locked": "ล็อก PIN ยืนยันธุรกรรมชั่วคราว",
       "sod_blocked": "ระบบกันการทำหน้าที่ซ้อนกัน",
@@ -344,12 +402,27 @@
       "created": "เพิ่มผู้ขาย",
       "registry_checked": "ตรวจผู้ขายกับทะเบียนของรัฐ",
       "registry_status_changed": "สถานะผู้ขายในทะเบียนเปลี่ยน",
+      "tax_profile_updated": "แก้ข้อมูลภาษีของผู้ขาย",
       "updated": "แก้ไขข้อมูลผู้ขาย"
+    },
+    "supplier_notice": {
+      "failed": "ส่งอีเมลถึงผู้ขายไม่สำเร็จ",
+      "sent": "ส่งอีเมลถึงผู้ขาย"
     },
     "variance": {
       "approved": "อนุมัติผลต่างจากการตรวจรับ",
       "recorded": "บันทึกผลต่างจากการตรวจรับ",
       "rejected": "ไม่อนุมัติผลต่างจากการตรวจรับ"
+    },
+    "wht_certificate": {
+      "issued": "ออกหนังสือรับรองการหักภาษี (50 ทวิ)"
+    },
+    "wht_income_type": {
+      "confirmed": "ยืนยันอัตราประเภทเงินได้",
+      "updated": "แก้ประเภทเงินได้"
+    },
+    "withholding_tax": {
+      "recorded": "บันทึกภาษีหัก ณ ที่จ่าย"
     }
   }
 }

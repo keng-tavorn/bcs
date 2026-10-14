@@ -387,7 +387,19 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `gr.reverse` | PROCUREMENT (ORG, ต้องระบุเหตุผล, ก่อนยืนยันใบกำกับ) |
 | `variance.decide` | ตาม DOA ข้อ `GR_VARIANCE` เท่านั้น |
 | `invoiceConfirmation.record` | FINANCE (ORG) |
-| `invoice.record` | FINANCE (ORG) — สร้าง แก้ ยืนยันรหัสบัญชี ส่ง และทิ้งร่างใบแจ้งหนี้ชั้น 2 · ใช้ได้เมื่อเปิดโมดูล `PAY` (BR-AP-13) |
+| `invoice.record` | FINANCE (ORG) — สร้าง แก้ ยืนยันรหัสบัญชี ส่ง ตรวจซ้ำ เปิดแก้ ปัดตกคำเตือนซ้ำ และทิ้งร่างใบแจ้งหนี้ชั้น 2 · ใช้ได้เมื่อเปิดโมดูล `PAY` (BR-AP-13) |
+| `invoice.reject` | FINANCE, PROCUREMENT (ORG) — ต้องมีเหตุผล ผู้ขายได้อีเมลแจ้ง |
+| `invoice.exception.resolve` | FINANCE, PROCUREMENT (ORG) · RECEIVER (DEPT หรือ ASSIGNED) — ตรวจซ้ำเฉพาะใบที่มีรายการไม่ตรงชนิดที่ส่งถึงบทบาทของตน (BR-MATCH-09) |
+| `invoice.variance.request` | PROCUREMENT (ORG) — ขออนุมัติส่วนต่างเมื่อรายการไม่ตรงทุกข้อเป็น `PRICE_OVER` |
+| `wht.view` | FINANCE, AUDITOR (ORG) — ภาษีหัก ณ ที่จ่าย 50 ทวิ และไฟล์สรุป · เลขบัตรประชาชนแสดงแบบ mask |
+| `wht.revealTaxId` | FINANCE (ORG) — ดูเลขบัตรเต็มและดาวน์โหลด 50 ทวิ หรือไฟล์ ภ.ง.ด.3 ที่มีเลขเต็ม · บันทึก `SensitiveAccessLog` ทุกครั้ง (BR-WHT-09) |
+| `wht.export` | FINANCE (ORG) — ไฟล์สรุป ภ.ง.ด.3 และ ภ.ง.ด.53 รายเดือน (BR-WHT-08) |
+| `wht.configure` | FINANCE (ORG) — แก้และยืนยันประเภทเงินได้และอัตรา (ผู้ยืนยัน ≠ ผู้แก้ล่าสุด · BR-WHT-03) |
+| `po.change` | PROCUREMENT (ORG) — ร่าง ส่ง ยกเลิกใบแก้ไข PO และส่งฉบับแก้ไขถึงผู้ขาย (โมดูล CORE · ต้องมีข้อ `PO_CHANGE` ใน DOA ตาม BR-POC-05) |
+| `retention.release` | FINANCE (ORG) — คืนเงินประกันผลงานตั้งแต่วันครบกำหนด (BR-RET-04) · แบ่งงวดและตั้งเงินประกันของ PO ร่างใช้ `po.edit` เดิม (`po.setMilestones` `po.setRetention`) |
+| `supplier.taxProfile.manage` | FINANCE (ORG) — ประเภทผู้รับเงินและประเภทเงินได้ตั้งต้นของผู้ขาย |
+| `accountCode.manage` | FINANCE (ORG) — เพิ่มและแก้รหัสบัญชีขององค์กร (เลิกใช้ด้วย active ไม่ลบ · FR-AP-108) |
+| `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
@@ -1116,7 +1128,7 @@ stateDiagram-v2
 
 | ชั้น | Entities |
 | --- | --- |
-| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `SupplierNotice` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `PoChangeLine` `MilestoneReceipt` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
+| 2 | `Invoice` `InvoiceLine` `InvoiceMatch` `MatchException` `InboundEmail` `WhtIncomeType` `AccountCode` `WithholdingTax` `WhtCertificate` `SupplierNotice` `PaymentRun` `PaymentRunItem` `PaymentFile` `BankFileTemplate` `BankAccount` `BankAccountChange` `SupplierApplication` `SupplierDocument` `SupplierDocumentType` `SupplierContact` `PortalOtpChallenge` `PortalSession` `SupplierScore` `CatalogItem` `PriceAgreement` `PoChange` `PoChangeLine` `Retention` `WorkflowVersion` `BudgetTransfer` `CostSplit` |
 | 3 | `RfxEvent` `RfxInvite` `RfxQuestion` `Bid` `BidLine` `Scorecard` `ScoreCriterion` `AwardDecision` `RiskQuestionnaire` `RiskAssessment` `RiskTier` `ReviewTask` `Contract` `ContractVersion` `Obligation` `RenewalReminder` `PreferredSupplier` `RiskReview` |
 | 4 | `AgentAction` `PromptVersion` `AiEvalRun` `AiCreditLedger` `ApiClient` `WebhookSubscription` `WebhookDelivery` `McpSession` `ConnectorConfig` |
 
@@ -2128,9 +2140,31 @@ golden case ของไฟล์ Express (`GC-EXP-*`) จะเพิ่มเ�
 ```yaml
 # tests/golden/wht.yaml
 suite: wht
-status: preview-T2
 cases:
   - { id: GC-WHT-01, title: ค่าบริการ 10,000 VAT 7% หัก 3%, input: { net: "10000.00", vatRateBp: 700, whtRateBp: 300 }, expect: { vat: "700.00", wht: "300.00", payable: "10400.00" } }
+  # fn: whtForPayment · rateBp และ typeForm มาจาก WhtIncomeType · poNet = ยอดก่อน VAT ของ PO ใช้กับเกณฑ์ขั้นต่ำ (BR-WHT-06 · minimumBase "1000.00")
+  - { id: GC-WHT-02, fn: whtForPayment, title: ค่าบริการ นิติบุคคล (H002), input: { payeeType: JURISTIC, incomeType: SERVICE, rateBp: 300, typeForm: PND3_53, poNet: "444000.00", base: "444000.00" }, expect: { form: PND53, wht: "13320.00" } }
+  - { id: GC-WHT-03, fn: whtForPayment, title: ค่าจ้างทำของ บุคคลธรรมดา (H126), input: { payeeType: INDIVIDUAL, incomeType: CONTRACT, rateBp: 300, typeForm: PND3_53, poNet: "38500.00", base: "38500.00" }, expect: { form: PND3, wht: "1155.00" } }
+  - { id: GC-WHT-04, fn: whtForPayment, title: ค่าเช่า 5% หจก. ไม่จด VAT (H046), input: { payeeType: JURISTIC, incomeType: RENT, rateBp: 500, typeForm: PND3_53, poNet: "21952.00", base: "21952.00" }, expect: { form: PND53, wht: "1097.60" } }
+  - { id: GC-WHT-05, fn: whtForPayment, title: ค่าขนส่ง 1% (H133), input: { payeeType: JURISTIC, incomeType: TRANSPORT, rateBp: 100, typeForm: PND3_53, poNet: "173160.00", base: "173160.00" }, expect: { form: PND53, wht: "1731.60" } }
+  - { id: GC-WHT-06, fn: whtForPayment, title: ค่าโฆษณา 2% (H012), input: { payeeType: JURISTIC, incomeType: ADVERTISING, rateBp: 200, typeForm: PND3_53, poNet: "420000.00", base: "420000.00" }, expect: { form: PND53, wht: "8400.00" } }
+  - { id: GC-WHT-07, fn: whtForPayment, title: ค่าวิชาชีพ 30.015 ปัดขึ้น, input: { payeeType: JURISTIC, incomeType: PROFESSIONAL, rateBp: 300, typeForm: PND3_53, poNet: "1000.50", base: "1000.50" }, expect: { form: PND53, wht: "30.02" } }
+  - { id: GC-WHT-08, fn: whtForPayment, title: เบี้ยประกันวินาศภัย 1%, input: { payeeType: JURISTIC, incomeType: INSURANCE, rateBp: 100, typeForm: PND53, poNet: "420000.00", base: "420000.00" }, expect: { form: PND53, wht: "4200.00" } }
+  - { id: GC-WHT-09, fn: whtForPayment, title: เบี้ยประกันจ่ายให้บุคคลธรรมดา, input: { payeeType: INDIVIDUAL, incomeType: INSURANCE, rateBp: 100, typeForm: PND53, poNet: "5000.00", base: "5000.00" }, expect: { error: WHT_FORM_PAYEE_MISMATCH } }
+  - { id: GC-WHT-10, fn: whtForPayment, title: ครึ่งสตางค์พอดี 0.505 ปัดขึ้น, input: { payeeType: JURISTIC, incomeType: RENT, rateBp: 500, typeForm: PND3_53, poNet: "5000.00", base: "10.10" }, expect: { form: PND53, wht: "0.51" } }
+  - { id: GC-WHT-11, fn: whtForPayment, title: 10.0049 ปัดลง, input: { payeeType: JURISTIC, incomeType: TRANSPORT, rateBp: 100, typeForm: PND3_53, poNet: "1000.49", base: "1000.49" }, expect: { form: PND53, wht: "10.00" } }
+  - { id: GC-WHT-12, fn: whtForPayment, title: PO ต่ำกว่าเกณฑ์ 1 สตางค์ ไม่หัก, input: { payeeType: JURISTIC, incomeType: SERVICE, rateBp: 300, typeForm: PND3_53, poNet: "999.99", base: "999.99" }, expect: { form: PND53, wht: "0.00", reason: BELOW_MINIMUM } }
+  - { id: GC-WHT-13, fn: whtForPayment, title: PO เท่าเกณฑ์พอดี หัก, input: { payeeType: JURISTIC, incomeType: SERVICE, rateBp: 300, typeForm: PND3_53, poNet: "1000.00", base: "1000.00" }, expect: { form: PND53, wht: "30.00" } }
+  - { id: GC-WHT-14, fn: whtForPayment, title: "จ่ายครั้งละ 500 ของ PO 5,000 ยังหัก", input: { payeeType: JURISTIC, incomeType: SERVICE, rateBp: 300, typeForm: PND3_53, poNet: "5000.00", base: "500.00" }, expect: { form: PND53, wht: "15.00" } }
+  - { id: GC-WHT-15, fn: whtForPayment, title: สินค้าไม่มีประเภทเงินได้, input: { payeeType: JURISTIC, incomeType: null, rateBp: 0, typeForm: null, poNet: "25767.00", base: "25767.00" }, expect: { form: null, wht: "0.00", reason: NOT_APPLICABLE } }
+  - { id: GC-WHT-16, fn: whtForPayment, title: "ฐานหลังหักเงินประกัน 5% ของงวด 741,000", input: { payeeType: JURISTIC, incomeType: CONTRACT, rateBp: 300, typeForm: PND3_53, poNet: "2470000.00", base: "703950.00" }, expect: { form: PND53, wht: "21118.50" } }
+  - { id: GC-WHT-17, title: ผู้ขายไม่จด VAT (H003 ค่าจ้างทำของ), input: { net: "277500.00", vatRateBp: 0, whtRateBp: 300 }, expect: { vat: "0.00", wht: "8325.00", payable: "269175.00" } }
+  - { id: GC-WHT-18, fn: whtForPayment, title: ผู้รับเงินต่างประเทศอยู่นอกขอบเขต, input: { payeeType: FOREIGN, incomeType: SERVICE, rateBp: 300, typeForm: PND3_53, poNet: "5000.00", base: "5000.00" }, expect: { error: VALIDATION_FAILED, reason: FOREIGN_PAYEE } }
+  # fn: paymentWithholding (BR-WHT-10) · รวมฐานของทุกเอกสารในรายการจ่ายเดียวต่อ (ประเภท, อัตรา) แล้วปัดครั้งเดียวต่อกลุ่ม · docs = ภาษีของกลุ่มที่ปันกลับลงเอกสารด้วย largest remainder ตามฐาน (เศษเท่ากันให้เอกสารที่มาก่อน) = แถว WithholdingTax
+  - { id: GC-WHT-19, fn: paymentWithholding, title: สองใบประเภทเดียวกันปัดครั้งเดียว (ปัดต่อใบจะได้ 60.04) เศษเท่ากันให้ใบแรก, input: { lines: [{ doc: INV-A, incomeType: PROFESSIONAL, rateBp: 300, base: "1000.50" }, { doc: INV-B, incomeType: PROFESSIONAL, rateBp: 300, base: "1000.50" }] }, expect: { groups: [{ incomeType: PROFESSIONAL, rateBp: 300, base: "2001.00", wht: "60.03", docs: [{ doc: INV-A, wht: "30.02" }, { doc: INV-B, wht: "30.01" }] }], wht: "60.03" } }
+  - { id: GC-WHT-20, fn: paymentWithholding, title: หลายประเภทในรายการเดียว ปันกลับต่อใบ, input: { lines: [{ doc: INV-X, incomeType: SERVICE, rateBp: 300, base: "444000.00" }, { doc: INV-Y, incomeType: RENT, rateBp: 500, base: "21952.00" }, { doc: INV-Z, incomeType: SERVICE, rateBp: 300, base: "10.10" }] }, expect: { groups: [{ incomeType: SERVICE, rateBp: 300, base: "444010.10", wht: "13320.30", docs: [{ doc: INV-X, wht: "13320.00" }, { doc: INV-Z, wht: "0.30" }] }, { incomeType: RENT, rateBp: 500, base: "21952.00", wht: "1097.60", docs: [{ doc: INV-Y, wht: "1097.60" }] }], wht: "14417.90" } }
+  - { id: GC-WHT-21, fn: paymentWithholding, title: ใบงวดกับคืนเงินประกันในรายการเดียว, input: { lines: [{ doc: INV-1, incomeType: CONTRACT, rateBp: 300, base: "703950.00" }, { doc: RET-1, incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }, expect: { groups: [{ incomeType: CONTRACT, rateBp: 300, base: "741000.00", wht: "22230.00", docs: [{ doc: INV-1, wht: "21118.50" }, { doc: RET-1, wht: "1111.50" }] }], wht: "22230.00" } }
+  - { id: GC-WHT-22, fn: paymentWithholding, title: ฐานของกลุ่มติดลบ, input: { lines: [{ doc: INV-N, incomeType: SERVICE, rateBp: 300, base: "-10.00" }] }, expect: { error: VALIDATION_FAILED, reason: WHT_BASE_NEGATIVE } }
 ```
 
 การจับคู่ของใบแจ้งหนี้ชั้น 2 (BR-MATCH-05 ถึง BR-MATCH-13 · engine `src/core/matching` · S8-02):
@@ -2348,6 +2382,133 @@ cases:
   - { id: GC-AP-03, fn: dueDate, title: PO ไม่มีเครดิต ใช้ของผู้ขาย, input: { invoiceDate: "2026-10-30", poTermDays: null, supplierTermDays: 15, defaultTermDays: 30 }, expect: { dueDate: "2026-11-14" } }
   - { id: GC-AP-04, fn: dueDate, title: ไม่มีทั้งสองใช้ค่าตั้งต้น, input: { invoiceDate: "2027-01-30", poTermDays: null, supplierTermDays: null, defaultTermDays: 30 }, expect: { dueDate: "2027-03-01" } }
   - { id: GC-AP-05, fn: dueDate, title: เครดิต 0 วัน, input: { invoiceDate: "2026-10-30", poTermDays: 0, supplierTermDays: 30, defaultTermDays: 30 }, expect: { dueDate: "2026-10-30" } }
+  - { id: GC-AP-06, fn: suggestCoding, title: ใช้รหัสที่ใช้บ่อยสุดในประวัติ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: SAFETY, budgetLine: { accountCode: "530101", costCenter: CC-QSE }, history: [{ taxId: TAX-A, categoryCode: SAFETY, accountCode: "530601", invoiceDate: "2026-09-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530601", invoiceDate: "2026-08-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530601", invoiceDate: "2026-07-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530101", invoiceDate: "2026-10-01" }] }, expect: { accountCode: "530601", source: HISTORY, count: 3, costCenter: CC-QSE } }
+  - { id: GC-AP-07, fn: suggestCoding, title: เท่ากันใช้ครั้งล่าสุด, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: SAFETY, budgetLine: { accountCode: "530101", costCenter: CC-QSE }, history: [{ taxId: TAX-A, categoryCode: SAFETY, accountCode: "530101", invoiceDate: "2026-06-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530101", invoiceDate: "2026-03-01" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530201", invoiceDate: "2026-09-20" }, { taxId: TAX-A, categoryCode: SAFETY, accountCode: "530201", invoiceDate: "2025-12-20" }] }, expect: { accountCode: "530201", source: HISTORY, count: 2, costCenter: CC-QSE } }
+  - { id: GC-AP-08, fn: suggestCoding, title: ย้อนหลัง 365 วันพอดียังนับ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: LAB, budgetLine: { accountCode: "510101", costCenter: CC-P05 }, history: [{ taxId: TAX-A, categoryCode: LAB, accountCode: "530301", invoiceDate: "2025-10-11" }] }, expect: { accountCode: "530301", source: HISTORY, count: 1, costCenter: CC-P05 } }
+  - { id: GC-AP-09, fn: suggestCoding, title: 366 วันไม่นับ ใช้รหัสของบรรทัดงบ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: LAB, budgetLine: { accountCode: "510101", costCenter: CC-P05 }, history: [{ taxId: TAX-A, categoryCode: LAB, accountCode: "530301", invoiceDate: "2025-10-10" }] }, expect: { accountCode: "510101", source: BUDGET_LINE, count: 0, costCenter: CC-P05 } }
+  - { id: GC-AP-10, fn: suggestCoding, title: ผู้ขายอื่นหรือหมวดอื่นไม่นับ, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: MAT, budgetLine: { accountCode: "510101", costCenter: CC-P01 }, history: [{ taxId: TAX-B, categoryCode: MAT, accountCode: "530201", invoiceDate: "2026-10-01" }, { taxId: TAX-A, categoryCode: STEEL, accountCode: "530201", invoiceDate: "2026-10-01" }] }, expect: { accountCode: "510101", source: BUDGET_LINE, count: 0, costCenter: CC-P01 } }
+  - { id: GC-AP-11, fn: suggestCoding, title: ไม่มีประวัติและบรรทัดงบไม่มีรหัส, input: { invoiceDate: "2026-10-11", taxId: TAX-A, categoryCode: MAT, budgetLine: { accountCode: null, costCenter: CC-P01 }, history: [] }, expect: { accountCode: null, source: NONE, count: 0, costCenter: CC-P01 } }
+```
+
+งวดงานและเงินประกันผลงาน (BR-RET-01 BR-RET-03 BR-WHT-05 · engine `src/core/retention` · S8-09):
+
+```yaml
+# tests/golden/retention.yaml
+suite: retention
+# fn: splitMilestones | invoicePayment | retentionRelease · ภาษีหักตอนจ่ายตามค่าเริ่มต้น OQ-122 · เงินประกันด้วย largest remainder สองส่วน (ADR-124)
+# payable = ยอดรวม VAT − เงินประกัน = Invoice.payableSatang (ก่อนหักภาษี ต่างจาก payable ของเคส fn เดิมใน wht.yaml ที่หลังหักภาษี) · transfer = payable − wht (ยอดโอนเมื่อใบนี้จ่ายลำพัง)
+cases:
+  - { id: GC-RET-01, fn: splitMilestones, title: "งานถนน 9,500 ตร.ม. × 260 แบ่ง 30/40/30 (H229)", input: { qty: "9500", unitPrice: "260.00", sharesBp: [3000, 4000, 3000] }, expect: { lines: [{ qty: "2850", net: "741000.00" }, { qty: "3800", net: "988000.00" }, { qty: "2850", net: "741000.00" }], total: "2470000.00", driftFromSingleLine: "0.00" } }
+  - { id: GC-RET-02, fn: splitMilestones, title: 1 งาน แบ่ง 33.33/33.34/33.33, input: { qty: "1", unitPrice: "871700.00", sharesBp: [3333, 3334, 3333] }, expect: { lines: [{ qty: "0.3333", net: "290537.61" }, { qty: "0.3334", net: "290624.78" }, { qty: "0.3333", net: "290537.61" }], total: "871700.00", driftFromSingleLine: "0.00" } }
+  - { id: GC-RET-03, fn: splitMilestones, title: ยอดรวมงวดต่างจากบรรทัดเดิม 1 สตางค์จากการปัดต่อบรรทัด, input: { qty: "1", unitPrice: "100.01", sharesBp: [3333, 3334, 3333] }, expect: { lines: [{ qty: "0.3333", net: "33.33" }, { qty: "0.3334", net: "33.34" }, { qty: "0.3333", net: "33.33" }], total: "100.00", driftFromSingleLine: "-0.01" } }
+  - { id: GC-RET-04, fn: splitMilestones, title: สัดส่วนรวมไม่ถึง 10000, input: { qty: "1", unitPrice: "1000.00", sharesBp: [5000, 4999] }, expect: { error: VALIDATION_FAILED } }
+  - { id: GC-RET-05, fn: invoicePayment, title: งวด 1 ของงานถนน VAT 7% ประกัน 5% ภาษี 3%, input: { net: "741000.00", vatRateBp: 700, retentionBp: 500, whtRateBp: 300 }, expect: { vat: "51870.00", gross: "792870.00", retention: "37050.00", payable: "755820.00", whtBase: "703950.00", wht: "21118.50", transfer: "734701.50" } }
+  - { id: GC-RET-06, fn: invoicePayment, title: เงินประกัน 0.505 ปัดขึ้น, input: { net: "10.10", vatRateBp: 0, retentionBp: 500, whtRateBp: 0 }, expect: { vat: "0.00", gross: "10.10", retention: "0.51", payable: "9.59", whtBase: "9.59", wht: "0.00", transfer: "9.59" } }
+  - { id: GC-RET-07, fn: invoicePayment, title: เงินประกัน 0.5045 ปัดลง, input: { net: "10.09", vatRateBp: 0, retentionBp: 500, whtRateBp: 0 }, expect: { vat: "0.00", gross: "10.09", retention: "0.50", payable: "9.59", whtBase: "9.59", wht: "0.00", transfer: "9.59" } }
+  - { id: GC-RET-08, fn: invoicePayment, title: ผู้รับเหมาไม่จด VAT (H003), input: { net: "277500.00", vatRateBp: 0, retentionBp: 500, whtRateBp: 300 }, expect: { vat: "0.00", gross: "277500.00", retention: "13875.00", payable: "263625.00", whtBase: "263625.00", wht: "7908.75", transfer: "255716.25" } }
+  - { id: GC-RET-09, fn: retentionRelease, title: คืนเงินประกันงวด 1 หักภาษีส่วนประกัน, input: { retention: "37050.00", whtRateBp: 300 }, expect: { payable: "37050.00", wht: "1111.50", transfer: "35938.50" } }
+  - { id: GC-RET-10, fn: invoicePayment, title: ไม่มีเงินประกัน (ค่าเช่า 5%), input: { net: "21952.00", vatRateBp: 700, retentionBp: 0, whtRateBp: 500 }, expect: { vat: "1536.64", gross: "23488.64", retention: "0.00", payable: "23488.64", whtBase: "21952.00", wht: "1097.60", transfer: "22391.04" } }
+```
+
+ใบแก้ไข PO (BR-POC-01 ถึง BR-POC-03 · engine `src/core/po-change` ประกอบจาก `src/core/budget` · S8-10):
+
+```yaml
+# tests/golden/po-change.yaml
+suite: po-change
+# เคสแบบ steps ใช้บรรทัดงบเดียว · op fund reserve submitPo approvePo ความหมายเดียวกับ budget.yaml และ op ใหม่ submitChange approveChange rejectChange
+# ตัวรันใหม่ run_po_change ใน scripts/spec_check.py และ tests/golden/po-change.test.ts ประกอบจาก submitPo approvePo rejectPo releaseHold reserve เดิม · ไม่แก้ run_budget และ src/core/budget (S6 เป็นเจ้าของในรอบ P1)
+# submitChange: newNet = ยอดใหม่ของบรรทัด PO · addedReleasable = releasable ของจำนวนที่เพิ่มจากคำขอ (BR-BUD-05)
+# approveChange: disposition ใช้เมื่อจำนวนลด · removedReleasable = releasable ของจำนวนที่ลด
+# fn: changeTotals = ยอดใหม่ ยอดสำหรับ DOA และการตรวจ BR-POC-01 (เส้นทาง DOA อยู่ใน golden ของฐานร่วม)
+cases:
+  - id: GC-POC-01
+    title: ขึ้นราคา 1,100 → 1,150 จองส่วนเพิ่มตอนส่ง ถือตอนอนุมัติ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-1, amount: "10000.00" }
+      - { op: submitPo, po: PO-1, need: "11000.00", sources: [{ source: PR-1, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-1, expect: { available: "89000.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-1, newNet: "11500.00", addedReleasable: "0.00", expect: { available: "88500.00", reserved: "500.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-1, expect: { available: "88500.00", reserved: "0.00", committed: "11500.00", actual: "0.00" } }
+  - id: GC-POC-02
+    title: ใบแก้ไขไม่อนุมัติ คืนการจอง
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-2, amount: "10000.00" }
+      - { op: submitPo, po: PO-2, need: "11000.00", sources: [{ source: PR-2, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-2 }
+      - { op: submitChange, po: PO-2, newNet: "11500.00", addedReleasable: "0.00" }
+      - { op: rejectChange, po: PO-2, expect: { available: "89000.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+  - id: GC-POC-03
+    title: ลดจำนวน 10 → 8 แบบยกเลิกในคำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-3, amount: "10000.00" }
+      - { op: submitPo, po: PO-3, need: "11000.00", sources: [{ source: PR-3, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-3 }
+      - { op: submitChange, po: PO-3, newNet: "8800.00", addedReleasable: "0.00", expect: { available: "89000.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-3, disposition: CANCEL_REQUEST_LINES, removedReleasable: "2000.00", expect: { available: "91200.00", reserved: "0.00", committed: "8800.00", actual: "0.00" } }
+  - id: GC-POC-04
+    title: ลดจำนวน 10 → 8 แบบคืนเข้ากอง
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-4, amount: "10000.00" }
+      - { op: submitPo, po: PO-4, need: "11000.00", sources: [{ source: PR-4, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-4 }
+      - { op: submitChange, po: PO-4, newNet: "8800.00", addedReleasable: "0.00" }
+      - { op: approveChange, po: PO-4, disposition: RETURN_TO_POOL, removedReleasable: "2000.00", expect: { available: "89200.00", reserved: "2000.00", committed: "8800.00", actual: "0.00" } }
+  - id: GC-POC-05
+    title: เพิ่มจำนวน 10 → 12 จากส่วนที่ยังไม่สั่งของคำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-5, amount: "12000.00" }
+      - { op: submitPo, po: PO-5, need: "11000.00", sources: [{ source: PR-5, releasable: "10000.00" }], expect: { available: "87000.00", reserved: "13000.00", committed: "0.00", actual: "0.00" } }
+      - { op: approvePo, po: PO-5, expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-5, newNet: "13200.00", addedReleasable: "2000.00", expect: { available: "86800.00", reserved: "2200.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-5, expect: { available: "86800.00", reserved: "0.00", committed: "13200.00", actual: "0.00" } }
+  - id: GC-POC-06
+    title: ขึ้นราคาแต่งบว่างไม่พอ ปฏิเสธตอนส่ง
+    steps:
+      - { op: fund, amount: "11200.00" }
+      - { op: reserve, source: PR-6, amount: "10000.00" }
+      - { op: submitPo, po: PO-6, need: "11000.00", sources: [{ source: PR-6, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-6, expect: { available: "200.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-6, newNet: "11500.00", addedReleasable: "0.00", expectError: BUDGET_INSUFFICIENT, expect: { available: "200.00", reserved: "0.00", committed: "11000.00", actual: "0.00" } }
+  - { id: GC-POC-07, fn: changeTotals, title: ยอดใหม่และยอดสำหรับ DOA, input: { vatRateBp: 700, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "10", newUnitPrice: "1150.00" } }, expect: { net: "11500.00", vat: "805.00", gross: "12305.00", doaAmount: { net: "11500.00", vat: "805.00" } } }
+  - { id: GC-POC-08, fn: changeTotals, title: "ขอบวงเงิน PC-01 รวม VAT 1,000,000.00 พอดี", input: { vatRateBp: 700, line: { ordered: "1", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "1", newUnitPrice: "934579.44" } }, expect: { net: "934579.44", vat: "65420.56", gross: "1000000.00", doaAmount: { net: "934579.44", vat: "65420.56" } } }
+  - { id: GC-POC-09, fn: changeTotals, title: เกินขอบ 0.01, input: { vatRateBp: 700, line: { ordered: "1", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "1", newUnitPrice: "934579.45" } }, expect: { net: "934579.45", vat: "65420.56", gross: "1000000.01", doaAmount: { net: "934579.45", vat: "65420.56" } } }
+  - { id: GC-POC-10, fn: changeTotals, title: ลดต่ำกว่าที่รับแล้ว, input: { vatRateBp: 700, line: { ordered: "10", received: "6", invoiced: "0", requestLeft: "0" }, change: { newQty: "5" } }, expect: { error: PO_CHANGE_BELOW_PROGRESS, reason: RECEIVED } }
+  - { id: GC-POC-11, fn: changeTotals, title: แก้ราคาบรรทัดที่มีใบแจ้งหนี้แล้ว, input: { vatRateBp: 700, line: { ordered: "10", received: "6", invoiced: "6", requestLeft: "0" }, change: { newUnitPrice: "1000.00" } }, expect: { error: PO_CHANGE_BELOW_PROGRESS, reason: LINE_INVOICED } }
+  - { id: GC-POC-12, fn: changeTotals, title: เพิ่มเกินที่เหลือในคำขอ, input: { vatRateBp: 700, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "12" } }, expect: { error: PO_CHANGE_EXCEEDS_REQUEST, left: "0" } }
+  - { id: GC-POC-13, fn: changeTotals, title: ผู้ขายไม่จด VAT, input: { vatRateBp: 0, line: { ordered: "10", received: "0", invoiced: "0", requestLeft: "0" }, change: { newQty: "10", newUnitPrice: "1210.00" } }, expect: { net: "12100.00", vat: "0.00", gross: "12100.00", doaAmount: { net: "12100.00", vat: "0.00" } } }
+  - id: GC-POC-14
+    title: ลดราคาแต่เพิ่มจำนวน 10 → 12 (Δ ติดลบ) คืน releasable ของจำนวนที่เพิ่มให้คำขอและลดยอดถือ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-14, amount: "12000.00" }
+      - { op: submitPo, po: PO-14, need: "11000.00", sources: [{ source: PR-14, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-14, expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: submitChange, po: PO-14, newNet: "10800.00", addedReleasable: "2000.00", expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-14, expect: { available: "89200.00", reserved: "0.00", committed: "10800.00", actual: "0.00" } }
+  - id: GC-POC-15
+    title: ขึ้นราคาแต่ลดจำนวน 10 → 8 (Δ เป็นบวก) แบบคืนเข้ากอง ถือ Δ และจองจำนวนที่ลดคืนให้คำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-15, amount: "10000.00" }
+      - { op: submitPo, po: PO-15, need: "11000.00", sources: [{ source: PR-15, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-15 }
+      - { op: submitChange, po: PO-15, newNet: "11200.00", addedReleasable: "0.00", expect: { available: "88800.00", reserved: "200.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-15, disposition: RETURN_TO_POOL, removedReleasable: "2000.00", expect: { available: "86800.00", reserved: "2000.00", committed: "11200.00", actual: "0.00" } }
+  - id: GC-POC-16
+    title: เพิ่มจำนวน 10 → 11 ที่ยอดเท่าเดิม (Δ = 0) คืน releasable ของจำนวนที่เพิ่มให้คำขอ
+    steps:
+      - { op: fund, amount: "100000.00" }
+      - { op: reserve, source: PR-16, amount: "12000.00" }
+      - { op: submitPo, po: PO-16, need: "11000.00", sources: [{ source: PR-16, releasable: "10000.00" }] }
+      - { op: approvePo, po: PO-16 }
+      - { op: submitChange, po: PO-16, newNet: "11000.00", addedReleasable: "1000.00", expect: { available: "87000.00", reserved: "2000.00", committed: "11000.00", actual: "0.00" } }
+      - { op: approveChange, po: PO-16, expect: { available: "88000.00", reserved: "1000.00", committed: "11000.00", actual: "0.00" } }
+  - { id: GC-POC-17, fn: changeTotals, title: แก้ราคาของบรรทัดที่รับเกินจำนวนในเกณฑ์ (จำนวนไม่เปลี่ยน), input: { vatRateBp: 700, line: { ordered: "10", received: "11", invoiced: "0", requestLeft: "0", unitPrice: "1000.00" }, change: { newUnitPrice: "1050.00" } }, expect: { net: "10500.00", vat: "735.00", gross: "11235.00", doaAmount: { net: "10500.00", vat: "735.00" } } }
 ```
 
 **Invariant ของใบแจ้งหนี้ชั้น 2**
@@ -3583,6 +3744,12 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
+| `invoice.exception_raised` (S8) | ผู้รับตามชนิดของรายการไม่ตรง (BR-MATCH-09) | ในระบบ · LINE | IMMEDIATE | `invoice.exception` |
+| `po_change.approved` · `po_change.rejected` · `po_change.returned` (S8-10) | ผู้เสนอ | ในระบบ · LINE | IMMEDIATE | `po_change.decided` |
+| `retention.release_due` (S8-09) | FINANCE | ในระบบ | DIGEST | `retention.due` |
+| `inbound_email.processed` (S8 · ร่างใหม่หรือไฟล์ที่รอเลือก PO) | FINANCE | ในระบบ | DIGEST | `invoice.inbox_digest` |
+| `invoice.variance_approved` · `invoice.variance_rejected` (S8) | ผู้ขออนุมัติส่วนต่าง · FINANCE | ในระบบ · LINE | IMMEDIATE | `invoice.variance_decided` |
+| ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
 | `ai_credit.threshold_reached` · `ai_credit.exhausted` (S13 · ครั้งเดียวต่อเดือนต่อชนิด) | ORG_ADMIN (ทีม BCS ดูที่หน้า platform) | อีเมล · ในระบบ | IMMEDIATE | `admin.ai_credits` |
@@ -3617,7 +3784,13 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | report_schedule | `report_schedule.created` |
 | gr · variance | `gr.posted` `gr.reversed` `variance.recorded` `variance.approved` `variance.rejected` |
 | ใบกำกับและการส่งออก | `invoice_confirmation.recorded` `export.generated` `audit.exported` |
-| invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` |
+| invoice (S8) | `invoice.drafted` `invoice.updated` `invoice.coding_confirmed` `invoice.submitted` `invoice.matched` `invoice.exception_raised` `invoice.ready` `invoice.cancelled` `invoice.rechecked` `invoice.reopened` `invoice.rejected` `invoice.variance_submitted` `invoice.variance_approved` `invoice.variance_rejected` `match_exception.dismissed` `invoice.payment_held` `invoice.payment_released` `invoice.paid` (สามตัวท้ายมาจากคำสั่งของ S9 ผ่าน src/server/services/ap/payment.ts) |
+| po_change · po (S8-10) | `po_change.drafted` `po_change.submitted` `po_change.approved` `po_change.rejected` `po_change.returned` `po_change.cancelled` `po.revised` `po.revision_sent` |
+| retention · po (S8-09) | `retention.held` `retention.released` `retention.release_due` `retention.payment_held` `retention.payment_released` `retention.paid` `po.milestones_set` `po.retention_set` |
+| account_code (S8-11) | `account_code.updated` |
+| ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
+| inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
+| supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
@@ -4088,6 +4261,13 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `TAX_RATE_NOT_CONFIGURED` | 422 | ยังไม่มีอัตรา VAT สำหรับวันที่ {date} กรุณาติดต่อผู้ดูแลแพลตฟอร์ม |
 | `INVOICE_EXCEEDS_COMMITTED` | 422 | ยอดใบกำกับเกินยอดคงเหลือของ PO ({remaining} บาท) |
 | `CODING_NOT_CONFIRMED` | 422 | ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines} |
+| `VARIANCE_NOT_ACCEPTABLE` | 422 | รายการไม่ตรงชนิด {type} ขออนุมัติไม่ได้ ต้องแก้ที่ต้นเหตุหรือปฏิเสธใบ |
+| `WHT_TYPE_NOT_CONFIGURED` | 422 | ยังไม่ได้ตั้งประเภทเงินได้ {code} หรืออัตรา |
+| `WHT_FORM_PAYEE_MISMATCH` | 422 | ประเภทเงินได้ {code} ใช้กับผู้รับเงินแบบ {payeeType} ไม่ได้ |
+| `RETENTION_NOT_DUE` | 422 | คืนเงินประกันผลงานได้ตั้งแต่ {date} |
+| `PO_CHANGE_OPEN` | 409 | PO นี้มีใบแก้ไขที่ยังไม่เสร็จ |
+| `PO_CHANGE_BELOW_PROGRESS` | 422 | แก้ไม่ได้เพราะต่ำกว่าที่รับหรือแจ้งหนี้แล้ว ({reason}) |
+| `PO_CHANGE_EXCEEDS_REQUEST` | 422 | จำนวนเกินที่เหลือในคำขอต้นทาง (เหลือ {left}) |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
@@ -4161,7 +4341,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       32 ไฟล์ · 310 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       34 ไฟล์ · 364 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -5226,31 +5406,31 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [x] **S8-05** `[demo]` ส่ง entity ใบแจ้งหนี้และคำสั่งสร้างร่างจากค่าที่อ่านได้เข้า main ก่อนจบขั้น เพื่อให้สาย 3 ทำส่วนอ่านใบแจ้งหนี้ของ S13 (§16.15): รวม main เข้าสาย แล้วเรียก `/code-review high main...HEAD` (งานของ S8-01 ถึง S8-04) แก้ข้อที่กระทบความถูกต้อง เงิน หรือสิทธิ์ แล้วส่งเข้า main ตาม skill `bcs-lane` หัวข้อ 4 · /code-review high main...HEAD 7 ข้อ แก้ 5 ข้อใน d0c7ec4 (อีก 2 ข้อบันทึกใน docs/reports/p1-review-S8-part1.md) · pnpm verify --strict --e2e ผ่าน (admin.spec ล้มครั้งแรกเพราะเครื่องรันสาย 3 พร้อมกัน รันซ้ำผ่าน 12/12) · @demo 9/9 · db:reset:p1 ผ่าน — เสร็จ 2026-10-13 · d0c7ec4
   - เสร็จเมื่อ: ไม่มีข้อที่กระทบความถูกต้องค้าง · `pnpm verify --strict --e2e` ผ่าน · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm db:reset` ด้วยไฟล์ระยะ 1 ผ่านบน main · commit ของ S8-01 ถึง S8-04 อยู่ใน main
   - แยกงาน: ใช้คำสั่งรีวิวเดียว ไม่แตกเพิ่ม
-- [ ] **S8-06** `[demo]` รายการไม่ตรงและอนุมัติส่วนต่าง: ส่งตามชนิด ตรวจซ้ำ (รวมตรวจซ้ำเองหลัง `gr.posted`) เปิดแก้ ปฏิเสธ ปัดตกคำเตือนซ้ำ · ขออนุมัติส่วนต่างตาม DOA `INVOICE_EXCEPTION` (subject `INVOICE`) โดยเติม adapter `src/server/services/approvals/subjects/invoice.ts` ของ P1-07 (`decide` คืน `BUDGET_INSUFFICIENT` แล้วธุรกรรมย้อนโดยงานยังเปิด · ผู้ขัดกันตาม OQ-127 · ไม่แก้ `decide.ts` `action-link.ts` `line-postback.ts`) พร้อม SoD และถืองบส่วนขาดตอนอนุมัติตามค่าเริ่มต้นของ OQ-127 · การแจ้งเตือนในระบบและ LINE ตาม BR-NOTI-01 · อีเมลถึงผู้ขาย (รับใบ ปฏิเสธ พร้อมจ่าย) ผ่าน `enqueueSupplierNotice(tx, ctx, { templateKey, supplierId, subjectType, subjectId, dedupeKey, data })` ในธุรกรรมของผู้เรียก (S9 เรียกตัวเดียวกัน) ตาราง `SupplierNotice` และงาน `supplier-notice-send` (ADR-126) · event `supplier_notice.sent` `supplier_notice.failed` มี templateKey subjectType subjectId · renderer ของงานอนุมัติบนเว็บและ LIFF ในไฟล์ของ S8 (แทรกบรรทัดเดียวในหน้า `/liff/tasks/[id]` ของ S6) · เพิ่มแถว §2.4 §10 §14.2 ของข้อนี้ · FR-AP-103 FR-AP-105
+- [x] **S8-06** `[demo]` รายการไม่ตรงและอนุมัติส่วนต่าง: ส่งตามชนิด ตรวจซ้ำ (รวมตรวจซ้ำเองหลัง `gr.posted`) เปิดแก้ ปฏิเสธ ปัดตกคำเตือนซ้ำ · ขออนุมัติส่วนต่างตาม DOA `INVOICE_EXCEPTION` (subject `INVOICE`) โดยเติม adapter `src/server/services/approvals/subjects/invoice.ts` ของ P1-07 (`decide` คืน `BUDGET_INSUFFICIENT` แล้วธุรกรรมย้อนโดยงานยังเปิด · ผู้ขัดกันตาม OQ-127 · ไม่แก้ `decide.ts` `action-link.ts` `line-postback.ts`) พร้อม SoD และถืองบส่วนขาดตอนอนุมัติตามค่าเริ่มต้นของ OQ-127 · การแจ้งเตือนในระบบและ LINE ตาม BR-NOTI-01 · อีเมลถึงผู้ขาย (รับใบ ปฏิเสธ พร้อมจ่าย) ผ่าน `enqueueSupplierNotice(tx, ctx, { templateKey, supplierId, subjectType, subjectId, dedupeKey, data })` ในธุรกรรมของผู้เรียก (S9 เรียกตัวเดียวกัน) ตาราง `SupplierNotice` และงาน `supplier-notice-send` (ADR-126) · event `supplier_notice.sent` `supplier_notice.failed` มี templateKey subjectType subjectId · renderer ของงานอนุมัติบนเว็บและ LIFF ในไฟล์ของ S8 (แทรกบรรทัดเดียวในหน้า `/liff/tasks/[id]` ของ S6) · เพิ่มแถว §2.4 §10 §14.2 ของข้อนี้ · FR-AP-103 FR-AP-105 · FR-AP-103 FR-AP-105 · services ใน src/server/services/ap (exceptions.ts variance.ts) และ adapter subjects/invoice.ts · integration ap-exceptions 13 เคส (อนุมัติส่วนต่าง งบขาด 0.01 → BUDGET_INSUFFICIENT งานยังเปิด ไม่อนุมัติ SoD ชนิดอื่น → VARIANCE_NOT_ACCEPTABLE ตรวจซ้ำหลัง GR ผู้ตรวจรับ เปิดแก้ ปฏิเสธ อีเมลครั้งเดียว dedupeKey ผู้ขายไม่มีอีเมล → NO_EMAIL และแจ้ง FINANCE ปัดตกซ้ำ ข้อความ LINE) · property invoice-budget รวมการอนุมัติส่วนต่าง · pnpm verify 0 FAIL — เสร็จ 2026-10-13 · 7dd017a
   - เสร็จเมื่อ: เทสต์ AC ของ FR-AP-103 และ FR-AP-105 ผ่าน · อนุมัติส่วนต่างที่งบขาด 0.01 ถูกปฏิเสธด้วย `BUDGET_INSUFFICIENT` และงานยังเปิด · property test งบของ S8-03 รวมการอนุมัติส่วนต่างแล้วยังผ่าน · ข้อความ LINE ไม่มีรายการหรือราคาต่อหน่วย (เทสต์) · อีเมลถึงผู้ขายเข้า Mailpit ครั้งเดียวแม้คำสั่งถูกส่งซ้ำ และ `enqueueSupplierNotice` ด้วย dedupeKey เดิมไม่สร้างแถวซ้ำ · event `supplier_notice.sent` มี templateKey subjectType subjectId (เทสต์) · ผู้ส่งใบกดอนุมัติเองได้ `SOD_VIOLATION` · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S8-07** `[demo]` กล่องอีเมลขาเข้า (ADR-123): adapter โหมด `mailpit` และ `disabled` · `InboundEmail` · job `invoice-inbox-poll` และปุ่มดึงตอนนี้ · ร่างต่อไฟล์แนบ เสนอผู้ขายและ PO · ไฟล์ e-Tax อ่านด้วยตัวอ่านเดียวกับ BR-IVC-05 (เงื่อนไข FR-INTG-302 ใน §8.12) · กันซ้ำด้วย Message-ID · ไม่เก็บเนื้อความ · ค่าเริ่มต้นของ OQ-124 · เพิ่มแถว §2.4 §10 ของข้อนี้ · FR-AP-101
+- [x] **S8-07** `[demo]` กล่องอีเมลขาเข้า (ADR-123): adapter โหมด `mailpit` และ `disabled` · `InboundEmail` · job `invoice-inbox-poll` และปุ่มดึงตอนนี้ · ร่างต่อไฟล์แนบ เสนอผู้ขายและ PO · ไฟล์ e-Tax อ่านด้วยตัวอ่านเดียวกับ BR-IVC-05 (เงื่อนไข FR-INTG-302 ใน §8.12) · กันซ้ำด้วย Message-ID · ไม่เก็บเนื้อความ · ค่าเริ่มต้นของ OQ-124 · เพิ่มแถว §2.4 §10 ของข้อนี้ · FR-AP-101 · FR-AP-101 AC2 AC4 · src/integrations/email-inbound และ src/server/services/ap/inbox.ts · integration ap-inbox 9 เคส (ร่างพร้อมผู้ขายและ PO ที่เสนอ · อีเมลเดิมสองครั้งได้ร่างเดียว · ไฟล์ชนิดอื่นข้ามพร้อมเหตุผล · ไม่มี PO ให้ FINANCE เลือก · e-Tax เดียวกันผ่านอัปโหลดและอีเมลได้ค่าเดียวกัน · อ่านไม่ได้ลองใหม่ 3 ครั้ง · job อ่านทุกองค์กร · ปิดโมดูล AI ยังทำงาน · สิทธิ์และ PAY ปิด) · แก้ร่างจาก e-Tax ที่ขัด CHECK invoice_ap_money · pnpm verify 0 FAIL — เสร็จ 2026-10-14 · 0f18014
   - เสร็จเมื่อ: integration test ส่งอีเมลเข้า Mailpit ด้วยที่อยู่สุ่มต่อเทสต์ (กันชนกับสายอื่น) แล้วได้ร่างพร้อมผู้ขายและ PO ที่เสนอ · อีเมลเดิมสองครั้งได้ร่างเดียว · ไฟล์ชนิดอื่นถูกข้ามพร้อมเหตุผล · ไฟล์ e-Tax เดียวกันผ่านอัปโหลดและอีเมลได้ค่าเดียวกัน · ปิดโมดูล AI แล้วยังทำงาน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S8-08** `[demo]` ภาษีหัก ณ ที่จ่าย (ADR-127): `WhtIncomeType` พร้อมการยืนยันอัตราโดย FINANCE · บรรทัดฐานภาษีและค่าคาดการณ์บนใบพร้อมจ่าย และบรรทัดภาษีคาดการณ์ในอีเมลพร้อมจ่ายของ S8-06 · หักตอนจ่ายเท่านั้นตามค่าเริ่มต้นของ OQ-122 · `paymentWithholding` ใน `src/core/wht` และฟังก์ชันที่ S9 เรียกในธุรกรรมของตัวเอง: `holdInvoicesForPayment` `releaseInvoicesFromPayment` และ `recordInvoicePayment(tx, ctx, { invoiceIds, retentionIds, paymentRunItemId, paidOn, whtLines })` ฟังก์ชันบันทึกการจ่ายตัวเดียว (`WithholdingTax` ต่อกลุ่มต่อเอกสาร · 50 ทวิ หนึ่งฉบับต่อรายการจ่าย · ส่วน `retentionIds` ใช้งานจริงใน S8-09) · 50 ทวิ PDF และไฟล์สรุป ภ.ง.ด.3 ภ.ง.ด.53 แบบกลางที่ระบุว่าไม่ใช่รูปแบบของกรมสรรพากร · `wht.revealTaxId` กับ `SensitiveAccessLog` ตามค่าเริ่มต้นของ OQ-123 · เพิ่มเคสใน `tests/golden/wht.yaml` ตามหัวข้อ "ร่าง golden case" (GC-WHT-01 ไม่เปลี่ยน) เอา `status: preview-T2` และ `wht.yaml` ออกจาก `GOLDEN_STRICT_OPTIONAL` แล้วคัดบล็อกฉบับใหม่แทนบล็อกเดิมใน §7.14 พร้อมกับไฟล์ · `run_wht` ใน `scripts/spec_check.py` แยกตาม fn · เพิ่ม `wht` ในรายการ coverage 100% · BR-WHT-01 BR-WHT-02 · เพิ่มแถว §2.4 §10 §14.2 · FR-AP-104
+- [x] **S8-08** `[demo]` ภาษีหัก ณ ที่จ่าย (ADR-127): `WhtIncomeType` พร้อมการยืนยันอัตราโดย FINANCE · บรรทัดฐานภาษีและค่าคาดการณ์บนใบพร้อมจ่าย และบรรทัดภาษีคาดการณ์ในอีเมลพร้อมจ่ายของ S8-06 · หักตอนจ่ายเท่านั้นตามค่าเริ่มต้นของ OQ-122 · `paymentWithholding` ใน `src/core/wht` และฟังก์ชันที่ S9 เรียกในธุรกรรมของตัวเอง: `holdInvoicesForPayment` `releaseInvoicesFromPayment` และ `recordInvoicePayment(tx, ctx, { invoiceIds, retentionIds, paymentRunItemId, paidOn, whtLines })` ฟังก์ชันบันทึกการจ่ายตัวเดียว (`WithholdingTax` ต่อกลุ่มต่อเอกสาร · 50 ทวิ หนึ่งฉบับต่อรายการจ่าย · ส่วน `retentionIds` ใช้งานจริงใน S8-09) · 50 ทวิ PDF และไฟล์สรุป ภ.ง.ด.3 ภ.ง.ด.53 แบบกลางที่ระบุว่าไม่ใช่รูปแบบของกรมสรรพากร · `wht.revealTaxId` กับ `SensitiveAccessLog` ตามค่าเริ่มต้นของ OQ-123 · เพิ่มเคสใน `tests/golden/wht.yaml` ตามหัวข้อ "ร่าง golden case" (GC-WHT-01 ไม่เปลี่ยน) เอา `status: preview-T2` และ `wht.yaml` ออกจาก `GOLDEN_STRICT_OPTIONAL` แล้วคัดบล็อกฉบับใหม่แทนบล็อกเดิมใน §7.14 พร้อมกับไฟล์ · `run_wht` ใน `scripts/spec_check.py` แยกตาม fn · เพิ่ม `wht` ในรายการ coverage 100% · BR-WHT-01 BR-WHT-02 · เพิ่มแถว §2.4 §10 §14.2 · FR-AP-104 · FR-AP-104 · src/core/wht (whtForPayment paymentWithholding whtBases · coverage 100%) · golden wht 22 เคส (runner และ run_wht เขียนจาก golden โดย subagent ที่ไม่เห็นโค้ด · spec:check golden:wht 22/22) · services ap/wht.ts payment.ts wht-export.ts wht-files.ts · integration ap-wht 8 เคส (ผู้ยืนยัน ≠ ผู้แก้ ภาษีคาดการณ์บนใบพร้อมจ่ายและอีเมล ประเภทไม่ active ถือ ปล่อย บันทึกจ่าย WHT_MISMATCH แถวภาษีรวมเท่า 50 ทวิ ฉบับเดียว ไฟล์ ภ.ง.ด.3 ยอดรวมและ sha256 mask และ revealTaxId พร้อม SensitiveAccessLog ไม่มีเลขบัตรใน log และ event PAY ปิด) · pnpm verify 0 FAIL (รอบแรก outbox.test ล้มครั้งเดียวจากเครื่องโหลดหนัก รันซ้ำผ่านทั้งชุด) — เสร็จ 2026-10-14 · 57ed12a 0fe142b
   - เสร็จเมื่อ: golden `wht.yaml` ผ่านทุกเคส และ `pnpm spec:check` รายงาน golden:wht ผ่านครบ · ด่าน golden-drift ผ่าน · เลขบัตรประชาชนเต็มเห็นเฉพาะผู้มี `wht.revealTaxId` และบันทึก `SensitiveAccessLog` ผู้อื่นเห็นแบบ mask (เทสต์) · ไฟล์สรุปมี checksum และยอดรวมเท่าผลรวมรายการ (เทสต์) · เทสต์ logger ไม่มีเลขบัตร (NFR-SEC-09) · เทสต์ `recordInvoicePayment` ในธุรกรรมทดสอบ: ผลรวม `WithholdingTax` เท่ายอดบน 50 ทวิ และออก 50 ทวิ ฉบับเดียวต่อรายการจ่าย · ปิด `PAY` ได้ `MODULE_DISABLED` · `pnpm verify` ผ่าน
   - แยกงาน: subagent เขียนเทสต์จาก golden โดยไม่เห็นโค้ด แล้วตรวจหลักฐาน
-- [ ] **S8-09** `[demo]` งวดงานและเงินประกันผลงาน (ADR-124): `po.setMilestones` · ตรวจรับงวดด้วย GR เดิม · เงินประกันต่อใบ · `Retention` และ `retention.release` · job แจ้งวันครบ · ฟังก์ชันให้ S9 จ่ายเงินประกัน `holdRetentionsForPayment` `releaseRetentionsFromPayment` และการรับเงินประกันใน `recordInvoicePayment` · golden `tests/golden/retention.yaml` ตามหัวข้อ "ร่าง golden case" พร้อมตัวคำนวณอ้างอิง `run_retention` ใน `scripts/spec_check.py` · ค่าเริ่มต้นของ OQ-125 · แก้รายการชั้น 2 ใน §6.5 เอา `MilestoneReceipt` ออก (งวดใช้บรรทัด PO และ GR ตาม ADR-124) · เพิ่มแถว §2.4 §10 §14.2 และคัดบล็อก golden ลงใต้หัวข้อที่ P1-07 จองให้ S8 · FR-AP-106
+- [x] **S8-09** `[demo]` งวดงานและเงินประกันผลงาน (ADR-124): `po.setMilestones` · ตรวจรับงวดด้วย GR เดิม · เงินประกันต่อใบ · `Retention` และ `retention.release` · job แจ้งวันครบ · ฟังก์ชันให้ S9 จ่ายเงินประกัน `holdRetentionsForPayment` `releaseRetentionsFromPayment` และการรับเงินประกันใน `recordInvoicePayment` · golden `tests/golden/retention.yaml` ตามหัวข้อ "ร่าง golden case" พร้อมตัวคำนวณอ้างอิง `run_retention` ใน `scripts/spec_check.py` · ค่าเริ่มต้นของ OQ-125 · แก้รายการชั้น 2 ใน §6.5 เอา `MilestoneReceipt` ออก (งวดใช้บรรทัด PO และ GR ตาม ADR-124) · เพิ่มแถว §2.4 §10 §14.2 และคัดบล็อก golden ลงใต้หัวข้อที่ P1-07 จองให้ S8 · FR-AP-106 · FR-AP-106 · src/core/retention (coverage 100%) · golden retention 10 เคส (spec:check golden:retention 10/10) · services ap/milestones.ts ap/retention.ts · PO ใหม่ได้เงินประกันจากประเภทคำขอ · วันครบตั้งจาก GR งวดสุดท้าย (postedAt) · integration ap-retention 6 เคส (งานถนน 3 งวดจากแบ่งงวดถึงใบงวดพร้อมจ่าย ยอดที่ต้องจ่ายและยอดโอนตรง GC-RET-05 · คืนก่อนวัน RETENTION_NOT_DUE · job แจ้งครั้งเดียว · ถือ ปล่อย และบันทึกจ่ายเงินประกันพร้อมใบงวดในรายการเดียว ภาษีตรง GC-WHT-21 · PAY ปิด) · pnpm verify 0 FAIL — เสร็จ 2026-10-14 · 00860a0 1f4c2f7
   - เสร็จเมื่อ: golden `retention.yaml` ผ่าน และ `pnpm spec:check` รายงาน golden:retention ผ่านครบ · integration test งานเหมา 3 งวดตั้งแต่แบ่งงวดถึงใบงวดพร้อมจ่ายพร้อมเงินประกัน ยอดที่ต้องจ่ายและยอดโอนคาดการณ์ตรง golden · คืนก่อนวันได้ `RETENTION_NOT_DUE` · เทสต์ถือ ปล่อย และบันทึกจ่ายเงินประกันพร้อมใบงวดในรายการเดียว ภาษีตรงเคสใบงวดกับคืนเงินประกันใน `wht.yaml` · ปิด `PAY` ได้ `MODULE_DISABLED` · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S8-10** `[demo]` ใบแก้ไข PO (ADR-125) ตาม DOA `PO_CHANGE` ในโมดูล CORE: ร่าง ส่ง (จองส่วนเพิ่ม) อนุมัติ (แก้ PO ถืองบ revision และ PDF ใหม่) ไม่อนุมัติ ยกเลิก · แก้เฉพาะวันส่งหรือหมายเหตุอนุมัติอัตโนมัติ · DOA ไม่มีข้อ `PO_CHANGE` → ไม่แสดงปุ่มและได้ `DOA_NOT_CONFIGURED` · เติม adapter `src/server/services/approvals/subjects/po-change.ts` ของ P1-07 · `po.sendRevision` ด้วยกลไกส่งเดิมของ `po.send` · ตรวจซ้ำใบ `EXCEPTION` ของ PO หลังอนุมัติ · อนุมัติแล้วเรียก `issueDocumentVerification` ของ S6 ในธุรกรรมเดียวกันตามหัวข้อ "กฎ" ของ sub-spec เมื่อฟังก์ชันนั้นอยู่ใน main แล้ว ไม่เช่นนั้น S6 เพิ่มการเรียกพร้อมเทสต์ตอนรวมเข้า main ทีหลัง · งบประกอบจาก `submitPo` `approvePo` `rejectPo` `releaseHold` `reserve` เดิม (ไม่แก้ `src/core/budget`) · golden `tests/golden/po-change.yaml` ตามหัวข้อ "ร่าง golden case" พร้อมตัวรันใหม่ `run_po_change` ใน `scripts/spec_check.py` และ `tests/golden/po-change.test.ts` (ไม่แก้ `run_budget`) · ค่าเริ่มต้นของ OQ-126 · เพิ่มแถว §2.4 §10 §14.2 และคัดบล็อก golden ลงใต้หัวข้อที่ P1-07 จองให้ S8 · FR-AP-107
+- [x] **S8-10** `[demo]` ใบแก้ไข PO (ADR-125) ตาม DOA `PO_CHANGE` ในโมดูล CORE: ร่าง ส่ง (จองส่วนเพิ่ม) อนุมัติ (แก้ PO ถืองบ revision และ PDF ใหม่) ไม่อนุมัติ ยกเลิก · แก้เฉพาะวันส่งหรือหมายเหตุอนุมัติอัตโนมัติ · DOA ไม่มีข้อ `PO_CHANGE` → ไม่แสดงปุ่มและได้ `DOA_NOT_CONFIGURED` · เติม adapter `src/server/services/approvals/subjects/po-change.ts` ของ P1-07 · `po.sendRevision` ด้วยกลไกส่งเดิมของ `po.send` · ตรวจซ้ำใบ `EXCEPTION` ของ PO หลังอนุมัติ · อนุมัติแล้วเรียก `issueDocumentVerification` ของ S6 ในธุรกรรมเดียวกันตามหัวข้อ "กฎ" ของ sub-spec เมื่อฟังก์ชันนั้นอยู่ใน main แล้ว ไม่เช่นนั้น S6 เพิ่มการเรียกพร้อมเทสต์ตอนรวมเข้า main ทีหลัง · งบประกอบจาก `submitPo` `approvePo` `rejectPo` `releaseHold` `reserve` เดิม (ไม่แก้ `src/core/budget`) · golden `tests/golden/po-change.yaml` ตามหัวข้อ "ร่าง golden case" พร้อมตัวรันใหม่ `run_po_change` ใน `scripts/spec_check.py` และ `tests/golden/po-change.test.ts` (ไม่แก้ `run_budget`) · ค่าเริ่มต้นของ OQ-126 · เพิ่มแถว §2.4 §10 §14.2 และคัดบล็อก golden ลงใต้หัวข้อที่ P1-07 จองให้ S8 · FR-AP-107 · FR-AP-107 · src/core/po-change (coverage 100%) · golden po-change 13 เคส (spec:check golden:po-change 13/13) · property po-change 2,000 รอบ INV-BUD-01 ถึง 03 · services purchase-orders/change.ts และ adapter subjects/po-change.ts · integration po-change 5 เคส (จองส่วนเพิ่มตอนส่ง ผู้สร้าง PO อนุมัติได้ SOD_VIOLATION อนุมัติแล้วได้ revision 1 และอีเมลฉบับแก้ไขพร้อม PDF เข้า Mailpit · แก้เฉพาะวันส่งอนุมัติอัตโนมัติ · รับของระหว่างรออนุมัติ → PO_CHANGE_BELOW_PROGRESS งานยังเปิด · ใบ EXCEPTION ตรวจซ้ำหลังอนุมัติ · DOA แบบ DEMO ไม่มีข้อ PO_CHANGE → DOA_NOT_CONFIGURED งบไม่ขยับ) · issueDocumentVerification ของ S6 ยังไม่อยู่ใน main จึงให้ S6 เพิ่มการเรียกตอนรวม · pnpm verify 0 FAIL · @demo 9/9 — เสร็จ 2026-10-14 · 12c6b07 5e14f50
   - เสร็จเมื่อ: golden `po-change.yaml` ผ่าน และ `pnpm spec:check` รายงาน golden:po-change ผ่านครบ · property test ใหม่ `tests/property/po-change.property.test.ts` ยังรักษา INV-BUD-01 ถึง INV-BUD-03 · ผู้สร้าง PO อนุมัติใบแก้ไขได้ `SOD_VIOLATION` · ใบแก้ไขที่รออนุมัติแล้วมี GR หรือใบแจ้งหนี้จนจำนวนหรือยอดใหม่ต่ำกว่าที่รับหรือแจ้งหนี้แล้ว อนุมัติขั้นสุดท้ายได้ `PO_CHANGE_BELOW_PROGRESS` และงานยังเปิด (เทสต์) · เทสต์กับองค์กร DEMO: ไม่มีปุ่มและ `po_change.submit` ได้ `DOA_NOT_CONFIGURED` โดยงบไม่ขยับ · อีเมลฉบับแก้ไขถึงผู้ขายเข้า Mailpit พร้อม PDF ใหม่ · เมื่อเรียก `issueDocumentVerification` แล้ว เทสต์ว่าอนุมัติใบแก้ไขที่เปลี่ยนราคาหรือจำนวนได้แถวยืนยันเอกสารใหม่ของ PO · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S8-11** `[demo]` เสนอรหัสบัญชีและ cost center จากประวัติโดยไม่ใช้ AI (`accountCode.manage` · ผู้ใช้ยังยืนยันทุกบรรทัดด้วย `invoice.confirmCoding` ของ S8-03) และส่งออก Express รวมใบชั้น 2 ด้วยรหัสที่ยืนยันตาม mapping เดิม (OQ-10 · BR-EXP-02 ถึง BR-EXP-04) · เพิ่มเคสเสนอรหัสต่อท้าย `tests/golden/ap.yaml` ตามหัวข้อ "ร่าง golden case" ขยาย `run_ap` ใน `scripts/spec_check.py` และคัดบล็อกฉบับใหม่แทนบล็อกเดิมใต้หัวข้อที่ P1-07 จองให้ S8 · ค่าเริ่มต้นของ OQ-128 · เพิ่มแถว §2.4 §10 §14.2 · FR-AP-108
+- [x] **S8-11** `[demo]` เสนอรหัสบัญชีและ cost center จากประวัติโดยไม่ใช้ AI (`accountCode.manage` · ผู้ใช้ยังยืนยันทุกบรรทัดด้วย `invoice.confirmCoding` ของ S8-03) และส่งออก Express รวมใบชั้น 2 ด้วยรหัสที่ยืนยันตาม mapping เดิม (OQ-10 · BR-EXP-02 ถึง BR-EXP-04) · เพิ่มเคสเสนอรหัสต่อท้าย `tests/golden/ap.yaml` ตามหัวข้อ "ร่าง golden case" ขยาย `run_ap` ใน `scripts/spec_check.py` และคัดบล็อกฉบับใหม่แทนบล็อกเดิมใต้หัวข้อที่ P1-07 จองให้ S8 · ค่าเริ่มต้นของ OQ-128 · เพิ่มแถว §2.4 §10 §14.2 · FR-AP-108 · FR-AP-108 · suggestCoding ใน src/core/invoice/ap.ts (coverage 100%) · golden ap 11 เคส (spec:check golden:ap 11/11) · services ap/coding.ts (เสนอจากประวัติ 365 วัน · accountCode.update) · Express รวมใบชั้น 2 ที่พร้อมจ่ายด้วยรหัสที่ยืนยัน และหน้าส่งออกนับรวม · integration ap-coding 4 เคส (เสนอจากประวัติพร้อมจำนวนครั้ง เลือกแล้วเป็น HISTORY · ไม่มีประวัติใช้รหัสบรรทัดงบ · โมดูล AI ปิดยังทำงาน · รหัสเลิกใช้ · PAY ปิด MODULE_DISABLED · ไฟล์ Express ชั้น 1 และ 2 ยอดรวมเท่าผลรวมรายการ) · express-export และ finance-screens เดิมผ่าน · pnpm verify 0 FAIL — เสร็จ 2026-10-14 · b4a0c89
   - เสร็จเมื่อ: golden `ap.yaml` ผ่านทุกเคส และ `pnpm spec:check` รายงาน golden:ap ผ่านครบ · ไฟล์ Express ที่มีทั้งใบชั้น 1 และชั้น 2 ยอดรวมเท่าผลรวมรายการ (BR-EXP-03) · ทำงานเมื่อปิดโมดูล AI · ปิด `PAY` แล้ว `accountCode.manage` ได้ `MODULE_DISABLED` · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S8-12** `[demo]` seed ของ SIMEC ตามหัวข้อ "การอ่านชีตของไฟล์ระยะ 1" ของ `docs/sub-specs/S8.md`: อ่าน SupplierPayment (คอลัมน์ของ S8 รวม registryStatus เป็น `registryFlag`) WHT_Types และคอลัมน์ใบแจ้งหนี้ของ Request_History · สร้างใบตาม `invoiceScenario` ผ่านคำสั่งจริงต่อจากการเล่นประวัติของ S8-04 · คงรายการไม่ตรงที่เปิดอยู่ให้ demo · อีเมลตัวอย่างในกล่อง · เพิ่มคอลัมน์และค่าตั้งต้นใน `scripts/inputs_p1/` และด่านใน `validate_inputs.py --profile p1` · ไม่ seed โมดูลและข้อ DOA (P1-07 ทำแล้ว)
+- [x] **S8-12** `[demo]` seed ของ SIMEC ตามหัวข้อ "การอ่านชีตของไฟล์ระยะ 1" ของ `docs/sub-specs/S8.md`: อ่าน SupplierPayment (คอลัมน์ของ S8 รวม registryStatus เป็น `registryFlag`) WHT_Types และคอลัมน์ใบแจ้งหนี้ของ Request_History · สร้างใบตาม `invoiceScenario` ผ่านคำสั่งจริงต่อจากการเล่นประวัติของ S8-04 · คงรายการไม่ตรงที่เปิดอยู่ให้ demo · อีเมลตัวอย่างในกล่อง · เพิ่มคอลัมน์และค่าตั้งต้นใน `scripts/inputs_p1/` และด่านใน `validate_inputs.py --profile p1` · ไม่ seed โมดูลและข้อ DOA (P1-07 ทำแล้ว) · ชีต SupplierPayment WHT_Types RequestTypes (เงินประกัน) และคีย์ S8 ใน Settings อ่านเข้า seed (src/server/seed/ap-profile.ts) · การเล่นประวัติครบทุกสถานการณ์ (MATCH PRICE_WITHIN_TOL SERVICE_2WAY DUPLICATE พร้อมจ่าย · PRICE_OVER ที่จ่ายแล้วอนุมัติส่วนต่างตาม DOA ที่เหลือ EXCEPTION · QTY_OVER รับขาดก่อน แถวที่จ่ายแล้วรับส่วนที่เหลือแล้วตรวจซ้ำจนพร้อมจ่าย ที่เหลือปิดแบบ CLOSE_SHORT · MISSING ไม่มีใบ) · กล่องอีเมลมีฉบับที่สองของแถว DUPLICATE และ e-Tax ที่ไม่มีเลข PO หนึ่งฉบับ · เทสต์ seed-p1 นับใบต่อสถานการณ์เท่าชีต registryFlag ตรงทุกแถว และทุกบรรทัดงบผ่าน INV-BUD-01 (7/7) · make.py รันซ้ำได้ไฟล์เดิมทุกไบต์ · pnpm inputs:check ผ่าน · db:reset แบบ demo ผ่าน · @demo 9/9 · pnpm verify: ทุกด่านผ่านยกเว้น integration ที่ล้มครั้งละหนึ่งเคสจากเวลาเมื่อเครื่องโหลดหนัก (รอบแรก ap-retention ซึ่งแก้แล้วใน f32f016 · รอบสอง line-webhook ที่รันเดี่ยวผ่าน 27/27) — เสร็จ 2026-10-14 · af0d474 f32f016
   - เสร็จเมื่อ: seed ด้วยไฟล์ระยะ 1 ได้ใบแจ้งหนี้ต่อสถานการณ์เท่าจำนวนแถวในชีต (เทสต์นับเอง) · `registryFlag` ตรงคอลัมน์ registryStatus ทุกแถว · ทุกบรรทัดงบผ่าน INV-BUD-01 · `pnpm inputs:check` ผ่าน · รัน `make.py` ซ้ำได้ไฟล์เดิมทุกไบต์ · `pnpm db:reset` แบบเดิม (ไฟล์ demo) และ `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S8-13** `[demo]` หน้าจอของขั้นตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S8.md` (§9.9 §9.10 · LIFF ชุดเบาตาม ADR-052) และ e2e `@s8` บนองค์กรที่สร้างด้วย `createP1Org()` ของ P1-07 พร้อม fixture ของเทสต์ (ผู้ขาย PO ที่รับแล้ว `AccountCode` `WhtIncomeType` · ไม่แตะ seed demo)
+- [x] **S8-13** `[demo]` หน้าจอของขั้นตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S8.md` (§9.9 §9.10 · LIFF ชุดเบาตาม ADR-052) และ e2e `@s8` บนองค์กรที่สร้างด้วย `createP1Org()` ของ P1-07 พร้อม fixture ของเทสต์ (ผู้ขาย PO ที่รับแล้ว `AccountCode` `WhtIncomeType` · ไม่แตะ seed demo) · หน้าจอ 4 กลุ่มทำโดย subagent แล้วตรวจภาพเองที่ 375 และ 1440 px: รายการใบและกล่องรับ · หน้าใบพร้อมรายการไม่ตรงและทางแก้ · ใบที่รอฝ่ายจัดซื้อ · แท็บใบแจ้งหนี้ งวดงาน เงินประกันและหน้าแก้ไข PO บนหน้า PO · เงินประกัน 50 ทวิ ส่งออกรายเดือน และประเภทเงินได้ · งานอนุมัติของใบแจ้งหนี้และใบแก้ไข PO มีชื่อ ผู้ขาย และยอดทั้งในกล่องงาน หน้างาน และ LIFF · เมนูการเงินชื่อ "ใบแจ้งหนี้" เมื่อเปิด PAY (§9.10) ส่วนหน้ากล่องรับ เงินประกัน และ 50 ทวิ ไปจากปุ่มบนหน้ารายการใบ และใบที่รอฝ่ายจัดซื้อไปจากหน้ารายการ PO · e2e @s8 8/8 (เดสก์ท็อปและมือถือ) · @demo 9/9 · เทสต์หน้าจอ 41 เคสผ่าน · pnpm verify ผ่าน — เสร็จ 2026-10-14 · c96cb22 568f4a4
   - เสร็จเมื่อ: e2e `@s8` ผ่าน: ผู้ใช้ FINANCE รับใบจากกล่องอีเมลแล้วส่งจนพร้อมจ่าย · ใบราคาเกินไปถึงผู้อนุมัติและอนุมัติแล้วพร้อมจ่าย · ปฏิเสธใบแล้วอีเมลถึงผู้ขาย · องค์กรที่ปิด `PAY` ไม่เห็นเมนูชั้น 2 · screenshot 375 และ 1440 px · axe ไม่มี violation ระดับ serious หรือ critical · ข้อความไทยและอังกฤษครบ · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: แยก subagent ต่อกลุ่มหน้า (กล่องและรายการ · หน้าใบ · PO และใบแก้ไข · ภาษีและเงินประกัน) แล้วตรวจภาพเองก่อนรับ
-- [ ] **S8-14** `[demo]` รีวิวทั้งขั้น S8: รวม main เข้าสาย แล้วเรียก `/code-review high main...HEAD` แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" บันทึกผลใน `docs/reports/p1-review-S8.md` · ถ้า main มี `issueDocumentVerification` ของ S6 แล้วแต่การอนุมัติใบแก้ไข PO ยังไม่เรียก ให้เพิ่มการเรียกพร้อมเทสต์ก่อนส่ง · แล้วส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4
+- [x] **S8-14** `[demo]` รีวิวทั้งขั้น S8: รวม main เข้าสาย แล้วเรียก `/code-review high main...HEAD` แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" บันทึกผลใน `docs/reports/p1-review-S8.md` · ถ้า main มี `issueDocumentVerification` ของ S6 แล้วแต่การอนุมัติใบแก้ไข PO ยังไม่เรียก ให้เพิ่มการเรียกพร้อมเทสต์ก่อนส่ง · แล้วส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4 · รีวิวด้วยผู้รีวิว 2 ตัวที่ไม่เห็นบริบท (เงินและ service · หน้าจอและการอ่าน) พบ 13 ข้อ แก้ 12 ข้อพร้อมเทสต์ (งบของใบแก้ไข PO ทีละข้อของ BR-POC-03 golden GC-POC-14 ถึง 17 · ขอบเขตผู้ตรวจรับ · PAY กับไฟล์ · กล่องรับ · job เงินประกัน · ชื่อผู้รับเงินบุคคล · กลุ่มถูกกันของ Express · แท็บใบแจ้งหนี้บน PO) ข้อที่เหลือเป็น S8-21 · รายงาน docs/reports/p1-review-S8.md · issueDocumentVerification ของ S6 ยังไม่อยู่ใน main · pnpm verify --strict --e2e: ทุกด่านอื่นผ่านทุกรอบ e2e รอบสุดท้าย 421/422 รอบก่อนหน้า 421/422 และ 413/422 ข้อที่ล้มเป็น timeout คนละเทสต์ทุกรอบในส่วนที่ S8 ไม่แตะขณะสายอื่นใช้เครื่องหนัก และผ่านเมื่อรันซ้ำทุกข้อ (ทุกเทสต์ 422 ข้อผ่านแล้ว) · ระหว่างนี้พบว่าตัวส่งอีเมลหาชื่อ localhost ช้า 11–20 วินาทีจึงเปลี่ยน EMAIL_SMTP_URL เป็น 127.0.0.1 · @demo 9/9 — เสร็จ 2026-10-15 · 015c83b f975683 68fbb34 980ee10 13312e4 5fee46d
   - เสร็จเมื่อ: ไม่มีข้อที่กระทบความถูกต้องค้าง · `pnpm verify --strict --e2e` ผ่าน · `pnpm test:e2e --grep @demo` ผ่าน · งานของขั้นอยู่ใน main
   - แยกงาน: ใช้คำสั่งรีวิวเดียวทั้งขั้น ไม่แตกเพิ่ม
 - [ ] **S8-15** `[go-live]` กล่องรับใบแจ้งหนี้ของ production ตามคำตอบ OQ-124 (ผู้ให้บริการขาเข้าพร้อม ADR-031 · ตรวจลายเซ็นของ webhook · ที่อยู่ต่อองค์กร)
@@ -5270,6 +5450,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้
 - [ ] **S8-20** `[go-live]` PO ของผู้ขายที่ไม่จด VAT ยังคิด VAT ตามอัตราขององค์กร (ขัด BR-VAT-04 ที่ให้ใช้อัตรา 0 บน PO) · พบใน S8-04 ตอนเล่นประวัติของ SIMEC (ใบของผู้ขายไม่จด VAT 13 ใบติด `VAT_SUPPLIER_NOT_REGISTERED` เพราะใบอ้าง VAT ของ PO) · การแก้เปลี่ยนผลของ service เงินเดิม (§16.13 ของเดิม) จึงต้องให้ผู้ใช้ยืนยันก่อน · ระหว่างนี้การเล่นประวัติให้ใบของผู้ขายไม่จด VAT ไม่มี VAT
   - เสร็จเมื่อ: ผู้ใช้ยืนยันแล้ว PO ใหม่ของผู้ขายไม่จด VAT ได้ VAT 0 (เทสต์) · PO เดิมไม่เปลี่ยน · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S8-21** `[go-live]` ใบแก้ไข PO ที่เพิ่มจำนวนแล้วการจองของคำขอต้นทางลดลงระหว่างรออนุมัติ (PO อื่นหรือการยกเลิกใช้ไป): อนุมัติขั้นสุดท้ายได้ `RELEASABLE_EXCEEDS_RESERVED` ธุรกรรมย้อนและงานค้างจนมีคนไม่อนุมัติหรือยกเลิก · พบในรีวิว S8-14 (ข้อ ก7 ของ `docs/reports/p1-review-S8.md`) · ตอนนี้ปลอดภัยแต่ผู้อนุมัติเห็นข้อความทั่วไป
+  - เสร็จเมื่อ: อนุมัติในกรณีนี้ได้ข้อความภาษาคนว่าคำขอต้นทางเหลือไม่พอ ให้ไม่อนุมัติแล้วทำใบแก้ไขใหม่ (เทสต์) · งบไม่ขยับ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
 
 ### 16.16 S9 · รอบจ่ายเงินและไฟล์ธนาคาร (สาย 2 ต่อจาก S8 · เส้นชัย E)

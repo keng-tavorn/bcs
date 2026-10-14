@@ -92,3 +92,23 @@ export async function completeFinishedRequests(tx: TenantTx, requestIds: readonl
   }
   return done
 }
+
+/**
+ * S8-10 (ADR-125): an approved PO change ordered `diff` more of a request line (diff > 0) or less (diff < 0): the line
+ * counts it as ordered; a decrease goes back to the pool or, CANCEL_REQUEST_LINES, is cancelled on the request, whose
+ * status follows as when a PO is approved or cancelled
+ */
+export async function reorderSourceLine(tx: TenantTx, requestLineId: string, diff: bigint, disposition: 'RETURN_TO_POOL' | 'CANCEL_REQUEST_LINES'): Promise<RequestStatusChange[]> {
+  if (diff === 0n) return []
+  const line = await tx.requestLine.findUniqueOrThrow({ where: { id: requestLineId }, select: { requestId: true, orderedQuantity: true, cancelledQuantity: true } })
+  await tx.requestLine.update({
+    where: { id: requestLineId },
+    data: {
+      orderedQuantity: formatQuantity(scaled(line.orderedQuantity) + diff),
+      ...(diff < 0n && disposition === 'CANCEL_REQUEST_LINES' ? { cancelledQuantity: formatQuantity(scaled(line.cancelledQuantity) - diff) } : {}),
+    },
+  })
+  if (diff > 0n) return moveRequests(tx, [line.requestId], (r) => (allSettled(r.lines) && r.status === 'PARTIALLY_ORDERED' ? 'po.approved_fully' : null))
+  if (disposition === 'CANCEL_REQUEST_LINES') return moveRequests(tx, [line.requestId], (r) => (allSettled(r.lines) && r.status !== 'ORDERED' ? 'request.cancel_remaining' : null))
+  return moveRequests(tx, [line.requestId], (r) => (r.status === 'ORDERED' && !allSettled(r.lines) ? 'po.cancelled_to_pool_partially' : null))
+}

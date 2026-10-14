@@ -32,6 +32,10 @@ import { PoBody } from '../../../(workspace)/procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../../(workspace)/procurement/pos/_parts/present'
 import { ClosedTaskText } from '../../../(workspace)/tasks/_parts/closed-task'
 import { VarianceBody } from '../../../(workspace)/tasks/_parts/variance-body'
+import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
+import { LiffInvoiceSummary } from '@/ui/liff/tasks/subjects/invoice'
+import { getPoChangeTaskView } from '@/server/queries/po-changes'
+import { LiffPoChangeSummary } from '@/ui/liff/tasks/subjects/po-change'
 import { briefView } from '../../../_lib/brief-present'
 import { liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
@@ -180,6 +184,9 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   const request = task.subjectType === 'REQUEST' ? await getRequestView(ctx, task.subjectId) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
+  // S8: the price variance of an invoice, and a change of a sent PO
+  const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
+  const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
   const reader = po ? poReader(memberPrincipal(page.member.id, (await liffSignedIn(page.member.id))?.roles ?? []), null, po, { prices: true }) : null
@@ -234,10 +241,14 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
       ? (po.number ?? tp('detail.draftLabel'))
       : variance
         ? `${variance.po.number ?? '-'} · ${variance.line.description}`
-        : task.policy
-          ? policyHeadline(t, locale, task.policy)
-          : t('item.untitled')
-  const heading = request ? request.title : po ? po.supplier.nameTh : (varianceTitle ?? label)
+        : invoice
+          ? (invoice.number ?? '-')
+          : poChange
+            ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
+            : task.policy
+              ? policyHeadline(t, locale, task.policy)
+              : t('item.untitled')
+  const heading = request ? request.title : po ? po.supplier.nameTh : invoice ? t('invoice.heading') : poChange ? poChange.supplier.nameTh : (varianceTitle ?? label)
   const route = task.route ?? request?.route ?? po?.route ?? variance?.route ?? null
   // A file opens through the task it belongs to: the action checks both again (FR-PLT-004 AC2)
   const openFile = openLiffFileAction.bind(null, task.id)
@@ -305,6 +316,10 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <PoBody po={{ ...po, route: task.route ?? po.route }} locale={locale} doaLinks={false} reader={reader} openFile={openFile} requestHref={NO_LINK} />
       ) : variance ? (
         <VarianceBody variance={variance} locale={locale} doaLinks={false} poHref={null} openFile={openFile} />
+      ) : task.subjectType === 'INVOICE' ? (
+        <LiffInvoiceSummary invoice={invoice} />
+      ) : task.subjectType === 'PO_CHANGE' ? (
+        <LiffPoChangeSummary change={poChange} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}

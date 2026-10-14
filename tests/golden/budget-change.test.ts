@@ -3,6 +3,7 @@ import {
   actualize,
   allocationKey,
   approvePo,
+  chargedDepartmentOf,
   closePo,
   consumeOverrun,
   earmarkOverrun,
@@ -16,6 +17,7 @@ import {
   reserve,
   reserveTransfer,
   returnAfterUse,
+  splitLine,
   transferDoaInput,
   transferIn,
   transferOut,
@@ -233,4 +235,33 @@ describe('[FR-BUD-101/AC1] [FR-BUD-101/AC2] golden budget-change.yaml: over-budg
       }
     })
   }
+})
+
+interface SplitCase {
+  id: string
+  title?: string
+  fn: 'splitLine' | 'chargedDepartmentOf'
+  input: { unitPrice?: string; parts?: string[]; lines?: { lineNo: number; department: string; net: string }[] }
+  expect: Record<string, unknown>
+}
+
+describe('[FR-BUD-102/AC2] golden budget-change.yaml: split cost (BR-BUD-16)', () => {
+  const cases = (suite.cases as unknown as SplitCase[]).filter((c) => c.fn === 'splitLine' || c.fn === 'chargedDepartmentOf')
+  it('has the cases of S6-17', () => expect(cases.map((c) => c.id)).toEqual(['GC-BUD-25', 'GC-BUD-26', 'GC-BUD-27', 'GC-BUD-28']))
+  for (const c of cases) {
+    it(`[${c.id}] ${c.title ?? c.fn}`, () => {
+      if (c.fn === 'splitLine') {
+        const r = splitLine(amountToSatang(c.input.unitPrice!), c.input.parts!)
+        expect({ nets: r.nets.map(satangToAmount), total: satangToAmount(r.total), original: satangToAmount(r.original) }).toEqual(c.expect)
+        return
+      }
+      const department = chargedDepartmentOf(c.input.lines!.map((l) => ({ lineNo: l.lineNo, departmentId: l.department, netSatang: amountToSatang(l.net) })))
+      expect({ department }).toEqual(c.expect)
+    })
+  }
+  it('refuses a split of fewer than two parts or a part not above zero, and a request without lines', () => {
+    expect(() => splitLine(100n, ['1'])).toThrow(RangeError)
+    expect(() => splitLine(100n, ['1', '0'])).toThrow(RangeError)
+    expect(() => chargedDepartmentOf([])).toThrow(RangeError)
+  })
 })

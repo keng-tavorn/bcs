@@ -1,4 +1,5 @@
-import type { Satang } from '../money/math'
+import { lineNet, parseQuantity, roundHalfUpDiv, type Satang } from '../money/math'
+import { QUANTITY_SCALE } from '../money/constants'
 
 // Budget ledger engine (spec §7.7, ADR-021): the budget of one line sits in buckets, and every movement moves money
 // from one bucket to another — fund, reserve, hold, actualize, release. The engine is pure: each operation takes the
@@ -406,4 +407,32 @@ export function returnAfterUse(
     left -= s
   }
   return { ok: true, state: applyMovements(state, movements), movements, returned }
+}
+
+// ---------- split cost (S6-17 · BR-BUD-16 · ADR-106 · OQ-106) ----------
+
+/**
+ * The "แบ่งบรรทัด" button: one line becomes one line per part, each the part's quantity at the same unit price, its
+ * amount rounded once (BR-MONEY-02 (1)). The parts' amounts may add up to more or less than the line's by up to
+ * (parts − 1) satang; the screen shows `total` against `original` before the split is saved.
+ */
+export function splitLine(unitPriceSatang: Satang, parts: readonly string[]): { nets: Satang[]; total: Satang; original: Satang } {
+  if (parts.length < 2 || parts.some((p) => parseQuantity(p) <= 0n)) throw new RangeError('a split has two parts or more, each above zero')
+  const nets = parts.map((p) => lineNet(p, unitPriceSatang))
+  const quantity = parts.reduce((s, p) => s + parseQuantity(p), 0n)
+  return { nets, total: sum(nets), original: roundHalfUpDiv(quantity * unitPriceSatang, QUANTITY_SCALE) }
+}
+
+/**
+ * BR-BUD-16: the department a request split over budget lines charges — the one whose lines add up to the most before
+ * VAT; on a tie, the department of the tied line with the lowest lineNo
+ */
+export function chargedDepartmentOf(lines: readonly { readonly lineNo: number; readonly departmentId: string; readonly netSatang: Satang }[]): string {
+  if (lines.length === 0) throw new RangeError('a request has lines')
+  const totals = new Map<string, { net: Satang; first: number }>()
+  for (const l of lines) {
+    const t = totals.get(l.departmentId)
+    totals.set(l.departmentId, { net: (t?.net ?? 0n) + l.netSatang, first: Math.min(t?.first ?? l.lineNo, l.lineNo) })
+  }
+  return [...totals].sort(([, a], [, b]) => (a.net === b.net ? a.first - b.first : a.net > b.net ? -1 : 1))[0]![0]
 }

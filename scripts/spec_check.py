@@ -1515,6 +1515,20 @@ def run_budget_change(d):
             i = c["input"]; dept = (i["to"] if i["kind"] == "INCREASE" else i["from"])["department"]
             got = {"documentType": "BUDGET_TRANSFER", "net": i["amount"], "vat": "0.00", "department": dept, "conflict": [i["submitter"]]}
             out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "splitLine":
+            # BR-BUD-16 (S6-17): each part's quantity × the unit price, rounded once (BR-MONEY-02 (1))
+            i = c["input"]; price = sat(i["unitPrice"])
+            line = lambda q: int((Decimal(q) * price).to_integral_value(rounding=ROUND_HALF_UP))
+            nets = [line(p) for p in i["parts"]]
+            got = {"nets": [baht(n) for n in nets], "total": baht(sum(nets)), "original": baht(line(sum(Decimal(p) for p in i["parts"])))}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "chargedDepartmentOf":
+            # BR-BUD-16: the department with the most before VAT; a tie goes to the department of the lowest lineNo
+            tot = {}
+            for l in c["input"]["lines"]:
+                t = tot.setdefault(l["department"], [0, l["lineNo"]]); t[0] += sat(l["net"]); t[1] = min(t[1], l["lineNo"])
+            got = {"department": sorted(tot.items(), key=lambda kv: (-kv[1][0], kv[1][1]))[0][0]}
+            out.append((c["id"], got == c["expect"], got)); continue
         if c.get("fn") == "overrunDoaInput":
             i = c["input"]; x = sat(i["requestNet"]) - sat(i["line"]["available"])
             got = ({"error": "VALIDATION_FAILED", "reason": "NOT_OVER_BUDGET"} if x <= 0 else

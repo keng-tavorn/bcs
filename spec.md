@@ -2719,6 +2719,11 @@ cases:
       - { op: release, line: A, source: PR-1, expect: { A: { available: "30000.00", reserved: "0.00", funded: "30000.00" }, returnedAfterUse: "15000.00" } }
   - { id: GC-BUD-23, fn: overrunDoaInput, input: { requestNet: "25000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { documentType: OVER_BUDGET, net: "15000.00", vat: "0.00", department: CON, conflict: [u1] } }
   - { id: GC-BUD-24, title: งบพอแล้ว ขอเกินงบไม่ได้, fn: overrunDoaInput, input: { requestNet: "10000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { error: VALIDATION_FAILED, reason: NOT_OVER_BUDGET } }
+  # S6-17 · แบ่งค่าใช้จ่าย (BR-BUD-16)
+  - { id: GC-BUD-25, title: แบ่งบรรทัดตามจำนวน ไม่มีเศษ, fn: splitLine, input: { unitPrice: "300000.00", parts: ["0.6", "0.4"] }, expect: { nets: ["180000.00", "120000.00"], total: "300000.00", original: "300000.00" } }
+  - { id: GC-BUD-26, title: แบ่งครึ่งแล้วปัด half-up ต่อส่วน, fn: splitLine, input: { unitPrice: "100000.01", parts: ["0.5", "0.5"] }, expect: { nets: ["50000.01", "50000.01"], total: "100000.02", original: "100000.01" } }
+  - { id: GC-BUD-27, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "50000.00" }, { lineNo: 2, department: IT, net: "70000.00" }] }, expect: { department: IT } }
+  - { id: GC-BUD-28, title: ยอดเท่ากันใช้บรรทัดแรก, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "60000.00" }, { lineNo: 2, department: IT, net: "60000.00" }] }, expect: { department: CON } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -4609,7 +4614,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       37 ไฟล์ · 411 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       37 ไฟล์ · 415 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

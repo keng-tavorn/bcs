@@ -12,7 +12,9 @@
     "label": "From this page",
     "export": "Export fiscal year {code} to Excel",
     "import": "Import budgets from Excel",
-    "grants": "Cross-department budget use"
+    "grants": "Cross-department budget use",
+    "transfer": "Transfer or adjust budget",
+    "transfers": "Budget transfers and adjustments"
   },
   "year": {
     "label": "Fiscal year shown",
@@ -30,12 +32,13 @@
   },
   "legend": {
     "title": "What the amounts mean",
-    "planned": "Planned: everything imported for the fiscal year (before VAT)",
+    "planned": "Planned: everything imported for the fiscal year, plus transfers in and increases, less transfers out and decreases (before VAT)",
     "available": "Available: what new requests can still use",
     "reserved": "Reserved: requests sent but not yet on a purchase order",
     "committed": "Committed: approved purchase orders waiting for their invoices",
     "actual": "Actual: invoices finance has confirmed",
-    "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned"
+    "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned",
+    "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases"
   },
   "columns": {
     "line": "Budget line",
@@ -397,5 +400,16 @@
     "lineAndDepartmentCount": "{lines, plural, one {# budget line} other {# budget lines}} in {departments, plural, one {# department} other {# departments}}",
     "forbidden": "You do not head this department. Department heads see the budgets of their own departments.",
     "yearLine": "Fiscal year {code} ({from} to {to})"
+  },
+  "changes": {
+    "toggle": "How it came to this",
+    "initial": "Initial budget",
+    "transferredIn": "Transferred in",
+    "transferredOut": "Transferred out",
+    "increased": "Increased",
+    "decreased": "Decreased",
+    "current": "Planned",
+    "link": "{term} {amount} baht of {code}: see the ledger movements",
+    "initialLink": "Initial budget {amount} baht of {code}: see the imports"
   }
 }

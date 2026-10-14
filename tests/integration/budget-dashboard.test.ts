@@ -135,8 +135,9 @@ describe('[FR-BUD-005/AC1] the dashboard shows each line, each department and th
 
   it('says when the figures were read, and lets only BUDGET_ADMIN on to the import and the grants', async () => {
     expect(dashboard.asOf).toBe(NOW.toISOString())
-    expect(dashboard.can).toEqual({ import: false, manageGrants: false })
-    expect(ok(await budgetDashboard(org.ctxOf('admin2', NOW))).can).toEqual({ import: true, manageGrants: true })
+    // S6-15: no transfer either — the demo DOA has no BUDGET_TRANSFER rule (FR-BUD-103 AC4)
+    expect(dashboard.can).toEqual({ import: false, manageGrants: false, transfer: false })
+    expect(ok(await budgetDashboard(org.ctxOf('admin2', NOW))).can).toEqual({ import: true, manageGrants: true, transfer: false })
   })
 })
 

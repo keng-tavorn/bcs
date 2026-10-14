@@ -28,6 +28,8 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return t('item.po', { number: s.number ?? '-', supplier: s.supplierName })
     case 'VARIANCE':
       return t('item.variance', { type: t(`varianceType.${s.varianceType}`), description: s.description })
+    case 'BUDGET_TRANSFER':
+      return t(`item.transfer.${s.transferKind}`, { number: s.number ?? '-' })
     default:
       return t('item.untitled')
   }
@@ -78,6 +80,8 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       // A PO is decided on its total with VAT; a variance on its amount before VAT, as recorded
       ...(s.kind === 'PURCHASE_ORDER' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
       ...(s.kind === 'VARIANCE' ? { amount: money(s.amountSatang), amountLabel: t('item.varianceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      // S6-15: the amount a budget transfer moves (no VAT)
+      ...(s.kind === 'BUDGET_TRANSFER' ? { amount: money(s.amountSatang), amountLabel: t('item.transferAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
       states,
       tags,
     }

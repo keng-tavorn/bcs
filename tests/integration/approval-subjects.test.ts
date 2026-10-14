@@ -69,9 +69,10 @@ const taskStatus = async (taskId: string) => (await prisma.approvalTask.findUniq
 
 describe('[FR-DOA-004/AC4] tasks of the new subjects decide through the same commands and their adapter', () => {
   it('the empty adapter refuses VALIDATION_FAILED reason SUBJECT: the task stays OPEN and nothing is written', async () => {
-    const t = await routed('BUDGET_TRANSFER', 'BUDGET_TRANSFER', { amount: '50000' })
-    expect(t.assignee).toBe(org.member.dm_con)
-    expect(await decideTask(org.ctxOf('dm_con', NOW), { taskId: t.taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT' } } })
+    // S6-15 filled BUDGET_TRANSFER's adapter: PAYMENT_RUN (S9) is one still empty
+    const t = await routed('PAYMENT_RUN', 'PAYMENT_RUN', { amount: '50000', department: 'HQ' })
+    expect(t.assignee).toBe(org.member.cfo)
+    expect(await decideTask(org.ctxOf('cfo', NOW), { taskId: t.taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'SUBJECT' } } })
     expect(await taskStatus(t.taskId)).toBe('OPEN')
     expect(await decidedEvents(t.taskId)).toBe(0)
     expect(await prisma.approvalRoute.findUniqueOrThrow({ where: { id: t.routeId } })).toMatchObject({ status: 'ACTIVE' })
@@ -153,10 +154,11 @@ describe('[FR-AUTH-005/AC4] bank account and workflow changes take a step-up eve
 
   it('no e-mail or LINE token is issued for them, and a token that exists anyway is refused STEP_UP_REQUIRED', async () => {
     const bank = await routed('BANK_ACCOUNT_CHANGE', 'BANK_ACCOUNT_CHANGE', { department: 'HQ' })
-    const transfer = await routed('BUDGET_TRANSFER', 'BUDGET_TRANSFER', { amount: '10000' })
-    expect(await prisma.actionToken.count({ where: { taskId: { in: [bank.taskId, transfer.taskId] } } })).toBe(0)
-    for (const t of [bank, transfer]) {
-      const assignee = t === bank ? 'cfo' : 'dm_con'
+    // An empty adapter keeps the chat and the e-mail closed too (S6-15 opened them for BUDGET_TRANSFER, so PAYMENT_RUN here)
+    const run = await routed('PAYMENT_RUN', 'PAYMENT_RUN', { amount: '10000', department: 'HQ' })
+    expect(await prisma.actionToken.count({ where: { taskId: { in: [bank.taskId, run.taskId] } } })).toBe(0)
+    for (const t of [bank, run]) {
+      const assignee = 'cfo'
       const id = randomUUID()
       const expiresAt = new Date(NOW.getTime() + 3_600_000)
       await prisma.actionToken.create({ data: { id, organizationId: org.organizationId, memberId: t.assignee, taskId: t.taskId, allowedActions: ['APPROVE', 'REJECT'], channel: 'EMAIL', secretHash: hashLinkSecret(emailLinkSecret(id)), expiresAt } })

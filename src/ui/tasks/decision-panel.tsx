@@ -49,8 +49,11 @@ export interface TaskDecisionInput {
   readonly pin?: string
 }
 
-/** What the task decides; each has its own choices and words. REVIEW: a reviewer's task of a request (S6 · BR-WF-09) */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW'
+/**
+ * What the task decides; each has its own choices and words. REVIEW: a reviewer's task of a request (S6 · BR-WF-09);
+ * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about
+ */
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -164,25 +167,33 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const variance = kind === 'VARIANCE'
   // A reviewer passes, returns or asks: never rejects, and needs no PIN (BR-WF-09)
   const review = kind === 'REVIEW'
+  // Its amount has no VAT, and a return or rejection gives the reservation back to the source line
+  const transfer = kind === 'BUDGET_TRANSFER'
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
   const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had
   const copy = {
-    confirmText: variance ? t('variance.confirmText', { label, amount }) : review ? t('review.confirmText', { label, amount }) : t('confirmText', { label, amount }),
-    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : review ? t('review.otherLink') : t('otherLink'),
+    confirmText: variance
+      ? t('variance.confirmText', { label, amount })
+      : review
+        ? t('review.confirmText', { label, amount })
+        : transfer
+          ? t('transfer.confirmText', { label, amount })
+          : t('confirmText', { label, amount }),
+    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : review ? t('review.otherLink') : transfer ? t('transfer.otherLink') : t('otherLink'),
     otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : review ? t('review.otherTitle') : t('otherTitle'),
     approve: review ? t('review.approve') : t('approve'),
     confirm: review ? t('review.confirm') : t('confirm'),
     approved: review ? t('review.approved') : t('approved'),
-    returnOption: po ? t('po.returnOption') : t('returnOption'),
-    returnHint: po ? t('po.returnHint') : t('returnHint'),
+    returnOption: po ? t('po.returnOption') : transfer ? t('transfer.returnOption') : t('returnOption'),
+    returnHint: po ? t('po.returnHint') : transfer ? t('transfer.returnHint') : t('returnHint'),
     rejectOption: po ? t('po.rejectOption') : t('rejectOption'),
-    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : t('rejectHint'),
-    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : t('reasonHint'),
-    submitReturn: po ? t('po.submitReturn') : t('submitReturn'),
-    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : t('submitReject'),
-    returned: po ? t('po.returned') : t('returned'),
-    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : t('rejected'),
+    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : transfer ? t('transfer.rejectHint') : t('rejectHint'),
+    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : transfer ? t('transfer.reasonHint') : t('reasonHint'),
+    submitReturn: po ? t('po.submitReturn') : transfer ? t('transfer.submitReturn') : t('submitReturn'),
+    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : transfer ? t('transfer.submitReject') : t('submitReject'),
+    returned: po ? t('po.returned') : transfer ? t('transfer.returned') : t('returned'),
+    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : transfer ? t('transfer.rejected') : t('rejected'),
     // A variance is never returned (BR-GR-03): its PIN is for approving or rejecting
     stepUpHint: variance ? t('variance.stepUpHint') : t('stepUpHint'),
   }

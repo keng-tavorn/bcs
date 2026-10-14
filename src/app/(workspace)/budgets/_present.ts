@@ -1,8 +1,8 @@
 import type { getTranslations } from 'next-intl/server'
 import { amountToSatang } from '@/core/money/dto'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai/date'
-import type { BudgetFiguresDto } from '@/server/services/budget/dashboard'
-import type { AmountLink, AmountLinks, Bucket, FigureLinks, FigureView } from '@/ui/budgets/budget-table'
+import type { BudgetFiguresDto, BudgetLineChangesDto } from '@/server/services/budget/dashboard'
+import type { AmountLink, AmountLinks, Bucket, FigureLinks, FigureView, LineChangesView } from '@/ui/budgets/budget-table'
 import type { LineFigureView, LineSharesView } from '@/ui/budgets/line-detail'
 import { leftPercentText, moneyText, percentText } from '@/ui/budgets/format'
 
@@ -137,6 +137,32 @@ export function lowBadge(t: BudgetsT, f: BudgetFiguresDto, of: string): { label:
   const low = lowText(t, f)
   const link = shareLinks(t, f, of, '').low
   return low && link ? { label: low, out: usedUp(f), link } : null
+}
+
+/**
+ * How a line came to its planned amount (S6-15 · FR-BUD-103 AC3 · BR-BUD-09): the initial budget — to the imports — the
+ * transfers in and out and the increases and decreases — to the ledger's movements that hold them — and the planned
+ * amount they make, last. The amounts are the ledger's (budgetDashboard), never added up here.
+ */
+export function changesView(t: BudgetsT, changes: BudgetLineChangesDto, planned: BudgetFiguresDto['planned'], code: string, page: string): LineChangesView {
+  const moved = (key: Exclude<keyof BudgetLineChangesDto, 'initial'>) => {
+    const amount = moneyText(changes[key])
+    const term = t(`changes.${key}`)
+    return { key, term, amount, link: { href: `${page}#${SECTION.available}`, label: t('changes.link', { term, amount, code }) } }
+  }
+  const initial = moneyText(changes.initial)
+  const current = moneyText(planned)
+  return {
+    toggle: t('changes.toggle'),
+    rows: [
+      { key: 'initial', term: t('changes.initial'), amount: initial, link: { href: `${page}#${SECTION.planned}`, label: t('changes.initialLink', { amount: initial, code }) } },
+      moved('transferredIn'),
+      moved('transferredOut'),
+      moved('increased'),
+      moved('decreased'),
+      { key: 'current', term: t('changes.current'), amount: current, link: { href: `${page}#${SECTION.planned}`, label: t('table.plannedLink', { amount: current, code }) }, total: true },
+    ],
+  }
 }
 
 /** Where the dashboard's rows lead: a line, a department or everything shown, in the fiscal year shown */

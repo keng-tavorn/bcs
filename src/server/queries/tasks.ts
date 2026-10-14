@@ -97,6 +97,8 @@ export type InboxSubjectDto =
   | { readonly kind: 'DOA_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
   /** A workflow version sent to be published (S6 · FR-WF-103 AC3) */
   | { readonly kind: 'WORKFLOW_VERSION'; readonly code: string; readonly versionNo: number; readonly effectiveFrom: Date }
+  /** S6-15: a budget transfer, increase or decrease and the amount it moves */
+  | { readonly kind: 'BUDGET_TRANSFER'; readonly number: string | null; readonly transferKind: 'TRANSFER' | 'INCREASE' | 'DECREASE'; readonly amountSatang: bigint }
   | { readonly kind: 'ORG_AUTHORITY_CHANGE'; readonly changeKind: OrgChangeKind; readonly effectiveFrom: Date }
   /** A purchase order sent for approval (FR-P2P-004): its number, supplier, who sent it and its total with VAT */
   | {
@@ -198,7 +200,7 @@ const stepUpOf = (step: { readonly kind: string; readonly route: Parameters<type
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments, pos, variances, workflows] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances, workflows, transfers] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -218,7 +220,9 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
       ? db.variance.findMany({ where: { id: { in: ids('VARIANCE') } }, select: { id: true, type: true, amountSatang: true, po: { select: { number: true } }, poLine: { select: { description: true } } } })
       : Promise.resolve([]),
     ids('WORKFLOW_VERSION').length ? db.workflowVersion.findMany({ where: { id: { in: ids('WORKFLOW_VERSION') } }, select: { id: true, code: true, versionNo: true, effectiveFrom: true } }) : Promise.resolve([]),
+    ids('BUDGET_TRANSFER').length ? db.budgetTransfer.findMany({ where: { id: { in: ids('BUDGET_TRANSFER') } }, select: { id: true, number: true, kind: true, amountSatang: true } }) : Promise.resolve([]),
   ])
+  const transfer = new Map(transfers.map((t) => [t.id, t]))
   const workflow = new Map(workflows.map((w) => [w.id, w]))
   const request = new Map(requests.map((r) => [r.id, r]))
   const version = new Map(versions.map((v) => [v.id, v]))
@@ -267,6 +271,10 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     if (type === 'ORG_AUTHORITY_CHANGE' && change.has(id)) {
       const c = change.get(id)!
       return { kind: 'ORG_AUTHORITY_CHANGE', changeKind: c.kind, effectiveFrom: c.effectiveFrom }
+    }
+    if (type === 'BUDGET_TRANSFER' && transfer.has(id)) {
+      const b = transfer.get(id)!
+      return { kind: 'BUDGET_TRANSFER', number: b.number, transferKind: b.kind, amountSatang: b.amountSatang }
     }
     if (type === 'WORKFLOW_VERSION' && workflow.has(id)) {
       const w = workflow.get(id)!

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
+import { listMyTasks } from '@/server/queries/tasks'
 import { decideTask } from '@/server/services/approvals/decide'
 import { budgetDashboard } from '@/server/services/budget/dashboard'
 import { getBudgetTransfer } from '@/server/services/budget/transfer-view'
@@ -57,6 +58,9 @@ describe('[FR-BUD-103/AC1] [FR-BUD-103/AC2] a transfer is reserved at once and m
     expect(route).toMatchObject({ subjectType: 'BUDGET_TRANSFER', ruleCode: 'BT-02', amountSatang: 30_000_000n })
     const task = await prisma.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { routeId: route.id } } })
     expect(task.assigneeMemberId).toBe(org.member.vp_ops)
+    // The approver's inbox names it by its BT number and the amount it moves
+    const inbox = await listMyTasks(org.ctxOf('vp_ops', NOW))
+    expect(inbox.items.find((i) => i.id === task.id)?.subject).toEqual({ kind: 'BUDGET_TRANSFER', number: sent.number, transferKind: 'TRANSFER', amountSatang: 30_000_000n })
     // The approver reads it (budget.view ASSIGNED); someone else of IT does not
     expect((await getBudgetTransfer(org.ctxOf('vp_ops', NOW), draft.transferId)).ok).toBe(true)
     expect(await getBudgetTransfer(org.ctxOf('dm_it', NOW), draft.transferId)).toMatchObject({ ok: true })

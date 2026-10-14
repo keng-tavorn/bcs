@@ -1,6 +1,8 @@
+import { ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { cn } from '../cn'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../shadcn/collapsible'
 import { LineStatusBadge, LowBadge } from './badges'
 import { HeldMeter } from './meter'
 
@@ -54,12 +56,23 @@ export interface FigureView {
   readonly links: FigureLinks
 }
 
+/**
+ * How a line came to its planned amount (S6-15 · FR-BUD-103 AC3 · BR-BUD-09): the initial budget imported, transferred
+ * in and out, increased and decreased, and the planned amount they make — each linking to what makes it up
+ */
+export interface LineChangesView {
+  /** The button's words ("ที่มาของงบ"); the line's code follows for screen readers */
+  readonly toggle: string
+  readonly rows: ReadonlyArray<{ readonly key: string; readonly term: string; readonly amount: string; readonly link: AmountLink; readonly total?: boolean }>
+}
+
 export interface BudgetLineView extends FigureView {
   readonly id: string
   readonly code: string
   readonly name: string
   readonly href: string
   readonly status: { readonly kind: 'FROZEN' | 'CLOSED'; readonly label: string } | null
+  readonly changes?: LineChangesView
 }
 
 export interface BudgetDepartmentView extends FigureView {
@@ -142,6 +155,34 @@ function States({ f, status, className }: { f: FigureView; status?: BudgetLineVi
   )
 }
 
+/**
+ * The line's changes behind a button, closed at first (the dashboard stays a dashboard): pressed, the amounts of the
+ * changes open under it, label left and amount right, the planned amount last under a rule
+ */
+function LineChanges({ code, changes, className }: { code: string; changes: LineChangesView; className?: string }) {
+  return (
+    <Collapsible className={cn('flex flex-col gap-1', className)}>
+      <CollapsibleTrigger className="group inline-flex min-h-11 items-center gap-1 self-start font-normal text-primary underline underline-offset-4 hover:no-underline xl:min-h-8">
+        <ChevronDown className="size-4 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+        {changes.toggle}
+        <span className="sr-only"> {code}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 font-normal">
+          {changes.rows.map((r) => (
+            <div key={r.key} className={cn('contents', r.total ? 'font-semibold' : '')}>
+              <dt className={cn('text-ink-muted', r.total ? 'border-t border-line pt-1 text-ink' : '')}>{r.term}</dt>
+              <dd className={cn('money', r.total ? 'border-t border-line pt-1' : '')}>
+                <Amount text={r.amount} link={r.link} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
+
 function WideTable({ departments, total, labels }: { departments: readonly BudgetDepartmentView[]; total: BudgetTotalView; labels: BudgetTableLabels }) {
   const th = 'border-b border-line px-3 py-2 text-sm font-medium text-ink-muted'
   const money = 'money px-3 py-2.5 align-top'
@@ -189,6 +230,7 @@ function WideTable({ departments, total, labels }: { departments: readonly Budge
                 </Link>
                 <span className="block break-words text-ink-muted">{l.name}</span>
                 <States f={l} status={l.status} className="mt-1" />
+                {l.changes ? <LineChanges code={l.code} changes={l.changes} className="mt-1" /> : null}
               </th>
               {BUCKETS.map((b) => (
                 <td key={b} className={money}>
@@ -276,6 +318,7 @@ function NarrowList({ departments, total, labels }: { departments: readonly Budg
                 </div>
                 <FigureList f={l} labels={labels} />
                 <Shares f={l} noShare={labels.noShare} inline />
+                {l.changes ? <LineChanges code={l.code} changes={l.changes} /> : null}
               </li>
             ))}
           </ul>

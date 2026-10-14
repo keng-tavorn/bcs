@@ -159,7 +159,7 @@ describe('[FR-BUD-005/AC2] every amount leads to what makes it up, 0.00 too, as 
 
   it('links a 0.00 to its section of the drill-down like any other amount, its name saying the amount, whose it is and where it leads', () => {
     expect(amountLinks(t, line, 'FIN-OPEX-2569', '/budgets/l1')).toEqual({
-      planned: { href: '/budgets/l1#planned', label: 'งบตั้งต้น 40,000.00 บาท ของ FIN-OPEX-2569: ดูการนำเข้างบ' },
+      planned: { href: '/budgets/l1#planned', label: 'งบปัจจุบัน 40,000.00 บาท ของ FIN-OPEX-2569: ดูการนำเข้างบ' },
       available: { href: '/budgets/l1#movements', label: 'คงเหลือ 32,000.00 บาท ของ FIN-OPEX-2569: ดูความเคลื่อนไหวในบัญชีงบ' },
       reserved: { href: '/budgets/l1#reserved', label: 'จอง 0.00 บาท ของ FIN-OPEX-2569: ดูเอกสาร' },
       committed: { href: '/budgets/l1#committed', label: 'ถือ 8,000.00 บาท ของ FIN-OPEX-2569: ดูเอกสาร' },
@@ -167,7 +167,7 @@ describe('[FR-BUD-005/AC2] every amount leads to what makes it up, 0.00 too, as 
     })
     // before anything is imported, planned and available lead to the imports and the movements, which say what will come
     const empty = amountLinks(t, nothing, 'ฝ่ายจัดซื้อ', '/budgets/departments/proc?fy=fy')
-    expect(empty.planned).toEqual({ href: '/budgets/departments/proc?fy=fy#planned', label: 'งบตั้งต้น 0.00 บาท ของ ฝ่ายจัดซื้อ: ดูการนำเข้างบ' })
+    expect(empty.planned).toEqual({ href: '/budgets/departments/proc?fy=fy#planned', label: 'งบปัจจุบัน 0.00 บาท ของ ฝ่ายจัดซื้อ: ดูการนำเข้างบ' })
     expect(empty.available).toEqual({ href: '/budgets/departments/proc?fy=fy#movements', label: 'คงเหลือ 0.00 บาท ของ ฝ่ายจัดซื้อ: ดูความเคลื่อนไหวในบัญชีงบ' })
   })
 

@@ -160,7 +160,7 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] [FR-BUD-005/AC3] the dashboard shows eve
   await expect(invoices).toContainText(`ใบกำกับ ${s.invoiceNo} ลงวันที่`)
   await expect(actual).toContainText(`รวม ${s.figures.line.actual} บาท`)
   // The planned amount leads to the import behind it, the available amount to the movements
-  await page.getByRole('link', { name: `งบตั้งต้น ${s.figures.line.planned} บาท ของ ${s.line.code}: ดูการนำเข้างบ` }).click()
+  await page.getByRole('link', { name: `งบปัจจุบัน ${s.figures.line.planned} บาท ของ ${s.line.code}: ดูการนำเข้างบ` }).click()
   await expect(page).toHaveURL(new RegExp(`/budgets/${s.line.id}#planned$`))
   const planned = page.getByRole('region', { name: 'การนำเข้าที่รวมเป็นงบตั้งต้น' })
   await expect(planned.getByRole('listitem').filter({ hasText: `ไฟล์ ${s.line.code}.xlsx` })).toContainText(s.figures.line.planned)

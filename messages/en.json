@@ -1976,6 +1976,7 @@
       "BacktestRun": "Backtest run",
       "BudgetGrant": "Cross-department budget grant",
       "BudgetLine": "Budget line",
+      "BudgetTransfer": "Budget transfer",
       "CatalogItem": "Catalogue item",
       "ChannelIdentity": "LINE account",
       "ConsolidationRun": "Consolidation round",
@@ -2086,11 +2087,21 @@
         "committed": "Budget committed to a PO",
         "imported": "Budget imported",
         "reservation_released": "Reserved budget released",
-        "reserved": "Budget reserved"
+        "reserved": "Budget reserved",
+        "transferred_in": "Budget transferred into the line",
+        "transferred_out": "Budget transferred out of the line"
       },
       "budget_grant": {
         "created": "Cross-department budget granted",
         "revoked": "Cross-department budget grant revoked"
+      },
+      "budget_transfer": {
+        "approved": "Budget transfer approved",
+        "cancelled": "Budget transfer cancelled",
+        "drafted": "Budget transfer drafted",
+        "rejected": "Budget transfer rejected",
+        "returned": "Budget transfer returned",
+        "submitted": "Budget transfer sent for approval"
       },
       "catalog_item": {
         "created": "Catalogue item added",
@@ -2285,6 +2296,7 @@
       "backtest": "Backtest",
       "budget": "Budget",
       "budget_grant": "Cross-department budget grants",
+      "budget_transfer": "Budget transfers",
       "catalog_item": "Catalogue",
       "consolidation_run": "Consolidation rounds",
       "cost_center": "Cost centers",
@@ -2663,15 +2675,162 @@
     },
     "title": "Who is holding what"
   },
+  "budgetTransfer": {
+    "actions": {
+      "cancel": "Cancel this transfer",
+      "cancelConfirm": "Confirm cancel",
+      "cancelKeep": "Keep it",
+      "cancelText": "Once cancelled it cannot be sent. Any budget reserved from the source line comes back at once, and its open approval task closes.",
+      "cancelTitle": "Cancel {label}",
+      "cancelled": "Cancelled.",
+      "cancelling": "Cancelling",
+      "label": "What you can do with it",
+      "send": "Send for approval again",
+      "sending": "Sending",
+      "sent": "{number} sent for approval."
+    },
+    "back": "Back to budgets",
+    "detail": {
+      "amount": "Amount",
+      "amountValue": "{amount} baht",
+      "decidedAt": "Decided or closed",
+      "draftHint": "This draft has not been sent and reserves no budget.",
+      "draftTitle": "Draft budget transfer or adjustment",
+      "forbidden": "You may not open this transfer.",
+      "from": "From line",
+      "kind": "Kind",
+      "line": "{code} · {name}",
+      "none": "-",
+      "notFound": "This budget transfer or adjustment was not found.",
+      "openTask": "Open the approval task of this transfer",
+      "pendingHint": "Waiting for the approvers of the budget transfer rule. The source line's budget is reserved.",
+      "reason": "Reason",
+      "returnedHint": "The approver returned it and the reserved budget went back to the source line. Send it again or cancel it.",
+      "sent": "{number} sent for approval. The source line's budget is reserved until it is decided.",
+      "sentIncrease": "{number} sent for approval.",
+      "submittedAt": "Sent",
+      "submittedBy": "Sent by",
+      "to": "To line"
+    },
+    "errors": {
+      "AMOUNT": "Enter the amount in baht, e.g. 300000 or 300000.50",
+      "AMOUNT_NOT_POSITIVE": "The amount must be above 0.00 baht",
+      "BUSY": "The system is busy with another task. Wait a moment and try again.",
+      "CONFLICT": "This was already sent with other details. Check the details and send again.",
+      "DOA_NOT_CONFIGURED": "The DOA in effect has no budget transfer rule, so it cannot be sent.",
+      "FAILED": "Not saved. Try again.",
+      "FORBIDDEN": "Your account may not transfer or adjust this line (budget administrator or the head of the line's department only).",
+      "FROM": "Choose a source line you may transfer or adjust",
+      "INPUT": "Something is missing or wrong. Check every field and try again.",
+      "INSUFFICIENT": "Not enough budget left: {shortfall} baht short",
+      "INTERNAL": "Not saved because of a system error. Tell your administrator the reference {requestId}.",
+      "KIND": "Choose a kind",
+      "LINES_DO_NOT_FIT_KIND": "The lines chosen do not fit the kind. Choose the lines again.",
+      "LINE_NOT_OPEN": "This budget line is frozen or closed. Choose another line.",
+      "NOT_FOUND": "This transfer is no longer there. Reload the page.",
+      "NO_APPROVER": "Nobody holds the position that approves this under the DOA. Tell your organization administrator.",
+      "OTHER_FISCAL_YEAR": "Both lines must be of the same fiscal year.",
+      "REASON": "Enter a reason of at least 3 characters",
+      "SAME_LINE": "The destination must be another line than the source.",
+      "STATE": "This transfer has changed status meanwhile. Reload the page to see where it stands.",
+      "TO": "Choose a destination line",
+      "UNAUTHENTICATED": "Your session has ended. Sign in again and retry.",
+      "UNKNOWN_LINE": "This budget line is no longer there. Reload the page and choose again."
+    },
+    "forbidden": "This page is for budget administrators and the heads of departments that own budget lines.",
+    "form": {
+      "amount": "Amount (baht)",
+      "amountHint": "No VAT · up to 2 decimals, e.g. 300000 or 300000.50",
+      "available": "Available to use {amount} baht",
+      "choose": "Choose a budget line",
+      "draftKept": "Saved as a draft. Correct it and press Send for approval again; if the details change, the earlier draft is cancelled for you.",
+      "from": "From line",
+      "intro": "Fiscal year {code} · once sent, the source line's budget is reserved until it is decided",
+      "kind": "Kind",
+      "lineDecrease": "Line to decrease",
+      "lineIncrease": "Line to increase",
+      "lineOption": "{code} · {name} ({department}) available {available} baht",
+      "openDraft": "Open the saved draft",
+      "reason": "Reason",
+      "reasonHint": "The approvers read this · at least 3 characters",
+      "sending": "Sending",
+      "submit": "Send for approval",
+      "to": "To line"
+    },
+    "home": "Back to home",
+    "intro": "Move budget between lines, or increase or decrease a line. Every one is approved under the budget transfer rule of the DOA.",
+    "kind": {
+      "DECREASE": "Decrease",
+      "INCREASE": "Increase",
+      "TRANSFER": "Transfer between lines"
+    },
+    "kindHint": {
+      "DECREASE": "Take budget off one line, giving back what will not be used",
+      "INCREASE": "Add budget to one line",
+      "TRANSFER": "Move budget from one line to another of the same fiscal year"
+    },
+    "list": {
+      "amount": "{amount} baht",
+      "draft": "Draft without a number",
+      "empty": "No transfer or adjustment you can see yet",
+      "emptyHint": "Transfers and adjustments of the lines you look after will show here.",
+      "emptyHintSender": "Press \"Transfer or adjust budget\" to start the first one.",
+      "from": "From {from}",
+      "fromTo": "From {from} to {to}",
+      "label": "Budget transfers and adjustments",
+      "notSent": "Not sent yet",
+      "open": "Open {label}",
+      "sentAt": "Sent {time}",
+      "to": "To {to}"
+    },
+    "new": "Transfer or adjust budget",
+    "noLines": "You have no budget line to transfer or adjust in fiscal year {code}.",
+    "noRule": "The DOA in effect has no budget transfer rule, so nothing can be sent.",
+    "noRuleHint": "A DOA administrator must add a rule for budget transfers in a new DOA version and have it approved before budget can be transferred or adjusted.",
+    "noYear": "No fiscal year is open today, so budget cannot be transferred or adjusted yet.",
+    "status": {
+      "APPROVED": "Approved",
+      "CANCELLED": "Cancelled",
+      "DRAFT": "Draft",
+      "PENDING_APPROVAL": "Pending approval",
+      "REJECTED": "Rejected",
+      "RETURNED": "Returned"
+    },
+    "task": {
+      "effect": {
+        "DECREASE": "Approved, the reserved budget leaves this line at once · returned or rejected, it goes back to this line",
+        "INCREASE": "Approved, this line's budget grows at once · returned or rejected, nothing changes",
+        "TRANSFER": "Approved, the budget moves from the source line to the destination at once · returned or rejected, the reserved budget goes back to the source line"
+      },
+      "heading": "{kind} {number}",
+      "open": "Open {label}",
+      "title": "Budget transfer or adjustment to approve"
+    },
+    "title": "Budget transfers and adjustments",
+    "toList": "Back to transfers and adjustments"
+  },
   "budgets": {
     "actions": {
       "export": "Export fiscal year {code} to Excel",
       "grants": "Cross-department budget use",
       "import": "Import budgets from Excel",
-      "label": "From this page"
+      "label": "From this page",
+      "transfer": "Transfer or adjust budget",
+      "transfers": "Budget transfers and adjustments"
     },
     "asOf": "Figures as of {time}",
     "back": "Back to budgets",
+    "changes": {
+      "current": "Planned",
+      "decreased": "Decreased",
+      "increased": "Increased",
+      "initial": "Initial budget",
+      "initialLink": "Initial budget {amount} baht of {code}: see the imports",
+      "link": "{term} {amount} baht of {code}: see the ledger movements",
+      "toggle": "How it came to this",
+      "transferredIn": "Transferred in",
+      "transferredOut": "Transferred out"
+    },
     "columns": {
       "actual": "Actual",
       "available": "Available",
@@ -2941,8 +3100,9 @@
     "legend": {
       "actual": "Actual: invoices finance has confirmed",
       "available": "Available: what new requests can still use",
+      "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases",
       "committed": "Committed: approved purchase orders waiting for their invoices",
-      "planned": "Planned: everything imported for the fiscal year (before VAT)",
+      "planned": "Planned: everything imported for the fiscal year, plus transfers in and increases, less transfers out and decreases (before VAT)",
       "reserved": "Reserved: requests sent but not yet on a purchase order",
       "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned",
       "title": "What the amounts mean"
@@ -7733,6 +7893,18 @@
       "submitReject": "Reject this request",
       "submitReturn": "Return to the requester for changes",
       "title": "Decide this task",
+      "transfer": {
+        "confirmText": "Approve {label} of {amount} baht. The decision cannot be changed later.",
+        "otherLink": "Return or reject",
+        "reasonHint": "The sender reads this. Say clearly what to correct or why it is rejected.",
+        "rejectHint": "It is closed and the reserved budget returns to the source line at once.",
+        "rejected": "Rejected.",
+        "returnHint": "It goes back to the sender; the reserved budget returns to the source line and is reserved again when sent again.",
+        "returnOption": "Return to the sender",
+        "returned": "Returned to the sender.",
+        "submitReject": "Reject this transfer",
+        "submitReturn": "Return to the sender"
+      },
       "variance": {
         "approveHint": {
           "ACCEPT_DAMAGED": "Approving keeps the damaged goods in this quantity",
@@ -7839,6 +8011,12 @@
       "requester": "{name} · {department}",
       "review": "Review before approval",
       "stepUp": "Needs your PIN",
+      "transfer": {
+        "DECREASE": "Budget decrease {number}",
+        "INCREASE": "Budget increase {number}",
+        "TRANSFER": "Budget transfer {number}"
+      },
+      "transferAmountLabel": "Amount moved",
       "untitled": "Approval task",
       "variance": "{type} · {description}",
       "varianceAmountLabel": "Before VAT",

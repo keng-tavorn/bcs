@@ -281,7 +281,20 @@ export const importBudgetCommand = defineCommand({
       },
     })
     const events: EventDraft[] = funded.events
-    return { ok: true, result: { importId, rows: input.rows.length, linesCreated, totalSatang: total.toString() }, events }
+    // S6-15 (OQ-105 default): an import that adds to lines that had budget already goes on without DOA, and every AUDITOR
+    // sees it in their digest
+    // (a line's first row in the file tells what it had before the import; its later rows add to this file's own amount)
+    const first = funded.lines.filter((l, i) => funded.lines.findIndex((x) => x.budgetLineId === l.budgetLineId) === i)
+    const toppedUp = new Set(first.filter((l) => l.before.available + l.before.reserved + l.before.committed + l.before.actual > 0n).map((l) => l.budgetLineId))
+    const auditors = toppedUp.size ? [...new Set((await tx.roleAssignment.findMany({ where: { role: 'AUDITOR', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true } })).map((r) => r.memberId))] : []
+    const notifications = auditors.map((recipientMemberId) => ({
+      recipientMemberId,
+      templateKey: 'audit.budget_topped_up',
+      data: { importId, lines: toppedUp.size },
+      urgency: 'DIGEST' as const,
+      dedupeKey: `audit.budget_topped_up:${importId}:${recipientMemberId}`,
+    }))
+    return { ok: true, result: { importId, rows: input.rows.length, linesCreated, totalSatang: total.toString() }, events, notifications }
   },
 })
 

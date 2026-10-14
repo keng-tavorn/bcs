@@ -98,6 +98,22 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'เปิดร่างแล้วบันทึกอีกครั้งเพื่อเก็บไว้ หรือปล่อยไว้ถ้าไม่ใช้แล้ว', en: 'Open and save it again to keep it, or leave it if you no longer need it' },
     href: `/requests/${str(d.requestId)}`,
   }),
+  // S6-15 (FR-BUD-103): the sender of a budget transfer hears how it was decided
+  'budget.transfer_decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `การโอนงบ ${str(d.number)} อนุมัติแล้ว งบย้ายแล้ว`, en: `Budget transfer ${str(d.number)} is approved; the budget has moved` }
+        : d.outcome === 'RETURNED'
+          ? { th: `การโอนงบ ${str(d.number)} ถูกตีกลับ`, en: `Budget transfer ${str(d.number)} was returned` }
+          : { th: `การโอนงบ ${str(d.number)} ไม่ได้รับอนุมัติ`, en: `Budget transfer ${str(d.number)} was not approved` },
+    body: d.outcome === 'APPROVED' ? undefined : { th: 'งบที่จองไว้คืนบรรทัดต้นทางแล้ว', en: 'The reserved budget is back on the source line' },
+    href: `/budgets/transfers/${str(d.transferId)}`,
+  }),
+  // S6-15 (§10.1 · OQ-105): an import added to a budget line that had budget already
+  'audit.budget_topped_up': (d) => ({
+    title: { th: `นำเข้างบเพิ่มยอดให้บรรทัดงบที่มีงบแล้ว ${str(d.lines)} บรรทัด`, en: `A budget import added to ${str(d.lines)} budget lines that had budget already` },
+    href: '/budgets',
+  }),
   // S6-13 (§10.1 · BR-DUP-05): the AUDITOR's digest names a request flagged a duplicate or part of a split purchase
   'audit.request_flagged': (d) => ({
     title:

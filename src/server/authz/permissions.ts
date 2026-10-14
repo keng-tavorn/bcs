@@ -7,7 +7,8 @@
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
 // S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
 // in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
-// (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07).
+// (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07). S6-15 added
+// budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -104,9 +105,12 @@ export const PERMISSIONS = {
   // S8 tier-2 invoices (module PAY, BR-AP-13): draft, edit, code, submit and throw away
   'invoice.record': [role('FINANCE', 'ORG')],
   // Budget
-  'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
+  // S6-15: the approver of a transfer reads it (ASSIGNED, the transfer's own route)
+  'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), anyMember('ASSIGNED'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],
   'budgetGrant.manage': [role('BUDGET_ADMIN', 'ORG')],
+  // S6-15 (FR-BUD-103, BR-BUD-10 · OQ-105): a transfer, increase or decrease sent for approval under the BUDGET_TRANSFER rule
+  'budget.transfer.submit': [role('BUDGET_ADMIN', 'ORG'), deptHead()],
   // Suppliers, exports, reports
   'supplier.view': [anyMember('ORG', 'BASIC_FIELDS_ONLY'), ...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG')],
   'supplier.manage': PROCUREMENT_ONLY,

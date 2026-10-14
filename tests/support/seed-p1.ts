@@ -11,6 +11,9 @@ import { prisma } from '@/server/db/client'
 import { ruleJson, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { backtestDraft } from '@/server/services/backtest'
 import { getPriceReference } from '@/server/services/price-reference'
+import { decideTask } from '@/server/services/approvals/decide'
+import { createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
+import { stepUpForTask } from './pin'
 import { renewRequestLine, runRenewalReminders } from '@/server/services/requests/repeat'
 import { forTenant } from '@/server/db/tenant'
 import { seedBudget } from '@/server/seed/budget'
@@ -316,6 +319,42 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       const duplicate = await db.requestFlag.findFirstOrThrow({ where: { requestId: await idOf(dupSecond!.ref!), kind: 'DUPLICATE' }, select: { matchedRequestIds: true, acknowledgedReason: true } })
       expect(duplicate.matchedRequestIds).toEqual([await idOf(dupFirst!.ref!)])
       expect(duplicate.acknowledgedReason).toBeTruthy()
+    })
+
+    it('[FR-BUD-103/AC1] S6-15: fin_bud1 sends 300,000.00 from a line of the operations side to another line, and vp_ops approves it under BT-02', async () => {
+      const db = forTenant(organizationId)
+      const member = async (code: string) => (await db.member.findFirstOrThrow({ where: { employeeCode: code }, select: { id: true } })).id
+      const [finBud1, vpOps] = await Promise.all([member('fin_bud1'), member('vp_ops')])
+      // A line of a department under OPS (whose VP is vp_ops) with 300,000.00 free, in the fiscal year of the seed's day
+      const departments = await db.department.findMany({ select: { id: true, code: true, parentId: true } })
+      const under = new Set(departments.filter((d) => d.code === 'OPS').map((d) => d.id))
+      for (let grew = true; grew; ) {
+        grew = false
+        for (const d of departments) {
+          if (d.parentId && under.has(d.parentId) && !under.has(d.id)) {
+            under.add(d.id)
+            grew = true
+          }
+        }
+      }
+      const day = new Date(`${clock.now.toISOString().slice(0, 10)}T00:00:00Z`)
+      const year = await db.fiscalYear.findFirstOrThrow({ where: { startsOn: { lte: day }, endsOn: { gte: day } }, select: { id: true } })
+      const lines = await db.budgetLine.findMany({ where: { fiscalYearId: year.id, status: 'OPEN' }, select: { id: true, departmentId: true, balance: { select: { availableSatang: true } } }, orderBy: { code: 'asc' } })
+      const from = lines.find((l) => under.has(l.departmentId) && (l.balance?.availableSatang ?? 0n) >= 30_000_000n)!
+      const to = lines.find((l) => l.id !== from.id)!
+      const asMember = (memberId: string) => makeCtx({ organizationId, actor: { type: 'USER', memberId }, channel: 'WEB', now: clock.now })
+      const once = () => ({ idempotencyKey: randomUUID(), sender: null })
+      const created = await createBudgetTransfer(asMember(finBud1), { kind: 'TRANSFER', fromBudgetLineId: from.id, toBudgetLineId: to.id, amount: '300000.00', reason: 'ย้ายงบไปแผนกที่ใช้มากกว่า' }, once())
+      if (!created.ok) throw new Error(JSON.stringify(created.error))
+      const sent = await submitBudgetTransfer(asMember(finBud1), { transferId: created.data.transferId }, once())
+      if (!sent.ok) throw new Error(JSON.stringify(sent.error))
+      const task = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: created.data.transferId } } }, select: { id: true, assigneeMemberId: true, step: { select: { route: { select: { ruleCode: true } } } } } })
+      expect([task.step.route.ruleCode, task.assigneeMemberId]).toEqual(['BT-02', vpOps])
+      await stepUpForTask(task.id, vpOps)
+      const decided = await decideTask(asMember(vpOps), { taskId: task.id, decision: 'APPROVE' }, once())
+      if (!decided.ok) throw new Error(JSON.stringify(decided.error))
+      expect(await db.budgetTransfer.findUniqueOrThrow({ where: { id: created.data.transferId }, select: { status: true } })).toEqual({ status: 'APPROVED' })
+      expect((await db.budgetLine.findUniqueOrThrow({ where: { id: to.id }, select: { plannedSatang: true } })).plannedSatang).toBeGreaterThanOrEqual(30_000_000n)
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

@@ -391,8 +391,9 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `variance.decide` | ตาม DOA ข้อ `GR_VARIANCE` เท่านั้น |
 | `invoiceConfirmation.record` | FINANCE (ORG) |
 | `invoice.record` | FINANCE (ORG) — สร้าง แก้ ยืนยันรหัสบัญชี ส่ง และทิ้งร่างใบแจ้งหนี้ชั้น 2 · ใช้ได้เมื่อเปิดโมดูล `PAY` (BR-AP-13) |
-| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
+| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · ผู้ได้รับงาน (ASSIGNED) — ผู้อนุมัติการโอนงบเห็นการโอนนั้น (S6-15) · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
+| `budget.transfer.submit` | BUDGET_ADMIN (ORG) · DEPT_HEAD (DEPT) — แผนกของบรรทัดต้นทาง หรือปลายทางเมื่อปรับเพิ่ม · ส่งโอน ปรับเพิ่ม หรือปรับลดงบให้อนุมัติตามข้อ `BUDGET_TRANSFER` ผู้ส่งอนุมัติเองไม่ได้ (S6-15 · FR-BUD-103 · OQ-105) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
 | `supplier.manage` | PROCUREMENT (ORG) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
@@ -718,7 +719,7 @@ sequenceDiagram
 | `CONTRACTS` | คลังสัญญา เตือนต่ออายุ Legal review | CORE | S12 (หลังระยะ 2) |
 | `AI` | agents ตาม credits | CORE | S13 (ระยะ 1 ขั้น 3) |
 | `INTEGRATION` | Express API, e-Tax Invoice, BI | CORE | S14 (หลังระยะ 2) |
-| `DOA_EVERYWHERE` | e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | CORE | S15 (หลังระยะ 2) |
+| `DOA_EVERYWHERE` | e-Memo สัญญา ใบสำคัญจ่าย (โอนงบเป็น CORE ใน S6 · FR-BUD-103 · OQ-105) | CORE | S15 (หลังระยะ 2) |
 | `BCS_GO` | แอป Capacitor | CORE | S17 (ระยะ 1 ขั้น 4) |
 
 ถ้าองค์กรเปิด `PAY` โดยไม่เปิด `SUPPLIER` บัญชีธนาคารผู้ขายจัดการโดยผู้ใช้ภายในผ่านทะเบียนผู้ขายของ CORE และยังต้องผ่านกฎการเปลี่ยนบัญชี (BR-SOD-05) · ในระยะ 1 ทุกองค์กรอยู่ในกรณีนี้ เพราะ `SUPPLIER` อยู่ระยะ 2 (ADR-057)
@@ -3321,7 +3322,7 @@ cases:
 | FR-PLT-303 | Multi-tenant เต็มรูปแบบและ white-label | S15 | 6.14 |
 | FR-SRC-301 | e-Auction | S15 | 6.8 |
 | FR-WF-301 | ตัวสร้าง workflow แบบลากวาง | S15 | 6.4 |
-| FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | S15 | 6.1 |
+| FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย (โอนงบย้ายไป FR-BUD-103 ของ S6 · OQ-105) | S15 | 6.1 |
 | FR-NOTI-301 | adapter Microsoft Teams และ LINE WORKS | S15 | 5 |
 
 ### 8.12 เงื่อนไขล่วงหน้าที่ sub-spec ของชั้น 2–4 ต้องรวม
@@ -3952,6 +3953,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `member.role_granted` · `member.role_revoked` ของ `DOA_ADMIN` (S6-09 · BR-WF-16) | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
+| `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` (S6-15) | ผู้ส่ง | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.transfer_decided` |
+| `budget.imported` ที่เพิ่มยอดให้บรรทัดที่มีงบแล้ว (S6-15 · OQ-105) | AUDITOR | ในระบบ | DIGEST | `audit.budget_topped_up` |
 | `request.flagged` (S6-13 · BR-DUP-05) | AUDITOR | ในระบบ | DIGEST | `audit.request_flagged` |
 | `request.renewal_reminded` (S6-12 · BR-FORM-08) | ผู้ขอ · PROCUREMENT | LINE → อีเมล · ในระบบ | ผู้ขอ IMMEDIATE · PROCUREMENT DIGEST | `request.renewal_due` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
@@ -3987,7 +3990,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
-| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
+| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` |
+| budget_transfer | `budget_transfer.drafted` `budget_transfer.submitted` `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` `budget_transfer.cancelled` (S6-15 · FR-BUD-103) |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | report_schedule | `report_schedule.created` |
@@ -4017,7 +4021,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 
 ### 11.2 Dashboard งบ
 
-ต่อบรรทัดงบ แผนก และทั้งองค์กร: งบตั้งต้น · available · reserved · committed · actual · % ใช้แล้ว = (committed + actual) ÷ งบตั้งต้น · % รวมที่จองแล้ว = (reserved + committed + actual) ÷ งบตั้งต้น · สีเตือนเมื่อเหลือต่ำกว่า `digest.budgetLowPct` · drill-down ถึงเอกสาร · ส่งออก Excel
+ต่อบรรทัดงบ แผนก และทั้งองค์กร: งบตั้งต้น · available · reserved · committed · actual · % ใช้แล้ว = (committed + actual) ÷ งบปัจจุบัน (S6-15 · OQ-105: งบปัจจุบัน = `plannedSatang` = นำเข้า + โอนเข้า + ปรับเพิ่ม − โอนออก − ปรับลด ตาม INV-BUD-07 · หน้า dashboard แสดงงบตั้งต้นจากการนำเข้า โอนเข้า โอนออก ปรับ และงบปัจจุบันแยกกัน) · % รวมที่จองแล้ว = (reserved + committed + actual) ÷ งบปัจจุบัน · สีเตือนเมื่อเหลือต่ำกว่า `digest.budgetLowPct` · drill-down ถึงเอกสาร · ส่งออก Excel
 
 ### 11.3 รายงานตาม proposal เดิม
 

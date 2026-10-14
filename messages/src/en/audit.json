@@ -126,7 +126,8 @@
     "ai_agent": "AI assistant settings",
     "ai_credit": "AI credits",
     "catalog_item": "Catalogue",
-    "price_agreement": "Agreed prices"
+    "price_agreement": "Agreed prices",
+    "budget_transfer": "Budget transfers"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -164,7 +165,8 @@
     "AiAgentSetting": "AI assistant setting",
     "AiCredit": "AI credits",
     "CatalogItem": "Catalogue item",
-    "PriceAgreement": "Agreed price"
+    "PriceAgreement": "Agreed price",
+    "BudgetTransfer": "Budget transfer"
   },
   "events": {
     "approval_step": {
@@ -200,7 +202,9 @@
       "committed": "Budget committed to a PO",
       "imported": "Budget imported",
       "reservation_released": "Reserved budget released",
-      "reserved": "Budget reserved"
+      "reserved": "Budget reserved",
+      "transferred_in": "Budget transferred into the line",
+      "transferred_out": "Budget transferred out of the line"
     },
     "budget_grant": {
       "created": "Cross-department budget granted",
@@ -398,6 +402,14 @@
     "price_agreement": {
       "created": "Agreed price set",
       "ended": "Agreed price ended"
+    },
+    "budget_transfer": {
+      "approved": "Budget transfer approved",
+      "cancelled": "Budget transfer cancelled",
+      "drafted": "Budget transfer drafted",
+      "rejected": "Budget transfer rejected",
+      "returned": "Budget transfer returned",
+      "submitted": "Budget transfer sent for approval"
     }
   }
 }

@@ -126,7 +126,8 @@
     "ai_agent": "ตั้งค่าผู้ช่วย AI",
     "ai_credit": "credits ของ AI",
     "catalog_item": "แคตตาล็อก",
-    "price_agreement": "ราคาตกลง"
+    "price_agreement": "ราคาตกลง",
+    "budget_transfer": "โอนและปรับงบ"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -164,7 +165,8 @@
     "AiAgentSetting": "ตั้งค่าผู้ช่วย AI",
     "AiCredit": "credits ของ AI",
     "CatalogItem": "สินค้าในแคตตาล็อก",
-    "PriceAgreement": "ราคาตกลง"
+    "PriceAgreement": "ราคาตกลง",
+    "BudgetTransfer": "การโอนและปรับงบ"
   },
   "events": {
     "approval_step": {
@@ -200,7 +202,9 @@
       "committed": "ถืองบให้ใบสั่งซื้อ",
       "imported": "นำเข้างบ",
       "reservation_released": "คืนงบที่จองไว้",
-      "reserved": "จองงบ"
+      "reserved": "จองงบ",
+      "transferred_in": "โอนงบเข้าบรรทัด",
+      "transferred_out": "โอนงบออกจากบรรทัด"
     },
     "budget_grant": {
       "created": "ให้สิทธิ์ใช้งบข้ามฝ่าย",
@@ -398,6 +402,14 @@
     "price_agreement": {
       "created": "ตั้งราคาตกลง",
       "ended": "สิ้นสุดราคาตกลง"
+    },
+    "budget_transfer": {
+      "approved": "อนุมัติการโอนงบ",
+      "cancelled": "ยกเลิกการโอนงบ",
+      "drafted": "ร่างการโอนงบ",
+      "rejected": "ไม่อนุมัติการโอนงบ",
+      "returned": "ตีกลับการโอนงบ",
+      "submitted": "ส่งขออนุมัติโอนงบ"
     }
   }
 }

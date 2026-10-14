@@ -222,3 +222,5 @@ export function compareQuotations(quotes: readonly QuoteInput[], selectedRef: st
 
 // S6-12: reorder and renewal reminders (BR-FORM-07, BR-FORM-08)
 export { daysLeft, renewalMilestoneDue, reorderDraft, type ReorderDraft, type ReorderInput, type ReorderLine, type ReorderSourceLine } from './repeat'
+// S6-14: the lint of a form version (BR-FORM-09)
+export { conditionFields, lintFormVersion, type FormLintIssue, type LintForm } from './lint'

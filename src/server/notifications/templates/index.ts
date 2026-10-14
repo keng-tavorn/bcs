@@ -212,11 +212,17 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   // taken; S6-14 and S4-13 add the attachment rules of a published form
   'audit.policy_changed': (d) => ({
     title:
-      d.change === 'DOA_ADMIN_REVOKED'
-        ? { th: `ถอนบทบาทผู้ดูแลผังอำนาจของ ${str(d.name)} แล้ว`, en: `${str(d.name)} is no longer a DOA administrator` }
-        : { th: `${str(d.name)} ได้รับบทบาทผู้ดูแลผังอำนาจ`, en: `${str(d.name)} was made a DOA administrator` },
-    body: { th: 'ผู้ดูแลผังอำนาจร่างผังอำนาจอนุมัติและผู้ตรวจคู่ขนานได้ แต่ไม่ได้สิทธิ์อนุมัติ', en: 'A DOA administrator drafts the delegation of authority and the parallel reviewers, but approves nothing' },
-    href: d.memberId ? `/admin/members/${str(d.memberId)}` : null,
+      d.change === 'FORM_ATTACHMENT_RULES'
+        ? { th: `กฎเอกสารแนบของฟอร์ม ${str(d.requestTypeCode)} เปลี่ยนในฉบับ ${str(d.versionNo)}`, en: `The attachment rules of form ${str(d.requestTypeCode)} changed in version ${str(d.versionNo)}` }
+        : d.change === 'DOA_ADMIN_REVOKED'
+          ? { th: `ถอนบทบาทผู้ดูแลผังอำนาจของ ${str(d.name)} แล้ว`, en: `${str(d.name)} is no longer a DOA administrator` }
+          : { th: `${str(d.name)} ได้รับบทบาทผู้ดูแลผังอำนาจ`, en: `${str(d.name)} was made a DOA administrator` },
+    body:
+      d.change === 'FORM_ATTACHMENT_RULES'
+        ? { th: 'คำขอใหม่ใช้ฉบับนี้ คำขอที่ส่งไปแล้วคงฉบับเดิม', en: 'New requests use this version; requests made before keep theirs' }
+        : { th: 'ผู้ดูแลผังอำนาจร่างผังอำนาจอนุมัติและผู้ตรวจคู่ขนานได้ แต่ไม่ได้สิทธิ์อนุมัติ', en: 'A DOA administrator drafts the delegation of authority and the parallel reviewers, but approves nothing' },
+    // The AUDITOR reads the change in the audit trail (they have no admin.requestTypes)
+    href: d.change === 'FORM_ATTACHMENT_RULES' ? '/audit' : d.memberId ? `/admin/members/${str(d.memberId)}` : null,
   }),
   'admin.module_changed': (d) => ({
     title: d.enabled ? { th: `เปิดใช้โมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched on` } : { th: `ปิดโมดูล ${str(d.module)} แล้ว`, en: `Module ${str(d.module)} was switched off` },

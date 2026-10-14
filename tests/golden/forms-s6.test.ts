@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
-import { daysLeft, renewalMilestoneDue, reorderDraft } from '@/core/forms'
+import { daysLeft, lintFormVersion, renewalMilestoneDue, reorderDraft } from '@/core/forms'
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/forms-s6.yaml (spec §7.17): GC-FORM-12 to GC-FORM-21 — renewal reminders (BR-FORM-08) and reorder
@@ -57,6 +57,22 @@ describe('[FR-INT-101/AC1] [FR-INT-101/AC2] golden forms-s6.yaml', () => {
       const picked = pick(actual, exp) as Record<string, unknown>
       if (exp.lines) picked.lines = actual.lines.map((l, k) => pick(l, exp.lines![k]!))
       expect(picked).toEqual(exp)
+    })
+  }
+})
+
+describe('[FR-INT-104/AC2] golden forms-s6.yaml: the lint of a form version (BR-FORM-09)', () => {
+  const fx = (suite as unknown as { formLint: { fields: string[]; rules: Record<string, string[]>; workflowRules: Record<string, string[]> } }).formLint
+  const raw = suite.cases as unknown as Array<{ id: string; fn: string; input: { removeFields: string[]; rules: string[]; workflowRules: string[] }; expect: unknown }>
+  for (const c of raw.filter((x) => x.fn === 'lintFormVersion')) {
+    it(`[${c.id}]`, () => {
+      // The version in use: the fixture's fields, each attachment rule reading its fields; the draft removes some
+      const field = (id: string) => ({ id, type: 'select' as const, options: ['Y', 'N'] })
+      const rule = (id: string) => ({ id, when: { all: fx.rules[id]!.map((f) => ({ field: f, op: 'eq' as const, value: 'Y' })) }, require: { attachments: 'DPA', min: 1 } })
+      const before = { fields: fx.fields.map(field), visibility: [], rules: c.input.rules.map(rule) }
+      const after = { ...before, fields: fx.fields.filter((f) => !c.input.removeFields.includes(f)).map(field) }
+      const workflow = c.input.workflowRules.map((code) => ({ code, fields: fx.workflowRules[code]! }))
+      expect(lintFormVersion(before, after, workflow)).toEqual(c.expect)
     })
   }
 })

@@ -242,7 +242,10 @@
       "uploaded": "File uploaded"
     },
     "form_version": {
-      "published": "Request type form published"
+      "drafted": "Form draft created",
+      "published": "Request type form published",
+      "retired": "Form version retired",
+      "updated": "Form draft edited"
     },
     "gr": {
       "posted": "Goods receipt posted",

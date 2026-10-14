@@ -2567,6 +2567,8 @@ cases:
 # tests/golden/forms-s6.yaml
 suite: forms-s6
 settings: { milestoneDays: [60, 30] }
+# formLint: ฟอร์ม HIRE_SERVICE (prisma/seed/forms.yaml) · กฎเอกสารแนบ และกฎ workflow (fixtures/workflow-versions.yaml) ที่อ่าน field
+formLint: { fields: [processesPersonalData, accessesSystems, accessesPremises], rules: { ATT-DPA: [processesPersonalData] }, workflowRules: { RV-02: [processesPersonalData] } }
 cases:
   # S6-12 · เตือนต่ออายุ (BR-FORM-08)
   - { id: GC-FORM-12, fn: renewalMilestoneDue, input: { daysLeft: 61, sent: [] }, expect: null }
@@ -2584,6 +2586,8 @@ cases:
     input: { currentFields: [processesPersonalData, accessesSystems, accessesPremises], source: { fields: { processesPersonalData: "Y", legacyField: "x" }, lines: [{ d: ค่ารักษาความปลอดภัย, uom: คน-เดือน, qty: "24", unitPrice: "18500.00", serviceEndDate: "2026-11-10" }], attachments: { DPA: 1, QUOTATION: 3 }, quotations: 3, budgetLine: HRA-GA-OPEX-2569 } }
     expect: { fields: { processesPersonalData: "Y" }, droppedFields: [legacyField], lines: [{ qty: "24", unitPrice: "18500.00", serviceEndDate: null, priceSource: SOURCE_REQUEST }], attachments: {}, quotations: 0, budgetLine: null }
   - { id: GC-FORM-21, title: ขอซ้ำใช้ราคาตกลงที่มีผล, fn: reorderDraft, input: { currentFields: [], source: { fields: {}, lines: [{ item: MAT-004, supplier: S1, qty: "100", unitPrice: "185.00" }] }, agreements: [{ item: MAT-004, supplier: S1, unitPrice: "177.00" }] }, expect: { lines: [{ qty: "100", unitPrice: "177.00", priceSource: AGREEMENT }] } }
+  # S6-14 · lint ฟอร์ม (BR-FORM-09) · ฉบับที่ใช้อยู่และสิ่งที่อ่านแต่ละ field อยู่ใน formLint ด้านบน · input บอกว่า field ไหนถูกลบ และกฎใดยังอยู่
+  - { id: GC-FORM-22, fn: lintFormVersion, input: { removeFields: [processesPersonalData], rules: [ATT-DPA], workflowRules: [RV-02] }, expect: { errors: [{ code: FORM_LINT_REFERENCED_FIELD, field: processesPersonalData, by: [ATT-DPA, RV-02] }] } }
 ```
 
 ```yaml
@@ -3932,7 +3936,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | backtest | `backtest.requested` `backtest.completed` (S6-07 · ย้อนทดสอบที่เกิน 500 เอกสาร · ADR-111) |
 | catalog | `catalog_item.created` `catalog_item.updated` `price_agreement.created` `price_agreement.ended` (S6-10 · FR-INT-102 · BR-PRC-06) |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
-| form_version | `form_version.published` |
+| form_version | `form_version.published` · S6-14: `form_version.drafted` `form_version.updated` `form_version.retired` · `form_version.published` บอก `attachmentRulesChanged` ให้ประวัตินโยบาย |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
 | request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` · S6-13: `request.flagged` (kind `DUPLICATE` `SPLIT` · routeNo · matchedRequestIds) |
 | request_type | `request_type.updated` |
@@ -4491,7 +4495,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       36 ไฟล์ · 393 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       36 ไฟล์ · 394 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

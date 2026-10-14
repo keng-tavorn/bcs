@@ -1207,6 +1207,13 @@ def run_forms_s6(d):
         elif fn == "renewalMilestoneDue":
             due = [m for m in d["settings"]["milestoneDays"] if m >= i["daysLeft"]]
             got = None if i["daysLeft"] < 0 or not due or min(due) in i["sent"] else min(due)
+        elif fn == "lintFormVersion":
+            # BR-FORM-09: a removed field that a rule still present or a workflow rule reads is an error naming them all
+            fx = d["formLint"]; errs = []
+            for f in i["removeFields"]:
+                by = [r for r in i.get("rules", []) if f in fx["rules"].get(r, [])] + [w for w in i.get("workflowRules", []) if f in fx["workflowRules"].get(w, [])]
+                if by: errs.append({"code": "FORM_LINT_REFERENCED_FIELD", "field": f, "by": by})
+            got = {"errors": errs}
         else:
             src = i["source"]; cur = set(i["currentFields"])
             lines = []

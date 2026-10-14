@@ -138,6 +138,8 @@ export async function printablePurchaseOrder(tx: TenantTx, organizationId: strin
       ...(po.paymentTermDays !== null ? [{ label: 'เงื่อนไขการชำระเงิน', value: po.paymentTermDays === 0 ? 'ชำระเมื่อส่งของ' : `เครดิต ${po.paymentTermDays} วัน` }] : []),
       ...(prNumbers.length ? [{ label: 'อ้างอิงใบขอซื้อ', value: prNumbers.join(', ') }] : []),
       ...(po.urgency === 'URGENT' ? [{ label: 'ความเร่งด่วน', value: 'ด่วน' }] : []),
+      // S8-10 (ADR-125, BR-POC-04): a changed PO prints which revision it is
+      ...(po.revisionNo > 0 ? [{ label: 'ฉบับแก้ไข', value: `แก้ไขครั้งที่ ${po.revisionNo}` }] : []),
     ],
     amountHeader: 'จำนวนเงิน',
     lines: po.lines.map((l) => ({ no: l.lineNo, description: l.description, quantity: quantityText(l.quantity), uom: l.uom, unitPrice: formatSatang(l.unitPriceSatang), amount: formatSatang(l.netSatang) })),

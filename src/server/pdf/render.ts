@@ -3,6 +3,7 @@ import { Font, renderToBuffer } from '@react-pdf/renderer'
 import { FONT_FAMILY, PrintablePdf } from './document'
 import type { PrintableDocument } from './printable'
 import { thaiHyphenationCallback } from './thai-breaks'
+import { WhtCertificatePdf, type WhtCertificateDocument } from './wht-certificate'
 
 // Printed documents as PDF (spec FR-PLT-009, OQ-18 → ADR-044): react-pdf with Sarabun (§9.9) from assets/fonts — read
 // from the working directory, which is the function root on Vercel (next.config outputFileTracingIncludes ships the
@@ -29,5 +30,12 @@ function registerFonts(): void {
 export async function renderPdf(document: PrintableDocument): Promise<Uint8Array> {
   registerFonts()
   const buffer = await renderToBuffer(PrintablePdf({ doc: document }))
+  return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
+}
+
+/** The 50 ทวิ of one payment item (BR-WHT-07) */
+export async function renderWhtCertificatePdf(document: WhtCertificateDocument): Promise<Uint8Array> {
+  registerFonts()
+  const buffer = await renderToBuffer(WhtCertificatePdf({ doc: document }))
   return new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength)
 }

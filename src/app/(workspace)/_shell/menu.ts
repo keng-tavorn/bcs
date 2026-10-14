@@ -63,6 +63,14 @@ export interface MenuItem {
   readonly ready: boolean
   /** A hub page that lists one group's pages: shows exactly when one of them does */
   readonly hubOf?: MenuGroup
+  /** Another name while a module is on (§9.10: with PAY the finance group's invoices are tier-2 "ใบแจ้งหนี้") */
+  readonly labelWhen?: { readonly module: ModuleKey; readonly key: MenuLabelKey }
+}
+
+/** The words of an entry: shell.items.<key>, or the module's own while it is on */
+export type MenuLabelKey = MenuKey | 'invoicesAp'
+export function menuLabelKey(item: MenuItem, enabledModules: readonly ModuleKey[]): MenuLabelKey {
+  return item.labelWhen && enabledModules.includes(item.labelWhen.module) ? item.labelWhen.key : item.key
 }
 
 export const MENU: readonly MenuItem[] = [
@@ -77,7 +85,7 @@ export const MENU: readonly MenuItem[] = [
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
   // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page
   { key: 'catalog', href: '/catalog', group: 'procurement', capability: 'catalog.view', module: 'CORE', ready: true },
-  { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true },
+  { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true, labelWhen: { module: 'PAY', key: 'invoicesAp' } },
   { key: 'exports', href: '/finance/exports', group: 'finance', capability: 'export.express', module: 'CORE', ready: true },
   { key: 'budgets', href: '/budgets', group: 'finance', capability: 'budget.view', scopes: ['DEPT', 'ORG'], module: 'CORE', ready: true },
   // The executive summary (FR-VIS-007, S16-08) took the KPI entry's place: /kpi still opens, from the control card and

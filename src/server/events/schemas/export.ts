@@ -9,7 +9,7 @@ const satang = z.string().regex(/^\d+$/)
 defineEvents('ExportJob', {
   'export.generated': {
     schema: z.object({
-      kind: z.enum(['EXPRESS_AP', 'REPORT', 'AUDIT']),
+      kind: z.enum(['EXPRESS_AP', 'REPORT', 'AUDIT', 'WHT_RETURN']),
       rowCount: z.number().int().min(0),
       totalSatang: satang,
       checksum: z.string().regex(/^[0-9a-f]{64}$/),

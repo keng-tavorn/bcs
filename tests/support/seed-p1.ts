@@ -30,6 +30,7 @@ import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-stru
 import { seedDevPins } from '@/server/seed/pins'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
+import { parseApProfile, registryFlagOf, seedApProfile } from '@/server/seed/ap-profile'
 import { seedP1Modules } from '@/server/seed/p1-modules'
 import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
@@ -89,7 +90,7 @@ export interface SeedP1Clock {
 export function describeP1Seed(clock: SeedP1Clock): void {
   let organizationId: string
   let report: DemoHistoryReport
-  let sheets: { users: Row[]; departments: Row[]; budget: Row[]; costCenters: Row[]; suppliers: Row[]; sites: Row[]; items: Row[]; history: Row[] }
+  let sheets: { users: Row[]; departments: Row[]; budget: Row[]; costCenters: Row[]; suppliers: Row[]; sites: Row[]; items: Row[]; history: Row[]; supplierPayment: Row[] }
 
   beforeAll(async () => {
     const raw = new ExcelJS.Workbook()
@@ -104,6 +105,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       sites: read('Sites'),
       items: read('Items'),
       history: read('Request_History'),
+      supplierPayment: read('SupplierPayment'),
     }
 
     // The history stores quotations, DPAs and PO PDFs: the bucket must exist (as tests/integration/files.test.ts does)
@@ -123,6 +125,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
     await seedSuppliers(organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now)
     await seedAccountCodes(organizationId, parseGlAccounts(workbook))
     await seedCatalog(organizationId, parseCatalogItems(workbook), clock.now)
+    await seedApProfile(organizationId, parseApProfile(workbook), clock.now)
     await seedDevPins(organizationId, PIN, clock.now)
     report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(budget) })
     await linkHistoryToCatalog(organizationId)
@@ -212,18 +215,46 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(withDpa).toBeGreaterThan(0)
     })
 
-    it('[FR-AP-102/AC3] S8-04: with PAY on, every completed row’s invoice is a tier-2 invoice, matched and ready for payment', async () => {
+    it('[FR-AP-102/AC3] S8-12: with PAY on, each completed row’s invoice is a tier-2 invoice in the state its scenario leaves it, counted per scenario', async () => {
       const db = forTenant(organizationId)
-      const completed = sheets.history.filter((r) => r.status === 'COMPLETED').length
       expect(await db.invoiceConfirmation.count()).toBe(0)
-      expect(await db.invoice.count()).toBe(completed)
-      expect(await db.invoice.count({ where: { status: 'READY_FOR_PAYMENT' } })).toBe(completed)
       expect(await db.accountCode.count()).toBe(parseGlAccounts(await loadInputWorkbook(INPUT_WORKBOOKS.p1)).length)
-      // every PO of a completed row is closed with nothing held: the last invoice took what it held
-      const held = await db.budgetAllocation.aggregate({ where: { sourceType: 'PO_LINE' }, _sum: { committedSatang: true } })
-      const open = await db.purchaseOrder.findMany({ where: { status: { not: 'CLOSED' } }, select: { lines: { select: { id: true } } } })
-      const openHeld = await db.budgetAllocation.aggregate({ where: { sourceType: 'PO_LINE', sourceId: { in: open.flatMap((p) => p.lines.map((l) => l.id)) } }, _sum: { committedSatang: true } })
-      expect(held._sum.committedSatang ?? 0n).toBe(openHeld._sum.committedSatang ?? 0n)
+      const completed = sheets.history.filter((r) => r.status === 'COMPLETED')
+      const invoices = await db.invoice.findMany({ where: { number: { not: null } }, select: { supplierInvoiceNo: true, status: true } })
+      const expected = (row: (typeof completed)[number]) => {
+        const paid = row.paymentStatus === 'PAID'
+        if (row.invoiceScenario === 'PRICE_OVER' || row.invoiceScenario === 'QTY_OVER') return paid || (row.invoiceScenario === 'QTY_OVER' && Number(row.qty) < 2) ? 'READY_FOR_PAYMENT' : 'EXCEPTION'
+        return 'READY_FOR_PAYMENT'
+      }
+      const counted: Record<string, number> = {}
+      for (const row of completed) {
+        const scenario = row.invoiceScenario || 'MATCH'
+        const mine = invoices.filter((i) => i.supplierInvoiceNo === (row.invoiceNo || `INV-${row.ref}`))
+        if (scenario === 'MISSING') {
+          expect(mine, row.ref).toHaveLength(0)
+          continue
+        }
+        expect(mine.map((i) => i.status), row.ref).toEqual([expected(row)])
+        counted[scenario] = (counted[scenario] ?? 0) + 1
+      }
+      // one submitted invoice per row of each scenario but MISSING, as the sheet counts them
+      const bySheet: Record<string, number> = {}
+      for (const row of completed) if ((row.invoiceScenario || 'MATCH') !== 'MISSING') bySheet[row.invoiceScenario || 'MATCH'] = (bySheet[row.invoiceScenario || 'MATCH'] ?? 0) + 1
+      expect(counted).toEqual(bySheet)
+      // the inbox: the second copy of each DUPLICATE row and one invoice that names no PO
+      const duplicates = completed.filter((r) => r.invoiceScenario === 'DUPLICATE').length
+      expect(await db.inboundEmail.count({ where: { status: 'PROCESSED' } })).toBe(duplicates + 1)
+    })
+
+    it('S8-12: each supplier’s registry flag, payee type and default income type are those of sheet SupplierPayment', async () => {
+      const db = forTenant(organizationId)
+      const suppliers = await db.supplier.findMany({ select: { code: true, registryFlag: true, payeeType: true, defaultWhtIncomeTypeCode: true } })
+      for (const p of sheets.supplierPayment) {
+        const s = suppliers.find((x) => x.code === p.supplierCode)!
+        expect({ flag: s.registryFlag, payee: s.payeeType, wht: s.defaultWhtIncomeTypeCode }, String(p.supplierCode)).toEqual({ flag: registryFlagOf(String(p.registryStatus)), payee: p.payeeType, wht: p.whtIncomeType || null })
+      }
+      // the income types are there, waiting for the accountant to confirm them
+      expect(await db.whtIncomeType.count({ where: { confirmedById: null } })).toBeGreaterThan(0)
     })
 
     it('[FR-DOA-103/AC2] S6-07: a draft with a COO band moves eqp_02\'s monthly fuel from ceo to coo in the 90-day backtest', async () => {

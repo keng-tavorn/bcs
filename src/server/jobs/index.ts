@@ -10,7 +10,10 @@ import { dailyDigest } from './daily-digest'
 import { delegationRevoked, delegationWindow } from './delegation-window'
 import { doaVersionActivate } from './doa-version-activate'
 import { draftExpiry } from './draft-expiry'
+import { invoiceAutoRecheck } from './invoice-auto-recheck'
+import { invoiceInboxPoll } from './invoice-inbox-poll'
 import { lineRichMenu } from './line-rich-menu'
+import { retentionDue } from './retention-due'
 import { lineWebhook, lineWebhookSweep } from './line-webhook'
 import { notificationDeliver } from './notification-deliver'
 import { orgAuthorityApply } from './org-authority-apply'
@@ -23,6 +26,7 @@ import { backtestRun } from './backtest-run'
 import { renewalReminders } from './renewal-reminders'
 import { budgetOverrunLapse } from './budget-overrun-lapse'
 import { budgetBurnAlerts } from './budget-burn-alerts'
+import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
 export const functions = [
@@ -53,6 +57,14 @@ export const functions = [
   lineWebhookSweep,
   // S5-04: the rich menu of a LINE user follows their link (FR-LINE-004 AC3)
   lineRichMenu,
+  // S8-06: invoices matched again after a goods receipt, and the e-mails to suppliers (ADR-126)
+  invoiceAutoRecheck,
+  supplierNoticeSend,
+  supplierNoticeSweep,
+  // S8-07: the invoice inbox (ADR-123)
+  invoiceInboxPoll,
+  // S8-09: retentions whose day has come (ADR-124)
+  retentionDue,
   // S13-02: AI results that expire or are cleared, and the month's AI credits (ADR-145)
   aiActionsExpire,
   aiCreditMonthly,

@@ -683,11 +683,39 @@ def run_ivc(d):
         got = {"results": res, "actualByLine": [baht(x) for x in act], "remaining": [baht(x) for x in rem]}
         out.append((c["id"], got == c["expect"], got))
     return out
-def run_wht(d):
+WHT_MINIMUM_BASE = "1000.00"  # BR-WHT-06 · settings.wht.minimumBase ค่าเริ่มต้นของ OQ-122 (ตามหมายเหตุใน wht.yaml)
+def wht_for_payment(i):  # BR-WHT-03 BR-WHT-04 BR-WHT-06 · ภาษีของการจ่ายครั้งเดียว
+    if i["incomeType"] is None: return {"form": None, "wht": "0.00", "reason": "NOT_APPLICABLE"}  # GOODS ไม่หัก
+    if i["payeeType"] == "FOREIGN": return {"error": "VALIDATION_FAILED", "reason": "FOREIGN_PAYEE"}
+    form = "PND3" if i["payeeType"] == "INDIVIDUAL" else "PND53"
+    if i["typeForm"] not in ("PND3_53", form): return {"error": "WHT_FORM_PAYEE_MISMATCH"}
+    if sat(i["poNet"]) < sat(WHT_MINIMUM_BASE): return {"form": form, "wht": "0.00", "reason": "BELOW_MINIMUM"}
+    return {"form": form, "wht": baht(rhu(sat(i["base"]) * i["rateBp"], 10000))}
+def payment_withholding(lines):  # BR-WHT-10 · รวมฐานต่อ (ประเภท, อัตรา) ปัดครั้งเดียวต่อกลุ่ม แล้วปันกลับต่อเอกสาร
+    order, groups = [], {}
+    for l in lines:
+        k = (l["incomeType"], l["rateBp"])
+        if k not in groups: order.append(k); groups[k] = []
+        groups[k].append((l["doc"], sat(l["base"])))
+    if any(sum(b for _, b in groups[k]) < 0 for k in order): return {"error": "VALIDATION_FAILED", "reason": "WHT_BASE_NEGATIVE"}
+    out, total = [], 0
+    for k in order:
+        base = sum(b for _, b in groups[k]); w = rhu(base * k[1], 10000); total += w
+        shares = lr_split(w, [b for _, b in groups[k]])
+        out.append({"incomeType": k[0], "rateBp": k[1], "base": baht(base), "wht": baht(w),
+                    "docs": [{"doc": d, "wht": baht(s)} for (d, _), s in zip(groups[k], shares)]})
+    return {"groups": out, "wht": baht(total)}
+def run_wht(d):  # BR-WHT-01 (ไม่มี fn) · whtForPayment · paymentWithholding (S8-08)
     out = []
     for c in d["cases"]:
-        i = c["input"]; n = sat(i["net"]); v = rhu(n * i["vatRateBp"], 10000); w = rhu(n * i["whtRateBp"], 10000)
-        got = {"vat": baht(v), "wht": baht(w), "payable": baht(n + v - w)}; out.append((c["id"], got == c["expect"], got))
+        i = c["input"]; fn = c.get("fn")
+        if fn is None:
+            n = sat(i["net"]); v = rhu(n * i["vatRateBp"], 10000); w = rhu(n * i["whtRateBp"], 10000)
+            got = {"vat": baht(v), "wht": baht(w), "payable": baht(n + v - w)}
+        elif fn == "whtForPayment": got = wht_for_payment(i)
+        elif fn == "paymentWithholding": got = payment_withholding(i["lines"])
+        else: got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
     return out
 GOV = ("DOA_CHANGE", "ORG_AUTHORITY_CHANGE")
 def amount_only(r): return set((r.get("when") or {}).keys()) == {"amount"}
@@ -1145,6 +1173,18 @@ def run_ap(d):  # BR-AP-07 วันครบกำหนด (S8-03) · BR-AP-10
         if c["fn"] == "dueDate":
             days = next(x for x in (i["poTermDays"], i["supplierTermDays"], i["defaultTermDays"]) if x is not None)
             got = {"dueDate": (datetime.fromisoformat(i["invoiceDate"]) + timedelta(days=days)).date().isoformat()}
+        elif c["fn"] == "suggestCoding":  # BR-AP-10 · OQ-128 ย้อนหลัง 365 วัน (วันที่ 365 นับ) · บ่อยสุด เท่ากันใช้ครั้งล่าสุด
+            day = datetime.fromisoformat(i["invoiceDate"]).date(); uses = {}
+            for h in i["history"]:
+                at = datetime.fromisoformat(h["invoiceDate"]).date()
+                if h["taxId"] != i["taxId"] or h["categoryCode"] != i["categoryCode"] or at > day or (day - at).days > 365: continue
+                n, last = uses.get(h["accountCode"], (0, None)); uses[h["accountCode"]] = (n + 1, max(last, at) if last else at)
+            bl = i["budgetLine"]
+            if uses:
+                code, (n, _) = sorted(uses.items(), key=lambda kv: (-kv[1][0], -kv[1][1].toordinal()))[0]
+                got = {"accountCode": code, "source": "HISTORY", "count": n, "costCenter": bl["costCenter"]}
+            elif bl["accountCode"]: got = {"accountCode": bl["accountCode"], "source": "BUDGET_LINE", "count": 0, "costCenter": bl["costCenter"]}
+            else: got = {"accountCode": None, "source": "NONE", "count": 0, "costCenter": bl["costCenter"]}
         else:
             got = {"error": f"fn {c['fn']} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))
@@ -1253,6 +1293,96 @@ def run_duplicates(d):
         got = {"flags": flags}
         out.append((c["id"], got == c["expect"], got))
     use_fixtures()
+    return out
+def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; fn = c["fn"]
+        if fn == "splitMilestones":
+            s = i["sharesBp"]
+            if not (2 <= len(s) <= 12) or any(x <= 0 for x in s) or sum(s) != 10000:
+                got = {"error": "VALIDATION_FAILED"}
+            else:
+                unit = sat(i["unitPrice"]); parts = lr_split(q4(i["qty"]), s)
+                lines = [{"qty": q4s(p), "net": baht(line_net(q4s(p), unit))} for p in parts]
+                total = sum(line_net(q4s(p), unit) for p in parts)
+                got = {"lines": lines, "total": baht(total), "driftFromSingleLine": baht(total - line_net(i["qty"], unit))}
+        elif fn == "invoicePayment":
+            n = sat(i["net"]); v = rhu(n * i["vatRateBp"], 10000); r = lr_split(n, [i["retentionBp"], 10000 - i["retentionBp"]])[0]
+            base = n - r; w = rhu(base * i["whtRateBp"], 10000)
+            got = {"vat": baht(v), "gross": baht(n + v), "retention": baht(r), "payable": baht(n + v - r), "whtBase": baht(base), "wht": baht(w), "transfer": baht(n + v - r - w)}
+        elif fn == "retentionRelease":
+            r = sat(i["retention"]); w = rhu(r * i["whtRateBp"], 10000)
+            got = {"payable": baht(r), "wht": baht(w), "transfer": baht(r - w)}
+        else:
+            got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def po_change_totals(i):  # BR-POC-01 BR-POC-02 · ยอดใหม่ของ PO หนึ่งบรรทัดและยอดสำหรับ DOA
+    l, ch, r = i["line"], i["change"], i["vatRateBp"]
+    ordered, received, invoiced, left = q4(l["ordered"]), q4(l["received"]), q4(l["invoiced"]), q4(l["requestLeft"])
+    qty = q4(ch["newQty"]) if "newQty" in ch else ordered
+    # เฉพาะจำนวนที่เปลี่ยนถูกตรวจกับที่รับและแจ้งหนี้แล้ว (บรรทัดที่รับเกินในเกณฑ์ BR-GR-02 แล้วไม่แก้จำนวน คงอยู่ได้)
+    if qty != ordered and qty < received: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "RECEIVED"}
+    if qty != ordered and qty < invoiced: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "INVOICED"}
+    if "newUnitPrice" in ch and invoiced > 0: return {"error": "PO_CHANGE_BELOW_PROGRESS", "reason": "LINE_INVOICED"}
+    if qty > ordered + left: return {"error": "PO_CHANGE_EXCEEDS_REQUEST", "left": q4s(left)}
+    net = line_net(q4s(qty), sat(ch.get("newUnitPrice", l.get("unitPrice", "0.00")))); vat = rhu(net * r, 10000)
+    return {"net": baht(net), "vat": baht(vat), "gross": baht(net + vat), "doaAmount": {"net": baht(net), "vat": baht(vat)}}
+def run_po_change(d):  # ADR-125 BR-POC-03 · ประกอบจาก submitPo approvePo rejectPo releaseHold reserve (ไม่แก้ run_budget)
+    out = []
+    for c in d["cases"]:
+        if c.get("fn") == "changeTotals":
+            got = po_change_totals(c["input"]); out.append((c["id"], got == c["expect"], got)); continue
+        B = {"available": 0, "reserved": 0, "committed": 0, "actual": 0}; res, po, funded, ok, why = {}, {}, 0, True, ""
+        def mv(a, b, amt):
+            if amt < 0 or B[a] < amt: raise BudgetErr("BUDGET_INSUFFICIENT" if a == "available" else "INVARIANT")
+            B[a] -= amt; B[b] += amt
+        for n, s in enumerate(c["steps"], 1):
+            snap = (dict(B), dict(res), {k: dict(v) for k, v in po.items()}); err = None
+            try:
+                op = s["op"]
+                if op == "fund": B["available"] += sat(s["amount"]); funded += sat(s["amount"])
+                elif op == "reserve": mv("available", "reserved", sat(s["amount"])); res[s["source"]] = res.get(s["source"], 0) + sat(s["amount"])
+                elif op == "submitPo":
+                    need = sat(s["need"]); rel = sum(sat(x["releasable"]) for x in s["sources"]); delta = max(need - rel, 0)
+                    po[s["po"]] = {"need": need, "src": [(x["source"], sat(x["releasable"])) for x in s["sources"]], "delta": delta, "com": 0, "chg": None}
+                    if delta: mv("available", "reserved", delta)
+                elif op == "approvePo":
+                    p = po[s["po"]]
+                    for src, r in p["src"]: mv("reserved", "available", r); res[src] -= r
+                    if p["delta"]: mv("reserved", "available", p["delta"]); p["delta"] = 0
+                    mv("available", "committed", p["need"]); p["com"] = p["need"]
+                elif op == "submitChange":  # จอง max(Δ − releasable ของจำนวนที่เพิ่ม, 0) ในนามบรรทัด PO
+                    p = po[s["po"]]; dlt = sat(s["newNet"]) - p["com"]; add = sat(s["addedReleasable"])
+                    rsv = max(dlt - add, 0) if dlt > 0 else 0
+                    if rsv: mv("available", "reserved", rsv)
+                    p["chg"] = {"delta": dlt, "rsv": rsv, "add": add, "src": p["src"][0][0]}
+                elif op == "approveChange":
+                    p = po[s["po"]]; ch = p["chg"]
+                    # แต่ละข้อของ BR-POC-03 แยกกัน (เงินกับจำนวนของบรรทัดขยับสวนกันได้): คืนการจองของใบแก้ไขและ releasable
+                    # ของจำนวนที่เพิ่ม แล้วถือ Δ (Δ < 0 คืนถือเท่าขนาด) · จำนวนที่ลดจัดการตาม disposition
+                    if ch["add"]: mv("reserved", "available", ch["add"]); res[ch["src"]] -= ch["add"]
+                    if ch["rsv"]: mv("reserved", "available", ch["rsv"])
+                    if ch["delta"] > 0: mv("available", "committed", ch["delta"])
+                    elif ch["delta"] < 0: mv("committed", "available", -ch["delta"])
+                    p["com"] += ch["delta"]
+                    if s.get("disposition") == "RETURN_TO_POOL":
+                        back = sat(s["removedReleasable"]); mv("available", "reserved", back); res[ch["src"]] = res.get(ch["src"], 0) + back
+                    p["chg"] = None
+                elif op == "rejectChange":
+                    p = po[s["po"]]; ch = p["chg"]
+                    if ch["rsv"]: mv("reserved", "available", ch["rsv"])
+                    p["chg"] = None
+            except BudgetErr as e:
+                err = str(e); B, res, po = snap[0], snap[1], snap[2]
+            if err != s.get("expectError"): ok, why = False, f"step {n}: error คาด {s.get('expectError')} ได้ {err}"
+            if "expect" in s:
+                gotb = {k: baht(v) for k, v in B.items()}
+                if gotb != s["expect"]: ok, why = False, f"step {n}: คาด {s['expect']} ได้ {gotb}"
+            if sum(B.values()) != funded: ok, why = False, f"step {n}: INV-BUD-01 ผลรวม {baht(sum(B.values()))} ≠ {baht(funded)}"
+            if not ok: break
+        out.append((c["id"], ok, why or "ok"))
     return out
 def run_ai_eval_score(d):
     from decimal import Decimal as D, InvalidOperation
@@ -1691,9 +1821,11 @@ RUNNERS = {
     "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,
+    "po-change": run_po_change,
     "price-reference": run_price_reference,
     "quotations": run_quotes,
     "receiving": run_gr,
+    "retention": run_retention,
     "sla": run_sla,
     "sod": run_sod,
     "taxid": run_taxid,

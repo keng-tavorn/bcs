@@ -62,7 +62,8 @@
     "emptyLink": "Go to the procurement pool",
     "noMatch": "No purchase order matches the search",
     "noMatchHint": "Change the search or the status, or clear them to see every purchase order.",
-    "filterLabel": "Search and filter purchase orders"
+    "filterLabel": "Search and filter purchase orders",
+    "invoiceExceptionsLink": "Invoice exceptions"
   },
   "detail": {
     "metaTitle": "Purchase order",

@@ -98,17 +98,17 @@ SITES = [(f'SITE-{c}', f'หน้างานโครงการ {c} {s}', fu
 ]
 SITE_OF_PROJECT = {c: f'SITE-{c}' for c, _, _, _ in PROJECTS}
 
-REQUEST_TYPES = [  # code, nameTh, documentType, descriptionTh, keyFields, attachmentRule, active
+REQUEST_TYPES = [  # code, nameTh, documentType, descriptionTh, keyFields, attachmentRule, active, defaultRetentionBp, defaultRetentionHoldDays (S8-12 · OQ-125)
     ('BUY_GOODS', 'ซื้อของ', 'PURCHASE_REQUEST', 'วัสดุก่อสร้าง อะไหล่ อุปกรณ์ความปลอดภัย และสินค้าทั่วไป',
-     'รายการ จำนวน หน่วย ราคาประมาณ สถานที่ส่ง วันที่ต้องใช้ บรรทัดงบ', 'ATT-QUOTES', 'Y'),
+     'รายการ จำนวน หน่วย ราคาประมาณ สถานที่ส่ง วันที่ต้องใช้ บรรทัดงบ', 'ATT-QUOTES', 'Y', 0, None),
     ('HIRE_SERVICE', 'จ้างบริการ', 'PURCHASE_REQUEST', 'เช่าเครื่องจักร รปภ. ทำความสะอาด ทดสอบวัสดุ ที่ปรึกษา และอบรม',
-     'ขอบเขตงาน ระยะเวลา วันสิ้นสุดบริการ ราคาประมาณ ใบเสนอราคา บรรทัดงบ · คำถามคัดกรอง 3 ข้อ', 'ATT-QUOTES · ATT-DPA', 'Y'),
+     'ขอบเขตงาน ระยะเวลา วันสิ้นสุดบริการ ราคาประมาณ ใบเสนอราคา บรรทัดงบ · คำถามคัดกรอง 3 ข้อ', 'ATT-QUOTES · ATT-DPA', 'Y', 0, None),
     ('CONTRACT_WORK', 'จ้างเหมา', 'PURCHASE_REQUEST', 'งานเหมาช่วงที่มีงวดงาน เช่น เสาเข็ม โครงสร้างเหล็ก งานระบบ งานถนน',
-     'ขอบเขตงาน งวดงาน ไซต์ ราคาประมาณ บรรทัดงบ', 'ATT-QUOTES', 'Y'),
+     'ขอบเขตงาน งวดงาน ไซต์ ราคาประมาณ บรรทัดงบ', 'ATT-QUOTES', 'Y', 500, 365),
     ('IT_PURCHASE', 'ซื้ออุปกรณ์/ซอฟต์แวร์ไอที', 'PURCHASE_REQUEST', 'คอมพิวเตอร์ อุปกรณ์เครือข่าย ซอฟต์แวร์ และไลเซนส์',
-     'หมวด (HARDWARE/SOFTWARE) รายการ จำนวน ราคาประมาณ assetTag วันสิ้นสุดไลเซนส์ · คำถามคัดกรอง 3 ข้อ', 'ATT-QUOTES · ATT-DPA', 'Y'),
+     'หมวด (HARDWARE/SOFTWARE) รายการ จำนวน ราคาประมาณ assetTag วันสิ้นสุดไลเซนส์ · คำถามคัดกรอง 3 ข้อ', 'ATT-QUOTES · ATT-DPA', 'Y', 0, None),
     ('NEW_SUPPLIER', 'ขอเพิ่มผู้ขายรายใหม่', 'SUPPLIER_REQUEST', 'ผู้ขายที่ยังไม่อยู่ในทะเบียน',
-     'ชื่อ เลขผู้เสียภาษี สาขา อีเมล เหตุผล', '—', 'Y'),
+     'ชื่อ เลขผู้เสียภาษี สาขา อีเมล เหตุผล', '—', 'Y', 0, None),
 ]
 
 HOLIDAYS = [  # date, nameTh, source
@@ -166,6 +166,17 @@ SETTINGS = [
     ('consolidation.cron', 'TZ=Asia/Bangkok 0 10,15 * * 1-5', 'รอบรวม PR เป็น PO', 'OQ-13'),
     ('quoteThresholdGross', 100000, 'ยอดรวม VAT ที่เกินแล้วต้องมีใบเสนอราคา 3 ราย', 'OQ-08'),
     ('receiving.overTolerancePct', 0, 'รับเกินได้กี่ %', 'OQ-20'),
+    # S8-12 (BR-MATCH-13): the thresholds and terms of tier-2 invoices, money as baht text; the defaults of the OQs
+    ('matching.priceTolBp', 100, 'ราคาในใบแจ้งหนี้สูงกว่า PO ได้ไม่เกินกี่ basis point (100 = 1%)', 'OQ-121'),
+    ('matching.priceTolAmount', '1000.00', 'และไม่เกินกี่บาทต่อบรรทัด', 'OQ-121'),
+    ('matching.qtyTolBp', 0, 'จำนวนในใบแจ้งหนี้เกินที่รับได้กี่ basis point', 'OQ-121'),
+    ('matching.vatTolAmount', '1.00', 'VAT ในใบต่างจากที่คำนวณได้ไม่เกินกี่บาท', 'OQ-121'),
+    ('wht.minimumBase', '1000.00', 'ไม่หักภาษี ณ ที่จ่ายเมื่อยอดก่อน VAT ของ PO ต่ำกว่านี้', 'OQ-122'),
+    ('wht.timing', 'AT_PAYMENT', 'หักภาษี ณ ที่จ่ายตอนจ่ายเงิน', 'OQ-122'),
+    ('ap.defaultTermDays', 30, 'เครดิตตั้งต้นเมื่อ PO และผู้ขายไม่ระบุ (วัน)', 'OQ-129'),
+    ('ap.inboxAddress', 'ap@simec.bcs.local', 'ที่อยู่กล่องรับใบแจ้งหนี้ทางอีเมล (สังเคราะห์)', 'OQ-124'),
+    ('numbering.AP', 'AP-{BE}-{SEQ5}', 'รูปแบบเลขใบแจ้งหนี้ (ระบบออกตอนส่ง)', 'OQ-12'),
+    ('numbering.WHT_CERT', '{BE}/{SEQ5}', 'รูปแบบเลขหนังสือรับรองการหักภาษี (50 ทวิ)', 'OQ-12'),
     ('priceAlertPct', 0.1, 'เตือนเมื่อราคาใหม่แพงกว่าครั้งก่อนเกินเท่านี้', 'FR-P2P-003'),
     ('digest.budgetLowPct', 0.1, 'สรุปรายวันแจ้งบรรทัดงบที่เหลือต่ำกว่านี้', 'FR-LINE-006'),
     ('vatRounding', 'DOCUMENT', 'คิด VAT ระดับเอกสาร', 'OQ-17'),

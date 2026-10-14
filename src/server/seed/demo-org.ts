@@ -14,6 +14,7 @@ import { appendEvents, type EventDraft } from '@/server/events/append'
 import { expressLayoutFromSheet } from './express-layout'
 import { s6SettingsFromSheet } from './settings-s6'
 import type { InputWorkbook } from './workbook'
+import { apSettingsFromSheet } from './ap-profile'
 
 // Demo organization loader (spec Appendix A, S1-13): sheets Org and Users of docs/inputs/BCS_inputs_v1_demo.xlsx
 // plus prisma/seed/org-settings.demo.yaml, with the Express file layout of sheet Settings (S4-09, express-layout.ts:
@@ -94,7 +95,8 @@ export function parseDemoOrgInput(workbook: InputWorkbook, settingsYaml: string)
   if (!settings.success) throw new Error(`${ORG_SETTINGS_DEMO_PATH}: ${issueText(settings.error)}`)
   // The Express columns are whatever the person filling in the workbook wrote, never a guess (§7.13, §17.3)
   const withExpress = { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }
-  return { org: org.data, settings: s6SettingsFromSheet(workbook, withExpress), users }
+  // S8-12: the thresholds and terms of tier-2 invoices of sheet Settings; S6: the keys of the S6 rows (phase 1; the demo sheet has neither)
+  return { org: org.data, settings: s6SettingsFromSheet(workbook, apSettingsFromSheet(workbook, withExpress)), users }
 }
 
 export function loadOrgSettingsYaml(path: string = ORG_SETTINGS_DEMO_PATH): string {

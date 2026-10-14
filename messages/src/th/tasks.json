@@ -35,7 +35,10 @@
     },
     "transferAmountLabel": "ยอดที่โอน",
     "overrun": "ขอเกินงบ {number} · {request}",
-    "overrunAmountLabel": "ยอดที่ขอเกินงบ"
+    "overrunAmountLabel": "ยอดที่ขอเกินงบ",
+    "invoice": "{number} · ส่วนต่างราคาของใบแจ้งหนี้",
+    "invoiceMeta": "{supplier} · จาก {number}",
+    "invoiceAmountLabel": "ส่วนต่างรวม VAT"
   },
   "changeKind": {
     "POSITION_ASSIGN": "แต่งตั้งผู้ดำรงตำแหน่ง",
@@ -442,5 +445,25 @@
     "effect": "อนุมัติ = ถอนฉบับนี้ และฉบับก่อนหน้ามีผลต่อไป · ไม่อนุมัติ = คงฉบับนี้ไว้และมีผลตามวันเดิม",
     "withdrawn": "ถอนฉบับนี้แล้วเมื่อ {time}",
     "backtestTitle": "ย้อนทดสอบ 90 วัน"
+  },
+  "invoice": {
+    "number": "เลขที่ใบแจ้งหนี้",
+    "po": "ใบสั่งซื้อ",
+    "supplierInvoiceNo": "เลขที่ใบของผู้ขาย",
+    "supplier": "ผู้ขาย",
+    "invoiceDate": "วันที่ใบแจ้งหนี้",
+    "linesTitle": "บรรทัดที่ราคาเกินใบสั่งซื้อ",
+    "line": "บรรทัด {no} · {description}",
+    "lineValue": "{quantity} {uom} · ราคา PO {poPrice} → ราคาในใบ {price} · เกิน {over} บาท",
+    "amountsTitle": "ส่วนต่างที่ขออนุมัติ",
+    "unit": "บาท",
+    "net": "ส่วนต่างก่อน VAT",
+    "vat": "VAT ของส่วนต่าง",
+    "gross": "รวม",
+    "approveHint": "อนุมัติแล้วงบของบรรทัดที่ราคาเกินถูกถือเพิ่มและใบพร้อมจ่าย ถ้างบไม่พอจะอนุมัติไม่ได้",
+    "heading": "ส่วนต่างราคาของใบแจ้งหนี้"
+  },
+  "poChangeTask": {
+    "label": "{number} · ขอแก้ไขครั้งที่ {changeNo}"
   }
 }

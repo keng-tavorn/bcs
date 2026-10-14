@@ -5,7 +5,7 @@ import { satangToAmount } from '@/core/money/dto'
 import { csv, utf8WithBom, windows874 } from '@/lib/encoding'
 import { newId } from '@/lib/ids'
 import { OrgSettingsSchema, type ExpressField } from '@/lib/org-settings'
-import { EXPORT_MAX_INVOICES, REASON_MAX_LENGTH } from '@/lib/constants'
+import { AP_EXPORTABLE_STATUSES, EXPORT_MAX_INVOICES, REASON_MAX_LENGTH } from '@/lib/constants'
 import { putObject } from '@/integrations/storage'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -44,8 +44,15 @@ export function pendingFingerprint(invoiceIds: readonly string[]): string {
     .digest('hex')
 }
 
+/** S8-11 (FR-AP-108 AC4): tier-2 invoices go into the file once they are ready for payment, coded as confirmed */
+const EXPORTABLE_AP_INVOICE = { status: { in: [...AP_EXPORTABLE_STATUSES] } }
+
 interface Row {
   readonly invoiceId: string
+  /** 1: an InvoiceConfirmation, 2: an Invoice of module PAY */
+  readonly tier: 1 | 2
+  /** When it was recorded (tier 1) or became ready (tier 2): the order of the file */
+  readonly at: Date
   readonly gross: bigint
   readonly values: Readonly<Record<ExpressField, string>>
 }
@@ -79,6 +86,8 @@ async function invoiceRows(tx: TenantTx, where: object, dateFormat: 'BE' | 'CE')
     const budgetLine = inv.lines[0]?.poLine.budgetLine
     return {
       invoiceId: inv.id,
+      tier: 1 as const,
+      at: inv.recordedAt,
       gross: inv.grossSatang,
       values: {
         invoiceNo: inv.invoiceNo,
@@ -113,6 +122,50 @@ async function fileBytes(header: string[], rows: string[][], fileType: 'xlsx' | 
   return new Uint8Array(await workbook.xlsx.writeBuffer())
 }
 
+/** The tier-2 invoices as rows: the supplier's number, the amounts, and the account code and cost center confirmed on the line that takes most of it */
+async function apInvoiceRows(tx: TenantTx, where: object, dateFormat: 'BE' | 'CE'): Promise<Row[]> {
+  const invoices = await tx.invoice.findMany({
+    where: { ...EXPORTABLE_AP_INVOICE, ...where },
+    orderBy: [{ readyAt: 'asc' }, { id: 'asc' }],
+    include: {
+      supplier: true,
+      po: { select: { number: true } },
+      lines: { orderBy: [{ netSatang: 'desc' }, { lineNo: 'asc' }], take: 1, include: { costCenter: true, poLine: { include: { budgetLine: true } } } },
+    },
+  })
+  return invoices.map((inv) => {
+    const line = inv.lines[0]
+    return {
+      invoiceId: inv.id,
+      tier: 2 as const,
+      at: inv.readyAt ?? inv.createdAt,
+      gross: inv.grossSatang,
+      values: {
+        invoiceNo: inv.supplierInvoiceNo ?? '',
+        invoiceDate: inv.invoiceDate ? dateText(inv.invoiceDate, dateFormat) : '',
+        supplierCode: inv.supplier.code,
+        supplierName: inv.supplier.nameTh,
+        supplierTaxId: inv.supplier.taxId ?? '',
+        supplierBranch: inv.supplier.branchCode,
+        expressVendorCode: inv.supplier.expressVendorCode ?? '',
+        poNumber: inv.po.number ?? '',
+        net: satangToAmount(inv.netSatang),
+        vat: satangToAmount(inv.statedVatSatang),
+        gross: satangToAmount(inv.grossSatang),
+        budgetLineCode: line?.poLine.budgetLine.code ?? '',
+        costCenterCode: line?.costCenter?.code ?? '',
+        accountCode: line?.accountCode ?? '',
+      },
+    }
+  })
+}
+
+/** Both tiers in the order of the file: recorded or ready first, first */
+async function allRows(tx: TenantTx, where: object, dateFormat: 'BE' | 'CE'): Promise<Row[]> {
+  const [one, two] = await Promise.all([invoiceRows(tx, where, dateFormat), apInvoiceRows(tx, where, dateFormat)])
+  return [...one, ...two].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.invoiceId < b.invoiceId ? -1 : 1))
+}
+
 const ExportInput = z.strictObject({
   /** Invoices to export again (BR-EXP-02); left out: every invoice not exported yet */
   invoiceIds: z.array(z.uuid()).min(1).max(EXPORT_MAX_INVOICES).optional(),
@@ -136,7 +189,7 @@ export const exportExpressCommand = defineCommand({
 
     const again = input.invoiceIds !== undefined
     if (again && (input.reason ?? '').length < MIN_REASON_LENGTH) return fail('VALIDATION_FAILED', 'exporting again needs a reason', { field: 'reason', reason: 'REASON_REQUIRED' })
-    const rows = await invoiceRows(tx, again ? { id: { in: input.invoiceIds } } : { exportedAt: null }, settings.dateFormat)
+    const rows = await allRows(tx, again ? { id: { in: input.invoiceIds } } : { exportedAt: null }, settings.dateFormat)
     if (again && rows.length !== new Set(input.invoiceIds).size) return fail('NOT_FOUND', 'invoice not found')
     // BR-EXP-04: a layout with the vendor code leaves out invoices of suppliers that have none yet
     const needsVendorCode = settings.mapping.some((c) => c.field === 'expressVendorCode')
@@ -152,8 +205,10 @@ export const exportExpressCommand = defineCommand({
       }
       // BR-EXP-02: claim the invoices while they are still not exported. An export running at the same moment holds
       // their rows until it ends; once it commits, they no longer match and this export is refused (rolled back).
-      const claimed = await tx.invoiceConfirmation.updateMany({ where: { id: { in: includedIds }, exportedAt: null }, data: { exportedAt: ctx.now } })
-      if (claimed.count !== includedIds.length) return fail('CONFLICT_VERSION', 'some invoices were exported by another file meanwhile', { reason: 'PENDING_CHANGED' })
+      const tier2 = included.filter((r) => r.tier === 2).map((r) => r.invoiceId)
+      const claimed = await tx.invoiceConfirmation.updateMany({ where: { id: { in: includedIds.filter((id) => !tier2.includes(id)) }, exportedAt: null }, data: { exportedAt: ctx.now } })
+      const claimed2 = await tx.invoice.updateMany({ where: { id: { in: tier2 }, exportedAt: null }, data: { exportedAt: ctx.now } })
+      if (claimed.count + claimed2.count !== includedIds.length) return fail('CONFLICT_VERSION', 'some invoices were exported by another file meanwhile', { reason: 'PENDING_CHANGED' })
     }
 
     const header = settings.mapping.map((c) => c.header)
@@ -192,6 +247,7 @@ export const exportExpressCommand = defineCommand({
     })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'ExportJob', subjectId: exportJobId, kind: 'OTHER' } })
     await tx.invoiceConfirmation.updateMany({ where: { id: { in: includedIds } }, data: { exportedAt: ctx.now, exportJobId } })
+    await tx.invoice.updateMany({ where: { id: { in: includedIds } }, data: { exportedAt: ctx.now, exportJobId } })
     const excludedList = excluded.map((r) => ({ invoiceId: r.invoiceId, supplierCode: r.values.supplierCode }))
     return {
       ok: true,

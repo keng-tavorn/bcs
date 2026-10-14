@@ -130,7 +130,16 @@
     "budget_transfer": "Budget transfers",
     "budget_overrun": "Over-budget approval",
     "document_verification": "Document verification",
-    "config_package": "Configuration package"
+    "config_package": "Configuration package",
+    "account_code": "Account codes",
+    "inbound_email": "Invoice inbox",
+    "match_exception": "Invoice differences",
+    "po_change": "PO changes",
+    "retention": "Performance retention",
+    "supplier_notice": "E-mails to suppliers",
+    "wht_certificate": "Withholding tax certificates",
+    "wht_income_type": "Income types",
+    "withholding_tax": "Withholding tax"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -172,7 +181,15 @@
     "BudgetTransfer": "Budget transfer",
     "BudgetOverrun": "Over-budget approval",
     "DocumentVerification": "Document verification QR",
-    "ConfigPackage": "Configuration package"
+    "ConfigPackage": "Configuration package",
+    "AccountCode": "Account code",
+    "InboundEmail": "Invoice inbox",
+    "PoChange": "PO change",
+    "Retention": "Performance retention",
+    "SupplierNotice": "E-mail to a supplier",
+    "WhtCertificate": "Withholding tax certificate",
+    "WhtIncomeType": "Income type",
+    "WithholdingTax": "Withholding tax"
   },
   "events": {
     "approval_step": {
@@ -275,7 +292,16 @@
       "matched": "Invoice matched",
       "ready": "Invoice ready for payment",
       "submitted": "Invoice submitted",
-      "updated": "Invoice draft edited"
+      "updated": "Invoice draft edited",
+      "paid": "Invoice paid",
+      "payment_held": "Invoice taken into a payment run",
+      "payment_released": "Invoice let go from a payment run",
+      "rechecked": "Invoice checked again",
+      "rejected": "Invoice rejected",
+      "reopened": "Invoice reopened as a draft",
+      "variance_approved": "Invoice price variance approved",
+      "variance_rejected": "Invoice price variance not approved or returned",
+      "variance_submitted": "Invoice price variance sent for approval"
     },
     "invoice_confirmation": {
       "recorded": "Invoice confirmation recorded"
@@ -321,7 +347,11 @@
       "send_bounced": "Purchase order e-mail bounced",
       "sent": "Purchase order sent to the supplier",
       "submitted": "Purchase order sent for approval",
-      "updated": "Draft purchase order changed"
+      "updated": "Draft purchase order changed",
+      "milestones_set": "Purchase order split into milestones",
+      "retention_set": "Purchase order retention set",
+      "revised": "Purchase order revised",
+      "revision_sent": "Revised purchase order sent to the supplier"
     },
     "position": {
       "assigned": "Position holder appointed",
@@ -361,7 +391,8 @@
       "created": "Supplier added",
       "registry_checked": "Supplier checked with the government registers",
       "registry_status_changed": "Supplier's register status changed",
-      "updated": "Supplier details changed"
+      "updated": "Supplier details changed",
+      "tax_profile_updated": "Supplier's tax profile changed"
     },
     "variance": {
       "approved": "Receiving variance approved",
@@ -438,6 +469,48 @@
     "config_package": {
       "exported": "Configuration package exported",
       "imported": "Configuration package imported as drafts"
+    },
+    "account_code": {
+      "updated": "Account code changed"
+    },
+    "inbound_email": {
+      "failed": "Invoice inbox mail could not be read",
+      "ignored": "Invoice inbox mail skipped",
+      "processed": "Drafts made from invoice inbox mail",
+      "received": "Mail received in the invoice inbox"
+    },
+    "match_exception": {
+      "dismissed": "Possible duplicate invoice dismissed"
+    },
+    "po_change": {
+      "approved": "PO change approved",
+      "cancelled": "PO change cancelled",
+      "drafted": "PO change drafted",
+      "rejected": "PO change rejected",
+      "returned": "PO change returned",
+      "submitted": "PO change submitted"
+    },
+    "retention": {
+      "held": "Retention held",
+      "paid": "Retention paid",
+      "payment_held": "Retention taken into a payment run",
+      "payment_released": "Retention let go from a payment run",
+      "release_due": "Retention due for release",
+      "released": "Retention released"
+    },
+    "supplier_notice": {
+      "failed": "E-mail to the supplier failed",
+      "sent": "E-mail sent to the supplier"
+    },
+    "wht_certificate": {
+      "issued": "Withholding tax certificate issued"
+    },
+    "wht_income_type": {
+      "confirmed": "Income type rate confirmed",
+      "updated": "Income type changed"
+    },
+    "withholding_tax": {
+      "recorded": "Withholding tax recorded"
     }
   }
 }

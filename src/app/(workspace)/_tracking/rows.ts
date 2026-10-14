@@ -33,6 +33,10 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
     case 'BUDGET_OVERRUN':
       // S6-16: "ขอเกินงบ OB-… · PR-…" — the source request by its number, or its title while it has none
       return t('item.overrun', { number: s.number, request: s.requestNumber ?? s.requestTitle })
+    case 'INVOICE':
+      return t('item.invoice', { number: s.number ?? '-' })
+    case 'PO_CHANGE':
+      return t('poChangeTask.label', { number: s.poNumber ?? '-', changeNo: s.changeNo })
     default:
       return t('item.untitled')
   }
@@ -75,7 +79,13 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
               ? t('item.varianceMeta', { number: s.poNumber ?? '-' })
               : s.kind === 'BUDGET_OVERRUN' && s.requestNumber
                 ? s.requestTitle
-                : undefined
+                : s.kind === 'INVOICE'
+                  ? s.supplierName
+                    ? t('item.invoiceMeta', { supplier: s.supplierName, number: s.poNumber ?? '-' })
+                    : t('item.varianceMeta', { number: s.poNumber ?? '-' })
+                  : s.kind === 'PO_CHANGE'
+                    ? s.supplierName
+                    : undefined
     return {
       id: task.id,
       href: `/tasks/${task.id}`,
@@ -89,6 +99,9 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       ...(s.kind === 'BUDGET_TRANSFER' ? { amount: money(s.amountSatang), amountLabel: t('item.transferAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
       // S6-16: the shortfall an over-budget approval asks for (no VAT)
       ...(s.kind === 'BUDGET_OVERRUN' ? { amount: money(s.amountSatang), amountLabel: t('item.overrunAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      // An invoice's variance is decided on the amount the DOA counted (the variance with its VAT); a PO change on the PO's new total
+      ...(s.kind === 'INVOICE' && task.amountSatang !== null ? { amount: money(task.amountSatang), amountLabel: t('item.invoiceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      ...(s.kind === 'PO_CHANGE' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
       states,
       tags,
     }

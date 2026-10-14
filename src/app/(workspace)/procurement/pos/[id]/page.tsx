@@ -8,6 +8,7 @@ import { businessDaysTaken, getMyOpenTaskId, getRouteStepDetails, listPoInvoices
 import { getPoAccess, getPurchaseOrderView, type PoViewDto } from '@/server/queries/purchase-orders'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
 import { previewPoSubmit, type PoSubmitPreviewDto } from '@/server/services/purchase-orders'
+import { getPoS8View } from '@/server/services/purchase-orders/view-change'
 import { PO_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
 import { DecisionBar } from '@/ui/document/decision-bar'
 import { DocBody, DocHeader } from '@/ui/document/doc-header'
@@ -19,6 +20,8 @@ import { CommentList, SummaryList } from '@/ui/document/rail'
 import { StepCards } from '@/ui/document/step-cards'
 import { Notice } from '@/ui/form/notice'
 import { DraftEditor } from '@/ui/purchase-order/draft-editor'
+import { DraftPay } from '@/ui/po-change/draft-pay'
+import { PoChangeRail, PoChangesTab, PoInvoicesTab } from '@/ui/po-change/po-tabs'
 import { PoActions, type SubmitPreviewView } from '@/ui/purchase-order/po-actions'
 import { RejectedNotice } from '@/ui/purchase-order/status'
 import { DoaRef } from '@/ui/request-view/doa-ref'
@@ -35,6 +38,7 @@ import { canListPos, poReader, canViewPo, poRights } from '../_parts/access'
 import { PoBody } from '../_parts/po-body'
 import { docTimelineItems, waitingOf, type PoT } from '../_parts/present'
 import { cancelPoAction, closePoAction, editDraftAction, sendPoAction, submitPoAction } from '../actions'
+import { sendRevisionAction, setMilestonesAction, setRetentionAction } from './s8-actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('purchaseOrder')
@@ -155,7 +159,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
   const state = await getSession()
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx || state.kind !== 'member') return null
-  const [t, tv, tl, td, locale] = await Promise.all([getTranslations('purchaseOrder'), getTranslations('requestView'), getTranslations('timeline'), getTranslations('document'), getLocale().then(localeOf)])
+  const [t, tv, tl, td, tc, locale] = await Promise.all([getTranslations('purchaseOrder'), getTranslations('requestView'), getTranslations('timeline'), getTranslations('document'), getTranslations('poChange'), getLocale().then(localeOf)])
 
   const access = await getPoAccess(ctx, id)
   if (!access) notFound()
@@ -171,9 +175,11 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
       </div>
     )
   }
-  const [po, myTaskId, receipts, invoices] = await Promise.all([getPurchaseOrderView(ctx, id), getMyOpenTaskId(ctx, 'PURCHASE_ORDER', id), listPoReceipts(ctx, id), listPoInvoices(ctx, id)])
+  const [po, myTaskId, receipts, invoices, s8View] = await Promise.all([getPurchaseOrderView(ctx, id), getMyOpenTaskId(ctx, 'PURCHASE_ORDER', id), listPoReceipts(ctx, id), listPoInvoices(ctx, id), getPoS8View(ctx, id)])
   if (!po) notFound()
   const rights = poRights(principal)
+  // S8-13: tier-2 invoices, milestones and retention (module PAY), and changes (DOA PO_CHANGE, BR-POC-05)
+  const s8 = s8View.ok ? s8View.data : null
   const procurement = rights.edit || rights.submit || rights.send || rights.cancel || rights.close
   const lastDone = po.track.filter((e) => e.state === 'done').at(-1)?.at ?? null
   const [preview, details, daysTaken, task] = await Promise.all([
@@ -283,6 +289,8 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
         <p className="text-ink-muted">{td('invoices.none')}</p>
       ),
     },
+    ...(s8?.invoices ? [{ value: 'ap-invoices', label: tc('tabs.invoices'), content: <PoInvoicesTab invoices={s8.invoices} /> }] : []),
+    ...(s8?.changes ? [{ value: 'changes', label: tc('tabs.changes'), content: <PoChangesTab changes={s8.changes} locale={locale} canChange={s8.canChange} /> }] : []),
     { value: 'documents', label: td('tabs.documents'), content: <PoBody po={po} locale={locale} doaLinks={doaLinks} reader={reader} openFile={downloadUrlAction} parts={['requests']} /> },
     {
       value: 'history',
@@ -358,6 +366,9 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
                 save={editDraftAction}
               />
             ) : null}
+            {s8?.draft ? (
+              <DraftPay poId={po.id} version={s8.version} retentionBp={s8.draft.retentionBp} retentionHoldDays={s8.draft.retentionHoldDays} lines={s8.draft.splittable} actions={{ milestones: setMilestonesAction, retention: setRetentionAction }} />
+            ) : null}
           </>
         }
         rail={
@@ -396,6 +407,7 @@ export default async function PurchaseOrderPage({ params, searchParams }: { para
             ) : decide ? null : (
               <p className="text-ink-muted">{t('detail.viewOnly')}</p>
             )}
+            {s8 ? <PoChangeRail poId={po.id} changeHref={s8.canChange ? `/procurement/pos/${po.id}/change` : null} revisionToSend={s8.revisionToSend} send={sendRevisionAction} /> : null}
             <DocTabs
               label={td('rail.label')}
               initial="summary"

@@ -23,7 +23,8 @@ export type IntakeDraft = z.infer<typeof IntakeDraft>
 
 export interface IntakeContext {
   readonly message: string
-  readonly requestTypes: readonly { readonly code: string; readonly name: string }[]
+  /** `description` is the type's "when to use" (RequestType.descriptionTh), which tells near types apart */
+  readonly requestTypes: readonly { readonly code: string; readonly name: string; readonly description?: string | null }[]
   readonly items: readonly { readonly code: string; readonly name: string; readonly unit: string }[]
   readonly sites: readonly { readonly code: string; readonly name: string }[]
 }
@@ -31,8 +32,8 @@ export interface IntakeContext {
 /** The data the Intake Agent reads: the lists it may choose from, then the requester's words fenced as data */
 export function intakeInputText(c: IntakeContext): string {
   return [
-    'Request types you may choose (code: name):',
-    ...c.requestTypes.map((t) => `${t.code}: ${t.name}`),
+    'Request types you may choose (code: name — when to use it):',
+    ...c.requestTypes.map((t) => (t.description ? `${t.code}: ${t.name} — ${t.description}` : `${t.code}: ${t.name}`)),
     '',
     'Catalog items (code: name · unit):',
     ...c.items.map((i) => `${i.code}: ${i.name} · ${i.unit}`),

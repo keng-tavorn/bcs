@@ -1,15 +1,18 @@
 {
-  "promptVersion": "BRIEF@1",
+  "promptVersion": "BRIEF@2",
   "model": "claude-haiku-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "sentences": [
-      "คำขอ {{v:request.number}} ยอด {{v:route.amountGross}} บาท เข้าข้อ {{v:route.rule}}",
-      "เรื่องที่ต้องดูประกอบ {{v:sla.overdueHours}}"
+      "เอกสารคำขอ {{v:request.number}} สำหรับ {{v:request.title}} มียอดรวม {{v:route.amountGross}} บาท ตามกฎเส้นทาง {{v:route.rule}}",
+      "มีใบเสนอราคา {{v:quotes.count}} ฉบับประกอบการพิจารณา",
+      "งานนี้เกินกำหนด SLA แล้ว {{v:sla.overdueHours}} ชั่วโมง"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 136,
+    "output": 174,
+    "cacheRead": 539,
+    "cacheWrite": 0
   }
 }

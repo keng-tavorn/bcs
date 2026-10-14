@@ -1,17 +1,17 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "spend_summary"
     ],
-    "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
-    ]
+    "sentences": []
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 57,
+    "output": 23,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

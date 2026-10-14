@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "purchase_orders"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมจะตรวจสอบรายการใบสั่งซื้อล่าสุดที่คุณมีสิทธิ์ดูได้ พร้อมสถานะของแต่ละใบ เพื่อดูว่ารายการใดยังไม่ได้รับของ",
+      "หากไม่พบข้อมูลใบสั่งซื้อที่ตรงกับเงื่อนไขภายในสิทธิ์การเข้าถึงของคุณ จะแจ้งให้ทราบว่าไม่พบข้อมูล"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 70,
+    "output": 211,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

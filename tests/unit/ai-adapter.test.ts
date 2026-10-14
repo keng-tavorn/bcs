@@ -1,7 +1,7 @@
 // The AI adapter without a key (S13-01, ADR-141 ADR-142 ADR-143): recorded answers in fixture mode, and live mode
 // against a stand-in for the Messages API that records what the adapter sends.
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -15,7 +15,10 @@ import {
   PROMPTS,
   type FixtureAnswer,
 } from '@/integrations/ai'
-import { AI_AGENTS, AI_PURPOSES, EVAL_GATES, isGated, modelFor, MODEL_PRICES, PROMPT_VERSIONS, requiredGateTier } from '@/lib/ai-config'
+import { unionParameters, wireOf } from '@/integrations/ai/wire-schema'
+import { AGENT_OF_PURPOSE, AI_AGENTS, AI_PURPOSES, EVAL_GATES, isGated, modelFor, modelForPurpose, MODEL_PRICES, PROMPT_VERSIONS, requiredGateTier } from '@/lib/ai-config'
+import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '@/lib/ai-schemas/agents'
+import { DocumentReading } from '@/lib/ai-schemas/document'
 
 const Schema = z.strictObject({ docNo: z.string().nullable(), gross: z.string().nullable() })
 const SONNET = 'claude-sonnet-5-5'
@@ -48,13 +51,32 @@ describe('[BR-AI-09] prompts carry the version ai-config names (ADR-143)', () =>
     for (const agent of AI_AGENTS) expect(Object.hasOwn(MODEL_PRICES, modelFor(agent, {})), agent).toBe(true)
   })
 
+  it('[BR-AI-09] a purpose may have its own model (invoices on Opus, S13-14) and a blank variable counts as not set', () => {
+    expect(modelForPurpose('QUOTATION_READ', {})).toBe(SONNET)
+    expect(modelForPurpose('DELIVERY_NOTE_READ', {})).toBe(SONNET)
+    expect(modelForPurpose('INVOICE_READ', {})).toBe('claude-opus-5-5')
+    // The agent's variable and AI_MODEL_DEFAULT still win: a model nobody evaluated then fails the gate (AI_NOT_EVALUATED)
+    expect(modelForPurpose('INVOICE_READ', { AI_MODEL_DOCUMENT: SONNET })).toBe(SONNET)
+    expect(modelForPurpose('INVOICE_READ', { AI_MODEL_DEFAULT: 'claude-haiku-5-5' })).toBe('claude-haiku-5-5')
+    expect(modelFor('DOCUMENT', { AI_MODEL_DOCUMENT: '', AI_MODEL_DEFAULT: '' })).toBe(SONNET)
+    for (const purpose of AI_PURPOSES) expect(Object.hasOwn(MODEL_PRICES, modelForPurpose(purpose, {})), purpose).toBe(true)
+  })
+
+  it('[BR-AI-11] every purpose has a SYNTHETIC gate for its prompt and model, with its report on disk', () => {
+    for (const purpose of AI_PURPOSES) {
+      const call = { agent: AGENT_OF_PURPOSE[purpose], purpose, promptVersion: PROMPT_VERSIONS[purpose], model: modelForPurpose(purpose, {}), tier: 'SYNTHETIC' as const }
+      expect(isGated(EVAL_GATES, call), purpose).toBe(true)
+    }
+    for (const g of EVAL_GATES) expect(existsSync(path.join(process.cwd(), 'docs', 'reports', 'ai-eval', g.report)), g.report).toBe(true)
+  })
+
   it('[BR-AI-11] production needs a REAL gate, every other environment a SYNTHETIC one, and a gate names one exact set', () => {
     expect(requiredGateTier('production')).toBe('REAL')
     for (const env of ['local', 'preview', 'staging']) expect(requiredGateTier(env)).toBe('SYNTHETIC')
-    const gate = { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@1', model: SONNET, tier: 'SYNTHETIC', report: 'r.md' } as const
+    const gate = { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@2', model: SONNET, tier: 'SYNTHETIC', report: 'r.md' } as const
     expect(isGated([gate], { ...gate })).toBe(true)
     expect(isGated([gate], { ...gate, model: 'claude-opus-5-5' })).toBe(false)
-    expect(isGated([gate], { ...gate, promptVersion: 'QUOTATION_READ@2' })).toBe(false)
+    expect(isGated([gate], { ...gate, promptVersion: 'QUOTATION_READ@1' })).toBe(false)
     expect(isGated([gate], { ...gate, tier: 'REAL' })).toBe(false)
     // Every gate in the code names a prompt that exists and a priced model
     for (const g of EVAL_GATES) {
@@ -83,7 +105,7 @@ describe('[BR-AI-11] fixture mode answers from recorded results without a key (A
     mkdirSync(path.join(dir, 'QUOTATION_READ'), { recursive: true })
     writeFileSync(path.join(dir, `${key}.json`), JSON.stringify(answer()))
     const result = await createFixtureClient({ dir }).extract({ purpose: 'QUOTATION_READ', model: SONNET, schema: Schema, files: [PDF] })
-    expect(result).toMatchObject({ ok: true, model: SONNET, promptVersion: 'QUOTATION_READ@1', output: { docNo: 'QT-001', gross: '129684.00' } })
+    expect(result).toMatchObject({ ok: true, model: SONNET, promptVersion: 'QUOTATION_READ@2', output: { docNo: 'QT-001', gross: '129684.00' } })
     expect(result.usage).toEqual({ input: 1200, output: 80, cacheRead: 0, cacheWrite: 0 })
   })
 
@@ -177,5 +199,32 @@ describe('[BR-AI-11] live mode: structured outputs, no model fallback, and the m
     expect(await run({ status: 400, json: tooLong })).toMatchObject({ ok: false, errorCode: 'AI_FILE_TOO_LONG' })
     const denied = { type: 'error', error: { type: 'authentication_error', message: 'invalid x-api-key' } }
     expect(await run({ status: 401, json: denied })).toMatchObject({ ok: false, errorCode: 'EXTERNAL_SERVICE_ERROR' })
+  })
+})
+
+describe('[BR-AI-11] the output schema as it travels: nullable text as "", back to null (S13-13)', () => {
+  it('[BR-AI-11] every schema stays within the 16 union parameters the API compiles', async () => {
+    expect(unionParameters((await wireOf(DocumentReading)).wire)).toBeLessThanOrEqual(16)
+    for (const schema of [DocumentReading, IntakeDraft, BriefText, QuestionPlan, DoaDraft]) {
+      expect(unionParameters((await wireOf(schema)).wire)).toBeLessThanOrEqual(16)
+    }
+  })
+
+  it('[BR-AI-11] turns "" back into null only where the schema allows null', async () => {
+    const { wire, restore } = await wireOf(DocumentReading)
+    const props = wire.properties as Record<string, { type: unknown; description?: string }>
+    expect(props.docNo).toMatchObject({ type: 'string' })
+    expect(props.docNo!.description).toMatch(/empty string/i)
+    expect(props.priceIncludesVat!.type).toEqual(['boolean', 'null'])
+    const back = restore({ docNo: '', seller: { name: 'บริษัท ก', taxId: '', branch: '00000' }, lines: [{ description: '', qty: '2' }], confidence: [{ field: '', value: 1 }] })
+    expect(back).toEqual({ docNo: null, seller: { name: 'บริษัท ก', taxId: null, branch: '00000' }, lines: [{ description: null, qty: '2' }], confidence: [{ field: '', value: 1 }] })
+  })
+
+  it('[BR-AI-11] live mode sends the wire schema and returns null for a field the model left empty', async () => {
+    const api = fakeMessagesApi(() => ({ json: message({ content: [{ type: 'text', text: JSON.stringify({ docNo: '', gross: '129684.00' }) }] }) }))
+    const result = await createLiveClient({ apiKey: 'sk-ant-test', fetch: api.fetch }).extract({ purpose: 'QUOTATION_READ', model: SONNET, schema: Schema, files: [PDF] })
+    expect(result).toMatchObject({ ok: true, output: { docNo: null, gross: '129684.00' } })
+    const format = (api.calls[0]!.body.output_config as { format: { schema: { properties: Record<string, { type: unknown }> } } }).format
+    expect(format.schema.properties.docNo!.type).toBe('string')
   })
 })

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "เหล็กแผ่นดำ 6 มม. 3 แผ่น",
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เหล็กแผ่นดำ 6 มม.",
+        "itemCode": "STL-007",
+        "qty": "3",
+        "unit": "แผ่น",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5666,
+    "output": 249,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

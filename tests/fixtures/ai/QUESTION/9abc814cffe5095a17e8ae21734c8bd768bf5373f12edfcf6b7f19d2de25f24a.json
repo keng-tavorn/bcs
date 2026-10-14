@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "my_tasks"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมจะตรวจสอบงานอนุมัติที่รอคุณดำเนินการและสถานะเกินกำหนดจากรายการงานของคุณ",
+      "ผลลัพธ์จะแสดงเฉพาะเอกสารที่คุณมีสิทธิ์เห็นเท่านั้น หากไม่พบรายการ แสดงว่าไม่มีเอกสารที่ตรงเงื่อนไขภายในสิทธิ์การเข้าถึงของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 62,
+    "output": 199,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

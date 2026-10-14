@@ -96,7 +96,7 @@ export async function loadAgentCases(): Promise<AgentCases> {
   const wb = await loadInputWorkbook(path.join(ROOT, INPUT_WORKBOOKS.p1))
   const rows = (sheet: string) => wb.table(sheet).map((r) => r.values)
   const ctx: Omit<IntakeContext, 'message'> = {
-    requestTypes: rows('RequestTypes').map((t) => ({ code: t.code!, name: t.nameTh! })),
+    requestTypes: rows('RequestTypes').map((t) => ({ code: t.code!, name: t.nameTh!, description: t.descriptionTh ?? null })),
     items: rows('Items').map((i) => ({ code: i.code!, name: i.nameTh!, unit: i.unit! })),
     sites: rows('Sites').map((s) => ({ code: s.code!, name: s.nameTh! })),
   }

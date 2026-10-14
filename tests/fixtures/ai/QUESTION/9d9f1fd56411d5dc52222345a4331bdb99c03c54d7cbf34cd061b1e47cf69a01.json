@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "kpi_summary"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ขอตรวจสอบเวลาอนุมัติเฉลี่ยของช่วงเวลานี้จากตัวชี้วัดการจัดซื้อ (KPI) ก่อน โดยจะรายงานเฉพาะตัวเลขที่ระบบส่งกลับมาภายในสิทธิ์การเข้าถึงของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 65,
+    "output": 152,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

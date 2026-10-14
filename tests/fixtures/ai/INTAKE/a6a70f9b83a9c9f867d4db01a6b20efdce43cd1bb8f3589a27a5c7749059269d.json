@@ -1,0 +1,81 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": null,
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "น้ำยากันซึม",
+        "itemCode": "MAT-015",
+        "qty": "94",
+        "unit": "แกลลอน",
+        "unitPrice": "686.00"
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท สามพรานวัสดุค้าวัสดุ จำกัด",
+      "taxId": "0999998010081",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 0
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines.description",
+        "value": 85
+      },
+      {
+        "field": "lines.itemCode",
+        "value": 88
+      },
+      {
+        "field": "lines.qty",
+        "value": 80
+      },
+      {
+        "field": "lines.unit",
+        "value": 85
+      },
+      {
+        "field": "lines.unitPrice",
+        "value": 75
+      },
+      {
+        "field": "supplier.name",
+        "value": 70
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 65
+      },
+      {
+        "field": "supplier.branch",
+        "value": 70
+      }
+    ]
+  },
+  "usage": {
+    "input": 7056,
+    "output": 948,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

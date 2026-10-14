@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "อบรมความปลอดภัยในการทำงานบนที่สูง",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "อบรมความปลอดภัยในการทำงานบนที่สูง",
+        "itemCode": "TRA-001",
+        "qty": "18",
+        "unit": "คน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 60
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5688,
+    "output": 254,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "pending_approvals"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมกำลังตรวจสอบรายการเอกสารที่รอการอนุมัติในองค์กร ซึ่งแสดงเฉพาะข้อมูลที่คุณมีสิทธิ์เข้าถึง เพื่อดูว่ามีรายการของฝ่ายก่อสร้างหรือไม่",
+      "หากผลลัพธ์ไม่พบรายการของฝ่ายก่อสร้าง แสดงว่าไม่พบข้อมูลภายในสิทธิ์การเข้าถึงของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 73,
+    "output": 218,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

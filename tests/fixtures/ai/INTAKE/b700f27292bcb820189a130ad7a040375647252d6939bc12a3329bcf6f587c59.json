@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ไม้อัดยางทำแบบหล่อ 10 มม. 46 แผ่น",
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ไม้อัดยางทำแบบหล่อ 10 มม.",
+        "itemCode": "MAT-011",
+        "qty": "46",
+        "unit": "แผ่น",
+        "unitPrice": "395.00"
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท สามพรานวัสดุค้าวัสดุ จำกัด",
+      "taxId": "0999998010081",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 70
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 92
+      }
+    ]
+  },
+  "usage": {
+    "input": 7234,
+    "output": 312,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

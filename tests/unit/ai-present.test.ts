@@ -12,7 +12,7 @@ const base: AgentActionDto = {
   subjectId: 'po1',
   requestedById: 'm1',
   channel: 'WEB',
-  promptVersion: 'DELIVERY_NOTE_READ@1',
+  promptVersion: 'DELIVERY_NOTE_READ@2',
   model: 'claude-sonnet-5-5',
   errorCode: null,
   costCredits: 12,

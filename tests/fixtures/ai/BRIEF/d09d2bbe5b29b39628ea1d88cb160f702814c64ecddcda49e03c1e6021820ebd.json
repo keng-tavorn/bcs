@@ -1,15 +1,18 @@
 {
-  "promptVersion": "BRIEF@1",
+  "promptVersion": "BRIEF@2",
   "model": "claude-haiku-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "sentences": [
-      "คำขอ {{v:request.number}} ยอด {{v:route.amountGross}} บาท เข้าข้อ {{v:route.rule}}",
-      "เรื่องที่ต้องดูประกอบ {{v:budget.remainingAfterBp}}"
+      "งานจัดซื้อเลขที่ {{v:request.number}} เรื่อง {{v:request.title}} ใช้ยอดรวม {{v:route.amountGross}} บาท ตามกฎเส้นทาง {{v:route.rule}}",
+      "มีใบเสนอราคาจำนวน {{v:quotes.count}} ฉบับ และงบคงเหลือหลังหักค่าใช้จ่ายครั้งนี้เท่ากับ {{v:budget.remainingAfterBp}} บาท",
+      "ธงที่พบในงานนี้ ได้แก่ {{v:flags.split}}"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 141,
+    "output": 225,
+    "cacheRead": 539,
+    "cacheWrite": 0
   }
 }

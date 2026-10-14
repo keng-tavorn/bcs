@@ -1,12 +1,12 @@
 {
-  "promptVersion": "DELIVERY_NOTE_READ@1",
+  "promptVersion": "DELIVERY_NOTE_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "DELIVERY_NOTE",
     "docNo": "DN100413",
     "docDate": "2026-06-14",
-    "currency": "THB",
+    "currency": null,
     "priceIncludesVat": null,
     "seller": {
       "name": "บริษัท มีนบุรีกิจการค้าวัสดุ จำกัด",
@@ -31,6 +31,10 @@
     "gross": null,
     "confidence": [
       {
+        "field": "docType",
+        "value": 98
+      },
+      {
         "field": "docNo",
         "value": 95
       },
@@ -39,8 +43,12 @@
         "value": 95
       },
       {
-        "field": "seller.taxId",
+        "field": "seller.name",
         "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 93
       },
       {
         "field": "seller.branch",
@@ -48,24 +56,26 @@
       },
       {
         "field": "buyer.taxId",
-        "value": 95
+        "value": 93
       },
       {
-        "field": "net",
-        "value": 95
+        "field": "lines[0].description",
+        "value": 93
       },
       {
-        "field": "vat",
-        "value": 95
+        "field": "lines[0].qty",
+        "value": 96
       },
       {
-        "field": "gross",
+        "field": "lines[0].unit",
         "value": 95
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 895,
+    "cacheRead": 2033,
+    "cacheWrite": 0
   }
 }

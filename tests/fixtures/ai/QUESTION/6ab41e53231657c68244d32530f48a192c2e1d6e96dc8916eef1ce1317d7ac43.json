@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "search_documents"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "กำลังค้นหาคำขอที่เกี่ยวกับรถแบ็คโฮภายในสิทธิ์การเข้าถึงของคุณ",
+      "หากไม่พบรายการใด ๆ จะแจ้งว่าไม่พบข้อมูลในขอบเขตที่คุณเข้าถึงได้"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 62,
+    "output": 139,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

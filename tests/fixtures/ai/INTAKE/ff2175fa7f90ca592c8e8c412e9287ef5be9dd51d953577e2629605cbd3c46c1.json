@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "รั้วกั้นพื้นที่ชั่วคราว 23 เมตร",
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "รั้วกั้นพื้นที่ชั่วคราว",
+        "itemCode": "SAF-007",
+        "qty": "23",
+        "unit": "เมตร",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 90
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5668,
+    "output": 254,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

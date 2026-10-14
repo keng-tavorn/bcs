@@ -25,19 +25,20 @@ export const AGENT_OF_PURPOSE: Readonly<Record<AiPurposeName, AiAgentName>> = {
  * (BR-AI-09); the gates below name the number that passed.
  */
 export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
-  QUOTATION_READ: 'QUOTATION_READ@1',
-  DELIVERY_NOTE_READ: 'DELIVERY_NOTE_READ@1',
-  INVOICE_READ: 'INVOICE_READ@1',
-  INTAKE: 'INTAKE@1',
-  BRIEF: 'BRIEF@1',
-  QUESTION: 'QUESTION@1',
-  DOA_DRAFT: 'DOA_DRAFT@1',
+  QUOTATION_READ: 'QUOTATION_READ@2',
+  DELIVERY_NOTE_READ: 'DELIVERY_NOTE_READ@2',
+  INVOICE_READ: 'INVOICE_READ@2',
+  INTAKE: 'INTAKE@2',
+  BRIEF: 'BRIEF@2',
+  QUESTION: 'QUESTION@2',
+  DOA_DRAFT: 'DOA_DRAFT@2',
 }
 
 export const AI_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
 export type AiModelId = (typeof AI_MODELS)[number]
 
-// TODO(OQ-145): the model of each agent until S13-13 measures it; reading documents compares Sonnet with Opus there
+// TODO(OQ-145): the model of each agent as S13-13 and S13-14 measured it (docs/reports/p1-ai-eval.md): the cheaper
+// model that passed. Sonnet reads quotations and delivery notes; invoices need Opus (DEFAULT_MODEL_OF_PURPOSE).
 const DEFAULT_MODEL: Readonly<Record<AiAgentName, AiModelId>> = {
   DOCUMENT: 'claude-sonnet-5-5',
   INTAKE: 'claude-haiku-5-5',
@@ -55,13 +56,23 @@ export const MODEL_ENV_OF_AGENT: Readonly<Record<AiAgentName, string>> = {
   DOA_DRAFTER: 'AI_MODEL_DOA_DRAFTER',
 }
 
-/**
- * The model an agent asks for: its own variable, else AI_MODEL_DEFAULT, else OQ-145 (BR-AI-09). The adapter never
- * switches to another model by itself (ADR-141), so a model that is not in the gates below answers AI_NOT_EVALUATED.
- */
-export function modelFor(agent: AiAgentName, env: Readonly<Record<string, string | undefined>>): string {
-  return env[MODEL_ENV_OF_AGENT[agent]] ?? env.AI_MODEL_DEFAULT ?? DEFAULT_MODEL[agent]
+/** A purpose whose evaluation passed only on another model than its agent's (S13-14: Sonnet misread a blurred invoice) */
+const DEFAULT_MODEL_OF_PURPOSE: Readonly<Partial<Record<AiPurposeName, AiModelId>>> = {
+  INVOICE_READ: 'claude-opus-5-5',
 }
+
+/**
+ * The model an agent asks for: its own variable, else AI_MODEL_DEFAULT, else OQ-145 (BR-AI-09) for the purpose, else
+ * for the agent. The adapter never switches to another model by itself (ADR-141), so a model that is not in the gates
+ * below answers AI_NOT_EVALUATED.
+ */
+export function modelFor(agent: AiAgentName, env: Readonly<Record<string, string | undefined>>, purpose?: AiPurposeName): string {
+  // A variable left blank in .env (as .env.example ships them) counts as not set
+  return env[MODEL_ENV_OF_AGENT[agent]] || env.AI_MODEL_DEFAULT || (purpose && DEFAULT_MODEL_OF_PURPOSE[purpose]) || DEFAULT_MODEL[agent]
+}
+
+/** The model of one purpose (its agent's, unless the purpose has its own) */
+export const modelForPurpose = (purpose: AiPurposeName, env: Readonly<Record<string, string | undefined>>): string => modelFor(AGENT_OF_PURPOSE[purpose], env, purpose)
 
 /** How hard each agent thinks (ADR-141: set per agent, never the model's default by accident) */
 export const EFFORT_OF_AGENT: Readonly<Record<AiAgentName, 'low' | 'medium' | 'high'>> = {
@@ -132,7 +143,16 @@ export interface EvalGate {
  * The sets that passed the evaluation (ADR-143). Live mode calls only these (BR-AI-11); fixture mode, which answers
  * from recorded results, skips the gate (ADR-142). S13-13 and S13-14 add the SYNTHETIC rows, S13-16 the REAL ones.
  */
-export const EVAL_GATES: readonly EvalGate[] = []
+export const EVAL_GATES: readonly EvalGate[] = [
+  // S13-13 and S13-14: the synthetic demo set with Claude, every purpose on the cheaper model that passed (docs/reports/p1-ai-eval.md)
+  { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
+  { agent: 'DOCUMENT', purpose: 'DELIVERY_NOTE_READ', promptVersion: 'DELIVERY_NOTE_READ@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
+  { agent: 'DOCUMENT', purpose: 'INVOICE_READ', promptVersion: 'INVOICE_READ@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
+  { agent: 'INTAKE', purpose: 'INTAKE', promptVersion: 'INTAKE@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-intake-config-live.md' },
+  { agent: 'APPROVAL_BRIEF', purpose: 'BRIEF', promptVersion: 'BRIEF@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-approval_brief-config-live.md' },
+  { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-insight-config-live.md' },
+  { agent: 'DOA_DRAFTER', purpose: 'DOA_DRAFT', promptVersion: 'DOA_DRAFT@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-doa_drafter-config-live.md' },
+]
 
 /** The tier an environment needs: production only trusts a REAL evaluation (BR-AI-11) */
 export const requiredGateTier = (appEnv: string): GateTier => (appEnv === 'production' ? 'REAL' : 'SYNTHETIC')

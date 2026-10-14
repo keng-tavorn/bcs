@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าเช่ารถบดถนน 10 ตัน ระบบระบายน้ำสมุทรปราการ",
+    "siteCode": "SITE-P08",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าเช่ารถบดถนน 10 ตัน",
+        "itemCode": "RNT-004",
+        "qty": "39",
+        "unit": "วัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 80
+      },
+      {
+        "field": "title",
+        "value": 75
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5689,
+    "output": 268,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

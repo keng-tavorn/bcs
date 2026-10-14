@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "รั้วกั้นพื้นที่ชั่วคราว 100 เมตร",
+    "siteCode": "CENTRAL-WH",
+    "neededBy": "15 วัน",
+    "lines": [
+      {
+        "description": "รั้วกั้นพื้นที่ชั่วคราว",
+        "itemCode": "SAF-007",
+        "qty": "100",
+        "unit": "เมตร",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 70
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 95
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5689,
+    "output": 262,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

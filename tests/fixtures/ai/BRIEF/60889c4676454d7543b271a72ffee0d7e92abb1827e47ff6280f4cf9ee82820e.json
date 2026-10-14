@@ -1,15 +1,17 @@
 {
-  "promptVersion": "BRIEF@1",
+  "promptVersion": "BRIEF@2",
   "model": "claude-haiku-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "sentences": [
-      "คำขอ {{v:request.number}} ยอด {{v:route.amountGross}} บาท เข้าข้อ {{v:route.rule}}",
-      "เรื่องที่ต้องดูประกอบ {{v:route.escalatedFrom}}"
+      "คำขอ {{v:request.number}} มีชื่อ {{v:request.title}} วงเงินรวม {{v:route.amountGross}} บาท ใช้กติกา {{v:route.rule}} โดยมีใบเสนอราคา {{v:quotes.count}} ฉบับ",
+      "งานนี้ถูกส่งต่อจากกติกา {{v:route.escalatedFrom}} และมีธงที่ต้องพิจารณา ได้แก่ {{v:flags.split}}"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 137,
+    "output": 185,
+    "cacheRead": 539,
+    "cacheWrite": 0
   }
 }

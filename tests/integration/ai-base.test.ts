@@ -105,9 +105,9 @@ describe('[BR-AI-11] every call passes the gates in order; the first that fails 
     const org = await setup()
     setAiRuntimeForTests({ ...FIXTURE, mode: 'live' })
     const none = await ask(org)
-    expect(none.ok ? null : none.error).toMatchObject({ code: 'AI_NOT_EVALUATED', details: { promptVersion: 'QUOTATION_READ@1', model: SONNET } })
+    expect(none.ok ? null : none.error).toMatchObject({ code: 'AI_NOT_EVALUATED', details: { promptVersion: 'QUOTATION_READ@2', model: SONNET } })
     expect(await isAgentAvailable(org.ctx('req_con'), 'DOCUMENT')).toEqual({ available: false, reason: 'AI_NOT_EVALUATED' })
-    const gate: EvalGate = { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@1', model: SONNET, tier: 'SYNTHETIC', report: 'test' }
+    const gate: EvalGate = { agent: 'DOCUMENT', purpose: 'QUOTATION_READ', promptVersion: 'QUOTATION_READ@2', model: SONNET, tier: 'SYNTHETIC', report: 'test' }
     setAiRuntimeForTests({ ...FIXTURE, mode: 'live', gates: [gate] })
     expect((await ask(org)).ok).toBe(true)
     expect(await isAgentAvailable(org.ctx('req_con'), 'DOCUMENT')).toEqual({ available: true })
@@ -157,13 +157,13 @@ describe('[BR-AI-23] credits: one USE row per call that used tokens, the 80% not
     if (!a.ok) throw new Error(a.error.code)
     await answer(org, a.data.agentActionId, { input: 12_000, output: 800 })
     const row = await prisma.agentAction.findUniqueOrThrow({ where: { id: a.data.agentActionId } })
-    expect(row).toMatchObject({ status: 'DRAFT', promptVersion: 'QUOTATION_READ@1', model: SONNET, costCredits: 32, inputTokens: 12_000, outputTokens: 800, latencyMs: 1200 })
+    expect(row).toMatchObject({ status: 'DRAFT', promptVersion: 'QUOTATION_READ@2', model: SONNET, costCredits: 32, inputTokens: 12_000, outputTokens: 800, latencyMs: 1200 })
     const uses = await prisma.aiCreditLedger.findMany({ where: { organizationId: org.organizationId, kind: 'USE' } })
     expect(uses).toEqual([expect.objectContaining({ agentActionId: row.id, credits: 32, source: 'CALL' })])
 
     const b = await ask(org)
     if (!b.ok) throw new Error(b.error.code)
-    const failed = await completeAgentAction(org.organizationId, NOW, 'QUOTATION_READ@1', {
+    const failed = await completeAgentAction(org.organizationId, NOW, 'QUOTATION_READ@2', {
       agentActionId: b.data.agentActionId,
       outcome: 'FAILED',
       model: null,
@@ -339,7 +339,7 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     const org = await setup()
     const a = await ask(org)
     if (!a.ok) throw new Error(a.error.code)
-    const asOther = await completeAgentAction(org.organizationId, NOW, 'QUESTION@1', {
+    const asOther = await completeAgentAction(org.organizationId, NOW, 'QUESTION@2', {
       agentActionId: a.data.agentActionId,
       outcome: 'DRAFT',
       model: SONNET,
@@ -350,7 +350,7 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     })
     expect(asOther.ok ? null : asOther.error.code).toBe('FORBIDDEN')
     await answer(org, a.data.agentActionId, { input: 1, output: 1 })
-    const twice = await completeAgentAction(org.organizationId, NOW, 'QUOTATION_READ@1', {
+    const twice = await completeAgentAction(org.organizationId, NOW, 'QUOTATION_READ@2', {
       agentActionId: a.data.agentActionId,
       outcome: 'FAILED',
       model: null,
@@ -369,7 +369,7 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     const a = await ask(org)
     if (!a.ok) throw new Error(a.error.code)
     await runAgentActionSweep(org.organizationId, new Date(NOW.getTime() + 16 * 60_000))
-    const late = await completeAgentAction(org.organizationId, new Date(NOW.getTime() + 17 * 60_000), 'QUOTATION_READ@1', {
+    const late = await completeAgentAction(org.organizationId, new Date(NOW.getTime() + 17 * 60_000), 'QUOTATION_READ@2', {
       agentActionId: a.data.agentActionId,
       outcome: 'DRAFT',
       model: SONNET,

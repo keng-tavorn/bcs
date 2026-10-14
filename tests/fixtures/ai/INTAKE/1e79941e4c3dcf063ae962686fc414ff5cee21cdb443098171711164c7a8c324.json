@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "เหล็กข้ออ้อย DB12 SD40 5 ตัน",
+    "siteCode": "SITE-P09",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เหล็กข้ออ้อย DB12 SD40",
+        "itemCode": "STL-002",
+        "qty": "5",
+        "unit": "ตัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 88
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5670,
+    "output": 249,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

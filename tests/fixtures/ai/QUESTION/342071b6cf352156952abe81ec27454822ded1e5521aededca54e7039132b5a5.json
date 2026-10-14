@@ -1,17 +1,17 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "kpi_summary"
     ],
-    "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
-    ]
+    "sentences": []
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 48,
+    "output": 24,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

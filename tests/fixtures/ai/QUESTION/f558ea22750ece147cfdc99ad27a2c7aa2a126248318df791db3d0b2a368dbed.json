@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "budget_status"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "กำลังตรวจสอบงบประมาณคงเหลือของงบดำเนินงานฝ่ายการตลาดภายในสิทธิ์การเข้าถึงของคุณ โดยจะแสดงตัวเลขจากข้อมูลที่ระบบส่งกลับมาเท่านั้น"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 64,
+    "output": 134,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

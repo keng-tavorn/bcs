@@ -1,12 +1,12 @@
 {
-  "promptVersion": "DELIVERY_NOTE_READ@1",
+  "promptVersion": "DELIVERY_NOTE_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "DELIVERY_NOTE",
     "docNo": "DN100840",
     "docDate": "2026-07-29",
-    "currency": "THB",
+    "currency": null,
     "priceIncludesVat": null,
     "seller": {
       "name": "บริษัท สามพรานวัสดุค้าวัสดุ จำกัด",
@@ -31,6 +31,10 @@
     "gross": null,
     "confidence": [
       {
+        "field": "docType",
+        "value": 99
+      },
+      {
         "field": "docNo",
         "value": 95
       },
@@ -39,8 +43,12 @@
         "value": 95
       },
       {
+        "field": "seller.name",
+        "value": 93
+      },
+      {
         "field": "seller.taxId",
-        "value": 95
+        "value": 92
       },
       {
         "field": "seller.branch",
@@ -48,24 +56,30 @@
       },
       {
         "field": "buyer.taxId",
+        "value": 92
+      },
+      {
+        "field": "lines",
         "value": 95
       },
       {
-        "field": "net",
-        "value": 95
+        "field": "currency",
+        "value": 90
       },
       {
-        "field": "vat",
-        "value": 95
+        "field": "priceIncludesVat",
+        "value": 90
       },
       {
-        "field": "gross",
-        "value": 95
+        "field": "totals",
+        "value": 90
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 846,
+    "cacheRead": 2033,
+    "cacheWrite": 0
   }
 }

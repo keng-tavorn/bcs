@@ -1,12 +1,12 @@
 {
-  "promptVersion": "DELIVERY_NOTE_READ@1",
+  "promptVersion": "DELIVERY_NOTE_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "DELIVERY_NOTE",
     "docNo": "DN100588",
     "docDate": "2026-07-07",
-    "currency": "THB",
+    "currency": null,
     "priceIncludesVat": null,
     "seller": {
       "name": "บริษัท ประชาพัฒนาวัสดุภัณฑ์ จำกัด",
@@ -31,6 +31,10 @@
     "gross": null,
     "confidence": [
       {
+        "field": "docType",
+        "value": 99
+      },
+      {
         "field": "docNo",
         "value": 95
       },
@@ -39,8 +43,12 @@
         "value": 95
       },
       {
-        "field": "seller.taxId",
+        "field": "seller.name",
         "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 93
       },
       {
         "field": "seller.branch",
@@ -48,24 +56,26 @@
       },
       {
         "field": "buyer.taxId",
+        "value": 93
+      },
+      {
+        "field": "lines[0].description",
         "value": 95
       },
       {
-        "field": "net",
+        "field": "lines[0].qty",
         "value": 95
       },
       {
-        "field": "vat",
-        "value": 95
-      },
-      {
-        "field": "gross",
+        "field": "lines[0].unit",
         "value": 95
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 858,
+    "cacheRead": 2033,
+    "cacheWrite": 0
   }
 }

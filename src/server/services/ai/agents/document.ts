@@ -7,7 +7,7 @@ import { normalizeTaxId } from '@/core/thai/taxid'
 import { rateFor, taxDateOf } from '@/core/vat'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
-import { AGENT_OF_PURPOSE, AI_LIMITS, modelFor, type AiPurposeName } from '@/lib/ai-config'
+import { AGENT_OF_PURPOSE, AI_LIMITS, modelForPurpose, type AiPurposeName } from '@/lib/ai-config'
 import { DocumentReading } from '@/lib/ai-schemas/document'
 import { getEnv } from '@/lib/env'
 import { contentMatchesType, isAllowedMimeType } from '@/lib/file-types'
@@ -264,7 +264,7 @@ export async function runDocumentRead(organizationId: string, agentActionId: str
   const action = await db.agentAction.findFirst({ where: { id: agentActionId }, select: { id: true, status: true, agent: true, purpose: true, promptVersion: true, subjectType: true, subjectId: true, inputRefs: true } })
   if (!action || action.status !== 'PENDING' || !DOCUMENT_PURPOSES.includes(action.purpose)) return 'SKIPPED'
   const purpose = action.purpose as AiPurposeName
-  const model = modelFor(AGENT_OF_PURPOSE[purpose], aiRuntime().modelEnv)
+  const model = modelForPurpose(purpose, aiRuntime().modelEnv)
   const finish = async (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => {
     const r = await completeAgentAction(organizationId, now, action.promptVersion, { agentActionId: action.id, requestedModel: model, ...input })
     return r.ok ? r.data.status === 'DRAFT' ? ('DRAFT' as const) : ('FAILED' as const) : ('SKIPPED' as const)

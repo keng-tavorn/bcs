@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "purchase_orders"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมกำลังตรวจสอบรายการ PO ที่เกี่ยวข้องกับผู้ขาย SP0056 ภายในสิทธิ์การเข้าถึงของคุณ เพื่อนับจำนวนใบสั่งซื้อให้"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 59,
+    "output": 120,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

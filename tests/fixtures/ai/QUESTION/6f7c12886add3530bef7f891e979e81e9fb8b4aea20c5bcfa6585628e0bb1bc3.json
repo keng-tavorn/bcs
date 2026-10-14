@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "kpi_summary"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "กำลังดึงข้อมูลตัวชี้วัด KPI จัดซื้อของช่วงเวลานี้ เมื่อได้ผลจากระบบแล้วจะสรุปให้ตามค่าที่ระบบส่งกลับมาเท่านั้น โดยไม่มีการคาดเดาหรือแนะนำการตัดสินใจ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 63,
+    "output": 155,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

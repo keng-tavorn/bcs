@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าโฆษณาออนไลน์ รายเดือน 3 เดือน",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ค่าโฆษณาออนไลน์ รายเดือน",
+        "itemCode": "MKT-002",
+        "qty": "3",
+        "unit": "เดือน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 70
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5681,
+    "output": 774,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

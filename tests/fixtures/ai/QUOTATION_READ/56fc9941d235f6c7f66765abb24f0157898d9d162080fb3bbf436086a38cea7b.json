@@ -1,13 +1,13 @@
 {
-  "promptVersion": "QUOTATION_READ@1",
+  "promptVersion": "QUOTATION_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "QUOTATION",
     "docNo": null,
     "docDate": "2026-09-22",
     "currency": "THB",
-    "priceIncludesVat": false,
+    "priceIncludesVat": null,
     "seller": {
       "name": "นายบุญมี บุญล้อม",
       "taxId": "3999998020014",
@@ -31,16 +31,32 @@
     "gross": "26000.00",
     "confidence": [
       {
+        "field": "docType",
+        "value": 99
+      },
+      {
         "field": "docNo",
-        "value": 95
+        "value": 90
       },
       {
         "field": "docDate",
         "value": 95
       },
       {
-        "field": "seller.taxId",
+        "field": "currency",
+        "value": 90
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 60
+      },
+      {
+        "field": "seller.name",
         "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 93
       },
       {
         "field": "seller.branch",
@@ -48,11 +64,19 @@
       },
       {
         "field": "buyer.taxId",
-        "value": 95
+        "value": 93
+      },
+      {
+        "field": "lines",
+        "value": 96
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
       },
       {
         "field": "net",
-        "value": 95
+        "value": 97
       },
       {
         "field": "vat",
@@ -60,12 +84,14 @@
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 97
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 1006,
+    "cacheRead": 2038,
+    "cacheWrite": 0
   }
 }

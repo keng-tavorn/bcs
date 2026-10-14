@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "find_supplier"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมกำลังค้นหาบริษัท ศรีสยามบิลด์สุขภัณฑ์ ในทะเบียนผู้ขายภายในสิทธิ์การเข้าถึงของคุณ",
+      "เมื่อได้ผลลัพธ์แล้ว ผมจะแจ้งสถานะของผู้ขายรายนี้ตามข้อมูลที่ระบบส่งกลับมาเท่านั้น"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 91,
+    "output": 179,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานเสาเข็มเจาะ ขนาด 0.60 ม. 215 ต้น",
+    "siteCode": "SITE-P08",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานเสาเข็มเจาะ ขนาด 0.60 ม.",
+        "itemCode": "SUB-001",
+        "qty": "215",
+        "unit": "ต้น",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5695,
+    "output": 266,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

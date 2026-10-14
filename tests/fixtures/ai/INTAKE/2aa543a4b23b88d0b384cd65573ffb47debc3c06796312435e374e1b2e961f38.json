@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "กระดาษ A4 80 แกรม",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "กระดาษ A4 80 แกรม",
+        "itemCode": "OFF-001",
+        "qty": "76",
+        "unit": "รีม",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 80
+      },
+      {
+        "field": "neededBy",
+        "value": 35
+      },
+      {
+        "field": "lines",
+        "value": 95
+      },
+      {
+        "field": "supplier",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5659,
+    "output": 233,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

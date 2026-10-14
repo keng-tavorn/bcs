@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานรื้อถอนและขนย้าย · ถนนเลี่ยงเมืองราชบุรี",
+    "siteCode": "SITE-P07",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานรื้อถอนและขนย้าย",
+        "itemCode": "SUB-008",
+        "qty": "1",
+        "unit": "งาน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 60
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 75
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 5679,
+    "output": 258,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

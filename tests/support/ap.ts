@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { modelForPurpose, PROMPT_VERSIONS } from '@/lib/ai-config'
 import { prisma } from '@/server/db/client'
 import { confirmInvoiceCoding, createInvoice, submitInvoice, updateInvoice } from '@/server/services/ap'
 import { postGoodsReceipt } from '@/server/services/receiving'
@@ -133,8 +134,8 @@ export async function invoiceReading(ap: ApOrg, poId: string, proposed: Record<s
       level: 'L1',
       status: 'DRAFT',
       channel: 'WEB',
-      promptVersion: 'INVOICE_READ@1',
-      model: 'claude-sonnet-5-5',
+      promptVersion: PROMPT_VERSIONS.INVOICE_READ,
+      model: modelForPurpose('INVOICE_READ', {}),
       requestedById: ap.org.member.fin_officer!,
       subjectType: 'PURCHASE_ORDER',
       subjectId: poId,

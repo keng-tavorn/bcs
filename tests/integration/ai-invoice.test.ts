@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createFixtureClient, fixtureKey, setAiClientForTests, type FixtureAnswer } from '@/integrations/ai'
+import { modelForPurpose, PROMPT_VERSIONS } from '@/lib/ai-config'
 import { putObject } from '@/integrations/storage'
 import { prisma } from '@/server/db/client'
 import { readDocument, runDocumentRead, runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
@@ -13,7 +14,8 @@ import { etaxXml, pdfWithEmbedded } from '../support/etax-files'
 // makes the draft as FINANCE with the reading linked, and invoice.submit answers AI_REVIEW_PENDING until every value is
 // confirmed one by one. The invoice then matches exactly as one typed by hand. An e-Tax file never reaches the AI.
 
-const SONNET = 'claude-sonnet-5-5'
+// Invoices are read by the model their evaluation passed on (S13-14)
+const MODEL = modelForPurpose('INVOICE_READ', {})
 const SELLER_TAX_ID = '0999999000012'
 const FIXTURE: AiRuntime = { enabled: true, mode: 'fixture', appEnv: 'local', modelEnv: {}, gates: [] }
 const PNG = (seed: string) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new TextEncoder().encode(`${seed}-${randomUUID()}`)])
@@ -63,8 +65,8 @@ async function upload(bytes: Uint8Array, mimeType: string) {
 
 function invoiceAnswer(bytes: Uint8Array, docNo: string) {
   answers.set(fixtureKey({ purpose: 'INVOICE_READ', files: [{ bytes, mediaType: 'image/png' }] }), {
-    promptVersion: 'INVOICE_READ@1',
-    model: SONNET,
+    promptVersion: PROMPT_VERSIONS.INVOICE_READ,
+    model: MODEL,
     usage: { input: 3000, output: 700 },
     output: {
       docType: 'TAX_INVOICE',

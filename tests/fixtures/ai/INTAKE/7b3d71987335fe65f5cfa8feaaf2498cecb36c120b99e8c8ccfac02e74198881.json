@@ -1,0 +1,81 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": null,
+    "siteCode": "SITE-P08",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "อิฐมอญ",
+        "itemCode": "MAT-009",
+        "qty": "30320",
+        "unit": "ก้อน",
+        "unitPrice": "1.25"
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท ประชาพัฒนาวัสดุภัณฑ์ จำกัด",
+      "taxId": "0999998010090",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 0
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines.description",
+        "value": 90
+      },
+      {
+        "field": "lines.itemCode",
+        "value": 85
+      },
+      {
+        "field": "lines.qty",
+        "value": 75
+      },
+      {
+        "field": "lines.unit",
+        "value": 90
+      },
+      {
+        "field": "lines.unitPrice",
+        "value": 75
+      },
+      {
+        "field": "supplier.name",
+        "value": 70
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 60
+      },
+      {
+        "field": "supplier.branch",
+        "value": 65
+      }
+    ]
+  },
+  "usage": {
+    "input": 7067,
+    "output": 827,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

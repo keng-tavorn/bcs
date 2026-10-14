@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "budget_status"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมจะตรวจสอบงบประมาณคงเหลือของแต่ละฝ่ายจากข้อมูลที่คุณมีสิทธิ์เข้าถึง แล้วสรุปให้เมื่อได้ผลลัพธ์จากระบบ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 56,
+    "output": 120,
+    "cacheRead": 981,
+    "cacheWrite": 0
   }
 }

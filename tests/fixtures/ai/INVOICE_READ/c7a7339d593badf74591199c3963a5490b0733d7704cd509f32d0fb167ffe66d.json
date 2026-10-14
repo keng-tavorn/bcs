@@ -1,7 +1,7 @@
 {
-  "promptVersion": "INVOICE_READ@1",
-  "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "promptVersion": "INVOICE_READ@2",
+  "model": "claude-opus-5-5",
+  "recorded": "LIVE",
   "output": {
     "docType": "TAX_INVOICE",
     "docNo": "บก.000448",
@@ -31,12 +31,28 @@
     "gross": "65377.00",
     "confidence": [
       {
+        "field": "docType",
+        "value": 97
+      },
+      {
         "field": "docNo",
-        "value": 95
+        "value": 93
       },
       {
         "field": "docDate",
         "value": 95
+      },
+      {
+        "field": "currency",
+        "value": 95
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 88
+      },
+      {
+        "field": "seller.name",
+        "value": 92
       },
       {
         "field": "seller.taxId",
@@ -44,28 +60,38 @@
       },
       {
         "field": "seller.branch",
-        "value": 95
+        "value": 93
       },
       {
         "field": "buyer.taxId",
         "value": 95
       },
       {
+        "field": "lines",
+        "value": 93
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
+      },
+      {
         "field": "net",
-        "value": 95
+        "value": 85
       },
       {
         "field": "vat",
-        "value": 95
+        "value": 85
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 90
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1627,
+    "output": 803,
+    "cacheRead": 2040,
+    "cacheWrite": 0
   }
 }

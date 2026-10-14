@@ -20,6 +20,8 @@ export type BadgeIcon =
   | 'PackageCheck'
   | 'Send'
   | 'ShoppingCart'
+  | 'TrendingDown'
+  | 'TrendingUp'
   | 'Undo2'
   | 'Wallet'
   | 'Zap'
@@ -85,6 +87,14 @@ export const BUDGET_BADGES: Readonly<Record<'OK' | 'LOW' | 'SHORT', BadgeLook>> 
   OK: { tone: 'ok', icon: 'Wallet' },
   LOW: { tone: 'warn', icon: 'Wallet' },
   SHORT: { tone: 'danger', icon: 'Wallet' },
+}
+
+/** A request line's price against the median of the past prices (S6-11 · BR-PRC-03): above or below it by more than the
+ * organization's priceAlertPct. Not in §9.10's table, which has no price state: warn as a thing to look at, info for a
+ * lower price, which is no fault */
+export const PRICE_BADGES: Readonly<Record<'HIGH' | 'LOW', BadgeLook>> = {
+  HIGH: { tone: 'warn', icon: 'TrendingUp' },
+  LOW: { tone: 'info', icon: 'TrendingDown' },
 }
 
 export const FALLBACK_BADGE: BadgeLook = { tone: 'neutral', icon: null }

@@ -7,6 +7,7 @@ import { getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { budgetLineAvailable } from '@/server/services/budget/line-available'
+import { getPriceReference } from '@/server/services/price-reference'
 import { liffFacts } from '@/server/services/liff'
 import { LIFF_HELP_PATH, LIFF_HOME_PATH } from '@/ui/liff/bootstrap'
 import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
@@ -15,6 +16,7 @@ import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffNotice } from '@/ui/liff/notice'
 import { BackToChat } from '@/ui/liff/tasks/back-to-chat'
 import { LiffPolicyDecisionLoader, LiffTaskDecisionLoader } from '@/ui/liff/tasks/lazy'
+import { LiffPriceReference } from '@/ui/liff/tasks/price-reference'
 import { liffTaskAction, WEB_PIN_SETTINGS_PATH } from '@/ui/liff/tasks/shared'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, type AmountRow, type Fact } from '@/ui/request-view/facts'
@@ -24,6 +26,7 @@ import { taskRight } from '../../../(workspace)/_tracking/access'
 import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
 import { WorkflowSubject } from '../../../(workspace)/_tracking/workflow-subject'
+import { priceReferenceView } from '../../../(workspace)/_tracking/price-reference'
 import { doaRefText, dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../(workspace)/_tracking/request-sections'
 import { taskTitle } from '../../../(workspace)/_tracking/rows'
@@ -177,6 +180,10 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   const task = await getTaskView(ctx, id)
   if (!task) notFound()
   const request = task.subjectType === 'REQUEST' ? await getRequestView(ctx, task.subjectId) : null
+  // The prices paid before for the request's items, as on the web decision page: only for whoever may read them
+  // (priceReference.view, S6-11 · BR-PRC-07); anyone else simply gets no section
+  const priceRef = request ? await getPriceReference(ctx, { requestId: request.id }) : null
+  const priceRefView = priceRef?.ok ? priceReferenceView(await getTranslations('priceReference'), priceRef.data) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
@@ -297,6 +304,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
             <RequestFacts view={request} locale={locale} brief />
           </div>
           <RequestSections view={request} locale={locale} openFile={openFile} doaLinks={false} />
+          {priceRefView ? <LiffPriceReference view={priceRefView} /> : null}
         </>
       ) : po && reader ? (
         // The route of this task, also after a return took the PO back to a draft without one

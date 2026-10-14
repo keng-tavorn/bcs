@@ -1155,20 +1155,45 @@ def run_price_reference(d):
     out = []
     for c in d["cases"]:
         i = c["input"]
-        if c["fn"] == "checkAgreement":
+        fn = c.get("fn")
+        if fn == "checkAgreement":
             a = i["add"]
             clash = any(e["item"] == a["item"] and e["supplier"] == a["supplier"] and a["validFrom"] < e["validTo"] and e["validFrom"] < a["validTo"] for e in i["existing"])
             got = {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_OVERLAP"} if clash else {"ok": True}
-        elif c["fn"] == "checkAgreementLine":
+        elif fn == "checkAgreementLine":
             ag, ln = i["agreement"], i["line"]
             if ag["item"] != ln["item"]: got = {"ok": True}
             elif ag["supplier"] == ln["supplier"]:
                 got = {"ok": True} if sat(ag["unitPrice"]) == sat(ln["unitPrice"]) else {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_PRICE_LOCKED"}
             else:
                 got = {"ok": True} if (i.get("offAgreementReason") or "").strip() else {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_OFF"}
-        else: got = None
+        elif fn == "quoteRange":
+            # BR-PRC-04: each quote before VAT (BR-FORM-06: net = gross × 10000 ÷ (10000 + rate), half up)
+            rate = i["vatRateBp"]
+            nets = {q["ref"]: (int((Decimal(sat(q["amount"])) * 10000 / (10000 + rate)).to_integral_value(rounding=ROUND_HALF_UP)) if q["includesVat"] else sat(q["amount"])) for q in i["quotes"]}
+            sel = nets.get(i.get("selected")); low = min(nets.values())
+            got = {"count": len(nets), "lowest": baht(low), "highest": baht(max(nets.values())), "selected": baht(sel) if sel is not None else None, "selectedIsLowest": sel == low}
+        else:
+            got = prc_reference(d, i)
+            out.append((c["id"], all(got.get(k) == x for k, x in c["expect"].items()), got)); continue
         out.append((c["id"], got == c["expect"], got))
     return out
+def prc_reference(d, i):
+    # BR-PRC-01 to BR-PRC-03: samples of [at − windowDays, at) priced before VAT; lower median; Bp truncated toward zero;
+    # HIGH or LOW compared as whole numbers
+    st, df = d["settings"], d["defaults"]; at = dt(i.get("at", df["at"])); start = at - timedelta(days=st["windowDays"])
+    rows = [{**{"approvedAt": df["approvedAt"], "priceIncludesVat": df["priceIncludesVat"]}, **x} for x in i["samples"]]
+    win = [r for r in rows if start <= dt(r["approvedAt"]) < at]; used = [r for r in win if not r["priceIncludesVat"]]
+    xs = sorted(sat(r["unitPrice"]) for r in used); med = xs[(len(xs) - 1) // 2] if xs else None
+    last = max(used, key=lambda r: dt(r["approvedAt"])) if used else None
+    got = {"count": len(used), "excludedVatIncluded": len(win) - len(used), "min": baht(xs[0]) if xs else None, "median": baht(med) if med is not None else None,
+           "max": baht(xs[-1]) if xs else None, "last": baht(sat(last["unitPrice"])) if last else None, "status": "FEW_SAMPLES" if len(used) < st["minSamples"] else "OK"}
+    p = sat(i["price"])
+    if med is None or med == 0 or i.get("requestIncludesVat"): got.update(deviationBp=None, alert=None)
+    else:
+        diff = (p - med) * 10000; dev = abs(diff) // med * (1 if diff >= 0 else -1)
+        got.update(deviationBp=dev, alert="HIGH" if diff > med * st["alertBp"] else "LOW" if -diff > med * st["alertBp"] else None)
+    return got
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-credits": run_ai_credits,

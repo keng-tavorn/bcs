@@ -46,6 +46,8 @@ const CARD = {
   reviewRules: { th: 'ตรวจตามข้อ', en: 'Review rule' },
   pass: { th: 'ผ่าน', en: 'Pass' },
   returnOnly: { th: 'ตีกลับ', en: 'Return' },
+  // S6-11 · BR-PRC-05: the one price badge of a request, with counts and percents only
+  price: { th: 'ราคา', en: 'Price' },
 } as const satisfies Record<string, Text>
 
 const CONFIRMATION = {
@@ -65,6 +67,17 @@ export type ConfirmationLabel = keyof typeof CONFIRMATION
 
 export const cardLabel = (key: CardLabel, locale: CardLocale): string => CARD[key][locale]
 export const confirmationLabel = (key: ConfirmationLabel, locale: CardLocale): string => CONFIRMATION[key][locale]
+
+/**
+ * BR-PRC-05: "ราคาสูงกว่าค่ากลางย้อนหลัง 1 รายการ สูงสุด +8%" and its LOW side; never an item, a unit price or an AI
+ * summary (BR-NOTI-01 · OQ-107)
+ */
+export function priceBadgeText(badge: { readonly high: { readonly lines: number; readonly maxPct: number } | null; readonly low: { readonly lines: number; readonly minPct: number } | null }, locale: CardLocale): string {
+  const parts: string[] = []
+  if (badge.high) parts.push(locale === 'th' ? `สูงกว่าค่ากลางย้อนหลัง ${badge.high.lines} รายการ สูงสุด +${badge.high.maxPct}%` : `Above the past median: ${badge.high.lines} line(s), up to +${badge.high.maxPct}%`)
+  if (badge.low) parts.push(locale === 'th' ? `ต่ำกว่าค่ากลางย้อนหลัง ${badge.low.lines} รายการ ต่ำสุด ${badge.low.minPct}%` : `Below the past median: ${badge.low.lines} line(s), down to ${badge.low.minPct}%`)
+  return parts.join(' · ')
+}
 
 /** "DOA-DEMO ฉบับ 1 ข้อ PR-02" / "DOA-DEMO version 1 rule PR-02" (§9.3, FR-DOA-005 AC2) */
 export function doaReference(doa: { readonly code: string; readonly versionNo: number; readonly ruleCode: string }, locale: CardLocale): string {

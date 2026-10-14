@@ -11,6 +11,7 @@ import { liffPathFor, liffTaskPath, type LiffTaskAction } from '@/channels/line/
 import { stepUpNeeded } from '@/core/pin'
 import type { AppError } from '@/core/result'
 import { getEnv } from '@/lib/env'
+import { priceReferenceForCard } from '@/server/queries/price-reference'
 import { forTenant } from '@/server/db/tenant'
 import { liffLink } from './webhook/messages'
 
@@ -164,6 +165,8 @@ export async function approvalCardMessage(
   if (!row || row.status !== 'OPEN' || row.assigneeMemberId !== task.memberId) return null
   const route = row.step.route
   const subject = await subjectSummary(db, route.subjectType, route.subjectId, task.fallbackLabel, cards.locale)
+  // S6-11 (BR-PRC-05): a request's card carries its one price badge; the assignee may read its price reference (BR-PRC-07)
+  const price = route.subjectType === 'REQUEST' ? await priceReferenceForCard(organizationId, route.subjectId, now) : null
   const token = await db.actionToken.findFirst({
     where: { taskId: task.taskId, memberId: task.memberId, channel: 'LINE', usedAt: null, revokedAt: null, expiresAt: { gt: now } },
     orderBy: { createdAt: 'desc' },
@@ -186,6 +189,7 @@ export async function approvalCardMessage(
     // A reviewer needs no PIN, whatever the amount (BR-WF-09)
     stepUp: row.step.kind !== 'REVIEW' && stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
     review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
+    priceBadge: price?.badge ?? null,
     tokenId: token?.id ?? null,
     links: { approve: taskLink(cards, task.taskId, 'approve'), decline: taskLink(cards, task.taskId, 'reject'), details: taskLink(cards, task.taskId) },
   })

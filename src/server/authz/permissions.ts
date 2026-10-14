@@ -6,7 +6,8 @@
 // with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
 // S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
-// in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114).
+// in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
+// (FR-DOA-101, BR-PRC-07, OQ-116).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -109,6 +110,9 @@ export const PERMISSIONS = {
   // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
   'catalog.view': [anyMember('ORG')],
   'catalog.manage': PROCUREMENT_ONLY,
+  // S6-11 (FR-DOA-101, BR-PRC-07 · OQ-116): the price reference of a request comes from the POs of the whole organization,
+  // so only who has or had its approval or review task (with whoever acts for them), and who reads every PO
+  'priceReference.view': [anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'export.express': [role('FINANCE', 'ORG')],
   'report.view': [...roles(['FINANCE', 'PROCUREMENT', 'EXECUTIVE', 'AUDITOR'], 'ORG'), deptHead()],
   'report.schedule': roles(['FINANCE', 'EXECUTIVE'], 'ORG'),

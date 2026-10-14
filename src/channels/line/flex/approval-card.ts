@@ -1,4 +1,4 @@
-import { cardLabel, doaReference, subjectKind } from './labels'
+import { cardLabel, doaReference, priceBadgeText, subjectKind } from './labels'
 import { DANGER, heading, INK, PRIMARY, row, SURFACE, vertical, WARN } from './style'
 import { ACTION_LABEL_MAX_LENGTH, bahtOf, CARD_LABEL_MAX_LENGTH, CARD_NAME_MAX_LENGTH, clip, dateTimeOf } from './text'
 import type { CardLocale, FlexAction, FlexButton, FlexComponent, FlexMessage } from './types'
@@ -45,6 +45,8 @@ export interface ApprovalCardData {
   readonly tokenId: string | null
   /** A reviewer's task: the workflow rules it answers for (S6); null for every other task */
   readonly review?: { readonly ruleCodes: readonly string[] } | null
+  /** S6-11 (BR-PRC-05): the request's one price badge — counts and percents only; null or left out when no line is HIGH or LOW */
+  readonly priceBadge?: { readonly high: { readonly lines: number; readonly maxPct: number } | null; readonly low: { readonly lines: number; readonly minPct: number } | null } | null
   readonly links: {
     /** /liff/tasks/<taskId>?action=approve */
     readonly approve: string
@@ -99,6 +101,7 @@ export function approvalCard(data: ApprovalCardData): FlexMessage {
     const due = dateTimeOf(data.dueAt, t)
     rows.push(data.overdue ? row(cardLabel('due', t), `${due} · ${cardLabel('overdue', t)}`, DANGER) : row(cardLabel('due', t), due))
   }
+  if (data.priceBadge && (data.priceBadge.high || data.priceBadge.low)) rows.push(row(cardLabel('price', t), priceBadgeText(data.priceBadge, t), WARN))
   if (data.review?.ruleCodes.length) rows.push(row(cardLabel('reviewRules', t), clip(data.review.ruleCodes.join(', '), CARD_NAME_MAX_LENGTH)))
   rows.push(row(cardLabel('doa', t), doaReference(data.doa, t)))
   if (data.stepUp) rows.push({ type: 'text', text: cardLabel('pinNeeded', t), size: 'md', color: WARN, wrap: true, margin: 'md' })

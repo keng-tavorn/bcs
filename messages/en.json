@@ -4900,6 +4900,47 @@
     "withdrawn": "Withdrawn on {time}: this version will not take effect",
     "withdrawnBy": "Asked by {name} on {time}"
   },
+  "priceReference": {
+    "agreement": "Agreed price with {supplier}: {price} baht/{uom}",
+    "alert": {
+      "HIGH": "Above the median",
+      "LOW": "Below the median"
+    },
+    "columns": {
+      "deviation": "Difference from the median",
+      "item": "Item",
+      "last": "Latest price",
+      "max": "Highest",
+      "median": "Median",
+      "min": "Lowest",
+      "range": "Lowest – highest",
+      "unitPrice": "Requested unit price"
+    },
+    "deviation": {
+      "none": "No median yet",
+      "vat": "Not worked out (prices include VAT)"
+    },
+    "excluded": "{count, plural, one {# price including VAT left out} other {# prices including VAT left out}}",
+    "few": "Few prices: at least {min} are needed for a sound comparison",
+    "intro": "Each unit price of the request against the prices of the same item on POs approved in the last {days} days, before VAT. The median is the price in the middle when sorted from lowest to highest; a line is flagged when its price is more than {threshold} away from it",
+    "list": "Price reference of each line",
+    "quotes": {
+      "count": "Quotations",
+      "countValue": "{count, plural, one {# quotation} other {# quotations}}",
+      "highest": "Highest",
+      "lowest": "Lowest",
+      "lowestChosen": "The lowest quotation was chosen",
+      "noneSelected": "No quotation chosen yet",
+      "notLowest": "The chosen quotation is not the lowest. Reason: {reason}",
+      "notLowestNoReason": "The chosen quotation is not the lowest",
+      "selected": "Chosen",
+      "title": "Quotations of this request (before VAT)"
+    },
+    "samples": "{count, plural, =0 {No price on an approved PO yet} one {From # price on approved POs} other {From # prices on approved POs}}",
+    "title": "Price reference",
+    "unit": "Baht",
+    "vatNote": "This request's prices include VAT, so no difference from the median is worked out: the median is a price before VAT"
+  },
   "procurement": {
     "pool": {
       "assign": {

@@ -10,6 +10,7 @@ import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { ruleJson, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { backtestDraft } from '@/server/services/backtest'
+import { getPriceReference } from '@/server/services/price-reference'
 import { forTenant } from '@/server/db/tenant'
 import { seedBudget } from '@/server/seed/budget'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
@@ -265,6 +266,22 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       // A second run adds nothing
       const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
       expect(await seedCatalog(organizationId, parseCatalogItems(workbook), clock.now)).toEqual({ items: 0, agreements: 0 })
+    })
+
+    it('[FR-DOA-101/AC1] S6-11: the ceo reads the price reference of the SUB-010 contract waiting for them — two approved POs at 260.00, too few samples; its requester is refused', async () => {
+      const db = forTenant(organizationId)
+      const row = sheets.history.find((h) => h.itemCode === 'SUB-010' && h.status === 'PENDING_APPROVAL')!
+      const request = await db.request.findFirstOrThrow({ where: { title: row.title }, select: { id: true, requesterMemberId: true } })
+      const task = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: request.id } } }, select: { assigneeMemberId: true } })
+      const ceo = await db.member.findFirstOrThrow({ where: { employeeCode: 'ceo' }, select: { id: true } })
+      expect(task.assigneeMemberId).toBe(ceo.id)
+      const asMember = (memberId: string) => makeCtx({ organizationId, actor: { type: 'USER', memberId }, channel: 'WEB', now: clock.now })
+      const ref = await getPriceReference(asMember(ceo.id), { requestId: request.id })
+      if (!ref.ok) throw new Error(JSON.stringify(ref.error))
+      const earlier = sheets.history.filter((h) => h.itemCode === 'SUB-010' && h.status === 'COMPLETED')
+      expect(ref.data.lines[0]).toMatchObject({ count: earlier.length, medianSatang: amountToSatang(row.unitPrice!).toString(), status: earlier.length < 3 ? 'FEW_SAMPLES' : 'OK', deviationBp: 0, alert: null })
+      expect(ref.data.lines[0]!.key).toMatch(/^item:/)
+      expect(await getPriceReference(asMember(request.requesterMemberId), { requestId: request.id })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

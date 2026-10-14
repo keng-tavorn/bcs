@@ -1,3 +1,4 @@
+import { cardBadge } from '@/core/pricing'
 import fc from 'fast-check'
 import { describe, expect, it } from 'vitest'
 import {
@@ -319,5 +320,19 @@ describe('[FR-WF-101/AC5] the answer to a reviewer\'s pass says passed, not appr
     expect(textsOf(card)).toEqual(expect.arrayContaining(['ผ่านแล้ว', 'ตรวจในเส้นทางของ DOA-DEMO ฉบับ 1 ข้อ PR-02']))
     expect(textsOf(card)).not.toContain('อนุมัติแล้ว')
     expectWithinLineLimits(card)
+  })
+})
+
+describe('[FR-DOA-101/AC2] S6-11: one price badge per card, counts and percents only (BR-PRC-05 · OQ-107)', () => {
+  it('a request with lines above and below the past median gets one price row, and none without a badge', () => {
+    const texts = textsOf(approvalCard({ ...base, priceBadge: cardBadge([{ deviationBp: 833, alert: 'HIGH' }, { deviationBp: 1250, alert: 'HIGH' }, { deviationBp: -1599, alert: 'LOW' }, { deviationBp: 0, alert: null }]) }))
+    const price = texts.filter((t) => t.includes('ค่ากลางย้อนหลัง'))
+    expect(price).toEqual(['สูงกว่าค่ากลางย้อนหลัง 2 รายการ สูงสุด +12% · ต่ำกว่าค่ากลางย้อนหลัง 1 รายการ ต่ำสุด -15%'])
+    expect(textsOf(approvalCard({ ...base, priceBadge: cardBadge([{ deviationBp: 500, alert: null }]) })).some((t) => t.includes('ค่ากลาง'))).toBe(false)
+    expect(textsOf(approvalCard(base)).some((t) => t.includes('ค่ากลาง'))).toBe(false)
+  })
+
+  it('in English too', () => {
+    expect(textsOf(approvalCard({ ...base, locale: 'en', priceBadge: { high: { lines: 1, maxPct: 8 }, low: null } }))).toContain('Above the past median: 1 line(s), up to +8%')
   })
 })

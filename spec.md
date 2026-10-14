@@ -396,6 +396,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `supplier.manage` | PROCUREMENT (ORG) |
 | `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
 | `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
+| `priceReference.view` | ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) — แผงราคาอ้างอิงของคำขอ (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นหรือของ PO ที่ซื้อจากคำขอนั้น ที่เปิดอยู่หรือเคยได้ รวมผู้รักษาการ — ผู้ขอ ผู้ติดตาม และหัวหน้าฝ่ายที่ไม่ได้รับงานไม่เห็น เพราะราคามาจาก PO ทั้งองค์กร (S6-11 · BR-PRC-07 · OQ-116) |
 | `export.express` | FINANCE (ORG) |
 | `report.view` | FINANCE, PROCUREMENT, EXECUTIVE, AUDITOR (ORG) · DEPT_HEAD (DEPT) |
 | `report.schedule` | FINANCE, EXECUTIVE |
@@ -2353,7 +2354,7 @@ cases:
 | BR-PRC-04 | ช่วงใบเสนอราคาบนการ์ด: จาก `RequestQuotation.netSatang` (BR-FORM-06) count lowest highest selected และเหตุผลถ้าไม่ใช่ต่ำสุด |
 | BR-PRC-05 | การ์ดอนุมัติใน LINE มีป้ายราคาแบบรวมไม่ระบุรายการเท่านั้น: จำนวนบรรทัดที่มีป้าย HIGH กับส่วนต่างสูงสุด และจำนวนบรรทัดที่มีป้าย LOW กับส่วนต่างต่ำสุด (เช่น "ราคาสูงกว่าค่ากลางย้อนหลัง 1 รายการ สูงสุด +8%") · % = deviationBp ÷ 100 ตัดเศษเข้าหาศูนย์ · ไม่มีป้ายเมื่อไม่มีบรรทัด HIGH หรือ LOW · ไม่มีชื่อสินค้า ราคาต่อหน่วย หรือสรุปจาก AI (BR-NOTI-01 · OQ-107) · push บนหน้าจอล็อกของแอปมีชนิดงานและเลขเอกสารเท่านั้น (S17) · หน้างาน LIFF เว็บ และแอปแสดงตัวเลขครบ |
 | BR-PRC-06 | ราคาตกลง: ต่อ (สินค้า ผู้ขาย) ช่วง [validFrom, validTo) ห้ามทับกัน (`VALIDATION_FAILED` reason `AGREEMENT_OVERLAP`) · บรรทัดจากแคตตาล็อกที่ผู้ขายมีราคาตกลงที่มีผล ใช้ราคาตกลงเท่านั้น (`AGREEMENT_PRICE_LOCKED`) · สินค้าที่มีราคาตกลงแต่เลือกผู้ขายอื่น ต้องมี offAgreementReason (`AGREEMENT_OFF`) · PROCUREMENT จัดการ (OQ-114) · S6-10: ผู้ขายของบรรทัดคือผู้ขายที่แนะนำของคำขอ (`suggestedSupplierId`) ไม่ได้เลือกผู้ขาย = ผู้ขายอื่น · บันทึกร่างตรวจราคา ส่งและส่งซ้ำตรวจทั้งหมดอีกครั้งด้วยราคาตกลงที่มีผลวันนั้นแล้วเก็บ `priceAgreementId` ของบรรทัด · ราคาตกลงเป็นราคาก่อน VAT คำขอที่ราคารวม VAT ใช้ราคาตกลงไม่ได้ (`AGREEMENT_PRICE_BEFORE_VAT`) · สิ้นสุดราคาตกลง = วันนี้เป็นวันสุดท้าย (validTo = พรุ่งนี้) ราคาตกลงที่ยังไม่เริ่มสิ้นสุดไม่ได้ (`AGREEMENT_NOT_STARTED`) ไม่มีการลบ |
-| BR-PRC-07 | ผู้เห็นแผงราคาอ้างอิง (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นที่เปิดอยู่หรือเคยได้ (ASSIGNED รวมผู้รักษาการ) และผู้มี `po.view` ระดับ ORG · ผู้ขอ ผู้ติดตาม และ DEPT_HEAD ที่ไม่ได้รับงานไม่เห็น (ราคาย้อนหลังมาจาก PO ทั้งองค์กร · OQ-116) · ปฏิเสธด้วย `FORBIDDEN` |
+| BR-PRC-07 | ผู้เห็นแผงราคาอ้างอิง (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นที่เปิดอยู่หรือเคยได้ (ASSIGNED รวมผู้รักษาการ) และผู้มี `po.view` ระดับ ORG · ผู้ขอ ผู้ติดตาม และ DEPT_HEAD ที่ไม่ได้รับงานไม่เห็น (ราคาย้อนหลังมาจาก PO ทั้งองค์กร · OQ-116) · ปฏิเสธด้วย `FORBIDDEN` · S6-11: capability `priceReference.view` ใน §2.4 · ผู้รับงานของ PO ที่ซื้อจากคำขอนั้นนับเป็นผู้ได้รับงานด้วย (S13 เรียกด้วยคำขอต้นทาง) |
 | BR-QR-01 | PDF ของ PR และ PO มี QR ของ `<APP_URL>/verify/<token>` · แถว `DocumentVerification` เกิดเฉพาะในธุรกรรมของคำสั่ง POST ที่ทำให้เนื้อหาที่พิมพ์เปลี่ยน: การส่งและส่งซ้ำของ PR และ PO และการอนุมัติใบแก้ไข PO ของ S8 (เรียก `issueDocumentVerification`) · contentSha256 = sha256 ของเนื้อหาที่พิมพ์ (บรรทัด ยอด ผู้ขาย เงื่อนไข ไม่รวมสถานะและส่วนการอนุมัติ) เท่ากับแถวล่าสุด → ไม่ออกใหม่ · ต่างกัน → แถวใหม่และตั้ง supersededAt ของแถวก่อน · token = base64url(HMAC-SHA256(K, id ของแถว)) โดย K = HMAC-SHA256(`ENCRYPTION_KEY`, "bcs:document-verification:v1") แบบ pepper ของ PIN (keyId บอกกุญแจ) · ฐานข้อมูลเก็บเฉพาะ `tokenHash` = sha256 ของสตริง token (ไบต์ UTF-8) เป็น hex ตัวพิมพ์เล็ก 64 ตัว (รูปเดียวที่ `/verify` และ S17 ใช้ค้น) · GET PDF คิด token จากแถวล่าสุดจึงดาวน์โหลดซ้ำได้ QR เดิม · GET PDF และ GET `/verify` ไม่เพิ่มหรือแก้แถวใด (ไม่มี GET ที่เปลี่ยนสถานะ) · เอกสารที่ยังไม่เคยส่งไม่มี QR |
 | BR-QR-02 | `GET /verify/<token>` ไม่ต้อง login อ่านอย่างเดียว: ชื่อองค์กร ชนิด เลขที่ สถานะล่าสุดและวันที่ ฉบับนี้เป็นฉบับล่าสุดหรือไม่ (supersededAt ว่าง) · ไม่แสดงยอดเงินและชื่อคน (OQ-112) · token ไม่มีหรือผิด → หน้าเดียวกับ "ไม่พบเอกสาร" · จำกัดอัตราต่อ IP · ผู้ login ที่มี `request.view` หรือ `po.view` เห็นลิงก์ไปเอกสาร |
 | BR-UAT-01 | sandbox: `Organization.kind = SANDBOX` สร้างโดย PLATFORM_ADMIN พร้อม contractRef · มีแถบ "ระบบทดลอง" ทุกหน้า · ปิด LINE · อีเมลขึ้นต้น "[UAT]" · ห้ามคัดลอกข้อมูลธุรกิจจาก production (OQ-108) · ชั้น demo บนเครื่อง: seed ระยะ 1 สร้าง `SIMEC-UAT` เป็น sandbox ของ SIMEC |
@@ -2546,6 +2547,17 @@ cases:
   - { id: GC-PRC-03, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S1, unitPrice: "185.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_PRICE_LOCKED } }
   - { id: GC-PRC-04, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OFF } }
   - { id: GC-PRC-05, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" }, offAgreementReason: "ผู้ขายรายเดิมส่งไม่ทัน" }, expect: { ok: true } }
+  # S6-11 · ราคาอ้างอิงและช่วงใบเสนอราคา (BR-PRC-01 ถึง BR-PRC-04)
+  - { id: GC-PRC-06, input: { samples: [{ unitPrice: "24500.00", approvedAt: "2026-09-01T03:00:00Z" }, { unitPrice: "23800.00", approvedAt: "2026-08-01T03:00:00Z" }, { unitPrice: "24000.00", approvedAt: "2026-07-01T03:00:00Z" }], price: "24000.00" }, expect: { count: 3, min: "23800.00", median: "24000.00", max: "24500.00", last: "24500.00", deviationBp: 0, alert: null } }
+  - { id: GC-PRC-07, title: จำนวนคู่ใช้ตัวกลางล่าง, input: { samples: [{ unitPrice: "130.00" }, { unitPrice: "100.00" }, { unitPrice: "120.00" }, { unitPrice: "110.00" }], price: "110.00" }, expect: { count: 4, median: "110.00", deviationBp: 0 } }
+  - { id: GC-PRC-08, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "26000.00" }, expect: { deviationBp: 833, alert: null } }
+  - { id: GC-PRC-09, title: ตัดเศษเข้าหาศูนย์ด้านลบ, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "23000.00" }, expect: { deviationBp: -416, alert: null } }
+  - { id: GC-PRC-10, title: เท่าเกณฑ์พอดีไม่เตือน, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "26400.00" }, expect: { deviationBp: 1000, alert: null } }
+  - { id: GC-PRC-11, title: เกินเกณฑ์ 1 สตางค์เตือน แม้ Bp ที่แสดงยังเป็น 1000, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "26400.01" }, expect: { deviationBp: 1000, alert: HIGH } }
+  - { id: GC-PRC-12, title: เอกสารราคารวม VAT ไม่นับ, input: { samples: [{ unitPrice: "24500.00" }, { unitPrice: "26215.00", priceIncludesVat: true }], price: "24500.00" }, expect: { count: 1, excludedVatIncluded: 1, status: FEW_SAMPLES } }
+  - { id: GC-PRC-13, title: ขอบช่วง 365 วัน, input: { samples: [{ unitPrice: "100.00", approvedAt: "2025-10-06T03:00:00Z" }, { unitPrice: "200.00", approvedAt: "2025-10-06T02:59:59Z" }], price: "100.00" }, expect: { count: 1, min: "100.00", max: "100.00" } }
+  - { id: GC-PRC-14, title: คำขอราคารวม VAT ไม่คำนวณส่วนต่าง, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "25680.00", requestIncludesVat: true }, expect: { deviationBp: null, alert: null } }
+  - { id: GC-PRC-15, title: ช่วงใบเสนอราคาจากเคส GC-FORM-09, fn: quoteRange, input: { vatRateBp: 700, quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: C }, expect: { count: 3, lowest: "98130.84", highest: "101000.00", selected: "98130.84", selectedIsLowest: true } }
 ```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
@@ -3561,9 +3573,9 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `--line-strong` | `#7D8F96` | ขอบช่องกรอก checkbox และ radio |
 | `--focus` | `#0B6E5F` | วง focus 2 px ห่างจากขอบ 2 px |
 | `--ok-bg` · `--ok-ink` | `#E3F3EC` · `#0A5E50` | ป้าย อนุมัติแล้ว เสร็จสิ้น งบพอ |
-| `--warn-bg` · `--warn-ink` | `#FBF0D4` · `#7F4D00` | ป้าย รออนุมัติ ตีกลับ งบใกล้หมด ด่วน |
+| `--warn-bg` · `--warn-ink` | `#FBF0D4` · `#7F4D00` | ป้าย รออนุมัติ ตีกลับ งบใกล้หมด ด่วน ราคาสูงกว่าค่ากลาง (S6-11) |
 | `--danger-bg` · `--danger-ink` | `#FCE9E7` · `#9F1F12` | ป้าย เกินกำหนด ไม่อนุมัติ งบไม่พอ |
-| `--info-bg` · `--info-ink` | `#E7EFF9` · `#1A5296` | ป้าย ส่งผู้ขายแล้ว สั่งซื้อแล้ว รอผู้ขอตอบ และค่าที่ AI เติม (S13) |
+| `--info-bg` · `--info-ink` | `#E7EFF9` · `#1A5296` | ป้าย ส่งผู้ขายแล้ว สั่งซื้อแล้ว รอผู้ขอตอบ ราคาต่ำกว่าค่ากลาง (S6-11) และค่าที่ AI เติม (S13) |
 | `--neutral-bg` · `--neutral-ink` | `#EDF1F2` · `#3F4F57` | ป้าย ร่าง ยกเลิก ปิดแล้ว ปกติ |
 
 **คู่สีที่ต้องผ่าน contrast** (ค่าตาม WCAG 2.1 ปัดลง 2 ตำแหน่ง · S16-01 ให้ `spec_check.py` คำนวณตารางนี้ซ้ำ)
@@ -4238,7 +4250,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       27 ไฟล์ · 280 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       27 ไฟล์ · 290 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

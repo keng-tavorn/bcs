@@ -7,6 +7,7 @@ import { isAllowed, memberPrincipal } from '@/server/authz'
 import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, PIN_DECISION_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
+import { getPriceReference } from '@/server/services/price-reference'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
@@ -14,6 +15,7 @@ import { DecisionPanel } from '@/ui/tasks/decision-panel'
 import { BacktestPanel } from '@/ui/backtest/panel'
 import { Section } from '@/ui/request-view/facts'
 import { PolicyDecision } from '@/ui/tasks/policy-decision'
+import { PriceReferencePanel } from '@/ui/price-reference/panel'
 import { Timeline } from '@/ui/timeline/timeline'
 import { readBacktestRunAction, runBacktestAction } from '../../../_lib/backtest-actions'
 import { downloadUrlAction } from '../../../_lib/file-actions'
@@ -21,6 +23,7 @@ import { getSession } from '../../../_lib/session'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../_tracking/policy-subject'
 import { WorkflowSubject } from '../../_tracking/workflow-subject'
+import { priceReferenceView } from '../../_tracking/price-reference'
 import { dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { taskTitle } from '../../_tracking/rows'
@@ -124,6 +127,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const task = await getTaskView(ctx, id)
   if (!task) notFound()
   const request = task.subjectType === 'REQUEST' ? await getRequestView(ctx, task.subjectId) : null
+  // The prices paid before for the request's items, for whoever may read them (priceReference.view: who has or had a task
+  // on it, and who reads every PO — S6-11 · FR-DOA-101 · BR-PRC-07); anyone else simply gets no panel
+  const priceRef = request ? await getPriceReference(ctx, { requestId: request.id }) : null
+  const priceRefView = priceRef?.ok ? priceReferenceView(await getTranslations('priceReference'), priceRef.data) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
@@ -260,6 +267,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <>
                   <RequestFacts view={request} locale={locale} brief />
                   <RequestSections view={request} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
+                  {priceRefView ? (
+                    <Section id="price-reference" title={priceRefView.title}>
+                      <PriceReferencePanel view={priceRefView} />
+                    </Section>
+                  ) : null}
                   <Link href={`/requests/${request.id}`} className={linkClass}>
                     {t('detail.openRequest', { label: request.number ?? request.title })}
                   </Link>

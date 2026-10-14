@@ -128,6 +128,7 @@ describe('[§9.9] the quotation the requester chose: a mark of its own, not the 
     totals: null,
     lines: [],
     budget: null,
+    budgetLines: [],
     route: null,
     quotations: [
       { supplierName: 'ร้านปั๊มบาดาลท้องถิ่น', amountSatang: 14_980_000n, includesVat: true, netSatang: 14_000_000n, isSelected: true },

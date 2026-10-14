@@ -57,6 +57,8 @@ export interface DraftLine {
   readonly serviceEndDate: string | null
   /** S6-10: the catalogue item the line is (BR-PRC-06); absent or null: typed freely */
   readonly catalogItemId?: string | null
+  /** S6-17 (BR-BUD-16): the line's own budget line; null: the request's */
+  readonly budgetLineId?: string | null
 }
 
 export interface DraftQuotation {

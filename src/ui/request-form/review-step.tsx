@@ -12,7 +12,7 @@ import { documentFieldIds } from './document-fields'
 import { DuplicatePanel } from './duplicate-panel'
 import { kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
-import { problemStep, savableLine, type FormProblem, type RuleStatus } from './model'
+import { problemStep, requestLineNeed, savableLine, type FormProblem, type RuleStatus } from './model'
 import { showMoney, showSatang } from './money'
 import { duplicateRefusal, type DuplicateAsk } from './duplicate'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type ClosedWhy, type FormFailure, type StepId } from './outcome'
@@ -151,7 +151,9 @@ export function sendStateOf(t: T, { data, values, totals, budget, problems, save
   const purchase = data.type.documentType === 'PURCHASE_REQUEST'
   const blocking = problems.filter((p) => BLOCKING.has(p.kind))
   const available = budget?.kind === 'LINE' && budget.budgetLineId === values.budgetLineId ? amountToSatang(budget.available.amount) : null
-  const shortfall = available !== null && totals !== null && totals.net > available ? totals.net - available : null
+  // S6-17 (BR-BUD-16): the request's budget line holds only the lines without one of their own; the submit checks theirs
+  const need = totals !== null ? requestLineNeed(values, data.vatRateBp) : null
+  const shortfall = available !== null && need !== null && need.net > available ? need.net - available : null
   const block: SendBlock | null =
     available !== null && shortfall !== null
       ? { kind: 'BUDGET', available, shortfall }
@@ -186,6 +188,7 @@ export function ReviewStep(props: ReviewProps) {
   const kindLabel = (kind: string) => kindLabelOf(t, kind)
   const stepName = (s: StepId) => t(`steps.${s}`)
   const { block, blockedReason, submitLabel } = sendStateOf(t, props)
+  const need = requestLineNeed(values, data.vatRateBp)
   // "ตรวจก่อนส่ง" leads with what stops the button, and is ready only when nothing does (§9.9 principle 3)
   const blockPoint = sendBlockPoint(t, block)
   const reported = submitError !== null && DOA_GAPS.has(submitError.code) && adminsWereTold(submitError)
@@ -240,7 +243,7 @@ export function ReviewStep(props: ReviewProps) {
           <h3 id="review-budget" className="text-lg font-semibold">
             {t('budget.title')}
           </h3>
-          <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
+          <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={need?.net ?? null} others={need?.others ?? 0} loading={previewLoading} />
         </section>
       ) : null}
 
@@ -423,6 +426,9 @@ export function failureText(t: T, f: FormFailure, fields: readonly FieldDef[], l
     case 'SERVICE_END_DATE':
     case 'AGREEMENT_PRICE_LOCKED':
     case 'CATALOG_UNKNOWN':
+    case 'LINE_BUDGET_LINE_NOT_ALLOWED':
+    case 'LINE_BUDGET_LINE_YEAR':
+    case 'LINE_BUDGET_LINE':
       return t(`errors.${key}`, { n: failureTarget(f).lineNo ?? 1 })
     case 'QUOTE_FILE':
       return t('errors.QUOTE_FILE', { n: (Number((f.field ?? '').split('.')[1]) || 0) + 1 })

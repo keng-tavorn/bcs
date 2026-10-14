@@ -145,7 +145,9 @@ export async function RequestSections({
           </Section>
 
           <Section id="budget" title={t('budget.title')}>
-            {view.budget ? (
+            {view.budgetLines.length > 1 ? (
+              <SplitBudget view={view} t={t} />
+            ) : view.budget ? (
               <>
                 <Facts
                   columns="one"
@@ -280,7 +282,12 @@ export async function RequestSections({
                 quantity: t('lines.qty', { quantity: l.quantity, uom: l.uom }),
                 unitPrice: money(l.unitPriceSatang),
                 amount: money(l.netSatang),
-                notes: [...(l.vatable ? [] : [t('lines.noVat')]), ...(l.serviceEndDate ? [t('lines.serviceEnd', { date: day(locale, l.serviceEndDate) })] : [])],
+                notes: [
+                  ...(l.vatable ? [] : [t('lines.noVat')]),
+                  ...(l.serviceEndDate ? [t('lines.serviceEnd', { date: day(locale, l.serviceEndDate) })] : []),
+                  // S6-17 (BR-BUD-16): a line on a budget line of its own names it
+                  ...(l.budgetLine ? [t('lines.budgetLine', { code: l.budgetLine.code, name: l.budgetLine.name })] : []),
+                ],
               }))}
             />
           ) : (
@@ -359,5 +366,38 @@ export async function RequestSections({
         </Section>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * S6-17 (BR-BUD-16): the budget of a request split over budget lines — its state, then each budget line it uses with what
+ * the request holds on it (reserved while it waits, committed in a purchase order), in the order of RequestViewDto
+ * budgetLines (the request's own first)
+ */
+function SplitBudget({ view, t }: { view: RequestViewDto; t: Awaited<ReturnType<typeof getTranslations<'requestView'>>> }) {
+  const budget = requestBudgetState(view)
+  return (
+    <>
+      <StateLine kind={budget.kind}>{t(`budget.${budget.key}`)}</StateLine>
+      <p className="text-ink-muted">{t('budget.splitNote')}</p>
+      <ul aria-label={t('budget.lines')} className="flex flex-col divide-y divide-line border-t border-line">
+        {view.budgetLines.map((b) => (
+          <li key={b.lineId} className="flex flex-col gap-1 py-2.5">
+            <p className="font-medium break-words text-ink">{`${b.code} · ${b.name}`}</p>
+            {b.status !== 'OPEN' ? <StateLine kind="closed">{t(`budget.lineStatus.${b.status}`)}</StateLine> : null}
+            {b.reservedSatang > 0n || b.committedSatang > 0n ? (
+              <Amounts
+                heading={t('amounts.unit')}
+                unit={t('amounts.currency')}
+                rows={[
+                  ...(b.reservedSatang > 0n ? [{ label: t('budget.reserved'), value: money(b.reservedSatang) }] : []),
+                  ...(b.committedSatang > 0n ? [{ label: t('budget.committed'), value: money(b.committedSatang) }] : []),
+                ]}
+              />
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }

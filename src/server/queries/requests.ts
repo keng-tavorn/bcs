@@ -624,6 +624,8 @@ export interface LineDto {
   readonly netSatang: bigint
   readonly vatable: boolean
   readonly serviceEndDate: string | null
+  /** S6-17 (BR-BUD-16): the line's own budget line when it is not the request's; null: the request's */
+  readonly budgetLine: { readonly code: string; readonly name: string } | null
 }
 
 export interface TotalsDto {
@@ -872,6 +874,11 @@ export interface RequestViewDto {
   readonly totals: TotalsDto | null
   readonly lines: readonly LineDto[]
   readonly budget: BudgetDto | null
+  /**
+   * S6-17 (BR-BUD-16): every budget line the request uses or holds on — the request's own first, then the lines' own by
+   * code — each with what the request's lines hold on it. One entry (or none) for a request on one budget line
+   */
+  readonly budgetLines: readonly BudgetDto[]
   readonly fields: readonly FieldDto[]
   readonly attachments: readonly AttachmentDto[]
   readonly quotations: readonly QuotationDto[]
@@ -1491,8 +1498,17 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
   const hidden = await hiddenReviewReasons(db, ctx, request.requesterMemberId, allTasks)
   const history = await historyOf(db, events, new Map(allTasks.map((t) => [t.id, t.resolvedFrom])), roleOf, escalatedTaskIdsOf(events, allTasks), hidden)
 
-  const held = allocations.filter((a) => a.budgetLineId === request.budgetLineId)
-  const sum = (pick: (a: (typeof held)[number]) => bigint) => held.reduce((total, a) => total + pick(a), 0n)
+  // What the lines hold, per budget line (S6-17: a split request holds on several)
+  const heldOn = (budgetLineId: string | null) => {
+    const held = allocations.filter((a) => a.budgetLineId === budgetLineId)
+    const sum = (pick: (a: (typeof held)[number]) => bigint) => held.reduce((total, a) => total + pick(a), 0n)
+    return { reservedSatang: sum((a) => a.reservedSatang), committedSatang: sum((a) => a.committedSatang), actualSatang: sum((a) => a.actualSatang) }
+  }
+  const usedIds = [...new Set([...request.lines.map((l) => l.budgetLineId), ...allocations.map((a) => a.budgetLineId)])].filter((id): id is string => id !== null && id !== request.budgetLineId)
+  const others = usedIds.length ? await db.budgetLine.findMany({ where: { id: { in: usedIds } }, select: { id: true, code: true, nameTh: true, status: true }, orderBy: { code: 'asc' } }) : []
+  const budgetDto = (l: { id: string; code: string; nameTh: string; status: BudgetDto['status'] }): BudgetDto => ({ lineId: l.id, code: l.code, name: l.nameTh, status: l.status, ...heldOn(l.id) })
+  const ownBudget = request.budgetLine ? budgetDto(request.budgetLine) : null
+  const otherById = new Map(others.map((l) => [l.id, l]))
   const lastReturn = allTasks.filter((t) => t.decision === 'RETURN' && t.decidedAt && !hidden.has(t.id)).sort((a, b) => b.decidedAt!.getTime() - a.decidedAt!.getTime())[0]
   const approvedUnder = (DONE_STATUSES as readonly string[]).includes(request.status) && route?.status === 'COMPLETED' ? route.doa : null
 
@@ -1525,18 +1541,10 @@ export async function getRequestView(ctx: Ctx, requestId: string): Promise<Reque
       netSatang: l.netSatang,
       vatable: l.vatable,
       serviceEndDate: l.serviceEndDate ? l.serviceEndDate.toISOString().slice(0, 10) : null,
+      budgetLine: l.budgetLineId && otherById.has(l.budgetLineId) ? { code: otherById.get(l.budgetLineId)!.code, name: otherById.get(l.budgetLineId)!.nameTh } : null,
     })),
-    budget: request.budgetLine
-      ? {
-          lineId: request.budgetLine.id,
-          code: request.budgetLine.code,
-          name: request.budgetLine.nameTh,
-          status: request.budgetLine.status,
-          reservedSatang: sum((a) => a.reservedSatang),
-          committedSatang: sum((a) => a.committedSatang),
-          actualSatang: sum((a) => a.actualSatang),
-        }
-      : null,
+    budget: ownBudget,
+    budgetLines: [...(ownBudget ? [ownBudget] : []), ...others.map(budgetDto)],
     fields: fieldsOf(request.formVersion.schema, request.formData, await referenceNames(db, request.formData, members, departments.byId)),
     attachments: links.filter((l) => l.file.status === 'AVAILABLE').map((l) => ({ fileId: l.file.id, fileName: l.file.fileName, kind: l.kind, sizeBytes: l.file.sizeBytes })),
     quotations: request.quotations,

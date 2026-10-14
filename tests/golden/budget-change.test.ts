@@ -260,6 +260,12 @@ describe('[FR-BUD-102/AC2] golden budget-change.yaml: split cost (BR-BUD-16)', (
       expect({ department }).toEqual(c.expect)
     })
   }
+  it('picks the department with the most whichever order the lines come in, the lines of one department added up', () => {
+    const line = (lineNo: number, departmentId: string, netSatang: bigint) => ({ lineNo, departmentId, netSatang })
+    expect(chargedDepartmentOf([line(1, 'CON', 100n), line(2, 'IT', 50n), line(3, 'HR', 70n)])).toBe('CON')
+    expect(chargedDepartmentOf([line(1, 'CON', 10n), line(2, 'IT', 50n), line(3, 'CON', 45n)])).toBe('CON')
+    expect(chargedDepartmentOf([line(1, 'HR', 70n), line(2, 'IT', 90n), line(3, 'CON', 80n)])).toBe('IT')
+  })
   it('refuses a split of fewer than two parts or a part not above zero, and a request without lines', () => {
     expect(() => splitLine(100n, ['1'])).toThrow(RangeError)
     expect(() => splitLine(100n, ['1', '0'])).toThrow(RangeError)

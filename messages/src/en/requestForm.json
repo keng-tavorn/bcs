@@ -93,7 +93,9 @@
     "available": "Left",
     "need": "This request (before VAT)",
     "enough": "Enough budget",
-    "short": "Not enough budget: {shortfall} baht short. Lower the amount or choose another budget line"
+    "short": "Not enough budget: {shortfall} baht short. Lower the amount or choose another budget line",
+    "needSplit": "Items on this line (before VAT)",
+    "othersAtSubmit": "{count, plural, one {# more item uses a budget line of its own; its budget is checked when you send the request.} other {# more items use budget lines of their own; their budget is checked when you send the request.}}"
   },
   "lines": {
     "pricesIncludeVat": "The prices I enter include VAT",
@@ -122,7 +124,12 @@
     "removeQuestion": "Remove item {n} from the request?",
     "removeReserved": "This item holds {amount} baht of the budget. Once the draft is saved, that amount goes back to the budget line at once; sending the request again reserves for the items that are left",
     "removeConfirm": "Remove this item",
-    "removeKeep": "Keep the item"
+    "removeKeep": "Keep the item",
+    "budgetLine": "Budget line",
+    "budgetLineSame": "Same as the request",
+    "budgetLineSameCode": "Same as the request ({code})",
+    "budgetLineHint": "Choose one when this item is charged to another budget line, such as a cost shared with another department.",
+    "budgetLineGone": "The budget line chosen before (no longer usable)"
   },
   "totals": {
     "title": "Totals",
@@ -373,7 +380,10 @@
     "AGREEMENT_OFF": "A catalogue item has an agreed price with another supplier. Give the reason for not using that supplier on the items step, or suggest the supplier with the agreed price.",
     "CATALOG_UNKNOWN": "Line {n} is no longer in the catalogue. Choose another item or type it yourself.",
     "DUPLICATE_UNACKNOWLEDGED": "This request looks like one you sent before. Give the reason for asking again on the check and send step, then send again.",
-    "OVERRUN_PENDING": "This request is waiting for its over-budget approval. Until it is decided, the amount and the budget line cannot change and the request cannot be sent. Wait for the decision, or cancel the over-budget approval on the request page."
+    "OVERRUN_PENDING": "This request is waiting for its over-budget approval. Until it is decided, the amount and the budget line cannot change and the request cannot be sent. Wait for the decision, or cancel the over-budget approval on the request page.",
+    "LINE_BUDGET_LINE_NOT_ALLOWED": "The budget line of item {n} belongs to another department and you have not been allowed to use it. Choose another budget line for this item, or Same as the request.",
+    "LINE_BUDGET_LINE_YEAR": "The budget line of item {n} is of another fiscal year. Choose a budget line of this year for this item, or Same as the request.",
+    "LINE_BUDGET_LINE": "The budget line of item {n} was not found. Choose another budget line for this item, or Same as the request."
   },
   "site": {
     "label": "Delivery site",
@@ -471,5 +481,29 @@
     "reasonLabel": "Reason for asking again",
     "reasonHint": "For example, the last order is used up, or this is for another site",
     "reasonMissing": "Give the reason for asking again before sending"
+  },
+  "split": {
+    "button": "Split line",
+    "buttonLabel": "Split item {n}",
+    "title": "Split item {n}",
+    "description": "Split by quantity at the same unit price of {price} baht. The parts must add up to {quantity} {uom}, and each part may use a budget line of its own.",
+    "part": "Part {n}",
+    "quantity": "Quantity ({uom})",
+    "budgetLine": "Budget line",
+    "amount": "Amount {amount} baht",
+    "amountPending": "Enter a quantity to work out the amount",
+    "addPart": "Add a part",
+    "removePart": "Remove part {n}",
+    "quantityInvalid": "Enter a quantity above 0, such as 1 or 2.5",
+    "short": "The parts are {quantity} {uom} short of {total} {uom}",
+    "over": "The parts are {quantity} {uom} over {total} {uom}",
+    "total": "Total of the parts",
+    "original": "Amount of the item now",
+    "baht": "{amount} baht",
+    "same": "The total is the same as before",
+    "difference": "The total differs from before by {amount} baht because each part is rounded on its own",
+    "confirm": "{count, plural, other {Split into # items}}",
+    "keep": "Do not split",
+    "done": "Item {n} was split into {count} items. The draft will be saved for you."
   }
 }

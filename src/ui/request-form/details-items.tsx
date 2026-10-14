@@ -13,12 +13,13 @@ import { asksOffAgreementReason, catalogProblems, lineAgreement, type CatalogPic
 import { checkboxClass, describedBy, inputClass, Labelled, textareaClass } from './controls'
 import { documentFieldIds } from './document-fields'
 import { FieldInput, showDay } from './field-input'
-import { lineAmount, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
+import { lineAmount, requestLineNeed, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
+import type { SplitPart } from './split-lines'
 import { showMoney, showSatang } from './money'
 import { MoneyInput } from './money-input'
 import { DeliverySiteField } from './place-supplier'
 import { BudgetStatus, TotalsList } from './summary'
-import type { BudgetView, CatalogSearch, RequestFormData, ScreenLocale } from './types'
+import type { BudgetLineOption, BudgetView, CatalogSearch, RequestFormData, ScreenLocale } from './types'
 
 // Steps 1 and 2 of the request form (FR-INT-002, FR-INT-003, FR-INT-004): the title, the budget line (prefilled,
 // BR-FORM-02; only the requester's own or granted lines, BR-BUD-04) with what is left on it, the questions of the
@@ -43,6 +44,28 @@ export interface StepProps {
   readonly fieldErrors: Readonly<Record<string, string>>
   /** S6-10: the catalogue the workspace's form offers each line; absent, lines are typed only (the LIFF form) */
   readonly catalog?: CatalogOffer
+  /**
+   * S6-17 (BR-BUD-16): the workspace's form offers each line a budget line of its own and "แบ่งบรรทัด" (the Dialog drawn
+   * with the workspace's components, ./split-line-dialog.tsx); absent in the LIFF form (ADR-052)
+   */
+  readonly split?: SplitOffer
+  /** A refusal of the last send about a line, by line number (`lines.N.budgetLineId`), said under that line's budget line */
+  readonly lineErrors?: Readonly<Record<number, string>>
+}
+
+/** S6-17: the Dialog that splits a line */
+export interface SplitOffer {
+  readonly Dialog: ComponentType<SplitLineProps>
+}
+
+export interface SplitLineProps {
+  readonly lineNo: number
+  readonly line: FormLine
+  readonly priceIncludesVat: boolean
+  /** The budget lines the request may use (the request's chooser's), and the request's own */
+  readonly budgetLines: readonly BudgetLineOption[]
+  readonly requestBudgetLineId: string
+  readonly onSplit: (parts: readonly SplitPart[]) => void
 }
 
 /** The picker of a line (./catalog-picker.tsx, drawn with the workspace's components) and the search it calls */
@@ -179,6 +202,7 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
 export function LinesSection(props: StepProps & { readonly endDateRequired: boolean }) {
   const t = useTranslations('requestForm')
   const { data, values, update, totals, budget, previewLoading } = props
+  const need = requestLineNeed(values, data.vatRateBp)
   const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
   return (
     <>
@@ -211,7 +235,7 @@ export function LinesSection(props: StepProps & { readonly endDateRequired: bool
         <h3 id="budget-heading" className="subheading font-semibold">
           {t('budget.title')}
         </h3>
-        <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
+        <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={need?.net ?? null} others={need?.others ?? 0} loading={previewLoading} />
       </section>
     </>
   )
@@ -282,7 +306,7 @@ function CatalogLine({ line, n, values, update, data, catalog }: StepProps & { l
 }
 
 function LineFields(props: StepProps & { line: FormLine; n: number; canRemove: boolean; endDateRequired: boolean }) {
-  const { line, n, canRemove, update, values, showErrors, endDateRequired, locale, catalog } = props
+  const { line, n, canRemove, update, values, showErrors, endDateRequired, locale, catalog, data, split } = props
   const tc = useTranslations('requestForm.catalog')
   // S6-10: a catalogue item with an agreed price with the suggested supplier takes that price, which cannot be changed
   const agreement = lineAgreement(line, values)
@@ -348,6 +372,7 @@ function LineFields(props: StepProps & { line: FormLine; n: number; canRemove: b
         <input type="checkbox" className={checkboxClass} checked={line.vatable} onChange={(e) => set({ vatable: e.currentTarget.checked })} />
         <span>{t('vatable')}</span>
       </label>
+      {props.split && (data.budgetLines.length > 1 || line.budgetLineId) ? <LineBudgetField {...props} /> : null}
       {endDateRequired ? (
         <Labelled
           id={`${p}-end`}
@@ -362,6 +387,16 @@ function LineFields(props: StepProps & { line: FormLine; n: number; canRemove: b
       ) : null}
       {/* As wide as the totals and the budget below (max-w-xl, ./summary.tsx): the line's amount ends at their right edge (§9.9 principle 6) */}
       <div className="flex max-w-xl flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        {split && data.budgetLines.length > 1 && amount !== null ? (
+          <split.Dialog
+            lineNo={n}
+            line={line}
+            priceIncludesVat={values.priceIncludesVat}
+            budgetLines={data.budgetLines}
+            requestBudgetLineId={values.budgetLineId}
+            onSplit={(parts) => update({ type: 'splitLine', key: line.key, parts })}
+          />
+        ) : null}
         {canRemove ? (
           <ConfirmRemove
             label={t('remove', { n })}
@@ -376,5 +411,40 @@ function LineFields(props: StepProps & { line: FormLine; n: number; canRemove: b
         <p className="money ml-auto">{amount !== null ? t('amount', { amount: showSatang(amount) }) : t('amountPending')}</p>
       </div>
     </fieldset>
+  )
+}
+
+/**
+ * S6-17 (FR-BUD-102 AC1 · BR-BUD-16): the line's own budget line, from the budget lines the request's chooser offers —
+ * "ตามคำขอ" (null) by default. A budget line chosen before and no longer offered stays chosen and says so; the submit
+ * checks every line's like the request's, and a refusal of this line's is said under it.
+ */
+function LineBudgetField({ line, n, data, values, update, lineErrors }: StepProps & { line: FormLine; n: number }) {
+  const t = useTranslations('requestForm.lines')
+  const tb = useTranslations('requestForm.budget')
+  const id = `line-${n}-budget`
+  const chosen = line.budgetLineId ?? ''
+  const gone = chosen !== '' && !data.budgetLines.some((l) => l.id === chosen)
+  const own = data.budgetLines.find((l) => l.id === values.budgetLineId)
+  const error = lineErrors?.[n]
+  return (
+    <Labelled id={id} label={t('budgetLine')} hint={t('budgetLineHint')} error={error} className="max-w-xl">
+      <select
+        id={id}
+        className={inputClass}
+        value={chosen}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, true, Boolean(error))}
+        onChange={(e) => update({ type: 'line', key: line.key, patch: { budgetLineId: e.currentTarget.value || null } })}
+      >
+        <option value="">{own ? t('budgetLineSameCode', { code: own.code }) : t('budgetLineSame')}</option>
+        {gone ? <option value={chosen}>{t('budgetLineGone')}</option> : null}
+        {data.budgetLines.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.granted ? tb('optionGranted', { code: l.code, name: l.name, department: l.departmentName }) : tb('option', { code: l.code, name: l.name })}
+          </option>
+        ))}
+      </select>
+    </Labelled>
   )
 }

@@ -83,7 +83,7 @@ describe('[FR-INT-008/AC1] the timeline shows the current step, who it waits for
     // BR-VAT-03: the line includes VAT; VAT = round(45,000 × 700 / 10,700); the budget basis of the demo is NET
     expect(view!.totals).toEqual({ netSatang: 4_205_607n, vatSatang: 294_393n, grossSatang: 4_500_000n, vatRateBp: 700, priceIncludesVat: true })
     expect(view!.budget).toMatchObject({ code: 'CON-OPEX-2569', status: 'OPEN', reservedSatang: 4_205_607n, committedSatang: 0n })
-    expect(view!.lines).toEqual([{ lineNo: 1, description: 'ปูนซีเมนต์', quantity: '1', uom: 'งาน', unitPriceSatang: 4_500_000n, netSatang: 4_500_000n, vatable: true, serviceEndDate: null }])
+    expect(view!.lines).toEqual([{ lineNo: 1, description: 'ปูนซีเมนต์', quantity: '1', uom: 'งาน', unitPriceSatang: 4_500_000n, netSatang: 4_500_000n, vatable: true, serviceEndDate: null, budgetLine: null }])
     expect(view!.actions).toEqual({ canEdit: false, canResubmit: false, canCancel: true })
   })
 })

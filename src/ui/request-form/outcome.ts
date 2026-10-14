@@ -124,6 +124,9 @@ export const FAILURE_KEYS = [
   'NO_BUDGET_LINE',
   'BUDGET_LINE_YEAR',
   'BUDGET_LINE_NOT_ALLOWED',
+  'LINE_BUDGET_LINE_NOT_ALLOWED',
+  'LINE_BUDGET_LINE_YEAR',
+  'LINE_BUDGET_LINE',
   'DOA_NOT_CONFIGURED',
   'APPROVER_NOT_FOUND',
   'NO_HIGHER_AUTHORITY',
@@ -212,8 +215,21 @@ function validationKey(f: FormFailure): FailureKey {
   return 'INPUT'
 }
 
+/**
+ * S6-17 (BR-BUD-16): a line's own budget line refused at submit (`lines.N.budgetLineId`) — another department's not
+ * granted, of another fiscal year, or not found — said of that line, not of the request's budget line
+ */
+function lineBudgetKey(f: FormFailure): FailureKey | null {
+  if (!/^lines\.\d+\.budgetLineId$/.test(f.field ?? '')) return null
+  if (f.reason === 'BUDGET_LINE_NOT_ALLOWED') return 'LINE_BUDGET_LINE_NOT_ALLOWED'
+  if (f.reason === 'BUDGET_LINE_YEAR') return 'LINE_BUDGET_LINE_YEAR'
+  return 'LINE_BUDGET_LINE'
+}
+
 /** Message key under requestForm.errors for a failed request form action. */
 export function failureKey(f: FormFailure): FailureKey {
+  const line = lineBudgetKey(f)
+  if (line) return line
   if (f.code === 'FORBIDDEN' && f.reason === 'BUDGET_LINE_NOT_ALLOWED') return 'BUDGET_LINE_NOT_ALLOWED'
   if (f.code === 'VALIDATION_FAILED') return validationKey(f)
   // S6-16 (§6.4): an over-budget approval of the request still waits — its amount and budget line are locked, and it is

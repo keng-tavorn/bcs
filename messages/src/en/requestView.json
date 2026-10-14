@@ -136,7 +136,9 @@
       "FROZEN": "Budget line frozen for now",
       "CLOSED": "Budget line closed"
     },
-    "none": "No budget line chosen yet; the department’s line is used when the request is sent"
+    "none": "No budget line chosen yet; the department’s line is used when the request is sent",
+    "lines": "Budget lines this request uses",
+    "splitNote": "This request splits its cost over several budget lines. Its approvers come from the department with the largest share."
   },
   "route": {
     "title": "Approval route",
@@ -211,7 +213,8 @@
     "qty": "{quantity} {uom}",
     "noVat": "No VAT",
     "serviceEnd": "Service ends {date}",
-    "none": "No lines yet; add them on the edit page"
+    "none": "No lines yet; add them on the edit page",
+    "budgetLine": "Budget line {code} · {name}"
   },
   "details": {
     "title": "More details",

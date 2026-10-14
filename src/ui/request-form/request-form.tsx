@@ -16,6 +16,7 @@ import { FORM_PAGE } from '../shell/form-page'
 import { DOOR_ASIDE } from '../shell/new-request-door'
 import { catalogProblems } from './catalog-lines'
 import { CatalogPicker } from './catalog-picker'
+import { SplitLineDialog } from './split-line-dialog'
 import type { StepProps } from './details-items'
 import { kindLabelOf, type DocumentsProps } from './documents-step'
 import { DropUploadButton } from './drop-upload'
@@ -369,6 +370,12 @@ export function RequestForm({
     const target = failureTarget(submitError).fieldId
     if (target) fieldErrors[target] = t('errors.FORM_FIELD', { field: labelFor(target) })
   }
+  // S6-17: a line's own budget line refused at submit is said under that line too (lines.N.budgetLineId)
+  const lineErrors: Record<number, string> = {}
+  if (submitError && failureKey(submitError).startsWith('LINE_BUDGET_LINE')) {
+    const lineNo = failureTarget(submitError).lineNo
+    if (lineNo) lineErrors[lineNo] = t(`errors.${failureKey(submitError)}`, { n: lineNo })
+  }
   function labelFor(id: string) {
     const def = data.form.fields.find((f) => f.id === id)
     return def ? fieldLabel(def, locale) : id
@@ -392,6 +399,7 @@ export function RequestForm({
     previewLoading,
     fieldErrors,
     ...(actions.catalog && purchase ? { catalog: { Picker: CatalogPicker, search: actions.catalog } } : {}),
+    ...(purchase ? { split: { Dialog: SplitLineDialog }, lineErrors } : {}),
   }
   // Why saving is stopped, which the review step says in its "ตรวจก่อนส่ง" (sendBlockPoint)
   const saveStop: SaveStop | null = autosave.state.kind === 'conflict' ? 'conflict' : autosave.state.kind === 'closed' ? 'closed' : null

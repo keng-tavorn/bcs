@@ -200,6 +200,7 @@
     },
     "budget": {
       "actualized": "Budget moved to actual",
+      "alert_raised": "Budget use or forecast alert raised",
       "commitment_released": "Committed budget released",
       "committed": "Budget committed to a PO",
       "imported": "Budget imported",

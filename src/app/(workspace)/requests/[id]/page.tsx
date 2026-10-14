@@ -220,7 +220,21 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
 
       {view.documentType === 'PURCHASE_REQUEST' ? (
         <Section id="budget-card" title={td('overview.budgetTitle')}>
-          {view.budget ? (
+          {view.budgetLines.length > 1 ? (
+            // S6-17 (BR-BUD-16): split over budget lines — each one with what the request holds on it
+            <div className="flex flex-col gap-2">
+              <StateLine kind={budget.kind}>{tv(`budget.${budget.key}`)}</StateLine>
+              <ul aria-label={tv('budget.lines')} className="flex flex-col divide-y divide-line border-t border-line">
+                {view.budgetLines.map((b) => (
+                  <li key={b.lineId} className="flex flex-col gap-1 py-2">
+                    <p className="text-ink">{`${b.code} · ${b.name}`}</p>
+                    {b.reservedSatang > 0n ? <p className="tabular text-ink">{`${tv('budget.reserved')} ${money(b.reservedSatang)} ${tv('amounts.currency')}`}</p> : null}
+                    {b.committedSatang > 0n ? <p className="tabular text-ink">{`${tv('budget.committed')} ${money(b.committedSatang)} ${tv('amounts.currency')}`}</p> : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : view.budget ? (
             <div className="flex flex-col gap-1">
               <p className="text-ink">{`${view.budget.code} · ${view.budget.name}`}</p>
               <StateLine kind={budget.kind}>{tv(`budget.${budget.key}`)}</StateLine>
@@ -311,7 +325,7 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
             : []),
           { label: td('summary.type'), value: nameIn(locale, view.requestType.name) },
           { label: td('summary.charged'), value: view.chargedDepartment ? nameIn(locale, view.chargedDepartment.name) : td('summary.none') },
-          ...(view.documentType === 'PURCHASE_REQUEST' ? [{ label: td('summary.budgetLine'), value: view.budget ? `${view.budget.code} · ${view.budget.name}` : td('summary.none') }] : []),
+          ...(view.documentType === 'PURCHASE_REQUEST' ? [{ label: td('summary.budgetLine'), value: view.budgetLines.length ? view.budgetLines.map((b) => `${b.code} · ${b.name}`).join(', ') : td('summary.none') }] : []),
           { label: td('summary.requester'), value: memberName(locale, view.requester) },
           { label: td('summary.neededBy'), value: view.neededBy ? day(locale, view.neededBy) : td('summary.none') },
           ...(view.documentType === 'PURCHASE_REQUEST' ? [{ label: td('summary.site'), value: view.deliverySite ? `${view.deliverySite.code} · ${view.deliverySite.name}` : td('summary.none') }] : []),

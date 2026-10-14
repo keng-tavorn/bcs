@@ -232,12 +232,12 @@ describe('[FR-AP-101/AC1] the draft from the PO', () => {
     expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).toMatchObject({ status: 'DRAFT', netSatang: 60_000n, channel: 'UPLOAD', createdById: ap.org.member.fin_officer })
   })
 
-  it('[FR-AP-101/AC5] an update with aiAssist is MODULE_DISABLED until S13 and the draft does not change', async () => {
+  it('[FR-AP-101/AC5] an update with aiAssist of an unknown AI action is refused and the draft does not change', async () => {
     const po = await sentPo(ap, [{ quantity: '1', unitPrice: '1000.00' }])
     const { invoiceId } = ok(await createInvoice(fin(ap), { poId: po.id }, key()))
     const before = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })
     const r = await updateInvoice(fin(ap), { invoiceId, version: before.version, supplierInvoiceNo: 'AI-1', aiAssist: { agentActionId: '0199a000-0000-7000-8000-000000000001', confirmedPaths: ['supplierInvoiceNo'] } }, key())
-    expect(r).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED', details: { module: 'AI' } } })
+    expect(r).toMatchObject({ ok: false, error: { code: 'NOT_FOUND', details: { field: 'aiAssist.agentActionId' } } })
     expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).toEqual(before)
   })
 })

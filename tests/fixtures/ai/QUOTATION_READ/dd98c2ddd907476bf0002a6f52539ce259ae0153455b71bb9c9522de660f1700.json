@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": "QD-2569-118",
+    "docDate": "2026-09-24",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด",
+      "taxId": "0999998011657",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "น้ำมันดีเซล B7",
+        "qty": "5000",
+        "unit": "ลิตร",
+        "unitPrice": "32.50",
+        "amount": "162500.00"
+      }
+    ],
+    "discountTotal": "3250.00",
+    "net": "159250.00",
+    "vat": "11147.50",
+    "gross": "170397.50",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

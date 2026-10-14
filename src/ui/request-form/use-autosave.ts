@@ -36,6 +36,8 @@ export type SaveAnswer = { readonly ok: true; readonly requestId: string; readon
 export interface SavedParts {
   readonly lines: ReadonlyArray<{ readonly key: string; readonly id: string }>
   readonly quotations: readonly string[]
+  /** The AI reading the save carried (aiAssist), if any */
+  readonly ai: { readonly agentActionId: string; readonly mark: string } | null
 }
 
 export interface AutosaveOptions {
@@ -151,7 +153,7 @@ export function useAutosave(options: AutosaveOptions): Autosave {
         versionRef.current = answer.version
         saved.current = seq
         const lineIds = answer.lineIds
-        opts.current.onSaved({ lines: (save.lineKeys ?? []).flatMap((key, i) => (lineIds[i] ? [{ key, id: lineIds[i]! }] : [])), quotations: save.quotationKeys ?? [] })
+        opts.current.onSaved({ lines: (save.lineKeys ?? []).flatMap((key, i) => (lineIds[i] ? [{ key, id: lineIds[i]! }] : [])), quotations: save.quotationKeys ?? [], ai: save.ai ?? null })
         if (created) {
           setRequestId(answer.requestId)
           opts.current.onCreated(answer.requestId)

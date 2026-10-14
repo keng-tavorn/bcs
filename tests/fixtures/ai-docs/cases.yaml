@@ -1,0 +1,256 @@
+# Extra documents of the AI evaluation set (S13-05, ADR-146, docs/sub-specs/S13.md "ชุดประเมิน"): what the sheet
+# DocSamples of the phase-1 workbook lacks — many lines, sellers not registered for VAT, a branch that is not 00000,
+# individual contractors, dates written in the Buddhist and the Christian year, Thai digits, a tax invoice whose prices
+# include VAT, a quotation with a discount, a delivery note that brings part of the order, and a quotation in USD.
+# Same fields as DocSamples, plus how the file is drawn (dateStyle, digits, currency). Every amount is checked with
+# src/core/money by tests/unit/ai-docs.test.ts: line = qty × unitPrice rounded half up, VAT 7% of the net (or 7/107 of a
+# gross that includes VAT), 0 for a seller not registered for VAT. The files are made by `pnpm ai:docs`.
+buyerTaxId: "0999997000015"
+cases:
+  - sampleId: CASE-01
+    docType: QUOTATION
+    note: สามบรรทัด วันที่ ค.ศ.
+    supplierCode: SP0008
+    sellerNameTh: บริษัท สามพรานวัสดุค้าวัสดุ จำกัด
+    sellerTaxId: "0999998010081"
+    sellerBranch: "00000"
+    docNo: QT-24001
+    docDaysAgo: 5
+    priceIncludesVat: N
+    lines:
+      - { description: ปูนซีเมนต์ปอร์ตแลนด์ประเภท 1 ถุง 50 กก., qty: "120", unit: ถุง, unitPrice: "145.00" }
+      - { description: ทรายหยาบ, qty: "12", unit: ลบ.ม., unitPrice: "480.00" }
+      - { description: หินย่อย 3/4 นิ้ว, qty: "8", unit: ลบ.ม., unitPrice: "590.00" }
+    net: "27880.00"
+    vat: "1951.60"
+    gross: "29831.60"
+    layout: A4_TYPED
+    quality: CLEAN
+    language: TH
+    dateStyle: CE
+  - sampleId: CASE-02
+    docType: TAX_INVOICE
+    note: แปดบรรทัด VAT ปัดขึ้น
+    supplierCode: SP0056
+    sellerNameTh: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด
+    sellerTaxId: "0999998010561"
+    sellerBranch: "00000"
+    docNo: INV-00412
+    docDaysAgo: 3
+    priceIncludesVat: N
+    lines:
+      - { description: ท่อ PPR 1 นิ้ว, qty: "20", unit: ท่อน, unitPrice: "310.00" }
+      - { description: ข้อต่อ PPR 1 นิ้ว, qty: "40", unit: ตัว, unitPrice: "18.50" }
+      - { description: ข้องอ PPR 1 นิ้ว, qty: "30", unit: ตัว, unitPrice: "22.00" }
+      - { description: สามทาง PPR 1 นิ้ว, qty: "15", unit: ตัว, unitPrice: "27.50" }
+      - { description: วาล์ว PPR 1 นิ้ว, qty: "6", unit: ตัว, unitPrice: "385.00" }
+      - { description: เทปพันเกลียว, qty: "24", unit: ม้วน, unitPrice: "12.00" }
+      - { description: กาวทาท่อ, qty: "6", unit: กระป๋อง, unitPrice: "95.00" }
+      - { description: ท่อ PPR 3/4 นิ้ว, qty: "10", unit: ท่อน, unitPrice: "245.00" }
+    net: "13630.50"
+    vat: "954.14"
+    gross: "14584.64"
+    layout: A4_SCANNED
+    quality: CLEAN
+    language: TH
+  - sampleId: CASE-03
+    docType: QUOTATION
+    note: ผู้รับเหมาบุคคลธรรมดาไม่จด VAT เขียนมือ
+    supplierCode: SP0109
+    sellerNameTh: นายบุญมี บุญล้อม
+    sellerTaxId: "3999998020014"
+    sellerBranch: "00000"
+    docNo: ไม่มีเลขที่
+    docDaysAgo: 9
+    priceIncludesVat: N
+    vatRegistered: N
+    lines:
+      - { description: ค่าติดตั้งประตูอลูมิเนียม, qty: "4", unit: ชุด, unitPrice: "6500.00" }
+    net: "26000.00"
+    vat: "0.00"
+    gross: "26000.00"
+    layout: HANDWRITTEN
+    quality: CLEAN
+    language: TH
+  - sampleId: CASE-04
+    docType: TAX_INVOICE
+    note: สาขาที่ 00002
+    supplierCode: SP0058
+    sellerNameTh: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด
+    sellerTaxId: "0999998010588"
+    sellerBranch: "00002"
+    docNo: IV2569-0451
+    docDaysAgo: 6
+    priceIncludesVat: N
+    lines:
+      - { description: สีรองพื้นปูนใหม่ 18 ลิตร, qty: "10", unit: ถัง, unitPrice: "1850.00" }
+    net: "18500.00"
+    vat: "1295.00"
+    gross: "19795.00"
+    layout: A4_TYPED
+    quality: STAMPED
+    language: TH
+  - sampleId: CASE-05
+    docType: QUOTATION
+    note: ช่างรายย่อยไม่จด VAT ภาพถ่าย
+    supplierCode: SP0110
+    sellerNameTh: นายสมหวัง ทองขาว
+    sellerTaxId: "3999998020022"
+    sellerBranch: "00000"
+    docNo: Q-0031
+    docDaysAgo: 12
+    priceIncludesVat: N
+    vatRegistered: N
+    lines:
+      - { description: ค่าแรงปูกระเบื้องพื้น, qty: "120", unit: ตร.ม., unitPrice: "180.00" }
+    net: "21600.00"
+    vat: "0.00"
+    gross: "21600.00"
+    layout: PHOTO
+    quality: CLEAN
+    language: TH
+  - sampleId: CASE-06
+    docType: QUOTATION
+    note: วันที่เป็นปี พ.ศ. เต็ม
+    supplierCode: SP0008
+    sellerNameTh: บริษัท สามพรานวัสดุค้าวัสดุ จำกัด
+    sellerTaxId: "0999998010081"
+    sellerBranch: "00000"
+    docNo: QT-24015
+    docDaysAgo: 20
+    priceIncludesVat: N
+    lines:
+      - { description: ไม้อัดยางทำแบบหล่อ 10 มม., qty: "50", unit: แผ่น, unitPrice: "395.00" }
+    net: "19750.00"
+    vat: "1382.50"
+    gross: "21132.50"
+    layout: A4_SCANNED
+    quality: SKEWED
+    language: TH
+    dateStyle: BE_LONG
+  - sampleId: CASE-07
+    docType: QUOTATION
+    note: ตัวเลขไทยทั้งฉบับ
+    supplierCode: SP0056
+    sellerNameTh: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด
+    sellerTaxId: "0999998010561"
+    sellerBranch: "00000"
+    docNo: QT-16422
+    docDaysAgo: 2
+    priceIncludesVat: N
+    lines:
+      - { description: ท่อ PPR 1 นิ้ว, qty: "12", unit: ท่อน, unitPrice: "310.00" }
+    net: "3720.00"
+    vat: "260.40"
+    gross: "3980.40"
+    layout: A4_TYPED
+    quality: CLEAN
+    language: TH
+    digits: THAI
+  - sampleId: CASE-08
+    docType: TAX_INVOICE
+    note: ใบกำกับราคารวม VAT
+    supplierCode: SP0058
+    sellerNameTh: บริษัท กรุงเก่าวัสดุเซรามิค จำกัด
+    sellerTaxId: "0999998010588"
+    sellerBranch: "00000"
+    docNo: IV2569-0466
+    docDaysAgo: 4
+    priceIncludesVat: Y
+    lines:
+      - { description: สีน้ำอะคริลิกภายนอก 18 ลิตร, qty: "10", unit: ถัง, unitPrice: "2514.50" }
+    net: "23500.00"
+    vat: "1645.00"
+    gross: "25145.00"
+    layout: A4_SCANNED
+    quality: BLURRY
+    language: TH
+  - sampleId: CASE-09
+    docType: QUOTATION
+    note: ส่วนลดท้ายบิลก่อนคิด VAT
+    supplierCode: SP0175
+    sellerNameTh: บริษัท อุตสาหกิจไทยปิโตรเลียม จำกัด
+    sellerTaxId: "0999998011657"
+    sellerBranch: "00000"
+    docNo: QD-2569-118
+    docDaysAgo: 7
+    priceIncludesVat: N
+    lines:
+      - { description: น้ำมันดีเซล B7, qty: "5000", unit: ลิตร, unitPrice: "32.50" }
+    discountTotal: "3250.00"
+    net: "159250.00"
+    vat: "11147.50"
+    gross: "170397.50"
+    layout: A4_TYPED
+    quality: CLEAN
+    language: TH
+  - sampleId: CASE-10
+    docType: DELIVERY_NOTE
+    note: ส่งไม่ครบจำนวนสั่ง (สั่ง 18 ท่อน 40 ตัว)
+    supplierCode: SP0056
+    sellerNameTh: บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด
+    sellerTaxId: "0999998010561"
+    sellerBranch: "00000"
+    docNo: DN101502
+    docDaysAgo: 1
+    priceIncludesVat: N
+    lines:
+      - { description: ท่อ PPR 1 นิ้ว, qty: "10", unit: ท่อน }
+      - { description: ข้อต่อ PPR 1 นิ้ว, qty: "25", unit: ตัว }
+    layout: PHOTO
+    quality: STAMPED
+    language: TH
+  - sampleId: CASE-11
+    docType: QUOTATION
+    note: สกุลเงิน USD (ต้องได้ CURRENCY)
+    supplierCode: SP0068
+    sellerNameTh: Poonphol Machinery Rental Co., Ltd.
+    sellerTaxId: "0999998010685"
+    sellerBranch: "00000"
+    docNo: QT-US-0007
+    docDaysAgo: 8
+    priceIncludesVat: N
+    currency: USD
+    lines:
+      - { description: Excavator PC200 rental with operator, qty: "5", unit: day, unitPrice: "150.00" }
+    net: "750.00"
+    vat: "52.50"
+    gross: "802.50"
+    layout: EN_TEMPLATE
+    quality: CLEAN
+    language: EN
+  - sampleId: CASE-12
+    docType: DELIVERY_NOTE
+    note: ใบส่งของสามบรรทัด ภาพถ่ายเอียง
+    supplierCode: SP0008
+    sellerNameTh: บริษัท สามพรานวัสดุค้าวัสดุ จำกัด
+    sellerTaxId: "0999998010081"
+    sellerBranch: "00000"
+    docNo: DN-24009
+    docDaysAgo: 2
+    priceIncludesVat: N
+    lines:
+      - { description: ปูนซีเมนต์ปอร์ตแลนด์ประเภท 1 ถุง 50 กก., qty: "60", unit: ถุง }
+      - { description: ทรายหยาบ, qty: "6", unit: ลบ.ม. }
+      - { description: หินคลุก, qty: "4", unit: ลบ.ม. }
+    layout: PHOTO
+    quality: SKEWED
+    language: TH
+  - sampleId: CASE-13
+    docType: TAX_INVOICE
+    note: ใบกำกับสองภาษา วันที่ พ.ศ. แบบย่อ
+    supplierCode: SP0068
+    sellerNameTh: บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด
+    sellerTaxId: "0999998010685"
+    sellerBranch: "00000"
+    docNo: TI-69-00213
+    docDaysAgo: 10
+    priceIncludesVat: N
+    lines:
+      - { description: ค่าเช่ารถแบ็คโฮ PC200 พร้อมผู้ควบคุม, qty: "10", unit: วัน, unitPrice: "4848.00" }
+    net: "48480.00"
+    vat: "3393.60"
+    gross: "51873.60"
+    layout: EN_TEMPLATE
+    quality: CLEAN
+    language: MIXED

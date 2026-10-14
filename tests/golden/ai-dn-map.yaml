@@ -1,0 +1,12 @@
+# tests/golden/ai-dn-map.yaml
+suite: ai-dn-map
+fixture:
+  poLines:
+    - { lineNo: 1, description: ท่อ PPR 1 นิ้ว, uom: ท่อน, openQty: "18" }
+    - { lineNo: 2, description: ข้อต่อ PPR 1 นิ้ว, uom: ตัว, openQty: "40" }
+cases:
+  - { id: GC-AI-70, input: { dnLines: [{ qty: "18", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18" }], flags: [] } }
+  - { id: GC-AI-71, title: หน่วยไม่ตรง, input: { dnLines: [{ qty: "3", unit: เส้น, poLineNo: 1 }] }, expect: { prefill: [], flags: [{ code: UOM_MISMATCH, dnLine: 0 }] } }
+  - { id: GC-AI-72, title: บรรทัดที่ไม่มีใน PO, input: { dnLines: [{ qty: "5", unit: ตัว, poLineNo: 3 }] }, expect: { prefill: [], flags: [{ code: PO_LINE_UNKNOWN, dnLine: 0 }] } }
+  - { id: GC-AI-73, title: สองบรรทัดชี้บรรทัด PO เดียว, input: { dnLines: [{ qty: "10", unit: ตัว, poLineNo: 2 }, { qty: "30", unit: ตัว, poLineNo: 2 }] }, expect: { prefill: [], flags: [{ code: DUPLICATE_PO_LINE, lineNo: 2 }] } }
+  - { id: GC-AI-74, title: เกินยอดค้างรับ เติมแต่ไฮไลต์, input: { dnLines: [{ qty: "18.5", unit: ท่อน, poLineNo: 1 }] }, expect: { prefill: [{ lineNo: 1, received: "18.5" }], flags: [{ code: OVER_OPEN, lineNo: 1 }] } }

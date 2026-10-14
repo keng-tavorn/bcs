@@ -6,6 +6,8 @@ import { useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Satang } from '@/core/money/math'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
+import type { ComponentType } from 'react'
+import type { AiReadActions } from '../ai/types'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { ConfirmRemove } from './confirm-remove'
@@ -16,6 +18,7 @@ import { FieldInput } from './field-input'
 import { savableQuotation, validMoney, visibleInput, type FormQuotation, type RuleStatus } from './model'
 import { showSatang } from './money'
 import { MoneyInput } from './money-input'
+import type { QuotationAiProps } from './quotation-ai'
 import { SuggestedSupplierField } from './place-supplier'
 import { conditionText, RequirementList } from './rule-text'
 import type { Attachment } from './types'
@@ -47,6 +50,11 @@ export interface DocumentsProps extends StepProps {
   readonly busy: boolean
   /** The upload control: the workspace's form takes files dropped on it too (./drop-upload.tsx); LIFF keeps the button */
   readonly Upload?: typeof UploadButton
+  /**
+   * The Document Agent reads a quotation's file into it (FR-AI-303): absent when it is not available to this member. The
+   * workspace's form hands its component in, so the LIFF form, which shares this step, never loads it (ADR-052)
+   */
+  readonly ai?: { readonly actions: AiReadActions; readonly requestId: string | null; readonly Reader: ComponentType<QuotationAiProps> }
 }
 
 export function kindLabelOf(t: ReturnType<typeof useTranslations<'requestForm'>>, kind: string): string {
@@ -197,7 +205,7 @@ export function Quotations(props: DocumentsProps) {
   )
 }
 
-function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, showErrors, busy, Upload = UploadButton }: DocumentsProps & { q: FormQuotation; n: number; net: Satang | undefined; isLowest: boolean }) {
+function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, showErrors, busy, ai, Upload = UploadButton }: DocumentsProps & { q: FormQuotation; n: number; net: Satang | undefined; isLowest: boolean }) {
   const t = useTranslations('requestForm.quotations')
   const tf = useTranslations('requestForm.fields')
   const p = `quote-${n}`
@@ -264,6 +272,7 @@ function QuotationFields({ q, n, net, isLowest, update, uploads, onOpenFile, sho
             <span>{errors.file}</span>
           </p>
         ) : null}
+        {ai ? <ai.Reader q={q} n={n} ai={ai} update={update} /> : null}
       </div>
       <label className="flex min-h-11 items-center gap-3">
         <input type="radio" name="chosen-quotation" className={checkboxClass} checked={q.selected} onChange={() => update({ type: 'selectQuotation', key: q.key })} />

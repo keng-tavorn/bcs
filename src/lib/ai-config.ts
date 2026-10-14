@@ -164,6 +164,22 @@ export const AI_CREDIT_DEFAULTS = { monthlyCredits: 20_000, alertAtBp: 8000 } as
  */
 export const CONTENT_RETENTION_DAYS = { chatIntake: 7, unused: 90 } as const // TODO(OQ-144)
 
+/** Words that advise a decision, which a text of the AI never carries (BR-AI-27 DECISION_ADVICE · compared ignoring case) */
+export const DECISION_ADVICE_WORDS = [
+  'ควรอนุมัติ',
+  'แนะนำให้อนุมัติ',
+  'ควรปฏิเสธ',
+  'แนะนำให้ปฏิเสธ',
+  'ควรตีกลับ',
+  'should approve',
+  'should reject',
+  'recommend approv',
+  'recommend reject',
+] as const
+
+/** Passing marks of the evaluation, demo tier (OQ-141 · BR-AI-26): critical fields 9800 bp with nothing slipped through */
+export const EVAL_THRESHOLDS_BP = { critical: 9800, other: 9000, intakeType: 9500, intakeLines: 9000, briefFlags: 9500, briefText: 9500, insightTools: 9000 } as const // TODO(OQ-141)
+
 /** Limits of BR-AI-11 BR-AI-12 BR-AI-21 and the state machine of AgentAction */
 export const AI_LIMITS = {
   /** Calls one member may start per minute (RATE_LIMITED reason AI) */
@@ -179,4 +195,8 @@ export const AI_LIMITS = {
   insightMaxTurns: 10,
   /** Characters of text a member typed that an AgentAction keeps (inputText) */
   maxInputTextChars: 2_000,
+  /** Files one Intake call reads with the requester's words */
+  intakeMaxFiles: 5,
+  /** A requester's own requests this recent make a reorder (BR-AI-19 · no organization setting for it yet) */
+  reorderLookbackDays: 180,
 } as const

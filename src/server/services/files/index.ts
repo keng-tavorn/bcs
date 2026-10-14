@@ -8,9 +8,9 @@ import { getEnv } from '@/lib/env'
 import '../exports/file-policy'
 import { ALLOWED_FILE_TYPES, checkDeclaredUpload, cleanFileName, contentMatchesType, FILE_NAME_MAX, GENERATED_FILE_TYPES, isAllowedMimeType, isGeneratedMimeType, SNIFF_BYTES, type AllowedMimeType } from '@/lib/file-types'
 import { newId } from '@/lib/ids'
-import { loadPrincipal } from '@/server/authz'
+import { loadPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
-import { forTenant } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { fileSubjectPolicy } from './policies'
 // Document types register who may download their files when the service loads (FR-PLT-004 AC2)
@@ -165,21 +165,28 @@ export async function completeUpload(
 
 // ---------- 4. download ----------
 
+/**
+ * Whether a member may see a file (FR-PLT-004 AC2): whoever may view a document it is attached to, and for a file not
+ * attached yet only the member who uploaded it. Downloads and the Document Agent (S13) ask the same question.
+ */
+export async function mayViewFile(tx: TenantTx, ctx: Ctx, principal: Principal, file: { readonly id: string; readonly uploadedById: string | null }): Promise<boolean> {
+  if (principal.kind !== 'member') return false
+  const links = await tx.fileLink.findMany({ where: { fileId: file.id }, select: { subjectType: true, subjectId: true } })
+  if (links.length === 0) return file.uploadedById === principal.memberId
+  for (const link of links) {
+    const policy = fileSubjectPolicy(link.subjectType)
+    if (policy && (await policy(tx, ctx, principal, link.subjectId))) return true
+  }
+  return false
+}
+
 export async function getDownloadUrl(ctx: Ctx, input: { fileId: string }): Promise<Result<{ url: string; expiresInSeconds: number }>> {
   if (!z.uuid().safeParse(input.fileId).success) return err('NOT_FOUND', 'file not found')
   const decision = await forTenant(ctx.organizationId).$transaction(async (tx) => {
     const file = await tx.fileObject.findUnique({ where: { id: input.fileId } })
     if (!file || file.status !== 'AVAILABLE' || !(isAllowedMimeType(file.mimeType) || isGeneratedMimeType(file.mimeType))) return { kind: 'missing' as const }
     const principal = await loadPrincipal(tx, ctx)
-    if (principal.kind !== 'member') return { kind: 'denied' as const }
-    const links = await tx.fileLink.findMany({ where: { fileId: file.id }, select: { subjectType: true, subjectId: true } })
-    let allowed = links.length === 0 && file.uploadedById === principal.memberId
-    for (const link of links) {
-      if (allowed) break
-      const policy = fileSubjectPolicy(link.subjectType)
-      allowed = policy ? await policy(tx, ctx, principal, link.subjectId) : false
-    }
-    return allowed ? { kind: 'allowed' as const, file } : { kind: 'denied' as const }
+    return (await mayViewFile(tx, ctx, principal, file)) ? { kind: 'allowed' as const, file } : { kind: 'denied' as const }
   })
   if (decision.kind === 'missing') return err('NOT_FOUND', 'file not found')
   if (decision.kind === 'denied') return err('FORBIDDEN', 'no access to this file')

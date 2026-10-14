@@ -1,0 +1,71 @@
+{
+  "promptVersion": "INVOICE_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "TAX_INVOICE",
+    "docNo": "บก.000819",
+    "docDate": "2026-06-18",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท พูนผลพาณิชย์เช่าเครื่องจักร จำกัด",
+      "taxId": "0999998010685",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ค่าเช่ารถแบ็คโฮ PC200 พร้อมผู้ควบคุม",
+        "qty": "25",
+        "unit": "วัน",
+        "unitPrice": "4848.00",
+        "amount": "121200.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "121200.00",
+    "vat": "8484.00",
+    "gross": "129684.00",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

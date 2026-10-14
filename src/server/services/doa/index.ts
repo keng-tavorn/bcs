@@ -19,6 +19,8 @@ import { startRoute } from '../approvals/route'
 import { cancelWithdrawalOnEffect } from '../policy-withdrawal'
 import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
+// The DOA drafter's values by path, for aiAssist (S13-11)
+import './ai-assist'
 
 export { warningKey } from './lint-view'
 
@@ -55,6 +57,8 @@ export const importDoaDraftCommand = defineCommand({
     const members = await tx.member.findMany({ where: { employeeCode: { not: null } }, select: { id: true, employeeCode: true } })
     const parsed = parseDoaYaml(input.yaml, new Map(members.map((m) => [m.employeeCode!, m.id])))
     if (!parsed.ok) return { ok: false, error: parsed.error }
+    // An AI draft is one version: the action's subject is that version (FR-AI-308 AC3)
+    if (input.aiAssist && parsed.data.length !== 1) return fail('VALIDATION_FAILED', 'a draft of the DOA drafter is one version', { field: 'yaml', reason: 'ONE_VERSION' })
     const versionIds: string[] = []
     const events: EventDraft[] = []
     const checksum = createHash('sha256').update(input.yaml).digest('hex')

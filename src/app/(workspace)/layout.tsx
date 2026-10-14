@@ -11,6 +11,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { memberPrincipal } from '@/server/authz'
 import { listEnabledModules } from '@/server/queries/organization'
 import { listRequestCatalog } from '@/server/queries/request-form'
+import { isAgentAvailable } from '@/server/services/ai'
 import { NAV_COUNT_KEYS, navCounts } from '@/server/services/home'
 import { listMyNotifications } from '@/server/services/notifications'
 import { SignOutButton } from '@/ui/auth/sign-out-button'
@@ -19,6 +20,7 @@ import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { LanguageSwitch } from '@/ui/shell/language-switch'
 import { PwaRegistration } from '@/ui/pwa/pwa-registration'
+import { AskAiSheet } from '@/ui/ai-chat/ask-sheet'
 import { CommandPalette } from '@/ui/shell/command-palette'
 import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
@@ -148,27 +150,34 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     linkLine: tSearch('linkLine'),
     overdue: tSearch('overdue'),
   })
+  // FR-AI-309: "ถาม BCS AI" in ⌘K and its chat sheet only while Insight may run for this member (BR-AI-11, AC5)
+  const asking = ctx ? (await isAgentAvailable(ctx, 'INSIGHT')).available : false
+  const tAsk = await getTranslations('aiAssist.ask')
   const search = (
-    <CommandPalette
-      locale={screen}
-      pages={menu.map((item) => ({ id: item.key, label: item.label, href: item.href }))}
-      commands={commands}
-      labels={{
-        trigger: tSearch('trigger'),
-        title: tSearch('title'),
-        description: tSearch('description'),
-        placeholder: tSearch('placeholder'),
-        groups: { recent: tSearch('groups.recent'), documents: tSearch('groups.documents'), suppliers: tSearch('groups.suppliers'), pages: tSearch('groups.pages'), commands: tSearch('groups.commands') },
-        kinds: { REQUEST: tSearch('kinds.REQUEST'), PURCHASE_ORDER: tSearch('kinds.PURCHASE_ORDER'), GOODS_RECEIPT: tSearch('kinds.GOODS_RECEIPT') },
-        draft: tSearch('draft'),
-        empty: tSearch('empty'),
-        loading: tSearch('loading'),
-        failed: tSearch('failed'),
-        rateLimited: tSearch('rateLimited'),
-        shortcutMac: tSearch('shortcutMac'),
-        shortcutOther: tSearch('shortcutOther'),
-      }}
-    />
+    <>
+      {asking ? <AskAiSheet /> : null}
+      <CommandPalette
+        locale={screen}
+        {...(asking ? { askAi: { group: tAsk('paletteGroup'), rowPrefix: tAsk('paletteRow', { question: '' }) } } : {})}
+        pages={menu.map((item) => ({ id: item.key, label: item.label, href: item.href }))}
+        commands={commands}
+        labels={{
+          trigger: tSearch('trigger'),
+          title: tSearch('title'),
+          description: tSearch('description'),
+          placeholder: tSearch('placeholder'),
+          groups: { recent: tSearch('groups.recent'), documents: tSearch('groups.documents'), suppliers: tSearch('groups.suppliers'), pages: tSearch('groups.pages'), commands: tSearch('groups.commands') },
+          kinds: { REQUEST: tSearch('kinds.REQUEST'), PURCHASE_ORDER: tSearch('kinds.PURCHASE_ORDER'), GOODS_RECEIPT: tSearch('kinds.GOODS_RECEIPT') },
+          draft: tSearch('draft'),
+          empty: tSearch('empty'),
+          loading: tSearch('loading'),
+          failed: tSearch('failed'),
+          rateLimited: tSearch('rateLimited'),
+          shortcutMac: tSearch('shortcutMac'),
+          shortcutOther: tSearch('shortcutOther'),
+        }}
+      />
+    </>
   )
   const bell = (
     <NotificationBell

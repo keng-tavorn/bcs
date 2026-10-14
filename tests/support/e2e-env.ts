@@ -69,5 +69,9 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     LINE_DATA_API_BASE_URL: E2E_FAKE_LINE_URL,
     LIFF_MOCK: '1',
     E2E_DEMO: E2E_DEMO ? '1' : '0',
+    // AI in fixture mode (ADR-142): nothing shows while an organization keeps the AI module off, as the demo's does; the
+    // AI specs switch it on for themselves (tests/e2e/ai-document-scene.ts) and play the background job there
+    AI_ENABLED: 'true',
+    AI_MODE: 'fixture',
   }
 }

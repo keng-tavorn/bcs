@@ -1,0 +1,13 @@
+# tests/golden/ai-confidence.yaml
+suite: ai-confidence
+note: modelConfidence คือจำนวนเต็มที่โมเดลคืน (schema ไม่จำกัดช่วง โค้ดตัดให้อยู่ใน 0–100) · check คือผลตรวจของช่องนั้น (null = ไม่มีการตรวจ)
+fixture:
+  minConfidenceBp: 9000
+  critical: [net, vat, gross, discountTotal, "lines.*.qty", "lines.*.unitPrice", "lines.*.amount", seller.taxId, seller.branch, buyer.taxId, requestType]
+cases:
+  - { id: GC-AI-55, title: เท่าเกณฑ์พอดีไม่ต้องยืนยันทีละช่อง, input: { field: lines.0.description, modelConfidence: 90, check: null }, expect: { confidenceBp: 9000, mustConfirm: false } }
+  - { id: GC-AI-56, title: ต่ำกว่าเกณฑ์ 100 bp, input: { field: lines.0.description, modelConfidence: 89, check: null }, expect: { confidenceBp: 8900, mustConfirm: true } }
+  - { id: GC-AI-57, title: ผลตรวจเตือนเพดาน 5000, input: { field: docDate, modelConfidence: 100, check: WARN }, expect: { confidenceBp: 5000, mustConfirm: true } }
+  - { id: GC-AI-58, title: ผลตรวจไม่ผ่านเพดาน 0, input: { field: gross, modelConfidence: 100, check: FAIL }, expect: { confidenceBp: 0, mustConfirm: true } }
+  - { id: GC-AI-59, title: ฟิลด์เงินต้องยืนยันแม้มั่นใจเต็ม, input: { field: gross, modelConfidence: 100, check: PASS }, expect: { confidenceBp: 10000, mustConfirm: true } }
+  - { id: GC-AI-60, title: ค่าเกิน 100 ตัดเหลือ 100, input: { field: lines.0.description, modelConfidence: 130, check: null }, expect: { confidenceBp: 10000, mustConfirm: false } }

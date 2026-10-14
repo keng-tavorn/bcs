@@ -231,6 +231,7 @@
     "REASON": "Enter a reason of at least 3 characters",
     "CONFIRM": "Tick to confirm first, because this cannot be undone",
     "TOLERANCE": "The organization's allowance for receiving more than ordered is not set correctly. Tell your organization administrator.",
+    "AI_REVIEW_PENDING": "Quantities the AI read from the delivery note still wait for you: confirm every line in the AI box, or change the quantity yourself, then record again",
     "BUDGET_INSUFFICIENT": "Not enough budget for what came above the order ({available} baht left, {shortfall} baht short). Receive less, or tell the budget administrator.",
     "BUDGET_INSUFFICIENT_PLAIN": "There is not enough budget for what came above the order. Receive less, or tell the budget administrator.",
     "BUDGET_LINE_CLOSED": "The budget line of this item is closed. Tell the budget administrator.",

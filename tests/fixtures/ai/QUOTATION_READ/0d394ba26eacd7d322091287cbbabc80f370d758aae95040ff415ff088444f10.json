@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": null,
+    "docDate": "2026-05-04",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท โปรเฟสชั่นแนลบิลด์เซอร์วิส จำกัด",
+      "taxId": "0999998011223",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ค่ารักษาความปลอดภัย (เขียนด้วยลายมือ)",
+        "qty": "24",
+        "unit": "คน-เดือน",
+        "unitPrice": "18500.00",
+        "amount": "444000.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "444000.00",
+    "vat": "31080.00",
+    "gross": "475080.00",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

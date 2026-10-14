@@ -5,6 +5,7 @@ import { ctxFromSession } from '@/server/auth/session'
 import { getNewRequestForm } from '@/server/services/requests/form-view'
 import { Notice } from '@/ui/form/notice'
 import { RequestForm } from '@/ui/request-form/request-form'
+import { documentAiFor, intakeAiFor } from '../../../../_lib/ai-read'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { attachFileAction, detachFileAction, previewRequestAction, searchCatalogAction, submitRequestAction } from '../actions'
@@ -37,6 +38,8 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
       </div>
     )
   }
+  // The Document Agent reads quotations into the form when it is available to this member (FR-AI-303 AC8)
+  const [ai, intake] = await Promise.all([documentAiFor(ctx), intakeAiFor(ctx)])
   return (
       <RequestForm
         // A new form has no catalogue lines yet: it knows the catalogue items its lines are picked from (S6-10)
@@ -52,6 +55,8 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
           completeUpload: completeUploadAction,
           downloadUrl: downloadUrlAction,
           catalog: searchCatalogAction,
+          ...(ai ? { ai } : {}),
+          ...(intake ? { intake } : {}),
         }}
       />
   )

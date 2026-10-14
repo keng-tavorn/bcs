@@ -48,7 +48,8 @@
     "insights": "Executive summary",
     "settings": "My settings",
     "admin": "Organization admin",
-    "workflows": "Parallel reviewers (workflow)"
+    "workflows": "Parallel reviewers (workflow)",
+    "ai": "AI assistants"
   },
   "counts": {
     "tasks": "{count, plural, one {# open task} other {# open tasks}}",

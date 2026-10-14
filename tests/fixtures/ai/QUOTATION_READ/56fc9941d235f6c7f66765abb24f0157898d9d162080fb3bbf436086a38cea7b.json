@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": null,
+    "docDate": "2026-09-22",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "นายบุญมี บุญล้อม",
+      "taxId": "3999998020014",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ค่าติดตั้งประตูอลูมิเนียม",
+        "qty": "4",
+        "unit": "ชุด",
+        "unitPrice": "6500.00",
+        "amount": "26000.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "26000.00",
+    "vat": "0.00",
+    "gross": "26000.00",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

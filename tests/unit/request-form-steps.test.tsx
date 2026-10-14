@@ -199,7 +199,7 @@ describe('[FR-INT-011/AC2] the stored steps: optional in FormVersion.schema, che
 describe('[FR-INT-011/AC3] "ถัดไป" checks only its step; each point leads to the step that fixes it', () => {
   it('the problems of a blank BUY_GOODS form fall on the steps that ask them', () => {
     const data = dataOf('BUY_GOODS')
-    const values: FormValues = { ...initialValues(data), title: '', budgetLineId: '', quotations: [{ key: 'q', supplierName: 'ร้าน', amount: '', includesVat: false, fileId: null, fileName: null, selected: false, saved: false }] }
+    const values: FormValues = { ...initialValues(data), title: '', budgetLineId: '', quotations: [{ key: 'q', supplierName: 'ร้าน', supplierId: null, amount: '', includesVat: false, fileId: null, fileName: null, selected: false, saved: false, ai: null }] }
     const input = formInput(values, [], totalsOf(values, 700), 'BUY_GOODS')
     const { plan } = planOf(data)
     const problems = problemsOf(data, values, input, [])

@@ -12,6 +12,7 @@ import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
+import { doaDrafterFor } from '../../../_lib/ai-read'
 import { getSession } from '../../../_lib/session'
 import { importDoaAction } from './actions'
 
@@ -40,6 +41,8 @@ export default async function DoaPage() {
   const overview = await getDoaOverviewForAdmin(ctx)
   if (!overview.ok) return <NoAccess title={t('title')} message={t('forbidden')} homeLabel={t('homeLink')} />
   const { initial, copySources } = overview.data
+  // FR-AI-308: the DOA drafter, only while it is available to this member
+  const [drafter, tAi] = await Promise.all([doaDrafterFor(ctx), getTranslations('aiAssist.doa')])
   const versions = [...overview.data.versions].sort((a, b) => ORDER[versionLook(a)] - ORDER[versionLook(b)] || a.code.localeCompare(b.code) || b.versionNo - a.versionNo)
   const when = (iso: string) => formatDateTime(locale, iso)
   const versionName = (v: DoaVersionSummaryView) => t('versionName', { code: v.code, version: v.versionNo })
@@ -53,6 +56,11 @@ export default async function DoaPage() {
       <PageHeader title={t('title')} intro={t('intro')} />
       <PageBody>
         {initial ? <Notice tone="info">{t('initialNotice')}</Notice> : null}
+        {drafter ? (
+          <Link href="/admin/doa/ai-draft" className="inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline">
+            {tAi('title')}
+          </Link>
+        ) : null}
 
         <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[minmax(0,1fr)_24rem] lg:items-start lg:gap-6">
           {copySources.length ? (

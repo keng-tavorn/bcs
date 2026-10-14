@@ -1,0 +1,71 @@
+{
+  "promptVersion": "INVOICE_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "TAX_INVOICE",
+    "docNo": "S00252/A",
+    "docDate": "2026-07-09",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท มีนบุรีกิจการค้าวัสดุ จำกัด",
+      "taxId": "0999998010049",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "บ่อพักสำเร็จรูป",
+        "qty": "6",
+        "unit": "ชุด",
+        "unitPrice": "12375.00",
+        "amount": "74250.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "74250.00",
+    "vat": "5197.50",
+    "gross": "79447.50",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

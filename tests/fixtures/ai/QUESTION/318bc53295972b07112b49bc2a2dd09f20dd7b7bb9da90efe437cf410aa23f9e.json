@@ -1,0 +1,17 @@
+{
+  "promptVersion": "QUESTION@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "tools": [
+      "search_documents"
+    ],
+    "sentences": [
+      "ผลอยู่ในตารางด้านล่าง"
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

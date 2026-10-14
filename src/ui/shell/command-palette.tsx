@@ -1,6 +1,6 @@
 'use client'
 
-import { FileText, Search, Store, SquareArrowOutUpRight, Zap, type LucideIcon } from 'lucide-react'
+import { FileText, Search, Sparkles, Store, SquareArrowOutUpRight, Zap, type LucideIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from 'react'
 import { HTTP_STATUS } from '@/core/result'
@@ -9,7 +9,7 @@ import { useHydrated } from '../form/hydrated'
 import { Button } from '../shadcn/button'
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '../shadcn/command'
 import { Kbd } from '../shadcn/kbd'
-import { onShellEvent } from './shell-events'
+import { askAi as askAiFromPalette, onShellEvent } from './shell-events'
 
 // ⌘K / Ctrl K from every page of the workspace (FR-PLT-014 AC1, §9.10): one palette with the groups ล่าสุด · เอกสาร ·
 // ผู้ขาย · ไปที่หน้า · คำสั่ง, worked by keyboard alone (cmdk: ↑ ↓ choose, Enter opens; the dialog: Esc closes).
@@ -93,7 +93,20 @@ const isPaletteKey = (e: KeyboardEvent, mac: boolean) => (mac ? e.metaKey && !e.
 /** Another dialog (a form, a sheet, a confirmation) is open — not one closing, like the palette's own on its way out — so the palette never opens on top of it */
 const anotherDialogOpen = () => document.querySelector('[role="dialog"]:not([data-state="closed"]), [role="alertdialog"]:not([data-state="closed"])') !== null
 
-export function CommandPalette({ pages, commands, labels, locale }: { pages: readonly PaletteLink[]; commands: readonly PaletteLink[]; labels: CommandPaletteLabels; locale: 'th' | 'en' }) {
+export function CommandPalette({
+  pages,
+  commands,
+  labels,
+  locale,
+  askAi,
+}: {
+  pages: readonly PaletteLink[]
+  commands: readonly PaletteLink[]
+  labels: CommandPaletteLabels
+  locale: 'th' | 'en'
+  /** FR-AI-309 AC1: the last row "ถาม BCS AI: <text>", only when the module AI and Insight are available (AC5) */
+  askAi?: { readonly group: string; readonly rowPrefix: string }
+}) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -188,7 +201,8 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
   ]
   const valueOf = (heading: string, id: string) => `${heading}:${id}`
   // When results arrive the choice goes back to the first one, so Enter never opens what an earlier key left chosen
-  const first = groups.flatMap((g) => g.items.map((item) => valueOf(g.heading, item.id)))[0] ?? ''
+  const asked = askAi && query.trim() ? query.trim() : null
+  const first = groups.flatMap((g) => g.items.map((item) => valueOf(g.heading, item.id)))[0] ?? (asked && askAi ? valueOf(askAi.group, 'ask') : '')
   const selected = choice.first === first ? choice.value : first
 
   const group = (heading: string, Icon: LucideIcon, items: ReadonlyArray<{ id: string; label: string; href: string }>) =>
@@ -236,6 +250,21 @@ export function CommandPalette({ pages, commands, labels, locale }: { pages: rea
             ) : null}
             {status === 'done' && nothing ? <CommandEmpty className="text-base md:text-sm">{labels.empty}</CommandEmpty> : null}
             {groups.map((g) => group(g.heading, g.Icon, g.items))}
+            {asked && askAi ? (
+              <CommandGroup heading={askAi.group}>
+                <CommandItem
+                  value={valueOf(askAi.group, 'ask')}
+                  onSelect={() => {
+                    onOpenChange(false)
+                    askAiFromPalette(asked)
+                  }}
+                  className="min-h-11 text-base md:text-sm"
+                >
+                  <Sparkles aria-hidden="true" className="text-info" />
+                  <span className="truncate">{`${askAi.rowPrefix}${asked}`}</span>
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
           </CommandList>
         </Command>
       </CommandDialog>

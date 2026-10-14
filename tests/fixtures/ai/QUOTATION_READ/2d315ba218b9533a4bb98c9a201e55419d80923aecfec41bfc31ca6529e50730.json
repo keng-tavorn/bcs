@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": "QT-16408",
+    "docDate": "2026-08-19",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท อีสเทิร์นสตาร์เซฟตี้ จำกัด",
+      "taxId": "0999998011606",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ป้ายเตือนความปลอดภัย",
+        "qty": "40",
+        "unit": "ป้าย",
+        "unitPrice": "350.00",
+        "amount": "14000.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "14000.00",
+    "vat": "980.00",
+    "gross": "14980.00",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

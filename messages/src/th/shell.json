@@ -48,7 +48,8 @@
     "insights": "สรุปผู้บริหาร",
     "settings": "ตั้งค่าของฉัน",
     "admin": "ผู้ดูแลองค์กร",
-    "workflows": "ผู้ตรวจคู่ขนาน (workflow)"
+    "workflows": "ผู้ตรวจคู่ขนาน (workflow)",
+    "ai": "ผู้ช่วย AI"
   },
   "counts": {
     "tasks": "งานที่เปิด {count} งาน",

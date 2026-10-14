@@ -3,7 +3,9 @@ import { isAllowed, loadPrincipal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { isUuid } from '@/server/queries/requests'
+import { openAssists, type OpenAssist } from '../ai/assist-contract'
 import { requireModule } from '../modules'
+import { readInvoiceForAssist } from './ai-assist'
 import { suggestionsFor } from './coding'
 import { invoiceScopes, mayReadInvoice as mayRead, resolvesInvoice } from './file-policy'
 
@@ -105,6 +107,12 @@ export interface ApInvoicePageDto {
     readonly incomeTypes: ReadonlyArray<{ readonly code: string; readonly nameTh: string; readonly nameEn: string | null; readonly rateBp: number; readonly confirmed: boolean }>
   }
   readonly events: readonly ApInvoiceEventDto[]
+  /**
+   * S13-20: what an AI read off this draft's file and FINANCE has not finished confirming (BR-AI-17), with the draft's
+   * values by the same paths, so the page shows which wait; a draft read by FINANCE only, empty otherwise
+   */
+  readonly aiReviews: readonly OpenAssist[]
+  readonly aiCurrent: Readonly<Record<string, string>>
   /** What the member may do now (the buttons; every command checks again) */
   readonly may: {
     readonly edit: boolean
@@ -173,6 +181,8 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
     const suggestions = coding ? await suggestionsFor(tx, invoice.id, ctx.now) : []
     const accountCodes = coding ? await tx.accountCode.findMany({ where: { active: true }, orderBy: { code: 'asc' }, select: { code: true, nameTh: true } }) : []
     const costCenters = coding ? await tx.costCenter.findMany({ where: { active: true }, orderBy: { code: 'asc' }, select: { id: true, code: true, nameTh: true } }) : []
+    const aiReviews = coding ? await openAssists(tx, { type: 'INVOICE', id: invoice.id }) : []
+    const aiCurrent = aiReviews.length ? ((await readInvoiceForAssist(tx, invoice.id)) ?? {}) : {}
     const incomeTypes = coding ? await tx.whtIncomeType.findMany({ where: { active: true }, orderBy: { code: 'asc' }, select: { code: true, nameTh: true, nameEn: true, rateBp: true, confirmedAt: true } }) : []
 
     const events = await tx.event.findMany({
@@ -255,6 +265,8 @@ export async function getApInvoicePage(ctx: Ctx, invoiceId: string): Promise<Res
         const a = e.actorMemberId ? actors.find((m) => m.id === e.actorMemberId) : undefined
         return { id: e.id, type: e.type, occurredAt: e.occurredAt, actor: a ? { th: a.displayNameTh, en: a.displayNameEn } : null, system: e.actorType === 'SYSTEM', reason: reasonOf(e.data) }
       }),
+      aiReviews,
+      aiCurrent,
       may: {
         edit: coding,
         submit: coding,

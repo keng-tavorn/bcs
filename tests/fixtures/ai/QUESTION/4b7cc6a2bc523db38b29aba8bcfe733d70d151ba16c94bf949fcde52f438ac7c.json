@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "find_supplier"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันจะค้นหาผู้ขายรหัส SP0109 ในทะเบียนผู้ขายเพื่อดูเลขผู้เสียภาษีและเบอร์โทร ภายในสิทธิ์การเข้าถึงของคุณ",
+      "หากไม่พบข้อมูลหรือข้อมูลไม่มีเลขผู้เสียภาษีหรือเบอร์โทร จะแจ้งว่าไม่พบภายในสิทธิ์ของคุณ และจะไม่คาดเดาค่าใดๆ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 68,
+    "output": 220,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

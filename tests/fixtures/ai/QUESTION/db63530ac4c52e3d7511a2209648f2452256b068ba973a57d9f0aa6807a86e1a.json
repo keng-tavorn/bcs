@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "my_tasks"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันกำลังตรวจสอบงานอนุมัติที่มอบหมายให้คุณ พร้อมสถานะกำหนดเวลาและงานที่เกินกำหนด",
+      "ผลลัพธ์จะแสดงเฉพาะงานที่คุณมีสิทธิ์เห็นเท่านั้น หากไม่พบงานที่ครบกำหนดวันนี้ ระบบจะแจ้งว่าไม่พบข้อมูลภายในสิทธิ์ของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 55,
+    "output": 207,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

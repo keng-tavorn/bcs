@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "อิฐมอญ สำหรับโครงการ P08 ระบบระบายน้ำสมุทรปราการ",
+    "siteCode": "SITE-P08",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "อิฐมอญ",
+        "itemCode": "MAT-009",
+        "qty": "8764",
+        "unit": "ก้อน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 95
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5679,
+    "output": 254,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

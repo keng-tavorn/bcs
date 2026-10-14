@@ -1,7 +1,7 @@
 {
-  "promptVersion": "QUOTATION_READ@1",
+  "promptVersion": "QUOTATION_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "QUOTATION",
     "docNo": null,
@@ -31,41 +31,67 @@
     "gross": "475080.00",
     "confidence": [
       {
+        "field": "docType",
+        "value": 98
+      },
+      {
         "field": "docNo",
-        "value": 95
+        "value": 90
       },
       {
         "field": "docDate",
-        "value": 95
+        "value": 92
+      },
+      {
+        "field": "currency",
+        "value": 85
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 85
+      },
+      {
+        "field": "seller.name",
+        "value": 88
       },
       {
         "field": "seller.taxId",
-        "value": 95
+        "value": 90
       },
       {
         "field": "seller.branch",
-        "value": 95
+        "value": 92
       },
       {
         "field": "buyer.taxId",
-        "value": 95
+        "value": 90
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
       },
       {
         "field": "net",
-        "value": 95
+        "value": 96
       },
       {
         "field": "vat",
-        "value": 95
+        "value": 96
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 96
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 1005,
+    "cacheRead": 2038,
+    "cacheWrite": 0
   }
 }

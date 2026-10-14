@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "budget_status"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมจะตรวจสอบงบประมาณคงเหลือของทุกฝ่ายจากข้อมูลงบประมาณที่คุณมีสิทธิ์เห็น และจะแสดงตัวเลขตามที่ระบบส่งกลับมาเท่านั้น",
+      "หากระบบไม่พบข้อมูลงบประมาณภายในสิทธิ์การเข้าถึงของคุณ จะแจ้งว่าไม่พบข้อมูล และไม่คาดเดาตัวเลขให้"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 56,
+    "output": 210,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

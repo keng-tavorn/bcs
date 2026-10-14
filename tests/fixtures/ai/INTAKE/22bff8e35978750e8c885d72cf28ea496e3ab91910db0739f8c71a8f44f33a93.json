@@ -1,0 +1,61 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "อบรมผู้ควบคุมปั้นจั่น",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "อบรมผู้ควบคุมปั้นจั่น",
+        "itemCode": "TRA-002",
+        "qty": "10",
+        "unit": "คน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 60
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      },
+      {
+        "field": "confidence",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5684,
+    "output": 259,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

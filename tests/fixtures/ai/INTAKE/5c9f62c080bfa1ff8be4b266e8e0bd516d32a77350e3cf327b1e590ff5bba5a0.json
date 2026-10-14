@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "น้ำมันดีเซล B7 20,000 ลิตร",
+    "siteCode": "EQP-YARD",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "น้ำมันดีเซล B7",
+        "itemCode": "FUL-001",
+        "qty": "20000",
+        "unit": "ลิตร",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 85
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5674,
+    "output": 242,
+    "cacheRead": 0,
+    "cacheWrite": 1286
+  }
+}

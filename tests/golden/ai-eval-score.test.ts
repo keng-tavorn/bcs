@@ -51,4 +51,12 @@ describe('[BR-AI-26] every kind of field compares after its own normalization', 
     expect(normalizeAnswer({ lines: [{ amount: '-3.00' }, { qty: '1' }], discountTotal: '5.00' })).toMatchObject({ discountTotal: '8.00' })
     expect(normalizeAnswer({ lines: [{ qty: '1', unitPrice: '100.00' }] })).toMatchObject({ discountTotal: null })
   })
+  it('reads amounts with thousands separators and scores an unreadable one wrong instead of stopping (S13-13)', () => {
+    expect(normalizeAnswer({ lines: [{ amount: '5,580.00' }, { amount: '-1,200.00' }] })).toEqual({ lines: [{ amount: '5,580.00' }], discountTotal: '1200.00' })
+    expect(normalizeAnswer({ lines: [{ qty: '2', unitPrice: 'abc' }, { amount: 'n/a' }] })).toEqual({ lines: [{ qty: '2', unitPrice: 'abc' }, { amount: 'n/a' }], discountTotal: null })
+    expect(normalizeAnswer({ lines: [], discountTotal: 'ten' })).toEqual({ lines: [], discountTotal: 'ten' })
+    expect(matchField('discountTotal', '10.00', 'ten')).toBe(false)
+    expect(matchField('gt', '100000.00', '100000')).toBe(true)
+    expect(matchField('lte', null, '')).toBe(true)
+  })
 })

@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "pending_approvals"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ผมตรวจสอบรายการที่รออนุมัติทั้งองค์กรจากเครื่องมือ pending_approvals ซึ่งแสดงเฉพาะข้อมูลที่คุณมีสิทธิ์ดู",
+      "ข้อมูลนี้แสดงตามคิวอนุมัติ ไม่ได้แยกตามฝ่ายก่อสร้างโดยตรง จึงยังไม่สามารถยืนยันรายการของฝ่ายก่อสร้างโดยเฉพาะได้ หากเครื่องมือไม่พบข้อมูล แสดงว่าไม่พบรายการในขอบเขตสิทธิ์ของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 73,
+    "output": 270,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

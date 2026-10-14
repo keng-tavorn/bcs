@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม.",
+    "siteCode": "SITE-P08",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ท่อคอนกรีตเสริมเหล็ก ขนาด 1.00 ม.",
+        "itemCode": "MAT-019",
+        "qty": "24",
+        "unit": "ท่อน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5703,
+    "output": 272,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

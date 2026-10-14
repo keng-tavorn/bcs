@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "โคมไฟ LED Panel 60x60",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "โคมไฟ LED Panel 60x60",
+        "itemCode": "ELE-005",
+        "qty": "58",
+        "unit": "ชุด",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 70
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5667,
+    "output": 236,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

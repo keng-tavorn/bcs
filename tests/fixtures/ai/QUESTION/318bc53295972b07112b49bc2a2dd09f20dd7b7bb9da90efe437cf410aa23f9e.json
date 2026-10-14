@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "search_documents"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันกำลังค้นหาคำขอของคนอื่นในฝ่ายที่คุณมีสิทธิ์เห็น",
+      "ผลลัพธ์จะแสดงเฉพาะรายการที่อยู่ในสิทธิ์การเข้าถึงของคุณเท่านั้น หากไม่พบรายการใด จะแจ้งว่าไม่พบข้อมูลภายในสิทธิ์ของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 63,
+    "output": 180,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

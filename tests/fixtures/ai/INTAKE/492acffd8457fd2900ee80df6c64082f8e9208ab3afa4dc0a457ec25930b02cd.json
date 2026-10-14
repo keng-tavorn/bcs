@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "กระจกเทมเปอร์ 10 มม. 8 ตร.ม. · สะพานข้ามแยกลำลูกกา",
+    "siteCode": "SITE-P06",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "กระจกเทมเปอร์ 10 มม.",
+        "itemCode": "FIN-006",
+        "qty": "8",
+        "unit": "ตร.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5686,
+    "output": 273,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

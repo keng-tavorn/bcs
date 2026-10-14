@@ -1,7 +1,7 @@
 {
-  "promptVersion": "INVOICE_READ@1",
-  "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "promptVersion": "INVOICE_READ@2",
+  "model": "claude-opus-5-5",
+  "recorded": "LIVE",
   "output": {
     "docType": "TAX_INVOICE",
     "docNo": "INV-00373",
@@ -31,12 +31,28 @@
     "gross": "5970.60",
     "confidence": [
       {
+        "field": "docType",
+        "value": 95
+      },
+      {
         "field": "docNo",
         "value": 95
       },
       {
         "field": "docDate",
         "value": 95
+      },
+      {
+        "field": "currency",
+        "value": 90
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 85
+      },
+      {
+        "field": "seller.name",
+        "value": 90
       },
       {
         "field": "seller.taxId",
@@ -49,6 +65,14 @@
       {
         "field": "buyer.taxId",
         "value": 95
+      },
+      {
+        "field": "lines",
+        "value": 95
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
       },
       {
         "field": "net",
@@ -65,7 +89,9 @@
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 777,
+    "cacheRead": 0,
+    "cacheWrite": 2040
   }
 }

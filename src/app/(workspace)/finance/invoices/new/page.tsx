@@ -7,10 +7,11 @@ import { NewInvoiceForm, type PoChoiceView } from '@/ui/ap/list/new-invoice-form
 import { Notice } from '@/ui/form/notice'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
+import { documentAiFor } from '../../../../_lib/ai-read'
 import { getSession } from '../../../../_lib/session'
 import { localeOf } from '../../../_tracking/present'
 import { money } from '../../present'
-import { createApInvoiceAction } from '../ap-list-actions'
+import { createApInvoiceAction, createApInvoiceFromReadingAction } from '../ap-list-actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('apList.new')
@@ -27,6 +28,8 @@ export default async function NewApInvoicePage() {
   if (!ctx) return null
   const [t, locale] = await Promise.all([getTranslations('apList'), getLocale().then(localeOf)])
   const result = await newApInvoiceView(ctx)
+  // S13-20: the Document Agent's button, only while it is available to this member (FR-AI-303 AC8, EG-1)
+  const ai = result.ok ? await documentAiFor(ctx) : undefined
   if (!result.ok) {
     return (
       <Page>
@@ -58,7 +61,7 @@ export default async function NewApInvoicePage() {
       />
       <PageBody>
         {pos.length ? (
-          <NewInvoiceForm pos={pos} create={createApInvoiceAction} />
+          <NewInvoiceForm pos={pos} create={createApInvoiceAction} {...(ai ? { ai: { read: ai, createFromReading: createApInvoiceFromReadingAction } } : {})} />
         ) : (
           <Panel label={t('new.poTitle')}>
             <ListEmpty

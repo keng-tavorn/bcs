@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "IT_PURCHASE",
+    "title": "ไลเซนส์ซอฟต์แวร์เขียนแบบ CAD 1 ปี",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ไลเซนส์ซอฟต์แวร์เขียนแบบ CAD 1 ปี",
+        "itemCode": "SWL-001",
+        "qty": "1",
+        "unit": "ไลเซนส์",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 70
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5693,
+    "output": 281,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

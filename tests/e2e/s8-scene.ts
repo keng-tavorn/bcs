@@ -15,6 +15,8 @@ import { E2E_DB } from '../support/e2e-env'
 //   inbox <tag>     a PO received in full and the supplier's e-Tax invoice e-mailed to the organization's inbox (Mailpit)
 //   variance <tag>  a PO received and an invoice 10% over its price, submitted: EXCEPTION PRICE_OVER
 //   reject <tag>    the same, for FINANCE to reject; the supplier's address is the run's own
+//   ai-invoice <tag> a PO received in full, for FINANCE to read the supplier's invoice with the AI (S13-20: the AI
+//                   scene tests/e2e/ai-document-scene.ts with SCENE_ORG switches the Document Agent on and answers)
 //   notices         sends the supplier e-mails waiting (the job supplier-notice-send, which the e2e app does not run)
 // Prints one JSON line. The demo organization (PAY off) is never touched.
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the S8 scene runs in the e2e database only')
@@ -64,6 +66,12 @@ if (mode === 'notices') {
     attachments: [{ filename: `${invoiceNo}.xml`, content: etaxXml({ invoiceNo, issueDate: `${today}T00:00:00`, net: '10000.00', vat: '700.00', gross: '10700.00' }), contentType: 'application/xml' }],
   })
   console.log(JSON.stringify({ tag, poNumber: po.number, invoiceNo }))
+} else if (mode === 'ai-invoice') {
+  const ap = await organization(tag!)
+  const po = await sentPo(ap, [{ quantity: '10', unitPrice: '1000.00' }])
+  await receive(ap, po, { 0: '10' })
+  const org = await prisma.organization.findUniqueOrThrow({ where: { id: ap.org.organizationId }, select: { code: true } })
+  console.log(JSON.stringify({ tag, poNumber: po.number, org: org.code }))
 } else if (mode === 'variance' || mode === 'reject') {
   const ap = await organization(tag!)
   const supplierEmail = `supplier.${tag}@s8.bcs.local`

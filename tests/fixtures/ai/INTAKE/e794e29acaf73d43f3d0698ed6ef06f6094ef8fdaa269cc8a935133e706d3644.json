@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ปูนฉาบสำเร็จรูป ถุง 50 กก.",
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ปูนฉาบสำเร็จรูป ถุง 50 กก.",
+        "itemCode": "MAT-003",
+        "qty": "454",
+        "unit": "ถุง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5673,
+    "output": 257,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

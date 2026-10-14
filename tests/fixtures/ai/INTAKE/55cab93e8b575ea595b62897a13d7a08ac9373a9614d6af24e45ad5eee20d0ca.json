@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "แผ่นยิปซัมบอร์ด 9 มม. 131 แผ่น",
+    "siteCode": "SITE-P02",
+    "neededBy": "20 วัน",
+    "lines": [
+      {
+        "description": "แผ่นยิปซัมบอร์ด 9 มม.",
+        "itemCode": "FIN-001",
+        "qty": "131",
+        "unit": "แผ่น",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5670,
+    "output": 263,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": null,
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "แผ่นยิปซัมบอร์ด 9 มม.",
+        "itemCode": "FIN-001",
+        "qty": "131",
+        "unit": "แผ่น",
+        "unitPrice": "175.00"
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท เอกวัฒนาเซรามิค จำกัด",
+      "taxId": "0999998010634",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 0
+      },
+      {
+        "field": "siteCode",
+        "value": 92
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 88
+      },
+      {
+        "field": "supplier",
+        "value": 85
+      }
+    ]
+  },
+  "usage": {
+    "input": 7234,
+    "output": 694,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

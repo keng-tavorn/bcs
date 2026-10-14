@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "HIRE_SERVICE",
+    "title": "ค่าทดสอบดิน (Boring test) - ระบบระบายน้ำสมุทรปราการ",
+    "siteCode": "SITE-P08",
+    "neededBy": "7 วัน",
+    "lines": [
+      {
+        "description": "ค่าทดสอบดิน (Boring test)",
+        "itemCode": "LAB-004",
+        "qty": "1",
+        "unit": "หลุม",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 70
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5686,
+    "output": 267,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานโครงสร้างเหล็กหลังคา 4 ตัน · อาคารสำนักงานพระราม 9 (ครั้งที่ 2)",
+    "siteCode": "SITE-P01",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานโครงสร้างเหล็กหลังคา",
+        "itemCode": "SUB-002",
+        "qty": "4",
+        "unit": "ตัน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5693,
+    "output": 280,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "เข็มขัดนิรภัยเต็มตัว 1 ชุด",
+    "siteCode": "SITE-P05",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เข็มขัดนิรภัยเต็มตัว",
+        "itemCode": "SAF-003",
+        "qty": "1",
+        "unit": "ชุด",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 88
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 35
+      },
+      {
+        "field": "lines",
+        "value": 93
+      },
+      {
+        "field": "supplier",
+        "value": 98
+      }
+    ]
+  },
+  "usage": {
+    "input": 5678,
+    "output": 250,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

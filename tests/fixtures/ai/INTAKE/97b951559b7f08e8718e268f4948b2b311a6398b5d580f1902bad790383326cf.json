@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ไม้อัดยางทำแบบหล่อ 10 มม.",
+    "siteCode": "SITE-P02",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ไม้อัดยางทำแบบหล่อ 10 มม.",
+        "itemCode": "MAT-011",
+        "qty": "47",
+        "unit": "แผ่น",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 93
+      },
+      {
+        "field": "supplier",
+        "value": 98
+      }
+    ]
+  },
+  "usage": {
+    "input": 5672,
+    "output": 254,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

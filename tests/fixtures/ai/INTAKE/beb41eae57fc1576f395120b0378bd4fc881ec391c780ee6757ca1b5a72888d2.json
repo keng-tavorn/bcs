@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานรื้อถอนและขนย้าย",
+    "siteCode": "SITE-P03",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "งานรื้อถอนและขนย้าย",
+        "itemCode": "SUB-008",
+        "qty": "1",
+        "unit": "งาน",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 60
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 70
+      },
+      {
+        "field": "supplier",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 5669,
+    "output": 236,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

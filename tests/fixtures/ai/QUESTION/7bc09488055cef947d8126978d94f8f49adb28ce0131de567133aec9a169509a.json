@@ -1,17 +1,21 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "get_request"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "กำลังค้นหาคำขอ PR-2569-00001 ภายในสิทธิ์การเข้าถึงของคุณ",
+      "หากระบบไม่พบข้อมูล แสดงว่าไม่พบคำขอนี้ภายในสิทธิ์ที่คุณเข้าถึงได้",
+      "ข้อมูลนี้เป็นเพียงร่างให้ตรวจสอบ ไม่ได้เป็นการอนุมัติหรือตัดสินใจใด ๆ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 56,
+    "output": 198,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

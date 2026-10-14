@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { createFixtureClient, fixtureKey, setAiClientForTests, type AiClient, type FixtureAnswer } from '@/integrations/ai'
+import { PROMPT_VERSIONS } from '@/lib/ai-config'
 import { putObject } from '@/integrations/storage'
 import { prisma } from '@/server/db/client'
 import { aiAgentRunRun } from '@/server/jobs/ai-agent-run'
@@ -89,7 +90,7 @@ function reading(over: Record<string, unknown> = {}) {
 }
 
 function answer(purpose: 'QUOTATION_READ' | 'DELIVERY_NOTE_READ', bytes: Uint8Array, mediaType: 'image/png' | 'application/pdf', output: unknown) {
-  answers.set(fixtureKey({ purpose, files: [{ bytes, mediaType }] }), { promptVersion: `${purpose}@1`, model: SONNET, output, usage: { input: 3000, output: 600 } })
+  answers.set(fixtureKey({ purpose, files: [{ bytes, mediaType }] }), { promptVersion: PROMPT_VERSIONS[purpose], model: SONNET, output, usage: { input: 3000, output: 600 } })
 }
 
 const action = (id: string) => prisma.agentAction.findUniqueOrThrow({ where: { id } })

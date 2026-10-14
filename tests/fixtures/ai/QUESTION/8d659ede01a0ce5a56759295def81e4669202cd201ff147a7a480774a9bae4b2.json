@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "budget_status"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันกำลังตรวจสอบสถานะงบประมาณจากข้อมูลงบที่คุณมีสิทธิ์เห็น เพื่อหาเปอร์เซ็นต์ที่ใช้ไปของโครงการ P02",
+      "เมื่อได้ข้อมูลแล้ว ฉันจะระบุเฉพาะค่าที่ระบบส่งกลับมา และหากไม่พบงบของโครงการ P02 ภายในสิทธิ์การเข้าถึงของคุณ ฉันจะแจ้งว่าไม่พบข้อมูล"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 72,
+    "output": 233,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

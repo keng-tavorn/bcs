@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import type { Ctx } from '@/server/context'
-import { createInvoice } from '@/server/services/ap'
+import { getAgentAction } from '@/server/services/ai'
+import { createDraftFromReading, createInvoice } from '@/server/services/ap'
 import { uploadInvoiceFile } from '@/server/services/ap/files'
 import { createInvoiceFromInbox, ignoreInboundEmail, pollInvoiceInbox } from '@/server/services/ap/inbox'
 import { toApFailure, type ApDoneOutcome, type ApDraftOutcome, type ApFailure, type ApFileOutcome, type ApPollOutcome } from '@/ui/ap/list/outcome'
@@ -24,6 +25,45 @@ export async function createApInvoiceFor(ctx: Ctx, input: unknown, idempotencyKe
   const parsed = CreateInput.safeParse(input)
   if (!parsed.success) return invalid(String(parsed.error.issues[0]?.path[0] ?? 'input'))
   const result = await createInvoice(ctx, parsed.data, { idempotencyKey: idempotencyKey as string })
+  return result.ok ? { ok: true, invoiceId: result.data.invoiceId } : toApFailure(result.error)
+}
+
+const FromReadingInput = z.strictObject({ agentActionId: z.uuid() })
+
+/** What the Document Agent kept of an invoice it read (src/server/services/ai/agents/document.ts invoiceProposal) */
+const InvoiceReading = z.object({
+  fileId: z.uuid(),
+  mapping: z.object({
+    invoice: z.object({
+      poId: z.uuid(),
+      supplierInvoiceNo: z.string().optional(),
+      invoiceDate: z.string().optional(),
+      statedVat: z.string().optional(),
+      discount: z.string().optional(),
+      priceIncludesVat: z.boolean().optional(),
+      lines: z.array(z.object({ poLineId: z.uuid(), quantity: z.string(), unitPrice: z.string() })).optional(),
+    }),
+  }),
+})
+
+/**
+ * /finance/invoices/new, "อ่านไฟล์ด้วย AI" (S13-20, FR-AI-303 AC6): the draft from what the Document Agent read off the
+ * file for the PO. The values come from the AI action as the server kept it — the browser sends its id only — and go to
+ * invoice.createDraftFromReading, which links the reading so every value waits for FINANCE (AI_REVIEW_PENDING on submit).
+ * Only the member who asked for the reading sees its content (getAgentAction), so only they make the draft from it.
+ */
+export async function createApInvoiceFromReadingFor(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ApDraftOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return invalid('idempotencyKey')
+  const parsed = FromReadingInput.safeParse(input)
+  if (!parsed.success) return invalid('agentActionId')
+  const action = await getAgentAction(ctx, parsed.data.agentActionId)
+  if (!action.ok) return toApFailure(action.error)
+  if (action.data.purpose !== 'INVOICE_READ') return invalid('agentActionId', 'PURPOSE_MISMATCH')
+  if (action.data.status !== 'DRAFT') return { ok: false, code: 'INVALID_STATE_TRANSITION', field: 'agentActionId' }
+  const reading = InvoiceReading.safeParse(action.data.content?.output)
+  if (!reading.success) return invalid('agentActionId', 'NO_READING')
+  const { invoice } = reading.data.mapping
+  const result = await createDraftFromReading(ctx, { ...invoice, fileId: reading.data.fileId, agentActionId: action.data.id }, { idempotencyKey: idempotencyKey as string })
   return result.ok ? { ok: true, invoiceId: result.data.invoiceId } : toApFailure(result.error)
 }
 

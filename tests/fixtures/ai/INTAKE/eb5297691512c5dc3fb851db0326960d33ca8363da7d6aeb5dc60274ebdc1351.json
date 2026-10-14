@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ตะปูตอกไม้ 3 นิ้ว",
+    "siteCode": "SITE-P05",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ตะปูตอกไม้ 3 นิ้ว",
+        "itemCode": "MAT-013",
+        "qty": "3595",
+        "unit": "กก.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 0
+      }
+    ]
+  },
+  "usage": {
+    "input": 5680,
+    "output": 245,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

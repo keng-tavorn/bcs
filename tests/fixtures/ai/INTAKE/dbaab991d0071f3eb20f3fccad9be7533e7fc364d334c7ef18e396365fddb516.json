@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": null,
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "เบรกเกอร์ 3 เฟส 100A",
+        "itemCode": "ELE-006",
+        "qty": "6",
+        "unit": "ตัว",
+        "unitPrice": "3168.00"
+      }
+    ],
+    "supplier": {
+      "name": "ห้างหุ้นส่วนจำกัด สยามพัฒนากิจอีเล็คทริค",
+      "taxId": "0999998010472",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 80
+      },
+      {
+        "field": "title",
+        "value": 20
+      },
+      {
+        "field": "siteCode",
+        "value": 85
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 7226,
+    "output": 284,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

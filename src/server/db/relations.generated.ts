@@ -22,6 +22,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     appliedBy: { model: 'Member', list: false },
     creditUses: { model: 'AiCreditLedger', list: true },
     decidedBy: { model: 'Member', list: false },
+    invoices: { model: 'Invoice', list: true },
     organization: { model: 'Organization', list: false },
     requestedBy: { model: 'Member', list: false },
   },
@@ -238,6 +239,7 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     task: { model: 'ApprovalTask', list: false },
   },
   Invoice: {
+    agentAction: { model: 'AgentAction', list: false },
     createdBy: { model: 'Member', list: false },
     currentRoute: { model: 'ApprovalRoute', list: false },
     exceptions: { model: 'MatchException', list: true },

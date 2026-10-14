@@ -1,0 +1,71 @@
+{
+  "promptVersion": "DELIVERY_NOTE_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "DELIVERY_NOTE",
+    "docNo": "DN100273",
+    "docDate": "2026-06-06",
+    "currency": "THB",
+    "priceIncludesVat": null,
+    "seller": {
+      "name": "บริษัท อุตสาหกิจไทยสตีล จำกัด",
+      "taxId": "0999998010308",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "เหล็กข้ออ้อย DB25 SD40",
+        "qty": "1",
+        "unit": "ตัน",
+        "unitPrice": null,
+        "amount": null
+      }
+    ],
+    "discountTotal": null,
+    "net": null,
+    "vat": null,
+    "gross": null,
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

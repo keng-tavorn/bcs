@@ -10,6 +10,7 @@ import { getRequestForEdit } from '@/server/services/requests/form-view'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageHeader } from '@/ui/page/page'
 import { RequestForm } from '@/ui/request-form/request-form'
+import { documentAiFor, intakeAiFor } from '../../../../_lib/ai-read'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { editRefusal } from '../../../_tracking/access'
@@ -74,6 +75,8 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
       </Page>
     )
   }
+  // The Document Agent reads quotations into the form when it is available to this member (FR-AI-303 AC8)
+  const [ai, intake] = await Promise.all([documentAiFor(ctx), intakeAiFor(ctx)])
   // The form is a step-by-step screen of its own, with its title and the way out at its top (RequestForm)
   return (
     <RequestForm
@@ -88,6 +91,8 @@ export default async function EditRequestPage({ params }: { params: Promise<{ id
         requestUpload: requestUploadAction,
         completeUpload: completeUploadAction,
         downloadUrl: downloadUrlAction,
+        ...(ai ? { ai } : {}),
+        ...(intake ? { intake } : {}),
       }}
     />
   )

@@ -122,3 +122,26 @@ export async function balanceOf(budgetLineId: string) {
   const baht = (s: bigint) => `${s / 100n}.${String(s % 100n).padStart(2, '0')}`
   return { available: baht(b.availableSatang), reserved: baht(b.reservedSatang), committed: baht(b.committedSatang), actual: baht(b.actualSatang) }
 }
+
+/** A DRAFT INVOICE_READ action of the Document Agent read for a PO (S13-12), proposing these values by path */
+export async function invoiceReading(ap: ApOrg, poId: string, proposed: Record<string, string> = {}) {
+  const row = await prisma.agentAction.create({
+    data: {
+      organizationId: ap.org.organizationId,
+      agent: 'DOCUMENT',
+      purpose: 'INVOICE_READ',
+      level: 'L1',
+      status: 'DRAFT',
+      channel: 'WEB',
+      promptVersion: 'INVOICE_READ@1',
+      model: 'claude-sonnet-5-5',
+      requestedById: ap.org.member.fin_officer!,
+      subjectType: 'PURCHASE_ORDER',
+      subjectId: poId,
+      output: {},
+      review: { requiredPaths: Object.keys(proposed).sort(), confirmedPaths: [], proposed },
+      createdAt: AP_NOW,
+    },
+  })
+  return row.id
+}

@@ -13,6 +13,12 @@ export {
   type AgentActionDto,
   type RequestedAction,
 } from './actions'
+export { DOCUMENT_PURPOSES, readDocument, ReadDocumentInput, runDocumentRead } from './agents/document'
+export { approvalBriefOf, BRIEF_PROFILE, briefFacts, runBrief, type ApprovalBriefDto, type BriefFacts } from './agents/brief'
+export { AskInput, askInsight, INSIGHT_PROFILE, insightResponse, type InsightAnswer } from './agents/insight'
+export { findSuppliersForAsker, listPurchaseOrdersForAsker, runTool, type ToolResult } from './tools'
+export { runDoaDraft, startDoaDraft, StartDoaDraftInput, type RuleProblem } from './agents/doa-drafter'
+export { intakeFromMessage, IntakeMessageInput, runIntake, startIntake, StartIntakeInput } from './agents/intake'
 export { checkCreditUsage, creditSummary, grantCredits, runMonthlyGrant, type CreditSummaryDto } from './credits'
 export { aiRuntime, checkCallGates, creditBalance, isAgentAvailable, setAiRuntimeForTests, type AgentAvailability, type AiRuntime, type CallPlan } from './gate'
 export { activeOrgAdminIds, listAgentSettings, updateAgentSetting, type AgentSettingDto } from './settings'

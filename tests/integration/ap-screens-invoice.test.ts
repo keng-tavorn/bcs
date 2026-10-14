@@ -17,7 +17,7 @@ import { recheckInvoice } from '@/server/services/ap/exceptions'
 import { getApInvoicePage, listVarianceExceptions } from '@/server/services/ap/view-invoice'
 import { getDownloadUrl } from '@/server/services/files'
 import { apErrorKey } from '@/ui/ap/invoice/outcome'
-import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
+import { AP_NOW, apOrg, codedDraft, fin, invoiceReading, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
 
 // S8-13, the screens of one tier-2 invoice and PROCUREMENT's list of differences (docs/sub-specs/S8.md "หน้าจอ"
 // /finance/invoices/[id] and /procurement/invoice-exceptions): the read model the page draws — who reads it (FINANCE,
@@ -103,7 +103,7 @@ describe('[FR-AP-101/AC5] where each value came from', () => {
     const po = await sentPo(ap, [{ quantity: '1', unitPrice: '400.00' }])
     await receive(ap, po, { 0: '1' })
     const fileId = (await prisma.fileObject.create({ data: { organizationId: ap.org.organizationId, storageKey: `test/${randomUUID()}.jpg`, fileName: 'invoice.jpg', mimeType: 'image/jpeg', sizeBytes: 1, status: 'AVAILABLE', uploadedById: ap.org.member.fin_officer! } })).id
-    const { invoiceId } = ok(await createDraftFromReading(fin(ap), { fileId, poId: po.id, agentActionId: randomUUID(), supplierInvoiceNo: 'AI-1', invoiceDate: nextDate(), statedVat: '28.00' }, { idempotencyKey: randomUUID() }))
+    const { invoiceId } = ok(await createDraftFromReading(fin(ap), { fileId, poId: po.id, agentActionId: await invoiceReading(ap, po.id), supplierInvoiceNo: 'AI-1', invoiceDate: nextDate(), statedVat: '28.00' }, { idempotencyKey: randomUUID() }))
     const before = await page('fin_officer', invoiceId)
     expect(before.fieldSources).toEqual({ supplierInvoiceNo: 'AI_READING', invoiceDate: 'AI_READING', statedVat: 'AI_READING' })
     expect(before.file).toEqual({ id: fileId, fileName: 'invoice.jpg' })

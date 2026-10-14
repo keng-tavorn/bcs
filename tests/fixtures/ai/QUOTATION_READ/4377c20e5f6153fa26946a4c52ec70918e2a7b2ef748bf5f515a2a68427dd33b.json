@@ -1,0 +1,71 @@
+{
+  "promptVersion": "QUOTATION_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "QUOTATION",
+    "docNo": "QT-18415",
+    "docDate": "2026-09-02",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "ห้างหุ้นส่วนจำกัด เกียรติไพศาลการโยธา",
+      "taxId": "0999998010901",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "งานโครงสร้างเหล็กหลังคา",
+        "qty": "4",
+        "unit": "ตัน",
+        "unitPrice": "58580.00",
+        "amount": "234320.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "234320.00",
+    "vat": "16402.40",
+    "gross": "250722.40",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

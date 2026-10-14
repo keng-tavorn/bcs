@@ -2,3 +2,4 @@
 // (eslint.config.mjs, INV-AI-05)
 export * from './client'
 export { PROMPTS, type PromptText } from './prompts'
+export { answerStreamResponse } from './stream'

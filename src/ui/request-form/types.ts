@@ -1,6 +1,7 @@
 import type { AttachmentRule, Condition, VisibilityRule } from '@/core/forms'
 import type { FieldDef } from '@/core/forms/fields'
 import type { MoneyDto } from '@/core/money/dto'
+import type { AiReviewDraft } from '../ai/types'
 
 // What the request form screens receive (S2-11). Screens may not import services, so these mirror the services' DTOs
 // (src/server/services/requests/form-view.ts and preview.ts); the pages pass the DTOs in and TypeScript checks that
@@ -58,11 +59,15 @@ export interface DraftLine {
 
 export interface DraftQuotation {
   readonly supplierName: string
+  /** The supplier of the register, when the Document Agent matched one (S13-07) */
+  readonly supplierId?: string | null
   readonly amount: string
   readonly includesVat: boolean
   readonly fileId: string | null
   readonly fileName: string | null
   readonly selected: boolean
+  /** An AI reading of the file still waiting for the requester (S13-07) */
+  readonly ai?: AiReviewDraft | null
 }
 
 export interface Attachment {
@@ -88,6 +93,8 @@ export interface RequestDraft {
   readonly deliverySiteId?: string | null
   /** The supplier the requester suggests (FR-P2P-001 AC2) */
   readonly suggestedSupplierId?: string | null
+  /** What the Intake Agent filled at step 0, still waiting for the requester (S13-08) */
+  readonly intakeAi?: AiReviewDraft | null
 }
 
 export interface DeliverySiteOption {

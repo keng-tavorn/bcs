@@ -36,9 +36,14 @@ export default async function TenantsPage() {
                   {org.code} · {tStatus(org.status)}
                 </p>
               </div>
-              <Link href={`/platform/tenants/${org.id}/modules`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
-                {t('manageModules', { name: org.name })}
-              </Link>
+              <div className="flex flex-col sm:items-end">
+                <Link href={`/platform/tenants/${org.id}/modules`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
+                  {t('manageModules', { name: org.name })}
+                </Link>
+                <Link href={`/platform/tenants/${org.id}/ai`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
+                  {t('manageAi', { name: org.name })}
+                </Link>
+              </div>
             </li>
           ))}
         </ul>

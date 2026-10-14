@@ -22,3 +22,5 @@ export const FORM_TEXTAREA_MAX_LENGTH = 10_000
 export const AI_PRICE_UNITS_PER_CREDIT = 1_000_000_000n
 /** Milliseconds in a calendar day: date-only values ("YYYY-MM-DD" at UTC midnight) differ by whole days */
 export const MS_PER_DAY = 86_400_000
+/** Minutes in a day (the age of a document in days, BR-AI-15) */
+export const MINUTES_PER_DAY = 1_440

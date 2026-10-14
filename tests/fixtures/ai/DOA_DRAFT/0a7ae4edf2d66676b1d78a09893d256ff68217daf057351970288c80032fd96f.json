@@ -1,0 +1,233 @@
+{
+  "promptVersion": "DOA_DRAFT@1",
+  "model": "claude-opus-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "rules": [
+      {
+        "code": "PR-01",
+        "documentType": "PURCHASE_REQUEST",
+        "gt": "0.00",
+        "lte": "20000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "DM",
+        "sourceText": "ข้อ PR-01 เอกสาร PURCHASE_REQUEST วงเงินไม่เกิน 20,000 บาท ให้ตำแหน่ง DM ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "PR-02",
+        "documentType": "PURCHASE_REQUEST",
+        "gt": "20000.00",
+        "lte": "100000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "VP",
+        "sourceText": "ข้อ PR-02 เอกสาร PURCHASE_REQUEST วงเงินเกิน 20,000 บาท แต่ไม่เกิน 100,000 บาท ให้ตำแหน่ง VP ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "PR-03",
+        "documentType": "PURCHASE_REQUEST",
+        "gt": "100000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ PR-03 เอกสาร PURCHASE_REQUEST วงเงินเกิน 100,000 บาทขึ้นไป ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "PO-01",
+        "documentType": "PURCHASE_ORDER",
+        "gt": "0.00",
+        "lte": "1000000.00",
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "COO",
+        "sourceText": "ข้อ PO-01 เอกสาร PURCHASE_ORDER วงเงินไม่เกิน 1,000,000 บาท ให้ตำแหน่ง COOเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "PO-02",
+        "documentType": "PURCHASE_ORDER",
+        "gt": "1000000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ PO-02 เอกสาร PURCHASE_ORDER วงเงินเกิน 1,000,000 บาทขึ้นไป ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "GRV-01",
+        "documentType": "GR_VARIANCE",
+        "gt": null,
+        "lte": null,
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "DM",
+        "sourceText": "ข้อ GRV-01 เอกสาร GR_VARIANCE วงเงินทุกจำนวน ให้ตำแหน่ง DM ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "DOA-CHG-01",
+        "documentType": "DOA_CHANGE",
+        "gt": null,
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ DOA-CHG-01 เอกสาร DOA_CHANGE วงเงินทุกจำนวน ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "ORG-CHG-01",
+        "documentType": "ORG_AUTHORITY_CHANGE",
+        "gt": null,
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ ORG-CHG-01 เอกสาร ORG_AUTHORITY_CHANGE วงเงินทุกจำนวน ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "BT-01",
+        "documentType": "BUDGET_TRANSFER",
+        "gt": "0.00",
+        "lte": "100000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "DM",
+        "sourceText": "ข้อ BT-01 เอกสาร BUDGET_TRANSFER วงเงินไม่เกิน 100,000 บาท ให้ตำแหน่ง DM ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "BT-02",
+        "documentType": "BUDGET_TRANSFER",
+        "gt": "100000.00",
+        "lte": "500000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "VP",
+        "sourceText": "ข้อ BT-02 เอกสาร BUDGET_TRANSFER วงเงินเกิน 100,000 บาท แต่ไม่เกิน 500,000 บาท ให้ตำแหน่ง VP ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "BT-03",
+        "documentType": "BUDGET_TRANSFER",
+        "gt": "500000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CFO",
+        "sourceText": "ข้อ BT-03 เอกสาร BUDGET_TRANSFER วงเงินเกิน 500,000 บาทขึ้นไป ให้ตำแหน่ง CFOเป็นผู้อนุมัติ",
+        "page": 1
+      },
+      {
+        "code": "OB-01",
+        "documentType": "OVER_BUDGET",
+        "gt": "0.00",
+        "lte": "50000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "VP",
+        "sourceText": "ข้อ OB-01 เอกสาร OVER_BUDGET วงเงินไม่เกิน 50,000 บาท ให้ตำแหน่ง VP ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "OB-02",
+        "documentType": "OVER_BUDGET",
+        "gt": "50000.00",
+        "lte": "500000.00",
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CFO",
+        "sourceText": "ข้อ OB-02 เอกสาร OVER_BUDGET วงเงินเกิน 50,000 บาท แต่ไม่เกิน 500,000 บาท ให้ตำแหน่ง CFOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "OB-03",
+        "documentType": "OVER_BUDGET",
+        "gt": "500000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ OB-03 เอกสาร OVER_BUDGET วงเงินเกิน 500,000 บาทขึ้นไป ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "IE-01",
+        "documentType": "INVOICE_EXCEPTION",
+        "gt": "0.00",
+        "lte": "20000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "DM",
+        "sourceText": "ข้อ IE-01 เอกสาร INVOICE_EXCEPTION วงเงินไม่เกิน 20,000 บาท ให้ตำแหน่ง DM ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "IE-02",
+        "documentType": "INVOICE_EXCEPTION",
+        "gt": "20000.00",
+        "lte": "200000.00",
+        "approverKind": "POSITION_OF_DEPARTMENT",
+        "approverPosition": "VP",
+        "sourceText": "ข้อ IE-02 เอกสาร INVOICE_EXCEPTION วงเงินเกิน 20,000 บาท แต่ไม่เกิน 200,000 บาท ให้ตำแหน่ง VP ของหน่วยงานเจ้าของเรื่องเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "IE-03",
+        "documentType": "INVOICE_EXCEPTION",
+        "gt": "200000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CFO",
+        "sourceText": "ข้อ IE-03 เอกสาร INVOICE_EXCEPTION วงเงินเกิน 200,000 บาทขึ้นไป ให้ตำแหน่ง CFOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "PC-01",
+        "documentType": "PO_CHANGE",
+        "gt": "0.00",
+        "lte": "1000000.00",
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "COO",
+        "sourceText": "ข้อ PC-01 เอกสาร PO_CHANGE วงเงินไม่เกิน 1,000,000 บาท ให้ตำแหน่ง COOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "PC-02",
+        "documentType": "PO_CHANGE",
+        "gt": "1000000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ PC-02 เอกสาร PO_CHANGE วงเงินเกิน 1,000,000 บาทขึ้นไป ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "PAY-01",
+        "documentType": "PAYMENT_RUN",
+        "gt": "0.00",
+        "lte": "5000000.00",
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CFO",
+        "sourceText": "ข้อ PAY-01 เอกสาร PAYMENT_RUN วงเงินไม่เกิน 5,000,000 บาท ให้ตำแหน่ง CFOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "PAY-02",
+        "documentType": "PAYMENT_RUN",
+        "gt": "5000000.00",
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CEO",
+        "sourceText": "ข้อ PAY-02 เอกสาร PAYMENT_RUN วงเงินเกิน 5,000,000 บาทขึ้นไป ให้ตำแหน่ง CEOเป็นผู้อนุมัติ",
+        "page": 2
+      },
+      {
+        "code": "BA-01",
+        "documentType": "BANK_ACCOUNT_CHANGE",
+        "gt": null,
+        "lte": null,
+        "approverKind": "POSITION_OF_ORG",
+        "approverPosition": "CFO",
+        "sourceText": "ข้อ BA-01 เอกสาร BANK_ACCOUNT_CHANGE วงเงินทุกจำนวน ให้ตำแหน่ง CFOเป็นผู้อนุมัติ",
+        "page": 2
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

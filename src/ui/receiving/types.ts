@@ -91,6 +91,8 @@ export interface ReceiptInput {
   readonly notes: string
   readonly photoFileIds: readonly string[]
   readonly lines: readonly ReceiptLineInput[]
+  /** What the receiver confirmed of the quantities the AI read from the delivery note (FR-AI-303 AC4) */
+  readonly aiAssist?: { readonly agentActionId: string; readonly confirmedPaths: readonly string[] }
 }
 
 export type VarianceTypeView = 'OVER' | 'SHORT' | 'DAMAGED'

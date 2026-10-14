@@ -1,0 +1,16 @@
+# tests/golden/ai-intake-channel.yaml
+suite: ai-intake-channel
+fixture:
+  asOf: "2026-10-11"
+  rules: [{ id: ATT-QUOTES, when: { field: $amountGross, op: gt, value: "100000.00" } }]
+  catalog:
+    - { itemCode: PLB-002, agreements: [{ supplier: SP0056, unitPrice: "300.00", validFrom: "2026-10-01", validTo: "2027-10-01" }] }
+    - { itemCode: PLB-003, agreements: [{ supplier: SP0056, unitPrice: "3250.00", validFrom: "2025-10-01", validTo: "2026-10-11" }] }
+  pastRequests: [{ itemCode: MAT-011, number: PR-2569-00120, daysAgo: 40 }]   # คำขอของผู้ขอคนนี้เอง (คำขอของผู้อื่นไม่อยู่ในรายการนี้ · BR-AI-19)
+  reorderLookbackDays: 180
+cases:
+  - { id: GC-AI-75, input: { lines: [{ itemCode: PLB-002, qty: "18" }], amountGross: "5970.60" }, expect: { channel: CATALOG, requiredRules: [] } }
+  - { id: GC-AI-76, title: ราคาตกลงสิ้นสุดวันนี้ (validTo ไม่รวมวันนั้น), input: { lines: [{ itemCode: PLB-003, qty: "4" }], amountGross: "13910.00" }, expect: { channel: STANDARD, requiredRules: [] } }
+  - { id: GC-AI-77, input: { lines: [{ itemCode: MAT-011, qty: "47" }], amountGross: "19864.55" }, expect: { channel: REORDER, reorderFrom: PR-2569-00120, requiredRules: [] } }
+  - { id: GC-AI-78, title: เท่าเกณฑ์พอดี, input: { lines: [{ itemCode: null, qty: "1" }], amountGross: "100000.00" }, expect: { channel: STANDARD, requiredRules: [] } }
+  - { id: GC-AI-79, title: เกินเกณฑ์ 1 สตางค์, input: { lines: [{ itemCode: null, qty: "1" }], amountGross: "100000.01" }, expect: { channel: STANDARD, requiredRules: [ATT-QUOTES] } }

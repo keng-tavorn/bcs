@@ -21,6 +21,8 @@ import { enqueueSupplierNotice, SUPPLIER_TEMPLATES } from '@/server/notification
 import { claimTrack } from './track'
 import { checkIncomeTypes, defaultIncomeType } from './wht'
 import { suggestionsFor } from './coding'
+// What the Document Agent read off an invoice, by path, for aiAssist (S13-12)
+import './ai-assist'
 import { readStoredInvoiceFile, sourceOfStoredFile } from './files'
 import type { EtaxContentReading } from '../invoices/etax'
 
@@ -287,11 +289,12 @@ export const updateInvoiceCommand = defineCommand({
     }
     // A value a person typed is no longer the file's or the AI's (labels only, BR-AP-03)
     for (const field of changed) delete sources[field]
-    const assist = await applyAiAssist(tx, ctx, SUBJECT(invoice.id), input.aiAssist)
-    if (!assist.ok) return { ok: false, error: assist.error }
     if (changed.length === 0 && !input.aiAssist) return fail('VALIDATION_FAILED', 'nothing to change', { field: 'invoiceId', reason: 'NO_CHANGE' })
     await tx.invoice.update({ where: { id: invoice.id }, data: { ...data, fieldSources: sources, version: { increment: 1 } } })
     if (!(await recalculate(tx, invoice.id, money))) return fail('VALIDATION_FAILED', 'the discount is above the invoice amount', { field: 'discount', reason: 'DISCOUNT_ABOVE_AMOUNT' })
+    // After the invoice is written: what the person kept is compared with what the AI said (a refusal rolls it all back)
+    const assist = await applyAiAssist(tx, ctx, SUBJECT(invoice.id), input.aiAssist)
+    if (!assist.ok) return { ok: false, error: assist.error }
     const after = await tx.invoice.findUniqueOrThrow({ where: { id: invoice.id }, select: { version: true, netSatang: true, statedVatSatang: true } })
     const events: EventDraft[] = [
       ...(changed.length ? [{ type: 'invoice.updated', aggregateType: 'Invoice', aggregateId: invoice.id, data: { changed, netSatang: after.netSatang.toString(), statedVatSatang: after.statedVatSatang.toString() } }] : []),
@@ -490,7 +493,7 @@ const ReadingInput = z.strictObject({
   poId: z.uuid(),
   /** When the reading names the supplier: it must be the PO's */
   supplierId: z.uuid().optional(),
-  /** The AgentAction of S13 whose reading this is (no foreign key until S13 adds the table) */
+  /** The INVOICE_READ AgentAction of S13 whose reading this is, read for this PO (S13-12: the foreign key holds it) */
   agentActionId: z.uuid(),
   supplierInvoiceNo: z.string().trim().min(1).max(60).optional(),
   invoiceDate: z.iso.date().optional(),
@@ -504,7 +507,7 @@ const ReadingInput = z.strictObject({
 /**
  * A draft from the values an AI read off an invoice (FR-AP-101 AC5): the actor is the member who accepted the reading,
  * never the agent (BR-AI-01); prefill AI_READING, and fieldSources names each value the AI gave, for the labels only.
- * What the member confirmed of the AI's values goes through applyAiAssist in this transaction (S13 makes it real); the
+ * What the member confirmed of the AI's values goes through applyAiAssist in this transaction (S13-12); the
  * submit stops while values wait for review (assertNoPendingAiReview). An e-Tax file uses the upload path instead.
  */
 export const createDraftFromReadingCommand = defineCommand({
@@ -521,6 +524,9 @@ export const createDraftFromReadingCommand = defineCommand({
     const po = await tx.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, include: { lines: { orderBy: { lineNo: 'asc' } } } })
     if (!(INVOICEABLE_PO_STATUSES as readonly string[]).includes(po.status)) return fail('INVALID_STATE_TRANSITION', `an invoice is not made on a ${po.status} purchase order`, { from: po.status, command: 'invoice.createDraftFromReading' })
     if (input.supplierId && input.supplierId !== po.supplierId) return fail('VALIDATION_FAILED', 'the supplier is not the supplier of the purchase order', { field: 'supplierId', reason: 'SUPPLIER_NOT_PO' })
+    if (input.aiAssist && input.aiAssist.agentActionId !== input.agentActionId) return fail('VALIDATION_FAILED', 'aiAssist is for another AI action', { field: 'aiAssist.agentActionId', reason: 'AGENT_ACTION_MISMATCH' })
+    // Another organization's action is not found through this tenant (§4.8)
+    if ((await tx.agentAction.count({ where: { id: input.agentActionId } })) === 0) return fail('NOT_FOUND', 'no such AI action', { field: 'agentActionId' })
     const track = await claimTrack(tx, po, 'MATCHING', true)
     if (!track.ok) return track
     if (await fileInUse(tx, file.id)) return fail('VALIDATION_FAILED', 'the invoice file is already the file of another invoice', { field: 'fileId', reason: 'FILE_IN_USE' })
@@ -570,8 +576,10 @@ export const createDraftFromReadingCommand = defineCommand({
     const money = { ...(input.statedVat ? { statedVatSatang: amountToSatang(input.statedVat) } : {}), ...(input.discount ? { discountSatang: amountToSatang(input.discount) } : {}) }
     if (!(await recalculate(tx, invoice.id, money))) return fail('VALIDATION_FAILED', 'the discount is above the invoice amount', { field: 'discount', reason: 'DISCOUNT_ABOVE_AMOUNT' })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId: file.id, subjectType: 'Invoice', subjectId: invoice.id, kind: 'INVOICE' } })
-    // BR-AP-03: in this transaction; before S13 an aiAssist is MODULE_DISABLED and nothing is made
-    const assist = await applyAiAssist(tx, ctx, SUBJECT(invoice.id), input.aiAssist)
+    // BR-AP-03 in this transaction: the reading always moves to the draft, so every AI value the member has not
+    // confirmed yet keeps invoice.submit at AI_REVIEW_PENDING (FR-AI-303 AC6); a reading of another PO, purpose or
+    // state is refused and nothing is made
+    const assist = await applyAiAssist(tx, ctx, SUBJECT(invoice.id), input.aiAssist ?? { agentActionId: input.agentActionId, confirmedPaths: [] })
     if (!assist.ok) return { ok: false, error: assist.error }
     const events: EventDraft[] = [
       {

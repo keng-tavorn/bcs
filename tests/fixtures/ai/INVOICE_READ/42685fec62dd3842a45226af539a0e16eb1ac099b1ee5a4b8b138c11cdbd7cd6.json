@@ -1,0 +1,120 @@
+{
+  "promptVersion": "INVOICE_READ@1",
+  "model": "claude-sonnet-5-5",
+  "recorded": "TRUTH",
+  "output": {
+    "docType": "TAX_INVOICE",
+    "docNo": "INV-00412",
+    "docDate": "2026-09-28",
+    "currency": "THB",
+    "priceIncludesVat": false,
+    "seller": {
+      "name": "บริษัท ศรีสยามบิลด์สุขภัณฑ์ จำกัด",
+      "taxId": "0999998010561",
+      "branch": "00000"
+    },
+    "buyer": {
+      "taxId": "0999997000015"
+    },
+    "lines": [
+      {
+        "description": "ท่อ PPR 1 นิ้ว",
+        "qty": "20",
+        "unit": "ท่อน",
+        "unitPrice": "310.00",
+        "amount": "6200.00"
+      },
+      {
+        "description": "ข้อต่อ PPR 1 นิ้ว",
+        "qty": "40",
+        "unit": "ตัว",
+        "unitPrice": "18.50",
+        "amount": "740.00"
+      },
+      {
+        "description": "ข้องอ PPR 1 นิ้ว",
+        "qty": "30",
+        "unit": "ตัว",
+        "unitPrice": "22.00",
+        "amount": "660.00"
+      },
+      {
+        "description": "สามทาง PPR 1 นิ้ว",
+        "qty": "15",
+        "unit": "ตัว",
+        "unitPrice": "27.50",
+        "amount": "412.50"
+      },
+      {
+        "description": "วาล์ว PPR 1 นิ้ว",
+        "qty": "6",
+        "unit": "ตัว",
+        "unitPrice": "385.00",
+        "amount": "2310.00"
+      },
+      {
+        "description": "เทปพันเกลียว",
+        "qty": "24",
+        "unit": "ม้วน",
+        "unitPrice": "12.00",
+        "amount": "288.00"
+      },
+      {
+        "description": "กาวทาท่อ",
+        "qty": "6",
+        "unit": "กระป๋อง",
+        "unitPrice": "95.00",
+        "amount": "570.00"
+      },
+      {
+        "description": "ท่อ PPR 3/4 นิ้ว",
+        "qty": "10",
+        "unit": "ท่อน",
+        "unitPrice": "245.00",
+        "amount": "2450.00"
+      }
+    ],
+    "discountTotal": null,
+    "net": "13630.50",
+    "vat": "954.14",
+    "gross": "14584.64",
+    "confidence": [
+      {
+        "field": "docNo",
+        "value": 95
+      },
+      {
+        "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "seller.taxId",
+        "value": 95
+      },
+      {
+        "field": "seller.branch",
+        "value": 95
+      },
+      {
+        "field": "buyer.taxId",
+        "value": 95
+      },
+      {
+        "field": "net",
+        "value": 95
+      },
+      {
+        "field": "vat",
+        "value": 95
+      },
+      {
+        "field": "gross",
+        "value": 95
+      }
+    ]
+  },
+  "usage": {
+    "input": 1800,
+    "output": 420
+  }
+}

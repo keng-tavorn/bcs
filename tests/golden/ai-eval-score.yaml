@@ -1,0 +1,13 @@
+# tests/golden/ai-eval-score.yaml
+suite: ai-eval-score
+cases:
+  - { id: GC-AI-12, fn: matchField, input: { field: seller.taxId, expected: "0999998010561", actual: "0-9999-98010-56-1" }, expect: { match: true } }
+  - { id: GC-AI-13, fn: matchField, input: { field: docNo, expected: "INV-00373", actual: " inv-00373 " }, expect: { match: true } }
+  - { id: GC-AI-14, fn: matchField, input: { field: gross, expected: "5970.60", actual: "5,970.6" }, expect: { match: true } }
+  - { id: GC-AI-15, fn: matchField, input: { field: docNo, expected: null, actual: "-" }, expect: { match: false } }
+  - { id: GC-AI-16, title: คำตอบ "ไม่มีเลขที่" ของ DocSamples เทียบเป็น null, fn: matchField, input: { field: docNo, expected: "ไม่มีเลขที่", actual: null }, expect: { match: true } }
+  - { id: GC-AI-17, title: บรรทัดส่วนลดติดลบในคำตอบแปลงเป็น discountTotal (DOC-057), fn: normalizeAnswer, input: { lines: [{ qty: "20000", unitPrice: "32.50" }, { qty: "1", unitPrice: "-13000.00" }] }, expect: { lines: 1, discountTotal: "13000.00" } }
+  - { id: GC-AI-18, fn: fieldScore, input: { correct: 21, total: 22, thresholdBp: 9800, missed: 0 }, expect: { scoreBp: 9545, pass: false } }
+  - { id: GC-AI-19, fn: fieldScore, input: { correct: 49, total: 50, thresholdBp: 9800, missed: 0 }, expect: { scoreBp: 9800, pass: true } }
+  - { id: GC-AI-20, title: แม่นเท่าเกณฑ์แต่ค่าผิดค่าเดียวไม่ถูกไฮไลต์ (ฟิลด์สำคัญ), fn: fieldScore, input: { correct: 49, total: 50, thresholdBp: 9800, missed: 1, critical: true }, expect: { scoreBp: 9800, pass: false } }
+  - { id: GC-AI-21, title: ฟิลด์รองไม่นับกฎหลุด, fn: fieldScore, input: { correct: 46, total: 50, thresholdBp: 9000, missed: 1, critical: false }, expect: { scoreBp: 9200, pass: true } }

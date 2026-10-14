@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useCallback, useEffect, useId, useMemo, useReducer, useRef, useState, type Ref } from 'react'
 import { v4 as uuidv4 } from 'uuid'
+import type { AiReadActions } from '../ai/types'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { useSubmissionKey } from '../form/submission-key'
@@ -16,8 +17,11 @@ import { DOOR_ASIDE } from '../shell/new-request-door'
 import type { StepProps } from './details-items'
 import { kindLabelOf, type DocumentsProps } from './documents-step'
 import { DropUploadButton } from './drop-upload'
+import { IntakeAi, type IntakeActions } from './intake-ai'
+import { QuotationAi } from './quotation-ai'
 import { fieldLabel } from './field-input'
 import {
+  aiUnsent,
   applicableRules,
   compareFormQuotations,
   draftPayload,
@@ -56,6 +60,10 @@ export interface RequestFormActions extends UploadActions {
   readonly detach: (requestId: string, fileId: string, idempotencyKey: string) => Promise<FormOutcome>
   readonly submit: (input: { requestId: string; expectedVersion: number; resubmit: boolean }, idempotencyKey: string) => Promise<FormOutcome<{ requestId: string; sent: SentView }>>
   readonly downloadUrl: (fileId: string) => Promise<string | null>
+  /** The Document Agent, when it is available to this member now (FR-AI-303 AC8: otherwise no AI button at all) */
+  readonly ai?: AiReadActions
+  /** The Intake Agent's step 0, when it is available to this member now (FR-AI-302: otherwise no step 0) */
+  readonly intake?: IntakeActions
 }
 
 const linkClass = 'inline-flex min-h-11 items-center self-start font-medium text-primary underline underline-offset-4 hover:no-underline'
@@ -120,6 +128,10 @@ export function RequestForm({
   const [fileBusy, setFileBusy] = useState(false)
   const [fileError, setFileError] = useState<string | null>(null)
   const submission = useSubmissionKey()
+  /** What each AI reading's last save said of it (aiSentMark): the AI's values reach the server with the first save after them */
+  const aiSent = useRef(new Map<string, string>())
+  /** Asks for one more save (set once the autosave exists): an AI reading still to tell the server goes with it */
+  const saveAgain = useRef<() => void>(() => undefined)
   const headingRef = useRef<HTMLHeadingElement>(null)
   const headerRef = useRef<HTMLElement>(null)
   const sectionRef = useRef<HTMLElement>(null)
@@ -132,13 +144,21 @@ export function RequestForm({
     requestTypeCode: data.type.code,
     initialRequestId: data.draft?.requestId ?? null,
     initialVersion: data.draft?.version ?? null,
-    getPayload: (isNew) => draftPayload(valuesRef.current, data.type.name, isNew),
+    getPayload: (isNew) => draftPayload(valuesRef.current, data.type.name, isNew, aiSent.current),
     // The draft has an address from now on: reloading or sharing the page opens it again
     onCreated: (id) => window.history.replaceState(null, '', `/requests/${id}/edit`),
     // Lines saved for the first time learn their ids, so the next save changes each one by its id
-    onSaved: (parts) => dispatch({ type: 'saved', lines: parts.lines, quotations: parts.quotations }),
+    onSaved: (parts) => {
+      dispatch({ type: 'saved', lines: parts.lines, quotations: parts.quotations })
+      // An AI reading the save carried is known to the server now; another one still to tell goes with the next save
+      if (parts.ai) aiSent.current.set(parts.ai.agentActionId, parts.ai.mark)
+      if (aiUnsent(valuesRef.current, aiSent.current)) saveAgain.current()
+    },
   })
   const { changed } = autosave
+  useEffect(() => {
+    saveAgain.current = changed
+  }, [changed])
   const update = useCallback(
     (action: FormAction) => {
       dispatch(action)
@@ -299,7 +319,9 @@ export function RequestForm({
     setSubmitError(null)
     setSubmitting(true)
     try {
-      const saved = await autosave.saveNow({ force: true })
+      let saved = await autosave.saveNow({ force: true })
+      // Every AI reading goes with a save of its own before the request is sent, so the server checks them all
+      for (let i = 0; saved && i < values.quotations.length && aiUnsent(valuesRef.current, aiSent.current); i++) saved = await autosave.saveNow({ force: true })
       const id = autosave.id()
       const version = autosave.version()
       if (!saved || !id || version === null) {
@@ -356,6 +378,7 @@ export function RequestForm({
     fileError,
     busy: fileBusy || blockedSave,
     Upload: DropUploadButton,
+    ...(actions.ai ? { ai: { actions: actions.ai, requestId: autosave.requestId, Reader: QuotationAi } } : {}),
   }
   const send = sendStateOf(t, { data, values, totals, budget, problems, saveStop, ...(autosave.state.kind === 'closed' ? { closedWhy: autosave.state.why } : {}) })
   const review = current.auto === 'review'
@@ -441,7 +464,13 @@ export function RequestForm({
                 requestHref={autosave.requestId ? `/requests/${autosave.requestId}` : null}
               />
             ) : (
-              <StepBody step={current} props={stepProps} documents={documentsProps} endDateRequired={endDateRequired} />
+              <>
+                {/* Step 0 (FR-AI-302): only on the first step, only when the Intake Agent is available to this member */}
+                {actions.intake && index === 0 ? (
+                  <IntakeAi data={data} values={values} requestId={autosave.requestId} actions={actions.intake} uploads={{ requestUpload: actions.requestUpload, completeUpload: actions.completeUpload }} update={update} />
+                ) : null}
+                <StepBody step={current} props={stepProps} documents={documentsProps} endDateRequired={endDateRequired} />
+              </>
             )}
             {stopped ? (
               <p ref={stoppedRef} tabIndex={-1} role="alert" className="flex items-start gap-2 font-medium text-danger outline-none">

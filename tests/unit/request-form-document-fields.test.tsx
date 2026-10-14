@@ -152,6 +152,8 @@ describe('[FR-INT-005/AC1] [§9.9] a rule met and the lowest quotation are suppo
       fileName: `quote-${i + 1}.pdf`,
       selected: i === 0,
       saved: true,
+      supplierId: null,
+      ai: null,
     }))
     const values: FormValues = { ...above.values, quotations }
     const input = formInput(values, [], above.totals, DATA.type.code)

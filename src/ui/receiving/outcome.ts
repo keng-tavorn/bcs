@@ -92,6 +92,7 @@ export const RECEIVING_ERROR_KEYS = [
   'REASON',
   'CONFIRM',
   'TOLERANCE',
+  'AI_REVIEW_PENDING',
   'BUDGET_INSUFFICIENT',
   'BUDGET_INSUFFICIENT_PLAIN',
   'BUDGET_LINE_CLOSED',
@@ -153,6 +154,9 @@ export function receivingErrorKey(failure: ReceivingFailure, action: ReceivingAc
       return 'NO_APPROVER'
     case 'RATE_LIMITED':
       return 'BUSY'
+    // BR-AI-17: a quantity the AI read from the delivery note still waits for the receiver
+    case 'AI_REVIEW_PENDING':
+      return 'AI_REVIEW_PENDING'
     case 'IDEMPOTENCY_CONFLICT':
       return 'CONFLICT'
     // No answer (./failed.ts NO_ANSWER; the server never answers this code): recording may have gone through

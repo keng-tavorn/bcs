@@ -3,7 +3,7 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { cn } from '../cn'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../shadcn/collapsible'
-import { LineStatusBadge, LowBadge } from './badges'
+import { BurnBadge, LineStatusBadge, LowBadge, type BurnBadgeKind } from './badges'
 import { HeldMeter } from './meter'
 
 // The budget dashboard's figures (spec §11.2, FR-BUD-005 AC1 AC2): each department's total over its budget lines, then
@@ -36,6 +36,20 @@ export interface FigureLinks extends AmountLinks {
   readonly held: AmountLink | null
   /** "ใกล้หมด เหลือ 8.3%" or "งบหมด เหลือ 0.00 บาท": to the ledger's movements behind what is left */
   readonly low: AmountLink | null
+  /** S6-18: "พยากรณ์ทั้งปี 104.25%": to the POs that commit, followed by the actual (the pace it is drawn from); null with no forecast */
+  readonly forecast?: AmountLink | null
+}
+
+/**
+ * S6-18 (FR-BUD-104 AC1 · BR-BUD-17): the year's forecast at the pace so far and the alerts reached. The used share of the
+ * burn (rounded down, two decimals) is FigureView.used itself, so a row shows one used share, never two.
+ */
+export interface BurnView {
+  /** "พยากรณ์ทั้งปี 104.25%", or "พยากรณ์ทั้งปี: ยังไม่พยากรณ์" with the hint why */
+  readonly forecast: string
+  readonly forecastHint: string | null
+  /** The highest threshold reached ("ใช้ถึง 80%", "ใช้ครบ 100%"), then "พยากรณ์เกินงบ" */
+  readonly alerts: ReadonlyArray<{ readonly kind: BurnBadgeKind; readonly label: string }>
 }
 
 export interface FigureView {
@@ -54,6 +68,8 @@ export interface FigureView {
   /** Nothing is left (the warning is the used-up one, in --danger): new requests on it are refused */
   readonly out: boolean
   readonly links: FigureLinks
+  /** S6-18: the forecast and the alerts of the burn (the dashboard's rows); none on a row without them */
+  readonly burn?: BurnView | null
 }
 
 /**
@@ -127,7 +143,7 @@ function Share({ text, link }: { text: string; link: AmountLink | null }) {
   )
 }
 
-/** Used and held, then the bar; stacked in the table's narrow column, side by side in the lists */
+/** Used and held (and the year's forecast, S6-18), then the bar; stacked in the table's narrow column, side by side in the lists */
 function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: string; inline?: boolean; className?: string }) {
   if (!f.used || !f.held) return <span className={cn('text-ink-muted', className)}>{noShare}</span>
   return (
@@ -135,7 +151,14 @@ function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: str
       <span className={inline ? 'flex flex-wrap gap-x-4' : 'flex flex-col gap-1'}>
         <Share text={f.used} link={f.links.used} />
         <Share text={f.held} link={f.links.held} />
+        {f.burn && f.burn.forecastHint === null ? <Share text={f.burn.forecast} link={f.links.forecast ?? null} /> : null}
       </span>
+      {f.burn && f.burn.forecastHint !== null ? (
+        <span className="flex flex-col">
+          <span>{f.burn.forecast}</span>
+          <span className="text-ink-muted">{f.burn.forecastHint}</span>
+        </span>
+      ) : null}
       <HeldMeter heldBp={f.heldBp} low={f.low !== null} out={f.out} />
     </span>
   )
@@ -146,10 +169,14 @@ function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: str
  * left, in its own icon and colour — and a line's frozen or closed status
  */
 function States({ f, status, className }: { f: FigureView; status?: BudgetLineView['status']; className?: string }) {
-  if (!f.low && !status) return null
+  const alerts = f.burn?.alerts ?? []
+  if (!f.low && !status && alerts.length === 0) return null
   return (
     <span className={cn('flex flex-col gap-0.5', className)}>
       {f.low ? <LowBadge label={f.low} out={f.out} link={f.links.low} /> : null}
+      {alerts.map((a) => (
+        <BurnBadge key={a.kind} kind={a.kind} label={a.label} />
+      ))}
       {status ? <LineStatusBadge status={status.kind} label={status.label} /> : null}
     </span>
   )

@@ -1,10 +1,12 @@
 import type { getTranslations } from 'next-intl/server'
+import { BP_PER_WHOLE } from '@/core/money/constants'
 import { amountToSatang } from '@/core/money/dto'
 import { formatEnglishBeDate, formatThaiDate } from '@/core/thai/date'
+import type { BurnDto } from '@/server/services/budget/burn'
 import type { BudgetFiguresDto, BudgetLineChangesDto } from '@/server/services/budget/dashboard'
-import type { AmountLink, AmountLinks, Bucket, FigureLinks, FigureView, LineChangesView } from '@/ui/budgets/budget-table'
+import type { AmountLink, AmountLinks, Bucket, BurnView, FigureLinks, FigureView, LineChangesView } from '@/ui/budgets/budget-table'
 import type { LineFigureView, LineSharesView } from '@/ui/budgets/line-detail'
-import { leftPercentText, moneyText, percentText } from '@/ui/budgets/format'
+import { burnPercentText, leftPercentText, moneyText, percentText, thresholdPercentText } from '@/ui/budgets/format'
 
 // Turns the budget services' DTOs into the translated, formatted strings of the budget screens (spec §11.2): money with
 // thousands separators and two decimals from its decimal text, shares with one decimal (the share left rounded down,
@@ -68,9 +70,16 @@ export function amountLinks(t: BudgetsT, f: BudgetFiguresDto, of: string, page: 
   return { planned: link('planned'), available: link('available'), reserved: link('reserved'), committed: link('committed'), actual: link('actual') }
 }
 
-/** "ใช้แล้ว 18.0%" and "รวมที่จองแล้ว 26.0%", or none when nothing is planned */
-function sharesText(t: BudgetsT, f: BudgetFiguresDto): { used: string; held: string } | null {
-  const used = percentText(f.usedBp)
+/** The figures of a dashboard row: with the burn of S6-18 (BR-BUD-17) beside them */
+export type BurnFiguresDto = BudgetFiguresDto & { readonly burn?: BurnDto }
+
+/**
+ * "ใช้แล้ว 18.0%" and "รวมที่จองแล้ว 26.0%", or none when nothing is planned. A dashboard row carries its burn (S6-18):
+ * its used share is the burn's — rounded down, two decimals ("ใช้แล้ว 86.66%") — the share its alerts are reached on, so
+ * the row never shows two used shares that differ in the last digit
+ */
+function sharesText(t: BudgetsT, f: BurnFiguresDto): { used: string; held: string } | null {
+  const used = f.burn && f.burn.usedBp !== null ? burnPercentText(f.burn.usedBp) : percentText(f.usedBp)
   const held = percentText(f.heldBp)
   return used === null || held === null ? null : { used: t('columns.used', { pct: used }), held: t('columns.held', { pct: held }) }
 }
@@ -83,20 +92,49 @@ function sharesText(t: BudgetsT, f: BudgetFiguresDto): { used: string; held: str
  * "งบหมด เหลือ 0.00 บาท") to the ledger's movements behind what is left. Each is named with its words as shown first,
  * then what it is of and where it leads; null where there is no share or no warning.
  */
-export function shareLinks(t: BudgetsT, f: BudgetFiguresDto, of: string, page: string): Pick<FigureLinks, 'used' | 'held' | 'low'> {
+export function shareLinks(t: BudgetsT, f: BurnFiguresDto, of: string, page: string): Pick<FigureLinks, 'used' | 'held' | 'low' | 'forecast'> {
   const shares = sharesText(t, f)
   const low = lowText(t, f)
+  const forecast = burnPercentText(f.burn?.forecastBp ?? null)
   return {
     used: shares ? { href: `${page}#${SECTION.committed}`, label: t('table.usedLink', { share: shares.used, code: of }) } : null,
     held: shares ? { href: `${page}#${SECTION.reserved}`, label: t('table.heldLink', { share: shares.held, code: of }) } : null,
     low: low ? { href: `${page}#${SECTION.available}`, label: t('table.lowLink', { warning: low, code: of }) } : null,
+    // S6-18: the forecast is the used share at the year's pace, so it leads where the used share does
+    forecast: forecast ? { href: `${page}#${SECTION.committed}`, label: t('table.forecastLink', { share: t('burn.forecast', { pct: forecast }), code: of }) } : null,
   }
 }
 
-/** Every link of a row of the dashboard: its amounts, its shares and its warning (FigureView.links) */
-export const figureLinks = (t: BudgetsT, f: BudgetFiguresDto, of: string, page: string): FigureLinks => ({ ...amountLinks(t, f, of, page), ...shareLinks(t, f, of, page) })
+/** An alert of a threshold reached (BR-BUD-17): USED_<the threshold in basis points> */
+const USED_ALERT = /^USED_(\d+)$/
 
-export function figureView(t: BudgetsT, f: BudgetFiguresDto, links: FigureLinks): FigureView {
+/**
+ * S6-18 (FR-BUD-104 AC1 · BR-BUD-17): the forecast of a dashboard row and the badges of its alerts — the highest threshold
+ * reached only ("ใช้ถึง 80%" below the whole budget, "ใช้ครบ 100%" at or above it; 80% reached is implied by 100%), the
+ * percent read from the alert's code, then "พยากรณ์เกินงบ". With no forecast, "ยังไม่พยากรณ์" and why: the year has only
+ * just begun (budget.forecastMinElapsedDays). None when nothing is planned: the row already says so.
+ */
+export function burnView(t: BudgetsT, burn: BurnDto | undefined): BurnView | null {
+  if (!burn || burn.usedBp === null) return null
+  const reached = burn.alerts.flatMap((a) => {
+    const m = USED_ALERT.exec(a)
+    return m ? [Number(m[1])] : []
+  })
+  const top = reached.length ? Math.max(...reached) : null
+  const alerts: Array<BurnView['alerts'][number]> = []
+  if (top !== null) {
+    const pct = thresholdPercentText(top)
+    alerts.push(top >= Number(BP_PER_WHOLE) ? { kind: 'USED_ALL', label: t('burn.usedAll', { pct }) } : { kind: 'USED', label: t('burn.used', { pct }) })
+  }
+  if (burn.alerts.includes('FORECAST_OVER')) alerts.push({ kind: 'FORECAST_OVER', label: t('burn.forecastOver') })
+  const forecast = burnPercentText(burn.forecastBp)
+  return forecast ? { forecast: t('burn.forecast', { pct: forecast }), forecastHint: null, alerts } : { forecast: t('burn.noForecast'), forecastHint: t('burn.noForecastHint'), alerts }
+}
+
+/** Every link of a row of the dashboard: its amounts, its shares and its warning (FigureView.links) */
+export const figureLinks = (t: BudgetsT, f: BurnFiguresDto, of: string, page: string): FigureLinks => ({ ...amountLinks(t, f, of, page), ...shareLinks(t, f, of, page) })
+
+export function figureView(t: BudgetsT, f: BurnFiguresDto, links: FigureLinks): FigureView {
   const shares = sharesText(t, f)
   return {
     planned: moneyText(f.planned),
@@ -110,6 +148,7 @@ export function figureView(t: BudgetsT, f: BudgetFiguresDto, links: FigureLinks)
     low: lowText(t, f),
     out: usedUp(f),
     links,
+    burn: burnView(t, f.burn),
   }
 }
 

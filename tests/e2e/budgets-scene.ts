@@ -5,6 +5,7 @@ import { formatSatang } from '@/core/money/format'
 import { systemClock } from '@/lib/clock'
 import { deriveSeedTotpSecret } from '@/lib/totp'
 import { setEmailProvider } from '@/integrations/email-provider'
+import { s6SettingsOf } from '@/lib/org-settings'
 import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { makeCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
@@ -30,6 +31,10 @@ import { E2E_DB } from '../support/e2e-env'
 //                                invoice of 10,000.00 (committed 8,000.00, actual 10,000.00): 3,500.00 left, below 10 %
 //   reserve <requester> <lineId> <amount>   one more request on the line, approved (it reserves); the line's figures
 //   admin <project>              a BUDGET_ADMIN, a plain member of CON, and a line of 5,000.00 to grant
+//   burn <project>               S6-18 (tests/e2e/budget-burn.spec.ts): a BUDGET_ADMIN, an EXECUTIVE and a requester; a line
+//                                of 10,000.00 with a sent PO of 9,000.00 and an invoice of 5,000.00 (committed 4,000.00,
+//                                actual 5,000.00): 90.00 % used, past the 80 % alert; the fiscal year's days and the
+//                                organization's burn settings, for the spec to work the forecast out on its own
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the budgets scene runs in the e2e database only')
 const password = process.env.SEED_DEV_PASSWORD
 const totpKey = process.env.SEED_TOTP_KEY
@@ -41,7 +46,7 @@ const must = <T,>(what: string, r: { ok: true; data: T } | { ok: false; error: u
   if (!r.ok) throw new Error(`${what}: ${JSON.stringify(r.error)}`)
   return r.data
 }
-const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }, select: { id: true, timezone: true } })
+const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }, select: { id: true, timezone: true, settings: true } })
 const organizationId = org.id
 /** The notices nobody has read yet before this run: the ones this run adds are the others */
 const unreadBefore = new Set((await prisma.notification.findMany({ where: { organizationId, readAt: null }, select: { id: true } })).map((n) => n.id))
@@ -73,6 +78,33 @@ async function importedLine(budgetAdminId: string, code: string, nameTh: string,
   must('import', await importBudget(memberCtx(budgetAdminId), { bytes, fileName: `${code}.xlsx` }, key()))
   const line = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId, fiscalYearId: year.id, code }, select: { id: true, code: true, nameTh: true, fiscalYearId: true } })
   return { ...line, fiscalYear: { code: year.code, endsOn: year.endsOn.toISOString().slice(0, 10) } }
+}
+
+/**
+ * An urgent request on the line, drafted onto a PO of its own as soon as it gets its supplier (BR-CONS-02): the PO
+ * approved and sent (the mail dropped), and an invoice of `invoice.net` recorded, so the rest of the PO stays committed
+ */
+async function orderedAndInvoiced(requesterId: string, lineId: string, title: string, item: { description: string; quantity: string; uom: string; unitPrice: string }, invoice: { no: string; net: string; vat: string }) {
+  const site = await prisma.deliverySite.findFirstOrThrow({ where: { organizationId, code: 'HQ-STORE' }, select: { id: true } })
+  const supplier = await prisma.supplier.findFirstOrThrow({ where: { organizationId, code: 'S3' }, select: { id: true } })
+  const ordered = await approvedRequest(requesterId, lineId, title, item, { urgency: 'URGENT', deliverySiteId: site.id })
+  const proc = memberCtx((await memberByCode('proc_officer')).id)
+  const requestLines = await prisma.requestLine.findMany({ where: { requestId: ordered.id }, select: { id: true } })
+  const assigned = must('assign supplier', await assignSupplier(proc, { requestLineIds: requestLines.map((l) => l.id), supplierId: supplier.id }, key()))
+  const poId = assigned.purchaseOrderIds[0]
+  if (!poId || assigned.purchaseOrderIds.length !== 1) throw new Error(`the urgent request made ${assigned.purchaseOrderIds.length} POs`)
+  must('submit PO', await submitPo(proc, { poId }, key()))
+  await approveOpenTask(poId)
+  // The PO goes nowhere: the scene's mail is dropped
+  setEmailProvider({ send: async () => ({ messageId: 'e2e-budgets' }) })
+  try {
+    must('send PO', await sendPurchaseOrder(proc, { poId }, key()))
+  } finally {
+    setEmailProvider(null)
+  }
+  must('invoice', await recordInvoice(memberCtx((await memberByCode('fin_officer')).id), { poId, invoiceNo: invoice.no, invoiceDate: today, net: invoice.net, vat: invoice.vat }, key()))
+  const po = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, select: { id: true, number: true } })
+  return { ordered, po }
 }
 
 /** Whoever holds the open task of a request or PO decides it (the approver, or the delegate acting for them) */
@@ -121,27 +153,9 @@ if (command === 'dashboard') {
   const line = await importedLine(budgetAdmin.id, `FIN-E2EJ-${project.toUpperCase()}${run.toUpperCase()}`, `งบทดสอบหน้างบประมาณ ${run}`, '40000')
   // Reserved: approved and waiting in the pool without a supplier, so no consolidation round takes it
   const reserved = await approvedRequest(requester.id, line.id, `กระดาษและแฟ้มสำหรับทดสอบงบ ${run}`, { description: 'กระดาษ A4', quantity: '10', uom: 'รีม', unitPrice: '1850.00' })
-  // Committed and actual: an urgent request is drafted onto a PO of its own as soon as it gets its supplier (BR-CONS-02)
-  const site = await prisma.deliverySite.findFirstOrThrow({ where: { organizationId, code: 'HQ-STORE' }, select: { id: true } })
-  const supplier = await prisma.supplier.findFirstOrThrow({ where: { organizationId, code: 'S3' }, select: { id: true } })
-  const ordered = await approvedRequest(requester.id, line.id, `หมึกพิมพ์สำหรับทดสอบงบ ${run}`, { description: 'หมึกพิมพ์', quantity: '6', uom: 'ตลับ', unitPrice: '3000.00' }, { urgency: 'URGENT', deliverySiteId: site.id })
-  const proc = memberCtx((await memberByCode('proc_officer')).id)
-  const requestLines = await prisma.requestLine.findMany({ where: { requestId: ordered.id }, select: { id: true } })
-  const assigned = must('assign supplier', await assignSupplier(proc, { requestLineIds: requestLines.map((l) => l.id), supplierId: supplier.id }, key()))
-  const poId = assigned.purchaseOrderIds[0]
-  if (!poId || assigned.purchaseOrderIds.length !== 1) throw new Error(`the urgent request made ${assigned.purchaseOrderIds.length} POs`)
-  must('submit PO', await submitPo(proc, { poId }, key()))
-  await approveOpenTask(poId)
-  // The PO goes nowhere: the scene's mail is dropped
-  setEmailProvider({ send: async () => ({ messageId: 'e2e-budgets' }) })
-  try {
-    must('send PO', await sendPurchaseOrder(proc, { poId }, key()))
-  } finally {
-    setEmailProvider(null)
-  }
+  // Committed and actual: a PO of 18,000.00 with an invoice of 10,000.00
   const invoiceNo = `E2E-${run.toUpperCase()}-1`
-  must('invoice', await recordInvoice(memberCtx((await memberByCode('fin_officer')).id), { poId, invoiceNo, invoiceDate: today, net: '10000.00', vat: '700.00' }, key()))
-  const po = await prisma.purchaseOrder.findUniqueOrThrow({ where: { id: poId }, select: { id: true, number: true } })
+  const { ordered, po } = await orderedAndInvoiced(requester.id, line.id, `หมึกพิมพ์สำหรับทดสอบงบ ${run}`, { description: 'หมึกพิมพ์', quantity: '6', uom: 'ตลับ', unitPrice: '3000.00' }, { no: invoiceNo, net: '10000.00', vat: '700.00' })
   await leaveBellsAsTheyWere([budgetAdmin.id, viewer.id, requester.id])
 
   const lines = await prisma.budgetLine.findMany({ where: { organizationId, fiscalYearId: line.fiscalYearId }, select: { id: true, department: { select: { code: true } } } })
@@ -184,7 +198,28 @@ if (command === 'dashboard') {
       today,
     }),
   )
+} else if (command === 'burn') {
+  const budgetAdmin = await freshMember(`e2e-burnadm-${project}${run}`, 'ผู้ดูแลงบ ทดสอบอัตราใช้งบ', 'FIN', ['BUDGET_ADMIN'])
+  const viewer = await freshMember(`e2e-burnexe-${project}${run}`, 'ผู้บริหาร ทดสอบอัตราใช้งบ', 'HQ', ['EXECUTIVE'])
+  const requester = await freshMember(`e2e-burnreq-${project}${run}`, 'ผู้ขอ ทดสอบอัตราใช้งบ', 'FIN', [])
+  const line = await importedLine(budgetAdmin.id, `FIN-E2EB-${project.toUpperCase()}${run.toUpperCase()}`, `งบทดสอบอัตราใช้งบ ${run}`, '10000')
+  const { po } = await orderedAndInvoiced(requester.id, line.id, `หมึกพิมพ์สำหรับทดสอบอัตราใช้งบ ${run}`, { description: 'หมึกพิมพ์', quantity: '3', uom: 'ตลับ', unitPrice: '3000.00' }, { no: `E2E-B${run.toUpperCase()}-1`, net: '5000.00', vat: '350.00' })
+  await leaveBellsAsTheyWere([budgetAdmin.id, viewer.id, requester.id])
+  const year = await prisma.fiscalYear.findUniqueOrThrow({ where: { id: line.fiscalYearId }, select: { startsOn: true, endsOn: true } })
+  const s6 = s6SettingsOf(org.settings)
+  console.log(
+    JSON.stringify({
+      viewer: { code: viewer.code, email: viewer.email },
+      line: { id: line.id, code: line.code, name: line.nameTh },
+      po,
+      figures: await ledgerFigures([line.id]),
+      year: { startsOn: year.startsOn.toISOString().slice(0, 10), endsOn: year.endsOn.toISOString().slice(0, 10) },
+      today,
+      thresholdsBp: s6.budgetAlertThresholdsBp,
+      forecastMinElapsedDays: s6.budgetForecastMinElapsedDays,
+    }),
+  )
 } else {
-  throw new Error(`unknown command ${command}: dashboard <project> | reserve <requester> <lineId> <amount> | admin <project>`)
+  throw new Error(`unknown command ${command}: dashboard <project> | reserve <requester> <lineId> <amount> | admin <project> | burn <project>`)
 }
 await prisma.$disconnect()

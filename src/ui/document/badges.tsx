@@ -8,6 +8,7 @@ import {
   Clock,
   Copy,
   FilePen,
+  Gauge,
   Hourglass,
   Lock,
   MessageCircleQuestion,
@@ -31,6 +32,7 @@ import { FALLBACK_BADGE, type BadgeIcon, type BadgeLook } from './badge-looks'
 
 export {
   BUDGET_BADGES,
+  BURN_BADGES,
   FLAG_BADGES,
   PO_BADGES,
   PRICE_BADGES,
@@ -53,6 +55,7 @@ export const BADGE_ICONS = {
   Clock,
   Copy,
   FilePen,
+  Gauge,
   Hourglass,
   Lock,
   MessageCircleQuestion,

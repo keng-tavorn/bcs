@@ -3,7 +3,7 @@ import type { ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { DelegationState, type DelegationStateName } from '@/ui/delegation/delegation-state'
-import { BUDGET_BADGES, FLAG_BADGES, PO_BADGES, REQUEST_BADGES, STEP_BADGES, URGENCY_BADGES, type BadgeLook, type BadgeTone } from '@/ui/document/badge-looks'
+import { BUDGET_BADGES, BURN_BADGES, FLAG_BADGES, PO_BADGES, REQUEST_BADGES, STEP_BADGES, URGENCY_BADGES, type BadgeLook, type BadgeTone } from '@/ui/document/badge-looks'
 import { BADGE_ICONS, StatusBadge } from '@/ui/document/badges'
 import { LiffDelegationStateMark } from '@/ui/liff/delegation/state-mark'
 import { LiffStatusBadge, type LiffBadgeIcon } from '@/ui/liff/status-badge'
@@ -29,6 +29,7 @@ const TABLES: ReadonlyArray<readonly [string, Readonly<Record<string, BadgeLook>
   ['step', STEP_BADGES],
   ['urgency', URGENCY_BADGES],
   ['budget', BUDGET_BADGES],
+  ['burn', BURN_BADGES],
   ['flag', FLAG_BADGES],
 ]
 

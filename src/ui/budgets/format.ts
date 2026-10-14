@@ -27,3 +27,23 @@ export function leftPercentText(bp: number | null): string | null {
 
 /** A share as the width of a bar, 0 to 100 (a share above the whole fills it) */
 export const shareWidth = (bp: number): number => (Math.min(Math.max(bp, 0), Number(BP_PER_WHOLE)) * 100) / Number(BP_PER_WHOLE)
+
+const BP_PER_PERCENT = 100
+
+/**
+ * S6-18 (BR-BUD-17): the burn's share — already rounded down to a basis point by the service — with two decimals, so
+ * nothing is rounded again: 8666 → "86.66" · 8000 → "80.00" · 12345 → "123.45"; null when nothing is planned or no
+ * forecast is made yet
+ */
+export function burnPercentText(bp: number | null): string | null {
+  if (bp === null) return null
+  const whole = Math.max(bp, 0)
+  return `${Math.floor(whole / BP_PER_PERCENT)}.${String(whole % BP_PER_PERCENT).padStart(2, '0')}`
+}
+
+/** A threshold of the organization as a percent without trailing zeros: 8000 → "80" · 8050 → "80.5" · 8025 → "80.25" */
+export function thresholdPercentText(bp: number): string {
+  const whole = Math.floor(bp / BP_PER_PERCENT)
+  const rest = bp % BP_PER_PERCENT
+  return rest === 0 ? String(whole) : `${whole}.${String(rest).padStart(2, '0').replace(/0$/, '')}`
+}

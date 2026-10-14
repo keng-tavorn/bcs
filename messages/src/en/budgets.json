@@ -38,6 +38,7 @@
     "committed": "Committed: approved purchase orders waiting for their invoices",
     "actual": "Actual: invoices finance has confirmed",
     "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned",
+    "burn": "Year forecast = used ÷ days of the fiscal year gone by × days in the year (used is rounded down to 2 decimals) · \"used\" badges: the organization's alert threshold is reached · \"Forecast over budget\": at this pace the line will use more than its current budget before the year ends",
     "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases, and what over-budget approvals funded"
   },
   "columns": {
@@ -52,6 +53,14 @@
     "held": "Held {pct}%",
     "noShare": "Nothing planned yet"
   },
+  "burn": {
+    "forecast": "Year forecast {pct}%",
+    "noForecast": "Year forecast: not yet",
+    "noForecastHint": "The fiscal year has only just begun, too early to forecast",
+    "used": "{pct}% used",
+    "usedAll": "{pct}% used",
+    "forecastOver": "Forecast over budget"
+  },
   "table": {
     "caption": "Budgets of fiscal year {code} by department and budget line, in baht",
     "departmentTotal": "{name} total",
@@ -64,7 +73,8 @@
     "availableLink": "Available {amount} baht of {code}: see the ledger movements",
     "usedLink": "{share} of {code}: see the committed and actual documents",
     "heldLink": "{share} of {code}: see the reserved, committed and actual documents",
-    "lowLink": "{warning} on {code}: see the ledger movements"
+    "lowLink": "{warning} on {code}: see the ledger movements",
+    "forecastLink": "{share} of {code}: see the committed and actual documents"
   },
   "unit": "baht",
   "status": {

@@ -15,6 +15,7 @@ export type BadgeIcon =
   | 'Clock'
   | 'Copy'
   | 'FilePen'
+  | 'Gauge'
   | 'Hourglass'
   | 'Lock'
   | 'MessageCircleQuestion'
@@ -89,6 +90,15 @@ export const BUDGET_BADGES: Readonly<Record<'OK' | 'LOW' | 'SHORT', BadgeLook>> 
   OK: { tone: 'ok', icon: 'Wallet' },
   LOW: { tone: 'warn', icon: 'Wallet' },
   SHORT: { tone: 'danger', icon: 'Wallet' },
+}
+
+/** S6-18 (FR-BUD-104 · BR-BUD-17): a budget line's use reached a threshold of the organization (USED: warn, like งบใกล้
+ * หมด), reached the whole current budget (USED_ALL: danger, like งบไม่พอ), or its year's forecast is above the budget
+ * (FORECAST_OVER: warn, a thing to look at before it happens). Not in §9.10's table, which has no burn state */
+export const BURN_BADGES: Readonly<Record<'USED' | 'USED_ALL' | 'FORECAST_OVER', BadgeLook>> = {
+  USED: { tone: 'warn', icon: 'Gauge' },
+  USED_ALL: { tone: 'danger', icon: 'Gauge' },
+  FORECAST_OVER: { tone: 'warn', icon: 'TrendingUp' },
 }
 
 /** A request line's price against the median of the past prices (S6-11 · BR-PRC-03): above or below it by more than the

@@ -202,7 +202,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
 
         <Panel title={t('legend.title')} id="budget-legend">
           <ul className="flex max-w-4xl flex-col gap-1 text-ink-muted">
-            {(['planned', 'available', 'reserved', 'committed', 'actual', 'shares', 'changes'] as const).map((k) => (
+            {(['planned', 'available', 'reserved', 'committed', 'actual', 'shares', 'burn', 'changes'] as const).map((k) => (
               <li key={k}>{t(`legend.${k}`)}</li>
             ))}
           </ul>

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { cn } from '../cn'
-import { BUDGET_BADGES, PO_BADGES, REQUEST_BADGES, StatusBadge, type BadgeLook } from '../document/badges'
+import { BUDGET_BADGES, BURN_BADGES, PO_BADGES, REQUEST_BADGES, StatusBadge, type BadgeLook } from '../document/badges'
 
 // States of the budget screens as the status badges of §9.10 (S16-10): a light background with its ink, a lucide icon
 // and words, never colour alone (NFR-A11Y-03). The looks come from the one table of src/ui/document/badges.tsx; labels
@@ -25,7 +25,18 @@ export function LowBadge({ label, out, link, className }: { label: string; out?:
   )
 }
 
-const LINE_LOOK: Readonly<Record<'FROZEN' | 'CLOSED', BadgeLook>> = {
+export type BurnBadgeKind = keyof typeof BURN_BADGES
+
+/**
+ * S6-18 (FR-BUD-104 AC1 · BR-BUD-17): an alert of the burn — "ใช้ถึง 80%" (warn), "ใช้ครบ 100%" (danger) or "พยากรณ์เกิน
+ * งบ" (warn) — the gauge or the rising trend with the words, never colour alone. Not a link: the used share and the
+ * forecast beside it already lead to the documents behind them.
+ */
+export function BurnBadge({ kind, label, className }: { kind: BurnBadgeKind; label: string; className?: string }) {
+  return <StatusBadge look={BURN_BADGES[kind]} label={label} className={cn(WRAP, className)} />
+}
+
+const LINE_LOOK:Readonly<Record<'FROZEN' | 'CLOSED', BadgeLook>> = {
   FROZEN: { tone: 'warn', icon: 'Ban' },
   CLOSED: { tone: 'neutral', icon: 'Lock' },
 }

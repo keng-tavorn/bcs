@@ -14,7 +14,9 @@ type Restore = { readonly kind: 'text' } | { readonly kind: 'object'; readonly p
 
 const NONE_NOTE = 'An empty string "" means none or not shown.'
 
-const isNullableText = (node: Json) => Array.isArray(node.type) && node.type.length === 2 && node.type.includes('string') && node.type.includes('null')
+// Free text only: a nullable enum or const keeps its null ("" would be no member of it)
+const isNullableText = (node: Json) =>
+  Array.isArray(node.type) && node.type.length === 2 && node.type.includes('string') && node.type.includes('null') && node.enum === undefined && node.const === undefined
 
 function toWire(node: Json): { wire: Json; restore: Restore } {
   if (isNullableText(node)) {
@@ -65,8 +67,19 @@ export function unionParameters(node: unknown): number {
   return own + children.reduce<number>((sum, c) => sum + unionParameters(c), 0)
 }
 
+// The schemas are a few module constants: each converts once
+const cache = new WeakMap<z.ZodType, Schema<unknown>>()
+
 /** The AI SDK schema of a request: the wire schema to send, and the Zod schema to check what came back */
 export async function wireSchema<T>(schema: z.ZodType<T>): Promise<Schema<T>> {
+  const hit = cache.get(schema)
+  if (hit) return hit as Schema<T>
+  const built = await buildWireSchema(schema)
+  cache.set(schema, built as Schema<unknown>)
+  return built
+}
+
+async function buildWireSchema<T>(schema: z.ZodType<T>): Promise<Schema<T>> {
   const { wire, restore } = await wireOf(schema)
   return jsonSchema<T>(wire, {
     validate: (value) => {

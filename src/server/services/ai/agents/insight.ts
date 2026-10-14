@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { checkAiText, renderValue } from '@/core/ai-checks'
 import { err, ok, type Result } from '@/core/result'
 import { answerStreamResponse, getAiClient, type AiUsage } from '@/integrations/ai'
-import { AI_LIMITS, DECISION_ADVICE_WORDS, modelFor } from '@/lib/ai-config'
+import { AI_LIMITS, DECISION_ADVICE_WORDS, modelForPurpose } from '@/lib/ai-config'
 import { BriefText, INSIGHT_TOOLS, QuestionPlan, insightAnswerText, questionInputText, type InsightTool } from '@/lib/ai-schemas/agents'
 import { getEnv } from '@/lib/env'
 import type { Ctx } from '@/server/context'
@@ -50,7 +50,7 @@ export async function askInsight(ctx: Ctx, rawInput: z.input<typeof AskInput>, o
   // A key used before replays its action, already answered: the AI is never asked again without credits (BR-AI-11)
   const row = await forTenant(ctx.organizationId).agentAction.findFirst({ where: { id: agentActionId }, select: { status: true } })
   if (row?.status !== 'PENDING') return err('IDEMPOTENCY_CONFLICT', 'this question was asked with this key already', { field: 'idempotencyKey' })
-  const model = modelFor('INSIGHT', aiRuntime().modelEnv)
+  const model = modelForPurpose('QUESTION', aiRuntime().modelEnv)
   const client = getAiClient(getEnv())
   const finish = (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => completeAgentAction(ctx.organizationId, ctx.now, started.data.promptVersion, { agentActionId, requestedModel: model, ...input })
 

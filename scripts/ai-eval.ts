@@ -2,7 +2,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { config } from 'dotenv'
 import { z } from 'zod'
-import { creditsForCall, fieldScore, matchField, normalizeAnswer, type AnswerLine } from '../src/core/ai-checks'
+import { creditsForCall, fieldScore, matchField, normalizeAnswer, normalizeValue, type AnswerLine } from '../src/core/ai-checks'
+import { amountToSatang } from '../src/core/money/dto'
 import { createFixtureClient, createLiveClient, fixtureKey, type AiCallResult, type AiClient, type AiFile, type AiRequest, type FixtureAnswer } from '../src/integrations/ai'
 import { AGENT_OF_PURPOSE, DECISION_ADVICE_WORDS, EVAL_THRESHOLDS_BP, modelFor, priceOf, PROMPT_VERSIONS, type AiAgentName, type AiPurposeName } from '../src/lib/ai-config'
 import { BriefText, DoaDraft, IntakeDraft, QuestionPlan } from '../src/lib/ai-schemas/agents'
@@ -195,7 +196,9 @@ async function evalDocuments(run: Run, client: AiClient, model: (a: AiAgentName,
     // Lines and discount compare after both moved their negative lines to the discount (BR-AI-14, BR-AI-26)
     const t = normalizeAnswer({ lines: truth.lines as AnswerLine[], discountTotal: truth.discountTotal })
     const a = normalizeAnswer({ lines: r.output.lines as AnswerLine[], discountTotal: r.output.discountTotal })
-    const header = (o: unknown, n: { discountTotal: string | null }, field: string) => (field === 'discountTotal' ? n.discountTotal : get(o, field))
+    // A discount of zero is no discount: "0.00" read where the answer has none is not a wrong value
+    const discount = (n: { discountTotal: string | null }) => (n.discountTotal !== null && normalizeValue('discountTotal', n.discountTotal) === '0.00' ? null : n.discountTotal)
+    const header = (o: unknown, n: { discountTotal: string | null }, field: string) => (field === 'discountTotal' ? discount(n) : get(o, field))
     let wrong = false
     const score = (field: string, expected: unknown, actual: unknown, conf: number) => {
       const ok = matchField(field, expected, actual)
@@ -292,8 +295,17 @@ async function evalAgents(run: Run, client: AiClient, model: (a: AiAgentName) =>
         run.tally.add('DOA_DRAFTER', 'DOA_DRAFT', c.id, 'rules', ok, { threshold: 10_000, critical: true })
       }
       // A gap between bands of purchase requests is what the import's lint reports for REG-B (BR-DOA-08)
-      const pr = r.output.rules.filter((x) => x.documentType === 'PURCHASE_REQUEST' && x.gt !== null).sort((x, y) => Number(x.gt) - Number(y.gt))
-      const gap = pr.some((x, i) => i > 0 && pr[i - 1]!.lte !== null && Number(x.gt) > Number(pr[i - 1]!.lte))
+      // Limits as satang, read the way the scoring reads money (thousands separators allowed); an unreadable one is left out
+      const satang = (v: string | null) => {
+        const n = normalizeValue('gt', v)
+        return typeof n === 'string' ? amountToSatang(n) : null
+      }
+      const pr = r.output.rules
+        .filter((x) => x.documentType === 'PURCHASE_REQUEST')
+        .map((x) => ({ gt: satang(x.gt), lte: satang(x.lte) }))
+        .filter((x): x is { gt: bigint; lte: bigint | null } => x.gt !== null)
+        .sort((x, y) => (x.gt < y.gt ? -1 : x.gt > y.gt ? 1 : 0))
+      const gap = pr.some((x, i) => i > 0 && pr[i - 1]!.lte !== null && x.gt > pr[i - 1]!.lte!)
       run.tally.add('DOA_DRAFTER', 'DOA_DRAFT', c.id, 'lint', gap === c.lint.includes('DOA_LINT_GAP'), { threshold: 10_000, critical: true })
     }
   }

@@ -1,20 +1,17 @@
 {
-  "promptVersion": "QUESTION@2",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
   "recorded": "LIVE",
   "output": {
     "tools": [
       "budget_status"
     ],
-    "sentences": [
-      "ฉันจะตรวจสอบงบประมาณคงเหลือของฝ่ายการเงินจากข้อมูลสถานะงบประมาณ ภายในสิทธิ์การเข้าถึงของคุณ",
-      "หากไม่พบข้อมูลของฝ่ายการเงิน แปลว่าไม่พบข้อมูลภายในสิทธิ์การเข้าถึงของคุณ"
-    ]
+    "sentences": []
   },
   "usage": {
     "input": 56,
-    "output": 168,
-    "cacheRead": 981,
+    "output": 22,
+    "cacheRead": 1095,
     "cacheWrite": 0
   }
 }

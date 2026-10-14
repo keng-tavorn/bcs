@@ -4,7 +4,7 @@ import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { getAiClient } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
-import { AI_LIMITS, modelFor } from '@/lib/ai-config'
+import { AI_LIMITS, modelForPurpose } from '@/lib/ai-config'
 import { DoaDraft, doaDraftInputText } from '@/lib/ai-schemas/agents'
 import { MS_PER_DAY, MS_PER_MINUTE } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
@@ -78,7 +78,7 @@ export async function runDoaDraft(organizationId: string, agentActionId: string,
   const db = forTenant(organizationId)
   const action = await db.agentAction.findFirst({ where: { id: agentActionId }, select: { id: true, status: true, purpose: true, promptVersion: true, inputRefs: true } })
   if (!action || action.status !== 'PENDING' || action.purpose !== 'DOA_DRAFT') return 'SKIPPED'
-  const model = modelFor('DOA_DRAFTER', aiRuntime().modelEnv)
+  const model = modelForPurpose('DOA_DRAFT', aiRuntime().modelEnv)
   const finish = async (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => {
     const r = await completeAgentAction(organizationId, now, action.promptVersion, { agentActionId: action.id, requestedModel: model, ...input })
     return r.ok ? (r.data.status === 'DRAFT' ? ('DRAFT' as const) : ('FAILED' as const)) : ('SKIPPED' as const)

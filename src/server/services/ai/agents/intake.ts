@@ -7,7 +7,7 @@ import { err, ok, type Result } from '@/core/result'
 import { normalizeTaxId } from '@/core/thai/taxid'
 import { AI_FILE_MEDIA_TYPES, getAiClient, type AiFile, type AiFileMediaType } from '@/integrations/ai'
 import { readObject } from '@/integrations/storage'
-import { AI_LIMITS, modelFor } from '@/lib/ai-config'
+import { AI_LIMITS, modelForPurpose } from '@/lib/ai-config'
 import { IntakeDraft, intakeInputText } from '@/lib/ai-schemas/agents'
 import { getEnv } from '@/lib/env'
 import { loadPrincipal } from '@/server/authz'
@@ -155,7 +155,7 @@ export async function runIntake(organizationId: string, agentActionId: string, n
   if (!action || action.status !== 'PENDING' || action.purpose !== 'INTAKE') return 'SKIPPED'
   // A chat's text is never stored: only intakeFromMessage, which holds it, runs a chat intake (never the job)
   if (action.subjectType === 'CHAT_INTAKE' && text === undefined) return 'SKIPPED'
-  const model = modelFor('INTAKE', aiRuntime().modelEnv)
+  const model = modelForPurpose('INTAKE', aiRuntime().modelEnv)
   const refs = (action.inputRefs ?? {}) as { requestTypeCode?: string; fileIds?: string[] }
   const finish = async (input: Omit<Parameters<typeof completeAgentAction>[3], 'agentActionId' | 'requestedModel'>) => {
     const r = await completeAgentAction(organizationId, now, action.promptVersion, { agentActionId: action.id, requestedModel: model, ...input })

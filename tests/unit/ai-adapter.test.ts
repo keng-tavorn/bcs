@@ -210,6 +210,13 @@ describe('[BR-AI-11] the output schema as it travels: nullable text as "", back 
     }
   })
 
+  it('[BR-AI-11] a nullable enum keeps its null on the wire; only free text travels as ""', async () => {
+    const { wire } = await wireOf(z.strictObject({ kind: z.enum(['A', 'B']).nullable(), note: z.string().nullable() }))
+    const props = wire.properties as Record<string, { type?: unknown; anyOf?: unknown }>
+    expect(props.kind).toMatchObject({ anyOf: [{ type: 'string', enum: ['A', 'B'] }, { type: 'null' }] })
+    expect(props.note!.type).toBe('string')
+  })
+
   it('[BR-AI-11] turns "" back into null only where the schema allows null', async () => {
     const { wire, restore } = await wireOf(DocumentReading)
     const props = wire.properties as Record<string, { type: unknown; description?: string }>

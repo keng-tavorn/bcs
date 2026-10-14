@@ -1,20 +1,17 @@
 {
-  "promptVersion": "QUESTION@2",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
   "recorded": "LIVE",
   "output": {
     "tools": [
       "my_tasks"
     ],
-    "sentences": [
-      "กำลังตรวจสอบงานอนุมัติที่มอบหมายให้คุณและรอการตัดสินอยู่ รายการที่พบจะแสดงตามสิทธิ์การเข้าถึงของคุณเท่านั้น",
-      "หากไม่พบรายการใด แสดงว่าไม่มีงานที่รอตัดสินภายในสิทธิ์การเข้าถึงของคุณ"
-    ]
+    "sentences": []
   },
   "usage": {
     "input": 60,
-    "output": 170,
-    "cacheRead": 981,
+    "output": 23,
+    "cacheRead": 1095,
     "cacheWrite": 0
   }
 }

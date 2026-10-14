@@ -1,19 +1,17 @@
 {
-  "promptVersion": "QUESTION@2",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
   "recorded": "LIVE",
   "output": {
     "tools": [
       "find_supplier"
     ],
-    "sentences": [
-      "ฉันจะค้นหาผู้ขายท่อ PPR ในทะเบียนผู้ขายภายในสิทธิ์การเข้าถึงของคุณ และจะแสดงรายชื่อเมื่อได้ผลลัพธ์จากเครื่องมือ หากไม่พบ ฉันจะแจ้งว่าไม่พบข้อมูลภายในสิทธิ์ของคุณ"
-    ]
+    "sentences": []
   },
   "usage": {
     "input": 57,
-    "output": 173,
-    "cacheRead": 981,
+    "output": 23,
+    "cacheRead": 1095,
     "cacheWrite": 0
   }
 }

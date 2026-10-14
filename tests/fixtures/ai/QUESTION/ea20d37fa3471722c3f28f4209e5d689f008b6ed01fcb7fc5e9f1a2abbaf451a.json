@@ -1,5 +1,5 @@
 {
-  "promptVersion": "QUESTION@2",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
   "recorded": "LIVE",
   "output": {
@@ -11,7 +11,7 @@
   "usage": {
     "input": 58,
     "output": 22,
-    "cacheRead": 981,
+    "cacheRead": 1095,
     "cacheWrite": 0
   }
 }

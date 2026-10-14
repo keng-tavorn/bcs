@@ -30,7 +30,7 @@ export const PROMPT_VERSIONS: Readonly<Record<AiPurposeName, string>> = {
   INVOICE_READ: 'INVOICE_READ@2',
   INTAKE: 'INTAKE@2',
   BRIEF: 'BRIEF@2',
-  QUESTION: 'QUESTION@2',
+  QUESTION: 'QUESTION@3',
   DOA_DRAFT: 'DOA_DRAFT@2',
 }
 
@@ -150,7 +150,7 @@ export const EVAL_GATES: readonly EvalGate[] = [
   { agent: 'DOCUMENT', purpose: 'INVOICE_READ', promptVersion: 'INVOICE_READ@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-document-config-live.md' },
   { agent: 'INTAKE', purpose: 'INTAKE', promptVersion: 'INTAKE@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-intake-config-live.md' },
   { agent: 'APPROVAL_BRIEF', purpose: 'BRIEF', promptVersion: 'BRIEF@2', model: 'claude-haiku-5-5', tier: 'SYNTHETIC', report: '2026-10-14-approval_brief-config-live.md' },
-  { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@2', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-insight-config-live.md' },
+  { agent: 'INSIGHT', purpose: 'QUESTION', promptVersion: 'QUESTION@3', model: 'claude-sonnet-5-5', tier: 'SYNTHETIC', report: '2026-10-14-insight-config-live.md' },
   { agent: 'DOA_DRAFTER', purpose: 'DOA_DRAFT', promptVersion: 'DOA_DRAFT@2', model: 'claude-opus-5-5', tier: 'SYNTHETIC', report: '2026-10-14-doa_drafter-config-live.md' },
 ]
 

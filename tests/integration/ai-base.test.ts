@@ -339,7 +339,7 @@ describe('[BR-AI-04] every transition of AgentAction has its event', () => {
     const org = await setup()
     const a = await ask(org)
     if (!a.ok) throw new Error(a.error.code)
-    const asOther = await completeAgentAction(org.organizationId, NOW, 'QUESTION@2', {
+    const asOther = await completeAgentAction(org.organizationId, NOW, 'QUESTION@3', {
       agentActionId: a.data.agentActionId,
       outcome: 'DRAFT',
       model: SONNET,

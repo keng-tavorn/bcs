@@ -377,6 +377,8 @@ test('[FR-DOA-002/AC2] [FR-DOA-010/AC2] [FR-DOA-009/AC3] [FR-AUTH-005/AC2] a DOA
 })
 
 test('[FR-AUTH-005/AC2] [FR-AUTH-005/AC3] [NFR-SEC-04] [NFR-SEC-09] a request at the step-up threshold is approved with the PIN: never sent before the page’s script runs, no PIN, a wrong or a locked one passes nothing, and the session id changes at once', async ({ page, context, browser, clientIp }, testInfo) => {
+  // five states of the PIN, each with axe and pictures: 24 s alone, past 30 s late in a full run (S8-14)
+  test.setTimeout(60_000)
   const cast = castOf(testInfo)
   const made = stepUpFixture<{ requestId: string; number: string; taskId: string; amount: string }>('at-threshold', cast.requester)
   await signIn(page, cast.approver, true)

@@ -11,8 +11,9 @@ const ruleFor = (amount: bigint) => (amount <= 2_000_000n ? 'PR-01' : 'PR-02')
 
 describe('[FR-INT-103/AC1] the duplicate check', () => {
   it('two matches sent at the same instant come in the order of their ids', () => {
-    const flags = checkDuplicates({ ...base, id: 'c', basisAmountSatang: 1n }, [recent('r2'), recent('r1')], { at: AT, windowDays: 7, ruleFor })
-    expect(flags[0]).toEqual({ kind: 'DUPLICATE', matchedRequestIds: ['r1', 'r2'] })
+    const flags = checkDuplicates({ ...base, id: 'c', basisAmountSatang: 1n }, [recent('r2'), recent('r3'), recent('r1'), recent('c')], { at: AT, windowDays: 7, ruleFor })
+    // The request itself (a resubmit finds its own earlier send) is never a match
+    expect(flags[0]).toEqual({ kind: 'DUPLICATE', matchedRequestIds: ['r1', 'r2', 'r3'] })
   })
 
   it('without a supplier, a request of another thing of the department is no split', () => {

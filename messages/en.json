@@ -3965,7 +3965,7 @@
     "BUDGET_INSUFFICIENT": "Insufficient budget: {available} baht available, {shortfall} baht short",
     "BUDGET_LINE_CLOSED": "This budget line is frozen or closed",
     "CODING_NOT_CONFIRMED": "The account code of line {lines} is not confirmed yet",
-    "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed",
+    "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed ({reason})",
     "CONFLICT_VERSION": "Someone else changed this document. Please reload",
     "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",
     "DOA_LINT_FAILED": "This DOA version has not passed its checks: {codes}",

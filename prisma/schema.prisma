@@ -19,7 +19,7 @@ enum OrganizationStatus {
   SUSPENDED
 }
 
-/// S6 (FR-PLT-101): a SANDBOX is a UAT tenant of a production organization in the same deployment (ADR-111)
+/// S6 (FR-PLT-101): a SANDBOX is a UAT tenant of a production organization in the same deployment (ADR-110)
 enum OrganizationKind {
   PRODUCTION
   SANDBOX

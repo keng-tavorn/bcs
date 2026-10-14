@@ -106,6 +106,8 @@ export interface SeedOptions {
   /** Optional: pre-enroll TOTP from this key; omitted = members enroll at first sign-in */
   readonly totpKey?: string
   readonly now: Date
+  /** S6-21: the production organization this one is the UAT sandbox of (kind SANDBOX; only the sample organization's seed) */
+  readonly sandboxOf?: string
 }
 
 export interface SeedReport {
@@ -135,6 +137,7 @@ export async function seedDemoOrganization(input: DemoOrgInput, options: SeedOpt
         timezone: org.timezone,
         locale: settings.locale,
         settings: toJsonSafe(settings) as object,
+        ...(options.sandboxOf ? { kind: 'SANDBOX' as const, sandboxOfOrganizationId: options.sandboxOf } : {}),
       },
     })
   }

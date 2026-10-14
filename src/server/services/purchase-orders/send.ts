@@ -11,6 +11,7 @@ import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import type { TenantTx } from '@/server/db/tenant'
 import type { NotificationDraft } from '@/server/notifications/create'
+import { uatSubject } from '@/lib/uat'
 import { poEmail } from '@/server/notifications/templates/po-email'
 import { printablePurchaseOrder } from '@/server/pdf/printable'
 import { renderPdf } from '@/server/pdf/render'
@@ -99,7 +100,9 @@ export const sendPoCommand = defineCommand({
     const mail = poEmail({ supplierName: po.supplier.nameTh, organizationName: document.organization.name, poNumber: document.number, gross: formatSatang(po.grossSatang), senderName: sender.displayNameTh, resend })
     let bounce: string | null = null
     try {
-      await getEmailProvider().send({ to, replyTo: sender.email, ...mail, attachments: [{ filename: fileName, content: pdf, contentType: PDF_MIME }] })
+      // S6-21 (BR-UAT-01): a PO sent from a UAT sandbox says so in its subject
+      const sandbox = (await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { kind: true } })).kind === 'SANDBOX'
+      await getEmailProvider().send({ to, replyTo: sender.email, ...mail, ...(sandbox ? { subject: uatSubject(mail.subject) } : {}), attachments: [{ filename: fileName, content: pdf, contentType: PDF_MIME }] })
     } catch (error) {
       if (!(error instanceof EmailSendError) || !error.permanent) {
         return fail('EXTERNAL_SERVICE_ERROR', 'the e-mail service could not be reached; nothing was sent', { service: 'email', code: error instanceof EmailSendError ? error.code : 'UNKNOWN' })

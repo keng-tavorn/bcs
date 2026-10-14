@@ -183,3 +183,6 @@ export const BACKTEST_WINDOW_DAYS = 90
 export const BACKTEST_SYNC_LIMIT = 500
 /** A backtest reads only, up to BACKTEST_SYNC_LIMIT documents, in a transaction that may take longer than a command's */
 export const BACKTEST_TX_TIMEOUT_MS = 120 * MS_PER_SECOND
+
+/** S6-21 (BR-UAT-02): a configuration package is a small file — forms, rules and a catalogue */
+export const CONFIG_PACKAGE_MAX_CHARS = 2_000_000

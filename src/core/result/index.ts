@@ -37,6 +37,8 @@ export const ERROR_CODES = [
   'CODING_NOT_CONFIRMED',
   'STEP_UP_LOCKED',
   'STEP_UP_REQUIRED',
+  // S6-21 (BR-UAT-03): a configuration package edited, of another schema version, or not one
+  'CONFIG_PACKAGE_INVALID',
   'RATE_LIMITED',
   'EXTERNAL_SERVICE_ERROR',
   'INTERNAL',
@@ -66,6 +68,7 @@ export const HTTP_STATUS: Readonly<Record<ErrorCode, number>> = {
   AI_FILE_UNSUPPORTED: 400,
   TOKEN_EXPIRED: 410,
   DOA_NOT_CONFIGURED: 422,
+  CONFIG_PACKAGE_INVALID: 422,
   DOA_AMBIGUOUS: 422,
   DOA_LINT_FAILED: 422,
   WORKFLOW_LINT_FAILED: 422,

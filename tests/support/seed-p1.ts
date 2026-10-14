@@ -16,6 +16,9 @@ import { createBudgetTransfer, submitBudgetTransfer } from '@/server/services/bu
 import { submitBudgetOverrun } from '@/server/services/budget/overruns'
 import { runBudgetAlerts } from '@/server/services/budget/alerts'
 import { computeWorkflowReport } from '@/server/services/reports/workflow'
+import { exportConfigPackage, importConfigPackage } from '@/server/services/config-packages'
+import { seedP1Sandbox } from '@/server/services/demo-seed'
+import { dryRunWorkflowVersion, submitWorkflowVersion } from '@/server/services/workflow'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { createDraft, submitRequest } from './requests'
 import { stepUpForTask } from './pin'
@@ -376,6 +379,40 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       const fm = await db.member.findFirstOrThrow({ where: { employeeCode: 'fm_p02' }, select: { id: true } })
       const split = await db.requestFlag.findFirstOrThrow({ where: { kind: 'SPLIT', request: { requesterMemberId: fm.id } }, select: { requestId: true } })
       expect(report.wrongDoa).toContainEqual(expect.objectContaining({ reason: 'SPLIT', subjectId: split.requestId }))
+    })
+
+    it('[FR-PLT-101/AC3] S6-21: the workflow tried on SIMEC-UAT is exported, admin2 imports it into SIMEC as a draft, and the ceo approves it on the normal route', async () => {
+      const sandbox = await seedP1Sandbox(organizationId, { password: PASSWORD, totpKey: TOTP_KEY, pin: PIN, now: clock.now, rename: { code: `${clock.orgCode}-UAT`, emailPrefix: `${clock.orgCode.toLowerCase()}.` } })
+      expect((await prisma.organization.findUniqueOrThrow({ where: { id: sandbox.organizationId }, select: { kind: true, sandboxOfOrganizationId: true } }))).toEqual({ kind: 'SANDBOX', sandboxOfOrganizationId: organizationId })
+      // The sandbox has the structure and the workflow, and none of the requests, budget or suppliers
+      const uat = forTenant(sandbox.organizationId)
+      expect({ requests: await uat.request.count(), lines: await uat.budgetLine.count(), suppliers: await uat.supplier.count() }).toEqual({ requests: 0, lines: 0, suppliers: 0 })
+      const at = (id: string, code: string) => makeCtx({ organizationId: id, actor: { type: 'USER', memberId: code }, channel: 'WEB', now: clock.now })
+      const memberOf = async (orgId: string, code: string) => (await forTenant(orgId).member.findFirstOrThrow({ where: { employeeCode: code }, select: { id: true } })).id
+      const once = () => ({ idempotencyKey: randomUUID(), sender: null })
+      const done = <T,>(r: { ok: true; data: T } | { ok: false; error: unknown }): T => {
+        if (!r.ok) throw new Error(JSON.stringify(r.error))
+        return r.data
+      }
+      const exported = done(await exportConfigPackage(at(sandbox.organizationId, await memberOf(sandbox.organizationId, 'admin2')), { sections: ['WORKFLOW'] }, once()))
+      const effectiveDate = new Date(clock.now.getTime() + 7 * MS_PER_DAY).toISOString().slice(0, 10)
+      const admin2 = at(organizationId, await memberOf(organizationId, 'admin2'))
+      const imported = done(await importConfigPackage(admin2, { file: exported.file, effectiveDate, changeReason: 'ปรับผู้ตรวจตามที่ทดลองบนระบบทดลองแล้ว' }, once()))
+      const versionId = imported.created.workflows![0]!
+      const db = forTenant(organizationId)
+      expect(await db.workflowVersion.findUniqueOrThrow({ where: { id: versionId }, select: { status: true } })).toEqual({ status: 'DRAFT' })
+      // The normal route: a dry-run, the send, and the ceo's approval with the PIN (DOA_CHANGE, WORKFLOW_VERSION)
+      const requester = await db.member.findFirstOrThrow({ where: { employeeCode: 'fm_p02' }, select: { id: true, primaryDepartmentId: true } })
+      done(await dryRunWorkflowVersion(admin2, { versionId, documents: [{ requestType: 'BUY_GOODS', amountGross: '5000.00', lineCategories: [], budgetAccountCodes: [], fields: {}, requesterMemberId: requester.id, chargedDepartmentId: requester.primaryDepartmentId! }] }, once()))
+      let sent = await submitWorkflowVersion(admin2, { versionId }, once())
+      if (!sent.ok && (sent.error.details as { warnings?: string[] } | undefined)?.warnings) sent = await submitWorkflowVersion(admin2, { versionId, acknowledgedWarnings: (sent.error.details as { warnings: string[] }).warnings }, once())
+      done(sent)
+      const ceo = await memberOf(organizationId, 'ceo')
+      const task = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectType: 'WORKFLOW_VERSION', subjectId: versionId } } }, select: { id: true, assigneeMemberId: true } })
+      expect(task.assigneeMemberId).toBe(ceo)
+      await stepUpForTask(task.id, ceo)
+      done(await decideTask(at(organizationId, ceo), { taskId: task.id, decision: 'APPROVE' }, once()))
+      expect((await db.workflowVersion.findUniqueOrThrow({ where: { id: versionId }, select: { status: true } })).status).not.toBe('DRAFT')
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

@@ -37,5 +37,5 @@
   "RATE_LIMITED": "Too many attempts. Please try again later",
   "EXTERNAL_SERVICE_ERROR": "An external system is not responding ({service})",
   "INTERNAL": "Something went wrong (reference {requestId})",
-  "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed"
+  "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed ({reason})"
 }

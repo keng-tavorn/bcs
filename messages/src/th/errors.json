@@ -37,5 +37,5 @@
   "RATE_LIMITED": "ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง",
   "EXTERNAL_SERVICE_ERROR": "ระบบภายนอกไม่ตอบสนอง ({service})",
   "INTERNAL": "เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId})",
-  "CONFIG_PACKAGE_INVALID": "ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข"
+  "CONFIG_PACKAGE_INVALID": "ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason})"
 }

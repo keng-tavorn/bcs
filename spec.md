@@ -421,6 +421,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `ai.actions.view` | AUDITOR (ORG) ดูเนื้อหาทั้งหมด · ทุก member (OWN) ดูเนื้อหาของ AgentAction ที่ตนเรียก · ORG_ADMIN (ORG) — metadata เท่านั้น (agent purpose สถานะ เวลา credits เครื่องมือ) ไม่เห็น `inputText` `output` ของผู้อื่น |
 | `admin.ai.manage` | ORG_ADMIN (ORG) — เปิดปิด agent รายตัวและตั้ง `minConfidenceBp` (BR-AI-24) |
 | `platform.ai.credits` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass และไม่เห็นข้อมูลธุรกิจ (BR-AI-23) |
+| `platform.sandbox.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · สร้าง UAT sandbox ของลูกค้าแบบว่าง ไม่มีทางคัดลอกผัง DOA หรือข้อมูลใดจาก production (S6-21 · FR-PLT-101 · BR-UAT-04 · NG-12) |
+| `config.export` · `config.import` | ORG_ADMIN, DOA_ADMIN (ORG) — ส่งออกและนำเข้าชุดค่าตั้งขององค์กรตน นำเข้าได้เฉพาะร่าง ส่วน DOA และ workflow ต้องมี `admin.doa.draft` `admin.workflow.draft` ด้วย (S6-21 · BR-UAT-02 BR-UAT-03 · BR-WF-17) · ทีม BCS ทำแทนลูกค้าไม่ได้ (NG-12) |
 
 **OWN ของคำขอ (S16-06 · FR-INT-013 AC3):** `request.view` และ `request.follow` นับผู้ขอและผู้ติดตามเป็น OWN · `request.create` (แก้ร่างและไฟล์แนบ) `request.submit` `request.cancel` และ `request.followers.manage` นับเฉพาะผู้ขอเป็น OWN ผู้ติดตามจึงส่ง แก้ ยกเลิก หรือเพิ่มผู้ติดตามไม่ได้ · service ส่ง `ownerMemberIds` ตามนี้ และเทสต์ปฏิเสธทุกคำสั่ง
 
@@ -4066,7 +4068,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 
 | Aggregate | Event types |
 | --- | --- |
-| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `organization.sandbox_created` (S6-21 · บนองค์กร production ที่เป็นเจ้าของ) `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` `doa_version.withdrawal_requested` `doa_version.withdrawal_rejected` `doa_version.withdrawal_cancelled` (S6-07 · FR-DOA-104 · `doa_version.withdrawn` มี schema แล้ว) |
 | workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` `workflow_version.withdrawal_requested` `workflow_version.withdrawn` `workflow_version.withdrawal_rejected` `workflow_version.withdrawal_cancelled` (S6 · FR-WF-103 · การถอน S6-07) |
@@ -4084,6 +4086,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | budget_transfer | `budget_transfer.drafted` `budget_transfer.submitted` `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` `budget_transfer.cancelled` (S6-15 · FR-BUD-103) |
 | budget_overrun | `budget_overrun.submitted` `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` `budget_overrun.cancelled` `budget_overrun.consumed` `budget_overrun.lapsed` `budget_overrun.lapse_reminded` `budget_overrun.unused_returned` (S6-16 · FR-BUD-101 · BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18) |
 | document_verification | `document_verification.issued` (S6-19 · BR-QR-01 · เมื่อเนื้อหาที่พิมพ์ของ PR หรือ PO เปลี่ยน · ไม่มี token ใน event) |
+| config_package | `config_package.exported` `config_package.imported` (S6-21 · BR-UAT-02 BR-UAT-03 · ร่างที่นำเข้ามี event ของตัวเองแบบ via `CONFIG_IMPORT`) |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | report_schedule | `report_schedule.created` |
@@ -4564,6 +4567,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `CODING_NOT_CONFIRMED` | 422 | ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines} |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
+| `CONFIG_PACKAGE_INVALID` | 422 | ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason}) |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
 | `EXTERNAL_SERVICE_ERROR` | 502 | ระบบภายนอกไม่ตอบสนอง ({service}) |
 | `INTERNAL` | 500 | เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId}) |

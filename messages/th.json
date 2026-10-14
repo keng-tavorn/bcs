@@ -3965,7 +3965,7 @@
     "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
     "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
     "CODING_NOT_CONFIRMED": "ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines}",
-    "CONFIG_PACKAGE_INVALID": "ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข",
+    "CONFIG_PACKAGE_INVALID": "ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason})",
     "CONFLICT_VERSION": "เอกสารถูกแก้ไขโดยผู้อื่น กรุณาโหลดใหม่",
     "DOA_AMBIGUOUS": "DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ",
     "DOA_LINT_FAILED": "DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",

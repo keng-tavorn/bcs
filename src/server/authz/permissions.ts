@@ -9,7 +9,7 @@
 // in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
 // (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07). S6-15 added
 // budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105). S6-16 added budget.overrun.submit
-// (FR-BUD-101, OQ-104).
+// (FR-BUD-101, OQ-104). S6-21 added config.export, config.import and platform.sandbox.manage (FR-PLT-101, OQ-108).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -64,6 +64,8 @@ const PROCUREMENT_ONLY = [role('PROCUREMENT', 'ORG')]
 const ORG_ADMIN_ONLY = [role('ORG_ADMIN', 'ORG')]
 /** S6-09 (BR-WF-16): the DOA and the workflow are drafted by ORG_ADMIN and DOA_ADMIN — ORG_ADMIN only until separated */
 const DOA_ADMINS = roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG')
+/** S6-21: who keeps the organization's configuration package — not separable: its DOA and workflow parts need admin.doa.draft and admin.workflow.draft too (BR-WF-17) */
+const ORG_DOA_ADMINS_CONFIG = roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG')
 const SELF = [anyMember('OWN')]
 /** request.view (§2.4). OWN of a request is the requester and its followers here; for the commands that change the
  *  request (request.create on a draft, request.submit, request.cancel, request.followers.manage) the services pass
@@ -162,6 +164,11 @@ export const PERMISSIONS = {
   'ai.actions.view': [role('AUDITOR', 'ORG'), anyMember('OWN'), role('ORG_ADMIN', 'ORG', 'AI_METADATA_ONLY')],
   'admin.ai.manage': ORG_ADMIN_ONLY,
   'platform.ai.credits': [platformAdmin('CONTRACT_REF_AND_REASON')],
+  // S6-21 (FR-PLT-101, BR-UAT-01 to BR-UAT-04 · OQ-108): a UAT sandbox of a customer, empty, with the contract; never a
+  // copy of its structure or DOA (NG-12). The configuration package is the customer's own: exported and imported as drafts
+  'platform.sandbox.manage': [platformAdmin('CONTRACT_REF_AND_REASON')],
+  'config.export': ORG_DOA_ADMINS_CONFIG,
+  'config.import': ORG_DOA_ADMINS_CONFIG,
 } as const satisfies Record<string, readonly Grant[]>
 
 export type Capability = keyof typeof PERMISSIONS

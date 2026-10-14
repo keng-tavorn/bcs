@@ -4,7 +4,8 @@ import { defineEvents } from '../registry'
 // The catalogue and its agreed prices (S6-10 · FR-INT-102 AC3 · BR-PRC-06): every change PROCUREMENT makes, and the
 // seed's. Money as satang text; dates as the Thai calendar days of the period [validFrom, validTo).
 
-const via = z.enum(['SEED', 'ADMIN'])
+// CONFIG_IMPORT (S6-21): from a configuration package, the item inactive until PROCUREMENT turns it on
+const via = z.enum(['SEED', 'ADMIN', 'CONFIG_IMPORT'])
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const satang = z.string().regex(/^\d+$/)
 export const CATALOG_ITEM_FIELDS = ['nameTh', 'nameEn', 'uom', 'categoryCode', 'isService', 'accountCode', 'whtIncomeType', 'refUnitPrice', 'active'] as const

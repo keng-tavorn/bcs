@@ -63,7 +63,39 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const seedPin = env.SEED_DEV_PIN ?? null
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, lineChannel, pins, pinless }
+  // S6-21 (BR-UAT-01 BR-UAT-04): SIMEC-UAT, the UAT sandbox of the phase-1 organization, on this machine
+  const sandbox = profile === 'p1' ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, lineChannel, pins, pinless, sandbox }
+}
+
+/** The code of the phase-1 organization's sandbox: its own code and "-UAT" */
+export const sandboxCode = (code: string) => `${code}-UAT`
+
+/**
+ * S6-21: the UAT sandbox of the phase-1 organization on this machine (BR-UAT-04's exception for the sample organization):
+ * the same structure, positions, DOA version 1 and workflow version 1 from the same workbook, test users of the same
+ * employee codes at @<domain>-uat (simec-uat.bcs.local), and nothing else — no budget, supplier, catalogue, request or
+ * history. In a real deployment the customer sets their sandbox up themselves (platform.sandbox.manage makes it empty).
+ */
+export async function seedP1Sandbox(
+  productionOrganizationId: string,
+  options: { password: string; totpKey?: string; pin: string | null; now: Date; /** Tests seed under their own code and e-mail prefix */ rename?: { code: string; emailPrefix: string } },
+) {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
+  const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
+  const uatEmail = (email: string) => email.replace(/@([^.@]+)\./, '@$1-uat.')
+  const sandbox = {
+    ...input,
+    org: { ...input.org, code: options.rename?.code ?? sandboxCode(input.org.code), legalNameTh: `${input.org.legalNameTh} (ระบบทดลอง)`, displayName: `${input.org.displayName ?? input.org.code} UAT` },
+    users: input.users.map((u) => ({ ...u, email: `${options.rename?.emailPrefix ?? ''}${uatEmail(u.email)}` })),
+  }
+  const report = await seedDemoOrganization(sandbox, { password: options.password, ...(options.totpKey ? { totpKey: options.totpKey } : {}), now: options.now, sandboxOf: productionOrganizationId })
+  const structure = await seedOrgStructure(report.organizationId, sandbox.users, parseOrgStructureInput(workbook), options.now)
+  // The workflow keeps the production code (WF-SIMEC), so what is tried here imports there as its next version
+  const workflowInput = parseWorkflowReviewers(workbook, input.org.code)
+  const workflow = workflowInput ? await seedWorkflow(report.organizationId, workflowInput, options.now) : null
+  if (options.pin) await seedDevPins(report.organizationId, options.pin, options.now)
+  return { organizationId: report.organizationId, code: sandbox.org.code, created: report.organizationCreated, structure, workflow }
 }
 
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */

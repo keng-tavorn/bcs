@@ -136,11 +136,12 @@ describe('[FR-LINE-006/AC1] at 08:00 on a business day the approvers, department
           { taskId: pr2.taskId, subjectType: 'REQUEST', subjectId: pr2.requestId, label: pr2.number, ageMinutes: 450, overdue: false },
         ],
       },
-      scope: { kind: 'DEPT', pending: 3, overdue: 1, lowBudgetLines: 1, lowLineCodes: [lowLines.CON], lowPct: 10 },
+      // S6-18: the lines to look at, each once with every reason (here only LOW: nothing is committed on them)
+      scope: { kind: 'DEPT', pending: 3, overdue: 1, lowBudgetLines: 1, lowLineCodes: [lowLines.CON], lowPct: 10, budgetLines: 1, budgetLineFlags: [{ code: lowLines.CON, reasons: ['LOW'] }] },
       updates: 0,
     })
     // coo (EXECUTIVE): the whole organization, both low lines; no task of their own
-    expect((await digestOf(org.member.coo!))!.data).toEqual({ date: '2026-10-05', mine: null, scope: { kind: 'ORG', pending: 3, overdue: 1, lowBudgetLines: 2, lowLineCodes: [lowLines.CON, lowLines.IT].sort(), lowPct: 10 }, updates: 0 })
+    expect((await digestOf(org.member.coo!))!.data).toEqual({ date: '2026-10-05', mine: null, scope: { kind: 'ORG', pending: 3, overdue: 1, lowBudgetLines: 2, lowLineCodes: [lowLines.CON, lowLines.IT].sort(), lowPct: 10, budgetLines: 2, budgetLineFlags: [lowLines.CON, lowLines.IT].sort().map((code) => ({ code, reasons: ['LOW'] })) }, updates: 0 })
     // the heads of IT and of SUP (IT's parent) see the IT line
     for (const head of ['dm_it', 'vp_sup']) expect((await digestOf(org.member[head]!))!.data).toMatchObject({ mine: null, scope: { kind: 'DEPT', pending: 0, overdue: 0, lowBudgetLines: 1, lowLineCodes: [lowLines.IT] } })
     // the requester: the notification that waited for the summary, now folded in
@@ -161,7 +162,7 @@ describe('[FR-LINE-006/AC1] at 08:00 on a business day the approvers, department
     expect(th.title).toBe('สรุปประจำวัน: มีงานรอคุณพิจารณา 2 งาน')
     expect(th.body).toContain('โปรดพิจารณางานที่รออนุมัติ 2 งาน (เกินกำหนด 1 งาน)')
     expect(th.body).toContain(`คำขอ ${requests[0]!.number} รอ 17 ชม. 30 นาที เกินกำหนด`)
-    expect(th.body).toContain(`บรรทัดงบที่เหลือต่ำกว่า 10% 1 บรรทัด (${lowLines.CON})`)
+    expect(th.body).toContain(`บรรทัดงบที่ควรดู 1 บรรทัด: ${lowLines.CON} (เหลือต่ำกว่า 10%)`)
     expect(th.href).toBe('/board/pending')
     expect(en.title).toBe('Daily summary: 2 approvals waiting for you')
     expect(`${en.title}\n${en.body}`).not.toMatch(/[฀-๿]/)
@@ -175,7 +176,7 @@ describe('[FR-LINE-006/AC1] at 08:00 on a business day the approvers, department
     expect(requester.body).toContain('อัปเดตอื่น 1 รายการ')
     // English counts one thing as one
     expect(renderNotification((await digestOf(org.member.req_con!))!, 'en').body).toBe('1 other update is in your notifications')
-    expect(renderNotification((await digestOf(org.member.dm_it!))!, 'en').body).toBe(`In your departments: 0 approvals waiting, 0 past their due time\n1 budget line has less than 10% left (${lowLines.IT})`)
+    expect(renderNotification((await digestOf(org.member.dm_it!))!, 'en').body).toBe(`In your departments: 0 approvals waiting, 0 past their due time\n1 budget line needs a look: ${lowLines.IT} (under 10% left)`)
   })
 
   it('names an authority change by its kind in words (it has no number), never by its code', () => {

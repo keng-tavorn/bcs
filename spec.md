@@ -606,6 +606,7 @@ sequenceDiagram
 | `workflow-version-activate` | `bcs/workflow_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับ workflow ก่อนหน้าเป็น `SUPERSEDED` (BR-WF-12) | S6 |
 | `renewal-reminders` | cron 08:00 ทุกวัน (เวลาไทย) | เตือนบรรทัดบริการก่อนหมดตาม `renewal.milestoneDays` ครั้งเดียวต่อ milestone ทุกองค์กร ไม่ต้องเปิด `CONTRACTS` (S6-12 · FR-INT-101 AC2 · BR-FORM-08) | S6 |
 | `budget-overrun-lapse` | cron ทุกชั่วโมงที่นาที 5 (เวลาไทย) | การขอเกินงบที่อนุมัติแล้วแต่ไม่ได้ใช้จนถึง lapsesAt คืน earmark และยอดที่เติมออกจากบรรทัดงบ · แจ้งผู้ขอครั้งเดียว 2 วันก่อนหมดอายุ ทุกองค์กร (S6-16 · FR-BUD-101 · BR-BUD-15) | S6 |
+| `budget-burn-alerts` | cron 07:30 ทุกวัน (เวลาไทย) | ขึ้นเตือนอัตราใช้งบถึงเกณฑ์ `budget.alertThresholdsBp` และพยากรณ์เกินงบ ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ ทุกองค์กร ก่อนสรุปรายวัน (S6-18 · FR-BUD-104 · BR-BUD-17) | S6 |
 | `backtest-run` | `bcs/backtest.requested` | ย้อนทดสอบร่าง DOA หรือ workflow ที่มีเอกสารเกิน 500 ฉบับในช่วง 90 วัน แล้วบันทึกผลลง `BacktestRun` ครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3 · ADR-111) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
@@ -4066,7 +4067,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
 | approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
-| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` |
+| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` · S6-18: `budget.alert_raised` (ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ) |
 | budget_transfer | `budget_transfer.drafted` `budget_transfer.submitted` `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` `budget_transfer.cancelled` (S6-15 · FR-BUD-103) |
 | budget_overrun | `budget_overrun.submitted` `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` `budget_overrun.cancelled` `budget_overrun.consumed` `budget_overrun.lapsed` `budget_overrun.lapse_reminded` `budget_overrun.unused_returned` (S6-16 · FR-BUD-101 · BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18) |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |

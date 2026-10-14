@@ -15,6 +15,8 @@ export type SlaTemplate = (data: Data, subject: { readonly type: string | null; 
 
 const str = (v: unknown, fallback = ''): string => (typeof v === 'string' || typeof v === 'number' ? String(v) : fallback)
 const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0)
+/** Basis points in one percent (budget alert thresholds are kept in basis points) */
+const BP_PER_PERCENT = 100
 const same = (s: string): Text => ({ th: s, en: s })
 /** "1 task" / "2 tasks" (Thai has no plural) */
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
@@ -114,19 +116,48 @@ function digestBody(d: Data): Text {
       en.push(`• ${n.en}, waiting ${a.en}${item.overdue ? ', overdue' : ''}`)
     }
   }
-  const scope = (d.scope && typeof d.scope === 'object' ? d.scope : null) as { kind?: unknown; pending?: unknown; overdue?: unknown; lowBudgetLines?: unknown; lowLineCodes?: unknown; lowPct?: unknown } | null
+  const scope = (d.scope && typeof d.scope === 'object' ? d.scope : null) as {
+    kind?: unknown
+    pending?: unknown
+    overdue?: unknown
+    lowBudgetLines?: unknown
+    lowLineCodes?: unknown
+    lowPct?: unknown
+    budgetLines?: unknown
+    budgetLineFlags?: unknown
+  } | null
   if (scope) {
-    const where: Text = scope.kind === 'ORG' ? { th: 'ทั้งองค์กร', en: 'Across the organization' } : { th: 'ในหน่วยงานของคุณ', en: 'In your departments' }
-    const pending = num(scope.pending)
-    const late = num(scope.overdue)
-    th.push(`${where.th}: รออนุมัติ ${pending} งาน เกินกำหนด ${late} งาน`)
-    en.push(`${where.en}: ${plural(pending, 'approval', 'approvals')} waiting, ${late} past ${late === 1 ? 'its' : 'their'} due time`)
-    const lines = num(scope.lowBudgetLines)
-    if (lines > 0) {
-      const codes = (Array.isArray(scope.lowLineCodes) ? scope.lowLineCodes : []).map((c) => str(c)).filter(Boolean)
-      const list = codes.length ? ` (${codes.join(', ')}${lines > codes.length ? ', …' : ''})` : ''
-      th.push(`บรรทัดงบที่เหลือต่ำกว่า ${num(scope.lowPct)}% ${lines} บรรทัด${list}`)
-      en.push(`${plural(lines, 'budget line has', 'budget lines have')} less than ${num(scope.lowPct)}% left${list}`)
+    // BUDGET (S6-18): a BUDGET_ADMIN's summary names budget lines only
+    if (scope.kind !== 'BUDGET') {
+      const where: Text = scope.kind === 'ORG' ? { th: 'ทั้งองค์กร', en: 'Across the organization' } : { th: 'ในหน่วยงานของคุณ', en: 'In your departments' }
+      const pending = num(scope.pending)
+      const late = num(scope.overdue)
+      th.push(`${where.th}: รออนุมัติ ${pending} งาน เกินกำหนด ${late} งาน`)
+      en.push(`${where.en}: ${plural(pending, 'approval', 'approvals')} waiting, ${late} past ${late === 1 ? 'its' : 'their'} due time`)
+    }
+    if (Array.isArray(scope.budgetLineFlags)) {
+      // S6-18 (BR-BUD-17): each line once, with every reason it is named for
+      const lines = num(scope.budgetLines)
+      if (lines > 0) {
+        const flags = (scope.budgetLineFlags as Array<{ code?: unknown; reasons?: unknown }>).map((f) => ({ code: str(f.code), reasons: Array.isArray(f.reasons) ? f.reasons.map((r) => str(r)) : [] }))
+        const reason = (r: string): Text =>
+          r === 'LOW'
+            ? { th: `เหลือต่ำกว่า ${num(scope.lowPct)}%`, en: `under ${num(scope.lowPct)}% left` }
+            : r === 'FORECAST_OVER'
+              ? { th: 'พยากรณ์เกินงบ', en: 'forecast over budget' }
+              : { th: `ใช้ถึง ${Number(r.replace('USED_', '')) / BP_PER_PERCENT}%`, en: `${Number(r.replace('USED_', '')) / BP_PER_PERCENT}% used` }
+        const list = (lang: 'th' | 'en') => flags.map((f) => `${f.code} (${f.reasons.map((r) => reason(r)[lang]).join(', ')})`).join(', ') + (lines > flags.length ? ', …' : '')
+        th.push(`บรรทัดงบที่ควรดู ${lines} บรรทัด: ${list('th')}`)
+        en.push(`${plural(lines, 'budget line needs', 'budget lines need')} a look: ${list('en')}`)
+      }
+    } else {
+      const lines = num(scope.lowBudgetLines)
+      if (lines > 0) {
+        const codes = (Array.isArray(scope.lowLineCodes) ? scope.lowLineCodes : []).map((c) => str(c)).filter(Boolean)
+        const list = codes.length ? ` (${codes.join(', ')}${lines > codes.length ? ', …' : ''})` : ''
+        th.push(`บรรทัดงบที่เหลือต่ำกว่า ${num(scope.lowPct)}% ${lines} บรรทัด${list}`)
+        en.push(`${plural(lines, 'budget line has', 'budget lines have')} less than ${num(scope.lowPct)}% left${list}`)
+      }
     }
   }
   const updates = num(d.updates)

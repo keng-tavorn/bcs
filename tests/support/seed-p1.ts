@@ -14,6 +14,7 @@ import { getPriceReference } from '@/server/services/price-reference'
 import { decideTask } from '@/server/services/approvals/decide'
 import { createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
 import { submitBudgetOverrun } from '@/server/services/budget/overruns'
+import { runBudgetAlerts } from '@/server/services/budget/alerts'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { createDraft, submitRequest } from './requests'
 import { stepUpForTask } from './pin'
@@ -366,6 +367,24 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(again.seeded).toBe(false)
       // The seeded requests (a renewal drafted by a test above has its source request)
       expect(await prisma.request.count({ where: { organizationId, sourceRequestId: null } })).toBe(sheets.history.length)
+    })
+
+    it('[FR-BUD-104/AC2] [FR-BUD-104/AC3] S6-18: MKT-OPEX is alerted after the seed when its use reached 80%, once — the job run again alerts nothing', async () => {
+      const db = forTenant(organizationId)
+      const day = new Date(`${clock.now.toISOString().slice(0, 10)}T00:00:00Z`)
+      const line = await db.budgetLine.findFirstOrThrow({ where: { code: { startsWith: 'MKT-OPEX' }, fiscalYear: { startsOn: { lte: day }, endsOn: { gte: day } } }, select: { id: true } })
+      const first = await runBudgetAlerts(organizationId, clock.now)
+      const raised = await db.event.findMany({ where: { type: 'budget.alert_raised', aggregateId: line.id }, select: { data: true } })
+      const used = (await db.budgetLine.findUniqueOrThrow({ where: { id: line.id }, select: { plannedSatang: true, balance: { select: { committedSatang: true, actualSatang: true } } } }))
+      const usedBp = Number(((used.balance!.committedSatang + used.balance!.actualSatang) * 10_000n) / used.plannedSatang)
+      // Late in the year (8,666 bp used at this seed) USED_8000 is raised; early in the next year (633 bp) nothing is due
+      if (usedBp >= 8000) {
+        expect(first.ok).toBe(true)
+        expect(raised.map((e) => (e.data as { alert: string }).alert)).toContain('USED_8000')
+      } else expect(raised).toEqual([])
+      const again = await runBudgetAlerts(organizationId, new Date(clock.now.getTime() + MS_PER_DAY))
+      expect(again.ok).toBe(false)
+      expect(await db.event.count({ where: { type: 'budget.alert_raised', aggregateId: line.id } })).toBe(raised.length)
     })
 
     // After the re-seed check above: this scene adds a request of its own

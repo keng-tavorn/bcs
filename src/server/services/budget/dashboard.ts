@@ -6,6 +6,7 @@ import { OrgSettingsSchema } from '@/lib/org-settings'
 import { authorize, isAllowed, scopesFor, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { burnContext, burnOf, type BurnDto } from './burn'
 
 // The budget dashboard (spec §11.2, FR-BUD-005 AC1 AC3): per budget line, per department and in all, the planned
 // amount and the four buckets of the ledger (§7.7) — available, reserved, committed and actual — with the share used
@@ -55,6 +56,8 @@ export interface BudgetLineChangesDto {
 
 export interface BudgetDashboardLineDto extends BudgetFiguresDto {
   readonly changes: BudgetLineChangesDto
+  /** S6-18 (BR-BUD-17): use of the current budget, the year's forecast and the alerts reached */
+  readonly burn: BurnDto
   readonly id: string
   readonly code: string
   readonly nameTh: string
@@ -64,6 +67,7 @@ export interface BudgetDashboardLineDto extends BudgetFiguresDto {
 }
 
 export interface BudgetDashboardDepartmentDto extends BudgetFiguresDto {
+  readonly burn: BurnDto
   readonly id: string
   readonly code: string
   readonly nameTh: string
@@ -80,7 +84,7 @@ export interface BudgetDashboardDto {
   readonly lines: readonly BudgetDashboardLineDto[]
   readonly departments: readonly BudgetDashboardDepartmentDto[]
   /** Every line shown, added up: the whole organization when the scope is ORG */
-  readonly total: BudgetFiguresDto
+  readonly total: BudgetFiguresDto & { readonly burn: BurnDto }
   /** The instant the figures were read (ISO): the page says how fresh they are (AC3) */
   readonly asOf: string
   /** What the member may also open from here (budget.import, budgetGrant.manage); the services check again */
@@ -269,15 +273,20 @@ export async function budgetDashboard(ctx: Ctx, input: { readonly fiscalYearId?:
     const byDepartment = new Map<string, BudgetAmounts>()
     for (const l of rows) byDepartment.set(l.departmentId, addAmounts(byDepartment.get(l.departmentId) ?? NO_AMOUNTS, lineAmounts(l)))
     const departments = await tx.department.findMany({ where: { id: { in: [...byDepartment.keys()] } }, select: { id: true, code: true, nameTh: true, nameEn: true }, orderBy: { code: 'asc' } })
+    // S6-18 (FR-BUD-104 AC1): the burn of each line, department and the total, against the year shown
+    const settings = (await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })).settings
+    const pace = year ? burnContext(year, ctx.now, timezone, settings) : null
+    const burn = (a: BudgetAmounts): BurnDto => (pace ? burnOf(a, pace) : { usedBp: null, forecastBp: null, alerts: [] })
+    const total = rows.map(lineAmounts).reduce(addAmounts, NO_AMOUNTS)
 
     return ok({
       fiscalYear: year ? fiscalYearDto(year) : null,
       fiscalYears: years.map((y) => ({ id: y.id, code: y.code })),
       scope,
       lowPct,
-      lines: rows.map((l) => ({ id: l.id, code: l.code, nameTh: l.nameTh, status: l.status, departmentId: l.departmentId, costCenterCode: l.costCenter.code, ...budgetFigures(lineAmounts(l), lowBp), changes: changes.get(l.id) ?? NO_CHANGES })),
-      departments: departments.map((d) => ({ ...d, ...budgetFigures(byDepartment.get(d.id)!, lowBp) })),
-      total: budgetFigures(rows.map(lineAmounts).reduce(addAmounts, NO_AMOUNTS), lowBp),
+      lines: rows.map((l) => ({ id: l.id, code: l.code, nameTh: l.nameTh, status: l.status, departmentId: l.departmentId, costCenterCode: l.costCenter.code, ...budgetFigures(lineAmounts(l), lowBp), changes: changes.get(l.id) ?? NO_CHANGES, burn: burn(lineAmounts(l)) })),
+      departments: departments.map((d) => ({ ...d, ...budgetFigures(byDepartment.get(d.id)!, lowBp), burn: burn(byDepartment.get(d.id)!) })),
+      total: { ...budgetFigures(total, lowBp), burn: burn(total) },
       asOf: ctx.now.toISOString(),
       // AC4: no transfer button while the DOA in effect has no BUDGET_TRANSFER rule
       can: { import: isAllowed(principal, 'budget.import'), manageGrants: isAllowed(principal, 'budgetGrant.manage'), transfer: isAllowed(principal, 'budget.transfer.submit') && (await hasTransferRule(tx, ctx.now)) },

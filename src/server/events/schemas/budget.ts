@@ -29,6 +29,10 @@ defineEvents('BudgetLine', {
   // S6-16 (BR-BUD-13 to BR-BUD-15, BR-BUD-18): an approved overrun funded the line, or what it did not use left the line
   'budget.overrun_funded': { schema: z.object(movement) },
   'budget.overrun_returned': { schema: z.object(movement) },
+  // S6-18 (BR-BUD-17): an alert the line's burn reached, once per line, alert and fiscal year (not a ledger movement)
+  'budget.alert_raised': {
+    schema: z.object({ fiscalYearId: z.uuid(), alert: z.string().regex(/^(USED_\d{1,5}|FORECAST_OVER)$/), usedBp: z.number().int().nonnegative(), forecastBp: z.number().int().nonnegative().nullable() }),
+  },
 })
 
 // Use of another department's budget line (FR-BUD-004 AC1): to one department or one member, for a period

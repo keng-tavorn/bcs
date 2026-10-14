@@ -22,6 +22,7 @@ import { workflowVersionActivate } from './workflow-version-activate'
 import { backtestRun } from './backtest-run'
 import { renewalReminders } from './renewal-reminders'
 import { budgetOverrunLapse } from './budget-overrun-lapse'
+import { budgetBurnAlerts } from './budget-burn-alerts'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
 export const functions = [
@@ -36,6 +37,8 @@ export const functions = [
   renewalReminders,
   // S6-16: approved over-budget approvals not used go back (BR-BUD-15)
   budgetOverrunLapse,
+  // S6-18: budget alerts once per line, alert and fiscal year (BR-BUD-17)
+  budgetBurnAlerts,
   consolidationRound,
   reportSchedules,
   notificationDeliver,

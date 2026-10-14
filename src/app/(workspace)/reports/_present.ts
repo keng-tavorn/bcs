@@ -21,7 +21,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
 const DAY = z.iso.date()
 
 /** Reports the screen has words for; a report without them shows its code */
-export const NAMED_REPORTS = ['KPI'] as const
+export const NAMED_REPORTS = ['KPI', 'WF_CYCLE', 'WF_BOTTLENECKS', 'WF_WRONG_DOA', 'WF_HEATMAP'] as const
 export type NamedReport = (typeof NAMED_REPORTS)[number]
 export const isNamed = (code: string): code is NamedReport => (NAMED_REPORTS as readonly string[]).includes(code)
 

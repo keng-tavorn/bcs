@@ -36,5 +36,6 @@
   "STEP_UP_REQUIRED": "This action requires PIN confirmation",
   "RATE_LIMITED": "Too many attempts. Please try again later",
   "EXTERNAL_SERVICE_ERROR": "An external system is not responding ({service})",
-  "INTERNAL": "Something went wrong (reference {requestId})"
+  "INTERNAL": "Something went wrong (reference {requestId})",
+  "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed"
 }

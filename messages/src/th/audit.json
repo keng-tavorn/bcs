@@ -129,7 +129,8 @@
     "price_agreement": "ราคาตกลง",
     "budget_transfer": "โอนและปรับงบ",
     "budget_overrun": "ขออนุมัติเกินงบ",
-    "document_verification": "ตรวจสอบเอกสาร"
+    "document_verification": "ตรวจสอบเอกสาร",
+    "config_package": "ชุดค่าตั้ง"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -170,7 +171,8 @@
     "PriceAgreement": "ราคาตกลง",
     "BudgetTransfer": "การโอนและปรับงบ",
     "BudgetOverrun": "การขออนุมัติเกินงบ",
-    "DocumentVerification": "QR ตรวจสอบเอกสาร"
+    "DocumentVerification": "QR ตรวจสอบเอกสาร",
+    "ConfigPackage": "ชุดค่าตั้ง"
   },
   "events": {
     "approval_step": {
@@ -306,7 +308,8 @@
       "created": "สร้างองค์กร",
       "module_disabled": "ปิดโมดูล",
       "module_enabled": "เปิดโมดูล",
-      "settings_updated": "แก้ไขการตั้งค่าองค์กร"
+      "settings_updated": "แก้ไขการตั้งค่าองค์กร",
+      "sandbox_created": "สร้างระบบทดลอง (UAT sandbox)"
     },
     "po": {
       "approved": "อนุมัติใบสั่งซื้อ",
@@ -431,6 +434,10 @@
     },
     "document_verification": {
       "issued": "ออก QR ตรวจสอบเอกสาร"
+    },
+    "config_package": {
+      "exported": "ส่งออกชุดค่าตั้ง",
+      "imported": "นำเข้าชุดค่าตั้งเป็นร่าง"
     }
   }
 }

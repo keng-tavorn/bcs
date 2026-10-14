@@ -1980,6 +1980,7 @@
       "BudgetTransfer": "Budget transfer",
       "CatalogItem": "Catalogue item",
       "ChannelIdentity": "LINE account",
+      "ConfigPackage": "Configuration package",
       "ConsolidationRun": "Consolidation round",
       "CostCenter": "Cost center",
       "Delegation": "Delegation",
@@ -2123,6 +2124,10 @@
         "created": "Catalogue item added",
         "updated": "Catalogue item edited"
       },
+      "config_package": {
+        "exported": "Configuration package exported",
+        "imported": "Configuration package imported as drafts"
+      },
       "consolidation_run": {
         "completed": "Requests consolidated into draft POs"
       },
@@ -2215,6 +2220,7 @@
         "created": "Organization created",
         "module_disabled": "Module switched off",
         "module_enabled": "Module switched on",
+        "sandbox_created": "UAT sandbox created",
         "settings_updated": "Organization settings updated"
       },
       "po": {
@@ -2318,6 +2324,7 @@
       "budget_overrun": "Over-budget approval",
       "budget_transfer": "Budget transfers",
       "catalog_item": "Catalogue",
+      "config_package": "Configuration package",
       "consolidation_run": "Consolidation rounds",
       "cost_center": "Cost centers",
       "delegation": "Delegations",
@@ -3958,6 +3965,7 @@
     "BUDGET_INSUFFICIENT": "Insufficient budget: {available} baht available, {shortfall} baht short",
     "BUDGET_LINE_CLOSED": "This budget line is frozen or closed",
     "CODING_NOT_CONFIRMED": "The account code of line {lines} is not confirmed yet",
+    "CONFIG_PACKAGE_INVALID": "The configuration package is not valid or was changed",
     "CONFLICT_VERSION": "Someone else changed this document. Please reload",
     "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",
     "DOA_LINT_FAILED": "This DOA version has not passed its checks: {codes}",
@@ -6545,6 +6553,22 @@
       "KPI": {
         "description": "The system's goal measures, computed from the event log and the documents: POs through BCS, approvals by the DOA, speed, budget control and approvals on LINE.",
         "name": "KPI G-1 to G-5"
+      },
+      "WF_BOTTLENECKS": {
+        "description": "The positions and people with the most past-due tasks and the longest decision times",
+        "name": "Approval bottlenecks"
+      },
+      "WF_CYCLE": {
+        "description": "How long each request took from sending to full approval and to its first approved PO, with the medians of the period, in business hours",
+        "name": "Request cycle time"
+      },
+      "WF_HEATMAP": {
+        "description": "Decisions by weekday and hour, and tasks waiting for approval by department and age",
+        "name": "Approval heatmap"
+      },
+      "WF_WRONG_DOA": {
+        "description": "Decisions by someone the DOA does not name, without a DOA version and clause, and requests possibly split to stay under a limit",
+        "name": "Decisions outside the DOA"
       }
     },
     "catalogTitle": "Available reports",
@@ -8515,5 +8539,149 @@
     "titleRequest": "This purchase request was issued by the system",
     "tooManyBody": "This page was opened too often from your address. Please try again in a minute",
     "tooManyTitle": "Please try again later"
+  },
+  "workflowReports": {
+    "back": "Back to reports",
+    "bottlenecks": {
+      "byPerson": "By the person given the task",
+      "byPosition": "By the position tasks wait for",
+      "captionPerson": "Bottlenecks by person",
+      "captionPosition": "Bottlenecks by position",
+      "chartCaption": "{count, plural, one {Median decision time of the first position} other {Median decision time of the first # positions}}",
+      "columns": {
+        "median": "Median decision time",
+        "overdue": "Past due",
+        "person": "Given to",
+        "position": "Position",
+        "tasks": "Tasks"
+      },
+      "emptyHint": "Choose a wider period, then press \"Show this period\"",
+      "emptyTitle": "No approval tasks in this period",
+      "intro": "Most past-due tasks first, then the longer median decision time",
+      "named": "A named approver",
+      "noName": "Name unknown",
+      "notDecided": "No decided task yet",
+      "position": "{position} · {department}",
+      "series": "Median decision time",
+      "signatory": "Authorized signatory"
+    },
+    "cycle": {
+      "caption": "Requests sent in this period and the time they took",
+      "chartCaption": "{count, plural, one {The request that took longest from sending to full approval} other {The # requests that took longest from sending to full approval}}",
+      "columns": {
+        "approvedAt": "Fully approved",
+        "cycle": "Sent to fully approved",
+        "request": "Request",
+        "submittedAt": "Sent",
+        "toFirstPo": "Sent to first PO approved"
+      },
+      "emptyHint": "Choose a wider period, then press \"Show this period\"",
+      "emptyTitle": "No requests were sent in this period",
+      "medianCycle": "Sent to fully approved",
+      "medianDecision": "Decision time per step, without time waiting for the requester's answer",
+      "medianToPo": "Sent to first PO approved",
+      "mediansLabel": "Medians of this period",
+      "noNumber": "Request without a number yet",
+      "noPo": "No approved PO yet",
+      "notApproved": "Not fully approved yet",
+      "series": "Sent to fully approved",
+      "tableTitle": "{count, plural, one {# request sent in this period} other {# requests sent in this period}}"
+    },
+    "export": {
+      "bottlenecks": "An Excel file of the bottlenecks by position, for the same period and scope you see, with its checksum",
+      "cycle": "An Excel file of the requests in the table above, for the same period and scope you see, with its checksum",
+      "heatmap": "An Excel file of the decisions by weekday and hour, for the same period and scope you see, with its checksum",
+      "title": "Export this tab",
+      "wrongDoa": "An Excel file of the items outside the DOA, for the same period and scope you see, with its checksum"
+    },
+    "heatmap": {
+      "bands": {
+        "H0_8": "Under 8 h",
+        "H16_40": "16 to 40 h",
+        "H40_PLUS": "40 h or more",
+        "H8_16": "8 to 16 h"
+      },
+      "countHeader": "Decisions",
+      "decisionsCaption": "Decisions by weekday and hour (Thai time)",
+      "decisionsUnit": "Unit: decisions · darker means more decisions",
+      "departmentHeader": "Department",
+      "hour": "{hour}:00",
+      "hourRange": "{from}:00–{to}:59",
+      "legendLabel": "Colour levels",
+      "legendOne": "{value}",
+      "legendRange": "{from}–{to}",
+      "noDecisionsHint": "Choose a wider period, then press \"Show this period\"",
+      "noDecisionsTitle": "No decisions in this period",
+      "noDepartment": "Documents that are not a department's request",
+      "noOpenHint": "New tasks are counted here by their age",
+      "noOpenTitle": "No tasks are waiting for approval now",
+      "openCaption": "Tasks waiting for approval now, by department and age",
+      "openUnit": "Unit: tasks · age in business hours · darker means more tasks",
+      "slotHeader": "Day and hour",
+      "totalHeader": "Total",
+      "weekdays": {
+        "FRI": "Friday",
+        "MON": "Monday",
+        "SAT": "Saturday",
+        "SUN": "Sunday",
+        "THU": "Thursday",
+        "TUE": "Tuesday",
+        "WED": "Wednesday"
+      },
+      "weekdaysShort": {
+        "FRI": "Fri",
+        "MON": "Mon",
+        "SAT": "Sat",
+        "SUN": "Sun",
+        "THU": "Thu",
+        "TUE": "Tue",
+        "WED": "Wed"
+      }
+    },
+    "hours": "{value} business hours",
+    "hoursShort": "{value} h",
+    "intro": "How long requests take from sending to full approval, where tasks wait, decisions outside the DOA, and when decisions are made. Times are in business hours",
+    "noneYet": "No data in this period yet",
+    "periodLabel": "Period of the report",
+    "run": "Show this period",
+    "showChart": "Show as a chart",
+    "showTable": "Show as a table",
+    "tabs": {
+      "bottlenecks": "Bottlenecks",
+      "cycle": "Cycle time",
+      "heatmap": "Heatmap",
+      "wrongDoa": "Outside DOA"
+    },
+    "tabsLabel": "Views of the report",
+    "title": "Approval times and bottlenecks",
+    "unitHours": "Unit: business hours",
+    "wrongDoa": {
+      "caption": "Items outside the DOA",
+      "columns": {
+        "at": "When",
+        "document": "Document",
+        "reason": "Why"
+      },
+      "emptyHint": "Every decision in this period was made by the one the DOA names and cites the DOA. Choose another period with the dates above",
+      "emptyTitle": "No decisions outside the DOA in this period",
+      "intro": "Decisions made by someone the DOA does not name, decisions without a DOA version and clause, and requests the system suspects were split to stay under a limit",
+      "kinds": {
+        "BUDGET_OVERRUN": "Over-budget request",
+        "BUDGET_TRANSFER": "Budget transfer",
+        "DOA_VERSION": "New DOA version",
+        "ORG_AUTHORITY_CHANGE": "Change of authority holders",
+        "OTHER": "Document",
+        "PURCHASE_ORDER": "Purchase order (PO)",
+        "REQUEST": "Request",
+        "VARIANCE": "Receiving variance",
+        "WORKFLOW_VERSION": "New approval sequence"
+      },
+      "reasons": {
+        "NOT_BY_DOA": "The decider is not the one the DOA names",
+        "NO_DOA_REFERENCE": "The decision does not cite a DOA version and clause",
+        "SPLIT": "A request possibly split to stay under a limit"
+      },
+      "summary": "{count, plural, one {# item} other {# items}} · decider not named by the DOA {notByDoa} · no DOA reference {noReference} · possibly split {split}"
+    }
   }
 }

@@ -129,7 +129,8 @@
     "price_agreement": "Agreed prices",
     "budget_transfer": "Budget transfers",
     "budget_overrun": "Over-budget approval",
-    "document_verification": "Document verification"
+    "document_verification": "Document verification",
+    "config_package": "Configuration package"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -170,7 +171,8 @@
     "PriceAgreement": "Agreed price",
     "BudgetTransfer": "Budget transfer",
     "BudgetOverrun": "Over-budget approval",
-    "DocumentVerification": "Document verification QR"
+    "DocumentVerification": "Document verification QR",
+    "ConfigPackage": "Configuration package"
   },
   "events": {
     "approval_step": {
@@ -306,7 +308,8 @@
       "created": "Organization created",
       "module_disabled": "Module switched off",
       "module_enabled": "Module switched on",
-      "settings_updated": "Organization settings updated"
+      "settings_updated": "Organization settings updated",
+      "sandbox_created": "UAT sandbox created"
     },
     "po": {
       "approved": "Purchase order approved",
@@ -431,6 +434,10 @@
     },
     "document_verification": {
       "issued": "Verification QR issued"
+    },
+    "config_package": {
+      "exported": "Configuration package exported",
+      "imported": "Configuration package imported as drafts"
     }
   }
 }

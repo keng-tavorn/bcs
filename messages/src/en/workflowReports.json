@@ -1,0 +1,144 @@
+{
+  "title": "Approval times and bottlenecks",
+  "intro": "How long requests take from sending to full approval, where tasks wait, decisions outside the DOA, and when decisions are made. Times are in business hours",
+  "back": "Back to reports",
+  "run": "Show this period",
+  "periodLabel": "Period of the report",
+  "tabsLabel": "Views of the report",
+  "tabs": {
+    "cycle": "Cycle time",
+    "bottlenecks": "Bottlenecks",
+    "wrongDoa": "Outside DOA",
+    "heatmap": "Heatmap"
+  },
+  "hours": "{value} business hours",
+  "hoursShort": "{value} h",
+  "noneYet": "No data in this period yet",
+  "showTable": "Show as a table",
+  "showChart": "Show as a chart",
+  "unitHours": "Unit: business hours",
+  "export": {
+    "title": "Export this tab",
+    "cycle": "An Excel file of the requests in the table above, for the same period and scope you see, with its checksum",
+    "bottlenecks": "An Excel file of the bottlenecks by position, for the same period and scope you see, with its checksum",
+    "wrongDoa": "An Excel file of the items outside the DOA, for the same period and scope you see, with its checksum",
+    "heatmap": "An Excel file of the decisions by weekday and hour, for the same period and scope you see, with its checksum"
+  },
+  "cycle": {
+    "mediansLabel": "Medians of this period",
+    "medianCycle": "Sent to fully approved",
+    "medianToPo": "Sent to first PO approved",
+    "medianDecision": "Decision time per step, without time waiting for the requester's answer",
+    "chartCaption": "{count, plural, one {The request that took longest from sending to full approval} other {The # requests that took longest from sending to full approval}}",
+    "series": "Sent to fully approved",
+    "tableTitle": "{count, plural, one {# request sent in this period} other {# requests sent in this period}}",
+    "caption": "Requests sent in this period and the time they took",
+    "columns": {
+      "request": "Request",
+      "submittedAt": "Sent",
+      "approvedAt": "Fully approved",
+      "cycle": "Sent to fully approved",
+      "toFirstPo": "Sent to first PO approved"
+    },
+    "notApproved": "Not fully approved yet",
+    "noPo": "No approved PO yet",
+    "noNumber": "Request without a number yet",
+    "emptyTitle": "No requests were sent in this period",
+    "emptyHint": "Choose a wider period, then press \"Show this period\""
+  },
+  "bottlenecks": {
+    "intro": "Most past-due tasks first, then the longer median decision time",
+    "chartCaption": "{count, plural, one {Median decision time of the first position} other {Median decision time of the first # positions}}",
+    "series": "Median decision time",
+    "byPosition": "By the position tasks wait for",
+    "byPerson": "By the person given the task",
+    "captionPosition": "Bottlenecks by position",
+    "captionPerson": "Bottlenecks by person",
+    "columns": {
+      "position": "Position",
+      "person": "Given to",
+      "overdue": "Past due",
+      "median": "Median decision time",
+      "tasks": "Tasks"
+    },
+    "position": "{position} · {department}",
+    "named": "A named approver",
+    "signatory": "Authorized signatory",
+    "notDecided": "No decided task yet",
+    "noName": "Name unknown",
+    "emptyTitle": "No approval tasks in this period",
+    "emptyHint": "Choose a wider period, then press \"Show this period\""
+  },
+  "wrongDoa": {
+    "intro": "Decisions made by someone the DOA does not name, decisions without a DOA version and clause, and requests the system suspects were split to stay under a limit",
+    "summary": "{count, plural, one {# item} other {# items}} · decider not named by the DOA {notByDoa} · no DOA reference {noReference} · possibly split {split}",
+    "caption": "Items outside the DOA",
+    "columns": {
+      "document": "Document",
+      "reason": "Why",
+      "at": "When"
+    },
+    "reasons": {
+      "NOT_BY_DOA": "The decider is not the one the DOA names",
+      "NO_DOA_REFERENCE": "The decision does not cite a DOA version and clause",
+      "SPLIT": "A request possibly split to stay under a limit"
+    },
+    "kinds": {
+      "REQUEST": "Request",
+      "PURCHASE_ORDER": "Purchase order (PO)",
+      "VARIANCE": "Receiving variance",
+      "DOA_VERSION": "New DOA version",
+      "WORKFLOW_VERSION": "New approval sequence",
+      "ORG_AUTHORITY_CHANGE": "Change of authority holders",
+      "BUDGET_TRANSFER": "Budget transfer",
+      "BUDGET_OVERRUN": "Over-budget request",
+      "OTHER": "Document"
+    },
+    "emptyTitle": "No decisions outside the DOA in this period",
+    "emptyHint": "Every decision in this period was made by the one the DOA names and cites the DOA. Choose another period with the dates above"
+  },
+  "heatmap": {
+    "decisionsCaption": "Decisions by weekday and hour (Thai time)",
+    "decisionsUnit": "Unit: decisions · darker means more decisions",
+    "openCaption": "Tasks waiting for approval now, by department and age",
+    "openUnit": "Unit: tasks · age in business hours · darker means more tasks",
+    "legendLabel": "Colour levels",
+    "legendRange": "{from}–{to}",
+    "legendOne": "{value}",
+    "hour": "{hour}:00",
+    "hourRange": "{from}:00–{to}:59",
+    "slotHeader": "Day and hour",
+    "countHeader": "Decisions",
+    "departmentHeader": "Department",
+    "totalHeader": "Total",
+    "noDepartment": "Documents that are not a department's request",
+    "weekdays": {
+      "MON": "Monday",
+      "TUE": "Tuesday",
+      "WED": "Wednesday",
+      "THU": "Thursday",
+      "FRI": "Friday",
+      "SAT": "Saturday",
+      "SUN": "Sunday"
+    },
+    "weekdaysShort": {
+      "MON": "Mon",
+      "TUE": "Tue",
+      "WED": "Wed",
+      "THU": "Thu",
+      "FRI": "Fri",
+      "SAT": "Sat",
+      "SUN": "Sun"
+    },
+    "bands": {
+      "H0_8": "Under 8 h",
+      "H8_16": "8 to 16 h",
+      "H16_40": "16 to 40 h",
+      "H40_PLUS": "40 h or more"
+    },
+    "noDecisionsTitle": "No decisions in this period",
+    "noDecisionsHint": "Choose a wider period, then press \"Show this period\"",
+    "noOpenTitle": "No tasks are waiting for approval now",
+    "noOpenHint": "New tasks are counted here by their age"
+  }
+}

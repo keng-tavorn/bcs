@@ -1392,6 +1392,26 @@ export async function hiddenReviewReasons(
   return new Set(reviews.filter((t) => !ownSlots.has(`${t.stepId}:${t.slotNo}`)).map((t) => t.id))
 }
 
+/** A line of a request that has a service end date: what its renew button names and sends (S6-12 · FR-INT-101 AC2) */
+export interface ServiceLineDto {
+  readonly id: string
+  readonly lineNo: number
+  readonly description: string
+  /** YYYY-MM-DD */
+  readonly serviceEndDate: string
+}
+
+/** The service lines of a request in line order (the page checks request.view first; the renewal checks the requester) */
+export async function getServiceLines(ctx: Ctx, requestId: string): Promise<ServiceLineDto[]> {
+  if (!isUuid(requestId)) return []
+  const lines = await forTenant(ctx.organizationId).requestLine.findMany({
+    where: { requestId, serviceEndDate: { not: null } },
+    orderBy: { lineNo: 'asc' },
+    select: { id: true, lineNo: true, description: true, serviceEndDate: true },
+  })
+  return lines.map((l) => ({ id: l.id, lineNo: l.lineNo, description: l.description, serviceEndDate: l.serviceEndDate!.toISOString().slice(0, 10) }))
+}
+
 export async function getRequestView(ctx: Ctx, requestId: string): Promise<RequestViewDto | null> {
   if (!isUuid(requestId)) return null
   const db = forTenant(ctx.organizationId)

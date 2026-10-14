@@ -325,6 +325,7 @@
       "info_provided": "Requester answered",
       "info_requested": "More information asked of the requester",
       "rejected": "Request rejected",
+      "renewal_reminded": "Renewal reminded",
       "resubmitted": "Request sent again",
       "returned": "Request returned for changes",
       "submitted": "Request sent",

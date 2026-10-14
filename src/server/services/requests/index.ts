@@ -235,69 +235,92 @@ export const createDraftCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ requestId: string; version: number; lineIds: string[] }>> {
     const allowed = await authorize(tx, ctx, 'request.create')
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    const requesterId = requesterOf(ctx)
-    if (!requesterId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member can request' } }
-    // The catalog, the form and this command agree: an active type whose current form version is published (FR-INT-001)
-    const type = await tx.requestType.findFirst({ where: { code: input.requestTypeCode, active: true }, include: { currentFormVersion: { select: { id: true, status: true, schema: true } } } })
-    if (!type) return fail('VALIDATION_FAILED', 'unknown request type', { field: 'requestTypeCode' })
-    const form = type.currentFormVersion
-    if (!form || form.status !== 'PUBLISHED') return fail('VALIDATION_FAILED', 'the request type has no published form', { field: 'requestTypeCode', reason: 'NO_PUBLISHED_FORM' })
-    const member = await tx.member.findUniqueOrThrow({ where: { id: requesterId }, select: { primaryDepartmentId: true } })
-    if (!member.primaryDepartmentId) return fail('VALIDATION_FAILED', 'the requester has no main department', { field: 'chargedDepartmentId', reason: 'NO_DEPARTMENT' })
-    const chargedDepartmentId = input.chargedDepartmentId ?? member.primaryDepartmentId
-    if (!(await tx.department.findFirst({ where: { id: chargedDepartmentId, active: true }, select: { id: true } }))) {
-      return fail('VALIDATION_FAILED', 'unknown department', { field: 'chargedDepartmentId' })
-    }
-    const place = await checkSiteAndSupplier(tx, input)
-    if (place) return place
-    const agreed = await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId: input.suggestedSupplierId ?? null, priceIncludesVat: input.priceIncludesVat, offAgreementReason: input.offAgreementReason ?? null, submit: false })
-    if (!agreed.ok) return agreed
-    // A new draft has no saved lines yet: a line naming an id belongs to another request
-    const named = input.lines.findIndex((l) => l.id)
-    if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
-    const rateBp = await todaysRate(ctx)
-    const answers = answersToKeep(formDefinition(form.schema), input.formData, { lines: amountsOf(input.lines), priceIncludesVat: input.priceIncludesVat, rateBp, requestTypeCode: type.code })
-    if (!answers.ok) return unknownField(answers.field)
-    const id = newId()
-    await tx.request.create({
-      data: {
-        id,
-        organizationId: ctx.organizationId,
-        requestTypeId: type.id,
-        formVersionId: form.id,
-        documentType: type.documentType,
-        title: input.title,
-        requesterMemberId: requesterId,
-        requesterDepartmentId: member.primaryDepartmentId,
-        chargedDepartmentId,
-        urgency: input.urgency,
-        ...(input.neededBy ? { neededBy: new Date(`${input.neededBy}T00:00:00Z`) } : {}),
-        priceIncludesVat: input.priceIncludesVat,
-        formData: answers.fields as object,
-        nonLowestQuoteReason: input.nonLowestQuoteReason || null,
-        ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
-        ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
-        ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
-        ...(input.offAgreementReason ? { offAgreementReason: input.offAgreementReason } : {}),
-      },
-    })
-    const written = await writeLines(tx, ctx, id, input.lines, agreed.agreementIds)
-    if (!written.ok) return written
-    const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
-    if (quotes) return quotes
-    const ai = await aiAssisted(tx, ctx, id, input.aiAssist)
-    if (!ai.ok) return ai
-    return {
-      ok: true,
-      // A new request starts at version 0 (§6.1); every later save names the version it was based on and the lines' ids
-      result: { requestId: id, version: 0, lineIds: written.lineIds },
-      events: [
-        { type: 'request.drafted', aggregateType: 'Request', aggregateId: id, data: { requestTypeCode: type.code, lines: input.lines.length, ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) } },
-        ...ai.data,
-      ],
-    }
+    return draftIn(tx, ctx, input)
   },
 })
+
+/** Where a draft that is not typed in by hand comes from (S6-12, BR-FORM-07 BR-FORM-08 · request.drafted source) */
+export interface DraftOrigin {
+  readonly source: 'REORDER' | 'RENEWAL'
+  readonly sourceRequestId: string
+  readonly renewalOfRequestLineId?: string
+}
+
+/**
+ * The draft of request.create for the acting member, once its caller has checked the right: the form typed in, a reorder
+ * or a renewal (`origin`). The checks and the writes are the same whatever made it.
+ */
+export async function draftIn(tx: TenantTx, ctx: Ctx, input: z.output<typeof DraftInput>, origin?: DraftOrigin): Promise<CommandOutcome<{ requestId: string; version: number; lineIds: string[] }>> {
+  const requesterId = requesterOf(ctx)
+  if (!requesterId) return { ok: false, error: { code: 'FORBIDDEN', message: 'only a member can request' } }
+  // The catalog, the form and this command agree: an active type whose current form version is published (FR-INT-001)
+  const type = await tx.requestType.findFirst({ where: { code: input.requestTypeCode, active: true }, include: { currentFormVersion: { select: { id: true, status: true, schema: true } } } })
+  if (!type) return fail('VALIDATION_FAILED', 'unknown request type', { field: 'requestTypeCode' })
+  const form = type.currentFormVersion
+  if (!form || form.status !== 'PUBLISHED') return fail('VALIDATION_FAILED', 'the request type has no published form', { field: 'requestTypeCode', reason: 'NO_PUBLISHED_FORM' })
+  const member = await tx.member.findUniqueOrThrow({ where: { id: requesterId }, select: { primaryDepartmentId: true } })
+  if (!member.primaryDepartmentId) return fail('VALIDATION_FAILED', 'the requester has no main department', { field: 'chargedDepartmentId', reason: 'NO_DEPARTMENT' })
+  const chargedDepartmentId = input.chargedDepartmentId ?? member.primaryDepartmentId
+  if (!(await tx.department.findFirst({ where: { id: chargedDepartmentId, active: true }, select: { id: true } }))) {
+    return fail('VALIDATION_FAILED', 'unknown department', { field: 'chargedDepartmentId' })
+  }
+  const place = await checkSiteAndSupplier(tx, input)
+  if (place) return place
+  const agreed = await checkCatalogLines(tx, ctx, { lines: catalogFacts(input.lines), supplierId: input.suggestedSupplierId ?? null, priceIncludesVat: input.priceIncludesVat, offAgreementReason: input.offAgreementReason ?? null, submit: false })
+  if (!agreed.ok) return agreed
+  // A new draft has no saved lines yet: a line naming an id belongs to another request
+  const named = input.lines.findIndex((l) => l.id)
+  if (named >= 0) return fail('VALIDATION_FAILED', 'the line is not one of this request', { field: `lines.${named}.id`, reason: 'LINE_ID' })
+  const rateBp = await todaysRate(ctx)
+  const answers = answersToKeep(formDefinition(form.schema), input.formData, { lines: amountsOf(input.lines), priceIncludesVat: input.priceIncludesVat, rateBp, requestTypeCode: type.code })
+  if (!answers.ok) return unknownField(answers.field)
+  const id = newId()
+  await tx.request.create({
+    data: {
+      id,
+      organizationId: ctx.organizationId,
+      requestTypeId: type.id,
+      formVersionId: form.id,
+      documentType: type.documentType,
+      title: input.title,
+      requesterMemberId: requesterId,
+      requesterDepartmentId: member.primaryDepartmentId,
+      chargedDepartmentId,
+      urgency: input.urgency,
+      ...(input.neededBy ? { neededBy: new Date(`${input.neededBy}T00:00:00Z`) } : {}),
+      priceIncludesVat: input.priceIncludesVat,
+      formData: answers.fields as object,
+      nonLowestQuoteReason: input.nonLowestQuoteReason || null,
+      ...(input.budgetLineId ? { budgetLineId: input.budgetLineId } : {}),
+      ...(input.deliverySiteId ? { deliverySiteId: input.deliverySiteId } : {}),
+      ...(input.suggestedSupplierId ? { suggestedSupplierId: input.suggestedSupplierId } : {}),
+      ...(input.offAgreementReason ? { offAgreementReason: input.offAgreementReason } : {}),
+      ...(origin ? { sourceRequestId: origin.sourceRequestId, ...(origin.renewalOfRequestLineId ? { renewalOfRequestLineId: origin.renewalOfRequestLineId } : {}) } : {}),
+    },
+  })
+  const written = await writeLines(tx, ctx, id, input.lines, agreed.agreementIds)
+  if (!written.ok) return written
+  const quotes = await writeQuotations(tx, ctx, { id, requesterMemberId: requesterId }, input.quotations, rateBp)
+  if (quotes) return quotes
+  const ai = await aiAssisted(tx, ctx, id, input.aiAssist)
+  if (!ai.ok) return ai
+  return {
+    ok: true,
+    // A new request starts at version 0 (§6.1); every later save names the version it was based on and the lines' ids
+    result: { requestId: id, version: 0, lineIds: written.lineIds },
+    events: [
+      {
+        type: 'request.drafted',
+        aggregateType: 'Request',
+        aggregateId: id,
+        data: { requestTypeCode: type.code, lines: input.lines.length, ...(origin ? { source: origin.source } : {}), ...(input.aiAssist ? { agentActionId: input.aiAssist.agentActionId } : {}) },
+      },
+      ...ai.data,
+    ],
+  }
+}
+
+export type DraftFields = z.output<typeof DraftInput>
 
 export function createDraft(ctx: Ctx, input: z.input<typeof DraftInput>, options: RunOptions) {
   return runCommand(ctx, createDraftCommand, input, options)

@@ -1194,6 +1194,30 @@ def prc_reference(d, i):
         diff = (p - med) * 10000; dev = abs(diff) // med * (1 if diff >= 0 else -1)
         got.update(deviationBp=dev, alert="HIGH" if diff > med * st["alertBp"] else "LOW" if -diff > med * st["alertBp"] else None)
     return got
+def run_forms_s6(d):
+    # BR-FORM-08: daysLeft by Thai calendar days; the smallest milestone not below them, once, never after the end.
+    # BR-FORM-07: answers the current form still has; lines without the service end date, at the agreed price of the
+    # request's supplier when there is one; no files, quotations or budget line
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; fn = c["fn"]
+        if fn == "daysLeft":
+            day = (dt(i["at"]) + timedelta(hours=7)).date()
+            got = (datetime.fromisoformat(i["serviceEndDate"]).date() - day).days
+        elif fn == "renewalMilestoneDue":
+            due = [m for m in d["settings"]["milestoneDays"] if m >= i["daysLeft"]]
+            got = None if i["daysLeft"] < 0 or not due or min(due) in i["sent"] else min(due)
+        else:
+            src = i["source"]; cur = set(i["currentFields"])
+            lines = []
+            for l in src["lines"]:
+                ag = next((a for a in i.get("agreements", []) if l.get("item") and a["item"] == l["item"] and a["supplier"] == l.get("supplier")), None)
+                lines.append({"qty": l["qty"], "unitPrice": ag["unitPrice"] if ag else l["unitPrice"], "serviceEndDate": None, "priceSource": "AGREEMENT" if ag else "SOURCE_REQUEST"})
+            full = {"fields": {k: v for k, v in src["fields"].items() if k in cur}, "droppedFields": [k for k in src["fields"] if k not in cur], "lines": lines, "attachments": {}, "quotations": 0, "budgetLine": None}
+            exp = c["expect"]
+            got = {k: (full[k] if k != "lines" else [{kk: x[kk] for kk in e} for x, e in zip(full["lines"], exp["lines"])]) for k in exp}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-credits": run_ai_credits,
@@ -1205,6 +1229,7 @@ RUNNERS = {
     "doa": run_doa,
     "doa-lint": run_doa_lint,
     "forms": run_forms,
+    "forms-s6": run_forms_s6,
     "grni": run_grni,
     "invoice-confirmation": run_ivc,
     "invoice-vat": run_invoice_vat,

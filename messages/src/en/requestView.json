@@ -322,7 +322,16 @@
     "cancelConfirm": "I want to cancel this request and understand it cannot be undone",
     "cancelSubmit": "Cancel this request",
     "cancelled": "Request cancelled",
-    "working": "Saving"
+    "working": "Saving",
+    "reorder": "Ask again",
+    "reorderTitle": "Ask for the same again",
+    "reorderHint": "Makes a new draft with the lines and answers the current form still asks. Check and change the draft, then send it for approval from the edit page. Files, quotations and the budget line are not copied.",
+    "repeatWorking": "Making the draft",
+    "renewTitle": "Renew a service",
+    "renewHint": "Makes a new draft from a service line before it ends. Check and change the draft, give the new service end date, then send it for approval from the edit page.",
+    "renewList": "Service lines that can be renewed",
+    "renew": "Create a renewal request",
+    "renewLabel": "Create a renewal request for {item}"
   },
   "errors": {
     "STATE": "This request is no longer in a state that allows this. Reload the page to see its latest status.",
@@ -339,6 +348,8 @@
     "APPROVER_NOT_FOUND": "No approver could be found under the DOA. Ask your administrator to check who holds the positions.",
     "NO_HIGHER_AUTHORITY": "The DOA has nobody above the requester for this amount. Contact your administrator.",
     "TAX_RATE": "There is no VAT rate for today. Contact your administrator.",
+    "TYPE_INACTIVE": "A new draft cannot be made from this request: the organization no longer offers its request type. Start a new request with Buy or hire.",
+    "NOT_A_SERVICE_LINE": "This line has no service end date, so it cannot be renewed. Use Ask again to ask for the whole request again.",
     "NOT_FOUND": "This request or question is no longer there. Reload the page.",
     "BUSY": "Someone is working on this request right now. Wait a moment and try again.",
     "CONFLICT": "This was already sent with different details. Reload the page and try again.",

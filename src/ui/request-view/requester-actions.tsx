@@ -9,6 +9,7 @@ import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { requestErrorKey, type ActionFailure, type ActionOutcome } from '../tasks/outcome'
+import type { RepeatErrorKey } from './repeat-rules'
 import { ConfirmBox, TextArea } from './text-area'
 import { useAction } from './use-action'
 
@@ -22,8 +23,8 @@ import { useAction } from './use-action'
 
 const REASON_MIN = 3
 
-/** The message of a failed requester action, with amounts formatted for reading */
-function useFailureText() {
+/** The message of a failed requester action, with amounts formatted for reading (a reorder's keys: ./repeat-actions.tsx) */
+export function useFailureText(keyOf: (failure: ActionFailure) => RepeatErrorKey = requestErrorKey) {
   const t = useTranslations('requestView.errors')
   return (failure: ActionFailure) => {
     const money = (value: string | undefined) => {
@@ -34,7 +35,7 @@ function useFailureText() {
         return value
       }
     }
-    return t(requestErrorKey(failure), { available: money(failure.available), shortfall: money(failure.shortfall), rule: failure.rule ?? '-', requestId: failure.requestId ?? '-' })
+    return t(keyOf(failure), { available: money(failure.available), shortfall: money(failure.shortfall), rule: failure.rule ?? '-', requestId: failure.requestId ?? '-' })
   }
 }
 

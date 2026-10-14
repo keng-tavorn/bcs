@@ -219,3 +219,6 @@ export function compareQuotations(quotes: readonly QuoteInput[], selectedRef: st
   if (!lowest.includes(selectedRef) && isEmpty(nonLowestReason)) return { ok: false, error: 'VALIDATION_FAILED', rule: 'QUOTE-LOWEST', nets, lowest }
   return { ok: true, nets, lowest }
 }
+
+// S6-12: reorder and renewal reminders (BR-FORM-07, BR-FORM-08)
+export { daysLeft, renewalMilestoneDue, reorderDraft, type ReorderDraft, type ReorderInput, type ReorderLine, type ReorderSourceLine } from './repeat'

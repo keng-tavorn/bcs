@@ -12,9 +12,10 @@ import { previewRequest } from '@/server/services/requests/preview'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/ui/files/file-upload'
 import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
 import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
-import type { ActionOutcome } from '@/ui/tasks/outcome'
+import type { RepeatOutcome } from '@/ui/request-view/repeat-rules'
+import type { ActionFailure, ActionOutcome } from '@/ui/tasks/outcome'
 import { canViewRequest } from '../../(workspace)/_tracking/access'
-import { answerQuestion, cancelOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
+import { answerQuestion, cancelOwnRequest, reorderOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
 import { liffPage, type LiffPage } from '../_lib/session'
 import { liffPrincipalOf } from './_lib/principal'
 
@@ -146,7 +147,7 @@ async function requestFile(page: MemberPage, requestId: string, fileId: string):
   return isDocumentFile(page.ctx, { subjectType: 'REQUEST', subjectId: requestId }, fileId)
 }
 
-const NO_SESSION_ACTION: ActionOutcome = { ok: false, code: 'UNAUTHENTICATED' }
+const NO_SESSION_ACTION: ActionFailure = { ok: false, code: 'UNAUTHENTICATED' }
 
 /** FR-INT-009: the requester answers the approver's question from LIFF (the LINE message about it opens the request here) */
 export async function answerInfoAction(input: { infoRequestId: string; answer: string }, idempotencyKey: string): Promise<ActionOutcome> {
@@ -167,4 +168,11 @@ export async function cancelRequestAction(input: { requestId: string; reason: st
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION_ACTION
   return cancelOwnRequest(ctx, input, idempotencyKey)
+}
+
+/** "ขอซ้ำ" from LIFF (FR-INT-101 AC1): a new draft from the requester's request, made on the LIFF channel; the page opens its form */
+export async function reorderAction(requestId: string, idempotencyKey: string): Promise<RepeatOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION_ACTION
+  return reorderOwnRequest(ctx, requestId, idempotencyKey)
 }

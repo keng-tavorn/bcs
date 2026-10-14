@@ -98,6 +98,12 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'เปิดร่างแล้วบันทึกอีกครั้งเพื่อเก็บไว้ หรือปล่อยไว้ถ้าไม่ใช้แล้ว', en: 'Open and save it again to keep it, or leave it if you no longer need it' },
     href: `/requests/${str(d.requestId)}`,
   }),
+  // S6-12 (FR-INT-101 AC2, BR-FORM-08): a service line ends soon; the requester opens the request to renew it
+  'request.renewal_due': (d) => ({
+    title: { th: `บริการในคำขอ ${ref(d)} จะหมดใน ${str(d.milestone)} วัน`, en: `A service on request ${ref(d)} ends in ${str(d.milestone)} days` },
+    body: { th: 'เปิดคำขอแล้วกด "สร้างคำขอต่ออายุ" ที่บรรทัดนั้น ระบบคัดลอกบรรทัดเดิมเป็นร่างให้', en: 'Open the request and press "Renew" on that line; the line is copied into a new draft' },
+    href: `/requests/${str(d.requestId)}`,
+  }),
   'supplier_request.submitted': (d) => ({
     title: { th: `มีคำขอเพิ่มผู้ขายรายใหม่ ${ref(d)}`, en: `New supplier request ${ref(d)}` },
     href: `/requests/${str(d.requestId)}`,

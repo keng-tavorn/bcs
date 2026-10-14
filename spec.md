@@ -378,6 +378,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
 | `request.cancel` | ผู้ขอ (OWN, ก่อนมี PO) · PROCUREMENT (ORG, สถานะ APPROVED ที่ยังไม่สั่ง, ต้องระบุเหตุผล) |
 | `request.follow` | ผู้ที่มี `request.view` ของคำขอนั้น: ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) — ติดตามหรือเลิกติดตามตนเองเท่านั้น และผู้ขอไม่ต้องติดตามคำขอของตนเอง (FR-INT-013 AC1) |
+| `request.reorder` | ผู้ขอ (OWN) — ขอซ้ำหรือต่ออายุจากคำขอของตนเอง ได้ร่างใหม่ตาม BR-FORM-07 ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ (S6-12, FR-INT-101) |
 | `request.followers.manage` | ผู้ขอ (OWN) — เพิ่มหรือเอาผู้ติดตามออก โดยเพิ่มได้เฉพาะสมาชิกที่มี `request.view` ของคำขอนั้นอยู่แล้ว เพราะการติดตามไม่ขยายสิทธิ์ดู (OQ-39 · FR-INT-013 AC1) |
 | `approval.decide` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ |
 | `review.decide` | **เฉพาะผู้ที่ workflow ฉบับที่มีผลกำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ · ผ่าน ตีกลับ หรือขอข้อมูล ไม่มีไม่อนุมัติ และไม่ต้อง step-up · เหตุผลของผู้ตรวจเห็นได้โดยผู้ขอ ผู้อนุมัติตาม DOA ของเส้นทาง ผู้ตรวจของ slot นั้น และ AUDITOR ผู้ตรวจ slot อื่นเห็นเฉพาะสถานะ (S6 · FR-WF-101 · BR-WF-09) |
@@ -601,6 +602,7 @@ sequenceDiagram
 | `audit-seal-daily` · `audit-verify` | cron รายวัน 00:15 · รายสัปดาห์ | seal และตรวจ hash chain | S5 |
 | `doa-version-activate` | `bcs/doa_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับก่อนหน้าเป็น `SUPERSEDED` และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16) | S2 |
 | `workflow-version-activate` | `bcs/workflow_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับ workflow ก่อนหน้าเป็น `SUPERSEDED` (BR-WF-12) | S6 |
+| `renewal-reminders` | cron 08:00 ทุกวัน (เวลาไทย) | เตือนบรรทัดบริการก่อนหมดตาม `renewal.milestoneDays` ครั้งเดียวต่อ milestone ทุกองค์กร ไม่ต้องเปิด `CONTRACTS` (S6-12 · FR-INT-101 AC2 · BR-FORM-08) | S6 |
 | `backtest-run` | `bcs/backtest.requested` | ย้อนทดสอบร่าง DOA หรือ workflow ที่มีเอกสารเกิน 500 ฉบับในช่วง 90 วัน แล้วบันทึกผลลง `BacktestRun` ครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3 · ADR-111) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
@@ -2560,6 +2562,29 @@ cases:
   - { id: GC-PRC-15, title: ช่วงใบเสนอราคาจากเคส GC-FORM-09, fn: quoteRange, input: { vatRateBp: 700, quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: C }, expect: { count: 3, lowest: "98130.84", highest: "101000.00", selected: "98130.84", selectedIsLowest: true } }
 ```
 
+```yaml
+# tests/golden/forms-s6.yaml
+suite: forms-s6
+settings: { milestoneDays: [60, 30] }
+cases:
+  # S6-12 · เตือนต่ออายุ (BR-FORM-08)
+  - { id: GC-FORM-12, fn: renewalMilestoneDue, input: { daysLeft: 61, sent: [] }, expect: null }
+  - { id: GC-FORM-13, fn: renewalMilestoneDue, input: { daysLeft: 60, sent: [] }, expect: 60 }
+  - { id: GC-FORM-14, title: job พลาดวัน ยังส่งของ 60, fn: renewalMilestoneDue, input: { daysLeft: 45, sent: [] }, expect: 60 }
+  - { id: GC-FORM-15, fn: renewalMilestoneDue, input: { daysLeft: 30, sent: [60] }, expect: 30 }
+  - { id: GC-FORM-16, title: เหลือน้อยกว่า 30 ส่งเฉพาะ 30, fn: renewalMilestoneDue, input: { daysLeft: 25, sent: [] }, expect: 30 }
+  - { id: GC-FORM-17, fn: renewalMilestoneDue, input: { daysLeft: 30, sent: [60, 30] }, expect: null }
+  - { id: GC-FORM-18, title: หมดอายุแล้วไม่ส่ง, fn: renewalMilestoneDue, input: { daysLeft: -1, sent: [] }, expect: null }
+  - { id: GC-FORM-19, title: วันตามเวลาไทย, fn: daysLeft, input: { at: "2026-10-11T17:00:00Z", serviceEndDate: "2026-12-11" }, expect: 60 }
+  # S6-12 · ขอซ้ำ (BR-FORM-07)
+  - id: GC-FORM-20
+    title: ขอซ้ำคัดลอกเฉพาะที่ยังมีในฟอร์มปัจจุบัน
+    fn: reorderDraft
+    input: { currentFields: [processesPersonalData, accessesSystems, accessesPremises], source: { fields: { processesPersonalData: "Y", legacyField: "x" }, lines: [{ d: ค่ารักษาความปลอดภัย, uom: คน-เดือน, qty: "24", unitPrice: "18500.00", serviceEndDate: "2026-11-10" }], attachments: { DPA: 1, QUOTATION: 3 }, quotations: 3, budgetLine: HRA-GA-OPEX-2569 } }
+    expect: { fields: { processesPersonalData: "Y" }, droppedFields: [legacyField], lines: [{ qty: "24", unitPrice: "18500.00", serviceEndDate: null, priceSource: SOURCE_REQUEST }], attachments: {}, quotations: 0, budgetLine: null }
+  - { id: GC-FORM-21, title: ขอซ้ำใช้ราคาตกลงที่มีผล, fn: reorderDraft, input: { currentFields: [], source: { fields: {}, lines: [{ item: MAT-004, supplier: S1, qty: "100", unitPrice: "185.00" }] }, agreements: [{ item: MAT-004, supplier: S1, unitPrice: "177.00" }] }, expect: { lines: [{ qty: "100", unitPrice: "177.00", priceSource: AGREEMENT }] } }
+```
+
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
 
 หัวข้อนี้จองให้ขั้น S8 (สาย 2): กฎ BR INV และ golden ของ S8 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S8.md`) · กฎของตระกูลเดิม (BR-VAT BR-IVC BR-MATCH BR-WHT) อยู่ในตารางของ §7.1 §7.12 และ §7.14
@@ -3855,6 +3880,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `member.role_granted` · `member.role_revoked` ของ `DOA_ADMIN` (S6-09 · BR-WF-16) | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
+| `request.renewal_reminded` (S6-12 · BR-FORM-08) | ผู้ขอ · PROCUREMENT | LINE → อีเมล · ในระบบ | ผู้ขอ IMMEDIATE · PROCUREMENT DIGEST | `request.renewal_due` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
@@ -3883,7 +3909,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` |
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
@@ -4250,7 +4276,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       27 ไฟล์ · 290 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       28 ไฟล์ · 300 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

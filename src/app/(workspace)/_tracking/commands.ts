@@ -8,6 +8,8 @@ import { getTaskAccess, PIN_DECISION_SUBJECTS, taskDecision, type TaskAccessDto 
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { cancelRequest, resubmitRequest } from '@/server/services/requests'
 import { followRequest, manageFollowers } from '@/server/services/requests/followers'
+import { renewRequestLine, reorderRequest } from '@/server/services/requests/repeat'
+import type { RepeatOutcome } from '@/ui/request-view/repeat-rules'
 import { toActionFailure, type ActionFailure, type ActionOutcome } from '@/ui/tasks/outcome'
 import { taskRight } from './access'
 import { memberName, type Locale } from './present'
@@ -232,4 +234,26 @@ export async function addOrRemoveFollower(ctx: Ctx, input: unknown, idempotencyK
   const parsed = ManageFollowerInput.safeParse(input)
   if (!parsed.success) return invalid(firstField(parsed.error))
   return outcomeOf(await manageFollowers(ctx, parsed.data, { idempotencyKey: idempotencyKey as string }))
+}
+
+type DraftResult = { ok: true; data: { requestId: string } } | { ok: false; error: { code: string; details?: Record<string, unknown> } }
+const draftOutcome = (result: DraftResult): RepeatOutcome => (result.ok ? { ok: true, requestId: result.data.requestId } : toActionFailure(result.error))
+
+/**
+ * "ขอซ้ำ" (FR-INT-101 AC1, BR-FORM-07): a new draft of the requester's from their request, with what the current form
+ * still asks; the answer names the draft, whose edit page the screen opens. The service keeps it to the requester.
+ */
+export async function reorderOwnRequest(ctx: Ctx, requestId: unknown, idempotencyKey: unknown): Promise<RepeatOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const parsed = Id.safeParse(requestId)
+  if (!parsed.success) return invalid('requestId')
+  return draftOutcome(await reorderRequest(ctx, { requestId: parsed.data }, { idempotencyKey: idempotencyKey as string }))
+}
+
+/** "สร้างคำขอต่ออายุ" (FR-INT-101 AC2, BR-FORM-08): a new draft from one service line of the requester's request */
+export async function renewOwnLine(ctx: Ctx, requestLineId: unknown, idempotencyKey: unknown): Promise<RepeatOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const parsed = Id.safeParse(requestLineId)
+  if (!parsed.success) return invalid('requestLineId')
+  return draftOutcome(await renewRequestLine(ctx, { requestLineId: parsed.data }, { idempotencyKey: idempotencyKey as string }))
 }

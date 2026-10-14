@@ -11,6 +11,7 @@ import { prisma } from '@/server/db/client'
 import { ruleJson, versionSnapshotFromRows } from '@/server/doa/snapshot'
 import { backtestDraft } from '@/server/services/backtest'
 import { getPriceReference } from '@/server/services/price-reference'
+import { renewRequestLine, runRenewalReminders } from '@/server/services/requests/repeat'
 import { forTenant } from '@/server/db/tenant'
 import { seedBudget } from '@/server/seed/budget'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
@@ -284,11 +285,33 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(await getPriceReference(asMember(request.requesterMemberId), { requestId: request.id })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     })
 
+    it('[FR-INT-101/AC2] [FR-INT-101/AC3] S6-12: the security service of ga_02 is reminded once at 30 days though the job runs twice, and renewing it drafts that line again', async () => {
+      const db = forTenant(organizationId)
+      const row = sheets.history.find((h) => h.requester === 'ga_02' && h.serviceEndInDays === '30')!
+      const request = await db.request.findFirstOrThrow({ where: { title: row.title }, select: { id: true, requesterMemberId: true, lines: { select: { id: true, description: true, quantity: true } } } })
+      const line = request.lines[0]!
+      // The phase-1 organization has no module CONTRACTS: the reminders need none
+      expect(await db.orgModule.count({ where: { module: 'CONTRACTS', enabled: true } })).toBe(0)
+      await runRenewalReminders(organizationId, clock.now)
+      await runRenewalReminders(organizationId, new Date(clock.now.getTime() + 60 * 60 * 1000))
+      const reminded = await db.event.findMany({ where: { type: 'request.renewal_reminded', aggregateId: request.id }, select: { data: true } })
+      expect(reminded.map((e) => e.data)).toEqual([expect.objectContaining({ requestLineId: line.id, milestone: 30 })])
+      expect(await db.notification.count({ where: { templateKey: 'request.renewal_due', recipientMemberId: request.requesterMemberId, subjectId: request.id } })).toBe(1)
+      const asRequester = makeCtx({ organizationId, actor: { type: 'USER', memberId: request.requesterMemberId }, channel: 'WEB', now: clock.now })
+      const renewed = await renewRequestLine(asRequester, { requestLineId: line.id }, { idempotencyKey: randomUUID(), sender: null })
+      if (!renewed.ok) throw new Error(JSON.stringify(renewed.error))
+      const draft = await db.request.findUniqueOrThrow({ where: { id: renewed.data.requestId }, select: { status: true, renewalOfRequestLineId: true, sourceRequestId: true, lines: { select: { description: true, quantity: true, serviceEndDate: true } } } })
+      expect(draft).toMatchObject({ status: 'DRAFT', renewalOfRequestLineId: line.id, sourceRequestId: request.id, lines: [{ description: line.description, serviceEndDate: null }] })
+      expect(draft.lines[0]!.quantity.toString()).toBe(line.quantity.toString())
+      expect(await db.event.findFirst({ where: { type: 'request.drafted', aggregateId: renewed.data.requestId } })).toMatchObject({ data: { source: 'RENEWAL' } })
+    })
+
     it('leaves a history made in full alone when the seed runs again', async () => {
       const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
       const again = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
       expect(again.seeded).toBe(false)
-      expect(await prisma.request.count({ where: { organizationId } })).toBe(sheets.history.length)
+      // The seeded requests (a renewal drafted by a test above has its source request)
+      expect(await prisma.request.count({ where: { organizationId, sourceRequestId: null } })).toBe(sheets.history.length)
     })
   })
 }

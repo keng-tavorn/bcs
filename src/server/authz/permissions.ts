@@ -7,7 +7,7 @@
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
 // S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
 // in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
-// (FR-DOA-101, BR-PRC-07, OQ-116).
+// (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -77,6 +77,9 @@ export const PERMISSIONS = {
   // FR-INT-013 AC1: whoever may view the request follows it; only the requester adds or removes others
   'request.follow': REQUEST_VIEWERS.map((g) => ({ ...g, condition: 'SELF_ONLY_NOT_REQUESTER' as const })),
   'request.followers.manage': [anyMember('OWN', 'ADDED_MEMBER_ALREADY_VIEWS')],
+  // S6-12 (FR-INT-101, BR-FORM-07): a new draft from one's own request, or its renewal; the service passes the requester
+  // alone as owner, so a follower or a department head never reorders
+  'request.reorder': [anyMember('OWN')],
   // Approvals and delegation
   'approval.decide': [doaAssignee()],
   // S6 (BR-WF-09): only who the workflow version in effect names in the reviewer's task (with whoever acts for them)

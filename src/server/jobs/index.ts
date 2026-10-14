@@ -18,6 +18,7 @@ import { stagingDemoReset } from './staging-demo-reset'
 import { stagingFirstSeed } from './staging-first-seed'
 import { workflowVersionActivate } from './workflow-version-activate'
 import { backtestRun } from './backtest-run'
+import { renewalReminders } from './renewal-reminders'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
 export const functions = [
@@ -28,6 +29,8 @@ export const functions = [
   workflowVersionActivate,
   backtestRun,
   draftExpiry,
+  // S6-12: the service lines that end soon (BR-FORM-08)
+  renewalReminders,
   consolidationRound,
   reportSchedules,
   notificationDeliver,

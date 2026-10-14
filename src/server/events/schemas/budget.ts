@@ -8,7 +8,7 @@ import { defineEvents } from '../registry'
 const satang = z.string().regex(/^\d+$/)
 const movement = {
   /** The document whose action moved the money */
-  documentType: z.enum(['IMPORT', 'REQUEST', 'PURCHASE_ORDER']),
+  documentType: z.enum(['IMPORT', 'REQUEST', 'PURCHASE_ORDER', 'BUDGET_TRANSFER', 'BUDGET_OVERRUN']),
   documentId: z.uuid(),
   amountSatang: satang,
   /** Ledger rows of the operation, in order */
@@ -23,6 +23,9 @@ defineEvents('BudgetLine', {
   'budget.committed': { schema: z.object(movement) },
   'budget.commitment_released': { schema: z.object(movement) },
   'budget.actualized': { schema: z.object(movement) },
+  // S6-15 (BR-BUD-09): a transfer or an adjustment moved money out of the line (AVAILABLE → OUTSIDE) or into it
+  'budget.transferred_out': { schema: z.object(movement) },
+  'budget.transferred_in': { schema: z.object(movement) },
 })
 
 // Use of another department's budget line (FR-BUD-004 AC1): to one department or one member, for a period

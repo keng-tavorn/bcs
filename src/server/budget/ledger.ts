@@ -14,7 +14,15 @@ import type { EventDraft } from '@/server/events/append'
 // is one event (an approved PO line gives back reservations and then holds: two events), whose id is made here and
 // named by its ledger rows (INV-BUD-04). A refusal writes nothing.
 
-export type BudgetEventType = 'budget.imported' | 'budget.reserved' | 'budget.reservation_released' | 'budget.committed' | 'budget.commitment_released' | 'budget.actualized'
+export type BudgetEventType =
+  | 'budget.imported'
+  | 'budget.reserved'
+  | 'budget.reservation_released'
+  | 'budget.committed'
+  | 'budget.commitment_released'
+  | 'budget.actualized'
+  | 'budget.transferred_out'
+  | 'budget.transferred_in'
 
 /** §7.7: the event of each movement between buckets */
 const EVENT_OF_MOVEMENT: Readonly<Record<string, BudgetEventType>> = {
@@ -27,6 +35,9 @@ const EVENT_OF_MOVEMENT: Readonly<Record<string, BudgetEventType>> = {
 }
 
 function eventOf(m: Movement): BudgetEventType {
+  // S6-15 (BR-BUD-09): money that a transfer or an adjustment moves across the line's edge
+  if (m.sourceType === 'BUDGET_TRANSFER' && m.to === 'OUTSIDE') return 'budget.transferred_out'
+  if (m.sourceType === 'BUDGET_TRANSFER' && m.from === 'OUTSIDE') return 'budget.transferred_in'
   const type = EVENT_OF_MOVEMENT[`${m.from}>${m.to}`]
   if (!type) throw new Error(`no budget event for a movement ${m.from} → ${m.to}`)
   return type
@@ -35,7 +46,7 @@ function eventOf(m: Movement): BudgetEventType {
 export interface BudgetOperation {
   readonly budgetLineId: string
   /** The document whose action moves the money (event data) */
-  readonly document: { readonly type: 'IMPORT' | 'REQUEST' | 'PURCHASE_ORDER'; readonly id: string }
+  readonly document: { readonly type: 'IMPORT' | 'REQUEST' | 'PURCHASE_ORDER' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'; readonly id: string }
   readonly run: (state: LineState) => BudgetResult
 }
 

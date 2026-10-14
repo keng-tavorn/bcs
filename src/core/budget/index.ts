@@ -37,8 +37,11 @@ export interface LineState {
 
 export interface Movement {
   readonly from: Bucket
-  /** Money only leaves the line by being spent (ACTUAL); nothing goes back OUTSIDE */
-  readonly to: Exclude<Bucket, 'OUTSIDE'>
+  /**
+   * Money leaves the line by being spent (ACTUAL), and goes back OUTSIDE only by a transfer out or a decrease
+   * (BUDGET_TRANSFER) or what an overrun did not use (BUDGET_OVERRUN) — BR-BUD-09 (S6)
+   */
+  readonly to: Bucket
   readonly amount: Satang
   readonly sourceType: SourceType
   readonly sourceId: string
@@ -52,7 +55,7 @@ export type BudgetError =
   /** An invoice above what the PO line still holds (GC-BUD-06) */
   | { readonly code: 'INVOICE_EXCEEDS_COMMITTED'; readonly remaining: Satang }
   /** A request that contradicts the state: an amount not above zero, or releasing more than a request line holds */
-  | { readonly code: 'VALIDATION_FAILED'; readonly reason: 'AMOUNT_NOT_POSITIVE' | 'RELEASABLE_EXCEEDS_RESERVED' | 'PO_INVOICED' }
+  | { readonly code: 'VALIDATION_FAILED'; readonly reason: 'AMOUNT_NOT_POSITIVE' | 'RELEASABLE_EXCEEDS_RESERVED' | 'PO_INVOICED' | 'NOTHING_RESERVED' }
 
 export type BudgetResult = { readonly ok: true; readonly state: LineState; readonly movements: readonly Movement[] } | { readonly ok: false; readonly error: BudgetError }
 
@@ -81,7 +84,8 @@ function applyMovements(state: LineState, movements: readonly Movement[]): LineS
   for (const m of movements) {
     if (m.from === 'OUTSIDE') funded += m.amount
     else buckets[BUCKET_FIELD[m.from]] -= m.amount
-    buckets[BUCKET_FIELD[m.to]] += m.amount
+    if (m.to === 'OUTSIDE') funded -= m.amount
+    else buckets[BUCKET_FIELD[m.to]] += m.amount
     if (m.sourceType === 'IMPORT') continue
     const key = allocationKey(m.sourceType, m.sourceId)
     const current: Record<keyof Allocation, Satang> = { ...(allocations[key] ?? EMPTY_ALLOCATION) }
@@ -238,4 +242,58 @@ export function closePo(state: LineState, poLineId: string, keep: Satang = 0n): 
   const kept = keep <= 0n ? 0n : keep < held ? keep : held
   const back = held - kept
   return ok(state, back > 0n ? [{ from: 'COMMITTED', to: 'AVAILABLE', amount: back, sourceType: 'PO_LINE', sourceId: poLineId }] : [])
+}
+
+// ---------- transfers and adjustments (S6-15 · BR-BUD-09 to BR-BUD-11 · ADR-104) ----------
+
+/**
+ * BR-BUD-10 at submit: the source line of a transfer or a decrease reserves the amount for it (AVAILABLE → RESERVED,
+ * BUDGET_TRANSFER) — all of it or BUDGET_INSUFFICIENT; an OPEN line only (BR-BUD-08)
+ */
+export function reserveTransfer(state: LineState, transferId: string, amount: Satang): BudgetResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status })
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  if (amount > state.buckets.available) return insufficient(state.buckets.available, amount)
+  return ok(state, [{ from: 'AVAILABLE', to: 'RESERVED', amount, sourceType: 'BUDGET_TRANSFER', sourceId: transferId }])
+}
+
+/** A transfer rejected, returned or cancelled gives its reservation back (RESERVED → AVAILABLE); nothing reserved, nothing moves */
+export function releaseTransfer(state: LineState, transferId: string): BudgetResult {
+  const held = allocationOf(state, 'BUDGET_TRANSFER', transferId).reserved
+  return ok(state, held > 0n ? [{ from: 'RESERVED', to: 'AVAILABLE', amount: held, sourceType: 'BUDGET_TRANSFER', sourceId: transferId }] : [])
+}
+
+/** BR-BUD-09 at approval, source line: the reservation comes back and leaves the line (AVAILABLE → OUTSIDE): its funded goes down */
+export function transferOut(state: LineState, transferId: string): BudgetResult {
+  const held = allocationOf(state, 'BUDGET_TRANSFER', transferId).reserved
+  if (held <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'NOTHING_RESERVED' })
+  return ok(state, [
+    { from: 'RESERVED', to: 'AVAILABLE', amount: held, sourceType: 'BUDGET_TRANSFER', sourceId: transferId },
+    { from: 'AVAILABLE', to: 'OUTSIDE', amount: held, sourceType: 'BUDGET_TRANSFER', sourceId: transferId },
+  ])
+}
+
+/** BR-BUD-09 at approval, destination line of a transfer or an increase: OUTSIDE → AVAILABLE, its funded goes up; an OPEN line only */
+export function transferIn(state: LineState, transferId: string, amount: Satang): BudgetResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status })
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  return ok(state, [{ from: 'OUTSIDE', to: 'AVAILABLE', amount, sourceType: 'BUDGET_TRANSFER', sourceId: transferId }])
+}
+
+export type TransferKind = 'TRANSFER' | 'INCREASE' | 'DECREASE'
+
+/**
+ * BR-BUD-11: the DOA input of a BUDGET_TRANSFER — the amount moved as net with no VAT, the department of the source
+ * line (TRANSFER, DECREASE) or of the destination (INCREASE), and the one who sent it as the conflict
+ */
+export function transferDoaInput(input: {
+  readonly kind: TransferKind
+  readonly fromDepartmentId: string | null
+  readonly toDepartmentId: string | null
+  readonly amountSatang: Satang
+  readonly submitterMemberId: string
+}): { documentType: 'BUDGET_TRANSFER'; amount: { netSatang: Satang; vatSatang: Satang }; chargedDepartmentId: string; conflictMemberIds: string[] } {
+  const department = input.kind === 'INCREASE' ? input.toDepartmentId : input.fromDepartmentId
+  if (!department) throw new RangeError(`a ${input.kind} names the line it ${input.kind === 'INCREASE' ? 'adds to' : 'takes from'}`)
+  return { documentType: 'BUDGET_TRANSFER', amount: { netSatang: input.amountSatang, vatSatang: 0n }, chargedDepartmentId: department, conflictMemberIds: [input.submitterMemberId] }
 }

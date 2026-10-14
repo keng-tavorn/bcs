@@ -1500,6 +1500,50 @@ def run_ai_text(d):
         if got is None: got = {"ok": True, "rendered": rendered}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def run_budget_change(d):
+    # BR-BUD-09 to BR-BUD-11 (S6-15): a transfer or a decrease reserves its source at submit (all or BUDGET_INSUFFICIENT);
+    # approved, the reservation leaves the source (AVAILABLE → OUTSIDE, funded down) and enters the destination
+    # (OUTSIDE → AVAILABLE, funded up); rejected, it comes back. The DOA input: net = the amount, vat 0, the department of
+    # the source (TRANSFER DECREASE) or the destination (INCREASE), the sender as the conflict
+    out = []
+    for c in d["cases"]:
+        if c.get("fn") == "transferDoaInput":
+            i = c["input"]; dept = (i["to"] if i["kind"] == "INCREASE" else i["from"])["department"]
+            got = {"documentType": "BUDGET_TRANSFER", "net": i["amount"], "vat": "0.00", "department": dept, "conflict": [i["submitter"]]}
+            out.append((c["id"], got == c["expect"], got)); continue
+        lines = {k: {"available": 0, "reserved": 0, "committed": 0, "actual": 0, "funded": 0} for k in ("A", "B")}
+        held = {}; transfers = {}; ok = True; trace = []
+        for st in c["steps"]:
+            op = st["op"]; err = None
+            if op == "fund":
+                L = lines[st["line"]]; a = sat(st["amount"]); L["available"] += a; L["funded"] += a
+            elif op == "submitTransfer":
+                kind = st.get("kind", "TRANSFER"); a = sat(st["amount"]); transfers[st["id"]] = {"kind": kind, "from": st.get("from"), "to": st.get("to"), "amount": a}
+                if kind != "INCREASE":
+                    L = lines[st["from"]]
+                    if a > L["available"]: err = ("BUDGET_INSUFFICIENT", a - L["available"]); del transfers[st["id"]]
+                    else: L["available"] -= a; L["reserved"] += a; held[st["id"]] = a
+            elif op == "approveTransfer":
+                t = transfers[st["id"]]
+                if t["kind"] != "INCREASE":
+                    L = lines[t["from"]]; h = held.pop(st["id"]); L["reserved"] -= h; L["funded"] -= h
+                if t["kind"] != "DECREASE":
+                    L = lines[t["to"]]; L["available"] += t["amount"]; L["funded"] += t["amount"]
+            elif op == "rejectTransfer":
+                t = transfers[st["id"]]
+                if st["id"] in held:
+                    L = lines[t["from"]]; h = held.pop(st["id"]); L["reserved"] -= h; L["available"] += h
+            if "expectError" in st:
+                ok = ok and err is not None and err[0] == st["expectError"] and ("shortfall" not in st or baht(err[1]) == st["shortfall"])
+            elif err is not None: ok = False
+            for ln, exp in (st.get("expect") or {}).items():
+                for k, v in exp.items():
+                    if baht(lines[ln][k]) != v: ok = False; trace.append(f"{st['op']} {ln}.{k}={baht(lines[ln][k])}")
+            # INV-BUD-01 · INV-BUD-07: the buckets add up to what the line holds
+            for L in lines.values():
+                if L["available"] + L["reserved"] + L["committed"] + L["actual"] != L["funded"]: ok = False; trace.append("INV-BUD-01")
+        out.append((c["id"], ok, trace or "ok"))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1512,6 +1556,7 @@ RUNNERS = {
     "ai-verify": run_ai_verify,
     "ap": run_ap,
     "budget": run_budget,
+    "budget-change": run_budget_change,
     "consolidation": run_cons,
     "dates": run_dates,
     "delegation": run_delegation,

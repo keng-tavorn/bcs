@@ -2613,6 +2613,50 @@ cases:
   - { id: GC-DUP-13, title: แผนกเดียวกันแต่คนละผู้ขายและคนละของ, input: { candidate: { amount: "15000.00", lines: [{ d: B, uom: ชุด, qty: "1" }] }, recent: [{ ref: R1, requester: u2, supplier: S2, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "8000.00", lines: [{ d: C, uom: ชุด, qty: "1" }] }] }, expect: { flags: [] } }
 ```
 
+```yaml
+# tests/golden/budget-change.yaml
+suite: budget-change
+# บรรทัด A (แผนก CON) และ B (แผนก IT) ปีงบเดียวกัน · expect ต่อบรรทัดหลัง step: available reserved committed actual funded
+# op: fund | reserve | release | submitTransfer | approveTransfer | rejectTransfer | approveOverrun | consumeOverrun | lapseOverrun | approvePo | closePo
+# approvePo: คืนจองของคำขอ (release) แล้วถือยอด PO บรรทัด (hold) ในคำสั่งเดียว · closePo: ตัดยอดใบกำกับใบสุดท้าย (actual) แล้วคืนถือที่เหลือ
+# used returned = ของ overrun ตอนใช้หรือหมดอายุ · returnedAfterUse = คืนหลังใช้ตาม BR-BUD-18 (สะสม)
+cases:
+  # S6-15 · โอนและปรับงบ (BR-BUD-09 ถึง BR-BUD-11)
+  - id: GC-BUD-08
+    title: โอนจาก A ไป B
+    steps:
+      - { op: fund, line: A, amount: "500000.00" }
+      - { op: fund, line: B, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "150000.00", expect: { A: { available: "350000.00", reserved: "150000.00", funded: "500000.00" }, B: { available: "100000.00", funded: "100000.00" } } }
+      - { op: approveTransfer, id: T1, expect: { A: { available: "350000.00", reserved: "0.00", funded: "350000.00" }, B: { available: "250000.00", funded: "250000.00" } } }
+  - id: GC-BUD-09
+    title: โอนเกินคงเหลือ 1 สตางค์ แล้วโอนเท่าคงเหลือพอดี
+    steps:
+      - { op: fund, line: A, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "100000.01", expectError: BUDGET_INSUFFICIENT, shortfall: "0.01", expect: { A: { available: "100000.00", reserved: "0.00" } } }
+      - { op: submitTransfer, id: T2, from: A, to: B, amount: "100000.00", expect: { A: { available: "0.00", reserved: "100000.00" } } }
+  - id: GC-BUD-10
+    title: ไม่อนุมัติการโอน คืนการจองต้นทาง
+    steps:
+      - { op: fund, line: A, amount: "500000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "150000.00" }
+      - { op: rejectTransfer, id: T1, expect: { A: { available: "500000.00", reserved: "0.00", funded: "500000.00" }, B: { available: "0.00", funded: "0.00" } } }
+  - id: GC-BUD-11
+    title: ปรับลดงบ
+    steps:
+      - { op: fund, line: A, amount: "200000.00" }
+      - { op: submitTransfer, id: T1, kind: DECREASE, from: A, amount: "50000.00" }
+      - { op: approveTransfer, id: T1, expect: { A: { available: "150000.00", reserved: "0.00", funded: "150000.00" } } }
+  - id: GC-BUD-12
+    title: ปรับเพิ่มงบ
+    steps:
+      - { op: fund, line: B, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, kind: INCREASE, to: B, amount: "30000.00", expect: { B: { available: "100000.00", funded: "100000.00" } } }
+      - { op: approveTransfer, id: T1, expect: { B: { available: "130000.00", funded: "130000.00" } } }
+  - { id: GC-BUD-13, fn: transferDoaInput, input: { kind: TRANSFER, from: { department: CON }, to: { department: IT }, amount: "300000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "300000.00", vat: "0.00", department: CON, conflict: [u1] } }
+  - { id: GC-BUD-14, fn: transferDoaInput, input: { kind: INCREASE, to: { department: IT }, amount: "30000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "30000.00", vat: "0.00", department: IT, conflict: [u1] } }
+```
+
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
 
 หัวข้อนี้จองให้ขั้น S8 (สาย 2): กฎ BR INV และ golden ของ S8 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S8.md`) · กฎของตระกูลเดิม (BR-VAT BR-IVC BR-MATCH BR-WHT) อยู่ในตารางของ §7.1 §7.12 และ §7.14
@@ -4495,7 +4539,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       36 ไฟล์ · 394 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       37 ไฟล์ · 401 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

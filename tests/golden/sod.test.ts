@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { checkSod, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
 import { loadYaml, pick } from './doa-fixtures'
 
-// tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-09.
+// tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9).
 
 interface SodCase {
   id: string
   title?: string
   input: {
-    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE'
+    action: 'DECIDE_APPROVAL' | 'POST_GR' | 'PROPOSE_ORG_AUTHORITY_CHANGE' | 'PREPARE_PAYMENT'
     actor: string
     requester?: string
     approvers?: string[]
@@ -16,6 +16,10 @@ interface SodCase {
     poCreator?: string
     kind?: OrgAuthorityChangeKind
     beneficiary?: string
+    invoiceRecorders?: string[]
+    payDate?: string
+    recentBankChangeDays?: number
+    bankChanges?: Array<{ proposer: string; effectiveOn: string }>
   }
   expect: Record<string, unknown>
 }
@@ -23,9 +27,19 @@ interface SodCase {
 const suite = loadYaml<{ sodPolicy: { approverMayReceive: boolean; requesterMayReceive: boolean }; cases: SodCase[] }>('sod.yaml')
 
 function action(i: SodCase['input']): SodAction {
+  const recentBankChanges = i.bankChanges ? { payDate: i.payDate!, recentBankChangeDays: i.recentBankChangeDays!, changes: i.bankChanges.map((b) => ({ proposerMemberId: b.proposer, effectiveOn: b.effectiveOn })) } : undefined
+  if (i.action === 'PREPARE_PAYMENT') return { kind: 'PREPARE_PAYMENT', actorMemberId: i.actor, recentBankChanges: recentBankChanges! }
   if (i.action === 'POST_GR') return { kind: 'POST_GR', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [], approverMemberIds: i.approvers ?? [] }
   if (i.action === 'PROPOSE_ORG_AUTHORITY_CHANGE') return { kind: 'PROPOSE_ORG_AUTHORITY_CHANGE', changeKind: i.kind!, actorMemberId: i.actor, beneficiaryMemberId: i.beneficiary ?? null }
-  return { kind: 'DECIDE_APPROVAL', subject: i.subject ?? 'REQUEST', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [], poCreatorMemberId: i.poCreator ?? null }
+  return {
+    kind: 'DECIDE_APPROVAL',
+    subject: i.subject ?? 'REQUEST',
+    actorMemberId: i.actor,
+    requesterMemberIds: i.requester ? [i.requester] : [],
+    poCreatorMemberId: i.poCreator ?? null,
+    ...(i.invoiceRecorders ? { invoiceRecorderMemberIds: i.invoiceRecorders } : {}),
+    ...(recentBankChanges ? { recentBankChanges } : {}),
+  }
 }
 
 describe('golden sod.yaml', () => {

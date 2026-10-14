@@ -513,6 +513,10 @@ def run_delegation(d):
                     else: got = {"assignee": x["delegate"], "principal": ap}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def sod_recent_change(i):  # BR-SOD-10: the actor proposed a bank change in force within recentBankChangeDays before payDate
+    if not i.get("bankChanges"): return False
+    since = (datetime.strptime(i["payDate"], "%Y-%m-%d") - timedelta(days=i["recentBankChangeDays"])).date().isoformat()
+    return any(b["proposer"] == i["actor"] and b["effectiveOn"] >= since for b in i["bankChanges"])
 def run_sod(d):
     st, out = d["sodPolicy"], []
     for c in d["cases"]:
@@ -523,8 +527,14 @@ def run_sod(d):
             subj = i.get("subject", "REQUEST")
             if subj == "ORG_AUTHORITY_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-08"
             elif subj == "DOA_VERSION" and i["actor"] == i.get("requester"): rule = "BR-SOD-06"
+            elif subj == "PAYMENT_RUN" and i["actor"] == i.get("requester"): rule = "BR-SOD-09"
+            elif subj == "PAYMENT_RUN" and i["actor"] in i.get("invoiceRecorders", []): rule = "BR-SOD-04"
+            elif subj == "PAYMENT_RUN" and sod_recent_change(i): rule = "BR-SOD-10"
+            elif subj == "BANK_ACCOUNT_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-05"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
+        elif i["action"] == "PREPARE_PAYMENT":
+            if sod_recent_change(i): rule = "BR-SOD-10"
         elif i["action"] == "POST_GR":
             if not st["approverMayReceive"] and i["actor"] in i.get("approvers", []): rule = "BR-SOD-02"
             elif i["actor"] == i.get("requester") and not st["requesterMayReceive"]: rule = "BR-SOD-07"
@@ -1264,6 +1274,64 @@ def run_ai_text(d):
         if got is None: got = {"ok": True, "rendered": rendered}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำนวณอิสระด้วยจำนวนเต็มสตางค์ (S9-02)
+    cal, pol, out = d["calendar"], d["policy"], []
+    names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    day = lambda s: datetime.strptime(s, "%Y-%m-%d").date()
+    iso = lambda x: x.isoformat()
+    def workday(x): return names[x.weekday()] in cal["workdays"] and iso(x) not in cal["holidays"]
+    def thai_today(at): return iso((datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=7)).date())
+    def item(docs):
+        payable = sum(sat(x["payable"]) for x in docs); groups = {}
+        for x in docs:
+            for l in x.get("whtLines", []):
+                k = (l["incomeType"], l["rateBp"]); groups[k] = groups.get(k, 0) + sat(l["base"])
+        lines = [{"incomeType": k[0], "rateBp": k[1], "base": baht(b), "wht": baht(rhu(b * k[1], 10000))} for k, b in groups.items()]
+        wht = sum(rhu(b * k[1], 10000) for k, b in groups.items()); transfer = payable - wht
+        if transfer <= 0: return {"error": "PAYMENT_ITEM_NOT_POSITIVE", "transfer": baht(transfer)}
+        return {"payable": baht(payable), "whtLines": lines, "wht": baht(wht), "transfer": baht(transfer)}
+    def next_run(today):
+        t = day(today); x = t
+        while True:
+            if names[x.weekday()] in pol["runWeekdays"]:
+                c = x
+                while not workday(c): c += timedelta(days=-1 if pol["holidayShift"] == "PREVIOUS" else 1)
+                if c >= t: return iso(c)
+            x += timedelta(days=1)
+    order = ["REGISTRY_CHANGED", "SUPPLIER_INACTIVE", "RISK_OVERRIDE_EXPIRED", "PREVIOUSLY_EXPORTED", "BANK_ACCOUNT_RECENTLY_CHANGED", "BANK_CHANGE_PENDING", "SHARED_BANK_ACCOUNT"]
+    for c in d["cases"]:
+        fn, i = c["fn"], c["input"]
+        if fn == "buildItem": got = item(i["docs"])
+        elif fn == "buildRun":
+            items = []
+            for n, s in enumerate(sorted(i["suppliers"], key=lambda s: s["code"]), 1):
+                r = item(s["docs"]); items.append({"seq": n, "code": s["code"], "payable": r["payable"], "wht": r["wht"], "transfer": r["transfer"]})
+            tot = lambda f: baht(sum(sat(x[f]) for x in items))
+            got = {"items": items, "totals": {"payable": tot("payable"), "wht": tot("wht"), "transfer": tot("transfer"), "itemCount": len(items), "documentCount": sum(len(s["docs"]) for s in i["suppliers"])}}
+        elif fn == "nextRunDate": got = next_run(i["today"])
+        elif fn == "checkPayDate":
+            today = thai_today(i["at"])
+            got = {"error": "PAYMENT_DATE_INVALID", "reason": "PAST"} if i["payDate"] < today else ({"error": "PAYMENT_DATE_INVALID", "reason": "NOT_BUSINESS_DAY"} if not workday(day(i["payDate"])) else {"ok": True})
+        elif fn == "proposeDocuments": got = {"proposed": [x["id"] for x in i["docs"] if x["kind"] == "RETENTION" or x["dueDate"] <= i["payDate"]]}
+        elif fn == "checkPaidOn":
+            today = thai_today(i["at"])
+            got = {"error": "VALIDATION_FAILED", "reason": "PAID_ON_BEFORE_PAY_DATE"} if i["paidOn"] < i["payDate"] else ({"error": "VALIDATION_FAILED", "reason": "PAID_ON_FUTURE"} if i["paidOn"] > today else {"ok": True})
+        elif fn == "itemFlags":
+            s, a, f = i["supplier"], i["account"], set()
+            if s["registryFlag"] != "NONE": f.add("REGISTRY_CHANGED")
+            if s["status"] != "ACTIVE": f.add("SUPPLIER_INACTIVE")
+            if any(o["expiresOn"] < i["payDate"] for o in i.get("riskOverrides", [])): f.add("RISK_OVERRIDE_EXPIRED")
+            if i.get("previouslyExported"): f.add("PREVIOUSLY_EXPORTED")
+            if not a["fromSeed"] and a["activatedOn"] >= iso(day(i["payDate"]) - timedelta(days=pol["recentBankChangeDays"])): f.add("BANK_ACCOUNT_RECENTLY_CHANGED")
+            if i.get("pendingChange"): f.add("BANK_CHANGE_PENDING")
+            if any(t != s["taxId"] for t in i.get("sameAccountTaxIds", [])): f.add("SHARED_BANK_ACCOUNT")
+            flags = [x for x in order if x in f]
+            got = {"flags": flags, "requiresReason": any(x in order[:4] for x in flags)}
+        elif fn == "flagsKey":
+            got = ";".join(f'{x["code"]}:{"+".join(y for y in order if y in x["flags"])}' for x in sorted(i["items"], key=lambda x: x["code"]) if x["flags"])
+        else: got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1288,6 +1356,7 @@ RUNNERS = {
     "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,
+    "payment-run": run_payment_run,
     "po-change": run_po_change,
     "quotations": run_quotes,
     "receiving": run_gr,

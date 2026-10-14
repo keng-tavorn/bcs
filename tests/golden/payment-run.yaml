@@ -1,0 +1,79 @@
+# tests/golden/payment-run.yaml
+suite: payment-run
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], holidays: ["2026-10-13", "2026-10-23"] }
+policy: { runWeekdays: [FRI], holidayShift: PREVIOUS, recentBankChangeDays: 30 }
+cases:
+  # ---- ยอดต่อรายการ (BR-PAY-04) ----
+  - { id: GC-PAY-01, title: ใบเดียวไม่มีภาษีหัก, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "107000.00" }] }, expect: { payable: "107000.00", whtLines: [], wht: "0.00", transfer: "107000.00" } }
+  - { id: GC-PAY-02, title: "ค่าบริการ 10,000 VAT 7% หัก 3% · transfer ตรง payable ของ GC-WHT-01", fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "10700.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "10000.00" }] }] }, expect: { payable: "10700.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "10000.00", wht: "300.00" }], wht: "300.00", transfer: "10400.00" } }
+  - id: GC-PAY-03
+    title: สองใบประเภทเดียวกัน ปัดครั้งเดียวต่อกลุ่ม (21.01 ไม่ใช่ 10.51 + 10.51)
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "1124.04", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "1050.50" }] }
+        - { kind: INVOICE, payable: "1124.04", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "1050.50" }] }
+    expect: { payable: "2248.08", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "2101.00", wht: "21.01" }], wht: "21.01", transfer: "2227.07" }
+  - id: GC-PAY-04
+    title: สองประเภทเงินได้ในผู้ขายเดียว ปัดแยกกลุ่ม
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "103683.00", whtLines: [{ incomeType: RENT, rateBp: 500, base: "96900.00" }] }
+        - { kind: INVOICE, payable: "4815.00", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "4500.00" }] }
+    expect: { payable: "108498.00", whtLines: [{ incomeType: RENT, rateBp: 500, base: "96900.00", wht: "4845.00" }, { incomeType: TRANSPORT, rateBp: 100, base: "4500.00", wht: "45.00" }], wht: "4890.00", transfer: "103608.00" }
+  - { id: GC-PAY-05, title: ภาษีหัก 0.5 สตางค์ ปัดขึ้น, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.54", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.50" }] }] }, expect: { payable: "0.54", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.50", wht: "0.01" }], wht: "0.01", transfer: "0.53" } }
+  - { id: GC-PAY-06, title: ภาษีหัก 0.49 สตางค์ ปัดลง, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.52", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.49" }] }] }, expect: { payable: "0.52", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.49", wht: "0.00" }], wht: "0.00", transfer: "0.52" } }
+  - id: GC-PAY-07
+    title: ใบงวดกับคืนเงินประกันในรายการเดียว ปัดครั้งเดียว (ตรง GC-WHT-21 และ GC-RET-05)
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "755820.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "703950.00" }] }
+        - { kind: RETENTION, payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }
+    expect: { payable: "792870.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "741000.00", wht: "22230.00" }], wht: "22230.00", transfer: "770640.00" }
+  - { id: GC-PAY-08, title: คืนเงินประกันอย่างเดียว (ตรง GC-RET-09), fn: buildItem, input: { docs: [{ kind: RETENTION, payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }] }, expect: { payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00", wht: "1111.50" }], wht: "1111.50", transfer: "35938.50" } }
+  - { id: GC-PAY-09, title: เอกสารยอดศูนย์, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.00" }] }, expect: { error: PAYMENT_ITEM_NOT_POSITIVE, transfer: "0.00" } }
+  # ---- ยอดของรอบและลำดับ (BR-PAY-05) ----
+  - id: GC-PAY-10
+    title: หลายผู้ขาย seq ตามรหัสผู้ขาย และยอดรวมของรอบ
+    fn: buildRun
+    input:
+      suppliers:
+        - { code: SP0171, docs: [{ kind: INVOICE, payable: "17616.48" }, { kind: INVOICE, payable: "19536.06" }] }
+        - { code: SP0076, docs: [{ kind: INVOICE, payable: "114687.95", whtLines: [{ incomeType: RENT, rateBp: 500, base: "107185.00" }] }] }
+        - { code: SP0135, docs: [{ kind: INVOICE, payable: "17655.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "16500.00" }] }] }
+    expect:
+      items:
+        - { seq: 1, code: SP0076, payable: "114687.95", wht: "5359.25", transfer: "109328.70" }
+        - { seq: 2, code: SP0135, payable: "17655.00", wht: "495.00", transfer: "17160.00" }
+        - { seq: 3, code: SP0171, payable: "37152.54", wht: "0.00", transfer: "37152.54" }
+      totals: { payable: "169495.49", wht: "5854.25", transfer: "163641.24", itemCount: 3, documentCount: 4 }
+  # ---- วันจ่าย ข้อเสนอเอกสาร และวันที่โอน (BR-PAY-02 BR-PAY-03 BR-PAY-12 · ปฏิทินของ suite) ----
+  - { id: GC-PAY-11, title: จันทร์ → ศุกร์ถัดไป, fn: nextRunDate, input: { today: "2026-10-12" }, expect: "2026-10-16" }
+  - { id: GC-PAY-12, title: ศุกร์เป็นวันหยุด เลื่อนเป็นพฤหัสบดี, fn: nextRunDate, input: { today: "2026-10-19" }, expect: "2026-10-22" }
+  - { id: GC-PAY-13, title: วันนี้เป็นวันรอบ, fn: nextRunDate, input: { today: "2026-10-16" }, expect: "2026-10-16" }
+  - { id: GC-PAY-14, title: วันนี้เป็นวันหยุดที่เลื่อนแล้วผ่านไปแล้ว ใช้รอบถัดไป, fn: nextRunDate, input: { today: "2026-10-23" }, expect: "2026-10-30" }
+  - { id: GC-PAY-15, title: วันจ่ายเป็นวันหยุด, fn: checkPayDate, input: { payDate: "2026-10-13", at: "2026-10-12T03:00:00Z" }, expect: { error: PAYMENT_DATE_INVALID, reason: NOT_BUSINESS_DAY } }
+  - { id: GC-PAY-16, title: เลยเที่ยงคืนเวลาไทยแล้ว วันจ่ายเมื่อวาน, fn: checkPayDate, input: { payDate: "2026-10-15", at: "2026-10-15T17:30:00Z" }, expect: { error: PAYMENT_DATE_INVALID, reason: PAST } }
+  - { id: GC-PAY-17, title: วันจ่ายเป็นวันนี้ตามเวลาไทย, fn: checkPayDate, input: { payDate: "2026-10-16", at: "2026-10-15T17:30:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-18, title: เสนอใบที่ครบกำหนดไม่เกินวันจ่ายและเงินประกันที่คืนแล้ว, fn: proposeDocuments, input: { payDate: "2026-10-16", docs: [{ id: I1, kind: INVOICE, dueDate: "2026-10-15" }, { id: I2, kind: INVOICE, dueDate: "2026-10-16" }, { id: I3, kind: INVOICE, dueDate: "2026-10-17" }, { id: R1, kind: RETENTION }] }, expect: { proposed: [I1, I2, R1] } }
+  - { id: GC-PAY-19, title: วันที่โอนก่อนวันจ่าย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-15", at: "2026-10-16T05:00:00Z" }, expect: { error: VALIDATION_FAILED, reason: PAID_ON_BEFORE_PAY_DATE } }
+  - { id: GC-PAY-20, title: วันที่โอนเท่าวันจ่าย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-16", at: "2026-10-16T05:00:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-21, title: วันที่โอนเป็นวันนี้ตามเวลาไทยหลังเที่ยงคืน, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-19", at: "2026-10-18T17:30:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-22, title: วันที่โอนเป็นพรุ่งนี้ตามเวลาไทย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-19", at: "2026-10-18T16:59:00Z" }, expect: { error: VALIDATION_FAILED, reason: PAID_ON_FUTURE } }
+  # ---- ธง (BR-PAY-06 · payDate 2026-10-16) ----
+  - { id: GC-PAY-23, title: ผู้ขายเลิกกิจการ, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: CEASED, status: ACTIVE, taxId: "0999998010311" }, account: { activatedOn: "2026-01-05", fromSeed: false } }, expect: { flags: [REGISTRY_CHANGED], requiresReason: true } }
+  - { id: GC-PAY-24, title: ผู้ขายออกจากระบบ VAT, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: VAT_CANCELLED, status: ACTIVE, taxId: "0999998010110" }, account: { activatedOn: "2026-01-05", fromSeed: false } }, expect: { flags: [REGISTRY_CHANGED], requiresReason: true } }
+  - { id: GC-PAY-25, title: บัญชีมีผล 30 วันก่อนวันจ่ายพอดี, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-09-16", fromSeed: false } }, expect: { flags: [BANK_ACCOUNT_RECENTLY_CHANGED], requiresReason: false } }
+  - { id: GC-PAY-26, title: บัญชีมีผล 31 วันก่อนวันจ่าย, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-09-15", fromSeed: false } }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-27, title: ผู้ขายไม่ใช้งานและมีคำขอเปลี่ยนบัญชีค้าง, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: INACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, pendingChange: true }, expect: { flags: [SUPPLIER_INACTIVE, BANK_CHANGE_PENDING], requiresReason: true } }
+  - { id: GC-PAY-28, title: บัญชีเดียวกับผู้ขายเลขผู้เสียภาษีอื่น, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, sameAccountTaxIds: ["0999998011008"] }, expect: { flags: [SHARED_BANK_ACCOUNT], requiresReason: false } }
+  - { id: GC-PAY-29, title: บัญชีเดียวกับสาขาของเลขผู้เสียภาษีเดียวกัน, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, sameAccountTaxIds: ["0999998010560"] }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-30, title: การอนุมัติข้ามหมดอายุก่อนวันจ่าย (input จาก S11), fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, riskOverrides: [{ expiresOn: "2026-10-15" }] }, expect: { flags: [RISK_OVERRIDE_EXPIRED], requiresReason: true } }
+  - { id: GC-PAY-31, title: การอนุมัติข้ามหมดวันจ่ายพอดียังไม่หมด, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, riskOverrides: [{ expiresOn: "2026-10-16" }] }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-32, title: เคยอยู่ในไฟล์ที่ดาวน์โหลดแล้วและบัญชีเพิ่งเปลี่ยน (ฉาก SP0056), fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-10-09", fromSeed: false }, previouslyExported: true }, expect: { flags: [PREVIOUSLY_EXPORTED, BANK_ACCOUNT_RECENTLY_CHANGED], requiresReason: true } }
+  # ---- ข้อความธงที่ผู้อนุมัติต้องส่ง (BR-PAY-07) ----
+  - { id: GC-PAY-33, title: เรียงตามรหัสผู้ขายและข้ามรายการที่ไม่มีธง, fn: flagsKey, input: { items: [{ code: SP0076, flags: [] }, { code: SP0056, flags: [BANK_ACCOUNT_RECENTLY_CHANGED] }, { code: SP0031, flags: [REGISTRY_CHANGED] }] }, expect: "SP0031:REGISTRY_CHANGED;SP0056:BANK_ACCOUNT_RECENTLY_CHANGED" }
+  - { id: GC-PAY-34, title: หลายธงในรายการเดียวเรียงตามลำดับของกฎ, fn: flagsKey, input: { items: [{ code: SP0120, flags: [BANK_CHANGE_PENDING, SUPPLIER_INACTIVE] }] }, expect: "SP0120:SUPPLIER_INACTIVE+BANK_CHANGE_PENDING" }
+  - { id: GC-PAY-35, title: ไม่มีธง, fn: flagsKey, input: { items: [{ code: SP0076, flags: [] }] }, expect: "" }

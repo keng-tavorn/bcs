@@ -1159,7 +1159,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching}` (ai-checks เพิ่มใน S13-02)
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,payment}` (ai-checks เพิ่มใน S13-02 · payment เพิ่มใน S9-02)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -1782,6 +1782,13 @@ cases:
   - { id: GC-SOD-07, title: ผู้เสนออนุมัติการเปลี่ยนของตัวเอง, input: { action: DECIDE_APPROVAL, subject: ORG_AUTHORITY_CHANGE, actor: admin, requester: admin }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
   - { id: GC-SOD-08, title: ORG_ADMIN เสนอตัวเองเป็นผู้รักษาการแทน CEO, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: DELEGATION_ON_BEHALF, actor: admin, beneficiary: admin, delegator: ceo }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
   - { id: GC-SOD-09, title: ORG_ADMIN เสนอแต่งตั้งคนอื่น, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: POSITION_ASSIGN, actor: admin, beneficiary: dm_it, position: "DM@IT" }, expect: { ok: true } }
+  - { id: GC-SOD-10, title: ผู้เตรียมรอบจ่ายอนุมัติเอง, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: fin_tre1, requester: fin_tre1, invoiceRecorders: [fin_ap1] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-09 } }
+  - { id: GC-SOD-11, title: ผู้บันทึกใบแจ้งหนี้ในรอบอนุมัติรอบ, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: fin_ap2, requester: fin_tre1, invoiceRecorders: [fin_ap1, fin_ap2] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-04 } }
+  - { id: GC-SOD-12, title: CFO อนุมัติรอบที่ผู้อื่นเตรียม, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: cfo, requester: fin_tre1, invoiceRecorders: [fin_ap1] }, expect: { ok: true } }
+  - { id: GC-SOD-13, title: ผู้เสนอเปลี่ยนบัญชีอนุมัติเอง, input: { action: DECIDE_APPROVAL, subject: BANK_ACCOUNT_CHANGE, actor: fin_ap1, requester: fin_ap1 }, expect: { error: SOD_VIOLATION, rule: BR-SOD-05 } }
+  - { id: GC-SOD-14, title: ผู้เสนอเปลี่ยนบัญชีเตรียมรอบที่จ่ายเข้าบัญชีนั้นภายใน 30 วัน, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-16" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
+  - { id: GC-SOD-15, title: การเปลี่ยนบัญชีเกิน 30 วันแล้ว, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-15" }] }, expect: { ok: true } }
+  - { id: GC-SOD-16, title: ผู้เสนอเปลี่ยนบัญชีภายใน 30 วันอนุมัติรอบที่จ่ายเข้าบัญชีนั้น, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: dm_fin, requester: fin_tre1, invoiceRecorders: [fin_ap1], payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: dm_fin, effectiveOn: "2026-09-20" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
 ```
 
 ### 7.6 รักษาการ (Delegation)
@@ -2563,6 +2570,90 @@ cases:
 | INV-PAY-03 | หลังส่งอนุมัติ ยอด รายการ snapshot บัญชี และชุดลิงก์ของรอบไม่เปลี่ยน (ยกเว้นตีกลับเป็น DRAFT ช่องผลของรายการ และสถานะลิงก์ที่เปลี่ยนเป็น PAID หรือ RELEASED ตาม BR-PAY-10 BR-PAY-12) · ไฟล์ที่สร้างแล้วแก้ไม่ได้ | service guard + เทสต์ · trigger บน PaymentFile |
 | INV-PAY-04 | ผู้ขายมีบัญชี ACTIVE ไม่เกิน 1 บัญชี และบัญชี ACTIVE ทุกบัญชีมาจาก `BankAccountChange` ที่ APPROVED หรือจาก seed ขององค์กรตัวอย่าง | partial unique · เทสต์ |
 
+**Golden ของรอบจ่าย** (ปฏิทินและนโยบายของ suite · ยอดต่อรายการ ยอดของรอบ วันจ่าย ข้อเสนอเอกสาร วันที่โอน ธง และข้อความธง)
+
+```yaml
+# tests/golden/payment-run.yaml
+suite: payment-run
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], holidays: ["2026-10-13", "2026-10-23"] }
+policy: { runWeekdays: [FRI], holidayShift: PREVIOUS, recentBankChangeDays: 30 }
+cases:
+  # ---- ยอดต่อรายการ (BR-PAY-04) ----
+  - { id: GC-PAY-01, title: ใบเดียวไม่มีภาษีหัก, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "107000.00" }] }, expect: { payable: "107000.00", whtLines: [], wht: "0.00", transfer: "107000.00" } }
+  - { id: GC-PAY-02, title: "ค่าบริการ 10,000 VAT 7% หัก 3% · transfer ตรง payable ของ GC-WHT-01", fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "10700.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "10000.00" }] }] }, expect: { payable: "10700.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "10000.00", wht: "300.00" }], wht: "300.00", transfer: "10400.00" } }
+  - id: GC-PAY-03
+    title: สองใบประเภทเดียวกัน ปัดครั้งเดียวต่อกลุ่ม (21.01 ไม่ใช่ 10.51 + 10.51)
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "1124.04", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "1050.50" }] }
+        - { kind: INVOICE, payable: "1124.04", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "1050.50" }] }
+    expect: { payable: "2248.08", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "2101.00", wht: "21.01" }], wht: "21.01", transfer: "2227.07" }
+  - id: GC-PAY-04
+    title: สองประเภทเงินได้ในผู้ขายเดียว ปัดแยกกลุ่ม
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "103683.00", whtLines: [{ incomeType: RENT, rateBp: 500, base: "96900.00" }] }
+        - { kind: INVOICE, payable: "4815.00", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "4500.00" }] }
+    expect: { payable: "108498.00", whtLines: [{ incomeType: RENT, rateBp: 500, base: "96900.00", wht: "4845.00" }, { incomeType: TRANSPORT, rateBp: 100, base: "4500.00", wht: "45.00" }], wht: "4890.00", transfer: "103608.00" }
+  - { id: GC-PAY-05, title: ภาษีหัก 0.5 สตางค์ ปัดขึ้น, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.54", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.50" }] }] }, expect: { payable: "0.54", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.50", wht: "0.01" }], wht: "0.01", transfer: "0.53" } }
+  - { id: GC-PAY-06, title: ภาษีหัก 0.49 สตางค์ ปัดลง, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.52", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.49" }] }] }, expect: { payable: "0.52", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.49", wht: "0.00" }], wht: "0.00", transfer: "0.52" } }
+  - id: GC-PAY-07
+    title: ใบงวดกับคืนเงินประกันในรายการเดียว ปัดครั้งเดียว (ตรง GC-WHT-21 และ GC-RET-05)
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "755820.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "703950.00" }] }
+        - { kind: RETENTION, payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }
+    expect: { payable: "792870.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "741000.00", wht: "22230.00" }], wht: "22230.00", transfer: "770640.00" }
+  - { id: GC-PAY-08, title: คืนเงินประกันอย่างเดียว (ตรง GC-RET-09), fn: buildItem, input: { docs: [{ kind: RETENTION, payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }] }, expect: { payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00", wht: "1111.50" }], wht: "1111.50", transfer: "35938.50" } }
+  - { id: GC-PAY-09, title: เอกสารยอดศูนย์, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.00" }] }, expect: { error: PAYMENT_ITEM_NOT_POSITIVE, transfer: "0.00" } }
+  # ---- ยอดของรอบและลำดับ (BR-PAY-05) ----
+  - id: GC-PAY-10
+    title: หลายผู้ขาย seq ตามรหัสผู้ขาย และยอดรวมของรอบ
+    fn: buildRun
+    input:
+      suppliers:
+        - { code: SP0171, docs: [{ kind: INVOICE, payable: "17616.48" }, { kind: INVOICE, payable: "19536.06" }] }
+        - { code: SP0076, docs: [{ kind: INVOICE, payable: "114687.95", whtLines: [{ incomeType: RENT, rateBp: 500, base: "107185.00" }] }] }
+        - { code: SP0135, docs: [{ kind: INVOICE, payable: "17655.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "16500.00" }] }] }
+    expect:
+      items:
+        - { seq: 1, code: SP0076, payable: "114687.95", wht: "5359.25", transfer: "109328.70" }
+        - { seq: 2, code: SP0135, payable: "17655.00", wht: "495.00", transfer: "17160.00" }
+        - { seq: 3, code: SP0171, payable: "37152.54", wht: "0.00", transfer: "37152.54" }
+      totals: { payable: "169495.49", wht: "5854.25", transfer: "163641.24", itemCount: 3, documentCount: 4 }
+  # ---- วันจ่าย ข้อเสนอเอกสาร และวันที่โอน (BR-PAY-02 BR-PAY-03 BR-PAY-12 · ปฏิทินของ suite) ----
+  - { id: GC-PAY-11, title: จันทร์ → ศุกร์ถัดไป, fn: nextRunDate, input: { today: "2026-10-12" }, expect: "2026-10-16" }
+  - { id: GC-PAY-12, title: ศุกร์เป็นวันหยุด เลื่อนเป็นพฤหัสบดี, fn: nextRunDate, input: { today: "2026-10-19" }, expect: "2026-10-22" }
+  - { id: GC-PAY-13, title: วันนี้เป็นวันรอบ, fn: nextRunDate, input: { today: "2026-10-16" }, expect: "2026-10-16" }
+  - { id: GC-PAY-14, title: วันนี้เป็นวันหยุดที่เลื่อนแล้วผ่านไปแล้ว ใช้รอบถัดไป, fn: nextRunDate, input: { today: "2026-10-23" }, expect: "2026-10-30" }
+  - { id: GC-PAY-15, title: วันจ่ายเป็นวันหยุด, fn: checkPayDate, input: { payDate: "2026-10-13", at: "2026-10-12T03:00:00Z" }, expect: { error: PAYMENT_DATE_INVALID, reason: NOT_BUSINESS_DAY } }
+  - { id: GC-PAY-16, title: เลยเที่ยงคืนเวลาไทยแล้ว วันจ่ายเมื่อวาน, fn: checkPayDate, input: { payDate: "2026-10-15", at: "2026-10-15T17:30:00Z" }, expect: { error: PAYMENT_DATE_INVALID, reason: PAST } }
+  - { id: GC-PAY-17, title: วันจ่ายเป็นวันนี้ตามเวลาไทย, fn: checkPayDate, input: { payDate: "2026-10-16", at: "2026-10-15T17:30:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-18, title: เสนอใบที่ครบกำหนดไม่เกินวันจ่ายและเงินประกันที่คืนแล้ว, fn: proposeDocuments, input: { payDate: "2026-10-16", docs: [{ id: I1, kind: INVOICE, dueDate: "2026-10-15" }, { id: I2, kind: INVOICE, dueDate: "2026-10-16" }, { id: I3, kind: INVOICE, dueDate: "2026-10-17" }, { id: R1, kind: RETENTION }] }, expect: { proposed: [I1, I2, R1] } }
+  - { id: GC-PAY-19, title: วันที่โอนก่อนวันจ่าย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-15", at: "2026-10-16T05:00:00Z" }, expect: { error: VALIDATION_FAILED, reason: PAID_ON_BEFORE_PAY_DATE } }
+  - { id: GC-PAY-20, title: วันที่โอนเท่าวันจ่าย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-16", at: "2026-10-16T05:00:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-21, title: วันที่โอนเป็นวันนี้ตามเวลาไทยหลังเที่ยงคืน, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-19", at: "2026-10-18T17:30:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-22, title: วันที่โอนเป็นพรุ่งนี้ตามเวลาไทย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-19", at: "2026-10-18T16:59:00Z" }, expect: { error: VALIDATION_FAILED, reason: PAID_ON_FUTURE } }
+  # ---- ธง (BR-PAY-06 · payDate 2026-10-16) ----
+  - { id: GC-PAY-23, title: ผู้ขายเลิกกิจการ, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: CEASED, status: ACTIVE, taxId: "0999998010311" }, account: { activatedOn: "2026-01-05", fromSeed: false } }, expect: { flags: [REGISTRY_CHANGED], requiresReason: true } }
+  - { id: GC-PAY-24, title: ผู้ขายออกจากระบบ VAT, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: VAT_CANCELLED, status: ACTIVE, taxId: "0999998010110" }, account: { activatedOn: "2026-01-05", fromSeed: false } }, expect: { flags: [REGISTRY_CHANGED], requiresReason: true } }
+  - { id: GC-PAY-25, title: บัญชีมีผล 30 วันก่อนวันจ่ายพอดี, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-09-16", fromSeed: false } }, expect: { flags: [BANK_ACCOUNT_RECENTLY_CHANGED], requiresReason: false } }
+  - { id: GC-PAY-26, title: บัญชีมีผล 31 วันก่อนวันจ่าย, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-09-15", fromSeed: false } }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-27, title: ผู้ขายไม่ใช้งานและมีคำขอเปลี่ยนบัญชีค้าง, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: INACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, pendingChange: true }, expect: { flags: [SUPPLIER_INACTIVE, BANK_CHANGE_PENDING], requiresReason: true } }
+  - { id: GC-PAY-28, title: บัญชีเดียวกับผู้ขายเลขผู้เสียภาษีอื่น, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, sameAccountTaxIds: ["0999998011008"] }, expect: { flags: [SHARED_BANK_ACCOUNT], requiresReason: false } }
+  - { id: GC-PAY-29, title: บัญชีเดียวกับสาขาของเลขผู้เสียภาษีเดียวกัน, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, sameAccountTaxIds: ["0999998010560"] }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-30, title: การอนุมัติข้ามหมดอายุก่อนวันจ่าย (input จาก S11), fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, riskOverrides: [{ expiresOn: "2026-10-15" }] }, expect: { flags: [RISK_OVERRIDE_EXPIRED], requiresReason: true } }
+  - { id: GC-PAY-31, title: การอนุมัติข้ามหมดวันจ่ายพอดียังไม่หมด, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, riskOverrides: [{ expiresOn: "2026-10-16" }] }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-32, title: เคยอยู่ในไฟล์ที่ดาวน์โหลดแล้วและบัญชีเพิ่งเปลี่ยน (ฉาก SP0056), fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-10-09", fromSeed: false }, previouslyExported: true }, expect: { flags: [PREVIOUSLY_EXPORTED, BANK_ACCOUNT_RECENTLY_CHANGED], requiresReason: true } }
+  # ---- ข้อความธงที่ผู้อนุมัติต้องส่ง (BR-PAY-07) ----
+  - { id: GC-PAY-33, title: เรียงตามรหัสผู้ขายและข้ามรายการที่ไม่มีธง, fn: flagsKey, input: { items: [{ code: SP0076, flags: [] }, { code: SP0056, flags: [BANK_ACCOUNT_RECENTLY_CHANGED] }, { code: SP0031, flags: [REGISTRY_CHANGED] }] }, expect: "SP0031:REGISTRY_CHANGED;SP0056:BANK_ACCOUNT_RECENTLY_CHANGED" }
+  - { id: GC-PAY-34, title: หลายธงในรายการเดียวเรียงตามลำดับของกฎ, fn: flagsKey, input: { items: [{ code: SP0120, flags: [BANK_CHANGE_PENDING, SUPPLIER_INACTIVE] }] }, expect: "SP0120:SUPPLIER_INACTIVE+BANK_CHANGE_PENDING" }
+  - { id: GC-PAY-35, title: ไม่มีธง, fn: flagsKey, input: { items: [{ code: SP0076, flags: [] }] }, expect: "" }
+```
+
 ### 7.20 S17 · LINE และแอป BCS Go (จองโดย P1-07)
 
 หัวข้อนี้จองให้ขั้น S17 (สาย 1 ต่อจาก S6): กฎ BR INV และ golden ของ S17 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S17.md`) · ยังไม่มีเนื้อหา
@@ -3158,6 +3249,33 @@ cases:
 | FR-WF-301 | ตัวสร้าง workflow แบบลากวาง | S15 | 6.4 |
 | FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | S15 | 6.1 |
 | FR-NOTI-301 | adapter Microsoft Teams และ LINE WORKS | S15 | 5 |
+
+AC ของ FR ชั้น 2 ที่ขั้นของสายเขียนลงไว้ที่นี่ตาม checklist (ร่างและเจ้าของของแต่ละ AC อยู่ใน sub-spec ของขั้น · ac-map.yaml นับเฉพาะ FR ชั้น 1)
+
+**AC ของ FR-PAY-101** (รอบจ่ายเงิน รวมยอดผู้ขาย อนุมัติตาม DOA)
+ขั้น S9 · Web · LIFF · §7.19 · docs/sub-specs/S9.md
+- AC1 — FINANCE สร้างรอบ → ระบบเสนอวันจ่ายตาม `payment.runWeekdays` และวันหยุด และเสนอใบ `READY_FOR_PAYMENT` ที่ครบกำหนดไม่เกินวันจ่ายกับเงินประกันที่ `RELEASABLE` · วันจ่ายที่ไม่ใช่วันทำการหรือผ่านมาแล้ว → `PAYMENT_DATE_INVALID` (GC-PAY-11 ถึง GC-PAY-18)
+- AC2 — รวมยอดต่อผู้ขาย: หนึ่งรายการต่อผู้ขาย ยอดที่ต้องจ่ายของใบและเงินประกันที่คืน ภาษีหักตอนจ่ายรวมต่อกลุ่มในรายการ และยอดโอนตรง GC-PAY-01 ถึง GC-PAY-10 · ยอดโอนไม่เป็นบวก → `PAYMENT_ITEM_NOT_POSITIVE` · ระยะ 1 ไม่รับใบลดหนี้
+- AC3 — เอกสารหนึ่งรายการอยู่ได้ในรอบเดียวที่ยังไม่จบและจ่ายได้ครั้งเดียว: เพิ่มเอกสารที่ไม่พร้อมจ่ายหรือถูกถือโดยรอบอื่น → `DOCUMENT_NOT_PAYABLE` · ยิงเพิ่มเอกสารเดียวกันเข้า 2 รอบพร้อมกันสำเร็จรอบเดียว (INV-PAY-01)
+- AC4 — (§8.12) ผู้ขายที่สถานะทะเบียนเปลี่ยน (`registryFlag` ≠ NONE ตาม BR-SUP-04) หรือไม่ใช้งาน ถูกติดธงในรอบ (GC-PAY-23 ถึง GC-PAY-29) · ส่งโดยไม่ใส่เหตุผลของธงที่บังคับ → `PAYMENT_FLAG_REASON_REQUIRED`
+- AC5 — (§8.12) ผู้อนุมัติเห็นธงก่อนอนุมัติ: หน้าอนุมัติบนเว็บและ LIFF แสดงรายการที่มีธงก่อนพร้อมเหตุผล · อนุมัติด้วย `flagsKey` ที่ไม่ตรง (ธงเปลี่ยนหลังเปิดหน้า) → `PAYMENT_FLAGS_CHANGED` และงานยังเปิด (GC-PAY-33 ถึง GC-PAY-35) · การ์ด LINE ของรอบที่มีธงไม่มีปุ่มอนุมัติในแชท
+- AC6 — (§8.12) การอนุมัติข้ามหมดอายุ: ระยะ 1 ยังไม่มีการอนุมัติข้าม (S11 อยู่ระยะ 2) service จึงส่งรายการว่างและไม่เกิดธงนี้ · engine รับรายการการอนุมัติข้ามเป็น input และให้ธง `RISK_OVERRIDE_EXPIRED` ที่ต้องมีเหตุผล (GC-PAY-30 GC-PAY-31) · S11 เพิ่มแหล่งข้อมูลโดยไม่แก้ engine
+- AC7 — ส่งอนุมัติ → เส้นทาง DOA ชนิด `PAYMENT_RUN` ด้วยยอดโอนรวมและแผนกราก (GC-DOA-48 ถึง GC-DOA-52 ของฐานร่วม) · ผู้อนุมัติที่หาได้เป็นผู้เตรียม ผู้บันทึกใบแจ้งหนี้ในรอบ หรือผู้เสนอการเปลี่ยนบัญชีในช่วง BR-SOD-10 → ยกช่วงถัดไป (BR-DOA-06)
+- AC8 — SoD ตอนตัดสิน: ผู้เตรียม → `SOD_VIOLATION` (BR-SOD-09) · ผู้บันทึกใบแจ้งหนี้ในรอบ → `SOD_VIOLATION` (BR-SOD-04) · ผู้เสนอเปลี่ยนบัญชีที่มีผลภายใน N วันเตรียมหรืออนุมัติรอบที่จ่ายเข้าบัญชีนั้น → `SOD_VIOLATION` (BR-SOD-10) · ทุกครั้งมี `security.sod_blocked` (GC-SOD-10 ถึง GC-SOD-12 GC-SOD-14 ถึง GC-SOD-16)
+- AC9 — ยอดตั้งแต่ `stepUpThreshold` ต้อง step-up (BR-TOK-05 · PIN หรือ passkey ตาม `DECISION_STEP_UP_METHODS`) · ตีกลับ → DRAFT คงการถือเอกสาร ส่งซ้ำได้เส้นทางใหม่ · ไม่อนุมัติ → เอกสารกลับพร้อมจ่าย · แจ้งผู้เตรียมทุกการตัดสิน · ทุกการเปลี่ยนสถานะมี event
+- AC10 — ผู้ไม่มี `paymentRun.prepare` สร้างหรือแก้รอบ และคนที่ไม่ใช่ผู้เตรียมแก้ร่าง → `FORBIDDEN` · ปิดโมดูล `PAY` → `MODULE_DISABLED` · ปิด `PAY` ขณะมีรอบหรือคำขอเปลี่ยนบัญชีที่ยังไม่จบ → `MODULE_IN_USE` พร้อมรายการ (OQ-33)
+- AC11 — ยกเลิกรอบที่มีไฟล์ดาวน์โหลดแล้วโดยไม่ยืนยันว่ายังไม่ได้ส่งธนาคาร → `VALIDATION_FAILED` reason `EXPORT_CONFIRMATION_REQUIRED` · ยืนยันแล้วผู้อนุมัติได้รับแจ้ง และเอกสารที่ปล่อยติดธง `PREVIOUSLY_EXPORTED` ที่ต้องมีเหตุผลในรอบถัดไป (GC-PAY-32 · OQ-136)
+- AC12 — (`[go-live]`) ใบลดหนี้ของผู้ขายเดียวกันเข้ารายการ ลดทั้งยอดที่ต้องจ่ายและฐานภาษีหัก · ฐานของกลุ่มติดลบ → `VALIDATION_FAILED` reason `WHT_BASE_NEGATIVE` (เคสใน `payment-run-credit.yaml` · S9-17 หลัง S8-18 · OQ-129)
+
+**AC ของ FR-PAY-103** (บันทึกผลการจ่ายและแจ้งผู้ขาย)
+ขั้น S9 · Web · §7.19 · docs/sub-specs/S9.md
+- AC1 — FINANCE บันทึกผลต่อรายการ (สำเร็จพร้อมวันที่โอนในช่วง GC-PAY-19 ถึง GC-PAY-22 หรือไม่สำเร็จพร้อมเหตุผล) หรือ "สำเร็จทั้งรอบ ยกเว้นรายการที่เลือก" · บันทึกแล้วแก้ไม่ได้ในระยะ 1 · ครบทุกรายการ → COMPLETED
+- AC2 — สำเร็จ → ใบและเงินประกันของรายการเป็น `PAID` ผ่าน S8 ในธุรกรรมเดียวกัน · S8 บันทึก `WithholdingTax` ที่ผูก `paymentRunItemId` ผลรวมเท่าภาษีหักของรายการ และออก 50 ทวิ หนึ่งฉบับต่อรายการ · ไม่สำเร็จ → เอกสารกลับพร้อมจ่ายและเข้ารอบถัดไปได้พร้อมธง `PREVIOUSLY_EXPORTED` · ธุรกรรมล้ม = ไม่มีอะไรเปลี่ยนทั้งสองฝั่ง
+- AC3 — (§8.12) ระยะ 1 แจ้งผู้ขายทางอีเมล: หลังบันทึกสำเร็จสร้าง `SupplierNotice` 1 ฉบับต่อรายการถึงอีเมลในทะเบียน (ไทยและอังกฤษ · เลขรอบ วันที่โอน ยอดโอน เลขใบแจ้งหนี้ ภาษีหัก แนบ 50 ทวิ ถ้ามี · เลขบัญชี 4 ตัวท้าย) · บันทึกหรือส่งซ้ำไม่ส่งซ้ำ (dedupeKey) · ไม่มีอีเมล → `NO_EMAIL` · ส่งไม่สำเร็จ → แจ้งผู้เตรียม · ผู้ขายดูสถานะในพอร์ทัลได้เมื่อมี S7 (ระยะ 2) โดยอ่านจาก `PaymentRunItem` ชุดเดียวกัน
+- AC4 — ระยะ 1 บันทึกผลด้วยมือเพราะยังไม่รู้รูปแบบไฟล์ผลของธนาคาร (OQ-135) · การนำเข้าไฟล์ผลเป็นข้อ `[go-live]`
+- AC5 — ถอนการส่ง (SENT_TO_BANK → FILE_READY) ได้เมื่อยังไม่มีผลรายการใด พร้อมเหตุผล · มีผลแล้ว → `INVALID_STATE_TRANSITION`
+- AC6 — ผู้ไม่มี `paymentRun.recordResult` → `FORBIDDEN` · รอบจ่ายไม่สร้าง `BudgetLedgerEntry` ใด ๆ (BR-PAY-14)
+- AC7 — (`[go-live]`) ย้อนผลที่บันทึกผิดก่อนสร้างไฟล์สรุป ภ.ง.ด. ของเดือนนั้น: ภาษีหักและ 50 ทวิ ของรายการเป็นโมฆะ เอกสารกลับพร้อมจ่ายพร้อมธง และผู้ขายได้แจ้งถ้าเคยได้อีเมลแจ้งการชำระ (OQ-136)
 
 ### 8.12 เงื่อนไขล่วงหน้าที่ sub-spec ของชั้น 2–4 ต้องรวม
 
@@ -4378,7 +4496,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       34 ไฟล์ · 364 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       35 ไฟล์ · 406 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

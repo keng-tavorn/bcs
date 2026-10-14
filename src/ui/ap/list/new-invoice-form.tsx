@@ -1,9 +1,13 @@
 'use client'
 
-import { CircleAlert } from 'lucide-react'
+import { CircleAlert, Sparkles } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
+import { v4 as uuidv4 } from 'uuid'
+import { AiReadingStatus } from '../../ai/ai-review'
+import type { AiReadActions } from '../../ai/types'
+import { useAiRead } from '../../ai/use-ai-read'
 import { useSubmissionKey } from '../../form/submission-key'
 import { Button } from '../../shadcn/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../../shadcn/card'
@@ -27,6 +31,12 @@ export interface PoChoiceView {
 
 type Create = (input: { poId: string; sourceFileId: string | null }, idempotencyKey: string) => Promise<ApDraftOutcome>
 
+/** S13-20 (FR-AI-303 AC6): the Document Agent reads the file for the PO, then the draft is made from its reading */
+export interface NewInvoiceAi {
+  readonly read: AiReadActions
+  readonly createFromReading: (input: { agentActionId: string }, idempotencyKey: string) => Promise<ApDraftOutcome>
+}
+
 async function sendFile(poId: string, file: File): Promise<ApFileOutcome> {
   try {
     const response = await fetch(`/finance/invoices/new/file?po=${encodeURIComponent(poId)}`, {
@@ -40,8 +50,14 @@ async function sendFile(poId: string, file: File): Promise<ApFileOutcome> {
   }
 }
 
-export function NewInvoiceForm({ pos, create }: { pos: readonly PoChoiceView[]; create: Create }) {
+export function NewInvoiceForm({ pos, create, ai }: { pos: readonly PoChoiceView[]; create: Create; ai?: NewInvoiceAi }) {
   const t = useTranslations('apList.new')
+  const tai = useTranslations('aiAssist.invoice')
+  const reader = useAiRead(ai?.read)
+  // The draft from a reading has its own submission key, and the reading of a kept file is made once: a retry after no
+  // answer sends the same reading with the same key (spec §4.3), and never pays for the same file twice
+  const aiSubmission = useSubmissionKey()
+  const [readOf, setReadOf] = useState<{ poId: string; fileId: string; agentActionId: string } | null>(null)
   const te = useTranslations('apList.errors')
   const router = useRouter()
   const submission = useSubmissionKey()
@@ -50,7 +66,7 @@ export function NewInvoiceForm({ pos, create }: { pos: readonly PoChoiceView[]; 
   const [po, setPo] = useState<string | null>(null)
   const [file, setFile] = useState<File | null>(null)
   const [kept, setKept] = useState<{ poId: string; file: File; fileId: string } | null>(null)
-  const [stage, setStage] = useState<'uploading' | 'creating' | null>(null)
+  const [stage, setStage] = useState<'uploading' | 'reading' | 'creating' | null>(null)
   const [problem, setProblem] = useState<string | null>(null)
   const chosen = pos.find((p) => p.value === po) ?? null
 
@@ -59,27 +75,68 @@ export function NewInvoiceForm({ pos, create }: { pos: readonly PoChoiceView[]; 
     setStage(null)
   }
 
+  /** The chosen file kept for the PO (sent once per PO and file), or null after saying what is missing */
+  async function keptFile(poId: string): Promise<string | null> {
+    if (!file) {
+      setProblem(t('pickFileFirst'))
+      return null
+    }
+    if (file.size > AP_FILE_MAX_BYTES) {
+      setProblem(t('fileTooLarge', { mib: AP_FILE_MAX_MIB }))
+      return null
+    }
+    if (kept && kept.poId === poId && kept.file === file) return kept.fileId
+    setStage('uploading')
+    const uploaded = await sendFile(poId, file)
+    if (!uploaded.ok) {
+      fail(uploaded)
+      return null
+    }
+    setKept({ poId, file, fileId: uploaded.fileId })
+    return uploaded.fileId
+  }
+
   async function start(withFile: boolean) {
     setProblem(null)
     if (!po) return setProblem(t('pickPoFirst'))
     let sourceFileId: string | null = null
     if (withFile) {
-      if (!file) return setProblem(t('pickFileFirst'))
-      if (file.size > AP_FILE_MAX_BYTES) return setProblem(t('fileTooLarge', { mib: AP_FILE_MAX_MIB }))
-      if (kept && kept.poId === po && kept.file === file) sourceFileId = kept.fileId
-      else {
-        setStage('uploading')
-        const uploaded = await sendFile(po, file)
-        if (!uploaded.ok) return fail(uploaded)
-        setKept({ poId: po, file, fileId: uploaded.fileId })
-        sourceFileId = uploaded.fileId
-      }
+      sourceFileId = await keptFile(po)
+      if (!sourceFileId) return
     }
     setStage('creating')
     let outcome: ApDraftOutcome
     try {
       outcome = await create({ poId: po, sourceFileId }, submission.key)
       submission.next()
+    } catch {
+      outcome = AP_NO_ANSWER
+    }
+    if (!outcome.ok) return fail(outcome)
+    router.push(`/finance/invoices/${outcome.invoiceId}`)
+  }
+
+  /** "อ่านไฟล์ด้วย AI": the reading waits in the background; the draft opens with every value waiting for FINANCE */
+  async function readWithAi() {
+    setProblem(null)
+    if (!ai) return
+    if (!po) return setProblem(t('pickPoFirst'))
+    const fileId = await keptFile(po)
+    if (!fileId) return
+    let agentActionId = readOf && readOf.poId === po && readOf.fileId === fileId ? readOf.agentActionId : null
+    if (!agentActionId) {
+      setStage('reading')
+      const result = await reader.read({ fileId, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po } }, uuidv4())
+      // A refusal or a failed reading says why under the buttons (AiReadingStatus); the file stays kept for the other buttons
+      if (!result) return setStage(null)
+      agentActionId = result.id
+      setReadOf({ poId: po, fileId, agentActionId })
+    }
+    setStage('creating')
+    let outcome: ApDraftOutcome
+    try {
+      outcome = await ai.createFromReading({ agentActionId }, aiSubmission.key)
+      aiSubmission.next()
     } catch {
       outcome = AP_NO_ANSWER
     }
@@ -175,10 +232,22 @@ export function NewInvoiceForm({ pos, create }: { pos: readonly PoChoiceView[]; 
         <Button type="submit" disabled={busy} className="min-h-11 px-4 text-base md:text-base">
           {stage === 'uploading' ? t('uploading') : stage === 'creating' ? t('creating') : t('submitFile')}
         </Button>
+        {ai ? (
+          <Button type="button" variant="outline" disabled={busy} className="min-h-11 px-4 text-base md:text-base" aria-describedby={`${fileId}-ai`} onClick={() => void readWithAi()}>
+            <Sparkles className="size-4 text-info" aria-hidden="true" />
+            {tai('read')}
+          </Button>
+        ) : null}
         <Button type="button" variant="outline" disabled={busy} className="min-h-11 px-4 text-base md:text-base" onClick={() => void start(false)}>
           {t('submitNoFile')}
         </Button>
       </div>
+      {ai ? (
+        <p id={`${fileId}-ai`} className="text-ink-muted">
+          {tai('readHint')}
+        </p>
+      ) : null}
+      <AiReadingStatus state={reader.state} />
     </form>
   )
 }

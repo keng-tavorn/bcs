@@ -1,15 +1,17 @@
 {
-  "promptVersion": "BRIEF@1",
+  "promptVersion": "BRIEF@2",
   "model": "claude-haiku-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "sentences": [
-      "คำขอ {{v:request.number}} ยอด {{v:route.amountGross}} บาท เข้าข้อ {{v:route.rule}}",
-      "เรื่องที่ต้องดูประกอบ {{v:quotes.single}}"
+      "ใบขอซื้อ {{v:request.number}} เรื่อง {{v:request.title}} มียอดรวม {{v:route.amountGross}} บาท ใช้กฎเส้นทาง {{v:route.rule}}",
+      "มีใบเสนอราคา {{v:quotes.count}} ฉบับ และมีธง {{v:quotes.single}} ว่าเป็นการเสนอราคาเพียงรายเดียว"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 147,
+    "output": 163,
+    "cacheRead": 539,
+    "cacheWrite": 0
   }
 }

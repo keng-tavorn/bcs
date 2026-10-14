@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "find_supplier"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันค้นหาผู้ขายในทะเบียนผู้ขายด้วยคำว่า \"เสาเข็ม\" ให้แล้ว ผลที่ได้จะเป็นเฉพาะรายที่คุณมีสิทธิ์เห็นเท่านั้น",
+      "หากไม่พบรายการใด แปลว่าไม่พบผู้ขายที่ตรงกับคำค้นภายในสิทธิ์การเข้าถึงของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 66,
+    "output": 194,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

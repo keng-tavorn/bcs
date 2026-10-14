@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "my_requests"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันจะตรวจสอบสถานะคำขอของคุณจากรายการคำขอที่คุณสร้างไว้ และจะแจ้งเฉพาะสถานะตามที่ระบบส่งกลับมาเท่านั้น หากไม่พบคำขอที่เกี่ยวกับเรื่องรักษาความปลอดภัยในสิทธิ์การเข้าถึงของคุณ จะแจ้งว่าไม่พบข้อมูล"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 71,
+    "output": 192,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

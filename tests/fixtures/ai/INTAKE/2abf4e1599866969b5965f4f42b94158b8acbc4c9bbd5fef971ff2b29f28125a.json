@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ปูนกาวซีเมนต์ ถุง 20 กก. 75 ถุง",
+    "siteCode": "SITE-P07",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ปูนกาวซีเมนต์ ถุง 20 กก.",
+        "itemCode": "MAT-004",
+        "qty": "75",
+        "unit": "ถุง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 95
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5695,
+    "output": 260,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

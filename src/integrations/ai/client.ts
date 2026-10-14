@@ -6,10 +6,11 @@ import { APICallError, generateText, NoObjectGeneratedError, NoOutputGeneratedEr
 import type { z } from 'zod'
 import { AGENT_OF_PURPOSE, EFFORT_OF_AGENT, MAX_OUTPUT_TOKENS, type AiPurposeName } from '@/lib/ai-config'
 import { PROMPTS } from './prompts'
+import { wireSchema } from './wire-schema'
 
 // The one place that calls Claude (P-3, ADR-060, ADR-141, ADR-142). Two modes:
 // - live: the Anthropic provider of the AI SDK with structured outputs through output_config.format (never a forced
-//   tool, which current models refuse), no model fallback of any kind, and the model that really answered returned
+//   tool, which current models refuse; nullable text travels as "" per ./wire-schema), no model fallback of any kind, and the model that really answered returned
 //   so a different one fails the call (AI_MODEL_MISMATCH) — the evaluation gate is tied to the model.
 // - fixture: answers recorded under tests/fixtures/ai/<purpose>/<sha256>.json (or handed in by a test), keyed by the
 //   file or the normalized text; local and tests only (src/lib/env.ts refuses it elsewhere).
@@ -169,7 +170,7 @@ export function createLiveClient(options: LiveOptions): AiClient {
         model: anthropic(request.model),
         system: { role: 'system', content: prompt.system, providerOptions: { anthropic: { cacheControl: { type: 'ephemeral' } } } },
         messages: [{ role: 'user', content: parts }],
-        output: Output.object({ schema: request.schema }),
+        output: Output.object({ schema: await wireSchema(request.schema) }),
         maxOutputTokens: MAX_OUTPUT_TOKENS[agent],
         providerOptions: { anthropic: { structuredOutputMode: 'outputFormat', effort: EFFORT_OF_AGENT[agent] } },
       })

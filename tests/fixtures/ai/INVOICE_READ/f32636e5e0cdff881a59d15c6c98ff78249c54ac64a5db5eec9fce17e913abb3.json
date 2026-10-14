@@ -1,7 +1,7 @@
 {
-  "promptVersion": "INVOICE_READ@1",
-  "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "promptVersion": "INVOICE_READ@2",
+  "model": "claude-opus-5-5",
+  "recorded": "LIVE",
   "output": {
     "docType": "TAX_INVOICE",
     "docNo": "IV2569-0451",
@@ -31,6 +31,10 @@
     "gross": "19795.00",
     "confidence": [
       {
+        "field": "docType",
+        "value": 95
+      },
+      {
         "field": "docNo",
         "value": 95
       },
@@ -39,33 +43,55 @@
         "value": 95
       },
       {
+        "field": "currency",
+        "value": 90
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 90
+      },
+      {
+        "field": "seller.name",
+        "value": 90
+      },
+      {
         "field": "seller.taxId",
-        "value": 95
+        "value": 93
       },
       {
         "field": "seller.branch",
-        "value": 95
+        "value": 93
       },
       {
         "field": "buyer.taxId",
-        "value": 95
+        "value": 93
+      },
+      {
+        "field": "lines",
+        "value": 93
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
       },
       {
         "field": "net",
-        "value": 95
+        "value": 88
       },
       {
         "field": "vat",
-        "value": 95
+        "value": 80
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 88
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1646,
+    "output": 857,
+    "cacheRead": 2040,
+    "cacheWrite": 0
   }
 }

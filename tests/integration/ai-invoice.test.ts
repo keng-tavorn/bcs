@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { submitApInvoiceFor, updateApInvoiceFor } from '@/app/(workspace)/finance/invoices/[poId]/ap-commands'
+import { createApInvoiceFromReadingFor } from '@/app/(workspace)/finance/invoices/ap-list-commands'
 import { createFixtureClient, fixtureKey, setAiClientForTests, type FixtureAnswer } from '@/integrations/ai'
+import { modelForPurpose, PROMPT_VERSIONS } from '@/lib/ai-config'
 import { putObject } from '@/integrations/storage'
 import { prisma } from '@/server/db/client'
 import { readDocument, runDocumentRead, runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
 import { confirmInvoiceCoding, createDraftFromReading, submitInvoice, updateInvoice } from '@/server/services/ap'
+import { getApInvoicePage } from '@/server/services/ap/view-invoice'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, submit, type ApOrg } from '../support/ap'
 import { etaxXml, pdfWithEmbedded } from '../support/etax-files'
 
@@ -13,7 +17,8 @@ import { etaxXml, pdfWithEmbedded } from '../support/etax-files'
 // makes the draft as FINANCE with the reading linked, and invoice.submit answers AI_REVIEW_PENDING until every value is
 // confirmed one by one. The invoice then matches exactly as one typed by hand. An e-Tax file never reaches the AI.
 
-const SONNET = 'claude-sonnet-5-5'
+// Invoices are read by the model their evaluation passed on (S13-14)
+const MODEL = modelForPurpose('INVOICE_READ', {})
 const SELLER_TAX_ID = '0999999000012'
 const FIXTURE: AiRuntime = { enabled: true, mode: 'fixture', appEnv: 'local', modelEnv: {}, gates: [] }
 const PNG = (seed: string) => new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new TextEncoder().encode(`${seed}-${randomUUID()}`)])
@@ -63,8 +68,8 @@ async function upload(bytes: Uint8Array, mimeType: string) {
 
 function invoiceAnswer(bytes: Uint8Array, docNo: string) {
   answers.set(fixtureKey({ purpose: 'INVOICE_READ', files: [{ bytes, mediaType: 'image/png' }] }), {
-    promptVersion: 'INVOICE_READ@1',
-    model: SONNET,
+    promptVersion: PROMPT_VERSIONS.INVOICE_READ,
+    model: MODEL,
     usage: { input: 3000, output: 700 },
     output: {
       docType: 'TAX_INVOICE',
@@ -200,5 +205,72 @@ describe('[FR-AI-303/AC5] [FR-AI-303/AC6] who reads an invoice, and what is neve
     await prisma.purchaseOrder.update({ where: { id: po.id }, data: { status: 'RECEIVED' } })
     const own = await prisma.fileObject.update({ where: { id: fileId }, data: { uploadedById: ap.org.member.proc_officer! } })
     expect(await readDocument(ap.org.ctxOf('proc_officer', AP_NOW), { fileId: own.id, purpose: 'INVOICE', subject: { type: 'PURCHASE_ORDER', id: po.id } }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+  })
+})
+
+describe('[FR-AI-303/AC6] the invoice screens of S8 with the AI (S13-20)', () => {
+  it('[FR-AI-303/AC6] "อ่านไฟล์ด้วย AI" makes the draft from the reading kept on the server; the page lists what waits; the confirmations go with invoice.update', async () => {
+    const po = await receivedPo()
+    const { fileId, agentActionId, action } = await readInvoice(po, 'INV-2026-0070')
+    const proposed = (action.review as { proposed: Record<string, string> }).proposed
+
+    // The browser sends the action's id only; the values come from what the server kept
+    const made = await createApInvoiceFromReadingFor(fin(ap), { agentActionId }, randomUUID())
+    if (!made.ok) throw new Error(JSON.stringify(made))
+    const invoiceId = made.invoiceId
+    expect(await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } })).toMatchObject({ prefill: 'AI_READING', agentActionId, sourceFileId: fileId, supplierInvoiceNo: 'INV-2026-0070', statedVatSatang: 24_500n })
+
+    // The page shows every value waiting, with the draft's values by the same paths
+    const page = ok(await getApInvoicePage(fin(ap), invoiceId))
+    expect(page.aiReviews).toEqual([{ agentActionId, purpose: 'INVOICE_READ', fileId, proposed, requiredPaths: Object.keys(proposed).sort(), confirmedPaths: [] }])
+    expect(page.aiCurrent).toMatchObject(proposed)
+
+    let version = await codeLines(invoiceId)
+    expect(await submitApInvoiceFor(fin(ap), { invoiceId, version }, randomUUID())).toMatchObject({ ok: false, code: 'AI_REVIEW_PENDING' })
+
+    // Half confirmed and saved: the rest still waits, and the page says which were saved
+    const paths = Object.keys(proposed)
+    expect(await updateApInvoiceFor(fin(ap), { invoiceId, version, aiAssist: { agentActionId, confirmedPaths: paths.slice(0, 4) } }, randomUUID())).toEqual({ ok: true })
+    const half = ok(await getApInvoicePage(fin(ap), invoiceId))
+    expect(half.aiReviews[0]!.confirmedPaths).toEqual(paths.slice(0, 4).sort())
+    version = half.version
+    expect(await submitApInvoiceFor(fin(ap), { invoiceId, version }, randomUUID())).toMatchObject({ ok: false, code: 'AI_REVIEW_PENDING' })
+
+    // The rest: the action closes, the page has nothing left to confirm, and the invoice goes on as one typed by hand
+    expect(await updateApInvoiceFor(fin(ap), { invoiceId, version, aiAssist: { agentActionId, confirmedPaths: paths } }, randomUUID())).toEqual({ ok: true })
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: agentActionId } })).toMatchObject({ status: 'ACCEPTED', subjectType: 'INVOICE', subjectId: invoiceId })
+    const done = ok(await getApInvoicePage(fin(ap), invoiceId))
+    expect(done.aiReviews).toEqual([])
+    expect(await submitApInvoiceFor(fin(ap), { invoiceId, version: done.version }, randomUUID())).toMatchObject({ ok: true })
+    // It matched as typed by hand; the only difference is S8's possible duplicate of the earlier tests' invoice of the
+    // same supplier and amount (BR-MATCH: within 3 days), which FINANCE settles as for any invoice
+    const types = await prisma.matchException.findMany({ where: { invoiceId }, select: { type: true } })
+    expect(types.map((x) => x.type).filter((t) => t !== 'POSSIBLE_DUPLICATE')).toEqual([])
+  })
+
+  it('[FR-AI-303/AC6] only the member who asked for the reading makes a draft from it, once, and only from an invoice reading', async () => {
+    const po = await receivedPo()
+    const { agentActionId } = await readInvoice(po, 'INV-2026-0080')
+    // Someone else does not see the reading's content (getAgentAction), so cannot take it in
+    expect(await createApInvoiceFromReadingFor(ap.org.ctxOf('proc_officer', AP_NOW), { agentActionId }, randomUUID())).toMatchObject({ ok: false, code: 'FORBIDDEN' })
+    expect(await createApInvoiceFromReadingFor(fin(ap), { agentActionId: 'not-an-id' }, randomUUID())).toMatchObject({ ok: false, code: 'VALIDATION_FAILED', field: 'agentActionId' })
+    expect(await createApInvoiceFromReadingFor(fin(ap), { agentActionId: randomUUID() }, randomUUID())).toMatchObject({ ok: false, code: 'NOT_FOUND' })
+    expect(await prisma.invoice.count({ where: { poId: po.id } })).toBe(0)
+
+    // A second draft from the same reading is refused: the reading is the first draft's now
+    const first = await createApInvoiceFromReadingFor(fin(ap), { agentActionId }, randomUUID())
+    expect(first.ok).toBe(true)
+    expect(await createApInvoiceFromReadingFor(fin(ap), { agentActionId }, randomUUID())).toMatchObject({ ok: false })
+    expect(await prisma.invoice.count({ where: { poId: po.id } })).toBe(1)
+
+    // A delivery note's reading is not an invoice's
+    const note = await prisma.agentAction.update({ where: { id: agentActionId }, data: { purpose: 'DELIVERY_NOTE_READ' } })
+    expect(await createApInvoiceFromReadingFor(fin(ap), { agentActionId: note.id }, randomUUID())).toMatchObject({ ok: false, code: 'VALIDATION_FAILED', reason: 'PURPOSE_MISMATCH' })
+  })
+
+  it('[FR-AI-303/AC6] the page of a draft typed by hand, and the page read by someone who does not record invoices, have no AI box', async () => {
+    const po = await receivedPo()
+    const typed = await codedDraft(ap, po, { no: `INV-H-${randomUUID().slice(0, 6)}`, vat: '245.00', lines: [{ line: 0, quantity: '3', unitPrice: '500.00' }, { line: 1, quantity: '2', unitPrice: '1000.00' }] })
+    expect(ok(await getApInvoicePage(fin(ap), typed.invoiceId))).toMatchObject({ aiReviews: [], aiCurrent: {} })
   })
 })

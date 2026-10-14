@@ -1,15 +1,18 @@
 {
-  "promptVersion": "BRIEF@1",
+  "promptVersion": "BRIEF@2",
   "model": "claude-haiku-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "sentences": [
-      "คำขอ {{v:request.number}} ยอด {{v:route.amountGross}} บาท เข้าข้อ {{v:route.rule}}",
-      "เรื่องที่ต้องดูประกอบ {{v:flags.duplicate}}"
+      "คำขอ {{v:request.number}} ใช้กฎเส้นทาง {{v:route.rule}} มียอดรวม {{v:route.amountGross}} บาท และมีใบเสนอราคา {{v:quotes.count}} ฉบับ",
+      "ชื่อคำขอคือ {{v:request.title}}",
+      "มีธงซ้ำ {{v:flags.duplicate}} ซึ่งชี้ว่าคำขอนี้อาจเป็นการส่งซ้ำ จึงควรตรวจสอบก่อนตัดสินใจ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 137,
+    "output": 208,
+    "cacheRead": 539,
+    "cacheWrite": 0
   }
 }

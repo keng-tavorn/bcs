@@ -73,7 +73,8 @@ describe('documents only (scripts/lib/ci-changes.ts)', () => {
     } finally {
       rmSync(repo, { recursive: true, force: true })
     }
-  })
+    // About a dozen git processes: on Windows under load (another lane's e2e) each one takes up to a second
+  }, 30_000)
 })
 
 describe('pnpm verify --docs-only=<commit>', () => {

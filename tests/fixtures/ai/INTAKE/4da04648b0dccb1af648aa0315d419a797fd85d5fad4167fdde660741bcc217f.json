@@ -1,0 +1,81 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "สีน้ำอะคริลิกภายนอก 18 ลิตร ตามใบเสนอราคา QT-16003",
+    "siteCode": "SITE-P08",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "สีน้ำอะคริลิกภายนอก 18 ลิตร",
+        "itemCode": "FIN-003",
+        "qty": "26",
+        "unit": "ถัง",
+        "unitPrice": "2514.50"
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท กรุงเก่าวัสดุเซรามิค จำกัด",
+      "taxId": "0999998010588",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 60
+      },
+      {
+        "field": "siteCode",
+        "value": 90
+      },
+      {
+        "field": "neededBy",
+        "value": 100
+      },
+      {
+        "field": "lines[0].description",
+        "value": 88
+      },
+      {
+        "field": "lines[0].itemCode",
+        "value": 92
+      },
+      {
+        "field": "lines[0].qty",
+        "value": 97
+      },
+      {
+        "field": "lines[0].unit",
+        "value": 95
+      },
+      {
+        "field": "lines[0].unitPrice",
+        "value": 96
+      },
+      {
+        "field": "supplier.name",
+        "value": 95
+      },
+      {
+        "field": "supplier.taxId",
+        "value": 93
+      },
+      {
+        "field": "supplier.branch",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 7067,
+    "output": 859,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

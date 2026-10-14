@@ -1,17 +1,19 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "pending_approvals"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ตัวเลขงานอนุมัติที่ค้างอยู่ในองค์กรภายในสิทธิ์การเข้าถึงของคุณคือ {{v:open}} งาน"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 53,
+    "output": 92,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

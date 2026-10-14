@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "search_documents"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันจะค้นหาเอกสารที่เกี่ยวกับท่อ PPR ภายในสิทธิ์การเข้าถึงของคุณ",
+      "หากไม่พบรายการใด จะแจ้งว่าไม่พบเอกสารที่ตรงกันภายในสิทธิ์การเข้าถึงของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 53,
+    "output": 145,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

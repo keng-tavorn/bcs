@@ -1,7 +1,7 @@
 {
-  "promptVersion": "INVOICE_READ@1",
-  "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "promptVersion": "INVOICE_READ@2",
+  "model": "claude-opus-5-5",
+  "recorded": "LIVE",
   "output": {
     "docType": "TAX_INVOICE",
     "docNo": "DC-001",
@@ -23,26 +23,35 @@
         "unit": "ลิตร",
         "unitPrice": "32.50",
         "amount": "650000.00"
-      },
-      {
-        "description": "ส่วนลดการค้า",
-        "qty": "1",
-        "unit": "รายการ",
-        "unitPrice": "-13000.00",
-        "amount": "-13000.00"
       }
     ],
-    "discountTotal": null,
+    "discountTotal": "13000.00",
     "net": "637000.00",
     "vat": "44590.00",
     "gross": "681590.00",
     "confidence": [
       {
-        "field": "docNo",
+        "field": "docType",
         "value": 95
       },
       {
+        "field": "docNo",
+        "value": 97
+      },
+      {
         "field": "docDate",
+        "value": 95
+      },
+      {
+        "field": "currency",
+        "value": 90
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 90
+      },
+      {
+        "field": "seller.name",
         "value": 95
       },
       {
@@ -58,21 +67,31 @@
         "value": 95
       },
       {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
+      },
+      {
         "field": "net",
-        "value": 95
+        "value": 96
       },
       {
         "field": "vat",
-        "value": 95
+        "value": 96
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 97
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1613,
+    "output": 821,
+    "cacheRead": 2040,
+    "cacheWrite": 0
   }
 }

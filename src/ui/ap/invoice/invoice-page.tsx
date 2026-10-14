@@ -11,6 +11,7 @@ import { Page, PageBody, PageHeader, Panel } from '../../page/page'
 import { CodingForm, NO_WITHHOLDING, type CodingLineView } from './coding-form'
 import { DraftActions, ExceptionActions } from './exception-actions'
 import { HeaderForm } from './header-form'
+import { InvoiceAiReview, type InvoiceAiReviewView } from './invoice-ai'
 import { InvoiceLines, type LineView } from './invoice-lines'
 import type { ApInvoiceActions } from './outcome'
 import { SourceLabel } from './source-label'
@@ -129,8 +130,19 @@ function HeaderRead({ t, locale, data }: { t: T; locale: Locale; data: ApInvoice
   )
 }
 
-export async function ApInvoicePage({ data, actions, openFile }: { data: ApInvoicePageData; actions: ApInvoiceActions; openFile: (fileId: string) => Promise<string | null> }) {
-  const [t, ta, rawLocale] = await Promise.all([getTranslations('apInvoice'), getTranslations('audit'), getLocale()])
+export async function ApInvoicePage({
+  data,
+  actions,
+  openFile,
+  aiReviews = [],
+}: {
+  data: ApInvoicePageData
+  actions: ApInvoiceActions
+  openFile: (fileId: string) => Promise<string | null>
+  /** S13-20: the AI readings of this draft that wait for FINANCE (with what was read, for the member who asked) */
+  aiReviews?: readonly InvoiceAiReviewView[]
+}) {
+  const [t, ta, tai, rawLocale] = await Promise.all([getTranslations('apInvoice'), getTranslations('audit'), getTranslations('aiAssist.invoice'), getLocale()])
   const locale: Locale = rawLocale === 'en' ? 'en' : 'th'
   const title = data.number ? t('title', { number: data.number }) : t('titleDraft')
   const supplierName = locale === 'en' && data.supplier.nameEn ? data.supplier.nameEn : data.supplier.nameTh
@@ -204,6 +216,23 @@ export async function ApInvoicePage({ data, actions, openFile }: { data: ApInvoi
                   />
                 ) : null}
                 {asked && data.status === 'PENDING_APPROVAL' ? <Notice tone="info">{t('exceptions.asked')}</Notice> : null}
+              </Panel>
+            ) : null}
+
+            {data.may.edit && aiReviews.length > 0 ? (
+              <Panel title={tai('panelTitle')} id="invoice-ai">
+                {aiReviews.map((review) => (
+                  <InvoiceAiReview
+                    key={review.agentActionId}
+                    invoiceId={data.id}
+                    version={data.version}
+                    review={review}
+                    current={data.aiCurrent ?? {}}
+                    lines={data.lines.map((l) => ({ poLineId: l.poLineId, description: l.description, uom: l.uom }))}
+                    update={actions.update}
+                    openFile={openFile}
+                  />
+                ))}
               </Panel>
             ) : null}
 

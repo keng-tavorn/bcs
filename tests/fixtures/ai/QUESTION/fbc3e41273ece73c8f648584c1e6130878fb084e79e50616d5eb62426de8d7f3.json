@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "get_request"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันจะดึงข้อมูลคำขอ PR-2569-00045 เพื่อตรวจสอบว่าผู้อนุมัติคือใคร ตามสิทธิ์การเข้าถึงของคุณ",
+      "หากไม่พบข้อมูลของคำขอนี้ในสิทธิ์ที่คุณเข้าถึงได้ จะแจ้งว่าไม่พบข้อมูลและจะไม่คาดเดา"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 63,
+    "output": 183,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

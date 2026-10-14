@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "spend_summary"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ยอดซื้อรวมของทั้งองค์กรในปีนี้คือ {{v:total_spend}} บาท จากใบสั่งซื้อทั้งหมด {{v:po_count}} ใบ",
+      "ตัวเลขนี้เป็นยอดตามข้อมูลที่คุณมีสิทธิ์เข้าถึงเท่านั้น และเป็นร่างให้ตรวจสอบอีกครั้ง"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 57,
+    "output": 179,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

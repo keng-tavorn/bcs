@@ -1,17 +1,20 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "my_requests"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันจะตรวจสอบคำขอของคุณและสถานะของแต่ละรายการจากข้อมูลที่คุณมีสิทธิ์เข้าถึง เพื่อดูว่ามีรายการใดที่ถูกตีกลับ",
+      "หากไม่พบคำขอที่ถูกตีกลับภายในสิทธิ์การเข้าถึงของคุณ จะแจ้งให้ทราบว่าไม่พบข้อมูล"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 64,
+    "output": 189,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

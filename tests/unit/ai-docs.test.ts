@@ -4,6 +4,7 @@ import path from 'node:path'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { lineNet, vatFromGross, vatFromNet } from '@/core/money/math'
+import { PROMPT_VERSIONS } from '@/lib/ai-config'
 import { DocumentReading } from '@/lib/ai-schemas/document'
 import { AI_ANSWERS_DIR, AI_DOCS_DIR, loadEvalDocuments, truthReading, type EvalDocument } from '../../scripts/lib/ai-eval-cases'
 
@@ -46,7 +47,7 @@ describe('[BR-AI-26] the evaluation documents and their files', () => {
     for (const f of manifest.files.filter((x) => x.purpose !== 'DOA_DRAFT')) {
       const answer = JSON.parse(readFileSync(path.join(AI_ANSWERS_DIR, f.purpose, `${f.sha256}.json`), 'utf8'))
       expect(DocumentReading.safeParse(answer.output).success, f.id).toBe(true)
-      expect(answer.promptVersion, f.id).toBe(`${f.purpose}@1`)
+      expect(answer.promptVersion, f.id).toBe(PROMPT_VERSIONS[f.purpose as keyof typeof PROMPT_VERSIONS])
     }
   })
 })

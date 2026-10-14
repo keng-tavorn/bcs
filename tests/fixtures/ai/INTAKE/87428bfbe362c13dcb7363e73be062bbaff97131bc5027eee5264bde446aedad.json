@@ -1,0 +1,61 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "ปั๊มน้ำหอยโข่ง 5 แรงม้า",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "ปั๊มน้ำหอยโข่ง 5 แรงม้า",
+        "itemCode": "PLB-004",
+        "qty": "1",
+        "unit": "เครื่อง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 70
+      },
+      {
+        "field": "neededBy",
+        "value": 40
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      },
+      {
+        "field": "confidence",
+        "value": 80
+      }
+    ]
+  },
+  "usage": {
+    "input": 5680,
+    "output": 273,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,13 +1,13 @@
 {
-  "promptVersion": "QUOTATION_READ@1",
+  "promptVersion": "QUOTATION_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "QUOTATION",
     "docNo": "Q-0031",
     "docDate": "2026-09-19",
     "currency": "THB",
-    "priceIncludesVat": false,
+    "priceIncludesVat": null,
     "seller": {
       "name": "นายสมหวัง ทองขาว",
       "taxId": "3999998020022",
@@ -18,7 +18,7 @@
     },
     "lines": [
       {
-        "description": "ค่าแรงปูกระเบื้องพื้น",
+        "description": "ค่าแรงปูกระเบื้อพื้น",
         "qty": "120",
         "unit": "ตร.ม.",
         "unitPrice": "180.00",
@@ -31,41 +31,67 @@
     "gross": "21600.00",
     "confidence": [
       {
+        "field": "docType",
+        "value": 97
+      },
+      {
         "field": "docNo",
         "value": 95
       },
       {
         "field": "docDate",
-        "value": 95
+        "value": 93
+      },
+      {
+        "field": "currency",
+        "value": 85
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 60
+      },
+      {
+        "field": "seller.name",
+        "value": 93
       },
       {
         "field": "seller.taxId",
-        "value": 95
+        "value": 88
       },
       {
         "field": "seller.branch",
-        "value": 95
+        "value": 93
       },
       {
         "field": "buyer.taxId",
-        "value": 95
+        "value": 88
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "discountTotal",
+        "value": 85
       },
       {
         "field": "net",
-        "value": 95
+        "value": 96
       },
       {
         "field": "vat",
-        "value": 95
+        "value": 94
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 96
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1435,
+    "output": 422,
+    "cacheRead": 2038,
+    "cacheWrite": 0
   }
 }

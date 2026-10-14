@@ -8,7 +8,7 @@ import {
   EVAL_GATES,
   isGated,
   LEVEL_OF_AGENT,
-  modelFor,
+  modelForPurpose,
   PROMPT_VERSIONS,
   requiredGateTier,
   type AiAgentName,
@@ -93,7 +93,7 @@ export async function checkCallGates(tx: TenantTx, ctx: Ctx, purpose: AiPurposeN
   if (!aiModule.ok) return aiModule
   const setting = await tx.aiAgentSetting.findFirst({ where: { agent }, select: { enabled: true, level: true, minConfidenceBp: true } })
   if (!setting?.enabled) return err('AI_AGENT_DISABLED', `agent ${agent} is switched off`, { agent, reason: 'AGENT_OFF' })
-  const model = modelFor(agent, runtime.modelEnv)
+  const model = modelForPurpose(purpose, runtime.modelEnv)
   const promptVersion = PROMPT_VERSIONS[purpose]
   if (runtime.mode === 'live' && !isGated(runtime.gates, { agent, purpose, promptVersion, model, tier: requiredGateTier(runtime.appEnv) })) {
     return err('AI_NOT_EVALUATED', `${agent} ${promptVersion} on ${model} has not passed the evaluation`, { agent, purpose, promptVersion, model })

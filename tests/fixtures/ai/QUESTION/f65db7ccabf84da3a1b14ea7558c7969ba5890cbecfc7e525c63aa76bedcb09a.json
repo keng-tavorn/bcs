@@ -1,17 +1,21 @@
 {
-  "promptVersion": "QUESTION@1",
+  "promptVersion": "QUESTION@3",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "tools": [
       "pending_approvals"
     ],
     "sentences": [
-      "ผลอยู่ในตารางด้านล่าง"
+      "ฉันจะตรวจสอบงานอนุมัติที่ค้างอยู่ในองค์กรจากข้อมูลที่คุณมีสิทธิ์มองเห็นเท่านั้น",
+      "ข้อมูลนี้แสดงงานอนุมัติที่รออยู่ทั้งองค์กรตามคิว ไม่ได้แยกเฉพาะงานของ CEO จึงยังไม่มีตัวเลขเฉพาะของ CEO",
+      "หากไม่พบรายการในระบบ แปลว่าไม่พบข้อมูลภายในสิทธิ์การเข้าถึงของคุณ"
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 50,
+    "output": 249,
+    "cacheRead": 1095,
+    "cacheWrite": 0
   }
 }

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "คอนกรีตผสมเสร็จ 280 กก./ตร.ซม. 1 ลบ.ม.",
+    "siteCode": "SITE-P07",
+    "neededBy": "7 วัน",
+    "lines": [
+      {
+        "description": "คอนกรีตผสมเสร็จ 280 กก./ตร.ซม.",
+        "itemCode": "RMC-002",
+        "qty": "1",
+        "unit": "ลบ.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 90
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 80
+      },
+      {
+        "field": "lines",
+        "value": 92
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5704,
+    "output": 283,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "IT_PURCHASE",
+    "title": "คอมพิวเตอร์โน้ตบุ๊ก Core i7 RAM 16 GB",
+    "siteCode": "HQ-STORE",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "คอมพิวเตอร์โน้ตบุ๊ก Core i7 RAM 16 GB",
+        "itemCode": "ITM-001",
+        "qty": "1",
+        "unit": "เครื่อง",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 95
+      },
+      {
+        "field": "title",
+        "value": 85
+      },
+      {
+        "field": "siteCode",
+        "value": 85
+      },
+      {
+        "field": "neededBy",
+        "value": 60
+      },
+      {
+        "field": "lines",
+        "value": 95
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5692,
+    "output": 279,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

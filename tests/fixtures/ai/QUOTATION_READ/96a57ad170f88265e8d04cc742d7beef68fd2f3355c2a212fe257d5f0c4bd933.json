@@ -1,7 +1,7 @@
 {
-  "promptVersion": "QUOTATION_READ@1",
+  "promptVersion": "QUOTATION_READ@2",
   "model": "claude-sonnet-5-5",
-  "recorded": "TRUTH",
+  "recorded": "LIVE",
   "output": {
     "docType": "QUOTATION",
     "docNo": "QT-16300",
@@ -22,7 +22,7 @@
         "qty": "18",
         "unit": "ท่อน",
         "unitPrice": "310.00",
-        "amount": "5580.00"
+        "amount": "5,580.00"
       }
     ],
     "discountTotal": null,
@@ -31,16 +31,32 @@
     "gross": "5970.60",
     "confidence": [
       {
+        "field": "docType",
+        "value": 99
+      },
+      {
         "field": "docNo",
-        "value": 95
+        "value": 97
       },
       {
         "field": "docDate",
-        "value": 95
+        "value": 97
+      },
+      {
+        "field": "currency",
+        "value": 90
+      },
+      {
+        "field": "priceIncludesVat",
+        "value": 85
+      },
+      {
+        "field": "seller.name",
+        "value": 96
       },
       {
         "field": "seller.taxId",
-        "value": 95
+        "value": 85
       },
       {
         "field": "seller.branch",
@@ -48,24 +64,34 @@
       },
       {
         "field": "buyer.taxId",
+        "value": 85
+      },
+      {
+        "field": "lines",
         "value": 95
+      },
+      {
+        "field": "discountTotal",
+        "value": 90
       },
       {
         "field": "net",
-        "value": 95
+        "value": 97
       },
       {
         "field": "vat",
-        "value": 95
+        "value": 97
       },
       {
         "field": "gross",
-        "value": 95
+        "value": 97
       }
     ]
   },
   "usage": {
-    "input": 1800,
-    "output": 420
+    "input": 1613,
+    "output": 437,
+    "cacheRead": 0,
+    "cacheWrite": 2038
   }
 }

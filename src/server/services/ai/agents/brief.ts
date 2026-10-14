@@ -2,7 +2,7 @@ import { checkAiText, renderValue, type TextValue } from '@/core/ai-checks'
 import { satangToAmount } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { getAiClient } from '@/integrations/ai'
-import { DECISION_ADVICE_WORDS, modelFor } from '@/lib/ai-config'
+import { DECISION_ADVICE_WORDS, modelForPurpose } from '@/lib/ai-config'
 import { BriefText, briefInputText } from '@/lib/ai-schemas/agents'
 import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
@@ -137,7 +137,7 @@ export async function runBrief(organizationId: string, taskId: string, now: Date
   const started = await requestAgentAction(systemCtx(organizationId, now, 'ai-approval-brief'), { purpose: 'BRIEF', subjectType: 'APPROVAL_TASK', subjectId: taskId, inputRefs: { taskId } }, { idempotencyKey: `ai-approval-brief:${taskId}:${earlier.length}` })
   // A gate that is closed (agent off, credits, module) writes nothing and costs nothing (BR-AI-11)
   if (!started.ok || started.data.existing) return 'SKIPPED'
-  const model = modelFor('APPROVAL_BRIEF', aiRuntime().modelEnv)
+  const model = modelForPurpose('BRIEF', aiRuntime().modelEnv)
   const assignee = makeCtx({ organizationId, actor: { type: 'USER', memberId: task.assigneeMemberId }, channel: 'SYSTEM', now })
   const facts = await briefFacts(assignee, task)
   const answer = await getAiClient(getEnv()).write({ purpose: 'BRIEF', model, schema: BriefText, text: briefInputText(plainFacts(facts)) })

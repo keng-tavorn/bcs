@@ -6,7 +6,7 @@ import { e2eEnv } from '../support/e2e-env'
 import { expect, test } from './fixtures'
 
 // S13-07 (FR-AI-303 AC1 AC3 AC4 AC8, docs/sub-specs/S13.md "หน้าจอ"): the Document Agent on the request form's quotation
-// step and on the receiving page. The demo organization keeps the AI module off — no AI button anywhere (AC8) — and each
+// step and on the receiving page, and (S13-20, AC6) on S8's new-invoice page and invoice draft. The demo organization keeps the AI module off — no AI button anywhere (AC8) — and each
 // test switches it on for itself and off again (tests/e2e/ai-document-scene.ts, which also plays the background job:
 // the e2e app sends no outbox to Inngest). The values the AI read come back marked "เติมโดย AI โปรดตรวจ", the requester
 // or the receiver confirms them, and the save or the receipt that carries the confirmations closes the AI action.
@@ -14,8 +14,9 @@ import { expect, test } from './fixtures'
 
 type SceneMode = 'on' | 'off' | 'run' | 'state' | 'brief' | 'doa-cleanup'
 
-function scene<T>(file: 'ai-document-scene' | 'receiving-scene', env: Record<string, string>): T {
-  const r = spawnSync(`pnpm exec tsx tests/e2e/${file}.ts`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), ...env } })
+function scene<T>(file: 'ai-document-scene' | 'receiving-scene' | 's8-scene', env: Record<string, string>): T {
+  // SCENE_ARGS: the arguments of a scene that reads them from the command line (tests/e2e/s8-scene.ts)
+  const r = spawnSync(`pnpm exec tsx tests/e2e/${file}.ts ${env.SCENE_ARGS ?? ''}`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), ...env } })
   if (r.status !== 0) throw new Error(`${file} ${JSON.stringify(env)} failed:\n${r.stdout}\n${r.stderr}`)
   return JSON.parse(r.stdout.trim().split('\n').at(-1)!) as T
 }
@@ -138,6 +139,73 @@ test('[FR-AI-303/AC4] a delivery note read on the receiving page fills what came
   await expect(page.getByText(/บันทึกการตรวจรับแล้ว/)).toBeVisible()
   const state = ai<{ status: string; subjectType: string | null }>('state')
   expect(state).toMatchObject({ status: 'ACCEPTED', subjectType: 'GOODS_RECEIPT' })
+})
+
+test('[FR-AI-303/AC6] [FR-AI-303/AC8] FINANCE reads a supplier invoice with the AI: every value confirmed one by one before the invoice is submitted', async ({ page }, testInfo) => {
+  test.setTimeout(180_000)
+  // S13-20: an organization of its own with PAY (tests/e2e/s8-scene.ts), a PO received in full, FINANCE signs in with TOTP
+  const tag = `ai${testInfo.project.name.slice(0, 1)}${Date.now().toString(36)}`
+  const made = scene<{ poNumber: string; org: string }>('s8-scene', { SCENE_ARGS: `ai-invoice ${tag}` })
+  const inOrg = { SCENE_ORG: made.org }
+  const local = `fin_officer.${tag}`
+  await page.goto('/login')
+  await page.getByLabel('อีเมลบริษัท').fill(`${local}@s8.bcs.local`)
+  await page.getByLabel('รหัสผ่าน').fill(process.env.SEED_DEV_PASSWORD!)
+  await page.getByRole('button', { name: 'เข้าสู่ระบบ' }).click()
+  await expect(page).toHaveURL(/\/login\/2fa$/)
+  await page.getByLabel('รหัส 6 หลักจากแอป').fill(totp(deriveSeedTotpSecret(process.env.SEED_TOTP_KEY!, local)))
+  await page.getByRole('button', { name: 'ยืนยันและเข้าสู่ระบบ' }).click()
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('สวัสดี')
+
+  // AC8: with the Document Agent off the page is S8's as before, without the AI button
+  ai('off', inOrg)
+  await page.goto('/finance/invoices/new')
+  await expect(page.getByRole('button', { name: 'อัปโหลดและสร้างร่าง' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'อ่านไฟล์ด้วย AI' })).toHaveCount(0)
+
+  ai('on', inOrg)
+  await page.reload()
+  await page.getByRole('combobox', { name: 'PO' }).click()
+  await page.getByRole('option', { name: new RegExp(made.poNumber) }).click()
+  await page.locator('input[type="file"]').setInputFiles({ name: 'invoice-ai.pdf', mimeType: 'application/pdf', buffer: PDF })
+  await page.getByRole('button', { name: 'อ่านไฟล์ด้วย AI' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'กำลังอ่านเอกสาร' })).toBeVisible({ timeout: 20_000 })
+  await check(page, testInfo, 'invoice-ai-reading')
+  expect(ai<{ drafted: number }>('run', inOrg).drafted).toBeGreaterThanOrEqual(1)
+
+  // The draft opens with what the AI read in its header and lines, every value waiting one by one
+  await expect(page).toHaveURL(/\/finance\/invoices\/[0-9a-f-]{36}$/, { timeout: 30_000 })
+  const box = page.getByRole('region', { name: 'ค่าที่ AI อ่านจากใบแจ้งหนี้' })
+  await expect(box.getByText('เติมโดย AI โปรดตรวจ')).toBeVisible()
+  await expect(box.getByText('INV-E2E-1', { exact: true }).first()).toBeVisible()
+  await expect(box.getByRole('checkbox', { checked: false }).first()).toBeVisible()
+  await check(page, testInfo, 'invoice-ai-review')
+
+  // Coded, but not submitted while a value waits
+  const pickers = page.getByRole('combobox', { name: /^รหัสบัญชีของบรรทัด/ })
+  for (let i = 0; i < (await pickers.count()); i++) {
+    const picker = pickers.nth(i)
+    if (!(await picker.innerText()).includes('เลือกรหัสบัญชี')) continue
+    await picker.click()
+    await page.getByRole('option', { name: /510101/ }).click()
+  }
+  await page.getByRole('button', { name: 'ยืนยันรหัสบัญชีทุกบรรทัด' }).click()
+  // The page read again after the coding (its new version) before the submit
+  await expect(page.getByRole('region', { name: 'รหัสบัญชีและ cost center' }).getByText('ยืนยันแล้ว', { exact: true }).first()).toBeVisible()
+  await page.getByRole('button', { name: 'ส่งจับคู่' }).click()
+  await expect(page.getByText('ยังมีค่าที่ AI เติมและรอตรวจ').first()).toBeVisible()
+
+  // Each value confirmed against the file, then saved: the AI action closes and the invoice goes to its match
+  const waiting = box.getByRole('checkbox', { checked: false })
+  for (let n = await waiting.count(); n > 0; n--) await waiting.first().click()
+  await expect(box.getByRole('status').filter({ hasText: 'ยืนยันค่าที่ AI เติมครบแล้ว' })).toBeVisible()
+  await check(page, testInfo, 'invoice-ai-confirmed')
+  await page.getByRole('button', { name: 'บันทึกการยืนยัน' }).click()
+  await expect(box).toHaveCount(0, { timeout: 20_000 })
+  expect(ai<{ status: string; subjectType: string | null }>('state', inOrg)).toMatchObject({ status: 'ACCEPTED', subjectType: 'INVOICE' })
+  await page.getByRole('button', { name: 'ส่งจับคู่' }).click()
+  await expect(page.getByText('พร้อมจ่าย', { exact: true }).filter({ visible: true }).first()).toBeVisible()
+  await check(page, testInfo, 'invoice-ai-ready')
 })
 
 test('[FR-AI-302/AC1] [FR-AI-302/AC5] step 0: what the requester wrote fills the request, every value confirmed; with Intake off there is no step 0', async ({ page }, testInfo) => {

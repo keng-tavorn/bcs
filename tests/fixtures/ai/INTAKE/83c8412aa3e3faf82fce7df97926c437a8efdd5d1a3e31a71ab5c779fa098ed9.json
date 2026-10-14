@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": null,
+    "siteCode": "SITE-P06",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "บ่อพักสำเร็จรูป",
+        "itemCode": "MAT-020",
+        "qty": "6",
+        "unit": "ชุด",
+        "unitPrice": "12375.00"
+      }
+    ],
+    "supplier": {
+      "name": "บริษัท มีนบุรีกิจการค้าวัสดุ จำกัด",
+      "taxId": "0999998010049",
+      "branch": "สำนักงานใหญ่"
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 0
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 0
+      },
+      {
+        "field": "lines",
+        "value": 85
+      },
+      {
+        "field": "supplier",
+        "value": 90
+      }
+    ]
+  },
+  "usage": {
+    "input": 7065,
+    "output": 843,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

@@ -15,7 +15,8 @@ export const NO_DOC_NO = 'ไม่มีเลขที่'
 
 export type FieldKind = 'TAX_ID' | 'DOC_NO' | 'MONEY' | 'QUANTITY' | 'DATE' | 'TEXT'
 
-const MONEY_FIELDS = new Set(['net', 'vat', 'gross', 'discountTotal', 'unitPrice', 'amount'])
+// gt and lte: the limits of a DOA rule the drafter writes, baht compared as satang like every amount
+const MONEY_FIELDS = new Set(['net', 'vat', 'gross', 'discountTotal', 'unitPrice', 'amount', 'gt', 'lte'])
 
 /** The kind of a field path, by its last segment ("lines.0.unitPrice" → MONEY) */
 export function fieldKind(field: string): FieldKind {
@@ -70,25 +71,42 @@ export interface AnswerLine {
   readonly amount?: string | number | null
 }
 
+/** Satang of an amount as the checks of a reading read it (thousands separators dropped); null when it is no amount */
+function satangOrNull(v: unknown): bigint | null {
+  if (blank(v)) return null
+  try {
+    return amountToSatang(String(v).trim().replace(/,/g, ''))
+  } catch {
+    return null
+  }
+}
+
 /**
  * An answer (or a reading) with its discount where BR-AI-14 keeps it: a line of a negative amount moves out of the
- * lines into discountTotal. An answer that already has discountTotal keeps it, with the negative lines added.
+ * lines into discountTotal. An answer that already has discountTotal keeps it, with the negative lines added. An
+ * amount that cannot be read stays where it is, so the scoring counts it wrong instead of stopping.
  */
 export function normalizeAnswer(answer: { readonly lines: readonly AnswerLine[]; readonly discountTotal?: string | number | null }): {
   readonly lines: readonly AnswerLine[]
   readonly discountTotal: string | null
 } {
-  let discount = blank(answer.discountTotal) ? 0n : amountToSatang(String(answer.discountTotal))
+  const readDiscount = satangOrNull(answer.discountTotal)
+  let discount = readDiscount ?? 0n
   const kept: AnswerLine[] = []
   for (const line of answer.lines) {
-    const amount = !blank(line.amount)
-      ? amountToSatang(String(line.amount))
-      : !blank(line.unitPrice) && !blank(line.qty)
-        ? lineNet(String(line.qty), amountToSatang(String(line.unitPrice)))
-        : 0n
-    if (amount < 0n) discount += -amount
+    const unitPrice = satangOrNull(line.unitPrice)
+    let amount = satangOrNull(line.amount)
+    if (amount === null && blank(line.amount) && unitPrice !== null && !blank(line.qty)) {
+      try {
+        amount = lineNet(String(line.qty).trim().replace(/,/g, ''), unitPrice)
+      } catch {
+        amount = null
+      }
+    }
+    if (amount !== null && amount < 0n) discount += -amount
     else kept.push(line)
   }
+  if (readDiscount === null && !blank(answer.discountTotal)) return { lines: kept, discountTotal: String(answer.discountTotal) }
   return { lines: kept, discountTotal: discount > 0n || !blank(answer.discountTotal) ? satangToAmount(discount) : null }
 }
 

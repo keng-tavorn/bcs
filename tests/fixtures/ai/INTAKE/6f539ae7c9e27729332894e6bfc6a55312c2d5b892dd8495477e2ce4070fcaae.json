@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "BUY_GOODS",
+    "title": "คอนกรีตผสมเสร็จ 400 กก./ตร.ซม. 9 ลบ.ม.",
+    "siteCode": "SITE-P05",
+    "neededBy": null,
+    "lines": [
+      {
+        "description": "คอนกรีตผสมเสร็จ 400 กก./ตร.ซม.",
+        "itemCode": "RMC-004",
+        "qty": "9",
+        "unit": "ลบ.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 85
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 30
+      },
+      {
+        "field": "lines",
+        "value": 90
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5692,
+    "output": 278,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

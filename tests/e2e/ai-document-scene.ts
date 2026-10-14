@@ -1,3 +1,5 @@
+import { amountToSatang, satangToAmount } from '@/core/money/dto'
+import { lineNet, vatFromNet } from '@/core/money/math'
 import type { AiClient } from '@/integrations/ai'
 import { setAiClientForTests } from '@/integrations/ai'
 import { PROMPT_VERSIONS, type AiPurposeName } from '@/lib/ai-config'
@@ -6,6 +8,7 @@ import { prisma } from '@/server/db/client'
 import { getReceivingPo } from '@/server/queries/receiving'
 import { makeCtx } from '@/server/context'
 import { runBrief, runDoaDraft, runDocumentRead, runIntake, runMonthlyGrant } from '@/server/services/ai'
+import { decimalText } from '@/server/services/ai/assist-contract'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/ai-document.spec.ts against the e2e database only (S13-07, FR-AI-303 AC1 AC3 AC4). The e2e app sends
@@ -23,7 +26,8 @@ const mode = process.env.SCENE_MODE ?? ''
 if (!['on', 'off', 'run', 'state', 'brief', 'doa-cleanup'].includes(mode)) throw new Error('SCENE_MODE must be on, off, run, state, brief or doa-cleanup')
 
 const now = systemClock.now()
-const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }, select: { id: true, taxId: true } })
+// SCENE_ORG: another organization of the e2e database (an S8 scene's, tests/e2e/s8-scene.ts ai-invoice); DEMO otherwise
+const org = await prisma.organization.findFirstOrThrow({ where: { code: process.env.SCENE_ORG || 'DEMO' }, select: { id: true, taxId: true } })
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(now)
 
 async function setModule(enabled: boolean) {
@@ -39,6 +43,23 @@ async function readingFor(purpose: AiPurposeName, subjectType: string | null, su
     const po = await getReceivingPo(makeCtx({ organizationId: org.id, actor: { type: 'SYSTEM' }, channel: 'SYSTEM', now }), subjectId)
     const lines = (po?.lines ?? []).map((l) => ({ description: l.description, qty: l.outstanding, unit: l.uom, unitPrice: null, amount: null }))
     return { ...base, docType: 'DELIVERY_NOTE', docNo: 'DN-E2E-1', priceIncludesVat: null, lines, net: null, vat: null, gross: null }
+  }
+  if (purpose === 'INVOICE_READ' && subjectType === 'PURCHASE_ORDER' && subjectId) {
+    // A tax invoice of the PO's supplier for what was received, at the PO's prices (S13-20): it matches as typed by hand
+    const po = await prisma.purchaseOrder.findUniqueOrThrow({
+      where: { id: subjectId },
+      select: { vatRateBp: true, supplier: { select: { nameTh: true, taxId: true, branchCode: true } }, lines: { orderBy: { lineNo: 'asc' }, select: { description: true, receivedQuantity: true, uom: true, unitPriceSatang: true } } },
+    })
+    const lines = po.lines
+      .filter((l) => l.receivedQuantity.gt(0))
+      .map((l) => {
+        const qty = decimalText(l.receivedQuantity)
+        return { description: l.description, qty, unit: l.uom, unitPrice: satangToAmount(l.unitPriceSatang), amount: satangToAmount(lineNet(qty, l.unitPriceSatang)) }
+      })
+    const net = lines.reduce((sum, l) => sum + amountToSatang(l.amount), 0n)
+    const { vat, gross } = vatFromNet(net, po.vatRateBp ?? 0)
+    const seller = { name: po.supplier.nameTh, taxId: po.supplier.taxId, branch: po.supplier.branchCode }
+    return { ...base, seller, docType: 'TAX_INVOICE', docNo: 'INV-E2E-1', priceIncludesVat: false, lines, net: satangToAmount(net), vat: satangToAmount(vat), gross: satangToAmount(gross) }
   }
   return { ...base, docType: 'QUOTATION', priceIncludesVat: false, lines: [{ description: 'สินค้าตามใบเสนอราคา', qty: '1', unit: 'งาน', unitPrice: '5000.00', amount: '5000.00' }], net: '5000.00', vat: '350.00', gross: '5350.00' }
 }

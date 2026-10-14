@@ -1,0 +1,57 @@
+{
+  "promptVersion": "INTAKE@2",
+  "model": "claude-haiku-5-5",
+  "recorded": "LIVE",
+  "output": {
+    "requestTypeCode": "CONTRACT_WORK",
+    "title": "งานถนนแอสฟัลต์ (ค่าแรงและเครื่องจักร) - ถนนเลี่ยงเมืองราชบุรี",
+    "siteCode": "SITE-P07",
+    "neededBy": "12 วัน",
+    "lines": [
+      {
+        "description": "งานถนนแอสฟัลต์ (ค่าแรงและเครื่องจักร)",
+        "itemCode": "SUB-010",
+        "qty": "9500",
+        "unit": "ตร.ม.",
+        "unitPrice": null
+      }
+    ],
+    "supplier": {
+      "name": null,
+      "taxId": null,
+      "branch": null
+    },
+    "confidence": [
+      {
+        "field": "requestTypeCode",
+        "value": 92
+      },
+      {
+        "field": "title",
+        "value": 80
+      },
+      {
+        "field": "siteCode",
+        "value": 95
+      },
+      {
+        "field": "neededBy",
+        "value": 70
+      },
+      {
+        "field": "lines",
+        "value": 93
+      },
+      {
+        "field": "supplier",
+        "value": 100
+      }
+    ]
+  },
+  "usage": {
+    "input": 5708,
+    "output": 302,
+    "cacheRead": 1286,
+    "cacheWrite": 0
+  }
+}

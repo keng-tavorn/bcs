@@ -3513,6 +3513,97 @@
       "INACTIVE": "Out of use"
     }
   },
+  "configPackages": {
+    "created": {
+      "catalog": "{count} catalogue items ({codes}) are inactive: procurement turns them on from catalogue management",
+      "doa": "New draft of the approval authority (DOA) {n}: review it, then send it for approval",
+      "form": "Draft form of request type {code}: review and publish it in the form builder",
+      "none": "This package has no sections to import, so no draft was created.",
+      "title": "Imported as {count} drafts. Nothing takes effect until each draft is approved. Open each draft to review and send it on.",
+      "workflow": "Draft workflow {code}: try the route, then send it for approval"
+    },
+    "errors": {
+      "CONFLICT": "Something changed at the same time. Reload the page and try again.",
+      "DATE": "Choose the day, month and year the drafts take effect",
+      "DATE_PAST": "That date has passed. Choose a date after today.",
+      "FAILED": "This did not go through. Try again.",
+      "FILE_MISSING": "Choose a configuration package file (.json)",
+      "FILE_TOO_LARGE": "The file is too large for a configuration package. Export only the sections you need.",
+      "FORBIDDEN": "You do not have permission for this. Importing a DOA and a workflow also needs the rights to draft both. Ask an organization admin.",
+      "INTERNAL": "Something went wrong (reference {requestId}). Try again.",
+      "INVALID_CHECKSUM": "The package was changed after it was exported (the checksum does not match), so it was not imported. Export it again from the trial system without editing the file.",
+      "INVALID_NOT_A_PACKAGE": "This file is not a BCS configuration package. Choose a file exported from the configuration packages page.",
+      "INVALID_NOT_JSON": "This file is not JSON. Choose the .json file exported from the configuration packages page.",
+      "INVALID_SCHEMA_VERSION": "This package uses another format version. Export it again from the trial system and import it again.",
+      "LINT": "The drafts from this package do not pass the checks of this organization, so no draft was created. Fix them in the trial system and export again.",
+      "REASON": "Enter a reason of at least 3 characters",
+      "ROWS": "Some rows of the package do not fit this organization, so no draft was created.",
+      "SECTIONS": "Choose at least one section to export",
+      "UNAUTHENTICATED": "Your session has ended. Sign in again and repeat this action."
+    },
+    "export": {
+      "checksum": "checksum (sha256): {checksum}",
+      "done": "Configuration package exported: {fileName}",
+      "downloadAgain": "Download {fileName} again",
+      "intro": "You get a JSON file with its format version and a checksum (sha256). It holds no requests, budgets, account numbers or personal data.",
+      "pending": "Exporting…",
+      "sections": "Sections to export",
+      "submit": "Export configuration package",
+      "title": "Export a configuration package"
+    },
+    "forbidden": "This page is for organization admins and DOA admins. Ask an organization admin if you need it.",
+    "homeLink": "Back to home",
+    "import": {
+      "changeReason": "Reason for the change",
+      "changeReasonHint": "Recorded in the history of every draft created, and shown to the approver",
+      "chooseFile": "Choose file",
+      "draftsOnly": "Importing creates drafts only: the DOA and the workflow become drafts to send for approval, forms become drafts in the form builder, and catalogue items come in inactive. Nothing takes effect until each draft passes its normal approval.",
+      "effectiveDate": "Date the DOA and workflow drafts take effect once approved",
+      "effectiveDateHint": "Must be after today",
+      "file": "Configuration package file (.json)",
+      "intro": "Choose a file exported from the trial system of this organization. The checksum and every code it refers to are checked first; if any row does not fit this organization, nothing is created.",
+      "noFileChosen": "No file chosen",
+      "pending": "Importing…",
+      "rowsRefused": "{count} rows of the package do not fit this organization, so no draft was created. Fix them as the table says and import again.",
+      "submit": "Import as drafts",
+      "title": "Import a configuration package as drafts"
+    },
+    "intro": "Export the configuration you tried on the trial (UAT) system as a file, then import it into the live system as drafts. Each draft goes through its normal approval before it takes effect.",
+    "rows": {
+      "reason": "Reason and how to fix it",
+      "reasons": {
+        "CATALOG_CODE_EXISTS": "A catalogue item with this code already exists. Change the code in the trial system, or export without the catalogue.",
+        "DRAFT_EXISTS": "A draft not yet sent or awaiting approval already exists. Send or cancel that draft first.",
+        "FORM_INVALID": "The form in the package does not pass the form check. Fix it in the trial system and export again.",
+        "MEMBER_NOT_FOUND": "This organization has no member with this employee code. Invite the member or fix the employee code first.",
+        "OTHER": "This row does not fit this organization. Check the codes it refers to and export again.",
+        "POSITION_NOT_FOUND": "This organization has no position or department with this code. Add it to the organization structure first.",
+        "REQUEST_TYPE_NOT_FOUND": "This organization has no request type with this code. Create it first, then import again.",
+        "SUPPLIER_NOT_FOUND": "This organization has no supplier with this code. Add the supplier first."
+      },
+      "ref": "Item",
+      "section": "Section"
+    },
+    "sections": {
+      "CATALOG": {
+        "exportHint": "Active items and agreed prices that have not expired",
+        "name": "Catalogue and agreed prices"
+      },
+      "DOA": {
+        "exportHint": "The version in effect now, in the same YAML as the DOA import",
+        "name": "Approval authority (DOA)"
+      },
+      "FORMS": {
+        "exportHint": "The published form of every active request type",
+        "name": "Request type forms"
+      },
+      "WORKFLOW": {
+        "exportHint": "The version in effect now; named reviewers by employee code",
+        "name": "Parallel reviewers (workflow)"
+      }
+    },
+    "title": "Configuration packages"
+  },
   "delegation": {
     "candidate": "{name} · {department}",
     "cap": "Up to",
@@ -5657,12 +5748,50 @@
       "SUSPENDED": "Suspended"
     },
     "teamName": "BCS team",
+    "tenant": {
+      "PRODUCTION": "Live system (production)",
+      "SANDBOX": "Trial system (UAT) of {name}, code {code}",
+      "back": "Back to customer organizations",
+      "code": "Code {code} · {status}",
+      "kindTitle": "Kind of organization",
+      "openProduction": "Open the page of {name}",
+      "sandbox": {
+        "code": "Code of the trial system",
+        "codeHint": "Capital letters, digits, - or _, 2 to 40 characters, for example {example}",
+        "contractRef": "Contract reference",
+        "created": "Trial system {code} created",
+        "errors": {
+          "CODE": "Use capital letters, digits, - or _, 2 to 40 characters, starting with a letter or digit",
+          "CODE_TAKEN": "Another organization uses this code. Choose another one.",
+          "CONTRACT_REF": "Enter the contract reference",
+          "FAILED": "This was not saved. Try again.",
+          "FORBIDDEN": "This page is for active members of the BCS team. Sign in again and retry.",
+          "INPUT": "Something is missing or not valid. Check the fields and try again.",
+          "INTERNAL": "Something went wrong (reference {requestId}). Try again.",
+          "NOT_FOUND": "This organization was not found. Go back to customer organizations and choose again.",
+          "NOT_PRODUCTION": "Trial systems are created from a live organization only",
+          "REASON": "Enter a reason of at least 3 characters",
+          "UNAUTHENTICATED": "Your session has ended. Sign in again and repeat this action."
+        },
+        "intro": "Creates an empty trial-system organization of {name} under the same contract. It uses the settings of this organization with LINE off, its e-mails start with [UAT], and every page shows the trial-system banner.",
+        "nested": "This organization is already a trial system. Trial systems are created from the page of a live organization only.",
+        "noCopy": "Nothing is copied from the live system: no organization structure, positions, users, DOA, workflow or documents. The customer's organization admin sets the trial system up like a new organization.",
+        "openCreated": "Open the page of trial system {code}",
+        "pending": "Creating…",
+        "reason": "Reason (kept in the history)",
+        "submit": "Create trial system",
+        "title": "Create a trial system (UAT sandbox)"
+      },
+      "sandboxUnknown": "Trial system (UAT)",
+      "titleShort": "Customer organization"
+    },
     "tenants": {
       "empty": "There are no customer organizations yet. A new organization is created when its contract starts, following the BCS team guide, and then appears here.",
       "forbidden": "This page is for active members of the BCS team.",
       "intro": "The BCS team sees only the name, code and status of each organization, never the customer's business data.",
       "manageAi": "AI credits of {name}",
       "manageModules": "Manage modules of {name}",
+      "manageTenant": "Kind and trial systems of {name}",
       "title": "Customer organizations"
     },
     "twoFactorRequired": "The BCS team must set up two-step verification before switching customer modules. Set up the authenticator app below."
@@ -7671,6 +7800,7 @@
       "budgets": "Budgets",
       "calendar": "Business calendar",
       "catalog": "Catalogue",
+      "config": "Configuration packages",
       "delegation": "Acting approver",
       "doa": "Approval authority (DOA)",
       "exports": "Express export",
@@ -8505,6 +8635,9 @@
     },
     "system": "System",
     "waitingHours": "Waiting {hours} business hours"
+  },
+  "uat": {
+    "banner": "Trial system (UAT) — the data in this system is not real"
   },
   "ui": {
     "breadcrumb": "Breadcrumb",

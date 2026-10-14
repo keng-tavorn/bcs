@@ -42,6 +42,7 @@ export type MenuKey =
   | 'orgAuthority'
   | 'policyHistory'
   | 'modules'
+  | 'config'
   | 'ai'
   | 'tenants'
   | 'delegation'
@@ -99,6 +100,9 @@ export const MENU: readonly MenuItem[] = [
   { key: 'orgAuthority', href: '/admin/org-authority', group: 'admin', capability: 'admin.orgAuthority.propose', module: 'CORE', ready: true },
   { key: 'policyHistory', href: '/admin/policy-history', group: 'admin', capability: 'admin.policyHistory.view', module: 'CORE', ready: false },
   { key: 'modules', href: '/admin/modules', group: 'admin', capability: 'admin.modules.view', module: 'CORE', ready: true },
+  // S6-21 (FR-PLT-101 AC2): export and import of the configuration package; config.import has the same grantees as
+  // config.export (ORG_ADMIN, DOA_ADMIN · permissions.ts), and the page checks each of the two again
+  { key: 'config', href: '/admin/config', group: 'admin', capability: 'config.export', module: 'CORE', ready: true },
   // S13-04: the organization's AI assistants and credits, once the BCS team switched the AI module on
   { key: 'ai', href: '/admin/ai', group: 'admin', capability: 'admin.ai.manage', module: 'AI', ready: true },
   { key: 'tenants', href: '/platform/tenants', group: 'platform', capability: 'platform.modules.manage', module: null, ready: true },

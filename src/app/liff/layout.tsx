@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next'
 import { cookies } from 'next/headers'
 import type { ReactNode } from 'react'
+import { getTranslations } from 'next-intl/server'
 import { getEnv } from '@/lib/env'
 import { LiffProvider } from '@/ui/liff/liff-provider'
+import { LiffUatBanner } from '@/ui/liff/uat-banner'
 import { ClientMessages } from '../_lib/client-messages'
 import { LIFF_MOCK_USER_COOKIE, mockLineUserOf } from './_lib/mock-cookie'
 import { liffPage } from './_lib/session'
@@ -33,9 +35,12 @@ export default async function LiffLayout({ children }: { children: ReactNode }) 
   const [page, store] = await Promise.all([liffPage(), cookies()])
   const lineUserId = mocked ? mockLineUserOf(store.get(LIFF_MOCK_USER_COOKIE)?.value) : null
   const session = page.kind === 'signed-out' ? null : page.session
+  // BR-UAT-01: every page of a UAT sandbox says it is a trial system (the member's organization, read with the session)
+  const banner = page.kind === 'member' && page.member.organizationKind === 'SANDBOX' ? <LiffUatBanner text={(await getTranslations('uat'))('banner')} /> : null
   return (
     <ClientMessages scope="liff">
       <LiffProvider config={{ liffId: env.NEXT_PUBLIC_LIFF_ID ?? null, mock: mocked ? { lineUserId, cookie: LIFF_MOCK_USER_COOKIE } : null, session }}>
+        {banner}
         {children}
       </LiffProvider>
     </ClientMessages>

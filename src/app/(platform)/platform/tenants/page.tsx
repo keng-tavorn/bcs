@@ -9,7 +9,8 @@ export async function generateMetadata() {
   return { title: t('title') }
 }
 
-// Customer organizations for the BCS team (§9.1 /platform/tenants): name, code and status only (BR-AUTH-08).
+// Customer organizations for the BCS team (§9.1 /platform/tenants): name, code and status only (BR-AUTH-08), each with
+// its page (kind and UAT sandbox, S6-21), its modules and its AI credits.
 export default async function TenantsPage() {
   const state = await getPlatformSession()
   const [t, tStatus] = await Promise.all([getTranslations('platform.tenants'), getTranslations('platform.orgStatus')])
@@ -37,6 +38,9 @@ export default async function TenantsPage() {
                 </p>
               </div>
               <div className="flex flex-col sm:items-end">
+                <Link href={`/platform/tenants/${org.id}`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
+                  {t('manageTenant', { name: org.name })}
+                </Link>
                 <Link href={`/platform/tenants/${org.id}/modules`} className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4 hover:no-underline">
                   {t('manageModules', { name: org.name })}
                 </Link>

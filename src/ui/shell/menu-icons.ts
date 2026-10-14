@@ -8,6 +8,7 @@ import {
   ChartColumn,
   ClipboardList,
   FileDown,
+  FileBraces,
   FilePlus2,
   FileText,
   Gauge,
@@ -68,6 +69,7 @@ export const MENU_ICONS: Record<string, LucideIcon> = {
   orgAuthority: Network,
   policyHistory: History,
   modules: Blocks,
+  config: FileBraces,
   // The AI's own sign (§12.5: AI is marked with the info colour and Sparkles)
   ai: Sparkles,
   tenants: Building,

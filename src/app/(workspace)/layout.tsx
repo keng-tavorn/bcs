@@ -22,6 +22,7 @@ import { LanguageSwitch } from '@/ui/shell/language-switch'
 import { PwaRegistration } from '@/ui/pwa/pwa-registration'
 import { AskAiSheet } from '@/ui/ai-chat/ask-sheet'
 import { CommandPalette } from '@/ui/shell/command-palette'
+import { UatBanner } from '@/ui/shell/uat-banner'
 import { NotificationBell } from '@/ui/shell/notification-bell'
 import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
@@ -82,6 +83,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
   if (state.kind !== 'member') {
     return withMessages(
       <div className="min-h-dvh bg-bg">
+        {state.kind === 'needs-2fa-setup' && state.member.organizationKind === 'SANDBOX' ? <UatBanner text={(await getTranslations('uat'))('banner')} /> : null}
         <header className="border-b border-line bg-surface">
           <div className="mx-auto max-w-2xl px-4 py-4">
             <span className="text-xl font-bold text-ink">{tAuth('brand')}</span>
@@ -197,6 +199,9 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     />
   )
 
+  // BR-UAT-01: every page of a UAT sandbox says it is a trial system, before anything else on it
+  const banner = state.member.organizationKind === 'SANDBOX' ? <UatBanner text={(await getTranslations('uat'))('banner')} /> : null
+
   return withMessages(
     <WorkspaceShell
       brand={tAuth('brand')}
@@ -209,6 +214,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
       bell={bell}
       newRequest={door ? { href: door.href, label: door.label, types: requestTypes, countDrafts: countMyDraftsAction } : undefined}
       search={search}
+      banner={banner}
       account={
         <div className="flex flex-col items-start gap-3">
           {languageSwitch}

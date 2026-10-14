@@ -49,7 +49,8 @@
     "settings": "My settings",
     "admin": "Organization admin",
     "workflows": "Parallel reviewers (workflow)",
-    "ai": "AI assistants"
+    "ai": "AI assistants",
+    "config": "Configuration packages"
   },
   "counts": {
     "tasks": "{count, plural, one {# open task} other {# open tasks}}",

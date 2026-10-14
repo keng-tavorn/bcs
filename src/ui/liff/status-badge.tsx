@@ -37,6 +37,10 @@ const ICONS = {
   CircleSlash: [CIRCLE, ['line', { x1: '9', x2: '15', y1: '15', y2: '9' }]],
   CircleX: [CIRCLE, ['path', { d: 'm15 9-6 6' }], ['path', { d: 'm9 9 6 6' }]],
   Clock: [CIRCLE, ['path', { d: 'M12 6v6l4 2' }]],
+  Copy: [
+    ['rect', { width: '14', height: '14', x: '8', y: '8', rx: '2', ry: '2' }],
+    ['path', { d: 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2' }],
+  ],
   FilePen: [
     ['path', { d: 'M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34' }],
     ['path', { d: 'M14 2v5a1 1 0 0 0 1 1h5' }],
@@ -71,6 +75,7 @@ const ICONS = {
     ['circle', { cx: '18', cy: '20', r: '2' }],
     ['circle', { cx: '8', cy: '20', r: '2' }],
   ],
+  Split: [['path', { d: 'M16 3h5v5' }], ['path', { d: 'M8 3H3v5' }], ['path', { d: 'M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3' }], ['path', { d: 'm15 9 6-6' }]],
   TrendingDown: [['path', { d: 'M16 17h6v-6' }], ['path', { d: 'm22 17-8.5-8.5-5 5L2 7' }]],
   TrendingUp: [['path', { d: 'M16 7h6v6' }], ['path', { d: 'm22 7-8.5 8.5-5-5L2 17' }]],
   Undo2: [['path', { d: 'M9 14 4 9l5-5' }], ['path', { d: 'M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11' }]],

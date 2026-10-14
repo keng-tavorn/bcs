@@ -4,7 +4,7 @@ import { addOrRemoveFollower, cancelOwnRequest, followOrUnfollow } from '@/app/(
 import { prisma } from '@/server/db/client'
 import { getRequestView, listMyRequests } from '@/server/queries/requests'
 import { decideTask } from '@/server/services/approvals/decide'
-import { cancelRequest, createDraft, editRequest, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, editRequest, submitRequest } from '../support/requests'
 import { attachFile } from '@/server/services/requests/attachments'
 import { followRequest, getRequestFollowers, manageFollowers, MAX_FOLLOWERS } from '@/server/services/requests/followers'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'

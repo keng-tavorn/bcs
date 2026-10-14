@@ -1218,6 +1218,35 @@ def run_forms_s6(d):
             got = {k: (full[k] if k != "lines" else [{kk: x[kk] for kk in e} for x, e in zip(full["lines"], exp["lines"])]) for k in exp}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_duplicates(d):
+    # BR-DUP-01 to BR-DUP-04: line key = description NFC trimmed, spaces collapsed, lower case | uom; within windowDays
+    # × 24 h of at, in a counting status; DUPLICATE = same requester and a line of the same key and quantity; SPLIT =
+    # same department and (same supplier or a key in common) whose combined amount reaches another PURCHASE_REQUEST rule
+    # than the largest alone (DOA version in effect at `at`)
+    import unicodedata
+    use_fixtures(d["fixtures"]); out = []; df = d["defaults"]; win = timedelta(days=d["policy"]["windowDays"])
+    key = lambda l: f"{' '.join(unicodedata.normalize('NFC', l['d']).split()).lower()}|{l['uom']}"
+    counting = {"PENDING_APPROVAL", "RETURNED", "APPROVED", "PARTIALLY_ORDERED", "ORDERED", "COMPLETED"}
+    def rule(at, amt):
+        vs = [v for v in versions() if dt(v["effectiveFrom"]) <= at and (v["_to"] is None or at < v["_to"])]
+        cand = sorted([r for r in vs[-1]["rules"] if r["documentType"] == "PURCHASE_REQUEST" and matches(r, amt)], key=lambda r: (r["priority"], -len(r.get("when") or {})))
+        return cand[0]["code"] if cand else None
+    for c in d["cases"]:
+        i = c["input"]; at = dt(i.get("at", df["at"])); cand = {**{k: df[k] for k in ("requester", "department", "supplier")}, **i["candidate"]}
+        rec = sorted([{**{k: df[k] for k in ("requester", "department", "supplier")}, **r} for r in i["recent"] if r["status"] in counting and abs(dt(r["submittedAt"]) - at) <= win], key=lambda r: dt(r["submittedAt"]))
+        kq = {(key(l), Decimal(l["qty"])) for l in cand["lines"]}; ks = {key(l) for l in cand["lines"]}
+        flags = []
+        dup = [r["ref"] for r in rec if r["requester"] == cand["requester"] and any((key(l), Decimal(l["qty"])) in kq for l in r["lines"])]
+        if dup: flags.append({"kind": "DUPLICATE", "with": dup})
+        sp = [r for r in rec if r["department"] == cand["department"] and (r["supplier"] == cand["supplier"] or any(key(l) in ks for l in r["lines"]))]
+        if sp:
+            amts = [sat(cand["amount"])] + [sat(r["amount"]) for r in sp]; comb = sum(amts)
+            ir, cr = rule(at, max(amts)), rule(at, comb)
+            if cr is not None and cr != ir: flags.append({"kind": "SPLIT", "with": [r["ref"] for r in sp], "combined": baht(comb), "individualRule": ir, "combinedRule": cr})
+        got = {"flags": flags}
+        out.append((c["id"], got == c["expect"], got))
+    use_fixtures()
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-credits": run_ai_credits,
@@ -1228,6 +1257,7 @@ RUNNERS = {
     "delegation": run_delegation,
     "doa": run_doa,
     "doa-lint": run_doa_lint,
+    "duplicates": run_duplicates,
     "forms": run_forms,
     "forms-s6": run_forms_s6,
     "grni": run_grni,

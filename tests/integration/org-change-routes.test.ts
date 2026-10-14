@@ -8,7 +8,7 @@ import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { getRequestView } from '@/server/queries/requests'
 import { decideTask } from '@/server/services/approvals/decide'
 import { applyDueChange, previewOrgChange } from '@/server/services/org-authority'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { versionSnapshots } from '../golden/doa-fixtures'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

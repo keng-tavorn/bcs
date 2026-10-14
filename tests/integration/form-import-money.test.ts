@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { makeCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { checkFormImport, currentFormJson, publishFormVersion } from '@/server/services/request-types'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { getNewRequestForm } from '@/server/services/requests/form-view'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

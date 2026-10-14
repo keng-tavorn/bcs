@@ -14,7 +14,7 @@ import {
 import { ATTACHMENT_KINDS, parseFormJson } from '@/server/services/request-types/form-import'
 import { listRequestCatalog } from '@/server/queries/request-form'
 import { getRequestView } from '@/server/queries/requests'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { getNewRequestForm, getRequestForEdit } from '@/server/services/requests/form-view'
 import { createDoaOrg } from '../support/doa-org'
 

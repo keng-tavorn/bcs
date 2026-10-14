@@ -6,6 +6,7 @@ import type { FieldDef } from '@/core/forms/fields'
 import type { Satang } from '@/core/money/math'
 import type { StepProps } from '../../request-form/details-items'
 import { documentFieldIds } from '../../request-form/document-fields'
+import { duplicateRefusal, type DuplicateAsk } from '../../request-form/duplicate'
 import { problemStep, savableLine, type Problem, type RuleStatus } from '../../request-form/model'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type FormFailure, type FormOutcome } from '../../request-form/outcome'
 import { placeAndSupplierText } from '../../request-form/place-supplier'
@@ -20,6 +21,7 @@ import { LiffLink } from '../liff-link'
 import { useLiff } from '../liff-provider'
 import { LiffNotice } from '../notice'
 import { LiffCameraAttach } from './camera-attach'
+import { LiffDuplicatePanel } from './duplicate-panel'
 import { fieldLabelOf } from './field'
 import { newUuid } from './key'
 import type { LiffReadiness } from './ready'
@@ -143,6 +145,10 @@ export interface LiffReviewProps extends StepProps {
   /** Load the latest version of the draft (after CONFLICT_VERSION) */
   readonly onReload: () => void
   readonly files: LiffReviewFiles
+  /** S6-13: the send was refused as like a request sent before — the requests it matched and the reason to give */
+  readonly duplicate?: DuplicateAsk | null
+  /** The LIFF request pages (/liff/requests): a matched request is <requestsPath>/<id> */
+  readonly requestsPath?: string
 }
 
 /** Why the last attach, detach or opening of a file failed: the service's refusal, or what the screen saw */
@@ -479,7 +485,9 @@ export function LiffReviewStep(props: LiffReviewProps) {
 
       {/* The server's refusal of the send, last on the step: right above the send button in the bar, as the workspace's
           review step puts it above its button (§9.9: never only somewhere the requester does not look) */}
-      {submitError ? (
+      {/* S6-13: like a request sent before — the panel asks for the reason instead of a refusal (BR-DUP-05) */}
+      {props.duplicate ? <LiffDuplicatePanel ask={props.duplicate} requestsPath={props.requestsPath ?? '/liff/requests'} /> : null}
+      {submitError && !(props.duplicate && duplicateRefusal(submitError)) ? (
         <div ref={refusalRef}>
           <LiffNotice tone="danger">
             <p>{refusalText(submitError)}</p>

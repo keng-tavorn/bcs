@@ -6,7 +6,7 @@ import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { exportAudit, searchAudit } from '@/server/services/audit'
 import { pendingBoard, remindTask } from '@/server/services/board'
 import { getDownloadUrl } from '@/server/services/files'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S4-10 (spec §11.1, §4.5, FR-VIS-001 AC1 AC2, FR-VIS-004 AC1–AC3): the board shows the open tasks per assignee with

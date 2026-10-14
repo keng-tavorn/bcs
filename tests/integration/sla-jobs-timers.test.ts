@@ -6,7 +6,7 @@ import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant } from '@/server/db/tenant'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { approvalTaskSlaHandler, TIMER_MAX_WAITS, type TaskSlaRun, type TimerStep } from '@/server/jobs/approval-task-sla'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { markTaskOverdue, refusalOf, RetryableStepError } from '@/server/services/sla'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

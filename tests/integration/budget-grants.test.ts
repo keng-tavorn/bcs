@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { listUsableBudgetLines } from '@/server/queries/budget'
 import { budgetGrantsView, createBudgetGrant, createBudgetGrantForDays, revokeBudgetGrant } from '@/server/services/budget/grants'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // FR-BUD-004 (BR-BUD-04): BUDGET_ADMIN grants a department or a member the use of another department's budget line for

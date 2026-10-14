@@ -6,7 +6,7 @@ import { forTenant } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { decideTask } from '@/server/services/approvals/decide'
 import { remindShareOf } from '@/server/services/approvals/route'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

@@ -17,7 +17,7 @@ import { recordInvoice } from '@/server/services/invoices'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { editDraftPo, submitPo } from '@/server/services/purchase-orders'
 import { decideTask } from '@/server/services/approvals/decide'
-import { cancelRequest, createDraft, editRequest, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, editRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

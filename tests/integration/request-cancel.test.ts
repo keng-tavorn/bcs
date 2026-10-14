@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
-import { cancelRequest, createDraft, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // §6.4 and §2.4 request.cancel (S2 verification SM-01, SM-05): one command cancels a request — the requester before any

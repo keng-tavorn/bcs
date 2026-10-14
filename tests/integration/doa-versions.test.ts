@@ -8,7 +8,7 @@ import { forTenant } from '@/server/db/tenant'
 import { openTasksUnderVersion } from '@/server/doa/policy'
 import { decideTask } from '@/server/services/approvals/decide'
 import { activateDoaVersion, importDoaDraft, publishApprovedDoaVersion, submitDoaVersion } from '@/server/services/doa'
-import { createDraft, resubmitRequest, submitRequest } from '@/server/services/requests'
+import { createDraft, resubmitRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // FR-DOA-002 AC1 and AC4 (BR-DOA-08, BR-DOA-12): an imported DOA version is submitted only when the full lint passes and

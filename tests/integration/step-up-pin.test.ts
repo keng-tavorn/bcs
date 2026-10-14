@@ -10,7 +10,7 @@ import { deliverNotification } from '@/server/notifications/deliver'
 import { renderNotification } from '@/server/notifications/templates'
 import { decideTask } from '@/server/services/approvals/decide'
 import { proposeOrgChange } from '@/server/services/org-authority'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { confirmIdentityForPin, setOwnPin } from '@/server/services/self/pin'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

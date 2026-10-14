@@ -30,7 +30,7 @@ import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { requestCloseShort } from '@/server/services/receiving'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { LiffProvider } from '@/ui/liff/liff-provider'
 import type { ReceiptInput } from '@/ui/receiving/types'
 import th from '../../messages/th.json'

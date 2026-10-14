@@ -12,7 +12,7 @@ import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { sendPurchaseOrder } from '@/server/services/purchase-orders/send'
 import { postGoodsReceipt } from '@/server/services/receiving'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB } from '../support/e2e-env'
 import { lineWithRoom } from './budget-room'
 

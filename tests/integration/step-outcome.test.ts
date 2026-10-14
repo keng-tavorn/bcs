@@ -5,7 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { ok } from '@/core/result'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // FR-DOA-004 AC6 (P1-07): every decide flow moves its document by what the step came to (completeStep), not by the

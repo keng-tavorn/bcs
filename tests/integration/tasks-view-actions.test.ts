@@ -12,7 +12,7 @@ import { decideTask, provideInfo, requestInfo } from '@/server/services/approval
 import { importDoaDraft, submitDoaVersion } from '@/server/services/doa'
 import { diffVersions } from '@/server/services/doa/diff'
 import { proposeOrgChange } from '@/server/services/org-authority'
-import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { TEST_PIN, testStepUpSession } from '../support/pin'
 
@@ -181,7 +181,8 @@ describe('[FR-INT-009/AC2] only the requester sends a returned request again', (
     expect(await resubmitOwnRequest(org.ctxOf('proc_officer', TUE_1000), requestId, randomUUID())).toEqual({ ok: false, code: 'FORBIDDEN' })
     expect(await requestRow(requestId)).toEqual(before)
     expect(before.status).toBe('RETURNED')
-    expect(await resubmitOwnRequest(org.ctxOf('req_con', TUE_1000), requestId, randomUUID())).toEqual({ ok: true })
+    // The fixture sends the same request it sent before (S6-13 · BR-DUP-05): the page would ask why
+    expect(await resubmitOwnRequest(org.ctxOf('req_con', TUE_1000), requestId, randomUUID(), 'ส่งซ้ำโดยตั้งใจในเทสต์')).toEqual({ ok: true })
     expect((await requestRow(requestId)).status).toBe('PENDING_APPROVAL')
   })
 })

@@ -5,7 +5,7 @@ import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/price-reference.spec.ts against the e2e database only (S6-11 · FR-DOA-101): everything through the

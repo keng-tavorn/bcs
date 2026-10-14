@@ -8,6 +8,7 @@ import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { budgetLineAvailable } from '@/server/services/budget/line-available'
 import { getPriceReference } from '@/server/services/price-reference'
+import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { liffFacts } from '@/server/services/liff'
 import { LIFF_HELP_PATH, LIFF_HOME_PATH } from '@/ui/liff/bootstrap'
 import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
@@ -17,6 +18,7 @@ import { LiffNotice } from '@/ui/liff/notice'
 import { BackToChat } from '@/ui/liff/tasks/back-to-chat'
 import { LiffPolicyDecisionLoader, LiffTaskDecisionLoader } from '@/ui/liff/tasks/lazy'
 import { LiffPriceReference } from '@/ui/liff/tasks/price-reference'
+import { LiffRequestFlags } from '@/ui/liff/tasks/request-flags'
 import { liffTaskAction, WEB_PIN_SETTINGS_PATH } from '@/ui/liff/tasks/shared'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, type AmountRow, type Fact } from '@/ui/request-view/facts'
@@ -27,6 +29,7 @@ import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
 import { WorkflowSubject } from '../../../(workspace)/_tracking/workflow-subject'
 import { priceReferenceView } from '../../../(workspace)/_tracking/price-reference'
+import { requestFlagsView } from '../../../(workspace)/_tracking/request-flags'
 import { doaRefText, dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../(workspace)/_tracking/request-sections'
 import { taskTitle } from '../../../(workspace)/_tracking/rows'
@@ -35,7 +38,7 @@ import { PoBody } from '../../../(workspace)/procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../../(workspace)/procurement/pos/_parts/present'
 import { ClosedTaskText } from '../../../(workspace)/tasks/_parts/closed-task'
 import { VarianceBody } from '../../../(workspace)/tasks/_parts/variance-body'
-import { liffTaskHref } from '../../_lib/links'
+import { liffHref, liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
 import { liffSignedIn } from '../_lib/signed-in'
 import { askLiffRequesterAction, decideLiffPolicyAction, decideLiffTaskAction, openLiffFileAction } from './actions'
@@ -184,6 +187,9 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   // (priceReference.view, S6-11 · BR-PRC-07); anyone else simply gets no section
   const priceRef = request ? await getPriceReference(ctx, { requestId: request.id }) : null
   const priceRefView = priceRef?.ok ? priceReferenceView(await getTranslations('priceReference'), priceRef.data) : null
+  // The request's flags, as on the web decision page (S6-13 · FR-INT-103 AC2 AC3); a matched request opens its LIFF page
+  const flags = request ? await listRequestFlags(ctx, request.id) : null
+  const flagsView = flags?.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (id) => liffHref(`/requests/${id}`) ?? `/requests/${id}`) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
@@ -303,6 +309,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           <div className="border-t border-line pt-5">
             <RequestFacts view={request} locale={locale} brief />
           </div>
+          {flagsView ? <LiffRequestFlags view={flagsView} /> : null}
           <RequestSections view={request} locale={locale} openFile={openFile} doaLinks={false} />
           {priceRefView ? <LiffPriceReference view={priceRefView} /> : null}
         </>

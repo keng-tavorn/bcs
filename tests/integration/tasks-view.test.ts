@@ -10,7 +10,7 @@ import { getTaskAccess, getTaskView, listMyTasks } from '@/server/queries/tasks'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { importDoaDraft, submitDoaVersion } from '@/server/services/doa'
 import { proposeOrgChange } from '@/server/services/org-authority'
-import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S2-12: the read side of the inbox, the decision page and the request view (FR-INT-008, FR-DOA-003 AC2, FR-DOA-004,

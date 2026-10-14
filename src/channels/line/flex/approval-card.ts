@@ -46,6 +46,8 @@ export interface ApprovalCardData {
   /** A reviewer's task: the workflow rules it answers for (S6); null for every other task */
   readonly review?: { readonly ruleCodes: readonly string[] } | null
   /** S6-11 (BR-PRC-05): the request's one price badge — counts and percents only; null or left out when no line is HIGH or LOW */
+  /** S6-13 (BR-DUP-05): the request's flags; left out or empty when none */
+  readonly flags?: ReadonlyArray<'DUPLICATE' | 'SPLIT'>
   readonly priceBadge?: { readonly high: { readonly lines: number; readonly maxPct: number } | null; readonly low: { readonly lines: number; readonly minPct: number } | null } | null
   readonly links: {
     /** /liff/tasks/<taskId>?action=approve */
@@ -84,6 +86,7 @@ export function approvalCard(data: ApprovalCardData): FlexMessage {
   const badges: FlexComponent[] = [
     ...(data.acting ? [{ type: 'text' as const, text: cardLabel('acting', t), size: 'md' as const, color: WARN, wrap: true }] : []),
     ...(data.escalated ? [{ type: 'text' as const, text: cardLabel('escalated', t), size: 'md' as const, color: DANGER, wrap: true }] : []),
+    ...(data.flags ?? []).map((f) => ({ type: 'text' as const, text: cardLabel(f === 'DUPLICATE' ? 'flagDuplicate' : 'flagSplit', t), size: 'md' as const, color: WARN, wrap: true })),
   ]
 
   const rows: FlexComponent[] = [row(cardLabel('number', t), documentLabel), row(cardLabel('type', t), kind)]

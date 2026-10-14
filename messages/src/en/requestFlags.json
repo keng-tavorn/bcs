@@ -1,0 +1,21 @@
+{
+  "title": "Notes on this request",
+  "intro": "Found when the requester sent the request. Use them when you decide; a note does not change the approval route.",
+  "matched": "Related requests",
+  "badge": {
+    "DUPLICATE": "Like a request sent before",
+    "SPLIT": "May split to avoid a limit"
+  },
+  "duplicate": {
+    "detail": "The requester recently sent a request with the same item in the same quantity, and confirmed they want to ask again.",
+    "reasonLabel": "Requester's reason",
+    "noReason": "The requester gave no reason"
+  },
+  "split": {
+    "detail": "Together with recent requests of the same department, the total of {amount} baht reaches a higher DOA rule than each request alone.",
+    "detailNoAmount": "Together with recent requests of the same department, the total reaches a higher DOA rule than each request alone.",
+    "rulesLabel": "DOA rule",
+    "rules": "alone {individual} → together {combined}",
+    "noRule": "no rule applies"
+  }
+}

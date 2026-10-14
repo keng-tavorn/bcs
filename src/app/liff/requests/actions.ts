@@ -59,17 +59,19 @@ export async function previewRequestAction(input: PreviewRequestInput): Promise<
 /**
  * "ส่งขออนุมัติ" from LIFF (FR-INT-007, FR-LINE-003 AC1): submit the draft the form saved, or send a returned request
  * again (FR-INT-009 AC2), naming the version the requester checked (FR-INT-006 AC2). Sent, the answer carries the number
- * and who decides it now, for the confirmation in the button's own words (§9.9 rule 7).
+ * and who decides it now, for the confirmation in the button's own words (§9.9 rule 7). The requester's reason for asking
+ * again goes with it as duplicateReason once the form asked for it (S6-13 · BR-DUP-05: DUPLICATE_UNACKNOWLEDGED).
  */
 export async function submitRequestAction(
-  input: { requestId: string; expectedVersion: number; resubmit: boolean },
+  input: { requestId: string; expectedVersion: number; resubmit: boolean; duplicateReason?: string },
   idempotencyKey: string,
 ): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const command = input?.resubmit === true ? resubmitRequest : submitRequest
-  const result = await command(ctx, { requestId: input?.requestId, expectedVersion: input?.expectedVersion }, { idempotencyKey })
+  const duplicateReason = typeof input?.duplicateReason === 'string' ? { duplicateReason: input.duplicateReason } : {}
+  const result = await command(ctx, { requestId: input?.requestId, expectedVersion: input?.expectedVersion, ...duplicateReason }, { idempotencyKey })
   const screen = await screenLocale()
   if (result.ok) {
     const sent = await sentRequestSummary(ctx, input.requestId, screen)
@@ -156,11 +158,11 @@ export async function answerInfoAction(input: { infoRequestId: string; answer: s
   return answerQuestion(ctx, input, idempotencyKey)
 }
 
-/** FR-INT-009 AC2: the requester sends a returned request again as it is, from LIFF */
-export async function resubmitReturnedAction(requestId: string, idempotencyKey: string): Promise<ActionOutcome> {
+/** FR-INT-009 AC2: the requester sends a returned request again as it is, from LIFF (with the reason for asking again, S6-13) */
+export async function resubmitReturnedAction(requestId: string, idempotencyKey: string, duplicateReason?: string): Promise<ActionOutcome> {
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION_ACTION
-  return resubmitOwnRequest(ctx, requestId, idempotencyKey)
+  return resubmitOwnRequest(ctx, requestId, idempotencyKey, duplicateReason)
 }
 
 /** FR-INT-009 AC1: the requester cancels their request with a reason, from LIFF; the budget it reserved goes back at once */

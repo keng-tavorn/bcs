@@ -6,7 +6,7 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
 import { seedTaxRates } from '@/server/seed/tax-rates'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/policy-withdrawal.spec.ts against the e2e database only (S6-07 · FR-DOA-103 · FR-DOA-104 ·

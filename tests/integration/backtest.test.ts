@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { backtestDraft, completeBacktestRun, getBacktestRun } from '@/server/services/backtest'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S6-07 (FR-DOA-103 · BR-WF-13 · ADR-111): the 90-day backtest of a DOA draft against Postgres, on the §7.4 fixture

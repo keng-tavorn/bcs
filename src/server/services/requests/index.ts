@@ -21,6 +21,7 @@ import { closeRoute, startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { formDefinition, type FormDefinition } from '@/server/forms/schema'
 import { checkCatalogLines } from './catalog-lines'
+import { flagRequest } from './duplicates'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { releaseForRequest, reserveForRequest, resolveBudgetLine } from './budget'
 import { reportDoaGap } from './doa-gap'
@@ -328,7 +329,13 @@ export function createDraft(ctx: Ctx, input: z.input<typeof DraftInput>, options
 
 // ---------- submit and resubmit ----------
 
-const SubmitInput = z.strictObject({ requestId: z.uuid(), expectedVersion: ExpectedVersion.optional(), aiAssist: AiAssistInput.optional() })
+const SubmitInput = z.strictObject({
+  requestId: z.uuid(),
+  expectedVersion: ExpectedVersion.optional(),
+  aiAssist: AiAssistInput.optional(),
+  /** S6-13 (BR-DUP-05): why a request that looks like one sent before is sent anyway */
+  duplicateReason: z.string().trim().max(REASON_MAX_LENGTH).optional(),
+})
 
 /** Loads the request locked, with what the requester (OWN) owns, for submit, resubmit and cancel. */
 async function lockedRequest(tx: TenantTx, ctx: Ctx, requestId: string) {
@@ -340,7 +347,7 @@ async function lockedRequest(tx: TenantTx, ctx: Ctx, requestId: string) {
 type LoadedRequest = NonNullable<Awaited<ReturnType<typeof lockedRequest>>>
 
 /** Form check, totals and route: the shared part of submit and resubmit. */
-async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
+async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, duplicateReason: string | null) {
   // BR-FORM-01 and BR-FORM-03: hidden fields are dropped, visible ones checked, attachment rules met
   const form = formDefinition(request.formVersion.schema)
   if (request.lines.length === 0) return fail('VALIDATION_FAILED', 'a request needs at least one line', { field: 'lines', reason: 'NO_LINES' })
@@ -420,7 +427,10 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest) {
     review,
   )
   if (!route.ok) return { ok: false as const, error: route.error }
-  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget: reserved, budgetLineId: budgetLine.line.id, chargedDepartmentId }
+  // BR-DUP-05 (S6-13): duplicates and splits under the DOA version of this route; never blocking, never rerouting
+  const flagged = await flagRequest(tx, ctx, { ...request, chargedDepartmentId }, totals, { routeId: route.data.routeId, doaVersionId: route.data.route.doaVersionId }, duplicateReason)
+  if (!flagged.ok) return flagged
+  return { ok: true as const, totals, rateBp: rate.rateBp, taxDate, route: route.data, formData: checked.data, budget: reserved, budgetLineId: budgetLine.line.id, chargedDepartmentId, flagged }
 }
 
 export const submitCommand = defineCommand({
@@ -444,7 +454,7 @@ export const submitCommand = defineCommand({
     // The number comes first so the approver's task names it; a refusal below rolls it back with everything else
     const department = await tx.department.findUniqueOrThrow({ where: { id: request.chargedDepartmentId }, select: { code: true } })
     const number = await issueDocumentNumber(tx, ctx, { document: 'PR', department: department.code })
-    const prepared = await prepareRoute(tx, ctx, { ...request, number })
+    const prepared = await prepareRoute(tx, ctx, { ...request, number }, input.duplicateReason ?? null)
     if (!prepared.ok) return prepared
     const { totals, route } = prepared
     await tx.request.update({
@@ -486,9 +496,10 @@ export const submitCommand = defineCommand({
       },
       ...prepared.budget.events,
       ...route.events,
+      ...prepared.flagged.events,
       ...ai.data,
     ]
-    return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: route.notifications }
+    return { ok: true, result: { number, routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId }, events, notifications: [...route.notifications, ...prepared.flagged.notifications] }
   },
 })
 
@@ -565,7 +576,7 @@ export const resubmitCommand = defineCommand({
     if (!moved.ok) return moved
     // BR-DOA-09: a new route with the version in effect now; earlier approvals do not count
     const replaced = await closeRoute(tx, { type: 'REQUEST', id: request.id }, 'CANCELLED', 'ROUTE_REPLACED')
-    const prepared = await prepareRoute(tx, ctx, request)
+    const prepared = await prepareRoute(tx, ctx, request, input.duplicateReason ?? null)
     if (!prepared.ok) return prepared
     const { totals, route } = prepared
     await tx.request.update({
@@ -606,9 +617,10 @@ export const resubmitCommand = defineCommand({
         },
         ...prepared.budget.events,
         ...route.events,
+        ...prepared.flagged.events,
         ...ai.data,
       ],
-      notifications: route.notifications,
+      notifications: [...route.notifications, ...prepared.flagged.notifications],
     }
   },
 })

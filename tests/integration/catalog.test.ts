@@ -4,7 +4,7 @@ import { amountToSatang } from '@/core/money/dto'
 import { prisma } from '@/server/db/client'
 import { createCatalogItem, createPriceAgreement, endPriceAgreement, updateCatalogItem } from '@/server/services/catalog'
 import { getCatalogManage, listCatalog } from '@/server/services/catalog/view'
-import { createDraft, editRequest, submitRequest } from '@/server/services/requests'
+import { createDraft, editRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S6-10 (FR-INT-102 · BR-PRC-06 · OQ-114): the catalogue and its agreed prices against Postgres, through the services

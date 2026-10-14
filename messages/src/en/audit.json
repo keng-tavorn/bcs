@@ -320,6 +320,7 @@
       "doa_gap_reported": "DOA has no rule for this request",
       "draft_expiry_notified": "Expiring draft notified",
       "drafted": "Request drafted",
+      "flagged": "Flagged as a duplicate or split",
       "follower_added": "Follower added",
       "follower_removed": "Follower removed",
       "info_provided": "Requester answered",

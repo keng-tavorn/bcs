@@ -9,7 +9,7 @@ import { createNotifications } from '@/server/notifications/create'
 import { decideTask } from '@/server/services/approvals/decide'
 import { activateDoaVersion, importDoaDraft, publishApprovedDoaVersion, submitDoaVersion } from '@/server/services/doa'
 import { listMyNotifications, markNotificationsRead } from '@/server/services/notifications'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // FR-NOTI-001: every notification is in the bell with a link to its document and can be marked read; a dedupeKey keeps

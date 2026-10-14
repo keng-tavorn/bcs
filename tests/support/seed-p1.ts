@@ -306,6 +306,18 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(await db.event.findFirst({ where: { type: 'request.drafted', aggregateId: renewed.data.requestId } })).toMatchObject({ data: { source: 'RENEWAL' } })
     })
 
+    it('[FR-INT-103/AC3] S6-13: the split pair of fm_p02 and the duplicate pair of se_p06a carry their flags after the seed, made by the submit itself', async () => {
+      const db = forTenant(organizationId)
+      const idOf = async (ref: string) => (await db.request.findFirstOrThrow({ where: { title: sheets.history.find((h) => h.ref === ref)!.title }, select: { id: true } })).id
+      const pairOf = (requester: string, item: string) => sheets.history.filter((h) => h.requester === requester && h.itemCode === item).sort((a, b) => Number(b.daysAgo) - Number(a.daysAgo))
+      const [splitFirst, splitSecond] = pairOf('fm_p02', 'MAT-011')
+      const [dupFirst, dupSecond] = pairOf('se_p06a', 'MAT-014')
+      expect(await db.requestFlag.findMany({ where: { requestId: await idOf(splitSecond!.ref!) }, select: { kind: true, matchedRequestIds: true } })).toEqual([{ kind: 'SPLIT', matchedRequestIds: [await idOf(splitFirst!.ref!)] }])
+      const duplicate = await db.requestFlag.findFirstOrThrow({ where: { requestId: await idOf(dupSecond!.ref!), kind: 'DUPLICATE' }, select: { matchedRequestIds: true, acknowledgedReason: true } })
+      expect(duplicate.matchedRequestIds).toEqual([await idOf(dupFirst!.ref!)])
+      expect(duplicate.acknowledgedReason).toBeTruthy()
+    })
+
     it('leaves a history made in full alone when the seed runs again', async () => {
       const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
       const again = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(parseBudget(workbook)) })

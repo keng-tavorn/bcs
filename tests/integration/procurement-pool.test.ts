@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow, listPool, runScheduledConsolidation } from '@/server/services/procurement'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S4-03 (spec §7.10, FR-P2P-001, FR-P2P-002, BR-CONS-01 to BR-CONS-05): approved request lines wait in the pool;

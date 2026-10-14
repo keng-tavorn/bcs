@@ -8,6 +8,7 @@ import { businessDaysTaken, getMyOpenTaskId, getRouteStepDetails, listRequestPur
 import { getPoAccess } from '@/server/queries/purchase-orders'
 import { getRequestAccess, getRequestView, getServiceLines, type RequestViewDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
+import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
 import { PO_BADGES, REQUEST_BADGES, StatusBadge, URGENCY_BADGES } from '@/ui/document/badges'
@@ -25,6 +26,7 @@ import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Section } from '@/ui/request-view/facts'
 import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
 import { FollowButton, FollowersPanel } from '@/ui/request-view/followers'
+import { RequestFlagsPanel } from '@/ui/request-flags/panel'
 import { RenewLines, ReorderButton } from '@/ui/request-view/repeat-actions'
 import { canRenew, canReorder } from '@/ui/request-view/repeat-rules'
 import { CancelRequest, RequesterActions } from '@/ui/request-view/requester-actions'
@@ -36,6 +38,7 @@ import { canOpenDoaVersion, canViewRequest, taskRight } from '../../_tracking/ac
 import { requestBudgetState } from '../../_tracking/budget-state'
 import { commentViews, historyRows, requestHistoryKinds, routeWhy, stepCards } from '../../_tracking/document-present'
 import { day, doaHref, doaRefText, dueText, fileKind, localeOf, memberName, money, nameIn, stageText, stageWaitingMinutes, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
+import { requestFlagsView } from '../../_tracking/request-flags'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { canViewPo } from '../../procurement/pos/_parts/access'
 import { askForInformationAction, decideTaskAction } from '../../tasks/actions'
@@ -113,12 +116,15 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const route = view.route
   const closed = CLOSED_STATUSES.includes(view.status)
   const lastDone = view.track.filter((e) => e.state === 'done').at(-1)?.at ?? null
-  const [details, daysTaken, poAccess, task] = await Promise.all([
+  const [details, daysTaken, poAccess, task, flags] = await Promise.all([
     route ? getRouteStepDetails(ctx, route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, view.submittedAt, closed ? lastDone : null),
     Promise.all(allPos.map((po) => getPoAccess(ctx, po.id))),
     myTaskId ? Promise.all([getTaskAccess(ctx, myTaskId), getTaskView(ctx, myTaskId)]) : Promise.resolve(null),
+    // Like a request its requester sent before, or a purchase that may be split (S6-13 · FR-INT-103 AC2 AC3)
+    listRequestFlags(ctx, id),
   ])
+  const flagsView = flags.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (requestId) => `/requests/${requestId}`) : null
   // Only the POs the reader may open (po.view, §2.4): a PO they may not see is not mentioned at all (AC2)
   const pos = allPos.filter((_, i) => poAccess[i] && canViewPo(principal, poAccess[i]!))
   // The decision bar: an open task on this request that the reader may decide (approval.decide, BR-DLG-04)
@@ -172,6 +178,8 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
         {rejection ? <p className="break-words whitespace-pre-line text-ink">{tv('detail.rejectedReason', { reason: rejection })}</p> : null}
         {view.cancelReason ? <p className="break-words whitespace-pre-line text-ink">{tv('detail.cancelledReason', { reason: view.cancelReason })}</p> : null}
       </div>
+
+      {flagsView ? <RequestFlagsPanel view={flagsView} /> : null}
 
       {serviceLines.length ? (
         <Section id="renewal" title={tv('actions.renewTitle')}>

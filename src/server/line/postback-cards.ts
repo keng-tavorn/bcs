@@ -123,6 +123,12 @@ async function subjectSummary(db: Db, subjectType: string, subjectId: string, fa
   return none
 }
 
+async function latestFlags(db: ReturnType<typeof forTenant>, requestId: string): Promise<Array<'DUPLICATE' | 'SPLIT'>> {
+  const latest = await db.requestFlag.aggregate({ where: { requestId }, _max: { routeNo: true } })
+  if (latest._max.routeNo === null) return []
+  return (await db.requestFlag.findMany({ where: { requestId, routeNo: latest._max.routeNo }, orderBy: { kind: 'asc' }, select: { kind: true } })).map((f) => f.kind)
+}
+
 /**
  * The approval card of an open task for its assignee (FR-LINE-002 AC1), with the in-chat approve button only when the
  * task may be decided there and the assignee holds a live LINE token (BR-TOK-05, BR-TOK-01). Null when the task is no
@@ -167,6 +173,8 @@ export async function approvalCardMessage(
   const subject = await subjectSummary(db, route.subjectType, route.subjectId, task.fallbackLabel, cards.locale)
   // S6-11 (BR-PRC-05): a request's card carries its one price badge; the assignee may read its price reference (BR-PRC-07)
   const price = route.subjectType === 'REQUEST' ? await priceReferenceForCard(organizationId, route.subjectId, now) : null
+  // S6-13 (BR-DUP-05): the flags of the request's latest route
+  const flags = route.subjectType === 'REQUEST' ? await latestFlags(db, route.subjectId) : []
   const token = await db.actionToken.findFirst({
     where: { taskId: task.taskId, memberId: task.memberId, channel: 'LINE', usedAt: null, revokedAt: null, expiresAt: { gt: now } },
     orderBy: { createdAt: 'desc' },
@@ -190,6 +198,7 @@ export async function approvalCardMessage(
     stepUp: row.step.kind !== 'REVIEW' && stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
     review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
     priceBadge: price?.badge ?? null,
+    flags,
     tokenId: token?.id ?? null,
     links: { approve: taskLink(cards, task.taskId, 'approve'), decline: taskLink(cards, task.taskId, 'reject'), details: taskLink(cards, task.taskId) },
   })

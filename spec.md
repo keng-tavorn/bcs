@@ -2585,6 +2585,29 @@ cases:
   - { id: GC-FORM-21, title: ขอซ้ำใช้ราคาตกลงที่มีผล, fn: reorderDraft, input: { currentFields: [], source: { fields: {}, lines: [{ item: MAT-004, supplier: S1, qty: "100", unitPrice: "185.00" }] }, agreements: [{ item: MAT-004, supplier: S1, unitPrice: "177.00" }] }, expect: { lines: [{ qty: "100", unitPrice: "177.00", priceSource: AGREEMENT }] } }
 ```
 
+```yaml
+# tests/golden/duplicates.yaml
+suite: duplicates
+fixtures: [fixtures/doa-versions.yaml]
+policy: { windowDays: 7 }
+defaults: { at: "2026-10-06T03:00:00Z", requester: u1, department: CON, supplier: S1 }
+# ทุกคำขอมี lines: [{ description, uom, qty }] · amount = ยอดรวม VAT (ฐาน GROSS ของ DOA-DEMO ฉบับ 1)
+cases:
+  - { id: GC-DUP-01, title: ผู้ขอ ของ และจำนวนเดียวกัน ห่าง 1 วัน, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [{ kind: DUPLICATE, with: [R1] }] } }
+  - { id: GC-DUP-02, title: จำนวนต่างกันและยอดรวมยังช่วงเดิม, input: { candidate: { amount: "26536.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "400" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-03, title: ห่าง 7 วันพอดี, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-09-29T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [{ kind: DUPLICATE, with: [R1] }] } }
+  - { id: GC-DUP-04, title: ห่าง 7 วัน 1 วินาที, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-09-29T02:59:59Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-05, title: แตกยอดของ fm_p02 ในข้อมูลระยะ 1, input: { candidate: { amount: "19864.55", lines: [{ d: ไม้อัดยางทำแบบหล่อ 10 มม., uom: แผ่น, qty: "47" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "19441.90", lines: [{ d: ไม้อัดยางทำแบบหล่อ 10 มม., uom: แผ่น, qty: "46" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1], combined: "39306.45", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-06, title: รวมแล้วยังช่วงเดิม, input: { candidate: { amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "10" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "9000.00", lines: [{ d: A, uom: ชิ้น, qty: "9" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-07, title: รวมเท่าขอบบนพอดี, input: { candidate: { amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "10" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "11" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-08, title: รวมเกินขอบ 1 สตางค์, input: { candidate: { amount: "10000.01", lines: [{ d: A, uom: ชิ้น, qty: "10" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "11" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1], combined: "20000.01", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-09, title: คำขอที่ไม่อนุมัติไม่นับ, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: REJECTED, submittedAt: "2026-10-05T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-10, title: คนละผู้ขอ แผนกและผู้ขายเดียวกัน, input: { candidate: { amount: "15000.00", lines: [{ d: B, uom: ชุด, qty: "1" }] }, recent: [{ ref: R1, requester: u2, status: PENDING_APPROVAL, submittedAt: "2026-10-05T03:00:00Z", amount: "8000.00", lines: [{ d: C, uom: ชุด, qty: "1" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1], combined: "23000.00", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-11, title: ช่องว่างและตัวพิมพ์ไม่ทำให้พลาด, input: { candidate: { amount: "1070.00", lines: [{ d: "  Safety   Helmet ", uom: ใบ, qty: "5" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "1070.00", lines: [{ d: "safety helmet", uom: ใบ, qty: "5" }] }] }, expect: { flags: [{ kind: DUPLICATE, with: [R1] }] } }
+  - { id: GC-DUP-12, title: สามคำขอรวมกัน, input: { candidate: { amount: "6000.00", lines: [{ d: A, uom: ชิ้น, qty: "6" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-04T03:00:00Z", amount: "8000.00", lines: [{ d: A, uom: ชิ้น, qty: "8" }] }, { ref: R2, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "7000.00", lines: [{ d: A, uom: ชิ้น, qty: "7" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1, R2], combined: "21000.00", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-13, title: แผนกเดียวกันแต่คนละผู้ขายและคนละของ, input: { candidate: { amount: "15000.00", lines: [{ d: B, uom: ชุด, qty: "1" }] }, recent: [{ ref: R1, requester: u2, supplier: S2, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "8000.00", lines: [{ d: C, uom: ชุด, qty: "1" }] }] }, expect: { flags: [] } }
+```
+
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
 
 หัวข้อนี้จองให้ขั้น S8 (สาย 2): กฎ BR INV และ golden ของ S8 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S8.md`) · กฎของตระกูลเดิม (BR-VAT BR-IVC BR-MATCH BR-WHT) อยู่ในตารางของ §7.1 §7.12 และ §7.14
@@ -3880,6 +3903,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `member.role_granted` · `member.role_revoked` ของ `DOA_ADMIN` (S6-09 · BR-WF-16) | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
+| `request.flagged` (S6-13 · BR-DUP-05) | AUDITOR | ในระบบ | DIGEST | `audit.request_flagged` |
 | `request.renewal_reminded` (S6-12 · BR-FORM-08) | ผู้ขอ · PROCUREMENT | LINE → อีเมล · ในระบบ | ผู้ขอ IMMEDIATE · PROCUREMENT DIGEST | `request.renewal_due` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
@@ -3909,7 +3933,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
 | form_version | `form_version.published` |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` · S6-13: `request.flagged` (kind `DUPLICATE` `SPLIT` · routeNo · matchedRequestIds) |
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
@@ -4276,7 +4300,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       28 ไฟล์ · 300 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       29 ไฟล์ · 313 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

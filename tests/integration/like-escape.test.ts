@@ -9,7 +9,7 @@ import { issuedDocumentNumbers } from '@/server/queries/settings'
 import { searchSuppliers } from '@/server/queries/suppliers'
 import { txNumberingReader } from '@/server/services/numbering/admin'
 import { assignHolder, endHolder } from '@/server/services/org-structure'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

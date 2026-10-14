@@ -13,6 +13,7 @@ export type BadgeIcon =
   | 'CircleDot'
   | 'CircleX'
   | 'Clock'
+  | 'Copy'
   | 'FilePen'
   | 'Hourglass'
   | 'Lock'
@@ -20,6 +21,7 @@ export type BadgeIcon =
   | 'PackageCheck'
   | 'Send'
   | 'ShoppingCart'
+  | 'Split'
   | 'TrendingDown'
   | 'TrendingUp'
   | 'Undo2'
@@ -95,6 +97,14 @@ export const BUDGET_BADGES: Readonly<Record<'OK' | 'LOW' | 'SHORT', BadgeLook>> 
 export const PRICE_BADGES: Readonly<Record<'HIGH' | 'LOW', BadgeLook>> = {
   HIGH: { tone: 'warn', icon: 'TrendingUp' },
   LOW: { tone: 'info', icon: 'TrendingDown' },
+}
+
+/** A flag of a sent request (S6-13 · FR-INT-103 · BR-DUP-05): it looks like one the requester sent within the window
+ * (DUPLICATE), or with others of its paying department it reaches a higher DOA rule (SPLIT). Not in §9.10's table, which
+ * has no such state: warn for both, things for the approver to look at — a flag never blocks and never changes the route */
+export const FLAG_BADGES: Readonly<Record<'DUPLICATE' | 'SPLIT', BadgeLook>> = {
+  DUPLICATE: { tone: 'warn', icon: 'Copy' },
+  SPLIT: { tone: 'warn', icon: 'Split' },
 }
 
 export const FALLBACK_BADGE: BadgeLook = { tone: 'neutral', icon: null }

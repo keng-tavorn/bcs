@@ -13,7 +13,7 @@ import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { BUDGET_IMPORT_COLUMNS, buildBudgetImportTemplate, importBudget } from '@/server/services/budget/import'
 import { grantRole } from '@/server/services/members/roles'
 import { markNotificationsRead } from '@/server/services/notifications'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/board*.spec.ts, audit*.spec.ts, kpi*.spec.ts and reports*.spec.ts against the e2e database only (unit

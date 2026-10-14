@@ -51,6 +51,17 @@ defineEvents('Request', {
   'request.cancelled': { schema: z.object({ from: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
   // FR-INT-006 AC3 (NEW-07, NEW-17): the requester of an idle draft is told when it will be removed
   'request.draft_expiry_notified': { schema: z.object({ deleteOn: z.iso.datetime({ offset: true }) }) },
+  // S6-13 (FR-INT-103, BR-DUP-05): the submit or resubmit found the request a duplicate or part of a split; never blocking
+  'request.flagged': {
+    schema: z.object({
+      kind: z.enum(['DUPLICATE', 'SPLIT']),
+      routeNo: z.number().int().positive(),
+      matchedRequestIds: z.array(z.uuid()).min(1),
+      combinedSatang: satang.optional(),
+      individualRule: z.string().nullable().optional(),
+      combinedRule: z.string().nullable().optional(),
+    }),
+  },
   // S6-12 (FR-INT-101 AC2, BR-FORM-08): a service line of the request was reminded at one milestone before it ends
   'request.renewal_reminded': { schema: z.object({ requestLineId: z.uuid(), milestone: z.number().int().positive(), serviceEndDate: z.iso.date() }) },
   'request.info_requested': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },

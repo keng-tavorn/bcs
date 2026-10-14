@@ -48,6 +48,9 @@ const CARD = {
   returnOnly: { th: 'ตีกลับ', en: 'Return' },
   // S6-11 · BR-PRC-05: the one price badge of a request, with counts and percents only
   price: { th: 'ราคา', en: 'Price' },
+  // S6-13 · BR-DUP-05: a flag of the request in a few words, never what it buys (BR-NOTI-01)
+  flagDuplicate: { th: 'คล้ายคำขอที่ส่งไปแล้ว', en: 'Looks like a request sent before' },
+  flagSplit: { th: 'อาจแตกยอดเลี่ยงวงเงิน', en: 'May split a purchase under a limit' },
 } as const satisfies Record<string, Text>
 
 const CONFIRMATION = {

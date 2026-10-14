@@ -29,6 +29,15 @@ export interface FormFailure {
   readonly requestId?: string
   /** DOA gaps (FR-DOA-003 AC3): how many of the organization's administrators were told; absent when the report failed */
   readonly adminsNotified?: number
+  /** DUPLICATE_UNACKNOWLEDGED (S6-13 · BR-DUP-05): the requester's requests this one looks like */
+  readonly matched?: readonly DuplicateMatch[]
+}
+
+/** A request the one being sent looks like (S6-13): its number once sent, and its title */
+export interface DuplicateMatch {
+  readonly id: string
+  readonly number: string | null
+  readonly title: string
 }
 
 export type FormSuccess<T> = { readonly ok: true } & T
@@ -37,6 +46,14 @@ export type FormOutcome<T = object> = FormSuccess<T> | FormFailure
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined)
 const strings = (v: unknown): string[] | undefined => (Array.isArray(v) && v.every((x) => typeof x === 'string') ? (v as string[]) : undefined)
 const numbers = (v: unknown): number[] | undefined => (Array.isArray(v) && v.every((x) => typeof x === 'number') ? (v as number[]) : undefined)
+
+function matchedOf(value: unknown): DuplicateMatch[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.flatMap((m): DuplicateMatch[] => {
+    const x = m as Record<string, unknown>
+    return typeof x.id === 'string' && typeof x.title === 'string' ? [{ id: x.id, number: typeof x.number === 'string' ? x.number : null, title: x.title }] : []
+  })
+}
 
 function missingOf(value: unknown): MissingView[] {
   if (!Array.isArray(value)) return []
@@ -64,6 +81,8 @@ export function toFormFailure(error: { code: string; details?: Readonly<Record<s
   const departments = strings(d.departments) ?? (typeof d.department === 'string' && d.department ? [d.department] : undefined)
   if (departments) out.departments = departments
   if (typeof d.adminsNotified === 'number') out.adminsNotified = d.adminsNotified
+  const matched = matchedOf(d.matched)
+  if (matched) out.matched = matched
   return out as unknown as FormFailure
 }
 
@@ -136,6 +155,7 @@ export const FAILURE_KEYS = [
   'AGREEMENT_PRICE_BEFORE_VAT',
   'AGREEMENT_OFF',
   'CATALOG_UNKNOWN',
+  'DUPLICATE_UNACKNOWLEDGED',
   'FAILED',
 ] as const
 export type FailureKey = (typeof FAILURE_KEYS)[number]
@@ -177,6 +197,8 @@ function validationKey(f: FormFailure): FailureKey {
   if (reason === 'TOO_LARGE') return 'TOO_LARGE'
   if (reason === 'NO_PUBLISHED_FORM') return 'NO_FORM'
   if (reason === 'LINE_ID') return 'LINE_ID'
+  // S6-13: like a request sent before — the review step asks for the reason (duplicateRefusal)
+  if (reason === 'DUPLICATE_UNACKNOWLEDGED') return 'DUPLICATE_UNACKNOWLEDGED'
   // The catalogue's agreed prices (S6-10, BR-PRC-06)
   if (reason === 'AGREEMENT_PRICE_LOCKED' || reason === 'AGREEMENT_PRICE_BEFORE_VAT' || reason === 'AGREEMENT_OFF') return reason
   if (/^lines\.\d+\.catalogItemId$/.test(f.field ?? '')) return 'CATALOG_UNKNOWN'

@@ -7,7 +7,7 @@ import { getRequestView } from '@/server/queries/requests'
 import { decideTask, requestInfo } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

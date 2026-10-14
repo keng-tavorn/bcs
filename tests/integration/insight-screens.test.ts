@@ -18,7 +18,7 @@ import { createReportSchedule, exportReport, kpiMeasureTh, scheduledReportComman
 import { reportFileReadable } from '@/server/services/reports/access'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { kpiDetail, kpiView, reportCatalog, scheduleReport } from '@/server/services/reports/screens'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // Unit i (S4-10, S4-11, S5-12): what the board, audit, report and KPI screens read beyond the services of S4 — the

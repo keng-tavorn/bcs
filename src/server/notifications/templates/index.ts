@@ -98,6 +98,14 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'เปิดร่างแล้วบันทึกอีกครั้งเพื่อเก็บไว้ หรือปล่อยไว้ถ้าไม่ใช้แล้ว', en: 'Open and save it again to keep it, or leave it if you no longer need it' },
     href: `/requests/${str(d.requestId)}`,
   }),
+  // S6-13 (§10.1 · BR-DUP-05): the AUDITOR's digest names a request flagged a duplicate or part of a split purchase
+  'audit.request_flagged': (d) => ({
+    title:
+      d.kind === 'SPLIT'
+        ? { th: `คำขอ ${ref(d)} อาจแตกยอดเลี่ยงวงเงิน`, en: `Request ${ref(d)} may split a purchase to stay under a limit` }
+        : { th: `คำขอ ${ref(d)} คล้ายคำขอที่ส่งไปแล้ว`, en: `Request ${ref(d)} looks like one sent before` },
+    href: `/requests/${str(d.requestId)}`,
+  }),
   // S6-12 (FR-INT-101 AC2, BR-FORM-08): a service line ends soon; the requester opens the request to renew it
   'request.renewal_due': (d) => ({
     title: { th: `บริการในคำขอ ${ref(d)} จะหมดใน ${str(d.milestone)} วัน`, en: `A service on request ${ref(d)} ends in ${str(d.milestone)} days` },

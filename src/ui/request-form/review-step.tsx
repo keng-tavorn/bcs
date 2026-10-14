@@ -9,10 +9,12 @@ import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import type { StepProps } from './details-items'
 import { documentFieldIds } from './document-fields'
+import { DuplicatePanel } from './duplicate-panel'
 import { kindLabelOf } from './documents-step'
 import { fieldLabel } from './field-input'
 import { problemStep, savableLine, type FormProblem, type RuleStatus } from './model'
 import { showMoney, showSatang } from './money'
+import { duplicateRefusal, type DuplicateAsk } from './duplicate'
 import { adminsWereTold, failureKey, failureStep, failureTarget, type ClosedWhy, type FormFailure, type StepId } from './outcome'
 import { placeAndSupplierText } from './place-supplier'
 import { BudgetStatus, RoutePreview, TotalsList } from './summary'
@@ -128,6 +130,8 @@ export interface ReviewProps extends StepProps {
   readonly closedWhy?: ClosedWhy
   /** The request's own page, once the draft exists: where a refusal because it was sent or cancelled leads */
   readonly requestHref?: string | null
+  /** S6-13: the send was refused as like a request sent before — the requests it matched and the reason to give */
+  readonly duplicate?: DuplicateAsk | null
 }
 
 /** The step that fixes a point of "ตรวจก่อนส่ง" or a refusal of the server, by its key and its name */
@@ -323,7 +327,9 @@ export function ReviewStep(props: ReviewProps) {
       </section>
 
       <div className="flex flex-col gap-3 border-t border-line pt-6">
-        {submitError ? (
+        {/* S6-13: like a request sent before — the panel asks for the reason instead of a refusal (BR-DUP-05) */}
+        {props.duplicate ? <DuplicatePanel ask={props.duplicate} /> : null}
+        {submitError && !(props.duplicate && duplicateRefusal(submitError)) ? (
           <Notice tone="danger">
             <p>{failureText(t, submitError, data.form.fields, locale, kindLabel)}</p>
             {failedStep ? (

@@ -190,12 +190,18 @@ export async function answerQuestion(ctx: Ctx, input: unknown, idempotencyKey: u
   return outcomeOf(await provideInfo(ctx, { infoRequestId: parsed.data.infoRequestId, answer }, { idempotencyKey: idempotencyKey as string }))
 }
 
-/** The requester sends a returned request again: a new route under the DOA in effect (FR-INT-009 AC2, BR-DOA-09) */
-export async function resubmitOwnRequest(ctx: Ctx, requestId: unknown, idempotencyKey: unknown): Promise<ActionOutcome> {
+/**
+ * The requester sends a returned request again: a new route under the DOA in effect (FR-INT-009 AC2, BR-DOA-09). A
+ * request like one they sent within the window needs their reason for asking again (S6-13 · BR-DUP-05), which the
+ * service checks: without it, DUPLICATE_UNACKNOWLEDGED.
+ */
+export async function resubmitOwnRequest(ctx: Ctx, requestId: unknown, idempotencyKey: unknown, duplicateReason?: unknown): Promise<ActionOutcome> {
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = Id.safeParse(requestId)
   if (!parsed.success) return invalid('requestId')
-  return outcomeOf(await resubmitRequest(ctx, { requestId: parsed.data }, { idempotencyKey: idempotencyKey as string }))
+  if (duplicateReason !== undefined && typeof duplicateReason !== 'string') return invalid('duplicateReason')
+  const reason = typeof duplicateReason === 'string' ? { duplicateReason } : {}
+  return outcomeOf(await resubmitRequest(ctx, { requestId: parsed.data, ...reason }, { idempotencyKey: idempotencyKey as string }))
 }
 
 /**

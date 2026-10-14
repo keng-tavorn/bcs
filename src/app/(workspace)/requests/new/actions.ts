@@ -62,13 +62,16 @@ export async function detachFileAction(requestId: string, fileId: string, idempo
  * the one the requester reviewed (FR-INT-006 AC2). Sent, the answer carries the request's number and who decides it now,
  * so the form confirms in the button's own words (§9.9 rule 7). When the DOA cannot route it, the answer names the
  * position and departments in words and says whether the organization's administrators were told (FR-DOA-003 AC3).
+ * A request like one the requester sent within the window is refused until they give the reason, which the next send
+ * carries as duplicateReason (S6-13 · BR-DUP-05: DUPLICATE_UNACKNOWLEDGED with the requests it matched).
  */
-export async function submitRequestAction(input: { requestId: string; expectedVersion: number; resubmit: boolean }, idempotencyKey: string): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
+export async function submitRequestAction(input: { requestId: string; expectedVersion: number; resubmit: boolean; duplicateReason?: string }, idempotencyKey: string): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const command = input.resubmit ? resubmitRequest : submitRequest
-  const result = await command(ctx, { requestId: input.requestId, expectedVersion: input.expectedVersion }, { idempotencyKey })
+  const duplicateReason = typeof input.duplicateReason === 'string' ? { duplicateReason: input.duplicateReason } : {}
+  const result = await command(ctx, { requestId: input.requestId, expectedVersion: input.expectedVersion, ...duplicateReason }, { idempotencyKey })
   const screen = await locale()
   if (result.ok) {
     const sent = await sentRequestSummary(ctx, input.requestId, screen)

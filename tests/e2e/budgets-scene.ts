@@ -17,7 +17,7 @@ import { markNotificationsRead } from '@/server/services/notifications'
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { sendPurchaseOrder } from '@/server/services/purchase-orders/send'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB } from '../support/e2e-env'
 
 // Run by tests/e2e/budgets*.spec.ts against the e2e database only (S3-08, S3-04, S3-07). Every run makes its own people

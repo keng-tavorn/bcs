@@ -424,7 +424,14 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
 
   // Send; when the form's attachment rules ask for files — quotations above ATT-QUOTES' amount, a DPA when the supplier
   // processes personal data (ATT-DPA) — add them and send again
-  let sent = await submitRequest(requester(submitAt, 'submit'), { requestId }, optionsOf(row, 'submit'))
+  // S6-13 (BR-DUP-05): the history's duplicates are found by the same check as any submit; the requester's reason is the
+  // row's note (pattern DUPLICATE of Request_History), so the flag is written the way a person's would be
+  const send = async (label: string) => {
+    const first = await submitRequest(requester(submitAt, label), { requestId }, optionsOf(row, label))
+    if (first.ok || first.error.details?.reason !== 'DUPLICATE_UNACKNOWLEDGED') return first
+    return submitRequest(requester(submitAt, `${label}-reason`), { requestId, duplicateReason: row.note ?? `ข้อมูลสังเคราะห์ ${row.ref}` }, optionsOf(row, `${label}-reason`))
+  }
+  let sent = await send('submit')
   const unmet = !sent.ok && sent.error.code === 'ATTACHMENT_RULE_FAILED' ? new Set(((sent.error.details?.failures ?? []) as ReadonlyArray<{ rule: string }>).map((f) => f.rule)) : new Set<string>()
   const unknownRule = [...unmet].find((rule) => rule !== 'ATT-QUOTES' && rule !== 'ATT-DPA')
   if (unknownRule) throw new Error(`Demo_History ${row.ref}: the history cannot meet attachment rule ${unknownRule}`)
@@ -444,7 +451,7 @@ async function replay(c: Context, row: DemoHistoryRow): Promise<void> {
     must(row, 'quotations', await editRequest(requester(draftAt, 'quotations'), { requestId, quotations }, optionsOf(row, 'quotations')))
   }
   if (unmet.size > 0) {
-    sent = await submitRequest(requester(submitAt, 'submit-with-quotations'), { requestId }, optionsOf(row, 'submit-with-quotations'))
+    sent = await send('submit-with-quotations')
   }
   must(row, 'submit', sent)
   await passReviewers(c, row, requestId, submitAt, decideAt)

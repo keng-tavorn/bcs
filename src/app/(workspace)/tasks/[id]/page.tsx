@@ -8,6 +8,7 @@ import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/que
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, PIN_DECISION_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { getPriceReference } from '@/server/services/price-reference'
+import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
@@ -16,6 +17,7 @@ import { BacktestPanel } from '@/ui/backtest/panel'
 import { Section } from '@/ui/request-view/facts'
 import { PolicyDecision } from '@/ui/tasks/policy-decision'
 import { PriceReferencePanel } from '@/ui/price-reference/panel'
+import { RequestFlagsPanel } from '@/ui/request-flags/panel'
 import { Timeline } from '@/ui/timeline/timeline'
 import { readBacktestRunAction, runBacktestAction } from '../../../_lib/backtest-actions'
 import { downloadUrlAction } from '../../../_lib/file-actions'
@@ -24,6 +26,7 @@ import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../_tracking/policy-subject'
 import { WorkflowSubject } from '../../_tracking/workflow-subject'
 import { priceReferenceView } from '../../_tracking/price-reference'
+import { requestFlagsView } from '../../_tracking/request-flags'
 import { dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { taskTitle } from '../../_tracking/rows'
@@ -131,6 +134,10 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   // on it, and who reads every PO — S6-11 · FR-DOA-101 · BR-PRC-07); anyone else simply gets no panel
   const priceRef = request ? await getPriceReference(ctx, { requestId: request.id }) : null
   const priceRefView = priceRef?.ok ? priceReferenceView(await getTranslations('priceReference'), priceRef.data) : null
+  // A request like one its requester sent before, or that may split a purchase to stay under a limit (S6-13 · FR-INT-103
+  // AC2 AC3): whoever may view the request reads its flags; none, or no right to them, and the page shows nothing
+  const flags = request ? await listRequestFlags(ctx, request.id) : null
+  const flagsView = flags?.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (id) => `/requests/${id}`) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
@@ -266,6 +273,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               {request ? (
                 <>
                   <RequestFacts view={request} locale={locale} brief />
+                  {flagsView ? <RequestFlagsPanel view={flagsView} /> : null}
                   <RequestSections view={request} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
                   {priceRefView ? (
                     <Section id="price-reference" title={priceRefView.title}>

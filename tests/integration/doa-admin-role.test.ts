@@ -4,7 +4,7 @@ import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { draftDoaCopy, getDoaEditor, type DoaEditorView, type DraftCopyInput } from '@/server/services/doa/editor'
 import { grantRole, revokeRole } from '@/server/services/members/roles'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { draftWorkflowVersion } from '@/server/services/workflow'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

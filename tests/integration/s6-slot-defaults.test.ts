@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { setDefaultOutboxSender } from '@/server/events/outbox'
 import { decideTask } from '@/server/services/approvals/decide'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import type { DoaOrg } from '../support/doa-org'
 import { createTwoStepOrg } from '../support/two-step-doa'
 

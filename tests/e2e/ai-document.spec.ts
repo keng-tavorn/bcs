@@ -12,7 +12,7 @@ import { expect, test } from './fixtures'
 // or the receiver confirms them, and the save or the receipt that carries the confirmations closes the AI action.
 // Every state is checked with axe and photographed at the project's width (375 px or 1440 px, §9.9 step 4).
 
-type SceneMode = 'on' | 'off' | 'run' | 'state' | 'brief'
+type SceneMode = 'on' | 'off' | 'run' | 'state' | 'brief' | 'doa-cleanup'
 
 function scene<T>(file: 'ai-document-scene' | 'receiving-scene', env: Record<string, string>): T {
   const r = spawnSync(`pnpm exec tsx tests/e2e/${file}.ts`, { shell: true, encoding: 'utf8', env: { ...process.env, ...e2eEnv(), ...env } })
@@ -217,6 +217,10 @@ test('[FR-AI-308/AC1] [FR-AI-308/AC3] the DOA drafter: each rule with its source
   await check(page, testInfo, 'doa-ai-draft')
   const boxes = page.getByRole('checkbox', { name: /ยืนยันข้อ/ })
   for (let n = await boxes.count(), i = 0; i < n; i++) await boxes.nth(i).click()
-  await page.getByRole('button', { name: 'สร้างฉบับร่าง' }).click()
-  await expect(page).toHaveURL(/\/admin\/doa\/[0-9a-f-]{36}$/, { timeout: 20_000 })
+  try {
+    await page.getByRole('button', { name: 'สร้างฉบับร่าง' }).click()
+    await expect(page).toHaveURL(/\/admin\/doa\/[0-9a-f-]{36}$/, { timeout: 20_000 })
+  } finally {
+    ai('doa-cleanup')
+  }
 })

@@ -20,7 +20,7 @@ import { E2E_DB } from '../support/e2e-env'
 //               brief  writes the Approval Brief of an open approval task of a request (the job's work); prints it
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the AI scene runs in the e2e database only')
 const mode = process.env.SCENE_MODE ?? ''
-if (!['on', 'off', 'run', 'state', 'brief'].includes(mode)) throw new Error('SCENE_MODE must be on, off, run, state or brief')
+if (!['on', 'off', 'run', 'state', 'brief', 'doa-cleanup'].includes(mode)) throw new Error('SCENE_MODE must be on, off, run, state, brief or doa-cleanup')
 
 const now = systemClock.now()
 const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }, select: { id: true, taxId: true } })
@@ -95,6 +95,13 @@ if (mode === 'on') {
     if ((await run(org.id, action.id, now)) === 'DRAFT') drafted++
   }
   console.log(JSON.stringify({ drafted }))
+} else if (mode === 'doa-cleanup') {
+  // The drafter's version takes the next number of the demo DOA; other files import fixed numbers (tasks.spec.ts), so
+  // the draft it made goes away again (e2e database only, a DRAFT never routed)
+  const made = await prisma.agentAction.findMany({ where: { organizationId: org.id, purpose: 'DOA_DRAFT', subjectType: 'DOA_VERSION' }, select: { subjectId: true } })
+  const ids = (await prisma.doaVersion.findMany({ where: { organizationId: org.id, status: 'DRAFT', id: { in: made.flatMap((a) => (a.subjectId ? [a.subjectId] : [])) } }, select: { id: true } })).map((v) => v.id)
+  await prisma.$transaction([prisma.doaTestCase.deleteMany({ where: { doaVersionId: { in: ids } } }), prisma.doaRule.deleteMany({ where: { doaVersionId: { in: ids } } }), prisma.doaVersion.deleteMany({ where: { id: { in: ids } } })])
+  console.log(JSON.stringify({ removed: ids.length }))
 } else if (mode === 'brief') {
   // An open task of a request whose assignee signs in with a password and TOTP (every approver of the demo does)
   const task = await prisma.approvalTask.findFirstOrThrow({ where: { organizationId: org.id, status: 'OPEN', principalMemberId: null, step: { route: { subjectType: 'REQUEST' } } }, orderBy: { assignedAt: 'desc' }, select: { id: true, assignee: { select: { employeeCode: true } } } })

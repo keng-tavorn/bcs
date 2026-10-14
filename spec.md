@@ -2325,6 +2325,19 @@ cases:
 ```
 
 
+```yaml
+# tests/golden/workflow-reports.yaml
+suite: workflow-reports
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], start: "08:30", end: "17:30", holidays: ["2026-10-13", "2026-10-23"] }
+cases:
+  - { id: GC-RPT-06, title: ส่งจันทร์ 09:00 อนุมัติอังคาร 10:00, fn: cycleMinutes, input: { from: "2026-10-05T02:00:00Z", to: "2026-10-06T03:00:00Z" }, expect: 600 }
+  - { id: GC-RPT-07, title: ไม่นับช่วงขอข้อมูลเพิ่ม, fn: decisionMinutes, input: { assignedAt: "2026-10-05T02:00:00Z", pauses: [{ from: "2026-10-05T04:00:00Z", to: "2026-10-07T02:30:00Z" }], decidedAt: "2026-10-07T03:30:00Z" }, expect: 180 }
+  - { id: GC-RPT-08, fn: lowerMedian, input: [600, 180, 300, 900], expect: 300 }
+  - { id: GC-RPT-09, fn: bottlenecks, input: [{ at: "CEO@HQ", overdue: 3, median: 1200 }, { at: "VP@OPS", overdue: 3, median: 900 }, { at: "DM@CON", overdue: 1, median: 2000 }], expect: ["CEO@HQ", "VP@OPS", "DM@CON"] }
+  - { id: GC-RPT-10, fn: heatCell, input: { at: "2026-10-05T10:30:00Z" }, expect: { weekday: MON, hour: 17 } }
+  - { id: GC-RPT-11, fn: wrongDoa, input: { decisions: [{ ref: X1, decider: dm_con, expected: [vp_ops] }, { ref: X2, decider: asst_con, onBehalfOf: dm_con, expected: [dm_con] }, { ref: X3, decider: vp_ops, expected: [vp_ops] }] }, expect: [X1] }
+```
+
 ### 7.17 S6 · อนุมัติคู่ขนาน งบ และ workflow (จองโดย P1-07)
 
 หัวข้อนี้จองให้ขั้น S6 (สาย 1): กฎ BR INV และ golden ของ S6 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S6.md`) · ตระกูลที่มีตารางเดิมต่อท้ายตารางเดิม
@@ -4622,7 +4635,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       37 ไฟล์ · 420 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       38 ไฟล์ · 426 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

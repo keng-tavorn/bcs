@@ -1634,6 +1634,36 @@ def run_budget_change(d):
                 if o["status"] in ("CONSUMED", "LAPSED") and (alloc["OB:" + oid] or o["used"] + o["returned"] != o["x"] or o["rau"] > o["used"]): ok = False; trace.append("INV-BUD-09")
         out.append((c["id"], ok, trace or "ok"))
     return out
+def run_workflow_reports(d):
+    # BR-RPT-03 to BR-RPT-06 (S6-20): business minutes of the suite's calendar (as run_sla counts them), the decision
+    # time without the INFO_REQUESTED pauses, the lower median, bottlenecks by overdue then median, the Thai weekday and
+    # hour of an instant, and the decisions whose decider (or the one they acted for) is not among the expected
+    cal = d["calendar"]; wd = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
+    work = {wd[x] for x in cal["workdays"]}; hol = set(cal["holidays"])
+    s0, e0 = dtime.fromisoformat(cal["start"]), dtime.fromisoformat(cal["end"])
+    def between(x, y):
+        x, y, tot, day = x.astimezone(BKK), y.astimezone(BKK), 0.0, x.astimezone(BKK).date()
+        while day <= y.date():
+            if day.weekday() in work and day.isoformat() not in hol:
+                lo, hi = max(datetime.combine(day, s0, BKK), x), min(datetime.combine(day, e0, BKK), y)
+                if hi > lo: tot += (hi - lo).total_seconds() / 60
+            day += timedelta(days=1)
+        return int(tot)
+    names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    out = []
+    for c in d["cases"]:
+        f, i = c["fn"], c["input"]
+        if f == "cycleMinutes": got = between(dt(i["from"]), dt(i["to"]))
+        elif f == "decisionMinutes":
+            a, b = dt(i["assignedAt"]), dt(i["decidedAt"])
+            got = between(a, b) - sum(between(max(a, dt(p["from"])), min(b, dt(p["to"]))) for p in i["pauses"] if min(b, dt(p["to"])) > max(a, dt(p["from"])))
+        elif f == "lowerMedian": s = sorted(i); got = s[(len(s) - 1) // 2] if s else None
+        elif f == "bottlenecks": got = [r["at"] for r in sorted(i, key=lambda r: (-r["overdue"], -(r["median"] if r["median"] is not None else -1)))]
+        elif f == "heatCell": t = dt(i["at"]).astimezone(BKK); got = {"weekday": names[t.weekday()], "hour": t.hour}
+        elif f == "wrongDoa": got = [x["ref"] for x in i["decisions"] if x["decider"] not in x["expected"] and not (x.get("onBehalfOf") and x["onBehalfOf"] in x["expected"])]
+        else: raise ValueError(f)
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1671,6 +1701,7 @@ RUNNERS = {
     "vat-rate": run_vat,
     "wht": run_wht,
     "workflow": run_workflow,
+    "workflow-reports": run_workflow_reports,
 }
 n_suites = n_cases = 0
 for path, (data, ln) in sorted(golden.items()):

@@ -15,6 +15,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
 import { submitBudgetOverrun } from '@/server/services/budget/overruns'
 import { runBudgetAlerts } from '@/server/services/budget/alerts'
+import { computeWorkflowReport } from '@/server/services/reports/workflow'
 import { computeKpis } from '@/server/services/reports/kpi'
 import { createDraft, submitRequest } from './requests'
 import { stepUpForTask } from './pin'
@@ -359,6 +360,22 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       if (!decided.ok) throw new Error(JSON.stringify(decided.error))
       expect(await db.budgetTransfer.findUniqueOrThrow({ where: { id: created.data.transferId }, select: { status: true } })).toEqual({ status: 'APPROVED' })
       expect((await db.budgetLine.findUniqueOrThrow({ where: { id: to.id }, select: { plannedSatang: true } })).plannedSatang).toBeGreaterThanOrEqual(30_000_000n)
+    })
+
+    it('[FR-VIS-101/AC1] S6-20: the workflow reports find the request of pm_p07 waiting at the CEO as a bottleneck, and the split pair of fm_p02 outside DOA', async () => {
+      const db = forTenant(organizationId)
+      const pm = await db.member.findFirstOrThrow({ where: { employeeCode: 'pm_p07' }, select: { id: true } })
+      const waiting = await db.approvalTask.findMany({ where: { status: 'OPEN', step: { route: { subjectType: 'REQUEST', status: 'ACTIVE' } } }, select: { id: true, resolvedFrom: true, step: { select: { route: { select: { subjectId: true } } } } } })
+      const pmRequests = new Set((await db.request.findMany({ where: { requesterMemberId: pm.id, status: 'PENDING_APPROVAL' }, select: { id: true } })).map((r) => r.id))
+      const pmAtCeo = waiting.filter((t) => pmRequests.has(t.step.route.subjectId) && t.resolvedFrom.includes('CEO'))
+      expect(pmAtCeo.length).toBeGreaterThan(0)
+      const report = await db.$transaction((tx) => computeWorkflowReport(tx, organizationId, { from: new Date(clock.now.getTime() - 400 * MS_PER_DAY), to: new Date(clock.now.getTime() + MS_PER_DAY), now: clock.now }, null))
+      const ceo = report.bottlenecks.byPosition.find((x) => x.at.startsWith('CEO@'))!
+      expect(ceo.taskIds).toEqual(expect.arrayContaining(pmAtCeo.map((t) => t.id)))
+      expect(ceo.overdue).toBeGreaterThan(0)
+      const fm = await db.member.findFirstOrThrow({ where: { employeeCode: 'fm_p02' }, select: { id: true } })
+      const split = await db.requestFlag.findFirstOrThrow({ where: { kind: 'SPLIT', request: { requesterMemberId: fm.id } }, select: { requestId: true } })
+      expect(report.wrongDoa).toContainEqual(expect.objectContaining({ reason: 'SPLIT', subjectId: split.requestId }))
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

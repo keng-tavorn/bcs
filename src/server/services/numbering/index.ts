@@ -10,14 +10,17 @@ import type { TenantTx } from '@/server/db/tenant'
 
 export type NumberedDocument = 'PR' | 'PO' | 'GR' | 'RQ'
 /** Documents of S8 whose rule is optional in settings (an organization saved before S8 has none) */
-export type IssuedDocument = NumberedDocument | 'AP' | 'WHT_CERT'
+export type IssuedDocument = NumberedDocument | 'AP' | 'WHT_CERT' | 'PAY' | 'BAC'
 
-// The rule of an S8 document an organization has not set: the pattern of OQ-12 ("the same form for every document")
-// with the document's own prefix. TODO(OQ-12)
-const S8_DEFAULT_RULES = {
+// The rule of an S8 or S9 document an organization has not set: the pattern of OQ-12 ("the same form for every
+// document") with the document's own prefix. TODO(OQ-12)
+const OPTIONAL_DEFAULT_RULES = {
   AP: { pattern: 'AP-{BE}-{SEQ5}', reset: 'YEARLY' },
   WHT_CERT: { pattern: '{BE}/{SEQ5}', reset: 'YEARLY' },
+  PAY: { pattern: 'PAY-{BE}-{SEQ5}', reset: 'YEARLY' },
+  BAC: { pattern: 'BAC-{BE}-{SEQ5}', reset: 'YEARLY' },
 } as const
+const isOptional = (d: IssuedDocument): d is keyof typeof OPTIONAL_DEFAULT_RULES => d in OPTIONAL_DEFAULT_RULES
 
 export interface IssueNumberInput {
   readonly document: IssuedDocument
@@ -29,7 +32,7 @@ export interface IssueNumberInput {
 export async function issueDocumentNumber(tx: TenantTx, ctx: Ctx, input: IssueNumberInput): Promise<string> {
   const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
   const numbering = OrgSettingsSchema.shape.numbering.parse((org.settings as { numbering?: unknown } | null)?.numbering)
-  const rule = input.document === 'AP' || input.document === 'WHT_CERT' ? (numbering[input.document] ?? S8_DEFAULT_RULES[input.document]) : numbering[input.document]
+  const rule = isOptional(input.document) ? (numbering[input.document] ?? OPTIONAL_DEFAULT_RULES[input.document]) : numbering[input.document]
   const context = { at: ctx.now, department: input.department ?? null }
   const scope = scopeKey(input.document, rule.pattern, rule.reset, context)
   const seq = await takeNextSequenceValue(tx, ctx.organizationId, input.document, scope, rule.pattern)

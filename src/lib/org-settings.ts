@@ -55,7 +55,9 @@ export const OrgSettingsSchema = z
     numbering: z
       .object({
         AP: numberingRule.optional(),
+        BAC: numberingRule.optional(),
         GR: numberingRule,
+        PAY: numberingRule.optional(),
         PO: numberingRule,
         PR: numberingRule,
         RQ: numberingRule,
@@ -100,6 +102,17 @@ export const OrgSettingsSchema = z
       .object({
         defaultTermDays: z.number().int().min(0).optional(), // OQ-129
         inboxAddress: z.email().optional(), // OQ-124
+      })
+      .strict()
+      .optional(),
+    // S9 (BR-PAY-02 BR-PAY-06 BR-PAY-13): set by seed only in phase 1, as matching; missing keys read as the OQ defaults
+    // of paymentSettingsOf below
+    payment: z
+      .object({
+        runWeekdays: z.array(weekday).min(1).optional(), // OQ-130
+        holidayShift: z.enum(['PREVIOUS', 'NEXT']).optional(), // OQ-130
+        recentBankChangeDays: z.number().int().min(0).max(365).optional(), // OQ-132
+        adviceEmail: z.boolean().optional(), // OQ-134
       })
       .strict()
       .optional(),
@@ -161,4 +174,23 @@ export function apPolicyOf(settings: unknown): ApPolicy {
     whtTiming: w.timing,
     defaultTermDays: (ap.success ? ap.data?.defaultTermDays : undefined) ?? DEFAULT_TERM_DAYS,
   }
+}
+
+/** The S9 settings of an organization: the payment run's weekdays and holiday shift, the bank-change window, advice e-mails */
+export interface PaymentSettings {
+  readonly runWeekdays: readonly z.infer<typeof weekday>[]
+  readonly holidayShift: 'PREVIOUS' | 'NEXT'
+  readonly recentBankChangeDays: number
+  readonly adviceEmail: boolean
+}
+
+// The defaults of the open questions when settings leave a key out: Fridays, the working day before a holiday, 30 days,
+// advice e-mails on. TODO(OQ-130) TODO(OQ-132) TODO(OQ-134)
+const DEFAULT_PAYMENT: PaymentSettings = { runWeekdays: ['FRI'], holidayShift: 'PREVIOUS', recentBankChangeDays: 30, adviceEmail: true }
+
+/** settings.payment of stored settings, each missing key read as its OQ default */
+export function paymentSettingsOf(settings: unknown): PaymentSettings {
+  const payment = settings !== null && typeof settings === 'object' ? (settings as { payment?: unknown }).payment : undefined
+  const parsed = OrgSettingsSchema.shape.payment.safeParse(payment)
+  return { ...DEFAULT_PAYMENT, ...(parsed.success ? parsed.data : {}) }
 }

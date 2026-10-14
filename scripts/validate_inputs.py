@@ -53,7 +53,7 @@ P1_ONLY = {'Budget': ['fiscalYear','code','budgetKey','department','costCenter',
  'CostCenters': ['code','nameTh','department'], 'GL_Accounts': ['code','nameTh','type'],
  'SupplierPayment': ['supplierCode','payeeType','whtIncomeType','paymentTermDays','bankCode','accountNo','accountName','eTaxIssuer','registryStatus'],
  'Banks': ['code','shortName','nameTh'], 'WHT_Types': ['code','nameTh','rateBp','form'],
- 'CompanyBankAccounts': ['code','bankCode','accountNo'],
+ 'CompanyBankAccounts': ['code','bankCode','accountType','accountNo'],
  'Items': ['code','nameTh','unit','refUnitPrice','category','isService','accountCode','whtIncomeType','agreementSupplier','agreedUnitPrice'],
  'Workflow_Reviewers': ['ruleCode','requestType','reviewerPosition','reviewerDepartment','mode','slaBusinessHours'],
  'Request_History': ['ref','daysAgo','requester','chargedDept','requestType','title','site','supplier','budgetKey','itemCode','qty','unitPrice','net','vat','gross','status','countsAgainstBudget','expectedRule','expectedApprover','escalated','hours','channel','form','invoiceScenario','invoiceNo','whtIncomeType','paymentStatus'],
@@ -254,6 +254,11 @@ for k, (v, r) in SET.items():
     if k == 'wht.timing' and s_(v) != 'AT_PAYMENT': sp.append(f'{at("Settings","value",r)} wht.timing ระยะ 1 ต้องเป็น AT_PAYMENT')
     if k == 'ap.defaultTermDays' and (not isinstance(v, (int, float)) or int(v) != v or not 0 <= v <= 180): sp.append(f'{at("Settings","value",r)} ap.defaultTermDays ต้องเป็น 0–180 วัน')
     if k == 'ap.inboxAddress' and not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+', s_(v)): sp.append(f'{at("Settings","value",r)} ap.inboxAddress ต้องเป็นอีเมล')
+    # S9-01 (OQ-130 OQ-132 OQ-134): the run's weekdays, the holiday shift, the recent bank change window, the advice e-mail
+    if k == 'payment.runWeekdays' and not re.fullmatch(r'(MON|TUE|WED|THU|FRI|SAT|SUN)(,(MON|TUE|WED|THU|FRI|SAT|SUN))*', s_(v).replace(' ', '')): sp.append(f'{at("Settings","value",r)} payment.runWeekdays ต้องเป็นวันแบบ MON TUE … คั่นด้วยจุลภาค')
+    if k == 'payment.holidayShift' and s_(v) not in ('PREVIOUS', 'NEXT'): sp.append(f'{at("Settings","value",r)} payment.holidayShift ต้องเป็น PREVIOUS หรือ NEXT')
+    if k == 'payment.recentBankChangeDays' and (not isinstance(v, (int, float)) or int(v) != v or not 0 <= v <= 365): sp.append(f'{at("Settings","value",r)} payment.recentBankChangeDays ต้องเป็น 0–365 วัน')
+    if k == 'payment.adviceEmail' and s_(v) not in ('Y', 'N'): sp.append(f'{at("Settings","value",r)} payment.adviceEmail ต้องเป็น Y หรือ N')
 hs, he = s_(SET.get('businessHoursStart', ('', 0))[0]), s_(SET.get('businessHoursEnd', ('', 0))[0])
 if not (re.fullmatch(r'\d\d:\d\d', hs) and re.fullmatch(r'\d\d:\d\d', he) and hs < he): sp.append('businessHoursStart/End ต้องเป็น HH:MM และเริ่มก่อนเลิก')
 check(not sp, 'ค่าตั้งต้น (Settings)', f'{len(SET)} ค่า', '; '.join(sp), 'ระบบคำนวณ VAT เลขเอกสาร หรือ SLA ผิด', 'แก้ช่องที่ระบุในชีต Settings')
@@ -432,6 +437,9 @@ if PROFILE == 'p1':
     pp += [f'{c} มีข้อมูลการจ่าย {n} แถว' for c, n in seen.items() if n != 1] + [f'{c} ไม่มีข้อมูลการจ่าย' for c in SUP if c not in seen]
     for r, d in table('CompanyBankAccounts'):
         if s_(d['bankCode']) not in BANKS: pp.append(f'{at("CompanyBankAccounts","bankCode",r)} ไม่มีในชีต Banks')
+        # S9-01 (BR-SUP-07 · ADR-128): an account of the organization is digits only once the dashes go, current or savings
+        if not re.fullmatch(r'\d{10,12}', re.sub(r'[-\s]', '', s_(d['accountNo']))): pp.append(f'{at("CompanyBankAccounts","accountNo",r)} เลขบัญชีต้องเป็นตัวเลข 10–12 หลัก')
+        if s_(d['accountType']) not in ('CURRENT', 'SAVINGS'): pp.append(f'{at("CompanyBankAccounts","accountType",r)} ต้องเป็น CURRENT หรือ SAVINGS')
     STATUS = {s_(d['supplierCode']): s_(d['registryStatus']) for r, d in table('SupplierPayment')}
     check(not pp, 'การจ่ายผู้ขาย ธนาคาร และภาษีหัก ณ ที่จ่าย', f'{len(seen)} ผู้ขายมีบัญชีรับเงิน · {len(BANKS)} ธนาคาร · {len(WHT)} ประเภทเงินได้ · ไม่ใช้งาน {sum(1 for v in STATUS.values() if v != "ACTIVE")} ราย',
           '; '.join(pp[:8]), 'รอบจ่ายและไฟล์ธนาคารของ S9 หรือภาษีหัก ณ ที่จ่ายของ S8 ใช้ข้อมูลผิด', 'แก้ชีต SupplierPayment WHT_Types Banks หรือ CompanyBankAccounts')

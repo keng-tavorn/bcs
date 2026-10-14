@@ -177,6 +177,13 @@ SETTINGS = [
     ('ap.inboxAddress', 'ap@simec.bcs.local', 'ที่อยู่กล่องรับใบแจ้งหนี้ทางอีเมล (สังเคราะห์)', 'OQ-124'),
     ('numbering.AP', 'AP-{BE}-{SEQ5}', 'รูปแบบเลขใบแจ้งหนี้ (ระบบออกตอนส่ง)', 'OQ-12'),
     ('numbering.WHT_CERT', '{BE}/{SEQ5}', 'รูปแบบเลขหนังสือรับรองการหักภาษี (50 ทวิ)', 'OQ-12'),
+    # S9-01: the payment run's day and checks, the payment advice e-mail and the numbers of S9 (defaults of the OQs)
+    ('payment.runWeekdays', 'FRI', 'วันจ่ายประจำ (คั่นด้วยจุลภาค เช่น TUE,FRI)', 'OQ-130'),
+    ('payment.holidayShift', 'PREVIOUS', 'วันจ่ายตรงวันหยุดให้เลื่อนไปวันทำการก่อนหน้า (PREVIOUS) หรือถัดไป (NEXT)', 'OQ-130'),
+    ('payment.recentBankChangeDays', 30, 'บัญชีรับเงินที่เปลี่ยนภายในกี่วันก่อนวันจ่ายจึงติดธง', 'OQ-132'),
+    ('payment.adviceEmail', 'Y', 'ส่งอีเมลแจ้งการชำระถึงผู้ขาย', 'OQ-134'),
+    ('numbering.PAY', 'PAY-{BE}-{SEQ5}', 'รูปแบบเลขรอบจ่าย (ระบบออกตอนส่งอนุมัติ)', 'OQ-12'),
+    ('numbering.BAC', 'BAC-{BE}-{SEQ5}', 'รูปแบบเลขคำขอเปลี่ยนบัญชีรับเงิน', 'OQ-12'),
     ('priceAlertPct', 0.1, 'เตือนเมื่อราคาใหม่แพงกว่าครั้งก่อนเกินเท่านี้', 'FR-P2P-003'),
     ('digest.budgetLowPct', 0.1, 'สรุปรายวันแจ้งบรรทัดงบที่เหลือต่ำกว่านี้', 'FR-LINE-006'),
     ('vatRounding', 'DOCUMENT', 'คิด VAT ระดับเอกสาร', 'OQ-17'),

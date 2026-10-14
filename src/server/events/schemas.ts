@@ -3,6 +3,7 @@
 import './schemas/ai'
 import './schemas/approval-task'
 import './schemas/auth'
+import './schemas/bank-account'
 import './schemas/budget'
 import './schemas/delegation'
 import './schemas/doa-version'

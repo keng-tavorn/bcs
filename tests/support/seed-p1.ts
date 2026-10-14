@@ -12,6 +12,7 @@ import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-stru
 import { seedDevPins } from '@/server/seed/pins'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, registryFlagOf, seedApProfile } from '@/server/seed/ap-profile'
+import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
 import { seedP1Modules } from '@/server/seed/p1-modules'
 import { parseBudget, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
@@ -71,7 +72,7 @@ export interface SeedP1Clock {
 export function describeP1Seed(clock: SeedP1Clock): void {
   let organizationId: string
   let report: DemoHistoryReport
-  let sheets: { users: Row[]; departments: Row[]; budget: Row[]; costCenters: Row[]; suppliers: Row[]; sites: Row[]; items: Row[]; history: Row[]; supplierPayment: Row[] }
+  let sheets: { users: Row[]; departments: Row[]; budget: Row[]; costCenters: Row[]; suppliers: Row[]; sites: Row[]; items: Row[]; history: Row[]; supplierPayment: Row[]; companyBankAccounts: Row[] }
 
   beforeAll(async () => {
     const raw = new ExcelJS.Workbook()
@@ -87,6 +88,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       items: read('Items'),
       history: read('Request_History'),
       supplierPayment: read('SupplierPayment'),
+      companyBankAccounts: read('CompanyBankAccounts'),
     }
 
     // The history stores quotations, DPAs and PO PDFs: the bucket must exist (as tests/integration/files.test.ts does)
@@ -106,6 +108,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
     await seedSuppliers(organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now)
     await seedAccountCodes(organizationId, parseGlAccounts(workbook))
     await seedApProfile(organizationId, parseApProfile(workbook), clock.now)
+    await seedBankAccounts(organizationId, parseBankAccounts(workbook), clock.now)
     await seedDevPins(organizationId, PIN, clock.now)
     report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(budget) })
   }, SEED_TIMEOUT_MS)
@@ -234,6 +237,25 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       }
       // the income types are there, waiting for the accountant to confirm them
       expect(await db.whtIncomeType.count({ where: { confirmedById: null } })).toBeGreaterThan(0)
+    })
+
+    it('[INV-PAY-04] S9-01: one ACTIVE account per row of SupplierPayment, the accounts of the organization as CompanyBankAccounts, digits only, from the seed; running again adds none', async () => {
+      const db = forTenant(organizationId)
+      const digits = (raw: unknown) => String(raw).replace(/[-s]/g, '')
+      const supplierAccounts = await db.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE' }, select: { supplier: { select: { code: true } }, bankCode: true, accountNo: true, accountName: true, sourceChangeId: true } })
+      expect(supplierAccounts).toHaveLength(sheets.supplierPayment.length)
+      for (const p of sheets.supplierPayment) {
+        const a = supplierAccounts.find((x) => x.supplier!.code === p.supplierCode)
+        expect(a && { bank: a.bankCode, no: a.accountNo, name: a.accountName, source: a.sourceChangeId }, String(p.supplierCode)).toEqual({ bank: String(p.bankCode), no: digits(p.accountNo), name: String(p.accountName), source: null })
+      }
+      const own = await db.bankAccount.findMany({ where: { ownerKind: 'ORGANIZATION', status: 'ACTIVE' }, select: { code: true, accountNo: true, accountType: true, fileTemplateCode: true } })
+      expect(own.map((a) => a.code).sort()).toEqual(sheets.companyBankAccounts.map((c) => String(c.code)).sort())
+      for (const c of sheets.companyBankAccounts) expect(own.find((a) => a.code === c.code)).toMatchObject({ accountNo: digits(c.accountNo), accountType: c.accountType, fileTemplateCode: 'BCS-NEUTRAL-1' })
+      // every account in force has its event, with the last four digits only (BR-BANK-08)
+      const events = await db.event.findMany({ where: { type: 'bank_account.activated' }, select: { data: true } })
+      expect(events).toHaveLength(supplierAccounts.length + own.length)
+      expect(JSON.stringify(events)).not.toContain(digits(sheets.supplierPayment[0]!.accountNo))
+      expect(await seedBankAccounts(organizationId, parseBankAccounts(await loadInputWorkbook(INPUT_WORKBOOKS.p1)), clock.now)).toEqual({ company: 0, suppliers: 0 })
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

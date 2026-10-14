@@ -23,7 +23,7 @@ export const FORM_JSON_MAX_DEPTH = 32
 const MAX_PROBLEMS = 20
 
 /** FileLink kinds (prisma enum FileLinkKind); tests/integration/admin-settings-request-types.test.ts compares them */
-export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER', 'WHT_CERT'] as const
+export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER', 'WHT_CERT', 'BANK_PROOF'] as const
 const SPECIAL_VARIABLES = ['$amountGross', '$amountNet', '$requestType']
 
 export type FormJson = z.output<typeof FormSchemaJson>

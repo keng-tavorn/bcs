@@ -117,6 +117,13 @@ model Organization {
   retentions          Retention[]
   sensitiveAccessLogs SensitiveAccessLog[]
   poChanges           PoChange[]
+  bankAccounts        BankAccount[]
+  bankAccountChanges  BankAccountChange[]
+  paymentRuns         PaymentRun[]
+  paymentRunItems     PaymentRunItem[]
+  paymentRunItemWhts  PaymentRunItemWht[]
+  paymentRunDocuments PaymentRunDocument[]
+  paymentFiles        PaymentFile[]
   poChangeLines       PoChangeLine[]
   supplierNotices     SupplierNotice[]
 
@@ -246,6 +253,10 @@ model Member {
   sensitiveAccessLogs   SensitiveAccessLog[] @relation("SensitiveAccessLogMember")
   poChangesCreated      PoChange[]           @relation("PoChangeCreatedBy")
   poChangesSubmitted    PoChange[]           @relation("PoChangeSubmittedBy")
+  bankChangesSubmitted  BankAccountChange[]  @relation("BankAccountChangeSubmittedBy")
+  paymentRunsPrepared   PaymentRun[]         @relation("PaymentRunPreparedBy")
+  paymentItemsRecorded  PaymentRunItem[]     @relation("PaymentRunItemRecordedBy")
+  paymentFilesGenerated PaymentFile[]        @relation("PaymentFileGeneratedBy")
 
   // --- S13 ---
   agentActionsRequested AgentAction[]    @relation("AgentActionRequestedBy")
@@ -484,6 +495,7 @@ model FileObject {
   apInvoiceSources Invoice[]        @relation("ApInvoiceSourceFile")
   whtCertificates  WhtCertificate[] @relation("WhtCertificateFile")
   poChangePdfs     PoChange[]       @relation("PoChangePdf")
+  paymentFiles     PaymentFile[]    @relation("PaymentFileObject")
 
   // --- S13 ---
 
@@ -505,6 +517,8 @@ enum FileLinkKind {
   REGISTRY_PROOF
   OTHER
   WHT_CERT
+  /// S9: the supplier's letter or passbook page behind a bank account change (BR-SUP-06)
+  BANK_PROOF
 }
 
 model FileLink {
@@ -1316,8 +1330,10 @@ model ApprovalRoute {
   // --- S6 ---
 
   // --- S8 S9 ---
-  currentForInvoices  Invoice[]  @relation("InvoiceCurrentRoute")
-  currentForPoChanges PoChange[] @relation("PoChangeCurrentRoute")
+  currentForInvoices    Invoice[]           @relation("InvoiceCurrentRoute")
+  currentForPoChanges   PoChange[]          @relation("PoChangeCurrentRoute")
+  currentForPaymentRuns PaymentRun[]        @relation("PaymentRunCurrentRoute")
+  currentForBankChanges BankAccountChange[] @relation("BankAccountChangeCurrentRoute")
 
   // --- S13 ---
 
@@ -1804,17 +1820,20 @@ model Supplier {
 
   // --- S8 S9 ---
   /// Withholding tax and payment profile (BR-WHT-03, BR-WHT-04, BR-AP-07); bank accounts are S9
-  payeeType                PayeeType        @default(JURISTIC)
+  payeeType                PayeeType           @default(JURISTIC)
   defaultWhtIncomeTypeCode String?
   paymentTermDays          Int?
-  eTaxIssuer               ETaxIssuer       @default(NONE)
+  eTaxIssuer               ETaxIssuer          @default(NONE)
   /// BR-SUP-04 as a flag the system reads (BR-VAT-06)
-  registryFlag             RegistryFlag     @default(NONE)
-  registryFlaggedAt        DateTime?        @db.Timestamptz(6)
+  registryFlag             RegistryFlag        @default(NONE)
+  registryFlaggedAt        DateTime?           @db.Timestamptz(6)
   apInvoices               Invoice[]
   withholdingTaxes         WithholdingTax[]
   whtCertificates          WhtCertificate[]
   retentions               Retention[]
+  bankAccounts             BankAccount[]
+  bankAccountChanges       BankAccountChange[]
+  paymentRunItems          PaymentRunItem[]
   supplierNotices          SupplierNotice[]
 
   // --- S13 ---
@@ -2818,21 +2837,22 @@ model Invoice {
   createdAt                   DateTime            @default(now()) @db.Timestamptz(6)
   updatedAt                   DateTime            @updatedAt @db.Timestamptz(6)
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  po               PurchaseOrder    @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  supplier         Supplier         @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  inboundEmail     InboundEmail?    @relation(fields: [organizationId, inboundEmailId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  sourceFile       FileObject?      @relation("ApInvoiceSourceFile", fields: [organizationId, sourceFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  createdBy        Member?          @relation("ApInvoiceCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  recordedBy       Member?          @relation("ApInvoiceRecordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  rejectedBy       Member?          @relation("ApInvoiceRejectedBy", fields: [organizationId, rejectedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  currentRoute     ApprovalRoute?   @relation("InvoiceCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  exportJob        ExportJob?       @relation("ApInvoiceExportJob", fields: [organizationId, exportJobId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  po               PurchaseOrder        @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier             @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  inboundEmail     InboundEmail?        @relation(fields: [organizationId, inboundEmailId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceFile       FileObject?          @relation("ApInvoiceSourceFile", fields: [organizationId, sourceFileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy        Member?              @relation("ApInvoiceCreatedBy", fields: [organizationId, createdById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy       Member?              @relation("ApInvoiceRecordedBy", fields: [organizationId, recordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  rejectedBy       Member?              @relation("ApInvoiceRejectedBy", fields: [organizationId, rejectedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute     ApprovalRoute?       @relation("InvoiceCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  exportJob        ExportJob?           @relation("ApInvoiceExportJob", fields: [organizationId, exportJobId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   lines            InvoiceLine[]
   matches          InvoiceMatch[]
   exceptions       MatchException[]
   retention        Retention?
   withholdingTaxes WithholdingTax[]
+  paymentDocuments PaymentRunDocument[]
 
   // --- S13 ---
   /// The reading of the Document Agent this draft came from (S13-12)
@@ -3020,58 +3040,64 @@ model AccountCode {
 /// Tax withheld from one document (an invoice or a retention) per (income type, rate) of one payment (BR-WHT-10):
 /// written only by recordInvoicePayment; paymentRunItemId comes with S9-01
 model WithholdingTax {
-  id             String        @id @default(uuid(7)) @db.Uuid
-  organizationId String        @db.Uuid
-  invoiceId      String?       @db.Uuid
-  retentionId    String?       @db.Uuid
-  supplierId     String        @db.Uuid
-  payeeType      PayeeType
-  incomeTypeCode String
-  form           WhtReturnForm
-  rateBp         Int
-  baseSatang     BigInt
-  taxSatang      BigInt
-  paidOn         DateTime      @db.Date
-  certificateId  String?       @db.Uuid
-  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt      DateTime      @updatedAt @db.Timestamptz(6)
+  id               String        @id @default(uuid(7)) @db.Uuid
+  organizationId   String        @db.Uuid
+  invoiceId        String?       @db.Uuid
+  retentionId      String?       @db.Uuid
+  supplierId       String        @db.Uuid
+  payeeType        PayeeType
+  incomeTypeCode   String
+  form             WhtReturnForm
+  rateBp           Int
+  baseSatang       BigInt
+  taxSatang        BigInt
+  paidOn           DateTime      @db.Date
+  certificateId    String?       @db.Uuid
+  /// S9: the payment item that withheld it
+  paymentRunItemId String?       @db.Uuid
+  createdAt        DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(6)
 
-  organization Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  invoice      Invoice?        @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  retention    Retention?      @relation(fields: [organizationId, retentionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  supplier     Supplier        @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  certificate  WhtCertificate? @relation(fields: [organizationId, certificateId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice        Invoice?        @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  retention      Retention?      @relation(fields: [organizationId, retentionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier       Supplier        @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  certificate    WhtCertificate? @relation(fields: [organizationId, certificateId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  paymentRunItem PaymentRunItem? @relation(fields: [organizationId, paymentRunItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
 
   @@unique([organizationId, id])
   @@index([organizationId, supplierId, paidOn])
   @@index([organizationId, certificateId])
 }
 
-/// 50 ทวิ: one per payment item of S9 (BR-WHT-07); paymentRunItemId and its unique come with S9-01. The payee snapshot
+/// 50 ทวิ: one per payment item of S9 (BR-WHT-07, unique paymentRunItemId). The payee snapshot
 /// holds the full national id of an individual: shown masked unless wht.revealTaxId (BR-WHT-09)
 model WhtCertificate {
-  id              String        @id @default(uuid(7)) @db.Uuid
-  organizationId  String        @db.Uuid
-  number          String
-  supplierId      String        @db.Uuid
-  form            WhtReturnForm
-  paidOn          DateTime      @db.Date
-  totalBaseSatang BigInt
-  totalTaxSatang  BigInt
-  payeeSnapshot   Json
-  payerSnapshot   Json
-  fileId          String?       @db.Uuid
-  issuedAt        DateTime      @db.Timestamptz(6)
-  createdAt       DateTime      @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime      @updatedAt @db.Timestamptz(6)
+  id               String        @id @default(uuid(7)) @db.Uuid
+  organizationId   String        @db.Uuid
+  number           String
+  supplierId       String        @db.Uuid
+  form             WhtReturnForm
+  paidOn           DateTime      @db.Date
+  totalBaseSatang  BigInt
+  totalTaxSatang   BigInt
+  payeeSnapshot    Json
+  payerSnapshot    Json
+  fileId           String?       @db.Uuid
+  paymentRunItemId String?       @db.Uuid
+  issuedAt         DateTime      @db.Timestamptz(6)
+  createdAt        DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime      @updatedAt @db.Timestamptz(6)
 
   organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   supplier         Supplier         @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   file             FileObject?      @relation("WhtCertificateFile", fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  paymentRunItem   PaymentRunItem?  @relation(fields: [organizationId, paymentRunItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   withholdingTaxes WithholdingTax[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
+  @@unique([organizationId, paymentRunItemId])
   @@index([organizationId, supplierId])
 }
 
@@ -3093,12 +3119,13 @@ model Retention {
   createdAt      DateTime        @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime        @updatedAt @db.Timestamptz(6)
 
-  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  invoice          Invoice          @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  po               PurchaseOrder    @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  supplier         Supplier         @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
-  releasedBy       Member?          @relation("RetentionReleasedBy", fields: [organizationId, releasedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  invoice          Invoice              @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  po               PurchaseOrder        @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier             @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  releasedBy       Member?              @relation("RetentionReleasedBy", fields: [organizationId, releasedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
   withholdingTaxes WithholdingTax[]
+  paymentDocuments PaymentRunDocument[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, invoiceId])
@@ -3220,4 +3247,346 @@ model SupplierNotice {
   @@unique([organizationId, id])
   @@unique([organizationId, dedupeKey])
   @@index([organizationId, status])
+}
+
+// ===== S9 · payment runs and bank accounts (docs/sub-specs/S9.md "Entity และ migration", ADR-128 ADR-129 ADR-133) =====
+
+enum BankAccountOwner {
+  SUPPLIER
+  ORGANIZATION
+}
+
+enum BankAccountType {
+  CURRENT
+  SAVINGS
+}
+
+enum BankAccountStatus {
+  ACTIVE
+  SUPERSEDED
+  CLOSED
+}
+
+enum BankAccountChangeKind {
+  ADD
+  REPLACE
+  CLOSE
+}
+
+enum BankAccountChangeSource {
+  INTERNAL
+  PORTAL
+}
+
+enum BankAccountChangeStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum PaymentRunStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  FILE_READY
+  SENT_TO_BANK
+  COMPLETED
+  REJECTED
+  CANCELLED
+}
+
+/// BR-PAY-06, in the order the flags are listed and keyed (BR-PAY-07)
+enum PaymentFlag {
+  REGISTRY_CHANGED
+  SUPPLIER_INACTIVE
+  RISK_OVERRIDE_EXPIRED
+  PREVIOUSLY_EXPORTED
+  BANK_ACCOUNT_RECENTLY_CHANGED
+  BANK_CHANGE_PENDING
+  SHARED_BANK_ACCOUNT
+}
+
+enum PaymentRunItemStatus {
+  INCLUDED
+  PAID
+  FAILED
+}
+
+/// CREDIT_NOTE comes with S9-17
+enum PaymentDocKind {
+  INVOICE
+  RETENTION
+}
+
+enum PaymentDocStatus {
+  HELD
+  PAID
+  RELEASED
+}
+
+enum PaymentFileStatus {
+  CURRENT
+  SUPERSEDED
+}
+
+/// A supplier's account to be paid into, or an account of the organization that pays (ADR-128): one ACTIVE account per
+/// supplier (INV-PAY-04); it comes into force only through an approved BankAccountChange (BR-SUP-06), or from the seed of
+/// a sample organization (sourceChangeId null). The full number is never in a log, an Event or a message (BR-BANK-08)
+model BankAccount {
+  id               String            @id @default(uuid(7)) @db.Uuid
+  organizationId   String            @db.Uuid
+  ownerKind        BankAccountOwner
+  supplierId       String?           @db.Uuid
+  /// An organization's account, e.g. CB-01
+  code             String?
+  bankCode         String
+  /// Digits only, 10 to 12 (BR-SUP-07)
+  accountNo        String
+  accountName      String
+  branchName       String?
+  accountType      BankAccountType?
+  status           BankAccountStatus @default(ACTIVE)
+  /// ORGANIZATION only: the file template its payment runs use (ADR-129 · BCS-NEUTRAL-1 until a bank's own)
+  fileTemplateCode String?
+  fileParams       Json?
+  sourceChangeId   String?           @db.Uuid
+  activatedAt      DateTime?         @db.Timestamptz(6)
+  supersededAt     DateTime?         @db.Timestamptz(6)
+  closedAt         DateTime?         @db.Timestamptz(6)
+  version          Int               @default(0)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(6)
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier     Supplier?           @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  sourceChange BankAccountChange?  @relation("BankAccountSourceChange", fields: [organizationId, sourceChangeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  changesOfIt  BankAccountChange[] @relation("BankAccountChangeTarget")
+  appliedBy    BankAccountChange[] @relation("BankAccountChangeApplied")
+  payerOfRuns  PaymentRun[]        @relation("PaymentRunPayer")
+  paymentItems PaymentRunItem[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, code])
+  /// INV-PAY-04: a supplier has one ACTIVE account at most
+  @@unique([organizationId, supplierId], map: "bank_account_one_active_supplier", where: raw("(status = 'ACTIVE'::\"BankAccountStatus\") AND (\"ownerKind\" = 'SUPPLIER'::\"BankAccountOwner\")"))
+  /// The same account of suppliers with different tax ids (SHARED_BANK_ACCOUNT, BR-PAY-06)
+  @@index([organizationId, bankCode, accountNo])
+  @@index([organizationId, supplierId, status])
+}
+
+/// A request to add, replace or close an account (BR-SUP-06): FINANCE proposes, the DOA's BANK_ACCOUNT_CHANGE approves
+model BankAccountChange {
+  id                   String                  @id @default(uuid(7)) @db.Uuid
+  organizationId       String                  @db.Uuid
+  /// BAC-{BE}-{SEQ5}: issued at submit (numbering.BAC)
+  number               String?
+  kind                 BankAccountChangeKind
+  ownerKind            BankAccountOwner
+  supplierId           String?                 @db.Uuid
+  targetBankAccountId  String?                 @db.Uuid
+  bankCode             String?
+  accountNo            String?
+  accountName          String?
+  branchName           String?
+  accountType          BankAccountType?
+  fileTemplateCode     String?
+  fileParams           Json?
+  reason               String
+  /// The call to the number in the register when a supplier's account is replaced (OQ-133); the note has no account number
+  callVerifiedAt       DateTime?               @db.Timestamptz(6)
+  callVerificationNote String?
+  source               BankAccountChangeSource @default(INTERNAL)
+  status               BankAccountChangeStatus @default(DRAFT)
+  submittedById        String                  @db.Uuid
+  submittedAt          DateTime?               @db.Timestamptz(6)
+  decidedAt            DateTime?               @db.Timestamptz(6)
+  currentRouteId       String?                 @db.Uuid
+  appliedBankAccountId String?                 @db.Uuid
+  version              Int                     @default(0)
+  createdAt            DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt            DateTime                @updatedAt @db.Timestamptz(6)
+
+  organization    Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  supplier        Supplier?      @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  target          BankAccount?   @relation("BankAccountChangeTarget", fields: [organizationId, targetBankAccountId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  applied         BankAccount?   @relation("BankAccountChangeApplied", fields: [organizationId, appliedBankAccountId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  submittedBy     Member         @relation("BankAccountChangeSubmittedBy", fields: [organizationId, submittedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute    ApprovalRoute? @relation("BankAccountChangeCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  accountsInForce BankAccount[]  @relation("BankAccountSourceChange")
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  /// One open request per supplier, and per target account (an organization's account has no supplier)
+  @@unique([organizationId, supplierId], map: "bank_account_change_one_open_supplier", where: raw("status = ANY (ARRAY['DRAFT'::\"BankAccountChangeStatus\", 'PENDING_APPROVAL'::\"BankAccountChangeStatus\"])"))
+  @@unique([organizationId, targetBankAccountId], map: "bank_account_change_one_open_target", where: raw("status = ANY (ARRAY['DRAFT'::\"BankAccountChangeStatus\", 'PENDING_APPROVAL'::\"BankAccountChangeStatus\"])"))
+  @@index([organizationId, status])
+}
+
+/// A payment run (FR-PAY-101): the items of one pay date, paid from one account of the organization in THB (NG-9)
+model PaymentRun {
+  id                  String           @id @default(uuid(7)) @db.Uuid
+  organizationId      String           @db.Uuid
+  /// PAY-{BE}-{SEQ5}: issued at the first submit (numbering.PAY)
+  number              String?
+  status              PaymentRunStatus @default(DRAFT)
+  payDate             DateTime         @db.Date
+  payerBankAccountId  String           @db.Uuid
+  /// Snapshot of the payer account's template at submit
+  fileTemplateCode    String
+  currency            String           @default("THB")
+  /// The one member who edits the draft (BR-PAY-09)
+  preparedById        String           @db.Uuid
+  totalPayableSatang  BigInt           @default(0)
+  totalWhtSatang      BigInt           @default(0)
+  totalTransferSatang BigInt           @default(0)
+  itemCount           Int              @default(0)
+  documentCount       Int              @default(0)
+  /// The flags the approver is shown (BR-PAY-07), '' without any; set at submit
+  flagsKey            String?
+  currentRouteId      String?          @db.Uuid
+  submittedAt         DateTime?        @db.Timestamptz(6)
+  approvedAt          DateTime?        @db.Timestamptz(6)
+  sentToBankAt        DateTime?        @db.Timestamptz(6)
+  completedAt         DateTime?        @db.Timestamptz(6)
+  cancelledAt         DateTime?        @db.Timestamptz(6)
+  cancelReason        String?
+  version             Int              @default(0)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  payer        BankAccount          @relation("PaymentRunPayer", fields: [organizationId, payerBankAccountId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  preparedBy   Member               @relation("PaymentRunPreparedBy", fields: [organizationId, preparedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  currentRoute ApprovalRoute?       @relation("PaymentRunCurrentRoute", fields: [organizationId, currentRouteId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  items        PaymentRunItem[]
+  documents    PaymentRunDocument[]
+  files        PaymentFile[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, number])
+  @@index([organizationId, status, payDate])
+}
+
+/// One item per supplier per run (BR-PAY-04): the account it is paid into is a snapshot taken at submit (ADR-133)
+model PaymentRunItem {
+  id                 String               @id @default(uuid(7)) @db.Uuid
+  organizationId     String               @db.Uuid
+  paymentRunId       String               @db.Uuid
+  supplierId         String               @db.Uuid
+  /// Issued at submit, by supplier code
+  seq                Int?
+  bankAccountId      String?              @db.Uuid
+  payeeBankCode      String?
+  payeeAccountNo     String?
+  payeeAccountName   String?
+  payableSatang      BigInt               @default(0)
+  whtSatang          BigInt               @default(0)
+  transferSatang     BigInt               @default(0)
+  flags              PaymentFlag[]        @default([])
+  flagReason         String?
+  status             PaymentRunItemStatus @default(INCLUDED)
+  paidOn             DateTime?            @db.Date
+  bankReference      String?
+  failureReason      String?
+  resultRecordedById String?              @db.Uuid
+  resultRecordedAt   DateTime?            @db.Timestamptz(6)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization     Organization         @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  run              PaymentRun           @relation(fields: [organizationId, paymentRunId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  supplier         Supplier             @relation(fields: [organizationId, supplierId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  bankAccount      BankAccount?         @relation(fields: [organizationId, bankAccountId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  resultRecordedBy Member?              @relation("PaymentRunItemRecordedBy", fields: [organizationId, resultRecordedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  whtLines         PaymentRunItemWht[]
+  documents        PaymentRunDocument[]
+  withholdingTaxes WithholdingTax[]
+  whtCertificate   WhtCertificate?
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, paymentRunId, supplierId])
+  @@unique([organizationId, paymentRunId, seq])
+}
+
+/// The withholding tax of an item per (income type, rate), rounded once per group (BR-PAY-04 · BR-WHT-10)
+model PaymentRunItemWht {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  organizationId   String   @db.Uuid
+  paymentRunItemId String   @db.Uuid
+  incomeType       String
+  rateBp           Int
+  baseSatang       BigInt
+  whtSatang        BigInt
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  item         PaymentRunItem @relation(fields: [organizationId, paymentRunItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, paymentRunItemId, incomeType, rateBp])
+}
+
+/// An invoice or a released retention of S8 in an item (BR-PAY-03): HELD while in the run, PAID or RELEASED after.
+/// INV-PAY-01: a document is HELD or PAID by one row at most, so it is never paid twice
+model PaymentRunDocument {
+  id                  String           @id @default(uuid(7)) @db.Uuid
+  organizationId      String           @db.Uuid
+  paymentRunId        String           @db.Uuid
+  paymentRunItemId    String           @db.Uuid
+  docKind             PaymentDocKind
+  invoiceId           String?          @db.Uuid
+  retentionId         String?          @db.Uuid
+  payableSatang       BigInt
+  status              PaymentDocStatus @default(HELD)
+  releaseReason       String?
+  /// Released from a run whose file was downloaded (BR-PAY-06 PREVIOUSLY_EXPORTED · OQ-136)
+  releasedAfterExport Boolean          @default(false)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  run          PaymentRun     @relation(fields: [organizationId, paymentRunId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  item         PaymentRunItem @relation(fields: [organizationId, paymentRunItemId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  invoice      Invoice?       @relation(fields: [organizationId, invoiceId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  retention    Retention?     @relation(fields: [organizationId, retentionId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, invoiceId], map: "payment_document_live_invoice", where: raw("(status = ANY (ARRAY['HELD'::\"PaymentDocStatus\", 'PAID'::\"PaymentDocStatus\"])) AND (\"invoiceId\" IS NOT NULL)"))
+  @@unique([organizationId, retentionId], map: "payment_document_live_retention", where: raw("(status = ANY (ARRAY['HELD'::\"PaymentDocStatus\", 'PAID'::\"PaymentDocStatus\"])) AND (\"retentionId\" IS NOT NULL)"))
+  @@index([organizationId, paymentRunId])
+  @@index([organizationId, paymentRunItemId])
+}
+
+/// A bank file of a run (BR-BANK-03 BR-BANK-04): never changed or removed (trigger), only made SUPERSEDED by a new
+/// version and stamped with its first download (BR-BANK-08)
+model PaymentFile {
+  id                String            @id @default(uuid(7)) @db.Uuid
+  organizationId    String            @db.Uuid
+  paymentRunId      String            @db.Uuid
+  version           Int
+  templateCode      String
+  fileId            String            @db.Uuid
+  fileName          String
+  sha256            String
+  byteSize          Int
+  itemCount         Int
+  totalSatang       BigInt
+  /// Why a version after the first was made
+  reason            String?
+  status            PaymentFileStatus @default(CURRENT)
+  generatedById     String            @db.Uuid
+  generatedAt       DateTime          @db.Timestamptz(6)
+  firstDownloadedAt DateTime?         @db.Timestamptz(6)
+  createdAt         DateTime          @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  run          PaymentRun   @relation(fields: [organizationId, paymentRunId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject   @relation("PaymentFileObject", fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  generatedBy  Member       @relation("PaymentFileGeneratedBy", fields: [organizationId, generatedById], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, paymentRunId, version])
+  @@unique([organizationId, paymentRunId], map: "payment_file_one_current", where: raw("status = 'CURRENT'::\"PaymentFileStatus\""))
 }

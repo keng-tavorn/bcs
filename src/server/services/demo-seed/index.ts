@@ -17,6 +17,7 @@ import { parseBudget, parseCostCenters, parseDemoHistory, parseGlAccounts, parse
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, seedApProfile } from '@/server/seed/ap-profile'
+import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
 import { budgetKeyLines, demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
@@ -51,6 +52,8 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const accountCodes = await seedAccountCodes(report.organizationId, parseGlAccounts(workbook))
   // S8-12: payee types, income types, credit days, e-Tax and registry flags of the suppliers, and retention by request type
   const apProfile = await seedApProfile(report.organizationId, parseApProfile(workbook), clock.now())
+  // S9-01: the organization's own accounts and one account per supplier (sheets CompanyBankAccounts, SupplierPayment)
+  const bankAccounts = await seedBankAccounts(report.organizationId, parseBankAccounts(workbook), clock.now())
   // The LINE channel from the LINE_* values of the environment, when they are set (S5-01)
   const lineChannel = await seedLineChannel(report.organizationId, env, clock.now())
   // The transaction PIN of the demo approvers (S5-05, FR-AUTH-005, ADR-047 item 9): SEED_DEV_PIN when it is set, and the
@@ -59,7 +62,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const seedPin = env.SEED_DEV_PIN ?? null
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, ai, budget, suppliers, accountCodes, apProfile, lineChannel, pins, pinless }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, ai, budget, suppliers, accountCodes, apProfile, bankAccounts, lineChannel, pins, pinless }
 }
 
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */

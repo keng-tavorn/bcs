@@ -35,6 +35,8 @@ async function signInReady(ap: Awaited<ReturnType<typeof apOrg>>, runTag: string
 
 async function organization(runTag: string) {
   const ap = await apOrg()
+  // a code after DEMO's: the BCS team's list of organizations is by code, and other specs take the demo one first
+  await prisma.organization.update({ where: { id: ap.org.organizationId }, data: { code: `S8-${runTag.toUpperCase()}` } })
   // CORE is on in every organization the seed makes (src/server/seed/demo-org.ts): the menus of the shell follow it
   await prisma.orgModule.create({ data: { organizationId: ap.org.organizationId, module: 'CORE', enabled: true, enabledAt: AP_NOW, contractRef: 'TEST-P1', reason: 'องค์กรทดสอบระยะ 1' } })
   await signInReady(ap, runTag)

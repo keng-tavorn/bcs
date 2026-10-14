@@ -115,7 +115,7 @@ test.describe('@s8 tier-2 invoices (S8-13)', () => {
     await look(approver, testInfo, 's8-variance-task')
     await approver.getByRole('button', { name: 'อนุมัติ', exact: true }).click()
     await approver.getByRole('button', { name: 'ยืนยันอนุมัติ' }).click()
-    await expect(approver.getByRole('status').filter({ hasText: 'อนุมัติแล้ว' })).toBeVisible()
+    await expect(approver.getByRole('status').filter({ hasText: 'อนุมัติแล้ว' }).first()).toBeVisible()
     await approver.context().close()
 
     // FINANCE sees it ready for payment

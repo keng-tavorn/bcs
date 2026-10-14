@@ -123,7 +123,7 @@ describe('[FR-PLT-101/AC2] a configuration package from the sandbox imports into
     const result = await importConfigPackage(production.ctxOf('admin', NOW), { file, effectiveDate: '2026-10-20', changeReason: 'นำเข้าจากระบบทดลอง' }, key())
     const ref = (from: string) => `${catalog[0]!.code}/${supplier.code}@${from}`
     expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'CONFIG_PACKAGE_ROWS' } } })
-    const rows = result.ok ? [] : ((result.error as { details: { rows: Array<{ ref: string; reason: string }> } }).details.rows)
+    const rows = result.ok ? [] : ((result.error as unknown as { details: { rows: Array<{ ref: string; reason: string }> } }).details.rows)
     expect(rows.filter((r) => r.reason === 'AGREEMENT_INVALID').map((r) => r.ref)).toEqual([ref('2026-12-01'), ref('2027-03-01'), ref('2026-01-01')])
     expect(await db.priceAgreement.count()).toBe(agreements)
   })

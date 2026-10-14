@@ -26,7 +26,8 @@ const mode = process.env.SCENE_MODE ?? ''
 if (!['on', 'off', 'run', 'state', 'brief', 'doa-cleanup'].includes(mode)) throw new Error('SCENE_MODE must be on, off, run, state, brief or doa-cleanup')
 
 const now = systemClock.now()
-const org = await prisma.organization.findFirstOrThrow({ where: { code: 'DEMO' }, select: { id: true, taxId: true } })
+// SCENE_ORG: another organization of the e2e database (an S8 scene's, tests/e2e/s8-scene.ts ai-invoice); DEMO otherwise
+const org = await prisma.organization.findFirstOrThrow({ where: { code: process.env.SCENE_ORG || 'DEMO' }, select: { id: true, taxId: true } })
 const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok' }).format(now)
 
 async function setModule(enabled: boolean) {
@@ -56,7 +57,7 @@ async function readingFor(purpose: AiPurposeName, subjectType: string | null, su
         return { description: l.description, qty, unit: l.uom, unitPrice: satangToAmount(l.unitPriceSatang), amount: satangToAmount(lineNet(qty, l.unitPriceSatang)) }
       })
     const net = lines.reduce((sum, l) => sum + amountToSatang(l.amount), 0n)
-    const { vat, gross } = vatFromNet(net, po.vatRateBp)
+    const { vat, gross } = vatFromNet(net, po.vatRateBp ?? 0)
     const seller = { name: po.supplier.nameTh, taxId: po.supplier.taxId, branch: po.supplier.branchCode }
     return { ...base, seller, docType: 'TAX_INVOICE', docNo: 'INV-E2E-1', priceIncludesVat: false, lines, net: satangToAmount(net), vat: satangToAmount(vat), gross: satangToAmount(gross) }
   }

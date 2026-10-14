@@ -206,5 +206,24 @@
     "to": "up to {lte}",
     "any": "any amount",
     "noEnd": "no upper end"
+  },
+  "invoice": {
+    "panelTitle": "Confirm what the AI read",
+    "read": "Read the file with AI",
+    "reading": "Reading the file…",
+    "readHint": "The AI reads the number, date, VAT and lines from the file, then opens the draft for you to confirm each value before you submit. An electronic tax invoice (XML) uses the draft-from-file button as before",
+    "title": "What the AI read from the invoice",
+    "hint": "Confirm each value that matches the file; if one does not, change it in the invoice header or the lines below — a value you changed counts as confirmed. You can submit once everything is confirmed and saved",
+    "save": "Save confirmations",
+    "saving": "Saving…",
+    "fields": {
+      "supplierInvoiceNo": "Supplier's invoice number",
+      "invoiceDate": "Invoice date",
+      "priceIncludesVat": "Price includes VAT",
+      "discount": "Discount (THB)",
+      "statedVat": "VAT on the invoice (THB)",
+      "quantity": "{description}: quantity",
+      "unitPrice": "{description}: unit price (THB)"
+    }
   }
 }

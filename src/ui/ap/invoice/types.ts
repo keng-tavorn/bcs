@@ -60,6 +60,9 @@ export interface ApInvoicePageData {
     readonly incomeTypes: ReadonlyArray<{ readonly code: string; readonly nameTh: string; readonly nameEn: string | null; readonly rateBp: number; readonly confirmed: boolean }>
   }
   readonly events: ReadonlyArray<{ readonly id: string; readonly type: string; readonly occurredAt: Date; readonly actor: { readonly th: string; readonly en: string | null } | null; readonly system: boolean; readonly reason: string | null }>
+  /** S13-20: AI readings of this draft still waiting for FINANCE (src/ui/ap/invoice/invoice-ai.tsx), and the draft's values by path */
+  readonly aiReviews?: ReadonlyArray<{ readonly agentActionId: string; readonly fileId: string | null; readonly proposed: Readonly<Record<string, string>>; readonly requiredPaths: readonly string[]; readonly confirmedPaths: readonly string[] }>
+  readonly aiCurrent?: Readonly<Record<string, string>>
   readonly may: {
     readonly edit: boolean
     readonly submit: boolean

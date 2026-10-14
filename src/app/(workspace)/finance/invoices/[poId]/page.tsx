@@ -3,8 +3,10 @@ import { notFound } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
-import { getApInvoicePage } from '@/server/services/ap/view-invoice'
+import { getAgentAction } from '@/server/services/ai'
+import { getApInvoicePage, type ApInvoicePageDto } from '@/server/services/ap/view-invoice'
 import { getInvoicePoView, type InvoicePoViewDto } from '@/server/services/invoices/view'
+import type { InvoiceAiReviewView } from '@/ui/ap/invoice/invoice-ai'
 import { ApInvoicePage } from '@/ui/ap/invoice/invoice-page'
 import { InvoiceForm } from '@/ui/finance/invoice-form'
 import { InvoiceList } from '@/ui/finance/invoice-list'
@@ -13,6 +15,7 @@ import { PO_BADGES, StatusBadge } from '@/ui/document/badges'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
 import { HEAD_OFFICE } from '@/ui/suppliers/model'
+import { presentAiResult } from '../../../../_lib/ai-present'
 import { downloadUrlAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
 import { day, localeOf, memberName, when, type Locale } from '../../../_tracking/present'
@@ -42,11 +45,25 @@ const AP_ACTIONS = {
   variance: requestApVarianceAction,
 }
 
+/**
+ * S13-20: the AI readings a draft waits on, with what was read and what the checks found for the member who asked for
+ * the reading (getAgentAction gives its content to them only); anyone else confirms the values against the file
+ */
+async function aiReviewsOf(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, reviews: ApInvoicePageDto['aiReviews']): Promise<InvoiceAiReviewView[]> {
+  return Promise.all(
+    reviews.map(async (r) => {
+      const action = await getAgentAction(ctx, r.agentActionId)
+      const shown = action.ok && action.data.content ? presentAiResult(action.data) : null
+      return { ...r, reading: shown?.reading ?? null, notes: shown?.notes ?? [] }
+    }),
+  )
+}
+
 /** A tier-2 invoice of this id (S8-13): its page, or why it does not open */
 async function apInvoiceOrNull(ctx: NonNullable<ReturnType<typeof ctxFromSession>>, id: string) {
   const invoice = await getApInvoicePage(ctx, id)
   if (!invoice.ok && invoice.error.code === 'NOT_FOUND') return null
-  if (invoice.ok) return <ApInvoicePage data={invoice.data} actions={AP_ACTIONS} openFile={downloadUrlAction} />
+  if (invoice.ok) return <ApInvoicePage data={invoice.data} actions={AP_ACTIONS} openFile={downloadUrlAction} aiReviews={await aiReviewsOf(ctx, invoice.data.aiReviews)} />
   const t = await getTranslations('apInvoice')
   const off = invoice.error.code === 'MODULE_DISABLED'
   return (

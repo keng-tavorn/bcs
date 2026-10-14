@@ -51,6 +51,8 @@ const UpdateInput = z.object({
   statedVat: z.string().max(40).optional(),
   isFinal: z.boolean().optional(),
   lines: z.array(z.object({ poLineId: z.uuid(), quantity: z.string().max(40), unitPrice: z.string().max(40) })).max(200).optional(),
+  /** S13-20: what FINANCE confirmed of the values an AI read off the invoice (the service compares and records it) */
+  aiAssist: z.object({ agentActionId: z.uuid(), confirmedPaths: z.array(z.string().min(1).max(200)).max(500) }).optional(),
 })
 
 export async function updateApInvoiceFor(ctx: Ctx, input: unknown, idempotencyKey: unknown): Promise<ApOutcome> {
@@ -88,6 +90,7 @@ export async function updateApInvoiceFor(ctx: Ctx, input: unknown, idempotencyKe
       ...(statedVat !== undefined ? { statedVat } : {}),
       ...(v.isFinal !== undefined ? { isFinal: v.isFinal } : {}),
       ...(v.lines !== undefined ? { lines } : {}),
+      ...(v.aiAssist ? { aiAssist: v.aiAssist } : {}),
     },
     { idempotencyKey: p.key },
   )

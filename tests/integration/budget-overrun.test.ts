@@ -189,6 +189,25 @@ describe('[FR-BUD-101/AC2] an approved overrun not used goes back (BR-BUD-15)', 
     expect(await planned(line)).toBe(1_000_000n)
     expect(await balance(line)).toMatchObject({ availableSatang: 1_000_000n, reservedSatang: 0n })
   })
+
+  it('its line left with lines of zero only: the submit lets it lapse instead of failing (S6-22 review)', async () => {
+    const line = await p2p(org, NOW).fundedLine(10_000n)
+    const other = await p2p(org, NOW).fundedLine(10_000n)
+    const requestId = await draft(org, 'req_con', line, '30000.00')
+    const asked = await approvedOverrun(requestId)
+    // Edited after the approval: the line on the overrun's budget line costs nothing now, the work moved to another line
+    ok(
+      await editRequest(
+        org.ctxOf('req_con', NOW),
+        { requestId, lines: [{ description: 'ของแถมจากผู้ขาย', quantity: '1', uom: 'งาน', unitPrice: '0.00' }, { description: 'งานเปิดตัวโครงการ', quantity: '1', uom: 'งาน', unitPrice: '5000.00', budgetLineId: other }] },
+        key(),
+      ),
+    )
+    ok(await submitRequest(org.ctxOf('req_con', NOW), { requestId }, key()))
+    expect(await overrun(asked.overrunId)).toMatchObject({ status: 'LAPSED', usedSatang: 0n, returnedSatang: 2_000_000n })
+    expect(await balance(line)).toMatchObject({ availableSatang: 1_000_000n, reservedSatang: 0n })
+    expect(await balance(other)).toMatchObject({ availableSatang: 500_000n, reservedSatang: 500_000n })
+  })
 })
 
 describe('[FR-BUD-101/AC2] a PO line of a request with an overrun outstanding never merges another request (BR-BUD-18)', () => {

@@ -64,7 +64,8 @@ export async function overrunsForReserve(
   const live = await liveOverruns(tx, ctx, requestId)
   if (live.some((o) => o.status === 'PENDING_APPROVAL')) return overrunPending()
   // Past its lapsesAt an approved overrun is never used, even before the job budget-overrun-lapse lets it lapse
-  const usable = (o: OverrunRow) => (!o.lapsesAt || o.lapsesAt > ctx.now) && groups.some((g) => g.budgetLineId === o.budgetLineId)
+  // A line whose request lines reserve nothing there (all of them zero) does not use it either: it lapses
+  const usable = (o: OverrunRow) => (!o.lapsesAt || o.lapsesAt > ctx.now) && groups.some((g) => g.budgetLineId === o.budgetLineId && g.lines.length > 0)
   const own = live.filter(usable)
   const others = live.filter((o) => !usable(o))
   const used = new Map<string, Extract<OverrunResult, { ok: true }>>()

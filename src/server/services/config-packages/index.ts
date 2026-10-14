@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
 import { satangToAmount, amountToSatang } from '@/core/money/dto'
+import { agreementDay, checkAgreement } from '@/core/pricing'
 import { CONFIG_PACKAGE_MAX_CHARS } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { putObject } from '@/integrations/storage'
@@ -238,11 +239,11 @@ const ImportInput = z.strictObject({
 export interface ConfigImportRow {
   readonly section: ConfigPackageSection
   readonly ref: string
-  readonly reason: 'REQUEST_TYPE_NOT_FOUND' | 'DRAFT_EXISTS' | 'FORM_INVALID' | 'POSITION_NOT_FOUND' | 'MEMBER_NOT_FOUND' | 'CATALOG_CODE_EXISTS' | 'SUPPLIER_NOT_FOUND'
+  readonly reason: 'REQUEST_TYPE_NOT_FOUND' | 'DRAFT_EXISTS' | 'FORM_INVALID' | 'POSITION_NOT_FOUND' | 'MEMBER_NOT_FOUND' | 'CATALOG_CODE_EXISTS' | 'SUPPLIER_NOT_FOUND' | 'AGREEMENT_INVALID'
 }
 
 /** Every reference of the package that does not resolve in this organization, or a draft that is already open */
-async function checkReferences(tx: TenantTx, content: ConfigPackageContent): Promise<ConfigImportRow[]> {
+async function checkReferences(tx: TenantTx, ctx: Ctx, content: ConfigPackageContent): Promise<ConfigImportRow[]> {
   const rows: ConfigImportRow[] = []
   for (const f of content.forms ?? []) {
     const type = await tx.requestType.findFirst({ where: { code: f.requestTypeCode }, select: { id: true } })
@@ -266,10 +267,20 @@ async function checkReferences(tx: TenantTx, content: ConfigPackageContent): Pro
   }
   if (content.catalog?.length) {
     const existing = new Set((await tx.catalogItem.findMany({ where: { code: { in: content.catalog.map((i) => i.code) } }, select: { code: true } })).map((i) => i.code))
-    const suppliers = new Set((await tx.supplier.findMany({ where: { code: { in: content.catalog.flatMap((i) => i.agreements.map((a) => a.supplierCode)) } }, select: { code: true } })).map((s) => s.code))
+    // The checks priceAgreement.create makes (BR-PRC-06): an ACTIVE supplier, a price above zero, a period not over yet
+    // and no overlap with another agreement of the item and supplier in the package (the item is new here)
+    const suppliers = new Set((await tx.supplier.findMany({ where: { code: { in: content.catalog.flatMap((i) => i.agreements.map((a) => a.supplierCode)) }, status: 'ACTIVE' }, select: { code: true } })).map((s) => s.code))
+    const today = agreementDay(ctx.now)
     for (const i of content.catalog) {
       if (existing.has(i.code)) rows.push({ section: 'CATALOG', ref: i.code, reason: 'CATALOG_CODE_EXISTS' })
-      for (const a of i.agreements) if (!suppliers.has(a.supplierCode)) rows.push({ section: 'CATALOG', ref: `${i.code}/${a.supplierCode}`, reason: 'SUPPLIER_NOT_FOUND' })
+      const seen: Array<{ catalogItemId: string; supplierId: string; validFrom: string; validTo: string }> = []
+      for (const a of i.agreements) {
+        const ref = `${i.code}/${a.supplierCode}`
+        if (!suppliers.has(a.supplierCode)) rows.push({ section: 'CATALOG', ref, reason: 'SUPPLIER_NOT_FOUND' })
+        const period = { catalogItemId: i.code, supplierId: a.supplierCode, validFrom: a.validFrom, validTo: a.validTo }
+        if (amountToSatang(a.unitPrice) <= 0n || a.validTo <= today || !checkAgreement(seen, period).ok) rows.push({ section: 'CATALOG', ref: `${ref}@${a.validFrom}`, reason: 'AGREEMENT_INVALID' })
+        seen.push(period)
+      }
     }
   }
   return rows
@@ -287,7 +298,7 @@ export const importConfigCommand = defineCommand({
     const read = readConfigPackage(input.file)
     if (!read.ok) return fail('CONFIG_PACKAGE_INVALID', 'the configuration package is not valid or was changed', { reason: read.reason })
     const content = read.content
-    const rows = await checkReferences(tx, content)
+    const rows = await checkReferences(tx, ctx, content)
     if (rows.length) return fail('VALIDATION_FAILED', 'some rows of the package do not fit this organization; nothing was created', { reason: 'CONFIG_PACKAGE_ROWS', rows })
 
     const events: EventDraft[] = []

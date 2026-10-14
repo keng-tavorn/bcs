@@ -8,7 +8,7 @@ export const CONFIG_SECTIONS = ['FORMS', 'WORKFLOW', 'DOA', 'CATALOG'] as const
 export type ConfigSection = (typeof CONFIG_SECTIONS)[number]
 
 /** Why a row of a package does not fit this organization (src/server/services/config-packages ConfigImportRow) */
-export const CONFIG_ROW_REASONS = ['REQUEST_TYPE_NOT_FOUND', 'DRAFT_EXISTS', 'FORM_INVALID', 'POSITION_NOT_FOUND', 'MEMBER_NOT_FOUND', 'CATALOG_CODE_EXISTS', 'SUPPLIER_NOT_FOUND', 'OTHER'] as const
+export const CONFIG_ROW_REASONS = ['REQUEST_TYPE_NOT_FOUND', 'DRAFT_EXISTS', 'FORM_INVALID', 'POSITION_NOT_FOUND', 'MEMBER_NOT_FOUND', 'CATALOG_CODE_EXISTS', 'SUPPLIER_NOT_FOUND', 'AGREEMENT_INVALID', 'OTHER'] as const
 export type ConfigRowReason = (typeof CONFIG_ROW_REASONS)[number]
 
 /** Why a file is not a package this organization may read (CONFIG_PACKAGE_INVALID details.reason) */

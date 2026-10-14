@@ -65,7 +65,8 @@
       "POSITION_NOT_FOUND": "This organization has no position or department with this code. Add it to the organization structure first.",
       "MEMBER_NOT_FOUND": "This organization has no member with this employee code. Invite the member or fix the employee code first.",
       "CATALOG_CODE_EXISTS": "A catalogue item with this code already exists. Change the code in the trial system, or export without the catalogue.",
-      "SUPPLIER_NOT_FOUND": "This organization has no supplier with this code. Add the supplier first.",
+      "SUPPLIER_NOT_FOUND": "This organization has no active supplier with this code. Add or reactivate the supplier first.",
+      "AGREEMENT_INVALID": "This agreed price cannot be used: the price must be above zero, the period must not be over, and it must not overlap another agreed price of the same item and supplier. Fix it in the trial system and export again.",
       "OTHER": "This row does not fit this organization. Check the codes it refers to and export again."
     }
   },

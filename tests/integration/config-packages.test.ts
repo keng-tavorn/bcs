@@ -105,6 +105,29 @@ describe('[FR-PLT-101/AC2] a configuration package from the sandbox imports into
     expect(await db.workflowVersion.count()).toBe(versions)
   })
 
+  it('agreed prices are checked as priceAgreement.create checks them: above zero, not over, no overlap (S6-22 review)', async () => {
+    const exported = ok(await exportConfigPackage(sandbox.ctxOf('admin', NOW), { sections: ['CATALOG'] }, key()))
+    const read = readConfigPackage(exported.file)
+    if (!read.ok) throw new Error(read.reason)
+    const supplier = await prisma.supplier.create({ data: { organizationId: production.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'ผู้ขายราคาตกลง', taxId: '0999999000012' }, select: { code: true } })
+    const agreement = (unitPrice: string, validFrom: string, validTo: string) => ({ supplierCode: supplier.code, unitPrice, validFrom, validTo })
+    const catalog = read.content.catalog!.map((i) => ({
+      ...i,
+      code: `NEW-${randomUUID().slice(0, 6)}`,
+      agreements: [agreement('100.00', '2026-11-01', '2027-01-01'), agreement('90.00', '2026-12-01', '2027-02-01'), agreement('0.00', '2027-03-01', '2027-04-01'), agreement('80.00', '2026-01-01', '2026-10-01')],
+    }))
+    const content = { ...read.content, catalog }
+    const file = JSON.stringify({ ...content, checksum: configPackageChecksum(content) })
+    const db = forTenant(production.organizationId)
+    const agreements = await db.priceAgreement.count()
+    const result = await importConfigPackage(production.ctxOf('admin', NOW), { file, effectiveDate: '2026-10-20', changeReason: 'นำเข้าจากระบบทดลอง' }, key())
+    const ref = (from: string) => `${catalog[0]!.code}/${supplier.code}@${from}`
+    expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'CONFIG_PACKAGE_ROWS' } } })
+    const rows = result.ok ? [] : ((result.error as { details: { rows: Array<{ ref: string; reason: string }> } }).details.rows)
+    expect(rows.filter((r) => r.reason === 'AGREEMENT_INVALID').map((r) => r.ref)).toEqual([ref('2026-12-01'), ref('2027-03-01'), ref('2026-01-01')])
+    expect(await db.priceAgreement.count()).toBe(agreements)
+  })
+
   it('PLATFORM_ADMIN neither exports nor imports (NG-12); a requester neither', async () => {
     const exported = ok(await exportConfigPackage(sandbox.ctxOf('admin', NOW), { sections: ['WORKFLOW'] }, key()))
     const input = { file: exported.file, effectiveDate: '2026-10-20', changeReason: 'นำเข้าจากระบบทดลอง' }

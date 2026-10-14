@@ -4317,6 +4317,7 @@
     "rows": {
       "reason": "Reason and how to fix it",
       "reasons": {
+        "AGREEMENT_INVALID": "This agreed price cannot be used: the price must be above zero, the period must not be over, and it must not overlap another agreed price of the same item and supplier. Fix it in the trial system and export again.",
         "CATALOG_CODE_EXISTS": "A catalogue item with this code already exists. Change the code in the trial system, or export without the catalogue.",
         "DRAFT_EXISTS": "A draft not yet sent or awaiting approval already exists. Send or cancel that draft first.",
         "FORM_INVALID": "The form in the package does not pass the form check. Fix it in the trial system and export again.",
@@ -4324,7 +4325,7 @@
         "OTHER": "This row does not fit this organization. Check the codes it refers to and export again.",
         "POSITION_NOT_FOUND": "This organization has no position or department with this code. Add it to the organization structure first.",
         "REQUEST_TYPE_NOT_FOUND": "This organization has no request type with this code. Create it first, then import again.",
-        "SUPPLIER_NOT_FOUND": "This organization has no supplier with this code. Add the supplier first."
+        "SUPPLIER_NOT_FOUND": "This organization has no active supplier with this code. Add or reactivate the supplier first."
       },
       "ref": "Item",
       "section": "Section"

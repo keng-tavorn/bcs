@@ -39,3 +39,64 @@ cases:
       - { op: approveTransfer, id: T1, expect: { B: { available: "130000.00", funded: "130000.00" } } }
   - { id: GC-BUD-13, fn: transferDoaInput, input: { kind: TRANSFER, from: { department: CON }, to: { department: IT }, amount: "300000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "300000.00", vat: "0.00", department: CON, conflict: [u1] } }
   - { id: GC-BUD-14, fn: transferDoaInput, input: { kind: INCREASE, to: { department: IT }, amount: "30000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "30000.00", vat: "0.00", department: IT, conflict: [u1] } }
+  # S6-16 · เกินงบ (BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18)
+  - id: GC-BUD-15
+    title: เกินงบ ใช้ส่วนที่อนุมัติพอดี
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "15000.00", funded: "25000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "15000.00", returned: "0.00" } }
+  - id: GC-BUD-16
+    title: งบว่างเพิ่มหลังอนุมัติ คืนส่วนที่ไม่ใช้
+    steps:
+      - { op: fund, line: A, amount: "18000.00" }
+      - { op: reserve, line: A, source: PR-X, amount: "8000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "23000.00", funded: "33000.00" } } }
+      - { op: release, line: A, source: PR-X, expect: { A: { available: "18000.00", reserved: "15000.00", funded: "33000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "7000.00", returned: "8000.00" } }
+  - id: GC-BUD-17
+    title: ต้องใช้มากกว่าที่อนุมัติ 1 สตางค์
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: reserve, line: A, source: PR-Y, amount: "0.01", expect: { A: { available: "9999.99", reserved: "15000.01", funded: "25000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expectError: BUDGET_INSUFFICIENT, shortfall: "0.01", expect: { A: { available: "9999.99", reserved: "15000.01", funded: "25000.00" } } }
+  - id: GC-BUD-18
+    title: ไม่ได้ใช้จนหมดอายุ
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: lapseOverrun, id: O1, expect: { A: { available: "10000.00", reserved: "0.00", funded: "10000.00" }, used: "0.00", returned: "15000.00" } }
+  - id: GC-BUD-19
+    title: ไม่ต้องใช้เลย คืนทั้งหมด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: fund, line: A, amount: "20000.00", expect: { A: { available: "30000.00", reserved: "15000.00", funded: "45000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "5000.00", reserved: "25000.00", funded: "30000.00" }, used: "0.00", returned: "15000.00" } }
+  - id: GC-BUD-20
+    title: ใช้เกินงบแล้วคำขอไม่ได้รับอนุมัติ คืนส่วนที่เติมออกจากบรรทัด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "15000.00", returned: "0.00" } }
+      - { op: release, line: A, source: PR-1, expect: { A: { available: "10000.00", reserved: "0.00", funded: "10000.00" }, returnedAfterUse: "15000.00" } }
+  - id: GC-BUD-21
+    title: PO ถูกกว่าคำขอ แล้วปิด PO โดยใช้ไม่หมด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { used: "15000.00", returned: "0.00" } }
+      - { op: approvePo, line: A, po: PO-1, request: PR-1, release: "25000.00", hold: "22000.00", expect: { A: { available: "0.00", reserved: "0.00", committed: "22000.00", funded: "22000.00" }, returnedAfterUse: "3000.00" } }
+      - { op: closePo, line: A, po: PO-1, actual: "20000.00", expect: { A: { available: "0.00", committed: "0.00", actual: "20000.00", funded: "20000.00" }, returnedAfterUse: "5000.00" } }
+  - id: GC-BUD-22
+    title: การคืนของคำขออื่นไม่คืนส่วนเกินงบ
+    steps:
+      - { op: fund, line: A, amount: "30000.00" }
+      - { op: reserve, line: A, source: PR-X, amount: "20000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "35000.00", funded: "45000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "45000.00", funded: "45000.00" }, used: "15000.00", returned: "0.00" } }
+      - { op: release, line: A, source: PR-X, expect: { A: { available: "20000.00", reserved: "25000.00", funded: "45000.00" }, returnedAfterUse: "0.00" } }
+      - { op: release, line: A, source: PR-1, expect: { A: { available: "30000.00", reserved: "0.00", funded: "30000.00" }, returnedAfterUse: "15000.00" } }
+  - { id: GC-BUD-23, fn: overrunDoaInput, input: { requestNet: "25000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { documentType: OVER_BUDGET, net: "15000.00", vat: "0.00", department: CON, conflict: [u1] } }
+  - { id: GC-BUD-24, title: งบพอแล้ว ขอเกินงบไม่ได้, fn: overrunDoaInput, input: { requestNet: "10000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { error: VALIDATION_FAILED, reason: NOT_OVER_BUDGET } }

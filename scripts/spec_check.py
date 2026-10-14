@@ -1504,19 +1504,73 @@ def run_budget_change(d):
     # BR-BUD-09 to BR-BUD-11 (S6-15): a transfer or a decrease reserves its source at submit (all or BUDGET_INSUFFICIENT);
     # approved, the reservation leaves the source (AVAILABLE → OUTSIDE, funded down) and enters the destination
     # (OUTSIDE → AVAILABLE, funded up); rejected, it comes back. The DOA input: net = the amount, vat 0, the department of
-    # the source (TRANSFER DECREASE) or the destination (INCREASE), the sender as the conflict
+    # the source (TRANSFER DECREASE) or the destination (INCREASE), the sender as the conflict.
+    # BR-BUD-12 to BR-BUD-15, BR-BUD-18 (S6-16): an approved overrun funds X = M − available and earmarks it; sending the
+    # request uses needed = max(0, M − available) of it (more → BUDGET_INSUFFICIENT) and the rest leaves; a lapse returns
+    # X; after use, what one command gives back of the request (its lines and the PO lines from them, net) leaves the line
+    # up to what is still outstanding (used − returned after use), to the overrun used last first
     out = []
     for c in d["cases"]:
         if c.get("fn") == "transferDoaInput":
             i = c["input"]; dept = (i["to"] if i["kind"] == "INCREASE" else i["from"])["department"]
             got = {"documentType": "BUDGET_TRANSFER", "net": i["amount"], "vat": "0.00", "department": dept, "conflict": [i["submitter"]]}
             out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "overrunDoaInput":
+            i = c["input"]; x = sat(i["requestNet"]) - sat(i["line"]["available"])
+            got = ({"error": "VALIDATION_FAILED", "reason": "NOT_OVER_BUDGET"} if x <= 0 else
+                   {"documentType": "OVER_BUDGET", "net": baht(x), "vat": "0.00", "department": i["line"]["department"], "conflict": [i["requester"]]})
+            out.append((c["id"], got == c["expect"], got)); continue
         lines = {k: {"available": 0, "reserved": 0, "committed": 0, "actual": 0, "funded": 0} for k in ("A", "B")}
-        held = {}; transfers = {}; ok = True; trace = []
+        held = {}; transfers = {}; alloc = {}; overruns = {}; po_request = {}; used_order = [0]; ok = True; trace = []
+
+        def after_use(ln, req, given):  # BR-BUD-18: what the command gave back of `req` on line `ln`, net
+            L = lines[ln]; left = min(max(given, 0), L["available"])
+            for o in sorted((o for o in overruns.values() if o["request"] == req and o["line"] == ln and o["status"] == "CONSUMED"), key=lambda o: -o["seq"]):
+                s_ = min(o["used"] - o["rau"], left)
+                if s_ > 0: L["available"] -= s_; L["funded"] -= s_; o["rau"] += s_; left -= s_
+
         for st in c["steps"]:
-            op = st["op"]; err = None
+            op = st["op"]; err = None; ov = None
             if op == "fund":
                 L = lines[st["line"]]; a = sat(st["amount"]); L["available"] += a; L["funded"] += a
+            elif op == "reserve":
+                L = lines[st["line"]]; a = sat(st["amount"])
+                if a > L["available"]: err = ("BUDGET_INSUFFICIENT", a - L["available"])
+                else: L["available"] -= a; L["reserved"] += a; alloc["REQ:" + st["source"]] = alloc.get("REQ:" + st["source"], 0) + a
+            elif op == "release":
+                L = lines[st["line"]]; a = alloc.get("REQ:" + st["source"], 0)
+                alloc["REQ:" + st["source"]] = 0; L["reserved"] -= a; L["available"] += a
+                after_use(st["line"], st["source"], a)
+            elif op == "approveOverrun":
+                ln = st.get("line", "A"); L = lines[ln]; x = sat(st["need"]) - L["available"]
+                if "expectShortfall" in st and baht(x) != st["expectShortfall"]: ok = False; trace.append(f"shortfall={baht(x)}")
+                L["funded"] += x; L["reserved"] += x; alloc["OB:" + st["id"]] = x
+                overruns[st["id"]] = ov = {"request": st["request"], "line": ln, "x": x, "status": "APPROVED", "used": 0, "returned": 0, "rau": 0, "seq": 0}
+            elif op == "consumeOverrun":
+                ov = overruns[st["id"]]; L = lines[ov["line"]]; m = sat(st["need"]); x = alloc["OB:" + st["id"]]
+                needed = max(0, m - L["available"])
+                if needed > x: err = ("BUDGET_INSUFFICIENT", needed - x)
+                else:
+                    alloc["OB:" + st["id"]] = 0; L["reserved"] -= x; L["available"] += x
+                    L["available"] -= x - needed; L["funded"] -= x - needed
+                    L["available"] -= m; L["reserved"] += m; alloc["REQ:" + ov["request"]] = alloc.get("REQ:" + ov["request"], 0) + m
+                    used_order[0] += 1; ov.update(status="CONSUMED", used=needed, returned=x - needed, seq=used_order[0])
+            elif op == "lapseOverrun":
+                ov = overruns[st["id"]]; L = lines[ov["line"]]; x = alloc["OB:" + st["id"]]
+                alloc["OB:" + st["id"]] = 0; L["reserved"] -= x; L["funded"] -= x
+                ov.update(status="LAPSED", used=0, returned=x)
+            elif op == "approvePo":
+                L = lines[st["line"]]; req = st["request"]; rel = sat(st["release"]); hold = sat(st["hold"])
+                alloc["REQ:" + req] -= rel; L["reserved"] -= rel; L["available"] += rel
+                if hold > L["available"]: err = ("BUDGET_INSUFFICIENT", hold - L["available"])
+                else:
+                    L["available"] -= hold; L["committed"] += hold; alloc["PO:" + st["po"]] = hold; po_request[st["po"]] = req
+                    after_use(st["line"], req, rel - hold)
+            elif op == "closePo":
+                L = lines[st["line"]]; key = "PO:" + st["po"]; act = sat(st["actual"])
+                L["committed"] -= act; L["actual"] += act; back = alloc[key] - act
+                alloc[key] = 0; L["committed"] -= back; L["available"] += back
+                after_use(st["line"], po_request[st["po"]], back)
             elif op == "submitTransfer":
                 kind = st.get("kind", "TRANSFER"); a = sat(st["amount"]); transfers[st["id"]] = {"kind": kind, "from": st.get("from"), "to": st.get("to"), "amount": a}
                 if kind != "INCREASE":
@@ -1533,15 +1587,27 @@ def run_budget_change(d):
                 t = transfers[st["id"]]
                 if st["id"] in held:
                     L = lines[t["from"]]; h = held.pop(st["id"]); L["reserved"] -= h; L["available"] += h
+            else: ok = False; trace.append(f"unknown op {op}")
             if "expectError" in st:
                 ok = ok and err is not None and err[0] == st["expectError"] and ("shortfall" not in st or baht(err[1]) == st["shortfall"])
-            elif err is not None: ok = False
-            for ln, exp in (st.get("expect") or {}).items():
-                for k, v in exp.items():
-                    if baht(lines[ln][k]) != v: ok = False; trace.append(f"{st['op']} {ln}.{k}={baht(lines[ln][k])}")
-            # INV-BUD-01 · INV-BUD-07: the buckets add up to what the line holds
+            elif err is not None: ok = False; trace.append(f"{op} {err}")
+            for k, exp in (st.get("expect") or {}).items():
+                if k in lines:
+                    for b, v in exp.items():
+                        if baht(lines[k][b]) != v: ok = False; trace.append(f"{op} {k}.{b}={baht(lines[k][b])}")
+                elif k in ("used", "returned"):
+                    if ov is None or baht(ov[k]) != exp: ok = False; trace.append(f"{op} {k}={ov and baht(ov[k])}")
+                elif k == "returnedAfterUse":
+                    got = baht(sum(o["rau"] for o in overruns.values()))
+                    if got != exp: ok = False; trace.append(f"{op} returnedAfterUse={got}")
+                else: ok = False; trace.append(f"unknown expect {k}")
+            # INV-BUD-01 · INV-BUD-07: the buckets add up to what the line holds · INV-BUD-02: nothing below zero
             for L in lines.values():
                 if L["available"] + L["reserved"] + L["committed"] + L["actual"] != L["funded"]: ok = False; trace.append("INV-BUD-01")
+                if min(L.values()) < 0: ok = False; trace.append("INV-BUD-02")
+            # INV-BUD-09: a used or lapsed overrun earmarks nothing, used + returned = X, returned after use ≤ used
+            for oid, o in overruns.items():
+                if o["status"] in ("CONSUMED", "LAPSED") and (alloc["OB:" + oid] or o["used"] + o["returned"] != o["x"] or o["rau"] > o["used"]): ok = False; trace.append("INV-BUD-09")
         out.append((c["id"], ok, trace or "ok"))
     return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)

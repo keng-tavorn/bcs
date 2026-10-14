@@ -55,7 +55,7 @@ export type BudgetError =
   /** An invoice above what the PO line still holds (GC-BUD-06) */
   | { readonly code: 'INVOICE_EXCEEDS_COMMITTED'; readonly remaining: Satang }
   /** A request that contradicts the state: an amount not above zero, or releasing more than a request line holds */
-  | { readonly code: 'VALIDATION_FAILED'; readonly reason: 'AMOUNT_NOT_POSITIVE' | 'RELEASABLE_EXCEEDS_RESERVED' | 'PO_INVOICED' | 'NOTHING_RESERVED' }
+  | { readonly code: 'VALIDATION_FAILED'; readonly reason: 'AMOUNT_NOT_POSITIVE' | 'RELEASABLE_EXCEEDS_RESERVED' | 'PO_INVOICED' | 'NOTHING_RESERVED' | 'NOT_OVER_BUDGET' }
 
 export type BudgetResult = { readonly ok: true; readonly state: LineState; readonly movements: readonly Movement[] } | { readonly ok: false; readonly error: BudgetError }
 
@@ -296,4 +296,114 @@ export function transferDoaInput(input: {
   const department = input.kind === 'INCREASE' ? input.toDepartmentId : input.fromDepartmentId
   if (!department) throw new RangeError(`a ${input.kind} names the line it ${input.kind === 'INCREASE' ? 'adds to' : 'takes from'}`)
   return { documentType: 'BUDGET_TRANSFER', amount: { netSatang: input.amountSatang, vatSatang: 0n }, chargedDepartmentId: department, conflictMemberIds: [input.submitterMemberId] }
+}
+
+// ---------- over-budget approval (S6-16 · BR-BUD-12 to BR-BUD-15, BR-BUD-18 · ADR-105 · OQ-104) ----------
+
+/**
+ * BR-BUD-12: the DOA input of an OVER_BUDGET approval. `needSatang` (M) is what the request still has to reserve on the
+ * line — its amount on the line less what it already reserves there — and X = M − available is the amount approved to
+ * fund, as net with no VAT, under the department that owns the line, the requester as the conflict. X ≤ 0: the line
+ * has enough, NOT_OVER_BUDGET.
+ */
+export function overrunDoaInput(input: {
+  readonly needSatang: Satang
+  readonly availableSatang: Satang
+  readonly lineDepartmentId: string
+  readonly requesterMemberId: string
+}):
+  | { readonly ok: true; readonly input: { documentType: 'OVER_BUDGET'; amount: { netSatang: Satang; vatSatang: Satang }; chargedDepartmentId: string; conflictMemberIds: string[] } }
+  | { readonly ok: false; readonly error: BudgetError } {
+  const shortfall = input.needSatang - input.availableSatang
+  if (shortfall <= 0n) return { ok: false, error: { code: 'VALIDATION_FAILED', reason: 'NOT_OVER_BUDGET' } }
+  return { ok: true, input: { documentType: 'OVER_BUDGET', amount: { netSatang: shortfall, vatSatang: 0n }, chargedDepartmentId: input.lineDepartmentId, conflictMemberIds: [input.requesterMemberId] } }
+}
+
+/** What an overrun earmarks on the line (its BUDGET_OVERRUN allocation) */
+export const earmarkOf = (state: LineState, overrunId: string): Satang => allocationOf(state, 'BUDGET_OVERRUN', overrunId).reserved
+
+/**
+ * BR-BUD-13 at approval: X enters the line (OUTSIDE → AVAILABLE) and is earmarked for the request at once (AVAILABLE →
+ * RESERVED, BUDGET_OVERRUN), so it is never anyone else's available budget; an OPEN line only (BR-BUD-08)
+ */
+export function earmarkOverrun(state: LineState, overrunId: string, amount: Satang): BudgetResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status })
+  if (amount <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' })
+  return ok(state, [
+    { from: 'OUTSIDE', to: 'AVAILABLE', amount, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+    { from: 'AVAILABLE', to: 'RESERVED', amount, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+  ])
+}
+
+/** An overrun's result also tells what of X the request used and what went back OUTSIDE */
+export type OverrunResult = (Extract<BudgetResult, { ok: true }> & { readonly used: Satang; readonly returned: Satang }) | Extract<BudgetResult, { ok: false }>
+
+/**
+ * BR-BUD-14 when the request is sent: needed = max(0, M − available) with M the total of its lines. More than the
+ * earmark X → BUDGET_INSUFFICIENT and nothing moves. Otherwise the earmark comes back, what the request does not need
+ * (X − needed) leaves the line, and the request's lines reserve M — all or nothing, an OPEN line only.
+ */
+export function consumeOverrun(state: LineState, overrunId: string, lines: readonly { readonly requestLineId: string; readonly amount: Satang }[]): OverrunResult {
+  if (state.status !== 'OPEN') return fail({ code: 'BUDGET_LINE_CLOSED', status: state.status }) as OverrunResult
+  if (lines.some((l) => l.amount <= 0n)) return fail({ code: 'VALIDATION_FAILED', reason: 'AMOUNT_NOT_POSITIVE' }) as OverrunResult
+  const earmark = earmarkOf(state, overrunId)
+  if (earmark <= 0n) return fail({ code: 'VALIDATION_FAILED', reason: 'NOTHING_RESERVED' }) as OverrunResult
+  const total = sum(lines.map((l) => l.amount))
+  const available = state.buckets.available
+  const needed = total > available ? total - available : 0n
+  if (needed > earmark) return insufficient(available + earmark, total) as OverrunResult
+  const returned = earmark - needed
+  const movements: Movement[] = [{ from: 'RESERVED', to: 'AVAILABLE', amount: earmark, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId }]
+  if (returned > 0n) movements.push({ from: 'AVAILABLE', to: 'OUTSIDE', amount: returned, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId })
+  for (const l of lines) movements.push({ from: 'AVAILABLE', to: 'RESERVED', amount: l.amount, sourceType: 'REQUEST_LINE', sourceId: l.requestLineId })
+  return { ok: true, state: applyMovements(state, movements), movements, used: needed, returned }
+}
+
+/** BR-BUD-15: an approved overrun not used (cancelled, its request cancelled, or past lapsesAt) gives its earmark back and X leaves the line */
+export function lapseOverrun(state: LineState, overrunId: string): Extract<OverrunResult, { ok: true }> {
+  const earmark = earmarkOf(state, overrunId)
+  if (earmark <= 0n) return { ok: true, state, movements: [], used: 0n, returned: 0n }
+  const movements: Movement[] = [
+    { from: 'RESERVED', to: 'AVAILABLE', amount: earmark, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+    { from: 'AVAILABLE', to: 'OUTSIDE', amount: earmark, sourceType: 'BUDGET_OVERRUN', sourceId: overrunId },
+  ]
+  return { ok: true, state: applyMovements(state, movements), movements, used: 0n, returned: earmark }
+}
+
+/**
+ * BR-BUD-18: what one command gave back of a request on a line — Σ (RESERVED or COMMITTED → AVAILABLE) − Σ (AVAILABLE →
+ * RESERVED or COMMITTED) over the movements of the allocations in `keys` (its request lines and the PO lines ordered
+ * from them), never below zero
+ */
+export function netReturned(movements: readonly Movement[], keys: ReadonlySet<string>): Satang {
+  let net = 0n
+  for (const m of movements) {
+    if (!keys.has(allocationKey(m.sourceType, m.sourceId))) continue
+    if (m.to === 'AVAILABLE' && (m.from === 'RESERVED' || m.from === 'COMMITTED')) net += m.amount
+    if (m.from === 'AVAILABLE' && (m.to === 'RESERVED' || m.to === 'COMMITTED')) net -= m.amount
+  }
+  return net > 0n ? net : 0n
+}
+
+/**
+ * BR-BUD-18 after use: of what a command gave back (`given`, from netReturned), s = min(outstanding, given) leaves the
+ * line (AVAILABLE → OUTSIDE, BUDGET_OVERRUN), to the overrun used last first, so the amount funded for the request never
+ * becomes another document's available budget. Never more than the line has available.
+ */
+export function returnAfterUse(
+  state: LineState,
+  given: Satang,
+  overruns: readonly { readonly id: string; readonly outstanding: Satang }[],
+): { readonly ok: true; readonly state: LineState; readonly movements: readonly Movement[]; readonly returned: ReadonlyMap<string, Satang> } {
+  let left = given < state.buckets.available ? given : state.buckets.available
+  const movements: Movement[] = []
+  const returned = new Map<string, Satang>()
+  for (const o of overruns) {
+    const s = o.outstanding < left ? o.outstanding : left
+    if (s <= 0n) continue
+    movements.push({ from: 'AVAILABLE', to: 'OUTSIDE', amount: s, sourceType: 'BUDGET_OVERRUN', sourceId: o.id })
+    returned.set(o.id, s)
+    left -= s
+  }
+  return { ok: true, state: applyMovements(state, movements), movements, returned }
 }

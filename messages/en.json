@@ -1985,6 +1985,7 @@
       "Delegation": "Delegation",
       "Department": "Department",
       "DoaVersion": "DOA",
+      "DocumentVerification": "Document verification QR",
       "ExportJob": "Export file",
       "File": "File",
       "FormVersion": "Request type form",
@@ -2149,6 +2150,9 @@
         "withdrawal_rejected": "DOA withdrawal not approved",
         "withdrawal_requested": "DOA withdrawal asked",
         "withdrawn": "DOA withdrawn"
+      },
+      "document_verification": {
+        "issued": "Verification QR issued"
       },
       "export": {
         "generated": "Export file generated"
@@ -2319,6 +2323,7 @@
       "delegation": "Delegations",
       "department": "Departments",
       "doa_version": "DOA",
+      "document_verification": "Document verification",
       "export": "Export files",
       "file": "Files",
       "form_version": "Forms",
@@ -2944,6 +2949,14 @@
     },
     "asOf": "Figures as of {time}",
     "back": "Back to budgets",
+    "burn": {
+      "forecast": "Year forecast {pct}%",
+      "forecastOver": "Forecast over budget",
+      "noForecast": "Year forecast: not yet",
+      "noForecastHint": "The fiscal year has only just begun, too early to forecast",
+      "used": "{pct}% used",
+      "usedAll": "{pct}% used"
+    },
     "changes": {
       "current": "Planned",
       "decreased": "Decreased",
@@ -3225,6 +3238,7 @@
     "legend": {
       "actual": "Actual: invoices finance has confirmed",
       "available": "Available: what new requests can still use",
+      "burn": "Year forecast = used ÷ days of the fiscal year gone by × days in the year (used is rounded down to 2 decimals) · \"used\" badges: the organization's alert threshold is reached · \"Forecast over budget\": at this pace the line will use more than its current budget before the year ends",
       "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases, and what over-budget approvals funded",
       "committed": "Committed: approved purchase orders waiting for their invoices",
       "planned": "Planned: everything imported for the fiscal year, plus transfers in and increases, less transfers out and decreases (before VAT)",
@@ -3330,6 +3344,7 @@
       "availableLink": "Available {amount} baht of {code}: see the ledger movements",
       "caption": "Budgets of fiscal year {code} by department and budget line, in baht",
       "departmentTotal": "{name} total",
+      "forecastLink": "{share} of {code}: see the committed and actual documents",
       "heldLink": "{share} of {code}: see the reserved, committed and actual documents",
       "lowLink": "{warning} on {code}: see the ledger movements",
       "plannedLink": "Planned {amount} baht of {code}: see the imports",
@@ -8481,5 +8496,24 @@
     "sidebar": "Menu",
     "sidebarDescription": "The workspace menu on a small screen",
     "toggleSidebar": "Collapse or expand the menu"
+  },
+  "verify": {
+    "brand": "BCS",
+    "latest": "This is the latest version of the document",
+    "metaTitle": "Verify a document",
+    "notFoundBody": "No document matches this QR code or link. Check that it was scanned from the original document, or ask whoever issued it",
+    "notFoundTitle": "Document not found",
+    "number": "Number",
+    "open": "Open the document",
+    "organization": "Company",
+    "privacy": "This page shows only what confirms the document: no amounts and no names of people",
+    "status": "Current status",
+    "statusAt": "Date",
+    "superseded": "A newer version exists: the document was changed after this copy was printed. Ask whoever issued it for the latest one",
+    "tagline": "Check a document is genuine and see its current status",
+    "titlePurchaseOrder": "This purchase order was issued by the system",
+    "titleRequest": "This purchase request was issued by the system",
+    "tooManyBody": "This page was opened too often from your address. Please try again in a minute",
+    "tooManyTitle": "Please try again later"
   }
 }

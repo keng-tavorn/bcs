@@ -26,6 +26,8 @@ export interface PrintableDocument {
   readonly approvals: ReadonlyArray<{ readonly name: string; readonly position: string; readonly atText: string; readonly channel: string; readonly doaRef: string }>
   readonly note: string | null
   readonly footer: string
+  /** S6-19 (BR-QR-01): the verification page of a document that was sent, printed as a QR; absent before it was sent */
+  readonly verifyUrl?: string | null
 }
 
 const HEAD_OFFICE = '00000'

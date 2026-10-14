@@ -128,7 +128,8 @@
     "catalog_item": "แคตตาล็อก",
     "price_agreement": "ราคาตกลง",
     "budget_transfer": "โอนและปรับงบ",
-    "budget_overrun": "ขออนุมัติเกินงบ"
+    "budget_overrun": "ขออนุมัติเกินงบ",
+    "document_verification": "ตรวจสอบเอกสาร"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -168,7 +169,8 @@
     "CatalogItem": "สินค้าในแคตตาล็อก",
     "PriceAgreement": "ราคาตกลง",
     "BudgetTransfer": "การโอนและปรับงบ",
-    "BudgetOverrun": "การขออนุมัติเกินงบ"
+    "BudgetOverrun": "การขออนุมัติเกินงบ",
+    "DocumentVerification": "QR ตรวจสอบเอกสาร"
   },
   "events": {
     "approval_step": {
@@ -426,6 +428,9 @@
       "returned": "ตีกลับการขอเกินงบ",
       "submitted": "ส่งขออนุมัติเกินงบ",
       "unused_returned": "คืนยอดเกินงบที่ไม่ได้ใช้หลังใช้"
+    },
+    "document_verification": {
+      "issued": "ออก QR ตรวจสอบเอกสาร"
     }
   }
 }

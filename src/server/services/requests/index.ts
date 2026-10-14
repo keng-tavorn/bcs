@@ -26,6 +26,7 @@ import { flagRequest } from './duplicates'
 import { checkQuotations, MAX_QUOTATIONS, QuotationInput, writeQuotations } from './quotations'
 import { largestLine, releaseForRequest, requestBudgetLines, reserveForRequest } from './budget'
 import { overrunPending, settleOverrunsOfCancelledRequest } from '../budget/overrun-use'
+import { issueDocumentVerification } from '../documents/verification'
 import { reportDoaGap } from './doa-gap'
 import { aiAssisted, aiReviewed } from './ai-assist'
 import { AiAssistInput } from '../ai/assist-contract'
@@ -507,7 +508,10 @@ export const submitCommand = defineCommand({
         version: { increment: 1 },
       },
     })
+    // S6-19 (BR-QR-01): the QR of the printed request names this content
+    const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'REQUEST', subjectId: request.id })
     const events: EventDraft[] = [
+      ...verification.events,
       {
         type: 'request.submitted',
         aggregateType: 'Request',
@@ -631,11 +635,14 @@ export const resubmitCommand = defineCommand({
         version: { increment: 1 },
       },
     })
+    // S6-19 (BR-QR-01): a new QR only when what the request prints changed
+    const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'REQUEST', subjectId: request.id })
     return {
       ok: true,
       result: { routeId: route.routeId, assigneeMemberId: route.firstTask.assigneeMemberId },
       events: [
         ...replaced,
+        ...verification.events,
         {
           type: 'request.resubmitted',
           aggregateType: 'Request',

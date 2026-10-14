@@ -128,7 +128,8 @@
     "catalog_item": "Catalogue",
     "price_agreement": "Agreed prices",
     "budget_transfer": "Budget transfers",
-    "budget_overrun": "Over-budget approval"
+    "budget_overrun": "Over-budget approval",
+    "document_verification": "Document verification"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -168,7 +169,8 @@
     "CatalogItem": "Catalogue item",
     "PriceAgreement": "Agreed price",
     "BudgetTransfer": "Budget transfer",
-    "BudgetOverrun": "Over-budget approval"
+    "BudgetOverrun": "Over-budget approval",
+    "DocumentVerification": "Document verification QR"
   },
   "events": {
     "approval_step": {
@@ -426,6 +428,9 @@
       "returned": "Over-budget approval returned",
       "submitted": "Over-budget approval sent",
       "unused_returned": "Unused over-budget amount returned after use"
+    },
+    "document_verification": {
+      "issued": "Verification QR issued"
     }
   }
 }

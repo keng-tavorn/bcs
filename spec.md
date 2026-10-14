@@ -4070,6 +4070,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` · S6-18: `budget.alert_raised` (ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ) |
 | budget_transfer | `budget_transfer.drafted` `budget_transfer.submitted` `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` `budget_transfer.cancelled` (S6-15 · FR-BUD-103) |
 | budget_overrun | `budget_overrun.submitted` `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` `budget_overrun.cancelled` `budget_overrun.consumed` `budget_overrun.lapsed` `budget_overrun.lapse_reminded` `budget_overrun.unused_returned` (S6-16 · FR-BUD-101 · BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18) |
+| document_verification | `document_verification.issued` (S6-19 · BR-QR-01 · เมื่อเนื้อหาที่พิมพ์ของ PR หรือ PO เปลี่ยน · ไม่มี token ใน event) |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | report_schedule | `report_schedule.created` |

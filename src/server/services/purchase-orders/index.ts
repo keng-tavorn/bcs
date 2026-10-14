@@ -20,6 +20,7 @@ import { issueDocumentNumber } from '../numbering'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
 import { budgetRefusalFor, poBudgetLines, releaseCancelledPo, reserveForPo } from './budget'
 import { unmergeableLine } from '../budget/overrun-use'
+import { issueDocumentVerification } from '../documents/verification'
 import { completeFinishedRequests, unorderSourceLines } from './requests'
 
 export { closePurchaseOrder } from './close'
@@ -257,7 +258,10 @@ export const submitPoCommand = defineCommand({
         version: { increment: 1 },
       },
     })
+    // S6-19 (BR-QR-01): the QR of the printed PO names this content; a resend of the same content keeps its QR
+    const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'PURCHASE_ORDER', subjectId: po.id })
     const events: EventDraft[] = [
+      ...verification.events,
       {
         type: 'po.submitted',
         aggregateType: 'PurchaseOrder',

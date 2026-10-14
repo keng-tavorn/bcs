@@ -16,6 +16,7 @@ import { printablePurchaseOrder } from '@/server/pdf/printable'
 import { renderPdf } from '@/server/pdf/render'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { departmentReceivers } from '../receiving/receivers'
+import { verifyUrlOf } from '../documents/verification'
 
 // Sending a PO to its supplier (spec §6.4 APPROVED → po.send → SENT, FR-P2P-005): PROCUREMENT e-mails the approved PO
 // with its PDF (FR-PLT-009), reply-to the sender, and the PO becomes SENT with sentAt and sentToEmail. The e-mail goes
@@ -80,7 +81,8 @@ export const sendPoCommand = defineCommand({
     if (moved && !moved.ok) return fail('INVALID_STATE_TRANSITION', `po.send is not allowed from ${po.status}`, { from: po.status, command: 'po.send' })
 
     // The PDF (FR-PLT-009), kept and linked to the PO as PO_PDF
-    const document = await printablePurchaseOrder(tx, ctx.organizationId, po.id, ctx.now)
+    // S6-19: the PO the supplier gets carries the QR of its verification page
+    const document = { ...(await printablePurchaseOrder(tx, ctx.organizationId, po.id, ctx.now)), verifyUrl: await verifyUrlOf(tx, { subjectType: 'PURCHASE_ORDER', subjectId: po.id }) }
     const pdf = await renderPdf(document)
     const pdfFileId = newId()
     const storageKey = `org/${ctx.organizationId}/${pdfFileId}`

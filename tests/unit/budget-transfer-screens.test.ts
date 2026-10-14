@@ -149,7 +149,7 @@ describe('[FR-BUD-103/AC3] the dashboard shows how each line came to its planned
   const money = (amount: string) => ({ amount, currency: 'THB' as const })
 
   it('initial, transferred in and out, increased, decreased, then the planned amount — each linking to what makes it up', () => {
-    const changes = { initial: money('1000000.00'), transferredIn: money('300000.00'), transferredOut: money('0.00'), increased: money('50000.5'), decreased: money('20000.00') }
+    const changes = { initial: money('1000000.00'), transferredIn: money('300000.00'), transferredOut: money('0.00'), increased: money('50000.5'), decreased: money('20000.00'), overrun: money('0.00') }
     const view = changesView(t, changes, money('1330000.50'), 'FIN-OPEX', '/budgets/l1')
     expect(view.toggle).toBe('ที่มาของงบ')
     expect(view.rows.map((r) => [r.term, r.amount, r.link.href, r.total ?? false])).toEqual([
@@ -158,10 +158,11 @@ describe('[FR-BUD-103/AC3] the dashboard shows how each line came to its planned
       ['โอนออก', '0.00', '/budgets/l1#movements', false],
       ['ปรับเพิ่ม', '50,000.50', '/budgets/l1#movements', false],
       ['ปรับลด', '20,000.00', '/budgets/l1#movements', false],
+      ['เติมจากเกินงบ', '0.00', '/budgets/l1#movements', false],
       ['งบปัจจุบัน', '1,330,000.50', '/budgets/l1#planned', true],
     ])
     expect(view.rows[1]!.link.label).toBe('โอนเข้า 300,000.00 บาท ของ FIN-OPEX: ดูความเคลื่อนไหวในบัญชีงบ')
     expect(view.rows[0]!.link.label).toBe('งบตั้งต้น 1,000,000.00 บาท ของ FIN-OPEX: ดูการนำเข้างบ')
-    expect(view.rows[5]!.link.label).toBe('งบปัจจุบัน 1,330,000.50 บาท ของ FIN-OPEX: ดูการนำเข้างบ')
+    expect(view.rows[6]!.link.label).toBe('งบปัจจุบัน 1,330,000.50 บาท ของ FIN-OPEX: ดูการนำเข้างบ')
   })
 })

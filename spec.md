@@ -4018,6 +4018,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
 | `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` (S6-15) | ผู้ส่ง | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.transfer_decided` |
 | `budget.imported` ที่เพิ่มยอดให้บรรทัดที่มีงบแล้ว (S6-15 · OQ-105) | AUDITOR | ในระบบ | DIGEST | `audit.budget_topped_up` |
+| `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` (S6-16) | ผู้ขอ | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.overrun_decided` |
+| `budget_overrun.lapse_reminded`: การขอเกินงบที่อนุมัติแล้วจะหมดอายุใน 2 วัน (S6-16 · BR-BUD-15) | ผู้ขอ | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.overrun_lapsing` |
 | `request.flagged` (S6-13 · BR-DUP-05) | AUDITOR | ในระบบ | DIGEST | `audit.request_flagged` |
 | `request.renewal_reminded` (S6-12 · BR-FORM-08) | ผู้ขอ · PROCUREMENT | LINE → อีเมล · ในระบบ | ผู้ขอ IMMEDIATE · PROCUREMENT DIGEST | `request.renewal_due` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |

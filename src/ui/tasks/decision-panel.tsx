@@ -51,9 +51,10 @@ export interface TaskDecisionInput {
 
 /**
  * What the task decides; each has its own choices and words. REVIEW: a reviewer's task of a request (S6 · BR-WF-09);
- * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about
+ * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about;
+ * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT)
  */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER'
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -169,6 +170,10 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const review = kind === 'REVIEW'
   // Its amount has no VAT, and a return or rejection gives the reservation back to the source line
   const transfer = kind === 'BUDGET_TRANSFER'
+  // S6-16: its amount is the shortfall (no VAT); deciding it changes the budget only when approved
+  const overrun = kind === 'BUDGET_OVERRUN'
+  // The words of the two budget kinds, under tasks.decide.transfer or tasks.decide.overrun
+  const budget = transfer ? 'transfer' : overrun ? 'overrun' : null
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
   const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had
@@ -177,23 +182,23 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
       ? t('variance.confirmText', { label, amount })
       : review
         ? t('review.confirmText', { label, amount })
-        : transfer
-          ? t('transfer.confirmText', { label, amount })
+        : budget
+          ? t(`${budget}.confirmText`, { label, amount })
           : t('confirmText', { label, amount }),
-    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : review ? t('review.otherLink') : transfer ? t('transfer.otherLink') : t('otherLink'),
+    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : review ? t('review.otherLink') : budget ? t(`${budget}.otherLink`) : t('otherLink'),
     otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : review ? t('review.otherTitle') : t('otherTitle'),
     approve: review ? t('review.approve') : t('approve'),
     confirm: review ? t('review.confirm') : t('confirm'),
     approved: review ? t('review.approved') : t('approved'),
-    returnOption: po ? t('po.returnOption') : transfer ? t('transfer.returnOption') : t('returnOption'),
-    returnHint: po ? t('po.returnHint') : transfer ? t('transfer.returnHint') : t('returnHint'),
+    returnOption: po ? t('po.returnOption') : budget ? t(`${budget}.returnOption`) : t('returnOption'),
+    returnHint: po ? t('po.returnHint') : budget ? t(`${budget}.returnHint`) : t('returnHint'),
     rejectOption: po ? t('po.rejectOption') : t('rejectOption'),
-    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : transfer ? t('transfer.rejectHint') : t('rejectHint'),
-    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : transfer ? t('transfer.reasonHint') : t('reasonHint'),
-    submitReturn: po ? t('po.submitReturn') : transfer ? t('transfer.submitReturn') : t('submitReturn'),
-    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : transfer ? t('transfer.submitReject') : t('submitReject'),
-    returned: po ? t('po.returned') : transfer ? t('transfer.returned') : t('returned'),
-    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : transfer ? t('transfer.rejected') : t('rejected'),
+    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : budget ? t(`${budget}.rejectHint`) : t('rejectHint'),
+    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : budget ? t(`${budget}.reasonHint`) : t('reasonHint'),
+    submitReturn: po ? t('po.submitReturn') : budget ? t(`${budget}.submitReturn`) : t('submitReturn'),
+    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : budget ? t(`${budget}.submitReject`) : t('submitReject'),
+    returned: po ? t('po.returned') : budget ? t(`${budget}.returned`) : t('returned'),
+    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : budget ? t(`${budget}.rejected`) : t('rejected'),
     // A variance is never returned (BR-GR-03): its PIN is for approving or rejecting
     stepUpHint: variance ? t('variance.stepUpHint') : t('stepUpHint'),
   }

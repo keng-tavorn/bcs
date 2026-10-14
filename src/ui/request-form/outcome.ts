@@ -156,6 +156,7 @@ export const FAILURE_KEYS = [
   'AGREEMENT_OFF',
   'CATALOG_UNKNOWN',
   'DUPLICATE_UNACKNOWLEDGED',
+  'OVERRUN_PENDING',
   'FAILED',
 ] as const
 export type FailureKey = (typeof FAILURE_KEYS)[number]
@@ -215,6 +216,9 @@ function validationKey(f: FormFailure): FailureKey {
 export function failureKey(f: FormFailure): FailureKey {
   if (f.code === 'FORBIDDEN' && f.reason === 'BUDGET_LINE_NOT_ALLOWED') return 'BUDGET_LINE_NOT_ALLOWED'
   if (f.code === 'VALIDATION_FAILED') return validationKey(f)
+  // S6-16 (§6.4): an over-budget approval of the request still waits — its amount and budget line are locked, and it is
+  // not sent until the approval is decided or cancelled; the request itself is still the requester's to change
+  if (f.code === 'INVALID_STATE_TRANSITION' && f.reason === 'OVERRUN_PENDING') return 'OVERRUN_PENDING'
   if (f.code === 'INVALID_STATE_TRANSITION') return 'STATE'
   if (f.code === 'RATE_LIMITED') return 'BUSY'
   // A file the request no longer holds is not the request missing: each gets its own words, neither guesses why

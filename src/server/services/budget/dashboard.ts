@@ -40,7 +40,8 @@ export interface BudgetFiguresDto {
 
 /**
  * S6-15 (FR-BUD-103 AC3 · BR-BUD-09): how the line came to its planned amount, from its ledger — the imports, the
- * transfers in and out, the increases and decreases; planned = initial + transferredIn − transferredOut + increased − decreased
+ * transfers in and out, the increases and decreases, and what over-budget approvals funded and kept (S6-16 · BR-BUD-13 to
+ * BR-BUD-15, BR-BUD-18); planned = initial + transferredIn − transferredOut + increased − decreased + overrun
  */
 export interface BudgetLineChangesDto {
   readonly initial: MoneyDto
@@ -48,6 +49,8 @@ export interface BudgetLineChangesDto {
   readonly transferredOut: MoneyDto
   readonly increased: MoneyDto
   readonly decreased: MoneyDto
+  /** Funded by over-budget approvals less what went back out (used − returned after use, and earmarks still held) */
+  readonly overrun: MoneyDto
 }
 
 export interface BudgetDashboardLineDto extends BudgetFiguresDto {
@@ -158,7 +161,7 @@ function dayIn(at: Date, timezone: string): Date {
 export const dateText = (day: Date) => day.toISOString().slice(0, 10)
 
 const zero = toMoneyDto(0n)
-const NO_CHANGES: BudgetLineChangesDto = { initial: zero, transferredIn: zero, transferredOut: zero, increased: zero, decreased: zero }
+const NO_CHANGES: BudgetLineChangesDto = { initial: zero, transferredIn: zero, transferredOut: zero, increased: zero, decreased: zero, overrun: zero }
 
 /** BR-BUD-09: what crossed each line's edge, by why — from the ledger rows that leave or enter OUTSIDE */
 async function lineChanges(tx: TenantTx, lineIds: readonly string[]): Promise<Map<string, BudgetLineChangesDto>> {
@@ -170,12 +173,13 @@ async function lineChanges(tx: TenantTx, lineIds: readonly string[]): Promise<Ma
   })
   const transferIds = [...new Set(rows.filter((r) => r.sourceType === 'BUDGET_TRANSFER').map((r) => r.sourceId))]
   const kinds = new Map((await tx.budgetTransfer.findMany({ where: { id: { in: transferIds } }, select: { id: true, kind: true } })).map((t) => [t.id, t.kind]))
-  const sums = new Map<string, { initial: bigint; transferredIn: bigint; transferredOut: bigint; increased: bigint; decreased: bigint }>()
+  const sums = new Map<string, { initial: bigint; transferredIn: bigint; transferredOut: bigint; increased: bigint; decreased: bigint; overrun: bigint }>()
   for (const r of rows) {
-    const s = sums.get(r.budgetLineId) ?? { initial: 0n, transferredIn: 0n, transferredOut: 0n, increased: 0n, decreased: 0n }
+    const s = sums.get(r.budgetLineId) ?? { initial: 0n, transferredIn: 0n, transferredOut: 0n, increased: 0n, decreased: 0n, overrun: 0n }
     const amount = r._sum.amountSatang ?? 0n
     const into = r.fromBucket === 'OUTSIDE'
     if (r.sourceType === 'IMPORT') s.initial += amount
+    else if (r.sourceType === 'BUDGET_OVERRUN') s.overrun += into ? amount : -amount
     else if (r.sourceType === 'BUDGET_TRANSFER') {
       const kind = kinds.get(r.sourceId)
       if (kind === 'TRANSFER' && into) s.transferredIn += amount
@@ -185,7 +189,7 @@ async function lineChanges(tx: TenantTx, lineIds: readonly string[]): Promise<Ma
     }
     sums.set(r.budgetLineId, s)
   }
-  return new Map([...sums].map(([id, s]) => [id, { initial: toMoneyDto(s.initial), transferredIn: toMoneyDto(s.transferredIn), transferredOut: toMoneyDto(s.transferredOut), increased: toMoneyDto(s.increased), decreased: toMoneyDto(s.decreased) }]))
+  return new Map([...sums].map(([id, s]) => [id, { initial: toMoneyDto(s.initial), transferredIn: toMoneyDto(s.transferredIn), transferredOut: toMoneyDto(s.transferredOut), increased: toMoneyDto(s.increased), decreased: toMoneyDto(s.decreased), overrun: toMoneyDto(s.overrun) }]))
 }
 
 /** The DOA version in effect has a BUDGET_TRANSFER rule (FR-BUD-103 AC4) */

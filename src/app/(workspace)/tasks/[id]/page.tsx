@@ -7,6 +7,7 @@ import { isAllowed, memberPrincipal } from '@/server/authz'
 import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, PIN_DECISION_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
+import { getBudgetOverrun } from '@/server/services/budget/overrun-view'
 import { getBudgetTransfer } from '@/server/services/budget/transfer-view'
 import { getPriceReference } from '@/server/services/price-reference'
 import { moneyText } from '@/ui/budgets/format'
@@ -26,6 +27,7 @@ import { readBacktestRunAction, runBacktestAction } from '../../../_lib/backtest
 import { briefView } from '../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
+import { BudgetOverrunSubject } from '../../_tracking/budget-overrun-subject'
 import { BudgetTransferSubject } from '../../_tracking/budget-transfer-subject'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../_tracking/policy-subject'
@@ -151,6 +153,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const transferRead = isTransfer ? await getBudgetTransfer(ctx, task.subjectId) : null
   const transfer = transferRead?.ok ? transferRead.data : null
   const tt = transfer ? await getTranslations('budgetTransfer') : null
+  // An over-budget approval (S6-16 · FR-BUD-101): its approvers read it (budget.view ASSIGNED) and its source request
+  // (request.view ASSIGNED); anyone else who opens the task after it moved on sees no body rather than a refusal
+  const isOverrun = task.subjectType === 'BUDGET_OVERRUN'
+  const overrunRead = isOverrun ? await getBudgetOverrun(ctx, task.subjectId) : null
+  const overrun = overrunRead?.ok ? overrunRead.data : null
+  const to = overrun ? await getTranslations('budgetOverrun') : null
   const [tp, poAccess] = await Promise.all([getTranslations('purchaseOrder'), po ? getPoAccess(ctx, po.id) : variance ? getPoAccess(ctx, variance.po.id) : Promise.resolve(null)])
   // The PO opens for whoever may see it (po.view); otherwise its number is plain text, never a link that ends in a refusal
   const poHref = poAccess && canViewPo(principal, poAccess) ? `/procurement/pos/${poAccess.poId}` : null
@@ -213,7 +221,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
         ? `${variance.po.number ?? '-'} · ${variance.line.description}`
         : transfer && tt
           ? (transfer.number ?? tt('list.draft'))
-          : task.policy
+          : overrun
+            ? overrun.number
+            : task.policy
             ? policyHeadline(t, locale, task.policy)
             : task.workflow
               ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
@@ -224,7 +234,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       ? po.supplier.nameTh
       : transfer && tt
         ? tt('task.heading', { kind: tt(`kind.${transfer.kind}`), number: transfer.number ?? '' }).trim()
-        : (varianceTitle ?? label)
+        : overrun && to
+          ? to('detail.heading', { number: overrun.number })
+          : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
   // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
   // the boundary table's tick; until then a guess of it for the first paint, taller with the PIN and with the tick
@@ -319,6 +331,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
               ) : transfer ? (
                 <BudgetTransferSubject transfer={transfer} locale={locale} />
+              ) : overrun ? (
+                <BudgetOverrunSubject overrun={overrun} locale={locale} />
               ) : task.workflow ? (
                 <WorkflowSubject workflow={task.workflow} locale={locale} />
               ) : (
@@ -351,11 +365,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   open={open}
                   locale={locale}
                   label={label}
-                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : task.review ? 'REVIEW' : 'REQUEST'}
+                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : '-'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
+                  actions={po || variance || isTransfer || isOverrun ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
                 />
               )}
             </Panel>

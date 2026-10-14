@@ -51,7 +51,7 @@ export interface OverrunUse {
  * The overrun side of a submit or resubmit reserving `lines` on `budgetLineId`: refused while an overrun waits for
  * approval; with an approved overrun of the line, the reservation uses it (needed of X, the rest leaves the line)
  */
-export async function useOverruns(
+export async function overrunsForReserve(
   tx: TenantTx,
   ctx: Ctx,
   requestId: string,

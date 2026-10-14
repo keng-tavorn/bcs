@@ -38,7 +38,7 @@
     "committed": "Committed: approved purchase orders waiting for their invoices",
     "actual": "Actual: invoices finance has confirmed",
     "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned",
-    "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases"
+    "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases, and what over-budget approvals funded"
   },
   "columns": {
     "line": "Budget line",
@@ -408,6 +408,7 @@
     "transferredOut": "Transferred out",
     "increased": "Increased",
     "decreased": "Decreased",
+    "overrun": "Funded over budget",
     "current": "Planned",
     "link": "{term} {amount} baht of {code}: see the ledger movements",
     "initialLink": "Initial budget {amount} baht of {code}: see the imports"

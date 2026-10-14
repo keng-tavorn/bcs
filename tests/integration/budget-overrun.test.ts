@@ -4,6 +4,7 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { listMyTasks } from '@/server/queries/tasks'
 import { decideTask } from '@/server/services/approvals/decide'
+import { budgetDashboard } from '@/server/services/budget/dashboard'
 import { getBudgetOverrun, getRequestOverruns } from '@/server/services/budget/overrun-view'
 import { cancelBudgetOverrun, runOverrunLapse, submitBudgetOverrun } from '@/server/services/budget/overruns'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
@@ -57,6 +58,7 @@ async function approvedOverrun(requestId: string, at = NOW) {
 
 beforeAll(async () => {
   org = await createP1Org()
+  await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.fin_officer!, role: 'BUDGET_ADMIN', grantedAt: NOW } })
   con = await p2p(org, NOW).fundedLine(100_000n)
   earlier = (await p2p(org, NOW).approvedRequest(con, [{ quantity: '1', unitPrice: '90000.00' }])).id
 })
@@ -105,6 +107,9 @@ describe('[FR-BUD-101/AC1] [FR-BUD-101/AC2] the shortfall approved, used at subm
     expect(await balance(con)).toMatchObject({ availableSatang: 1_000_000n, reservedSatang: 15_000_000n })
     expect(await planned(con)).toBe(16_000_000n)
     expect(await prisma.notification.count({ where: { recipientMemberId: org.member.req_con, templateKey: 'budget.overrun_decided' } })).toBe(1)
+    // The dashboard tells what the overrun funded apart from the import (planned = initial + overrun)
+    const board = ok(await budgetDashboard(org.ctxOf('fin_officer', NOW)))
+    expect(board.lines.find((l) => l.id === con)?.changes).toMatchObject({ initial: { amount: '100000.00' }, overrun: { amount: '60000.00' } })
 
     // Sent: the overrun is used (BR-BUD-14) and the budget check passes, so G-4 stays 0
     const sent = ok(await submitRequest(org.ctxOf('req_con', NOW), { requestId }, key()))
@@ -128,6 +133,20 @@ describe('[FR-BUD-101/AC1] [FR-BUD-101/AC2] the shortfall approved, used at subm
     expect(types).toEqual(expect.arrayContaining([['budget_overrun.unused_returned', '6000000'], ['budget.overrun_returned', '6000000']]))
     // The requester reads the whole story on the overrun
     expect(ok(await getBudgetOverrun(org.ctxOf('req_con', NOW), asked.overrunId))).toMatchObject({ status: 'CONSUMED', used: { amount: '60000.00' }, returnedAfterUse: { amount: '60000.00' }, mine: true })
+  })
+})
+
+describe('[FR-BUD-101/AC1] the requester never approves their own shortfall (BR-SOD-01)', () => {
+  it('vp_ops asks 30,000.00 on an OPS line: OB-01 would pick vp_ops, so the route escalates past them', async () => {
+    const fy = await prisma.fiscalYear.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'FY2569' } })
+    const cc = await prisma.costCenter.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'CC-CON' } })
+    const ops = await prisma.budgetLine.create({ data: { organizationId: org.organizationId, fiscalYearId: fy.id, departmentId: org.department.OPS!, costCenterId: cc.id, code: `OPS-${randomUUID().slice(0, 8)}`, nameTh: 'งบสายปฏิบัติการ', plannedSatang: 0n } })
+    await prisma.budgetLineBalance.create({ data: { organizationId: org.organizationId, budgetLineId: ops.id } })
+    const requestId = await draft(org, 'vp_ops', ops.id, '30000.00')
+    const asked = ok(await submitBudgetOverrun(org.ctxOf('vp_ops', NOW), { requestId, reason: 'ประชุมใหญ่ประจำปีของสายงาน' }, key()))
+    const task = await openTask(asked.overrunId)
+    expect(task.assigneeMemberId).not.toBe(org.member.vp_ops)
+    expect(await decideTask(org.ctxOf('vp_ops', NOW), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false })
   })
 })
 

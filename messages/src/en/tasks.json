@@ -33,7 +33,9 @@
       "INCREASE": "Budget increase {number}",
       "TRANSFER": "Budget transfer {number}"
     },
-    "transferAmountLabel": "Amount moved"
+    "transferAmountLabel": "Amount moved",
+    "overrun": "Over budget {number} · {request}",
+    "overrunAmountLabel": "Over budget by"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",
@@ -162,6 +164,18 @@
       "submitReturn": "Return to the sender",
       "submitReject": "Reject this transfer",
       "returned": "Returned to the sender.",
+      "rejected": "Rejected."
+    },
+    "overrun": {
+      "confirmText": "Approve {label}, over budget by {amount} baht. The amount enters the budget line, set aside for the source request. The decision cannot be changed later.",
+      "otherLink": "Return or reject",
+      "returnOption": "Return to the requester",
+      "returnHint": "It goes back to the requester; the budget does not change, and the requester may change the request or ask again.",
+      "rejectHint": "It is closed; the budget does not change, and the source request cannot be sent until the budget is enough.",
+      "reasonHint": "The requester reads this. Say clearly what to correct or why it is rejected.",
+      "submitReturn": "Return to the requester",
+      "submitReject": "Reject this over-budget approval",
+      "returned": "Returned to the requester.",
       "rejected": "Rejected."
     }
   },

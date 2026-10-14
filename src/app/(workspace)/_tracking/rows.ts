@@ -30,6 +30,9 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return t('item.variance', { type: t(`varianceType.${s.varianceType}`), description: s.description })
     case 'BUDGET_TRANSFER':
       return t(`item.transfer.${s.transferKind}`, { number: s.number ?? '-' })
+    case 'BUDGET_OVERRUN':
+      // S6-16: "ขอเกินงบ OB-… · PR-…" — the source request by its number, or its title while it has none
+      return t('item.overrun', { number: s.number, request: s.requestNumber ?? s.requestTitle })
     default:
       return t('item.untitled')
   }
@@ -70,7 +73,9 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
               : undefined
             : s.kind === 'VARIANCE'
               ? t('item.varianceMeta', { number: s.poNumber ?? '-' })
-              : undefined
+              : s.kind === 'BUDGET_OVERRUN' && s.requestNumber
+                ? s.requestTitle
+                : undefined
     return {
       id: task.id,
       href: `/tasks/${task.id}`,
@@ -82,6 +87,8 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       ...(s.kind === 'VARIANCE' ? { amount: money(s.amountSatang), amountLabel: t('item.varianceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
       // S6-15: the amount a budget transfer moves (no VAT)
       ...(s.kind === 'BUDGET_TRANSFER' ? { amount: money(s.amountSatang), amountLabel: t('item.transferAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      // S6-16: the shortfall an over-budget approval asks for (no VAT)
+      ...(s.kind === 'BUDGET_OVERRUN' ? { amount: money(s.amountSatang), amountLabel: t('item.overrunAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
       states,
       tags,
     }

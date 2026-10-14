@@ -141,8 +141,8 @@ export function lowBadge(t: BudgetsT, f: BudgetFiguresDto, of: string): { label:
 
 /**
  * How a line came to its planned amount (S6-15 · FR-BUD-103 AC3 · BR-BUD-09): the initial budget — to the imports — the
- * transfers in and out and the increases and decreases — to the ledger's movements that hold them — and the planned
- * amount they make, last. The amounts are the ledger's (budgetDashboard), never added up here.
+ * transfers in and out, the increases and decreases and what over-budget approvals funded (S6-16) — to the ledger's
+ * movements that hold them — and the planned amount they make, last. The amounts are the ledger's (budgetDashboard), never added up here.
  */
 export function changesView(t: BudgetsT, changes: BudgetLineChangesDto, planned: BudgetFiguresDto['planned'], code: string, page: string): LineChangesView {
   const moved = (key: Exclude<keyof BudgetLineChangesDto, 'initial'>) => {
@@ -160,6 +160,8 @@ export function changesView(t: BudgetsT, changes: BudgetLineChangesDto, planned:
       moved('transferredOut'),
       moved('increased'),
       moved('decreased'),
+      // S6-16: what over-budget approvals funded and kept (BR-BUD-13 to BR-BUD-15, BR-BUD-18)
+      moved('overrun'),
       { key: 'current', term: t('changes.current'), amount: current, link: { href: `${page}#${SECTION.planned}`, label: t('table.plannedLink', { amount: current, code }) }, total: true },
     ],
   }

@@ -372,7 +372,8 @@
     "AGREEMENT_PRICE_BEFORE_VAT": "An agreed price is before VAT. Untick “The prices I enter include VAT” and try again.",
     "AGREEMENT_OFF": "A catalogue item has an agreed price with another supplier. Give the reason for not using that supplier on the items step, or suggest the supplier with the agreed price.",
     "CATALOG_UNKNOWN": "Line {n} is no longer in the catalogue. Choose another item or type it yourself.",
-    "DUPLICATE_UNACKNOWLEDGED": "This request looks like one you sent before. Give the reason for asking again on the check and send step, then send again."
+    "DUPLICATE_UNACKNOWLEDGED": "This request looks like one you sent before. Give the reason for asking again on the check and send step, then send again.",
+    "OVERRUN_PENDING": "This request is waiting for its over-budget approval. Until it is decided, the amount and the budget line cannot change and the request cannot be sent. Wait for the decision, or cancel the over-budget approval on the request page."
   },
   "site": {
     "label": "Delivery site",

@@ -13,6 +13,9 @@ import { backtestDraft } from '@/server/services/backtest'
 import { getPriceReference } from '@/server/services/price-reference'
 import { decideTask } from '@/server/services/approvals/decide'
 import { createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
+import { submitBudgetOverrun } from '@/server/services/budget/overruns'
+import { computeKpis } from '@/server/services/reports/kpi'
+import { createDraft, submitRequest } from './requests'
 import { stepUpForTask } from './pin'
 import { renewRequestLine, runRenewalReminders } from '@/server/services/requests/repeat'
 import { forTenant } from '@/server/db/tenant'
@@ -363,6 +366,52 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(again.seeded).toBe(false)
       // The seeded requests (a renewal drafted by a test above has its source request)
       expect(await prisma.request.count({ where: { organizationId, sourceRequestId: null } })).toBe(sheets.history.length)
+    })
+
+    // After the re-seed check above: this scene adds a request of its own
+    it('[FR-BUD-101/AC1] [FR-BUD-101/AC2] S6-16: mkt_01 asks over budget on MKT-OPEX, the cfo approves under OB-02, the request goes to the ceo with G-4 at 0, and a rejection takes the amount back out', async () => {
+      const db = forTenant(organizationId)
+      const member = async (code: string) => (await db.member.findFirstOrThrow({ where: { employeeCode: code }, select: { id: true } })).id
+      const [mkt01, cfo, ceo] = await Promise.all([member('mkt_01'), member('cfo'), member('ceo')])
+      const asMember = (memberId: string) => makeCtx({ organizationId, actor: { type: 'USER', memberId }, channel: 'WEB', now: clock.now })
+      const once = () => ({ idempotencyKey: randomUUID(), sender: null })
+      const done = <T,>(r: { ok: true; data: T } | { ok: false; error: unknown }): T => {
+        if (!r.ok) throw new Error(JSON.stringify(r.error))
+        return r.data
+      }
+      const day = new Date(`${clock.now.toISOString().slice(0, 10)}T00:00:00Z`)
+      const line = await db.budgetLine.findFirstOrThrow({ where: { code: { startsWith: 'MKT-OPEX' }, fiscalYear: { startsOn: { lte: day }, endsOn: { gte: day } } }, select: { id: true, plannedSatang: true, balance: { select: { availableSatang: true } } } })
+      const before = { planned: line.plannedSatang, available: line.balance!.availableSatang }
+      // The launch event of 185,000.00 on a line left under 10% (more than 50,000.00 short, so OB-02); a line with more
+      // left at this clock asks 60,000.00 above it, still OB-02
+      const price = before.available < 13_500_000n ? 18_500_000n : before.available + 6_000_000n
+      const unitPrice = `${price / 100n}.${String(price % 100n).padStart(2, '0')}`
+      const draft = done(await createDraft(asMember(mkt01), { requestTypeCode: 'BUY_GOODS', title: 'ค่าจัดงานเปิดตัวโครงการ', budgetLineId: line.id, lines: [{ description: 'ค่าจัดงานเปิดตัวโครงการ', quantity: '1', uom: 'งาน', unitPrice }] }, once()))
+      for (let i = 0; i < 3; i++) {
+        const file = await prisma.fileObject.create({ data: { organizationId, storageKey: `test/${randomUUID()}.pdf`, fileName: `quote-${i + 1}.pdf`, mimeType: 'application/pdf', sizeBytes: 1, status: 'AVAILABLE', uploadedById: mkt01 } })
+        await prisma.fileLink.create({ data: { organizationId, fileId: file.id, subjectType: 'Request', subjectId: draft.requestId, kind: 'QUOTATION' } })
+      }
+      expect(await submitRequest(asMember(mkt01), { requestId: draft.requestId }, once())).toMatchObject({ ok: false, error: { code: 'BUDGET_INSUFFICIENT' } })
+      const asked = done(await submitBudgetOverrun(asMember(mkt01), { requestId: draft.requestId, reason: 'งานเปิดตัวโครงการใหม่ต้องจัดในไตรมาสนี้' }, once()))
+      const obTask = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', step: { route: { subjectId: asked.overrunId } } }, select: { id: true, assigneeMemberId: true, step: { select: { route: { select: { ruleCode: true, amountSatang: true } } } } } })
+      expect([obTask.step.route.ruleCode, obTask.assigneeMemberId, obTask.step.route.amountSatang]).toEqual(['OB-02', cfo, price - before.available])
+      await stepUpForTask(obTask.id, cfo)
+      done(await decideTask(asMember(cfo), { taskId: obTask.id, decision: 'APPROVE' }, once()))
+      // Sent with the overrun: the normal route, PR-03 to the ceo, and a budget check that passes
+      done(await submitRequest(asMember(mkt01), { requestId: draft.requestId }, once()))
+      const submitted = await db.event.findFirstOrThrow({ where: { type: 'request.submitted', aggregateId: draft.requestId }, select: { data: true } })
+      const check = (submitted.data as { budgetCheck: { availableSatang: string; reservedSatang: string } }).budgetCheck
+      expect(BigInt(check.availableSatang) >= BigInt(check.reservedSatang)).toBe(true)
+      const from = new Date(clock.now.getTime() - 60_000)
+      const kpi = await db.$transaction((tx) => computeKpis(tx, organizationId, { from, to: new Date(clock.now.getTime() + MS_PER_DAY), now: clock.now }, null))
+      expect(kpi.g4.tasksOnFailedBudgetCheck).toBe(0)
+      const prTask = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', assigneeMemberId: ceo, step: { route: { subjectId: draft.requestId } } }, select: { id: true, step: { select: { route: { select: { ruleCode: true } } } } } })
+      expect(prTask.step.route.ruleCode).toBe('PR-03')
+      // The ceo does not approve: what was funded leaves MKT-OPEX in the same transaction (BR-BUD-18)
+      await stepUpForTask(prTask.id, ceo)
+      done(await decideTask(asMember(ceo), { taskId: prTask.id, decision: 'REJECT', reason: 'เลื่อนงานเปิดตัวไปไตรมาสหน้า' }, once()))
+      const after = await db.budgetLine.findUniqueOrThrow({ where: { id: line.id }, select: { plannedSatang: true, balance: { select: { availableSatang: true } } } })
+      expect({ planned: after.plannedSatang, available: after.balance!.availableSatang }).toEqual(before)
     })
   })
 }

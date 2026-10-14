@@ -4,7 +4,7 @@ import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
 import { applyBudget, type BudgetOperation } from '@/server/budget/ledger'
 import type { EventDraft } from '@/server/events/append'
-import { useOverruns } from '../budget/overrun-use'
+import { overrunsForReserve } from '../budget/overrun-use'
 
 // The budget side of a purchase request (spec §6.4, BR-BUD-02 to BR-BUD-04, FR-INT-007 AC1, FR-BUD-003): at submit the
 // request's budget line is checked and its lines reserved, all within the submit transaction — a request over budget
@@ -85,7 +85,7 @@ export async function reserveForRequest(
   const releases = await releaseOperations(tx, requestId, lines.map((l) => l.requestLineId))
   const reserving = lines.filter((l) => l.netSatang > 0n)
   const amounts = reserving.map((l) => ({ requestLineId: l.requestLineId, amount: l.netSatang }))
-  const overruns = await useOverruns(tx, ctx, requestId, budgetLineId, amounts)
+  const overruns = await overrunsForReserve(tx, ctx, requestId, budgetLineId, amounts)
   if ('ok' in overruns) return overruns
   const result = await applyBudget(tx, ctx, [
     ...releases,

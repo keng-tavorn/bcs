@@ -8,6 +8,7 @@ import { businessDaysTaken, getMyOpenTaskId, getRouteStepDetails, listRequestPur
 import { getPoAccess } from '@/server/queries/purchase-orders'
 import { getRequestAccess, getRequestView, getServiceLines, type RequestViewDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView } from '@/server/queries/tasks'
+import { getRequestOverruns } from '@/server/services/budget/overrun-view'
 import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { getRequestFollowers } from '@/server/services/requests/followers'
 import { Notice } from '@/ui/form/notice'
@@ -20,6 +21,7 @@ import { tabFrom } from '@/ui/document/tab-param'
 import { HistoryTable } from '@/ui/document/history-table'
 import { CommentList, PoCards, SummaryList, type PoCardView } from '@/ui/document/rail'
 import { StepCards } from '@/ui/document/step-cards'
+import { OverrunPanel } from '@/ui/budgets/overrun-panel'
 import { Toaster } from '@/ui/shadcn/sonner'
 import { AttachmentList } from '@/ui/request-view/attachments'
 import { DoaRef } from '@/ui/request-view/doa-ref'
@@ -41,6 +43,8 @@ import { day, doaHref, doaRefText, dueText, fileKind, localeOf, memberName, mone
 import { requestFlagsView } from '../../_tracking/request-flags'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { canViewPo } from '../../procurement/pos/_parts/access'
+import { cancelBudgetOverrunAction, submitBudgetOverrunAction } from '../../budgets/overruns/actions'
+import { overrunPanelView } from '../../budgets/overruns/_present'
 import { askForInformationAction, decideTaskAction } from '../../tasks/actions'
 import { answerInfoAction, cancelRequestAction, followAction, manageFollowerAction, renewLineAction, reorderAction } from './actions'
 
@@ -116,14 +120,17 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
   const route = view.route
   const closed = CLOSED_STATUSES.includes(view.status)
   const lastDone = view.track.filter((e) => e.state === 'done').at(-1)?.at ?? null
-  const [details, daysTaken, poAccess, task, flags] = await Promise.all([
+  const [details, daysTaken, poAccess, task, flags, overruns] = await Promise.all([
     route ? getRouteStepDetails(ctx, route.id) : Promise.resolve([]),
     businessDaysTaken(ctx, view.submittedAt, closed ? lastDone : null),
     Promise.all(allPos.map((po) => getPoAccess(ctx, po.id))),
     myTaskId ? Promise.all([getTaskAccess(ctx, myTaskId), getTaskView(ctx, myTaskId)]) : Promise.resolve(null),
     // Like a request its requester sent before, or a purchase that may be split (S6-13 · FR-INT-103 AC2 AC3)
     listRequestFlags(ctx, id),
+    // Over budget (S6-16 · FR-BUD-101): the requester asks for the shortfall; whoever reads the request sees what was asked
+    view.documentType === 'PURCHASE_REQUEST' ? getRequestOverruns(ctx, id) : Promise.resolve(null),
   ])
+  const overrunView = overruns?.ok ? overrunPanelView(await getTranslations('budgetOverrun'), overruns.data, (iso) => day(locale, iso)) : null
   const flagsView = flags.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (requestId) => `/requests/${requestId}`) : null
   // Only the POs the reader may open (po.view, §2.4): a PO they may not see is not mentioned at all (AC2)
   const pos = allPos.filter((_, i) => poAccess[i] && canViewPo(principal, poAccess[i]!))
@@ -225,6 +232,8 @@ export default async function RequestPage({ params, searchParams }: { params: Pr
           )}
         </Section>
       ) : null}
+
+      {overrunView ? <OverrunPanel requestId={view.id} view={overrunView} mine={mine} actions={{ submit: submitBudgetOverrunAction, cancel: cancelBudgetOverrunAction }} /> : null}
 
       {poCards.length ? (
         <Section id="po-card" title={td('overview.poTitle')}>

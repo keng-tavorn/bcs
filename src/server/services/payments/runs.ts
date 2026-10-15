@@ -587,12 +587,12 @@ export function cancelPaymentRun(ctx: Ctx, input: z.input<typeof CancelInput>, o
 }
 
 /**
- * Lets every document of the run go (cancelled, or rejected at approval): the links RELEASED with the reason, and S8
- * makes the invoices ready for payment and the retentions releasable again. afterExport marks them for the flag
- * PREVIOUSLY_EXPORTED of a later run (BR-PAY-06, OQ-136).
+ * Lets every document of the run go (cancelled, or rejected at approval), or those of some items (a failed payment,
+ * S9-08): the links RELEASED with the reason, and S8 makes the invoices ready for payment and the retentions releasable
+ * again. afterExport marks them for the flag PREVIOUSLY_EXPORTED of a later run (BR-PAY-06, OQ-136).
  */
-export async function releaseAll(tx: TenantTx, ctx: Ctx, paymentRunId: string, reason: string, afterExport: boolean): Promise<{ ok: true; events: EventDraft[]; count: number } | Fail> {
-  const links = await tx.paymentRunDocument.findMany({ where: { paymentRunId, status: 'HELD' }, select: { id: true, invoiceId: true, retentionId: true } })
+export async function releaseAll(tx: TenantTx, ctx: Ctx, paymentRunId: string, reason: string, afterExport: boolean, itemIds?: readonly string[]): Promise<{ ok: true; events: EventDraft[]; count: number } | Fail> {
+  const links = await tx.paymentRunDocument.findMany({ where: { paymentRunId, status: 'HELD', ...(itemIds ? { paymentRunItemId: { in: [...itemIds] } } : {}) }, select: { id: true, invoiceId: true, retentionId: true } })
   const events: EventDraft[] = []
   const invoiceIds = links.flatMap((l) => (l.invoiceId ? [l.invoiceId] : []))
   const retentionIds = links.flatMap((l) => (l.retentionId ? [l.retentionId] : []))

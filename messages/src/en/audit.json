@@ -359,6 +359,7 @@
     "payment_run": {
       "approved": "Payment run approved",
       "cancelled": "Payment run cancelled",
+      "completed": "Payment run results all recorded",
       "documents_added": "Documents added to the payment run",
       "documents_removed": "Documents taken out of the payment run",
       "drafted": "Payment run drafted",
@@ -372,7 +373,10 @@
       "updated": "Payment run edited"
     },
     "payment_run_item": {
-      "flag_reason_set": "Reason given for a payment item’s flags"
+      "advice_resent": "Payment advice sent again",
+      "failed": "Payment item recorded as failed",
+      "flag_reason_set": "Reason given for a payment item’s flags",
+      "paid": "Payment item recorded as paid"
     },
     "po": {
       "approved": "Purchase order approved",

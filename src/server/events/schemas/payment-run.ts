@@ -24,6 +24,8 @@ defineEvents('PaymentRun', {
   'payment_run.file_generated': { schema: z.object({ paymentFileId: z.uuid(), version: z.number().int().min(1), templateCode: z.string().min(1), sha256: z.string().regex(/^[0-9a-f]{64}$/), itemCount: z.number().int().min(1), totalTransferSatang: satang, afterExport: z.boolean() }) },
   'payment_run.sent_to_bank': { schema: z.object({ paymentFileId: z.uuid(), fileVersion: z.number().int().min(1) }) },
   'payment_run.sent_reverted': { schema: z.object({ reasonCommentId: z.uuid() }) },
+  // S9-08: every item has its result (BR-PAY-12)
+  'payment_run.completed': { schema: z.object({ number: z.string().min(1), paidItems: z.number().int().min(0), failedItems: z.number().int().min(0), paidTransferSatang: satang }) },
   /** afterExport: a file of the run had been downloaded (BR-PAY-10) */
   'payment_run.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY']), afterExport: z.boolean(), documentCount: z.number().int().min(0) }) },
 })
@@ -31,4 +33,9 @@ defineEvents('PaymentRun', {
 defineEvents('PaymentRunItem', {
   /** BR-PAY-06: the preparer's reason for the item's flags; the reason itself stays on the item */
   'payment_run_item.flag_reason_set': { schema: z.object({ paymentRunId: z.uuid(), supplierId: z.uuid(), flags: z.array(z.string()) }) },
+  // S9-08 (BR-PAY-12 BR-PAY-13): an item's result — the failure's reason and the bank's reference stay on the item —
+  // and its payment advice sent again (the reason is a Comment of the item)
+  'payment_run_item.paid': { schema: z.object({ paymentRunId: z.uuid(), supplierId: z.uuid(), paidOn: day, transferSatang: satang, whtSatang: satang, certificateId: z.uuid().nullable(), documentCount: z.number().int().min(1) }) },
+  'payment_run_item.failed': { schema: z.object({ paymentRunId: z.uuid(), supplierId: z.uuid(), documentCount: z.number().int().min(0) }) },
+  'payment_run_item.advice_resent': { schema: z.object({ paymentRunId: z.uuid(), noticeId: z.uuid().nullable(), reasonCommentId: z.uuid() }) },
 })

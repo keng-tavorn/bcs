@@ -11,6 +11,7 @@ import { holdInvoicesForPayment, recordInvoicePayment } from '@/server/services/
 import { listRetentionsView, listWhtCertificatesView, listWhtIncomeTypesView, monthsUpTo } from '@/server/services/ap/view-tax'
 import { confirmIncomeType, updateIncomeType, updateSupplierTaxProfile } from '@/server/services/ap/wht'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
+import { paymentItemOf } from '../support/pay'
 
 // S8-13 screens of withholding tax and retention (FR-AP-104 AC2 AC4 AC5, FR-AP-106 AC4): the views behind
 // /finance/retentions, /finance/wht and /finance/wht/types and the commands their forms call. An individual payee's
@@ -54,8 +55,9 @@ beforeAll(async () => {
   // one payment: a 50 ทวิ of an individual payee
   const invoice = await readyServiceInvoice('20000.00', '1400.00')
   await inS9(s9(), (tx) => holdInvoicesForPayment(tx, s9(), { invoiceIds: [invoice.id], paymentRunId: randomUUID() }))
+  const paymentRunItemId = await paymentItemOf(ap, ap.supplierId)
   const paid = await inS9(s9(), (tx) =>
-    recordInvoicePayment(tx, s9(), { invoiceIds: [invoice.id], retentionIds: [], paymentRunItemId: randomUUID(), paidOn: '2026-10-12', whtLines: [{ incomeType: 'SERVICE', rateBp: 300, baseSatang: 2_000_000n, whtSatang: 60_000n }] }),
+    recordInvoicePayment(tx, s9(), { invoiceIds: [invoice.id], retentionIds: [], paymentRunItemId, paidOn: '2026-10-12', whtLines: [{ incomeType: 'SERVICE', rateBp: 300, baseSatang: 2_000_000n, whtSatang: 60_000n }] }),
   )
   if (!paid.ok) throw new Error(JSON.stringify(paid.error))
   certificateId = paid.certificateId!

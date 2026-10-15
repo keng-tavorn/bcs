@@ -6,7 +6,7 @@
 // with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
 // S9-04 added bankAccount.* and bankAccountChange.propose, S9-05 paymentRun.view and .prepare, S9-07 paymentRun.file and
-// .cancel, approved with docs/sub-specs/S9.md in P1-06.
+// .cancel, S9-08 paymentRun.recordResult and paymentAdvice.resend, approved with docs/sub-specs/S9.md in P1-06.
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -123,6 +123,9 @@ export const PERMISSIONS = {
   // S9-07 (BR-BANK-07 BR-BANK-08 BR-PAY-10): the bank file and the way to the bank, and cancelling after approval
   'paymentRun.file': [role('FINANCE', 'ORG')],
   'paymentRun.cancel': [role('FINANCE', 'ORG')],
+  // S9-08 (BR-PAY-12 BR-PAY-13): the results of a run sent to the bank, and the payment advice sent again
+  'paymentRun.recordResult': [role('FINANCE', 'ORG')],
+  'paymentAdvice.resend': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

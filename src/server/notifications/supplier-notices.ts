@@ -1,5 +1,6 @@
 import { formatSatang } from '@/core/money/format'
 import { getEmailProvider, EmailSendError } from '@/integrations/email-provider'
+import { readObject } from '@/integrations/storage'
 import { MS_PER_MINUTE } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { logger } from '@/lib/logger'
@@ -8,8 +9,8 @@ import { pendingSupplierNotices } from '@/server/db/sql/supplier-notices'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { appendEvents } from '@/server/events/append'
 import type { EventDraft } from '@/server/events/append'
-import type { OutboxDraft } from '@/server/events/outbox'
-import type { NotificationDraft } from './create'
+import { enqueueOutbox, type OutboxDraft } from '@/server/events/outbox'
+import { createNotifications, type NotificationDraft } from './create'
 
 // E-mails to a supplier (ADR-126, BR-AP-08, FR-AP-103 AC3): a command that tells the supplier something calls
 // enqueueSupplierNotice inside its own transaction; the row (SupplierNotice) carries what the template shows and a
@@ -23,18 +24,37 @@ export interface SupplierEmail {
   readonly subject: string
   readonly text: string
   readonly html: string
+  /** Stored files of the organization sent with the e-mail (S9's payment advice attaches its 50 ทวิ) */
+  readonly attachFileIds?: readonly string[]
 }
 
 export type SupplierTemplate = (data: Readonly<Record<string, unknown>>, context: { readonly organizationName: string; readonly supplierName: string }) => SupplierEmail
 
 const templates = new Map<string, SupplierTemplate>()
 
+/** Who else hears that a notice of this template failed (S9: the preparer of the payment), in the failure's transaction */
+export type SupplierNoticeFailed = (
+  tx: TenantTx,
+  notice: { readonly id: string; readonly supplierId: string; readonly subjectType: string; readonly subjectId: string },
+  reason: 'NO_EMAIL' | 'TEMPLATE_UNKNOWN' | 'PROVIDER_REFUSED',
+) => Promise<NotificationDraft[]>
+
+const failureHandlers = new Map<string, SupplierNoticeFailed>()
+
 /** The template keys of S8 (BR-AP-08) */
 export const SUPPLIER_TEMPLATES = { invoiceReceived: 'supplier.invoice_received', invoiceRejected: 'supplier.invoice_rejected', invoiceReady: 'supplier.invoice_ready' } as const
 
-/** Each lane adds its own templates (S8 invoices here, S9 payments in its files) */
-export function registerSupplierTemplate(key: string, template: SupplierTemplate): void {
+/** Each lane adds its own templates (S8 invoices here, S9 payments in its files), and who hears when one fails */
+export function registerSupplierTemplate(key: string, template: SupplierTemplate, options: { readonly onFailed?: SupplierNoticeFailed } = {}): void {
   templates.set(key, template)
+  if (options.onFailed) failureHandlers.set(key, options.onFailed)
+}
+
+/** The template's own notifications of a failure, written with their outbox in the failure's transaction */
+async function failureNotices(tx: TenantTx, organizationId: string, templateKey: string, notice: Parameters<SupplierNoticeFailed>[1], reason: Parameters<SupplierNoticeFailed>[2]): Promise<void> {
+  const handler = failureHandlers.get(templateKey)
+  if (!handler) return
+  await enqueueOutbox(tx, organizationId, await createNotifications(tx, organizationId, await handler(tx, notice, reason)))
 }
 
 export interface SupplierNoticeInput {
@@ -85,16 +105,17 @@ export async function enqueueSupplierNotice(tx: TenantTx, ctx: Ctx, input: Suppl
   if (inserted.length === 0) return { outbox: [], events: [], notifications: [], noticeId: null }
   if (!supplier.email) {
     const finance = await tx.roleAssignment.findMany({ where: { role: 'FINANCE', revokedAt: null, member: { status: 'ACTIVE' } }, select: { memberId: true }, distinct: ['memberId'] })
+    const own = (await failureHandlers.get(input.templateKey)?.(tx, { id, supplierId: input.supplierId, subjectType: input.subjectType, subjectId: input.subjectId }, 'NO_EMAIL')) ?? []
     return {
       outbox: [],
       events: [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: id, data: { noticeId: id, templateKey: input.templateKey, subjectType: input.subjectType, subjectId: input.subjectId, reason: 'NO_EMAIL' } }],
-      notifications: finance.map((f) => ({
+      notifications: finance.map((f): NotificationDraft => ({
         recipientMemberId: f.memberId,
         templateKey: 'supplier.no_email',
         data: { supplierId: input.supplierId, subjectType: input.subjectType, subjectId: input.subjectId, number: input.data.number ?? null },
         urgency: 'IMMEDIATE' as const,
         dedupeKey: `supplier.no_email:${id}:${f.memberId}`,
-      })),
+      })).concat(own),
       noticeId: id,
     }
   }
@@ -115,16 +136,22 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
   const template = templates.get(notice.templateKey)
   const ctx = systemCtx(organizationId, now, 'supplier-notice-send')
   const eventData = { noticeId, templateKey: notice.templateKey, subjectType: notice.subjectType, subjectId: notice.subjectId }
+  const failed = { id: noticeId, supplierId: notice.supplierId, subjectType: notice.subjectType, subjectId: notice.subjectId }
   if (!template) {
     await db.$transaction(async (tx) => {
       await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: 'TEMPLATE_UNKNOWN' } })
       await appendEvents(tx, ctx, [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: { ...eventData, reason: 'TEMPLATE_UNKNOWN' } }])
+      await failureNotices(tx, organizationId, notice.templateKey, failed, 'TEMPLATE_UNKNOWN')
     })
     return 'FAILED'
   }
   const email = template(notice.data as Record<string, unknown>, { organizationName: org.displayName ?? org.legalNameTh, supplierName: notice.supplier.nameTh })
+  // the files the template attaches, read from storage now (a file not readable is a retry, never an e-mail without it)
+  const files = email.attachFileIds?.length ? await db.fileObject.findMany({ where: { id: { in: [...email.attachFileIds] }, status: 'AVAILABLE' }, select: { storageKey: true, fileName: true, mimeType: true } }) : []
+  if (files.length !== (email.attachFileIds?.length ?? 0)) throw new Error('a file the supplier notice attaches is not available')
+  const attachments = await Promise.all(files.map(async (f) => ({ filename: f.fileName, content: await readObject(f.storageKey), contentType: f.mimeType })))
   try {
-    await getEmailProvider().send({ to: notice.toEmail, subject: email.subject, text: email.text, html: email.html })
+    await getEmailProvider().send({ to: notice.toEmail, subject: email.subject, text: email.text, html: email.html, ...(attachments.length ? { attachments } : {}) })
   } catch (error) {
     const permanent = error instanceof EmailSendError && error.permanent
     logger.warn({ noticeId, templateKey: notice.templateKey, permanent }, 'supplier notice not sent')
@@ -132,6 +159,7 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
     await db.$transaction(async (tx) => {
       await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: 'PROVIDER_REFUSED' } })
       await appendEvents(tx, ctx, [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: { ...eventData, reason: 'PROVIDER_REFUSED' } }])
+      await failureNotices(tx, organizationId, notice.templateKey, failed, 'PROVIDER_REFUSED')
     })
     return 'FAILED'
   }

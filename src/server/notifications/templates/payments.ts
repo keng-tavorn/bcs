@@ -55,6 +55,12 @@ export const PAYMENT_TEMPLATES: Readonly<Record<string, Template>> = {
     body: { th: 'ผู้สร้างยืนยันว่ายังไม่ได้ส่งไฟล์เดิมเข้าธนาคาร ใช้เฉพาะไฟล์เวอร์ชันล่าสุด', en: 'Its maker confirmed the earlier file was not sent to the bank; only the latest version is used' },
     href: `/finance/payments/${str(d.paymentRunId)}`,
   }),
+  // §10.1 supplier_notice.failed of payment.advice: the preparer tells the supplier another way (S9-08, BR-PAY-13)
+  'payment_run.advice_failed': (d) => ({
+    title: { th: `ส่งอีเมลแจ้งการชำระถึงผู้ขาย ${str(d.supplierCode)} ไม่สำเร็จ (รอบ ${str(d.number)})`, en: `The payment advice to supplier ${str(d.supplierCode)} was not sent (run ${str(d.number)})` },
+    body: { th: 'ตรวจอีเมลของผู้ขาย แล้วส่งแจ้งการชำระซ้ำจากหน้ารอบจ่าย หรือแจ้งผู้ขายทางอื่น', en: 'Check the supplier’s e-mail address, then send the advice again from the run’s page, or tell the supplier another way' },
+    href: `/finance/payments/${str(d.paymentRunId)}`,
+  }),
   // §10.1 payment_run.cancelled after approval: the approvers and the preparer hear of it (BR-PAY-10, OQ-136)
   'payment_run.cancelled': (d) => ({
     title: { th: `รอบจ่าย ${str(d.number)} ถูกยกเลิกหลังอนุมัติ เอกสารกลับไปพร้อมจ่าย`, en: `Payment run ${str(d.number)} was cancelled after approval; its documents are ready for payment again` },

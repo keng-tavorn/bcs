@@ -89,3 +89,16 @@ export async function sentRun(ap: PayOrg, invoiceIds: string[], reasons: Record<
   for (const [supplierId, reason] of Object.entries(reasons)) ok(await setPaymentFlagReason(fin(ap), { paymentRunId: run, version: await runVersion(run), supplierId, reason }, key()))
   return { runId: run, ...ok(await submitPaymentRun(fin(ap), { paymentRunId: run, version: await runVersion(run) }, key())) }
 }
+
+/**
+ * A payment item of the supplier in a draft run of its own, from a payer account of the organization: S8's tests pay
+ * through it as S9 does (recordInvoicePayment writes the item's id on the tax rows and the 50 ทวิ, S9-08)
+ */
+export async function paymentItemOf(ap: ApOrg, supplierId: string): Promise<string> {
+  const organizationId = ap.org.organizationId
+  const payer =
+    (await prisma.bankAccount.findFirst({ where: { organizationId, ownerKind: 'ORGANIZATION', code: 'CB-T' } })) ??
+    (await prisma.bankAccount.create({ data: { organizationId, ownerKind: 'ORGANIZATION', code: 'CB-T', bankCode: '004', accountNo: '1000000024', accountName: 'องค์กรทดสอบ', accountType: 'CURRENT', fileTemplateCode: 'BCS-NEUTRAL-1', activatedAt: AP_NOW } }))
+  const run = await prisma.paymentRun.create({ data: { organizationId, payDate: new Date(`${PAY_DATE}T00:00:00Z`), payerBankAccountId: payer.id, fileTemplateCode: 'BCS-NEUTRAL-1', preparedById: ap.org.member.fin_officer! } })
+  return (await prisma.paymentRunItem.create({ data: { organizationId, paymentRunId: run.id, supplierId } })).id
+}

@@ -47,6 +47,8 @@ export interface TaskDecisionInput {
   readonly decision: Decision
   readonly reason?: string
   readonly pin?: string
+  /** What a phase-1 subject's adapter asks with the decision (ADR-068): a payment run's flags shown, { flagsKey } (BR-PAY-07) */
+  readonly subjectInput?: { readonly flagsKey: string }
 }
 
 /** What the task decides; each has its own choices and words */

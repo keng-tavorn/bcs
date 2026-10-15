@@ -2438,11 +2438,14 @@
         "settings_updated": "Organization settings updated"
       },
       "payment_run": {
+        "approved": "Payment run approved",
         "cancelled": "Payment run cancelled",
         "documents_added": "Documents added to the payment run",
         "documents_removed": "Documents taken out of the payment run",
         "drafted": "Payment run drafted",
+        "rejected": "Payment run rejected",
         "resubmitted": "Payment run sent for approval again",
+        "returned": "Payment run returned",
         "submitted": "Payment run sent for approval",
         "updated": "Payment run edited"
       },
@@ -3752,6 +3755,7 @@
     "NOT_FOUND": "Not found",
     "NO_HIGHER_AUTHORITY": "The DOA has no authority above the requester for this amount",
     "PAYMENT_DATE_INVALID": "The pay date {date} cannot be used: {reason}",
+    "PAYMENT_FLAGS_CHANGED": "The flags of the payment run changed since you opened the page: reload it and check again",
     "PAYMENT_FLAG_REASON_REQUIRED": "The item of {supplier} has flag {flag}: give a reason before sending",
     "PAYMENT_ITEM_NOT_POSITIVE": "The transfer to supplier {supplier} must be more than zero (now THB {transfer})",
     "PO_CHANGE_BELOW_PROGRESS": "Cannot change below what was received or invoiced ({reason})",
@@ -5089,6 +5093,55 @@
     },
     "intro": "Choose whether you get the daily summary. Anything that needs your decision is always sent at once.",
     "title": "Notification settings"
+  },
+  "payRun": {
+    "bankChange": {
+      "call": "Call to confirm",
+      "company": "The company",
+      "contactChanged": "The supplier’s e-mail or phone in the register changed lately: check with the supplier through the old contact before approving",
+      "heading": "Bank account change",
+      "kind": "Change",
+      "kindValue": {
+        "ADD": "Add an account",
+        "CLOSE": "Close the account",
+        "REPLACE": "Replace the account"
+      },
+      "noCall": "No call recorded",
+      "number": "Request number",
+      "owner": "Account of",
+      "proofDetail": "Account proof",
+      "proofs": "Proofs",
+      "proposed": "Account proposed",
+      "reason": "Reason",
+      "sharedAccount": "This account is also the account of a supplier with another tax id",
+      "target": "Account in force"
+    },
+    "task": {
+      "acknowledge": "I have checked every flagged item and its reason",
+      "acknowledgeError": "Tick that you checked the flagged items before approving",
+      "flag": {
+        "BANK_ACCOUNT_RECENTLY_CHANGED": "Account changed recently",
+        "BANK_CHANGE_PENDING": "Account change pending",
+        "PREVIOUSLY_EXPORTED": "Was in a downloaded file",
+        "REGISTRY_CHANGED": "Registry status changed",
+        "RISK_OVERRIDE_EXPIRED": "Risk override expired",
+        "SHARED_BANK_ACCOUNT": "Account shared with another supplier",
+        "SUPPLIER_INACTIVE": "Supplier not in use"
+      },
+      "flaggedHeading": "Items with flags ({count})",
+      "heading": "Payment run",
+      "noFlags": "No item has a flag",
+      "noReason": "The preparer gave no reason",
+      "number": "Run number",
+      "payDate": "Pay date",
+      "payer": "Paid from",
+      "reason": "Preparer’s reason: {reason}",
+      "suppliers": "Suppliers and documents",
+      "suppliersValue": "{items} suppliers · {documents} documents",
+      "transfer": "Total transferred",
+      "unit": "THB",
+      "wht": "Withholding tax"
+    }
   },
   "pinSettings": {
     "done": {

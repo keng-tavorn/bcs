@@ -42,6 +42,7 @@
   "PAYMENT_ITEM_NOT_POSITIVE": "The transfer to supplier {supplier} must be more than zero (now THB {transfer})",
   "BANK_ACCOUNT_NOT_APPROVED": "Supplier {supplier} has no approved bank account yet",
   "PAYMENT_FLAG_REASON_REQUIRED": "The item of {supplier} has flag {flag}: give a reason before sending",
+  "PAYMENT_FLAGS_CHANGED": "The flags of the payment run changed since you opened the page: reload it and check again",
   "STEP_UP_LOCKED": "Too many wrong PINs. Try again after {time}",
   "STEP_UP_REQUIRED": "This action requires PIN confirmation",
   "RATE_LIMITED": "Too many attempts. Please try again later",

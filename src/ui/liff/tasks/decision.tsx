@@ -59,6 +59,10 @@ export interface LiffTaskDecisionProps {
   readonly decide: (input: TaskDecisionInput, idempotencyKey: string) => Promise<LiffTaskResult>
   /** Asking the requester: request tasks only */
   readonly ask?: (input: { taskId: string; question: string }, idempotencyKey: string) => Promise<LiffTaskResult>
+  /** Sent with every decision: a payment run's flags as the page shows them (BR-PAY-07) */
+  readonly subjectInput?: { readonly flagsKey: string }
+  /** The tick the approver gives before approving (a payment run with flags: "I have checked them"), and its error */
+  readonly acknowledge?: { readonly label: string; readonly error: string }
   readonly children: ReactNode
 }
 
@@ -67,7 +71,7 @@ export const OTHER_DECISIONS_ID = 'other-decisions'
 const ASK_ID = 'ask-requester'
 
 export function LiffTaskDecision(props: LiffTaskDecisionProps) {
-  const { taskId, open, kind, label, amount, disposition, stepUp, pinLength, initial, pinSettingsHref, helpHref, decide, ask, children } = props
+  const { taskId, open, kind, label, amount, disposition, stepUp, pinLength, initial, pinSettingsHref, helpHref, decide, ask, subjectInput, acknowledge, children } = props
   const t = useTranslations('tasks.decide')
   const tErrors = useTranslations('tasks.errors')
   const po = kind === 'PURCHASE_ORDER'
@@ -104,6 +108,8 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
   const [approvePin, setApprovePin] = useState('')
   const [approvePinError, setApprovePinError] = useState<string>()
   const [approveFailure, setApproveFailure] = useState<LiffTaskFailure | null>(null)
+  const [acknowledged, setAcknowledged] = useState(false)
+  const [acknowledgeError, setAcknowledgeError] = useState<string>()
   const [choice, setChoice] = useState<'RETURN' | 'REJECT'>(variance || initial === 'reject' ? 'REJECT' : 'RETURN')
   const [reason, setReason] = useState('')
   const [decidePin, setDecidePin] = useState('')
@@ -131,13 +137,17 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
   async function onApprove(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const pin = approvePin
+    if (acknowledge && !acknowledged) {
+      setAcknowledgeError(acknowledge.error)
+      return
+    }
     if (stepUp && !pinComplete(pin, pinLength)) {
       setApprovePinError(tErrors('PIN'))
       return
     }
     setApprovePinError(undefined)
     setApproveFailure(null)
-    const result = await approving.send((key) => decide({ taskId, decision: 'APPROVE', ...(stepUp ? { pin } : {}) }, key))
+    const result = await approving.send((key) => decide({ taskId, decision: 'APPROVE', ...(stepUp ? { pin } : {}), ...(subjectInput ? { subjectInput } : {}) }, key))
     if (!result) return
     setApprovePin('')
     if (result.ok) {
@@ -165,7 +175,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
     setErrors(next)
     if (next.reason || next.pin || next.confirm) return
     setDecideFailure(null)
-    const result = await rejecting.send((key) => decide({ taskId, decision: choice, reason: reason.trim(), ...(stepUp ? { pin } : {}) }, key))
+    const result = await rejecting.send((key) => decide({ taskId, decision: choice, reason: reason.trim(), ...(stepUp ? { pin } : {}), ...(subjectInput ? { subjectInput } : {}) }, key))
     if (!result) return
     setDecidePin('')
     if (result.ok) {
@@ -334,6 +344,18 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
                 <p id={`${id}-confirm-text`} className="font-medium text-ink">
                   {copy.confirmText}
                 </p>
+                {acknowledge ? (
+                  <LiffTick
+                    id={`${id}-acknowledge`}
+                    label={acknowledge.label}
+                    checked={acknowledged}
+                    onChange={(checked) => {
+                      setAcknowledged(checked)
+                      setAcknowledgeError(undefined)
+                    }}
+                    error={acknowledgeError}
+                  />
+                ) : null}
                 {stepUp ? (
                   <PinInput
                     id={approvePinId}

@@ -1,0 +1,49 @@
+{
+  "task": {
+    "heading": "Payment run",
+    "number": "Run number",
+    "payDate": "Pay date",
+    "payer": "Paid from",
+    "suppliers": "Suppliers and documents",
+    "suppliersValue": "{items} suppliers · {documents} documents",
+    "wht": "Withholding tax",
+    "transfer": "Total transferred",
+    "unit": "THB",
+    "flaggedHeading": "Items with flags ({count})",
+    "noFlags": "No item has a flag",
+    "reason": "Preparer’s reason: {reason}",
+    "noReason": "The preparer gave no reason",
+    "acknowledge": "I have checked every flagged item and its reason",
+    "acknowledgeError": "Tick that you checked the flagged items before approving",
+    "flag": {
+      "REGISTRY_CHANGED": "Registry status changed",
+      "SUPPLIER_INACTIVE": "Supplier not in use",
+      "RISK_OVERRIDE_EXPIRED": "Risk override expired",
+      "PREVIOUSLY_EXPORTED": "Was in a downloaded file",
+      "BANK_ACCOUNT_RECENTLY_CHANGED": "Account changed recently",
+      "BANK_CHANGE_PENDING": "Account change pending",
+      "SHARED_BANK_ACCOUNT": "Account shared with another supplier"
+    }
+  },
+  "bankChange": {
+    "heading": "Bank account change",
+    "number": "Request number",
+    "kind": "Change",
+    "kindValue": {
+      "ADD": "Add an account",
+      "REPLACE": "Replace the account",
+      "CLOSE": "Close the account"
+    },
+    "owner": "Account of",
+    "company": "The company",
+    "target": "Account in force",
+    "proposed": "Account proposed",
+    "reason": "Reason",
+    "call": "Call to confirm",
+    "noCall": "No call recorded",
+    "proofs": "Proofs",
+    "proofDetail": "Account proof",
+    "contactChanged": "The supplier’s e-mail or phone in the register changed lately: check with the supplier through the old contact before approving",
+    "sharedAccount": "This account is also the account of a supplier with another tax id"
+  }
+}

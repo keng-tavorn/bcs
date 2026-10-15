@@ -4022,6 +4022,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `inbound_email.processed` (S8 · ร่างใหม่หรือไฟล์ที่รอเลือก PO) | FINANCE | ในระบบ | DIGEST | `invoice.inbox_digest` |
 | `invoice.variance_approved` · `invoice.variance_rejected` (S8) | ผู้ขออนุมัติส่วนต่าง · FINANCE | ในระบบ · LINE | IMMEDIATE | `invoice.variance_decided` |
 | ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
+| `approval_task.assigned` ของรอบจ่าย (S9-06) | ผู้อนุมัติตาม DOA `PAYMENT_RUN` | การ์ด LINE (ปุ่มอนุมัติในแชทเฉพาะรอบที่ส่งโดยไม่มีธงและยอดต่ำกว่า stepUpThreshold · BR-PAY-07) → อีเมล (ไม่มีลิงก์ตัดสิน) | IMMEDIATE | `task.assigned` (เลขรอบ ยอดโอนรวม DOA ref · ไม่มีชื่อผู้ขายหรือเลขบัญชี) |
+| `payment_run.approved` · `.rejected` · `.returned` (S9-06) | ผู้เตรียม | LINE → อีเมล | IMMEDIATE | `payment_run.decided` |
 | `approval_task.assigned` ของคำขอเปลี่ยนบัญชี (S9-04) | ผู้อนุมัติตาม DOA `BANK_ACCOUNT_CHANGE` | การ์ด LINE (ปุ่มเปิดหน้างาน ไม่มีปุ่มอนุมัติในแชท · BR-DOA-25) → อีเมล (ไม่มีลิงก์ตัดสิน) | IMMEDIATE | `task.assigned` (เลขคำขอ ชนิดการเปลี่ยน รหัสผู้ขาย · ไม่มีเลขหรือชื่อบัญชี) |
 | `bank_account_change.approved` · `.rejected` · `.returned` (S9-04) | ผู้เสนอ | LINE → อีเมล | IMMEDIATE | `bank_account_change.decided` |
 | `bank_account.activated` ของผู้ขายที่อยู่ในร่างรอบจ่าย (S9-04) | ผู้เตรียมของร่างนั้น | ในระบบ | DIGEST | `payment_run.account_changed` |
@@ -4067,7 +4069,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
 | inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
-| payment_run (S9) | `payment_run.drafted` `payment_run.updated` `payment_run.documents_added` `payment_run.documents_removed` `payment_run.submitted` `payment_run.resubmitted` `payment_run.cancelled` `payment_run_item.flag_reason_set` · data มี id วัน ยอดเป็นสตางค์ และจำนวน ไม่มีเลขบัญชีหรือข้อความเหตุผล (เหตุผลที่ยกเลิกเก็บใน `PaymentRun.cancelReason`) |
+| payment_run (S9) | `payment_run.drafted` `payment_run.updated` `payment_run.documents_added` `payment_run.documents_removed` `payment_run.submitted` `payment_run.resubmitted` `payment_run.approved` (มี `flagsKey` ที่ผู้อนุมัติเห็น) `payment_run.rejected` `payment_run.returned` `payment_run.cancelled` `payment_run_item.flag_reason_set` · data มี id วัน ยอดเป็นสตางค์ และจำนวน ไม่มีเลขบัญชีหรือข้อความเหตุผล (เหตุผลที่ยกเลิกเก็บใน `PaymentRun.cancelReason`) |
 | bank_account · bank_account_change (S9) | `bank_account.activated` `bank_account.superseded` `bank_account.closed` `bank_account_change.drafted` `bank_account_change.updated` `bank_account_change.submitted` `bank_account_change.approved` `bank_account_change.rejected` `bank_account_change.returned` `bank_account_change.cancelled` · data มีเลขบัญชีเฉพาะ 4 ตัวท้าย (`last4`) ไม่มีเลขเต็ม ชื่อบัญชี หรือบันทึกการโทร (BR-BANK-08) · การเปิดเลขเต็มและดาวน์โหลดหลักฐานบันทึกใน `SensitiveAccessLog` ไม่ใช่ event |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
@@ -4551,6 +4553,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `PAYMENT_ITEM_NOT_POSITIVE` | 422 | ยอดโอนของผู้ขาย {supplier} ต้องมากกว่าศูนย์ (ตอนนี้ {transfer} บาท) |
 | `BANK_ACCOUNT_NOT_APPROVED` | 422 | ผู้ขาย {supplier} ยังไม่มีบัญชีรับเงินที่อนุมัติแล้ว |
 | `PAYMENT_FLAG_REASON_REQUIRED` | 422 | รายการของ {supplier} มีธง {flag} กรุณาระบุเหตุผลก่อนส่ง |
+| `PAYMENT_FLAGS_CHANGED` | 409 | ธงของรอบจ่ายเปลี่ยนตั้งแต่คุณเปิดหน้า กรุณาโหลดใหม่และตรวจอีกครั้ง |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |

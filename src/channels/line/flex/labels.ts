@@ -1,3 +1,4 @@
+import { PAY_SUBJECT_KINDS } from './labels-pay'
 import type { CardLocale } from './types'
 
 // The fixed words of the LINE cards and replies, in Thai and English (BR-NOTI-03: the reader's language, polite and
@@ -12,6 +13,8 @@ export const SUBJECT_KIND: Readonly<Record<string, Text>> = {
   VARIANCE: { th: 'ผลต่างการตรวจรับ', en: 'Receiving variance' },
   DOA_VERSION: { th: 'DOA ฉบับใหม่', en: 'DOA version' },
   ORG_AUTHORITY_CHANGE: { th: 'การเปลี่ยนโครงสร้างอำนาจ', en: 'Authority change' },
+  // S9 (ADR-135)
+  ...PAY_SUBJECT_KINDS,
 }
 const DOCUMENT: Text = { th: 'เอกสาร', en: 'Document' }
 

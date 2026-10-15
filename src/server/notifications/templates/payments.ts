@@ -33,6 +33,17 @@ export const PAYMENT_TEMPLATES: Readonly<Record<string, Template>> = {
       href: `/finance/bank-accounts/changes/${str(d.changeId)}`,
     }
   },
+  // §10.1 payment_run.approved · .rejected · .returned: the preparer hears the decision (S9-06)
+  'payment_run.decided': (d) => ({
+    title:
+      d.outcome === 'APPROVED'
+        ? { th: `รอบจ่าย ${str(d.number)} อนุมัติแล้ว สร้างไฟล์จ่ายเงินได้`, en: `Payment run ${str(d.number)} is approved: you may make its file` }
+        : d.outcome === 'RETURNED'
+          ? { th: `รอบจ่าย ${str(d.number)} ถูกตีกลับให้แก้ไข`, en: `Payment run ${str(d.number)} was returned for changes` }
+          : { th: `รอบจ่าย ${str(d.number)} ไม่ได้รับอนุมัติ เอกสารกลับไปพร้อมจ่าย`, en: `Payment run ${str(d.number)} was not approved; its documents are ready for payment again` },
+    ...(d.outcome === 'APPROVED' ? {} : { body: { th: 'เปิดรอบจ่ายเพื่อดูเหตุผลจากผู้อนุมัติ', en: 'Open the run to read the approver’s reason' } }),
+    href: `/finance/payments/${str(d.paymentRunId)}`,
+  }),
   // §10.1 bank_account.activated of a supplier in a draft payment run: its preparer sees it before sending (digest)
   'payment_run.account_changed': (d) => ({
     title: { th: `บัญชีรับเงินของผู้ขาย ${str(d.supplierCode)} เปลี่ยนแล้ว ตรวจรอบจ่ายร่างก่อนส่ง`, en: `The bank account of supplier ${str(d.supplierCode)} changed; check your draft payment run before sending it` },
@@ -45,4 +56,5 @@ export const PAYMENT_LINE_TEMPLATES: readonly string[] = [
   'bank_account_change.decided',
   // S8-10's notice of a PO change decided, whose §10.1 row says "ในระบบ · LINE" (S9-18): lane 2 lists it here too
   'po_change.decided',
+  'payment_run.decided',
 ]

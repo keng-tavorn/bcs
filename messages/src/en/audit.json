@@ -357,11 +357,14 @@
       "settings_updated": "Organization settings updated"
     },
     "payment_run": {
+      "approved": "Payment run approved",
       "cancelled": "Payment run cancelled",
       "documents_added": "Documents added to the payment run",
       "documents_removed": "Documents taken out of the payment run",
       "drafted": "Payment run drafted",
+      "rejected": "Payment run rejected",
       "resubmitted": "Payment run sent for approval again",
+      "returned": "Payment run returned",
       "submitted": "Payment run sent for approval",
       "updated": "Payment run edited"
     },

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { formatSatang } from '@/core/money/format'
-import { buildItem, checkPayDate, flagsKey, itemFlags, nextRunDate, PAYMENT_FLAGS, proposeDocuments, type ItemDocument, type PayCalendar, type PaymentFlag, type Weekday } from '@/core/payment'
+import { buildItem, checkPayDate, flagsKey, nextRunDate, proposeDocuments, type ItemDocument, type PayCalendar, type PaymentFlag, type Weekday } from '@/core/payment'
 import { err, ok, type Result } from '@/core/result'
 import { checkSod, recentBankChangeProposers, type RecentBankChanges } from '@/core/sod'
 import { PAYMENT_RUN_MACHINE, transition, type PaymentRunCommand, type PaymentRunState } from '@/core/state-machines'
@@ -13,6 +13,7 @@ import { loadBusinessCalendar } from '@/server/doa/policy'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
+import { itemFlagsNow, REASON_FLAGS, supplierFacts, type SupplierFacts } from '@/server/queries/payment-runs'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { fail, type Fail } from '../ap/common'
 import { holdInvoicesForPayment, releaseInvoicesFromPayment } from '../ap/payment'
@@ -39,8 +40,6 @@ import { issueDocumentNumber } from '../numbering'
 // amounts and last four digits only (BR-BANK-08).
 
 const MIN_REASON_LENGTH = 3
-/** BR-PAY-06: the first four flags need the preparer's reason before the run is sent */
-const REASON_FLAGS: readonly PaymentFlag[] = PAYMENT_FLAGS.slice(0, 4)
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const asDate = (d: string) => new Date(`${d}T00:00:00Z`)
 const dayOf = (d: Date) => d.toISOString().slice(0, 10)
@@ -227,51 +226,6 @@ export function updatePaymentRun(ctx: Ctx, input: z.input<typeof UpdateInput>, o
 
 // ---------- the items: amounts, flags, SoD ----------
 
-interface SupplierFacts {
-  readonly id: string
-  readonly code: string
-  readonly taxId: string | null
-  readonly registryFlag: string
-  readonly status: string
-  readonly account: { readonly id: string; readonly bankCode: string; readonly accountNo: string; readonly accountName: string; readonly activatedOn: string; readonly fromSeed: boolean; readonly proposerMemberId: string | null } | null
-}
-
-async function supplierFacts(tx: TenantTx, supplierIds: readonly string[]): Promise<Map<string, SupplierFacts>> {
-  const suppliers = await tx.supplier.findMany({
-    where: { id: { in: [...supplierIds] } },
-    select: {
-      id: true,
-      code: true,
-      taxId: true,
-      registryFlag: true,
-      status: true,
-    },
-  })
-  const accounts = await tx.bankAccount.findMany({
-    where: { ownerKind: 'SUPPLIER', status: 'ACTIVE', supplierId: { in: [...supplierIds] } },
-    select: { id: true, supplierId: true, bankCode: true, accountNo: true, accountName: true, activatedAt: true, createdAt: true, sourceChangeId: true, sourceChange: { select: { submittedById: true } } },
-  })
-  const byOwner = new Map(accounts.map((a) => [a.supplierId!, a]))
-  return new Map(
-    suppliers.map((s) => {
-      const a = byOwner.get(s.id)
-      return [
-        s.id,
-        {
-          id: s.id,
-          code: s.code,
-          taxId: s.taxId,
-          registryFlag: s.registryFlag,
-          status: s.status,
-          account: a
-            ? { id: a.id, bankCode: a.bankCode, accountNo: a.accountNo, accountName: a.accountName, activatedOn: taxDateOf(a.activatedAt ?? a.createdAt), fromSeed: a.sourceChangeId === null, proposerMemberId: a.sourceChange?.submittedById ?? null }
-            : null,
-        },
-      ]
-    }),
-  )
-}
-
 /** BR-SOD-10: the changes in force of the accounts the run pays into, against its pay date */
 function recentChangesOf(payDate: string, recentBankChangeDays: number, facts: Iterable<SupplierFacts>): RecentBankChanges {
   const changes = [...facts].flatMap((f) => (f.account?.proposerMemberId ? [{ proposerMemberId: f.account.proposerMemberId, effectiveOn: f.account.activatedOn }] : []))
@@ -323,26 +277,7 @@ async function refreshRun(tx: TenantTx, ctx: Ctx, paymentRunId: string): Promise
     }
     const supplier = facts.get(item.supplierId)!
     const docIds = mine.map((l) => l.invoiceId ?? l.retentionId!)
-    // one query at a time: they share the transaction's connection
-    const exported = await tx.paymentRunDocument.count({ where: { status: 'RELEASED', releasedAfterExport: true, OR: [{ invoiceId: { in: docIds } }, { retentionId: { in: docIds } }] } })
-    const pending = await tx.bankAccountChange.count({ where: { supplierId: item.supplierId, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } } })
-    const sameAccount = supplier.account
-      ? await tx.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE', bankCode: supplier.account.bankCode, accountNo: supplier.account.accountNo, supplierId: { not: item.supplierId } }, select: { supplier: { select: { taxId: true } } } })
-      : []
-    const flagged = itemFlags(
-      {
-        payDate,
-        supplier: { registryFlag: supplier.registryFlag, status: supplier.status, taxId: supplier.taxId },
-        // without an account in force no account flag is due; sending refuses it (BANK_ACCOUNT_NOT_APPROVED)
-        account: supplier.account ? { activatedOn: supplier.account.activatedOn, fromSeed: supplier.account.fromSeed } : { activatedOn: '0000-01-01', fromSeed: true },
-        // FR-PAY-101 AC6: the approvals past a risk come with S11 (phase 2); none in phase 1, so RISK_OVERRIDE_EXPIRED never arises
-        riskOverrides: [],
-        previouslyExported: exported > 0,
-        pendingChange: pending > 0,
-        sameAccountTaxIds: sameAccount.map((o) => o.supplier?.taxId ?? null),
-      },
-      payment,
-    )
+    const flagged = await itemFlagsNow(tx, { payDate, recentBankChangeDays: payment.recentBankChangeDays, supplier, docIds })
     await tx.paymentRunItemWht.deleteMany({ where: { paymentRunItemId: item.id } })
     if (built.whtLines.length) await tx.paymentRunItemWht.createMany({ data: built.whtLines.map((l) => ({ organizationId: ctx.organizationId, paymentRunItemId: item.id, incomeType: l.incomeType, rateBp: l.rateBp, baseSatang: l.baseSatang, whtSatang: l.whtSatang })) })
     // BR-PAY-06: the preparer's reason answers the flags it was given for; a flag needing one that was not there then

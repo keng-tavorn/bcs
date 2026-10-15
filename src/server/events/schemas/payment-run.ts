@@ -15,6 +15,10 @@ defineEvents('PaymentRun', {
   'payment_run.documents_removed': { schema: z.object({ invoiceIds: z.array(z.uuid()), retentionIds: z.array(z.uuid()), itemCount: z.number().int().min(0), totalTransferSatang: satang }) },
   'payment_run.submitted': { schema: z.object({ number: z.string().min(1), routeId: z.uuid(), payDate: day, itemCount: z.number().int().min(1), totalTransferSatang: satang, flaggedItems: z.number().int().min(0) }) },
   'payment_run.resubmitted': { schema: z.object({ number: z.string().min(1), routeId: z.uuid(), payDate: day, itemCount: z.number().int().min(1), totalTransferSatang: satang, flaggedItems: z.number().int().min(0) }) },
+  // S9-06: the decision of DOA PAYMENT_RUN (flagsKey: the flags the approver was shown, BR-PAY-07)
+  'payment_run.approved': { schema: z.object({ number: z.string().min(1), flagsKey: z.string(), totalTransferSatang: satang }) },
+  'payment_run.rejected': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable(), documentCount: z.number().int().min(0) }) },
+  'payment_run.returned': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
   /** afterExport: a file of the run had been downloaded (BR-PAY-10) */
   'payment_run.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY']), afterExport: z.boolean(), documentCount: z.number().int().min(0) }) },
 })

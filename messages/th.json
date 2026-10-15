@@ -2220,6 +2220,8 @@
       "Notification": "การแจ้งเตือน",
       "OrgAuthorityChange": "การเปลี่ยนโครงสร้างอำนาจ",
       "Organization": "องค์กร",
+      "PaymentRun": "รอบจ่าย",
+      "PaymentRunItem": "รายการในรอบจ่าย",
       "PoChange": "ใบแก้ไขใบสั่งซื้อ",
       "PositionAssignment": "การดำรงตำแหน่ง",
       "PurchaseOrder": "ใบสั่งซื้อ",
@@ -2435,6 +2437,18 @@
         "module_enabled": "เปิดโมดูล",
         "settings_updated": "แก้ไขการตั้งค่าองค์กร"
       },
+      "payment_run": {
+        "cancelled": "ยกเลิกรอบจ่าย",
+        "documents_added": "เพิ่มเอกสารในรอบจ่าย",
+        "documents_removed": "เอาเอกสารออกจากรอบจ่าย",
+        "drafted": "ร่างรอบจ่าย",
+        "resubmitted": "ส่งรอบจ่ายขออนุมัติอีกครั้ง",
+        "submitted": "ส่งรอบจ่ายขออนุมัติ",
+        "updated": "แก้รอบจ่าย"
+      },
+      "payment_run_item": {
+        "flag_reason_set": "ใส่เหตุผลของธงในรายการจ่าย"
+      },
       "po": {
         "approved": "อนุมัติใบสั่งซื้อ",
         "cancelled": "ยกเลิกใบสั่งซื้อ",
@@ -2568,6 +2582,8 @@
       "notification": "การแจ้งเตือน",
       "org_authority_change": "โครงสร้างอำนาจ",
       "organization": "องค์กร",
+      "payment_run": "รอบจ่าย",
+      "payment_run_item": "รายการในรอบจ่าย",
       "po": "ใบสั่งซื้อ",
       "po_change": "ใบแก้ไขใบสั่งซื้อ",
       "position": "ตำแหน่ง",
@@ -3714,6 +3730,7 @@
     "AI_REVIEW_PENDING": "ยังมีค่าที่ AI เติมซึ่งยังไม่ได้ยืนยัน {count} ช่อง",
     "APPROVER_NOT_FOUND": "ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ",
     "ATTACHMENT_RULE_FAILED": "เอกสารแนบไม่ครบตามกฎ {rule}: {missing}",
+    "BANK_ACCOUNT_NOT_APPROVED": "ผู้ขาย {supplier} ยังไม่มีบัญชีรับเงินที่อนุมัติแล้ว",
     "BUDGET_INSUFFICIENT": "งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท",
     "BUDGET_LINE_CLOSED": "บรรทัดงบนี้ถูกระงับหรือปิดแล้ว",
     "CODING_NOT_CONFIRMED": "ยังไม่ได้ยืนยันรหัสบัญชีของบรรทัด {lines}",
@@ -3721,6 +3738,7 @@
     "DOA_AMBIGUOUS": "DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ",
     "DOA_LINT_FAILED": "DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes}",
     "DOA_NOT_CONFIGURED": "ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ",
+    "DOCUMENT_NOT_PAYABLE": "{kind} {number} ยังไม่พร้อมจ่ายหรืออยู่ในรอบจ่ายอื่น",
     "DUPLICATE_INVOICE": "เลขใบกำกับนี้บันทึกแล้วสำหรับผู้ขายรายนี้",
     "EXTERNAL_SERVICE_ERROR": "ระบบภายนอกไม่ตอบสนอง ({service})",
     "FORBIDDEN": "คุณไม่มีสิทธิ์ทำรายการนี้",
@@ -3733,6 +3751,9 @@
     "MODULE_IN_USE": "ปิดโมดูลไม่ได้: {reason}",
     "NOT_FOUND": "ไม่พบข้อมูล",
     "NO_HIGHER_AUTHORITY": "DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้",
+    "PAYMENT_DATE_INVALID": "วันจ่าย {date} ใช้ไม่ได้: {reason}",
+    "PAYMENT_FLAG_REASON_REQUIRED": "รายการของ {supplier} มีธง {flag} กรุณาระบุเหตุผลก่อนส่ง",
+    "PAYMENT_ITEM_NOT_POSITIVE": "ยอดโอนของผู้ขาย {supplier} ต้องมากกว่าศูนย์ (ตอนนี้ {transfer} บาท)",
     "PO_CHANGE_BELOW_PROGRESS": "แก้ไม่ได้เพราะต่ำกว่าที่รับหรือแจ้งหนี้แล้ว ({reason})",
     "PO_CHANGE_EXCEEDS_REQUEST": "จำนวนเกินที่เหลือในคำขอต้นทาง (เหลือ {left})",
     "PO_CHANGE_OPEN": "PO นี้มีใบแก้ไขที่ยังไม่เสร็จ",

@@ -400,6 +400,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `supplier.taxProfile.manage` | FINANCE (ORG) — ประเภทผู้รับเงินและประเภทเงินได้ตั้งต้นของผู้ขาย |
 | `bankAccount.view` | FINANCE, PROCUREMENT, AUDITOR (ORG) — บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กร เลขบัญชีแสดงแบบ mask (BR-SUP-07 BR-AUTH-04) |
 | `bankAccount.reveal` | FINANCE (ORG) · ผู้ได้รับงานอนุมัติของคำขอเปลี่ยนบัญชีนั้น (ASSIGNED) — เปิดเลขบัญชีเต็มและหลักฐานแนบ บันทึก `SensitiveAccessLog` ทุกครั้ง (BR-SUP-07 NFR-PRIV-03) |
+| `paymentRun.view` | FINANCE, AUDITOR (ORG) · ผู้ได้รับงานอนุมัติของรอบนั้น (ASSIGNED) — รอบจ่าย เลขบัญชีแสดงแบบ mask (BR-AUTH-04) |
+| `paymentRun.prepare` | FINANCE (ORG) — สร้าง แก้ เพิ่มและเอาเอกสารออก ใส่เหตุผลของธง ส่ง และยกเลิกก่อนอนุมัติ โดยแก้ ส่ง และยกเลิกได้เฉพาะผู้เตรียม (BR-PAY-09) |
 | `bankAccountChange.propose` | FINANCE (ORG) — ร่าง แก้ แนบหลักฐาน ส่ง และยกเลิกคำขอเพิ่ม เปลี่ยน หรือปิดบัญชี (OQ-133 OQ-137) โดยแก้ ส่ง และยกเลิกได้เฉพาะผู้เสนอ · อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (BR-SUP-06) |
 | `accountCode.manage` | FINANCE (ORG) — เพิ่มและแก้รหัสบัญชีขององค์กร (เลิกใช้ด้วย active ไม่ลบ · FR-AP-108) |
 | `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
@@ -4065,6 +4067,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
 | inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
+| payment_run (S9) | `payment_run.drafted` `payment_run.updated` `payment_run.documents_added` `payment_run.documents_removed` `payment_run.submitted` `payment_run.resubmitted` `payment_run.cancelled` `payment_run_item.flag_reason_set` · data มี id วัน ยอดเป็นสตางค์ และจำนวน ไม่มีเลขบัญชีหรือข้อความเหตุผล (เหตุผลที่ยกเลิกเก็บใน `PaymentRun.cancelReason`) |
 | bank_account · bank_account_change (S9) | `bank_account.activated` `bank_account.superseded` `bank_account.closed` `bank_account_change.drafted` `bank_account_change.updated` `bank_account_change.submitted` `bank_account_change.approved` `bank_account_change.rejected` `bank_account_change.returned` `bank_account_change.cancelled` · data มีเลขบัญชีเฉพาะ 4 ตัวท้าย (`last4`) ไม่มีเลขเต็ม ชื่อบัญชี หรือบันทึกการโทร (BR-BANK-08) · การเปิดเลขเต็มและดาวน์โหลดหลักฐานบันทึกใน `SensitiveAccessLog` ไม่ใช่ event |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
@@ -4543,6 +4546,11 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `PO_CHANGE_OPEN` | 409 | PO นี้มีใบแก้ไขที่ยังไม่เสร็จ |
 | `PO_CHANGE_BELOW_PROGRESS` | 422 | แก้ไม่ได้เพราะต่ำกว่าที่รับหรือแจ้งหนี้แล้ว ({reason}) |
 | `PO_CHANGE_EXCEEDS_REQUEST` | 422 | จำนวนเกินที่เหลือในคำขอต้นทาง (เหลือ {left}) |
+| `PAYMENT_DATE_INVALID` | 422 | วันจ่าย {date} ใช้ไม่ได้: {reason} |
+| `DOCUMENT_NOT_PAYABLE` | 409 | {kind} {number} ยังไม่พร้อมจ่ายหรืออยู่ในรอบจ่ายอื่น |
+| `PAYMENT_ITEM_NOT_POSITIVE` | 422 | ยอดโอนของผู้ขาย {supplier} ต้องมากกว่าศูนย์ (ตอนนี้ {transfer} บาท) |
+| `BANK_ACCOUNT_NOT_APPROVED` | 422 | ผู้ขาย {supplier} ยังไม่มีบัญชีรับเงินที่อนุมัติแล้ว |
+| `PAYMENT_FLAG_REASON_REQUIRED` | 422 | รายการของ {supplier} มีธง {flag} กรุณาระบุเหตุผลก่อนส่ง |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |

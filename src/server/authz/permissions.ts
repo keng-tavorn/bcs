@@ -116,6 +116,9 @@ export const PERMISSIONS = {
   'bankAccount.view': roles(['FINANCE', 'PROCUREMENT', 'AUDITOR'], 'ORG'),
   'bankAccount.reveal': [role('FINANCE', 'ORG'), anyMember('ASSIGNED')],
   'bankAccountChange.propose': [role('FINANCE', 'ORG')],
+  // S9-05 (BR-PAY-09): FINANCE prepares a run and only its preparer edits the draft; AUDITOR and the approvers read it
+  'paymentRun.view': [...roles(['FINANCE', 'AUDITOR'], 'ORG'), anyMember('ASSIGNED')],
+  'paymentRun.prepare': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

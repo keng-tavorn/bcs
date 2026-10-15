@@ -119,6 +119,8 @@
     "notification": "การแจ้งเตือน",
     "org_authority_change": "โครงสร้างอำนาจ",
     "organization": "องค์กร",
+    "payment_run": "รอบจ่าย",
+    "payment_run_item": "รายการในรอบจ่าย",
     "po": "ใบสั่งซื้อ",
     "po_change": "ใบแก้ไขใบสั่งซื้อ",
     "position": "ตำแหน่ง",
@@ -162,6 +164,8 @@
     "Notification": "การแจ้งเตือน",
     "OrgAuthorityChange": "การเปลี่ยนโครงสร้างอำนาจ",
     "Organization": "องค์กร",
+    "PaymentRun": "รอบจ่าย",
+    "PaymentRunItem": "รายการในรอบจ่าย",
     "PoChange": "ใบแก้ไขใบสั่งซื้อ",
     "PositionAssignment": "การดำรงตำแหน่ง",
     "PurchaseOrder": "ใบสั่งซื้อ",
@@ -351,6 +355,18 @@
       "module_disabled": "ปิดโมดูล",
       "module_enabled": "เปิดโมดูล",
       "settings_updated": "แก้ไขการตั้งค่าองค์กร"
+    },
+    "payment_run": {
+      "cancelled": "ยกเลิกรอบจ่าย",
+      "documents_added": "เพิ่มเอกสารในรอบจ่าย",
+      "documents_removed": "เอาเอกสารออกจากรอบจ่าย",
+      "drafted": "ร่างรอบจ่าย",
+      "resubmitted": "ส่งรอบจ่ายขออนุมัติอีกครั้ง",
+      "submitted": "ส่งรอบจ่ายขออนุมัติ",
+      "updated": "แก้รอบจ่าย"
+    },
+    "payment_run_item": {
+      "flag_reason_set": "ใส่เหตุผลของธงในรายการจ่าย"
     },
     "po": {
       "approved": "อนุมัติใบสั่งซื้อ",

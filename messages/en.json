@@ -2220,6 +2220,8 @@
       "Notification": "Notification",
       "OrgAuthorityChange": "Authority change",
       "Organization": "Organization",
+      "PaymentRun": "Payment run",
+      "PaymentRunItem": "Payment run item",
       "PoChange": "PO change",
       "PositionAssignment": "Position holding",
       "PurchaseOrder": "Purchase order",
@@ -2435,6 +2437,18 @@
         "module_enabled": "Module switched on",
         "settings_updated": "Organization settings updated"
       },
+      "payment_run": {
+        "cancelled": "Payment run cancelled",
+        "documents_added": "Documents added to the payment run",
+        "documents_removed": "Documents taken out of the payment run",
+        "drafted": "Payment run drafted",
+        "resubmitted": "Payment run sent for approval again",
+        "submitted": "Payment run sent for approval",
+        "updated": "Payment run edited"
+      },
+      "payment_run_item": {
+        "flag_reason_set": "Reason given for a payment item’s flags"
+      },
       "po": {
         "approved": "Purchase order approved",
         "cancelled": "Purchase order cancelled",
@@ -2568,6 +2582,8 @@
       "notification": "Notifications",
       "org_authority_change": "Authority structure",
       "organization": "Organization",
+      "payment_run": "Payment runs",
+      "payment_run_item": "Payment run items",
       "po": "Purchase orders",
       "po_change": "PO changes",
       "position": "Positions",
@@ -3714,6 +3730,7 @@
     "AI_REVIEW_PENDING": "{count} fields the AI filled in are not confirmed yet",
     "APPROVER_NOT_FOUND": "No holder of {position} in {department}. Please contact your administrator",
     "ATTACHMENT_RULE_FAILED": "Required attachments missing under rule {rule}: {missing}",
+    "BANK_ACCOUNT_NOT_APPROVED": "Supplier {supplier} has no approved bank account yet",
     "BUDGET_INSUFFICIENT": "Insufficient budget: {available} baht available, {shortfall} baht short",
     "BUDGET_LINE_CLOSED": "This budget line is frozen or closed",
     "CODING_NOT_CONFIRMED": "The account code of line {lines} is not confirmed yet",
@@ -3721,6 +3738,7 @@
     "DOA_AMBIGUOUS": "More than one DOA rule applies. Please contact your administrator",
     "DOA_LINT_FAILED": "This DOA version has not passed its checks: {codes}",
     "DOA_NOT_CONFIGURED": "No delegation of authority is in effect for this document. Please contact your administrator",
+    "DOCUMENT_NOT_PAYABLE": "{kind} {number} is not ready for payment or is in another payment run",
     "DUPLICATE_INVOICE": "This invoice number is already recorded for this supplier",
     "EXTERNAL_SERVICE_ERROR": "An external system is not responding ({service})",
     "FORBIDDEN": "You do not have permission to do this",
@@ -3733,6 +3751,9 @@
     "MODULE_IN_USE": "Cannot disable the module: {reason}",
     "NOT_FOUND": "Not found",
     "NO_HIGHER_AUTHORITY": "The DOA has no authority above the requester for this amount",
+    "PAYMENT_DATE_INVALID": "The pay date {date} cannot be used: {reason}",
+    "PAYMENT_FLAG_REASON_REQUIRED": "The item of {supplier} has flag {flag}: give a reason before sending",
+    "PAYMENT_ITEM_NOT_POSITIVE": "The transfer to supplier {supplier} must be more than zero (now THB {transfer})",
     "PO_CHANGE_BELOW_PROGRESS": "Cannot change below what was received or invoiced ({reason})",
     "PO_CHANGE_EXCEEDS_REQUEST": "More than is left on the source request ({left} left)",
     "PO_CHANGE_OPEN": "This PO has a change that is not finished",

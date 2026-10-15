@@ -119,6 +119,8 @@
     "notification": "Notifications",
     "org_authority_change": "Authority structure",
     "organization": "Organization",
+    "payment_run": "Payment runs",
+    "payment_run_item": "Payment run items",
     "po": "Purchase orders",
     "po_change": "PO changes",
     "position": "Positions",
@@ -162,6 +164,8 @@
     "Notification": "Notification",
     "OrgAuthorityChange": "Authority change",
     "Organization": "Organization",
+    "PaymentRun": "Payment run",
+    "PaymentRunItem": "Payment run item",
     "PoChange": "PO change",
     "PositionAssignment": "Position holding",
     "PurchaseOrder": "Purchase order",
@@ -351,6 +355,18 @@
       "module_disabled": "Module switched off",
       "module_enabled": "Module switched on",
       "settings_updated": "Organization settings updated"
+    },
+    "payment_run": {
+      "cancelled": "Payment run cancelled",
+      "documents_added": "Documents added to the payment run",
+      "documents_removed": "Documents taken out of the payment run",
+      "drafted": "Payment run drafted",
+      "resubmitted": "Payment run sent for approval again",
+      "submitted": "Payment run sent for approval",
+      "updated": "Payment run edited"
+    },
+    "payment_run_item": {
+      "flag_reason_set": "Reason given for a payment item’s flags"
     },
     "po": {
       "approved": "Purchase order approved",

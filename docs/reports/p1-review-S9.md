@@ -134,3 +134,19 @@
 | 7 | เอาเอกสารออกโดยไม่ระบุหรือระบุซ้ำได้ NOT_FOUND | `services/payments/runs.ts` | แก้แล้ว: `VALIDATION_FAILED` reason `REQUIRED` หรือ `TWICE` |
 | 8 | ปฏิทินที่ไม่มีวันทำงานตรงวันรอบภายในหนึ่งปีทำให้ได้ INTERNAL | `services/payments/runs.ts` | แก้แล้ว: `VALIDATION_FAILED` reason `NO_WORKING_DAY` |
 | 9 | ข้อความ `DOCUMENT_NOT_PAYABLE` แสดงชนิดเป็นรหัส `INVOICE` | `services/payments/runs.ts` | ไม่แก้ในข้อนี้: หน้าจอของ S9-09 แสดงข้อความของตัวเองจาก `details.kind` |
+
+## S9-06 รีวิว xhigh (ADR-072 · 2026-10-16)
+
+คำสั่ง `/code-review xhigh b6d28f2...HEAD` หลัง `7dc4916` · แก้ใน `c39e420`
+
+| # | เรื่อง | ไฟล์ | ผล |
+| --- | --- | --- | --- |
+| 1 | ตอนอนุมัติ BR-SOD-10 ดูบัญชีที่มีผลตอนนี้ ไม่ใช่บัญชีที่รายการถูก snapshot ไว้ตอนส่ง | `services/payments/approval.ts` | แก้แล้ว: ใช้ `bankAccountId` ของรายการหลังส่ง (ร่างยังใช้บัญชีที่มีผล) |
+| 2 | หน้าตัดสินบนเว็บ `/tasks/[id]` ไม่ส่ง `flagsKey` รอบที่มีธงจึงอนุมัติบนเว็บไม่ได้ (ได้ `PAYMENT_FLAGS_CHANGED` ทุกครั้ง) | adapter `payment-run.ts` | ไม่แก้ในข้อนี้: หน้าเว็บของรอบจ่ายพร้อมแถบตัดสิน การรับทราบธง และ step-up เป็นงานของ S9-09 ซึ่งต้องให้ `/tasks/[id]` ของรอบจ่ายพาไปหน้านั้น · ระหว่างนี้อนุมัติได้ใน LIFF (e2e `@pay`) |
+| 3 | `facts()` คำนวณรายชื่อผู้ห้ามอนุมัติทุกครั้งที่ถูกเรียก | adapter `payment-run.ts` | ไม่แก้: ฐานร่วมให้ `sodContext` รับเฉพาะ facts จึงต้องอ่านพร้อม facts · ไม่กี่คำสั่งต่องานที่เปิด |
+| 4 | ฟอร์มตัดสินใน LIFF ใช้ถ้อยคำของคำขอ ("ยอดรวม VAT") กับยอดโอนของรอบ | `app/liff/tasks/[id]/page.tsx` | แก้แล้ว: ถ้อยคำของรอบจ่ายส่งจาก server (`payRun.task.decide`) ไม่เพิ่มข้อความที่ส่งไป client ทุกหน้า |
+| 5 | รายชื่อผู้ห้ามอนุมัติเก็บใน WeakMap ที่ผูกกับ object ของ facts | adapter `payment-run.ts` | ไม่แก้: สัญญากลางของฐานร่วม (P1-07) ส่ง object เดิมให้ `sodContext` และ `channels` · บันทึกไว้ในหัวไฟล์ |
+| 6 | `getPaymentRunTaskView` ไม่ตรวจสิทธิ์เอง | `queries/payment-runs.ts` | ไม่แก้: หน้า LIFF ตรวจสิทธิ์ของงานก่อนเรียก แบบเดียวกับ view ของ S8 |
+| 7 | หน้า LIFF ทุกงานโหลดข้อความของรอบจ่าย | `app/liff/tasks/[id]/page.tsx` | แก้แล้ว: เฉพาะงานของรอบจ่าย |
+| 8 | ฉาก e2e ใช้นาฬิกาของ fixture ปี 2026 กับวันจ่ายจากวันจริง | `tests/e2e/pay-scene.ts` | ไม่แก้: fixture ทั้งชุดเป็นปีงบ 2569 อยู่แล้ว |
+| 9 | commit แรกของข้อใช้ชนิด `wip` | git | ไม่แก้: แก้ประวัติไม่ได้ (ห้าม rebase) · commit ต่อจากนั้นใช้ชนิดตาม §14.4 |

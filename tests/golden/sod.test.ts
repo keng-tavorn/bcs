@@ -82,3 +82,11 @@ describe('[FR-DOA-007/AC1] separation of duties beyond the golden cases', () => 
     })
   })
 })
+
+describe('[FR-PAY-101/AC8] separation of duties of S9 beyond the golden cases', () => {
+  const policy = { approverMayReceive: false, requesterMayReceive: true }
+  it('lets another member approve a run with no invoice recorders or bank changes named, and a bank change proposed by someone else', () => {
+    expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'PAYMENT_RUN', actorMemberId: 'cfo', requesterMemberIds: ['fin_tre1'] }, policy)).toEqual({ ok: true })
+    expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'BANK_ACCOUNT_CHANGE', actorMemberId: 'cfo', requesterMemberIds: ['fin_ap1'] }, policy)).toEqual({ ok: true })
+  })
+})

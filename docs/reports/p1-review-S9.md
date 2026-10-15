@@ -170,3 +170,17 @@
 | 11 | `lockedRun` ตัวอ่านรอบ และ `MIN_REASON_LENGTH` ซ้ำกับ `runs.ts` | `services/payments/files.ts` | ไม่แก้: ตัวอ่านของไฟล์ต้องมีบัญชีผู้จ่าย ต่างจากของผู้เตรียม · ไม่กระทบความถูกต้อง |
 
 ข้อขัดกันใน spec ที่พบ: BR-BANK-07 เขียนว่าเวอร์ชันเดิม "ยังดาวน์โหลดได้พร้อมป้ายไฟล์เก่า" แต่ BR-BANK-08 (และ AC6) ให้ดาวน์โหลดเฉพาะเวอร์ชัน CURRENT ของรอบที่ยังไม่ปิด และตารางสถานะใน sub-spec เคยให้ดาวน์โหลดใน COMPLETED · ลงมือตาม BR-BANK-08 ที่เข้มกว่าและกันการส่งไฟล์เดิมเข้าธนาคารซ้ำ หน้ารอบแสดง sha256 จำนวน และยอดของทุกเวอร์ชันแทน (แก้แถวในตารางสถานะของ sub-spec แล้ว)
+
+## S9-08 รีวิว xhigh (ADR-072 · 2026-10-16)
+
+คำสั่ง `/code-review xhigh 1518117...HEAD` หลัง `283c23c` · แก้ใน `bf489f9`
+
+| # | เรื่อง | ไฟล์ | ผล |
+| --- | --- | --- | --- |
+| 1 | อีเมลที่แนบไฟล์ซึ่งไม่อยู่แล้ว (เช่น 50 ทวิ ถูกปฏิเสธ) โยน error ทุกครั้ง งานกวาดส่งแบบเก่าสุดก่อนและหยุดที่ error แรก อีเมลถึงผู้ขายทุกองค์กรที่อยู่หลังจึงค้างทั้งหมด | `notifications/supplier-notices.ts` | แก้แล้ว: เป็น FAILED ครั้งเดียว reason `ATTACHMENT_UNAVAILABLE` พร้อมแจ้งผู้เตรียม · เทสต์ |
+| 2 | งานกวาดหยุดทั้งชุดเมื่อฉบับใดโยน error (เช่น เซิร์ฟเวอร์อีเมลช้า) | `notifications/supplier-notices.ts` | แก้แล้ว: ข้ามฉบับนั้นไปรอบหน้าและ log ด้วย `describeError` |
+| 3 | ตั้ง COMPLETED ตรง ๆ ไม่ผ่าน state machine | `services/payments/results.ts` | แก้แล้ว: ผ่าน `paymentRun.complete` |
+| 4 | ส่งแจ้งการชำระซ้ำได้แม้องค์กรปิด `payment.adviceEmail` | `services/payments/results.ts` | แก้แล้ว: `VALIDATION_FAILED` reason `ADVICE_EMAIL_OFF` (OQ-134) · เทสต์ |
+| 5 | ไม่มีเทสต์รายการที่ไม่สำเร็จซึ่งมีเงินประกัน | `tests/integration/payment-run-results.test.ts` | แก้แล้ว: เงินประกันกลับเป็น RELEASABLE |
+| 6 | การแจ้งผู้เตรียมเมื่อส่งไม่สำเร็จรอ outbox sweeper | `notifications/supplier-notices.ts` | ไม่แก้: งานส่งอีเมลผู้ขายเป็นงานพื้นหลังอยู่แล้ว ส่งผ่าน outbox ตามกลไกเดิม ช้าไม่เกินรอบของ sweeper |
+| 7 | ตัวช่วยตรวจสิทธิ์ FINANCE + โมดูล PAY ซ้ำ 3 ไฟล์ | `services/payments/*.ts` | ไม่แก้: ไม่กระทบความถูกต้อง แต่ละไฟล์ตรวจ capability ของตัวเอง |

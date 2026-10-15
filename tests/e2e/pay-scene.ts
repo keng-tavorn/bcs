@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto'
 import { nextRunDate } from '@/core/payment'
 import { taxDateOf } from '@/core/vat'
 import { getEnv } from '@/lib/env'
-import { upsertUserWithPassword } from '@/server/auth/provision'
+import { deriveSeedBackupCodes, deriveSeedTotpSecret } from '@/lib/totp'
+import { enableTotpWithSecret, upsertUserWithPassword } from '@/server/auth/provision'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { seedDevPins } from '@/server/seed/pins'
@@ -50,6 +51,11 @@ if (mode === 'liff') {
   if (!password) throw new Error('SEED_DEV_PASSWORD is needed')
   const email = `cfo.${tag.toLowerCase()}@pay.bcs.local`
   const userId = await upsertUserWithPassword({ email, name: 'ผู้ใช้ cfo', password })
+  // an approver's role asks for the second factor before work starts (the seed's TOTP of SEED_TOTP_KEY)
+  const totpKey = process.env.SEED_TOTP_KEY
+  if (!totpKey) throw new Error('SEED_TOTP_KEY is needed')
+  const local = `cfo.${tag.toLowerCase()}`
+  await enableTotpWithSecret(userId, deriveSeedTotpSecret(totpKey, local), deriveSeedBackupCodes(totpKey, local))
   await prisma.member.update({ where: { id: ap.org.member.cfo! }, data: { email, userId } })
   await linkLine(ap.org.organizationId, ap.org.member.cfo!, arg)
 

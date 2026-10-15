@@ -55,7 +55,7 @@ test('[FR-PAY-101/AC5] [FR-PAY-101/AC9] @pay the CFO reads the flagged item firs
 
   // approving asks for the tick of the flags first, then the PIN (the run is over the stepUpThreshold)
   await decisionBar.getByRole('button', { name: 'อนุมัติ', exact: true }).click()
-  const confirm = decisionBar.getByRole('group', { name: new RegExp(`อนุมัติ ${made.number}`) })
+  const confirm = decisionBar.getByRole('group', { name: `อนุมัติรอบจ่าย ${made.number} ยอดโอนรวม ${transfer} บาท เปลี่ยนการตัดสินภายหลังไม่ได้` })
   await expect(confirm).toBeVisible()
   await confirm.getByLabel('PIN 6 หลัก').fill(E2E_PIN)
   await confirm.getByRole('button', { name: 'ยืนยันอนุมัติ' }).click()

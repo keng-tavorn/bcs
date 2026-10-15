@@ -194,7 +194,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   // S9: a payment run with its flags now (BR-PAY-07), and a bank account change masked (BR-SUP-07)
   const paymentRun = task.subjectType === 'PAYMENT_RUN' ? await getPaymentRunTaskView(ctx, task.subjectId) : null
   const bankChange = task.subjectType === 'BANK_ACCOUNT_CHANGE' ? await getBankAccountChange(ctx, { changeId: task.subjectId }).then((r) => (r.ok ? r.data : null)) : null
-  const tPay = await getTranslations('payRun.task')
+  const tPay = paymentRun ? await getTranslations('payRun.task') : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
   const reader = po ? poReader(memberPrincipal(page.member.id, (await liffSignedIn(page.member.id))?.roles ?? []), null, po, { prices: true }) : null
@@ -365,7 +365,22 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           decide={decideLiffTaskAction}
           {...(request ? { ask: askLiffRequesterAction } : {})}
           {...(paymentRun ? { subjectInput: { flagsKey: paymentRun.flagsKey } } : {})}
-          {...(paymentRun?.flagsKey ? { acknowledge: { label: tPay('acknowledge'), error: tPay('acknowledgeError') } } : {})}
+          {...(paymentRun && tPay
+            ? {
+                words: {
+                  confirmText: tPay('decide.confirmText', { label, amount: money(paymentRun.totalTransferSatang) }),
+                  returnOption: tPay('decide.returnOption'),
+                  returnHint: tPay('decide.returnHint'),
+                  rejectHint: tPay('decide.rejectHint'),
+                  reasonHint: tPay('decide.reasonHint'),
+                  submitReturn: tPay('decide.returnOption'),
+                  submitReject: tPay('decide.submitReject'),
+                  returned: tPay('decide.returned'),
+                  rejected: tPay('decide.rejected'),
+                },
+                ...(paymentRun.flagsKey ? { acknowledge: { label: tPay('acknowledge'), error: tPay('acknowledgeError') } } : {}),
+              }
+            : {})}
         >
           {details}
         </LiffTaskDecisionLoader>

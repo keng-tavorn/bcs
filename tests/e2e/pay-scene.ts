@@ -40,6 +40,7 @@ if (mode === 'liff') {
   // a code after DEMO's: the BCS team's list of organizations is by code, and other specs take the demo one first
   await prisma.organization.update({ where: { id: ap.org.organizationId }, data: { code: `PAY-${tag}`, displayName: `ทดสอบรอบจ่าย ${tag}` } })
   await prisma.orgModule.create({ data: { organizationId: ap.org.organizationId, module: 'CORE', enabled: true, enabledAt: AP_NOW, contractRef: 'TEST-P1', reason: 'องค์กรทดสอบระยะ 1' } })
+  await prisma.roleAssignment.create({ data: { organizationId: ap.org.organizationId, memberId: ap.org.member.admin!, role: 'ORG_ADMIN', grantedAt: AP_NOW } })
   const line = await seedLineChannel(ap.org.organizationId, getEnv(), AP_NOW)
   if (line.status !== 'CREATED') throw new Error(`the LINE channel was not saved: ${line.status}`)
   await seedDevPins(ap.org.organizationId, E2E_PIN, AP_NOW)

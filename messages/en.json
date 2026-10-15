@@ -5119,6 +5119,16 @@
     "task": {
       "acknowledge": "I have checked every flagged item and its reason",
       "acknowledgeError": "Tick that you checked the flagged items before approving",
+      "decide": {
+        "confirmText": "Approve payment run {label}, total transferred THB {amount}. The decision cannot be changed afterwards",
+        "reasonHint": "The preparer reads this: say clearly what to change or why the run is not approved",
+        "rejectHint": "The run is closed and its invoices and retentions are ready for payment again at once",
+        "rejected": "Payment run rejected",
+        "returnHint": "The run goes back to a draft for the preparer to change and send again; its documents stay in it",
+        "returnOption": "Return to the preparer",
+        "returned": "Returned to the preparer",
+        "submitReject": "Reject this payment run"
+      },
       "flag": {
         "BANK_ACCOUNT_RECENTLY_CHANGED": "Account changed recently",
         "BANK_CHANGE_PENDING": "Account change pending",

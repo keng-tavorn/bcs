@@ -1,6 +1,7 @@
 import { checkPayDate } from '@/core/payment'
 import { type RecentBankChanges } from '@/core/sod'
 import { PAYMENT_RUN_MACHINE, transition, type PaymentRunCommand, type PaymentRunState } from '@/core/state-machines'
+import { taxDateOf } from '@/core/vat'
 import { paymentSettingsOf } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
 import { loadBusinessCalendar } from '@/server/doa/policy'
@@ -35,12 +36,13 @@ export async function runApprovalFacts(tx: TenantTx, organizationId: string, pay
   const run = await tx.paymentRun.findFirst({ where: { id: paymentRunId }, select: { payDate: true, flagsKey: true } })
   if (!run) return null
   const org = await tx.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { settings: true } })
-  const items = await tx.paymentRunItem.findMany({ where: { paymentRunId }, select: { supplierId: true } })
-  const facts = await supplierFacts(
-    tx,
-    items.map((i) => i.supplierId),
-  )
-  const changes = [...facts.values()].flatMap((f) => (f.account?.proposerMemberId ? [{ proposerMemberId: f.account.proposerMemberId, effectiveOn: f.account.activatedOn }] : []))
+  // the accounts the run pays into: the items' snapshot once sent (ADR-133), the accounts in force while a draft
+  const items = await tx.paymentRunItem.findMany({ where: { paymentRunId }, select: { supplierId: true, bankAccountId: true } })
+  const snapshot = items.flatMap((i) => (i.bankAccountId ? [i.bankAccountId] : []))
+  const accounts = snapshot.length
+    ? (await tx.bankAccount.findMany({ where: { id: { in: snapshot } }, select: { activatedAt: true, createdAt: true, sourceChange: { select: { submittedById: true } } } })).map((a) => ({ proposerMemberId: a.sourceChange?.submittedById ?? null, activatedOn: taxDateOf(a.activatedAt ?? a.createdAt) }))
+    : [...(await supplierFacts(tx, items.map((i) => i.supplierId))).values()].flatMap((f) => (f.account ? [{ proposerMemberId: f.account.proposerMemberId, activatedOn: f.account.activatedOn }] : []))
+  const changes = accounts.flatMap((a) => (a.proposerMemberId ? [{ proposerMemberId: a.proposerMemberId, effectiveOn: a.activatedOn }] : []))
   return {
     invoiceRecorderMemberIds: await invoiceRecordersOf(tx, paymentRunId),
     recentBankChanges: { payDate: run.payDate.toISOString().slice(0, 10), recentBankChangeDays: paymentSettingsOf(org.settings).recentBankChangeDays, changes },

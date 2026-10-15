@@ -23,6 +23,16 @@
       "BANK_ACCOUNT_RECENTLY_CHANGED": "Account changed recently",
       "BANK_CHANGE_PENDING": "Account change pending",
       "SHARED_BANK_ACCOUNT": "Account shared with another supplier"
+    },
+    "decide": {
+      "confirmText": "Approve payment run {label}, total transferred THB {amount}. The decision cannot be changed afterwards",
+      "returnOption": "Return to the preparer",
+      "returnHint": "The run goes back to a draft for the preparer to change and send again; its documents stay in it",
+      "rejectHint": "The run is closed and its invoices and retentions are ready for payment again at once",
+      "reasonHint": "The preparer reads this: say clearly what to change or why the run is not approved",
+      "submitReject": "Reject this payment run",
+      "returned": "Returned to the preparer",
+      "rejected": "Payment run rejected"
     }
   },
   "bankChange": {

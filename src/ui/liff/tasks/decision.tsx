@@ -63,6 +63,8 @@ export interface LiffTaskDecisionProps {
   readonly subjectInput?: { readonly flagsKey: string }
   /** The tick the approver gives before approving (a payment run with flags: "I have checked them"), and its error */
   readonly acknowledge?: { readonly label: string; readonly error: string }
+  /** The words of a subject that has its own (a payment run), written by the server in the reader's language */
+  readonly words?: Partial<Record<'confirmText' | 'returnOption' | 'returnHint' | 'rejectHint' | 'reasonHint' | 'submitReturn' | 'submitReject' | 'returned' | 'rejected', string>>
   readonly children: ReactNode
 }
 
@@ -71,7 +73,7 @@ export const OTHER_DECISIONS_ID = 'other-decisions'
 const ASK_ID = 'ask-requester'
 
 export function LiffTaskDecision(props: LiffTaskDecisionProps) {
-  const { taskId, open, kind, label, amount, disposition, stepUp, pinLength, initial, pinSettingsHref, helpHref, decide, ask, subjectInput, acknowledge, children } = props
+  const { taskId, open, kind, label, amount, disposition, stepUp, pinLength, initial, pinSettingsHref, helpHref, decide, ask, subjectInput, acknowledge, words, children } = props
   const t = useTranslations('tasks.decide')
   const tErrors = useTranslations('tasks.errors')
   const po = kind === 'PURCHASE_ORDER'
@@ -94,6 +96,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
     returned: po ? t('po.returned') : t('returned'),
     rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : t('rejected'),
     stepUpHint: variance ? t('variance.stepUpHint') : t('stepUpHint'),
+    ...words,
   }
   const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : ['RETURN', 'REJECT']
 

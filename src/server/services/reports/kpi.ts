@@ -137,12 +137,19 @@ export async function collectKpis(
 ): Promise<{ result: KpiResult; items: KpiItems }> {
   const occurredAt = { gte: period.from, lt: period.to }
   // Documents inside the scope: requests charged to the departments, POs and variances on their budget lines
+  // A document's answer is read once: its decisions, tasks and approvals ask again and again
+  const scopeOf = new Map<string, boolean>()
   const inScope = async (subjectType: string, subjectId: string): Promise<boolean> => {
     if (departmentIds === null) return true
-    if (subjectType === 'REQUEST') return (await tx.request.count({ where: { id: subjectId, chargedDepartmentId: { in: [...departmentIds] } } })) > 0
-    if (subjectType === 'PURCHASE_ORDER') return (await tx.poLine.count({ where: { poId: subjectId, budgetLine: { departmentId: { in: [...departmentIds] } } } })) > 0
-    if (subjectType === 'VARIANCE') return (await tx.variance.count({ where: { id: subjectId, poLine: { budgetLine: { departmentId: { in: [...departmentIds] } } } } })) > 0
-    return false
+    const key = `${subjectType}:${subjectId}`
+    const known = scopeOf.get(key)
+    if (known !== undefined) return known
+    let found = false
+    if (subjectType === 'REQUEST') found = (await tx.request.count({ where: { id: subjectId, chargedDepartmentId: { in: [...departmentIds] } } })) > 0
+    else if (subjectType === 'PURCHASE_ORDER') found = (await tx.poLine.count({ where: { poId: subjectId, budgetLine: { departmentId: { in: [...departmentIds] } } } })) > 0
+    else if (subjectType === 'VARIANCE') found = (await tx.variance.count({ where: { id: subjectId, poLine: { budgetLine: { departmentId: { in: [...departmentIds] } } } } })) > 0
+    scopeOf.set(key, found)
+    return found
   }
 
   // ----- G-1 -----
@@ -210,18 +217,26 @@ export async function collectKpis(
   // ----- G-3 -----
   const calendar = await loadBusinessCalendar(tx, organizationId)
   const poApprovals = await tx.purchaseOrder.findMany({ where: { approvedAt: occurredAt }, select: { id: true, approvedAt: true } })
+  // The requests ordered on each PO, and then those requests, in one read each — never one per PO or per request (NEW-38)
+  const sources = poApprovals.length
+    ? await tx.poLineSource.findMany({ where: { poLine: { poId: { in: poApprovals.map((po) => po.id) } } }, select: { poLine: { select: { poId: true } }, requestLine: { select: { requestId: true } } } })
+    : []
+  const requestsOfPo = new Map<string, Set<string>>()
+  for (const s of sources) requestsOfPo.set(s.poLine.poId, (requestsOfPo.get(s.poLine.poId) ?? new Set()).add(s.requestLine.requestId))
   const firstPoOf = new Map<string, Date>()
   for (const po of poApprovals) {
-    const requests = await tx.request.findMany({ where: { lines: { some: { poSources: { some: { poLine: { poId: po.id } } } } } }, select: { id: true } })
-    for (const r of requests) {
-      const earlier = firstPoOf.get(r.id)
-      if (!earlier || po.approvedAt! < earlier) firstPoOf.set(r.id, po.approvedAt!)
+    for (const requestId of requestsOfPo.get(po.id) ?? []) {
+      const earlier = firstPoOf.get(requestId)
+      if (!earlier || po.approvedAt! < earlier) firstPoOf.set(requestId, po.approvedAt!)
     }
   }
+  const ordered = new Map(
+    (firstPoOf.size ? await tx.request.findMany({ where: { id: { in: [...firstPoOf.keys()] } }, select: { id: true, submittedAt: true, chargedDepartmentId: true } }) : []).map((r) => [r.id, r]),
+  )
   const submitToPo: number[] = []
   const submitToPoItems: KpiRequestItem[] = []
   for (const [requestId, approvedAt] of firstPoOf) {
-    const r = await tx.request.findUnique({ where: { id: requestId }, select: { submittedAt: true, chargedDepartmentId: true } })
+    const r = ordered.get(requestId)
     if (!r?.submittedAt) continue
     if (departmentIds !== null && !departmentIds.includes(r.chargedDepartmentId)) continue
     const minutes = businessMinutesBetween(r.submittedAt, approvedAt, calendar)

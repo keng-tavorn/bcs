@@ -15,6 +15,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
 import { submitBudgetOverrun } from '@/server/services/budget/overruns'
 import { runBudgetAlerts } from '@/server/services/budget/alerts'
+import { reportTx } from '@/server/services/reports/tx'
 import { computeWorkflowReport } from '@/server/services/reports/workflow'
 import { exportConfigPackage, importConfigPackage } from '@/server/services/config-packages'
 import { seedP1Sandbox } from '@/server/services/demo-seed'
@@ -403,7 +404,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       const pmRequests = new Set((await db.request.findMany({ where: { requesterMemberId: pm.id, status: 'PENDING_APPROVAL' }, select: { id: true } })).map((r) => r.id))
       const pmAtCeo = waiting.filter((t) => pmRequests.has(t.step.route.subjectId) && t.resolvedFrom.includes('CEO'))
       expect(pmAtCeo.length).toBeGreaterThan(0)
-      const report = await db.$transaction((tx) => computeWorkflowReport(tx, organizationId, { from: new Date(clock.now.getTime() - 400 * MS_PER_DAY), to: new Date(clock.now.getTime() + MS_PER_DAY), now: clock.now }, null))
+      const report = await reportTx({ organizationId }, (tx) => computeWorkflowReport(tx, organizationId, { from: new Date(clock.now.getTime() - 400 * MS_PER_DAY), to: new Date(clock.now.getTime() + MS_PER_DAY), now: clock.now }, null))
       const ceo = report.bottlenecks.byPosition.find((x) => x.at.startsWith('CEO@'))!
       expect(ceo.taskIds).toEqual(expect.arrayContaining(pmAtCeo.map((t) => t.id)))
       expect(ceo.overdue).toBeGreaterThan(0)
@@ -507,7 +508,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       const check = (submitted.data as { budgetCheck: { availableSatang: string; reservedSatang: string } }).budgetCheck
       expect(BigInt(check.availableSatang) >= BigInt(check.reservedSatang)).toBe(true)
       const from = new Date(clock.now.getTime() - 60_000)
-      const kpi = await db.$transaction((tx) => computeKpis(tx, organizationId, { from, to: new Date(clock.now.getTime() + MS_PER_DAY), now: clock.now }, null))
+      const kpi = await reportTx({ organizationId }, (tx) => computeKpis(tx, organizationId, { from, to: new Date(clock.now.getTime() + MS_PER_DAY), now: clock.now }, null))
       expect(kpi.g4.tasksOnFailedBudgetCheck).toBe(0)
       const prTask = await db.approvalTask.findFirstOrThrow({ where: { status: 'OPEN', assigneeMemberId: ceo, step: { route: { subjectId: draft.requestId } } }, select: { id: true, step: { select: { route: { select: { ruleCode: true } } } } } })
       expect(prTask.step.route.ruleCode).toBe('PR-03')

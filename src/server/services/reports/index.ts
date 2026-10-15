@@ -14,6 +14,7 @@ import { putObject, readObject } from '@/integrations/storage'
 import { authorize, loadPrincipal } from '@/server/authz'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { reportTx } from './tx'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import '../exports/file-policy'
 import { reportScope, scopeCovers } from './access'
@@ -210,7 +211,7 @@ export const REPORTS: Readonly<Record<string, ReportDefinition<KpiParams>>> = { 
 export async function workflowReport(ctx: Ctx, rawParams: unknown): Promise<Result<WorkflowReport & { scope: 'ORG' | 'DEPT' }>> {
   const params = KpiParams.safeParse(rawParams)
   if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const allowed = await authorize(tx, ctx, 'report.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const scope = reportScope(allowed.data)
@@ -234,7 +235,7 @@ export async function runReport(ctx: Ctx, code: string, rawParams: unknown): Pro
   if (!report) return err('NOT_FOUND', 'report not found')
   const params = report.params.safeParse(rawParams)
   if (!params.success) return err('VALIDATION_FAILED', 'invalid report parameters', { field: params.error.issues[0]?.path.join('.') ?? 'params' })
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const allowed = await authorize(tx, ctx, 'report.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const scope = reportScope(allowed.data)

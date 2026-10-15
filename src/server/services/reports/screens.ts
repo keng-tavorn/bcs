@@ -4,6 +4,7 @@ import { authorize, scopesFor } from '@/server/authz'
 import { PERMISSIONS, type StoredRole } from '@/server/authz/permissions'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
+import { reportTx } from './tx'
 import type { RunOptions } from '../_pipeline'
 import { REPORTS, createReportSchedule, periodOf, reportScope, type Column, type KpiParams, type ReportParamField } from './index'
 import { collectKpis, isMobileChannel, isPastDue, kpiDocumentKind, type KpiAssignedTaskItem, type KpiDecisionItem, type KpiPastDueMark, type KpiResult, type KpiTaskItem } from './kpi'
@@ -175,7 +176,7 @@ async function orgReader(tx: TenantTx, ctx: Ctx) {
 export async function kpiView(ctx: Ctx, params: KpiParams): Promise<Result<KpiViewDto>> {
   const period = KpiPeriod.safeParse(params)
   if (!period.success) return err('VALIDATION_FAILED', 'invalid period', { field: period.error.issues[0]?.path.join('.') || 'from', reason: 'PERIOD' })
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const allowed = await orgReader(tx, ctx)
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const { result } = await collectKpis(tx, ctx.organizationId, { ...periodOf(period.data), now: ctx.now }, null)
@@ -253,7 +254,7 @@ export async function kpiDetail(ctx: Ctx, params: KpiParams, measure: string, ki
   if (!period.success) return err('VALIDATION_FAILED', 'invalid period', { field: period.error.issues[0]?.path.join('.') || 'from', reason: 'PERIOD' })
   const which = MeasureInput.safeParse(measure)
   if (!which.success) return err('NOT_FOUND', 'no such KPI figure')
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const allowed = await orgReader(tx, ctx)
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const { items } = await collectKpis(tx, ctx.organizationId, { ...periodOf(period.data), now: ctx.now }, null)

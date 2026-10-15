@@ -183,6 +183,12 @@ export const BACKTEST_WINDOW_DAYS = 90
 export const BACKTEST_SYNC_LIMIT = 500
 /** A backtest reads only, up to BACKTEST_SYNC_LIMIT documents, in a transaction that may take longer than a command's */
 export const BACKTEST_TX_TIMEOUT_MS = 120 * MS_PER_SECOND
+/**
+ * A report reads only, over a period of the organization's documents (collectKpis, the workflow reports of S6-20), in a
+ * transaction that may take longer than Prisma's default 5 seconds: on the phase-1 workbook the workflow report alone
+ * came near it
+ */
+export const REPORT_TX_TIMEOUT_MS = 60 * MS_PER_SECOND
 
 /** S6-21 (BR-UAT-02): a configuration package is a small file — forms, rules and a catalogue; at 3 bytes a Thai character it stays under the 1 MB a server action takes */
 export const CONFIG_PACKAGE_MAX_CHARS = 300_000

@@ -1324,7 +1324,7 @@ def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำน�
             if i.get("previouslyExported"): f.add("PREVIOUSLY_EXPORTED")
             if not a["fromSeed"] and a["activatedOn"] >= iso(day(i["payDate"]) - timedelta(days=pol["recentBankChangeDays"])): f.add("BANK_ACCOUNT_RECENTLY_CHANGED")
             if i.get("pendingChange"): f.add("BANK_CHANGE_PENDING")
-            if any(t != s["taxId"] for t in i.get("sameAccountTaxIds", [])): f.add("SHARED_BANK_ACCOUNT")
+            if any(t is None or s["taxId"] is None or t != s["taxId"] for t in i.get("sameAccountTaxIds", [])): f.add("SHARED_BANK_ACCOUNT")
             flags = [x for x in order if x in f]
             got = {"flags": flags, "requiresReason": any(x in order[:4] for x in flags)}
         elif fn == "flagsKey":

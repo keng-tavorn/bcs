@@ -1,5 +1,6 @@
 import { MS_PER_DAY } from '../money/constants'
 import type { Satang } from '../money/math'
+import { addDays, partsOf } from '../thai/day'
 import { taxDateOf } from '../vat'
 import { paymentWithholding, type WhtLine } from '../wht'
 
@@ -10,7 +11,8 @@ import { paymentWithholding, type WhtLine } from '../wht'
 
 export type Weekday = 'MON' | 'TUE' | 'WED' | 'THU' | 'FRI' | 'SAT' | 'SUN'
 const WEEKDAYS: readonly Weekday[] = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-
+/** How far a pay date is looked for: a calendar with no working day that far is wrong, never an endless search */
+const SEARCH_DAYS = 366
 
 /** The organization's working days: its workdays of the week less its holidays (BR-SLA-01) */
 export interface PayCalendar {
@@ -24,7 +26,12 @@ export interface PaymentPolicy {
   readonly recentBankChangeDays: number
 }
 
-const dayNumber = (day: string) => Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)) - 1, Number(day.slice(8, 10))) / MS_PER_DAY
+/** Days since 1970-01-01 of a real calendar day; "2026-02-30" or any other text throws instead of becoming 2 March */
+function dayNumber(day: string): number {
+  const p = partsOf(day)
+  if (!p) throw new RangeError(`not a calendar day: ${day}`)
+  return Date.UTC(p.year, p.month - 1, p.date) / MS_PER_DAY
+}
 const dayOf = (n: number) => new Date(n * MS_PER_DAY).toISOString().slice(0, 10)
 const weekdayOf = (n: number) => WEEKDAYS[new Date(n * MS_PER_DAY).getUTCDay()]!
 const isWorkday = (n: number, calendar: PayCalendar) => calendar.workdays.includes(weekdayOf(n)) && !calendar.holidays.includes(dayOf(n))
@@ -93,8 +100,9 @@ export type BuiltRun =
   | { readonly ok: true; readonly items: readonly RunItem[]; readonly totals: { readonly payableSatang: Satang; readonly whtSatang: Satang; readonly transferSatang: Satang; readonly itemCount: number; readonly documentCount: number } }
   | ({ readonly supplierCode: string } & Extract<BuiltItem, { ok: false }>)
 
-/** The items numbered by supplier code and the run's totals, the sum of its items */
+/** The items numbered by supplier code and the run's totals, the sum of its items; one item per supplier (BR-PAY-05) */
 export function buildRun(suppliers: readonly RunSupplier[]): BuiltRun {
+  if (new Set(suppliers.map((s) => s.code)).size !== suppliers.length) throw new RangeError('one item per supplier: a supplier code is given twice')
   const items: RunItem[] = []
   for (const [i, s] of [...suppliers].sort((a, b) => (a.code < b.code ? -1 : 1)).entries()) {
     const built = buildItem(s.docs)
@@ -119,12 +127,13 @@ export function nextRunDate(today: string, policy: Pick<PaymentPolicy, 'runWeekd
   if (policy.runWeekdays.length === 0) throw new RangeError('a run needs one weekday at least')
   const start = dayNumber(today)
   const step = policy.holidayShift === 'PREVIOUS' ? -1 : 1
-  for (let n = start; ; n++) {
+  for (let n = start; n < start + SEARCH_DAYS; n++) {
     if (!policy.runWeekdays.includes(weekdayOf(n))) continue
     let candidate = n
-    while (!isWorkday(candidate, calendar)) candidate += step
-    if (candidate >= start) return dayOf(candidate)
+    while (!isWorkday(candidate, calendar) && Math.abs(candidate - n) < SEARCH_DAYS) candidate += step
+    if (isWorkday(candidate, calendar) && candidate >= start) return dayOf(candidate)
   }
+  throw new RangeError('no working day to pay on within a year: check the business calendar')
 }
 
 export type PayDateCheck = { readonly ok: true } | { readonly ok: false; readonly code: 'PAYMENT_DATE_INVALID'; readonly reason: 'PAST' | 'NOT_BUSINESS_DAY' }
@@ -189,10 +198,11 @@ export function itemFlags(input: FlagInput, policy: Pick<PaymentPolicy, 'recentB
   if (input.supplier.status !== 'ACTIVE') on.add('SUPPLIER_INACTIVE')
   if ((input.riskOverrides ?? []).some((o) => o.expiresOn < input.payDate)) on.add('RISK_OVERRIDE_EXPIRED')
   if (input.previouslyExported) on.add('PREVIOUSLY_EXPORTED')
-  if (!input.account.fromSeed && input.account.activatedOn >= dayOf(dayNumber(input.payDate) - policy.recentBankChangeDays)) on.add('BANK_ACCOUNT_RECENTLY_CHANGED')
+  if (!input.account.fromSeed && input.account.activatedOn >= addDays(input.payDate, -policy.recentBankChangeDays)) on.add('BANK_ACCOUNT_RECENTLY_CHANGED')
   if (input.pendingChange) on.add('BANK_CHANGE_PENDING')
-  // the branches of one tax id share an account without a flag
-  if ((input.sameAccountTaxIds ?? []).some((t) => t !== input.supplier.taxId)) on.add('SHARED_BANK_ACCOUNT')
+  // the branches of one tax id share an account without a flag; a supplier without a tax id is never known to be the
+  // same one, so sharing with or as one is flagged
+  if ((input.sameAccountTaxIds ?? []).some((t) => t === null || input.supplier.taxId === null || t !== input.supplier.taxId)) on.add('SHARED_BANK_ACCOUNT')
   const flags = PAYMENT_FLAGS.filter((f) => on.has(f))
   return { flags, requiresReason: flags.some((f) => REASON_FLAGS.includes(f)) }
 }

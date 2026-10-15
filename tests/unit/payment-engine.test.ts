@@ -60,3 +60,25 @@ describe('[FR-PAY-101/AC4] flags without the optional facts', () => {
     expect(flagsKey([a, b])).toBe('SP0001:SUPPLIER_INACTIVE;SP0002:REGISTRY_CHANGED')
   })
 })
+
+describe('S9-02 review: what the engine refuses rather than guesses', () => {
+  it('throws on a day that does not exist instead of using the day it rolls into', () => {
+    expect(() => nextRunDate('2026-02-30', { runWeekdays: ['FRI'], holidayShift: 'PREVIOUS' }, calendar)).toThrow(RangeError)
+    expect(() => itemFlags({ payDate: '2026-13-01', supplier: { registryFlag: 'NONE', status: 'ACTIVE', taxId: null }, account: { activatedOn: '2026-01-05', fromSeed: false } }, { recentBankChangeDays: 30 })).toThrow(RangeError)
+  })
+
+  it('stops with an error when the calendar has no working day within a year, never searching forever', () => {
+    expect(() => nextRunDate('2026-10-12', { runWeekdays: ['FRI'], holidayShift: 'PREVIOUS' }, { workdays: [], holidays: [] })).toThrow(/no working day/)
+  })
+
+  it('refuses two items for one supplier code (BR-PAY-05)', () => {
+    expect(() => buildRun([{ code: 'SP0001', docs: [doc(1_000n)] }, { code: 'SP0001', docs: [doc(2_000n)] }])).toThrow(RangeError)
+  })
+
+  it('flags an account shared with or by a supplier without a tax id (a foreign supplier is never known to be the same one)', () => {
+    const flags = (taxId: string | null, others: (string | null)[]) => itemFlags({ payDate: '2026-10-16', supplier: { registryFlag: 'NONE', status: 'ACTIVE', taxId }, account: { activatedOn: '2026-01-05', fromSeed: true }, sameAccountTaxIds: others }, { recentBankChangeDays: 30 }).flags
+    expect(flags(null, [null])).toEqual(['SHARED_BANK_ACCOUNT'])
+    expect(flags('0999998010560', [null])).toEqual(['SHARED_BANK_ACCOUNT'])
+    expect(flags('0999998010560', ['0999998010560'])).toEqual([])
+  })
+})

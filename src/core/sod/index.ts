@@ -2,6 +2,8 @@
 // people tied to the document. The route already avoids conflicting approvers (BR-DOA-06); these checks run again at
 // the moment of acting, so a change of people after routing can never slip through.
 
+import { addDays } from '../thai/day'
+
 export interface SodPolicy {
   /** BR-SOD-02: an approver of the PR or PO may receive its goods (default false) */
   readonly approverMayReceive: boolean
@@ -84,8 +86,8 @@ const SELF_BENEFIT_KINDS: readonly OrgAuthorityChangeKind[] = ['POSITION_ASSIGN'
 /** BR-SOD-10: the actor proposed a change that came into force on or after payDate − recentBankChangeDays */
 function changedRecently(actorMemberId: string, recent: RecentBankChanges | undefined): boolean {
   if (!recent) return false
-  const [y, m, d] = recent.payDate.split('-').map(Number) as [number, number, number]
-  const since = new Date(Date.UTC(y, m - 1, d - recent.recentBankChangeDays)).toISOString().slice(0, 10)
+  // the same window as the item's BANK_ACCOUNT_RECENTLY_CHANGED flag (../payment)
+  const since = addDays(recent.payDate, -recent.recentBankChangeDays)
   return recent.changes.some((c) => c.proposerMemberId === actorMemberId && c.effectiveOn >= since)
 }
 

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { nextRunDate } from '@/core/payment'
 import { taxDateOf } from '@/core/vat'
 import { getEnv } from '@/lib/env'
+import { upsertUserWithPassword } from '@/server/auth/provision'
 import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { seedDevPins } from '@/server/seed/pins'
@@ -44,6 +45,12 @@ if (mode === 'liff') {
   const line = await seedLineChannel(ap.org.organizationId, getEnv(), AP_NOW)
   if (line.status !== 'CREATED') throw new Error(`the LINE channel was not saved: ${line.status}`)
   await seedDevPins(ap.org.organizationId, E2E_PIN, AP_NOW)
+  // the CFO signs in (a LINE link is a member's with an account of their own)
+  const password = process.env.SEED_DEV_PASSWORD
+  if (!password) throw new Error('SEED_DEV_PASSWORD is needed')
+  const email = `cfo.${tag.toLowerCase()}@pay.bcs.local`
+  const userId = await upsertUserWithPassword({ email, name: 'ผู้ใช้ cfo', password })
+  await prisma.member.update({ where: { id: ap.org.member.cfo! }, data: { email, userId } })
   await linkLine(ap.org.organizationId, ap.org.member.cfo!, arg)
 
   const flagged = await paySupplier(ap)

@@ -65,8 +65,9 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
   // S9: bank_account_number and its change's shape (10–12 digits); not ACTIVE, not open, not CURRENT, released, so the
   // shared parent rows never meet the one-per-supplier, one-open, one-current and one-live partial uniques
-  // an account of the organization, so a payment run may pay from it (bcs_payment_run_payer); each row its own code
-  BankAccount: { ownerKind: 'ORGANIZATION', code: () => `CB-${randomUUID().slice(0, 8)}`, accountType: 'CURRENT', accountNo: '9123456789', status: 'CLOSED' },
+  // an ACTIVE account of the organization, so a payment run may pay from it (bcs_payment_run_payer); each row its own
+  // code (no partial unique counts ACTIVE accounts of the organization)
+  BankAccount: { ownerKind: 'ORGANIZATION', code: () => `CB-${randomUUID().slice(0, 8)}`, accountType: 'CURRENT', accountNo: '9123456789', status: 'ACTIVE' },
   BankAccountChange: { bankCode: '002', accountNo: '9000000001', accountName: 'ผู้ขาย', status: 'REJECTED' },
   PaymentRunDocument: { status: 'RELEASED' },
   PaymentFile: { sha256: 'a'.repeat(64), status: 'SUPERSEDED' },

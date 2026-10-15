@@ -54,11 +54,12 @@ describe('[INV-PAY-04] [BR-SUP-07] bank accounts', () => {
     await expect(prisma.bankAccount.create({ data: supplierAccount({ supplierId: otherSupplierId, status: 'CLOSED', ...over }) })).rejects.toThrow()
   })
 
-  it('refuses an account of the organization without its type or code, or naming a supplier', async () => {
+  it('refuses an account of the organization without its type, or naming a supplier; its code is optional', async () => {
     const own = { organizationId: orgId, ownerKind: 'ORGANIZATION' as const, bankCode: '004', accountNo: '9991000017', accountName: 'บริษัททดสอบ' }
     await expect(prisma.bankAccount.create({ data: { ...own, code: 'CB-09' } })).rejects.toThrow()
-    await expect(prisma.bankAccount.create({ data: { ...own, accountType: 'CURRENT' } })).rejects.toThrow()
     await expect(prisma.bankAccount.create({ data: { ...own, code: 'CB-08', accountType: 'CURRENT', supplierId } })).rejects.toThrow()
+    // the code (CB-01) is the organization's label, not required by the sub-spec: an approved change makes the account without it
+    await expect(prisma.bankAccount.create({ data: { ...own, accountType: 'CURRENT', status: 'CLOSED' } })).resolves.toBeTruthy()
   })
 })
 
@@ -82,9 +83,14 @@ describe('[BR-SUP-06] bank account changes', () => {
     ['ADD naming a target', () => ({ targetBankAccountId: payerId })],
     ['ADD without the account number', () => ({ accountNo: null })],
     ['a number with letters', () => ({ accountNo: '90000000AB' })],
+    ['an account of the organization added without its type', () => ({ ownerKind: 'ORGANIZATION', supplierId: null })],
     ['no reason', () => ({ reason: '' })],
   ])('refuses %s', async (_label, over) => {
     await expect(prisma.bankAccountChange.create({ data: change({ status: 'REJECTED', ...over() }) })).rejects.toThrow()
+  })
+
+  it('accepts an account of the organization added with its type and without a supplier', async () => {
+    await expect(prisma.bankAccountChange.create({ data: change({ status: 'REJECTED', ownerKind: 'ORGANIZATION', supplierId: null, accountType: 'SAVINGS' }) })).resolves.toBeTruthy()
   })
 })
 
@@ -197,5 +203,27 @@ describe('S9-01 review: guards of the payment tables', () => {
     expect(privileges).not.toContain('DELETE')
     expect(privileges).not.toContain('TRUNCATE')
     expect(privileges).toContain('UPDATE')
+  })
+})
+
+describe('S9 review of the lane: the accounts a run pays from and into', () => {
+  const run = (payerBankAccountId: string, day: string) => ({ organizationId: orgId, payDate: new Date(`${day}T00:00:00Z`), payerBankAccountId, fileTemplateCode: 'BCS-NEUTRAL-1', preparedById: memberId })
+
+  it('[BR-PAY-01] pays a run only from an ACTIVE account of the organization', async () => {
+    const closed = await prisma.bankAccount.create({ data: { organizationId: orgId, ownerKind: 'ORGANIZATION', code: 'CB-07', bankCode: '004', accountNo: '9991000018', accountName: 'บริษัททดสอบ', accountType: 'SAVINGS', status: 'CLOSED' } })
+    await expect(prisma.paymentRun.create({ data: run(closed.id, '2026-12-04') })).rejects.toThrow()
+    const ok = await prisma.paymentRun.create({ data: run(payerId, '2026-12-04') })
+    await expect(prisma.paymentRun.update({ where: { id: ok.id }, data: { payerBankAccountId: closed.id } })).rejects.toThrow()
+  })
+
+  it('[BR-PAY-05] pays an item only into an account of its own supplier', async () => {
+    const runId = (await prisma.paymentRun.create({ data: run(payerId, '2026-12-11') })).id
+    const own = await prisma.bankAccount.create({ data: supplierAccount({ status: 'SUPERSEDED', accountNo: '9222222222' }) })
+    const others = await prisma.bankAccount.create({ data: supplierAccount({ supplierId: otherSupplierId, status: 'SUPERSEDED', accountNo: '9333333333' }) })
+    const item = { organizationId: orgId, paymentRunId: runId, supplierId }
+    await expect(prisma.paymentRunItem.create({ data: { ...item, bankAccountId: others.id } })).rejects.toThrow()
+    await expect(prisma.paymentRunItem.create({ data: { ...item, bankAccountId: payerId } })).rejects.toThrow()
+    const ok = await prisma.paymentRunItem.create({ data: { ...item, bankAccountId: own.id } })
+    await expect(prisma.paymentRunItem.update({ where: { id: ok.id }, data: { bankAccountId: others.id } })).rejects.toThrow()
   })
 })

@@ -138,10 +138,13 @@ export function nextRunDate(today: string, policy: Pick<PaymentPolicy, 'runWeekd
 
 export type PayDateCheck = { readonly ok: true } | { readonly ok: false; readonly code: 'PAYMENT_DATE_INVALID'; readonly reason: 'PAST' | 'NOT_BUSINESS_DAY' }
 
-/** A pay date is today or later in Thai time, and a working day (checked at create, update, submit and approval) */
+/**
+ * A pay date is a working day, and today or later in Thai time (checked at create, update, submit and approval); a day
+ * that fails both is NOT_BUSINESS_DAY, the first condition and reason of BR-PAY-02
+ */
 export function checkPayDate(payDate: string, at: Date, calendar: PayCalendar): PayDateCheck {
-  if (payDate < taxDateOf(at)) return { ok: false, code: 'PAYMENT_DATE_INVALID', reason: 'PAST' }
   if (!isWorkday(dayNumber(payDate), calendar)) return { ok: false, code: 'PAYMENT_DATE_INVALID', reason: 'NOT_BUSINESS_DAY' }
+  if (payDate < taxDateOf(at)) return { ok: false, code: 'PAYMENT_DATE_INVALID', reason: 'PAST' }
   return { ok: true }
 }
 

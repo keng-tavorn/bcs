@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildItem, buildRun, flagsKey, itemFlags, nextRunDate, proposeDocuments, type ItemDocument, type PayCalendar } from '@/core/payment'
+import { buildItem, buildRun, checkPayDate, flagsKey, itemFlags, nextRunDate, proposeDocuments, type ItemDocument, type PayCalendar } from '@/core/payment'
 
 // src/core/payment beyond the golden cases of payment-run.yaml (S9-02): the refusals a run passes on, the NEXT shift,
 // documents without a due date, an item without the optional facts, and the order of codes either way round.
@@ -27,6 +27,11 @@ describe('[FR-PAY-101/AC3] buildItem and buildRun refuse what cannot be paid', (
 describe('[FR-PAY-101/AC2] the pay date and the documents proposed', () => {
   it('moves a Friday holiday to the next working day when the policy says NEXT', () => {
     expect(nextRunDate('2026-10-19', { runWeekdays: ['FRI'], holidayShift: 'NEXT' }, calendar)).toBe('2026-10-26')
+  })
+
+  it('reports a past holiday as NOT_BUSINESS_DAY, the first condition of BR-PAY-02', () => {
+    expect(checkPayDate('2026-10-10', new Date('2026-10-14T03:00:00Z'), calendar)).toEqual({ ok: false, code: 'PAYMENT_DATE_INVALID', reason: 'NOT_BUSINESS_DAY' })
+    expect(checkPayDate('2026-10-13', new Date('2026-10-14T03:00:00Z'), calendar)).toEqual({ ok: false, code: 'PAYMENT_DATE_INVALID', reason: 'PAST' })
   })
 
   it('needs one run weekday at least', () => {

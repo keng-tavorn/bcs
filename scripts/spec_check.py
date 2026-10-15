@@ -1311,7 +1311,7 @@ def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำน�
         elif fn == "nextRunDate": got = next_run(i["today"])
         elif fn == "checkPayDate":
             today = thai_today(i["at"])
-            got = {"error": "PAYMENT_DATE_INVALID", "reason": "PAST"} if i["payDate"] < today else ({"error": "PAYMENT_DATE_INVALID", "reason": "NOT_BUSINESS_DAY"} if not workday(day(i["payDate"])) else {"ok": True})
+            got = {"error": "PAYMENT_DATE_INVALID", "reason": "NOT_BUSINESS_DAY"} if not workday(day(i["payDate"])) else ({"error": "PAYMENT_DATE_INVALID", "reason": "PAST"} if i["payDate"] < today else {"ok": True})
         elif fn == "proposeDocuments": got = {"proposed": [x["id"] for x in i["docs"] if x["kind"] == "RETENTION" or x["dueDate"] <= i["payDate"]]}
         elif fn == "checkPaidOn":
             today = thai_today(i["at"])

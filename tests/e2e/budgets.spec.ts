@@ -56,13 +56,14 @@ test('[FR-BUD-005/AC1] [FR-BUD-005/AC2] [FR-BUD-005/AC3] the dashboard shows eve
   // The line, its department and the total, to the satang as the ledger has them (AC1)
   const line = lineBlock(page, wide, s.line.code)
   await expectFigures(line, wide, s.figures.line)
-  await expect(line).toContainText('ใช้แล้ว 45.0%')
+  // S6-18 (BR-BUD-17): the used share is the burn's, rounded down with two decimals
+  await expect(line).toContainText('ใช้แล้ว 45.00%')
   await expect(line).toContainText('รวมที่จองแล้ว 91.3%')
   await expect(line).toContainText('ใกล้หมด เหลือ 8.7%')
   // …and every share and the warning's share left open what makes them up, like the amounts (§9.9 every number opens
   // its list): the documents behind a share, the ledger's movements behind what is left
   for (const [name, section] of [
-    [`ใช้แล้ว 45.0% ของ ${s.line.code}: ดูเอกสารที่ถือและตัดจ่ายจริง`, 'committed'],
+    [`ใช้แล้ว 45.00% ของ ${s.line.code}: ดูเอกสารที่ถือและตัดจ่ายจริง`, 'committed'],
     [`รวมที่จองแล้ว 91.3% ของ ${s.line.code}: ดูเอกสารที่จอง ถือ และตัดจ่ายจริง`, 'reserved'],
     [`ใกล้หมด เหลือ 8.7% ของ ${s.line.code}: ดูความเคลื่อนไหวในบัญชีงบ`, 'movements'],
   ] as const) {

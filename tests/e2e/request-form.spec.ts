@@ -178,7 +178,7 @@ test('[FR-INT-003/AC1] [FR-INT-003/AC2] [FR-INT-004/AC1] [FR-DOA-003/AC2] @demo 
   await expect(page.getByText('งบคงเหลือของบรรทัดนี้')).toBeVisible()
   await expect(page.getByText(/^[\d,]+\.\d{2} บาท$/).first()).toBeVisible()
   await page.getByLabel('ราคาที่กรอกรวม VAT แล้ว').check()
-  await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'ปูนซีเมนต์', quantity: '1', uom: 'งาน', price: '45000' })
+  await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: `ปูนซีเมนต์ (${testInfo.project.name})`, quantity: '1', uom: 'งาน', price: '45000' })
   // VAT inside a price that includes it = round(45,000 × 700 / 10,700) = 2,943.93 (BR-VAT-03)
   await expect(page.getByText('42,056.07 บาท').first()).toBeVisible()
   await expect(page.getByText('45,000.00 บาท').first()).toBeVisible()
@@ -343,7 +343,7 @@ test('[FR-INT-005/AC1] [FR-INT-005/AC2] [FR-INT-005/AC4] above 100,000 baht: quo
   await nextStep(page, 'รายการ ราคา และงบ')
   await page.getByLabel('บรรทัดงบที่ใช้').selectOption({ label: 'CON-CAPEX-2569 · ลงทุนเครื่องมือและอุปกรณ์ ฝ่ายก่อสร้าง' })
   await page.getByLabel('ราคาที่กรอกรวม VAT แล้ว').check()
-  await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: 'เครื่องผสมปูน', quantity: '1', uom: 'เครื่อง', price: '107000' })
+  await fillLine(page.getByRole('group', { name: 'รายการที่ 1' }), { description: `เครื่องผสมปูน (${testInfo.project.name})`, quantity: '1', uom: 'เครื่อง', price: '107000' })
   await nextStep(page, 'ผู้ขายและใบเสนอราคา')
 
   const quotation = async (n: number, supplier: string, amount: string, includesVat: boolean) => {

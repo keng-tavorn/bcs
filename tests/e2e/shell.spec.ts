@@ -52,7 +52,7 @@ test('[FR-PLT-002/AC2] Thai by default, English on request; the menu lists what 
   await openMenuOnPhone(page, isMobile)
   const nav = page.getByRole('navigation', { name: 'เมนูหลัก' })
   // §9.10 for a member without roles: the main group, suppliers and the pending board, and their own settings
-  await expect(nav.getByRole('link')).toHaveText(['หน้าแรก', 'งานอนุมัติ', 'คำขอ', 'ผู้ขาย', 'เอกสารค้าง', 'ตั้งค่าของฉัน'])
+  await expect(nav.getByRole('link')).toHaveText(['หน้าแรก', 'งานอนุมัติ', 'คำขอ', 'ผู้ขาย', 'แคตตาล็อก', 'เอกสารค้าง', 'ตั้งค่าของฉัน'])
   await expect(nav.getByRole('link', { name: 'หน้าแรก' })).toHaveAttribute('aria-current', 'page')
   await page.screenshot({ path: testInfo.outputPath('menu-th.png'), fullPage: true })
   if (isMobile) await page.keyboard.press('Escape')

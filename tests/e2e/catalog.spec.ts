@@ -153,7 +153,7 @@ test('[FR-INT-102/AC2] a requester picks a catalogue item in the request form: t
   const line = page.getByRole('group', { name: 'รายการที่ 1' })
   await line.getByRole('button', { name: 'เลือกรายการที่ 1 จากแคตตาล็อก' }).click()
   const picker = page.getByRole('dialog', { name: 'เลือกจากแคตตาล็อกสำหรับรายการที่ 1' })
-  await picker.getByLabel('ค้นหาในแคตตาล็อก').fill(s.code)
+  await picker.getByLabel('ค้นหาในแคตตาล็อก', { exact: true }).fill(s.code)
   await picker.getByRole('button', { name: 'ค้นหา', exact: true }).click()
   const found = picker.getByRole('list', { name: 'ผลการค้นหาในแคตตาล็อก' }).getByRole('listitem')
   await expect(found).toHaveCount(1)

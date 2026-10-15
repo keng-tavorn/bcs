@@ -23,6 +23,8 @@ function scene<T>(...args: string[]): T {
 }
 
 async function check(page: Page, testInfo: TestInfo, name: string) {
+  // After an action the page's metadata streams in again: axe reads the page once its title is back
+  await expect(page).toHaveTitle(/\S/)
   await expectNoSideways(page)
   await expectNoBlockingAxe(page)
   await shot(page, testInfo, name)
@@ -99,7 +101,7 @@ test('[FR-PLT-101/AC2] an organization admin exports a workflow package; a packa
   await expect(shown).toHaveCount(3)
   await expect(shown.filter({ hasText: `${rows.workflow}/R1/${rows.position}` })).toContainText('องค์กรนี้ไม่มีตำแหน่งหรือแผนกรหัสนี้ เพิ่มในผังองค์กรก่อน')
   await expect(shown.filter({ hasText: `${rows.workflow}/R1/${rows.member}` })).toContainText('องค์กรนี้ไม่มีสมาชิกที่มีรหัสพนักงานนี้')
-  await expect(shown.filter({ hasText: `${rows.catalog}/${rows.supplier}` })).toContainText('องค์กรนี้ไม่มีผู้ขายรหัสนี้ เพิ่มผู้ขายก่อน')
+  await expect(shown.filter({ hasText: `${rows.catalog}/${rows.supplier}` })).toContainText('องค์กรนี้ไม่มีผู้ขายรหัสนี้ที่ใช้งานอยู่ เพิ่มหรือเปิดใช้ผู้ขายก่อน')
   await expect(shown.filter({ hasText: `${rows.catalog}/${rows.supplier}` })).toContainText('แคตตาล็อกและราคาตกลง')
   await check(page, testInfo, 'uat-config-rows')
 

@@ -90,7 +90,7 @@ async function request(requesterCode: string, gross: string, title: string, with
   await makeRoom(line.code, amountToSatang(gross))
   const draft = await createDraft(
     ctxOf(m),
-    { requestTypeCode: 'BUY_GOODS', title, priceIncludesVat: true, budgetLineId: line.id, lines: [{ description: 'วัสดุและอุปกรณ์', quantity: '1', uom: 'ชุด', unitPrice: gross }] },
+    { requestTypeCode: 'BUY_GOODS', title, priceIncludesVat: true, budgetLineId: line.id, lines: [{ description: `วัสดุและอุปกรณ์: ${title}`, quantity: '1', uom: 'ชุด', unitPrice: gross }] },
     key(),
   )
   if (!draft.ok) throw new Error(`draft failed: ${JSON.stringify(draft.error)}`)

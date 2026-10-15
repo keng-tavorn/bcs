@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useRef, useState, type FormEvent } from 'react'
 import { Button } from '../form/button'
@@ -39,7 +38,6 @@ export function sandboxErrorOf(f: AdminFailure): { field: SandboxField | null; k
 // anything (NG-12): the page says so above it. After it is made the confirmation names the sandbox and links its page.
 export function SandboxForm({ organizationId, example, createSandbox }: { organizationId: string; example: string; createSandbox: CreateSandboxAction }) {
   const t = useTranslations('platform.tenant.sandbox')
-  const router = useRouter()
   const formRef = useRef<HTMLFormElement>(null)
   const submission = useSubmissionKey()
   const [pending, setPending] = useState(false)
@@ -78,8 +76,9 @@ export function SandboxForm({ organizationId, example, createSandbox }: { organi
       return field ? setErrors({ [field]: text }) : setFailure(text)
     }
     setDone({ id: outcome.sandboxOrganizationId, code: outcome.code })
+    // The action revalidated the tenant pages (revalidatePath), so this page comes back with the new sandbox: no second
+    // refresh, whose metadata would stream in again while the person reads the notice
     formRef.current?.reset()
-    router.refresh()
   }
 
   return (

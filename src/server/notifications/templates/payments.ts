@@ -41,4 +41,8 @@ export const PAYMENT_TEMPLATES: Readonly<Record<string, Template>> = {
 }
 
 /** §10.1 rows of S9 whose channel is "LINE → อีเมล": deliver.ts sends these by LINE (LINE_TEMPLATES) */
-export const PAYMENT_LINE_TEMPLATES: readonly string[] = ['bank_account_change.decided']
+export const PAYMENT_LINE_TEMPLATES: readonly string[] = [
+  'bank_account_change.decided',
+  // S8-10's notice of a PO change decided, whose §10.1 row says "ในระบบ · LINE" (S9-18): lane 2 lists it here too
+  'po_change.decided',
+]

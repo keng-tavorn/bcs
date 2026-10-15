@@ -362,9 +362,12 @@
       "documents_added": "Documents added to the payment run",
       "documents_removed": "Documents taken out of the payment run",
       "drafted": "Payment run drafted",
+      "file_generated": "Bank file made",
       "rejected": "Payment run rejected",
       "resubmitted": "Payment run sent for approval again",
       "returned": "Payment run returned",
+      "sent_reverted": "Sending to the bank taken back",
+      "sent_to_bank": "Bank file sent to the bank",
       "submitted": "Payment run sent for approval",
       "updated": "Payment run edited"
     },

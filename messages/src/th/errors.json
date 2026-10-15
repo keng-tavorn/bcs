@@ -43,6 +43,7 @@
   "BANK_ACCOUNT_NOT_APPROVED": "ผู้ขาย {supplier} ยังไม่มีบัญชีรับเงินที่อนุมัติแล้ว",
   "PAYMENT_FLAG_REASON_REQUIRED": "รายการของ {supplier} มีธง {flag} กรุณาระบุเหตุผลก่อนส่ง",
   "PAYMENT_FLAGS_CHANGED": "ธงของรอบจ่ายเปลี่ยนตั้งแต่คุณเปิดหน้า กรุณาโหลดใหม่และตรวจอีกครั้ง",
+  "BANK_FILE_CHECK_FAILED": "ตรวจก่อนสร้างไฟล์จ่ายเงินไม่ผ่าน: {checks}",
   "STEP_UP_LOCKED": "ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time}",
   "STEP_UP_REQUIRED": "รายการนี้ต้องยืนยันด้วย PIN",
   "RATE_LIMITED": "ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง",

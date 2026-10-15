@@ -19,6 +19,11 @@ defineEvents('PaymentRun', {
   'payment_run.approved': { schema: z.object({ number: z.string().min(1), flagsKey: z.string(), totalTransferSatang: satang }) },
   'payment_run.rejected': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable(), documentCount: z.number().int().min(0) }) },
   'payment_run.returned': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
+  // S9-07: a version of the bank file (BR-BANK-07): its sha256, count and total, and whether the version before it
+  // had been downloaded; marked sent to the bank and taken back (the reason is a Comment of the run)
+  'payment_run.file_generated': { schema: z.object({ paymentFileId: z.uuid(), version: z.number().int().min(1), templateCode: z.string().min(1), sha256: z.string().regex(/^[0-9a-f]{64}$/), itemCount: z.number().int().min(1), totalTransferSatang: satang, afterExport: z.boolean() }) },
+  'payment_run.sent_to_bank': { schema: z.object({ paymentFileId: z.uuid(), fileVersion: z.number().int().min(1) }) },
+  'payment_run.sent_reverted': { schema: z.object({ reasonCommentId: z.uuid() }) },
   /** afterExport: a file of the run had been downloaded (BR-PAY-10) */
   'payment_run.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY']), afterExport: z.boolean(), documentCount: z.number().int().min(0) }) },
 })

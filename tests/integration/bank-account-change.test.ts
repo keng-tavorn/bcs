@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import { Writable } from 'node:stream'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createLogger, logger } from '@/lib/logger'
 import type { Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { approvalCardMessage } from '@/server/line/postback-cards'
@@ -20,6 +18,7 @@ import {
 import { getBankAccountChange, listBankAccounts, revealBankAccount, revealBankAccountChange } from '@/server/services/bank-accounts/view'
 import { getDownloadUrl } from '@/server/services/files'
 import { AP_NOW, apOrg, key, ok, type ApOrg } from '../support/ap'
+import { logsOf } from '../support/logs'
 import { messagesTo } from '../support/mailpit'
 import { stepUpForTask } from '../support/pin'
 
@@ -346,21 +345,6 @@ describe('[FR-PAY-102/AC8] numbers masked on every page; opened whole by FINANCE
     expect(await logs(account!.id)).toEqual([expect.objectContaining({ memberId: ap.org.member.fin_officer, subjectType: 'BankAccount', fields: ['accountNo'] })])
   })
 })
-
-/** The JSON lines the app logs while `run` runs (the app's serializers and redaction) */
-async function logsOf(run: () => Promise<unknown>): Promise<string> {
-  const lines: string[] = []
-  const sink = createLogger(new Writable({ write: (chunk, _e, done) => (lines.push(String(chunk)), done()) }), 'trace')
-  const spies = [vi.spyOn(logger, 'child').mockImplementation(((b, o) => sink.child(b, o)) as typeof logger.child)]
-  for (const level of ['info', 'warn', 'error', 'debug'] as const) spies.push(vi.spyOn(logger, level).mockImplementation(((...a: unknown[]) => (sink[level] as (...x: unknown[]) => void)(...a)) as never) as never)
-  try {
-    logger.info({ probe: true }, 'log capture probe')
-    await run()
-  } finally {
-    spies.forEach((s) => s.mockRestore())
-  }
-  return lines.join('\n')
-}
 
 describe('[NFR-SEC-09] no account number whole in a log, an event, a notification, a LINE card or an e-mail', () => {
   it('a replacement from proposal to the supplier’s e-mail', async () => {

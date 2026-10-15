@@ -49,6 +49,20 @@ export const PAYMENT_TEMPLATES: Readonly<Record<string, Template>> = {
     title: { th: `บัญชีรับเงินของผู้ขาย ${str(d.supplierCode)} เปลี่ยนแล้ว ตรวจรอบจ่ายร่างก่อนส่ง`, en: `The bank account of supplier ${str(d.supplierCode)} changed; check your draft payment run before sending it` },
     href: d.paymentRunId ? `/finance/payments/${str(d.paymentRunId)}` : '/finance/payments',
   }),
+  // §10.1 a new version of the bank file after the one in use was downloaded: the approvers hear of it (BR-BANK-07)
+  'payment_run.file_regenerated': (d) => ({
+    title: { th: `ไฟล์จ่ายเงินของรอบ ${str(d.number)} ถูกสร้างใหม่เป็นเวอร์ชัน ${str(d.version)} หลังดาวน์โหลดไฟล์เดิมแล้ว`, en: `The bank file of payment run ${str(d.number)} was made again as version ${str(d.version)} after the earlier one was downloaded` },
+    body: { th: 'ผู้สร้างยืนยันว่ายังไม่ได้ส่งไฟล์เดิมเข้าธนาคาร ใช้เฉพาะไฟล์เวอร์ชันล่าสุด', en: 'Its maker confirmed the earlier file was not sent to the bank; only the latest version is used' },
+    href: `/finance/payments/${str(d.paymentRunId)}`,
+  }),
+  // §10.1 payment_run.cancelled after approval: the approvers and the preparer hear of it (BR-PAY-10, OQ-136)
+  'payment_run.cancelled': (d) => ({
+    title: { th: `รอบจ่าย ${str(d.number)} ถูกยกเลิกหลังอนุมัติ เอกสารกลับไปพร้อมจ่าย`, en: `Payment run ${str(d.number)} was cancelled after approval; its documents are ready for payment again` },
+    ...(d.afterExport
+      ? { body: { th: 'ไฟล์ของรอบเคยถูกดาวน์โหลด ผู้ยกเลิกยืนยันว่ายังไม่ได้ส่งธนาคาร เอกสารจะติดธงในรอบถัดไป', en: 'A file of the run had been downloaded; the person who cancelled it confirmed it was not sent to the bank, and its documents carry a flag in the next run' } }
+      : {}),
+    href: `/finance/payments/${str(d.paymentRunId)}`,
+  }),
 }
 
 /** §10.1 rows of S9 whose channel is "LINE → อีเมล": deliver.ts sends these by LINE (LINE_TEMPLATES) */

@@ -122,7 +122,7 @@ describe('[FR-PAY-102/AC7] a supplier’s account comes into force only by an ap
     ok(await attachBankProof(fin(), { changeId, version: await versionOf(changeId), fileId }, key()))
     expect(await submitBankAccountChange(fin(), { changeId, version: await versionOf(changeId) }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'CALL_VERIFICATION_REQUIRED' } } })
     // the note names no account: neither the new number nor the one replaced, however it is written
-    for (const note of ['ยืนยันเลข 666-777-8889 แล้ว', 'บัญชีเดิม 2223334445 ปิดแล้ว']) {
+    for (const note of ['ยืนยันเลข 666-777-8889 แล้ว', 'บัญชีเดิม 2223334445 ปิดแล้ว', 'เลขใหม่ ๖๖๖๗๗๗๘๘๘๙', 'เลข 666.777.8889 ตามสมุด', 'เลขเดิม 222/333/4445']) {
       expect(await updateBankAccountChange(fin(), { changeId, version: await versionOf(changeId), callVerificationNote: note }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'NOTE_HAS_ACCOUNT_NO' } } })
     }
     ok(await updateBankAccountChange(fin(), { changeId, version: await versionOf(changeId), callVerificationNote: 'โทร 081-234-5678 ตามทะเบียน ผู้ขายยืนยันการเปลี่ยน' }, key()))
@@ -149,6 +149,8 @@ describe('[FR-PAY-102/AC7] a supplier’s account comes into force only by an ap
     await sent({ kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: s.id, bankCode: '002', accountNo: '1112223334', accountName: 'ร้าน ข', reason: 'บัญชีแรก' }).then(approve)
     const [account] = await activeOf(s.id)
     expect(await createBankAccountChange(fin(), { kind: 'CLOSE', ownerKind: 'SUPPLIER', supplierId: s.id, targetBankAccountId: account!.id, accountNo: '1112223335', reason: 'ผู้ขายปิดบัญชี' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'CLOSE_HAS_ACCOUNT' } } })
+    expect(await createBankAccountChange(fin(), { kind: 'CLOSE', ownerKind: 'SUPPLIER', supplierId: s.id, targetBankAccountId: account!.id, branchName: 'สาขาสีลม', reason: 'ผู้ขายปิดบัญชี' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'CLOSE_HAS_ACCOUNT' } } })
+    expect(await createBankAccountChange(fin(), { kind: 'CLOSE', ownerKind: 'SUPPLIER', supplierId: s.id, targetBankAccountId: account!.id, reason: 'ปิดบัญชี 111-222-3334 แล้ว' }, key())).toMatchObject({ ok: false, error: { details: { field: 'reason', reason: 'NOTE_HAS_ACCOUNT_NO' } } })
     const changeId = await sent({ kind: 'CLOSE', ownerKind: 'SUPPLIER', supplierId: s.id, targetBankAccountId: account!.id, reason: 'ผู้ขายปิดบัญชี' })
     ok(await approve(changeId))
     expect(await prisma.bankAccount.findUniqueOrThrow({ where: { id: account!.id } })).toMatchObject({ status: 'CLOSED' })
@@ -170,7 +172,7 @@ describe('[FR-PAY-102/AC7] a supplier’s account comes into force only by an ap
     let task = (await openTaskOf(changeId))!
     await stepUpForTask(task.id, task.assigneeMemberId)
     ok(await decideTask(ctxOf('cfo'), { taskId: task.id, decision: 'RETURN', reason: 'ชื่อบัญชีไม่ตรงหนังสือ' }, key()))
-    expect(await prisma.bankAccountChange.findUniqueOrThrow({ where: { id: changeId } })).toMatchObject({ status: 'DRAFT', currentRouteId: null })
+    expect(await prisma.bankAccountChange.findUniqueOrThrow({ where: { id: changeId } })).toMatchObject({ status: 'DRAFT', currentRouteId: null, decidedAt: null })
     expect(await prisma.notification.findFirstOrThrow({ where: { templateKey: 'bank_account_change.decided', subjectId: changeId } })).toMatchObject({ data: { outcome: 'RETURNED' } })
     ok(await updateBankAccountChange(fin(), { changeId, version: await versionOf(changeId), accountName: 'ร้าน ค จำกัด' }, key()))
     ok(await submitBankAccountChange(fin(), { changeId, version: await versionOf(changeId) }, key()))
@@ -187,7 +189,12 @@ describe('[FR-PAY-102/AC7] a supplier’s account comes into force only by an ap
     const s = await supplier()
     const changeId = await sent({ kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: s.id, bankCode: '011', accountNo: '3334445556', accountName: 'ร้าน ง', reason: 'บัญชีแรก' })
     expect(await createBankAccountChange(fin(), { kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: s.id, bankCode: '011', accountNo: '3334445557', accountName: 'ร้าน ง', reason: 'อีกใบ' }, key())).toMatchObject({ ok: false, error: { details: { reason: 'CHANGE_OPEN', changeId } } })
+    // the reason names no account, and it is kept as a Comment: free text never goes into Event.data
+    expect(await cancelBankAccountChange(fin(), { changeId, version: await versionOf(changeId), reason: 'เลข 333-444-5556 ผิด' }, key())).toMatchObject({ ok: false, error: { details: { field: 'reason', reason: 'NOTE_HAS_ACCOUNT_NO' } } })
     ok(await cancelBankAccountChange(fin(), { changeId, version: await versionOf(changeId), reason: 'ผู้ขายขอยกเลิก' }, key()))
+    const cancelled = await prisma.event.findFirstOrThrow({ where: { aggregateId: changeId, type: 'bank_account_change.cancelled' } })
+    expect(cancelled.data).toEqual({ from: 'PENDING_APPROVAL', reasonCommentId: expect.any(String) })
+    expect(await prisma.comment.findUniqueOrThrow({ where: { id: (cancelled.data as { reasonCommentId: string }).reasonCommentId } })).toMatchObject({ subjectType: 'BankAccountChange', subjectId: changeId, body: 'ผู้ขายขอยกเลิก' })
     expect(await openTaskOf(changeId)).toBeNull()
     expect(await prisma.approvalRoute.findFirstOrThrow({ where: { subjectType: 'BANK_ACCOUNT_CHANGE', subjectId: changeId } })).toMatchObject({ status: 'CANCELLED' })
     await sent({ kind: 'ADD', ownerKind: 'SUPPLIER', supplierId: s.id, bankCode: '011', accountNo: '3334445556', accountName: 'ร้าน ง', reason: 'ส่งใหม่' }).then(approve)
@@ -275,6 +282,8 @@ describe('[FR-PAY-102/AC7] what is refused', () => {
     expect((await refusal({ bankCode: '999' })).error.details.reason).toBe('BANK_CODE_UNKNOWN')
     expect((await refusal({ accountName: 'ร้าน\u0007ญ' })).error.details.reason).toBe('ACCOUNT_NAME_FORMAT')
     expect(await createBankAccountChange(fin(), { ...base, accountName: 'ก'.repeat(201) }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    expect(await createBankAccountChange(fin(), { ...base, accountType: 'SAVINGS' }, key())).toMatchObject({ ok: false, error: { details: { field: 'accountType', reason: 'OWNER' } } })
+    expect(await createBankAccountChange(fin(), { ...base, reason: 'ผู้ขายแจ้งเลข ๑๒๓๔๕๖๗๘๙๐' }, key())).toMatchObject({ ok: false, error: { details: { field: 'reason', reason: 'NOTE_HAS_ACCOUNT_NO' } } })
     const { changeId } = ok(await createBankAccountChange(fin(), { ...base, accountNo: '1234 567-890' }, key()))
     expect(await prisma.bankAccountChange.findUniqueOrThrow({ where: { id: changeId } })).toMatchObject({ accountNo: '1234567890' })
   })
@@ -330,6 +339,9 @@ describe('[FR-PAY-102/AC8] numbers masked on every page; opened whole by FINANCE
       expect(await getDownloadUrl(ctxOf(code), { fileId })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     }
     expect(await listBankAccounts(ctxOf('req_con'))).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { capability: 'bankAccount.view' } } })
+    // decided, the approver opens the request's numbers still, but no longer the account's (only while a request on it waits)
+    expect(ok(await revealBankAccountChange(ctxOf('cfo'), { changeId }))).toMatchObject({ accountNo: '6060606061' })
+    expect(await revealBankAccount(ctxOf('cfo'), { bankAccountId: account!.id })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     expect(ok(await revealBankAccount(fin(), { bankAccountId: account!.id }))).toEqual({ accountNo: '6060606061' })
     expect(await logs(account!.id)).toEqual([expect.objectContaining({ memberId: ap.org.member.fin_officer, subjectType: 'BankAccount', fields: ['accountNo'] })])
   })

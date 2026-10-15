@@ -39,5 +39,6 @@ defineEvents('BankAccountChange', {
   'bank_account_change.approved': { schema: z.object({ number: z.string().min(1), appliedBankAccountId: z.uuid().nullable(), targetBankAccountId: z.uuid().nullable() }) },
   'bank_account_change.rejected': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
   'bank_account_change.returned': { schema: z.object({ number: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
-  'bank_account_change.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'PENDING_APPROVAL']), reason: z.string().min(1) }) },
+  /** The reason is a Comment of the request: free text never goes into Event.data */
+  'bank_account_change.cancelled': { schema: z.object({ from: z.enum(['DRAFT', 'PENDING_APPROVAL']), reasonCommentId: z.uuid() }) },
 })

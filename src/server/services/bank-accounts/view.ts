@@ -1,13 +1,15 @@
 import { z } from 'zod'
 import { bankOf, maskAccount } from '@/core/bankfile'
 import { err, ok, type Result } from '@/core/result'
-import { MS_PER_DAY } from '@/lib/constants'
+import { THAI_TIME_ZONE } from '@/core/thai/date'
+import { addDays } from '@/core/thai/day'
 import { paymentSettingsOf } from '@/lib/org-settings'
 import { isAllowed, loadPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
 import { recordSensitiveAccess } from '../audit/sensitive-access'
 import { requireModule } from '../modules'
+import { sharedAccount } from './index'
 
 // Reading bank accounts and their change requests (S9-04, BR-SUP-07, BR-AUTH-04, NFR-PRIV-03). Every page shows an
 // account number masked — "••••••0016" — to whoever may see accounts (bankAccount.view: FINANCE, PROCUREMENT, AUDITOR)
@@ -94,12 +96,23 @@ const ACCOUNT_SELECT = {
   supplier: { select: { code: true } },
 } as const
 
-/** Whoever has or had a task on a request's routes, as the assignee or the delegator (ASSIGNED of bankAccount.reveal) */
-async function approversOf(tx: TenantTx, changeIds: readonly string[]): Promise<string[]> {
+/**
+ * The approvers of requests (ASSIGNED of bankAccount.reveal), as the assignee or the delegator: whoever holds the task
+ * now or decided it — not a co-assignee whose task was cancelled when the other decided, nor someone the task was
+ * taken from (REASSIGNED). openOnly: whoever holds an open task now.
+ */
+async function approversOf(tx: TenantTx, changeIds: readonly string[], openOnly = false): Promise<string[]> {
   if (changeIds.length === 0) return []
-  const tasks = await tx.approvalTask.findMany({ where: { step: { route: { subjectType: 'BANK_ACCOUNT_CHANGE', subjectId: { in: [...changeIds] } } } }, select: { assigneeMemberId: true, principalMemberId: true } })
+  const statuses = openOnly ? (['OPEN', 'INFO_REQUESTED'] as const) : (['OPEN', 'INFO_REQUESTED', 'APPROVED', 'REJECTED', 'RETURNED'] as const)
+  const tasks = await tx.approvalTask.findMany({
+    where: { status: { in: [...statuses] }, step: { route: { subjectType: 'BANK_ACCOUNT_CHANGE', subjectId: { in: [...changeIds] } } } },
+    select: { assigneeMemberId: true, principalMemberId: true },
+  })
   return [...new Set(tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId]).filter((m): m is string => !!m))]
 }
+
+/** The day of an instant in Thai time, as YYYY-MM-DD */
+const thaiDay = (at: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: THAI_TIME_ZONE, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at)
 
 const mayReveal = (principal: Principal, approverIds: readonly string[]) => principal.kind === 'member' && isAllowed(principal, 'bankAccount.reveal', { assigneeMemberIds: approverIds })
 /** bankAccount.view, or an approver of the request (who decides it must see it) */
@@ -128,7 +141,10 @@ export async function listBankAccounts(ctx: Ctx, input: z.input<typeof ListInput
   })
 }
 
-/** FINANCE, or an approver of a request about this account, opens its number whole; logged (NFR-PRIV-03) */
+/**
+ * FINANCE opens an account's number whole, and so does the approver of a request waiting to replace or close it, to
+ * compare the two before deciding; logged (NFR-PRIV-03). Once decided, the approver opens the request's numbers only.
+ */
 export async function revealBankAccount(ctx: Ctx, input: { readonly bankAccountId: string }): Promise<Result<{ accountNo: string }>> {
   if (!isUuid(input.bankAccountId)) return err('NOT_FOUND', 'bank account not found')
   return forTenant(ctx.organizationId).$transaction(async (tx) => {
@@ -137,8 +153,8 @@ export async function revealBankAccount(ctx: Ctx, input: { readonly bankAccountI
     if (!pay.ok) return pay
     const account = await tx.bankAccount.findFirst({ where: { id: input.bankAccountId }, select: { id: true, accountNo: true } })
     if (!account) return err('NOT_FOUND', 'bank account not found')
-    const changes = await tx.bankAccountChange.findMany({ where: { OR: [{ targetBankAccountId: account.id }, { appliedBankAccountId: account.id }] }, select: { id: true } })
-    if (!mayReveal(principal, await approversOf(tx, changes.map((c) => c.id)))) return err('FORBIDDEN', 'you may not open an account number', { capability: 'bankAccount.reveal' })
+    const waiting = await tx.bankAccountChange.findMany({ where: { targetBankAccountId: account.id, status: 'PENDING_APPROVAL' }, select: { id: true } })
+    if (!mayReveal(principal, await approversOf(tx, waiting.map((c) => c.id), true))) return err('FORBIDDEN', 'you may not open an account number', { capability: 'bankAccount.reveal' })
     await recordSensitiveAccess(tx, ctx, { subjectType: 'BankAccount', subjectId: account.id, fields: ['accountNo'], purpose: 'bankAccount.reveal' })
     return ok({ accountNo: account.accountNo })
   })
@@ -187,16 +203,13 @@ export async function getBankAccountChange(ctx: Ctx, input: { readonly changeId:
     const approvers = await approversOf(tx, [change.id])
     if (!mayViewChange(principal, approvers)) return err('FORBIDDEN', 'you may not see this request', { capability: 'bankAccount.view' })
     const proofs = await tx.fileLink.findMany({ where: { subjectType: 'BankAccountChange', subjectId: change.id, kind: 'BANK_PROOF' }, orderBy: { createdAt: 'asc' }, select: { file: { select: { id: true, fileName: true, mimeType: true } } } })
-    let shared = false
-    if (change.supplier && change.bankCode && change.accountNo) {
-      const others = await tx.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE', bankCode: change.bankCode, accountNo: change.accountNo, supplierId: { not: change.supplier.id } }, select: { supplier: { select: { taxId: true } } } })
-      shared = others.some((o) => !o.supplier?.taxId || !change.supplier!.taxId || o.supplier.taxId !== change.supplier!.taxId)
-    }
+    const shared = change.bankCode && change.accountNo ? await sharedAccount(tx, change.supplier, change.bankCode, change.accountNo) : false
     let contactChangedRecently = false
     if (change.supplier) {
       const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+      // N days back in Thai time, as BR-PAY-06 and BR-SOD-10 count them: from the start of the day N days before
       const until = change.submittedAt ?? ctx.now
-      const from = new Date(until.getTime() - paymentSettingsOf(org.settings).recentBankChangeDays * MS_PER_DAY)
+      const from = new Date(`${addDays(thaiDay(until), -paymentSettingsOf(org.settings).recentBankChangeDays)}T00:00:00+07:00`)
       const updates = await tx.event.findMany({ where: { aggregateType: 'Supplier', aggregateId: change.supplier.id, type: 'supplier.updated', occurredAt: { gte: from, lte: until } }, select: { data: true } })
       contactChangedRecently = updates.some((e) => {
         const changed = (e.data as { changed?: unknown }).changed

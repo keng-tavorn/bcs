@@ -101,20 +101,31 @@ function checkProposed(input: { bankCode?: string | undefined; accountNo?: strin
   return { ok: true, proposed: { bankCode: input.bankCode, accountNo: checked.accountNo, accountName: input.accountName, branchName: input.branchName ?? null, accountType: input.accountType ?? null } }
 }
 
+/** Thai numerals read as the digits they are (๐ U+0E50 … ๙ U+0E59) */
+const THAI_DIGITS = /[\u0E50-\u0E59]/g
+const THAI_NUMERALS = '\u0E50\u0E51\u0E52\u0E53\u0E54\u0E55\u0E56\u0E57\u0E58\u0E59'
+/** What may stand between the digits of a number written by hand: spaces, dashes, dots, slashes, commas, underscores */
+const NUMBER_RUN = /\d(?:[\s.,_/\u2010-\u2015-]*\d)*/g
+
 /**
- * The call note names no account (OQ-133): any run of digits in it — dashes and spaces between them taken out — that
- * holds the proposed number or the number replaced is refused. A phone number is fine.
+ * Free text of a request — its reason, the call note (OQ-133), a cancellation's reason — names no account it is about:
+ * any number in it, read with Thai numerals as digits and its separators taken out, that holds the proposed number or
+ * the number replaced is refused, so the number whole never sits in a field every viewer reads (BR-SUP-07,
+ * BR-AUTH-04). A phone number is fine.
  */
-function noteNamesAccount(note: string, numbers: ReadonlyArray<string | null>): boolean {
-  const runs = (note.match(/\d[\d -]*\d/g) ?? []).map((r) => r.replace(/[ -]/g, ''))
+export function namesAccount(text: string, numbers: ReadonlyArray<string | null>): boolean {
+  const plain = text.replace(THAI_DIGITS, (d) => String(THAI_NUMERALS.indexOf(d)))
+  const runs = (plain.match(NUMBER_RUN) ?? []).map((r) => r.replace(/\D/g, ''))
   return numbers.some((n) => n !== null && runs.some((r) => r.includes(n)))
 }
+
+const namesAccountFail = (field: string): Fail => fail('VALIDATION_FAILED', 'the text must not carry an account number', { field, reason: 'NOTE_HAS_ACCOUNT_NO' })
 
 /**
  * Whether the same account is the ACTIVE account of a supplier with another tax id — or where either side has none, as
  * SHARED_BANK_ACCOUNT counts it (BR-PAY-06): a warning when the request is drafted, never a refusal
  */
-async function sharedAccount(tx: TenantTx, supplier: { id: string; taxId: string | null } | null, bankCode: string, accountNo: string): Promise<boolean> {
+export async function sharedAccount(tx: TenantTx, supplier: { id: string; taxId: string | null } | null, bankCode: string, accountNo: string): Promise<boolean> {
   if (!supplier) return false
   const others = await tx.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE', bankCode, accountNo, supplierId: { not: supplier.id } }, select: { supplier: { select: { taxId: true } } } })
   return others.some((o) => !o.supplier?.taxId || !supplier.taxId || o.supplier.taxId !== supplier.taxId)
@@ -153,7 +164,8 @@ export const createBankAccountChangeCommand = defineCommand({
     if (!who.ok) return who
     if ((input.ownerKind === 'SUPPLIER') !== (input.supplierId !== undefined)) return fail('VALIDATION_FAILED', 'a supplier’s account names its supplier, the organization’s none', { field: 'supplierId', reason: 'OWNER' })
     if ((input.kind === 'ADD') !== (input.targetBankAccountId === undefined)) return fail('VALIDATION_FAILED', 'a replacement or a closure names the account, an addition none', { field: 'targetBankAccountId', reason: 'TARGET' })
-    if (input.kind === 'CLOSE' && (input.bankCode ?? input.accountNo ?? input.accountName ?? input.accountType) !== undefined) return fail('VALIDATION_FAILED', 'a closure proposes no new account', { field: 'accountNo', reason: 'CLOSE_HAS_ACCOUNT' })
+    if (input.kind === 'CLOSE' && (input.bankCode ?? input.accountNo ?? input.accountName ?? input.accountType ?? input.branchName) !== undefined) return fail('VALIDATION_FAILED', 'a closure proposes no new account', { field: 'accountNo', reason: 'CLOSE_HAS_ACCOUNT' })
+    if (input.ownerKind === 'SUPPLIER' && input.accountType !== undefined) return fail('VALIDATION_FAILED', 'only an account of the organization has a type', { field: 'accountType', reason: 'OWNER' })
 
     // One open request per supplier and per account (the partial unique indexes): the supplier's row, then the account's
     const supplierId = input.supplierId ?? null
@@ -166,9 +178,11 @@ export const createBankAccountChangeCommand = defineCommand({
       if (open) return fail('VALIDATION_FAILED', 'the supplier has a bank account request open already', { field: 'supplierId', reason: 'CHANGE_OPEN', changeId: open.id })
       if (input.kind === 'ADD' && (await tx.bankAccount.count({ where: { supplierId, status: 'ACTIVE' } })) > 0) return fail('VALIDATION_FAILED', 'the supplier has an account in force: replace it', { field: 'kind', reason: 'ACCOUNT_EXISTS' })
     }
+    let targetNo: string | null = null
     if (input.targetBankAccountId) {
       const target = await checkTarget(tx, ctx, input.targetBankAccountId, { ownerKind: input.ownerKind, supplierId })
       if (!target.ok) return { ok: false, error: target.error }
+      targetNo = target.target.accountNo
       const open = await tx.bankAccountChange.findFirst({ where: { targetBankAccountId: input.targetBankAccountId, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } }, select: { id: true } })
       if (open) return fail('VALIDATION_FAILED', 'the account has a request open already', { field: 'targetBankAccountId', reason: 'CHANGE_OPEN', changeId: open.id })
     }
@@ -178,6 +192,7 @@ export const createBankAccountChangeCommand = defineCommand({
       if (!checked.ok) return checked
       proposed = checked.proposed
     }
+    if (namesAccount(input.reason, [proposed?.accountNo ?? null, targetNo])) return namesAccountFail('reason')
     const shared = proposed ? await sharedAccount(tx, supplier, proposed.bankCode, proposed.accountNo) : false
     const change = await tx.bankAccountChange.create({
       data: {
@@ -246,6 +261,7 @@ export const updateBankAccountChangeCommand = defineCommand({
     if (notOwner) return notOwner
     const accountTouched = (['bankCode', 'accountNo', 'accountName', 'branchName', 'accountType'] as const).filter((f) => input[f] !== undefined)
     if (change.kind === 'CLOSE' && accountTouched.length > 0) return fail('VALIDATION_FAILED', 'a closure proposes no new account', { field: accountTouched[0], reason: 'CLOSE_HAS_ACCOUNT' })
+    if (change.ownerKind === 'SUPPLIER' && input.accountType !== undefined) return fail('VALIDATION_FAILED', 'only an account of the organization has a type', { field: 'accountType', reason: 'OWNER' })
     let proposed: Proposed | null = null
     if (change.kind !== 'CLOSE') {
       const checked = checkProposed(
@@ -262,9 +278,9 @@ export const updateBankAccountChangeCommand = defineCommand({
       proposed = checked.proposed
     }
     const target = change.targetBankAccountId ? await tx.bankAccount.findFirst({ where: { id: change.targetBankAccountId }, select: { accountNo: true } }) : null
-    if (input.callVerificationNote !== undefined && noteNamesAccount(input.callVerificationNote, [proposed?.accountNo ?? null, target?.accountNo ?? null])) {
-      return fail('VALIDATION_FAILED', 'the call note must not carry an account number', { field: 'callVerificationNote', reason: 'NOTE_HAS_ACCOUNT_NO' })
-    }
+    const numbers = [proposed?.accountNo ?? null, target?.accountNo ?? null]
+    if (input.callVerificationNote !== undefined && namesAccount(input.callVerificationNote, numbers)) return namesAccountFail('callVerificationNote')
+    if (namesAccount(input.reason ?? change.reason, numbers)) return namesAccountFail('reason')
     // A call confirms the account as it was when the call was made: changing the account asks for the call again
     const accountChanged = proposed !== null && (proposed.bankCode !== change.bankCode || proposed.accountNo !== change.accountNo || proposed.accountName !== change.accountName)
     const fields = [...accountTouched, ...(input.reason !== undefined ? ['reason'] : []), ...(input.callVerificationNote !== undefined ? ['callVerification'] : [])]
@@ -433,13 +449,17 @@ export const cancelBankAccountChangeCommand = defineCommand({
     const { change, to } = found
     const notOwner = ownedBy(change, who.memberId)
     if (notOwner) return notOwner
+    const target = change.targetBankAccountId ? await tx.bankAccount.findFirst({ where: { id: change.targetBankAccountId }, select: { accountNo: true } }) : null
+    if (namesAccount(input.reason, [change.accountNo, target?.accountNo ?? null])) return namesAccountFail('reason')
     const events: EventDraft[] = []
     if (change.status === 'PENDING_APPROVAL') events.push(...(await closeRoute(tx, { type: 'BANK_ACCOUNT_CHANGE', id: change.id }, 'CANCELLED', 'REQUEST_CANCELLED')))
     await tx.bankAccountChange.update({ where: { id: change.id }, data: { status: to, currentRouteId: null, version: { increment: 1 } } })
+    // The reason is free text: kept as a Comment of the request, never in Event.data, which is never erased (NFR-SEC-09)
+    const comment = await tx.comment.create({ data: { organizationId: ctx.organizationId, subjectType: 'BankAccountChange', subjectId: change.id, authorMemberId: who.memberId, body: input.reason }, select: { id: true } })
     return {
       ok: true,
       result: { changeId: change.id },
-      events: [{ type: 'bank_account_change.cancelled', aggregateType: 'BankAccountChange', aggregateId: change.id, data: { from: change.status as 'DRAFT' | 'PENDING_APPROVAL', reason: input.reason } }, ...events],
+      events: [{ type: 'bank_account_change.cancelled', aggregateType: 'BankAccountChange', aggregateId: change.id, data: { from: change.status as 'DRAFT' | 'PENDING_APPROVAL', reasonCommentId: comment.id } }, ...events],
     }
   },
 })
@@ -479,7 +499,8 @@ export async function decideBankAccountChange(tx: TenantTx, ctx: Ctx, changeId: 
   const { change, to } = found
   const number = change.number ?? ''
   if (decision.outcome !== 'APPROVED') {
-    await tx.bankAccountChange.update({ where: { id: change.id }, data: { status: to, decidedAt: ctx.now, currentRouteId: to === 'DRAFT' ? null : change.currentRouteId, version: { increment: 1 } } })
+    // A return is no decision of the request: back to the draft without a decision time
+    await tx.bankAccountChange.update({ where: { id: change.id }, data: { status: to, ...(to === 'DRAFT' ? { currentRouteId: null } : { decidedAt: ctx.now }), version: { increment: 1 } } })
     return {
       ok: true,
       documentStatus: to,

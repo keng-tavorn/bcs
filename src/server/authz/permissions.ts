@@ -5,6 +5,7 @@
 // FROZEN after S1-08: changing this file is a permission change and needs the user's approval. S16-06 (spec §16.12, approved
 // with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
+// S9-04 added bankAccount.* and bankAccountChange.propose, approved with docs/sub-specs/S9.md in P1-06.
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
@@ -110,6 +111,11 @@ export const PERMISSIONS = {
   'supplier.taxProfile.manage': [role('FINANCE', 'ORG')],
   // S8-09 (BR-RET-04): FINANCE releases a performance retention from its due date
   'retention.release': [role('FINANCE', 'ORG')],
+  // S9-04 (BR-SUP-06, BR-SUP-07, BR-AUTH-04, OQ-133, OQ-137): accounts masked to who may view them; the full number to
+  // FINANCE and the approver of the change, logged; only FINANCE proposes a change, and only its proposer edits it
+  'bankAccount.view': roles(['FINANCE', 'PROCUREMENT', 'AUDITOR'], 'ORG'),
+  'bankAccount.reveal': [role('FINANCE', 'ORG'), anyMember('ASSIGNED')],
+  'bankAccountChange.propose': [role('FINANCE', 'ORG')],
   // Budget
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],

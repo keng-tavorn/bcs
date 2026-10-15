@@ -160,6 +160,9 @@ function mail(subject: string, thai: string[], english: string[]): SupplierEmail
   return { subject, text, html }
 }
 
+/** The layout of every supplier e-mail: Thai, a rule, then English (S9's templates use it too) */
+export const supplierMail = mail
+
 registerSupplierTemplate(SUPPLIER_TEMPLATES.invoiceReceived, (d, c) =>
   mail(
     `${c.organizationName} ได้รับใบแจ้งหนี้ ${str(d.supplierInvoiceNo)} แล้ว / Invoice received`,

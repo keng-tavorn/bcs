@@ -97,6 +97,7 @@
     "audit": "Audit trail",
     "auth": "Sign-in",
     "bank_account": "Bank accounts",
+    "bank_account_change": "Bank account changes",
     "budget": "Budget",
     "budget_grant": "Cross-department budget grants",
     "consolidation_run": "Consolidation rounds",
@@ -141,6 +142,7 @@
     "ApprovalTask": "Approval task",
     "Auth": "Sign-in",
     "BankAccount": "Bank account",
+    "BankAccountChange": "Bank account change",
     "BudgetGrant": "Cross-department budget grant",
     "BudgetLine": "Budget line",
     "ChannelIdentity": "LINE account",
@@ -223,7 +225,18 @@
       "pin_set": "Transaction PIN set or changed"
     },
     "bank_account": {
-      "activated": "Bank account in force"
+      "activated": "Bank account in force",
+      "closed": "Bank account closed",
+      "superseded": "Bank account replaced"
+    },
+    "bank_account_change": {
+      "approved": "Bank account change approved",
+      "cancelled": "Bank account change cancelled",
+      "drafted": "Bank account change drafted",
+      "rejected": "Bank account change rejected",
+      "returned": "Bank account change returned",
+      "submitted": "Bank account change submitted",
+      "updated": "Bank account change edited"
     },
     "budget": {
       "actualized": "Budget moved to actual",

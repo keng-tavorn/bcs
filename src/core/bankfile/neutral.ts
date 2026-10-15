@@ -81,13 +81,20 @@ export interface NeutralTotals {
   readonly trailer: { readonly count: number; readonly totalSatang: Satang }
 }
 
-/** The counts and totals a neutral file states, read back from its text: its H row, the sum of its D rows, its T row */
+const BOM = '﻿'
+
+/**
+ * The counts and totals a neutral file states, read back from its text (with or without the BOM the stored bytes begin
+ * with): its H row, the sum of its D rows, its T row. Text that is not a file of this template throws.
+ */
 export function readNeutralFile(text: string): NeutralTotals {
-  if (!text.endsWith(CRLF)) throw new RangeError('every line of the file ends with CRLF')
-  const rows = text.slice(0, -CRLF.length).split(CRLF).map(fieldsOf)
+  const body = text.startsWith(BOM) ? text.slice(BOM.length) : text
+  if (!body.endsWith(CRLF)) throw new RangeError('every line of the file ends with CRLF')
+  const rows = body.slice(0, -CRLF.length).split(CRLF).map(fieldsOf)
   const [head, ...rest] = rows
   const tail = rest.pop()
-  if (head?.[0] !== 'H' || head.length !== 10 || tail?.[0] !== 'T' || tail.length !== 3 || rest.some((r) => r[0] !== 'D' || r.length !== 8)) throw new RangeError('not a BCS-NEUTRAL-1 file')
+  if (head?.[0] !== 'H' || head[1] !== NEUTRAL_TEMPLATE_CODE || head[2] !== NOT_A_BANK_FORMAT || head.length !== 10) throw new RangeError('not a BCS-NEUTRAL-1 file')
+  if (tail?.[0] !== 'T' || tail.length !== 3 || rest.some((r) => r[0] !== 'D' || r.length !== 8)) throw new RangeError('not a BCS-NEUTRAL-1 file')
   return {
     header: { count: Number(head[8]), totalSatang: amountToSatang(head[9]!) },
     details: { count: rest.length, totalSatang: rest.reduce((a, r) => a + amountToSatang(r[5]!), 0n) },

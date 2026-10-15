@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { buildNeutralFile, maskAccount, normalizeAccount, precheckRun, readNeutralFile, type NeutralItem, type PrecheckItem } from '@/core/bankfile'
+import { utf8WithBom } from '@/lib/encoding'
 
 // src/core/bankfile beyond the golden cases of bank-account.yaml, bank-precheck.yaml and bankfile-neutral.yaml (S9-03):
 // the separators and the order of the account checks, the items the pre-check may meet, and the file read back.
@@ -62,6 +63,13 @@ describe('[FR-PAY-102/AC1] [FR-PAY-102/AC3] the neutral file', () => {
     expect(readNeutralFile(text)).toEqual({ header: { count: 2, totalSatang: 251n }, details: { count: 2, totalSatang: 251n }, trailer: { count: 2, totalSatang: 251n } })
   })
 
+  it('reads back the text of the stored bytes, BOM and all', () => {
+    const { text } = buildNeutralFile({ run: neutralRun, items: [line(1, 250n)] })
+    const stored = new TextDecoder('utf-8', { ignoreBOM: true }).decode(utf8WithBom(text))
+    expect(stored.startsWith('﻿')).toBe(true)
+    expect(readNeutralFile(stored)).toEqual(readNeutralFile(text))
+  })
+
   it('writes a run without items as its H and T rows only', () => {
     const { text } = buildNeutralFile({ run: neutralRun, items: [] })
     expect(text).toBe('H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00009,1,2026-10-16,004,9991000016,0,0.00\r\nT,0,0.00\r\n')
@@ -81,7 +89,9 @@ describe('[FR-PAY-102/AC1] [FR-PAY-102/AC3] the neutral file', () => {
     ['with a quoted field left open', 'H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,P,1,2026-10-16,004,1,0,0.00\r\nD,1,006,1,"ก,0.01,S,P-001\r\nT,1,0.01\r\n'],
     ['with text after a closing quote', 'H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,P,1,2026-10-16,004,1,0,0.00\r\nD,1,006,1,"ก"x,0.01,S,P-001\r\nT,1,0.01\r\n'],
     ['without its H row', 'D,1,006,1,ก,0.01,S,P-001\r\nT,1,0.01\r\n'],
-    ['with an H row of other fields', 'H,BCS-NEUTRAL-1\r\nT,0,0.00\r\n'],
+    ['with an H row of other fields', 'H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,P\r\nT,0,0.00\r\n'],
+    ['of another template', 'H,KBANK-1,NOT-A-BANK-FORMAT,P,1,2026-10-16,004,1,0,0.00\r\nT,0,0.00\r\n'],
+    ['that says it is a bank format', 'H,BCS-NEUTRAL-1,KBANK,P,1,2026-10-16,004,1,0,0.00\r\nT,0,0.00\r\n'],
     ['without its T row', 'H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,P,1,2026-10-16,004,1,0,0.00\r\n'],
     ['with a T row of other fields', 'H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,P,1,2026-10-16,004,1,0,0.00\r\nT,0\r\n'],
     ['with a row between that is not a D row', 'H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,P,1,2026-10-16,004,1,0,0.00\r\nX,1,006,1,ก,0.01,S,P-001\r\nT,1,0.01\r\n'],

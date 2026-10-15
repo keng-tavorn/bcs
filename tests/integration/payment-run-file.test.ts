@@ -37,8 +37,8 @@ const runOf = (runId: string) => prisma.paymentRun.findUniqueOrThrow({ where: { 
 const filesOf = (runId: string) => prisma.paymentFile.findMany({ where: { paymentRunId: runId }, orderBy: { version: 'asc' } })
 const REASON = 'แก้ชื่อไฟล์ตามที่ธนาคารขอ'
 
-/** A run of `count` suppliers (one invoice each, no flag) sent by fin_officer and approved by its approver */
-async function approvedRun(count: number) {
+/** A run of `count` suppliers (one invoice each, no flag) from the payer account (CB-01 unless given), sent by fin_officer and approved */
+async function approvedRun(count: number, payerId = ap.payerId) {
   const suppliers = []
   const invoices = []
   for (let i = 0; i < count; i++) {
@@ -46,7 +46,7 @@ async function approvedRun(count: number) {
     suppliers.push(s)
     invoices.push(await readyInvoice(ap, s.id, '1000.00', '70.00', DUE))
   }
-  const sent = await sentRun(ap, invoices)
+  const sent = await sentRun({ ...ap, payerId }, invoices)
   const task = (await prisma.approvalTask.findFirst({ where: { status: 'OPEN', step: { route: { subjectType: 'PAYMENT_RUN', subjectId: sent.runId } } } }))!
   await stepUpForTask(task.id, task.assigneeMemberId)
   ok(await decideTask(ctxOf(codeOf(task.assigneeMemberId)), { taskId: task.id, decision: 'APPROVE' }, key()))
@@ -90,7 +90,10 @@ describe('[FR-PAY-102/AC1] [FR-PAY-102/AC3] the file of an approved run, read ba
     expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: run.runId, type: 'payment_run.file_generated' } })).toMatchObject({
       data: { paymentFileId: file.id, version: 1, templateCode: 'BCS-NEUTRAL-1', sha256: file.sha256, itemCount: 2, totalTransferSatang: r.totalTransferSatang.toString(), afterExport: false },
     })
-    // the file opens only through requestPaymentFileDownload: the general download refuses it, FINANCE included
+    // the file opens only through requestPaymentFileDownload: the general download refuses it, FINANCE included; it is
+    // no member's upload, so no service attaches it elsewhere as "a file you uploaded"
+    expect(file.file.uploadedById).toBeNull()
+    expect(await prisma.fileLink.findMany({ where: { fileId: file.fileId }, select: { subjectType: true, subjectId: true } })).toEqual([{ subjectType: 'PaymentFile', subjectId: file.id }])
     expect(await getDownloadUrl(fin(ap), { fileId: file.fileId })).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     // made once: a second time is a new version with its reason
     expect(await generate(run.runId)).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
@@ -106,11 +109,39 @@ describe('[FR-PAY-102/AC1] [FR-PAY-102/AC3] the file of an approved run, read ba
   })
 })
 
+describe('[FR-PAY-102/AC5] payer accounts of the organization, each with its template; a run pays from one', () => {
+  it('a run from CB-02 states CB-02 in its H row; a payer whose template has no builder yet gets no file (TEMPLATE_NOT_BUILT)', async () => {
+    const payer = (code: string, bankCode: string, accountNo: string, fileTemplateCode: string) =>
+      prisma.bankAccount.create({ data: { organizationId: ap.org.organizationId, ownerKind: 'ORGANIZATION', code, bankCode, accountNo, accountName: 'องค์กรทดสอบ DOA', accountType: 'SAVINGS', fileTemplateCode, activatedAt: AP_NOW } })
+    const cb02 = await payer('CB-02', '014', '2000000025', 'BCS-NEUTRAL-1')
+    const first = await approvedRun(1)
+    const second = await approvedRun(1, cb02.id)
+    expect((await runOf(first.runId)).payerBankAccountId).toBe(ap.payerId)
+    expect((await runOf(second.runId)).payerBankAccountId).toBe(cb02.id)
+    const headOf = async (runId: string) => {
+      const made = ok(await generate(runId))
+      const file = await prisma.paymentFile.findUniqueOrThrow({ where: { id: made.paymentFileId }, include: { file: true } })
+      return new TextDecoder('utf-8').decode(await readObject(file.file.storageKey)).split('\r\n')[0]!.split(',').slice(6, 8)
+    }
+    expect(await headOf(first.runId)).toEqual(['004', '1000000016'])
+    expect(await headOf(second.runId)).toEqual(['014', '2000000025'])
+
+    // a bank's own template comes with its spec (P0-03): until then a run from that account has no file
+    const cb03 = await payer('CB-03', '002', '3000000034', 'TEST-BANK-1')
+    const third = await approvedRun(1, cb03.id)
+    expect((await runOf(third.runId)).fileTemplateCode).toBe('TEST-BANK-1')
+    expect(await generate(third.runId)).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'TEMPLATE_NOT_BUILT', templateCode: 'TEST-BANK-1' } } })
+    expect(await prisma.paymentFile.count({ where: { paymentRunId: third.runId } })).toBe(0)
+    expect((await runOf(third.runId)).status).toBe('APPROVED')
+  })
+})
+
 describe('[FR-PAY-102/AC2] the check before export (BR-BANK-06): every failure listed, nothing stored', () => {
-  it('the payer closed, an account renamed, an account closed, a document no longer held: BANK_FILE_CHECK_FAILED; put right, the file is made', async () => {
-    const run = await approvedRun(3)
+  it('the payer closed, an account renamed, an account closed, documents no longer held (S8, a released link): BANK_FILE_CHECK_FAILED; put right, the file is made', async () => {
+    const run = await approvedRun(4)
     const items = await prisma.paymentRunItem.findMany({ where: { paymentRunId: run.runId }, orderBy: { seq: 'asc' }, include: { documents: true } })
-    const [renamed, closed, loose] = items
+    const [renamed, closed, loose, released] = items
+    const releasedLink = released!.documents[0]!
     const accountOf = (supplierId: string) => prisma.bankAccount.findFirstOrThrow({ where: { supplierId, status: 'ACTIVE' } })
     const renamedAccount = await accountOf(renamed!.supplierId)
     const closedAccount = await accountOf(closed!.supplierId)
@@ -120,6 +151,8 @@ describe('[FR-PAY-102/AC2] the check before export (BR-BANK-06): every failure l
     await prisma.bankAccount.update({ where: { id: closedAccount.id }, data: { status: 'CLOSED' } })
     // S8 no longer holds the invoice for this run, though the run's link still says HELD
     await prisma.invoice.update({ where: { id: looseInvoice }, data: { status: 'READY_FOR_PAYMENT' } })
+    // a link of the run let go while the item still pays for it
+    await prisma.paymentRunDocument.update({ where: { id: releasedLink.id }, data: { status: 'RELEASED', releaseReason: 'ปล่อยระหว่างทาง' } })
     const objects = await prisma.fileObject.count({ where: { organizationId: ap.org.organizationId } })
     const version = await runVersion(run.runId)
     try {
@@ -127,12 +160,13 @@ describe('[FR-PAY-102/AC2] the check before export (BR-BANK-06): every failure l
       expect(refused).toMatchObject({ ok: false, error: { code: 'BANK_FILE_CHECK_FAILED' } })
       if (refused.ok) return
       expect(refused.error.details).toMatchObject({
-        checks: `PAYER_ACCOUNT_INVALID, ACCOUNT_MISMATCH#${renamed!.seq}:accountName, ACCOUNT_NOT_ACTIVE#${closed!.seq}, DOCUMENT_NOT_HELD#${loose!.seq}`,
+        checks: `PAYER_ACCOUNT_INVALID, ACCOUNT_MISMATCH#${renamed!.seq}:accountName, ACCOUNT_NOT_ACTIVE#${closed!.seq}, DOCUMENT_NOT_HELD#${loose!.seq}, DOCUMENT_NOT_HELD#${released!.seq}`,
         failures: [
           { check: 'PAYER_ACCOUNT_INVALID' },
           { seq: renamed!.seq, check: 'ACCOUNT_MISMATCH', field: 'accountName' },
           { seq: closed!.seq, check: 'ACCOUNT_NOT_ACTIVE' },
           { seq: loose!.seq, check: 'DOCUMENT_NOT_HELD', document: looseInvoice },
+          { seq: released!.seq, check: 'DOCUMENT_NOT_HELD', document: releasedLink.invoiceId },
         ],
       })
       expect(await prisma.paymentFile.count({ where: { paymentRunId: run.runId } })).toBe(0)
@@ -143,6 +177,7 @@ describe('[FR-PAY-102/AC2] the check before export (BR-BANK-06): every failure l
       await prisma.bankAccount.update({ where: { id: renamedAccount.id }, data: { accountName: renamedAccount.accountName } })
       await prisma.bankAccount.update({ where: { id: closedAccount.id }, data: { status: 'ACTIVE' } })
       await prisma.invoice.update({ where: { id: looseInvoice }, data: { status: 'IN_PAYMENT_RUN' } })
+      await prisma.paymentRunDocument.update({ where: { id: releasedLink.id }, data: { status: 'HELD', releaseReason: null } })
     }
     expect(ok(await generate(run.runId))).toMatchObject({ version: 1 })
   })
@@ -155,6 +190,7 @@ describe('[FR-PAY-102/AC4] a file is never changed; a new version has a reason, 
     await expect(prisma.paymentFile.update({ where: { id: v1.paymentFileId }, data: { totalSatang: 0n } })).rejects.toThrow(/INV-PAY-03/)
     await expect(prisma.paymentFile.update({ where: { id: v1.paymentFileId }, data: { sha256: '0'.repeat(64) } })).rejects.toThrow(/INV-PAY-03/)
     await expect(prisma.paymentFile.delete({ where: { id: v1.paymentFileId } })).rejects.toThrow(/INV-PAY-03|permission denied/)
+    expect(await regeneratePaymentFile(ctxOf('auditor'), { paymentRunId: run.runId, version: await runVersion(run.runId), reason: REASON }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     // a new version needs its reason
     expect(await regenerate(run.runId, { reason: ' ' })).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
     const v2 = ok(await regenerate(run.runId))
@@ -207,6 +243,14 @@ describe('[FR-PAY-102/AC6] the link to the file: FINANCE only, by POST, five min
     expect(file.firstDownloadedAt).toEqual(AP_NOW)
     const downloads = await prisma.event.findMany({ where: { aggregateId: file.fileId, type: 'file.downloaded' } })
     expect(downloads.map((e) => e.actorMemberId).sort()).toEqual([ap.org.member.fin_officer, ap.org.member.dm_fin].sort())
+    // every payee's number whole: each download is a reveal on record (NFR-PRIV-03), the refused ones none
+    const reveals = await prisma.sensitiveAccessLog.findMany({ where: { subjectType: 'PaymentFile', subjectId: file.id } })
+    expect(reveals.map((r) => [r.memberId, r.fields, r.purpose]).sort()).toEqual(
+      [
+        [ap.org.member.fin_officer, ['accountNo'], 'download'],
+        [ap.org.member.dm_fin, ['accountNo'], 'download'],
+      ].sort(),
+    )
 
     // a file of another run is not this run's
     const other = await approvedRun(1)
@@ -221,6 +265,9 @@ describe('[FR-PAY-103/AC5] sent to the bank, and taken back while no result is r
     const run = await approvedRun(1)
     const v1 = ok(await generate(run.runId))
     expect(await markPaymentRunSentToBank(ctxOf('auditor'), { paymentRunId: run.runId, version: await runVersion(run.runId) }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
+    // what reaches the bank is the version in use: downloaded first
+    expect(await markPaymentRunSentToBank(fin(ap), { paymentRunId: run.runId, version: await runVersion(run.runId) }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'FILE_NOT_DOWNLOADED' } } })
+    ok(await download(run.runId, v1.paymentFileId))
     ok(await markPaymentRunSentToBank(fin(ap), { paymentRunId: run.runId, version: await runVersion(run.runId) }, key()))
     expect(await runOf(run.runId)).toMatchObject({ status: 'SENT_TO_BANK', sentToBankAt: AP_NOW })
     expect(await prisma.event.findFirstOrThrow({ where: { aggregateId: run.runId, type: 'payment_run.sent_to_bank' } })).toMatchObject({ data: { paymentFileId: v1.paymentFileId, fileVersion: 1 } })
@@ -230,6 +277,7 @@ describe('[FR-PAY-103/AC5] sent to the bank, and taken back while no result is r
 
     const revert = async (reason: string) => revertPaymentRunSent(fin(ap), { paymentRunId: run.runId, version: await runVersion(run.runId), reason }, key())
     expect(await revert('')).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED' } })
+    expect(await revertPaymentRunSent(ctxOf('auditor'), { paymentRunId: run.runId, version: await runVersion(run.runId), reason: 'ส่งใหม่' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN' } })
     ok(await revert('ธนาคารปฏิเสธไฟล์ ต้องส่งใหม่'))
     expect(await runOf(run.runId)).toMatchObject({ status: 'FILE_READY', sentToBankAt: null })
     const reverted = await prisma.event.findFirstOrThrow({ where: { aggregateId: run.runId, type: 'payment_run.sent_reverted' } })

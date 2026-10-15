@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod'
+import { ok, type Result } from '@/core/result'
 import { buildNeutralFile, NEUTRAL_TEMPLATE_CODE, precheckRun, readNeutralFile, type PrecheckFailure, type PrecheckItem } from '@/core/bankfile'
 import { PAYMENT_RUN_MACHINE, transition, type PaymentRunCommand, type PaymentRunState } from '@/core/state-machines'
 import { presignDownload, PRESIGN_TTL_SECONDS, putObject } from '@/integrations/storage'
@@ -9,11 +10,12 @@ import { newId } from '@/lib/ids'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
-import type { TenantTx } from '@/server/db/tenant'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
 import type { EventDraft } from '@/server/events/append'
 import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { fail, type Fail } from '../ap/common'
+import { recordSensitiveAccess } from '../audit/sensitive-access'
 import { requireModule } from '../modules'
 import { releaseAll } from './runs'
 
@@ -24,10 +26,12 @@ import { releaseAll } from './runs'
 // with a BOM, their sha256 kept, and the file read back so that its D rows, its T row and the run's total agree. A file
 // is never changed (the trigger of PaymentFile): a new version needs a reason, and when the version in use was
 // downloaded, the word that it was not sent to the bank (EXPORT_CONFIRMATION_REQUIRED) and a notice to the approvers.
-// The file is downloaded only through requestPaymentFileDownload, a POST that answers a link of at most five minutes,
-// writes file.downloaded and marks the first download of the version; no other way opens it (its FileLink has no
-// policy: deny by default). FINANCE marks the run sent to the bank — the system sends nothing (NG-2) — and takes that
-// back while no result is recorded. A run approved, or with its file made, is cancelled by FINANCE with a reason and,
+// The file is downloaded only through requestPaymentFileDownload, a POST that writes file.downloaded and a
+// SensitiveAccessLog row and marks the first download of the version, then answers a link of at most five minutes made
+// afresh for each answer (never kept in CommandLog); no other way opens it: it belongs to no member (nothing attaches it
+// elsewhere as "a file you uploaded") and its FileLink "PaymentFile" has a policy that always refuses (file-policy.ts).
+// FINANCE marks the run sent to the bank once the version in use was downloaded — the system sends nothing (NG-2) — and
+// takes that back while no result is recorded. A run approved, or with its file made, is cancelled by FINANCE with a reason and,
 // when a file was downloaded, the same word: its documents go back to S8 marked as released after an export, so a
 // later run flags them PREVIOUSLY_EXPORTED (BR-PAY-06). Account numbers stay in the file and the snapshot: events carry
 // ids, versions, counts, totals and sha256 only (BR-BANK-08).
@@ -85,12 +89,13 @@ async function makeFile(tx: TenantTx, ctx: Ctx, run: RunRow, memberId: string, v
     orderBy: { seq: 'asc' },
     select: { id: true, seq: true, transferSatang: true, payeeBankCode: true, payeeAccountNo: true, payeeAccountName: true, supplier: { select: { code: true } }, bankAccount: { select: { status: true, bankCode: true, accountNo: true, accountName: true } } },
   })
+  // every link of the run, a RELEASED one too: a document let go is DOCUMENT_NOT_HELD like a paid one (BR-BANK-06)
   const links = await tx.paymentRunDocument.findMany({
-    where: { paymentRunId: run.id, status: { in: ['HELD', 'PAID'] } },
+    where: { paymentRunId: run.id },
     select: { paymentRunItemId: true, invoiceId: true, retentionId: true, status: true, invoice: { select: { status: true } }, retention: { select: { status: true } } },
   })
   // what each item's documents are now: held by this run — its link HELD and S8 still holding the document for a
-  // payment run — or no longer (paid, or let go)
+  // payment run — or no longer (paid, or let go, by this run or by S8)
   const held = (l: (typeof links)[number]) => l.status === 'HELD' && (l.invoice ?? l.retention)?.status === 'IN_PAYMENT_RUN'
   const checked: PrecheckItem[] = items.map((i) => ({
     seq: i.seq!,
@@ -115,16 +120,17 @@ async function makeFile(tx: TenantTx, ctx: Ctx, run: RunRow, memberId: string, v
   if (!agrees) return fail('BANK_FILE_CHECK_FAILED', 'the file read back does not state the run', { checks: 'FILE_READBACK_MISMATCH', failures: [{ check: 'FILE_READBACK_MISMATCH' }] })
   const sha256 = createHash('sha256').update(bytes).digest('hex')
   const fileId = newId()
+  const paymentFileId = newId()
   const key = `org/${ctx.organizationId}/payment-files/${run.id}/v${version}-${fileId}.csv`
   await putObject(key, bytes, CSV)
-  await tx.fileObject.create({ data: { id: fileId, organizationId: ctx.organizationId, storageKey: key, fileName: built.fileName, mimeType: CSV, sizeBytes: bytes.length, sha256, status: 'AVAILABLE', uploadedById: memberId, scanStatus: 'NOT_REQUIRED' } })
-  // linked to the run with no file policy: the general download refuses it (only requestPaymentFileDownload opens it)
-  await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'PaymentRun', subjectId: run.id, kind: 'OTHER' } })
-  const row = await tx.paymentFile.create({
-    data: { organizationId: ctx.organizationId, paymentRunId: run.id, version, templateCode: run.fileTemplateCode, fileId, fileName: built.fileName, sha256, byteSize: bytes.length, itemCount: run.itemCount, totalSatang: run.totalTransferSatang, reason, generatedById: memberId, generatedAt: ctx.now },
-    select: { id: true },
+  // no member's upload (uploadedById null): the services that attach "a file you uploaded" never take it; who made it
+  // is PaymentFile.generatedById. Its link is the PaymentFile's, whose policy refuses every general download.
+  await tx.fileObject.create({ data: { id: fileId, organizationId: ctx.organizationId, storageKey: key, fileName: built.fileName, mimeType: CSV, sizeBytes: bytes.length, sha256, status: 'AVAILABLE', uploadedById: null, scanStatus: 'NOT_REQUIRED' } })
+  await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'PaymentFile', subjectId: paymentFileId, kind: 'OTHER' } })
+  await tx.paymentFile.create({
+    data: { id: paymentFileId, organizationId: ctx.organizationId, paymentRunId: run.id, version, templateCode: run.fileTemplateCode, fileId, fileName: built.fileName, sha256, byteSize: bytes.length, itemCount: run.itemCount, totalSatang: run.totalTransferSatang, reason, generatedById: memberId, generatedAt: ctx.now },
   })
-  return { ok: true, fileId, paymentFileId: row.id, sha256, byteSize: bytes.length }
+  return { ok: true, fileId, paymentFileId, sha256, byteSize: bytes.length }
 }
 
 const fileEvent = (run: RunRow, version: number, made: { paymentFileId: string; sha256: string }, afterExport: boolean): EventDraft => ({
@@ -207,26 +213,32 @@ export const requestPaymentFileDownloadCommand = defineCommand({
   name: 'paymentRun.requestFileDownload',
   capability: 'paymentRun.file',
   input: DownloadInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ url: string; expiresInSeconds: number; fileName: string; firstDownload: boolean }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ paymentFileId: string; fileName: string; firstDownload: boolean }>> {
     const who = await finance(tx, ctx, 'paymentRun.file')
     if (!who.ok) return who
     const [locked] = await lockRowsForUpdate(tx, 'PaymentRun', ctx.organizationId, [input.paymentRunId])
     const run = locked ? await tx.paymentRun.findFirst({ where: { id: input.paymentRunId }, select: { id: true, status: true } }) : null
     if (!run) return fail('NOT_FOUND', 'payment run not found')
-    const file = await tx.paymentFile.findFirst({ where: { id: input.paymentFileId, paymentRunId: run.id }, include: { file: { select: { storageKey: true } } } })
+    const file = await tx.paymentFile.findFirst({ where: { id: input.paymentFileId, paymentRunId: run.id } })
     if (!file) return fail('NOT_FOUND', 'file not found')
     // BR-BANK-08: the version in use of a run on its way to the bank; an older version or a closed run's file is only
     // looked at through its sha256, count and total on the run's page, so the same file never reaches the bank twice
     if (file.status !== 'CURRENT' || (run.status !== 'FILE_READY' && run.status !== 'SENT_TO_BANK')) return fail('VALIDATION_FAILED', 'only the file in use of a run not finished is downloaded', { reason: 'FILE_NOT_CURRENT' })
-    const url = await presignDownload(file.file.storageKey, { fileName: file.fileName, contentType: CSV, inline: false }, PRESIGN_TTL_SECONDS)
     const firstDownload = file.firstDownloadedAt === null
     if (firstDownload) await tx.paymentFile.update({ where: { id: file.id }, data: { firstDownloadedAt: ctx.now } })
-    return { ok: true, result: { url, expiresInSeconds: PRESIGN_TTL_SECONDS, fileName: file.fileName, firstDownload }, events: [{ type: 'file.downloaded', aggregateType: 'File', aggregateId: file.fileId, data: { fileId: file.fileId } }] }
+    // every payee's account number whole (NFR-PRIV-03): each download is a reveal on record
+    await recordSensitiveAccess(tx, ctx, { subjectType: 'PaymentFile', subjectId: file.id, fields: ['accountNo'], purpose: 'download' })
+    return { ok: true, result: { paymentFileId: file.id, fileName: file.fileName, firstDownload }, events: [{ type: 'file.downloaded', aggregateType: 'File', aggregateId: file.fileId, data: { fileId: file.fileId } }] }
   },
 })
 
-export function requestPaymentFileDownload(ctx: Ctx, input: z.input<typeof DownloadInput>, options: RunOptions) {
-  return runCommand(ctx, requestPaymentFileDownloadCommand, input, options)
+/** The command, then a link made now: a replay of the same request gets a fresh link, never one kept in CommandLog */
+export async function requestPaymentFileDownload(ctx: Ctx, input: z.input<typeof DownloadInput>, options: RunOptions): Promise<Result<{ url: string; expiresInSeconds: number; fileName: string; firstDownload: boolean }>> {
+  const done = await runCommand(ctx, requestPaymentFileDownloadCommand, input, options)
+  if (!done.ok) return done
+  const file = await forTenant(ctx.organizationId).paymentFile.findUniqueOrThrow({ where: { id: done.data.paymentFileId }, select: { file: { select: { storageKey: true } } } })
+  const url = await presignDownload(file.file.storageKey, { fileName: done.data.fileName, contentType: CSV, inline: false }, PRESIGN_TTL_SECONDS)
+  return ok({ url, expiresInSeconds: PRESIGN_TTL_SECONDS, fileName: done.data.fileName, firstDownload: done.data.firstDownload })
 }
 
 // ---------- paymentRun.markSentToBank · paymentRun.revertSent ----------
@@ -242,7 +254,9 @@ export const markSentToBankCommand = defineCommand({
     if (!who.ok) return who
     const found = await lockedRun(tx, ctx, input.paymentRunId, 'paymentRun.markSentToBank', input.version)
     if (!found.ok) return found
-    const current = await tx.paymentFile.findFirstOrThrow({ where: { paymentRunId: found.run.id, status: 'CURRENT' }, select: { id: true, version: true } })
+    const current = await tx.paymentFile.findFirstOrThrow({ where: { paymentRunId: found.run.id, status: 'CURRENT' }, select: { id: true, version: true, firstDownloadedAt: true } })
+    // BR-PAY-11: what reaches the bank is the version in use, so it was downloaded first (an older one is superseded)
+    if (!current.firstDownloadedAt) return fail('VALIDATION_FAILED', 'the file in use was never downloaded', { reason: 'FILE_NOT_DOWNLOADED', version: current.version })
     await tx.paymentRun.update({ where: { id: found.run.id }, data: { status: found.to, sentToBankAt: ctx.now, version: { increment: 1 } } })
     return { ok: true, result: { paymentRunId: found.run.id }, events: [{ type: 'payment_run.sent_to_bank', aggregateType: 'PaymentRun', aggregateId: found.run.id, data: { paymentFileId: current.id, fileVersion: current.version } }] }
   },

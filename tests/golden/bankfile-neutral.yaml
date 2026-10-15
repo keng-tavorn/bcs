@@ -1,0 +1,58 @@
+# tests/golden/bankfile-neutral.yaml
+suite: bankfile-neutral
+template: BCS-NEUTRAL-1
+# bytes = BOM (EF BB BF) + UTF-8 ของ lines ที่ต่อด้วย CRLF และมี CRLF ท้ายบรรทัดสุดท้าย · sha256 คำนวณจาก bytes ทั้งหมด (ชื่อไฟล์ไม่อยู่ในเนื้อไฟล์)
+cases:
+  - id: GC-BANK-12
+    title: 3 รายการ ต่างธนาคาร ชื่อภาษาไทย
+    input:
+      run: { number: PAY-2569-00001, fileVersion: 1, valueDate: "2026-10-16", payer: { bankCode: "004", accountNo: "9991000016" } }
+      items:
+        - { seq: 1, bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด", amount: "109328.70", supplierCode: SP0076 }
+        - { seq: 2, bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด", amount: "17160.00", supplierCode: SP0135 }
+        - { seq: 3, bankCode: "025", accountNo: "9345678012", accountName: "บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด", amount: "37152.54", supplierCode: SP0171 }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00001_v1.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00001,1,2026-10-16,004,9991000016,3,163641.24"
+        - "D,1,006,9123456780,บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด,109328.70,SP0076,PAY-2569-00001-001"
+        - "D,2,014,9234567801,บริษัท ตัวอย่างทดสอบวัสดุ จำกัด,17160.00,SP0135,PAY-2569-00001-002"
+        - "D,3,025,9345678012,บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด,37152.54,SP0171,PAY-2569-00001-003"
+        - "T,3,163641.24"
+      itemCount: 3
+      total: "163641.24"
+      bytes: 568
+      sha256: 45530b3ee4c6e018cee14048176aedae9f82846ec4f6b8d7e18df86db64caecd
+  - id: GC-BANK-13
+    title: ชื่อบัญชีมีจุลภาคและอัญประกาศ ยอดต่ำสุดและหลักล้าน
+    input:
+      run: { number: PAY-2569-00002, fileVersion: 1, valueDate: "2026-10-16", payer: { bankCode: "004", accountNo: "9991000016" } }
+      items:
+        - { seq: 1, bankCode: "002", accountNo: "9456780123", accountName: "ห้างหุ้นส่วนจำกัด ช่าง \"เอ\" การโยธา, สาขา 2", amount: "0.01", supplierCode: SP0120 }
+        - { seq: 2, bankCode: "004", accountNo: "9567801234", accountName: "นายสมปอง ทองขาว", amount: "1000000.00", supplierCode: SP0187 }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00002_v1.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00002,1,2026-10-16,004,9991000016,2,1000000.01"
+        - "D,1,002,9456780123,\"ห้างหุ้นส่วนจำกัด ช่าง \"\"เอ\"\" การโยธา, สาขา 2\",0.01,SP0120,PAY-2569-00002-001"
+        - "D,2,004,9567801234,นายสมปอง ทองขาว,1000000.00,SP0187,PAY-2569-00002-002"
+        - "T,2,1000000.01"
+      itemCount: 2
+      total: "1000000.01"
+      bytes: 378
+      sha256: 42a098fd395a4346a0163b9b88d9bf10aa727a9de8f9fb88edaf6c18b22c3308
+  - id: GC-BANK-14
+    title: สร้างใหม่เป็นเวอร์ชัน 2 ต่างแค่ช่องเวอร์ชันในแถว H
+    input: { sameAs: GC-BANK-12, run: { fileVersion: 2 } }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00001_v2.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00001,2,2026-10-16,004,9991000016,3,163641.24"
+        - "D,1,006,9123456780,บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด,109328.70,SP0076,PAY-2569-00001-001"
+        - "D,2,014,9234567801,บริษัท ตัวอย่างทดสอบวัสดุ จำกัด,17160.00,SP0135,PAY-2569-00001-002"
+        - "D,3,025,9345678012,บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด,37152.54,SP0171,PAY-2569-00001-003"
+        - "T,3,163641.24"
+      itemCount: 3
+      total: "163641.24"
+      bytes: 568
+      sha256: f8795132b27a8dcd193116c20507075687e82b708d9dd04d831b1e1ffbc4ca93

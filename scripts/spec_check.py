@@ -1332,6 +1332,66 @@ def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำน�
         else: got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_bank_account(d):  # BR-SUP-07 · S9-03: ตัวเลขล้วน 10–12 หลัก รหัสธนาคารในรายการ ชื่อไม่มีอักขระควบคุม
+    import unicodedata
+    banks, out = set(d["banks"]), []
+    def bad(reason): return {"error": "VALIDATION_FAILED", "reason": reason}
+    for c in d["cases"]:
+        i = c["input"]; digits = re.sub(r"[- ]", "", i["accountNo"])
+        if re.search(r"[^0-9]", digits): got = bad("ACCOUNT_NO_FORMAT")  # ขีดหรือเว้นวรรคล้วนคือเลข 0 หลัก
+        elif not 10 <= len(digits) <= 12: got = bad("ACCOUNT_NO_LENGTH")
+        elif i["bankCode"] not in banks: got = bad("BANK_CODE_UNKNOWN")
+        elif any(unicodedata.category(ch) == "Cc" for ch in i.get("accountName", "")): got = bad("ACCOUNT_NAME_FORMAT")
+        else: got = {"accountNo": digits, "masked": "•" * (len(digits) - 4) + digits[-4:]}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_bank_precheck(d):  # BR-BANK-06 · S9-03: ระดับรอบก่อน แล้วรายการตาม seq · ทุกข้อที่ไม่ผ่าน
+    out = []
+    for c in d["cases"]:
+        x = copy.deepcopy(d["base"])
+        for path, v in c["change"].items():
+            node, keys = x, path.split(".")
+            for k in keys[:-1]: node = node[int(k)] if isinstance(node, list) else node[k]
+            node[int(keys[-1]) if isinstance(node, list) else keys[-1]] = v
+        run, f, sups, docs = x["run"], [], set(), set()
+        items = sorted(x["items"], key=lambda i: i["seq"])
+        if run["payerStatus"] != "ACTIVE" or run["payerTemplate"] != run["runTemplate"]: f.append({"check": "PAYER_ACCOUNT_INVALID"})
+        total = sum(sat(i["transfer"]) for i in items)
+        if total != sat(run["totalTransfer"]): f.append({"check": "TOTAL_MISMATCH", "expected": baht(sat(run["totalTransfer"])), "actual": baht(total)})
+        if len(items) != run["itemCount"]: f.append({"check": "COUNT_MISMATCH", "expected": run["itemCount"], "actual": len(items)})
+        for i in items:
+            reg, s = i.get("register"), i["seq"]
+            if not reg or reg["status"] != "ACTIVE": f.append({"seq": s, "check": "ACCOUNT_NOT_ACTIVE"})
+            else: f += [{"seq": s, "check": "ACCOUNT_MISMATCH", "field": k} for k in ("bankCode", "accountNo", "accountName") if i["snapshot"][k] != reg[k]]
+            if i["supplier"] in sups: f.append({"seq": s, "check": "DUPLICATE_SUPPLIER"})
+            sups.add(i["supplier"])
+            named = []  # เอกสารที่ซ้ำในรายการเดียวรายงานครั้งเดียวต่อข้อ
+            for doc in i["documents"]:
+                if doc["id"] in docs and ("DUP", doc["id"]) not in named: named.append(("DUP", doc["id"])); f.append({"seq": s, "check": "DUPLICATE_DOCUMENT_IN_RUN", "document": doc["id"]})
+                docs.add(doc["id"])
+            for doc in i["documents"]:
+                if doc["link"] != "HELD_BY_THIS_RUN" and ("NOT_HELD", doc["id"]) not in named: named.append(("NOT_HELD", doc["id"])); f.append({"seq": s, "check": "DOCUMENT_NOT_HELD", "document": doc["id"]})
+        got = {"ok": not f, "failures": f}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_bankfile_neutral(d):  # BR-BANK-04 BR-BANK-05 · S9-03: เทียบ bytes และ sha256 ด้วย hashlib
+    import hashlib
+    out, by_id = [], {c["id"]: c for c in d["cases"]}
+    def q(v): v = str(v); return '"' + v.replace('"', '""') + '"' if any(ch in v for ch in ',"\r\n') else v
+    def row(*fields): return ",".join(q(v) for v in fields)
+    def inp(c):
+        i = c["input"]
+        if "sameAs" not in i: return i
+        b = inp(by_id[i["sameAs"]]); return {"run": {**b["run"], **i["run"]}, "items": b["items"]}
+    for c in d["cases"]:
+        i = inp(c); r = i["run"]; items = sorted(i["items"], key=lambda x: x["seq"]); tot = baht(sum(sat(x["amount"]) for x in items))
+        lines = [row("H", d["template"], "NOT-A-BANK-FORMAT", r["number"], r["fileVersion"], r["valueDate"], r["payer"]["bankCode"], r["payer"]["accountNo"], len(items), tot)]
+        lines += [row("D", x["seq"], x["bankCode"], x["accountNo"], x["accountName"], baht(sat(x["amount"])), x["supplierCode"], f'{r["number"]}-{x["seq"]:03d}') for x in items]
+        lines.append(row("T", len(items), tot))
+        data = b"\xef\xbb\xbf" + "".join(l + "\r\n" for l in lines).encode("utf-8")
+        got = {"fileName": f'{d["template"]}_NOT-A-BANK-FORMAT_{r["number"]}_v{r["fileVersion"]}.csv', "lines": lines, "itemCount": len(items), "total": tot, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1343,6 +1403,9 @@ RUNNERS = {
     "ai-text": run_ai_text,
     "ai-verify": run_ai_verify,
     "ap": run_ap,
+    "bank-account": run_bank_account,
+    "bank-precheck": run_bank_precheck,
+    "bankfile-neutral": run_bankfile_neutral,
     "budget": run_budget,
     "consolidation": run_cons,
     "dates": run_dates,

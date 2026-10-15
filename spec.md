@@ -1159,7 +1159,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,payment}` (ai-checks เพิ่มใน S13-02 · payment เพิ่มใน S9-02)
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,payment,bankfile}` (ai-checks เพิ่มใน S13-02 · payment เพิ่มใน S9-02 · bankfile เพิ่มใน S9-03)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -2309,6 +2309,90 @@ cases:
   - { id: GC-VAT-14, title: VAT หลังหักส่วนลดท้ายบิล, input: { rateBp: 700, supplierVat: REGISTERED, discount: "100.00", lines: [{ qty: "1", unitPrice: "3333.33" }, { qty: "1", unitPrice: "6666.67" }], statedVat: "693.00" }, expect: { rateBp: 700, net: "9900.00", computedVat: "693.00", computedGross: "10593.00", invoiceGross: "10593.00", diff: "0.00", status: OK } }
 ```
 
+```yaml
+# tests/golden/bank-precheck.yaml
+suite: bank-precheck
+# ทุกเคสเริ่มจาก base แล้วเปลี่ยนตาม change (path แบบ items.<index เริ่ม 0>.<field>) · 109328.70 + 17160.00 = 126488.70
+base:
+  run: { totalTransfer: "126488.70", itemCount: 2, payerStatus: ACTIVE, payerTemplate: BCS-NEUTRAL-1, runTemplate: BCS-NEUTRAL-1 }
+  items:
+    - { seq: 1, supplier: SP0076, transfer: "109328.70", snapshot: { bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด" }, register: { status: ACTIVE, bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด" }, documents: [{ id: INV-A, link: HELD_BY_THIS_RUN }] }
+    - { seq: 2, supplier: SP0135, transfer: "17160.00", snapshot: { bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด" }, register: { status: ACTIVE, bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด" }, documents: [{ id: INV-B, link: HELD_BY_THIS_RUN }] }
+cases:
+  - { id: GC-BANK-01, title: ผ่านทุกข้อ, change: {}, expect: { ok: true, failures: [] } }
+  - { id: GC-BANK-02, title: เลขบัญชีในทะเบียนเปลี่ยนหลังอนุมัติ, change: { items.1.register.accountNo: "9234567899" }, expect: { ok: false, failures: [{ seq: 2, check: ACCOUNT_MISMATCH, field: accountNo }] } }
+  - { id: GC-BANK-03, title: ชื่อบัญชีไม่ตรงทะเบียน, change: { items.0.register.accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร (ประเทศไทย) จำกัด" }, expect: { ok: false, failures: [{ seq: 1, check: ACCOUNT_MISMATCH, field: accountName }] } }
+  - { id: GC-BANK-04, title: บัญชีในทะเบียนถูกแทนแล้ว, change: { items.0.register.status: SUPERSEDED }, expect: { ok: false, failures: [{ seq: 1, check: ACCOUNT_NOT_ACTIVE }] } }
+  - { id: GC-BANK-05, title: ยอดของรอบต่างจากผลรวม 1 สตางค์, change: { run.totalTransfer: "126488.71" }, expect: { ok: false, failures: [{ check: TOTAL_MISMATCH, expected: "126488.71", actual: "126488.70" }] } }
+  - { id: GC-BANK-06, title: จำนวนรายการไม่ตรง, change: { run.itemCount: 3 }, expect: { ok: false, failures: [{ check: COUNT_MISMATCH, expected: 3, actual: 2 }] } }
+  - { id: GC-BANK-07, title: ผู้ขายซ้ำสองรายการ, change: { items.1.supplier: SP0076 }, expect: { ok: false, failures: [{ seq: 2, check: DUPLICATE_SUPPLIER }] } }
+  - { id: GC-BANK-08, title: เอกสารเดียวกันในสองรายการ, change: { items.1.documents.0.id: INV-A }, expect: { ok: false, failures: [{ seq: 2, check: DUPLICATE_DOCUMENT_IN_RUN, document: INV-A }] } }
+  - { id: GC-BANK-09, title: เอกสารจ่ายแล้ว, change: { items.0.documents.0.link: PAID }, expect: { ok: false, failures: [{ seq: 1, check: DOCUMENT_NOT_HELD, document: INV-A }] } }
+  - { id: GC-BANK-10, title: บัญชีผู้จ่ายถูกแทนแล้ว, change: { run.payerStatus: SUPERSEDED }, expect: { ok: false, failures: [{ check: PAYER_ACCOUNT_INVALID }] } }
+  - { id: GC-BANK-11, title: หลายข้อพร้อมกัน เรียงระดับรอบก่อนแล้วตาม seq, change: { run.totalTransfer: "126488.71", items.1.register.accountNo: "9234567899" }, expect: { ok: false, failures: [{ check: TOTAL_MISMATCH, expected: "126488.71", actual: "126488.70" }, { seq: 2, check: ACCOUNT_MISMATCH, field: accountNo }] } }
+```
+
+```yaml
+# tests/golden/bankfile-neutral.yaml
+suite: bankfile-neutral
+template: BCS-NEUTRAL-1
+# bytes = BOM (EF BB BF) + UTF-8 ของ lines ที่ต่อด้วย CRLF และมี CRLF ท้ายบรรทัดสุดท้าย · sha256 คำนวณจาก bytes ทั้งหมด (ชื่อไฟล์ไม่อยู่ในเนื้อไฟล์)
+cases:
+  - id: GC-BANK-12
+    title: 3 รายการ ต่างธนาคาร ชื่อภาษาไทย
+    input:
+      run: { number: PAY-2569-00001, fileVersion: 1, valueDate: "2026-10-16", payer: { bankCode: "004", accountNo: "9991000016" } }
+      items:
+        - { seq: 1, bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด", amount: "109328.70", supplierCode: SP0076 }
+        - { seq: 2, bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด", amount: "17160.00", supplierCode: SP0135 }
+        - { seq: 3, bankCode: "025", accountNo: "9345678012", accountName: "บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด", amount: "37152.54", supplierCode: SP0171 }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00001_v1.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00001,1,2026-10-16,004,9991000016,3,163641.24"
+        - "D,1,006,9123456780,บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด,109328.70,SP0076,PAY-2569-00001-001"
+        - "D,2,014,9234567801,บริษัท ตัวอย่างทดสอบวัสดุ จำกัด,17160.00,SP0135,PAY-2569-00001-002"
+        - "D,3,025,9345678012,บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด,37152.54,SP0171,PAY-2569-00001-003"
+        - "T,3,163641.24"
+      itemCount: 3
+      total: "163641.24"
+      bytes: 568
+      sha256: 45530b3ee4c6e018cee14048176aedae9f82846ec4f6b8d7e18df86db64caecd
+  - id: GC-BANK-13
+    title: ชื่อบัญชีมีจุลภาคและอัญประกาศ ยอดต่ำสุดและหลักล้าน
+    input:
+      run: { number: PAY-2569-00002, fileVersion: 1, valueDate: "2026-10-16", payer: { bankCode: "004", accountNo: "9991000016" } }
+      items:
+        - { seq: 1, bankCode: "002", accountNo: "9456780123", accountName: "ห้างหุ้นส่วนจำกัด ช่าง \"เอ\" การโยธา, สาขา 2", amount: "0.01", supplierCode: SP0120 }
+        - { seq: 2, bankCode: "004", accountNo: "9567801234", accountName: "นายสมปอง ทองขาว", amount: "1000000.00", supplierCode: SP0187 }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00002_v1.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00002,1,2026-10-16,004,9991000016,2,1000000.01"
+        - "D,1,002,9456780123,\"ห้างหุ้นส่วนจำกัด ช่าง \"\"เอ\"\" การโยธา, สาขา 2\",0.01,SP0120,PAY-2569-00002-001"
+        - "D,2,004,9567801234,นายสมปอง ทองขาว,1000000.00,SP0187,PAY-2569-00002-002"
+        - "T,2,1000000.01"
+      itemCount: 2
+      total: "1000000.01"
+      bytes: 378
+      sha256: 42a098fd395a4346a0163b9b88d9bf10aa727a9de8f9fb88edaf6c18b22c3308
+  - id: GC-BANK-14
+    title: สร้างใหม่เป็นเวอร์ชัน 2 ต่างแค่ช่องเวอร์ชันในแถว H
+    input: { sameAs: GC-BANK-12, run: { fileVersion: 2 } }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00001_v2.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00001,2,2026-10-16,004,9991000016,3,163641.24"
+        - "D,1,006,9123456780,บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด,109328.70,SP0076,PAY-2569-00001-001"
+        - "D,2,014,9234567801,บริษัท ตัวอย่างทดสอบวัสดุ จำกัด,17160.00,SP0135,PAY-2569-00001-002"
+        - "D,3,025,9345678012,บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด,37152.54,SP0171,PAY-2569-00001-003"
+        - "T,3,163641.24"
+      itemCount: 3
+      total: "163641.24"
+      bytes: 568
+      sha256: f8795132b27a8dcd193116c20507075687e82b708d9dd04d831b1e1ffbc4ca93
+```
+
 ### 7.15 ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
 
 | ID | กฎ |
@@ -2320,6 +2404,21 @@ cases:
 | BR-SUP-05 | adapter มีสองโหมดตาม ADR-025: `stub` คืนข้อมูลจาก fixture สำหรับเลขสังเคราะห์ใน seed และ `live` เรียกบริการจริง · เทสต์ใช้ stub เสมอ และมี contract test กับคำตอบที่บันทึกจากบริการจริง · ต้องตรวจว่าบริการยังเปิดและเรียกจาก hosting ได้ก่อนใช้ `live` (OQ-37) |
 | BR-SUP-06 | บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กร เพิ่ม เปลี่ยน หรือปิดผ่าน `BankAccountChange` ที่อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (§4.11 · บัญชีองค์กรตาม OQ-137) · บัญชีมีผลเมื่ออนุมัติ (BR-SOD-05) · การอนุมัติ step-up ทุกครั้งบนเว็บ (รวมแอป BCS Go) หรือ LIFF เท่านั้น ไม่มีปุ่มในแชทหรือลิงก์ตัดสินทางอีเมล และการ์ด LINE ไม่มีชื่อบัญชีหรือเลขบัญชี ตาม BR-DOA-25 ของฐานร่วม · ผู้ขายมีบัญชี ACTIVE ได้หนึ่งบัญชี · ผู้เสนอ = FINANCE (OQ-133) · แนบหลักฐาน `BANK_PROOF` · เปลี่ยนบัญชีเดิมของผู้ขายต้องบันทึกการโทรยืนยันที่เบอร์ในทะเบียน · เมื่อบัญชีของผู้ขายมีผล เรียก `enqueueSupplierNotice` ของ S8 ในธุรกรรมเดียวกัน (templateKey `bank_account.notice` · subjectType `BANK_ACCOUNT` subjectId = bankAccountId · dedupeKey `bank_account_notice:<bankAccountId>`) ถึงอีเมลในทะเบียน (4 ตัวท้ายของบัญชีใหม่ และช่องทางติดต่อถ้าไม่ได้ขอ) · ปิดบัญชีเดียวของผู้ขายได้ แต่ผู้ขายจะเข้ารอบไม่ได้จนมีบัญชีใหม่ |
 | BR-SUP-07 | เลขบัญชีรับได้ทั้งแบบมีขีดและเว้นวรรค เก็บเป็นตัวเลขล้วน 10–12 หลัก (`ACCOUNT_NO_LENGTH` · `ACCOUNT_NO_FORMAT`) · รหัสธนาคารต้องอยู่ในรายการ (`BANK_CODE_UNKNOWN`) · ชื่อบัญชีห้ามมีอักขระควบคุม (`ACCOUNT_NAME_FORMAT`) · ทั้งหมดเป็น `VALIDATION_FAILED` พร้อม reason · แสดงแบบ mask `•` แทนทุกหลักยกเว้น 4 ตัวท้าย · เลขเต็มเปิดได้เฉพาะ FINANCE และผู้อนุมัติของคำขอนั้น พร้อมบันทึก `SensitiveAccessLog` ผ่าน helper ที่ S8-01 สร้าง (NFR-PRIV-03 · BR-AUTH-04) · การตรวจรูปแบบรายธนาคารเพิ่มกับแม่แบบจริง |
+
+```yaml
+# tests/golden/bank-account.yaml
+suite: bank-account
+banks: ["002", "004", "006", "011", "014", "022", "024", "025", "030", "069", "073"]
+cases:
+  - { id: GC-SUP-01, title: เลขมีขีดตามสมุดบัญชี, fn: normalizeAccount, input: { bankCode: "004", accountNo: "999-1-00001-6", accountName: "บริษัท ตัวอย่างวิศวกรรมและก่อสร้าง จำกัด" }, expect: { accountNo: "9991000016", masked: "••••••0016" } }
+  - { id: GC-SUP-02, title: 10 หลักพอดี, fn: normalizeAccount, input: { bankCode: "014", accountNo: "9234567801" }, expect: { accountNo: "9234567801", masked: "••••••7801" } }
+  - { id: GC-SUP-03, title: 9 หลัก, fn: normalizeAccount, input: { bankCode: "014", accountNo: "923456780" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_LENGTH } }
+  - { id: GC-SUP-04, title: 12 หลักพอดีแบบเว้นวรรค, fn: normalizeAccount, input: { bankCode: "030", accountNo: "9201 2345 6789" }, expect: { accountNo: "920123456789", masked: "••••••••6789" } }
+  - { id: GC-SUP-05, title: 13 หลัก, fn: normalizeAccount, input: { bankCode: "030", accountNo: "9201234567890" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_LENGTH } }
+  - { id: GC-SUP-06, title: มีตัวอักษร, fn: normalizeAccount, input: { bankCode: "004", accountNo: "99910000A6" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_FORMAT } }
+  - { id: GC-SUP-07, title: รหัสธนาคารไม่อยู่ในรายการ, fn: normalizeAccount, input: { bankCode: "999", accountNo: "9991000016" }, expect: { error: VALIDATION_FAILED, reason: BANK_CODE_UNKNOWN } }
+  - { id: GC-SUP-08, title: ชื่อบัญชีขึ้นบรรทัดใหม่, fn: normalizeAccount, input: { bankCode: "004", accountNo: "9991000016", accountName: "บริษัท ก\nจำกัด" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NAME_FORMAT } }
+```
 
 ### 7.16 รายงานรับของแล้วยังไม่มีใบกำกับ
 
@@ -3266,6 +3365,19 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 - AC10 — ผู้ไม่มี `paymentRun.prepare` สร้างหรือแก้รอบ และคนที่ไม่ใช่ผู้เตรียมแก้ร่าง → `FORBIDDEN` · ปิดโมดูล `PAY` → `MODULE_DISABLED` · ปิด `PAY` ขณะมีรอบหรือคำขอเปลี่ยนบัญชีที่ยังไม่จบ → `MODULE_IN_USE` พร้อมรายการ (OQ-33)
 - AC11 — ยกเลิกรอบที่มีไฟล์ดาวน์โหลดแล้วโดยไม่ยืนยันว่ายังไม่ได้ส่งธนาคาร → `VALIDATION_FAILED` reason `EXPORT_CONFIRMATION_REQUIRED` · ยืนยันแล้วผู้อนุมัติได้รับแจ้ง และเอกสารที่ปล่อยติดธง `PREVIOUSLY_EXPORTED` ที่ต้องมีเหตุผลในรอบถัดไป (GC-PAY-32 · OQ-136)
 - AC12 — (`[go-live]`) ใบลดหนี้ของผู้ขายเดียวกันเข้ารายการ ลดทั้งยอดที่ต้องจ่ายและฐานภาษีหัก · ฐานของกลุ่มติดลบ → `VALIDATION_FAILED` reason `WHT_BASE_NEGATIVE` (เคสใน `payment-run-credit.yaml` · S9-17 หลัง S8-18 · OQ-129)
+
+**AC ของ FR-PAY-102** (ไฟล์ Batch Payment 1–2 ธนาคาร พร้อมตรวจก่อนส่งออก)
+ขั้น S9 · Web · LIFF · §7.14 §7.15 · docs/sub-specs/S9.md
+- AC1 — รอบที่ APPROVED สร้างไฟล์ตามแม่แบบของบัญชีผู้จ่าย · ชั้น demo ใช้แม่แบบกลาง `BCS-NEUTRAL-1` ได้ไฟล์ byte-exact และ sha256 ตรง GC-BANK-12 ถึง GC-BANK-14 · แถว H ชื่อไฟล์ และหน้าจอบอกว่าไม่ใช่รูปแบบของธนาคาร
+- AC2 — ตรวจก่อนส่งออก (BR-BANK-02): บัญชีไม่ตรงทะเบียนหรือไม่ ACTIVE ยอดหรือจำนวนไม่ตรง ผู้ขายหรือเอกสารซ้ำ เอกสารที่ไม่ได้ถืออยู่ บัญชีผู้จ่ายไม่ใช้งาน → `BANK_FILE_CHECK_FAILED` พร้อมรายการตามลำดับใน GC-BANK-01 ถึง GC-BANK-11 และไม่มีไฟล์หรือ PaymentFile ถูกสร้าง
+- AC3 — ไฟล์ที่สร้างอ่านกลับแล้ว แถว T = Σ แถว D = ยอดโอนรวมของรอบ และจำนวนตรง (INV-PAY-02)
+- AC4 — (BR-BANK-03) ไฟล์ที่สร้างแล้วแก้ไม่ได้ (trigger ปฏิเสธ DELETE และ UPDATE อื่นนอกจากสถานะและเวลาดาวน์โหลดครั้งแรก) · สร้างใหม่ต้องมีเหตุผล ได้เวอร์ชันใหม่ เวอร์ชันเดิม SUPERSEDED · เวอร์ชันเดิมดาวน์โหลดแล้วต้องยืนยันว่ายังไม่ได้ส่งธนาคาร (`EXPORT_CONFIRMATION_REQUIRED`) และแจ้งผู้อนุมัติ · ทุกครั้งมี event พร้อม sha256 จำนวน และยอด
+- AC5 — 1–2 ธนาคาร: องค์กรมีบัญชีผู้จ่ายหลายบัญชี แต่ละบัญชีมีแม่แบบของตน · รอบหนึ่งใช้บัญชีเดียว · seed ระยะ 1 มีบัญชี `CB-01` `CB-02` ตามชีต CompanyBankAccounts
+- AC6 — ขอลิงก์ดาวน์โหลดได้เฉพาะผู้มี `paymentRun.file` ด้วยคำสั่ง POST ที่คืน presigned ไม่เกิน 5 นาทีพร้อม `file.downloaded` และตั้งเวลาดาวน์โหลดครั้งแรก · ผู้ไม่มีสิทธิ์ → `FORBIDDEN` · log Event และ Notification ไม่มีเลขบัญชีเต็ม (เทสต์ redaction · NFR-SEC-09)
+- AC7 — (§4.11 · BR-SOD-05) บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กรเพิ่ม เปลี่ยน หรือปิดผ่าน `BankAccountChange` ที่อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (GC-DOA-53 GC-DOA-54) · ผู้เสนออนุมัติเอง → `SOD_VIOLATION` (GC-SOD-13) · บัญชีใหม่ใช้ในรอบจ่ายไม่ได้จนอนุมัติ · ส่งโดยไม่มีหลักฐานหรือบันทึกการโทรเมื่อเปลี่ยนบัญชีเดิม → `VALIDATION_FAILED` · การอนุมัติต้อง step-up ทุกครั้ง (PIN หรือ passkey เมื่อ S17 เปิด) บนเว็บหรือ LIFF และทำไม่ได้จากปุ่มในแชทหรือลิงก์อีเมล (BR-DOA-25) · เมื่อมีผลผู้ขายได้อีเมลแจ้งที่อีเมลในทะเบียนผ่าน `SupplierNotice`
+- AC8 — เลขบัญชีตรวจและเก็บตาม GC-SUP-01 ถึง GC-SUP-08 · แสดงแบบ mask โดยค่าเริ่มต้นทุกหน้า (AUDITOR ด้วย · BR-AUTH-04) · เปิดเลขเต็มได้เฉพาะ FINANCE และผู้อนุมัติของคำขอนั้น และทุกครั้งมีแถว `SensitiveAccessLog` (NFR-PRIV-03 · ตารางจาก S8-01)
+- AC9 — (`[go-live]`) แม่แบบของธนาคารจริง: golden byte-exact + sha256 เทียบไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคาร (BR-BANK-01 · P0-03) และการเงินของลูกค้าอัปโหลดไฟล์ทดสอบผ่าน โดยยอดรวมตรงรอบจ่าย
+- AC10 — (`[go-live]`) บัญชีรับเงินจริงของผู้ขายเข้าระบบเป็นชุดด้วยคำขอเปลี่ยนบัญชีชุดเดียวที่แนบไฟล์จากลูกค้า ตรวจทุกแถว และอนุมัติตาม DOA พร้อม step-up · ไม่มีบัญชีจริงจาก seed (OQ-133)
 
 **AC ของ FR-PAY-103** (บันทึกผลการจ่ายและแจ้งผู้ขาย)
 ขั้น S9 · Web · §7.19 · docs/sub-specs/S9.md
@@ -4496,7 +4608,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       35 ไฟล์ · 406 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       38 ไฟล์ · 428 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

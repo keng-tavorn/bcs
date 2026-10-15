@@ -148,6 +148,7 @@ describe('[FR-PAY-101/AC2] one item per supplier: what it pays, the tax withheld
     const totals = await prisma.paymentRun.findUniqueOrThrow({ where: { id: run } })
     expect(totals).toMatchObject({ itemCount: 2, documentCount: 4, totalPayableSatang: itemA.payableSatang + itemB.payableSatang, totalTransferSatang: itemA.transferSatang + itemB.transferSatang })
     // taken out of the draft: ready for payment again, and an item left empty leaves the run
+    expect(await removePaymentDocuments(finance(), { paymentRunId: run, version: await versionOf(run), invoiceIds: [] }, key())).toMatchObject({ ok: false, error: { details: { reason: 'REQUIRED' } } })
     ok(await removePaymentDocuments(finance(), { paymentRunId: run, version: await versionOf(run), invoiceIds: [i3] }, key()))
     expect(await statusOf(i3)).toBe('READY_FOR_PAYMENT')
     expect(await prisma.paymentRunItem.count({ where: { paymentRunId: run } })).toBe(1)
@@ -200,8 +201,15 @@ describe('[FR-PAY-101/AC4] [FR-PAY-101/AC6] flags of an item and the reason they
     expect(Object.values(flags).flat()).not.toContain('RISK_OVERRIDE_EXPIRED')
     expect(await submitPaymentRun(finance(), { paymentRunId: run, version: await versionOf(run) }, key())).toMatchObject({ ok: false, error: { code: 'PAYMENT_FLAG_REASON_REQUIRED', details: { flag: expect.any(String) } } })
     for (const s of [ceased, inactive]) ok(await setPaymentFlagReason(finance(), { paymentRunId: run, version: await versionOf(run), supplierId: s.id, reason: 'ตรวจกับฝ่ายจัดซื้อแล้ว งานส่งมอบครบก่อนเลิกกิจการ' }, key()))
+    // a reason answers the flags it was given for: the inactive supplier's registry changes too, so its reason is asked again
+    await prisma.supplier.update({ where: { id: inactive.id }, data: { registryFlag: 'VAT_CANCELLED' } })
+    ok(await updatePaymentRun(finance(), { paymentRunId: run, version: await versionOf(run), payDate: PAY_DATE }, key()))
+    expect(await prisma.paymentRunItem.findFirstOrThrow({ where: { paymentRunId: run, supplierId: inactive.id } })).toMatchObject({ flags: ['REGISTRY_CHANGED', 'SUPPLIER_INACTIVE'], flagReason: null })
+    expect(await submitPaymentRun(finance(), { paymentRunId: run, version: await versionOf(run) }, key())).toMatchObject({ ok: false, error: { code: 'PAYMENT_FLAG_REASON_REQUIRED', details: { supplier: inactive.code, flag: 'REGISTRY_CHANGED' } } })
+    ok(await setPaymentFlagReason(finance(), { paymentRunId: run, version: await versionOf(run), supplierId: inactive.id, reason: 'ผู้ขายแจ้งยกเลิก VAT แล้ว ใบนี้ออกก่อนยกเลิก' }, key()))
     const sent = ok(await submitPaymentRun(finance(), { paymentRunId: run, version: await versionOf(run) }, key()))
-    expect(sent.flagsKey).toBe([`${ceased.code}:REGISTRY_CHANGED`, `${inactive.code}:SUPPLIER_INACTIVE`].sort().join(';'))
+    expect(sent.flagsKey).toBe([`${ceased.code}:REGISTRY_CHANGED`, `${inactive.code}:REGISTRY_CHANGED+SUPPLIER_INACTIVE`].sort().join(';'))
+    expect((await prisma.paymentRun.findUniqueOrThrow({ where: { id: run } })).fileTemplateCode).toBe('BCS-NEUTRAL-1')
   })
 })
 

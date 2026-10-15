@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { formatSatang } from '@/core/money/format'
-import { buildItem, checkPayDate, flagsKey, itemFlags, nextRunDate, proposeDocuments, type ItemDocument, type PayCalendar, type PaymentFlag } from '@/core/payment'
+import { buildItem, checkPayDate, flagsKey, itemFlags, nextRunDate, PAYMENT_FLAGS, proposeDocuments, type ItemDocument, type PayCalendar, type PaymentFlag, type Weekday } from '@/core/payment'
 import { err, ok, type Result } from '@/core/result'
 import { checkSod, recentBankChangeProposers, type RecentBankChanges } from '@/core/sod'
 import { PAYMENT_RUN_MACHINE, transition, type PaymentRunCommand, type PaymentRunState } from '@/core/state-machines'
@@ -39,6 +39,8 @@ import { issueDocumentNumber } from '../numbering'
 // amounts and last four digits only (BR-BANK-08).
 
 const MIN_REASON_LENGTH = 3
+/** BR-PAY-06: the first four flags need the preparer's reason before the run is sent */
+const REASON_FLAGS: readonly PaymentFlag[] = PAYMENT_FLAGS.slice(0, 4)
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/)
 const asDate = (d: string) => new Date(`${d}T00:00:00Z`)
 const dayOf = (d: Date) => d.toISOString().slice(0, 10)
@@ -95,6 +97,15 @@ async function checkDate(tx: TenantTx, ctx: Ctx, payDate: string): Promise<Fail 
   return checked.ok ? null : fail('PAYMENT_DATE_INVALID', `the pay date ${payDate} cannot be used`, { date: payDate, reason: checked.reason })
 }
 
+/** BR-PAY-02, OQ-130: the next run day from today; a calendar with no working day on a run weekday within a year is refused */
+async function proposedPayDate(tx: TenantTx, ctx: Ctx, payment: { readonly runWeekdays: readonly Weekday[]; readonly holidayShift: 'PREVIOUS' | 'NEXT' }): Promise<string | Fail> {
+  try {
+    return nextRunDate(taxDateOf(ctx.now), payment, await payCalendar(tx, ctx))
+  } catch {
+    return fail('VALIDATION_FAILED', 'no working day to pay on within a year: check the business calendar and the run weekdays', { field: 'payDate', reason: 'NO_WORKING_DAY' })
+  }
+}
+
 /** BR-PAY-01: the run pays from an ACTIVE account of the organization */
 async function checkPayer(tx: TenantTx, payerBankAccountId: string): Promise<{ ok: true; fileTemplateCode: string } | Fail> {
   const payer = await tx.bankAccount.findFirst({ where: { id: payerBankAccountId }, select: { ownerKind: true, status: true, fileTemplateCode: true } })
@@ -122,7 +133,9 @@ export async function proposePaymentRun(ctx: Ctx, input: { readonly payDate?: st
     const pay = await requireModule(ctx, 'PAY', tx)
     if (!pay.ok) return pay
     const { payment } = await settingsOf(tx, ctx)
-    const payDate = input.payDate ?? nextRunDate(taxDateOf(ctx.now), payment, await payCalendar(tx, ctx))
+    const proposed = input.payDate ?? (await proposedPayDate(tx, ctx, payment))
+    if (typeof proposed !== 'string') return { ok: false, error: proposed.error }
+    const payDate = proposed
     if (input.payDate !== undefined) {
       const refused = await checkDate(tx, ctx, payDate)
       if (refused) return { ok: false, error: refused.error }
@@ -150,7 +163,9 @@ export const createPaymentRunCommand = defineCommand({
     const who = await preparer(tx, ctx)
     if (!who.ok) return who
     const { payment } = await settingsOf(tx, ctx)
-    const payDate = input.payDate ?? nextRunDate(taxDateOf(ctx.now), payment, await payCalendar(tx, ctx))
+    const proposed = input.payDate ?? (await proposedPayDate(tx, ctx, payment))
+    if (typeof proposed !== 'string') return proposed
+    const payDate = proposed
     const refused = await checkDate(tx, ctx, payDate)
     if (refused) return refused
     const payer = await checkPayer(tx, input.payerBankAccountId)
@@ -308,20 +323,19 @@ async function refreshRun(tx: TenantTx, ctx: Ctx, paymentRunId: string): Promise
     }
     const supplier = facts.get(item.supplierId)!
     const docIds = mine.map((l) => l.invoiceId ?? l.retentionId!)
-    const [exported, pending, sameAccount] = await Promise.all([
-      tx.paymentRunDocument.count({ where: { status: 'RELEASED', releasedAfterExport: true, OR: [{ invoiceId: { in: docIds } }, { retentionId: { in: docIds } }] } }),
-      tx.bankAccountChange.count({ where: { supplierId: item.supplierId, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } } }),
-      supplier.account
-        ? tx.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE', bankCode: supplier.account.bankCode, accountNo: supplier.account.accountNo, supplierId: { not: item.supplierId } }, select: { supplier: { select: { taxId: true } } } })
-        : Promise.resolve([]),
-    ])
+    // one query at a time: they share the transaction's connection
+    const exported = await tx.paymentRunDocument.count({ where: { status: 'RELEASED', releasedAfterExport: true, OR: [{ invoiceId: { in: docIds } }, { retentionId: { in: docIds } }] } })
+    const pending = await tx.bankAccountChange.count({ where: { supplierId: item.supplierId, status: { in: ['DRAFT', 'PENDING_APPROVAL'] } } })
+    const sameAccount = supplier.account
+      ? await tx.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE', bankCode: supplier.account.bankCode, accountNo: supplier.account.accountNo, supplierId: { not: item.supplierId } }, select: { supplier: { select: { taxId: true } } } })
+      : []
     const flagged = itemFlags(
       {
         payDate,
         supplier: { registryFlag: supplier.registryFlag, status: supplier.status, taxId: supplier.taxId },
         // without an account in force no account flag is due; sending refuses it (BANK_ACCOUNT_NOT_APPROVED)
         account: supplier.account ? { activatedOn: supplier.account.activatedOn, fromSeed: supplier.account.fromSeed } : { activatedOn: '0000-01-01', fromSeed: true },
-        // TODO(OQ-132): the approvals past a risk come with S11 (phase 2); none in phase 1, so RISK_OVERRIDE_EXPIRED never arises
+        // FR-PAY-101 AC6: the approvals past a risk come with S11 (phase 2); none in phase 1, so RISK_OVERRIDE_EXPIRED never arises
         riskOverrides: [],
         previouslyExported: exported > 0,
         pendingChange: pending > 0,
@@ -331,11 +345,16 @@ async function refreshRun(tx: TenantTx, ctx: Ctx, paymentRunId: string): Promise
     )
     await tx.paymentRunItemWht.deleteMany({ where: { paymentRunItemId: item.id } })
     if (built.whtLines.length) await tx.paymentRunItemWht.createMany({ data: built.whtLines.map((l) => ({ organizationId: ctx.organizationId, paymentRunItemId: item.id, incomeType: l.incomeType, rateBp: l.rateBp, baseSatang: l.baseSatang, whtSatang: l.whtSatang })) })
-    await tx.paymentRunItem.update({ where: { id: item.id }, data: { payableSatang: built.payableSatang, whtSatang: built.whtSatang, transferSatang: built.transferSatang, flags: [...flagged.flags] } })
+    // BR-PAY-06: the preparer's reason answers the flags it was given for; a flag needing one that was not there then
+    // asks for it again, so the approver never reads a reason written for another flag
+    const before = new Set(item.flags)
+    const newReasonFlag = flagged.flags.some((f) => REASON_FLAGS.includes(f) && !before.has(f))
+    const flagReason = newReasonFlag ? null : item.flagReason
+    await tx.paymentRunItem.update({ where: { id: item.id }, data: { payableSatang: built.payableSatang, whtSatang: built.whtSatang, transferSatang: built.transferSatang, flags: [...flagged.flags], flagReason } })
     payable += built.payableSatang
     wht += built.whtSatang
     documents += mine.length
-    out.push({ id: item.id, supplier, flags: [...flagged.flags], requiresReason: flagged.requiresReason, flagReason: item.flagReason, transferSatang: built.transferSatang })
+    out.push({ id: item.id, supplier, flags: [...flagged.flags], requiresReason: flagged.requiresReason, flagReason, transferSatang: built.transferSatang })
   }
   await tx.paymentRun.update({ where: { id: paymentRunId }, data: { totalPayableSatang: payable, totalWhtSatang: wht, totalTransferSatang: payable - wht, itemCount: items.length, documentCount: documents } })
   return { ok: true, items: out }
@@ -430,6 +449,8 @@ export const removePaymentDocumentsCommand = defineCommand({
     const { run } = found
     const notPreparer = preparedBy(run, who.memberId)
     if (notPreparer) return notPreparer
+    if (input.invoiceIds.length + input.retentionIds.length === 0) return fail('VALIDATION_FAILED', 'name a document to take out', { field: 'invoiceIds', reason: 'REQUIRED' })
+    if (new Set(input.invoiceIds).size !== input.invoiceIds.length || new Set(input.retentionIds).size !== input.retentionIds.length) return fail('VALIDATION_FAILED', 'name each document once', { field: 'invoiceIds', reason: 'TWICE' })
     const links = await tx.paymentRunDocument.findMany({ where: { paymentRunId: run.id, status: 'HELD', OR: [{ invoiceId: { in: input.invoiceIds } }, { retentionId: { in: input.retentionIds } }] }, select: { id: true, paymentRunItemId: true, invoiceId: true, retentionId: true } })
     if (links.length === 0 || links.length !== input.invoiceIds.length + input.retentionIds.length) return fail('NOT_FOUND', 'a document named is not in this run', { field: 'invoiceIds' })
     const events: EventDraft[] = []
@@ -521,7 +542,7 @@ export const submitPaymentRunCommand = defineCommand({
     // BR-PAY-06: the first four flags need the preparer's reason
     const unexplained = refreshed.items.find((i) => i.requiresReason && !i.flagReason)
     if (unexplained) {
-      const flag = unexplained.flags.find((f) => ['REGISTRY_CHANGED', 'SUPPLIER_INACTIVE', 'RISK_OVERRIDE_EXPIRED', 'PREVIOUSLY_EXPORTED'].includes(f))!
+      const flag = unexplained.flags.find((f) => REASON_FLAGS.includes(f))!
       return fail('PAYMENT_FLAG_REASON_REQUIRED', `the item of ${unexplained.supplier.code} has flag ${flag}: give a reason first`, { supplier: unexplained.supplier.code, flag })
     }
     const { payment } = await settingsOf(tx, ctx)
@@ -558,7 +579,7 @@ export const submitPaymentRunCommand = defineCommand({
       },
     )
     if (!route.ok) return { ok: false, error: route.error }
-    await tx.paymentRun.update({ where: { id: run.id }, data: { number, status: to, flagsKey: key, submittedAt: ctx.now, currentRouteId: route.data.routeId, version: { increment: 1 } } })
+    await tx.paymentRun.update({ where: { id: run.id }, data: { number, status: to, flagsKey: key, fileTemplateCode: payer.fileTemplateCode, submittedAt: ctx.now, currentRouteId: route.data.routeId, version: { increment: 1 } } })
     const resubmitted = run.number !== null
     return {
       ok: true,

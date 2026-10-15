@@ -219,9 +219,11 @@ export const recordPaymentResultsCommand = defineCommand({
     const left = open.length - results.length
     const completed = left === 0
     if (completed) {
+      const done = transition(PAYMENT_RUN_MACHINE, run.status as PaymentRunState, 'paymentRun.complete')
+      if (!done.ok) return fail('INVALID_STATE_TRANSITION', `paymentRun.complete is not allowed from ${run.status}`, { from: run.status, command: 'paymentRun.complete' })
       const all = await tx.paymentRunItem.findMany({ where: { paymentRunId: run.id }, select: { status: true, transferSatang: true } })
       const paidItems = all.filter((i) => i.status === 'PAID')
-      await tx.paymentRun.update({ where: { id: run.id }, data: { status: 'COMPLETED', completedAt: ctx.now, version: { increment: 1 } } })
+      await tx.paymentRun.update({ where: { id: run.id }, data: { status: done.to, completedAt: ctx.now, version: { increment: 1 } } })
       events.push({
         type: 'payment_run.completed',
         aggregateType: 'PaymentRun',
@@ -267,6 +269,9 @@ export const resendPaymentAdviceCommand = defineCommand({
       : null
     if (!item) return fail('NOT_FOUND', 'payment item not found')
     if (item.status !== 'PAID' || !item.paidOn) return fail('INVALID_STATE_TRANSITION', 'only a paid item has an advice', { from: item.status, command: 'paymentAdvice.resend' })
+    // OQ-134: an organization that sends no advice sends none again either
+    const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+    if (!paymentSettingsOf(org.settings).adviceEmail) return fail('VALIDATION_FAILED', 'payment advice e-mails are off for the organization', { reason: 'ADVICE_EMAIL_OFF' })
     // the n-th sending: a key of its own, so the advice goes again however often the first was sent (BR-PAY-13)
     const sent = await tx.supplierNotice.count({ where: { templateKey: PAY_SUPPLIER_TEMPLATES.paymentAdvice, subjectType: 'PAYMENT_RUN_ITEM', subjectId: item.id } })
     const comment = await tx.comment.create({ data: { organizationId: ctx.organizationId, subjectType: 'PaymentRunItem', subjectId: item.id, authorMemberId: who.memberId, body: input.reason }, select: { id: true } })

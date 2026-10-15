@@ -111,7 +111,7 @@ describe('[FR-PAY-103/AC1] results by hand, item by item or "paid, all but these
 
 describe('[FR-PAY-103/AC2] PAID through S8 in the same transaction; FAILED back to ready for payment; a failure part way changes nothing', () => {
   it('a service invoice and a retention paid: both PAID, the tax rows of the item add up to its tax, one 50 ทวิ of the item; a failed item flags its invoice in the next run', async () => {
-    const run = await sentToBank([{ service: true, retention: 500_000n }, {}])
+    const run = await sentToBank([{ service: true, retention: 500_000n }, { retention: 200_000n }])
     const [paid, failed] = run.suppliers
     const paidItem = run.itemOf(paid!.id)
     expect(paidItem.whtSatang).toBeGreaterThan(0n)
@@ -129,7 +129,11 @@ describe('[FR-PAY-103/AC2] PAID through S8 in the same transaction; FAILED back 
 
     // the failed item: its invoice ready for payment again, its link released after an export
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: failed!.invoiceId } })).status).toBe('READY_FOR_PAYMENT')
-    expect(await prisma.paymentRunDocument.findFirstOrThrow({ where: { invoiceId: failed!.invoiceId, paymentRunId: run.runId } })).toMatchObject({ status: 'RELEASED', releasedAfterExport: true })
+    expect((await prisma.retention.findUniqueOrThrow({ where: { id: failed!.retentionId! } })).status).toBe('RELEASABLE')
+    expect((await prisma.paymentRunDocument.findMany({ where: { paymentRunItemId: run.itemOf(failed!.id).id } })).map((d) => [d.status, d.releasedAfterExport])).toEqual([
+      ['RELEASED', true],
+      ['RELEASED', true],
+    ])
     const next = await draftRun(ap)
     ok(await addDocs(ap, next, { invoiceIds: [failed!.invoiceId] }))
     expect((await prisma.paymentRunItem.findFirstOrThrow({ where: { paymentRunId: next } })).flags).toEqual(['PREVIOUSLY_EXPORTED'])
@@ -228,9 +232,33 @@ describe('[FR-PAY-103/AC3] one payment advice per paid item by e-mail (BR-PAY-13
     try {
       const off = await sentToBank([{}])
       ok(await allPaidExcept(off.runId, { paidOn: '2026-10-16', failed: [] }))
-      expect(await prisma.supplierNotice.count({ where: { subjectId: off.itemOf(off.suppliers[0]!.id).id } })).toBe(0)
+      const offItem = off.itemOf(off.suppliers[0]!.id).id
+      expect(await prisma.supplierNotice.count({ where: { subjectId: offItem } })).toBe(0)
+      expect(await resendPaymentAdvice(at(), { paymentRunItemId: offItem, reason: 'ผู้ขายขอสำเนา' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'ADVICE_EMAIL_OFF' } } })
     } finally {
       await prisma.organization.update({ where: { id: ap.org.organizationId }, data: { settings: settings as object } })
+    }
+  })
+})
+
+describe('[FR-PAY-103/AC3] an advice whose 50 ทวิ is no longer available', () => {
+  it('fails once for good (ATTACHMENT_UNAVAILABLE) instead of throwing, the preparer is told, and the next notice still goes', async () => {
+    const run = await sentToBank([{ service: true }, {}])
+    const [taxed, plain] = run.suppliers
+    ok(await allPaidExcept(run.runId, { paidOn: '2026-10-16', failed: [] }))
+    const certificate = await prisma.whtCertificate.findFirstOrThrow({ where: { paymentRunItemId: run.itemOf(taxed!.id).id } })
+    await prisma.fileObject.update({ where: { id: certificate.fileId! }, data: { status: 'REJECTED' } })
+    try {
+      const notices = await prisma.supplierNotice.findMany({ where: { subjectId: { in: [run.itemOf(taxed!.id).id, run.itemOf(plain!.id).id] } } })
+      // in the sweep's order, the broken one first: it fails (no throw, nothing to retry) and the next one goes
+      expect(await sendSupplierNotice(ap.org.organizationId, notices.find((n) => n.supplierId === taxed!.id)!.id, LATER)).toBe('FAILED')
+      expect(await sendSupplierNotice(ap.org.organizationId, notices.find((n) => n.supplierId === plain!.id)!.id, LATER)).toBe('SENT')
+      expect(await prisma.supplierNotice.findFirstOrThrow({ where: { supplierId: taxed!.id, templateKey: 'payment.advice' } })).toMatchObject({ status: 'FAILED', error: 'ATTACHMENT_UNAVAILABLE' })
+      expect(await prisma.supplierNotice.findFirstOrThrow({ where: { supplierId: plain!.id, templateKey: 'payment.advice' } })).toMatchObject({ status: 'SENT' })
+      expect((await messagesTo(taxed!.email)).filter((m) => m.Subject.includes('Payment advice'))).toHaveLength(0)
+      expect(await prisma.notification.count({ where: { templateKey: 'payment_run.advice_failed', subjectId: run.runId, recipientMemberId: ap.org.member.fin_officer } })).toBe(1)
+    } finally {
+      await prisma.fileObject.update({ where: { id: certificate.fileId! }, data: { status: 'AVAILABLE' } })
     }
   })
 })

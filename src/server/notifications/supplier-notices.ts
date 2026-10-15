@@ -4,6 +4,7 @@ import { readObject } from '@/integrations/storage'
 import { MS_PER_MINUTE } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { logger } from '@/lib/logger'
+import { describeError } from '@/server/errors/describe'
 import { systemCtx, type Ctx } from '@/server/context'
 import { pendingSupplierNotices } from '@/server/db/sql/supplier-notices'
 import { forTenant, type TenantTx } from '@/server/db/tenant'
@@ -36,7 +37,7 @@ const templates = new Map<string, SupplierTemplate>()
 export type SupplierNoticeFailed = (
   tx: TenantTx,
   notice: { readonly id: string; readonly supplierId: string; readonly subjectType: string; readonly subjectId: string },
-  reason: 'NO_EMAIL' | 'TEMPLATE_UNKNOWN' | 'PROVIDER_REFUSED',
+  reason: 'NO_EMAIL' | 'TEMPLATE_UNKNOWN' | 'PROVIDER_REFUSED' | 'ATTACHMENT_UNAVAILABLE',
 ) => Promise<NotificationDraft[]>
 
 const failureHandlers = new Map<string, SupplierNoticeFailed>()
@@ -137,18 +138,21 @@ export async function sendSupplierNotice(organizationId: string, noticeId: strin
   const ctx = systemCtx(organizationId, now, 'supplier-notice-send')
   const eventData = { noticeId, templateKey: notice.templateKey, subjectType: notice.subjectType, subjectId: notice.subjectId }
   const failed = { id: noticeId, supplierId: notice.supplierId, subjectType: notice.subjectType, subjectId: notice.subjectId }
-  if (!template) {
+  // a notice that can never be sent fails for good, once: its event, and the template's own word to who should know
+  const failForGood = async (reason: 'TEMPLATE_UNKNOWN' | 'ATTACHMENT_UNAVAILABLE'): Promise<'FAILED'> => {
     await db.$transaction(async (tx) => {
-      await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: 'TEMPLATE_UNKNOWN' } })
-      await appendEvents(tx, ctx, [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: { ...eventData, reason: 'TEMPLATE_UNKNOWN' } }])
-      await failureNotices(tx, organizationId, notice.templateKey, failed, 'TEMPLATE_UNKNOWN')
+      await tx.supplierNotice.update({ where: { id: noticeId }, data: { status: 'FAILED', error: reason } })
+      await appendEvents(tx, ctx, [{ type: 'supplier_notice.failed', aggregateType: 'SupplierNotice', aggregateId: noticeId, data: { ...eventData, reason } }])
+      await failureNotices(tx, organizationId, notice.templateKey, failed, reason)
     })
     return 'FAILED'
   }
+  if (!template) return failForGood('TEMPLATE_UNKNOWN')
   const email = template(notice.data as Record<string, unknown>, { organizationName: org.displayName ?? org.legalNameTh, supplierName: notice.supplier.nameTh })
-  // the files the template attaches, read from storage now (a file not readable is a retry, never an e-mail without it)
+  // the files the template attaches: one no longer available fails the notice (never an e-mail without it); a read from
+  // storage that throws is a retry
   const files = email.attachFileIds?.length ? await db.fileObject.findMany({ where: { id: { in: [...email.attachFileIds] }, status: 'AVAILABLE' }, select: { storageKey: true, fileName: true, mimeType: true } }) : []
-  if (files.length !== (email.attachFileIds?.length ?? 0)) throw new Error('a file the supplier notice attaches is not available')
+  if (files.length !== (email.attachFileIds?.length ?? 0)) return failForGood('ATTACHMENT_UNAVAILABLE')
   const attachments = await Promise.all(files.map(async (f) => ({ filename: f.fileName, content: await readObject(f.storageKey), contentType: f.mimeType })))
   try {
     await getEmailProvider().send({ to: notice.toEmail, subject: email.subject, text: email.text, html: email.html, ...(attachments.length ? { attachments } : {}) })
@@ -226,10 +230,19 @@ registerSupplierTemplate(SUPPLIER_TEMPLATES.invoiceReady, (d, c) => {
 export const SUPPLIER_NOTICE_SWEEP_AFTER_MS = MS_PER_MINUTE
 const SWEEP_BATCH = 50
 
-/** The sweep: PENDING notices older than a minute, oldest first; returns how many it sent */
+/**
+ * The sweep: PENDING notices older than a minute, oldest first; returns how many it sent. A notice that throws (a
+ * provider or storage error to retry) is left for the next sweep and never holds up the ones behind it.
+ */
 export async function sweepSupplierNotices(now: Date): Promise<number> {
   const due = await pendingSupplierNotices(new Date(now.getTime() - SUPPLIER_NOTICE_SWEEP_AFTER_MS), SWEEP_BATCH)
   let sent = 0
-  for (const n of due) if ((await sendSupplierNotice(n.organizationId, n.id, now)) === 'SENT') sent++
+  for (const n of due) {
+    try {
+      if ((await sendSupplierNotice(n.organizationId, n.id, now)) === 'SENT') sent++
+    } catch (error) {
+      logger.warn({ noticeId: n.id, organizationId: n.organizationId, error: describeError(error) }, 'supplier notice left for the next sweep')
+    }
+  }
   return sent
 }

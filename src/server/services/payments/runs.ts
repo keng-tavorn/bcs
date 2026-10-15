@@ -435,6 +435,9 @@ export const setFlagReasonCommand = defineCommand({
     if (!found.ok) return found
     const notPreparer = preparedBy(found.run, who.memberId)
     if (notPreparer) return notPreparer
+    // the reason answers the item's flags as they are now: worked out again before it is written
+    const refreshed = await refreshRun(tx, ctx, found.run.id)
+    if (!refreshed.ok) return refreshed
     const item = await tx.paymentRunItem.findFirst({ where: { paymentRunId: found.run.id, supplierId: input.supplierId }, select: { id: true, flags: true } })
     if (!item) return fail('NOT_FOUND', 'the supplier has no item in this run', { field: 'supplierId' })
     await tx.paymentRunItem.update({ where: { id: item.id }, data: { flagReason: input.reason } })

@@ -126,6 +126,11 @@ model Organization {
   aiCreditEntries AiCreditLedger[]
 
   // --- S17 ---
+  chatIntakes          ChatIntake[]
+  chatIntakeItems      ChatIntakeItem[]
+  lineInboundMessages  LineInboundMessage[]
+  pushDevices          PushDevice[]
+  lineRichMenuVariants LineRichMenuVariant[]
 }
 
 enum ModuleKey {
@@ -254,6 +259,8 @@ model Member {
   aiAgentSettingsSet    AiAgentSetting[] @relation("AiAgentSettingUpdatedBy")
 
   // --- S17 ---
+  chatIntakes ChatIntake[] @relation("ChatIntakeMember")
+  pushDevices PushDevice[] @relation("PushDeviceMember")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -359,6 +366,8 @@ enum Channel {
   SYSTEM
   API
   MCP
+  /// S17: the BCS Go app, told by its user agent; for audit and KPI only, never more rights (BR-APP-02)
+  APP
 }
 
 /// Append-only audit trail and KPI source (INV-EVT-01, trigger in migration). Never UPDATE or DELETE.
@@ -488,6 +497,7 @@ model FileObject {
   // --- S13 ---
 
   // --- S17 ---
+  chatIntakeItems ChatIntakeItem[]
 
   @@unique([organizationId, id])
   @@index([organizationId])
@@ -541,6 +551,8 @@ enum NotificationChannel {
   IN_APP
   LINE
   EMAIL
+  /// S17: push in the BCS Go app, instead of LINE when the member turned it on (BR-NOTI-05, OQ-165)
+  PUSH
 }
 
 model Notification {
@@ -923,6 +935,7 @@ model RequestType {
   // --- S13 ---
 
   // --- S17 ---
+  chatIntakes ChatIntake[]
 
   @@unique([organizationId, id])
   @@unique([organizationId, code])
@@ -1043,6 +1056,7 @@ model Request {
   // --- S13 ---
 
   // --- S17 ---
+  chatIntake ChatIntake?
 
   @@unique([organizationId, id])
   @@unique([organizationId, number])
@@ -1517,6 +1531,8 @@ enum StepUpMethod {
   /// The authenticator code again; the LINE PIN replaces it from S5-05 (BR-DOA-15, FR-AUTH-005)
   TOTP
   PIN
+  /// S17: a passkey with user verification on the member's own device (BR-AUTH-09, OQ-168)
+  PASSKEY
 }
 
 /// A fresh second factor for one sensitive approval (BR-DOA-15, NFR-SEC-04): valid 5 minutes, for one document, used once
@@ -2055,22 +2071,24 @@ enum GrStatus {
 }
 
 model GoodsReceipt {
-  id               String    @id @default(uuid(7)) @db.Uuid
-  organizationId   String    @db.Uuid
+  id                String    @id @default(uuid(7)) @db.Uuid
+  organizationId    String    @db.Uuid
   /// null while DRAFT; issued when posted (BR-NUM-01)
-  number           String?
-  poId             String    @db.Uuid
-  status           GrStatus  @default(DRAFT)
-  receivedAt       DateTime  @db.Timestamptz(6)
-  receiverMemberId String    @db.Uuid
-  deliveryNoteNo   String?
-  notes            String?
-  postedAt         DateTime? @db.Timestamptz(6)
-  reversedAt       DateTime? @db.Timestamptz(6)
-  reverseReason    String?
-  version          Int       @default(0)
-  createdAt        DateTime  @default(now()) @db.Timestamptz(6)
-  updatedAt        DateTime  @updatedAt @db.Timestamptz(6)
+  number            String?
+  poId              String    @db.Uuid
+  status            GrStatus  @default(DRAFT)
+  receivedAt        DateTime  @db.Timestamptz(6)
+  /// S17: when the receiver saved it on the phone while offline, as sent (OQ-170); null = saved online
+  offlineCapturedAt DateTime? @db.Timestamptz(6)
+  receiverMemberId  String    @db.Uuid
+  deliveryNoteNo    String?
+  notes             String?
+  postedAt          DateTime? @db.Timestamptz(6)
+  reversedAt        DateTime? @db.Timestamptz(6)
+  reverseReason     String?
+  version           Int       @default(0)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(6)
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   po           PurchaseOrder @relation(fields: [organizationId, poId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
@@ -2389,7 +2407,9 @@ model LineChannelConfig {
   createdAt             DateTime @default(now()) @db.Timestamptz(6)
   updatedAt             DateTime @updatedAt @db.Timestamptz(6)
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization     Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// S17: one rich menu per set of buttons (BR-LINE-16); richMenuUnlinkedId stays the default menu
+  richMenuVariants LineRichMenuVariant[]
 
   @@unique([organizationId, id])
   @@unique([organizationId])
@@ -2419,11 +2439,187 @@ model LineWebhookEvent {
   status         LineWebhookStatus @default(RECEIVED)
   error          String?
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  organization   Organization        @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  /// S17: the text of a message event waits there until it is processed (BR-LINE-11)
+  inboundMessage LineInboundMessage?
 
   @@unique([organizationId, id])
   @@unique([organizationId, webhookEventId])
   @@index([organizationId, status, receivedAt])
+}
+
+// ===== S17 · LINE chat requests, menus by role and the BCS Go app (S17-01 · docs/sub-specs/S17.md "Entity และ migration") =====
+
+enum ChatIntakeStatus {
+  OPEN
+  DRAFTED
+  DISMISSED
+  EXPIRED
+}
+
+enum ChatIntakeItemKind {
+  TEXT
+  IMAGE
+}
+
+enum ChatIntakeFetchStatus {
+  /// A text message: nothing to fetch
+  NOT_NEEDED
+  PENDING
+  STORED
+  FAILED
+}
+
+enum PushPlatform {
+  ANDROID
+  IOS
+}
+
+enum PushDeviceRevokeReason {
+  LOGOUT
+  USER
+  DEACTIVATED
+  UNREGISTERED
+  REPLACED
+}
+
+/// What a linked member sent in a 1:1 LINE chat to ask for something (BR-LINE-10 to BR-LINE-12): the typed text joined
+/// in order (cut at settings.chatIntake.maxTextChars, cleared after textRetentionDays · OQ-162) and how many messages
+/// and images came. Only its owner sees it. It becomes a request draft only when the owner picks a request type in
+/// LIFF (chat_intake.draft); nothing is ever sent from the chat.
+model ChatIntake {
+  id             String           @id @default(uuid(7)) @db.Uuid
+  organizationId String           @db.Uuid
+  memberId       String           @db.Uuid
+  status         ChatIntakeStatus @default(OPEN)
+  /// At most 2000 code points (char_length); null when only images came, or after the purge
+  text           String?
+  textTruncated  Boolean          @default(false)
+  messageCount   Int              @default(0)
+  imageCount     Int              @default(0)
+  openedAt       DateTime         @db.Timestamptz(6)
+  lastMessageAt  DateTime         @db.Timestamptz(6)
+  expiresAt      DateTime         @db.Timestamptz(6)
+  /// When a reply or push carried the button that opens LIFF (BR-LINE-15: one push per draft at most)
+  linkSentAt     DateTime?        @db.Timestamptz(6)
+  requestTypeId  String?          @db.Uuid
+  requestId      String?          @db.Uuid
+  draftedAt      DateTime?        @db.Timestamptz(6)
+  closedAt       DateTime?        @db.Timestamptz(6)
+  /// When the text was cleared (BR-LINE-11); the row and its counts stay
+  purgedAt       DateTime?        @db.Timestamptz(6)
+  version        Int              @default(0)
+  createdAt      DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime         @updatedAt @db.Timestamptz(6)
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member           @relation("ChatIntakeMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  requestType  RequestType?     @relation(fields: [organizationId, requestTypeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  request      Request?         @relation(fields: [organizationId, requestId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  items        ChatIntakeItem[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, requestId])
+  @@index([organizationId, memberId, status, lastMessageAt])
+}
+
+/// One message of a ChatIntake (BR-LINE-10, BR-LINE-14): its kind and LINE message id, never its text (the text is
+/// joined into ChatIntake.text). An image is fetched from LINE in a job and kept as a FileObject of the owner.
+model ChatIntakeItem {
+  id             String                @id @default(uuid(7)) @db.Uuid
+  organizationId String                @db.Uuid
+  intakeId       String                @db.Uuid
+  /// 1, 2, 3 … in the order received; the AI call names the last one it read (BR-LINE-13)
+  seq            Int
+  kind           ChatIntakeItemKind
+  lineMessageId  String
+  fileId         String?               @db.Uuid
+  fetchStatus    ChatIntakeFetchStatus @default(NOT_NEEDED)
+  /// A code only (e.g. GONE TYPE_NOT_ALLOWED), never what LINE answered
+  fetchError     String?
+  receivedAt     DateTime              @db.Timestamptz(6)
+  createdAt      DateTime              @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime              @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  intake       ChatIntake   @relation(fields: [organizationId, intakeId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+  file         FileObject?  @relation(fields: [organizationId, fileId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, intakeId, seq])
+  /// A LINE message is taken once, however often LINE delivers it (INV-PLT-01)
+  @@unique([organizationId, lineMessageId])
+}
+
+/// The text of a LINE message between the webhook and its processing (BR-LINE-11): LineWebhookEvent never keeps text,
+/// so it waits here and the row is deleted once processed, or after 24 hours. Not a business document.
+model LineInboundMessage {
+  id                 String             @id @default(uuid(7)) @db.Uuid
+  organizationId     String             @db.Uuid
+  lineWebhookEventId String             @db.Uuid
+  lineMessageId      String
+  kind               ChatIntakeItemKind
+  text               String?
+  receivedAt         DateTime           @db.Timestamptz(6)
+  consumedAt         DateTime?          @db.Timestamptz(6)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(6)
+
+  organization     Organization     @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  lineWebhookEvent LineWebhookEvent @relation(fields: [organizationId, lineWebhookEventId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, lineWebhookEventId])
+}
+
+/// A phone of a member that gets push in the BCS Go app (BR-NOTI-05, BR-APP-12, BR-AUTH-12): the FCM token encrypted
+/// with ENCRYPTION_KEY and its sha256 for the unique; at most 5 in use per member (the oldest is revoked REPLACED)
+model PushDevice {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  organizationId String                  @db.Uuid
+  memberId       String                  @db.Uuid
+  platform       PushPlatform
+  /// AES-256-GCM with the key id (NFR-SEC-07); never logged (NFR-SEC-09)
+  tokenEnc       String
+  /// sha256 of the token, 64 lower-case hex
+  tokenHash      String
+  appVersion     String
+  /// At most 60 characters
+  deviceLabel    String?
+  registeredAt   DateTime                @db.Timestamptz(6)
+  lastSeenAt     DateTime                @db.Timestamptz(6)
+  revokedAt      DateTime?               @db.Timestamptz(6)
+  revokeReason   PushDeviceRevokeReason?
+  version        Int                     @default(0)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime                @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("PushDeviceMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  /// One device in use per token: a token registered again by someone else moves and revokes the old row (REPLACED)
+  @@unique([organizationId, tokenHash], map: "PushDevice_token_in_use", where: raw("\"revokedAt\" IS NULL"))
+  @@index([organizationId, memberId, revokedAt])
+}
+
+/// One rich menu made by `pnpm line:richmenu` for one set of buttons (BR-LINE-16, S17-04): variantKey such as
+/// LINKED:APPROVER; LineChannelConfig.richMenuLinkedId stays the LINKED set until a contract migration
+model LineRichMenuVariant {
+  id              String   @id @default(uuid(7)) @db.Uuid
+  organizationId  String   @db.Uuid
+  channelConfigId String   @db.Uuid
+  variantKey      String
+  richMenuId      String
+  madeAt          DateTime @db.Timestamptz(6)
+  createdAt       DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(6)
+
+  organization  Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  channelConfig LineChannelConfig @relation(fields: [organizationId, channelConfigId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, variantKey])
 }
 
 // ===== S13 · AI agents of phase 1 (docs/sub-specs/S13.md "Entity และ migration", spec §12) =====

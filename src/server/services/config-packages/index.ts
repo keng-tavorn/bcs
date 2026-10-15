@@ -175,7 +175,7 @@ async function buildPackage(tx: TenantTx, ctx: Ctx, sections: readonly ConfigPac
         isService: true,
         whtIncomeType: true,
         refUnitPriceSatang: true,
-        priceAgreements: { where: { endedAt: null, validTo: { gt: ctx.now } }, select: { unitPriceSatang: true, validFrom: true, validTo: true, supplier: { select: { code: true } } } },
+        priceAgreements: { where: { endedAt: null, validTo: { gt: new Date(`${agreementDay(ctx.now)}T00:00:00Z`) } }, select: { unitPriceSatang: true, validFrom: true, validTo: true, supplier: { select: { code: true } } } },
       },
     })
     const day = (d: Date) => d.toISOString().slice(0, 10)
@@ -272,14 +272,17 @@ async function checkReferences(tx: TenantTx, ctx: Ctx, content: ConfigPackageCon
     const suppliers = new Set((await tx.supplier.findMany({ where: { code: { in: content.catalog.flatMap((i) => i.agreements.map((a) => a.supplierCode)) }, status: 'ACTIVE' }, select: { code: true } })).map((s) => s.code))
     const today = agreementDay(ctx.now)
     for (const i of content.catalog) {
+      // A code here already, or twice in the package
       if (existing.has(i.code)) rows.push({ section: 'CATALOG', ref: i.code, reason: 'CATALOG_CODE_EXISTS' })
+      existing.add(i.code)
       const seen: Array<{ catalogItemId: string; supplierId: string; validFrom: string; validTo: string }> = []
       for (const a of i.agreements) {
         const ref = `${i.code}/${a.supplierCode}`
         if (!suppliers.has(a.supplierCode)) rows.push({ section: 'CATALOG', ref, reason: 'SUPPLIER_NOT_FOUND' })
         const period = { catalogItemId: i.code, supplierId: a.supplierCode, validFrom: a.validFrom, validTo: a.validTo }
         if (amountToSatang(a.unitPrice) <= 0n || a.validTo <= today || !checkAgreement(seen, period).ok) rows.push({ section: 'CATALOG', ref: `${ref}@${a.validFrom}`, reason: 'AGREEMENT_INVALID' })
-        seen.push(period)
+        // Only an agreement that would be created counts against the next, so a row is never blamed for another's fault
+        else seen.push(period)
       }
     }
   }

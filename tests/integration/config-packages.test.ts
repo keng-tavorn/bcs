@@ -111,11 +111,22 @@ describe('[FR-PLT-101/AC2] a configuration package from the sandbox imports into
     if (!read.ok) throw new Error(read.reason)
     const supplier = await prisma.supplier.create({ data: { organizationId: production.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'ผู้ขายราคาตกลง', taxId: '0999999000012' }, select: { code: true } })
     const agreement = (unitPrice: string, validFrom: string, validTo: string) => ({ supplierCode: supplier.code, unitPrice, validFrom, validTo })
+    const blocked = await prisma.supplier.create({ data: { organizationId: production.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'ผู้ขายที่ระงับ', taxId: '0999999000020', status: 'INACTIVE' }, select: { code: true } })
     const catalog = read.content.catalog!.map((i) => ({
       ...i,
       code: `NEW-${randomUUID().slice(0, 6)}`,
-      agreements: [agreement('100.00', '2026-11-01', '2027-01-01'), agreement('90.00', '2026-12-01', '2027-02-01'), agreement('0.00', '2027-03-01', '2027-04-01'), agreement('80.00', '2026-01-01', '2026-10-01')],
+      agreements: [
+        agreement('100.00', '2026-11-01', '2027-01-01'),
+        agreement('90.00', '2026-12-01', '2027-02-01'),
+        agreement('0.00', '2027-03-01', '2027-05-01'),
+        // Overlaps only the rejected one above: fine
+        agreement('70.00', '2027-04-01', '2027-06-01'),
+        agreement('80.00', '2026-01-01', '2026-10-01'),
+        { supplierCode: blocked.code, unitPrice: '60.00', validFrom: '2026-11-01', validTo: '2027-01-01' },
+      ],
     }))
+    // The same code twice in the package
+    catalog.push({ ...catalog[0]!, agreements: [] })
     const content = { ...read.content, catalog }
     const file = JSON.stringify({ ...content, checksum: configPackageChecksum(content) })
     const db = forTenant(production.organizationId)
@@ -125,7 +136,22 @@ describe('[FR-PLT-101/AC2] a configuration package from the sandbox imports into
     expect(result).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'CONFIG_PACKAGE_ROWS' } } })
     const rows = result.ok ? [] : ((result.error as unknown as { details: { rows: Array<{ ref: string; reason: string }> } }).details.rows)
     expect(rows.filter((r) => r.reason === 'AGREEMENT_INVALID').map((r) => r.ref)).toEqual([ref('2026-12-01'), ref('2027-03-01'), ref('2026-01-01')])
+    // An inactive supplier is not one to agree a price with; a code twice is refused like a code already here
+    expect(rows.filter((r) => r.reason === 'SUPPLIER_NOT_FOUND').map((r) => r.ref)).toEqual([`${catalog[0]!.code}/${blocked.code}`])
+    expect(rows.filter((r) => r.reason === 'CATALOG_CODE_EXISTS').map((r) => r.ref)).toEqual([catalog[0]!.code])
     expect(await db.priceAgreement.count()).toBe(agreements)
+  })
+
+  it('exports only agreed prices still in effect on the Thai day, as the import counts them (S6-22 review)', async () => {
+    const item = await prisma.catalogItem.findFirstOrThrow({ where: { organizationId: sandbox.organizationId }, select: { id: true, code: true } })
+    const supplier = await prisma.supplier.create({ data: { organizationId: sandbox.organizationId, code: `S-${randomUUID().slice(0, 6)}`, nameTh: 'ผู้ขายของระบบทดลอง', taxId: '0999999000012' } })
+    // Its last day was 2026-10-05; at 03:00 on 2026-10-06 Thai time it is over, though 2026-10-06T00:00Z is still ahead
+    await prisma.priceAgreement.create({ data: { organizationId: sandbox.organizationId, catalogItemId: item.id, supplierId: supplier.id, unitPriceSatang: 10_000n, validFrom: new Date('2026-09-01T00:00:00Z'), validTo: new Date('2026-10-06T00:00:00Z') } })
+    const earlyMorning = new Date('2026-10-05T20:00:00Z')
+    const exported = ok(await exportConfigPackage(sandbox.ctxOf('admin', earlyMorning), { sections: ['CATALOG'] }, key()))
+    const read = readConfigPackage(exported.file)
+    if (!read.ok) throw new Error(read.reason)
+    expect(read.content.catalog!.find((i) => i.code === item.code)!.agreements.filter((a) => a.supplierCode === supplier.code)).toEqual([])
   })
 
   it('PLATFORM_ADMIN neither exports nor imports (NG-12); a requester neither', async () => {

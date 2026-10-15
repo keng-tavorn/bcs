@@ -34,9 +34,25 @@ async function admin<T>(run: (c: pg.Client) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Drops the scratch database. An autovacuum worker that just started on it has no role the migrator may signal, so
+ * `with (force)` is refused (42501 "permission denied to terminate process") until the worker ends a moment later
+ */
+async function dropScratch(c: pg.Client) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await c.query(`drop database if exists "${DB}" with (force)`)
+      return
+    } catch (e) {
+      if ((e as { code?: string }).code !== '42501' || attempt === 20) throw e
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  }
+}
+
 beforeAll(async () => {
   await admin(async (c) => {
-    await c.query(`drop database if exists "${DB}" with (force)`)
+    await dropScratch(c)
     await c.query(`create database "${DB}"`)
   })
   db = new pg.Client({ connectionString: testMigratorUrl().replace(`/${TEST_DB}`, `/${DB}`) })
@@ -81,7 +97,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db?.end()
-  await admin((c) => c.query(`drop database if exists "${DB}" with (force)`))
+  await admin(dropScratch)
 })
 
 describe('[FR-WF-102/AC4] [INV-WF-01] the S6 migration keeps every approval of before S6 as it was', () => {

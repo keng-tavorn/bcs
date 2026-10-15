@@ -42,14 +42,23 @@ export async function BudgetDocumentSections({ t, locale, docs, many }: { t: Bud
     invoices: null,
   })
 
+  const fundingTitle = (kind: string, number: string | null, fileName: string | null) =>
+    kind === 'BUDGET_TRANSFER'
+      ? t('line.transfer', { number: number ?? t('line.noNumber') })
+      : kind === 'BUDGET_OVERRUN'
+        ? t('line.overrun', { number: number ?? t('line.noNumber') })
+        : fileName
+          ? t('line.importFile', { name: fileName })
+          : t('line.initialBudget')
+  // S6-15, S6-16: a transfer, an adjustment or an overrun is part of the planned amount too, below zero when it took money out
   const plannedRows: DocumentRowView[] = docs.planned.imports.map((i) => ({
     key: i.id,
-    title: i.fileName ? t('line.importFile', { name: i.fileName }) : t('line.initialBudget'),
+    title: fundingTitle(i.kind, i.number, i.fileName),
     href: null,
     detail: null,
     meta: linesMeta(i.lines),
     status: null,
-    note: t('detail.importedAt', { time: when(i.at) }),
+    note: i.kind === 'IMPORT' ? t('detail.importedAt', { time: when(i.at) }) : t('detail.fundedAt', { time: when(i.at) }),
     amount: moneyText(i.amount),
     invoices: null,
   }))
@@ -84,7 +93,7 @@ export async function BudgetDocumentSections({ t, locale, docs, many }: { t: Bud
     m.kind ? t(`line.kinds.${m.kind}`) : t('line.kinds.OTHER', { from: t(`line.buckets.${m.from as Bucket}`), to: t(`line.buckets.${m.to as Bucket}`) })
   const movementDocument = (m: BudgetMovementDto): { text: string; href: string | null } => {
     const d = m.document
-    if (d.type === 'IMPORT') return { text: d.label ? t('line.importFile', { name: d.label }) : t('line.initialBudget'), href: null }
+    if (d.type === 'IMPORT' || d.type === 'BUDGET_TRANSFER' || d.type === 'BUDGET_OVERRUN') return { text: fundingTitle(d.type, d.label, d.label), href: null }
     if (d.type === 'REQUEST') return { text: t('line.request', { number: d.label ?? t('line.noNumber') }), href: d.canOpen ? `/requests/${d.id}` : null }
     return { text: t('line.purchaseOrder', { number: d.label ?? t('line.noNumber') }), href: d.canOpen ? `/procurement/pos/${d.id}` : null }
   }

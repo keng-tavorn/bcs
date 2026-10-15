@@ -149,6 +149,9 @@ test('[FR-INT-102/AC2] a requester picks a catalogue item in the request form: t
   await page.goto('/requests/new/BUY_GOODS')
   await page.getByLabel('ชื่อคำขอ').fill(`ปูนจากแคตตาล็อก (${testInfo.project.name})`)
   await nextStep(page, 'รายการ ราคา และงบ')
+  // Other specs of the run open more lines in the requester's department (S6-15 to S6-17): the request uses its OPEX line
+  const budgetLine = page.getByLabel('บรรทัดงบที่ใช้')
+  await budgetLine.selectOption((await budgetLine.locator('option', { hasText: /-OPEX-\d{4} · / }).first().getAttribute('value'))!)
 
   const line = page.getByRole('group', { name: 'รายการที่ 1' })
   await line.getByRole('button', { name: 'เลือกรายการที่ 1 จากแคตตาล็อก' }).click()

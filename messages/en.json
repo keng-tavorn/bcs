@@ -3748,6 +3748,7 @@
       },
       "figuresTitle": "Amounts of these budget lines added up",
       "forbidden": "You do not head this department. Department heads see the budgets of their own departments.",
+      "fundedAt": "On {time}",
       "importedAmount": "Amount imported",
       "importedAt": "Imported {time}",
       "importedColumn": "When",
@@ -3763,7 +3764,7 @@
       "onLines": "On {codes}",
       "onManyLines": "On {count} budget lines",
       "plannedEmpty": "Nothing has been imported yet. When the budget administrator imports a file, it shows here.",
-      "plannedIntro": "Every import that added to the planned amount, the latest first",
+      "plannedIntro": "The imports, transfers and adjustments, and over-budget approvals that make the planned amount; a negative amount is what was moved or given back out, the latest first",
       "plannedTitle": "Imports making up the planned amount",
       "reservedEmpty": {
         "many": "Nothing reserves these budgets. A request sent for approval reserves budget here until it is on a purchase order.",
@@ -4022,6 +4023,8 @@
         "ACTUALIZED": "Actual",
         "COMMITMENT_RELEASED": "Commitment released",
         "COMMITTED": "Committed",
+        "DEFUNDED": "Taken out of the budget",
+        "FUNDED": "Added to the budget",
         "IMPORTED": "Budget imported",
         "OTHER": "Moved from {from} to {to}",
         "RESERVATION_RELEASED": "Reservation released",
@@ -4039,6 +4042,7 @@
       "movementsIntro": "Every time budget moves between available, reserved, committed and actual; the latest first",
       "movementsTitle": "Ledger movements",
       "noNumber": "no number yet",
+      "overrun": "Over-budget approval {number}",
       "poExtra": "Waiting for approval: reserves what it costs above the request",
       "purchaseOrder": "Purchase order {number}",
       "request": "Request {number}",
@@ -4047,7 +4051,8 @@
       "reservedTitle": "Documents reserving budget",
       "sectionTotal": "Total {amount} baht",
       "submittedAt": "Sent {time}",
-      "supplier": "Supplier {name}"
+      "supplier": "Supplier {name}",
+      "transfer": "Transfer or adjustment {number}"
     },
     "low": {
       "badge": "Running low · {left}% left",

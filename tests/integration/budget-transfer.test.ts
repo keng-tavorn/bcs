@@ -5,6 +5,7 @@ import { forTenant } from '@/server/db/tenant'
 import { listMyTasks } from '@/server/queries/tasks'
 import { decideTask } from '@/server/services/approvals/decide'
 import { budgetDashboard } from '@/server/services/budget/dashboard'
+import { budgetLineDetail } from '@/server/services/budget/line-detail'
 import { getBudgetTransfer } from '@/server/services/budget/transfer-view'
 import { cancelBudgetTransfer, createBudgetTransfer, submitBudgetTransfer } from '@/server/services/budget/transfers'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
@@ -81,6 +82,17 @@ describe('[FR-BUD-103/AC1] [FR-BUD-103/AC2] a transfer is reserved at once and m
     expect(board.lines.find((l) => l.id === con)!.changes).toMatchObject({ initial: { amount: '1000000.00' }, transferredOut: { amount: '300000.00' }, increased: { amount: '0.00' } })
     expect(board.lines.find((l) => l.id === it2)!.changes).toMatchObject({ initial: { amount: '0.00' }, transferredIn: { amount: '300000.00' } })
     expect(board.can.transfer).toBe(true)
+    // The drill-down's planned section adds up to the line's planned amount: the import, less the transfer out (S6-22)
+    const source = ok(await budgetLineDetail(org.ctxOf('fin_officer', NOW), con))
+    expect(source.planned.total.amount).toBe('700000.00')
+    expect(source.planned.imports.map((d) => [d.kind, d.number, d.amount.amount])).toEqual(expect.arrayContaining([['BUDGET_TRANSFER', sent.number, '-300000.00']]))
+    expect(source.planned.imports.find((d) => d.kind === 'IMPORT')?.amount.amount).toBe('1000000.00')
+    // Its movements name the transfer by its number, and say money left the budget
+    const out = source.movements.rows.find((m) => m.document.type === 'BUDGET_TRANSFER' && m.to === 'OUTSIDE')
+    expect(out).toMatchObject({ kind: 'DEFUNDED', document: { label: sent.number, canOpen: false }, amount: { amount: '300000.00' } })
+    const destination = ok(await budgetLineDetail(org.ctxOf('fin_officer', NOW), it2))
+    expect(destination.planned).toMatchObject({ total: { amount: '300000.00' }, imports: [{ kind: 'BUDGET_TRANSFER', number: sent.number, amount: { amount: '300000.00' } }] })
+    expect(destination.movements.rows.find((m) => m.from === 'OUTSIDE')).toMatchObject({ kind: 'FUNDED', document: { type: 'BUDGET_TRANSFER', label: sent.number } })
   })
 
   it('the sender never approves; a return gives the reservation back and a resubmit reserves again (GC-BUD-10)', async () => {

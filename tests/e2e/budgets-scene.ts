@@ -124,7 +124,8 @@ async function approvedRequest(requesterId: string, budgetLineId: string, title:
 async function ledgerFigures(lineIds: readonly string[]) {
   const entries = await prisma.budgetLedgerEntry.findMany({ where: { organizationId, budgetLineId: { in: [...lineIds] } }, select: { fromBucket: true, toBucket: true, amountSatang: true } })
   const bucket = (b: string) => entries.reduce((sum, e) => sum + (e.toBucket === b ? e.amountSatang : 0n) - (e.fromBucket === b ? e.amountSatang : 0n), 0n)
-  const planned = entries.filter((e) => e.fromBucket === 'OUTSIDE').reduce((sum, e) => sum + e.amountSatang, 0n)
+  // What came in from outside less what went back out (S6-15 transfers and adjustments, S6-16 overruns): the lines' planned
+  const planned = entries.reduce((sum, e) => sum + (e.fromBucket === 'OUTSIDE' ? e.amountSatang : 0n) - (e.toBucket === 'OUTSIDE' ? e.amountSatang : 0n), 0n)
   return {
     planned: formatSatang(planned),
     available: formatSatang(bucket('AVAILABLE')),

@@ -160,6 +160,8 @@
     },
     "kinds": {
       "IMPORTED": "Budget imported",
+      "FUNDED": "Added to the budget",
+      "DEFUNDED": "Taken out of the budget",
       "RESERVED": "Reserved",
       "RESERVATION_RELEASED": "Reservation released",
       "COMMITTED": "Committed",
@@ -176,6 +178,8 @@
     },
     "importFile": "File {name}",
     "initialBudget": "Organization's initial budget",
+    "transfer": "Transfer or adjustment {number}",
+    "overrun": "Over-budget approval {number}",
     "forbidden": "This budget line belongs to a department you do not head. Department heads see the budgets of their own departments."
   },
   "requestStatus": {
@@ -383,9 +387,10 @@
     "more": "Showing {shown} of {count} documents, the largest first. The total below counts every document.",
     "line": "Budget line {code}",
     "plannedTitle": "Imports making up the planned amount",
-    "plannedIntro": "Every import that added to the planned amount, the latest first",
+    "plannedIntro": "The imports, transfers and adjustments, and over-budget approvals that make the planned amount; a negative amount is what was moved or given back out, the latest first",
     "plannedEmpty": "Nothing has been imported yet. When the budget administrator imports a file, it shows here.",
     "importedAt": "Imported {time}",
+    "fundedAt": "On {time}",
     "importedColumn": "When",
     "importedAmount": "Amount imported",
     "reservedEmpty": {

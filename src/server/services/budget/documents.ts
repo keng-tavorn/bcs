@@ -7,7 +7,8 @@ import { dateText } from './dashboard'
 // amount is clicked, the documents that make it up) — one line, the lines of a department, or every line a viewer may
 // see in a fiscal year — read from the allocation projection the ledger keeps per document line (BudgetAllocation,
 // §6.2) and from the ledger itself:
-//   planned    the imports that funded the lines (the ledger's OUTSIDE → AVAILABLE rows, by import)
+//   planned    what funded the lines, by document: the imports, and since S6 the transfers and adjustments and the
+//              approved overruns, each less what it took back out (the ledger's rows from or to OUTSIDE)
 //   reserved   requests, and the extra a PO waiting for approval reserves above its requests (BR-BUD-05)
 //   committed  approved POs
 //   actual     POs with their confirmed invoices (BR-IVC-04)
@@ -25,7 +26,7 @@ export const BUDGET_DOCUMENT_LIMIT = 100
 export const BUDGET_MOVEMENT_LIMIT = 100
 
 /** The six movements of §7.7, named by what happened */
-export type BudgetMovementKind = 'IMPORTED' | 'RESERVED' | 'RESERVATION_RELEASED' | 'COMMITTED' | 'COMMITMENT_RELEASED' | 'ACTUALIZED'
+export type BudgetMovementKind = 'IMPORTED' | 'FUNDED' | 'DEFUNDED' | 'RESERVED' | 'RESERVATION_RELEASED' | 'COMMITTED' | 'COMMITMENT_RELEASED' | 'ACTUALIZED'
 
 const KIND_OF: Readonly<Record<string, BudgetMovementKind>> = {
   'OUTSIDE>AVAILABLE': 'IMPORTED',
@@ -35,6 +36,17 @@ const KIND_OF: Readonly<Record<string, BudgetMovementKind>> = {
   'COMMITTED>AVAILABLE': 'COMMITMENT_RELEASED',
   'COMMITTED>ACTUAL': 'ACTUALIZED',
 }
+
+/** What a ledger row did: money from outside is IMPORTED by an import, FUNDED by a transfer or an overrun (S6); money back outside is DEFUNDED */
+const kindOf = (e: { readonly fromBucket: string; readonly toBucket: string; readonly sourceType: string }): BudgetMovementKind | null => {
+  if (e.fromBucket === 'OUTSIDE') return e.sourceType === 'IMPORT' ? 'IMPORTED' : 'FUNDED'
+  if (e.toBucket === 'OUTSIDE') return 'DEFUNDED'
+  return KIND_OF[`${e.fromBucket}>${e.toBucket}`] ?? null
+}
+
+/** The documents that move money from or to outside the lines: an import, or (S6) a transfer and an overrun */
+export type FundingKind = 'IMPORT' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
+const fundingKind = (sourceType: string): FundingKind => (sourceType === 'BUDGET_TRANSFER' || sourceType === 'BUDGET_OVERRUN' ? sourceType : 'IMPORT')
 
 export interface NameDto {
   readonly th: string
@@ -48,13 +60,19 @@ export interface BudgetLineRefDto {
 }
 
 export interface BudgetImportDocDto {
-  /** The import: a file imported on the import page, or the initial budget loaded when the organization was set up */
+  /**
+   * IMPORT: a file imported on the import page, or the initial budget loaded when the organization was set up ·
+   * BUDGET_TRANSFER: a transfer, increase or decrease (S6-15) · BUDGET_OVERRUN: an approved overrun (S6-16)
+   */
+  readonly kind: FundingKind
   readonly id: string
+  /** The transfer's or the overrun's number; null for an import */
+  readonly number: string | null
   /** The file's name; null for the initial budget */
   readonly fileName: string | null
   /** When the money came in (ISO) */
   readonly at: string
-  /** What it funded on these lines */
+  /** What it funded on these lines, less what it took back out: below zero for what a transfer moved away */
   readonly amount: MoneyDto
   readonly lines: readonly BudgetLineRefDto[]
 }
@@ -110,7 +128,7 @@ export interface BudgetMovementDto {
   /** The budget line it moved money on */
   readonly line: BudgetLineRefDto
   readonly document: {
-    readonly type: 'REQUEST' | 'PURCHASE_ORDER' | 'IMPORT'
+    readonly type: 'REQUEST' | 'PURCHASE_ORDER' | FundingKind
     readonly id: string
     /** The document number, or an import's file name; null for the initial budget loaded at setup */
     readonly label: string | null
@@ -309,17 +327,23 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
       .map(({ invoice, net }) => ({ id: invoice.id, invoiceNo: invoice.invoiceNo, invoiceDate: dateText(invoice.invoiceDate), amount: toMoneyDto(net) }))
   }
 
-  // Planned: every import that funded these lines, newest first — never cut short by the movements' limit
+  // Planned: every document that funded these lines or took money back out of them, newest first — never cut short by
+  // the movements' limit. Its total is the lines' planned amount: in from outside, less out to outside (S6-15, S6-16)
   const fundings = lineIds.length
-    ? await tx.budgetLedgerEntry.findMany({ where: { ...onLines, fromBucket: 'OUTSIDE' }, select: { budgetLineId: true, sourceId: true, amountSatang: true, eventId: true } })
+    ? await tx.budgetLedgerEntry.findMany({
+        where: { ...onLines, OR: [{ fromBucket: 'OUTSIDE' }, { toBucket: 'OUTSIDE' }] },
+        select: { budgetLineId: true, sourceType: true, sourceId: true, amountSatang: true, eventId: true, fromBucket: true },
+      })
     : []
-  const perImport = new Map<string, Holding & { eventId: string }>()
+  const perImport = new Map<string, Holding & { eventId: string; kind: FundingKind }>()
   for (const f of fundings) {
-    const held = perImport.get(f.sourceId) ?? { amount: 0n, lineIds: new Set<string>(), eventId: f.eventId }
-    held.amount += f.amountSatang
+    const held = perImport.get(f.sourceId) ?? { amount: 0n, lineIds: new Set<string>(), eventId: f.eventId, kind: fundingKind(f.sourceType) }
+    held.amount += f.fromBucket === 'OUTSIDE' ? f.amountSatang : -f.amountSatang
     held.lineIds.add(f.budgetLineId)
     perImport.set(f.sourceId, held)
   }
+  // An overrun that lapsed brought its shortfall in and took it all back out: nothing of it is in the planned amount
+  for (const [id, held] of perImport) if (held.kind !== 'IMPORT' && held.amount === 0n) perImport.delete(id)
 
   // The latest movements of the ledger, with the line and the document that moved the money
   const [entries, movementCount] = lineIds.length
@@ -341,10 +365,16 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
   )
   const importIds = [...new Set([...perImport.keys(), ...entries.filter((e) => e.sourceType === 'IMPORT').map((e) => e.sourceId)])]
   const eventIds = [...new Set([...entries.map((e) => e.eventId), ...[...perImport.values()].map((i) => i.eventId)])]
-  const [events, imports] = await Promise.all([
+  const sourcesOf = (kind: 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN') => [...new Set([...[...perImport].flatMap(([id, h]) => (h.kind === kind ? [id] : [])), ...entries.filter((e) => e.sourceType === kind).map((e) => e.sourceId)])]
+  const [transferIds, overrunIds] = [sourcesOf('BUDGET_TRANSFER'), sourcesOf('BUDGET_OVERRUN')]
+  const [events, imports, transfers, overruns] = await Promise.all([
     eventIds.length ? tx.event.findMany({ where: { id: { in: eventIds } }, select: { id: true, occurredAt: true, data: true } }) : [],
     importIds.length ? tx.budgetImport.findMany({ where: { id: { in: importIds } }, select: { id: true, fileName: true, importedAt: true } }) : [],
+    transferIds.length ? tx.budgetTransfer.findMany({ where: { id: { in: transferIds } }, select: { id: true, number: true } }) : [],
+    overrunIds.length ? tx.budgetOverrun.findMany({ where: { id: { in: overrunIds } }, select: { id: true, number: true } }) : [],
   ])
+  // A transfer's or an overrun's number only: their pages check their own readers (budget.view ASSIGNED, request.view)
+  const numberOf = new Map<string, string | null>([...transfers, ...overruns].map((d) => [d.id, d.number]))
   const occurredAt = new Map(events.map((e) => [e.id, e.occurredAt]))
   const importById = new Map(imports.map((i) => [i.id, i]))
   // A request line removed from a returned request keeps its movements; its request is the event's document (ledger.ts)
@@ -377,6 +407,8 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
       const po = id ? movedPoById.get(id) : undefined
       return { type: 'PURCHASE_ORDER', id: po?.id ?? e.sourceId, label: po?.number ?? null, canOpen: po ? mayOpenPo(principal, po) : false }
     }
+    const kind = fundingKind(e.sourceType)
+    if (kind !== 'IMPORT') return { type: kind, id: e.sourceId, label: numberOf.get(e.sourceId) ?? null, canOpen: false }
     return { type: 'IMPORT', id: e.sourceId, label: importById.get(e.sourceId)?.fileName ?? null, canOpen: false }
   }
 
@@ -385,12 +417,12 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
       const file = importById.get(id)
       // INV-BUD-04: every ledger row has its event
       const at = file?.importedAt ?? occurredAt.get(held.eventId) ?? new Date(0)
-      return { id, fileName: file?.fileName ?? null, at: at.toISOString(), amount: toMoneyDto(held.amount), lines: refs(held.lineIds) }
+      return { kind: held.kind, id, number: numberOf.get(id) ?? null, fileName: file?.fileName ?? null, at: at.toISOString(), amount: toMoneyDto(held.amount), lines: refs(held.lineIds) }
     })
     .sort((a, b) => b.at.localeCompare(a.at) || a.id.localeCompare(b.id))
 
   return {
-    planned: { imports: importDocs.slice(0, BUDGET_DOCUMENT_LIMIT), count: importDocs.length, total: toMoneyDto(sum(fundings.map((f) => f.amountSatang))) },
+    planned: { imports: importDocs.slice(0, BUDGET_DOCUMENT_LIMIT), count: importDocs.length, total: toMoneyDto(sum(fundings.map((f) => (f.fromBucket === 'OUTSIDE' ? f.amountSatang : -f.amountSatang)))) },
     reserved: {
       requests: requestDocs,
       requestCount: requestReserved.size,
@@ -405,7 +437,7 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
         seq: e.seq,
         // INV-BUD-04: every ledger row has its event; the row's own time is only a fallback
         at: (occurredAt.get(e.eventId) ?? e.createdAt).toISOString(),
-        kind: KIND_OF[`${e.fromBucket}>${e.toBucket}`] ?? null,
+        kind: kindOf(e),
         from: e.fromBucket,
         to: e.toBucket,
         amount: toMoneyDto(e.amountSatang),

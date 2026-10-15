@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { expect } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { confirmIncomeType, updateIncomeType, updateSupplierTaxProfile } from '@/server/services/ap/wht'
 import { addPaymentDocuments, createPaymentRun, setPaymentFlagReason, submitPaymentRun } from '@/server/services/payments/runs'
@@ -58,7 +57,8 @@ export async function readyInvoice(ap: ApOrg, supplierId: string, unitPrice: str
   await receive(ap, sentPo, { 0: '1' })
   const date = new Date(Date.UTC(2026, 8, 30 - (++dates % 28))).toISOString().slice(0, 10)
   const draft = await codedDraft(ap, sentPo, { no: `P-${randomUUID().slice(0, 8)}`, date, vat, lines: [{ line: 0, quantity: '1', unitPrice }] })
-  expect(ok(await submit(ap, draft)).status).toBe('READY_FOR_PAYMENT')
+  const status = ok(await submit(ap, draft)).status
+  if (status !== 'READY_FOR_PAYMENT') throw new Error(`the invoice is ${status}, not ready for payment`)
   await prisma.invoice.update({ where: { id: draft.invoiceId }, data: { dueDate: new Date(`${due}T00:00:00Z`) } })
   return draft.invoiceId
 }
@@ -83,8 +83,8 @@ export async function addDocs(ap: ApOrg, runId: string, docs: { invoiceIds?: str
 }
 
 /** A run of these invoices sent for approval by fin_officer; flags explained first when asked */
-export async function sentRun(ap: PayOrg, invoiceIds: string[], reasons: Record<string, string> = {}) {
-  const run = await draftRun(ap)
+export async function sentRun(ap: PayOrg, invoiceIds: string[], reasons: Record<string, string> = {}, payDate = PAY_DATE) {
+  const run = await draftRun(ap, 'fin_officer', payDate)
   ok(await addDocs(ap, run, { invoiceIds }))
   for (const [supplierId, reason] of Object.entries(reasons)) ok(await setPaymentFlagReason(fin(ap), { paymentRunId: run, version: await runVersion(run), supplierId, reason }, key()))
   return { runId: run, ...ok(await submitPaymentRun(fin(ap), { paymentRunId: run, version: await runVersion(run) }, key())) }

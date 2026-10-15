@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { documentTypeOfSubject } from '@/core/doa'
 import { paymentRunSodExtra, recentBankChangeProposers } from '@/core/sod'
+import { FLAGS_KEY_MAX_LENGTH } from '@/lib/constants'
 import type { SubjectFacts } from '../../sla/subject'
 import { rootDepartmentId } from '../../bank-accounts'
 import { decidePaymentRun, runApprovalFacts, type RunApprovalFacts } from '../../payments/approval'
@@ -43,7 +44,7 @@ export const paymentRunSubject: SubjectAdapter = {
   labels: (facts) => ({ label: facts.number ? `${facts.number} รอบจ่าย` : (facts.title ?? facts.documentType), title: facts.title }),
   href: (facts) => `/finance/payments/${facts.id}`,
   // BR-PAY-07: the flags the decision page showed; none (the chat) counts as ''
-  decisionInput: z.strictObject({ flagsKey: z.string().max(20_000) }).optional(),
+  decisionInput: z.strictObject({ flagsKey: z.string().max(FLAGS_KEY_MAX_LENGTH) }).optional(),
   decide: (tx, ctx, task, decision) => decidePaymentRun(tx, ctx, task.step.route.subjectId, decision),
   allowsRequestInfo: false,
   // the chat only for a run sent without flags (the amount's step-up is the central files' check, BR-TOK-05); no e-mail link

@@ -1,6 +1,5 @@
 import { getTranslations } from 'next-intl/server'
 import { formatSatang } from '@/core/money/format'
-import type { PaymentFlag } from '@/core/payment'
 import { formatThaiDay } from '@/core/thai/day'
 import { LiffSection } from '../../content'
 
@@ -8,6 +7,9 @@ import { LiffSection } from '../../content'
 // pay date, payer account masked, totals, and the items with flags first, each with its flags and the preparer's reason.
 // A plain list of label and value in the LIFF type sizes, no workspace component. The LIFF task page renders it with the
 // view it read; the decision below it sends back the flags it showed.
+
+/** The flags of BR-PAY-06, as the view reads them (PaymentFlag of the payment engine) */
+type RunFlag = 'REGISTRY_CHANGED' | 'SUPPLIER_INACTIVE' | 'RISK_OVERRIDE_EXPIRED' | 'PREVIOUSLY_EXPORTED' | 'BANK_ACCOUNT_RECENTLY_CHANGED' | 'BANK_CHANGE_PENDING' | 'SHARED_BANK_ACCOUNT'
 
 export interface LiffPaymentRunView {
   readonly number: string | null
@@ -17,7 +19,7 @@ export interface LiffPaymentRunView {
   readonly totalTransferSatang: bigint
   readonly itemCount: number
   readonly documentCount: number
-  readonly items: ReadonlyArray<{ readonly supplierCode: string; readonly supplierName: string; readonly transferSatang: bigint; readonly flags: readonly PaymentFlag[]; readonly flagReason: string | null; readonly accountLast4: string | null }>
+  readonly items: ReadonlyArray<{ readonly supplierCode: string; readonly supplierName: string; readonly transferSatang: bigint; readonly flags: readonly RunFlag[]; readonly flagReason: string | null; readonly accountLast4: string | null }>
 }
 
 export async function LiffPaymentRunSummary({ run }: { run: LiffPaymentRunView | null }) {

@@ -40,6 +40,13 @@ export interface WorkflowReport {
   }
 }
 
+/** The questions of each task, read once (not the whole list again for every task) */
+function groupByTask<Q extends { readonly taskId: string }>(questions: readonly Q[]): Map<string, Q[]> {
+  const out = new Map<string, Q[]>()
+  for (const q of questions) out.set(q.taskId, [...(out.get(q.taskId) ?? []), q])
+  return out
+}
+
 /** "POSITION:CEO@HQ" → "CEO@HQ"; anything else as it is */
 const positionAt = (resolvedFrom: string) => resolvedFrom.replace(/^POSITION:/, '')
 
@@ -71,7 +78,8 @@ export async function computeWorkflowReport(tx: TenantTx, organizationId: string
     tx.approvalTask.findMany({ where: { id: { in: taskIds } }, select: { id: true, resolvedFrom: true, assigneeMemberId: true, assignedAt: true, decidedAt: true, assignee: { select: { displayNameTh: true } } } }),
     tx.infoRequest.findMany({ where: { taskId: { in: taskIds } }, select: { taskId: true, askedAt: true, answeredAt: true } }),
   ])
-  const pausesOf = (taskId: string, until: Date) => questions.filter((q) => q.taskId === taskId).map((q) => ({ from: q.askedAt, to: q.answeredAt ?? until }))
+  const questionsOf = groupByTask(questions)
+  const pausesOf = (taskId: string, until: Date) => (questionsOf.get(taskId) ?? []).map((q) => ({ from: q.askedAt, to: q.answeredAt ?? until }))
   const minutesOf = new Map(tasks.filter((t) => t.decidedAt).map((t) => [t.id, decisionMinutes(t.assignedAt, t.decidedAt!, pausesOf(t.id, t.decidedAt!), calendar)]))
 
   // ----- bottlenecks (BR-RPT-04) -----
@@ -122,12 +130,13 @@ export async function computeWorkflowReport(tx: TenantTx, organizationId: string
     (await tx.request.findMany({ where: { id: { in: open.filter((t) => t.step.route.subjectType === 'REQUEST').map((t) => t.step.route.subjectId) } }, select: { id: true, chargedDepartmentId: true } })).map((r) => [r.id, r.chargedDepartmentId]),
   )
   const openQuestions = await tx.infoRequest.findMany({ where: { taskId: { in: open.map((t) => t.id) } }, select: { taskId: true, askedAt: true, answeredAt: true } })
+  const openQuestionsOf = groupByTask(openQuestions)
   const byDepartment = new Map<string | null, Record<AgeBand, number>>()
   for (const t of open) {
     const department = t.step.route.subjectType === 'REQUEST' ? (openRequests.get(t.step.route.subjectId) ?? null) : null
     // A head reads the requests of their departments only; the organization reads every open task
     if (departmentIds !== null && (department === null || !departmentIds.includes(department))) continue
-    const pauses = openQuestions.filter((q) => q.taskId === t.id).map((q) => ({ from: q.askedAt, to: q.answeredAt ?? period.now }))
+    const pauses = (openQuestionsOf.get(t.id) ?? []).map((q) => ({ from: q.askedAt, to: q.answeredAt ?? period.now }))
     const hours = decisionMinutes(t.assignedAt, period.now, pauses, calendar) / MINUTES_PER_HOUR
     const band = AGE_BANDS.find((b) => b.upTo === null || hours < b.upTo)!.key
     const row = byDepartment.get(department) ?? { H0_8: 0, H8_16: 0, H16_40: 0, H40_PLUS: 0 }

@@ -189,6 +189,8 @@ export const BACKTEST_TX_TIMEOUT_MS = 120 * MS_PER_SECOND
  * came near it
  */
 export const REPORT_TX_TIMEOUT_MS = 60 * MS_PER_SECOND
+/** SET LOCAL statement_timeout of a report's transaction, below REPORT_TX_TIMEOUT_MS so Postgres stops a stuck statement first */
+export const REPORT_STATEMENT_TIMEOUT_MS = 50 * MS_PER_SECOND
 
 /** S6-21 (BR-UAT-02): a configuration package is a small file — forms, rules and a catalogue; at 3 bytes a Thai character it stays under the 1 MB a server action takes */
 export const CONFIG_PACKAGE_MAX_CHARS = 300_000

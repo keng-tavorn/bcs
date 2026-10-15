@@ -5,7 +5,8 @@ import { err, ok, type Result } from '@/core/result'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import { authorize, isAllowed, scopesFor, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
-import { forTenant, type TenantTx } from '@/server/db/tenant'
+import type { TenantTx } from '@/server/db/tenant'
+import { reportTx } from '../reports/tx'
 import { burnContext, burnOf, type BurnDto } from './burn'
 
 // The budget dashboard (spec §11.2, FR-BUD-005 AC1 AC3): per budget line, per department and in all, the planned
@@ -246,8 +247,7 @@ export function budgetViewScope(principal: Principal): { kind: 'ORG' } | { kind:
 }
 
 export async function budgetDashboard(ctx: Ctx, input: { readonly fiscalYearId?: string } = {}): Promise<Result<BudgetDashboardDto>> {
-  const db = forTenant(ctx.organizationId)
-  return db.$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const allowed = await authorize(tx, ctx, 'budget.view')
     if (!allowed.ok) return err(allowed.error.code, allowed.error.message, allowed.error.details)
     const principal = allowed.data

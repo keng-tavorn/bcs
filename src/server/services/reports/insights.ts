@@ -6,7 +6,8 @@ import { err, ok, type Result } from '@/core/result'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import { authorize, scopesFor, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
-import { forTenant, type TenantTx } from '@/server/db/tenant'
+import type { TenantTx } from '@/server/db/tenant'
+import { reportTx } from './tx'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { loadInsights, median, type InsightsData, type InsightsTask, type InsightsWeek } from '@/server/queries/insights'
 import { addAmounts, budgetFigures, budgetLowThreshold, budgetViewScope, NO_AMOUNTS, type BudgetAmounts, type BudgetFiguresDto } from '../budget/dashboard'
@@ -324,7 +325,7 @@ const channelOf = (channel: string): (typeof DECISION_CHANNELS)[number] | 'OTHER
 
 /** The four cards for this reader (FR-VIS-007 AC2 to AC4) */
 export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Result<InsightsDto>> {
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const prepared = await prepare(tx, ctx, params)
     if (!prepared.ok) return prepared
     const { base, data, reader: r, lowBp, lowPct, alertPct, fiscalYearCode } = prepared.data
@@ -403,7 +404,7 @@ const BLANK = { person: null, personKind: null, at: null, atKind: null, dueAt: n
 export async function insightsList(ctx: Ctx, params: InsightsParams, list: string): Promise<Result<InsightsListDto>> {
   if (!(INSIGHT_LISTS as readonly string[]).includes(list)) return err('NOT_FOUND', 'no such list')
   const which = list as InsightList
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const prepared = await prepare(tx, ctx, params)
     if (!prepared.ok) return prepared
     const { base, data, reader: r, lowBp } = prepared.data

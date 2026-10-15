@@ -44,7 +44,8 @@ async function dropScratch(c: pg.Client) {
       await c.query(`drop database if exists "${DB}" with (force)`)
       return
     } catch (e) {
-      if ((e as { code?: string }).code !== '42501' || attempt === 20) throw e
+      const { code, message } = e as { code?: string; message?: string }
+      if (code !== '42501' || !/terminate process/.test(message ?? '') || attempt === 20) throw e
       await new Promise((resolve) => setTimeout(resolve, 250))
     }
   }

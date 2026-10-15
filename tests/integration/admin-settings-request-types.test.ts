@@ -11,7 +11,7 @@ import {
   publishFormVersion,
   setRequestTypeActive,
 } from '@/server/services/request-types'
-import { ATTACHMENT_KINDS, parseFormJson } from '@/server/services/request-types/form-import'
+import { ATTACHMENT_KINDS, FINANCE_ONLY_KINDS, parseFormJson } from '@/server/services/request-types/form-import'
 import { listRequestCatalog } from '@/server/queries/request-form'
 import { getRequestView } from '@/server/queries/requests'
 import { createDraft, submitRequest } from '@/server/services/requests'
@@ -138,7 +138,9 @@ describe('[FR-ADM-005/AC1] a form is imported as JSON, checked against the form 
 
   it('names in attachment rules only kinds of file that can be attached (FileLinkKind)', async () => {
     const rows = await prisma.$queryRaw<Array<{ kind: string }>>`SELECT unnest(enum_range(NULL::"FileLinkKind"))::text AS kind`
-    expect([...ATTACHMENT_KINDS].sort()).toEqual(rows.map((r) => r.kind).sort())
+    expect([...ATTACHMENT_KINDS, ...FINANCE_ONLY_KINDS].sort()).toEqual(rows.map((r) => r.kind).sort())
+    // S9-01 review: a form never asks a requester for a 50 ทวิ or a bank proof
+    expect(parseFormJson(JSON.stringify({ fields: [], visibility: [], rules: [{ id: 'R1', when: { field: '$amountGross', op: 'gt', value: '1.00' }, require: { attachments: 'BANK_PROOF', min: 1 } }] }))).toMatchObject({ ok: false, problems: [expect.objectContaining({ reason: 'UNKNOWN_ATTACHMENT', attachment: 'BANK_PROOF' })] })
   })
 
   it('only an organization admin may read, check or publish forms (deny)', async () => {

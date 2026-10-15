@@ -65,7 +65,8 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
   // S9: bank_account_number and its change's shape (10–12 digits); not ACTIVE, not open, not CURRENT, released, so the
   // shared parent rows never meet the one-per-supplier, one-open, one-current and one-live partial uniques
-  BankAccount: { accountNo: '9123456789', status: 'CLOSED' },
+  // an account of the organization, so a payment run may pay from it (bcs_payment_run_payer); each row its own code
+  BankAccount: { ownerKind: 'ORGANIZATION', code: () => `CB-${randomUUID().slice(0, 8)}`, accountType: 'CURRENT', accountNo: '9123456789', status: 'CLOSED' },
   BankAccountChange: { bankCode: '002', accountNo: '9000000001', accountName: 'ผู้ขาย', status: 'REJECTED' },
   PaymentRunDocument: { status: 'RELEASED' },
   PaymentFile: { sha256: 'a'.repeat(64), status: 'SUPERSEDED' },
@@ -78,7 +79,6 @@ const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
 const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   BudgetGrant: new Set(['granteeDepartment']),
   WithholdingTax: new Set(['invoice']), // withholding_tax_one_document: an invoice or a retention
-  BankAccount: new Set(['supplier']), // bank_account_owner: a supplier's account names its supplier
   BankAccountChange: new Set(['supplier']), // bank_account_change_shape: the same
   PaymentRunDocument: new Set(['invoice']), // payment_run_document_kind: an INVOICE row names its invoice
 }
@@ -137,7 +137,8 @@ async function rowData(modelName: string, organizationId: string): Promise<Recor
     }
     const override = SAMPLE_OVERRIDES[modelName]?.[f.name]
     if (override !== undefined) {
-      data[f.name] = override
+      // a function gives each row its own value (a code unique in the organization)
+      data[f.name] = typeof override === 'function' ? (override as () => unknown)() : override
       continue
     }
     if (f.isId || f.hasDefaultValue || f.isUpdatedAt || !f.isRequired) continue

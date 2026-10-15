@@ -161,3 +161,41 @@ describe('[BR-WHT-07] one 50 ทวิ per payment item', () => {
     await expect(prisma.whtCertificate.create({ data: cert(`C-${randomUUID().slice(0, 6)}`) })).rejects.toThrow()
   })
 })
+
+describe('S9-01 review: guards of the payment tables', () => {
+  it('[BR-PAY-01] pays a run only from an account of the organization', async () => {
+    const supplierAcct = await prisma.bankAccount.create({ data: supplierAccount({ supplierId: otherSupplierId, status: 'SUPERSEDED', accountNo: '9111111111' }) })
+    const run = { organizationId: orgId, payDate: new Date('2026-11-06T00:00:00Z'), fileTemplateCode: 'BCS-NEUTRAL-1', preparedById: memberId }
+    await expect(prisma.paymentRun.create({ data: { ...run, payerBankAccountId: supplierAcct.id } })).rejects.toThrow()
+    const ok = await prisma.paymentRun.create({ data: { ...run, payerBankAccountId: payerId } })
+    await expect(prisma.paymentRun.update({ where: { id: ok.id }, data: { payerBankAccountId: supplierAcct.id } })).rejects.toThrow()
+  })
+
+  it('[INV-PAY-02] links a document to an item of its own run and supplier only', async () => {
+    const run = (day: string) => prisma.paymentRun.create({ data: { organizationId: orgId, payDate: new Date(`${day}T00:00:00Z`), payerBankAccountId: payerId, fileTemplateCode: 'BCS-NEUTRAL-1', preparedById: memberId } })
+    const [a, b] = [await run('2026-11-13'), await run('2026-11-20')]
+    const itemB = await prisma.paymentRunItem.create({ data: { organizationId: orgId, paymentRunId: b.id, supplierId } })
+    const itemOther = await prisma.paymentRunItem.create({ data: { organizationId: orgId, paymentRunId: a.id, supplierId: otherSupplierId } })
+    const po = await prisma.purchaseOrder.create({ data: { organizationId: orgId, supplierId, status: 'SENT', number: `PO-${randomUUID().slice(0, 8)}` } })
+    const invoice = await prisma.invoice.create({ data: { organizationId: orgId, poId: po.id, supplierId, channel: 'UPLOAD' } })
+    const link = { organizationId: orgId, docKind: 'INVOICE' as const, invoiceId: invoice.id, payableSatang: 1n, status: 'RELEASED' as const }
+    // run A, item of run B
+    await expect(prisma.paymentRunDocument.create({ data: { ...link, paymentRunId: a.id, paymentRunItemId: itemB.id } })).rejects.toThrow()
+    // an invoice of one supplier in another supplier's item
+    await expect(prisma.paymentRunDocument.create({ data: { ...link, paymentRunId: a.id, paymentRunItemId: itemOther.id } })).rejects.toThrow()
+    await expect(prisma.paymentRunDocument.create({ data: { ...link, paymentRunId: b.id, paymentRunItemId: itemB.id } })).resolves.toBeTruthy()
+  })
+
+  it('refuses a payee name with a control character in the snapshot', async () => {
+    const runId = (await prisma.paymentRun.create({ data: { organizationId: orgId, payDate: new Date('2026-11-27T00:00:00Z'), payerBankAccountId: payerId, fileTemplateCode: 'BCS-NEUTRAL-1', preparedById: memberId } })).id
+    await expect(prisma.paymentRunItem.create({ data: { organizationId: orgId, paymentRunId: runId, supplierId, payeeAccountName: 'บริษัท ก\r\nจำกัด' } })).rejects.toThrow()
+  })
+
+  it('[INV-PAY-03] the app role may neither delete nor truncate bank files', async () => {
+    const rows = await prisma.$queryRaw<Array<{ privilege_type: string }>>`SELECT privilege_type FROM information_schema.role_table_grants WHERE grantee = 'bcs_app' AND table_name = 'PaymentFile'`
+    const privileges = rows.map((r) => r.privilege_type)
+    expect(privileges).not.toContain('DELETE')
+    expect(privileges).not.toContain('TRUNCATE')
+    expect(privileges).toContain('UPDATE')
+  })
+})

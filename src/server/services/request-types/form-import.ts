@@ -22,8 +22,14 @@ export const FORM_JSON_MAX_DEPTH = 32
 /** Problems listed at most, so a wrong file does not flood the screen */
 const MAX_PROBLEMS = 20
 
-/** FileLink kinds (prisma enum FileLinkKind); tests/integration/admin-settings-request-types.test.ts compares them */
-export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER', 'WHT_CERT', 'BANK_PROOF'] as const
+/**
+ * FileLink kinds a request form may ask for (prisma enum FileLinkKind, tests/integration/admin-settings-request-types.test.ts
+ * compares them): every kind but those of finance documents with a full national id or account number — a 50 ทวิ
+ * (WHT_CERT, BR-WHT-09) and a bank proof (BANK_PROOF, BR-SUP-07) — which a request's readers must never be asked for
+ */
+export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER'] as const
+/** FileLink kinds of finance documents only (above) */
+export const FINANCE_ONLY_KINDS = ['WHT_CERT', 'BANK_PROOF'] as const
 const SPECIAL_VARIABLES = ['$amountGross', '$amountNet', '$requestType']
 
 export type FormJson = z.output<typeof FormSchemaJson>

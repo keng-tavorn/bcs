@@ -333,6 +333,8 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
     ? await tx.budgetLedgerEntry.findMany({
         where: { ...onLines, OR: [{ fromBucket: 'OUTSIDE' }, { toBucket: 'OUTSIDE' }] },
         select: { budgetLineId: true, sourceType: true, sourceId: true, amountSatang: true, eventId: true, fromBucket: true },
+        // A document's first row gives its date: an overrun moves money on the day it is approved, used and returned
+        orderBy: [{ createdAt: 'asc' }, { seq: 'asc' }],
       })
     : []
   const perImport = new Map<string, Holding & { eventId: string; kind: FundingKind }>()
@@ -363,7 +365,7 @@ export async function budgetDocumentsOf(tx: TenantTx, principal: Principal, line
     entries.filter((e) => e.sourceType === 'REQUEST_LINE').map((e) => e.sourceId),
     entries.filter((e) => e.sourceType === 'PO_LINE').map((e) => e.sourceId),
   )
-  const importIds = [...new Set([...perImport.keys(), ...entries.filter((e) => e.sourceType === 'IMPORT').map((e) => e.sourceId)])]
+  const importIds = [...new Set([...[...perImport].flatMap(([id, h]) => (h.kind === 'IMPORT' ? [id] : [])), ...entries.filter((e) => e.sourceType === 'IMPORT').map((e) => e.sourceId)])]
   const eventIds = [...new Set([...entries.map((e) => e.eventId), ...[...perImport.values()].map((i) => i.eventId)])]
   const sourcesOf = (kind: 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN') => [...new Set([...[...perImport].flatMap(([id, h]) => (h.kind === kind ? [id] : [])), ...entries.filter((e) => e.sourceType === kind).map((e) => e.sourceId)])]
   const [transferIds, overrunIds] = [sourcesOf('BUDGET_TRANSFER'), sourcesOf('BUDGET_OVERRUN')]

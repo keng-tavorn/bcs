@@ -5,6 +5,7 @@ import { forTenant } from '@/server/db/tenant'
 import { listMyTasks } from '@/server/queries/tasks'
 import { decideTask } from '@/server/services/approvals/decide'
 import { budgetDashboard } from '@/server/services/budget/dashboard'
+import { budgetLineDetail } from '@/server/services/budget/line-detail'
 import { getBudgetOverrun, getRequestOverruns } from '@/server/services/budget/overrun-view'
 import { cancelBudgetOverrun, runOverrunLapse, submitBudgetOverrun } from '@/server/services/budget/overruns'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
@@ -119,6 +120,10 @@ describe('[FR-BUD-101/AC1] [FR-BUD-101/AC2] the shortfall approved, used at subm
     expect(submitted.data).toMatchObject({ budgetCheck: { budgetLineId: con, availableSatang: '7000000', reservedSatang: '7000000' }, overrunIds: [asked.overrunId] })
     const kpi = await forTenant(org.organizationId).$transaction((tx) => computeKpis(tx, org.organizationId, { from: new Date(NOW.getTime() - DAY), to: new Date(NOW.getTime() + DAY), now: NOW }, null))
     expect(kpi.g4.tasksOnFailedBudgetCheck).toBe(0)
+    // The line's drill-down: the import and the overrun make the planned amount (S6-22)
+    const used = ok(await budgetLineDetail(org.ctxOf('fin_officer', NOW), con))
+    expect(used.planned.total.amount).toBe('160000.00')
+    expect(used.planned.imports.filter((d) => d.kind === 'BUDGET_OVERRUN').map((d) => [d.number, d.amount.amount])).toEqual([[asked.number, '60000.00']])
 
     // Rejected after use: the 60,000.00 leaves the line in the same transaction (BR-BUD-18) — not anyone's free budget
     const prTask = await openTask(requestId)
@@ -129,6 +134,11 @@ describe('[FR-BUD-101/AC1] [FR-BUD-101/AC2] the shortfall approved, used at subm
     expect(await balance(con)).toMatchObject({ availableSatang: 1_000_000n, reservedSatang: 9_000_000n })
     expect(await planned(con)).toBe(10_000_000n)
     expect(await overrun(asked.overrunId)).toMatchObject({ status: 'CONSUMED', returnedAfterUseSatang: 6_000_000n })
+    // All of it went back out: the overrun is no longer part of the planned amount, and its movements say so
+    const back = ok(await budgetLineDetail(org.ctxOf('fin_officer', NOW), con))
+    expect(back.planned.total.amount).toBe('100000.00')
+    expect(back.planned.imports.filter((d) => d.kind === 'BUDGET_OVERRUN')).toEqual([])
+    expect(back.movements.rows.filter((m) => m.document.type === 'BUDGET_OVERRUN').map((m) => m.kind)).toEqual(expect.arrayContaining(['FUNDED', 'DEFUNDED']))
     const types = (await prisma.event.findMany({ where: { organizationId: org.organizationId, type: { in: ['budget_overrun.unused_returned', 'budget.overrun_returned'] } }, select: { type: true, data: true } })).map((e) => [e.type, (e.data as { amountSatang: string }).amountSatang])
     expect(types).toEqual(expect.arrayContaining([['budget_overrun.unused_returned', '6000000'], ['budget.overrun_returned', '6000000']]))
     // The requester reads the whole story on the overrun

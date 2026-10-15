@@ -83,12 +83,25 @@ const violation = (rule: SodRule): SodResult => ({ ok: false, error: 'SOD_VIOLAT
 /** Proposals where the proposer would be the one who gains (BR-SOD-08). */
 const SELF_BENEFIT_KINDS: readonly OrgAuthorityChangeKind[] = ['POSITION_ASSIGN', 'DELEGATION_ON_BEHALF', 'IDENTITY_RESET']
 
-/** BR-SOD-10: the actor proposed a change that came into force on or after payDate − recentBankChangeDays */
-function changedRecently(actorMemberId: string, recent: RecentBankChanges | undefined): boolean {
-  if (!recent) return false
+/** BR-SOD-10: who proposed a change that came into force on or after payDate − recentBankChangeDays */
+export function recentBankChangeProposers(recent: RecentBankChanges): string[] {
   // the same window as the item's BANK_ACCOUNT_RECENTLY_CHANGED flag (../payment)
   const since = addDays(recent.payDate, -recent.recentBankChangeDays)
-  return recent.changes.some((c) => c.proposerMemberId === actorMemberId && c.effectiveOn >= since)
+  return [...new Set(recent.changes.filter((c) => c.effectiveOn >= since).map((c) => c.proposerMemberId))]
+}
+
+const changedRecently = (actorMemberId: string, recent: RecentBankChanges | undefined): boolean => (recent ? recentBankChangeProposers(recent).includes(actorMemberId) : false)
+
+/**
+ * Who may not approve a payment run besides its preparer, for the `extra` of its subject adapter: the shared
+ * approvals/decide.ts checks the preparer through checkSod (BR-SOD-09) and then these lists in this order, so a run is
+ * refused at approval exactly as checkSod's DECIDE_APPROVAL of PAYMENT_RUN refuses it (BR-SOD-04, then BR-SOD-10)
+ */
+export function paymentRunSodExtra(input: { readonly invoiceRecorderMemberIds: readonly string[]; readonly recentBankChanges: RecentBankChanges }): Array<{ rule: SodRule; memberIds: string[] }> {
+  return [
+    { rule: 'BR-SOD-04', memberIds: [...new Set(input.invoiceRecorderMemberIds)] },
+    { rule: 'BR-SOD-10', memberIds: recentBankChangeProposers(input.recentBankChanges) },
+  ]
 }
 
 export function checkSod(action: SodAction, policy: SodPolicy): SodResult {

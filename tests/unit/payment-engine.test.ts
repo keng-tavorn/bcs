@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildItem, buildRun, checkPayDate, flagsKey, itemFlags, nextRunDate, proposeDocuments, type ItemDocument, type PayCalendar } from '@/core/payment'
+import { buildItem, buildRun, checkPaidOn, checkPayDate, flagsKey, itemFlags, nextRunDate, proposeDocuments, type ItemDocument, type PayCalendar } from '@/core/payment'
 
 // src/core/payment beyond the golden cases of payment-run.yaml (S9-02): the refusals a run passes on, the NEXT shift,
 // documents without a due date, an item without the optional facts, and the order of codes either way round.
@@ -70,6 +70,13 @@ describe('S9-02 review: what the engine refuses rather than guesses', () => {
   it('throws on a day that does not exist instead of using the day it rolls into', () => {
     expect(() => nextRunDate('2026-02-30', { runWeekdays: ['FRI'], holidayShift: 'PREVIOUS' }, calendar)).toThrow(RangeError)
     expect(() => itemFlags({ payDate: '2026-13-01', supplier: { registryFlag: 'NONE', status: 'ACTIVE', taxId: null }, account: { activatedOn: '2026-01-05', fromSeed: false } }, { recentBankChangeDays: 30 })).toThrow(RangeError)
+  })
+
+  it('refuses a transfer date or a due date that is not a real day instead of comparing it as text', () => {
+    const at = new Date('2026-03-02T03:00:00Z')
+    expect(() => checkPaidOn('2026-02-27', '2026-02-30', at)).toThrow(RangeError)
+    expect(() => checkPaidOn('2026-02-27', '2026-3-1', at)).toThrow(RangeError)
+    expect(() => proposeDocuments('2026-10-16', [{ id: 'I1', kind: 'INVOICE', dueDate: '2026-9-30' }])).toThrow(RangeError)
   })
 
   it('stops with an error when the calendar has no working day within a year, never searching forever', () => {

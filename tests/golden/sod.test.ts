@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkSod, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
+import { checkSod, paymentRunSodExtra, type ApprovalSubject, type OrgAuthorityChangeKind, type SodAction } from '@/core/sod'
 import { loadYaml, pick } from './doa-fixtures'
 
 // tests/golden/sod.yaml (spec §7.5): GC-SOD-01 to GC-SOD-16 (GC-SOD-10 on: the payment run and the bank account change of S9).
@@ -88,5 +88,33 @@ describe('[FR-PAY-101/AC8] separation of duties of S9 beyond the golden cases', 
   it('lets another member approve a run with no invoice recorders or bank changes named, and a bank change proposed by someone else', () => {
     expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'PAYMENT_RUN', actorMemberId: 'cfo', requesterMemberIds: ['fin_tre1'] }, policy)).toEqual({ ok: true })
     expect(checkSod({ kind: 'DECIDE_APPROVAL', subject: 'BANK_ACCOUNT_CHANGE', actorMemberId: 'cfo', requesterMemberIds: ['fin_ap1'] }, policy)).toEqual({ ok: true })
+  })
+
+  // the shared approvals/decide.ts calls checkSod with the preparer only, then refuses the adapter's extra lists in order
+  it('refuses at approval through the adapter lists exactly as checkSod does, case by case (GC-SOD-10 to GC-SOD-16)', () => {
+    const runCases = suite.cases.filter((c) => c.input.action === 'DECIDE_APPROVAL' && c.input.subject === 'PAYMENT_RUN')
+    expect(runCases.length).toBeGreaterThanOrEqual(4)
+    for (const c of runCases) {
+      const i = c.input
+      const base = checkSod({ kind: 'DECIDE_APPROVAL', subject: 'PAYMENT_RUN', actorMemberId: i.actor, requesterMemberIds: i.requester ? [i.requester] : [] }, policy)
+      const extra = paymentRunSodExtra({
+        invoiceRecorderMemberIds: i.invoiceRecorders ?? [],
+        recentBankChanges: { payDate: i.payDate ?? '2026-10-16', recentBankChangeDays: i.recentBankChangeDays ?? 0, changes: (i.bankChanges ?? []).map((b) => ({ proposerMemberId: b.proposer, effectiveOn: b.effectiveOn })) },
+      })
+      const rule = base.ok ? extra.find((x) => x.memberIds.includes(i.actor))?.rule : base.rule
+      expect(rule ? { ok: false, error: 'SOD_VIOLATION', rule } : { ok: true }).toEqual(checkSod(action(i), policy))
+    }
+  })
+
+  it('names each member once, and only the proposers whose change came into force within the window', () => {
+    const changes = [
+      { proposerMemberId: 'fin_ap1', effectiveOn: '2026-09-16' },
+      { proposerMemberId: 'fin_ap1', effectiveOn: '2026-10-01' },
+      { proposerMemberId: 'fin_ap2', effectiveOn: '2026-09-15' },
+    ]
+    expect(paymentRunSodExtra({ invoiceRecorderMemberIds: ['fin_ap3', 'fin_ap3'], recentBankChanges: { payDate: '2026-10-16', recentBankChangeDays: 30, changes } })).toEqual([
+      { rule: 'BR-SOD-04', memberIds: ['fin_ap3'] },
+      { rule: 'BR-SOD-10', memberIds: ['fin_ap1'] },
+    ])
   })
 })

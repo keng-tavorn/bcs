@@ -306,7 +306,10 @@ export const PO_CHANGE_MACHINE = machine<PoChangeState, PoChangeCommand>('PoChan
 export const PAYMENT_RUN_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY', 'SENT_TO_BANK', 'COMPLETED', 'REJECTED', 'CANCELLED'] as const
 export type PaymentRunState = (typeof PAYMENT_RUN_STATES)[number]
 export const PAYMENT_RUN_COMMANDS = [
+  'paymentRun.addDocuments',
+  'paymentRun.removeDocuments',
   'paymentRun.update',
+  'paymentRun.setFlagReason',
   'paymentRun.submit',
   'paymentRun.final_approval',
   'approval.reject',
@@ -322,8 +325,11 @@ export const PAYMENT_RUN_COMMANDS = [
 export type PaymentRunCommand = (typeof PAYMENT_RUN_COMMANDS)[number]
 
 export const PAYMENT_RUN_MACHINE = machine<PaymentRunState, PaymentRunCommand>('PaymentRun', PAYMENT_RUN_STATES, PAYMENT_RUN_COMMANDS, [
-  // documents added or removed, the pay date or the payer changed, a flag's reason: the preparer's draft only (BR-PAY-09)
+  // documents added or removed, the pay date or the payer changed (update), a flag's reason: the preparer's draft only (BR-PAY-09)
+  { from: ['DRAFT'], command: 'paymentRun.addDocuments', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'paymentRun.removeDocuments', to: 'DRAFT' },
   { from: ['DRAFT'], command: 'paymentRun.update', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'paymentRun.setFlagReason', to: 'DRAFT' },
   { from: ['DRAFT'], command: 'paymentRun.submit', to: 'PENDING_APPROVAL' },
   { from: ['PENDING_APPROVAL'], command: 'paymentRun.final_approval', to: 'APPROVED' },
   { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },

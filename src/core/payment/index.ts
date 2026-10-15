@@ -157,18 +157,19 @@ export interface PayableDocument {
   readonly dueDate?: string | null
 }
 
-/** Invoices due on or before the pay date and every released retention, in the order given */
+/** Invoices due on or before the pay date and every released retention, in the order given (real days only) */
 export function proposeDocuments<T extends PayableDocument>(payDate: string, docs: readonly T[]): T[] {
-  return docs.filter((d) => d.kind === 'RETENTION' || (d.dueDate !== undefined && d.dueDate !== null && d.dueDate <= payDate))
+  const pay = dayNumber(payDate)
+  return docs.filter((d) => d.kind === 'RETENTION' || (d.dueDate !== undefined && d.dueDate !== null && dayNumber(d.dueDate) <= pay))
 }
 
 // ---------- BR-PAY-12: the transfer date of a result ----------
 
 export type PaidOnCheck = { readonly ok: true } | { readonly ok: false; readonly code: 'VALIDATION_FAILED'; readonly reason: 'PAID_ON_BEFORE_PAY_DATE' | 'PAID_ON_FUTURE' }
 
-/** The bank's transfer date is between the pay date and today in Thai time */
+/** The bank's transfer date is between the pay date and today in Thai time; a day that does not exist throws */
 export function checkPaidOn(payDate: string, paidOn: string, at: Date): PaidOnCheck {
-  if (paidOn < payDate) return { ok: false, code: 'VALIDATION_FAILED', reason: 'PAID_ON_BEFORE_PAY_DATE' }
+  if (dayNumber(paidOn) < dayNumber(payDate)) return { ok: false, code: 'VALIDATION_FAILED', reason: 'PAID_ON_BEFORE_PAY_DATE' }
   if (paidOn > taxDateOf(at)) return { ok: false, code: 'VALIDATION_FAILED', reason: 'PAID_ON_FUTURE' }
   return { ok: true }
 }

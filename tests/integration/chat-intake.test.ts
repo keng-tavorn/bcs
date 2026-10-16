@@ -250,6 +250,18 @@ describe('[FR-LINE-301/AC2] the window, the limits, other types, unlinked users,
     expect(cut).toMatchObject({ text: 'น้ำดื่ม น้ำ', textTruncated: true, messageCount: 2 })
   })
 
+  it('[BR-LINE-11] a message the command refuses for good keeps no text: the same LINE message under another event id', async () => {
+    const org = await chatOrg()
+    const m = await linkedMember(org.orgId)
+    const messageId = `${Date.now()}77`
+    await send(org, text(m.lineUserId, 'ขอซื้อแฟ้ม', NOW, { messageId }), NOW)
+    // LINE's message id again under a new webhookEventId: taken already, refused, and its text is not kept
+    const again = await send(org, text(m.lineUserId, 'ขอซื้อแฟ้ม', at(MS_PER_MINUTE), { messageId }), at(MS_PER_MINUTE))
+    expect(again.row).toMatchObject({ status: 'PROCESSED', error: 'INVALID_STATE_TRANSITION' })
+    expect(await prisma.lineInboundMessage.count({ where: { organizationId: org.orgId } })).toBe(0)
+    expect((await intakesOf(org.orgId, m.memberId))[0]).toMatchObject({ messageCount: 1 })
+  })
+
   it('an organization that does not ask through the chat (or a UAT sandbox) skips messages as before S17 and keeps no text', async () => {
     for (const org of [await chatOrg({ enabled: false }), await chatOrg({}, 'SANDBOX')]) {
       const m = await linkedMember(org.orgId)

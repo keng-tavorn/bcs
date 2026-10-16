@@ -13,7 +13,8 @@ import { liffLink, type LineEventOutcome, type LineMessageContext, type LineMess
 //     the webhook kept, if any, is thrown away;
 //  2. a LINE user linked to nobody: the reply that asks them to link first (never pushed), and the text is thrown away;
 //  3. a linked member: chat_intake.receive as that member on channel LINE_CHAT, with LINE's webhookEventId as the key, so
-//     a run of the event again (the line-webhook job) replays the stored answer instead of adding the message twice;
+//     a run of the event again (the line-webhook job) replays the stored answer instead of adding the message twice; a
+//     message it refuses for good has its kept text thrown away;
 //  4. the answer the command chose goes by the reply token while it is fresh — read the clock now, after the command ran —
 //     and only the LIFF button goes by push: when the token expired, or LINE refused the reply, and the draft never had the
 //     button (the command says so: pushAllowed), with the event's id as LINE's retry key, so a retry never pushes twice.
@@ -143,6 +144,9 @@ export function chatIntakeMessageHandler(deps: ChatIntakeLineDeps): LineMessageH
     const result = await deps.receive(ctx, { lineWebhookEventId: request.eventId }, { idempotencyKey: `line-message:${request.webhookEventId}` })
     if (!result.ok) {
       if (TRANSIENT.has(result.error.code)) throw new Error(`taking a chat message did not finish (${result.error.code}); the line-webhook job tries the event again`)
+      // Refused for good (the member may not ask, the chat was switched off, the message was taken under another event):
+      // the command rolled back, its deletion of the kept text with it, so the text goes here (BR-LINE-11)
+      await deps.discardText(request.organizationId, request.eventId)
       return { status: 'PROCESSED', reason: result.error.code }
     }
     const taken = result.data

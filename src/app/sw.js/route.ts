@@ -13,7 +13,8 @@
 // HTML is a shell with no business data (its data lives in the phone's IndexedDB). Opened with a signal, the page is
 // stored as it came, and the page hands the worker the hashed static files it loaded (/_next/static/…) to keep beside
 // it; without a signal the stored page opens with them. Nothing else of /_next/static is kept, no response of data is
-// ever stored, and a new build starts with an empty store (the page fills it again the next time it is opened).
+// ever stored, and a new build starts with an empty store (the page fills it again the next time it is opened). Other
+// pages' static files are not touched while there is a signal.
 
 export const dynamic = 'force-static'
 
@@ -59,6 +60,16 @@ self.addEventListener('message', (event) => {
   else if (event.data && event.data.type === 'GO_KEEP_SHELL') event.waitUntil(keepGoShell(event.data.assets));
 });
 
+// A request of the page /go/receive itself (its scripts and styles; a font a style asks for names the style instead)
+function fromGoShell(request) {
+  try {
+    const referrer = new URL(request.referrer);
+    return referrer.origin === self.location.origin && referrer.pathname === GO_SHELL;
+  } catch {
+    return false;
+  }
+}
+
 // The page /go/receive and the static files it loaded, from this origin only
 function keepGoShell(assets) {
   const statics = (Array.isArray(assets) ? assets : [])
@@ -93,8 +104,9 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(caches.match(request).then((hit) => hit || fetch(request)));
     return;
   }
-  // The hashed files of /go/receive, once the page handed them over; anything else of /_next/static from the network
-  if (own && url.pathname.startsWith(STATIC_PREFIX)) {
+  // The hashed files of /go/receive, once the page handed them over: for that page (its requests name it as their
+  // referrer) or without a signal. Every other page's static files are left to the network as before the worker knew them
+  if (own && url.pathname.startsWith(STATIC_PREFIX) && (fromGoShell(request) || !self.navigator.onLine)) {
     event.respondWith(caches.match(request, { cacheName: GO_CACHE }).then((hit) => hit || fetch(request)));
   }
 });

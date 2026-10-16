@@ -7,10 +7,13 @@ import { MAX_UPLOAD_BYTES, MS_PER_HOUR } from '@/lib/constants'
 import { SNIFF_BYTES, sniffMimeType } from '@/lib/file-types'
 import { newId } from '@/lib/ids'
 import { logger } from '@/lib/logger'
-import { systemCtx } from '@/server/context'
-import { forTenant } from '@/server/db/tenant'
+import { systemCtx, type Ctx } from '@/server/context'
+import { lockRowsForUpdate } from '@/server/db/sql/locks'
+import { forTenant, type TenantTx } from '@/server/db/tenant'
+import type { EventDraft } from '@/server/events/append'
 import { defineCommand, runCommand, type CommandFailure, type CommandOutcome } from '../_pipeline'
 import { openLineChannel } from '../line-channel'
+import { MAX_REQUEST_ATTACHMENTS } from '../requests/attachments'
 
 // The images of a chat draft (S17-06 · BR-LINE-14 · FR-LINE-301 AC3): fetched from LINE in job chat-intake-image, never in
 // the webhook. An image must be a JPEG or a PNG by its first bytes and at most 20 MB (NFR-SEC-08); it is kept in the
@@ -42,6 +45,23 @@ const StoreImageInput = z.discriminatedUnion('status', [
 
 const fail = (code: 'FORBIDDEN' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'VALIDATION_FAILED', message: string): CommandFailure => ({ ok: false, error: { code, message } })
 
+/**
+ * A photo fetched after its owner made the request draft (the chat draft is DRAFTED) lands on that request as OTHER, as
+ * chat_intake.draft attaches the ones stored before (BR-LINE-12): while the request is a draft or returned, and below the
+ * most files a request carries. The request row is locked as request.attach_file locks it. A request sent meanwhile keeps
+ * what it was sent with: the photo stays the owner's own file, cleared with the chat draft (OQ-162).
+ */
+async function attachLatePhoto(tx: TenantTx, ctx: Ctx, requestId: string, fileId: string): Promise<EventDraft[]> {
+  const [locked] = await lockRowsForUpdate(tx, 'Request', ctx.organizationId, [requestId])
+  if (!locked) return []
+  const request = await tx.request.findUniqueOrThrow({ where: { id: requestId }, select: { status: true, requestType: { select: { code: true } }, _count: { select: { lines: true } } } })
+  if (request.status !== 'DRAFT' && request.status !== 'RETURNED') return []
+  const files = await tx.fileLink.count({ where: { subjectType: 'Request', subjectId: requestId, kind: { not: 'QUOTATION' } } })
+  if (files >= MAX_REQUEST_ATTACHMENTS) return []
+  await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'Request', subjectId: requestId, kind: 'OTHER' } })
+  return [{ type: 'request.drafted', aggregateType: 'Request', aggregateId: requestId, data: { requestTypeCode: request.requestType.code, lines: request._count.lines, file: { action: 'ATTACHED', fileId, kinds: ['OTHER'] } } }]
+}
+
 /** One key per item and result, so a retry replays and a different result of the same item is refused by state, not by key */
 const storeKey = (input: z.input<typeof StoreImageInput>): string => `${CHAT_IMAGE_JOB}:${input.itemId}:${input.status === 'FAILED' ? input.code : 'STORED'}`
 
@@ -54,7 +74,7 @@ export const storeChatImageCommand = defineCommand({
     if (ctx.actor.type !== 'SYSTEM') return fail('FORBIDDEN', 'images are fetched by the system only')
     const item = await tx.chatIntakeItem.findFirst({
       where: { id: input.itemId },
-      select: { id: true, seq: true, kind: true, fetchStatus: true, intake: { select: { id: true, status: true, memberId: true, purgedAt: true } } },
+      select: { id: true, seq: true, kind: true, fetchStatus: true, intake: { select: { id: true, status: true, memberId: true, purgedAt: true, requestId: true } } },
     })
     if (!item || item.kind !== 'IMAGE') return fail('NOT_FOUND', 'no such image')
     // A draft cleared already keeps no new file: one stored now would outlive its retention (OQ-162)
@@ -84,12 +104,14 @@ export const storeChatImageCommand = defineCommand({
       },
     })
     await tx.chatIntakeItem.update({ where: { id: item.id }, data: { fetchStatus: 'STORED', fetchError: null, fileId } })
+    const attached = item.intake.requestId ? await attachLatePhoto(tx, ctx, item.intake.requestId, fileId) : []
     return {
       ok: true,
       result: { fileId },
       events: [
         { type: 'file.uploaded', aggregateType: 'File', aggregateId: fileId, data: { fileId, mimeType: input.mimeType, sizeBytes: input.sizeBytes } },
         { type: 'chat_intake.image_fetched', aggregateType: 'ChatIntake', aggregateId: intakeId, data: { seq: item.seq, status: 'STORED', fileId } },
+        ...attached,
       ],
     }
   },

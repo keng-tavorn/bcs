@@ -29,13 +29,13 @@ export interface LiffChatIntake {
   readonly requestHref: string | null
 }
 
-export type LiffChatOutcome = { readonly ok: true; readonly href: string } | { readonly ok: false; readonly code: string; readonly field?: string }
+export type LiffChatOutcome = { readonly ok: true; readonly href: string } | { readonly ok: false; readonly code: string; readonly field?: string; readonly reason?: string }
 
 export interface LiffChatIntakeProps {
   readonly intake: LiffChatIntake
   readonly types: readonly CatalogEntry[]
   readonly catalogHref: string
-  readonly draft: (input: { intakeId: string; requestTypeCode: string; title: string; idempotencyKey: string }) => Promise<LiffChatOutcome>
+  readonly draft: (input: { intakeId: string; requestTypeCode: string; title?: string; idempotencyKey: string }) => Promise<LiffChatOutcome>
   readonly dismiss: (input: { intakeId: string; idempotencyKey: string }) => Promise<LiffChatOutcome>
 }
 
@@ -46,7 +46,7 @@ export function LiffChatIntakePanel({ intake, types, catalogHref, draft, dismiss
   const id = useId()
   const [title, setTitle] = useState(intake.proposedTitle)
   const [type, setType] = useState<string | null>(null)
-  const [problem, setProblem] = useState<{ readonly code: string; readonly field?: string } | null>(null)
+  const [problem, setProblem] = useState<{ readonly code: string; readonly field?: string; readonly reason?: string } | null>(null)
   const [closed, setClosed] = useState(false)
   const [pending, start] = useTransition()
   const key = useLiffSubmissionKey()
@@ -70,11 +70,15 @@ export function LiffChatIntakePanel({ intake, types, catalogHref, draft, dismiss
   }
   const onDismiss = () => send(() => dismiss({ intakeId: intake.id, idempotencyKey: key.key }), () => setClosed(true))
 
-  const problemWords = (p: { readonly code: string; readonly field?: string }) =>
+  const problemWords = (p: { readonly code: string; readonly field?: string; readonly reason?: string }) =>
     p.code === 'VALIDATION_FAILED' && p.field === 'title'
       ? t('errors.title')
-      : p.code === 'VALIDATION_FAILED' && p.field === 'requestTypeCode'
-        ? t('errors.type')
+      : p.reason === 'INTAKE_TYPE'
+        ? t('errors.typeUnavailable')
+        : p.reason === 'NO_DEPARTMENT'
+          ? t('errors.noDepartment')
+          : p.code === 'VALIDATION_FAILED' && p.field === 'requestTypeCode'
+            ? t('errors.type')
         : p.code === 'INVALID_STATE_TRANSITION'
           ? t('errors.closed')
           : p.code === 'NOT_FOUND'
@@ -107,6 +111,7 @@ export function LiffChatIntakePanel({ intake, types, catalogHref, draft, dismiss
               <li key={image.seq}>{t(`image.${image.state}`, { seq: image.seq })}</li>
             ))}
           </ul>
+          {intake.images.some((i) => i.state === 'PENDING') ? <p className="text-ink-muted">{t('imagesPending')}</p> : null}
           {intake.images.some((i) => i.state === 'FAILED') ? <LiffNotice tone="warning">{t('imagesFailed')}</LiffNotice> : null}
         </>
       ) : null}

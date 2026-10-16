@@ -2,8 +2,10 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { MS_PER_HOUR } from '@/lib/constants'
 import { prisma } from '@/server/db/client'
-import { getMyChatIntake, listMyOpenChatIntakes } from '@/server/queries/chat-intake'
-import { dismissChatIntake, draftFromChat } from '@/server/services/chat-intake'
+import { chatIntakeIdOfRequest, getMyChatIntake, listMyOpenChatIntakes } from '@/server/queries/chat-intake'
+import { dismissChatIntake, draftFromChat, storeChatImageCommand } from '@/server/services/chat-intake'
+import { runCommand } from '@/server/services/_pipeline'
+import { systemCtx } from '@/server/context'
 import { editRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
@@ -96,13 +98,35 @@ describe('[FR-LINE-301/AC4] the owner picks a type in LIFF: a request draft by r
 
   it('a type that is not switched on is refused and nothing changes; the same submission again makes one draft', async () => {
     const { intakeId } = await chatDraft('req_con', 'เก้าอี้')
-    expect(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'NO_SUCH_TYPE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'requestTypeCode' } } })
+    expect(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'NO_SUCH_TYPE' }, key())).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { field: 'requestTypeCode', reason: 'INTAKE_TYPE' } } })
     expect(await prisma.chatIntake.findUniqueOrThrow({ where: { id: intakeId } })).toMatchObject({ status: 'OPEN', requestId: null })
     const once = key()
     const first = ok(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'BUY_GOODS' }, once))
     expect(ok(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'BUY_GOODS' }, once))).toEqual(first)
     expect(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'BUY_GOODS' }, key())).toMatchObject({ ok: false, error: { code: 'INVALID_STATE_TRANSITION' } })
     expect(await prisma.request.count({ where: { organizationId: org.organizationId, title: 'เก้าอี้' } })).toBe(1)
+  })
+})
+
+describe('[FR-LINE-301/AC3] a photo fetched after the owner made the request draft lands on that request', () => {
+  it('the image job stores it on the DRAFTED chat draft and attaches it as OTHER while the request is a draft; a sent request is left as it was', async () => {
+    const { intakeId } = await chatDraft('req_con', 'โต๊ะประชุมตามรูป')
+    const pending = await prisma.chatIntakeItem.create({ data: { organizationId: org.organizationId, intakeId, seq: 2, kind: 'IMAGE', lineMessageId: `${Date.now()}9${Math.floor(Math.random() * 1e6)}`, fetchStatus: 'PENDING', receivedAt: NOW } })
+    const made = ok(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'BUY_GOODS' }, key()))
+    expect(made.images).toBe(0)
+    const store = (itemId: string) =>
+      runCommand(systemCtx(org.organizationId, NOW, 'chat-intake-image'), storeChatImageCommand, { itemId, status: 'STORED', key: `org/${org.organizationId}/chat-intake/${intakeId}/${itemId}`, mimeType: 'image/jpeg', sizeBytes: 10, sha256: 'b'.repeat(64) }, key())
+    const stored = ok(await store(pending.id))
+    expect(await prisma.fileLink.findMany({ where: { subjectType: 'Request', subjectId: made.requestId }, select: { fileId: true, kind: true } })).toEqual([{ fileId: stored.fileId, kind: 'OTHER' }])
+    const attachedEvent = await prisma.event.findFirstOrThrow({ where: { organizationId: org.organizationId, type: 'request.drafted', aggregateId: made.requestId, data: { path: ['file', 'fileId'], equals: stored.fileId! } } })
+    expect(attachedEvent).toMatchObject({ actorType: 'SYSTEM' })
+
+    // Sent meanwhile: the request keeps what it was sent with
+    ok(await editRequest(liff('req_con'), { requestId: made.requestId, budgetLineId, lines: [{ description: 'โต๊ะประชุม', quantity: '1', uom: 'ตัว', unitPrice: '3500.00' }] }, key()))
+    ok(await submitRequest(liff('req_con'), { requestId: made.requestId }, key()))
+    const later = await prisma.chatIntakeItem.create({ data: { organizationId: org.organizationId, intakeId, seq: 3, kind: 'IMAGE', lineMessageId: `${Date.now()}8${Math.floor(Math.random() * 1e6)}`, fetchStatus: 'PENDING', receivedAt: NOW } })
+    ok(await store(later.id))
+    expect(await prisma.fileLink.count({ where: { subjectType: 'Request', subjectId: made.requestId } })).toBe(1)
   })
 })
 
@@ -117,6 +141,13 @@ describe('[FR-LINE-301/AC7] only the owner sees and uses a chat draft; "ไม�
       expect((await listMyOpenChatIntakes(liff(code), 5)).map((r) => r.id), code).not.toContain(intakeId)
     }
     expect(await prisma.chatIntake.findUniqueOrThrow({ where: { id: intakeId } })).toMatchObject({ status: 'OPEN' })
+  })
+
+  it('the draft form leads back to the chat text for its owner only', async () => {
+    const { intakeId } = await chatDraft('req_con', 'กล่องเอกสาร')
+    const made = ok(await draftFromChat(liff('req_con'), { intakeId, requestTypeCode: 'BUY_GOODS' }, key()))
+    expect(await chatIntakeIdOfRequest(liff('req_con'), made.requestId)).toBe(intakeId)
+    for (const code of ['admin', 'dm_con']) expect(await chatIntakeIdOfRequest(liff(code), made.requestId), code).toBeNull()
   })
 
   it('the owner dismisses it: DISMISSED, no request, and it can no longer be drafted', async () => {

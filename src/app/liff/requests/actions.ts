@@ -186,15 +186,21 @@ export async function reorderAction(requestId: string, idempotencyKey: string): 
 
 const chatFailure = (error: { readonly code: string; readonly details?: Readonly<Record<string, unknown>> }): LiffChatOutcome => {
   const field = typeof error.details?.field === 'string' ? error.details.field : undefined
-  return { ok: false, code: error.code, ...(field ? { field } : {}) }
+  const reason = typeof error.details?.reason === 'string' ? error.details.reason : undefined
+  return { ok: false, code: error.code, ...(field ? { field } : {}), ...(reason ? { reason } : {}) }
 }
 
 /** "สร้างร่างคำขอ": chat_intake.draft as the member of this LIFF page; the draft then opens in the LIFF form */
-export async function draftFromChatAction(input: { intakeId: string; requestTypeCode: string; title: string; idempotencyKey: string }): Promise<LiffChatOutcome> {
+export async function draftFromChatAction(input: { intakeId: string; requestTypeCode: string; title?: string; idempotencyKey: string }): Promise<LiffChatOutcome> {
   const ctx = await memberCtx()
   if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
   if (!Key.safeParse(input?.idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
-  const result = await draftFromChat(ctx, { intakeId: String(input.intakeId), requestTypeCode: String(input.requestTypeCode), title: String(input.title) }, { idempotencyKey: input.idempotencyKey })
+  // Browser input on its way to the service, whose Zod schema checks it; a title left out is the first line of the text
+  const result = await draftFromChat(
+    ctx,
+    { intakeId: String(input.intakeId), requestTypeCode: String(input.requestTypeCode), ...(typeof input.title === 'string' ? { title: input.title } : {}) },
+    { idempotencyKey: input.idempotencyKey },
+  )
   return result.ok ? { ok: true, href: liffDraftHref(result.data.requestId) } : chatFailure(result.error)
 }
 

@@ -55,7 +55,7 @@ export default async function LiffNewRequestPage({ searchParams }: { searchParam
   const intakeId = typeof query.intake === 'string' ? query.intake : null
   const [types, drafts, intake, chats] = await Promise.all([
     listRequestCatalog(page.ctx, screen),
-    listMyOpenDrafts(page.ctx, screen, OPEN_DRAFTS_SHOWN),
+    intakeId ? Promise.resolve([]) : listMyOpenDrafts(page.ctx, screen, OPEN_DRAFTS_SHOWN),
     intakeId ? getMyChatIntake(page.ctx, intakeId) : Promise.resolve(null),
     intakeId ? Promise.resolve([]) : listMyOpenChatIntakes(page.ctx, CHAT_DRAFTS_SHOWN),
   ])

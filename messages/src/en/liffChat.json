@@ -37,7 +37,10 @@
     "closed": "This chat draft is closed. Open this page again.",
     "notFound": "This chat draft was not found",
     "signIn": "Your session has ended. Open it from LINE again.",
-    "other": "That did not work. Please try again."
+    "other": "That did not work. Please try again.",
+    "typeUnavailable": "This request type can no longer be used. Open this page again and choose another type.",
+    "noDepartment": "Your account has no main department yet, so it cannot make a request. Contact your administrator."
   },
-  "backToChat": "Text from the chat"
+  "backToChat": "Text from the chat",
+  "imagesPending": "Photos still being fetched are attached to the request draft when they arrive"
 }

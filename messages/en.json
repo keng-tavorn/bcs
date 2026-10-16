@@ -6008,11 +6008,13 @@
     "drafted": "A request draft was made from this chat",
     "errors": {
       "closed": "This chat draft is closed. Open this page again.",
+      "noDepartment": "Your account has no main department yet, so it cannot make a request. Contact your administrator.",
       "notFound": "This chat draft was not found",
       "other": "That did not work. Please try again.",
       "signIn": "Your session has ended. Open it from LINE again.",
       "title": "Enter a title before making the draft",
-      "type": "Choose a request type before making the draft"
+      "type": "Choose a request type before making the draft",
+      "typeUnavailable": "This request type can no longer be used. Open this page again and choose another type."
     },
     "expired": "This chat draft expired because it was not used. Send a new message in the chat, or start from the request types.",
     "image": {
@@ -6022,6 +6024,7 @@
     },
     "imagesFailed": "Photos that could not be fetched are not attached. Take or attach them again on the request page.",
     "imagesHeading": "{count, plural, one {# photo} other {# photos}} from the chat",
+    "imagesPending": "Photos still being fetched are attached to the request draft when they arrive",
     "intro": "Check what you sent in the chat, give it a title and choose a request type. A draft is made for you to check, edit and send yourself in the next step.",
     "listHeading": "Drafts from the chat",
     "listLine": "{messages, plural, one {# message} other {# messages}} · {images, plural, one {# photo} other {# photos}} · last {time}",

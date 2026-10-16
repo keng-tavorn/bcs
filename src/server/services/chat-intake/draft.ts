@@ -62,7 +62,11 @@ export const draftFromChatCommand = defineCommand({
       return fail('VALIDATION_FAILED', 'the draft needs a title and a request type', { field, ...(field === 'title' ? { reason: 'INTAKE_TITLE' } : {}) })
     }
     const drafted = await draftIn(tx, ctx, fields.data, { source: 'CHAT_INTAKE' })
-    if (!drafted.ok) return drafted
+    if (!drafted.ok) {
+      // The type the owner picked cannot make a request (unknown, off, or no published form): reason INTAKE_TYPE
+      const details = drafted.error.details
+      return details?.field === 'requestTypeCode' ? { ok: false, error: { ...drafted.error, details: { ...details, reason: 'INTAKE_TYPE', ...(details.reason ? { cause: details.reason } : {}) } } } : drafted
+    }
     const requestId = drafted.result.requestId
     const events: EventDraft[] = [...drafted.events]
     let images = 0

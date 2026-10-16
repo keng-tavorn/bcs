@@ -38,5 +38,5 @@ export function verificationTokenHash(token: string): string {
   return createHash('sha256').update(token, 'utf8').digest('hex')
 }
 
-/** A string that could be a token: base64url of 32 bytes */
-export const looksLikeToken = (value: string) => /^[A-Za-z0-9_-]{43}$/.test(value)
+/** A string that could be a token: base64url of 32 bytes (one definition with the phone's scan, src/lib) */
+export { looksLikeToken } from '@/lib/verification-token'

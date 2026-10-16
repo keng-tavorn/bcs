@@ -1,11 +1,12 @@
-// S17-13 (FR-PLT-301 AC7 AC8, BR-APP-04, BR-APP-06): what /go/receive works out on the phone without asking the server —
-// the PO version a queued receipt expects, and the excess beyond the tolerance its form asks about — next to what the
-// server measures (src/server/services/receiving: receiveOnLine). The page itself runs offline in tests/e2e/go-receive.spec.ts.
+// S17-13 S17-14 (FR-PLT-301 AC6 to AC9, BR-APP-04, BR-APP-06, BR-APP-09): what /go/receive works out on the phone
+// without asking the server — who it records and sends for, the PO version a queued receipt expects, the excess beyond
+// the tolerance its form asks about (as src/server/services/receiving measures it: receiveOnLine), and how many PO copies
+// it keeps. The page itself runs offline in tests/e2e/go-receive.spec.ts.
 import { describe, expect, it } from 'vitest'
 import { parseQuantity } from '@/core/money/math'
 import { excessOf } from '@/ui/go-receive/receipt-form'
 import { knownFor } from '@/ui/go-receive/runner'
-import type { PoLineCopy, StoredItem } from '@/ui/go-receive/store'
+import { actingMember, keepResolved, type PoCopy, type PoLineCopy, type Prepared, type StoredItem } from '@/ui/go-receive/store'
 
 const item = (over: Partial<StoredItem> = {}): StoredItem => ({
   key: 'k1',
@@ -59,5 +60,32 @@ describe('[FR-PLT-301/AC7] the excess beyond the tolerance the offline form asks
   it('a line with nothing left on order takes every unit as an excess; nothing accepted asks nothing', () => {
     expect(excessOf(line({ cancelled: '100' }), q('3'), 10)).toBe(q('3'))
     expect(excessOf(line(), 0n, 5)).toBe(0n)
+  })
+})
+
+describe('[FR-PLT-301/AC9] the member the page records and sends for (BR-APP-09)', () => {
+  const prepared = { memberId: 'm-copies' }
+  it('the one the server named; before any answer (opened without a signal), the one the copies were prepared for', () => {
+    expect(actingMember({ member: 'm-now', known: true }, prepared)).toBe('m-now')
+    expect(actingMember({ member: null, known: false }, prepared)).toBe('m-copies')
+    expect(actingMember({ member: null, known: false }, null)).toBeNull()
+  })
+
+  it('nobody once the server said nobody is signed in: never the member the copies were for', () => {
+    expect(actingMember({ member: null, known: true }, prepared)).toBeNull()
+  })
+})
+
+describe('[FR-PLT-301/AC6] a copy resolved from a scanned QR is kept within maxPreparedPos (BR-APP-04)', () => {
+  const copy = (poId: string): PoCopy => ({ poId, number: poId, version: 1, status: 'SENT', sentAt: null, supplier: 'ผู้ขาย', site: null, overTolerancePct: 5, lines: [], tokenHashes: [], preparedAt: '2026-10-16T03:00:00.000Z' })
+  const prepared = (ids: string[], max: number): Prepared => ({ memberId: 'm', copies: ids.map(copy), truncated: false, retentionDays: 7, maxPreparedPos: max, preparedAt: '2026-10-16T03:00:00.000Z' })
+
+  it('added while the phone keeps fewer than the organization allows; a copy of a PO it has replaces it', () => {
+    expect(keepResolved(prepared(['A'], 2), copy('B'))?.copies.map((c) => c.poId)).toEqual(['B', 'A'])
+    expect(keepResolved(prepared(['A', 'B'], 2), { ...copy('B'), version: 2 })?.copies.map((c) => c.version)).toEqual([1, 2])
+  })
+
+  it('not kept at the cap: the form opens from it, the phone keeps no more copies', () => {
+    expect(keepResolved(prepared(['A', 'B'], 2), copy('C'))).toBeNull()
   })
 })

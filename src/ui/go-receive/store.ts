@@ -38,7 +38,29 @@ export interface Prepared {
   readonly copies: readonly PoCopy[]
   readonly truncated: boolean
   readonly retentionDays: number
+  /** bcsGo.maxPreparedPos: the phone keeps no more copies than this (BR-APP-04) */
+  readonly maxPreparedPos: number
   readonly preparedAt: string
+}
+
+/** What the page knows of who is signed in: the server's last word, or nothing yet (no signal since it opened) */
+export interface Session {
+  readonly member: string | null
+  readonly known: boolean
+}
+
+/**
+ * The member the page records and sends for: the one the server named last; before any answer (opened without a
+ * signal), the one the copies on the phone were prepared for; nobody once the server said nobody is signed in
+ */
+export function actingMember(session: Session, prepared: Pick<Prepared, 'memberId'> | null): string | null {
+  return session.known ? session.member : (prepared?.memberId ?? null)
+}
+
+/** A copy the server resolved, kept with the others while the phone keeps fewer than the organization allows */
+export function keepResolved(prepared: Prepared, copy: PoCopy): Prepared | null {
+  if (prepared.copies.some((c) => c.poId === copy.poId)) return { ...prepared, copies: prepared.copies.map((c) => (c.poId === copy.poId ? copy : c)) }
+  return prepared.copies.length < prepared.maxPreparedPos ? { ...prepared, copies: [copy, ...prepared.copies] } : null
 }
 
 export interface ReceiptLine {

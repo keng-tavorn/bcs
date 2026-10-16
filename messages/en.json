@@ -5816,6 +5816,8 @@
     "brand": "BCS Go",
     "find": {
       "fromServer": "The latest from BCS, now kept on the phone",
+      "noAnswer": "BCS cannot answer right now. Scan again, or type the purchase order number",
+      "notAmongCopies": "This number is not among the purchase orders prepared on this phone. Check the number, or prepare again while there is a signal",
       "notBcs": "This QR is not a BCS purchase order, so it was not opened or sent anywhere",
       "notFound": "This PO is not among those you may receive",
       "notOnPhone": "This purchase order is not on the phone. Try again with a signal, or prepare for receiving offline before going on site",

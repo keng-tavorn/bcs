@@ -208,8 +208,10 @@ describe('[FR-PLT-301/AC5] the routes of /go/receive (BR-APP-03, BR-APP-07)', ()
     const prepared = await prepareRoute(new Request(url, { headers: { cookie, 'user-agent': APP_UA } }))
     expect(prepared.status).toBe(200)
     expect(prepared.headers.get('cache-control')).toBe('no-store')
-    const body = (await prepared.json()) as { memberId: string; copies: Array<{ poId: string }> }
+    const body = (await prepared.json()) as { memberId: string; maxPreparedPos: number; copies: Array<{ poId: string }> }
     expect(body.memberId).toBe(org.member.receiver_con)
+    // The cap a QR resolved later keeps to as well (S17-14, BR-APP-04)
+    expect(body.maxPreparedPos).toBeGreaterThan(0)
     expect(body.copies.some((c) => c.poId === po.poId)).toBe(true)
     expect((await prepareRoute(new Request(url))).status).toBe(401)
   })

@@ -4,7 +4,7 @@
 // tests/integration/go-receiving.test.ts (the hash against S6's DocumentVerification, the refusals alike).
 import { createHash } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
-import { findScanned, findTyped, scannedToken, tokenHashOf } from '@/ui/go-receive/scan'
+import { findScanned, findTyped, foundTyped, scannedToken, tokenHashOf } from '@/ui/go-receive/scan'
 import type { PoCopy } from '@/ui/go-receive/store'
 
 const ORIGIN = 'https://bcs.example.com'
@@ -87,6 +87,9 @@ describe('[FR-PLT-301/AC6] the PO a QR finds, without a signal and with one (OQ-
   it('what the server says: not found, signed out, the module off, no answer', async () => {
     const at = (fetch: typeof globalThis.fetch) => findScanned(`${ORIGIN}/verify/${TOKEN}`, { origin: ORIGIN, copies: [], online: true, fetch })
     expect(await at(answer(404, { error: { code: 'NOT_FOUND' } }))).toEqual({ kind: 'NOT_FOUND' })
+    // Only the server's own "not found" says so: a failure or a limit is no answer yet, scanned again
+    expect(await at(answer(503, { error: { code: 'INTERNAL' } }))).toEqual({ kind: 'NO_ANSWER' })
+    expect(await at(answer(429, { error: { code: 'RATE_LIMITED' } }))).toEqual({ kind: 'NO_ANSWER' })
     expect(await at(answer(401, { error: { code: 'UNAUTHENTICATED' } }))).toEqual({ kind: 'SIGNED_OUT' })
     expect(await at(answer(403, { error: { code: 'MODULE_DISABLED' } }))).toEqual({ kind: 'MODULE_OFF' })
     expect(await at(vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))) as unknown as typeof fetch)).toEqual({ kind: 'NOT_ON_PHONE' })
@@ -98,5 +101,12 @@ describe('[FR-PLT-301/AC6] the PWA types the PO number instead (BR-APP-11)', () 
     expect(findTyped(' po-2569-00012 ', [copy()])).toEqual(copy())
     expect(findTyped('PO-2569-00013', [copy()])).toBeNull()
     expect(findTyped('', [copy()])).toBeNull()
+  })
+
+  it('a number the copies lack is "not found" only when they hold every PO the receiver may receive', () => {
+    expect(foundTyped('PO-2569-00012', [copy()], false)).toEqual({ kind: 'COPY', copy: copy(), from: 'PHONE' })
+    expect(foundTyped('PO-2569-00013', [copy()], true)).toEqual({ kind: 'NOT_FOUND' })
+    // Prepared without every PO (maxPreparedPos), or no signal to know they are current
+    expect(foundTyped('PO-2569-00013', [copy()], false)).toEqual({ kind: 'NOT_AMONG_COPIES' })
   })
 })

@@ -8,7 +8,7 @@ import { GO_RECEIVE_DRAIN_EVERY_MS, MS_PER_DAY } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { authClient } from '../auth/client'
 import { SignOutFailure, signOutWith, type SignOutResult } from '../auth/sign-out-button'
-import { inBcsGoApp, scanQrCode, storedPushDevice, storePushDevice } from '../bcs-go/native'
+import { inBcsGoApp, loadScanner, scanQrCode, storedPushDevice, storePushDevice } from '../bcs-go/native'
 import { StatusBadge } from '../document/badges'
 import type { BadgeLook } from '../document/badge-looks'
 import { Button } from '../form/button'
@@ -20,10 +20,10 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../shadcn/empt
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '../shadcn/item'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../shadcn/sheet'
 import { ReceiptForm } from './receipt-form'
-import { findScanned, findTyped, type Found } from './scan'
+import { findScanned, foundTyped, type Found } from './scan'
 import { drainQueue, resumeAfterRestart, resumeAfterSignIn, sendUnknownNow, type DrainContext } from './runner'
 import { keepShellOffline } from './shell-cache'
-import { askToKeep, deletePhoto, forgetMember, forgetOthers, readPrepared, readQueue, updateQueue, writePrepared, type PoCopy, type Prepared, type ReceiptPayload, type StoredItem, type StoredPhoto } from './store'
+import { actingMember, askToKeep, deletePhoto, forgetMember, forgetOthers, keepResolved, readPrepared, readQueue, updateQueue, writePrepared, type PoCopy, type Prepared, type ReceiptPayload, type Session, type StoredItem, type StoredPhoto } from './store'
 
 // /go/receive (S17-13, FR-PLT-301 AC5 AC7 AC8 AC9, BR-APP-03 to BR-APP-10, BR-APP-13, BR-APP-14, §9.7): receiving on
 // site without a signal. With a signal the page prepares the POs the receiver may receive (copies without prices, kept
@@ -36,7 +36,6 @@ import { askToKeep, deletePhoto, forgetMember, forgetOthers, readPrepared, readQ
 // A PO is found by scanning the QR printed on it in the app, or by typing its number (./scan.ts, S17-14): the copy on
 // the phone opens its form, and with a signal a PO not on the phone yet is asked of the server by the QR's hash.
 
-type Session = { readonly member: string | null; readonly known: boolean }
 type Tone = 'success' | 'warning' | 'danger' | 'info'
 
 const STATUS_LOOKS: Readonly<Record<string, BadgeLook>> = {
@@ -100,8 +99,7 @@ export function GoReceiveApp() {
   // Who the queue sends for: the member the server named last, else (no signal yet) the one the copies were prepared for
   const context = useCallback(async (): Promise<DrainContext> => {
     const p = await readPrepared()
-    const now = sessionRef.current
-    return { session: now.known ? now.member : (p?.memberId ?? null), retentionDays: p?.retentionDays ?? 7, online: onlineNow, now: () => new Date() }
+    return { session: actingMember(sessionRef.current, p), retentionDays: p?.retentionDays ?? 7, online: onlineNow, now: () => new Date() }
   }, [])
 
   const drain = useCallback(async () => {
@@ -125,7 +123,7 @@ export function GoReceiveApp() {
           return
         }
         const at = new Date().toISOString()
-        const next: Prepared = { memberId: body.memberId, copies: body.copies, truncated: body.truncated, retentionDays: body.retentionDays, preparedAt: at }
+        const next: Prepared = { memberId: body.memberId, copies: body.copies, truncated: body.truncated, retentionDays: body.retentionDays, maxPreparedPos: body.maxPreparedPos, preparedAt: at }
         setModuleOff(false)
         setSession({ member: body.memberId, known: true })
         if (!(await writePrepared(next))) return setNotice({ tone: 'danger', text: t('form.notKept') })
@@ -155,6 +153,8 @@ export function GoReceiveApp() {
       if (!alive) return
       setReady(true)
       if (onlineNow()) {
+        // In the app the scanner's code is loaded first, so the worker keeps it too (a scan on site has no signal)
+        await loadScanner()
         keepShellOffline()
         await prepare(false)
       }
@@ -182,7 +182,7 @@ export function GoReceiveApp() {
   }, [drain, ready])
 
   async function save(copy: PoCopy, item: StoredItem | null, payload: ReceiptPayload, photos: readonly StoredPhoto[]): Promise<boolean> {
-    const member = session.member ?? prepared?.memberId ?? null
+    const member = actingMember(sessionRef.current, await readPrepared())
     if (!member) return false
     const inPlace = item !== null && editRight(item) === 'EDIT_IN_PLACE'
     // Never sent: corrected where it is, with its key · refused: a new item with a new key (BR-APP-05)
@@ -237,34 +237,35 @@ export function GoReceiveApp() {
         if (scanned.reason === 'UNAVAILABLE') setScanProblem(t('find.scanUnavailable'))
         return
       }
+      // The copies of the member the page acts for: before any answer from the server, the ones on the phone
       const p = await readPrepared()
-      const result = await findScanned(scanned.value, { origin: window.location.origin, copies: p && p.memberId === sessionRef.current.member ? p.copies : [], online: onlineNow(), fetch: window.fetch.bind(window) })
+      const member = actingMember(sessionRef.current, p)
+      const result = await findScanned(scanned.value, { origin: window.location.origin, copies: p && member && p.memberId === member ? p.copies : [], online: onlineNow(), fetch: window.fetch.bind(window) })
       if (result.kind === 'SIGNED_OUT') setSession({ member: null, known: true })
       if (result.kind === 'MODULE_OFF') setModuleOff(true)
       setFound(result)
+    } catch {
+      // WebCrypto missing (a page not served over https) or the scanner failing: say so rather than nothing
+      setScanProblem(t('find.scanUnavailable'))
     } finally {
       setScanning(false)
     }
   }
 
   function findNumber() {
-    const copy = findTyped(typed, copies)
-    setFound(copy ? { kind: 'COPY', copy, from: 'PHONE' } : { kind: 'NOT_FOUND' })
+    // Every PO the receiver may receive is on the phone only when the copies came with a signal and none was left out
+    setFound(foundTyped(typed, copies, online && ownCopies && !prepared.truncated))
   }
 
-  /** Opens the receipt form of the PO found; a copy the server gave is kept with the others (BR-APP-04) */
+  /** Opens the receipt form of the PO found; a copy the server gave is kept with the others while under the cap (BR-APP-04) */
   async function openFound(copy: PoCopy, from: 'PHONE' | 'SERVER') {
     setFound(null)
-    const member = session.member ?? prepared?.memberId ?? null
+    const p = await readPrepared()
+    const member = actingMember(sessionRef.current, p)
     if (!member) return
-    if (from === 'SERVER') {
-      const p = await readPrepared()
-      const kept: Prepared =
-        p && p.memberId === member
-          ? { ...p, copies: [copy, ...p.copies.filter((c) => c.poId !== copy.poId)] }
-          : { memberId: member, copies: [copy], truncated: false, retentionDays, preparedAt: copy.preparedAt }
-      await writePrepared(kept)
-      await reload()
+    if (from === 'SERVER' && p && p.memberId === member) {
+      const kept = keepResolved(p, copy)
+      if (kept && (await writePrepared(kept))) await reload()
     }
     setEditing({ copy, item: null })
   }
@@ -293,7 +294,7 @@ export function GoReceiveApp() {
 
   async function signOut() {
     // BR-APP-09: the receiver confirmed; their queue and copies go from the phone whether or not the server answers
-    const member = session.member ?? prepared?.memberId ?? null
+    const member = actingMember(sessionRef.current, await readPrepared())
     if (member) await forgetMember(member)
     setSigningOut(false)
     setSignOutFailed(null)
@@ -311,7 +312,7 @@ export function GoReceiveApp() {
   }
 
   async function deleteHeld() {
-    const member = session.member ?? prepared?.memberId
+    const member = actingMember(sessionRef.current, await readPrepared())
     if (member) await forgetOthers(member)
     setDeletingHeld(false)
     await reload()
@@ -319,7 +320,7 @@ export function GoReceiveApp() {
 
   if (!ready) return null
 
-  const me = session.known ? session.member : (prepared?.memberId ?? null)
+  const me = actingMember(session, prepared)
   const now = new Date().toISOString()
   // Nobody signed in: the receipts on the phone wait for their owner and show as a count only (BR-APP-09)
   const mine = me ? queue.filter((i) => i.by === me) : []
@@ -339,6 +340,7 @@ export function GoReceiveApp() {
   const foundText = (f: Found): string => {
     switch (f.kind) {
       case 'COPY':
+        if (moduleOff) return t('moduleOff')
         return copyOld(f.copy) ? t('prepare.old', { days: retentionDays }) : `${f.copy.supplier}${f.copy.site ? ` · ${f.copy.site}` : ''} · ${t('prepare.lines', { count: f.copy.lines.length })}`
       case 'NOT_BCS':
         return t('find.notBcs')
@@ -346,6 +348,10 @@ export function GoReceiveApp() {
         return t('find.notFound')
       case 'NOT_ON_PHONE':
         return t('find.notOnPhone')
+      case 'NO_ANSWER':
+        return t('find.noAnswer')
+      case 'NOT_AMONG_COPIES':
+        return t('find.notAmongCopies')
       case 'SIGNED_OUT':
         return t('signIn')
       case 'MODULE_OFF':

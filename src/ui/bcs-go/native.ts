@@ -79,6 +79,9 @@ export function storePushDevice(deviceId: string | null): void {
   }
 }
 
+/** The scanner's code, loaded in the app only */
+const scannerModules = () => Promise.all([import('@capacitor-mlkit/barcode-scanning'), import('@capacitor/core')])
+
 export type QrScan = { readonly ok: true; readonly value: string } | { readonly ok: false; readonly reason: 'NOT_IN_APP' | 'CANCELLED' | 'UNAVAILABLE' }
 
 /**
@@ -89,8 +92,8 @@ export type QrScan = { readonly ok: true; readonly value: string } | { readonly 
  */
 export async function scanQrCode(): Promise<QrScan> {
   if (!inBcsGoApp()) return { ok: false, reason: 'NOT_IN_APP' }
-  const [{ BarcodeScanner, BarcodeFormat }, { Capacitor }] = await Promise.all([import('@capacitor-mlkit/barcode-scanning'), import('@capacitor/core')])
   try {
+    const [{ BarcodeScanner, BarcodeFormat }, { Capacitor }] = await scannerModules()
     if (Capacitor.getPlatform() === 'android' && !(await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()).available) {
       void BarcodeScanner.installGoogleBarcodeScannerModule().catch(() => undefined)
       return { ok: false, reason: 'UNAVAILABLE' }
@@ -99,7 +102,15 @@ export async function scanQrCode(): Promise<QrScan> {
     const value = barcodes[0]?.rawValue
     return value ? { ok: true, value } : { ok: false, reason: 'CANCELLED' }
   } catch (error) {
-    // The receiver closed the scanner ("scan canceled"), or the phone could not open it
+    // The receiver closed the scanner ("scan canceled"), the phone could not open it, or its code could not be loaded
     return { ok: false, reason: /cancel/i.test(error instanceof Error ? error.message : String(error)) ? 'CANCELLED' : 'UNAVAILABLE' }
   }
+}
+
+/**
+ * Loads the scanner's code while there is a signal, so the service worker keeps it with /go/receive's other files
+ * (src/ui/go-receive/shell-cache.ts) and a scan works on site without one. Nothing outside the app.
+ */
+export async function loadScanner(): Promise<void> {
+  if (inBcsGoApp()) await scannerModules().catch(() => undefined)
 }

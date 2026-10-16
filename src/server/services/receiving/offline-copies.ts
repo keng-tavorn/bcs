@@ -52,6 +52,8 @@ export interface OfflineCopiesDto {
   readonly truncated: boolean
   /** bcsGo.offlineRetentionDays: how long a copy and a queued receipt are kept on the phone */
   readonly retentionDays: number
+  /** bcsGo.maxPreparedPos: the phone keeps no more copies than this, a QR resolved later included */
+  readonly maxPreparedPos: number
 }
 
 const text = (q: { toString(): string }) => q.toString()
@@ -64,7 +66,7 @@ export async function prepareOfflineCopies(ctx: Ctx): Promise<Result<OfflineCopi
   const { maxPreparedPos, offlineRetentionDays } = bcsGoSettingsOf(org.settings)
   const receiver = await receiverOf(ctx)
   if (!receiver.ok) return receiver
-  if (!receiver.data) return ok({ copies: [], truncated: false, retentionDays: offlineRetentionDays })
+  if (!receiver.data) return ok({ copies: [], truncated: false, retentionDays: offlineRetentionDays, maxPreparedPos })
   const { principal, sodPolicy, filter } = receiver.data
   const chosen: string[] = []
   let truncated = false
@@ -77,9 +79,9 @@ export async function prepareOfflineCopies(ctx: Ctx): Promise<Result<OfflineCopi
     }
     if (truncated || page * RECEIVING_PAGE_SIZE >= candidates.total) break
   }
-  if (chosen.length === 0) return ok({ copies: [], truncated, retentionDays: offlineRetentionDays })
+  if (chosen.length === 0) return ok({ copies: [], truncated, retentionDays: offlineRetentionDays, maxPreparedPos })
   const copies = await copiesOf(db, org.settings, chosen, ctx.now)
-  return ok({ copies, truncated, retentionDays: offlineRetentionDays })
+  return ok({ copies, truncated, retentionDays: offlineRetentionDays, maxPreparedPos })
 }
 
 /** The copies of these POs, in this order, that still take goods (SENT or PARTIALLY_RECEIVED) */
@@ -139,10 +141,8 @@ export async function resolveScannedPo(ctx: Ctx, hash: string): Promise<Result<{
   const notFound = err('NOT_FOUND', 'no purchase order you may receive was printed with this QR')
   if (!TOKEN_HASH.test(hash)) return notFound
   const db = forTenant(ctx.organizationId)
-  const printing = await db.documentVerification.findFirst({ where: { tokenHash: hash, subjectType: 'PURCHASE_ORDER' }, select: { subjectId: true } })
-  if (!printing) return notFound
-  const receiver = await receiverOf(ctx)
-  if (!receiver.ok || !receiver.data) return notFound
+  const [printing, receiver] = await Promise.all([db.documentVerification.findFirst({ where: { tokenHash: hash, subjectType: 'PURCHASE_ORDER' }, select: { subjectId: true } }), receiverOf(ctx)])
+  if (!printing || !receiver.ok || !receiver.data) return notFound
   const po = await getReceivingPo(ctx, printing.subjectId)
   if (!po || !(RECEIVABLE_PO_STATUSES as readonly string[]).includes(po.status)) return notFound
   if (receivingDecision(receiver.data.principal, receiver.data.sodPolicy, po.parties).kind !== 'RECEIVE') return notFound

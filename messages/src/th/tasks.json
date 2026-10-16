@@ -27,7 +27,16 @@
     "varianceAmountLabel": "ยอดก่อน VAT",
     "invoice": "{number} · ส่วนต่างราคาของใบแจ้งหนี้",
     "invoiceMeta": "{supplier} · จาก {number}",
-    "invoiceAmountLabel": "ส่วนต่างรวม VAT"
+    "invoiceAmountLabel": "ส่วนต่างรวม VAT",
+    "paymentRun": "รอบจ่าย {number} · ผู้ขาย {count} ราย",
+    "bankChangeSupplier": "{number} · {kind}ของผู้ขาย {code}",
+    "bankChangeCompany": "{number} · {kind}ของบริษัท",
+    "bankChangeKind": {
+      "ADD": "เพิ่มบัญชี",
+      "REPLACE": "เปลี่ยนบัญชี",
+      "CLOSE": "ปิดบัญชี"
+    },
+    "transferLabel": "ยอดโอนรวม"
   },
   "changeKind": {
     "POSITION_ASSIGN": "แต่งตั้งผู้ดำรงตำแหน่ง",

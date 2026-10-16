@@ -8601,6 +8601,13 @@
     "item": {
       "amount": "{amount} บาท",
       "amountLabel": "ยอดรวม VAT",
+      "bankChangeCompany": "{number} · {kind}ของบริษัท",
+      "bankChangeKind": {
+        "ADD": "เพิ่มบัญชี",
+        "CLOSE": "ปิดบัญชี",
+        "REPLACE": "เปลี่ยนบัญชี"
+      },
+      "bankChangeSupplier": "{number} · {kind}ของผู้ขาย {code}",
       "by": "{name} รักษาการแทนคุณ",
       "change": "การเปลี่ยนโครงสร้างอำนาจ: {kind}",
       "doa": "อนุมัติเผยแพร่ {code} ฉบับ {version}",
@@ -8609,11 +8616,13 @@
       "invoice": "{number} · ส่วนต่างราคาของใบแจ้งหนี้",
       "invoiceAmountLabel": "ส่วนต่างรวม VAT",
       "invoiceMeta": "{supplier} · จาก {number}",
+      "paymentRun": "รอบจ่าย {number} · ผู้ขาย {count} ราย",
       "po": "{number} · {supplier}",
       "poMeta": "ส่งขออนุมัติโดย {name}",
       "question": "รอผู้ขอตอบคำถาม",
       "requester": "{name} · {department}",
       "stepUp": "ต้องยืนยันด้วย PIN",
+      "transferLabel": "ยอดโอนรวม",
       "untitled": "งานอนุมัติ",
       "variance": "{type} · {description}",
       "varianceAmountLabel": "ยอดก่อน VAT",

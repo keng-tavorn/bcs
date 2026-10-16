@@ -26,7 +26,7 @@ import { payOrg, paySupplier, readyInvoice, sentRun } from '../support/pay'
 //   decided <runId>        the run's status and how its task was decided (channel, step-up)
 //   web <tag>              S9-09: every member able to sign in (e-mail <code>.<tag>@pay.bcs.local, TOTP of SEED_TOTP_KEY),
 //                          the approvers' PIN, two suppliers with an invoice ready for payment (due 15 Oct 2026) and a
-//                          third whose registry was reported ceased after its invoice was ready
+//                          third whose registry was reported ceased after its invoice was ready; each with a register phone
 //   payday <runId>         the bank paid today: the run's pay date set to today (Bangkok) so results can be recorded on
 //                          any day the e2e runs (the run was approved for a later Friday)
 //   notices                sends the supplier e-mails waiting (the job supplier-notice-send, which the e2e app does not run)
@@ -98,9 +98,11 @@ if (mode === 'liff') {
   await seedDevPins(ap.org.organizationId, E2E_PIN, AP_NOW)
   const suppliers = [await paySupplier(ap), await paySupplier(ap), await paySupplier(ap)]
   const invoices = []
-  for (const s of suppliers) invoices.push(await readyInvoice(ap, s.id, '30000.00', '2100.00', '2026-10-15'))
+  // 3 × 42,800.00 with VAT: over the stepUpThreshold of 100,000.00, so the CFO approves with the PIN
+  for (const s of suppliers) invoices.push(await readyInvoice(ap, s.id, '40000.00', '2800.00', '2026-10-15'))
+  for (const [i, s] of suppliers.entries()) await prisma.supplier.update({ where: { id: s.id }, data: { phone: `02-555-010${i}` } })
   await prisma.supplier.update({ where: { id: suppliers[2]!.id }, data: { registryFlag: 'CEASED' } })
-  console.log(JSON.stringify({ orgCode: code, suppliers: suppliers.map((s) => ({ id: s.id, code: s.code, email: s.email, last4: s.accountNo!.slice(-4) })), invoiceIds: invoices }))
+  console.log(JSON.stringify({ orgCode: code, suppliers: suppliers.map((s) => ({ id: s.id, code: s.code, email: s.email, accountNo: s.accountNo, last4: s.accountNo!.slice(-4) })), invoiceIds: invoices }))
 } else if (mode === 'payday') {
   const today = taxDateOf(new Date())
   await prisma.paymentRun.update({ where: { id: arg! }, data: { payDate: new Date(`${today}T00:00:00Z`) } })

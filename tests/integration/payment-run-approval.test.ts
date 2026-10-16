@@ -6,6 +6,7 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { approvalCardMessage } from '@/server/line/postback-cards'
 import { getPaymentRunTaskView } from '@/server/queries/payment-runs'
+import { listMyTasks } from '@/server/queries/tasks'
 import { renderNotification } from '@/server/notifications/templates'
 import { decideTask } from '@/server/services/approvals/decide'
 import { outsideChannels } from '@/server/services/approvals/subjects'
@@ -60,6 +61,8 @@ describe('[FR-PAY-101/AC5] the approver approves the flags they were shown (BR-P
     // a run with flags: no button in the chat, no LINE token; the chat is refused
     const task = (await openTaskOf(sent.runId))!
     expect(task.assigneeMemberId).toBe(ap.org.member.cfo)
+    // the inbox names the run by its number and its suppliers (S9-09), never "an approval task"
+    expect((await listMyTasks(ctxOf('cfo'), { limit: 50 })).items.find((i) => i.id === task.id)?.subject).toMatchObject({ kind: 'PAYMENT_RUN', number: sent.number, itemCount: 2 })
     expect(await prisma.actionToken.count({ where: { taskId: task.id } })).toBe(0)
     expect(await forTenant(ap.org.organizationId).$transaction((tx) => outsideChannels(tx, 'PAYMENT_RUN', sent.runId))).toEqual({ chatButton: false, emailLink: false })
     expect(await decideTask(ctxOf('cfo', 'LINE_CHAT'), { taskId: task.id, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'FORBIDDEN', details: { reason: 'CHANNEL' } } })

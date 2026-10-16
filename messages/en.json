@@ -8601,6 +8601,13 @@
     "item": {
       "amount": "{amount} baht",
       "amountLabel": "Total incl. VAT",
+      "bankChangeCompany": "{number} · {kind} of the company",
+      "bankChangeKind": {
+        "ADD": "New account",
+        "CLOSE": "Account closing",
+        "REPLACE": "Account change"
+      },
+      "bankChangeSupplier": "{number} · {kind} of supplier {code}",
       "by": "{name} is acting for you",
       "change": "Authority change: {kind}",
       "doa": "Publish {code} version {version}",
@@ -8609,11 +8616,13 @@
       "invoice": "{number} · invoice price variance",
       "invoiceAmountLabel": "Variance incl. VAT",
       "invoiceMeta": "{supplier} · from {number}",
+      "paymentRun": "Payment run {number} · {count} suppliers",
       "po": "{number} · {supplier}",
       "poMeta": "Sent for approval by {name}",
       "question": "Waiting for the requester’s answer",
       "requester": "{name} · {department}",
       "stepUp": "Needs your PIN",
+      "transferLabel": "Total transfer",
       "untitled": "Approval task",
       "variance": "{type} · {description}",
       "varianceAmountLabel": "Before VAT",

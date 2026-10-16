@@ -27,7 +27,16 @@
     "varianceAmountLabel": "Before VAT",
     "invoice": "{number} · invoice price variance",
     "invoiceMeta": "{supplier} · from {number}",
-    "invoiceAmountLabel": "Variance incl. VAT"
+    "invoiceAmountLabel": "Variance incl. VAT",
+    "paymentRun": "Payment run {number} · {count} suppliers",
+    "bankChangeSupplier": "{number} · {kind} of supplier {code}",
+    "bankChangeCompany": "{number} · {kind} of the company",
+    "bankChangeKind": {
+      "ADD": "New account",
+      "REPLACE": "Account change",
+      "CLOSE": "Account closing"
+    },
+    "transferLabel": "Total transfer"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",

@@ -24,7 +24,7 @@ import { startRoute } from '../approvals/route'
 import { issueDocumentNumber } from '../numbering'
 import { unsettledLines } from '../purchase-orders/close'
 import { receivingDecision } from './access'
-import { checkOfflineCapture, checkOfflineSender, OfflineCaptureInput } from './offline-input'
+import { checkOfflineCapture, checkOfflineSender, OfflineCaptureInput, receivedAtOf } from './offline-input'
 import { photosUsable } from './photos'
 import { keepPendingByLine, receiveOnLine, shortNow, standingOf, stillToCome } from './standing'
 
@@ -161,7 +161,7 @@ export const postGrCommand = defineCommand({
   name: 'gr.post',
   capability: 'gr.post',
   input: PostInput,
-  async execute(tx, input, ctx): Promise<CommandOutcome<{ grId: string; number: string; poStatus: string; varianceIds: string[]; pendingApproval: number }>> {
+  async execute(tx, input, ctx): Promise<CommandOutcome<{ grId: string; number: string; poStatus: string; poVersion: number; varianceIds: string[]; pendingApproval: number }>> {
     // The checks keep BR-APP-08's order (P1-07): who captured an offline receipt → permission and SoD → the PO's status →
     // the PO version and the capture time of an offline receipt → everything below as it was → the AI's values (S13)
     const actor = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
@@ -230,7 +230,20 @@ export const postGrCommand = defineCommand({
 
     const number = await issueDocumentNumber(tx, ctx, { document: 'GR' })
     await tx.goodsReceipt.create({
-      data: { id: grId, organizationId: ctx.organizationId, number, poId: po.id, status: 'POSTED', receivedAt: ctx.now, receiverMemberId: actor, deliveryNoteNo: input.deliveryNoteNo ?? null, notes: input.notes ?? null, postedAt: ctx.now },
+      // OQ-170 (BR-APP-08): an offline receipt says when it was captured, never after it reached BCS; it is posted now
+      data: {
+        id: grId,
+        organizationId: ctx.organizationId,
+        number,
+        poId: po.id,
+        status: 'POSTED',
+        receivedAt: receivedAtOf(input.offline, ctx.now),
+        offlineCapturedAt: input.offline ? new Date(input.offline.capturedAt) : null,
+        receiverMemberId: actor,
+        deliveryNoteNo: input.deliveryNoteNo ?? null,
+        notes: input.notes ?? null,
+        postedAt: ctx.now,
+      },
     })
     await tx.grLine.createMany({
       data: planned.map((p, i) => ({
@@ -297,7 +310,15 @@ export const postGrCommand = defineCommand({
       type: 'gr.posted',
       aggregateType: 'GoodsReceipt',
       aggregateId: grId,
-      data: { number, poId: po.id, lines: planned.map((p) => ({ poLineId: p.line.id, received: formatQuantity(p.received), accepted: formatQuantity(p.accepted), rejected: formatQuantity(p.received - p.accepted) })), varianceIds, poStatus: moved.to },
+      data: {
+        number,
+        poId: po.id,
+        lines: planned.map((p) => ({ poLineId: p.line.id, received: formatQuantity(p.received), accepted: formatQuantity(p.accepted), rejected: formatQuantity(p.received - p.accepted) })),
+        varianceIds,
+        poStatus: moved.to,
+        // schemaVersion 2 (S17-12): a receipt captured offline says when
+        ...(input.offline ? { offline: { capturedAt: new Date(input.offline.capturedAt).toISOString() } } : {}),
+      },
     })
     events.push(...budget.events)
     // §10.1 gr.posted: the requesters and PROCUREMENT (the PO's creator), in the digest
@@ -311,7 +332,8 @@ export const postGrCommand = defineCommand({
     if (moved.to === 'RECEIVED') await setRetentionsDue(tx, po.id)
     // S8 (BR-MATCH-10): the PO's invoices waiting in EXCEPTION are matched again after this receipt
     const outbox = await recheckRequest(tx, ctx.organizationId, po.id, `gr:${grId}`)
-    return { ok: true, result: { grId, number, poStatus: moved.to, varianceIds, pendingApproval }, events, notifications, outbox }
+    // poVersion: the PO's version after this receipt, which the phone's queue expects of its next receipt of the PO (BR-APP-06)
+    return { ok: true, result: { grId, number, poStatus: moved.to, poVersion: po.version + 1, varianceIds, pendingApproval }, events, notifications, outbox }
   },
 })
 

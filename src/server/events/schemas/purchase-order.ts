@@ -54,13 +54,16 @@ const quantity = z.string().regex(/^\d+(\.\d{1,4})?$/)
 
 // Goods receipts (spec §6.4 GR, BR-GR-01): what came, what was accepted and what was not, per PO line
 defineEvents('GoodsReceipt', {
+  // schemaVersion 2 (S17-12, BR-APP-08): a receipt captured in the BCS Go app without a signal says when it was captured
   'gr.posted': {
+    schemaVersion: 2,
     schema: z.object({
       number: z.string().min(1),
       poId: z.uuid(),
       lines: z.array(z.object({ poLineId: z.uuid(), received: quantity, accepted: quantity, rejected: quantity })).min(1),
       varianceIds: z.array(z.uuid()),
       poStatus: z.string().min(1),
+      offline: z.strictObject({ capturedAt: z.iso.datetime() }).optional(),
     }),
   },
   'gr.reversed': { schema: z.object({ poId: z.uuid(), reasonCommentId: z.uuid() }) },

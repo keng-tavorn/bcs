@@ -2038,6 +2038,74 @@ def run_offline_queue(d):
         good = {k: got.get(k) for k in e} == e
         out.append((c["id"], good, {k: got.get(k) for k in e}))
     return out
+def run_offline_receiving(d):
+    # BR-APP-08, BR-APP-10, BR-APP-14 (S17-12, OQ-170): an offline receipt is gr.post as it is. In order: the sender is
+    # the one who captured it (FORBIDDEN) → the PO takes goods (INVALID_STATE_TRANSITION) → the PO is at the version of
+    # the copy (CONFLICT_VERSION) → captured not before the PO was sent, at most 5 min after now, not older than 7 days
+    # (VALIDATION_FAILED CAPTURED_AT) → receiving as ever (GC-GR-05): accepted up to ordered × (1 + tolerance), beyond it
+    # an excess disposition is required (EXCESS_DISPOSITION_REQUIRED) and RETURN_EXCESS keeps the tolerance only (a
+    # variance OVER of the rest, no approval); the excess within the tolerance is held on the budget, rounded half up once
+    # (BUDGET_INSUFFICIENT when short). Each GR moves the PO's version one up. A send whose answer was lost and is sent
+    # again with the same key gives the same GR; a photo completed again with the same ticket is the same file.
+    now = dt("2026-11-02T03:00:00Z").timestamp(); out = []
+    for c in d["cases"]:
+        i = c["input"]; e = c["expect"]; p = i["po"]; tol = Decimal(i["tolerancePct"])
+        ordered, unit = Decimal(p["ordered"]), Decimal(p["unitPrice"])
+        cap = ordered * (1 + tol / 100)
+        state = {"version": p["version"], "accepted": Decimal(0), "status": "SENT", "held": Decimal(0), "grs": 0, "variances": []}
+        budget = Decimal(i["budgetAvailable"]) if "budgetAvailable" in i else Decimal("1000000")
+        for b in i.get("before", []):
+            if b.get("onlineGrBy"):
+                state["accepted"] += Decimal(b["received"]); state["version"] += 1; state["grs"] += 1
+                state["status"] = "RECEIVED" if state["accepted"] >= ordered else "PARTIALLY_RECEIVED"
+            if b.get("cancelPo"): state["status"] = "CANCELLED"
+        def post(item, st, sent_at):
+            if item.get("by", "store_p07") != i.get("actor", "store_p07"): return {"outcome": "NEEDS_ATTENTION", "code": "FORBIDDEN"}
+            if st["status"] not in ("SENT", "PARTIALLY_RECEIVED"): return {"outcome": "NEEDS_ATTENTION", "code": "INVALID_STATE_TRANSITION"}
+            if item.get("expectedPoVersion", st["version"]) != st["version"]: return {"outcome": "NEEDS_ATTENTION", "code": "CONFLICT_VERSION"}
+            at = dt(item["capturedAt"]).timestamp()
+            if at < sent_at or at > now + 300 or at < now - 7 * 86400: return {"outcome": "NEEDS_ATTENTION", "code": "VALIDATION_FAILED", "reason": "CAPTURED_AT"}
+            total = st["accepted"] + Decimal(item["received"]); variance = None
+            if total > cap:
+                if not item.get("excessDisposition"): return {"outcome": "NEEDS_ATTENTION", "code": "VALIDATION_FAILED", "reason": "EXCESS_DISPOSITION_REQUIRED"}
+                over = total - cap; total = cap
+                variance = {"type": "OVER", "quantity": format(over.normalize(), "f"), "amount": str((over * unit).quantize(Decimal("0.01"), ROUND_HALF_UP)), "needsApproval": item["excessDisposition"] == "ACCEPT_EXCESS"}
+            held_after = (max(total - ordered, Decimal(0)) * unit).quantize(Decimal("0.01"), ROUND_HALF_UP)
+            if held_after - st["held"] > budget: return {"outcome": "NEEDS_ATTENTION", "code": "BUDGET_INSUFFICIENT"}
+            st["held"] = held_after; st["accepted"] = total; st["version"] += 1; st["grs"] += 1
+            if variance: st["variances"].append(variance)
+            st["status"] = "RECEIVED" if total >= ordered else "PARTIALLY_RECEIVED"
+            return {"outcome": "SENT", "poVersion": st["version"], "receivedAt": isot(min(at, now)), "offlineCapturedAt": item["capturedAt"], "postedAt": isot(now)}
+        def isot(t): return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        got = {}
+        if i.get("separatePos"):
+            res = []
+            for item in i["items"]:
+                st = {"version": p["version"], "accepted": Decimal(0), "status": "SENT", "held": Decimal(0), "grs": 0, "variances": []}
+                r = post(item, st, dt(item["poSentAt"]).timestamp())
+                res.append({"key": item["key"], **({k: r[k] for k in ("outcome", "receivedAt", "offlineCapturedAt", "postedAt")} if r["outcome"] == "SENT" else r)})
+            got["results"] = res
+        else:
+            sent_at = dt("2026-10-30T02:00:00Z").timestamp()
+            if i.get("steps"):
+                sr, done = [], {}
+                for s in i["steps"]:
+                    if s.get("upload"):
+                        n = next(x for x in i["items"] if x["key"] == s["upload"]).get("photos", 0)
+                        sr.append({"photosStored": n, "sameFileIdAfterRetry": True}); got["fileObjects"] = n; continue
+                    item = next(x for x in i["items"] if x["key"] == s["send"])
+                    r = done.get(item["key"]) or post(item, state, sent_at); first = item["key"] not in done; done[item["key"]] = r
+                    if s.get("dropResponse"): sr.append({"outcome": "RETRY", "committedOnServer": r["outcome"] == "SENT"})
+                    else: sr.append({"outcome": r["outcome"], "poVersion": r.get("poVersion"), **({"sameGrAsCommitted": True} if not first else {})})
+                got["stepResults"] = sr
+                got["photoLinks"] = got.get("fileObjects", 0) if state["grs"] else 0
+            else:
+                got["results"] = [{k: v for k, v in post(item, state, sent_at).items() if k in ("outcome", "poVersion", "code", "reason")} for item in i["items"]]
+            got.update({"grCount": state["grs"], "grPostedEvents": state["grs"], "accepted": format(state["accepted"].normalize(), "f"),
+                        "commitDelta": str(state["held"].quantize(Decimal("0.01"))), "variances": state["variances"], "poStatus": state["status"]})
+        good = {k: got.get(k) for k in e} == e
+        out.append((c["id"], good, {k: got.get(k) for k in e}))
+    return out
 def run_workflow_reports(d):
     # BR-RPT-03 to BR-RPT-06 (S6-20): business minutes of the suite's calendar (as run_sla counts them), the decision
     # time without the INFO_REQUESTED pauses, the lower median, bottlenecks by overdue then median, the Thai weekday and
@@ -2100,6 +2168,7 @@ RUNNERS = {
     "notification-route": run_notification_route,
     "numbering": run_numbering,
     "offline-queue": run_offline_queue,
+    "offline-receiving": run_offline_receiving,
     "payment-run": run_payment_run,
     "po-change": run_po_change,
     "price-reference": run_price_reference,

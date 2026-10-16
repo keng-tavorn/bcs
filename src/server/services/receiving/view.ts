@@ -140,7 +140,7 @@ export interface ReceivingListDto {
 }
 
 /** Who receives and what the read of candidates may cover for them, or null for a member who receives nothing */
-async function receiverOf(ctx: Ctx): Promise<Result<{ principal: Principal; sodPolicy: SodPolicy; filter: { departmentIds: string[]; requesterMemberId: string | null } } | null>> {
+export async function receiverOf(ctx: Ctx): Promise<Result<{ principal: Principal; sodPolicy: SodPolicy; filter: { departmentIds: string[]; requesterMemberId: string | null } } | null>> {
   const memberId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
   if (!memberId) return err('FORBIDDEN', 'only a member receives goods')
   const { principal, sodPolicy } = await principalAndPolicy(ctx)

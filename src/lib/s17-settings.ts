@@ -19,6 +19,10 @@ export const S17_SETTING_LIMITS = {
   maxPreparedPos: 200,
 } as const
 
+/** The defaults of the two keys the window check compares; CHAT_INTAKE_DEFAULTS uses the same */
+const CHAT_WINDOW_DEFAULT = 30
+const CHAT_EXPIRE_DEFAULT = 24
+
 const upTo = (max: number) => z.number().int().min(1).max(max).optional()
 const L = S17_SETTING_LIMITS
 
@@ -33,6 +37,11 @@ export const ChatIntakeSettingsSchema = z
     textRetentionDays: upTo(L.textRetentionDays),
   })
   .strict()
+  // BR-LINE-10: a message within the window adds to the open draft, so the window never outlasts the draft's life
+  .refine((v) => (v.windowMinutes ?? CHAT_WINDOW_DEFAULT) <= (v.expireHours ?? CHAT_EXPIRE_DEFAULT) * 60, {
+    message: 'windowMinutes must not exceed expireHours × 60',
+    path: ['windowMinutes'],
+  })
 
 export const BcsGoSettingsSchema = z
   .object({
@@ -66,11 +75,11 @@ export interface BcsGoSettings {
 
 export const CHAT_INTAKE_DEFAULTS: ChatIntakeSettings = {
   enabled: false,
-  windowMinutes: 30,
+  windowMinutes: CHAT_WINDOW_DEFAULT,
   maxImages: 10,
   maxTextChars: CHAT_INTAKE_MAX_TEXT_CHARS,
   hourlyLimit: 20,
-  expireHours: 24,
+  expireHours: CHAT_EXPIRE_DEFAULT,
   textRetentionDays: 7, // TODO(OQ-162)
 }
 

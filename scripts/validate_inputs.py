@@ -282,6 +282,9 @@ for k in ['chatIntake.enabled', *S17_MAX]:
     if k == 'chatIntake.enabled':
         if s_(v) not in ('Y', 'N'): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็น Y หรือ N')
     elif not (isinstance(v, int) and not isinstance(v, bool) and 1 <= v <= S17_MAX[k]): sp.append(f'{at("Settings","value",r)} {k} ต้องเป็นจำนวนเต็ม 1–{S17_MAX[k]}')
+# BR-LINE-10: the chat window never outlasts the draft (windowMinutes <= expireHours x 60; defaults 30 and 24 as in the schema)
+_win, _exp = SET.get('chatIntake.windowMinutes', (30, 0))[0], SET.get('chatIntake.expireHours', (24, 0))[0]
+if isinstance(_win, int) and isinstance(_exp, int) and _win > _exp * 60: sp.append(f'chatIntake.windowMinutes ({_win}) ต้องไม่เกิน chatIntake.expireHours × 60 ({_exp * 60})')
 check(not sp, 'ค่าตั้งต้น (Settings)', f'{len(SET)} ค่า', '; '.join(sp), 'ระบบคำนวณ VAT เลขเอกสาร หรือ SLA ผิด', 'แก้ช่องที่ระบุในชีต Settings')
 RATE_BP = int(round(float(rate) * 10000)) if isinstance(rate, (int, float)) else 700
 

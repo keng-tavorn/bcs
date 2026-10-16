@@ -137,3 +137,15 @@ describe('[BR-LINE-10] the S17 settings in a UAT sandbox (BR-UAT-01 · ADR-174)'
     expect(chatIntakeSettingsFor({ kind: 'PRODUCTION', settings })).toEqual({ ...CHAT_INTAKE_DEFAULTS, enabled: true, windowMinutes: 15 })
   })
 })
+
+describe('[BR-LINE-10] the chat window never outlasts the draft', () => {
+  const chat = (over: Record<string, unknown>) => OrgSettingsSchema.safeParse({ ...demo(), chatIntake: over }).success
+
+  it('takes windowMinutes up to expireHours x 60, the missing key read as its default', () => {
+    expect(chat({ windowMinutes: 60, expireHours: 1 })).toBe(true)
+    expect(chat({ windowMinutes: 61, expireHours: 1 })).toBe(false)
+    expect(chat({ windowMinutes: 1440 })).toBe(true) // expireHours 24 by default
+    expect(chat({ expireHours: 1 })).toBe(true) // windowMinutes 30 by default
+    expect(chat({ windowMinutes: 1440, expireHours: 23 })).toBe(false)
+  })
+})

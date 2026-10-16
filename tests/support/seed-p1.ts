@@ -225,10 +225,11 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(await db.accountCode.count()).toBe(parseGlAccounts(await loadInputWorkbook(INPUT_WORKBOOKS.p1)).length)
       const completed = sheets.history.filter((r) => r.status === 'COMPLETED')
       const invoices = await db.invoice.findMany({ where: { number: { not: null } }, select: { supplierInvoiceNo: true, status: true } })
+      // S9-10: the invoice of a PAID row is paid by a payment run of the past
       const expected = (row: (typeof completed)[number]) => {
         const paid = row.paymentStatus === 'PAID'
-        if (row.invoiceScenario === 'PRICE_OVER' || row.invoiceScenario === 'QTY_OVER') return paid || (row.invoiceScenario === 'QTY_OVER' && Number(row.qty) < 2) ? 'READY_FOR_PAYMENT' : 'EXCEPTION'
-        return 'READY_FOR_PAYMENT'
+        if (row.invoiceScenario === 'PRICE_OVER' || row.invoiceScenario === 'QTY_OVER') return paid ? 'PAID' : row.invoiceScenario === 'QTY_OVER' && Number(row.qty) < 2 ? 'READY_FOR_PAYMENT' : 'EXCEPTION'
+        return paid ? 'PAID' : 'READY_FOR_PAYMENT'
       }
       const counted: Record<string, number> = {}
       for (const row of completed) {
@@ -467,6 +468,42 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       await stepUpForTask(task.id, ceo)
       done(await decideTask(at(organizationId, ceo), { taskId: task.id, decision: 'APPROVE' }, once()))
       expect((await db.workflowVersion.findUniqueOrThrow({ where: { id: versionId }, select: { status: true } })).status).not.toBe('DRAFT')
+    })
+
+    it('[FR-PAY-101/AC1] [FR-PAY-103/AC1] [FR-PAY-103/AC2] S9-10: every invoice of a PAID row is paid by a weekly payment run of the past — prepared by fin_tre1 or fin_tre2, approved on its DOA route, its file sent, every item paid with its tax and its advice', async () => {
+      const db = forTenant(organizationId)
+      // counted here from the sheet: the completed rows marked PAID that have an invoice
+      const paidRows = sheets.history.filter((r) => r.status === 'COMPLETED' && r.paymentStatus === 'PAID' && (r.invoiceScenario || 'MATCH') !== 'MISSING')
+      expect(paidRows.length).toBeGreaterThan(0)
+      const paidInvoices = await db.invoice.findMany({ where: { status: 'PAID' }, select: { id: true, supplierInvoiceNo: true } })
+      expect(paidInvoices.map((i) => i.supplierInvoiceNo).sort()).toEqual(paidRows.map((r) => r.invoiceNo || `INV-${r.ref}`).sort())
+      expect(report.paymentRuns).toBeGreaterThan(0)
+      const runs = await db.paymentRun.findMany({
+        include: { items: { include: { documents: true, withholdingTaxes: true } }, preparedBy: { select: { employeeCode: true } }, files: true },
+        orderBy: { payDate: 'asc' },
+      })
+      expect(runs).toHaveLength(report.paymentRuns!)
+      expect(runs.flatMap((r) => r.items.flatMap((i) => i.documents.map((d) => d.invoiceId))).sort()).toEqual(paidInvoices.map((i) => i.id).sort())
+      for (const run of runs) {
+        const day = run.payDate.toISOString().slice(0, 10)
+        expect({ status: run.status, preparer: run.preparedBy.employeeCode, number: /^PAY-\d{4}-\d{5}$/.test(run.number ?? '') }, day).toEqual({ status: 'COMPLETED', preparer: expect.stringMatching(/^fin_tre[12]$/), number: true })
+        expect(day < dayOf(clock.now), day).toBe(true)
+        expect(run.items.every((i) => i.status === 'PAID' && i.paidOn?.toISOString().slice(0, 10) === day), day).toBe(true)
+        // the tax of each item written once, as S8 records it, linked to the item
+        for (const item of run.items) expect(item.withholdingTaxes.reduce((a, w) => a + w.taxSatang, 0n), day).toBe(item.whtSatang)
+        expect(run.files.map((f) => [f.version, f.status, f.firstDownloadedAt !== null]), day).toEqual([[1, 'CURRENT', true]])
+        // its DOA route, approved
+        const route = await db.approvalRoute.findFirstOrThrow({ where: { subjectType: 'PAYMENT_RUN', subjectId: run.id }, include: { steps: { include: { tasks: true } } } })
+        expect(route.steps.flatMap((s) => s.tasks.map((t) => t.decision)), day).toContain('APPROVE')
+        const types = (await db.event.findMany({ where: { aggregateId: run.id }, select: { type: true } })).map((e) => e.type)
+        expect(types, day).toEqual(expect.arrayContaining(['payment_run.drafted', 'payment_run.documents_added', 'payment_run.submitted', 'payment_run.approved', 'payment_run.file_generated', 'payment_run.sent_to_bank', 'payment_run.completed']))
+      }
+      // the advices of the past went to the history's fake sender: none waits to be e-mailed now
+      expect(await db.supplierNotice.count({ where: { templateKey: 'payment.advice', status: 'PENDING' } })).toBe(0)
+      // one advice per paid item (BR-PAY-13)
+      expect(await db.supplierNotice.count({ where: { templateKey: 'payment.advice' } })).toBe(runs.reduce((a, r) => a + r.items.length, 0))
+      // a run writes no budget ledger (BR-PAY-14): no step of the payment history wrote a budget event
+      expect(await db.event.count({ where: { type: { startsWith: 'budget' }, requestId: { startsWith: 'demo-history:pay:' } } })).toBe(0)
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

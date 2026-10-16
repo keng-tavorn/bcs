@@ -76,7 +76,11 @@ try {
       ` · DOA ใหม่ ${structure.doaVersions} ฉบับ${workflow?.created ? ` · ผู้ตรวจคู่ขนานใหม่ ${workflow.rules} ข้อ` : ''} · โมดูลที่เปิดใหม่ ${modules.enabled} · ประเภทคำขอใหม่ ${structure.requestTypes} · ฟอร์มใหม่ ${structure.forms} · วันหยุดใหม่ ${structure.holidays}` +
       ` · ปีงบใหม่ ${budget.fiscalYears} · cost center ใหม่ ${budget.costCenters} · บรรทัดงบใหม่ ${budget.lines}` +
       ` · ผู้ขายใหม่ ${suppliers.suppliers} · สถานที่ส่งใหม่ ${suppliers.sites}` +
-      (history === null ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)' : history.seeded ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}` : ' · ประวัติ demo มีอยู่แล้ว'),
+      (history === null
+        ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)'
+        : history.seeded
+          ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}${history.paymentRuns ? ` · รอบจ่ายย้อนหลัง ${history.paymentRuns} รอบ ${history.paidInvoices} ใบ` : ''}`
+          : ' · ประวัติ demo มีอยู่แล้ว'),
   )
   console.log(`db:seed LINE: ${describeLineSeed(lineChannel)}`)
   if (sandbox) console.log(`db:seed UAT: ${sandbox.code} ระบบทดลองของ ${orgCode} (${sandbox.created ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) ผัง DOA และ workflow ชุดเดียวกัน ไม่มีงบ ผู้ขาย หรือคำขอ · ผู้ใช้ทดสอบอีเมล @…-uat`)

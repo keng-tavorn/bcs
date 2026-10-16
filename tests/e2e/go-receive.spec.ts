@@ -42,6 +42,8 @@ test.afterAll(() => {
 
 async function check(page: Page, testInfo: TestInfo, name: string) {
   await expect(page).toHaveTitle(/\S/)
+  // A sheet or dialog that has just opened fades in: its colours are measured once it stands still
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'))
   const results = await new AxeBuilder({ page }).analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(blocking.map((v) => `${v.id}: ${v.help} (${v.nodes.map((n) => n.target.join(' ')).join(', ')})`)).toEqual([])

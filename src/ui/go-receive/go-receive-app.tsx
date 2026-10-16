@@ -400,16 +400,14 @@ export function GoReceiveApp() {
           ) : null}
           {scanProblem ? <Notice tone="warning">{scanProblem}</Notice> : null}
           <form
-            className="flex flex-wrap items-end gap-3"
+            className="flex flex-col gap-3"
             onSubmit={(event) => {
               event.preventDefault()
               findNumber()
             }}
           >
-            <div className="min-w-0 flex-1 basis-56">
-              <Field id="go-find-number" label={t('find.typedLabel')} hint={t('find.typedHint')} autoComplete="off" value={typed} onChange={(event) => setTyped(event.currentTarget.value)} />
-            </div>
-            <Button type="submit" variant="secondary" disabled={!typed.trim()}>
+            <Field id="go-find-number" label={t('find.typedLabel')} hint={t('find.typedHint')} autoComplete="off" value={typed} onChange={(event) => setTyped(event.currentTarget.value)} />
+            <Button type="submit" variant="secondary" className="self-start" disabled={!typed.trim()}>
               {t('find.typedButton')}
             </Button>
           </form>

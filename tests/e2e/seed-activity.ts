@@ -5,6 +5,9 @@ import { prisma } from '@/server/db/client'
 import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB } from '../support/e2e-env'
 
+/** The demo organization the e2e seed makes: other scenes' test organizations reuse the same employee codes */
+const DEMO_ORG = 'DEMO'
+
 // Run by tests/e2e/prepare-db.ts against bcs_e2e only: a little activity for the screens that show it. Two requesters
 // each submit two requests through the services, so the VP of OPS and the VP of SUP each have two approval tasks and
 // two notifications in their bell (FR-NOTI-001). One approver per Playwright project, so TOTP codes never repeat.
@@ -12,7 +15,7 @@ if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${
 
 const now = systemClock.now()
 for (const requester of ['req_con', 'fin_officer']) {
-  const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: requester }, select: { id: true, organizationId: true, primaryDepartment: { select: { code: true } } } })
+  const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: requester, organization: { code: DEMO_ORG } }, select: { id: true, organizationId: true, primaryDepartment: { select: { code: true } } } })
   const ctx = makeCtx({ organizationId: member.organizationId, actor: { type: 'USER', memberId: member.id }, channel: 'WEB', now })
   // The operating budget of the requester's department (CON also has a capital line, so the request names one)
   const line = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId: member.organizationId, code: `${member.primaryDepartment!.code}-OPEX-2569` }, select: { id: true } })

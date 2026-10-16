@@ -1,4 +1,5 @@
 import {
+  Banknote,
   BellRing,
   Blocks,
   BookOpen,
@@ -18,6 +19,7 @@ import {
   House,
   Inbox,
   KeyRound,
+  Landmark,
   LayoutDashboard,
   LayoutList,
   Layers,
@@ -51,6 +53,8 @@ export const MENU_ICONS: Record<string, LucideIcon> = {
   suppliers: Building2,
   catalog: BookOpen,
   invoices: Receipt,
+  payments: Banknote,
+  bankAccounts: Landmark,
   exports: FileDown,
   budgets: Wallet,
   insights: LayoutDashboard,

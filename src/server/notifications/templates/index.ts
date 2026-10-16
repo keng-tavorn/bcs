@@ -1,5 +1,6 @@
 import { formatSatang } from '@/core/money/format'
 import { PIN_FAILURE_LIMIT, PIN_LOCK_MINUTES } from '@/core/pin'
+import { PAYMENT_TEMPLATES } from './payments'
 import { SLA_TEMPLATES } from './sla'
 
 // Notification templates (spec §4.7 rule 5, §10.1): each template turns a notification's data into a short text in
@@ -402,6 +403,8 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
   }),
   // The timer jobs of S5 (task.overdue, task.escalated, delegation.window, digest.daily)
   ...SLA_TEMPLATES,
+  // S9 payments and bank accounts, in lane 2's own file (ADR-135)
+  ...PAYMENT_TEMPLATES,
 }
 
 const FALLBACK: Template = () => ({ title: { th: 'มีการแจ้งเตือนใหม่', en: 'New notification' }, href: null })

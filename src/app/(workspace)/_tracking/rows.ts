@@ -37,6 +37,12 @@ export function taskTitle(t: TasksT, task: InboxTaskDto): string {
       return t('item.invoice', { number: s.number ?? '-' })
     case 'PO_CHANGE':
       return t('poChangeTask.label', { number: s.poNumber ?? '-', changeNo: s.changeNo })
+    case 'PAYMENT_RUN':
+      return t('item.paymentRun', { number: s.number ?? '-', count: s.itemCount })
+    case 'BANK_ACCOUNT_CHANGE':
+      return s.supplierCode
+        ? t('item.bankChangeSupplier', { number: s.number ?? '-', kind: t(`item.bankChangeKind.${s.changeKind}`), code: s.supplierCode })
+        : t('item.bankChangeCompany', { number: s.number ?? '-', kind: t(`item.bankChangeKind.${s.changeKind}`) })
     default:
       return t('item.untitled')
   }
@@ -102,6 +108,8 @@ export function taskRows(t: TasksT, tv: ViewT, locale: Locale, tasks: readonly I
       // An invoice's variance is decided on the amount the DOA counted (the variance with its VAT); a PO change on the PO's new total
       ...(s.kind === 'INVOICE' && task.amountSatang !== null ? { amount: money(task.amountSatang), amountLabel: t('item.invoiceAmountLabel'), amountUnit: tv('amounts.currency') } : {}),
       ...(s.kind === 'PO_CHANGE' ? { amount: money(s.grossSatang), amountLabel: t('item.amountLabel'), amountUnit: tv('amounts.currency') } : {}),
+      // S9: a payment run is decided on what it transfers; a bank account change has no amount
+      ...(s.kind === 'PAYMENT_RUN' ? { amount: money(s.transferSatang), amountLabel: t('item.transferLabel'), amountUnit: tv('amounts.currency') } : {}),
       states,
       tags,
     }

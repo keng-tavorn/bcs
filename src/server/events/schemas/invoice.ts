@@ -131,5 +131,5 @@ defineEvents('InboundEmail', {
 const noticeData = z.object({ noticeId: z.uuid(), templateKey: z.string().min(1), subjectType: z.string().min(1), subjectId: z.uuid() })
 defineEvents('SupplierNotice', {
   'supplier_notice.sent': { schema: noticeData },
-  'supplier_notice.failed': { schema: noticeData.extend({ reason: z.enum(['PROVIDER_REFUSED', 'TEMPLATE_UNKNOWN', 'NO_EMAIL']) }) },
+  'supplier_notice.failed': { schema: noticeData.extend({ reason: z.enum(['PROVIDER_REFUSED', 'TEMPLATE_UNKNOWN', 'NO_EMAIL', 'ATTACHMENT_UNAVAILABLE']) }) },
 })

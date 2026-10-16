@@ -4,6 +4,8 @@ import { getEnv } from '@/lib/env'
 import { pollingCron } from '@/lib/job-cadence'
 import { inngest } from '@/server/inngest'
 import { sendSupplierNotice, SUPPLIER_NOTICE_EVENT, sweepSupplierNotices } from '@/server/notifications/supplier-notices'
+// The e-mails of S9 register their templates when loaded (ADR-135)
+import '@/server/notifications/supplier-templates-pay'
 
 // Job supplier-notice-send (ADR-126, BR-AP-08): an e-mail to a supplier is sent after the command that wrote it commits —
 // at once from the outbox event, and by a sweep for notices nothing sent yet (the decision of an approval writes its

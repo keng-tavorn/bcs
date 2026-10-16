@@ -74,7 +74,7 @@ export interface RecordInvoicePaymentInput {
   readonly invoiceIds: readonly string[]
   /** S8-09: the retentions paid in the same item */
   readonly retentionIds: readonly string[]
-  /** S9's payment item: stored from S9-01, when its column exists */
+  /** S9's payment item: the WithholdingTax rows and the 50 ทวิ of the payment belong to it */
   readonly paymentRunItemId: string
   /** The date of the payment (YYYY-MM-DD, Thai calendar day) */
   readonly paidOn: string
@@ -158,7 +158,7 @@ export async function recordInvoicePayment(tx: TenantTx, ctx: Ctx, input: Record
     await putObject(key, pdf, 'application/pdf')
     await tx.fileObject.create({ data: { id: fileId, organizationId: ctx.organizationId, storageKey: key, fileName: `50twi-${number.replace(/\//g, '-')}.pdf`, mimeType: 'application/pdf', sizeBytes: pdf.length, sha256: createHash('sha256').update(pdf).digest('hex'), status: 'AVAILABLE', uploadedById: null, scanStatus: 'NOT_REQUIRED' } })
     await tx.whtCertificate.create({
-      data: { id: certificateId, organizationId: ctx.organizationId, number, supplierId, form, paidOn, totalBaseSatang: paidBase, totalTaxSatang: tax.whtSatang, payeeSnapshot: payee, payerSnapshot: payer, fileId, issuedAt: ctx.now },
+      data: { id: certificateId, organizationId: ctx.organizationId, number, supplierId, form, paidOn, totalBaseSatang: paidBase, totalTaxSatang: tax.whtSatang, payeeSnapshot: payee, payerSnapshot: payer, fileId, issuedAt: ctx.now, paymentRunItemId: input.paymentRunItemId },
     })
     await tx.fileLink.create({ data: { organizationId: ctx.organizationId, fileId, subjectType: 'WhtCertificate', subjectId: certificateId, kind: 'WHT_CERT' } })
     // never the payee's tax id in an event (BR-WHT-09)
@@ -172,7 +172,7 @@ export async function recordInvoicePayment(tx: TenantTx, ctx: Ctx, input: Record
       const base = lines.find((l) => l.doc === d.doc && l.incomeType === g.incomeType && l.rateBp === g.rateBp)!.baseSatang
       const document = retentionIds.has(d.doc) ? { invoiceId: null, retentionId: d.doc } : { invoiceId: d.doc, retentionId: null }
       await tx.withholdingTax.create({
-        data: { id, organizationId: ctx.organizationId, ...document, supplierId, payeeType: supplier.payeeType, incomeTypeCode: g.incomeType, form, rateBp: g.rateBp, baseSatang: base, taxSatang: d.whtSatang, paidOn, certificateId },
+        data: { id, organizationId: ctx.organizationId, ...document, supplierId, payeeType: supplier.payeeType, incomeTypeCode: g.incomeType, form, rateBp: g.rateBp, baseSatang: base, taxSatang: d.whtSatang, paidOn, certificateId, paymentRunItemId: input.paymentRunItemId },
       })
       events.push({ type: 'withholding_tax.recorded', aggregateType: 'WithholdingTax', aggregateId: id, data: { ...document, incomeTypeCode: g.incomeType, rateBp: g.rateBp, baseSatang: base.toString(), taxSatang: d.whtSatang.toString(), certificateId } })
     }

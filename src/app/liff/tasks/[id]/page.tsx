@@ -43,6 +43,10 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { LiffInvoiceSummary } from '@/ui/liff/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { LiffPoChangeSummary } from '@/ui/liff/tasks/subjects/po-change'
+import { getPaymentRunTaskView } from '@/server/queries/payment-runs'
+import { getBankAccountChange } from '@/server/services/bank-accounts/view'
+import { LiffBankAccountChangeSummary } from '@/ui/liff/tasks/subjects/bank-account-change'
+import { LiffPaymentRunSummary } from '@/ui/liff/tasks/subjects/payment-run'
 import { briefView } from '../../../_lib/brief-present'
 import { liffHref, liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
@@ -201,6 +205,10 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   // S8: the price variance of an invoice, and a change of a sent PO
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   const poChange = task.subjectType === 'PO_CHANGE' ? await getPoChangeTaskView(ctx, task.subjectId) : null
+  // S9: a payment run with its flags now (BR-PAY-07), and a bank account change masked (BR-SUP-07)
+  const paymentRun = task.subjectType === 'PAYMENT_RUN' ? await getPaymentRunTaskView(ctx, task.subjectId) : null
+  const bankChange = task.subjectType === 'BANK_ACCOUNT_CHANGE' ? await getBankAccountChange(ctx, { changeId: task.subjectId }).then((r) => (r.ok ? r.data : null)) : null
+  const tPay = paymentRun ? await getTranslations('payRun.task') : null
   // What the reader of a PO sees beside it, with the member's roles: the approver decides on the prices paid before too
   // (FR-P2P-003 AC1), as on the web decision page; the supplier's address and the source requests' files per §2.4
   const reader = po ? poReader(memberPrincipal(page.member.id, (await liffSignedIn(page.member.id))?.roles ?? []), null, po, { prices: true }) : null
@@ -259,7 +267,11 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           ? (invoice.number ?? '-')
           : poChange
             ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
-            : task.policy
+            : paymentRun
+              ? (paymentRun.number ?? '-')
+              : bankChange
+                ? (bankChange.number ?? '-')
+                : task.policy
               ? policyHeadline(t, locale, task.policy)
               : t('item.untitled')
   const heading = request ? request.title : po ? po.supplier.nameTh : invoice ? t('invoice.heading') : poChange ? poChange.supplier.nameTh : (varianceTitle ?? label)
@@ -338,6 +350,10 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
         <LiffInvoiceSummary invoice={invoice} />
       ) : task.subjectType === 'PO_CHANGE' ? (
         <LiffPoChangeSummary change={poChange} />
+      ) : task.subjectType === 'PAYMENT_RUN' ? (
+        <LiffPaymentRunSummary run={paymentRun} />
+      ) : task.subjectType === 'BANK_ACCOUNT_CHANGE' ? (
+        <LiffBankAccountChangeSummary change={bankChange} openFile={openFile} />
       ) : (
         <PolicySubject task={task} locale={locale} doaLinks={false} doaSimulate={false} orgAuthorityLink={false} />
       )}
@@ -370,11 +386,28 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           {...common}
           kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : task.review ? 'REVIEW' : 'REQUEST'}
           label={label}
-          amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : '-'}
+          amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : paymentRun ? money(paymentRun.totalTransferSatang) : '-'}
           stepUp={task.stepUp}
           {...(variance ? { disposition: variance.disposition } : {})}
           decide={decideLiffTaskAction}
           {...(request ? { ask: askLiffRequesterAction } : {})}
+          {...(paymentRun ? { subjectInput: { flagsKey: paymentRun.flagsKey } } : {})}
+          {...(paymentRun && tPay
+            ? {
+                words: {
+                  confirmText: tPay('decide.confirmText', { label, amount: money(paymentRun.totalTransferSatang) }),
+                  returnOption: tPay('decide.returnOption'),
+                  returnHint: tPay('decide.returnHint'),
+                  rejectHint: tPay('decide.rejectHint'),
+                  reasonHint: tPay('decide.reasonHint'),
+                  submitReturn: tPay('decide.returnOption'),
+                  submitReject: tPay('decide.submitReject'),
+                  returned: tPay('decide.returned'),
+                  rejected: tPay('decide.rejected'),
+                },
+                ...(paymentRun.flagsKey ? { acknowledge: { label: tPay('acknowledge'), error: tPay('acknowledgeError') } } : {}),
+              }
+            : {})}
         >
           {details}
         </LiffTaskDecisionLoader>

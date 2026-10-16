@@ -1,0 +1,20 @@
+# tests/golden/bank-precheck.yaml
+suite: bank-precheck
+# ทุกเคสเริ่มจาก base แล้วเปลี่ยนตาม change (path แบบ items.<index เริ่ม 0>.<field>) · 109328.70 + 17160.00 = 126488.70
+base:
+  run: { totalTransfer: "126488.70", itemCount: 2, payerStatus: ACTIVE, payerTemplate: BCS-NEUTRAL-1, runTemplate: BCS-NEUTRAL-1 }
+  items:
+    - { seq: 1, supplier: SP0076, transfer: "109328.70", snapshot: { bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด" }, register: { status: ACTIVE, bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด" }, documents: [{ id: INV-A, link: HELD_BY_THIS_RUN }] }
+    - { seq: 2, supplier: SP0135, transfer: "17160.00", snapshot: { bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด" }, register: { status: ACTIVE, bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด" }, documents: [{ id: INV-B, link: HELD_BY_THIS_RUN }] }
+cases:
+  - { id: GC-BANK-01, title: ผ่านทุกข้อ, change: {}, expect: { ok: true, failures: [] } }
+  - { id: GC-BANK-02, title: เลขบัญชีในทะเบียนเปลี่ยนหลังอนุมัติ, change: { items.1.register.accountNo: "9234567899" }, expect: { ok: false, failures: [{ seq: 2, check: ACCOUNT_MISMATCH, field: accountNo }] } }
+  - { id: GC-BANK-03, title: ชื่อบัญชีไม่ตรงทะเบียน, change: { items.0.register.accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร (ประเทศไทย) จำกัด" }, expect: { ok: false, failures: [{ seq: 1, check: ACCOUNT_MISMATCH, field: accountName }] } }
+  - { id: GC-BANK-04, title: บัญชีในทะเบียนถูกแทนแล้ว, change: { items.0.register.status: SUPERSEDED }, expect: { ok: false, failures: [{ seq: 1, check: ACCOUNT_NOT_ACTIVE }] } }
+  - { id: GC-BANK-05, title: ยอดของรอบต่างจากผลรวม 1 สตางค์, change: { run.totalTransfer: "126488.71" }, expect: { ok: false, failures: [{ check: TOTAL_MISMATCH, expected: "126488.71", actual: "126488.70" }] } }
+  - { id: GC-BANK-06, title: จำนวนรายการไม่ตรง, change: { run.itemCount: 3 }, expect: { ok: false, failures: [{ check: COUNT_MISMATCH, expected: 3, actual: 2 }] } }
+  - { id: GC-BANK-07, title: ผู้ขายซ้ำสองรายการ, change: { items.1.supplier: SP0076 }, expect: { ok: false, failures: [{ seq: 2, check: DUPLICATE_SUPPLIER }] } }
+  - { id: GC-BANK-08, title: เอกสารเดียวกันในสองรายการ, change: { items.1.documents.0.id: INV-A }, expect: { ok: false, failures: [{ seq: 2, check: DUPLICATE_DOCUMENT_IN_RUN, document: INV-A }] } }
+  - { id: GC-BANK-09, title: เอกสารจ่ายแล้ว, change: { items.0.documents.0.link: PAID }, expect: { ok: false, failures: [{ seq: 1, check: DOCUMENT_NOT_HELD, document: INV-A }] } }
+  - { id: GC-BANK-10, title: บัญชีผู้จ่ายถูกแทนแล้ว, change: { run.payerStatus: SUPERSEDED }, expect: { ok: false, failures: [{ check: PAYER_ACCOUNT_INVALID }] } }
+  - { id: GC-BANK-11, title: หลายข้อพร้อมกัน เรียงระดับรอบก่อนแล้วตาม seq, change: { run.totalTransfer: "126488.71", items.1.register.accountNo: "9234567899" }, expect: { ok: false, failures: [{ check: TOTAL_MISMATCH, expected: "126488.71", actual: "126488.70" }, { seq: 2, check: ACCOUNT_MISMATCH, field: accountNo }] } }

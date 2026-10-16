@@ -64,5 +64,20 @@
     "review_assigned": {
       "title": "Waiting for your review"
     }
+  },
+  "bank_account_change": {
+    "decided": {
+      "title": "Supplier bank account change decided"
+    }
+  },
+  "po_change": {
+    "decided": {
+      "title": "Purchase order change decided"
+    }
+  },
+  "payment_run": {
+    "decided": {
+      "title": "Payment run decided"
+    }
   }
 }

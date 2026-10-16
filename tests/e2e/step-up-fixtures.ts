@@ -9,6 +9,9 @@ import { createDraft, submitRequest } from '../support/requests'
 import { E2E_DB, E2E_PIN } from '../support/e2e-env'
 import { makeRoom } from './budget-room'
 
+/** The demo organization the e2e seed makes: other scenes' test organizations reuse the same employee codes */
+const DEMO_ORG = 'DEMO'
+
 // Activity for the e2e specs of the PIN on the decision page (S5-05, FR-AUTH-005 AC2 AC3), made through the services in
 // the e2e database only, like tests/e2e/tasks-fixtures.ts. Each Playwright project passes its own requester and
 // approver, so desktop and mobile never decide the same task. Prints one line: FIXTURE <json>.
@@ -27,7 +30,7 @@ const TITLE = 'เครื่องปั่นไฟสำรองไซต�
 const pad = (n: number) => String(n).padStart(2, '0')
 
 async function atThreshold(requesterCode: string) {
-  const m = await prisma.member.findFirstOrThrow({ where: { employeeCode: requesterCode }, select: { id: true, organizationId: true, primaryDepartmentId: true } })
+  const m = await prisma.member.findFirstOrThrow({ where: { employeeCode: requesterCode, organization: { code: DEMO_ORG } }, select: { id: true, organizationId: true, primaryDepartmentId: true } })
   const ctx = makeCtx({ organizationId: m.organizationId, actor: { type: 'USER', memberId: m.id }, channel: 'WEB', now })
   const version = await prisma.doaVersion.findFirstOrThrow({
     where: { organizationId: m.organizationId, status: 'PUBLISHED', effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] },
@@ -61,7 +64,7 @@ async function atThreshold(requesterCode: string) {
 
 /** The PIN state of one demo member: none, the e2e seed's again, or the end of a lock */
 async function pinState(memberCode: string, state: 'off' | 'on' | 'unlock') {
-  const m = await prisma.member.findFirstOrThrow({ where: { employeeCode: memberCode }, select: { id: true } })
+  const m = await prisma.member.findFirstOrThrow({ where: { employeeCode: memberCode, organization: { code: DEMO_ORG } }, select: { id: true } })
   if (state === 'off') await prisma.member.update({ where: { id: m.id }, data: { transactionPinHash: null, pinFailedCount: 0, pinLockedUntil: null } })
   if (state === 'on') await prisma.member.updateMany({ where: { id: m.id, transactionPinHash: null }, data: { transactionPinHash: await hashPin(E2E_PIN), pinFailedCount: 0, pinLockedUntil: null } })
   if (state === 'unlock') await prisma.member.update({ where: { id: m.id }, data: { pinFailedCount: 0, pinLockedUntil: null } })

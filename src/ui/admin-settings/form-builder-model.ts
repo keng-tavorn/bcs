@@ -23,7 +23,9 @@ export interface BuilderForm {
 }
 
 /** FileLink kinds an attachment rule may ask for (the service's ATTACHMENT_KINDS; tests/unit/form-builder-model.test.ts compares them) */
-export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER', 'WHT_CERT'] as const
+// the service's list (request-types/form-import.ts): a 50 ทวิ (WHT_CERT) and a bank proof (BANK_PROOF) are finance files a
+// request never carries (S9-01)
+export const ATTACHMENT_KINDS = ['QUOTATION', 'DELIVERY_NOTE', 'PHOTO', 'JUSTIFICATION', 'INVOICE', 'PO_PDF', 'DPA', 'ETAX', 'REGISTRY_PROOF', 'OTHER'] as const
 
 /** Values of the request a condition may read besides the form's own fields */
 export const SPECIAL_FIELDS = ['$amountGross', '$amountNet', '$requestType'] as const

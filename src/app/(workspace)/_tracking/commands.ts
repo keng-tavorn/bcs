@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { REASON_MAX_LENGTH } from '@/lib/constants'
+import { FLAGS_KEY_MAX_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
 import { grantStepUp, stepUpRefusalError, type StepUpChannel, type StepUpOptions } from '@/server/auth/step-up'
 import { memberPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -43,6 +43,8 @@ const DecideInput = z.object({
   reason: z.string().max(REASON_MAX_LENGTH).optional(),
   /** Sent when the task needs a step-up (TaskAccessDto.stepUp); left unread otherwise */
   pin: z.string().max(PIN_INPUT_MAX).optional(),
+  /** A payment run's flags as the page showed them (BR-PAY-07); the adapter of the subject checks it (ADR-068) */
+  subjectInput: z.strictObject({ flagsKey: z.string().max(FLAGS_KEY_MAX_LENGTH) }).optional(),
 })
 const AskInput = z.object({ taskId: Id, question: z.string().max(REASON_MAX_LENGTH) })
 /**
@@ -131,7 +133,8 @@ export async function decideRequestTask(ctx: Ctx, input: unknown, idempotencyKey
     const refused = await stepUpFor(ctx, access, pin, stepUp)
     if (refused) return refused
   }
-  const result = await decideTask(ctx, { taskId, decision, ...(reason ? { reason } : {}) }, { idempotencyKey: idempotencyKey as string })
+  const subjectInput = parsed.data.subjectInput
+  const result = await decideTask(ctx, { taskId, decision, ...(reason ? { reason } : {}), ...(subjectInput ? { subjectInput } : {}) }, { idempotencyKey: idempotencyKey as string })
   return decidedOutcome(ctx, taskId, result, locale)
 }
 

@@ -54,3 +54,12 @@ export function formatEnglishBeDay(day: string): string | null {
   const p = partsOf(day)
   return p ? `${p.date} ${ENGLISH_MONTHS_SHORT[p.month - 1]} ${p.year + BE_OFFSET}` : null
 }
+
+/** The day `n` days after a real calendar day (n may be negative): "2026-10-16", −30 → "2026-09-16"; anything else throws */
+export function addDays(day: string, n: number): string {
+  const p = partsOf(day)
+  if (!p || !Number.isInteger(n)) throw new RangeError(`not a calendar day or a whole number of days: ${day} ${n}`)
+  const d = new Date(0)
+  d.setUTCFullYear(p.year, p.month - 1, p.date + n)
+  return isoDay(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate())
+}

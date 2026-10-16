@@ -93,6 +93,8 @@
     "approval_task": "งานอนุมัติ",
     "audit": "บันทึกการตรวจสอบ",
     "auth": "การเข้าระบบ",
+    "bank_account": "บัญชีธนาคาร",
+    "bank_account_change": "คำขอเปลี่ยนบัญชีธนาคาร",
     "backtest": "ย้อนทดสอบ",
     "budget": "งบประมาณ",
     "budget_grant": "สิทธิ์ใช้งบข้ามฝ่าย",
@@ -113,6 +115,8 @@
     "notification": "การแจ้งเตือน",
     "org_authority_change": "โครงสร้างอำนาจ",
     "organization": "องค์กร",
+    "payment_run": "รอบจ่าย",
+    "payment_run_item": "รายการในรอบจ่าย",
     "po": "ใบสั่งซื้อ",
     "position": "ตำแหน่ง",
     "report_schedule": "รายงาน",
@@ -146,6 +150,8 @@
     "ApprovalStep": "ขั้นอนุมัติ",
     "ApprovalTask": "งานอนุมัติ",
     "Auth": "การเข้าระบบ",
+    "BankAccount": "บัญชีธนาคาร",
+    "BankAccountChange": "คำขอเปลี่ยนบัญชีธนาคาร",
     "BacktestRun": "การย้อนทดสอบ",
     "BudgetGrant": "สิทธิ์ใช้งบข้ามฝ่าย",
     "BudgetLine": "บรรทัดงบ",
@@ -165,6 +171,8 @@
     "Notification": "การแจ้งเตือน",
     "OrgAuthorityChange": "การเปลี่ยนโครงสร้างอำนาจ",
     "Organization": "องค์กร",
+    "PaymentRun": "รอบจ่าย",
+    "PaymentRunItem": "รายการในรอบจ่าย",
     "PositionAssignment": "การดำรงตำแหน่ง",
     "PurchaseOrder": "ใบสั่งซื้อ",
     "ReportSchedule": "รอบส่งรายงาน",
@@ -216,6 +224,20 @@
       "login_locked": "ล็อกการเข้าระบบชั่วคราว",
       "login_succeeded": "เข้าระบบสำเร็จ",
       "pin_set": "ตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม"
+    },
+    "bank_account": {
+      "activated": "บัญชีธนาคารมีผล",
+      "closed": "ปิดบัญชีธนาคาร",
+      "superseded": "บัญชีธนาคารถูกแทนด้วยบัญชีใหม่"
+    },
+    "bank_account_change": {
+      "approved": "อนุมัติคำขอเปลี่ยนบัญชีธนาคาร",
+      "cancelled": "ยกเลิกคำขอเปลี่ยนบัญชีธนาคาร",
+      "drafted": "ร่างคำขอเปลี่ยนบัญชีธนาคาร",
+      "rejected": "ไม่อนุมัติคำขอเปลี่ยนบัญชีธนาคาร",
+      "returned": "ส่งกลับคำขอเปลี่ยนบัญชีธนาคาร",
+      "submitted": "ส่งคำขอเปลี่ยนบัญชีธนาคาร",
+      "updated": "แก้คำขอเปลี่ยนบัญชีธนาคาร"
     },
     "backtest": {
       "completed": "ย้อนทดสอบ 90 วันเสร็จ",
@@ -338,6 +360,28 @@
       "module_enabled": "เปิดโมดูล",
       "settings_updated": "แก้ไขการตั้งค่าองค์กร",
       "sandbox_created": "สร้างระบบทดลอง (UAT sandbox)"
+    },
+    "payment_run": {
+      "approved": "อนุมัติรอบจ่าย",
+      "cancelled": "ยกเลิกรอบจ่าย",
+      "completed": "บันทึกผลรอบจ่ายครบ",
+      "documents_added": "เพิ่มเอกสารในรอบจ่าย",
+      "documents_removed": "เอาเอกสารออกจากรอบจ่าย",
+      "drafted": "ร่างรอบจ่าย",
+      "file_generated": "สร้างไฟล์จ่ายเงิน",
+      "rejected": "ไม่อนุมัติรอบจ่าย",
+      "resubmitted": "ส่งรอบจ่ายขออนุมัติอีกครั้ง",
+      "returned": "ตีกลับรอบจ่าย",
+      "sent_reverted": "ถอนการส่งธนาคาร",
+      "sent_to_bank": "ส่งไฟล์จ่ายเงินเข้าธนาคารแล้ว",
+      "submitted": "ส่งรอบจ่ายขออนุมัติ",
+      "updated": "แก้รอบจ่าย"
+    },
+    "payment_run_item": {
+      "advice_resent": "ส่งอีเมลแจ้งการชำระซ้ำ",
+      "failed": "บันทึกว่าจ่ายรายการไม่สำเร็จ",
+      "flag_reason_set": "ใส่เหตุผลของธงในรายการจ่าย",
+      "paid": "บันทึกว่าจ่ายรายการสำเร็จ"
     },
     "po": {
       "approved": "อนุมัติใบสั่งซื้อ",

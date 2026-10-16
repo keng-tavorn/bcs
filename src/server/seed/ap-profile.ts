@@ -63,10 +63,19 @@ export function apSettingsFromSheet(workbook: InputWorkbook, base: OrgSettings):
   const matching = { priceTolBp: num('matching.priceTolBp'), priceTolAmount: value('matching.priceTolAmount'), qtyTolBp: num('matching.qtyTolBp'), vatTolAmount: value('matching.vatTolAmount') }
   const wht = { minimumBase: value('wht.minimumBase'), timing: value('wht.timing') }
   const ap = { defaultTermDays: num('ap.defaultTermDays'), inboxAddress: value('ap.inboxAddress') }
+  // S9-01 (OQ-130 OQ-132 OQ-134): weekdays as "TUE,FRI", the advice e-mail as Y or N
+  const weekdays = value('payment.runWeekdays')
+  const advice = value('payment.adviceEmail')
+  const payment = {
+    runWeekdays: weekdays === undefined ? undefined : String(weekdays).split(',').map((d) => d.trim()).filter(Boolean),
+    holidayShift: value('payment.holidayShift'),
+    recentBankChangeDays: num('payment.recentBankChangeDays'),
+    adviceEmail: advice === undefined ? undefined : String(advice) === 'Y',
+  }
   const defined = <T extends object>(o: T) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined))
   const numbering = { ...base.numbering }
   const reset = (value('numbering.reset') ?? 'YEARLY') as 'YEARLY'
-  for (const doc of ['AP', 'WHT_CERT'] as const) {
+  for (const doc of ['AP', 'WHT_CERT', 'PAY', 'BAC'] as const) {
     const pattern = value(`numbering.${doc}`)
     if (pattern) numbering[doc] = { pattern, reset }
   }
@@ -76,9 +85,10 @@ export function apSettingsFromSheet(workbook: InputWorkbook, base: OrgSettings):
     ...(Object.keys(defined(matching)).length ? { matching: { ...base.matching, ...defined(matching) } } : {}),
     ...(Object.keys(defined(wht)).length ? { wht: { ...base.wht, ...defined(wht) } } : {}),
     ...(Object.keys(defined(ap)).length ? { ap: { ...base.ap, ...defined(ap) } } : {}),
+    ...(Object.keys(defined(payment)).length ? { payment: { ...base.payment, ...defined(payment) } } : {}),
   }
   const parsed = OrgSettingsSchema.safeParse(next)
-  if (!parsed.success) throw new Error(`Settings (S8): ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`)
+  if (!parsed.success) throw new Error(`Settings (S8 S9): ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`)
   return parsed.data
 }
 

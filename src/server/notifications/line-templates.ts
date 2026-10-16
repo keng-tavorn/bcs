@@ -1,6 +1,8 @@
 // The §10.1 rows that go by LINE (and, with the BCS Go app, by push first: BR-NOTI-05, S17-10). A file of its own,
 // without the database, so the golden runner of notification-route and the push titles' test read the same list as
-// deliverNotification (./deliver.ts).
+// deliverNotification (./deliver.ts). S9's templates live in lane 2's own file (ADR-135).
+
+import { PAYMENT_LINE_TEMPLATES } from './templates/payments'
 
 /**
  * §10.1 rows whose channel is "LINE → อีเมล" (or LINE beside in-app): only these go to LINE. The rest — security notices,
@@ -27,4 +29,6 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   // S8: differences of an invoice and the decision on its price variance (§10.1, BR-AP-09)
   'invoice.exception',
   'invoice.variance_decided',
+  // S9, in lane 2's own file (ADR-135)
+  ...PAYMENT_LINE_TEMPLATES,
 ])

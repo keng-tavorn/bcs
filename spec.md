@@ -401,6 +401,15 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `po.change` | PROCUREMENT (ORG) — ร่าง ส่ง ยกเลิกใบแก้ไข PO และส่งฉบับแก้ไขถึงผู้ขาย (โมดูล CORE · ต้องมีข้อ `PO_CHANGE` ใน DOA ตาม BR-POC-05) |
 | `retention.release` | FINANCE (ORG) — คืนเงินประกันผลงานตั้งแต่วันครบกำหนด (BR-RET-04) · แบ่งงวดและตั้งเงินประกันของ PO ร่างใช้ `po.edit` เดิม (`po.setMilestones` `po.setRetention`) |
 | `supplier.taxProfile.manage` | FINANCE (ORG) — ประเภทผู้รับเงินและประเภทเงินได้ตั้งต้นของผู้ขาย |
+| `bankAccount.view` | FINANCE, PROCUREMENT, AUDITOR (ORG) — บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กร เลขบัญชีแสดงแบบ mask (BR-SUP-07 BR-AUTH-04) |
+| `bankAccount.reveal` | FINANCE (ORG) · ผู้ได้รับงานอนุมัติของคำขอเปลี่ยนบัญชีนั้น (ASSIGNED) — เปิดเลขบัญชีเต็มและหลักฐานแนบ บันทึก `SensitiveAccessLog` ทุกครั้ง (BR-SUP-07 NFR-PRIV-03) |
+| `paymentRun.view` | FINANCE, AUDITOR (ORG) · ผู้ได้รับงานอนุมัติของรอบนั้น (ASSIGNED) — รอบจ่าย เลขบัญชีแสดงแบบ mask (BR-AUTH-04) |
+| `paymentRun.prepare` | FINANCE (ORG) — สร้าง แก้ เพิ่มและเอาเอกสารออก ใส่เหตุผลของธง ส่ง และยกเลิกก่อนอนุมัติ โดยแก้ ส่ง และยกเลิกได้เฉพาะผู้เตรียม (BR-PAY-09) |
+| `paymentRun.file` | FINANCE (ORG) — สร้างไฟล์จ่ายเงิน สร้างใหม่พร้อมเหตุผล ขอลิงก์ดาวน์โหลดด้วยคำสั่ง POST (presigned ≤ 5 นาที) ทำเครื่องหมายส่งธนาคารแล้ว และถอนการส่ง (BR-BANK-07 BR-BANK-08 BR-PAY-11) |
+| `paymentRun.cancel` | FINANCE (ORG) — ยกเลิกรอบที่อนุมัติแล้วหรือมีไฟล์แล้วพร้อมเหตุผล ถ้าไฟล์ของรอบเคยดาวน์โหลดต้องยืนยันว่ายังไม่ได้ส่งธนาคาร (BR-PAY-10 · OQ-136) |
+| `paymentRun.recordResult` | FINANCE (ORG) — บันทึกผลการจ่ายต่อรายการหรือ "สำเร็จทั้งรอบ ยกเว้นรายการที่เลือก" ของรอบที่ส่งธนาคารแล้ว · บันทึกแล้วแก้ไม่ได้ในระยะ 1 (BR-PAY-12) |
+| `paymentAdvice.resend` | FINANCE (ORG) — ส่งอีเมลแจ้งการชำระของรายการที่จ่ายแล้วซ้ำพร้อมเหตุผล (BR-PAY-13) |
+| `bankAccountChange.propose` | FINANCE (ORG) — ร่าง แก้ แนบหลักฐาน ส่ง และยกเลิกคำขอเพิ่ม เปลี่ยน หรือปิดบัญชี (OQ-133 OQ-137) โดยแก้ ส่ง และยกเลิกได้เฉพาะผู้เสนอ · อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (BR-SUP-06) |
 | `accountCode.manage` | FINANCE (ORG) — เพิ่มและแก้รหัสบัญชีขององค์กร (เลิกใช้ด้วย active ไม่ลบ · FR-AP-108) |
 | `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
 | `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · ผู้ได้รับงาน (ASSIGNED) — ผู้อนุมัติการโอนงบเห็นการโอนนั้น (S6-15) และผู้อนุมัติเกินงบเห็นการขอนั้น (S6-16) · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
@@ -1180,7 +1189,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,workflow,duplicates,pricing}` (ai-checks เพิ่มใน S13-02 · workflow duplicates pricing เพิ่มใน S6-01)
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,workflow,duplicates,pricing,payment,bankfile}` (ai-checks เพิ่มใน S13-02 · workflow duplicates pricing เพิ่มใน S6-01 · payment เพิ่มใน S9-02 · bankfile เพิ่มใน S9-03)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -1786,6 +1795,8 @@ cases:
 | BR-SOD-06 | ผู้ส่ง DOA ฉบับใหม่ห้ามเป็นผู้อนุมัติเผยแพร่ (4-eyes) |
 | BR-SOD-07 | ผู้ขอรับของเองได้เมื่อ `sodPolicy.requesterMayReceive = true` (OQ-04) และไม่ได้เป็นผู้อนุมัติของเอกสารนั้น |
 | BR-SOD-08 | ผู้เสนอการเปลี่ยนโครงสร้างอำนาจห้ามเป็นผู้อนุมัติ และห้ามเป็นผู้ได้ประโยชน์ คือห้ามเสนอแต่งตั้งตัวเองเข้าตำแหน่งที่ DOA อ้าง ห้ามเสนอตัวเองเป็นผู้รักษาการแทนผู้อื่น และห้ามเสนอรีเซ็ตตัวตนของตัวเอง |
+| BR-SOD-09 | ผู้เตรียมรอบจ่ายห้ามเป็นผู้อนุมัติรอบนั้น · ป้องกัน 2 ชั้นแบบ BR-SOD-01: ตอนคำนวณเส้นทาง (BR-DOA-06) และตอนกดตัดสิน |
+| BR-SOD-10 | ผู้เสนอการเปลี่ยนบัญชีรับเงินที่มีผลภายใน `payment.recentBankChangeDays` วันก่อนวันจ่าย (วันมีผล ≥ payDate − N) ห้ามเป็นผู้เตรียมรอบที่จ่ายเข้าบัญชีนั้น (ตรวจตอนเพิ่มเอกสารและตอนส่ง) และห้ามเป็นผู้อนุมัติรอบนั้น (อยู่ใน `conflictMemberIds` และตรวจตอนกดตัดสิน) (OQ-133) |
 
 ```yaml
 # tests/golden/sod.yaml
@@ -1801,6 +1812,13 @@ cases:
   - { id: GC-SOD-07, title: ผู้เสนออนุมัติการเปลี่ยนของตัวเอง, input: { action: DECIDE_APPROVAL, subject: ORG_AUTHORITY_CHANGE, actor: admin, requester: admin }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
   - { id: GC-SOD-08, title: ORG_ADMIN เสนอตัวเองเป็นผู้รักษาการแทน CEO, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: DELEGATION_ON_BEHALF, actor: admin, beneficiary: admin, delegator: ceo }, expect: { error: SOD_VIOLATION, rule: BR-SOD-08 } }
   - { id: GC-SOD-09, title: ORG_ADMIN เสนอแต่งตั้งคนอื่น, input: { action: PROPOSE_ORG_AUTHORITY_CHANGE, kind: POSITION_ASSIGN, actor: admin, beneficiary: dm_it, position: "DM@IT" }, expect: { ok: true } }
+  - { id: GC-SOD-10, title: ผู้เตรียมรอบจ่ายอนุมัติเอง, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: fin_tre1, requester: fin_tre1, invoiceRecorders: [fin_ap1] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-09 } }
+  - { id: GC-SOD-11, title: ผู้บันทึกใบแจ้งหนี้ในรอบอนุมัติรอบ, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: fin_ap2, requester: fin_tre1, invoiceRecorders: [fin_ap1, fin_ap2] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-04 } }
+  - { id: GC-SOD-12, title: CFO อนุมัติรอบที่ผู้อื่นเตรียม, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: cfo, requester: fin_tre1, invoiceRecorders: [fin_ap1] }, expect: { ok: true } }
+  - { id: GC-SOD-13, title: ผู้เสนอเปลี่ยนบัญชีอนุมัติเอง, input: { action: DECIDE_APPROVAL, subject: BANK_ACCOUNT_CHANGE, actor: fin_ap1, requester: fin_ap1 }, expect: { error: SOD_VIOLATION, rule: BR-SOD-05 } }
+  - { id: GC-SOD-14, title: ผู้เสนอเปลี่ยนบัญชีเตรียมรอบที่จ่ายเข้าบัญชีนั้นภายใน 30 วัน, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-16" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
+  - { id: GC-SOD-15, title: การเปลี่ยนบัญชีเกิน 30 วันแล้ว, input: { action: PREPARE_PAYMENT, actor: fin_ap1, payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: fin_ap1, effectiveOn: "2026-09-15" }] }, expect: { ok: true } }
+  - { id: GC-SOD-16, title: ผู้เสนอเปลี่ยนบัญชีภายใน 30 วันอนุมัติรอบที่จ่ายเข้าบัญชีนั้น, input: { action: DECIDE_APPROVAL, subject: PAYMENT_RUN, actor: dm_fin, requester: fin_tre1, invoiceRecorders: [fin_ap1], payDate: "2026-10-16", recentBankChangeDays: 30, bankChanges: [{ proposer: dm_fin, effectiveOn: "2026-09-20" }] }, expect: { error: SOD_VIOLATION, rule: BR-SOD-10 } }
 ```
 
 ### 7.6 รักษาการ (Delegation)
@@ -2174,6 +2192,11 @@ golden case ของไฟล์ Express (`GC-EXP-*`) จะเพิ่มเ�
 | BR-BANK-01 | ตัวสร้างไฟล์แยกต่อธนาคาร golden test เป็นแบบ byte-exact + sha256 เทียบกับไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคารแล้ว |
 | BR-BANK-02 | ก่อนส่งออกตรวจว่า บัญชีผู้รับตรงกับบัญชีที่อนุมัติในทะเบียนผู้ขาย ยอดรวมตรงรอบจ่าย และไม่มีรายการซ้ำ |
 | BR-BANK-03 | ไฟล์ที่สร้างแล้วแก้ไม่ได้ สร้างใหม่ต้องระบุเหตุผลและเป็นเวอร์ชันใหม่ |
+| BR-BANK-04 | แม่แบบไฟล์เป็นโค้ด (ADR-129): ตัวสร้างต่อแม่แบบเป็น pure function ใน `src/core/bankfile/<template>.ts` รับ `{ run, items }` คืน `{ fileName, text }` · service เข้ารหัสตามแม่แบบด้วย `src/lib/encoding` คำนวณ sha256 ของ bytes เก็บใน PaymentFile แล้วอ่านไฟล์กลับเพื่อตรวจว่า Σ แถว D = แถว T = `totalTransferSatang` · ไม่มีเวลาที่สร้างในเนื้อไฟล์ จึงสร้างซ้ำได้ไฟล์เดิมทุกไบต์ |
+| BR-BANK-05 | แม่แบบกลาง `BCS-NEUTRAL-1` (ชั้น demo · ADR-130): CSV UTF-8 มี BOM ทุกบรรทัดจบด้วย CRLF · แถว `H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,<เลขรอบ>,<เวอร์ชัน>,<วันจ่าย YYYY-MM-DD ค.ศ.>,<รหัสธนาคารผู้จ่าย>,<เลขบัญชีผู้จ่าย>,<จำนวนรายการ>,<ยอดรวม>` · แถว `D,<seq>,<รหัสธนาคาร>,<เลขบัญชี>,<ชื่อบัญชี>,<ยอดโอน>,<รหัสผู้ขาย>,<เลขรอบ>-<seq เติมศูนย์ 3 หลัก>` · แถว `T,<จำนวนรายการ>,<ยอดรวม>` · เงินเป็นบาทจุดสตางค์ 2 ตำแหน่ง ไม่มีตัวคั่น · ช่องที่มี `,` `"` CR LF ใส่ในอัญประกาศและ `"` เป็น `""` · ชื่อไฟล์ `BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_<เลขรอบ>_v<เวอร์ชัน>.csv` · หน้าจอแสดง Alert "แม่แบบกลางสำหรับทดสอบ ไม่ใช่รูปแบบของธนาคารใด ธนาคารจะไม่รับไฟล์นี้" ทุกที่ที่สร้างหรือดาวน์โหลด |
+| BR-BANK-06 | ตรวจก่อนสร้างไฟล์ทุกเวอร์ชัน (ขยาย BR-BANK-02) เรียงผลตามนี้: ระดับรอบ `PAYER_ACCOUNT_INVALID` (บัญชีผู้จ่ายไม่ ACTIVE หรือแม่แบบไม่ตรง snapshot) → `TOTAL_MISMATCH` (Σ transfer ของรายการ ≠ ยอดของรอบ) → `COUNT_MISMATCH` · แล้วรายต่อรายการตาม seq: `ACCOUNT_NOT_ACTIVE` → `ACCOUNT_MISMATCH` (field bankCode accountNo accountName ของ snapshot ≠ บัญชี ACTIVE ในทะเบียน) → `DUPLICATE_SUPPLIER` → `DUPLICATE_DOCUMENT_IN_RUN` → `DOCUMENT_NOT_HELD` (ลิงก์ไม่ใช่ HELD ของรอบนี้ เช่น จ่ายแล้วหรือถูกปล่อย) · มีข้อใด → `BANK_FILE_CHECK_FAILED` พร้อมรายการ และไม่มีไฟล์ถูกสร้าง |
+| BR-BANK-07 | สร้างใหม่ (BR-BANK-03): เฉพาะ FILE_READY · ต้องมีเหตุผล · ถ้าเวอร์ชัน CURRENT ดาวน์โหลดแล้วต้องส่ง `confirmNotSentToBank = true` (`EXPORT_CONFIRMATION_REQUIRED` · OQ-136) และแจ้งผู้อนุมัติ · ได้ `version + 1` · เวอร์ชันเดิมเป็น SUPERSEDED แต่ยังดาวน์โหลดได้พร้อมป้าย "ไฟล์เก่า" เพื่อ audit · ทุกครั้งมี event พร้อม sha256 จำนวนรายการ ยอด และว่าเวอร์ชันก่อนหน้าดาวน์โหลดแล้วหรือไม่ |
+| BR-BANK-08 | ไฟล์จ่ายเงินเป็นข้อมูลอ่อนไหว: bucket private · ดาวน์โหลดด้วยคำสั่ง POST `paymentRun.requestFileDownload` ที่คืน presigned ≤ 5 นาที (NFR-SEC-08 · ไม่มี GET ที่เปลี่ยนสถานะ) เฉพาะผู้มี `paymentRun.file` และเฉพาะเวอร์ชัน CURRENT ของรอบที่ยังไม่ COMPLETED หรือ CANCELLED (เวอร์ชันเก่าและไฟล์ของรอบที่ปิดแล้วดาวน์โหลดไม่ได้ → `VALIDATION_FAILED` reason `FILE_NOT_CURRENT` กันการส่งไฟล์เดิมเข้าธนาคารซ้ำ · ตรวจย้อนหลังดู sha256 จำนวนรายการ และยอดรวมบนหน้ารอบ) · ทุกครั้งบันทึก `file.downloaded` และครั้งแรกของเวอร์ชันตั้ง `firstDownloadedAt` · เลขบัญชีเต็มห้ามอยู่ใน log, `Event.data`, Notification, การ์ด LINE (NFR-SEC-09 · BR-NOTI-01) · event ใช้ `bankAccountId` และ 4 ตัวท้าย |
 
 ```yaml
 # tests/golden/wht.yaml
@@ -2333,6 +2356,90 @@ cases:
   - { id: GC-VAT-14, title: VAT หลังหักส่วนลดท้ายบิล, input: { rateBp: 700, supplierVat: REGISTERED, discount: "100.00", lines: [{ qty: "1", unitPrice: "3333.33" }, { qty: "1", unitPrice: "6666.67" }], statedVat: "693.00" }, expect: { rateBp: 700, net: "9900.00", computedVat: "693.00", computedGross: "10593.00", invoiceGross: "10593.00", diff: "0.00", status: OK } }
 ```
 
+```yaml
+# tests/golden/bank-precheck.yaml
+suite: bank-precheck
+# ทุกเคสเริ่มจาก base แล้วเปลี่ยนตาม change (path แบบ items.<index เริ่ม 0>.<field>) · 109328.70 + 17160.00 = 126488.70
+base:
+  run: { totalTransfer: "126488.70", itemCount: 2, payerStatus: ACTIVE, payerTemplate: BCS-NEUTRAL-1, runTemplate: BCS-NEUTRAL-1 }
+  items:
+    - { seq: 1, supplier: SP0076, transfer: "109328.70", snapshot: { bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด" }, register: { status: ACTIVE, bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด" }, documents: [{ id: INV-A, link: HELD_BY_THIS_RUN }] }
+    - { seq: 2, supplier: SP0135, transfer: "17160.00", snapshot: { bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด" }, register: { status: ACTIVE, bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด" }, documents: [{ id: INV-B, link: HELD_BY_THIS_RUN }] }
+cases:
+  - { id: GC-BANK-01, title: ผ่านทุกข้อ, change: {}, expect: { ok: true, failures: [] } }
+  - { id: GC-BANK-02, title: เลขบัญชีในทะเบียนเปลี่ยนหลังอนุมัติ, change: { items.1.register.accountNo: "9234567899" }, expect: { ok: false, failures: [{ seq: 2, check: ACCOUNT_MISMATCH, field: accountNo }] } }
+  - { id: GC-BANK-03, title: ชื่อบัญชีไม่ตรงทะเบียน, change: { items.0.register.accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร (ประเทศไทย) จำกัด" }, expect: { ok: false, failures: [{ seq: 1, check: ACCOUNT_MISMATCH, field: accountName }] } }
+  - { id: GC-BANK-04, title: บัญชีในทะเบียนถูกแทนแล้ว, change: { items.0.register.status: SUPERSEDED }, expect: { ok: false, failures: [{ seq: 1, check: ACCOUNT_NOT_ACTIVE }] } }
+  - { id: GC-BANK-05, title: ยอดของรอบต่างจากผลรวม 1 สตางค์, change: { run.totalTransfer: "126488.71" }, expect: { ok: false, failures: [{ check: TOTAL_MISMATCH, expected: "126488.71", actual: "126488.70" }] } }
+  - { id: GC-BANK-06, title: จำนวนรายการไม่ตรง, change: { run.itemCount: 3 }, expect: { ok: false, failures: [{ check: COUNT_MISMATCH, expected: 3, actual: 2 }] } }
+  - { id: GC-BANK-07, title: ผู้ขายซ้ำสองรายการ, change: { items.1.supplier: SP0076 }, expect: { ok: false, failures: [{ seq: 2, check: DUPLICATE_SUPPLIER }] } }
+  - { id: GC-BANK-08, title: เอกสารเดียวกันในสองรายการ, change: { items.1.documents.0.id: INV-A }, expect: { ok: false, failures: [{ seq: 2, check: DUPLICATE_DOCUMENT_IN_RUN, document: INV-A }] } }
+  - { id: GC-BANK-09, title: เอกสารจ่ายแล้ว, change: { items.0.documents.0.link: PAID }, expect: { ok: false, failures: [{ seq: 1, check: DOCUMENT_NOT_HELD, document: INV-A }] } }
+  - { id: GC-BANK-10, title: บัญชีผู้จ่ายถูกแทนแล้ว, change: { run.payerStatus: SUPERSEDED }, expect: { ok: false, failures: [{ check: PAYER_ACCOUNT_INVALID }] } }
+  - { id: GC-BANK-11, title: หลายข้อพร้อมกัน เรียงระดับรอบก่อนแล้วตาม seq, change: { run.totalTransfer: "126488.71", items.1.register.accountNo: "9234567899" }, expect: { ok: false, failures: [{ check: TOTAL_MISMATCH, expected: "126488.71", actual: "126488.70" }, { seq: 2, check: ACCOUNT_MISMATCH, field: accountNo }] } }
+```
+
+```yaml
+# tests/golden/bankfile-neutral.yaml
+suite: bankfile-neutral
+template: BCS-NEUTRAL-1
+# bytes = BOM (EF BB BF) + UTF-8 ของ lines ที่ต่อด้วย CRLF และมี CRLF ท้ายบรรทัดสุดท้าย · sha256 คำนวณจาก bytes ทั้งหมด (ชื่อไฟล์ไม่อยู่ในเนื้อไฟล์)
+cases:
+  - id: GC-BANK-12
+    title: 3 รายการ ต่างธนาคาร ชื่อภาษาไทย
+    input:
+      run: { number: PAY-2569-00001, fileVersion: 1, valueDate: "2026-10-16", payer: { bankCode: "004", accountNo: "9991000016" } }
+      items:
+        - { seq: 1, bankCode: "006", accountNo: "9123456780", accountName: "บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด", amount: "109328.70", supplierCode: SP0076 }
+        - { seq: 2, bankCode: "014", accountNo: "9234567801", accountName: "บริษัท ตัวอย่างทดสอบวัสดุ จำกัด", amount: "17160.00", supplierCode: SP0135 }
+        - { seq: 3, bankCode: "025", accountNo: "9345678012", accountName: "บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด", amount: "37152.54", supplierCode: SP0171 }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00001_v1.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00001,1,2026-10-16,004,9991000016,3,163641.24"
+        - "D,1,006,9123456780,บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด,109328.70,SP0076,PAY-2569-00001-001"
+        - "D,2,014,9234567801,บริษัท ตัวอย่างทดสอบวัสดุ จำกัด,17160.00,SP0135,PAY-2569-00001-002"
+        - "D,3,025,9345678012,บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด,37152.54,SP0171,PAY-2569-00001-003"
+        - "T,3,163641.24"
+      itemCount: 3
+      total: "163641.24"
+      bytes: 568
+      sha256: 45530b3ee4c6e018cee14048176aedae9f82846ec4f6b8d7e18df86db64caecd
+  - id: GC-BANK-13
+    title: ชื่อบัญชีมีจุลภาคและอัญประกาศ ยอดต่ำสุดและหลักล้าน
+    input:
+      run: { number: PAY-2569-00002, fileVersion: 1, valueDate: "2026-10-16", payer: { bankCode: "004", accountNo: "9991000016" } }
+      items:
+        - { seq: 1, bankCode: "002", accountNo: "9456780123", accountName: "ห้างหุ้นส่วนจำกัด ช่าง \"เอ\" การโยธา, สาขา 2", amount: "0.01", supplierCode: SP0120 }
+        - { seq: 2, bankCode: "004", accountNo: "9567801234", accountName: "นายสมปอง ทองขาว", amount: "1000000.00", supplierCode: SP0187 }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00002_v1.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00002,1,2026-10-16,004,9991000016,2,1000000.01"
+        - "D,1,002,9456780123,\"ห้างหุ้นส่วนจำกัด ช่าง \"\"เอ\"\" การโยธา, สาขา 2\",0.01,SP0120,PAY-2569-00002-001"
+        - "D,2,004,9567801234,นายสมปอง ทองขาว,1000000.00,SP0187,PAY-2569-00002-002"
+        - "T,2,1000000.01"
+      itemCount: 2
+      total: "1000000.01"
+      bytes: 378
+      sha256: 42a098fd395a4346a0163b9b88d9bf10aa727a9de8f9fb88edaf6c18b22c3308
+  - id: GC-BANK-14
+    title: สร้างใหม่เป็นเวอร์ชัน 2 ต่างแค่ช่องเวอร์ชันในแถว H
+    input: { sameAs: GC-BANK-12, run: { fileVersion: 2 } }
+    expect:
+      fileName: BCS-NEUTRAL-1_NOT-A-BANK-FORMAT_PAY-2569-00001_v2.csv
+      lines:
+        - "H,BCS-NEUTRAL-1,NOT-A-BANK-FORMAT,PAY-2569-00001,2,2026-10-16,004,9991000016,3,163641.24"
+        - "D,1,006,9123456780,บริษัท ตัวอย่างเช่าเครื่องจักร จำกัด,109328.70,SP0076,PAY-2569-00001-001"
+        - "D,2,014,9234567801,บริษัท ตัวอย่างทดสอบวัสดุ จำกัด,17160.00,SP0135,PAY-2569-00001-002"
+        - "D,3,025,9345678012,บริษัท ตัวอย่างอุปกรณ์นิรภัย จำกัด,37152.54,SP0171,PAY-2569-00001-003"
+        - "T,3,163641.24"
+      itemCount: 3
+      total: "163641.24"
+      bytes: 568
+      sha256: f8795132b27a8dcd193116c20507075687e82b708d9dd04d831b1e1ffbc4ca93
+```
+
 ### 7.15 ตรวจตัวตนผู้ขายกับสรรพากรและ DBD
 
 | ID | กฎ |
@@ -2342,6 +2449,23 @@ cases:
 | BR-SUP-03 | บริการล่มหรือหาไม่พบ → ไม่บล็อก PROCUREMENT ยืนยันด้วยมือพร้อมแนบหนังสือรับรองบริษัทหรือ ภ.พ.20 (FileLink kind `REGISTRY_PROOF`) และบันทึก `registrySource = MANUAL` |
 | BR-SUP-04 | job รายเดือนตรวจสถานะซ้ำ ถ้าเปลี่ยนเป็นเลิกกิจการหรือไม่อยู่ในทะเบียน VAT แจ้ง PROCUREMENT และการสร้าง PO ใหม่กับผู้ขายรายนั้นแสดงคำเตือนที่ต้องกรอกเหตุผล ชั้น 3 เปลี่ยนเป็นบล็อกตาม FR-RSK-205 |
 | BR-SUP-05 | adapter มีสองโหมดตาม ADR-025: `stub` คืนข้อมูลจาก fixture สำหรับเลขสังเคราะห์ใน seed และ `live` เรียกบริการจริง · เทสต์ใช้ stub เสมอ และมี contract test กับคำตอบที่บันทึกจากบริการจริง · ต้องตรวจว่าบริการยังเปิดและเรียกจาก hosting ได้ก่อนใช้ `live` (OQ-37) |
+| BR-SUP-06 | บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กร เพิ่ม เปลี่ยน หรือปิดผ่าน `BankAccountChange` ที่อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (§4.11 · บัญชีองค์กรตาม OQ-137) · บัญชีมีผลเมื่ออนุมัติ (BR-SOD-05) · การอนุมัติ step-up ทุกครั้งบนเว็บ (รวมแอป BCS Go) หรือ LIFF เท่านั้น ไม่มีปุ่มในแชทหรือลิงก์ตัดสินทางอีเมล และการ์ด LINE ไม่มีชื่อบัญชีหรือเลขบัญชี ตาม BR-DOA-25 ของฐานร่วม · ผู้ขายมีบัญชี ACTIVE ได้หนึ่งบัญชี · ผู้เสนอ = FINANCE (OQ-133) · แนบหลักฐาน `BANK_PROOF` · เปลี่ยนบัญชีเดิมของผู้ขายต้องบันทึกการโทรยืนยันที่เบอร์ในทะเบียน · เมื่อบัญชีของผู้ขายมีผล เรียก `enqueueSupplierNotice` ของ S8 ในธุรกรรมเดียวกัน (templateKey `bank_account.notice` · subjectType `BANK_ACCOUNT` subjectId = bankAccountId · dedupeKey `bank_account_notice:<bankAccountId>`) ถึงอีเมลในทะเบียน (4 ตัวท้ายของบัญชีใหม่ และช่องทางติดต่อถ้าไม่ได้ขอ) · ปิดบัญชีเดียวของผู้ขายได้ แต่ผู้ขายจะเข้ารอบไม่ได้จนมีบัญชีใหม่ |
+| BR-SUP-07 | เลขบัญชีรับได้ทั้งแบบมีขีดและเว้นวรรค เก็บเป็นตัวเลขล้วน 10–12 หลัก (`ACCOUNT_NO_LENGTH` · `ACCOUNT_NO_FORMAT`) · รหัสธนาคารต้องอยู่ในรายการ (`BANK_CODE_UNKNOWN`) · ชื่อบัญชีห้ามมีอักขระควบคุม (`ACCOUNT_NAME_FORMAT`) · ทั้งหมดเป็น `VALIDATION_FAILED` พร้อม reason · แสดงแบบ mask `•` แทนทุกหลักยกเว้น 4 ตัวท้าย · เลขเต็มเปิดได้เฉพาะ FINANCE และผู้อนุมัติของคำขอนั้น พร้อมบันทึก `SensitiveAccessLog` ผ่าน helper ที่ S8-01 สร้าง (NFR-PRIV-03 · BR-AUTH-04) · การตรวจรูปแบบรายธนาคารเพิ่มกับแม่แบบจริง |
+
+```yaml
+# tests/golden/bank-account.yaml
+suite: bank-account
+banks: ["002", "004", "006", "011", "014", "022", "024", "025", "030", "069", "073"]
+cases:
+  - { id: GC-SUP-01, title: เลขมีขีดตามสมุดบัญชี, fn: normalizeAccount, input: { bankCode: "004", accountNo: "999-1-00001-6", accountName: "บริษัท ตัวอย่างวิศวกรรมและก่อสร้าง จำกัด" }, expect: { accountNo: "9991000016", masked: "••••••0016" } }
+  - { id: GC-SUP-02, title: 10 หลักพอดี, fn: normalizeAccount, input: { bankCode: "014", accountNo: "9234567801" }, expect: { accountNo: "9234567801", masked: "••••••7801" } }
+  - { id: GC-SUP-03, title: 9 หลัก, fn: normalizeAccount, input: { bankCode: "014", accountNo: "923456780" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_LENGTH } }
+  - { id: GC-SUP-04, title: 12 หลักพอดีแบบเว้นวรรค, fn: normalizeAccount, input: { bankCode: "030", accountNo: "9201 2345 6789" }, expect: { accountNo: "920123456789", masked: "••••••••6789" } }
+  - { id: GC-SUP-05, title: 13 หลัก, fn: normalizeAccount, input: { bankCode: "030", accountNo: "9201234567890" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_LENGTH } }
+  - { id: GC-SUP-06, title: มีตัวอักษร, fn: normalizeAccount, input: { bankCode: "004", accountNo: "99910000A6" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_FORMAT } }
+  - { id: GC-SUP-07, title: รหัสธนาคารไม่อยู่ในรายการ, fn: normalizeAccount, input: { bankCode: "999", accountNo: "9991000016" }, expect: { error: VALIDATION_FAILED, reason: BANK_CODE_UNKNOWN } }
+  - { id: GC-SUP-08, title: ชื่อบัญชีขึ้นบรรทัดใหม่, fn: normalizeAccount, input: { bankCode: "004", accountNo: "9991000016", accountName: "บริษัท ก\nจำกัด" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NAME_FORMAT } }
+```
 
 ### 7.16 รายงานรับของแล้วยังไม่มีใบกำกับ
 
@@ -2983,7 +3107,119 @@ cases:
 
 ### 7.19 S9 · รอบจ่ายเงินและบัญชีผู้ขาย (จองโดย P1-07)
 
-หัวข้อนี้จองให้ขั้น S9 (สาย 2 ต่อจาก S8): กฎ BR INV และ golden ของ S9 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S9.md`) · ยังไม่มีเนื้อหา
+หัวข้อนี้จองให้ขั้น S9 (สาย 2 ต่อจาก S8): กฎ BR INV และ golden ของ S9 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ (ร่างอยู่ใน `docs/sub-specs/S9.md`) · กฎของตระกูลเดิม (BR-SOD BR-BANK BR-SUP) อยู่ในตารางของ §7.5 §7.14 และ §7.15
+
+**รอบจ่ายเงิน (BR-PAY)**
+
+| ID | กฎ |
+| --- | --- |
+| BR-PAY-01 | ทุกคำสั่งของขั้นเรียก `requireModule(ctx, 'PAY')` · รอบหนึ่งใช้บัญชีผู้จ่ายขององค์กรหนึ่งบัญชีที่ ACTIVE และแม่แบบไฟล์ของบัญชีนั้น · องค์กรมีบัญชีผู้จ่ายได้หลายบัญชี (ไฟล์ 1–2 ธนาคาร) · สกุลเงิน THB เท่านั้น (`PaymentRun.currency` · NG-9) |
+| BR-PAY-02 | วันจ่ายต้องเป็นวันทำการตามปฏิทินขององค์กร (BR-SLA-01 · ตาราง Holiday) และไม่ก่อนวันนี้ตามเวลาไทย ตรวจตอนสร้าง แก้ ส่ง และอนุมัติ ไม่ผ่าน → `PAYMENT_DATE_INVALID` (reason `NOT_BUSINESS_DAY` หรือ `PAST`) · ระบบเสนอวันจ่ายถัดไปจาก `payment.runWeekdays`: วันแรกตั้งแต่วันนี้ที่ตรงวันในรายการ ถ้าเป็นวันหยุดเลื่อนตาม `holidayShift` (PREVIOUS = วันทำการก่อนหน้า) และถ้าเลื่อนแล้วก่อนวันนี้ ให้ใช้รอบถัดไป · เป็นข้อเสนอ ผู้เตรียมเลือกวันทำการอื่นได้ (OQ-130) |
+| BR-PAY-03 | เอกสารที่เข้ารอบได้ (ระยะ 1): `Invoice` ของ S8 kind `INVOICE` สถานะ `READY_FOR_PAYMENT` และ `Retention` ของ S8 สถานะ `RELEASABLE` (เงินประกันผลงานที่คืนแล้ว · OQ-125) · ใบลดหนี้เข้ารอบได้เมื่อทำ S9-17 · ระบบเสนอใบที่ `dueDate ≤ payDate` และเงินประกันที่ RELEASABLE ทุกรายการ · เพิ่มใบที่ยังไม่ถึงกำหนดได้และติดป้าย "จ่ายก่อนกำหนด" · เพิ่มแล้วเอกสารถูกถือ (ลิงก์ `HELD` · S8 เปลี่ยนเป็น `IN_PAYMENT_RUN` ผ่าน `holdInvoicesForPayment` หรือ `holdRetentionsForPayment`) ในธุรกรรมเดียวกัน ล็อกแถวเรียงตาม id (INV-PLT-03) · เอกสารที่ไม่พร้อมจ่ายหรือถูกถือโดยรอบอื่น → `DOCUMENT_NOT_PAYABLE` (INV-PAY-01) |
+| BR-PAY-04 | ยอดต่อรายการ (หนึ่งรายการต่อผู้ขาย): `payable` = Σ `payableSatang` ของใบ (รวม VAT หลังหักเงินประกัน ก่อนหักภาษี ตามที่ S8 คำนวณ) + Σ `amountSatang` ของเงินประกันที่คืน · S9 ไม่คำนวณ VAT และเกณฑ์ขั้นต่ำใหม่ · `wht` = `paymentWithholding()` ของ S8 กับบรรทัดฐานภาษีของทุกเอกสารในรายการ (ใบ: `whtBases()` · เงินประกัน: `retentionWhtBases()` ของ S8 คือฐาน = ยอดเงินประกัน ประเภทและอัตราเดียวกับใบต้นทาง ตาม BR-WHT-05 ของ S8) ซึ่งรวมต่อ (ประเภทเงินได้, อัตรา) แล้วปัด half-up ครั้งเดียวต่อกลุ่ม (BR-MONEY-02 (3) · BR-WHT-10 ของ S8) · ลำดับกลุ่มตามผลของ `paymentWithholding()` · ระยะ 1 หักตอนจ่ายเท่านั้น (`wht.timing` = `AT_PAYMENT` · OQ-122) · `transfer` = `payable` − `wht` ต้อง > 0 ไม่เช่นนั้น `PAYMENT_ITEM_NOT_POSITIVE` · คำนวณใหม่และตรวจทุกครั้งที่เพิ่มหรือเอาเอกสารออก และตอนส่ง |
+| BR-PAY-05 | ยอดของรอบ = Σ ของรายการ (payable wht transfer) บันทึกพร้อมรายการในธุรกรรมเดียว · ตอนส่ง ออก `seq` เรียงตามรหัสผู้ขาย และ snapshot บัญชีผู้รับจากบัญชี ACTIVE ของผู้ขาย ณ เวลาส่ง · ผู้ขายที่ไม่มีบัญชี ACTIVE → `BANK_ACCOUNT_NOT_APPROVED` |
+| BR-PAY-06 | ธงของรายการ คำนวณตอนเพิ่มเอกสาร ตอนส่ง และตอนอนุมัติ เรียงตามลำดับนี้: `REGISTRY_CHANGED` (`Supplier.registryFlag` ≠ NONE · BR-SUP-04) · `SUPPLIER_INACTIVE` · `RISK_OVERRIDE_EXPIRED` (การอนุมัติข้ามของ S11 ที่ `expiresOn` < payDate · ระยะ 1 ไม่มีแหล่งข้อมูล จึงไม่เกิด) · `PREVIOUSLY_EXPORTED` (เอกสารในรายการเคยถูกปล่อยจากรอบที่มีไฟล์ดาวน์โหลดแล้ว คือ `releasedAfterExport` = true จากการยกเลิกหลังดาวน์โหลดหรือบันทึกไม่สำเร็จ · OQ-136) · `BANK_ACCOUNT_RECENTLY_CHANGED` (วันมีผลของบัญชีตามเวลาไทย ≥ payDate − `recentBankChangeDays` วัน · บัญชีจาก seed ไม่นับ) · `BANK_CHANGE_PENDING` (มีคำขอเปลี่ยนค้าง) · `SHARED_BANK_ACCOUNT` (บัญชีเดียวกันเป็นบัญชี ACTIVE ของผู้ขายที่เลขผู้เสียภาษีต่างกัน · สาขาของเลขเดียวกันไม่นับ) · สี่ธงแรกต้องมี `flagReason` จากผู้เตรียมก่อนส่ง → `PAYMENT_FLAG_REASON_REQUIRED` · ธงไม่บล็อกการจ่าย (OQ-132) |
+| BR-PAY-07 | ผู้อนุมัติเห็นธงก่อนอนุมัติ: หน้าอนุมัติบนเว็บและ LIFF แสดงรายการที่มีธงก่อนรายการอื่นพร้อมเหตุผลและประวัติ · `flagsKey` (pure ใน `src/core/payment`) = ข้อความ `<รหัสผู้ขาย>:<ธง>+<ธง>` ของรายการที่มีธง ธงเรียงตาม BR-PAY-06 รายการเรียงตามรหัสผู้ขาย คั่นด้วย `;` · ไม่มีธง = ข้อความว่าง · ไม่ hash (core ห้าม `node:*` · §4.10) · เก็บใน `PaymentRun.flagsKey` ตอนส่ง · คำสั่งอนุมัติบนเว็บและ LIFF ต้องส่ง `flagsKey` ที่หน้าจอแสดงผ่าน `subjectInput` ของ adapter · ไม่ส่ง (ปุ่มในแชท) = `''` · ถ้าไม่ตรงกับที่คำนวณ ณ ตอนตัดสิน → `PAYMENT_FLAGS_CHANGED` ล้มทั้งธุรกรรมและงานยังเปิด (ปุ่มในแชทจึงอนุมัติได้เฉพาะรอบที่ไม่มีธง ณ ตอนกด แม้การ์ดส่งไปก่อนธงเกิด) · ธงในสี่ธงแรกที่เกิดหลังส่งและยังไม่มี `flagReason` → อนุมัติไม่ได้ (`PAYMENT_FLAG_REASON_REQUIRED` · งานยังเปิด) ผู้อนุมัติต้องตีกลับให้ผู้เตรียมใส่เหตุผล ผู้อนุมัติใส่เหตุผลแทนไม่ได้ · ตีกลับและไม่อนุมัติไม่ต้องส่ง · การ์ด LINE ของรอบที่มีธงไม่มีปุ่มอนุมัติในแชท เปิด LIFF แทน (`channels.chatButton`) |
+| BR-PAY-08 | เส้นทาง DOA ชนิด `PAYMENT_RUN`: ยอด = `totalTransferSatang` ส่งเป็น `{ netSatang: ยอดโอน, vatSatang: 0 }` จึงเท่ากันทั้งฐาน GROSS และ NET (OQ-131) · หน่วยงาน = แผนกราก · `conflictMemberIds` = ผู้เตรียม + ผู้บันทึกใบแจ้งหนี้ทุกใบในรอบ (เงินประกันนับผู้บันทึกใบต้นทาง) + ผู้เสนอการเปลี่ยนบัญชีที่มีผลภายในช่วงของ BR-SOD-10 ของบัญชีในรอบ · ชนิด `BANK_ACCOUNT_CHANGE`: ไม่มียอด หน่วยงาน = แผนกราก conflict = ผู้เสนอ · step-up ของรอบจ่ายตาม BR-TOK-05 (ยอดตั้งแต่ `stepUpThreshold`) ด้วยชุดวิธี `DECISION_STEP_UP_METHODS` ของ P1-07 (PIN · passkey เมื่อ S17 เปิด) · ไม่มีลิงก์ตัดสินทางอีเมลสำหรับสองชนิดนี้ (`channels.emailLink = false` · §9.1) |
+| BR-PAY-09 | แก้รอบได้เฉพาะ DRAFT และเฉพาะผู้เตรียม (คนอื่นดูได้ ส่งต่องานด้วยการยกเลิกแล้วเตรียมใหม่) · ตีกลับเป็น DRAFT คงการถือเอกสาร · ส่งซ้ำคำนวณยอด ธง snapshot และเส้นทางใหม่ทั้งหมดตาม DOA ณ เวลาส่งซ้ำ (BR-DOA-09) |
+| BR-PAY-10 | ยกเลิก: DRAFT และ PENDING_APPROVAL โดยผู้เตรียม · APPROVED และ FILE_READY โดย FINANCE พร้อมเหตุผลและแจ้งผู้อนุมัติ · ถ้ารอบมีไฟล์เวอร์ชันใดที่ดาวน์โหลดแล้ว (`firstDownloadedAt`) ต้องส่ง `confirmNotSentToBank = true` ไม่เช่นนั้น `VALIDATION_FAILED` reason `EXPORT_CONFIRMATION_REQUIRED` (OQ-136) · ทุกกรณีปล่อยเอกสารที่ถือ (ลิงก์ `RELEASED` · S8 กลับ `READY_FOR_PAYMENT` หรือ `RELEASABLE`) และตั้ง `releasedAfterExport` เมื่อมีไฟล์ที่ดาวน์โหลดแล้ว · หลัง SENT_TO_BANK ยกเลิกไม่ได้ ใช้ถอนการส่งหรือบันทึกผลไม่สำเร็จ |
+| BR-PAY-11 | `markSentToBank` บันทึกว่าการเงินส่งไฟล์ CURRENT ให้ธนาคารแล้ว (ระบบไม่ส่งเอง NG-2) · `revertSent` ทำได้เมื่อยังไม่มีผลรายการใด พร้อมเหตุผล เช่น ธนาคารปฏิเสธไฟล์ |
+| BR-PAY-12 | บันทึกผลต่อรายการ: `PAID` พร้อม `paidOn` (payDate ≤ paidOn ≤ วันนี้ตามเวลาไทย · ก่อน payDate → `VALIDATION_FAILED` reason `PAID_ON_BEFORE_PAY_DATE` · หลังวันนี้ → `PAID_ON_FUTURE`) และเลขอ้างอิงธนาคารถ้ามี หรือ `FAILED` พร้อมเหตุผล · มีคำสั่ง "สำเร็จทั้งรอบ ยกเว้นรายการที่เลือก" · บันทึกแล้วแก้ไม่ได้ในระยะ 1 (ยืนยันด้วย Alert Dialog · ย้อนผลเป็นข้อ `[go-live]` S9-16 ตาม OQ-136) · `PAID` → เรียก `recordInvoicePayment()` ของ S8 ครั้งเดียวต่อรายการในธุรกรรมเดียวกัน พร้อมใบ เงินประกัน บรรทัด `PaymentRunItemWht` และ `paymentRunItemId` (เอกสารเป็น PAID · S8 เขียน `WithholdingTax` และ `WhtCertificate` หนึ่งฉบับต่อรายการ) · `FAILED` → ลิงก์ RELEASED (`releasedAfterExport`) และเอกสารกลับพร้อมจ่ายผ่านฟังก์ชันปล่อยของ S8 · ครบทุกรายการ → COMPLETED |
+| BR-PAY-13 | แจ้งผู้ขายทางอีเมล (§8.12 · OQ-134) ผ่าน `SupplierNotice` ของ S8: เมื่อรายการเป็น `PAID` เรียก `enqueueSupplierNotice(tx, ctx, { templateKey: 'payment.advice', supplierId, subjectType: 'PAYMENT_RUN_ITEM', subjectId: <itemId>, dedupeKey: 'payment_advice:<itemId>', data })` ในธุรกรรมเดียวกัน ถึง `Supplier.email` (เลขรอบ วันที่โอน ยอดโอน เลขใบแจ้งหนี้ ภาษีหักต่อประเภท แนบ 50 ทวิ ถ้ามี · เลขบัญชีแสดงเฉพาะ 4 ตัวท้าย) ภาษาไทยและอังกฤษในฉบับเดียว · งานส่งของ S8 ส่งจาก outbox · S9 ไม่มีงานส่งของตัวเอง · สถานะอ่านจาก `SupplierNotice` (`NO_EMAIL` เมื่อผู้ขายไม่มีอีเมล) · ส่งไม่สำเร็จ (`supplier_notice.failed`) → แจ้งผู้เตรียม · ส่งซ้ำได้ด้วยเหตุผล (`paymentAdvice.resend` · dedupeKey `payment_advice:<itemId>:r<n>`) · ปิดได้ด้วย `payment.adviceEmail = false` |
+| BR-PAY-14 | รอบจ่ายไม่เขียน ledger งบ (ตัดงบจริงเกิดตอนจับคู่ BR-MATCH-04) ไม่ลงบัญชี (NG-1) และไม่โอนเงินเอง (NG-2) |
+
+**Invariant ของรอบจ่าย**
+
+| ID | Invariant | ทดสอบด้วย |
+| --- | --- | --- |
+| INV-PAY-01 | ใบแจ้งหนี้หรือเงินประกันหนึ่งรายการมีลิงก์สถานะ HELD หรือ PAID ไม่เกิน 1 แถว และสถานะของ S8 ตรงลิงก์ (HELD ↔ `IN_PAYMENT_RUN` · PAID ↔ `PAID` · เอกสารที่ `READY_FOR_PAYMENT` หรือ `RELEASABLE` ไม่มีลิงก์ HELD หรือ PAID) จึงจ่ายซ้ำไม่ได้ | partial unique · property test ลำดับคำสั่งสุ่ม (เพิ่ม เอาออก ยกเลิก ตีกลับ ไม่สำเร็จ จ่าย) · concurrency test เพิ่มเอกสารเดียวกันเข้า 2 รอบพร้อมกัน |
+| INV-PAY-02 | ทุกรายการ transfer = payable − wht และ wht = Σ `PaymentRunItemWht` · หลัง PAID Σ `WithholdingTax` ของรายการ = wht ของรายการ · ทุกรอบ ยอด = Σ รายการ · ทุกไฟล์ แถว T = Σ แถว D = `totalTransferSatang` และจำนวนรายการตรง | CHECK · property test · เทสต์หลังบันทึกจ่าย · อ่านไฟล์กลับ |
+| INV-PAY-03 | หลังส่งอนุมัติ ยอด รายการ snapshot บัญชี และชุดลิงก์ของรอบไม่เปลี่ยน (ยกเว้นตีกลับเป็น DRAFT ช่องผลของรายการ และสถานะลิงก์ที่เปลี่ยนเป็น PAID หรือ RELEASED ตาม BR-PAY-10 BR-PAY-12) · ไฟล์ที่สร้างแล้วแก้ไม่ได้ | service guard + เทสต์ · trigger บน PaymentFile |
+| INV-PAY-04 | ผู้ขายมีบัญชี ACTIVE ไม่เกิน 1 บัญชี และบัญชี ACTIVE ทุกบัญชีมาจาก `BankAccountChange` ที่ APPROVED หรือจาก seed ขององค์กรตัวอย่าง | partial unique · เทสต์ |
+
+**Golden ของรอบจ่าย** (ปฏิทินและนโยบายของ suite · ยอดต่อรายการ ยอดของรอบ วันจ่าย ข้อเสนอเอกสาร วันที่โอน ธง และข้อความธง)
+
+```yaml
+# tests/golden/payment-run.yaml
+suite: payment-run
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], holidays: ["2026-10-13", "2026-10-23"] }
+policy: { runWeekdays: [FRI], holidayShift: PREVIOUS, recentBankChangeDays: 30 }
+cases:
+  # ---- ยอดต่อรายการ (BR-PAY-04) ----
+  - { id: GC-PAY-01, title: ใบเดียวไม่มีภาษีหัก, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "107000.00" }] }, expect: { payable: "107000.00", whtLines: [], wht: "0.00", transfer: "107000.00" } }
+  - { id: GC-PAY-02, title: "ค่าบริการ 10,000 VAT 7% หัก 3% · transfer ตรง payable ของ GC-WHT-01", fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "10700.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "10000.00" }] }] }, expect: { payable: "10700.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "10000.00", wht: "300.00" }], wht: "300.00", transfer: "10400.00" } }
+  - id: GC-PAY-03
+    title: สองใบประเภทเดียวกัน ปัดครั้งเดียวต่อกลุ่ม (21.01 ไม่ใช่ 10.51 + 10.51)
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "1124.04", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "1050.50" }] }
+        - { kind: INVOICE, payable: "1124.04", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "1050.50" }] }
+    expect: { payable: "2248.08", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "2101.00", wht: "21.01" }], wht: "21.01", transfer: "2227.07" }
+  - id: GC-PAY-04
+    title: สองประเภทเงินได้ในผู้ขายเดียว ปัดแยกกลุ่ม
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "103683.00", whtLines: [{ incomeType: RENT, rateBp: 500, base: "96900.00" }] }
+        - { kind: INVOICE, payable: "4815.00", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "4500.00" }] }
+    expect: { payable: "108498.00", whtLines: [{ incomeType: RENT, rateBp: 500, base: "96900.00", wht: "4845.00" }, { incomeType: TRANSPORT, rateBp: 100, base: "4500.00", wht: "45.00" }], wht: "4890.00", transfer: "103608.00" }
+  - { id: GC-PAY-05, title: ภาษีหัก 0.5 สตางค์ ปัดขึ้น, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.54", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.50" }] }] }, expect: { payable: "0.54", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.50", wht: "0.01" }], wht: "0.01", transfer: "0.53" } }
+  - { id: GC-PAY-06, title: ภาษีหัก 0.49 สตางค์ ปัดลง, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.52", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.49" }] }] }, expect: { payable: "0.52", whtLines: [{ incomeType: TRANSPORT, rateBp: 100, base: "0.49", wht: "0.00" }], wht: "0.00", transfer: "0.52" } }
+  - id: GC-PAY-07
+    title: ใบงวดกับคืนเงินประกันในรายการเดียว ปัดครั้งเดียว (ตรง GC-WHT-21 และ GC-RET-05)
+    fn: buildItem
+    input:
+      docs:
+        - { kind: INVOICE, payable: "755820.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "703950.00" }] }
+        - { kind: RETENTION, payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }
+    expect: { payable: "792870.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "741000.00", wht: "22230.00" }], wht: "22230.00", transfer: "770640.00" }
+  - { id: GC-PAY-08, title: คืนเงินประกันอย่างเดียว (ตรง GC-RET-09), fn: buildItem, input: { docs: [{ kind: RETENTION, payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00" }] }] }, expect: { payable: "37050.00", whtLines: [{ incomeType: CONTRACT, rateBp: 300, base: "37050.00", wht: "1111.50" }], wht: "1111.50", transfer: "35938.50" } }
+  - { id: GC-PAY-09, title: เอกสารยอดศูนย์, fn: buildItem, input: { docs: [{ kind: INVOICE, payable: "0.00" }] }, expect: { error: PAYMENT_ITEM_NOT_POSITIVE, transfer: "0.00" } }
+  # ---- ยอดของรอบและลำดับ (BR-PAY-05) ----
+  - id: GC-PAY-10
+    title: หลายผู้ขาย seq ตามรหัสผู้ขาย และยอดรวมของรอบ
+    fn: buildRun
+    input:
+      suppliers:
+        - { code: SP0171, docs: [{ kind: INVOICE, payable: "17616.48" }, { kind: INVOICE, payable: "19536.06" }] }
+        - { code: SP0076, docs: [{ kind: INVOICE, payable: "114687.95", whtLines: [{ incomeType: RENT, rateBp: 500, base: "107185.00" }] }] }
+        - { code: SP0135, docs: [{ kind: INVOICE, payable: "17655.00", whtLines: [{ incomeType: SERVICE, rateBp: 300, base: "16500.00" }] }] }
+    expect:
+      items:
+        - { seq: 1, code: SP0076, payable: "114687.95", wht: "5359.25", transfer: "109328.70" }
+        - { seq: 2, code: SP0135, payable: "17655.00", wht: "495.00", transfer: "17160.00" }
+        - { seq: 3, code: SP0171, payable: "37152.54", wht: "0.00", transfer: "37152.54" }
+      totals: { payable: "169495.49", wht: "5854.25", transfer: "163641.24", itemCount: 3, documentCount: 4 }
+  # ---- วันจ่าย ข้อเสนอเอกสาร และวันที่โอน (BR-PAY-02 BR-PAY-03 BR-PAY-12 · ปฏิทินของ suite) ----
+  - { id: GC-PAY-11, title: จันทร์ → ศุกร์ถัดไป, fn: nextRunDate, input: { today: "2026-10-12" }, expect: "2026-10-16" }
+  - { id: GC-PAY-12, title: ศุกร์เป็นวันหยุด เลื่อนเป็นพฤหัสบดี, fn: nextRunDate, input: { today: "2026-10-19" }, expect: "2026-10-22" }
+  - { id: GC-PAY-13, title: วันนี้เป็นวันรอบ, fn: nextRunDate, input: { today: "2026-10-16" }, expect: "2026-10-16" }
+  - { id: GC-PAY-14, title: วันนี้เป็นวันหยุดที่เลื่อนแล้วผ่านไปแล้ว ใช้รอบถัดไป, fn: nextRunDate, input: { today: "2026-10-23" }, expect: "2026-10-30" }
+  - { id: GC-PAY-15, title: วันจ่ายเป็นวันหยุด, fn: checkPayDate, input: { payDate: "2026-10-13", at: "2026-10-12T03:00:00Z" }, expect: { error: PAYMENT_DATE_INVALID, reason: NOT_BUSINESS_DAY } }
+  - { id: GC-PAY-16, title: เลยเที่ยงคืนเวลาไทยแล้ว วันจ่ายเมื่อวาน, fn: checkPayDate, input: { payDate: "2026-10-15", at: "2026-10-15T17:30:00Z" }, expect: { error: PAYMENT_DATE_INVALID, reason: PAST } }
+  - { id: GC-PAY-17, title: วันจ่ายเป็นวันนี้ตามเวลาไทย, fn: checkPayDate, input: { payDate: "2026-10-16", at: "2026-10-15T17:30:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-18, title: เสนอใบที่ครบกำหนดไม่เกินวันจ่ายและเงินประกันที่คืนแล้ว, fn: proposeDocuments, input: { payDate: "2026-10-16", docs: [{ id: I1, kind: INVOICE, dueDate: "2026-10-15" }, { id: I2, kind: INVOICE, dueDate: "2026-10-16" }, { id: I3, kind: INVOICE, dueDate: "2026-10-17" }, { id: R1, kind: RETENTION }] }, expect: { proposed: [I1, I2, R1] } }
+  - { id: GC-PAY-19, title: วันที่โอนก่อนวันจ่าย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-15", at: "2026-10-16T05:00:00Z" }, expect: { error: VALIDATION_FAILED, reason: PAID_ON_BEFORE_PAY_DATE } }
+  - { id: GC-PAY-20, title: วันที่โอนเท่าวันจ่าย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-16", at: "2026-10-16T05:00:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-21, title: วันที่โอนเป็นวันนี้ตามเวลาไทยหลังเที่ยงคืน, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-19", at: "2026-10-18T17:30:00Z" }, expect: { ok: true } }
+  - { id: GC-PAY-22, title: วันที่โอนเป็นพรุ่งนี้ตามเวลาไทย, fn: checkPaidOn, input: { payDate: "2026-10-16", paidOn: "2026-10-19", at: "2026-10-18T16:59:00Z" }, expect: { error: VALIDATION_FAILED, reason: PAID_ON_FUTURE } }
+  # ---- ธง (BR-PAY-06 · payDate 2026-10-16) ----
+  - { id: GC-PAY-23, title: ผู้ขายเลิกกิจการ, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: CEASED, status: ACTIVE, taxId: "0999998010311" }, account: { activatedOn: "2026-01-05", fromSeed: false } }, expect: { flags: [REGISTRY_CHANGED], requiresReason: true } }
+  - { id: GC-PAY-24, title: ผู้ขายออกจากระบบ VAT, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: VAT_CANCELLED, status: ACTIVE, taxId: "0999998010110" }, account: { activatedOn: "2026-01-05", fromSeed: false } }, expect: { flags: [REGISTRY_CHANGED], requiresReason: true } }
+  - { id: GC-PAY-25, title: บัญชีมีผล 30 วันก่อนวันจ่ายพอดี, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-09-16", fromSeed: false } }, expect: { flags: [BANK_ACCOUNT_RECENTLY_CHANGED], requiresReason: false } }
+  - { id: GC-PAY-26, title: บัญชีมีผล 31 วันก่อนวันจ่าย, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-09-15", fromSeed: false } }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-27, title: ผู้ขายไม่ใช้งานและมีคำขอเปลี่ยนบัญชีค้าง, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: INACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, pendingChange: true }, expect: { flags: [SUPPLIER_INACTIVE, BANK_CHANGE_PENDING], requiresReason: true } }
+  - { id: GC-PAY-28, title: บัญชีเดียวกับผู้ขายเลขผู้เสียภาษีอื่น, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, sameAccountTaxIds: ["0999998011008"] }, expect: { flags: [SHARED_BANK_ACCOUNT], requiresReason: false } }
+  - { id: GC-PAY-29, title: บัญชีเดียวกับสาขาของเลขผู้เสียภาษีเดียวกัน, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, sameAccountTaxIds: ["0999998010560"] }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-30, title: การอนุมัติข้ามหมดอายุก่อนวันจ่าย (input จาก S11), fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, riskOverrides: [{ expiresOn: "2026-10-15" }] }, expect: { flags: [RISK_OVERRIDE_EXPIRED], requiresReason: true } }
+  - { id: GC-PAY-31, title: การอนุมัติข้ามหมดวันจ่ายพอดียังไม่หมด, fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-01-05", fromSeed: true }, riskOverrides: [{ expiresOn: "2026-10-16" }] }, expect: { flags: [], requiresReason: false } }
+  - { id: GC-PAY-32, title: เคยอยู่ในไฟล์ที่ดาวน์โหลดแล้วและบัญชีเพิ่งเปลี่ยน (ฉาก SP0056), fn: itemFlags, input: { payDate: "2026-10-16", supplier: { registryFlag: NONE, status: ACTIVE, taxId: "0999998010560" }, account: { activatedOn: "2026-10-09", fromSeed: false }, previouslyExported: true }, expect: { flags: [PREVIOUSLY_EXPORTED, BANK_ACCOUNT_RECENTLY_CHANGED], requiresReason: true } }
+  # ---- ข้อความธงที่ผู้อนุมัติต้องส่ง (BR-PAY-07) ----
+  - { id: GC-PAY-33, title: เรียงตามรหัสผู้ขายและข้ามรายการที่ไม่มีธง, fn: flagsKey, input: { items: [{ code: SP0076, flags: [] }, { code: SP0056, flags: [BANK_ACCOUNT_RECENTLY_CHANGED] }, { code: SP0031, flags: [REGISTRY_CHANGED] }] }, expect: "SP0031:REGISTRY_CHANGED;SP0056:BANK_ACCOUNT_RECENTLY_CHANGED" }
+  - { id: GC-PAY-34, title: หลายธงในรายการเดียวเรียงตามลำดับของกฎ, fn: flagsKey, input: { items: [{ code: SP0120, flags: [BANK_CHANGE_PENDING, SUPPLIER_INACTIVE] }] }, expect: "SP0120:SUPPLIER_INACTIVE+BANK_CHANGE_PENDING" }
+  - { id: GC-PAY-35, title: ไม่มีธง, fn: flagsKey, input: { items: [{ code: SP0076, flags: [] }] }, expect: "" }
+```
 
 ### 7.20 S17 · LINE และแอป BCS Go (จองโดย P1-07)
 
@@ -3699,6 +3935,46 @@ cases:
 | FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย (โอนงบย้ายไป FR-BUD-103 ของ S6 · OQ-105) | S15 | 6.1 |
 | FR-NOTI-301 | adapter Microsoft Teams และ LINE WORKS | S15 | 5 |
 
+AC ของ FR ชั้น 2 ที่ขั้นของสายเขียนลงไว้ที่นี่ตาม checklist (ร่างและเจ้าของของแต่ละ AC อยู่ใน sub-spec ของขั้น · ac-map.yaml นับเฉพาะ FR ชั้น 1)
+
+**AC ของ FR-PAY-101** (รอบจ่ายเงิน รวมยอดผู้ขาย อนุมัติตาม DOA)
+ขั้น S9 · Web · LIFF · §7.19 · docs/sub-specs/S9.md
+- AC1 — FINANCE สร้างรอบ → ระบบเสนอวันจ่ายตาม `payment.runWeekdays` และวันหยุด และเสนอใบ `READY_FOR_PAYMENT` ที่ครบกำหนดไม่เกินวันจ่ายกับเงินประกันที่ `RELEASABLE` · วันจ่ายที่ไม่ใช่วันทำการหรือผ่านมาแล้ว → `PAYMENT_DATE_INVALID` (GC-PAY-11 ถึง GC-PAY-18)
+- AC2 — รวมยอดต่อผู้ขาย: หนึ่งรายการต่อผู้ขาย ยอดที่ต้องจ่ายของใบและเงินประกันที่คืน ภาษีหักตอนจ่ายรวมต่อกลุ่มในรายการ และยอดโอนตรง GC-PAY-01 ถึง GC-PAY-10 · ยอดโอนไม่เป็นบวก → `PAYMENT_ITEM_NOT_POSITIVE` · ระยะ 1 ไม่รับใบลดหนี้
+- AC3 — เอกสารหนึ่งรายการอยู่ได้ในรอบเดียวที่ยังไม่จบและจ่ายได้ครั้งเดียว: เพิ่มเอกสารที่ไม่พร้อมจ่ายหรือถูกถือโดยรอบอื่น → `DOCUMENT_NOT_PAYABLE` · ยิงเพิ่มเอกสารเดียวกันเข้า 2 รอบพร้อมกันสำเร็จรอบเดียว (INV-PAY-01)
+- AC4 — (§8.12) ผู้ขายที่สถานะทะเบียนเปลี่ยน (`registryFlag` ≠ NONE ตาม BR-SUP-04) หรือไม่ใช้งาน ถูกติดธงในรอบ (GC-PAY-23 ถึง GC-PAY-29) · ส่งโดยไม่ใส่เหตุผลของธงที่บังคับ → `PAYMENT_FLAG_REASON_REQUIRED`
+- AC5 — (§8.12) ผู้อนุมัติเห็นธงก่อนอนุมัติ: หน้าอนุมัติบนเว็บและ LIFF แสดงรายการที่มีธงก่อนพร้อมเหตุผล · อนุมัติด้วย `flagsKey` ที่ไม่ตรง (ธงเปลี่ยนหลังเปิดหน้า) → `PAYMENT_FLAGS_CHANGED` และงานยังเปิด (GC-PAY-33 ถึง GC-PAY-35) · การ์ด LINE ของรอบที่มีธงไม่มีปุ่มอนุมัติในแชท
+- AC6 — (§8.12) การอนุมัติข้ามหมดอายุ: ระยะ 1 ยังไม่มีการอนุมัติข้าม (S11 อยู่ระยะ 2) service จึงส่งรายการว่างและไม่เกิดธงนี้ · engine รับรายการการอนุมัติข้ามเป็น input และให้ธง `RISK_OVERRIDE_EXPIRED` ที่ต้องมีเหตุผล (GC-PAY-30 GC-PAY-31) · S11 เพิ่มแหล่งข้อมูลโดยไม่แก้ engine
+- AC7 — ส่งอนุมัติ → เส้นทาง DOA ชนิด `PAYMENT_RUN` ด้วยยอดโอนรวมและแผนกราก (GC-DOA-48 ถึง GC-DOA-52 ของฐานร่วม) · ผู้อนุมัติที่หาได้เป็นผู้เตรียม ผู้บันทึกใบแจ้งหนี้ในรอบ หรือผู้เสนอการเปลี่ยนบัญชีในช่วง BR-SOD-10 → ยกช่วงถัดไป (BR-DOA-06)
+- AC8 — SoD ตอนตัดสิน: ผู้เตรียม → `SOD_VIOLATION` (BR-SOD-09) · ผู้บันทึกใบแจ้งหนี้ในรอบ → `SOD_VIOLATION` (BR-SOD-04) · ผู้เสนอเปลี่ยนบัญชีที่มีผลภายใน N วันเตรียมหรืออนุมัติรอบที่จ่ายเข้าบัญชีนั้น → `SOD_VIOLATION` (BR-SOD-10) · ทุกครั้งมี `security.sod_blocked` (GC-SOD-10 ถึง GC-SOD-12 GC-SOD-14 ถึง GC-SOD-16)
+- AC9 — ยอดตั้งแต่ `stepUpThreshold` ต้อง step-up (BR-TOK-05 · PIN หรือ passkey ตาม `DECISION_STEP_UP_METHODS`) · ตีกลับ → DRAFT คงการถือเอกสาร ส่งซ้ำได้เส้นทางใหม่ · ไม่อนุมัติ → เอกสารกลับพร้อมจ่าย · แจ้งผู้เตรียมทุกการตัดสิน · ทุกการเปลี่ยนสถานะมี event
+- AC10 — ผู้ไม่มี `paymentRun.prepare` สร้างหรือแก้รอบ และคนที่ไม่ใช่ผู้เตรียมแก้ร่าง → `FORBIDDEN` · ปิดโมดูล `PAY` → `MODULE_DISABLED` · ปิด `PAY` ขณะมีรอบหรือคำขอเปลี่ยนบัญชีที่ยังไม่จบ → `MODULE_IN_USE` พร้อมรายการ (OQ-33)
+- AC11 — ยกเลิกรอบที่มีไฟล์ดาวน์โหลดแล้วโดยไม่ยืนยันว่ายังไม่ได้ส่งธนาคาร → `VALIDATION_FAILED` reason `EXPORT_CONFIRMATION_REQUIRED` · ยืนยันแล้วผู้อนุมัติได้รับแจ้ง และเอกสารที่ปล่อยติดธง `PREVIOUSLY_EXPORTED` ที่ต้องมีเหตุผลในรอบถัดไป (GC-PAY-32 · OQ-136)
+- AC12 — (`[go-live]`) ใบลดหนี้ของผู้ขายเดียวกันเข้ารายการ ลดทั้งยอดที่ต้องจ่ายและฐานภาษีหัก · ฐานของกลุ่มติดลบ → `VALIDATION_FAILED` reason `WHT_BASE_NEGATIVE` (เคสใน `payment-run-credit.yaml` · S9-17 หลัง S8-18 · OQ-129)
+
+**AC ของ FR-PAY-102** (ไฟล์ Batch Payment 1–2 ธนาคาร พร้อมตรวจก่อนส่งออก)
+ขั้น S9 · Web · LIFF · §7.14 §7.15 · docs/sub-specs/S9.md
+- AC1 — รอบที่ APPROVED สร้างไฟล์ตามแม่แบบของบัญชีผู้จ่าย · ชั้น demo ใช้แม่แบบกลาง `BCS-NEUTRAL-1` ได้ไฟล์ byte-exact และ sha256 ตรง GC-BANK-12 ถึง GC-BANK-14 · แถว H ชื่อไฟล์ และหน้าจอบอกว่าไม่ใช่รูปแบบของธนาคาร
+- AC2 — ตรวจก่อนส่งออก (BR-BANK-02): บัญชีไม่ตรงทะเบียนหรือไม่ ACTIVE ยอดหรือจำนวนไม่ตรง ผู้ขายหรือเอกสารซ้ำ เอกสารที่ไม่ได้ถืออยู่ บัญชีผู้จ่ายไม่ใช้งาน → `BANK_FILE_CHECK_FAILED` พร้อมรายการตามลำดับใน GC-BANK-01 ถึง GC-BANK-11 และไม่มีไฟล์หรือ PaymentFile ถูกสร้าง
+- AC3 — ไฟล์ที่สร้างอ่านกลับแล้ว แถว T = Σ แถว D = ยอดโอนรวมของรอบ และจำนวนตรง (INV-PAY-02)
+- AC4 — (BR-BANK-03) ไฟล์ที่สร้างแล้วแก้ไม่ได้ (trigger ปฏิเสธ DELETE และ UPDATE อื่นนอกจากสถานะและเวลาดาวน์โหลดครั้งแรก) · สร้างใหม่ต้องมีเหตุผล ได้เวอร์ชันใหม่ เวอร์ชันเดิม SUPERSEDED · เวอร์ชันเดิมดาวน์โหลดแล้วต้องยืนยันว่ายังไม่ได้ส่งธนาคาร (`EXPORT_CONFIRMATION_REQUIRED`) และแจ้งผู้อนุมัติ · ทุกครั้งมี event พร้อม sha256 จำนวน และยอด
+- AC5 — 1–2 ธนาคาร: องค์กรมีบัญชีผู้จ่ายหลายบัญชี แต่ละบัญชีมีแม่แบบของตน · รอบหนึ่งใช้บัญชีเดียว · seed ระยะ 1 มีบัญชี `CB-01` `CB-02` ตามชีต CompanyBankAccounts
+- AC6 — ขอลิงก์ดาวน์โหลดได้เฉพาะผู้มี `paymentRun.file` ด้วยคำสั่ง POST ที่คืน presigned ไม่เกิน 5 นาทีพร้อม `file.downloaded` และตั้งเวลาดาวน์โหลดครั้งแรก · ผู้ไม่มีสิทธิ์ → `FORBIDDEN` · log Event และ Notification ไม่มีเลขบัญชีเต็ม (เทสต์ redaction · NFR-SEC-09)
+- AC7 — (§4.11 · BR-SOD-05) บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กรเพิ่ม เปลี่ยน หรือปิดผ่าน `BankAccountChange` ที่อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (GC-DOA-53 GC-DOA-54) · ผู้เสนออนุมัติเอง → `SOD_VIOLATION` (GC-SOD-13) · บัญชีใหม่ใช้ในรอบจ่ายไม่ได้จนอนุมัติ · ส่งโดยไม่มีหลักฐานหรือบันทึกการโทรเมื่อเปลี่ยนบัญชีเดิม → `VALIDATION_FAILED` · การอนุมัติต้อง step-up ทุกครั้ง (PIN หรือ passkey เมื่อ S17 เปิด) บนเว็บหรือ LIFF และทำไม่ได้จากปุ่มในแชทหรือลิงก์อีเมล (BR-DOA-25) · เมื่อมีผลผู้ขายได้อีเมลแจ้งที่อีเมลในทะเบียนผ่าน `SupplierNotice`
+- AC8 — เลขบัญชีตรวจและเก็บตาม GC-SUP-01 ถึง GC-SUP-08 · แสดงแบบ mask โดยค่าเริ่มต้นทุกหน้า (AUDITOR ด้วย · BR-AUTH-04) · เปิดเลขเต็มได้เฉพาะ FINANCE และผู้อนุมัติของคำขอนั้น และทุกครั้งมีแถว `SensitiveAccessLog` (NFR-PRIV-03 · ตารางจาก S8-01)
+- AC9 — (`[go-live]`) แม่แบบของธนาคารจริง: golden byte-exact + sha256 เทียบไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคาร (BR-BANK-01 · P0-03) และการเงินของลูกค้าอัปโหลดไฟล์ทดสอบผ่าน โดยยอดรวมตรงรอบจ่าย
+- AC10 — (`[go-live]`) บัญชีรับเงินจริงของผู้ขายเข้าระบบเป็นชุดด้วยคำขอเปลี่ยนบัญชีชุดเดียวที่แนบไฟล์จากลูกค้า ตรวจทุกแถว และอนุมัติตาม DOA พร้อม step-up · ไม่มีบัญชีจริงจาก seed (OQ-133)
+
+**AC ของ FR-PAY-103** (บันทึกผลการจ่ายและแจ้งผู้ขาย)
+ขั้น S9 · Web · §7.19 · docs/sub-specs/S9.md
+- AC1 — FINANCE บันทึกผลต่อรายการ (สำเร็จพร้อมวันที่โอนในช่วง GC-PAY-19 ถึง GC-PAY-22 หรือไม่สำเร็จพร้อมเหตุผล) หรือ "สำเร็จทั้งรอบ ยกเว้นรายการที่เลือก" · บันทึกแล้วแก้ไม่ได้ในระยะ 1 · ครบทุกรายการ → COMPLETED
+- AC2 — สำเร็จ → ใบและเงินประกันของรายการเป็น `PAID` ผ่าน S8 ในธุรกรรมเดียวกัน · S8 บันทึก `WithholdingTax` ที่ผูก `paymentRunItemId` ผลรวมเท่าภาษีหักของรายการ และออก 50 ทวิ หนึ่งฉบับต่อรายการ · ไม่สำเร็จ → เอกสารกลับพร้อมจ่ายและเข้ารอบถัดไปได้พร้อมธง `PREVIOUSLY_EXPORTED` · ธุรกรรมล้ม = ไม่มีอะไรเปลี่ยนทั้งสองฝั่ง
+- AC3 — (§8.12) ระยะ 1 แจ้งผู้ขายทางอีเมล: หลังบันทึกสำเร็จสร้าง `SupplierNotice` 1 ฉบับต่อรายการถึงอีเมลในทะเบียน (ไทยและอังกฤษ · เลขรอบ วันที่โอน ยอดโอน เลขใบแจ้งหนี้ ภาษีหัก แนบ 50 ทวิ ถ้ามี · เลขบัญชี 4 ตัวท้าย) · บันทึกหรือส่งซ้ำไม่ส่งซ้ำ (dedupeKey) · ไม่มีอีเมล → `NO_EMAIL` · ส่งไม่สำเร็จ → แจ้งผู้เตรียม · ผู้ขายดูสถานะในพอร์ทัลได้เมื่อมี S7 (ระยะ 2) โดยอ่านจาก `PaymentRunItem` ชุดเดียวกัน
+- AC4 — ระยะ 1 บันทึกผลด้วยมือเพราะยังไม่รู้รูปแบบไฟล์ผลของธนาคาร (OQ-135) · การนำเข้าไฟล์ผลเป็นข้อ `[go-live]`
+- AC5 — ถอนการส่ง (SENT_TO_BANK → FILE_READY) ได้เมื่อยังไม่มีผลรายการใด พร้อมเหตุผล · มีผลแล้ว → `INVALID_STATE_TRANSITION`
+- AC6 — ผู้ไม่มี `paymentRun.recordResult` → `FORBIDDEN` · รอบจ่ายไม่สร้าง `BudgetLedgerEntry` ใด ๆ (BR-PAY-14)
+- AC7 — (`[go-live]`) ย้อนผลที่บันทึกผิดก่อนสร้างไฟล์สรุป ภ.ง.ด. ของเดือนนั้น: ภาษีหักและ 50 ทวิ ของรายการเป็นโมฆะ เอกสารกลับพร้อมจ่ายพร้อมธง และผู้ขายได้แจ้งถ้าเคยได้อีเมลแจ้งการชำระ (OQ-136)
+
 ### 8.12 เงื่อนไขล่วงหน้าที่ sub-spec ของชั้น 2–4 ต้องรวม
 
 เมื่อเขียน sub-spec ของแต่ละขั้น ให้แปลงแต่ละแถวเป็น AC ของ FR นั้น
@@ -4148,6 +4424,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | จัดซื้อ | ผู้ขาย | `/suppliers` | ทุกคน | — |
 | จัดซื้อ | แคตตาล็อก | `/catalog` | `catalog.view` (ทุกคน · S6-10) | — |
 | การเงิน | ยืนยันใบกำกับ | `/finance/invoices` | `invoiceConfirmation.record` | — |
+| การเงิน | รอบจ่าย (เมื่อเปิด `PAY` · S9) | `/finance/payments` | `paymentRun.view` ระดับองค์กร | — |
+| การเงิน | บัญชีธนาคาร (เมื่อเปิด `PAY` · S9) | `/finance/bank-accounts` | `bankAccount.view` | — |
 | การเงิน | ส่งออก Express | `/finance/exports` | `export.express` | — |
 | การเงิน | งบประมาณ | `/budgets` | `budget.view` (dashboard) | — |
 | ภาพรวม | สรุปผู้บริหาร | `/insights` | `report.view` | — |
@@ -4350,6 +4628,15 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `inbound_email.processed` (S8 · ร่างใหม่หรือไฟล์ที่รอเลือก PO) | FINANCE | ในระบบ | DIGEST | `invoice.inbox_digest` |
 | `invoice.variance_approved` · `invoice.variance_rejected` (S8) | ผู้ขออนุมัติส่วนต่าง · FINANCE | ในระบบ · LINE | IMMEDIATE | `invoice.variance_decided` |
 | ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
+| `approval_task.assigned` ของรอบจ่าย (S9-06) | ผู้อนุมัติตาม DOA `PAYMENT_RUN` | การ์ด LINE (ปุ่มอนุมัติในแชทเฉพาะรอบที่ส่งโดยไม่มีธงและยอดต่ำกว่า stepUpThreshold · BR-PAY-07) → อีเมล (ไม่มีลิงก์ตัดสิน) | IMMEDIATE | `task.assigned` (เลขรอบ ยอดโอนรวม DOA ref · ไม่มีชื่อผู้ขายหรือเลขบัญชี) |
+| `payment_run.approved` · `.rejected` · `.returned` (S9-06) | ผู้เตรียม | LINE → อีเมล | IMMEDIATE | `payment_run.decided` |
+| `payment_run.file_generated` เวอร์ชันใหม่หลังไฟล์ที่ใช้อยู่ถูกดาวน์โหลดแล้ว (S9-07 · BR-BANK-07) | ผู้อนุมัติของรอบ | ในระบบ · อีเมล | IMMEDIATE | `payment_run.file_regenerated` (เลขรอบ เวอร์ชัน) |
+| `supplier_notice.failed` ของ `payment.advice` ที่ส่งไม่สำเร็จ (S9-08 · BR-PAY-13 · ผู้ขายไม่มีอีเมลแจ้ง FINANCE ด้วย `supplier.no_email` แล้ว) | ผู้เตรียมของรอบ | ในระบบ · อีเมล | IMMEDIATE | `payment_run.advice_failed` (เลขรอบ รหัสผู้ขาย) |
+| `payment_run.cancelled` หลังอนุมัติ (S9-07 · BR-PAY-10) | ผู้อนุมัติของรอบ · ผู้เตรียม (ยกเว้นผู้ยกเลิก) | ในระบบ · อีเมล | IMMEDIATE | `payment_run.cancelled` (เลขรอบ และไฟล์เคยดาวน์โหลดหรือไม่) |
+| `approval_task.assigned` ของคำขอเปลี่ยนบัญชี (S9-04) | ผู้อนุมัติตาม DOA `BANK_ACCOUNT_CHANGE` | การ์ด LINE (ปุ่มเปิดหน้างาน ไม่มีปุ่มอนุมัติในแชท · BR-DOA-25) → อีเมล (ไม่มีลิงก์ตัดสิน) | IMMEDIATE | `task.assigned` (เลขคำขอ ชนิดการเปลี่ยน รหัสผู้ขาย · ไม่มีเลขหรือชื่อบัญชี) |
+| `bank_account_change.approved` · `.rejected` · `.returned` (S9-04) | ผู้เสนอ | LINE → อีเมล | IMMEDIATE | `bank_account_change.decided` |
+| `bank_account.activated` ของผู้ขายที่อยู่ในร่างรอบจ่าย (S9-04) | ผู้เตรียมของร่างนั้น | ในระบบ | DIGEST | `payment_run.account_changed` |
+| บัญชีรับเงินของผู้ขายมีผล (S9-04 · BR-SUP-06) | ผู้ขาย (อีเมลในทะเบียน · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` (ธนาคารและเลข 4 ตัวท้าย) | IMMEDIATE | `bank_account.notice` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
 | `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
 | ทุกแถว IMMEDIATE ข้างบนที่ช่องทางมี LINE ยกเว้นสรุปรายวัน (S17-10 · `LINE_TEMPLATES`) | ตามแถวนั้น | push ในแอป BCS Go → LINE → อีเมล เมื่อองค์กรเปิด `BCS_GO` และผู้รับเปิด "รับแจ้งเตือนในแอป" (BR-NOTI-05 · OQ-165) · ไม่เปิด = ทางเดิมของแถวนั้น | ตามแถวนั้น | ตามแถวนั้น · หัวเรื่อง push จาก `push.<templateKey>.title` เนื้อความเป็นเลขเอกสารเท่านั้น (BR-NOTI-06) |
@@ -4405,6 +4692,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ภาษีหัก ณ ที่จ่าย (S8) | `wht_income_type.updated` `wht_income_type.confirmed` `withholding_tax.recorded` `wht_certificate.issued` `supplier.tax_profile_updated` · การเปิดดูเลขบัตรบันทึกใน `SensitiveAccessLog` ไม่ใช่ event · ไม่มีเลขผู้เสียภาษีของผู้รับเงินใน event |
 | inbound_email (S8) | `inbound_email.received` `inbound_email.processed` `inbound_email.ignored` `inbound_email.failed` (ไม่มีเนื้อความ · ไฟล์ที่ข้ามมีชื่อไฟล์และเหตุผล) |
 | supplier_notice (S8 · S9 ใช้ต่อ) | `supplier_notice.sent` `supplier_notice.failed` (data.templateKey data.subjectType data.subjectId) |
+| payment_run (S9) | `payment_run.drafted` `payment_run.updated` `payment_run.documents_added` `payment_run.documents_removed` `payment_run.submitted` `payment_run.resubmitted` `payment_run.approved` (มี `flagsKey` ที่ผู้อนุมัติเห็น) `payment_run.rejected` `payment_run.returned` `payment_run.cancelled` `payment_run.file_generated` (sha256 จำนวน ยอด และเวอร์ชันก่อนหน้าดาวน์โหลดแล้วหรือไม่) `payment_run.sent_to_bank` `payment_run.sent_reverted` `payment_run.completed` `payment_run_item.flag_reason_set` `payment_run_item.paid` `payment_run_item.failed` `payment_run_item.advice_resent` · data มี id วัน ยอดเป็นสตางค์ และจำนวน ไม่มีเลขบัญชีหรือข้อความเหตุผล (เหตุผลที่ยกเลิกเก็บใน `PaymentRun.cancelReason` เหตุผลที่ถอนการส่งเป็น Comment ของรอบ เหตุผลที่จ่ายไม่สำเร็จและเลขอ้างอิงธนาคารเก็บในรายการ เหตุผลที่ส่งแจ้งการชำระซ้ำเป็น Comment ของรายการ) · การดาวน์โหลดไฟล์จ่ายเงินบันทึก `file.downloaded` |
+| bank_account · bank_account_change (S9) | `bank_account.activated` `bank_account.superseded` `bank_account.closed` `bank_account_change.drafted` `bank_account_change.updated` `bank_account_change.submitted` `bank_account_change.approved` `bank_account_change.rejected` `bank_account_change.returned` `bank_account_change.cancelled` · data มีเลขบัญชีเฉพาะ 4 ตัวท้าย (`last4`) ไม่มีเลขเต็ม ชื่อบัญชี หรือบันทึกการโทร (BR-BANK-08) · การเปิดเลขเต็มและดาวน์โหลดหลักฐานบันทึกใน `SensitiveAccessLog` ไม่ใช่ event |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
 | ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
@@ -4884,6 +5173,13 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `PO_CHANGE_OPEN` | 409 | PO นี้มีใบแก้ไขที่ยังไม่เสร็จ |
 | `PO_CHANGE_BELOW_PROGRESS` | 422 | แก้ไม่ได้เพราะต่ำกว่าที่รับหรือแจ้งหนี้แล้ว ({reason}) |
 | `PO_CHANGE_EXCEEDS_REQUEST` | 422 | จำนวนเกินที่เหลือในคำขอต้นทาง (เหลือ {left}) |
+| `PAYMENT_DATE_INVALID` | 422 | วันจ่าย {date} ใช้ไม่ได้: {reason} |
+| `DOCUMENT_NOT_PAYABLE` | 409 | {kind} {number} ยังไม่พร้อมจ่ายหรืออยู่ในรอบจ่ายอื่น |
+| `PAYMENT_ITEM_NOT_POSITIVE` | 422 | ยอดโอนของผู้ขาย {supplier} ต้องมากกว่าศูนย์ (ตอนนี้ {transfer} บาท) |
+| `BANK_ACCOUNT_NOT_APPROVED` | 422 | ผู้ขาย {supplier} ยังไม่มีบัญชีรับเงินที่อนุมัติแล้ว |
+| `PAYMENT_FLAG_REASON_REQUIRED` | 422 | รายการของ {supplier} มีธง {flag} กรุณาระบุเหตุผลก่อนส่ง |
+| `PAYMENT_FLAGS_CHANGED` | 409 | ธงของรอบจ่ายเปลี่ยนตั้งแต่คุณเปิดหน้า กรุณาโหลดใหม่และตรวจอีกครั้ง |
+| `BANK_FILE_CHECK_FAILED` | 422 | ตรวจก่อนสร้างไฟล์จ่ายเงินไม่ผ่าน: {checks} |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
 | `CONFIG_PACKAGE_INVALID` | 422 | ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason}) |
@@ -4958,7 +5254,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       42 ไฟล์ · 508 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       46 ไฟล์ · 572 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -6129,38 +6425,41 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S9-15 | นำเข้าบัญชีรับเงินจริงของผู้ขายเป็นชุด (`[go-live]`) | `high` | หลัง OQ-133 ก่อนรอบจ่ายแรกของลูกค้า | ตรวจ |
 | S9-16 | ย้อนผลการจ่ายที่บันทึกผิด รวมการยกเลิกภาษีหักฝั่ง S8 (`[go-live]`) | `high` | หลัง OQ-136 | ตรวจ |
 | S9-17 | ใบลดหนี้ในรอบจ่าย (`[go-live]`) | `high` | หลังข้อใบลดหนี้ของ S8 | ตรวจ |
+| S9-18 | แจ้งผลใบแก้ไข PO ทาง LINE ตาม §10.1 | `medium` | หลัง S9-04 | — |
+| S9-19 | คำขอเปลี่ยนบัญชีของผู้เสนอที่ไม่อยู่แล้ว (`[go-live]` · รอยืนยัน) | `xhigh` | หลังผู้ใช้ตัดสิน | รีวิวทันที |
+| S9-20 | แถบตัดสินกลาง การรอหน้าโหลดหลังคำสั่ง วันที่โอนต่อรายการ และค้นหาใน Sheet (`[go-live]` · จากรีวิว S9-11) | `medium` | หลัง S9-11 | ตรวจ |
 
-- [ ] **S9-01** `[demo]` migration ของรอบจ่ายและบัญชีธนาคารตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S9.md`: `BankAccount` `BankAccountChange` `PaymentRun` `PaymentRunItem` `PaymentRunItemWht` `PaymentRunDocument` `PaymentFile` · คอลัมน์ `paymentRunItemId` ใน `WithholdingTax` และ `WhtCertificate` ของ S8 (FK คู่ไปรายการจ่าย · ใบรับรองหนึ่งฉบับต่อรายการ) · FileLink kind `BANK_PROOF` · บรรทัด relation ในโมเดลเดิมใต้บล็อก `// --- S8 S9 ---` · CHECK เงิน partial unique และ trigger ของ `PaymentFile` ตาม §6.3 · FK คู่ตาม ADR-039 · `OrgSettingsSchema.payment` และรูปแบบเลข `PAY` `BAC` (OQ-12 · คีย์ใหม่ใน `numbering` ของ `org-settings.ts` เป็นบรรทัดต่อท้ายตามที่ P1-07 แยกไว้หนึ่งคีย์ต่อบรรทัด) · seed ระยะ 1 อ่านชีต CompanyBankAccounts และคอลัมน์ธนาคารของชีต SupplierPayment ตามหัวข้อ "การอ่านชีตของไฟล์ระยะ 1" · เพิ่มค่าตั้งของ OQ-130 OQ-132 OQ-134 ในชีต Settings ผ่าน `scripts/inputs_p1/p1_master.py` แล้วสร้างไฟล์ใหม่ · รายการรหัสธนาคารในโค้ดพร้อมเทสต์ว่าตรงชีต Banks · เพิ่มกฎและ invariant ทั้งหมดของขั้นลง spec ครั้งเดียว (ตารางเดียวต่อตระกูล) ตามหัวข้อ "กฎ" ของ `docs/sub-specs/S9.md`: ต่อท้ายตารางเดิมของ BR-SOD (§7.5) BR-BANK (§7.14) และ BR-SUP (§7.15) · ตาราง BR-PAY และ INV-PAY ใหม่ใต้หัวข้อย่อยท้าย §7 ที่ P1-07 จองไว้ให้ S9 · ตาม ADR-128 ADR-129 ADR-131 ADR-133
+- [x] **S9-01** `[demo]` migration ของรอบจ่ายและบัญชีธนาคารตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S9.md`: `BankAccount` `BankAccountChange` `PaymentRun` `PaymentRunItem` `PaymentRunItemWht` `PaymentRunDocument` `PaymentFile` · คอลัมน์ `paymentRunItemId` ใน `WithholdingTax` และ `WhtCertificate` ของ S8 (FK คู่ไปรายการจ่าย · ใบรับรองหนึ่งฉบับต่อรายการ) · FileLink kind `BANK_PROOF` · บรรทัด relation ในโมเดลเดิมใต้บล็อก `// --- S8 S9 ---` · CHECK เงิน partial unique และ trigger ของ `PaymentFile` ตาม §6.3 · FK คู่ตาม ADR-039 · `OrgSettingsSchema.payment` และรูปแบบเลข `PAY` `BAC` (OQ-12 · คีย์ใหม่ใน `numbering` ของ `org-settings.ts` เป็นบรรทัดต่อท้ายตามที่ P1-07 แยกไว้หนึ่งคีย์ต่อบรรทัด) · seed ระยะ 1 อ่านชีต CompanyBankAccounts และคอลัมน์ธนาคารของชีต SupplierPayment ตามหัวข้อ "การอ่านชีตของไฟล์ระยะ 1" · เพิ่มค่าตั้งของ OQ-130 OQ-132 OQ-134 ในชีต Settings ผ่าน `scripts/inputs_p1/p1_master.py` แล้วสร้างไฟล์ใหม่ · รายการรหัสธนาคารในโค้ดพร้อมเทสต์ว่าตรงชีต Banks · เพิ่มกฎและ invariant ทั้งหมดของขั้นลง spec ครั้งเดียว (ตารางเดียวต่อตระกูล) ตามหัวข้อ "กฎ" ของ `docs/sub-specs/S9.md`: ต่อท้ายตารางเดิมของ BR-SOD (§7.5) BR-BANK (§7.14) และ BR-SUP (§7.15) · ตาราง BR-PAY และ INV-PAY ใหม่ใต้หัวข้อย่อยท้าย §7 ที่ P1-07 จองไว้ให้ S9 · ตาม ADR-128 ADR-129 ADR-131 ADR-133 · migration 20261015090000_s9_payments (7 ตาราง · CHECK เงินและรูปแบบเลขบัญชี · partial unique บัญชี ACTIVE ต่อผู้ขาย คำขอค้างต่อผู้ขายและต่อบัญชีเป้าหมาย ลิงก์ HELD/PAID ต่อเอกสาร ไฟล์ CURRENT ต่อรอบ · trigger ของ PaymentFile) apply ได้ทั้งฐานเปล่าของเทสต์และฐานที่ seed ไฟล์ demo ไม่มี drift · seed ระยะ 1 มีบัญชี ACTIVE ของผู้ขาย 196 บัญชีเท่าแถว SupplierPayment และบัญชีองค์กร 2 บัญชีเท่า CompanyBankAccounts (เทสต์นับเอง · event มีแค่ 4 ตัวท้าย) · tenant-isolation 1107/1107 รวมตารางใหม่ · s9-schema 23/23 · รหัสธนาคารตรงชีต Banks · settings.payment และเลข PAY BAC · กฎ BR-PAY INV-PAY ใต้ §7.19 และต่อท้ายตาราง BR-SOD BR-BANK BR-SUP · pnpm inputs:check ผ่าน · spec:check ไม่มี ID ที่ไม่มีนิยามและเลขต่อเนื่อง · pnpm verify สองรอบขณะสายอื่นใช้ CPU 100%: ทุกด่านผ่านอย่างน้อยหนึ่งรอบ ข้อที่ล้มเป็นเทสต์ที่ไวต่อเวลานอก S9 คนละข้อในแต่ละรอบ (ci-changes · messages-arguments และการอ่าน workbook ใต้ coverage · line-webhook) และผ่านเมื่อรันเดี่ยวทุกข้อ — เสร็จ 2026-10-15 · f019417
   - เสร็จเมื่อ: migration apply ได้ทั้งบนฐานเปล่าและฐานที่ seed ไฟล์ demo · seed ระยะ 1 มีบัญชี ACTIVE ของผู้ขายเท่าจำนวนแถวชีต SupplierPayment และบัญชีองค์กรเท่าชีต CompanyBankAccounts (เทสต์นับเอง) · เทสต์ INV-TEN-01 และ INV-TEN-02 ผ่านกับตารางใหม่ (นับจาก DMMF) · เทสต์ว่า CHECK partial unique และ trigger ปฏิเสธข้อมูลผิด (trigger ยอมเฉพาะเปลี่ยนเป็น SUPERSEDED และตั้งเวลาดาวน์โหลดครั้งแรก) · `pnpm inputs:check` ผ่าน · `pnpm spec:check` ไม่มี ID ที่ไม่มีนิยามและเลข ID ต่อเนื่อง · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-02** `[demo]` engine pure ของรอบจ่ายตามหัวข้อ "กฎ" และ "ร่าง golden case" ของ `docs/sub-specs/S9.md`: `src/core/payment` (ยอดต่อผู้ขายจากใบแจ้งหนี้และเงินประกันที่คืน ยอดของรอบ วันจ่าย ข้อเสนอเอกสาร ช่วงวันที่โอน ธง และข้อความธงที่ผู้อนุมัติส่ง) · กรณีรอบจ่ายและการเปลี่ยนบัญชีใน `src/core/sod` · state machine ของ `PaymentRun` `PaymentRunItem` `PaymentRunDocument` `BankAccountChange` · golden `tests/golden/payment-run.yaml` ใต้หัวข้อย่อยท้าย §7 ที่ P1-07 จองไว้ให้ S9 และเคสต่อท้าย `tests/golden/sod.yaml` ในบล็อกเดิมของ §7.5 พร้อมตัวคำนวณอ้างอิงอิสระ `run_payment_run` (หนึ่งบรรทัดใน `RUNNERS`) และกรณีใหม่ใน `run_sod` ของ `scripts/spec_check.py` · AC ของ FR-PAY-101 และ FR-PAY-103 ลง §8 · เพิ่ม `payment` ในรายการ branch coverage 100% ของ §7.0 · เทสต์ก่อนโค้ด
+- [x] **S9-02** `[demo]` engine pure ของรอบจ่ายตามหัวข้อ "กฎ" และ "ร่าง golden case" ของ `docs/sub-specs/S9.md`: `src/core/payment` (ยอดต่อผู้ขายจากใบแจ้งหนี้และเงินประกันที่คืน ยอดของรอบ วันจ่าย ข้อเสนอเอกสาร ช่วงวันที่โอน ธง และข้อความธงที่ผู้อนุมัติส่ง) · กรณีรอบจ่ายและการเปลี่ยนบัญชีใน `src/core/sod` · state machine ของ `PaymentRun` `PaymentRunItem` `PaymentRunDocument` `BankAccountChange` · golden `tests/golden/payment-run.yaml` ใต้หัวข้อย่อยท้าย §7 ที่ P1-07 จองไว้ให้ S9 และเคสต่อท้าย `tests/golden/sod.yaml` ในบล็อกเดิมของ §7.5 พร้อมตัวคำนวณอ้างอิงอิสระ `run_payment_run` (หนึ่งบรรทัดใน `RUNNERS`) และกรณีใหม่ใน `run_sod` ของ `scripts/spec_check.py` · AC ของ FR-PAY-101 และ FR-PAY-103 ลง §8 · เพิ่ม `payment` ในรายการ branch coverage 100% ของ §7.0 · เทสต์ก่อนโค้ด — เสร็จ 2026-10-15 · ceb6dca
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:payment-run และ golden:sod ผ่านครบ · เทสต์ golden ของ payment-run และ sod ผ่านทุกเคส (runner นับเอง) · GC-SOD-01 ถึง GC-SOD-09 และ GC-WHT-01 ยังผ่านโดยไม่แก้ expect · property test ของยอดรอบและการถือเอกสารผ่าน · branch coverage 100% ของ `src/core/payment` · ชุดที่สอง `tests/support/oracles/payment-run.ts` เขียนแยกโดย subagent ที่เห็นเฉพาะ spec และ `docs/sub-specs/S9.md` (ไม่เห็นและไม่ import โค้ดใน `src/core/payment`) · property test ถาวร `tests/property/payment-run-oracle.property.test.ts` สุ่มด้วย fast-check อย่างน้อย 1,000 ชุดต่อคุณสมบัติแล้วผลของสองชุดเท่ากันทุกช่อง และทั้งสองชุดผ่าน golden ทุกเคส · ผลต่างทุกจุดตัดสินจาก spec (ไม่แก้ชุดหนึ่งให้ตรงอีกชุดโดยไม่มีเหตุผลจาก spec) และบันทึกใน `docs/reports/p1-review-S9.md` · spec ตีความได้สองทางให้หยุดถาม (ADR-072) · `pnpm verify` ผ่าน
   - แยกงาน: เขียนสองชุดเทียบกัน: agent หลักเขียน (หรือรับ) ชุดใน `src/core/payment` และให้ subagent ตัวใหม่เขียนชุดที่สองโดยไม่เห็นชุดแรก แต่ละตัวเขียนเฉพาะไฟล์ของตัวเอง · agent หลักคนเดียวรันเทสต์ verify และ git ทีละอย่าง แล้วตรวจหลักฐานก่อนรับ · ทำ S9-02 กับ S9-03 ในแชตเดียวที่เปิด Ultracode ได้ · ถ้าเขียนชุดแรกไปแล้วก่อน ADR-072 ให้เพิ่มชุดที่สองก่อนติ๊ก
-- [ ] **S9-03** `[demo]` engine pure ของไฟล์ธนาคารตามหัวข้อ "กฎ" และ "ร่าง golden case" ของ `docs/sub-specs/S9.md`: `src/core/bankfile` (ตรวจและ mask เลขบัญชี ตรวจก่อนส่งออก ตัวสร้างแม่แบบกลาง `BCS-NEUTRAL-1` ตาม ADR-130) · golden `tests/golden/bank-precheck.yaml` `bankfile-neutral.yaml` ลง §7.14 และ `tests/golden/bank-account.yaml` ลง §7.15 พร้อมตัวคำนวณอ้างอิงอิสระของแต่ละ suite ใน `scripts/spec_check.py` (`run_bank_account` `run_bank_precheck` `run_bankfile_neutral` ตัวหลังเทียบ bytes และ sha256 ด้วย `hashlib` · หนึ่งบรรทัดต่อ suite ใน `RUNNERS`) · AC ของ FR-PAY-102 ลง §8 · เพิ่ม `bankfile` ในรายการ branch coverage 100% ของ §7.0 · เทสต์ก่อนโค้ด
+- [x] **S9-03** `[demo]` engine pure ของไฟล์ธนาคารตามหัวข้อ "กฎ" และ "ร่าง golden case" ของ `docs/sub-specs/S9.md`: `src/core/bankfile` (ตรวจและ mask เลขบัญชี ตรวจก่อนส่งออก ตัวสร้างแม่แบบกลาง `BCS-NEUTRAL-1` ตาม ADR-130) · golden `tests/golden/bank-precheck.yaml` `bankfile-neutral.yaml` ลง §7.14 และ `tests/golden/bank-account.yaml` ลง §7.15 พร้อมตัวคำนวณอ้างอิงอิสระของแต่ละ suite ใน `scripts/spec_check.py` (`run_bank_account` `run_bank_precheck` `run_bankfile_neutral` ตัวหลังเทียบ bytes และ sha256 ด้วย `hashlib` · หนึ่งบรรทัดต่อ suite ใน `RUNNERS`) · AC ของ FR-PAY-102 ลง §8 · เพิ่ม `bankfile` ในรายการ branch coverage 100% ของ §7.0 · เทสต์ก่อนโค้ด — เสร็จ 2026-10-15 · f1bfc88
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:bank-account golden:bank-precheck และ golden:bankfile-neutral ผ่านครบ · เทสต์ golden ของสาม suite ผ่านทุกเคสรวม bytes และ sha256 ของไฟล์แม่แบบกลาง · branch coverage 100% ของ `src/core/bankfile` · ชุดที่สอง `tests/support/oracles/bankfile.ts` เขียนแยกโดย subagent ที่เห็นเฉพาะ spec และ `docs/sub-specs/S9.md` (ไม่เห็นและไม่ import โค้ดใน `src/core/bankfile`) · property test ถาวร `tests/property/bankfile-oracle.property.test.ts` สุ่มด้วย fast-check อย่างน้อย 1,000 ชุดต่อคุณสมบัติแล้วผลของสองชุดเท่ากันทุกช่อง และทั้งสองชุดผ่าน golden ทุกเคส · ผลต่างทุกจุดตัดสินจาก spec (ไม่แก้ชุดหนึ่งให้ตรงอีกชุดโดยไม่มีเหตุผลจาก spec) และบันทึกใน `docs/reports/p1-review-S9.md` · spec ตีความได้สองทางให้หยุดถาม (ADR-072) · `pnpm verify` ผ่าน
   - แยกงาน: เขียนสองชุดเทียบกัน: agent หลักเขียน (หรือรับ) ชุดใน `src/core/bankfile` และให้ subagent ตัวใหม่เขียนชุดที่สองโดยไม่เห็นชุดแรก แต่ละตัวเขียนเฉพาะไฟล์ของตัวเอง · agent หลักคนเดียวรันเทสต์ verify และ git ทีละอย่าง แล้วตรวจหลักฐานก่อนรับ · ทำ S9-02 กับ S9-03 ในแชตเดียวที่เปิด Ultracode ได้ · ถ้าเขียนชุดแรกไปแล้วก่อน ADR-072 ให้เพิ่มชุดที่สองก่อนติ๊ก
-- [ ] **S9-04** `[demo]` บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กรผ่าน `BankAccountChange` (§4.11 · BR-SOD-05 · OQ-133 OQ-137): คำสั่งร่าง แก้ ส่ง ยกเลิก · เส้นทาง DOA ชนิด `BANK_ACCOUNT_CHANGE` และการตัดสินผ่าน approvals เดิมโดยเติม adapter `src/server/services/approvals/subjects/bank-account-change.ts` (`decide` `sodContext` `allowsRequestInfo = false` · `channels` ไม่มีปุ่มในแชทและไม่มีลิงก์ตัดสินทางอีเมล) · step-up ทุกครั้งตามกฎของฐานร่วมใน P1-07 · หลักฐาน `BANK_PROOF` และบันทึกการโทรยืนยัน · mask และเปิดเลขเต็มพร้อมบันทึก `SensitiveAccessLog` ผ่าน helper ที่ S8 สร้าง (NFR-PRIV-03 · BR-AUTH-04) · อีเมลแจ้งผู้ขายสร้างด้วย `enqueueSupplierNotice` ของ S8 ในธุรกรรมเดียวกัน (templateKey `bank_account.notice`) · เพิ่มแถวของข้อนี้ใน §2.4 §10.1 §10.2 §14.2 ตามหัวข้อ "สิทธิ์ event error และการแจ้งเตือน" ของ `docs/sub-specs/S9.md`
+- [x] **S9-04** `[demo]` บัญชีรับเงินของผู้ขายและบัญชีผู้จ่ายขององค์กรผ่าน `BankAccountChange` (§4.11 · BR-SOD-05 · OQ-133 OQ-137): คำสั่งร่าง แก้ ส่ง ยกเลิก · เส้นทาง DOA ชนิด `BANK_ACCOUNT_CHANGE` และการตัดสินผ่าน approvals เดิมโดยเติม adapter `src/server/services/approvals/subjects/bank-account-change.ts` (`decide` `sodContext` `allowsRequestInfo = false` · `channels` ไม่มีปุ่มในแชทและไม่มีลิงก์ตัดสินทางอีเมล) · step-up ทุกครั้งตามกฎของฐานร่วมใน P1-07 · หลักฐาน `BANK_PROOF` และบันทึกการโทรยืนยัน · mask และเปิดเลขเต็มพร้อมบันทึก `SensitiveAccessLog` ผ่าน helper ที่ S8 สร้าง (NFR-PRIV-03 · BR-AUTH-04) · อีเมลแจ้งผู้ขายสร้างด้วย `enqueueSupplierNotice` ของ S8 ในธุรกรรมเดียวกัน (templateKey `bank_account.notice`) · เพิ่มแถวของข้อนี้ใน §2.4 §10.1 §10.2 §14.2 ตามหัวข้อ "สิทธิ์ event error และการแจ้งเตือน" ของ `docs/sub-specs/S9.md` · services/bank-accounts (create update attachProof detachProof submit cancel · decide ผ่าน adapter BANK_ACCOUNT_CHANGE · views mask และ reveal พร้อม SensitiveAccessLog · หลักฐานดาวน์โหลดตามสิทธิ์เดียวกัน) · integration bank-account-change 16 เคส: AC7 (เพิ่ม เปลี่ยน ปิด บัญชีองค์กร ตีกลับ ไม่อนุมัติ ยกเลิก TARGET_NOT_ACTIVE ผู้เสนออนุมัติเอง SOD_VIOLATION ช่องทางแชทและอีเมล FORBIDDEN ผู้ไม่มีสิทธิ์ PAY ปิด) AC8 (mask ทุกบทบาท reveal เฉพาะ FINANCE และผู้อนุมัติ) SupplierNotice ครั้งเดียวต่อบัญชีที่มีผล redaction log Event Notification การ์ด LINE อีเมล · permissions generated 1299/1299 · รีวิว xhigh 13 ข้อ แก้ 8 (docs/reports/p1-review-S9.md) · ADR-135 แม่แบบข้อความของ S9 ในไฟล์ของสาย 2 (ผู้ใช้เลือก) · ข้อใหม่ S9-18 S9-19 · pnpm verify ทุกด่านผ่านที่ 91e138a ยกเว้นเทสต์กฎ lint 2 เคสที่ผ่าน 127/127 เมื่อรันเดี่ยว (เครื่องโหลดหนัก) — เสร็จ 2026-10-16 · 79b4df6 91e138a
   - เสร็จเมื่อ: เทสต์ AC7 และ AC8 ของ FR-PAY-102 ผ่านบน Postgres จริง รวมกรณีปฏิเสธ (ผู้เสนออนุมัติเอง ผู้ไม่มีสิทธิ์ ปิดโมดูล `PAY` ไม่มีหลักฐาน ตัดสินจากปุ่มในแชทหรือลิงก์อีเมล) · บัญชีใหม่ไม่ถูกใช้จนอนุมัติ · `SupplierNotice` ถูกสร้างครั้งเดียวต่อบัญชีของผู้ขายที่มีผล · เทสต์ redaction ว่า log Event Notification และการ์ด LINE ไม่มีเลขบัญชีเต็ม (NFR-SEC-09) · เทสต์สิทธิ์ที่สร้างอัตโนมัติผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-05** `[demo]` เตรียมและส่งรอบจ่าย: คำสั่งสร้าง แก้ เพิ่มและเอาเอกสารออก (ใบแจ้งหนี้และเงินประกันผลงานที่คืนแล้ว · ถือและปล่อยผ่านฟังก์ชันของ S8 ในธุรกรรมเดียวกัน ตาม ADR-134) ใส่เหตุผลของธง ส่ง ยกเลิก · ออกเลข `PAY` ตอนส่ง · snapshot บัญชีผู้รับ · เส้นทาง DOA ชนิด `PAYMENT_RUN` · ปิด `PAY` ขณะมีรอบหรือคำขอเปลี่ยนบัญชีค้าง → `MODULE_IN_USE` (OQ-33) · เพิ่มแถวของข้อนี้ใน §2.4 §10.2 §14.2
+- [x] **S9-05** `[demo]` เตรียมและส่งรอบจ่าย: คำสั่งสร้าง แก้ เพิ่มและเอาเอกสารออก (ใบแจ้งหนี้และเงินประกันผลงานที่คืนแล้ว · ถือและปล่อยผ่านฟังก์ชันของ S8 ในธุรกรรมเดียวกัน ตาม ADR-134) ใส่เหตุผลของธง ส่ง ยกเลิก · ออกเลข `PAY` ตอนส่ง · snapshot บัญชีผู้รับ · เส้นทาง DOA ชนิด `PAYMENT_RUN` · ปิด `PAY` ขณะมีรอบหรือคำขอเปลี่ยนบัญชีค้าง → `MODULE_IN_USE` (OQ-33) · เพิ่มแถวของข้อนี้ใน §2.4 §10.2 §14.2 · services/payments/runs.ts (proposePaymentRun · create update addDocuments removeDocuments setFlagReason submit cancel ก่อนอนุมัติ · เอกสารถือผ่าน S8 ในธุรกรรมเดียวกัน · ยอด ภาษีหัก ธง และ PaymentRunItemWht คำนวณใหม่ทุกคำสั่ง · ส่งออกเลข PAY seq และ snapshot บัญชีผู้รับ แล้วเส้นทาง DOA PAYMENT_RUN ด้วยยอดโอนรวม) · รหัส error 5 ตัวลง §14.2 · paymentRun.view paymentRun.prepare ลง §2.4 · event ลง §10.2 · ปิด PAY ขณะมีรอบหรือคำขอเปลี่ยนบัญชีค้าง MODULE_IN_USE · integration payment-run-prepare 11 เคส: AC1 AC2 AC3 (สองรอบพร้อมกันสำเร็จรอบเดียว) AC4 AC6 AC7 (PAY-01 ไป CFO · CFO เตรียมเองยกไป CEO) AC8 ฝั่งเตรียม (BR-SOD-10 พร้อม security.sod_blocked) AC10 ยกเลิกแล้วเอกสารกลับพร้อมจ่าย · รีวิว xhigh 9 ข้อ แก้ 6 (docs/reports/p1-review-S9.md) · pnpm verify 0 FAIL — เสร็จ 2026-10-16 · 23a9701 cc62c3e
   - เสร็จเมื่อ: เทสต์ AC1 ถึง AC4 AC6 AC7 และ AC10 ของ FR-PAY-101 ผ่านบน Postgres จริง · ยิงเพิ่มเอกสารเดียวกันเข้า 2 รอบพร้อมกันสำเร็จรอบเดียวและล็อกตามลำดับ id (INV-PLT-03) · เอกสารในรอบที่ยกเลิกกลับพร้อมจ่าย (ใบเป็นพร้อมจ่าย เงินประกันเป็นพร้อมคืน) · เทสต์กรณีเตรียมของ AC8 ของ FR-PAY-101 (ผู้เสนอเปลี่ยนบัญชีที่มีผลภายใน N วันเพิ่มเอกสารหรือส่งรอบที่จ่ายเข้าบัญชีนั้น → `SOD_VIOLATION` · ร่าง golden กรณีเตรียมใน `docs/sub-specs/S9.md`) · ทุกการเปลี่ยนสถานะมี event · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-06** `[demo]` อนุมัติรอบจ่าย: ตัดสินผ่าน approvals เดิม (อนุมัติ ตีกลับ ไม่อนุมัติ) โดยเติม adapter `src/server/services/approvals/subjects/payment-run.ts` (`decisionInput` รับข้อความธง · `decide` คืนผลและล้มทั้งธุรกรรมเมื่อธงเปลี่ยนโดยงานยังเปิด · `sodContext` · `allowsRequestInfo = false` · `channels` ไม่มีปุ่มในแชทเมื่อมีธงและไม่มีลิงก์ตัดสินทางอีเมล) · step-up ตาม BR-TOK-05 ด้วยชุดวิธีของ P1-07 · การ์ด LINE ตาม BR-NOTI-01 (ไม่มีชื่อผู้ขายหรือเลขบัญชี) · ส่วนของรอบจ่ายและการเปลี่ยนบัญชีในหน้า `/liff/tasks/[id]` ด้วยชุดเบา (ADR-052): คอมโพเนนต์ในไฟล์ของขั้นแล้วแทรกบรรทัดเดียวต่อ subject ในหน้าของ S6 · แจ้งผู้เตรียมทุกการตัดสิน · เพิ่มแถวของข้อนี้ใน §10.1 §10.2 §14.2
+- [x] **S9-06** `[demo]` อนุมัติรอบจ่าย: ตัดสินผ่าน approvals เดิม (อนุมัติ ตีกลับ ไม่อนุมัติ) โดยเติม adapter `src/server/services/approvals/subjects/payment-run.ts` (`decisionInput` รับข้อความธง · `decide` คืนผลและล้มทั้งธุรกรรมเมื่อธงเปลี่ยนโดยงานยังเปิด · `sodContext` · `allowsRequestInfo = false` · `channels` ไม่มีปุ่มในแชทเมื่อมีธงและไม่มีลิงก์ตัดสินทางอีเมล) · step-up ตาม BR-TOK-05 ด้วยชุดวิธีของ P1-07 · การ์ด LINE ตาม BR-NOTI-01 (ไม่มีชื่อผู้ขายหรือเลขบัญชี) · ส่วนของรอบจ่ายและการเปลี่ยนบัญชีในหน้า `/liff/tasks/[id]` ด้วยชุดเบา (ADR-052): คอมโพเนนต์ในไฟล์ของขั้นแล้วแทรกบรรทัดเดียวต่อ subject ในหน้าของ S6 · แจ้งผู้เตรียมทุกการตัดสิน · เพิ่มแถวของข้อนี้ใน §10.1 §10.2 §14.2 · pnpm verify 0 FAIL (lint และ unit รันซ้ำหลังเอาไฟล์ของ S9-07 ที่ยังไม่เสร็จออก) · e2e @pay ผ่าน · รีวิว xhigh ใน docs/reports/p1-review-S9.md — เสร็จ 2026-10-16 · cc9804e 4b4f40c 7dc4916 c39e420
   - เสร็จเมื่อ: เทสต์ AC5 AC8 และ AC9 ของ FR-PAY-101 ผ่าน รวมไม่อนุมัติแล้วเอกสารกลับพร้อมจ่าย และอนุมัติด้วยข้อความธงเก่าแล้วงานยังเปิด · เทสต์ขนาดการ์ด LINE ผ่าน · e2e ของ LIFF กับ fake LINE ที่อนุมัติรอบที่มีธงด้วย step-up ผ่าน · งบ JavaScript ของ LIFF ยังผ่าน (ADR-052) · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-07** `[demo]` ไฟล์จ่ายเงิน: สร้างไฟล์ตามแม่แบบของบัญชีผู้จ่าย ตรวจก่อนส่งออก (BR-BANK-02) สร้างใหม่พร้อมเหตุผลเป็นเวอร์ชันใหม่ (BR-BANK-03) ขอลิงก์ดาวน์โหลดด้วยคำสั่ง POST ที่คืน presigned (NFR-SEC-08) และบันทึกการดาวน์โหลดครั้งแรก · ยกเลิกหรือสร้างใหม่หลังดาวน์โหลดต้องยืนยันว่ายังไม่ได้ส่งธนาคารและแจ้งผู้อนุมัติ (OQ-136) · ส่งธนาคารแล้วและถอนการส่ง · แม่แบบกลางที่บอกชัดว่าไม่ใช่รูปแบบของธนาคาร (ADR-130) · เพิ่มแถวของข้อนี้ใน §2.4 §10.1 §10.2 §14.2
+- [x] **S9-07** `[demo]` ไฟล์จ่ายเงิน: สร้างไฟล์ตามแม่แบบของบัญชีผู้จ่าย ตรวจก่อนส่งออก (BR-BANK-02) สร้างใหม่พร้อมเหตุผลเป็นเวอร์ชันใหม่ (BR-BANK-03) ขอลิงก์ดาวน์โหลดด้วยคำสั่ง POST ที่คืน presigned (NFR-SEC-08) และบันทึกการดาวน์โหลดครั้งแรก · ยกเลิกหรือสร้างใหม่หลังดาวน์โหลดต้องยืนยันว่ายังไม่ได้ส่งธนาคารและแจ้งผู้อนุมัติ (OQ-136) · ส่งธนาคารแล้วและถอนการส่ง · แม่แบบกลางที่บอกชัดว่าไม่ใช่รูปแบบของธนาคาร (ADR-130) · เพิ่มแถวของข้อนี้ใน §2.4 §10.1 §10.2 §14.2 · pnpm verify 0 FAIL · รีวิว xhigh ใน docs/reports/p1-review-S9.md — เสร็จ 2026-10-16 · 76367a5 49b3e29
   - เสร็จเมื่อ: เทสต์ AC1 ถึง AC6 ของ FR-PAY-102 AC11 ของ FR-PAY-101 และ AC5 ของ FR-PAY-103 ผ่าน · ไฟล์ที่สร้างจากรอบในเทสต์อ่านกลับแล้วแถวท้ายเท่ายอดโอนรวมและจำนวนรายการของรอบ · trigger ปฏิเสธการแก้และลบไฟล์ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-08** `[demo]` บันทึกผลการจ่ายและแจ้งผู้ขายทางอีเมล (§8.12 · OQ-134 OQ-135 OQ-136): บันทึกต่อรายการและ "สำเร็จทั้งรอบ ยกเว้นรายการที่เลือก" · สำเร็จ → เรียก `recordInvoicePayment` ของ S8 (ตัวเดียว รับ `invoiceIds` และ `retentionIds` ของรายการ) ครั้งเดียวต่อรายการในธุรกรรมเดียวกัน (ใบและเงินประกันเป็นจ่ายแล้ว ภาษีหักและ 50 ทวิ หนึ่งฉบับต่อรายการผูก `paymentRunItemId`) · ไม่สำเร็จ → เอกสารกลับพร้อมจ่ายพร้อมธงในรอบถัดไป · อีเมลแจ้งการชำระไทยและอังกฤษสร้างด้วย `enqueueSupplierNotice` ของ S8 (templateKey `payment.advice`) และส่งซ้ำพร้อมเหตุผล · เพิ่มแถวของข้อนี้ใน §2.4 §10.1 §10.2 §14.2
+- [x] **S9-08** `[demo]` บันทึกผลการจ่ายและแจ้งผู้ขายทางอีเมล (§8.12 · OQ-134 OQ-135 OQ-136): บันทึกต่อรายการและ "สำเร็จทั้งรอบ ยกเว้นรายการที่เลือก" · สำเร็จ → เรียก `recordInvoicePayment` ของ S8 (ตัวเดียว รับ `invoiceIds` และ `retentionIds` ของรายการ) ครั้งเดียวต่อรายการในธุรกรรมเดียวกัน (ใบและเงินประกันเป็นจ่ายแล้ว ภาษีหักและ 50 ทวิ หนึ่งฉบับต่อรายการผูก `paymentRunItemId`) · ไม่สำเร็จ → เอกสารกลับพร้อมจ่ายพร้อมธงในรอบถัดไป · อีเมลแจ้งการชำระไทยและอังกฤษสร้างด้วย `enqueueSupplierNotice` ของ S8 (templateKey `payment.advice`) และส่งซ้ำพร้อมเหตุผล · เพิ่มแถวของข้อนี้ใน §2.4 §10.1 §10.2 §14.2 · pnpm verify 0 FAIL · รีวิว xhigh ใน docs/reports/p1-review-S9.md — เสร็จ 2026-10-16 · 283c23c bf489f9
   - เสร็จเมื่อ: เทสต์ AC1 ถึง AC4 และ AC6 ของ FR-PAY-103 ผ่าน รวมอีเมลที่ adapter ทดสอบได้รับ (ไม่มีเลขบัญชีเต็ม · มี 50 ทวิ เมื่อมีภาษีหัก) และบันทึกซ้ำไม่สร้าง `SupplierNotice` ซ้ำ · ผลรวม `WithholdingTax` ของรายการเท่าภาษีหักของรายการและมี `WhtCertificate` ฉบับเดียวต่อรายการ · ธุรกรรมที่ล้มกลางทางไม่เปลี่ยนสถานะทั้งรอบจ่าย ใบแจ้งหนี้ และเงินประกัน · ไม่มี `BudgetLedgerEntry` ใหม่จากรอบจ่าย · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-09** `[demo]` หน้าจอ Workspace ของขั้นตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S9.md`: `/finance/payments` `/finance/payments/new` `/finance/payments/[id]` (แท็บรายการ ไฟล์ ผลการจ่าย ประวัติ และแถบตัดสินพร้อมการรับทราบธงกับ step-up) `/finance/bank-accounts` หน้าคำขอเปลี่ยนบัญชี และการ์ดบัญชีรับเงินในหน้าผู้ขาย · Alert ของแม่แบบกลาง · ปุ่มดาวน์โหลดที่เรียกคำสั่ง POST และ Alert Dialog ยืนยันหลังดาวน์โหลด · เมนูตามสิทธิ์และโมดูล · ข้อความไทยและอังกฤษ · ตาม §9.9 และ §9.10
+- [x] **S9-09** `[demo]` หน้าจอ Workspace ของขั้นตามหัวข้อ "หน้าจอ" ของ `docs/sub-specs/S9.md`: `/finance/payments` `/finance/payments/new` `/finance/payments/[id]` (แท็บรายการ ไฟล์ ผลการจ่าย ประวัติ และแถบตัดสินพร้อมการรับทราบธงกับ step-up) `/finance/bank-accounts` หน้าคำขอเปลี่ยนบัญชี และการ์ดบัญชีรับเงินในหน้าผู้ขาย · Alert ของแม่แบบกลาง · ปุ่มดาวน์โหลดที่เรียกคำสั่ง POST และ Alert Dialog ยืนยันหลังดาวน์โหลด · เมนูตามสิทธิ์และโมดูล · ข้อความไทยและอังกฤษ · ตาม §9.9 และ §9.10 · e2e @pay tests/e2e/s9.spec.ts 4/4 (375 และ 1440 px · axe ไม่มี serious/critical) · @demo 9/9 · pnpm verify 0 FAIL — เสร็จ 2026-10-16 · 7753ef6 7303bde
   - เสร็จเมื่อ: e2e ของฉากในหัวข้อ "Demo ของขั้น" ส่วนเว็บผ่าน · screenshot 375 และ 1440 px ของทุกหน้าใหม่ และ axe ไม่มี violation ระดับ serious หรือ critical · `pnpm test:e2e --grep @demo` ยังผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: แยก subagent ต่อกลุ่มหน้า (รอบจ่าย กับ บัญชีธนาคาร) แล้วตรวจว่าทุกปุ่มเรียก service ผ่าน `runCommand()` ไม่มีสีตายตัว และเลขบัญชีแสดงแบบ mask ก่อนรับ
-- [ ] **S9-10** `[demo]` ข้อมูล demo ของขั้น: seed รอบจ่ายย้อนหลังจากแถว Request_History ที่ paymentStatus = PAID ผ่านคำสั่งของขั้นด้วยนาฬิกาที่กำหนด (รอบวันศุกร์ `fin_tre1` หรือ `fin_tre2` เตรียม ผู้อนุมัติตาม DOA) · แถว DUE OVERDUE NOT_DUE คงพร้อมจ่าย · e2e แท็ก `@pay` ของฉากเต็ม (เตรียม ธง อนุมัติด้วย step-up ไฟล์ ผล อีเมลใน Mailpit) ให้ P1-08 ใช้ต่อ
+- [x] **S9-10** `[demo]` ข้อมูล demo ของขั้น: seed รอบจ่ายย้อนหลังจากแถว Request_History ที่ paymentStatus = PAID ผ่านคำสั่งของขั้นด้วยนาฬิกาที่กำหนด (รอบวันศุกร์ `fin_tre1` หรือ `fin_tre2` เตรียม ผู้อนุมัติตาม DOA) · แถว DUE OVERDUE NOT_DUE คงพร้อมจ่าย · e2e แท็ก `@pay` ของฉากเต็ม (เตรียม ธง อนุมัติด้วย step-up ไฟล์ ผล อีเมลใน Mailpit) ให้ P1-08 ใช้ต่อ · seed-p1 ทั้งสองนาฬิกา: ใบที่จ่ายแล้วเท่าแถว PAID · 17 รอบ 95 ใบ ทุกรอบมีเส้นทาง DOA และ event ครบ · db:reset 28 วินาที db:reset:p1 255 วินาที (รอบจ่ายราว 10 วินาที) · e2e @pay ผ่าน 2 รอบติด (5/5) · pnpm verify 0 FAIL (unit lint spec รันซ้ำหลังแก้) · รีวิว xhigh ใน docs/reports/p1-review-S9.md — เสร็จ 2026-10-16 · c1f5f5e ab39248 e30b437
   - เสร็จเมื่อ: จำนวนใบที่จ่ายแล้วหลัง seed เท่าแถว PAID ในชีต (เทสต์นับเอง) และทุกรอบย้อนหลังมีเส้นทาง DOA และ event ครบ · รายงานเวลาของ `pnpm db:reset` ในสาย (ถ้าช้าเกินให้เสนอทางเลือกก่อนตัดข้อมูล) · `pnpm test:e2e --grep @pay` ผ่าน 2 รอบติด · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S9-11** `[demo]` รีวิวทั้งขั้น: รวม main เข้าสาย เรียก `/code-review high main...HEAD` แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" บันทึก `docs/reports/p1-review-S9.md` แล้วส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4
+- [x] **S9-11** `[demo]` รีวิวทั้งขั้น: รวม main เข้าสาย เรียก `/code-review high main...HEAD` แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" บันทึก `docs/reports/p1-review-S9.md` แล้วส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4 · รีวิว high origin/main...HEAD ใน docs/reports/p1-review-S9.md (ไม่มีข้อกระทบความถูกต้องค้าง · S9-20 [go-live]) · pnpm verify --strict --e2e: ทุกด่านผ่าน e2e 472/473 (liff-link.spec.ts:74 หมดเวลาระหว่างเครื่องโหลดหนัก รันเดี่ยวผ่าน) · @demo 9/9 · ส่งเข้า main — เสร็จ 2026-10-16 · 9a1c7de c7fd836 93d1ddf dc5630e
   - เสร็จเมื่อ: ไม่มีข้อที่กระทบความถูกต้องค้าง · `pnpm verify --strict --e2e` ผ่าน · `pnpm test:e2e --grep @demo` ผ่าน · งานของขั้นอยู่ใน main
   - แยกงาน: ใช้คำสั่งรีวิวเดียวทั้งขั้น ไม่แตกเพิ่ม
 - [ ] **S9-12** `[go-live]` แม่แบบไฟล์ของธนาคารจริง 1–2 แห่งหลังได้ P0-03: ตัวสร้างต่อธนาคารใน `src/core/bankfile` พร้อม Zod ของ `fileParams` ที่ธนาคารให้ · golden byte-exact + sha256 เทียบไฟล์ตัวอย่างที่ผ่านระบบทดสอบของธนาคาร (BR-BANK-01) พร้อมตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · ตั้งบัญชีผู้จ่ายของลูกค้าให้ใช้แม่แบบจริงผ่าน `BankAccountChange` ตามคำตอบ OQ-137
@@ -6180,6 +6479,15 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้
 - [ ] **S9-17** `[go-live]` ใบลดหนี้ในรอบจ่ายหลังข้อใบลดหนี้ของ S8: รับใบลดหนี้ของผู้ขายเดียวกันเข้ารายการ (ค่า `CREDIT_NOTE` ของ `PaymentRunDocument.docKind`) ลดทั้งยอดที่ต้องจ่ายและฐานภาษีหัก · golden `tests/golden/payment-run-credit.yaml` ตามหัวข้อ "ร่าง golden case" ของ `docs/sub-specs/S9.md` ใต้หัวข้อย่อยท้าย §7 ที่ P1-07 จองไว้ให้ S9 (ที่เดียวกับ `payment-run.yaml`) และขยาย `run_payment_run` ใน `scripts/spec_check.py` · AC12 ของ FR-PAY-101
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:payment-run ผ่านครบรวมเคสใบลดหนี้ · เคสเดิมของ payment-run ยังผ่านโดยไม่แก้ expect · ฐานภาษีของกลุ่มติดลบถูกปฏิเสธ · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [x] **S9-18** `[demo]` `po_change.decided` (S8-10) ส่งทาง LINE ตามแถว §10.1 ("ในระบบ · LINE") แต่ยังไม่อยู่ใน `LINE_TEMPLATES` จึงไปทางอีเมลเท่านั้น (พบใน S9-04) · เพิ่มผ่านไฟล์แม่แบบของสาย 2 ตาม ADR-135 · po_change.decided อยู่ใน LINE_TEMPLATES ผ่าน templates/payments.ts (ADR-135) · integration line-delivery-pay 2 เคส (po_change.decided และ bank_account_change.decided ไปถึงผู้เสนอที่ผูก LINE เป็นข้อความพร้อมลิงก์ ผ่าน fake LINE) · pnpm verify 0 FAIL — เสร็จ 2026-10-16 · 2f37e0b
+  - เสร็จเมื่อ: เทสต์ว่า `po_change.decided` อยู่ใน `LINE_TEMPLATES` และผู้เสนอที่ผูก LINE แล้วได้ข้อความทาง LINE (fake LINE) · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S9-19** `[go-live]` คำขอเปลี่ยนบัญชีที่ผู้เสนอไม่อยู่แล้ว (ออกจากบทบาท FINANCE หรือถูกปิดใช้งาน): ตอนนี้แก้ ส่ง และยกเลิกได้เฉพาะผู้เสนอ ร่างที่ค้างจึงไม่มีใครยกเลิกได้และผู้ขายรายนั้นเปิดคำขอใหม่ไม่ได้ (`CHANGE_OPEN`) · ทางที่เสนอ: FINANCE คนอื่นยกเลิกได้พร้อมเหตุผลเมื่อผู้เสนอไม่มี `bankAccountChange.propose` แล้ว และมี event · เป็นการเปลี่ยนสิทธิ์จึงต้องให้ผู้ใช้ยืนยันก่อนทำ (พบในรีวิว S9-04) — รอยืนยัน
+  - เสร็จเมื่อ: เทสต์ว่า FINANCE คนอื่นยกเลิกร่างหรือคำขอที่รออนุมัติของผู้เสนอที่ไม่มีสิทธิ์แล้วได้ และยังยกเลิกของผู้เสนอที่ยังมีสิทธิ์ไม่ได้ (`FORBIDDEN`) · แถว §2.4 ตามที่ผู้ใช้ยืนยัน · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S9-20** `[go-live]` หน้าจอของขั้น S9 จากรีวิวท้ายขั้น (S9-11): แถบตัดสินของรอบจ่ายและคำขอเปลี่ยนบัญชีใช้แถบกลาง (`DecisionBar` รับถ้อยคำของ subject และ `subjectInput`) แทนสำเนาของตัวเอง · หลังคำสั่งสำเร็จปุ่มถัดไปรอให้หน้าโหลดสถานะใหม่ก่อน (`useOutcomeAction` รอ `router.refresh` ใน transition) จึงไม่ส่ง version เก่าแล้วได้ข้อความว่ามีคนแก้ · แท็บผลการจ่ายบันทึกวันที่โอนต่อรายการได้ · Sheet เพิ่มเอกสารค้นหาได้และไม่จำกัด 500 ใบ
+  - เสร็จเมื่อ: e2e `@pay` ผ่านโดยไม่ต้อง reload หลังใส่เหตุผลของธง · เทสต์ของหน้าจอบันทึกผลสองวันที่ในครั้งเดียว · ค้นหาเอกสารด้วยเลขหรือผู้ขาย · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 
 ### 16.17 S13 · AI Agent ของระยะ 1 (สาย 3 · เส้นชัย F)
@@ -6619,6 +6927,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-132 | ธงทะเบียนผู้ขายเป็น enum `Supplier.registryFlag` (`NONE` `CEASED` `VAT_CANCELLED` `NOT_FOUND`) แยกจาก `registryStatus` ที่เป็นข้อความจากทะเบียน เพื่อให้การตรวจ VAT ของใบแจ้งหนี้ รอบจ่าย และ PO อ่านค่าเดียวกันโดยไม่แปลข้อความ · คอลัมน์สร้างใน migration ของ S8 และ seed จากชีต SupplierPayment · S9 อ่านอย่างเดียว · job ของ S4-16 ตั้งเมื่อใช้โหมด live | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-133 | รอบจ่ายเก็บ snapshot บัญชีผู้รับตอนส่งอนุมัติ และตรวจกับทะเบียนอีกครั้งก่อนสร้างไฟล์ทุกเวอร์ชัน · รอบที่ส่งแล้วแก้รายการไม่ได้ ถ้าบัญชีเปลี่ยนหลังส่งต้องตีกลับหรือยกเลิกแล้วเตรียมใหม่ | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-134 | การเรียกจาก S9 ไป S8 (ถือ ปล่อย และบันทึกจ่ายใบแจ้งหนี้และเงินประกันผลงาน ออกภาษีหักและ 50 ทวิ สร้างอีเมลถึงผู้ขาย) เป็นฟังก์ชัน service ของ S8 ที่รับ `tx` ในธุรกรรมเดียวกับคำสั่งของ S9 ไม่ใช่ `runCommand()` ซ้อน · บันทึกจ่ายใช้ `recordInvoicePayment` ตัวเดียวครั้งเดียวต่อรายการ (ใบและเงินประกันของรายการรวมกัน) · อีเมลถึงผู้ขายเป็นแถว `SupplierNotice` ที่สร้างด้วย `enqueueSupplierNotice` ของ S8 แล้วงานส่งของ S8 ส่งจาก outbox ไม่ส่งในธุรกรรมของคำสั่ง และ S9 ไม่มีงานส่งของตัวเอง | ร่าง P1-04 รออนุมัติ P1-06 |
+| ADR-135 | แม่แบบข้อความของ S9 (การแจ้งเตือนในระบบ อีเมล และรายการที่ส่งทาง LINE ใน `LINE_TEMPLATES`) และแม่แบบอีเมลถึงผู้ขายอยู่ในไฟล์ของสาย 2 (`src/server/notifications/templates/payments.ts` `src/server/notifications/supplier-templates-pay.ts`) · ไฟล์ร่วมเพิ่มเพียงบรรทัดต่อท้ายที่ดึงชุดของ S9 (`templates/index.ts` `deliver.ts` และ import ของงาน `supplier-notice-send`) ข้อของ S9 ถัดไปแก้เฉพาะไฟล์ของสาย 2 · ยกเว้นเฉพาะจากกติกาไฟล์ที่แก้จากสายเดียวของ ADR-072 (`deliverNotification` และแม่แบบข้อความเป็นของสาย 1) ถ้ารวมแล้วชนเป็นการเพิ่มต่อท้ายทั้งสองฝั่ง เก็บทั้งคู่ | ยอมรับ (ผู้ใช้ 2026-10-15 ใน S9-04) |
 | ADR-141 | เรียก Claude ด้วย structured outputs แบบ `output_config.format` ที่สร้างจาก Zod ไม่ใช้ tool แบบบังคับ เพราะ Claude Opus 5.5 และ Sonnet 5.5 ปฏิเสธ `tool_choice` แบบบังคับ · ตั้ง effort ต่อ agent ชัดเจน · ไม่ใช้ fallback ของรุ่นทั้งฝั่ง API และฝั่งโค้ด เพราะ gate ผูกกับรุ่น · เก็บรุ่นที่ตอบจริง ไม่ตรงรุ่นที่ขอเป็น FAILED · cache ใช้ TTL 5 นาทีค่าเดียว · stop reason แบบ refusal เป็น FAILED แล้วใช้ทางกรอกเอง · ถ้า AI SDK ทำไม่ได้ใช้ `@anthropic-ai/sdk` ใน adapter เดียวกันตาม ADR-060 | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-142 | ตัวแปร `AI_MODE` มีสองค่า `fixture` และ `live` แบบเดียวกับ `REGISTRY_MODE` (ADR-025): เทสต์และ CI ใช้ fixture เสมอ และ fixture ข้ามด่าน gate เพราะคำตอบบันทึกไว้แล้ว · `live` ต้องมี key และบังคับ gate · staging และ production ปฏิเสธ fixture ตอนเริ่มแอปเพื่อไม่ให้ demo ใช้คำตอบที่บันทึกไว้ · เลิกบังคับ `AI_ENABLED=false` ใน `src/lib/env.ts` | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-143 | prompt เก็บในโค้ดแยกต่อ purpose พร้อมเลขรุ่น `<purpose>@<n>` · ผลประเมินเก็บเป็นไฟล์ใน `docs/reports/ai-eval/` · gate เป็นรายการในโค้ดที่บอกชุด agent purpose prompt รุ่นโมเดล และชั้น (`SYNTHETIC` `REAL`) ที่ผ่าน · รุ่น prompt ปัจจุบัน gate ตารางราคา และรุ่นโมเดลต่อ agent อยู่ใน `src/lib/ai-config.ts` ที่ไม่มี I/O ให้ทั้งด่านยืนยันและ adapter import ได้ · ระยะ 1 ยังไม่สร้างตาราง `PromptVersion` `AiEvalRun` ของ §6.5 | ร่าง P1-04 รออนุมัติ P1-06 |

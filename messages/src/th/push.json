@@ -64,5 +64,20 @@
     "review_assigned": {
       "title": "มีงานรอตรวจ"
     }
+  },
+  "bank_account_change": {
+    "decided": {
+      "title": "ตัดสินการเปลี่ยนบัญชีของผู้ขายแล้ว"
+    }
+  },
+  "po_change": {
+    "decided": {
+      "title": "ตัดสินใบแก้ไขใบสั่งซื้อแล้ว"
+    }
+  },
+  "payment_run": {
+    "decided": {
+      "title": "ตัดสินรอบจ่ายเงินแล้ว"
+    }
   }
 }

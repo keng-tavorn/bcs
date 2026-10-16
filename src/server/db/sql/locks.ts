@@ -19,6 +19,8 @@ const LOCKABLE = [
   'Member',
   // S17-10: a device revoked by its owner, by delivery or by deactivation, one change at a time
   'PushDevice',
+  // S17-15: a passkey removed by its owner or revoked with their identity, one change at a time
+  'MemberPasskey',
   'Request',
   'ApprovalTask',
   'PurchaseOrder',

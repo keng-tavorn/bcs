@@ -87,6 +87,9 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'LineInboundMessage',
   'PushDevice',
   'LineRichMenuVariant',
+  // S17-15: a member's passkeys and their one-time challenges
+  'MemberPasskey',
+  'PasskeyChallenge',
   // S8-01
   'Invoice',
   'InvoiceLine',

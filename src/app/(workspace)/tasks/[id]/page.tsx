@@ -10,6 +10,7 @@ import { getTaskAccess, getTaskView, listMyTasks, PIN_DECISION_SUBJECTS, type Ta
 import { getBudgetOverrun } from '@/server/services/budget/overrun-view'
 import { getBudgetTransfer } from '@/server/services/budget/transfer-view'
 import { getPriceReference } from '@/server/services/price-reference'
+import { hasOwnPasskey } from '@/server/services/self/passkeys'
 import { moneyText } from '@/ui/budgets/format'
 import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { Notice } from '@/ui/form/notice'
@@ -47,7 +48,7 @@ import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { InvoiceVarianceBody } from '@/ui/tasks/subjects/invoice'
 import { getPoChangeTaskView } from '@/server/queries/po-changes'
 import { PoChangeBody } from '@/ui/tasks/subjects/po-change'
-import { askForInformationAction, decidePolicyTaskAction, decideTaskAction } from '../actions'
+import { askForInformationAction, decidePolicyTaskAction, decideTaskAction, passkeyOptionsAction } from '../actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('tasks')
@@ -182,6 +183,8 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   // A DOA version or an authority change (BR-DOA-15), or a workflow version to publish (BR-WF-12): approved or rejected
   // with the PIN, on a page of its own
   const policyTask = PIN_DECISION_SUBJECTS.includes(task.subjectType)
+  // S17-15: a decider with a passkey in use may confirm with it beside the PIN (BR-AUTH-09)
+  const hasPasskey = open && (policyTask || task.stepUp) ? await hasOwnPasskey(ctx) : false
   // A DOA version with a boundary table: the approver ticks it before approving (FR-DOA-009 AC3)
   const boundary = open ? boundaryTickOf(task) : null
   const inbox = open ? null : await listMyTasks(ctx, { limit: 2 })
@@ -382,7 +385,7 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
             {/* The decision in its own card; on phones its buttons stay fixed to the bottom of the screen */}
             <Panel>
               {policyTask ? (
-                <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} />
+                <PolicyDecision taskId={task.id} open={open} locale={locale} boundary={boundary} decide={decidePolicyTaskAction} hasPasskey={hasPasskey} passkeyOptions={passkeyOptionsAction} />
               ) : (
                 <DecisionPanel
                   taskId={task.id}
@@ -392,8 +395,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : '-'}
                   kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
+                  hasPasskey={hasPasskey}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance || isTransfer || isOverrun ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
+                  actions={po || variance || isTransfer || isOverrun ? { decide: decideTaskAction, passkeyOptions: passkeyOptionsAction } : { decide: decideTaskAction, ask: askForInformationAction, passkeyOptions: passkeyOptionsAction }}
                 />
               )}
             </Panel>

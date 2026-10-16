@@ -27,6 +27,11 @@ defineEvents('Auth', {
   // says how (null: the demo seed, local and staging only). `replaced`: they had a PIN before; `unlocked`: it was locked
   // after five wrong PINs. Never the PIN or its hash. The aggregate id is the member.
   'auth.pin_set': { schema: z.strictObject({ replaced: z.boolean(), proof: z.enum(['PASSWORD', 'TOTP']).nullable(), unlocked: z.boolean() }) },
+  // S17-15 (BR-AUTH-10, BR-AUTH-11): a passkey of the member added after proving who they are again (`proof` says how),
+  // or removed — by them (SELF), with a reset of their identity (IDENTITY_RESET) or their deactivation (DEACTIVATED).
+  // Never the credential, its key or the device's name. The aggregate id is the member.
+  'auth.passkey_added': { schema: z.strictObject({ passkeyId: z.uuid(), proof: z.enum(['PASSWORD', 'TOTP']) }) },
+  'auth.passkey_removed': { schema: z.strictObject({ passkeyId: z.uuid(), by: z.enum(['SELF', 'IDENTITY_RESET', 'DEACTIVATED']) }) },
 })
 
 // FR-AUTH-005 AC3: the fifth wrong PIN in a row locked the member's PIN until `lockedUntil`, while they asked for a

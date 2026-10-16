@@ -18,6 +18,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
 import { doaAdminNotices, roleGrantRefusal } from './role-rules'
 import { runDeactivationRevokers } from './revokers'
+import { revokeMemberPasskeys } from '../self/passkeys'
 
 // Member lifecycle (FR-AUTH-001..003; the admin screens are S1-12 / FR-ADM-001). Every change goes through
 // runCommand and writes events; free-text reasons are stored in Comment and referenced by id.
@@ -270,10 +271,12 @@ export const resetTwoFactorCommand = defineCommand({
     const reasonCommentId = await addComment(tx, ctx, member.id, input.reason)
     await removeMemberTwoFactor(tx, ctx.organizationId, member.id)
     const sessionsRevoked = await deleteMemberSessions(tx, ctx.organizationId, member.id)
+    // BR-AUTH-11 (S17-15): a reset of the identity revokes its passkeys too
+    const passkeys = await revokeMemberPasskeys(tx, member.id, 'IDENTITY_RESET', ctx.now)
     return {
       ok: true,
       result: { memberId: member.id, sessionsRevoked },
-      events: [{ type: 'auth.2fa_reset', aggregateType: 'Auth', aggregateId: member.id, data: { reasonCommentId, sessionsRevoked } }],
+      events: [{ type: 'auth.2fa_reset', aggregateType: 'Auth', aggregateId: member.id, data: { reasonCommentId, sessionsRevoked } }, ...passkeys.events],
       // The account owner is told by e-mail at once (§10.1 security.notice)
       notifications: [
         {

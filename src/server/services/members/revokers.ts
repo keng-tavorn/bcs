@@ -6,11 +6,12 @@ import { revokeMemberTokens } from '@/server/tokens/action-tokens'
 import { revokeDelegationsOf } from '../delegations'
 import { unlinkLineOnDeactivation } from '../line-link/unlink'
 import { revokeMemberDevices } from '../push-devices'
+import { revokeMemberPasskeys } from '../self/passkeys'
 
 // Deactivating a member revokes everything that lets them act, in the same transaction (BR-AUTH-06,
 // FR-AUTH-003 AC2). Sessions and pending invitations are revoked by the deactivate command itself; the other
 // things register a revoker here, with the events and notifications their revocation needs: action tokens,
-// delegations and the LINE link.
+// delegations, the LINE link, the BCS Go devices and the passkeys.
 
 export interface DeactivationTarget {
   readonly memberId: string
@@ -39,6 +40,8 @@ registerDeactivationRevoker('delegations', (tx, ctx, target) => revokeDelegation
 registerDeactivationRevoker('lineLink', (tx, ctx, target) => unlinkLineOnDeactivation(tx, ctx, target.memberId))
 // Their BCS Go devices, with push_device.revoked (BR-AUTH-12, S17-10): no push reaches a phone of a deactivated member
 registerDeactivationRevoker('pushDevices', (tx, ctx, target) => revokeMemberDevices(tx, target.memberId, ctx.now))
+// Their passkeys, with auth.passkey_removed by DEACTIVATED (BR-AUTH-11, S17-15): none confirms a decision any more
+registerDeactivationRevoker('passkeys', (tx, ctx, target) => revokeMemberPasskeys(tx, target.memberId, 'DEACTIVATED', ctx.now))
 
 export async function runDeactivationRevokers(
   tx: TenantTx,

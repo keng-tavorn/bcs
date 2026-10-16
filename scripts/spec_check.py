@@ -1935,6 +1935,29 @@ def run_notification_route(d):
             good = all(got.get(k) == v for k, v in e.items())
         out.append((c["id"], good, got))
     return out
+def run_step_up_methods(d):
+    # BR-AUTH-09 (S17-15, OQ-168): every subject that needs a step-up takes the PIN and a passkey. A passkey assertion
+    # earns the PIN's grant (one document, 300 s, used once, a new session id) unless a fact fails, the first in this
+    # order: origin and RP ID of APP_URL (ORIGIN_MISMATCH) → the credential is the session member's (NOT_OWNER) → the
+    # challenge is under 5 minutes old (CHALLENGE_EXPIRED) → not used (CHALLENGE_USED) → the signature (SIGNATURE) → the
+    # UV flag (UV_REQUIRED) → the counter moved on (SIGN_COUNT). stepUpNeeded: amount >= threshold.
+    order = [("originMatches", "ORIGIN_MISMATCH"), ("credentialOwnedBySessionUser", "NOT_OWNER"), ("challengeFresh", "CHALLENGE_EXPIRED"),
+             ("challengeUnused", "CHALLENGE_USED"), ("signatureValid", "SIGNATURE"), ("userVerified", "UV_REQUIRED"), ("signCountAdvanced", "SIGN_COUNT")]
+    defaults = {"originMatches": True, "signCountAdvanced": True}
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; e = c["expect"]
+        if "subjects" in i:
+            got = {"methods": ["PIN", "PASSKEY"]}
+        elif "amounts" in i:
+            threshold = sat(i["stepUpThreshold"])
+            got = {"stepUpNeeded": [sat(a) >= threshold for a in i["amounts"]]}
+        else:
+            a = {**defaults, **i["assertion"]}
+            failed = next((reason for key, reason in order if not a[key]), None)
+            got = {"verdict": "REFUSED", "reason": failed} if failed else {"verdict": "GRANT", "method": "PASSKEY", "ttlSeconds": 300, "uses": 1, "rotateSession": True}
+        out.append((c["id"], got == e, got))
+    return out
 def run_offline_queue(d):
     # BR-APP-05 to BR-APP-10, BR-APP-14 (S17-11): the receiving queue on the phone. outcomes: 2xx SENT · no answer, 5xx,
     # RATE_LIMITED RETRY · 401/UNAUTHENTICATED WAIT_LOGIN · IDEMPOTENCY_CONFLICT CHECK_SERVER · anything else
@@ -2166,6 +2189,7 @@ RUNNERS = {
     "matching": run_matching,
     "money": run_money,
     "notification-route": run_notification_route,
+    "step-up-methods": run_step_up_methods,
     "numbering": run_numbering,
     "offline-queue": run_offline_queue,
     "offline-receiving": run_offline_receiving,

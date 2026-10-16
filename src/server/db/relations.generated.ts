@@ -422,6 +422,8 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     notifications: { model: 'Notification', list: true },
     organization: { model: 'Organization', list: false },
     orgAuthorityChanges: { model: 'OrgAuthorityChange', list: true },
+    passkeyChallenges: { model: 'PasskeyChallenge', list: true },
+    passkeys: { model: 'MemberPasskey', list: true },
     paymentFilesGenerated: { model: 'PaymentFile', list: true },
     paymentItemsRecorded: { model: 'PaymentRunItem', list: true },
     paymentRunsPrepared: { model: 'PaymentRun', list: true },
@@ -457,6 +459,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
   },
   MemberInvitation: {
     createdBy: { model: 'Member', list: false },
+    member: { model: 'Member', list: false },
+    organization: { model: 'Organization', list: false },
+  },
+  MemberPasskey: {
     member: { model: 'Member', list: false },
     organization: { model: 'Organization', list: false },
   },
@@ -526,11 +532,13 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     lineRichMenuVariants: { model: 'LineRichMenuVariant', list: true },
     lineWebhookEvents: { model: 'LineWebhookEvent', list: true },
     matchExceptions: { model: 'MatchException', list: true },
+    memberPasskeys: { model: 'MemberPasskey', list: true },
     members: { model: 'Member', list: true },
     modules: { model: 'OrgModule', list: true },
     notifications: { model: 'Notification', list: true },
     orgAuthorityChanges: { model: 'OrgAuthorityChange', list: true },
     outbox: { model: 'Outbox', list: true },
+    passkeyChallenges: { model: 'PasskeyChallenge', list: true },
     paymentFiles: { model: 'PaymentFile', list: true },
     paymentRunDocuments: { model: 'PaymentRunDocument', list: true },
     paymentRunItems: { model: 'PaymentRunItem', list: true },
@@ -579,6 +587,10 @@ export const RELATIONS: Readonly<Record<string, Readonly<Record<string, Relation
     organization: { model: 'Organization', list: false },
   },
   Outbox: {
+    organization: { model: 'Organization', list: false },
+  },
+  PasskeyChallenge: {
+    member: { model: 'Member', list: false },
     organization: { model: 'Organization', list: false },
   },
   PaymentFile: {

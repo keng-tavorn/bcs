@@ -359,7 +359,8 @@
     "BUDGET_LINE_CLOSED": "This document's budget line is closed or frozen, so it cannot be approved yet. Contact the budget administrator, or reject it with a reason.",
     "PAYMENT_FLAGS_CHANGED": "The payment run's flags changed since this page was opened. Reload it and check the flagged items again.",
     "PAYMENT_FLAG_REASON_REQUIRED": "A flag has no reason from the preparer yet. Return the run for the preparer to give one.",
-    "PAYMENT_DATE_INVALID": "The run's pay date can no longer be used. Return it for the preparer to choose another day, or reject it."
+    "PAYMENT_DATE_INVALID": "The run's pay date can no longer be used. Return it for the preparer to choose another day, or reject it.",
+    "PASSKEY": "The passkey did not confirm this decision. Try again, or enter your PIN instead"
   },
   "varianceType": {
     "SHORT": "Shortfall",
@@ -477,5 +478,12 @@
   },
   "poChangeTask": {
     "label": "{number} · change {changeNo}"
+  },
+  "passkey": {
+    "approve": "Approve with your fingerprint or face (passkey)",
+    "return": "Return with your fingerprint or face (passkey)",
+    "reject": "Reject with your fingerprint or face (passkey)",
+    "notAsked": "A passkey cannot be used right now. Enter your PIN instead",
+    "failed": "This device could not confirm with a passkey. Try again, or enter your PIN instead"
   }
 }

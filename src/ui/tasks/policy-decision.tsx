@@ -14,6 +14,7 @@ import { useAction } from '../request-view/use-action'
 import { useBarSpace } from './bar-space'
 import { PIN_FIELD_KEYS, TaskFailure, taskClosed, useClosedTask, useFocusPinAfterRefusal, useOneTry, useTaskFailureText } from './decision-panel'
 import { taskErrorKey, type ActionOutcome } from './outcome'
+import { PasskeyButton, usePasskeyProof, type PasskeyOptionsOutcome } from './passkey-proof'
 import { PinField, pinIsComplete } from './pin-field'
 
 // Deciding a DOA version or an authority change (BR-DOA-15, FR-DOA-010 AC2, FR-DOA-002 AC2): approve or reject only,
@@ -42,8 +43,9 @@ export interface PolicyDecisionInput {
   readonly taskId: string
   readonly decision: 'APPROVE' | 'REJECT'
   readonly reason?: string
-  /** The member's transaction PIN, six digits (FR-AUTH-005) */
-  readonly pin: string
+  /** The member's transaction PIN, six digits (FR-AUTH-005), or a passkey's answer in its place (S17-15) */
+  readonly pin?: string
+  readonly passkey?: Record<string, unknown>
   readonly boundaryTableConfirmed?: boolean | null
   readonly boundaryBaselineId?: string | null
 }
@@ -63,6 +65,9 @@ export interface PolicyDecisionProps {
   /** A DOA version whose page shows a boundary table: the table the approver ticks; null otherwise */
   readonly boundary?: BoundaryTick | null
   readonly decide: (input: PolicyDecisionInput, idempotencyKey: string) => Promise<ActionOutcome>
+  /** The member has a passkey in use, and the challenge of this task's document for it (S17-15) */
+  readonly hasPasskey?: boolean
+  readonly passkeyOptions?: (taskId: string) => Promise<PasskeyOptionsOutcome>
 }
 
 /**
@@ -74,7 +79,7 @@ function boundaryRefusal(outcome: ActionOutcome | null): 'MISSING' | 'CHANGED' |
   return outcome.reason === 'BOUNDARY_NOT_CONFIRMED' ? 'MISSING' : outcome.reason === 'BOUNDARY_TABLE_CHANGED' ? 'CHANGED' : null
 }
 
-export function PolicyDecision({ taskId, open, locale, boundary = null, decide }: PolicyDecisionProps) {
+export function PolicyDecision({ taskId, open, locale, boundary = null, decide, hasPasskey = false, passkeyOptions }: PolicyDecisionProps) {
   const boundaryTableId = boundary?.tableId ?? null
   const t = useTranslations('tasks.policy')
   const tErrors = useTranslations('tasks.errors')
@@ -97,23 +102,28 @@ export function PolicyDecision({ taskId, open, locale, boundary = null, decide }
   const [errors, setErrors] = useState<{ reason?: string; pin?: string; confirm?: string }>({})
   useFocusPinAfterRefusal(approving.outcome, `${id}-approve-pin`)
   useFocusPinAfterRefusal(rejecting.outcome, `${id}-reject-pin`)
+  const passkey = usePasskeyProof(taskId, hasPasskey, passkeyOptions)
+  const tPasskey = useTranslations('tasks.passkey')
 
   const finished = (text: string) => {
     setDone(text)
     window.scrollTo({ top: 0 })
   }
 
-  async function onApprove(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function onApprove(event: FormEvent<HTMLFormElement> | null, withPasskey = false) {
+    event?.preventDefault()
     const pin = approvePin
-    const pinError = pinIsComplete(pin) ? undefined : tErrors('PIN')
+    const pinError = withPasskey || pinIsComplete(pin) ? undefined : tErrors('PIN')
     const tickMissing = boundaryTickMissing(boundaryTableId, boundaryTicked)
     setApproveError(pinError)
     setBoundaryError(tickMissing ? tErrors('BOUNDARY_NOT_CONFIRMED') : undefined)
     if (pinError || tickMissing) return
     const tick = { boundaryTableConfirmed: boundaryTickValue(boundaryTableId, boundaryTicked), ...(boundary ? { boundaryBaselineId: boundary.baselineId } : {}) }
     await oneTry(async () => {
-      const outcome = await approving.run((key) => decide({ taskId, decision: 'APPROVE', pin, ...tick }, key))
+      // A passkey's answer for this document in place of the PIN; nothing is sent when it was not given
+      const proof = withPasskey ? await passkey.prove() : null
+      if (withPasskey && !proof) return
+      const outcome = await approving.run((key) => decide({ taskId, decision: 'APPROVE', ...(proof ? { passkey: proof } : { pin }), ...tick }, key))
       setApprovePin('')
       const refused = boundaryRefusal(outcome)
       if (outcome.ok) finished(t('approved'))
@@ -125,17 +135,19 @@ export function PolicyDecision({ taskId, open, locale, boundary = null, decide }
     })
   }
 
-  async function onReject(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function onReject(event: FormEvent<HTMLFormElement> | null, withPasskey = false) {
+    event?.preventDefault()
     const pin = rejectPin
     const next: typeof errors = {}
     if (reason.trim().length < REASON_MIN) next.reason = tErrors('REASON')
-    if (!pinIsComplete(pin)) next.pin = tErrors('PIN')
+    if (!withPasskey && !pinIsComplete(pin)) next.pin = tErrors('PIN')
     if (!confirmed) next.confirm = tErrors('CONFIRM')
     setErrors(next)
     if (next.reason || next.pin || next.confirm) return
     await oneTry(async () => {
-      const outcome = await rejecting.run((key) => decide({ taskId, decision: 'REJECT', reason: reason.trim(), pin }, key))
+      const proof = withPasskey ? await passkey.prove() : null
+      if (withPasskey && !proof) return
+      const outcome = await rejecting.run((key) => decide({ taskId, decision: 'REJECT', reason: reason.trim(), ...(proof ? { passkey: proof } : { pin }) }, key))
       setRejectPin('')
       if (outcome.ok) finished(t('rejected'))
       else stale.check(outcome)
@@ -203,6 +215,7 @@ export function PolicyDecision({ taskId, open, locale, boundary = null, decide }
             <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="w-full">
               {t('approve')}
             </Button>
+            <PasskeyButton proof={passkey} label={tPasskey('approve')} onPress={() => void onApprove(null, true)} disabled={approving.pending || !hydrated} />
             <a href="#reject-policy" className="inline-flex min-h-11 items-center justify-center font-medium text-danger underline underline-offset-4 hover:no-underline lg:hidden">
               {t('rejectTitle')}
             </a>
@@ -256,6 +269,7 @@ export function PolicyDecision({ taskId, open, locale, boundary = null, decide }
               }}
               error={errors.confirm}
             />
+            <PasskeyButton proof={passkey} label={tPasskey('reject')} onPress={() => void onReject(null, true)} disabled={rejecting.pending || !hydrated} />
             <Button type="submit" variant="danger" disabled={rejecting.pending || !hydrated} aria-busy={rejecting.pending || undefined} className="self-start">
               {t('reject')}
             </Button>

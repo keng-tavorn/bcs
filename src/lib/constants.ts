@@ -170,6 +170,20 @@ export const PUSH_DEVICES_PER_MEMBER_MAX = 5
 /** The phone answers the app's push registration within this, or the page says it could not register */
 export const PUSH_REGISTRATION_TIMEOUT_MS = 15 * MS_PER_SECOND
 
+/** A WebAuthn challenge of a passkey lives as long as a step-up grant (S17-15, BR-AUTH-09) */
+export const PASSKEY_CHALLENGE_TTL_MS = 5 * MS_PER_MINUTE
+/** How long the browser waits for the fingerprint or face before giving up (WebAuthn timeout) */
+export const PASSKEY_CEREMONY_TIMEOUT_MS = MS_PER_MINUTE
+/** Adding passkeys: at most this many ceremonies per member in the window (BR-AUTH-10: RATE_LIMITED beyond) */
+export const PASSKEY_REGISTRATIONS_MAX = 10
+export const PASSKEY_REGISTRATION_WINDOW_MS = 15 * MS_PER_MINUTE
+/** base64url of a 1023-byte credential id, the longest WebAuthn allows (the CHECK of MemberPasskey.credentialId) */
+export const PASSKEY_CREDENTIAL_ID_MAX = 1366
+/** The largest parts of a WebAuthn response taken (base64url): far above what authenticators send */
+export const PASSKEY_CLIENT_DATA_MAX = 8 * 1024
+export const PASSKEY_ATTESTATION_MAX = 64 * 1024
+export const PASSKEY_SIGNATURE_MAX = 2 * 1024
+
 /** How often /go/receive looks at its queue while it is open (S17-13): a retry that is due goes within this */
 export const GO_RECEIVE_DRAIN_EVERY_MS = 10 * MS_PER_SECOND
 /** The sidebar's cookie: "true" open, "false" collapsed; read by the workspace layout to draw the first page the same way */

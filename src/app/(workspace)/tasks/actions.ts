@@ -9,9 +9,10 @@ import { rotateSessionAfterStepUp, type SignedInSession } from '@/server/auth/se
 import { memberPrincipal } from '@/server/authz'
 import type { TaskDecisionInput } from '@/ui/tasks/decision-panel'
 import type { ActionOutcome } from '@/ui/tasks/outcome'
+import type { PasskeyOptionsOutcome } from '@/ui/tasks/passkey-proof'
 import type { PolicyDecisionInput } from '@/ui/tasks/policy-decision'
 import { getSession } from '../../_lib/session'
-import { askRequester, decidePolicy, decideRequestTask, type StepUpSession } from '../_tracking/commands'
+import { askRequester, decidePolicy, decideRequestTask, passkeyOptionsForTask, type StepUpSession } from '../_tracking/commands'
 import { localeOf } from '../_tracking/present'
 
 // Browser-facing adapters of the decision page (FR-DOA-004, BR-DOA-15, FR-AUTH-005). Each checks the session and hands
@@ -63,4 +64,15 @@ export async function decidePolicyTaskAction(input: PolicyDecisionInput, idempot
   const ctx = ctxFromSession(state, 'WEB', systemClock.now())
   if (!ctx || state.kind !== 'member') return NO_SESSION
   return refreshed(await decidePolicy(ctx, memberPrincipal(state.member.id, state.roles), input, idempotencyKey, localeOf(await getLocale()), stepUpSession(state)))
+}
+
+/**
+ * S17-15 (BR-AUTH-09): a challenge of this task's document for the member's passkey, before a decision that carries the
+ * device's answer in place of the PIN. Only the task's decider gets one, while it waits; nothing changes but the
+ * challenge (used once, 5 minutes). A POST like every server action, never a GET.
+ */
+export async function passkeyOptionsAction(taskId: string): Promise<PasskeyOptionsOutcome> {
+  const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  return (await passkeyOptionsForTask(ctx, taskId)) as PasskeyOptionsOutcome
 }

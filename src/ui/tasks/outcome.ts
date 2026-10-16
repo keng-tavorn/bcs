@@ -66,6 +66,7 @@ export const TASK_ERROR_KEYS = [
   'PIN_LOCKED',
   'PIN_NOT_SET',
   'STEP_UP',
+  'PASSKEY',
   'FORBIDDEN',
   'SOD',
   'APPROVER_NOT_FOUND',
@@ -108,6 +109,8 @@ export function taskErrorKey(failure: ActionFailure): TaskErrorKey {
     if (field === 'reason') return 'REASON'
     if (field === 'question') return 'QUESTION'
     if (field === 'pin') return reason === 'WRONG' ? 'PIN_INVALID' : 'PIN'
+    // S17-15: a passkey's answer the server did not take (BR-AUTH-09); the PIN still decides
+    if (field === 'passkey') return 'PASSKEY'
     if (field === 'confirm') return 'CONFIRM'
     if (field === 'decision' && reason !== 'RETURN_NOT_ALLOWED') return 'CHOICE'
     if (reason === 'LATER_VERSION_SCHEDULED') return 'LATER_VERSION'

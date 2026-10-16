@@ -3,6 +3,7 @@ import { symmetricDecrypt } from 'better-auth/crypto'
 import { z } from 'zod'
 import { afterWrongPin, isPinFormat, isPinLocked, PIN_FAILURE_LIMIT, pinAttemptsLeft, pinLockEndsAt, stepUpNeeded, type StepUpRoute, type WrongPinOutcome } from '@/core/pin'
 import { APPROVAL_SUBJECTS } from '@/core/sod'
+import { STEP_UP_METHODS } from '@/core/step-up-methods'
 import type { AppError } from '@/core/result'
 import { systemClock } from '@/lib/clock'
 import { COMMAND_TX_MAX_WAIT_MS, COMMAND_TX_TIMEOUT_MS, MS_PER_SECOND, STEP_UP_TTL_MS, TOTP_ACCEPTED_DRIFT_STEPS } from '@/lib/constants'
@@ -51,8 +52,11 @@ import { isCheckablePinHash, PIN_PROOF_TTL_MS, PinHashError, signPinChangeProof,
 // Setting a PIN needs a fresh proof of who the member is (proveIdentityForPin): the password or the code of a confirmed
 // authenticator, counted and recorded like a sign-in, gives a proof good for 5 minutes (./pin.ts).
 
-/** TOTP names the grants of the authenticator code made before S5-05 (StepUpGrant.method); only PIN grants are made now */
-export type StepUpMethod = 'TOTP' | 'PIN'
+/**
+ * TOTP names the grants of the authenticator code made before S5-05 (StepUpGrant.method); grants are made with the PIN
+ * and, from S17-15, a passkey (./passkey.ts)
+ */
+export type StepUpMethod = 'TOTP' | 'PIN' | 'PASSKEY'
 
 /** What a grant allows: deciding the one document it names */
 export const STEP_UP_PURPOSE = 'DECIDE'
@@ -69,13 +73,15 @@ export const PIN_ONLY: readonly StepUpMethod[] = ['PIN']
 
 /**
  * What every deciding command accepts as its step-up (FR-AUTH-005 AC5, BR-DOA-25): requests, purchase orders,
- * variances, policy and the phase-1 subjects read it here and nowhere else. The PIN until S17-15 adds the passkey, here.
+ * variances, policy and the phase-1 subjects read it here and nowhere else — the PIN and, from S17-15, a passkey
+ * (BR-AUTH-09, OQ-168: src/core/step-up-methods, golden step-up-methods)
  */
-export const DECISION_STEP_UP_METHODS: readonly StepUpMethod[] = PIN_ONLY
+export const DECISION_STEP_UP_METHODS: readonly StepUpMethod[] = STEP_UP_METHODS
 
 /**
- * The proofs a policy decision (BR-DOA-15) takes: the PIN only, on every channel — the web included since S5-05, when
- * its decision page switched from the authenticator code to the PIN. The channel stays in the signature for the callers.
+ * The proofs a policy decision (BR-DOA-15) takes: those of every decision, on every channel — the PIN since S5-05, when
+ * the web's decision page switched from the authenticator code to it, and a passkey since S17-15. The channel stays in
+ * the signature for the callers.
  */
 export function policyStepUpMethods(_channel?: Channel): readonly StepUpMethod[] {
   return DECISION_STEP_UP_METHODS
@@ -145,8 +151,11 @@ export async function grantStepUp(input: StepUpRequest, now: Date, options: Step
 
 const expiryOf = (now: Date) => new Date(now.getTime() + STEP_UP_TTL_MS)
 
-/** A grant for one document. One the member still holds unused for it is used up, so one proof decides one task (§9.3). */
-async function issueGrant(tx: TenantTx, input: StepUpSubject, method: StepUpMethod, now: Date): Promise<StepUpOutcome> {
+/**
+ * A grant for one document. One the member still holds unused for it is used up, so one proof decides one task (§9.3).
+ * The PIN's check and a passkey's (./passkey.ts) both end here.
+ */
+export async function issueGrant(tx: TenantTx, input: StepUpSubject, method: StepUpMethod, now: Date): Promise<StepUpOutcome> {
   const { organizationId, memberId, subjectType, subjectId } = input
   await tx.stepUpGrant.updateMany({ where: { memberId, subjectType, subjectId, purpose: STEP_UP_PURPOSE, usedAt: null, expiresAt: { gt: now } }, data: { usedAt: now } })
   const grantId = newId()

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { FLAGS_KEY_MAX_LENGTH, REASON_MAX_LENGTH } from '@/lib/constants'
+import { grantStepUpByPasskey, stepUpOptions } from '@/server/auth/passkey'
 import { grantStepUp, stepUpRefusalError, type StepUpChannel, type StepUpOptions } from '@/server/auth/step-up'
 import { memberPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
@@ -28,6 +29,9 @@ import { memberName, type Locale } from './present'
 // lock it), then the session id changes and the decision runs and uses the step-up — in that order. A refused PIN
 // decides nothing: wrong (VALIDATION_FAILED {field: pin, reason: WRONG, attemptsLeft}), locked (STEP_UP_LOCKED {time})
 // or not set (STEP_UP_REQUIRED {reason: PIN_NOT_SET}). The PIN never goes into a log, an error or the decision's input.
+// A passkey does the same (S17-15, BR-AUTH-09): the page first asks passkeyOptionsForTask for a challenge of this
+// document, the device answers with the fingerprint, face or its screen lock, and the decision carries that answer in
+// place of the PIN; a refused one decides nothing (VALIDATION_FAILED {field: passkey, reason}).
 
 const Key = z.uuid()
 const Id = z.uuid()
@@ -43,6 +47,8 @@ const DecideInput = z.object({
   reason: z.string().max(REASON_MAX_LENGTH).optional(),
   /** Sent when the task needs a step-up (TaskAccessDto.stepUp); left unread otherwise */
   pin: z.string().max(PIN_INPUT_MAX).optional(),
+  /** The passkey's answer in place of the PIN (AuthenticationResponseJSON, checked by grantStepUpByPasskey) */
+  passkey: z.unknown().optional(),
   /** A payment run's flags as the page showed them (BR-PAY-07); the adapter of the subject checks it (ADR-068) */
   subjectInput: z.strictObject({ flagsKey: z.string().max(FLAGS_KEY_MAX_LENGTH) }).optional(),
 })
@@ -55,7 +61,9 @@ const PolicyInput = z.object({
   taskId: Id,
   decision: z.enum(['APPROVE', 'REJECT']),
   reason: z.string().max(REASON_MAX_LENGTH).optional(),
-  pin: z.string().max(PIN_INPUT_MAX),
+  /** The PIN, or the passkey's answer in its place: one of the two */
+  pin: z.string().max(PIN_INPUT_MAX).optional(),
+  passkey: z.unknown().optional(),
   boundaryTableConfirmed: z.boolean().nullable().optional(),
   boundaryBaselineId: Id.nullable().optional(),
 })
@@ -96,20 +104,51 @@ async function decidedOutcome(ctx: Ctx, taskId: string, result: ServiceResult, l
 
 const stepUpChannelOf = (ctx: Ctx): StepUpChannel => (ctx.channel === 'LIFF' || ctx.channel === 'PWA' || ctx.channel === 'APP' ? ctx.channel : 'WEB')
 
+/** The proof a decision carries: the PIN, or a passkey's answer in its place (S17-15) */
+type StepUpProof = { readonly pin: string } | { readonly passkey: unknown }
+
 /**
- * The PIN for this task's document (FR-AUTH-005 AC2), then a new session id (NFR-SEC-04): null when both went through,
- * otherwise what to tell the member — nothing is decided then. The member is the signed-in one, never from the input.
+ * The PIN or the passkey for this task's document (FR-AUTH-005 AC2, BR-AUTH-09), then a new session id (NFR-SEC-04):
+ * null when both went through, otherwise what to tell the member — nothing is decided then. The member is the
+ * signed-in one, never from the input.
  */
-async function stepUpFor(ctx: Ctx, access: TaskAccessDto, pin: string, session: StepUpSession): Promise<ActionFailure | null> {
+async function stepUpFor(ctx: Ctx, access: TaskAccessDto, proof: StepUpProof, session: StepUpSession): Promise<ActionFailure | null> {
   if (ctx.actor.type !== 'USER') return FORBIDDEN
-  const granted = await grantStepUp(
-    { organizationId: ctx.organizationId, memberId: ctx.actor.memberId, subjectType: access.subjectType, subjectId: access.subjectId, method: 'PIN', pin, channel: stepUpChannelOf(ctx) },
-    session.securityNow,
-    { requestId: ctx.requestId, correlationId: ctx.correlationId, ...(session.sender !== undefined ? { sender: session.sender } : {}) },
-  )
-  if (!granted.ok) return toActionFailure(stepUpRefusalError(granted))
+  const subject = { organizationId: ctx.organizationId, memberId: ctx.actor.memberId, subjectType: access.subjectType, subjectId: access.subjectId }
+  const options = { requestId: ctx.requestId, correlationId: ctx.correlationId, ...(session.sender !== undefined ? { sender: session.sender } : {}) }
+  if ('passkey' in proof) {
+    const granted = await grantStepUpByPasskey({ ...subject, response: proof.passkey, channel: stepUpChannelOf(ctx) }, session.securityNow, options)
+    if (!granted.ok) return invalid('passkey', granted.refusal)
+  } else {
+    const granted = await grantStepUp({ ...subject, method: 'PIN', pin: proof.pin, channel: stepUpChannelOf(ctx) }, session.securityNow, options)
+    if (!granted.ok) return toActionFailure(stepUpRefusalError(granted))
+  }
   if (!(await session.rotateSession())) return { ok: false, code: 'UNAUTHENTICATED' }
   return null
+}
+
+/** The PIN or the passkey a decision carries, checked for its form before anything is spent; null when neither came */
+function proofOf(input: { readonly pin?: string | undefined; readonly passkey?: unknown }): StepUpProof | 'BAD_PIN' | null {
+  if (input.passkey !== undefined && input.passkey !== null) return { passkey: input.passkey }
+  if (input.pin === undefined) return null
+  return PIN.test(input.pin) ? { pin: input.pin } : 'BAD_PIN'
+}
+
+/**
+ * The options of navigator.credentials.get for deciding this task with a passkey (S17-15, BR-AUTH-09): a challenge for
+ * its document, issued to its decider only while it waits for a decision that needs a step-up. NO_PASSKEY: the member
+ * has none in use, and the page offers the PIN.
+ */
+export async function passkeyOptionsForTask(ctx: Ctx, taskId: unknown): Promise<{ readonly ok: true; readonly options: unknown } | ActionFailure> {
+  const id = Id.safeParse(taskId)
+  if (!id.success) return invalid('taskId')
+  if (ctx.actor.type !== 'USER') return FORBIDDEN
+  const access = await getTaskAccess(ctx, id.data)
+  if (!access) return NOT_FOUND
+  const needs = access.stepUp || PIN_DECISION_SUBJECTS.includes(access.subjectType)
+  if (!needs || access.status !== 'OPEN' || taskRight(memberPrincipal(ctx.actor.memberId, []), access) !== 'DECIDE') return FORBIDDEN
+  const asked = await stepUpOptions({ organizationId: ctx.organizationId, memberId: ctx.actor.memberId, subjectType: access.subjectType, subjectId: access.subjectId })
+  return asked.ok ? { ok: true, options: asked.options } : invalid('passkey', asked.reason)
 }
 
 /**
@@ -122,15 +161,16 @@ export async function decideRequestTask(ctx: Ctx, input: unknown, idempotencyKey
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = DecideInput.safeParse(input)
   if (!parsed.success) return invalid('decision')
-  const { taskId, decision, pin } = parsed.data
+  const { taskId, decision } = parsed.data
   const reason = parsed.data.reason?.trim()
   const access = await getTaskAccess(ctx, taskId)
   if (!access) return NOT_FOUND
   if (access.stepUp && stepUp && ctx.actor.type === 'USER' && access.status === 'OPEN' && taskRight(memberPrincipal(ctx.actor.memberId, []), access) === 'DECIDE') {
-    // Told before a try is spent: a PIN that is not six digits, and a return or rejection without its reason
-    if (pin === undefined || !PIN.test(pin)) return invalid('pin')
+    // Told before a try is spent: no proof, a PIN that is not six digits, and a return or rejection without its reason
+    const proof = proofOf(parsed.data)
+    if (proof === null || proof === 'BAD_PIN') return invalid('pin')
     if (decision !== 'APPROVE' && (reason ?? '').length < REASON_MIN) return invalid('reason')
-    const refused = await stepUpFor(ctx, access, pin, stepUp)
+    const refused = await stepUpFor(ctx, access, proof, stepUp)
     if (refused) return refused
   }
   const subjectInput = parsed.data.subjectInput
@@ -163,18 +203,19 @@ export async function decidePolicy(ctx: Ctx, principal: Principal, input: unknow
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = PolicyInput.safeParse(input)
   if (!parsed.success) return invalid('decision')
-  const { taskId, decision, pin } = parsed.data
+  const { taskId, decision } = parsed.data
   const reason = parsed.data.reason?.trim() ?? ''
   // Rejecting needs no tick
   const tick = decision === 'APPROVE' ? parsed.data.boundaryTableConfirmed : null
-  if (!PIN.test(pin)) return invalid('pin')
+  const proof = proofOf(parsed.data)
+  if (proof === null || proof === 'BAD_PIN') return invalid('pin')
   if (decision === 'REJECT' && reason.length < REASON_MIN) return invalid('reason')
   if (tick === false) return invalid('boundaryTableConfirmed', 'BOUNDARY_NOT_CONFIRMED')
   if (principal.kind !== 'member' || ctx.actor.type !== 'USER' || ctx.actor.memberId !== principal.memberId) return FORBIDDEN
   const access = await getTaskAccess(ctx, taskId)
   if (!access) return NOT_FOUND
   if (!PIN_DECISION_SUBJECTS.includes(access.subjectType) || taskRight(principal, access) !== 'DECIDE') return FORBIDDEN
-  const refused = await stepUpFor(ctx, access, pin, stepUp)
+  const refused = await stepUpFor(ctx, access, proof, stepUp)
   if (refused) return refused
   // The tick goes with the version its table compared with, so the service approves only the table that was ticked
   const baselineId = parsed.data.boundaryBaselineId

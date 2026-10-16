@@ -2,14 +2,16 @@ import { CircleCheck, CircleMinus } from 'lucide-react'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { listOwnPasskeys } from '@/server/services/self/passkeys'
 import { getOwnPinStatus } from '@/server/services/self/pin'
 import { NoAccess } from '@/ui/admin-settings/no-access'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { PasskeySetup } from '@/ui/settings-pin/passkey-setup'
 import { PinSetup } from '@/ui/settings-pin/pin-setup'
 import { getSession } from '../../../_lib/session'
-import { proveIdentityForPinAction, setOwnPinAction } from './actions'
+import { addPasskeyAction, newPasskeyOptionsAction, proveIdentityForPinAction, removePasskeyAction, setOwnPinAction } from './actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('pinSettings')
@@ -18,13 +20,14 @@ export async function generateMetadata() {
 
 // The member's own transaction PIN (FR-AUTH-005 AC1, §9.1 /settings/*): whether it is set or locked, the PIN rules in
 // words, and setting or changing it in two steps (prove who you are, then the new PIN twice). One column, status first,
-// each part in its white card on --surface under the page's title (the frame of S16-10).
+// each part in its white card on --surface under the page's title (the frame of S16-10). Below it, the member's
+// passkeys (S17-15, OQ-168, ADR-166): another way to confirm an approval, added after the same proof.
 export default async function PinPage() {
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   const [t, tCommon, locale] = await Promise.all([getTranslations('pinSettings'), getTranslations('adminSettings'), getLocale()])
   if (!ctx) return null
   // Real time: the lock of FR-AUTH-005 AC3 runs on the security clock
-  const status = await getOwnPinStatus(ctx)
+  const [status, passkeys] = await Promise.all([getOwnPinStatus(ctx), listOwnPasskeys(ctx)])
   if (!status.ok) return <NoAccess title={t('title')} message={t('errors.FORBIDDEN')} homeLabel={tCommon('homeLink')} />
   const { hasPin, lockedUntil, attemptsLeft, proofMethods } = status.data
 
@@ -73,6 +76,17 @@ export default async function PinPage() {
 
         <Panel label={t('setupLabel')} className="max-w-3xl">
           <PinSetup hasPin={hasPin} proofMethods={proofMethods} prove={proveIdentityForPinAction} setPin={setOwnPinAction} />
+        </Panel>
+
+        <Panel id="passkeys" label={t('passkey.title')} className="max-w-3xl">
+          <PasskeySetup
+            passkeys={(passkeys.ok ? passkeys.data : []).map((p) => ({ id: p.id, deviceLabel: p.deviceLabel, addedAtText: formatDateTime(locale, p.addedAt), lastUsedAtText: p.lastUsedAt ? formatDateTime(locale, p.lastUsedAt) : null }))}
+            proofMethods={proofMethods}
+            prove={proveIdentityForPinAction}
+            options={newPasskeyOptionsAction}
+            add={addPasskeyAction}
+            remove={removePasskeyAction}
+          />
         </Panel>
       </PageBody>
     </Page>

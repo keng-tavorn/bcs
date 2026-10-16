@@ -223,6 +223,8 @@
       "login_failed": "Sign-in failed",
       "login_locked": "Sign-in locked for a while",
       "login_succeeded": "Signed in",
+      "passkey_added": "Passkey added",
+      "passkey_removed": "Passkey removed",
       "pin_set": "Transaction PIN set or changed"
     },
     "bank_account": {

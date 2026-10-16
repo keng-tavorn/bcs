@@ -161,6 +161,8 @@ model Organization {
   lineInboundMessages  LineInboundMessage[]
   pushDevices          PushDevice[]
   lineRichMenuVariants LineRichMenuVariant[]
+  memberPasskeys       MemberPasskey[]
+  passkeyChallenges    PasskeyChallenge[]
 }
 
 enum ModuleKey {
@@ -303,8 +305,10 @@ model Member {
   aiAgentSettingsSet    AiAgentSetting[] @relation("AiAgentSettingUpdatedBy")
 
   // --- S17 ---
-  chatIntakes ChatIntake[] @relation("ChatIntakeMember")
-  pushDevices PushDevice[] @relation("PushDeviceMember")
+  chatIntakes       ChatIntake[]       @relation("ChatIntakeMember")
+  pushDevices       PushDevice[]       @relation("PushDeviceMember")
+  passkeys          MemberPasskey[]    @relation("MemberPasskeyMember")
+  passkeyChallenges PasskeyChallenge[] @relation("PasskeyChallengeMember")
 
   @@unique([organizationId, id])
   @@unique([organizationId, userId])
@@ -3057,6 +3061,76 @@ model PushDevice {
   /// One device in use per token: a token registered again by someone else moves and revokes the old row (REPLACED)
   @@unique([organizationId, tokenHash], map: "PushDevice_token_in_use", where: raw("\"revokedAt\" IS NULL"))
   @@index([organizationId, memberId, revokedAt])
+}
+
+/// Why a passkey stopped counting (BR-AUTH-10, BR-AUTH-11): the member removed it, their identity was reset, or they
+/// were deactivated
+enum PasskeyRevokeReason {
+  USER
+  IDENTITY_RESET
+  DEACTIVATED
+}
+
+/// What a one-time WebAuthn challenge is for: adding a passkey, or a step-up for one document (BR-AUTH-09, BR-AUTH-10)
+enum PasskeyChallengePurpose {
+  REGISTER
+  STEP_UP
+}
+
+/// A passkey of a member (S17-15, BR-AUTH-09 to BR-AUTH-11, ADR-166): a WebAuthn credential with user verification,
+/// tied to the member like the transaction PIN (not Better Auth's global tables). A proof of step-up, never a sign-in
+/// (OQ-168). At most 10 in use per member.
+model MemberPasskey {
+  id             String               @id @default(uuid(7)) @db.Uuid
+  organizationId String               @db.Uuid
+  memberId       String               @db.Uuid
+  /// base64url of the credential id the authenticator made
+  credentialId   String
+  /// The COSE public key, as the authenticator gave it
+  publicKey      Bytes
+  /// The authenticator's signature counter; 0 for passkeys synced between devices
+  signCount      BigInt               @default(0)
+  transports     String[]
+  /// At most 60 characters
+  deviceLabel    String?
+  lastUsedAt     DateTime?            @db.Timestamptz(6)
+  revokedAt      DateTime?            @db.Timestamptz(6)
+  revokeReason   PasskeyRevokeReason?
+  version        Int                  @default(0)
+  createdAt      DateTime             @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime             @updatedAt @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("MemberPasskeyMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, credentialId])
+  @@index([organizationId, memberId, revokedAt])
+}
+
+/// A WebAuthn challenge used once (S17-15, BR-AUTH-09, BR-AUTH-10): issued to the member of the session for adding a
+/// passkey (REGISTER) or for a step-up on one document (STEP_UP, with its subject), good for 5 minutes; usedAt is set in
+/// the transaction that adds the passkey or gives the grant. Only the sha256 of the challenge is kept. Not a business
+/// record: rows a day past their expiry are deleted by the hourly job.
+model PasskeyChallenge {
+  id             String                  @id @default(uuid(7)) @db.Uuid
+  organizationId String                  @db.Uuid
+  memberId       String                  @db.Uuid
+  purpose        PasskeyChallengePurpose
+  /// sha256 of the challenge, 64 lower-case hex
+  challengeHash  String
+  subjectType    String?
+  subjectId      String?                 @db.Uuid
+  expiresAt      DateTime                @db.Timestamptz(6)
+  usedAt         DateTime?               @db.Timestamptz(6)
+  createdAt      DateTime                @default(now()) @db.Timestamptz(6)
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  member       Member       @relation("PasskeyChallengeMember", fields: [organizationId, memberId], references: [organizationId, id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, challengeHash])
+  @@index([organizationId, expiresAt])
 }
 
 /// One rich menu made by `pnpm line:richmenu` for one set of buttons (BR-LINE-16, S17-04): variantKey such as

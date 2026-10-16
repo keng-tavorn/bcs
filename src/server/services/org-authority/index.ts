@@ -24,6 +24,7 @@ import { enabledModules } from '../modules'
 import { startRoute } from '../approvals/route'
 import { warningKey } from '../doa/lint-view'
 import { openTasksOnTree } from './reparent'
+import { revokeMemberPasskeys } from '../self/passkeys'
 
 // Changes to the authority structure (spec FR-DOA-010, BR-DOA-17, BR-SOD-08, BR-AUTH-07): ORG_ADMIN proposes one of five
 // kinds with an effective time that is not in the past and a reason; the approver of the ORG_AUTHORITY_CHANGE rule
@@ -624,11 +625,13 @@ export async function applyChange(tx: TenantTx, ctx: Ctx, changeId: string, alre
     }
     case 'IDENTITY_RESET': {
       const p = payload as { memberId: string }
-      // BR-AUTH-07: the authenticator and every session of this member's sign-in identity are removed; the account owner
+      // BR-AUTH-07: the authenticator, the passkeys and every session of this member's sign-in identity are removed; the account owner
       // is told by e-mail at once, as for any 2FA reset (§10.1 security.notice)
       await removeMemberTwoFactor(tx, ctx.organizationId, p.memberId)
       const sessionsRevoked = await deleteMemberSessions(tx, ctx.organizationId, p.memberId)
       events.push({ type: 'auth.2fa_reset', aggregateType: 'Auth', aggregateId: p.memberId, data: { orgAuthorityChangeId: change.id, sessionsRevoked } })
+      // BR-AUTH-11 (S17-15): and every passkey of theirs, so none can confirm a decision for the identity just reset
+      events.push(...(await revokeMemberPasskeys(tx, p.memberId, 'IDENTITY_RESET', ctx.now)).events)
       extra.push({
         recipientMemberId: p.memberId,
         templateKey: 'security.notice',

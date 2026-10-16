@@ -1,0 +1,12 @@
+# tests/golden/step-up-methods.yaml
+suite: step-up-methods
+# stepUpMethodsFor (DECISION_STEP_UP_METHODS) และ passkeyAssertionVerdict (pure · src/core/step-up-methods) · subjects = STEP_UP_SUBJECT_TYPES · stepUpNeeded เดิมไม่เปลี่ยน · originMatches (origin และ RP ID ตรง APP_URL) เป็น true ถ้าไม่บอก
+cases:
+  - { id: GC-APP-42, title: ทุกชนิดเอกสารที่ต้อง step-up รับ PIN และ passkey, input: { subjects: [REQUEST, PURCHASE_ORDER, VARIANCE, DOA_VERSION, ORG_AUTHORITY_CHANGE, BUDGET_TRANSFER, BUDGET_OVERRUN, WORKFLOW_VERSION, INVOICE, PO_CHANGE, PAYMENT_RUN, BANK_ACCOUNT_CHANGE] }, expect: { methods: [PIN, PASSKEY] } }
+  - { id: GC-APP-43, title: passkey ที่ไม่มี UV ไม่นับ, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: false, credentialOwnedBySessionUser: true } }, expect: { verdict: REFUSED, reason: UV_REQUIRED } }
+  - { id: GC-APP-44, title: passkey ของผู้อื่น, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: false } }, expect: { verdict: REFUSED, reason: NOT_OWNER } }
+  - { id: GC-APP-45, title: challenge เก่าเกิน 5 นาที, input: { assertion: { signatureValid: true, challengeFresh: false, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true } }, expect: { verdict: REFUSED, reason: CHALLENGE_EXPIRED } }
+  - { id: GC-APP-46, title: challenge ที่ใช้แล้ว, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: false, userVerified: true, credentialOwnedBySessionUser: true } }, expect: { verdict: REFUSED, reason: CHALLENGE_USED } }
+  - { id: GC-APP-47, title: passkey ผ่าน ได้ grant แบบ PIN, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true } }, expect: { verdict: GRANT, method: PASSKEY, ttlSeconds: 300, uses: 1, rotateSession: true } }
+  - { id: GC-APP-48, title: ขอบของเกณฑ์ step-up ไม่เปลี่ยน, input: { stepUpThreshold: "100000.00", amounts: ["99999.99", "100000.00"] }, expect: { stepUpNeeded: [false, true] } }
+  - { id: GC-APP-49, title: assertion จาก origin อื่น, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true, originMatches: false } }, expect: { verdict: REFUSED, reason: ORIGIN_MISMATCH } }

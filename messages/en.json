@@ -2766,6 +2766,8 @@
         "login_failed": "Sign-in failed",
         "login_locked": "Sign-in locked for a while",
         "login_succeeded": "Signed in",
+        "passkey_added": "Passkey added",
+        "passkey_removed": "Passkey removed",
         "pin_set": "Transaction PIN set or changed"
       },
       "backtest": {
@@ -7394,6 +7396,40 @@
       "UNAUTHENTICATED": "Your session ended. Sign in again and repeat this."
     },
     "intro": "You confirm high-value approvals and policy changes with this 6-digit PIN, on the web and in the LINE app. It is not your password.",
+    "passkey": {
+      "add": "Add a passkey on this device",
+      "addIntro": "Enter your password or the code from your authenticator app, as for the PIN; then the device asks for your fingerprint or face",
+      "addSubmit": "Confirm and add the passkey",
+      "addTitle": "Prove who you are before adding a passkey",
+      "added": "The passkey was added. You also got an e-mail about it",
+      "addedAt": "Added {time}",
+      "adding": "Adding",
+      "errors": {
+        "DEVICE": "This device could not make a passkey. Try again",
+        "DUPLICATE": "This passkey is added already",
+        "FAILED": "That did not work. Try again",
+        "LIMIT": "You have 10 passkeys already. Remove one you no longer use first",
+        "NOT_ADDED": "The passkey could not be added. Try again",
+        "NO_ANSWER": "BCS did not answer: the passkey may or may not have been added. Open this page again to see the list",
+        "PROOF_EXPIRED": "Proving who you are ran out or was not right. Try again",
+        "RATE_LIMITED": "Too many passkeys tried in a row. Wait a while and try again",
+        "UV_REQUIRED": "This device did not check your fingerprint, face or screen lock, so the passkey cannot be added"
+      },
+      "intro": "Confirm approvals instead of the PIN with your device's fingerprint, face or screen lock. Passkeys do not sign you in. The PIN always works",
+      "keep": "Keep it",
+      "label": "Device name",
+      "labelHint": "Optional, e.g. My phone; at most 60 characters",
+      "lastUsedAt": "last used {time}",
+      "none": "No passkey yet",
+      "remove": "Remove {name}",
+      "removeBody": "This passkey can no longer confirm approvals. Add it again to use it",
+      "removeConfirm": "Remove this passkey",
+      "removeTitle": "Remove {name}?",
+      "removed": "The passkey was removed",
+      "title": "Passkeys (fingerprint or face)",
+      "unnamed": "Unnamed passkey",
+      "unsupported": "This browser cannot use passkeys. Approvals are confirmed with the PIN as before"
+    },
     "prove": {
       "PASSWORD": "Password",
       "TOTP": "6-digit code from your authenticator app",
@@ -10391,6 +10427,7 @@
       "INTERNAL": "It could not be saved because of a system error (reference {requestId}). Try again, or tell your administrator this reference.",
       "LATER_VERSION": "A DOA version approved earlier starts after this one, so this one cannot be approved. Contact your administrator.",
       "NOT_FOUND": "This task is no longer there. It may have moved or been cancelled. Reload the page.",
+      "PASSKEY": "The passkey did not confirm this decision. Try again, or enter your PIN instead",
       "PAYMENT_DATE_INVALID": "The run's pay date can no longer be used. Return it for the preparer to choose another day, or reject it.",
       "PAYMENT_FLAGS_CHANGED": "The payment run's flags changed since this page was opened. Reload it and check the flagged items again.",
       "PAYMENT_FLAG_REASON_REQUIRED": "A flag has no reason from the preparer yet. Return the run for the preparer to give one.",
@@ -10480,6 +10517,13 @@
       "workflowWithdrawal": "Withdraw parallel reviewers {code} version {version}"
     },
     "listLabel": "Your tasks waiting for approval",
+    "passkey": {
+      "approve": "Approve with your fingerprint or face (passkey)",
+      "failed": "This device could not confirm with a passkey. Try again, or enter your PIN instead",
+      "notAsked": "A passkey cannot be used right now. Enter your PIN instead",
+      "reject": "Reject with your fingerprint or face (passkey)",
+      "return": "Return with your fingerprint or face (passkey)"
+    },
     "poChangeTask": {
       "label": "{number} · change {changeNo}"
     },

@@ -223,6 +223,8 @@
       "login_failed": "เข้าระบบไม่สำเร็จ",
       "login_locked": "ล็อกการเข้าระบบชั่วคราว",
       "login_succeeded": "เข้าระบบสำเร็จ",
+      "passkey_added": "เพิ่ม passkey",
+      "passkey_removed": "ลบ passkey",
       "pin_set": "ตั้งหรือเปลี่ยน PIN ยืนยันธุรกรรม"
     },
     "bank_account": {

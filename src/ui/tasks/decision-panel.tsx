@@ -14,6 +14,7 @@ import { StateLine } from '../request-view/status'
 import { useAction } from '../request-view/use-action'
 import { useBarSpace } from './bar-space'
 import { CLOSED_TASK_KEYS, PIN_FIELD_KEYS, taskErrorKey, type ActionFailure, type ActionOutcome } from './outcome'
+import { PasskeyButton, usePasskeyProof, type PasskeyOptionsOutcome } from './passkey-proof'
 import { PinField, pinIsComplete } from './pin-field'
 
 export { PIN_FIELD_KEYS }
@@ -36,6 +37,8 @@ export { PIN_FIELD_KEYS }
 // the script, and so does the PIN field (pin-field.tsx) — a PIN never goes with a native submission into the page's
 // address, the browser's history or a request log (NFR-SEC-09). The approve button waits too: a press before it would
 // be lost.
+// A member with a passkey (S17-15, BR-AUTH-09) may confirm with it instead of the PIN, in either form: the button beside
+// the PIN field asks the device for the fingerprint, face or screen lock, and the decision goes with its answer.
 
 const REASON_MIN = 3
 
@@ -47,6 +50,8 @@ export interface TaskDecisionInput {
   readonly decision: Decision
   readonly reason?: string
   readonly pin?: string
+  /** A passkey's answer in place of the PIN (S17-15) */
+  readonly passkey?: Record<string, unknown>
   /** What a phase-1 subject's adapter asks with the decision (ADR-068): a payment run's flags shown, { flagsKey } (BR-PAY-07) */
   readonly subjectInput?: { readonly flagsKey: string }
 }
@@ -74,10 +79,14 @@ export interface DecisionPanelProps {
   readonly disposition?: string
   /** Deciding needs the PIN: the amount is at or above the DOA version's stepUpThreshold (FR-AUTH-005 AC2) */
   readonly stepUp?: boolean
+  /** The member has a passkey in use: offered beside the PIN (S17-15) */
+  readonly hasPasskey?: boolean
   readonly actions: {
     readonly decide: (input: TaskDecisionInput, idempotencyKey: string) => Promise<ActionOutcome>
     /** Asking the requester: request tasks only */
     readonly ask?: (input: { taskId: string; question: string }, idempotencyKey: string) => Promise<ActionOutcome>
+    /** A challenge of this task's document for a passkey (S17-15) */
+    readonly passkeyOptions?: (taskId: string) => Promise<PasskeyOptionsOutcome>
   }
 }
 
@@ -113,7 +122,7 @@ export function TaskFailure({ failure, text }: { failure: ActionFailure; text: s
 }
 
 /** The PIN was refused or missing: the try is over, and the same form takes the next one */
-const PIN_KEYS: readonly string[] = ['PIN', 'PIN_INVALID', 'PIN_LOCKED', 'PIN_NOT_SET', 'STEP_UP']
+const PIN_KEYS: readonly string[] = ['PIN', 'PIN_INVALID', 'PIN_LOCKED', 'PIN_NOT_SET', 'STEP_UP', 'PASSKEY']
 export const pinRefused = (outcome: ActionOutcome | null) => Boolean(outcome && !outcome.ok && PIN_KEYS.includes(taskErrorKey(outcome)))
 
 /**
@@ -164,7 +173,7 @@ export function useClosedTask(locale: string) {
   return { closed, check }
 }
 
-export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQUEST', disposition, stepUp = false, actions }: DecisionPanelProps) {
+export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQUEST', disposition, stepUp = false, hasPasskey = false, actions }: DecisionPanelProps) {
   const t = useTranslations('tasks.decide')
   const po = kind === 'PURCHASE_ORDER'
   const variance = kind === 'VARIANCE'
@@ -229,19 +238,24 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const [questionError, setQuestionError] = useState<string>()
   useFocusPinAfterRefusal(approving.outcome, `${id}-approve-pin`)
   useFocusPinAfterRefusal(deciding.outcome, `${id}-decide-pin`)
+  const passkey = usePasskeyProof(taskId, stepUp && hasPasskey, actions.passkeyOptions)
+  const tPasskey = useTranslations('tasks.passkey')
 
   const finished = (text: string) => {
     setDone(text)
     window.scrollTo({ top: 0 })
   }
 
-  async function approve(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function approve(event: FormEvent<HTMLFormElement> | null, withPasskey = false) {
+    event?.preventDefault()
     const pin = approvePin
-    if (stepUp && !pinIsComplete(pin)) return setApprovePinError(tErrors('PIN'))
+    if (stepUp && !withPasskey && !pinIsComplete(pin)) return setApprovePinError(tErrors('PIN'))
     setApprovePinError(undefined)
     await oneTry(async () => {
-      const outcome = await approving.run((key) => actions.decide({ taskId, decision: 'APPROVE', ...(stepUp ? { pin } : {}) }, key))
+      // The device's answer for this document, in place of the PIN; nothing is sent when it was not given
+      const proof = withPasskey ? await passkey.prove() : null
+      if (withPasskey && !proof) return
+      const outcome = await approving.run((key) => actions.decide({ taskId, decision: 'APPROVE', ...(proof ? { passkey: proof } : stepUp ? { pin } : {}) }, key))
       setApprovePin('')
       // A wrong, locked or missing PIN leaves the second press open for the next try
       if (!outcome.ok && pinRefused(outcome)) return
@@ -251,17 +265,19 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
     })
   }
 
-  async function onDecide(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+  async function onDecide(event: FormEvent<HTMLFormElement> | null, withPasskey = false) {
+    event?.preventDefault()
     const pin = decidePin
     const next: typeof errors = {}
     if (reason.trim().length < REASON_MIN) next.reason = reasonError
-    if (stepUp && !pinIsComplete(pin)) next.pin = tErrors('PIN')
+    if (stepUp && !withPasskey && !pinIsComplete(pin)) next.pin = tErrors('PIN')
     if (!confirmed) next.confirm = tErrors('CONFIRM')
     setErrors(next)
     if (next.reason || next.pin || next.confirm) return
     await oneTry(async () => {
-      const outcome = await deciding.run((key) => actions.decide({ taskId, decision: choice, reason: reason.trim(), ...(stepUp ? { pin } : {}) }, key))
+      const proof = withPasskey ? await passkey.prove() : null
+      if (withPasskey && !proof) return
+      const outcome = await deciding.run((key) => actions.decide({ taskId, decision: choice, reason: reason.trim(), ...(proof ? { passkey: proof } : stepUp ? { pin } : {}) }, key))
       setDecidePin('')
       if (outcome.ok) finished(choice === 'RETURN' ? copy.returned : copy.rejected)
       else stale.check(outcome)
@@ -323,6 +339,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                       disabled={approving.pending}
                     />
                   ) : null}
+                  {stepUp ? <PasskeyButton proof={passkey} label={tPasskey('approve')} onPress={() => void approve(null, true)} disabled={approving.pending || !hydrated} /> : null}
                   <div className="flex gap-3">
                     <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="flex-1">
                       {approving.pending ? t('working') : copy.confirm}
@@ -445,6 +462,14 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
               >
                 {deciding.pending ? t('working') : choice === 'REJECT' ? copy.submitReject : copy.submitReturn}
               </Button>
+              {stepUp ? (
+                <PasskeyButton
+                  proof={passkey}
+                  label={choice === 'REJECT' ? tPasskey('reject') : tPasskey('return')}
+                  onPress={() => void onDecide(null, true)}
+                  disabled={deciding.pending || !hydrated}
+                />
+              ) : null}
             </form>
 
             {ask ? (

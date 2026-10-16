@@ -168,12 +168,15 @@ features:
     step: S5
     evidence:
       - tests/e2e/liff-tasks.spec.ts
+      - tests/e2e/passkey.spec.ts
       - tests/e2e/settings-pin.spec.ts
       - tests/e2e/tasks.spec.ts
+      - tests/golden/step-up-methods.test.ts
       - tests/integration/approval-subjects.test.ts
       - tests/integration/demo-history.test.ts
       - tests/integration/liff-tasks.test.ts
       - tests/integration/line-delivery.test.ts
+      - tests/integration/passkey-step-up.test.ts
       - tests/integration/pin-proof-totp.test.ts
       - tests/integration/pin.test.ts
       - tests/integration/step-up-decisions.test.ts

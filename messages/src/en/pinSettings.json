@@ -69,5 +69,39 @@
     "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
     "FAILED": "It was not saved. Try again."
   },
-  "setupLabel": "Set or change the PIN"
+  "setupLabel": "Set or change the PIN",
+  "passkey": {
+    "title": "Passkeys (fingerprint or face)",
+    "intro": "Confirm approvals instead of the PIN with your device's fingerprint, face or screen lock. Passkeys do not sign you in. The PIN always works",
+    "none": "No passkey yet",
+    "unnamed": "Unnamed passkey",
+    "addedAt": "Added {time}",
+    "lastUsedAt": "last used {time}",
+    "remove": "Remove {name}",
+    "removeTitle": "Remove {name}?",
+    "removeBody": "This passkey can no longer confirm approvals. Add it again to use it",
+    "removeConfirm": "Remove this passkey",
+    "keep": "Keep it",
+    "add": "Add a passkey on this device",
+    "addTitle": "Prove who you are before adding a passkey",
+    "addIntro": "Enter your password or the code from your authenticator app, as for the PIN; then the device asks for your fingerprint or face",
+    "label": "Device name",
+    "labelHint": "Optional, e.g. My phone; at most 60 characters",
+    "addSubmit": "Confirm and add the passkey",
+    "adding": "Adding",
+    "added": "The passkey was added. You also got an e-mail about it",
+    "removed": "The passkey was removed",
+    "unsupported": "This browser cannot use passkeys. Approvals are confirmed with the PIN as before",
+    "errors": {
+      "PROOF_EXPIRED": "Proving who you are ran out or was not right. Try again",
+      "RATE_LIMITED": "Too many passkeys tried in a row. Wait a while and try again",
+      "LIMIT": "You have 10 passkeys already. Remove one you no longer use first",
+      "DUPLICATE": "This passkey is added already",
+      "UV_REQUIRED": "This device did not check your fingerprint, face or screen lock, so the passkey cannot be added",
+      "NOT_ADDED": "The passkey could not be added. Try again",
+      "DEVICE": "This device could not make a passkey. Try again",
+      "NO_ANSWER": "BCS did not answer: the passkey may or may not have been added. Open this page again to see the list",
+      "FAILED": "That did not work. Try again"
+    }
+  }
 }

@@ -354,6 +354,37 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
           },
           href: '/settings/notifications',
         }
+      case 'PASSKEY_ADDED':
+        return {
+          // S17-15 (BR-AUTH-10): a passkey added to the account is told to its owner at once, by e-mail only, so a passkey
+          // someone else added with a stolen password is noticed; the notice names no device
+          title: { th: 'มีการเพิ่ม passkey ให้บัญชี BCS ของคุณ', en: 'A passkey was added to your BCS account' },
+          body: {
+            th: 'passkey ใช้ยืนยันการอนุมัติแทน PIN ได้ ถ้าไม่ใช่คุณ ให้ลบ passkey นั้นที่หน้า PIN และ passkey แล้วเปลี่ยนรหัสผ่านทันที',
+            en: 'A passkey can confirm approvals instead of the PIN. If this was not you, remove it on your PIN and passkey page and change your password at once',
+          },
+          href: '/settings/pin',
+        }
+      case 'PASSKEY_REMOVED':
+        return {
+          // S17-15 (BR-AUTH-10): a passkey removed by its owner, or with a reset of their identity or their deactivation
+          title: { th: 'passkey ของบัญชี BCS ของคุณถูกลบ', en: 'A passkey of your BCS account was removed' },
+          body: {
+            th: 'passkey นั้นยืนยันการอนุมัติไม่ได้อีก ถ้าไม่ใช่คุณ ให้เปลี่ยนรหัสผ่านและติดต่อผู้ดูแลระบบทันที',
+            en: 'That passkey can no longer confirm approvals. If this was not you, change your password and contact your administrator now',
+          },
+          href: '/settings/pin',
+        }
+      case 'PASSKEY_SIGN_COUNT':
+        return {
+          // S17-15 (BR-AUTH-09): an assertion whose signature counter went back may come from a copy of the passkey
+          title: { th: 'passkey ของคุณถูกปฏิเสธเพราะอาจถูกคัดลอก', en: 'Your passkey was refused because it may have been copied' },
+          body: {
+            th: 'ตัวนับของ passkey ย้อนกลับ จึงไม่ได้ยืนยันการอนุมัติ ถ้าไม่ใช่คุณ ให้ลบ passkey นั้นที่หน้า PIN และ passkey และเปลี่ยนรหัสผ่านทันที',
+            en: "The passkey's counter went back, so it confirmed nothing. If this was not you, remove that passkey on your PIN and passkey page and change your password at once",
+          },
+          href: '/settings/pin',
+        }
       default:
         return {
           title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },

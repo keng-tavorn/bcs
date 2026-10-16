@@ -434,7 +434,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN, DOA_ADMIN (ORG) — ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (BR-WF-17 · S6-09) · อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) · `admin.doa.submitForPublish` ขอถอนฉบับที่อนุมัติแล้วแต่ยังไม่มีผลได้ด้วย (S6-07 · FR-DOA-104 · คนที่ขอถอนอนุมัติการถอนนั้นเองไม่ได้) |
 | `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN, DOA_ADMIN (ORG) — ORG_ADMIN ไม่ได้เมื่อแยกผู้ดูแล DOA เช่นเดียวกับ `admin.doa.*` (BR-WF-17) · ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) · ผู้ถืองานอนุมัติของฉบับนั้นอ่านหน้าฉบับและทดลองส่งได้โดยไม่มีสิทธิ์นี้ (FR-WF-103 AC3) · `admin.workflow.submitForPublish` ขอถอนฉบับที่ยังไม่มีผลด้วยกติกาเดียวกับ DOA (S6-07) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
-| `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` · `self.pushDevices` (S17-10 · เครื่องของตนเองในแอป BCS Go · ต้องเปิด `BCS_GO` ตอนลงทะเบียน · ORG_ADMIN ทำแทนไม่ได้ ปิดใช้งาน member เพิกถอนให้เอง · BR-AUTH-12) | ทุก member (OWN) |
+| `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` · `self.pushDevices` (S17-10 · เครื่องของตนเองในแอป BCS Go · ต้องเปิด `BCS_GO` ตอนลงทะเบียน · ORG_ADMIN ทำแทนไม่ได้ ปิดใช้งาน member เพิกถอนให้เอง · BR-AUTH-12) · `self.passkeys` (S17-15 · passkey ของตนเอง · เพิ่มต้องพิสูจน์ตัวตนสด · ORG_ADMIN ทำแทนไม่ได้ · รีเซ็ตตัวตนหรือปิดใช้งาน member เพิกถอนให้เอง · BR-AUTH-10 BR-AUTH-11) | ทุก member (OWN) |
 | `ai.assist` | ทุก member (OWN) — ใช้ AI เติมเอกสารของตน และ service ตรวจสิทธิ์ของเอกสารปลายทางซ้ำ (`request.create` `gr.post` สิทธิ์บันทึกใบแจ้งหนี้) (S13) |
 | `ai.ask` | ทุก member (OWN) — ถาม BCS AI ผลอยู่ใน scope ของตนเท่านั้น (BR-AI-21) |
 | `ai.brief.view` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (ผู้รับงานหรือผู้รักษาการที่ตัดสินงานได้ตอนนี้) — ดูสรุปจาก AI ของงานอนุมัติ (BR-AI-20) |
@@ -3366,6 +3366,23 @@ cases:
   - { id: GC-APP-41, title: อัปโหลดรูปแล้วคำตอบหาย ส่งซ้ำใช้ fileId เดิม, input: { po: { ordered: "100", unitPrice: "10.00", version: 3 }, tolerancePct: 0, items: [ { key: k1, received: "60", photos: 2, capturedAt: "2026-11-02T01:00:00Z", expectedPoVersion: 3 } ], steps: [ { upload: k1, completeAnswerLost: 1 }, { send: k1, dropResponse: true }, { send: k1 } ] }, expect: { fileObjects: 2, stepResults: [ { photosStored: 2, sameFileIdAfterRetry: true }, { outcome: RETRY, committedOnServer: true }, { outcome: SENT, poVersion: 4, sameGrAsCommitted: true } ], grCount: 1, photoLinks: 2, accepted: "60", commitDelta: "0.00", poStatus: PARTIALLY_RECEIVED } }
 ```
 
+**golden `step-up-methods` (S17-15 · BR-AUTH-09 · FR-AUTH-005 · OQ-168 · ADR-166)** · runner ใน `tests/golden/step-up-methods.test.ts` (pure: `stepUpMethodsFor` และ `passkeyAssertionVerdict` ของ `src/core/step-up-methods` · `stepUpNeeded` ของ `src/core/pin`) · การตรวจลายเซ็น challenge และ origin กับ Postgres จริงและ authenticator ในเทสต์อยู่ใน `tests/integration/passkey-step-up.test.ts` · ตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · ลำดับเหตุที่ปฏิเสธเมื่อข้อเท็จจริงไม่ผ่านหลายข้อ: `ORIGIN_MISMATCH` → `NOT_OWNER` → `CHALLENGE_EXPIRED` → `CHALLENGE_USED` → `SIGNATURE` → `UV_REQUIRED` → `SIGN_COUNT`
+
+```yaml
+# tests/golden/step-up-methods.yaml
+suite: step-up-methods
+# stepUpMethodsFor (DECISION_STEP_UP_METHODS) และ passkeyAssertionVerdict (pure · src/core/step-up-methods) · subjects = STEP_UP_SUBJECT_TYPES · stepUpNeeded เดิมไม่เปลี่ยน · originMatches (origin และ RP ID ตรง APP_URL) เป็น true ถ้าไม่บอก
+cases:
+  - { id: GC-APP-42, title: ทุกชนิดเอกสารที่ต้อง step-up รับ PIN และ passkey, input: { subjects: [REQUEST, PURCHASE_ORDER, VARIANCE, DOA_VERSION, ORG_AUTHORITY_CHANGE, BUDGET_TRANSFER, BUDGET_OVERRUN, WORKFLOW_VERSION, INVOICE, PO_CHANGE, PAYMENT_RUN, BANK_ACCOUNT_CHANGE] }, expect: { methods: [PIN, PASSKEY] } }
+  - { id: GC-APP-43, title: passkey ที่ไม่มี UV ไม่นับ, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: false, credentialOwnedBySessionUser: true } }, expect: { verdict: REFUSED, reason: UV_REQUIRED } }
+  - { id: GC-APP-44, title: passkey ของผู้อื่น, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: false } }, expect: { verdict: REFUSED, reason: NOT_OWNER } }
+  - { id: GC-APP-45, title: challenge เก่าเกิน 5 นาที, input: { assertion: { signatureValid: true, challengeFresh: false, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true } }, expect: { verdict: REFUSED, reason: CHALLENGE_EXPIRED } }
+  - { id: GC-APP-46, title: challenge ที่ใช้แล้ว, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: false, userVerified: true, credentialOwnedBySessionUser: true } }, expect: { verdict: REFUSED, reason: CHALLENGE_USED } }
+  - { id: GC-APP-47, title: passkey ผ่าน ได้ grant แบบ PIN, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true } }, expect: { verdict: GRANT, method: PASSKEY, ttlSeconds: 300, uses: 1, rotateSession: true } }
+  - { id: GC-APP-48, title: ขอบของเกณฑ์ step-up ไม่เปลี่ยน, input: { stepUpThreshold: "100000.00", amounts: ["99999.99", "100000.00"] }, expect: { stepUpNeeded: [false, true] } }
+  - { id: GC-APP-49, title: assertion จาก origin อื่น, input: { assertion: { signatureValid: true, challengeFresh: true, challengeUnused: true, userVerified: true, credentialOwnedBySessionUser: true, originMatches: false } }, expect: { verdict: REFUSED, reason: ORIGIN_MISMATCH } }
+```
+
 ---
 
 ## 8. Functional requirements
@@ -3477,12 +3494,13 @@ cases:
 - AC3 — ค่าเริ่มต้นยังต้องใช้ TOTP ของ BCS เว้นแต่ตั้ง `sso.trustIdpMfa = true` พร้อมเหตุผล
 
 #### FR-AUTH-005 — PIN ยืนยันธุรกรรม (step-up)
-ขั้น S5 · LIFF · Web · BR-TOK-05 OQ-07
+ขั้น S5 (passkey ใน S17-15) · LIFF · Web · แอป BCS Go · BR-TOK-05 BR-AUTH-09 ถึง BR-AUTH-11 OQ-07 OQ-168
 - AC1 — ผู้ใช้ตั้ง PIN 6 หลัก เก็บด้วย argon2id และห้าม PIN ที่เดาง่าย (เช่น 123456 000000)
 - AC2 — ตัดสินงานที่ยอดตามฐาน DOA ≥ `stepUpThreshold` ต้องยืนยันด้วย PIN (หรือ passkey ถ้าอุปกรณ์รองรับ) และงาน `DOA_CHANGE` `ORG_AUTHORITY_CHANGE` ทุกงาน (BR-DOA-15) ไม่ยืนยัน → `STEP_UP_REQUIRED`
 - AC3 — ผิด 5 ครั้ง → ล็อก 15 นาที (`STEP_UP_LOCKED`) แจ้งผู้ใช้ทางอีเมลและบันทึก event
 - AC4 — งาน `BANK_ACCOUNT_CHANGE` และ `WORKFLOW_VERSION` ต้อง step-up ทุกงานไม่ขึ้นกับยอด (BR-DOA-25 · BR-DOA-15) ไม่ยืนยัน → `STEP_UP_REQUIRED` · การ์ด LINE และอีเมลของงาน `BANK_ACCOUNT_CHANGE` และ `WORKFLOW_VERSION` ไม่มีปุ่มหรือลิงก์ตัดสิน และ postback หรือลิงก์ที่ส่งมาถูกปฏิเสธ `STEP_UP_REQUIRED`
-- AC5 — คำสั่งตัดสินทุกตัว (คำขอ PO variance นโยบาย และ subject ใหม่) อ่านวิธี step-up จาก `DECISION_STEP_UP_METHODS` ที่เดียว (= PIN จนถึง S17-15) · `STEP_UP_SUBJECT_TYPES` รับ subject ใหม่ทั้ง 7
+- AC5 — คำสั่งตัดสินทุกตัว (คำขอ PO variance นโยบาย และ subject ใหม่) อ่านวิธี step-up จาก `DECISION_STEP_UP_METHODS` ที่เดียว (= PIN และ PASSKEY ตั้งแต่ S17-15 · golden `step-up-methods`) · `STEP_UP_SUBJECT_TYPES` รับ subject ใหม่ทั้ง 7
+- AC6 — (S17-15 · OQ-168 · ADR-166) passkey เป็นหลักฐาน step-up อีกชนิดเคียงข้าง PIN ไม่ใช่ทางเข้าระบบ: เพิ่มที่ `/settings/pin` หลังพิสูจน์ตัวตนสด (รหัสผ่านหรือ TOTP) ด้วย UV required ผ่านคำสั่ง `self.add_passkey` ลบเองด้วย `self.remove_passkey` · หน้าตัดสินงาน `/tasks/[id]` (รวมในแอป BCS Go) มีปุ่ม passkey ข้างช่อง PIN เมื่อผู้ใช้มี passkey และเบราว์เซอร์รองรับ · assertion ได้ grant แบบ PIN (เอกสารเดียว 5 นาที ใช้ครั้งเดียว แล้วเปลี่ยน session id) เฉพาะเมื่อมาจาก origin และ RP ID ของ `APP_URL` เป็น credential ของผู้ใช้ใน session มี UV ตอบ challenge ของเอกสารนั้นภายใน 5 นาทีที่ยังไม่ใช้ และตัวนับไม่ถอยหลัง · ไม่ผ่าน → `VALIDATION_FAILED` {field: passkey, reason} ไม่ตัดสิน · `IDENTITY_RESET` และการปิดใช้งาน member เพิกถอน passkey · LIFF และหน้าเอกสาร (`/requests/[id]` `/procurement/pos/[id]`) ยังใช้ PIN
 
 ### 8.3 ผู้ดูแลองค์กร (ADM)
 
@@ -4661,7 +4679,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `bank_account.activated` ของผู้ขายที่อยู่ในร่างรอบจ่าย (S9-04) | ผู้เตรียมของร่างนั้น | ในระบบ | DIGEST | `payment_run.account_changed` |
 | บัญชีรับเงินของผู้ขายมีผล (S9-04 · BR-SUP-06) | ผู้ขาย (อีเมลในทะเบียน · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` (ธนาคารและเลข 4 ตัวท้าย) | IMMEDIATE | `bank_account.notice` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
-| `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
+| `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) · `auth.passkey_added` `auth.passkey_removed` และ passkey ที่ตัวนับถอยหลัง (S17-15) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
 | ทุกแถว IMMEDIATE ข้างบนที่ช่องทางมี LINE ยกเว้นสรุปรายวัน (S17-10 · `LINE_TEMPLATES`) | ตามแถวนั้น | push ในแอป BCS Go → LINE → อีเมล เมื่อองค์กรเปิด `BCS_GO` และผู้รับเปิด "รับแจ้งเตือนในแอป" (BR-NOTI-05 · OQ-165) · ไม่เปิด = ทางเดิมของแถวนั้น | ตามแถวนั้น | ตามแถวนั้น · หัวเรื่อง push จาก `push.<templateKey>.title` เนื้อความเป็นเลขเอกสารเท่านั้น (BR-NOTI-06) |
 | `ai_credit.threshold_reached` · `ai_credit.exhausted` (S13 · ครั้งเดียวต่อเดือนต่อชนิด) | ORG_ADMIN (ทีม BCS ดูที่หน้า platform) | อีเมล · ในระบบ | IMMEDIATE | `admin.ai_credits` |
 | `ai_agent.enabled` · `ai_agent.disabled` (S13) | ORG_ADMIN | ในระบบ | IMMEDIATE | `admin.ai_agent_changed` |
@@ -4719,7 +4737,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | bank_account · bank_account_change (S9) | `bank_account.activated` `bank_account.superseded` `bank_account.closed` `bank_account_change.drafted` `bank_account_change.updated` `bank_account_change.submitted` `bank_account_change.approved` `bank_account_change.rejected` `bank_account_change.returned` `bank_account_change.cancelled` · data มีเลขบัญชีเฉพาะ 4 ตัวท้าย (`last4`) ไม่มีเลขเต็ม ชื่อบัญชี หรือบันทึกการโทร (BR-BANK-08) · การเปิดเลขเต็มและดาวน์โหลดหลักฐานบันทึกใน `SensitiveAccessLog` ไม่ใช่ event |
 | ช่องทาง | `line.linked` `line.unlinked` |
 | การแจ้งเตือน | `notification.read` `notification.digest_sent` |
-| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
+| ความปลอดภัย | `auth.login_succeeded` `auth.login_failed` `auth.login_locked` `auth.2fa_enabled` `auth.2fa_reset` `auth.pin_set` `auth.passkey_added` `auth.passkey_removed` (S17-15 · `{ passkeyId, proof }` · `{ passkeyId, by: SELF IDENTITY_RESET DEACTIVATED }` · ไม่มี credential หรือ key) `security.pin_locked` `security.token_misuse` `security.sod_blocked` `security.break_glass_started` `security.break_glass_ended` `security.audit_chain_mismatch` |
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 | agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
 | ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
@@ -5277,7 +5295,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       47 ไฟล์ · 585 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       48 ไฟล์ · 593 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

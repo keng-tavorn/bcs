@@ -292,6 +292,14 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
     // A RECEIVER opens the receiving page; the requester the PO (§16.10: receivers see PO lines through gr.post)
     href: d.forReceiver ? `/receiving/${str(d.poId)}` : `/procurement/pos/${str(d.poId)}`,
   }),
+  // S17-05 (FR-LINE-303 AC5, OQ-171): the RECEIVER hears at once that the PO went out, with the receiving page — in LINE
+  // the LIFF page /liff/gr/<poId> (src/channels/line/links.ts), in the app and on the web /receiving/<poId>. No line,
+  // quantity or price (BR-NOTI-01)
+  'po.sent_receiver': (d) => ({
+    title: { th: `ใบสั่งซื้อ ${ref(d)} ส่งถึงผู้ขายแล้ว รอตรวจรับ`, en: `Purchase order ${ref(d)} was sent to the supplier: ready to receive` },
+    body: { th: 'ตรวจรับเมื่อของมาถึง', en: 'Receive the goods when they arrive' },
+    href: `/receiving/${str(d.poId)}`,
+  }),
   'po.send_bounced': (d) => ({
     title: { th: `ส่งใบสั่งซื้อ ${ref(d)} ไม่ถึงผู้ขาย อีเมลถูกตีกลับ`, en: `Purchase order ${ref(d)} did not reach the supplier: the e-mail bounced` },
     body: { th: 'ตรวจอีเมลของผู้ขายแล้วส่งอีกครั้งพร้อมเหตุผล', en: 'Check the supplier e-mail address, then send again with a reason' },

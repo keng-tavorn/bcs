@@ -1,27 +1,68 @@
 {
-  "fallback": { "title": "New notification" },
-  "delegation": { "window": { "title": "An acting appointment starts or ends" } },
-  "doa": { "authority_changed": { "title": "Your approval authority changed" } },
+  "fallback": {
+    "title": "New notification"
+  },
+  "delegation": {
+    "window": {
+      "title": "An acting appointment starts or ends"
+    }
+  },
+  "doa": {
+    "authority_changed": {
+      "title": "Your approval authority changed"
+    }
+  },
   "invoice": {
-    "exception": { "title": "Invoice differences to check" },
-    "variance_decided": { "title": "Invoice variance decided" }
+    "exception": {
+      "title": "Invoice differences to check"
+    },
+    "variance_decided": {
+      "title": "Invoice variance decided"
+    }
   },
   "po": {
-    "approved": { "title": "Purchase order approved" },
-    "send_bounced": { "title": "Purchase order did not reach the supplier" }
+    "approved": {
+      "title": "Purchase order approved"
+    },
+    "send_bounced": {
+      "title": "Purchase order did not reach the supplier"
+    },
+    "sent_receiver": {
+      "title": "A purchase order to receive"
+    }
   },
   "request": {
-    "approved": { "title": "Request approved" },
-    "decided": { "title": "Request decided" },
-    "follower_added": { "title": "You were asked to follow a document" },
-    "info_provided": { "title": "The requester answered" },
-    "info_requested": { "title": "A question for you" }
+    "approved": {
+      "title": "Request approved"
+    },
+    "decided": {
+      "title": "Request decided"
+    },
+    "follower_added": {
+      "title": "You were asked to follow a document"
+    },
+    "info_provided": {
+      "title": "The requester answered"
+    },
+    "info_requested": {
+      "title": "A question for you"
+    }
   },
   "task": {
-    "assigned": { "title": "Waiting for your approval" },
-    "escalated": { "title": "A task was passed to you" },
-    "overdue": { "title": "A task is past its due time" },
-    "reminder": { "title": "Reminder: waiting for your approval" },
-    "review_assigned": { "title": "Waiting for your review" }
+    "assigned": {
+      "title": "Waiting for your approval"
+    },
+    "escalated": {
+      "title": "A task was passed to you"
+    },
+    "overdue": {
+      "title": "A task is past its due time"
+    },
+    "reminder": {
+      "title": "Reminder: waiting for your approval"
+    },
+    "review_assigned": {
+      "title": "Waiting for your review"
+    }
   }
 }

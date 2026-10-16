@@ -82,11 +82,15 @@ describe('[FR-P2P-005/AC1] an approved PO goes to the supplier by e-mail with it
 
     const events = await prisma.event.findMany({ where: { aggregateId: po.id, type: { in: ['po.sent', 'po.send_bounced'] } }, select: { type: true, data: true } })
     expect(events).toEqual([{ type: 'po.sent', data: expect.objectContaining({ from: 'APPROVED', resend: false, reasonCommentId: null, pdfFileId: result.pdfFileId }) }])
-    // §10.1 po.sent: the requester and the RECEIVER of the department, in the daily summary
-    const notified = await prisma.notification.findMany({ where: { templateKey: 'po.sent', subjectId: po.id }, select: { recipientMemberId: true, urgency: true, data: true } })
-    expect(notified.map((n) => n.recipientMemberId).sort()).toEqual([requesterId, org.member.receiver_con!].sort())
-    expect(notified.every((n) => n.urgency === 'DIGEST')).toBe(true)
-    expect(notified.find((n) => n.recipientMemberId === org.member.receiver_con)!.data).toMatchObject({ forReceiver: true })
+    // §10.1 po.sent: the requester in the daily summary; the RECEIVER of the department at once (S17-05, FR-LINE-303 AC5)
+    const notified = await prisma.notification.findMany({ where: { templateKey: { in: ['po.sent', 'po.sent_receiver'] }, subjectId: po.id }, select: { recipientMemberId: true, templateKey: true, urgency: true, data: true } })
+    expect(notified.map((n) => [n.recipientMemberId, n.templateKey, n.urgency]).sort()).toEqual(
+      [
+        [requesterId, 'po.sent', 'DIGEST'],
+        [org.member.receiver_con!, 'po.sent_receiver', 'IMMEDIATE'],
+      ].sort(),
+    )
+    expect(notified.find((n) => n.recipientMemberId === org.member.receiver_con)!.data).toEqual({ poId: po.id, number: po.number })
   })
 
   it('a supplier without an e-mail address, a PO not yet approved, and anybody but PROCUREMENT are refused', async () => {

@@ -4244,7 +4244,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `request.info_requested` | ผู้ขอ | LINE → อีเมล | IMMEDIATE | `request.info_requested` |
 | `request.info_provided` | ผู้อนุมัติที่ถาม | LINE → อีเมล | IMMEDIATE | `request.info_provided` |
 | `po.approved` | PROCUREMENT ผู้สร้าง PO | ในระบบ · LINE | IMMEDIATE | `po.approved` |
-| `po.sent` | ผู้ขอของ PR ต้นทาง · ผู้ตรวจรับที่ได้รับมอบหมาย | LINE → อีเมล | DIGEST | `po.sent` |
+| `po.sent` | ผู้ขอของ PR ต้นทาง | LINE → อีเมล | DIGEST | `po.sent` |
+| `po.sent` (S17-05 · OQ-171 · NEW-64) | ผู้ตรวจรับที่ได้รับมอบหมาย (RECEIVER ของแผนกผู้ขอ) | push → LINE → อีเมล พร้อมลิงก์หน้าตรวจรับ (`/liff/gr/<poId>` ใน LINE · `/receiving/<poId>` ในแอปและเว็บ) ไม่มีรายการและราคา | IMMEDIATE | `po.sent_receiver` |
 | `po.send_bounced` (NEW-25) | PROCUREMENT | LINE → อีเมล | IMMEDIATE | `po.send_bounced` |
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |

@@ -19,6 +19,8 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   'request.follower_added',
   'po.approved',
   'po.send_bounced',
+  // S17-05 (FR-LINE-303 AC5): the RECEIVER of a PO that went out, at once
+  'po.sent_receiver',
   'delegation.window',
   'doa.authority_changed',
   'digest.daily',

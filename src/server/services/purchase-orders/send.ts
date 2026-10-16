@@ -133,15 +133,29 @@ export const sendPoCommand = defineCommand({
 
     const status = moved?.ok ? moved.to : po.status
     await tx.purchaseOrder.update({ where: { id: po.id }, data: { status, pdfFileId, sentAt: ctx.now, sentToEmail: to, sendBouncedAt: null, sendBounceReason: null, version: { increment: 1 } } })
-    const notifications: NotificationDraft[] = (await sentRecipients(tx, ctx, po.id)).map((r) => ({
-      recipientMemberId: r.memberId,
-      templateKey: 'po.sent',
-      data: { poId: po.id, number: document.number, forReceiver: r.forReceiver },
-      urgency: 'DIGEST',
-      dedupeKey: `po.sent:${pdfFileId}:${r.memberId}`,
-      subjectType: 'PURCHASE_ORDER',
-      subjectId: po.id,
-    }))
+    // §10.1 po.sent: the requester in the daily summary; the RECEIVER of the department at once, by push, LINE or
+    // e-mail with the link to the receiving page (S17-05, FR-LINE-303 AC5, OQ-171): the goods may arrive before the summary
+    const notifications: NotificationDraft[] = (await sentRecipients(tx, ctx, po.id)).map((r) =>
+      r.forReceiver
+        ? {
+            recipientMemberId: r.memberId,
+            templateKey: 'po.sent_receiver',
+            data: { poId: po.id, number: document.number },
+            urgency: 'IMMEDIATE',
+            dedupeKey: `po.sent_receiver:${pdfFileId}:${r.memberId}`,
+            subjectType: 'PURCHASE_ORDER',
+            subjectId: po.id,
+          }
+        : {
+            recipientMemberId: r.memberId,
+            templateKey: 'po.sent',
+            data: { poId: po.id, number: document.number, forReceiver: false },
+            urgency: 'DIGEST',
+            dedupeKey: `po.sent:${pdfFileId}:${r.memberId}`,
+            subjectType: 'PURCHASE_ORDER',
+            subjectId: po.id,
+          },
+    )
     return {
       ok: true,
       result: { poId: po.id, status, sent: true, bounce: null, pdfFileId },

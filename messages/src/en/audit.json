@@ -520,7 +520,9 @@
       "image_fetched": "Chat photo fetched",
       "expired": "Chat draft expired",
       "purged": "Text and photos of a chat draft cleared",
-      "message_refused": "Chat message not taken"
+      "message_refused": "Chat message not taken",
+      "drafted": "Request draft made from the chat",
+      "dismissed": "Chat draft closed (not a request)"
     }
   }
 }

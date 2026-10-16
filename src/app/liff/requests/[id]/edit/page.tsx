@@ -1,5 +1,6 @@
 import { getLocale, getTranslations } from 'next-intl/server'
 import type { ReactNode } from 'react'
+import { chatIntakeIdOfRequest } from '@/server/queries/chat-intake'
 import { getRequestAccess, isUuid } from '@/server/queries/requests'
 import { getRequestForEdit } from '@/server/services/requests/form-view'
 import { LIFF_HOME_PATH } from '@/ui/liff/bootstrap'
@@ -73,8 +74,11 @@ export default async function LiffEditRequestPage({ params }: { params: Promise<
     return refused(tl('notFoundTitle'), 'warning', tl('notFound'), <LiffLink href={LIFF_FORM_PATHS.catalog}>{t('toCatalog')}</LiffLink>)
   }
   const data = result.data
+  // S17-07 (BR-LINE-12): a draft made from the chat leads back to what was typed there, kept as a reference until purged
+  const chatIntakeId = await chatIntakeIdOfRequest(page.ctx, id)
+  const backTo = chatIntakeId ? { href: `${LIFF_FORM_PATHS.catalog}?intake=${chatIntakeId}`, label: (await getTranslations('liffChat'))('backToChat') } : back
   return (
-    <LiffFrame title={t(data.draft?.status === 'RETURNED' ? 'returnedTitle' : 'draftTitle', { type: data.type.name })} back={back}>
+    <LiffFrame title={t(data.draft?.status === 'RETURNED' ? 'returnedTitle' : 'draftTitle', { type: data.type.name })} back={backTo}>
       <LiffRequestForm data={data} start={liffFormStart(data)} locale={screen} actions={LIFF_FORM_ACTIONS} paths={LIFF_FORM_PATHS} />
     </LiffFrame>
   )

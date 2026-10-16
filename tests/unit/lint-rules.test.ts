@@ -274,6 +274,22 @@ describe('[INV-AI-05] the AI adapter and agents stay out of money, approvals, LI
     }
   })
 
+  it('[FR-LINE-301/AC6] refuses the adapter and the agents in S17’s chat requests: the chat side, its jobs, its query and the LIFF page (BR-LINE-13)', async () => {
+    const S17_FILES = [
+      'src/server/services/chat-intake/canary.ts',
+      'src/server/line/chat-intake.ts',
+      'src/server/jobs/chat-intake-ai.ts',
+      'src/server/jobs/chat-intake-image.ts',
+      'src/server/queries/chat-intake.ts',
+      'src/ui/liff/requests/chat-intake.tsx',
+      'src/app/liff/requests/new/(catalog)/page.tsx',
+    ]
+    for (const file of S17_FILES) {
+      expect(await ruleIds(file, ADAPTER), `${file} adapter`).toContain(RESTRICTED)
+      expect(await ruleIds(file, AGENT), `${file} agent`).toContain(RESTRICTED)
+    }
+  })
+
   it('[INV-AI-05] allows the adapter in the agents, the ai-* jobs and scripts/ai-eval, and the agents through the AI module', async () => {
     for (const file of ['src/server/services/ai/agents/canary.ts', 'src/server/jobs/ai-agent-run.ts', 'scripts/ai-eval.ts']) {
       const ids = await ruleIds(file, ADAPTER)

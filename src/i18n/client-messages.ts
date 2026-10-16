@@ -73,7 +73,7 @@ export const CLIENT_MESSAGES = {
     ...each('adminDoa.detail', ['boundaryConfirm', 'boundaryConfirmLink', 'boundaryConfirmTitle']),
   ],
   /** /liff/requests/new: the catalogue of request types (its search and its list; the drafts' words are the web's) */
-  liffCatalog: [...LIFF_GATE, ...each('request.catalog', ['all', 'clear', 'found', 'noDescription', 'noMatch', 'noTypes', 'search', 'searchHint', 'start', 'typesHeading', 'whenToUse'])],
+  liffCatalog: [...LIFF_GATE, ...each('request.catalog', ['all', 'clear', 'found', 'noDescription', 'noMatch', 'noTypes', 'search', 'searchHint', 'start', 'typesHeading', 'whenToUse']), 'liffChat'],
   /**
    * /liff/requests/new/[type] and /liff/requests/[id]/edit: the request form's shell and its first step — with what
    * closed the request to the form, said above it and in the bar (liffRequests.form.closedBy, submit.blockedClosedBy).

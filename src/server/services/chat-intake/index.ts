@@ -5,9 +5,10 @@ import { discardLineInboundText } from '@/server/line/webhook'
 // Asking through the LINE chat (S17-06 · FR-LINE-301 · BR-LINE-10 to BR-LINE-15 · ADR-162): the chat side. A linked
 // member's text or photo opens or joins a draft (./receive.ts), its photos are fetched from LINE in a job (./images.ts),
 // and an hourly sweep expires drafts and clears what was typed (./sweep.ts). ./line-message.ts plugs the chat into the
-// webhook. The draft becomes a request only in LIFF (S17-07); nothing is ever sent from the chat.
+// webhook. The draft becomes a request only in LIFF (./draft.ts · S17-07); nothing is ever sent from the chat.
 
 export { CHAT_IMAGE_GIVE_UP_MS, CHAT_IMAGE_JOB, chatImagePrefix, fetchChatImage, giveUpChatImages, pendingChatImages, storeChatImageCommand, type ChatImageFailure, type ChatImageOutcome } from './images'
+export { dismissChatIntake, dismissChatIntakeCommand, draftFromChat, draftFromChatCommand } from './draft'
 export { receiveChatMessage, receiveChatMessageCommand } from './receive'
 export { CHAT_SWEEP_JOB, chatSweepOrganizationIds, expireChatIntakesCommand, LINE_INBOUND_TEXT_MAX_AGE_MS, purgeChatIntakesCommand, runChatIntakeSweep, type ChatIntakeSweepResult } from './sweep'
 

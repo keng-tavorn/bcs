@@ -12,6 +12,12 @@ defineEvents('ChatIntake', {
   'chat_intake.message_added': { schema: z.strictObject({ seq: z.number().int().positive(), kind }) },
   // Job chat-intake-image fetched an image of the draft from LINE, or could not (fileId when stored)
   'chat_intake.image_fetched': { schema: z.strictObject({ seq: z.number().int().positive(), status: z.enum(['STORED', 'FAILED']), fileId: z.uuid().optional() }) },
+  // S17-07: the owner picked a type in LIFF; the request draft was made by request.create_draft's logic (BR-LINE-12)
+  'chat_intake.drafted': {
+    schema: z.strictObject({ requestId: z.uuid(), requestTypeCode: z.string().min(1), images: z.number().int().nonnegative(), aiAssisted: z.boolean() }),
+  },
+  // S17-07: "ไม่ใช่คำขอ" - the owner closed the draft in LIFF
+  'chat_intake.dismissed': { schema: z.strictObject({}) },
   // Nobody used the draft for expireHours (job chat-intake-sweep)
   'chat_intake.expired': { schema: z.strictObject({ reason: z.literal('IDLE') }) },
   // The typed text of a closed draft was cleared after textRetentionDays (BR-LINE-11, OQ-162), and its photos no document took

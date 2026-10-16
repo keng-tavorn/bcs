@@ -5,11 +5,13 @@ import { z } from 'zod'
 import { isDocumentFile, isOwnUnattachedUpload } from '@/server/queries/document-files'
 import { doaGapNames, sentRequestSummary } from '@/server/queries/request-form'
 import { getRequestAccess } from '@/server/queries/requests'
+import { dismissChatIntake, draftFromChat } from '@/server/services/chat-intake'
 import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services/files'
 import { resubmitRequest, submitRequest } from '@/server/services/requests'
 import { attachFile, detachFile } from '@/server/services/requests/attachments'
 import { previewRequest } from '@/server/services/requests/preview'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/ui/files/file-upload'
+import type { LiffChatOutcome } from '@/ui/liff/requests/chat-intake'
 import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
 import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
 import type { RepeatOutcome } from '@/ui/request-view/repeat-rules'
@@ -17,6 +19,7 @@ import type { ActionFailure, ActionOutcome } from '@/ui/tasks/outcome'
 import { canViewRequest } from '../../(workspace)/_tracking/access'
 import { answerQuestion, cancelOwnRequest, reorderOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
 import { liffPage, type LiffPage } from '../_lib/session'
+import { liffDraftHref } from './_lib/form'
 import { liffPrincipalOf } from './_lib/principal'
 
 // Browser-facing adapters of the LIFF request pages (S5-06, §9.4: /liff/requests/new and /liff/requests/[id]): the same
@@ -177,4 +180,29 @@ export async function reorderAction(requestId: string, idempotencyKey: string): 
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION_ACTION
   return reorderOwnRequest(ctx, requestId, idempotencyKey)
+}
+
+// ---------- a request begun in the LINE chat (S17-07 · BR-LINE-12 · FR-LINE-301 AC4 AC7) ----------
+
+const chatFailure = (error: { readonly code: string; readonly details?: Readonly<Record<string, unknown>> }): LiffChatOutcome => {
+  const field = typeof error.details?.field === 'string' ? error.details.field : undefined
+  return { ok: false, code: error.code, ...(field ? { field } : {}) }
+}
+
+/** "สร้างร่างคำขอ": chat_intake.draft as the member of this LIFF page; the draft then opens in the LIFF form */
+export async function draftFromChatAction(input: { intakeId: string; requestTypeCode: string; title: string; idempotencyKey: string }): Promise<LiffChatOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (!Key.safeParse(input?.idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
+  const result = await draftFromChat(ctx, { intakeId: String(input.intakeId), requestTypeCode: String(input.requestTypeCode), title: String(input.title) }, { idempotencyKey: input.idempotencyKey })
+  return result.ok ? { ok: true, href: liffDraftHref(result.data.requestId) } : chatFailure(result.error)
+}
+
+/** "ไม่ใช่คำขอ": chat_intake.dismiss as the member of this LIFF page */
+export async function dismissChatIntakeAction(input: { intakeId: string; idempotencyKey: string }): Promise<LiffChatOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (!Key.safeParse(input?.idempotencyKey).success) return { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
+  const result = await dismissChatIntake(ctx, { intakeId: String(input.intakeId) }, { idempotencyKey: input.idempotencyKey })
+  return result.ok ? { ok: true, href: '' } : chatFailure(result.error)
 }

@@ -3862,7 +3862,7 @@ cases:
 | `/liff/home` | หน้าแรกใน LINE: สิ่งที่ต้องทำ รอฉันอนุมัติ ที่ฉันติดตาม ตัวเลขเท่าหน้าแรกเว็บ · `/liff` พาผู้ผูกแล้วมาที่นี่ (FR-LINE-302 · BR-LINE-18 · ADR-167) |
 | `/liff/tasks` | งานรออนุมัติของฉัน เรียงตามกำหนดเวลา |
 | `/liff/tasks/[id]` | รายละเอียดและตัดสิน (พร้อม PIN เมื่อจำเป็น) |
-| `/liff/requests/new` | แคตตาล็อกและฟอร์มแบบย่อ |
+| `/liff/requests/new` | แคตตาล็อกและฟอร์มแบบย่อ · `?intake=<id>` ร่างจากแชทของผู้ใช้เอง: ข้อความเป็นข้อมูลอ้างอิง สถานะรูป ชื่อเรื่อง เลือกประเภท สร้างร่าง หรือ "ไม่ใช่คำขอ" · ไม่มี `intake` แสดงร่างจากแชทที่ OPEN ด้วย (S17-07) |
 | `/liff/requests/[id]` | รายละเอียดคำขอ |
 | `/liff/track` | คำขอของฉันและไทม์ไลน์ |
 | `/liff/delegation` | ตั้งรักษาการ |
@@ -4366,7 +4366,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 | agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
 | ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
-| chat_intake (S17-06 · ขอผ่านแชท) | `chat_intake.opened` `chat_intake.message_added` `chat_intake.image_fetched` `chat_intake.expired` `chat_intake.purged` · บน member: `chat_intake.message_refused` (reason `UNSUPPORTED` `LIMIT_IMAGES` `RATE_LIMITED` · notified) · data เป็นรหัสและตัวเลขเท่านั้น ไม่มีข้อความที่พิมพ์ ชื่อไฟล์ หรือ LINE user id (BR-LINE-11) · `chat_intake.drafted` `chat_intake.dismissed` เพิ่มใน S17-07 · `chat_intake.ai_requested` ใน S17-08 |
+| chat_intake (S17-06 · ขอผ่านแชท) | `chat_intake.opened` `chat_intake.message_added` `chat_intake.image_fetched` `chat_intake.expired` `chat_intake.purged` · บน member: `chat_intake.message_refused` (reason `UNSUPPORTED` `LIMIT_IMAGES` `RATE_LIMITED` · notified) · data เป็นรหัสและตัวเลขเท่านั้น ไม่มีข้อความที่พิมพ์ ชื่อไฟล์ หรือ LINE user id (BR-LINE-11) · `chat_intake.drafted` (requestId requestTypeCode images aiAssisted) `chat_intake.dismissed` (S17-07) · `chat_intake.ai_requested` ใน S17-08 |
 
 **ระยะ 1 (P1-07):** `approval_task.*` และ event ของ step-up ใน `auth` รับ `subjectType` ครบ 12 ค่าของ `APPROVAL_SUBJECTS` (ค่าใหม่ `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · `request.drafted` schemaVersion 2 เพิ่ม `source` (`MANUAL` เป็นค่าเริ่มต้น · `REORDER` `RENEWAL` ของ S6 · `CHAT_INTAKE` ของ S17) และ `agentActionId` ไม่บังคับ (S13) · event ฉบับ 1 ยังอ่านได้ (source = `MANUAL`) · สายไม่เพิ่มฉบับของ event นี้เอง
 

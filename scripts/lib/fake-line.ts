@@ -17,8 +17,8 @@
 // src/lib/env.ts accepts LINE's own hosts only for LINE_API_BASE_URL and LINE_DATA_API_BASE_URL.
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import type { AddressInfo } from 'node:net'
 import { createFakeFcm, type FakeFcm } from './fake-fcm'
+import { listen } from './listen'
 
 export interface FakeLineOptions {
   /** 0 = any free port (tests); `pnpm line:fake` uses FAKE_LINE_PORT or 4100 */
@@ -613,14 +613,8 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
       }
     })
   })
-  await new Promise<void>((resolve, reject) => {
-    server.once('error', reject)
-    server.listen(options.port, options.host ?? '127.0.0.1', () => {
-      server.off('error', reject)
-      resolve()
-    })
-  })
-  const address = server.address() as AddressInfo
+  // Port 0 (tests): a port fetch may call (listen.ts)
+  const address = await listen(server, options.port, options.host ?? '127.0.0.1')
   const host = address.family === 'IPv6' ? `[${address.address}]` : address.address
 
   const fake: FakeLine = {

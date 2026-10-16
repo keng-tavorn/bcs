@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { listen } from '../../scripts/lib/listen'
 import path from 'node:path'
 import { createTranslator, type AbstractIntlMessages } from 'next-intl'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
@@ -109,10 +110,10 @@ beforeAll(async () => {
       })()
     })
   })
-  await new Promise<void>((resolve) => receiver.listen(0, '127.0.0.1', resolve))
+  await listen(receiver, 0)
   receiverOrigin = `http://127.0.0.1:${(receiver.address() as AddressInfo).port}`
   const closed = createServer()
-  await new Promise<void>((resolve) => closed.listen(0, '127.0.0.1', resolve))
+  await listen(closed, 0)
   closedOrigin = `http://127.0.0.1:${(closed.address() as AddressInfo).port}`
   await new Promise<void>((resolve) => closed.close(() => resolve()))
 })

@@ -1,5 +1,6 @@
 import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { listen } from '../../scripts/lib/listen'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createLineClient, isLineApiError, LineApiError, type LineMessage, type LineRichMenu } from '@/integrations/line'
 import { TEST_ACCESS_TOKEN, withFakeLine } from '../support/fake-line'
@@ -28,7 +29,7 @@ async function failure(run: () => Promise<unknown>): Promise<LineApiError> {
 /** A server that accepts connections and never answers */
 async function silentServer(): Promise<{ url: string; close: () => void; server: Server }> {
   const server = createServer(() => undefined)
-  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
+  await listen(server, 0)
   const { port } = server.address() as AddressInfo
   return { url: `http://127.0.0.1:${port}`, server, close: () => (server.closeAllConnections(), server.close()) }
 }
@@ -266,13 +267,13 @@ describe('[NFR-SEC-07] the channel access token, a secret of the organization, g
       seen.push(req.headers)
       res.end('{}')
     })
-    await new Promise<void>((resolve) => target.listen(0, '127.0.0.1', resolve))
+    await listen(target, 0)
     const targetUrl = `http://127.0.0.1:${(target.address() as AddressInfo).port}`
     redirector = createServer((req, res) => {
       res.writeHead(302, { location: `${targetUrl}${req.url ?? '/'}` })
       res.end()
     })
-    await new Promise<void>((resolve) => redirector.listen(0, '127.0.0.1', resolve))
+    await listen(redirector, 0)
     redirectUrl = `http://127.0.0.1:${(redirector.address() as AddressInfo).port}`
   })
   afterAll(() => {

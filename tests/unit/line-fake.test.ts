@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { isValidLineSignature, lineSignature } from '@/integrations/line'
 import { imageSize, startFakeLine, type FakeLine } from '../../scripts/lib/fake-line'
+import { listen } from '../../scripts/lib/listen'
 import { TEST_ACCESS_TOKEN, TEST_CHANNEL_SECRET } from '../support/fake-line'
 
 // The fake LINE server (scripts/lib/fake-line.ts) that local development, the integration tests and e2e use instead of
@@ -94,7 +95,7 @@ describe('[FR-ADM-006/AC3] the fake tests a webhook URL the way LINE does: a sig
         }, delayMs)
       })
     })
-    await new Promise<void>((resolve) => receiver.listen(0, '127.0.0.1', resolve))
+    await listen(receiver, 0)
     receiverUrl = `http://127.0.0.1:${(receiver.address() as AddressInfo).port}/api/webhooks/line/key`
   })
   afterAll(() => {

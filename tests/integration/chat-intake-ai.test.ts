@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { setAiClientForTests, type AiClient, type AiRequest } from '@/integrations/ai'
 import { putObject } from '@/integrations/storage'
 import { PROMPT_VERSIONS } from '@/lib/ai-config'
-import { MS_PER_DAY, MS_PER_HOUR } from '@/lib/constants'
+import { CHAT_AI_READING_WINDOW_MS, MS_PER_DAY, MS_PER_HOUR, MS_PER_SECOND } from '@/lib/constants'
 import { systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { chatIntakeAiRun } from '@/server/jobs/chat-intake-ai'
@@ -142,7 +142,8 @@ describe('[FR-LINE-301/AC5] job chat-intake-ai reads the chat draft with the Int
 
   it('LIFF offers the reading to its owner only: the proposed type, the values in words, and which ones are confirmed one by one', async () => {
     const { intakeId } = await chatDraft('ขอหมวกนิรภัย 20 ใบ')
-    expect(ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))).toEqual({ status: 'NONE' })
+    // The job links the reading once the model answered: until then, LIFF says the AI is reading it (AC5)
+    expect(ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))).toEqual({ status: 'READING' })
     await run(intakeId)
     const view = ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))
     expect(view).toMatchObject({ status: 'READY', requestTypeCode: 'BUY_GOODS' })
@@ -164,6 +165,17 @@ describe('[FR-LINE-301/AC5] job chat-intake-ai reads the chat draft with the Int
     })
     await prisma.chatIntake.update({ where: { id: intakeId }, data: { agentActionId: action.id } })
     expect(ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))).toEqual({ status: 'READING' })
+  })
+
+  it('before the reading is linked LIFF says the AI is reading for CHAT_AI_READING_WINDOW_MS after the last message, then nothing', async () => {
+    const { intakeId } = await chatDraft('ขอเก้าอี้')
+    const at = (ms: number) => org.ctxOf('req_con', new Date(NOW.getTime() + ms), 'LIFF')
+    expect(ok(await chatIntakeAiView(at(CHAT_AI_READING_WINDOW_MS - MS_PER_SECOND), intakeId, 'th'))).toEqual({ status: 'READING' })
+    // No answer by then: the reading failed or was skipped, and the page offers nothing of it
+    expect(ok(await chatIntakeAiView(at(CHAT_AI_READING_WINDOW_MS), intakeId, 'th'))).toEqual({ status: 'NONE' })
+    // Nothing to read: no words and no photo
+    const empty = await chatDraft('   ')
+    expect(ok(await chatIntakeAiView(liff('req_con'), empty.intakeId, 'th'))).toEqual({ status: 'NONE' })
   })
 })
 
@@ -233,6 +245,8 @@ describe('[FR-LINE-301/AC6] with the Intake Agent off the chat and LIFF work on 
     try {
       const { intakeId } = await chatDraft('ขอกล่องเครื่องมือ')
       const calls = sent.length
+      // LIFF does not say the AI is reading a draft the agent will never read
+      expect(ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))).toEqual({ status: 'NONE' })
       expect(await run(intakeId)).toEqual({ status: 'SKIPPED', reason: 'AI_AGENT_DISABLED' })
       expect(sent.length).toBe(calls)
       expect(ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))).toEqual({ status: 'NONE' })

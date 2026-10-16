@@ -244,3 +244,8 @@ export const AP_EXPORTABLE_STATUSES = ['READY_FOR_PAYMENT', 'IN_PAYMENT_RUN', 'P
 export const CHAT_INTAKE_MAX_TEXT_CHARS = 2_000
 export const CHAT_INTAKE_MAX_WINDOW_MINUTES = 1_440
 export const CHAT_INTAKE_MAX_HOURLY_LIMIT = 1_000
+/**
+ * How long after a chat draft's last message LIFF says the AI is reading it (FR-LINE-301 AC5): the reading starts once
+ * the messages settle (job chat-intake-ai, 20 s) and is tried again a few times; past this it has failed or was skipped
+ */
+export const CHAT_AI_READING_WINDOW_MS = 5 * MS_PER_MINUTE

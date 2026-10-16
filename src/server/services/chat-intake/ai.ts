@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { err, ok, type Result } from '@/core/result'
+import { CHAT_AI_READING_WINDOW_MS } from '@/lib/constants'
 import { transition, CHAT_INTAKE_MACHINE } from '@/core/state-machines'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
@@ -124,13 +125,24 @@ export const reviewOf = (value: unknown): Review | null => {
 /**
  * The reading of the member's own chat draft for its LIFF page (getAgentAction checks it is theirs): reading, ready with
  * its values in words, or nothing (no AI, the call failed, expired or was cleared). Anyone else's draft: NOT_FOUND.
+ * Reading: the reading of the draft is under way (its action PENDING), or none is linked yet while the Intake Agent is
+ * available to the owner, the draft has words or a photo to read and its last message came within
+ * CHAT_AI_READING_WINDOW_MS — job chat-intake-ai links the reading only once the model has answered.
  */
 export async function chatIntakeAiView(ctx: Ctx, intakeId: string, locale: 'th' | 'en'): Promise<Result<ChatAiView>> {
   if (ctx.actor.type !== 'USER' || !z.uuid().safeParse(intakeId).success) return err('NOT_FOUND', 'no such chat draft')
   const db = forTenant(ctx.organizationId)
-  const intake = await db.chatIntake.findFirst({ where: { id: intakeId, memberId: ctx.actor.memberId }, select: { agentActionId: true, status: true } })
+  const intake = await db.chatIntake.findFirst({
+    where: { id: intakeId, memberId: ctx.actor.memberId },
+    select: { agentActionId: true, status: true, text: true, lastMessageAt: true, items: { where: { kind: 'IMAGE', fetchStatus: { in: ['PENDING', 'STORED'] } }, select: { id: true }, take: 1 } },
+  })
   if (!intake) return err('NOT_FOUND', 'no such chat draft')
-  if (!intake.agentActionId || intake.status !== 'OPEN') return ok({ status: 'NONE' })
+  if (intake.status !== 'OPEN') return ok({ status: 'NONE' })
+  if (!intake.agentActionId) {
+    const something = (intake.text ?? '').trim() !== '' || intake.items.length > 0
+    const recent = ctx.now.getTime() - intake.lastMessageAt.getTime() < CHAT_AI_READING_WINDOW_MS
+    return ok(something && recent && (await isAgentAvailable(ctx, 'INTAKE')).available ? { status: 'READING' } : { status: 'NONE' })
+  }
   const action = await getAgentAction(ctx, intake.agentActionId)
   if (!action.ok || !action.data.content) return ok({ status: 'NONE' })
   if (action.data.status === 'PENDING') return ok({ status: 'READING' })

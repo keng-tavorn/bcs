@@ -11,7 +11,9 @@ import { expect, test } from './fixtures'
 // cuts the network with the browser's own offline mode. A lost answer is a request that reached the server and whose
 // answer the page never got (route.fetch, then the request aborted); those tests block the service worker, since a
 // route set on the page does not see what a worker answers. Every page state is checked with axe, for horizontal
-// scrolling, and photographed at the project's width (375 px or 1440 px, §9.9 step 4).
+// scrolling, and photographed at the project's width (375 px or 1440 px, §9.9 step 4). S17-14 adds finding a PO by its
+// number in the browser (a QR from the app's scanner is matched by tests/unit/go-scan.test.ts and the server's
+// resolve by tests/integration/go-receiving.test.ts; the camera itself is tried on a phone, docs/runbooks/bcs-go-demo.md).
 
 type Scene = { poId: string; number: string; receiver: string }
 
@@ -228,4 +230,30 @@ test('[FR-PLT-301/AC9] signing out while a receipt may be recorded warns "อา
   } finally {
     await context.close()
   }
+})
+
+test('[FR-PLT-301/AC6] in the PWA the receiver types the PO number: its receipt form opens; a number not among the copies is not found', async ({ page }, testInfo) => {
+  test.setTimeout(150_000)
+  const po = sentPo(testInfo)
+  await signIn(page, po.receiver)
+  await page.goto('/go/receive')
+  await expect(page.getByRole('button', { name: `บันทึกตรวจรับ ${po.number}` })).toBeVisible()
+  // A browser has no scanner of the app: the PO number instead (BR-APP-11)
+  await expect(page.getByRole('button', { name: 'สแกน QR บนใบสั่งซื้อ' })).toHaveCount(0)
+  await page.getByLabel('เลขใบสั่งซื้อ').fill('PO-0000-99999')
+  await page.getByRole('button', { name: 'หาใบสั่งซื้อ' }).click()
+  const none = page.getByRole('dialog', { name: 'ผลการค้นหา' })
+  await expect(none).toContainText('ไม่พบ PO นี้ในรายการที่ตรวจรับได้')
+  await check(page, testInfo, 'go-receive-find-none')
+  await page.keyboard.press('Escape')
+  await expect(none).toHaveCount(0)
+
+  await page.getByLabel('เลขใบสั่งซื้อ').fill(` ${po.number.toLowerCase()} `)
+  await page.getByRole('button', { name: 'หาใบสั่งซื้อ' }).click()
+  const found = page.getByRole('dialog', { name: po.number })
+  await expect(found).toContainText('3 รายการ')
+  await check(page, testInfo, 'go-receive-find-found')
+  await found.getByRole('button', { name: `บันทึกตรวจรับ ${po.number}` }).click()
+  await expect(page.getByRole('heading', { name: `บันทึกตรวจรับ ${po.number}` })).toBeVisible()
+  await check(page, testInfo, 'go-receive-find-form')
 })

@@ -2,12 +2,15 @@
 // Copies of the POs the member may receive now hold nothing of money; a member who receives nothing gets an empty list;
 // what a key recorded is read by its sender only; the routes take the queue's key and refuse a cross-site call; with
 // module BCS_GO off nothing new is prepared, while a receipt already queued still goes (gr.post is CORE).
+// S17-14 (FR-PLT-301 AC6 AC10, BR-APP-11): a QR scanned on site finds its PO by the sha256 of its token — the hash the
+// page makes with WebCrypto is the one S6 recorded, older printings count, and every refusal reads as "not found".
 import { createHash, randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { GET as prepareRoute } from '@/app/api/go/receiving/prepare/route'
 import { POST as completeRoute } from '@/app/api/go/files/complete/route'
 import { POST as requestRoute } from '@/app/api/go/files/request/route'
 import { GET as lookupRoute, POST as postRoute } from '@/app/api/go/receiving/gr/route'
+import { GET as resolveRoute } from '@/app/api/go/resolve/route'
 import { fund } from '@/core/budget'
 import { putObject } from '@/integrations/storage'
 import { getEnv } from '@/lib/env'
@@ -23,7 +26,9 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { postGoodsReceipt } from '@/server/services/receiving'
-import { prepareOfflineCopies, recordedReceipt } from '@/server/services/receiving/offline-copies'
+import { prepareOfflineCopies, recordedReceipt, resolveScannedPo } from '@/server/services/receiving/offline-copies'
+import { verificationKey, verificationToken, verificationTokenHash } from '@/server/verification/token'
+import { tokenHashOf } from '@/ui/go-receive/scan'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { createDraft, submitRequest } from '../support/requests'
 
@@ -233,6 +238,71 @@ describe('[FR-PLT-301/AC7] the photos of a queued receipt go up through the rout
   })
 })
 
+/** A printing of the PO as S6 records it (BR-QR-01): a row whose token is computed from its id; the hash is kept */
+async function printing(o: DoaOrg, poId: string, supersededAt: Date | null = null): Promise<{ token: string; tokenHash: string }> {
+  const id = randomUUID()
+  const token = verificationToken(id)
+  const hash = verificationTokenHash(token)
+  await prisma.documentVerification.create({ data: { id, organizationId: o.organizationId, subjectType: 'PURCHASE_ORDER', subjectId: poId, tokenHash: hash, keyId: verificationKey().keyId, contentSha256: tokenHash(), issuedAt: NOW, supersededAt } })
+  return { token, tokenHash: hash }
+}
+
+describe('[FR-PLT-301/AC6] a QR scanned on site finds its PO by the hash of its token (BR-APP-11, OQ-163)', () => {
+  it('the hash the page makes with WebCrypto is the tokenHash S6 recorded; the receiver gets the copy of the PO, from an older printout too', async () => {
+    const po = await sentPo(org, supplierId)
+    const older = await printing(org, po.poId, NOW)
+    const latest = await printing(org, po.poId)
+    // The page's own function (src/ui/go-receive/scan.ts) on the token of each printing
+    expect(await tokenHashOf(latest.token)).toBe(latest.tokenHash)
+    expect(await tokenHashOf(older.token)).toBe(older.tokenHash)
+    for (const p of [latest, older]) {
+      const found = ok(await resolveScannedPo(org.ctxOf('receiver_con', NOW, 'APP'), p.tokenHash))
+      expect(found.copy).toMatchObject({ poId: po.poId, number: po.number, version: po.version, tokenHashes: expect.arrayContaining([older.tokenHash, latest.tokenHash]) })
+      expect(JSON.stringify(found)).not.toMatch(/2780|unitPrice|amount|budget/i)
+    }
+  })
+
+  it('refuses alike: no such printing, a malformed hash, another organization\'s PO, a PO out of scope, one no longer taking goods', async () => {
+    const po = await sentPo(org, supplierId)
+    const mine = await printing(org, po.poId)
+    const other = await setupOrg()
+    await withModule(other)
+    const otherSupplier = (await prisma.supplier.create({ data: { organizationId: other.organizationId, code: 'S1', nameTh: 'ผู้ขายอื่น', taxId: '0999999000012' } })).id
+    const theirs = await printing(other, (await sentPo(other, otherSupplier)).poId)
+    const receiver = org.ctxOf('receiver_con', NOW, 'APP')
+    const refusals = [
+      await resolveScannedPo(receiver, tokenHash()),
+      await resolveScannedPo(receiver, mine.tokenHash.toUpperCase()),
+      await resolveScannedPo(receiver, mine.token),
+      await resolveScannedPo(receiver, theirs.tokenHash),
+      // A member without gr.post on the PO: procurement drafted it but receives nothing
+      await resolveScannedPo(org.ctxOf('proc_officer', NOW, 'APP'), mine.tokenHash),
+    ]
+    for (const r of refusals) expect(r).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+    // One message for all of them, so nothing tells a PO out of scope from one that does not exist
+    expect(new Set(refusals.map((r) => (r.ok ? '' : r.error.message))).size).toBe(1)
+    // Received in full or cancelled: nothing to receive on it any more
+    await prisma.purchaseOrder.update({ where: { id: po.poId }, data: { status: 'CANCELLED' } })
+    expect(await resolveScannedPo(receiver, mine.tokenHash)).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
+  })
+
+  it('the route sends only the hash and answers 200, 404 alike for any refusal, 401 without a session', async () => {
+    const cookie = await cookieOf(org, 'receiver_con')
+    const po = await sentPo(org, supplierId)
+    const p = await printing(org, po.poId)
+    const url = (h: string) => `${getEnv().APP_URL}/api/go/resolve?h=${encodeURIComponent(h)}`
+    const found = await resolveRoute(new Request(url(p.tokenHash), { headers: { cookie, 'user-agent': APP_UA } }))
+    expect(found.status).toBe(200)
+    expect(found.headers.get('cache-control')).toBe('no-store')
+    expect(((await found.json()) as { copy: { poId: string } }).copy.poId).toBe(po.poId)
+    const missing = await resolveRoute(new Request(url(tokenHash()), { headers: { cookie } }))
+    const malformed = await resolveRoute(new Request(url('not-a-hash'), { headers: { cookie } }))
+    expect([missing.status, malformed.status]).toEqual([404, 404])
+    expect(await missing.json()).toEqual(await malformed.json())
+    expect((await resolveRoute(new Request(url(p.tokenHash)))).status).toBe(401)
+  })
+})
+
 describe('[FR-PLT-301/AC10] module BCS_GO off: nothing new is prepared, a queued receipt still goes (BR-APP-13)', () => {
   it('prepare answers MODULE_DISABLED; gr.post with the queue key and offline still records the receipt', async () => {
     const off = await setupOrg()
@@ -249,5 +319,16 @@ describe('[FR-PLT-301/AC10] module BCS_GO off: nothing new is prepared, a queued
       { idempotencyKey: randomUUID() },
     )
     expect(queued).toMatchObject({ ok: true, data: { poStatus: 'RECEIVED' } })
+  })
+
+  it('a scanned QR is not resolved: MODULE_DISABLED from the service and the route (S17-14)', async () => {
+    const off = await setupOrg()
+    const s = (await prisma.supplier.create({ data: { organizationId: off.organizationId, code: 'S1', nameTh: 'ผู้ขาย', taxId: '0999999000012' } })).id
+    const p = await printing(off, (await sentPo(off, s)).poId)
+    expect(await resolveScannedPo(off.ctxOf('receiver_con', NOW, 'APP'), p.tokenHash)).toMatchObject({ ok: false, error: { code: 'MODULE_DISABLED' } })
+    const cookie = await cookieOf(off, 'receiver_con')
+    const res = await resolveRoute(new Request(`${getEnv().APP_URL}/api/go/resolve?h=${p.tokenHash}`, { headers: { cookie, 'user-agent': APP_UA } }))
+    expect(res.status).toBe(403)
+    expect(await res.json()).toMatchObject({ error: { code: 'MODULE_DISABLED' } })
   })
 })

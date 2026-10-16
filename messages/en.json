@@ -5814,6 +5814,20 @@
   },
   "goReceive": {
     "brand": "BCS Go",
+    "find": {
+      "fromServer": "The latest from BCS, now kept on the phone",
+      "notBcs": "This QR is not a BCS purchase order, so it was not opened or sent anywhere",
+      "notFound": "This PO is not among those you may receive",
+      "notOnPhone": "This purchase order is not on the phone. Try again with a signal, or prepare for receiving offline before going on site",
+      "resultTitle": "What was found",
+      "scan": "Scan the QR on the purchase order",
+      "scanUnavailable": "This phone cannot scan yet (Google's scanner is being installed). Try again with a signal, or type the purchase order number",
+      "scanning": "Opening the scanner",
+      "title": "Find a purchase order",
+      "typedButton": "Find the purchase order",
+      "typedHint": "Type the number on the purchase order, e.g. PO-2569-00012",
+      "typedLabel": "Purchase order number"
+    },
     "form": {
       "addPhoto": "Take or choose a photo",
       "cancel": "Cancel",

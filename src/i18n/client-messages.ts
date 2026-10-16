@@ -119,9 +119,10 @@ export const CLIENT_MESSAGES = {
   liffReceiving: [...LIFF_GATE, 'liffReceiving', 'receiving.approver', 'receiving.errors', 'receiving.form', 'receiving.history', 'receiving.status.po', 'files'],
   /**
    * /go/receive (S17-13): BCS Go's receiving without a signal — its own words, the LIFF receipt's fields in their words
-   * (receiving.form) with the refusals the page says itself (receiving.errors), and the sign-out's (auth.security)
+   * (receiving.form) with the refusals the page says itself (receiving.errors), the sign-out's (auth.security), and the
+   * shared components' (ui: the close button of the scan result's sheet)
    */
-  go: ['goReceive', 'receiving.form', 'receiving.errors', 'auth.security'],
+  go: ['goReceive', 'receiving.form', 'receiving.errors', 'auth.security', 'ui'],
 } as const satisfies Record<string, readonly MessagePath[]>
 
 export type ClientMessagesScope = keyof typeof CLIENT_MESSAGES

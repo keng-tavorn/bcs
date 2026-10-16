@@ -186,6 +186,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1144.0
         version: 3.1144.0
+      '@capacitor-mlkit/barcode-scanning':
+        specifier: 8.2.1
+        version: 8.2.1(@capacitor/core@8.5.2)
       '@capacitor/core':
         specifier: 8.5.2
         version: 8.5.2
@@ -735,6 +738,11 @@ packages:
 
   '@bufbuild/protobuf@2.16.0':
     resolution: {integrity: sha512-FWa0sPlqYGJgpTs6OxBRcL/AW4JT0OIO+W1ajerluoTVh8CV0B7XM1qsNCRgnkSCkRCgOICKHRQlY17jrsm0+Q==}
+
+  '@capacitor-mlkit/barcode-scanning@8.2.1':
+    resolution: {integrity: sha512-UdjIOK2dJwJ7c3Y+lRuRqIaP0VfHJeLvPNyE5kHrFU20MY++4uoAVm7JTWSklVVrjN4siIK/xmXL3QsYbthWSQ==}
+    peerDependencies:
+      '@capacitor/core': '>=8.0.0'
 
   '@capacitor/core@8.5.2':
     resolution: {integrity: sha512-agnQbGdhGw/KZFuLf7H9SY2o+oE7upkr/WPQsYaokXP6f9chaE8iVmbKkfN6SVl4w3pmz7oZ3Ur1hbkmy1hx+w==}
@@ -8207,6 +8215,10 @@ snapshots:
       - supports-color
 
   '@bufbuild/protobuf@2.16.0': {}
+
+  '@capacitor-mlkit/barcode-scanning@8.2.1(@capacitor/core@8.5.2)':
+    dependencies:
+      '@capacitor/core': 8.5.2
 
   '@capacitor/core@8.5.2':
     dependencies:

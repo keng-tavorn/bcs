@@ -2,8 +2,8 @@ import { err, ok, type Result } from '@/core/result'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import { bcsGoSettingsOf } from '@/lib/s17-settings'
 import type { Ctx } from '@/server/context'
-import { forTenant } from '@/server/db/tenant'
-import { listReceivingCandidates, RECEIVING_PAGE_SIZE } from '@/server/queries/receiving'
+import { forTenant, type TenantDb } from '@/server/db/tenant'
+import { getReceivingPo, listReceivingCandidates, RECEIVABLE_PO_STATUSES, RECEIVING_PAGE_SIZE } from '@/server/queries/receiving'
 import { scopedIdempotencyKey } from '../_pipeline'
 import { requireModule } from '../modules'
 import { receivingDecision } from './access'
@@ -18,6 +18,9 @@ import { receiverOf } from './view'
 // QR on an older printout still finds it, OQ-163). No price, amount, budget, account or contact.
 // Module BCS_GO: a copy is prepared only while it is on (BR-APP-13); a receipt already queued is sent by gr.post,
 // which is CORE. A member who receives nothing gets an empty list, never an error that says why.
+// A QR scanned on site (S17-14, FR-PLT-301 AC6, BR-APP-11) is looked up by the sha256 of its token only: the PO whose
+// printing it is, superseded printings too, of the organization in session, as one copy — when the member may receive
+// it now; anything else (no such token, another organization's, a PO out of scope or not taking goods) is "not found".
 
 export interface OfflinePoLineCopy {
   readonly poLineId: string
@@ -75,10 +78,16 @@ export async function prepareOfflineCopies(ctx: Ctx): Promise<Result<OfflineCopi
     if (truncated || page * RECEIVING_PAGE_SIZE >= candidates.total) break
   }
   if (chosen.length === 0) return ok({ copies: [], truncated, retentionDays: offlineRetentionDays })
-  const tolerancePct = OrgSettingsSchema.shape.receiving.parse((org.settings as { receiving?: unknown } | null)?.receiving).overTolerancePct
+  const copies = await copiesOf(db, org.settings, chosen, ctx.now)
+  return ok({ copies, truncated, retentionDays: offlineRetentionDays })
+}
+
+/** The copies of these POs, in this order, that still take goods (SENT or PARTIALLY_RECEIVED) */
+async function copiesOf(db: TenantDb, settings: unknown, ids: readonly string[], now: Date): Promise<OfflinePoCopy[]> {
+  const tolerancePct = OrgSettingsSchema.shape.receiving.parse((settings as { receiving?: unknown } | null)?.receiving).overTolerancePct
   const [pos, prints] = await Promise.all([
     db.purchaseOrder.findMany({
-      where: { id: { in: chosen } },
+      where: { id: { in: [...ids] } },
       select: {
         id: true,
         number: true,
@@ -90,11 +99,11 @@ export async function prepareOfflineCopies(ctx: Ctx): Promise<Result<OfflineCopi
         lines: { orderBy: { lineNo: 'asc' }, select: { id: true, description: true, uom: true, quantity: true, receivedQuantity: true, cancelledQuantity: true } },
       },
     }),
-    db.documentVerification.findMany({ where: { subjectType: 'PURCHASE_ORDER', subjectId: { in: chosen } }, orderBy: { issuedAt: 'asc' }, select: { subjectId: true, tokenHash: true } }),
+    db.documentVerification.findMany({ where: { subjectType: 'PURCHASE_ORDER', subjectId: { in: [...ids] } }, orderBy: { issuedAt: 'asc' }, select: { subjectId: true, tokenHash: true } }),
   ])
   const byId = new Map(pos.map((p) => [p.id, p]))
-  const preparedAt = ctx.now.toISOString()
-  const copies = chosen.flatMap((id): OfflinePoCopy[] => {
+  const preparedAt = now.toISOString()
+  return ids.flatMap((id): OfflinePoCopy[] => {
     const p = byId.get(id)
     if (!p || (p.status !== 'SENT' && p.status !== 'PARTIALLY_RECEIVED')) return []
     return [
@@ -113,7 +122,33 @@ export async function prepareOfflineCopies(ctx: Ctx): Promise<Result<OfflineCopi
       },
     ]
   })
-  return ok({ copies, truncated, retentionDays: offlineRetentionDays })
+}
+
+/** sha256 of a QR's token as DocumentVerification keeps it: 64 lower-case hex digits */
+const TOKEN_HASH = /^[0-9a-f]{64}$/
+
+/**
+ * GET /api/go/resolve?h= (S17-14, FR-PLT-301 AC6, BR-APP-11, BR-APP-13): the PO a scanned QR was printed on, as a copy
+ * for the receiving form, when the member may receive it now. Only the hash travels — never the token or the link. A
+ * hash of the wrong form, no such printing, another organization's (forTenant), a PO the member may not receive (the
+ * scope and separation of duties of gr.post) or one no longer taking goods: all the same NOT_FOUND.
+ */
+export async function resolveScannedPo(ctx: Ctx, hash: string): Promise<Result<{ readonly copy: OfflinePoCopy }>> {
+  const bcsGo = await requireModule(ctx, 'BCS_GO')
+  if (!bcsGo.ok) return bcsGo
+  const notFound = err('NOT_FOUND', 'no purchase order you may receive was printed with this QR')
+  if (!TOKEN_HASH.test(hash)) return notFound
+  const db = forTenant(ctx.organizationId)
+  const printing = await db.documentVerification.findFirst({ where: { tokenHash: hash, subjectType: 'PURCHASE_ORDER' }, select: { subjectId: true } })
+  if (!printing) return notFound
+  const receiver = await receiverOf(ctx)
+  if (!receiver.ok || !receiver.data) return notFound
+  const po = await getReceivingPo(ctx, printing.subjectId)
+  if (!po || !(RECEIVABLE_PO_STATUSES as readonly string[]).includes(po.status)) return notFound
+  if (receivingDecision(receiver.data.principal, receiver.data.sodPolicy, po.parties).kind !== 'RECEIVE') return notFound
+  const org = await db.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
+  const [copy] = await copiesOf(db, org.settings, [po.id], ctx.now)
+  return copy ? ok({ copy }) : notFound
 }
 
 /**

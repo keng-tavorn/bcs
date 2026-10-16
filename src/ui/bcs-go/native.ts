@@ -78,3 +78,28 @@ export function storePushDevice(deviceId: string | null): void {
     // Storage refused (private mode): signing out then leaves the device for the settings page or FCM to end
   }
 }
+
+export type QrScan = { readonly ok: true; readonly value: string } | { readonly ok: false; readonly reason: 'NOT_IN_APP' | 'CANCELLED' | 'UNAVAILABLE' }
+
+/**
+ * Scans one QR code in the app with ML Kit (S17-14, FR-PLT-301 AC6): Google's code scanner on Android, which reads
+ * the camera itself, so the app asks for no camera permission. A phone without the scanner module yet starts its
+ * download (Google Play services) and says so; the receiver may type the PO number meanwhile. The raw value only:
+ * what it may open is decided by src/ui/go-receive/scan.ts.
+ */
+export async function scanQrCode(): Promise<QrScan> {
+  if (!inBcsGoApp()) return { ok: false, reason: 'NOT_IN_APP' }
+  const [{ BarcodeScanner, BarcodeFormat }, { Capacitor }] = await Promise.all([import('@capacitor-mlkit/barcode-scanning'), import('@capacitor/core')])
+  try {
+    if (Capacitor.getPlatform() === 'android' && !(await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()).available) {
+      void BarcodeScanner.installGoogleBarcodeScannerModule().catch(() => undefined)
+      return { ok: false, reason: 'UNAVAILABLE' }
+    }
+    const { barcodes } = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode] })
+    const value = barcodes[0]?.rawValue
+    return value ? { ok: true, value } : { ok: false, reason: 'CANCELLED' }
+  } catch (error) {
+    // The receiver closed the scanner ("scan canceled"), or the phone could not open it
+    return { ok: false, reason: /cancel/i.test(error instanceof Error ? error.message : String(error)) ? 'CANCELLED' : 'UNAVAILABLE' }
+  }
+}

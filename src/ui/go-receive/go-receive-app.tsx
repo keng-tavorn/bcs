@@ -8,16 +8,19 @@ import { GO_RECEIVE_DRAIN_EVERY_MS, MS_PER_DAY } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { authClient } from '../auth/client'
 import { SignOutFailure, signOutWith, type SignOutResult } from '../auth/sign-out-button'
-import { storedPushDevice, storePushDevice } from '../bcs-go/native'
+import { inBcsGoApp, scanQrCode, storedPushDevice, storePushDevice } from '../bcs-go/native'
 import { StatusBadge } from '../document/badges'
 import type { BadgeLook } from '../document/badge-looks'
 import { Button } from '../form/button'
+import { Field } from '../form/field'
 import { Notice } from '../form/notice'
 import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../shadcn/alert-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../shadcn/card'
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '../shadcn/empty'
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from '../shadcn/item'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '../shadcn/sheet'
 import { ReceiptForm } from './receipt-form'
+import { findScanned, findTyped, type Found } from './scan'
 import { drainQueue, resumeAfterRestart, resumeAfterSignIn, sendUnknownNow, type DrainContext } from './runner'
 import { keepShellOffline } from './shell-cache'
 import { askToKeep, deletePhoto, forgetMember, forgetOthers, readPrepared, readQueue, updateQueue, writePrepared, type PoCopy, type Prepared, type ReceiptPayload, type StoredItem, type StoredPhoto } from './store'
@@ -30,6 +33,8 @@ import { askToKeep, deletePhoto, forgetMember, forgetOthers, readPrepared, readQ
 // Signing out warns by kind and deletes the receiver's queue and copies once confirmed; receipts another member left
 // on the phone are kept apart, never sent, shown as a count. The page's HTML carries no business data — the service
 // worker keeps its shell (./shell-cache.ts) — and everything comes from the phone's storage and /api/go/*.
+// A PO is found by scanning the QR printed on it in the app, or by typing its number (./scan.ts, S17-14): the copy on
+// the phone opens its form, and with a signal a PO not on the phone yet is asked of the server by the QR's hash.
 
 type Session = { readonly member: string | null; readonly known: boolean }
 type Tone = 'success' | 'warning' | 'danger' | 'info'
@@ -81,6 +86,10 @@ export function GoReceiveApp() {
   const [signingOut, setSigningOut] = useState(false)
   const [deletingHeld, setDeletingHeld] = useState(false)
   const [signOutFailed, setSignOutFailed] = useState<Exclude<SignOutResult, 'done'> | null>(null)
+  const [found, setFound] = useState<Found | null>(null)
+  const [typed, setTyped] = useState('')
+  const [scanning, setScanning] = useState(false)
+  const [scanProblem, setScanProblem] = useState<string | null>(null)
 
   const retentionDays = prepared?.retentionDays ?? 7
   const reload = useCallback(async () => {
@@ -219,6 +228,47 @@ export function GoReceiveApp() {
     return true
   }
 
+  async function scan() {
+    setScanProblem(null)
+    setScanning(true)
+    try {
+      const scanned = await scanQrCode()
+      if (!scanned.ok) {
+        if (scanned.reason === 'UNAVAILABLE') setScanProblem(t('find.scanUnavailable'))
+        return
+      }
+      const p = await readPrepared()
+      const result = await findScanned(scanned.value, { origin: window.location.origin, copies: p && p.memberId === sessionRef.current.member ? p.copies : [], online: onlineNow(), fetch: window.fetch.bind(window) })
+      if (result.kind === 'SIGNED_OUT') setSession({ member: null, known: true })
+      if (result.kind === 'MODULE_OFF') setModuleOff(true)
+      setFound(result)
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  function findNumber() {
+    const copy = findTyped(typed, copies)
+    setFound(copy ? { kind: 'COPY', copy, from: 'PHONE' } : { kind: 'NOT_FOUND' })
+  }
+
+  /** Opens the receipt form of the PO found; a copy the server gave is kept with the others (BR-APP-04) */
+  async function openFound(copy: PoCopy, from: 'PHONE' | 'SERVER') {
+    setFound(null)
+    const member = session.member ?? prepared?.memberId ?? null
+    if (!member) return
+    if (from === 'SERVER') {
+      const p = await readPrepared()
+      const kept: Prepared =
+        p && p.memberId === member
+          ? { ...p, copies: [copy, ...p.copies.filter((c) => c.poId !== copy.poId)] }
+          : { memberId: member, copies: [copy], truncated: false, retentionDays, preparedAt: copy.preparedAt }
+      await writePrepared(kept)
+      await reload()
+    }
+    setEditing({ copy, item: null })
+  }
+
   async function discard(item: StoredItem) {
     const out = { gone: false }
     // Only while it may still be thrown away: never sent, refused or expired (BR-APP-05)
@@ -285,6 +335,24 @@ export function GoReceiveApp() {
   const copies = ownCopies ? prepared.copies : []
   const copyOld = (copy: PoCopy) => Date.parse(now) - Date.parse(copy.preparedAt) > retentionDays * MS_PER_DAY
 
+  const inApp = inBcsGoApp()
+  const foundText = (f: Found): string => {
+    switch (f.kind) {
+      case 'COPY':
+        return copyOld(f.copy) ? t('prepare.old', { days: retentionDays }) : `${f.copy.supplier}${f.copy.site ? ` · ${f.copy.site}` : ''} · ${t('prepare.lines', { count: f.copy.lines.length })}`
+      case 'NOT_BCS':
+        return t('find.notBcs')
+      case 'NOT_FOUND':
+        return t('find.notFound')
+      case 'NOT_ON_PHONE':
+        return t('find.notOnPhone')
+      case 'SIGNED_OUT':
+        return t('signIn')
+      case 'MODULE_OFF':
+        return t('moduleOff')
+    }
+  }
+
   if (editing) {
     return (
       <ReceiptForm
@@ -319,6 +387,34 @@ export function GoReceiveApp() {
       {moduleOff ? <Notice tone="warning">{t('moduleOff')}</Notice> : null}
       {keepRefused ? <Notice tone="warning">{t('prepare.keepRefused')}</Notice> : null}
       {notice ? <Notice tone={notice.tone}>{notice.text}</Notice> : null}
+
+      {me ? (
+        <section aria-labelledby="go-find" className="flex flex-col gap-3">
+          <h2 id="go-find" className="text-lg font-semibold text-ink">
+            {t('find.title')}
+          </h2>
+          {inApp ? (
+            <Button className="self-start" onClick={() => void scan()} disabled={scanning || moduleOff}>
+              {scanning ? t('find.scanning') : t('find.scan')}
+            </Button>
+          ) : null}
+          {scanProblem ? <Notice tone="warning">{scanProblem}</Notice> : null}
+          <form
+            className="flex flex-wrap items-end gap-3"
+            onSubmit={(event) => {
+              event.preventDefault()
+              findNumber()
+            }}
+          >
+            <div className="min-w-0 flex-1 basis-56">
+              <Field id="go-find-number" label={t('find.typedLabel')} hint={t('find.typedHint')} autoComplete="off" value={typed} onChange={(event) => setTyped(event.currentTarget.value)} />
+            </div>
+            <Button type="submit" variant="secondary" disabled={!typed.trim()}>
+              {t('find.typedButton')}
+            </Button>
+          </form>
+        </section>
+      ) : null}
 
       <section aria-labelledby="go-queue" className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -437,6 +533,23 @@ export function GoReceiveApp() {
           {signOutFailed ? <SignOutFailure id="go-sign-out-failed" result={signOutFailed} /> : null}
         </div>
       ) : null}
+
+      <Sheet open={found !== null} onOpenChange={(open) => !open && setFound(null)}>
+        <SheetContent side="bottom" className="mx-auto w-full max-w-2xl">
+          <SheetHeader>
+            <SheetTitle>{found?.kind === 'COPY' ? (found.copy.number ?? t('find.resultTitle')) : t('find.resultTitle')}</SheetTitle>
+            <SheetDescription>{found ? foundText(found) : ''}</SheetDescription>
+          </SheetHeader>
+          {found?.kind === 'COPY' && !copyOld(found.copy) && !moduleOff ? (
+            <div className="flex flex-col gap-2 px-4 pb-4">
+              {found.from === 'SERVER' ? <p className="text-ink-muted">{t('find.fromServer')}</p> : null}
+              <Button className="self-start" onClick={() => void openFound(found.copy, found.from)}>
+                {t('prepare.record', { number: found.copy.number ?? '' })}
+              </Button>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
 
       <AlertDialog open={discarding !== null} onOpenChange={(open) => !open && setDiscarding(null)}>
         <AlertDialogContent>

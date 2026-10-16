@@ -2,10 +2,11 @@
 // /api/webhooks/line/<channelKey>, inline within the time budget or in the line-webhook job, and making sure nothing it
 // recorded is left behind (the job's further runs and the line-webhook sweep). The route and the jobs reach it through
 // src/server/jobs/line-webhook.ts, which supplies the channel opener of src/server/services/line-channel.
-// Postback actions plug in with registerLinePostbackHandler (S5-05: `approve`), and what a linked member's follow sets
-// right again with registerLineFollowHook (S5-04: the LINKED rich menu).
+// Postback actions plug in with registerLinePostbackHandler (S5-05: `approve`), what a linked member's follow sets
+// right again with registerLineFollowHook (S5-04: the LINKED rich menu), and chat messages with registerLineMessageHandler
+// (S17-06: asking through the chat).
 
-export { parseLineWebhook, StoredLineEvent, type ParsedLineEvent, type ParsedLineWebhook } from './body'
+export { parseLineWebhook, StoredLineEvent, type InboundLineMessage, type ParsedLineEvent, type ParsedLineWebhook } from './body'
 export {
   LINE_WEBHOOK_ANSWER_WITHIN_MS,
   LINE_WEBHOOK_BODY_MAX_BYTES,
@@ -21,6 +22,7 @@ export {
 } from './constants'
 export { registerLineFollowHook, type LineFollowHook, type LineFollowRequest } from './follow'
 export { applyLineReachability, findLinkedMemberId, setLineReachable, type LineReachabilityChange } from './identity'
+export { registerLineMessageHandler, type LineMessageContext, type LineMessageHandler, type LineMessageRequest } from './message'
 export { liffLink, linkPromptMessages, welcomeBackMessages } from './messages'
 export {
   LINE_POSTBACK_VERSION,
@@ -46,6 +48,8 @@ export {
 } from './receive'
 export { settleFailedLineWebhookRun, sweepLineWebhookEvents, type LineWebhookRunSettlement, type LineWebhookSweepResult } from './recovery'
 export {
+  deleteStaleLineInboundTexts,
+  discardLineInboundText,
   finishLineWebhookEvent,
   giveUpLineWebhookEvents,
   handOverLineWebhookEvents,

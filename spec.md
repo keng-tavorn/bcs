@@ -613,6 +613,8 @@ sequenceDiagram
 | `line-webhook-sweep` | cron ทุก 5 นาที | ส่ง event ของ LINE ที่บันทึกแล้วแต่คำขอจบก่อนส่งต่อ เข้า `line-webhook` | S5 |
 | `line-rich-menu` | `bcs/line.linked` · `bcs/line.unlinked` · `bcs/member.role_granted` · `bcs/member.role_revoked` · `bcs/position.assigned` · `bcs/position.unassigned` · `bcs/delegation.started` · `bcs/delegation.ended` · `bcs/delegation.revoked` | ตั้ง rich menu ของผู้ใช้ตามการผูกล่าสุดและชุดตามบทบาทของ member ณ ตอนนั้น (UNLINKED หรือ LINKED และ LINKED:<บทบาท> · BR-LINE-16) ให้ Inngest ทำซ้ำเมื่อ LINE ล้ม · event ของ role ตำแหน่ง และรักษาการสลับเฉพาะผู้ใช้ LINE ของ member นั้น (BR-LINE-17 · S17-03) · เป็นทางเดียวที่สลับเมนูเมื่อยกเลิกผูกพร้อมปิดใช้งานสมาชิก · สมาชิกที่ผูกแล้ว follow ใหม่ได้เมนูคืนผ่าน follow hook ของ webhook (ADR-049) | S5 · S17 |
 | `line-rich-menu-versions` | `bcs/doa_version.published` · `bcs/doa_version.superseded` · `bcs/doa_version.withdrawn` · `bcs/workflow_version.published` · `bcs/workflow_version.superseded` · `bcs/workflow_version.withdrawn` | งานเดียวกับ `line-rich-menu` สำหรับทุกคนที่ผูกขององค์กร (ฉบับใหม่มีผลหรือถูกถอนเปลี่ยนว่าใครเป็นผู้อนุมัติ · superseded มาจาก job activate ตอนฉบับที่อนุมัติล่วงหน้ามีผลด้วย) · คำนวณธงทุกคนในการอ่านเดียวแล้วใช้ bulk link และ bulk unlink ของ LINE ทีละไม่เกิน 500 คน จากนั้นอ่านการผูกอีกครั้งและสลับรายคนเฉพาะผู้ที่การผูกเปลี่ยนระหว่างนั้น · ทีละ run ต่อองค์กร (แยก function เพราะ Inngest รับไม่เกิน 10 trigger ต่อ function · BR-LINE-17) | S17 |
+| `chat-intake-image` | `bcs/chat_intake.opened` · `bcs/chat_intake.message_added` ที่ `kind` เป็น `IMAGE` | ดึงรูปของร่างจากแชทที่ยัง `PENDING` จาก LINE ทีละ step ตรวจ magic bytes (JPEG PNG) และขนาดไม่เกิน 20 MB แล้วเก็บเป็นไฟล์ของเจ้าของร่างด้วย `chat_intake.store_image` · ดึงไม่ได้ถาวร (404 410 4xx ชนิดหรือขนาดผิด) → `FAILED` พร้อมรหัส · 5xx 429 และเครือข่ายให้ Inngest ทำซ้ำ · ทีละ run ต่อร่าง (BR-LINE-14 · S17-06) | S17 |
+| `chat-intake-sweep` | cron `TZ=Asia/Bangkok 23 * * * *` | ทุกองค์กร: ร่าง OPEN ที่ไม่ใช้เกิน `expireHours` → `EXPIRED` (`chat_intake.expire`) · ร่างที่ปิดแล้วและเปิดมาเกิน `textRetentionDays` ล้างข้อความและรูปที่ไม่มีเอกสารใช้ (`chat_intake.purge` · OQ-162) · รูปที่ยัง `PENDING` เกิน 6 ชั่วโมง → `FAILED` (`TIMEOUT`) · ลบ `LineInboundMessage` ที่เกิน 24 ชั่วโมง · ชั่วโมงเป็น idempotency key (BR-LINE-10 BR-LINE-11 · S17-06) | S17 |
 | `po-idle-reminder` | cron `TZ=Asia/Bangkok 0 9 * * 1-5` | หา PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO (FR-P2P-010 AC4) | S5 |
 | `supplier-registry-recheck` | cron `TZ=Asia/Bangkok 0 6 1 * *` | ตรวจสถานะผู้ขายกับสรรพากรและ DBD ซ้ำ แจ้งจัดซื้อเมื่อสถานะเปลี่ยน (BR-SUP-04) | S4 |
 | `consolidation-cycle` | cron ตาม `settings.consolidation.cron` (OQ-13) | รวม PR เป็นร่าง PO | S4 |
@@ -3791,7 +3793,7 @@ cases:
 
 | งาน | Workspace (เว็บและ PWA) | LINE แชท | LIFF | อีเมล |
 | --- | --- | --- | --- | --- |
-| สร้างคำขอแบบเต็ม | ✓ | — | ✓ | — |
+| สร้างคำขอแบบเต็ม | ✓ | เริ่มร่างด้วยข้อความหรือรูปในองค์กรที่เปิดขอผ่านแชท แล้วตรวจและส่งใน LIFF เท่านั้น (BR-LINE-10 ถึง BR-LINE-12 · S17-06) | ✓ | — |
 | อนุมัติ ตีกลับ ไม่อนุมัติ ขอข้อมูลเพิ่ม | ✓ | ปุ่มอนุมัติเมื่อยอดต่ำกว่า step-up · ที่เหลือเปิด LIFF | ✓ | ✓ ผ่านลิงก์และ login |
 | ติดตามสถานะ | ✓ | สรุปในข้อความ | ✓ | ลิงก์ |
 | แจ้งเตือนและทวงงาน | ในระบบ | ✓ ช่องทางหลัก | — | ✓ สำรอง |
@@ -4364,6 +4366,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | ไฟล์ | `file.uploaded` `file.downloaded` (เฉพาะไฟล์ที่จัดเป็นข้อมูลอ่อนไหว) |
 | agent_action (S13) | `agent_action.requested` `agent_action.drafted` `agent_action.failed` `agent_action.applied` `agent_action.accepted` `agent_action.edited` `agent_action.rejected` `agent_action.expired` `agent_action.feedback_given` `agent_action.content_purged` · actor AI_AGENT เฉพาะ `drafted` `failed` (INV-AI-01) · data ไม่มีข้อความที่พิมพ์หรือผลของ AI |
 | ai_agent · ai_credit (S13) | `ai_agent.enabled` `ai_agent.disabled` `ai_agent.updated` `ai_credit.granted` `ai_credit.monthly_set` `ai_credit.threshold_reached` `ai_credit.exhausted` |
+| chat_intake (S17-06 · ขอผ่านแชท) | `chat_intake.opened` `chat_intake.message_added` `chat_intake.image_fetched` `chat_intake.expired` `chat_intake.purged` · บน member: `chat_intake.message_refused` (reason `UNSUPPORTED` `LIMIT_IMAGES` `RATE_LIMITED` · notified) · data เป็นรหัสและตัวเลขเท่านั้น ไม่มีข้อความที่พิมพ์ ชื่อไฟล์ หรือ LINE user id (BR-LINE-11) · `chat_intake.drafted` `chat_intake.dismissed` เพิ่มใน S17-07 · `chat_intake.ai_requested` ใน S17-08 |
 
 **ระยะ 1 (P1-07):** `approval_task.*` และ event ของ step-up ใน `auth` รับ `subjectType` ครบ 12 ค่าของ `APPROVAL_SUBJECTS` (ค่าใหม่ `BUDGET_TRANSFER` `BUDGET_OVERRUN` `WORKFLOW_VERSION` `INVOICE` `PO_CHANGE` `PAYMENT_RUN` `BANK_ACCOUNT_CHANGE`) · `request.drafted` schemaVersion 2 เพิ่ม `source` (`MANUAL` เป็นค่าเริ่มต้น · `REORDER` `RENEWAL` ของ S6 · `CHAT_INTAKE` ของ S17) และ `agentActionId` ไม่บังคับ (S13) · event ฉบับ 1 ยังอ่านได้ (source = `MANUAL`) · สายไม่เพิ่มฉบับของ event นี้เอง
 

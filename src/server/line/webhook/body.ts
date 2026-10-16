@@ -131,7 +131,8 @@ export function parseLineWebhook(rawBody: Uint8Array): ParsedLineWebhook {
       continue
     }
     const payload = toStored(event.data)
-    const kind = event.data.type === 'message' && payload.messageId ? (payload.messageType === 'text' ? 'TEXT' : payload.messageType === 'image' ? 'IMAGE' : null) : null
+    // Only what BCS may answer: a 1:1 chat (messageId is kept for those only) in the active mode, never standby
+    const kind = event.data.type === 'message' && payload.messageId && payload.mode === 'active' ? (payload.messageType === 'text' ? 'TEXT' : payload.messageType === 'image' ? 'IMAGE' : null) : null
     const inbound: InboundLineMessage | undefined = kind && payload.messageId ? { lineMessageId: payload.messageId, kind, text: kind === 'TEXT' ? (event.data.message?.text ?? '') : null } : undefined
     events.push({ webhookEventId: event.data.webhookEventId, type: event.data.type, payload, ...(inbound ? { inbound } : {}) })
   }

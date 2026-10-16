@@ -16,6 +16,7 @@ import {
   type LineWebhookRequest,
   type ReceiveLineWebhookOptions,
 } from '@/server/line/webhook'
+import { asksThroughChat } from '@/server/services/chat-intake'
 import { openLineChannel } from '@/server/services/line-channel'
 
 // Jobs `line-webhook` and `line-webhook-sweep` (spec §4.6, BR-LINE-05, FR-LINE-005 AC3) and the webhook's way in.
@@ -36,10 +37,12 @@ import { openLineChannel } from '@/server/services/line-channel'
 // `import '<handler module>'` line per action below. Follow hooks (registerLineFollowHook) are imported the same way.
 import '@/server/services/approvals/line-postback'
 import '@/server/services/line-link/follow'
+// S17-06: chat messages (registerLineMessageHandler), and whether an organization asks through the chat
+import '@/server/services/chat-intake/line-message'
 
 export { LINE_WEBHOOK_BODY_MAX_BYTES } from '@/server/line/webhook'
 
-const deps: LineWebhookDeps = { openChannel: openLineChannel }
+const deps: LineWebhookDeps = { openChannel: openLineChannel, asksThroughChat }
 
 /** The webhook route's entry: checks, records and processes one delivery (src/server/line/webhook/receive.ts) */
 export function receiveLineWebhook(request: LineWebhookRequest, options: ReceiveLineWebhookOptions = {}): Promise<LineWebhookAnswer> {

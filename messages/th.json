@@ -2653,6 +2653,7 @@
       "BudgetTransfer": "การโอนและปรับงบ",
       "CatalogItem": "สินค้าในแคตตาล็อก",
       "ChannelIdentity": "บัญชี LINE",
+      "ChatIntake": "ร่างคำขอจากแชท",
       "ConfigPackage": "ชุดค่าตั้ง",
       "ConsolidationRun": "รอบรวมคำขอเป็นใบสั่งซื้อ",
       "CostCenter": "ศูนย์ต้นทุน",
@@ -2806,6 +2807,14 @@
       "catalog_item": {
         "created": "เพิ่มสินค้าในแคตตาล็อก",
         "updated": "แก้สินค้าในแคตตาล็อก"
+      },
+      "chat_intake": {
+        "expired": "ร่างจากแชทหมดอายุ",
+        "image_fetched": "ดึงรูปจากแชท",
+        "message_added": "เพิ่มข้อความหรือรูปในร่างจากแชท",
+        "message_refused": "ไม่รับข้อความในแชท",
+        "opened": "เปิดร่างคำขอจากแชท",
+        "purged": "ล้างข้อความและรูปของร่างจากแชท"
       },
       "config_package": {
         "exported": "ส่งออกชุดค่าตั้ง",
@@ -3061,6 +3070,7 @@
       "budget_overrun": "ขออนุมัติเกินงบ",
       "budget_transfer": "โอนและปรับงบ",
       "catalog_item": "แคตตาล็อก",
+      "chat_intake": "ขอผ่านแชท LINE",
       "config_package": "ชุดค่าตั้ง",
       "consolidation_run": "รวมคำขอเป็นใบสั่งซื้อ",
       "cost_center": "ศูนย์ต้นทุน",

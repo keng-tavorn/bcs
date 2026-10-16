@@ -204,3 +204,16 @@ export async function finishLineWebhookEvent(
   })
   return done.count === 1
 }
+
+/**
+ * Deletes the text the webhook kept for one message nobody will take (S17-06 · BR-LINE-11): the organization stopped
+ * asking through the chat, or the sender is linked to nobody. Bookkeeping like the event row itself, so no command.
+ */
+export async function discardLineInboundText(organizationId: string, eventId: string): Promise<void> {
+  await forTenant(organizationId).lineInboundMessage.deleteMany({ where: { lineWebhookEventId: eventId } })
+}
+
+/** Deletes the text of messages received before `before` that nothing processed (BR-LINE-11: 24 hours at most) */
+export async function deleteStaleLineInboundTexts(organizationId: string, before: Date): Promise<number> {
+  return (await forTenant(organizationId).lineInboundMessage.deleteMany({ where: { receivedAt: { lt: before } } })).count
+}

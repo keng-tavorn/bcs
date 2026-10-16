@@ -139,7 +139,8 @@
     "supplier_notice": "E-mails to suppliers",
     "wht_certificate": "Withholding tax certificates",
     "wht_income_type": "Income types",
-    "withholding_tax": "Withholding tax"
+    "withholding_tax": "Withholding tax",
+    "chat_intake": "Requests through the LINE chat"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -189,7 +190,8 @@
     "SupplierNotice": "E-mail to a supplier",
     "WhtCertificate": "Withholding tax certificate",
     "WhtIncomeType": "Income type",
-    "WithholdingTax": "Withholding tax"
+    "WithholdingTax": "Withholding tax",
+    "ChatIntake": "Chat request draft"
   },
   "events": {
     "approval_step": {
@@ -511,6 +513,14 @@
     },
     "withholding_tax": {
       "recorded": "Withholding tax recorded"
+    },
+    "chat_intake": {
+      "opened": "Chat request draft opened",
+      "message_added": "Message or photo added to a chat draft",
+      "image_fetched": "Chat photo fetched",
+      "expired": "Chat draft expired",
+      "purged": "Text and photos of a chat draft cleared",
+      "message_refused": "Chat message not taken"
     }
   }
 }

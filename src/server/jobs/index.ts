@@ -2,6 +2,8 @@ import { getEnv } from '@/lib/env'
 import { aiActionsExpire } from './ai-actions-expire'
 import { aiAgentRun } from './ai-agent-run'
 import { aiApprovalBrief } from './ai-approval-brief'
+import { chatIntakeImage } from './chat-intake-image'
+import { chatIntakeSweep } from './chat-intake-sweep'
 import { aiCreditMonthly } from './ai-credit-monthly'
 import { approvalTaskResume } from './approval-task-resume'
 import { approvalTaskSla } from './approval-task-sla'
@@ -73,6 +75,9 @@ export const functions = [
   aiAgentRun,
   // S13-09: the Approval Brief of a task on an approval step
   aiApprovalBrief,
+  // S17-06: the photos of a chat draft, and the hourly sweep of chat drafts and their text (BR-LINE-10, BR-LINE-14)
+  chatIntakeImage,
+  chatIntakeSweep,
   // ADR-055 and ADR-056: the first seed and the demo reset of staging, started by hand from the Inngest dashboard;
   // never registered anywhere else
   ...(getEnv().APP_ENV === 'staging' ? [stagingFirstSeed, stagingDemoReset] : []),

@@ -139,7 +139,8 @@
     "supplier_notice": "อีเมลถึงผู้ขาย",
     "wht_certificate": "50 ทวิ",
     "wht_income_type": "ประเภทเงินได้",
-    "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
+    "withholding_tax": "ภาษีหัก ณ ที่จ่าย",
+    "chat_intake": "ขอผ่านแชท LINE"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -189,7 +190,8 @@
     "SupplierNotice": "อีเมลถึงผู้ขาย",
     "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
     "WhtIncomeType": "ประเภทเงินได้",
-    "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
+    "WithholdingTax": "ภาษีหัก ณ ที่จ่าย",
+    "ChatIntake": "ร่างคำขอจากแชท"
   },
   "events": {
     "approval_step": {
@@ -511,6 +513,14 @@
     },
     "withholding_tax": {
       "recorded": "บันทึกภาษีหัก ณ ที่จ่าย"
+    },
+    "chat_intake": {
+      "opened": "เปิดร่างคำขอจากแชท",
+      "message_added": "เพิ่มข้อความหรือรูปในร่างจากแชท",
+      "image_fetched": "ดึงรูปจากแชท",
+      "expired": "ร่างจากแชทหมดอายุ",
+      "purged": "ล้างข้อความและรูปของร่างจากแชท",
+      "message_refused": "ไม่รับข้อความในแชท"
     }
   }
 }

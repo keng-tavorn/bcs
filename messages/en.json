@@ -2653,6 +2653,7 @@
       "BudgetTransfer": "Budget transfer",
       "CatalogItem": "Catalogue item",
       "ChannelIdentity": "LINE account",
+      "ChatIntake": "Chat request draft",
       "ConfigPackage": "Configuration package",
       "ConsolidationRun": "Consolidation round",
       "CostCenter": "Cost center",
@@ -2806,6 +2807,14 @@
       "catalog_item": {
         "created": "Catalogue item added",
         "updated": "Catalogue item edited"
+      },
+      "chat_intake": {
+        "expired": "Chat draft expired",
+        "image_fetched": "Chat photo fetched",
+        "message_added": "Message or photo added to a chat draft",
+        "message_refused": "Chat message not taken",
+        "opened": "Chat request draft opened",
+        "purged": "Text and photos of a chat draft cleared"
       },
       "config_package": {
         "exported": "Configuration package exported",
@@ -3061,6 +3070,7 @@
       "budget_overrun": "Over-budget approval",
       "budget_transfer": "Budget transfers",
       "catalog_item": "Catalogue",
+      "chat_intake": "Requests through the LINE chat",
       "config_package": "Configuration package",
       "consolidation_run": "Consolidation rounds",
       "cost_center": "Cost centers",

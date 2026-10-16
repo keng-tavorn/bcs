@@ -80,7 +80,10 @@ describe('[BR-LINE-04] line:simulate builds LINE’s event objects; a redelivery
     if (!parsed.ok) throw new Error('unreadable')
     expect(parsed.events.map((e) => [e.type, e.webhookEventId])).toEqual(json.events.map((e) => [e.type, e.webhookEventId]))
     expect(parsed.events[0]!.payload).toMatchObject({ source: 'user', userId, messageType: 'text', redelivery: false })
-    expect(JSON.stringify(parsed.events)).not.toContain('ราคาส่วนลด')
+    // The stored event never keeps the text (BR-LINE-11): it travels apart, for LineInboundMessage only (S17-06)
+    expect(JSON.stringify(parsed.events.map((e) => e.payload))).not.toContain('ราคาส่วนลด')
+    expect(parsed.events[0]!.inbound).toEqual({ lineMessageId: (json.events[0]!.message as { id: string }).id, kind: 'TEXT', text: 'ราคาส่วนลด 15%' })
+    expect(parsed.events[1]!.inbound).toBeUndefined()
   })
 })
 

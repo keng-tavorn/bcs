@@ -1,11 +1,13 @@
 import { handleFollow, handleUnfollow } from './follow'
+import { dispatchLineMessage } from './message'
 import { dispatchLinePostback } from './postback'
 import { finishLineWebhookEvent } from './store'
 import type { LineEventContext, LineEventOutcome, LineWebhookChannel, RecordedLineEvent } from './types'
 
 // One recorded webhook event, processed by kind (FR-LINE-005). BCS acts on events of a 1:1 chat in the active mode only:
-// follow, unfollow and postbacks. Messages and everything else are recorded (without their text) and skipped. The same
-// code runs inline in the webhook and in the line-webhook job; only the path in the context differs.
+// follow, unfollow, postbacks and — for the handler of asking through the chat (S17-06) — messages. Everything else is
+// recorded (without any text) and skipped. The same code runs inline in the webhook and in the line-webhook job; only the
+// path in the context differs.
 
 export async function processLineWebhookEvent(channel: LineWebhookChannel, event: RecordedLineEvent, context: LineEventContext): Promise<LineEventOutcome> {
   // standby: another channel answers this chat (LINE's module mode), so BCS stays silent
@@ -19,6 +21,8 @@ export async function processLineWebhookEvent(channel: LineWebhookChannel, event
       return handleUnfollow(channel, event, lineUserId)
     case 'postback':
       return dispatchLinePostback(channel, event, lineUserId, context)
+    case 'message':
+      return dispatchLineMessage(channel, event, lineUserId, context)
     default:
       return { status: 'SKIPPED', reason: 'NOT_HANDLED' }
   }

@@ -14,7 +14,7 @@ defineEvents('ChatIntake', {
   'chat_intake.image_fetched': { schema: z.strictObject({ seq: z.number().int().positive(), status: z.enum(['STORED', 'FAILED']), fileId: z.uuid().optional() }) },
   // Nobody used the draft for expireHours (job chat-intake-sweep)
   'chat_intake.expired': { schema: z.strictObject({ reason: z.literal('IDLE') }) },
-  // The typed text of a closed draft was cleared after textRetentionDays (BR-LINE-11, OQ-162); files are request files by then
+  // The typed text of a closed draft was cleared after textRetentionDays (BR-LINE-11, OQ-162), and its photos no document took
   'chat_intake.purged': { schema: z.strictObject({ textRemoved: z.boolean(), filesRemoved: z.number().int().nonnegative() }) },
 })
 defineEvents('Member', {

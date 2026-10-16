@@ -132,7 +132,7 @@ export const draftFromChatCommand = defineCommand({
       where: { id: intake.id },
       data: { status: 'DRAFTED', requestId, requestTypeId: type.id, draftedAt: ctx.now, closedAt: ctx.now, version: { increment: 1 } },
     })
-    events.push({ type: 'chat_intake.drafted', aggregateType: 'ChatIntake', aggregateId: intake.id, data: { requestId, requestTypeCode: input.requestTypeCode, images, aiAssisted: ai !== undefined } })
+    events.push({ type: 'chat_intake.drafted', aggregateType: 'ChatIntake', aggregateId: intake.id, data: { requestId, requestTypeCode: input.requestTypeCode, images, aiAssisted: ai !== undefined && Object.keys(ai.fields).length > 0 } })
     return { ok: true, result: { requestId, images }, events }
   },
 })

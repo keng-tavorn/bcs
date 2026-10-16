@@ -122,8 +122,10 @@ export async function applyAiAssist(tx: TenantTx, ctx: Ctx, subject: AssistSubje
   if (!locked) return err('NOT_FOUND', 'no such AI action', { field: 'aiAssist.agentActionId' })
   const action = await tx.agentAction.findUniqueOrThrow({
     where: { id: input.agentActionId },
-    select: { id: true, status: true, level: true, purpose: true, subjectType: true, subjectId: true, review: true, appliedAt: true },
+    select: { id: true, status: true, level: true, purpose: true, subjectType: true, subjectId: true, review: true, appliedAt: true, requestedById: true },
   })
+  // S17-08: a reading of a chat draft is its owner's (FR-LINE-301 AC7): anyone else is answered as for an unknown action
+  if (action.subjectType === 'CHAT_INTAKE' && action.requestedById !== ctx.actor.memberId) return err('NOT_FOUND', 'no such AI action', { field: 'aiAssist.agentActionId' })
   if (action.status !== 'DRAFT' || action.level !== 'L1') {
     return err('INVALID_STATE_TRANSITION', `the AI action is ${action.status} ${action.level}`, { from: action.status, command: 'agent_action.apply' })
   }
@@ -193,6 +195,11 @@ export interface OpenAssist {
   readonly proposed: Readonly<Record<string, string>>
   readonly requiredPaths: readonly string[]
   readonly confirmedPaths: readonly string[]
+  /**
+   * What holds the document back now, as request.submit counts it (AI_REVIEW_PENDING): every proposed value the document
+   * still has unchanged and nobody confirmed (S17-08: the LIFF form offers exactly these)
+   */
+  readonly pendingPaths: readonly string[]
 }
 
 /**
@@ -201,10 +208,14 @@ export interface OpenAssist {
  */
 export async function openAssists(tx: TenantTx, subject: AssistSubject): Promise<readonly OpenAssist[]> {
   const rows = await tx.agentAction.findMany({ where: { subjectType: subject.type, subjectId: subject.id, status: 'DRAFT', level: 'L1' }, select: { id: true, purpose: true, review: true, inputRefs: true }, orderBy: { id: 'asc' } })
+  if (rows.length === 0) return []
+  const kind = kinds.get(subject.type)
+  const current = kind ? ((await kind.read(tx, subject.id)) ?? {}) : {}
   return rows.map((r) => {
     const review = reviewOf(r.review)
     const fileId = (r.inputRefs as { fileId?: unknown } | null)?.fileId
-    return { agentActionId: r.id, purpose: r.purpose, fileId: typeof fileId === 'string' ? fileId : null, proposed: review.proposed, requiredPaths: review.requiredPaths, confirmedPaths: review.confirmedPaths }
+    const { pending } = pendingOf(review, new Set(review.confirmedPaths), current)
+    return { agentActionId: r.id, purpose: r.purpose, fileId: typeof fileId === 'string' ? fileId : null, proposed: review.proposed, requiredPaths: review.requiredPaths, confirmedPaths: review.confirmedPaths, pendingPaths: pending }
   })
 }
 

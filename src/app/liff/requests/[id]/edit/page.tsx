@@ -82,7 +82,8 @@ export default async function LiffEditRequestPage({ params }: { params: Promise<
   const backTo = chatIntakeId ? { href: `${LIFF_FORM_PATHS.catalog}?intake=${chatIntakeId}`, label: tc('backToChat') } : back
   // S17-08 (BR-AI-16 BR-AI-17): values the AI put in that wait to be confirmed one by one, before the request can be sent
   const review = data.draft?.intakeAi ?? null
-  const waiting: LiffAiConfirmItem[] = review ? review.requiredPaths.filter((p) => !review.confirmedPaths.includes(p)).map((p) => aiItem(tc, p, review.proposed[p] ?? null)) : []
+  // Exactly what request.submit would count (AI_REVIEW_PENDING): a value the requester changed no longer waits
+  const waiting: LiffAiConfirmItem[] = review ? (review.pendingPaths ?? []).map((p) => aiItem(tc, p, review.proposed[p] ?? null)) : []
   return (
     <LiffFrame title={t(data.draft?.status === 'RETURNED' ? 'returnedTitle' : 'draftTitle', { type: data.type.name })} back={backTo}>
       {review && data.draft ? (

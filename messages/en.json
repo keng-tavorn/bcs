@@ -6024,6 +6024,7 @@
     "dismissed": "This chat draft is closed. Its text and photos are removed after the retention period.",
     "drafted": "A request draft was made from this chat",
     "errors": {
+      "aiValue": "A value the AI proposed can no longer be used (the delivery site or the supplier). Untick it and make the draft again.",
       "closed": "This chat draft is closed. Open this page again.",
       "noDepartment": "Your account has no main department yet, so it cannot make a request. Contact your administrator.",
       "notFound": "This chat draft was not found",

@@ -10,7 +10,8 @@ import { chatIntakeAiRun } from '@/server/jobs/chat-intake-ai'
 import { runCommand } from '@/server/services/_pipeline'
 import { runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
 import { chatIntakeAiView, draftFromChat, linkChatIntakeAgentActionCommand, readChatIntakeWithAi, runChatIntakeSweep } from '@/server/services/chat-intake'
-import { editRequest, submitRequest } from '../support/requests'
+import { getRequestForEdit } from '@/server/services/requests/form-view'
+import { createDraft, editRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 
@@ -155,6 +156,15 @@ describe('[FR-LINE-301/AC5] job chat-intake-ai reads the chat draft with the Int
     })
     for (const code of ['dm_con', 'admin']) expect(await chatIntakeAiView(liff(code), intakeId, 'th'), code).toMatchObject({ ok: false, error: { code: 'NOT_FOUND' } })
   })
+
+  it('while the reading runs LIFF says so', async () => {
+    const { intakeId } = await chatDraft('ขอโต๊ะ')
+    const action = await prisma.agentAction.create({
+      data: { organizationId: org.organizationId, agent: 'INTAKE', purpose: 'INTAKE', level: 'L1', status: 'PENDING', subjectType: 'CHAT_INTAKE', subjectId: intakeId, requestedById: org.member.req_con!, channel: 'LINE_CHAT', promptVersion: PROMPT_VERSIONS.INTAKE },
+    })
+    await prisma.chatIntake.update({ where: { id: intakeId }, data: { agentActionId: action.id } })
+    expect(ok(await chatIntakeAiView(liff('req_con'), intakeId, 'th'))).toEqual({ status: 'READING' })
+  })
 })
 
 describe('[FR-LINE-301/AC5] the values the owner takes go into the request draft through aiAssist; money and quantities wait to be confirmed one by one; the requester sends it', () => {
@@ -180,6 +190,9 @@ describe('[FR-LINE-301/AC5] the values the owner takes go into the request draft
 
     ok(await editRequest(liff('req_con'), { requestId: made.requestId, budgetLineId }, key()))
     expect(await submitRequest(liff('req_con'), { requestId: made.requestId }, key())).toMatchObject({ ok: false, error: { code: 'AI_REVIEW_PENDING', details: { count: 2 } } })
+    // What the LIFF form offers is exactly what submit counts
+    const form = ok(await getRequestForEdit(liff('req_con'), made.requestId, 'th'))
+    expect(form.draft?.intakeAi?.pendingPaths).toEqual(['lines.0.quantity', 'lines.0.unitPrice'])
     // One of the two confirmed: still waiting
     ok(await editRequest(liff('req_con'), { requestId: made.requestId, aiAssist: { agentActionId, confirmedPaths: ['lines.0.quantity'] } }, key()))
     expect(await submitRequest(liff('req_con'), { requestId: made.requestId }, key())).toMatchObject({ ok: false, error: { code: 'AI_REVIEW_PENDING', details: { count: 1 } } })
@@ -187,6 +200,17 @@ describe('[FR-LINE-301/AC5] the values the owner takes go into the request draft
     ok(await submitRequest(liff('req_con'), { requestId: made.requestId }, key()))
     expect(await prisma.request.findUniqueOrThrow({ where: { id: made.requestId } })).toMatchObject({ status: 'PENDING_APPROVAL' })
     expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: agentActionId } })).toMatchObject({ status: 'ACCEPTED' })
+  })
+
+  it('a chat reading belongs to its owner: another member cannot take it into their own request (NOT_FOUND), and it stays on the chat draft', async () => {
+    const { intakeId } = await chatDraft('ขอกุญแจล็อก 5 ชุด')
+    const read = (await run(intakeId)) as { agentActionId: string }
+    const theirs = ok(await createDraft(org.ctxOf('dm_con', NOW), { requestTypeCode: 'BUY_GOODS', title: 'ของฝ่ายอื่น' }, key()))
+    expect(await editRequest(org.ctxOf('dm_con', NOW), { requestId: theirs.requestId, aiAssist: { agentActionId: read.agentActionId, confirmedPaths: [] } }, key())).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_FOUND', details: { field: 'aiAssist.agentActionId' } },
+    })
+    expect(await prisma.agentAction.findUniqueOrThrow({ where: { id: read.agentActionId } })).toMatchObject({ subjectType: 'CHAT_INTAKE', subjectId: intakeId, appliedAt: null })
   })
 
   it('a reading of another chat draft is refused; taking nothing of it makes the plain draft', async () => {

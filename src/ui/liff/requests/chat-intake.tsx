@@ -129,6 +129,8 @@ export function LiffChatIntakePanel({ intake, types, catalogHref, ai, draft, dis
       ? t('errors.title')
       : p.reason === 'INTAKE_TYPE'
         ? t('errors.typeUnavailable')
+        : p.field === 'deliverySiteId' || p.field === 'suggestedSupplierId'
+          ? t('errors.aiValue')
         : p.reason === 'NO_DEPARTMENT'
           ? t('errors.noDepartment')
           : p.code === 'VALIDATION_FAILED' && p.field === 'requestTypeCode'

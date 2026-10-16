@@ -71,10 +71,16 @@ describe('[FR-PLT-301/AC10] mobile/ holds no business code and LIFF never loads 
     }
   })
 
+  it('the web and the shell use the same Capacitor and plugin versions (the plugin JS runs in the web, its native part in the app)', () => {
+    const shellPkg = JSON.parse(readFileSync(path.join(SHELL, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
+    const webPkg = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { dependencies: Record<string, string> }
+    for (const name of ['@capacitor/core', '@capacitor/push-notifications']) expect(webPkg.dependencies[name], name).toBe(shellPkg.dependencies[name])
+  })
+
   it('the shell has no folder of code besides its config: the web is loaded, never bundled (ADR-163)', () => {
     const pkg = JSON.parse(readFileSync(path.join(SHELL, 'package.json'), 'utf8')) as { dependencies: Record<string, string>; devDependencies: Record<string, string> }
-    // Capacitor itself and nothing of the web's stack
-    expect(Object.keys(pkg.dependencies).sort()).toEqual(['@capacitor/android', '@capacitor/core'])
+    // Capacitor itself and its plugins of §5.5, nothing of the web's stack
+    expect(Object.keys(pkg.dependencies).sort()).toEqual(['@capacitor/android', '@capacitor/core', '@capacitor/push-notifications'])
     expect(Object.keys(pkg.devDependencies).sort()).toEqual(['@capacitor/cli', '@types/node', 'typescript'])
     expect(readFileSync(path.join(SHELL, 'www', 'index.html'), 'utf8')).not.toMatch(/<script/i)
   })

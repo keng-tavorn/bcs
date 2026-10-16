@@ -127,7 +127,7 @@ export const submitOverrunCommand = defineCommand({
     const route = await startRoute(
       tx,
       ctx,
-      { type: 'BUDGET_OVERRUN', id, label: number },
+      { type: 'BUDGET_OVERRUN', id, label: number, number },
       { documentType: doa.input.documentType, amount: doa.input.amount, requesterMemberId: request.requesterMemberId, chargedDepartmentId: doa.input.chargedDepartmentId, conflictMemberIds: doa.input.conflictMemberIds, at: ctx.now },
     )
     if (!route.ok) return { ok: false, error: route.error }

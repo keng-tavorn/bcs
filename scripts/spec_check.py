@@ -1764,6 +1764,49 @@ def run_budget_change(d):
                 if o["status"] in ("CONSUMED", "LAPSED") and (alloc["OB:" + oid] or o["used"] + o["returned"] != o["x"] or o["rau"] > o["used"]): ok = False; trace.append("INV-BUD-09")
         out.append((c["id"], ok, trace or "ok"))
     return out
+def run_notification_route(d):
+    # BR-NOTI-05 to BR-NOTI-07 (S17-10, OQ-165): a template LINE takes (src/server/notifications/line-templates.ts, not the
+    # daily summary, not task.escalated to ADMIN) goes by push first when bcsGo, appPush and a device in use; LINE when
+    # linked, active and reachable; e-mail always last; DIGEST waits. The push title is push.<template>.title of
+    # messages/src/<locale>/push.json (else push.fallback.title), the body the document number only, the path the template's
+    # link (task.* → /tasks/<taskId>). Each device's answer: revoke and try the next, alert and go on, or try again.
+    import json as _json
+    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    src = open(os.path.join(base, "src/server/notifications/line-templates.ts"), encoding="utf-8").read()
+    line_templates = set(re.findall(r"'([a-z_]+\.[a-z_]+)'", src[src.index("new Set(["):]))
+    titles = {loc: _json.load(open(os.path.join(base, f"messages/src/{loc}/push.json"), encoding="utf-8")) for loc in ("th", "en")}
+    def title_of(template, loc):
+        node = titles[loc]
+        for part in template.split(".") + ["title"]:
+            if not isinstance(node, dict) or part not in node: return titles[loc]["fallback"]["title"]
+            node = node[part]
+        return node if isinstance(node, str) and node else titles[loc]["fallback"]["title"]
+    by_line = lambda t, data: t in line_templates and not (t == "task.escalated" and data.get("role") == "ADMIN")
+    actions = {"SENT": "DONE", "UNREGISTERED": "REVOKE_DEVICE_TRY_NEXT", "INVALID_TOKEN": "REVOKE_DEVICE_TRY_NEXT", "AUTH_401": "ALERT_NEXT_CHANNEL",
+               "AUTH_403": "ALERT_NEXT_CHANNEL", "QUOTA_429": "RETRY", "SERVER_503": "RETRY", "NETWORK": "RETRY"}
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; e = c["expect"]; data = i.get("data", {})
+        if "answers" in i:
+            got = {"actions": [actions[a] for a in i["answers"]]}; good = got == e
+        elif "locale" in i:
+            t = i["template"]
+            number = data.get("number") if isinstance(data.get("number"), str) and re.fullmatch(r"[^\W_][\w/.-]{0,63}", data.get("number")) else None
+            path = f"/tasks/{data['taskId']}" if t.startswith("task.") and "taskId" in data else None
+            push = {"title": title_of(t, i["locale"]), "body": number}
+            if "data" in e["push"]: push["data"] = {"path": path}
+            text = _json.dumps({**push, "data": {"path": path}}, ensure_ascii=False)
+            got = {"push": push}; good = push == e["push"] and not any(w in text for w in e.get("absent", []))
+        else:
+            if i["urgency"] == "DIGEST": got = {"channels": [], "digest": True}
+            else:
+                ch = []
+                if t_push := (i["template"] != "digest.daily" and by_line(i["template"], data) and i.get("bcsGo", True) and i.get("appPush", False) and i.get("activeDevices", 0) > 0): ch.append("PUSH")
+                if by_line(i["template"], data) and i.get("lineActive", True) and i.get("lineLinked", False) and i.get("lineReachable", True): ch.append("LINE")
+                ch.append("EMAIL"); got = {"channels": ch}
+            good = all(got.get(k) == v for k, v in e.items())
+        out.append((c["id"], good, got))
+    return out
 def run_workflow_reports(d):
     # BR-RPT-03 to BR-RPT-06 (S6-20): business minutes of the suite's calendar (as run_sla counts them), the decision
     # time without the INFO_REQUESTED pauses, the lower median, bottlenecks by overdue then median, the Thai weekday and
@@ -1820,6 +1863,7 @@ RUNNERS = {
     "invoice-vat": run_invoice_vat,
     "matching": run_matching,
     "money": run_money,
+    "notification-route": run_notification_route,
     "numbering": run_numbering,
     "po-change": run_po_change,
     "price-reference": run_price_reference,

@@ -1,2 +1,5 @@
 /build/*
 !/build/.npmkeep
+
+# Firebase config for push: from the CI secret BCS_GO_GOOGLE_SERVICES_JSON_B64, never committed (S17-10)
+google-services.json

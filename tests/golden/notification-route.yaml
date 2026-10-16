@@ -1,0 +1,17 @@
+# tests/golden/notification-route.yaml
+suite: notification-route
+# planDelivery pushMessage และ pushAnswerAction (src/core/notification-route · pure · S17-10) · IN_APP ส่งเสมอจึงไม่อยู่ในรายการ
+# แม่แบบที่ไปทาง LINE = LINE_TEMPLATES ของ src/server/notifications/line-templates.ts · ค่าที่ไม่บอก: data {} · lineActive true · lineReachable true · bcsGo true
+# หัวเรื่อง push = push.<templateKey>.title ของ messages/src/<locale>/push.json (ไม่มีคีย์ → push.fallback.title) · path = หน้าที่แม่แบบลิงก์ไป
+cases:
+  - { id: GC-APP-01, title: ไม่ได้เปิดแจ้งในแอป ทางเดิมไม่เปลี่ยน, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: false, activeDevices: 1 }, expect: { channels: [LINE, EMAIL] } }
+  - { id: GC-APP-02, title: เปิดแจ้งในแอป, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [PUSH, LINE, EMAIL] } }
+  - { id: GC-APP-03, title: เปิดแต่ไม่มีเครื่อง, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 0 }, expect: { channels: [LINE, EMAIL] } }
+  - { id: GC-APP-04, title: องค์กรปิด BCS_GO, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1, bcsGo: false }, expect: { channels: [LINE, EMAIL] } }
+  - { id: GC-APP-05, title: ไม่ได้ผูก LINE, input: { template: request.approved, urgency: IMMEDIATE, lineLinked: false, appPush: true, activeDevices: 2 }, expect: { channels: [PUSH, EMAIL] } }
+  - { id: GC-APP-06, title: แม่แบบความปลอดภัยไปอีเมลเท่านั้น, input: { template: security.notice, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [EMAIL] } }
+  - { id: GC-APP-07, title: DIGEST ไม่ส่งทันที, input: { template: gr.posted, urgency: DIGEST, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [], digest: true } }
+  - { id: GC-APP-08, title: ส่งต่อถึงผู้ดูแลเป็นอีเมล, input: { template: task.escalated, data: { role: ADMIN }, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [EMAIL] } }
+  - { id: GC-APP-09, title: เนื้อหา push ไม่มียอด ชื่อ และชื่อเรื่อง, input: { template: task.assigned, locale: th, data: { taskId: t1, number: PR-2569-00031, title: "งานถนนแอสฟัลต์ 9,500 ตร.ม. · ถนนเลี่ยงเมืองราชบุรี", amount: "2642900.00", requesterName: สมชาย ศรีสุข } }, expect: { push: { title: มีงานรออนุมัติ, body: PR-2569-00031, data: { path: /tasks/t1 } }, absent: ["2642900", "2,642,900", สมชาย, งานถนน] } }
+  - { id: GC-APP-10, title: ผล push ต่อเครื่อง, input: { answers: [ UNREGISTERED, INVALID_TOKEN, AUTH_401, AUTH_403, QUOTA_429, SERVER_503, NETWORK ] }, expect: { actions: [ REVOKE_DEVICE_TRY_NEXT, REVOKE_DEVICE_TRY_NEXT, ALERT_NEXT_CHANNEL, ALERT_NEXT_CHANNEL, RETRY, RETRY, RETRY ] } }
+  - { id: GC-APP-11, title: แม่แบบที่ยังไม่มีคีย์หัวเรื่องใช้ข้อความกลาง, input: { template: example.no_title_key, locale: th, data: { number: PR-2569-00032, amount: "1500.00" } }, expect: { push: { title: มีการแจ้งเตือนใหม่, body: PR-2569-00032 }, absent: ["1500"] } }

@@ -29,6 +29,13 @@ const PERCENT = 100
  * keep it as a share of the SLA (0.5), while core remindAt takes a percent (GC-SLA-07: 50). Anything outside 0..1
  * falls back to the default.
  */
+
+/**
+ * The document's number in a task's notices, when it has one (S17-10, BR-NOTI-06): what a push shows on a locked
+ * screen. The label stays for the other channels; a label may be a title or an item, never shown by push.
+ */
+const numberOf = (subject: { readonly number?: string | null }) => (subject.number ? { number: subject.number } : {})
+
 export function remindShareOf(escalationPolicy: unknown): number {
   const value = Number((escalationPolicy as { remindPct?: unknown } | null)?.remindPct ?? DEFAULT_REMIND_SHARE)
   return Number.isFinite(value) && value >= 0 && value <= 1 ? value : DEFAULT_REMIND_SHARE
@@ -56,7 +63,7 @@ export function taskTimes(assignedAt: Date, slaMinutes: number, remindShare: num
 export async function startRoute(
   tx: TenantTx,
   ctx: Ctx,
-  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string; readonly number?: string | null },
   input: RouteInput,
   review?: ReviewFacts,
 ): Promise<Result<StartedRoute>> {
@@ -82,7 +89,7 @@ export async function startRoute(
 export async function storeRoute(
   tx: TenantTx,
   ctx: Ctx,
-  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string; readonly number?: string | null },
   route: RouteResult,
   review: ReviewStep | null = null,
 ): Promise<Result<StartedRoute>> {
@@ -189,7 +196,7 @@ export async function assignStepTasks(
   ctx: Ctx,
   row: { readonly stepId: string; readonly stepNo: number; readonly routeId: string; readonly slaBusinessMinutes: number },
   step: RouteStep,
-  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string; readonly number?: string | null },
   timing: { readonly remindShare: number; readonly calendar: BusinessCalendar },
 ): Promise<AssignedStep> {
   const times = taskTimes(ctx.now, row.slaBusinessMinutes, timing.remindShare, timing.calendar)
@@ -231,7 +238,7 @@ export async function assignStepTasks(
     notifications.push({
       recipientMemberId: slot.assigneeMemberId,
       templateKey: 'task.assigned',
-      data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: task.id, dueAt: times.dueAt.toISOString() },
+      data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, ...numberOf(subject), taskId: task.id, dueAt: times.dueAt.toISOString() },
       urgency: 'IMMEDIATE',
       dedupeKey: `task.assigned:${task.id}`,
       subjectType: subject.type,
@@ -244,7 +251,7 @@ export async function assignStepTasks(
         notifications.push({
           recipientMemberId: memberId,
           templateKey: 'approval_task.delegate_conflict',
-          data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: task.id },
+          data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, ...numberOf(subject), taskId: task.id },
           urgency: 'IMMEDIATE',
           dedupeKey: `approval_task.delegate_conflict:${task.id}:${memberId}`,
           subjectType: subject.type,
@@ -267,7 +274,7 @@ async function assignReviewTasks(
   ctx: Ctx,
   row: { readonly stepId: string; readonly routeId: string },
   review: ReviewStep,
-  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string; readonly number?: string | null },
   timing: { readonly remindShare: number; readonly calendar: BusinessCalendar },
 ): Promise<AssignedStep> {
   const events: EventDraft[] = []
@@ -314,7 +321,7 @@ async function assignReviewTasks(
       notifications.push({
         recipientMemberId: a.assigneeMemberId,
         templateKey: 'task.review_assigned',
-        data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: task.id, dueAt: times.dueAt.toISOString(), ruleCodes: [...slot.ruleCodes] },
+        data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, ...numberOf(subject), taskId: task.id, dueAt: times.dueAt.toISOString(), ruleCodes: [...slot.ruleCodes] },
         urgency: 'IMMEDIATE',
         dedupeKey: `task.review_assigned:${task.id}`,
         subjectType: subject.type,
@@ -325,7 +332,7 @@ async function assignReviewTasks(
           notifications.push({
             recipientMemberId: memberId,
             templateKey: 'approval_task.delegate_conflict',
-            data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, taskId: task.id },
+            data: { subjectType: subject.type, subjectId: subject.id, label: subject.label, ...numberOf(subject), taskId: task.id },
             urgency: 'IMMEDIATE',
             dedupeKey: `approval_task.delegate_conflict:${task.id}:${memberId}`,
             subjectType: subject.type,

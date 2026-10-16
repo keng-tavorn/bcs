@@ -7,6 +7,8 @@
 #   variable BCS_GO_SERVER_URL       the web the app opens, e.g. https://bcs-staging-demo.vercel.app
 #   secret   BCS_GO_KEYSTORE_B64     the demo keystore (.jks) as base64
 #   secret   BCS_GO_KEYSTORE_PASSWORD · BCS_GO_KEY_ALIAS · BCS_GO_KEY_PASSWORD
+#   secret   BCS_GO_GOOGLE_SERVICES_JSON_B64  the Firebase project's google-services.json as base64, for push (S17-10);
+#            without it the APK builds and works, but receives no push
 # Without them a push run stops with a notice (nothing to sign with yet) and a pressed run fails, saying what is missing.
 name: bcs-go-apk
 
@@ -86,6 +88,18 @@ jobs:
       - name: cap sync android
         if: steps.settings.outputs.ready == 'true'
         run: pnpm exec cap sync android
+
+      # Push (S17-10, ADR-165): Firebase's google-services.json; app/build.gradle applies the plugin only when it is there
+      - name: Firebase config for push
+        if: steps.settings.outputs.ready == 'true'
+        env:
+          GOOGLE_SERVICES_B64: ${{ secrets.BCS_GO_GOOGLE_SERVICES_JSON_B64 }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_B64" ]; then
+            echo "$GOOGLE_SERVICES_B64" | base64 -d > android/app/google-services.json
+          else
+            echo "::notice::ไม่มี secret BCS_GO_GOOGLE_SERVICES_JSON_B64 — APK นี้ไม่ได้รับ push (docs/runbooks/bcs-go-demo.md)"
+          fi
 
       - name: Demo keystore (only in the runner's temp folder)
         if: steps.settings.outputs.ready == 'true'

@@ -28,7 +28,7 @@ export async function assignNextStep(
   tx: TenantTx,
   ctx: Ctx,
   route: { readonly id: string; readonly createdAt: Date; readonly doaVersionId: string; readonly ruleCode: string },
-  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string },
+  subject: { readonly type: ApprovalSubject; readonly id: string; readonly label: string; readonly number?: string | null },
   input: RouteInput,
 ): Promise<NextStep> {
   const next = await tx.approvalStep.findFirst({ where: { routeId: route.id, status: 'WAITING' }, orderBy: { stepNo: 'asc' } })

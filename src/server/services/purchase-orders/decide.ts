@@ -115,7 +115,7 @@ export async function decidePoTask(
       tx,
       ctx,
       route,
-      { type: 'PURCHASE_ORDER', id: po.id, label: po.number ?? po.id },
+      { type: 'PURCHASE_ORDER', id: po.id, label: po.number ?? po.id, number: po.number },
       {
         documentType: 'PURCHASE_ORDER',
         amount: { netSatang: po.netSatang, vatSatang: po.vatSatang },

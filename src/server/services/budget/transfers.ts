@@ -136,7 +136,7 @@ export const submitTransferCommand = defineCommand({
     const route = await startRoute(
       tx,
       ctx,
-      { type: 'BUDGET_TRANSFER', id: row.id, label: number },
+      { type: 'BUDGET_TRANSFER', id: row.id, label: number, number },
       { documentType: doa.documentType, amount: doa.amount, requesterMemberId: row.submittedById, chargedDepartmentId: doa.chargedDepartmentId, conflictMemberIds: doa.conflictMemberIds, at: ctx.now },
     )
     if (!route.ok) return { ok: false, error: route.error }

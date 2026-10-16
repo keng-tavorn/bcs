@@ -17,6 +17,8 @@ const LOCKABLE = [
   'Organization',
   'OrgModule',
   'Member',
+  // S17-10: a device revoked by its owner, by delivery or by deactivation, one change at a time
+  'PushDevice',
   'Request',
   'ApprovalTask',
   'PurchaseOrder',

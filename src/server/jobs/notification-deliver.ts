@@ -1,13 +1,15 @@
 import { z } from 'zod'
 import { systemClock, type Clock } from '@/lib/clock'
 import { inngest } from '@/server/inngest'
-import { deliverNotification, LINE_DELIVERY_MAX_TRIES, type DeliveryOptions, type DeliveryOutcome } from '@/server/notifications/deliver'
+import { deliverNotification, LINE_DELIVERY_MAX_TRIES, PUSH_DELIVERY_MAX_TRIES, type DeliveryOptions, type DeliveryOutcome } from '@/server/notifications/deliver'
 import { openLineChannel } from '@/server/services/line-channel'
 
 // Job `notification-deliver` (spec §4.6, §4.7 rule 2): every IMMEDIATE notification a command wrote is sent once, by
-// LINE or e-mail (FR-NOTI-002 AC1). The first try runs at once. When LINE could not answer for now, the try says when
-// to try again (a backoff that stops at LINE_DELIVERY_GIVE_UP_MS after the first try), and the run sleeps until then and
-// tries again with the time of the first try; past it the try sends the e-mail, so an approval task LINE cannot
+// push in the BCS Go app, LINE or e-mail (FR-NOTI-002 AC1, BR-NOTI-05). The first try runs at once. When push or LINE
+// could not answer for now, the try says when to try again (a backoff that stops at PUSH_DELIVERY_GIVE_UP_MS, and
+// LINE_DELIVERY_GIVE_UP_MS, after the first try of any channel), and the run sleeps until then and tries again with the
+// time of the first try and the channel's next try; once push is over LINE follows, and past LINE's time the try sends
+// the e-mail, so an approval task LINE cannot
 // deliver reaches its recipient by e-mail within LINE_FALLBACK_WITHIN_MS (FR-LINE-007 AC3). Every try reads the
 // notification and, for a notice about an approval task, the task again: once the task no longer waits (decided,
 // cancelled, moved, or waiting for the requester's answer) the try sends nothing and answers SKIPPED TASK_CLOSED, and the
@@ -29,22 +31,24 @@ export interface NotificationDeliverDeps {
 
 const defaultDeps: NotificationDeliverDeps = { openChannel: openLineChannel }
 
-/** One run: the first try, then a try after each RETRY answer at the time it gave (at most LINE_DELIVERY_MAX_TRIES) */
+/** What the try after a RETRY answer carries: the first try's time and, for the channel that asked, its next try */
+export function nextTryOptions(previous: Extract<DeliveryOutcome, { status: 'RETRY' }>, openChannel: NotificationDeliverDeps['openChannel']): DeliveryOptions {
+  const firstTryAt = new Date(previous.firstTryAt)
+  return previous.channel === 'PUSH'
+    ? { openChannel, firstTryAt, pushTry: previous.tries + 1, lastPushFailure: previous.reason }
+    : // Push is over once LINE asks to be tried again
+      { openChannel, firstTryAt, pushTry: PUSH_DELIVERY_MAX_TRIES + 1, lineTry: previous.tries + 1, lastLineFailure: previous.reason }
+}
+
+/** One run: the first try, then a try after each RETRY answer at the time it gave (at most push's and LINE's tries) */
 export function notificationDeliverRun(clock: Clock, deps: NotificationDeliverDeps = defaultDeps) {
   return async (event: { data: unknown }, step: DeliveryStep): Promise<DeliveryOutcome> => {
     const { organizationId, notificationId } = NotificationRequested.parse(event.data)
     let outcome = await step.run('deliver', () => deliverNotification(organizationId, notificationId, clock.now(), { openChannel: deps.openChannel }))
-    for (let attempt = 2; outcome.status === 'RETRY' && attempt <= LINE_DELIVERY_MAX_TRIES; attempt++) {
+    for (let attempt = 2; outcome.status === 'RETRY' && attempt <= PUSH_DELIVERY_MAX_TRIES + LINE_DELIVERY_MAX_TRIES; attempt++) {
       const previous = outcome
       await step.sleepUntil(`wait-${attempt}`, previous.retryAt)
-      outcome = await step.run(`deliver-${attempt}`, () =>
-        deliverNotification(organizationId, notificationId, clock.now(), {
-          openChannel: deps.openChannel,
-          firstLineTryAt: new Date(previous.firstTryAt),
-          lineTry: attempt,
-          lastLineFailure: previous.reason,
-        }),
-      )
+      outcome = await step.run(`deliver-${attempt}`, () => deliverNotification(organizationId, notificationId, clock.now(), nextTryOptions(previous, deps.openChannel)))
     }
     return outcome
   }

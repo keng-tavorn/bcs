@@ -334,6 +334,17 @@ export const TEMPLATES: Readonly<Record<string, Template>> = {
           },
           href: '/settings/line',
         }
+      case 'PUSH_DEVICE_REGISTERED':
+        return {
+          // S17-10 (§10.1): a phone registered for push in the BCS Go app is told to the account owner at once, by e-mail
+          // only, so a phone someone else signed in on is noticed; the notice names no device
+          title: { th: 'มีโทรศัพท์ลงทะเบียนรับแจ้งเตือนในแอป BCS Go ของคุณ', en: 'A phone was registered for notifications in your BCS Go app' },
+          body: {
+            th: 'ถ้าไม่ใช่คุณ ให้ยกเลิกเครื่องนั้นที่หน้าตั้งค่าการแจ้งเตือน แล้วเปลี่ยนรหัสผ่านทันที',
+            en: 'If this was not you, end that device on your notification settings page and change your password at once',
+          },
+          href: '/settings/notifications',
+        }
       default:
         return {
           title: d.kind === 'TWO_FACTOR_RESET' ? { th: 'การยืนยันตัวตนสองชั้นของคุณถูกรีเซ็ต', en: 'Your two-step verification was reset' } : { th: 'มีการเปลี่ยนแปลงด้านความปลอดภัยของบัญชีคุณ', en: 'There was a security change on your account' },

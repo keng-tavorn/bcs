@@ -230,7 +230,7 @@ export const submitPoCommand = defineCommand({
     const route = await startRoute(
       tx,
       ctx,
-      { type: 'PURCHASE_ORDER', id: po.id, label: number },
+      { type: 'PURCHASE_ORDER', id: po.id, label: number, number },
       {
         documentType: 'PURCHASE_ORDER',
         amount: { netSatang: totals.net, vatSatang: totals.vat },

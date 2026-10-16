@@ -448,7 +448,7 @@ async function prepareRoute(tx: TenantTx, ctx: Ctx, request: LoadedRequest, dupl
   const route = await startRoute(
     tx,
     ctx,
-    { type: 'REQUEST', id: request.id, label: request.number ?? request.title },
+    { type: 'REQUEST', id: request.id, label: request.number ?? request.title, number: request.number },
     {
       documentType: 'PURCHASE_REQUEST',
       amount: { netSatang: totals.net, vatSatang: totals.vat },

@@ -226,7 +226,7 @@ export const decideCommand = defineCommand({
         tx,
         ctx,
         route,
-        { type: 'REQUEST', id: request.id, label: request.number ?? request.title },
+        { type: 'REQUEST', id: request.id, label: request.number ?? request.title, number: request.number },
         {
           documentType: 'PURCHASE_REQUEST',
           amount: { netSatang: request.netSatang, vatSatang: request.vatSatang },
@@ -354,7 +354,7 @@ async function decideRegisteredTask(
         tx,
         ctx,
         route,
-        { type, id: route.subjectId, label: adapter.labels(facts).label },
+        { type, id: route.subjectId, label: adapter.labels(facts).label, number: facts.number },
         {
           documentType: facts.documentType,
           ...(route.amountSatang !== null ? { amount: { netSatang: route.amountSatang, vatSatang: 0n } } : {}),

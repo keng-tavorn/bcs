@@ -173,6 +173,8 @@ export const PERMISSIONS = {
   'self.pin': SELF,
   'self.twoFactor': SELF,
   'self.notificationPrefs': SELF,
+  // S17-10 (BR-APP-12, BR-AUTH-12): the member's own devices of the BCS Go app; no one else's, ORG_ADMIN included
+  'self.pushDevices': SELF,
   // AI (S13, docs/sub-specs/S13.md "สิทธิ์ event error และการแจ้งเตือน"): no grant to PLATFORM_ADMIN except credits
   'ai.assist': [anyMember('OWN', 'AI_TARGET_DOCUMENT_RIGHTS')],
   'ai.ask': [anyMember('OWN', 'AI_OWN_SCOPE_ONLY')],

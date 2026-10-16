@@ -425,7 +425,7 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN, DOA_ADMIN (ORG) — ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (BR-WF-17 · S6-09) · อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) · `admin.doa.submitForPublish` ขอถอนฉบับที่อนุมัติแล้วแต่ยังไม่มีผลได้ด้วย (S6-07 · FR-DOA-104 · คนที่ขอถอนอนุมัติการถอนนั้นเองไม่ได้) |
 | `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN, DOA_ADMIN (ORG) — ORG_ADMIN ไม่ได้เมื่อแยกผู้ดูแล DOA เช่นเดียวกับ `admin.doa.*` (BR-WF-17) · ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) · ผู้ถืองานอนุมัติของฉบับนั้นอ่านหน้าฉบับและทดลองส่งได้โดยไม่มีสิทธิ์นี้ (FR-WF-103 AC3) · `admin.workflow.submitForPublish` ขอถอนฉบับที่ยังไม่มีผลด้วยกติกาเดียวกับ DOA (S6-07) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
-| `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
+| `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` · `self.pushDevices` (S17-10 · เครื่องของตนเองในแอป BCS Go · ต้องเปิด `BCS_GO` ตอนลงทะเบียน · ORG_ADMIN ทำแทนไม่ได้ ปิดใช้งาน member เพิกถอนให้เอง · BR-AUTH-12) | ทุก member (OWN) |
 | `ai.assist` | ทุก member (OWN) — ใช้ AI เติมเอกสารของตน และ service ตรวจสิทธิ์ของเอกสารปลายทางซ้ำ (`request.create` `gr.post` สิทธิ์บันทึกใบแจ้งหนี้) (S13) |
 | `ai.ask` | ทุก member (OWN) — ถาม BCS AI ผลอยู่ใน scope ของตนเท่านั้น (BR-AI-21) |
 | `ai.brief.view` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (ผู้รับงานหรือผู้รักษาการที่ตัดสินงานได้ตอนนี้) — ดูสรุปจาก AI ของงานอนุมัติ (BR-AI-20) |
@@ -636,7 +636,7 @@ sequenceDiagram
 `notify(ctx, { recipientMemberId, templateKey, data, urgency, dedupeKey })` เขียน `Notification` และ outbox ในธุรกรรมเดียวกับ command เสมอ การแจ้งเตือนจึงไม่หลุดจากสถานะจริง
 
 1. แสดงในระบบเสมอ (กระดิ่งและกล่องข้อความ)
-2. `urgency = IMMEDIATE`: ส่ง LINE ถ้าผู้รับผูกบัญชีแล้วและองค์กรเปิดช่องทาง LINE ไม่เช่นนั้นส่งอีเมล ถ้า LINE ตอบกลับแบบล้มเหลวถาวร (เช่น ผู้ใช้บล็อก OA) → ส่งอีเมลแทนและตั้ง `lineReachable = false`
+2. `urgency = IMMEDIATE`: แม่แบบที่ไปทาง LINE (ยกเว้นสรุปรายวัน) ส่ง push ในแอป BCS Go ก่อน เมื่อองค์กรเปิด `BCS_GO` ผู้รับเปิด "รับแจ้งเตือนในแอป" และมีเครื่องที่ใช้งาน (OQ-165 · BR-NOTI-05 ถึง BR-NOTI-07 · golden `notification-route`) · push ส่งไม่ได้ → ส่ง LINE ถ้าผู้รับผูกบัญชีแล้วและองค์กรเปิดช่องทาง LINE ไม่เช่นนั้นส่งอีเมล ถ้า LINE ตอบกลับแบบล้มเหลวถาวร (เช่น ผู้ใช้บล็อก OA) → ส่งอีเมลแทนและตั้ง `lineReachable = false` · เวลาของทุกช่องทางนับจากครั้งแรกของ push เดียวกัน
 3. `urgency = DIGEST`: รวมเข้าสรุปรายวัน
 4. `dedupeKey` ไม่ซ้ำภายในองค์กร กันส่งซ้ำเมื่อ job retry
 5. แม่แบบข้อความอยู่ในโค้ด (`src/server/notifications/templates`) มีทั้งไทยและอังกฤษ การ์ด LINE สร้างด้วย builder ใน `src/channels/line/flex` และต้องมีเทสต์ขนาดข้อความตามข้อจำกัดใน LINE docs ณ วันที่สร้าง (ค่าเก็บเป็น constant เดียว)
@@ -867,7 +867,7 @@ cp .env.example .env && pnpm install && docker compose up -d && pnpm db:migrate 
 | `ai` 7 · `@ai-sdk/anthropic` 4 · `@ai-sdk/react` 4 | เรียก Claude และหน้าจอแชทแบบ stream | S13 | `ai` `@ai-sdk/anthropic` ใน `src/integrations/ai` เท่านั้น (P-3) · `@ai-sdk/react` ใช้ได้เฉพาะ client component ของหน้าจอแชท Workspace (`src/ui/ai-chat`) ที่เรียก `POST /api/ai/ask` ไม่ใช่ LIFF (ADR-052) · structured outputs จาก Zod ผ่าน `output_config.format` (BR-AI-10 · ADR-141) · ตรวจแล้วใน S13-01 (ai 7.0.137 · @ai-sdk/anthropic 4.0.78) |
 | `@shadcn/helpers` | จำลองบทสนทนาในเทสต์หน้าจอ AI โดยไม่ใช้ key | S13 | dev dependency |
 | Capacitor 8 (`@capacitor/core` `@capacitor/cli` `@capacitor/ios` `@capacitor/android`) | แอป BCS Go ที่ห่อเว็บเดิม | S17 | ไม่มีโค้ดธุรกิจในแอป (ADR-017 ADR-061) |
-| `@capacitor/push-notifications` · `@capacitor/camera` · `@capacitor-mlkit/barcode-scanning` | push ถ่ายรูปตรวจรับ และสแกน barcode | S17 | push เป็นช่องทางแจ้งเตือนที่สามต่อจาก LINE และอีเมล (§4.7) |
+| `@capacitor/push-notifications` · `@capacitor/camera` · `@capacitor-mlkit/barcode-scanning` | push ถ่ายรูปตรวจรับ และสแกน barcode | S17 | push แทน LINE เมื่อผู้ใช้เปิด "รับแจ้งเตือนในแอป" ส่งไม่ได้ย้อนไป LINE แล้วอีเมล (§4.7 · OQ-165) · JS ของปลั๊กอินอยู่ใน dependency ของเว็บเวอร์ชันเดียวกับ `mobile/bcs-go` (ADR-168) |
 | `@simplewebauthn/server` | passkey เป็นหลักฐาน step-up (NEW-53) และ biometric ในแอป | S17 (S17-15) | แตะ auth · ผู้ใช้ยืนยันแล้ว 2026-10-15 (OQ-167 · ADR-072) แทน `@better-auth/passkey` · ตรวจในคำสั่งของ BCS ผ่าน `runCommand` ไม่เปิด endpoint passkey ใต้ `/api/auth/*` (ADR-166) |
 | `idb-keyval` | คิวตรวจรับตอนออฟไลน์ในเครื่อง | S17 | ส่งผ่าน command เดิมพร้อม idempotencyKey ต่อรายการ |
 
@@ -3008,6 +3008,28 @@ cases:
 | BR-APP-13 | โมดูล `BCS_GO`: ลงทะเบียน push เตรียมสำเนา resolve QR และหน้า `/go/*` เรียก `requireModule(ctx, 'BCS_GO')` · ปิดโมดูล → ไม่ส่ง push (กลับทางเดิม) และเตรียมหรือบันทึกใหม่ไม่ได้ · `/api/go/receiving/gr` (POST และ GET ผลของ key) และ `/api/go/files/*` ไม่ตรวจโมดูลเพราะ `gr.post` และไฟล์อยู่ใน `CORE` · หน้า `/go/receive` ตอนปิดโมดูลแสดงเฉพาะคิวที่ค้างให้ส่งต่อ (ไม่ให้ข้อมูลหาย) |
 | BR-APP-14 | รูปของรายการอัปโหลดก่อนส่ง `gr.post` ครั้งแรก (`UPLOADING`) ทีละรูปผ่าน `/api/go/files/request` และ `/api/go/files/complete` ที่เรียก `requestUpload` `completeUpload` เดิม (ผู้อัปโหลด = ผู้บันทึก ตาม `photosUsable`) แล้วเก็บ fileId ในรายการ · PUT ยังไม่สำเร็จ → ขอ ticket ใหม่ · PUT สำเร็จแต่ไม่รู้ผล complete → complete ซ้ำด้วย ticket เดิมเมื่อออกมาไม่ถึง 14 นาที (ticket อายุ 15 นาที · complete ใช้ key `upload:<key>` จึงได้ fileId เดิม) ไม่เช่นนั้นขอใหม่ · complete ได้ `TICKET_INVALID` (ticket หมดอายุเพราะนาฬิกาคลาด) → ขอ ticket ใหม่ ไม่ใช่ `NEEDS_ATTENTION` · ล้มชั่วคราว → `RETRY` (attempts ไม่เพิ่ม) · ไฟล์ถูกปฏิเสธ (`TYPE_NOT_ALLOWED` `TOO_LARGE` `EMPTY` `CONTENT_MISMATCH`) → `NEEDS_ATTENTION` · fileId ครบแล้วจึงตรึง input พร้อม `photoFileIds` (golden `offline-queue`) |
 
+**golden `notification-route` (S17-10 · BR-NOTI-05 ถึง BR-NOTI-07 · OQ-165)** · `planDelivery` `pushMessage` `pushAnswerAction` ของ `src/core/notification-route` · ตัวคำนวณอ้างอิงใน `scripts/spec_check.py` อ่านรายการแม่แบบที่ไปทาง LINE จาก `src/server/notifications/line-templates.ts` และหัวเรื่อง push จาก `messages/src/<locale>/push.json`
+
+```yaml
+# tests/golden/notification-route.yaml
+suite: notification-route
+# planDelivery pushMessage และ pushAnswerAction (src/core/notification-route · pure · S17-10) · IN_APP ส่งเสมอจึงไม่อยู่ในรายการ
+# แม่แบบที่ไปทาง LINE = LINE_TEMPLATES ของ src/server/notifications/line-templates.ts · ค่าที่ไม่บอก: data {} · lineActive true · lineReachable true · bcsGo true
+# หัวเรื่อง push = push.<templateKey>.title ของ messages/src/<locale>/push.json (ไม่มีคีย์ → push.fallback.title) · path = หน้าที่แม่แบบลิงก์ไป
+cases:
+  - { id: GC-APP-01, title: ไม่ได้เปิดแจ้งในแอป ทางเดิมไม่เปลี่ยน, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: false, activeDevices: 1 }, expect: { channels: [LINE, EMAIL] } }
+  - { id: GC-APP-02, title: เปิดแจ้งในแอป, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [PUSH, LINE, EMAIL] } }
+  - { id: GC-APP-03, title: เปิดแต่ไม่มีเครื่อง, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 0 }, expect: { channels: [LINE, EMAIL] } }
+  - { id: GC-APP-04, title: องค์กรปิด BCS_GO, input: { template: task.assigned, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1, bcsGo: false }, expect: { channels: [LINE, EMAIL] } }
+  - { id: GC-APP-05, title: ไม่ได้ผูก LINE, input: { template: request.approved, urgency: IMMEDIATE, lineLinked: false, appPush: true, activeDevices: 2 }, expect: { channels: [PUSH, EMAIL] } }
+  - { id: GC-APP-06, title: แม่แบบความปลอดภัยไปอีเมลเท่านั้น, input: { template: security.notice, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [EMAIL] } }
+  - { id: GC-APP-07, title: DIGEST ไม่ส่งทันที, input: { template: gr.posted, urgency: DIGEST, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [], digest: true } }
+  - { id: GC-APP-08, title: ส่งต่อถึงผู้ดูแลเป็นอีเมล, input: { template: task.escalated, data: { role: ADMIN }, urgency: IMMEDIATE, lineLinked: true, appPush: true, activeDevices: 1 }, expect: { channels: [EMAIL] } }
+  - { id: GC-APP-09, title: เนื้อหา push ไม่มียอด ชื่อ และชื่อเรื่อง, input: { template: task.assigned, locale: th, data: { taskId: t1, number: PR-2569-00031, title: "งานถนนแอสฟัลต์ 9,500 ตร.ม. · ถนนเลี่ยงเมืองราชบุรี", amount: "2642900.00", requesterName: สมชาย ศรีสุข } }, expect: { push: { title: มีงานรออนุมัติ, body: PR-2569-00031, data: { path: /tasks/t1 } }, absent: ["2642900", "2,642,900", สมชาย, งานถนน] } }
+  - { id: GC-APP-10, title: ผล push ต่อเครื่อง, input: { answers: [ UNREGISTERED, INVALID_TOKEN, AUTH_401, AUTH_403, QUOTA_429, SERVER_503, NETWORK ] }, expect: { actions: [ REVOKE_DEVICE_TRY_NEXT, REVOKE_DEVICE_TRY_NEXT, ALERT_NEXT_CHANNEL, ALERT_NEXT_CHANNEL, RETRY, RETRY, RETRY ] } }
+  - { id: GC-APP-11, title: แม่แบบที่ยังไม่มีคีย์หัวเรื่องใช้ข้อความกลาง, input: { template: example.no_title_key, locale: th, data: { number: PR-2569-00032, amount: "1500.00" } }, expect: { push: { title: มีการแจ้งเตือนใหม่, body: PR-2569-00032 }, absent: ["1500"] } }
+```
+
 ---
 
 ## 8. Functional requirements
@@ -4251,7 +4273,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `invoice.variance_approved` · `invoice.variance_rejected` (S8) | ผู้ขออนุมัติส่วนต่าง · FINANCE | ในระบบ · LINE | IMMEDIATE | `invoice.variance_decided` |
 | ส่งใบ · ปฏิเสธใบ · ใบพร้อมจ่าย (S8 · BR-AP-08) | ผู้ขาย (`Supplier.email` · ไม่มี → `NO_EMAIL` และแจ้ง FINANCE ในระบบ) | อีเมลผ่าน `SupplierNotice` | IMMEDIATE | `supplier.invoice_received` `supplier.invoice_rejected` `supplier.invoice_ready` |
 | สรุปรายวัน | EXECUTIVE · DEPT_HEAD · ผู้มีงานค้าง | LINE → อีเมล | ตามรอบ | `digest.daily` |
-| `security.pin_locked` · `auth.2fa_reset` | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
+| `security.pin_locked` · `auth.2fa_reset` · `push_device.registered` (S17-10) | เจ้าของบัญชี | อีเมล | IMMEDIATE | `security.notice` |
+| ทุกแถว IMMEDIATE ข้างบนที่ช่องทางมี LINE ยกเว้นสรุปรายวัน (S17-10 · `LINE_TEMPLATES`) | ตามแถวนั้น | push ในแอป BCS Go → LINE → อีเมล เมื่อองค์กรเปิด `BCS_GO` และผู้รับเปิด "รับแจ้งเตือนในแอป" (BR-NOTI-05 · OQ-165) · ไม่เปิด = ทางเดิมของแถวนั้น | ตามแถวนั้น | ตามแถวนั้น · หัวเรื่อง push จาก `push.<templateKey>.title` เนื้อความเป็นเลขเอกสารเท่านั้น (BR-NOTI-06) |
 | `ai_credit.threshold_reached` · `ai_credit.exhausted` (S13 · ครั้งเดียวต่อเดือนต่อชนิด) | ORG_ADMIN (ทีม BCS ดูที่หน้า platform) | อีเมล · ในระบบ | IMMEDIATE | `admin.ai_credits` |
 | `ai_agent.enabled` · `ai_agent.disabled` (S13) | ORG_ADMIN | ในระบบ | IMMEDIATE | `admin.ai_agent_changed` |
 
@@ -4273,6 +4296,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | Aggregate | Event types |
 | --- | --- |
 | organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `organization.sandbox_created` (S6-21 · บนองค์กร production ที่เป็นเจ้าของ) `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
+| push_device | `push_device.registered` `push_device.revoked` (S17-10 · เครื่องของแอป BCS Go: เหตุ `USER` `LOGOUT` `DEACTIVATED` `UNREGISTERED` `REPLACED` · BR-AUTH-12 BR-NOTI-07 · ไม่มี token ใน data) |
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
 | doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` `doa_version.withdrawal_requested` `doa_version.withdrawal_rejected` `doa_version.withdrawal_cancelled` (S6-07 · FR-DOA-104 · `doa_version.withdrawn` มี schema แล้ว) |
 | workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` `workflow_version.withdrawal_requested` `workflow_version.withdrawn` `workflow_version.withdrawal_rejected` `workflow_version.withdrawal_cancelled` (S6 · FR-WF-103 · การถอน S6-07) |
@@ -4856,7 +4880,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       40 ไฟล์ · 480 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       41 ไฟล์ · 491 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -6864,6 +6888,11 @@ NEXT_PUBLIC_LIFF_ID=
 # --- BCS Go (S17 · ADR-163 ADR-166) ---
 BCS_GO_ANDROID_PACKAGE=     # package ของแอป Android เช่น th.bcs.go
 BCS_GO_ANDROID_CERT_SHA256= # ลายนิ้วมือ SHA-256 ของใบรับรองที่เซ็น APK (AB:CD:… คั่นด้วย , ได้หลายใบ) · ตั้งครบสองค่า = /.well-known/assetlinks.json ตอบ ไม่ครบ = 404
+PUSH_PROVIDER=              # fcm = Firebase Cloud Messaging · fake = fake FCM ของ pnpm line:fake (local เท่านั้น) · off หรือว่าง = ไม่ส่ง push (S17-10)
+FCM_PROJECT_ID=             # Project ID ของ Firebase project ของ BCS (ADR-165)
+FCM_SERVICE_ACCOUNT_JSON_B64= # ไฟล์ key ของ service account (JSON) แปลงเป็น base64 · ใส่เองในไฟล์ .env ห้ามวางในแชท
+FCM_API_BASE_URL=           # local เท่านั้น: fake FCM เช่น http://127.0.0.1:4100/fcm · ว่าง = https://fcm.googleapis.com
+FCM_TOKEN_URL=              # local เท่านั้น: เช่น http://127.0.0.1:4100/fcm/token · ว่าง = https://oauth2.googleapis.com/token
 
 # --- SSO (S5) ---
 GOOGLE_CLIENT_ID=

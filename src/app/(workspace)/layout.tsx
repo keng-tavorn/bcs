@@ -20,6 +20,7 @@ import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { LanguageSwitch } from '@/ui/shell/language-switch'
 import { PwaRegistration } from '@/ui/pwa/pwa-registration'
+import { AppBridge } from '@/ui/bcs-go/app-bridge'
 import { AskAiSheet } from '@/ui/ai-chat/ask-sheet'
 import { CommandPalette } from '@/ui/shell/command-palette'
 import { UatBanner } from '@/ui/shell/uat-banner'
@@ -28,6 +29,7 @@ import { WorkspaceShell } from '@/ui/shell/workspace-shell'
 import { setLocaleAction } from '../_lib/locale-actions'
 import { getPlatformSession, getSession } from '../_lib/session'
 import { paletteCommands } from './_shell/commands'
+import { endPushDeviceOnSignOutAction } from './settings/notifications/actions'
 import { menuLabelKey, SIDEBAR_GROUPS, visibleMenu, type MenuGroup } from './_shell/menu'
 import { countMyDraftsAction } from './_shell/new-request-actions'
 import { markAllNotificationsReadAction, openNotificationAction } from './_shell/notification-actions'
@@ -77,6 +79,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
     <NextIntlClientProvider>
       {page}
       <PwaRegistration labels={{ updateReady: tPwa('updateReady'), updateNow: tPwa('updateNow'), updateLater: tPwa('updateLater') }} />
+      <AppBridge />
     </NextIntlClientProvider>
   )
 
@@ -221,7 +224,7 @@ export default async function WorkspaceLayout({ children }: { children: ReactNod
           <Link href="/install" className="font-medium text-primary underline underline-offset-4 hover:no-underline">
             {tPwa('installLink')}
           </Link>
-          <SignOutButton />
+          <SignOutButton endPushDevice={endPushDeviceOnSignOutAction} />
         </div>
       }
     >

@@ -222,7 +222,7 @@ export const requestVarianceCommand = defineCommand({
     const route = await startRoute(
       tx,
       ctx,
-      { type: 'INVOICE', id: invoice.id, label: invoice.number ?? invoice.id },
+      { type: 'INVOICE', id: invoice.id, label: invoice.number ?? invoice.id, number: invoice.number },
       {
         documentType: 'INVOICE_EXCEPTION',
         amount: { netSatang: run.data.doaAmount.netSatang, vatSatang: run.data.doaAmount.vatSatang },

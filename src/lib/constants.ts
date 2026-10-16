@@ -155,6 +155,18 @@ export const SIDEBAR_STATE_MAX_AGE_S = (7 * MS_PER_DAY) / MS_PER_SECOND
 
 /** How long a browser or Android may keep /.well-known/assetlinks.json (S17-09, ADR-166) */
 export const ASSET_LINKS_MAX_AGE_S = 60 * 60
+/** S17-10 (ADR-165): one call to FCM (a push, or the access token) waits this long */
+export const PUSH_SEND_TIMEOUT_MS = 10 * MS_PER_SECOND
+/** The lifetime of the JWT a service account signs for an FCM access token (Google's maximum: one hour) */
+export const FCM_JWT_LIFETIME_S = 60 * 60
+/** PUSH_PROVIDER=fake signs with an RSA key made for its process, of this size */
+export const THROWAWAY_RSA_BITS = 2 * 1024
+/** An FCM access token is used until this many seconds before it ends */
+export const PUSH_ACCESS_TOKEN_MARGIN_S = 60
+/** BR-AUTH-12: devices in use per member; a sixth makes the one seen longest ago go (REPLACED) */
+export const PUSH_DEVICES_PER_MEMBER_MAX = 5
+/** The phone answers the app's push registration within this, or the page says it could not register */
+export const PUSH_REGISTRATION_TIMEOUT_MS = 15 * MS_PER_SECOND
 /** The sidebar's cookie: "true" open, "false" collapsed; read by the workspace layout to draw the first page the same way */
 export const SIDEBAR_STATE_COOKIE = 'sidebar_state'
 /** Below this width (px) the workspace menu opens as a sheet from the left (§9.10 layout sizes) */

@@ -18,6 +18,7 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
+import { createFakeFcm, type FakeFcm } from './fake-fcm'
 
 export interface FakeLineOptions {
   /** 0 = any free port (tests); `pnpm line:fake` uses FAKE_LINE_PORT or 4100 */
@@ -101,6 +102,8 @@ export interface FakeLine {
   /** What LINE Developers Console would hold: the webhook URL and "Use webhook" */
   setWebhook(endpoint: string, active?: boolean): void
   webhookDeliveries(): readonly FakeLineWebhookDelivery[]
+  /** S17-10: the fake FCM served under /fcm (scripts/lib/fake-fcm.ts): pushes accepted, answers per device token */
+  readonly fcm: FakeFcm
   /** Forget everything sent, linked and created */
   reset(): void
 }
@@ -265,6 +268,7 @@ const parseJson = (body: Buffer): unknown => {
 export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine> {
   if (options.channelSecret === '') throw new TypeError('the fake LINE server needs a channel secret to sign test webhooks')
   const botUserId = options.botUserId ?? `U${hex(16)}`
+  const fcm = createFakeFcm()
   const tokenKey = randomBytes(32)
   const webhookTimeoutMs = options.webhookTimeoutMs ?? DEFAULT_WEBHOOK_TIMEOUT_MS
 
@@ -355,6 +359,9 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
 
     const raw = await readBody(req)
     if (raw === null) return answer(413, { message: 'Request Entity Too Large' }, { connection: 'close' })
+
+    // ---- FCM of the BCS Go app (S17-10): /fcm/* and its /__fake/ push controls ----
+    if (fcm.handle(method, path, raw, req.headers.authorization ?? '', (status, body) => answer(status, body ?? {}))) return
 
     // ---- LINE Login: verify an ID token (BR-LINE-02) ----
     if (method === 'POST' && path === '/oauth2/v2.1/verify') {
@@ -597,7 +604,9 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
       state.webhook = { endpoint, active }
     },
     webhookDeliveries: () => [...state.deliveries],
+    fcm,
     reset: () => {
+      fcm.reset()
       state.messages = []
       state.requests = []
       state.richMenus.clear()

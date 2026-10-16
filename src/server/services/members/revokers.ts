@@ -5,6 +5,7 @@ import type { NotificationDraft } from '@/server/notifications/create'
 import { revokeMemberTokens } from '@/server/tokens/action-tokens'
 import { revokeDelegationsOf } from '../delegations'
 import { unlinkLineOnDeactivation } from '../line-link/unlink'
+import { revokeMemberDevices } from '../push-devices'
 
 // Deactivating a member revokes everything that lets them act, in the same transaction (BR-AUTH-06,
 // FR-AUTH-003 AC2). Sessions and pending invitations are revoked by the deactivate command itself; the other
@@ -36,6 +37,8 @@ registerDeactivationRevoker('actionTokens', async (tx, ctx, target) => ({ count:
 registerDeactivationRevoker('delegations', (tx, ctx, target) => revokeDelegationsOf(tx, ctx, target.memberId))
 // Their LINE link, with line.unlinked (FR-LINE-001 AC3, S5-04); the rich menu follows in job line-rich-menu
 registerDeactivationRevoker('lineLink', (tx, ctx, target) => unlinkLineOnDeactivation(tx, ctx, target.memberId))
+// Their BCS Go devices, with push_device.revoked (BR-AUTH-12, S17-10): no push reaches a phone of a deactivated member
+registerDeactivationRevoker('pushDevices', (tx, ctx, target) => revokeMemberDevices(tx, target.memberId, ctx.now))
 
 export async function runDeactivationRevokers(
   tx: TenantTx,

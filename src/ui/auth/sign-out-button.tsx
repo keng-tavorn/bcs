@@ -4,6 +4,8 @@ import { CircleAlert } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
+import { settle } from '../admin-settings/outcome'
+import { storedPushDevice, storePushDevice } from '../bcs-go/native'
 import { Button } from '../form/button'
 import { authClient, errorStatus, settled } from './client'
 
@@ -36,7 +38,11 @@ export function SignOutFailure({ id, result }: { readonly id: string; readonly r
   )
 }
 
-export function SignOutButton() {
+/**
+ * endPushDevice: in the BCS Go app, the phone's push device ends before signing out (BR-AUTH-12 LOGOUT), so a shared
+ * phone stops receiving the member's notifications; its answer is not waited for beyond the call itself
+ */
+export function SignOutButton({ endPushDevice }: { readonly endPushDevice?: (deviceId: string) => Promise<void> } = {}) {
   const t = useTranslations('auth.security')
   const router = useRouter()
   // The button is on the page twice (the side menu and the phone's menu panel): each says its own failure
@@ -52,6 +58,11 @@ export function SignOutButton() {
         onClick={async () => {
           setPending(true)
           setFailed(null)
+          const device = endPushDevice ? storedPushDevice() : null
+          if (device && endPushDevice) {
+            await settle(endPushDevice(device))
+            storePushDevice(null)
+          }
           const result = await signOutWith(() => authClient.signOut())
           if (result === 'done') {
             router.replace('/login')

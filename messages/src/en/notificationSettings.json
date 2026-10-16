@@ -31,5 +31,30 @@
     "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps failing, give this reference to the BCS team.",
     "FAILED": "It was not saved; the previous setting still applies. Try again.",
     "NO_ANSWER": "No answer came back, so it is not certain the change was saved. Try again, or reload the page to see the setting in effect."
+  },
+  "appPush": {
+    "title": "Notifications in the BCS Go app",
+    "label": "Notify me in the app",
+    "hint": "When on, approval tasks and work notices pop up on your registered phones instead of LINE. If the app cannot be reached they go by LINE, then e-mail, as before. The lock screen shows the document number only, never an amount or a name",
+    "hintBrowser": "Turn it on in the BCS Go app on your phone: open the app, come to this page and turn the switch on. The phone asks to allow notifications and is registered",
+    "turnedOn": "Notifications in the app are on, and this phone is registered",
+    "turnedOff": "Notifications in the app are off. Work notices go by LINE, then e-mail, as before",
+    "moduleOff": "Your organization has not turned the BCS Go app on. Contact your organization administrator",
+    "deviceEnded": "The device is ended and gets no more notifications",
+    "token": {
+      "NOT_IN_APP": "This can be turned on in the BCS Go app only",
+      "DENIED": "The phone does not allow BCS Go to notify you. Allow the app's notifications in the phone's settings, then try again",
+      "UNAVAILABLE": "The phone could not be registered. Check the connection and try again"
+    },
+    "devices": {
+      "device": "Device",
+      "registeredAt": "Registered",
+      "lastSeenAt": "Last used",
+      "actions": "Actions",
+      "thisPhone": "This phone",
+      "end": "End this device",
+      "none": "No phone is registered for notifications in the app yet",
+      "platform": "{platform} · app {version}"
+    }
   }
 }

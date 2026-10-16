@@ -1,23 +1,42 @@
 import { textNotice, type OutgoingLineMessage } from '@/channels/line/flex'
+import { goesByLine as routeGoesByLine, planDelivery, pushAnswerAction } from '@/core/notification-route'
 import { uatSubject } from '@/lib/uat'
 import { EmailSendError, getEmailProvider, type EmailMessage } from '@/integrations/email-provider'
 import { isLineApiError, type LineApiError, type LineChannelApi } from '@/integrations/line'
+import { getPushProvider, type PushAnswer, type PushProvider } from '@/integrations/push'
 import { MS_PER_MINUTE, MS_PER_SECOND } from '@/lib/constants'
 import { getEnv } from '@/lib/env'
 import { logger } from '@/lib/logger'
+import { appPushEnabled } from '@/lib/notification-prefs'
+import { systemCtx } from '@/server/context'
+import { openSecret } from '@/server/crypto/secret-box'
 import { forTenant } from '@/server/db/tenant'
+import { appendEvents } from '@/server/events/append'
 import { approvalCardMessage, cardContextOf, documentLink } from '@/server/line/postback-cards'
 import { setLineReachable } from '@/server/line/webhook/identity'
 import { readLineChannelPublic } from '@/server/queries/line-channel'
 import { emailLinkPath } from '@/server/tokens/action-tokens'
-import { renderNotification } from './templates'
+import { LINE_TEMPLATES } from './line-templates'
+import { pushOf } from './push-message'
+import { pushTokenContext } from './push-token'
+import { renderNotification, type NotificationLocale } from './templates'
 
-// Delivering an IMMEDIATE notification (spec §4.7 rule 2, §10.1, FR-NOTI-002 AC1, FR-LINE-007 AC3):
+// Delivering an IMMEDIATE notification (spec §4.7 rule 2, §10.1, FR-NOTI-002 AC1, FR-LINE-007 AC3, S17-10):
 //  - first, at every try, a notice about an approval task (task.assigned, task.reminder, task.overdue, task.escalated)
 //    is checked against the task as it is now: once the task is decided, cancelled, moved or waiting for the requester's
 //    answer — or, for a notice to its assignee, no longer theirs — nothing is sent (FR-NOTI-003 AC3 "งานที่ปิดแล้วไม่ถูก
 //    เตือน เพราะ job ตรวจสถานะล่าสุดก่อนส่ง"). The notice stays in the bell (§4.7 rule 1): there is no status for "not
 //    sent", so the row is settled SENT on IN_APP with error TASK_CLOSED;
+//  - by push in the BCS Go app first (BR-NOTI-05, OQ-165, golden notification-route) when the template is one LINE takes
+//    (not the daily summary), the organization has BCS_GO on and is no UAT sandbox, a push provider is set, and the
+//    recipient turned "notifications in the app" on and has a device in use. Every device in use gets it, titled by its
+//    template and carrying the document's number only (BR-NOTI-06). A device FCM no longer knows is revoked
+//    (UNREGISTERED, with push_device.revoked) and the next tried; with none left, or when FCM refuses BCS's own key
+//    (401, 403: an alert), LINE and e-mail follow at once; a quota, server error or no connection is tried again until
+//    PUSH_DELIVERY_GIVE_UP_MS after the first try (BR-NOTI-07). The clock of every channel runs from the first try of
+//    any of them, so LINE gets what is left of LINE_DELIVERY_GIVE_UP_MS and the e-mail still goes within
+//    LINE_FALLBACK_WITHIN_MS. FCM shows a notification's pushes once (the collapse key and tag are its id), so a push
+//    tried again by a second run is not seen twice;
 //  - by LINE when the notification is one §10.1 sends by LINE, the organization's channel is switched on
 //    (LineChannelConfig.active — the switch the webhook and LIFF obey), the recipient is linked to it (a live
 //    ChannelIdentity under the channel's provider) and LINE still reaches them (Member.lineReachable). An approval task
@@ -52,36 +71,17 @@ export const LINE_DELIVERY_GIVE_UP_MS = 4 * MS_PER_MINUTE
 export const LINE_DELIVERY_RETRY_BASE_MS = 15 * MS_PER_SECOND
 /** Tries by LINE at most, whatever the clock says: the job's bound */
 export const LINE_DELIVERY_MAX_TRIES = 6
+/** BR-NOTI-07: push is tried for this long after the first try (with LINE's backoff); then LINE and e-mail follow */
+export const PUSH_DELIVERY_GIVE_UP_MS = 2 * MS_PER_MINUTE
+/** Tries by push at most: 15 s, 30 s and 1 min after the first fit in PUSH_DELIVERY_GIVE_UP_MS */
+export const PUSH_DELIVERY_MAX_TRIES = 4
 
-/**
- * §10.1 rows whose channel is "LINE → อีเมล" (or LINE beside in-app): only these go to LINE. The rest — security notices,
- * administrators' notices that name members, reports — go by e-mail only.
- */
-export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
-  'task.assigned',
-  'task.review_assigned',
-  'task.reminder',
-  'task.overdue',
-  'task.escalated',
-  'request.approved',
-  'request.decided',
-  'request.info_requested',
-  'request.info_provided',
-  'request.follower_added',
-  'po.approved',
-  'po.send_bounced',
-  'delegation.window',
-  'doa.authority_changed',
-  'digest.daily',
-  // S8: differences of an invoice and the decision on its price variance (§10.1, BR-AP-09)
-  'invoice.exception',
-  'invoice.variance_decided',
-])
+export { LINE_TEMPLATES } from './line-templates'
 
 type Data = Readonly<Record<string, unknown>>
 
 /** task.escalated to ORG_ADMIN (nobody to escalate to) is an administrator's notice, like admin.*: e-mail only */
-const goesByLine = (templateKey: string, data: Data) => LINE_TEMPLATES.has(templateKey) && !(templateKey === 'task.escalated' && data.role === 'ADMIN')
+const goesByLine = (templateKey: string, data: Data) => routeGoesByLine(templateKey, data, LINE_TEMPLATES)
 
 /**
  * The notice that gives the recipient an approval task: task.assigned, a reviewer's task.review_assigned (S6) and
@@ -142,21 +142,31 @@ export type OpenLineChannelForDelivery = (
 export interface DeliveryOptions {
   /** Opens the organization's LINE channel; without it nothing goes by LINE */
   readonly openChannel?: OpenLineChannelForDelivery
-  /** When the first try by LINE was: the job carries it from one try to the next (absent before the first) */
-  readonly firstLineTryAt?: Date
+  /**
+   * When the first try of any channel was — push's, or LINE's when no push was due: the job carries it from one try to
+   * the next (absent before the first). Every channel's time is counted from it (BR-NOTI-07).
+   */
+  readonly firstTryAt?: Date
+  /** Which try by push this is: 1 for the first; past PUSH_DELIVERY_MAX_TRIES push is over and LINE goes on */
+  readonly pushTry?: number
   /** Which try by LINE this is: 1 for the first */
   readonly lineTry?: number
+  /** Why the last try by push failed (the job carries it): recorded when another channel replaces push */
+  readonly lastPushFailure?: string
+  /** The push provider; the environment's (getPushProvider) when not given, none when PUSH_PROVIDER is off */
+  readonly pushProvider?: PushProvider | null
   /** Why the last try by LINE failed (the job carries it): reported when the e-mail replaces LINE once time is up */
   readonly lastLineFailure?: string
 }
 
 export type DeliveryOutcome =
-  | { readonly status: 'SENT'; readonly channel: 'LINE' }
+  | { readonly status: 'SENT'; readonly channel: 'PUSH' }
+  | { readonly status: 'SENT'; readonly channel: 'LINE'; readonly pushFailed?: string }
   /** lineFailed: why LINE did not take it when it was tried first (LineApiError.reason) */
   | { readonly status: 'SENT'; readonly channel: 'EMAIL'; readonly lineFailed?: string }
   | { readonly status: 'FAILED'; readonly channel: 'EMAIL'; readonly code: string }
-  /** LINE could not answer for now: try again at retryAt (ISO), carrying firstTryAt; the e-mail follows by the give-up */
-  | { readonly status: 'RETRY'; readonly channel: 'LINE'; readonly reason: string; readonly tries: number; readonly firstTryAt: string; readonly retryAt: string }
+  /** Push or LINE could not answer for now: try again at retryAt (ISO), carrying firstTryAt; the next channel follows by the give-up */
+  | { readonly status: 'RETRY'; readonly channel: 'PUSH' | 'LINE'; readonly reason: string; readonly tries: number; readonly firstTryAt: string; readonly retryAt: string }
   /** Nothing sent: NOT_FOUND, settled already (its status), CLAIMED by another run, or TASK_CLOSED (FR-NOTI-003 AC3) */
   | { readonly status: 'SKIPPED'; readonly why: string }
 
@@ -283,6 +293,66 @@ async function lineMessageOf(organizationId: string, n: { templateKey: string; d
   return textNotice({ title: rendered.title, body: rendered.body, url: documentLink(cards, rendered.href) })
 }
 
+/** The organization may send push: BCS_GO on (BR-APP-13), no UAT sandbox (BR-UAT-01, ADR-174), a provider set */
+async function pushOpen(organizationId: string, sandbox: boolean, provider: PushProvider | null): Promise<boolean> {
+  if (sandbox || !provider) return false
+  return (await forTenant(organizationId).orgModule.count({ where: { module: 'BCS_GO', enabled: true } })) > 0
+}
+
+type PushTry =
+  | { readonly kind: 'SENT' }
+  /** Nothing went and nothing will by push now: LINE and e-mail follow (reason for the record) */
+  | { readonly kind: 'NEXT'; readonly reason: string }
+  | { readonly kind: 'RETRY'; readonly reason: string }
+
+/**
+ * One try by push to every device of the recipient in use (BR-NOTI-07): SENT when one took it. A device FCM no longer
+ * knows is revoked here, by the system, with push_device.revoked; a token that does not open (ENCRYPTION_KEY changed)
+ * is skipped with an alert.
+ */
+async function pushToDevices(
+  organizationId: string,
+  devices: readonly { readonly id: string; readonly tokenEnc: string }[],
+  message: ReturnType<typeof pushOf>,
+  provider: PushProvider,
+  now: Date,
+  log: typeof logger,
+): Promise<PushTry> {
+  const answers: PushAnswer[] = []
+  const gone: string[] = []
+  const data: Record<string, string> = { ...(message.data.notificationId ? { notificationId: message.data.notificationId } : {}), ...(message.data.path ? { path: message.data.path } : {}) }
+  for (const device of devices) {
+    let token: string
+    try {
+      token = openSecret(device.tokenEnc, pushTokenContext(organizationId, device.id))
+    } catch {
+      log.error({ alert: true, deviceId: device.id }, 'a push token does not open (ENCRYPTION_KEY changed?): that device gets no push until the app registers again')
+      continue
+    }
+    const answer = await provider.send(token, { title: message.title, body: message.body, data, collapseKey: message.data.notificationId ?? device.id })
+    answers.push(answer)
+    if (pushAnswerAction(answer) === 'REVOKE_DEVICE_TRY_NEXT') gone.push(device.id)
+  }
+  if (gone.length > 0) {
+    const ctx = systemCtx(organizationId, now, 'notification-deliver')
+    await forTenant(organizationId).$transaction(async (tx) => {
+      const still = await tx.pushDevice.findMany({ where: { id: { in: gone }, revokedAt: null }, select: { id: true }, orderBy: { id: 'asc' } })
+      if (still.length === 0) return
+      await tx.pushDevice.updateMany({ where: { id: { in: still.map((d) => d.id) }, revokedAt: null }, data: { revokedAt: now, revokeReason: 'UNREGISTERED', version: { increment: 1 } } })
+      await appendEvents(tx, ctx, still.map((d) => ({ type: 'push_device.revoked', aggregateType: 'PushDevice', aggregateId: d.id, data: { reason: 'UNREGISTERED' } })))
+    })
+  }
+  if (answers.includes('SENT')) return { kind: 'SENT' }
+  const auth = answers.find((a) => pushAnswerAction(a) === 'ALERT_NEXT_CHANNEL')
+  if (auth) {
+    log.error({ alert: true, reason: auth }, 'FCM refused the BCS Go push credentials: notifications go by LINE and e-mail until FCM_SERVICE_ACCOUNT_JSON_B64 is fixed')
+    return { kind: 'NEXT', reason: auth }
+  }
+  const transient = answers.find((a) => pushAnswerAction(a) === 'RETRY')
+  if (transient) return { kind: 'RETRY', reason: transient }
+  return { kind: 'NEXT', reason: answers.length > 0 ? 'NO_DEVICE_LEFT' : 'NO_DEVICE' }
+}
+
 export async function deliverNotification(organizationId: string, notificationId: string, now: Date, options: DeliveryOptions = {}): Promise<DeliveryOutcome> {
   const db = forTenant(organizationId)
   const log = logger.child({ organizationId, notificationId })
@@ -297,7 +367,7 @@ export async function deliverNotification(organizationId: string, notificationId
       subjectType: true,
       subjectId: true,
       recipientMemberId: true,
-      recipient: { select: { email: true, status: true, lineReachable: true } },
+      recipient: { select: { email: true, status: true, lineReachable: true, notificationPrefs: true } },
     },
   })
   if (!n) return { status: 'SKIPPED', why: 'NOT_FOUND' }
@@ -307,13 +377,51 @@ export async function deliverNotification(organizationId: string, notificationId
   const about = taskNoticeOf(n.templateKey, data)
   if (about && !(await taskStillWaits(organizationId, about, n.recipientMemberId))) return settleTaskClosed(organizationId, n.id, now)
   const active = n.recipient.status === 'ACTIVE'
-  // S6-21 (BR-UAT-01): a UAT sandbox never sends by LINE, and its e-mails say they come from the trial system
-  const sandbox = (await db.organization.findUnique({ where: { id: organizationId }, select: { kind: true } }))?.kind === 'SANDBOX'
+  // S6-21 (BR-UAT-01): a UAT sandbox never sends by LINE or push, and its e-mails say they come from the trial system
+  const organization = await db.organization.findUnique({ where: { id: organizationId }, select: { kind: true, locale: true } })
+  const sandbox = organization?.kind === 'SANDBOX'
+  const locale: NotificationLocale = organization?.locale === 'en' ? 'en' : 'th'
+  const firstTryAt = options.firstTryAt ?? now
 
-  // ---- LINE first, while it is still worth a try ----
+  // ---- push first (BR-NOTI-05), while it is still worth a try ----
+  let pushFailed: string | undefined = options.lastPushFailure
+  const pushTries = Math.max(1, options.pushTry ?? 1)
+  const pushGiveUpAt = firstTryAt.getTime() + PUSH_DELIVERY_GIVE_UP_MS
+  const pushDue = active && now.getTime() < pushGiveUpAt && pushTries <= PUSH_DELIVERY_MAX_TRIES
+  const provider = pushDue ? (options.pushProvider === undefined ? getPushProvider() : options.pushProvider) : null
+  const pushAllowed = provider !== null && (await pushOpen(organizationId, sandbox, provider))
+  const appPush = appPushEnabled(n.recipient.notificationPrefs)
+  const devices =
+    pushAllowed && appPush
+      ? await db.pushDevice.findMany({ where: { memberId: n.recipientMemberId, revokedAt: null }, orderBy: [{ lastSeenAt: 'desc' }, { id: 'desc' }], select: { id: true, tokenEnc: true } })
+      : []
+  // Only whether push goes first is taken from the plan here: LINE's own checks follow below, read when LINE is due
+  const plan = planDelivery(
+    { templateKey: n.templateKey, data, urgency: 'IMMEDIATE' },
+    { lineLinked: false, lineActive: false, lineReachable: false, appPush, activeDevices: devices.length, bcsGo: pushAllowed },
+    LINE_TEMPLATES,
+  )
+  if (provider && plan.channels.includes('PUSH')) {
+    const rendered = renderNotification(n, locale)
+    const pushed = await pushToDevices(organizationId, devices, pushOf({ id: n.id, templateKey: n.templateKey, data, href: rendered.href }, locale), provider, now, log)
+    if (pushed.kind === 'SENT') {
+      await db.notification.updateMany({ where: { id: n.id, status: 'PENDING', sentChannel: null }, data: { status: 'SENT', sentChannel: 'PUSH', sentAt: now, error: null } })
+      return { status: 'SENT', channel: 'PUSH' }
+    }
+    pushFailed = pushed.reason
+    if (pushed.kind === 'RETRY') {
+      const retryAt = Math.min(now.getTime() + LINE_DELIVERY_RETRY_BASE_MS * 2 ** (pushTries - 1), pushGiveUpAt)
+      if (pushTries < PUSH_DELIVERY_MAX_TRIES && retryAt > now.getTime()) {
+        log.warn({ reason: pushed.reason, tries: pushTries }, 'push could not be sent for now; it is tried again, then LINE and e-mail follow')
+        await db.notification.updateMany({ where: { id: n.id, status: 'PENDING', sentChannel: null }, data: { error: `PUSH_${pushed.reason}` } })
+        return { status: 'RETRY', channel: 'PUSH', reason: pushed.reason, tries: pushTries, firstTryAt: firstTryAt.toISOString(), retryAt: new Date(retryAt).toISOString() }
+      }
+    }
+  }
+
+  // ---- LINE, while it is still worth a try ----
   let lineFailed: string | undefined
   const tries = Math.max(1, options.lineTry ?? 1)
-  const firstTryAt = options.firstLineTryAt ?? now
   const giveUpAt = firstTryAt.getTime() + LINE_DELIVERY_GIVE_UP_MS
   const lineDue = now.getTime() < giveUpAt && tries <= LINE_DELIVERY_MAX_TRIES
   const target =
@@ -325,8 +433,8 @@ export async function deliverNotification(organizationId: string, notificationId
     if (!message) return settleTaskClosed(organizationId, n.id, now)
     const pushed = await pushByLine(target, [message], n.id)
     if (pushed.ok) {
-      await db.notification.updateMany({ where: { id: n.id, status: 'PENDING' }, data: { status: 'SENT', sentChannel: 'LINE', sentAt: now, error: null } })
-      return { status: 'SENT', channel: 'LINE' }
+      await db.notification.updateMany({ where: { id: n.id, status: 'PENDING' }, data: { status: 'SENT', sentChannel: 'LINE', sentAt: now, error: pushFailed ? `PUSH_${pushFailed}` : null } })
+      return pushFailed ? { status: 'SENT', channel: 'LINE', pushFailed } : { status: 'SENT', channel: 'LINE' }
     }
     if (!pushed.permanent) {
       const retryAt = Math.min(now.getTime() + LINE_DELIVERY_RETRY_BASE_MS * 2 ** (tries - 1), giveUpAt)
@@ -368,6 +476,6 @@ export async function deliverNotification(organizationId: string, notificationId
     await db.notification.update({ where: { id: n.id }, data: { sentChannel: null } })
     throw error
   }
-  await db.notification.update({ where: { id: n.id }, data: { status: 'SENT', sentAt: now, ...(lineFailed ? { error: `LINE_${lineFailed}` } : {}) } })
+  await db.notification.update({ where: { id: n.id }, data: { status: 'SENT', sentAt: now, ...(lineFailed ? { error: `LINE_${lineFailed}` } : pushFailed ? { error: `PUSH_${pushFailed}` } : {}) } })
   return lineFailed ? { status: 'SENT', channel: 'EMAIL', lineFailed } : { status: 'SENT', channel: 'EMAIL' }
 }

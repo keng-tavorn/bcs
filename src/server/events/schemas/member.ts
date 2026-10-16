@@ -21,5 +21,8 @@ defineEvents('Member', {
   'member.session_revoked': { schema: z.object({ sessionId: z.uuid(), self: z.boolean() }) },
   // NEW-31 (FR-LINE-006 AC3): a member turns their own daily summary off or on. Approval and SLA notices cannot be
   // turned off (BR-NOTI-04), so the summary is the only preference this event carries.
-  'member.notification_prefs_updated': { schema: z.object({ digest: z.boolean() }) },
+  // The preferences that changed: the daily summary, push in the BCS Go app (appPush, S17-10), or both
+  'member.notification_prefs_updated': {
+    schema: z.object({ digest: z.boolean().optional(), appPush: z.boolean().optional() }).refine((d) => d.digest !== undefined || d.appPush !== undefined, { message: 'names a preference' }),
+  },
 })

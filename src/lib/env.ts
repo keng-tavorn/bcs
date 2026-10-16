@@ -88,7 +88,22 @@ const PROVIDER_SECRETS = [
   'GOOGLE_CLIENT_SECRET',
   'MICROSOFT_CLIENT_SECRET',
   'ANTHROPIC_API_KEY',
+  'FCM_SERVICE_ACCOUNT_JSON_B64',
 ] as const
+
+// Push of the BCS Go app (S17-10, ADR-165): Google's endpoints; the fake FCM routes of pnpm line:fake are local only
+const FCM_API_ORIGIN = 'https://fcm.googleapis.com'
+const FCM_TOKEN_ORIGIN = 'https://oauth2.googleapis.com/token'
+
+/** FCM_SERVICE_ACCOUNT_JSON_B64: a Google service account key (JSON) as base64 — its client_email and private_key */
+function isServiceAccountKey(value: string): boolean {
+  try {
+    const key = JSON.parse(Buffer.from(value, 'base64').toString('utf8')) as { client_email?: unknown; private_key?: unknown }
+    return typeof key.client_email === 'string' && typeof key.private_key === 'string' && key.private_key.includes('PRIVATE KEY')
+  } catch {
+    return false
+  }
+}
 
 const parseUrl = (value: string): URL | undefined => {
   try {
@@ -270,6 +285,14 @@ const schema = z
     // BCS Go (S17-09, ADR-163, ADR-166): the Android app's package and the SHA-256 fingerprints of the certificates
     // that sign its APK, for /.well-known/assetlinks.json (the app's WebView may then use this domain's passkeys).
     // Both set = the file is served; either unset = 404.
+    // Push of the BCS Go app (S17-10, ADR-165, BR-NOTI-05): fcm = Firebase Cloud Messaging with FCM_PROJECT_ID and the
+    // service account key · fake = the fake FCM of pnpm line:fake at FCM_API_BASE_URL and FCM_TOKEN_URL (local only) ·
+    // off or unset = no push, LINE and e-mail as before
+    PUSH_PROVIDER: optional(z.enum(['fcm', 'fake', 'off'])),
+    FCM_PROJECT_ID: optional(z.string().regex(/^[a-z][a-z0-9-]{4,61}[a-z0-9]$/, 'ต้องเป็น Project ID ของ Firebase เช่น bcs-go-demo')),
+    FCM_SERVICE_ACCOUNT_JSON_B64: optional(z.string().trim()),
+    FCM_API_BASE_URL: optional(urlSchema()),
+    FCM_TOKEN_URL: optional(urlSchema()),
     BCS_GO_ANDROID_PACKAGE: optional(z.string().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, 'ต้องเป็นชื่อ package ของแอป Android เช่น th.bcs.go')),
     BCS_GO_ANDROID_CERT_SHA256: optional(
       z
@@ -322,6 +345,11 @@ const schema = z
     // the demo must show the real model and the evaluation gate applies (BR-AI-11)
     if (e.AI_ENABLED && !e.AI_MODE) issue('AI_MODE', 'ต้องตั้งเมื่อ AI_ENABLED=true — fixture (คำตอบที่บันทึกไว้ ใช้บนเครื่องและในเทสต์) หรือ live (เรียก Claude จริง ต้องมี ANTHROPIC_API_KEY)')
     if (e.AI_MODE === 'live' && !e.ANTHROPIC_API_KEY) issue('ANTHROPIC_API_KEY', 'ต้องตั้งเมื่อ AI_MODE=live — สร้าง key ใน Claude Console แล้วใส่ในไฟล์ .env (ห้ามวางในแชท)')
+    if (e.PUSH_PROVIDER === 'fcm' && !e.FCM_PROJECT_ID) issue('FCM_PROJECT_ID', 'ต้องตั้งเมื่อ PUSH_PROVIDER=fcm — Project ID ของ Firebase project (docs/runbooks/bcs-go-demo.md)')
+    if (e.PUSH_PROVIDER === 'fcm' && (!e.FCM_SERVICE_ACCOUNT_JSON_B64 || !isServiceAccountKey(e.FCM_SERVICE_ACCOUNT_JSON_B64))) {
+      issue('FCM_SERVICE_ACCOUNT_JSON_B64', 'ต้องเป็นไฟล์ key ของ service account (JSON) ที่แปลงเป็น base64 เมื่อ PUSH_PROVIDER=fcm (docs/runbooks/bcs-go-demo.md) — ใส่เองในไฟล์ .env ห้ามวางในแชท')
+    }
+    if (e.PUSH_PROVIDER === 'fake' && (!e.FCM_API_BASE_URL || !e.FCM_TOKEN_URL)) issue('FCM_API_BASE_URL', 'ต้องตั้งทั้ง FCM_API_BASE_URL และ FCM_TOKEN_URL เมื่อ PUSH_PROVIDER=fake เช่น http://127.0.0.1:4100/fcm และ http://127.0.0.1:4100/fcm/token (pnpm line:fake)')
     if (e.AI_MODE === 'fixture' && !local) issue('AI_MODE', 'fixture ใช้ได้เฉพาะ APP_ENV=local และเทสต์ — environment นี้ต้องใช้ live กับ key ของ environment นี้ (ADR-142)')
     // liff.ts appends the verify path to this value, locally too (the fake LINE server).
     if (parseUrl(e.LINE_API_BASE_URL) && lineApiBase(e.LINE_API_BASE_URL) === undefined) {
@@ -397,6 +425,10 @@ const schema = z
       if (parseUrl(e.LINE_API_BASE_URL) && e.LINE_API_BASE_URL !== LINE_API_ORIGIN) {
         issue('LINE_API_BASE_URL', `ต้องเป็น ${LINE_API_ORIGIN} นอก local — ลบตัวแปรนี้เพื่อใช้ค่าเริ่มต้น ระบบส่ง ID token ของ LIFF ไปตรวจที่นี่ (BR-LINE-02) fake LINE server ใช้ได้เฉพาะ local`)
       }
+      // Push tokens and the service account's signed requests go to Google only (S17-10)
+      if (e.PUSH_PROVIDER === 'fake') issue('PUSH_PROVIDER', 'fake ใช้ได้เฉพาะ local — ใช้ fcm หรือ off')
+      if (e.FCM_API_BASE_URL !== undefined && e.FCM_API_BASE_URL !== FCM_API_ORIGIN) issue('FCM_API_BASE_URL', `ต้องเป็น ${FCM_API_ORIGIN} นอก local หรือไม่ต้องตั้ง — fake FCM ใช้ได้เฉพาะ local`)
+      if (e.FCM_TOKEN_URL !== undefined && e.FCM_TOKEN_URL !== FCM_TOKEN_ORIGIN) issue('FCM_TOKEN_URL', `ต้องเป็น ${FCM_TOKEN_ORIGIN} นอก local หรือไม่ต้องตั้ง — fake FCM ใช้ได้เฉพาะ local`)
       // The channel access token goes with every upload, so only LINE's own data API may receive it (FR-ADM-006 AC2)
       if (parseUrl(e.LINE_DATA_API_BASE_URL) && e.LINE_DATA_API_BASE_URL !== LINE_DATA_API_ORIGIN) {
         issue('LINE_DATA_API_BASE_URL', `ต้องเป็น ${LINE_DATA_API_ORIGIN} นอก local — ลบตัวแปรนี้เพื่อใช้ค่าเริ่มต้น ระบบส่ง channel access token ไปกับการอัปโหลดภาพ rich menu ที่นี่ fake LINE server ใช้ได้เฉพาะ local`)

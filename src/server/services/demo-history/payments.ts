@@ -10,6 +10,7 @@ import { grantStepUp } from '@/server/auth/step-up'
 import { makeCtx, type Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
 import { sendSupplierNotice } from '@/server/notifications/supplier-notices'
+import { PAY_SUPPLIER_TEMPLATES } from '@/server/notifications/supplier-templates-pay'
 import { REASON_FLAGS } from '@/server/queries/payment-runs'
 import type { Result } from '@/core/result'
 import type { RunOptions } from '../_pipeline'
@@ -165,7 +166,7 @@ export async function seedPaymentHistory(c: PaymentHistoryContext, paidInvoices:
     must(day, 'results', await recordPaymentResults(ctxOf(preparer, at(day, 15), step('results')), { paymentRunId: runId, version: await version(), allPaidExcept: { paidOn: day, failed: [] } }, optionsOf(step('results'))))
     // the run's advices were sent that afternoon: through the history's fake sender, so nobody is e-mailed now
     const items = await db.paymentRunItem.findMany({ where: { paymentRunId: runId }, select: { id: true } })
-    const advices = await db.supplierNotice.findMany({ where: { templateKey: 'payment.advice', status: 'PENDING', subjectId: { in: items.map((i) => i.id) } }, select: { id: true } })
+    const advices = await db.supplierNotice.findMany({ where: { templateKey: PAY_SUPPLIER_TEMPLATES.paymentAdvice, status: 'PENDING', subjectId: { in: items.map((i) => i.id) } }, select: { id: true } })
     for (const n of advices) await sendSupplierNotice(c.organizationId, n.id, at(day, 15, 5))
     runs++
     paid += group.length

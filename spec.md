@@ -3030,6 +3030,83 @@ cases:
   - { id: GC-APP-11, title: แม่แบบที่ยังไม่มีคีย์หัวเรื่องใช้ข้อความกลาง, input: { template: example.no_title_key, locale: th, data: { number: PR-2569-00032, amount: "1500.00" } }, expect: { push: { title: มีการแจ้งเตือนใหม่, body: PR-2569-00032 }, absent: ["1500"] } }
 ```
 
+**golden `offline-queue` (S17-11 · BR-APP-05 ถึง BR-APP-10 · BR-APP-14 · ADR-164 · OQ-169)** · คิวตรวจรับในเครื่องของ `src/core/offline-queue` (pure: key และเวลาที่บันทึกมาจากหน้า `/go/receive`) · ตัวคำนวณอ้างอิงใน `scripts/spec_check.py`
+
+```yaml
+# tests/golden/offline-queue.yaml
+suite: offline-queue
+# คิวในเครื่อง (src/core/offline-queue · pure · S17-11) · offlineRetentionDays 7 · ผู้ใช้ใน session = store_p07 ถ้าไม่บอก · attempts = จำนวนครั้งที่ส่ง gr.post (ไม่บอก = 0) · key และ capturedAt มาจากหน้า
+cases:
+  - id: GC-APP-12
+    title: แปลงผลจากเซิร์ฟเวอร์เป็นสถานะ
+    input: { results: [ { http: 201 }, { network: true }, { http: 500 }, { http: 503 }, { http: 429, code: RATE_LIMITED }, { http: 401, code: UNAUTHENTICATED }, { http: 409, code: CONFLICT_VERSION }, { http: 409, code: INVALID_STATE_TRANSITION }, { http: 409, code: IDEMPOTENCY_CONFLICT }, { http: 409, code: AI_REVIEW_PENDING }, { http: 403, code: SOD_VIOLATION }, { http: 403, code: FORBIDDEN }, { http: 422, code: BUDGET_INSUFFICIENT }, { http: 400, code: VALIDATION_FAILED }, { http: 404, code: NOT_FOUND }, { http: 400, code: UNLISTED_CODE } ] }
+    expect: { outcomes: [SENT, RETRY, RETRY, RETRY, RETRY, WAIT_LOGIN, NEEDS_ATTENTION, NEEDS_ATTENTION, CHECK_SERVER, NEEDS_ATTENTION, NEEDS_ATTENTION, NEEDS_ATTENTION, NEEDS_ATTENTION, NEEDS_ATTENTION, NEEDS_ATTENTION, NEEDS_ATTENTION] }
+  - id: GC-APP-13
+    title: ส่งตามเวลาที่บันทึก ทีละรายการต่อ PO และต่อ version
+    input: { now: "2026-11-02T03:00:00Z", online: true, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T02:00:00Z", status: QUEUED }, { key: k2, po: PO-B, capturedAt: "2026-11-02T01:00:00Z", status: QUEUED }, { key: k3, po: PO-A, capturedAt: "2026-11-02T01:30:00Z", status: QUEUED } ], knownVersion: { PO-A: 4, PO-B: 2 }, serverAnswers: ALL_OK_VERSION_PLUS_1 }
+    expect: { sendOrder: [ { key: k2, expectedPoVersion: 2 }, { key: k3, expectedPoVersion: 4 }, { key: k1, expectedPoVersion: 5 } ] }
+  - id: GC-APP-14
+    title: รายการที่ต้องดูบล็อกเฉพาะ PO เดียวกัน
+    input: { now: "2026-11-02T03:00:00Z", online: true, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T01:00:00Z", status: NEEDS_ATTENTION, attempts: 1 }, { key: k2, po: PO-A, capturedAt: "2026-11-02T01:10:00Z", status: QUEUED }, { key: k3, po: PO-B, capturedAt: "2026-11-02T01:20:00Z", status: QUEUED } ], knownVersion: { PO-A: 4, PO-B: 2 } }
+    expect: { next: k3, waiting: { k2: PREVIOUS_NEEDS_ATTENTION } }
+  - id: GC-APP-15
+    title: ส่งซ้ำใช้ key และ input ที่ตรึงไว้
+    input: { now: "2026-11-02T03:00:00Z", online: true, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T01:00:00Z", status: RETRY, attempts: 1, nextTryAt: "2026-11-02T02:59:45Z", frozen: { expectedPoVersion: 4 } } ], knownVersion: { PO-A: 6 } }
+    expect: { next: k1, key: k1, expectedPoVersion: 4 }
+  - id: GC-APP-16
+    title: เวลารอลองซ้ำ
+    input: { failuresSoFar: [1, 2, 3, 4, 5, 6, 7] }
+    expect: { waitSeconds: [15, 30, 60, 120, 240, 300, 300] }
+  - id: GC-APP-17
+    title: ยังไม่ถึงเวลาลองซ้ำ ข้ามไป PO อื่น
+    input: { now: "2026-11-02T03:00:00Z", online: true, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T01:00:00Z", status: RETRY, attempts: 2, nextTryAt: "2026-11-02T03:00:30Z" }, { key: k2, po: PO-B, capturedAt: "2026-11-02T02:00:00Z", status: QUEUED } ], knownVersion: { PO-A: 4, PO-B: 2 } }
+    expect: { next: k2 }
+  - id: GC-APP-18
+    title: ออฟไลน์ไม่ส่ง
+    input: { now: "2026-11-02T03:00:00Z", online: false, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T01:00:00Z", status: QUEUED } ], knownVersion: { PO-A: 4 } }
+    expect: { next: null }
+  - id: GC-APP-19
+    title: session หมดอายุแล้วคนอื่นเข้าระบบ รายการถูกพักไว้
+    input: { now: "2026-11-02T03:00:00Z", online: true, session: store_p06, items: [ { key: k1, po: PO-A, by: store_p07, capturedAt: "2026-11-02T01:00:00Z", status: QUEUED } ], knownVersion: { PO-A: 4 } }
+    expect: { next: null, held: { k1: OTHER_MEMBER } }
+  - id: GC-APP-20
+    title: ไม่มี session รอเข้าระบบ
+    input: { now: "2026-11-02T03:00:00Z", online: true, session: null, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T01:00:00Z", status: QUEUED } ], knownVersion: { PO-A: 4 } }
+    expect: { next: null, waitLogin: true }
+  - id: GC-APP-21
+    title: ยังไม่เคยส่งเก็บได้ 7 วันพอดี ส่วนรายการที่ผลยังไม่รู้ไม่หมดอายุ
+    input: { now: "2026-11-09T03:00:00Z", online: true, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T03:00:00Z", status: QUEUED, attempts: 0 }, { key: k2, po: PO-B, capturedAt: "2026-11-02T02:59:59Z", status: QUEUED, attempts: 0 }, { key: k3, po: PO-C, capturedAt: "2026-11-01T00:00:00Z", status: RETRY, attempts: 1, nextTryAt: "2026-11-09T02:59:00Z" }, { key: k4, po: PO-D, capturedAt: "2026-11-01T12:00:00Z", status: NEEDS_ATTENTION, attempts: 1 } ], knownVersion: { PO-A: 4, PO-B: 2, PO-C: 7, PO-D: 3 } }
+    expect: { next: k3, expired: [k2, k4] }
+  - id: GC-APP-22
+    title: แก้และทิ้งได้เมื่อยังไม่เคยส่งหรือผลรู้แล้วเท่านั้น
+    input: { items: [ { key: k1, status: QUEUED, attempts: 0 }, { key: k2, status: RETRY, attempts: 1 }, { key: k3, status: SENDING, attempts: 1 }, { key: k4, status: NEEDS_ATTENTION, attempts: 1, code: VALIDATION_FAILED }, { key: k5, status: WAIT_LOGIN, attempts: 1 }, { key: k6, status: CHECK_SERVER, attempts: 1 }, { key: k7, status: RETRY, attempts: 0 }, { key: k8, status: NEEDS_ATTENTION, attempts: 1, code: CONFLICT_VERSION, copyPreparedAt: "2026-11-02T01:00:00Z", failedAt: "2026-11-02T02:00:00Z" } ] }
+    expect: { edit: { k1: EDIT_IN_PLACE, k2: LOCKED, k3: LOCKED, k4: RESUBMIT_NEW_KEY, k5: LOCKED, k6: LOCKED, k7: EDIT_IN_PLACE, k8: REFRESH_COPY_FIRST }, discard: { k1: ALLOWED, k2: LOCKED, k3: LOCKED, k4: ALLOWED, k5: LOCKED, k6: LOCKED, k7: ALLOWED, k8: ALLOWED } }
+  - id: GC-APP-23
+    title: แอปถูกปิดกลางการส่ง
+    input: { restartAt: "2026-11-02T03:00:00Z", items: [ { key: k1, po: PO-A, status: SENDING, attempts: 1, frozen: { expectedPoVersion: 4 } } ] }
+    expect: { items: [ { key: k1, status: RETRY, attempts: 1, nextTryAt: "2026-11-02T03:00:00Z", frozen: { expectedPoVersion: 4 } } ] }
+  - id: GC-APP-24
+    title: ส่งสำเร็จแล้วลบจากเครื่องและจำ version
+    input: { items: [ { key: k1, po: PO-A, status: SENDING, attempts: 1, photos: 2 } ], answer: { http: 201, poVersion: 5 }, knownVersion: { PO-A: 4 } }
+    expect: { items: [], photosLeft: 0, knownVersion: { PO-A: 5 } }
+  - id: GC-APP-25
+    title: ขั้นอัปโหลดรูปก่อนส่ง (ticket ใช้ซ้ำได้เมื่อออกมาไม่ถึง 14 นาที)
+    input: { now: "2026-11-02T03:00:00Z", photos: [ { fileId: f1 }, { putDone: true, ticketIssuedAt: "2026-11-02T02:46:01Z" }, { putDone: true, ticketIssuedAt: "2026-11-02T02:46:00Z" }, { putDone: false, ticketIssuedAt: "2026-11-02T02:59:00Z" }, {} ] }
+    expect: { steps: [ DONE, COMPLETE_SAME_TICKET, REQUEST_NEW_TICKET, REQUEST_NEW_TICKET, REQUEST_NEW_TICKET ] }
+  - id: GC-APP-26
+    title: รูปได้ fileId ครบแล้วตรึง input แล้วส่ง
+    input: { now: "2026-11-02T03:00:00Z", online: true, items: [ { key: k1, po: PO-A, capturedAt: "2026-11-02T01:00:00Z", status: UPLOADING, attempts: 0, photos: [ { fileId: f1 }, { fileId: f2 } ] } ], knownVersion: { PO-A: 4 } }
+    expect: { next: k1, step: POST, status: SENDING, attempts: 1, frozen: { expectedPoVersion: 4, photoFileIds: [f1, f2] } }
+  - id: GC-APP-27
+    title: IDEMPOTENCY_CONFLICT ถามผลที่บันทึกของ key ก่อน ไม่ส่งด้วย key ใหม่
+    input: { items: [ { key: k1, po: PO-A, status: CHECK_SERVER, attempts: 2 }, { key: k2, po: PO-B, status: CHECK_SERVER, attempts: 1 }, { key: k3, po: PO-C, status: CHECK_SERVER, attempts: 1 } ], lookup: { k1: { recorded: true, ok: true, poVersion: 5 }, k2: { recorded: true, ok: false, code: CONFLICT_VERSION }, k3: { recorded: false } }, knownVersion: { PO-A: 4, PO-B: 2, PO-C: 9 } }
+    expect: { sent: [k1], items: [ { key: k2, status: NEEDS_ATTENTION, code: CONFLICT_VERSION }, { key: k3, status: NEEDS_ATTENTION, reason: NOT_RECORDED } ], knownVersion: { PO-A: 5, PO-B: 2, PO-C: 9 } }
+  - id: GC-APP-28
+    title: ออกจากระบบตอนออฟไลน์เตือนแยกตามสิ่งที่รู้
+    input: { online: false, items: [ { key: k1, status: QUEUED, attempts: 0 }, { key: k2, status: RETRY, attempts: 1 }, { key: k3, status: NEEDS_ATTENTION, attempts: 1 }, { key: k4, status: CHECK_SERVER, attempts: 1 } ] }
+    expect: { sendFirst: [], warn: { k1: NOT_SENT, k2: MAY_BE_RECORDED, k3: REJECTED, k4: MAY_BE_RECORDED }, deleteOnConfirm: [k1, k2, k3, k4] }
+```
+
 ---
 
 ## 8. Functional requirements
@@ -4881,7 +4958,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       41 ไฟล์ · 491 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       42 ไฟล์ · 508 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge

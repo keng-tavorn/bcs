@@ -1807,6 +1807,109 @@ def run_notification_route(d):
             good = all(got.get(k) == v for k, v in e.items())
         out.append((c["id"], good, got))
     return out
+def run_offline_queue(d):
+    # BR-APP-05 to BR-APP-10, BR-APP-14 (S17-11): the receiving queue on the phone. outcomes: 2xx SENT · no answer, 5xx,
+    # RATE_LIMITED RETRY · 401/UNAUTHENTICATED WAIT_LOGIN · IDEMPOTENCY_CONFLICT CHECK_SERVER · anything else
+    # NEEDS_ATTENTION. Wait min(15·2^(n−1), 300) s. Next = the oldest capture (then key) of the member signed in that is
+    # due (QUEUED, UPLOADING, RETRY at or past nextTryAt) with no earlier unsettled item of its PO; others' items held;
+    # never-sent or refused items older than 7 days expired. POST once every photo has a file, frozen the first time.
+    def ts(s): return dt(s).timestamp()
+    def isot(t): return datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    unsettled = {"QUEUED", "UPLOADING", "SENDING", "RETRY", "WAIT_LOGIN", "NEEDS_ATTENTION", "CHECK_SERVER"}
+    def norm(r):
+        return {"key": r["key"], "po": r.get("po", "PO-" + r["key"]), "by": r.get("by", "store_p07"), "capturedAt": r.get("capturedAt", "2026-11-02T00:00:00Z"),
+                "status": r["status"], "attempts": r.get("attempts", 0), "nextTryAt": r.get("nextTryAt"), "frozen": r.get("frozen"),
+                "photos": ([{"fileId": f"f{n + 1}"} for n in range(r["photos"])] if isinstance(r.get("photos"), int) else r.get("photos", [])),
+                "code": r.get("code"), "copyPreparedAt": r.get("copyPreparedAt"), "failedAt": r.get("failedAt")}
+    def outcome(r):
+        if r.get("network"): return "SENT" if False else "RETRY"
+        h, code = r["http"], r.get("code")
+        if 200 <= h < 300: return "SENT"
+        if h >= 500 or code == "RATE_LIMITED": return "RETRY"
+        if code == "UNAUTHENTICATED" or h == 401: return "WAIT_LOGIN"
+        if code == "IDEMPOTENCY_CONFLICT": return "CHECK_SERVER"
+        return "NEEDS_ATTENTION"
+    never_sent = lambda i: i["attempts"] == 0 and i["status"] not in ("SENDING", "CHECK_SERVER", "NEEDS_ATTENTION")
+    def expired(i, now): return (never_sent(i) or i["status"] == "NEEDS_ATTENTION") and ts(now) - ts(i["capturedAt"]) > 7 * 86400
+    def next_step(now, online, session, items, known):
+        exp = [i["key"] for i in items if i["status"] == "EXPIRED" or expired(i, now)]
+        live = [i for i in items if i["key"] not in exp]
+        res = {"next": None, "key": None, "expectedPoVersion": None, "step": None, "waiting": {}, "held": {}, "waitLogin": session is None, "expired": exp}
+        if session is None: return res
+        res["held"] = {i["key"]: "OTHER_MEMBER" for i in live if i["by"] != session}
+        mine = sorted([i for i in live if i["by"] == session], key=lambda i: (ts(i["capturedAt"]), i["key"]))
+        cands = []
+        for n, it in enumerate(mine):
+            earlier = next((o for o in mine[:n] if o["po"] == it["po"] and o["status"] in unsettled), None)
+            if earlier: res["waiting"][it["key"]] = "PREVIOUS_NEEDS_ATTENTION" if earlier["status"] == "NEEDS_ATTENTION" else "PREVIOUS_PENDING"; continue
+            if it["status"] in ("QUEUED", "UPLOADING") or (it["status"] == "RETRY" and (not it["nextTryAt"] or ts(it["nextTryAt"]) <= ts(now))): cands.append(it)
+        if not online or not cands: return res
+        ch = cands[0]
+        ev = ch["frozen"]["expectedPoVersion"] if ch["frozen"] else known.get(ch["po"])
+        ready = all("fileId" in p for p in ch["photos"])
+        res.update({"next": ch["key"], "key": ch["key"], "expectedPoVersion": ev, "step": "POST" if ch["frozen"] or ready else "UPLOAD"})
+        if res["step"] == "POST":
+            fr = ch["frozen"] or {"expectedPoVersion": known[ch["po"]], "photoFileIds": [p["fileId"] for p in ch["photos"]]}
+            res.update({"status": "SENDING", "attempts": ch["attempts"] + 1, "frozen": fr})
+        return res
+    def shown(i):
+        o = {"key": i["key"], "status": i["status"]}
+        if i["attempts"]: o["attempts"] = i["attempts"]
+        if i.get("nextTryAt"): o["nextTryAt"] = i["nextTryAt"]
+        if i.get("frozen"): o["frozen"] = i["frozen"]
+        return o
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; e = c["expect"]
+        items = [norm(r) for r in i.get("items", [])]; known = dict(i.get("knownVersion", {}))
+        if "results" in i: got = {"outcomes": [outcome(r) for r in i["results"]]}
+        elif "failuresSoFar" in i: got = {"waitSeconds": [min(15 * 2 ** (max(1, n) - 1), 300) for n in i["failuresSoFar"]]}
+        elif "photos" in i and "items" not in i:
+            now = ts(i["now"])
+            got = {"steps": ["DONE" if "fileId" in p else "COMPLETE_SAME_TICKET" if p.get("putDone") and p.get("ticketIssuedAt") and now - ts(p["ticketIssuedAt"]) < 14 * 60 else "REQUEST_NEW_TICKET" for p in i["photos"]]}
+        elif "restartAt" in i:
+            got = {"items": [shown({**x, "status": "RETRY", "nextTryAt": i["restartAt"]} if x["status"] in ("SENDING", "UPLOADING") else x) for x in items]}
+        elif "answer" in i:
+            x = items[0]
+            if outcome(i["answer"]) == "SENT":
+                rest = items[1:]; known = {**known, x["po"]: i["answer"]["poVersion"]} if "poVersion" in i["answer"] else known
+                got = {"items": [shown(r) for r in rest], "photosLeft": sum(len(r["photos"]) for r in rest), "knownVersion": known}
+            else: got = {"items": "not sent"}
+        elif "lookup" in i:
+            sent, rest = [], []
+            for x in items:
+                f = i["lookup"].get(x["key"]) if x["status"] == "CHECK_SERVER" else None
+                if not f: rest.append({"key": x["key"], "status": x["status"]})
+                elif f["recorded"] and f["ok"]: sent.append(x["key"]); known[x["po"]] = f["poVersion"]
+                elif f["recorded"]: rest.append({"key": x["key"], "status": "NEEDS_ATTENTION", "code": f["code"]})
+                else: rest.append({"key": x["key"], "status": "NEEDS_ATTENTION", "reason": "NOT_RECORDED"})
+            got = {"sent": sent, "items": rest, "knownVersion": known}
+        elif "now" not in i and i.get("online") is False:
+            warn = {}
+            for x in items: warn[x["key"]] = "NOT_SENT" if never_sent(x) or x["status"] == "EXPIRED" else "REJECTED" if x["status"] == "NEEDS_ATTENTION" else "MAY_BE_RECORDED"
+            got = {"sendFirst": [], "warn": warn, "deleteOnConfirm": [x["key"] for x in items]}
+        elif "now" not in i:
+            def edit(x):
+                if never_sent(x): return "EDIT_IN_PLACE"
+                if x["status"] != "NEEDS_ATTENTION": return "LOCKED"
+                if x["code"] == "CONFLICT_VERSION" and not (x["copyPreparedAt"] and x["failedAt"] and ts(x["copyPreparedAt"]) >= ts(x["failedAt"])): return "REFRESH_COPY_FIRST"
+                return "RESUBMIT_NEW_KEY"
+            got = {"edit": {x["key"]: edit(x) for x in items}, "discard": {x["key"]: "ALLOWED" if never_sent(x) or x["status"] in ("NEEDS_ATTENTION", "EXPIRED") else "LOCKED" for x in items}}
+        else:
+            session = i.get("session", "store_p07") if "session" in i else "store_p07"
+            if i.get("serverAnswers") == "ALL_OK_VERSION_PLUS_1":
+                order = []
+                while True:
+                    s = next_step(i["now"], i.get("online", True), session, items, known)
+                    if not s["next"]: break
+                    order.append({"key": s["next"], "expectedPoVersion": s["expectedPoVersion"]})
+                    po = next(x["po"] for x in items if x["key"] == s["next"])
+                    items = [x for x in items if x["key"] != s["next"]]; known[po] = s["expectedPoVersion"] + 1
+                got = {"sendOrder": order}
+            else: got = next_step(i["now"], i.get("online", True), session, items, known)
+        good = {k: got.get(k) for k in e} == e
+        out.append((c["id"], good, {k: got.get(k) for k in e}))
+    return out
 def run_workflow_reports(d):
     # BR-RPT-03 to BR-RPT-06 (S6-20): business minutes of the suite's calendar (as run_sla counts them), the decision
     # time without the INFO_REQUESTED pauses, the lower median, bottlenecks by overdue then median, the Thai weekday and
@@ -1865,6 +1968,7 @@ RUNNERS = {
     "money": run_money,
     "notification-route": run_notification_route,
     "numbering": run_numbering,
+    "offline-queue": run_offline_queue,
     "po-change": run_po_change,
     "price-reference": run_price_reference,
     "quotations": run_quotes,

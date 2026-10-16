@@ -73,5 +73,13 @@ export function e2eEnv(env: NodeJS.ProcessEnv = process.env): Record<string, str
     // AI specs switch it on for themselves (tests/e2e/ai-document-scene.ts) and play the background job there
     AI_ENABLED: 'true',
     AI_MODE: 'fixture',
+    // The recorded answers belong to the models the agents ask for by default (OQ-145): a model chosen in this computer's
+    // .env would find none of them (AI_MODEL_MISMATCH), so e2e asks for the defaults, as CI does (.env.example leaves these blank)
+    AI_MODEL_DEFAULT: '',
+    AI_MODEL_DOCUMENT: '',
+    AI_MODEL_INTAKE: '',
+    AI_MODEL_BRIEF: '',
+    AI_MODEL_INSIGHT: '',
+    AI_MODEL_DOA_DRAFTER: '',
   }
 }

@@ -302,10 +302,12 @@ test('@demo [FR-P2P-001/AC2] [FR-P2P-001/AC3] [FR-P2P-002/AC3] [FR-P2P-003/AC3] 
   expect(mail.Subject).toContain(`ใบสั่งซื้อ ${number}`)
   await expectPdfLink(page, await pdfMenuItem(page))
   await closeMenu(page)
-  // The requesters and the department's receiver hear of it in their next digest; the receiver's notice opens the
-  // receiving of the PO (/receiving/<id>, in LINE /gr/<id>: scene 8)
+  // The requesters hear of it in their next digest; the department's receiver at once (S17-05 · OQ-171 · FR-LINE-303
+  // AC5), with the receiving of the PO (/receiving/<id>, in LINE /gr/<id>: scene 8)
   const told = sent.notices.filter((n) => n.templateKey === 'po.sent')
-  expect(told.map((n) => n.recipient).sort()).toEqual([...new Set([asked.actor, past.requester, receiver.code])].sort())
-  for (const n of told) expect(n, `po.sent to ${n.recipient}`).toMatchObject({ urgency: 'DIGEST', data: { forReceiver: n.recipient === receiver.code } })
-  expect(told.find((n) => n.recipient === receiver.code)?.href).toBe(`/receiving/${sent.id}`)
+  expect(told.map((n) => n.recipient).sort()).toEqual([...new Set([asked.actor, past.requester])].filter((code) => code !== receiver.code).sort())
+  for (const n of told) expect(n, `po.sent to ${n.recipient}`).toMatchObject({ urgency: 'DIGEST', data: { forReceiver: false } })
+  const toReceiver = sent.notices.filter((n) => n.templateKey === 'po.sent_receiver')
+  expect(toReceiver.map((n) => n.recipient)).toEqual([receiver.code])
+  expect(toReceiver[0]).toMatchObject({ urgency: 'IMMEDIATE', href: `/receiving/${sent.id}` })
 })

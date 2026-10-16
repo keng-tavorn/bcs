@@ -87,9 +87,9 @@ test('@demo [FR-LINE-003/AC1] [FR-LINE-003/AC3] [FR-P2P-006/AC1] [FR-P2P-006/AC2
   const leftOf = (line: (typeof po.lines)[number]) => quantityOf(scaledQuantity(line.quantity) - scaledQuantity(taken.get(line.id) ?? '0'))
   const stillComing = po.lines.filter((l) => scaledQuantity(leftOf(l)) > 0n).length
 
-  // The po.sent notice of scene 7 reached the receiver: its page is the receiving of the PO, in LINE the LIFF page
-  const notice = po.notices.find((n) => n.templateKey === 'po.sent' && n.recipient === receiver.code)
-  expect(notice, 'the receiver was told the PO went out').toMatchObject({ urgency: 'DIGEST', data: { forReceiver: true } })
+  // The notice of scene 7 reached the receiver at once (S17-05 · OQ-171): its page is the receiving of the PO, in LINE the LIFF page
+  const notice = po.notices.find((n) => n.templateKey === 'po.sent_receiver' && n.recipient === receiver.code)
+  expect(notice, 'the receiver was told the PO went out').toMatchObject({ urgency: 'IMMEDIATE' })
   const liffPage = liffPageOf(notice!.href)
   expect(liffPage, 'the notice opens the receiving page of the PO in LIFF').toBe(`/gr/${po.id}`)
 

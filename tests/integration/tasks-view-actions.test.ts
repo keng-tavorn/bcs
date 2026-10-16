@@ -146,8 +146,9 @@ describe('[FR-DOA-010/AC2] [FR-DOA-002/AC2] a policy decision spends no PIN unle
     const asCeo = memberPrincipal(org.member.ceo!, ['EXECUTIVE'])
     expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'APPROVE', pin: '12ab' }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'pin' })
     expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'REJECT', pin: TEST_PIN }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'reason' })
-    // The authenticator code of the page before S5-05 is no input any more
-    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'APPROVE', code: '123456' }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'decision' })
+    // The authenticator code of the page before S5-05 is no input any more: without a PIN (or, from S17-15, a passkey's
+    // answer) the decision asks for the PIN
+    expect(await decidePolicy(org.ctxOf('ceo', MON_1300), asCeo, { taskId: task.id, decision: 'APPROVE', code: '123456' }, randomUUID(), 'th', session)).toEqual({ ok: false, code: 'VALIDATION_FAILED', field: 'pin' })
     expect(await prisma.stepUpGrant.count({ where: { organizationId: org.organizationId } })).toBe(0)
     expect(session.rotated).toEqual([])
     expect((await prisma.approvalTask.findUniqueOrThrow({ where: { id: task.id } })).status).toBe('OPEN')

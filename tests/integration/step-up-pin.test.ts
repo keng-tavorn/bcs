@@ -226,8 +226,9 @@ describe('[FR-AUTH-005/AC2] a policy decision (BR-DOA-15) without a step-up for 
   })
 
   it('in LIFF a grant of the authenticator code no longer counts (TOTP → PIN, docs/sub-specs/S5.md); the PIN decides', async () => {
-    expect(policyStepUpMethods('LIFF')).toEqual(['PIN'])
-    expect(policyStepUpMethods('PWA')).toEqual(['PIN'])
+    // The PIN and, from S17-15, a passkey: never the code
+    expect(policyStepUpMethods('LIFF')).toEqual(['PIN', 'PASSKEY'])
+    expect(policyStepUpMethods('PWA')).toEqual(['PIN', 'PASSKEY'])
     const { changeId, taskId } = await authorityChangeTask('reparent')
     const byCode = await totpGrantOfBefore('ceo', 'ORG_AUTHORITY_CHANGE', changeId, new Date())
     expect(await decideTask(org.ctxOf('ceo', NOW, 'LIFF'), { taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED' } })
@@ -242,7 +243,7 @@ describe('[FR-AUTH-005/AC2] a policy decision (BR-DOA-15) without a step-up for 
   })
 
   it('on the web too a grant of the authenticator code no longer counts since the decision page switched to the PIN; the PIN decides', async () => {
-    expect(policyStepUpMethods('WEB')).toEqual(['PIN'])
+    expect(policyStepUpMethods('WEB')).toEqual(['PIN', 'PASSKEY'])
     const { changeId, taskId } = await authorityChangeTask('delegation')
     const byCode = await totpGrantOfBefore('ceo', 'ORG_AUTHORITY_CHANGE', changeId, new Date())
     expect(await decideTask(org.ctxOf('ceo', NOW, 'WEB'), { taskId, decision: 'APPROVE' }, key())).toMatchObject({ ok: false, error: { code: 'STEP_UP_REQUIRED', details: { method: 'PIN' } } })

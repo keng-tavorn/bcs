@@ -190,8 +190,8 @@ describe('[FR-AUTH-005/AC4] where each new subject is decided (BR-DOA-25)', () =
 })
 
 describe('[FR-AUTH-005/AC5] one list of step-up proofs and subjects for every deciding command', () => {
-  it('DECISION_STEP_UP_METHODS is the PIN until S17-15; policy reads it too; the grant subjects are all twelve', () => {
-    expect(DECISION_STEP_UP_METHODS).toEqual(PIN_ONLY)
+  it('DECISION_STEP_UP_METHODS is the PIN and, from S17-15, a passkey; policy reads it too; the grant subjects are all twelve', () => {
+    expect(DECISION_STEP_UP_METHODS).toEqual([...PIN_ONLY, 'PASSKEY'])
     expect(policyStepUpMethods('WEB')).toBe(DECISION_STEP_UP_METHODS)
     expect([...STEP_UP_SUBJECT_TYPES]).toEqual([...APPROVAL_SUBJECTS])
   })

@@ -6,7 +6,7 @@
 #        builder = ไม่มีข้อใดระบุ เจ้าของคือข้อที่สร้างสิ่งนั้น · none = ไม่มีข้อใดระบุหรือสร้าง
 # spec.md เป็นแหล่งความจริง ถ้าไฟล์นี้ขัดกับ spec ให้ยึด spec แล้วแก้ไฟล์นี้
 version: 1
-generatedFrom: spec.md (2026-10-02 · FR ของ S16 เพิ่ม 2026-10-08 จาก spec 0.3.1)
+generatedFrom: spec.md (2026-10-02 · FR ของ S16 เพิ่ม 2026-10-08 จาก spec 0.3.1 · FR-AUTH-005 AC6 ของ S17-15 เพิ่ม 2026-10-16)
 frs:
   FR-PLT-001:
     title: "ตั้งค่า tenant และองค์กร"
@@ -116,6 +116,7 @@ frs:
       AC3: { owner: S5-05, demo: true, basis: named, text: "ใส่ PIN ผิด 5 ครั้งล็อก 15 นาที (STEP_UP_LOCKED) แจ้งผู้ใช้ทางอีเมล และบันทึก event" }
       AC4: { owner: P1-07, demo: true, basis: builder, text: "งาน BANK_ACCOUNT_CHANGE และ WORKFLOW_VERSION ต้อง step-up ทุกงานไม่ขึ้นกับยอด (BR-DOA-25 · BR-DOA-15) ไม่ยืนยัน → STEP_UP_REQUIRED · การ์ด LINE และอีเมลของงา…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
       AC5: { owner: P1-07, demo: true, basis: builder, text: "คำสั่งตัดสินทุกตัว (คำขอ PO variance นโยบาย และ subject ใหม่) อ่านวิธี step-up จาก DECISION_STEP_UP_METHODS ที่เดียว (= PIN จนถึง S17-15) · STEP_UP_SUBJECT_T…", note: "ฐานร่วมของสาย (P1-07 ส่วน 1–7 · docs/sub-specs/P1.md หัวข้อ FR และ AC) สร้างของนี้ บรรทัดเสร็จเมื่อไม่ได้ระบุ FR" }
+      AC6: { owner: S17-15, demo: true, basis: named, text: "(S17-15 · OQ-168 · ADR-166) passkey เป็นหลักฐาน step-up อีกชนิดเคียงข้าง PIN ไม่ใช่ทางเข้าระบบ: เพิ่มที่ /settings/pin หลังพิสูจน์ตัวตนสด (รหัสผ่านหรือ TOTP) ด้วย UV requ…" }
   FR-ADM-001:
     title: "จัดการสมาชิกและบทบาท"
     acs:
@@ -561,6 +562,6 @@ frs:
 # AC ที่ไม่มีข้อใดเป็นเจ้าของ (กลายเป็นข้อ NEW ใน §16.11)
 unowned: []
 # demo = AC ที่ demo: true · goLive = AC ที่ demo: false (รวม AC ที่ไม่มีเจ้าของแต่ข้ามได้ใน demo) · demo + goLive = acs
-counts: { frs: 84, acs: 298, demo: 272, goLive: 26, unowned: 0 }
+counts: { frs: 84, acs: 299, demo: 273, goLive: 26, unowned: 0 }
 # จำนวนตามที่มาของเจ้าของ (ดู basis ด้านบน)
-basisCounts: { named: 232, later: 30, builder: 36, none: 0 }
+basisCounts: { named: 233, later: 30, builder: 36, none: 0 }

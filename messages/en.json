@@ -6781,9 +6781,9 @@
   },
   "payRun": {
     "account": {
-      "masked": "{bank} ••••{last4}",
+      "masked": "{bank} {number}",
       "none": "No approved account yet",
-      "withCode": "{code} · {bank} ••••{last4}"
+      "withCode": "{code} · {bank} {number}"
     },
     "bankChange": {
       "call": "Call to confirm",

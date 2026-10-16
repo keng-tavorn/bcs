@@ -59,8 +59,8 @@
   "metaTitle": "รอบจ่าย",
   "unit": "บาท",
   "account": {
-    "masked": "{bank} ••••{last4}",
-    "withCode": "{code} · {bank} ••••{last4}",
+    "masked": "{bank} {number}",
+    "withCode": "{code} · {bank} {number}",
     "none": "ยังไม่มีบัญชีที่อนุมัติ"
   },
   "status": {

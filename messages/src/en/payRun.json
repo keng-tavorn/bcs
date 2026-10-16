@@ -59,8 +59,8 @@
   "metaTitle": "Payment runs",
   "unit": "THB",
   "account": {
-    "masked": "{bank} ••••{last4}",
-    "withCode": "{code} · {bank} ••••{last4}",
+    "masked": "{bank} {number}",
+    "withCode": "{code} · {bank} {number}",
     "none": "No approved account yet"
   },
   "status": {

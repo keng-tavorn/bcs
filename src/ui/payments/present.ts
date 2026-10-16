@@ -13,8 +13,13 @@ export const dayText = (locale: string, day: string): string => (locale === 'en'
 /** The bank's name in Thai, its short name in English, its code when the list has neither */
 export const bankText = (locale: string, account: MaskedAccountView): string => (locale === 'en' ? (account.bankShort ?? account.bankCode) : (account.bankName ?? account.bankCode))
 
-/** The values of payRun.account.masked / withCode */
-export const accountValues = (locale: string, account: MaskedAccountView) => ({ code: account.code ?? '', bank: bankText(locale, account), last4: account.last4 })
+const MASKED_DIGITS = '•'.repeat(4)
+
+/**
+ * The values of payRun.account.masked / withCode. The dots are put here, not in the messages: every message reaches the
+ * HTML of every workspace page, and a page of secrets checks that no masked value is in its HTML (admin-line.spec.ts)
+ */
+export const accountValues = (locale: string, account: MaskedAccountView) => ({ code: account.code ?? '', bank: bankText(locale, account), number: `${MASKED_DIGITS}${account.last4}` })
 
 /** The event's key under payRun.history.event: its type with dots as underscores (a key cannot hold a dot) */
 export const eventKey = (type: string): string => type.replace(/\./g, '_')

@@ -7,6 +7,9 @@ import { prisma } from '@/server/db/client'
 import { createCatalogItem, createPriceAgreement } from '@/server/services/catalog'
 import { E2E_DB } from '../support/e2e-env'
 
+/** The demo organization the e2e seed makes: other scenes' test organizations reuse the same employee codes */
+const DEMO_ORG = 'DEMO'
+
 // Run by tests/e2e/catalog.spec.ts against the e2e database only (S6-10 · FR-INT-102). Everything is made through the
 // services as a PROCUREMENT member, with fresh idempotency keys and fresh codes, so a spec may run it again in the same
 // database. Prints what the spec needs as JSON on the last line.
@@ -18,7 +21,7 @@ if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${
 
 const [command, who, name] = process.argv.slice(2)
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
-const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: who }, select: { id: true, organizationId: true } })
+const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: who, organization: { code: DEMO_ORG } }, select: { id: true, organizationId: true } })
 const now = systemClock.now()
 const ctx = makeCtx({ organizationId: member.organizationId, actor: { type: 'USER', memberId: member.id }, channel: 'WEB', now })
 const supplier = await prisma.supplier.findFirstOrThrow({ where: { organizationId: member.organizationId, status: 'ACTIVE' }, orderBy: { code: 'asc' }, select: { id: true, code: true, nameTh: true } })

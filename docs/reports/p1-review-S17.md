@@ -15,3 +15,5 @@
 | 5 | staging demo reset (ADR-056) ล้าง `LineRichMenuVariant` แต่คืนเฉพาะ id เมนูใน `LineChannelConfig` เมนูตามบทบาทจึงหายจนรัน `pnpm line:richmenu` ใหม่ และเมนูเก่าค้างบน LINE | ไม่แก้ในข้อนี้: ตารางยังไม่มีผู้เขียน · ทำใน S17-04 (สาย 3) ที่สร้างเมนูทุกชุด ให้ reset คืนหรือลบเมนูเก่า |
 | 6 | seed เขียน `Organization.settings` เฉพาะตอนสร้างองค์กร SIMEC ที่ seed ไว้ก่อน S17-01 จึงยังไม่เปิดขอผ่านแชท | ไม่แก้: พฤติกรรมเดิมของ seed (ไม่ทับค่าที่ผู้ดูแลแก้) · ฐานของสาย reset ทุกครั้งที่มี migration ใหม่ และ staging ใช้ demo reset ใน P1-11 |
 | 7 | `GoodsReceipt.offlineCapturedAt` ไม่มี CHECK กับเวลาที่ถึงระบบ | ไม่แก้ในข้อนี้: กฎตรวจใน `gr.post` ของ S17-12 (สาย 1 · ข้อเงิน รีวิวทันที) · แนะนำให้ S17-12 เพิ่ม CHECK `offlineCapturedAt` ≤ `postedAt` เมื่อบันทึกแล้วในข้อนั้น |
+
+ผลก่อนส่งเข้า main (2026-10-16 · `5952d11`): `pnpm verify --strict --e2e` ผ่าน 19 ด่าน 0 FAIL · e2e 459 เคสผ่าน ไม่มีเคสที่ข้าม · ฉาก demo 9 เคสผ่าน · tag `p1-s17-start` ติดที่ `origin/main` ก่อนส่ง (ฐานรีวิวของ S17-18)

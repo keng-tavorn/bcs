@@ -23,6 +23,8 @@ export type MenuKey =
   | 'suppliers'
   | 'catalog'
   | 'invoices'
+  | 'payments'
+  | 'bankAccounts'
   | 'exports'
   | 'budgets'
   | 'insights'
@@ -86,6 +88,10 @@ export const MENU: readonly MenuItem[] = [
   // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page
   { key: 'catalog', href: '/catalog', group: 'procurement', capability: 'catalog.view', module: 'CORE', ready: true },
   { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true, labelWhen: { module: 'PAY', key: 'invoicesAp' } },
+  // S9-09 (module PAY): the payment runs FINANCE prepares and AUDITOR reads (an approver opens one from the task), and
+  // the bank accounts — the organization's payer accounts and the requests to change an account
+  { key: 'payments', href: '/finance/payments', group: 'finance', capability: 'paymentRun.view', scopes: ['ORG'], module: 'PAY', ready: true },
+  { key: 'bankAccounts', href: '/finance/bank-accounts', group: 'finance', capability: 'bankAccount.view', module: 'PAY', ready: true },
   { key: 'exports', href: '/finance/exports', group: 'finance', capability: 'export.express', module: 'CORE', ready: true },
   { key: 'budgets', href: '/budgets', group: 'finance', capability: 'budget.view', scopes: ['DEPT', 'ORG'], module: 'CORE', ready: true },
   // The executive summary (FR-VIS-007, S16-08) took the KPI entry's place: /kpi still opens, from the control card and

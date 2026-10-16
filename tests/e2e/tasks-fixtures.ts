@@ -16,6 +16,9 @@ import { E2E_DB } from '../support/e2e-env'
 import { makeRoom } from './budget-room'
 import { ATTACHMENT_NAME, ATTACHMENT_PDF } from './tasks-attachment'
 
+/** The demo organization the e2e seed makes: other scenes' test organizations reuse the same employee codes */
+const DEMO_ORG = 'DEMO'
+
 // Activity for the S2-12 screens, created through the services in the e2e database only (like seed-activity.ts) and
 // run by tests/e2e/tasks*.spec.ts and request-view*.spec.ts through tasks-support.ts. Each Playwright project uses its own
 // people, so desktop and mobile never meet in the shared database. Dates come from today, and requests use the open
@@ -52,7 +55,7 @@ function effectiveFrom(): string {
 }
 
 async function member(code: string) {
-  return prisma.member.findFirstOrThrow({ where: { employeeCode: code }, select: { id: true, organizationId: true, primaryDepartmentId: true } })
+  return prisma.member.findFirstOrThrow({ where: { employeeCode: code, organization: { code: DEMO_ORG } }, select: { id: true, organizationId: true, primaryDepartmentId: true } })
 }
 
 const ctxOf = (m: { id: string; organizationId: string }) => makeCtx({ organizationId: m.organizationId, actor: { type: 'USER', memberId: m.id }, channel: 'WEB', now })

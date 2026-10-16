@@ -38,7 +38,16 @@
     "overrunAmountLabel": "Over budget by",
     "invoice": "{number} · invoice price variance",
     "invoiceMeta": "{supplier} · from {number}",
-    "invoiceAmountLabel": "Variance incl. VAT"
+    "invoiceAmountLabel": "Variance incl. VAT",
+    "paymentRun": "Payment run {number} · {count} suppliers",
+    "bankChangeSupplier": "{number} · {kind} of supplier {code}",
+    "bankChangeCompany": "{number} · {kind} of the company",
+    "bankChangeKind": {
+      "ADD": "New account",
+      "REPLACE": "Account change",
+      "CLOSE": "Account closing"
+    },
+    "transferLabel": "Total transfer"
   },
   "changeKind": {
     "POSITION_ASSIGN": "an appointment",
@@ -347,7 +356,10 @@
     "FAILED": "It could not be saved. Try again, or tell your administrator.",
     "SUBJECT": "Information can be asked on request approvals only. A policy change is approved or rejected.",
     "BUDGET": "The budget line does not have enough for this approval, so it cannot be approved yet. Ask the budget administrator for more budget, or reject it with a reason.",
-    "BUDGET_LINE_CLOSED": "This document's budget line is closed or frozen, so it cannot be approved yet. Contact the budget administrator, or reject it with a reason."
+    "BUDGET_LINE_CLOSED": "This document's budget line is closed or frozen, so it cannot be approved yet. Contact the budget administrator, or reject it with a reason.",
+    "PAYMENT_FLAGS_CHANGED": "The payment run's flags changed since this page was opened. Reload it and check the flagged items again.",
+    "PAYMENT_FLAG_REASON_REQUIRED": "A flag has no reason from the preparer yet. Return the run for the preparer to give one.",
+    "PAYMENT_DATE_INVALID": "The run's pay date can no longer be used. Return it for the preparer to choose another day, or reject it."
   },
   "varianceType": {
     "SHORT": "Shortfall",

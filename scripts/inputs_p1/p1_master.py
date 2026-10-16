@@ -177,6 +177,13 @@ SETTINGS = [
     ('ap.inboxAddress', 'ap@simec.bcs.local', 'ที่อยู่กล่องรับใบแจ้งหนี้ทางอีเมล (สังเคราะห์)', 'OQ-124'),
     ('numbering.AP', 'AP-{BE}-{SEQ5}', 'รูปแบบเลขใบแจ้งหนี้ (ระบบออกตอนส่ง)', 'OQ-12'),
     ('numbering.WHT_CERT', '{BE}/{SEQ5}', 'รูปแบบเลขหนังสือรับรองการหักภาษี (50 ทวิ)', 'OQ-12'),
+    # S9-01: the payment run's day and checks, the payment advice e-mail and the numbers of S9 (defaults of the OQs)
+    ('payment.runWeekdays', 'FRI', 'วันจ่ายประจำ (คั่นด้วยจุลภาค เช่น TUE,FRI)', 'OQ-130'),
+    ('payment.holidayShift', 'PREVIOUS', 'วันจ่ายตรงวันหยุดให้เลื่อนไปวันทำการก่อนหน้า (PREVIOUS) หรือถัดไป (NEXT)', 'OQ-130'),
+    ('payment.recentBankChangeDays', 30, 'บัญชีรับเงินที่เปลี่ยนภายในกี่วันก่อนวันจ่ายจึงติดธง', 'OQ-132'),
+    ('payment.adviceEmail', 'Y', 'ส่งอีเมลแจ้งการชำระถึงผู้ขาย', 'OQ-134'),
+    ('numbering.PAY', 'PAY-{BE}-{SEQ5}', 'รูปแบบเลขรอบจ่าย (ระบบออกตอนส่งอนุมัติ)', 'OQ-12'),
+    ('numbering.BAC', 'BAC-{BE}-{SEQ5}', 'รูปแบบเลขคำขอเปลี่ยนบัญชีรับเงิน', 'OQ-12'),
     # S17-01: asking through the LINE chat and the BCS Go app (src/lib/s17-settings.ts) · SIMEC turns the chat on
     ('chatIntake.enabled', 'Y', 'เปิดให้ขอซื้อผ่านแชท LINE (พิมพ์หรือส่งรูป แล้วยืนยันใน LIFF)', 'OQ-161'),
     ('chatIntake.windowMinutes', 30, 'ข้อความที่ส่งห่างกันไม่เกินกี่นาทีรวมเป็นร่างเดียวกัน', 'BR-LINE-10'),

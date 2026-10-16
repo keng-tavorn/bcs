@@ -12,6 +12,7 @@ import { confirmIncomeType, updateIncomeType, updateSupplierTaxProfile } from '@
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, submit, type ApOrg } from '../support/ap'
+import { paymentItemOf } from '../support/pay'
 
 // S8-09 (FR-AP-106, BR-RET-01 to BR-RET-04, ADR-124): a road contract of 9,500 m² × 260.00 split 30/40/30 while the PO
 // is a draft (GC-RET-01), each milestone received with a goods receipt and invoiced as a service; the invoice of
@@ -145,8 +146,9 @@ describe('[FR-AP-106/AC2] [FR-AP-106/AC3] [FR-AP-106/AC4] a milestone invoice wi
     await inS9(ctx, (tx) => releaseRetentionsFromPayment(tx, ctx, { retentionIds: [retentionId], reason: 'แยกรอบ' }))
     expect((await prisma.retention.findUniqueOrThrow({ where: { id: retentionId } })).status).toBe('RELEASABLE')
     await inS9(ctx, (tx) => holdRetentionsForPayment(tx, ctx, { retentionIds: [retentionId], paymentRunId: run }))
+    const paymentRunItemId = await paymentItemOf(ap, ap.supplierId)
     const paid = await inS9(ctx, (tx) =>
-      recordInvoicePayment(tx, ctx, { invoiceIds: [invoiceId], retentionIds: [retentionId], paymentRunItemId: randomUUID(), paidOn: '2027-10-13', whtLines: [{ incomeType: 'CONTRACT', rateBp: 300, baseSatang: 74_100_000n, whtSatang: 2_223_000n }] }),
+      recordInvoicePayment(tx, ctx, { invoiceIds: [invoiceId], retentionIds: [retentionId], paymentRunItemId, paidOn: '2027-10-13', whtLines: [{ incomeType: 'CONTRACT', rateBp: 300, baseSatang: 74_100_000n, whtSatang: 2_223_000n }] }),
     )
     if (!paid.ok) throw new Error(JSON.stringify(paid.error))
     const rows = await prisma.withholdingTax.findMany({ where: { certificateId: paid.certificateId! } })

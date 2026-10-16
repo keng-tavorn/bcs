@@ -32,7 +32,7 @@ export async function isDocumentFile(ctx: Ctx, document: FileDocument, fileId: s
   if (!isUuid(fileId) || !isUuid(document.subjectId)) return false
   const db = forTenant(ctx.organizationId)
   /** The documents of one type this file is linked to */
-  const linkedTo = async (subjectType: 'Request' | 'GoodsReceipt') => (await db.fileLink.findMany({ where: { fileId, subjectType }, select: { subjectId: true } })).map((l) => l.subjectId)
+  const linkedTo = async (subjectType: 'Request' | 'GoodsReceipt' | 'BankAccountChange') => (await db.fileLink.findMany({ where: { fileId, subjectType }, select: { subjectId: true } })).map((l) => l.subjectId)
   switch (document.subjectType) {
     case 'REQUEST':
       return (await linkedTo('Request')).includes(document.subjectId)
@@ -48,6 +48,9 @@ export async function isDocumentFile(ctx: Ctx, document: FileDocument, fileId: s
       const receipts = await linkedTo('GoodsReceipt')
       return receipts.length > 0 && (await db.goodsReceipt.count({ where: { id: { in: receipts }, poId: document.subjectId } })) > 0
     }
+    // S9: the proofs of a bank account change
+    case 'BANK_ACCOUNT_CHANGE':
+      return (await linkedTo('BankAccountChange')).includes(document.subjectId)
     default:
       return false
   }

@@ -19,6 +19,7 @@ import { parseBudget, parseCatalogItems, parseCostCenters, parseDemoHistory, par
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, seedApProfile } from '@/server/seed/ap-profile'
+import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
 import { seedTaxRates } from '@/server/seed/tax-rates'
 import { parseWorkflowReviewers, seedWorkflow } from '@/server/seed/workflow'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
@@ -59,6 +60,8 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const catalog = await seedCatalog(report.organizationId, parseCatalogItems(workbook), clock.now())
   // S8-12: payee types, income types, credit days, e-Tax and registry flags of the suppliers, and retention by request type
   const apProfile = await seedApProfile(report.organizationId, parseApProfile(workbook), clock.now())
+  // S9-01: the organization's own accounts and one account per supplier (sheets CompanyBankAccounts, SupplierPayment)
+  const bankAccounts = await seedBankAccounts(report.organizationId, parseBankAccounts(workbook), clock.now())
   // The LINE channel from the LINE_* values of the environment, when they are set (S5-01)
   const lineChannel = await seedLineChannel(report.organizationId, env, clock.now())
   // The transaction PIN of the demo approvers (S5-05, FR-AUTH-005, ADR-047 item 9): SEED_DEV_PIN when it is set, and the
@@ -69,7 +72,7 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
   // S6-21 (BR-UAT-01 BR-UAT-04): SIMEC-UAT, the UAT sandbox of the phase-1 organization, on this machine
   const sandbox = profile === 'p1' ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, apProfile, lineChannel, pins, pinless, sandbox }
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
 }
 
 /** The code of the phase-1 organization's sandbox: its own code and "-UAT" */

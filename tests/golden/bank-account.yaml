@@ -1,0 +1,12 @@
+# tests/golden/bank-account.yaml
+suite: bank-account
+banks: ["002", "004", "006", "011", "014", "022", "024", "025", "030", "069", "073"]
+cases:
+  - { id: GC-SUP-01, title: เลขมีขีดตามสมุดบัญชี, fn: normalizeAccount, input: { bankCode: "004", accountNo: "999-1-00001-6", accountName: "บริษัท ตัวอย่างวิศวกรรมและก่อสร้าง จำกัด" }, expect: { accountNo: "9991000016", masked: "••••••0016" } }
+  - { id: GC-SUP-02, title: 10 หลักพอดี, fn: normalizeAccount, input: { bankCode: "014", accountNo: "9234567801" }, expect: { accountNo: "9234567801", masked: "••••••7801" } }
+  - { id: GC-SUP-03, title: 9 หลัก, fn: normalizeAccount, input: { bankCode: "014", accountNo: "923456780" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_LENGTH } }
+  - { id: GC-SUP-04, title: 12 หลักพอดีแบบเว้นวรรค, fn: normalizeAccount, input: { bankCode: "030", accountNo: "9201 2345 6789" }, expect: { accountNo: "920123456789", masked: "••••••••6789" } }
+  - { id: GC-SUP-05, title: 13 หลัก, fn: normalizeAccount, input: { bankCode: "030", accountNo: "9201234567890" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_LENGTH } }
+  - { id: GC-SUP-06, title: มีตัวอักษร, fn: normalizeAccount, input: { bankCode: "004", accountNo: "99910000A6" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NO_FORMAT } }
+  - { id: GC-SUP-07, title: รหัสธนาคารไม่อยู่ในรายการ, fn: normalizeAccount, input: { bankCode: "999", accountNo: "9991000016" }, expect: { error: VALIDATION_FAILED, reason: BANK_CODE_UNKNOWN } }
+  - { id: GC-SUP-08, title: ชื่อบัญชีขึ้นบรรทัดใหม่, fn: normalizeAccount, input: { bankCode: "004", accountNo: "9991000016", accountName: "บริษัท ก\nจำกัด" }, expect: { error: VALIDATION_FAILED, reason: ACCOUNT_NAME_FORMAT } }

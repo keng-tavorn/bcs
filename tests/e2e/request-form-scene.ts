@@ -15,7 +15,7 @@ import { lineWithRoom } from './budget-room'
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the request form scene runs in the e2e database only')
 
 const key = () => ({ idempotencyKey: randomUUID(), sender: null })
-const requester = await prisma.member.findFirstOrThrow({ where: { employeeCode: 'req_con2' }, select: { id: true, organizationId: true } })
+const requester = await prisma.member.findFirstOrThrow({ where: { employeeCode: 'req_con2', organization: { code: 'DEMO' } }, select: { id: true, organizationId: true } })
 const ctxOf = (memberId: string) => makeCtx({ organizationId: requester.organizationId, actor: { type: 'USER', memberId }, channel: 'WEB', now: systemClock.now() })
 const budgetLine = await lineWithRoom(['CON-CAPEX-2569'], 1_500_000n)
 

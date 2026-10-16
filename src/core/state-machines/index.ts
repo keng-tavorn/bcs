@@ -447,6 +447,88 @@ export const CHAT_INTAKE_MACHINE = machine<ChatIntakeState, ChatIntakeCommand>('
   { from: ['EXPIRED'], command: 'chat_intake.purge', to: 'EXPIRED' },
 ])
 
+// ---------- payment run (S9, docs/sub-specs/S9.md "State machine", BR-PAY-09 to BR-PAY-12) ----------
+
+export const PAYMENT_RUN_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY', 'SENT_TO_BANK', 'COMPLETED', 'REJECTED', 'CANCELLED'] as const
+export type PaymentRunState = (typeof PAYMENT_RUN_STATES)[number]
+export const PAYMENT_RUN_COMMANDS = [
+  'paymentRun.addDocuments',
+  'paymentRun.removeDocuments',
+  'paymentRun.update',
+  'paymentRun.setFlagReason',
+  'paymentRun.submit',
+  'paymentRun.final_approval',
+  'approval.reject',
+  'approval.return',
+  'paymentRun.cancel',
+  'paymentRun.generateFile',
+  'paymentRun.regenerateFile',
+  'paymentRun.markSentToBank',
+  'paymentRun.revertSent',
+  'paymentRun.recordResults',
+  'paymentRun.complete',
+] as const
+export type PaymentRunCommand = (typeof PAYMENT_RUN_COMMANDS)[number]
+
+export const PAYMENT_RUN_MACHINE = machine<PaymentRunState, PaymentRunCommand>('PaymentRun', PAYMENT_RUN_STATES, PAYMENT_RUN_COMMANDS, [
+  // documents added or removed, the pay date or the payer changed (update), a flag's reason: the preparer's draft only (BR-PAY-09)
+  { from: ['DRAFT'], command: 'paymentRun.addDocuments', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'paymentRun.removeDocuments', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'paymentRun.update', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'paymentRun.setFlagReason', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'paymentRun.submit', to: 'PENDING_APPROVAL' },
+  { from: ['PENDING_APPROVAL'], command: 'paymentRun.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  // back to the preparer, the documents still held
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'DRAFT' },
+  // before it goes to the bank (BR-PAY-10); after, revertSent or a result that failed
+  { from: ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'FILE_READY'], command: 'paymentRun.cancel', to: 'CANCELLED' },
+  { from: ['APPROVED'], command: 'paymentRun.generateFile', to: 'FILE_READY' },
+  { from: ['FILE_READY'], command: 'paymentRun.regenerateFile', to: 'FILE_READY' },
+  { from: ['FILE_READY'], command: 'paymentRun.markSentToBank', to: 'SENT_TO_BANK' },
+  { from: ['SENT_TO_BANK'], command: 'paymentRun.revertSent', to: 'FILE_READY' },
+  // results of some items, then of the last (BR-PAY-12)
+  { from: ['SENT_TO_BANK'], command: 'paymentRun.recordResults', to: 'SENT_TO_BANK' },
+  { from: ['SENT_TO_BANK'], command: 'paymentRun.complete', to: 'COMPLETED' },
+])
+
+export const PAYMENT_RUN_ITEM_STATES = ['INCLUDED', 'PAID', 'FAILED'] as const
+export type PaymentRunItemState = (typeof PAYMENT_RUN_ITEM_STATES)[number]
+export const PAYMENT_RUN_ITEM_COMMANDS = ['paymentRunItem.paid', 'paymentRunItem.failed'] as const
+export type PaymentRunItemCommand = (typeof PAYMENT_RUN_ITEM_COMMANDS)[number]
+
+/** A result is final in phase 1 (OQ-136): undoing it is S9-16 */
+export const PAYMENT_RUN_ITEM_MACHINE = machine<PaymentRunItemState, PaymentRunItemCommand>('PaymentRunItem', PAYMENT_RUN_ITEM_STATES, PAYMENT_RUN_ITEM_COMMANDS, [
+  { from: ['INCLUDED'], command: 'paymentRunItem.paid', to: 'PAID' },
+  { from: ['INCLUDED'], command: 'paymentRunItem.failed', to: 'FAILED' },
+])
+
+export const PAYMENT_RUN_DOCUMENT_STATES = ['HELD', 'PAID', 'RELEASED'] as const
+export type PaymentRunDocumentState = (typeof PAYMENT_RUN_DOCUMENT_STATES)[number]
+export const PAYMENT_RUN_DOCUMENT_COMMANDS = ['paymentRunDocument.pay', 'paymentRunDocument.release'] as const
+export type PaymentRunDocumentCommand = (typeof PAYMENT_RUN_DOCUMENT_COMMANDS)[number]
+
+export const PAYMENT_RUN_DOCUMENT_MACHINE = machine<PaymentRunDocumentState, PaymentRunDocumentCommand>('PaymentRunDocument', PAYMENT_RUN_DOCUMENT_STATES, PAYMENT_RUN_DOCUMENT_COMMANDS, [
+  { from: ['HELD'], command: 'paymentRunDocument.pay', to: 'PAID' },
+  { from: ['HELD'], command: 'paymentRunDocument.release', to: 'RELEASED' },
+])
+
+// ---------- bank account change (S9, BR-SUP-06) ----------
+
+export const BANK_ACCOUNT_CHANGE_STATES = ['DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'REJECTED', 'CANCELLED'] as const
+export type BankAccountChangeState = (typeof BANK_ACCOUNT_CHANGE_STATES)[number]
+export const BANK_ACCOUNT_CHANGE_COMMANDS = ['bankAccountChange.update', 'bankAccountChange.submit', 'bankAccountChange.final_approval', 'approval.reject', 'approval.return', 'bankAccountChange.cancel'] as const
+export type BankAccountChangeCommand = (typeof BANK_ACCOUNT_CHANGE_COMMANDS)[number]
+
+export const BANK_ACCOUNT_CHANGE_MACHINE = machine<BankAccountChangeState, BankAccountChangeCommand>('BankAccountChange', BANK_ACCOUNT_CHANGE_STATES, BANK_ACCOUNT_CHANGE_COMMANDS, [
+  { from: ['DRAFT'], command: 'bankAccountChange.update', to: 'DRAFT' },
+  { from: ['DRAFT'], command: 'bankAccountChange.submit', to: 'PENDING_APPROVAL' },
+  { from: ['PENDING_APPROVAL'], command: 'bankAccountChange.final_approval', to: 'APPROVED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.reject', to: 'REJECTED' },
+  { from: ['PENDING_APPROVAL'], command: 'approval.return', to: 'DRAFT' },
+  { from: ['DRAFT', 'PENDING_APPROVAL'], command: 'bankAccountChange.cancel', to: 'CANCELLED' },
+])
+
 export const MACHINES = [
   REQUEST_MACHINE,
   SUPPLIER_REQUEST_MACHINE,
@@ -469,4 +551,8 @@ export const MACHINES = [
   PO_CHANGE_MACHINE,
   // S17
   CHAT_INTAKE_MACHINE,
+  PAYMENT_RUN_MACHINE,
+  PAYMENT_RUN_ITEM_MACHINE,
+  PAYMENT_RUN_DOCUMENT_MACHINE,
+  BANK_ACCOUNT_CHANGE_MACHINE,
 ] as const

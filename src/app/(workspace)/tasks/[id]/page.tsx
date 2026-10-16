@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
@@ -41,6 +41,7 @@ import { canViewPo, poReader } from '../../procurement/pos/_parts/access'
 import { PoBody } from '../../procurement/pos/_parts/po-body'
 import { docTimelineItems } from '../../procurement/pos/_parts/present'
 import { ClosedTaskText } from '../_parts/closed-task'
+import { ownDecisionPage } from '../_parts/own-pages'
 import { VarianceBody } from '../_parts/variance-body'
 import { getInvoiceTaskView } from '@/server/queries/ap-invoices'
 import { InvoiceVarianceBody } from '@/ui/tasks/subjects/invoice'
@@ -140,6 +141,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
 
   const task = await getTaskView(ctx, id)
   if (!task) notFound()
+  // S9-09: a payment run or a bank account change is decided on its own page (the flags' key and acknowledgement, the step-up)
+  const ownPage = ownDecisionPage(task)
+  if (ownPage) redirect(ownPage)
   const request = task.subjectType === 'REQUEST' ? await getRequestView(ctx, task.subjectId) : null
   // The prices paid before for the request's items, for whoever may read them (priceReference.view: who has or had a task
   // on it, and who reads every PO — S6-11 · FR-DOA-101 · BR-PRC-07); anyone else simply gets no panel

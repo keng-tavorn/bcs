@@ -15,6 +15,7 @@ import { exportWhtReturn, WHT_RETURN_NOTICE } from '@/server/services/ap/wht-exp
 import { revealWhtPayeeTaxId } from '@/server/services/ap/wht-files'
 import { getDownloadUrl } from '@/server/services/files'
 import { AP_NOW, apOrg, codedDraft, fin, key, ok, receive, sentPo, submit, type ApOrg } from '../support/ap'
+import { paymentItemOf } from '../support/pay'
 
 // S8-08 (FR-AP-104, BR-WHT-03 to BR-WHT-10, ADR-127): the income types FINANCE sets and another FINANCE member confirms,
 // the expected tax of a ready invoice, what S9 does to invoices inside its own transaction (hold, release, and the one
@@ -112,7 +113,7 @@ describe('[FR-AP-104/AC3] [BR-AP-12] S9 holds, lets go and records a payment thr
     expect((await prisma.invoice.findUniqueOrThrow({ where: { id: b } })).status).toBe('READY_FOR_PAYMENT')
     await inS9(juristic, s9(juristic), (tx) => holdInvoicesForPayment(tx, s9(juristic), { invoiceIds: [b], paymentRunId: runId }))
 
-    const itemId = randomUUID()
+    const itemId = await paymentItemOf(juristic, juristic.supplierId)
     const lines: WhtLineInput[] = [{ incomeType: 'SERVICE', rateBp: 300, baseSatang: 200_100n, whtSatang: 6_003n }]
     const wrong = await inS9(juristic, s9(juristic), (tx) => recordInvoicePayment(tx, s9(juristic), { invoiceIds: [a, b], retentionIds: [], paymentRunItemId: itemId, paidOn: '2026-10-12', whtLines: [{ ...lines[0]!, whtSatang: 6_004n }] }))
     expect(wrong).toMatchObject({ ok: false, error: { code: 'VALIDATION_FAILED', details: { reason: 'WHT_MISMATCH' } } })
@@ -168,7 +169,8 @@ describe('[FR-AP-104/AC4] [FR-AP-104/AC5] the individual payee: the summary file
     const ctx = s9(individual)
     logged = await logsOf(async () => {
       await inS9(individual, ctx, (tx) => holdInvoicesForPayment(tx, ctx, { invoiceIds: [invoiceId], paymentRunId: randomUUID() }))
-      const paid = await inS9(individual, ctx, (tx) => recordInvoicePayment(tx, ctx, { invoiceIds: [invoiceId], retentionIds: [], paymentRunItemId: randomUUID(), paidOn: '2026-10-12', whtLines: [{ incomeType: 'SERVICE', rateBp: 300, baseSatang: 2_000_000n, whtSatang: 60_000n }] }))
+      const paymentRunItemId = await paymentItemOf(individual, individual.supplierId)
+      const paid = await inS9(individual, ctx, (tx) => recordInvoicePayment(tx, ctx, { invoiceIds: [invoiceId], retentionIds: [], paymentRunItemId, paidOn: '2026-10-12', whtLines: [{ incomeType: 'SERVICE', rateBp: 300, baseSatang: 2_000_000n, whtSatang: 60_000n }] }))
       if (!paid.ok) throw new Error(JSON.stringify(paid.error))
       certificateId = paid.certificateId!
       exportJobId = ok(await exportWhtReturn(fin(individual), { month: '2026-10', form: 'PND3' }, key())).exportJobId

@@ -125,6 +125,9 @@ export type InboxSubjectDto =
   /** supplierName only for a juristic person (BR-AP-09: an individual payee's name is not on approval cards) */
   | { readonly kind: 'INVOICE'; readonly invoiceId: string; readonly number: string | null; readonly poNumber: string | null; readonly supplierName: string | null }
   | { readonly kind: 'PO_CHANGE'; readonly poChangeId: string; readonly poNumber: string | null; readonly changeNo: number; readonly supplierName: string; readonly grossSatang: bigint }
+  /** S9: a payment run (its number and what it transfers) and a change of a bank account (no account number) */
+  | { readonly kind: 'PAYMENT_RUN'; readonly paymentRunId: string; readonly number: string | null; readonly transferSatang: bigint; readonly itemCount: number }
+  | { readonly kind: 'BANK_ACCOUNT_CHANGE'; readonly changeId: string; readonly number: string | null; readonly changeKind: 'ADD' | 'REPLACE' | 'CLOSE'; readonly supplierCode: string | null }
   | { readonly kind: 'OTHER' }
 
 export interface InboxTaskDto {
@@ -206,7 +209,7 @@ const stepUpOf = (step: { readonly kind: string; readonly route: Parameters<type
 
 async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { subjectType: string; subjectId: string } } }>): Promise<(type: string, id: string) => InboxSubjectDto> {
   const ids = (type: string) => [...new Set(tasks.filter((t) => t.step.route.subjectType === type).map((t) => t.step.route.subjectId))]
-  const [requests, versions, changes, departments, pos, variances, workflows, transfers, overruns, invoices, poChanges] = await Promise.all([
+  const [requests, versions, changes, departments, pos, variances, workflows, transfers, overruns, invoices, poChanges, runs, bankChanges] = await Promise.all([
     ids('REQUEST').length
       ? db.request.findMany({
           where: { id: { in: ids('REQUEST') } },
@@ -236,6 +239,10 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     ids('PO_CHANGE').length
       ? db.poChange.findMany({ where: { id: { in: ids('PO_CHANGE') } }, select: { id: true, changeNo: true, newGrossSatang: true, po: { select: { number: true, supplier: { select: { nameTh: true } } } } } })
       : Promise.resolve([]),
+    ids('PAYMENT_RUN').length ? db.paymentRun.findMany({ where: { id: { in: ids('PAYMENT_RUN') } }, select: { id: true, number: true, totalTransferSatang: true, itemCount: true } }) : Promise.resolve([]),
+    ids('BANK_ACCOUNT_CHANGE').length
+      ? db.bankAccountChange.findMany({ where: { id: { in: ids('BANK_ACCOUNT_CHANGE') } }, select: { id: true, number: true, kind: true, supplier: { select: { code: true } } } })
+      : Promise.resolve([]),
   ])
   const overrun = new Map(overruns.map((o) => [o.id, o]))
   const transfer = new Map(transfers.map((t) => [t.id, t]))
@@ -247,6 +254,8 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
   const variance = new Map(variances.map((v) => [v.id, v]))
   const invoice = new Map(invoices.map((i) => [i.id, i]))
   const poChange = new Map(poChanges.map((c) => [c.id, c]))
+  const run = new Map(runs.map((r) => [r.id, r]))
+  const bankChange = new Map(bankChanges.map((c) => [c.id, c]))
   // Who sent each PO for approval: the actor of its latest po.submitted Event
   const submitted = pos.length
     ? await db.event.findMany({ where: { type: 'po.submitted', aggregateType: 'PurchaseOrder', aggregateId: { in: pos.map((p) => p.id) }, actorType: 'USER' }, orderBy: { seq: 'asc' }, select: { aggregateId: true, actorMemberId: true } })
@@ -276,6 +285,14 @@ async function subjectsOf(db: TenantDb, tasks: ReadonlyArray<{ step: { route: { 
     if (type === 'PO_CHANGE' && poChange.has(id)) {
       const c = poChange.get(id)!
       return { kind: 'PO_CHANGE', poChangeId: c.id, poNumber: c.po.number, changeNo: c.changeNo, supplierName: c.po.supplier.nameTh, grossSatang: c.newGrossSatang }
+    }
+    if (type === 'PAYMENT_RUN' && run.has(id)) {
+      const r = run.get(id)!
+      return { kind: 'PAYMENT_RUN', paymentRunId: r.id, number: r.number, transferSatang: r.totalTransferSatang, itemCount: r.itemCount }
+    }
+    if (type === 'BANK_ACCOUNT_CHANGE' && bankChange.has(id)) {
+      const c = bankChange.get(id)!
+      return { kind: 'BANK_ACCOUNT_CHANGE', changeId: c.id, number: c.number, changeKind: c.kind, supplierCode: c.supplier?.code ?? null }
     }
     if (type === 'REQUEST' && request.has(id)) {
       const r = request.get(id)!

@@ -11,16 +11,20 @@ import type { TenantTx } from '@/server/db/tenant'
 export type NumberedDocument = 'PR' | 'PO' | 'GR' | 'RQ'
 /**
  * Documents of phase 1 whose rule is optional in settings (an organization saved before them has none): BT and OB (S6
- * budget transfer and over-budget approval) read their default from s6SettingsOf, AP and WHT_CERT (S8) from OQ-12
+ * budget transfer and over-budget approval) read their default from s6SettingsOf; AP and WHT_CERT (S8), PAY and BAC
+ * (S9) from OQ-12 (OPTIONAL_DEFAULT_RULES)
  */
-export type IssuedDocument = NumberedDocument | 'BT' | 'OB' | 'AP' | 'WHT_CERT'
+export type IssuedDocument = NumberedDocument | 'BT' | 'OB' | 'AP' | 'WHT_CERT' | 'PAY' | 'BAC'
 
-// The rule of an S8 document an organization has not set: the pattern of OQ-12 ("the same form for every document")
-// with the document's own prefix. TODO(OQ-12)
-const S8_DEFAULT_RULES = {
+// The rule of an S8 or S9 document an organization has not set: the pattern of OQ-12 ("the same form for every
+// document") with the document's own prefix. TODO(OQ-12)
+const OPTIONAL_DEFAULT_RULES = {
   AP: { pattern: 'AP-{BE}-{SEQ5}', reset: 'YEARLY' },
   WHT_CERT: { pattern: '{BE}/{SEQ5}', reset: 'YEARLY' },
+  PAY: { pattern: 'PAY-{BE}-{SEQ5}', reset: 'YEARLY' },
+  BAC: { pattern: 'BAC-{BE}-{SEQ5}', reset: 'YEARLY' },
 } as const
+const isOptional = (d: IssuedDocument): d is keyof typeof OPTIONAL_DEFAULT_RULES => d in OPTIONAL_DEFAULT_RULES
 
 export interface IssueNumberInput {
   readonly document: IssuedDocument
@@ -33,9 +37,7 @@ export async function issueDocumentNumber(tx: TenantTx, ctx: Ctx, input: IssueNu
   const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
   const numbering = OrgSettingsSchema.shape.numbering.parse((org.settings as { numbering?: unknown } | null)?.numbering)
   const s6 = s6SettingsOf(org.settings)
-  const rule =
-    numbering[input.document] ??
-    (input.document === 'AP' || input.document === 'WHT_CERT' ? S8_DEFAULT_RULES[input.document] : input.document === 'BT' ? s6.numberingBT : s6.numberingOB)
+  const rule = numbering[input.document] ?? (isOptional(input.document) ? OPTIONAL_DEFAULT_RULES[input.document] : input.document === 'BT' ? s6.numberingBT : s6.numberingOB)
   const context = { at: ctx.now, department: input.department ?? null }
   const scope = scopeKey(input.document, rule.pattern, rule.reset, context)
   const seq = await takeNextSequenceValue(tx, ctx.organizationId, input.document, scope, rule.pattern)

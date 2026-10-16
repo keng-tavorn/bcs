@@ -5,6 +5,8 @@
 // FROZEN after S1-08: changing this file is a permission change and needs the user's approval. S16-06 (spec §16.12, approved
 // with spec 0.3.1) added request.follow and request.followers.manage, summarised for the user in docs/reports/ux-a2.md.
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
+// S9-04 added bankAccount.* and bankAccountChange.propose, S9-05 paymentRun.view and .prepare, S9-07 paymentRun.file and
+// .cancel, S9-08 paymentRun.recordResult and paymentAdvice.resend, approved with docs/sub-specs/S9.md in P1-06.
 // S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
 // in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
 // (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07). S6-15 added
@@ -124,6 +126,20 @@ export const PERMISSIONS = {
   'supplier.taxProfile.manage': [role('FINANCE', 'ORG')],
   // S8-09 (BR-RET-04): FINANCE releases a performance retention from its due date
   'retention.release': [role('FINANCE', 'ORG')],
+  // S9-04 (BR-SUP-06, BR-SUP-07, BR-AUTH-04, OQ-133, OQ-137): accounts masked to who may view them; the full number to
+  // FINANCE and the approver of the change, logged; only FINANCE proposes a change, and only its proposer edits it
+  'bankAccount.view': roles(['FINANCE', 'PROCUREMENT', 'AUDITOR'], 'ORG'),
+  'bankAccount.reveal': [role('FINANCE', 'ORG'), anyMember('ASSIGNED')],
+  'bankAccountChange.propose': [role('FINANCE', 'ORG')],
+  // S9-05 (BR-PAY-09): FINANCE prepares a run and only its preparer edits the draft; AUDITOR and the approvers read it
+  'paymentRun.view': [...roles(['FINANCE', 'AUDITOR'], 'ORG'), anyMember('ASSIGNED')],
+  'paymentRun.prepare': [role('FINANCE', 'ORG')],
+  // S9-07 (BR-BANK-07 BR-BANK-08 BR-PAY-10): the bank file and the way to the bank, and cancelling after approval
+  'paymentRun.file': [role('FINANCE', 'ORG')],
+  'paymentRun.cancel': [role('FINANCE', 'ORG')],
+  // S9-08 (BR-PAY-12 BR-PAY-13): the results of a run sent to the bank, and the payment advice sent again
+  'paymentRun.recordResult': [role('FINANCE', 'ORG')],
+  'paymentAdvice.resend': [role('FINANCE', 'ORG')],
   // Budget
   // S6-15: the approver of a transfer reads it (ASSIGNED, the transfer's own route)
   'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), anyMember('ASSIGNED'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],

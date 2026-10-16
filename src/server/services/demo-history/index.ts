@@ -42,6 +42,7 @@ import { quotationAmounts } from './quotations'
 
 export { budgetKeyLines } from '@/server/seed/budget-keys'
 export { DemoHistoryNetError } from './quotations'
+import { seedPaymentHistory, type PaymentHistoryReport } from './payments'
 
 // The demo history (spec D-01, §16.10 "ข้อมูล"): the requests of sheet Demo_History, made through the real services
 // with the business clock set back, so every row ends in its status with real routes, decisions, budget movements,
@@ -76,6 +77,11 @@ const MINUTES_PER_HOUR = 60
 export interface DemoHistoryReport {
   readonly seeded: boolean
   readonly byStatus: Readonly<Record<string, number>>
+  /** S9-10: the payment runs of the past (module PAY on), and the invoices they paid */
+  readonly paymentRuns?: number
+  readonly paidInvoices?: number
+  /** PAID rows' invoices with no working day to be paid on before the seed: left ready for payment */
+  readonly unpaidInvoices?: number
 }
 
 type Step = { key: string; at: Date }
@@ -796,10 +802,16 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     // POs of the past go nowhere
     setEmailProvider({ send: async () => ({ messageId: 'demo-history' }) })
     const byStatus: Record<string, number> = {}
+    let payments: PaymentHistoryReport | null = null
     try {
       for (const row of done) {
         await replay(c, row)
         byStatus[row.status] = (byStatus[row.status] ?? 0) + 1
+      }
+      // S9-10: the invoices the sheet marks PAID, paid by the weekly runs of the past (before their notices are read)
+      if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) {
+        const paid = done.flatMap((row) => (row.invoice?.paymentStatus === 'PAID' && row.invoice.scenario !== 'MISSING' && row.supplier ? [{ supplierCode: row.supplier, invoiceNo: row.invoice.invoiceNo ?? `INV-${row.ref}` }] : []))
+        payments = await seedPaymentHistory(c, paid)
       }
       for (const [code] of c.members) {
         const marked = await markNotificationsRead(memberCtx(c, code, now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
@@ -814,7 +826,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     } finally {
       setEmailProvider(null)
     }
-    return { seeded: true, byStatus }
+    return { seeded: true, byStatus, ...(payments ? { paymentRuns: payments.runs, paidInvoices: payments.invoices, unpaidInvoices: payments.left } : {}) }
   } finally {
     await takeBackOneTimePins(organizationId, oneTime)
   }

@@ -8,6 +8,9 @@ import { amountToSatang } from '@/core/money/dto'
 import { E2E_DB } from '../support/e2e-env'
 import { makeRoom } from './budget-room'
 
+/** The demo organization the e2e seed makes: other scenes' test organizations reuse the same employee codes */
+const DEMO_ORG = 'DEMO'
+
 // Run by tests/e2e/action-link.spec.ts against the e2e database only (S4-06, FR-NOTI-002): the requester named in
 // SCENE_REQUESTER submits a request of four cartridges at SCENE_UNIT_PRICE (2,000 baht unless given: 8,000 baht)
 // through the services, so the DM of their department gets the task and its e-mail token. Prints the request number,
@@ -17,7 +20,7 @@ if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${
 
 const requester = process.env.SCENE_REQUESTER ?? 'proc_officer'
 const unitPrice = process.env.SCENE_UNIT_PRICE ?? '2000.00'
-const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: requester }, select: { id: true, organizationId: true, primaryDepartment: { select: { code: true } } } })
+const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: requester, organization: { code: DEMO_ORG } }, select: { id: true, organizationId: true, primaryDepartment: { select: { code: true } } } })
 const ctx = makeCtx({ organizationId: member.organizationId, actor: { type: 'USER', memberId: member.id }, channel: 'WEB', now: systemClock.now() })
 const line = await prisma.budgetLine.findFirstOrThrow({ where: { organizationId: member.organizationId, code: `${member.primaryDepartment!.code}-OPEX-2569` }, select: { id: true, code: true } })
 // the specs of a run spend the same lines: a budget admin tops this one up when they have left less (./budget-room.ts)

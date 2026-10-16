@@ -11,6 +11,7 @@ import { setLineReachable } from '@/server/line/webhook/identity'
 import { readLineChannelPublic } from '@/server/queries/line-channel'
 import { emailLinkPath } from '@/server/tokens/action-tokens'
 import { renderNotification } from './templates'
+import { PAYMENT_LINE_TEMPLATES } from './templates/payments'
 
 // Delivering an IMMEDIATE notification (spec §4.7 rule 2, §10.1, FR-NOTI-002 AC1, FR-LINE-007 AC3):
 //  - first, at every try, a notice about an approval task (task.assigned, task.reminder, task.overdue, task.escalated)
@@ -76,6 +77,8 @@ export const LINE_TEMPLATES: ReadonlySet<string> = new Set([
   // S8: differences of an invoice and the decision on its price variance (§10.1, BR-AP-09)
   'invoice.exception',
   'invoice.variance_decided',
+  // S9, in lane 2's own file (ADR-135)
+  ...PAYMENT_LINE_TEMPLATES,
 ])
 
 type Data = Readonly<Record<string, unknown>>

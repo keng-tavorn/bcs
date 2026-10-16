@@ -4,7 +4,9 @@ import { getLocale, getTranslations } from 'next-intl/server'
 import { BYTES_PER_KIB } from '@/lib/constants'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
+import { getSupplierBankCard } from '@/server/services/bank-accounts/view'
 import { getSupplierForScreen, type SupplierDetailDto } from '@/server/services/suppliers/view'
+import { SupplierBankCard } from '@/ui/bank-accounts/supplier-bank-card'
 import { formatDateTime } from '@/ui/format'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
@@ -14,6 +16,7 @@ import { SupplierManage } from '@/ui/suppliers/manage'
 import { ProofList } from '@/ui/suppliers/proof-list'
 import { Flag, SupplierStatusLabel } from '@/ui/suppliers/status'
 import { getSession } from '../../../_lib/session'
+import { revealAccountAction } from '../../finance/bank-accounts/actions'
 import { supplierProofUrlAction, updateSupplierAction } from '../actions'
 
 export async function generateMetadata() {
@@ -95,7 +98,8 @@ export default async function SupplierPage({ params, searchParams }: { params: P
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
   if (!ctx) return null
   const [t, locale] = await Promise.all([getTranslations('suppliers'), getLocale().then((l) => (l === 'en' ? 'en' : 'th') as 'th' | 'en')])
-  const result = await getSupplierForScreen(ctx, id)
+  // S9-09: the card of the account the supplier is paid into (null without module PAY or bankAccount.view)
+  const [result, bankCard] = await Promise.all([getSupplierForScreen(ctx, id), getSupplierBankCard(ctx, { supplierId: id })])
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
   if (!result.ok) {
     return (
@@ -147,6 +151,8 @@ export default async function SupplierPage({ params, searchParams }: { params: P
             ) : null}
           </Panel>
         ) : null}
+
+        {bankCard.ok && bankCard.data ? <SupplierBankCard supplierId={s.id} card={bankCard.data} reveal={revealAccountAction} /> : null}
 
         {v.canManage && f ? (
           <>

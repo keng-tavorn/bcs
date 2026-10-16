@@ -514,6 +514,10 @@ def run_delegation(d):
                     else: got = {"assignee": x["delegate"], "principal": ap}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def sod_recent_change(i):  # BR-SOD-10: the actor proposed a bank change in force within recentBankChangeDays before payDate
+    if not i.get("bankChanges"): return False
+    since = (datetime.strptime(i["payDate"], "%Y-%m-%d") - timedelta(days=i["recentBankChangeDays"])).date().isoformat()
+    return any(b["proposer"] == i["actor"] and b["effectiveOn"] >= since for b in i["bankChanges"])
 def run_sod(d):
     st, out = d["sodPolicy"], []
     for c in d["cases"]:
@@ -524,8 +528,14 @@ def run_sod(d):
             subj = i.get("subject", "REQUEST")
             if subj == "ORG_AUTHORITY_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-08"
             elif subj == "DOA_VERSION" and i["actor"] == i.get("requester"): rule = "BR-SOD-06"
+            elif subj == "PAYMENT_RUN" and i["actor"] == i.get("requester"): rule = "BR-SOD-09"
+            elif subj == "PAYMENT_RUN" and i["actor"] in i.get("invoiceRecorders", []): rule = "BR-SOD-04"
+            elif subj == "PAYMENT_RUN" and sod_recent_change(i): rule = "BR-SOD-10"
+            elif subj == "BANK_ACCOUNT_CHANGE" and i["actor"] == i.get("requester"): rule = "BR-SOD-05"
             elif i["actor"] == i.get("requester"): rule = "BR-SOD-01"
             elif subj == "PURCHASE_ORDER" and i["actor"] == i.get("poCreator"): rule = "BR-SOD-03"
+        elif i["action"] == "PREPARE_PAYMENT":
+            if sod_recent_change(i): rule = "BR-SOD-10"
         elif i["action"] == "POST_GR":
             if not st["approverMayReceive"] and i["actor"] in i.get("approvers", []): rule = "BR-SOD-02"
             elif i["actor"] == i.get("requester") and not st["requesterMayReceive"]: rule = "BR-SOD-07"
@@ -1630,6 +1640,124 @@ def run_ai_text(d):
         if got is None: got = {"ok": True, "rendered": rendered}
         out.append((c["id"], all(got.get(k) == v for k, v in c["expect"].items()), got))
     return out
+def run_payment_run(d):  # BR-PAY-02 ถึง BR-PAY-07 BR-PAY-12 · คำนวณอิสระด้วยจำนวนเต็มสตางค์ (S9-02)
+    cal, pol, out = d["calendar"], d["policy"], []
+    names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    day = lambda s: datetime.strptime(s, "%Y-%m-%d").date()
+    iso = lambda x: x.isoformat()
+    def workday(x): return names[x.weekday()] in cal["workdays"] and iso(x) not in cal["holidays"]
+    def thai_today(at): return iso((datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ") + timedelta(hours=7)).date())
+    def item(docs):
+        payable = sum(sat(x["payable"]) for x in docs); groups = {}
+        for x in docs:
+            for l in x.get("whtLines", []):
+                k = (l["incomeType"], l["rateBp"]); groups[k] = groups.get(k, 0) + sat(l["base"])
+        lines = [{"incomeType": k[0], "rateBp": k[1], "base": baht(b), "wht": baht(rhu(b * k[1], 10000))} for k, b in groups.items()]
+        wht = sum(rhu(b * k[1], 10000) for k, b in groups.items()); transfer = payable - wht
+        if transfer <= 0: return {"error": "PAYMENT_ITEM_NOT_POSITIVE", "transfer": baht(transfer)}
+        return {"payable": baht(payable), "whtLines": lines, "wht": baht(wht), "transfer": baht(transfer)}
+    def next_run(today):
+        t = day(today); x = t
+        while True:
+            if names[x.weekday()] in pol["runWeekdays"]:
+                c = x
+                while not workday(c): c += timedelta(days=-1 if pol["holidayShift"] == "PREVIOUS" else 1)
+                if c >= t: return iso(c)
+            x += timedelta(days=1)
+    order = ["REGISTRY_CHANGED", "SUPPLIER_INACTIVE", "RISK_OVERRIDE_EXPIRED", "PREVIOUSLY_EXPORTED", "BANK_ACCOUNT_RECENTLY_CHANGED", "BANK_CHANGE_PENDING", "SHARED_BANK_ACCOUNT"]
+    for c in d["cases"]:
+        fn, i = c["fn"], c["input"]
+        if fn == "buildItem": got = item(i["docs"])
+        elif fn == "buildRun":
+            items = []
+            for n, s in enumerate(sorted(i["suppliers"], key=lambda s: s["code"]), 1):
+                r = item(s["docs"]); items.append({"seq": n, "code": s["code"], "payable": r["payable"], "wht": r["wht"], "transfer": r["transfer"]})
+            tot = lambda f: baht(sum(sat(x[f]) for x in items))
+            got = {"items": items, "totals": {"payable": tot("payable"), "wht": tot("wht"), "transfer": tot("transfer"), "itemCount": len(items), "documentCount": sum(len(s["docs"]) for s in i["suppliers"])}}
+        elif fn == "nextRunDate": got = next_run(i["today"])
+        elif fn == "checkPayDate":
+            today = thai_today(i["at"])
+            got = {"error": "PAYMENT_DATE_INVALID", "reason": "NOT_BUSINESS_DAY"} if not workday(day(i["payDate"])) else ({"error": "PAYMENT_DATE_INVALID", "reason": "PAST"} if i["payDate"] < today else {"ok": True})
+        elif fn == "proposeDocuments": got = {"proposed": [x["id"] for x in i["docs"] if x["kind"] == "RETENTION" or x["dueDate"] <= i["payDate"]]}
+        elif fn == "checkPaidOn":
+            today = thai_today(i["at"])
+            got = {"error": "VALIDATION_FAILED", "reason": "PAID_ON_BEFORE_PAY_DATE"} if i["paidOn"] < i["payDate"] else ({"error": "VALIDATION_FAILED", "reason": "PAID_ON_FUTURE"} if i["paidOn"] > today else {"ok": True})
+        elif fn == "itemFlags":
+            s, a, f = i["supplier"], i["account"], set()
+            if s["registryFlag"] != "NONE": f.add("REGISTRY_CHANGED")
+            if s["status"] != "ACTIVE": f.add("SUPPLIER_INACTIVE")
+            if any(o["expiresOn"] < i["payDate"] for o in i.get("riskOverrides", [])): f.add("RISK_OVERRIDE_EXPIRED")
+            if i.get("previouslyExported"): f.add("PREVIOUSLY_EXPORTED")
+            if not a["fromSeed"] and a["activatedOn"] >= iso(day(i["payDate"]) - timedelta(days=pol["recentBankChangeDays"])): f.add("BANK_ACCOUNT_RECENTLY_CHANGED")
+            if i.get("pendingChange"): f.add("BANK_CHANGE_PENDING")
+            if any(t is None or s["taxId"] is None or t != s["taxId"] for t in i.get("sameAccountTaxIds", [])): f.add("SHARED_BANK_ACCOUNT")
+            flags = [x for x in order if x in f]
+            got = {"flags": flags, "requiresReason": any(x in order[:4] for x in flags)}
+        elif fn == "flagsKey":
+            got = ";".join(f'{x["code"]}:{"+".join(y for y in order if y in x["flags"])}' for x in sorted(i["items"], key=lambda x: x["code"]) if x["flags"])
+        else: got = {"error": f"fn {fn} ยังไม่มีตัวคำนวณอ้างอิง"}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_bank_account(d):  # BR-SUP-07 · S9-03: ตัวเลขล้วน 10–12 หลัก รหัสธนาคารในรายการ ชื่อไม่มีอักขระควบคุม
+    import unicodedata
+    banks, out = set(d["banks"]), []
+    def bad(reason): return {"error": "VALIDATION_FAILED", "reason": reason}
+    for c in d["cases"]:
+        i = c["input"]; digits = re.sub(r"[- ]", "", i["accountNo"])
+        if re.search(r"[^0-9]", digits): got = bad("ACCOUNT_NO_FORMAT")  # ขีดหรือเว้นวรรคล้วนคือเลข 0 หลัก
+        elif not 10 <= len(digits) <= 12: got = bad("ACCOUNT_NO_LENGTH")
+        elif i["bankCode"] not in banks: got = bad("BANK_CODE_UNKNOWN")
+        elif any(unicodedata.category(ch) == "Cc" for ch in i.get("accountName", "")): got = bad("ACCOUNT_NAME_FORMAT")
+        else: got = {"accountNo": digits, "masked": "•" * (len(digits) - 4) + digits[-4:]}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_bank_precheck(d):  # BR-BANK-06 · S9-03: ระดับรอบก่อน แล้วรายการตาม seq · ทุกข้อที่ไม่ผ่าน
+    out = []
+    for c in d["cases"]:
+        x = copy.deepcopy(d["base"])
+        for path, v in c["change"].items():
+            node, keys = x, path.split(".")
+            for k in keys[:-1]: node = node[int(k)] if isinstance(node, list) else node[k]
+            node[int(keys[-1]) if isinstance(node, list) else keys[-1]] = v
+        run, f, sups, docs = x["run"], [], set(), set()
+        items = sorted(x["items"], key=lambda i: i["seq"])
+        if run["payerStatus"] != "ACTIVE" or run["payerTemplate"] != run["runTemplate"]: f.append({"check": "PAYER_ACCOUNT_INVALID"})
+        total = sum(sat(i["transfer"]) for i in items)
+        if total != sat(run["totalTransfer"]): f.append({"check": "TOTAL_MISMATCH", "expected": baht(sat(run["totalTransfer"])), "actual": baht(total)})
+        if len(items) != run["itemCount"]: f.append({"check": "COUNT_MISMATCH", "expected": run["itemCount"], "actual": len(items)})
+        for i in items:
+            reg, s = i.get("register"), i["seq"]
+            if not reg or reg["status"] != "ACTIVE": f.append({"seq": s, "check": "ACCOUNT_NOT_ACTIVE"})
+            else: f += [{"seq": s, "check": "ACCOUNT_MISMATCH", "field": k} for k in ("bankCode", "accountNo", "accountName") if i["snapshot"][k] != reg[k]]
+            if i["supplier"] in sups: f.append({"seq": s, "check": "DUPLICATE_SUPPLIER"})
+            sups.add(i["supplier"])
+            named = []  # เอกสารที่ซ้ำในรายการเดียวรายงานครั้งเดียวต่อข้อ
+            for doc in i["documents"]:
+                if doc["id"] in docs and ("DUP", doc["id"]) not in named: named.append(("DUP", doc["id"])); f.append({"seq": s, "check": "DUPLICATE_DOCUMENT_IN_RUN", "document": doc["id"]})
+                docs.add(doc["id"])
+            for doc in i["documents"]:
+                if doc["link"] != "HELD_BY_THIS_RUN" and ("NOT_HELD", doc["id"]) not in named: named.append(("NOT_HELD", doc["id"])); f.append({"seq": s, "check": "DOCUMENT_NOT_HELD", "document": doc["id"]})
+        got = {"ok": not f, "failures": f}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_bankfile_neutral(d):  # BR-BANK-04 BR-BANK-05 · S9-03: เทียบ bytes และ sha256 ด้วย hashlib
+    import hashlib
+    out, by_id = [], {c["id"]: c for c in d["cases"]}
+    def q(v): v = str(v); return '"' + v.replace('"', '""') + '"' if any(ch in v for ch in ',"\r\n') else v
+    def row(*fields): return ",".join(q(v) for v in fields)
+    def inp(c):
+        i = c["input"]
+        if "sameAs" not in i: return i
+        b = inp(by_id[i["sameAs"]]); return {"run": {**b["run"], **i["run"]}, "items": b["items"]}
+    for c in d["cases"]:
+        i = inp(c); r = i["run"]; items = sorted(i["items"], key=lambda x: x["seq"]); tot = baht(sum(sat(x["amount"]) for x in items))
+        lines = [row("H", d["template"], "NOT-A-BANK-FORMAT", r["number"], r["fileVersion"], r["valueDate"], r["payer"]["bankCode"], r["payer"]["accountNo"], len(items), tot)]
+        lines += [row("D", x["seq"], x["bankCode"], x["accountNo"], x["accountName"], baht(sat(x["amount"])), x["supplierCode"], f'{r["number"]}-{x["seq"]:03d}') for x in items]
+        lines.append(row("T", len(items), tot))
+        data = b"\xef\xbb\xbf" + "".join(l + "\r\n" for l in lines).encode("utf-8")
+        got = {"fileName": f'{d["template"]}_NOT-A-BANK-FORMAT_{r["number"]}_v{r["fileVersion"]}.csv', "lines": lines, "itemCount": len(items), "total": tot, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+        out.append((c["id"], got == c["expect"], got))
+    return out
 def run_budget_change(d):
     # BR-BUD-09 to BR-BUD-11 (S6-15): a transfer or a decrease reserves its source at submit (all or BUDGET_INSUFFICIENT);
     # approved, the reservation leaves the source (AVAILABLE → OUTSIDE, funded down) and enters the destination
@@ -1884,6 +2012,9 @@ RUNNERS = {
     "ai-text": run_ai_text,
     "ai-verify": run_ai_verify,
     "ap": run_ap,
+    "bank-account": run_bank_account,
+    "bank-precheck": run_bank_precheck,
+    "bankfile-neutral": run_bankfile_neutral,
     "budget": run_budget,
     "budget-change": run_budget_change,
     "chat-intake": run_chat_intake,
@@ -1902,6 +2033,7 @@ RUNNERS = {
     "matching": run_matching,
     "money": run_money,
     "numbering": run_numbering,
+    "payment-run": run_payment_run,
     "po-change": run_po_change,
     "price-reference": run_price_reference,
     "quotations": run_quotes,

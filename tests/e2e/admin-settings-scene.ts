@@ -6,6 +6,9 @@ import { createDraft } from '@/server/services/requests'
 import { getRequestForEdit } from '@/server/services/requests/form-view'
 import { E2E_DB } from '../support/e2e-env'
 
+/** The demo organization the e2e seed makes: other scenes' test organizations reuse the same employee codes */
+const DEMO_ORG = 'DEMO'
+
 // Run by tests/e2e/admin-settings.spec.ts against the e2e database only (FR-ADM-005 AC3), the way the request page of
 // another unit will act: `draft <member code> <request type code>` makes a draft of that type before a new form version
 // is published; `form <member code> <request id>` prints the form version the draft keeps and the ids of its fields.
@@ -15,7 +18,7 @@ if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${
 const [command, memberCode, subject] = process.argv.slice(2)
 if (!memberCode || !subject || (command !== 'draft' && command !== 'form')) throw new Error('usage: admin-settings-scene.ts draft <member> <type> | form <member> <requestId>')
 
-const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: memberCode }, select: { id: true, organizationId: true } })
+const member = await prisma.member.findFirstOrThrow({ where: { employeeCode: memberCode, organization: { code: DEMO_ORG } }, select: { id: true, organizationId: true } })
 const ctx = makeCtx({ organizationId: member.organizationId, actor: { type: 'USER', memberId: member.id }, channel: 'WEB', now: systemClock.now() })
 
 if (command === 'draft') {

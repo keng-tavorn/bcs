@@ -93,6 +93,8 @@
     "approval_task": "Approval tasks",
     "audit": "Audit trail",
     "auth": "Sign-in",
+    "bank_account": "Bank accounts",
+    "bank_account_change": "Bank account changes",
     "backtest": "Backtest",
     "budget": "Budget",
     "budget_grant": "Cross-department budget grants",
@@ -113,6 +115,8 @@
     "notification": "Notifications",
     "org_authority_change": "Authority structure",
     "organization": "Organization",
+    "payment_run": "Payment runs",
+    "payment_run_item": "Payment run items",
     "po": "Purchase orders",
     "position": "Positions",
     "report_schedule": "Reports",
@@ -146,6 +150,8 @@
     "ApprovalStep": "Approval step",
     "ApprovalTask": "Approval task",
     "Auth": "Sign-in",
+    "BankAccount": "Bank account",
+    "BankAccountChange": "Bank account change",
     "BacktestRun": "Backtest run",
     "BudgetGrant": "Cross-department budget grant",
     "BudgetLine": "Budget line",
@@ -165,6 +171,8 @@
     "Notification": "Notification",
     "OrgAuthorityChange": "Authority change",
     "Organization": "Organization",
+    "PaymentRun": "Payment run",
+    "PaymentRunItem": "Payment run item",
     "PositionAssignment": "Position holding",
     "PurchaseOrder": "Purchase order",
     "ReportSchedule": "Report schedule",
@@ -216,6 +224,20 @@
       "login_locked": "Sign-in locked for a while",
       "login_succeeded": "Signed in",
       "pin_set": "Transaction PIN set or changed"
+    },
+    "bank_account": {
+      "activated": "Bank account in force",
+      "closed": "Bank account closed",
+      "superseded": "Bank account replaced"
+    },
+    "bank_account_change": {
+      "approved": "Bank account change approved",
+      "cancelled": "Bank account change cancelled",
+      "drafted": "Bank account change drafted",
+      "rejected": "Bank account change rejected",
+      "returned": "Bank account change returned",
+      "submitted": "Bank account change submitted",
+      "updated": "Bank account change edited"
     },
     "backtest": {
       "completed": "90-day backtest done",
@@ -338,6 +360,28 @@
       "module_enabled": "Module switched on",
       "settings_updated": "Organization settings updated",
       "sandbox_created": "UAT sandbox created"
+    },
+    "payment_run": {
+      "approved": "Payment run approved",
+      "cancelled": "Payment run cancelled",
+      "completed": "Payment run results all recorded",
+      "documents_added": "Documents added to the payment run",
+      "documents_removed": "Documents taken out of the payment run",
+      "drafted": "Payment run drafted",
+      "file_generated": "Bank file made",
+      "rejected": "Payment run rejected",
+      "resubmitted": "Payment run sent for approval again",
+      "returned": "Payment run returned",
+      "sent_reverted": "Sending to the bank taken back",
+      "sent_to_bank": "Bank file sent to the bank",
+      "submitted": "Payment run sent for approval",
+      "updated": "Payment run edited"
+    },
+    "payment_run_item": {
+      "advice_resent": "Payment advice sent again",
+      "failed": "Payment item recorded as failed",
+      "flag_reason_set": "Reason given for a payment item’s flags",
+      "paid": "Payment item recorded as paid"
     },
     "po": {
       "approved": "Purchase order approved",

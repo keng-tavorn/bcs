@@ -32,6 +32,7 @@ import { seedDevPins } from '@/server/seed/pins'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
 import { parseApProfile, registryFlagOf, seedApProfile } from '@/server/seed/ap-profile'
+import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
 import { seedP1Modules } from '@/server/seed/p1-modules'
 import { parseBudget, parseCatalogItems, parseCostCenters, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
@@ -91,7 +92,7 @@ export interface SeedP1Clock {
 export function describeP1Seed(clock: SeedP1Clock): void {
   let organizationId: string
   let report: DemoHistoryReport
-  let sheets: { users: Row[]; departments: Row[]; budget: Row[]; costCenters: Row[]; suppliers: Row[]; sites: Row[]; items: Row[]; history: Row[]; supplierPayment: Row[] }
+  let sheets: { users: Row[]; departments: Row[]; budget: Row[]; costCenters: Row[]; suppliers: Row[]; sites: Row[]; items: Row[]; history: Row[]; supplierPayment: Row[]; companyBankAccounts: Row[] }
 
   beforeAll(async () => {
     const raw = new ExcelJS.Workbook()
@@ -107,6 +108,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       items: read('Items'),
       history: read('Request_History'),
       supplierPayment: read('SupplierPayment'),
+      companyBankAccounts: read('CompanyBankAccounts'),
     }
 
     // The history stores quotations, DPAs and PO PDFs: the bucket must exist (as tests/integration/files.test.ts does)
@@ -127,6 +129,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
     await seedAccountCodes(organizationId, parseGlAccounts(workbook))
     await seedCatalog(organizationId, parseCatalogItems(workbook), clock.now)
     await seedApProfile(organizationId, parseApProfile(workbook), clock.now)
+    await seedBankAccounts(organizationId, parseBankAccounts(workbook), clock.now)
     await seedDevPins(organizationId, PIN, clock.now)
     report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now, { pin: PIN, budgetKeys: budgetKeyLines(budget) })
     await linkHistoryToCatalog(organizationId)
@@ -222,10 +225,11 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       expect(await db.accountCode.count()).toBe(parseGlAccounts(await loadInputWorkbook(INPUT_WORKBOOKS.p1)).length)
       const completed = sheets.history.filter((r) => r.status === 'COMPLETED')
       const invoices = await db.invoice.findMany({ where: { number: { not: null } }, select: { supplierInvoiceNo: true, status: true } })
+      // S9-10: the invoice of a PAID row is paid by a payment run of the past
       const expected = (row: (typeof completed)[number]) => {
         const paid = row.paymentStatus === 'PAID'
-        if (row.invoiceScenario === 'PRICE_OVER' || row.invoiceScenario === 'QTY_OVER') return paid || (row.invoiceScenario === 'QTY_OVER' && Number(row.qty) < 2) ? 'READY_FOR_PAYMENT' : 'EXCEPTION'
-        return 'READY_FOR_PAYMENT'
+        if (row.invoiceScenario === 'PRICE_OVER' || row.invoiceScenario === 'QTY_OVER') return paid ? 'PAID' : row.invoiceScenario === 'QTY_OVER' && Number(row.qty) < 2 ? 'READY_FOR_PAYMENT' : 'EXCEPTION'
+        return paid ? 'PAID' : 'READY_FOR_PAYMENT'
       }
       const counted: Record<string, number> = {}
       for (const row of completed) {
@@ -256,6 +260,25 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       }
       // the income types are there, waiting for the accountant to confirm them
       expect(await db.whtIncomeType.count({ where: { confirmedById: null } })).toBeGreaterThan(0)
+    })
+
+    it('[INV-PAY-04] S9-01: one ACTIVE account per row of SupplierPayment, the accounts of the organization as CompanyBankAccounts, digits only, from the seed; running again adds none', async () => {
+      const db = forTenant(organizationId)
+      const digits = (raw: unknown) => String(raw).replace(/[-s]/g, '')
+      const supplierAccounts = await db.bankAccount.findMany({ where: { ownerKind: 'SUPPLIER', status: 'ACTIVE' }, select: { supplier: { select: { code: true } }, bankCode: true, accountNo: true, accountName: true, sourceChangeId: true } })
+      expect(supplierAccounts).toHaveLength(sheets.supplierPayment.length)
+      for (const p of sheets.supplierPayment) {
+        const a = supplierAccounts.find((x) => x.supplier!.code === p.supplierCode)
+        expect(a && { bank: a.bankCode, no: a.accountNo, name: a.accountName, source: a.sourceChangeId }, String(p.supplierCode)).toEqual({ bank: String(p.bankCode), no: digits(p.accountNo), name: String(p.accountName), source: null })
+      }
+      const own = await db.bankAccount.findMany({ where: { ownerKind: 'ORGANIZATION', status: 'ACTIVE' }, select: { code: true, accountNo: true, accountType: true, fileTemplateCode: true } })
+      expect(own.map((a) => a.code).sort()).toEqual(sheets.companyBankAccounts.map((c) => String(c.code)).sort())
+      for (const c of sheets.companyBankAccounts) expect(own.find((a) => a.code === c.code)).toMatchObject({ accountNo: digits(c.accountNo), accountType: c.accountType, fileTemplateCode: 'BCS-NEUTRAL-1' })
+      // every account in force has its event, with the last four digits only (BR-BANK-08)
+      const events = await db.event.findMany({ where: { type: 'bank_account.activated' }, select: { data: true } })
+      expect(events).toHaveLength(supplierAccounts.length + own.length)
+      expect(JSON.stringify(events)).not.toContain(digits(sheets.supplierPayment[0]!.accountNo))
+      expect(await seedBankAccounts(organizationId, parseBankAccounts(await loadInputWorkbook(INPUT_WORKBOOKS.p1)), clock.now)).toEqual({ company: 0, suppliers: 0 })
     })
 
     it('[FR-DOA-103/AC2] S6-07: a draft with a COO band moves eqp_02\'s monthly fuel from ceo to coo in the 90-day backtest', async () => {
@@ -448,6 +471,51 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       await stepUpForTask(task.id, ceo)
       done(await decideTask(at(organizationId, ceo), { taskId: task.id, decision: 'APPROVE' }, once()))
       expect((await db.workflowVersion.findUniqueOrThrow({ where: { id: versionId }, select: { status: true } })).status).not.toBe('DRAFT')
+    })
+
+    it('[FR-PAY-101/AC1] [FR-PAY-103/AC1] [FR-PAY-103/AC2] S9-10: every invoice of a PAID row is paid by a weekly payment run of the past — prepared by fin_tre1 or fin_tre2, approved on its DOA route, its file sent, every item paid with its tax and its advice', async () => {
+      const db = forTenant(organizationId)
+      // counted here from the sheet: the completed rows marked PAID that have an invoice
+      const paidRows = sheets.history.filter((r) => r.status === 'COMPLETED' && r.paymentStatus === 'PAID' && (r.invoiceScenario || 'MATCH') !== 'MISSING')
+      expect(paidRows.length).toBeGreaterThan(0)
+      const paidInvoices = await db.invoice.findMany({ where: { status: 'PAID' }, select: { id: true, supplierInvoiceNo: true } })
+      expect(paidInvoices.map((i) => i.supplierInvoiceNo).sort()).toEqual(paidRows.map((r) => r.invoiceNo || `INV-${r.ref}`).sort())
+      expect(report.paymentRuns).toBeGreaterThan(0)
+      expect(report.unpaidInvoices).toBe(0)
+      const runs = await db.paymentRun.findMany({
+        include: { items: { include: { documents: true, withholdingTaxes: true } }, preparedBy: { select: { employeeCode: true } }, files: true },
+        orderBy: { payDate: 'asc' },
+      })
+      expect(runs).toHaveLength(report.paymentRuns!)
+      expect(runs.flatMap((r) => r.items.flatMap((i) => i.documents.map((d) => d.invoiceId))).sort()).toEqual(paidInvoices.map((i) => i.id).sort())
+      for (const run of runs) {
+        const day = run.payDate.toISOString().slice(0, 10)
+        expect({ status: run.status, preparer: run.preparedBy.employeeCode, number: /^PAY-\d{4}-\d{5}$/.test(run.number ?? '') }, day).toEqual({ status: 'COMPLETED', preparer: expect.stringMatching(/^fin_tre[12]$/), number: true })
+        expect(day < dayOf(clock.now), day).toBe(true)
+        // the run's day: on or after each invoice's due date and after the day it was ready — or, when that run day had
+        // not come yet, the last working day before the seed
+        const docs = await db.invoice.findMany({ where: { id: { in: run.items.flatMap((i) => i.documents.map((d) => d.invoiceId!)) } }, select: { dueDate: true, readyAt: true } })
+        const fallback = runs.at(-1)!.payDate.toISOString().slice(0, 10)
+        for (const d of docs) {
+          expect(dayOf(d.readyAt!) < day, day).toBe(true)
+          expect(d.dueDate!.toISOString().slice(0, 10) <= day || day === fallback, day).toBe(true)
+        }
+        expect(run.items.every((i) => i.status === 'PAID' && i.paidOn?.toISOString().slice(0, 10) === day), day).toBe(true)
+        // the tax of each item written once, as S8 records it, linked to the item
+        for (const item of run.items) expect(item.withholdingTaxes.reduce((a, w) => a + w.taxSatang, 0n), day).toBe(item.whtSatang)
+        expect(run.files.map((f) => [f.version, f.status, f.firstDownloadedAt !== null]), day).toEqual([[1, 'CURRENT', true]])
+        // its DOA route, approved
+        const route = await db.approvalRoute.findFirstOrThrow({ where: { subjectType: 'PAYMENT_RUN', subjectId: run.id }, include: { steps: { include: { tasks: true } } } })
+        expect(route.steps.flatMap((s) => s.tasks.map((t) => t.decision)), day).toContain('APPROVE')
+        const types = (await db.event.findMany({ where: { aggregateId: run.id }, select: { type: true } })).map((e) => e.type)
+        expect(types, day).toEqual(expect.arrayContaining(['payment_run.drafted', 'payment_run.documents_added', 'payment_run.submitted', 'payment_run.approved', 'payment_run.file_generated', 'payment_run.sent_to_bank', 'payment_run.completed']))
+      }
+      // the advices of the past went to the history's fake sender: none waits to be e-mailed now
+      expect(await db.supplierNotice.count({ where: { templateKey: 'payment.advice', status: 'PENDING' } })).toBe(0)
+      // one advice per paid item (BR-PAY-13)
+      expect(await db.supplierNotice.count({ where: { templateKey: 'payment.advice' } })).toBe(runs.reduce((a, r) => a + r.items.length, 0))
+      // a run writes no budget ledger (BR-PAY-14): no step of the payment history wrote a budget event
+      expect(await db.event.count({ where: { type: { startsWith: 'budget' }, requestId: { startsWith: 'demo-history:pay:' } } })).toBe(0)
     })
 
     it('leaves a history made in full alone when the seed runs again', async () => {

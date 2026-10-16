@@ -1,5 +1,6 @@
 import { getEnv } from '@/lib/env'
 import { forTenant } from '@/server/db/tenant'
+import { RICH_MENU_VARIANTS } from '@/core/line-menu'
 
 // The organization's LINE channel (LineChannelConfig, §6.2, FR-ADM-006 AC2). Read-only. The channel secret and the
 // access token stay sealed here: a query cannot open them (src/server/crypto is not a layer queries may use, §4.10). The
@@ -86,6 +87,8 @@ export interface LineChannelSettingsDto {
   readonly liffChannelId: string | null
   readonly richMenuLinkedId: string | null
   readonly richMenuUnlinkedId: string | null
+  /** S17-04: every set by role is stored (LineRichMenuVariant), not only LINKED and UNLINKED on the channel */
+  readonly richMenuSetsStored: boolean
   readonly active: boolean
   /** Sent back as expectedVersion when saving (CONFLICT_VERSION when someone saved in between) */
   readonly version: number | null
@@ -113,6 +116,7 @@ export async function readLineChannelSettings(organizationId: string, open: Line
       liffChannelId: null,
       richMenuLinkedId: null,
       richMenuUnlinkedId: null,
+      richMenuSetsStored: false,
       active: false,
       version: null,
       updatedAt: null,
@@ -120,6 +124,7 @@ export async function readLineChannelSettings(organizationId: string, open: Line
   }
   // Opened only to tell whether it still opens; the value itself goes no further than this line
   const status = (field: LineSecretField): LineSecretStatusDto => ({ set: true, readable: open(field, stored.sealed[field]) !== null })
+  const sets = new Set((await forTenant(organizationId).lineRichMenuVariant.findMany({ select: { variantKey: true } })).map((v) => v.variantKey))
   return {
     configured: true,
     channelKey: stored.channelKey,
@@ -132,6 +137,7 @@ export async function readLineChannelSettings(organizationId: string, open: Line
     liffChannelId: stored.liffChannelId,
     richMenuLinkedId: stored.richMenuLinkedId,
     richMenuUnlinkedId: stored.richMenuUnlinkedId,
+    richMenuSetsStored: RICH_MENU_VARIANTS.every((v) => v.variant === 'UNLINKED' || sets.has(v.variant)),
     active: stored.active,
     version: stored.version,
     updatedAt: stored.updatedAt.toISOString(),

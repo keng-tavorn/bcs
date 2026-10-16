@@ -11,7 +11,7 @@ import { STORED_ROLES } from '@/server/authz/permissions'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { LINE_RICH_MENU_KINDS } from '@/server/line/link-rich-menus'
-import { lineWebhookUrl } from '@/server/queries/line-channel'
+import { lineWebhookUrl, readLineChannelSettings } from '@/server/queries/line-channel'
 import {
   LINE_CHECK_REASONS,
   LINE_CONNECTION_CHECKS,
@@ -416,12 +416,16 @@ describe('[FR-ADM-006/AC3] the connection test passes every check for a channel 
   it('[FR-LINE-303/AC4] FAILs when one set by role is missing: not stored (notCreated), or gone at LINE (missingAtLine names it)', async () => {
     const setup = await ready()
     const { sets } = await withRichMenus(setup)
+    // The settings screen says every set is made only while each is stored (review of S17-04)
+    const opener = () => 'opened'
+    expect((await readLineChannelSettings(setup.orgId, opener)).richMenuSetsStored).toBe(true)
     await line.client.channel(TEST_ACCESS_TOKEN).deleteRichMenu(sets['LINKED:RECEIVER']!)
     const gone = (await run(setup)).report.checks.find((c) => c.id === 'richMenus')!
     expect([gone.status, gone.reason, gone.params]).toEqual(['FAIL', 'missingAtLine', { missing: 'LINKED:RECEIVER' }])
     await prisma.lineRichMenuVariant.deleteMany({ where: { organizationId: setup.orgId, variantKey: 'LINKED:APPROVER:PROCUREMENT' } })
     const notStored = (await run(setup)).report.checks.find((c) => c.id === 'richMenus')!
     expect([notStored.status, notStored.reason]).toEqual(['FAIL', 'notCreated'])
+    expect((await readLineChannelSettings(setup.orgId, opener)).richMenuSetsStored).toBe(false)
   })
 
   it('needs a saved channel first (NOT_FOUND) and calls LINE for nothing', async () => {

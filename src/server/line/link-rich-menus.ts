@@ -51,9 +51,6 @@ function layoutOf(choice: RichMenuChoice): LineRichMenuLayout {
 
 export const LINE_RICH_MENU_LAYOUTS: Readonly<Record<LineRichMenuKind, LineRichMenuLayout>> = Object.fromEntries(RICH_MENU_VARIANTS.map((v) => [v.variant, layoutOf(v)]))
 
-/** Whether a name is one of the sets */
-export const isLineRichMenuKind = (kind: string): boolean => Object.hasOwn(LINE_RICH_MENU_LAYOUTS, kind)
-
 /** Text of the bar under the chat that opens and closes the menu (LINE: at most 14 characters) */
 export const LINE_RICH_MENU_CHAT_BAR_TEXT = 'เมนู BCS'
 

@@ -51,7 +51,8 @@ export default async function LiffReceivableListPage() {
         <p className="text-ink-muted">{t('gr.intro')}</p>
         {rows.length ? (
           <>
-            <p className="font-medium text-ink">{t('gr.count', { count: rows.length })}</p>
+            {/* The count of a list that fits one page; a longer one names its total with the link to the web below */}
+            {data && data.pageCount === 1 ? <p className="font-medium text-ink">{t('gr.count', { count: rows.length })}</p> : null}
             <LiffReceivableList rows={rows} label={t('gr.list')} />
           </>
         ) : (

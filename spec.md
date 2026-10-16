@@ -6240,6 +6240,7 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S17-19 | main (หลัง A3) | LINE ของลูกค้า | `high` | เส้นชัย C และ P0-04 | ตรวจ |
 | S17-20 | main (หลัง A3) | แอปบน store | `high` | เส้นชัย C และ OQ-166 | ตรวจ |
 | S17-21 | main (หลัง A3) | ทดสอบที่หน้างานจริง | `medium` | หลัง S17-20 และ P0-14 | — |
+| S17-22 | 3 | `[go-live]` เมนูตามบทบาทเมื่อฉบับแรกที่อนุมัติล่วงหน้ามีผล และเมื่อย้ายแผนก (พบใน S17-03) | `high` | หลัง S17-08 | ตรวจ |
 
 - [x] **S17-01** `[demo]` migration ค่าตั้งต้น และกฎของขั้นตามหัวข้อ "Entity และ migration" และ "กฎ" ของ `docs/sub-specs/S17.md`: ตาราง `ChatIntake` `ChatIntakeItem` `LineInboundMessage` `PushDevice` `LineRichMenuVariant` · `GoodsReceipt.offlineCapturedAt` · ค่า enum `Channel.APP` `NotificationChannel.PUSH` `StepUpMethod.PASSKEY` · schema ของ `Organization.settings` (`chatIntake` `bcsGo`) และ `Member.notificationPrefs.appPush` · แถว Settings ใหม่ใน `scripts/inputs_p1/p1_master.py` พร้อมกติกาใน `validate_inputs.py --profile p1` · ใช้โมดูล `BCS_GO` ของ SIMEC ที่ P1-07 เปิด (ไม่ seed ซ้ำ) · เพิ่มกฎ BR ของขั้นลง spec ครั้งเดียว: ต่อท้ายตารางเดิมของ BR-AUTH (§2.5) BR-TOK (§4.9) BR-LINE (§9.2) BR-NOTI (§10.1) และตาราง BR-APP ใต้หัวข้อที่ P1-07 จองไว้ให้ S17 ท้าย §7 (กฎที่อ้าง ID ของขั้นที่ยังไม่อยู่ใน main ให้อ้างหัวข้อของ sub-spec นั้นแทน แล้วข้อที่ใช้ของนั้นแก้เป็น ID) · ตาราง passkey สร้างใน S17-15 — เสร็จ 2026-10-16 · 5952d11
   - เสร็จเมื่อ: migration แบบเพิ่มอย่างเดียว apply บนฐานของสายผ่าน · เทสต์ที่สร้างจาก DMMF ของ INV-TEN-01 และ INV-TEN-02 ครอบตารางใหม่และผ่าน · องค์กร demo เดิมมี `chatIntake.enabled` เป็น false และฉาก `@demo` ผ่าน · `pnpm inputs:check` ผ่าน · `pnpm spec:check` ไม่มี ID ที่ไม่มีนิยามและเลข ID ต่อเนื่อง · `pnpm verify` ผ่าน
@@ -6303,6 +6304,9 @@ agent เพิ่มงานที่พบระหว่างทำต่�
   - แยกงาน: ทำเองได้ (ผู้ใช้สมัครบัญชีผู้พัฒนาและอนุมัติการส่ง review)
 - [ ] **S17-21** `[go-live]` ทดสอบที่หน้างานจริงกับผู้ใช้จริงฝ่ายละ 1 คน (P0-14): ตรวจรับตอนไม่มีสัญญาณ สแกน QR บน PO จริง push และ biometric แล้วปรับค่าตาม OQ-163 OQ-169 ถ้าผลต่าง
   - เสร็จเมื่อ: บันทึกผลใน `docs/reports/s17-field-test.md` พร้อม `verifiedBy` (§15.6) · ไม่มีรายการคิวที่ส่งซ้ำหรือหาย · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเองได้
+- [ ] **S17-22** `[go-live]` เมนูตามบทบาทเปลี่ยนตามเวลาที่ฉบับมีผลจริง (พบในรีวิวของ S17-03 · BR-LINE-17): ฉบับแรกของ DOA หรือ workflow ที่อนุมัติล่วงหน้าไม่มีฉบับก่อนหน้า จึงไม่มี event `superseded` ตอนมีผล และการย้ายแผนกที่เปลี่ยนผู้ตรวจแบบ `POSITION_AT` (BR-WF-14) ไม่มี event ที่ job ฟัง · ให้ job activate เขียน event เมื่อฉบับแรกมีผล หรือให้ `line-rich-menu-versions` ตั้งเวลาตาม `effectiveFrom` และฟัง event ของผัง
+  - เสร็จเมื่อ: เทสต์กับ fake LINE: ฉบับแรกที่อนุมัติให้มีผลในอนาคตทำให้ผู้ตรวจได้เมนู `LINKED:APPROVER` ภายใน 1 นาทีหลังมีผล · ย้ายแผนกแล้วผู้ตรวจที่ resolve ใหม่ได้เมนูผู้อนุมัติ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
 
 ---

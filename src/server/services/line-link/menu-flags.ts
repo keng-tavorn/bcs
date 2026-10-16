@@ -29,7 +29,8 @@ export async function richMenuInputsOf(tx: TenantTx, memberIds: readonly string[
       select: { memberId: true, position: { select: { code: true } } },
     }),
     tx.delegation.findMany({ where: { delegateMemberId: { in: ids }, status: 'ACTIVE', revokedAt: null }, select: { delegateMemberId: true } }),
-    tx.doaVersion.findMany({ where: { status: { in: ['PUBLISHED', 'SUPERSEDED'] }, effectiveFrom: { lte: now } }, include: { rules: true } }),
+    // Only the versions in effect now; versionAt picks the one routing uses among them
+    tx.doaVersion.findMany({ where: { status: { in: ['PUBLISHED', 'SUPERSEDED'] }, effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] }, include: { rules: true } }),
     loadWorkflowVersions(tx),
   ])
 

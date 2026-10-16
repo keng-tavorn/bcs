@@ -86,7 +86,6 @@ beforeAll(async () => {
 })
 afterAll(() => {
   setDefaultOutboxSender(senderBefore)
-  setLineClient(line.client)
 })
 
 describe('[FR-LINE-303/AC1] the flags of a member at the time of the switch (BR-LINE-16)', () => {
@@ -152,6 +151,30 @@ describe('[FR-LINE-303/AC2] the menu follows roles, delegations and versions thr
     const version = await prisma.workflowVersion.findFirstOrThrow({ where: { organizationId: org.organizationId }, orderBy: { createdAt: 'desc' } })
     expect(await lineRichMenuRun({ data: { organizationId: org.organizationId, aggregateId: version.id, type: 'workflow_version.published' } }, jobStep)).toMatchObject({ status: 'APPLIED', users: 7 })
     expect(userMenu('req_con')).toBe(menuOf['LINKED:APPROVER'])
+  })
+})
+
+describe('[FR-LINE-303/AC2] a version run never leaves the menu of an old state (review of S17-03)', () => {
+  it('a member whose set changes while the bulk calls are on their way gets the menu of now, one by one', async () => {
+    let changed = false
+    const through: typeof fetch = async (input, init) => {
+      if (!changed && String(input).endsWith('/v2/bot/richmenu/bulk/link')) {
+        // A role granted (and switched by function line-rich-menu) after the run worked out its menus, before LINE got them
+        changed = true
+        await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: org.member.asst_con!, role: 'RECEIVER', grantedAt: new Date() } })
+      }
+      return fetch(input, init)
+    }
+    setLineClient(createLineClient({ apiBaseUrl: line.fake.url, dataApiBaseUrl: line.fake.url, fetch: through }))
+    let run: Awaited<ReturnType<typeof syncLineRichMenusOf>>
+    try {
+      run = await syncLineRichMenusOf(org.organizationId, 'ALL')
+    } finally {
+      setLineClient(line.client)
+    }
+    expect(changed).toBe(true)
+    expect(run).toMatchObject({ status: 'APPLIED', users: 7, resynced: 1 })
+    expect(userMenu('asst_con')).toBe(menuOf['LINKED:APPROVER:RECEIVER'])
   })
 })
 

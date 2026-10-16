@@ -202,13 +202,19 @@ export async function syncLineRichMenusOf(organizationId: string, memberIds: rea
     return { status: 'APPLIED', users: links.length, resynced: 0, refused }
   }
 
-  const inputs = await forTenant(organizationId).$transaction((tx) => richMenuInputsOf(tx, links.map((l) => l.memberId), systemClock.now()))
-  const variants = await menuIdsOf(organizationId)
+  /** The menu of every link's member now, by LINE user; undefined when a set has no menu at all */
+  const targetsNow = async (of: typeof links) => {
+    const inputs = await forTenant(organizationId).$transaction((tx) => richMenuInputsOf(tx, of.map((l) => l.memberId), systemClock.now()))
+    const variants = await menuIdsOf(organizationId)
+    return new Map(of.map((l) => [l.externalUserId, targetOf(selectRichMenu(inputs.get(l.memberId) ?? { linked: false }), variants, channel.richMenuLinkedId)]))
+  }
+  const sent = await targetsNow(links)
   const groups = new Map<string | null, string[]>()
-  for (const link of links) {
-    const target = targetOf(selectRichMenu(inputs.get(link.memberId) ?? { linked: false }), variants, channel.richMenuLinkedId)
+  for (const [user, target] of sent) {
     if (target === undefined) return { status: 'SKIPPED', reason: 'NO_LINKED_MENU' }
-    groups.set(target, [...(groups.get(target) ?? []), link.externalUserId])
+    const group = groups.get(target)
+    if (group) group.push(user)
+    else groups.set(target, [user])
   }
   for (const [target, users] of groups) {
     for (let at = 0; at < users.length; at += LINE_RICH_MENU_BULK_USERS_MAX) {
@@ -223,11 +229,15 @@ export async function syncLineRichMenusOf(organizationId: string, memberIds: rea
       }
     }
   }
-  // A link that ended or moved to another member while the menus were worked out and sent: its user gets the menu of now
-  const now = new Map((await liveLinks(organizationId, channel.providerId, 'ALL')).map((l) => [l.externalUserId, l.memberId]))
-  const moved = links.filter((l) => now.get(l.externalUserId) !== l.memberId)
-  for (const link of moved) await oneByOne(link.externalUserId)
-  return { status: 'APPLIED', users: links.length, resynced: moved.length, refused }
+  // Read again after the bulk calls: a link that ended or moved to another member, or a member whose menu changed
+  // meanwhile (a role, a position or a delegation that function line-rich-menu switched before a bulk call landed),
+  // gets the one-user switch, so a late bulk call never leaves the menu of an old state
+  const linksNow = await liveLinks(organizationId, channel.providerId, 'ALL')
+  const memberNow = new Map(linksNow.map((l) => [l.externalUserId, l.memberId]))
+  const targetNow = await targetsNow(linksNow.filter((l) => sent.has(l.externalUserId)))
+  const stale = links.filter((l) => memberNow.get(l.externalUserId) !== l.memberId || targetNow.get(l.externalUserId) !== sent.get(l.externalUserId))
+  for (const link of stale) await oneByOne(link.externalUserId)
+  return { status: 'APPLIED', users: links.length, resynced: stale.length, refused }
 }
 
 /**

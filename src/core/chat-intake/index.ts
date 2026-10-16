@@ -1,3 +1,5 @@
+import { MS_PER_MINUTE } from '../money/constants'
+
 // Asking through the LINE chat (BR-LINE-10 to BR-LINE-12, BR-LINE-15 · FR-LINE-301 · golden chat-intake). Pure: the
 // service reads the organization's settings, the sender's link, their open draft and their messages of the last hour,
 // and passes them in with the time; this module says what to do with one message and what to answer, cuts text and
@@ -70,7 +72,7 @@ export function routeChatMessage(f: ChatMessageFacts): ChatRoute {
   if (f.sentLastHour >= f.settings.hourlyLimit) return f.limitNoticeSentThisHour ? route('RATE_LIMITED', 'NONE') : answer('RATE_LIMITED', 'RATE_LIMIT_NOTICE')
   if (f.messageType !== 'text' && f.messageType !== 'image') return answer('UNSUPPORTED', 'TEXT_OR_PHOTO_HINT')
 
-  const open = f.openIntake && f.now.getTime() - f.openIntake.lastMessageAt.getTime() < f.settings.windowMinutes * 60_000 ? f.openIntake : null
+  const open = f.openIntake && f.now.getTime() - f.openIntake.lastMessageAt.getTime() < f.settings.windowMinutes * MS_PER_MINUTE ? f.openIntake : null
   if (open && f.messageType === 'image' && open.images >= f.settings.maxImages) return answer('LIMIT_IMAGES', 'ADD_IN_LIFF')
   const action: ChatAction = open ? 'APPEND' : 'OPEN_NEW'
   // The button: by reply while the token works; by one push for a draft that never had it; else nothing
@@ -120,5 +122,5 @@ export function titleFromText(text: string): string {
 
 /** The OPEN drafts nobody used for expireHours (BR-LINE-10): exactly that long ago expires */
 export function expiredIntakeIds(now: Date, expireHours: number, intakes: ReadonlyArray<{ readonly id: string; readonly status: string; readonly lastMessageAt: Date }>): string[] {
-  return intakes.filter((i) => i.status === 'OPEN' && now.getTime() - i.lastMessageAt.getTime() >= expireHours * 3_600_000).map((i) => i.id)
+  return intakes.filter((i) => i.status === 'OPEN' && now.getTime() - i.lastMessageAt.getTime() >= expireHours * 60 * MS_PER_MINUTE).map((i) => i.id)
 }

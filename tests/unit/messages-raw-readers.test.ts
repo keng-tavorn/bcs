@@ -31,6 +31,7 @@ const READERS: Readonly<Record<string, Use>> = {
   },
   'src/app/(workspace)/audit/page.tsx': { asText: ['audit.events', 'audit.groups', 'audit.aggregate'], why: 'the names of event types, their groups and the documents in the search and the rows' },
   'src/app/offline/route.ts': { asText: ['pwa.offlineTitle', 'pwa.offlineBody', 'pwa.retry'], why: 'the offline page is plain HTML the service worker keeps' },
+  'src/server/notifications/push-message.ts': { asText: ['push'], why: 'the push titles of the BCS Go app, built by delivery in a job, without a request (S17-10)' },
 }
 
 /** The ways code reads message values itself */

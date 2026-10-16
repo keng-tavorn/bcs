@@ -82,8 +82,9 @@ const digestOf = async (memberId: string, date = '2026-10-05') => prisma.notific
 describe('[FR-LINE-006/AC3] a member turns their own daily summary off; approval and SLA notices stay on (BR-NOTI-04)', () => {
   it('turns it off with an event, refuses a change that changes nothing, and turns it on again', async () => {
     const ctx = org.ctxOf('vp_ops', at('2026-10-04T10:00:00Z'))
-    expect(await getMyNotificationPrefs(ctx)).toEqual({ ok: true, data: { digest: true, approvalsAlwaysImmediate: true } })
-    expect(await updateNotificationPrefs(ctx, { digest: false }, key())).toEqual({ ok: true, data: { digest: false, approvalsAlwaysImmediate: true } })
+    // appPush: notifications in the BCS Go app (S17-10), off unless turned on in the app
+    expect(await getMyNotificationPrefs(ctx)).toEqual({ ok: true, data: { digest: true, appPush: false, approvalsAlwaysImmediate: true } })
+    expect(await updateNotificationPrefs(ctx, { digest: false }, key())).toEqual({ ok: true, data: { digest: false, appPush: false, approvalsAlwaysImmediate: true } })
     expect(await prisma.member.findUniqueOrThrow({ where: { id: org.member.vp_ops } })).toMatchObject({ notificationPrefs: { digest: false } })
     const events = await prisma.event.findMany({ where: { type: 'member.notification_prefs_updated', aggregateId: org.member.vp_ops } })
     expect(events).toHaveLength(1)

@@ -2675,6 +2675,7 @@
       "PositionAssignment": "Position holding",
       "PriceAgreement": "Agreed price",
       "PurchaseOrder": "Purchase order",
+      "PushDevice": "BCS Go phone",
       "ReportSchedule": "Report schedule",
       "Request": "Request",
       "RequestType": "Request type",
@@ -2956,6 +2957,10 @@
         "created": "Agreed price set",
         "ended": "Agreed price ended"
       },
+      "push_device": {
+        "registered": "Phone registered for notifications in the app",
+        "revoked": "Phone ended for notifications in the app"
+      },
       "report_schedule": {
         "created": "Report e-mail schedule set"
       },
@@ -3086,6 +3091,7 @@
       "po_change": "PO changes",
       "position": "Positions",
       "price_agreement": "Agreed prices",
+      "push_device": "BCS Go phones",
       "report_schedule": "Reports",
       "request": "Requests",
       "request_type": "Request types",

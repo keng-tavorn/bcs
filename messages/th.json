@@ -2675,6 +2675,7 @@
       "PositionAssignment": "การดำรงตำแหน่ง",
       "PriceAgreement": "ราคาตกลง",
       "PurchaseOrder": "ใบสั่งซื้อ",
+      "PushDevice": "โทรศัพท์ในแอป BCS Go",
       "ReportSchedule": "รอบส่งรายงาน",
       "Request": "คำขอ",
       "RequestType": "ประเภทคำขอ",
@@ -2956,6 +2957,10 @@
         "created": "ตั้งราคาตกลง",
         "ended": "สิ้นสุดราคาตกลง"
       },
+      "push_device": {
+        "registered": "ลงทะเบียนโทรศัพท์รับแจ้งเตือนในแอป",
+        "revoked": "ยกเลิกโทรศัพท์รับแจ้งเตือนในแอป"
+      },
       "report_schedule": {
         "created": "ตั้งรอบส่งรายงานทางอีเมล"
       },
@@ -3086,6 +3091,7 @@
       "po_change": "ใบแก้ไขใบสั่งซื้อ",
       "position": "ตำแหน่ง",
       "price_agreement": "ราคาตกลง",
+      "push_device": "โทรศัพท์ในแอป BCS Go",
       "report_schedule": "รายงาน",
       "request": "คำขอ",
       "request_type": "ประเภทคำขอ",

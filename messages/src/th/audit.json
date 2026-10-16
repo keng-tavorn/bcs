@@ -139,7 +139,8 @@
     "supplier_notice": "อีเมลถึงผู้ขาย",
     "wht_certificate": "50 ทวิ",
     "wht_income_type": "ประเภทเงินได้",
-    "withholding_tax": "ภาษีหัก ณ ที่จ่าย"
+    "withholding_tax": "ภาษีหัก ณ ที่จ่าย",
+    "push_device": "โทรศัพท์ในแอป BCS Go"
   },
   "aggregate": {
     "ApprovalStep": "ขั้นอนุมัติ",
@@ -189,7 +190,8 @@
     "SupplierNotice": "อีเมลถึงผู้ขาย",
     "WhtCertificate": "หนังสือรับรองการหักภาษี (50 ทวิ)",
     "WhtIncomeType": "ประเภทเงินได้",
-    "WithholdingTax": "ภาษีหัก ณ ที่จ่าย"
+    "WithholdingTax": "ภาษีหัก ณ ที่จ่าย",
+    "PushDevice": "โทรศัพท์ในแอป BCS Go"
   },
   "events": {
     "approval_step": {
@@ -511,6 +513,10 @@
     },
     "withholding_tax": {
       "recorded": "บันทึกภาษีหัก ณ ที่จ่าย"
+    },
+    "push_device": {
+      "registered": "ลงทะเบียนโทรศัพท์รับแจ้งเตือนในแอป",
+      "revoked": "ยกเลิกโทรศัพท์รับแจ้งเตือนในแอป"
     }
   }
 }

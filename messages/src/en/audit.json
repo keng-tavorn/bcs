@@ -139,7 +139,8 @@
     "supplier_notice": "E-mails to suppliers",
     "wht_certificate": "Withholding tax certificates",
     "wht_income_type": "Income types",
-    "withholding_tax": "Withholding tax"
+    "withholding_tax": "Withholding tax",
+    "push_device": "BCS Go phones"
   },
   "aggregate": {
     "ApprovalStep": "Approval step",
@@ -189,7 +190,8 @@
     "SupplierNotice": "E-mail to a supplier",
     "WhtCertificate": "Withholding tax certificate",
     "WhtIncomeType": "Income type",
-    "WithholdingTax": "Withholding tax"
+    "WithholdingTax": "Withholding tax",
+    "PushDevice": "BCS Go phone"
   },
   "events": {
     "approval_step": {
@@ -511,6 +513,10 @@
     },
     "withholding_tax": {
       "recorded": "Withholding tax recorded"
+    },
+    "push_device": {
+      "registered": "Phone registered for notifications in the app",
+      "revoked": "Phone ended for notifications in the app"
     }
   }
 }

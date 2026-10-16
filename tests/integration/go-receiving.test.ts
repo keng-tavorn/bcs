@@ -5,8 +5,11 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { GET as prepareRoute } from '@/app/api/go/receiving/prepare/route'
+import { POST as completeRoute } from '@/app/api/go/files/complete/route'
+import { POST as requestRoute } from '@/app/api/go/files/request/route'
 import { GET as lookupRoute, POST as postRoute } from '@/app/api/go/receiving/gr/route'
 import { fund } from '@/core/budget'
+import { putObject } from '@/integrations/storage'
 import { getEnv } from '@/lib/env'
 import { totp } from '@/lib/totp'
 import { applyBudget } from '@/server/budget/ledger'
@@ -137,6 +140,16 @@ describe('[FR-PLT-301/AC5] what the phone keeps: copies without money, for the r
     expect(prepared.truncated).toBe(true)
   })
 
+  it('leaves out a PO the receiver may not receive by separation of duties: they approved its request (BR-SOD-02)', async () => {
+    const po = await sentPo(org, supplierId)
+    const approver = await prisma.approvalTask.findFirstOrThrow({ where: { organizationId: org.organizationId, status: 'APPROVED', step: { route: { subjectType: 'REQUEST' } }, decidedByMemberId: { not: null } }, orderBy: { decidedAt: 'desc' } })
+    const code = codeOf(org, approver.decidedByMemberId!)
+    await prisma.roleAssignment.create({ data: { organizationId: org.organizationId, memberId: approver.decidedByMemberId!, role: 'RECEIVER', scopeDepartmentId: org.department.CON!, grantedAt: NOW } })
+    const theirs = ok(await prepareOfflineCopies(org.ctxOf(code, NOW, 'APP')))
+    expect(theirs.copies.some((c) => c.poId === po.poId)).toBe(false)
+    expect(ok(await prepareOfflineCopies(org.ctxOf('receiver_con', NOW, 'APP'))).copies.some((c) => c.poId === po.poId)).toBe(true)
+  })
+
   it('what a key recorded is read by the member who sent it; another member does not find it', async () => {
     const po = await sentPo(org, supplierId)
     const queueKey = randomUUID()
@@ -181,6 +194,29 @@ describe('[FR-PLT-301/AC5] the routes of /go/receive (BR-APP-03, BR-APP-07)', ()
     expect(await lookup.json()).toMatchObject({ recorded: true, result: { ok: true, data: { grId: created.grId } } })
     expect((await lookupRoute(new Request(`${url}?key=x`, { headers: { cookie } }))).status).toBe(400)
     expect((await lookupRoute(new Request(`${url}?key=${queueKey}`))).status).toBe(401)
+  })
+})
+
+describe('[FR-PLT-301/AC7] the photos of a queued receipt go up through the routes (BR-APP-14)', () => {
+  it('a ticket, the upload, and a completion asked twice with the same ticket give one file', async () => {
+    const cookie = await cookieOf(org, 'receiver_con')
+    const base = getEnv().APP_URL
+    const bytes = Buffer.from('/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDA==', 'base64')
+    const headers = { 'content-type': 'application/json', cookie, 'user-agent': APP_UA }
+    const asked = await requestRoute(new Request(`${base}/api/go/files/request`, { method: 'POST', headers, body: JSON.stringify({ fileName: 'delivery.jpg', mimeType: 'image/jpeg', sizeBytes: bytes.length }) }))
+    expect(asked.status).toBe(200)
+    const { ticket } = (await asked.json()) as { ticket: string }
+    const storageKey = (JSON.parse(Buffer.from(ticket.split('.')[0]!, 'base64url').toString('utf8')) as { key: string }).key
+    await putObject(storageKey, bytes, 'image/jpeg')
+    const complete = () => completeRoute(new Request(`${base}/api/go/files/complete`, { method: 'POST', headers, body: JSON.stringify({ ticket }) }))
+    const first = (await (await complete()).json()) as { fileId: string }
+    const again = await complete()
+    expect(again.status).toBe(200)
+    expect(((await again.json()) as { fileId: string }).fileId).toBe(first.fileId)
+    expect(await prisma.fileObject.findUniqueOrThrow({ where: { id: first.fileId } })).toMatchObject({ uploadedById: org.member.receiver_con, mimeType: 'image/jpeg' })
+    // A ticket that is not one asks for a new ticket; another site may not call the route
+    expect(await (await completeRoute(new Request(`${base}/api/go/files/complete`, { method: 'POST', headers, body: JSON.stringify({ ticket: 'x.y' }) }))).json()).toMatchObject({ error: { code: 'VALIDATION_FAILED' } })
+    expect((await requestRoute(new Request(`${base}/api/go/files/request`, { method: 'POST', headers: { ...headers, 'sec-fetch-site': 'cross-site' }, body: '{}' }))).status).toBe(403)
   })
 })
 

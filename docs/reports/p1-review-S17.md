@@ -31,3 +31,17 @@
 | 5 | ความเห็นใน `.env.example` และ workflow ชี้ไป `docs/runbooks/bcs-go-demo.md` ที่ยังไม่มี | ไม่แก้: runbook เขียนใน S17-17 ของสายนี้ |
 
 ตรวจเพิ่มในรอบนี้โดยไม่พบปัญหา: ช่องทาง `APP` ไม่เพิ่มสิทธิ์ใด (แทนที่เฉพาะ `WEB` ใน `ctxFromSession` · LIFF อีเมล และปุ่มแชทคงเดิม จึงปลอม user agent ได้แค่ป้ายใน audit) · ESLint ของ CI ไม่ต้องติดตั้งแพ็กเกจของ `mobile/` (ไม่มีกฎ no-unresolved) · `cap sync` เขียน `usesCleartextTraffic` ให้เองเมื่อ `server.cleartext` เปิด (เฉพาะ emulator)
+
+## S17-12 ตรวจรับออฟไลน์ ส่วนเซิร์ฟเวอร์ (สาย 1 · 2026-10-16 · รีวิวทันทีตาม ADR-072 · ข้อเงิน)
+
+คำสั่ง: `/code-review xhigh 598fec7...HEAD` ที่ commit b637032 (ฐาน = merge ของ S9 ก่อน commit แรกของ S17-12) · พบ 5 ข้อ · แก้ 3 ข้อ · ไม่แก้ 2 ข้อ
+
+| # | ข้อที่พบ | ผล |
+| --- | --- | --- |
+| 1 | ไม่มีเทสต์ว่าสำเนาออฟไลน์ไม่รวม PO ที่ผู้ตรวจรับรับไม่ได้เพราะ SoD (อนุมัติคำขอเอง · BR-SOD-02) มีแต่กรณีไม่มี role | แก้: เทสต์ใน `tests/integration/go-receiving.test.ts` ผู้อนุมัติคำขอที่ได้ role RECEIVER ไม่ได้สำเนาของ PO นั้น |
+| 2 | `poVersion` ในผลของ `gr.post` คำนวณเป็น `po.version + 1` แทนการอ่านจากการ update | แก้: อ่าน `version` ที่ update คืนมา |
+| 3 | route `/api/go/files/request` `/api/go/files/complete` ไม่มีเทสต์ | แก้: เทสต์ขอ ticket อัปโหลด complete ซ้ำด้วย ticket เดิมได้ไฟล์เดียว ticket ผิดได้ `VALIDATION_FAILED` และเรียกข้ามเว็บได้ 403 |
+| 4 | runner ของ golden `offline-receiving` เรียก `gr.post` ตรงแทน route | ไม่แก้: ต้องคุมนาฬิกาของเซิร์ฟเวอร์ (route ใช้เวลาจริง) · route เป็นชั้นบางที่ส่งต่อ key และ body และมีเทสต์ของตัวเองใน `go-receiving.test.ts` |
+| 5 | `checkOfflineCapture` อ่านค่าตั้งขององค์กรซ้ำกับที่ `gr.post` อ่านอีกครั้ง | ไม่แก้: query เดียวต่อการตรวจรับออฟไลน์ คงลำดับการตรวจของ BR-APP-08 ไว้ในไฟล์ของ S17 ตามที่ P1-07 วาง |
+
+ตรวจเพิ่มโดยไม่พบปัญหา: PO ถูกล็อกก่อนเทียบ version (`loadPo` → `lockRowsForUpdate`) · วันคืนเงินประกันอ่าน `postedAt` ไม่ใช่ `receivedAt` · เลข GR ออกด้วย `ctx.now` · ผลที่บันทึกของ key ค้นใน namespace ของผู้ส่งเท่านั้น · สำเนาไม่มีราคา ยอด งบ หรือผู้ติดต่อ

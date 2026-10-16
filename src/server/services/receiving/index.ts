@@ -301,7 +301,7 @@ export const postGrCommand = defineCommand({
     }
     const moved = await statusAfterReceipt(tx, po)
     if (!moved.ok) return fail('INVALID_STATE_TRANSITION', `gr.post is not allowed when the purchase order is ${po.status}`, { from: po.status, command: 'gr.post' })
-    await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, version: { increment: 1 } } })
+    const after = await tx.purchaseOrder.update({ where: { id: po.id }, data: { status: moved.to, version: { increment: 1 } }, select: { version: true } })
     // BR-AI-17 (S13): what the person confirmed of an AI action, last, in this transaction
     const assisted = await applyAiAssist(tx, ctx, { type: 'GOODS_RECEIPT', id: grId }, input.aiAssist)
     if (!assisted.ok) return assisted
@@ -333,7 +333,7 @@ export const postGrCommand = defineCommand({
     // S8 (BR-MATCH-10): the PO's invoices waiting in EXCEPTION are matched again after this receipt
     const outbox = await recheckRequest(tx, ctx.organizationId, po.id, `gr:${grId}`)
     // poVersion: the PO's version after this receipt, which the phone's queue expects of its next receipt of the PO (BR-APP-06)
-    return { ok: true, result: { grId, number, poStatus: moved.to, poVersion: po.version + 1, varianceIds, pendingApproval }, events, notifications, outbox }
+    return { ok: true, result: { grId, number, poStatus: moved.to, poVersion: after.version, varianceIds, pendingApproval }, events, notifications, outbox }
   },
 })
 

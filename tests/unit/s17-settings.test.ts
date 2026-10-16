@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 import { OrgSettingsSchema } from '@/lib/org-settings'
-import { BCS_GO_DEFAULTS, bcsGoSettingsOf, CHAT_INTAKE_DEFAULTS, chatIntakeSettingsOf, S17_SETTING_LIMITS } from '@/lib/s17-settings'
+import { BCS_GO_DEFAULTS, bcsGoSettingsOf, CHAT_INTAKE_DEFAULTS, chatIntakeSettingsFor, chatIntakeSettingsOf, S17_SETTING_LIMITS } from '@/lib/s17-settings'
+import { sandboxSettingsOf } from '@/lib/uat'
 import { s17SettingsFromSheet } from '@/server/seed/settings-s17'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputWorkbook, type SheetRow } from '@/server/seed/workbook'
 
@@ -112,3 +113,27 @@ describe('[FR-PLT-001/AC2] the seed reads the S17 rows of sheet Settings', () =>
   })
 })
 
+describe('[BR-LINE-10] the S17 settings in a UAT sandbox (BR-UAT-01 · ADR-174)', () => {
+  const production = () => OrgSettingsSchema.parse({ ...demo(), chatIntake: { enabled: true, windowMinutes: 15 }, bcsGo: { maxPreparedPos: 20 } })
+
+  it('the sandbox copies every key of chatIntake and bcsGo, with the chat and LINE off', () => {
+    const settings = production()
+    const sandbox = sandboxSettingsOf(settings)
+    expect(OrgSettingsSchema.parse(sandbox)).toEqual(sandbox)
+    expect(sandbox).toEqual({ ...settings, features: { ...settings.features, lineChannel: false }, chatIntake: { enabled: false, windowMinutes: 15 } })
+    expect(chatIntakeSettingsOf(sandbox)).toEqual({ ...CHAT_INTAKE_DEFAULTS, windowMinutes: 15 })
+    expect(bcsGoSettingsOf(sandbox)).toEqual({ ...BCS_GO_DEFAULTS, maxPreparedPos: 20 })
+  })
+
+  it('settings without chatIntake stay without it, and read as off', () => {
+    const sandbox = sandboxSettingsOf(OrgSettingsSchema.parse(demo()))
+    expect(sandbox.chatIntake).toBeUndefined()
+    expect(chatIntakeSettingsOf(sandbox).enabled).toBe(false)
+  })
+
+  it('the chat reads a sandbox as off even when its stored settings say on; production as stored', () => {
+    const settings = production()
+    expect(chatIntakeSettingsFor({ kind: 'SANDBOX', settings })).toEqual({ ...CHAT_INTAKE_DEFAULTS, windowMinutes: 15 })
+    expect(chatIntakeSettingsFor({ kind: 'PRODUCTION', settings })).toEqual({ ...CHAT_INTAKE_DEFAULTS, enabled: true, windowMinutes: 15 })
+  })
+})

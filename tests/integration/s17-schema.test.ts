@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { chatIntakeSettingsOf, CHAT_INTAKE_DEFAULTS } from '@/lib/s17-settings'
+import { chatIntakeSettingsFor, chatIntakeSettingsOf, CHAT_INTAKE_DEFAULTS } from '@/lib/s17-settings'
+import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { loadOrgSettingsYaml, parseDemoOrgInput, seedDemoOrganization } from '@/server/seed/demo-org'
 import { INPUT_WORKBOOKS, loadInputWorkbook } from '@/server/seed/workbook'
+import { createSandbox } from '@/server/services/platform/sandbox'
 import { appPushEnabled, StoredNotificationPrefsSchema } from '@/server/services/self/notification-prefs'
 import { createMember, createOrg } from '../support/factory'
 
@@ -135,6 +137,29 @@ describe('[FR-PLT-001/AC2] the seed: the demo organization keeps the chat off, S
     const stored = await prisma.organization.findUniqueOrThrow({ where: { id: organizationId }, select: { settings: true } })
     expect((stored.settings as Record<string, unknown>).chatIntake).toBeUndefined()
     expect(chatIntakeSettingsOf(stored.settings).enabled).toBe(false)
+  })
+})
+
+describe('[BR-LINE-10] a UAT sandbox of S6 copies the S17 settings with the chat off (BR-UAT-01 · ADR-174)', () => {
+  it('the sandbox command copies the chatIntake and bcsGo of production, turns the chat and LINE off, and the chat reads it as off', async () => {
+    const p1 = parseDemoOrgInput(await loadInputWorkbook(INPUT_WORKBOOKS.p1), loadOrgSettingsYaml())
+    expect(chatIntakeSettingsOf(p1.settings).enabled).toBe(true)
+    const production = await createOrg()
+    await prisma.organization.update({ where: { id: production.id }, data: { settings: p1.settings as object } })
+    const admin = await prisma.platformAdmin.create({ data: { displayName: 'ทีม BCS', active: true } })
+    const ctx = makeCtx({ organizationId: production.id, actor: { type: 'PLATFORM_ADMIN', platformAdminId: admin.id }, channel: 'WEB', now: at })
+    const code = `UAT-${randomUUID().slice(0, 6).toUpperCase()}`
+    const made = await createSandbox(ctx, { code, contractRef: 'CT-2026-001', reason: 'ลูกค้าขอระบบทดลองตามสัญญา' }, { idempotencyKey: randomUUID(), sender: null })
+    if (!made.ok) throw new Error(JSON.stringify(made.error))
+    const sandbox = await prisma.organization.findUniqueOrThrow({ where: { id: made.data.sandboxOrganizationId }, select: { kind: true, settings: true } })
+    const stored = sandbox.settings as { chatIntake?: unknown; bcsGo?: unknown; features: { lineChannel: boolean } }
+    expect(stored.chatIntake).toEqual({ ...p1.settings.chatIntake, enabled: false })
+    expect(stored.bcsGo).toEqual(p1.settings.bcsGo)
+    expect(stored.features.lineChannel).toBe(false)
+    expect(chatIntakeSettingsFor(sandbox).enabled).toBe(false)
+    // Production keeps its own
+    const kept = await prisma.organization.findUniqueOrThrow({ where: { id: production.id }, select: { kind: true, settings: true } })
+    expect(chatIntakeSettingsFor(kept).enabled).toBe(true)
   })
 })
 

@@ -98,6 +98,15 @@ export function chatIntakeSettingsOf(settings: unknown): ChatIntakeSettings {
   return withDefaults(ChatIntakeSettingsSchema, sectionOf(settings, 'chatIntake'), CHAT_INTAKE_DEFAULTS)
 }
 
+/**
+ * Whether and how an organization asks through the chat, as the chat reads it (S17-06): a UAT sandbox never does,
+ * whatever its stored settings say (BR-UAT-01 · ADR-174), since a sandbox never sends by LINE
+ */
+export function chatIntakeSettingsFor(org: { readonly kind: 'PRODUCTION' | 'SANDBOX'; readonly settings: unknown }): ChatIntakeSettings {
+  const stored = chatIntakeSettingsOf(org.settings)
+  return org.kind === 'SANDBOX' ? { ...stored, enabled: false } : stored
+}
+
 /** settings.bcsGo of stored settings, each missing key read as its default */
 export function bcsGoSettingsOf(settings: unknown): BcsGoSettings {
   return withDefaults(BcsGoSettingsSchema, sectionOf(settings, 'bcsGo'), BCS_GO_DEFAULTS)

@@ -416,6 +416,9 @@ export function describeP1Seed(clock: SeedP1Clock): void {
     it('[FR-PLT-101/AC3] S6-21: the workflow tried on SIMEC-UAT is exported, admin2 imports it into SIMEC as a draft, and the ceo approves it on the normal route', async () => {
       const sandbox = await seedP1Sandbox(organizationId, { password: PASSWORD, totpKey: TOTP_KEY, pin: PIN, now: clock.now, rename: { code: `${clock.orgCode}-UAT`, emailPrefix: `${clock.orgCode.toLowerCase()}.` } })
       expect((await prisma.organization.findUniqueOrThrow({ where: { id: sandbox.organizationId }, select: { kind: true, sandboxOfOrganizationId: true } }))).toEqual({ kind: 'SANDBOX', sandboxOfOrganizationId: organizationId })
+      // S17-01 (BR-UAT-01 · ADR-174): SIMEC asks through the chat, its sandbox does not, and sends nothing by LINE
+      const uatSettings = (await prisma.organization.findUniqueOrThrow({ where: { id: sandbox.organizationId }, select: { settings: true } })).settings as { chatIntake?: { enabled?: boolean }; features: { lineChannel: boolean } }
+      expect({ chat: uatSettings.chatIntake?.enabled, line: uatSettings.features.lineChannel }).toEqual({ chat: false, line: false })
       // The sandbox has the structure and the workflow, and none of the requests, budget or suppliers
       const uat = forTenant(sandbox.organizationId)
       expect({ requests: await uat.request.count(), lines: await uat.budgetLine.count(), suppliers: await uat.supplier.count() }).toEqual({ requests: 0, lines: 0, suppliers: 0 })

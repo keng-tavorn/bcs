@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { newId } from '@/lib/ids'
 import { OrgSettingsSchema } from '@/lib/org-settings'
+import { sandboxSettingsOf } from '@/lib/uat'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { isActivePlatformAdmin } from '@/server/db/lookups'
@@ -26,12 +27,6 @@ const SandboxInput = z.strictObject({
 
 const fail = (code: 'VALIDATION_FAILED' | 'FORBIDDEN', message: string, details?: Record<string, unknown>) => ({ ok: false, error: { code, message, ...(details ? { details } : {}) } }) as const
 
-/** Production's settings with the LINE channel off (BR-UAT-01: a sandbox never sends by LINE) */
-function sandboxSettings(settings: unknown): object {
-  const parsed = OrgSettingsSchema.parse(settings)
-  return { ...parsed, features: { ...parsed.features, lineChannel: false } }
-}
-
 export const createSandboxCommand = defineCommand({
   name: 'organization.create_sandbox',
   capability: 'platform.sandbox.manage',
@@ -51,7 +46,7 @@ export const createSandboxCommand = defineCommand({
       taxId: production.taxId,
       branchCode: production.branchCode,
       timezone: production.timezone,
-      settings: sandboxSettings(production.settings),
+      settings: sandboxSettingsOf(OrgSettingsSchema.parse(production.settings)),
       sandboxOfOrganizationId: ctx.organizationId,
       platformAdminId: ctx.actor.platformAdminId,
       contractRef: input.contractRef,

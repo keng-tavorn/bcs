@@ -60,6 +60,8 @@ const delegate = (client: unknown, model: string): any => (client as Record<stri
 const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   Delegation: { endsAt: new Date('2026-10-06T03:00:00Z') }, // delegation_period: startsAt < endsAt
   PushDevice: { tokenHash: 'a'.repeat(64) }, // push_device_token_hash: the sha256 of the token in lower-case hex (S17)
+  // passkey_challenge_hash: the sha256 of the challenge in lower-case hex, unique per organization (S17-15)
+  PasskeyChallenge: { challengeHash: () => createHash('sha256').update(randomUUID()).digest('hex') },
   BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
   Supplier: { isForeign: true }, // supplier_tax_id_shape: a Thai supplier needs a 13-digit tax id, a foreign one may have none
   InvoiceConfirmation: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n }, // invoice_money_non_negative: gross = net + VAT
@@ -116,6 +118,8 @@ function sample(field: Field): unknown {
       return new Date('2026-10-05T03:00:00Z')
     case 'Json':
       return {}
+    case 'Bytes':
+      return new Uint8Array([1])
     default:
       throw new Error(`no sample for ${field.type}`)
   }

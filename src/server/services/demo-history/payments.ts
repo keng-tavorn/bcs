@@ -26,8 +26,10 @@ import { addPaymentDocuments, createPaymentRun, setPaymentFlagReason, submitPaym
 // before, explains a flag that needs a reason, and sends it; the approver the DOA route names (PAY-01 cfo, PAY-02 ceo)
 // approves with the PIN when it is over the stepUpThreshold; on the pay day the preparer makes the neutral file,
 // downloads it and marks it sent, and records every item paid that afternoon. A pay day not before today falls back to
-// the last working day before today. The payment advices of the past go to the fake sender of the history (marked sent),
-// so no supplier of the demo gets an old e-mail. Every step's events carry the step's key (demo-history:pay:<day>:<step>).
+// the last working day before today; an invoice with no working day between its readiness and today stays ready for
+// payment (counted as left). The payment advices of the past go to the fake sender of the history at the run's time
+// (marked sent then), so no supplier of the demo gets an old e-mail. Every step's events carry the step's key
+// (demo-history:pay:<day>:<step>). Invoices are named by their supplier's code and their number (unique per supplier).
 
 /** What the history's context gives this part */
 export interface PaymentHistoryContext {
@@ -46,6 +48,14 @@ const FLAG_REASON = 'ตรวจสถานะกับฝ่ายจัด�
 export interface PaymentHistoryReport {
   readonly runs: number
   readonly invoices: number
+  /** Invoices marked PAID that had no working day to be paid on before today: left ready for payment */
+  readonly left: number
+}
+
+/** An invoice of the history: its supplier's code and its number */
+export interface PaidInvoiceRef {
+  readonly supplierCode: string
+  readonly invoiceNo: string
 }
 
 const KEY = 'demo-history:pay:'
@@ -58,9 +68,9 @@ function must<T>(day: string, what: string, result: Result<T>): T {
 const dayNumber = (day: string) => Math.round(Date.parse(`${day}T00:00:00Z`) / MS_PER_DAY)
 const dayOf = (n: number) => new Date(n * MS_PER_DAY).toISOString().slice(0, 10)
 
-export async function seedPaymentHistory(c: PaymentHistoryContext, paidInvoiceNos: ReadonlySet<string>): Promise<PaymentHistoryReport> {
+export async function seedPaymentHistory(c: PaymentHistoryContext, paidInvoices: readonly PaidInvoiceRef[]): Promise<PaymentHistoryReport> {
   const db = forTenant(c.organizationId)
-  if (paidInvoiceNos.size === 0) return { runs: 0, invoices: 0 }
+  if (paidInvoices.length === 0) return { runs: 0, invoices: 0, left: 0 }
   const org = await db.organization.findUniqueOrThrow({ where: { id: c.organizationId }, select: { settings: true } })
   const policy = paymentSettingsOf(org.settings)
   const payCalendar = { workdays: c.calendar.workdays, holidays: c.calendar.holidays }
@@ -84,22 +94,30 @@ export async function seedPaymentHistory(c: PaymentHistoryContext, paidInvoiceNo
   const ctxOf = (code: string, when: Date, step: string): Ctx => makeCtx({ organizationId: c.organizationId, actor: { type: 'USER', memberId: member(code) }, channel: 'WEB', now: when, requestId: step })
   const optionsOf = (step: string): RunOptions => ({ idempotencyKey: step, sender: null, suppressOutbox: true })
 
-  const invoices = await db.invoice.findMany({
-    where: { status: 'READY_FOR_PAYMENT', supplierInvoiceNo: { in: [...paidInvoiceNos] } },
-    select: { id: true, dueDate: true, readyAt: true, recordedById: true, supplierInvoiceNo: true },
-  })
+  const wanted = new Set(paidInvoices.map((i) => `${i.supplierCode}|${i.invoiceNo}`))
+  const invoices = (
+    await db.invoice.findMany({
+      where: { status: 'READY_FOR_PAYMENT', supplierInvoiceNo: { in: [...new Set(paidInvoices.map((i) => i.invoiceNo))] } },
+      select: { id: true, dueDate: true, readyAt: true, recordedById: true, supplierInvoiceNo: true, supplier: { select: { code: true } } },
+    })
+  ).filter((i) => wanted.has(`${i.supplier.code}|${i.supplierInvoiceNo}`))
   // the pay day of each invoice: the first run day from the day after it was ready and from its due date
   const byDay = new Map<string, typeof invoices>()
+  let left = 0
   for (const invoice of invoices) {
     const ready = taxDateOf(invoice.readyAt ?? c.now)
     const due = invoice.dueDate ? invoice.dueDate.toISOString().slice(0, 10) : ready
     const from = [dayOf(dayNumber(ready) + 1), due].sort().at(-1)!
     let day = nextRunDate(from, policy, payCalendar)
     if (day >= today) day = lastWorkdayBefore(today)
-    if (day <= ready) throw new Error(`Demo_History: invoice ${invoice.supplierInvoiceNo} was ready on ${ready} and has no pay day before today`)
+    if (day <= ready) {
+      left++
+      continue
+    }
     byDay.set(day, [...(byDay.get(day) ?? []), invoice])
   }
-  const payer = await db.bankAccount.findFirstOrThrow({ where: { ownerKind: 'ORGANIZATION', status: 'ACTIVE', code: 'CB-01' }, select: { id: true } })
+  // the organization's payer account the proposal takes first (its first account in force by code)
+  const payer = await db.bankAccount.findFirstOrThrow({ where: { ownerKind: 'ORGANIZATION', status: 'ACTIVE', fileTemplateCode: { not: null } }, orderBy: { code: 'asc' }, select: { id: true } })
 
   let runs = 0
   let paid = 0
@@ -135,7 +153,9 @@ export async function seedPaymentHistory(c: PaymentHistoryContext, paidInvoiceNo
       const granted = await grantStepUp({ organizationId: c.organizationId, memberId: task.assignee.id, subjectType: 'PAYMENT_RUN', subjectId: runId, method: 'PIN', pin: c.pin, channel: 'WEB' }, systemClock.now(), { sender: null })
       if (!granted.ok) throw new Error(`Demo_History payment run of ${day}: the PIN step-up of ${task.assignee.employeeCode} was refused (${granted.reason})`)
     }
-    must(day, 'approve', await decideTask(ctxOf(task.assignee.employeeCode!, approveAt, step('approve')), { taskId: task.id, decision: 'APPROVE', subjectInput: { flagsKey: sent.flagsKey } }, optionsOf(step('approve'))))
+    const approver = task.assignee.employeeCode
+    if (!approver) throw new Error(`Demo_History payment run of ${day}: its approver has no employee code`)
+    must(day, 'approve', await decideTask(ctxOf(approver, approveAt, step('approve')), { taskId: task.id, decision: 'APPROVE', subjectInput: { flagsKey: sent.flagsKey } }, optionsOf(step('approve'))))
 
     // the pay day: the file, its download, sent to the bank, and the results that afternoon
     must(day, 'file', await generatePaymentFile(ctxOf(preparer, at(day, 9), step('file')), { paymentRunId: runId, version: await version() }, optionsOf(step('file'))))
@@ -143,12 +163,12 @@ export async function seedPaymentHistory(c: PaymentHistoryContext, paidInvoiceNo
     must(day, 'download', await requestPaymentFileDownload(ctxOf(preparer, at(day, 9, 5), step('download')), { paymentRunId: runId, paymentFileId: file.id }, optionsOf(step('download'))))
     must(day, 'sent', await markPaymentRunSentToBank(ctxOf(preparer, at(day, 9, 10), step('sent')), { paymentRunId: runId, version: await version() }, optionsOf(step('sent'))))
     must(day, 'results', await recordPaymentResults(ctxOf(preparer, at(day, 15), step('results')), { paymentRunId: runId, version: await version(), allPaidExcept: { paidOn: day, failed: [] } }, optionsOf(step('results'))))
+    // the run's advices were sent that afternoon: through the history's fake sender, so nobody is e-mailed now
+    const items = await db.paymentRunItem.findMany({ where: { paymentRunId: runId }, select: { id: true } })
+    const advices = await db.supplierNotice.findMany({ where: { templateKey: 'payment.advice', status: 'PENDING', subjectId: { in: items.map((i) => i.id) } }, select: { id: true } })
+    for (const n of advices) await sendSupplierNotice(c.organizationId, n.id, at(day, 15, 5))
     runs++
     paid += group.length
   }
-
-  // the advices of the past were sent then: through the history's fake sender, so they are SENT and nobody is e-mailed now
-  const advices = await db.supplierNotice.findMany({ where: { templateKey: 'payment.advice', status: 'PENDING' }, select: { id: true } })
-  for (const n of advices) await sendSupplierNotice(c.organizationId, n.id, c.now)
-  return { runs, invoices: paid }
+  return { runs, invoices: paid, left }
 }

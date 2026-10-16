@@ -478,6 +478,7 @@ export function describeP1Seed(clock: SeedP1Clock): void {
       const paidInvoices = await db.invoice.findMany({ where: { status: 'PAID' }, select: { id: true, supplierInvoiceNo: true } })
       expect(paidInvoices.map((i) => i.supplierInvoiceNo).sort()).toEqual(paidRows.map((r) => r.invoiceNo || `INV-${r.ref}`).sort())
       expect(report.paymentRuns).toBeGreaterThan(0)
+      expect(report.unpaidInvoices).toBe(0)
       const runs = await db.paymentRun.findMany({
         include: { items: { include: { documents: true, withholdingTaxes: true } }, preparedBy: { select: { employeeCode: true } }, files: true },
         orderBy: { payDate: 'asc' },
@@ -488,6 +489,14 @@ export function describeP1Seed(clock: SeedP1Clock): void {
         const day = run.payDate.toISOString().slice(0, 10)
         expect({ status: run.status, preparer: run.preparedBy.employeeCode, number: /^PAY-\d{4}-\d{5}$/.test(run.number ?? '') }, day).toEqual({ status: 'COMPLETED', preparer: expect.stringMatching(/^fin_tre[12]$/), number: true })
         expect(day < dayOf(clock.now), day).toBe(true)
+        // the run's day: on or after each invoice's due date and after the day it was ready — or, when that run day had
+        // not come yet, the last working day before the seed
+        const docs = await db.invoice.findMany({ where: { id: { in: run.items.flatMap((i) => i.documents.map((d) => d.invoiceId!)) } }, select: { dueDate: true, readyAt: true } })
+        const fallback = runs.at(-1)!.payDate.toISOString().slice(0, 10)
+        for (const d of docs) {
+          expect(dayOf(d.readyAt!) < day, day).toBe(true)
+          expect(d.dueDate!.toISOString().slice(0, 10) <= day || day === fallback, day).toBe(true)
+        }
         expect(run.items.every((i) => i.status === 'PAID' && i.paidOn?.toISOString().slice(0, 10) === day), day).toBe(true)
         // the tax of each item written once, as S8 records it, linked to the item
         for (const item of run.items) expect(item.withholdingTaxes.reduce((a, w) => a + w.taxSatang, 0n), day).toBe(item.whtSatang)

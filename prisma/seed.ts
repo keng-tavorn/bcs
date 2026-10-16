@@ -79,7 +79,7 @@ try {
       (history === null
         ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)'
         : history.seeded
-          ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}${history.paymentRuns ? ` · รอบจ่ายย้อนหลัง ${history.paymentRuns} รอบ ${history.paidInvoices} ใบ` : ''}`
+          ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}${history.paymentRuns ? ` · รอบจ่ายย้อนหลัง ${history.paymentRuns} รอบ ${history.paidInvoices} ใบ${history.unpaidInvoices ? ` (ยังไม่จ่าย ${history.unpaidInvoices} ใบ: ไม่มีวันทำการให้จ่ายก่อนวันนี้)` : ''}` : ''}`
           : ' · ประวัติ demo มีอยู่แล้ว'),
   )
   console.log(`db:seed LINE: ${describeLineSeed(lineChannel)}`)

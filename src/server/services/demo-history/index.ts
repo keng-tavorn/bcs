@@ -80,6 +80,8 @@ export interface DemoHistoryReport {
   /** S9-10: the payment runs of the past (module PAY on), and the invoices they paid */
   readonly paymentRuns?: number
   readonly paidInvoices?: number
+  /** PAID rows' invoices with no working day to be paid on before the seed: left ready for payment */
+  readonly unpaidInvoices?: number
 }
 
 type Step = { key: string; at: Date }
@@ -808,8 +810,8 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
       }
       // S9-10: the invoices the sheet marks PAID, paid by the weekly runs of the past (before their notices are read)
       if (await db.orgModule.count({ where: { module: 'PAY', enabled: true } })) {
-        const paid = done.filter((row) => row.invoice?.paymentStatus === 'PAID' && row.invoice.scenario !== 'MISSING').map((row) => row.invoice?.invoiceNo ?? `INV-${row.ref}`)
-        payments = await seedPaymentHistory(c, new Set(paid))
+        const paid = done.flatMap((row) => (row.invoice?.paymentStatus === 'PAID' && row.invoice.scenario !== 'MISSING' && row.supplier ? [{ supplierCode: row.supplier, invoiceNo: row.invoice.invoiceNo ?? `INV-${row.ref}` }] : []))
+        payments = await seedPaymentHistory(c, paid)
       }
       for (const [code] of c.members) {
         const marked = await markNotificationsRead(memberCtx(c, code, now, 'WEB', `${HISTORY_KEY}read:${code}`), { all: true }, { idempotencyKey: `${HISTORY_KEY}read:${code}`, sender: null, suppressOutbox: true })
@@ -824,7 +826,7 @@ export async function seedDemoHistory(organizationId: string, rows: readonly Dem
     } finally {
       setEmailProvider(null)
     }
-    return { seeded: true, byStatus, ...(payments ? { paymentRuns: payments.runs, paidInvoices: payments.invoices } : {}) }
+    return { seeded: true, byStatus, ...(payments ? { paymentRuns: payments.runs, paidInvoices: payments.invoices, unpaidInvoices: payments.left } : {}) }
   } finally {
     await takeBackOneTimePins(organizationId, oneTime)
   }

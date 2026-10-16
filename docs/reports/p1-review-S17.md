@@ -184,7 +184,7 @@
 | 5 | ฉาก 6 ผ่านทั้งเมื่อมีและไม่มีธงคำขอซ้ำ จึงไม่จับถ้า BR-DUP-05 หาย | แก้: ฉากถามฐานข้อมูลว่าส่งเหล็กชุดเดียวกันแล้วหรือยัง แล้วคาดธงตามนั้น |
 | 6 | (พบใน `pnpm verify --strict --e2e` รอบแรก ผ่าน 508 ล้ม 1) service worker ของ S17-13 รับทุกคำขอไฟล์ `/_next/static` ของทุกหน้า เทสต์บันทึกร่าง LIFF ตอนสคริปต์ยังไม่มาจึงกั้นสคริปต์ไม่ได้และล้มทุกครั้ง · ทุกหน้าใน PWA โหลดไฟล์ static ผ่าน worker โดยไม่จำเป็น | แก้: worker ตอบไฟล์ static จากที่เก็บของ BCS Go เฉพาะคำขอของหน้า `/go/receive` (referrer) หรือเมื่อไม่มีสัญญาณ หน้าอื่นออกเน็ตตามเดิม · `go-receive` `liff-requests` `pwa` `s17` ผ่าน 44 เทสต์ |
 
-ผลหลังแก้: `pnpm exec playwright test tests/e2e/s17.spec.ts tests/e2e/go-receive.spec.ts` ผ่าน 16 เทสต์ · `pnpm verify` และ `pnpm verify --strict --e2e` บันทึกในบรรทัดติ๊กของ S17-18
+ผลหลังแก้: `pnpm exec playwright test tests/e2e/s17.spec.ts tests/e2e/go-receive.spec.ts` ผ่าน 16 เทสต์ · `pnpm verify --strict --e2e` ที่ e0a42e8 ผ่าน 19 ด่าน (e2e หน้าจอ 500 · ฉาก demo 9 · AC ที่ต้องมีเทสต์ 265/265) · ส่งงานของขั้นเข้า main 2026-10-17
 
 สิ่งที่ตรวจแล้วไม่พบปัญหา: push ก่อน LINE แล้วอีเมลนับเวลาจากครั้งแรกของทุกช่องทาง และ job ส่งต่อ `pushTry` `lineTry` ถูก · ผู้ตรวจรับได้ `po.sent_receiver` ทันทีพร้อมลิงก์ `/receiving/<id>` (ใน LINE `/liff/gr/<id>`) ผู้ขอยังได้สรุปรายวัน · service worker เก็บเฉพาะ shell ของ `/go/receive` และไฟล์ static ของ origin เดียวกัน · เมนูตามบทบาทอ่านตำแหน่งของ DOA ฉบับที่ใช้อยู่และผู้ตรวจของ workflow ตอนสลับ
 

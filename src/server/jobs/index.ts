@@ -12,7 +12,7 @@ import { doaVersionActivate } from './doa-version-activate'
 import { draftExpiry } from './draft-expiry'
 import { invoiceAutoRecheck } from './invoice-auto-recheck'
 import { invoiceInboxPoll } from './invoice-inbox-poll'
-import { lineRichMenu } from './line-rich-menu'
+import { lineRichMenu, lineRichMenuVersions } from './line-rich-menu'
 import { retentionDue } from './retention-due'
 import { lineWebhook, lineWebhookSweep } from './line-webhook'
 import { notificationDeliver } from './notification-deliver'
@@ -57,6 +57,7 @@ export const functions = [
   lineWebhookSweep,
   // S5-04: the rich menu of a LINE user follows their link (FR-LINE-004 AC3)
   lineRichMenu,
+  lineRichMenuVersions,
   // S8-06: invoices matched again after a goods receipt, and the e-mails to suppliers (ADR-126)
   invoiceAutoRecheck,
   supplierNoticeSend,

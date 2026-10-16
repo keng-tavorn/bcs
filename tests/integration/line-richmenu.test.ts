@@ -611,9 +611,9 @@ describe('[FR-LINE-004/AC3] the menu changes within a minute of a link or an unl
       },
     )
     // LINE is back: Inngest's retry switches it
-    expect(await lineRichMenuRun({ data: message.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'LINKED' })
+    expect(await lineRichMenuRun({ data: message.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'LINKED', variant: 'LINKED' })
     expect(line.fake.userRichMenu(lineUserId)).toBe(org.linkedMenu)
-    expect(await lineRichMenuRun({ data: { something: 'else' } }, jobStep)).toEqual({ ignored: 'NOT_A_LINK_EVENT' })
+    expect(await lineRichMenuRun({ data: { something: 'else' } }, jobStep)).toEqual({ ignored: 'NOT_A_MENU_EVENT' })
   })
 
   it('a late run never undoes a later change: it sets the menu of the link as it is now', async () => {
@@ -622,7 +622,7 @@ describe('[FR-LINE-004/AC3] the menu changes within a minute of a link or an unl
     const { lineUserId, identityId } = await linkVia(member)
     const linked = toInngest.find((m) => m.name === 'bcs/line.linked' && (m.data as { aggregateId?: string }).aggregateId === identityId)
     ok(await unlinkMyLine(member.ctx(), {}, key()))
-    expect(await lineRichMenuRun({ data: linked!.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'UNLINKED' })
+    expect(await lineRichMenuRun({ data: linked!.data }, jobStep)).toEqual({ status: 'APPLIED', menu: 'UNLINKED', variant: 'UNLINKED' })
     expect(line.fake.userRichMenu(lineUserId)).toBeNull()
   })
 
@@ -651,7 +651,7 @@ describe('[FR-LINE-004/AC3] the menu changes within a minute of a link or an unl
         expect(line.fake.userRichMenu(lineUserId)).toBeNull()
         open()
         // Its LINKED landed after the unlink; it reads the link again and puts UNLINKED back
-        expect(await racing).toEqual({ status: 'APPLIED', menu: 'UNLINKED' })
+        expect(await racing).toEqual({ status: 'APPLIED', menu: 'UNLINKED', variant: 'UNLINKED' })
       },
     )
     expect(line.fake.userRichMenu(lineUserId)).toBeNull()

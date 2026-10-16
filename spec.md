@@ -611,7 +611,8 @@ sequenceDiagram
 | `daily-digest` | cron `TZ=Asia/Bangkok 0 8 * * 1-5` | ข้ามวันหยุดขององค์กร ส่งสรุปรายคน | S5 |
 | `line-webhook` | `bcs/line.webhook_received` (คิวภายใน ไม่ใช่ event ของแคตตาล็อก) | ทำ event ของ LINE ที่บันทึกแล้วตามลำดับต่อผู้ใช้ (follow unfollow ข้อความ postback) · run ที่ล้มทำซ้ำอีก 2 รอบ เลิกพร้อมแจ้งเตือนเมื่อรอเกิน 1 วัน (ADR-046) | S5 |
 | `line-webhook-sweep` | cron ทุก 5 นาที | ส่ง event ของ LINE ที่บันทึกแล้วแต่คำขอจบก่อนส่งต่อ เข้า `line-webhook` | S5 |
-| `line-rich-menu` | `bcs/line.linked` · `bcs/line.unlinked` | ตั้ง rich menu ของผู้ใช้ตามการผูกล่าสุด (LINKED หรือเมนูเริ่มต้น UNLINKED) ให้ Inngest ทำซ้ำเมื่อ LINE ล้ม · เป็นทางเดียวที่สลับเมนูเมื่อยกเลิกผูกพร้อมปิดใช้งานสมาชิก · สมาชิกที่ผูกแล้ว follow ใหม่ได้เมนูคืนผ่าน follow hook ของ webhook (ADR-049) | S5 |
+| `line-rich-menu` | `bcs/line.linked` · `bcs/line.unlinked` · `bcs/member.role_granted` · `bcs/member.role_revoked` · `bcs/position.assigned` · `bcs/position.unassigned` · `bcs/delegation.started` · `bcs/delegation.ended` · `bcs/delegation.revoked` | ตั้ง rich menu ของผู้ใช้ตามการผูกล่าสุดและชุดตามบทบาทของ member ณ ตอนนั้น (UNLINKED หรือ LINKED และ LINKED:<บทบาท> · BR-LINE-16) ให้ Inngest ทำซ้ำเมื่อ LINE ล้ม · event ของ role ตำแหน่ง และรักษาการสลับเฉพาะผู้ใช้ LINE ของ member นั้น (BR-LINE-17 · S17-03) · เป็นทางเดียวที่สลับเมนูเมื่อยกเลิกผูกพร้อมปิดใช้งานสมาชิก · สมาชิกที่ผูกแล้ว follow ใหม่ได้เมนูคืนผ่าน follow hook ของ webhook (ADR-049) | S5 · S17 |
+| `line-rich-menu-versions` | `bcs/doa_version.published` · `bcs/doa_version.superseded` · `bcs/doa_version.withdrawn` · `bcs/workflow_version.published` · `bcs/workflow_version.superseded` · `bcs/workflow_version.withdrawn` | งานเดียวกับ `line-rich-menu` สำหรับทุกคนที่ผูกขององค์กร (ฉบับใหม่มีผลหรือถูกถอนเปลี่ยนว่าใครเป็นผู้อนุมัติ · superseded มาจาก job activate ตอนฉบับที่อนุมัติล่วงหน้ามีผลด้วย) · คำนวณธงทุกคนในการอ่านเดียวแล้วใช้ bulk link และ bulk unlink ของ LINE ทีละไม่เกิน 500 คน จากนั้นอ่านการผูกอีกครั้งและสลับรายคนเฉพาะผู้ที่การผูกเปลี่ยนระหว่างนั้น · ทีละ run ต่อองค์กร (แยก function เพราะ Inngest รับไม่เกิน 10 trigger ต่อ function · BR-LINE-17) | S17 |
 | `po-idle-reminder` | cron `TZ=Asia/Bangkok 0 9 * * 1-5` | หา PO ที่ไม่มีความเคลื่อนไหวเกิน `poIdleDays` (OQ-36) แจ้งผู้ขอและจัดซื้อพร้อมปุ่มปิด PO (FR-P2P-010 AC4) | S5 |
 | `supplier-registry-recheck` | cron `TZ=Asia/Bangkok 0 6 1 * *` | ตรวจสถานะผู้ขายกับสรรพากรและ DBD ซ้ำ แจ้งจัดซื้อเมื่อสถานะเปลี่ยน (BR-SUP-04) | S4 |
 | `consolidation-cycle` | cron ตาม `settings.consolidation.cron` (OQ-13) | รวม PR เป็นร่าง PO | S4 |
@@ -3491,7 +3492,7 @@ cases:
 
 #### FR-LINE-004 — Rich menu
 ขั้น S5 · LINE · §9.5
-- AC1 — ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็น 4 ปุ่ม: ขอซื้อ · งานรออนุมัติ · ติดตามสถานะ · ช่วยเหลือ
+- AC1 — ผู้ที่ยังไม่ผูกเห็นเมนูผูกบัญชีและช่วยเหลือ ผู้ผูกแล้วเห็นเมนูตามบทบาทของ FR-LINE-303 (golden `line-rich-menu` · แก้ใน S17-03 ตามที่ผู้ใช้อนุมัติใน P1-06): ทุกคนมี หน้าแรก · ขอซื้อ · ช่วยเหลือ (และติดตามสถานะเมื่อไม่เกิน 6 ปุ่ม) ผู้อนุมัติมี งานรออนุมัติ
 - AC2 — ทุกปุ่มเปิดหน้า LIFF ที่ถูกต้อง
 - AC3 — เมนูสลับภายใน 1 นาทีหลังผูกหรือยกเลิกผูก
 
@@ -3842,12 +3843,14 @@ cases:
 
 ### 9.5 Rich menu
 
-สองชุด สร้างด้วยสคริปต์ `pnpm line:richmenu` จากไฟล์ภาพใน repo (2500 × 843 px)
+เมนูตามบทบาท (FR-LINE-303 · BR-LINE-16 · golden `line-rich-menu`) สร้างด้วยสคริปต์ `pnpm line:richmenu` จากไฟล์ภาพใน repo (2500 × 843 px) และเก็บ id ของแต่ละชุดใน `LineRichMenuVariant`
 
 | ชุด | ปุ่ม | ใช้กับ |
 | --- | --- | --- |
-| UNLINKED | ผูกบัญชี → `/liff/link` · ช่วยเหลือ → `/liff/help` | ค่าเริ่มต้นของ OA |
-| LINKED | ขอซื้อ → `/liff/requests/new` · งานรออนุมัติ → `/liff/tasks` · ติดตามสถานะ → `/liff/track` · ช่วยเหลือ → `/liff/help` | ผูกรายผู้ใช้หลังผูกบัญชี |
+| UNLINKED | ผูกบัญชี → `/liff/link` · ช่วยเหลือ → `/liff/help` | ค่าเริ่มต้นของ OA: ผู้ที่ยังไม่ผูก และ member ที่ไม่ ACTIVE |
+| LINKED และ `LINKED:<บทบาท>` | หน้าแรก → `/liff/home` · ขอซื้อ → `/liff/requests/new` · [งานรออนุมัติ → `/liff/tasks`] · [ตรวจรับ → `/liff/gr`] · [งานจัดซื้อ → `/liff/procurement`] · ติดตามสถานะ → `/liff/track` · ช่วยเหลือ → `/liff/help` (ไม่เกิน 6 ปุ่ม เกินให้ตัดติดตามสถานะ) | ผูกรายผู้ใช้ตามธง ณ ตอนสลับ: ผู้อนุมัติ (DOA ฉบับที่มีผลอ้างตำแหน่งที่ดำรงหรือระบุตัว รวมกรรมการ · รักษาการที่ ACTIVE · ผู้ตรวจของ workflow ฉบับที่มีผล) · role RECEIVER · role PROCUREMENT · ชุดที่ยังไม่มีใน `LineRichMenuVariant` ใช้เมนู LINKED ของ channel |
+
+เมนูสลับใน job `line-rich-menu` และ `line-rich-menu-versions` ภายใน 1 นาที (BR-LINE-17) · เมนูไม่ใช่สิทธิ์: ทุกหน้าที่ปุ่มเปิดตรวจสิทธิ์เอง (BR-AUTH-05)
 
 ### 9.6 อีเมล
 

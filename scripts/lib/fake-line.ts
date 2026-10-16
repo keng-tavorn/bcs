@@ -535,6 +535,22 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
         return answer(200, {})
       }
     }
+    // Bulk link and unlink (S17-03 · BR-LINE-17): LINE answers 202 and applies the change shortly after; here at once
+    if (method === 'POST' && (path === '/v2/bot/richmenu/bulk/link' || path === '/v2/bot/richmenu/bulk/unlink')) {
+      const userIds = isRecord(json) && Array.isArray(json.userIds) ? json.userIds : null
+      if (!userIds || userIds.length === 0 || userIds.length > 500 || !userIds.every((u) => typeof u === 'string' && u.startsWith('U'))) {
+        return answer(400, { message: "The value for the 'userIds' parameter is invalid" })
+      }
+      if (path.endsWith('/link')) {
+        const richMenuId = isRecord(json) && typeof json.richMenuId === 'string' ? json.richMenuId : ''
+        const refused = notApplicable(richMenuId)
+        if (refused) return answer(...refused)
+        for (const u of userIds as string[]) state.userRichMenus.set(u, richMenuId)
+      } else {
+        for (const u of userIds as string[]) state.userRichMenus.delete(u)
+      }
+      return answer(202, {})
+    }
     const link = /^\/v2\/bot\/user\/([^/]+)\/richmenu\/([^/]+)$/.exec(path)
     if (method === 'POST' && link) {
       const userId = decodeURIComponent(link[1] ?? '')

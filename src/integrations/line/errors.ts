@@ -47,6 +47,8 @@ export type LineOperation =
   | 'cancelDefaultRichMenu'
   | 'linkRichMenu'
   | 'unlinkRichMenu'
+  | 'bulkLinkRichMenu'
+  | 'bulkUnlinkRichMenu'
   | 'getUserRichMenu'
   | 'listRichMenus'
   | 'deleteRichMenu'

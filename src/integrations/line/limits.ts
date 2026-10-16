@@ -40,6 +40,8 @@ export const LINE_FLEX_CAROUSEL_MAX_BUBBLES = 12
 export const LINE_REPLY_TOKEN_TTL_MS = MS_PER_MINUTE
 /** Tappable areas of one rich menu (§9.5 uses 2 and 4) */
 export const LINE_RICH_MENU_AREAS_MAX = 20
+/** Users one bulk link or bulk unlink of rich menus takes (POST /v2/bot/richmenu/bulk/link · bulk/unlink) */
+export const LINE_RICH_MENU_BULK_USERS_MAX = 500
 /** The text on the chat bar under a rich menu, in grapheme clusters */
 export const LINE_RICH_MENU_CHAT_BAR_TEXT_MAX_LENGTH = 14
 

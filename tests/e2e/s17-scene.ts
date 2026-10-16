@@ -69,6 +69,8 @@ import { E2E_BASE_URL, E2E_DB, E2E_PIN } from '../support/e2e-env'
 //                              lists them, the chat's words and the photo — a change of the phase-1 sheets renames it
 //   ai <on|off>                the twin's AI module (EG-1: without AI the chat and LIFF work on as before)
 //   request <requestId>        the request's status, total and the approver its open task waits for
+//   steel-sent                 how many requests se_p01a has sent with scene 3's steel line (a later one is a likely
+//                              duplicate, BR-DUP-05)
 if (new URL(process.env.DATABASE_URL ?? 'postgresql://x/none').pathname !== `/${E2E_DB}`) throw new Error('the S17 scene runs in the e2e database only')
 const password = process.env.SEED_DEV_PASSWORD
 const totpKey = process.env.SEED_TOTP_KEY
@@ -137,6 +139,9 @@ async function twin() {
     const rows = parseHistory(workbook).filter((r) => SCENE_ROWS.includes(r.ref))
     if (rows.length !== SCENE_ROWS.length) throw new Error(`sheet Request_History lacks one of ${SCENE_ROWS.join(' ')}`)
     await seedDemoHistory(orgId, rows, now, { pin: E2E_PIN, budgetKeys: budgetKeyLines(budget) })
+  } else if ((await prisma.request.count({ where: { organizationId: orgId } })) < SCENE_ROWS.length) {
+    // An earlier build of this run stopped half way: say so, rather than let the scenes fail far from the cause
+    throw new Error(`${S17_ORG} is half built (its rows of Request_History are missing): reset the e2e database (it is reset at the start of every e2e run)`)
   }
   const road = await requestByTitle(orgId, 'งานถนนแอสฟัลต์')
   const concrete = await requestByTitle(orgId, 'คอนกรีตผสมเสร็จ 400')
@@ -300,6 +305,12 @@ async function request(requestId: string) {
   return { number: r.number, status: r.status, type: r.requestType.code, gross: String(r.grossSatang), approver: task?.assignee.employeeCode ?? null }
 }
 
+async function steelSent() {
+  const member = await memberOf('se_p01a')
+  const sent = await prisma.request.count({ where: { organizationId: member.organizationId, requesterMemberId: member.id, submittedAt: { not: null }, lines: { some: { description: 'เหล็กข้ออ้อย DB25 SD40' } } } })
+  return { sent }
+}
+
 const MODES: Readonly<Record<string, () => Promise<unknown>>> = {
   twin: () => twin(),
   menus: () => menus(),
@@ -315,6 +326,7 @@ const MODES: Readonly<Record<string, () => Promise<unknown>>> = {
   'ai-key': () => aiKey(),
   ai: () => ai(first),
   request: () => request(first),
+  'steel-sent': () => steelSent(),
 }
 const run = Object.hasOwn(MODES, mode) ? MODES[mode] : undefined
 if (!run) throw new Error(`unknown mode ${mode}`)

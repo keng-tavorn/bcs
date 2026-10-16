@@ -204,8 +204,11 @@ test.describe('@s17 the scenes of S17 with BCS Go and the LINE chat (S17-16)', (
     await expect(page.getByRole('heading', { level: 2, name: /^ขั้นที่ 2 จาก 3: / })).toBeVisible()
   }
 
-  /** The items' figures of DOC-031, the route to vp_ops, and the send: returns the request's id */
-  async function reviewAndSend(page: Page, testInfo: TestInfo, name: string): Promise<string> {
+  /**
+   * The items' figures of DOC-031, the route to vp_ops, and the send: returns the request's id. `duplicate`: the same
+   * steel was sent before (scene 6 replays scene 3), so BR-DUP-05 asks for a reason first (FR-LINE-301 AC4)
+   */
+  async function reviewAndSend(page: Page, testInfo: TestInfo, name: string, duplicate: boolean): Promise<string> {
     await expect(page.getByRole('group', { name: 'รายการที่ 1' }).getByLabel('สิ่งที่ขอ')).toHaveValue('เหล็กข้ออ้อย DB25 SD40')
     // 24,411.00 before VAT, VAT 7% 1,708.77, 26,119.77 with it (DOC-031)
     await expect(page.getByText('24,411.00 บาท').first()).toBeVisible()
@@ -218,11 +221,10 @@ test.describe('@s17 the scenes of S17 with BCS Go and the LINE chat (S17-16)', (
     await checkScreen(page, testInfo, `${name}-review`)
     await page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true }).click()
     const sent = page.getByRole('status').filter({ hasText: 'ส่งขออนุมัติแล้ว' })
-    // The same steel sent by an earlier scene of the run (scene 6 replays scene 3) is flagged as a likely duplicate:
-    // BR-DUP-05 asks the requester for a reason on the LIFF page before it goes (FR-LINE-301 AC4)
-    const duplicate = page.getByRole('heading', { level: 3, name: 'คำขอนี้คล้ายคำขอที่คุณส่งไปแล้ว' })
-    await expect(sent.or(duplicate)).toBeVisible()
-    if (await duplicate.isVisible()) {
+    const flagged = page.getByRole('heading', { level: 3, name: 'คำขอนี้คล้ายคำขอที่คุณส่งไปแล้ว' })
+    await expect(sent.or(flagged)).toBeVisible()
+    await expect(flagged).toHaveCount(duplicate ? 1 : 0)
+    if (duplicate) {
       await checkScreen(page, testInfo, `${name}-duplicate`)
       await page.getByRole('textbox', { name: /^เหตุผลที่ขออีกครั้ง/ }).fill('เล่นฉากขอผ่านแชทซ้ำโดยปิด AI ตามแผน demo')
       await page.getByRole('button', { name: 'ส่งขออนุมัติ', exact: true }).click()
@@ -235,6 +237,10 @@ test.describe('@s17 the scenes of S17 with BCS Go and the LINE chat (S17-16)', (
   test('[FR-LINE-301/AC1] [FR-LINE-301/AC3] [FR-LINE-301/AC4] [FR-LINE-301/AC5] scene 3: se_p01a asks in the chat with the quotation\'s photo; in LIFF the AI\'s values are marked, the money and quantity confirmed one by one, and the request goes to vp_ops', async ({ page, context }, testInfo) => {
     scene(['ai', 'on'])
     const { intakeId } = await askInChat(context)
+    // Opened before the reading is done: LIFF says the AI is reading (AC5) and the draft can be made without waiting
+    await page.goto(`/liff/requests/new?intake=${intakeId}`)
+    await expect(page.getByText('AI กำลังอ่านข้อความและรูป ค่าที่เสนอจะขึ้นที่นี่เมื่ออ่านเสร็จ สร้างร่างเองได้เลยโดยไม่ต้องรอ')).toBeVisible()
+    await checkScreen(page, testInfo, 's17-chat-ai-reading')
     // The photo is fetched from LINE and kept, then the Intake Agent reads the words and the photo (jobs of the scene)
     expect(scene(['chat-jobs', intakeId])).toEqual({ images: ['STORED'], ai: { status: 'LINKED', agentActionId: expect.any(String) }, action: { status: 'DRAFT', errorCode: null } })
 
@@ -259,7 +265,7 @@ test.describe('@s17 the scenes of S17 with BCS Go and the LINE chat (S17-16)', (
     await expect(page.getByRole('region', { name: /ค่าที่ AI เติมรอยืนยัน/ })).toHaveCount(0)
 
     await toItems(page)
-    const requestId = await reviewAndSend(page, testInfo, 's17-chat-ai')
+    const requestId = await reviewAndSend(page, testInfo, 's17-chat-ai', scene<{ sent: number }>(['steel-sent']).sent > 0)
     expect(scene(['request', requestId])).toEqual({ number: expect.stringMatching(/^PR-\d{4}-\d{5}$/), status: 'PENDING_APPROVAL', type: 'BUY_GOODS', gross: '2611977', approver: 'vp_ops' })
   })
 
@@ -286,7 +292,7 @@ test.describe('@s17 the scenes of S17 with BCS Go and the LINE chat (S17-16)', (
       await line.getByLabel(/^จำนวน/).fill('1')
       await line.getByLabel(/^หน่วย/).fill('ตัน')
       await line.getByLabel(/^ราคาต่อหน่วย/).fill('24411.00')
-      const requestId = await reviewAndSend(page, testInfo, 's17-chat-no-ai')
+      const requestId = await reviewAndSend(page, testInfo, 's17-chat-no-ai', scene<{ sent: number }>(['steel-sent']).sent > 0)
       expect(scene(['request', requestId])).toEqual({ number: expect.stringMatching(/^PR-\d{4}-\d{5}$/), status: 'PENDING_APPROVAL', type: 'BUY_GOODS', gross: '2611977', approver: 'vp_ops' })
     } finally {
       scene(['ai', 'on'])

@@ -103,6 +103,8 @@ export interface FakeLine {
   webhookDeliveries(): readonly FakeLineWebhookDelivery[]
   /** Forget everything sent, linked and created */
   reset(): void
+  /** S17-06: the content LINE keeps for a message a user sent (an image), which the app reads from the data API */
+  putContent(messageId: string, contentType: string, bytes: Uint8Array): void
 }
 
 // LINE's limits as LINE documents them (checked 2026-10-03, see src/integrations/line/limits.ts for the pages)
@@ -282,6 +284,7 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
     usedReplyTokens: new Set<string>(),
     acceptedRetryKeys: new Map<string, { requestId: string; sentMessages: Array<{ id: string; quoteToken: string }> }>(),
     deliveries: [] as FakeLineWebhookDelivery[],
+    contents: new Map<string, { contentType: string; bytes: Buffer }>(),
   }
 
   function signToken(payload: Json): string {
@@ -403,6 +406,12 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
         fake.setWebhook(body.endpoint, typeof body.active === 'boolean' ? body.active : true)
         return answer(200, {})
       }
+      // S17-06: the content of an image a test sends in a chat ({ messageId, contentType, base64 })
+      if (method === 'POST' && path === '/__fake/content') {
+        if (!isRecord(body) || typeof body.messageId !== 'string' || typeof body.contentType !== 'string' || typeof body.base64 !== 'string') return answer(400, { message: 'messageId, contentType and base64 are required' })
+        fake.putContent(body.messageId, body.contentType, Buffer.from(body.base64, 'base64'))
+        return answer(200, {})
+      }
       if (method === 'POST' && path === '/__fake/reset') {
         fake.reset()
         return answer(200, {})
@@ -470,6 +479,19 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
       if (endpoint === '') return answer(400, { message: 'The webhook endpoint is not set' })
       const { endpoint: _tested, ...result } = await testWebhook(endpoint)
       return answer(200, { success: result.success, timestamp: result.timestamp, statusCode: result.statusCode, reason: result.reason, detail: result.detail })
+    }
+
+    // ---- the content of a message a user sent (data API · S17-06) ----
+    const messageContent = /^\/v2\/bot\/message\/([0-9]+)\/content$/.exec(path)
+    if (method === 'GET' && messageContent) {
+      const stored = state.contents.get(messageContent[1] ?? '')
+      if (!stored) return answer(404, { message: 'Not found' })
+      res.writeHead(200, { 'content-type': stored.contentType, 'x-line-request-id': requestId })
+      res.end(stored.bytes)
+      const line = { method, route: routeOf(path), status: 200 }
+      state.requests.push(line)
+      options.onRequest?.(line)
+      return
     }
 
     // ---- rich menus (§9.5) ----
@@ -613,8 +635,12 @@ export async function startFakeLine(options: FakeLineOptions): Promise<FakeLine>
       state.webhook = { endpoint, active }
     },
     webhookDeliveries: () => [...state.deliveries],
+    putContent: (messageId, contentType, bytes) => {
+      state.contents.set(messageId, { contentType, bytes: Buffer.from(bytes) })
+    },
     reset: () => {
       state.messages = []
+      state.contents.clear()
       state.requests = []
       state.richMenus.clear()
       state.defaultRichMenuId = null

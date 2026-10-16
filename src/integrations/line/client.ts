@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { MS_PER_SECOND } from '@/lib/constants'
 import { LineApiError, lineStatusFailure, type LineErrorDetail, type LineOperation } from './errors'
-import { LINE_RICH_MENU_AREAS_MAX, LINE_RICH_MENU_BULK_USERS_MAX, lineMessageProblems, type LineMessage } from './limits'
+import { LINE_MESSAGE_CONTENT_MAX_BYTES, LINE_RICH_MENU_AREAS_MAX, LINE_RICH_MENU_BULK_USERS_MAX, lineMessageProblems, type LineMessage } from './limits'
 import type {
   LineBotInfo,
   LineCallOptions,
@@ -58,6 +58,11 @@ export interface LineChannelApi {
   bulkLinkRichMenu(richMenuId: string, userIds: readonly string[], options?: LineCallOptions): Promise<void>
   /** Takes the menu of their own from many users at once, so they see the default again */
   bulkUnlinkRichMenus(userIds: readonly string[], options?: LineCallOptions): Promise<void>
+  /**
+   * The content of a message a user sent (an image of a chat request, S17-06), at most LINE_MESSAGE_CONTENT_MAX_BYTES;
+   * LINE keeps it for a while only: gone is a permanent failure (404 or 410)
+   */
+  getMessageContent(messageId: string, options?: LineCallOptions): Promise<{ readonly bytes: Uint8Array; readonly contentType: string | null }>
   /** The rich menu linked to this user; null when none is (the default then applies) */
   getUserRichMenuId(userId: string, options?: LineCallOptions): Promise<string | null>
   listRichMenus(options?: LineCallOptions): Promise<LineRichMenuWithId[]>
@@ -333,6 +338,24 @@ export function createLineClient(options: LineClientOptions): LineClient {
 
         async bulkUnlinkRichMenus(userIds, call) {
           await send('bulkUnlinkRichMenu', `${apiBase}/v2/bot/richmenu/bulk/unlink`, { method: 'POST', ...json({ userIds: bulkUsers(userIds) }) }, call, LINE_REQUEST_TIMEOUT_MS)
+        },
+
+        async getMessageContent(messageId, call) {
+          if (!/^[0-9]{1,32}$/.test(messageId)) throw new Error('the message id is not one LINE gives')
+          const timeout = AbortSignal.timeout(call?.timeoutMs ?? LINE_REQUEST_TIMEOUT_MS)
+          const signal = call?.signal ? AbortSignal.any([timeout, call.signal]) : timeout
+          let response: Response
+          let bytes: Uint8Array
+          try {
+            response = await doFetch(`${dataBase}/v2/bot/message/${messageId}/content`, { method: 'GET', headers: { authorization: `Bearer ${accessToken}` }, signal, redirect: 'error' })
+            bytes = new Uint8Array(await response.arrayBuffer())
+          } catch {
+            const reason = timeout.aborted ? 'TIMEOUT' : call?.signal?.aborted ? 'ABORTED' : 'NETWORK'
+            throw new LineApiError({ operation: 'getMessageContent', kind: 'transient', reason })
+          }
+          if (!response.ok) throw new LineApiError({ operation: 'getMessageContent', ...lineStatusFailure(response.status), status: response.status, lineMessage: null, details: [], requestId: response.headers.get('x-line-request-id') })
+          if (bytes.length > LINE_MESSAGE_CONTENT_MAX_BYTES) throw new LineApiError({ operation: 'getMessageContent', kind: 'permanent', reason: 'LIMIT_EXCEEDED' })
+          return { bytes, contentType: response.headers.get('content-type') }
         },
 
         async getUserRichMenuId(userId, call) {

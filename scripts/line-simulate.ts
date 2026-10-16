@@ -40,7 +40,7 @@ export interface LineWebhookEventJson {
   readonly replyToken?: string
   readonly follow?: { readonly isUnblocked: boolean }
   readonly postback?: { readonly data: string }
-  readonly message?: { readonly type: 'text'; readonly id: string; readonly quoteToken: string; readonly text: string }
+  readonly message?: { readonly type: 'text'; readonly id: string; readonly quoteToken: string; readonly text: string } | { readonly type: 'image'; readonly id: string; readonly quoteToken: string; readonly contentProvider: { readonly type: 'line' } } | { readonly type: 'sticker'; readonly id: string; readonly packageId: string; readonly stickerId: string }
 }
 
 export interface LineWebhookJson {
@@ -100,11 +100,21 @@ export const lineEvents = {
   follow: (options: SimulatedEventOptions & { readonly unblocked?: boolean }): LineWebhookEventJson => ({ ...base('follow', options, true), follow: { isUnblocked: options.unblocked ?? false } }),
   unfollow: (options: SimulatedEventOptions): LineWebhookEventJson => base('unfollow', options, false),
   postback: (options: SimulatedEventOptions & { readonly data: string }): LineWebhookEventJson => ({ ...base('postback', options, true), postback: { data: options.data } }),
-  message: (options: SimulatedEventOptions & { readonly text: string }): LineWebhookEventJson => ({
+  message: (options: SimulatedEventOptions & { readonly text: string; readonly messageId?: string }): LineWebhookEventJson => ({
     ...base('message', options, true),
-    message: { type: 'text', id: String(Date.now()), quoteToken: randomBytes(16).toString('hex'), text: options.text },
+    message: { type: 'text', id: options.messageId ?? lineMessageId(), quoteToken: randomBytes(16).toString('hex'), text: options.text },
   }),
+  // S17-06: a picture sent in the chat; its content is what the fake LINE server holds for messageId (putContent)
+  image: (options: SimulatedEventOptions & { readonly messageId?: string }): LineWebhookEventJson => ({
+    ...base('message', options, true),
+    message: { type: 'image', id: options.messageId ?? lineMessageId(), quoteToken: randomBytes(16).toString('hex'), contentProvider: { type: 'line' } },
+  }),
+  sticker: (options: SimulatedEventOptions): LineWebhookEventJson => ({ ...base('message', options, true), message: { type: 'sticker', id: lineMessageId(), packageId: '446', stickerId: '1988' } }),
 }
+
+let messageSequence = 0
+/** LINE's message ids are numeric strings */
+export const lineMessageId = () => `${Date.now()}${String(++messageSequence).padStart(4, '0')}`
 
 /** The same event delivered again by LINE: same webhookEventId, isRedelivery true */
 export function redelivered(event: LineWebhookEventJson): LineWebhookEventJson {

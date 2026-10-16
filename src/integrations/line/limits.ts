@@ -1,4 +1,4 @@
-import { BYTES_PER_KIB, MS_PER_MINUTE } from '@/lib/constants'
+import { BYTES_PER_KIB, MAX_UPLOAD_BYTES, MS_PER_MINUTE } from '@/lib/constants'
 
 // The limits of the LINE Messaging API that BCS runs into (BR-LINE-09: Messaging API only; §4.7 rule 5: one constant per
 // limit, dated from LINE's docs), in one place, with where each one comes from. Checked on LINE Developers on 2026-10-03:
@@ -42,6 +42,8 @@ export const LINE_REPLY_TOKEN_TTL_MS = MS_PER_MINUTE
 export const LINE_RICH_MENU_AREAS_MAX = 20
 /** Users one bulk link or bulk unlink of rich menus takes (POST /v2/bot/richmenu/bulk/link · bulk/unlink) */
 export const LINE_RICH_MENU_BULK_USERS_MAX = 500
+/** Bytes of a message's content BCS reads from LINE (S17-06 · NFR-SEC-08: a picture of a request is at most 20 MB) */
+export const LINE_MESSAGE_CONTENT_MAX_BYTES = MAX_UPLOAD_BYTES
 /** The text on the chat bar under a rich menu, in grapheme clusters */
 export const LINE_RICH_MENU_CHAT_BAR_TEXT_MAX_LENGTH = 14
 

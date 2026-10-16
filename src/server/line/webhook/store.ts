@@ -44,6 +44,8 @@ export async function recordLineWebhookEvents(
   channelKey: string,
   events: readonly ParsedLineEvent[],
   receivedAt: Date,
+  /** S17-06 (BR-LINE-11): the organization asks through the chat, so the text of a new text message waits in LineInboundMessage */
+  options: { readonly keepChatText?: boolean } = {},
 ): Promise<{ readonly recorded: readonly RecordedLineEvent[]; readonly duplicates: readonly string[] }> {
   if (events.length === 0) return { recorded: [], duplicates: [] }
   const rows = events.map((e) => ({
@@ -56,9 +58,20 @@ export async function recordLineWebhookEvents(
     receivedAt,
     status: 'RECEIVED' as const,
   }))
-  // INSERT … ON CONFLICT DO NOTHING RETURNING: only the rows this request inserted come back
-  const inserted = await forTenant(organizationId).lineWebhookEvent.createManyAndReturn({ data: rows, skipDuplicates: true, select: { id: true } })
-  const mine = new Set(inserted.map((r) => r.id))
+  // INSERT … ON CONFLICT DO NOTHING RETURNING: only the rows this request inserted come back. The text of their messages
+  // in the same transaction, so a message is never processed without its text (a redelivery inserts neither)
+  const mine = await forTenant(organizationId).$transaction(async (tx) => {
+    const inserted = new Set((await tx.lineWebhookEvent.createManyAndReturn({ data: rows, skipDuplicates: true, select: { id: true } })).map((r) => r.id))
+    if (options.keepChatText) {
+      const inbound = rows.flatMap((r, i) => {
+        const message = events[i]!.inbound
+        // A text waits for its processing; an image needs no row (its id is in the event, its content is fetched from LINE)
+        return message?.kind === 'TEXT' && inserted.has(r.id) ? [{ organizationId, lineWebhookEventId: r.id, lineMessageId: message.lineMessageId, kind: message.kind, text: message.text, receivedAt }] : []
+      })
+      if (inbound.length) await tx.lineInboundMessage.createMany({ data: inbound })
+    }
+    return inserted
+  })
   return {
     recorded: rows.filter((r) => mine.has(r.id)).map((r) => recorded(r)),
     duplicates: [...new Set(rows.filter((r) => !mine.has(r.id)).map((r) => r.webhookEventId))],

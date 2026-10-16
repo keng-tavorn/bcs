@@ -54,7 +54,7 @@ test.describe('[FR-LINE-003/AC1] [§9.4] /liff/help in the LINE app', () => {
     expect(signIns).toEqual([403])
   })
 
-  test('a linked member signs in through LINE without a password: the help names their administrators, /liff goes to their tasks', async ({ page, context }, testInfo) => {
+  test('a linked member signs in through LINE without a password: the help names their administrators, /liff goes to the home page in LINE', async ({ page, context }, testInfo) => {
     const lineUserId = newLineUserId()
     const { member, admins } = liffScene<{ member: SceneMember; admins: string[] }>('linked', sceneTag('help'), lineUserId)
     expect(admins.length).toBeGreaterThan(0)
@@ -75,11 +75,9 @@ test.describe('[FR-LINE-003/AC1] [§9.4] /liff/help in the LINE app', () => {
     expect(await sessionCookie(context)).toMatch(/^liff_/)
     await checkScreen(page, testInfo, 'liff-help-member')
 
-    // /liff sends a linked member on to their tasks. /liff/tasks itself is a page of the next wave: until it exists only
-    // the address is checked here, and the next wave asserts that the page opens
-    testInfo.annotations.push({ type: 'waits-for', description: '/liff/tasks (next wave of S5-06): the redirect is checked by its address only' })
+    // /liff sends a linked member on to the home page in LINE (S17-02 · ADR-167; tests/e2e/liff-home.spec.ts checks the page)
     await page.goto('/liff')
-    await expect(page).toHaveURL(/\/liff\/tasks$/)
+    await expect(page).toHaveURL(/\/liff\/home$/)
   })
 })
 
@@ -261,10 +259,10 @@ test.describe('[§9.4] the first JavaScript of a LIFF page: its script files wit
       },
     },
     // /liff is the LIFF app's endpoint: a rich-menu tap or a card opens it first. Without a session its gate signs in and
-    // goes on to the tasks (the tasks' scripts load in the same first load); with the LIFF session the server sends the
-    // member on to the tasks at once
+    // goes on to the home page in LINE (its scripts load in the same first load); with the LIFF session the server sends
+    // the member on to the home page at once (ADR-167)
     {
-      name: '/liff, a linked member: the gate signs in and goes on to their tasks',
+      name: '/liff, a linked member: the gate signs in and goes on to the home page in LINE (ADR-167)',
       session: true,
       make: () => {
         const lineUserId = newLineUserId()
@@ -274,8 +272,8 @@ test.describe('[§9.4] the first JavaScript of a LIFF page: its script files wit
           lineUserId,
           path: '/liff',
           ready: async (page) => {
-            await expect(page.getByRole('heading', { level: 1, name: 'งานรออนุมัติ' })).toBeVisible()
-            await expect(page).toHaveURL(/\/liff\/tasks$/)
+            await expect(page.getByRole('heading', { level: 1, name: 'หน้าแรก' })).toBeVisible()
+            await expect(page).toHaveURL(/\/liff\/home$/)
           },
         }
       },

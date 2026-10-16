@@ -5997,6 +5997,20 @@
     "revoked": "Acting approver cancelled: new approval tasks and the tasks they still held for you come back to you",
     "sessionEnded": "Your session has ended and nothing was saved. Close this page and open the same link again, or set it on the BCS website under Acting approver."
   },
+  "liffHome": {
+    "approvalsSummary": "{count} in all · {overdue} overdue · {info} waiting for the requester",
+    "error": {
+      "hint": "The other parts still work. Tap Try again; if it still fails, tell your administrator",
+      "retry": "Try again",
+      "title": "The part {part} did not load"
+    },
+    "greeting": "Hello {name}, your work for today is below",
+    "noneUrgent": "Nothing is overdue or waiting for you to fix. Tasks waiting for your approval are under Waiting for my approval below",
+    "now": "Now",
+    "status": "Status",
+    "title": "Home",
+    "webHint": "opens in the browser outside LINE"
+  },
   "liffReceiving": {
     "barLabel": "Record the receipt",
     "closeChat": "Back to the chat",

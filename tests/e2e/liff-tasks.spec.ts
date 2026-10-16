@@ -218,10 +218,10 @@ test.describe('[FR-LINE-003/AC1] the approver’s tasks in the LINE app', () => 
     await expect(inbox(page).getByRole('listitem').filter({ hasText: first.number })).toHaveCount(0)
   })
 
-  test('/liff sends a linked approver to their tasks, which open (the rich menu’s งานรออนุมัติ)', async ({ page, context }, testInfo) => {
+  test('/liff/tasks opens a linked approver’s tasks (the rich menu’s งานรออนุมัติ; /liff itself goes to the home page in LINE, ADR-167)', async ({ page, context }, testInfo) => {
     const twin = twinOf(testInfo)
     await openAsLineUser(context, twin.lineVp)
-    await page.goto('/liff')
+    await page.goto('/liff/tasks')
     await expect(page).toHaveURL(/\/liff\/tasks$/)
     await expect(page.getByRole('heading', { level: 1, name: 'งานรออนุมัติ' })).toBeVisible()
   })

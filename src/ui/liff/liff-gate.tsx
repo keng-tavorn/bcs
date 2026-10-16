@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useEffect, useState, type ReactNode } from 'react'
-import { LIFF_HOME_PATH, LIFF_LINK_PATH, liffStateTarget, signOutBrowser, webSignInHref, type LiffSignInRefusal, type LiffSignInResult } from './bootstrap'
+import { LIFF_LINK_PATH, LIFF_START_PATH, liffStateTarget, signOutBrowser, webSignInHref, type LiffSignInRefusal, type LiffSignInResult } from './bootstrap'
 import { Button } from './button'
 import { useLiff } from './liff-provider'
 import { LiffNotice } from './notice'
@@ -81,7 +81,7 @@ export function LiffGate({ mode, state, liffState = null, workspaceHref = '/', w
     }
     // A member's session is kept as it is: /liff goes on to the tasks without asking LINE for anything
     if (state === 'member') {
-      if (mode === 'index') router.replace(LIFF_HOME_PATH)
+      if (mode === 'index') router.replace(LIFF_START_PATH)
       return
     }
     if (state !== 'signed-out' || sdkFailed) return
@@ -92,7 +92,7 @@ export function LiffGate({ mode, state, liffState = null, workspaceHref = '/', w
       if (cancelled) return
       if (result.ok) {
         unlinked.forget()
-        if (mode === 'index') router.replace(LIFF_HOME_PATH)
+        if (mode === 'index') router.replace(LIFF_START_PATH)
         else router.refresh()
         return
       }

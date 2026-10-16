@@ -57,9 +57,9 @@ test.describe('[FR-LINE-001/AC1] a code from the workspace, opened in LINE, link
     await expect(page.getByRole('link', { name: 'ไปที่งานรออนุมัติ' })).toHaveAttribute('href', '/liff/tasks')
     await checkScreen(page, testInfo, 'liff-link-done')
 
-    // The member now opens LIFF through LINE alone: /liff signs in with the ID token and goes to their tasks
+    // The member now opens LIFF through LINE alone: /liff signs in with the ID token and goes to the home page in LINE (ADR-167)
     await page.goto('/liff')
-    await expect(page).toHaveURL(/\/liff\/tasks$/)
+    await expect(page).toHaveURL(/\/liff\/home$/)
     expect(await sessionCookie(context)).toMatch(/^liff_/)
     // The same QR again, through LINE's deep link (?liff.state=): the code is spent, and the member is told they need
     // no new one — their account is linked, to this very LINE account

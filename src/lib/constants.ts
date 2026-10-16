@@ -165,11 +165,37 @@ export const NEW_REQUEST_DRAWER_BELOW_PX = 768
 /** More request types than this and the dialog that starts a new request offers a keyword search (FR-INT-010 AC3) */
 export const NEW_REQUEST_SEARCH_OVER = 6
 
+// ---------- S6 settings (src/lib/org-settings.ts) ----------
+/** The longest window or lapse an S6 day setting takes: about ten years */
+export const SETTINGS_MAX_DAYS = 3660
+/** One hundred percent in basis points, and the highest budget alert threshold (ten times the current budget) */
+export const BP_PER_WHOLE = 10_000
+export const BUDGET_ALERT_MAX_BP = 10 * BP_PER_WHOLE
+/** BR-BUD-17 default thresholds: 80 % and 100 % of the current budget */
+export const BUDGET_ALERT_DEFAULT_BP: readonly number[] = [8 * (BP_PER_WHOLE / 10), BP_PER_WHOLE]
 /** Basis points per 100% (700 bp = 7%): AI confidence and credit alert levels are written in bp (S13) */
 export const BP_WHOLE = 10_000
 /** Basis points in a whole (100 % = 10000 bp): a technical constant, not money */
 export const BASIS_POINTS_WHOLE = 10_000
 
+// ---------- S6-07 backtest (BR-WF-13, FR-DOA-103) ----------
+/** The documents a backtest routes again: those sent in the last 90 days */
+export const BACKTEST_WINDOW_DAYS = 90
+/** FR-DOA-103 AC3: past this many documents the backtest runs as a job instead of while the page waits */
+export const BACKTEST_SYNC_LIMIT = 500
+/** A backtest reads only, up to BACKTEST_SYNC_LIMIT documents, in a transaction that may take longer than a command's */
+export const BACKTEST_TX_TIMEOUT_MS = 120 * MS_PER_SECOND
+/**
+ * A report reads only, over a period of the organization's documents (collectKpis, the workflow reports of S6-20), in a
+ * transaction that may take longer than Prisma's default 5 seconds: on the phase-1 workbook the workflow report alone
+ * came near it
+ */
+export const REPORT_TX_TIMEOUT_MS = 60 * MS_PER_SECOND
+/** SET LOCAL statement_timeout of a report's transaction, below REPORT_TX_TIMEOUT_MS so Postgres stops a stuck statement first */
+export const REPORT_STATEMENT_TIMEOUT_MS = 50 * MS_PER_SECOND
+
+/** S6-21 (BR-UAT-02): a configuration package is a small file — forms, rules and a catalogue; at 3 bytes a Thai character it stays under the 1 MB a server action takes */
+export const CONFIG_PACKAGE_MAX_CHARS = 300_000
 // S8-09 (ADR-124): a basis point per percent, the longest hold of a retention, and the lift that keeps PO line numbers
 // unique while a split moves the lines after it
 export const BP_PER_PERCENT = 100

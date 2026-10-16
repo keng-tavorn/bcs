@@ -34,7 +34,14 @@ export function doaWords(t: DoaT, locale: string) {
     if (a.kind === 'MEMBER') return t('detail.approver.MEMBER', { name: person(a.member) })
     return a.positionNameTh ? `${nameIn(locale, { nameTh: a.positionNameTh, nameEn: a.positionNameEn })} (${a.position})` : a.position
   }
-  const rulesApprover = (rule: RuleView) => rule.steps.map((s) => approver(s.approver)).join(', ')
+  /** One approver, or a committee with its quorum (S6 · FR-WF-102): "คณะกรรมการ COO (COO), CFO (CFO) ต้องได้ 2 เสียง" */
+  const stepApprover = (s: RuleView['steps'][number]) => {
+    const c = s.committee
+    if (!c) return approver(s.approver)
+    const approvers = c.approvers.map(approverShort).join(', ')
+    return c.quorum === 'COUNT' ? t('detail.committee.COUNT', { approvers, count: c.quorumCount ?? c.approvers.length }) : t(`detail.committee.${c.quorum}`, { approvers })
+  }
+  const rulesApprover = (rule: RuleView) => rule.steps.map(stepApprover).join(', ')
   const sla = (minutes: number) => (minutes % MINUTES_PER_HOUR === 0 ? t('detail.sla', { hours: minutes / MINUTES_PER_HOUR }) : t('detail.slaMinutes', { minutes }))
   const rulesSla = (rule: RuleView) => rule.steps.map((s) => sla(s.slaMinutes)).join(', ')
   const policyText = (field: PolicyField, value: PolicyValue) => {

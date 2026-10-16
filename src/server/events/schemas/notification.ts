@@ -13,7 +13,8 @@ defineEvents('Notification', {
       date: z.iso.date(),
       pending: z.number().int().nonnegative(),
       overdue: z.number().int().nonnegative(),
-      scope: z.enum(['ORG', 'DEPT']).nullable(),
+      // S6-18: BUDGET for BUDGET_ADMIN (budget lines only)
+      scope: z.enum(['ORG', 'DEPT', 'BUDGET']).nullable(),
       scopePending: z.number().int().nonnegative(),
       scopeOverdue: z.number().int().nonnegative(),
       lowBudgetLines: z.number().int().nonnegative(),

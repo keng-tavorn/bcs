@@ -6,7 +6,8 @@ import { err, ok, type Result } from '@/core/result'
 import { OrgSettingsSchema } from '@/lib/org-settings'
 import { authorize, scopesFor, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
-import { forTenant, type TenantTx } from '@/server/db/tenant'
+import type { TenantTx } from '@/server/db/tenant'
+import { reportTx } from './tx'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { loadInsights, median, type InsightsData, type InsightsTask, type InsightsWeek } from '@/server/queries/insights'
 import { addAmounts, budgetFigures, budgetLowThreshold, budgetViewScope, NO_AMOUNTS, type BudgetAmounts, type BudgetFiguresDto } from '../budget/dashboard'
@@ -140,6 +141,8 @@ export interface InsightsDto extends InsightsBaseDto {
     readonly withDoa: number
     readonly withoutDoa: number
     readonly overBudget: number
+    /** G-5: the decisions of approval steps the channels share (a reviewer's is no approval, S6) */
+    readonly channelDecisions: number
     readonly channels: ReadonlyArray<{ readonly channel: (typeof DECISION_CHANNELS)[number] | 'OTHER'; readonly count: number }>
     readonly supplierChanges: number
   }
@@ -322,7 +325,7 @@ const channelOf = (channel: string): (typeof DECISION_CHANNELS)[number] | 'OTHER
 
 /** The four cards for this reader (FR-VIS-007 AC2 to AC4) */
 export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Result<InsightsDto>> {
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const prepared = await prepare(tx, ctx, params)
     if (!prepared.ok) return prepared
     const { base, data, reader: r, lowBp, lowPct, alertPct, fiscalYearCode } = prepared.data
@@ -363,7 +366,8 @@ export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Re
     }
 
     const counts = new Map<string, number>()
-    for (const d of data.control.decisions) counts.set(channelOf(d.channel), (counts.get(channelOf(d.channel)) ?? 0) + 1)
+    const approvals = data.control.decisions.filter((d) => !d.review)
+    for (const d of approvals) counts.set(channelOf(d.channel), (counts.get(channelOf(d.channel)) ?? 0) + 1)
     const withDoa = data.control.decisions.filter((d) => d.withDoaReference).length
     return ok({
       ...base,
@@ -383,6 +387,7 @@ export async function insightsView(ctx: Ctx, params: InsightsParams): Promise<Re
         decisions: data.control.decisions.length,
         withDoa,
         withoutDoa: data.control.decisions.length - withDoa,
+        channelDecisions: approvals.length,
         overBudget: data.control.overBudget.length,
         channels: [...DECISION_CHANNELS, 'OTHER' as const].map((channel) => ({ channel, count: counts.get(channel) ?? 0 })).filter((c) => c.channel !== 'OTHER' || c.count > 0),
         supplierChanges: data.control.supplierChanges.length,
@@ -399,7 +404,7 @@ const BLANK = { person: null, personKind: null, at: null, atKind: null, dueAt: n
 export async function insightsList(ctx: Ctx, params: InsightsParams, list: string): Promise<Result<InsightsListDto>> {
   if (!(INSIGHT_LISTS as readonly string[]).includes(list)) return err('NOT_FOUND', 'no such list')
   const which = list as InsightList
-  return forTenant(ctx.organizationId).$transaction(async (tx) => {
+  return reportTx(ctx, async (tx) => {
     const prepared = await prepare(tx, ctx, params)
     if (!prepared.ok) return prepared
     const { base, data, reader: r, lowBp } = prepared.data
@@ -422,7 +427,7 @@ export async function insightsList(ctx: Ctx, params: InsightsParams, list: strin
     if (which === 'over-budget') tasks = data.control.overBudget
     if (which === 'doa-ref') decisions = decisions.filter((d) => d.withDoaReference)
     if (which === 'doa-missing') decisions = decisions.filter((d) => !d.withDoaReference)
-    if (which === 'channel' && channel) decisions = decisions.filter((d) => channelOf(d.channel) === channel)
+    if (which === 'channel' && channel) decisions = decisions.filter((d) => !d.review && channelOf(d.channel) === channel)
     const useDecisions = ['doa-ref', 'doa-missing', 'channel'].includes(which)
     if (!useDecisions) decisions = []
     if (useDecisions) decisions = [...decisions].reverse()

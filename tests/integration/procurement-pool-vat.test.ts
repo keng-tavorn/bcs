@@ -4,7 +4,7 @@ import { consolidatePool } from '@/app/(workspace)/procurement/pool/commands'
 import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow, listPool, runScheduledConsolidation } from '@/server/services/procurement'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // NEW-50 (spec BR-MONEY-02, BR-CONS-01, BR-CONS-02, BR-BUD-05, FR-P2P-001, FR-P2P-002): a request whose prices include

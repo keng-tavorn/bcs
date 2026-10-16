@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { postGoodsReceipt } from '@/server/services/receiving'
-import { createDraft, editRequest, submitRequest } from '@/server/services/requests'
+import { createDraft, editRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

@@ -8,7 +8,7 @@ import { defineEvents } from '../registry'
 const satang = z.string().regex(/^\d+$/)
 const movement = {
   /** The document whose action moved the money */
-  documentType: z.enum(['IMPORT', 'REQUEST', 'PURCHASE_ORDER']),
+  documentType: z.enum(['IMPORT', 'REQUEST', 'PURCHASE_ORDER', 'BUDGET_TRANSFER', 'BUDGET_OVERRUN']),
   documentId: z.uuid(),
   amountSatang: satang,
   /** Ledger rows of the operation, in order */
@@ -23,6 +23,16 @@ defineEvents('BudgetLine', {
   'budget.committed': { schema: z.object(movement) },
   'budget.commitment_released': { schema: z.object(movement) },
   'budget.actualized': { schema: z.object(movement) },
+  // S6-15 (BR-BUD-09): a transfer or an adjustment moved money out of the line (AVAILABLE → OUTSIDE) or into it
+  'budget.transferred_out': { schema: z.object(movement) },
+  'budget.transferred_in': { schema: z.object(movement) },
+  // S6-16 (BR-BUD-13 to BR-BUD-15, BR-BUD-18): an approved overrun funded the line, or what it did not use left the line
+  'budget.overrun_funded': { schema: z.object(movement) },
+  'budget.overrun_returned': { schema: z.object(movement) },
+  // S6-18 (BR-BUD-17): an alert the line's burn reached, once per line, alert and fiscal year (not a ledger movement)
+  'budget.alert_raised': {
+    schema: z.object({ fiscalYearId: z.uuid(), alert: z.string().regex(/^(USED_\d{1,5}|FORECAST_OVER)$/), usedBp: z.number().int().nonnegative(), forecastBp: z.number().int().nonnegative().nullable() }),
+  },
 })
 
 // Use of another department's budget line (FR-BUD-004 AC1): to one department or one member, for a period

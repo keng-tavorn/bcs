@@ -1,7 +1,9 @@
+import { ChevronDown } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { cn } from '../cn'
-import { LineStatusBadge, LowBadge } from './badges'
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../shadcn/collapsible'
+import { BurnBadge, LineStatusBadge, LowBadge, type BurnBadgeKind } from './badges'
 import { HeldMeter } from './meter'
 
 // The budget dashboard's figures (spec §11.2, FR-BUD-005 AC1 AC2): each department's total over its budget lines, then
@@ -34,6 +36,20 @@ export interface FigureLinks extends AmountLinks {
   readonly held: AmountLink | null
   /** "ใกล้หมด เหลือ 8.3%" or "งบหมด เหลือ 0.00 บาท": to the ledger's movements behind what is left */
   readonly low: AmountLink | null
+  /** S6-18: "พยากรณ์ทั้งปี 104.25%": to the POs that commit, followed by the actual (the pace it is drawn from); null with no forecast */
+  readonly forecast?: AmountLink | null
+}
+
+/**
+ * S6-18 (FR-BUD-104 AC1 · BR-BUD-17): the year's forecast at the pace so far and the alerts reached. The used share of the
+ * burn (rounded down, two decimals) is FigureView.used itself, so a row shows one used share, never two.
+ */
+export interface BurnView {
+  /** "พยากรณ์ทั้งปี 104.25%", or "พยากรณ์ทั้งปี: ยังไม่พยากรณ์" with the hint why */
+  readonly forecast: string
+  readonly forecastHint: string | null
+  /** The highest threshold reached ("ใช้ถึง 80%", "ใช้ครบ 100%"), then "พยากรณ์เกินงบ" */
+  readonly alerts: ReadonlyArray<{ readonly kind: BurnBadgeKind; readonly label: string }>
 }
 
 export interface FigureView {
@@ -52,6 +68,18 @@ export interface FigureView {
   /** Nothing is left (the warning is the used-up one, in --danger): new requests on it are refused */
   readonly out: boolean
   readonly links: FigureLinks
+  /** S6-18: the forecast and the alerts of the burn (the dashboard's rows); none on a row without them */
+  readonly burn?: BurnView | null
+}
+
+/**
+ * How a line came to its planned amount (S6-15 · FR-BUD-103 AC3 · BR-BUD-09): the initial budget imported, transferred
+ * in and out, increased and decreased, and the planned amount they make — each linking to what makes it up
+ */
+export interface LineChangesView {
+  /** The button's words ("ที่มาของงบ"); the line's code follows for screen readers */
+  readonly toggle: string
+  readonly rows: ReadonlyArray<{ readonly key: string; readonly term: string; readonly amount: string; readonly link: AmountLink; readonly total?: boolean }>
 }
 
 export interface BudgetLineView extends FigureView {
@@ -60,6 +88,7 @@ export interface BudgetLineView extends FigureView {
   readonly name: string
   readonly href: string
   readonly status: { readonly kind: 'FROZEN' | 'CLOSED'; readonly label: string } | null
+  readonly changes?: LineChangesView
 }
 
 export interface BudgetDepartmentView extends FigureView {
@@ -114,7 +143,7 @@ function Share({ text, link }: { text: string; link: AmountLink | null }) {
   )
 }
 
-/** Used and held, then the bar; stacked in the table's narrow column, side by side in the lists */
+/** Used and held (and the year's forecast, S6-18), then the bar; stacked in the table's narrow column, side by side in the lists */
 function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: string; inline?: boolean; className?: string }) {
   if (!f.used || !f.held) return <span className={cn('text-ink-muted', className)}>{noShare}</span>
   return (
@@ -122,7 +151,14 @@ function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: str
       <span className={inline ? 'flex flex-wrap gap-x-4' : 'flex flex-col gap-1'}>
         <Share text={f.used} link={f.links.used} />
         <Share text={f.held} link={f.links.held} />
+        {f.burn && f.burn.forecastHint === null ? <Share text={f.burn.forecast} link={f.links.forecast ?? null} /> : null}
       </span>
+      {f.burn && f.burn.forecastHint !== null ? (
+        <span className="flex flex-col">
+          <span>{f.burn.forecast}</span>
+          <span className="text-ink-muted">{f.burn.forecastHint}</span>
+        </span>
+      ) : null}
       <HeldMeter heldBp={f.heldBp} low={f.low !== null} out={f.out} />
     </span>
   )
@@ -133,12 +169,44 @@ function Shares({ f, noShare, inline, className }: { f: FigureView; noShare: str
  * left, in its own icon and colour — and a line's frozen or closed status
  */
 function States({ f, status, className }: { f: FigureView; status?: BudgetLineView['status']; className?: string }) {
-  if (!f.low && !status) return null
+  const alerts = f.burn?.alerts ?? []
+  if (!f.low && !status && alerts.length === 0) return null
   return (
     <span className={cn('flex flex-col gap-0.5', className)}>
       {f.low ? <LowBadge label={f.low} out={f.out} link={f.links.low} /> : null}
+      {alerts.map((a) => (
+        <BurnBadge key={a.kind} kind={a.kind} label={a.label} />
+      ))}
       {status ? <LineStatusBadge status={status.kind} label={status.label} /> : null}
     </span>
+  )
+}
+
+/**
+ * The line's changes behind a button, closed at first (the dashboard stays a dashboard): pressed, the amounts of the
+ * changes open under it, label left and amount right, the planned amount last under a rule
+ */
+function LineChanges({ code, changes, className }: { code: string; changes: LineChangesView; className?: string }) {
+  return (
+    <Collapsible className={cn('flex flex-col gap-1', className)}>
+      <CollapsibleTrigger className="group inline-flex min-h-11 items-center gap-1 self-start font-normal text-primary underline underline-offset-4 hover:no-underline xl:min-h-8">
+        <ChevronDown className="size-4 shrink-0 transition-transform duration-150 group-data-[state=open]:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+        {changes.toggle}
+        <span className="sr-only"> {code}</span>
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-1 font-normal">
+          {changes.rows.map((r) => (
+            <div key={r.key} className={cn('contents', r.total ? 'font-semibold' : '')}>
+              <dt className={cn('text-ink-muted', r.total ? 'border-t border-line pt-1 text-ink' : '')}>{r.term}</dt>
+              <dd className={cn('money', r.total ? 'border-t border-line pt-1' : '')}>
+                <Amount text={r.amount} link={r.link} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      </CollapsibleContent>
+    </Collapsible>
   )
 }
 
@@ -189,6 +257,7 @@ function WideTable({ departments, total, labels }: { departments: readonly Budge
                 </Link>
                 <span className="block break-words text-ink-muted">{l.name}</span>
                 <States f={l} status={l.status} className="mt-1" />
+                {l.changes ? <LineChanges code={l.code} changes={l.changes} className="mt-1" /> : null}
               </th>
               {BUCKETS.map((b) => (
                 <td key={b} className={money}>
@@ -276,6 +345,7 @@ function NarrowList({ departments, total, labels }: { departments: readonly Budg
                 </div>
                 <FigureList f={l} labels={labels} />
                 <Shares f={l} noShare={labels.noShare} inline />
+                {l.changes ? <LineChanges code={l.code} changes={l.changes} /> : null}
               </li>
             ))}
           </ul>

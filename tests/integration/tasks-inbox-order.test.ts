@@ -5,7 +5,7 @@ import { getRequestView } from '@/server/queries/requests'
 import { listMyTasks } from '@/server/queries/tasks'
 import { provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { createDelegation } from '@/server/services/delegations'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { startDelegationWindow } from '@/server/services/sla'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

@@ -39,40 +39,7 @@ export function InsightChart({ caption, unit, spec, table, texts }: { caption: s
         <span className="text-base text-ink-muted md:text-sm">{unit}</span>
       </figcaption>
       {asTable ? (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {table.columns.map((c, i) => (
-                <TableHead key={c} className={i === 0 ? undefined : 'text-right'}>
-                  {c}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {table.rows.map((row) => (
-              <TableRow key={row[0]?.text}>
-                {row.map((cell, i) =>
-                  i === 0 ? (
-                    <TableHead key={i} scope="row" className="font-normal whitespace-normal text-ink">
-                      {cell.text}
-                    </TableHead>
-                  ) : (
-                    <TableCell key={i} className="money">
-                      {cell.href ? (
-                        <Link href={cell.href} className={linkClass}>
-                          {cell.text}
-                        </Link>
-                      ) : (
-                        cell.text
-                      )}
-                    </TableCell>
-                  ),
-                )}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <InsightTable table={table} />
       ) : (
         <InsightChartBody spec={spec} />
       )}
@@ -80,5 +47,45 @@ export function InsightChart({ caption, unit, spec, table, texts }: { caption: s
         {asTable ? texts.showChart : texts.showTable}
       </Button>
     </figure>
+  )
+}
+
+/** The figures of a chart as a table: the first cell names the row, the others right aligned, each opening its list */
+export function InsightTable({ table }: { table: InsightTableView }) {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          {table.columns.map((c, i) => (
+            <TableHead key={c} className={i === 0 ? undefined : 'text-right'}>
+              {c}
+            </TableHead>
+          ))}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {table.rows.map((row, r) => (
+          <TableRow key={`${r}:${row[0]?.text}`}>
+            {row.map((cell, i) =>
+              i === 0 ? (
+                <TableHead key={i} scope="row" className="font-normal whitespace-normal text-ink">
+                  {cell.text}
+                </TableHead>
+              ) : (
+                <TableCell key={i} className="money">
+                  {cell.href ? (
+                    <Link href={cell.href} className={linkClass}>
+                      {cell.text}
+                    </Link>
+                  ) : (
+                    cell.text
+                  )}
+                </TableCell>
+              ),
+            )}
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
   )
 }

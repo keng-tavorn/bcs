@@ -18,6 +18,11 @@ export interface DoaVersionListRow {
   readonly approvedById: string | null
   readonly approvedAt: Date | null
   readonly publishedAt: Date | null
+  /** A withdrawal asked while it is still ahead (FR-DOA-104): when, by whom and why; and when it was withdrawn */
+  readonly withdrawalRequestedAt: Date | null
+  readonly withdrawalRequestedById: string | null
+  readonly withdrawalReason: string | null
+  readonly withdrawnAt: Date | null
   readonly createdAt: Date
   readonly rules: number
 }
@@ -35,6 +40,10 @@ const LIST_SELECT = {
   approvedById: true,
   approvedAt: true,
   publishedAt: true,
+  withdrawalRequestedAt: true,
+  withdrawalRequestedById: true,
+  withdrawalReason: true,
+  withdrawnAt: true,
   createdAt: true,
   _count: { select: { rules: true } },
 } as const

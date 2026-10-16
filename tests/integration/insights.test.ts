@@ -140,11 +140,13 @@ describe('[FR-VIS-007/AC3] every figure agrees with the KPI view and the budget 
     const dash = await budgetDashboard(executive().ctx)
     if (!dash.ok) throw new Error(dash.error.code)
     expect(d.budget!.fiscalYearCode).toBe(dash.data.fiscalYear!.code)
-    expect(d.budget!.total).toEqual(dash.data.total)
+    // The burn of the dashboard (S6-18) is not on the card: the figures agree satang for satang
+    const { burn: _burn, ...total } = dash.data.total
+    expect(d.budget!.total).toEqual(total)
     expect(d.budget!.lineCount).toBe(dash.data.lines.length)
     expect(d.budget!.lowLines).toBe(dash.data.lines.filter((l) => l.low).length)
     for (const dept of dash.data.departments) {
-      const { id, code, nameTh, nameEn, ...figures } = dept
+      const { id, code, nameTh, nameEn, burn: _deptBurn, ...figures } = dept
       expect(d.budget!.byDepartment.find((x) => x.id === id), code).toMatchObject({ id, code, nameTh, nameEn, ...figures })
     }
   })

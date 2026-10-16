@@ -11,6 +11,7 @@ import { liffPathFor, liffTaskPath, type LiffTaskAction } from '@/channels/line/
 import { stepUpNeeded } from '@/core/pin'
 import type { AppError } from '@/core/result'
 import { getEnv } from '@/lib/env'
+import { priceReferenceForCard } from '@/server/queries/price-reference'
 import { forTenant } from '@/server/db/tenant'
 import { liffLink } from './webhook/messages'
 
@@ -122,6 +123,12 @@ async function subjectSummary(db: Db, subjectType: string, subjectId: string, fa
   return none
 }
 
+async function latestFlags(db: ReturnType<typeof forTenant>, requestId: string): Promise<Array<'DUPLICATE' | 'SPLIT'>> {
+  const latest = await db.requestFlag.aggregate({ where: { requestId }, _max: { routeNo: true } })
+  if (latest._max.routeNo === null) return []
+  return (await db.requestFlag.findMany({ where: { requestId, routeNo: latest._max.routeNo }, orderBy: { kind: 'asc' }, select: { kind: true } })).map((f) => f.kind)
+}
+
 /**
  * The approval card of an open task for its assignee (FR-LINE-002 AC1), with the in-chat approve button only when the
  * task may be decided there and the assignee holds a live LINE token (BR-TOK-05, BR-TOK-01). Null when the task is no
@@ -143,8 +150,10 @@ export async function approvalCardMessage(
       dueAt: true,
       overdueAt: true,
       escalatedAt: true,
+      workflowRuleCodes: true,
       step: {
         select: {
+          kind: true,
           route: {
             select: {
               subjectType: true,
@@ -162,6 +171,10 @@ export async function approvalCardMessage(
   if (!row || row.status !== 'OPEN' || row.assigneeMemberId !== task.memberId) return null
   const route = row.step.route
   const subject = await subjectSummary(db, route.subjectType, route.subjectId, task.fallbackLabel, cards.locale)
+  // S6-11 (BR-PRC-05): a request's card carries its one price badge; the assignee may read its price reference (BR-PRC-07)
+  const price = route.subjectType === 'REQUEST' ? await priceReferenceForCard(organizationId, route.subjectId, now) : null
+  // S6-13 (BR-DUP-05): the flags of the request's latest route
+  const flags = route.subjectType === 'REQUEST' ? await latestFlags(db, route.subjectId) : []
   const token = await db.actionToken.findFirst({
     where: { taskId: task.taskId, memberId: task.memberId, channel: 'LINE', usedAt: null, revokedAt: null, expiresAt: { gt: now } },
     orderBy: { createdAt: 'desc' },
@@ -181,7 +194,11 @@ export async function approvalCardMessage(
     doa: { code: route.doaVersion.code, versionNo: route.doaVersion.versionNo, ruleCode: route.ruleCode },
     acting: row.principalMemberId !== null,
     escalated: row.escalatedAt !== null,
-    stepUp: stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
+    // A reviewer needs no PIN, whatever the amount (BR-WF-09)
+    stepUp: row.step.kind !== 'REVIEW' && stepUpNeeded({ subjectType: route.subjectType, amountSatang: route.amountSatang, stepUpThresholdSatang: route.doaVersion.stepUpThresholdSatang }),
+    review: row.step.kind === 'REVIEW' ? { ruleCodes: row.workflowRuleCodes } : null,
+    priceBadge: price?.badge ?? null,
+    flags,
     tokenId: token?.id ?? null,
     links: { approve: taskLink(cards, task.taskId, 'approve'), decline: taskLink(cards, task.taskId, 'reject'), details: taskLink(cards, task.taskId) },
   })
@@ -192,7 +209,7 @@ export async function decisionConfirmationMessage(organizationId: string, taskId
   const db = forTenant(organizationId)
   const task = await db.approvalTask.findFirst({
     where: { id: taskId },
-    select: { decidedAt: true, step: { select: { route: { select: { status: true, subjectType: true, subjectId: true, ruleCode: true, doaVersion: { select: { code: true, versionNo: true } } } } } } },
+    select: { decidedAt: true, step: { select: { kind: true, route: { select: { status: true, subjectType: true, subjectId: true, ruleCode: true, doaVersion: { select: { code: true, versionNo: true } } } } } } },
   })
   if (!task?.decidedAt) return null
   const route = task.step.route
@@ -205,6 +222,7 @@ export async function decisionConfirmationMessage(organizationId: string, taskId
     doa: { code: route.doaVersion.code, versionNo: route.doaVersion.versionNo, ruleCode: route.ruleCode },
     decidedAt: task.decidedAt,
     stage: route.status === 'ACTIVE' ? 'NEXT_STEP' : 'DONE',
+    review: task.step.kind === 'REVIEW',
     detailsUrl: route.subjectType === 'REQUEST' ? documentLink(cards, `/requests/${route.subjectId}`) : taskLink(cards, taskId),
   })
 }

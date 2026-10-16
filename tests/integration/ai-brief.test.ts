@@ -5,7 +5,7 @@ import { PROMPT_VERSIONS } from '@/lib/ai-config'
 import { prisma } from '@/server/db/client'
 import { aiApprovalBriefRun } from '@/server/jobs/ai-approval-brief'
 import { approvalBriefOf, briefFacts, runBrief, runMonthlyGrant, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

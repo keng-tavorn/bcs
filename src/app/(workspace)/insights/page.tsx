@@ -236,12 +236,12 @@ function ControlCard({ t, d, chartTexts }: { t: InsightsT; d: InsightsDto; chart
   const f = d.filters
   const c = d.control
   const shown = c.channels.filter((x) => x.count > 0)
-  const spec: InsightChartSpec = { kind: 'share', label: t('control.chartLabel'), series: shown.map((x) => ({ key: x.channel, label: channelText(t, x.channel), value: x.count, text: `${percentText(x.count, c.decisions)}% (${x.count})` })) }
+  const spec: InsightChartSpec = { kind: 'share', label: t('control.chartLabel'), series: shown.map((x) => ({ key: x.channel, label: channelText(t, x.channel), value: x.count, text: `${percentText(x.count, c.channelDecisions)}% (${x.count})` })) }
   const table: InsightTableView = {
     columns: [t('control.channel'), t('control.decisions'), '%'],
     rows: c.channels.map((x) => {
       const href = x.count ? listHref('channel', f, { channel: x.channel }) : null
-      return [{ text: channelText(t, x.channel) }, { text: String(x.count), href }, { text: `${percentText(x.count, c.decisions) ?? '0.0'}%`, href }]
+      return [{ text: channelText(t, x.channel) }, { text: String(x.count), href }, { text: `${percentText(x.count, c.channelDecisions) ?? '0.0'}%`, href }]
     }),
   }
   return (
@@ -257,7 +257,7 @@ function ControlCard({ t, d, chartTexts }: { t: InsightsT; d: InsightsDto; chart
           {t('control.overBudget', { count: c.overBudget })}
         </Link>
       </StateLine>
-      {c.decisions ? <InsightChart caption={t('control.chartTitle')} unit={t('control.unit')} spec={spec} table={table} texts={chartTexts} /> : null}
+      {c.channelDecisions ? <InsightChart caption={t('control.chartTitle')} unit={t('control.unit')} spec={spec} table={table} texts={chartTexts} /> : null}
       <Attention
         t={t}
         items={[

@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { prisma } from '@/server/db/client'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
-import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '@/server/services/requests'
+import { cancelRequest, createDraft, editRequest, resubmitRequest, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S2-10 request flow (spec §6.4, FR-INT-007, FR-INT-009, FR-DOA-004, FR-DOA-005) on an organization built from the

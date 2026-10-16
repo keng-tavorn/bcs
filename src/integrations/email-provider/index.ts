@@ -46,10 +46,19 @@ function smtpError(error: unknown): EmailSendError {
   return new EmailSendError(false, typeof e.code === 'string' && /^[A-Z_]{2,32}$/.test(e.code) ? e.code : 'UNKNOWN')
 }
 
+/**
+ * The host nodemailer connects to. nodemailer asks the DNS server for the address of a name (dns.resolve4/6) before the
+ * hosts file; a network whose DNS answers "localhost" slowly (seconds, seen on Windows) delays the first message of
+ * each process past what a command waits. Local Mailpit is reached by its loopback address instead.
+ */
+export function smtpHost(hostname: string): string {
+  return hostname === 'localhost' ? '127.0.0.1' : hostname
+}
+
 export function createSmtpProvider(url: string, defaultFrom: string): EmailProvider {
   const parsed = new URL(url)
   const transport = nodemailer.createTransport({
-    host: parsed.hostname,
+    host: smtpHost(parsed.hostname),
     port: Number(parsed.port) || (parsed.protocol === 'smtps:' ? 465 : 587),
     secure: parsed.protocol === 'smtps:',
     ...(parsed.username ? { auth: { user: decodeURIComponent(parsed.username), pass: decodeURIComponent(parsed.password) } } : {}),

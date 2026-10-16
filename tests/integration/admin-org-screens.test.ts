@@ -18,7 +18,7 @@ import { previewOrgChange, proposeOrgChange } from '@/server/services/org-author
 import { getOrgChangeFormForAdmin, listOrgChangesForAdmin } from '@/server/services/org-authority/view'
 import { assignHolder, createCostCenter, createDepartment } from '@/server/services/org-structure'
 import { getOrgStructureForAdmin } from '@/server/services/org-structure/view'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import type { OrgChangeDraft } from '@/ui/admin-org/org-change-form'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { pinStepUp } from '../support/pin'

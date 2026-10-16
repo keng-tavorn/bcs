@@ -4,9 +4,12 @@ import { STORED_ROLES, type StoredRole } from '@/server/authz/permissions'
 import type { Ctx } from '@/server/context'
 import { lockRowsForUpdate } from '@/server/db/sql/locks'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { doaAdminNotices, lastDoaAdmin, roleGrantRefusal } from './role-rules'
 
 // Grant and revoke roles (FR-ADM-001 AC1–AC2). ORG_ADMIN only; nobody grants a role to themselves, and the last
 // active ORG_ADMIN keeps the role. A role never makes anyone an approver (§2.2): approval comes from DOA positions.
+// S6-09: DOA_ADMIN follows role-rules.ts — never to oneself, never with ORG_ADMIN once separated, AUDITOR told — and
+// the separated DOA keeps an active DOA_ADMIN.
 
 type FailCode = 'VALIDATION_FAILED' | 'NOT_FOUND' | 'INVALID_STATE_TRANSITION' | 'FORBIDDEN'
 const fail = (code: FailCode, message: string, details?: Record<string, unknown>) =>
@@ -21,16 +24,17 @@ export const grantRoleCommand = defineCommand({
   async execute(tx, input, ctx): Promise<CommandOutcome<{ memberId: string; role: StoredRole }>> {
     const allowed = await authorize(tx, ctx, 'admin.members')
     if (!allowed.ok) return { ok: false, error: allowed.error }
-    if (ctx.actor.type === 'USER' && ctx.actor.memberId === input.memberId) {
+    if (input.role !== 'DOA_ADMIN' && ctx.actor.type === 'USER' && ctx.actor.memberId === input.memberId) {
       return fail('FORBIDDEN', 'an administrator cannot grant a role to themselves', { reason: 'SELF_GRANT' })
     }
     const locked = await lockRowsForUpdate(tx, 'Member', ctx.organizationId, [input.memberId])
     if (locked.length === 0) return fail('NOT_FOUND', 'member not found')
     const member = await tx.member.findUniqueOrThrow({ where: { id: input.memberId }, select: { status: true } })
     if (member.status === 'DEACTIVATED') return fail('INVALID_STATE_TRANSITION', 'member is deactivated')
-    if (await tx.roleAssignment.findFirst({ where: { memberId: input.memberId, role: input.role, revokedAt: null } })) {
-      return fail('VALIDATION_FAILED', 'member already has this role', { field: 'role', reason: 'ALREADY_GRANTED' })
-    }
+    const holding = new Set((await tx.roleAssignment.findMany({ where: { memberId: input.memberId, revokedAt: null }, select: { role: true } })).map((r) => r.role))
+    const refused = await roleGrantRefusal(tx, ctx, input.memberId, [input.role], holding)
+    if (refused) return refused
+    if (holding.has(input.role)) return fail('VALIDATION_FAILED', 'member already has this role', { field: 'role', reason: 'ALREADY_GRANTED' })
     await tx.roleAssignment.create({
       data: {
         organizationId: ctx.organizationId,
@@ -44,6 +48,7 @@ export const grantRoleCommand = defineCommand({
       ok: true,
       result: { memberId: input.memberId, role: input.role },
       events: [{ type: 'member.role_granted', aggregateType: 'Member', aggregateId: input.memberId, data: { role: input.role, scopeDepartmentId: null } }],
+      ...(input.role === 'DOA_ADMIN' ? { notifications: await doaAdminNotices(tx, input.memberId, 'GRANTED', ctx.now) } : {}),
     }
   },
 })
@@ -65,11 +70,15 @@ export const revokeRoleCommand = defineCommand({
       others.delete(input.memberId)
       if (others.size === 0) return fail('VALIDATION_FAILED', 'the organization must keep an active ORG_ADMIN', { field: 'role', reason: 'LAST_ORG_ADMIN' })
     }
+    if (input.role === 'DOA_ADMIN' && (await lastDoaAdmin(tx, ctx, input.memberId))) {
+      return fail('VALIDATION_FAILED', 'the separated DOA must keep an active DOA_ADMIN', { field: 'role', reason: 'LAST_DOA_ADMIN' })
+    }
     await tx.roleAssignment.update({ where: { id: assignment.id }, data: { revokedAt: ctx.now } })
     return {
       ok: true,
       result: { memberId: input.memberId, role: input.role },
       events: [{ type: 'member.role_revoked', aggregateType: 'Member', aggregateId: input.memberId, data: { role: input.role } }],
+      ...(input.role === 'DOA_ADMIN' ? { notifications: await doaAdminNotices(tx, input.memberId, 'REVOKED', ctx.now) } : {}),
     }
   },
 })

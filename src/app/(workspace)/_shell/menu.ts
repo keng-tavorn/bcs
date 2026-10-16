@@ -21,6 +21,7 @@ export type MenuKey =
   | 'pool'
   | 'pos'
   | 'suppliers'
+  | 'catalog'
   | 'invoices'
   | 'payments'
   | 'bankAccounts'
@@ -39,9 +40,11 @@ export type MenuKey =
   | 'requestTypes'
   | 'line'
   | 'doa'
+  | 'workflows'
   | 'orgAuthority'
   | 'policyHistory'
   | 'modules'
+  | 'config'
   | 'ai'
   | 'tenants'
   | 'delegation'
@@ -82,6 +85,8 @@ export const MENU: readonly MenuItem[] = [
   { key: 'pos', href: '/procurement/pos', group: 'procurement', capability: 'po.view', scopes: ['ORG'], module: 'CORE', ready: true },
   { key: 'receiving', href: '/receiving', group: 'procurement', capability: 'gr.post', scopes: ['DEPT', 'ASSIGNED'], module: 'CORE', ready: true },
   { key: 'suppliers', href: '/suppliers', group: 'procurement', capability: 'supplier.view', module: 'CORE', ready: true },
+  // The catalogue with its agreed prices (S6-10, FR-INT-102): every member searches it; PROCUREMENT keeps it from its page
+  { key: 'catalog', href: '/catalog', group: 'procurement', capability: 'catalog.view', module: 'CORE', ready: true },
   { key: 'invoices', href: '/finance/invoices', group: 'finance', capability: 'invoiceConfirmation.record', module: 'CORE', ready: true, labelWhen: { module: 'PAY', key: 'invoicesAp' } },
   // S9-09 (module PAY): the payment runs FINANCE prepares and AUDITOR reads (an approver opens one from the task), and
   // the bank accounts — the organization's payer accounts and the requests to change an account
@@ -105,9 +110,13 @@ export const MENU: readonly MenuItem[] = [
   // The organization's LINE channel (FR-ADM-006 AC2 AC3; §9.1 lists the channels after the request types)
   { key: 'line', href: '/admin/line', group: 'admin', capability: 'admin.channels', module: 'CORE', ready: true },
   { key: 'doa', href: '/admin/doa', group: 'admin', capability: 'admin.doa.draft', module: 'CORE', ready: true },
+  { key: 'workflows', href: '/admin/workflows', group: 'admin', capability: 'admin.workflow.draft', module: 'CORE', ready: true },
   { key: 'orgAuthority', href: '/admin/org-authority', group: 'admin', capability: 'admin.orgAuthority.propose', module: 'CORE', ready: true },
   { key: 'policyHistory', href: '/admin/policy-history', group: 'admin', capability: 'admin.policyHistory.view', module: 'CORE', ready: false },
   { key: 'modules', href: '/admin/modules', group: 'admin', capability: 'admin.modules.view', module: 'CORE', ready: true },
+  // S6-21 (FR-PLT-101 AC2): export and import of the configuration package; config.import has the same grantees as
+  // config.export (ORG_ADMIN, DOA_ADMIN · permissions.ts), and the page checks each of the two again
+  { key: 'config', href: '/admin/config', group: 'admin', capability: 'config.export', module: 'CORE', ready: true },
   // S13-04: the organization's AI assistants and credits, once the BCS team switched the AI module on
   { key: 'ai', href: '/admin/ai', group: 'admin', capability: 'admin.ai.manage', module: 'AI', ready: true },
   { key: 'tenants', href: '/platform/tenants', group: 'platform', capability: 'platform.modules.manage', module: null, ready: true },

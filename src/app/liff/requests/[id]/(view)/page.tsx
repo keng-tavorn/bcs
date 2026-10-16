@@ -7,9 +7,11 @@ import { LiffGate } from '@/ui/liff/liff-gate'
 import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffNotice } from '@/ui/liff/notice'
 import { LiffCancelRequest } from '@/ui/liff/requests/cancel'
+import { LiffReorder } from '@/ui/liff/requests/reorder'
 import { LiffRequestScreen } from '@/ui/liff/requests/requester'
 import { LiffStatusBadge } from '@/ui/liff/status-badge'
 import { DoaRef } from '@/ui/request-view/doa-ref'
+import { canReorder } from '@/ui/request-view/repeat-rules'
 import { PlaceFacts, type PlaceFact } from '@/ui/request-view/place'
 import { StateLine } from '@/ui/request-view/status'
 import { Timeline } from '@/ui/timeline/timeline'
@@ -18,8 +20,8 @@ import { doaRefText, dueText, localeOf, memberName, nameIn, stageText, stageWait
 import { RequestFacts, RequestSections } from '../../../../(workspace)/_tracking/request-sections'
 import { liffHref } from '../../../_lib/links'
 import { liffPage } from '../../../_lib/session'
-import { answerInfoAction, cancelRequestAction, downloadUrlAction } from '../../actions'
-import { liffDraftHref } from '../../_lib/form'
+import { answerInfoAction, cancelRequestAction, downloadUrlAction, reorderAction } from '../../actions'
+import { LIFF_FORM_PATHS, liffDraftHref } from '../../_lib/form'
 import { liffPrincipalOf } from '../../_lib/principal'
 
 /** Who may view the request, read once per render (the title and the page ask it with the same context) */
@@ -160,6 +162,12 @@ export default async function LiffRequestPage({ params }: { params: Promise<{ id
       </LiffSection>
 
       <RequestSections view={view} locale={locale} openFile={downloadUrlAction.bind(null, view.id)} doaLinks={false} />
+      {/* Asking again for what was asked before (S6-12 · FR-INT-101 AC1): the requester's own request once sent */}
+      {canReorder(mine, view.status) ? (
+        <LiffSection id="liff-reorder" title={tv('actions.reorderTitle')}>
+          <LiffReorder requestId={view.id} draftBase={LIFF_FORM_PATHS.requests} reorder={reorderAction} />
+        </LiffSection>
+      ) : null}
       {mine ? <LiffCancelRequest requestId={view.id} canCancel={view.actions.canCancel} cancel={cancelRequestAction} /> : null}
     </>
   )

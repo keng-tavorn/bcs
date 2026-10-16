@@ -1,11 +1,12 @@
-import { bandOf, type ApproverSpec, type DoaRuleSnapshot } from '@/core/doa'
+import { bandOf, type DoaRuleSnapshot } from '@/core/doa'
 import type { DoaVersionData } from '@/server/doa/yaml'
+import { stepKey } from './compare'
 
 // What changed from one DOA version to the next (FR-DOA-001 AC3: the history shows each version's diff with the one
 // before it). Rules are matched by code; a rule is changed when its document type, priority, amount band, approvers or
 // SLA differ. Policies are the version-wide settings (BR-DOA-11, BR-SOD-02, OQ-04, OQ-07). Pure: rows in, data out.
 
-export const POLICY_FIELDS = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive'] as const
+export const POLICY_FIELDS = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive', 'doaAdminSeparated'] as const
 export type PolicyField = (typeof POLICY_FIELDS)[number]
 export type PolicyValue = string | boolean | null
 
@@ -30,10 +31,10 @@ export function policyValues(v: DoaVersionData): Record<PolicyField, PolicyValue
     stepUpThreshold: v.stepUpThresholdSatang === null ? null : v.stepUpThresholdSatang.toString(),
     approverMayReceive: v.sodPolicy.approverMayReceive,
     requesterMayReceive: v.sodPolicy.requesterMayReceive,
+    doaAdminSeparated: v.sodPolicy.doaAdminSeparated === true,
   }
 }
 
-const approverKey = (a: ApproverSpec) => (a.kind === 'MEMBER' ? `MEMBER:${a.memberId}` : `${a.kind}:${a.position}`)
 
 /** The band as (lower exclusive, upper inclusive) in satang text, so "gte 1" and "gt 0" compare equal (BR-DOA-02). */
 function bandKey(rule: DoaRuleSnapshot): string {
@@ -47,7 +48,7 @@ function ruleChanges(before: DoaRuleSnapshot, after: DoaRuleSnapshot): RuleField
   if (before.documentType !== after.documentType) fields.push('documentType')
   if (before.priority !== after.priority) fields.push('priority')
   if (bandKey(before) !== bandKey(after)) fields.push('band')
-  if (before.steps.map((s) => approverKey(s.approver)).join('|') !== after.steps.map((s) => approverKey(s.approver)).join('|')) fields.push('approver')
+  if (before.steps.map(stepKey).join('|') !== after.steps.map(stepKey).join('|')) fields.push('approver')
   if (before.steps.map((s) => s.slaBusinessMinutes).join('|') !== after.steps.map((s) => s.slaBusinessMinutes).join('|')) fields.push('sla')
   return fields
 }

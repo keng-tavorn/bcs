@@ -51,8 +51,12 @@ export interface TaskDecisionInput {
   readonly subjectInput?: { readonly flagsKey: string }
 }
 
-/** What the task decides; each has its own choices and words */
-export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE'
+/**
+ * What the task decides; each has its own choices and words. REVIEW: a reviewer's task of a request (S6 · BR-WF-09);
+ * BUDGET_TRANSFER: a budget transfer or adjustment (S6-15 · FR-BUD-103), approved, returned or rejected, never asked about;
+ * BUDGET_OVERRUN: an over-budget approval (S6-16 · FR-BUD-101), the same three choices, its amount the shortfall (no VAT)
+ */
+export type DecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW' | 'BUDGET_TRANSFER' | 'BUDGET_OVERRUN'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -164,26 +168,43 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
   const t = useTranslations('tasks.decide')
   const po = kind === 'PURCHASE_ORDER'
   const variance = kind === 'VARIANCE'
+  // A reviewer passes, returns or asks: never rejects, and needs no PIN (BR-WF-09)
+  const review = kind === 'REVIEW'
+  // Its amount has no VAT, and a return or rejection gives the reservation back to the source line
+  const transfer = kind === 'BUDGET_TRANSFER'
+  // S6-16: its amount is the shortfall (no VAT); deciding it changes the budget only when approved
+  const overrun = kind === 'BUDGET_OVERRUN'
+  // The words of the two budget kinds, under tasks.decide.transfer or tasks.decide.overrun
+  const budget = transfer ? 'transfer' : overrun ? 'overrun' : null
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
-  const ask = kind === 'REQUEST' ? actions.ask : undefined
+  const ask = kind === 'REQUEST' || review ? actions.ask : undefined
   // The words of each kind; a request keeps the words it always had
   const copy = {
-    confirmText: variance ? t('variance.confirmText', { label, amount }) : t('confirmText', { label, amount }),
-    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : t('otherLink'),
-    otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : t('otherTitle'),
-    returnOption: po ? t('po.returnOption') : t('returnOption'),
-    returnHint: po ? t('po.returnHint') : t('returnHint'),
+    confirmText: variance
+      ? t('variance.confirmText', { label, amount })
+      : review
+        ? t('review.confirmText', { label, amount })
+        : budget
+          ? t(`${budget}.confirmText`, { label, amount })
+          : t('confirmText', { label, amount }),
+    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : review ? t('review.otherLink') : budget ? t(`${budget}.otherLink`) : t('otherLink'),
+    otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : review ? t('review.otherTitle') : t('otherTitle'),
+    approve: review ? t('review.approve') : t('approve'),
+    confirm: review ? t('review.confirm') : t('confirm'),
+    approved: review ? t('review.approved') : t('approved'),
+    returnOption: po ? t('po.returnOption') : budget ? t(`${budget}.returnOption`) : t('returnOption'),
+    returnHint: po ? t('po.returnHint') : budget ? t(`${budget}.returnHint`) : t('returnHint'),
     rejectOption: po ? t('po.rejectOption') : t('rejectOption'),
-    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : t('rejectHint'),
-    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : t('reasonHint'),
-    submitReturn: po ? t('po.submitReturn') : t('submitReturn'),
-    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : t('submitReject'),
-    returned: po ? t('po.returned') : t('returned'),
-    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : t('rejected'),
+    rejectHint: po ? t('po.rejectHint') : variance ? t(`variance.rejectHint.${hinted}`) : budget ? t(`${budget}.rejectHint`) : t('rejectHint'),
+    reasonHint: po ? t('po.reasonHint') : variance ? t('variance.reasonHint') : budget ? t(`${budget}.reasonHint`) : t('reasonHint'),
+    submitReturn: po ? t('po.submitReturn') : budget ? t(`${budget}.submitReturn`) : t('submitReturn'),
+    submitReject: po ? t('po.submitReject') : variance ? t('variance.submitReject') : budget ? t(`${budget}.submitReject`) : t('submitReject'),
+    returned: po ? t('po.returned') : budget ? t(`${budget}.returned`) : t('returned'),
+    rejected: po ? t('po.rejected') : variance ? t('variance.rejected') : budget ? t(`${budget}.rejected`) : t('rejected'),
     // A variance is never returned (BR-GR-03): its PIN is for approving or rejecting
     stepUpHint: variance ? t('variance.stepUpHint') : t('stepUpHint'),
   }
-  const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : ['RETURN', 'REJECT']
+  const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : review ? ['RETURN'] : ['RETURN', 'REJECT']
   const tErrors = useTranslations('tasks.errors')
   const reasonError = po ? t('po.reasonError') : variance ? t('variance.reasonError') : tErrors('REASON')
   const failureText = useTaskFailureText(locale)
@@ -225,7 +246,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
       // A wrong, locked or missing PIN leaves the second press open for the next try
       if (!outcome.ok && pinRefused(outcome)) return
       setConfirming(false)
-      if (outcome.ok) finished(t('approved'))
+      if (outcome.ok) finished(copy.approved)
       else stale.check(outcome)
     })
   }
@@ -304,7 +325,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                   ) : null}
                   <div className="flex gap-3">
                     <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="flex-1">
-                      {approving.pending ? t('working') : t('confirm')}
+                      {approving.pending ? t('working') : copy.confirm}
                     </Button>
                     <Button
                       variant="secondary"
@@ -330,7 +351,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                 disabled={!hydrated}
                 className="w-full"
               >
-                {t('approve')}
+                {copy.approve}
               </Button>
             )}
             <a href="#other-decisions" className="inline-flex min-h-11 items-center justify-center font-medium text-primary underline underline-offset-4 hover:no-underline lg:hidden">
@@ -350,6 +371,7 @@ export function DecisionPanel({ taskId, open, label, amount, locale, kind = 'REQ
                   <p className="text-base text-ink-muted md:text-sm">{t('variance.noReturn')}</p>
                 </div>
               ) : null}
+              {review ? <p className="text-base text-ink-muted md:text-sm">{t('review.returnHint')}</p> : null}
               {/* A variance has one way out besides approving: no choice to make. The group keeps its name for screen
                   readers; on screen the heading above already says what the choice is (§9.9: no label repeating it) */}
               {choices.length > 1 ? (

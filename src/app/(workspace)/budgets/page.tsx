@@ -12,7 +12,7 @@ import { FilterBar, FilterSelect } from '@/ui/page/filters'
 import { ListEmpty, Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { Button } from '@/ui/shadcn/button'
 import { getSession } from '../../_lib/session'
-import { budgetHref, dayText, figureLinks, figureView, localeOf, lowItemText, nameIn, usedUp, type BudgetsT, type Locale } from './_present'
+import { budgetHref, changesView, dayText, figureLinks, figureView, localeOf, lowItemText, nameIn, usedUp, type BudgetsT, type Locale } from './_present'
 
 export async function generateMetadata() {
   const t = await getTranslations('budgets')
@@ -43,6 +43,7 @@ function departments(t: BudgetsT, locale: Locale, d: BudgetDashboardDto, fiscalY
             href: lineHref,
             status: l.status === 'OPEN' ? null : { kind: l.status, label: t(`status.${l.status}`) },
             ...figureView(t, l, figureLinks(t, l, l.code, lineHref)),
+            changes: changesView(t, l.changes, l.planned, l.code, lineHref),
           }
         }),
     }
@@ -92,11 +93,21 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
         title={t('title')}
         intro={t('intro')}
         actions={
-          year && d.lines.length ? (
-            // No download attribute: the file comes as an attachment and the page stays; a refusal leads back here in words
-            <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
-              <a href={`/budgets/export${query}`}>{t('actions.export', { code: year.code })}</a>
-            </Button>
+          (year && d.lines.length) || d.can.transfer ? (
+            <>
+              {/* S6-15 (FR-BUD-103 AC4): only to who may send one while the DOA in effect has a BUDGET_TRANSFER rule */}
+              {d.can.transfer ? (
+                <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+                  <Link href="/budgets/transfers/new">{t('actions.transfer')}</Link>
+                </Button>
+              ) : null}
+              {year && d.lines.length ? (
+                // No download attribute: the file comes as an attachment and the page stays; a refusal leads back here in words
+                <Button asChild variant="outline" className="min-h-11 lg:min-h-10">
+                  <a href={`/budgets/export${query}`}>{t('actions.export', { code: year.code })}</a>
+                </Button>
+              ) : null}
+            </>
           ) : null
         }
       >
@@ -108,21 +119,23 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
             {t('refresh')}
           </a>
         </p>
-        {d.can.import || d.can.manageGrants ? (
-          // The budget administrator's other pages
-          <nav aria-label={t('actions.label')} className="flex flex-wrap gap-x-6 gap-y-1">
-            {d.can.import ? (
-              <Link href="/budgets/import" className={linkClass}>
-                {t('actions.import')}
-              </Link>
-            ) : null}
-            {d.can.manageGrants ? (
-              <Link href="/budgets/grants" className={linkClass}>
-                {t('actions.grants')}
-              </Link>
-            ) : null}
-          </nav>
-        ) : null}
+        {/* The budget's other pages: the transfers and adjustments the member may read (S6-15), and the budget
+            administrator's import and grants */}
+        <nav aria-label={t('actions.label')} className="flex flex-wrap gap-x-6 gap-y-1">
+          <Link href="/budgets/transfers" className={linkClass}>
+            {t('actions.transfers')}
+          </Link>
+          {d.can.import ? (
+            <Link href="/budgets/import" className={linkClass}>
+              {t('actions.import')}
+            </Link>
+          ) : null}
+          {d.can.manageGrants ? (
+            <Link href="/budgets/grants" className={linkClass}>
+              {t('actions.grants')}
+            </Link>
+          ) : null}
+        </nav>
       </PageHeader>
 
       <PageBody>
@@ -189,7 +202,7 @@ export default async function BudgetsPage({ searchParams }: { searchParams: Prom
 
         <Panel title={t('legend.title')} id="budget-legend">
           <ul className="flex max-w-4xl flex-col gap-1 text-ink-muted">
-            {(['planned', 'available', 'reserved', 'committed', 'actual', 'shares'] as const).map((k) => (
+            {(['planned', 'available', 'reserved', 'committed', 'actual', 'shares', 'burn', 'changes'] as const).map((k) => (
               <li key={k}>{t(`legend.${k}`)}</li>
             ))}
           </ul>

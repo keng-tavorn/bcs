@@ -44,13 +44,32 @@ function RouteResult({ id, title, route, t, words, locale }: { id: string; title
             {route.steps.map((s, i) => (
               <li key={`${s.assignee.id}-${i}`} className="flex flex-col gap-0.5 py-2.5">
                 <p className="text-base text-ink-muted md:text-sm">{t('simulate.step', { n: i + 1 })}</p>
-                <p className="font-semibold">{nameIn(locale, s.assignee)}</p>
-                <p className="text-ink-muted">
-                  {s.position && s.department ? t('simulate.via', { position: `${nameIn(locale, s.position)} (${s.position.code})`, department: nameIn(locale, s.department) }) : t('simulate.viaMember')}
-                </p>
+                {s.committee ? (
+                  <>
+                    <p className="font-semibold">
+                      {s.committee.quorum === 'COUNT' ? t('simulate.committee.COUNT', { count: s.committee.quorumCount ?? s.committee.members.length }) : t(`simulate.committee.${s.committee.quorum}`)}
+                    </p>
+                    <ul className="flex flex-col gap-0.5">
+                      {s.committee.members.map((m) => (
+                        <li key={m.assignee.id} className="text-ink-muted">
+                          {nameIn(locale, m.assignee)}
+                          {m.position ? ` · ${nameIn(locale, m.position)} (${m.position.code})` : ''}
+                          {m.principal ? ` · ${t('simulate.acting', { principal: nameIn(locale, m.principal) })}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold">{nameIn(locale, s.assignee)}</p>
+                    <p className="text-ink-muted">
+                      {s.position && s.department ? t('simulate.via', { position: `${nameIn(locale, s.position)} (${s.position.code})`, department: nameIn(locale, s.department) }) : t('simulate.viaMember')}
+                    </p>
+                  </>
+                )}
                 {/* The time under the SLA on its own line, as the editor's rows show it, so nothing dangles at a line end */}
                 <p className="text-ink-muted">{words.sla(s.slaMinutes)}</p>
-                {s.principal ? <p className="text-ink-muted">{t('simulate.acting', { principal: nameIn(locale, s.principal) })}</p> : null}
+                {s.principal && !s.committee ? <p className="text-ink-muted">{t('simulate.acting', { principal: nameIn(locale, s.principal) })}</p> : null}
               </li>
             ))}
           </ol>

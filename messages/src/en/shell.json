@@ -21,6 +21,7 @@
     "pool": "Purchasing queue",
     "pos": "Purchase orders",
     "suppliers": "Suppliers",
+    "catalog": "Catalogue",
     "invoices": "Confirm invoices",
     "invoicesAp": "Invoices",
     "payments": "Payment runs",
@@ -50,7 +51,9 @@
     "insights": "Executive summary",
     "settings": "My settings",
     "admin": "Organization admin",
-    "ai": "AI assistants"
+    "workflows": "Parallel reviewers (workflow)",
+    "ai": "AI assistants",
+    "config": "Configuration packages"
   },
   "counts": {
     "tasks": "{count, plural, one {# open task} other {# open tasks}}",

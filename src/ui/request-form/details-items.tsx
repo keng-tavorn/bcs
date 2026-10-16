@@ -1,21 +1,25 @@
 'use client'
 
-import { Plus } from 'lucide-react'
+import { Lock, Plus } from 'lucide-react'
 import { useTranslations } from 'next-intl'
+import type { ComponentType } from 'react'
+import { REASON_MAX_LENGTH } from '@/lib/constants'
 import { v4 as uuidv4 } from 'uuid'
 import type { FormInput } from '@/core/forms'
 import { Button } from '../form/button'
 import { Notice } from '../form/notice'
 import { ConfirmRemove } from './confirm-remove'
-import { checkboxClass, describedBy, inputClass, Labelled } from './controls'
+import { asksOffAgreementReason, catalogProblems, lineAgreement, type CatalogPick } from './catalog-lines'
+import { checkboxClass, describedBy, inputClass, Labelled, textareaClass } from './controls'
 import { documentFieldIds } from './document-fields'
 import { FieldInput, showDay } from './field-input'
-import { lineAmount, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
+import { lineAmount, requestLineNeed, savableLine, TITLE_MAX, validDate, validMoney, validQuantity, type FormAction, type FormLine, type FormValues, type Totals } from './model'
+import type { SplitPart } from './split-lines'
 import { showMoney, showSatang } from './money'
 import { MoneyInput } from './money-input'
 import { DeliverySiteField } from './place-supplier'
 import { BudgetStatus, TotalsList } from './summary'
-import type { BudgetView, RequestFormData, ScreenLocale } from './types'
+import type { BudgetLineOption, BudgetView, CatalogSearch, RequestFormData, ScreenLocale } from './types'
 
 // Steps 1 and 2 of the request form (FR-INT-002, FR-INT-003, FR-INT-004): the title, the budget line (prefilled,
 // BR-FORM-02; only the requester's own or granted lines, BR-BUD-04) with what is left on it, the questions of the
@@ -38,6 +42,44 @@ export interface StepProps {
   readonly previewLoading: boolean
   /** Errors the server reported for fields of the form (by field id) */
   readonly fieldErrors: Readonly<Record<string, string>>
+  /** S6-10: the catalogue the workspace's form offers each line; absent, lines are typed only (the LIFF form) */
+  readonly catalog?: CatalogOffer
+  /**
+   * S6-17 (BR-BUD-16): the workspace's form offers each line a budget line of its own and "แบ่งบรรทัด" (the Dialog drawn
+   * with the workspace's components, ./split-line-dialog.tsx); absent in the LIFF form (ADR-052)
+   */
+  readonly split?: SplitOffer
+  /** A refusal of the last send about a line, by line number (`lines.N.budgetLineId`), said under that line's budget line */
+  readonly lineErrors?: Readonly<Record<number, string>>
+}
+
+/** S6-17: the Dialog that splits a line */
+export interface SplitOffer {
+  readonly Dialog: ComponentType<SplitLineProps>
+}
+
+export interface SplitLineProps {
+  readonly lineNo: number
+  readonly line: FormLine
+  readonly priceIncludesVat: boolean
+  /** The budget lines the request may use (the request's chooser's), and the request's own */
+  readonly budgetLines: readonly BudgetLineOption[]
+  readonly requestBudgetLineId: string
+  readonly onSplit: (parts: readonly SplitPart[]) => void
+}
+
+/** The picker of a line (./catalog-picker.tsx, drawn with the workspace's components) and the search it calls */
+export interface CatalogOffer {
+  readonly Picker: ComponentType<CatalogPickerProps>
+  readonly search: CatalogSearch
+}
+
+export interface CatalogPickerProps {
+  readonly lineNo: number
+  /** The line is a catalogue item already: the picker changes it */
+  readonly linked: boolean
+  readonly search: CatalogSearch
+  readonly onPick: (item: CatalogPick) => void
 }
 
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '') || (Array.isArray(v) && v.length === 0)
@@ -160,6 +202,7 @@ export function ItemsStep(props: StepProps & { readonly endDateRequired: boolean
 export function LinesSection(props: StepProps & { readonly endDateRequired: boolean }) {
   const t = useTranslations('requestForm')
   const { data, values, update, totals, budget, previewLoading } = props
+  const need = requestLineNeed(values, data.vatRateBp)
   const pending = values.lines.filter((l) => (l.description.trim() || l.quantity.trim() || l.uom.trim() || l.unitPrice.trim()) && !savableLine(l)).length
   return (
     <>
@@ -178,6 +221,7 @@ export function LinesSection(props: StepProps & { readonly endDateRequired: bool
         <Plus className="size-4" aria-hidden="true" />
         {t('lines.add')}
       </Button>
+      <OffAgreementReason {...props} />
       <section aria-labelledby="totals-heading" className="flex flex-col gap-2">
         <h3 id="totals-heading" className="subheading font-semibold">
           {t('totals.title')}
@@ -191,13 +235,82 @@ export function LinesSection(props: StepProps & { readonly endDateRequired: bool
         <h3 id="budget-heading" className="subheading font-semibold">
           {t('budget.title')}
         </h3>
-        <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
+        <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={need?.net ?? null} others={need?.others ?? 0} loading={previewLoading} />
       </section>
     </>
   )
 }
 
-function LineFields({ line, n, canRemove, update, values, showErrors, endDateRequired, locale }: StepProps & { line: FormLine; n: number; canRemove: boolean; endDateRequired: boolean }) {
+/**
+ * S6-10 (BR-PRC-06): why the request goes to another supplier than the agreed one of a catalogue item, asked under the
+ * lines while one of them is off its agreed prices (or a reason is kept). Required before sending; the server refuses
+ * the send without it (AGREEMENT_OFF).
+ */
+function OffAgreementReason({ values, update, showErrors, data }: StepProps) {
+  const t = useTranslations('requestForm.catalog')
+  const tf = useTranslations('requestForm.fields')
+  if (!asksOffAgreementReason(values)) return null
+  const missing = catalogProblems(values).some((p) => p.kind === 'AGREEMENT_REASON')
+  const error = showErrors && missing ? t('reasonMissing') : undefined
+  const supplier = (data.suppliers ?? []).find((s) => s.id === values.suggestedSupplierId)
+  return (
+    <Labelled
+      id="off-agreement-reason"
+      label={t('reasonLabel')}
+      requiredText={missing ? tf('required') : undefined}
+      hint={supplier ? t('reasonHint', { supplier: supplier.name }) : t('reasonHintNoSupplier')}
+      error={error}
+      className="max-w-xl"
+    >
+      <textarea
+        id="off-agreement-reason"
+        name="offAgreementReason"
+        className={textareaClass}
+        value={values.offAgreementReason ?? ''}
+        maxLength={REASON_MAX_LENGTH}
+        aria-required={missing || undefined}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy('off-agreement-reason', true, Boolean(error))}
+        onChange={(e) => update({ type: 'offAgreementReason', value: e.currentTarget.value })}
+      />
+    </Labelled>
+  )
+}
+
+/** S6-10: where a line stands with the catalogue — the picker, the item it is, and what its agreed prices ask */
+function CatalogLine({ line, n, values, update, data, catalog }: StepProps & { line: FormLine; n: number; catalog: CatalogOffer }) {
+  const t = useTranslations('requestForm.catalog')
+  const state = lineAgreement(line, values)
+  const offered = (data.suppliers ?? []).map((s) => s.id)
+  const { Picker } = catalog
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Picker lineNo={n} linked={Boolean(line.catalogItemId)} search={catalog.search} onPick={(item) => update({ type: 'pickCatalog', key: line.key, item, offered })} />
+        {line.catalogItemId ? (
+          <Button variant="link" onClick={() => update({ type: 'unlinkCatalog', key: line.key })}>
+            {t('unlink', { n })}
+          </Button>
+        ) : null}
+      </div>
+      {state.kind === 'LISTED' || state.kind === 'LOCKED' || state.kind === 'OFF' ? (
+        <p className="text-base text-ink-muted md:text-sm">{t('fromCatalog', { code: state.item.code, name: state.item.nameTh })}</p>
+      ) : null}
+      {state.kind === 'OFF' ? (
+        <Notice tone="warning">{t('offNote', { suppliers: state.item.agreements.map((a) => a.supplierName).join(t('join')) })}</Notice>
+      ) : null}
+      {state.kind === 'UNLISTED' ? <Notice tone="danger">{t('unlisted', { n })}</Notice> : null}
+      {state.kind === 'LOCKED' && values.priceIncludesVat ? <Notice tone="danger">{t('beforeVat')}</Notice> : null}
+    </div>
+  )
+}
+
+function LineFields(props: StepProps & { line: FormLine; n: number; canRemove: boolean; endDateRequired: boolean }) {
+  const { line, n, canRemove, update, values, showErrors, endDateRequired, locale, catalog, data, split } = props
+  const tc = useTranslations('requestForm.catalog')
+  // S6-10: a catalogue item with an agreed price with the suggested supplier takes that price, which cannot be changed
+  const agreement = lineAgreement(line, values)
+  const locked = agreement.kind === 'LOCKED' ? agreement.agreement : null
   const t = useTranslations('requestForm.lines')
   const tf = useTranslations('requestForm.fields')
   const p = `line-${n}`
@@ -217,6 +330,7 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
   return (
     <fieldset className="flex min-w-0 flex-col gap-4">
       <legend className="mb-1 subheading font-semibold">{t('line', { n })}</legend>
+      {catalog ? <CatalogLine {...props} catalog={catalog} /> : null}
       <Labelled id={`${p}-description`} label={t('description')} requiredText={tf('required')} error={shown.description}>
         <input id={`${p}-description`} className={inputClass} value={line.description} maxLength={500} required aria-required onChange={(e) => set({ description: e.currentTarget.value })} {...control(`${p}-description`, shown.description)} />
       </Labelled>
@@ -227,14 +341,38 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
         <Labelled id={`${p}-uom`} label={t('uom')} requiredText={tf('required')} hint={t('uomHint')} error={shown.uom}>
           <input id={`${p}-uom`} className={inputClass} value={line.uom} maxLength={30} required aria-required onChange={(e) => set({ uom: e.currentTarget.value })} {...control(`${p}-uom`, shown.uom, true)} />
         </Labelled>
-        <Labelled id={`${p}-price`} className="col-span-2 @min-[40rem]:col-span-1" label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')} requiredText={tf('required')} error={shown.unitPrice}>
-          <MoneyInput id={`${p}-price`} className={`${inputClass} tabular text-right`} value={line.unitPrice} required aria-required onChange={(e) => set({ unitPrice: e.currentTarget.value })} {...control(`${p}-price`, shown.unitPrice)} />
+        <Labelled
+          id={`${p}-price`}
+          className="col-span-2 @min-[40rem]:col-span-1"
+          label={values.priceIncludesVat ? t('unitPriceGross') : t('unitPriceNet')}
+          requiredText={tf('required')}
+          hint={
+            locked ? (
+              <span className="inline-flex items-start gap-1.5">
+                <Lock className="mt-1 size-4 shrink-0" aria-hidden="true" />
+                <span>{tc('locked', { supplier: locked.supplierName })}</span>
+              </span>
+            ) : undefined
+          }
+          error={shown.unitPrice}
+        >
+          <MoneyInput
+            id={`${p}-price`}
+            className={`${inputClass} tabular text-right read-only:bg-surface`}
+            value={line.unitPrice}
+            required
+            aria-required
+            readOnly={locked !== null}
+            onChange={(e) => set({ unitPrice: e.currentTarget.value })}
+            {...control(`${p}-price`, shown.unitPrice, locked !== null)}
+          />
         </Labelled>
       </div>
       <label className="flex min-h-11 items-center gap-3">
         <input type="checkbox" className={checkboxClass} checked={line.vatable} onChange={(e) => set({ vatable: e.currentTarget.checked })} />
         <span>{t('vatable')}</span>
       </label>
+      {props.split && (data.budgetLines.length > 1 || line.budgetLineId) ? <LineBudgetField {...props} /> : null}
       {endDateRequired ? (
         <Labelled
           id={`${p}-end`}
@@ -249,6 +387,16 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
       ) : null}
       {/* As wide as the totals and the budget below (max-w-xl, ./summary.tsx): the line's amount ends at their right edge (§9.9 principle 6) */}
       <div className="flex max-w-xl flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        {split && data.budgetLines.length > 1 && amount !== null ? (
+          <split.Dialog
+            lineNo={n}
+            line={line}
+            priceIncludesVat={values.priceIncludesVat}
+            budgetLines={data.budgetLines}
+            requestBudgetLineId={values.budgetLineId}
+            onSplit={(parts) => update({ type: 'splitLine', key: line.key, parts })}
+          />
+        ) : null}
         {canRemove ? (
           <ConfirmRemove
             label={t('remove', { n })}
@@ -263,5 +411,40 @@ function LineFields({ line, n, canRemove, update, values, showErrors, endDateReq
         <p className="money ml-auto">{amount !== null ? t('amount', { amount: showSatang(amount) }) : t('amountPending')}</p>
       </div>
     </fieldset>
+  )
+}
+
+/**
+ * S6-17 (FR-BUD-102 AC1 · BR-BUD-16): the line's own budget line, from the budget lines the request's chooser offers —
+ * "ตามคำขอ" (null) by default. A budget line chosen before and no longer offered stays chosen and says so; the submit
+ * checks every line's like the request's, and a refusal of this line's is said under it.
+ */
+function LineBudgetField({ line, n, data, values, update, lineErrors }: StepProps & { line: FormLine; n: number }) {
+  const t = useTranslations('requestForm.lines')
+  const tb = useTranslations('requestForm.budget')
+  const id = `line-${n}-budget`
+  const chosen = line.budgetLineId ?? ''
+  const gone = chosen !== '' && !data.budgetLines.some((l) => l.id === chosen)
+  const own = data.budgetLines.find((l) => l.id === values.budgetLineId)
+  const error = lineErrors?.[n]
+  return (
+    <Labelled id={id} label={t('budgetLine')} hint={t('budgetLineHint')} error={error} className="max-w-xl">
+      <select
+        id={id}
+        className={inputClass}
+        value={chosen}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy(id, true, Boolean(error))}
+        onChange={(e) => update({ type: 'line', key: line.key, patch: { budgetLineId: e.currentTarget.value || null } })}
+      >
+        <option value="">{own ? t('budgetLineSameCode', { code: own.code }) : t('budgetLineSame')}</option>
+        {gone ? <option value={chosen}>{t('budgetLineGone')}</option> : null}
+        {data.budgetLines.map((l) => (
+          <option key={l.id} value={l.id}>
+            {l.granted ? tb('optionGranted', { code: l.code, name: l.name, department: l.departmentName }) : tb('option', { code: l.code, name: l.name })}
+          </option>
+        ))}
+      </select>
+    </Labelled>
   )
 }

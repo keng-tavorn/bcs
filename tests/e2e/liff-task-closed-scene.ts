@@ -6,7 +6,7 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { loadBusinessCalendar } from '@/server/doa/policy'
 import { decideTask } from '@/server/services/approvals/decide'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { escalateTask, markTaskOverdue, planTaskSla } from '@/server/services/sla'
 import { E2E_DB } from '../support/e2e-env'
 

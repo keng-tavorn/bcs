@@ -8,7 +8,7 @@ import { RequestForm } from '@/ui/request-form/request-form'
 import { documentAiFor, intakeAiFor } from '../../../../_lib/ai-read'
 import { completeUploadAction, downloadUrlAction, requestUploadAction } from '../../../../_lib/file-actions'
 import { getSession } from '../../../../_lib/session'
-import { attachFileAction, detachFileAction, previewRequestAction, submitRequestAction } from '../actions'
+import { attachFileAction, detachFileAction, previewRequestAction, searchCatalogAction, submitRequestAction } from '../actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('requestForm.page')
@@ -42,7 +42,8 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
   const [ai, intake] = await Promise.all([documentAiFor(ctx), intakeAiFor(ctx)])
   return (
       <RequestForm
-        data={result.data}
+        // A new form has no catalogue lines yet: it knows the catalogue items its lines are picked from (S6-10)
+        data={{ ...result.data, catalogItems: [] }}
         locale={screen}
         autosaveUrl="/requests/new/autosave"
         actions={{
@@ -53,6 +54,7 @@ export default async function NewRequestFormPage({ params }: { params: Promise<{
           requestUpload: requestUploadAction,
           completeUpload: completeUploadAction,
           downloadUrl: downloadUrlAction,
+          catalog: searchCatalogAction,
           ...(ai ? { ai } : {}),
           ...(intake ? { intake } : {}),
         }}

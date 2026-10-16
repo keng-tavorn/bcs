@@ -308,7 +308,7 @@ test('[FR-ADM-005/AC1] [FR-ADM-005/AC3] the admin imports a new form version as 
   await shot(page, testInfo, 'form')
 
   // The JSON of the form in use, to edit
-  const response = await page.request.get(`/admin/request-types/${type.code}/form`)
+  const response = await page.request.get(`/admin/request-types/${type.code}/form.json`)
   expect(response.status()).toBe(200)
   const form = (await response.json()) as { fields: unknown[] }
   const json = page.getByLabel('JSON ของฟอร์ม')
@@ -351,7 +351,7 @@ test('[FR-ADM-005/AC1] [FR-ADM-005/AC3] the admin imports a new form version as 
 
   // A code that cannot be a request type is "not found", never an error page
   expect((await page.goto('/admin/request-types/%25'))?.status()).toBe(404)
-  expect((await page.request.get('/admin/request-types/%25/form')).status()).toBe(404)
+  expect((await page.request.get('/admin/request-types/%25/form.json')).status()).toBe(404)
 })
 
 test('[FR-ADM-003/AC1] [FR-ADM-004/AC1] [FR-ADM-005/AC2] a member without the admin capabilities gets none of the settings pages', async ({ page }, testInfo) => {
@@ -363,5 +363,5 @@ test('[FR-ADM-003/AC1] [FR-ADM-004/AC1] [FR-ADM-005/AC2] a member without the ad
   }
   await expectNoBlockingAxe(page)
   expect((await page.request.get('/admin/calendar/template')).status()).toBe(403)
-  expect((await page.request.get('/admin/request-types/BUY_GOODS/form')).status()).toBe(403)
+  expect((await page.request.get('/admin/request-types/BUY_GOODS/form.json')).status()).toBe(403)
 })

@@ -83,3 +83,11 @@ export async function listTaxRates(): Promise<Array<{ code: string; rateBp: numb
   const day = (d: Date) => d.toISOString().slice(0, 10)
   return rows.map((r) => ({ code: r.code, rateBp: r.rateBp, effectiveFrom: day(r.effectiveFrom), effectiveTo: r.effectiveTo ? day(r.effectiveTo) : null }))
 }
+
+/**
+ * The document a verification QR names (S6-19 · BR-QR-02): found by the hash of the token in the URL, which is secret
+ * and unique, so the public /verify page can say which organization's document it is. null when no row has the hash.
+ */
+export async function findDocumentVerificationByTokenHash(tokenHash: string): Promise<{ readonly organizationId: string; readonly id: string } | null> {
+  return systemDb.documentVerification.findUnique({ where: { tokenHash }, select: { organizationId: true, id: true } })
+}

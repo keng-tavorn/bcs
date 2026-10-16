@@ -13,12 +13,14 @@ import { parseOrgStructureInput, seedOrgStructure } from '@/server/seed/org-stru
 import { seedP1Ai } from '@/server/seed/p1-ai'
 import { seedP1Modules } from '@/server/seed/p1-modules'
 import { approversWithoutPin, seedDevPins } from '@/server/seed/pins'
-import { parseBudget, parseCostCenters, parseDemoHistory, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
+import { linkHistoryToCatalog, seedCatalog } from '@/server/seed/catalog'
+import { parseBudget, parseCatalogItems, parseCostCenters, parseDemoHistory, parseGlAccounts, parseHistory, parseSites, parseSuppliers } from '@/server/seed/sheets'
 import { seedSuppliers } from '@/server/seed/suppliers'
 import { seedAccountCodes } from '@/server/seed/account-codes'
 import { parseApProfile, seedApProfile } from '@/server/seed/ap-profile'
 import { parseBankAccounts, seedBankAccounts } from '@/server/seed/bank-accounts'
 import { seedTaxRates } from '@/server/seed/tax-rates'
+import { parseWorkflowReviewers, seedWorkflow } from '@/server/seed/workflow'
 import { INPUT_WORKBOOKS, loadInputWorkbook, type InputProfile } from '@/server/seed/workbook'
 import { budgetKeyLines, demoHistoryStarted, seedDemoHistory, type DemoHistoryReport } from '@/server/services/demo-history'
 import { seedLineChannel } from '@/server/services/line-channel'
@@ -44,12 +46,17 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const structure = await seedOrgStructure(report.organizationId, input.users, parseOrgStructureInput(workbook), clock.now())
   // The phase-1 organization switches PAY AI BCS_GO on once its DOA has their rules (ADR-070); the demo keeps CORE alone
   const modules = profile === 'p1' ? await seedP1Modules(report.organizationId, clock.now()) : { enabled: 0 }
+  // The parallel reviewers of the phase-1 organization from its sheet Workflow_Reviewers (S6-04); the demo has none
+  const workflowInput = parseWorkflowReviewers(workbook, input.org.code)
+  const workflow = workflowInput ? await seedWorkflow(report.organizationId, workflowInput, clock.now()) : null
   // Its agents switched on and the month's AI credits (S13-02); the demo organization has no AI
   const ai = profile === 'p1' ? await seedP1Ai(report.organizationId, clock.now()) : null
   const budget = await seedBudget(report.organizationId, parseBudget(workbook), clock.now(), parseCostCenters(workbook))
   const suppliers = await seedSuppliers(report.organizationId, { suppliers: parseSuppliers(workbook), sites: parseSites(workbook) }, clock.now())
   // The account codes invoice lines are coded with (S8-04, sheet GL_Accounts of phase 1; the demo workbook has none)
   const accountCodes = await seedAccountCodes(report.organizationId, parseGlAccounts(workbook))
+  // The catalogue and its agreed prices for this fiscal year (S6-10, sheet Items of phase 1; the demo workbook has none)
+  const catalog = await seedCatalog(report.organizationId, parseCatalogItems(workbook), clock.now())
   // S8-12: payee types, income types, credit days, e-Tax and registry flags of the suppliers, and retention by request type
   const apProfile = await seedApProfile(report.organizationId, parseApProfile(workbook), clock.now())
   // S9-01: the organization's own accounts and one account per supplier (sheets CompanyBankAccounts, SupplierPayment)
@@ -62,13 +69,48 @@ export async function seedDemoBase(env: Env, password: string, clock: Clock, pro
   const seedPin = env.SEED_DEV_PIN ?? null
   const pins = seedPin ? await seedDevPins(report.organizationId, seedPin, clock.now()) : null
   const pinless = seedPin ? await approversWithoutPin(report.organizationId, seedPin, clock.now()) : []
-  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, ai, budget, suppliers, accountCodes, apProfile, bankAccounts, lineChannel, pins, pinless }
+  // S6-21 (BR-UAT-01 BR-UAT-04): SIMEC-UAT, the UAT sandbox of the phase-1 organization, on this machine
+  const sandbox = profile === 'p1' ? await seedP1Sandbox(report.organizationId, { password, ...(totpKey ? { totpKey } : {}), pin: seedPin, now: clock.now() }) : null
+  return { orgCode: input.org.code, organizationId: report.organizationId, taxRates, report, structure, modules, workflow, ai, budget, suppliers, accountCodes, catalog, apProfile, bankAccounts, lineChannel, pins, pinless, sandbox }
+}
+
+/** The code of the phase-1 organization's sandbox: its own code and "-UAT" */
+export const sandboxCode = (code: string) => `${code}-UAT`
+
+/**
+ * S6-21: the UAT sandbox of the phase-1 organization on this machine (BR-UAT-04's exception for the sample organization):
+ * the same structure, positions, DOA version 1 and workflow version 1 from the same workbook, test users of the same
+ * employee codes at @<domain>-uat (simec-uat.bcs.local), and nothing else — no budget, supplier, catalogue, request or
+ * history. In a real deployment the customer sets their sandbox up themselves (platform.sandbox.manage makes it empty).
+ */
+export async function seedP1Sandbox(
+  productionOrganizationId: string,
+  options: { password: string; totpKey?: string; pin: string | null; now: Date; /** Tests seed under their own code and e-mail prefix */ rename?: { code: string; emailPrefix: string } },
+) {
+  const workbook = await loadInputWorkbook(INPUT_WORKBOOKS.p1)
+  const input = parseDemoOrgInput(workbook, loadOrgSettingsYaml())
+  const uatEmail = (email: string) => email.replace(/@([^.@]+)\./, '@$1-uat.')
+  const sandbox = {
+    ...input,
+    org: { ...input.org, code: options.rename?.code ?? sandboxCode(input.org.code), legalNameTh: `${input.org.legalNameTh} (ระบบทดลอง)`, displayName: `${input.org.displayName ?? input.org.code} UAT` },
+    users: input.users.map((u) => ({ ...u, email: `${options.rename?.emailPrefix ?? ''}${uatEmail(u.email)}` })),
+  }
+  const report = await seedDemoOrganization(sandbox, { password: options.password, ...(options.totpKey ? { totpKey: options.totpKey } : {}), now: options.now, sandboxOf: productionOrganizationId })
+  const structure = await seedOrgStructure(report.organizationId, sandbox.users, parseOrgStructureInput(workbook), options.now)
+  // The workflow keeps the production code (WF-SIMEC), so what is tried here imports there as its next version
+  const workflowInput = parseWorkflowReviewers(workbook, input.org.code)
+  const workflow = workflowInput ? await seedWorkflow(report.organizationId, workflowInput, options.now) : null
+  if (options.pin) await seedDevPins(report.organizationId, options.pin, options.now)
+  return { organizationId: report.organizationId, code: sandbox.org.code, created: report.organizationCreated, structure, workflow }
 }
 
 /** The requests of the past (sheet Demo_History, or History of phase 1), made through the real services for the organization of the base */
 export async function seedDemoHistoryFromInputs(organizationId: string, env: Env, clock: Clock, profile: InputProfile = 'demo'): Promise<DemoHistoryReport> {
   const workbook = await loadInputWorkbook(INPUT_WORKBOOKS[profile])
-  return seedDemoHistory(organizationId, parseHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
+  const report = await seedDemoHistory(organizationId, parseHistory(workbook), clock.now(), { pin: env.SEED_DEV_PIN ?? null, budgetKeys: budgetKeyLines(parseBudget(workbook)) })
+  // The history's lines of catalogue items point at them (S6-10); the demo has no catalogue
+  await linkHistoryToCatalog(organizationId)
+  return report
 }
 
 /** What the staging seed job looks at before it writes anything (ADR-055) */

@@ -6,19 +6,34 @@ import { ctxFromSession } from '@/server/auth/session'
 import { isAllowed, memberPrincipal } from '@/server/authz'
 import { getPoAccess, getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase-orders'
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
-import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
+import { getTaskAccess, getTaskView, listMyTasks, PIN_DECISION_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
+import { getBudgetOverrun } from '@/server/services/budget/overrun-view'
+import { getBudgetTransfer } from '@/server/services/budget/transfer-view'
+import { getPriceReference } from '@/server/services/price-reference'
+import { moneyText } from '@/ui/budgets/format'
+import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { Notice } from '@/ui/form/notice'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
 import { StateLine } from '@/ui/request-view/status'
 import { AiBrief } from '@/ui/tasks/ai-brief'
 import { DecisionPanel } from '@/ui/tasks/decision-panel'
+import { BacktestPanel } from '@/ui/backtest/panel'
+import { Section } from '@/ui/request-view/facts'
 import { PolicyDecision } from '@/ui/tasks/policy-decision'
+import { PriceReferencePanel } from '@/ui/price-reference/panel'
+import { RequestFlagsPanel } from '@/ui/request-flags/panel'
 import { Timeline } from '@/ui/timeline/timeline'
+import { readBacktestRunAction, runBacktestAction } from '../../../_lib/backtest-actions'
 import { briefView } from '../../../_lib/brief-present'
 import { downloadUrlAction } from '../../../_lib/file-actions'
 import { getSession } from '../../../_lib/session'
+import { BudgetOverrunSubject } from '../../_tracking/budget-overrun-subject'
+import { BudgetTransferSubject } from '../../_tracking/budget-transfer-subject'
 import { canOpenDoaVersion, canOpenOrgAuthorityChanges, taskRight } from '../../_tracking/access'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../_tracking/policy-subject'
+import { WorkflowSubject } from '../../_tracking/workflow-subject'
+import { priceReferenceView } from '../../_tracking/price-reference'
+import { requestFlagsView } from '../../_tracking/request-flags'
 import { dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../_tracking/present'
 import { RequestFacts, RequestSections } from '../../_tracking/request-sections'
 import { taskTitle } from '../../_tracking/rows'
@@ -130,8 +145,28 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const ownPage = ownDecisionPage(task)
   if (ownPage) redirect(ownPage)
   const request = task.subjectType === 'REQUEST' ? await getRequestView(ctx, task.subjectId) : null
+  // The prices paid before for the request's items, for whoever may read them (priceReference.view: who has or had a task
+  // on it, and who reads every PO — S6-11 · FR-DOA-101 · BR-PRC-07); anyone else simply gets no panel
+  const priceRef = request ? await getPriceReference(ctx, { requestId: request.id }) : null
+  const priceRefView = priceRef?.ok ? priceReferenceView(await getTranslations('priceReference'), priceRef.data) : null
+  // A request like one its requester sent before, or that may split a purchase to stay under a limit (S6-13 · FR-INT-103
+  // AC2 AC3): whoever may view the request reads its flags; none, or no right to them, and the page shows nothing
+  const flags = request ? await listRequestFlags(ctx, request.id) : null
+  const flagsView = flags?.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (id) => `/requests/${id}`) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
+  // A budget transfer or adjustment (S6-15 · FR-BUD-103): its approvers read it (budget.view ASSIGNED); anyone else who
+  // opens the task after it moved on sees no body rather than a refusal
+  const isTransfer = task.subjectType === 'BUDGET_TRANSFER'
+  const transferRead = isTransfer ? await getBudgetTransfer(ctx, task.subjectId) : null
+  const transfer = transferRead?.ok ? transferRead.data : null
+  const tt = transfer ? await getTranslations('budgetTransfer') : null
+  // An over-budget approval (S6-16 · FR-BUD-101): its approvers read it (budget.view ASSIGNED) and its source request
+  // (request.view ASSIGNED); anyone else who opens the task after it moved on sees no body rather than a refusal
+  const isOverrun = task.subjectType === 'BUDGET_OVERRUN'
+  const overrunRead = isOverrun ? await getBudgetOverrun(ctx, task.subjectId) : null
+  const overrun = overrunRead?.ok ? overrunRead.data : null
+  const to = overrun ? await getTranslations('budgetOverrun') : null
   // S8-06: the price variance of an invoice (subject INVOICE)
   const invoice = task.subjectType === 'INVOICE' ? await getInvoiceTaskView(ctx, task.subjectId) : null
   // S8-13: a change of a sent PO (subject PO_CHANGE)
@@ -144,8 +179,9 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
   const open = right === 'DECIDE' && task.status === 'OPEN'
   // The Approval Brief for the one who decides it now (FR-AI-301): none when there is no Brief for this task
   const brief = open ? await briefView(ctx, task.id) : null
-  // A DOA version or an authority change (BR-DOA-15): approved or rejected with the PIN, on a page of its own
-  const policyTask = POLICY_SUBJECTS.includes(task.subjectType)
+  // A DOA version or an authority change (BR-DOA-15), or a workflow version to publish (BR-WF-12): approved or rejected
+  // with the PIN, on a page of its own
+  const policyTask = PIN_DECISION_SUBJECTS.includes(task.subjectType)
   // A DOA version with a boundary table: the approver ticks it before approving (FR-DOA-009 AC3)
   const boundary = open ? boundaryTickOf(task) : null
   const inbox = open ? null : await listMyTasks(ctx, { limit: 2 })
@@ -195,14 +231,32 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
       ? (po.number ?? tp('detail.draftLabel'))
       : variance
         ? `${variance.po.number ?? '-'} · ${variance.line.description}`
-        : invoice
-          ? (invoice.number ?? '-')
-          : poChange
-          ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
-          : task.policy
-          ? policyHeadline(t, locale, task.policy)
-          : t('item.untitled')
-  const heading = request ? request.title : po ? po.supplier.nameTh : invoice ? t('invoice.heading') : poChange ? poChange.supplier.nameTh : (varianceTitle ?? label)
+        : transfer && tt
+          ? (transfer.number ?? tt('list.draft'))
+          : overrun
+            ? overrun.number
+            : invoice
+              ? (invoice.number ?? '-')
+              : poChange
+                ? t('poChangeTask.label', { number: poChange.po.number ?? '-', changeNo: poChange.changeNo })
+                : task.policy
+                  ? policyHeadline(t, locale, task.policy)
+                  : task.workflow
+                    ? t(task.workflow.withdrawal ? 'item.workflowWithdrawal' : 'item.workflow', { code: task.workflow.code, version: task.workflow.versionNo })
+                    : t('item.untitled')
+  const heading = request
+    ? request.title
+    : po
+      ? po.supplier.nameTh
+      : transfer && tt
+        ? tt('task.heading', { kind: tt(`kind.${transfer.kind}`), number: transfer.number ?? '' }).trim()
+        : overrun && to
+          ? to('detail.heading', { number: overrun.number })
+          : invoice
+            ? t('invoice.heading')
+            : poChange
+              ? poChange.supplier.nameTh
+              : (varianceTitle ?? label)
   // On phones the decision bar is fixed to the bottom: the page ends above it, with room as tall as the bar is now — its
   // height comes from the bar itself (useBarSpace of src/ui/tasks/bar-space.ts) as it grows with the PIN, a refusal or
   // the boundary table's tick; until then a guess of it for the first paint, taller with the PIN and with the tick
@@ -213,6 +267,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
     : task.stepUp
       ? 'pb-[calc(var(--task-bar-space,19rem)_+_1rem)]'
       : 'pb-[calc(var(--task-bar-space,13rem)_+_1rem)]'
+  // The approver of a DOA or workflow version runs its 90-day backtest before deciding (BR-DOA-14 · FR-DOA-103 AC3)
+  const backtest =
+    (task.status === 'OPEN' || task.status === 'INFO_REQUESTED') && (task.policy?.kind === 'DOA_VERSION' || task.workflow)
+      ? task.policy?.kind === 'DOA_VERSION'
+        ? { kind: 'DOA_VERSION' as const, versionId: task.policy.versionId, name: t('policy.doaVersionRef', { code: task.policy.code, version: task.policy.versionNo }), withdrawal: task.policy.withdrawal !== null }
+        : { kind: 'WORKFLOW_VERSION' as const, versionId: task.workflow!.versionId, name: t('workflow.versionValue', { code: task.workflow!.code, version: task.workflow!.versionNo }), withdrawal: task.workflow!.withdrawal !== null }
+      : null
   const pageClass = open ? `flex flex-col gap-6 ${barSpace} lg:pb-0` : 'flex flex-col gap-6'
 
   return (
@@ -265,7 +326,13 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               {request ? (
                 <>
                   <RequestFacts view={request} locale={locale} brief />
+                  {flagsView ? <RequestFlagsPanel view={flagsView} /> : null}
                   <RequestSections view={request} locale={locale} openFile={downloadUrlAction} doaLinks={doaLinks} />
+                  {priceRefView ? (
+                    <Section id="price-reference" title={priceRefView.title}>
+                      <PriceReferencePanel view={priceRefView} />
+                    </Section>
+                  ) : null}
                   <Link href={`/requests/${request.id}`} className={linkClass}>
                     {t('detail.openRequest', { label: request.number ?? request.title })}
                   </Link>
@@ -282,6 +349,12 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                 </>
               ) : variance ? (
                 <VarianceBody variance={variance} locale={locale} doaLinks={doaLinks} poHref={poHref} openFile={downloadUrlAction} />
+              ) : transfer ? (
+                <BudgetTransferSubject transfer={transfer} locale={locale} />
+              ) : overrun ? (
+                <BudgetOverrunSubject overrun={overrun} locale={locale} />
+              ) : task.workflow ? (
+                <WorkflowSubject workflow={task.workflow} locale={locale} />
               ) : invoice ? (
                 <InvoiceVarianceBody invoice={invoice} />
               ) : poChange ? (
@@ -289,6 +362,18 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
               ) : (
                 <PolicySubject task={task} locale={locale} doaLinks={doaLinks} doaSimulate={doaSimulate} orgAuthorityLink={canOpenOrgAuthorityChanges(principal)} />
               )}
+              {backtest ? (
+                <Section id="backtest" title={t('withdrawal.backtestTitle')}>
+                  <BacktestPanel
+                    kind={backtest.kind}
+                    versionId={backtest.versionId}
+                    versionName={backtest.name}
+                    purpose={backtest.withdrawal ? 'withdrawal' : 'draft'}
+                    run={runBacktestAction}
+                    reread={readBacktestRunAction}
+                  />
+                </Section>
+              ) : null}
             </div>
           </Panel>
 
@@ -304,11 +389,11 @@ export default async function TaskPage({ params }: { params: Promise<{ id: strin
                   open={open}
                   locale={locale}
                   label={label}
-                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : '-'}
-                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
+                  amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : transfer ? moneyText(transfer.amount) : overrun ? moneyText(overrun.shortfall) : invoice?.variance ? money(invoice.variance.netSatang + invoice.variance.vatSatang) : poChange ? money(poChange.new.grossSatang) : '-'}
+                  kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : isTransfer ? 'BUDGET_TRANSFER' : isOverrun ? 'BUDGET_OVERRUN' : task.review ? 'REVIEW' : 'REQUEST'}
                   stepUp={task.stepUp}
                   {...(variance ? { disposition: variance.disposition } : {})}
-                  actions={po || variance ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
+                  actions={po || variance || isTransfer || isOverrun ? { decide: decideTaskAction } : { decide: decideTaskAction, ask: askForInformationAction }}
                 />
               )}
             </Panel>

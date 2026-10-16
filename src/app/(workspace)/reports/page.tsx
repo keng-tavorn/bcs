@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getLocale, getTranslations } from 'next-intl/server'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
@@ -18,6 +19,7 @@ import { getSession } from '../../_lib/session'
 import { dayText } from '../kpi/_present'
 import { DEFAULT_REPORT_DAYS, columnViews, isNamed, periodFrom, rowViews } from './_present'
 import { createScheduleAction } from './actions'
+import { tabOfReport } from './workflow/_present'
 
 export async function generateMetadata() {
   const t = await getTranslations('reports')
@@ -25,6 +27,7 @@ export async function generateMetadata() {
 }
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v)
+const pick = (params: Record<string, string | string[] | undefined>, keys: readonly string[]) => Object.fromEntries(keys.flatMap((k) => (one(params[k]) ? [[k, one(params[k])!]] : [])))
 
 // The report framework (spec §9.1 /reports, §11.3, FR-VIS-002 AC1 AC3): the reports the system offers with their
 // filters, the result read within the reader's report.view scope (the whole organization for FINANCE, PROCUREMENT,
@@ -40,9 +43,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   if (!catalog.ok) return <Refused title={t('title')} message={t('forbidden')} href="/" linkLabel={t('home')} />
 
   const params = await searchParams
-  const reports = catalog.data.reports
   const asked = one(params.report)
-  const report = reports.find((r) => r.code === asked) ?? reports[0]
+  // The workflow reports (S6-20) have a page of their own with a tab each: their charts, links and words
+  const workflowTab = asked ? tabOfReport(asked) : null
+  if (workflowTab) redirect(`/reports/workflow?${new URLSearchParams({ ...pick(params, ['from', 'to']), tab: workflowTab }).toString()}`)
+  const reports = catalog.data.reports
+  const report = reports.find((r) => r.code === asked) ?? reports.find((r) => !tabOfReport(r.code))
+  const hrefOf = (code: string) => {
+    const tab = tabOfReport(code)
+    return tab ? `/reports/workflow?tab=${tab}` : `/reports?report=${code}`
+  }
   const name = (code: string) => (isNamed(code) ? t(`catalog.${code}.name`) : code)
   const period = periodFrom(params, ctx.now, DEFAULT_REPORT_DAYS)
   const result = report ? await runReport(ctx, report.code, { from: period.from, to: period.to }) : null
@@ -58,7 +68,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <ul className="flex flex-col divide-y divide-line">
             {reports.map((r) => (
               <li key={r.code} className="flex flex-col gap-1 py-3">
-                <Link href={`/reports?report=${r.code}`} aria-current={r.code === report?.code ? 'page' : undefined} className="inline-flex min-h-11 items-center self-start font-semibold text-primary underline underline-offset-4 hover:no-underline lg:min-h-10">
+                <Link href={hrefOf(r.code)} aria-current={r.code === report?.code ? 'page' : undefined} className="inline-flex min-h-11 items-center self-start font-semibold text-primary underline underline-offset-4 hover:no-underline lg:min-h-10">
                   {name(r.code)}
                 </Link>
                 {isNamed(r.code) ? <p className="text-ink-muted">{t(`catalog.${r.code}.description`)}</p> : null}

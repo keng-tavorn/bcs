@@ -43,6 +43,16 @@ export interface SimulatedStepView {
   readonly position: NameView | null
   readonly department: NameView | null
   readonly slaMinutes: number
+  /** A committee step (S6 · FR-WF-102): every member with the quorum; the fields above repeat the first member */
+  readonly committee?: { readonly quorum: 'ALL' | 'ANY' | 'COUNT'; readonly quorumCount: number | null; readonly members: readonly SimulatedHolderView[] }
+}
+
+/** Who holds a slot and where the position came from */
+export interface SimulatedHolderView {
+  readonly assignee: PersonView
+  readonly principal: PersonView | null
+  readonly position: NameView | null
+  readonly department: NameView | null
 }
 
 export type SimulatedRouteView =
@@ -157,6 +167,15 @@ export async function getDoaSimulation(ctx: Ctx, versionId: string, query: Simul
   }
   const departmentByCode = new Map(departmentRows.map((d) => [d.code, { code: d.code, nameTh: d.nameTh, nameEn: d.nameEn }]))
   const positionByCode = new Map(positionRows.map((p) => [p.code, { code: p.code, nameTh: p.nameTh, nameEn: p.nameEn }]))
+  const holder = (h: { readonly assigneeMemberId: string; readonly principalMemberId: string | null; readonly resolvedFrom: string }): SimulatedHolderView => {
+    const slot = /^POSITION:([^@]+)@(.+)$/.exec(h.resolvedFrom)
+    return {
+      assignee: person(h.assigneeMemberId)!,
+      principal: person(h.principalMemberId),
+      position: slot ? (positionByCode.get(slot[1]!) ?? { code: slot[1]!, nameTh: slot[1]!, nameEn: null }) : null,
+      department: slot ? (departmentByCode.get(slot[2]!) ?? { code: slot[2]!, nameTh: slot[2]!, nameEn: null }) : null,
+    }
+  }
   const view = (route: Result<RouteResult>): SimulatedRouteView => {
     if (!route.ok) return errorView(route.error)
     const r = route.data
@@ -168,16 +187,11 @@ export async function getDoaSimulation(ctx: Ctx, versionId: string, query: Simul
       escalatedFromRuleCode: r.escalatedFromRuleCode,
       amountBasis: r.amountBasis,
       basisAmount: r.basisAmountSatang === null ? null : r.basisAmountSatang.toString(),
-      steps: r.steps.map((s) => {
-        const slot = /^POSITION:([^@]+)@(.+)$/.exec(s.resolvedFrom)
-        return {
-          assignee: person(s.assigneeMemberId)!,
-          principal: person(s.principalMemberId),
-          position: slot ? (positionByCode.get(slot[1]!) ?? { code: slot[1]!, nameTh: slot[1]!, nameEn: null }) : null,
-          department: slot ? (departmentByCode.get(slot[2]!) ?? { code: slot[2]!, nameTh: slot[2]!, nameEn: null }) : null,
-          slaMinutes: s.slaBusinessMinutes,
-        }
-      }),
+      steps: r.steps.map((s) => ({
+        ...holder(s),
+        slaMinutes: s.slaBusinessMinutes,
+        ...(s.committee ? { committee: { quorum: s.committee.quorum, quorumCount: s.committee.quorumCount, members: s.committee.slots.map(holder) } } : {}),
+      })),
       explanationTh: r.explanationTh,
     }
   }
@@ -192,6 +206,6 @@ export async function getDoaSimulation(ctx: Ctx, versionId: string, query: Simul
       version: view(resolveRoute(routeInput, { ...policy, versions: [asInEffect] })),
     }
   })
-  const assignees = (r: SimulatedRouteView | null) => (r?.ok ? r.steps.map((s) => s.assignee.id).join('|') : null)
+  const assignees = (r: SimulatedRouteView | null) => (r?.ok ? r.steps.map((s) => (s.committee ? s.committee.members.map((m) => m.assignee.id).join('+') : s.assignee.id)).join('|') : null)
   return ok({ ...base, errors: {}, result: { ...result, sameApprovers: result.inEffect !== null && assignees(result.inEffect) !== null && assignees(result.inEffect) === assignees(result.version) } })
 }

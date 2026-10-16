@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, boundaryTable, lintDoaVersion, resolveRoute, versionAt, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot } from '@/core/doa'
+import { boundaryTable, DOA_DOCUMENT_TYPES, isCommitteeStep, lintDoaVersion, resolveRoute, stepApprovers, versionAt, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot } from '@/core/doa'
 import { err, ok, type Result } from '@/core/result'
 import { logger } from '@/lib/logger'
 import { authorize } from '@/server/authz'
@@ -24,10 +24,11 @@ import {
 import { listCurrentHolders, listDepartments, listMembers, listPositions, type MemberOptionRow, type RouteRow } from '@/server/queries/org'
 import { treeOrder } from '../org-structure/tree'
 import { amountBasisChange, authorityChanges, boundaryComparison, type AuthorityChangeKind, type BoundaryCompareTable, type BoundarySide } from './compare'
-import { enabledModules } from '../modules'
+import { doaLintOptions } from './lint-options'
 import { diffVersions, policyValues, type PolicyField, type PolicyValue, type VersionDiff } from './diff'
 import { INITIAL_PACKAGE_RULE } from './initial-package'
 import { issueView, warningKey } from './lint-view'
+import { withdrawalView, type WithdrawalView } from '../policy-withdrawal/view'
 
 // The DOA pages of ORG_ADMIN (spec §9.1 /admin/doa, FR-DOA-001 AC1–AC3, FR-DOA-002 AC1, FR-DOA-009 AC1 and AC3,
 // BR-DOA-19): every version with its status and effective period and where the editor starts, one version with its
@@ -85,7 +86,15 @@ export interface RuleView {
   readonly priority: number
   /** Satang text; null = a rule without an amount condition */
   readonly band: { readonly gt?: string; readonly gte?: string; readonly lte?: string } | null
-  readonly steps: ReadonlyArray<{ readonly approver: ApproverView; readonly slaMinutes: number }>
+  /** approver: the step's approver, or a committee's first; committee: every approver and the quorum (S6 · FR-WF-102) */
+  readonly steps: ReadonlyArray<{ readonly approver: ApproverView; readonly slaMinutes: number; readonly committee?: CommitteeView }>
+}
+
+export interface CommitteeView {
+  readonly quorum: 'ALL' | 'ANY' | 'COUNT' | 'MAJORITY'
+  /** COUNT only */
+  readonly quorumCount: number | null
+  readonly approvers: readonly ApproverView[]
 }
 
 export type PolicyView = Record<PolicyField, PolicyValue>
@@ -215,6 +224,10 @@ export interface DoaVersionDetailView {
   readonly route: RouteView | null
   /** Only for a draft */
   readonly submit: SubmitView | null
+  /** The withdrawal of a version approved but not yet in effect (FR-DOA-104) */
+  readonly withdrawal: WithdrawalView
+  /** admin.doa.simulate: the 90-day backtest of a draft (FR-DOA-103) */
+  readonly canBacktest: boolean
 }
 
 const iso = (d: Date | null) => (d ? d.toISOString() : null)
@@ -298,7 +311,14 @@ function ruleViews(rules: readonly DoaRuleSnapshot[], positions: PositionNames, 
     band: r.when.amount
       ? Object.fromEntries(Object.entries({ gt: text(r.when.amount.gt), gte: text(r.when.amount.gte), lte: text(r.when.amount.lte) }).filter(([, v]) => v !== undefined))
       : null,
-    steps: r.steps.map((s) => ({ slaMinutes: s.slaBusinessMinutes, approver: approverView(s.approver, positions, person) })),
+    steps: r.steps.map((s) => {
+      const approvers = stepApprovers(s).map((a) => approverView(a, positions, person))
+      return {
+        slaMinutes: s.slaBusinessMinutes,
+        approver: approvers[0]!,
+        ...(isCommitteeStep(s) ? { committee: { quorum: s.quorum, quorumCount: s.quorumCount ?? null, approvers } } : {}),
+      }
+    }),
   }))
 }
 
@@ -370,6 +390,7 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
     comparable ? comparisonBaselineId(forTenant(ctx.organizationId), row, ctx.now) : Promise.resolve(null),
   ])
   const person = personOf(members)
+  const may = async (capability: 'admin.doa.submitForPublish' | 'admin.doa.simulate') => (await forTenant(ctx.organizationId).$transaction((tx) => authorize(tx, ctx, capability))).ok
   const positions = new Map(positionRows.map((p) => [p.code, { nameTh: p.nameTh, nameEn: p.nameEn }]))
   const data = dataOf(row)
   const snapshot = versionSnapshotFromRows(row, row.ruleRows)
@@ -392,6 +413,8 @@ export async function getDoaVersionForAdmin(ctx: Ctx, versionId: string): Promis
     compare: baselineRow ? compareView(baselineRow, data, positions, person, ctx.now) : null,
     route: route ? routeView(route, person) : null,
     submit: row.status === 'DRAFT' ? await submitView(ctx, row, members, positionRows) : null,
+    withdrawal: withdrawalView(row, person, ctx.now, await may('admin.doa.submitForPublish')),
+    canBacktest: await may('admin.doa.simulate'),
   })
 }
 
@@ -405,7 +428,7 @@ async function submitView(ctx: Ctx, row: DoaVersionFullRow, members: readonly Me
   return forTenant(ctx.organizationId).$transaction(async (tx): Promise<SubmitView> => {
     const allowed = (await authorize(tx, ctx, 'admin.doa.submitForPublish')).ok
     if (initial) {
-      const named = new Set(snapshot.rules.flatMap((r) => r.steps.flatMap((s) => (s.approver.kind === 'MEMBER' ? [] : [s.approver.position]))))
+      const named = new Set(snapshot.rules.flatMap((r) => r.steps.flatMap(stepApprovers).flatMap((a) => (a.kind === 'MEMBER' ? [] : [a.position]))))
       const [signatoryId, departments, holders] = await Promise.all([verifiedSignatoryId(ctx), listDepartments(ctx), listCurrentHolders(ctx, ctx.now)])
       return {
         mode: 'INITIAL',
@@ -422,7 +445,7 @@ async function submitView(ctx: Ctx, row: DoaVersionFullRow, members: readonly Me
 
     // The full lint against the organization as it will be on the effective date (BR-DOA-08), as the submit runs it
     const org = await loadOrgSnapshot(tx)
-    const lint = lintDoaVersion(snapshot, org, row.effectiveFrom, { modules: await enabledModules(tx) })
+    const lint = lintDoaVersion(snapshot, org, row.effectiveFrom, await doaLintOptions(tx, row.sodPolicy))
     const later = await tx.doaVersion.findFirst({
       where: { code: row.code, status: 'PUBLISHED', id: { not: row.id }, effectiveFrom: { gte: row.effectiveFrom } },
       select: { versionNo: true },

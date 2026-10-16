@@ -11,6 +11,7 @@ import type { BoundaryTick } from '@/ui/tasks/policy-decision'
 import { AuthorityList, BoundaryCompare, type Baseline } from '../admin/doa/_parts/sections'
 import { doaWords as adminDoaWords, type DoaT } from '../admin/doa/_parts/words'
 import { doaHref, doaRefText, memberName, money, nameIn, routeSentence, when, type Locale } from './present'
+import { WithdrawalNotice } from './withdrawal-notice'
 
 // What a policy task asks the approver to approve (BR-DOA-15, FR-DOA-010 AC1–AC2, FR-DOA-002 AC2, BR-DOA-13): the
 // change as one sentence with names, who proposed it and when it takes effect, the reason, and who gains or loses
@@ -25,7 +26,10 @@ type TasksT = Awaited<ReturnType<typeof getTranslations<'tasks'>>>
 // The engine's shapes, as the query hands them over (screens import core only for formatting, §4.10)
 type DoaRuleSnapshot = DoaVersionContentDto['rules'][number]
 type DoaStepSpec = DoaRuleSnapshot['steps'][number]
-type ApproverSpec = DoaStepSpec['approver']
+type ApproverSpec = Extract<DoaStepSpec, { approver: unknown }>['approver']
+/** A committee step (S6 · FR-WF-102) */
+type CommitteeStep = Extract<DoaStepSpec, { approvers: unknown }>
+const isCommittee = (s: DoaStepSpec): s is CommitteeStep => 'approvers' in s
 type AmountCondition = NonNullable<DoaRuleSnapshot['when']['amount']>
 type DoaDocumentType = DoaRuleSnapshot['documentType']
 type DoaPolicy = Extract<PolicySubjectDto, { kind: 'DOA_VERSION' }>
@@ -35,7 +39,7 @@ export const DOA_BOUNDARY_SECTION = 'doa-boundaries'
 
 /** The change as one sentence, e.g. "แต่งตั้ง สมหญิง รักงาน เป็นผู้จัดการฝ่าย ฝ่ายก่อสร้าง" */
 export function policyHeadline(t: TasksT, locale: Locale, policy: PolicySubjectDto): string {
-  if (policy.kind === 'DOA_VERSION') return t('policy.doaHeadline', { code: policy.code, version: policy.versionNo })
+  if (policy.kind === 'DOA_VERSION') return t(policy.withdrawal ? 'policy.doaWithdrawalHeadline' : 'policy.doaHeadline', { code: policy.code, version: policy.versionNo })
   const d = policy.details
   const unknown = t('policy.unknown')
   const member = (m: { name: { th: string; en: string | null } } | null) => (m ? nameIn(locale, m.name) : unknown)
@@ -87,6 +91,8 @@ export function doaComparison(policy: DoaPolicy) {
  */
 export function boundaryTickOf(task: TaskViewDto): BoundaryTick | null {
   if (task.policy?.kind !== 'DOA_VERSION') return null
+  // A withdrawal publishes nothing: there is no table to tick (the service reads no tick for it)
+  if (task.policy.withdrawal) return null
   if ((doaComparison(task.policy)?.boundaries.length ?? 0) === 0) return null
   return { tableId: DOA_BOUNDARY_SECTION, baselineId: task.policy.baseline?.versionId ?? null }
 }
@@ -114,7 +120,13 @@ function doaWords(t: TasksT, locale: Locale, names: { positions: ReadonlyMap<str
     return t(`policy.doaApprover.${a.kind}`, { position })
   }
   const sla = (minutes: number) => (minutes % 60 === 0 ? t('policy.doaSla', { hours: minutes / 60 }) : t('policy.doaSlaMinutes', { minutes }))
-  const step = (s: DoaStepSpec) => t('policy.doaRuleStep', { approver: approver(s.approver), sla: sla(s.slaBusinessMinutes) })
+  /** One approver, or a committee with its quorum: "คณะกรรมการ COO, CFO ต้องได้ 2 เสียง" */
+  const who = (s: DoaStepSpec): string => {
+    if (!isCommittee(s)) return approver(s.approver)
+    const approvers = s.approvers.map(approver).join(', ')
+    return s.quorum === 'COUNT' ? t('policy.doaCommittee.COUNT', { approvers, count: s.quorumCount ?? s.approvers.length }) : t(`policy.doaCommittee.${s.quorum}`, { approvers })
+  }
+  const step = (s: DoaStepSpec) => t('policy.doaRuleStep', { approver: who(s), sla: sla(s.slaBusinessMinutes) })
   const policyValue = (field: PolicyField, value: PolicyValue): string => {
     if (value === null) return t('policy.doaValue.none')
     if (field === 'stepUpThreshold') return t('policy.doaValue.amount', { amount: money(BigInt(String(value))) })
@@ -132,7 +144,7 @@ function doaWords(t: TasksT, locale: Locale, names: { positions: ReadonlyMap<str
       case 'band':
         return band(rule.when.amount)
       case 'approver':
-        return rule.steps.map((s) => approver(s.approver)).join(', ')
+        return rule.steps.map(who).join(', ')
       case 'sla':
         return rule.steps.map((s) => sla(s.slaBusinessMinutes)).join(', ')
     }
@@ -140,7 +152,7 @@ function doaWords(t: TasksT, locale: Locale, names: { positions: ReadonlyMap<str
   return { documentType, band, step, policyValue, ruleField }
 }
 
-const POLICY_ORDER: readonly PolicyField[] = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive']
+const POLICY_ORDER: readonly PolicyField[] = ['amountBasis', 'selfApprovalPolicy', 'collapseDuplicateApprovers', 'stepUpThreshold', 'approverMayReceive', 'requesterMayReceive', 'doaAdminSeparated']
 
 function policyValues(c: DoaVersionContentDto): Record<PolicyField, PolicyValue> {
   return {
@@ -150,6 +162,7 @@ function policyValues(c: DoaVersionContentDto): Record<PolicyField, PolicyValue>
     stepUpThreshold: c.stepUpThresholdSatang === null ? null : c.stepUpThresholdSatang.toString(),
     approverMayReceive: c.sodPolicy.approverMayReceive,
     requesterMayReceive: c.sodPolicy.requesterMayReceive,
+    doaAdminSeparated: c.sodPolicy.doaAdminSeparated === true,
   }
 }
 
@@ -184,7 +197,11 @@ function comparisonViews(policy: DoaPolicy, comparison: NonNullable<ReturnType<t
             ...(amount.lte !== undefined ? { lte: amount.lte.toString() } : {}),
           }
         : null,
-      steps: r.steps.map((s) => ({ approver: approver(s.approver), slaMinutes: s.slaBusinessMinutes })),
+      steps: r.steps.map((s) =>
+        isCommittee(s)
+          ? { approver: approver(s.approvers[0]!), slaMinutes: s.slaBusinessMinutes, committee: { quorum: s.quorum, quorumCount: s.quorumCount ?? null, approvers: s.approvers.map(approver) } }
+          : { approver: approver(s.approver), slaMinutes: s.slaBusinessMinutes },
+      ),
     }
   }
   const baseline = policy.baseline
@@ -412,6 +429,9 @@ export async function PolicySubject({
   return (
     <div className="flex flex-col gap-6">
       <Section id="what" title={t('policy.whatTitle')}>
+        {policy.kind === 'DOA_VERSION' && policy.withdrawal ? (
+          <WithdrawalNotice withdrawal={policy.withdrawal} version={t('policy.doaVersionRef', { code: policy.code, version: policy.versionNo })} effectiveFrom={policy.effectiveFrom} locale={locale} />
+        ) : null}
         <Facts columns={2} items={facts} />
         {/* What publishing would leave running under the version in effect (BR-DOA-13): only while it waits for approval */}
         {policy.kind === 'DOA_VERSION' && policy.status === 'PENDING_APPROVAL' && policy.openTasksUnderCurrent > 0 ? <p className="text-ink">{t('policy.doaOpenTasks', { count: policy.openTasksUnderCurrent })}</p> : null}

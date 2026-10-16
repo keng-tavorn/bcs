@@ -7,7 +7,7 @@ import { makeCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { aiAgentRunRun } from '@/server/jobs/ai-agent-run'
 import { intakeFromMessage, isAgentAvailable, runIntake, runMonthlyGrant, setAiRuntimeForTests, startIntake, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 
 // S13-08 (FR-AI-302 AC1–AC5, FR-AI-303 AC9, BR-AI-19, docs/sub-specs/S13.md "interface"): the Intake Agent turns what a

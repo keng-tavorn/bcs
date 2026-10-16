@@ -8,7 +8,7 @@ import { completeUpload, getDownloadUrl, requestUpload } from '@/server/services
 import { assignSupplier } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
 import { getReceivingView } from '@/server/services/receiving/view'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import type { ReceiptInput } from '@/ui/receiving/types'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 

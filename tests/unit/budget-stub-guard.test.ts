@@ -14,9 +14,9 @@ describe('[FR-BUD-003/AC2] the budget check has no stub and no switch', () => {
   const budget = read('src/server/services/requests/budget.ts')
   const ledger = read('src/server/budget/ledger.ts')
 
-  it('the shared submit step resolves the budget line and reserves before the route', () => {
+  it('the shared submit step resolves the budget lines of every line and reserves before the route (S6-17)', () => {
     const prepare = requests.slice(requests.indexOf('async function prepareRoute'), requests.indexOf('export const submitCommand'))
-    const check = prepare.indexOf('resolveBudgetLine(')
+    const check = prepare.indexOf('requestBudgetLines(')
     const reserve = prepare.indexOf('reserveForRequest(')
     const route = prepare.indexOf('startRoute(')
     expect(check).toBeGreaterThan(0)

@@ -27,6 +27,8 @@ defineEvents('Organization', {
   // the history keeps each reason while OrgModule holds only the latest (§6.2: the change history lives in Event)
   'organization.module_enabled': { schema: z.object({ module: moduleKey, contractRef: z.string().min(1), reasonCommentId: z.uuid() }) },
   'organization.module_disabled': { schema: z.object({ module: moduleKey, contractRef: z.string().min(1), reasonCommentId: z.uuid() }) },
+  // S6-21 (FR-PLT-101 · BR-UAT-01 BR-UAT-04): a UAT sandbox of this organization, made empty by the BCS team under the contract
+  'organization.sandbox_created': { schema: z.object({ sandboxOrganizationId: z.uuid(), code: z.string().min(1), contractRef: z.string().min(1), reasonCommentId: z.uuid() }) },
   // One section of Organization.settings saved (FR-PLT-001 AC2); the values are on the row, the event names the section.
   // lineChannel is the organization's LINE channel (LineChannelConfig, FR-ADM-006 AC2): `changed` names the fields that
   // changed and never holds a value, because two of them are secrets (encrypted on the row, NFR-SEC-09)

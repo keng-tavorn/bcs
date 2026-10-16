@@ -12,7 +12,7 @@ const keys = (p: Principal, modules: readonly ('CORE' | 'PAY')[] = CORE) => visi
 const member = (...roles: StoredRole[]) => memberPrincipal('m1', roles)
 // Every member's own settings (§9.1 /settings/*): acting approver, account security, transaction PIN, LINE and notifications
 const OWN_SETTINGS: MenuKey[] = ['delegation', 'security', 'pin', 'lineLink', 'notifications']
-const EVERY_MEMBER: MenuKey[] = ['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', 'settings', ...OWN_SETTINGS]
+const EVERY_MEMBER: MenuKey[] = ['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'catalog', 'board', 'settings', ...OWN_SETTINGS]
 const withExtra = (extra: MenuKey[]) => EVERY_MEMBER.concat(extra)
 
 describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
@@ -28,7 +28,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     ['EXECUTIVE', ['pos', 'budgets', 'insights', 'reports']],
     // The policy history is an admin page, so its hub shows with it
     ['AUDITOR', ['pos', 'budgets', 'insights', 'reports', 'audit', 'admin', 'policyHistory']],
-    ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'policyHistory', 'modules']],
+    ['ORG_ADMIN', ['audit', 'admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'workflows', 'orgAuthority', 'policyHistory', 'modules', 'config']],
   ])('%s also sees %j', (role, extra) => {
     const expected = withExtra(extra)
     const order = visibleMenu(member(...['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'] as StoredRole[]), CORE).map((i) => i.key)
@@ -37,7 +37,7 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
 
   it('a department head (DM/VP) sees the budgets and reports of their department', () => {
     const head: Principal = { kind: 'member', memberId: 'm1', roles: new Set(), headOfDepartmentIds: new Set(['d1']), departmentIds: new Set() }
-    expect(keys(head)).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'budgets', 'insights', 'board', 'reports', 'settings', ...OWN_SETTINGS])
+    expect(keys(head)).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', 'settings', ...OWN_SETTINGS])
   })
 
   it('the BCS team (PLATFORM_ADMIN) sees only customer organizations, no business menus', () => {
@@ -79,15 +79,16 @@ describe('[FR-PLT-002/AC1] menus follow §2.4 permissions', () => {
     // S5 (wave 4): /admin/line for the ORG_ADMIN, and /settings/pin, /settings/line and /settings/notifications for every member
     // S16-04: the hubs /settings and /admin, and the admin hub hides with no ready admin page (the AUDITOR's policy
     // history is not built yet) · S16-08: the executive summary /insights in place of the KPI entry (§9.10)
+    // · S6-10: the catalogue /catalog for every member (catalog.view)
     const own = ['settings', 'delegation', 'security', 'pin', 'lineLink', 'notifications']
-    const admin = ['admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'orgAuthority', 'modules']
-    expect(ready('ORG_ADMIN')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', 'audit', 'settings', ...admin, ...own.slice(1)])
-    expect(ready()).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'board', ...own])
-    expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'insights', 'board', 'reports', ...own])
-    expect(ready('RECEIVER')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'receiving', 'suppliers', 'board', ...own])
-    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
-    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'budgets', 'insights', 'board', 'reports', ...own])
-    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
+    const admin = ['admin', 'members', 'org', 'calendar', 'numbering', 'requestTypes', 'line', 'doa', 'workflows', 'orgAuthority', 'modules', 'config']
+    expect(ready('ORG_ADMIN')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'catalog', 'board', 'audit', 'settings', ...admin, ...own.slice(1)])
+    expect(ready()).toEqual(['home', 'tasks', 'requests', 'newRequest', 'suppliers', 'catalog', 'board', ...own])
+    expect(ready('PROCUREMENT')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pool', 'pos', 'suppliers', 'catalog', 'insights', 'board', 'reports', ...own])
+    expect(ready('RECEIVER')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'receiving', 'suppliers', 'catalog', 'board', ...own])
+    expect(ready('FINANCE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'catalog', 'invoices', 'exports', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('EXECUTIVE')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', ...own])
+    expect(ready('AUDITOR')).toEqual(['home', 'tasks', 'requests', 'newRequest', 'pos', 'suppliers', 'catalog', 'budgets', 'insights', 'board', 'reports', 'audit', ...own])
   })
 })
 
@@ -101,6 +102,8 @@ describe('[FR-PLT-013/AC2] [FR-PLT-002/AC1] the sidebar follows the table of §9
     ['procurement', 'pos', '/procurement/pos'],
     ['procurement', 'receiving', '/receiving'],
     ['procurement', 'suppliers', '/suppliers'],
+    // S6-10 (FR-INT-102): the catalogue with its agreed prices, every member's (catalog.view)
+    ['procurement', 'catalog', '/catalog'],
     ['finance', 'invoices', '/finance/invoices'],
     // S9-09: shown only while module PAY is on (docs/sub-specs/S9.md "หน้าจอ")
     ['finance', 'payments', '/finance/payments'],

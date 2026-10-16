@@ -14,7 +14,9 @@ import { STORED_ROLES } from '@/server/authz/permissions'
 import { sendInvitationEmail } from '@/server/auth/emails'
 import { upsertUserWithPassword } from '@/server/auth/provision'
 import type { EventDraft } from '@/server/events/append'
+import type { NotificationDraft } from '@/server/notifications/create'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
+import { doaAdminNotices, roleGrantRefusal } from './role-rules'
 import { runDeactivationRevokers } from './revokers'
 
 // Member lifecycle (FR-AUTH-001..003; the admin screens are S1-12 / FR-ADM-001). Every change goes through
@@ -87,10 +89,15 @@ function inviteCommand(tokenHash: string) {
       const events: EventDraft[] = []
       const actorId = ctx.actor.type === 'USER' ? ctx.actor.memberId : null
       const current = new Set((await tx.roleAssignment.findMany({ where: { memberId, revokedAt: null }, select: { role: true } })).map((r) => r.role))
+      // S6-09 (BR-WF-16, BR-WF-17): the roles of an invitation follow the rules of DOA_ADMIN too
+      const refused = await roleGrantRefusal(tx, ctx, memberId, [...new Set(input.roles)].filter((r) => !current.has(r)), current)
+      if (refused) return refused
+      const notifications: NotificationDraft[] = []
       for (const role of new Set(input.roles)) {
         if (current.has(role)) continue
         await tx.roleAssignment.create({ data: { organizationId: ctx.organizationId, memberId, role, grantedById: actorId, grantedAt: ctx.now } })
         events.push({ type: 'member.role_granted', aggregateType: 'Member', aggregateId: memberId, data: { role, scopeDepartmentId: null } })
+        if (role === 'DOA_ADMIN') notifications.push(...(await doaAdminNotices(tx, memberId, 'GRANTED', ctx.now)))
       }
       const invitationId = newId()
       const expiresAt = new Date(ctx.now.getTime() + INVITATION_TTL_MS)
@@ -98,7 +105,7 @@ function inviteCommand(tokenHash: string) {
         data: { id: invitationId, organizationId: ctx.organizationId, memberId, tokenHash, expiresAt, createdById: actorId },
       })
       events.unshift({ type: 'member.invited', aggregateType: 'Member', aggregateId: memberId, data: { invitationId, roles: [...new Set(input.roles)], resent: Boolean(existing) } })
-      return { ok: true, result: { memberId, invitationId, expiresAt: expiresAt.toISOString(), tokenHash }, events }
+      return { ok: true, result: { memberId, invitationId, expiresAt: expiresAt.toISOString(), tokenHash }, events, notifications }
     },
   })
 }

@@ -4,7 +4,7 @@ import { systemCtx } from '@/server/context'
 import { prisma } from '@/server/db/client'
 import { revokeDelegation } from '@/server/services/delegations'
 import { createDelegationForDays, delegationState, getMyDelegations } from '@/server/services/delegations/view'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg } from '../support/doa-org'
 
 // NEW-06 · FR-DOA-006 AC2 (web part, BR-DLG-01..05, §7.6): a delegator sets their own delegation on the web by whole

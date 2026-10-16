@@ -11,13 +11,17 @@ import { LintIssueText } from '@/ui/admin-doa/lint-issue'
 import { SubmitDoaPanel } from '@/ui/admin-doa/submit-panel'
 import { VersionStatus, versionLook } from '@/ui/admin-doa/version-status'
 import { NoAccess } from '@/ui/admin-settings/no-access'
+import { BacktestPanel } from '@/ui/backtest/panel'
 import { Notice } from '@/ui/form/notice'
 import { formatDateTime } from '@/ui/format'
 import { Page, PageBody, PageHeader, Panel } from '@/ui/page/page'
+import { RequestWithdrawal } from '@/ui/policy-withdrawal/request-withdrawal'
+import { WithdrawalState } from '@/ui/policy-withdrawal/withdrawal-state'
+import { readBacktestRunAction, runBacktestAction } from '../../../../_lib/backtest-actions'
 import { getSession } from '../../../../_lib/session'
 import { AuthorityList, BoundaryCompare, DiffList, Section, diffIsEmpty, keepTogether, type Baseline } from '../_parts/sections'
 import { DOCUMENT_TYPES, doaWords } from '../_parts/words'
-import { submitDoaAction, submitInitialPackageAction } from '../actions'
+import { requestDoaWithdrawalAction, submitDoaAction, submitInitialPackageAction } from '../actions'
 
 export async function generateMetadata() {
   const t = await getTranslations('adminDoa')
@@ -43,11 +47,13 @@ const BOUNDARY_SECTION = 'boundaries'
 // content, then the send, so the drafter reaches it after reading the boundary table they tick (a draft that cannot be
 // sent says why up there, with the status, since it has nothing to tick or send). The initial package of
 // an organization without a DOA is the page's main task and a list of holders, so it gets its own full-width section
-// first, before the content, on every screen.
+// first, before the content, on every screen. S6-07: a draft or a version waiting for approval has the 90-day backtest
+// (FR-DOA-103) after its comparison; a version approved for later may be withdrawn (FR-DOA-104 AC1) by who may send
+// versions, with a reason, and a withdrawal asked or done is stated beside the status (who asked, when and why).
 export default async function DoaVersionPage({ params }: { params: Promise<{ versionId: string }> }) {
   const { versionId } = await params
   const ctx = ctxFromSession(await getSession(), 'WEB', systemClock.now())
-  const [t, tVersions, locale] = await Promise.all([getTranslations('adminDoa.detail'), getTranslations('adminDoa'), getLocale()])
+  const [t, tVersions, tBacktest, tWithdrawal, locale] = await Promise.all([getTranslations('adminDoa.detail'), getTranslations('adminDoa'), getTranslations('backtest'), getTranslations('policyWithdrawal'), getLocale()])
   if (!ctx) return null
   const result = await getDoaVersionForAdmin(ctx, versionId)
   if (!result.ok && result.error.code === 'NOT_FOUND') notFound()
@@ -92,6 +98,10 @@ export default async function DoaVersionPage({ params }: { params: Promise<{ ver
 
   const submit = view.submit
   const waiting = (view.route?.tasks ?? []).filter((task) => task.status === 'OPEN' || task.status === 'INFO_REQUESTED').map((task) => person(task.assignee))
+  const withdrawal = view.withdrawal
+  // The 90-day backtest of a draft or a version waiting for approval (FR-DOA-103): what it would change on the documents
+  // of the last 90 days, before it is sent or decided
+  const backtestable = view.canBacktest && (v.status === 'DRAFT' || v.status === 'PENDING_APPROVAL')
   const blocked = submit?.mode === 'NORMAL' && (submit.effectiveInPast || submit.laterVersionScheduled !== null || submit.errors.length > 0 || !submit.allowed)
   const initial = submit?.mode === 'INITIAL' ? submit : null
   // The send: on wide screens in the right column; on phones after the content when it can be sent (the boundary table
@@ -225,6 +235,26 @@ export default async function DoaVersionPage({ params }: { params: Promise<{ ver
               </nav>
             </Panel>
 
+            {/* A version approved for later may be withdrawn before it starts (FR-DOA-104 AC1); one asked or done says so */}
+            {withdrawal.pending || withdrawal.withdrawnAt || (withdrawal.requestable && withdrawal.allowed) ? (
+              <Section id="withdrawal" title={tWithdrawal('title')}>
+                <WithdrawalState
+                  pending={withdrawal.pending}
+                  withdrawnAt={withdrawal.withdrawnAt}
+                  requestedBy={withdrawal.requestedBy}
+                  requestedAt={withdrawal.requestedAt}
+                  reason={withdrawal.reason}
+                  waiting={withdrawal.pending ? waiting : []}
+                />
+                {withdrawal.requestable && withdrawal.allowed ? (
+                  <>
+                    <p className="text-ink-muted">{tWithdrawal('intro', { name, time: when(v.effectiveFrom) })}</p>
+                    <RequestWithdrawal versionId={v.id} versionName={name} request={requestDoaWithdrawalAction} />
+                  </>
+                ) : null}
+              </Section>
+            ) : null}
+
             {view.route && v.status !== 'DRAFT' ? (
               <Section id="route" title={t('routeTitle')}>
                 {routeLines(view.route).map((line) => (
@@ -280,6 +310,12 @@ export default async function DoaVersionPage({ params }: { params: Promise<{ ver
                 )}
               </Section>
             )}
+
+            {backtestable ? (
+              <Section id="backtest" title={tBacktest('title')}>
+                <BacktestPanel kind="DOA_VERSION" versionId={v.id} versionName={name} purpose="draft" run={runBacktestAction} reread={readBacktestRunAction} />
+              </Section>
+            ) : null}
 
             {boundaryTables.length ? (
               <Section id={BOUNDARY_SECTION} title={t('boundaryTitle')}>

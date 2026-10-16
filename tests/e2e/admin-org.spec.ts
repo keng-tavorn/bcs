@@ -280,7 +280,9 @@ test('[FR-DOA-010/AC1] moving a department, acting for someone and resetting an 
   await expect(page.getByText(`ย้าย ${moving} ไปอยู่ใต้ สายปฏิบัติการ`)).toBeVisible()
   await expect(page.getByText('มีผลทันทีเมื่อผู้มีอำนาจอนุมัติ')).toBeVisible()
   const reparentImpact = page.getByRole('region', { name: 'ผลกระทบ' })
-  await expect(reparentImpact.locator('dd').nth(2)).toHaveText('ไม่มีงานค้างที่ต้องย้าย')
+  // S6-08 (BR-WF-14): the open tasks found from the tree that land on someone else once it applies; other specs of the
+  // run may have left some on this department's requests
+  await expect(reparentImpact.locator('dd').nth(2)).toHaveText(/^(ไม่มีงานค้างที่ต้องย้าย|\d+ งานจะย้ายไปผู้ดำรงคนใหม่เมื่อการเปลี่ยนมีผล)$/)
   await expect(page.getByRole('region', { name: 'ผู้อนุมัติ' })).toContainText('ส่งให้ ศักดิ์ชัย ผู้นำ อนุมัติตาม DOA-DEMO ฉบับ 1 ข้อ ORG-CHG-01')
   await expectNoBlockingAxe(page)
   await expectNoSideways(page)

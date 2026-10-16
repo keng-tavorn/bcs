@@ -27,6 +27,7 @@ import type { SubjectDecided, SubjectDecision } from '../approvals/subjects'
 import { fail, type Fail } from '../ap/common'
 import { INVOICED_STATUSES } from '../ap/match-run'
 import { releasableFor, requestLineBasis } from '../procurement/pool'
+import { issueDocumentVerification } from '../documents/verification'
 import { completeFinishedRequests, reorderSourceLine } from './requests'
 
 // Changes to a sent PO (ADR-125, BR-POC-01 to BR-POC-05, OQ-126, FR-AP-107), in module CORE: PROCUREMENT drafts a change
@@ -255,9 +256,12 @@ async function applyChange(tx: TenantTx, ctx: Ctx, locked: Locked, change: Await
     data: { netSatang: change.newNetSatang, vatSatang: change.newVatSatang, grossSatang: change.newGrossSatang, notesToSupplier: change.notesToSupplier, revisionNo, version: { increment: 1 } },
   })
   await tx.poChange.update({ where: { id: change.id }, data: { status: 'APPROVED', decidedAt: ctx.now, appliedRevisionNo: revisionNo, version: { increment: 1 } } })
+  // S6-19 (BR-QR-01, BR-POC-04): the revised PO prints a new QR; the one on the copy before says a newer version exists
+  const verification = await issueDocumentVerification(tx, ctx, { subjectType: 'PURCHASE_ORDER', subjectId: po.id })
   return {
     revisionNo,
     events: [
+      ...verification.events,
       { type: 'po_change.approved', aggregateType: 'PoChange', aggregateId: change.id, data: { poId: po.id, revisionNo, autoApproved: change.autoApproved } },
       { type: 'po.revised', aggregateType: 'PurchaseOrder', aggregateId: po.id, data: { poChangeId: change.id, revisionNo, netSatang: change.newNetSatang.toString(), requests: [...statuses].map(([requestId, status]) => ({ requestId, status })) } },
       ...completed.map((c): EventDraft => ({ type: 'request.completed', aggregateType: 'Request', aggregateId: c.requestId, data: { purchaseOrderIds: c.purchaseOrderIds } })),

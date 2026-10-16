@@ -14,7 +14,7 @@ import { commonErrorKey, settle, type FormProblemView } from './outcome'
 const MAX_FILE_BYTES = 200 * BYTES_PER_KIB
 
 /** One problem of an imported form in the reader's language, with where it is in the JSON. */
-function useProblemText(): (p: FormProblemView) => string {
+export function useProblemText(): (p: FormProblemView) => string {
   const t = useTranslations('adminSettings.forms.problems')
   return (p) => {
     switch (p.reason) {
@@ -43,7 +43,7 @@ function useProblemText(): (p: FormProblemView) => string {
   }
 }
 
-function ChangeList({ changes }: { changes: FormChangesView }) {
+export function ChangeList({ changes }: { changes: FormChangesView }) {
   const t = useTranslations('adminSettings.forms.changes')
   const lines = [
     changes.addedFields.length ? t('addedFields', { list: changes.addedFields.join(', ') }) : null,

@@ -25,6 +25,17 @@
     "variance": "{type} · {description}",
     "varianceMeta": "From {number}",
     "varianceAmountLabel": "Before VAT",
+    "review": "Review before approval",
+    "workflow": "Publish parallel reviewers {code} version {version}",
+    "workflowWithdrawal": "Withdraw parallel reviewers {code} version {version}",
+    "transfer": {
+      "DECREASE": "Budget decrease {number}",
+      "INCREASE": "Budget increase {number}",
+      "TRANSFER": "Budget transfer {number}"
+    },
+    "transferAmountLabel": "Amount moved",
+    "overrun": "Over budget {number} · {request}",
+    "overrunAmountLabel": "Over budget by",
     "invoice": "{number} · invoice price variance",
     "invoiceMeta": "{supplier} · from {number}",
     "invoiceAmountLabel": "Variance incl. VAT",
@@ -145,11 +156,44 @@
       "noReturn": "A variance is approved or rejected; it is not returned",
       "reasonError": "Type a reason of at least 3 characters, so whoever recorded the variance knows why",
       "stepUpHint": "The amount of this task needs your 6-digit PIN to approve or reject it"
+    },
+    "review": {
+      "approve": "Pass",
+      "approved": "Passed",
+      "confirm": "Confirm pass",
+      "confirmText": "Pass {label}, {amount} baht with VAT, on to the approver. The decision cannot be changed later",
+      "otherLink": "Return or ask for more information",
+      "otherTitle": "Return",
+      "returnHint": "A reviewer may return the request for changes or ask for more information, but does not approve or reject in place of the DOA approver"
+    },
+    "transfer": {
+      "confirmText": "Approve {label} of {amount} baht. The decision cannot be changed later.",
+      "otherLink": "Return or reject",
+      "returnOption": "Return to the sender",
+      "returnHint": "It goes back to the sender; the reserved budget returns to the source line and is reserved again when sent again.",
+      "rejectHint": "It is closed and the reserved budget returns to the source line at once.",
+      "reasonHint": "The sender reads this. Say clearly what to correct or why it is rejected.",
+      "submitReturn": "Return to the sender",
+      "submitReject": "Reject this transfer",
+      "returned": "Returned to the sender.",
+      "rejected": "Rejected."
+    },
+    "overrun": {
+      "confirmText": "Approve {label}, over budget by {amount} baht. The amount enters the budget line, set aside for the source request. The decision cannot be changed later.",
+      "otherLink": "Return or reject",
+      "returnOption": "Return to the requester",
+      "returnHint": "It goes back to the requester; the budget does not change, and the requester may change the request or ask again.",
+      "rejectHint": "It is closed; the budget does not change, and the source request cannot be sent until the budget is enough.",
+      "reasonHint": "The requester reads this. Say clearly what to correct or why it is rejected.",
+      "submitReturn": "Return to the requester",
+      "submitReject": "Reject this over-budget approval",
+      "returned": "Returned to the requester.",
+      "rejected": "Rejected."
     }
   },
   "policy": {
     "title": "Decide this policy change",
-    "stepUpHint": "Approving or rejecting a DOA or authority change needs your 6-digit PIN, every time",
+    "stepUpHint": "Approving or rejecting a DOA, authority or parallel reviewer change needs your 6-digit PIN, every time",
     "pin": "6-digit PIN",
     "approve": "Approve this change",
     "approved": "Change approved",
@@ -232,7 +276,8 @@
       "collapseDuplicateApprovers": "Merge steps with the same approver",
       "stepUpThreshold": "Amount from which the approver confirms identity again",
       "approverMayReceive": "The approver may receive the goods",
-      "requesterMayReceive": "The requester may receive the goods"
+      "requesterMayReceive": "The requester may receive the goods",
+      "doaAdminSeparated": "DOA administrators separated from organization administrators"
     },
     "doaValue": {
       "GROSS": "incl. VAT",
@@ -274,7 +319,14 @@
       "position": "{name} ({code})"
     },
     "doaSla": "{hours, plural, one {# business hour} other {# business hours}}",
-    "doaSlaMinutes": "{minutes, plural, one {# business minute} other {# business minutes}}"
+    "doaSlaMinutes": "{minutes, plural, one {# business minute} other {# business minutes}}",
+    "doaCommittee": {
+      "ALL": "Committee {approvers}, every vote needed",
+      "ANY": "Committee {approvers}, any one of them",
+      "COUNT": "Committee {approvers}, {count, plural, one {# vote} other {# votes}} needed",
+      "MAJORITY": "Committee {approvers}, majority vote"
+    },
+    "doaWithdrawalHeadline": "Withdraw {code} version {version}"
   },
   "errors": {
     "DECIDED": "Already decided by {name} {time}",
@@ -384,6 +436,27 @@
     "optionOverdue": "Overdue",
     "optionInfo": "Waiting for the requester's answer",
     "submit": "Show matching tasks"
+  },
+  "workflow": {
+    "effective": "In effect from",
+    "open": "Open this version: rules, comparison with the version in effect, checks and try-out",
+    "reason": "Reason for the change",
+    "rules": "Reviewer rules",
+    "rulesValue": "{count} rules",
+    "submittedBy": "Sent by",
+    "title": "Parallel reviewer version to publish",
+    "version": "Version",
+    "versionValue": "{code} version {version}",
+    "webOnly": "Approve or reject on the web only, every time with your PIN"
+  },
+  "withdrawal": {
+    "title": "Request to withdraw this version",
+    "asked": "{name} asked on {at} to withdraw {version}, approved but not yet in effect (due {effective})",
+    "askedNoName": "A withdrawal of {version} is asked: it is approved but not yet in effect (due {effective})",
+    "reason": "Reason for the withdrawal: {reason}",
+    "effect": "Approve = withdraw this version; the version before it stays in effect · Reject = keep this version on its date",
+    "withdrawn": "Withdrawn on {time}",
+    "backtestTitle": "90-day backtest"
   },
   "invoice": {
     "number": "Invoice number",

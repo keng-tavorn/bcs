@@ -12,7 +12,9 @@
     "label": "From this page",
     "export": "Export fiscal year {code} to Excel",
     "import": "Import budgets from Excel",
-    "grants": "Cross-department budget use"
+    "grants": "Cross-department budget use",
+    "transfer": "Transfer or adjust budget",
+    "transfers": "Budget transfers and adjustments"
   },
   "year": {
     "label": "Fiscal year shown",
@@ -30,12 +32,14 @@
   },
   "legend": {
     "title": "What the amounts mean",
-    "planned": "Planned: everything imported for the fiscal year (before VAT)",
+    "planned": "Planned: everything imported for the fiscal year, plus transfers in and increases, less transfers out and decreases (before VAT)",
     "available": "Available: what new requests can still use",
     "reserved": "Reserved: requests sent but not yet on a purchase order",
     "committed": "Committed: approved purchase orders waiting for their invoices",
     "actual": "Actual: invoices finance has confirmed",
-    "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned"
+    "shares": "Used = (committed + actual) ÷ planned · Held = (reserved + committed + actual) ÷ planned",
+    "burn": "Year forecast = used ÷ days of the fiscal year gone by × days in the year (used is rounded down to 2 decimals) · \"used\" badges: the organization's alert threshold is reached · \"Forecast over budget\": at this pace the line will use more than its current budget before the year ends",
+    "changes": "How a line came to its planned amount: the initial budget imported, and the approved transfers in and out, increases and decreases, and what over-budget approvals funded"
   },
   "columns": {
     "line": "Budget line",
@@ -49,6 +53,14 @@
     "held": "Held {pct}%",
     "noShare": "Nothing planned yet"
   },
+  "burn": {
+    "forecast": "Year forecast {pct}%",
+    "noForecast": "Year forecast: not yet",
+    "noForecastHint": "The fiscal year has only just begun, too early to forecast",
+    "used": "{pct}% used",
+    "usedAll": "{pct}% used",
+    "forecastOver": "Forecast over budget"
+  },
   "table": {
     "caption": "Budgets of fiscal year {code} by department and budget line, in baht",
     "departmentTotal": "{name} total",
@@ -61,7 +73,8 @@
     "availableLink": "Available {amount} baht of {code}: see the ledger movements",
     "usedLink": "{share} of {code}: see the committed and actual documents",
     "heldLink": "{share} of {code}: see the reserved, committed and actual documents",
-    "lowLink": "{warning} on {code}: see the ledger movements"
+    "lowLink": "{warning} on {code}: see the ledger movements",
+    "forecastLink": "{share} of {code}: see the committed and actual documents"
   },
   "unit": "baht",
   "status": {
@@ -147,6 +160,8 @@
     },
     "kinds": {
       "IMPORTED": "Budget imported",
+      "FUNDED": "Added to the budget",
+      "DEFUNDED": "Taken out of the budget",
       "RESERVED": "Reserved",
       "RESERVATION_RELEASED": "Reservation released",
       "COMMITTED": "Committed",
@@ -163,6 +178,8 @@
     },
     "importFile": "File {name}",
     "initialBudget": "Organization's initial budget",
+    "transfer": "Transfer or adjustment {number}",
+    "overrun": "Over-budget approval {number}",
     "forbidden": "This budget line belongs to a department you do not head. Department heads see the budgets of their own departments."
   },
   "requestStatus": {
@@ -370,9 +387,10 @@
     "more": "Showing {shown} of {count} documents, the largest first. The total below counts every document.",
     "line": "Budget line {code}",
     "plannedTitle": "Imports making up the planned amount",
-    "plannedIntro": "Every import that added to the planned amount, the latest first",
+    "plannedIntro": "The imports, transfers and adjustments, and over-budget approvals that make the planned amount; a negative amount is what was moved or given back out, the latest first",
     "plannedEmpty": "Nothing has been imported yet. When the budget administrator imports a file, it shows here.",
     "importedAt": "Imported {time}",
+    "fundedAt": "On {time}",
     "importedColumn": "When",
     "importedAmount": "Amount imported",
     "reservedEmpty": {
@@ -397,5 +415,17 @@
     "lineAndDepartmentCount": "{lines, plural, one {# budget line} other {# budget lines}} in {departments, plural, one {# department} other {# departments}}",
     "forbidden": "You do not head this department. Department heads see the budgets of their own departments.",
     "yearLine": "Fiscal year {code} ({from} to {to})"
+  },
+  "changes": {
+    "toggle": "How it came to this",
+    "initial": "Initial budget",
+    "transferredIn": "Transferred in",
+    "transferredOut": "Transferred out",
+    "increased": "Increased",
+    "decreased": "Decreased",
+    "overrun": "Funded over budget",
+    "current": "Planned",
+    "link": "{term} {amount} baht of {code}: see the ledger movements",
+    "initialLink": "Initial budget {amount} baht of {code}: see the imports"
   }
 }

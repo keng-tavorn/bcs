@@ -133,6 +133,7 @@ describe('[FR-VIS-006/AC5] the tabs of "รอฉันอนุมัติ": t
     overdue: true,
     holding: { kind: 'FOR', member: { id: 'm-vp', name: { th: 'วีระ ปฏิบัติการ', en: 'Weera Patibatkarn' } } },
     stepUp: false,
+    review: false,
     amountSatang: 4_205_607n,
     question: null,
     ...over,

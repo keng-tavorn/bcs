@@ -119,6 +119,8 @@ export async function freeLines(tx: TenantTx, filter: { requestIds?: readonly st
           serviceEndDate: true,
           kind: true,
           supplierId: true,
+          // S6-17 (BR-BUD-16): a line on its own budget line orders on it, so its PO line holds and spends there
+          budgetLineId: true,
           poSources: { where: { poLine: { po: { status: { in: [...ORDERING_PO_STATUSES] } } } }, select: { quantity: true } },
         },
       },
@@ -152,7 +154,7 @@ export async function freeLines(tx: TenantTx, filter: { requestIds?: readonly st
         supplierId: l.supplierId,
         deliverySiteId: r.deliverySiteId,
         urgent: r.urgency === 'URGENT',
-        budgetLineId: r.budgetLineId!,
+        budgetLineId: l.budgetLineId ?? r.budgetLineId!,
         quantity,
         free,
         netBeforeVat,

@@ -35,7 +35,8 @@ import { focusField, pinComplete, REASON_MIN, type LiffTaskAction } from './shar
 // The details of the task are the page's (`children`, rendered on the server); this component places them, its forms
 // after them and the bar below.
 
-export type LiffDecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE'
+/** REVIEW: a reviewer's task of a request (S6 · BR-WF-09): pass, return or ask; never reject */
+export type LiffDecisionKind = 'REQUEST' | 'PURCHASE_ORDER' | 'VARIANCE' | 'REVIEW'
 type Disposition = 'CLOSE_SHORT' | 'ACCEPT_EXCESS' | 'ACCEPT_DAMAGED'
 const HINTED: readonly string[] = ['CLOSE_SHORT', 'ACCEPT_EXCESS', 'ACCEPT_DAMAGED']
 
@@ -78,13 +79,17 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
   const tErrors = useTranslations('tasks.errors')
   const po = kind === 'PURCHASE_ORDER'
   const variance = kind === 'VARIANCE'
+  const review = kind === 'REVIEW'
   const hinted = (disposition && HINTED.includes(disposition) ? disposition : 'other') as Disposition | 'other'
-  const askable = kind === 'REQUEST' && ask !== undefined
+  const askable = (kind === 'REQUEST' || review) && ask !== undefined
   // The words of each kind, as the web decision page says them; a request keeps the words it always had
   const copy = {
-    confirmText: variance ? t('variance.confirmText', { label, amount }) : t('confirmText', { label, amount }),
-    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : t('otherLink'),
-    otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : t('otherTitle'),
+    confirmText: variance ? t('variance.confirmText', { label, amount }) : review ? t('review.confirmText', { label, amount }) : t('confirmText', { label, amount }),
+    otherLink: po ? t('po.otherLink') : variance ? t('variance.otherLink') : review ? t('review.otherLink') : t('otherLink'),
+    otherTitle: po ? t('po.otherTitle') : variance ? t('variance.otherTitle') : review ? t('review.otherTitle') : t('otherTitle'),
+    approve: review ? t('review.approve') : t('approve'),
+    confirm: review ? t('review.confirm') : t('confirm'),
+    approved: review ? t('review.approved') : t('approved'),
     returnOption: po ? t('po.returnOption') : t('returnOption'),
     returnHint: po ? t('po.returnHint') : t('returnHint'),
     rejectOption: po ? t('po.rejectOption') : t('rejectOption'),
@@ -98,7 +103,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
     stepUpHint: variance ? t('variance.stepUpHint') : t('stepUpHint'),
     ...words,
   }
-  const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : ['RETURN', 'REJECT']
+  const choices: ReadonlyArray<'RETURN' | 'REJECT'> = variance ? ['REJECT'] : review ? ['RETURN'] : ['RETURN', 'REJECT']
 
   const id = useId()
   const hydrated = useHydrated()
@@ -113,7 +118,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
   const [approveFailure, setApproveFailure] = useState<LiffTaskFailure | null>(null)
   const [acknowledged, setAcknowledged] = useState(false)
   const [acknowledgeError, setAcknowledgeError] = useState<string>()
-  const [choice, setChoice] = useState<'RETURN' | 'REJECT'>(variance || initial === 'reject' ? 'REJECT' : 'RETURN')
+  const [choice, setChoice] = useState<'RETURN' | 'REJECT'>(variance || (initial === 'reject' && !review) ? 'REJECT' : 'RETURN')
   const [reason, setReason] = useState('')
   const [decidePin, setDecidePin] = useState('')
   const [confirmed, setConfirmed] = useState(false)
@@ -155,7 +160,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
     setApprovePin('')
     if (result.ok) {
       setConfirming(false)
-      finished(t('approved'))
+      finished(copy.approved)
       return
     }
     if (stale.check(result)) return
@@ -235,6 +240,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
                   <p className="text-ink-muted">{t('variance.noReturn')}</p>
                 </div>
               ) : null}
+              {review ? <p className="text-ink-muted">{t('review.returnHint')}</p> : null}
               {/* A variance has one way out besides approving: no choice to make. The group keeps its name for screen
                   readers; on screen the section's heading above already says what the choice is (§9.9: no label
                   repeating it), as on the web decision page */}
@@ -376,7 +382,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
                 ) : null}
                 <div className="flex gap-3">
                   <Button type="submit" disabled={approving.pending || !hydrated} aria-busy={approving.pending || undefined} className="flex-1">
-                    {approving.pending ? t('working') : t('confirm')}
+                    {approving.pending ? t('working') : copy.confirm}
                   </Button>
                   <Button
                     variant="secondary"
@@ -402,7 +408,7 @@ export function LiffTaskDecision(props: LiffTaskDecisionProps) {
               disabled={!hydrated}
               className="w-full"
             >
-              {t('approve')}
+              {copy.approve}
             </Button>
           )}
           <a href={`#${OTHER_DECISIONS_ID}`} className="inline-flex min-h-11 items-center justify-center font-medium text-primary underline underline-offset-4 hover:no-underline">

@@ -2,7 +2,7 @@ import { TZDate } from '@date-fns/tz'
 import { format } from 'date-fns'
 import { parse as parseYaml, stringify } from 'yaml'
 import { z } from 'zod'
-import { DOA_DOCUMENT_TYPES, type ApproverSpec, type DoaRuleSnapshot } from '@/core/doa'
+import { DOA_DOCUMENT_TYPES, isCommitteeStep, type ApproverSpec, type DoaRuleSnapshot, type DoaStepSpec } from '@/core/doa'
 import { amountToSatang, satangToAmount } from '@/core/money/dto'
 import { err, ok, type Result } from '@/core/result'
 import { versionSnapshotFromRows, type DoaRuleRow, type DoaVersionRow } from './snapshot'
@@ -10,7 +10,9 @@ import { versionSnapshotFromRows, type DoaRuleRow, type DoaVersionRow } from './
 // DOA as YAML (spec §7.4, FR-DOA-001 AC2): the same shape as tests/golden/fixtures/doa-versions.yaml, so a customer's
 // DOA can be imported and exported, and an import exported again gives the same data (round trip). Money is a baht
 // string with 2 decimals (§7.0 item 3); times carry an offset; a MEMBER approver is written with the member's code
-// (employeeCode) and becomes its id on import. Parsing lives outside src/core: the engine only sees snapshots.
+// (employeeCode) and becomes its id on import. A committee (S6 · FR-WF-102) is written as `step: { mode: PARALLEL,
+// quorum, quorumCount?, approvers }` in place of `approver`, as tests/golden/fixtures/doa-committee.yaml has it.
+// Parsing lives outside src/core: the engine only sees snapshots.
 
 const MINUTES_PER_HOUR = 60
 const THAI_TIME = 'Asia/Bangkok'
@@ -19,18 +21,32 @@ const Baht = z.string().regex(/^\d{1,13}\.\d{2}$/, 'baht as a string with 2 deci
 const Instant = z.iso.datetime({ offset: true })
 const Code = z.string().regex(/^[A-Z0-9][A-Z0-9_-]{0,39}$/)
 
-const RuleYaml = z.strictObject({
-  code: Code,
-  documentType: z.enum(DOA_DOCUMENT_TYPES),
-  priority: z.number().int(),
-  when: z.strictObject({ amount: z.strictObject({ gt: Baht.optional(), gte: Baht.optional(), lte: Baht.optional() }).optional() }),
-  approver: z.discriminatedUnion('kind', [
-    z.strictObject({ kind: z.literal('POSITION_OF_DEPARTMENT'), position: Code }),
-    z.strictObject({ kind: z.literal('POSITION_OF_ORG'), position: Code }),
-    z.strictObject({ kind: z.literal('MEMBER'), member: z.string().min(1) }),
-  ]),
-  slaBusinessHours: z.number().int().positive(),
+const ApproverYaml = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('POSITION_OF_DEPARTMENT'), position: Code }),
+  z.strictObject({ kind: z.literal('POSITION_OF_ORG'), position: Code }),
+  z.strictObject({ kind: z.literal('MEMBER'), member: z.string().min(1) }),
+])
+type ApproverYaml = z.infer<typeof ApproverYaml>
+
+const CommitteeYaml = z.strictObject({
+  mode: z.literal('PARALLEL'),
+  quorum: z.enum(['ALL', 'ANY', 'COUNT', 'MAJORITY']),
+  quorumCount: z.number().int().positive().optional(),
+  approvers: z.array(ApproverYaml).min(1),
 })
+
+const RuleYaml = z
+  .strictObject({
+    code: Code,
+    documentType: z.enum(DOA_DOCUMENT_TYPES),
+    priority: z.number().int(),
+    when: z.strictObject({ amount: z.strictObject({ gt: Baht.optional(), gte: Baht.optional(), lte: Baht.optional() }).optional() }),
+    approver: ApproverYaml.optional(),
+    step: CommitteeYaml.optional(),
+    slaBusinessHours: z.number().int().positive(),
+  })
+  // One approver or one committee, never both and never neither
+  .refine((r) => (r.approver === undefined) !== (r.step === undefined), { message: 'a rule names either approver or step', path: ['approver'] })
 
 const VersionYaml = z.strictObject({
   code: Code,
@@ -40,7 +56,8 @@ const VersionYaml = z.strictObject({
   selfApprovalPolicy: z.enum(['ESCALATE_NEXT_BAND', 'BLOCK']),
   collapseDuplicateApprovers: z.boolean(),
   stepUpThreshold: Baht.nullable().optional(),
-  sodPolicy: z.strictObject({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() }),
+  // doaAdminSeparated: S6-09 (BR-WF-17), false when left out
+  sodPolicy: z.strictObject({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean(), doaAdminSeparated: z.boolean().optional() }),
   rules: z.array(RuleYaml).min(1),
 })
 
@@ -55,7 +72,7 @@ export interface DoaVersionData {
   readonly selfApprovalPolicy: 'ESCALATE_NEXT_BAND' | 'BLOCK'
   readonly collapseDuplicateApprovers: boolean
   readonly stepUpThresholdSatang: bigint | null
-  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean }
+  readonly sodPolicy: { readonly approverMayReceive: boolean; readonly requesterMayReceive: boolean; readonly doaAdminSeparated?: boolean }
   readonly rules: readonly DoaRuleSnapshot[]
 }
 
@@ -100,14 +117,22 @@ export function parseDoaYaml(text: string, memberIds: ReadonlyMap<string, string
     const rules = v.rules.map((r, ri): DoaRuleSnapshot => {
       if (codes.has(r.code)) problems.push({ path: `versions.${vi}.rules.${ri}.code`, message: `rule code ${r.code} is used twice`, issue: 'DUPLICATE_RULE' })
       codes.add(r.code)
-      let approver: ApproverSpec
-      if (r.approver.kind === 'MEMBER') {
-        const memberId = memberIds.get(r.approver.member)
-        if (!memberId) problems.push({ path: `versions.${vi}.rules.${ri}.approver.member`, message: `no member with code ${r.approver.member}`, issue: 'UNKNOWN_MEMBER' })
-        approver = { kind: 'MEMBER', memberId: memberId ?? '' }
-      } else {
-        approver = { kind: r.approver.kind, position: r.approver.position }
+      const approverOf = (a: ApproverYaml, path: string): ApproverSpec => {
+        if (a.kind !== 'MEMBER') return { kind: a.kind, position: a.position }
+        const memberId = memberIds.get(a.member)
+        if (!memberId) problems.push({ path: `${path}.member`, message: `no member with code ${a.member}`, issue: 'UNKNOWN_MEMBER' })
+        return { kind: 'MEMBER', memberId: memberId ?? '' }
       }
+      const slaBusinessMinutes = r.slaBusinessHours * MINUTES_PER_HOUR
+      const step: DoaStepSpec = r.step
+        ? {
+            approvers: r.step.approvers.map((a, ai) => approverOf(a, `versions.${vi}.rules.${ri}.step.approvers.${ai}`)),
+            slaBusinessMinutes,
+            mode: 'PARALLEL',
+            quorum: r.step.quorum,
+            ...(r.step.quorumCount !== undefined ? { quorumCount: r.step.quorumCount } : {}),
+          }
+        : { approver: approverOf(r.approver!, `versions.${vi}.rules.${ri}.approver`), slaBusinessMinutes, mode: 'SEQUENTIAL' }
       const amount = r.when.amount
       return {
         code: r.code,
@@ -122,7 +147,7 @@ export function parseDoaYaml(text: string, memberIds: ReadonlyMap<string, string
               },
             }
           : {},
-        steps: [{ approver, slaBusinessMinutes: r.slaBusinessHours * MINUTES_PER_HOUR, mode: 'SEQUENTIAL' }],
+        steps: [step],
       }
     })
     return {
@@ -140,6 +165,9 @@ export function parseDoaYaml(text: string, memberIds: ReadonlyMap<string, string
   return problems.length ? err('VALIDATION_FAILED', 'the DOA file refers to things that do not exist', { problems }) : ok(versions)
 }
 
+const approverYaml = (a: ApproverSpec, memberCodes: ReadonlyMap<string, string>): ApproverYaml =>
+  a.kind === 'MEMBER' ? { kind: 'MEMBER', member: memberCodes.get(a.memberId) ?? a.memberId } : { kind: a.kind, position: a.position }
+
 /**
  * Writes DOA versions as YAML in the fixture's shape. `memberCodes` maps member ids back to their codes. Rules with
  * more than one step are not expressible in this shape (tier 1 has one approver per rule) and are refused.
@@ -154,7 +182,11 @@ export function doaYaml(versions: readonly DoaVersionData[], memberCodes: Readon
       selfApprovalPolicy: v.selfApprovalPolicy,
       collapseDuplicateApprovers: v.collapseDuplicateApprovers,
       stepUpThreshold: v.stepUpThresholdSatang === null ? null : satangToAmount(v.stepUpThresholdSatang),
-      sodPolicy: { approverMayReceive: v.sodPolicy.approverMayReceive, requesterMayReceive: v.sodPolicy.requesterMayReceive },
+      sodPolicy: {
+        approverMayReceive: v.sodPolicy.approverMayReceive,
+        requesterMayReceive: v.sodPolicy.requesterMayReceive,
+        ...(v.sodPolicy.doaAdminSeparated ? { doaAdminSeparated: true } : {}),
+      },
       rules: v.rules.map((r) => {
         if (r.steps.length !== 1) throw new RangeError(`rule ${r.code} has ${r.steps.length} steps; the YAML shape holds one approver per rule`)
         const step = r.steps[0]!
@@ -172,10 +204,16 @@ export function doaYaml(versions: readonly DoaVersionData[], memberCodes: Readon
                 },
               }
             : {},
-          approver:
-            step.approver.kind === 'MEMBER'
-              ? { kind: 'MEMBER', member: memberCodes.get(step.approver.memberId) ?? step.approver.memberId }
-              : { kind: step.approver.kind, position: step.approver.position },
+          ...(isCommitteeStep(step)
+            ? {
+                step: {
+                  mode: step.mode,
+                  quorum: step.quorum,
+                  ...(step.quorumCount !== undefined ? { quorumCount: step.quorumCount } : {}),
+                  approvers: step.approvers.map((a) => approverYaml(a, memberCodes)),
+                },
+              }
+            : { approver: approverYaml(step.approver, memberCodes) }),
           slaBusinessHours: step.slaBusinessMinutes / MINUTES_PER_HOUR,
         }
       }),
@@ -184,7 +222,7 @@ export function doaYaml(versions: readonly DoaVersionData[], memberCodes: Readon
   return stringify(doc, { lineWidth: 0 })
 }
 
-const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean() })
+const StoredSodPolicy = z.object({ approverMayReceive: z.boolean(), requesterMayReceive: z.boolean(), doaAdminSeparated: z.boolean().optional() })
 
 /** A stored version (DoaVersion row with its policy columns, and its DoaRule rows) as YAML data, for export. */
 export function doaVersionDataFromRows(
@@ -201,7 +239,7 @@ export function doaVersionDataFromRows(
     selfApprovalPolicy: snapshot.selfApprovalPolicy,
     collapseDuplicateApprovers: snapshot.collapseDuplicateApprovers,
     stepUpThresholdSatang: version.stepUpThresholdSatang,
-    sodPolicy: { approverMayReceive: sod.approverMayReceive, requesterMayReceive: sod.requesterMayReceive },
+    sodPolicy: { approverMayReceive: sod.approverMayReceive, requesterMayReceive: sod.requesterMayReceive, ...(sod.doaAdminSeparated ? { doaAdminSeparated: true } : {}) },
     rules: snapshot.rules,
   }
 }

@@ -63,7 +63,7 @@ const seconds = () => ((performance.now() - startedAt) / 1000).toFixed(1)
 
 try {
   console.log(`db:seed อ่าน ${INPUT_WORKBOOKS[profile]}`)
-  const { orgCode, taxRates, report, structure, modules, budget, suppliers, lineChannel, pins, pinless, organizationId } = await seedDemoBase(env, password, systemClock, profile)
+  const { orgCode, taxRates, report, structure, modules, workflow, budget, suppliers, lineChannel, pins, pinless, organizationId, sandbox } = await seedDemoBase(env, password, systemClock, profile)
   const baseSeconds = seconds()
   // On this machine the seed makes the local bucket itself (scripts/storage-init.ts); elsewhere the bucket is set up by people (P0-06)
   if (process.env.SEED_DEMO_HISTORY !== '0' && env.APP_ENV === 'local') await ensureBucket()
@@ -73,12 +73,13 @@ try {
       `สมาชิกใหม่ ${report.members.created} มีอยู่แล้ว ${report.members.existing} · บทบาทใหม่ ${report.rolesGranted} · ` +
       (totpKey ? `ตั้ง 2FA ใหม่ ${report.twoFactorEnabled}` : 'ไม่มี SEED_TOTP_KEY: ผู้ใช้ที่ต้องใช้ 2FA จะตั้งแอปยืนยันตัวตนตอนเข้าระบบครั้งแรก') +
       ` · แผนกใหม่ ${structure.departments} · ตำแหน่งใหม่ ${structure.positions} · ผู้ดำรงตำแหน่งใหม่ ${structure.assignments}` +
-      ` · DOA ใหม่ ${structure.doaVersions} ฉบับ · โมดูลที่เปิดใหม่ ${modules.enabled} · ประเภทคำขอใหม่ ${structure.requestTypes} · ฟอร์มใหม่ ${structure.forms} · วันหยุดใหม่ ${structure.holidays}` +
+      ` · DOA ใหม่ ${structure.doaVersions} ฉบับ${workflow?.created ? ` · ผู้ตรวจคู่ขนานใหม่ ${workflow.rules} ข้อ` : ''} · โมดูลที่เปิดใหม่ ${modules.enabled} · ประเภทคำขอใหม่ ${structure.requestTypes} · ฟอร์มใหม่ ${structure.forms} · วันหยุดใหม่ ${structure.holidays}` +
       ` · ปีงบใหม่ ${budget.fiscalYears} · cost center ใหม่ ${budget.costCenters} · บรรทัดงบใหม่ ${budget.lines}` +
       ` · ผู้ขายใหม่ ${suppliers.suppliers} · สถานที่ส่งใหม่ ${suppliers.sites}` +
       (history === null ? ' · ไม่สร้างประวัติ demo (SEED_DEMO_HISTORY=0)' : history.seeded ? ` · ประวัติ demo ${Object.entries(history.byStatus).map(([s, n]) => `${s} ${n}`).join(' ')}` : ' · ประวัติ demo มีอยู่แล้ว'),
   )
   console.log(`db:seed LINE: ${describeLineSeed(lineChannel)}`)
+  if (sandbox) console.log(`db:seed UAT: ${sandbox.code} ระบบทดลองของ ${orgCode} (${sandbox.created ? 'สร้างใหม่' : 'มีอยู่แล้ว'}) ผัง DOA และ workflow ชุดเดียวกัน ไม่มีงบ ผู้ขาย หรือคำขอ · ผู้ใช้ทดสอบอีเมล @…-uat`)
   console.log(`db:seed PIN: ${pinReport(pins, pinless, history?.seeded === true)}`)
 } catch (error) {
   if (error instanceof DemoHistoryOutOfYearError) {

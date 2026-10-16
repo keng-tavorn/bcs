@@ -8,7 +8,7 @@ import { appendEvents } from '@/server/events/append'
 import { decideTask } from '@/server/services/approvals/decide'
 import { assignSupplier, consolidateNow } from '@/server/services/procurement'
 import { submitPo } from '@/server/services/purchase-orders'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from './requests'
 import type { DoaOrg } from './doa-org'
 import { stepUpForTask } from './pin'
 

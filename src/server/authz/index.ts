@@ -1,7 +1,8 @@
 import { err, ok, type Result } from '@/core/result'
 import type { Ctx } from '@/server/context'
 import type { TenantTx } from '@/server/db/tenant'
-import { PERMISSIONS, STORED_ROLES, type Capability, type Grant, type Scope, type StoredRole } from './permissions'
+import { effectiveSodPolicy } from '@/server/doa/policy'
+import { DOA_ADMIN_SEPARABLE, PERMISSIONS, STORED_ROLES, type Capability, type Grant, type Scope, type StoredRole } from './permissions'
 
 // Authorization happens in services, every time (BR-AUTH-05) — never in proxy.ts and never by hiding buttons.
 
@@ -14,6 +15,11 @@ export type Principal =
       readonly headOfDepartmentIds: ReadonlySet<string>
       /** Departments where a DEPT-scoped role applies (role scope or primary department, with subtrees) */
       readonly departmentIds: ReadonlySet<string>
+      /**
+       * S6-09 (BR-WF-17): the DOA version in effect separates the DOA administrators, so ORG_ADMIN does not draft the
+       * DOA or the workflow (DOA_ADMIN_SEPARABLE). Loaded only for a member holding ORG_ADMIN; absent = not separated
+       */
+      readonly doaAdminSeparated?: boolean
     }
   /** A member who is invited or deactivated: no capability at all */
   | { readonly kind: 'inactive'; readonly memberId: string }
@@ -70,10 +76,16 @@ function scopeMatches(principal: Principal, grant: Grant, resource: ResourceScop
   }
 }
 
+/** The grants of a capability, less those of ORG_ADMIN that the separation of the DOA administrators took (BR-WF-17) */
+function grantsOf(principal: Principal, capability: Capability): readonly Grant[] {
+  const grants: readonly Grant[] = PERMISSIONS[capability] ?? []
+  if (principal.kind !== 'member' || !principal.doaAdminSeparated || !DOA_ADMIN_SEPARABLE.has(capability)) return grants
+  return grants.filter((g) => !(g.grantee.kind === 'ROLE' && g.grantee.role === 'ORG_ADMIN'))
+}
+
 /** The grants of `capability` that cover this principal and resource; a service checks their `condition`. */
 export function matchingGrants(principal: Principal, capability: Capability, resource?: ResourceScope): Grant[] {
-  const grants: readonly Grant[] = PERMISSIONS[capability] ?? []
-  return grants.filter((grant) => granteeMatches(principal, grant) && scopeMatches(principal, grant, resource))
+  return grantsOf(principal, capability).filter((grant) => granteeMatches(principal, grant) && scopeMatches(principal, grant, resource))
 }
 
 /** Pure decision: true when any grant of the capability covers this principal and resource. */
@@ -83,8 +95,7 @@ export function isAllowed(principal: Principal, capability: Capability, resource
 
 /** Scopes a list query may use for this principal (DOA-assigned grants are per task, not per list). */
 export function scopesFor(principal: Principal, capability: Capability): ReadonlySet<Scope> {
-  const grants: readonly Grant[] = PERMISSIONS[capability] ?? []
-  return new Set(grants.filter((g) => g.grantee.kind !== 'DOA_ASSIGNEE' && granteeMatches(principal, g)).map((g) => g.scope))
+  return new Set(grantsOf(principal, capability).filter((g) => g.grantee.kind !== 'DOA_ASSIGNEE' && granteeMatches(principal, g)).map((g) => g.scope))
 }
 
 /** A member principal from roles already known (e.g. the signed-in session); departments arrive with S2. */
@@ -135,6 +146,8 @@ export async function loadMemberPrincipals(tx: TenantTx, memberIds: readonly str
     headedDepartments(tx, ids, now),
   ])
   const byId = new Map(members.map((m) => [m.id, m]))
+  // BR-WF-17: asked only when someone here is an ORG_ADMIN, the one role the separation takes rights from
+  const separated = assignments.some((r) => r.role === 'ORG_ADMIN') && (await effectiveSodPolicy(tx, now)).doaAdminSeparated === true
   for (const memberId of ids) {
     const member = byId.get(memberId)
     if (!member || member.status !== 'ACTIVE') {
@@ -144,7 +157,14 @@ export async function loadMemberPrincipals(tx: TenantTx, memberIds: readonly str
     const own = assignments.filter((r) => r.memberId === memberId)
     const storedRoles = new Set(own.map((r) => r.role).filter((r): r is StoredRole => (STORED_ROLES as readonly string[]).includes(r)))
     const departmentIds = new Set([...own.map((r) => r.scopeDepartmentId), member.primaryDepartmentId].filter((d): d is string => Boolean(d)))
-    out.set(memberId, { kind: 'member', memberId, roles: storedRoles, headOfDepartmentIds: heads.get(memberId) ?? new Set(), departmentIds })
+    out.set(memberId, {
+      kind: 'member',
+      memberId,
+      roles: storedRoles,
+      headOfDepartmentIds: heads.get(memberId) ?? new Set(),
+      departmentIds,
+      ...(separated && storedRoles.has('ORG_ADMIN') ? { doaAdminSeparated: true } : {}),
+    })
   }
   return out
 }
@@ -160,5 +180,8 @@ export async function loadPrincipal(tx: TenantTx, ctx: Ctx): Promise<Principal> 
 /** Service-side check. Returns FORBIDDEN (403) when the capability does not cover this actor and resource. */
 export async function authorize(tx: TenantTx, ctx: Ctx, capability: Capability, resource?: ResourceScope): Promise<Result<Principal>> {
   const principal = await loadPrincipal(tx, ctx)
-  return isAllowed(principal, capability, resource) ? ok(principal) : err('FORBIDDEN', `missing capability ${capability}`, { capability })
+  if (isAllowed(principal, capability, resource)) return ok(principal)
+  // BR-WF-17: say why when only the separation of the DOA administrators stands in the way
+  const separated = principal.kind === 'member' && principal.doaAdminSeparated === true && isAllowed({ ...principal, doaAdminSeparated: false }, capability, resource)
+  return err('FORBIDDEN', `missing capability ${capability}`, { capability, ...(separated ? { reason: 'DOA_ADMIN_SEPARATED' } : {}) })
 }

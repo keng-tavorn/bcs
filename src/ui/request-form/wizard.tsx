@@ -10,7 +10,7 @@ import { BudgetLineField, FormFields, LinesSection, TitleField, type StepProps }
 import { documentFieldIds } from './document-fields'
 import { kindLabelOf, OtherFiles, Quotations, RulesSection, type DocumentsProps } from './documents-step'
 import type { PlannedStep } from './form-steps'
-import type { RuleStatus } from './model'
+import { requestLineNeed, type RuleStatus } from './model'
 import { DeliverySiteField, SuggestedSupplierField } from './place-supplier'
 import { BudgetStatus, RoutePreview } from './summary'
 import type { RouteView } from './types'
@@ -119,7 +119,8 @@ export function StepBody({ step, props, documents, endDateRequired }: { step: Pl
  */
 export function BeforeSendPanel({ props, rules, route, purchase }: { props: StepProps; rules: readonly RuleStatus[]; route: RouteView | null; purchase: boolean }) {
   const t = useTranslations('requestForm')
-  const { values, budget, totals, previewLoading, locale } = props
+  const { values, budget, previewLoading, locale, data } = props
+  const need = requestLineNeed(values, data.vatRateBp)
   return (
     <aside aria-labelledby="before-send" className="flex flex-col gap-5 rounded-md border border-line bg-bg p-4">
       <h2 id="before-send" className="text-lg font-semibold">
@@ -130,7 +131,7 @@ export function BeforeSendPanel({ props, rules, route, purchase }: { props: Step
           <h3 id="before-send-budget" className="font-semibold">
             {t('budget.title')}
           </h3>
-          <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={totals?.net ?? null} loading={previewLoading} />
+          <BudgetStatus lineChosen={Boolean(values.budgetLineId)} budget={budget} need={need?.net ?? null} others={need?.others ?? 0} loading={previewLoading} />
         </section>
       ) : null}
       <section aria-labelledby="before-send-route" className="flex flex-col gap-2">

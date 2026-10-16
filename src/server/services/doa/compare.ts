@@ -1,15 +1,4 @@
-import {
-  DOA_DOCUMENT_TYPES,
-  NO_AMOUNT_DOCUMENT_TYPES,
-  bandOf,
-  boundaryTable,
-  chooseRule,
-  type AmountBasis,
-  type ApproverSpec,
-  type DoaDocumentType,
-  type DoaRuleSnapshot,
-  type DoaVersionSnapshot,
-} from '@/core/doa'
+import { bandOf, boundaryTable, chooseRule, DOA_DOCUMENT_TYPES, isCommitteeStep, NO_AMOUNT_DOCUMENT_TYPES, stepApprovers, type AmountBasis, type ApproverSpec, type DoaDocumentType, type DoaRuleSnapshot, type DoaStepSpec, type DoaVersionSnapshot } from '@/core/doa'
 
 // What a new DOA version changes in who may approve what (FR-DOA-009 AC1, AC3; BR-DOA-08 (ช), BR-DOA-14), next to the
 // rule-by-rule diff of diff.ts: the positions (or named people) that gain or lose authority, per document type and
@@ -77,11 +66,15 @@ function snapshotOf(version: VersionRules): DoaVersionSnapshot {
 /** One approver as a comparable key */
 export const approverKey = (a: ApproverSpec) => (a.kind === 'MEMBER' ? `MEMBER:${a.memberId}` : `${a.kind}:${a.position}`)
 
+/** One step as a comparable key: its approver, or a committee's quorum and approvers in order (S6) */
+export const stepKey = (step: DoaStepSpec) =>
+  isCommitteeStep(step) ? `PARALLEL:${step.quorum}:${step.quorumCount ?? ''}:${step.approvers.map(approverKey).join('+')}` : approverKey(step.approver)
+
 /** The rule the engine picks for this document type and amount, and the approvers it names */
 function sideAt(version: DoaVersionSnapshot, documentType: DoaDocumentType, amount: bigint | null): BoundarySide {
   const choice = chooseRule(version, documentType, amount)
   if (choice.kind !== 'rule') return { ruleCode: null, approvers: [] }
-  return { ruleCode: choice.rule.code, approvers: choice.rule.steps.map((s) => s.approver) }
+  return { ruleCode: choice.rule.code, approvers: choice.rule.steps.flatMap(stepApprovers) }
 }
 
 const sameApprovers = (a: BoundarySide, b: BoundarySide) => a.approvers.map(approverKey).join('|') === b.approvers.map(approverKey).join('|')

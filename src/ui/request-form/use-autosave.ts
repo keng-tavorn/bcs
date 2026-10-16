@@ -169,6 +169,12 @@ export function useAutosave(options: AutosaveOptions): Autosave {
         setState({ kind: 'conflict' })
         return false
       }
+      // S6-16: an amount or budget line changed while an over-budget approval waits is refused, but the request is still
+      // the requester's draft — said as a save error, and the next edit (the amount put back) saves again
+      if (answer.code === 'INVALID_STATE_TRANSITION' && answer.reason === 'OVERRUN_PENDING') {
+        setState({ kind: 'error', failure: answer })
+        return false
+      }
       if (answer.code === 'INVALID_STATE_TRANSITION' || answer.code === 'NOT_FOUND' || answer.code === 'FORBIDDEN') {
         stopped.current = true
         haltedBy.current = 'closed'

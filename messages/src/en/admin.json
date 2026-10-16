@@ -81,7 +81,9 @@
       "ROLE_NOT_HELD": "The member no longer has this role. Reload the page to see the current roles.",
       "UNAUTHENTICATED": "Your session has ended. Sign in again, then do this again.",
       "CONFLICT": "This was already sent with different details. Reload the page and try again.",
-      "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps happening, give this reference to the BCS team."
+      "INTERNAL": "Something went wrong (reference {requestId}). Try again; if it keeps happening, give this reference to the BCS team.",
+      "LAST_DOA_ADMIN": "The DOA separates its administrators, so it needs at least one DOA administrator. Give the role to someone else first.",
+      "ADMIN_ROLES_COMBINED": "The DOA separates its administrators from the organization administrators; nobody can hold both roles."
     },
     "inviteSubmitting": "Sending the invitation…",
     "importSubmitting": "Importing…",
@@ -125,7 +127,8 @@
     "RECEIVER": "Receiver",
     "EXECUTIVE": "Executive",
     "AUDITOR": "Auditor",
-    "ORG_ADMIN": "Organization admin"
+    "ORG_ADMIN": "Organization admin",
+    "DOA_ADMIN": "DOA administrator"
   },
   "modules": {
     "title": "Enabled modules",

@@ -3,7 +3,20 @@ import { delegateFor } from '../delegation'
 import { bandOf, chooseRule, higherBandLowers, type RuleChoice } from './band'
 import { resolveApprover, type ApproverFound } from './approvers'
 import { explainRouteTh, type ExplainedStep } from './explain'
-import { DOC_TYPE_TRAITS, type DelegationSnapshot, type DoaRuleSnapshot, type DoaVersionSnapshot, type OrgSnapshot, type RouteInput, type RouteResult, type RouteStep } from './types'
+import {
+  DOC_TYPE_TRAITS,
+  isCommitteeStep,
+  type CommitteeStepSpec,
+  type DelegationSnapshot,
+  type DoaRuleSnapshot,
+  type DoaVersionSnapshot,
+  type OrgSnapshot,
+  type RouteCommittee,
+  type RouteInput,
+  type RouteResult,
+  type RouteSlot,
+  type RouteStep,
+} from './types'
 
 // resolveRoute (spec §7.4, FR-DOA-003): which DOA version and rule apply to a document and who approves it, with the
 // reason in Thai. Pure and deterministic (INV-DOA-02): same input and snapshots, same result.
@@ -29,18 +42,69 @@ function basisAmountOf(input: RouteInput, version: DoaVersionSnapshot): bigint |
   return version.amountBasis === 'GROSS' ? input.amount.netSatang + input.amount.vatSatang : input.amount.netSatang
 }
 
+/** A step of the rule with its approvers found: one, or a committee's slots after the conflicting were cut and the
+ * same person's slots merged (BR-WF-02, BR-WF-03) */
+type ResolvedStep =
+  | { readonly kind: 'single'; readonly approver: ApproverFound; readonly slaBusinessMinutes: number }
+  | {
+      readonly kind: 'committee'
+      readonly spec: CommitteeStepSpec
+      readonly slots: readonly ApproverFound[]
+      /** The quorum the route keeps: MAJORITY counted as COUNT of the approvers named (BR-WF-04) */
+      readonly quorum: RouteCommittee['quorum']
+      readonly quorumCount: number | null
+      readonly slaBusinessMinutes: number
+    }
+
 type Resolved =
-  | { readonly kind: 'ok'; readonly approvers: readonly (ApproverFound & { readonly slaBusinessMinutes: number })[] }
+  | { readonly kind: 'ok'; readonly steps: readonly ResolvedStep[]; readonly conflicting: readonly ApproverFound[]; readonly escalate: boolean }
   | { readonly kind: 'missing'; readonly position: string; readonly departments: readonly string[] }
 
+/** BR-WF-04: MAJORITY of the N approvers named, before any slot is cut or merged */
+export const majorityOf = (n: number) => Math.floor(n / 2) + 1
+
+/** The first slot of each person, in order (BR-WF-02: a member holds at most one slot of a step) */
+function mergeSamePerson<T extends { readonly memberId: string }>(slots: readonly T[]): T[] {
+  return slots.filter((s, i) => slots.findIndex((x) => x.memberId === s.memberId) === i)
+}
+
+/**
+ * The approvers of every step of the rule, and whether a conflict moves the document to the next band (BR-DOA-06):
+ * a single approver who conflicts does; a committee does when ALL lost a slot to a conflict, or when the slots left
+ * after cutting and merging are fewer than ANY or COUNT needs (BR-WF-03). Merging alone never moves an ALL committee.
+ */
 function resolveRule(rule: DoaRuleSnapshot, input: RouteInput, org: OrgSnapshot): Resolved {
-  const approvers: (ApproverFound & { slaBusinessMinutes: number })[] = []
+  const steps: ResolvedStep[] = []
+  const conflicting: ApproverFound[] = []
+  let escalate = false
+  const conflicts = (a: ApproverFound) => input.conflictMemberIds.includes(a.memberId)
   for (const step of rule.steps) {
-    const found = resolveApprover(step.approver, input.chargedDepartmentId, org, input.at)
-    if (!found.found) return { kind: 'missing', position: found.position, departments: found.departments }
-    approvers.push({ ...found, slaBusinessMinutes: step.slaBusinessMinutes })
+    if (!isCommitteeStep(step)) {
+      const found = resolveApprover(step.approver, input.chargedDepartmentId, org, input.at)
+      if (!found.found) return { kind: 'missing', position: found.position, departments: found.departments }
+      if (conflicts(found)) {
+        conflicting.push(found)
+        escalate = true
+      }
+      steps.push({ kind: 'single', approver: found, slaBusinessMinutes: step.slaBusinessMinutes })
+      continue
+    }
+    const found: ApproverFound[] = []
+    for (const spec of step.approvers) {
+      const one = resolveApprover(spec, input.chargedDepartmentId, org, input.at)
+      if (!one.found) return { kind: 'missing', position: one.position, departments: one.departments }
+      found.push(one)
+    }
+    const cut = found.filter(conflicts)
+    const slots = mergeSamePerson(found.filter((a) => !conflicts(a)))
+    const quorum = step.quorum === 'MAJORITY' ? 'COUNT' : step.quorum
+    const quorumCount = step.quorum === 'MAJORITY' ? majorityOf(step.approvers.length) : step.quorum === 'COUNT' ? (step.quorumCount ?? step.approvers.length) : null
+    const short = quorum === 'ALL' ? cut.length > 0 : slots.length < (quorumCount ?? 1)
+    if (cut.length > 0) conflicting.push(...mergeSamePerson(cut))
+    if (short) escalate = true
+    steps.push({ kind: 'committee', spec: step, slots, quorum, quorumCount, slaBusinessMinutes: step.slaBusinessMinutes })
   }
-  return { kind: 'ok', approvers }
+  return { kind: 'ok', steps, conflicting, escalate }
 }
 
 function ruleChoiceError(choice: Exclude<RuleChoice, { kind: 'rule' }>, input: RouteInput): Result<never> {
@@ -78,12 +142,11 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
     if (resolved.kind === 'missing') {
       return err('APPROVER_NOT_FOUND', 'no current holder for the DOA step', { ruleCode: rule.code, position: resolved.position, departments: resolved.departments })
     }
-    const conflicting = resolved.approvers.filter((a) => input.conflictMemberIds.includes(a.memberId))
-    if (conflicting.length === 0) break
+    if (!resolved.escalate) break
     if (version.selfApprovalPolicy === 'BLOCK') {
       return err('SOD_VIOLATION', 'the approver conflicts with the document', { rule: 'BR-DOA-06', ruleCode: rule.code })
     }
-    escalations.push({ rule, conflicting: conflicting.map((a) => ({ resolvedFrom: a.resolvedFrom, assigneeMemberId: a.memberId, principalMemberId: null })) })
+    escalations.push({ rule, conflicting: resolved.conflicting.map((a) => ({ resolvedFrom: a.resolvedFrom, assigneeMemberId: a.memberId, principalMemberId: null })) })
     // The next band starts where this one ends; a band with no upper end has nothing above it
     const currentUpper = rule.when.amount ? bandOf(rule.when.amount).upper : null
     const nextLower = currentUpper !== null ? higherBandLowers(version, input.documentType, currentUpper)[0] : undefined
@@ -101,11 +164,39 @@ export function resolveRoute(input: RouteInput, policy: RoutePolicy): Result<Rou
   const context = { documentType: input.documentType, basisAmountSatang: basisAmount, at: input.at, conflictMemberIds: input.conflictMemberIds }
   // BR-DLG-03: a delegate who is no longer ACTIVE holds nothing
   const active = (memberId: string) => policy.org.members.find((m) => m.id === memberId)?.active === true
-  let steps: Omit<RouteStep, 'stepNo'>[] = resolved.approvers.map((a) => {
-    const holder = delegateFor({ memberId: a.memberId, viaPosition: a.viaPosition }, context, policy.delegations, active)
-    return { ...holder, resolvedFrom: a.resolvedFrom, slaBusinessMinutes: a.slaBusinessMinutes }
-  })
-  if (version.collapseDuplicateApprovers) steps = steps.filter((s, i) => steps[i + 1]?.assigneeMemberId !== s.assigneeMemberId)
+  const holderOf = (a: ApproverFound) => delegateFor({ memberId: a.memberId, viaPosition: a.viaPosition }, context, policy.delegations, active)
+  let steps: Omit<RouteStep, 'stepNo'>[] = []
+  for (const step of resolved.steps) {
+    if (step.kind === 'single') {
+      steps.push({ ...holderOf(step.approver), resolvedFrom: step.approver.resolvedFrom, slaBusinessMinutes: step.slaBusinessMinutes })
+      continue
+    }
+    // BR-WF-02: each slot is delegated on its own (BR-DLG-01 to 05), then a person holding two slots keeps the first
+    const held = step.slots.map((a) => ({ ...holderOf(a), resolvedFrom: a.resolvedFrom }))
+    const slots: RouteSlot[] = held
+      .filter((h, i) => held.findIndex((x) => x.assigneeMemberId === h.assigneeMemberId) === i)
+      .map((h, i) => ({ slotNo: i + 1, assigneeMemberId: h.assigneeMemberId, principalMemberId: h.principalMemberId, resolvedFrom: h.resolvedFrom, notifyOrgAdmin: h.notifyOrgAdmin }))
+    // A delegate who already holds another slot leaves fewer slots than the quorum needs: the step could never pass
+    if (slots.length < (step.quorumCount ?? 1)) {
+      return err('APPROVER_NOT_FOUND', 'the committee has fewer members than its quorum after delegation', { ruleCode: rule.code, position: 'COMMITTEE', departments: [] })
+    }
+    const first = slots[0]!
+    steps.push({
+      assigneeMemberId: first.assigneeMemberId,
+      principalMemberId: first.principalMemberId,
+      resolvedFrom: first.resolvedFrom,
+      slaBusinessMinutes: step.slaBusinessMinutes,
+      notifyOrgAdmin: slots.some((x) => x.notifyOrgAdmin),
+      committee: { quorum: step.quorum, quorumCount: step.quorumCount, slots },
+    })
+  }
+  // BR-DOA-07 and BR-WF-10: repeated approvers collapse between steps of one approver only, never into a committee
+  if (version.collapseDuplicateApprovers) {
+    steps = steps.filter((s, i) => {
+      const next = steps[i + 1]
+      return !(next && s.committee === undefined && next.committee === undefined && next.assigneeMemberId === s.assigneeMemberId)
+    })
+  }
   const numbered: RouteStep[] = steps.map((s, i) => ({ stepNo: i + 1, ...s }))
 
   return ok({

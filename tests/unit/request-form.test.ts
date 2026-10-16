@@ -198,7 +198,8 @@ describe('[FR-INT-006/AC1] what an autosave sends, so it never takes away what t
       budgetLineId: 'line-1',
       priceIncludesVat: false,
       formData: { singleSourceJustification: 'มีรายเดียว' },
-      lines: [{ id: null, description: 'ปูน', quantity: '1000', uom: 'ถุง', unitPrice: '1234.50', vatable: true }],
+      // Every line says whether it is a catalogue item (S6-10): typed freely, none
+      lines: [{ id: null, description: 'ปูน', quantity: '1000', uom: 'ถุง', unitPrice: '1234.50', vatable: true, catalogItemId: null }],
       quotations: [{ supplierName: 'ร้าน ก', amount: '1234.50', includesVat: false, fileId: 'f-q1', selected: true }],
     })
     expect(save.lineKeys).toEqual(['ปูน'])

@@ -87,6 +87,9 @@ test('[FR-INT-011/AC1] [FR-INT-011/AC3] [FR-INT-011/AC4] [FR-INT-011/AC5] [FR-IN
   page,
   isMobile,
 }, testInfo) => {
+  // A scene script of its own, five steps, axe and a screenshot at each: longer than the default 30 s (the script alone
+  // took 17 s of it under a full run beside other lanes)
+  test.slow()
   // the form's line (its default for req_con) has room for the 483.11 baht the test asks, so "ส่งขออนุมัติ" is open
   roomOn('CON-OPEX-2569', '1000.00')
   await signInAs(page, 'req_con', false)

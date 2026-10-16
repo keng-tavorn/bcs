@@ -7,10 +7,15 @@
 // S13-02 added the ai.* capabilities the user approved with docs/sub-specs/S13.md in P1-06 (docs/reports/p1-decisions.md).
 // S9-04 added bankAccount.* and bankAccountChange.propose, S9-05 paymentRun.view and .prepare, S9-07 paymentRun.file and
 // .cancel, S9-08 paymentRun.recordResult and paymentAdvice.resend, approved with docs/sub-specs/S9.md in P1-06.
+// S6-09 added the role DOA_ADMIN and its separation from ORG_ADMIN (BR-WF-16, BR-WF-17), approved with docs/sub-specs/S6.md
+// in P1-06 (OQ-109, docs/reports/p1-decisions.md §20). S6-10 added catalog.view and catalog.manage (FR-INT-102, OQ-114). S6-11 added priceReference.view
+// (FR-DOA-101, BR-PRC-07, OQ-116). S6-12 added request.reorder (FR-INT-101, BR-FORM-07). S6-15 added
+// budget.transfer.submit and the ASSIGNED reader of budget.view (FR-BUD-103, OQ-105). S6-16 added budget.overrun.submit
+// (FR-BUD-101, OQ-104). S6-21 added config.export, config.import and platform.sandbox.manage (FR-PLT-101, OQ-108).
 //
 // `condition` names an extra rule from §2.4 that the service enforces on top of grantee + scope.
 
-export const STORED_ROLES = ['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN'] as const
+export const STORED_ROLES = ['PROCUREMENT', 'FINANCE', 'BUDGET_ADMIN', 'RECEIVER', 'EXECUTIVE', 'AUDITOR', 'ORG_ADMIN', 'DOA_ADMIN'] as const
 export type StoredRole = (typeof STORED_ROLES)[number]
 
 export const SCOPES = ['OWN', 'ASSIGNED', 'DEPT', 'ORG'] as const
@@ -59,6 +64,10 @@ const platformAdmin = (condition: Condition): Grant => ({ grantee: { kind: 'PLAT
 
 const PROCUREMENT_ONLY = [role('PROCUREMENT', 'ORG')]
 const ORG_ADMIN_ONLY = [role('ORG_ADMIN', 'ORG')]
+/** S6-09 (BR-WF-16): the DOA and the workflow are drafted by ORG_ADMIN and DOA_ADMIN — ORG_ADMIN only until separated */
+const DOA_ADMINS = roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG')
+/** S6-21: who keeps the organization's configuration package — not separable: its DOA and workflow parts need admin.doa.draft and admin.workflow.draft too (BR-WF-17) */
+const ORG_DOA_ADMINS_CONFIG = roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG')
 const SELF = [anyMember('OWN')]
 /** request.view (§2.4). OWN of a request is the requester and its followers here; for the commands that change the
  *  request (request.create on a draft, request.submit, request.cancel, request.followers.manage) the services pass
@@ -74,8 +83,13 @@ export const PERMISSIONS = {
   // FR-INT-013 AC1: whoever may view the request follows it; only the requester adds or removes others
   'request.follow': REQUEST_VIEWERS.map((g) => ({ ...g, condition: 'SELF_ONLY_NOT_REQUESTER' as const })),
   'request.followers.manage': [anyMember('OWN', 'ADDED_MEMBER_ALREADY_VIEWS')],
+  // S6-12 (FR-INT-101, BR-FORM-07): a new draft from one's own request, or its renewal; the service passes the requester
+  // alone as owner, so a follower or a department head never reorders
+  'request.reorder': [anyMember('OWN')],
   // Approvals and delegation
   'approval.decide': [doaAssignee()],
+  // S6 (BR-WF-09): only who the workflow version in effect names in the reviewer's task (with whoever acts for them)
+  'review.decide': [doaAssignee()],
   'approval.reassign': [role('ORG_ADMIN', 'ORG', 'DOA_EQUIVALENT_ASSIGNEE_WITH_REASON')],
   // ORG_ADMIN sets a delegation for someone else only through admin.orgAuthority.propose (DELEGATION_ON_BEHALF)
   'delegation.manage': SELF,
@@ -127,12 +141,23 @@ export const PERMISSIONS = {
   'paymentRun.recordResult': [role('FINANCE', 'ORG')],
   'paymentAdvice.resend': [role('FINANCE', 'ORG')],
   // Budget
-  'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
+  // S6-15: the approver of a transfer reads it (ASSIGNED, the transfer's own route)
+  'budget.view': [anyMember('OWN', 'SELECTED_LINE_ONLY'), anyMember('ASSIGNED'), deptHead(), ...roles(['FINANCE', 'BUDGET_ADMIN', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'budget.import': [role('BUDGET_ADMIN', 'ORG')],
   'budgetGrant.manage': [role('BUDGET_ADMIN', 'ORG')],
+  // S6-15 (FR-BUD-103, BR-BUD-10 · OQ-105): a transfer, increase or decrease sent for approval under the BUDGET_TRANSFER rule
+  'budget.transfer.submit': [role('BUDGET_ADMIN', 'ORG'), deptHead()],
+  // S6-16 (FR-BUD-101, BR-BUD-12 · OQ-104): the requester asks for the shortfall of their own request under the OVER_BUDGET rule
+  'budget.overrun.submit': [anyMember('OWN')],
   // Suppliers, exports, reports
   'supplier.view': [anyMember('ORG', 'BASIC_FIELDS_ONLY'), ...roles(['PROCUREMENT', 'FINANCE', 'AUDITOR'], 'ORG')],
   'supplier.manage': PROCUREMENT_ONLY,
+  // S6-10 (FR-INT-102, BR-PRC-06 · OQ-114): every member searches the catalogue; PROCUREMENT keeps it and its agreed prices
+  'catalog.view': [anyMember('ORG')],
+  'catalog.manage': PROCUREMENT_ONLY,
+  // S6-11 (FR-DOA-101, BR-PRC-07 · OQ-116): the price reference of a request comes from the POs of the whole organization,
+  // so only who has or had its approval or review task (with whoever acts for them), and who reads every PO
+  'priceReference.view': [anyMember('ASSIGNED'), ...roles(['PROCUREMENT', 'FINANCE', 'EXECUTIVE', 'AUDITOR'], 'ORG')],
   'export.express': [role('FINANCE', 'ORG')],
   'report.view': [...roles(['FINANCE', 'PROCUREMENT', 'EXECUTIVE', 'AUDITOR'], 'ORG'), deptHead()],
   'report.schedule': roles(['FINANCE', 'EXECUTIVE'], 'ORG'),
@@ -150,9 +175,13 @@ export const PERMISSIONS = {
   'admin.modules.view': ORG_ADMIN_ONLY,
   'platform.modules.manage': [platformAdmin('CONTRACT_REF_AND_REASON')],
   'admin.orgAuthority.propose': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_ORG_AUTHORITY_CHANGE')],
-  'admin.doa.draft': ORG_ADMIN_ONLY,
-  'admin.doa.simulate': ORG_ADMIN_ONLY,
-  'admin.doa.submitForPublish': [role('ORG_ADMIN', 'ORG', 'APPROVED_BY_DOA_CHANGE')],
+  'admin.doa.draft': DOA_ADMINS,
+  'admin.doa.simulate': DOA_ADMINS,
+  'admin.doa.submitForPublish': roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG', 'APPROVED_BY_DOA_CHANGE'),
+  // S6 (FR-WF-103, BR-WF-12): the parallel reviewers, published through the DOA_CHANGE rule with a step-up every time
+  'admin.workflow.draft': DOA_ADMINS,
+  'admin.workflow.simulate': DOA_ADMINS,
+  'admin.workflow.submitForPublish': roles(['ORG_ADMIN', 'DOA_ADMIN'], 'ORG', 'APPROVED_BY_DOA_CHANGE'),
   'admin.policyHistory.view': roles(['AUDITOR', 'ORG_ADMIN'], 'ORG'),
   'admin.policyHistory.export': roles(['AUDITOR', 'ORG_ADMIN'], 'ORG'),
   // Self-service
@@ -168,7 +197,18 @@ export const PERMISSIONS = {
   'ai.actions.view': [role('AUDITOR', 'ORG'), anyMember('OWN'), role('ORG_ADMIN', 'ORG', 'AI_METADATA_ONLY')],
   'admin.ai.manage': ORG_ADMIN_ONLY,
   'platform.ai.credits': [platformAdmin('CONTRACT_REF_AND_REASON')],
+  // S6-21 (FR-PLT-101, BR-UAT-01 to BR-UAT-04 · OQ-108): a UAT sandbox of a customer, empty, with the contract; never a
+  // copy of its structure or DOA (NG-12). The configuration package is the customer's own: exported and imported as drafts
+  'platform.sandbox.manage': [platformAdmin('CONTRACT_REF_AND_REASON')],
+  'config.export': ORG_DOA_ADMINS_CONFIG,
+  'config.import': ORG_DOA_ADMINS_CONFIG,
 } as const satisfies Record<string, readonly Grant[]>
 
 export type Capability = keyof typeof PERMISSIONS
 export const CAPABILITIES = Object.keys(PERMISSIONS) as Capability[]
+
+/**
+ * S6-09 (BR-WF-17 · OQ-109): what ORG_ADMIN no longer gets once the DOA version in effect separates the DOA
+ * administrators (sodPolicy.doaAdminSeparated); DOA_ADMIN keeps them. The table above stays the same (OQ-34).
+ */
+export const DOA_ADMIN_SEPARABLE: ReadonlySet<Capability> = new Set(CAPABILITIES.filter((c) => c.startsWith('admin.doa.') || c.startsWith('admin.workflow.')))

@@ -200,6 +200,16 @@ export async function budgetLineAvailability(ctx: Ctx, input: { budgetLineId: st
       })
       available += held._sum.reservedSatang ?? 0n
     }
+    // S6-16 (BR-BUD-14): an approved over-budget approval of the requester's request on this line, not past its lapsesAt,
+    // is used when the request is sent — its earmark counts as available to it, as the submit counts it
+    const overrun = await db.budgetOverrun.findFirst({
+      where: { requestId: input.requestId, budgetLineId: usable.id, status: 'APPROVED', request: { requesterMemberId: ctx.actor.memberId }, OR: [{ lapsesAt: null }, { lapsesAt: { gt: ctx.now } }] },
+      select: { id: true },
+    })
+    if (overrun) {
+      const earmark = await db.budgetAllocation.aggregate({ where: { budgetLineId: usable.id, sourceType: 'BUDGET_OVERRUN', sourceId: overrun.id }, _sum: { reservedSatang: true } })
+      available += earmark._sum.reservedSatang ?? 0n
+    }
   }
   return { budgetLineId: usable.id, departmentId: usable.departmentId, available: toMoneyDto(available) }
 }

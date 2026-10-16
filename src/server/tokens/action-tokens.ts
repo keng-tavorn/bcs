@@ -21,6 +21,8 @@ import type { EventDraft } from '@/server/events/append'
 
 /** What an e-mail link may do (§6.2 ActionToken.allowedActions) */
 export const EMAIL_LINK_ACTIONS = ['APPROVE', 'REJECT'] as const
+/** A reviewer's e-mail link passes only: a reviewer never rejects, and a return needs its reason (S6 · BR-WF-09) */
+export const REVIEW_EMAIL_LINK_ACTIONS = ['APPROVE'] as const
 /** What the card's button may do in the chat (§9.3): approve; a return or a rejection needs a reason, typed in LIFF */
 export const LINE_BUTTON_ACTIONS = ['APPROVE'] as const
 const SECRET_CONTEXT = 'bcs/action-token/email/v1/'
@@ -86,14 +88,15 @@ export async function applyTokenLifecycle(tx: TenantTx, ctx: Ctx, events: readon
   if (issue.length) {
     const expiresAt = new Date(ctx.now.getTime() + ACTION_TOKEN_TTL_MS)
     const onLine = await membersOnLine(tx, issue.map((i) => i.memberId))
-    const routes = await tx.approvalTask.findMany({ where: { id: { in: issue.map((i) => i.taskId) } }, select: { id: true, step: { select: { route: { select: { subjectType: true, subjectId: true } } } } } })
+    const routes = await tx.approvalTask.findMany({ where: { id: { in: issue.map((i) => i.taskId) } }, select: { id: true, step: { select: { kind: true, route: { select: { subjectType: true, subjectId: true } } } } } })
     const channels = new Map<string, Awaited<ReturnType<SubjectChannelsOf>>>()
+    const reviews = new Set(routes.filter((t) => t.step.kind === 'REVIEW').map((t) => t.id))
     for (const t of routes) channels.set(t.id, await channelsOf(tx, t.step.route.subjectType, t.step.route.subjectId))
     await tx.actionToken.createMany({
       data: issue.flatMap(({ taskId, memberId }) => {
         const open = channels.get(taskId) ?? { chatButton: false, emailLink: false }
         const id = newId()
-        const email = { id, organizationId: ctx.organizationId, memberId, taskId, allowedActions: [...EMAIL_LINK_ACTIONS], channel: 'EMAIL' as const, secretHash: hashLinkSecret(emailLinkSecret(id)), expiresAt }
+        const email = { id, organizationId: ctx.organizationId, memberId, taskId, allowedActions: [...(reviews.has(taskId) ? REVIEW_EMAIL_LINK_ACTIONS : EMAIL_LINK_ACTIONS)], channel: 'EMAIL' as const, secretHash: hashLinkSecret(emailLinkSecret(id)), expiresAt }
         // BR-TOK-02: no secret; the postback is checked against the LINE user of the signed webhook
         const line = { id: newId(), organizationId: ctx.organizationId, memberId, taskId, allowedActions: [...LINE_BUTTON_ACTIONS], channel: 'LINE' as const, secretHash: null, expiresAt }
         return [...(open.emailLink ? [email] : []), ...(open.chatButton && onLine.has(memberId) ? [line] : [])]

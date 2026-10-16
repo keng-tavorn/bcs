@@ -39,11 +39,15 @@ defineEvents('Request', {
       doaRuleCode: z.string().min(1),
       escalatedFromRuleCode: z.string().min(1).nullable(),
       budgetCheck,
+      // S6-17: every budget line of a request split over budget lines (BR-BUD-16)
+      budgetChecks: z.array(budgetCheck).optional(),
+      // S6-16: the overruns the submit used (BR-BUD-14)
+      overrunIds: z.array(z.uuid()).optional(),
       }),
     ]),
   },
   'request.resubmitted': {
-    schema: z.object({ netSatang: satang, vatSatang: satang, grossSatang: satang, routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1), budgetCheck }),
+    schema: z.object({ netSatang: satang, vatSatang: satang, grossSatang: satang, routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1), budgetCheck, budgetChecks: z.array(budgetCheck).optional(), overrunIds: z.array(z.uuid()).optional() }),
   },
   'request.returned': { schema: z.object({ taskId: z.uuid(), reasonCommentId: z.uuid() }) },
   'request.approved': { schema: z.object({ routeId: z.uuid(), doaVersionId: z.uuid(), doaRuleCode: z.string().min(1) }) },
@@ -51,6 +55,19 @@ defineEvents('Request', {
   'request.cancelled': { schema: z.object({ from: z.string().min(1), reasonCommentId: z.uuid().nullable() }) },
   // FR-INT-006 AC3 (NEW-07, NEW-17): the requester of an idle draft is told when it will be removed
   'request.draft_expiry_notified': { schema: z.object({ deleteOn: z.iso.datetime({ offset: true }) }) },
+  // S6-13 (FR-INT-103, BR-DUP-05): the submit or resubmit found the request a duplicate or part of a split; never blocking
+  'request.flagged': {
+    schema: z.object({
+      kind: z.enum(['DUPLICATE', 'SPLIT']),
+      routeNo: z.number().int().positive(),
+      matchedRequestIds: z.array(z.uuid()).min(1),
+      combinedSatang: satang.optional(),
+      individualRule: z.string().nullable().optional(),
+      combinedRule: z.string().nullable().optional(),
+    }),
+  },
+  // S6-12 (FR-INT-101 AC2, BR-FORM-08): a service line of the request was reminded at one milestone before it ends
+  'request.renewal_reminded': { schema: z.object({ requestLineId: z.uuid(), milestone: z.number().int().positive(), serviceEndDate: z.iso.date() }) },
   'request.info_requested': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
   'request.info_provided': { schema: z.object({ taskId: z.uuid(), infoRequestId: z.uuid() }) },
   // FR-INT-013 AC1 (S16-06): a member follows or stops following a request, by themselves (SELF) or by the requester
@@ -61,7 +78,7 @@ defineEvents('Request', {
   // §10.2 catalog yet: the orchestrator records it in an ADR and adds it to §10.2 (see unit a's needs)
   'request.doa_gap_reported': {
     schema: z.object({
-      code: z.enum(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY']),
+      code: z.enum(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'REVIEWER_NOT_FOUND']),
       ruleCode: z.string().min(1).nullable(),
       position: z.string().min(1).nullable(),
       departments: z.array(z.string().min(1)),

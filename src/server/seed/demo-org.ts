@@ -12,6 +12,7 @@ import { systemDb } from '@/server/db/system'
 import { forTenant } from '@/server/db/tenant'
 import { appendEvents, type EventDraft } from '@/server/events/append'
 import { expressLayoutFromSheet } from './express-layout'
+import { s6SettingsFromSheet } from './settings-s6'
 import type { InputWorkbook } from './workbook'
 import { apSettingsFromSheet } from './ap-profile'
 
@@ -93,8 +94,9 @@ export function parseDemoOrgInput(workbook: InputWorkbook, settingsYaml: string)
   const settings = OrgSettingsSchema.safeParse(parseYaml(settingsYaml))
   if (!settings.success) throw new Error(`${ORG_SETTINGS_DEMO_PATH}: ${issueText(settings.error)}`)
   // The Express columns are whatever the person filling in the workbook wrote, never a guess (§7.13, §17.3)
-  // S8-12: the thresholds and terms of tier-2 invoices of sheet Settings (phase 1; the demo sheet has none)
-  return { org: org.data, settings: apSettingsFromSheet(workbook, { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }), users }
+  const withExpress = { ...settings.data, express: expressLayoutFromSheet(workbook, settings.data.express) }
+  // S8-12: the thresholds and terms of tier-2 invoices of sheet Settings; S6: the keys of the S6 rows (phase 1; the demo sheet has neither)
+  return { org: org.data, settings: s6SettingsFromSheet(workbook, apSettingsFromSheet(workbook, withExpress)), users }
 }
 
 export function loadOrgSettingsYaml(path: string = ORG_SETTINGS_DEMO_PATH): string {
@@ -106,6 +108,8 @@ export interface SeedOptions {
   /** Optional: pre-enroll TOTP from this key; omitted = members enroll at first sign-in */
   readonly totpKey?: string
   readonly now: Date
+  /** S6-21: the production organization this one is the UAT sandbox of (kind SANDBOX; only the sample organization's seed) */
+  readonly sandboxOf?: string
 }
 
 export interface SeedReport {
@@ -135,6 +139,7 @@ export async function seedDemoOrganization(input: DemoOrgInput, options: SeedOpt
         timezone: org.timezone,
         locale: settings.locale,
         settings: toJsonSafe(settings) as object,
+        ...(options.sandboxOf ? { kind: 'SANDBOX' as const, sandboxOfOrganizationId: options.sandboxOf } : {}),
       },
     })
   }

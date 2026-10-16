@@ -21,6 +21,11 @@ import { outboxSweeper } from './outbox-sweeper'
 import { reportSchedules } from './report-schedules'
 import { stagingDemoReset } from './staging-demo-reset'
 import { stagingFirstSeed } from './staging-first-seed'
+import { workflowVersionActivate } from './workflow-version-activate'
+import { backtestRun } from './backtest-run'
+import { renewalReminders } from './renewal-reminders'
+import { budgetOverrunLapse } from './budget-overrun-lapse'
+import { budgetBurnAlerts } from './budget-burn-alerts'
 import { supplierNoticeSend, supplierNoticeSweep } from './supplier-notice-send'
 
 // Every Inngest function served at /api/inngest (spec §4.6). One file per function; add it here.
@@ -28,7 +33,16 @@ export const functions = [
   outboxSweeper,
   orgAuthorityApply,
   doaVersionActivate,
+  // S6-04: a workflow version published for later supersedes the one before it at its date
+  workflowVersionActivate,
+  backtestRun,
   draftExpiry,
+  // S6-12: the service lines that end soon (BR-FORM-08)
+  renewalReminders,
+  // S6-16: approved over-budget approvals not used go back (BR-BUD-15)
+  budgetOverrunLapse,
+  // S6-18: budget alerts once per line, alert and fiscal year (BR-BUD-17)
+  budgetBurnAlerts,
   consolidationRound,
   reportSchedules,
   notificationDeliver,

@@ -4,10 +4,12 @@ import { grantStepUp, stepUpRefusalError, type StepUpChannel, type StepUpOptions
 import { memberPrincipal, type Principal } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { getRequestAccess } from '@/server/queries/requests'
-import { getTaskAccess, POLICY_SUBJECTS, taskDecision, type TaskAccessDto } from '@/server/queries/tasks'
+import { getTaskAccess, PIN_DECISION_SUBJECTS, taskDecision, type TaskAccessDto } from '@/server/queries/tasks'
 import { decideTask, provideInfo, requestInfo } from '@/server/services/approvals/decide'
 import { cancelRequest, resubmitRequest } from '@/server/services/requests'
 import { followRequest, manageFollowers } from '@/server/services/requests/followers'
+import { renewRequestLine, reorderRequest } from '@/server/services/requests/repeat'
+import type { RepeatOutcome } from '@/ui/request-view/repeat-rules'
 import { toActionFailure, type ActionFailure, type ActionOutcome } from '@/ui/tasks/outcome'
 import { taskRight } from './access'
 import { memberName, type Locale } from './present'
@@ -171,7 +173,7 @@ export async function decidePolicy(ctx: Ctx, principal: Principal, input: unknow
   if (principal.kind !== 'member' || ctx.actor.type !== 'USER' || ctx.actor.memberId !== principal.memberId) return FORBIDDEN
   const access = await getTaskAccess(ctx, taskId)
   if (!access) return NOT_FOUND
-  if (!POLICY_SUBJECTS.includes(access.subjectType) || taskRight(principal, access) !== 'DECIDE') return FORBIDDEN
+  if (!PIN_DECISION_SUBJECTS.includes(access.subjectType) || taskRight(principal, access) !== 'DECIDE') return FORBIDDEN
   const refused = await stepUpFor(ctx, access, pin, stepUp)
   if (refused) return refused
   // The tick goes with the version its table compared with, so the service approves only the table that was ticked
@@ -191,12 +193,18 @@ export async function answerQuestion(ctx: Ctx, input: unknown, idempotencyKey: u
   return outcomeOf(await provideInfo(ctx, { infoRequestId: parsed.data.infoRequestId, answer }, { idempotencyKey: idempotencyKey as string }))
 }
 
-/** The requester sends a returned request again: a new route under the DOA in effect (FR-INT-009 AC2, BR-DOA-09) */
-export async function resubmitOwnRequest(ctx: Ctx, requestId: unknown, idempotencyKey: unknown): Promise<ActionOutcome> {
+/**
+ * The requester sends a returned request again: a new route under the DOA in effect (FR-INT-009 AC2, BR-DOA-09). A
+ * request like one they sent within the window needs their reason for asking again (S6-13 · BR-DUP-05), which the
+ * service checks: without it, DUPLICATE_UNACKNOWLEDGED.
+ */
+export async function resubmitOwnRequest(ctx: Ctx, requestId: unknown, idempotencyKey: unknown, duplicateReason?: unknown): Promise<ActionOutcome> {
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const parsed = Id.safeParse(requestId)
   if (!parsed.success) return invalid('requestId')
-  return outcomeOf(await resubmitRequest(ctx, { requestId: parsed.data }, { idempotencyKey: idempotencyKey as string }))
+  if (duplicateReason !== undefined && typeof duplicateReason !== 'string') return invalid('duplicateReason')
+  const reason = typeof duplicateReason === 'string' ? { duplicateReason } : {}
+  return outcomeOf(await resubmitRequest(ctx, { requestId: parsed.data, ...reason }, { idempotencyKey: idempotencyKey as string }))
 }
 
 /**
@@ -235,4 +243,26 @@ export async function addOrRemoveFollower(ctx: Ctx, input: unknown, idempotencyK
   const parsed = ManageFollowerInput.safeParse(input)
   if (!parsed.success) return invalid(firstField(parsed.error))
   return outcomeOf(await manageFollowers(ctx, parsed.data, { idempotencyKey: idempotencyKey as string }))
+}
+
+type DraftResult = { ok: true; data: { requestId: string } } | { ok: false; error: { code: string; details?: Record<string, unknown> } }
+const draftOutcome = (result: DraftResult): RepeatOutcome => (result.ok ? { ok: true, requestId: result.data.requestId } : toActionFailure(result.error))
+
+/**
+ * "ขอซ้ำ" (FR-INT-101 AC1, BR-FORM-07): a new draft of the requester's from their request, with what the current form
+ * still asks; the answer names the draft, whose edit page the screen opens. The service keeps it to the requester.
+ */
+export async function reorderOwnRequest(ctx: Ctx, requestId: unknown, idempotencyKey: unknown): Promise<RepeatOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const parsed = Id.safeParse(requestId)
+  if (!parsed.success) return invalid('requestId')
+  return draftOutcome(await reorderRequest(ctx, { requestId: parsed.data }, { idempotencyKey: idempotencyKey as string }))
+}
+
+/** "สร้างคำขอต่ออายุ" (FR-INT-101 AC2, BR-FORM-08): a new draft from one service line of the requester's request */
+export async function renewOwnLine(ctx: Ctx, requestLineId: unknown, idempotencyKey: unknown): Promise<RepeatOutcome> {
+  if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
+  const parsed = Id.safeParse(requestLineId)
+  if (!parsed.success) return invalid('requestLineId')
+  return draftOutcome(await renewRequestLine(ctx, { requestLineId: parsed.data }, { idempotencyKey: idempotencyKey as string }))
 }

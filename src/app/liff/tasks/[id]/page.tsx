@@ -7,6 +7,8 @@ import { getPurchaseOrderView, getVarianceView } from '@/server/queries/purchase
 import { getRequestView, type TrackEntryDto } from '@/server/queries/requests'
 import { getTaskAccess, getTaskView, listMyTasks, POLICY_SUBJECTS, type TaskViewDto } from '@/server/queries/tasks'
 import { budgetLineAvailable } from '@/server/services/budget/line-available'
+import { getPriceReference } from '@/server/services/price-reference'
+import { listRequestFlags } from '@/server/services/requests/duplicates'
 import { liffFacts } from '@/server/services/liff'
 import { LIFF_HELP_PATH, LIFF_HOME_PATH } from '@/ui/liff/bootstrap'
 import { LiffContent, LiffFrame, LiffSection } from '@/ui/liff/frame'
@@ -15,6 +17,8 @@ import { LiffLink } from '@/ui/liff/liff-link'
 import { LiffNotice } from '@/ui/liff/notice'
 import { BackToChat } from '@/ui/liff/tasks/back-to-chat'
 import { LiffPolicyDecisionLoader, LiffTaskDecisionLoader } from '@/ui/liff/tasks/lazy'
+import { LiffPriceReference } from '@/ui/liff/tasks/price-reference'
+import { LiffRequestFlags } from '@/ui/liff/tasks/request-flags'
 import { liffTaskAction, WEB_PIN_SETTINGS_PATH } from '@/ui/liff/tasks/shared'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, type AmountRow, type Fact } from '@/ui/request-view/facts'
@@ -24,6 +28,9 @@ import { AiBriefBox } from '@/ui/liff/ai-brief-box'
 import { taskRight } from '../../../(workspace)/_tracking/access'
 import { requestBudgetState } from '../../../(workspace)/_tracking/budget-state'
 import { PolicySubject, boundaryTickOf, policyHeadline } from '../../../(workspace)/_tracking/policy-subject'
+import { WorkflowSubject } from '../../../(workspace)/_tracking/workflow-subject'
+import { priceReferenceView } from '../../../(workspace)/_tracking/price-reference'
+import { requestFlagsView } from '../../../(workspace)/_tracking/request-flags'
 import { doaRefText, dueText, localeOf, memberName, money, nameIn, roleText, timelineItems, waitingText, when, type Locale, type ViewT } from '../../../(workspace)/_tracking/present'
 import { RequestFacts, RequestSections } from '../../../(workspace)/_tracking/request-sections'
 import { taskTitle } from '../../../(workspace)/_tracking/rows'
@@ -41,7 +48,7 @@ import { getBankAccountChange } from '@/server/services/bank-accounts/view'
 import { LiffBankAccountChangeSummary } from '@/ui/liff/tasks/subjects/bank-account-change'
 import { LiffPaymentRunSummary } from '@/ui/liff/tasks/subjects/payment-run'
 import { briefView } from '../../../_lib/brief-present'
-import { liffTaskHref } from '../../_lib/links'
+import { liffHref, liffTaskHref } from '../../_lib/links'
 import { liffPage } from '../../_lib/session'
 import { liffSignedIn } from '../_lib/signed-in'
 import { askLiffRequesterAction, decideLiffPolicyAction, decideLiffTaskAction, openLiffFileAction } from './actions'
@@ -186,6 +193,13 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
   const task = await getTaskView(ctx, id)
   if (!task) notFound()
   const request = task.subjectType === 'REQUEST' ? await getRequestView(ctx, task.subjectId) : null
+  // The prices paid before for the request's items, as on the web decision page: only for whoever may read them
+  // (priceReference.view, S6-11 · BR-PRC-07); anyone else simply gets no section
+  const priceRef = request ? await getPriceReference(ctx, { requestId: request.id }) : null
+  const priceRefView = priceRef?.ok ? priceReferenceView(await getTranslations('priceReference'), priceRef.data) : null
+  // The request's flags, as on the web decision page (S6-13 · FR-INT-103 AC2 AC3); a matched request opens its LIFF page
+  const flags = request ? await listRequestFlags(ctx, request.id) : null
+  const flagsView = flags?.ok ? requestFlagsView(await getTranslations('requestFlags'), flags.data, (id) => liffHref(`/requests/${id}`) ?? `/requests/${id}`) : null
   const po = task.subjectType === 'PURCHASE_ORDER' ? await getPurchaseOrderView(ctx, task.subjectId) : null
   const variance = task.subjectType === 'VARIANCE' ? await getVarianceView(ctx, task.subjectId) : null
   // S8: the price variance of an invoice, and a change of a sent PO
@@ -321,13 +335,17 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
           <div className="border-t border-line pt-5">
             <RequestFacts view={request} locale={locale} brief />
           </div>
+          {flagsView ? <LiffRequestFlags view={flagsView} /> : null}
           <RequestSections view={request} locale={locale} openFile={openFile} doaLinks={false} />
+          {priceRefView ? <LiffPriceReference view={priceRefView} /> : null}
         </>
       ) : po && reader ? (
         // The route of this task, also after a return took the PO back to a draft without one
         <PoBody po={{ ...po, route: task.route ?? po.route }} locale={locale} doaLinks={false} reader={reader} openFile={openFile} requestHref={NO_LINK} />
       ) : variance ? (
         <VarianceBody variance={variance} locale={locale} doaLinks={false} poHref={null} openFile={openFile} />
+      ) : task.workflow ? (
+        <WorkflowSubject workflow={task.workflow} locale={locale} pageLink={false} />
       ) : task.subjectType === 'INVOICE' ? (
         <LiffInvoiceSummary invoice={invoice} />
       ) : task.subjectType === 'PO_CHANGE' ? (
@@ -346,6 +364,15 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
     </>
   )
 
+  // A workflow version is decided on the web only (BR-WF-12): LIFF shows what it is, with no decision
+  if (task.workflow) {
+    return (
+      <LiffFrame title={heading} back={back}>
+        {details}
+      </LiffFrame>
+    )
+  }
+
   const { pinLength } = liffFacts()
   const common = { taskId: task.id, open, pinLength, initial: open ? initial : null, pinSettingsHref: WEB_PIN_SETTINGS_PATH, helpHref: LIFF_HELP_PATH }
   return (
@@ -357,7 +384,7 @@ export default async function LiffTaskPage({ params, searchParams }: { params: P
       ) : (
         <LiffTaskDecisionLoader
           {...common}
-          kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : 'REQUEST'}
+          kind={po ? 'PURCHASE_ORDER' : variance ? 'VARIANCE' : task.review ? 'REVIEW' : 'REQUEST'}
           label={label}
           amount={request?.totals ? money(request.totals.grossSatang) : po ? money(po.totals.grossSatang) : variance ? money(variance.amountSatang) : paymentRun ? money(paymentRun.totalTransferSatang) : '-'}
           stepUp={task.stepUp}

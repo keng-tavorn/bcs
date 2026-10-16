@@ -1,5 +1,5 @@
 import { formatDocumentNumber, scopeKey } from '@/core/numbering'
-import { OrgSettingsSchema } from '@/lib/org-settings'
+import { OrgSettingsSchema, s6SettingsOf } from '@/lib/org-settings'
 import type { Ctx } from '@/server/context'
 import { takeNextSequenceValue } from '@/server/db/sql/numbering'
 import type { TenantTx } from '@/server/db/tenant'
@@ -9,8 +9,12 @@ import type { TenantTx } from '@/server/db/tenant'
 // reset period from Organization.settings.numbering (OQ-12). The value comes from a locked DocumentSequence row.
 
 export type NumberedDocument = 'PR' | 'PO' | 'GR' | 'RQ'
-/** Documents of S8 whose rule is optional in settings (an organization saved before S8 has none) */
-export type IssuedDocument = NumberedDocument | 'AP' | 'WHT_CERT' | 'PAY' | 'BAC'
+/**
+ * Documents of phase 1 whose rule is optional in settings (an organization saved before them has none): BT and OB (S6
+ * budget transfer and over-budget approval) read their default from s6SettingsOf; AP and WHT_CERT (S8), PAY and BAC
+ * (S9) from OQ-12 (OPTIONAL_DEFAULT_RULES)
+ */
+export type IssuedDocument = NumberedDocument | 'BT' | 'OB' | 'AP' | 'WHT_CERT' | 'PAY' | 'BAC'
 
 // The rule of an S8 or S9 document an organization has not set: the pattern of OQ-12 ("the same form for every
 // document") with the document's own prefix. TODO(OQ-12)
@@ -32,7 +36,8 @@ export interface IssueNumberInput {
 export async function issueDocumentNumber(tx: TenantTx, ctx: Ctx, input: IssueNumberInput): Promise<string> {
   const org = await tx.organization.findUniqueOrThrow({ where: { id: ctx.organizationId }, select: { settings: true } })
   const numbering = OrgSettingsSchema.shape.numbering.parse((org.settings as { numbering?: unknown } | null)?.numbering)
-  const rule = isOptional(input.document) ? (numbering[input.document] ?? OPTIONAL_DEFAULT_RULES[input.document]) : numbering[input.document]
+  const s6 = s6SettingsOf(org.settings)
+  const rule = numbering[input.document] ?? (isOptional(input.document) ? OPTIONAL_DEFAULT_RULES[input.document] : input.document === 'BT' ? s6.numberingBT : s6.numberingOB)
   const context = { at: ctx.now, department: input.department ?? null }
   const scope = scopeKey(input.document, rule.pattern, rule.reset, context)
   const seq = await takeNextSequenceValue(tx, ctx.organizationId, input.document, scope, rule.pattern)

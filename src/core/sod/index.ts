@@ -9,6 +9,11 @@ export interface SodPolicy {
   readonly approverMayReceive: boolean
   /** BR-SOD-07, OQ-04: the requester may receive their own goods (default true) */
   readonly requesterMayReceive: boolean
+  /**
+   * S6-09 (BR-WF-17 · OQ-109): only DOA_ADMIN drafts the DOA and the workflow; ORG_ADMIN no longer does, and nobody
+   * holds both roles (default false; a version stored without the key = false)
+   */
+  readonly doaAdminSeparated?: boolean
 }
 
 /**

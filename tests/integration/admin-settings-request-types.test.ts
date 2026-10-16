@@ -14,7 +14,7 @@ import {
 import { ATTACHMENT_KINDS, FINANCE_ONLY_KINDS, parseFormJson } from '@/server/services/request-types/form-import'
 import { listRequestCatalog } from '@/server/queries/request-form'
 import { getRequestView } from '@/server/queries/requests'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { getNewRequestForm, getRequestForEdit } from '@/server/services/requests/form-view'
 import { createDoaOrg } from '../support/doa-org'
 
@@ -108,7 +108,9 @@ describe('[FR-ADM-005/AC1] a form is imported as JSON, checked against the form 
     const type = await prisma.requestType.findFirstOrThrow({ where: { organizationId: org.organizationId, code: 'BUY_GOODS' }, include: { currentFormVersion: true } })
     expect(type.currentFormVersion).toMatchObject({ versionNo: 2, status: 'PUBLISHED', publishedAt: NOW, publishedById: org.member.admin })
     const events = await prisma.event.findMany({ where: { organizationId: org.organizationId, type: 'form_version.published' } })
-    expect(events.map((e) => [e.aggregateType, e.aggregateId, e.data])).toEqual([['FormVersion', type.currentFormVersionId, { requestTypeCode: 'BUY_GOODS', versionNo: 2, via: 'ADMIN' }]])
+    // S6-14: the event says whether the attachment rules changed (FR-INT-104 AC3), and version 1 retires (BR-FORM-09)
+    expect(events.map((e) => [e.aggregateType, e.aggregateId, e.data])).toEqual([['FormVersion', type.currentFormVersionId, { requestTypeCode: 'BUY_GOODS', versionNo: 2, via: 'ADMIN', attachmentRulesChanged: expect.any(Boolean) }]])
+    expect(await prisma.formVersion.findFirstOrThrow({ where: { requestTypeId: type.id, versionNo: 1 } })).toMatchObject({ status: 'RETIRED' })
 
     // The same form again is nothing to publish; a check made against version 1 is stale now
     expect(await checkFormImport(admin, { code: 'BUY_GOODS', json })).toMatchObject({ ok: true, data: { valid: true, noChange: true, basedOnVersionNo: 2, nextVersionNo: 3 } })

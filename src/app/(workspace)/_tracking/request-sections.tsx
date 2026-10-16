@@ -4,6 +4,7 @@ import { AttachmentList } from '@/ui/request-view/attachments'
 import { DoaRef } from '@/ui/request-view/doa-ref'
 import { Amounts, Facts, Section, type Fact } from '@/ui/request-view/facts'
 import { LineList } from '@/ui/request-view/lines'
+import { SlotStamps } from '@/ui/request-view/slot-stamps'
 import { StateLine, type StateKind } from '@/ui/request-view/status'
 import { StepApprovers } from '@/ui/request-view/step-approvers'
 import { BYTES_PER_KIB } from '@/lib/constants'
@@ -58,6 +59,12 @@ function stepState(step: RouteStepDto): { kind: StateKind; key: 'WAITING' | 'ACT
   if (step.status === 'CANCELLED') return { kind: 'closed', key: 'CANCELLED' }
   return { kind: 'done', key: 'DONE' }
 }
+
+type SlotState = NonNullable<RouteStepDto['slots']>[number]['status']
+const SLOT_LOOK: Readonly<Record<SlotState, StateKind>> = { OPEN: 'waiting', QUESTION: 'question', APPROVE: 'done', RETURN: 'returned', REJECT: 'rejected', CLOSED: 'closed' }
+
+/** The votes a committee step needs (BR-WF-01): every slot, one, or its quorum */
+const votesNeeded = (step: RouteStepDto, slots: number) => (step.quorum === 'ANY' ? 1 : step.quorum === 'COUNT' ? (step.quorumCount ?? slots) : slots)
 
 /** The sections RequestSections draws; the tabs of the request page (FR-INT-012 AC2) each ask for theirs */
 export type RequestPart = 'money' | 'route' | 'lines' | 'details' | 'files' | 'questions'
@@ -138,7 +145,9 @@ export async function RequestSections({
           </Section>
 
           <Section id="budget" title={t('budget.title')}>
-            {view.budget ? (
+            {view.budgetLines.length > 1 ? (
+              <SplitBudget view={view} t={t} />
+            ) : view.budget ? (
               <>
                 <Facts
                   columns="one"
@@ -193,10 +202,39 @@ export async function RequestSections({
                 const role = roleText(t, locale, step.role)
                 // BR-SLA-04: the band above joined the step past its escalation time; its decision keeps the route's rule
                 const escalated = step.escalation === 'CO_ASSIGNED' ? t('route.escalated') : undefined
+                // S6 (ADR-103): the reviewers' step and a committee show every slot, grouped, with how far the step is
+                const slots = step.slots ?? []
+                const slotted = (step.stepType === 'REVIEW' || step.stepType === 'COMMITTEE') && slots.length > 0
+                const review = step.stepType === 'REVIEW'
                 return (
                   <li key={step.stepNo} className={ROW}>
-                    {/* An escalated step waits for its co-assignee too: everyone who may decide it (BR-SLA-04, NEW-46) */}
-                    {step.open && step.open.length > 1 ? (
+                    {slotted ? (
+                      <SlotStamps
+                        title={`${t('route.step', { no: step.stepNo })} · ${review ? t('route.reviewStep') : t('route.committeeStep')}`}
+                        progress={
+                          review
+                            ? t('route.reviewProgress', { done: slots.filter((s) => s.decision === 'APPROVE').length, total: slots.length })
+                            : t('route.committeeProgress', { done: slots.filter((s) => s.decision === 'APPROVE').length, total: slots.length, need: votesNeeded(step, slots.length) })
+                        }
+                        slots={slots.map((s) => {
+                          const holders = s.holders.filter((h) => h.status !== 'REASSIGNED')
+                          const shown = holders.length ? holders : s.holders
+                          const first = shown[0]
+                          return {
+                            key: String(s.slotNo),
+                            who: shown.map((h, i) => (i === 0 ? memberName(locale, h.approver) : t('route.orApprover', { name: memberName(locale, h.approver) }))).join(' '),
+                            role: first ? roleText(t, locale, first.role) || undefined : undefined,
+                            rules: review && s.ruleCodes.length ? t('route.slotRules', { rules: s.ruleCodes.join(', ') }) : undefined,
+                            decidedBy:
+                              s.decidedBy && s.decidedOnBehalfOf
+                                ? t('route.decidedFor', { name: memberName(locale, s.decidedBy), principal: memberName(locale, s.decidedOnBehalfOf) })
+                                : undefined,
+                            state: { kind: SLOT_LOOK[s.status], text: t(`route.slotState.${s.status === 'APPROVE' && review ? 'PASS' : s.status}`) },
+                          }
+                        })}
+                      />
+                    ) : /* An escalated step waits for its co-assignee too: everyone who may decide it (BR-SLA-04, NEW-46) */
+                    step.open && step.open.length > 1 ? (
                       <StepApprovers
                         title={t('route.step', { no: step.stepNo })}
                         approvers={step.open.map((o, i) => ({
@@ -244,7 +282,12 @@ export async function RequestSections({
                 quantity: t('lines.qty', { quantity: l.quantity, uom: l.uom }),
                 unitPrice: money(l.unitPriceSatang),
                 amount: money(l.netSatang),
-                notes: [...(l.vatable ? [] : [t('lines.noVat')]), ...(l.serviceEndDate ? [t('lines.serviceEnd', { date: day(locale, l.serviceEndDate) })] : [])],
+                notes: [
+                  ...(l.vatable ? [] : [t('lines.noVat')]),
+                  ...(l.serviceEndDate ? [t('lines.serviceEnd', { date: day(locale, l.serviceEndDate) })] : []),
+                  // S6-17 (BR-BUD-16): a line on a budget line of its own names it
+                  ...(l.budgetLine ? [t('lines.budgetLine', { code: l.budgetLine.code, name: l.budgetLine.name })] : []),
+                ],
               }))}
             />
           ) : (
@@ -323,5 +366,38 @@ export async function RequestSections({
         </Section>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * S6-17 (BR-BUD-16): the budget of a request split over budget lines — its state, then each budget line it uses with what
+ * the request holds on it (reserved while it waits, committed in a purchase order), in the order of RequestViewDto
+ * budgetLines (the request's own first)
+ */
+function SplitBudget({ view, t }: { view: RequestViewDto; t: Awaited<ReturnType<typeof getTranslations<'requestView'>>> }) {
+  const budget = requestBudgetState(view)
+  return (
+    <>
+      <StateLine kind={budget.kind}>{t(`budget.${budget.key}`)}</StateLine>
+      <p className="text-ink-muted">{t('budget.splitNote')}</p>
+      <ul aria-label={t('budget.lines')} className="flex flex-col divide-y divide-line border-t border-line">
+        {view.budgetLines.map((b) => (
+          <li key={b.lineId} className="flex flex-col gap-1 py-2.5">
+            <p className="font-medium break-words text-ink">{`${b.code} · ${b.name}`}</p>
+            {b.status !== 'OPEN' ? <StateLine kind="closed">{t(`budget.lineStatus.${b.status}`)}</StateLine> : null}
+            {b.reservedSatang > 0n || b.committedSatang > 0n ? (
+              <Amounts
+                heading={t('amounts.unit')}
+                unit={t('amounts.currency')}
+                rows={[
+                  ...(b.reservedSatang > 0n ? [{ label: t('budget.reserved'), value: money(b.reservedSatang) }] : []),
+                  ...(b.committedSatang > 0n ? [{ label: t('budget.committed'), value: money(b.committedSatang) }] : []),
+                ]}
+              />
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </>
   )
 }

@@ -36,6 +36,13 @@ export type FormProblemView =
   | { readonly reason: 'RESERVED_STEP'; readonly step: string; readonly path: string }
   | { readonly reason: 'FIELD_IN_TWO_STEPS'; readonly field: string; readonly path: string }
 
+/** BR-FORM-09: a field the draft removes or changes while rules read it (src/core/forms/lint.ts), with its readers */
+export interface FormLintView {
+  readonly code: string
+  readonly field: string
+  readonly by: readonly string[]
+}
+
 /** Why a number pattern cannot be saved (src/server/services/numbering/admin.ts) */
 export const NUMBERING_REFUSALS = ['UNKNOWN_TOKEN', 'SEQ_MISSING', 'SEQ_REPEATED', 'SEQ_WIDTH', 'YEAR_MISSING', 'MONTH_MISSING', 'NUMBER_COLLISION', 'OVERLAPS_OTHER_DOCUMENT'] as const
 export type NumberingRefusalReason = (typeof NUMBERING_REFUSALS)[number]
@@ -65,6 +72,8 @@ export interface SettingsFailure {
   readonly field?: string
   readonly rows?: readonly HolidayRowErrorView[]
   readonly problems?: readonly FormProblemView[]
+  /** The form builder's lint (reason FORM_LINT_FAILED) */
+  readonly lint?: readonly FormLintView[]
   readonly refusal?: NumberingRefusalView
   readonly currentVersionNo?: number | null
   /** the reference of an unexpected error (§14.2 INTERNAL), so support can find it in the logs */
@@ -75,6 +84,13 @@ const oneOf = <T extends string>(list: readonly T[], value: unknown, fallback: T
   typeof value === 'string' && (list as readonly string[]).includes(value) ? (value as T) : fallback
 
 const strings = (value: unknown): string[] | undefined => (Array.isArray(value) && value.every((v) => typeof v === 'string') ? (value as string[]) : undefined)
+
+function lintOf(value: unknown): FormLintView[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value
+    .filter((v): v is Record<string, unknown> => typeof v === 'object' && v !== null && typeof (v as Record<string, unknown>).field === 'string')
+    .map((v) => ({ code: typeof v.code === 'string' ? v.code : 'FORM_LINT_REFERENCED_FIELD', field: v.field as string, by: strings(v.by) ?? [] }))
+}
 
 /** Picks the screen-safe parts of a service error. */
 export function toSettingsFailure(error: { code: string; details?: Readonly<Record<string, unknown>> }): SettingsFailure {
@@ -98,6 +114,7 @@ export function toSettingsFailure(error: { code: string; details?: Readonly<Reco
     ...(typeof d.field === 'string' ? { field: d.field } : {}),
     ...(rows ? { rows } : {}),
     ...(Array.isArray(d.problems) ? { problems: d.problems as FormProblemView[] } : {}),
+    ...(d.reason === 'FORM_LINT_FAILED' && lintOf(d.errors) ? { lint: lintOf(d.errors)! } : {}),
     ...(refusal ? { refusal } : {}),
     ...('currentVersionNo' in d ? { currentVersionNo: typeof d.currentVersionNo === 'number' ? d.currentVersionNo : null } : {}),
     ...(typeof d.requestId === 'string' ? { requestId: d.requestId } : {}),

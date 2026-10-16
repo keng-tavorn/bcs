@@ -17,6 +17,7 @@ import { formatDateTime } from '../format'
 import { bandText } from './band'
 import {
   DOC_TYPES,
+  QUORUMS,
   applyDraft,
   approverKey,
   changedParts,
@@ -35,6 +36,7 @@ import {
   type FollowNote,
   type PolicyKey,
   type PolicyState,
+  type Quorum,
   type RowDraft,
   type RowError,
   type RowField,
@@ -46,7 +48,8 @@ import { LintIssueText } from './lint-issue'
 // The DOA editor (FR-DOA-001 AC1): a copy of a version — by default the latest — edited as a table per document type
 // and saved once as a new draft; the source never changes. Three real steps (§9.9: no page of more than 8 fields):
 // (1) the rules, one row at a time (band, approver from the organization's positions, time under the SLA; removing a
-// rule is outlined in danger away from save, and one press brings it back), (2) the version's policies, (3) the
+// rule is outlined in danger away from save, and one press brings it back; a rule's step may be a committee of several
+// positions with the votes it needs, FR-WF-102), (2) the version's policies, (3) the
 // effective date, the reason and the save, which says first that a saved draft keeps its number. The service checks
 // everything again, runs the lint and answers with what to fix; a refusal about a rule goes back to step 1 at that rule.
 
@@ -57,7 +60,7 @@ export interface EditorRuleInput {
   readonly code: string
   readonly documentType: DocType
   readonly band: Band | null
-  readonly steps: ReadonlyArray<{ readonly approver: ApproverValue; readonly slaMinutes: number }>
+  readonly steps: ReadonlyArray<{ readonly approver: ApproverValue; readonly slaMinutes: number; readonly committee?: { readonly approvers: readonly ApproverValue[]; readonly quorum: Quorum; readonly quorumCount: number | null } }>
 }
 
 export interface EditorPolicyInput {
@@ -68,6 +71,7 @@ export interface EditorPolicyInput {
   readonly stepUpThreshold: string | null
   readonly approverMayReceive: boolean
   readonly requesterMayReceive: boolean
+  readonly doaAdminSeparated: boolean
 }
 
 export interface DoaEditorProps {
@@ -156,6 +160,13 @@ export function DoaEditor(props: DoaEditorProps) {
       return tDetail('approver.MEMBER', { name: m ? nameIn(locale, m) : a.memberId })
     }
     return tDetail(`approver.${a.kind}`, { position: positionName(a.position) })
+  }
+  /** One approver, or a committee with the votes it needs */
+  const stepText = (s: RuleState['steps'][number]) => {
+    const c = s.committee
+    if (!c) return approverText(s.approver)
+    const approvers = c.approvers.map(approverText).join(', ')
+    return c.quorum === 'COUNT' ? tDetail('committee.COUNT', { approvers, count: c.quorumCount ?? c.approvers.length }) : tDetail(`committee.${c.quorum}`, { approvers })
   }
   const slaText = (minutes: number) => (minutes % MINUTES_PER_HOUR === 0 ? tDetail('sla', { hours: minutes / MINUTES_PER_HOUR }) : tDetail('slaMinutes', { minutes }))
   const money = (satang: string) => textFromSatang(satang)
@@ -302,6 +313,62 @@ export function DoaEditor(props: DoaEditorProps) {
 
   // ---------- step 1: the rules ----------
 
+  /**
+   * One approver or a committee (FR-WF-102): the switch, then the members ticked from the organization's positions and,
+   * for "by count", how many must approve. The quorum's list sits in the grid above, where the approver's was.
+   */
+  const committeeFields = (e: Editing, field: (f: string) => string, error: (f: RowField) => string | undefined) => {
+    const toggle = (key: string, checked: boolean) => changeDraft({ members: checked ? [...e.draft.members, key] : e.draft.members.filter((m) => m !== key) })
+    const options = approverOptions('')
+    // Members the rule names that are not positions of the list (a named person) stay ticked and can be unticked
+    for (const key of e.draft.members) {
+      const own = rules.find((r) => r.key === e.key)?.steps[0]?.committee?.approvers.find((a) => approverKey(a) === key)
+      if (own && !options.some((o) => o.value === key)) options.push({ value: key, label: approverText(own) })
+    }
+    const membersError = error('members')
+    return (
+      <div className="flex flex-col gap-3">
+        <label className="flex min-h-11 items-center gap-3">
+          <input type="checkbox" checked={e.draft.committee} onChange={(ev) => changeDraft({ committee: ev.currentTarget.checked })} className="size-5 shrink-0" />
+          <span>{t('committee')}</span>
+        </label>
+        {e.draft.committee ? (
+          <>
+            <fieldset className="flex flex-col gap-1" aria-describedby={membersError ? field('members-error') : undefined}>
+              <legend className="mb-1 font-medium">{t('members')}</legend>
+              <p className="text-base text-ink-muted md:text-sm">{t('membersHint')}</p>
+              <div className="grid gap-x-6 md:grid-cols-2">
+                {options.map((o) => (
+                  <label key={o.value} className="flex min-h-11 items-center gap-3">
+                    <input type="checkbox" checked={e.draft.members.includes(o.value)} onChange={(ev) => toggle(o.value, ev.currentTarget.checked)} className="size-5 shrink-0" />
+                    <span>{o.label}</span>
+                  </label>
+                ))}
+              </div>
+              {membersError ? (
+                <p id={field('members-error')} className="text-danger">
+                  {membersError}
+                </p>
+              ) : null}
+            </fieldset>
+            {e.draft.quorum === 'COUNT' ? (
+              <Field
+                id={field('quorumCount')}
+                label={t('quorumCount')}
+                hint={t('quorumCountHint', { count: e.draft.members.length })}
+                inputMode="numeric"
+                value={e.draft.quorumCount}
+                onChange={(ev) => changeDraft({ quorumCount: ev.currentTarget.value })}
+                error={error('quorumCount')}
+                className="max-w-xs"
+              />
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    )
+  }
+
   const rowEditor = (e: Editing) => {
     const rule = e.key === 'new' ? null : (rules.find((r) => r.key === e.key) ?? null)
     const name = rule ? rule.code : documentType(e.documentType)
@@ -334,19 +401,30 @@ export function DoaEditor(props: DoaEditorProps) {
           ) : null}
           {multi ? null : (
             <>
-              <SelectField
-                id={field('approver')}
-                label={t('approver')}
-                placeholder={tDoa('choose')}
-                value={e.draft.approver}
-                onChange={(ev) => changeDraft({ approver: ev.currentTarget.value })}
-                options={approverOptions(e.draft.approver)}
-                error={error('approver')}
-              />
+              {e.draft.committee ? (
+                <SelectField
+                  id={field('quorum')}
+                  label={t('quorum')}
+                  value={e.draft.quorum}
+                  onChange={(ev) => changeDraft({ quorum: ev.currentTarget.value as Quorum })}
+                  options={QUORUMS.map((q) => ({ value: q, label: t(`quorums.${q}`) }))}
+                />
+              ) : (
+                <SelectField
+                  id={field('approver')}
+                  label={t('approver')}
+                  placeholder={tDoa('choose')}
+                  value={e.draft.approver}
+                  onChange={(ev) => changeDraft({ approver: ev.currentTarget.value })}
+                  options={approverOptions(e.draft.approver)}
+                  error={error('approver')}
+                />
+              )}
               <Field id={field('sla')} label={t('sla')} hint={t('slaHint')} inputMode="numeric" value={e.draft.slaHours} onChange={(ev) => changeDraft({ slaHours: ev.currentTarget.value })} error={error('slaHours')} />
             </>
           )}
         </div>
+        {multi ? null : committeeFields(e, field, error)}
         {multi ? <p className="text-base text-ink-muted md:text-sm">{t('multiStep', { count: rule.steps.length })}</p> : null}
         {/* Save and cancel together; removing is outlined in danger at the far end, away from save, and can be undone */}
         <div className="flex flex-wrap items-center gap-3">
@@ -397,7 +475,7 @@ export function DoaEditor(props: DoaEditorProps) {
         )}
         <div className="flex min-w-0 flex-col">
           <span className="text-ink-muted md:sr-only">{t('approver')}</span>
-          <span className="break-words">{r.steps.map((s) => approverText(s.approver)).join(', ')}</span>
+          <span className="break-words">{r.steps.map(stepText).join(', ')}</span>
           <span className="text-base text-ink-muted md:text-sm">{r.steps.map((s) => slaText(s.slaMinutes)).join(', ')}</span>
         </div>
         <Button variant="secondary" className="mt-1 justify-self-start md:mt-0" aria-label={t('editRule', { rule: r.code })} onClick={() => startEdit(r, r.documentType)}>
@@ -547,6 +625,7 @@ export function DoaEditor(props: DoaEditorProps) {
             policy.selfApprovalPolicy,
             (v) => setP('selfApprovalPolicy', v),
           )}
+          {radios('doaAdminSeparated', [{ value: false, label: tDetail('policy.doaAdminTogether') }, { value: true, label: tDetail('policy.doaAdminApart') }], policy.doaAdminSeparated, (v) => setP('doaAdminSeparated', v))}
           {radios('collapseDuplicateApprovers', [{ value: true, label: tDetail('policy.on') }, { value: false, label: tDetail('policy.off') }], policy.collapseDuplicateApprovers, (v) => setP('collapseDuplicateApprovers', v))}
         </div>
         <div className="flex flex-wrap gap-3">
@@ -569,7 +648,7 @@ export function DoaEditor(props: DoaEditorProps) {
   const ruleLines = (r: RuleState) => (
     <>
       <span className="tabular text-ink-muted">{bandWords(r.band)}</span>
-      <span className="text-ink-muted">{r.steps.map((s) => approverText(s.approver)).join(', ')}</span>
+      <span className="text-ink-muted">{r.steps.map(stepText).join(', ')}</span>
       <span className="text-ink-muted">{r.steps.map((s) => slaText(s.slaMinutes)).join(', ')}</span>
     </>
   )

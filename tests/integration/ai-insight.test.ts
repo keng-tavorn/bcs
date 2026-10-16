@@ -7,7 +7,7 @@ import { prisma } from '@/server/db/client'
 import { forTenant } from '@/server/db/tenant'
 import { poViewFacts } from '@/server/queries/receiving'
 import { askInsight, findSuppliersForAsker, listPurchaseOrdersForAsker, runMonthlyGrant, runTool, setAiRuntimeForTests, updateAgentSetting, type AiRuntime } from '@/server/services/ai'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { p2p } from '../support/p2p'
 

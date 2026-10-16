@@ -1,7 +1,7 @@
 // Generated tenant tests (spec §4.8, §15.3): the Prisma DMMF is read here, every model with an
 // organizationId column is found and counted by this test (never hard-coded), and each one is checked for
 // INV-TEN-02 (schema rules) and INV-TEN-01 (no cross-tenant read, update, delete or create via db.forTenant).
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import internals from '@prisma/internals'
@@ -45,6 +45,7 @@ const GLOBAL_UNIQUE_ALLOWED: Record<string, string[]> = {
   FileObject: ['storageKey'], // object key is unique in the whole bucket
   MemberInvitation: ['tokenHash'], // sha256 of a random 32-byte token, unique by construction
   LineChannelConfig: ['channelKey'], // random and public: the LINE webhook path names it, and it finds the organization (§6.2)
+  DocumentVerification: ['tokenHash'], // sha256 of an HMAC of the row id, unique by construction; /verify finds the row by it (BR-QR-01)
 }
 // Unique indexes whose exact columns the spec writes out; each leads with a key of one organization's row
 const SPEC_UNIQUE_ALLOWED: Record<string, string[][]> = {
@@ -61,6 +62,11 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   BudgetLedgerEntry: { toBucket: 'AVAILABLE' }, // ledger_buckets_differ: fromBucket (OUTSIDE) <> toBucket
   Supplier: { isForeign: true }, // supplier_tax_id_shape: a Thai supplier needs a 13-digit tax id, a foreign one may have none
   InvoiceConfirmation: { netSatang: 1n, vatSatang: 0n, grossSatang: 1n }, // invoice_money_non_negative: gross = net + VAT
+  ApprovalStep: { doaStepNo: 1 }, // approval_step_kind: an APPROVAL step has its DOA step number
+  BudgetTransfer: { kind: 'INCREASE' }, // budget_transfer_lines: an increase has only the line that receives
+  PriceAgreement: { validTo: new Date('2026-10-06T00:00:00Z') }, // price_agreement_period: validTo > validFrom
+  // document_verification_*_hash: lower-case hex; tokenHash is unique in the whole table, so each row draws its own
+  DocumentVerification: { tokenHash: () => createHash('sha256').update(randomUUID()).digest('hex'), contentSha256: 'b'.repeat(64) },
   AiCreditLedger: { periodMonth: new Date('2026-10-01T00:00:00Z') }, // ai_credit_period_first_day: the first day of a month
   PoChange: { oldVatSatang: 0n, newVatSatang: 0n }, // po_change_money: gross = net + VAT, before and after
   // S9: bank_account_number and its change's shape (10–12 digits); not ACTIVE, not open, not CURRENT, released, so the
@@ -71,6 +77,7 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, unknown>> = {
   BankAccountChange: { bankCode: '002', accountNo: '9000000001', accountName: 'ผู้ขาย', status: 'REJECTED' },
   PaymentRunDocument: { status: 'RELEASED' },
   PaymentFile: { sha256: 'a'.repeat(64), status: 'SUPERSEDED' },
+  BacktestRun: { subjectType: 'DOA_VERSION' }, // backtest_run_subject: a backtest tries a DOA or a workflow draft
 }
 // Relations that need their own parent row instead of the shared one: delegation_not_self (delegator <> delegate)
 const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
@@ -79,6 +86,7 @@ const FRESH_PARENTS: Record<string, ReadonlySet<string>> = {
 // Optional relations a CHECK requires one of: budget_grant_one_grantee (a department or a member)
 const OPTIONAL_PARENTS: Record<string, ReadonlySet<string>> = {
   BudgetGrant: new Set(['granteeDepartment']),
+  BudgetTransfer: new Set(['toBudgetLine']), // budget_transfer_lines: an INCREASE names the line that receives
   WithholdingTax: new Set(['invoice']), // withholding_tax_one_document: an invoice or a retention
   BankAccountChange: new Set(['supplier']), // bank_account_change_shape: the same
   PaymentRunDocument: new Set(['invoice']), // payment_run_document_kind: an INVOICE row names its invoice

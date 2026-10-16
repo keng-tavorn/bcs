@@ -1,0 +1,18 @@
+# tests/golden/fixtures/doa-committee.yaml
+# DOA-WF: คำขอซื้อเกิน 100,000.00 ไปคณะกรรมการ 3 คน เสียงข้างมาก (S6 · FR-WF-102)
+versions:
+  - code: DOA-WF
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, step: { mode: PARALLEL, quorum: MAJORITY, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }, { kind: POSITION_OF_ORG, position: PC2 }, { kind: POSITION_OF_ORG, position: PC3 }] }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }

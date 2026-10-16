@@ -159,7 +159,7 @@ describe('[FR-BUD-005/AC2] every amount leads to what makes it up, 0.00 too, as 
 
   it('links a 0.00 to its section of the drill-down like any other amount, its name saying the amount, whose it is and where it leads', () => {
     expect(amountLinks(t, line, 'FIN-OPEX-2569', '/budgets/l1')).toEqual({
-      planned: { href: '/budgets/l1#planned', label: 'งบตั้งต้น 40,000.00 บาท ของ FIN-OPEX-2569: ดูการนำเข้างบ' },
+      planned: { href: '/budgets/l1#planned', label: 'งบปัจจุบัน 40,000.00 บาท ของ FIN-OPEX-2569: ดูการนำเข้างบ' },
       available: { href: '/budgets/l1#movements', label: 'คงเหลือ 32,000.00 บาท ของ FIN-OPEX-2569: ดูความเคลื่อนไหวในบัญชีงบ' },
       reserved: { href: '/budgets/l1#reserved', label: 'จอง 0.00 บาท ของ FIN-OPEX-2569: ดูเอกสาร' },
       committed: { href: '/budgets/l1#committed', label: 'ถือ 8,000.00 บาท ของ FIN-OPEX-2569: ดูเอกสาร' },
@@ -167,7 +167,7 @@ describe('[FR-BUD-005/AC2] every amount leads to what makes it up, 0.00 too, as 
     })
     // before anything is imported, planned and available lead to the imports and the movements, which say what will come
     const empty = amountLinks(t, nothing, 'ฝ่ายจัดซื้อ', '/budgets/departments/proc?fy=fy')
-    expect(empty.planned).toEqual({ href: '/budgets/departments/proc?fy=fy#planned', label: 'งบตั้งต้น 0.00 บาท ของ ฝ่ายจัดซื้อ: ดูการนำเข้างบ' })
+    expect(empty.planned).toEqual({ href: '/budgets/departments/proc?fy=fy#planned', label: 'งบปัจจุบัน 0.00 บาท ของ ฝ่ายจัดซื้อ: ดูการนำเข้างบ' })
     expect(empty.available).toEqual({ href: '/budgets/departments/proc?fy=fy#movements', label: 'คงเหลือ 0.00 บาท ของ ฝ่ายจัดซื้อ: ดูความเคลื่อนไหวในบัญชีงบ' })
   })
 
@@ -217,6 +217,8 @@ describe('[FR-BUD-005/AC2] every amount leads to what makes it up, 0.00 too, as 
       held: { href: '/budgets/l1#reserved', label: 'รวมที่จองแล้ว 20.0% ของ FIN-OPEX-2569: ดูเอกสารที่จอง ถือ และตัดจ่ายจริง' },
       // plenty left: no warning, so nothing to link
       low: null,
+      // no burn on these figures (a drill-down page's): no forecast
+      forecast: null,
     })
     // running low: the warning's share left leads to the movements behind what is left
     const low: BudgetFiguresDto = { ...line, available: baht('3500.00'), reserved: baht('18500.00'), committed: baht('8000.00'), actual: baht('10000.00'), usedBp: 4_500, heldBp: 9_125, availableBp: 875, low: true }
@@ -229,9 +231,10 @@ describe('[FR-BUD-005/AC2] every amount leads to what makes it up, 0.00 too, as 
       used: { href: '/budgets/l1#committed', label: 'Used 45.0% of IT-OPEX-2569: see the committed and actual documents' },
       held: { href: '/budgets/l1#reserved', label: 'Held 91.3% of IT-OPEX-2569: see the reserved, committed and actual documents' },
       low: { href: '/budgets/l1#movements', label: 'Running low · 8.7% left on IT-OPEX-2569: see the ledger movements' },
+      forecast: null,
     })
     // nothing planned: no share and no warning, so no links (the row says "ยังไม่มีงบตั้งต้น")
-    expect(shareLinks(t, nothing, 'ฝ่ายจัดซื้อ', '/budgets/departments/proc?fy=fy')).toEqual({ used: null, held: null, low: null })
+    expect(shareLinks(t, nothing, 'ฝ่ายจัดซื้อ', '/budgets/departments/proc?fy=fy')).toEqual({ used: null, held: null, low: null, forecast: null })
     // every row of the dashboard carries them with its amounts' links
     expect(figureLinks(t, low, 'IT-OPEX-2569', '/budgets/l1')).toEqual({ ...amountLinks(t, low, 'IT-OPEX-2569', '/budgets/l1'), ...shareLinks(t, low, 'IT-OPEX-2569', '/budgets/l1') })
   })

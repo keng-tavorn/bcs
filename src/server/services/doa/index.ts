@@ -14,8 +14,9 @@ import { parseDoaYaml } from '@/server/doa/yaml'
 import type { EventDraft } from '@/server/events/append'
 import { AiAssistInput, applyAiAssist } from '../ai/assist-contract'
 import { defineCommand, runCommand, type CommandOutcome, type RunOptions } from '../_pipeline'
-import { enabledModules } from '../modules'
+import { doaLintOptions } from './lint-options'
 import { startRoute } from '../approvals/route'
+import { cancelWithdrawalOnEffect } from '../policy-withdrawal'
 import { boundaryTableRequired } from './boundary'
 import { issueView, warningKey } from './lint-view'
 // The DOA drafter's values by path, for aiAssist (S13-11)
@@ -145,7 +146,7 @@ export const submitDoaVersionCommand = defineCommand({
     // BR-DOA-08: the full lint against the organization as it will be on the effective date, with the modules that are
     // on (BR-DOA-23); the approval runs no lint again
     const version = versionSnapshotFromRows(row, row.rules)
-    const lint = lintDoaVersion(version, await loadOrgSnapshot(tx), row.effectiveFrom, { modules: await enabledModules(tx) })
+    const lint = lintDoaVersion(version, await loadOrgSnapshot(tx), row.effectiveFrom, await doaLintOptions(tx, row.sodPolicy))
     if (lint.errors.length) return { ok: false, error: { code: 'DOA_LINT_FAILED', message: 'the DOA version does not pass the lint', details: { errors: lint.errors.map(issueView) } } }
     const unacknowledged = lint.warnings.map(warningKey).filter((k) => !input.acknowledgedWarnings.includes(k))
     if (unacknowledged.length) return fail('VALIDATION_FAILED', 'every warning must be acknowledged', { reason: 'WARNINGS_NOT_ACKNOWLEDGED', warnings: unacknowledged })
@@ -254,9 +255,10 @@ export const activateDoaVersionCommand = defineCommand({
     const version = await tx.doaVersion.findFirst({ where: { id: input.versionId, status: 'PUBLISHED' }, select: { code: true, versionNo: true, effectiveFrom: true } })
     if (!version) return fail('NOT_FOUND', 'published version not found')
     if (version.effectiveFrom.getTime() > ctx.now.getTime()) return fail('VALIDATION_FAILED', 'not in effect yet', { reason: 'NOT_DUE' })
+    // S6-07 (FR-DOA-104 AC2): a withdrawal still asked is cancelled with its route now that the version is in effect
+    const events: EventDraft[] = await cancelWithdrawalOnEffect(tx, 'DOA_VERSION', input.versionId)
     const ended = await tx.doaVersion.findMany({ where: { code: version.code, status: 'PUBLISHED', id: { not: input.versionId }, effectiveTo: { lte: ctx.now } }, select: { id: true, versionNo: true } })
-    if (ended.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
-    const events: EventDraft[] = []
+    if (ended.length === 0 && events.length === 0) return fail('INVALID_STATE_TRANSITION', 'nothing to supersede', { reason: 'NOTHING_TO_SUPERSEDE' })
     for (const p of ended) {
       const t = transition(DOA_VERSION_MACHINE, 'PUBLISHED', 'doa.supersede')
       await tx.doaVersion.update({ where: { id: p.id }, data: { status: t.ok ? t.to : 'SUPERSEDED', version: { increment: 1 } } })

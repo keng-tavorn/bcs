@@ -12,9 +12,10 @@ import { previewRequest } from '@/server/services/requests/preview'
 import type { CompleteUploadResult, FileRefusal, RequestUploadResult } from '@/ui/files/file-upload'
 import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
 import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
-import type { ActionOutcome } from '@/ui/tasks/outcome'
+import type { RepeatOutcome } from '@/ui/request-view/repeat-rules'
+import type { ActionFailure, ActionOutcome } from '@/ui/tasks/outcome'
 import { canViewRequest } from '../../(workspace)/_tracking/access'
-import { answerQuestion, cancelOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
+import { answerQuestion, cancelOwnRequest, reorderOwnRequest, resubmitOwnRequest } from '../../(workspace)/_tracking/commands'
 import { liffPage, type LiffPage } from '../_lib/session'
 import { liffPrincipalOf } from './_lib/principal'
 
@@ -32,7 +33,7 @@ const NO_SESSION: FormFailure = { ok: false, code: 'UNAUTHENTICATED' }
 const BAD_KEY: FormFailure = { ok: false, code: 'VALIDATION_FAILED', field: 'idempotencyKey' }
 const Key = z.uuid()
 /** DOA gaps whose answer names the position and departments in words (FR-DOA-003 AC3) */
-const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS'])
+const DOA_GAPS: ReadonlySet<string> = new Set(['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS', 'REVIEWER_NOT_FOUND'])
 const FILE_REFUSALS: readonly FileRefusal[] = ['TYPE_NOT_ALLOWED', 'TOO_LARGE', 'EMPTY', 'CONTENT_MISMATCH']
 
 type MemberPage = Extract<LiffPage, { kind: 'member' }>
@@ -58,17 +59,19 @@ export async function previewRequestAction(input: PreviewRequestInput): Promise<
 /**
  * "ส่งขออนุมัติ" from LIFF (FR-INT-007, FR-LINE-003 AC1): submit the draft the form saved, or send a returned request
  * again (FR-INT-009 AC2), naming the version the requester checked (FR-INT-006 AC2). Sent, the answer carries the number
- * and who decides it now, for the confirmation in the button's own words (§9.9 rule 7).
+ * and who decides it now, for the confirmation in the button's own words (§9.9 rule 7). The requester's reason for asking
+ * again goes with it as duplicateReason once the form asked for it (S6-13 · BR-DUP-05: DUPLICATE_UNACKNOWLEDGED).
  */
 export async function submitRequestAction(
-  input: { requestId: string; expectedVersion: number; resubmit: boolean },
+  input: { requestId: string; expectedVersion: number; resubmit: boolean; duplicateReason?: string },
   idempotencyKey: string,
 ): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const command = input?.resubmit === true ? resubmitRequest : submitRequest
-  const result = await command(ctx, { requestId: input?.requestId, expectedVersion: input?.expectedVersion }, { idempotencyKey })
+  const duplicateReason = typeof input?.duplicateReason === 'string' ? { duplicateReason: input.duplicateReason } : {}
+  const result = await command(ctx, { requestId: input?.requestId, expectedVersion: input?.expectedVersion, ...duplicateReason }, { idempotencyKey })
   const screen = await screenLocale()
   if (result.ok) {
     const sent = await sentRequestSummary(ctx, input.requestId, screen)
@@ -146,7 +149,7 @@ async function requestFile(page: MemberPage, requestId: string, fileId: string):
   return isDocumentFile(page.ctx, { subjectType: 'REQUEST', subjectId: requestId }, fileId)
 }
 
-const NO_SESSION_ACTION: ActionOutcome = { ok: false, code: 'UNAUTHENTICATED' }
+const NO_SESSION_ACTION: ActionFailure = { ok: false, code: 'UNAUTHENTICATED' }
 
 /** FR-INT-009: the requester answers the approver's question from LIFF (the LINE message about it opens the request here) */
 export async function answerInfoAction(input: { infoRequestId: string; answer: string }, idempotencyKey: string): Promise<ActionOutcome> {
@@ -155,11 +158,11 @@ export async function answerInfoAction(input: { infoRequestId: string; answer: s
   return answerQuestion(ctx, input, idempotencyKey)
 }
 
-/** FR-INT-009 AC2: the requester sends a returned request again as it is, from LIFF */
-export async function resubmitReturnedAction(requestId: string, idempotencyKey: string): Promise<ActionOutcome> {
+/** FR-INT-009 AC2: the requester sends a returned request again as it is, from LIFF (with the reason for asking again, S6-13) */
+export async function resubmitReturnedAction(requestId: string, idempotencyKey: string, duplicateReason?: string): Promise<ActionOutcome> {
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION_ACTION
-  return resubmitOwnRequest(ctx, requestId, idempotencyKey)
+  return resubmitOwnRequest(ctx, requestId, idempotencyKey, duplicateReason)
 }
 
 /** FR-INT-009 AC1: the requester cancels their request with a reason, from LIFF; the budget it reserved goes back at once */
@@ -167,4 +170,11 @@ export async function cancelRequestAction(input: { requestId: string; reason: st
   const ctx = await memberCtx()
   if (!ctx) return NO_SESSION_ACTION
   return cancelOwnRequest(ctx, input, idempotencyKey)
+}
+
+/** "ขอซ้ำ" from LIFF (FR-INT-101 AC1): a new draft from the requester's request, made on the LIFF channel; the page opens its form */
+export async function reorderAction(requestId: string, idempotencyKey: string): Promise<RepeatOutcome> {
+  const ctx = await memberCtx()
+  if (!ctx) return NO_SESSION_ACTION
+  return reorderOwnRequest(ctx, requestId, idempotencyKey)
 }

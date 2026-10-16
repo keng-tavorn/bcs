@@ -5,12 +5,14 @@ import { z } from 'zod'
 import { systemClock } from '@/lib/clock'
 import { ctxFromSession } from '@/server/auth/session'
 import { doaGapNames, sentRequestSummary } from '@/server/queries/request-form'
+import { listCatalog } from '@/server/services/catalog/view'
 import { resubmitRequest, submitRequest } from '@/server/services/requests'
 import { attachFile, detachFile } from '@/server/services/requests/attachments'
 import { previewRequest } from '@/server/services/requests/preview'
 import { toFormFailure, type FormFailure, type FormOutcome } from '@/ui/request-form/outcome'
-import type { PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
+import type { CatalogSearchOutcome, PreviewRequestInput, PreviewView, SentView } from '@/ui/request-form/types'
 import { getSession } from '../../../_lib/session'
+import { catalogOption } from './catalog-options'
 
 // Browser-facing adapters of the request form (S2-11). Each one builds ctx from the session and calls a service, which
 // checks the permission (request.create / request.submit, OWN) and every rule again (BR-AUTH-05) — the screen hides
@@ -60,22 +62,38 @@ export async function detachFileAction(requestId: string, fileId: string, idempo
  * the one the requester reviewed (FR-INT-006 AC2). Sent, the answer carries the request's number and who decides it now,
  * so the form confirms in the button's own words (§9.9 rule 7). When the DOA cannot route it, the answer names the
  * position and departments in words and says whether the organization's administrators were told (FR-DOA-003 AC3).
+ * A request like one the requester sent within the window is refused until they give the reason, which the next send
+ * carries as duplicateReason (S6-13 · BR-DUP-05: DUPLICATE_UNACKNOWLEDGED with the requests it matched).
  */
-export async function submitRequestAction(input: { requestId: string; expectedVersion: number; resubmit: boolean }, idempotencyKey: string): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
+export async function submitRequestAction(input: { requestId: string; expectedVersion: number; resubmit: boolean; duplicateReason?: string }, idempotencyKey: string): Promise<FormOutcome<{ requestId: string; sent: SentView }>> {
   const ctx = await currentCtx()
   if (!ctx) return NO_SESSION
   if (!Key.safeParse(idempotencyKey).success) return BAD_KEY
   const command = input.resubmit ? resubmitRequest : submitRequest
-  const result = await command(ctx, { requestId: input.requestId, expectedVersion: input.expectedVersion }, { idempotencyKey })
+  const duplicateReason = typeof input.duplicateReason === 'string' ? { duplicateReason: input.duplicateReason } : {}
+  const result = await command(ctx, { requestId: input.requestId, expectedVersion: input.expectedVersion, ...duplicateReason }, { idempotencyKey })
   const screen = await locale()
   if (result.ok) {
     const sent = await sentRequestSummary(ctx, input.requestId, screen)
     return { ok: true, requestId: input.requestId, sent: sent ?? { number: null, waitingFor: [] } }
   }
   const failure = toFormFailure(result.error)
-  if (['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS'].includes(failure.code)) {
+  if (['DOA_NOT_CONFIGURED', 'APPROVER_NOT_FOUND', 'NO_HIGHER_AUTHORITY', 'DOA_AMBIGUOUS', 'REVIEWER_NOT_FOUND'].includes(failure.code)) {
     const names = await doaGapNames(ctx, { position: failure.position ?? null, departments: failure.departments ?? [] }, screen)
     return { ...failure, ...(names.position ? { position: names.position } : {}), departments: names.departments }
   }
   return failure
+}
+
+/**
+ * S6-10 (FR-INT-102 AC1): the catalogue a line of the form is picked from — the active items matching the words, with the
+ * agreed prices in effect today. It changes nothing (a POST only because server actions are); listCatalog checks
+ * catalog.view. The words come from the browser: anything but text of up to 100 characters is refused.
+ */
+export async function searchCatalogAction(q: string): Promise<CatalogSearchOutcome> {
+  const ctx = await currentCtx()
+  if (!ctx) return { ok: false, code: 'UNAUTHENTICATED' }
+  if (typeof q !== 'string' || q.length > 100) return { ok: false, code: 'VALIDATION_FAILED' }
+  const result = await listCatalog(ctx, { q })
+  return result.ok ? { ok: true, items: result.data.items.map(catalogOption), total: result.data.total, limit: result.data.limit } : { ok: false, code: result.error.code }
 }

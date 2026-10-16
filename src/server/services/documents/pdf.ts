@@ -2,8 +2,9 @@ import { err, ok, type Result } from '@/core/result'
 import { authorize } from '@/server/authz'
 import type { Ctx } from '@/server/context'
 import { forTenant } from '@/server/db/tenant'
-import { printablePurchaseOrder, printableRequest } from '@/server/pdf/printable'
+import { printablePurchaseOrder, printableRequest, type PrintableDocument } from '@/server/pdf/printable'
 import { renderPdf } from '@/server/pdf/render'
+import { verifyUrlOf } from './verification'
 
 // The printed PR and PO (spec FR-PLT-009 AC1 AC2): rendered on demand from the document as it stands, for whoever may
 // see it — request.view and po.view with their scopes (§2.4). Reading and rendering only; a download changes nothing.
@@ -17,6 +18,13 @@ export interface PdfFile {
 }
 
 export async function requestPdf(ctx: Ctx, requestId: string): Promise<Result<PdfFile>> {
+  const document = await requestPrintable(ctx, requestId)
+  if (!document.ok) return document
+  return ok({ fileName: `${document.data.number}.pdf`, pdf: await renderPdf(document.data) })
+}
+
+/** What the PR's PDF prints, for whoever may view the request (the QR of S6-19 included); reading only */
+export async function requestPrintable(ctx: Ctx, requestId: string): Promise<Result<PrintableDocument>> {
   if (!UUID.test(requestId)) return err('NOT_FOUND', 'request not found')
   const db = forTenant(ctx.organizationId)
   const document = await db.$transaction(async (tx) => {
@@ -29,13 +37,20 @@ export async function requestPdf(ctx: Ctx, requestId: string): Promise<Result<Pd
       departmentId: request.chargedDepartmentId,
     })
     if (!allowed.ok) return allowed
-    return ok(await printableRequest(tx, ctx.organizationId, request.id, ctx.now))
+    // S6-19: the QR of the latest verification row (read only: a download never issues one)
+    return ok({ ...(await printableRequest(tx, ctx.organizationId, request.id, ctx.now)), verifyUrl: await verifyUrlOf(tx, { subjectType: 'REQUEST', subjectId: request.id }) })
   })
+  return document
+}
+
+export async function purchaseOrderPdf(ctx: Ctx, poId: string): Promise<Result<PdfFile>> {
+  const document = await purchaseOrderPrintable(ctx, poId)
   if (!document.ok) return document
   return ok({ fileName: `${document.data.number}.pdf`, pdf: await renderPdf(document.data) })
 }
 
-export async function purchaseOrderPdf(ctx: Ctx, poId: string): Promise<Result<PdfFile>> {
+/** What the PO's PDF prints, for whoever may view the PO (the QR of S6-19 included); reading only */
+export async function purchaseOrderPrintable(ctx: Ctx, poId: string): Promise<Result<PrintableDocument>> {
   if (!UUID.test(poId)) return err('NOT_FOUND', 'purchase order not found')
   const db = forTenant(ctx.organizationId)
   const document = await db.$transaction(async (tx) => {
@@ -49,8 +64,7 @@ export async function purchaseOrderPdf(ctx: Ctx, poId: string): Promise<Result<P
       assigneeMemberIds: tasks.flatMap((t) => [t.assigneeMemberId, t.principalMemberId]).filter((m): m is string => Boolean(m)),
     })
     if (!allowed.ok) return allowed
-    return ok(await printablePurchaseOrder(tx, ctx.organizationId, po.id, ctx.now))
+    return ok({ ...(await printablePurchaseOrder(tx, ctx.organizationId, po.id, ctx.now)), verifyUrl: await verifyUrlOf(tx, { subjectType: 'PURCHASE_ORDER', subjectId: po.id }) })
   })
-  if (!document.ok) return document
-  return ok({ fileName: `${document.data.number}.pdf`, pdf: await renderPdf(document.data) })
+  return document
 }

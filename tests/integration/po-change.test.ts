@@ -4,6 +4,8 @@ import { prisma } from '@/server/db/client'
 import { decideTask } from '@/server/services/approvals/decide'
 import { recheckPoInvoices } from '@/server/services/ap/exceptions'
 import { cancelPoChange, createPoChange, sendPoRevision, submitPoChange } from '@/server/services/purchase-orders/change'
+import { verifyDocument } from '@/server/services/documents/verification'
+import { verificationToken } from '@/server/verification/token'
 import { createDoaOrg } from '../support/doa-org'
 import { messagesTo } from '../support/mailpit'
 import { p2p } from '../support/p2p'
@@ -138,6 +140,22 @@ describe('[FR-AP-107/AC1] S8-14 review: the money and the quantity of a line mov
     await receive(ap, part, { 0: '3' })
     expect(await createPoChange(proc(), { poId: part.id, reason: 'ตัดเหลือที่รับ', lines: [{ poLineId: part.lines[0]!.id, newQuantity: '3' }] }, key())).toMatchObject({ ok: false, error: { code: 'PO_CHANGE_BELOW_PROGRESS', details: { reason: 'CLOSE_SHORT_INSTEAD' } } })
     ok(await createPoChange(proc(), { poId: part.id, reason: 'ลดเหลือ 4', lines: [{ poLineId: part.lines[0]!.id, newQuantity: '4' }] }, key()))
+  })
+})
+
+describe('[FR-DOA-102/AC1] S6-19 with S8: the approved PO change prints a new verification QR (BR-QR-01, BR-POC-04)', () => {
+  it('the revision issues a new row; the QR of the copy before says a newer version exists', async () => {
+    const po = await sentPo(ap, [{ quantity: '4', unitPrice: '500.00' }])
+    const before = await prisma.documentVerification.findFirstOrThrow({ where: { subjectType: 'PURCHASE_ORDER', subjectId: po.id, supersededAt: null } })
+    const oldToken = verificationToken(before.id)
+    const drafted = ok(await createPoChange(proc(), { poId: po.id, reason: 'ราคาขึ้นตามใบเสนอใหม่', lines: [{ poLineId: po.lines[0]!.id, newUnitPrice: '550.00' }] }, key()))
+    ok(await submitPoChange(proc(), { poChangeId: drafted.poChangeId, version: await versionOf(drafted.poChangeId) }, key()))
+    ok(await approveByDoa(drafted.poChangeId))
+    const rows = await prisma.documentVerification.findMany({ where: { subjectType: 'PURCHASE_ORDER', subjectId: po.id }, orderBy: { issuedAt: 'asc' } })
+    expect(rows).toHaveLength(2)
+    expect(rows[1]!.supersededAt).toBeNull()
+    expect(await verifyDocument(oldToken, null)).toMatchObject({ latest: false })
+    expect(await verifyDocument(verificationToken(rows[1]!.id), null)).toMatchObject({ latest: true })
   })
 })
 

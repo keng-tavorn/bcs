@@ -450,8 +450,9 @@ def matches(r, amt):
     if amt is None: return False
     return (("gt" not in am or amt > sat(am["gt"])) and ("gte" not in am or amt >= sat(am["gte"])) and
             ("lte" not in am or amt <= sat(am["lte"])) and ("lt" not in am or amt < sat(am["lt"])))
-def approver(r, dept, vac):
-    a = r["approver"]
+def rule_approvers(r): return r["step"]["approvers"] if "step" in r else [r["approver"]]
+def approver(r, dept, vac): return approver_spec(r["approver"], dept, vac)
+def approver_spec(a, dept, vac):
     if a["kind"] == "MEMBER": return None if a["member"] in vac else a["member"]
     pos = a["position"]
     d = dept if a["kind"] == "POSITION_OF_DEPARTMENT" else ROOT
@@ -755,13 +756,19 @@ def lint_version(v, vac=frozenset(), modules=()):
     required = set(GOV) | {x for m in modules for x in MODULE_DOCS.get(m, ())}
     errs += [{"code": "DOA_LINT_MISSING_DOCTYPE", "documentType": g} for g in DOC_ORDER if g in required and g not in present]
     for r in v["rules"]:
-        a = r["approver"]
+        aps = rule_approvers(r)
         if r["documentType"] in GOV:
-            if approver(r, ROOT, vac) is None: errs.append({"code": "DOA_LINT_UNRESOLVABLE_GOVERNANCE", "rule": r["code"]})
-        elif a["kind"] == "MEMBER": warns.append({"code": "DOA_LINT_MEMBER_APPROVER", "rule": r["code"]})
-        elif not any(p == a["position"] and f"{p}@{dd}" not in vac and (a["kind"] != "POSITION_OF_ORG" or dd == ROOT) for (p, dd) in HOLD):
+            if any(approver_spec(a, ROOT, vac) is None for a in aps): errs.append({"code": "DOA_LINT_UNRESOLVABLE_GOVERNANCE", "rule": r["code"]})
+        elif any(a["kind"] == "MEMBER" for a in aps): warns.append({"code": "DOA_LINT_MEMBER_APPROVER", "rule": r["code"]})
+        elif any(not any(p == a["position"] and f"{p}@{dd}" not in vac and (a["kind"] != "POSITION_OF_ORG" or dd == ROOT) for (p, dd) in HOLD) for a in aps):
             warns.append({"code": "DOA_LINT_VACANT_POSITION", "rule": r["code"]})
     errs += [{"code": "DOA_LINT_AMOUNT_NOT_ALLOWED", "rule": r["code"]} for r in v["rules"] if r["documentType"] in AMOUNT_NONE and (r.get("when") or {}).get("amount")]
+    # BR-WF-05 (S6): PARALLEL = a committee of two or more · COUNT names quorumCount in 1..N, the other quorums none
+    for r in v["rules"]:
+        st = r.get("step")
+        if (st and len(st["approvers"]) < 2) or (not st and r.get("mode") == "PARALLEL"): errs.append({"code": "DOA_LINT_PARALLEL_STEP", "rule": r["code"]})
+        elif st and ((st["quorum"] == "COUNT") != ("quorumCount" in st) or ("quorumCount" in st and not 1 <= st["quorumCount"] <= len(st["approvers"]))):
+            errs.append({"code": "DOA_LINT_QUORUM_INVALID", "rule": r["code"]})
     errs += [{"code": "UNKNOWN_DOCUMENT_TYPE", "rule": r["code"]} for r in v["rules"] if r["documentType"] not in DOC_ORDER]
     return {"errors": errs, "warnings": warns}
 def boundary_table(v, doc):
@@ -804,6 +811,260 @@ def run_grni(d):
             g, x = max(rv - iv, 0), max(iv - rv, 0); lines.append({"grni": baht(g), "invoicedNotReceived": baht(x)}); by[l["costCenter"]] = by.get(l["costCenter"], 0) + g
         got = {"lines": lines, "byCostCenter": {k: baht(v) for k, v in by.items()}}
         out.append((c["id"], got == c["expect"], got))
+    return out
+# ---------- suite workflow (§7.17 · S6): committees, the outcome of a step of slots, the lint of BR-WF-05 ----------
+def wf_outcome(i):
+    # BR-WF-01, BR-WF-09: a group's result from the first decision of each slot; a REVIEW step's from its groups
+    sl = i["slots"]; opens = [n + 1 for n, x in enumerate(sl) if x is None]
+    def group(q, qc, nos):
+        ds = [sl[n - 1] for n in nos]
+        if "RETURN" in ds: return "RETURNED"
+        a, r = ds.count("APPROVE"), ds.count("REJECT")
+        if q == "ALL": return "REJECTED" if r else ("APPROVED" if a == len(ds) else "OPEN")
+        if q == "ANY": return next(({"APPROVE": "APPROVED", "REJECT": "REJECTED"}[x] for x in ds if x is not None), "OPEN")
+        need = qc if qc is not None else len(ds)
+        return "APPROVED" if a >= need else ("REJECTED" if r > len(ds) - need else "OPEN")
+    if i.get("kind") == "REVIEW":
+        if "REJECT" in sl: return {"error": "VALIDATION_FAILED", "reason": "REVIEW_CANNOT_REJECT"}
+        gs = [(g, group(g["quorum"], g.get("quorumCount"), g["slots"])) for g in i["groups"]]
+        if any(o == "RETURNED" for _, o in gs) or all(o == "APPROVED" for _, o in gs):
+            return {"outcome": "RETURNED" if any(o == "RETURNED" for _, o in gs) else "APPROVED", "cancel": opens}
+        waiting = {n for g, o in gs if o != "APPROVED" for n in g["slots"]}; done = {n for g, o in gs if o == "APPROVED" for n in g["slots"]}
+        return {"outcome": "OPEN", "cancel": [n for n in opens if n in done and n not in waiting]}
+    o = group(i.get("quorum", "ALL"), i.get("quorumCount"), list(range(1, len(sl) + 1)))
+    return {"outcome": o, "cancel": [] if o == "OPEN" else opens}
+def wf_versions(d, code, rep_step):
+    vs = [copy.deepcopy(v) for f in d["fixtures"] if "/doa-" in f for v in golden["tests/golden/" + f][0]["versions"] if v["code"] == code]
+    for v in vs:
+        for r in v["rules"]:
+            if rep_step and r["code"] == rep_step["rule"]:
+                st = r["step"]
+                for k in ("quorum", "quorumCount", "approvers"):
+                    if k in rep_step: st[k] = rep_step[k]
+                if st["quorum"] != "COUNT": st.pop("quorumCount", None)
+    return vs
+def wf_resolve(d, i, versions=None):
+    at = dt(i["at"]); vs = [v for v in (versions if versions is not None else wf_versions(d, i["doa"], i.get("replaceStep"))) if dt(v["effectiveFrom"]) <= at]
+    if not vs: return {"error": "DOA_NOT_CONFIGURED"}
+    v = vs[-1]; amt = sat(i["amount"]); doc = i["documentType"]
+    band = sorted([r for r in v["rules"] if r["documentType"] == doc and amount_only(r)], key=lower)
+    top = next((r for r in band if matches(r, amt)), None)
+    if top is None: return {"error": "DOA_NOT_CONFIGURED"}
+    conf = {i["requester"]} | set(i.get("alsoConflicting", [])); vac = set(i.get("vacate", [])); res = {"rule": top["code"]}
+    for r in band[band.index(top):]:
+        found = [approver_spec(a, i["department"], vac) for a in rule_approvers(r)]
+        if None in found: return {"error": "APPROVER_NOT_FOUND"}
+        if r is not top: res["escalatedTo"] = r["code"]
+        if "step" not in r:
+            if found[0] not in conf: res["steps"] = [{"mode": "SEQUENTIAL", "approvers": found}]; return res
+            continue
+        st = r["step"]; q = "COUNT" if st["quorum"] == "MAJORITY" else st["quorum"]
+        qc = len(st["approvers"]) // 2 + 1 if st["quorum"] == "MAJORITY" else st.get("quorumCount")
+        cut = [a for a in found if a in conf]; rest = list(dict.fromkeys(a for a in found if a not in conf))
+        if (q == "ALL" and cut) or (q == "ANY" and not rest) or (q == "COUNT" and len(rest) < qc): continue
+        res["steps"] = [{"mode": "PARALLEL", "quorum": q, **({"quorumCount": qc} if q == "COUNT" else {}), "approvers": rest}]; return res
+    return {"error": "NO_HIGHER_AUTHORITY"}
+WF_VARS = ("$amountGross", "$amountNet", "$requestType", "$lineCategories", "$budgetAccountCodes")
+def wf_holds(w, i):
+    # BR-WF-07: all/any, anyIn over the set variables, money in satang for $amountGross, the ops of §7.9 otherwise
+    if "all" in w: return all(wf_holds(x, i) for x in w["all"])
+    if "any" in w: return any(wf_holds(x, i) for x in w["any"])
+    if "field" not in w: return True
+    f, op, v = w["field"], w["op"], w.get("value")
+    if op == "anyIn": return bool(set(map(str, v)) & set(i.get(f[1:], []) if f.startswith("$") else i.get("fields", {}).get(f, [])))
+    if f == "$amountGross":
+        a, b = i["_gross"], sat(v)
+        return {"gt": a > b, "gte": a >= b, "lt": a < b, "lte": a <= b, "eq": a == b, "ne": a != b}[op]
+    x = i.get("requestType") if f == "$requestType" else i.get("fields", {}).get(f)
+    return {"eq": str(x) == str(v), "ne": str(x) != str(v), "in": str(x) in [str(y) for y in (v or [])]}[op]
+def wf_reviewer(spec, vac):
+    # BR-WF-08: POSITION_AT walks up from its department to the root
+    if spec["kind"] == "MEMBER": return None if spec["member"] in vac else spec["member"]
+    d = spec["department"]
+    while d:
+        h = HOLD.get((spec["position"], d))
+        if h and f"{spec['position']}@{d}" not in vac: return h
+        d = PARENT.get(d)
+    return None
+def wf_one(rule, spec, conf, vac):
+    own = wf_reviewer(spec, vac)
+    if own is not None and own not in conf: return own, None
+    fb = wf_reviewer(rule["fallback"], vac) if rule.get("fallback") else None
+    if fb is None or fb in conf: return None, None
+    return fb, ("CONFLICT" if own is not None else "VACANT")
+def wf_review(d, i):
+    at = dt(i["at"]); wfs = [golden["tests/golden/" + f][0] for f in d["fixtures"] if "workflow-versions" in f]
+    vs = sorted([v for w in wfs for v in w["versions"] if v["code"] == i.get("workflow") and dt(v["effectiveFrom"]) <= at], key=lambda v: dt(v["effectiveFrom"]))
+    if not vs: return None
+    rules = [r for r in vs[-1]["rules"] if i["requestType"] in r["requestTypes"] and wf_holds(r["when"], i)]
+    if not rules: return None
+    conf = {i["requester"]} | set(i.get("alsoConflicting", [])); vac = set(i.get("vacate", []))
+    slots, groups = [], []   # slot = {rules, people: [(who, fallback)], groups: set}
+    for r in [x for x in rules if x["mode"] == "ALL"]:
+        who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+        if who is None: return {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}
+        groups.append(("ALL", None, [r["code"]])); slots.append({"rules": [r["code"]], "people": [(who, fb)], "groups": {len(groups) - 1}})
+    anys = [x for x in rules if x["mode"] == "ANY"]
+    if anys:
+        people = []
+        for r in anys:
+            who, fb = wf_one(r, r["reviewers"][0], conf, vac)
+            if who is None: return {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}
+            if who not in [p for p, _ in people]: people.append((who, fb))
+        groups.append(("ANY", None, [r["code"] for r in anys])); slots.append({"rules": [r["code"] for r in anys], "people": people, "groups": {len(groups) - 1}})
+    for r in [x for x in rules if x["mode"] == "COUNT"]:
+        own = []
+        for spec in r["reviewers"]:
+            who, fb = wf_one(r, spec, conf, vac)
+            if who is not None and who not in [o["people"][0][0] for o in own]: own.append({"rules": [r["code"]], "people": [(who, fb)], "groups": set()})
+        if len(own) < r["quorumCount"]: return {"error": "REVIEWER_NOT_FOUND", "rule": r["code"]}
+        groups.append(("COUNT", r["quorumCount"], [r["code"]]))
+        for o in own: o["groups"].add(len(groups) - 1)
+        slots += own
+    merged = []
+    for sl in slots:
+        if len(sl["people"]) == 1:
+            p = sl["people"][0][0]; into = next((m for m in merged if len(m["people"]) == 1 and m["people"][0][0] == p), None)
+            if into:
+                into["rules"] += [c for c in sl["rules"] if c not in into["rules"]]; into["groups"] |= sl["groups"]; continue
+        merged.append(sl)
+    out = {"quorum": "ALL", "slots": []}
+    for m in merged:
+        x = {"rules": m["rules"], "reviewers": [p for p, _ in m["people"]]}
+        if len(m["people"]) == 1 and m["people"][0][1]: x["fallback"] = m["people"][0][1]
+        out["slots"].append(x)
+    counts = [{"rules": g[2], "quorum": "COUNT", "quorumCount": g[1], "slots": [n + 1 for n, m in enumerate(merged) if gi in m["groups"]]} for gi, g in enumerate(groups) if g[0] == "COUNT"]
+    if counts: out["groups"] = counts
+    return out
+def wf_request_route(d, i):
+    i = dict(i)
+    i["_gross"] = sat(i["amount"]) if "amount" in i else sat(i["net"]) + sat(i.get("vat", "0"))
+    use_doa = {**i, "doa": i["doa"]}
+    appr = resolve_doa_code(d, use_doa)
+    if "error" in appr: return appr
+    rv = wf_review(d, i)
+    if rv is not None and "error" in rv: return rv
+    return {"review": rv, "approval": appr}
+def resolve_doa_code(d, i):
+    # the DOA route of a purchase request by the version of one code (resolve() reads DOAV: the file's versions of that code)
+    global DOAV
+    keep = DOAV
+    DOAV = {"versions": [v for f in d["fixtures"] if "/doa-" in f for v in golden["tests/golden/" + f][0]["versions"] if v["code"] == i["doa"]]}
+    try:
+        got = resolve(i)
+    finally:
+        DOAV = keep
+    return {k: v for k, v in got.items() if k in ("rule", "escalatedTo", "approvers", "error")}
+def wf_lint(d, i):
+    wfx = next(golden["tests/golden/" + f][0] for f in d["fixtures"] if "workflow-versions" in f)
+    v = copy.deepcopy(next(x for x in wfx["versions"] if x["code"] == d["defaults"].get("workflow")))
+    v["rules"] += copy.deepcopy(i.get("addRules") or [])
+    for r in v["rules"]:
+        if r["code"] == (i.get("replaceWhen") or {}).get("rule"): r["when"] = i["replaceWhen"]["when"]
+        if r["code"] in (i.get("removeFallback") or []): r.pop("fallback", None)
+    types, vac = wfx["requestTypes"], set(i.get("vacate") or [])
+    errs, warns, seen = [], [], set()
+    def fields(w): return [x for c in w.get("all", []) + w.get("any", []) for x in fields(c)] + ([w["field"]] if "field" in w else [])
+    for r in v["rules"]:
+        errs += [{"code": "WF_LINT_UNKNOWN_REQUEST_TYPE", "rule": r["code"]} for t in r["requestTypes"] if t not in types]
+        known = [t for t in r["requestTypes"] if t in types]
+        for f in dict.fromkeys(fields(r["when"])):
+            if f not in WF_VARS and (not known or any(f not in types[t] for t in known)): errs.append({"code": "WF_LINT_UNKNOWN_FIELD", "rule": r["code"], "field": f})
+        n, qc = len(r["reviewers"]), r.get("quorumCount")
+        if not ((r["mode"] == "COUNT" and n >= 2 and qc is not None and 1 <= qc <= n) or (r["mode"] != "COUNT" and n == 1 and qc is None)): errs.append({"code": "WF_LINT_QUORUM_INVALID", "rule": r["code"]})
+        if r["code"] in seen: errs.append({"code": "WF_LINT_DUPLICATE_CODE", "rule": r["code"]})
+        seen.add(r["code"])
+        if any(x["kind"] != "MEMBER" and wf_reviewer(x, vac) is None for x in r["reviewers"]): warns.append({"code": "WF_LINT_VACANT_REVIEWER", "rule": r["code"]})
+        if not r.get("fallback"): warns.append({"code": "WF_LINT_NO_FALLBACK", "rule": r["code"]})
+        if any(x["kind"] == "MEMBER" for x in r["reviewers"]): warns.append({"code": "WF_LINT_MEMBER_REVIEWER", "rule": r["code"]})
+    return {"errors": errs, "warnings": warns}
+def wf_withdraw(i, vs):
+    # FR-DOA-104 · BR-DOA-18: the version must still wait; the one it was to follow runs until the next waiting one
+    at = dt(i["at"]); t = next(v for v in vs if v["no"] == i["withdraw"])
+    if t["from"] <= at: return {"error": "INVALID_STATE_TRANSITION", "reason": "ALREADY_EFFECTIVE"}
+    nxt = min((v for v in vs if v is not t and v["from"] > t["from"]), key=lambda v: v["from"], default=None)
+    for v in vs:
+        if v is not t and v["to"] == t["from"]: v["to"] = nxt["from"] if nxt else None
+    t["status"] = "WITHDRAWN"
+    def at_time(x):
+        live = [v for v in vs if v["status"] != "WITHDRAWN" and v["from"] <= x and (v["to"] is None or x < v["to"])]
+        return max(live, key=lambda v: v["from"])["no"] if live else None
+    return {"ok": True, "to": {v["no"]: v["to"] for v in vs}, "at": at_time}
+def wf_withdraw_ok(d, i, exp):
+    vs = [{"no": v["version"], "from": dt(v["effectiveFrom"]), "status": "PUBLISHED"} for v in wf_versions(d, i["doa"], None)]
+    if i.get("extraVersion"): vs.append({"no": i["extraVersion"]["version"], "from": dt(i["extraVersion"]["effectiveFrom"]), "status": "PUBLISHED"})
+    vs.sort(key=lambda v: v["from"])
+    for k, v in enumerate(vs): v["to"] = vs[k + 1]["from"] if k + 1 < len(vs) else None
+    got = wf_withdraw(i, vs)
+    if "error" in got: return got == exp, got
+    ok = exp.get("ok") is True and all((got["to"][int(n)] is None) if w is None else got["to"][int(n)] == dt(w) for n, w in (exp.get("effectiveTo") or {}).items())
+    ok = ok and all(got["at"](dt(t)) == n for t, n in (exp.get("versionAt") or {}).items())
+    return ok, {"ok": True, "effectiveTo": {n: (z(x) if x else None) for n, x in got["to"].items()}}
+def wf_backtest(d, i):
+    # BR-WF-13: each document twice — by the version in effect when it was sent, and by the draft as if in effect then
+    vs = wf_versions(d, i["doa"], None)
+    cur = [v for v in vs if v["version"] == i["current"]]; dra = [dict(v, effectiveFrom="1970-01-01T00:00:00Z") for v in vs if v["version"] == i["draft"]]
+    def side(r): return {"rule": None, "approvers": [], "error": r["error"]} if "error" in r else {"rule": r.get("escalatedTo", r["rule"]), "approvers": [a for s in r["steps"] for a in s["approvers"]], "error": None}
+    rows, load = [], {}
+    for doc in i["documents"]:
+        base = {**i, "amount": doc["amount"], "at": doc["submittedAt"]}
+        c, g = side(wf_resolve(d, base, cur)), side(wf_resolve(d, base, dra))
+        ch = c != g
+        if ch:
+            for m in c["approvers"]: load[m] = load.get(m, 0) - 1
+            for m in g["approvers"]: load[m] = load.get(m, 0) + 1
+        rows.append({"ref": doc["ref"], "current": {"rule": c["rule"], "approvers": c["approvers"]}, "draft": {"rule": g["rule"], "approvers": g["approvers"]}, "changed": ch})
+    return {"rows": rows, "summary": {"total": len(rows), "changed": sum(r["changed"] for r in rows), "load": {k: n for k, n in sorted(load.items()) if n}}}
+def wf_reresolve(i):
+    # BR-WF-14: the departments of `reparent` sit under their new parent; a task found by its department moves when the
+    # walk up now meets another holder; organization-wide positions and named members stay
+    old = dict(PARENT); PARENT.update(i["change"]["reparent"]); out = []
+    for t in i["tasks"]:
+        a = t["approver"]
+        if a["kind"] != "POSITION_OF_DEPARTMENT": continue
+        dd = t["chargedDepartment"]
+        while dd and (a["position"], dd) not in HOLD: dd = PARENT.get(dd)
+        if dd and HOLD[(a["position"], dd)] != t["assignee"]: out.append({"task": t["id"], "to": HOLD[(a["position"], dd)], "resolvedFrom": f"POSITION:{a['position']}@{dd}"})
+    PARENT.clear(); PARENT.update(old)
+    return {"reassign": out}
+def wf_activate(d, i):
+    # GC-WF-45: the route's version and rule, the holders valid when the step starts
+    global HOLD
+    at = dt(i["activateAt"]); saved = HOLD; HOLD = dict(HOLD)
+    for h in i["holders"]:
+        if dt(h.get("validFrom", "2020-01-01T00:00:00Z")) <= at and ("validTo" not in h or at < dt(h["validTo"])): HOLD[(h["position"], h["department"])] = h["member"]
+    vs = [v for v in wf_versions(d, i["doa"], None) if dt(v["effectiveFrom"]) <= dt(i["routeCreatedAt"])]
+    v = vs[-1]; rule = next(r for r in v["rules"] if r["code"] == i["step"]["rule"])
+    amt = baht(sat(rule["when"]["amount"]["gt"]) + 1)
+    res = wf_resolve(d, {**i, "amount": amt, "at": i["routeCreatedAt"]}, [v]); HOLD = saved
+    if "error" in res: return res
+    return {"assignee": res["steps"][0]["approvers"][0], "rule": res.get("escalatedTo", res["rule"]), "version": v["version"]}
+def run_workflow(d):
+    global HOLD
+    use_fixtures(d["fixtures"]); base, out = dict(HOLD), []
+    for c in d["cases"]:
+        i = {**d["defaults"], **c["input"]}
+        HOLD = {**base, **{tuple(k.split("@")): m for k, m in (i.get("replaceHolders") or {}).items()}}
+        if c["fn"] in ("reresolveOpenTasks", "activateStep"):
+            got = wf_reresolve(i) if c["fn"] == "reresolveOpenTasks" else wf_activate(d, i)
+            out.append((c["id"], all(got.get(k) == x for k, x in c["expect"].items()), got)); continue
+        if c["fn"] == "withdrawVersion":
+            ok, got = wf_withdraw_ok(d, i, c["expect"]); out.append((c["id"], ok, got)); continue
+        if c["fn"] == "backtestPolicy":
+            got = wf_backtest(d, i); exp = c["expect"]; rows = {r["ref"]: r for r in got["rows"]}
+            ok = got["summary"] == exp["summary"] and all(all(rows[w["ref"]].get(k) == x for k, x in w.items()) for w in exp["rows"])
+            out.append((c["id"], ok, got)); continue
+        if c["fn"] == "stepOutcome": got = wf_outcome(c["input"])
+        elif c["fn"] == "lintDoaVersion": got = lint_version(wf_versions(d, i["doa"], i.get("replaceStep"))[0], frozenset(i.get("vacate") or []))
+        elif c["fn"] == "lintWorkflowVersion": got = wf_lint(d, i)
+        elif c["fn"] == "resolveRequestRoute": got = wf_request_route(d, i)
+        else: got = wf_resolve(d, i)
+        exp = c["expect"]
+        if c["fn"] in ("lintDoaVersion", "lintWorkflowVersion"): ok = got == exp
+        elif c["fn"] == "resolveRequestRoute": ok = all(got.get(k) == x for k, x in exp.items()) and ("escalatedTo" in exp.get("approval", {})) == ("escalatedTo" in (got.get("approval") or {}))
+        else: ok = all(got.get(k) == x for k, x in exp.items()) and ("escalatedTo" in exp) == ("escalatedTo" in got)
+        out.append((c["id"], ok, got))
+    HOLD = base; use_fixtures()
     return out
 def run_ai_credits(d):
     import math
@@ -937,6 +1198,111 @@ def run_ap(d):  # BR-AP-07 วันครบกำหนด (S8-03) · BR-AP-10
         else:
             got = {"error": f"fn {c['fn']} ยังไม่มีตัวคำนวณอ้างอิง"}
         out.append((c["id"], got == c["expect"], got))
+    return out
+def run_price_reference(d):
+    # BR-PRC-06 (S6-10): periods [validFrom, validTo) of one item and supplier never overlap; a catalogue line takes the
+    # agreed price of its supplier, or needs a reason when the item has an agreement with another supplier
+    out = []
+    for c in d["cases"]:
+        i = c["input"]
+        fn = c.get("fn")
+        if fn == "checkAgreement":
+            a = i["add"]
+            clash = any(e["item"] == a["item"] and e["supplier"] == a["supplier"] and a["validFrom"] < e["validTo"] and e["validFrom"] < a["validTo"] for e in i["existing"])
+            got = {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_OVERLAP"} if clash else {"ok": True}
+        elif fn == "checkAgreementLine":
+            ag, ln = i["agreement"], i["line"]
+            if ag["item"] != ln["item"]: got = {"ok": True}
+            elif ag["supplier"] == ln["supplier"]:
+                got = {"ok": True} if sat(ag["unitPrice"]) == sat(ln["unitPrice"]) else {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_PRICE_LOCKED"}
+            else:
+                got = {"ok": True} if (i.get("offAgreementReason") or "").strip() else {"error": "VALIDATION_FAILED", "reason": "AGREEMENT_OFF"}
+        elif fn == "quoteRange":
+            # BR-PRC-04: each quote before VAT (BR-FORM-06: net = gross × 10000 ÷ (10000 + rate), half up)
+            rate = i["vatRateBp"]
+            nets = {q["ref"]: (int((Decimal(sat(q["amount"])) * 10000 / (10000 + rate)).to_integral_value(rounding=ROUND_HALF_UP)) if q["includesVat"] else sat(q["amount"])) for q in i["quotes"]}
+            sel = nets.get(i.get("selected")); low = min(nets.values())
+            got = {"count": len(nets), "lowest": baht(low), "highest": baht(max(nets.values())), "selected": baht(sel) if sel is not None else None, "selectedIsLowest": sel == low}
+        else:
+            got = prc_reference(d, i)
+            out.append((c["id"], all(got.get(k) == x for k, x in c["expect"].items()), got)); continue
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def prc_reference(d, i):
+    # BR-PRC-01 to BR-PRC-03: samples of [at − windowDays, at) priced before VAT; lower median; Bp truncated toward zero;
+    # HIGH or LOW compared as whole numbers
+    st, df = d["settings"], d["defaults"]; at = dt(i.get("at", df["at"])); start = at - timedelta(days=st["windowDays"])
+    rows = [{**{"approvedAt": df["approvedAt"], "priceIncludesVat": df["priceIncludesVat"]}, **x} for x in i["samples"]]
+    win = [r for r in rows if start <= dt(r["approvedAt"]) < at]; used = [r for r in win if not r["priceIncludesVat"]]
+    xs = sorted(sat(r["unitPrice"]) for r in used); med = xs[(len(xs) - 1) // 2] if xs else None
+    last = max(used, key=lambda r: dt(r["approvedAt"])) if used else None
+    got = {"count": len(used), "excludedVatIncluded": len(win) - len(used), "min": baht(xs[0]) if xs else None, "median": baht(med) if med is not None else None,
+           "max": baht(xs[-1]) if xs else None, "last": baht(sat(last["unitPrice"])) if last else None, "status": "FEW_SAMPLES" if len(used) < st["minSamples"] else "OK"}
+    p = sat(i["price"])
+    if med is None or med == 0 or i.get("requestIncludesVat"): got.update(deviationBp=None, alert=None)
+    else:
+        diff = (p - med) * 10000; dev = abs(diff) // med * (1 if diff >= 0 else -1)
+        got.update(deviationBp=dev, alert="HIGH" if diff > med * st["alertBp"] else "LOW" if -diff > med * st["alertBp"] else None)
+    return got
+def run_forms_s6(d):
+    # BR-FORM-08: daysLeft by Thai calendar days; the smallest milestone not below them, once, never after the end.
+    # BR-FORM-07: answers the current form still has; lines without the service end date, at the agreed price of the
+    # request's supplier when there is one; no files, quotations or budget line
+    out = []
+    for c in d["cases"]:
+        i = c["input"]; fn = c["fn"]
+        if fn == "daysLeft":
+            day = (dt(i["at"]) + timedelta(hours=7)).date()
+            got = (datetime.fromisoformat(i["serviceEndDate"]).date() - day).days
+        elif fn == "renewalMilestoneDue":
+            due = [m for m in d["settings"]["milestoneDays"] if m >= i["daysLeft"]]
+            got = None if i["daysLeft"] < 0 or not due or min(due) in i["sent"] else min(due)
+        elif fn == "lintFormVersion":
+            # BR-FORM-09: a removed field that a rule still present or a workflow rule reads is an error naming them all
+            fx = d["formLint"]; errs = []
+            for f in i["removeFields"]:
+                by = [r for r in i.get("rules", []) if f in fx["rules"].get(r, [])] + [w for w in i.get("workflowRules", []) if f in fx["workflowRules"].get(w, [])]
+                if by: errs.append({"code": "FORM_LINT_REFERENCED_FIELD", "field": f, "by": by})
+            got = {"errors": errs}
+        else:
+            src = i["source"]; cur = set(i["currentFields"])
+            lines = []
+            for l in src["lines"]:
+                ag = next((a for a in i.get("agreements", []) if l.get("item") and a["item"] == l["item"] and a["supplier"] == l.get("supplier")), None)
+                lines.append({"qty": l["qty"], "unitPrice": ag["unitPrice"] if ag else l["unitPrice"], "serviceEndDate": None, "priceSource": "AGREEMENT" if ag else "SOURCE_REQUEST"})
+            full = {"fields": {k: v for k, v in src["fields"].items() if k in cur}, "droppedFields": [k for k in src["fields"] if k not in cur], "lines": lines, "attachments": {}, "quotations": 0, "budgetLine": None}
+            exp = c["expect"]
+            got = {k: (full[k] if k != "lines" else [{kk: x[kk] for kk in e} for x, e in zip(full["lines"], exp["lines"])]) for k in exp}
+        out.append((c["id"], got == c["expect"], got))
+    return out
+def run_duplicates(d):
+    # BR-DUP-01 to BR-DUP-04: line key = description NFC trimmed, spaces collapsed, lower case | uom; within windowDays
+    # × 24 h of at, in a counting status; DUPLICATE = same requester and a line of the same key and quantity; SPLIT =
+    # same department and (same supplier or a key in common) whose combined amount reaches another PURCHASE_REQUEST rule
+    # than the largest alone (DOA version in effect at `at`)
+    import unicodedata
+    use_fixtures(d["fixtures"]); out = []; df = d["defaults"]; win = timedelta(days=d["policy"]["windowDays"])
+    key = lambda l: f"{' '.join(unicodedata.normalize('NFC', l['d']).split()).lower()}|{l['uom']}"
+    counting = {"PENDING_APPROVAL", "RETURNED", "APPROVED", "PARTIALLY_ORDERED", "ORDERED", "COMPLETED"}
+    def rule(at, amt):
+        vs = [v for v in versions() if dt(v["effectiveFrom"]) <= at and (v["_to"] is None or at < v["_to"])]
+        cand = sorted([r for r in vs[-1]["rules"] if r["documentType"] == "PURCHASE_REQUEST" and matches(r, amt)], key=lambda r: (r["priority"], -len(r.get("when") or {})))
+        return cand[0]["code"] if cand else None
+    for c in d["cases"]:
+        i = c["input"]; at = dt(i.get("at", df["at"])); cand = {**{k: df[k] for k in ("requester", "department", "supplier")}, **i["candidate"]}
+        rec = sorted([{**{k: df[k] for k in ("requester", "department", "supplier")}, **r} for r in i["recent"] if r["status"] in counting and abs(dt(r["submittedAt"]) - at) <= win], key=lambda r: dt(r["submittedAt"]))
+        kq = {(key(l), Decimal(l["qty"])) for l in cand["lines"]}; ks = {key(l) for l in cand["lines"]}
+        flags = []
+        dup = [r["ref"] for r in rec if r["requester"] == cand["requester"] and any((key(l), Decimal(l["qty"])) in kq for l in r["lines"])]
+        if dup: flags.append({"kind": "DUPLICATE", "with": dup})
+        sp = [r for r in rec if r["department"] == cand["department"] and (r["supplier"] == cand["supplier"] or any(key(l) in ks for l in r["lines"]))]
+        if sp:
+            amts = [sat(cand["amount"])] + [sat(r["amount"]) for r in sp]; comb = sum(amts)
+            ir, cr = rule(at, max(amts)), rule(at, comb)
+            if cr is not None and cr != ir: flags.append({"kind": "SPLIT", "with": [r["ref"] for r in sp], "combined": baht(comb), "individualRule": ir, "combinedRule": cr})
+        got = {"flags": flags}
+        out.append((c["id"], got == c["expect"], got))
+    use_fixtures()
     return out
 def run_retention(d):  # BR-RET-01 แบ่งงวด · BR-RET-03 เงินประกัน (largest remainder สองส่วน) · BR-WHT-05 ภาษีตอนจ่าย (S8-09)
     out = []
@@ -1392,6 +1758,170 @@ def run_bankfile_neutral(d):  # BR-BANK-04 BR-BANK-05 · S9-03: เทียบ 
         got = {"fileName": f'{d["template"]}_NOT-A-BANK-FORMAT_{r["number"]}_v{r["fileVersion"]}.csv', "lines": lines, "itemCount": len(items), "total": tot, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
         out.append((c["id"], got == c["expect"], got))
     return out
+def run_budget_change(d):
+    # BR-BUD-09 to BR-BUD-11 (S6-15): a transfer or a decrease reserves its source at submit (all or BUDGET_INSUFFICIENT);
+    # approved, the reservation leaves the source (AVAILABLE → OUTSIDE, funded down) and enters the destination
+    # (OUTSIDE → AVAILABLE, funded up); rejected, it comes back. The DOA input: net = the amount, vat 0, the department of
+    # the source (TRANSFER DECREASE) or the destination (INCREASE), the sender as the conflict.
+    # BR-BUD-12 to BR-BUD-15, BR-BUD-18 (S6-16): an approved overrun funds X = M − available and earmarks it; sending the
+    # request uses needed = max(0, M − available) of it (more → BUDGET_INSUFFICIENT) and the rest leaves; a lapse returns
+    # X; after use, what one command gives back of the request (its lines and the PO lines from them, net) leaves the line
+    # up to what is still outstanding (used − returned after use), to the overrun used last first
+    out = []
+    for c in d["cases"]:
+        if c.get("fn") == "transferDoaInput":
+            i = c["input"]; dept = (i["to"] if i["kind"] == "INCREASE" else i["from"])["department"]
+            got = {"documentType": "BUDGET_TRANSFER", "net": i["amount"], "vat": "0.00", "department": dept, "conflict": [i["submitter"]]}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "budgetBurn":
+            # BR-BUD-17 (S6-18): fiscal year of 365 days · thresholds [8000, 10000] · forecast from 30 days (the suite header)
+            i = c["input"]; funded = sat(i["funded"]); used = sat(i["committed"]) + sat(i["actual"]); days = i["elapsedDays"]
+            if funded <= 0: got = {"usedBp": None, "forecastBp": None, "alerts": []}
+            else:
+                used_bp = used * 10000 // funded
+                forecast = used * 365 * 10000 // (funded * days) if days >= 30 else None
+                alerts = [f"USED_{t}" for t in (8000, 10000) if used_bp >= t] + (["FORECAST_OVER"] if forecast is not None and forecast > 10000 else [])
+                got = {"usedBp": used_bp, "forecastBp": forecast, "alerts": alerts}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "splitLine":
+            # BR-BUD-16 (S6-17): each part's quantity × the unit price, rounded once (BR-MONEY-02 (1))
+            i = c["input"]; price = sat(i["unitPrice"])
+            line = lambda q: int((Decimal(q) * price).to_integral_value(rounding=ROUND_HALF_UP))
+            nets = [line(p) for p in i["parts"]]
+            got = {"nets": [baht(n) for n in nets], "total": baht(sum(nets)), "original": baht(line(sum(Decimal(p) for p in i["parts"])))}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "chargedDepartmentOf":
+            # BR-BUD-16: the department with the most before VAT; a tie goes to the department of the lowest lineNo
+            tot = {}
+            for l in c["input"]["lines"]:
+                t = tot.setdefault(l["department"], [0, l["lineNo"]]); t[0] += sat(l["net"]); t[1] = min(t[1], l["lineNo"])
+            got = {"department": sorted(tot.items(), key=lambda kv: (-kv[1][0], kv[1][1]))[0][0]}
+            out.append((c["id"], got == c["expect"], got)); continue
+        if c.get("fn") == "overrunDoaInput":
+            i = c["input"]; x = sat(i["requestNet"]) - sat(i["line"]["available"])
+            got = ({"error": "VALIDATION_FAILED", "reason": "NOT_OVER_BUDGET"} if x <= 0 else
+                   {"documentType": "OVER_BUDGET", "net": baht(x), "vat": "0.00", "department": i["line"]["department"], "conflict": [i["requester"]]})
+            out.append((c["id"], got == c["expect"], got)); continue
+        lines = {k: {"available": 0, "reserved": 0, "committed": 0, "actual": 0, "funded": 0} for k in ("A", "B")}
+        held = {}; transfers = {}; alloc = {}; overruns = {}; po_request = {}; used_order = [0]; ok = True; trace = []
+
+        def after_use(ln, req, given):  # BR-BUD-18: what the command gave back of `req` on line `ln`, net
+            L = lines[ln]; left = min(max(given, 0), L["available"])
+            for o in sorted((o for o in overruns.values() if o["request"] == req and o["line"] == ln and o["status"] == "CONSUMED"), key=lambda o: -o["seq"]):
+                s_ = min(o["used"] - o["rau"], left)
+                if s_ > 0: L["available"] -= s_; L["funded"] -= s_; o["rau"] += s_; left -= s_
+
+        for st in c["steps"]:
+            op = st["op"]; err = None; ov = None
+            if op == "fund":
+                L = lines[st["line"]]; a = sat(st["amount"]); L["available"] += a; L["funded"] += a
+            elif op == "reserve":
+                L = lines[st["line"]]; a = sat(st["amount"])
+                if a > L["available"]: err = ("BUDGET_INSUFFICIENT", a - L["available"])
+                else: L["available"] -= a; L["reserved"] += a; alloc["REQ:" + st["source"]] = alloc.get("REQ:" + st["source"], 0) + a
+            elif op == "release":
+                L = lines[st["line"]]; a = alloc.get("REQ:" + st["source"], 0)
+                alloc["REQ:" + st["source"]] = 0; L["reserved"] -= a; L["available"] += a
+                after_use(st["line"], st["source"], a)
+            elif op == "approveOverrun":
+                ln = st.get("line", "A"); L = lines[ln]; x = sat(st["need"]) - L["available"]
+                if "expectShortfall" in st and baht(x) != st["expectShortfall"]: ok = False; trace.append(f"shortfall={baht(x)}")
+                L["funded"] += x; L["reserved"] += x; alloc["OB:" + st["id"]] = x
+                overruns[st["id"]] = ov = {"request": st["request"], "line": ln, "x": x, "status": "APPROVED", "used": 0, "returned": 0, "rau": 0, "seq": 0}
+            elif op == "consumeOverrun":
+                ov = overruns[st["id"]]; L = lines[ov["line"]]; m = sat(st["need"]); x = alloc["OB:" + st["id"]]
+                needed = max(0, m - L["available"])
+                if needed > x: err = ("BUDGET_INSUFFICIENT", needed - x)
+                else:
+                    alloc["OB:" + st["id"]] = 0; L["reserved"] -= x; L["available"] += x
+                    L["available"] -= x - needed; L["funded"] -= x - needed
+                    L["available"] -= m; L["reserved"] += m; alloc["REQ:" + ov["request"]] = alloc.get("REQ:" + ov["request"], 0) + m
+                    used_order[0] += 1; ov.update(status="CONSUMED", used=needed, returned=x - needed, seq=used_order[0])
+            elif op == "lapseOverrun":
+                ov = overruns[st["id"]]; L = lines[ov["line"]]; x = alloc["OB:" + st["id"]]
+                alloc["OB:" + st["id"]] = 0; L["reserved"] -= x; L["funded"] -= x
+                ov.update(status="LAPSED", used=0, returned=x)
+            elif op == "approvePo":
+                L = lines[st["line"]]; req = st["request"]; rel = sat(st["release"]); hold = sat(st["hold"])
+                alloc["REQ:" + req] -= rel; L["reserved"] -= rel; L["available"] += rel
+                if hold > L["available"]: err = ("BUDGET_INSUFFICIENT", hold - L["available"])
+                else:
+                    L["available"] -= hold; L["committed"] += hold; alloc["PO:" + st["po"]] = hold; po_request[st["po"]] = req
+                    after_use(st["line"], req, rel - hold)
+            elif op == "closePo":
+                L = lines[st["line"]]; key = "PO:" + st["po"]; act = sat(st["actual"])
+                L["committed"] -= act; L["actual"] += act; back = alloc[key] - act
+                alloc[key] = 0; L["committed"] -= back; L["available"] += back
+                after_use(st["line"], po_request[st["po"]], back)
+            elif op == "submitTransfer":
+                kind = st.get("kind", "TRANSFER"); a = sat(st["amount"]); transfers[st["id"]] = {"kind": kind, "from": st.get("from"), "to": st.get("to"), "amount": a}
+                if kind != "INCREASE":
+                    L = lines[st["from"]]
+                    if a > L["available"]: err = ("BUDGET_INSUFFICIENT", a - L["available"]); del transfers[st["id"]]
+                    else: L["available"] -= a; L["reserved"] += a; held[st["id"]] = a
+            elif op == "approveTransfer":
+                t = transfers[st["id"]]
+                if t["kind"] != "INCREASE":
+                    L = lines[t["from"]]; h = held.pop(st["id"]); L["reserved"] -= h; L["funded"] -= h
+                if t["kind"] != "DECREASE":
+                    L = lines[t["to"]]; L["available"] += t["amount"]; L["funded"] += t["amount"]
+            elif op == "rejectTransfer":
+                t = transfers[st["id"]]
+                if st["id"] in held:
+                    L = lines[t["from"]]; h = held.pop(st["id"]); L["reserved"] -= h; L["available"] += h
+            else: ok = False; trace.append(f"unknown op {op}")
+            if "expectError" in st:
+                ok = ok and err is not None and err[0] == st["expectError"] and ("shortfall" not in st or baht(err[1]) == st["shortfall"])
+            elif err is not None: ok = False; trace.append(f"{op} {err}")
+            for k, exp in (st.get("expect") or {}).items():
+                if k in lines:
+                    for b, v in exp.items():
+                        if baht(lines[k][b]) != v: ok = False; trace.append(f"{op} {k}.{b}={baht(lines[k][b])}")
+                elif k in ("used", "returned"):
+                    if ov is None or baht(ov[k]) != exp: ok = False; trace.append(f"{op} {k}={ov and baht(ov[k])}")
+                elif k == "returnedAfterUse":
+                    got = baht(sum(o["rau"] for o in overruns.values()))
+                    if got != exp: ok = False; trace.append(f"{op} returnedAfterUse={got}")
+                else: ok = False; trace.append(f"unknown expect {k}")
+            # INV-BUD-01 · INV-BUD-07: the buckets add up to what the line holds · INV-BUD-02: nothing below zero
+            for L in lines.values():
+                if L["available"] + L["reserved"] + L["committed"] + L["actual"] != L["funded"]: ok = False; trace.append("INV-BUD-01")
+                if min(L.values()) < 0: ok = False; trace.append("INV-BUD-02")
+            # INV-BUD-09: a used or lapsed overrun earmarks nothing, used + returned = X, returned after use ≤ used
+            for oid, o in overruns.items():
+                if o["status"] in ("CONSUMED", "LAPSED") and (alloc["OB:" + oid] or o["used"] + o["returned"] != o["x"] or o["rau"] > o["used"]): ok = False; trace.append("INV-BUD-09")
+        out.append((c["id"], ok, trace or "ok"))
+    return out
+def run_workflow_reports(d):
+    # BR-RPT-03 to BR-RPT-06 (S6-20): business minutes of the suite's calendar (as run_sla counts them), the decision
+    # time without the INFO_REQUESTED pauses, the lower median, bottlenecks by overdue then median, the Thai weekday and
+    # hour of an instant, and the decisions whose decider (or the one they acted for) is not among the expected
+    cal = d["calendar"]; wd = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
+    work = {wd[x] for x in cal["workdays"]}; hol = set(cal["holidays"])
+    s0, e0 = dtime.fromisoformat(cal["start"]), dtime.fromisoformat(cal["end"])
+    def between(x, y):
+        x, y, tot, day = x.astimezone(BKK), y.astimezone(BKK), 0.0, x.astimezone(BKK).date()
+        while day <= y.date():
+            if day.weekday() in work and day.isoformat() not in hol:
+                lo, hi = max(datetime.combine(day, s0, BKK), x), min(datetime.combine(day, e0, BKK), y)
+                if hi > lo: tot += (hi - lo).total_seconds() / 60
+            day += timedelta(days=1)
+        return int(tot)
+    names = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+    out = []
+    for c in d["cases"]:
+        f, i = c["fn"], c["input"]
+        if f == "cycleMinutes": got = between(dt(i["from"]), dt(i["to"]))
+        elif f == "decisionMinutes":
+            a, b = dt(i["assignedAt"]), dt(i["decidedAt"])
+            got = between(a, b) - sum(between(max(a, dt(p["from"])), min(b, dt(p["to"]))) for p in i["pauses"] if min(b, dt(p["to"])) > max(a, dt(p["from"])))
+        elif f == "lowerMedian": s = sorted(i); got = s[(len(s) - 1) // 2] if s else None
+        elif f == "bottlenecks": got = [r["at"] for r in sorted(i, key=lambda r: (-r["overdue"], -(r["median"] if r["median"] is not None else -1)))]
+        elif f == "heatCell": t = dt(i["at"]).astimezone(BKK); got = {"weekday": names[t.weekday()], "hour": t.hour}
+        elif f == "wrongDoa": got = [x["ref"] for x in i["decisions"] if x["decider"] not in x["expected"] and not (x.get("onBehalfOf") and x["onBehalfOf"] in x["expected"])]
+        else: raise ValueError(f)
+        out.append((c["id"], got == c["expect"], got))
+    return out
 # One suite per line, sorted by name: each lane adds its own line, so git merges the additions (P1-07)
 RUNNERS = {
     "ai-confidence": run_ai_confidence,
@@ -1407,12 +1937,15 @@ RUNNERS = {
     "bank-precheck": run_bank_precheck,
     "bankfile-neutral": run_bankfile_neutral,
     "budget": run_budget,
+    "budget-change": run_budget_change,
     "consolidation": run_cons,
     "dates": run_dates,
     "delegation": run_delegation,
     "doa": run_doa,
     "doa-lint": run_doa_lint,
+    "duplicates": run_duplicates,
     "forms": run_forms,
+    "forms-s6": run_forms_s6,
     "grni": run_grni,
     "invoice-confirmation": run_ivc,
     "invoice-vat": run_invoice_vat,
@@ -1421,6 +1954,7 @@ RUNNERS = {
     "numbering": run_numbering,
     "payment-run": run_payment_run,
     "po-change": run_po_change,
+    "price-reference": run_price_reference,
     "quotations": run_quotes,
     "receiving": run_gr,
     "retention": run_retention,
@@ -1430,6 +1964,8 @@ RUNNERS = {
     "thai": run_thai,
     "vat-rate": run_vat,
     "wht": run_wht,
+    "workflow": run_workflow,
+    "workflow-reports": run_workflow_reports,
 }
 n_suites = n_cases = 0
 for path, (data, ln) in sorted(golden.items()):

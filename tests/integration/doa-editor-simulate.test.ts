@@ -8,7 +8,7 @@ import { decideTask } from '@/server/services/approvals/decide'
 import { submitDoaVersion } from '@/server/services/doa'
 import { draftDoaCopy, getDoaEditor, type DraftCopyInput } from '@/server/services/doa/editor'
 import { getDoaSimulation, type SimulatedRouteView } from '@/server/services/doa/simulate'
-import { createDraft, submitRequest } from '@/server/services/requests'
+import { createDraft, submitRequest } from '../support/requests'
 import { createDoaOrg, type DoaOrg } from '../support/doa-org'
 import { pinStepUp } from '../support/pin'
 

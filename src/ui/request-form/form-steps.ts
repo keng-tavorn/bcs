@@ -1,6 +1,6 @@
 import type { FieldDef, FieldType } from '@/core/forms/fields'
 import { documentFieldIds } from './document-fields'
-import type { Problem } from './model'
+import type { FormProblem } from './model'
 import { failureKey, failureTarget, type FormFailure } from './outcome'
 import type { FormDefinition } from './types'
 
@@ -150,7 +150,7 @@ export function stepIndexOf(plan: readonly PlannedStep[], every: readonly Planne
 export type StepTarget = { readonly field: string } | { readonly section: Section }
 
 /** The part of the form that fixes each problem "ตรวจก่อนส่ง" lists */
-export function targetOfProblem(p: Problem): StepTarget {
+export function targetOfProblem(p: FormProblem): StepTarget {
   switch (p.kind) {
     case 'FIELD_REQUIRED':
       return { field: p.fieldId }
@@ -161,6 +161,9 @@ export function targetOfProblem(p: Problem): StepTarget {
     case 'NO_LINES':
     case 'LINE_INCOMPLETE':
     case 'SERVICE_END_DATE':
+    case 'AGREEMENT_REASON':
+    case 'AGREEMENT_BEFORE_VAT':
+    case 'CATALOG_UNLISTED':
       return { section: 'lines' }
     case 'QUOTATION_INCOMPLETE':
     case 'QUOTATION_FILE':
@@ -183,7 +186,7 @@ export function targetOfFailure(f: FormFailure): StepTarget | null {
   if (key === 'FORM_FIELD' || field.startsWith('formData.') || field === 'title') return { section: 'title' }
   if (BUDGET_LINE_KEYS.has(key)) return { section: 'budgetLine' }
   if (key === 'SITE_UNKNOWN') return { section: 'deliverySite' }
-  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || field.startsWith('lines')) return { section: 'lines' }
+  if (key === 'NO_LINES' || key === 'SERVICE_END_DATE' || key === 'BUDGET_INSUFFICIENT' || field.startsWith('lines') || field === 'offAgreementReason' || field === 'priceIncludesVat') return { section: 'lines' }
   if (key === 'SUPPLIER_UNKNOWN') return { section: 'supplier' }
   if (key.startsWith('QUOTE_') || field.startsWith('quotations') || field === 'nonLowestQuoteReason') return { section: 'quotations' }
   if (key === 'ATTACHMENT_RULE_FAILED') return { section: 'rules' }
@@ -201,8 +204,9 @@ export function stepOfTarget(steps: readonly PlannedStep[], target: StepTarget):
  * are left to the documents and the check before sending — the file may come later, and the server checks the rules
  * when the request is sent (BR-FORM-03) — and no budget line to choose stops nothing, as there is none to choose.
  */
-export function stopsNext(p: Problem, hasBudgetLines: boolean): boolean {
-  if (p.kind === 'ATTACHMENTS' || p.kind === 'QUOTATION_FILE') return false
+export function stopsNext(p: FormProblem, hasBudgetLines: boolean): boolean {
+  // The reason for another supplier than the agreed one may wait: the supplier is suggested on a later step (S6-10)
+  if (p.kind === 'ATTACHMENTS' || p.kind === 'QUOTATION_FILE' || p.kind === 'AGREEMENT_REASON') return false
   if (p.kind === 'BUDGET_LINE') return hasBudgetLines
   return true
 }

@@ -351,8 +351,9 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `EXECUTIVE` | ผู้บริหาร | dashboard รายงาน สรุปรายวัน (ดูอย่างเดียว) |
 | `AUDITOR` | ผู้ตรวจสอบ | อ่านอย่างเดียวทั้งองค์กร ส่งออก audit trail |
 | `ORG_ADMIN` | ผู้ดูแลองค์กร | ผู้ใช้ ชื่อแผนก cost center ประเภทคำขอ ปฏิทิน เลขเอกสาร · ร่าง DOA และเสนอการเปลี่ยนโครงสร้างอำนาจ ซึ่งมีผลหลังผ่าน 4-eyes · ดูสถานะโมดูล · ควรมีอย่างน้อย 2 คนต่อองค์กร |
+| `DOA_ADMIN` | ผู้ดูแลผังอำนาจ (S6 · FR-ADM-101) | ร่าง ทดลอง ย้อนทดสอบ และส่งเผยแพร่ DOA และผู้ตรวจคู่ขนาน · ไม่ได้สิทธิ์อนุมัติ · ORG_ADMIN ให้ role นี้ได้ ห้ามให้ตัวเอง และ AUDITOR ได้รับแจ้งทุกครั้ง · DOA ฉบับที่มีผลตั้ง `sodPolicy.doaAdminSeparated = true` → ORG_ADMIN ไม่มี `admin.doa.*` `admin.workflow.*` และห้ามคนเดียวถือทั้งสอง role (BR-WF-16 BR-WF-17 · OQ-109) |
 | `PLATFORM_ADMIN` | ทีม BCS | สร้าง tenant · เปิดปิดโมดูลตามสัญญา (BR-AUTH-08) · ยืนยันตัวตนผู้มีอำนาจลงนามตามสัญญา (BR-DOA-19) · สองเรื่องหลังไม่ต้อง break-glass เพราะไม่อ่านข้อมูลธุรกิจ · ไม่มีสิทธิ์ทางธุรกิจ และไม่ร่าง แก้ หรืออนุมัติ DOA ของลูกค้า (NG-12) · เข้าข้อมูล tenant ได้เฉพาะ break-glass (BR-AUTH-03) |
-| `REVIEWER_IT` / `_LEGAL` / `_FINANCE` / `_INFOSEC` | ผู้ตรวจข้ามแผนก | ชั้น 2 (อนุมัติคู่ขนาน) และชั้น 3 (ความเสี่ยง) |
+| `REVIEWER_IT` / `_LEGAL` / `_FINANCE` / `_INFOSEC` | ผู้ตรวจข้ามแผนก | ชั้น 3 (ความเสี่ยง) · ไม่ใช้ในอนุมัติคู่ขนานของชั้น 2: ผู้ตรวจคู่ขนานมาจากตำแหน่งใน `WorkflowVersion` ที่ผ่าน 4-eyes ไม่ใช่ role ที่ ORG_ADMIN ให้ได้คนเดียว (OQ-101 · BR-WF-08) |
 | `SUPPLIER_CONTACT` | ผู้ติดต่อของผู้ขาย | ชั้น 2 ใช้ session แยกจากผู้ใช้ภายในโดยสิ้นเชิง |
 | `SYSTEM` · `AI_AGENT:<name>` | ผู้กระทำที่ไม่ใช่คน | งานตามเวลา (ชั้น 1) · AI (ชั้น 4) บันทึก `actorType` แยกเสมอ |
 
@@ -374,11 +375,13 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | Capability | ผู้ได้รับ (scope) |
 | --- | --- |
 | `request.create` · `request.submit` | ทุก member (OWN) |
-| `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
+| `request.view` | ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) — รวมผู้อนุมัติเกินงบของคำขอนั้น (S6-16) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) |
 | `request.cancel` | ผู้ขอ (OWN, ก่อนมี PO) · PROCUREMENT (ORG, สถานะ APPROVED ที่ยังไม่สั่ง, ต้องระบุเหตุผล) |
 | `request.follow` | ผู้ที่มี `request.view` ของคำขอนั้น: ผู้ขอ/ผู้ติดตาม (OWN) · ผู้ได้รับงาน (ASSIGNED) · DEPT_HEAD (DEPT) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR, ORG_ADMIN (ORG) — ติดตามหรือเลิกติดตามตนเองเท่านั้น และผู้ขอไม่ต้องติดตามคำขอของตนเอง (FR-INT-013 AC1) |
+| `request.reorder` | ผู้ขอ (OWN) — ขอซ้ำหรือต่ออายุจากคำขอของตนเอง ได้ร่างใหม่ตาม BR-FORM-07 ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ (S6-12, FR-INT-101) |
 | `request.followers.manage` | ผู้ขอ (OWN) — เพิ่มหรือเอาผู้ติดตามออก โดยเพิ่มได้เฉพาะสมาชิกที่มี `request.view` ของคำขอนั้นอยู่แล้ว เพราะการติดตามไม่ขยายสิทธิ์ดู (OQ-39 · FR-INT-013 AC1) |
 | `approval.decide` | **เฉพาะผู้ที่ DOA กำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ |
+| `review.decide` | **เฉพาะผู้ที่ workflow ฉบับที่มีผลกำหนดให้ในงานนั้น** (รวมผู้รักษาการ) — ไม่มี role ใดได้สิทธิ์นี้ · ผ่าน ตีกลับ หรือขอข้อมูล ไม่มีไม่อนุมัติ และไม่ต้อง step-up · เหตุผลของผู้ตรวจเห็นได้โดยผู้ขอ ผู้อนุมัติตาม DOA ของเส้นทาง ผู้ตรวจของ slot นั้น และ AUDITOR ผู้ตรวจ slot อื่นเห็นเฉพาะสถานะ (S6 · FR-WF-101 · BR-WF-09) |
 | `approval.reassign` | ORG_ADMIN (ORG) · ระบบยอมรับเฉพาะผู้รับใหม่ที่ DOA ฉบับเดิมให้อำนาจในข้อเดิมหรือช่วงวงเงินที่สูงกว่าและไม่ขัด SoD · ต้องระบุเหตุผล |
 | `delegation.manage` | ผู้มอบ (OWN) · ORG_ADMIN ตั้งแทนผู้อื่นได้ผ่าน `admin.orgAuthority.propose` ชนิด `DELEGATION_ON_BEHALF` เท่านั้น |
 | `procurement.pool.view` · `po.create` · `po.edit` · `po.submit` · `po.send` · `po.cancel` · `po.close` | PROCUREMENT (ORG) |
@@ -409,10 +412,15 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `bankAccountChange.propose` | FINANCE (ORG) — ร่าง แก้ แนบหลักฐาน ส่ง และยกเลิกคำขอเพิ่ม เปลี่ยน หรือปิดบัญชี (OQ-133 OQ-137) โดยแก้ ส่ง และยกเลิกได้เฉพาะผู้เสนอ · อนุมัติตาม DOA ชนิด `BANK_ACCOUNT_CHANGE` เท่านั้น (BR-SUP-06) |
 | `accountCode.manage` | FINANCE (ORG) — เพิ่มและแก้รหัสบัญชีขององค์กร (เลิกใช้ด้วย active ไม่ลบ · FR-AP-108) |
 | `invoice.inbox.manage` | FINANCE (ORG) — ดูกล่องอีเมลใบแจ้งหนี้ ดึงอีเมลตอนนี้ และข้ามอีเมลพร้อมเหตุผล (ADR-123) · สร้างร่างจากไฟล์ในกล่องใช้ `invoice.record` |
-| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
+| `budget.view` | ผู้ขอเห็นยอดคงเหลือของบรรทัดงบที่เลือกในฟอร์ม · ผู้ได้รับงาน (ASSIGNED) — ผู้อนุมัติการโอนงบเห็นการโอนนั้น (S6-15) และผู้อนุมัติเกินงบเห็นการขอนั้น (S6-16) · DEPT_HEAD (DEPT) · FINANCE, BUDGET_ADMIN, EXECUTIVE, AUDITOR (ORG) |
 | `budget.import` · `budgetGrant.manage` | BUDGET_ADMIN (ORG) |
+| `budget.transfer.submit` | BUDGET_ADMIN (ORG) · DEPT_HEAD (DEPT) — แผนกของบรรทัดต้นทาง หรือปลายทางเมื่อปรับเพิ่ม · ส่งโอน ปรับเพิ่ม หรือปรับลดงบให้อนุมัติตามข้อ `BUDGET_TRANSFER` ผู้ส่งอนุมัติเองไม่ได้ (S6-15 · FR-BUD-103 · OQ-105) |
+| `budget.overrun.submit` | ผู้ขอ (OWN) — ขออนุมัติเกินงบให้คำขอ DRAFT หรือ RETURNED ของตนที่บรรทัดงบไม่พอ และยกเลิกที่ตนขอ ผู้ติดตามและหัวหน้าฝ่ายทำไม่ได้ ผู้ขออนุมัติเองไม่ได้ (S6-16 · FR-BUD-101 · OQ-104) |
 | `supplier.view` | ทุก member เห็นชื่อและข้อมูลพื้นฐาน · PROCUREMENT, FINANCE, AUDITOR เห็นทั้งหมด |
 | `supplier.manage` | PROCUREMENT (ORG) |
+| `catalog.view` | ทุก member (ORG) — ค้นหาแคตตาล็อก ราคาอ้างอิง และราคาตกลงที่มีผล (S6-10 · FR-INT-102) |
+| `catalog.manage` | PROCUREMENT (ORG) — เพิ่มและแก้สินค้า ตั้งและสิ้นสุดราคาตกลง มี event ทุกครั้ง (BR-PRC-06 · OQ-114) |
+| `priceReference.view` | ผู้ได้รับงาน (ASSIGNED) · PROCUREMENT, FINANCE, EXECUTIVE, AUDITOR (ORG) — แผงราคาอ้างอิงของคำขอ (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นหรือของ PO ที่ซื้อจากคำขอนั้น ที่เปิดอยู่หรือเคยได้ รวมผู้รักษาการ — ผู้ขอ ผู้ติดตาม และหัวหน้าฝ่ายที่ไม่ได้รับงานไม่เห็น เพราะราคามาจาก PO ทั้งองค์กร (S6-11 · BR-PRC-07 · OQ-116) |
 | `export.express` | FINANCE (ORG) |
 | `report.view` | FINANCE, PROCUREMENT, EXECUTIVE, AUDITOR (ORG) · DEPT_HEAD (DEPT) |
 | `report.schedule` | FINANCE, EXECUTIVE |
@@ -423,7 +431,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `admin.modules.view` | ORG_ADMIN (ORG) |
 | `platform.modules.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass (BR-AUTH-08) |
 | `admin.orgAuthority.propose` | ORG_ADMIN (ORG) — แต่งตั้งหรือสิ้นสุดผู้ดำรงตำแหน่งที่ DOA อ้าง ย้ายแผนก ตั้งรักษาการแทนผู้อื่น รีเซ็ตตัวตนของผู้มีอำนาจ · อนุมัติตามข้อ `ORG_AUTHORITY_CHANGE` (BR-DOA-17) |
-| `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN (ORG) — อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) |
+| `admin.doa.draft` · `admin.doa.simulate` · `admin.doa.submitForPublish` | ORG_ADMIN, DOA_ADMIN (ORG) — ORG_ADMIN ไม่ได้เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (BR-WF-17 · S6-09) · อนุมัติตามข้อ `DOA_CHANGE` · ผู้ส่ง ≠ ผู้อนุมัติ · แยกให้คนอื่นได้ภายหลังโดยไม่แก้ตาราง (OQ-34) · `admin.doa.submitForPublish` ขอถอนฉบับที่อนุมัติแล้วแต่ยังไม่มีผลได้ด้วย (S6-07 · FR-DOA-104 · คนที่ขอถอนอนุมัติการถอนนั้นเองไม่ได้) |
+| `admin.workflow.draft` · `admin.workflow.simulate` · `admin.workflow.submitForPublish` | ORG_ADMIN, DOA_ADMIN (ORG) — ORG_ADMIN ไม่ได้เมื่อแยกผู้ดูแล DOA เช่นเดียวกับ `admin.doa.*` (BR-WF-17) · ผู้ตรวจคู่ขนาน (S6 · FR-WF-103) · อนุมัติเผยแพร่ตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้งบนเว็บ · ผู้ส่ง ≠ ผู้อนุมัติ (BR-WF-12) · ผู้ถืองานอนุมัติของฉบับนั้นอ่านหน้าฉบับและทดลองส่งได้โดยไม่มีสิทธิ์นี้ (FR-WF-103 AC3) · `admin.workflow.submitForPublish` ขอถอนฉบับที่ยังไม่มีผลด้วยกติกาเดียวกับ DOA (S6-07) |
 | `admin.policyHistory.view` · `admin.policyHistory.export` | AUDITOR · ORG_ADMIN (ORG) — ประวัติการเปลี่ยน DOA โครงสร้างอำนาจ โมดูล และกฎเอกสารแนบ (FR-DOA-011) |
 | `self.lineLink` · `self.pin` · `self.twoFactor` · `self.notificationPrefs` | ทุก member (OWN) |
 | `ai.assist` | ทุก member (OWN) — ใช้ AI เติมเอกสารของตน และ service ตรวจสิทธิ์ของเอกสารปลายทางซ้ำ (`request.create` `gr.post` สิทธิ์บันทึกใบแจ้งหนี้) (S13) |
@@ -433,6 +442,8 @@ PLATFORM_ADMIN เปิดปิดโมดูลตามสัญญา ส�
 | `ai.actions.view` | AUDITOR (ORG) ดูเนื้อหาทั้งหมด · ทุก member (OWN) ดูเนื้อหาของ AgentAction ที่ตนเรียก · ORG_ADMIN (ORG) — metadata เท่านั้น (agent purpose สถานะ เวลา credits เครื่องมือ) ไม่เห็น `inputText` `output` ของผู้อื่น |
 | `admin.ai.manage` | ORG_ADMIN (ORG) — เปิดปิด agent รายตัวและตั้ง `minConfidenceBp` (BR-AI-24) |
 | `platform.ai.credits` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · ไม่ต้อง break-glass และไม่เห็นข้อมูลธุรกิจ (BR-AI-23) |
+| `platform.sandbox.manage` | PLATFORM_ADMIN · ต้องระบุ contractRef และเหตุผล · สร้าง UAT sandbox ของลูกค้าแบบว่าง ไม่มีทางคัดลอกผัง DOA หรือข้อมูลใดจาก production (S6-21 · FR-PLT-101 · BR-UAT-04 · NG-12) |
+| `config.export` · `config.import` | ORG_ADMIN, DOA_ADMIN (ORG) — ส่งออกและนำเข้าชุดค่าตั้งขององค์กรตน นำเข้าได้เฉพาะร่าง ส่วน DOA และ workflow ต้องมี `admin.doa.draft` `admin.workflow.draft` ด้วย (S6-21 · BR-UAT-02 BR-UAT-03 · BR-WF-17) · ทีม BCS ทำแทนลูกค้าไม่ได้ (NG-12) |
 
 **OWN ของคำขอ (S16-06 · FR-INT-013 AC3):** `request.view` และ `request.follow` นับผู้ขอและผู้ติดตามเป็น OWN · `request.create` (แก้ร่างและไฟล์แนบ) `request.submit` `request.cancel` และ `request.followers.manage` นับเฉพาะผู้ขอเป็น OWN ผู้ติดตามจึงส่ง แก้ ยกเลิก หรือเพิ่มผู้ติดตามไม่ได้ · service ส่ง `ownerMemberIds` ตามนี้ และเทสต์ปฏิเสธทุกคำสั่ง
 
@@ -615,6 +626,11 @@ sequenceDiagram
 | `line-quota-check` | cron รายวัน 09:00 | ตรวจโควตา push ของเดือน เตือนเมื่อถึง 80% | S5 |
 | `audit-seal-daily` · `audit-verify` | cron รายวัน 00:15 · รายสัปดาห์ | seal และตรวจ hash chain | S5 |
 | `doa-version-activate` | `bcs/doa_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับก่อนหน้าเป็น `SUPERSEDED` และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16) | S2 |
+| `workflow-version-activate` | `bcs/workflow_version.published` | sleepUntil(effectiveFrom) → ตั้งฉบับ workflow ก่อนหน้าเป็น `SUPERSEDED` (BR-WF-12) | S6 |
+| `renewal-reminders` | cron 08:00 ทุกวัน (เวลาไทย) | เตือนบรรทัดบริการก่อนหมดตาม `renewal.milestoneDays` ครั้งเดียวต่อ milestone ทุกองค์กร ไม่ต้องเปิด `CONTRACTS` (S6-12 · FR-INT-101 AC2 · BR-FORM-08) | S6 |
+| `budget-overrun-lapse` | cron ทุกชั่วโมงที่นาที 5 (เวลาไทย) | การขอเกินงบที่อนุมัติแล้วแต่ไม่ได้ใช้จนถึง lapsesAt คืน earmark และยอดที่เติมออกจากบรรทัดงบ · แจ้งผู้ขอครั้งเดียว 2 วันก่อนหมดอายุ ทุกองค์กร (S6-16 · FR-BUD-101 · BR-BUD-15) | S6 |
+| `budget-burn-alerts` | cron 07:30 ทุกวัน (เวลาไทย) | ขึ้นเตือนอัตราใช้งบถึงเกณฑ์ `budget.alertThresholdsBp` และพยากรณ์เกินงบ ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ ทุกองค์กร ก่อนสรุปรายวัน (S6-18 · FR-BUD-104 · BR-BUD-17) | S6 |
+| `backtest-run` | `bcs/backtest.requested` | ย้อนทดสอบร่าง DOA หรือ workflow ที่มีเอกสารเกิน 500 ฉบับในช่วง 90 วัน แล้วบันทึกผลลง `BacktestRun` ครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3 · ADR-111) | S6 |
 | `org-authority-apply` | `bcs/org_authority_change.approved` | sleepUntil(effectiveFrom) → ใช้การเปลี่ยน ย้ายงานค้างของตำแหน่งนั้นไปผู้ดำรงคนใหม่ และแจ้งผู้ที่อำนาจเปลี่ยน (BR-DOA-16 BR-DOA-17) | S2 |
 | `tax-rate-expiry-alert` | cron รายวัน | เตือน PLATFORM_ADMIN ก่อนอัตรา VAT ช่วงสุดท้ายที่ตั้งไว้หมดอายุ 30 · 7 · 1 วัน (BR-VAT-01) | S4 |
 
@@ -729,7 +745,7 @@ sequenceDiagram
 | `CONTRACTS` | คลังสัญญา เตือนต่ออายุ Legal review | CORE | S12 (หลังระยะ 2) |
 | `AI` | agents ตาม credits | CORE | S13 (ระยะ 1 ขั้น 3) |
 | `INTEGRATION` | Express API, e-Tax Invoice, BI | CORE | S14 (หลังระยะ 2) |
-| `DOA_EVERYWHERE` | e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | CORE | S15 (หลังระยะ 2) |
+| `DOA_EVERYWHERE` | e-Memo สัญญา ใบสำคัญจ่าย (โอนงบเป็น CORE ใน S6 · FR-BUD-103 · OQ-105) | CORE | S15 (หลังระยะ 2) |
 | `BCS_GO` | แอป Capacitor | CORE | S17 (ระยะ 1 ขั้น 4) |
 
 ถ้าองค์กรเปิด `PAY` โดยไม่เปิด `SUPPLIER` บัญชีธนาคารผู้ขายจัดการโดยผู้ใช้ภายในผ่านทะเบียนผู้ขายของ CORE และยังต้องผ่านกฎการเปลี่ยนบัญชี (BR-SOD-05) · ในระยะ 1 ทุกองค์กรอยู่ในกรณีนี้ เพราะ `SUPPLIER` อยู่ระยะ 2 (ADR-057)
@@ -1168,7 +1184,7 @@ stateDiagram-v2
 1. เป็น pure function ใน `src/core` รับ input + policy + เวลาเป็นพารามิเตอร์ คืนผลลัพธ์พร้อมคำอธิบาย ห้ามอ่านเวลา สภาพแวดล้อม หรือฐานข้อมูลเอง
 2. ไฟล์ `tests/golden/*.yaml` ในหัวข้อนี้คือ **สัญญา** ของ engine ให้คัดลอกไปวางตามชื่อไฟล์ในบรรทัดแรกของแต่ละบล็อก test runner ต้องค้นหาไฟล์และนับเคสเอง (ไม่ hardcode จำนวน) และชื่อเทสต์ต้องมี id ของเคส เช่น `[GC-DOA-07]`
 3. เงินใน YAML เขียนเป็นสตริงบาท 2 ตำแหน่ง (`"20000.01"`) แล้วแปลงเป็นสตางค์ตอนโหลด เวลาเขียนเป็น ISO 8601 UTC (`Z`) หรือมี offset `+07:00`
-4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,payment,bankfile}` (ai-checks เพิ่มใน S13-02 · payment เพิ่มใน S9-02 · bankfile เพิ่มใน S9-03)
+4. branch coverage 100% สำหรับ `src/core/{money,vat,thai,numbering,doa,sod,delegation,budget,sla,invoice,grni,ai-checks,matching,workflow,duplicates,pricing,payment,bankfile}` (ai-checks เพิ่มใน S13-02 · workflow duplicates pricing เพิ่มใน S6-01 · payment เพิ่มใน S9-02 · bankfile เพิ่มใน S9-03)
 5. ถ้าผลของ engine ขัดกับ golden case ห้ามแก้ golden case เพื่อให้เทสต์ผ่าน ให้หยุดและถาม (§17.4)
 6. `scripts/spec_check.py` คำนวณ golden cases ในเอกสารนี้ซ้ำด้วย implementation อ้างอิงภาษา Python ใช้ตรวจว่าตัวเลขใน spec สอดคล้องกันเองก่อนส่งให้ agent
 
@@ -1406,7 +1422,7 @@ export function resolveRoute(
 | BR-DOA-05 | แผนกที่ใช้หาผู้อนุมัติคือแผนกเจ้าของงบที่ถูกตั้งเบิก (`chargedDepartmentId`) ไม่ใช่แผนกของผู้ขอ (OQ-27) |
 | BR-DOA-06 | ถ้าผู้อนุมัติที่หาได้อยู่ใน `conflictMemberIds`: policy `ESCALATE_NEXT_BAND` ไล่ไปข้อของช่วงวงเงินถัดไปของ documentType เดียวกัน (เรียงตามขอบล่างของวงเงิน) จนเจอผู้อนุมัติที่ไม่ขัดแย้ง หมดช่วงแล้ว → `NO_HIGHER_AUTHORITY` · policy `BLOCK` → `SOD_VIOLATION` ทันที · บันทึก `escalatedFromRuleCode` และเหตุผลในคำอธิบาย วิธีนี้ไม่ให้อำนาจแก่ตำแหน่งที่ DOA ไม่ได้ให้ไว้ |
 | BR-DOA-07 | เมื่อ route มีหลาย step และคนเดียวกันปรากฏใน step ติดกัน เก็บเฉพาะ step หลัง (OQ-05) |
-| BR-DOA-08 | lint ก่อนส่งเผยแพร่ ผลเป็นรายการ error และ warning ที่มีรหัส: (ก) documentType ที่มีข้อแบบวงเงินล้วนต้องครอบคลุมช่วง (0, ∞) ไม่มีช่องว่าง (`DOA_LINT_GAP`) และไม่ทับกัน (`DOA_LINT_OVERLAP`) (ข) ตำแหน่งที่อ้างต้องมีอยู่ ตำแหน่งที่ไม่มีผู้ดำรงเป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_VACANT_POSITION`) (ค) ไม่มี step แบบ `PARALLEL` ก่อน S6 (ง) `DoaTestCase` ของฉบับนั้นผ่านทั้งหมด (จ) ทุกฉบับต้องมีข้อ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` (`DOA_LINT_MISSING_DOCTYPE`) ที่หาผู้อนุมัติได้ ณ วันมีผล (`DOA_LINT_UNRESOLVABLE_GOVERNANCE`) กันลูกค้าล็อกตัวเองออกจากระบบ (ฉ) ผู้อนุมัติแบบ `MEMBER` ใช้ได้แต่เป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_MEMBER_APPROVER`) (ช) ระบบสร้างตารางผลที่ขอบของทุกช่วง (ขอบบน และขอบบน + 0.01) ให้ผู้ร่างและผู้อนุมัติเห็นและติ๊กยืนยัน · มี error ใด → `DOA_LINT_FAILED` |
+| BR-DOA-08 | lint ก่อนส่งเผยแพร่ ผลเป็นรายการ error และ warning ที่มีรหัส: (ก) documentType ที่มีข้อแบบวงเงินล้วนต้องครอบคลุมช่วง (0, ∞) ไม่มีช่องว่าง (`DOA_LINT_GAP`) และไม่ทับกัน (`DOA_LINT_OVERLAP`) (ข) ตำแหน่งที่อ้างต้องมีอยู่ ตำแหน่งที่ไม่มีผู้ดำรงเป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_VACANT_POSITION`) (ค) step แบบ `PARALLEL` ต้องเป็นคณะกรรมการตาม BR-WF-05 (ผู้อนุมัติ ≥ 2 คน · `DOA_LINT_PARALLEL_STEP` · องค์ประชุมผิด `DOA_LINT_QUORUM_INVALID`) · ก่อน S6 ไม่มี step แบบ `PARALLEL` (ง) `DoaTestCase` ของฉบับนั้นผ่านทั้งหมด (จ) ทุกฉบับต้องมีข้อ `DOA_CHANGE` และ `ORG_AUTHORITY_CHANGE` (`DOA_LINT_MISSING_DOCTYPE`) ที่หาผู้อนุมัติได้ ณ วันมีผล (`DOA_LINT_UNRESOLVABLE_GOVERNANCE`) กันลูกค้าล็อกตัวเองออกจากระบบ (ฉ) ผู้อนุมัติแบบ `MEMBER` ใช้ได้แต่เป็น warning ที่ต้องกดยืนยัน (`DOA_LINT_MEMBER_APPROVER`) (ช) ระบบสร้างตารางผลที่ขอบของทุกช่วง (ขอบบน และขอบบน + 0.01) ให้ผู้ร่างและผู้อนุมัติเห็นและติ๊กยืนยัน · มี error ใด → `DOA_LINT_FAILED` |
 | BR-DOA-09 | ส่งซ้ำหลังตีกลับ → คำนวณเส้นทางใหม่ทั้งหมดด้วยฉบับที่มีผล ณ เวลาส่งซ้ำ การอนุมัติเดิมไม่นับ |
 | BR-DOA-10 | ทุกการตัดสินบันทึก doaVersionId และ ruleCode · route เก็บคำอธิบายภาษาไทย เช่น "DOA-DEMO ฉบับ 1 ข้อ PR-02: คำขอซื้อยอด 45,000.00 บาท (รวม VAT) อยู่ในช่วงมากกว่า 20,000.00 ถึงไม่เกิน 100,000.00 → VP ของสายปฏิบัติการ" |
 | BR-DOA-11 | ฐานวงเงิน (`GROSS` หรือ `NET`) กำหนดต่อฉบับ (OQ-02) |
@@ -1850,12 +1866,26 @@ cases:
 | BR-BUD-06 | ยกเลิก PO ที่อนุมัติแล้วต้องเลือก disposition: `RETURN_TO_POOL` = คืนถือทั้งหมดแล้วจองคืนให้บรรทัดคำขอด้วย releasable เดิม (ไม่พอ → ทั้งคำสั่งล้มด้วย `BUDGET_INSUFFICIENT`) หรือ `CANCEL_REQUEST_LINES` = คืนถือและยกเลิกจำนวนนั้นในคำขอ · ปิด PO หลังใบกำกับใบสุดท้ายคืนถือที่เหลือทั้งหมด · ปิด PO ที่รับไม่ครบด้วย variance `CLOSE_SHORT` ก่อนมีใบกำกับ คืนเฉพาะส่วนที่ไม่ได้รับ (BR-GR-04) และถือส่วนที่รับแล้วไว้จนบันทึกใบกำกับ ซึ่งบันทึกกับ PO ที่ปิดแล้วได้ ใบสุดท้ายคืนส่วนที่เหลือ (ADR-038) · กติกาเดียวกันใช้กับการปิด PO ทุกแบบก่อนใบกำกับใบสุดท้าย รวม PO ที่รับครบแล้ว และ PO ที่มีใบกำกับบางใบแล้วจึงปิด (รวมปิดด้วย `CLOSE_SHORT`): ถือไว้เฉพาะส่วนที่รับแล้วแต่ยังไม่มีใบกำกับ (ยอดก่อน VAT ของจำนวนที่รับลบยอดที่ใบกำกับรับไปแล้ว) ส่วนอื่นคืนตอนปิด และใบสุดท้ายคืนส่วนที่ยังถือ (ผู้ใช้ 2026-10-08 · NEW-11) |
 | BR-BUD-07 | ปิดปีงบไม่ยกยอดอัตโนมัติ (OQ-26) รายการจองและถือที่ค้างถูกรายงานให้ FINANCE ตัดสินก่อนปิด |
 | BR-BUD-08 | บรรทัดงบ `FROZEN` หรือ `CLOSED` จองใหม่ไม่ได้ แต่ถือและตัดจากรายการเดิมได้ |
-| INV-BUD-01 | ต่อบรรทัดงบ available + reserved + committed + actual = ยอดที่นำเข้าสุทธิเสมอ |
+| BR-BUD-09 | ledger ย้ายไป OUTSIDE ได้เฉพาะ sourceType `BUDGET_TRANSFER` (โอนออก ปรับลด) และ `BUDGET_OVERRUN` (คืนส่วนที่ไม่ใช้ตอนใช้ ตอนหมดอายุ และหลังใช้ตาม BR-BUD-18) · ยอดตั้งของบรรทัด (`plannedSatang` = funded = งบปัจจุบัน) = Σ เข้า − Σ ออก · งบตั้งต้นที่แสดง = Σ ของ sourceType IMPORT |
+| BR-BUD-10 | โอนและปรับงบ: บรรทัดในปีงบเดียวกันที่ OPEN · บรรทัดงบ OPEN · ต้นทาง ≠ ปลายทาง · ยอด > 0 · ส่งแล้วจองต้นทาง ไม่พอ → `BUDGET_INSUFFICIENT` · อนุมัติแล้วย้ายในธุรกรรมเดียวโดยล็อกตาม id (INV-BUD-05) |
+| BR-BUD-11 | input DOA ของ `BUDGET_TRANSFER`: amount = { net: ยอดโอน, vat: 0 } · chargedDepartment = แผนกของบรรทัดต้นทาง (TRANSFER DECREASE) หรือปลายทาง (INCREASE) · conflict = [ผู้ส่ง] |
+| BR-BUD-12 | ขอเกินงบได้เมื่อการจองของคำขอ DRAFT หรือ RETURNED ไม่พอบนบรรทัดงบ OPEN · M = ยอดของคำขอบนบรรทัดนั้น − ยอดที่คำขอจองอยู่แล้วบนบรรทัดนั้น (0 ก่อนส่งครั้งแรก) · X = M − available (core คำนวณ) · X ≤ 0 → `VALIDATION_FAILED` reason `NOT_OVER_BUDGET` · DOA ฉบับที่มีผลไม่มีข้อ `OVER_BUDGET` → `DOA_NOT_CONFIGURED` · input DOA ของ `OVER_BUDGET`: amount = { net: X, vat: 0 } · chargedDepartment = แผนกเจ้าของบรรทัดงบ · conflict = [ผู้ขอ] · เหตุผลบังคับ |
+| BR-BUD-13 | อนุมัติเกินงบ: OUTSIDE→AVAILABLE X แล้ว AVAILABLE→RESERVED X ในนาม overrun (earmark) ในธุรกรรมเดียว |
+| BR-BUD-14 | ใช้ตอนส่งหรือส่งซ้ำ: needed = max(0, M − available) โดย M ตาม BR-BUD-12 · needed > X → `BUDGET_INSUFFICIENT` (shortfall = needed − X) และไม่มีอะไรเปลี่ยน · ไม่เช่นนั้น คืน earmark X · คืน X − needed ไป OUTSIDE · จอง M · overrun CONSUMED usedSatang = needed returnedSatang = X − needed · budgetCheck ของ `request.submitted` บันทึก available หลังคืน earmark |
+| BR-BUD-15 | overrun APPROVED ที่คำขอถูกยกเลิก ถูกยกเลิกเอง หรือถึง lapsesAt → คืน earmark และ X ไป OUTSIDE · overrun LAPSED usedSatang = 0 returnedSatang = X · แจ้งผู้ขอ 2 วันก่อน lapsesAt |
+| BR-BUD-16 | แบ่งค่าใช้จ่าย: บรรทัดคำขอมีบรรทัดงบของตัวเอง (null = ของคำขอ) · ผู้ขอต้องมีสิทธิ์ทุกบรรทัด (แผนกตนหรือ `BudgetGrant`) · จองทุกบรรทัดงบพร้อมกันแบบทั้งหมดหรือไม่มีเลย · DOA ใช้ยอดรวมของคำขอ · chargedDepartment = แผนกที่ยอดก่อน VAT รวมสูงสุด เสมอกัน → แผนกของบรรทัดที่ lineNo ต่ำสุด · ปุ่ม "แบ่งบรรทัด" แบ่งตามจำนวน ยอดแต่ละส่วนคิดตาม BR-MONEY-02 (1) ผลรวมจึงต่างจากเดิมได้ไม่เกิน (ส่วน − 1) สตางค์และแสดงก่อนบันทึก (OQ-106) |
+| BR-BUD-17 | อัตราใช้งบ: usedBp = floor((committed + actual) × 10000 ÷ funded) · forecastBp = floor((committed + actual) × วันของปีงบ × 10000 ÷ (funded × วันที่ผ่านไป)) เมื่อวันที่ผ่านไป ≥ `budget.forecastMinElapsedDays` · funded = 0 → ไม่คำนวณ · เตือนเมื่อ usedBp ≥ แต่ละค่าใน `budget.alertThresholdsBp` และเมื่อ forecastBp > 10000 · เป็นตัวชี้วัด ไม่ใช่ยอดเงิน จึงไม่ใช่จุดปัดของ BR-MONEY-02 · dedupe ต่อบรรทัด เกณฑ์ และปีงบ · ตัวหารของ % ใช้แล้วทุกที่ (กฎนี้ dashboard §11.2 สรุปรายวัน) คือ funded = งบปัจจุบันหลังโอนและปรับ · สรุปรายวันแสดงบรรทัดงบครั้งเดียวพร้อมป้ายทุกเหตุ: เหลือน้อยตาม `digest.budgetLowPct` เดิม (available ÷ funded ไม่เปลี่ยน) · ใช้ถึงเกณฑ์ · พยากรณ์เกิน |
+| BR-BUD-18 | คืนส่วนเกินงบหลังใช้: overrun ที่ CONSUMED มีส่วนค้าง = usedSatang − returnedAfterUseSatang · ทุกคำสั่งที่คืนจองหรือคืนถือของบรรทัดคำขอของคำขอนั้น หรือของบรรทัด PO ที่มีที่มาจากบรรทัดคำขอนั้น บนบรรทัดงบเดียวกัน (ไม่อนุมัติ ยกเลิก ส่งซ้ำด้วยยอดต่ำลง PO อนุมัติที่ถูกกว่าส่วนที่คืน ยกเลิกหรือปิด PO ใบกำกับใบสุดท้าย) ย้าย s = min(ส่วนค้าง, คืนสุทธิ) AVAILABLE→OUTSIDE (sourceType `BUDGET_OVERRUN`) ในธุรกรรมเดียวกัน · คืนสุทธิ = Σ (RESERVED หรือ COMMITTED → AVAILABLE) − Σ (AVAILABLE → RESERVED หรือ COMMITTED) ของ allocation ของคำขอนั้นและบรรทัด PO เหล่านั้นในคำสั่งนั้น ติดลบนับเป็น 0 · returnedAfterUseSatang += s · การคืนของเอกสารอื่น การนำเข้า และโอนเข้าไม่ทำให้คืน · คำขอหนึ่งมีหลาย overrun บนบรรทัดเดียวกัน → คืนให้ฉบับที่ใช้ล่าสุดก่อน · บรรทัด PO ที่มาจากบรรทัดคำขอที่ยังมีส่วนค้าง > 0 รวมกับบรรทัดของคำขออื่นไม่ได้ (รอบรวมไม่รวม · `po.submit` → `VALIDATION_FAILED` reason `OVERRUN_LINE_NOT_MERGEABLE`) จึงคืนสุทธิของคำขอคำนวณได้แน่นอน |
+| INV-BUD-01 | ต่อบรรทัดงบ available + reserved + committed + actual = Σ OUTSIDE→AVAILABLE − Σ AVAILABLE→OUTSIDE ของ ledger เสมอ (นำเข้า โอนเข้า ปรับเพิ่ม เติมจากเกินงบ − โอนออก ปรับลด คืนเกินงบ · ก่อน S6 มีแต่การนำเข้า จึงเท่ายอดที่นำเข้าสุทธิ · OQ-105 BR-BUD-09) |
 | INV-BUD-02 | ไม่มี bucket ใดติดลบ (CHECK ในฐานข้อมูล + ตรวจใน core) |
 | INV-BUD-03 | ต่อเอกสาร: ยอดจองของบรรทัดคำขอ ≤ ยอดบรรทัดคำขอ · ยอดถือของ PO บรรทัด ≤ ยอด PO บรรทัด + ส่วนเกินที่อนุมัติ + ส่วนเกินของใบแจ้งหนี้ชั้น 2 ที่อยู่ในเกณฑ์การจับคู่หรือที่อนุมัติส่วนต่างแล้ว (BR-MATCH-11) · ยอดตัด ≤ ยอดถือที่เคยมี |
 | INV-BUD-04 | ledger ทุกแถวอ้าง Event ที่สร้างในธุรกรรมเดียวกัน |
 | INV-BUD-05 | การจองพร้อมกันไม่ทำให้เกินงบ: ล็อก `BudgetLineBalance` ด้วย `SELECT … FOR UPDATE` ตามลำดับ id |
 | INV-BUD-06 | ledger แก้หรือลบไม่ได้ (INV-EVT-01) การแก้ไขทำด้วยรายการย้อนกลับเท่านั้น |
+| INV-BUD-07 | ต่อบรรทัด `plannedSatang` = Σ OUTSIDE→AVAILABLE − Σ AVAILABLE→OUTSIDE ของ ledger และ INV-BUD-01 ยังจริง (ทดสอบด้วย property test (fast-check) เพิ่ม op โอน ปรับ เกินงบ) |
+| INV-BUD-08 | โอนที่ APPROVED มีรายการออกและเข้าเท่ากันใน event เดียวกัน · Σ ทุกบรรทัดของ sourceType BUDGET_TRANSFER ชนิด TRANSFER = 0 (ทดสอบด้วย property test + integration) |
+| INV-BUD-09 | overrun ที่ CONSUMED หรือ LAPSED: allocation ของ earmark = 0 · usedSatang + returnedSatang = shortfallSatang · returnedAfterUseSatang ≤ usedSatang · ledger ของ overrun (sourceType `BUDGET_OVERRUN`) OUTSIDE→AVAILABLE − AVAILABLE→OUTSIDE = usedSatang − returnedAfterUseSatang (ทดสอบด้วย property test (fast-check) เพิ่ม op เกินงบ ใช้ คืนจอง อนุมัติ PO และปิด PO) |
+| INV-BUD-10 | ต่อคำขอและบรรทัดงบ: Σ ส่วนค้างของ overrun ที่ CONSUMED ≤ ยอดจอง ถือ และตัดของคำขอนั้นกับบรรทัด PO ที่มาจากมันบนบรรทัดนั้น (ยอดที่เติมไม่เคยเป็นงบว่างของเอกสารอื่น) (ทดสอบด้วย property test เดียวกัน) |
 
 นอกจาก golden cases ต้องมี property test (fast-check) ที่สุ่มลำดับ operation หลายพันชุดแล้วตรวจ INV-BUD-01 ถึง INV-BUD-03 หลังทุก operation
 
@@ -1968,6 +1998,9 @@ cases:
 | BR-FORM-04 | กฎตั้งต้นของคำขอจัดซื้อ `ATT-QUOTES`: ยอดรวม VAT เกิน 100,000.00 (OQ-08) ต้องมีใบเสนอราคา 3 ราย หรือเหตุผลกรณีผู้ขายรายเดียวพร้อมใบเสนอราคาอย่างน้อย 1 ราย |
 | BR-FORM-05 | คำขอซื้อไอทีและจ้างบริการ (`IT_PURCHASE` `HIRE_SERVICE`) มีคำถามคัดกรอง 3 ข้อ: ผู้ขายจะประมวลผลข้อมูลส่วนบุคคลแทนบริษัทหรือไม่ (`processesPersonalData`) เข้าถึงระบบหรือข้อมูลภายในหรือไม่ (`accessesSystems`) และเข้าพื้นที่ทำงานหรือไซต์หรือไม่ (`accessesPremises`) · ตอบว่าประมวลผลข้อมูลส่วนบุคคล → กฎ `ATT-DPA` บังคับแนบข้อตกลงการประมวลผลข้อมูล (DPA) อย่างน้อย 1 ไฟล์ · คำตอบทั้ง 3 ข้อใช้เลือกชุดคำถามและผู้ตรวจในชั้น 3 (§8.12) · บรรทัดบริการและไลเซนส์มีวันสิ้นสุดบริการ (`serviceEndDate`) |
 | BR-FORM-06 | ใบเสนอราคาเป็นข้อมูล (`RequestQuotation`): แต่ละใบมีผู้ขาย ยอด ธงรวม VAT และไฟล์ · core คำนวณยอดก่อน VAT ทุกใบด้วยอัตราที่มีผล (ใบที่รวม VAT ใช้สูตร BR-VAT) แล้วเทียบ · ต้องเลือกหนึ่งใบ · ใบที่เลือกไม่ใช่ยอดก่อน VAT ต่ำสุด → ต้องกรอก `nonLowestQuoteReason` ไม่เช่นนั้น `VALIDATION_FAILED` (กฎ `QUOTE-LOWEST`) · ยอดก่อน VAT เท่ากันถือว่าต่ำสุดร่วม · ข้อมูลนี้เป็นฐานของ FR-DOA-101 และยอดประหยัดของ G-8 |
+| BR-FORM-07 | ขอซ้ำ (`request.reorder`): จากคำขอที่ตนเป็นผู้ขอ · คัดลอก ประเภท (ฟอร์มฉบับปัจจุบัน) ชื่อ บรรทัด (description category qty uom unitPrice catalogItemId) สถานที่ส่ง ผู้ขายที่แนะนำ และคำตอบที่ยังมีและแสดงในฟอร์มปัจจุบัน (BR-FORM-01) · ไม่คัดลอก ไฟล์แนบ ใบเสนอราคา บรรทัดงบ (เติมใหม่ตาม BR-FORM-02) serviceEndDate เลข ผู้ติดตาม · บรรทัดที่มีราคาตกลงที่มีผล ใช้ราคาตกลง · ผลเป็น DRAFT |
+| BR-FORM-08 | เตือนต่ออายุ: daysLeft = serviceEndDate − วันนี้ตามเวลาไทย · m = ค่าน้อยสุดใน `renewal.milestoneDays` ที่ ≥ daysLeft · ส่ง m เมื่อ daysLeft ≥ 0 และยังไม่เคยส่ง m (ไม่ย้อนส่ง milestone ที่ใหญ่กว่า) · ส่งเฉพาะบรรทัดของคำขอ PARTIALLY_ORDERED ORDERED COMPLETED ที่ยังไม่มีคำขอต่ออายุที่ส่งแล้ว · ผู้รับ ผู้ขอ (IMMEDIATE) และ PROCUREMENT (DIGEST) · ไม่ต้องเปิด `CONTRACTS` |
+| BR-FORM-09 | ตัวสร้างฟอร์ม: แก้ได้เฉพาะ FormVersion DRAFT · เผยแพร่ → ฉบับก่อน RETIRED · คำขอคงฉบับเดิม · ลบ field หรือเปลี่ยนชนิด ตัวเลือก หรือเงื่อนไขแสดงผลของ field ที่กฎเอกสารแนบ เงื่อนไขแสดงผล หรือ workflow ฉบับที่มีผลหรือรอมีผลอ้าง → `FORM_LINT_REFERENCED_FIELD` (ไม่เช่นนั้น ORG_ADMIN คนเดียวปิดผู้ตรวจของ workflow ที่ผ่าน 4-eyes ได้ด้วยการแก้ฟอร์ม · ADR-102) · เรียงลำดับด้วยปุ่มขึ้นลง ไม่มีลากวาง |
 
 ```yaml
 # tests/golden/forms.yaml
@@ -2435,6 +2468,10 @@ cases:
 | --- | --- |
 | BR-RPT-01 | ต่อบรรทัด PO ณ วันที่ตัดยอด: มูลค่ารับแล้ว = จำนวนที่ยอมรับจาก GR ที่ POSTED ถึงวันนั้น × ราคาต่อหน่วยก่อน VAT ปัด half-up เป็นสตางค์ · มูลค่าใบกำกับ = ยอดก่อน VAT ที่ปันลงบรรทัดนั้น (BR-IVC-04) ที่บันทึกถึงวันนั้น · รับของแล้วยังไม่มีใบกำกับ = max(มูลค่ารับแล้ว − มูลค่าใบกำกับ, 0) · ใบกำกับมาก่อนของ = max(มูลค่าใบกำกับ − มูลค่ารับแล้ว, 0) แสดงแยกคอลัมน์ · รวมตาม cost center และบรรทัดงบ |
 | BR-RPT-02 | รายงานนี้ไม่ลงบัญชีเอง (NG-1) เป็นข้อมูลให้ฝ่ายบัญชีใช้ตั้งค้างจ่าย |
+| BR-RPT-03 | cycle time = นาทีทำการ (engine §7.8) จากส่งถึงขั้นสุดท้ายอนุมัติ และถึง PO แรกอนุมัติ · เวลาตัดสินต่อขั้น = assignedAt ถึง decidedAt ไม่นับช่วง INFO_REQUESTED · ค่ากลาง = ตัวกลางล่าง |
+| BR-RPT-04 | คอขวด: ต่อ resolvedFrom (และต่อคน) นับงานที่ตัดสินหลัง dueAt หรือเปิดอยู่และเลย dueAt แล้วเรียงตามจำนวนนั้นมากก่อน แล้วค่ากลางเวลาตัดสินมากก่อน |
+| BR-RPT-05 | รายการผิด DOA: การตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ engine (DOA workflow slot รักษาการ) คำนวณได้ ณ เวลานั้น (G-2 (ก)) · การตัดสินที่ไม่มี doaVersionId หรือ ruleCode · คำขอที่มีธง SPLIT |
+| BR-RPT-06 | heatmap: การตัดสินต่อ (วัน จ.–อา. ชั่วโมง 0–23 เวลาไทย) และงานเปิดต่อ (แผนก ช่วงอายุ 0–8 · 8–16 · 16–40 · > 40 ชั่วโมงทำการ) · ทุกตัวเลขตาม scope ของ `report.view` |
 
 ```yaml
 # tests/golden/grni.yaml
@@ -2448,9 +2485,426 @@ cases:
 ```
 
 
+```yaml
+# tests/golden/workflow-reports.yaml
+suite: workflow-reports
+calendar: { timezone: Asia/Bangkok, workdays: [MON, TUE, WED, THU, FRI], start: "08:30", end: "17:30", holidays: ["2026-10-13", "2026-10-23"] }
+cases:
+  - { id: GC-RPT-06, title: ส่งจันทร์ 09:00 อนุมัติอังคาร 10:00, fn: cycleMinutes, input: { from: "2026-10-05T02:00:00Z", to: "2026-10-06T03:00:00Z" }, expect: 600 }
+  - { id: GC-RPT-07, title: ไม่นับช่วงขอข้อมูลเพิ่ม, fn: decisionMinutes, input: { assignedAt: "2026-10-05T02:00:00Z", pauses: [{ from: "2026-10-05T04:00:00Z", to: "2026-10-07T02:30:00Z" }], decidedAt: "2026-10-07T03:30:00Z" }, expect: 180 }
+  - { id: GC-RPT-08, fn: lowerMedian, input: [600, 180, 300, 900], expect: 300 }
+  - { id: GC-RPT-09, fn: bottlenecks, input: [{ at: "CEO@HQ", overdue: 3, median: 1200 }, { at: "VP@OPS", overdue: 3, median: 900 }, { at: "DM@CON", overdue: 1, median: 2000 }], expect: ["CEO@HQ", "VP@OPS", "DM@CON"] }
+  - { id: GC-RPT-10, fn: heatCell, input: { at: "2026-10-05T10:30:00Z" }, expect: { weekday: MON, hour: 17 } }
+  - { id: GC-RPT-11, fn: wrongDoa, input: { decisions: [{ ref: X1, decider: dm_con, expected: [vp_ops] }, { ref: X2, decider: asst_con, onBehalfOf: dm_con, expected: [dm_con] }, { ref: X3, decider: vp_ops, expected: [vp_ops] }] }, expect: [X1] }
+```
+
 ### 7.17 S6 · อนุมัติคู่ขนาน งบ และ workflow (จองโดย P1-07)
 
-หัวข้อนี้จองให้ขั้น S6 (สาย 1): กฎ BR INV และ golden ของ S6 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S6.md`) · ตระกูลที่มีตารางเดิมต่อท้ายตารางเดิม · ยังไม่มีเนื้อหา
+หัวข้อนี้จองให้ขั้น S6 (สาย 1): กฎ BR INV และ golden ของ S6 ที่ไม่มีตารางหรือหัวข้อเดิมรองรับวางที่นี่ในข้อของขั้นที่สร้างโค้ดนั้น (ร่างอยู่ใน `docs/sub-specs/S6.md`) · ตระกูลที่มีตารางเดิมต่อท้ายตารางเดิม
+
+**กฎของผู้ตรวจคู่ขนาน คณะกรรมการ คำขอซ้ำ ราคาอ้างอิง QR และ UAT (S6-01 · ตระกูลใหม่ของขั้น)**
+
+| ID | กฎ |
+| --- | --- |
+| BR-WF-01 | step มี slot 1..N · ผลของ slot = การตัดสินแรกของ slot · `stepOutcome(quorum, quorumCount, slots)` ของกลุ่ม: มี slot RETURN → RETURNED ทันที · ALL: ทุก slot APPROVE → APPROVED · มี REJECT → REJECTED · ANY: slot แรกที่ตัดสินเป็นผล · COUNT n: APPROVE ≥ n → APPROVED · REJECT > (จำนวน slot − n) → REJECTED · อื่น ๆ OPEN · ขั้น APPROVAL มีกลุ่มเดียวคือทั้งขั้น · ขั้น REVIEW มีหลายกลุ่ม (BR-WF-06): ขั้น = RETURNED ถ้ามีกลุ่ม RETURNED · APPROVED เมื่อทุกกลุ่ม APPROVED · อื่น ๆ OPEN · กลุ่มที่ได้ผล APPROVED ยกเลิกงานที่ยังเปิดของกลุ่มนั้น ยกเว้น slot ที่อยู่ในกลุ่มที่ยังรอ · ขั้นได้ผลแล้วยกเลิกงานที่เปิดทั้งหมด · ยกเลิกในธุรกรรมเดียวกับการตัดสิน |
+| BR-WF-02 | สมาชิกหนึ่งคนถือได้ไม่เกิน 1 slot ต่อ step: slot ที่ resolve ได้คนเดียวกัน (รวมหลังรักษาการ) รวมเป็น slot เดียว (ใช้ resolvedFrom ของ slot แรก) · ขั้น REVIEW: slot ที่รวมแล้วนับในทุกกลุ่มที่มีคนนั้น |
+| BR-WF-03 | ข้อ DOA ที่ step เป็น PARALLEL: ตัด slot ที่ขัดแย้ง (`conflictMemberIds`) ก่อน แล้วรวม slot ของคนเดียวกัน (BR-WF-02) · ALL: มี slot ถูกตัดเพราะขัดแย้ง → ยกไปช่วงถัดไปตาม BR-DOA-06 ทั้งข้อ · ไม่มีการตัด → ต้องได้ทุก slot ที่เหลือหลังรวม (การรวมไม่ทำให้ยก) · ANY: เหลือ < 1 → ยก · COUNT: เหลือ < quorumCount → ยก · ไม่มีช่วงถัดไป → `NO_HIGHER_AUTHORITY` |
+| BR-WF-04 | `MAJORITY` = floor(N ÷ 2) + 1 โดย N = จำนวน approvers ในข้อ DOA ก่อนตัดหรือรวม slot · เก็บเป็น COUNT |
+| BR-WF-05 | lint DOA หลัง S6: step PARALLEL ต้องมี approvers ≥ 2 (`DOA_LINT_PARALLEL_STEP`) · SEQUENTIAL มีผู้อนุมัติ 1 คน · quorumCount อยู่ใน 1..N และ COUNT ต้องมี quorumCount (`DOA_LINT_QUORUM_INVALID`) · ข้อ (ค) เดิมของ BR-DOA-08 ยกเลิกเฉพาะ step ที่ผ่านกฎนี้ |
+| BR-WF-06 | ผู้ตรวจ: ใช้ `WorkflowVersion` ที่มีผล ณ เวลาส่ง (แบบ BR-DOA-01) · ข้อที่ requestTypeCodes มีประเภทของคำขอและ `when` เป็นจริงคือข้อที่ตรง · ทุกข้อที่ตรงรวมเป็นขั้น REVIEW เดียว (stepNo 1 · doaStepNo null) ก่อนขั้นของ DOA (stepNo ถัดไป · doaStepNo = เลขขั้นของ `resolveRoute`) · กลุ่มของขั้น: ข้อ ALL = กลุ่มละข้อ 1 slot (ครบทุกฝ่าย) · ข้อ ANY ทั้งหมดรวมเป็นกลุ่มเดียว 1 slot ที่มีงานหลายคน (ฝ่ายใดฝ่ายหนึ่ง) · ข้อ COUNT = กลุ่มละข้อ slot ละผู้ตรวจ ต้องผ่าน ≥ quorumCount (ตามจำนวน) · เลข slot เรียง: ข้อ ALL ตาม sortOrder แล้วกลุ่ม ANY แล้วข้อ COUNT ตาม sortOrder และผู้ตรวจในข้อ · ไม่มีข้อที่ตรง → route เท่ากับ DOA อย่างเดียว · ขั้นถัดไปของ route หาผู้อนุมัติด้วย doaStepNo · ไม่มีสวิตช์ `features.parallelApproval` (ADR-102): องค์กรที่ไม่มี workflow ฉบับที่มีผลหรือไม่มีข้อที่ตรงได้เส้นทางเดิม |
+| BR-WF-07 | ตัวแปรของ `when` เพิ่มจาก §7.9: `$lineCategories` (ชุด categoryCode ของบรรทัด) · `$budgetAccountCodes` (ชุด accountCode ของบรรทัดงบที่ใช้) · `$amountGross` คือยอดรวม VAT ของเอกสารเสมอ ไม่ขึ้นกับฐาน DOA · op ใหม่ `anyIn` (ชุดกับรายการมีสมาชิกร่วม) · op เดิมไม่เปลี่ยนความหมาย |
+| BR-WF-08 | resolve ผู้ตรวจ: `POSITION_AT` ไล่จากแผนกที่ระบุขึ้นถึงราก ใช้ผู้ดำรงคนแรกที่ ACTIVE · ผู้ตรวจว่างหรืออยู่ใน conflictMemberIds → ใช้ `fallback` · fallback ว่างหรือขัดแย้งหรือไม่มี → `REVIEWER_NOT_FOUND` (ส่งไม่ได้ · แจ้ง ORG_ADMIN แบบ NEW-27) · ข้อ COUNT: resolve ผู้ตรวจทีละคนด้วย fallback ของข้อ แล้วรวมคนซ้ำ (BR-WF-02) · slot ที่เหลือ < quorumCount → `REVIEWER_NOT_FOUND` · รักษาการใช้ BR-DLG-01 ถึง 05 ต่อ slot |
+| BR-WF-09 | ผู้ตรวจตัดสินได้ ผ่าน · ตีกลับ · ขอข้อมูลเพิ่ม (ไม่มีไม่อนุมัติ · OQ-101) · เหตุผลของผู้ตรวจเห็นได้โดยผู้ขอ ผู้อนุมัติตาม DOA ผู้ตรวจของ slot นั้น และ AUDITOR ผู้ตรวจ slot อื่นเห็นเฉพาะสถานะ · ไม่ต้อง step-up · ปุ่มผ่านในการ์ด LINE ได้ |
+| BR-WF-10 | BR-DOA-07 (รวมขั้นซ้ำ) ใช้เฉพาะระหว่างขั้น APPROVAL · ผู้ตรวจที่เป็นผู้อนุมัติขั้นถัดไปด้วยได้งานทั้งสอง |
+| BR-WF-11 | lint workflow: requestType ไม่มี (`WF_LINT_UNKNOWN_REQUEST_TYPE` error) · field ใน `when` ไม่มีในฟอร์มฉบับปัจจุบันของทุกประเภทที่ข้ออ้างและไม่ใช่ตัวแปรพิเศษ (`WF_LINT_UNKNOWN_FIELD` error) · code ซ้ำ (`WF_LINT_DUPLICATE_CODE` error) · ผู้ตรวจว่าง (`WF_LINT_VACANT_REVIEWER` warning) · ไม่มี fallback (`WF_LINT_NO_FALLBACK` warning) · ผู้ตรวจแบบ MEMBER (`WF_LINT_MEMBER_REVIEWER` warning) · ข้อ ALL ANY มีผู้ตรวจ 1 คน · ข้อ COUNT มีผู้ตรวจ ≥ 2 และ quorumCount อยู่ใน 1..จำนวนผู้ตรวจ (`WF_LINT_QUORUM_INVALID` error) · warning ต้องติ๊กยืนยัน · มี error → `WORKFLOW_LINT_FAILED` |
+| BR-WF-12 | ฉบับ workflow: ห้ามย้อนหลัง (แบบ BR-DOA-12) · เอกสารที่ส่งแล้วใช้ฉบับ ณ เวลาส่งจนจบ ส่งซ้ำคำนวณใหม่ (แบบ BR-DOA-09 BR-DOA-13) · อนุมัติเผยแพร่และถอนตามข้อ `DOA_CHANGE` ของ DOA ที่มีผล บน subject `WORKFLOW_VERSION` ที่ต้อง step-up ทุกครั้งไม่ขึ้นกับยอด (`ALWAYS_STEP_UP_SUBJECTS` ของ P1-07 · PIN หรือ passkey เมื่อ S17 เปิด) · ตัดสินบนเว็บเท่านั้น (OQ-110 · เข้มกว่า `DOA_VERSION` ที่ BR-DOA-15 ให้ทำบนเว็บหรือ LIFF): `channels` ของ adapter ปิดปุ่มในแชทและลิงก์ตัดสินทางอีเมล และ `decide` ของ adapter `subjects/workflow-version.ts` ปฏิเสธช่องทางนอก allowlist (WEB · S17 เพิ่ม `APP` ตามกฎแอปของ S17 · §7.20) ด้วย `FORBIDDEN` reason `CHANNEL` และย้อนทั้งธุรกรรม เพราะ S6 ไม่แก้ `decide.ts` · ผู้ส่ง ≠ ผู้อนุมัติ (OQ-110) |
+| BR-WF-13 | ย้อนทดสอบ (FR-DOA-103 และ workflow): เอกสารที่ `submittedAt` อยู่ใน [at − 90 วัน, at) · ทั้งเส้นทางปัจจุบันและเส้นทางร่างคำนวณด้วย engine ตัวจริง input เดิม และผังองค์กร ณ at · "ปัจจุบัน" = ฉบับที่มีผล ณ submittedAt · "ร่าง" = ร่างเสมือนมีผล ณ submittedAt · ผลต่อเอกสาร (ข้อ ผู้อนุมัติ ผู้ตรวจ เปลี่ยนหรือไม่) และสรุป (จำนวน เปลี่ยน ภาระต่อคน +/−) · อ่านอย่างเดียว |
+| BR-WF-14 | ผังเปลี่ยน (OQ-111): ขั้น WAITING หาผู้อนุมัติตอนขั้นนั้นเริ่ม ด้วยข้อและฉบับเดิมของ route แต่ผู้ดำรงตำแหน่งและผังปัจจุบัน · `DEPARTMENT_REPARENT` มีผล → งาน OPEN ของขั้น `POSITION_OF_DEPARTMENT` และ `POSITION_AT` resolve ใหม่ ถ้าได้คนอื่น → `REASSIGNED` ด้วย DOA ref เดิมและแจ้งทั้งสองคน · ทั้งสองกรณีห้ามได้คนใน conflictMemberIds ของเอกสาร (BR-SOD-01): ผู้ดำรงคนใหม่ขัดแย้ง → ยกตาม BR-DOA-06 ในฉบับเดิมแบบตอนส่ง · หาไม่ได้หรือว่าง → งานคงอยู่กับคนเดิม (reparent) หรือขั้นรอ (ขั้น WAITING) และแจ้ง ORG_ADMIN ให้ `approval.reassign` แบบ BR-DOA-17 · ตำแหน่งที่ workflow ฉบับที่มีผลหรือรอมีผลอ้าง นับเป็นตำแหน่งที่ DOA อ้างใน BR-DOA-17 |
+| BR-WF-15 | SLA ของขั้นหลาย slot นับต่องานตาม BR-SLA-01 ถึง BR-SLA-03 · งานผู้ตรวจใช้ slaBusinessMinutes ของข้อ (slot ที่รวมหลายข้อใช้ค่าน้อยสุด) และ `ApprovalStep.slaBusinessMinutes` ของขั้น REVIEW = ค่ามากสุดของ slot · ขั้น REVIEW และขั้น PARALLEL ไม่เพิ่มผู้รับร่วมตาม BR-SLA-04 (ไม่มีช่วงถัดไปที่มีอำนาจแทน slot · OQ-102) · เลย escalateAt แจ้งผู้รับงาน ผู้ขอ และ ORG_ADMIN ด้วย `task.overdue` · งานผู้รับร่วมที่ SLA เพิ่มให้ขั้น SEQUENTIAL อยู่ slot เดียวกับงานเดิม |
+| BR-WF-16 | role `DOA_ADMIN` ได้ `admin.doa.*` `admin.workflow.*` `config.export` `config.import` (ORG) · ไม่ได้สิทธิ์อนุมัติ (BR-AUTH-02) · ORG_ADMIN ให้ role นี้ได้ แต่ห้ามให้ตัวเอง (`SOD_VIOLATION`) และแจ้ง AUDITOR ทันที |
+| BR-WF-17 | `sodPolicy.doaAdminSeparated = true` ใน DOA ฉบับที่มีผล → ORG_ADMIN ไม่มี `admin.doa.*` และ `admin.workflow.*` (เหลือ DOA_ADMIN) · ต้องมี DOA_ADMIN ที่ ACTIVE อย่างน้อย 1 คนก่อนส่งฉบับที่เปิดค่านี้ (lint error) (OQ-109) · `config.import` สร้างร่าง DOA และร่าง workflow ได้เมื่อผู้นำเข้ามี `admin.doa.draft` และ `admin.workflow.draft` ด้วย (ไม่เช่นนั้น `FORBIDDEN` และไม่สร้างอะไร) จึงเป็นทางอ้อมการแยกไม่ได้ · คนเดียวถือทั้ง ORG_ADMIN และ DOA_ADMIN หลังแยก: ตามที่ผู้ใช้ตัดสินในแถว OQ-109 ของ "เรื่องที่ผู้ใช้ต้องตัดสิน" (ค่าที่แนะนำ: ไม่ได้ · ให้ role → `SOD_VIOLATION` และ lint ของฉบับที่เปิดค่านี้เป็น error เมื่อมีคนถือทั้งสอง) · S6-09 ใช้ค่าที่แนะนำ (ผู้ใช้อนุมัติใน P1-06): lint `DOA_LINT_NO_DOA_ADMIN` (ไม่มี DOA_ADMIN ที่ ACTIVE) และ `DOA_LINT_ADMIN_ROLES_COMBINED` (มีคนถือทั้งสอง role) · ห้ามถือทั้งสองตั้งแต่มีฉบับที่แยกซึ่งเผยแพร่แล้ว แม้ยังไม่มีผล · ถอน DOA_ADMIN คนสุดท้ายที่ ACTIVE → `VALIDATION_FAILED` (`LAST_DOA_ADMIN`) |
+| BR-DUP-01 | กุญแจบรรทัด: catalogItemId ถ้ามี · ไม่มี → description หลัง NFC trim ยุบช่องว่าง และตัวพิมพ์เล็ก ต่อด้วย `|` และ uom |
+| BR-DUP-02 | ช่วงตรวจ: คำขออื่นที่ระยะห่างระหว่าง submittedAt กับ at ≤ `duplicateCheck.windowDays` × 24 ชั่วโมง และสถานะ PENDING_APPROVAL RETURNED APPROVED PARTIALLY_ORDERED ORDERED COMPLETED · ไม่นับ DRAFT REJECTED CANCELLED และคำขอที่ส่งซ้ำของตัวเอง |
+| BR-DUP-03 | ซ้ำ (`DUPLICATE`): ผู้ขอเดียวกัน และมีบรรทัดที่กุญแจและจำนวนเท่ากัน |
+| BR-DUP-04 | แตกยอด (`SPLIT`): แผนกที่ตั้งเบิกเดียวกัน และ (ผู้ขายที่แนะนำเดียวกัน หรือมีกุญแจบรรทัดร่วม) · ยอดรวม = คำขอนี้ + คำขอที่ตรงทั้งหมด (ฐานของ DOA ฉบับที่มีผล ณ at) · ข้อ PURCHASE_REQUEST ของยอดรวมอยู่ช่วงสูงกว่าข้อของคำขอที่ยอดมากที่สุด → ธง |
+| BR-DUP-05 | ธงไม่บล็อกและไม่เปลี่ยนเส้นทาง (OQ-103) · DUPLICATE: ผู้ขอต้องกรอกเหตุผลก่อนส่ง (`VALIDATION_FAILED` reason `DUPLICATE_UNACKNOWLEDGED`) · ทั้งสองชนิดแสดงบนหน้างานและการ์ดของผู้อนุมัติ อยู่ในรายงาน FR-VIS-101 และสรุปรายวันของ AUDITOR · ตรวจในธุรกรรมของ submit และ resubmit ทุกช่องทาง (เว็บ และ LIFF `/liff/requests/[id]/edit` ที่ต้องมีช่องเหตุผลก่อนส่ง) แล้วเขียน `RequestFlag` |
+| BR-PRC-01 | ชุดราคา: บรรทัด PO ที่ PO อนุมัติแล้ว (ไม่ REJECTED CANCELLED) approvedAt ใน [at − `priceRef.windowDays` วัน, at) กุญแจบรรทัดเดียวกัน (BR-DUP-01) และ PO ราคาก่อน VAT เท่านั้น · ที่รวม VAT นับเป็น excludedVatIncluded |
+| BR-PRC-02 | สถิติเป็นสตางค์ไม่มีการปัด: count min max · ค่ากลาง = ตัวกลางล่างหลังเรียง (index floor((count − 1) ÷ 2)) · last = approvedAt ล่าสุด · count < `priceRef.minSamples` → สถานะ FEW_SAMPLES |
+| BR-PRC-03 | deviationBp = (ราคาคำขอ − ค่ากลาง) × 10000 ÷ ค่ากลาง ตัดเศษเข้าหาศูนย์ · ป้าย HIGH เมื่อ (ราคา − ค่ากลาง) × 10000 > ค่ากลาง × เกณฑ์ (เทียบจำนวนเต็ม) · LOW แบบเดียวกันด้านต่ำ · คำขอที่ราคารวม VAT ไม่คำนวณ deviation |
+| BR-PRC-04 | ช่วงใบเสนอราคาบนการ์ด: จาก `RequestQuotation.netSatang` (BR-FORM-06) count lowest highest selected และเหตุผลถ้าไม่ใช่ต่ำสุด |
+| BR-PRC-05 | การ์ดอนุมัติใน LINE มีป้ายราคาแบบรวมไม่ระบุรายการเท่านั้น: จำนวนบรรทัดที่มีป้าย HIGH กับส่วนต่างสูงสุด และจำนวนบรรทัดที่มีป้าย LOW กับส่วนต่างต่ำสุด (เช่น "ราคาสูงกว่าค่ากลางย้อนหลัง 1 รายการ สูงสุด +8%") · % = deviationBp ÷ 100 ตัดเศษเข้าหาศูนย์ · ไม่มีป้ายเมื่อไม่มีบรรทัด HIGH หรือ LOW · ไม่มีชื่อสินค้า ราคาต่อหน่วย หรือสรุปจาก AI (BR-NOTI-01 · OQ-107) · push บนหน้าจอล็อกของแอปมีชนิดงานและเลขเอกสารเท่านั้น (S17) · หน้างาน LIFF เว็บ และแอปแสดงตัวเลขครบ |
+| BR-PRC-06 | ราคาตกลง: ต่อ (สินค้า ผู้ขาย) ช่วง [validFrom, validTo) ห้ามทับกัน (`VALIDATION_FAILED` reason `AGREEMENT_OVERLAP`) · บรรทัดจากแคตตาล็อกที่ผู้ขายมีราคาตกลงที่มีผล ใช้ราคาตกลงเท่านั้น (`AGREEMENT_PRICE_LOCKED`) · สินค้าที่มีราคาตกลงแต่เลือกผู้ขายอื่น ต้องมี offAgreementReason (`AGREEMENT_OFF`) · PROCUREMENT จัดการ (OQ-114) · S6-10: ผู้ขายของบรรทัดคือผู้ขายที่แนะนำของคำขอ (`suggestedSupplierId`) ไม่ได้เลือกผู้ขาย = ผู้ขายอื่น · บันทึกร่างตรวจราคา ส่งและส่งซ้ำตรวจทั้งหมดอีกครั้งด้วยราคาตกลงที่มีผลวันนั้นแล้วเก็บ `priceAgreementId` ของบรรทัด · ราคาตกลงเป็นราคาก่อน VAT คำขอที่ราคารวม VAT ใช้ราคาตกลงไม่ได้ (`AGREEMENT_PRICE_BEFORE_VAT`) · สิ้นสุดราคาตกลง = วันนี้เป็นวันสุดท้าย (validTo = พรุ่งนี้) ราคาตกลงที่ยังไม่เริ่มสิ้นสุดไม่ได้ (`AGREEMENT_NOT_STARTED`) ไม่มีการลบ |
+| BR-PRC-07 | ผู้เห็นแผงราคาอ้างอิง (`getPriceReference`): ผู้รับงานอนุมัติหรือตรวจของคำขอนั้นที่เปิดอยู่หรือเคยได้ (ASSIGNED รวมผู้รักษาการ) และผู้มี `po.view` ระดับ ORG · ผู้ขอ ผู้ติดตาม และ DEPT_HEAD ที่ไม่ได้รับงานไม่เห็น (ราคาย้อนหลังมาจาก PO ทั้งองค์กร · OQ-116) · ปฏิเสธด้วย `FORBIDDEN` · S6-11: capability `priceReference.view` ใน §2.4 · ผู้รับงานของ PO ที่ซื้อจากคำขอนั้นนับเป็นผู้ได้รับงานด้วย (S13 เรียกด้วยคำขอต้นทาง) |
+| BR-QR-01 | PDF ของ PR และ PO มี QR ของ `<APP_URL>/verify/<token>` · แถว `DocumentVerification` เกิดเฉพาะในธุรกรรมของคำสั่ง POST ที่ทำให้เนื้อหาที่พิมพ์เปลี่ยน: การส่งและส่งซ้ำของ PR และ PO และการอนุมัติใบแก้ไข PO ของ S8 (เรียก `issueDocumentVerification`) · contentSha256 = sha256 ของเนื้อหาที่พิมพ์ (บรรทัด ยอด ผู้ขาย เงื่อนไข ไม่รวมสถานะและส่วนการอนุมัติ) เท่ากับแถวล่าสุด → ไม่ออกใหม่ · ต่างกัน → แถวใหม่และตั้ง supersededAt ของแถวก่อน · token = base64url(HMAC-SHA256(K, id ของแถว)) โดย K = HMAC-SHA256(`ENCRYPTION_KEY`, "bcs:document-verification:v1") แบบ pepper ของ PIN (keyId บอกกุญแจ) · ฐานข้อมูลเก็บเฉพาะ `tokenHash` = sha256 ของสตริง token (ไบต์ UTF-8) เป็น hex ตัวพิมพ์เล็ก 64 ตัว (รูปเดียวที่ `/verify` และ S17 ใช้ค้น) · GET PDF คิด token จากแถวล่าสุดจึงดาวน์โหลดซ้ำได้ QR เดิม · GET PDF และ GET `/verify` ไม่เพิ่มหรือแก้แถวใด (ไม่มี GET ที่เปลี่ยนสถานะ) · เอกสารที่ยังไม่เคยส่งไม่มี QR |
+| BR-QR-02 | `GET /verify/<token>` ไม่ต้อง login อ่านอย่างเดียว: ชื่อองค์กร ชนิด เลขที่ สถานะล่าสุดและวันที่ ฉบับนี้เป็นฉบับล่าสุดหรือไม่ (supersededAt ว่าง) · ไม่แสดงยอดเงินและชื่อคน (OQ-112) · token ไม่มีหรือผิด → หน้าเดียวกับ "ไม่พบเอกสาร" · จำกัดอัตราต่อ IP · ผู้ login ที่มี `request.view` หรือ `po.view` เห็นลิงก์ไปเอกสาร |
+| BR-UAT-01 | sandbox: `Organization.kind = SANDBOX` สร้างโดย PLATFORM_ADMIN พร้อม contractRef · มีแถบ "ระบบทดลอง" ทุกหน้า · ปิด LINE · อีเมลขึ้นต้น "[UAT]" · ห้ามคัดลอกข้อมูลธุรกิจจาก production (OQ-108) · ชั้น demo บนเครื่อง: seed ระยะ 1 สร้าง `SIMEC-UAT` เป็น sandbox ของ SIMEC |
+| BR-UAT-02 | ชุดค่าตั้ง (`ConfigPackage`) = ประเภทคำขอ FormVersion ที่เผยแพร่ WorkflowVersion DOA (YAML เดิม) แคตตาล็อกและราคาตกลง · JSON มี schemaVersion และ sha256 · ไม่มีคำขอ งบ เลขบัญชี หรือข้อมูลส่วนบุคคล |
+| BR-UAT-03 | นำเข้าใน production สร้างเฉพาะร่าง (DOA ร่าง workflow ร่าง FormVersion DRAFT แคตตาล็อกที่ยังไม่ active) แล้วแต่ละอย่างผ่านการอนุมัติปกติ · ไม่เผยแพร่เอง (NG-12 EG-8) · อ้างตำแหน่ง แผนก ผู้ขายด้วย code ไม่พบ → รายงานแถวที่ผิดและไม่สร้างอะไร · checksum หรือ schemaVersion ไม่ตรง → `CONFIG_PACKAGE_INVALID` |
+| BR-UAT-04 | sandbox ตั้งต้นแบบ tenant ใหม่: PLATFORM_ADMIN สร้างองค์กรพร้อม contractRef และผู้ลงนามตามสัญญาเดียวกับ production เท่านั้น · ORG_ADMIN ของลูกค้านำเข้าผัง ตำแหน่ง และผู้ใช้ทดสอบที่ลูกค้าเชิญเองด้วยเครื่องมือนำเข้าเดิม · ชุดตั้งต้น (ผู้ดำรงที่ DOA อ้าง + DOA ฉบับแรก) ผ่าน BR-DOA-19 · PLATFORM_ADMIN ไม่คัดลอกผัง DOA หรือข้อมูลใดจาก production (NG-12) · seed ของ `SIMEC-UAT` บนเครื่องเป็นข้อยกเว้นขององค์กรตัวอย่าง (CLAUDE.md หัวข้อ 10) |
+
+| ID | Invariant | ทดสอบด้วย |
+| --- | --- | --- |
+| INV-WF-01 | DOA ฉบับที่ไม่มี step PARALLEL และคำขอที่ไม่มีข้อผู้ตรวจตรง ได้ route เหมือนก่อน S6 ทุกฟิลด์ | GC-DOA-01 ถึง 27 ไม่เปลี่ยน · property test เทียบ engine ใหม่กับสำเนา engine เดิมใน `tests/support` 1,000 input สุ่ม · e2e `@demo` |
+| INV-WF-02 | สมาชิกคนเดียวไม่มีงานเปิดสองงานใน step เดียว | integration test ตำแหน่งซ้อน + รักษาการ |
+| INV-WF-03 | step ที่ DONE ไม่มีงาน OPEN หรือ INFO_REQUESTED และผลไม่เปลี่ยน | integration test ตัดสินพร้อมกัน 3 slot (แบบ INV-PLT-01) |
+| INV-WF-04 | ทุก `approval_task.decided` ของงาน REVIEW มี doaVersionId ruleCode ของ route และ workflowVersionId workflowRuleCodes | เทสต์ schema event (INV-DOA-01 ยังผ่าน) |
+
+**Golden ของคณะกรรมการ ผลของขั้นแบบ slot lint ของ BR-WF-05 (S6-02) ผู้ตรวจคู่ขนานและ lint workflow (S6-03) · suite `workflow`:**
+
+```yaml
+# tests/golden/fixtures/org-s6.yaml
+# org-p1.yaml + ฝ่ายกฎหมาย (LEG) และความปลอดภัย (QSE) + ตำแหน่งกรรมการ PC1 ถึง PC3 ระดับองค์กร (S6 · ไม่ใช้ extends)
+departments:
+  - { code: HQ, nameTh: สำนักงานใหญ่, parent: null }
+  - { code: OPS, nameTh: สายปฏิบัติการ, parent: HQ }
+  - { code: CON, nameTh: ฝ่ายก่อสร้าง, parent: OPS }
+  - { code: PROC, nameTh: ฝ่ายจัดซื้อ, parent: OPS }
+  - { code: SUP, nameTh: สายสนับสนุน, parent: HQ }
+  - { code: FIN, nameTh: ฝ่ายบัญชีและการเงิน, parent: SUP }
+  - { code: IT, nameTh: ฝ่ายไอที, parent: SUP }
+  - { code: LEG, nameTh: ฝ่ายกฎหมาย, parent: SUP }
+  - { code: QSE, nameTh: ฝ่ายความปลอดภัย, parent: OPS }
+positions:
+  - { position: DM, department: CON, member: dm_con }
+  - { position: DM, department: PROC, member: dm_proc }
+  - { position: DM, department: FIN, member: dm_fin }
+  - { position: DM, department: IT, member: dm_it }
+  - { position: DM, department: LEG, member: dm_leg }
+  - { position: DM, department: QSE, member: dm_qse }
+  - { position: VP, department: OPS, member: vp_ops }
+  - { position: VP, department: SUP, member: vp_sup }
+  - { position: PROC_MGR, department: HQ, member: dm_proc }
+  - { position: COO, department: HQ, member: coo }
+  - { position: CFO, department: HQ, member: cfo }
+  - { position: CEO, department: HQ, member: ceo }
+  - { position: PC1, department: HQ, member: coo }
+  - { position: PC2, department: HQ, member: dm_fin }
+  - { position: PC3, department: HQ, member: dm_proc }
+members:
+  req_con: CON
+  asst_con: CON
+  receiver_con: CON
+  dm_con: CON
+  proc_officer: PROC
+  dm_proc: PROC
+  fin_officer: FIN
+  dm_fin: FIN
+  auditor: FIN
+  dm_it: IT
+  admin: IT
+  admin2: FIN
+  vp_ops: OPS
+  vp_sup: SUP
+  coo: HQ
+  ceo: HQ
+  cfo: HQ
+  dm_leg: LEG
+  dm_qse: QSE
+```
+
+```yaml
+# tests/golden/fixtures/doa-committee.yaml
+# DOA-WF: คำขอซื้อเกิน 100,000.00 ไปคณะกรรมการ 3 คน เสียงข้างมาก (S6 · FR-WF-102)
+versions:
+  - code: DOA-WF
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    amountBasis: GROSS
+    selfApprovalPolicy: ESCALATE_NEXT_BAND
+    collapseDuplicateApprovers: true
+    stepUpThreshold: "100000.00"
+    sodPolicy: { approverMayReceive: false, requesterMayReceive: true }
+    rules:
+      - { code: PR-01, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "0.00", lte: "100000.00" } }, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: PR-02, documentType: PURCHASE_REQUEST, priority: 100, when: { amount: { gt: "100000.00" } }, step: { mode: PARALLEL, quorum: MAJORITY, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }, { kind: POSITION_OF_ORG, position: PC2 }, { kind: POSITION_OF_ORG, position: PC3 }] }, slaBusinessHours: 16 }
+      - { code: PO-01, documentType: PURCHASE_ORDER, priority: 100, when: { amount: { gt: "0.00" } }, approver: { kind: POSITION_OF_ORG, position: COO }, slaBusinessHours: 8 }
+      - { code: GRV-01, documentType: GR_VARIANCE, priority: 100, when: {}, approver: { kind: POSITION_OF_DEPARTMENT, position: DM }, slaBusinessHours: 8 }
+      - { code: DOA-CHG-01, documentType: DOA_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+      - { code: ORG-CHG-01, documentType: ORG_AUTHORITY_CHANGE, priority: 100, when: {}, approver: { kind: POSITION_OF_ORG, position: CEO }, slaBusinessHours: 16 }
+```
+
+```yaml
+# tests/golden/fixtures/workflow-versions.yaml
+# requestTypes = field ของฟอร์มฉบับปัจจุบันตาม prisma/seed/forms.yaml (lint BR-WF-11 ใช้)
+requestTypes:
+  BUY_GOODS: [singleSourceJustification]
+  HIRE_SERVICE: [scopeOfWork, servicePeriod, singleSourceJustification, processesPersonalData, accessesSystems, accessesPremises]
+  CONTRACT_WORK: [scopeOfWork, milestones, site, singleSourceJustification]
+  IT_PURCHASE: [category, assetTag, singleSourceJustification, processesPersonalData, accessesSystems, accessesPremises]
+versions:
+  - code: WF-DEMO
+    version: 1
+    effectiveFrom: "2026-10-01T00:00:00+07:00"
+    rules:
+      - { code: RV-01, requestTypes: [IT_PURCHASE], when: {}, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-02, requestTypes: [HIRE_SERVICE], when: { field: processesPersonalData, op: eq, value: "Y" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-03, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: LEG }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-04, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-05, requestTypes: [CONTRACT_WORK], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 16 }
+      - { code: RV-06, requestTypes: [BUY_GOODS], when: { field: $lineCategories, op: anyIn, value: [SAFETY, FUEL] }, reviewers: [{ kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ANY, slaBusinessHours: 8 }
+      - { code: RV-07, requestTypes: [BUY_GOODS], when: { all: [{ field: $budgetAccountCodes, op: anyIn, value: ["121101", "121201", "121301"] }, { field: $amountGross, op: gt, value: "500000.00" }] }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }], fallback: { kind: POSITION_AT, position: CFO, department: HQ }, mode: ALL, slaBusinessHours: 8 }
+      - { code: RV-08, requestTypes: [BUY_GOODS], when: { field: $lineCategories, op: anyIn, value: [FUEL] }, reviewers: [{ kind: POSITION_AT, position: DM, department: PROC }], fallback: { kind: POSITION_AT, position: VP, department: OPS }, mode: ANY, slaBusinessHours: 8 }
+      - { code: RV-09, requestTypes: [IT_PURCHASE], when: { field: $amountGross, op: gt, value: "1000000.00" }, reviewers: [{ kind: POSITION_AT, position: DM, department: FIN }, { kind: POSITION_AT, position: DM, department: PROC }, { kind: POSITION_AT, position: DM, department: QSE }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: COUNT, quorumCount: 2, slaBusinessHours: 16 }
+```
+
+```yaml
+# tests/golden/workflow.yaml
+suite: workflow
+fixtures: [fixtures/org-s6.yaml, fixtures/doa-versions.yaml, fixtures/workflow-versions.yaml, fixtures/doa-committee.yaml]
+defaults: { documentType: PURCHASE_REQUEST, doa: DOA-DEMO, workflow: WF-DEMO, requester: req_con, department: CON, at: "2026-10-06T03:00:00Z" }
+cases:
+  # คณะกรรมการ (BR-WF-02 ถึง BR-WF-04)
+  - { id: GC-WF-01, title: กรรมการ 3 คน เสียงข้างมาก, fn: resolveRoute, input: { doa: DOA-WF, amount: "100000.01" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin, dm_proc] }] } }
+  - { id: GC-WF-02, title: กรรมการคนหนึ่งเป็นผู้ขอ ตัด slot ออก, fn: resolveRoute, input: { doa: DOA-WF, requester: dm_fin, department: FIN, amount: "150000.00" }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_proc] }] } }
+  - { id: GC-WF-03, title: เหลือกรรมการไม่พอและไม่มีช่วงถัดไป, fn: resolveRoute, input: { doa: DOA-WF, requester: dm_fin, department: FIN, amount: "150000.00", alsoConflicting: [coo] }, expect: { error: NO_HIGHER_AUTHORITY } }
+  - { id: GC-WF-04, title: คนเดียวถือสองตำแหน่งกรรมการ รวมเป็น slot เดียว, fn: resolveRoute, input: { doa: DOA-WF, amount: "150000.00", replaceHolders: { "PC3@HQ": coo } }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: COUNT, quorumCount: 2, approvers: [coo, dm_fin] }] } }
+  - { id: GC-WF-05, title: ALL และคนเดียวถือสองตำแหน่งกรรมการ รวมแล้วไม่ยกช่วง, fn: resolveRoute, input: { doa: DOA-WF, amount: "150000.00", replaceStep: { rule: PR-02, quorum: ALL }, replaceHolders: { "PC3@HQ": coo } }, expect: { rule: PR-02, steps: [{ mode: PARALLEL, quorum: ALL, approvers: [coo, dm_fin] }] } }
+  # stepOutcome ของขั้นกลุ่มเดียว (BR-WF-01) · slots เรียงตาม slotNo · null = ยังไม่ตัดสิน
+  - { id: GC-WF-06, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, APPROVE, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-07, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, APPROVE, APPROVE] }, expect: { outcome: APPROVED, cancel: [] } }
+  - { id: GC-WF-08, fn: stepOutcome, input: { quorum: ALL, slots: [APPROVE, RETURN, null] }, expect: { outcome: RETURNED, cancel: [3] } }
+  - { id: GC-WF-09, fn: stepOutcome, input: { quorum: ALL, slots: [REJECT, null, null] }, expect: { outcome: REJECTED, cancel: [2, 3] } }
+  - { id: GC-WF-10, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [APPROVE, null, APPROVE] }, expect: { outcome: APPROVED, cancel: [2] } }
+  - { id: GC-WF-11, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [REJECT, REJECT, null] }, expect: { outcome: REJECTED, cancel: [3] } }
+  - { id: GC-WF-12, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 2, slots: [REJECT, APPROVE, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-13, fn: stepOutcome, input: { quorum: ANY, slots: [null, REJECT] }, expect: { outcome: REJECTED, cancel: [1] } }
+  - { id: GC-WF-14, title: เสียงข้างมากของ 4 คือ 3, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 3, slots: [APPROVE, APPROVE, REJECT, null] }, expect: { outcome: OPEN } }
+  - { id: GC-WF-15, fn: stepOutcome, input: { quorum: COUNT, quorumCount: 3, slots: [APPROVE, APPROVE, REJECT, REJECT] }, expect: { outcome: REJECTED, cancel: [] } }
+  # lint DOA (BR-WF-05)
+  - { id: GC-WF-16, fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, quorum: COUNT, quorumCount: 4 } }, expect: { errors: [{ code: DOA_LINT_QUORUM_INVALID, rule: PR-02 }], warnings: [] } }
+  - { id: GC-WF-17, title: PARALLEL ผู้อนุมัติคนเดียว (เข้ากับเทสต์เดิมใน tests/unit/doa.test.ts), fn: lintDoaVersion, input: { doa: DOA-WF, replaceStep: { rule: PR-02, approvers: [{ kind: POSITION_OF_ORG, position: PC1 }] } }, expect: { errors: [{ code: DOA_LINT_PARALLEL_STEP, rule: PR-02 }], warnings: [] } }
+  - { id: GC-WF-18, title: คณะกรรมการที่ถูกต้องผ่าน lint หลัง S6, fn: lintDoaVersion, input: { doa: DOA-WF }, expect: { errors: [], warnings: [] } }
+  # resolveRequestRoute = ขั้น REVIEW จาก workflow + ขั้นของ DOA (BR-WF-06 ถึง BR-WF-10) · review.groups แสดงเฉพาะกลุ่ม COUNT (กลุ่มอื่นคือ slot ละกลุ่ม)
+  - { id: GC-WF-19, title: งานเหมาเท่าเกณฑ์พอดี ไม่มีผู้ตรวจ, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1000000.00" }, expect: { review: null, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-20, title: เกินเกณฑ์ 1 สตางค์ ผู้ตรวจ 3 ฝ่ายพร้อมกัน, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1000000.01" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-03], reviewers: [dm_leg] }, { rules: [RV-04], reviewers: [dm_qse] }, { rules: [RV-05], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-21, title: DM ไอทีขอเอง ผู้ตรวจไปสำรอง และ VP เป็นทั้งผู้ตรวจและผู้อนุมัติ, fn: resolveRequestRoute, input: { requestType: IT_PURCHASE, requester: dm_it, department: IT, net: "15750.00", vat: "1102.50" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-01], reviewers: [vp_sup], fallback: CONFLICT }] }, approval: { rule: PR-01, escalatedTo: PR-02, approvers: [vp_sup] } } }
+  - { id: GC-WF-22, title: ของความปลอดภัย ข้อ ANY ข้อเดียว, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [SAFETY], amount: "5000.00" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-06], reviewers: [dm_qse] }] }, approval: { rule: PR-01, approvers: [dm_con] } } }
+  - { id: GC-WF-23, title: ข้อ ANY สองข้อรวมเป็น slot เดียว, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [FUEL], amount: "5000.00" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-06, RV-08], reviewers: [dm_qse, dm_proc] }] }, approval: { rule: PR-01, approvers: [dm_con] } } }
+  - { id: GC-WF-24, title: งบลงทุนเกิน 500,000 1 สตางค์, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [IT], budgetAccountCodes: ["121201"], amount: "500000.01" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-07], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-25, title: งบลงทุนเท่าเกณฑ์พอดี, fn: resolveRequestRoute, input: { requestType: BUY_GOODS, lineCategories: [IT], budgetAccountCodes: ["121201"], amount: "500000.00" }, expect: { review: null, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-26, title: ผู้ตรวจว่าง ใช้สำรอง, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1500000.00", vacate: ["DM@LEG"] }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-03], reviewers: [vp_sup], fallback: VACANT }, { rules: [RV-04], reviewers: [dm_qse] }, { rules: [RV-05], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-27, title: ผู้ตรวจและสำรองว่าง, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, amount: "1500000.00", vacate: ["DM@LEG", "VP@SUP"] }, expect: { error: REVIEWER_NOT_FOUND, rule: RV-03 } }
+  - { id: GC-WF-28, title: ผู้ตรวจเป็นผู้ขอเอง, fn: resolveRequestRoute, input: { requestType: CONTRACT_WORK, requester: dm_leg, amount: "1500000.00" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-03], reviewers: [vp_sup], fallback: CONFLICT }, { rules: [RV-04], reviewers: [dm_qse] }, { rules: [RV-05], reviewers: [dm_fin] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-29, title: ไอทีเกินเกณฑ์ 1 สตางค์ ผู้ตรวจ 2 ใน 3 ฝ่าย, fn: resolveRequestRoute, input: { requestType: IT_PURCHASE, amount: "1000000.01" }, expect: { review: { quorum: ALL, slots: [{ rules: [RV-01], reviewers: [dm_it] }, { rules: [RV-09], reviewers: [dm_fin] }, { rules: [RV-09], reviewers: [dm_proc] }, { rules: [RV-09], reviewers: [dm_qse] }], groups: [{ rules: [RV-09], quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }] }, approval: { rule: PR-03, approvers: [ceo] } } }
+  - { id: GC-WF-30, title: ผู้ตรวจของข้อ COUNT ว่างจนสำรองคนเดียวกันเหลือ slot ไม่พอ, fn: resolveRequestRoute, input: { requestType: IT_PURCHASE, amount: "1500000.00", vacate: ["DM@FIN", "DM@PROC", "DM@QSE"] }, expect: { error: REVIEWER_NOT_FOUND, rule: RV-09 } }
+  # stepOutcome ของขั้น REVIEW (BR-WF-01 BR-WF-09) · groups = กลุ่มของขั้น (slotNo ของแต่ละกลุ่ม)
+  - { id: GC-WF-31, title: ผู้ตรวจไม่อนุมัติไม่ได้, fn: stepOutcome, input: { kind: REVIEW, quorum: ALL, slots: [APPROVE, REJECT] }, expect: { error: VALIDATION_FAILED, reason: REVIEW_CANNOT_REJECT } }
+  - { id: GC-WF-32, title: กลุ่ม 2 ใน 3 ครบ ยกเลิกงานที่เหลือของกลุ่ม แต่ขั้นยังรอข้อ ALL, fn: stepOutcome, input: { kind: REVIEW, groups: [{ quorum: ALL, slots: [1] }, { quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }], slots: [null, APPROVE, APPROVE, null] }, expect: { outcome: OPEN, cancel: [4] } }
+  - { id: GC-WF-33, title: ทุกกลุ่มครบ กลุ่ม COUNT ได้เท่าจำนวนพอดี, fn: stepOutcome, input: { kind: REVIEW, groups: [{ quorum: ALL, slots: [1] }, { quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }], slots: [APPROVE, APPROVE, null, APPROVE] }, expect: { outcome: APPROVED, cancel: [3] } }
+  - { id: GC-WF-34, title: กลุ่ม COUNT ขาด 1 เสียง, fn: stepOutcome, input: { kind: REVIEW, groups: [{ quorum: ALL, slots: [1] }, { quorum: COUNT, quorumCount: 2, slots: [2, 3, 4] }], slots: [APPROVE, APPROVE, null, null] }, expect: { outcome: OPEN } }
+  # lint workflow (BR-WF-11)
+  - { id: GC-WF-35, fn: lintWorkflowVersion, input: { addRules: [{ code: RV-99, requestTypes: [NO_SUCH_TYPE], when: {}, reviewers: [{ kind: POSITION_AT, position: DM, department: IT }], fallback: { kind: POSITION_AT, position: VP, department: SUP }, mode: ALL, slaBusinessHours: 8 }] }, expect: { errors: [{ code: WF_LINT_UNKNOWN_REQUEST_TYPE, rule: RV-99 }], warnings: [] } }
+  - { id: GC-WF-36, fn: lintWorkflowVersion, input: { replaceWhen: { rule: RV-03, when: { field: notAField, op: eq, value: "Y" } } }, expect: { errors: [{ code: WF_LINT_UNKNOWN_FIELD, rule: RV-03, field: notAField }], warnings: [] } }
+  - { id: GC-WF-37, fn: lintWorkflowVersion, input: { vacate: ["DM@LEG"] }, expect: { errors: [], warnings: [{ code: WF_LINT_VACANT_REVIEWER, rule: RV-02 }, { code: WF_LINT_VACANT_REVIEWER, rule: RV-03 }] } }
+  - { id: GC-WF-38, fn: lintWorkflowVersion, input: { removeFallback: [RV-03] }, expect: { errors: [], warnings: [{ code: WF_LINT_NO_FALLBACK, rule: RV-03 }] } }
+  # S6-07 · ถอนฉบับ (FR-DOA-104 · BR-DOA-18) ฉบับ 1 และ 2 ของ fixture เดิม · ฉบับ 2 เผยแพร่แล้วจึงตั้ง effectiveTo ของฉบับ 1
+  - { id: GC-WF-39, fn: withdrawVersion, input: { withdraw: 2, at: "2026-10-15T03:00:00Z" }, expect: { ok: true, effectiveTo: { 1: null }, versionAt: { "2026-11-02T03:00:00Z": 1 } } }
+  - { id: GC-WF-40, title: ถึงวันมีผลแล้ว, fn: withdrawVersion, input: { withdraw: 2, at: "2026-10-31T17:00:00Z" }, expect: { error: INVALID_STATE_TRANSITION, reason: ALREADY_EFFECTIVE } }
+  - { id: GC-WF-41, title: มีฉบับ 3 รอมีผลอยู่หลังฉบับ 2, fn: withdrawVersion, input: { withdraw: 2, at: "2026-10-15T03:00:00Z", extraVersion: { version: 3, effectiveFrom: "2026-12-01T00:00:00+07:00" } }, expect: { ok: true, effectiveTo: { 1: "2026-12-01T00:00:00+07:00" } } }
+  # S6-07 · ย้อนทดสอบ (BR-WF-13): ฉบับ 1 = ปัจจุบัน · ฉบับ 2 = ร่าง
+  - id: GC-WF-42
+    fn: backtestPolicy
+    input: { current: 1, draft: 2, documents: [{ ref: D1, amount: "25000.00", submittedAt: "2026-10-06T03:00:00Z" }, { ref: D2, amount: "15000.00", submittedAt: "2026-10-06T03:00:00Z" }, { ref: D3, amount: "150000.00", submittedAt: "2026-10-06T03:00:00Z" }] }
+    expect:
+      rows: [{ ref: D1, current: { rule: PR-02, approvers: [vp_ops] }, draft: { rule: PR-01, approvers: [dm_con] }, changed: true }, { ref: D2, changed: false }, { ref: D3, changed: false }]
+      summary: { total: 3, changed: 1, load: { vp_ops: -1, dm_con: 1 } }
+  # S6-08 · ผังเปลี่ยน (BR-WF-14)
+  - { id: GC-WF-43, title: ย้าย CON ไปอยู่ใต้ SUP งานของ VP ย้ายตาม, fn: reresolveOpenTasks, input: { change: { reparent: { CON: SUP } }, tasks: [{ id: T1, resolvedFrom: "POSITION:VP@OPS", approver: { kind: POSITION_OF_DEPARTMENT, position: VP }, chargedDepartment: CON, assignee: vp_ops }] }, expect: { reassign: [{ task: T1, to: vp_sup, resolvedFrom: "POSITION:VP@SUP" }] } }
+  - { id: GC-WF-44, title: งานระดับองค์กรไม่เปลี่ยน, fn: reresolveOpenTasks, input: { change: { reparent: { CON: SUP } }, tasks: [{ id: T2, resolvedFrom: "POSITION:CEO@HQ", approver: { kind: POSITION_OF_ORG, position: CEO }, chargedDepartment: CON, assignee: ceo }] }, expect: { reassign: [] } }
+  - { id: GC-WF-45, title: ขั้นที่รออยู่ใช้ผู้ดำรงคนปัจจุบัน, fn: activateStep, input: { routeCreatedAt: "2026-10-06T03:00:00Z", activateAt: "2026-10-08T03:00:00Z", holders: [{ position: VP, department: OPS, member: vp_ops, validTo: "2026-10-07T00:00:00+07:00" }, { position: VP, department: OPS, member: vp_new, validFrom: "2026-10-07T00:00:00+07:00" }], step: { rule: PR-02, approver: { kind: POSITION_OF_DEPARTMENT, position: VP } } }, expect: { assignee: vp_new, rule: PR-02, version: 1 } }
+```
+
+```yaml
+# tests/golden/price-reference.yaml
+suite: price-reference
+settings: { windowDays: 365, minSamples: 3, alertBp: 1000 }
+defaults: { at: "2026-10-06T03:00:00Z", approvedAt: "2026-09-01T03:00:00Z", priceIncludesVat: false }
+# samples: บรรทัด PO ที่กุญแจเดียวกัน { unitPrice, approvedAt, priceIncludesVat } · ค่าที่ไม่ระบุใช้ defaults
+cases:
+  # S6-10 · ราคาตกลง (BR-PRC-06)
+  - { id: GC-PRC-01, fn: checkAgreement, input: { existing: [{ item: MAT-004, supplier: S1, validFrom: "2026-01-01", validTo: "2027-01-01" }], add: { item: MAT-004, supplier: S1, validFrom: "2026-06-01", validTo: "2027-06-01" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OVERLAP } }
+  - { id: GC-PRC-02, title: ช่วงต่อกันพอดีไม่ทับ, fn: checkAgreement, input: { existing: [{ item: MAT-004, supplier: S1, validFrom: "2026-01-01", validTo: "2027-01-01" }], add: { item: MAT-004, supplier: S1, validFrom: "2027-01-01", validTo: "2028-01-01" } }, expect: { ok: true } }
+  - { id: GC-PRC-03, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S1, unitPrice: "185.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_PRICE_LOCKED } }
+  - { id: GC-PRC-04, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" } }, expect: { error: VALIDATION_FAILED, reason: AGREEMENT_OFF } }
+  - { id: GC-PRC-05, fn: checkAgreementLine, input: { agreement: { item: MAT-004, supplier: S1, unitPrice: "177.00" }, line: { item: MAT-004, supplier: S2, unitPrice: "180.00" }, offAgreementReason: "ผู้ขายรายเดิมส่งไม่ทัน" }, expect: { ok: true } }
+  # S6-11 · ราคาอ้างอิงและช่วงใบเสนอราคา (BR-PRC-01 ถึง BR-PRC-04)
+  - { id: GC-PRC-06, input: { samples: [{ unitPrice: "24500.00", approvedAt: "2026-09-01T03:00:00Z" }, { unitPrice: "23800.00", approvedAt: "2026-08-01T03:00:00Z" }, { unitPrice: "24000.00", approvedAt: "2026-07-01T03:00:00Z" }], price: "24000.00" }, expect: { count: 3, min: "23800.00", median: "24000.00", max: "24500.00", last: "24500.00", deviationBp: 0, alert: null } }
+  - { id: GC-PRC-07, title: จำนวนคู่ใช้ตัวกลางล่าง, input: { samples: [{ unitPrice: "130.00" }, { unitPrice: "100.00" }, { unitPrice: "120.00" }, { unitPrice: "110.00" }], price: "110.00" }, expect: { count: 4, median: "110.00", deviationBp: 0 } }
+  - { id: GC-PRC-08, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "26000.00" }, expect: { deviationBp: 833, alert: null } }
+  - { id: GC-PRC-09, title: ตัดเศษเข้าหาศูนย์ด้านลบ, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "23000.00" }, expect: { deviationBp: -416, alert: null } }
+  - { id: GC-PRC-10, title: เท่าเกณฑ์พอดีไม่เตือน, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "26400.00" }, expect: { deviationBp: 1000, alert: null } }
+  - { id: GC-PRC-11, title: เกินเกณฑ์ 1 สตางค์เตือน แม้ Bp ที่แสดงยังเป็น 1000, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "26400.01" }, expect: { deviationBp: 1000, alert: HIGH } }
+  - { id: GC-PRC-12, title: เอกสารราคารวม VAT ไม่นับ, input: { samples: [{ unitPrice: "24500.00" }, { unitPrice: "26215.00", priceIncludesVat: true }], price: "24500.00" }, expect: { count: 1, excludedVatIncluded: 1, status: FEW_SAMPLES } }
+  - { id: GC-PRC-13, title: ขอบช่วง 365 วัน, input: { samples: [{ unitPrice: "100.00", approvedAt: "2025-10-06T03:00:00Z" }, { unitPrice: "200.00", approvedAt: "2025-10-06T02:59:59Z" }], price: "100.00" }, expect: { count: 1, min: "100.00", max: "100.00" } }
+  - { id: GC-PRC-14, title: คำขอราคารวม VAT ไม่คำนวณส่วนต่าง, input: { samples: [{ unitPrice: "24000.00" }, { unitPrice: "24000.00" }, { unitPrice: "24000.00" }], price: "25680.00", requestIncludesVat: true }, expect: { deviationBp: null, alert: null } }
+  - { id: GC-PRC-15, title: ช่วงใบเสนอราคาจากเคส GC-FORM-09, fn: quoteRange, input: { vatRateBp: 700, quotes: [{ ref: A, amount: "107000.00", includesVat: true }, { ref: B, amount: "101000.00", includesVat: false }, { ref: C, amount: "105000.00", includesVat: true }], selected: C }, expect: { count: 3, lowest: "98130.84", highest: "101000.00", selected: "98130.84", selectedIsLowest: true } }
+```
+
+```yaml
+# tests/golden/forms-s6.yaml
+suite: forms-s6
+settings: { milestoneDays: [60, 30] }
+# formLint: ฟอร์ม HIRE_SERVICE (prisma/seed/forms.yaml) · กฎเอกสารแนบ และกฎ workflow (fixtures/workflow-versions.yaml) ที่อ่าน field
+formLint: { fields: [processesPersonalData, accessesSystems, accessesPremises], rules: { ATT-DPA: [processesPersonalData] }, workflowRules: { RV-02: [processesPersonalData] } }
+cases:
+  # S6-12 · เตือนต่ออายุ (BR-FORM-08)
+  - { id: GC-FORM-12, fn: renewalMilestoneDue, input: { daysLeft: 61, sent: [] }, expect: null }
+  - { id: GC-FORM-13, fn: renewalMilestoneDue, input: { daysLeft: 60, sent: [] }, expect: 60 }
+  - { id: GC-FORM-14, title: job พลาดวัน ยังส่งของ 60, fn: renewalMilestoneDue, input: { daysLeft: 45, sent: [] }, expect: 60 }
+  - { id: GC-FORM-15, fn: renewalMilestoneDue, input: { daysLeft: 30, sent: [60] }, expect: 30 }
+  - { id: GC-FORM-16, title: เหลือน้อยกว่า 30 ส่งเฉพาะ 30, fn: renewalMilestoneDue, input: { daysLeft: 25, sent: [] }, expect: 30 }
+  - { id: GC-FORM-17, fn: renewalMilestoneDue, input: { daysLeft: 30, sent: [60, 30] }, expect: null }
+  - { id: GC-FORM-18, title: หมดอายุแล้วไม่ส่ง, fn: renewalMilestoneDue, input: { daysLeft: -1, sent: [] }, expect: null }
+  - { id: GC-FORM-19, title: วันตามเวลาไทย, fn: daysLeft, input: { at: "2026-10-11T17:00:00Z", serviceEndDate: "2026-12-11" }, expect: 60 }
+  # S6-12 · ขอซ้ำ (BR-FORM-07)
+  - id: GC-FORM-20
+    title: ขอซ้ำคัดลอกเฉพาะที่ยังมีในฟอร์มปัจจุบัน
+    fn: reorderDraft
+    input: { currentFields: [processesPersonalData, accessesSystems, accessesPremises], source: { fields: { processesPersonalData: "Y", legacyField: "x" }, lines: [{ d: ค่ารักษาความปลอดภัย, uom: คน-เดือน, qty: "24", unitPrice: "18500.00", serviceEndDate: "2026-11-10" }], attachments: { DPA: 1, QUOTATION: 3 }, quotations: 3, budgetLine: HRA-GA-OPEX-2569 } }
+    expect: { fields: { processesPersonalData: "Y" }, droppedFields: [legacyField], lines: [{ qty: "24", unitPrice: "18500.00", serviceEndDate: null, priceSource: SOURCE_REQUEST }], attachments: {}, quotations: 0, budgetLine: null }
+  - { id: GC-FORM-21, title: ขอซ้ำใช้ราคาตกลงที่มีผล, fn: reorderDraft, input: { currentFields: [], source: { fields: {}, lines: [{ item: MAT-004, supplier: S1, qty: "100", unitPrice: "185.00" }] }, agreements: [{ item: MAT-004, supplier: S1, unitPrice: "177.00" }] }, expect: { lines: [{ qty: "100", unitPrice: "177.00", priceSource: AGREEMENT }] } }
+  # S6-14 · lint ฟอร์ม (BR-FORM-09) · ฉบับที่ใช้อยู่และสิ่งที่อ่านแต่ละ field อยู่ใน formLint ด้านบน · input บอกว่า field ไหนถูกลบ และกฎใดยังอยู่
+  - { id: GC-FORM-22, fn: lintFormVersion, input: { removeFields: [processesPersonalData], rules: [ATT-DPA], workflowRules: [RV-02] }, expect: { errors: [{ code: FORM_LINT_REFERENCED_FIELD, field: processesPersonalData, by: [ATT-DPA, RV-02] }] } }
+```
+
+```yaml
+# tests/golden/duplicates.yaml
+suite: duplicates
+fixtures: [fixtures/doa-versions.yaml]
+policy: { windowDays: 7 }
+defaults: { at: "2026-10-06T03:00:00Z", requester: u1, department: CON, supplier: S1 }
+# ทุกคำขอมี lines: [{ description, uom, qty }] · amount = ยอดรวม VAT (ฐาน GROSS ของ DOA-DEMO ฉบับ 1)
+cases:
+  - { id: GC-DUP-01, title: ผู้ขอ ของ และจำนวนเดียวกัน ห่าง 1 วัน, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [{ kind: DUPLICATE, with: [R1] }] } }
+  - { id: GC-DUP-02, title: จำนวนต่างกันและยอดรวมยังช่วงเดิม, input: { candidate: { amount: "26536.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "400" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-03, title: ห่าง 7 วันพอดี, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-09-29T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [{ kind: DUPLICATE, with: [R1] }] } }
+  - { id: GC-DUP-04, title: ห่าง 7 วัน 1 วินาที, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-09-29T02:59:59Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-05, title: แตกยอดของ fm_p02 ในข้อมูลระยะ 1, input: { candidate: { amount: "19864.55", lines: [{ d: ไม้อัดยางทำแบบหล่อ 10 มม., uom: แผ่น, qty: "47" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "19441.90", lines: [{ d: ไม้อัดยางทำแบบหล่อ 10 มม., uom: แผ่น, qty: "46" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1], combined: "39306.45", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-06, title: รวมแล้วยังช่วงเดิม, input: { candidate: { amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "10" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "9000.00", lines: [{ d: A, uom: ชิ้น, qty: "9" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-07, title: รวมเท่าขอบบนพอดี, input: { candidate: { amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "10" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "11" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-08, title: รวมเกินขอบ 1 สตางค์, input: { candidate: { amount: "10000.01", lines: [{ d: A, uom: ชิ้น, qty: "10" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "10000.00", lines: [{ d: A, uom: ชิ้น, qty: "11" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1], combined: "20000.01", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-09, title: คำขอที่ไม่อนุมัติไม่นับ, input: { candidate: { amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }, recent: [{ ref: R1, status: REJECTED, submittedAt: "2026-10-05T03:00:00Z", amount: "33170.00", lines: [{ d: ลวดผูกเหล็ก, uom: กก., qty: "500" }] }] }, expect: { flags: [] } }
+  - { id: GC-DUP-10, title: คนละผู้ขอ แผนกและผู้ขายเดียวกัน, input: { candidate: { amount: "15000.00", lines: [{ d: B, uom: ชุด, qty: "1" }] }, recent: [{ ref: R1, requester: u2, status: PENDING_APPROVAL, submittedAt: "2026-10-05T03:00:00Z", amount: "8000.00", lines: [{ d: C, uom: ชุด, qty: "1" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1], combined: "23000.00", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-11, title: ช่องว่างและตัวพิมพ์ไม่ทำให้พลาด, input: { candidate: { amount: "1070.00", lines: [{ d: "  Safety   Helmet ", uom: ใบ, qty: "5" }] }, recent: [{ ref: R1, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "1070.00", lines: [{ d: "safety helmet", uom: ใบ, qty: "5" }] }] }, expect: { flags: [{ kind: DUPLICATE, with: [R1] }] } }
+  - { id: GC-DUP-12, title: สามคำขอรวมกัน, input: { candidate: { amount: "6000.00", lines: [{ d: A, uom: ชิ้น, qty: "6" }] }, recent: [{ ref: R1, status: APPROVED, submittedAt: "2026-10-04T03:00:00Z", amount: "8000.00", lines: [{ d: A, uom: ชิ้น, qty: "8" }] }, { ref: R2, status: COMPLETED, submittedAt: "2026-10-05T03:00:00Z", amount: "7000.00", lines: [{ d: A, uom: ชิ้น, qty: "7" }] }] }, expect: { flags: [{ kind: SPLIT, with: [R1, R2], combined: "21000.00", individualRule: PR-01, combinedRule: PR-02 }] } }
+  - { id: GC-DUP-13, title: แผนกเดียวกันแต่คนละผู้ขายและคนละของ, input: { candidate: { amount: "15000.00", lines: [{ d: B, uom: ชุด, qty: "1" }] }, recent: [{ ref: R1, requester: u2, supplier: S2, status: APPROVED, submittedAt: "2026-10-05T03:00:00Z", amount: "8000.00", lines: [{ d: C, uom: ชุด, qty: "1" }] }] }, expect: { flags: [] } }
+```
+
+```yaml
+# tests/golden/budget-change.yaml
+suite: budget-change
+# บรรทัด A (แผนก CON) และ B (แผนก IT) ปีงบเดียวกัน · expect ต่อบรรทัดหลัง step: available reserved committed actual funded
+# op: fund | reserve | release | submitTransfer | approveTransfer | rejectTransfer | approveOverrun | consumeOverrun | lapseOverrun | approvePo | closePo
+# approvePo: คืนจองของคำขอ (release) แล้วถือยอด PO บรรทัด (hold) ในคำสั่งเดียว · closePo: ตัดยอดใบกำกับใบสุดท้าย (actual) แล้วคืนถือที่เหลือ
+# used returned = ของ overrun ตอนใช้หรือหมดอายุ · returnedAfterUse = คืนหลังใช้ตาม BR-BUD-18 (สะสม)
+cases:
+  # S6-15 · โอนและปรับงบ (BR-BUD-09 ถึง BR-BUD-11)
+  - id: GC-BUD-08
+    title: โอนจาก A ไป B
+    steps:
+      - { op: fund, line: A, amount: "500000.00" }
+      - { op: fund, line: B, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "150000.00", expect: { A: { available: "350000.00", reserved: "150000.00", funded: "500000.00" }, B: { available: "100000.00", funded: "100000.00" } } }
+      - { op: approveTransfer, id: T1, expect: { A: { available: "350000.00", reserved: "0.00", funded: "350000.00" }, B: { available: "250000.00", funded: "250000.00" } } }
+  - id: GC-BUD-09
+    title: โอนเกินคงเหลือ 1 สตางค์ แล้วโอนเท่าคงเหลือพอดี
+    steps:
+      - { op: fund, line: A, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "100000.01", expectError: BUDGET_INSUFFICIENT, shortfall: "0.01", expect: { A: { available: "100000.00", reserved: "0.00" } } }
+      - { op: submitTransfer, id: T2, from: A, to: B, amount: "100000.00", expect: { A: { available: "0.00", reserved: "100000.00" } } }
+  - id: GC-BUD-10
+    title: ไม่อนุมัติการโอน คืนการจองต้นทาง
+    steps:
+      - { op: fund, line: A, amount: "500000.00" }
+      - { op: submitTransfer, id: T1, from: A, to: B, amount: "150000.00" }
+      - { op: rejectTransfer, id: T1, expect: { A: { available: "500000.00", reserved: "0.00", funded: "500000.00" }, B: { available: "0.00", funded: "0.00" } } }
+  - id: GC-BUD-11
+    title: ปรับลดงบ
+    steps:
+      - { op: fund, line: A, amount: "200000.00" }
+      - { op: submitTransfer, id: T1, kind: DECREASE, from: A, amount: "50000.00" }
+      - { op: approveTransfer, id: T1, expect: { A: { available: "150000.00", reserved: "0.00", funded: "150000.00" } } }
+  - id: GC-BUD-12
+    title: ปรับเพิ่มงบ
+    steps:
+      - { op: fund, line: B, amount: "100000.00" }
+      - { op: submitTransfer, id: T1, kind: INCREASE, to: B, amount: "30000.00", expect: { B: { available: "100000.00", funded: "100000.00" } } }
+      - { op: approveTransfer, id: T1, expect: { B: { available: "130000.00", funded: "130000.00" } } }
+  - { id: GC-BUD-13, fn: transferDoaInput, input: { kind: TRANSFER, from: { department: CON }, to: { department: IT }, amount: "300000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "300000.00", vat: "0.00", department: CON, conflict: [u1] } }
+  - { id: GC-BUD-14, fn: transferDoaInput, input: { kind: INCREASE, to: { department: IT }, amount: "30000.00", submitter: u1 }, expect: { documentType: BUDGET_TRANSFER, net: "30000.00", vat: "0.00", department: IT, conflict: [u1] } }
+  # S6-16 · เกินงบ (BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18)
+  - id: GC-BUD-15
+    title: เกินงบ ใช้ส่วนที่อนุมัติพอดี
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "15000.00", funded: "25000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "15000.00", returned: "0.00" } }
+  - id: GC-BUD-16
+    title: งบว่างเพิ่มหลังอนุมัติ คืนส่วนที่ไม่ใช้
+    steps:
+      - { op: fund, line: A, amount: "18000.00" }
+      - { op: reserve, line: A, source: PR-X, amount: "8000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "23000.00", funded: "33000.00" } } }
+      - { op: release, line: A, source: PR-X, expect: { A: { available: "18000.00", reserved: "15000.00", funded: "33000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "7000.00", returned: "8000.00" } }
+  - id: GC-BUD-17
+    title: ต้องใช้มากกว่าที่อนุมัติ 1 สตางค์
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: reserve, line: A, source: PR-Y, amount: "0.01", expect: { A: { available: "9999.99", reserved: "15000.01", funded: "25000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expectError: BUDGET_INSUFFICIENT, shortfall: "0.01", expect: { A: { available: "9999.99", reserved: "15000.01", funded: "25000.00" } } }
+  - id: GC-BUD-18
+    title: ไม่ได้ใช้จนหมดอายุ
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: lapseOverrun, id: O1, expect: { A: { available: "10000.00", reserved: "0.00", funded: "10000.00" }, used: "0.00", returned: "15000.00" } }
+  - id: GC-BUD-19
+    title: ไม่ต้องใช้เลย คืนทั้งหมด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: fund, line: A, amount: "20000.00", expect: { A: { available: "30000.00", reserved: "15000.00", funded: "45000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "5000.00", reserved: "25000.00", funded: "30000.00" }, used: "0.00", returned: "15000.00" } }
+  - id: GC-BUD-20
+    title: ใช้เกินงบแล้วคำขอไม่ได้รับอนุมัติ คืนส่วนที่เติมออกจากบรรทัด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "25000.00", funded: "25000.00" }, used: "15000.00", returned: "0.00" } }
+      - { op: release, line: A, source: PR-1, expect: { A: { available: "10000.00", reserved: "0.00", funded: "10000.00" }, returnedAfterUse: "15000.00" } }
+  - id: GC-BUD-21
+    title: PO ถูกกว่าคำขอ แล้วปิด PO โดยใช้ไม่หมด
+    steps:
+      - { op: fund, line: A, amount: "10000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00" }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { used: "15000.00", returned: "0.00" } }
+      - { op: approvePo, line: A, po: PO-1, request: PR-1, release: "25000.00", hold: "22000.00", expect: { A: { available: "0.00", reserved: "0.00", committed: "22000.00", funded: "22000.00" }, returnedAfterUse: "3000.00" } }
+      - { op: closePo, line: A, po: PO-1, actual: "20000.00", expect: { A: { available: "0.00", committed: "0.00", actual: "20000.00", funded: "20000.00" }, returnedAfterUse: "5000.00" } }
+  - id: GC-BUD-22
+    title: การคืนของคำขออื่นไม่คืนส่วนเกินงบ
+    steps:
+      - { op: fund, line: A, amount: "30000.00" }
+      - { op: reserve, line: A, source: PR-X, amount: "20000.00" }
+      - { op: approveOverrun, id: O1, request: PR-1, need: "25000.00", expectShortfall: "15000.00", expect: { A: { available: "10000.00", reserved: "35000.00", funded: "45000.00" } } }
+      - { op: consumeOverrun, id: O1, request: PR-1, need: "25000.00", expect: { A: { available: "0.00", reserved: "45000.00", funded: "45000.00" }, used: "15000.00", returned: "0.00" } }
+      - { op: release, line: A, source: PR-X, expect: { A: { available: "20000.00", reserved: "25000.00", funded: "45000.00" }, returnedAfterUse: "0.00" } }
+      - { op: release, line: A, source: PR-1, expect: { A: { available: "30000.00", reserved: "0.00", funded: "30000.00" }, returnedAfterUse: "15000.00" } }
+  - { id: GC-BUD-23, fn: overrunDoaInput, input: { requestNet: "25000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { documentType: OVER_BUDGET, net: "15000.00", vat: "0.00", department: CON, conflict: [u1] } }
+  - { id: GC-BUD-24, title: งบพอแล้ว ขอเกินงบไม่ได้, fn: overrunDoaInput, input: { requestNet: "10000.00", line: { department: CON, available: "10000.00" }, requester: u1 }, expect: { error: VALIDATION_FAILED, reason: NOT_OVER_BUDGET } }
+  # S6-17 · แบ่งค่าใช้จ่าย (BR-BUD-16)
+  - { id: GC-BUD-25, title: แบ่งบรรทัดตามจำนวน ไม่มีเศษ, fn: splitLine, input: { unitPrice: "300000.00", parts: ["0.6", "0.4"] }, expect: { nets: ["180000.00", "120000.00"], total: "300000.00", original: "300000.00" } }
+  - { id: GC-BUD-26, title: แบ่งครึ่งแล้วปัด half-up ต่อส่วน, fn: splitLine, input: { unitPrice: "100000.01", parts: ["0.5", "0.5"] }, expect: { nets: ["50000.01", "50000.01"], total: "100000.02", original: "100000.01" } }
+  - { id: GC-BUD-27, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "50000.00" }, { lineNo: 2, department: IT, net: "70000.00" }] }, expect: { department: IT } }
+  - { id: GC-BUD-28, title: ยอดเท่ากันใช้บรรทัดแรก, fn: chargedDepartmentOf, input: { lines: [{ lineNo: 1, department: CON, net: "60000.00" }, { lineNo: 2, department: IT, net: "60000.00" }] }, expect: { department: CON } }
+  # S6-18 · budgetBurn (BR-BUD-17) · ปีงบ 365 วัน · thresholds [8000, 10000] · forecastMinElapsedDays 30
+  - { id: GC-BUD-29, fn: budgetBurn, input: { funded: "1200000.00", committed: "300000.00", actual: "330000.00", elapsedDays: 146 }, expect: { usedBp: 5250, forecastBp: 13125, alerts: [FORECAST_OVER] } }
+  - { id: GC-BUD-30, title: ใช้ 80% พอดี, fn: budgetBurn, input: { funded: "1000000.00", committed: "500000.00", actual: "300000.00", elapsedDays: 200 }, expect: { usedBp: 8000, forecastBp: 14600, alerts: [USED_8000, FORECAST_OVER] } }
+  - { id: GC-BUD-31, title: ยังไม่ครบ 30 วัน ไม่พยากรณ์, fn: budgetBurn, input: { funded: "1000000.00", committed: "100000.00", actual: "0.00", elapsedDays: 29 }, expect: { usedBp: 1000, forecastBp: null, alerts: [] } }
+  - { id: GC-BUD-32, fn: budgetBurn, input: { funded: "1000000.00", committed: "400000.00", actual: "0.00", elapsedDays: 200 }, expect: { usedBp: 4000, forecastBp: 7300, alerts: [] } }
+  - { id: GC-BUD-33, fn: budgetBurn, input: { funded: "0.00", committed: "0.00", actual: "0.00", elapsedDays: 200 }, expect: { usedBp: null, forecastBp: null, alerts: [] } }
+```
 
 ### 7.18 S8 · ใบแจ้งหนี้ จับคู่ 3 ทาง และแก้ใบสั่งซื้อ (จองโดย P1-07)
 
@@ -3355,7 +3809,7 @@ cases:
 | FR-PLT-303 | Multi-tenant เต็มรูปแบบและ white-label | S15 | 6.14 |
 | FR-SRC-301 | e-Auction | S15 | 6.8 |
 | FR-WF-301 | ตัวสร้าง workflow แบบลากวาง | S15 | 6.4 |
-| FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย โอนงบ | S15 | 6.1 |
+| FR-DOA-301 | DOA Everywhere: e-Memo สัญญา ใบสำคัญจ่าย (โอนงบย้ายไป FR-BUD-103 ของ S6 · OQ-105) | S15 | 6.1 |
 | FR-NOTI-301 | adapter Microsoft Teams และ LINE WORKS | S15 | 5 |
 
 AC ของ FR ชั้น 2 ที่ขั้นของสายเขียนลงไว้ที่นี่ตาม checklist (ร่างและเจ้าของของแต่ละ AC อยู่ใน sub-spec ของขั้น · ac-map.yaml นับเฉพาะ FR ชั้น 1)
@@ -3515,6 +3969,7 @@ AC ของ FR ชั้น 2 ที่ขั้นของสายเขี�
 | `/finance/invoices` · `/finance/exports` | FINANCE | ยืนยันใบกำกับ ส่งออก Express | S4 |
 | `/budgets` · `/budgets/[lineId]` | ตามสิทธิ์ | dashboard งบ | S3 |
 | `/suppliers` | ตามสิทธิ์ | ทะเบียนผู้ขายขั้นต้น · ค้นหาผู้ขายและราคาล่าสุด (chip ที่ 3 ของหน้าแรก) | S4 · S16 |
+| `/catalog` · `/catalog/manage` | ทุก member · PROCUREMENT | ค้นหาแคตตาล็อก ราคาอ้างอิงและราคาตกลง · จัดการสินค้าและราคาตกลง (FR-INT-102) | S6 |
 | `/board/pending` | ตามสิทธิ์ | กระดานเอกสารค้าง | S4 |
 | `/reports` · `/kpi` | ตามสิทธิ์ | รายงานและ KPI · `/kpi` พาไป `/insights` | S4 · S5 · S16 |
 | `/insights` | `report.view` | สรุปผู้บริหาร (FR-VIS-007) | S16 |
@@ -3743,9 +4198,9 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `--line-strong` | `#7D8F96` | ขอบช่องกรอก checkbox และ radio |
 | `--focus` | `#0B6E5F` | วง focus 2 px ห่างจากขอบ 2 px |
 | `--ok-bg` · `--ok-ink` | `#E3F3EC` · `#0A5E50` | ป้าย อนุมัติแล้ว เสร็จสิ้น งบพอ |
-| `--warn-bg` · `--warn-ink` | `#FBF0D4` · `#7F4D00` | ป้าย รออนุมัติ ตีกลับ งบใกล้หมด ด่วน |
+| `--warn-bg` · `--warn-ink` | `#FBF0D4` · `#7F4D00` | ป้าย รออนุมัติ ตีกลับ งบใกล้หมด ด่วน ราคาสูงกว่าค่ากลาง (S6-11) |
 | `--danger-bg` · `--danger-ink` | `#FCE9E7` · `#9F1F12` | ป้าย เกินกำหนด ไม่อนุมัติ งบไม่พอ |
-| `--info-bg` · `--info-ink` | `#E7EFF9` · `#1A5296` | ป้าย ส่งผู้ขายแล้ว สั่งซื้อแล้ว รอผู้ขอตอบ และค่าที่ AI เติม (S13) |
+| `--info-bg` · `--info-ink` | `#E7EFF9` · `#1A5296` | ป้าย ส่งผู้ขายแล้ว สั่งซื้อแล้ว รอผู้ขอตอบ ราคาต่ำกว่าค่ากลาง (S6-11) และค่าที่ AI เติม (S13) |
 | `--neutral-bg` · `--neutral-ink` | `#EDF1F2` · `#3F4F57` | ป้าย ร่าง ยกเลิก ปิดแล้ว ปกติ |
 
 **คู่สีที่ต้องผ่าน contrast** (ค่าตาม WCAG 2.1 ปัดลง 2 ตำแหน่ง · S16-01 ให้ `spec_check.py` คำนวณตารางนี้ซ้ำ)
@@ -3835,6 +4290,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | จัดซื้อ | ใบสั่งซื้อ | `/procurement/pos` | `po.view` ระดับองค์กร | — |
 | จัดซื้อ | ตรวจรับ | `/receiving` | `gr.post` | PO ที่รอตรวจรับ |
 | จัดซื้อ | ผู้ขาย | `/suppliers` | ทุกคน | — |
+| จัดซื้อ | แคตตาล็อก | `/catalog` | `catalog.view` (ทุกคน · S6-10) | — |
 | การเงิน | ยืนยันใบกำกับ | `/finance/invoices` | `invoiceConfirmation.record` | — |
 | การเงิน | รอบจ่าย (เมื่อเปิด `PAY` · S9) | `/finance/payments` | `paymentRun.view` ระดับองค์กร | — |
 | การเงิน | บัญชีธนาคาร (เมื่อเปิด `PAY` · S9) | `/finance/bank-accounts` | `bankAccount.view` | — |
@@ -4000,6 +4456,8 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | เหตุ | ผู้รับ | ช่องทาง | ความด่วน | แม่แบบ |
 | --- | --- | --- | --- | --- |
 | `approval_task.assigned` | ผู้รับงาน · ผู้มอบ (รับทราบ เมื่อเป็นงานรักษาการ) | การ์ด LINE → อีเมล | IMMEDIATE | `task.assigned` |
+| `approval_task.assigned` ของขั้น REVIEW (S6) | ผู้ตรวจ | การ์ด LINE (ผ่าน · ตีกลับเปิด LIFF) → อีเมล (ลิงก์ผ่านเท่านั้น) | IMMEDIATE | `task.review_assigned` |
+| `approval_step.completed` ของขั้น REVIEW ที่ผ่าน (S6) | ผู้ขอ | ในระบบ | DIGEST | `request.reviews_done` |
 | `approval_task.reminded` | ผู้รับงาน | LINE → อีเมล | IMMEDIATE | `task.reminder` |
 | `approval_task.overdue` | ผู้รับงาน · ผู้อนุมัติช่วงถัดไป (รับทราบ) | LINE → อีเมล | IMMEDIATE | `task.overdue` |
 | `approval_task.escalated` | ผู้รับร่วมคนใหม่ · ผู้รับเดิม · ผู้ขอ | LINE → อีเมล | IMMEDIATE | `task.escalated` |
@@ -4014,13 +4472,22 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 | `gr.posted` | ผู้ขอ · PROCUREMENT | ในระบบ | DIGEST | `gr.posted` |
 | `delegation.started` · `delegation.ended` | ผู้มอบ · ผู้รักษาการ | LINE → อีเมล | IMMEDIATE | `delegation.window` |
 | ปิดใช้งาน member ที่มีงานค้าง | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.reassign_needed` |
-| ส่งคำขอไม่ได้เพราะ `DOA_NOT_CONFIGURED` · `APPROVER_NOT_FOUND` · `NO_HIGHER_AUTHORITY` (NEW-27) | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
+| ส่งคำขอไม่ได้เพราะ `DOA_NOT_CONFIGURED` · `APPROVER_NOT_FOUND` · `NO_HIGHER_AUTHORITY` (NEW-27) · `REVIEWER_NOT_FOUND` (S6 · BR-WF-08) | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.doa_gap` |
 | โควตา LINE ถึง 80% | ORG_ADMIN · PLATFORM_ADMIN | อีเมล | IMMEDIATE | `admin.line_quota` |
 | `export.generated` | ผู้สั่งส่งออก | ในระบบ | IMMEDIATE | `export.ready` |
 | `organization.module_enabled` · `organization.module_disabled` | ORG_ADMIN | อีเมล · ในระบบ | IMMEDIATE | `admin.module_changed` |
 | DOA ฉบับใหม่หรือการเปลี่ยนโครงสร้างอำนาจมีผล | ผู้ที่ได้หรือเสียอำนาจ · ORG_ADMIN | LINE → อีเมล | IMMEDIATE | `doa.authority_changed` |
+| `doa_version.withdrawn` · `workflow_version.withdrawn` (S6-07) | ORG_ADMIN · AUDITOR · ผู้ส่งฉบับ · ผู้ขอถอน | อีเมล · ในระบบ | IMMEDIATE | `policy.withdrawn` |
+| `doa_version.withdrawal_rejected` · `workflow_version.withdrawal_rejected` (S6-07) | ผู้ขอถอน | อีเมล · ในระบบ | IMMEDIATE | `policy.withdrawal_rejected` |
 | `form_version.published` ที่เปลี่ยนกฎเอกสารแนบ | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
+| `member.role_granted` · `member.role_revoked` ของ `DOA_ADMIN` (S6-09 · BR-WF-16) | AUDITOR | อีเมล · ในระบบ | IMMEDIATE | `audit.policy_changed` |
 | `po.idle_reminded` | ผู้ขอของ PR ต้นทาง · PROCUREMENT | LINE → อีเมล | DIGEST | `po.idle` |
+| `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` (S6-15) | ผู้ส่ง | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.transfer_decided` |
+| `budget.imported` ที่เพิ่มยอดให้บรรทัดที่มีงบแล้ว (S6-15 · OQ-105) | AUDITOR | ในระบบ | DIGEST | `audit.budget_topped_up` |
+| `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` (S6-16) | ผู้ขอ | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.overrun_decided` |
+| `budget_overrun.lapse_reminded`: การขอเกินงบที่อนุมัติแล้วจะหมดอายุใน 2 วัน (S6-16 · BR-BUD-15) | ผู้ขอ | LINE → อีเมล · ในระบบ | IMMEDIATE | `budget.overrun_lapsing` |
+| `request.flagged` (S6-13 · BR-DUP-05) | AUDITOR | ในระบบ | DIGEST | `audit.request_flagged` |
+| `request.renewal_reminded` (S6-12 · BR-FORM-08) | ผู้ขอ · PROCUREMENT | LINE → อีเมล · ในระบบ | ผู้ขอ IMMEDIATE · PROCUREMENT DIGEST | `request.renewal_due` |
 | `supplier.registry_status_changed` | PROCUREMENT | อีเมล · ในระบบ | IMMEDIATE | `supplier.status_changed` |
 | `invoice.exception_raised` (S8) | ผู้รับตามชนิดของรายการไม่ตรง (BR-MATCH-09) | ในระบบ · LINE | IMMEDIATE | `invoice.exception` |
 | `po_change.approved` · `po_change.rejected` · `po_change.returned` (S8-10) | ผู้เสนอ | ในระบบ · LINE | IMMEDIATE | `po_change.decided` |
@@ -4055,17 +4522,25 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 
 | Aggregate | Event types |
 | --- | --- |
-| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
+| organization · member | `organization.created` `organization.module_enabled` `organization.module_disabled` `organization.settings_updated` `organization.sandbox_created` (S6-21 · บนองค์กร production ที่เป็นเจ้าของ) `member.invited` `member.activated` `member.deactivated` `member.role_granted` `member.role_revoked` `member.session_revoked` `member.notification_prefs_updated` |
 | โครงองค์กร | `department.created` `department.updated` `cost_center.created` `cost_center.updated` `position.assigned` `position.unassigned` `holiday.imported` |
-| doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` |
+| doa_version | `doa_version.drafted` `doa_version.submitted` `doa_version.approved` `doa_version.rejected` `doa_version.published` `doa_version.superseded` `doa_version.withdrawn` `doa_version.withdrawal_requested` `doa_version.withdrawal_rejected` `doa_version.withdrawal_cancelled` (S6-07 · FR-DOA-104 · `doa_version.withdrawn` มี schema แล้ว) |
+| workflow_version | `workflow_version.drafted` `workflow_version.updated` `workflow_version.dry_run` `workflow_version.submitted` `workflow_version.approved` `workflow_version.rejected` `workflow_version.published` `workflow_version.superseded` `workflow_version.withdrawal_requested` `workflow_version.withdrawn` `workflow_version.withdrawal_rejected` `workflow_version.withdrawal_cancelled` (S6 · FR-WF-103 · การถอน S6-07) |
+| backtest | `backtest.requested` `backtest.completed` (S6-07 · ย้อนทดสอบที่เกิน 500 เอกสาร · ADR-111) |
+| catalog | `catalog_item.created` `catalog_item.updated` `price_agreement.created` `price_agreement.ended` (S6-10 · FR-INT-102 · BR-PRC-06) |
 | org_authority_change | `org_authority_change.drafted` `org_authority_change.submitted` `org_authority_change.approved` `org_authority_change.rejected` `org_authority_change.cancelled` `org_authority_change.applied` |
-| form_version | `form_version.published` |
+| form_version | `form_version.published` · S6-14: `form_version.drafted` `form_version.updated` `form_version.retired` · `form_version.published` บอก `attachmentRulesChanged` ให้ประวัตินโยบาย |
 | delegation | `delegation.created` `delegation.started` `delegation.ended` `delegation.revoked` |
-| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` |
+| request | `request.drafted` `request.submitted` `request.returned` `request.resubmitted` `request.approved` `request.rejected` `request.cancelled` `request.info_requested` `request.info_provided` `request.completed` `request.draft_expiry_notified` `request.supplier_assigned` `request.doa_gap_reported` `request.follower_added` `request.follower_removed` `comment.added` `comment.retracted` · S6-12: `request.renewal_reminded` · `request.drafted` source `REORDER` `RENEWAL` · S6-13: `request.flagged` (kind `DUPLICATE` `SPLIT` · routeNo · matchedRequestIds) |
 | request_type | `request_type.updated` |
 | supplier | `supplier.created` `supplier.updated` `supplier.registry_checked` `supplier.registry_status_changed` |
 | approval_task | `approval_task.assigned` `approval_task.reassigned` `approval_task.reminded` `approval_task.overdue` `approval_task.escalated` `approval_task.decided` `approval_task.cancelled` |
-| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` |
+| approval_step | `approval_step.completed` (S6 · ขั้นหลาย slot ของคณะกรรมการและผู้ตรวจได้ผลแล้ว: outcome quorum ผลต่อ slot · BR-WF-01) |
+| budget | `budget.imported` `budget.reserved` `budget.reservation_released` `budget.committed` `budget.commitment_released` `budget.actualized` `budget_grant.created` `budget_grant.revoked` · S6-15: `budget.transferred_out` `budget.transferred_in` · S6-16: `budget.overrun_funded` `budget.overrun_returned` · S6-18: `budget.alert_raised` (ครั้งเดียวต่อบรรทัด เกณฑ์ และปีงบ) |
+| budget_transfer | `budget_transfer.drafted` `budget_transfer.submitted` `budget_transfer.approved` `budget_transfer.rejected` `budget_transfer.returned` `budget_transfer.cancelled` (S6-15 · FR-BUD-103) |
+| budget_overrun | `budget_overrun.submitted` `budget_overrun.approved` `budget_overrun.rejected` `budget_overrun.returned` `budget_overrun.cancelled` `budget_overrun.consumed` `budget_overrun.lapsed` `budget_overrun.lapse_reminded` `budget_overrun.unused_returned` (S6-16 · FR-BUD-101 · BR-BUD-12 ถึง BR-BUD-15 BR-BUD-18) |
+| document_verification | `document_verification.issued` (S6-19 · BR-QR-01 · เมื่อเนื้อหาที่พิมพ์ของ PR หรือ PO เปลี่ยน · ไม่มี token ใน event) |
+| config_package | `config_package.exported` `config_package.imported` (S6-21 · BR-UAT-02 BR-UAT-03 · ร่างที่นำเข้ามี event ของตัวเองแบบ via `CONFIG_IMPORT`) |
 | po | `po.drafted` `po.updated` `po.submitted` `po.approved` `po.rejected` `po.returned` `po.sent` `po.send_bounced` `po.cancelled` `po.closed` `po.idle_reminded` |
 | consolidation_run | `consolidation_run.completed` |
 | report_schedule | `report_schedule.created` |
@@ -4103,7 +4578,7 @@ token ส่วนขยาย (แถบเมนูสีเขียวเข
 
 ### 11.2 Dashboard งบ
 
-ต่อบรรทัดงบ แผนก และทั้งองค์กร: งบตั้งต้น · available · reserved · committed · actual · % ใช้แล้ว = (committed + actual) ÷ งบตั้งต้น · % รวมที่จองแล้ว = (reserved + committed + actual) ÷ งบตั้งต้น · สีเตือนเมื่อเหลือต่ำกว่า `digest.budgetLowPct` · drill-down ถึงเอกสาร · ส่งออก Excel
+ต่อบรรทัดงบ แผนก และทั้งองค์กร: งบตั้งต้น · available · reserved · committed · actual · % ใช้แล้ว = (committed + actual) ÷ งบปัจจุบัน (S6-15 · OQ-105: งบปัจจุบัน = `plannedSatang` = นำเข้า + โอนเข้า + ปรับเพิ่ม − โอนออก − ปรับลด ตาม INV-BUD-07 · หน้า dashboard แสดงงบตั้งต้นจากการนำเข้า โอนเข้า โอนออก ปรับ และงบปัจจุบันแยกกัน) · % รวมที่จองแล้ว = (reserved + committed + actual) ÷ งบปัจจุบัน · สีเตือนเมื่อเหลือต่ำกว่า `digest.budgetLowPct` · drill-down ถึงเอกสาร · ส่งออก Excel
 
 ### 11.3 รายงานตาม proposal เดิม
 
@@ -4128,10 +4603,10 @@ framework: รายงานแต่ละฉบับเป็น query ใ�
 | เป้าหมาย | สูตร | หมายเหตุ |
 | --- | --- | --- |
 | G-1 | จำนวน PO ที่อนุมัติในช่วง ÷ จำนวนเอกสารซื้อทั้งหมดในช่วงจากข้อมูลที่นำเข้าจาก Express รายเดือน | ใน BCS ทุก PO มีคำขอต้นทาง (OQ-24) ตัวหารจึงต้องมาจากระบบบัญชีเพื่อจับการซื้อนอกระบบ |
-| G-2 | (ก) จำนวนการตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ DOA engine คำนวณได้ ณ เวลานั้น (ตรวจย้อนด้วย engine) (ข) การตัดสินที่มี doaVersionId และ ruleCode ÷ การตัดสินทั้งหมด | (ก) ต้องเป็น 0 · (ข) ต้องเป็น 100% |
+| G-2 | (ก) จำนวนการตัดสินที่ผู้ตัดสินไม่อยู่ในชุดที่ DOA engine คำนวณได้ ณ เวลานั้น (ตรวจย้อนด้วย engine · ขั้น APPROVAL หาด้วย doaStepNo · การตัดสินของผู้ตรวจตรวจกับผู้ถือ slot ที่ engine workflow คำนวณได้ · S6) (ข) การตัดสินที่มี doaVersionId และ ruleCode ÷ การตัดสินทั้งหมด (รวมผู้ตรวจ) | (ก) ต้องเป็น 0 · (ข) ต้องเป็น 100% |
 | G-3 | มัธยฐานของ (เวลาอนุมัติ PO แรก − เวลาส่งคำขอ) · มัธยฐานของ (decidedAt − assignedAt) · งานที่ตัดสินหลัง dueAt หรือยังเปิดอยู่และเลย dueAt ÷ งานทั้งหมด | |
 | G-4 | จำนวน `approval_task.assigned` ของคำขอที่ `budgetCheck` ไม่ใช่ PASS | ต้องเป็น 0 |
-| G-5 | การตัดสินที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินทั้งหมด | แสดงทั้งรวมและแยกตามประเภทเอกสาร · ฉาก 9 ของ demo และ D-01 ใช้ตัวเลขของคำขอซื้อ (`PURCHASE_REQUEST`) ซึ่งตรงกับบรรทัดของ `pnpm inputs:check` (ADR-038) |
+| G-5 | การตัดสินของขั้น APPROVAL ที่ channel เป็น `LINE_CHAT` หรือ `LIFF` ÷ การตัดสินของขั้น APPROVAL ทั้งหมด (การตัดสินของผู้ตรวจไม่ใช่การอนุมัติ ไม่นับ · S6 · OQ-101) | แสดงทั้งรวมและแยกตามประเภทเอกสาร · ฉาก 9 ของ demo และ D-01 ใช้ตัวเลขของคำขอซื้อ (`PURCHASE_REQUEST`) ซึ่งตรงกับบรรทัดของ `pnpm inputs:check` (ADR-038) |
 | G-6 ถึง G-9 | นิยามใน sub-spec ของ S7 ถึง S11 | |
 | G-10 | จำนวนจุดในโค้ดที่ lint พบว่าอ้างรหัสองค์กรหรือเงื่อนไขเฉพาะลูกค้า | ต้องเป็น 0 |
 | G-11 | (ก) ฉบับ DOA และ `OrgAuthorityChange` ที่มีผลแล้วโดยไม่มี event ที่ actorType เป็น `PLATFORM_ADMIN` ในวงจรนั้น ÷ ทั้งหมด (ข) มัธยฐานเวลาทำการจาก `doa_version.drafted` ถึง `doa_version.published` | (ก) ต้องเป็น 100% |
@@ -4543,7 +5018,9 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `DOA_NOT_CONFIGURED` | 422 | ยังไม่มี DOA ที่มีผลสำหรับเอกสารนี้ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_AMBIGUOUS` | 422 | DOA มีข้อที่ใช้ได้มากกว่าหนึ่งข้อ กรุณาติดต่อผู้ดูแลระบบ |
 | `DOA_LINT_FAILED` | 422 | DOA ฉบับนี้ยังไม่ผ่านการตรวจ: {codes} |
+| `WORKFLOW_LINT_FAILED` | 422 | workflow ฉบับนี้ยังไม่ผ่านการตรวจ: {codes} |
 | `APPROVER_NOT_FOUND` | 422 | ไม่พบผู้ดำรงตำแหน่ง {position} ของ {department} กรุณาติดต่อผู้ดูแลระบบ |
+| `REVIEWER_NOT_FOUND` | 422 | ไม่พบผู้ตรวจ {position} ของ {department} ตามข้อ {rule} กรุณาติดต่อผู้ดูแลระบบ |
 | `NO_HIGHER_AUTHORITY` | 422 | DOA ไม่มีผู้มีอำนาจสูงกว่าผู้ขอสำหรับยอดนี้ |
 | `BUDGET_INSUFFICIENT` | 422 | งบไม่พอ คงเหลือ {available} บาท ขาด {shortfall} บาท |
 | `BUDGET_LINE_CLOSED` | 422 | บรรทัดงบนี้ถูกระงับหรือปิดแล้ว |
@@ -4566,6 +5043,7 @@ export async function submitRequest(ctx: Ctx, input: SubmitRequestInput): Promis
 | `BANK_FILE_CHECK_FAILED` | 422 | ตรวจก่อนสร้างไฟล์จ่ายเงินไม่ผ่าน: {checks} |
 | `STEP_UP_LOCKED` | 423 | ใส่ PIN ผิดหลายครั้ง ลองใหม่หลัง {time} |
 | `STEP_UP_REQUIRED` | 428 | รายการนี้ต้องยืนยันด้วย PIN |
+| `CONFIG_PACKAGE_INVALID` | 422 | ไฟล์ชุดค่าตั้งไม่ถูกต้องหรือถูกแก้ไข ({reason}) |
 | `RATE_LIMITED` | 429 | ทำรายการถี่เกินไป กรุณาลองใหม่ภายหลัง |
 | `EXTERNAL_SERVICE_ERROR` | 502 | ระบบภายนอกไม่ตอบสนอง ({service}) |
 | `INTERNAL` | 500 | เกิดข้อผิดพลาด (รหัสอ้างอิง {requestId}) |
@@ -4637,7 +5115,7 @@ FAIL  lint         src/server/services/po.ts:88 bcs/no-money-literal: 1000000
       ผลกระทบ: วงเงิน PO ฝังในโค้ด ถ้า DOA เปลี่ยน ระบบจะส่งไปผู้อนุมัติผิดข้อ (ขัด P-2)
       วิธีแก้: ลบเงื่อนไขนี้ แล้วใช้ผลจาก resolveRoute() ที่อ่านวงเงินจาก DoaVersion
 PASS  db           3/3 trigger append-only · bcs_app ไม่มีสิทธิ์ UPDATE "Event"
-FAIL  golden       38 ไฟล์ · 428 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
+FAIL  golden       40 ไฟล์ · 480 เคส · GC-BUD-02 step 3: available คาด 89400.00 ได้ 90000.00
       ผลกระทบ: PO ที่แพงกว่าคำขอไม่จองส่วนต่าง งบอาจติดลบเมื่อมีการอนุมัติพร้อมกัน
       วิธีแก้: src/core/budget/po.ts ให้ submitPo จอง delta = need − Σ releasable เมื่อ delta > 0 (BR-BUD-05)
 สรุป: 2 FAIL · 3 PASS → ห้าม merge
@@ -5582,70 +6060,70 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 | S6-24 | UAT บน hosting ของ production (`[คน]`) | — | หลังเส้นชัย B และ production ใน ADR-032 | — |
 | S6-25 | ผู้ใช้จริงลองใช้ (`[คน]`) | — | หลัง S6-23 | — |
 
-- [ ] **S6-01** `[demo]` migration ของขั้น S6 ตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S6.md` (ตารางใหม่ 10 ตาราง คอลัมน์และ enum ที่เพิ่มในของเดิมใต้บล็อก `// --- S6 ---` ที่ P1-07 จองไว้ CHECK exclusion และ FK คู่ตาม ADR-039 · ขั้นอนุมัติเดิมได้ doaStepNo เท่าเลขขั้น) · ตาราง state machine ของ `WorkflowVersion` `FormVersion` `BudgetTransfer` `BudgetOverrun` การถอนฉบับ DOA และ `ApprovalStep` แบบ slot ใน `src/core/state-machines` · คีย์ใหม่ใน `OrgSettingsSchema` แบบไม่บังคับพร้อมค่าเริ่มต้นตาม OQ แบบ OQ-38 (`numbering.BT` `numbering.OB` เป็นบรรทัดใหม่ในส่วน `numbering` ที่ P1-07 แยกเป็นหนึ่งคีย์ต่อบรรทัด ไม่แก้บรรทัดอื่น) และแถวใหม่ในชีต Settings ของไฟล์ระยะ 1 (`scripts/inputs_p1/p1_master.py` และ `scripts/validate_inputs.py --profile p1`) · เพิ่มกฎ BR และ INV ทั้งหมดของขั้นตามหัวข้อ "กฎ" ของ `docs/sub-specs/S6.md` ลง spec §7 ครั้งเดียว (ตารางเดียวต่อตระกูล · ตระกูลเดิมต่อท้ายตารางเดิม · ตระกูลใหม่ใต้หัวข้อที่ P1-07 จองให้ S6 ท้าย §7) · หมายเหตุ `features.parallelApproval` ในภาคผนวก A ว่าไม่มีผล (ADR-102) · เพิ่มโมดูล core ใหม่ (`workflow` `duplicates` `pricing`) ในรายการ branch coverage ของ §7.0
+- [x] **S6-01** `[demo]` migration ของขั้น S6 ตามหัวข้อ "Entity และ migration" ของ `docs/sub-specs/S6.md` (ตารางใหม่ 10 ตาราง คอลัมน์และ enum ที่เพิ่มในของเดิมใต้บล็อก `// --- S6 ---` ที่ P1-07 จองไว้ CHECK exclusion และ FK คู่ตาม ADR-039 · ขั้นอนุมัติเดิมได้ doaStepNo เท่าเลขขั้น) · ตาราง state machine ของ `WorkflowVersion` `FormVersion` `BudgetTransfer` `BudgetOverrun` การถอนฉบับ DOA และ `ApprovalStep` แบบ slot ใน `src/core/state-machines` · คีย์ใหม่ใน `OrgSettingsSchema` แบบไม่บังคับพร้อมค่าเริ่มต้นตาม OQ แบบ OQ-38 (`numbering.BT` `numbering.OB` เป็นบรรทัดใหม่ในส่วน `numbering` ที่ P1-07 แยกเป็นหนึ่งคีย์ต่อบรรทัด ไม่แก้บรรทัดอื่น) และแถวใหม่ในชีต Settings ของไฟล์ระยะ 1 (`scripts/inputs_p1/p1_master.py` และ `scripts/validate_inputs.py --profile p1`) · เพิ่มกฎ BR และ INV ทั้งหมดของขั้นตามหัวข้อ "กฎ" ของ `docs/sub-specs/S6.md` ลง spec §7 ครั้งเดียว (ตารางเดียวต่อตระกูล · ตระกูลเดิมต่อท้ายตารางเดิม · ตระกูลใหม่ใต้หัวข้อที่ P1-07 จองให้ S6 ท้าย §7) · หมายเหตุ `features.parallelApproval` ในภาคผนวก A ว่าไม่มีผล (ADR-102) · เพิ่มโมดูล core ใหม่ (`workflow` `duplicates` `pricing`) ในรายการ branch coverage ของ §7.0 — เสร็จ 2026-10-13 · f0ea7bb
   - เสร็จเมื่อ: `pnpm db:reset` ของสายผ่าน · เทสต์วนทุกคู่ (สถานะ, คำสั่ง) ของ state machine ใหม่ผ่าน · เทสต์ INV-TEN-01 และ INV-TEN-02 ที่อ่าน DMMF ครอบตารางใหม่เอง · งานอนุมัติเดิมทั้งหมดเป็น slot 1 และขั้นเดิมมี doaStepNo เท่าเลขขั้น · settings ที่ไม่มีคีย์ใหม่ (องค์กรเดิมและ seed demo) parse ผ่านและได้ค่าเริ่มต้น (เทสต์) · `pnpm inputs:check` ผ่าน · `pnpm spec:check` ไม่มี ID ซ้ำหรือขาดช่วง · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็น migration ที่ทุกข้อของขั้นใช้
-- [ ] **S6-02** `[demo]` อนุมัติแบบคณะกรรมการและ step แบบ slot (FR-WF-102 · ADR-101 · OQ-102): step ของ `DoaRule` มีหลายผู้อนุมัติพร้อม quorum ALL ANY COUNT MAJORITY ใน `src/core/doa` (resolve lint และ YAML round-trip) · `stepOutcome` แบบกลุ่มใน core · `completeStep` ใน `src/server/services/approvals/step-complete.ts` ทำต่อ slot และคืนผลของ step ให้ decide flow ที่ P1-07 ต่อไว้ (ไม่แก้ `decide.ts` `action-link.ts` `line-postback.ts`) · หน้าแก้ DOA รองรับ step แบบกรรมการ · KPI G-2 นับกรรมการถูก · แก้ถ้อยคำข้อ (ค) ของ BR-DOA-08 · เพิ่ม golden กรรมการ ผลของ step และ lint DOA (suite `workflow` พร้อม fixture `org-s6` `doa-committee`) ใต้หัวข้อที่ P1-07 จองให้ S6 ท้าย §7 และตัวคำนวณอ้างอิงของ suite `workflow` ใน `scripts/spec_check.py` · เพิ่ม event ของ step ลง §10.2 ตามหัวข้อ "ร่าง golden case" และ "กฎ" ของ `docs/sub-specs/S6.md`
+- [x] **S6-02** `[demo]` อนุมัติแบบคณะกรรมการและ step แบบ slot (FR-WF-102 · ADR-101 · OQ-102): step ของ `DoaRule` มีหลายผู้อนุมัติพร้อม quorum ALL ANY COUNT MAJORITY ใน `src/core/doa` (resolve lint และ YAML round-trip) · `stepOutcome` แบบกลุ่มใน core · `completeStep` ใน `src/server/services/approvals/step-complete.ts` ทำต่อ slot และคืนผลของ step ให้ decide flow ที่ P1-07 ต่อไว้ (ไม่แก้ `decide.ts` `action-link.ts` `line-postback.ts`) · หน้าแก้ DOA รองรับ step แบบกรรมการ · KPI G-2 นับกรรมการถูก · แก้ถ้อยคำข้อ (ค) ของ BR-DOA-08 · เพิ่ม golden กรรมการ ผลของ step และ lint DOA (suite `workflow` พร้อม fixture `org-s6` `doa-committee`) ใต้หัวข้อที่ P1-07 จองให้ S6 ท้าย §7 และตัวคำนวณอ้างอิงของ suite `workflow` ใน `scripts/spec_check.py` · เพิ่ม event ของ step ลง §10.2 ตามหัวข้อ "ร่าง golden case" และ "กฎ" ของ `docs/sub-specs/S6.md` — เสร็จ 2026-10-13 · 871c6cc
   - เสร็จเมื่อ: เทสต์ golden ของ suite `workflow` ผ่าน · `pnpm spec:check` รายงาน golden:workflow ผ่านครบ · GC-DOA-01 ถึง GC-DOA-27 และเทสต์เดิมใน `tests/unit/doa.test.ts` ผ่านโดยไม่แก้ expect · property test เทียบ engine ใหม่กับสำเนา engine เดิม 1,000 input สุ่ม · integration test ตัดสินพร้อมกัน 3 slot กับ Postgres ได้ผลเดียวและไม่มีงานเปิดค้าง · decide ทั้ง 4 flow ปุ่ม LINE และลิงก์อีเมลทำงานต่อ slot (เทสต์) · YAML ของ workflow ส่งออกแล้วนำเข้าได้ผลเดิม (เทสต์ `[FR-WF-102/AC3]`) · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็น engine อำนาจอนุมัติ
-- [ ] **S6-03** `[demo]` core ผู้ตรวจคู่ขนาน (FR-WF-101 FR-WF-103 ส่วน engine · ADR-102 · OQ-101): `src/core/workflow` เป็น pure function: หาผู้ตรวจ กลุ่ม ALL ANY COUNT ผู้สำรอง lint ตัวแปรเงื่อนไขใหม่และ op `anyIn` · เพิ่ม golden ผู้ตรวจ ผลของขั้น REVIEW และ lint workflow ต่อท้าย suite `workflow` พร้อม fixture `workflow-versions` และขยายตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · แก้แถว `REVIEWER_*` ใน §2.2 ว่าไม่ใช้ในอนุมัติคู่ขนาน (OQ-101)
+- [x] **S6-03** `[demo]` core ผู้ตรวจคู่ขนาน (FR-WF-101 FR-WF-103 ส่วน engine · ADR-102 · OQ-101): `src/core/workflow` เป็น pure function: หาผู้ตรวจ กลุ่ม ALL ANY COUNT ผู้สำรอง lint ตัวแปรเงื่อนไขใหม่และ op `anyIn` · เพิ่ม golden ผู้ตรวจ ผลของขั้น REVIEW และ lint workflow ต่อท้าย suite `workflow` พร้อม fixture `workflow-versions` และขยายตัวคำนวณอ้างอิงใน `scripts/spec_check.py` · แก้แถว `REVIEWER_*` ใน §2.2 ว่าไม่ใช้ในอนุมัติคู่ขนาน (OQ-101) — เสร็จ 2026-10-13 · c6c3da2
   - เสร็จเมื่อ: เทสต์ golden ของ suite `workflow` ผ่านรวมเคสของข้อนี้ · `pnpm spec:check` รายงาน golden:workflow ผ่านครบ · branch coverage ของ `src/core/workflow` 100% · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-04** `[demo]` วงจรฉบับ workflow (FR-WF-103 ส่วน service · ADR-102 · OQ-110): service ร่าง แก้ dry-run ส่ง อนุมัติตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้ง (เติม adapter `subjects/workflow-version.ts` ที่ P1-07 สร้างไว้ · ตัดสินบนเว็บเท่านั้น) เผยแพร่ และ job เปิดใช้ฉบับ · ความสามารถ `admin.workflow.*` · seed WF-SIMEC ฉบับ 1 จากชีต Workflow_Reviewers โดยเพิ่มคอลัมน์เงื่อนไขแบบเครื่องอ่านและผู้สำรองใน `scripts/inputs_p1/p1_master.py` พร้อมด่านใน `scripts/validate_inputs.py` · เพิ่มแถว §2.4 §10 §14.2 ของวงจรฉบับลง spec
+- [x] **S6-04** `[demo]` วงจรฉบับ workflow (FR-WF-103 ส่วน service · ADR-102 · OQ-110): service ร่าง แก้ dry-run ส่ง อนุมัติตามข้อ `DOA_CHANGE` บน subject `WORKFLOW_VERSION` พร้อม step-up ทุกครั้ง (เติม adapter `subjects/workflow-version.ts` ที่ P1-07 สร้างไว้ · ตัดสินบนเว็บเท่านั้น) เผยแพร่ และ job เปิดใช้ฉบับ · ความสามารถ `admin.workflow.*` · seed WF-SIMEC ฉบับ 1 จากชีต Workflow_Reviewers โดยเพิ่มคอลัมน์เงื่อนไขแบบเครื่องอ่านและผู้สำรองใน `scripts/inputs_p1/p1_master.py` พร้อมด่านใน `scripts/validate_inputs.py` · เพิ่มแถว §2.4 §10 §14.2 ของวงจรฉบับลง spec — เสร็จ 2026-10-13 · 08792fd
   - เสร็จเมื่อ: เทสต์วงจรฉบับกับ Postgres: ส่งไม่ได้ก่อนรัน dry-run กับร่างล่าสุดและเมื่อ lint มี error · ผู้ส่งอนุมัติเองไม่ได้ (เทสต์ปฏิเสธ) · อนุมัติโดยไม่มี step-up ถูกปฏิเสธ · งาน `WORKFLOW_VERSION` ไม่มีปุ่มในแชทและลิงก์อีเมล · job เปิดใช้ฉบับตาม effectiveFrom · seed ได้ WF-SIMEC 7 ข้อที่ผ่าน lint · `pnpm inputs:check` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองส่วน service · แยก subagent ส่วน seed และ validator ได้แล้วตรวจหลักฐาน (ผล `pnpm inputs:check` และจำนวนข้อที่ seed)
-- [ ] **S6-05** `[demo]` ขั้นผู้ตรวจในเส้นทางคำขอ (FR-WF-101 ส่วน service · ADR-101 · OQ-101 OQ-111): ส่งและส่งซ้ำคำขอสร้างขั้น REVIEW ก่อนขั้นของ DOA · `src/server/services/approvals/next-step.ts` หาผู้อนุมัติขั้นถัดไปด้วย `ApprovalStep.doaStepNo` · ความสามารถ `review.decide` และสิทธิ์อ่านเหตุผลต่อ slot · ส่งไม่ได้เพราะไม่มีผู้ตรวจแจ้ง ORG_ADMIN · การแจ้งเตือนของขั้น REVIEW · ขั้น REVIEW ไม่เพิ่มผู้รับร่วมตาม BR-SLA-04 · KPI G-2 นับผู้ตรวจและ G-5 นับเฉพาะขั้นอนุมัติใน `src/server/services/reports/kpi.ts` และ `src/server/queries/insights.ts` และแก้สูตร G-2 G-5 ใน §11.4 · เพิ่มแถว §2.4 §10 §14.2 ของขั้นผู้ตรวจลง spec
+- [x] **S6-05** `[demo]` ขั้นผู้ตรวจในเส้นทางคำขอ (FR-WF-101 ส่วน service · ADR-101 · OQ-101 OQ-111): ส่งและส่งซ้ำคำขอสร้างขั้น REVIEW ก่อนขั้นของ DOA · `src/server/services/approvals/next-step.ts` หาผู้อนุมัติขั้นถัดไปด้วย `ApprovalStep.doaStepNo` · ความสามารถ `review.decide` และสิทธิ์อ่านเหตุผลต่อ slot · ส่งไม่ได้เพราะไม่มีผู้ตรวจแจ้ง ORG_ADMIN · การแจ้งเตือนของขั้น REVIEW · ขั้น REVIEW ไม่เพิ่มผู้รับร่วมตาม BR-SLA-04 · KPI G-2 นับผู้ตรวจและ G-5 นับเฉพาะขั้นอนุมัติใน `src/server/services/reports/kpi.ts` และ `src/server/queries/insights.ts` และแก้สูตร G-2 G-5 ใน §11.4 · เพิ่มแถว §2.4 §10 §14.2 ของขั้นผู้ตรวจลง spec — เสร็จ 2026-10-13 · 5f0397d
   - เสร็จเมื่อ: integration test กับ Postgres: `pm_p07` ส่งงานจ้างเหมา 2,642,900.00 แล้ว `dm_leg` `dm_qse` `dm_fin` ได้งานพร้อมกัน `ceo` ได้งานหลังทั้งสามผ่านเท่านั้น (ขั้น DOA หาด้วย doaStepNo ทั้งกรณี OQ-111 ทาง ก และทาง ข) และผู้ตรวจคนใดตีกลับแล้วคำขอเป็น RETURNED · เทสต์ปฏิเสธผู้ที่ไม่ใช่ผู้ตรวจของ slot และผู้ตรวจ slot อื่นอ่านเหตุผลไม่ได้ · เทสต์ KPI G-2 G-5 ด้วยฉากผู้ตรวจ · คำขอที่ไม่มีข้อผู้ตรวจตรงได้เส้นทางเหมือนเดิม · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะแตะเส้นทางอนุมัติ
-- [ ] **S6-06** `[demo]` หน้าจอ workflow และการแสดงผู้ตรวจ (FR-WF-101 FR-WF-103 ส่วนหน้าจอ · ADR-103): `/admin/workflows` ฟอร์มแก้ข้อแบบไม่มีลากวาง (NG-4) รวมข้อ COUNT ทดลองส่งเทียบฉบับที่มีผลกับร่าง diff และ lint · ปุ่มส่งเปิดเมื่อรัน dry-run กับร่างล่าสุดแล้ว · หน้าคำขอ กล่องงาน และหน้างาน LIFF `/liff/tasks/[id]` (S6 เป็นเจ้าของในรอบ P1) แสดงขั้นผู้ตรวจและกรรมการเป็นการ์ดตราประทับที่จัดกลุ่ม slot · การ์ด LINE ของผู้ตรวจมีปุ่มผ่าน · query `getRouteView(ctx, routeId)` (ชนิดขั้น APPROVAL REVIEW COMMITTEE และผู้ตัดสินต่อ slot) ให้ S13 S17 · ข้อความไทยและอังกฤษ
+- [x] **S6-06** `[demo]` หน้าจอ workflow และการแสดงผู้ตรวจ (FR-WF-101 FR-WF-103 ส่วนหน้าจอ · ADR-103): `/admin/workflows` ฟอร์มแก้ข้อแบบไม่มีลากวาง (NG-4) รวมข้อ COUNT ทดลองส่งเทียบฉบับที่มีผลกับร่าง diff และ lint · ปุ่มส่งเปิดเมื่อรัน dry-run กับร่างล่าสุดแล้ว · หน้าคำขอ กล่องงาน และหน้างาน LIFF `/liff/tasks/[id]` (S6 เป็นเจ้าของในรอบ P1) แสดงขั้นผู้ตรวจและกรรมการเป็นการ์ดตราประทับที่จัดกลุ่ม slot · การ์ด LINE ของผู้ตรวจมีปุ่มผ่าน · query `getRouteView(ctx, routeId)` (ชนิดขั้น APPROVAL REVIEW COMMITTEE และผู้ตัดสินต่อ slot) ให้ S13 S17 · ข้อความไทยและอังกฤษ — เสร็จ 2026-10-13 · 547c8fe
   - เสร็จเมื่อ: e2e ฉากผู้ตรวจ 3 ฝ่ายของ `pm_p07` และฉาก `admin2` ร่าง ทดลองส่ง ส่ง แล้ว `ceo` อนุมัติ WF-SIMEC ฉบับ 2 ผ่าน · เทสต์ `getRouteView` ได้ชนิดขั้นถูกทั้งสามชนิดและผู้ตัดสินต่อ slot · เทสต์ builder การ์ด LINE ตามขนาดข้อความ · screenshot 375 และ 1440 px และ axe ไม่มี serious หรือ critical · งบ JavaScript ของ LIFF ผ่าน (ADR-052) · `pnpm verify` ผ่าน
   - แยกงาน: แยก subagent ต่อกลุ่มหน้า (admin workflow · หน้าเอกสาร กล่องงาน LIFF และการ์ด) แล้วตรวจ screenshot และ axe ก่อนรับ
-- [ ] **S6-07** `[demo]` ย้อนทดสอบ 90 วันและถอนฉบับที่ยังไม่มีผล (FR-DOA-103 FR-DOA-104 · FR-WF-103 ส่วนถอน): ย้อนทดสอบร่าง DOA และร่าง workflow ด้วย engine ตัวจริงตามหัวข้อ "กฎ" ของ `docs/sub-specs/S6.md` · แท็บย้อนทดสอบในหน้าร่างและสรุปให้ผู้อนุมัติ `DOA_CHANGE` เห็นก่อนอนุมัติ (BR-DOA-14) · คำสั่งขอถอนฉบับ DOA และฉบับ workflow ที่ยังไม่มีผลด้วยกติกาเดียว อนุมัติตามข้อ `DOA_CHANGE` (BR-DOA-18) · ไม่อนุมัติการถอนคงฉบับไว้ · คืนช่วงมีผลของฉบับก่อนหน้า · job เปิดใช้ข้ามฉบับที่ถอนแล้ว · เพิ่ม golden ถอนและย้อนทดสอบต่อท้าย suite `workflow` ขยายตัวคำนวณอ้างอิง และเพิ่ม event ลง spec
+- [x] **S6-07** `[demo]` ย้อนทดสอบ 90 วันและถอนฉบับที่ยังไม่มีผล (FR-DOA-103 FR-DOA-104 · FR-WF-103 ส่วนถอน): ย้อนทดสอบร่าง DOA และร่าง workflow ด้วย engine ตัวจริงตามหัวข้อ "กฎ" ของ `docs/sub-specs/S6.md` · แท็บย้อนทดสอบในหน้าร่างและสรุปให้ผู้อนุมัติ `DOA_CHANGE` เห็นก่อนอนุมัติ (BR-DOA-14) · คำสั่งขอถอนฉบับ DOA และฉบับ workflow ที่ยังไม่มีผลด้วยกติกาเดียว อนุมัติตามข้อ `DOA_CHANGE` (BR-DOA-18) · ไม่อนุมัติการถอนคงฉบับไว้ · คืนช่วงมีผลของฉบับก่อนหน้า · job เปิดใช้ข้ามฉบับที่ถอนแล้ว · เพิ่ม golden ถอนและย้อนทดสอบต่อท้าย suite `workflow` ขยายตัวคำนวณอ้างอิง และเพิ่ม event ลง spec — เสร็จ 2026-10-14 · 07d4f9b
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:workflow ผ่านครบรวมเคสของข้อนี้ · เทสต์ด้วย seed SIMEC: ร่าง DOA ฉบับ 2 ที่เพิ่มช่วง COO ทำให้น้ำมันรายเดือนของ `eqp_02` ย้ายจาก `ceo` ไป `coo` · ถอนหลังวันมีผลถูกปฏิเสธ · ผู้ขอถอนอนุมัติเองไม่ได้ (เทสต์ปฏิเสธ) · ถอนฉบับ workflow ได้ด้วยคำสั่งชุดเดียวกัน · ถอนแล้ว ORG_ADMIN และ AUDITOR ได้แจ้งเตือน (`[FR-DOA-104/AC3]`) · ย้อนทดสอบเกิน 500 เอกสารทำเป็นงานเบื้องหลัง (`[FR-DOA-103/AC3]`) · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-08** `[demo]` สายอนุมัติตามผังองค์กรที่อัปเดตเอง (FR-WF-104 · OQ-111): ขั้นที่รออยู่หาผู้ดำรงตำแหน่งปัจจุบันตอนขั้นเริ่มด้วย DOA ฉบับและข้อเดิม · `DEPARTMENT_REPARENT` ที่มีผลย้ายงานเปิดที่หาผู้อนุมัติใหม่ได้คนอื่น (REASSIGNED พร้อมแจ้งทั้งสองคน) · หน้าเสนอ `OrgAuthorityChange` แสดงจำนวนงานที่จะย้ายรวมการย้ายแผนก · การเปลี่ยนผู้ดำรงยังผ่าน `OrgAuthorityChange` ทางเดียว · ถ้าผู้ใช้เลือกคงแบบเดิมใน P1-06 ทำเฉพาะการย้ายแผนกและหน้าแสดงผลกระทบ · เพิ่ม golden ผังเปลี่ยนต่อท้าย suite `workflow` และขยายตัวคำนวณอ้างอิง
+- [x] **S6-08** `[demo]` สายอนุมัติตามผังองค์กรที่อัปเดตเอง (FR-WF-104 · OQ-111): ขั้นที่รออยู่หาผู้ดำรงตำแหน่งปัจจุบันตอนขั้นเริ่มด้วย DOA ฉบับและข้อเดิม · `DEPARTMENT_REPARENT` ที่มีผลย้ายงานเปิดที่หาผู้อนุมัติใหม่ได้คนอื่น (REASSIGNED พร้อมแจ้งทั้งสองคน) · หน้าเสนอ `OrgAuthorityChange` แสดงจำนวนงานที่จะย้ายรวมการย้ายแผนก · การเปลี่ยนผู้ดำรงยังผ่าน `OrgAuthorityChange` ทางเดียว · ถ้าผู้ใช้เลือกคงแบบเดิมใน P1-06 ทำเฉพาะการย้ายแผนกและหน้าแสดงผลกระทบ · เพิ่ม golden ผังเปลี่ยนต่อท้าย suite `workflow` และขยายตัวคำนวณอ้างอิง — เสร็จ 2026-10-14 · 2732326
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:workflow ผ่านครบรวมเคสของข้อนี้ · integration test: เปลี่ยน VP ระหว่างคำขอที่รอขั้น 2 แล้วงานไป VP คนใหม่ และย้ายแผนกแล้วงานเปิดย้ายตาม · ผู้ดำรงใหม่ที่เป็นผู้ขอของคำขอนั้นไม่ได้งาน (เทสต์) · เทสต์เดิมของ BR-DOA-17 ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-09** `[demo]` role ผู้ดูแล DOA (FR-ADM-101 · OQ-34 · OQ-109): `DOA_ADMIN` ใน `src/server/authz/permissions.ts` §2.2 และ §2.4 · ORG_ADMIN ให้ role กับตัวเองไม่ได้และการให้แจ้ง AUDITOR · คีย์แยกผู้ดูแล DOA ใน `sodPolicy` ของ DOA พร้อม lint และผลต่อสิทธิ์ของ ORG_ADMIN · หน้าให้ role
+- [x] **S6-09** `[demo]` role ผู้ดูแล DOA (FR-ADM-101 · OQ-34 · OQ-109): `DOA_ADMIN` ใน `src/server/authz/permissions.ts` §2.2 และ §2.4 · ORG_ADMIN ให้ role กับตัวเองไม่ได้และการให้แจ้ง AUDITOR · คีย์แยกผู้ดูแล DOA ใน `sodPolicy` ของ DOA พร้อม lint และผลต่อสิทธิ์ของ ORG_ADMIN · หน้าให้ role — เสร็จ 2026-10-14 · a169e29
   - เสร็จเมื่อ: เทสต์สิทธิ์ที่สร้างจากตาราง §2.4 ผ่านรวม role ใหม่ · เทสต์ปฏิเสธ: ORG_ADMIN ให้ตัวเอง · ORG_ADMIN ร่าง DOA หลังฉบับที่แยกมีผล · DOA_ADMIN ตัดสินงานอนุมัติ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-10** `[demo]` แคตตาล็อกราคาตกลง (FR-INT-102 · OQ-114): `CatalogItem` และ `PriceAgreement` seed จากชีต Items · `/catalog` และ `/catalog/manage` (PROCUREMENT) · ฟอร์มคำขอเลือกบรรทัดจากแคตตาล็อก ล็อกราคาตกลง และขอเหตุผลเมื่อเลือกผู้ขายอื่น · ผูกบรรทัดในประวัติ SIMEC กับสินค้าในแคตตาล็อก · เพิ่ม golden ราคาตกลง (suite `price-reference`) ใต้หัวข้อที่ P1-07 จองให้ S6 ท้าย §7 และตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py`
+- [x] **S6-10** `[demo]` แคตตาล็อกราคาตกลง (FR-INT-102 · OQ-114): `CatalogItem` และ `PriceAgreement` seed จากชีต Items · `/catalog` และ `/catalog/manage` (PROCUREMENT) · ฟอร์มคำขอเลือกบรรทัดจากแคตตาล็อก ล็อกราคาตกลง และขอเหตุผลเมื่อเลือกผู้ขายอื่น · ผูกบรรทัดในประวัติ SIMEC กับสินค้าในแคตตาล็อก · เพิ่ม golden ราคาตกลง (suite `price-reference`) ใต้หัวข้อที่ P1-07 จองให้ S6 ท้าย §7 และตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py` — เสร็จ 2026-10-14 · e04f32e
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:price-reference ผ่านครบ · seed ได้สินค้าและราคาตกลงเท่าจำนวนในชีต (เทสต์นับเอง) · server ปฏิเสธราคาที่ไม่ตรงราคาตกลงทั้งตอนบันทึกและส่ง · เทสต์ปฏิเสธ role อื่นที่จัดการแคตตาล็อก · screenshot 375 และ 1440 px และ axe · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองส่วน service · แยก subagent ทำหน้าจอได้แล้วตรวจ screenshot และ axe
-- [ ] **S6-11** `[demo]` ราคาอ้างอิงและช่วงราคาบนการ์ดอนุมัติ (FR-DOA-101 · ADR-108 · OQ-107 OQ-116): `src/core/pricing` และ service `getPriceReference(ctx, { requestId })` ที่ S13 และ S17 ใช้ พร้อมสิทธิ์ผู้เห็นตามค่าเริ่มต้นของ OQ-116 · แผงบนหน้างานเว็บและ LIFF · การ์ด LINE มีเฉพาะป้ายราคาแบบรวมไม่ระบุรายการตามค่าเริ่มต้นของ OQ-107 · เพิ่ม golden ราคาอ้างอิงต่อท้าย suite `price-reference` และขยายตัวคำนวณอ้างอิง
+- [x] **S6-11** `[demo]` ราคาอ้างอิงและช่วงราคาบนการ์ดอนุมัติ (FR-DOA-101 · ADR-108 · OQ-107 OQ-116): `src/core/pricing` และ service `getPriceReference(ctx, { requestId })` ที่ S13 และ S17 ใช้ พร้อมสิทธิ์ผู้เห็นตามค่าเริ่มต้นของ OQ-116 · แผงบนหน้างานเว็บและ LIFF · การ์ด LINE มีเฉพาะป้ายราคาแบบรวมไม่ระบุรายการตามค่าเริ่มต้นของ OQ-107 · เพิ่ม golden ราคาอ้างอิงต่อท้าย suite `price-reference` และขยายตัวคำนวณอ้างอิง — เสร็จ 2026-10-14 · dd8951d
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:price-reference ผ่านครบรวมเคสของข้อนี้ · เทสต์ builder การ์ด LINE ว่าไม่มีชื่อสินค้า จำนวนเงินต่อหน่วย และสรุป AI และคำขอหลายบรรทัดได้ป้ายเดียว · เทสต์ปฏิเสธผู้ขอ ผู้ติดตาม และ DEPT_HEAD ที่ไม่ได้รับงาน · ฉาก `ceo` เห็นแผงราคาของงานจ้างเหมา SUB-010 · screenshot และ axe · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-12** `[demo]` ขอซ้ำในคลิกเดียวและเตือนต่ออายุ (FR-INT-101): คำสั่งขอซ้ำบนเว็บและ LIFF (สิทธิ์ `request.reorder` · เลือกราคาตกลงที่มีผล) · job เตือนต่ออายุ 60 และ 30 วันพร้อมปุ่มสร้างคำขอต่ออายุจากคำขอเดิม · ทำงานเมื่อโมดูล `CONTRACTS` ปิด · seed ระยะ 1 ตั้งวันสิ้นสุดบริการจากคอลัมน์ serviceEndInDays ของ Request_History · เพิ่ม golden ขอซ้ำและรอบเตือน (suite `forms-s6`) และตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py` · เพิ่ม event ลง spec
+- [x] **S6-12** `[demo]` ขอซ้ำในคลิกเดียวและเตือนต่ออายุ (FR-INT-101): คำสั่งขอซ้ำบนเว็บและ LIFF (สิทธิ์ `request.reorder` · เลือกราคาตกลงที่มีผล) · job เตือนต่ออายุ 60 และ 30 วันพร้อมปุ่มสร้างคำขอต่ออายุจากคำขอเดิม · ทำงานเมื่อโมดูล `CONTRACTS` ปิด · seed ระยะ 1 ตั้งวันสิ้นสุดบริการจากคอลัมน์ serviceEndInDays ของ Request_History · เพิ่ม golden ขอซ้ำและรอบเตือน (suite `forms-s6`) และตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py` · เพิ่ม event ลง spec — เสร็จ 2026-10-14 · 4fe15e7
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:forms-s6 ผ่านครบ · integration test: บริการ รปภ. ของ `ga_02` ใน seed ได้แจ้งเตือนครั้งเดียวแม้ job รันซ้ำ และกดต่ออายุได้ร่างที่ผูกบรรทัดเดิม · เทสต์ปฏิเสธผู้ติดตามและ DEPT_HEAD ที่กดขอซ้ำ · เทสต์กับองค์กรที่ไม่เปิด `CONTRACTS` · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S6-13** `[demo]` ตรวจคำขอซ้ำและการแตกยอดเลี่ยงวงเงิน (FR-INT-103 · ADR-107 · OQ-103): `src/core/duplicates` · ตรวจในธุรกรรมของการส่งและส่งซ้ำทุกช่องทาง · เหตุผลบังคับเมื่อซ้ำบนเว็บและหน้าแก้ร่าง LIFF `/liff/requests/[id]/edit` · ป้ายบนหน้างาน LIFF และการ์ด LINE · `listRequestFlags(ctx, requestId)` ให้ S13 · ธงของประวัติ SIMEC สร้างด้วย engine เดียวกัน · เพิ่ม golden (suite `duplicates`) ตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py` และ event ลง spec
+- [x] **S6-13** `[demo]` ตรวจคำขอซ้ำและการแตกยอดเลี่ยงวงเงิน (FR-INT-103 · ADR-107 · OQ-103): `src/core/duplicates` · ตรวจในธุรกรรมของการส่งและส่งซ้ำทุกช่องทาง · เหตุผลบังคับเมื่อซ้ำบนเว็บและหน้าแก้ร่าง LIFF `/liff/requests/[id]/edit` · ป้ายบนหน้างาน LIFF และการ์ด LINE · `listRequestFlags(ctx, requestId)` ให้ S13 · ธงของประวัติ SIMEC สร้างด้วย engine เดียวกัน · เพิ่ม golden (suite `duplicates`) ตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py` และ event ลง spec — เสร็จ 2026-10-14 · 841a857
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:duplicates ผ่านครบ · คู่แตกยอดของ `fm_p02` และคู่ซ้ำของ `se_p06a` มีธงหลัง seed · ส่งคำขอซ้ำโดยไม่กรอกเหตุผลถูกปฏิเสธทั้งบนเว็บและ LIFF · ธงไม่เปลี่ยนเส้นทาง DOA (เทสต์) · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-14** `[demo]` ตัวสร้างฟอร์ม no-code พร้อมเวอร์ชัน (FR-INT-104 · OQ-115): แก้ร่าง FormVersion ด้วยปุ่มเพิ่ม ลบ เรียง (ไม่มีลากวาง) · ตัวอย่างฟอร์มจริงก่อนเผยแพร่ · lint field ที่กฎเอกสารแนบ เงื่อนไข หรือ workflow อ้าง · เผยแพร่แจ้ง AUDITOR เมื่อกฎเอกสารแนบเปลี่ยน · event ของทุกการเปลี่ยนสถานะ FormVersion · เพิ่ม golden lint ฟอร์มต่อท้าย suite `forms-s6` ขยายตัวคำนวณอ้างอิง และเพิ่ม event ลง spec
+- [x] **S6-14** `[demo]` ตัวสร้างฟอร์ม no-code พร้อมเวอร์ชัน (FR-INT-104 · OQ-115): แก้ร่าง FormVersion ด้วยปุ่มเพิ่ม ลบ เรียง (ไม่มีลากวาง) · ตัวอย่างฟอร์มจริงก่อนเผยแพร่ · lint field ที่กฎเอกสารแนบ เงื่อนไข หรือ workflow อ้าง · เผยแพร่แจ้ง AUDITOR เมื่อกฎเอกสารแนบเปลี่ยน · event ของทุกการเปลี่ยนสถานะ FormVersion · เพิ่ม golden lint ฟอร์มต่อท้าย suite `forms-s6` ขยายตัวคำนวณอ้างอิง และเพิ่ม event ลง spec — เสร็จ 2026-10-14 · 6584f7a
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:forms-s6 ผ่านครบรวมเคสของข้อนี้ · เทสต์วนทุกคู่ (สถานะ, คำสั่ง) ของ FormVersion และทุกการเปลี่ยนสถานะมี event · e2e สร้างฉบับใหม่ เพิ่มคำถาม เผยแพร่ แล้วคำขอใหม่ใช้ฉบับใหม่และคำขอเดิมคงฉบับเดิม · screenshot และ axe · `pnpm verify` ผ่าน
   - แยกงาน: แยก subagent ทำหน้าจอได้แล้วตรวจ screenshot และ axe ก่อนรับ
-- [ ] **S6-15** `[demo]` ตั้ง โอน และปรับงบพร้อมอนุมัติ (FR-BUD-103 · ADR-104 · OQ-105): `BudgetTransfer` ชนิดโอน ปรับเพิ่ม ปรับลด · ledger ไป OUTSIDE ได้เฉพาะกรณีของ ADR-104 · เส้นทางข้อ `BUDGET_TRANSFER` (เติม adapter `subjects/budget-transfer.ts` · DOA ไม่มีข้อ `BUDGET_TRANSFER` → `DOA_NOT_CONFIGURED` โดยไม่จองงบ) · dashboard งบแสดงงบตั้งต้น โอน ปรับ และงบปัจจุบัน · การนำเข้าที่เพิ่มยอดให้บรรทัดที่มีงบแล้วแจ้ง AUDITOR ตามค่าเริ่มต้นของ OQ-105 · เพิ่ม golden โอนและปรับงบ (suite `budget-change`) ลง §7.7 และตัวคำนวณอ้างอิง `run_budget_change` ใน `scripts/spec_check.py` · แก้ถ้อยคำ INV-BUD-01 §4.11 §11.2 และ FR-DOA-301 ใน §8.11 ตามที่ผู้ใช้อนุมัติใน P1-06
+- [x] **S6-15** `[demo]` ตั้ง โอน และปรับงบพร้อมอนุมัติ (FR-BUD-103 · ADR-104 · OQ-105): `BudgetTransfer` ชนิดโอน ปรับเพิ่ม ปรับลด · ledger ไป OUTSIDE ได้เฉพาะกรณีของ ADR-104 · เส้นทางข้อ `BUDGET_TRANSFER` (เติม adapter `subjects/budget-transfer.ts` · DOA ไม่มีข้อ `BUDGET_TRANSFER` → `DOA_NOT_CONFIGURED` โดยไม่จองงบ) · dashboard งบแสดงงบตั้งต้น โอน ปรับ และงบปัจจุบัน · การนำเข้าที่เพิ่มยอดให้บรรทัดที่มีงบแล้วแจ้ง AUDITOR ตามค่าเริ่มต้นของ OQ-105 · เพิ่ม golden โอนและปรับงบ (suite `budget-change`) ลง §7.7 และตัวคำนวณอ้างอิง `run_budget_change` ใน `scripts/spec_check.py` · แก้ถ้อยคำ INV-BUD-01 §4.11 §11.2 และ FR-DOA-301 ใน §8.11 ตามที่ผู้ใช้อนุมัติใน P1-06 — เสร็จ 2026-10-14 · 4d72ea4
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:budget-change ผ่านครบ · GC-BUD-01 ถึง GC-BUD-07 ผ่านโดยไม่แก้ expect · property test INV-BUD-01 ถึง INV-BUD-03 และ invariant ใหม่ของการโอนผ่าน 1,000 ลำดับสุ่ม · concurrency test โอนพร้อมกันสองรายการจากบรรทัดเดียวกับ Postgres จริง · เทสต์กับองค์กร DEMO ที่ไม่มีข้อ BT: ไม่เห็นปุ่มโอนงบ คำสั่งได้ `DOA_NOT_CONFIGURED` และไม่มีการจอง · ฉาก `fin_bud1` โอน 300,000.00 แล้ว `vp_ops` อนุมัติ · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็นเงิน
-- [ ] **S6-16** `[demo]` ขออนุมัติเกินงบแบบมีเงื่อนไขตาม DOA (FR-BUD-101 · ADR-105 · OQ-104): `BudgetOverrun` เติมงบแล้วกันไว้ให้คำขอ · ใช้ตอนส่งหรือส่งซ้ำคำขอ คืนตอนยกเลิกหรือหมดอายุ · คืนส่วนที่เติมเมื่อคำขอหรือ PO ของมันคืนจองหรือคืนถือหลังใช้ และบรรทัด PO ของคำขอที่ยังมีส่วนค้างไม่รวมกับคำขออื่น · เส้นทางข้อ `OVER_BUDGET` (เติม adapter `subjects/budget-overrun.ts` · DOA ไม่มีข้อ `OVER_BUDGET` → `DOA_NOT_CONFIGURED`) · ผู้อนุมัติเกินงบเห็นคำขอต้นทาง · ล็อกการแก้ร่างระหว่างรออนุมัติ · เพิ่ม golden เกินงบต่อท้าย suite `budget-change` ขยาย `run_budget_change` และเพิ่ม event ลง spec
+- [x] **S6-16** `[demo]` ขออนุมัติเกินงบแบบมีเงื่อนไขตาม DOA (FR-BUD-101 · ADR-105 · OQ-104): `BudgetOverrun` เติมงบแล้วกันไว้ให้คำขอ · ใช้ตอนส่งหรือส่งซ้ำคำขอ คืนตอนยกเลิกหรือหมดอายุ · คืนส่วนที่เติมเมื่อคำขอหรือ PO ของมันคืนจองหรือคืนถือหลังใช้ และบรรทัด PO ของคำขอที่ยังมีส่วนค้างไม่รวมกับคำขออื่น · เส้นทางข้อ `OVER_BUDGET` (เติม adapter `subjects/budget-overrun.ts` · DOA ไม่มีข้อ `OVER_BUDGET` → `DOA_NOT_CONFIGURED`) · ผู้อนุมัติเกินงบเห็นคำขอต้นทาง · ล็อกการแก้ร่างระหว่างรออนุมัติ · เพิ่ม golden เกินงบต่อท้าย suite `budget-change` ขยาย `run_budget_change` และเพิ่ม event ลง spec — เสร็จ 2026-10-14 · 0ce02d3
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:budget-change ผ่านครบรวมเคสของข้อนี้ · เทสต์ KPI: ฉากเกินงบของ `mkt_01` ทำให้ G-4 ยังเป็น 0 · integration test: ไม่อนุมัติคำขอหลังใช้เกินงบแล้วบรรทัด MKT-OPEX กลับเป็นยอดก่อนเติม · property test ของการกัน การใช้ และการคืนหลังใช้ผ่าน 1,000 ลำดับสุ่ม · ผู้ขออนุมัติเองไม่ได้ (เทสต์ปฏิเสธ) · ผู้อนุมัติเกินงบเห็นคำขอต้นทางและผู้รับงานของคำขออื่นไม่เห็น · เทสต์กับองค์กร DEMO: ไม่เห็นปุ่มและได้ `DOA_NOT_CONFIGURED` · `pnpm test:e2e --grep @demo` ผ่าน · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็นเงิน
-- [ ] **S6-17** `[demo]` แบ่งค่าใช้จ่ายหลาย cost center (FR-BUD-102 · ADR-106 · OQ-106): บรรทัดงบต่อบรรทัดคำขอ · ตรวจสิทธิ์ทุกบรรทัดงบ · จองหลายบรรทัดงบพร้อมกันแบบทั้งหมดหรือไม่มีเลย · แผนกที่ตั้งเบิกจากยอดมากสุด · ปุ่มแบ่งบรรทัด · ยืนยันว่ารวม PR เป็น PO ไม่รวมบรรทัดคำขอต่างบรรทัดงบในบรรทัด PO เดียว · event ของการส่งมีทุกบรรทัดงบ · เพิ่ม golden แบ่งบรรทัดต่อท้าย suite `budget-change` และขยายตัวคำนวณอ้างอิง
+- [x] **S6-17** `[demo]` แบ่งค่าใช้จ่ายหลาย cost center (FR-BUD-102 · ADR-106 · OQ-106): บรรทัดงบต่อบรรทัดคำขอ · ตรวจสิทธิ์ทุกบรรทัดงบ · จองหลายบรรทัดงบพร้อมกันแบบทั้งหมดหรือไม่มีเลย · แผนกที่ตั้งเบิกจากยอดมากสุด · ปุ่มแบ่งบรรทัด · ยืนยันว่ารวม PR เป็น PO ไม่รวมบรรทัดคำขอต่างบรรทัดงบในบรรทัด PO เดียว · event ของการส่งมีทุกบรรทัดงบ · เพิ่ม golden แบ่งบรรทัดต่อท้าย suite `budget-change` และขยายตัวคำนวณอ้างอิง — เสร็จ 2026-10-14 · 90e0137
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:budget-change ผ่านครบรวมเคสของข้อนี้ · integration test คำขอสองบรรทัดงบ → PO → ใบกำกับ ถือและตัดงบถูกบรรทัด · บรรทัดงบเดียวไม่พอแล้วไม่มีบรรทัดใดถูกจอง · KPI G-4 อ่าน event ใหม่ได้ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็นเงิน
-- [ ] **S6-18** `[demo]` เตือนอัตราการใช้งบและพยากรณ์ (FR-BUD-104 · OQ-113): อัตราใช้งบและพยากรณ์ใน `src/core/budget` · dashboard แสดง % ใช้แล้วและพยากรณ์ · เตือนครั้งเดียวต่อเกณฑ์และเข้าสรุปรายวันรวมกับรายการงบเหลือน้อยเดิมโดยไม่ซ้ำบรรทัด · เพิ่ม golden ต่อท้าย suite `budget-change` ขยายตัวคำนวณอ้างอิง และเพิ่ม event ลง spec
+- [x] **S6-18** `[demo]` เตือนอัตราการใช้งบและพยากรณ์ (FR-BUD-104 · OQ-113): อัตราใช้งบและพยากรณ์ใน `src/core/budget` · dashboard แสดง % ใช้แล้วและพยากรณ์ · เตือนครั้งเดียวต่อเกณฑ์และเข้าสรุปรายวันรวมกับรายการงบเหลือน้อยเดิมโดยไม่ซ้ำบรรทัด · เพิ่ม golden ต่อท้าย suite `budget-change` ขยายตัวคำนวณอ้างอิง และเพิ่ม event ลง spec — เสร็จ 2026-10-15 · 51f696c
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:budget-change ผ่านครบรวมเคสของข้อนี้ · งบ MKT-OPEX ของ SIMEC ขึ้นเตือนหลัง seed · job รันซ้ำไม่เตือนซ้ำ · สรุปรายวันแสดงบรรทัดงบครั้งเดียวเมื่อเข้าทั้งสองเหตุ (เทสต์) · `pnpm verify` ผ่าน
   - แยกงาน: ทำเองได้
-- [ ] **S6-19** `[demo]` QR ตรวจสอบเอกสารจริงและสถานะล่าสุด (FR-DOA-102 · ADR-109 · OQ-112): แถว `DocumentVerification` ออกในคำสั่งส่งและส่งซ้ำของ PR และ PO เมื่อเนื้อหาที่พิมพ์เปลี่ยน · token คิดจาก id ของแถวจึงพิมพ์ซ้ำได้ QR เดิม · `tokenHash` = sha256 ของสตริง token เป็น hex ตัวพิมพ์เล็ก 64 ตัว (รูปเดียวกับที่ S17 hash ค่าที่สแกน) · ฟังก์ชัน `issueDocumentVerification(tx, ctx, { subjectType, subjectId })` ให้คำสั่งอนุมัติใบแก้ไข PO ของ S8 เรียก (สายที่รวมเข้า main ทีหลังระหว่าง S6 กับ S8 เป็นคนเพิ่มการเรียกนี้พร้อมเทสต์) · QR บน PDF ของ PR และ PO · หน้า `/verify/[token]` สาธารณะ อ่านอย่างเดียว จำกัดอัตรา · เพิ่ม event ลง spec
+- [x] **S6-19** `[demo]` QR ตรวจสอบเอกสารจริงและสถานะล่าสุด (FR-DOA-102 · ADR-109 · OQ-112): แถว `DocumentVerification` ออกในคำสั่งส่งและส่งซ้ำของ PR และ PO เมื่อเนื้อหาที่พิมพ์เปลี่ยน · token คิดจาก id ของแถวจึงพิมพ์ซ้ำได้ QR เดิม · `tokenHash` = sha256 ของสตริง token เป็น hex ตัวพิมพ์เล็ก 64 ตัว (รูปเดียวกับที่ S17 hash ค่าที่สแกน) · ฟังก์ชัน `issueDocumentVerification(tx, ctx, { subjectType, subjectId })` ให้คำสั่งอนุมัติใบแก้ไข PO ของ S8 เรียก (สายที่รวมเข้า main ทีหลังระหว่าง S6 กับ S8 เป็นคนเพิ่มการเรียกนี้พร้อมเทสต์) · QR บน PDF ของ PR และ PO · หน้า `/verify/[token]` สาธารณะ อ่านอย่างเดียว จำกัดอัตรา · เพิ่ม event ลง spec — เสร็จ 2026-10-15 · 938b01a
   - เสร็จเมื่อ: เทสต์: GET PDF และ GET `/verify` ไม่เพิ่มหรือแก้แถวใด (นับแถวทุกตารางก่อนหลัง) · ดาวน์โหลดซ้ำได้ QR เดิม · `tokenHash` ของแถวเท่ากับ sha256 hex ตัวพิมพ์เล็กของ token ใน QR · ส่งซ้ำโดยเนื้อหาไม่เปลี่ยนไม่ออกแถวใหม่ · ส่งซ้ำหลังแก้เนื้อหาทำให้ token เก่าบอกว่ามีฉบับใหม่ · token ผิดได้หน้าเดียวกับไม่พบ · หน้าไม่มียอดเงินและชื่อคน · ยกเลิก PO แล้วสถานะในหน้าเปลี่ยนทันที · screenshot และ axe · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง เพราะเป็น endpoint สาธารณะ
-- [ ] **S6-20** `[demo]` รายงาน cycle time คอขวด รายการผิด DOA และ heatmap (FR-VIS-101): `/reports/workflow` 4 แท็บด้วย engine SLA เดิม · scope ตาม `report.view` · ส่งออก Excel พร้อม checksum · เพิ่ม golden (suite `workflow-reports`) ลง spec และตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py`
+- [x] **S6-20** `[demo]` รายงาน cycle time คอขวด รายการผิด DOA และ heatmap (FR-VIS-101): `/reports/workflow` 4 แท็บด้วย engine SLA เดิม · scope ตาม `report.view` · ส่งออก Excel พร้อม checksum · เพิ่ม golden (suite `workflow-reports`) ลง spec และตัวคำนวณอ้างอิงของ suite นั้นใน `scripts/spec_check.py` — เสร็จ 2026-10-15 · 9fe2ac1
   - เสร็จเมื่อ: `pnpm spec:check` รายงาน golden:workflow-reports ผ่านครบ · ตัวเลขตรงกับ seed ที่รู้คำตอบ (คำขอค้างของ `pm_p07` ขึ้นคอขวดที่ CEO) · DEPT_HEAD เห็นเฉพาะ subtree (เทสต์ปฏิเสธ) · screenshot และ axe · `pnpm verify` ผ่าน
   - แยกงาน: แยก subagent ต่อแท็บได้ แล้วตรวจตัวเลขกับ seed ก่อนรับ
-- [ ] **S6-21** `[demo]` สภาพแวดล้อม UAT และชุดค่าตั้ง (FR-PLT-101 · ADR-110 · OQ-108): PLATFORM_ADMIN สร้าง sandbox ของ tenant พร้อม contractRef โดยไม่มีทางคัดลอกผังหรือ DOA จาก production · แถบระบบทดลอง ปิด LINE อีเมลมี "[UAT]" · ส่งออกและนำเข้าชุดค่าตั้ง (นำเข้าเป็นร่างเท่านั้น) · seed ระยะ 1 สร้าง `SIMEC-UAT` บนเครื่อง · ไม่ deploy หรือแก้ staging ในสาย · เพิ่ม error event และความสามารถลง spec
+- [x] **S6-21** `[demo]` สภาพแวดล้อม UAT และชุดค่าตั้ง (FR-PLT-101 · ADR-110 · OQ-108): PLATFORM_ADMIN สร้าง sandbox ของ tenant พร้อม contractRef โดยไม่มีทางคัดลอกผังหรือ DOA จาก production · แถบระบบทดลอง ปิด LINE อีเมลมี "[UAT]" · ส่งออกและนำเข้าชุดค่าตั้ง (นำเข้าเป็นร่างเท่านั้น) · seed ระยะ 1 สร้าง `SIMEC-UAT` บนเครื่อง · ไม่ deploy หรือแก้ staging ในสาย · เพิ่ม error event และความสามารถลง spec — เสร็จ 2026-10-15 · 0f97496
   - เสร็จเมื่อ: เทสต์: นำเข้าแล้วไม่มีอะไร PUBLISHED · checksum ผิดถูกปฏิเสธ · INV-TEN-01 ครอบ sandbox · PLATFORM_ADMIN นำเข้าไม่ได้และคัดลอกผังหรือ DOA ไม่ได้ (เทสต์ปฏิเสธ) · ฉากบนเครื่อง: ส่งออก workflow จาก `SIMEC-UAT` นำเข้า SIMEC เป็นร่าง แล้ว `ceo` อนุมัติผ่านเส้นทางปกติ · `pnpm verify` ผ่าน
   - แยกงาน: ทำเอง
-- [ ] **S6-22** `[demo]` รีวิวทั้งขั้น S6 แล้วส่งเข้า main: รวม main เข้าสาย · `/code-review high main...HEAD` · แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" · ข้ออื่นเขียนเหตุผลหรือเพิ่มเป็นข้อใหม่ท้ายขั้นแท็ก `[go-live]` · บันทึก `docs/reports/p1-review-S6.md` · ส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4
+- [x] **S6-22** `[demo]` รีวิวทั้งขั้น S6 แล้วส่งเข้า main: รวม main เข้าสาย · `/code-review high main...HEAD` · แก้ข้อที่กระทบความถูกต้อง เงิน สิทธิ์ หรือ "เสร็จเมื่อ" · ข้ออื่นเขียนเหตุผลหรือเพิ่มเป็นข้อใหม่ท้ายขั้นแท็ก `[go-live]` · บันทึก `docs/reports/p1-review-S6.md` · ส่งงานของขั้นเข้า main ตาม skill `bcs-lane` หัวข้อ 4 · รีวิว high พบ 10 ข้อ แก้ 2 ข้อพร้อมเทสต์ (ราคาตกลงของการนำเข้าชุดค่าตั้ง · ขอเกินงบบนบรรทัดราคาศูนย์) ข้ออื่นเป็น S6-28 ถึง S6-33 · รีวิวงานแก้ซ้ำด้วย high และ xhigh (ADR-072) แก้ทุกข้อที่กระทบความถูกต้อง ข้ออื่นเป็น S6-34 · e2e เต็มชุดเจอรายงาน workflow บนข้อมูลระยะ 1 เกินเวลา (แก้ที่ต้นเหตุ N+1) และส่วนงบตั้งของหน้ารายละเอียดงบที่ไม่รวมการโอนและเกินงบ (แก้แล้ว) · การออก QR ตอนอนุมัติใบแก้ไข PO ของ S8 (S6-19) เพิ่มตอนรวม main พร้อมเทสต์ · `pnpm verify --strict --e2e` รอบสุดท้ายที่ 6b0b0c9: 17 ด่านผ่าน e2e 467/468 ฉาก demo 9/9 · สองด่านล้มด้วยเวลาเกินขณะสาย 2 รัน verify พร้อมกัน (เทสต์ lint 2 ข้อ 62–64 วินาที ปกติ 9–20 · ฟอร์มทีละขั้นบนมือถือที่สคริปต์เตรียมงบกิน 17 วินาที → `test.slow()` แบบ spec ฉากอื่น) แล้วรันซ้ำผ่านทั้งหมด (unit 2037/2037 · request-wizard 4/4 · integration 1761/1761) · ข้อที่ล้มเฉพาะตอนหลายสายรันพร้อมกันเป็น S6-35 — เสร็จ 2026-10-16 · 8486f91 1a47a44 8678c0e 6c5cfbe 9d83493 8f386f0 6b0b0c9 302e83e
   - เสร็จเมื่อ: ไม่มีข้อที่กระทบความถูกต้องค้าง · `pnpm verify --strict --e2e` ผ่าน · `pnpm test:e2e --grep @demo` ผ่าน · งานของขั้นอยู่ใน main
   - แยกงาน: ใช้คำสั่งรีวิวเดียวทั้งขั้น ไม่แตกเพิ่ม
 - [ ] **S6-23** `[go-live]` `[คน]` ค่าจริงของลูกค้า: ลูกค้าใส่ผู้ตรวจคู่ขนาน คณะกรรมการ ข้อ DOA ของโอนงบและเกินงบ และราคาตกลงผ่านหน้าจอเอง (NG-12) หลัง P0-01 และ OQ-101 OQ-102 OQ-104 OQ-105 OQ-114 ปิด
@@ -5657,6 +6135,36 @@ agent เพิ่มงานที่พบระหว่างทำต่�
 - [ ] **S6-25** `[go-live]` `[คน]` ผู้ใช้จริงอย่างน้อยฝ่ายละ 1 คนลองฉากของ S6 และบันทึก `verifiedBy` (§16.2 ข้อ 5)
   - เสร็จเมื่อ: ผู้ใช้ติ๊กเองพร้อมรายชื่อผู้ลอง
   - แยกงาน: งานของคน agent ห้ามติ๊ก
+- [ ] **S6-26** `[go-live]` เทสต์ `tests/integration/line-webhook.test.ts` ข้อ "an event whose request was cut before it ended" ไม่ขึ้นกับโหลดของเครื่อง (พบใน S6-07): รันเดี่ยวและรัน `--project int` แยกผ่านทุกครั้ง แต่ล้มสองรอบใน `pnpm verify` เต็มชุดเพราะงบเวลา inline 50 ms ไม่ได้รับประกันเมื่อเครื่องโหลดหนัก · ให้เทสต์รอสัญญาณของโค้ดแทนการพึ่งเวลา โดยไม่ลดสิ่งที่ตรวจ
+  - เสร็จเมื่อ: เทสต์ข้อนี้ผ่านใน `pnpm verify` เต็มชุดติดกัน 3 รอบ · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-27** `[go-live]` ขั้นที่รออยู่หาผู้ดำรงไม่ได้ตอนขั้นเริ่ม (พบใน S6-08 · BR-WF-14): วันนี้การตัดสินของขั้นก่อนหน้าถูกปฏิเสธด้วย `APPROVER_NOT_FOUND` จึงไม่มีใครอนุมัติผ่านจนกว่าจะแต่งตั้งผู้ดำรง แต่ ORG_ADMIN ยังไม่ได้แจ้ง · ให้ขั้นก่อนหน้าตัดสินได้ ขั้นถัดไปรอ และแจ้ง ORG_ADMIN ให้แต่งตั้งหรือ `approval.reassign` แบบ BR-DOA-17 โดย decide flow ทุกตัวถือว่าเอกสารยังรออนุมัติ
+  - เสร็จเมื่อ: integration test: ผู้ดำรงขั้น 2 ว่างตอนขั้น 1 อนุมัติ → ขั้น 1 อนุมัติสำเร็จ ขั้น 2 รอ ORG_ADMIN ได้แจ้ง เอกสารยัง PENDING_APPROVAL · แต่งตั้งผู้ดำรงแล้วงานไปหาคนใหม่ · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-28** `[go-live]` ล็อกคำขอระหว่างรอขอเกินงบเทียบบรรทัดตามลำดับ ไม่ใช่ตาม id (พบใน S6-22): บันทึกที่แค่สลับลำดับบรรทัดเดิมถูกปฏิเสธด้วย `OVERRUN_PENDING` ทั้งที่ยอดและบรรทัดงบไม่เปลี่ยน (ปลอดภัย ไม่มีเงินขยับ) · ให้ `amountOrLineChanges` จับคู่บรรทัดด้วย id
+  - เสร็จเมื่อ: integration test: ขอเกินงบรออยู่ สลับลำดับบรรทัดเดิม → บันทึกได้ · แก้ยอดหรือบรรทัดงบ → ยัง `OVERRUN_PENDING` · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-29** `[go-live]` ลิงก์ "เปิดงานอนุมัติ" บนหน้าโอนงบและหน้าขอเกินงบแสดงกับผู้อ่านทุกคน (พบใน S6-22): คนที่ไม่ใช่ผู้รับงานกดแล้วเจอหน้าปฏิเสธ (หน้างานตรวจสิทธิ์อยู่แล้ว ไม่มีข้อมูลรั่ว) · ให้แสดงเฉพาะผู้รับงานและผู้ที่เขาทำแทน
+  - เสร็จเมื่อ: integration test ของ view: ผู้อนุมัติได้ลิงก์ ผู้ส่งและหัวหน้าแผนกไม่ได้ · ภาพ 375 และ 1440 px · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-30** `[go-live]` % ใช้ไปของหน้ารายละเอียดบรรทัดงบปัดครึ่งขึ้น แต่แดชบอร์ด (S6-18) ปัดลง (พบใน S6-22): บรรทัดเดียวแสดงสองค่า เช่น 90% กับ 89% ใกล้เกณฑ์เตือน 90% · ให้ทุกหน้าใช้ค่าจาก `budgetBurn`
+  - เสร็จเมื่อ: unit test ของตัวแสดงผล: 89.95% แสดง 89% ทั้งสองหน้า · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-31** `[go-live]` ราคาตกลงที่ยังไม่เริ่มแก้ไม่ได้ (พบใน S6-22 · BR-PRC-06): สิ้นสุดราคาที่ยังไม่เริ่มไม่ได้ ไม่มีการลบ และราคาใหม่ทับช่วงเดิมไม่ได้ ราคาที่กรอกผิดล่วงหน้าจึงจะบังคับใช้เมื่อถึงวัน · ต้องถามผู้ใช้ก่อนว่าจะให้ PROCUREMENT ยกเลิกราคาที่ยังไม่เริ่ม (เก็บแถวและ Event ไว้) หรือไม่ แล้วจึงแก้กฎ — รอยืนยัน
+  - เสร็จเมื่อ: ผู้ใช้ตอบแล้ว · ถ้าให้ยกเลิก: golden ของ BR-PRC-06 และ integration test: ยกเลิกราคาที่ยังไม่เริ่ม → ไม่มีผล และเพิ่มราคาใหม่ช่วงเดิมได้ · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-32** `[go-live]` หน้าจอให้ตรงกับสิทธิ์ (พบใน S6-22): เมื่อ DOA ฉบับที่มีผลแยกผู้ดูแล DOA (BR-WF-17) ORG_ADMIN ยังเห็นเมนูและปุ่ม DOA กับ workflow แล้วถูกปฏิเสธตอนบันทึก (`DOA_ADMIN_SEPARATED` · service ตรวจถูกแล้ว) · รายการองค์กรของทีม BCS ไม่บอกว่าองค์กรไหนเป็น sandbox (UAT)
+  - เสร็จเมื่อ: e2e: ORG_ADMIN ที่ถูกแยกไม่เห็นเมนู DOA · รายการองค์กรมีป้าย "ระบบทดลอง" · ภาพ 375 และ 1440 px และ axe · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-33** `[go-live]` ความครบของเทสต์และโค้ดซ้ำ (พบใน S6-22): ยังไม่มี e2e ที่นำเข้าชุดค่าตั้งสำเร็จผ่านหน้า `/admin/config` · ขอบเขต `po.view` (ผู้สร้าง ผู้ขอของ PR ผู้อนุมัติ) เขียนซ้ำใน `services/documents/pdf.ts` และ `services/documents/verification.ts` ให้รวมเป็นฟังก์ชันเดียว · การตรวจราคาตกลงของการนำเข้าชุดค่าตั้งซ้ำกับของ `priceAgreement.create` ให้ใช้ตัวตรวจเดียวใน `src/core/pricing`
+  - เสร็จเมื่อ: e2e นำเข้าสำเร็จและเห็นร่างที่สร้าง · ทั้งสองที่เรียกฟังก์ชันเดียวกัน เทสต์เดิมผ่าน · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-34** `[go-live]` รายงานบนข้อมูลขนาดลูกค้าจริง (พบในรีวิว xhigh ของ S6-22): รายงานตามรอบ (`scheduledReportCommand`) ยังรันในเวลาของคำสั่ง (statement 15 วินาที) ไม่ใช่ `reportTx` รายงานที่เปิดบนหน้าได้จึงอาจล้มทุกรอบใน job · ขอบเขตแผนกของ `collectKpis` ยังถามทีละเอกสาร (หัวหน้าแผนกช้ากว่า CEO) ให้อ่านครั้งเดียวต่อชนิด · เพิ่มเทสต์ G-3 ที่คำขอเดียวอยู่สอง PO (นับ PO ที่อนุมัติก่อน) และคำขอนอกขอบเขตแผนก · หน้ารายละเอียดงบ: ส่วน "เอกสารที่จองงบ" ยังไม่แสดงการจองของการโอนงบที่รออนุมัติและเงินที่กันไว้ของการอนุมัติเกินงบ (ยอดรวมถูกแล้ว แต่รายการไม่ครบ) และรายการโอนหรือเกินงบยังไม่มีลิงก์ไปหน้าของมันสำหรับผู้ที่เปิดได้
+  - เสร็จเมื่อ: integration test: รายงานตามรอบของ WF_BOTTLENECKS บนข้อมูลระยะ 1 ส่งได้ · รายงานของหัวหน้าแผนกบนข้อมูลระยะ 1 ใช้ query ไม่เกินจำนวนคงที่ต่อชนิดเอกสาร · เทสต์ G-3 ใหม่ผ่าน · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
+- [ ] **S6-35** `[go-live]` เทสต์ที่ล้มเฉพาะตอนหลายสายรันพร้อมกัน (พบใน S6-22): `pnpm verify` พิมพ์แค่ชื่อเคสที่ล้มแล้วลบรายงานของรอบ จึงไม่เหลือข้อความผิดพลาดให้หาเหตุ (`liff-sign-in-another-user.test.ts` ล้มครั้งเดียวในชุด integration แล้วผ่านทั้งรันเดี่ยว 3 รอบและรันทั้งชุดซ้ำ) · เทสต์กฎ lint ข้อแรกของ `tests/unit/lint-rules.test.ts` และ `tests/unit/design-system.test.ts` ใช้ 9–20 วินาทีเมื่อเครื่องว่าง แต่เกิน 60 วินาทีขณะอีกสายรัน coverage เพราะต้องสร้าง TypeScript program ทั้งโปรเจกต์
+  - เสร็จเมื่อ: `pnpm verify` พิมพ์บรรทัดแรกของข้อความผิดพลาดของทุกเคสที่ล้ม · เทสต์ lint สองไฟล์ผ่านใน `pnpm verify` 3 รอบติดกันขณะอีกสายรัน `pnpm verify` โดยไม่เพิ่ม timeout แบบเหมารวม · `pnpm verify` ผ่าน
+  - แยกงาน: ทำเอง
 
 ### 16.15 S8 · ใบแจ้งหนี้และจับคู่ 3 ทาง (สาย 2 · เส้นชัย E)
 
@@ -6261,6 +6769,7 @@ ADR-001 ถึง ADR-016 มาจากตารางเรื่องที
 | ADR-108 | ราคาอ้างอิงใช้ค่าตัวกลางล่าง เฉพาะเอกสารราคาก่อน VAT · ส่วนต่างเป็น Bp ตัดเศษเข้าหาศูนย์ และป้ายเตือนเทียบด้วยจำนวนเต็ม · ไม่เพิ่มจุดปัดเงินของ BR-MONEY-02 | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-109 | QR ตรวจสอบเอกสาร: แถว `DocumentVerification` ออกเฉพาะในคำสั่งส่ง ส่งซ้ำ และอนุมัติใบแก้ไข PO เมื่อเนื้อหาที่พิมพ์เปลี่ยน · token = HMAC ของ id แถวด้วยกุญแจที่แยกจาก `ENCRYPTION_KEY` จึงพิมพ์ซ้ำได้ token เดิมโดยเก็บเฉพาะ sha256 · GET PDF และหน้า GET สาธารณะอ่านอย่างเดียว จำกัดอัตรา และตอบเหมือนกันเมื่อ token ผิด | ร่าง P1-04 รออนุมัติ P1-06 (OQ-112) |
 | ADR-110 | ชุดค่าตั้ง (`ConfigPackage`) เป็น JSON มี schemaVersion และ sha256 · นำเข้าสร้างเฉพาะร่างที่ต้องอนุมัติตามเส้นทางปกติ ไม่เผยแพร่เองและไม่มีข้อมูลธุรกิจ (NG-12 EG-8) · sandbox ตั้งต้นแบบ tenant ใหม่โดยคนของลูกค้า | ร่าง P1-04 รออนุมัติ P1-06 (OQ-108) |
+| ADR-111 | ย้อนทดสอบไม่เกิน 500 เอกสารคำนวณทันทีแบบอ่านอย่างเดียว · เกินนั้นสร้าง `BacktestRun` ให้ job `backtest-run` คำนวณและบันทึกผลครั้งเดียว ไม่เขียนข้อมูลธุรกิจ (FR-DOA-103 AC3) | S6-07 |
 | ADR-121 | ใบแจ้งหนี้ชั้น 2 (`Invoice`) อยู่คู่กับ `InvoiceConfirmation` ไม่แทนที่: แต่ละ PO ใช้ทางเดียว (`PurchaseOrder.invoiceTrack`) ตัดสินตอนใบแรก · เปิด `PAY` ใช้การจับคู่ ปิดใช้ชั้น 1 · ตรวจเลขซ้ำข้ามสองตาราง · การเล่นประวัติขององค์กรที่เปิด `PAY` ใช้ใบชั้น 2 · องค์กร demo ไม่เปิด `PAY` ฉาก `@demo` จึงไม่เปลี่ยน | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-122 | engine จับคู่เป็น pure function ใน `src/core/matching`: เทียบยอดก่อน VAT ต่อบรรทัด (ไม่ใช่ราคาต่อหน่วย) หลังปันส่วนลดท้ายบิลด้วย largest remainder · คืนผลต่อบรรทัด รายการไม่ตรงในลำดับคงที่ และแผนงบ (ถือเพิ่ม ตัด คืน) ให้ service ทำตามด้วยฟังก์ชันงบเดิม · branch coverage 100% | ร่าง P1-04 รออนุมัติ P1-06 |
 | ADR-123 | กล่องอีเมลขาเข้าผ่าน adapter `src/integrations/email-inbound` โหมด `mailpit` (บนเครื่อง เทสต์ demo · อ่าน REST API ของ Mailpit กรองตามที่อยู่ขององค์กร) และ `disabled` · production ตาม OQ-124 · กันซ้ำด้วย Message-ID · ไม่เก็บเนื้อความ · รับเฉพาะ PDF XML JPEG PNG เข้าที่เก็บ private · ไม่ส่งจับคู่เอง | ร่าง P1-04 รออนุมัติ P1-06 |
@@ -6562,7 +7071,7 @@ numbering:
   RQ: { pattern: "RQ-{BE}-{SEQ5}", reset: YEARLY }
 express: { fileType: xlsx, encoding: UTF-8-BOM, dateFormat: BE, mapping: [] }  # OQ-10
 retention: { documentYears: 5, accessLogYears: 1 }  # OQ-30
-features: { parallelApproval: false, lineChannel: true }
+features: { parallelApproval: false, lineChannel: true }  # parallelApproval ไม่มีผลตั้งแต่ S6: ผู้ตรวจคู่ขนานมาจาก WorkflowVersion ที่มีผล (ADR-102 · BR-WF-06)
 # procurement: { queueTargetBusinessMinutes: 960 }  # OQ-38 · ไม่บังคับ: ไม่ใส่ = 960 (S16-09 · การ์ดคิวจัดซื้อทันเวลา §11.5) จึงไม่ต้อง seed ใหม่บน staging
 ```
 

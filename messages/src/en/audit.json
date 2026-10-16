@@ -89,15 +89,13 @@
     "newest": "Back to the latest events"
   },
   "groups": {
-    "account_code": "Account codes",
-    "agent_action": "AI assistant",
-    "ai_agent": "AI assistant settings",
-    "ai_credit": "AI credits",
+    "approval_step": "Approval steps",
     "approval_task": "Approval tasks",
     "audit": "Audit trail",
     "auth": "Sign-in",
     "bank_account": "Bank accounts",
     "bank_account_change": "Bank account changes",
+    "backtest": "Backtest",
     "budget": "Budget",
     "budget_grant": "Cross-department budget grants",
     "consolidation_run": "Consolidation rounds",
@@ -110,11 +108,9 @@
     "form_version": "Forms",
     "gr": "Receiving",
     "holiday": "Holidays",
-    "inbound_email": "Invoice inbox",
     "invoice": "Invoices",
     "invoice_confirmation": "Invoices",
     "line": "LINE accounts",
-    "match_exception": "Invoice differences",
     "member": "Members",
     "notification": "Notifications",
     "org_authority_change": "Authority structure",
@@ -122,29 +118,40 @@
     "payment_run": "Payment runs",
     "payment_run_item": "Payment run items",
     "po": "Purchase orders",
-    "po_change": "PO changes",
     "position": "Positions",
     "report_schedule": "Reports",
     "request": "Requests",
     "request_type": "Request types",
-    "retention": "Performance retention",
     "security": "Security",
     "supplier": "Suppliers",
-    "supplier_notice": "E-mails to suppliers",
     "variance": "Receiving variances",
+    "workflow_version": "Parallel reviewers",
+    "agent_action": "AI assistant",
+    "ai_agent": "AI assistant settings",
+    "ai_credit": "AI credits",
+    "catalog_item": "Catalogue",
+    "price_agreement": "Agreed prices",
+    "budget_transfer": "Budget transfers",
+    "budget_overrun": "Over-budget approval",
+    "document_verification": "Document verification",
+    "config_package": "Configuration package",
+    "account_code": "Account codes",
+    "inbound_email": "Invoice inbox",
+    "match_exception": "Invoice differences",
+    "po_change": "PO changes",
+    "retention": "Performance retention",
+    "supplier_notice": "E-mails to suppliers",
     "wht_certificate": "Withholding tax certificates",
     "wht_income_type": "Income types",
     "withholding_tax": "Withholding tax"
   },
   "aggregate": {
-    "AccountCode": "Account code",
-    "AgentAction": "AI assistant call",
-    "AiAgentSetting": "AI assistant setting",
-    "AiCredit": "AI credits",
+    "ApprovalStep": "Approval step",
     "ApprovalTask": "Approval task",
     "Auth": "Sign-in",
     "BankAccount": "Bank account",
     "BankAccountChange": "Bank account change",
+    "BacktestRun": "Backtest run",
     "BudgetGrant": "Cross-department budget grant",
     "BudgetLine": "Budget line",
     "ChannelIdentity": "LINE account",
@@ -157,7 +164,6 @@
     "File": "File",
     "FormVersion": "Request type form",
     "GoodsReceipt": "Goods receipt",
-    "InboundEmail": "Invoice inbox",
     "Invoice": "Invoice",
     "InvoiceConfirmation": "Invoice",
     "Member": "Member",
@@ -166,47 +172,36 @@
     "Organization": "Organization",
     "PaymentRun": "Payment run",
     "PaymentRunItem": "Payment run item",
-    "PoChange": "PO change",
     "PositionAssignment": "Position holding",
     "PurchaseOrder": "Purchase order",
     "ReportSchedule": "Report schedule",
     "Request": "Request",
     "RequestType": "Request type",
-    "Retention": "Performance retention",
     "Security": "Security",
     "Supplier": "Supplier",
-    "SupplierNotice": "E-mail to a supplier",
     "Variance": "Receiving variance",
+    "WorkflowVersion": "Workflow version",
+    "AgentAction": "AI assistant call",
+    "AiAgentSetting": "AI assistant setting",
+    "AiCredit": "AI credits",
+    "CatalogItem": "Catalogue item",
+    "PriceAgreement": "Agreed price",
+    "BudgetTransfer": "Budget transfer",
+    "BudgetOverrun": "Over-budget approval",
+    "DocumentVerification": "Document verification QR",
+    "ConfigPackage": "Configuration package",
+    "AccountCode": "Account code",
+    "InboundEmail": "Invoice inbox",
+    "PoChange": "PO change",
+    "Retention": "Performance retention",
+    "SupplierNotice": "E-mail to a supplier",
     "WhtCertificate": "Withholding tax certificate",
     "WhtIncomeType": "Income type",
     "WithholdingTax": "Withholding tax"
   },
   "events": {
-    "account_code": {
-      "updated": "Account code changed"
-    },
-    "agent_action": {
-      "requested": "AI assistant called",
-      "drafted": "AI assistant drafted a result",
-      "failed": "AI assistant call failed",
-      "applied": "AI values taken into a document",
-      "accepted": "AI values all confirmed",
-      "edited": "AI values confirmed with changes",
-      "rejected": "AI result thrown away",
-      "expired": "AI result expired",
-      "feedback_given": "Feedback on an AI result",
-      "content_purged": "Content of an AI result cleared"
-    },
-    "ai_agent": {
-      "enabled": "AI assistant switched on",
-      "disabled": "AI assistant switched off",
-      "updated": "AI assistant setting changed"
-    },
-    "ai_credit": {
-      "granted": "AI credits granted",
-      "monthly_set": "Monthly AI credits set",
-      "threshold_reached": "AI credits reached the alert level",
-      "exhausted": "AI credits used up"
+    "approval_step": {
+      "completed": "Approval step of several approvers completed"
     },
     "approval_task": {
       "assigned": "Approval task assigned",
@@ -242,13 +237,22 @@
       "submitted": "Bank account change submitted",
       "updated": "Bank account change edited"
     },
+    "backtest": {
+      "completed": "90-day backtest done",
+      "requested": "90-day backtest asked as a background job"
+    },
     "budget": {
       "actualized": "Budget moved to actual",
+      "alert_raised": "Budget use or forecast alert raised",
       "commitment_released": "Committed budget released",
       "committed": "Budget committed to a PO",
       "imported": "Budget imported",
+      "overrun_funded": "Funded by an over-budget approval",
+      "overrun_returned": "Over-budget amount returned from the line",
       "reservation_released": "Reserved budget released",
-      "reserved": "Budget reserved"
+      "reserved": "Budget reserved",
+      "transferred_in": "Budget transferred into the line",
+      "transferred_out": "Budget transferred out of the line"
     },
     "budget_grant": {
       "created": "Cross-department budget granted",
@@ -276,7 +280,11 @@
       "published": "DOA published",
       "rejected": "DOA version rejected",
       "submitted": "DOA sent for approval",
-      "superseded": "DOA version superseded"
+      "superseded": "DOA version superseded",
+      "withdrawal_cancelled": "DOA withdrawal cancelled: in effect already",
+      "withdrawal_rejected": "DOA withdrawal not approved",
+      "withdrawal_requested": "DOA withdrawal asked",
+      "withdrawn": "DOA withdrawn"
     },
     "export": {
       "generated": "Export file generated"
@@ -286,7 +294,10 @@
       "uploaded": "File uploaded"
     },
     "form_version": {
-      "published": "Request type form published"
+      "drafted": "Form draft created",
+      "published": "Request type form published",
+      "retired": "Form version retired",
+      "updated": "Form draft edited"
     },
     "gr": {
       "posted": "Goods receipt posted",
@@ -295,27 +306,21 @@
     "holiday": {
       "imported": "Holidays imported"
     },
-    "inbound_email": {
-      "failed": "Invoice inbox mail could not be read",
-      "ignored": "Invoice inbox mail skipped",
-      "processed": "Drafts made from invoice inbox mail",
-      "received": "Mail received in the invoice inbox"
-    },
     "invoice": {
       "cancelled": "Invoice draft thrown away",
       "coding_confirmed": "Invoice account codes confirmed",
       "drafted": "Invoice drafted",
       "exception_raised": "Invoice has differences",
       "matched": "Invoice matched",
+      "ready": "Invoice ready for payment",
+      "submitted": "Invoice submitted",
+      "updated": "Invoice draft edited",
       "paid": "Invoice paid",
       "payment_held": "Invoice taken into a payment run",
       "payment_released": "Invoice let go from a payment run",
-      "ready": "Invoice ready for payment",
       "rechecked": "Invoice checked again",
       "rejected": "Invoice rejected",
       "reopened": "Invoice reopened as a draft",
-      "submitted": "Invoice submitted",
-      "updated": "Invoice draft edited",
       "variance_approved": "Invoice price variance approved",
       "variance_rejected": "Invoice price variance not approved or returned",
       "variance_submitted": "Invoice price variance sent for approval"
@@ -326,9 +331,6 @@
     "line": {
       "linked": "LINE account linked",
       "unlinked": "LINE account unlinked"
-    },
-    "match_exception": {
-      "dismissed": "Possible duplicate invoice dismissed"
     },
     "member": {
       "activated": "Member activated",
@@ -354,7 +356,8 @@
       "created": "Organization created",
       "module_disabled": "Module switched off",
       "module_enabled": "Module switched on",
-      "settings_updated": "Organization settings updated"
+      "settings_updated": "Organization settings updated",
+      "sandbox_created": "UAT sandbox created"
     },
     "payment_run": {
       "approved": "Payment run approved",
@@ -383,24 +386,16 @@
       "cancelled": "Purchase order cancelled",
       "closed": "Purchase order closed",
       "drafted": "Purchase order drafted",
-      "milestones_set": "Purchase order split into milestones",
       "rejected": "Purchase order rejected",
-      "retention_set": "Purchase order retention set",
       "returned": "Purchase order returned",
-      "revised": "Purchase order revised",
-      "revision_sent": "Revised purchase order sent to the supplier",
       "send_bounced": "Purchase order e-mail bounced",
       "sent": "Purchase order sent to the supplier",
       "submitted": "Purchase order sent for approval",
-      "updated": "Draft purchase order changed"
-    },
-    "po_change": {
-      "approved": "PO change approved",
-      "cancelled": "PO change cancelled",
-      "drafted": "PO change drafted",
-      "rejected": "PO change rejected",
-      "returned": "PO change returned",
-      "submitted": "PO change submitted"
+      "updated": "Draft purchase order changed",
+      "milestones_set": "Purchase order split into milestones",
+      "retention_set": "Purchase order retention set",
+      "revised": "Purchase order revised",
+      "revision_sent": "Revised purchase order sent to the supplier"
     },
     "position": {
       "assigned": "Position holder appointed",
@@ -416,11 +411,13 @@
       "doa_gap_reported": "DOA has no rule for this request",
       "draft_expiry_notified": "Expiring draft notified",
       "drafted": "Request drafted",
+      "flagged": "Flagged as a duplicate or split",
       "follower_added": "Follower added",
       "follower_removed": "Follower removed",
       "info_provided": "Requester answered",
       "info_requested": "More information asked of the requester",
       "rejected": "Request rejected",
+      "renewal_reminded": "Renewal reminded",
       "resubmitted": "Request sent again",
       "returned": "Request returned for changes",
       "submitted": "Request sent",
@@ -428,14 +425,6 @@
     },
     "request_type": {
       "updated": "Request type changed"
-    },
-    "retention": {
-      "held": "Retention held",
-      "paid": "Retention paid",
-      "payment_held": "Retention taken into a payment run",
-      "payment_released": "Retention let go from a payment run",
-      "release_due": "Retention due for release",
-      "released": "Retention released"
     },
     "security": {
       "pin_locked": "Transaction PIN locked for a while",
@@ -446,17 +435,116 @@
       "created": "Supplier added",
       "registry_checked": "Supplier checked with the government registers",
       "registry_status_changed": "Supplier's register status changed",
-      "tax_profile_updated": "Supplier's tax profile changed",
-      "updated": "Supplier details changed"
-    },
-    "supplier_notice": {
-      "failed": "E-mail to the supplier failed",
-      "sent": "E-mail sent to the supplier"
+      "updated": "Supplier details changed",
+      "tax_profile_updated": "Supplier's tax profile changed"
     },
     "variance": {
       "approved": "Receiving variance approved",
       "recorded": "Receiving variance recorded",
       "rejected": "Receiving variance rejected"
+    },
+    "workflow_version": {
+      "approved": "Workflow version approved",
+      "drafted": "Workflow draft created",
+      "dry_run": "Workflow draft tried out",
+      "published": "Workflow version published",
+      "rejected": "Workflow version not approved",
+      "submitted": "Workflow version submitted",
+      "superseded": "Workflow version superseded",
+      "updated": "Workflow draft edited",
+      "withdrawal_cancelled": "Withdrawal of parallel reviewers cancelled: in effect already",
+      "withdrawal_rejected": "Withdrawal of parallel reviewers not approved",
+      "withdrawal_requested": "Withdrawal of parallel reviewers asked",
+      "withdrawn": "Parallel reviewers withdrawn"
+    },
+    "agent_action": {
+      "requested": "AI assistant called",
+      "drafted": "AI assistant drafted a result",
+      "failed": "AI assistant call failed",
+      "applied": "AI values taken into a document",
+      "accepted": "AI values all confirmed",
+      "edited": "AI values confirmed with changes",
+      "rejected": "AI result thrown away",
+      "expired": "AI result expired",
+      "feedback_given": "Feedback on an AI result",
+      "content_purged": "Content of an AI result cleared"
+    },
+    "ai_agent": {
+      "enabled": "AI assistant switched on",
+      "disabled": "AI assistant switched off",
+      "updated": "AI assistant setting changed"
+    },
+    "ai_credit": {
+      "granted": "AI credits granted",
+      "monthly_set": "Monthly AI credits set",
+      "threshold_reached": "AI credits reached the alert level",
+      "exhausted": "AI credits used up"
+    },
+    "catalog_item": {
+      "created": "Catalogue item added",
+      "updated": "Catalogue item edited"
+    },
+    "price_agreement": {
+      "created": "Agreed price set",
+      "ended": "Agreed price ended"
+    },
+    "budget_transfer": {
+      "approved": "Budget transfer approved",
+      "cancelled": "Budget transfer cancelled",
+      "drafted": "Budget transfer drafted",
+      "rejected": "Budget transfer rejected",
+      "returned": "Budget transfer returned",
+      "submitted": "Budget transfer sent for approval"
+    },
+    "budget_overrun": {
+      "approved": "Over-budget approval approved",
+      "cancelled": "Over-budget approval cancelled",
+      "consumed": "Over-budget amount used by the request",
+      "lapse_reminded": "Reminded that an over-budget approval lapses soon",
+      "lapsed": "Over-budget approval lapsed or not used",
+      "rejected": "Over-budget approval rejected",
+      "returned": "Over-budget approval returned",
+      "submitted": "Over-budget approval sent",
+      "unused_returned": "Unused over-budget amount returned after use"
+    },
+    "document_verification": {
+      "issued": "Verification QR issued"
+    },
+    "config_package": {
+      "exported": "Configuration package exported",
+      "imported": "Configuration package imported as drafts"
+    },
+    "account_code": {
+      "updated": "Account code changed"
+    },
+    "inbound_email": {
+      "failed": "Invoice inbox mail could not be read",
+      "ignored": "Invoice inbox mail skipped",
+      "processed": "Drafts made from invoice inbox mail",
+      "received": "Mail received in the invoice inbox"
+    },
+    "match_exception": {
+      "dismissed": "Possible duplicate invoice dismissed"
+    },
+    "po_change": {
+      "approved": "PO change approved",
+      "cancelled": "PO change cancelled",
+      "drafted": "PO change drafted",
+      "rejected": "PO change rejected",
+      "returned": "PO change returned",
+      "submitted": "PO change submitted"
+    },
+    "retention": {
+      "held": "Retention held",
+      "paid": "Retention paid",
+      "payment_held": "Retention taken into a payment run",
+      "payment_released": "Retention let go from a payment run",
+      "release_due": "Retention due for release",
+      "released": "Retention released"
+    },
+    "supplier_notice": {
+      "failed": "E-mail to the supplier failed",
+      "sent": "E-mail sent to the supplier"
     },
     "wht_certificate": {
       "issued": "Withholding tax certificate issued"

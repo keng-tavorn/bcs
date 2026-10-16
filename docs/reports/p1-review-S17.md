@@ -17,3 +17,17 @@
 | 7 | `GoodsReceipt.offlineCapturedAt` ไม่มี CHECK กับเวลาที่ถึงระบบ | ไม่แก้ในข้อนี้: กฎตรวจใน `gr.post` ของ S17-12 (สาย 1 · ข้อเงิน รีวิวทันที) · แนะนำให้ S17-12 เพิ่ม CHECK `offlineCapturedAt` ≤ `postedAt` เมื่อบันทึกแล้วในข้อนั้น |
 
 ผลก่อนส่งเข้า main (2026-10-16 · `5952d11`): `pnpm verify --strict --e2e` ผ่าน 19 ด่าน 0 FAIL · e2e 459 เคสผ่าน ไม่มีเคสที่ข้าม · ฉาก demo 9 เคสผ่าน · tag `p1-s17-start` ติดที่ `origin/main` ก่อนส่ง (ฐานรีวิวของ S17-18)
+
+## S17-09 โครงแอป Capacitor และ workflow APK (สาย 1 · 2026-10-16 · รีวิวทันทีตาม ADR-072)
+
+คำสั่ง: `/code-review xhigh 6574609...HEAD` ที่ commit a28f8f3 (ฐาน = commit ก่อน commit แรกของ S17-09) · พบ 5 ข้อ · แก้ 4 ข้อ · ไม่แก้ 1 ข้อ
+
+| # | ข้อที่พบ | ผล |
+| --- | --- | --- |
+| 1 | KPI G-5 นับช่องทาง `APP` เป็นการตัดสินบนมือถือ ขัดกับนิยามของ §11 (แชท LINE หรือ LIFF) และป้าย "การตัดสินใน LINE" ของหน้า KPI | แก้: `MOBILE` ของ `src/server/services/reports/kpi.ts` กลับเป็น `LINE_CHAT` `LIFF` และแถว G-5 ใน §1 กลับเป็นข้อความเดิม · แอปมีแท่งของตัวเองในแผงการควบคุมของหน้า insights แทน (ADR-168) |
+| 2 | `android:allowBackup="true"` ของแม่แบบ Capacitor ให้ Android สำรองข้อมูล WebView (cookie ของ session และคิวตรวจรับออฟไลน์ของ BR-APP-03) ขึ้น cloud หรือย้ายไปเครื่องใหม่ | แก้: `allowBackup="false"` และ `data_extraction_rules.xml` ตัดทุกโดเมนทั้ง cloud-backup และ device-transfer พร้อมเทสต์ใน `tests/unit/bcs-go-shell.test.ts` |
+| 3 | แผงการควบคุมของหน้า insights มีแท่ง "แอป BCS Go" แต่แถวของ §9 ยังเขียนเฉพาะ เว็บ LIFF แชท LINE อีเมล | แก้: แถวใน spec เพิ่ม "แอป BCS Go" |
+| 4 | workflow รัน `gradle-wrapper.jar` ที่ commit ไว้โดยไม่ตรวจกับ checksum ของ Gradle ขณะที่ secret ของ keystore อยู่ใน job | แก้: เพิ่ม `gradle/actions/wrapper-validation@v4` หลัง checkout |
+| 5 | ความเห็นใน `.env.example` และ workflow ชี้ไป `docs/runbooks/bcs-go-demo.md` ที่ยังไม่มี | ไม่แก้: runbook เขียนใน S17-17 ของสายนี้ |
+
+ตรวจเพิ่มในรอบนี้โดยไม่พบปัญหา: ช่องทาง `APP` ไม่เพิ่มสิทธิ์ใด (แทนที่เฉพาะ `WEB` ใน `ctxFromSession` · LIFF อีเมล และปุ่มแชทคงเดิม จึงปลอม user agent ได้แค่ป้ายใน audit) · ESLint ของ CI ไม่ต้องติดตั้งแพ็กเกจของ `mobile/` (ไม่มีกฎ no-unresolved) · `cap sync` เขียน `usesCleartextTraffic` ให้เองเมื่อ `server.cleartext` เปิด (เฉพาะ emulator)

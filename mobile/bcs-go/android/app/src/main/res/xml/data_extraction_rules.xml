@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- BCS Go keeps nothing for Android to back up or move to another phone: the WebView holds the session cookie and the
+     offline receiving queue (BR-APP-03), which stay on this device only (S17-09 review, ADR-168) -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="device_root" />
+        <exclude domain="device_file" />
+        <exclude domain="device_database" />
+        <exclude domain="device_sharedpref" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="file" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="device_root" />
+        <exclude domain="device_file" />
+        <exclude domain="device_database" />
+        <exclude domain="device_sharedpref" />
+    </device-transfer>
+</data-extraction-rules>

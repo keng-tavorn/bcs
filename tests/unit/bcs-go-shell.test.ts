@@ -78,6 +78,17 @@ describe('[FR-PLT-301/AC10] mobile/ holds no business code and LIFF never loads 
     expect(Object.keys(pkg.devDependencies).sort()).toEqual(['@capacitor/cli', '@types/node', 'typescript'])
     expect(readFileSync(path.join(SHELL, 'www', 'index.html'), 'utf8')).not.toMatch(/<script/i)
   })
+
+  it('keeps the WebView data (session cookie, offline queue of BR-APP-03) out of Android backups and transfers', () => {
+    const manifest = readFileSync(path.join(SHELL, 'android', 'app', 'src', 'main', 'AndroidManifest.xml'), 'utf8')
+    expect(manifest).toContain('android:allowBackup="false"')
+    expect(manifest).toContain('android:dataExtractionRules="@xml/data_extraction_rules"')
+    const rules = readFileSync(path.join(SHELL, 'android', 'app', 'src', 'main', 'res', 'xml', 'data_extraction_rules.xml'), 'utf8')
+    for (const part of ['cloud-backup', 'device-transfer']) {
+      const section = rules.slice(rules.indexOf(`<${part}>`), rules.indexOf(`</${part}>`))
+      for (const domain of ['root', 'file', 'database', 'sharedpref', 'external']) expect(section, `${part} ${domain}`).toContain(`<exclude domain="${domain}" />`)
+    }
+  })
 })
 
 describe('[FR-PLT-301/AC10] the app opens one environment and marks its user agent (BR-APP-01, BR-APP-02)', () => {

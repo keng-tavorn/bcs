@@ -3836,7 +3836,9 @@ cases:
 | `/liff/requests/[id]` | รายละเอียดคำขอ |
 | `/liff/track` | คำขอของฉันและไทม์ไลน์ |
 | `/liff/delegation` | ตั้งรักษาการ |
+| `/liff/gr` | PO ที่ตรวจรับได้ตามขอบเขตและ SoD ของ `gr.post` (บริการเดียวกับ `/receiving`) แตะแล้วไป `/liff/gr/[poId]` · ผู้ไม่มี `gr.post` เห็นรายการว่าง (FR-LINE-303 AC3 · S17-04) |
 | `/liff/gr/[poId]` | ตรวจรับพร้อมกล้อง |
+| `/liff/procurement` | งานจัดซื้อแบบดูอย่างเดียว: จำนวนบรรทัดรอจัดซื้อและ PO ตามสถานะ พร้อมลิงก์เปิดเว็บนอก LINE · ตรวจ `procurement.pool.view` ใน service ผู้ไม่มีเห็นว่าไม่มีสิทธิ์และไม่มีตัวเลข (FR-LINE-303 AC4 · S17-04) |
 | `/liff/help` | วิธีใช้และช่องทางติดต่อผู้ดูแล |
 
 เงื่อนไข: `liff.init({ liffId })` ก่อนทุกอย่าง · session แยกช่องทาง `LIFF` idle 15 นาที ต่ออายุเงียบ ๆ ด้วย ID token ใหม่ · ออกแบบ mobile-first: ตัวอักษร 16 px ปุ่มสูงอย่างน้อย 44 px แถบปุ่มตัดสินติดล่างจอ · JavaScript เริ่มต้นไม่เกิน 200 KB (gzip) · กล้องใช้ `<input type="file" accept="image/*" capture="environment">` แล้วย่อรูปฝั่ง client · ลิงก์ลึกสร้างผ่าน helper เดียวที่อ่านรูปแบบ URL ตามชนิด channel (MINI App หรือ LIFF บน Login channel) · เปิดนอกแอป LINE → ใช้การ login ของเว็บตามปกติ

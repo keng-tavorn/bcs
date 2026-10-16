@@ -6011,6 +6011,37 @@
     "title": "Home",
     "webHint": "opens in the browser outside LINE"
   },
+  "liffLists": {
+    "gr": {
+      "blocked": "{count, plural, one {# more PO} other {# more POs}} you may not receive yourself because of separation of duties: ask another receiver.",
+      "count": "{count, plural, one {# PO} other {# POs}}",
+      "empty": "No PO for you to receive right now",
+      "emptyHint": "When a PO you receive for is sent to the supplier, it shows here.",
+      "intro": "The POs you may receive now, the earliest sent first. Tap one to receive it with photos.",
+      "list": "POs you may receive",
+      "more": "See all {total} on the web",
+      "outstanding": "{left} of {lines} lines still to come",
+      "requests": "Request {numbers}",
+      "sent": "Sent to the supplier {at}",
+      "site": "To {site}",
+      "title": "Receive"
+    },
+    "home": "Back to home",
+    "procurement": {
+      "denied": "This page is for purchasing",
+      "deniedHint": "Your account may not see the purchasing pool. If you think it should, contact your organization's administrator.",
+      "intro": "Purchasing's work in numbers now. View only: carry on on the web.",
+      "openPool": "Open the pool on the web",
+      "poCount": "{count, plural, one {# PO} other {# POs}}",
+      "pool": "Purchasing pool",
+      "poolCount": "{count, plural, one {# line} other {# lines}} to purchase",
+      "pos": "Purchase orders by status",
+      "posList": "Number of purchase orders in each status",
+      "title": "Purchasing",
+      "urgent": "{count} urgent"
+    },
+    "webHint": "opens in the browser outside LINE"
+  },
   "liffReceiving": {
     "barLabel": "Record the receipt",
     "closeChat": "Back to the chat",

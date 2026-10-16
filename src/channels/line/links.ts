@@ -14,6 +14,9 @@ const LIFF_PAGES: ReadonlyArray<readonly [RegExp, (id: string) => string]> = [
   [/^\/requests$/, () => '/track'],
   [/^\/settings\/delegation$/, () => '/delegation'],
   [new RegExp(`^/receiving/(${UUID})$`, 'i'), (id) => `/gr/${id}`],
+  // S17-04 (FR-LINE-303 AC3 AC4): the lists the role buttons of the rich menu open
+  [/^\/receiving$/, () => '/gr'],
+  [/^\/procurement\/pool$/, () => '/procurement'],
 ]
 
 /** The LIFF page of a workspace page (e.g. /requests/<id> → /requests/<id>, /settings/delegation → /delegation), or null */

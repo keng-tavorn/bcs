@@ -25,7 +25,9 @@ describe('[FR-LINE-302/AC2] a home row opens its LIFF page, or the web outside L
     expect(liffHomeDestination(`/requests/${ID}`)).toEqual({ href: `/liff/requests/${ID}`, inLiff: true })
     expect(liffHomeDestination(`/tasks/${ID}`)).toEqual({ href: `/liff/tasks/${ID}`, inLiff: true })
     expect(liffHomeDestination('/finance/invoices?gr=posted')).toEqual({ href: '/finance/invoices?gr=posted', inLiff: false })
-    expect(liffHomeDestination('/procurement/pool')).toEqual({ href: '/procurement/pool', inLiff: false })
+    expect(liffHomeDestination('/procurement/pool')).toEqual({ href: '/liff/procurement', inLiff: true })
+    expect(liffHomeDestination('/receiving')).toEqual({ href: '/liff/gr', inLiff: true })
+    expect(liffHomeDestination('/procurement/pos?status=approved')).toEqual({ href: '/procurement/pos?status=approved', inLiff: false })
   })
 
   it('every to-do row of the web home gets a destination, the ones of a requester and an approver in LIFF', () => {
@@ -34,8 +36,8 @@ describe('[FR-LINE-302/AC2] a home row opens its LIFF page, or the web outside L
       OVERDUE_TASKS: true,
       RETURNED: true,
       QUESTIONS: true,
-      RECEIVING: false,
-      POOL: false,
+      RECEIVING: true,
+      POOL: true,
       PO_APPROVED: false,
       INVOICES: false,
       EXPORTS: false,

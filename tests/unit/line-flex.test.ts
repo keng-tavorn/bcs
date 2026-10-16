@@ -278,6 +278,9 @@ describe('[FR-LINE-002/AC1] a LINE message opens the LIFF page of the same thing
     expect(liffPathFor('/requests/new')).toBe('/requests/new')
     expect(liffPathFor('/settings/delegation')).toBe('/delegation')
     expect(liffPathFor(`/receiving/${TASK}`)).toBe(`/gr/${TASK}`)
+    // S17-04: the lists the rich menu's role buttons open
+    expect(liffPathFor('/receiving')).toBe('/gr')
+    expect(liffPathFor('/procurement/pool')).toBe('/procurement')
     for (const page of ['/admin/doa', '/board/pending', `/procurement/pos/${TASK}`, '/tasks/../admin', `/tasks/${TASK}/x`, 'https://evil.example/tasks']) expect(liffPathFor(page)).toBeNull()
     expect(liffTaskPath(TASK, 'approve')).toBe(`/tasks/${TASK}?action=approve`)
     expect(liffTaskPath(TASK)).toBe(`/tasks/${TASK}`)

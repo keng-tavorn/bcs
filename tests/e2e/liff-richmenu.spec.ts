@@ -37,9 +37,10 @@ const UNLINKED = [
   { label: 'ผูกบัญชี', path: '/liff/link', heading: 'ผูกบัญชี LINE' },
   { label: 'ช่วยเหลือ', path: '/liff/help', heading: 'วิธีใช้ BCS ใน LINE' },
 ] as const
+// The LINKED set of a member with no role button (S17-03 · golden line-rich-menu); the sets by role: liff-work-lists.spec.ts
 const LINKED = [
+  { label: 'หน้าแรก', path: '/liff/home', heading: 'หน้าแรก' },
   { label: 'ขอซื้อ', path: '/liff/requests/new', heading: 'ขอซื้อ / ขอจ้าง' },
-  { label: 'งานรออนุมัติ', path: '/liff/tasks', heading: 'งานรออนุมัติ' },
   { label: 'ติดตามสถานะ', path: '/liff/track', heading: 'คำขอของฉัน' },
   { label: 'ช่วยเหลือ', path: '/liff/help', heading: 'วิธีใช้ BCS ใน LINE' },
 ] as const
@@ -64,7 +65,7 @@ test.describe('[FR-LINE-004/AC2] every button of both rich menus opens its LIFF 
     await expect(page.getByRole('heading', { level: 2, name: 'เข้าสู่ระบบ BCS เพื่อผูกบัญชี' })).toBeVisible()
   })
 
-  test('the LINKED menu of a member: ขอซื้อ, งานรออนุมัติ, ติดตามสถานะ and ช่วยเหลือ each open their page, signed in through LINE', async ({ page, context }) => {
+  test('the LINKED menu of a member: หน้าแรก, ขอซื้อ, ติดตามสถานะ and ช่วยเหลือ each open their page, signed in through LINE', async ({ page, context }) => {
     const lineUserId = newLineUserId()
     const { linkedMenuId } = liffScene<{ linkedMenuId: string }>('linked', sceneTag('menu-linked'), lineUserId)
     await expect.poll(async () => (await fakeLine<{ richMenuId: string | null }>(`/__fake/users/${lineUserId}/richmenu`)).richMenuId).toBe(linkedMenuId)

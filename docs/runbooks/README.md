@@ -31,6 +31,7 @@
 | 6 | [p0-08-vercel.md](p0-08-vercel.md) ส่วน B | ค่าลับที่สร้างเอง อีเมล ค่าคงที่ แล้วให้ agent deploy | P0-08 | 20 นาที |
 | 7 | [p0-07-inngest.md](p0-07-inngest.md) ส่วนที่ 2 | sync แอปกับ Inngest หลัง deploy ครั้งแรก | P0-07 | 5 นาที |
 | 8 | [line-demo-setup.md](line-demo-setup.md) | LINE ของ BCS สำหรับ demo | D-02 · D-03 | 70 นาที |
+| 9 | [bcs-go-demo.md](bcs-go-demo.md) | แอป BCS Go: Firebase push keystore APK passkey และฉาก demo ของ S17 บนมือถือจริง | S17-17 (ใช้ใน P1-11 P1-13) | 1 ชั่วโมง + 20 นาทีต่อเครื่อง |
 
 ขั้น 1 ข้ามไปก่อนได้ เพราะคุณตัดสินเมื่อ 2026-10-02 ว่ายังไม่สร้าง GitHub repo agent deploy staging จากเครื่องด้วย Vercel CLI ได้ แต่การรัน CI และการ deploy อัตโนมัติเมื่อ merge `main` (S1-14) ต้องมี GitHub
 
@@ -53,6 +54,8 @@
 - [ ] 9. LINE ส่วนที่ 1–2: สร้าง provider OA และ channel แล้ว ใส่ค่า LINE 7 ตัวและ `NEXT_PUBLIC_LIFF_ID` ตามตารางในส่วนที่ 2 ใน Vercel แล้ว
 - [ ] 10. LINE ส่วนที่ 3: ใส่ค่าในหน้าตั้งค่า LINE บน staging แล้ว · มี rich menu แล้ว · ใส่ webhook URL แล้ว Verify ผ่าน · ปุ่มทดสอบการเชื่อมต่อบน staging ผ่านทุกข้อ
 - [ ] 11. ทดสอบหน้า LIFF บนมือถือคนนอกทีมที่เชิญเป็น Tester แล้ว (spec §16.10)
+- [ ] 12. BCS Go ส่วนที่ 1–5: Firebase ค่า push ใน Vercel · keystore และ secret ใน GitHub · `BCS_GO_SERVER_URL` · APK สร้างผ่าน · ค่า `BCS_GO_ANDROID_*` ใน Vercel และ agent deploy แล้ว `assetlinks.json` แสดงแอป
+- [ ] 13. BCS Go ส่วนที่ 7–9: ติดตั้งแอปบนมือถือ เปิดแจ้งเตือน และลงทะเบียน passkey แล้ว (หรือใช้ทางสำรองใน Chrome)
 
 ## บอก agent อย่างไรเมื่อเสร็จแต่ละขั้น
 
@@ -78,6 +81,8 @@
 | reset ก่อน demo | "reset staging แล้ว run Completed" | ตรวจผลแล้วบันทึกว่า D-07 เสร็จ (ครั้งแรก) |
 | 9 LINE | "สร้าง LINE channel ตาม line-demo-setup แล้ว ใส่ค่า LINE ใน Vercel แล้ว (ใช้ MINI App)" | deploy ใหม่ แล้วบอกเมื่อหน้าตั้งค่า LINE บน staging พร้อมให้คุณใส่ค่าเอง พร้อมวิธีสร้าง rich menu และวิธีหา webhook URL (ถ้า agent ต้องเขียนข้อมูลลงฐานข้อมูล staging จะขออนุมัติคุณก่อน) |
 | 10 webhook | "ใส่ค่าในหน้าตั้งค่า LINE แล้ว ใส่ webhook แล้ว Verify ผ่าน ปุ่มทดสอบผ่านทุกข้อ" | ตรวจซ้ำ แล้วรอคุณยืนยัน D-03 |
+| 12 BCS Go | "ใส่ค่า BCS Go ใน Vercel แล้ว APK สร้างผ่านแล้ว" | ขออนุญาตคุณก่อน deploy · deploy แล้วตรวจ `/.well-known/assetlinks.json` |
+| 13 มือถือ | "ติดตั้งแอป BCS Go แล้ว แจ้งเตือนและ passkey ใช้ได้" หรือ "passkey ในแอปขึ้นว่า <ข้อความบนจอ>" | ซ้อมฉาก demo ของ S17 ด้วยกัน · ถ้า passkey ในแอปใช้ไม่ได้ จะอธิบายทางเลือกให้คุณตัดสินก่อนแก้กฎ |
 
 ถ้าคุณตรวจแล้วว่าข้อ P0 ใดเสร็จครบตาม "เสร็จเมื่อ" ให้พิมพ์ยืนยันกับ agent เช่น "ยืนยันว่า P0-05 เสร็จแล้ว"
 

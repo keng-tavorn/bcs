@@ -11,7 +11,7 @@ import { drawLineRichMenuImage } from '../../scripts/line-richmenu'
 
 describe('[FR-LINE-004/AC1] the rich menu pictures in assets/line are the ones pnpm line:richmenu --images draws', () => {
   it.each(LINE_RICH_MENU_KINDS)('%s: a 2500 × 843 PNG under 1 MB, byte for byte', async (kind) => {
-    const committed = await readFile(path.join(process.cwd(), 'assets', 'line', LINE_RICH_MENU_IMAGE_FILES[kind]))
+    const committed = await readFile(path.join(process.cwd(), 'assets', 'line', LINE_RICH_MENU_IMAGE_FILES[kind]!))
     expect(richMenuImageInfo(committed)).toEqual({ contentType: 'image/png', width: 2500, height: 843 })
     expect(richMenuImageProblem(committed)).toBeNull()
     const drawn = await drawLineRichMenuImage(kind)

@@ -10,6 +10,7 @@ import { getEnv } from '@/lib/env'
 import { STORED_ROLES } from '@/server/authz/permissions'
 import { makeCtx, systemCtx, type Ctx } from '@/server/context'
 import { prisma } from '@/server/db/client'
+import { LINE_RICH_MENU_KINDS } from '@/server/line/link-rich-menus'
 import { lineWebhookUrl } from '@/server/queries/line-channel'
 import {
   LINE_CHECK_REASONS,
@@ -156,13 +157,18 @@ async function ready(values: Partial<typeof VALID> = {}, route: Partial<Omit<Rou
   return setup
 }
 
-/** Both rich menus made at the fake LINE and stored on the channel, as pnpm line:richmenu will (S5-04) */
-async function withRichMenus(setup: Setup): Promise<{ linked: string; unlinked: string }> {
+/** Every rich menu made at the fake LINE and stored, as pnpm line:richmenu does (S5-04, S17-04): UNLINKED and LINKED on the channel, every LINKED set in LineRichMenuVariant */
+async function withRichMenus(setup: Setup): Promise<{ linked: string; unlinked: string; sets: Record<string, string> }> {
   const api = line.client.channel(TEST_ACCESS_TOKEN)
   const unlinked = await api.createRichMenu(menu('BCS UNLINKED'))
   const linked = await api.createRichMenu(menu('BCS LINKED'))
-  await prisma.lineChannelConfig.update({ where: { organizationId: setup.orgId }, data: { richMenuLinkedId: linked, richMenuUnlinkedId: unlinked } })
-  return { linked, unlinked }
+  const config = await prisma.lineChannelConfig.update({ where: { organizationId: setup.orgId }, data: { richMenuLinkedId: linked, richMenuUnlinkedId: unlinked }, select: { id: true } })
+  const sets: Record<string, string> = {}
+  for (const kind of LINE_RICH_MENU_KINDS.filter((k) => k !== 'UNLINKED')) {
+    sets[kind] = kind === 'LINKED' ? linked : await api.createRichMenu(menu(`BCS ${kind}`))
+    await prisma.lineRichMenuVariant.create({ data: { organizationId: setup.orgId, channelConfigId: config.id, variantKey: kind, richMenuId: sets[kind]!, madeAt: new Date() } })
+  }
+  return { linked, unlinked, sets }
 }
 
 type Answer = (init: RequestInit | undefined) => Response | Promise<Response>
@@ -405,6 +411,17 @@ describe('[FR-ADM-006/AC3] the connection test passes every check for a channel 
     ])
     // LINE really sent a signed webhook to APP_URL's route, and the route accepted the signature
     expect(line.fake.webhookDeliveries().at(-1)).toMatchObject({ endpoint: setup.expected, success: true, statusCode: 200 })
+  })
+
+  it('[FR-LINE-303/AC4] FAILs when one set by role is missing: not stored (notCreated), or gone at LINE (missingAtLine names it)', async () => {
+    const setup = await ready()
+    const { sets } = await withRichMenus(setup)
+    await line.client.channel(TEST_ACCESS_TOKEN).deleteRichMenu(sets['LINKED:RECEIVER']!)
+    const gone = (await run(setup)).report.checks.find((c) => c.id === 'richMenus')!
+    expect([gone.status, gone.reason, gone.params]).toEqual(['FAIL', 'missingAtLine', { missing: 'LINKED:RECEIVER' }])
+    await prisma.lineRichMenuVariant.deleteMany({ where: { organizationId: setup.orgId, variantKey: 'LINKED:APPROVER:PROCUREMENT' } })
+    const notStored = (await run(setup)).report.checks.find((c) => c.id === 'richMenus')!
+    expect([notStored.status, notStored.reason]).toEqual(['FAIL', 'notCreated'])
   })
 
   it('needs a saved channel first (NOT_FOUND) and calls LINE for nothing', async () => {

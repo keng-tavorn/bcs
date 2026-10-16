@@ -1,62 +1,66 @@
 import type { LineRichMenu, LineRichMenuBounds, LineRichMenuImageType } from '@/integrations/line'
 import { LINE_RICH_MENU_HEIGHT_PX, LINE_RICH_MENU_IMAGE_MAX_BYTES, LINE_RICH_MENU_WIDTH_PX } from '@/lib/constants'
+import { RICH_MENU_VARIANTS, type RichMenuButton, type RichMenuChoice } from '@/core/line-menu'
 import { liffLink } from './webhook/messages'
 
-// The two rich menus of §9.5 (FR-LINE-004): UNLINKED is the account's default, so everyone who has not linked sees
-// "ผูกบัญชี" and "ช่วยเหลือ"; LINKED is linked to each member's LINE user once they link, with the four buttons
-// "ขอซื้อ", "งานรออนุมัติ", "ติดตามสถานะ" and "ช่วยเหลือ". Every button opens a page of the LIFF app (§9.4) through the
-// one deep-link helper (liffLink). One definition serves the requests to LINE (src/server/services/line-link) and the
-// pictures drawn by `pnpm line:richmenu --images` (assets/line), so a tap always lands on the button it shows.
+// The rich menus of §9.5 (FR-LINE-004, FR-LINE-303 · BR-LINE-16): one set for whoever has no menu of their own —
+// UNLINKED, the account's default: "ผูกบัญชี" and "ช่วยเหลือ" — and one per set by role of a linked member (LINKED,
+// LINKED:APPROVER, …, the nine of RICH_MENU_VARIANTS in src/core/line-menu): "หน้าแรก", "ขอซื้อ", then the role
+// buttons "งานรออนุมัติ" "ตรวจรับ" "งานจัดซื้อ", "ติดตามสถานะ" and "ช่วยเหลือ", six at most, in rows of the core's
+// layout (4 = 2+2, 5 = 3+2, 6 = 3+3). Every button opens a page of the LIFF app (§9.4) through the one deep-link helper
+// (liffLink). One definition serves the requests to LINE (src/server/services/line-link) and the pictures drawn by
+// `pnpm line:richmenu --images` (assets/line), so a tap always lands on the button it shows.
 
-export const LINE_RICH_MENU_KINDS = ['UNLINKED', 'LINKED'] as const
-export type LineRichMenuKind = (typeof LINE_RICH_MENU_KINDS)[number]
+/** Every set, UNLINKED first, then LINKED: what `pnpm line:richmenu` makes and the connection test checks */
+export const LINE_RICH_MENU_KINDS: readonly string[] = RICH_MENU_VARIANTS.map((v) => v.variant)
+/** UNLINKED or LINKED[:ROLE…] (LineRichMenuVariant.variantKey for a LINKED set) */
+export type LineRichMenuKind = string
 
 export interface LineRichMenuButton {
-  readonly key: 'link' | 'help' | 'request' | 'tasks' | 'track'
+  readonly key: RichMenuButton
   /** The LIFF page it opens (§9.4, §9.5) */
-  readonly path: '/link' | '/help' | '/requests/new' | '/tasks' | '/track'
+  readonly path: string
   /** The words on the picture (§9.5), also the action's label that LINE reads aloud */
   readonly label: string
   /** The one main action of the menu, drawn filled (§9.9: one emphasis per screen) */
   readonly primary: boolean
 }
 
+/** What each button says and opens */
+export const LINE_RICH_MENU_BUTTONS: Readonly<Record<RichMenuButton, { readonly path: string; readonly label: string }>> = {
+  link: { path: '/link', label: 'ผูกบัญชี' },
+  home: { path: '/home', label: 'หน้าแรก' },
+  request: { path: '/requests/new', label: 'ขอซื้อ' },
+  tasks: { path: '/tasks', label: 'งานรออนุมัติ' },
+  receive: { path: '/gr', label: 'ตรวจรับ' },
+  procurement: { path: '/procurement', label: 'งานจัดซื้อ' },
+  track: { path: '/track', label: 'ติดตามสถานะ' },
+  help: { path: '/help', label: 'ช่วยเหลือ' },
+}
+
 interface LineRichMenuLayout {
-  readonly columns: number
-  readonly rows: number
+  /** Buttons per row, top first */
+  readonly rows: readonly number[]
   /** Row by row, left to right */
   readonly buttons: readonly LineRichMenuButton[]
 }
 
-export const LINE_RICH_MENU_LAYOUTS: Readonly<Record<LineRichMenuKind, LineRichMenuLayout>> = {
-  UNLINKED: {
-    columns: 2,
-    rows: 1,
-    buttons: [
-      { key: 'link', path: '/link', label: 'ผูกบัญชี', primary: true },
-      { key: 'help', path: '/help', label: 'ช่วยเหลือ', primary: false },
-    ],
-  },
-  LINKED: {
-    columns: 2,
-    rows: 2,
-    buttons: [
-      { key: 'request', path: '/requests/new', label: 'ขอซื้อ', primary: true },
-      { key: 'tasks', path: '/tasks', label: 'งานรออนุมัติ', primary: false },
-      { key: 'track', path: '/track', label: 'ติดตามสถานะ', primary: false },
-      { key: 'help', path: '/help', label: 'ช่วยเหลือ', primary: false },
-    ],
-  },
+function layoutOf(choice: RichMenuChoice): LineRichMenuLayout {
+  return { rows: choice.rows, buttons: choice.buttons.map((key) => ({ key, ...LINE_RICH_MENU_BUTTONS[key], primary: key === choice.primary })) }
 }
+
+export const LINE_RICH_MENU_LAYOUTS: Readonly<Record<LineRichMenuKind, LineRichMenuLayout>> = Object.fromEntries(RICH_MENU_VARIANTS.map((v) => [v.variant, layoutOf(v)]))
+
+/** Whether a name is one of the sets */
+export const isLineRichMenuKind = (kind: string): boolean => Object.hasOwn(LINE_RICH_MENU_LAYOUTS, kind)
 
 /** Text of the bar under the chat that opens and closes the menu (LINE: at most 14 characters) */
 export const LINE_RICH_MENU_CHAT_BAR_TEXT = 'เมนู BCS'
 
-/** The picture of each menu in assets/line (2500 × 843 PNG, drawn by `pnpm line:richmenu --images`) */
-export const LINE_RICH_MENU_IMAGE_FILES: Readonly<Record<LineRichMenuKind, string>> = {
-  UNLINKED: 'richmenu-unlinked.png',
-  LINKED: 'richmenu-linked.png',
-}
+/** The picture of each menu in assets/line (2500 × 843 PNG, drawn by `pnpm line:richmenu --images`): richmenu-linked-approver.png for LINKED:APPROVER */
+export const LINE_RICH_MENU_IMAGE_FILES: Readonly<Record<LineRichMenuKind, string>> = Object.fromEntries(
+  LINE_RICH_MENU_KINDS.map((kind) => [kind, `richmenu-${kind.toLowerCase().replaceAll(':', '-')}.png`]),
+)
 
 export interface LineRichMenuCell {
   readonly button: LineRichMenuButton
@@ -66,24 +70,21 @@ export interface LineRichMenuCell {
 /** Where `index` of `count` equal parts of `total` starts; the last part takes what does not divide (843 = 421 + 422) */
 const edge = (total: number, count: number, index: number) => Math.floor((total * index) / count)
 
-/** The tappable area of every button: equal cells over the whole picture, no gaps */
+/** The tappable area of every button: the rows share the height, the cells of a row its width; no gaps */
 export function lineRichMenuCells(kind: LineRichMenuKind): LineRichMenuCell[] {
   const layout = LINE_RICH_MENU_LAYOUTS[kind]
-  return layout.buttons.map((button, i) => {
-    const column = i % layout.columns
-    const row = Math.floor(i / layout.columns)
-    const x = edge(LINE_RICH_MENU_WIDTH_PX, layout.columns, column)
-    const y = edge(LINE_RICH_MENU_HEIGHT_PX, layout.rows, row)
-    return {
-      button,
-      bounds: {
-        x,
-        y,
-        width: edge(LINE_RICH_MENU_WIDTH_PX, layout.columns, column + 1) - x,
-        height: edge(LINE_RICH_MENU_HEIGHT_PX, layout.rows, row + 1) - y,
-      },
+  if (!layout) throw new Error(`no rich menu set ${kind}`)
+  const cells: LineRichMenuCell[] = []
+  let next = 0
+  layout.rows.forEach((columns, row) => {
+    const y = edge(LINE_RICH_MENU_HEIGHT_PX, layout.rows.length, row)
+    const height = edge(LINE_RICH_MENU_HEIGHT_PX, layout.rows.length, row + 1) - y
+    for (let column = 0; column < columns; column++) {
+      const x = edge(LINE_RICH_MENU_WIDTH_PX, columns, column)
+      cells.push({ button: layout.buttons[next++]!, bounds: { x, y, width: edge(LINE_RICH_MENU_WIDTH_PX, columns, column + 1) - x, height } })
     }
   })
+  return cells
 }
 
 /**
@@ -107,7 +108,7 @@ export function lineRichMenuNamePrefix(channelKey: string): string {
 export function lineRichMenuMadeAt(name: string, channelKey: string): number | null {
   const prefix = lineRichMenuNamePrefix(channelKey)
   if (!name.startsWith(prefix)) return null
-  const at = /^(?:UNLINKED|LINKED):(\d{1,15})$/.exec(name.slice(prefix.length))?.[1]
+  const at = /^(?:UNLINKED|LINKED(?::[A-Z]+)*):(\d{1,15})$/.exec(name.slice(prefix.length))?.[1]
   return at === undefined ? 0 : Number(at)
 }
 

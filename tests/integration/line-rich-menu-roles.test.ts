@@ -63,21 +63,14 @@ beforeAll(async () => {
       },
     })
   }
-  // The channel, its two menus (UNLINKED, LINKED) and a menu of every set by role, as `pnpm line:richmenu` stores them
+  // The channel and every menu (UNLINKED and each set by role), made and stored by `pnpm line:richmenu`'s command (S17-04)
   const admin = adminAt()
-  const saved = ok(
+  ok(
     await saveLineChannelSettings(admin, { providerId: PROVIDER, messagingChannelId: '1650000032', channelSecret: TEST_CHANNEL_SECRET, channelAccessToken: TEST_ACCESS_TOKEN, liffId: '1650000033-RoLeMeNu', liffChannelId: '1650000033', active: true }, key()),
   )
-  const images = await readLineRichMenuImages()
-  ok(await replaceLineRichMenus(admin, images, key()))
-  const config = await prisma.lineChannelConfig.findFirstOrThrow({ where: { organizationId } })
-  const api = line.client.channel(TEST_ACCESS_TOKEN)
-  for (const variant of RICH_MENU_VARIANTS.filter((v) => v.variant !== 'UNLINKED')) {
-    const id = await api.createRichMenu({ size: { width: 2500, height: 843 }, selected: true, name: `bcs:${saved.channelKey}:${variant.variant}:1`, chatBarText: 'เมนู BCS', areas: [{ bounds: { x: 0, y: 0, width: 2500, height: 843 }, action: { type: 'uri', uri: 'https://liff.line.me/1650000033-RoLeMeNu/help' } }] })
-    await api.uploadRichMenuImage(id, images.LINKED, 'image/png')
-    await prisma.lineRichMenuVariant.create({ data: { organizationId, channelConfigId: config.id, variantKey: variant.variant, richMenuId: id, madeAt: new Date() } })
-    menuOf[variant.variant] = id
-  }
+  const made = ok(await replaceLineRichMenus(admin, await readLineRichMenuImages(), key()))
+  expect(made.sets).toBe(RICH_MENU_VARIANTS.length)
+  for (const v of await prisma.lineRichMenuVariant.findMany({ where: { organizationId }, select: { variantKey: true, richMenuId: true } })) menuOf[v.variantKey] = v.richMenuId
   // Linked members: a requester, a DM (DOA by position), the member a committee names, a committee member by position, a receiver to be
   for (const code of ['req_con', 'dm_con', 'asst_con', 'coo', 'receiver_con', 'proc_officer', 'vp_sup']) {
     lineUser[code] = newLineUserId()

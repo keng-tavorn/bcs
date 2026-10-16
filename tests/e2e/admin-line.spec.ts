@@ -143,15 +143,15 @@ test('[FR-ADM-006/AC3] the connection test reports each check as PASS or FAIL wi
   // LINE's own test webhook reached this system and the signature matched the saved secret
   await expect(checkRow(page, 'LINE ส่ง webhook ถึง BCS ได้').getByText('ผ่าน', { exact: true })).toBeVisible()
   await expect(checkRow(page, 'LIFF ID').getByText('ผ่าน', { exact: true })).toBeVisible()
-  await expect(checkRow(page, 'Rich menu ทั้งสองชุด')).toBeVisible()
+  await expect(checkRow(page, 'Rich menu ทุกชุด')).toBeVisible()
   await checkScreen(page, testInfo, 'admin-line-test-failed')
 
   // The administrator fixes the URL at LINE and makes both rich menus again
   await setWebhookAtLine(request, expected)
-  await page.getByRole('button', { name: 'สร้าง rich menu ใหม่ทั้งสองชุด' }).click()
+  await page.getByRole('button', { name: 'สร้าง rich menu ใหม่ทุกชุด' }).click()
   const menus = page.getByRole('region', { name: 'Rich menu' })
-  await expect(menus.getByRole('status').filter({ hasText: 'สร้าง rich menu ใหม่ทั้งสองชุดแล้ว' })).toBeVisible({ timeout: 20_000 })
-  await expect(menus.getByText('สร้างไว้แล้วทั้งสองชุด')).toBeVisible()
+  await expect(menus.getByRole('status').filter({ hasText: 'สร้าง rich menu ใหม่ทุกชุดแล้ว' })).toBeVisible({ timeout: 20_000 })
+  await expect(menus.getByText('สร้างไว้แล้วทุกชุด')).toBeVisible()
 
   await page.getByRole('button', { name: 'ทดสอบการเชื่อมต่อ' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'ผ่านทุกข้อ LINE พร้อมใช้งาน' })).toBeVisible({ timeout: 20_000 })

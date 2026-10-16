@@ -241,15 +241,28 @@ describe('the LINE channel the owner set up comes through the reset (ADR-056)', 
         active: true,
       },
     })
+    // S17-04: the rich menu sets by role come too, so linked members keep the menu of their role
+    const beforeConfig = await prisma.lineChannelConfig.findFirstOrThrow({ where: { organizationId: before.id }, select: { id: true } })
+    await prisma.lineRichMenuVariant.createMany({
+      data: [
+        { organizationId: before.id, channelConfigId: beforeConfig.id, variantKey: 'LINKED', richMenuId: 'richmenu-l', madeAt: NOW },
+        { organizationId: before.id, channelConfigId: beforeConfig.id, variantKey: 'LINKED:APPROVER', richMenuId: 'richmenu-a', madeAt: NOW },
+      ],
+    })
     const taken = await takeLineChannel(before.id)
     expect(taken).toMatchObject({ state: 'TAKEN', channel: { channelKey, channelSecret: 'the-secret', channelAccessToken: 'the-token', richMenuLinkedId: 'richmenu-l' } })
     if (taken.state !== 'TAKEN') throw new Error('not taken')
-    // The wipe removes the old row (and its organization); the seed makes the demo organization again with a new id
+    // The wipe removes the old rows (and their organization); the seed makes the demo organization again with a new id
+    await prisma.lineRichMenuVariant.deleteMany({ where: { organizationId: before.id } })
     await prisma.lineChannelConfig.deleteMany({ where: { organizationId: before.id } })
     const after = await createOrg()
     await putLineChannel(after.id, taken.channel, NOW)
     const row = await prisma.lineChannelConfig.findFirstOrThrow({ where: { organizationId: after.id } })
     expect(row).toMatchObject({ channelKey, providerId: 'provider-1', messagingChannelId: 'messaging-1', liffId: 'liff-1', richMenuLinkedId: 'richmenu-l', richMenuUnlinkedId: 'richmenu-u', active: true })
+    expect(await prisma.lineRichMenuVariant.findMany({ where: { organizationId: after.id }, select: { variantKey: true, richMenuId: true, channelConfigId: true }, orderBy: { variantKey: 'asc' } })).toEqual([
+      { variantKey: 'LINKED', richMenuId: 'richmenu-l', channelConfigId: row.id },
+      { variantKey: 'LINKED:APPROVER', richMenuId: 'richmenu-a', channelConfigId: row.id },
+    ])
     expect(openLineSecret(after.id, 'channelSecret', row.channelSecretEnc)).toBe('the-secret')
     expect(openLineSecret(after.id, 'channelAccessToken', row.channelAccessTokenEnc)).toBe('the-token')
     // Sealed for the new organization: the value does not open as the old one's

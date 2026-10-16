@@ -6203,12 +6203,12 @@
         "title": "LIFF ID"
       },
       "richMenus": {
-        "missingAtLine": "LINE no longer has the {missing} rich menu. Click \"Make both rich menus again\" on this page.",
+        "missingAtLine": "LINE no longer has the {missing} rich menu. Click \"Make every rich menu again\" on this page.",
         "needsAccessToken": "This check runs once the access token passes.",
-        "notCreated": "The rich menus are not created yet. Click \"Make both rich menus again\" on this page.",
-        "ok": "LINE has the rich menu for people who have not linked their account and the one for linked people.",
+        "notCreated": "The rich menus are not created yet. Click \"Make every rich menu again\" on this page.",
+        "ok": "LINE has every rich menu: the one for people who have not linked their account and the sets by role for linked people.",
         "rejected": "LINE refused the request (HTTP {status}) {detail}",
-        "title": "Both rich menus",
+        "title": "Every rich menu",
         "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again."
       },
       "webhookReachable": {
@@ -6273,9 +6273,9 @@
       "REQUIRED": "Enter {field} the first time you save."
     },
     "richMenus": {
-      "button": "Make both rich menus again",
+      "button": "Make every rich menu again",
       "defaultNotSet": "LINE did not make the link-account set the default menu yet. Click the button again in a moment.",
-      "done": "Both rich menus were made again.",
+      "done": "Every rich menu was made again.",
       "errors": {
         "CONFLICT": "Another administrator saved the LINE settings while the menus were made. The page now shows the latest values; click the button again.",
         "IMAGES": "The system's rich menu pictures cannot be used. Tell the BCS team.",
@@ -6284,14 +6284,14 @@
         "NOT_CONFIGURED": "Save the LINE settings first, then make the rich menus.",
         "TOKEN_UNREADABLE": "The saved access token cannot be read. Enter the token again and save first."
       },
-      "intro": "The menu under the LINE chat comes in two sets: one to link an account, for people who have not linked yet, and one to work with, for linked members. This button makes both again from the system's pictures and gives every linked member the new one.",
+      "intro": "The menu under the LINE chat comes as one set to link an account, for people who have not linked yet, and sets to work with by role, for linked members (approvers, receivers, purchasing). This button makes every set again from the system's pictures and gives every linked member the one for their role.",
       "noAnswer": "No answer came back, so it is not certain the rich menus were made. Click the button again or reload the page to see their state.",
       "notStored": "Not made yet",
       "relinkFailed": "LINE could not give the menu to {count, plural, one {# member} other {# members}} for now. They keep the old one; click the button again in a moment.",
       "relinkRefused": "LINE refused the menu for {count, plural, one {# member} other {# members}}, perhaps because they blocked the account. They get it back when they unblock it.",
       "relinked": "{count, plural, one {# linked member got} other {# linked members got}} the new menu.",
       "running": "Making the rich menus…",
-      "stored": "Both are made",
+      "stored": "All are made",
       "title": "Rich menu"
     },
     "save": "Save LINE settings",

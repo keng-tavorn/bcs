@@ -118,23 +118,23 @@
       "envMismatch": "LIFF ID {liffId} (channel {liffChannelId}) is not the LIFF app this BCS system runs, which is {envLiffId} (channel {envLiffChannelId}). Save those two values, or tell the BCS team if your organization needs a LIFF app of its own."
     },
     "richMenus": {
-      "title": "Both rich menus",
-      "ok": "LINE has the rich menu for people who have not linked their account and the one for linked people.",
-      "notCreated": "The rich menus are not created yet. Click \"Make both rich menus again\" on this page.",
+      "title": "Every rich menu",
+      "ok": "LINE has every rich menu: the one for people who have not linked their account and the sets by role for linked people.",
+      "notCreated": "The rich menus are not created yet. Click \"Make every rich menu again\" on this page.",
       "needsAccessToken": "This check runs once the access token passes.",
-      "missingAtLine": "LINE no longer has the {missing} rich menu. Click \"Make both rich menus again\" on this page.",
+      "missingAtLine": "LINE no longer has the {missing} rich menu. Click \"Make every rich menu again\" on this page.",
       "unreachable": "LINE cannot be reached right now ({cause}). Wait a moment and test again.",
       "rejected": "LINE refused the request (HTTP {status}) {detail}"
     }
   },
   "richMenus": {
     "title": "Rich menu",
-    "intro": "The menu under the LINE chat comes in two sets: one to link an account, for people who have not linked yet, and one to work with, for linked members. This button makes both again from the system's pictures and gives every linked member the new one.",
-    "stored": "Both are made",
+    "intro": "The menu under the LINE chat comes as one set to link an account, for people who have not linked yet, and sets to work with by role, for linked members (approvers, receivers, purchasing). This button makes every set again from the system's pictures and gives every linked member the one for their role.",
+    "stored": "All are made",
     "notStored": "Not made yet",
-    "button": "Make both rich menus again",
+    "button": "Make every rich menu again",
     "running": "Making the rich menus…",
-    "done": "Both rich menus were made again.",
+    "done": "Every rich menu was made again.",
     "relinked": "{count, plural, one {# linked member got} other {# linked members got}} the new menu.",
     "relinkRefused": "LINE refused the menu for {count, plural, one {# member} other {# members}}, perhaps because they blocked the account. They get it back when they unblock it.",
     "relinkFailed": "LINE could not give the menu to {count, plural, one {# member} other {# members}} for now. They keep the old one; click the button again in a moment.",

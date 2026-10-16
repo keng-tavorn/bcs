@@ -225,6 +225,8 @@ export interface CarriedLineChannel {
   readonly richMenuLinkedId: string | null
   readonly richMenuUnlinkedId: string | null
   readonly active: boolean
+  /** S17-04: the rich menu sets by role (LineRichMenuVariant), so members keep their menus through the reset */
+  readonly richMenuSets?: readonly { readonly variantKey: string; readonly richMenuId: string; readonly madeAt: Date }[]
 }
 
 export type LineChannelTake = { readonly state: 'NONE' } | { readonly state: 'NOT_OPENED' } | { readonly state: 'TAKEN'; readonly channel: CarriedLineChannel }
@@ -237,7 +239,8 @@ export async function takeLineChannel(organizationId: string): Promise<LineChann
   const channelAccessToken = openLineSecret(organizationId, 'channelAccessToken', row.channelAccessTokenEnc)
   if (channelSecret === null || channelAccessToken === null) return { state: 'NOT_OPENED' }
   const { channelKey, providerId, messagingChannelId, liffId, liffChannelId, richMenuLinkedId, richMenuUnlinkedId, active } = row
-  return { state: 'TAKEN', channel: { channelKey, providerId, messagingChannelId, channelSecret, channelAccessToken, liffId, liffChannelId, richMenuLinkedId, richMenuUnlinkedId, active } }
+  const richMenuSets = await forTenant(organizationId).lineRichMenuVariant.findMany({ select: { variantKey: true, richMenuId: true, madeAt: true }, orderBy: { variantKey: 'asc' } })
+  return { state: 'TAKEN', channel: { channelKey, providerId, messagingChannelId, channelSecret, channelAccessToken, liffId, liffChannelId, richMenuLinkedId, richMenuUnlinkedId, active, richMenuSets } }
 }
 
 /**
@@ -245,7 +248,7 @@ export async function takeLineChannel(organizationId: string): Promise<LineChann
  * organization (NFR-SEC-07 binds them to it), replacing what the seed made from the LINE_* values, if anything
  */
 export async function putLineChannel(organizationId: string, carried: CarriedLineChannel, now: Date): Promise<void> {
-  const { channelSecret, channelAccessToken, ...values } = carried
+  const { channelSecret, channelAccessToken, richMenuSets = [], ...values } = carried
   await restoreLineChannelRow(
     organizationId,
     {
@@ -254,5 +257,6 @@ export async function putLineChannel(organizationId: string, carried: CarriedLin
       channelAccessTokenEnc: sealLineSecret(organizationId, 'channelAccessToken', channelAccessToken),
     },
     now,
+    richMenuSets,
   )
 }

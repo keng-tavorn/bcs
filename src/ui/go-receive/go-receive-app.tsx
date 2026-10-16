@@ -23,6 +23,7 @@ import { ReceiptForm } from './receipt-form'
 import { findScanned, foundTyped, type Found } from './scan'
 import { drainQueue, resumeAfterRestart, resumeAfterSignIn, sendUnknownNow, type DrainContext } from './runner'
 import { keepShellOffline } from './shell-cache'
+import { openedToSignOut } from './sign-out-link'
 import { actingMember, askToKeep, deletePhoto, forgetMember, forgetOthers, keepResolved, readPrepared, readQueue, updateQueue, writePrepared, type PoCopy, type Prepared, type ReceiptPayload, type Session, type StoredItem, type StoredPhoto } from './store'
 
 // /go/receive (S17-13, FR-PLT-301 AC5 AC7 AC8 AC9, BR-APP-03 to BR-APP-10, BR-APP-13, BR-APP-14, §9.7): receiving on
@@ -173,6 +174,16 @@ export function GoReceiveApp() {
       window.removeEventListener('offline', down)
     }
   }, [drain, prepare, reload])
+
+  // Opened by the menu's sign-out (./sign-out-link.ts): the steps of askSignOut below, once the page is ready
+  useEffect(() => {
+    if (!ready || !openedToSignOut()) return
+    void (async () => {
+      if (onlineNow()) await sendUnknownNow(await context())
+      await reload()
+      setSigningOut(true)
+    })()
+  }, [context, ready, reload])
 
   // The queue sends itself when the page opens and when the signal comes back (above), then every few seconds
   useEffect(() => {

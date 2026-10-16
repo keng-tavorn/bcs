@@ -234,6 +234,40 @@ test('[FR-PLT-301/AC9] signing out while a receipt may be recorded warns "อา
   }
 })
 
+test('[FR-PLT-301/AC9] the menu’s sign-out on a phone that keeps a receipt opens the queue’s warning first', async ({ browser, clientIp, isMobile }, testInfo) => {
+  test.setTimeout(180_000)
+  const po = sentPo(testInfo)
+  const { context, page } = await withoutWorker(browser, testInfo, clientIp, po.receiver)
+  try {
+    await page.route('**/api/go/receiving/gr', (route) => (route.request().method() === 'POST' ? route.abort('connectionfailed') : route.continue()))
+    await page.goto('/go/receive')
+    await expect(page.getByRole('button', { name: `บันทึกตรวจรับ ${po.number}` })).toBeVisible()
+    await record(page, po, null)
+    await expect(count(page, 'อาจบันทึกแล้ว')).toHaveText('1')
+
+    // Elsewhere in the workspace, "ออกจากระบบ" of the menu (on a phone at the foot of the menu sheet)
+    await page.goto('/receiving')
+    if (isMobile) {
+      await page.getByRole('button', { name: 'ยุบหรือขยายเมนู' }).click()
+      await page.getByRole('dialog').getByRole('region', { name: 'บัญชีของฉัน' }).getByRole('button', { name: 'ออกจากระบบ' }).click()
+    } else {
+      const bar = page.locator('header').first()
+      await bar.locator('summary[aria-label="บัญชีของฉัน"]').click()
+      await bar.getByRole('button', { name: 'ออกจากระบบ' }).click()
+    }
+    // Not signed out yet: /go/receive asks first, by kind (BR-APP-09)
+    await expect(page).toHaveURL(/\/go\/receive$/)
+    const dialog = page.getByRole('alertdialog', { name: 'ออกจากระบบและลบรายการในเครื่อง?' })
+    await expect(dialog).toContainText('อาจบันทึกแล้ว 1 รายการ')
+    await check(page, testInfo, 'go-receive-menu-sign-out')
+    await dialog.getByRole('button', { name: 'ลบและออกจากระบบ' }).click()
+    await expect(page).toHaveURL(/\/login$/)
+    expect(await storedQueue(page)).toBe(0)
+  } finally {
+    await context.close()
+  }
+})
+
 test('[FR-PLT-301/AC6] in the PWA the receiver types the PO number: its receipt form opens; a number not among the copies is not found', async ({ page }, testInfo) => {
   test.setTimeout(150_000)
   const po = sentPo(testInfo)

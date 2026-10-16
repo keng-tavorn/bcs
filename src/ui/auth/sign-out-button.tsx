@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { useId, useState } from 'react'
 import { settle } from '../admin-settings/outcome'
 import { storedPushDevice, storePushDevice } from '../bcs-go/native'
+import { GO_SIGN_OUT_PATH, receiptsOnPhone } from '../go-receive/sign-out-link'
 import { Button } from '../form/button'
 import { authClient, errorStatus, settled } from './client'
 
@@ -40,7 +41,8 @@ export function SignOutFailure({ id, result }: { readonly id: string; readonly r
 
 /**
  * endPushDevice: in the BCS Go app, the phone's push device ends before signing out (BR-AUTH-12 LOGOUT), so a shared
- * phone stops receiving the member's notifications; its answer is not waited for beyond the call itself
+ * phone stops receiving the member's notifications; its answer is not waited for beyond the call itself.
+ * A phone that keeps receipts of /go/receive signs out there instead, with the queue's warning (BR-APP-09).
  */
 export function SignOutButton({ endPushDevice }: { readonly endPushDevice?: (deviceId: string) => Promise<void> } = {}) {
   const t = useTranslations('auth.security')
@@ -58,6 +60,10 @@ export function SignOutButton({ endPushDevice }: { readonly endPushDevice?: (dev
         onClick={async () => {
           setPending(true)
           setFailed(null)
+          if ((await receiptsOnPhone()) > 0) {
+            router.push(GO_SIGN_OUT_PATH)
+            return
+          }
           const device = endPushDevice ? storedPushDevice() : null
           if (device && endPushDevice) {
             await settle(endPushDevice(device))
